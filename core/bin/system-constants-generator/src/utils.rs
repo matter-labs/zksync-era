@@ -10,7 +10,7 @@ use multivm::{
         BootloaderState, HistoryEnabled, HistoryMode, SimpleMemory, ToTracerPointer, Vm, VmTracer,
         ZkSyncVmState,
     },
-    zk_evm_1_5_0::aux_structures::Timestamp,
+    zk_evm_latest::aux_structures::Timestamp,
 };
 use once_cell::sync::Lazy;
 use zksync_contracts::{
@@ -128,7 +128,7 @@ pub(super) fn get_l1_tx(
 ) -> L1Tx {
     L1Tx {
         execute: Execute {
-            contract_address,
+            contract_address: contract_address,
             calldata: custom_calldata.unwrap_or_default(),
             value: U256::from(0),
             factory_deps,

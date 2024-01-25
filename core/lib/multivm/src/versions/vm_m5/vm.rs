@@ -1,3 +1,6 @@
+use itertools::Itertools;
+use zk_evm_1_3_1::aux_structures::LogQuery;
+use zkevm_test_harness_1_3_3::witness::sort_storage_access::sort_storage_access_queries;
 use zksync_state::StoragePtr;
 use zksync_types::{
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
@@ -153,9 +156,33 @@ impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
             .cloned()
             .collect();
 
+        let storage_log_queries = self.vm.get_final_log_queries();
+
+        // To allow calling the `vm-1.3.3`s. method, the `v1.3.1`'s `LogQuery` has to be converted
+        // to the `vm-1.3.3`'s `LogQuery`. Then, we need to convert it back.
+        let deduplicated_logs: Vec<LogQuery> = sort_storage_access_queries(
+            &storage_log_queries
+                .iter()
+                .map(|log| {
+                    GlueInto::<zk_evm_1_3_3::aux_structures::LogQuery>::glue_into(log.log_query)
+                })
+                .collect_vec(),
+        )
+        .1
+        .into_iter()
+        .map(GlueInto::<zk_evm_1_3_1::aux_structures::LogQuery>::glue_into)
+        .collect();
+
         CurrentExecutionState {
             events,
-            storage_log_queries: self.vm.get_final_log_queries(),
+            storage_log_queries: storage_log_queries
+                .into_iter()
+                .map(GlueInto::glue_into)
+                .collect(),
+            deduplicated_storage_log_queries: deduplicated_logs
+                .into_iter()
+                .map(GlueInto::glue_into)
+                .collect(),
             used_contract_hashes,
             system_logs: vec![],
             user_l2_to_l1_logs: l2_to_l1_logs,
