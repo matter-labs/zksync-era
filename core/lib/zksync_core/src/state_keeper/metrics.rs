@@ -52,6 +52,9 @@ pub(crate) struct StateKeeperMetrics {
     /// Time spent waiting for the header of a previous miniblock.
     #[metrics(buckets = Buckets::LATENCIES)]
     pub load_previous_miniblock_header: Histogram<Duration>,
+    /// The time it takes for transactions to be included in a block. Representative of the time user must wait before their transaction is confirmed.
+    #[metrics(buckets = Buckets::LATENCIES)]
+    pub transaction_inclusion_delay: Histogram<Duration>,
     /// Time spent by the state keeper on transaction execution.
     #[metrics(buckets = Buckets::LATENCIES)]
     pub tx_execution_time: Family<TxExecutionStage, Histogram<Duration>>,
@@ -249,6 +252,7 @@ pub(super) enum MiniblockSealStage {
     ExtractL2ToL1Logs,
     InsertL2ToL1Logs,
     CommitMiniblock,
+    ReportTxMetrics,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet)]
