@@ -18,7 +18,7 @@ use zksync_types::{
     get_code_key, get_system_context_init_logs,
     protocol_version::{L1VerifierConfig, ProtocolVersion},
     tokens::{TokenInfo, TokenMetadata, ETHEREUM_ADDRESS},
-    zk_evm_types::LogQuery,
+    zk_evm_types::{LogQuery, Timestamp},
     AccountTreeId, Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId,
     StorageKey, StorageLog, StorageLogKind, H256,
 };
@@ -167,7 +167,8 @@ async fn insert_base_system_contracts_to_factory_deps(
     storage
         .storage_dal()
         .insert_factory_deps(MiniblockNumber(0), &factory_deps)
-        .await;
+        .await
+        .unwrap();
 }
 
 async fn insert_system_contracts(
@@ -231,7 +232,19 @@ async fn insert_system_contracts(
     let deduped_log_queries: Vec<LogQuery> = sort_storage_access_queries(&log_queries)
         .1
         .into_iter()
-        .map(Into::into)
+        .map(|log_query| LogQuery {
+            timestamp: Timestamp(log_query.timestamp.0),
+            tx_number_in_block: log_query.tx_number_in_block,
+            aux_byte: log_query.aux_byte,
+            shard_id: log_query.shard_id,
+            address: log_query.address,
+            key: log_query.key,
+            read_value: log_query.read_value,
+            written_value: log_query.written_value,
+            rw_flag: log_query.rw_flag,
+            rollback: log_query.rollback,
+            is_service: log_query.is_service,
+        })
         .collect();
 
     let (deduplicated_writes, protective_reads): (Vec<_>, Vec<_>) = deduped_log_queries
@@ -263,7 +276,8 @@ async fn insert_system_contracts(
     transaction
         .storage_dal()
         .insert_factory_deps(MiniblockNumber(0), &factory_deps)
-        .await;
+        .await
+        .unwrap();
 
     transaction.commit().await.unwrap();
 }

@@ -244,6 +244,18 @@ impl TxExecutionMode {
             } => *missed_storage_invocation_limit,
         }
     }
+
+    pub fn set_invocation_limit(&mut self, limit: usize) {
+        match self {
+            Self::VerifyExecute => {}
+            TxExecutionMode::EstimateFee {
+                missed_storage_invocation_limit,
+            } => *missed_storage_invocation_limit = limit,
+            TxExecutionMode::EthCall {
+                missed_storage_invocation_limit,
+            } => *missed_storage_invocation_limit = limit,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
