@@ -99,7 +99,7 @@ impl HttpTest for CallTestAfterSnapshotRecovery {
 
     fn transaction_executor(&self) -> MockTransactionExecutor {
         let first_local_miniblock = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
-        CallTest::create_executor(MiniblockNumber(first_local_miniblock))
+        CallTest::create_executor(first_local_miniblock)
     }
 
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
@@ -226,7 +226,7 @@ impl HttpTest for SendRawTransactionTest {
     fn transaction_executor(&self) -> MockTransactionExecutor {
         let mut tx_executor = MockTransactionExecutor::default();
         let pending_block = if self.snapshot_recovery {
-            MiniblockNumber(StorageInitialization::SNAPSHOT_RECOVERY_BLOCK) + 1
+            StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1
         } else {
             MiniblockNumber(1)
         };
@@ -355,7 +355,7 @@ impl HttpTest for TraceCallTestAfterSnapshotRecovery {
 
     fn transaction_executor(&self) -> MockTransactionExecutor {
         let number = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
-        CallTest::create_executor(MiniblockNumber(number))
+        CallTest::create_executor(number)
     }
 
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
@@ -369,7 +369,7 @@ impl HttpTest for TraceCallTestAfterSnapshotRecovery {
         TraceCallTest::assert_debug_call(&call_request, &call_result);
 
         let first_local_miniblock = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
-        let first_miniblock_numbers = [api::BlockNumber::Latest, first_local_miniblock.into()];
+        let first_miniblock_numbers = [api::BlockNumber::Latest, first_local_miniblock.0.into()];
         for number in first_miniblock_numbers {
             let number = api::BlockId::Number(number);
             let error = client
@@ -383,7 +383,7 @@ impl HttpTest for TraceCallTestAfterSnapshotRecovery {
             }
         }
 
-        let pruned_block_numbers = [0, 1, StorageInitialization::SNAPSHOT_RECOVERY_BLOCK];
+        let pruned_block_numbers = [0, 1, StorageInitialization::SNAPSHOT_RECOVERY_BLOCK.0];
         for number in pruned_block_numbers {
             let number = api::BlockIdVariant::BlockNumber(number.into());
             let error = client
@@ -394,7 +394,7 @@ impl HttpTest for TraceCallTestAfterSnapshotRecovery {
         }
 
         let mut storage = pool.access_storage().await?;
-        store_miniblock(&mut storage, MiniblockNumber(first_local_miniblock), &[]).await?;
+        store_miniblock(&mut storage, first_local_miniblock, &[]).await?;
         drop(storage);
 
         let call_request = CallTest::call_request(b"pending");
@@ -445,7 +445,7 @@ impl HttpTest for EstimateGasTest {
     fn transaction_executor(&self) -> MockTransactionExecutor {
         let mut tx_executor = MockTransactionExecutor::default();
         let expected_block_number = if self.snapshot_recovery {
-            MiniblockNumber(StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1)
+            StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1
         } else {
             MiniblockNumber(1)
         };
