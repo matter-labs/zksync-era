@@ -25,7 +25,7 @@ use crate::{
         },
         updates::{MiniblockSealCommand, MiniblockUpdates, UpdatesManager},
     },
-    utils::testonly::prepare_empty_recovery_snapshot,
+    utils::testonly::prepare_recovery_snapshot,
 };
 
 mod tester;
@@ -443,7 +443,7 @@ async fn miniblock_and_l1_batch_processing_with_sync_sealer() {
 async fn miniblock_processing_after_snapshot_recovery() {
     let connection_pool = ConnectionPool::test_pool().await;
     let mut storage = connection_pool.access_storage().await.unwrap();
-    let snapshot_recovery = prepare_empty_recovery_snapshot(&mut storage, 23).await;
+    let snapshot_recovery = prepare_recovery_snapshot(&mut storage, 23, &[]).await;
     let tester = Tester::new();
 
     let (mut mempool, _) = tester

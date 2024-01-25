@@ -5,7 +5,7 @@ use assert_matches::assert_matches;
 use super::*;
 use crate::{
     genesis::{ensure_genesis_state, GenesisParams},
-    utils::testonly::{create_miniblock, prepare_empty_recovery_snapshot},
+    utils::testonly::{create_miniblock, prepare_recovery_snapshot},
 };
 
 #[tokio::test]
@@ -67,7 +67,7 @@ async fn creating_block_args() {
 async fn creating_block_args_after_snapshot_recovery() {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
-    let snapshot_recovery = prepare_empty_recovery_snapshot(&mut storage, 23).await;
+    let snapshot_recovery = prepare_recovery_snapshot(&mut storage, 23, &[]).await;
 
     let pending_block_args = BlockArgs::pending(&mut storage).await.unwrap();
     assert_eq!(

@@ -39,7 +39,7 @@ use crate::{
     genesis::{ensure_genesis_state, GenesisParams},
     utils::testonly::{
         create_l1_batch, create_l1_batch_metadata, create_l2_transaction, create_miniblock,
-        prepare_empty_recovery_snapshot, prepare_recovery_snapshot,
+        prepare_recovery_snapshot,
     },
 };
 
@@ -215,9 +215,6 @@ impl StorageInitialization {
                     )
                     .await?;
                 }
-            }
-            Self::Recovery { logs, factory_deps } if logs.is_empty() && factory_deps.is_empty() => {
-                prepare_empty_recovery_snapshot(storage, Self::SNAPSHOT_RECOVERY_BLOCK).await;
             }
             Self::Recovery { logs, factory_deps } => {
                 prepare_recovery_snapshot(storage, Self::SNAPSHOT_RECOVERY_BLOCK, logs).await;

@@ -98,8 +98,12 @@ async fn wait_for_notifier_miniblock(
 async fn notifiers_start_after_snapshot_recovery() {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
-    prepare_empty_recovery_snapshot(&mut storage, StorageInitialization::SNAPSHOT_RECOVERY_BLOCK)
-        .await;
+    prepare_recovery_snapshot(
+        &mut storage,
+        StorageInitialization::SNAPSHOT_RECOVERY_BLOCK,
+        &[],
+    )
+    .await;
 
     let (stop_sender, stop_receiver) = watch::channel(false);
     let (events_sender, mut events_receiver) = mpsc::unbounded_channel();
