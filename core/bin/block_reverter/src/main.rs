@@ -1,15 +1,13 @@
 use anyhow::Context as _;
 use clap::{Parser, Subcommand};
 use tokio::io::{self, AsyncReadExt};
-
 use zksync_config::{ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig, PostgresConfig};
-use zksync_dal::ConnectionPool;
-use zksync_env_config::FromEnv;
-use zksync_types::{L1BatchNumber, U256};
-
 use zksync_core::block_reverter::{
     BlockReverter, BlockReverterEthConfig, BlockReverterFlags, L1ExecutedBatchesRevert,
 };
+use zksync_dal::ConnectionPool;
+use zksync_env_config::FromEnv;
+use zksync_types::{L1BatchNumber, U256};
 
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version, about = "Block revert utility", long_about = None)]
@@ -33,8 +31,8 @@ enum Command {
         /// L1 batch number used to rollback to.
         #[arg(long)]
         l1_batch_number: u32,
-        /// Priority fee used for rollback ethereum transaction.
-        // We operate only by priority fee because we want to use base fee from ethereum
+        /// Priority fee used for rollback Ethereum transaction.
+        // We operate only by priority fee because we want to use base fee from Ethereum
         // and send transaction as soon as possible without any resend logic
         #[arg(long)]
         priority_fee_per_gas: Option<u64>,

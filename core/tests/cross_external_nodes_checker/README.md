@@ -19,7 +19,7 @@ Run the server
 
 ```
 zk init
-zk server --components api,tree,eth,data_fetcher,state_keeper
+zk server --components api,tree,eth,state_keeper
 ```
 
 Run the EN

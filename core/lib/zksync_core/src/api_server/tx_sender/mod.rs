@@ -1,67 +1,50 @@
 //! Helper module to submit transactions into the zkSync Network.
 
-// External uses
-use governor::{
-    clock::MonotonicClock,
-    middleware::NoOpMiddleware,
-    state::{InMemoryState, NotKeyed},
-    Quota, RateLimiter,
+use std::{cmp, sync::Arc, time::Instant};
+
+use anyhow::Context as _;
+use multivm::{
+    interface::VmExecutionResultAndLogs,
+    utils::{adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead},
+    vm_latest::constants::{BLOCK_GAS_LIMIT, MAX_PUBDATA_PER_BLOCK},
 };
-
-// Built-in uses
-use std::{cmp, num::NonZeroU32, sync::Arc, time::Instant};
-
-// Workspace uses
-
-use multivm::interface::VmExecutionResultAndLogs;
-use multivm::vm_latest::{
-    constants::{BLOCK_GAS_LIMIT, MAX_PUBDATA_PER_BLOCK},
-    utils::{
-        fee::derive_base_fee_and_gas_per_pubdata,
-        overhead::{derive_overhead, OverheadCoeficients},
-    },
-};
-
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig};
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool};
 use zksync_state::PostgresStorageCaches;
+use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     fee::{Fee, TransactionExecutionMetrics},
+    fee_model::BatchFeeInput,
     get_code_key, get_intrinsic_constants,
-    l2::error::TxCheckError::TxDuplication,
-    l2::L2Tx,
+    l1::is_l1_tx_type,
+    l2::{error::TxCheckError::TxDuplication, L2Tx},
     utils::storage_key_for_eth_balance,
-    AccountTreeId, Address, ExecuteTransactionCommon, L2ChainId, Nonce, PackedEthSignature,
-    ProtocolVersionId, Transaction, H160, H256, MAX_GAS_PER_PUBDATA_BYTE, MAX_L2_TX_GAS_LIMIT,
+    AccountTreeId, Address, ExecuteTransactionCommon, L2ChainId, MiniblockNumber, Nonce,
+    PackedEthSignature, ProtocolVersionId, Transaction, VmVersion, H160, H256, MAX_L2_TX_GAS_LIMIT,
     MAX_NEW_FACTORY_DEPS, U256,
 };
-
 use zksync_utils::h256_to_u256;
 
-// Local uses
-use crate::api_server::{
-    execution_sandbox::{
-        adjust_l1_gas_price_for_tx, execute_tx_eth_call, execute_tx_with_pending_state,
-        get_pubdata_for_factory_deps, BlockArgs, SubmitTxStage, TxExecutionArgs, TxSharedArgs,
-        VmConcurrencyLimiter, VmPermit, SANDBOX_METRICS,
-    },
-    tx_sender::result::ApiCallResult,
-};
+pub(super) use self::{proxy::TxProxy, result::SubmitTxError};
 use crate::{
-    l1_gas_price::L1GasPriceProvider,
+    api_server::{
+        execution_sandbox::{
+            get_pubdata_for_factory_deps, BlockArgs, BlockStartInfo, SubmitTxStage,
+            TransactionExecutor, TxExecutionArgs, TxSharedArgs, VmConcurrencyLimiter, VmPermit,
+            SANDBOX_METRICS,
+        },
+        tx_sender::result::ApiCallResult,
+    },
+    fee_model::BatchFeeModelInputProvider,
     metrics::{TxStage, APP_METRICS},
-    state_keeper::seal_criteria::{ConditionalSealer, SealData},
+    state_keeper::seal_criteria::{ConditionalSealer, NoopSealer, SealData},
 };
 
 mod proxy;
 mod result;
-
-pub(super) use self::{proxy::TxProxy, result::SubmitTxError};
-
-/// Type alias for the rate limiter implementation.
-type TxSenderRateLimiter =
-    RateLimiter<NotKeyed, InMemoryState, MonotonicClock, NoOpMiddleware<Instant>>;
+#[cfg(test)]
+pub(crate) mod tests;
 
 #[derive(Debug, Clone)]
 pub struct MultiVMBaseSystemContracts {
@@ -73,6 +56,10 @@ pub struct MultiVMBaseSystemContracts {
     pub(crate) post_virtual_blocks_finish_upgrade_fix: BaseSystemContracts,
     /// Contracts to be used for post-boojum protocol versions.
     pub(crate) post_boojum: BaseSystemContracts,
+    /// Contracts to be used after the allow-list removal upgrade
+    pub(crate) post_allowlist_removal: BaseSystemContracts,
+    /// Contracts to be used after the 1.4.1 upgrade
+    pub(crate) post_1_4_1: BaseSystemContracts,
 }
 
 impl MultiVMBaseSystemContracts {
@@ -96,7 +83,9 @@ impl MultiVMBaseSystemContracts {
             | ProtocolVersionId::Version15
             | ProtocolVersionId::Version16
             | ProtocolVersionId::Version17 => self.post_virtual_blocks_finish_upgrade_fix,
-            ProtocolVersionId::Version18 | ProtocolVersionId::Version19 => self.post_boojum,
+            ProtocolVersionId::Version18 => self.post_boojum,
+            ProtocolVersionId::Version19 => self.post_allowlist_removal,
+            ProtocolVersionId::Version20 | ProtocolVersionId::Version21 => self.post_1_4_1,
         }
     }
 }
@@ -111,7 +100,7 @@ pub struct ApiContracts {
     pub(crate) estimate_gas: MultiVMBaseSystemContracts,
     /// Contracts to be used when performing `eth_call` requests.
     /// These contracts (mainly, bootloader) normally should be tuned to provide better UX
-    /// exeprience (e.g. revert messages).
+    /// experience (e.g. revert messages).
     pub(crate) eth_call: MultiVMBaseSystemContracts,
 }
 
@@ -127,6 +116,8 @@ impl ApiContracts {
                 post_virtual_blocks_finish_upgrade_fix:
                     BaseSystemContracts::estimate_gas_post_virtual_blocks_finish_upgrade_fix(),
                 post_boojum: BaseSystemContracts::estimate_gas_post_boojum(),
+                post_allowlist_removal: BaseSystemContracts::estimate_gas_post_allowlist_removal(),
+                post_1_4_1: BaseSystemContracts::estimate_gas_post_1_4_1(),
             },
             eth_call: MultiVMBaseSystemContracts {
                 pre_virtual_blocks: BaseSystemContracts::playground_pre_virtual_blocks(),
@@ -134,6 +125,8 @@ impl ApiContracts {
                 post_virtual_blocks_finish_upgrade_fix:
                     BaseSystemContracts::playground_post_virtual_blocks_finish_upgrade_fix(),
                 post_boojum: BaseSystemContracts::playground_post_boojum(),
+                post_allowlist_removal: BaseSystemContracts::playground_post_allowlist_removal(),
+                post_1_4_1: BaseSystemContracts::playground_post_1_4_1(),
             },
         }
     }
@@ -148,13 +141,10 @@ pub struct TxSenderBuilder {
     replica_connection_pool: ConnectionPool,
     /// Connection pool for write requests. If not set, `proxy` must be set.
     master_connection_pool: Option<ConnectionPool>,
-    /// Rate limiter for tx submissions.
-    rate_limiter: Option<TxSenderRateLimiter>,
     /// Proxy to submit transactions to the network. If not set, `master_connection_pool` must be set.
     proxy: Option<TxProxy>,
-    /// Actual state keeper configuration, required for tx verification.
-    /// If not set, transactions would not be checked against seal criteria.
-    state_keeper_config: Option<StateKeeperConfig>,
+    /// Batch sealer used to check whether transaction can be executed by the sequencer.
+    sealer: Option<Arc<dyn ConditionalSealer>>,
 }
 
 impl TxSenderBuilder {
@@ -163,21 +153,14 @@ impl TxSenderBuilder {
             config,
             replica_connection_pool,
             master_connection_pool: None,
-            rate_limiter: None,
             proxy: None,
-            state_keeper_config: None,
+            sealer: None,
         }
     }
 
-    pub fn with_rate_limiter(self, transactions_per_sec: u32) -> Self {
-        let rate_limiter = RateLimiter::direct_with_clock(
-            Quota::per_second(NonZeroU32::new(transactions_per_sec).unwrap()),
-            &MonotonicClock,
-        );
-        Self {
-            rate_limiter: Some(rate_limiter),
-            ..self
-        }
+    pub fn with_sealer(mut self, sealer: Arc<dyn ConditionalSealer>) -> Self {
+        self.sealer = Some(sealer);
+        self
     }
 
     pub fn with_tx_proxy(mut self, main_node_url: &str) -> Self {
@@ -190,34 +173,32 @@ impl TxSenderBuilder {
         self
     }
 
-    pub fn with_state_keeper_config(mut self, state_keeper_config: StateKeeperConfig) -> Self {
-        self.state_keeper_config = Some(state_keeper_config);
-        self
-    }
-
-    pub async fn build<G: L1GasPriceProvider>(
+    pub async fn build(
         self,
-        l1_gas_price_source: Arc<G>,
+        batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
         vm_concurrency_limiter: Arc<VmConcurrencyLimiter>,
         api_contracts: ApiContracts,
         storage_caches: PostgresStorageCaches,
-    ) -> TxSender<G> {
+    ) -> TxSender {
         assert!(
             self.master_connection_pool.is_some() || self.proxy.is_some(),
             "Either master connection pool or proxy must be set"
         );
 
+        // Use noop sealer if no sealer was explicitly provided.
+        let sealer = self.sealer.unwrap_or_else(|| Arc::new(NoopSealer));
+
         TxSender(Arc::new(TxSenderInner {
             sender_config: self.config,
             master_connection_pool: self.master_connection_pool,
             replica_connection_pool: self.replica_connection_pool,
-            l1_gas_price_source,
+            batch_fee_input_provider,
             api_contracts,
-            rate_limiter: self.rate_limiter,
             proxy: self.proxy,
-            state_keeper_config: self.state_keeper_config,
             vm_concurrency_limiter,
             storage_caches,
+            sealer,
+            executor: TransactionExecutor::Real,
         }))
     }
 }
@@ -232,9 +213,9 @@ pub struct TxSenderConfig {
     pub gas_price_scale_factor: f64,
     pub max_nonce_ahead: u32,
     pub max_allowed_l2_tx_gas_limit: u32,
-    pub fair_l2_gas_price: u64,
     pub vm_execution_cache_misses_limit: Option<usize>,
     pub validation_computational_gas_limit: u32,
+    pub l1_to_l2_transactions_compatibility_mode: bool,
     pub chain_id: L2ChainId,
 }
 
@@ -249,54 +230,44 @@ impl TxSenderConfig {
             gas_price_scale_factor: web3_json_config.gas_price_scale_factor,
             max_nonce_ahead: web3_json_config.max_nonce_ahead,
             max_allowed_l2_tx_gas_limit: state_keeper_config.max_allowed_l2_tx_gas_limit,
-            fair_l2_gas_price: state_keeper_config.fair_l2_gas_price,
             vm_execution_cache_misses_limit: web3_json_config.vm_execution_cache_misses_limit,
             validation_computational_gas_limit: state_keeper_config
                 .validation_computational_gas_limit,
+            l1_to_l2_transactions_compatibility_mode: web3_json_config
+                .l1_to_l2_transactions_compatibility_mode,
             chain_id,
         }
     }
 }
 
-pub struct TxSenderInner<G> {
+pub struct TxSenderInner {
     pub(super) sender_config: TxSenderConfig,
     pub master_connection_pool: Option<ConnectionPool>,
     pub replica_connection_pool: ConnectionPool,
     // Used to keep track of gas prices for the fee ticker.
-    pub l1_gas_price_source: Arc<G>,
+    pub batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     pub(super) api_contracts: ApiContracts,
-    /// Optional rate limiter that will limit the amount of transactions per second sent from a single entity.
-    rate_limiter: Option<TxSenderRateLimiter>,
     /// Optional transaction proxy to be used for transaction submission.
     pub(super) proxy: Option<TxProxy>,
-    /// An up-to-date version of the state keeper config.
-    /// This field may be omitted on the external node, since the configuration may change unexpectedly.
-    /// If this field is set to `None`, `TxSender` will assume that any transaction is executable.
-    state_keeper_config: Option<StateKeeperConfig>,
     /// Used to limit the amount of VMs that can be executed simultaneously.
     pub(super) vm_concurrency_limiter: Arc<VmConcurrencyLimiter>,
     // Caches used in VM execution.
     storage_caches: PostgresStorageCaches,
+    /// Batch sealer used to check whether transaction can be executed by the sequencer.
+    sealer: Arc<dyn ConditionalSealer>,
+    pub(super) executor: TransactionExecutor,
 }
 
-pub struct TxSender<G>(pub(super) Arc<TxSenderInner<G>>);
+#[derive(Clone)]
+pub struct TxSender(pub(super) Arc<TxSenderInner>);
 
-// Custom implementation is required due to generic param:
-// Even though it's under `Arc`, compiler doesn't generate the `Clone` implementation unless
-// an unnecessary bound is added.
-impl<G> Clone for TxSender<G> {
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
-    }
-}
-
-impl<G> std::fmt::Debug for TxSender<G> {
+impl std::fmt::Debug for TxSender {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TxSender").finish()
     }
 }
 
-impl<G: L1GasPriceProvider> TxSender<G> {
+impl TxSender {
     pub(crate) fn vm_concurrency_limiter(&self) -> Arc<VmConcurrencyLimiter> {
         Arc::clone(&self.0.vm_concurrency_limiter)
     }
@@ -305,14 +276,9 @@ impl<G: L1GasPriceProvider> TxSender<G> {
         self.0.storage_caches.clone()
     }
 
+    // TODO (PLA-725): propagate DB errors instead of panicking
     #[tracing::instrument(skip(self, tx))]
     pub async fn submit_tx(&self, tx: L2Tx) -> Result<L2TxSubmissionResult, SubmitTxError> {
-        if let Some(rate_limiter) = &self.0.rate_limiter {
-            if rate_limiter.check().is_err() {
-                return Err(SubmitTxError::RateLimitExceeded);
-            }
-        }
-
         let stage_latency = SANDBOX_METRICS.submit_tx[&SubmitTxStage::Validate].start();
         self.validate_tx(&tx).await?;
         stage_latency.observe();
@@ -321,15 +287,29 @@ impl<G: L1GasPriceProvider> TxSender<G> {
         let shared_args = self.shared_args();
         let vm_permit = self.0.vm_concurrency_limiter.acquire().await;
         let vm_permit = vm_permit.ok_or(SubmitTxError::ServerShuttingDown)?;
+        let mut connection = self
+            .0
+            .replica_connection_pool
+            .access_storage_tagged("api")
+            .await
+            .unwrap();
+        let block_args = BlockArgs::pending(&mut connection).await;
+        drop(connection);
 
-        let (_, tx_metrics) = execute_tx_with_pending_state(
-            vm_permit.clone(),
-            shared_args.clone(),
-            TxExecutionArgs::for_validation(&tx),
-            self.0.replica_connection_pool.clone(),
-            tx.clone().into(),
-        )
-        .await;
+        let (_, tx_metrics, published_bytecodes) = self
+            .0
+            .executor
+            .execute_tx_in_sandbox(
+                vm_permit.clone(),
+                shared_args.clone(),
+                true,
+                TxExecutionArgs::for_validation(&tx),
+                self.0.replica_connection_pool.clone(),
+                tx.clone().into(),
+                block_args,
+                vec![],
+            )
+            .await;
 
         tracing::info!(
             "Submit tx {:?} with execution metrics {:?}",
@@ -340,11 +320,15 @@ impl<G: L1GasPriceProvider> TxSender<G> {
 
         let stage_latency = SANDBOX_METRICS.submit_tx[&SubmitTxStage::VerifyExecute].start();
         let computational_gas_limit = self.0.sender_config.validation_computational_gas_limit;
-        let validation_result = shared_args
-            .validate_tx_with_pending_state(
-                vm_permit,
+        let validation_result = self
+            .0
+            .executor
+            .validate_tx_in_sandbox(
                 self.0.replica_connection_pool.clone(),
+                vm_permit,
                 tx.clone(),
+                shared_args,
+                block_args,
                 computational_gas_limit,
             )
             .await;
@@ -352,6 +336,10 @@ impl<G: L1GasPriceProvider> TxSender<G> {
 
         if let Err(err) = validation_result {
             return Err(err.into());
+        }
+
+        if !published_bytecodes {
+            return Err(SubmitTxError::FailedToPublishCompressedBytecodes);
         }
 
         let stage_started_at = Instant::now();
@@ -379,7 +367,7 @@ impl<G: L1GasPriceProvider> TxSender<G> {
 
         let nonce = tx.common_data.nonce.0;
         let hash = tx.hash();
-        let expected_nonce = self.get_expected_nonce(&tx).await;
+        let initiator_account = tx.initiator_account();
         let submission_res_handle = self
             .0
             .master_connection_pool
@@ -395,11 +383,15 @@ impl<G: L1GasPriceProvider> TxSender<G> {
         APP_METRICS.processed_txs[&TxStage::Mempool(submission_res_handle)].inc();
 
         match submission_res_handle {
-            L2TxSubmissionResult::AlreadyExecuted => Err(SubmitTxError::NonceIsTooLow(
-                expected_nonce.0,
-                expected_nonce.0 + self.0.sender_config.max_nonce_ahead,
-                nonce,
-            )),
+            L2TxSubmissionResult::AlreadyExecuted => {
+                let Nonce(expected_nonce) =
+                    self.get_expected_nonce(initiator_account).await.unwrap();
+                Err(SubmitTxError::NonceIsTooLow(
+                    expected_nonce,
+                    expected_nonce + self.0.sender_config.max_nonce_ahead,
+                    nonce,
+                ))
+            }
             L2TxSubmissionResult::Duplicate => Err(SubmitTxError::IncorrectTx(TxDuplication(hash))),
             _ => {
                 SANDBOX_METRICS.submit_tx[&SubmitTxStage::DbInsert]
@@ -412,8 +404,7 @@ impl<G: L1GasPriceProvider> TxSender<G> {
     fn shared_args(&self) -> TxSharedArgs {
         TxSharedArgs {
             operator_account: AccountTreeId::new(self.0.sender_config.fee_account_addr),
-            l1_gas_price: self.0.l1_gas_price_source.estimate_effective_gas_price(),
-            fair_l2_gas_price: self.0.sender_config.fair_l2_gas_price,
+            fee_input: self.0.batch_fee_input_provider.get_batch_fee_input(),
             base_system_contracts: self.0.api_contracts.eth_call.clone(),
             caches: self.storage_caches(),
             validation_computational_gas_limit: self
@@ -432,6 +423,8 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             return Err(SubmitTxError::GasLimitIsTooBig);
         }
 
+        let fee_input = self.0.batch_fee_input_provider.get_batch_fee_input();
+
         // TODO (SMA-1715): do not subsidize the overhead for the transaction
 
         if tx.common_data.fee.gas_limit > self.0.sender_config.max_allowed_l2_tx_gas_limit.into() {
@@ -442,7 +435,7 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             );
             return Err(SubmitTxError::GasLimitIsTooBig);
         }
-        if tx.common_data.fee.max_fee_per_gas < self.0.sender_config.fair_l2_gas_price.into() {
+        if tx.common_data.fee.max_fee_per_gas < fee_input.fair_l2_gas_price().into() {
             tracing::info!(
                 "Submitted Tx is Unexecutable {:?} because of MaxFeePerGasTooLow {}",
                 tx.hash(),
@@ -465,19 +458,12 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             ));
         }
 
-        let l1_gas_price = self.0.l1_gas_price_source.estimate_effective_gas_price();
-        let (_, gas_per_pubdata_byte) = derive_base_fee_and_gas_per_pubdata(
-            l1_gas_price,
-            self.0.sender_config.fair_l2_gas_price,
-        );
-        let effective_gas_per_pubdata = cmp::min(
-            tx.common_data.fee.gas_per_pubdata_limit,
-            gas_per_pubdata_byte.into(),
-        );
-
         let intrinsic_consts = get_intrinsic_constants();
-        let min_gas_limit = U256::from(intrinsic_consts.l2_tx_intrinsic_gas)
-            + U256::from(intrinsic_consts.l2_tx_intrinsic_pubdata) * effective_gas_per_pubdata;
+        assert!(
+            intrinsic_consts.l2_tx_intrinsic_pubdata == 0,
+            "Currently we assume that the L2 transactions do not have any intrinsic pubdata"
+        );
+        let min_gas_limit = U256::from(intrinsic_consts.l2_tx_intrinsic_gas);
         if tx.common_data.fee.gas_limit < min_gas_limit {
             return Err(SubmitTxError::IntrinsicGas);
         }
@@ -492,19 +478,22 @@ impl<G: L1GasPriceProvider> TxSender<G> {
     }
 
     async fn validate_account_nonce(&self, tx: &L2Tx) -> Result<(), SubmitTxError> {
-        let expected_nonce = self.get_expected_nonce(tx).await;
+        let Nonce(expected_nonce) = self
+            .get_expected_nonce(tx.initiator_account())
+            .await
+            .unwrap();
 
-        if tx.common_data.nonce.0 < expected_nonce.0 {
+        if tx.common_data.nonce.0 < expected_nonce {
             Err(SubmitTxError::NonceIsTooLow(
-                expected_nonce.0,
-                expected_nonce.0 + self.0.sender_config.max_nonce_ahead,
+                expected_nonce,
+                expected_nonce + self.0.sender_config.max_nonce_ahead,
                 tx.nonce().0,
             ))
         } else {
-            let max_nonce = expected_nonce.0 + self.0.sender_config.max_nonce_ahead;
-            if !(expected_nonce.0..=max_nonce).contains(&tx.common_data.nonce.0) {
+            let max_nonce = expected_nonce + self.0.sender_config.max_nonce_ahead;
+            if !(expected_nonce..=max_nonce).contains(&tx.common_data.nonce.0) {
                 Err(SubmitTxError::NonceIsTooHigh(
-                    expected_nonce.0,
+                    expected_nonce,
                     max_nonce,
                     tx.nonce().0,
                 ))
@@ -514,25 +503,37 @@ impl<G: L1GasPriceProvider> TxSender<G> {
         }
     }
 
-    async fn get_expected_nonce(&self, tx: &L2Tx) -> Nonce {
-        let mut connection = self
+    async fn get_expected_nonce(&self, initiator_account: Address) -> anyhow::Result<Nonce> {
+        let mut storage = self
             .0
             .replica_connection_pool
             .access_storage_tagged("api")
-            .await
-            .unwrap();
+            .await?;
 
-        let latest_block_number = connection
-            .blocks_web3_dal()
+        let latest_block_number = storage
+            .blocks_dal()
             .get_sealed_miniblock_number()
             .await
-            .unwrap();
-        let nonce = connection
+            .context("failed getting sealed miniblock number")?;
+        let latest_block_number = match latest_block_number {
+            Some(number) => number,
+            None => {
+                // We don't have miniblocks in the storage yet. Use the snapshot miniblock number instead.
+                let start = BlockStartInfo::new(&mut storage).await?;
+                MiniblockNumber(start.first_miniblock.saturating_sub(1))
+            }
+        };
+
+        let nonce = storage
             .storage_web3_dal()
-            .get_address_historical_nonce(tx.initiator_account(), latest_block_number)
+            .get_address_historical_nonce(initiator_account, latest_block_number)
             .await
-            .unwrap();
-        Nonce(nonce.as_u32())
+            .with_context(|| {
+                format!("failed getting nonce for address {initiator_account:?} at miniblock #{latest_block_number}")
+            })?;
+        let nonce = u32::try_from(nonce)
+            .map_err(|err| anyhow::anyhow!("failed converting nonce to u32: {err}"))?;
+        Ok(Nonce(nonce))
     }
 
     async fn validate_enough_balance(&self, tx: &L2Tx) -> Result<(), SubmitTxError> {
@@ -547,11 +548,7 @@ impl<G: L1GasPriceProvider> TxSender<G> {
         let balance = self.get_balance(&tx.common_data.initiator_address).await;
 
         // Estimate the minimum fee price user will agree to.
-        let gas_price = cmp::min(
-            tx.common_data.fee.max_fee_per_gas,
-            U256::from(self.0.sender_config.fair_l2_gas_price)
-                + tx.common_data.fee.max_priority_fee_per_gas,
-        );
+        let gas_price = tx.common_data.fee.max_fee_per_gas;
         let max_fee = tx.common_data.fee.gas_limit * gas_price;
         let max_fee_and_value = max_fee + tx.execute.value;
 
@@ -590,17 +587,20 @@ impl<G: L1GasPriceProvider> TxSender<G> {
         &self,
         vm_permit: VmPermit,
         mut tx: Transaction,
-        gas_per_pubdata_byte: u64,
         tx_gas_limit: u32,
-        l1_gas_price: u64,
+        gas_price_per_pubdata: u32,
+        fee_model_params: BatchFeeInput,
+        block_args: BlockArgs,
         base_fee: u64,
+        vm_version: VmVersion,
     ) -> (VmExecutionResultAndLogs, TransactionExecutionMetrics) {
         let gas_limit_with_overhead = tx_gas_limit
             + derive_overhead(
                 tx_gas_limit,
-                gas_per_pubdata_byte as u32,
+                gas_price_per_pubdata,
                 tx.encoding_len(),
-                OverheadCoeficients::from_tx_type(tx.tx_format() as u8),
+                tx.tx_format() as u8,
+                vm_version,
             );
 
         match &mut tx.common_data {
@@ -623,28 +623,34 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             }
         }
 
-        let shared_args = self.shared_args_for_gas_estimate(l1_gas_price);
+        let shared_args = self.shared_args_for_gas_estimate(fee_model_params);
         let vm_execution_cache_misses_limit = self.0.sender_config.vm_execution_cache_misses_limit;
         let execution_args =
             TxExecutionArgs::for_gas_estimate(vm_execution_cache_misses_limit, &tx, base_fee);
-        let (exec_result, tx_metrics) = execute_tx_with_pending_state(
-            vm_permit,
-            shared_args,
-            execution_args,
-            self.0.replica_connection_pool.clone(),
-            tx.clone(),
-        )
-        .await;
+        let (exec_result, tx_metrics, _) = self
+            .0
+            .executor
+            .execute_tx_in_sandbox(
+                vm_permit,
+                shared_args,
+                true,
+                execution_args,
+                self.0.replica_connection_pool.clone(),
+                tx.clone(),
+                block_args,
+                vec![],
+            )
+            .await;
 
         (exec_result, tx_metrics)
     }
 
-    fn shared_args_for_gas_estimate(&self, l1_gas_price: u64) -> TxSharedArgs {
+    fn shared_args_for_gas_estimate(&self, fee_input: BatchFeeInput) -> TxSharedArgs {
         let config = &self.0.sender_config;
+
         TxSharedArgs {
             operator_account: AccountTreeId::new(config.fee_account_addr),
-            l1_gas_price,
-            fair_l2_gas_price: config.fair_l2_gas_price,
+            fee_input,
             // We want to bypass the computation gas limit check for gas estimation
             validation_computational_gas_limit: BLOCK_GAS_LIMIT,
             base_system_contracts: self.0.api_contracts.estimate_gas.clone(),
@@ -660,24 +666,37 @@ impl<G: L1GasPriceProvider> TxSender<G> {
         acceptable_overestimation: u32,
     ) -> Result<Fee, SubmitTxError> {
         let estimation_started_at = Instant::now();
-        let l1_gas_price = {
-            let effective_gas_price = self.0.l1_gas_price_source.estimate_effective_gas_price();
-            let current_l1_gas_price =
-                ((effective_gas_price as f64) * self.0.sender_config.gas_price_scale_factor) as u64;
 
-            // In order for execution to pass smoothly, we need to ensure that block's required gasPerPubdata will be
-            // <= to the one in the transaction itself.
-            adjust_l1_gas_price_for_tx(
-                current_l1_gas_price,
-                self.0.sender_config.fair_l2_gas_price,
+        let mut connection = self
+            .0
+            .replica_connection_pool
+            .access_storage_tagged("api")
+            .await
+            .unwrap();
+        let block_args = BlockArgs::pending(&mut connection).await;
+        let protocol_version = block_args
+            .resolve_block_info(&mut connection)
+            .await
+            .unwrap()
+            .protocol_version;
+
+        drop(connection);
+
+        let fee_input = {
+            // For now, both L1 gas price and pubdata price are scaled with the same coefficient
+            let fee_input = self.0.batch_fee_input_provider.get_batch_fee_input_scaled(
+                self.0.sender_config.gas_price_scale_factor,
+                self.0.sender_config.gas_price_scale_factor,
+            );
+            adjust_pubdata_price_for_tx(
+                fee_input,
                 tx.gas_per_pubdata_byte_limit(),
+                protocol_version.into(),
             )
         };
 
-        let (base_fee, gas_per_pubdata_byte) = derive_base_fee_and_gas_per_pubdata(
-            l1_gas_price,
-            self.0.sender_config.fair_l2_gas_price,
-        );
+        let (base_fee, gas_per_pubdata_byte) =
+            derive_base_fee_and_gas_per_pubdata(fee_input, protocol_version.into());
         match &mut tx.common_data {
             ExecuteTransactionCommon::L2(common_data) => {
                 common_data.fee.max_fee_per_gas = base_fee.into();
@@ -725,7 +744,8 @@ impl<G: L1GasPriceProvider> TxSender<G> {
                 l2_common_data.signature = PackedEthSignature::default().serialize_packed().into();
             }
 
-            l2_common_data.fee.gas_per_pubdata_limit = MAX_GAS_PER_PUBDATA_BYTE.into();
+            l2_common_data.fee.gas_per_pubdata_limit =
+                U256::from(DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE);
         }
 
         // Acquire the vm token for the whole duration of the binary search.
@@ -755,7 +775,7 @@ impl<G: L1GasPriceProvider> TxSender<G> {
         };
 
         // We are using binary search to find the minimal values of gas_limit under which
-        // the transaction succeedes
+        // the transaction succeeds
         let mut lower_bound = 0;
         let mut upper_bound = MAX_L2_TX_GAS_LIMIT as u32;
         let tx_id = format!(
@@ -773,7 +793,7 @@ impl<G: L1GasPriceProvider> TxSender<G> {
         while lower_bound + acceptable_overestimation < upper_bound {
             let mid = (lower_bound + upper_bound) / 2;
             // There is no way to distinct between errors due to out of gas
-            // or normal exeuction errors, so we just hope that increasing the
+            // or normal execution errors, so we just hope that increasing the
             // gas limit will make the transaction successful
             let iteration_started_at = Instant::now();
             let try_gas_limit = gas_for_bytecodes_pubdata + mid;
@@ -781,10 +801,12 @@ impl<G: L1GasPriceProvider> TxSender<G> {
                 .estimate_gas_step(
                     vm_permit.clone(),
                     tx.clone(),
-                    gas_per_pubdata_byte,
                     try_gas_limit,
-                    l1_gas_price,
+                    gas_per_pubdata_byte as u32,
+                    fee_input,
+                    block_args,
                     base_fee,
+                    protocol_version.into(),
                 )
                 .await;
 
@@ -818,22 +840,41 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             .estimate_gas_step(
                 vm_permit,
                 tx.clone(),
-                gas_per_pubdata_byte,
                 suggested_gas_limit,
-                l1_gas_price,
+                gas_per_pubdata_byte as u32,
+                fee_input,
+                block_args,
                 base_fee,
+                protocol_version.into(),
             )
             .await;
 
         result.into_api_call_result()?;
         self.ensure_tx_executable(tx.clone(), &tx_metrics, false)?;
 
-        let overhead = derive_overhead(
-            suggested_gas_limit,
-            gas_per_pubdata_byte as u32,
-            tx.encoding_len(),
-            OverheadCoeficients::from_tx_type(tx.tx_format() as u8),
-        );
+        // Now, we need to calculate the final overhead for the transaction. We need to take into account the fact
+        // that the migration of 1.4.1 may be still going on.
+        let overhead = if self
+            .0
+            .sender_config
+            .l1_to_l2_transactions_compatibility_mode
+        {
+            derive_pessimistic_overhead(
+                suggested_gas_limit,
+                gas_per_pubdata_byte as u32,
+                tx.encoding_len(),
+                tx.tx_format() as u8,
+                protocol_version.into(),
+            )
+        } else {
+            derive_overhead(
+                suggested_gas_limit,
+                gas_per_pubdata_byte as u32,
+                tx.encoding_len(),
+                tx.tx_format() as u8,
+                protocol_version.into(),
+            )
+        };
 
         let full_gas_limit =
             match tx_body_gas_limit.overflowing_add(gas_for_bytecodes_pubdata + overhead) {
@@ -863,27 +904,45 @@ impl<G: L1GasPriceProvider> TxSender<G> {
         let vm_permit = vm_permit.ok_or(SubmitTxError::ServerShuttingDown)?;
 
         let vm_execution_cache_misses_limit = self.0.sender_config.vm_execution_cache_misses_limit;
-        execute_tx_eth_call(
-            vm_permit,
-            self.shared_args(),
-            self.0.replica_connection_pool.clone(),
-            tx,
-            block_args,
-            vm_execution_cache_misses_limit,
-            vec![],
-        )
-        .await
-        .into_api_call_result()
+        self.0
+            .executor
+            .execute_tx_eth_call(
+                vm_permit,
+                self.shared_args(),
+                self.0.replica_connection_pool.clone(),
+                tx,
+                block_args,
+                vm_execution_cache_misses_limit,
+                vec![],
+            )
+            .await
+            .into_api_call_result()
     }
 
-    pub fn gas_price(&self) -> u64 {
-        let gas_price = self.0.l1_gas_price_source.estimate_effective_gas_price();
-        let l1_gas_price = (gas_price as f64 * self.0.sender_config.gas_price_scale_factor).round();
+    pub async fn gas_price(&self) -> u64 {
+        let mut connection = self
+            .0
+            .replica_connection_pool
+            .access_storage_tagged("api")
+            .await
+            .unwrap();
+        let block_args = BlockArgs::pending(&mut connection).await;
+        let protocol_version = block_args
+            .resolve_block_info(&mut connection)
+            .await
+            .unwrap()
+            .protocol_version;
+        drop(connection);
+
         let (base_fee, _) = derive_base_fee_and_gas_per_pubdata(
-            l1_gas_price as u64,
-            self.0.sender_config.fair_l2_gas_price,
+            // For now, both the L1 gas price and the L1 pubdata price are scaled with the same coefficient
+            self.0.batch_fee_input_provider.get_batch_fee_input_scaled(
+                self.0.sender_config.gas_price_scale_factor,
+                self.0.sender_config.gas_price_scale_factor,
+            ),
+            protocol_version.into(),
         );
-        base_fee * self.0.l1_gas_price_source.get_erc20_conversion_rate()
+        base_fee * self.0.batch_fee_input_provider.get_erc20_conversion_rate()
     }
 
     fn ensure_tx_executable(
@@ -892,13 +951,6 @@ impl<G: L1GasPriceProvider> TxSender<G> {
         tx_metrics: &TransactionExecutionMetrics,
         log_message: bool,
     ) -> Result<(), SubmitTxError> {
-        let Some(sk_config) = &self.0.state_keeper_config else {
-            // No config provided, so we can't check if transaction satisfies the seal criteria.
-            // We assume that it's executable, and if it's not, it will be caught by the main server
-            // (where this check is always performed).
-            return Ok(());
-        };
-
         // Hash is not computable for the provided `transaction` during gas estimation (it doesn't have
         // its input data set). Since we don't log a hash in this case anyway, we just use a dummy value.
         let tx_hash = if log_message {
@@ -912,8 +964,10 @@ impl<G: L1GasPriceProvider> TxSender<G> {
         // still reject them as it's not.
         let protocol_version = ProtocolVersionId::latest();
         let seal_data = SealData::for_transaction(transaction, tx_metrics, protocol_version);
-        if let Some(reason) =
-            ConditionalSealer::find_unexecutable_reason(sk_config, &seal_data, protocol_version)
+        if let Some(reason) = self
+            .0
+            .sealer
+            .find_unexecutable_reason(&seal_data, protocol_version)
         {
             let message = format!(
                 "Tx is Unexecutable because of {reason}; inputs for decision: {seal_data:?}"
@@ -924,5 +978,42 @@ impl<G: L1GasPriceProvider> TxSender<G> {
             return Err(SubmitTxError::Unexecutable(message));
         }
         Ok(())
+    }
+}
+
+/// During switch to the 1.4.1 protocol version, there will be a moment of discrepancy, when while
+/// the L2 has already upgraded to 1.4.1 (and thus suggests smaller overhead), the L1 is still on the previous version.
+///
+/// This might lead to situations when L1->L2 transactions estimated with the new versions would work on the state keeper side,
+/// but they won't even make it there, but the protection mechanisms for L1->L2 transactions will reject them on L1.
+/// TODO(X): remove this function after the upgrade is complete
+fn derive_pessimistic_overhead(
+    gas_limit: u32,
+    gas_price_per_pubdata: u32,
+    encoded_len: usize,
+    tx_type: u8,
+    vm_version: VmVersion,
+) -> u32 {
+    let current_overhead = derive_overhead(
+        gas_limit,
+        gas_price_per_pubdata,
+        encoded_len,
+        tx_type,
+        vm_version,
+    );
+
+    if is_l1_tx_type(tx_type) {
+        // We are in the L1->L2 transaction, so we need to account for the fact that the L1 is still on the previous version.
+        // We assume that the overhead will be the same as for the previous version.
+        let previous_overhead = derive_overhead(
+            gas_limit,
+            gas_price_per_pubdata,
+            encoded_len,
+            tx_type,
+            VmVersion::VmBoojumIntegration,
+        );
+        current_overhead.max(previous_overhead)
+    } else {
+        current_overhead
     }
 }

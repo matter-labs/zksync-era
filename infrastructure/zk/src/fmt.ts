@@ -1,9 +1,14 @@
 import { Command } from 'commander';
+import { formatSqlxQueries } from './format_sql';
 import * as utils from './utils';
 
 const EXTENSIONS = ['ts', 'md', 'sol', 'js'];
 const CONFIG_PATH = 'etc/prettier-config';
 
+function prettierFlags(phaseName: string) {
+    phaseName = phaseName.replace('/', '-').replace('.', '');
+    return ` --cache --cache-location node_modules/.cache/prettier/.prettier-cache-${phaseName}`;
+}
 export async function prettier(extension: string, check: boolean = false) {
     if (!EXTENSIONS.includes(extension)) {
         throw new Error('Unsupported extension');
@@ -17,30 +22,41 @@ export async function prettier(extension: string, check: boolean = false) {
         return;
     }
 
-    await utils.spawn(`yarn --silent prettier --config ${CONFIG_PATH}/${extension}.js --${command} ${files}`);
+    await utils.spawn(
+        `yarn --silent prettier --config ${CONFIG_PATH}/${extension}.js --${command} ${files} ${prettierFlags(
+            extension
+        )}  ${check ? '' : '> /dev/null'}`
+    );
 }
 
-async function prettierL1Contracts(check: boolean = false) {
-    await utils.spawn(`yarn --silent --cwd contracts/ethereum prettier:${check ? 'check' : 'fix'}`);
-}
-
-async function prettierL2Contracts(check: boolean = false) {
-    await utils.spawn(`yarn --silent --cwd contracts/zksync prettier:${check ? 'check' : 'fix'}`);
-}
-
-async function prettierSystemContracts(check: boolean = false) {
-    await utils.spawn(`yarn --silent --cwd etc/system-contracts prettier:${check ? 'check' : 'fix'}`);
+async function prettierContracts(check: boolean) {
+    await utils.spawn(
+        `yarn --silent --cwd contracts prettier:${check ? 'check' : 'fix'} ${prettierFlags('contracts')} ${
+            check ? '' : '> /dev/null'
+        }`
+    );
 }
 
 export async function rustfmt(check: boolean = false) {
     process.chdir(process.env.ZKSYNC_HOME as string);
-    const command = check ? 'cargo fmt -- --check' : 'cargo fmt';
+
+    // We rely on a supposedly undocumented bug/feature of `rustfmt` that allows us to use unstable features on stable Rust.
+    // Please note that this only works with CLI flags, and if you happened to visit this place after things suddenly stopped working,
+    // it is certainly possible that the feature was deemed a bug and was fixed. Then welp.
+    const config = '--config imports_granularity=Crate --config group_imports=StdExternalCrate';
+    const command = check ? `cargo fmt -- --check ${config}` : `cargo fmt -- ${config}`;
     await utils.spawn(command);
     process.chdir('./prover');
     await utils.spawn(command);
 }
 
-const ARGS = [...EXTENSIONS, 'rust', 'l1-contracts', 'l2-contracts', 'system-contracts'];
+export async function runAllRustFormatters(check: boolean = false) {
+    // we need to run those two steps one by one as they operate on the same set of files
+    await formatSqlxQueries(check);
+    await rustfmt(check);
+}
+
+const ARGS = [...EXTENSIONS, 'rust', 'contracts'];
 
 export const command = new Command('fmt')
     .description('format code with prettier & rustfmt')
@@ -50,16 +66,10 @@ export const command = new Command('fmt')
         if (extension) {
             switch (extension) {
                 case 'rust':
-                    await rustfmt(cmd.check);
+                    await runAllRustFormatters(cmd.check);
                     break;
-                case 'l1-contracts':
-                    await prettierL1Contracts(cmd.check);
-                    break;
-                case 'l2-contracts':
-                    await prettierL2Contracts(cmd.check);
-                    break;
-                case 'system-contracts':
-                    await prettierSystemContracts(cmd.check);
+                case 'contracts':
+                    await prettierContracts(cmd.check);
                     break;
                 default:
                     await prettier(extension, cmd.check);
@@ -68,10 +78,8 @@ export const command = new Command('fmt')
         } else {
             // Run all the checks concurrently.
             const promises = EXTENSIONS.map((ext) => prettier(ext, cmd.check));
-            promises.push(rustfmt(cmd.check));
-            promises.push(prettierL1Contracts(cmd.check));
-            promises.push(prettierL2Contracts(cmd.check));
-            promises.push(prettierSystemContracts(cmd.check));
+            promises.push(runAllRustFormatters(cmd.check));
+            promises.push(prettierContracts(cmd.check));
             await Promise.all(promises);
         }
     });
@@ -94,5 +102,5 @@ command
     .command('rustfmt')
     .option('--check')
     .action(async (cmd: Command) => {
-        await rustfmt(cmd.check);
+        await runAllRustFormatters(cmd.check);
     });

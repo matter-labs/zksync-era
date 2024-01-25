@@ -58,7 +58,7 @@ command
 
 command
     .command('deploy-verifier')
-    .option('--l1Rpc <l1Rpc>')
+    .option('--l1rpc <l1Rpc>')
     .option('--private-key <privateKey>')
     .option('--create2-address <create2Address>')
     .option('--nonce <nonce>')

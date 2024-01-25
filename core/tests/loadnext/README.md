@@ -1,6 +1,6 @@
 # Loadnext: loadtest for zkSync
 
-Loadnext is an utility for random stress-testing the zkSync server. It is capable of simulating the behavior of many
+Loadnext is a utility for random stress-testing the zkSync server. It is capable of simulating the behavior of many
 independent users of zkSync network, who are sending quasi-random requests to the server.
 
 The general flow is as follows:
@@ -8,7 +8,7 @@ The general flow is as follows:
 - The master account performs an initial deposit to L2
 - Paymaster on L2 is funded if necessary
 - The L2 master account distributes funds to the participating accounts (`accounts_amount` configuration option)
-- Each account continiously sends L2 transactions as configured in `contract_execution_params` configuration option. At
+- Each account continuously sends L2 transactions as configured in `contract_execution_params` configuration option. At
   any given time there are no more than `max_inflight_txs` transactions in flight for each account.
 - Once each account is done with the initial deposit, the test is run for `duration_sec` seconds.
 - After the test is finished, the master account withdraws all the remaining funds from L2.
@@ -18,7 +18,7 @@ The general flow is as follows:
 
 It:
 
-- doesn't care whether the server is alive or not. At worst, it will just consider the test failed.
+- doesn't care whether the server is alive or not. In the worst-case scenario, it will simply mark the test as failed.
 - does a unique set of operations for each participating account.
 - sends transactions and priority operations.
 - sends incorrect transactions as well as correct ones and compares the outcome to the expected one.

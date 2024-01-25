@@ -116,8 +116,9 @@ fn default_subscription_duration() -> Option<u64> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::env;
+
+    use super::*;
 
     #[test]
     fn success() {

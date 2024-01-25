@@ -1,15 +1,19 @@
-use zk_evm_1_3_3::abstractions::{Memory, MemoryType};
-use zk_evm_1_3_3::aux_structures::{MemoryPage, MemoryQuery, Timestamp};
-use zk_evm_1_3_3::vm_state::PrimitiveValue;
-use zk_evm_1_3_3::zkevm_opcode_defs::FatPointer;
+use zk_evm_1_3_3::{
+    abstractions::{Memory, MemoryType},
+    aux_structures::{MemoryPage, MemoryQuery, Timestamp},
+    vm_state::PrimitiveValue,
+    zkevm_opcode_defs::FatPointer,
+};
 use zksync_types::U256;
 
-use crate::vm_1_3_2::history_recorder::{
-    FramedStack, HistoryEnabled, HistoryMode, IntFrameManagerWithHistory, MemoryWithHistory,
-    MemoryWrapper, WithHistory,
+use crate::vm_1_3_2::{
+    history_recorder::{
+        FramedStack, HistoryEnabled, HistoryMode, IntFrameManagerWithHistory, MemoryWithHistory,
+        MemoryWrapper, WithHistory,
+    },
+    oracles::OracleWithHistory,
+    utils::{aux_heap_page_from_base, heap_page_from_base, stack_page_from_base},
 };
-use crate::vm_1_3_2::oracles::OracleWithHistory;
-use crate::vm_1_3_2::utils::{aux_heap_page_from_base, heap_page_from_base, stack_page_from_base};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct SimpleMemory<H: HistoryMode> {
@@ -278,7 +282,7 @@ impl<H: HistoryMode> Memory for SimpleMemory<H> {
         let returndata_page = returndata_fat_pointer.memory_page;
 
         for &page in current_observable_pages {
-            // If the page's number is greater than or equal to the base_page,
+            // If the page's number is greater than or equal to the `base_page`,
             // it means that it was created by the internal calls of this contract.
             // We need to add this check as the calldata pointer is also part of the
             // observable pages.
@@ -295,7 +299,7 @@ impl<H: HistoryMode> Memory for SimpleMemory<H> {
     }
 }
 
-// It is expected that there is some intersection between [word_number*32..word_number*32+31] and [start, end]
+// It is expected that there is some intersection between `[word_number*32..word_number*32+31]` and `[start, end]`
 fn extract_needed_bytes_from_word(
     word_value: Vec<u8>,
     word_number: usize,
@@ -303,7 +307,7 @@ fn extract_needed_bytes_from_word(
     end: usize,
 ) -> Vec<u8> {
     let word_start = word_number * 32;
-    let word_end = word_start + 31; // Note, that at word_start + 32 a new word already starts
+    let word_end = word_start + 31; // Note, that at `word_start + 32` a new word already starts
 
     let intersection_left = std::cmp::max(word_start, start);
     let intersection_right = std::cmp::min(word_end, end);

@@ -1,13 +1,12 @@
 //! Tests for `PostgresStorage`.
 
+use std::{collections::HashMap, mem};
+
 use rand::{
+    rngs::StdRng,
     seq::{IteratorRandom, SliceRandom},
     Rng, SeedableRng,
 };
-
-use rand::rngs::StdRng;
-use std::{collections::HashMap, mem};
-
 use zksync_dal::ConnectionPool;
 use zksync_types::StorageLog;
 

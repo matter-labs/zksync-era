@@ -1,5 +1,5 @@
-// Currently, every AGGR_* cost is overestimated,
-// so there are safety margins around 100_000 -- 200_000
+// Currently, every `AGGR_* cost` is overestimated,
+// so there are safety margins around `100_000 -- 200_000`
 
 pub(super) const AGGR_L1_BATCH_COMMIT_BASE_COST: u32 = 242_000;
 pub(super) const AGGR_L1_BATCH_PROVE_BASE_COST: u32 = 1_000_000;

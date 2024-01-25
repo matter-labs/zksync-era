@@ -1,5 +1,7 @@
-use zksync_types::l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log};
-use zksync_types::{LogQuery, StorageLogQuery, VmEvent, U256};
+use zksync_types::{
+    l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
+    LogQuery, StorageLogQuery, VmEvent, U256,
+};
 
 /// State of the VM since the start of the batch execution.
 #[derive(Debug, Clone, PartialEq)]

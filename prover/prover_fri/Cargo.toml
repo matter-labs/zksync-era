@@ -6,6 +6,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1" }
+
 zksync_types = { path = "../../core/lib/types" }
 zksync_dal = { path = "../../core/lib/dal" }
 zksync_config = { path = "../../core/lib/config" }
@@ -13,19 +15,18 @@ zksync_env_config = { path = "../../core/lib/env_config" }
 prometheus_exporter = { path = "../../core/lib/prometheus_exporter" }
 vlog = { path = "../../core/lib/vlog" }
 zksync_object_store = { path = "../../core/lib/object_store" }
-zksync_prover_utils = { path = "../../core/lib/prover_utils" }
 zksync_queued_job_processor = { path = "../../core/lib/queued_job_processor" }
 zksync_prover_fri_utils = { path = "../prover_fri_utils" }
 zksync_prover_fri_types = { path = "../prover_fri_types" }
 zksync_utils = { path = "../../core/lib/utils" }
 vk_setup_data_generator_server_fri = { path = "../vk_setup_data_generator_server_fri" }
-shivini = { git = "https://github.com/matter-labs/era-shivini.git", branch = "main", optional = true, features = [
+shivini = { git = "https://github.com/matter-labs/era-shivini.git", branch = "v1.4.1", optional = true, features = [
     "circuit_definitions",
     "zksync",
 ] }
 
-zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.0" }
-circuit_definitions = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.0", features = [
+zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.1" }
+circuit_definitions = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.1", features = [
     "log_tracing",
 ] }
 
@@ -34,10 +35,11 @@ tracing = "0.1"
 tokio = { version = "1", features = ["time"] }
 futures = { version = "0.3", features = ["compat"] }
 ctrlc = { version = "3.1", features = ["termination"] }
-metrics = "0.21"
 serde = { version = "1.0", features = ["derive"] }
 async-trait = "0.1"
 local-ip-address = "0.5.0"
+reqwest = { version = "0.11", features = ["blocking"] }
+regex = "1.7.2"
 
 [features]
 default = []

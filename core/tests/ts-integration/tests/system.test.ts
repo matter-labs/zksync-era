@@ -30,6 +30,26 @@ describe('System behavior checks', () => {
         alice = testMaster.mainAccount();
     });
 
+    test('Network should be supporting Cancun+Deneb', async () => {
+        const address_a = '0x000000000000000000000000000000000000000A';
+        const address_b = '0x000000000000000000000000000000000000000b';
+
+        const transaction_a = {
+            to: address_a,
+            data: '0x'
+        };
+
+        await expect(alice.providerL1!.call(transaction_a)).rejects.toThrow();
+
+        const transaction_b = {
+            to: address_b,
+            data: '0x'
+        };
+
+        const result_b = await alice.providerL1!.call(transaction_b);
+        expect(result_b).toEqual('0x');
+    });
+
     test('Should check that system contracts and SDK create same CREATE/CREATE2 addresses', async () => {
         const deployerContract = new zksync.Contract(
             zksync.utils.CONTRACT_DEPLOYER_ADDRESS,
@@ -341,7 +361,7 @@ describe('System behavior checks', () => {
     function bootloaderUtilsContract() {
         const BOOTLOADER_UTILS_ADDRESS = '0x000000000000000000000000000000000000800c';
         const BOOTLOADER_UTILS = new ethers.utils.Interface(
-            require(`${process.env.ZKSYNC_HOME}/etc/system-contracts/artifacts-zk/cache-zk/solpp-generated-contracts/BootloaderUtilities.sol/BootloaderUtilities.json`).abi
+            require(`${process.env.ZKSYNC_HOME}/contracts/system-contracts/artifacts-zk/contracts-preprocessed/BootloaderUtilities.sol/BootloaderUtilities.json`).abi
         );
 
         return new ethers.Contract(BOOTLOADER_UTILS_ADDRESS, BOOTLOADER_UTILS, alice);

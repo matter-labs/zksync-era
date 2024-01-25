@@ -1,14 +1,15 @@
-use anyhow::anyhow;
-use futures::{channel::mpsc, future, SinkExt};
-
 use std::sync::Arc;
 
-use zksync::ethereum::{PriorityOpHolder, DEFAULT_PRIORITY_FEE};
-use zksync::utils::{
-    get_approval_based_paymaster_input, get_approval_based_paymaster_input_for_estimation,
+use anyhow::anyhow;
+use futures::{channel::mpsc, future, SinkExt};
+use zksync::{
+    ethereum::{PriorityOpHolder, DEFAULT_PRIORITY_FEE},
+    utils::{
+        get_approval_based_paymaster_input, get_approval_based_paymaster_input_for_estimation,
+    },
+    web3::{contract::Options, types::TransactionReceipt},
+    EthNamespaceClient, EthereumProvider, ZksNamespaceClient,
 };
-use zksync::web3::{contract::Options, types::TransactionReceipt};
-use zksync::{EthNamespaceClient, EthereumProvider, ZksNamespaceClient};
 use zksync_eth_client::{BoundEthInterface, EthInterface};
 use zksync_eth_signer::PrivateKeySigner;
 use zksync_system_constants::MAX_L1_TRANSACTION_GAS_LIMIT;
@@ -17,14 +18,14 @@ use zksync_types::{
     REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
 };
 
-use crate::report::ReportBuilder;
-use crate::utils::format_eth;
 use crate::{
     account::AccountLifespan,
     account_pool::AccountPool,
     config::{ExecutionConfig, LoadtestConfig, RequestLimiters},
     constants::*,
+    report::ReportBuilder,
     report_collector::{LoadtestResult, ReportCollector},
+    utils::format_eth,
 };
 
 /// Executor is the entity capable of running the loadtest flow.
@@ -53,7 +54,7 @@ impl Executor {
     ) -> anyhow::Result<Self> {
         let pool = AccountPool::new(&config).await?;
 
-        // derive l2 main token address
+        // derive L2 main token address
         let l2_main_token = pool
             .master_wallet
             .ethereum(&config.l1_rpc_address)
@@ -470,7 +471,7 @@ impl Executor {
                 .commit_timeout(COMMIT_TIMEOUT)
                 .wait_for_commit()
                 .await?;
-            if result.status == Some(U64::zero()) {
+            if result.status == U64::zero() {
                 return Err(anyhow::format_err!("Transfer failed"));
             }
         }

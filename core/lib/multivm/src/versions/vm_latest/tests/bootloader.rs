@@ -1,14 +1,16 @@
 use zksync_types::U256;
 
-use crate::interface::{Halt, TxExecutionMode, VmExecutionMode, VmInterface};
-use crate::vm_latest::constants::BOOTLOADER_HEAP_PAGE;
-use crate::vm_latest::tests::tester::VmTesterBuilder;
-use crate::vm_latest::tests::utils::{
-    get_bootloader, verify_required_memory, BASE_SYSTEM_CONTRACTS,
+use crate::{
+    interface::{ExecutionResult, Halt, TxExecutionMode, VmExecutionMode, VmInterface},
+    vm_latest::{
+        constants::BOOTLOADER_HEAP_PAGE,
+        tests::{
+            tester::VmTesterBuilder,
+            utils::{get_bootloader, verify_required_memory, BASE_SYSTEM_CONTRACTS},
+        },
+        HistoryEnabled,
+    },
 };
-
-use crate::interface::ExecutionResult;
-use crate::vm_latest::HistoryEnabled;
 
 #[test]
 fn test_dummy_bootloader() {

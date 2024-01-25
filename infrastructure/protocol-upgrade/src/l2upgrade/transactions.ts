@@ -1,7 +1,7 @@
 import { BytesLike } from 'ethers';
-import { ComplexUpgrader__factory, ContractDeployer__factory } from '../../../../etc/system-contracts/typechain-types';
+import { ComplexUpgraderFactory, ContractDeployerFactory } from 'system-contracts/typechain';
 import { ForceDeployment, L2CanonicalTransaction } from '../transaction';
-import { ForceDeployUpgraderFactory } from 'l2-zksync-contracts/typechain';
+import { ForceDeployUpgraderFactory } from 'l2-contracts/typechain';
 import { Command } from 'commander';
 import { getCommonDataFileName, getL2UpgradeFileName } from '../utils';
 import fs from 'fs';
@@ -40,13 +40,13 @@ export function forceDeploymentCalldataUpgrader(forcedDeployments: ForceDeployme
 }
 
 export function forceDeploymentCalldataContractDeployer(forcedDeployments: ForceDeployment[]): BytesLike {
-    let contractDeployer = new ContractDeployer__factory();
+    let contractDeployer = new ContractDeployerFactory();
     let calldata = contractDeployer.interface.encodeFunctionData('forceDeployOnAddresses', [forcedDeployments]);
     return calldata;
 }
 
 export function prepareCallDataForComplexUpgrader(calldata: BytesLike, to: string): BytesLike {
-    const upgrader = new ComplexUpgrader__factory();
+    const upgrader = new ComplexUpgraderFactory();
     let finalCalldata = upgrader.interface.encodeFunctionData('upgrade', [to, calldata]);
     return finalCalldata;
 }

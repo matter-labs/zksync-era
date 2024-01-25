@@ -1,5 +1,6 @@
-use serde::Deserialize;
 use std::time::Duration;
+
+use serde::Deserialize;
 
 /// Configuration for the fri proof compressor
 #[derive(Debug, Deserialize, Clone, PartialEq)]

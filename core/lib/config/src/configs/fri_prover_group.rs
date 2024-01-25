@@ -1,6 +1,6 @@
-use serde::Deserialize;
 use std::collections::HashSet;
 
+use serde::Deserialize;
 use zksync_basic_types::basic_fri_types::CircuitIdRoundTuple;
 
 /// Configuration for the grouping of specialized provers.

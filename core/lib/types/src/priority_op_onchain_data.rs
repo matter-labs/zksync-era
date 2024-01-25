@@ -1,6 +1,6 @@
-use serde::{Deserialize, Serialize};
-
 use std::cmp::Ordering;
+
+use serde::{Deserialize, Serialize};
 
 use crate::{
     l1::{OpProcessingType, PriorityQueueType},

@@ -17,7 +17,7 @@ RUN curl https://sh.rustup.rs -sSf | bash -s -- -y && \
 WORKDIR /usr/src/zksync
 COPY . .
 
-RUN cargo build --release
+RUN cargo build --release --bin zksync_prover_fri_gateway
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y curl libpq5 ca-certificates && rm -rf /var/lib/apt/lists/*

@@ -5,7 +5,7 @@ use crate::vm_1_3_2::vm_with_bootloader::TX_DESCRIPTION_OFFSET;
 /// Required to process transactions one by one (since we intercept the VM execution to execute
 /// transactions and add new ones to the memory on the fly).
 /// Think about it like a two-pointer scheme: one pointer (`free_tx_index`) tracks the end of the
-/// initialized memory; while another (`tx_to_execute`) tracks our progess in this initialized memory.
+/// initialized memory; while another (`tx_to_execute`) tracks our progress in this initialized memory.
 /// This is required since it's possible to push several transactions to the bootloader memory and then
 /// execute it one by one.
 ///

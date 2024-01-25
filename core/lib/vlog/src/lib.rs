@@ -1,17 +1,13 @@
 //! This module contains the observability subsystem.
 //! It is responsible for providing a centralized interface for consistent observability configuration.
 
-use std::backtrace::Backtrace;
-use std::borrow::Cow;
-use std::panic::PanicInfo;
+use std::{backtrace::Backtrace, borrow::Cow, panic::PanicInfo};
 
+// Temporary re-export of `sentry::capture_message` aiming to simplify the transition from `vlog` to using
+// crates directly.
+pub use sentry::{capture_message, Level as AlertLevel};
 use sentry::{types::Dsn, ClientInitGuard};
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt};
-
-/// Temporary re-export of `sentry::capture_message` aiming to simplify the transition from `vlog` to using
-/// crates directly.
-pub use sentry::capture_message;
-pub use sentry::Level as AlertLevel;
 
 /// Specifies the format of the logs in stdout.
 #[derive(Debug, Clone, Copy, Default)]
@@ -153,7 +149,7 @@ pub fn log_format_from_env() -> LogFormat {
 }
 
 /// Loads the Sentry URL from the environment variable according to the existing zkSync configuration scheme.
-/// If the environemnt value is present but the value is `unset`, `None` will be returned for compatibility with the
+/// If the environment value is present but the value is `unset`, `None` will be returned for compatibility with the
 /// existing configuration setup.
 ///
 /// This is a deprecated function existing for compatibility with the old configuration scheme.

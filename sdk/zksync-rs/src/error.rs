@@ -1,5 +1,5 @@
 use zksync_eth_signer::error::SignerError;
-pub use zksync_web3_decl::jsonrpsee::core::Error as RpcError;
+pub use zksync_web3_decl::jsonrpsee::core::ClientError as RpcError;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ClientError {

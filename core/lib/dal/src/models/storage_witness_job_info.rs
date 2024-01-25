@@ -1,11 +1,13 @@
+use std::{convert::TryFrom, str::FromStr};
+
 use sqlx::types::chrono::{DateTime, NaiveDateTime, NaiveTime, Utc};
-use std::convert::TryFrom;
-use std::str::FromStr;
-use zksync_types::proofs::{
-    AggregationRound, JobPosition, WitnessJobInfo, WitnessJobStatus, WitnessJobStatusFailed,
-    WitnessJobStatusSuccessful,
+use zksync_types::{
+    proofs::{
+        AggregationRound, JobPosition, WitnessJobInfo, WitnessJobStatus, WitnessJobStatusFailed,
+        WitnessJobStatusSuccessful,
+    },
+    L1BatchNumber,
 };
-use zksync_types::L1BatchNumber;
 
 #[derive(sqlx::FromRow)]
 pub struct StorageWitnessJobInfo {

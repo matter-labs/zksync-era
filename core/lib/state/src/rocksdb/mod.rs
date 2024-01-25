@@ -19,18 +19,18 @@
 //! | Contracts    | address (20 bytes)              | `Vec<u8>`                       | Contract contents                         |
 //! | Factory deps | hash (32 bytes)                 | `Vec<u8>`                       | Bytecodes for new contracts that a certain contract may deploy. |
 
-use itertools::{Either, Itertools};
 use std::{collections::HashMap, convert::TryInto, mem, path::Path, time::Instant};
 
+use itertools::{Either, Itertools};
 use zksync_dal::StorageProcessor;
 use zksync_storage::{db::NamedColumnFamily, RocksDB};
 use zksync_types::{L1BatchNumber, StorageKey, StorageValue, H256, U256};
 use zksync_utils::{h256_to_u256, u256_to_h256};
 
-mod metrics;
-
 use self::metrics::METRICS;
 use crate::{InMemoryStorage, ReadStorage};
+
+mod metrics;
 
 fn serialize_block_number(block_number: u32) -> [u8; 4] {
     block_number.to_le_bytes()
@@ -135,15 +135,16 @@ impl RocksdbStorage {
     /// in Postgres.
     pub async fn update_from_postgres(&mut self, conn: &mut StorageProcessor<'_>) {
         let latency = METRICS.update.start();
-        let latest_l1_batch_number = conn
+        let Some(latest_l1_batch_number) = conn
             .blocks_dal()
             .get_sealed_l1_batch_number()
             .await
-            .unwrap();
-        tracing::debug!(
-            "loading storage for l1 batch number {}",
-            latest_l1_batch_number.0
-        );
+            .unwrap()
+        else {
+            // No L1 batches are persisted in Postgres; update is not necessary.
+            return;
+        };
+        tracing::debug!("Loading storage for l1 batch number {latest_l1_batch_number}");
 
         let mut current_l1_batch_number = self.l1_batch_number().0;
         assert!(
@@ -506,13 +507,13 @@ impl ReadStorage for RocksdbStorage {
 #[cfg(test)]
 mod tests {
     use tempfile::TempDir;
+    use zksync_dal::ConnectionPool;
+    use zksync_types::{MiniblockNumber, StorageLog};
 
     use super::*;
     use crate::test_utils::{
         create_l1_batch, create_miniblock, gen_storage_logs, prepare_postgres,
     };
-    use zksync_dal::ConnectionPool;
-    use zksync_types::{MiniblockNumber, StorageLog};
 
     #[tokio::test]
     async fn rocksdb_storage_basics() {
@@ -675,7 +676,7 @@ mod tests {
         storage.update_from_postgres(&mut conn).await;
 
         assert_eq!(storage.l1_batch_number(), L1BatchNumber(2));
-        // Check that enum indices are correct after syncing with postgres.
+        // Check that enum indices are correct after syncing with Postgres.
         for log in &storage_logs {
             let expected_index = enum_indices[&log.key.hashed_key()];
             assert_eq!(

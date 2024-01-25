@@ -4,9 +4,7 @@ node_modules
 build/
 dist/
 volumes/
-.tslintrc.js
 bellman-cuda
 
 # Ignore contract submodules
 contracts
-etc/system-contracts

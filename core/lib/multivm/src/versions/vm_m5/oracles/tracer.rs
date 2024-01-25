@@ -1,19 +1,8 @@
-use std::fmt::Debug;
 use std::{
     collections::HashSet,
-    fmt::{self, Display},
+    fmt::{self, Debug, Display},
 };
 
-use crate::vm_m5::{
-    errors::VmRevertReasonParsingResult,
-    memory::SimpleMemory,
-    storage::StoragePtr,
-    utils::{aux_heap_page_from_base, heap_page_from_base},
-    vm_instance::{get_vm_hook_params, VM_HOOK_POSITION},
-    vm_with_bootloader::BOOTLOADER_HEAP_PAGE,
-};
-// use zk_evm_1_3_1::testing::memory::SimpleMemory;
-use crate::vm_m5::storage::Storage;
 use zk_evm_1_3_1::{
     abstractions::{
         AfterDecodingData, AfterExecutionData, BeforeExecutionData, Tracer, VmLocalStateData,
@@ -26,7 +15,6 @@ use zk_evm_1_3_1::{
         LogOpcode, Opcode, RetOpcode, UMAOpcode,
     },
 };
-
 use zksync_types::{
     get_code_key, web3::signing::keccak256, AccountTreeId, Address, StorageKey,
     ACCOUNT_CODE_STORAGE_ADDRESS, BOOTLOADER_ADDRESS, CONTRACT_DEPLOYER_ADDRESS, H256,
@@ -35,6 +23,15 @@ use zksync_types::{
 };
 use zksync_utils::{
     be_bytes_to_safe_address, h256_to_account_address, u256_to_account_address, u256_to_h256,
+};
+
+use crate::vm_m5::{
+    errors::VmRevertReasonParsingResult,
+    memory::SimpleMemory,
+    storage::{Storage, StoragePtr},
+    utils::{aux_heap_page_from_base, heap_page_from_base},
+    vm_instance::{get_vm_hook_params, VM_HOOK_POSITION},
+    vm_with_bootloader::BOOTLOADER_HEAP_PAGE,
 };
 
 pub trait ExecutionEndTracer: Tracer<SupportedMemory = SimpleMemory> {
@@ -181,7 +178,7 @@ fn touches_allowed_context(address: Address, key: U256) -> bool {
         return false;
     }
 
-    // Only chain_id is allowed to be touched.
+    // Only `chain_id` is allowed to be touched.
     key == U256::from(0u32)
 }
 
@@ -306,7 +303,7 @@ impl<S: Storage> ValidationTracer<S> {
             return true;
         }
 
-        // The pair of MSG_VALUE_SIMULATOR_ADDRESS & L2_ETH_TOKEN_ADDRESS simulates the behavior of transfering ETH
+        // The pair of `MSG_VALUE_SIMULATOR_ADDRESS` & `L2_ETH_TOKEN_ADDRESS` simulates the behavior of transferring ETH
         // that is safe for the DDoS protection rules.
         if valid_eth_token_call(address, msg_sender) {
             return true;
@@ -350,20 +347,20 @@ impl<S: Storage> ValidationTracer<S> {
         let (potential_address_bytes, potential_position_bytes) = calldata.split_at(32);
         let potential_address = be_bytes_to_safe_address(potential_address_bytes);
 
-        // If the validation_address is equal to the potential_address,
-        // then it is a request that could be used for mapping of kind mapping(address => ...).
+        // If the `validation_address` is equal to the `potential_address`,
+        // then it is a request that could be used for mapping of kind `mapping(address => ...)`.
         //
-        // If the potential_position_bytes were already allowed before, then this keccak might be used
-        // for ERC-20 allowance or any other of mapping(address => mapping(...))
+        // If the `potential_position_bytes` were already allowed before, then this keccak might be used
+        // for ERC-20 allowance or any other of `mapping(address => mapping(...))`
         if potential_address == Some(validated_address)
             || self
                 .auxilary_allowed_slots
                 .contains(&H256::from_slice(potential_position_bytes))
         {
-            // This is request that could be used for mapping of kind mapping(address => ...)
+            // This is request that could be used for mapping of kind `mapping(address => ...)`
 
             // We could theoretically wait for the slot number to be returned by the
-            // keccak256 precompile itself, but this would complicate the code even further
+            // `keccak256` precompile itself, but this would complicate the code even further
             // so let's calculate it here.
             let slot = keccak256(calldata);
 
@@ -651,7 +648,7 @@ impl OneTxTracer {
     }
 }
 
-/// Tells the VM to end the execution before `ret` from the booloader if there is no panic or revert.
+/// Tells the VM to end the execution before `ret` from the bootloader if there is no panic or revert.
 /// Also, saves the information if this `ret` was caused by "out of gas" panic.
 #[derive(Debug, Clone, Default)]
 pub struct BootloaderTracer {
@@ -722,7 +719,7 @@ impl PubdataSpentTracer for BootloaderTracer {}
 
 impl BootloaderTracer {
     fn current_frame_is_bootloader(local_state: &VmLocalState) -> bool {
-        // The current frame is bootloader if the callstack depth is 1.
+        // The current frame is bootloader if the call stack depth is 1.
         // Some of the near calls inside the bootloader can be out of gas, which is totally normal behavior
         // and it shouldn't result in `is_bootloader_out_of_gas` becoming true.
         local_state.callstack.inner.len() == 1
@@ -765,7 +762,7 @@ impl VmHook {
 
         let value = data.src1_value.value;
 
-        // Only UMA opcodes in the bootloader serve for vm hooks
+        // Only `UMA` opcodes in the bootloader serve for vm hooks
         if !matches!(opcode_variant.opcode, Opcode::UMA(UMAOpcode::HeapWrite))
             || heap_page != BOOTLOADER_HEAP_PAGE
             || fat_ptr.offset != VM_HOOK_POSITION * 32
@@ -801,7 +798,7 @@ fn get_debug_log(state: &VmLocalStateData<'_>, memory: &SimpleMemory) -> String 
     let msg = String::from_utf8(msg).expect("Invalid debug message");
     let data = U256::from_big_endian(&data);
 
-    // For long data, it is better to use hex-encoding for greater readibility
+    // For long data, it is better to use hex-encoding for greater readability
     let data_str = if data > U256::from(u64::max_value()) {
         let mut bytes = [0u8; 32];
         data.to_big_endian(&mut bytes);
@@ -816,7 +813,7 @@ fn get_debug_log(state: &VmLocalStateData<'_>, memory: &SimpleMemory) -> String 
 }
 
 /// Reads the memory slice represented by the fat pointer.
-/// Note, that the fat pointer must point to the accesible memory (i.e. not cleared up yet).
+/// Note, that the fat pointer must point to the accessible memory (i.e. not cleared up yet).
 pub(crate) fn read_pointer(memory: &SimpleMemory, pointer: FatPointer) -> Vec<u8> {
     let FatPointer {
         offset,

@@ -76,7 +76,7 @@ describe('Block reverting test', function () {
         process.env.DATABASE_MERKLE_TREE_MODE = 'full';
 
         // Run server in background.
-        const components = 'api,tree,eth,data_fetcher,state_keeper';
+        const components = 'api,tree,eth,state_keeper';
         utils.background(`zk server --components ${components}`, [null, logs, logs]);
         // Server may need some time to recompile if it's a cold run, so wait for it.
         let iter = 0;
@@ -172,7 +172,7 @@ describe('Block reverting test', function () {
         process.env.ETH_SENDER_SENDER_AGGREGATED_BLOCK_EXECUTE_DEADLINE = '1';
 
         // Run server.
-        utils.background('zk server --components api,tree,eth,data_fetcher,state_keeper', [null, logs, logs]);
+        utils.background('zk server --components api,tree,eth,state_keeper', [null, logs, logs]);
         await utils.sleep(10);
 
         const balanceBefore = await alice.getBalance();
@@ -184,7 +184,16 @@ describe('Block reverting test', function () {
             amount: depositAmount,
             to: alice.address
         });
-        let receipt = await depositHandle.waitFinalize();
+        const l1TxResponse = await alice._providerL1().getTransaction(depositHandle.hash);
+        // ethers doesn't work well with block reversions, so wait for the receipt before calling `.waitFinalize()`.
+        const l2Tx = await alice._providerL2().getL2TransactionFromPriorityOp(l1TxResponse);
+        let receipt = null;
+        do {
+            receipt = await tester.syncWallet.provider.getTransactionReceipt(l2Tx.hash);
+            await utils.sleep(1);
+        } while (receipt == null);
+
+        await depositHandle.waitFinalize();
         expect(receipt.status).to.be.eql(1);
 
         const balanceAfter = await alice.getBalance();
@@ -200,7 +209,7 @@ describe('Block reverting test', function () {
         await killServerAndWaitForShutdown(tester);
 
         // Run again.
-        utils.background(`zk server --components=api,tree,eth,data_fetcher,state_keeper`, [null, logs, logs]);
+        utils.background(`zk server --components=api,tree,eth,state_keeper`, [null, logs, logs]);
         await utils.sleep(10);
 
         // Trying to send a transaction from the same address again
@@ -219,7 +228,13 @@ async function checkedRandomTransfer(sender: zkweb3.Wallet, amount: BigNumber) {
         to: receiver.address,
         value: amount
     });
-    const txReceipt = await transferHandle.wait();
+
+    // ethers doesn't work well with block reversions, so we poll for the receipt manually.
+    let txReceipt = null;
+    do {
+        txReceipt = await sender.provider.getTransactionReceipt(transferHandle.hash);
+        await utils.sleep(1);
+    } while (txReceipt == null);
 
     const senderBalance = await sender.getBalance();
     const receiverBalance = await receiver.getBalance();

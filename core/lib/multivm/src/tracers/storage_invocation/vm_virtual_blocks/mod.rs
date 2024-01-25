@@ -1,10 +1,13 @@
-use crate::interface::dyn_tracers::vm_1_3_3::DynTracer;
-use crate::tracers::storage_invocation::StorageInvocations;
-use crate::vm_virtual_blocks::{
-    BootloaderState, ExecutionEndTracer, ExecutionProcessing, HistoryMode, SimpleMemory, VmTracer,
-    ZkSyncVmState,
-};
 use zksync_state::WriteStorage;
+
+use crate::{
+    interface::dyn_tracers::vm_1_3_3::DynTracer,
+    tracers::storage_invocation::StorageInvocations,
+    vm_virtual_blocks::{
+        BootloaderState, ExecutionEndTracer, ExecutionProcessing, HistoryMode, SimpleMemory,
+        VmTracer, ZkSyncVmState,
+    },
+};
 
 impl<H: HistoryMode> ExecutionEndTracer<H> for StorageInvocations {
     fn should_stop_execution(&self) -> bool {

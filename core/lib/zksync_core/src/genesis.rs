@@ -3,15 +3,14 @@
 //! setups the required databases, and outputs the data required to initialize a smart contract.
 
 use anyhow::Context as _;
-
+use multivm::utils::get_max_gas_per_pubdata_byte;
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::StorageProcessor;
 use zksync_merkle_tree::domain::ZkSyncTree;
-
 use zksync_types::{
-    block::DeployedContract,
-    block::{legacy_miniblock_hash, BlockGasCount, L1BatchHeader, MiniblockHeader},
+    block::{BlockGasCount, DeployedContract, L1BatchHeader, MiniblockHasher, MiniblockHeader},
     commitment::{L1BatchCommitment, L1BatchMetadata},
+    fee_model::BatchFeeInput,
     get_code_key, get_system_context_init_logs,
     protocol_version::{L1VerifierConfig, ProtocolVersion},
     tokens::{TokenInfo, TokenMetadata, ETHEREUM_ADDRESS},
@@ -19,8 +18,7 @@ use zksync_types::{
     AccountTreeId, Address, L1BatchNumber, L2ChainId, LogQuery, MiniblockNumber, ProtocolVersionId,
     StorageKey, StorageLog, StorageLogKind, Timestamp, H256,
 };
-use zksync_utils::{be_words_to_bytes, h256_to_u256};
-use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
+use zksync_utils::{be_words_to_bytes, bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
 
 use crate::metadata_calculator::L1BatchWithLogs;
 
@@ -111,7 +109,7 @@ pub async fn ensure_genesis_state(
         vec![],
         H256::zero(),
         H256::zero(),
-        protocol_version.is_pre_boojum(),
+        *protocol_version,
     );
 
     save_genesis_l1_batch_metadata(
@@ -287,21 +285,21 @@ pub(crate) async fn create_genesis_l1_batch(
         0,
         first_validator_address,
         base_system_contracts.hashes(),
-        ProtocolVersionId::latest(),
+        protocol_version,
     );
     genesis_l1_batch_header.is_finished = true;
 
     let genesis_miniblock_header = MiniblockHeader {
         number: MiniblockNumber(0),
         timestamp: 0,
-        hash: legacy_miniblock_hash(MiniblockNumber(0)),
+        hash: MiniblockHasher::legacy_hash(MiniblockNumber(0)),
         l1_tx_count: 0,
         l2_tx_count: 0,
         base_fee_per_gas: 0,
-        l1_gas_price: 0,
-        l2_fair_gas_price: 0,
+        gas_per_pubdata_limit: get_max_gas_per_pubdata_byte(protocol_version.into()),
+        batch_fee_input: BatchFeeInput::l1_pegged(0, 0),
         base_system_contracts_hashes: base_system_contracts.hashes(),
-        protocol_version: Some(ProtocolVersionId::latest()),
+        protocol_version: Some(protocol_version),
         virtual_blocks: 0,
     };
 
@@ -319,6 +317,7 @@ pub(crate) async fn create_genesis_l1_batch(
             BlockGasCount::default(),
             &[],
             &[],
+            0,
         )
         .await
         .unwrap();
@@ -441,7 +440,7 @@ mod tests {
     #[tokio::test]
     async fn running_genesis_with_big_chain_id() {
         let pool = ConnectionPool::test_pool().await;
-        let mut conn: StorageProcessor<'_> = pool.access_storage().await.unwrap();
+        let mut conn = pool.access_storage().await.unwrap();
         conn.blocks_dal().delete_genesis().await.unwrap();
 
         let params = GenesisParams {
@@ -463,5 +462,20 @@ mod tests {
             .await;
         let root_hash = metadata.unwrap().unwrap().metadata.root_hash;
         assert_ne!(root_hash, H256::zero());
+    }
+
+    #[tokio::test]
+    async fn running_genesis_with_non_latest_protocol_version() {
+        let pool = ConnectionPool::test_pool().await;
+        let mut conn = pool.access_storage().await.unwrap();
+        let params = GenesisParams {
+            protocol_version: ProtocolVersionId::Version10,
+            ..GenesisParams::mock()
+        };
+
+        ensure_genesis_state(&mut conn, L2ChainId::max(), &params)
+            .await
+            .unwrap();
+        assert!(!conn.blocks_dal().is_genesis_needed().await.unwrap());
     }
 }

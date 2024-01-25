@@ -1,14 +1,17 @@
-use crate::vm_m5::memory::SimpleMemory;
-use crate::vm_m5::vm_instance::MultiVMSubversion;
-
 use std::fmt::Debug;
 
-use crate::vm_m5::event_sink::InMemoryEventSink;
-use crate::vm_m5::oracles::decommitter::DecommitterOracle;
-use crate::vm_m5::oracles::precompile::PrecompilesProcessorWithHistory;
-use crate::vm_m5::oracles::storage::StorageOracle;
-use crate::vm_m5::storage::{Storage, StoragePtr};
 use zk_evm_1_3_1::witness_trace::DummyTracer;
+
+use crate::vm_m5::{
+    event_sink::InMemoryEventSink,
+    memory::SimpleMemory,
+    oracles::{
+        decommitter::DecommitterOracle, precompile::PrecompilesProcessorWithHistory,
+        storage::StorageOracle,
+    },
+    storage::{Storage, StoragePtr},
+    vm_instance::MultiVMSubversion,
+};
 
 #[derive(Debug)]
 pub struct OracleTools<const B: bool, S: Storage> {

@@ -24,7 +24,7 @@ RUN curl -Lo cmake-3.24.2-linux-x86_64.sh https://github.com/Kitware/CMake/relea
 WORKDIR /usr/src/zksync
 COPY . .
 
-RUN cargo build --release --features "gpu"
+RUN cargo build --release --features "gpu" --bin zksync_prover_fri
 
 FROM nvidia/cuda:12.2.0-runtime-ubuntu22.04
 

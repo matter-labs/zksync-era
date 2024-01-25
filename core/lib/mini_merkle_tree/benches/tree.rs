@@ -3,7 +3,6 @@
 use criterion::{
     criterion_group, criterion_main, BatchSize, Bencher, BenchmarkId, Criterion, Throughput,
 };
-
 use zksync_mini_merkle_tree::MiniMerkleTree;
 
 const TREE_SIZES: &[usize] = &[32, 64, 128, 256, 512, 1_024];

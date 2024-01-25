@@ -63,7 +63,7 @@ contract CustomPaymaster is IPaymaster {
             bool success = _transaction.payToTheBootloader();
             require(success, "Failed to transfer funds to the bootloader");
 
-            // For now, refunds are not supported, so we just test the fact that the transfered context is correct
+            // For now, refunds are not supported, so we just test the fact that the transferred context is correct
             txCounter += 1;
             context = abi.encode(txCounter);
         } else {

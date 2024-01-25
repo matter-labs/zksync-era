@@ -1,9 +1,7 @@
-use futures::{stream, TryStreamExt};
-
 use std::time::{Duration, Instant};
 
-use zksync::error::ClientError;
-use zksync::types::PubSubFilterBuilder;
+use futures::{stream, TryStreamExt};
+use zksync::{error::ClientError, types::PubSubFilterBuilder};
 use zksync_web3_decl::{
     jsonrpsee::{
         core::client::{Subscription, SubscriptionClientT},

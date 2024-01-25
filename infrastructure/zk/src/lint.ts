@@ -24,16 +24,8 @@ export async function lint(extension: string, check: boolean = false) {
     await utils.spawn(`yarn --silent ${command} ${fixOption} --config ${CONFIG_PATH}/${extension}.js ${files}`);
 }
 
-async function lintL1Contracts(check: boolean = false) {
-    await utils.spawn(`yarn --silent --cwd contracts/ethereum lint:${check ? 'check' : 'fix'}`);
-}
-
-async function lintL2Contracts(check: boolean = false) {
-    await utils.spawn(`yarn --silent --cwd contracts/zksync lint:${check ? 'check' : 'fix'}`);
-}
-
-async function lintSystemContracts(check: boolean = false) {
-    await utils.spawn(`yarn --silent --cwd etc/system-contracts lint:${check ? 'check' : 'fix'}`);
+async function lintContracts(check: boolean = false) {
+    await utils.spawn(`yarn --silent --cwd contracts lint:${check ? 'check' : 'fix'}`);
 }
 
 async function clippy() {
@@ -46,7 +38,7 @@ async function proverClippy() {
     await utils.spawn('cargo clippy --tests -- -D warnings -A incomplete_features');
 }
 
-const ARGS = [...EXTENSIONS, 'rust', 'prover', 'l1-contracts', 'l2-contracts', 'system-contracts'];
+const ARGS = [...EXTENSIONS, 'rust', 'prover', 'contracts'];
 
 export const command = new Command('lint')
     .description('lint code')
@@ -61,23 +53,15 @@ export const command = new Command('lint')
                 case 'prover':
                     await proverClippy();
                     break;
-                case 'l1-contracts':
-                    await lintL1Contracts(cmd.check);
-                    break;
-                case 'l2-contracts':
-                    await lintL2Contracts(cmd.check);
-                    break;
-                case 'system-contracts':
-                    await lintSystemContracts(cmd.check);
+                case 'contracts':
+                    await lintContracts(cmd.check);
                     break;
                 default:
                     await lint(extension, cmd.check);
             }
         } else {
             const promises = EXTENSIONS.map((ext) => lint(ext, cmd.check));
-            promises.push(lintL1Contracts(cmd.check));
-            promises.push(lintL2Contracts(cmd.check));
-            promises.push(lintSystemContracts(cmd.check));
+            promises.push(lintContracts(cmd.check));
             promises.push(clippy());
             await Promise.all(promises);
         }

@@ -35,7 +35,7 @@ async function depositWithRichAccounts() {
         };
 
         const balance = await wallet.getBalance();
-        console.log(`Wallet balance is ${ethers.utils.formatEther(balance)} ETH`);
+        console.log(`Wallet ${wallet.address} balance is ${ethers.utils.formatEther(balance)} ETH`);
 
         // TODO: Currently we're providing zero as an operator fee, which works right now,
         // but will be changed in the future.

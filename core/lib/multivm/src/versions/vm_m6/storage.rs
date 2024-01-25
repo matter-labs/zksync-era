@@ -1,7 +1,4 @@
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::fmt::Debug;
-use std::rc::Rc;
+use std::{cell::RefCell, collections::HashMap, fmt::Debug, rc::Rc};
 
 use zksync_state::{ReadStorage, WriteStorage};
 use zksync_types::{get_known_code_key, StorageKey, StorageValue, H256};

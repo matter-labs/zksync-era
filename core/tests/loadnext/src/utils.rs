@@ -1,4 +1,5 @@
 use std::ops::Div;
+
 use zksync_types::U256;
 
 pub fn format_eth(value: U256) -> String {

@@ -1,6 +1,5 @@
-// Built-in uses
 use std::time::Duration;
-// External uses
+
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]

@@ -1,12 +1,12 @@
-use zk_evm_1_4_0::aux_structures::Timestamp;
+use zk_evm_1_4_1::aux_structures::Timestamp;
 use zksync_state::WriteStorage;
-
-use crate::HistoryMode;
 use zksync_types::U256;
 
-use crate::interface::{VmExecutionStatistics, VmMemoryMetrics};
-use crate::vm_latest::tracers::DefaultExecutionTracer;
-use crate::vm_latest::vm::Vm;
+use crate::{
+    interface::{VmExecutionStatistics, VmMemoryMetrics},
+    vm_latest::{tracers::DefaultExecutionTracer, vm::Vm},
+    HistoryMode,
+};
 
 /// Module responsible for observing the VM behavior, i.e. calculating the statistics of the VM runs
 /// or reporting the VM memory usage.
@@ -18,12 +18,13 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         &self,
         timestamp_initial: Timestamp,
         cycles_initial: u32,
-        tracer: &DefaultExecutionTracer<S, H::VmBoojumIntegration>,
+        tracer: &DefaultExecutionTracer<S, H::Vm1_4_1>,
         gas_remaining_before: u32,
         gas_remaining_after: u32,
         spent_pubdata_counter_before: u32,
         pubdata_published: u32,
         total_log_queries_count: usize,
+        estimated_circuits_used: f32,
     ) -> VmExecutionStatistics {
         let computational_gas_used = self.calculate_computational_gas_used(
             tracer,
@@ -40,10 +41,11 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             computational_gas_used,
             total_log_queries: total_log_queries_count,
             pubdata_published,
+            estimated_circuits_used,
         }
     }
 
-    /// Returns the hashes the bytecodes that have been decommitted by the decomittment processor.
+    /// Returns the hashes the bytecodes that have been decommitted by the decommitment processor.
     pub(crate) fn get_used_contracts(&self) -> Vec<U256> {
         self.state
             .decommittment_processor

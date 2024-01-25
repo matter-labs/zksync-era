@@ -6,6 +6,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1" }
+
 zksync_types = { path = "../../core/lib/types" }
 zksync_dal = { path = "../../core/lib/dal" }
 zksync_config = { path = "../../core/lib/config" }
@@ -15,7 +17,6 @@ zksync_prover_fri_utils = { path = "../prover_fri_utils" }
 zksync_utils = { path = "../../core/lib/utils" }
 prometheus_exporter = { path = "../../core/lib/prometheus_exporter" }
 zksync_prover_fri_types = { path = "../prover_fri_types" }
-zksync_prover_utils = { path = "../../core/lib/prover_utils" }
 zksync_queued_job_processor = { path = "../../core/lib/queued_job_processor" }
 vk_setup_data_generator_server_fri = { path = "../vk_setup_data_generator_server_fri" }
 vlog = { path = "../../core/lib/vlog" }
@@ -26,7 +27,6 @@ structopt = "0.3.26"
 tokio = { version = "1", features = ["time"] }
 futures = { version = "0.3", features = ["compat"] }
 ctrlc = { version = "3.1", features = ["termination"] }
-metrics = "0.21"
 serde = { version = "1.0", features = ["derive"] }
 async-trait = "0.1"
 queues = "1.1.0"

@@ -1,14 +1,10 @@
-use crate::{
-    config::CheckerConfig,
-    divergence::{Divergence, DivergenceDetails},
-    helpers::{compare_json, ExponentialBackoff},
-};
-use anyhow::Context as _;
 use std::{
     collections::HashMap,
     sync::Arc,
     time::{Duration, Instant},
 };
+
+use anyhow::Context as _;
 use tokio::{
     select, spawn,
     sync::{watch::Receiver, Mutex as TokioMutex},
@@ -20,12 +16,18 @@ use zksync_web3_decl::{
     jsonrpsee::{
         core::{
             client::{Subscription, SubscriptionClientT},
-            Error,
+            ClientError,
         },
         rpc_params,
         ws_client::{WsClient, WsClientBuilder},
     },
     types::{BlockHeader, PubSubResult},
+};
+
+use crate::{
+    config::CheckerConfig,
+    divergence::{Divergence, DivergenceDetails},
+    helpers::{compare_json, ExponentialBackoff},
 };
 
 const MAX_RETRIES: u32 = 6;
@@ -264,7 +266,7 @@ impl PubSubChecker {
     // Extract the block header and block number from the pubsub result that is expected to be a header.
     async fn extract_block_info(
         &self,
-        pubsub_res: Result<PubSubResult, Error>,
+        pubsub_res: Result<PubSubResult, ClientError>,
     ) -> Result<(BlockHeader, U64), anyhow::Error> {
         let PubSubResult::Header(header) = pubsub_res? else {
             return Err(anyhow::anyhow!("Received non-header pubsub result"));

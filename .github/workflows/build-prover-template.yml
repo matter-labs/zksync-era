@@ -13,10 +13,6 @@ on:
         description: "ERA_BELLMAN_CUDA_RELEASE"
         type: string
         required: true
-      image_tag:
-        description: "Tag of a built image to deploy"
-        type: string
-        required: true
       image_tag_suffix:
         description: "Optional suffix to override tag name generation"
         type: string
@@ -31,22 +27,25 @@ on:
         type: boolean
         default: false
         required: false
+      CUDA_ARCH:
+        description: "CUDA Arch to build"
+        type: string
+        default: "89"
+        required: false
 
 jobs:
   build-images:
     name: Build and Push Docker Images
     env:
-      image_tag: ${{ inputs.image_tag }}
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
       RUNNER_COMPOSE_FILE: "docker-compose-runner-nightly.yml"
       ERA_BELLMAN_CUDA_RELEASE: ${{ inputs.ERA_BELLMAN_CUDA_RELEASE }}
+      CUDA_ARCH: ${{ inputs.CUDA_ARCH }}
     runs-on: [matterlabs-ci-runner]
     strategy:
       matrix:
         component:
           - witness-generator
-          - prover-v2
-          - circuit-synthesizer
           - prover-fri
           - prover-gpu-fri
           - witness-vector-generator
@@ -68,29 +67,28 @@ jobs:
       - name: start-services
         run: |
           echo "IMAGE_TAG_SUFFIX=${{ env.IMAGE_TAG_SUFFIX }}" >> .env
-          docker-compose -f docker-compose-runner.yml up -d zk geth postgres
+          mkdir -p ./volumes/postgres
+          docker compose up -d zk postgres
           ci_run sccache --start-server
 
       - name: init
         run: |
           ci_run git config --global --add safe.directory /usr/src/zksync
-          ci_run git config --global --add safe.directory /usr/src/zksync/sdk/binaryen
-          ci_run git config --global --add safe.directory /usr/src/zksync/etc/system-contracts
+          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk
-          ci_run zk clean --all
-          ci_run zk run yarn
-          ci_run cp etc/tokens/{test,localhost}.json
-          ci_run zk compiler all
-          ci_run zk contract build
-          ci_run zk f yarn run l2-contracts build
+
+      # We need the CRS only for the fri compressor.
+      - name: download CRS
+        if: matrix.component == 'proof-fri-compressor'
+        run: |
           ci_run curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
 
       - name: login to Docker registries
         if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
         run: |
           ci_run docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
-          ci_run gcloud auth configure-docker us-docker.pkg.dev,asia-docker.pkg.dev,europe-docker.pkg.dev -q
+          ci_run gcloud auth configure-docker us-docker.pkg.dev -q
 
       # We need to run this only when ERA_BELLMAN_CUDA_RELEASE is not available
       # In our case it happens only when PR is created from fork
@@ -166,7 +164,7 @@ jobs:
             ci_run echo [workspace] > Cargo.toml
             ci_run echo members = [\"prover/${underscored_name}\"] >> Cargo.toml
             ci_run cp prover/Cargo.lock Cargo.lock
-            PASSED_ENV_VARS="ERA_BELLMAN_CUDA_RELEASE"  \
+            PASSED_ENV_VARS="ERA_BELLMAN_CUDA_RELEASE,CUDA_ARCH" \
             ci_run zk docker $DOCKER_ACTION $COMPONENT
           else
             ci_run zk docker $DOCKER_ACTION $COMPONENT
@@ -177,3 +175,41 @@ jobs:
         run: |
           ci_run sccache --show-stats
           ci_run cat /tmp/sccache_log.txt
+  
+  copy-images:
+    name: Copy images between docker registries
+    env:
+      IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
+    runs-on: matterlabs-ci-runner
+    needs: build-images
+    if: ${{ inputs.action == 'push' }}
+    strategy:
+      matrix:
+        component:
+          - witness-vector-generator
+    steps:
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to us-central1 GAR
+        run: |
+          gcloud auth print-access-token --lifetime=7200 --impersonate-service-account=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com | docker login -u oauth2accesstoken --password-stdin https://us-docker.pkg.dev
+
+      - name: Login and push to Asia GAR
+        run: |
+          gcloud auth print-access-token --lifetime=7200 --impersonate-service-account=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com | docker login -u oauth2accesstoken --password-stdin https://asia-docker.pkg.dev
+          docker buildx imagetools create \
+            --tag asia-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ inputs.image_tag_suffix }} \
+            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ inputs.image_tag_suffix }}
+
+      - name: Login and push to Europe GAR
+        run: |
+          gcloud auth print-access-token --lifetime=7200 --impersonate-service-account=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com | docker login -u oauth2accesstoken --password-stdin https://europe-docker.pkg.dev
+          docker buildx imagetools create \
+            --tag europe-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ inputs.image_tag_suffix }} \
+            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:2.0-${{ inputs.image_tag_suffix }}
+          

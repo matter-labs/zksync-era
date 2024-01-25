@@ -1,32 +1,35 @@
 #![cfg_attr(not(feature = "gpu"), allow(unused_imports))]
 
-use std::sync::Arc;
-use std::time::Instant;
-use zksync_prover_fri_types::circuit_definitions::boojum::config::ProvingCSConfig;
-use zksync_prover_fri_types::circuit_definitions::boojum::cs::implementations::reference_cs::CSReferenceAssembly;
+use std::{sync::Arc, time::Instant};
 
 use tokio::sync::Mutex;
 use zkevm_test_harness::prover_utils::{verify_base_layer_proof, verify_recursion_layer_proof};
 use zksync_dal::StorageProcessor;
 use zksync_object_store::ObjectStore;
-use zksync_prover_fri_types::circuit_definitions::boojum::algebraic_props::round_function::AbsorptionModeOverwrite;
-use zksync_prover_fri_types::circuit_definitions::boojum::algebraic_props::sponge::GoldilocksPoseidon2Sponge;
-use zksync_prover_fri_types::circuit_definitions::boojum::cs::implementations::pow::NoPow;
-use zksync_prover_fri_types::circuit_definitions::boojum::cs::implementations::proof::Proof;
-use zksync_prover_fri_types::circuit_definitions::boojum::cs::implementations::verifier::VerificationKey;
-use zksync_prover_fri_types::circuit_definitions::boojum::field::goldilocks::{
-    GoldilocksExt2, GoldilocksField,
-};
-use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::{
-    ZkSyncRecursionLayerProof, ZkSyncRecursionLayerStorageType,
-};
-use zksync_prover_fri_types::queue::FixedSizeQueue;
 use zksync_prover_fri_types::{
+    circuit_definitions::{
+        boojum::{
+            algebraic_props::{
+                round_function::AbsorptionModeOverwrite, sponge::GoldilocksPoseidon2Sponge,
+            },
+            config::ProvingCSConfig,
+            cs::implementations::{
+                pow::NoPow, proof::Proof, reference_cs::CSReferenceAssembly,
+                verifier::VerificationKey,
+            },
+            field::goldilocks::{GoldilocksExt2, GoldilocksField},
+        },
+        circuit_definitions::recursion_layer::{
+            ZkSyncRecursionLayerProof, ZkSyncRecursionLayerStorageType,
+        },
+    },
+    queue::FixedSizeQueue,
     CircuitWrapper, FriProofWrapper, ProverServiceDataKey, WitnessVectorArtifacts,
 };
 use zksync_prover_fri_utils::get_base_layer_circuit_id_for_recursive_layer;
-
 use zksync_types::{basic_fri_types::CircuitIdRoundTuple, proofs::AggregationRound, L1BatchNumber};
+
+use crate::metrics::METRICS;
 
 pub type F = GoldilocksField;
 pub type H = GoldilocksPoseidon2Sponge<AbsorptionModeOverwrite>;
@@ -94,11 +97,8 @@ pub async fn save_proof(
 
     let blob_save_started_at = Instant::now();
     let blob_url = blob_store.put(job_id, &proof).await.unwrap();
-    metrics::histogram!(
-            "prover_fri.prover.blob_save_time",
-            blob_save_started_at.elapsed(),
-            "circuit_type" => circuit_type.to_string(),
-    );
+
+    METRICS.blob_save_time[&circuit_type.to_string()].observe(blob_save_started_at.elapsed());
 
     let mut transaction = storage_processor.start_transaction().await.unwrap();
     let job_metadata = transaction
@@ -141,11 +141,9 @@ pub fn verify_proof(
             recursive_circuit.numeric_circuit_type(),
         ),
     };
-    metrics::histogram!(
-        "prover_fri.prover.proof_verification_time",
-        started_at.elapsed(),
-        "circuit_type" => circuit_id.to_string(),
-    );
+
+    METRICS.proof_verification_time[&circuit_id.to_string()].observe(started_at.elapsed());
+
     if !is_valid {
         let msg = format!(
             "Failed to verify base layer proof for job-id: {job_id} circuit_type {circuit_id}"
@@ -194,7 +192,7 @@ mod tests {
 
         let result = get_setup_data_key(key);
 
-        // Check if the circuit_id has been changed to NodeLayerCircuit's id
+        // Check if the `circuit_id` has been changed to `NodeLayerCircuit's` id
         assert_eq!(expected, result);
     }
 

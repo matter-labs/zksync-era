@@ -8,12 +8,16 @@
 //! We can refactor this code and adapt it for our needs better, but I prefer to reuse as much code as we can.
 //! In the case where it will be possible to use only the web3 library without copy-paste, the changes will be small and simple
 //! Link to @Deniallugo's PR to web3: https://github.com/tomusdrw/rust-web3/pull/630
+
 use rlp::RlpStream;
-use zksync_types::web3::{
-    signing::{self, Signature},
-    types::{AccessList, SignedTransaction},
+use zksync_types::{
+    ethabi::Address,
+    web3::{
+        signing::{self, Signature},
+        types::{AccessList, SignedTransaction},
+    },
+    U256, U64,
 };
-use zksync_types::{ethabi::Address, U256, U64};
 
 const LEGACY_TX_ID: u64 = 0;
 const ACCESSLISTS_TX_ID: u64 = 1;
@@ -100,7 +104,7 @@ impl Transaction {
         let list_size = if signature.is_some() { 11 } else { 8 };
         stream.begin_list(list_size);
 
-        // append chain_id. from EIP-2930: chainId is defined to be an integer of arbitrary size.
+        // append `chain_id`. from EIP-2930: `chainId` is defined to be an integer of arbitrary size.
         stream.append(&chain_id);
 
         self.rlp_append_legacy(&mut stream);
@@ -119,7 +123,7 @@ impl Transaction {
         let list_size = if signature.is_some() { 12 } else { 9 };
         stream.begin_list(list_size);
 
-        // append chain_id. from EIP-2930: chainId is defined to be an integer of arbitrary size.
+        // append `chain_id`. from EIP-2930: `chainId` is defined to be an integer of arbitrary size.
         stream.append(&chain_id);
 
         stream.append(&self.nonce);

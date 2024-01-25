@@ -5,14 +5,15 @@
 //!
 //! These "extensions" are required to provide more zkSync-specific information while remaining Web3-compilant.
 
-use core::convert::{TryFrom, TryInto};
-use core::fmt;
-use core::marker::PhantomData;
+use core::{
+    convert::{TryFrom, TryInto},
+    fmt,
+    marker::PhantomData,
+};
 
 use itertools::unfold;
 use rlp::Rlp;
-use serde::{de, Deserialize, Serialize, Serializer};
-
+use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 pub use zksync_types::{
     api::{Block, BlockNumber, Log, TransactionReceipt, TransactionRequest},
     vm_trace::{ContractSourceDebugInfo, VmDebugTrace, VmExecutionStep},
@@ -105,13 +106,18 @@ pub enum FilterChanges {
 }
 
 /// Either value or array of values.
+///
+/// A value must serialize into a string.
 #[derive(Default, Debug, PartialEq, Clone)]
 pub struct ValueOrArray<T>(pub Vec<T>);
 
-impl<T> Serialize for ValueOrArray<T>
-where
-    T: Serialize,
-{
+impl<T> From<T> for ValueOrArray<T> {
+    fn from(value: T) -> Self {
+        Self(vec![value])
+    }
+}
+
+impl<T: Serialize> Serialize for ValueOrArray<T> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -124,18 +130,18 @@ where
     }
 }
 
-impl<'de, T: std::fmt::Debug + Deserialize<'de>> ::serde::Deserialize<'de> for ValueOrArray<T> {
+impl<'de, T: Deserialize<'de>> Deserialize<'de> for ValueOrArray<T> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
-        D: ::serde::Deserializer<'de>,
+        D: Deserializer<'de>,
     {
         struct Visitor<T>(PhantomData<T>);
 
-        impl<'de, T: std::fmt::Debug + Deserialize<'de>> de::Visitor<'de> for Visitor<T> {
+        impl<'de, T: Deserialize<'de>> de::Visitor<'de> for Visitor<T> {
             type Value = ValueOrArray<T>;
 
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str("Expected value or sequence")
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str("string value or sequence of values")
             }
 
             fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
@@ -343,8 +349,9 @@ pub enum PubSubResult {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use zksync_types::api::{BlockId, BlockIdVariant};
+
+    use super::*;
 
     #[test]
     fn get_block_number_serde() {
@@ -407,5 +414,31 @@ mod tests {
             let actual_block_id: BlockId = deserialized.into();
             assert_eq!(&actual_block_id, expected_block_id);
         }
+    }
+
+    #[test]
+    fn serializing_value_or_array() {
+        let value = ValueOrArray::from(Address::repeat_byte(0x1f));
+        let json = serde_json::to_value(value.clone()).unwrap();
+        assert_eq!(
+            json,
+            serde_json::json!("0x1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f")
+        );
+
+        let restored_value: ValueOrArray<Address> = serde_json::from_value(json).unwrap();
+        assert_eq!(restored_value, value);
+
+        let value = ValueOrArray(vec![Address::repeat_byte(0x1f), Address::repeat_byte(0x23)]);
+        let json = serde_json::to_value(value.clone()).unwrap();
+        assert_eq!(
+            json,
+            serde_json::json!([
+                "0x1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f",
+                "0x2323232323232323232323232323232323232323",
+            ])
+        );
+
+        let restored_value: ValueOrArray<Address> = serde_json::from_value(json).unwrap();
+        assert_eq!(restored_value, value);
     }
 }

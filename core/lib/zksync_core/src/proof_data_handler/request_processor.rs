@@ -1,26 +1,27 @@
-use axum::extract::Path;
-use axum::response::Response;
-use axum::{http::StatusCode, response::IntoResponse, Json};
-use std::convert::TryFrom;
-use std::sync::Arc;
+use std::{convert::TryFrom, sync::Arc};
+
+use axum::{
+    extract::Path,
+    http::StatusCode,
+    response::{IntoResponse, Response},
+    Json,
+};
 use zksync_config::configs::{
     proof_data_handler::ProtocolVersionLoadingMode, ProofDataHandlerConfig,
 };
-use zksync_types::commitment::serialize_commitments;
-use zksync_types::web3::signing::keccak256;
-use zksync_utils::u256_to_h256;
-
 use zksync_dal::{ConnectionPool, SqlxError};
 use zksync_object_store::{ObjectStore, ObjectStoreError};
-use zksync_types::protocol_version::FriProtocolVersionId;
 use zksync_types::{
-    protocol_version::L1VerifierConfig,
+    commitment::serialize_commitments,
+    protocol_version::{FriProtocolVersionId, L1VerifierConfig},
     prover_server_api::{
         ProofGenerationData, ProofGenerationDataRequest, ProofGenerationDataResponse,
         SubmitProofRequest, SubmitProofResponse,
     },
+    web3::signing::keccak256,
     L1BatchNumber, H256,
 };
+use zksync_utils::u256_to_h256;
 
 #[derive(Clone)]
 pub(crate) struct RequestProcessor {
@@ -31,7 +32,6 @@ pub(crate) struct RequestProcessor {
 }
 
 pub(crate) enum RequestProcessorError {
-    NoPendingBatches,
     ObjectStore(ObjectStoreError),
     Sqlx(SqlxError),
 }
@@ -39,10 +39,6 @@ pub(crate) enum RequestProcessorError {
 impl IntoResponse for RequestProcessorError {
     fn into_response(self) -> Response {
         let (status_code, message) = match self {
-            Self::NoPendingBatches => (
-                StatusCode::NOT_FOUND,
-                "No pending batches to process".to_owned(),
-            ),
             RequestProcessorError::ObjectStore(err) => {
                 tracing::error!("GCS error: {:?}", err);
                 (
@@ -69,13 +65,13 @@ impl IntoResponse for RequestProcessorError {
 
 impl RequestProcessor {
     pub(crate) fn new(
-        blob_store: Box<dyn ObjectStore>,
+        blob_store: Arc<dyn ObjectStore>,
         pool: ConnectionPool,
         config: ProofDataHandlerConfig,
         l1_verifier_config: Option<L1VerifierConfig>,
     ) -> Self {
         Self {
-            blob_store: Arc::from(blob_store),
+            blob_store,
             pool,
             config,
             l1_verifier_config,
@@ -88,15 +84,19 @@ impl RequestProcessor {
     ) -> Result<Json<ProofGenerationDataResponse>, RequestProcessorError> {
         tracing::info!("Received request for proof generation data: {:?}", request);
 
-        let l1_batch_number = self
+        let l1_batch_number_result = self
             .pool
             .access_storage()
             .await
             .unwrap()
             .proof_generation_dal()
             .get_next_block_to_be_proven(self.config.proof_generation_timeout())
-            .await
-            .ok_or(RequestProcessorError::NoPendingBatches)?;
+            .await;
+
+        let l1_batch_number = match l1_batch_number_result {
+            Some(number) => number,
+            None => return Ok(Json(ProofGenerationDataResponse::Success(None))), // no batches pending to be proven
+        };
 
         let blob = self
             .blob_store
@@ -125,7 +125,9 @@ impl RequestProcessor {
             l1_verifier_config,
         };
 
-        Ok(Json(ProofGenerationDataResponse::Success(proof_gen_data)))
+        Ok(Json(ProofGenerationDataResponse::Success(Some(
+            proof_gen_data,
+        ))))
     }
 
     pub(crate) async fn submit_proof(

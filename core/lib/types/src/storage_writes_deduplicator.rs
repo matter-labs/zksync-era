@@ -2,9 +2,11 @@ use std::collections::HashMap;
 
 use zksync_utils::u256_to_h256;
 
-use crate::tx::tx_execution_info::DeduplicatedWritesMetrics;
-use crate::writes::compression::compress_with_best_strategy;
-use crate::{AccountTreeId, StorageKey, StorageLogQuery, StorageLogQueryType, U256};
+use crate::{
+    tx::tx_execution_info::DeduplicatedWritesMetrics,
+    writes::compression::compress_with_best_strategy, AccountTreeId, StorageKey, StorageLogQuery,
+    StorageLogQueryType, U256,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct ModifiedSlot {
@@ -219,9 +221,8 @@ impl StorageWritesDeduplicator {
 mod tests {
     use zk_evm::aux_structures::{LogQuery, Timestamp};
 
-    use crate::H160;
-
     use super::*;
+    use crate::H160;
 
     fn storage_log_query(
         key: U256,

@@ -44,11 +44,11 @@ export const command = new Command('clean')
         }
 
         if (cmd.all || cmd.contracts) {
-            clean('contracts/ethereum/artifacts');
-            clean('contracts/ethereum/cache');
-            clean('contracts/ethereum/typechain');
-            clean('contracts/zksync/artifacts-zk');
-            clean('contracts/zksync/cache-zk');
-            clean('contracts/zksync/typechain');
+            clean('contracts/l1-contracts/artifacts');
+            clean('contracts/l1-contracts/cache');
+            clean('contracts/l1-contracts/typechain');
+            clean('contracts/l2-contracts/artifacts-zk');
+            clean('contracts/l2-contracts/cache-zk');
+            clean('contracts/l2-contracts/typechain');
         }
     });

@@ -1,10 +1,13 @@
-use crate::interface::{Halt, VmExecutionStatistics, VmRevertReason};
 use zksync_system_constants::PUBLISH_BYTECODE_OVERHEAD;
-use zksync_types::event::{extract_long_l2_to_l1_messages, extract_published_bytecodes};
-use zksync_types::l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log};
-use zksync_types::tx::ExecutionMetrics;
-use zksync_types::{StorageLogQuery, Transaction, VmEvent};
+use zksync_types::{
+    event::{extract_long_l2_to_l1_messages, extract_published_bytecodes},
+    l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
+    tx::ExecutionMetrics,
+    StorageLogQuery, Transaction, VmEvent,
+};
 use zksync_utils::bytecode::bytecode_len_in_bytes;
+
+use crate::interface::{Halt, VmExecutionStatistics, VmRevertReason};
 
 /// Refunds produced for the user.
 #[derive(Debug, Clone, Default)]
@@ -98,6 +101,7 @@ impl VmExecutionResultAndLogs {
             cycles_used: self.statistics.cycles_used,
             computational_gas_used: self.statistics.computational_gas_used,
             pubdata_published: self.statistics.pubdata_published,
+            estimated_circuits_used: self.statistics.estimated_circuits_used,
         }
     }
 }

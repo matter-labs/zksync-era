@@ -1,5 +1,7 @@
-use std::convert::TryFrom;
-use std::fmt::{Debug, Display};
+use std::{
+    convert::TryFrom,
+    fmt::{Debug, Display},
+};
 
 use zksync_types::U256;
 
@@ -15,7 +17,7 @@ pub enum VmRevertReasonParsingError {
     IncorrectStringLength(Vec<u8>),
 }
 
-/// Rich Revert Reasons https://github.com/0xProject/ZEIPs/issues/32
+/// Rich Revert Reasons `https://github.com/0xProject/ZEIPs/issues/32`
 #[derive(Debug, Clone, PartialEq)]
 pub enum VmRevertReason {
     General {

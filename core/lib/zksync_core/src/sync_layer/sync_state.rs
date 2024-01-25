@@ -40,7 +40,7 @@ impl SyncState {
         let mut inner = self.inner.write().unwrap();
         if let Some(local_block) = inner.local_block {
             if block.0 < local_block.0 {
-                // Probably it's fine -- will be checked by the reorg detector.
+                // Probably it's fine -- will be checked by the re-org detector.
                 tracing::warn!(
                     "main_node_block({}) is less than local_block({})",
                     block,
@@ -56,7 +56,7 @@ impl SyncState {
         let mut inner = self.inner.write().unwrap();
         if let Some(main_node_block) = inner.main_node_block {
             if block.0 > main_node_block.0 {
-                // Probably it's fine -- will be checked by the reorg detector.
+                // Probably it's fine -- will be checked by the re-org detector.
                 tracing::warn!(
                     "local_block({}) is greater than main_node_block({})",
                     block,
@@ -86,7 +86,7 @@ impl SyncState {
             (inner.main_node_block, inner.local_block)
         {
             let Some(block_diff) = main_node_block.0.checked_sub(local_block.0) else {
-                // We're ahead of the main node, this situation is handled by the reorg detector.
+                // We're ahead of the main node, this situation is handled by the re-org detector.
                 return (true, Some(0));
             };
             (block_diff <= SYNC_MINIBLOCK_DELTA, Some(block_diff))
@@ -137,7 +137,7 @@ mod tests {
 
         sync_state.set_main_node_block(MiniblockNumber(1));
         sync_state.set_local_block(MiniblockNumber(2));
-        // ^ should not panic, as we defer the situation to the reorg detector.
+        // ^ should not panic, as we defer the situation to the re-org detector.
 
         // At the same time, we should consider ourselves synced unless `ReorgDetector` tells us otherwise.
         assert!(sync_state.is_synced());
@@ -149,7 +149,7 @@ mod tests {
 
         sync_state.set_local_block(MiniblockNumber(2));
         sync_state.set_main_node_block(MiniblockNumber(1));
-        // ^ should not panic, as we defer the situation to the reorg detector.
+        // ^ should not panic, as we defer the situation to the re-org detector.
 
         // At the same time, we should consider ourselves synced unless `ReorgDetector` tells us otherwise.
         assert!(sync_state.is_synced());

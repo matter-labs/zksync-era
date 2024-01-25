@@ -1,18 +1,113 @@
 version: '3.2'
 services:
-  geth:
-    image: "matterlabs/geth:latest"
-    ports:
-      - "8545:8545"
-      - "8546:8546"
+  create-beacon-chain-genesis:
+    image: "gcr.io/prysmaticlabs/prysm/cmd/prysmctl:HEAD-c6801d"
+    command:
+      - testnet
+      - generate-genesis
+      - --fork=deneb
+      - --num-validators=64
+      - --genesis-time-delay=5
+      - --output-ssz=/consensus/genesis.ssz
+      - --chain-config-file=/prysm/config.yml
+      - --geth-genesis-json-in=/geth/standard-dev.json
+      - --geth-genesis-json-out=/execution/genesis.json
     volumes:
-    - type: bind
-      source: ./volumes/geth
-      target: /var/lib/geth/data
+      - ./docker/geth:/geth/:ro
+      - ./docker/prysm:/prysm/:ro
+      - ./volumes/geth:/execution
+      - ./volumes/prysm:/consensus
+  geth-genesis:
+    image: "ethereum/client-go:v1.13.5"
+    command: --datadir=/execution init /execution/genesis.json
+    volumes:
+      - ./volumes/geth:/execution
+    depends_on:
+      create-beacon-chain-genesis:
+        condition: service_completed_successfully
+  geth:
+    image: "ethereum/client-go:v1.13.5"
+    ports:
+      - 8551:8551
+      - 8545:8545
+      - 8546:8546
+    volumes:
+      - ./volumes/geth:/var/lib/geth/data
+      - ./docker/geth/:/geth/:ro
+    command:
+      - --networkid=9
+      - --datadir=/var/lib/geth/data
+      - --http
+      - --http.api=engine,eth,web3,personal,net,debug
+      - --http.addr=0.0.0.0
+      - --http.corsdomain=*
+      - --http.vhosts=*
+      - --ws
+      - --ws.addr=0.0.0.0
+      - --ws.port=8546
+      - --ws.origins=*
+      - --nodiscover
+      - --authrpc.addr=0.0.0.0
+      - --authrpc.vhosts=*
+      - --authrpc.jwtsecret=/var/lib/geth/data/jwtsecret
+      - --allow-insecure-unlock
+      - --unlock=0x8a91dc2d28b689474298d91899f0c1baf62cb85b
+      - --password=/var/lib/geth/data/password.sec
+      - --syncmode=full
+    depends_on:
+      beacon:
+        condition: service_started
+      geth-genesis:
+        condition: service_completed_successfully
+  beacon:
+    image: "gcr.io/prysmaticlabs/prysm/beacon-chain:HEAD-c6801d"
+    command:
+      - --datadir=/consensus/beacon/
+      - --min-sync-peers=0
+      - --genesis-state=/consensus/genesis.ssz
+      - --bootstrap-node=
+      - --interop-eth1data-votes
+      - --chain-config-file=/consensus/config.yml
+      - --contract-deployment-block=0
+      - --chain-id=9
+      - --rpc-host=0.0.0.0
+      - --grpc-gateway-host=0.0.0.0
+      - --execution-endpoint=http://geth:8551
+      - --accept-terms-of-use
+      - --jwt-secret=/execution/jwtsecret
+      - --suggested-fee-recipient=0x8a91dc2d28b689474298d91899f0c1baf62cb85b
+      - --minimum-peers-per-subnet=0
+      - --enable-debug-rpc-endpoints
+    ports:
+      - 4000:4000
+      - 3500:3500
+      - 8080:8080
+      - 6060:6060
+      - 9090:9090
+    volumes:
+      - ./volumes/prysm:/consensus
+      - ./volumes/geth:/execution
+    depends_on:
+      create-beacon-chain-genesis:
+        condition: service_completed_successfully
+  validator:
+    image: "gcr.io/prysmaticlabs/prysm/validator:HEAD-c6801d"
+    command:
+      - --beacon-rpc-provider=beacon:4000
+      - --datadir=/consensus/validatordata
+      - --accept-terms-of-use
+      - --interop-num-validators=64
+      - --interop-start-index=0
+      - --chain-config-file=/consensus/config.yml
+    depends_on:
+      beacon:
+        condition: service_started
+    volumes:
+      - ./volumes/prysm:/consensus
   postgres:
     image: "postgres:14"
     ports:
-      - "5432:5432"
+      - 127.0.0.1:5432:5432
     volumes:
       - type: bind
         source: ./volumes/postgres
@@ -20,3 +115,29 @@ services:
     environment:
       - POSTGRES_HOST_AUTH_METHOD=trust
 
+  # This is specific to runner
+  zk:
+    image: "matterlabs/zk-environment:latest2.0-lightweight"
+    security_opt:
+      - seccomp:unconfined
+    command: tail -f /dev/null
+    volumes:
+      - .:/usr/src/zksync
+      - /usr/src/cache:/usr/src/cache
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./hardhat-nodejs:/root/.cache/hardhat-nodejs
+    environment:
+      - CACHE_DIR=/usr/src/cache
+      - SCCACHE_CACHE_SIZE=50g
+      - SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage
+      - SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com
+      - SCCACHE_ERROR_LOG=/tmp/sccache_log.txt
+      - SCCACHE_GCS_RW_MODE=READ_WRITE
+      - CI=1
+      - GITHUB_WORKSPACE=$GITHUB_WORKSPACE
+    env_file:
+      - ./.env
+    extra_hosts:
+      - "host:host-gateway"
+    profiles:
+      - runner

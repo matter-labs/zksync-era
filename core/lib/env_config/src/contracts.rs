@@ -10,9 +10,10 @@ impl FromEnv for ContractsConfig {
 
 #[cfg(test)]
 mod tests {
+    use zksync_config::configs::contracts::ProverAtGenesis;
+
     use super::*;
     use crate::test_utils::{addr, hash, EnvMutex};
-    use zksync_config::configs::contracts::ProverAtGenesis;
 
     static MUTEX: EnvMutex = EnvMutex::new();
 

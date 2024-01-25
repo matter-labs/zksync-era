@@ -1,5 +1,5 @@
-use crate::{ethabi::Token, H256};
 use std::str::FromStr;
+
 use zkevm_test_harness::{
     abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit,
     bellman::{
@@ -13,6 +13,8 @@ use zkevm_test_harness::{
         recursive_aggregation::{compute_vk_encoding_and_committment, erase_vk_type},
     },
 };
+
+use crate::{ethabi::Token, H256};
 
 /// Calculates commitment for vk from L1 verifier contract.
 pub fn l1_vk_commitment(token: Token) -> H256 {

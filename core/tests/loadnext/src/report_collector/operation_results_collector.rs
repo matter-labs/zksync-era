@@ -1,6 +1,6 @@
-use crate::report::{ActionType, ReportLabel};
-
 use std::{fmt, time::Duration};
+
+use crate::report::{ActionType, ReportLabel};
 
 /// Collector that analyzes the outcomes of the performed operations.
 /// Currently it's solely capable of deciding whether test was failed or not.

@@ -1,15 +1,20 @@
-use crate::HistoryMode;
 use zk_evm_1_3_3::aux_structures::Timestamp;
 use zksync_state::WriteStorage;
 
-use crate::interface::tracer::{TracerExecutionStatus, VmExecutionStopReason};
-use crate::interface::{VmExecutionMode, VmExecutionResultAndLogs};
-use crate::vm_refunds_enhancement::old_vm::utils::{vm_may_have_ended_inner, VmExecutionResult};
-use crate::vm_refunds_enhancement::tracers::dispatcher::TracerDispatcher;
-use crate::vm_refunds_enhancement::tracers::{
-    traits::VmTracer, DefaultExecutionTracer, RefundsTracer,
+use crate::{
+    interface::{
+        tracer::{TracerExecutionStatus, VmExecutionStopReason},
+        VmExecutionMode, VmExecutionResultAndLogs,
+    },
+    vm_refunds_enhancement::{
+        old_vm::utils::{vm_may_have_ended_inner, VmExecutionResult},
+        tracers::{
+            dispatcher::TracerDispatcher, traits::VmTracer, DefaultExecutionTracer, RefundsTracer,
+        },
+        vm::Vm,
+    },
+    HistoryMode,
 };
-use crate::vm_refunds_enhancement::vm::Vm;
 
 impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     pub(crate) fn inspect_inner(

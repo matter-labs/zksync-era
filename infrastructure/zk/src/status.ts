@@ -4,7 +4,7 @@ import { Pool } from 'pg';
 import { ethers } from 'ethers';
 import { assert } from 'console';
 
-// Postgres connection pool - must be intialized later - as the ENV variables are set later.
+// Postgres connection pool - must be initialized later - as the ENV variables are set later.
 let pool: Pool | null = null;
 
 const GETTER_ABI = [
@@ -167,7 +167,7 @@ async function compareVerificationParams() {
     }
 
     if (fail == false) {
-        console.log(`${greenStart}Verifcation params match.${resetColor}`);
+        console.log(`${greenStart}Verification params match.${resetColor}`);
     }
 }
 
@@ -176,7 +176,7 @@ const greenStart = '\x1b[32m';
 const resetColor = '\x1b[0m';
 
 export async function statusProver() {
-    console.log('==== FRI Prover status ====');
+    console.log('==== FRI Prover Status ====');
 
     pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -184,20 +184,21 @@ export async function statusProver() {
         console.log(`${redStart}Can only show status for FRI provers.${resetColor}`);
         return;
     }
+    // Fetch the first and most recent sealed batch numbers
     const stateKeeperStatus = (await queryAndReturnRows('select min(number), max(number) from l1_batches'))[0];
 
     console.log(`State keeper: First batch: ${stateKeeperStatus['min']}, recent batch: ${stateKeeperStatus['max']}`);
-    const [blockCommited, blockVerified] = await getL1ValidatorStatus();
-    console.log(`L1 state: block verified: ${blockVerified}, block committed: ${blockCommited}`);
+    const [blockCommitted, blockVerified] = await getL1ValidatorStatus();
+    console.log(`L1 state: block verified: ${blockVerified}, block committed: ${blockCommitted}`);
 
-    assert(blockCommited >= 0);
-    assert(blockCommited <= stateKeeperStatus['max']);
+    assert(blockCommitted >= 0);
+    assert(blockCommitted <= stateKeeperStatus['max']);
 
-    if (blockCommited < stateKeeperStatus['max']) {
+    const ethSenderLag = stateKeeperStatus['max'] - blockCommitted;
+    if (ethSenderLag > 0) {
         console.log(
-            `${redStart}Eth sender is behind - block commited ${blockCommited} is smaller than most recent state keeper batch ${stateKeeperStatus['max']}.${resetColor}`
+            `${redStart}Eth sender is ${ethSenderLag} behind. Last block committed: ${blockCommitted}. Most recent sealed state keeper batch: ${stateKeeperStatus['max']}.${resetColor}`
         );
-        return;
     }
     await compareVerificationKeys();
     await compareVerificationParams();

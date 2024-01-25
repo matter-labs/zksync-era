@@ -10,8 +10,10 @@ use std::collections::HashMap;
 
 use itertools::Itertools;
 use zk_evm_1_3_3::{aux_structures::Timestamp, vm_state::VmLocalState};
-use zksync_contracts::test_contracts::LoadnextContractExecutionParams;
-use zksync_contracts::{deployer_contract, get_loadnext_contract, load_contract};
+use zksync_contracts::{
+    deployer_contract, get_loadnext_contract, load_contract,
+    test_contracts::LoadnextContractExecutionParams,
+};
 use zksync_state::WriteStorage;
 use zksync_types::{
     ethabi::{Address, Token},
@@ -59,7 +61,7 @@ impl PartialEq for ModifiedKeysMap {
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct DecommitterTestInnerState<H: HistoryMode> {
-    /// There is no way to "trully" compare the storage pointer,
+    /// There is no way to "truly" compare the storage pointer,
     /// so we just compare the modified keys. This is reasonable enough.
     pub modified_storage_keys: ModifiedKeysMap,
     pub known_bytecodes: HistoryRecorder<HashMap<U256, Vec<U256>>, H>,
@@ -68,7 +70,7 @@ pub struct DecommitterTestInnerState<H: HistoryMode> {
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct StorageOracleInnerState<H: HistoryMode> {
-    /// There is no way to "trully" compare the storage pointer,
+    /// There is no way to "truly" compare the storage pointer,
     /// so we just compare the modified keys. This is reasonable enough.
     pub modified_storage_keys: ModifiedKeysMap,
 

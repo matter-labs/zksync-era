@@ -1,21 +1,26 @@
-use crate::HistoryMode;
 use zksync_state::{StoragePtr, WriteStorage};
-use zksync_types::l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log};
-use zksync_types::{event::extract_l2tol1logs_from_l1_messenger, Transaction};
+use zksync_types::{
+    event::extract_l2tol1logs_from_l1_messenger,
+    l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
+    Transaction,
+};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
-use crate::vm_latest::old_vm::events::merge_events;
-use crate::vm_latest::old_vm::history_recorder::HistoryEnabled;
-
-use crate::interface::{
-    BootloaderMemory, CurrentExecutionState, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode,
-    VmExecutionResultAndLogs, VmInterfaceHistoryEnabled, VmMemoryMetrics,
+use crate::{
+    glue::GlueInto,
+    interface::{
+        BootloaderMemory, BytecodeCompressionError, CurrentExecutionState, FinishedL1Batch,
+        L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
+        VmInterfaceHistoryEnabled, VmMemoryMetrics,
+    },
+    vm_latest::{
+        bootloader_state::BootloaderState,
+        old_vm::{events::merge_events, history_recorder::HistoryEnabled},
+        tracers::dispatcher::TracerDispatcher,
+        types::internals::{new_vm_state, VmSnapshot, ZkSyncVmState},
+    },
+    HistoryMode,
 };
-use crate::interface::{BytecodeCompressionError, VmInterface};
-use crate::vm_latest::bootloader_state::BootloaderState;
-use crate::vm_latest::tracers::dispatcher::TracerDispatcher;
-
-use crate::vm_latest::types::internals::{new_vm_state, VmSnapshot, ZkSyncVmState};
 
 /// Main entry point for Virtual Machine integration.
 /// The instance should process only one l1 batch
@@ -23,7 +28,7 @@ use crate::vm_latest::types::internals::{new_vm_state, VmSnapshot, ZkSyncVmState
 pub struct Vm<S: WriteStorage, H: HistoryMode> {
     pub(crate) bootloader_state: BootloaderState,
     // Current state and oracles of virtual machine
-    pub(crate) state: ZkSyncVmState<S, H::VmBoojumIntegration>,
+    pub(crate) state: ZkSyncVmState<S, H::Vm1_4_1>,
     pub(crate) storage: StoragePtr<S>,
     pub(crate) system_env: SystemEnv,
     pub(crate) batch_env: L1BatchEnv,
@@ -33,7 +38,7 @@ pub struct Vm<S: WriteStorage, H: HistoryMode> {
 }
 
 impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
-    type TracerDispatcher = TracerDispatcher<S, H::VmBoojumIntegration>;
+    type TracerDispatcher = TracerDispatcher<S, H::Vm1_4_1>;
 
     fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
         let (state, bootloader_state) = new_vm_state(storage.clone(), &system_env, &batch_env);
@@ -110,7 +115,10 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
             system_logs,
             total_log_queries,
             cycles_used: self.state.local_state.monotonic_cycle_counter,
-            deduplicated_events_logs,
+            deduplicated_events_logs: deduplicated_events_logs
+                .into_iter()
+                .map(GlueInto::glue_into)
+                .collect(),
             storage_refunds: self.state.storage.returned_refunds.inner().clone(),
         }
     }
@@ -123,22 +131,45 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
         tracer: Self::TracerDispatcher,
         tx: Transaction,
         with_compression: bool,
-    ) -> Result<VmExecutionResultAndLogs, BytecodeCompressionError> {
+    ) -> (
+        Result<(), BytecodeCompressionError>,
+        VmExecutionResultAndLogs,
+    ) {
         self.push_transaction_with_compression(tx, with_compression);
         let result = self.inspect_inner(tracer, VmExecutionMode::OneTx);
         if self.has_unpublished_bytecodes() {
-            Err(BytecodeCompressionError::BytecodeCompressionFailed)
+            (
+                Err(BytecodeCompressionError::BytecodeCompressionFailed),
+                result,
+            )
         } else {
-            Ok(result)
+            (Ok(()), result)
         }
     }
 
     fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
         self.record_vm_memory_metrics_inner()
     }
+
+    fn finish_batch(&mut self) -> FinishedL1Batch {
+        let result = self.execute(VmExecutionMode::Batch);
+        let execution_state = self.get_current_execution_state();
+        let bootloader_memory = self.get_bootloader_memory();
+        FinishedL1Batch {
+            block_tip_execution_result: result,
+            final_execution_state: execution_state,
+            final_bootloader_memory: Some(bootloader_memory),
+            pubdata_input: Some(
+                self.bootloader_state
+                    .get_pubdata_information()
+                    .clone()
+                    .build_pubdata(false),
+            ),
+        }
+    }
 }
 
-/// Methods of vm, which required some history manipullations
+/// Methods of vm, which required some history manipulations
 impl<S: WriteStorage> VmInterfaceHistoryEnabled<S> for Vm<S, HistoryEnabled> {
     /// Create snapshot of current vm state and push it into the memory
     fn make_snapshot(&mut self) {

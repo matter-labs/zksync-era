@@ -1,16 +1,25 @@
-use zksync_system_constants::BOOTLOADER_ADDRESS;
-use zksync_types::l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log};
-use zksync_types::storage_writes_deduplicator::StorageWritesDeduplicator;
-use zksync_types::{get_code_key, get_known_code_key, U256};
+use ethabi::Token;
+use zksync_contracts::l1_messenger_contract;
+use zksync_system_constants::{BOOTLOADER_ADDRESS, L1_MESSENGER_ADDRESS};
+use zksync_types::{
+    get_code_key, get_known_code_key,
+    l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
+    storage_writes_deduplicator::StorageWritesDeduplicator,
+    Execute, ExecuteTransactionCommon, U256,
+};
 use zksync_utils::u256_to_h256;
 
-use crate::interface::{TxExecutionMode, VmExecutionMode, VmInterface};
-use crate::vm_latest::tests::tester::{TxType, VmTesterBuilder};
-use crate::vm_latest::tests::utils::{
-    read_test_contract, verify_required_storage, BASE_SYSTEM_CONTRACTS,
+use crate::{
+    interface::{TxExecutionMode, VmExecutionMode, VmInterface},
+    vm_latest::{
+        tests::{
+            tester::{TxType, VmTesterBuilder},
+            utils::{read_test_contract, verify_required_storage, BASE_SYSTEM_CONTRACTS},
+        },
+        types::internals::TransactionData,
+        HistoryEnabled,
+    },
 };
-use crate::vm_latest::types::internals::TransactionData;
-use crate::vm_latest::HistoryEnabled;
 
 #[test]
 fn test_l1_tx_execution() {
@@ -19,13 +28,13 @@ fn test_l1_tx_execution() {
     // using L1->L2 communication, the same it would likely be done during the priority mode.
 
     // There are always at least 7 initial writes here, because we pay fees from l1:
-    // - totalSupply of ETH token
+    // - `totalSupply` of ETH token
     // - balance of the refund recipient
     // - balance of the bootloader
-    // - tx_rolling hash
+    // - `tx_rolling` hash
     // - rolling hash of L2->L1 logs
     // - transaction number in block counter
-    // - L2->L1 log counter in L1Messenger
+    // - L2->L1 log counter in `L1Messenger`
 
     // TODO(PLA-537): right now we are using 4 slots instead of 7 due to 0 fee for transaction.
     let basic_initial_writes = 4;
@@ -129,4 +138,52 @@ fn test_l1_tx_execution() {
     let res = StorageWritesDeduplicator::apply_on_empty_state(&result.logs.storage_logs);
     // There are only basic initial writes
     assert_eq!(res.initial_storage_writes - basic_initial_writes, 2);
+}
+
+#[test]
+fn test_l1_tx_execution_high_gas_limit() {
+    // In this test, we try to execute an L1->L2 transaction with a high gas limit.
+    // Usually priority transactions with dangerously gas limit should even pass the checks on the L1,
+    // however, they might pass during the transition period to the new fee model, so we check that we can safely process those.
+
+    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+        .with_empty_in_memory_storage()
+        .with_base_system_smart_contracts(BASE_SYSTEM_CONTRACTS.clone())
+        .with_execution_mode(TxExecutionMode::VerifyExecute)
+        .with_random_rich_accounts(1)
+        .build();
+
+    let account = &mut vm.rich_accounts[0];
+
+    let l1_messenger = l1_messenger_contract();
+
+    let contract_function = l1_messenger.function("sendToL1").unwrap();
+    let params = [
+        // Even a message of size 100k should not be able to be sent by a priority transaction
+        Token::Bytes(vec![0u8; 100_000]),
+    ];
+    let calldata = contract_function.encode_input(&params).unwrap();
+
+    let mut tx = account.get_l1_tx(
+        Execute {
+            contract_address: L1_MESSENGER_ADDRESS,
+            value: 0.into(),
+            factory_deps: None,
+            calldata,
+        },
+        0,
+    );
+
+    if let ExecuteTransactionCommon::L1(data) = &mut tx.common_data {
+        // Using some large gas limit
+        data.gas_limit = 300_000_000.into();
+    } else {
+        unreachable!()
+    };
+
+    vm.vm.push_transaction(tx);
+
+    let res = vm.vm.execute(VmExecutionMode::OneTx);
+
+    assert!(res.result.is_failed(), "The transaction should've failed");
 }

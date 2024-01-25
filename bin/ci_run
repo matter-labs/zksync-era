@@ -2,7 +2,7 @@
 
 # Runs the command from within CI docker-compose environment.
 cd $ZKSYNC_HOME
-compose_file="${RUNNER_COMPOSE_FILE:-docker-compose-runner.yml}"
+compose_file="${RUNNER_COMPOSE_FILE:-docker-compose.yml}"
 
 # Pass environment variables explicitly if specified
 if [ ! -z "$PASSED_ENV_VARS" ]; then

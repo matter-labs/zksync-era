@@ -1,11 +1,11 @@
 //! Metrics for `MetadataCalculator`.
 
-use vise::{
-    Buckets, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LatencyObserver, Metrics,
-};
-
 use std::time::{Duration, Instant};
 
+use vise::{
+    Buckets, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LatencyObserver, Metrics,
+    Unit,
+};
 use zksync_types::block::L1BatchHeader;
 use zksync_utils::time::seconds_since_epoch;
 
@@ -35,7 +35,7 @@ pub(super) enum LoadChangesStage {
     LoadL1BatchHeader,
     LoadProtectiveReads,
     LoadTouchedSlots,
-    LoadInitialWritesForZeroValues,
+    LoadLeafIndices,
 }
 
 /// Latency metric for a certain stage of the tree update.
@@ -175,3 +175,38 @@ impl MetadataCalculator {
         APP_METRICS.block_latency[&BlockStage::Tree].observe(Duration::from_secs(latency));
     }
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
+#[metrics(label = "stage", rename_all = "snake_case")]
+pub(super) enum RecoveryStage {
+    LoadChunkStarts,
+    Finalize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
+#[metrics(label = "stage", rename_all = "snake_case")]
+pub(super) enum ChunkRecoveryStage {
+    AcquireConnection,
+    LoadEntries,
+    LockTree,
+    ExtendTree,
+}
+
+/// Metrics for Merkle tree recovery driven by the metadata calculator.
+#[derive(Debug, Metrics)]
+#[metrics(prefix = "server_metadata_calculator_recovery")]
+pub(super) struct MetadataCalculatorRecoveryMetrics {
+    /// Number of chunks recovered.
+    pub recovered_chunk_count: Gauge<usize>,
+    /// Latency of a tree recovery stage (not related to the recovery of a particular chunk;
+    /// those metrics are tracked in the `chunk_latency` histogram).
+    #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds)]
+    pub latency: Family<RecoveryStage, Histogram<Duration>>,
+    /// Latency of a chunk recovery stage.
+    #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds)]
+    pub chunk_latency: Family<ChunkRecoveryStage, Histogram<Duration>>,
+}
+
+#[vise::register]
+pub(super) static RECOVERY_METRICS: vise::Global<MetadataCalculatorRecoveryMetrics> =
+    vise::Global::new();

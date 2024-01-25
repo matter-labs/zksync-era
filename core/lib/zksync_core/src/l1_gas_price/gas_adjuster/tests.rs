@@ -1,8 +1,9 @@
-use super::{GasAdjuster, GasStatisticsInner};
-use std::collections::VecDeque;
-use std::sync::Arc;
+use std::{collections::VecDeque, sync::Arc};
+
 use zksync_config::GasAdjusterConfig;
-use zksync_eth_client::clients::mock::MockEthereum;
+use zksync_eth_client::clients::MockEthereum;
+
+use super::{GasAdjuster, GasStatisticsInner};
 
 /// Check that we compute the median correctly
 #[test]

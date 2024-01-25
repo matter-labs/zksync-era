@@ -1,5 +1,6 @@
-use serde::Deserialize;
 use std::time::Duration;
+
+use serde::Deserialize;
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub enum SetupLoadMode {
@@ -21,6 +22,7 @@ pub struct FriProverConfig {
     pub witness_vector_generator_thread_count: Option<usize>,
     pub queue_capacity: usize,
     pub witness_vector_receiver_port: u16,
+    pub zone_read_url: String,
 
     // whether to write to public GCS bucket for https://github.com/matter-labs/era-boojum-validator-cli
     pub shall_save_to_public_bucket: bool,

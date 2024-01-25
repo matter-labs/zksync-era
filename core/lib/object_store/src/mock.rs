@@ -1,9 +1,9 @@
 //! Mock implementation of [`ObjectStore`].
 
+use std::collections::HashMap;
+
 use async_trait::async_trait;
 use tokio::sync::Mutex;
-
-use std::collections::HashMap;
 
 use crate::raw::{Bucket, ObjectStore, ObjectStoreError};
 
@@ -44,5 +44,9 @@ impl ObjectStore for MockStore {
         };
         bucket_map.remove(key);
         Ok(())
+    }
+
+    fn storage_prefix_raw(&self, bucket: Bucket) -> String {
+        bucket.to_string()
     }
 }

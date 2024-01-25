@@ -1,8 +1,8 @@
 use std::collections::HashMap;
-use tokio::sync::RwLock;
 
+use tokio::sync::RwLock;
 use zksync_types::{
-    api::{BlockId, Transaction, TransactionDetails, TransactionId, TransactionReceipt},
+    api::{BlockId, Transaction, TransactionDetails, TransactionId},
     l2::L2Tx,
     H256,
 };
@@ -66,9 +66,5 @@ impl TxProxy {
 
     pub async fn request_tx_details(&self, hash: H256) -> RpcResult<Option<TransactionDetails>> {
         self.client.get_transaction_details(hash).await
-    }
-
-    pub async fn request_tx_receipt(&self, hash: H256) -> RpcResult<Option<TransactionReceipt>> {
-        self.client.get_transaction_receipt(hash).await
     }
 }

@@ -1,13 +1,12 @@
 use itertools::Itertools;
-
-use crate::interface::VmInterface;
-use crate::HistoryMode;
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::U256;
-use zksync_utils::bytecode::{compress_bytecode, hash_bytecode, CompressedBytecodeInfo};
-use zksync_utils::bytes_to_be_words;
+use zksync_utils::{
+    bytecode::{compress_bytecode, hash_bytecode, CompressedBytecodeInfo},
+    bytes_to_be_words,
+};
 
-use crate::vm_refunds_enhancement::Vm;
+use crate::{interface::VmInterface, vm_refunds_enhancement::Vm, HistoryMode};
 
 impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     /// Checks the last transaction has successfully published compressed bytecodes and returns `true` if there is at least one is still unknown.

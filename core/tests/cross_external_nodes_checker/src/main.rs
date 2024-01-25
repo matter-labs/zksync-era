@@ -1,17 +1,14 @@
-extern crate core;
+use tokio::sync::watch;
+use zksync_utils::wait_for_tasks::wait_for_tasks;
+
+use self::{checker::Checker, pubsub_checker::PubSubChecker};
+use crate::{config::CheckerConfig, helpers::setup_sigint_handler};
 
 mod checker;
 mod config;
 mod divergence;
 mod helpers;
 mod pubsub_checker;
-
-use crate::config::CheckerConfig;
-use crate::helpers::setup_sigint_handler;
-use checker::Checker;
-use pubsub_checker::PubSubChecker;
-use tokio::sync::watch;
-use zksync_utils::wait_for_tasks::wait_for_tasks;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

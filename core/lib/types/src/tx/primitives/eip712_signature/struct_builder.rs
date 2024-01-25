@@ -1,5 +1,6 @@
-use serde_json::Value;
 use std::collections::{BTreeMap, VecDeque};
+
+use serde_json::Value;
 use zksync_basic_types::H256;
 
 use crate::tx::primitives::eip712_signature::typed_structure::{
@@ -86,7 +87,7 @@ pub(crate) struct EncodeBuilder {
 impl EncodeBuilder {
     /// Returns the concatenation of the encoded member values in the order that they appear in the type.
     pub fn encode_data(&self) -> Vec<H256> {
-        // encodeData(s : 𝕊) = enc(value₁) ‖ enc(value₂) ‖ … ‖ enc(valueₙ).
+        // `encodeData(s : 𝕊) = enc(value₁) ‖ enc(value₂) ‖ … ‖ enc(valueₙ).`
         self.members.iter().map(|(_, data)| *data).collect()
     }
 

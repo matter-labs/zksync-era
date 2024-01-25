@@ -30,12 +30,12 @@ contracts/.git
 !infrastructure/local-setup-preparation
 !infrastructure/zk
 !sdk/zksync-rs
-!etc/system-contracts/bootloader/build/artifacts
-!etc/system-contracts/contracts/artifacts
-!etc/system-contracts/contracts/precompiles/artifacts
-!etc/system-contracts/artifacts-zk
+!contracts/system-contracts/bootloader/build/artifacts
+!contracts/system-contracts/contracts-preprocessed/artifacts
+!contracts/system-contracts/contracts-preprocessed/precompiles/artifacts
+!contracts/system-contracts/artifacts-zk
 !etc/multivm_bootloaders
 !cargo
 !bellman-cuda
-!core/bin/verification_key_generator_and_server/data/
 !prover/vk_setup_data_generator_server_fri/data/
+!.github/release-please/manifest.json

@@ -12,8 +12,10 @@ use itertools::Itertools;
 use zk_evm_1_3_1::{
     aux_structures::Timestamp, reference_impls::event_sink::ApplicationData, vm_state::VmLocalState,
 };
-use zksync_contracts::test_contracts::LoadnextContractExecutionParams;
-use zksync_contracts::{deployer_contract, get_loadnext_contract, load_contract};
+use zksync_contracts::{
+    deployer_contract, get_loadnext_contract, load_contract,
+    test_contracts::LoadnextContractExecutionParams,
+};
 use zksync_types::{
     ethabi::{Address, Token},
     fee::Fee,
@@ -26,13 +28,12 @@ use zksync_utils::{
     address_to_h256, bytecode::hash_bytecode, h256_to_account_address, u256_to_h256,
 };
 
-use crate::vm_m5::storage::Storage;
-use crate::vm_m5::vm_instance::VmInstance;
-/// The tests here help us with the testing the VM
 use crate::vm_m5::{
     event_sink::InMemoryEventSink,
     history_recorder::{FrameManager, HistoryRecorder},
     memory::SimpleMemory,
+    storage::Storage,
+    vm_instance::VmInstance,
 };
 
 #[derive(Clone, Debug)]
@@ -58,7 +59,7 @@ impl PartialEq for ModifiedKeysMap {
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct DecommitterTestInnerState {
-    /// There is no way to "trully" compare the storage pointer,
+    /// There is no way to "truly" compare the storage pointer,
     /// so we just compare the modified keys. This is reasonable enough.
     pub modified_storage_keys: ModifiedKeysMap,
     pub known_bytecodes: HistoryRecorder<HashMap<U256, Vec<U256>>>,
@@ -67,7 +68,7 @@ pub struct DecommitterTestInnerState {
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct StorageOracleInnerState {
-    /// There is no way to "trully" compare the storage pointer,
+    /// There is no way to "truly" compare the storage pointer,
     /// so we just compare the modified keys. This is reasonable enough.
     pub modified_storage_keys: ModifiedKeysMap,
 

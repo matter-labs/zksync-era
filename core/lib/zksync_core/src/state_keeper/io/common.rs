@@ -1,12 +1,14 @@
 use std::time::Duration;
 
-use multivm::interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode};
-use multivm::vm_latest::constants::BLOCK_GAS_LIMIT;
+use multivm::{
+    interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode},
+    vm_latest::constants::BLOCK_GAS_LIMIT,
+};
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::StorageProcessor;
 use zksync_types::{
-    Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, H256, U256,
-    ZKPORTER_IS_AVAILABLE,
+    fee_model::BatchFeeInput, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
+    ProtocolVersionId, H256, U256, ZKPORTER_IS_AVAILABLE,
 };
 use zksync_utils::u256_to_h256;
 
@@ -20,8 +22,7 @@ pub(crate) fn l1_batch_params(
     fee_account: Address,
     l1_batch_timestamp: u64,
     previous_batch_hash: U256,
-    l1_gas_price: u64,
-    fair_l2_gas_price: u64,
+    fee_input: BatchFeeInput,
     first_miniblock_number: MiniblockNumber,
     prev_miniblock_hash: H256,
     base_system_contracts: BaseSystemContracts,
@@ -44,8 +45,7 @@ pub(crate) fn l1_batch_params(
             previous_batch_hash: Some(u256_to_h256(previous_batch_hash)),
             number: current_l1_batch_number,
             timestamp: l1_batch_timestamp,
-            l1_gas_price,
-            fair_l2_gas_price,
+            fee_input,
             fee_account,
             enforced_base_fee: None,
             first_l2_block: L2BlockEnv {
@@ -122,8 +122,7 @@ pub(crate) async fn load_l1_batch_params(
         fee_account,
         pending_miniblock_header.timestamp,
         previous_l1_batch_hash,
-        pending_miniblock_header.l1_gas_price,
-        pending_miniblock_header.l2_fair_gas_price,
+        pending_miniblock_header.batch_fee_input,
         pending_miniblock_number,
         prev_miniblock_hash,
         base_system_contracts,

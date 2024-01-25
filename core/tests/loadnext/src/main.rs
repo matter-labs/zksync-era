@@ -4,12 +4,7 @@
 //! Without required variables provided, test is launched in the localhost/development mode with some hard-coded
 //! values to check the local zkSync deployment.
 
-use tokio::sync::watch;
-
 use std::time::Duration;
-
-use prometheus_exporter::PrometheusExporterConfig;
-use zksync_config::configs::api::PrometheusConfig;
 
 use loadnext::{
     command::TxType,
@@ -17,6 +12,9 @@ use loadnext::{
     executor::Executor,
     report_collector::LoadtestResult,
 };
+use prometheus_exporter::PrometheusExporterConfig;
+use tokio::sync::watch;
+use zksync_config::configs::api::PrometheusConfig;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

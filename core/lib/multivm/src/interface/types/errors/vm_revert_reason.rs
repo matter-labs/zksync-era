@@ -12,7 +12,7 @@ pub enum VmRevertReasonParsingError {
     IncorrectStringLength(Vec<u8>),
 }
 
-/// Rich Revert Reasons https://github.com/0xProject/ZEIPs/issues/32
+/// Rich Revert Reasons `https://github.com/0xProject/ZEIPs/issues/32`
 #[derive(Debug, Clone, PartialEq)]
 pub enum VmRevertReason {
     General {
@@ -68,7 +68,7 @@ impl VmRevertReason {
 
     pub fn to_user_friendly_string(&self) -> String {
         match self {
-            // In case of `Unknown` reason we suppress it to prevent verbose Error function_selector = 0x{}
+            // In case of `Unknown` reason we suppress it to prevent verbose `Error function_selector = 0x{}`
             // message shown to user.
             VmRevertReason::Unknown { .. } => "".to_owned(),
             _ => self.to_string(),

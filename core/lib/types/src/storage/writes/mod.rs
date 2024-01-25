@@ -1,10 +1,10 @@
 use std::convert::TryInto;
 
-use crate::H256;
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{Address, U256};
 
 pub(crate) use self::compression::{compress_with_best_strategy, COMPRESSION_VERSION_NUMBER};
+use crate::H256;
 
 pub mod compression;
 
@@ -41,7 +41,7 @@ pub struct RepeatedStorageWrite {
 
 #[derive(Clone, Debug, Deserialize, Serialize, Default, Eq, PartialEq)]
 pub struct StateDiffRecord {
-    /// address state diff occured at
+    /// address state diff occurred at
     pub address: Address,
     /// storage slot key updated
     pub key: U256,
@@ -115,7 +115,7 @@ impl StateDiffRecord {
         }
     }
 
-    /// compression follows the following algo:
+    /// compression follows the following algorithm:
     /// 1. if repeated write:
     ///      entry <- enumeration_index || compressed value
     /// 2. if initial write:
@@ -184,12 +184,13 @@ fn prepend_header(compressed_state_diffs: Vec<u8>) -> Vec<u8> {
 
 #[cfg(test)]
 mod tests {
-    use std::ops::{Add, Sub};
-    use std::str::FromStr;
+    use std::{
+        ops::{Add, Sub},
+        str::FromStr,
+    };
 
     use super::*;
-    use crate::commitment::serialize_commitments;
-    use crate::{H256, U256};
+    use crate::{commitment::serialize_commitments, H256, U256};
 
     #[test]
     fn calculate_hash_for_storage_writes() {

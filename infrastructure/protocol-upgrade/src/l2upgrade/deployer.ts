@@ -12,7 +12,7 @@ export async function callSystemContractDeployer(
     file: string
 ) {
     const cwd = process.cwd();
-    process.chdir(`${process.env.ZKSYNC_HOME}/etc/system-contracts`);
+    process.chdir(`${process.env.ZKSYNC_HOME}/contracts/system-contracts`);
     let argsString = '';
     if (bootloader) {
         argsString += ' --bootloader';

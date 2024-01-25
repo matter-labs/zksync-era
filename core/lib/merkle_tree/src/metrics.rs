@@ -6,10 +6,11 @@ use std::{
     time::Duration,
 };
 
-use crate::types::Nibbles;
 use vise::{
     Buckets, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Global, Histogram, Metrics, Unit,
 };
+
+use crate::types::Nibbles;
 
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "merkle_tree")]

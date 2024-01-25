@@ -33,11 +33,11 @@ impl PriorityOpsEventProcessor {
 }
 
 #[async_trait::async_trait]
-impl<W: EthClient + Sync> EventProcessor<W> for PriorityOpsEventProcessor {
+impl EventProcessor for PriorityOpsEventProcessor {
     async fn process_events(
         &mut self,
         storage: &mut StorageProcessor<'_>,
-        _client: &W,
+        _client: &dyn EthClient,
         events: Vec<Log>,
     ) -> Result<(), Error> {
         let mut priority_ops = Vec::new();

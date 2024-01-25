@@ -1,7 +1,7 @@
 use vise::{Counter, Metrics};
+use zksync_types::{L1BatchNumber, StorageKey, StorageValue, H256};
 
 use crate::ReadStorage;
-use zksync_types::{L1BatchNumber, StorageKey, StorageValue, H256};
 
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "shadow_storage")]

@@ -1,6 +1,5 @@
-use thiserror::Error;
-
 use multivm::interface::{Halt, TxRevertReason};
+use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub(crate) enum SandboxExecutionError {
@@ -65,6 +64,9 @@ impl From<Halt> for SandboxExecutionError {
             Halt::ValidationOutOfGas => Self::AccountValidationFailed(
                 "The validation of the transaction ran out of gas".to_string(),
             ),
+            Halt::FailedToPublishCompressedBytecodes => {
+                Self::UnexpectedVMBehavior("Failed to publish compressed bytecodes".to_string())
+            }
         }
     }
 }

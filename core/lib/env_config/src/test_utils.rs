@@ -1,4 +1,3 @@
-// Built-in uses.
 use std::{
     collections::HashMap,
     env,
@@ -6,7 +5,7 @@ use std::{
     mem,
     sync::{Mutex, MutexGuard, PoisonError},
 };
-// Workspace uses
+
 use zksync_basic_types::{Address, H256};
 
 /// Mutex that allows to modify certain env variables and roll them back to initial values when

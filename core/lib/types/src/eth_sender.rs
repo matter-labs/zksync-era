@@ -1,5 +1,4 @@
-use crate::aggregated_operations::AggregatedActionType;
-use crate::{Address, Nonce, H256};
+use crate::{aggregated_operations::AggregatedActionType, Address, Nonce, H256};
 
 #[derive(Clone)]
 pub struct EthTx {
@@ -14,7 +13,7 @@ pub struct EthTx {
 
 impl std::fmt::Debug for EthTx {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // Do not print raw_tx
+        // Do not print `raw_tx`
         f.debug_struct("EthTx")
             .field("id", &self.id)
             .field("nonce", &self.nonce)

@@ -19,12 +19,12 @@ impl GlueFrom<crate::interface::TxExecutionMode>
         match value {
             crate::interface::TxExecutionMode::VerifyExecute => Self::VerifyExecute,
             crate::interface::TxExecutionMode::EstimateFee => Self::EstimateFee {
-                // We used it only for api services we don't have limit for storage invocation inside statekeeper
+                // We used it only for API services we don't have limit for storage invocation inside statekeeper
                 // It's impossible to recover this value for the vm integration after virtual blocks
                 missed_storage_invocation_limit: usize::MAX,
             },
             crate::interface::TxExecutionMode::EthCall => Self::EthCall {
-                // We used it only for api services we don't have limit for storage invocation inside statekeeper
+                // We used it only for API services we don't have limit for storage invocation inside statekeeper
                 // It's impossible to recover this value for the vm integration after virtual blocks
                 missed_storage_invocation_limit: usize::MAX,
             },
@@ -39,12 +39,12 @@ impl GlueFrom<crate::interface::TxExecutionMode>
         match value {
             crate::interface::TxExecutionMode::VerifyExecute => Self::VerifyExecute,
             crate::interface::TxExecutionMode::EstimateFee => Self::EstimateFee {
-                // We used it only for api services we don't have limit for storage invocation inside statekeeper
+                // We used it only for API services we don't have limit for storage invocation inside statekeeper
                 // It's impossible to recover this value for the vm integration after virtual blocks
                 missed_storage_invocation_limit: usize::MAX,
             },
             crate::interface::TxExecutionMode::EthCall => Self::EthCall {
-                // We used it only for api services we don't have limit for storage invocation inside statekeeper
+                // We used it only for API services we don't have limit for storage invocation inside statekeeper
                 // It's impossible to recover this value for the vm integration after virtual blocks
                 missed_storage_invocation_limit: usize::MAX,
             },

@@ -1,7 +1,6 @@
-use itertools::Itertools;
-
 use std::collections::{HashMap, HashSet};
 
+use itertools::Itertools;
 use zksync_contracts::{BaseSystemContracts, SystemContractCode};
 use zksync_types::{MiniblockNumber, StorageKey, StorageLog, StorageValue, H256, U256};
 use zksync_utils::{bytes_to_be_words, bytes_to_chunks};
@@ -26,14 +25,21 @@ impl StorageDal<'_, '_> {
             .map(|dep| (dep.0.as_bytes(), dep.1.as_slice()))
             .unzip();
 
-        // Copy from stdin can't be used here because of 'ON CONFLICT'.
+        // Copy from stdin can't be used here because of `ON CONFLICT`.
         sqlx::query!(
-            "INSERT INTO factory_deps \
-            (bytecode_hash, bytecode, miniblock_number, created_at, updated_at) \
-            SELECT u.bytecode_hash, u.bytecode, $3, now(), now() \
-                FROM UNNEST($1::bytea[], $2::bytea[]) \
-                AS u(bytecode_hash, bytecode) \
-            ON CONFLICT (bytecode_hash) DO NOTHING",
+            r#"
+            INSERT INTO
+                factory_deps (bytecode_hash, bytecode, miniblock_number, created_at, updated_at)
+            SELECT
+                u.bytecode_hash,
+                u.bytecode,
+                $3,
+                NOW(),
+                NOW()
+            FROM
+                UNNEST($1::bytea[], $2::bytea[]) AS u (bytecode_hash, bytecode)
+            ON CONFLICT (bytecode_hash) DO NOTHING
+            "#,
             &bytecode_hashes as &[&[u8]],
             &bytecodes as &[&[u8]],
             block_number.0 as i64,
@@ -43,10 +49,17 @@ impl StorageDal<'_, '_> {
         .unwrap();
     }
 
-    /// Returns bytecode for a factory dep with the specified bytecode `hash`.
+    /// Returns bytecode for a factory dependency with the specified bytecode `hash`.
     pub async fn get_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
         sqlx::query!(
-            "SELECT bytecode FROM factory_deps WHERE bytecode_hash = $1",
+            r#"
+            SELECT
+                bytecode
+            FROM
+                factory_deps
+            WHERE
+                bytecode_hash = $1
+            "#,
             hash.as_bytes(),
         )
         .fetch_optional(self.storage.conn())
@@ -92,7 +105,15 @@ impl StorageDal<'_, '_> {
         let hashes_as_bytes: Vec<_> = hashes.iter().map(H256::as_bytes).collect();
 
         sqlx::query!(
-            "SELECT bytecode, bytecode_hash FROM factory_deps WHERE bytecode_hash = ANY($1)",
+            r#"
+            SELECT
+                bytecode,
+                bytecode_hash
+            FROM
+                factory_deps
+            WHERE
+                bytecode_hash = ANY ($1)
+            "#,
             &hashes_as_bytes as &[&[u8]],
         )
         .fetch_all(self.storage.conn())
@@ -115,7 +136,14 @@ impl StorageDal<'_, '_> {
         block_number: MiniblockNumber,
     ) -> Vec<H256> {
         sqlx::query!(
-            "SELECT bytecode_hash FROM factory_deps WHERE miniblock_number > $1",
+            r#"
+            SELECT
+                bytecode_hash
+            FROM
+                factory_deps
+            WHERE
+                miniblock_number > $1
+            "#,
             block_number.0 as i64
         )
         .fetch_all(self.storage.conn())
@@ -158,14 +186,28 @@ impl StorageDal<'_, '_> {
             Vec<_>,
         ) = query_parts.multiunzip();
 
-        // Copy from stdin can't be used here because of 'ON CONFLICT'.
+        // Copy from stdin can't be used here because of `ON CONFLICT`.
         sqlx::query!(
-            "INSERT INTO storage (hashed_key, address, key, value, tx_hash, created_at, updated_at) \
-            SELECT u.hashed_key, u.address, u.key, u.value, u.tx_hash, now(), now() \
-                FROM UNNEST ($1::bytea[], $2::bytea[], $3::bytea[], $4::bytea[], $5::bytea[]) \
-                AS u(hashed_key, address, key, value, tx_hash) \
-            ON CONFLICT (hashed_key) \
-            DO UPDATE SET tx_hash = excluded.tx_hash, value = excluded.value, updated_at = now()",
+            r#"
+            INSERT INTO
+                storage (hashed_key, address, key, value, tx_hash, created_at, updated_at)
+            SELECT
+                u.hashed_key,
+                u.address,
+                u.key,
+                u.value,
+                u.tx_hash,
+                NOW(),
+                NOW()
+            FROM
+                UNNEST($1::bytea[], $2::bytea[], $3::bytea[], $4::bytea[], $5::bytea[]) AS u (hashed_key, address, key, value, tx_hash)
+            ON CONFLICT (hashed_key) DO
+            UPDATE
+            SET
+                tx_hash = excluded.tx_hash,
+                value = excluded.value,
+                updated_at = NOW()
+            "#,
             &hashed_keys,
             &addresses as &[&[u8]],
             &keys as &[&[u8]],
@@ -184,7 +226,14 @@ impl StorageDal<'_, '_> {
         let hashed_key = key.hashed_key();
 
         sqlx::query!(
-            "SELECT value FROM storage WHERE hashed_key = $1",
+            r#"
+            SELECT
+                value
+            FROM
+                storage
+            WHERE
+                hashed_key = $1
+            "#,
             hashed_key.as_bytes()
         )
         .instrument("get_by_key")
@@ -199,7 +248,11 @@ impl StorageDal<'_, '_> {
     /// Removes all factory deps with a miniblock number strictly greater than the specified `block_number`.
     pub async fn rollback_factory_deps(&mut self, block_number: MiniblockNumber) {
         sqlx::query!(
-            "DELETE FROM factory_deps WHERE miniblock_number > $1",
+            r#"
+            DELETE FROM factory_deps
+            WHERE
+                miniblock_number > $1
+            "#,
             block_number.0 as i64
         )
         .execute(self.storage.conn())
@@ -210,9 +263,10 @@ impl StorageDal<'_, '_> {
 
 #[cfg(test)]
 mod tests {
+    use zksync_types::{AccountTreeId, Address};
+
     use super::*;
     use crate::ConnectionPool;
-    use zksync_types::{AccountTreeId, Address};
 
     #[tokio::test]
     async fn applying_storage_logs() {

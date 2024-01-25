@@ -1,11 +1,16 @@
-use crate::interface::dyn_tracers::vm_1_3_3::DynTracer;
-use crate::interface::tracer::{TracerExecutionStatus, VmExecutionStopReason};
 use zksync_state::WriteStorage;
 
-use crate::vm_refunds_enhancement::bootloader_state::BootloaderState;
-use crate::vm_refunds_enhancement::old_vm::history_recorder::HistoryMode;
-use crate::vm_refunds_enhancement::old_vm::memory::SimpleMemory;
-use crate::vm_refunds_enhancement::types::internals::ZkSyncVmState;
+use crate::{
+    interface::{
+        dyn_tracers::vm_1_3_3::DynTracer,
+        tracer::{TracerExecutionStatus, VmExecutionStopReason},
+    },
+    vm_refunds_enhancement::{
+        bootloader_state::BootloaderState,
+        old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},
+        types::internals::ZkSyncVmState,
+    },
+};
 
 pub type TracerPointer<S, H> = Box<dyn VmTracer<S, H>>;
 

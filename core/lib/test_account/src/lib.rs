@@ -1,21 +1,22 @@
 use ethabi::Token;
-use zksync_contracts::test_contracts::LoadnextContractExecutionParams;
-use zksync_contracts::{deployer_contract, load_contract};
-use zksync_system_constants::{
-    CONTRACT_DEPLOYER_ADDRESS, MAX_GAS_PER_PUBDATA_BYTE, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
+use zksync_contracts::{
+    deployer_contract, load_contract, test_contracts::LoadnextContractExecutionParams,
 };
-use zksync_types::fee::Fee;
-use zksync_types::l2::L2Tx;
-use zksync_types::utils::deployed_address_create;
+use zksync_eth_signer::{raw_ethereum_tx::TransactionParameters, EthereumSigner, PrivateKeySigner};
+use zksync_system_constants::{
+    CONTRACT_DEPLOYER_ADDRESS, DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE,
+    REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
+};
 use zksync_types::{
+    fee::Fee,
+    l1::{OpProcessingType, PriorityQueueType},
+    l2::L2Tx,
+    utils::deployed_address_create,
     Address, Execute, ExecuteTransactionCommon, L1TxCommonData, L2ChainId, Nonce,
     PackedEthSignature, PriorityOpId, Transaction, H256, U256,
 };
-
-use zksync_eth_signer::{raw_ethereum_tx::TransactionParameters, EthereumSigner, PrivateKeySigner};
-use zksync_types::l1::{OpProcessingType, PriorityQueueType};
-
 use zksync_utils::bytecode::hash_bytecode;
+
 pub const L1_TEST_GAS_PER_PUBDATA_BYTE: u32 = 800;
 const BASE_FEE: u64 = 2_000_000_000;
 
@@ -94,7 +95,7 @@ impl Account {
             gas_limit: U256::from(2000000000u32),
             max_fee_per_gas: U256::from(BASE_FEE),
             max_priority_fee_per_gas: U256::from(100),
-            gas_per_pubdata_limit: U256::from(MAX_GAS_PER_PUBDATA_BYTE),
+            gas_per_pubdata_limit: U256::from(DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE),
         }
     }
 

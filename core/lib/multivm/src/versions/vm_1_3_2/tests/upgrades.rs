@@ -1,3 +1,4 @@
+// ```
 // use crate::{
 //     test_utils::verify_required_storage,
 //     tests::utils::get_l1_deploy_tx,
@@ -7,9 +8,9 @@
 //     vm_with_bootloader::{BlockContextMode, TxExecutionMode},
 //     HistoryEnabled, OracleTools, TxRevertReason,
 // };
-
+//
 // use zk_evm_1_3_3::aux_structures::Timestamp;
-
+//
 // use zksync_types::{
 //     ethabi::Contract,
 //     tx::tx_execution_info::TxExecutionStatus,
@@ -18,17 +19,17 @@
 //     {ethabi::Token, Address, ExecuteTransactionCommon, Transaction, H256, U256},
 //     {get_code_key, get_known_code_key, H160},
 // };
-
+//
 // use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256};
-
+//
 // use zksync_contracts::{deployer_contract, load_contract, load_sys_contract, read_bytecode};
 // use zksync_state::WriteStorage;
-
+//
 // use crate::tests::utils::create_storage_view;
 // use zksync_types::protocol_version::ProtocolUpgradeTxCommonData;
-
+//
 // use super::utils::read_test_contract;
-
+//
 // /// In this test we ensure that the requirements for protocol upgrade transactions are enforced by the bootloader:
 // /// - This transaction must be the only one in block
 // /// - If present, this transaction must be the first one in block
@@ -37,9 +38,9 @@
 //     let mut storage_view = create_storage_view();
 //     let mut oracle_tools = OracleTools::new(&mut storage_view, HistoryEnabled);
 //     let (block_context, block_properties) = create_test_block_params();
-
+//
 //     let bytecode_hash = hash_bytecode(&read_test_contract());
-
+//
 //     // Here we just use some random transaction of protocol upgrade type:
 //     let protocol_upgrade_transaction = get_forced_deploy_tx(&[ForceDeployment {
 //         // The bytecode hash to put on an address
@@ -53,9 +54,9 @@
 //         // The constructor calldata
 //         input: vec![],
 //     }]);
-
+//
 //     let normal_l1_transaction = get_l1_deploy_tx(&read_test_contract(), &[]);
-
+//
 //     let mut vm = init_vm_inner(
 //         &mut oracle_tools,
 //         BlockContextMode::NewBlock(block_context.into(), Default::default()),
@@ -64,14 +65,14 @@
 //         &BASE_SYSTEM_CONTRACTS,
 //         TxExecutionMode::VerifyExecute,
 //     );
-
+//
 //     let expected_error = TxRevertReason::UnexpectedVMBehavior(
 //         "Assertion error: Protocol upgrade tx not first".to_string(),
 //     );
-
+//
 //     // Test 1: there must be only one system transaction in block
 //     vm.save_current_vm_as_snapshot();
-
+//
 //     push_transaction_to_bootloader_memory(
 //         &mut vm,
 //         &protocol_upgrade_transaction,
@@ -90,15 +91,15 @@
 //         TxExecutionMode::VerifyExecute,
 //         None,
 //     );
-
+//
 //     vm.execute_next_tx(u32::MAX, false).unwrap();
 //     vm.execute_next_tx(u32::MAX, false).unwrap();
 //     let res = vm.execute_next_tx(u32::MAX, false);
 //     assert_eq!(res, Err(expected_error.clone()));
-
+//
 //     // Test 2: the protocol upgrade tx must be the first one in block
 //     vm.rollback_to_latest_snapshot();
-
+//
 //     push_transaction_to_bootloader_memory(
 //         &mut vm,
 //         &normal_l1_transaction,
@@ -111,26 +112,26 @@
 //         TxExecutionMode::VerifyExecute,
 //         None,
 //     );
-
+//
 //     vm.execute_next_tx(u32::MAX, false).unwrap();
 //     let res = vm.execute_next_tx(u32::MAX, false);
 //     assert_eq!(res, Err(expected_error));
 // }
-
+//
 // /// In this test we try to test how force deployments could be done via protocol upgrade transactions.
 // #[test]
 // fn test_force_deploy_upgrade() {
 //     let mut storage_view = create_storage_view();
-
+//
 //     let bytecode_hash = hash_bytecode(&read_test_contract());
-
+//
 //     let known_code_key = get_known_code_key(&bytecode_hash);
 //     // It is generally expected that all the keys will be set as known prior to the protocol upgrade.
 //     storage_view.set_value(known_code_key, u256_to_h256(1.into()));
-
+//
 //     let mut oracle_tools = OracleTools::new(&mut storage_view, HistoryEnabled);
 //     let (block_context, block_properties) = create_test_block_params();
-
+//
 //     let address_to_deploy = H160::random();
 //     // Here we just use some random transaction of protocol upgrade type:
 //     let transaction = get_forced_deploy_tx(&[ForceDeployment {
@@ -145,7 +146,7 @@
 //         // The constructor calldata
 //         input: vec![],
 //     }]);
-
+//
 //     let mut vm = init_vm_inner(
 //         &mut oracle_tools,
 //         BlockContextMode::NewBlock(block_context.into(), Default::default()),
@@ -167,33 +168,33 @@
 //         "The force upgrade was not successful"
 //     );
 //     assert!(!tx_has_failed(&vm.state, 0));
-
+//
 //     let expected_slots = vec![(bytecode_hash, get_code_key(&address_to_deploy))];
-
+//
 //     // Verify that the bytecode has been set correctly
 //     verify_required_storage(&vm.state, expected_slots);
 // }
-
+//
 // /// Here we show how the work with the complex upgrader could be done
 // #[test]
 // fn test_complex_upgrader() {
 //     let mut storage_view = create_storage_view();
-
+//
 //     let bytecode_hash = hash_bytecode(&read_complex_upgrade());
 //     let msg_sender_test_hash = hash_bytecode(&read_msg_sender_test());
-
+//
 //     // Let's assume that the bytecode for the implementation of the complex upgrade
 //     // is already deployed in some address in userspace
 //     let upgrade_impl = H160::random();
 //     let account_code_key = get_code_key(&upgrade_impl);
-
+//
 //     storage_view.set_value(get_known_code_key(&bytecode_hash), u256_to_h256(1.into()));
 //     storage_view.set_value(
 //         get_known_code_key(&msg_sender_test_hash),
 //         u256_to_h256(1.into()),
 //     );
 //     storage_view.set_value(account_code_key, bytecode_hash);
-
+//
 //     let mut oracle_tools: OracleTools<false, HistoryEnabled> =
 //         OracleTools::new(&mut storage_view, HistoryEnabled);
 //     oracle_tools.decommittment_processor.populate(
@@ -209,19 +210,19 @@
 //         ],
 //         Timestamp(0),
 //     );
-
+//
 //     let (block_context, block_properties) = create_test_block_params();
-
+//
 //     let address_to_deploy1 = H160::random();
 //     let address_to_deploy2 = H160::random();
-
+//
 //     let transaction = get_complex_upgrade_tx(
 //         upgrade_impl,
 //         address_to_deploy1,
 //         address_to_deploy2,
 //         bytecode_hash,
 //     );
-
+//
 //     let mut vm = init_vm_inner(
 //         &mut oracle_tools,
 //         BlockContextMode::NewBlock(block_context.into(), Default::default()),
@@ -243,16 +244,16 @@
 //         "The force upgrade was not successful"
 //     );
 //     assert!(!tx_has_failed(&vm.state, 0));
-
+//
 //     let expected_slots = vec![
 //         (bytecode_hash, get_code_key(&address_to_deploy1)),
 //         (bytecode_hash, get_code_key(&address_to_deploy2)),
 //     ];
-
+//
 //     // Verify that the bytecode has been set correctly
 //     verify_required_storage(&vm.state, expected_slots);
 // }
-
+//
 // #[derive(Debug, Clone)]
 // struct ForceDeployment {
 //     // The bytecode hash to put on an address
@@ -266,11 +267,11 @@
 //     // The constructor calldata
 //     input: Vec<u8>,
 // }
-
+//
 // fn get_forced_deploy_tx(deployment: &[ForceDeployment]) -> Transaction {
 //     let deployer = deployer_contract();
 //     let contract_function = deployer.function("forceDeployOnAddresses").unwrap();
-
+//
 //     let encoded_deployments: Vec<_> = deployment
 //         .iter()
 //         .map(|deployment| {
@@ -283,20 +284,20 @@
 //             ])
 //         })
 //         .collect();
-
+//
 //     let params = [Token::Array(encoded_deployments)];
-
+//
 //     let calldata = contract_function
 //         .encode_input(&params)
 //         .expect("failed to encode parameters");
-
+//
 //     let execute = Execute {
 //         contract_address: CONTRACT_DEPLOYER_ADDRESS,
 //         calldata,
 //         factory_deps: None,
 //         value: U256::zero(),
 //     };
-
+//
 //     Transaction {
 //         common_data: ExecuteTransactionCommon::ProtocolUpgrade(ProtocolUpgradeTxCommonData {
 //             sender: CONTRACT_FORCE_DEPLOYER_ADDRESS,
@@ -308,7 +309,7 @@
 //         received_timestamp_ms: 0,
 //     }
 // }
-
+//
 // // Returns the transaction that performs a complex protocol upgrade.
 // // The first param is the address of the implementation of the complex upgrade
 // // in user-space, while the next 3 params are params of the implenentaiton itself
@@ -329,7 +330,7 @@
 //             Token::FixedBytes(bytecode_hash.as_bytes().to_vec()),
 //         ])
 //         .unwrap();
-
+//
 //     let complex_upgrader = get_complex_upgrader_abi();
 //     let upgrade_function = complex_upgrader.function("upgrade").unwrap();
 //     let complex_upgrader_calldata = upgrade_function
@@ -338,14 +339,14 @@
 //             Token::Bytes(impl_calldata),
 //         ])
 //         .unwrap();
-
+//
 //     let execute = Execute {
 //         contract_address: COMPLEX_UPGRADER_ADDRESS,
 //         calldata: complex_upgrader_calldata,
 //         factory_deps: None,
 //         value: U256::zero(),
 //     };
-
+//
 //     Transaction {
 //         common_data: ExecuteTransactionCommon::ProtocolUpgrade(ProtocolUpgradeTxCommonData {
 //             sender: CONTRACT_FORCE_DEPLOYER_ADDRESS,
@@ -357,21 +358,22 @@
 //         received_timestamp_ms: 0,
 //     }
 // }
-
+//
 // fn read_complex_upgrade() -> Vec<u8> {
 //     read_bytecode("etc/contracts-test-data/artifacts-zk/contracts/complex-upgrade/complex-upgrade.sol/ComplexUpgrade.json")
 // }
-
+//
 // fn read_msg_sender_test() -> Vec<u8> {
 //     read_bytecode("etc/contracts-test-data/artifacts-zk/contracts/complex-upgrade/msg-sender.sol/MsgSenderTest.json")
 // }
-
+//
 // fn get_complex_upgrade_abi() -> Contract {
 //     load_contract(
 //         "etc/contracts-test-data/artifacts-zk/contracts/complex-upgrade/complex-upgrade.sol/ComplexUpgrade.json"
 //     )
 // }
-
+//
 // fn get_complex_upgrader_abi() -> Contract {
 //     load_sys_contract("ComplexUpgrader")
 // }
+// ```

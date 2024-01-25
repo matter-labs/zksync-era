@@ -1,14 +1,13 @@
-use serde::{Deserialize, Serialize};
-
 use std::mem;
 
+use serde::{Deserialize, Serialize};
 use zk_evm::aux_structures::{LogQuery, Timestamp};
 use zksync_basic_types::AccountTreeId;
 use zksync_utils::u256_to_h256;
 
 use crate::{StorageKey, StorageValue, U256};
 
-// TODO (SMA-1269): Refactor StorageLog/StorageLogQuery and StorageLogKind/StorageLongQueryType.
+// TODO (SMA-1269): Refactor `StorageLog/StorageLogQuery and StorageLogKind/StorageLongQueryType`.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum StorageLogKind {
     Read,

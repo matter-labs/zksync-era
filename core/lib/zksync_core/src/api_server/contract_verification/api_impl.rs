@@ -3,7 +3,6 @@ use actix_web::{
     HttpResponse, Result as ActixResult,
 };
 use serde::Serialize;
-
 use zksync_types::{contract_verification_api::VerificationIncomingRequest, Address};
 
 use super::{api_decl::RestApi, metrics::METRICS};

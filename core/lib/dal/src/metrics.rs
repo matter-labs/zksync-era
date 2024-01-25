@@ -1,11 +1,11 @@
 //! Metrics for the data access layer.
 
+use std::{thread, time::Duration};
+
 use vise::{
     Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Histogram, LabeledFamily,
     LatencyObserver, Metrics,
 };
-
-use std::{thread, time::Duration};
 
 /// Request-related DB metrics.
 #[derive(Debug, Metrics)]

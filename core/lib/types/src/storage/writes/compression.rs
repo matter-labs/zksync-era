@@ -210,8 +210,9 @@ pub fn compress_with_best_strategy(prev_value: U256, new_value: U256) -> Vec<u8>
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::ops::{Add, BitAnd, Shr, Sub};
+
+    use super::*;
 
     #[test]
     fn test_compress_addition() {

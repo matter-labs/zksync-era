@@ -1,13 +1,17 @@
-use crate::vm_1_3_2::history_recorder::HistoryMode;
-use crate::vm_1_3_2::oracles::storage::storage_key_of_log;
-use crate::vm_1_3_2::VmInstance;
 use std::collections::HashMap;
+
 use zk_evm_1_3_3::aux_structures::Timestamp;
 use zksync_state::WriteStorage;
-use zksync_types::event::{extract_long_l2_to_l1_messages, extract_published_bytecodes};
-use zksync_types::zkevm_test_harness::witness::sort_storage_access::sort_storage_access_queries;
-use zksync_types::{StorageKey, PUBLISH_BYTECODE_OVERHEAD, SYSTEM_CONTEXT_ADDRESS};
+use zksync_types::{
+    event::{extract_long_l2_to_l1_messages, extract_published_bytecodes},
+    zkevm_test_harness::witness::sort_storage_access::sort_storage_access_queries,
+    StorageKey, PUBLISH_BYTECODE_OVERHEAD, SYSTEM_CONTEXT_ADDRESS,
+};
 use zksync_utils::bytecode::bytecode_len_in_bytes;
+
+use crate::vm_1_3_2::{
+    history_recorder::HistoryMode, oracles::storage::storage_key_of_log, VmInstance,
+};
 
 impl<H: HistoryMode, S: WriteStorage> VmInstance<S, H> {
     pub fn pubdata_published(&self, from_timestamp: Timestamp) -> u32 {

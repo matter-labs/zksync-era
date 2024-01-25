@@ -1,45 +1,28 @@
 #![allow(clippy::derive_partial_eq_without_eq, clippy::format_push_string)]
 
-// Built-in deps
-pub use sqlx::Error as SqlxError;
-use sqlx::{postgres::Postgres, Connection, PgConnection, Transaction};
-// External imports
-use sqlx::pool::PoolConnection;
-pub use sqlx::types::BigDecimal;
+use sqlx::{pool::PoolConnection, postgres::Postgres, Connection, PgConnection, Transaction};
+pub use sqlx::{types::BigDecimal, Error as SqlxError};
 
-// Local imports
-use crate::accounts_dal::AccountsDal;
-use crate::basic_witness_input_producer_dal::BasicWitnessInputProducerDal;
-use crate::blocks_dal::BlocksDal;
-use crate::blocks_web3_dal::BlocksWeb3Dal;
-use crate::connection::holder::ConnectionHolder;
 pub use crate::connection::ConnectionPool;
-use crate::contract_verification_dal::ContractVerificationDal;
-use crate::eth_sender_dal::EthSenderDal;
-use crate::events_dal::EventsDal;
-use crate::events_web3_dal::EventsWeb3Dal;
-use crate::fri_gpu_prover_queue_dal::FriGpuProverQueueDal;
-use crate::fri_proof_compressor_dal::FriProofCompressorDal;
-use crate::fri_protocol_versions_dal::FriProtocolVersionsDal;
-use crate::fri_prover_dal::FriProverDal;
-use crate::fri_scheduler_dependency_tracker_dal::FriSchedulerDependencyTrackerDal;
-use crate::fri_witness_generator_dal::FriWitnessGeneratorDal;
-use crate::gpu_prover_queue_dal::GpuProverQueueDal;
-use crate::proof_generation_dal::ProofGenerationDal;
-use crate::protocol_versions_dal::ProtocolVersionsDal;
-use crate::protocol_versions_web3_dal::ProtocolVersionsWeb3Dal;
-use crate::prover_dal::ProverDal;
-use crate::storage_dal::StorageDal;
-use crate::storage_logs_dal::StorageLogsDal;
-use crate::storage_logs_dedup_dal::StorageLogsDedupDal;
-use crate::storage_web3_dal::StorageWeb3Dal;
-use crate::sync_dal::SyncDal;
-use crate::system_dal::SystemDal;
-use crate::tokens_dal::TokensDal;
-use crate::tokens_web3_dal::TokensWeb3Dal;
-use crate::transactions_dal::TransactionsDal;
-use crate::transactions_web3_dal::TransactionsWeb3Dal;
-use crate::witness_generator_dal::WitnessGeneratorDal;
+use crate::{
+    accounts_dal::AccountsDal, basic_witness_input_producer_dal::BasicWitnessInputProducerDal,
+    blocks_dal::BlocksDal, blocks_web3_dal::BlocksWeb3Dal, connection::holder::ConnectionHolder,
+    consensus_dal::ConsensusDal, contract_verification_dal::ContractVerificationDal,
+    eth_sender_dal::EthSenderDal, events_dal::EventsDal, events_web3_dal::EventsWeb3Dal,
+    fri_gpu_prover_queue_dal::FriGpuProverQueueDal,
+    fri_proof_compressor_dal::FriProofCompressorDal,
+    fri_protocol_versions_dal::FriProtocolVersionsDal, fri_prover_dal::FriProverDal,
+    fri_scheduler_dependency_tracker_dal::FriSchedulerDependencyTrackerDal,
+    fri_witness_generator_dal::FriWitnessGeneratorDal, proof_generation_dal::ProofGenerationDal,
+    protocol_versions_dal::ProtocolVersionsDal,
+    protocol_versions_web3_dal::ProtocolVersionsWeb3Dal,
+    snapshot_recovery_dal::SnapshotRecoveryDal, snapshots_creator_dal::SnapshotsCreatorDal,
+    snapshots_dal::SnapshotsDal, storage_dal::StorageDal, storage_logs_dal::StorageLogsDal,
+    storage_logs_dedup_dal::StorageLogsDedupDal, storage_web3_dal::StorageWeb3Dal,
+    sync_dal::SyncDal, system_dal::SystemDal, tokens_dal::TokensDal,
+    tokens_web3_dal::TokensWeb3Dal, transactions_dal::TransactionsDal,
+    transactions_web3_dal::TransactionsWeb3Dal,
+};
 
 #[macro_use]
 mod macro_utils;
@@ -48,6 +31,7 @@ pub mod basic_witness_input_producer_dal;
 pub mod blocks_dal;
 pub mod blocks_web3_dal;
 pub mod connection;
+pub mod consensus_dal;
 pub mod contract_verification_dal;
 pub mod eth_sender_dal;
 pub mod events_dal;
@@ -58,7 +42,6 @@ pub mod fri_protocol_versions_dal;
 pub mod fri_prover_dal;
 pub mod fri_scheduler_dependency_tracker_dal;
 pub mod fri_witness_generator_dal;
-pub mod gpu_prover_queue_dal;
 pub mod healthcheck;
 mod instrument;
 mod metrics;
@@ -66,7 +49,9 @@ mod models;
 pub mod proof_generation_dal;
 pub mod protocol_versions_dal;
 pub mod protocol_versions_web3_dal;
-pub mod prover_dal;
+pub mod snapshot_recovery_dal;
+pub mod snapshots_creator_dal;
+pub mod snapshots_dal;
 pub mod storage_dal;
 pub mod storage_logs_dal;
 pub mod storage_logs_dedup_dal;
@@ -78,14 +63,13 @@ pub mod tokens_dal;
 pub mod tokens_web3_dal;
 pub mod transactions_dal;
 pub mod transactions_web3_dal;
-pub mod witness_generator_dal;
 
 #[cfg(test)]
 mod tests;
 
 /// Storage processor is the main storage interaction point.
 /// It holds down the connection (either direct or pooled) to the database
-/// and provide methods to obtain different storage schemas.
+/// and provide methods to obtain different storage schema.
 #[derive(Debug)]
 pub struct StorageProcessor<'a> {
     conn: ConnectionHolder<'a>,
@@ -161,6 +145,10 @@ impl<'a> StorageProcessor<'a> {
         BlocksWeb3Dal { storage: self }
     }
 
+    pub fn consensus_dal(&mut self) -> ConsensusDal<'_, 'a> {
+        ConsensusDal { storage: self }
+    }
+
     pub fn eth_sender_dal(&mut self) -> EthSenderDal<'_, 'a> {
         EthSenderDal { storage: self }
     }
@@ -197,20 +185,8 @@ impl<'a> StorageProcessor<'a> {
         TokensWeb3Dal { storage: self }
     }
 
-    pub fn prover_dal(&mut self) -> ProverDal<'_, 'a> {
-        ProverDal { storage: self }
-    }
-
-    pub fn witness_generator_dal(&mut self) -> WitnessGeneratorDal<'_, 'a> {
-        WitnessGeneratorDal { storage: self }
-    }
-
     pub fn contract_verification_dal(&mut self) -> ContractVerificationDal<'_, 'a> {
         ContractVerificationDal { storage: self }
-    }
-
-    pub fn gpu_prover_queue_dal(&mut self) -> GpuProverQueueDal<'_, 'a> {
-        GpuProverQueueDal { storage: self }
     }
 
     pub fn protocol_versions_dal(&mut self) -> ProtocolVersionsDal<'_, 'a> {
@@ -257,5 +233,17 @@ impl<'a> StorageProcessor<'a> {
 
     pub fn system_dal(&mut self) -> SystemDal<'_, 'a> {
         SystemDal { storage: self }
+    }
+
+    pub fn snapshots_dal(&mut self) -> SnapshotsDal<'_, 'a> {
+        SnapshotsDal { storage: self }
+    }
+
+    pub fn snapshots_creator_dal(&mut self) -> SnapshotsCreatorDal<'_, 'a> {
+        SnapshotsCreatorDal { storage: self }
+    }
+
+    pub fn snapshot_recovery_dal(&mut self) -> SnapshotRecoveryDal<'_, 'a> {
+        SnapshotRecoveryDal { storage: self }
     }
 }

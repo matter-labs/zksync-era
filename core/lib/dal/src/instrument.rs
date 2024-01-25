@@ -1,13 +1,13 @@
 //! DAL query instrumentation.
 
+use std::{fmt, future::Future, panic::Location};
+
 use sqlx::{
     postgres::{PgConnection, PgQueryResult, PgRow},
     query::{Map, Query, QueryAs},
     FromRow, IntoArguments, Postgres,
 };
 use tokio::time::{Duration, Instant};
-
-use std::{fmt, future::Future, panic::Location};
 
 use crate::metrics::REQUEST_METRICS;
 

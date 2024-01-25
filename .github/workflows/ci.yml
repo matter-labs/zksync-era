@@ -55,7 +55,6 @@ jobs:
               - '.github/workflows/build-core-template.yml'
               - '.github/workflows/ci-core-reusable.yml'
               - '.github/workflows/ci-core-lint-reusable.yml'
-              - 'docker-compose-runner.yml'
               - 'Cargo.toml'
               - 'Cargo.lock'
               - '!**/*.md'
@@ -97,13 +96,18 @@ jobs:
     name: CI for Docs
     uses: ./.github/workflows/ci-docs-reusable.yml
 
+  build-contracts:
+    name: Build contracts
+    needs: changed_files
+    if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
+    uses: ./.github/workflows/build-contracts.yml
+
   build-core-images:
     name: Build core images
-    needs: changed_files
+    needs: build-contracts
     if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
     uses: ./.github/workflows/build-core-template.yml
     with:
-      image_tag: ${{ needs.setup.outputs.image_tag }}
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
       action: "build"
     secrets:
@@ -116,7 +120,6 @@ jobs:
     if: ${{ (needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
     uses: ./.github/workflows/build-prover-template.yml
     with:
-      image_tag: ${{ needs.setup.outputs.image_tag }}
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
       action: "build"
       ERA_BELLMAN_CUDA_RELEASE: ${{ vars.ERA_BELLMAN_CUDA_RELEASE }}
@@ -129,7 +132,7 @@ jobs:
     name: Github Status Check
     runs-on: ubuntu-latest
     if: always() && !cancelled()
-    needs: [ci-for-core-lint, ci-for-core, ci-for-prover, ci-for-docs, build-core-images, build-prover-images]
+    needs: [ci-for-core-lint, ci-for-core, ci-for-prover, ci-for-docs, build-contracts, build-core-images, build-prover-images]
     steps:
       - name: Status
         run: |

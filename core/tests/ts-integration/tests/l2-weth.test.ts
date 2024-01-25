@@ -5,8 +5,8 @@ import { TestMaster } from '../src/index';
 
 import * as zksync from 'zksync-web3';
 import { scaledGasPrice, waitUntilBlockFinalized } from '../src/helpers';
-import { WETH9, WETH9Factory } from 'l1-zksync-contracts/typechain';
-import { L2Weth, L2WethFactory } from 'l2-zksync-contracts/typechain';
+import { WETH9, WETH9Factory } from 'l1-contracts/typechain';
+import { L2Weth, L2WethFactory } from 'l2-contracts/typechain';
 import { BigNumber, ethers } from 'ethers';
 import {
     shouldChangeETHBalances,

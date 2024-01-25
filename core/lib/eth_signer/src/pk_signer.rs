@@ -1,11 +1,11 @@
 use secp256k1::SecretKey;
-
-use zksync_types::tx::primitives::PackedEthSignature;
-use zksync_types::{Address, EIP712TypedStructure, Eip712Domain, H256};
+use zksync_types::{
+    tx::primitives::PackedEthSignature, Address, EIP712TypedStructure, Eip712Domain, H256,
+};
 
 use crate::{
     raw_ethereum_tx::{Transaction, TransactionParameters},
-    {EthereumSigner, SignerError},
+    EthereumSigner, SignerError,
 };
 
 #[derive(Clone)]
@@ -41,7 +41,7 @@ impl EthereumSigner for PrivateKeySigner {
         Ok(signature)
     }
 
-    /// Signs typed struct using ethereum private key by EIP-712 signature standard.
+    /// Signs typed struct using Ethereum private key by EIP-712 signature standard.
     /// Result of this function is the equivalent of RPC calling `eth_signTypedData`.
     async fn sign_typed_data<S: EIP712TypedStructure + Sync>(
         &self,
@@ -62,7 +62,7 @@ impl EthereumSigner for PrivateKeySigner {
         let key = SecretKey::from_slice(self.private_key.as_bytes()).unwrap();
 
         // According to the code in web3 <https://docs.rs/web3/latest/src/web3/api/accounts.rs.html#86>
-        // We should use max_fee_per_gas as gas_price if we use EIP1559
+        // We should use `max_fee_per_gas` as `gas_price` if we use EIP1559
         let gas_price = raw_tx.max_fee_per_gas;
 
         let max_priority_fee_per_gas = raw_tx.max_priority_fee_per_gas;
@@ -86,10 +86,10 @@ impl EthereumSigner for PrivateKeySigner {
 
 #[cfg(test)]
 mod test {
-    use super::PrivateKeySigner;
-    use crate::raw_ethereum_tx::TransactionParameters;
-    use crate::EthereumSigner;
     use zksync_types::{H160, H256, U256, U64};
+
+    use super::PrivateKeySigner;
+    use crate::{raw_ethereum_tx::TransactionParameters, EthereumSigner};
 
     #[tokio::test]
     async fn test_generating_signed_raw_transaction() {
@@ -113,7 +113,7 @@ mod test {
             .await
             .unwrap();
         assert_ne!(raw_tx.len(), 1);
-        // precalculated signature with right algorithm implementation
+        // pre-calculated signature with right algorithm implementation
         let precalculated_raw_tx: Vec<u8> = vec![
             1, 248, 100, 130, 1, 14, 1, 2, 128, 148, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 128, 131, 1, 2, 3, 192, 1, 160, 98, 201, 238, 158, 215, 98, 23, 231,

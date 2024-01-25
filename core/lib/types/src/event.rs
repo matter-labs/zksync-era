@@ -1,3 +1,10 @@
+use std::fmt::Debug;
+
+use once_cell::sync::Lazy;
+use serde::{Deserialize, Serialize};
+use zksync_basic_types::ethabi::Token;
+use zksync_utils::{h256_to_account_address, u256_to_bytes_be, u256_to_h256};
+
 use crate::{
     ethabi,
     l2_to_l1_log::L2ToL1Log,
@@ -5,11 +12,6 @@ use crate::{
     Address, L1BatchNumber, CONTRACT_DEPLOYER_ADDRESS, H256, KNOWN_CODES_STORAGE_ADDRESS,
     L1_MESSENGER_ADDRESS, U256,
 };
-use once_cell::sync::Lazy;
-use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
-use zksync_basic_types::ethabi::Token;
-use zksync_utils::{h256_to_account_address, u256_to_bytes_be, u256_to_h256};
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct VmEvent {
@@ -202,7 +204,7 @@ fn extract_added_token_info_from_addresses(
         .collect()
 }
 
-// moved from RuntimeContext
+// moved from `RuntimeContext`
 // Extracts all the "long" L2->L1 messages that were submitted by the
 // L1Messenger contract
 pub fn extract_long_l2_to_l1_messages(all_generated_events: &[VmEvent]) -> Vec<Vec<u8>> {
@@ -224,8 +226,8 @@ pub fn extract_long_l2_to_l1_messages(all_generated_events: &[VmEvent]) -> Vec<V
         .collect()
 }
 
-// Extracts all the L2ToL1Logs that were emitted
-// by the L1Messenger contract
+// Extracts all the `L2ToL1Logs` that were emitted
+// by the `L1Messenger` contract
 pub fn extract_l2tol1logs_from_l1_messenger(
     all_generated_events: &[VmEvent],
 ) -> Vec<L1MessengerL2ToL1Log> {
@@ -348,13 +350,12 @@ mod tests {
     };
     use zksync_utils::u256_to_h256;
 
-    use crate::VmEvent;
-
     use super::{
         extract_bytecode_publication_requests_from_l1_messenger,
         extract_l2tol1logs_from_l1_messenger, L1MessengerBytecodePublicationRequest,
         L1MessengerL2ToL1Log,
     };
+    use crate::VmEvent;
 
     fn create_l2_to_l1_log_sent_value(
         tx_number: U256,
@@ -369,9 +370,9 @@ mod tests {
         value.to_big_endian(&mut val_arr);
 
         let tokens = vec![
-            /*l2ShardId*/ Token::Uint(U256::from(0)),
-            /*isService*/ Token::Bool(true),
-            /*txNumberInBlock*/ Token::Uint(tx_number),
+            /*`l2ShardId`*/ Token::Uint(U256::from(0)),
+            /*`isService`*/ Token::Bool(true),
+            /*`txNumberInBlock`*/ Token::Uint(tx_number),
             /*sender*/ Token::Address(sender),
             /*key*/ Token::FixedBytes(key_arr.to_vec()),
             /*value*/ Token::FixedBytes(val_arr.to_vec()),

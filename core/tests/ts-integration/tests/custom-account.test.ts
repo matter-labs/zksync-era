@@ -219,6 +219,8 @@ describe('Tests for the custom account behavior', () => {
         const transfer = await erc20.populateTransaction.transfer(alice.address, TRANSFER_AMOUNT);
         const nonce = await alice.provider.getTransactionCount(badCustomAccount.address);
 
+        // delayedTx should pass API checks (if not then error will be thrown on the next lime)
+        // but should be rejected by the state-keeper (checked later).
         const delayedTx = await sendCustomAccountTransaction(
             transfer,
             alice.provider,
@@ -226,8 +228,6 @@ describe('Tests for the custom account behavior', () => {
             undefined,
             nonce + 1
         );
-        // delayedTx passed API checks (since we got the response) but should be rejected by the state-keeper.
-        const rejection = expect(delayedTx).toBeReverted();
 
         // Increase nonce and set flag to do many calculations during validation.
         const validationGasLimit = +process.env.CHAIN_STATE_KEEPER_VALIDATION_COMPUTATIONAL_GAS_LIMIT!;
@@ -235,7 +235,15 @@ describe('Tests for the custom account behavior', () => {
         await expect(
             sendCustomAccountTransaction(tx, alice.provider, badCustomAccount.address, undefined, nonce)
         ).toBeAccepted();
-        await rejection;
+
+        // We don't have a good check that tx was indeed rejected.
+        // Most that we can do is to ensure that tx wasn't mined for some time.
+        const attempts = 5;
+        for (let i = 0; i < attempts; ++i) {
+            const receipt = await alice.provider.getTransactionReceipt(delayedTx.hash);
+            expect(receipt).toBeNull();
+            await zksync.utils.sleep(1000);
+        }
     });
 
     afterAll(async () => {

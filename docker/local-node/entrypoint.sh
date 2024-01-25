@@ -27,7 +27,7 @@ then
     sed -i 's!^merkle_tree_backup_path=.*$!merkle_tree_backup_path="/var/lib/zksync/data/backups"!' /etc/env/base/database.toml
 
     # Switch zksolc compiler source from docker to binary
-    sed -i "s!'docker'!'binary'!" /contracts/zksync/hardhat.config.ts
+    sed -i "s!'docker'!'binary'!" /contracts/l2-contracts/hardhat.config.ts
 
     # Compile configs again (with changed values)
     yarn start config compile

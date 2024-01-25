@@ -5,9 +5,9 @@
 #![warn(clippy::all, clippy::pedantic)]
 #![allow(clippy::must_use_candidate, clippy::similar_names)]
 
-use once_cell::sync::Lazy;
-
 use std::{iter, str::FromStr};
+
+use once_cell::sync::Lazy;
 
 #[cfg(test)]
 mod tests;

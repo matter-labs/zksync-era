@@ -1,3 +1,5 @@
+use std::convert::TryInto;
+
 use bigdecimal::BigDecimal;
 use num::{
     bigint::ToBigInt,
@@ -5,7 +7,6 @@ use num::{
     traits::{sign::Signed, Pow},
     BigUint,
 };
-use std::convert::TryInto;
 use zksync_basic_types::{Address, H256, U256};
 
 pub fn u256_to_big_decimal(value: U256) -> BigDecimal {
@@ -154,7 +155,7 @@ pub fn h256_to_u32(value: H256) -> u32 {
     u32::from_be_bytes(be_u32_bytes)
 }
 
-/// Converts u32 into the h256 as BE bytes
+/// Converts u32 into the H256 as BE bytes
 pub fn u32_to_h256(value: u32) -> H256 {
     let mut result = [0u8; 32];
     result[28..].copy_from_slice(&value.to_be_bytes());
@@ -170,9 +171,11 @@ pub fn u256_to_bytes_be(value: &U256) -> Vec<u8> {
 
 #[cfg(test)]
 mod test {
-    use super::*;
-    use num::BigInt;
     use std::str::FromStr;
+
+    use num::BigInt;
+
+    use super::*;
 
     #[test]
     fn test_ratio_to_big_decimal() {

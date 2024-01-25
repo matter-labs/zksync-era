@@ -1,25 +1,21 @@
-use std::collections::HashMap;
-use std::fmt::Debug;
+use std::{collections::HashMap, fmt::Debug};
 
+use zk_evm_1_3_3::{
+    abstractions::{DecommittmentProcessor, Memory, MemoryType},
+    aux_structures::{
+        DecommittmentQuery, MemoryIndex, MemoryLocation, MemoryPage, MemoryQuery, Timestamp,
+    },
+};
+use zksync_state::{ReadStorage, StoragePtr};
+use zksync_types::U256;
+use zksync_utils::{bytecode::bytecode_len_in_words, bytes_to_be_words, u256_to_h256};
+
+use super::OracleWithHistory;
 use crate::vm_refunds_enhancement::old_vm::history_recorder::{
     HistoryEnabled, HistoryMode, HistoryRecorder, WithHistory,
 };
 
-use zk_evm_1_3_3::abstractions::MemoryType;
-use zk_evm_1_3_3::aux_structures::Timestamp;
-use zk_evm_1_3_3::{
-    abstractions::{DecommittmentProcessor, Memory},
-    aux_structures::{DecommittmentQuery, MemoryIndex, MemoryLocation, MemoryPage, MemoryQuery},
-};
-
-use zksync_state::{ReadStorage, StoragePtr};
-use zksync_types::U256;
-use zksync_utils::bytecode::bytecode_len_in_words;
-use zksync_utils::{bytes_to_be_words, u256_to_h256};
-
-use super::OracleWithHistory;
-
-/// The main job of the DecommiterOracle is to implement the DecommittmentProcessor trait - that is
+/// The main job of the DecommiterOracle is to implement the DecommitmentProcessor trait - that is
 /// used by the VM to 'load' bytecodes into memory.
 #[derive(Debug)]
 pub struct DecommitterOracle<const B: bool, S, H: HistoryMode> {
@@ -70,7 +66,7 @@ impl<S: ReadStorage, const B: bool, H: HistoryMode> DecommitterOracle<B, S, H> {
         }
     }
 
-    /// Adds additional bytecodes. They will take precendent over the bytecodes from storage.
+    /// Adds additional bytecodes. They will take precedent over the bytecodes from storage.
     pub fn populate(&mut self, bytecodes: Vec<(U256, Vec<U256>)>, timestamp: Timestamp) {
         for (hash, bytecode) in bytecodes {
             self.known_bytecodes.insert(hash, bytecode, timestamp);
@@ -180,7 +176,7 @@ impl<S: ReadStorage + Debug, const B: bool, H: HistoryMode> DecommittmentProcess
     > {
         self.decommitment_requests.push((), partial_query.timestamp);
         // First - check if we didn't fetch this bytecode in the past.
-        // If we did - we can just return the page that we used before (as the memory is read only).
+        // If we did - we can just return the page that we used before (as the memory is readonly).
         if let Some(memory_page) = self
             .decommitted_code_hashes
             .inner()

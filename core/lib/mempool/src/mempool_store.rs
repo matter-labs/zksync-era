@@ -1,9 +1,10 @@
 use std::collections::{hash_map, BTreeSet, HashMap, HashSet};
 
-use crate::types::{AccountTransactions, L2TxFilter, MempoolScore};
 use zksync_types::{
     l1::L1Tx, l2::L2Tx, Address, ExecuteTransactionCommon, Nonce, PriorityOpId, Transaction,
 };
+
+use crate::types::{AccountTransactions, L2TxFilter, MempoolScore};
 
 #[derive(Debug)]
 pub struct MempoolInfo {
@@ -29,7 +30,7 @@ pub struct MempoolStore {
     /// Next priority operation
     next_priority_id: PriorityOpId,
     stashed_accounts: Vec<Address>,
-    /// Number of l2 transactions in the mempool.
+    /// Number of L2 transactions in the mempool.
     size: u64,
     capacity: u64,
 }

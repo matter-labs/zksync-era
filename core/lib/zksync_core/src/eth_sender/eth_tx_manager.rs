@@ -1,25 +1,25 @@
+use std::{sync::Arc, time::Duration};
+
 use anyhow::Context as _;
 use tokio::sync::watch;
-
-use std::sync::Arc;
-use std::time::Duration;
-
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::{
-    types::{Error, ExecutedTxStatus, SignedCallResult},
-    BoundEthInterface,
+    BoundEthInterface, Error, ExecutedTxStatus, RawTransactionBytes, SignedCallResult,
 };
 use zksync_types::{
     eth_sender::EthTx,
-    web3::{contract::Options, error::Error as Web3Error},
+    web3::{
+        contract::Options,
+        error::Error as Web3Error,
+        types::{BlockId, BlockNumber},
+    },
     L1BlockNumber, Nonce, H256, U256,
 };
 use zksync_utils::time::seconds_since_epoch;
 
 use super::{metrics::METRICS, ETHSenderError};
-use crate::l1_gas_price::L1TxParamsProvider;
-use crate::metrics::BlockL1Stage;
+use crate::{l1_gas_price::L1TxParamsProvider, metrics::BlockL1Stage};
 
 #[derive(Debug)]
 struct EthFee {
@@ -43,22 +43,22 @@ pub(super) struct L1BlockNumbers {
 
 /// The component is responsible for managing sending eth_txs attempts:
 /// Based on eth_tx queue the component generates new attempt with the minimum possible fee,
-/// save it to the database, and send it to ethereum.
+/// save it to the database, and send it to Ethereum.
 /// Based on eth_tx_history queue the component can mark txs as stuck and create the new attempt
 /// with higher gas price
 #[derive(Debug)]
-pub struct EthTxManager<E, G> {
-    ethereum_gateway: E,
+pub struct EthTxManager {
+    ethereum_gateway: Arc<dyn BoundEthInterface>,
     config: SenderConfig,
-    gas_adjuster: Arc<G>,
+    gas_adjuster: Arc<dyn L1TxParamsProvider>,
 }
 
-impl<E, G> EthTxManager<E, G>
-where
-    E: BoundEthInterface + Sync,
-    G: L1TxParamsProvider,
-{
-    pub fn new(config: SenderConfig, gas_adjuster: Arc<G>, ethereum_gateway: E) -> Self {
+impl EthTxManager {
+    pub fn new(
+        config: SenderConfig,
+        gas_adjuster: Arc<dyn L1TxParamsProvider>,
+        ethereum_gateway: Arc<dyn BoundEthInterface>,
+    ) -> Self {
         Self {
             ethereum_gateway,
             config,
@@ -174,7 +174,7 @@ where
             return Err(ETHSenderError::from(Error::from(Web3Error::Internal)));
         }
 
-        // Increase `priority_fee_per_gas` by at least 20% to prevent "replacement transaction underpriced" error.
+        // Increase `priority_fee_per_gas` by at least 20% to prevent "replacement transaction under-priced" error.
         Ok((previous_priority_fee + (previous_priority_fee / 5) + 1)
             .max(self.gas_adjuster.get_priority_fee()))
     }
@@ -207,7 +207,7 @@ where
                 base_fee_per_gas,
                 priority_fee_per_gas,
                 signed_tx.hash,
-                signed_tx.raw_tx.clone(),
+                signed_tx.raw_tx.as_ref(),
             )
             .await
             .unwrap()
@@ -232,7 +232,7 @@ where
         &self,
         storage: &mut StorageProcessor<'_>,
         tx_history_id: u32,
-        raw_tx: Vec<u8>,
+        raw_tx: RawTransactionBytes,
         current_block: L1BlockNumber,
     ) -> Result<H256, ETHSenderError> {
         match self.ethereum_gateway.send_raw_tx(raw_tx).await {
@@ -285,7 +285,7 @@ where
             (latest_block_number.saturating_sub(confirmations) as u32).into()
         } else {
             self.ethereum_gateway
-                .block("finalized".to_string(), "eth_tx_manager")
+                .block(BlockId::Number(BlockNumber::Finalized), "eth_tx_manager")
                 .await?
                 .expect("Finalized block must be present on L1")
                 .number
@@ -303,7 +303,7 @@ where
         Ok(L1BlockNumbers { finalized, latest })
     }
 
-    // Monitors the inflight transactions, marks mined ones as confirmed,
+    // Monitors the in-flight transactions, marks mined ones as confirmed,
     // returns the one that has to be resent (if there is one).
     pub(super) async fn monitor_inflight_transactions(
         &mut self,
@@ -333,7 +333,7 @@ where
 
             // If the `operator_nonce.latest` <= `tx.nonce`, this means
             // that `tx` is not mined and we should resend it.
-            // We only resend the first unmined transaction.
+            // We only resend the first un-mined transaction.
             if operator_nonce.latest <= tx.nonce {
                 // None means txs hasn't been sent yet
                 let first_sent_at_block = storage
@@ -367,9 +367,9 @@ where
                 }
                 None => {
                     // The nonce has increased but we did not find the receipt.
-                    // This is an error because such a big reorg may cause transactions that were
+                    // This is an error because such a big re-org may cause transactions that were
                     // previously recorded as confirmed to become pending again and we have to
-                    // make sure it's not the case - otherwise eth_sender may not work properly.
+                    // make sure it's not the case - otherwise `eth_sender` may not work properly.
                     tracing::error!(
                         "Possible block reorgs: finalized nonce increase detected, but no tx receipt found for tx {:?}",
                         &tx
@@ -410,7 +410,7 @@ where
     ) {
         for tx in storage.eth_sender_dal().get_unsent_txs().await.unwrap() {
             // Check already sent txs not marked as sent and mark them as sent.
-            // The common reason for this behaviour is that we sent tx and stop the server
+            // The common reason for this behavior is that we sent tx and stop the server
             // before updating the database
             let tx_status = self.get_tx_status(tx.tx_hash).await;
 
@@ -435,12 +435,12 @@ where
                 .send_raw_transaction(
                     storage,
                     tx.id,
-                    tx.signed_raw_tx.clone(),
+                    RawTransactionBytes::new_unchecked(tx.signed_raw_tx.clone()),
                     l1_block_numbers.latest,
                 )
                 .await
             {
-                tracing::warn!("Error {:?} in sending tx {:?}", error, &tx);
+                tracing::warn!("Error sending transaction {tx:?}: {error}");
             }
         }
     }
@@ -561,8 +561,8 @@ where
             self.send_unsent_txs(&mut storage, l1_block_numbers).await;
         }
 
-        // It's mandatory to set last_known_l1_block to zero, otherwise the first iteration
-        // will never check inflight txs status
+        // It's mandatory to set `last_known_l1_block` to zero, otherwise the first iteration
+        // will never check in-flight txs status
         let mut last_known_l1_block = L1BlockNumber(0);
         loop {
             let mut storage = pool.access_storage_tagged("eth_sender").await.unwrap();

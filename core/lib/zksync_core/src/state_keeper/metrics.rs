@@ -1,15 +1,14 @@
 //! General-purpose state keeper metrics.
 
-use vise::{
-    Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LatencyObserver,
-    Metrics,
-};
-
 use std::{
     sync::{Mutex, Weak},
     time::Duration,
 };
 
+use vise::{
+    Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LatencyObserver,
+    Metrics,
+};
 use zksync_mempool::MempoolStore;
 
 use super::seal_criteria::SealResolution;
@@ -168,14 +167,13 @@ pub(super) enum L1BatchSealStage {
     FilterWrittenSlots,
     InsertInitialWrites,
     CommitL1Batch,
-    ExternalNodeStoreTransactions,
 }
 
 /// Buckets for positive integer, not-so-large values (e.g., initial writes count).
 const COUNT_BUCKETS: Buckets = Buckets::values(&[
     10.0, 20.0, 50.0, 100.0, 200.0, 500.0, 1_000.0, 2_000.0, 5_000.0, 10_000.0, 20_000.0, 50_000.0,
 ]);
-/// Buckets for sealing deltas for L1 batches (in seconds). The expected delta is ~1 minute.
+/// Buckets for sealing deltas for L1 batches (in seconds). The expected delta is approximately 1 minute.
 const L1_BATCH_SEAL_DELTA_BUCKETS: Buckets = Buckets::values(&[
     0.1, 0.5, 1.0, 5.0, 10.0, 20.0, 30.0, 40.0, 60.0, 90.0, 120.0, 180.0, 240.0, 300.0,
 ]);
@@ -205,7 +203,7 @@ pub(crate) struct L1BatchMetrics {
     /// Number of entities stored in Postgres during a specific stage of sealing an L1 batch.
     #[metrics(buckets = COUNT_BUCKETS)]
     sealed_entity_count: Family<L1BatchSealStage, Histogram<usize>>,
-    /// Latency of sealing an L1 batch split by the stage and divided by the number of entiries
+    /// Latency of sealing an L1 batch split by the stage and divided by the number of entries
     /// stored in the stage.
     #[metrics(buckets = Buckets::LATENCIES)]
     sealed_entity_per_unit: Family<L1BatchSealStage, Histogram<Duration>>,
@@ -220,10 +218,6 @@ impl L1BatchMetrics {
             entity_count: &self.sealed_entity_count[&stage],
             latency_per_unit: &self.sealed_entity_per_unit[&stage],
         }
-    }
-
-    pub(crate) fn start_storing_on_en(&self) -> LatencyObserver<'_> {
-        self.sealed_time_stage[&L1BatchSealStage::ExternalNodeStoreTransactions].start()
     }
 }
 
@@ -241,6 +235,7 @@ pub(super) enum MiniblockQueueStage {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue)]
 #[metrics(rename_all = "snake_case")]
 pub(super) enum MiniblockSealStage {
+    PreInsertTxs,
     InsertMiniblockHeader,
     MarkTransactionsInMiniblock,
     InsertStorageLogs,
@@ -285,7 +280,7 @@ pub(super) struct MiniblockMetrics {
     /// Number of entities stored in Postgres during a specific stage of sealing a miniblock.
     #[metrics(buckets = COUNT_BUCKETS)]
     sealed_entity_count: Family<MiniblockSealLabels, Histogram<usize>>,
-    /// Latency of sealing a miniblock split by the stage and divided by the number of entiries
+    /// Latency of sealing a miniblock split by the stage and divided by the number of entries
     /// stored in the stage.
     #[metrics(buckets = Buckets::LATENCIES)]
     sealed_entity_per_unit: Family<MiniblockSealLabels, Histogram<Duration>>,

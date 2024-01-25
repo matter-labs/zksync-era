@@ -1,9 +1,9 @@
-use std::fmt::{Debug, Formatter};
-use std::marker::PhantomData;
+use std::{
+    fmt::{Debug, Formatter},
+    marker::PhantomData,
+};
 
-use crate::interface::tracer::{TracerExecutionStopReason, VmExecutionStopReason};
-use crate::interface::{Halt, VmExecutionMode};
-use zk_evm_1_4_0::{
+use zk_evm_1_4_1::{
     tracing::{
         AfterDecodingData, AfterExecutionData, BeforeExecutionData, Tracer, VmLocalStateData,
     },
@@ -14,23 +14,31 @@ use zk_evm_1_4_0::{
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::Timestamp;
 
-use crate::interface::traits::tracers::dyn_tracers::vm_1_4_0::DynTracer;
-use crate::interface::types::tracer::TracerExecutionStatus;
-use crate::vm_latest::bootloader_state::utils::apply_l2_block;
-use crate::vm_latest::bootloader_state::BootloaderState;
-use crate::vm_latest::constants::BOOTLOADER_HEAP_PAGE;
-use crate::vm_latest::old_vm::history_recorder::HistoryMode;
-use crate::vm_latest::old_vm::memory::SimpleMemory;
-use crate::vm_latest::tracers::dispatcher::TracerDispatcher;
-use crate::vm_latest::tracers::utils::{
-    computational_gas_price, gas_spent_on_bytecodes_and_long_messages_this_opcode,
-    print_debug_if_needed, VmHook,
-};
-use crate::vm_latest::tracers::{RefundsTracer, ResultTracer};
-use crate::vm_latest::types::internals::ZkSyncVmState;
-use crate::vm_latest::VmTracer;
-
 use super::PubdataTracer;
+use crate::{
+    glue::GlueInto,
+    interface::{
+        tracer::{TracerExecutionStopReason, VmExecutionStopReason},
+        traits::tracers::dyn_tracers::vm_1_4_1::DynTracer,
+        types::tracer::TracerExecutionStatus,
+        Halt, VmExecutionMode,
+    },
+    vm_latest::{
+        bootloader_state::{utils::apply_l2_block, BootloaderState},
+        constants::BOOTLOADER_HEAP_PAGE,
+        old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},
+        tracers::{
+            dispatcher::TracerDispatcher,
+            utils::{
+                computational_gas_price, gas_spent_on_bytecodes_and_long_messages_this_opcode,
+                print_debug_if_needed, VmHook,
+            },
+            CircuitsTracer, RefundsTracer, ResultTracer,
+        },
+        types::internals::ZkSyncVmState,
+        VmTracer,
+    },
+};
 
 /// Default tracer for the VM. It manages the other tracers execution and stop the vm when needed.
 pub(crate) struct DefaultExecutionTracer<S: WriteStorage, H: HistoryMode> {
@@ -47,7 +55,7 @@ pub(crate) struct DefaultExecutionTracer<S: WriteStorage, H: HistoryMode> {
     pub(crate) result_tracer: ResultTracer<S>,
     // This tracer is designed specifically for calculating refunds. Its separation from the custom tracer
     // ensures static dispatch, enhancing performance by avoiding dynamic dispatch overhead.
-    // Additionally, being an internal tracer, it saves the results directly to VmResultAndLogs.
+    // Additionally, being an internal tracer, it saves the results directly to `VmResultAndLogs`.
     pub(crate) refund_tracer: Option<RefundsTracer<S>>,
     // The pubdata tracer is responsible for inserting the pubdata packing information into the bootloader
     // memory at the end of the batch. Its separation from the custom tracer
@@ -55,6 +63,11 @@ pub(crate) struct DefaultExecutionTracer<S: WriteStorage, H: HistoryMode> {
     pub(crate) pubdata_tracer: Option<PubdataTracer<S>>,
     pub(crate) dispatcher: TracerDispatcher<S, H>,
     ret_from_the_bootloader: Option<RetOpcode>,
+    // This tracer tracks what opcodes were executed and calculates how much circuits will be generated.
+    // It only takes into account circuits that are generated for actual execution. It doesn't
+    // take into account e.g circuits produced by the initial bootloader memory commitment.
+    pub(crate) circuits_tracer: CircuitsTracer<S>,
+
     storage: StoragePtr<S>,
     _phantom: PhantomData<H>,
 }
@@ -81,6 +94,7 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
             dispatcher,
             pubdata_tracer,
             ret_from_the_bootloader: None,
+            circuits_tracer: CircuitsTracer::new(),
             storage,
             _phantom: PhantomData,
         }
@@ -108,9 +122,11 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
         let l2_block = bootloader_state.insert_fictive_l2_block();
         let mut memory = vec![];
         apply_l2_block(&mut memory, l2_block, txs_index);
-        state
-            .memory
-            .populate_page(BOOTLOADER_HEAP_PAGE as usize, memory, current_timestamp);
+        state.memory.populate_page(
+            BOOTLOADER_HEAP_PAGE as usize,
+            memory,
+            current_timestamp.glue_into(),
+        );
         self.final_batch_info_requested = false;
     }
 
@@ -154,14 +170,15 @@ impl<S: WriteStorage, H: HistoryMode> Debug for DefaultExecutionTracer<S, H> {
 /// The macro passes the function call to all tracers.
 macro_rules! dispatch_tracers {
     ($self:ident.$function:ident($( $params:expr ),*)) => {
-       $self.result_tracer.$function($( $params ),*);
-       $self.dispatcher.$function($( $params ),*);
+        $self.result_tracer.$function($( $params ),*);
+        $self.dispatcher.$function($( $params ),*);
         if let Some(tracer) = &mut $self.refund_tracer {
             tracer.$function($( $params ),*);
         }
         if let Some(tracer) = &mut $self.pubdata_tracer {
             tracer.$function($( $params ),*);
         }
+        $self.circuits_tracer.$function($( $params ),*);
     };
 }
 
@@ -224,7 +241,7 @@ impl<S: WriteStorage, H: HistoryMode> Tracer for DefaultExecutionTracer<S, H> {
         memory: &Self::SupportedMemory,
     ) {
         if let VmExecutionMode::Bootloader = self.execution_mode {
-            let (next_opcode, _, _) = zk_evm_1_4_0::vm_state::read_and_decode(
+            let (next_opcode, _, _) = zk_evm_1_4_1::vm_state::read_and_decode(
                 state.vm_local_state,
                 memory,
                 &mut DummyTracer,
@@ -270,6 +287,12 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
                 .finish_cycle(state, bootloader_state)
                 .stricter(&result);
         }
+
+        result = self
+            .circuits_tracer
+            .finish_cycle(state, bootloader_state)
+            .stricter(&result);
+
         result.stricter(&self.should_stop_execution())
     }
 
@@ -284,7 +307,7 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
 }
 
 fn current_frame_is_bootloader(local_state: &VmLocalState) -> bool {
-    // The current frame is bootloader if the callstack depth is 1.
+    // The current frame is bootloader if the call stack depth is 1.
     // Some of the near calls inside the bootloader can be out of gas, which is totally normal behavior
     // and it shouldn't result in `is_bootloader_out_of_gas` becoming true.
     local_state.callstack.inner.len() == 1

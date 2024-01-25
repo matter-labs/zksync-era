@@ -1,12 +1,5 @@
 use std::marker::PhantomData;
 
-use crate::vm_1_3_2::history_recorder::HistoryMode;
-use crate::vm_1_3_2::memory::SimpleMemory;
-use crate::vm_1_3_2::oracles::tracer::{
-    utils::gas_spent_on_bytecodes_and_long_messages_this_opcode, ExecutionEndTracer,
-    PendingRefundTracer, PubdataSpentTracer, StorageInvocationTracer,
-};
-
 use zk_evm_1_3_3::{
     tracing::{
         AfterDecodingData, AfterExecutionData, BeforeExecutionData, Tracer, VmLocalStateData,
@@ -16,7 +9,16 @@ use zk_evm_1_3_3::{
     zkevm_opcode_defs::{Opcode, RetOpcode},
 };
 
-/// Tells the VM to end the execution before `ret` from the booloader if there is no panic or revert.
+use crate::vm_1_3_2::{
+    history_recorder::HistoryMode,
+    memory::SimpleMemory,
+    oracles::tracer::{
+        utils::gas_spent_on_bytecodes_and_long_messages_this_opcode, ExecutionEndTracer,
+        PendingRefundTracer, PubdataSpentTracer, StorageInvocationTracer,
+    },
+};
+
+/// Tells the VM to end the execution before `ret` from the bootloader if there is no panic or revert.
 /// Also, saves the information if this `ret` was caused by "out of gas" panic.
 #[derive(Debug, Clone, Default)]
 pub struct BootloaderTracer<H: HistoryMode> {
@@ -98,7 +100,7 @@ impl<H: HistoryMode> PubdataSpentTracer<H> for BootloaderTracer<H> {
 
 impl<H: HistoryMode> BootloaderTracer<H> {
     fn current_frame_is_bootloader(local_state: &VmLocalState) -> bool {
-        // The current frame is bootloader if the callstack depth is 1.
+        // The current frame is bootloader if the call stack depth is 1.
         // Some of the near calls inside the bootloader can be out of gas, which is totally normal behavior
         // and it shouldn't result in `is_bootloader_out_of_gas` becoming true.
         local_state.callstack.inner.len() == 1

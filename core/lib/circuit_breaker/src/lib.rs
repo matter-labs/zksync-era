@@ -4,7 +4,6 @@ use anyhow::Context as _;
 use futures::channel::oneshot;
 use thiserror::Error;
 use tokio::sync::watch;
-
 use zksync_config::configs::chain::CircuitBreakerConfig;
 
 pub mod l1_txs;

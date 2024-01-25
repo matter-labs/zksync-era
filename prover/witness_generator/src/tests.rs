@@ -1,11 +1,13 @@
-use const_decoder::Decoder::Hex;
-
 use std::iter;
 
-use super::precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider;
+use const_decoder::Decoder::Hex;
 use zkevm_test_harness::witness::tree::{BinarySparseStorageTree, ZkSyncStorageLeaf};
-use zksync_types::proofs::{PrepareBasicCircuitsJob, StorageLogMetadata};
-use zksync_types::U256;
+use zksync_types::{
+    proofs::{PrepareBasicCircuitsJob, StorageLogMetadata},
+    U256,
+};
+
+use super::precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider;
 
 // Sample `StorageLogMetadata` entries. Since we cannot allocate in constants, we store
 // the only Merkle path hash separately.

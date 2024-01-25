@@ -1,13 +1,13 @@
 use async_trait::async_trait;
-
 use zksync::signer::Signer;
-use zksync_eth_signer::{error::SignerError, EthereumSigner};
-use zksync_types::{Address, EIP712TypedStructure, Eip712Domain, PackedEthSignature, H256};
+use zksync_eth_signer::{
+    error::SignerError, raw_ethereum_tx::TransactionParameters, EthereumSigner,
+};
+use zksync_types::{
+    fee::Fee, l2::L2Tx, Address, EIP712TypedStructure, Eip712Domain, PackedEthSignature, H256,
+};
 
 use crate::command::IncorrectnessModifier;
-use zksync_eth_signer::raw_ethereum_tx::TransactionParameters;
-use zksync_types::fee::Fee;
-use zksync_types::l2::L2Tx;
 
 /// Trait that exists solely to extend the signed zkSync transaction interface, providing the ability
 /// to modify transaction in a way that will make it invalid.
@@ -94,13 +94,13 @@ impl EthereumSigner for CorruptedSigner {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use zksync_eth_signer::PrivateKeySigner;
-    use zksync_types::fee::Fee;
-    use zksync_types::L2ChainId;
     use zksync_types::{
-        tokens::ETHEREUM_ADDRESS, tx::primitives::PackedEthSignature, Address, Nonce, H256,
+        fee::Fee, tokens::ETHEREUM_ADDRESS, tx::primitives::PackedEthSignature, Address, L2ChainId,
+        Nonce, H256,
     };
+
+    use super::*;
 
     const AMOUNT: u64 = 100;
     const FEE: u64 = 100;

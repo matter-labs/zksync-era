@@ -1,4 +1,5 @@
 use std::io::BufReader;
+
 use vm_benchmark::parse_iai::IaiResult;
 
 fn main() {

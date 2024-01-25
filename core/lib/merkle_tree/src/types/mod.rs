@@ -1,26 +1,57 @@
 //! Basic storage types.
 
-mod internal;
+use zksync_types::{H256, U256};
 
 pub(crate) use self::internal::{
     ChildRef, Nibbles, NibblesBytes, StaleNodeKey, TreeTags, HASH_SIZE, KEY_SIZE, TREE_DEPTH,
 };
-pub use self::internal::{InternalNode, Key, LeafNode, Manifest, Node, NodeKey, Root, ValueHash};
+pub use self::internal::{InternalNode, LeafNode, Manifest, Node, NodeKey, Root};
+
+mod internal;
+
+/// Key stored in the tree.
+pub type Key = U256;
+/// Hash type of values and intermediate nodes in the tree.
+pub type ValueHash = H256;
 
 /// Instruction to read or write a tree value at a certain key.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TreeInstruction {
-    /// Read the current tree value.
-    Read,
-    /// Write the specified value.
-    Write(ValueHash),
+pub enum TreeInstruction<K = Key> {
+    /// Read the current tree value at the specified key.
+    Read(K),
+    /// Write the specified entry.
+    Write(TreeEntry<K>),
+}
+
+impl<K: Copy> TreeInstruction<K> {
+    /// Creates a write instruction.
+    pub fn write(key: K, leaf_index: u64, value: ValueHash) -> Self {
+        Self::Write(TreeEntry::new(key, leaf_index, value))
+    }
+
+    /// Returns the tree key this instruction is related to.
+    pub fn key(&self) -> K {
+        match self {
+            Self::Read(key) => *key,
+            Self::Write(entry) => entry.key,
+        }
+    }
+
+    pub(crate) fn map_key<U>(&self, map_fn: impl FnOnce(&K) -> U) -> TreeInstruction<U> {
+        match self {
+            Self::Read(key) => TreeInstruction::Read(map_fn(key)),
+            Self::Write(entry) => TreeInstruction::Write(entry.map_key(map_fn)),
+        }
+    }
 }
 
 /// Entry in a Merkle tree associated with a key.
-#[derive(Debug, Clone, Copy)]
-pub struct TreeEntry {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TreeEntry<K = Key> {
+    /// Tree key.
+    pub key: K,
     /// Value associated with the key.
-    pub value_hash: ValueHash,
+    pub value: ValueHash,
     /// Enumeration index of the key.
     pub leaf_index: u64,
 }
@@ -28,23 +59,40 @@ pub struct TreeEntry {
 impl From<LeafNode> for TreeEntry {
     fn from(leaf: LeafNode) -> Self {
         Self {
-            value_hash: leaf.value_hash,
+            key: leaf.full_key,
+            value: leaf.value_hash,
             leaf_index: leaf.leaf_index,
         }
     }
 }
 
-impl TreeEntry {
-    pub(crate) fn empty() -> Self {
+impl<K> TreeEntry<K> {
+    /// Creates a new entry with the specified fields.
+    pub fn new(key: K, leaf_index: u64, value: ValueHash) -> Self {
         Self {
-            value_hash: ValueHash::zero(),
+            key,
+            value,
+            leaf_index,
+        }
+    }
+
+    pub(crate) fn map_key<U>(&self, map_fn: impl FnOnce(&K) -> U) -> TreeEntry<U> {
+        TreeEntry::new(map_fn(&self.key), self.leaf_index, self.value)
+    }
+}
+
+impl TreeEntry {
+    pub(crate) fn empty(key: Key) -> Self {
+        Self {
+            key,
+            value: ValueHash::zero(),
             leaf_index: 0,
         }
     }
 
-    /// Returns `true` iff this entry encodes lack of a value.
+    /// Returns `true` if and only if this entry encodes lack of a value.
     pub fn is_empty(&self) -> bool {
-        self.leaf_index == 0 && self.value_hash.is_zero()
+        self.leaf_index == 0 && self.value.is_zero()
     }
 
     pub(crate) fn with_merkle_path(self, merkle_path: Vec<ValueHash>) -> TreeEntryWithProof {
@@ -52,6 +100,12 @@ impl TreeEntry {
             base: self,
             merkle_path,
         }
+    }
+
+    /// Replaces the value in this entry and returns the modified entry.
+    #[must_use]
+    pub fn with_value(self, value: H256) -> Self {
+        Self { value, ..self }
     }
 }
 
@@ -63,7 +117,7 @@ pub struct TreeEntryWithProof {
     /// Proof of the value authenticity.
     ///
     /// If specified, a proof is the Merkle path consisting of up to 256 hashes
-    /// ordered starting the bottommost level of the tree (one with leaves) and ending before
+    /// ordered starting the bottom-most level of the tree (one with leaves) and ending before
     /// the root level.
     ///
     /// If the path is not full (contains <256 hashes), it means that the hashes at the beginning
@@ -86,10 +140,7 @@ pub struct BlockOutput {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TreeLogEntry {
     /// A node was inserted into the tree.
-    Inserted {
-        /// Index of the inserted node.
-        leaf_index: u64,
-    },
+    Inserted,
     /// A node with the specified index was updated.
     Updated {
         /// Index of the updated node.
@@ -109,18 +160,14 @@ pub enum TreeLogEntry {
 }
 
 impl TreeLogEntry {
-    pub(crate) fn insert(leaf_index: u64) -> Self {
-        Self::Inserted { leaf_index }
-    }
-
-    pub(crate) fn update(previous_value: ValueHash, leaf_index: u64) -> Self {
+    pub(crate) fn update(leaf_index: u64, previous_value: ValueHash) -> Self {
         Self::Updated {
             leaf_index,
             previous_value,
         }
     }
 
-    pub(crate) fn read(value: ValueHash, leaf_index: u64) -> Self {
+    pub(crate) fn read(leaf_index: u64, value: ValueHash) -> Self {
         Self::Read { leaf_index, value }
     }
 
@@ -152,7 +199,7 @@ pub struct TreeLogEntryWithProof<P = Vec<ValueHash>> {
     /// Log entry about an atomic operation on the tree.
     pub base: TreeLogEntry,
     /// Merkle path to prove log authenticity. The path consists of up to 256 hashes
-    /// ordered starting the bottommost level of the tree (one with leaves) and ending before
+    /// ordered starting the bottom-most level of the tree (one with leaves) and ending before
     /// the root level.
     ///
     /// If the path is not full (contains <256 hashes), it means that the hashes at the beginning

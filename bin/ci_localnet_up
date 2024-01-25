@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+
+set -e
+
+cd $ZKSYNC_HOME
+
+mkdir -p ./volumes/postgres ./volumes/geth/keystore ./volumes/prysm/beacon ./volumes/prysm/validator
+cp ./docker/prysm/config.yml ./volumes/prysm/config.yml
+cp ./docker/geth/jwtsecret ./volumes/geth/jwtsecret
+cp ./docker/geth/password.sec ./volumes/geth/password.sec
+cp ./docker/geth/keystore/UTC--2019-04-06T21-13-27.692266000Z--8a91dc2d28b689474298d91899f0c1baf62cb85b ./volumes/geth/keystore/
+docker-compose --profile runner up -d --wait

@@ -1,5 +1,4 @@
 use clap::Parser;
-
 use zksync_config::PostgresConfig;
 use zksync_dal::ConnectionPool;
 use zksync_env_config::FromEnv;

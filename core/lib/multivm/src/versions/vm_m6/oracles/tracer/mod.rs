@@ -1,5 +1,15 @@
-use zk_evm_1_3_1::abstractions::Tracer;
-use zk_evm_1_3_1::vm_state::VmLocalState;
+use zk_evm_1_3_1::{abstractions::Tracer, vm_state::VmLocalState};
+
+pub(crate) use self::transaction_result::TransactionResultTracer;
+pub use self::{
+    bootloader::BootloaderTracer,
+    call::CallTracer,
+    one_tx::OneTxTracer,
+    validation::{
+        ValidationError, ValidationTracer, ValidationTracerParams, ViolatedValidationRule,
+    },
+};
+use crate::vm_m6::{history_recorder::HistoryMode, memory::SimpleMemory};
 
 mod bootloader;
 mod call;
@@ -7,18 +17,6 @@ mod one_tx;
 mod transaction_result;
 mod utils;
 mod validation;
-
-pub use bootloader::BootloaderTracer;
-pub use call::CallTracer;
-pub use one_tx::OneTxTracer;
-pub use validation::{
-    ValidationError, ValidationTracer, ValidationTracerParams, ViolatedValidationRule,
-};
-
-pub(crate) use transaction_result::TransactionResultTracer;
-
-use crate::vm_m6::history_recorder::HistoryMode;
-use crate::vm_m6::memory::SimpleMemory;
 
 pub trait ExecutionEndTracer<H: HistoryMode>: Tracer<SupportedMemory = SimpleMemory<H>> {
     // Returns whether the vm execution should stop.

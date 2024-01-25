@@ -1,26 +1,33 @@
-use std::time::{Duration, Instant};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use tokio::task::JoinHandle;
-
-use tokio::time::sleep;
+use tokio::{task::JoinHandle, time::sleep};
 use zksync_config::configs::FriWitnessVectorGeneratorConfig;
 use zksync_dal::ConnectionPool;
 use zksync_object_store::ObjectStore;
-use zksync_prover_fri_types::circuit_definitions::boojum::field::goldilocks::GoldilocksField;
-use zksync_prover_fri_types::{CircuitWrapper, ProverJob, WitnessVectorArtifacts};
-use zksync_prover_fri_utils::fetch_next_circuit;
-use zksync_prover_fri_utils::get_numeric_circuit_id;
-use zksync_prover_fri_utils::socket_utils::send_assembly;
+use zksync_prover_fri_types::{
+    circuit_definitions::boojum::field::goldilocks::GoldilocksField, CircuitWrapper, ProverJob,
+    WitnessVectorArtifacts,
+};
+use zksync_prover_fri_utils::{
+    fetch_next_circuit, get_numeric_circuit_id, socket_utils::send_assembly,
+};
 use zksync_queued_job_processor::JobProcessor;
-use zksync_types::basic_fri_types::CircuitIdRoundTuple;
-use zksync_types::proofs::{GpuProverInstanceStatus, SocketAddress};
-use zksync_types::protocol_version::L1VerifierConfig;
+use zksync_types::{
+    basic_fri_types::CircuitIdRoundTuple,
+    proofs::{GpuProverInstanceStatus, SocketAddress},
+    protocol_version::L1VerifierConfig,
+};
 use zksync_vk_setup_data_server_fri::get_finalization_hints;
 
+use crate::metrics::METRICS;
+
 pub struct WitnessVectorGenerator {
-    blob_store: Box<dyn ObjectStore>,
+    blob_store: Arc<dyn ObjectStore>,
     pool: ConnectionPool,
     circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
     zone: String,
@@ -31,7 +38,7 @@ pub struct WitnessVectorGenerator {
 
 impl WitnessVectorGenerator {
     pub fn new(
-        blob_store: Box<dyn ObjectStore>,
+        blob_store: Arc<dyn ObjectStore>,
         prover_connection_pool: ConnectionPool,
         circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
         zone: String,
@@ -73,6 +80,8 @@ impl JobProcessor for WitnessVectorGenerator {
     type Job = ProverJob;
     type JobId = u32;
     type JobArtifacts = WitnessVectorArtifacts;
+
+    const POLLING_INTERVAL_MS: u64 = 15000;
     const SERVICE_NAME: &'static str = "WitnessVectorGenerator";
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
@@ -114,11 +123,11 @@ impl JobProcessor for WitnessVectorGenerator {
         started_at: Instant,
         artifacts: WitnessVectorArtifacts,
     ) -> anyhow::Result<()> {
-        metrics::histogram!(
-            "prover_fri.witness_vector_generator.gpu_witness_vector_generation_time",
-            started_at.elapsed(),
-            "circuit_type" => get_numeric_circuit_id(&artifacts.prover_job.circuit_wrapper).to_string(),
-        );
+        let circuit_type =
+            get_numeric_circuit_id(&artifacts.prover_job.circuit_wrapper).to_string();
+
+        METRICS.gpu_witness_vector_generation_time[&circuit_type].observe(started_at.elapsed());
+
         tracing::info!(
             "Finished witness vector generation for job: {job_id} in zone: {:?} took: {:?}",
             self.zone,
@@ -146,10 +155,20 @@ impl JobProcessor for WitnessVectorGenerator {
                 .await;
 
             if let Some(address) = prover {
+                tracing::info!(
+                    "Found prover after {:?}. Sending witness vector job...",
+                    now.elapsed()
+                );
                 let result = send_assembly(job_id, &serialized, &address);
                 handle_send_result(&result, job_id, &address, &self.pool, self.zone.clone()).await;
 
                 if result.is_ok() {
+                    METRICS.prover_waiting_time[&circuit_type].observe(now.elapsed());
+                    METRICS.prover_attempts_count[&circuit_type].observe(attempts as usize);
+                    tracing::info!(
+                        "Sent witness vector job to prover after {:?}",
+                        now.elapsed()
+                    );
                     return Ok(());
                 }
 
@@ -161,11 +180,16 @@ impl JobProcessor for WitnessVectorGenerator {
                 );
                 attempts += 1;
             } else {
+                tracing::warn!(
+                    "Could not find available prover. Time elapsed: {:?}. Will sleep for {:?}",
+                    now.elapsed(),
+                    self.config.prover_instance_poll_time()
+                );
                 sleep(self.config.prover_instance_poll_time()).await;
             }
         }
-        tracing::trace!(
-            "Not able to get any free prover instance for sending witness vector for job: {job_id}"
+        tracing::warn!(
+            "Not able to get any free prover instance for sending witness vector for job: {job_id} after {:?}", now.elapsed()
         );
         Ok(())
     }
@@ -204,11 +228,8 @@ async fn handle_send_result(
                 "Sent assembly of size: {blob_size_in_mb}MB successfully, took: {elapsed:?} \
                  for job: {job_id} to: {address:?}"
             );
-            metrics::histogram!(
-                "prover_fri.witness_vector_generator.blob_sending_time",
-                *elapsed,
-                "blob_size_in_mb" => blob_size_in_mb.to_string(),
-            );
+
+            METRICS.blob_sending_time[&blob_size_in_mb.to_string()].observe(*elapsed);
 
             pool.access_storage()
                 .await
@@ -219,12 +240,12 @@ async fn handle_send_result(
         }
 
         Err(err) => {
-            tracing::trace!(
+            tracing::warn!(
                 "Failed sending assembly to address: {address:?}, socket not reachable \
                  reason: {err}"
             );
 
-            // mark prover instance in gpu_prover_queue dead
+            // mark prover instance in `gpu_prover_queue` dead
             pool.access_storage()
                 .await
                 .unwrap()

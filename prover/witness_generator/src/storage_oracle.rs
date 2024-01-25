@@ -1,7 +1,5 @@
-use zksync_types::zkevm_test_harness::zk_evm::abstractions::{
-    RefundType, RefundedAmounts, Storage,
-};
-use zksync_types::{LogQuery, Timestamp};
+use zk_evm::aux_structures::{LogQuery, Timestamp};
+use zkevm_test_harness::zk_evm::abstractions::{RefundType, RefundedAmounts, Storage};
 
 #[derive(Debug)]
 pub struct StorageOracle<T> {

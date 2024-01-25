@@ -1,10 +1,10 @@
+use std::{net::Ipv4Addr, time::Duration};
+
 use anyhow::Context as _;
 use metrics_exporter_prometheus::{Matcher, PrometheusBuilder};
 use tokio::sync::watch;
 use vise::MetricsCollection;
 use vise_exporter::MetricsExporter;
-
-use std::{net::Ipv4Addr, time::Duration};
 
 fn configure_legacy_exporter(builder: PrometheusBuilder) -> PrometheusBuilder {
     // in seconds

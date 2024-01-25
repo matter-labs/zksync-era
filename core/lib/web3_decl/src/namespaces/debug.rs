@@ -1,8 +1,10 @@
-use crate::types::H256;
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
+use zksync_types::{
+    api::{BlockId, BlockNumber, DebugCall, ResultDebugCall, TracerConfig},
+    transaction_request::CallRequest,
+};
 
-use zksync_types::api::{BlockId, BlockNumber, DebugCall, ResultDebugCall, TracerConfig};
-use zksync_types::transaction_request::CallRequest;
+use crate::types::H256;
 
 #[cfg_attr(
     all(feature = "client", feature = "server"),

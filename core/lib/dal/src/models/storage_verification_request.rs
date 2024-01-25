@@ -1,8 +1,10 @@
-use zksync_types::contract_verification_api::{
-    CompilerType, CompilerVersions, SourceCodeData, VerificationIncomingRequest,
-    VerificationRequest,
+use zksync_types::{
+    contract_verification_api::{
+        CompilerType, CompilerVersions, SourceCodeData, VerificationIncomingRequest,
+        VerificationRequest,
+    },
+    Address,
 };
-use zksync_types::Address;
 
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct StorageVerificationRequest {

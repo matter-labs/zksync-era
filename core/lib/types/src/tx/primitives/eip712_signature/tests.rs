@@ -1,12 +1,19 @@
-use crate::tx::primitives::eip712_signature::{
-    struct_builder::StructBuilder,
-    typed_structure::{EIP712TypedStructure, Eip712Domain},
-};
-use crate::tx::primitives::{eip712_signature::utils::get_eip712_json, PackedEthSignature};
-use crate::web3::signing::keccak256;
-use serde::Serialize;
 use std::str::FromStr;
+
+use serde::Serialize;
 use zksync_basic_types::{Address, H256, U256};
+
+use crate::{
+    tx::primitives::{
+        eip712_signature::{
+            struct_builder::StructBuilder,
+            typed_structure::{EIP712TypedStructure, Eip712Domain},
+            utils::get_eip712_json,
+        },
+        PackedEthSignature,
+    },
+    web3::signing::keccak256,
+};
 
 #[derive(Clone, Serialize)]
 struct Person {

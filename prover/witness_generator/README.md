@@ -15,7 +15,7 @@ aggregation. That is, every aggregation round needs two sets of input:
 ## BasicCircuitsWitnessGenerator
 
 - generates basic circuits (circuits like `Main VM` - up to 50 \* 48 = 2400 circuits):
-- input table: `basic_circuit_witness_jobs` (todo SMA-1362: will be renamed from `witness_inputs`)
+- input table: `basic_circuit_witness_jobs` (TODO SMA-1362: will be renamed from `witness_inputs`)
 - artifact/output table: `leaf_aggregation_jobs` (also creates job stubs in `node_aggregation_jobs` and
   `scheduler_aggregation_jobs`) value in `aggregation_round` field of `prover_jobs` table: 0
 
@@ -42,7 +42,7 @@ One round of prover generation consists of:
 
 - `WitnessGenerator` picks up the next `queued` job in its input table and processes it (invoking the corresponding
   helper function in `zkevm_test_harness` repo)
-- it saves the generated circuis to `prover_jobs` table and the other artifacts to its output table
+- it saves the generated circuits to `prover_jobs` table and the other artifacts to its output table
 - the individual proofs are picked up by the provers, processed, and marked as complete.
 - when the last proof for this round is computed, the prover updates the row in the output table setting its status to
   `queued`

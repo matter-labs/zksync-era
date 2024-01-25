@@ -1,8 +1,3 @@
-use rocksdb::{
-    properties, BlockBasedOptions, Cache, ColumnFamily, ColumnFamilyDescriptor, DBPinnableSlice,
-    Direction, IteratorMode, Options, PrefixRange, ReadOptions, WriteOptions, DB,
-};
-
 use std::{
     collections::{HashMap, HashSet},
     ffi::CStr,
@@ -13,6 +8,11 @@ use std::{
     sync::{Arc, Condvar, Mutex},
     thread,
     time::{Duration, Instant},
+};
+
+use rocksdb::{
+    properties, BlockBasedOptions, Cache, ColumnFamily, ColumnFamilyDescriptor, DBPinnableSlice,
+    Direction, IteratorMode, Options, PrefixRange, ReadOptions, WriteOptions, DB,
 };
 
 use crate::metrics::{RocksdbLabels, RocksdbSizeMetrics, METRICS};
@@ -529,7 +529,7 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
             .iterator_cf_opt(cf, options, IteratorMode::Start)
             .map(Result::unwrap)
             .fuse()
-        // ^ The rocksdb docs say that a raw iterator (which is used by the returned ordinary iterator)
+        // ^ The RocksDB docs say that a raw iterator (which is used by the returned ordinary iterator)
         // can become invalid "when it reaches the end of its defined range, or when it encounters an error."
         // We panic on RocksDB errors elsewhere and fuse it to prevent polling after the end of the range.
         // Thus, `unwrap()` should be safe.
@@ -553,7 +553,7 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
 }
 
 impl RocksDB<()> {
-    /// Awaits termination of all running rocksdb instances.
+    /// Awaits termination of all running RocksDB instances.
     ///
     /// This method is blocking and should be wrapped in `spawn_blocking(_)` if run in the async context.
     pub fn await_rocksdb_termination() {
@@ -570,7 +570,7 @@ impl RocksDB<()> {
     }
 }
 
-/// Empty struct used to register rocksdb instance
+/// Empty struct used to register RocksDB instance
 #[derive(Debug)]
 struct RegistryEntry;
 

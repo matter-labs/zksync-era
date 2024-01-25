@@ -1,13 +1,12 @@
-use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics};
-
 use std::time::Duration;
 
-use crate::vm_latest::HistoryEnabled;
+use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics};
 use zk_evm_1_3_3::aux_structures::Timestamp;
 use zksync_state::WriteStorage;
 
-use crate::vm_virtual_blocks::{
-    old_vm::oracles::OracleWithHistory, types::internals::VmSnapshot, vm::Vm,
+use crate::{
+    vm_latest::HistoryEnabled,
+    vm_virtual_blocks::{old_vm::oracles::OracleWithHistory, types::internals::VmSnapshot, vm::Vm},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet, EncodeLabelValue)]
@@ -36,8 +35,8 @@ impl<S: WriteStorage> Vm<S, HistoryEnabled> {
     pub(crate) fn make_snapshot_inner(&mut self) {
         self.snapshots.push(VmSnapshot {
             // Vm local state contains O(1) various parameters (registers/etc).
-            // The only "expensive" copying here is copying of the callstack.
-            // It will take O(callstack_depth) to copy it.
+            // The only "expensive" copying here is copying of the call stack.
+            // It will take `O(callstack_depth)` to copy it.
             // So it is generally recommended to get snapshots of the bootloader frame,
             // where the depth is 1.
             local_state: self.state.local_state.clone(),

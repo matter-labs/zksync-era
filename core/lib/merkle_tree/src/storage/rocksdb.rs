@@ -1,8 +1,9 @@
 //! RocksDB implementation of [`Database`].
 
-use rayon::prelude::*;
-
 use std::path::Path;
+
+use rayon::prelude::*;
+use zksync_storage::{db::NamedColumnFamily, rocksdb::DBPinnableSlice, RocksDB};
 
 use crate::{
     errors::{DeserializeError, ErrorContext},
@@ -13,7 +14,6 @@ use crate::{
     },
     types::{InternalNode, LeafNode, Manifest, Nibbles, Node, NodeKey, Root, StaleNodeKey},
 };
-use zksync_storage::{db::NamedColumnFamily, rocksdb::DBPinnableSlice, RocksDB};
 
 /// RocksDB column families used by the tree.
 #[derive(Debug, Clone, Copy)]
@@ -285,9 +285,9 @@ impl PruneDatabase for RocksDBWrapper {
 
 #[cfg(test)]
 mod tests {
-    use tempfile::TempDir;
-
     use std::collections::{HashMap, HashSet};
+
+    use tempfile::TempDir;
 
     use super::*;
     use crate::storage::tests::{create_patch, generate_nodes};

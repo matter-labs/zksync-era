@@ -1,26 +1,22 @@
-use async_trait::async_trait;
-
 use std::sync::Arc;
 
-use crate::{
-    clients::http::{Method, COUNTERS, LATENCIES},
-    types::{Error, ExecutedTxStatus, FailureInfo},
-    EthInterface,
-};
+use async_trait::async_trait;
 use zksync_types::web3::{
     self,
-    contract::{
-        tokens::{Detokenize, Tokenize},
-        Contract, Options,
-    },
+    contract::Contract,
     ethabi,
-    helpers::CallFuture,
     transports::Http,
     types::{
         Address, Block, BlockId, BlockNumber, Bytes, Filter, Log, Transaction, TransactionId,
         TransactionReceipt, H256, U256, U64,
     },
-    Transport, Web3,
+    Web3,
+};
+
+use crate::{
+    clients::http::{Method, COUNTERS, LATENCIES},
+    types::{Error, ExecutedTxStatus, FailureInfo, RawTokens},
+    ContractCall, EthInterface, RawTransactionBytes,
 };
 
 /// An "anonymous" Ethereum client that can invoke read-only methods that aren't
@@ -41,7 +37,7 @@ impl From<Http> for QueryClient {
 impl QueryClient {
     /// Creates a new HTTP client.
     pub fn new(node_url: &str) -> Result<Self, Error> {
-        let transport = web3::transports::Http::new(node_url)?;
+        let transport = Http::new(node_url)?;
         Ok(transport.into())
     }
 }
@@ -81,9 +77,9 @@ impl EthInterface for QueryClient {
         Ok(network_gas_price)
     }
 
-    async fn send_raw_tx(&self, tx: Vec<u8>) -> Result<H256, Error> {
+    async fn send_raw_tx(&self, tx: RawTransactionBytes) -> Result<H256, Error> {
         let latency = LATENCIES.direct[&Method::SendRawTx].start();
-        let tx = self.web3.eth().send_raw_transaction(Bytes(tx)).await?;
+        let tx = self.web3.eth().send_raw_transaction(Bytes(tx.0)).await?;
         latency.observe();
         Ok(tx)
     }
@@ -101,8 +97,8 @@ impl EthInterface for QueryClient {
         let mut history = Vec::with_capacity(block_count);
         let from_block = upto_block.saturating_sub(block_count);
 
-        // Here we are requesting fee_history from blocks
-        // (from_block; upto_block] in chunks of size MAX_REQUEST_CHUNK
+        // Here we are requesting `fee_history` from blocks
+        // `(from_block; upto_block)` in chunks of size `MAX_REQUEST_CHUNK`
         // starting from the oldest block.
         for chunk_start in (from_block..=upto_block).step_by(MAX_REQUEST_CHUNK) {
             let chunk_end = (chunk_start + MAX_REQUEST_CHUNK).min(upto_block);
@@ -234,26 +230,21 @@ impl EthInterface for QueryClient {
         Ok(tx)
     }
 
-    #[allow(clippy::too_many_arguments)]
-    async fn call_contract_function<R, A, B, P>(
+    async fn call_contract_function(
         &self,
-        func: &str,
-        params: P,
-        from: A,
-        options: Options,
-        block: B,
-        contract_address: Address,
-        contract_abi: ethabi::Contract,
-    ) -> Result<R, Error>
-    where
-        R: Detokenize + Unpin,
-        A: Into<Option<Address>> + Send,
-        B: Into<Option<BlockId>> + Send,
-        P: Tokenize + Send,
-    {
+        call: ContractCall,
+    ) -> Result<Vec<ethabi::Token>, Error> {
         let latency = LATENCIES.direct[&Method::CallContractFunction].start();
-        let contract = Contract::new(self.web3.eth(), contract_address, contract_abi);
-        let res = contract.query(func, params, from, options, block).await?;
+        let contract = Contract::new(self.web3.eth(), call.contract_address, call.contract_abi);
+        let RawTokens(res) = contract
+            .query(
+                &call.inner.name,
+                call.inner.params,
+                call.inner.from,
+                call.inner.options,
+                call.inner.block,
+            )
+            .await?;
         latency.observe();
         Ok(res)
     }
@@ -286,23 +277,14 @@ impl EthInterface for QueryClient {
         Ok(logs)
     }
 
-    // TODO (PLA-333): at the moment the latest version of `web3` crate doesn't have `Finalized` variant in `BlockNumber`.
-    // However, it's already added in github repo and probably will be included in the next released version.
-    // Scope of PLA-333 includes forking/using crate directly from github, after that we will be able to change
-    // type of `block_id` from `String` to `BlockId` and use `self.web3.eth().block(block_id)`.
     async fn block(
         &self,
-        block_id: String,
+        block_id: BlockId,
         component: &'static str,
     ) -> Result<Option<Block<H256>>, Error> {
         COUNTERS.call[&(Method::Block, component)].inc();
         let latency = LATENCIES.direct[&Method::Block].start();
-        let block = CallFuture::new(
-            self.web3
-                .transport()
-                .execute("eth_getBlockByNumber", vec![block_id.into(), false.into()]),
-        )
-        .await?;
+        let block = self.web3.eth().block(block_id).await?;
         latency.observe();
         Ok(block)
     }

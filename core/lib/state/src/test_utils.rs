@@ -1,13 +1,13 @@
 //! Shared utils for unit tests.
 
+use std::ops;
+
 use zksync_dal::StorageProcessor;
 use zksync_types::{
     block::{BlockGasCount, L1BatchHeader, MiniblockHeader},
     AccountTreeId, Address, L1BatchNumber, MiniblockNumber, ProtocolVersion, StorageKey,
     StorageLog, H256,
 };
-
-use std::ops;
 
 pub(crate) async fn prepare_postgres(conn: &mut StorageProcessor<'_>) {
     if conn.blocks_dal().is_genesis_needed().await.unwrap() {
@@ -35,7 +35,6 @@ pub(crate) async fn prepare_postgres(conn: &mut StorageProcessor<'_>) {
 }
 
 pub(crate) fn gen_storage_logs(indices: ops::Range<u64>) -> Vec<StorageLog> {
-    // Addresses and keys of storage logs must be sorted for the `multi_block_workflow` test.
     let mut accounts = [
         "4b3af74f66ab1f0da3f2e4ec7a3cb99baf1af7b2",
         "ef4bb7b21c5fe7432a7d63876cc59ecc23b46636",
@@ -74,8 +73,8 @@ pub(crate) async fn create_miniblock(
         l1_tx_count: 0,
         l2_tx_count: 0,
         base_fee_per_gas: 0,
-        l1_gas_price: 0,
-        l2_fair_gas_price: 0,
+        batch_fee_input: Default::default(),
+        gas_per_pubdata_limit: 0,
         base_system_contracts_hashes: Default::default(),
         protocol_version: Some(Default::default()),
         virtual_blocks: 0,
@@ -106,7 +105,7 @@ pub(crate) async fn create_l1_batch(
     );
     header.is_finished = true;
     conn.blocks_dal()
-        .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[])
+        .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[], 0)
         .await
         .unwrap();
     conn.blocks_dal()

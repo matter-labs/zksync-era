@@ -1,16 +1,9 @@
-#![allow(clippy::upper_case_acronyms, clippy::derive_partial_eq_without_eq)]
+use std::fmt;
 
-pub mod clients;
-pub mod types;
-
-use crate::types::{Error, ExecutedTxStatus, FailureInfo, SignedCallResult};
 use async_trait::async_trait;
 use zksync_types::{
     web3::{
-        contract::{
-            tokens::{Detokenize, Tokenize},
-            Options,
-        },
+        contract::Options,
         ethabi,
         types::{
             Address, Block, BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt,
@@ -20,8 +13,16 @@ use zksync_types::{
     L1ChainId,
 };
 
+pub use crate::types::{
+    CallFunctionArgs, ContractCall, Error, ExecutedTxStatus, FailureInfo, RawTransactionBytes,
+    SignedCallResult,
+};
+
+pub mod clients;
+mod types;
+
 /// Common Web3 interface, as seen by the core applications.
-/// Encapsulates the raw Web3 interction, providing a high-level interface.
+/// Encapsulates the raw Web3 interaction, providing a high-level interface.
 ///
 /// ## Trait contents
 ///
@@ -34,10 +35,10 @@ use zksync_types::{
 ///
 /// Most of the trait methods support the `component` parameter. This parameter is used to
 /// describe the caller of the method. It may be useful to find the component that makes an
-/// unnecessary high amount of Web3 calls. Implementations are advices to count invocations
+/// unnecessary high amount of Web3 calls. Implementations are advice to count invocations
 /// per component and expose them to Prometheus.
 #[async_trait]
-pub trait EthInterface: Sync + Send {
+pub trait EthInterface: 'static + Sync + Send + fmt::Debug {
     /// Returns the nonce of the provided account at the specified block.
     async fn nonce_at_for_account(
         &self,
@@ -70,7 +71,7 @@ pub trait EthInterface: Sync + Send {
     async fn block_number(&self, component: &'static str) -> Result<U64, Error>;
 
     /// Sends a transaction to the Ethereum network.
-    async fn send_raw_tx(&self, tx: Vec<u8>) -> Result<H256, Error>;
+    async fn send_raw_tx(&self, tx: RawTransactionBytes) -> Result<H256, Error>;
 
     /// Fetches the transaction status for a specified transaction hash.
     ///
@@ -108,22 +109,8 @@ pub trait EthInterface: Sync + Send {
     async fn eth_balance(&self, address: Address, component: &'static str) -> Result<U256, Error>;
 
     /// Invokes a function on a contract specified by `contract_address` / `contract_abi` using `eth_call`.
-    #[allow(clippy::too_many_arguments)]
-    async fn call_contract_function<R, A, B, P>(
-        &self,
-        func: &str,
-        params: P,
-        from: A,
-        options: Options,
-        block: B,
-        contract_address: Address,
-        contract_abi: ethabi::Contract,
-    ) -> Result<R, Error>
-    where
-        R: Detokenize + Unpin,
-        A: Into<Option<Address>> + Send,
-        B: Into<Option<BlockId>> + Send,
-        P: Tokenize + Send;
+    async fn call_contract_function(&self, call: ContractCall)
+        -> Result<Vec<ethabi::Token>, Error>;
 
     /// Returns the logs for the specified filter.
     async fn logs(&self, filter: Filter, component: &'static str) -> Result<Vec<Log>, Error>;
@@ -131,15 +118,18 @@ pub trait EthInterface: Sync + Send {
     /// Returns the block header for the specified block number or hash.
     async fn block(
         &self,
-        block_id: String,
+        block_id: BlockId,
         component: &'static str,
     ) -> Result<Option<Block<H256>>, Error>;
 }
 
+#[cfg(test)]
+static_assertions::assert_obj_safe!(EthInterface);
+
 /// An extension of `EthInterface` trait, which is used to perform queries that are bound to
 /// a certain contract and account.
 ///
-/// THe example use cases for this trait would be:
+/// The example use cases for this trait would be:
 /// - An operator that sends transactions and interacts with zkSync contract.
 /// - A wallet implementation in the SDK that is tied to a user's account.
 ///
@@ -149,10 +139,10 @@ pub trait EthInterface: Sync + Send {
 /// implementation that invokes `contract` / `contract_addr` / `sender_account` methods.
 #[async_trait]
 pub trait BoundEthInterface: EthInterface {
-    /// ABI of the contract that is used by the implementor.
+    /// ABI of the contract that is used by the implementer.
     fn contract(&self) -> &ethabi::Contract;
 
-    /// Address of the contract that is used by the implementor.
+    /// Address of the contract that is used by the implementer.
     fn contract_addr(&self) -> H160;
 
     /// Chain ID of the L1 network the client is *configured* to connected to.
@@ -225,40 +215,27 @@ pub trait BoundEthInterface: EthInterface {
     }
 
     /// Invokes a function on a contract specified by `Self::contract()` / `Self::contract_addr()`.
-    async fn call_main_contract_function<R, A, P, B>(
+    async fn call_main_contract_function(
         &self,
-        func: &str,
-        params: P,
-        from: A,
-        options: Options,
-        block: B,
-    ) -> Result<R, Error>
-    where
-        R: Detokenize + Unpin,
-        A: Into<Option<Address>> + Send,
-        P: Tokenize + Send,
-        B: Into<Option<BlockId>> + Send,
-    {
-        self.call_contract_function(
-            func,
-            params,
-            from,
-            options,
-            block,
-            self.contract_addr(),
-            self.contract().clone(),
-        )
-        .await
+        args: CallFunctionArgs,
+    ) -> Result<Vec<ethabi::Token>, Error> {
+        let args = args.for_contract(self.contract_addr(), self.contract().clone());
+        self.call_contract_function(args).await
     }
 
     /// Encodes a function using the `Self::contract()` ABI.
-    fn encode_tx_data<P: Tokenize>(&self, func: &str, params: P) -> Vec<u8> {
+    ///
+    /// `params` are tokenized parameters of the function. Most of the time, you can use
+    /// [`Tokenize`][tokenize] trait to convert the parameters into tokens.
+    ///
+    /// [tokenize]: https://docs.rs/web3/latest/web3/contract/tokens/trait.Tokenize.html
+    fn encode_tx_data(&self, func: &str, params: Vec<ethabi::Token>) -> Vec<u8> {
         let f = self
             .contract()
             .function(func)
             .expect("failed to get function parameters");
 
-        f.encode_input(&params.into_tokens())
+        f.encode_input(&params)
             .expect("failed to encode parameters")
     }
 }

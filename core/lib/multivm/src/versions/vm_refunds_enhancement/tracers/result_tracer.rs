@@ -4,23 +4,27 @@ use zk_evm_1_3_3::{
     zkevm_opcode_defs::FatPointer,
 };
 use zksync_state::{StoragePtr, WriteStorage};
-
-use crate::interface::dyn_tracers::vm_1_3_3::DynTracer;
-use crate::interface::tracer::{TracerExecutionStopReason, VmExecutionStopReason};
-use crate::interface::{ExecutionResult, Halt, TxRevertReason, VmExecutionMode, VmRevertReason};
 use zksync_types::U256;
 
-use crate::vm_refunds_enhancement::bootloader_state::BootloaderState;
-use crate::vm_refunds_enhancement::old_vm::{
-    history_recorder::HistoryMode,
-    memory::SimpleMemory,
-    utils::{vm_may_have_ended_inner, VmExecutionResult},
+use crate::{
+    interface::{
+        dyn_tracers::vm_1_3_3::DynTracer,
+        tracer::{TracerExecutionStopReason, VmExecutionStopReason},
+        ExecutionResult, Halt, TxRevertReason, VmExecutionMode, VmRevertReason,
+    },
+    vm_refunds_enhancement::{
+        bootloader_state::BootloaderState,
+        constants::{BOOTLOADER_HEAP_PAGE, RESULT_SUCCESS_FIRST_SLOT},
+        old_vm::{
+            history_recorder::HistoryMode,
+            memory::SimpleMemory,
+            utils::{vm_may_have_ended_inner, VmExecutionResult},
+        },
+        tracers::utils::{get_vm_hook_params, read_pointer, VmHook},
+        types::internals::ZkSyncVmState,
+        VmTracer,
+    },
 };
-use crate::vm_refunds_enhancement::tracers::utils::{get_vm_hook_params, read_pointer, VmHook};
-
-use crate::vm_refunds_enhancement::constants::{BOOTLOADER_HEAP_PAGE, RESULT_SUCCESS_FIRST_SLOT};
-use crate::vm_refunds_enhancement::types::internals::ZkSyncVmState;
-use crate::vm_refunds_enhancement::VmTracer;
 
 #[derive(Debug, Clone)]
 enum Result {
@@ -48,7 +52,7 @@ impl ResultTracer {
 }
 
 fn current_frame_is_bootloader(local_state: &VmLocalState) -> bool {
-    // The current frame is bootloader if the callstack depth is 1.
+    // The current frame is bootloader if the call stack depth is 1.
     // Some of the near calls inside the bootloader can be out of gas, which is totally normal behavior
     // and it shouldn't result in `is_bootloader_out_of_gas` becoming true.
     local_state.callstack.inner.len() == 1
@@ -147,7 +151,7 @@ impl ResultTracer {
                 });
             }
             VmExecutionResult::Revert(output) => {
-                // Unlike VmHook::ExecutionResult,  vm has completely finished and returned not only the revert reason,
+                // Unlike `VmHook::ExecutionResult`,  vm has completely finished and returned not only the revert reason,
                 // but with bytecode, which represents the type of error from the bootloader side
                 let revert_reason = TxRevertReason::parse_error(&output);
 

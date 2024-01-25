@@ -1,9 +1,13 @@
 use proptest::prelude::*;
-use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::{
-    base_circuit_type_into_recursive_leaf_circuit_type, ZkSyncRecursionLayerStorageType,
+use zksync_prover_fri_types::{
+    circuit_definitions::{
+        circuit_definitions::recursion_layer::{
+            base_circuit_type_into_recursive_leaf_circuit_type, ZkSyncRecursionLayerStorageType,
+        },
+        zkevm_circuits::scheduler::aux::BaseLayerCircuitType,
+    },
+    ProverServiceDataKey,
 };
-use zksync_prover_fri_types::circuit_definitions::zkevm_circuits::scheduler::aux::BaseLayerCircuitType;
-use zksync_prover_fri_types::ProverServiceDataKey;
 use zksync_types::proofs::AggregationRound;
 use zksync_vk_setup_data_server_fri::{
     get_base_layer_vk_for_circuit_type, get_base_path, get_file_path, get_finalization_hints,
@@ -61,14 +65,14 @@ proptest! {
 
 }
 
-// Test get_base_path method
+// Test `get_base_path` method
 #[test]
 fn test_get_base_path() {
     let base_path = get_base_path();
     assert!(!base_path.is_empty(), "Base path should not be empty");
 }
 
-// Test get_file_path method
+// Test `get_file_path` method
 #[test]
 fn test_get_file_path() {
     let key = ProverServiceDataKey::new(1, AggregationRound::BasicCircuits);
@@ -76,7 +80,7 @@ fn test_get_file_path() {
     assert!(!file_path.is_empty(), "File path should not be empty");
 }
 
-// Test ProverServiceDataKey::new method
+// Test `ProverServiceDataKey::new` method
 #[test]
 fn test_proverservicedatakey_new() {
     let key = ProverServiceDataKey::new(1, AggregationRound::BasicCircuits);
@@ -91,7 +95,7 @@ fn test_proverservicedatakey_new() {
     );
 }
 
-// Test get_round_for_recursive_circuit_type method
+// Test `get_round_for_recursive_circuit_type` method
 #[test]
 fn test_get_round_for_recursive_circuit_type() {
     let round = get_round_for_recursive_circuit_type(

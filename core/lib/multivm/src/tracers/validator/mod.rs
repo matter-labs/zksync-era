@@ -1,19 +1,11 @@
-mod types;
-mod vm_latest;
-mod vm_refunds_enhancement;
-mod vm_virtual_blocks;
-
-use std::sync::Arc;
-use std::{collections::HashSet, marker::PhantomData};
+use std::{collections::HashSet, marker::PhantomData, sync::Arc};
 
 use once_cell::sync::OnceCell;
-
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_system_constants::{
     ACCOUNT_CODE_STORAGE_ADDRESS, BOOTLOADER_ADDRESS, CONTRACT_DEPLOYER_ADDRESS,
     L2_ETH_TOKEN_ADDRESS, MSG_VALUE_SIMULATOR_ADDRESS, SYSTEM_CONTEXT_ADDRESS,
 };
-
 use zksync_types::{
     vm_trace::ViolatedValidationRule, web3::signing::keccak256, AccountTreeId, Address, StorageKey,
     H256, U256,
@@ -22,6 +14,12 @@ use zksync_utils::{be_bytes_to_safe_address, u256_to_account_address, u256_to_h2
 
 use crate::tracers::validator::types::{NewTrustedValidationItems, ValidationTracerMode};
 pub use crate::tracers::validator::types::{ValidationError, ValidationTracerParams};
+
+mod types;
+mod vm_boojum_integration;
+mod vm_latest;
+mod vm_refunds_enhancement;
+mod vm_virtual_blocks;
 
 /// Tracer that is used to ensure that the validation adheres to all the rules
 /// to prevent DDoS attacks on the server.
@@ -104,7 +102,7 @@ impl<H> ValidationTracer<H> {
             return true;
         }
 
-        // The pair of MSG_VALUE_SIMULATOR_ADDRESS & L2_ETH_TOKEN_ADDRESS simulates the behavior of transfering ETH
+        // The pair of `MSG_VALUE_SIMULATOR_ADDRESS` & `L2_ETH_TOKEN_ADDRESS` simulates the behavior of transferring ETH
         // that is safe for the DDoS protection rules.
         if valid_eth_token_call(address, msg_sender) {
             return true;
@@ -148,11 +146,11 @@ impl<H> ValidationTracer<H> {
         let (potential_address_bytes, potential_position_bytes) = calldata.split_at(32);
         let potential_address = be_bytes_to_safe_address(potential_address_bytes);
 
-        // If the validation_address is equal to the potential_address,
-        // then it is a request that could be used for mapping of kind mapping(address => ...).
+        // If the `validation_address` is equal to the `potential_address`,
+        // then it is a request that could be used for mapping of kind `mapping(address => ...).`
         //
-        // If the potential_position_bytes were already allowed before, then this keccak might be used
-        // for ERC-20 allowance or any other of mapping(address => mapping(...))
+        // If the `potential_position_bytes` were already allowed before, then this keccak might be used
+        // for ERC-20 allowance or any other of `mapping(address => mapping(...))`
         if potential_address == Some(validated_address)
             || self
                 .auxilary_allowed_slots
@@ -190,7 +188,7 @@ fn touches_allowed_context(address: Address, key: U256) -> bool {
         return false;
     }
 
-    // Only chain_id is allowed to be touched.
+    // Only `chain_id` is allowed to be touched.
     key == U256::from(0u32)
 }
 

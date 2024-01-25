@@ -1,8 +1,7 @@
 use vise::{Counter, Metrics};
+use zksync_types::{witness_block_state::WitnessBlockState, StorageKey, StorageValue, H256};
 
 use crate::ReadStorage;
-
-use zksync_types::{witness_block_state::WitnessBlockState, StorageKey, StorageValue, H256};
 
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "witness_storage")]

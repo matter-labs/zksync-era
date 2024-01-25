@@ -1,8 +1,8 @@
 //! Metrics for `RocksdbStorage`.
 
-use vise::{Buckets, Gauge, Histogram, Metrics};
-
 use std::time::Duration;
+
+use vise::{Buckets, Gauge, Histogram, Metrics};
 
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "server_state_keeper_secondary_storage")]

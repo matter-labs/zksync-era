@@ -1,8 +1,8 @@
 //! Metrics for the Merkle tree API.
 
-use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics, Unit};
-
 use std::time::Duration;
+
+use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics, Unit};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "method", rename_all = "snake_case")]

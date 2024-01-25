@@ -1,6 +1,8 @@
-use crate::{StorageKey, StorageValue};
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+
+use serde::{Deserialize, Serialize};
+
+use crate::{StorageKey, StorageValue};
 
 /// Storage data used during Witness Generation.
 #[derive(Debug, Default, Serialize, Deserialize)]

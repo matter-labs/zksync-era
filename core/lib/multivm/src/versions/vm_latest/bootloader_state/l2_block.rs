@@ -1,11 +1,15 @@
 use std::cmp::Ordering;
+
 use zksync_types::{MiniblockNumber, H256};
 use zksync_utils::concat_and_hash;
 
-use crate::interface::{L2Block, L2BlockEnv};
-use crate::vm_latest::bootloader_state::snapshot::L2BlockSnapshot;
-use crate::vm_latest::bootloader_state::tx::BootloaderTx;
-use crate::vm_latest::utils::l2_blocks::l2_block_hash;
+use crate::{
+    interface::{L2Block, L2BlockEnv},
+    vm_latest::{
+        bootloader_state::{snapshot::L2BlockSnapshot, tx::BootloaderTx},
+        utils::l2_blocks::l2_block_hash,
+    },
+};
 
 const EMPTY_TXS_ROLLING_HASH: H256 = H256::zero();
 
@@ -15,10 +19,10 @@ pub(crate) struct BootloaderL2Block {
     pub(crate) timestamp: u64,
     pub(crate) txs_rolling_hash: H256, // The rolling hash of all the transactions in the miniblock
     pub(crate) prev_block_hash: H256,
-    // Number of the first l2 block tx in l1 batch
+    // Number of the first L2 block tx in L1 batch
     pub(crate) first_tx_index: usize,
     pub(crate) max_virtual_blocks_to_create: u32,
-    pub(super) txs: Vec<BootloaderTx>,
+    pub(crate) txs: Vec<BootloaderTx>,
 }
 
 impl BootloaderL2Block {

@@ -2,10 +2,9 @@
 
 use std::time::{Duration, Instant};
 
-use crate::{error::ClientError, EthNamespaceClient};
-use zksync_types::l2::L2Tx;
 use zksync_types::{
     api::{BlockNumber, TransactionReceipt},
+    l2::L2Tx,
     Bytes, L2ChainId, H256,
 };
 
@@ -15,6 +14,7 @@ pub use self::{
     transfer::{create_transfer_calldata, TransferBuilder},
     withdraw::WithdrawBuilder,
 };
+use crate::{error::ClientError, EthNamespaceClient};
 
 mod deploy_contract;
 mod execute_contract;
@@ -111,8 +111,6 @@ where
         let mut timer = tokio::time::interval(self.polling_interval);
         let start = Instant::now();
 
-        let mut receipt = None;
-
         loop {
             timer.tick().await;
 
@@ -122,28 +120,24 @@ where
                 }
             }
 
-            // First, wait for the receipt with a block number.
-            if receipt.is_none() {
-                let response = self.provider.get_transaction_receipt(self.hash).await?;
-                if response.as_ref().and_then(|r| r.block_number).is_some() {
-                    receipt = response;
+            let receipt =
+                if let Some(receipt) = self.provider.get_transaction_receipt(self.hash).await? {
+                    receipt
                 } else {
                     continue;
-                }
-            }
+                };
 
             // Wait for transaction to be included into the committed
             // or finalized block:
             // Fetch the latest block with the given status and
             // check if it's greater than or equal to the one from receipt.
 
-            let receipt_ref = receipt.as_ref().unwrap();
-            let block_number = receipt_ref.block_number.unwrap();
+            let block_number = receipt.block_number;
 
             let response = self.provider.get_block_by_number(status, false).await?;
             if let Some(received_number) = response.map(|block| block.number) {
                 if block_number <= received_number {
-                    return Ok(receipt.take().unwrap());
+                    return Ok(receipt);
                 }
             }
         }

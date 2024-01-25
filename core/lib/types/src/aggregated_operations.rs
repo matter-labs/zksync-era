@@ -1,12 +1,12 @@
-use codegen::serialize_proof;
-
 use std::{fmt, ops, str::FromStr};
 
+use codegen::serialize_proof;
 use serde::{Deserialize, Serialize};
-use zkevm_test_harness::abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit;
-use zkevm_test_harness::bellman::bn256::Bn256;
-use zkevm_test_harness::bellman::plonk::better_better_cs::proof::Proof;
-use zkevm_test_harness::witness::oracle::VmWitnessOracle;
+use zkevm_test_harness::{
+    abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit,
+    bellman::{bn256::Bn256, plonk::better_better_cs::proof::Proof},
+    witness::oracle::VmWitnessOracle,
+};
 use zksync_basic_types::{ethabi::Token, L1BatchNumber};
 
 use crate::{commitment::L1BatchWithMetadata, ProtocolVersionId, U256};

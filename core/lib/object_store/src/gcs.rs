@@ -1,20 +1,22 @@
 //! GCS-based [`ObjectStore`] implementation.
 
+use std::{fmt, future::Future, time::Duration};
+
 use async_trait::async_trait;
 use google_cloud_auth::{credentials::CredentialsFile, error::Error};
 use google_cloud_storage::{
     client::{Client, ClientConfig},
-    http::objects::{
-        delete::DeleteObjectRequest,
-        download::Range,
-        get::GetObjectRequest,
-        upload::{Media, UploadObjectRequest, UploadType},
+    http::{
+        objects::{
+            delete::DeleteObjectRequest,
+            download::Range,
+            get::GetObjectRequest,
+            upload::{Media, UploadObjectRequest, UploadType},
+        },
+        Error as HttpError,
     },
-    http::Error as HttpError,
 };
 use http::StatusCode;
-
-use std::{fmt, future::Future, time::Duration};
 
 use crate::{
     metrics::GCS_METRICS,
@@ -97,7 +99,7 @@ impl GoogleCloudStorage {
         format!("{bucket}/{filename}")
     }
 
-    // For some bizzare reason, `async fn` doesn't work here, failing with the following error:
+    // For some bizarre reason, `async fn` doesn't work here, failing with the following error:
     //
     // > hidden type for `impl std::future::Future<Output = Result<(), ObjectStoreError>>`
     // > captures lifetime that does not appear in bounds
@@ -204,6 +206,14 @@ impl ObjectStore for GoogleCloudStorage {
 
     async fn remove_raw(&self, bucket: Bucket, key: &str) -> Result<(), ObjectStoreError> {
         self.remove_inner(bucket.as_str(), key).await
+    }
+
+    fn storage_prefix_raw(&self, bucket: Bucket) -> String {
+        format!(
+            "https://storage.googleapis.com/{}/{}",
+            self.bucket_prefix.clone(),
+            bucket.as_str()
+        )
     }
 }
 

@@ -167,7 +167,7 @@ $ zk f yarn start l2-transaction force-deployment-calldata \
 To deploy a new verifier, use the following command:
 
 ```bash
-$ zk f yarn start crypto deploy-verifier
+$ zk f yarn start crypto deploy-verifier \
 --private-key <private-key> \
 --l1rpc <l1rpc> \
 --gas-price <gas-price> \

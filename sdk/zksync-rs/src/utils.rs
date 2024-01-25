@@ -1,7 +1,6 @@
 use std::str::FromStr;
 
 use num::BigUint;
-
 use zksync_types::{transaction_request::PaymasterParams, Address, U256};
 
 use crate::web3::ethabi::{Contract, Token};

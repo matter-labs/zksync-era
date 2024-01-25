@@ -1,13 +1,13 @@
 //! General-purpose RocksDB metrics. All metrics code in the crate should be in this module.
 
-use once_cell::sync::Lazy;
-use vise::{Buckets, Collector, Counter, EncodeLabelSet, Family, Gauge, Histogram, Metrics, Unit};
-
 use std::{
     collections::HashMap,
     sync::{Mutex, Weak},
     time::Duration,
 };
+
+use once_cell::sync::Lazy;
+use vise::{Buckets, Collector, Counter, EncodeLabelSet, Family, Gauge, Histogram, Metrics, Unit};
 
 use crate::db::RocksDBInner;
 
@@ -96,7 +96,7 @@ pub(crate) struct RocksdbSizeMetrics {
     pub live_data_size: Family<RocksdbLabels, Gauge<u64>>,
     /// Total size of all SST files in the column family of a RocksDB instance.
     pub total_sst_size: Family<RocksdbLabels, Gauge<u64>>,
-    /// Total size of all mem tables in the column family of a RocksDB instance.
+    /// Total size of all memory tables in the column family of a RocksDB instance.
     pub total_mem_table_size: Family<RocksdbLabels, Gauge<u64>>,
     /// Total size of block cache in the column family of a RocksDB instance.
     pub block_cache_size: Family<RocksdbLabels, Gauge<u64>>,

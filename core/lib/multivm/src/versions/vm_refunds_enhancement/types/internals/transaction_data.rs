@@ -1,17 +1,20 @@
 use std::convert::TryInto;
-use zksync_types::ethabi::{encode, Address, Token};
-use zksync_types::fee::{encoding_len, Fee};
-use zksync_types::l1::is_l1_tx_type;
-use zksync_types::l2::L2Tx;
-use zksync_types::transaction_request::{PaymasterParams, TransactionRequest};
-use zksync_types::{
-    l2::TransactionType, Bytes, Execute, ExecuteTransactionCommon, L2ChainId, L2TxCommonData,
-    Nonce, Transaction, H256, U256,
-};
-use zksync_utils::address_to_h256;
-use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256};
 
-use crate::vm_refunds_enhancement::utils::overhead::{get_amortized_overhead, OverheadCoeficients};
+use zksync_types::{
+    ethabi::{encode, Address, Token},
+    fee::{encoding_len, Fee},
+    l1::is_l1_tx_type,
+    l2::{L2Tx, TransactionType},
+    transaction_request::{PaymasterParams, TransactionRequest},
+    Bytes, Execute, ExecuteTransactionCommon, L2ChainId, L2TxCommonData, Nonce, Transaction, H256,
+    U256,
+};
+use zksync_utils::{address_to_h256, bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256};
+
+use crate::vm_refunds_enhancement::{
+    constants::MAX_GAS_PER_PUBDATA_BYTE,
+    utils::overhead::{get_amortized_overhead, OverheadCoefficients},
+};
 
 /// This structure represents the data that is used by
 /// the Bootloader to describe the transaction.
@@ -59,12 +62,22 @@ impl From<Transaction> for TransactionData {
                     U256::zero()
                 };
 
+                // Ethereum transactions do not sign gas per pubdata limit, and so for them we need to use
+                // some default value. We use the maximum possible value that is allowed by the bootloader
+                // (i.e. we can not use u64::MAX, because the bootloader requires gas per pubdata for such
+                // transactions to be higher than `MAX_GAS_PER_PUBDATA_BYTE`).
+                let gas_per_pubdata_limit = if common_data.transaction_type.is_ethereum_type() {
+                    MAX_GAS_PER_PUBDATA_BYTE.into()
+                } else {
+                    common_data.fee.gas_per_pubdata_limit
+                };
+
                 TransactionData {
                     tx_type: (common_data.transaction_type as u32) as u8,
                     from: common_data.initiator_address,
                     to: execute_tx.execute.contract_address,
                     gas_limit: common_data.fee.gas_limit,
-                    pubdata_price_limit: common_data.fee.gas_per_pubdata_limit,
+                    pubdata_price_limit: gas_per_pubdata_limit,
                     max_fee_per_gas: common_data.fee.max_fee_per_gas,
                     max_priority_fee_per_gas: common_data.fee.max_priority_fee_per_gas,
                     paymaster: common_data.paymaster_params.paymaster,
@@ -212,12 +225,12 @@ impl TransactionData {
             self.reserved_dynamic.len() as u64,
         );
 
-        let coeficients = OverheadCoeficients::from_tx_type(self.tx_type);
+        let coefficients = OverheadCoefficients::from_tx_type(self.tx_type);
         get_amortized_overhead(
             total_gas_limit,
             gas_price_per_pubdata,
             encoded_len,
-            coeficients,
+            coefficients,
         )
     }
 
@@ -234,7 +247,7 @@ impl TransactionData {
         let l2_tx: L2Tx = self.clone().try_into().unwrap();
         let transaction_request: TransactionRequest = l2_tx.into();
 
-        // It is assumed that the TransactionData always has all the necessary components to recover the hash.
+        // It is assumed that the `TransactionData` always has all the necessary components to recover the hash.
         transaction_request
             .get_tx_hash(chain_id)
             .expect("Could not recover L2 transaction hash")
@@ -303,8 +316,9 @@ impl TryInto<L2Tx> for TransactionData {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use zksync_types::fee::encoding_len;
+
+    use super::*;
 
     #[test]
     fn test_consistency_with_encoding_length() {

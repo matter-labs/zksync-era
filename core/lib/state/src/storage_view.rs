@@ -1,13 +1,14 @@
-use std::cell::RefCell;
-use std::rc::Rc;
 use std::{
+    cell::RefCell,
     collections::HashMap,
     fmt, mem,
+    rc::Rc,
     time::{Duration, Instant},
 };
 
-use crate::{ReadStorage, WriteStorage};
 use zksync_types::{witness_block_state::WitnessBlockState, StorageKey, StorageValue, H256};
+
+use crate::{ReadStorage, WriteStorage};
 
 /// Metrics for [`StorageView`].
 #[derive(Debug, Default, Clone, Copy)]
@@ -204,9 +205,10 @@ impl<S: ReadStorage + fmt::Debug> WriteStorage for StorageView<S> {
 
 #[cfg(test)]
 mod test {
+    use zksync_types::{AccountTreeId, Address, H256};
+
     use super::*;
     use crate::InMemoryStorage;
-    use zksync_types::{AccountTreeId, Address, H256};
 
     #[test]
     fn test_storage_access() {

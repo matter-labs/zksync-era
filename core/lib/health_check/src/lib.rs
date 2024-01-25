@@ -1,11 +1,10 @@
+use std::{collections::HashMap, thread};
+
+// Public re-export for other crates to be able to implement the interface.
+pub use async_trait::async_trait;
 use futures::{future, FutureExt};
 use serde::Serialize;
 use tokio::sync::watch;
-
-use std::{collections::HashMap, thread};
-
-/// Public re-export for other crates to be able to implement the interface.
-pub use async_trait::async_trait;
 
 /// Health status returned as a part of `Health`.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize)]

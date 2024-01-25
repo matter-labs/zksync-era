@@ -1,5 +1,4 @@
-use reqwest::header::HeaderMap;
-use reqwest::{Client, Error, Method, Response};
+use reqwest::{header::HeaderMap, Client, Error, Method, Response};
 use tokio::time::{sleep, Duration};
 
 #[derive(Debug)]

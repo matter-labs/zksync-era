@@ -97,7 +97,7 @@ implemented, register them at [setup file](./src/jest-setup/add-matchers.ts) and
 ### Matcher modifiers
 
 `toBeAccepted` and `toBeRejected` matchers accept modifiers. You can see one (`shouldChangeETHBalances`) above. There
-are others (like `shouldChangeTokenBalances` or `shouldOnlyTakeFee`), and if needed you can create your onw ones.
+are others (like `shouldChangeTokenBalances` or `shouldOnlyTakeFee`), and if needed you can create your own ones.
 
 These modifiers would be applied to the transaction receipt, and you can implement any kind of custom logic there. To do
 so, you just need to declare a class that inherits `MatcherModifier` class and implements the `check` method.
@@ -134,7 +134,7 @@ finalization: it make take several hours to generate a proof and send it onchain
 Because of that, framework supports "fast" and "long" modes. `TestMaster` objects have `isFastMode` method to determine
 which mode is currently being used.
 
-If you're going to write a test that can make test run duration longer, it is adviced to guard the "long" part with the
+If you're going to write a test that can make test run duration longer, it is advised to guard the "long" part with the
 corresponding check.
 
 By default, "long" mode is assumed, and to enable the "fast" mode one must set the `ZK_INTEGRATION_TESTS_FAST_MODE`

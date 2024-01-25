@@ -15,26 +15,6 @@
 //! with root at level 4 (= 1 nibble). Thus, the patch sets and Merkle proofs
 //! produced by each group are mostly disjoint; they intersect only at the root node level.
 //!
-//! ## Computing leaf indices
-//!
-//! We need to determine leaf indices for all write instructions. Indices potentially depend
-//! on the entire list of `instructions`, so we should determine leaf indices before
-//! parallelization. Otherwise, we'd need to sync between parallelized tasks, which defeats
-//! the purpose of parallelization.
-//!
-//! We precompute indices as a separate step using the following observations:
-//!
-//! - If a leaf is present in the tree *before* `instructions` are applied, its index
-//!   can be obtained from the node ancestors loaded on the first step of the process.
-//! - Otherwise, a leaf may have been added by a previous instruction for the same key.
-//!   Since we already need [`SortedKeys`] to efficiently load ancestors, it's easy
-//!   to determine such pairs of instructions.
-//! - Otherwise, we have a first write, and the leaf index is defined as the current leaf
-//!   count.
-//!
-//! In summary, we can determine leaf indices for all write `instructions` in linear time
-//! and without synchronization required during the parallel steps of the process.
-//!
 //! ## Merging Merkle proofs
 //!
 //! The proofs produced by different groups only intersect at levels 0..4. This can be dealt with
@@ -68,7 +48,7 @@ use crate::{
         BlockOutputWithProofs, InternalNode, Key, Nibbles, Node, TreeInstruction, TreeLogEntry,
         TreeLogEntryWithProof, ValueHash,
     },
-    utils::{increment_counter, merge_by_index},
+    utils::merge_by_index,
 };
 
 /// Number of subtrees used for parallel computations.
@@ -93,16 +73,13 @@ impl TreeUpdater {
         for instruction in instructions {
             let InstructionWithPrecomputes {
                 index,
-                key,
                 instruction,
                 parent_nibbles,
-                leaf_index,
             } = instruction;
 
             let log = match instruction {
-                TreeInstruction::Write(value_hash) => {
-                    let (log, leaf_data) =
-                        self.insert(key, value_hash, &parent_nibbles, || leaf_index);
+                TreeInstruction::Write(entry) => {
+                    let (log, leaf_data) = self.insert(entry, &parent_nibbles);
                     let (new_root_hash, merkle_path) = self.update_node_hashes(hasher, &leaf_data);
                     root_hash = new_root_hash;
                     TreeLogEntryWithProof {
@@ -111,7 +88,7 @@ impl TreeUpdater {
                         root_hash,
                     }
                 }
-                TreeInstruction::Read => {
+                TreeInstruction::Read(key) => {
                     let (log, merkle_path) = self.prove(hasher, key, &parent_nibbles);
                     TreeLogEntryWithProof {
                         base: log,
@@ -183,7 +160,7 @@ impl TreeUpdater {
             self.patch_set
                 .create_proof(hasher, key, parent_nibbles, SUBTREE_ROOT_LEVEL / 4);
         let operation = leaf.map_or(TreeLogEntry::ReadMissingKey, |leaf| {
-            TreeLogEntry::read(leaf.value_hash, leaf.leaf_index)
+            TreeLogEntry::read(leaf.leaf_index, leaf.value_hash)
         });
 
         if matches!(operation, TreeLogEntry::ReadMissingKey) {
@@ -259,16 +236,14 @@ impl TreeUpdater {
 impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
     pub fn extend_with_proofs(
         mut self,
-        instructions: Vec<(Key, TreeInstruction)>,
+        instructions: Vec<TreeInstruction>,
     ) -> (BlockOutputWithProofs, PatchSet) {
         let load_nodes_latency = BLOCK_TIMINGS.load_nodes.start();
-        let sorted_keys = SortedKeys::new(instructions.iter().map(|(key, _)| *key));
+        let sorted_keys = SortedKeys::new(instructions.iter().map(TreeInstruction::key));
         let parent_nibbles = self.updater.load_ancestors(&sorted_keys, self.db);
         load_nodes_latency.observe();
 
-        let leaf_indices = self.compute_leaf_indices(&instructions, sorted_keys, &parent_nibbles);
-        let instruction_parts =
-            InstructionWithPrecomputes::split(instructions, parent_nibbles, leaf_indices);
+        let instruction_parts = InstructionWithPrecomputes::split(instructions, parent_nibbles);
         let initial_root = self.updater.patch_set.ensure_internal_root_node();
         let initial_metrics = self.updater.metrics;
         let storage_parts = self.updater.split();
@@ -310,44 +285,13 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
         output_with_proofs
     }
 
-    /// Computes leaf indices for all writes in `instructions`. Leaf indices are not used for reads;
-    /// thus, the corresponding entries are always 0.
-    fn compute_leaf_indices(
-        &mut self,
-        instructions: &[(Key, TreeInstruction)],
-        mut sorted_keys: SortedKeys,
-        parent_nibbles: &[Nibbles],
-    ) -> Vec<u64> {
-        sorted_keys.remove_read_instructions(instructions);
-        let key_mentions = sorted_keys.key_mentions(instructions.len());
-        let patch_set = &self.updater.patch_set;
-
-        let mut leaf_indices = Vec::with_capacity(instructions.len());
-        let it = instructions.iter().zip(parent_nibbles).enumerate();
-        for (idx, ((key, instruction), nibbles)) in it {
-            let leaf_index = match (instruction, key_mentions[idx]) {
-                (TreeInstruction::Read, _) => 0,
-                // ^ Leaf indices are not used for read instructions.
-                (TreeInstruction::Write(_), KeyMention::First) => {
-                    let leaf_index = match patch_set.get(nibbles) {
-                        Some(Node::Leaf(leaf)) if leaf.full_key == *key => Some(leaf.leaf_index),
-                        _ => None,
-                    };
-                    leaf_index.unwrap_or_else(|| increment_counter(&mut self.leaf_count))
-                }
-                (TreeInstruction::Write(_), KeyMention::SameAs(prev_idx)) => leaf_indices[prev_idx],
-            };
-            leaf_indices.push(leaf_index);
-        }
-        leaf_indices
-    }
-
     fn finalize_with_proofs(
         mut self,
         hasher: &mut HasherWithStats<'_>,
         root: InternalNode,
         logs: Vec<(usize, TreeLogEntryWithProof<MerklePath>)>,
     ) -> (BlockOutputWithProofs, PatchSet) {
+        self.leaf_count += self.updater.metrics.new_leaves;
         tracing::debug!(
             "Finished updating tree; total leaf count: {}, stats: {:?}",
             self.leaf_count,
@@ -370,95 +314,35 @@ impl<'a, DB: Database + ?Sized> Storage<'a, DB> {
     }
 }
 
-/// Mention of a key in a block: either the first mention, or the same mention as the specified
-/// 0-based index in the block.
-#[derive(Debug, Clone, Copy)]
-enum KeyMention {
-    First,
-    SameAs(usize),
-}
-
-impl SortedKeys {
-    fn remove_read_instructions(&mut self, instructions: &[(Key, TreeInstruction)]) {
-        debug_assert_eq!(instructions.len(), self.0.len());
-
-        self.0.retain(|(idx, key)| {
-            let (key_for_instruction, instruction) = &instructions[*idx];
-            debug_assert_eq!(key_for_instruction, key);
-            matches!(instruction, TreeInstruction::Write(_))
-        });
-    }
-
-    /// Determines for the original sequence of `Key`s whether a particular key mention
-    /// is the first one, or it follows after another mention.
-    fn key_mentions(&self, original_len: usize) -> Vec<KeyMention> {
-        debug_assert!(original_len >= self.0.len());
-
-        let mut flags = vec![KeyMention::First; original_len];
-        let [(mut first_key_mention, mut prev_key), tail @ ..] = self.0.as_slice() else {
-            return flags;
-        };
-
-        // Note that `SameAs(_)` doesn't necessarily reference the first mention of a key,
-        // just one with a lesser index. This is OK for our purposes.
-        for &(idx, key) in tail {
-            if prev_key == key {
-                if idx > first_key_mention {
-                    flags[idx] = KeyMention::SameAs(first_key_mention);
-                } else {
-                    debug_assert!(idx < first_key_mention); // all indices should be unique
-                    flags[first_key_mention] = KeyMention::SameAs(idx);
-                    first_key_mention = idx;
-                }
-            } else {
-                prev_key = key;
-                first_key_mention = idx;
-            }
-        }
-        flags
-    }
-}
-
 /// [`TreeInstruction`] together with precomputed data necessary to efficiently parallelize
 /// Merkle tree traversal.
 #[derive(Debug)]
 struct InstructionWithPrecomputes {
     /// 0-based index of the instruction.
     index: usize,
-    /// Key read / written by the instruction.
-    key: Key,
     instruction: TreeInstruction,
     /// Nibbles for the parent node computed by [`Storage::load_ancestors()`].
     parent_nibbles: Nibbles,
-    /// Leaf index for the operation computed by [`Storage::compute_leaf_indices()`].
-    /// Always 0 for reads.
-    leaf_index: u64,
 }
 
 impl InstructionWithPrecomputes {
     /// Creates groups of instructions to be used during parallelized tree traversal.
     fn split(
-        instructions: Vec<(Key, TreeInstruction)>,
+        instructions: Vec<TreeInstruction>,
         parent_nibbles: Vec<Nibbles>,
-        leaf_indices: Vec<u64>,
     ) -> [Vec<Self>; SUBTREE_COUNT] {
         const EMPTY_VEC: Vec<InstructionWithPrecomputes> = Vec::new();
         // ^ Need to extract this to a constant to be usable as an array initializer.
 
         let mut parts = [EMPTY_VEC; SUBTREE_COUNT];
-        let it = instructions
-            .into_iter()
-            .zip(parent_nibbles)
-            .zip(leaf_indices);
-        for (index, (((key, instruction), parent_nibbles), leaf_index)) in it.enumerate() {
-            let first_nibble = Nibbles::nibble(&key, 0);
+        let it = instructions.into_iter().zip(parent_nibbles);
+        for (index, (instruction, parent_nibbles)) in it.enumerate() {
+            let first_nibble = Nibbles::nibble(&instruction.key(), 0);
             let part = &mut parts[first_nibble as usize];
             part.push(Self {
                 index,
-                key,
                 instruction,
                 parent_nibbles,
-                leaf_index,
             });
         }
         parts
@@ -472,8 +356,6 @@ mod tests {
     use super::*;
     use crate::types::Root;
 
-    const HASH: ValueHash = ValueHash::zero();
-
     fn byte_key(byte: u8) -> Key {
         Key::from_little_endian(&[byte; 32])
     }
@@ -486,87 +368,13 @@ mod tests {
     }
 
     #[test]
-    fn computing_key_mentions() {
-        let keys = [4, 1, 3, 4, 3, 3].map(byte_key);
-        let sorted_keys = SortedKeys::new(keys.into_iter());
-        let mentions = sorted_keys.key_mentions(6);
-
-        assert_matches!(
-            mentions.as_slice(),
-            [
-                KeyMention::First, KeyMention::First, KeyMention::First,
-                KeyMention::SameAs(0), KeyMention::SameAs(2), KeyMention::SameAs(i)
-            ] if *i == 2 || *i == 4
-        );
-    }
-
-    #[test]
-    fn computing_leaf_indices() {
-        let db = prepare_db();
-        let (instructions, expected_indices) = get_instructions_and_leaf_indices();
-        let mut storage = Storage::new(&db, &(), 1, true);
-        let sorted_keys = SortedKeys::new(instructions.iter().map(|(key, _)| *key));
-        let parent_nibbles = storage.updater.load_ancestors(&sorted_keys, &db);
-
-        let leaf_indices =
-            storage.compute_leaf_indices(&instructions, sorted_keys, &parent_nibbles);
-        assert_eq!(leaf_indices, expected_indices);
-    }
-
-    fn prepare_db() -> PatchSet {
-        let mut db = PatchSet::default();
-        let (_, patch) =
-            Storage::new(&db, &(), 0, true).extend(vec![(byte_key(2), HASH), (byte_key(1), HASH)]);
-        db.apply_patch(patch);
-        db
-    }
-
-    fn get_instructions_and_leaf_indices() -> (Vec<(Key, TreeInstruction)>, Vec<u64>) {
-        let instructions_and_indices = vec![
-            (byte_key(3), TreeInstruction::Read, 0),
-            (byte_key(1), TreeInstruction::Write(HASH), 2),
-            (byte_key(2), TreeInstruction::Read, 0),
-            (byte_key(3), TreeInstruction::Write(HASH), 3),
-            (byte_key(1), TreeInstruction::Read, 0),
-            (byte_key(3), TreeInstruction::Write(HASH), 3),
-            (byte_key(2), TreeInstruction::Write(HASH), 1),
-            (byte_key(0xc0), TreeInstruction::Write(HASH), 4),
-            (byte_key(2), TreeInstruction::Write(HASH), 1),
-        ];
-        instructions_and_indices
-            .into_iter()
-            .map(|(key, instr, idx)| ((key, instr), idx))
-            .unzip()
-    }
-
-    #[test]
-    fn extending_storage_with_proofs() {
-        let db = prepare_db();
-        let (instructions, expected_indices) = get_instructions_and_leaf_indices();
-        let storage = Storage::new(&db, &(), 1, true);
-        let (block_output, _) = storage.extend_with_proofs(instructions);
-        assert_eq!(block_output.leaf_count, 4);
-
-        assert_eq!(block_output.logs.len(), expected_indices.len());
-        for (expected_idx, log) in expected_indices.into_iter().zip(&block_output.logs) {
-            match log.base {
-                TreeLogEntry::Inserted { leaf_index }
-                | TreeLogEntry::Updated { leaf_index, .. } => {
-                    assert_eq!(leaf_index, expected_idx);
-                }
-                _ => {}
-            }
-        }
-    }
-
-    #[test]
     fn proofs_for_empty_storage() {
         let db = PatchSet::default();
         let storage = Storage::new(&db, &(), 0, true);
         let instructions = vec![
-            (byte_key(1), TreeInstruction::Read),
-            (byte_key(2), TreeInstruction::Read),
-            (byte_key(0xff), TreeInstruction::Read),
+            TreeInstruction::Read(byte_key(1)),
+            TreeInstruction::Read(byte_key(2)),
+            TreeInstruction::Read(byte_key(0xff)),
         ];
         let (block_output, patch) = storage.extend_with_proofs(instructions);
         assert_eq!(block_output.leaf_count, 0);

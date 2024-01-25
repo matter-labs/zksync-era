@@ -1,22 +1,25 @@
 use anyhow::Context as _;
-use zkevm_test_harness::geometry_config::get_geometry_config;
-use zkevm_test_harness::prover_utils::{
-    create_base_layer_setup_data, create_recursive_layer_setup_data,
+use zkevm_test_harness::{
+    geometry_config::get_geometry_config,
+    prover_utils::{create_base_layer_setup_data, create_recursive_layer_setup_data},
 };
-use zksync_prover_fri_types::circuit_definitions::boojum::worker::Worker;
-use zksync_prover_fri_types::circuit_definitions::circuit_definitions::base_layer::ZkSyncBaseLayerVerificationKey;
-use zksync_prover_fri_types::circuit_definitions::{
-    BASE_LAYER_CAP_SIZE, BASE_LAYER_FRI_LDE_FACTOR,
+use zksync_prover_fri_types::{
+    circuit_definitions::{
+        boojum::worker::Worker,
+        circuit_definitions::{
+            base_layer::ZkSyncBaseLayerVerificationKey,
+            recursion_layer::ZkSyncRecursionLayerVerificationKey,
+        },
+        BASE_LAYER_CAP_SIZE, BASE_LAYER_FRI_LDE_FACTOR,
+    },
+    ProverServiceDataKey,
 };
-use zksync_vk_setup_data_server_fri::utils::{get_basic_circuits, get_leaf_circuits, CYCLE_LIMIT};
+use zksync_types::proofs::AggregationRound;
 use zksync_vk_setup_data_server_fri::{
     get_round_for_recursive_circuit_type, save_base_layer_vk, save_finalization_hints,
     save_recursive_layer_vk,
+    utils::{get_basic_circuits, get_leaf_circuits, CYCLE_LIMIT},
 };
-
-use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerVerificationKey;
-use zksync_prover_fri_types::ProverServiceDataKey;
-use zksync_types::proofs::AggregationRound;
 
 #[allow(dead_code)]
 fn main() -> anyhow::Result<()> {

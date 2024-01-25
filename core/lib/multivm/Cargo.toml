@@ -10,9 +10,14 @@ keywords = ["blockchain", "zksync"]
 categories = ["cryptography"]
 
 [dependencies]
+zk_evm_1_4_1 = { package = "zk_evm", git = "https://github.com/matter-labs/era-zk_evm.git", branch = "v1.4.1" }
 zk_evm_1_4_0 = { package = "zk_evm", git = "https://github.com/matter-labs/era-zk_evm.git", branch = "v1.4.0" }
 zk_evm_1_3_3 = { package = "zk_evm", git = "https://github.com/matter-labs/era-zk_evm.git", tag= "v1.3.3-rc2" }
 zk_evm_1_3_1 = { package = "zk_evm", git = "https://github.com/matter-labs/era-zk_evm.git", tag= "v1.3.1-rc2" }
+
+zkevm_test_harness_1_4_0 = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.0", package = "zkevm_test_harness" }
+zkevm_test_harness_1_4_1 = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.1", package = "zkevm_test_harness" }
+
 
 zksync_types = { path = "../types" }
 zksync_state = { path = "../state" }
@@ -27,8 +32,7 @@ itertools = "0.10"
 once_cell = "1.7"
 thiserror = "1.0"
 tracing = "0.1"
-vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "dd05139b76ab0843443ab3ff730174942c825dae" }
-
+vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1" }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["time"] }

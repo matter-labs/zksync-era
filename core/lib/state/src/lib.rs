@@ -43,7 +43,7 @@ pub trait ReadStorage: fmt::Debug {
 
     /// Checks whether a write to this storage at the specified `key` would be an initial write.
     /// Roughly speaking, this is the case when the storage doesn't contain `key`, although
-    /// in case of mutable storages, the caveats apply (a write to a key that is present
+    /// in case of mutable storage, the caveats apply (a write to a key that is present
     /// in the storage but was not committed is still an initial write).
     fn is_write_initial(&mut self, key: &StorageKey) -> bool;
 

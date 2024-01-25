@@ -1,12 +1,12 @@
 use std::convert::TryInto;
+
+use sqlx::types::chrono::NaiveDateTime;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_types::{
     api,
     protocol_version::{self, L1VerifierConfig, ProtocolUpgradeTx, VerifierParams},
     Address, H256,
 };
-
-use sqlx::types::chrono::NaiveDateTime;
 
 #[derive(sqlx::FromRow)]
 pub struct StorageProtocolVersion {

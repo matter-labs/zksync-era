@@ -1,30 +1,35 @@
-use std::sync::Arc;
-use std::time::Duration;
-use tokio::runtime::Handle;
+use std::{sync::Arc, time::Duration};
 
+use anyhow::Context;
+use tokio::runtime::Handle;
 use zksync_dal::{ConnectionPool, SqlxError, StorageProcessor};
 use zksync_state::{PostgresStorage, PostgresStorageCaches, ReadStorage, StorageView};
 use zksync_system_constants::PUBLISH_BYTECODE_OVERHEAD;
-use zksync_types::{api, AccountTreeId, L2ChainId, MiniblockNumber, U256};
+use zksync_types::{
+    api, fee_model::BatchFeeInput, AccountTreeId, L1BatchNumber, L2ChainId, MiniblockNumber,
+};
 use zksync_utils::bytecode::{compress_bytecode, hash_bytecode};
+
+use self::vm_metrics::SandboxStage;
+pub(super) use self::{
+    error::SandboxExecutionError,
+    execute::{TransactionExecutor, TxExecutionArgs},
+    tracers::ApiTracer,
+    vm_metrics::{SubmitTxStage, SANDBOX_METRICS},
+};
+use super::tx_sender::MultiVMBaseSystemContracts;
 
 // Note: keep the modules private, and instead re-export functions that make public interface.
 mod apply;
 mod error;
 mod execute;
+#[cfg(test)]
+pub(super) mod testonly;
+#[cfg(test)]
+mod tests;
 mod tracers;
 mod validate;
 mod vm_metrics;
-
-use self::vm_metrics::SandboxStage;
-pub(super) use self::{
-    error::SandboxExecutionError,
-    execute::{execute_tx_eth_call, execute_tx_with_pending_state, TxExecutionArgs},
-    tracers::ApiTracer,
-    vm_metrics::{SubmitTxStage, SANDBOX_METRICS},
-};
-use super::tx_sender::MultiVMBaseSystemContracts;
-use multivm::vm_latest::utils::fee::derive_base_fee_and_gas_per_pubdata;
 
 /// Permit to invoke VM code.
 ///
@@ -142,28 +147,6 @@ impl VmConcurrencyLimiter {
     }
 }
 
-pub(super) fn adjust_l1_gas_price_for_tx(
-    l1_gas_price: u64,
-    fair_l2_gas_price: u64,
-    tx_gas_per_pubdata_limit: U256,
-) -> u64 {
-    let (_, current_pubdata_price) =
-        derive_base_fee_and_gas_per_pubdata(l1_gas_price, fair_l2_gas_price);
-    if U256::from(current_pubdata_price) <= tx_gas_per_pubdata_limit {
-        // The current pubdata price is small enough
-        l1_gas_price
-    } else {
-        // gasPerPubdata = ceil(17 * l1gasprice / fair_l2_gas_price)
-        // gasPerPubdata <= 17 * l1gasprice / fair_l2_gas_price + 1
-        // fair_l2_gas_price(gasPerPubdata - 1) / 17 <= l1gasprice
-        let l1_gas_price = U256::from(fair_l2_gas_price)
-            * (tx_gas_per_pubdata_limit - U256::from(1u32))
-            / U256::from(17);
-
-        l1_gas_price.as_u64()
-    }
-}
-
 async fn get_pending_state(
     connection: &mut StorageProcessor<'_>,
 ) -> (api::BlockId, MiniblockNumber) {
@@ -225,12 +208,67 @@ pub(super) async fn get_pubdata_for_factory_deps(
 #[derive(Debug, Clone)]
 pub(crate) struct TxSharedArgs {
     pub operator_account: AccountTreeId,
-    pub l1_gas_price: u64,
-    pub fair_l2_gas_price: u64,
+    pub fee_input: BatchFeeInput,
     pub base_system_contracts: MultiVMBaseSystemContracts,
     pub caches: PostgresStorageCaches,
     pub validation_computational_gas_limit: u32,
     pub chain_id: L2ChainId,
+}
+
+/// Information about first L1 batch / miniblock in the node storage.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct BlockStartInfo {
+    /// Projected number of the first locally available miniblock. This miniblock is **not**
+    /// guaranteed to be present in the storage!
+    pub first_miniblock: MiniblockNumber,
+    /// Projected number of the first locally available L1 batch. This L1 batch is **not**
+    /// guaranteed to be present in the storage!
+    pub first_l1_batch: L1BatchNumber,
+}
+
+impl BlockStartInfo {
+    pub async fn new(storage: &mut StorageProcessor<'_>) -> anyhow::Result<Self> {
+        let snapshot_recovery = storage
+            .snapshot_recovery_dal()
+            .get_applied_snapshot_status()
+            .await
+            .context("failed getting snapshot recovery status")?;
+        let snapshot_recovery = snapshot_recovery.as_ref();
+        Ok(Self {
+            first_miniblock: snapshot_recovery
+                .map_or(MiniblockNumber(0), |recovery| recovery.miniblock_number + 1),
+            first_l1_batch: snapshot_recovery
+                .map_or(L1BatchNumber(0), |recovery| recovery.l1_batch_number + 1),
+        })
+    }
+
+    /// Checks whether a block with the specified ID is pruned and returns an error if it is.
+    /// The `Err` variant wraps the first non-pruned miniblock.
+    pub fn ensure_not_pruned_block(&self, block: api::BlockId) -> Result<(), MiniblockNumber> {
+        match block {
+            api::BlockId::Number(api::BlockNumber::Number(number))
+                if number < self.first_miniblock.0.into() =>
+            {
+                Err(self.first_miniblock)
+            }
+            api::BlockId::Number(api::BlockNumber::Earliest)
+                if self.first_miniblock > MiniblockNumber(0) =>
+            {
+                Err(self.first_miniblock)
+            }
+            _ => Ok(()),
+        }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum BlockArgsError {
+    #[error("Block is pruned; first retained block is {0}")]
+    Pruned(MiniblockNumber),
+    #[error("Block is missing, but can appear in the future")]
+    Missing,
+    #[error("Database error")]
+    Database(#[from] SqlxError),
 }
 
 /// Information about a block provided to VM.
@@ -242,7 +280,7 @@ pub(crate) struct BlockArgs {
 }
 
 impl BlockArgs {
-    async fn pending(connection: &mut StorageProcessor<'_>) -> Self {
+    pub(crate) async fn pending(connection: &mut StorageProcessor<'_>) -> Self {
         let (block_id, resolved_block_number) = get_pending_state(connection).await;
         Self {
             block_id,
@@ -255,9 +293,17 @@ impl BlockArgs {
     pub async fn new(
         connection: &mut StorageProcessor<'_>,
         block_id: api::BlockId,
-    ) -> Result<Option<Self>, SqlxError> {
+        start_info: BlockStartInfo,
+    ) -> Result<Self, BlockArgsError> {
+        // We need to check that `block_id` is present in Postgres or can be present in the future
+        // (i.e., it does not refer to a pruned block). If called for a pruned block, the returned value
+        // (specifically, `l1_batch_timestamp_s`) will be nonsensical.
+        start_info
+            .ensure_not_pruned_block(block_id)
+            .map_err(BlockArgsError::Pruned)?;
+
         if block_id == api::BlockId::Number(api::BlockNumber::Pending) {
-            return Ok(Some(BlockArgs::pending(connection).await));
+            return Ok(BlockArgs::pending(connection).await);
         }
 
         let resolved_block_number = connection
@@ -265,27 +311,27 @@ impl BlockArgs {
             .resolve_block_id(block_id)
             .await?;
         let Some(resolved_block_number) = resolved_block_number else {
-            return Ok(None);
+            return Err(BlockArgsError::Missing);
         };
 
         let l1_batch_number = connection
             .storage_web3_dal()
             .resolve_l1_batch_number_of_miniblock(resolved_block_number)
-            .await?
-            .expected_l1_batch();
+            .await?;
         let l1_batch_timestamp_s = connection
             .blocks_web3_dal()
-            .get_expected_l1_batch_timestamp(l1_batch_number)
+            .get_expected_l1_batch_timestamp(&l1_batch_number)
             .await?;
-        assert!(
-            l1_batch_timestamp_s.is_some(),
-            "Missing batch timestamp for non-pending block"
-        );
-        Ok(Some(Self {
+        if l1_batch_timestamp_s.is_none() {
+            // Can happen after snapshot recovery if no miniblocks are persisted yet. In this case,
+            // we cannot proceed; the issue will be resolved shortly.
+            return Err(BlockArgsError::Missing);
+        }
+        Ok(Self {
             block_id,
             resolved_block_number,
             l1_batch_timestamp_s,
-        }))
+        })
     }
 
     pub fn resolved_block_number(&self) -> MiniblockNumber {

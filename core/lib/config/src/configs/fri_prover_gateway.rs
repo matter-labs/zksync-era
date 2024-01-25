@@ -1,5 +1,6 @@
-use serde::Deserialize;
 use std::time::Duration;
+
+use serde::Deserialize;
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct FriProverGatewayConfig {

@@ -1,8 +1,6 @@
+use std::{collections::HashMap, io::Write, path::PathBuf, process::Stdio};
+
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::io::Write;
-use std::path::PathBuf;
-use std::process::Stdio;
 
 use crate::error::ContractVerifierError;
 

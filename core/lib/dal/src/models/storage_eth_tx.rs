@@ -1,8 +1,11 @@
-use sqlx::types::chrono::NaiveDateTime;
 use std::str::FromStr;
-use zksync_types::aggregated_operations::AggregatedActionType;
-use zksync_types::eth_sender::{EthTx, TxHistory, TxHistoryToSend};
-use zksync_types::{Address, L1BatchNumber, Nonce, H256};
+
+use sqlx::types::chrono::NaiveDateTime;
+use zksync_types::{
+    aggregated_operations::AggregatedActionType,
+    eth_sender::{EthTx, TxHistory, TxHistoryToSend},
+    Address, L1BatchNumber, Nonce, H256,
+};
 
 #[derive(Debug, Clone)]
 pub struct StorageEthTx {

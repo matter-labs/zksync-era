@@ -1,12 +1,14 @@
 use zksync_types::l2_to_l1_log::UserL2ToL1Log;
 
-use crate::glue::{GlueFrom, GlueInto};
-use crate::interface::{
-    types::outputs::VmExecutionLogs, CurrentExecutionState, ExecutionResult, Refunds,
-    VmExecutionResultAndLogs, VmExecutionStatistics,
+use crate::{
+    glue::{GlueFrom, GlueInto},
+    interface::{
+        types::outputs::VmExecutionLogs, CurrentExecutionState, ExecutionResult, Refunds,
+        VmExecutionResultAndLogs, VmExecutionStatistics,
+    },
 };
 
-// Note: In version after vm VmVirtualBlocks the bootloader memory knowledge is encapsulated into the VM.
+// Note: In version after vm `VmVirtualBlocks` the bootloader memory knowledge is encapsulated into the VM.
 // But before it was a part of a public API.
 // Bootloader memory required only for producing witnesses,
 // and server doesn't need to generate witnesses for old blocks
@@ -24,6 +26,7 @@ impl GlueFrom<crate::vm_m5::vm_instance::VmBlockResult> for crate::interface::Fi
                     computational_gas_used: value.full_result.gas_used,
                     gas_used: value.full_result.gas_used,
                     pubdata_published: 0,
+                    estimated_circuits_used: 0.0,
                 },
                 refunds: Refunds::default(),
             },
@@ -44,6 +47,7 @@ impl GlueFrom<crate::vm_m5::vm_instance::VmBlockResult> for crate::interface::Fi
                 storage_refunds: Vec::new(),
             },
             final_bootloader_memory: None,
+            pubdata_input: None,
         }
     }
 }
@@ -61,6 +65,7 @@ impl GlueFrom<crate::vm_m6::vm_instance::VmBlockResult> for crate::interface::Fi
                     computational_gas_used: value.full_result.computational_gas_used,
                     gas_used: value.full_result.gas_used,
                     pubdata_published: 0,
+                    estimated_circuits_used: 0.0,
                 },
                 refunds: Refunds::default(),
             },
@@ -81,6 +86,7 @@ impl GlueFrom<crate::vm_m6::vm_instance::VmBlockResult> for crate::interface::Fi
                 storage_refunds: Vec::new(),
             },
             final_bootloader_memory: None,
+            pubdata_input: None,
         }
     }
 }
@@ -104,6 +110,7 @@ impl GlueFrom<crate::vm_1_3_2::vm_instance::VmBlockResult> for crate::interface:
                     computational_gas_used: value.full_result.computational_gas_used,
                     gas_used: value.full_result.gas_used,
                     pubdata_published: 0,
+                    estimated_circuits_used: 0.0,
                 },
                 refunds: Refunds::default(),
             },
@@ -124,6 +131,7 @@ impl GlueFrom<crate::vm_1_3_2::vm_instance::VmBlockResult> for crate::interface:
                 storage_refunds: Vec::new(),
             },
             final_bootloader_memory: None,
+            pubdata_input: None,
         }
     }
 }
@@ -163,6 +171,7 @@ impl GlueFrom<crate::vm_1_3_2::vm_instance::VmBlockResult>
                 computational_gas_used: value.full_result.computational_gas_used,
                 gas_used: value.full_result.gas_used,
                 pubdata_published: 0,
+                estimated_circuits_used: 0.0,
             },
             refunds: Refunds::default(),
         }
@@ -193,6 +202,7 @@ impl GlueFrom<crate::vm_m5::vm_instance::VmBlockResult>
                 computational_gas_used: 0,
                 gas_used: value.full_result.gas_used,
                 pubdata_published: 0,
+                estimated_circuits_used: 0.0,
             },
             refunds: Refunds::default(),
         }
@@ -234,6 +244,7 @@ impl GlueFrom<crate::vm_m6::vm_instance::VmBlockResult>
                 computational_gas_used: value.full_result.computational_gas_used,
                 gas_used: value.full_result.gas_used,
                 pubdata_published: 0,
+                estimated_circuits_used: 0.0,
             },
             refunds: Refunds::default(),
         }

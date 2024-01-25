@@ -1,8 +1,8 @@
 //! Consistency verification for the Merkle tree.
 
-use rayon::prelude::*;
-
 use std::sync::atomic::{AtomicU64, Ordering};
+
+use rayon::prelude::*;
 
 use crate::{
     errors::DeserializeError,
@@ -69,10 +69,17 @@ pub enum ConsistencyError {
 impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
     /// Verifies the internal tree consistency as stored in the database.
     ///
+    /// If `validate_indices` flag is set, it will be checked that indices for all tree leaves are unique
+    /// and are sequentially assigned starting from 1.
+    ///
     /// # Errors
     ///
     /// Returns an error (the first encountered one if there are multiple).
-    pub fn verify_consistency(&self, version: u64) -> Result<(), ConsistencyError> {
+    pub fn verify_consistency(
+        &self,
+        version: u64,
+        validate_indices: bool,
+    ) -> Result<(), ConsistencyError> {
         let manifest = self.db.try_manifest()?;
         let manifest = manifest.ok_or(ConsistencyError::MissingVersion(version))?;
         if version >= manifest.version_count {
@@ -91,16 +98,19 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
         // We want to perform a depth-first walk of the tree in order to not keep
         // much in memory.
         let root_key = Nibbles::EMPTY.with_version(version);
-        let leaf_data = LeafConsistencyData::new(leaf_count);
-        self.validate_node(&root_node, root_key, &leaf_data)?;
-        leaf_data.validate_count()
+        let leaf_data = validate_indices.then(|| LeafConsistencyData::new(leaf_count));
+        self.validate_node(&root_node, root_key, leaf_data.as_ref())?;
+        if let Some(leaf_data) = leaf_data {
+            leaf_data.validate_count()?;
+        }
+        Ok(())
     }
 
     fn validate_node(
         &self,
         node: &Node,
         key: NodeKey,
-        leaf_data: &LeafConsistencyData,
+        leaf_data: Option<&LeafConsistencyData>,
     ) -> Result<ValueHash, ConsistencyError> {
         match node {
             Node::Leaf(leaf) => {
@@ -111,7 +121,9 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
                         full_key: leaf.full_key,
                     });
                 }
-                leaf_data.insert_leaf(leaf)?;
+                if let Some(leaf_data) = leaf_data {
+                    leaf_data.insert_leaf(leaf)?;
+                }
             }
 
             Node::Internal(node) => {
@@ -149,8 +161,8 @@ impl<DB: Database, H: HashTree> MerkleTree<DB, H> {
                                 is_leaf: child_ref.is_leaf,
                             })?;
 
-                        // Recursion here is OK; the tree isn't that deep (~8 nibbles for a tree with
-                        // ~1B entries).
+                        // Recursion here is OK; the tree isn't that deep (approximately 8 nibbles for a tree with
+                        // approximately 1B entries).
                         let child_hash = self.validate_node(&child, child_key, leaf_data)?;
                         if child_hash == child_ref.hash {
                             Ok(())
@@ -255,14 +267,17 @@ impl AtomicBitSet {
 
 #[cfg(test)]
 mod tests {
-    use assert_matches::assert_matches;
-    use rayon::ThreadPoolBuilder;
-
     use std::num::NonZeroU64;
 
-    use super::*;
-    use crate::{types::InternalNode, PatchSet};
+    use assert_matches::assert_matches;
+    use rayon::ThreadPoolBuilder;
     use zksync_types::{H256, U256};
+
+    use super::*;
+    use crate::{
+        types::{InternalNode, TreeEntry},
+        PatchSet,
+    };
 
     const FIRST_KEY: Key = U256([0, 0, 0, 0x_dead_beef_0000_0000]);
     const SECOND_KEY: Key = U256([0, 0, 0, 0x_dead_beef_0100_0000]);
@@ -270,8 +285,8 @@ mod tests {
     fn prepare_database() -> PatchSet {
         let mut tree = MerkleTree::new(PatchSet::default());
         tree.extend(vec![
-            (FIRST_KEY, H256([1; 32])),
-            (SECOND_KEY, H256([2; 32])),
+            TreeEntry::new(FIRST_KEY, 1, H256([1; 32])),
+            TreeEntry::new(SECOND_KEY, 2, H256([2; 32])),
         ]);
         tree.db
     }
@@ -300,7 +315,7 @@ mod tests {
             .num_threads(1)
             .build()
             .expect("failed initializing `rayon` thread pool");
-        thread_pool.install(|| MerkleTree::new(db).verify_consistency(0))
+        thread_pool.install(|| MerkleTree::new(db).verify_consistency(0, true))
     }
 
     #[test]
