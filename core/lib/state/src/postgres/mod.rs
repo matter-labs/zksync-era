@@ -393,11 +393,6 @@ impl<'a> PostgresStorage<'a> {
     fn values_cache(&self) -> Option<&ValuesCache> {
         Some(&self.caches.as_ref()?.values.as_ref()?.cache)
     }
-
-    /// Get the connection to the database.
-    pub fn connection(&mut self) -> &mut StorageProcessor<'a> {
-        &mut self.connection
-    }
 }
 
 impl ReadStorage for PostgresStorage<'_> {

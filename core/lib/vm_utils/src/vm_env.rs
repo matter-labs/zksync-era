@@ -10,12 +10,14 @@ use zksync_types::{
 };
 
 /// The environment required to initialize the VM.
+#[derive(Clone, Debug)]
 pub struct VmEnv {
     pub l1_batch_env: L1BatchEnv,
     pub system_env: SystemEnv,
 }
 
 /// The builder for the `VmEnv`. It allows to load the required data from the database.
+#[derive(Clone, Debug)]
 pub struct VmEnvBuilder {
     miniblock_number: Option<MiniblockNumber>,
     l1_batch_number: L1BatchNumber,

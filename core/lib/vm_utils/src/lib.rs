@@ -61,16 +61,15 @@ pub async fn create_vm_for_l1_batch<H: HistoryMode>(
             )
         })?;
 
-    let mut pg_storage =
-        PostgresStorage::new(rt_handle.clone(), connection, miniblock_number, true);
-
     let vm_env = VmEnvBuilder::new(l1_batch_number, u32::MAX, l2_chain_id)
         .with_miniblock_number(miniblock_number)
-        .build(pg_storage.connection())
+        .build(&mut connection)
         .await
         .with_context(|| {
             format!("failed to create vm env for l1_batch_number {l1_batch_number:?}")
         })?;
+
+    let pg_storage = PostgresStorage::new(rt_handle.clone(), connection, miniblock_number, true);
 
     let storage_view = StorageView::new(pg_storage).to_rc_ptr();
     let vm = VmInstance::new(vm_env.l1_batch_env, vm_env.system_env, storage_view.clone());
