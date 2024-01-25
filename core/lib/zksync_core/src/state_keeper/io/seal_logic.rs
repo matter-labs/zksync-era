@@ -11,6 +11,7 @@ use multivm::{
     interface::{FinishedL1Batch, L1BatchEnv},
     utils::{get_batch_base_fee, get_max_gas_per_pubdata_byte},
 };
+use vm_utils::storage::wait_for_prev_l1_batch_params;
 use zksync_dal::StorageProcessor;
 use zksync_system_constants::ACCOUNT_CODE_STORAGE_ADDRESS;
 use zksync_types::{
@@ -20,13 +21,13 @@ use zksync_types::{
     l2::L2Tx,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     protocol_version::ProtocolUpgradeTx,
-    sort_storage_access::sort_storage_access_queries,
     storage_writes_deduplicator::{ModifiedSlot, StorageWritesDeduplicator},
     tx::{
         tx_execution_info::DeduplicatedWritesMetrics, IncludedTxLocation,
         TransactionExecutionResult,
     },
-    AccountTreeId, Address, ExecuteTransactionCommon, L1BatchNumber, L1BlockNumber, LogQuery,
+    zk_evm_types::LogQuery,
+    AccountTreeId, Address, ExecuteTransactionCommon, L1BatchNumber, L1BlockNumber,
     MiniblockNumber, ProtocolVersionId, StorageKey, StorageLog, StorageLogQuery, StorageValue,
     Transaction, VmEvent, CURRENT_VIRTUAL_BLOCK_INFO_POSITION, H256, SYSTEM_CONTEXT_ADDRESS,
 };
@@ -81,21 +82,24 @@ impl UpdatesManager {
         progress.observe(None);
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::LogDeduplication);
-        let (_, deduped_log_queries) = sort_storage_access_queries(
+
+        progress.observe(
             finished_batch
                 .final_execution_state
-                .storage_log_queries
-                .iter()
-                .map(|log| &log.log_query),
+                .deduplicated_storage_log_queries
+                .len(),
         );
-        progress.observe(deduped_log_queries.len());
 
         let (l1_tx_count, l2_tx_count) = l1_l2_tx_count(&self.l1_batch.executed_transactions);
         let (writes_count, reads_count) = storage_log_query_write_read_counts(
             &finished_batch.final_execution_state.storage_log_queries,
         );
-        let (dedup_writes_count, dedup_reads_count) =
-            log_query_write_read_counts(deduped_log_queries.iter());
+        let (dedup_writes_count, dedup_reads_count) = log_query_write_read_counts(
+            finished_batch
+                .final_execution_state
+                .deduplicated_storage_log_queries
+                .iter(),
+        );
 
         tracing::info!(
             "Sealing L1 batch {current_l1_batch_number} with {total_tx_count} \
@@ -113,7 +117,7 @@ impl UpdatesManager {
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::InsertL1BatchHeader);
         let (_prev_hash, prev_timestamp) =
-            extractors::wait_for_prev_l1_batch_params(&mut transaction, l1_batch_env.number).await;
+            wait_for_prev_l1_batch_params(&mut transaction, l1_batch_env.number).await;
         assert!(
             prev_timestamp < l1_batch_env.timestamp,
             "Cannot seal L1 batch #{}: Timestamp of previous L1 batch ({}) >= provisional L1 batch timestamp ({}), \
@@ -186,7 +190,9 @@ impl UpdatesManager {
         progress.observe(None);
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::InsertProtectiveReads);
-        let (deduplicated_writes, protective_reads): (Vec<_>, Vec<_>) = deduped_log_queries
+        let (deduplicated_writes, protective_reads): (Vec<_>, Vec<_>) = finished_batch
+            .final_execution_state
+            .deduplicated_storage_log_queries
             .into_iter()
             .partition(|log_query| log_query.rw_flag);
         transaction

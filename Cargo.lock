@@ -1206,10 +1206,11 @@ dependencies = [
 [[package]]
 name = "circuit_definitions"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.0#43aeb53d7d9c909508a98f9fc140edff0e9d2357"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.0#de2ecad62ac8c12777e576dca20311ad8ec770d1"
 dependencies = [
  "crossbeam 0.8.2",
  "derivative",
+ "seq-macro",
  "serde",
  "snark_wrapper",
  "zk_evm 1.4.0",
@@ -7463,6 +7464,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "vm_utils"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "multivm",
+ "tokio",
+ "tracing",
+ "zksync_contracts",
+ "zksync_dal",
+ "zksync_state",
+ "zksync_types",
+ "zksync_utils",
+]
+
+[[package]]
 name = "walkdir"
 version = "2.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8144,7 +8160,7 @@ dependencies = [
 [[package]]
 name = "zkevm_test_harness"
 version = "1.4.0"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.0#43aeb53d7d9c909508a98f9fc140edff0e9d2357"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.0#de2ecad62ac8c12777e576dca20311ad8ec770d1"
 dependencies = [
  "bincode",
  "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.0)",
@@ -8246,6 +8262,7 @@ version = "0.1.0"
 dependencies = [
  "multivm",
  "zkevm_test_harness 1.4.0",
+ "zkevm_test_harness 1.4.1",
  "zksync_types",
  "zksync_utils",
 ]
@@ -8505,6 +8522,7 @@ dependencies = [
  "tracing",
  "vise",
  "vlog",
+ "vm_utils",
  "zksync_circuit_breaker",
  "zksync_commitment_utils",
  "zksync_concurrency",
@@ -8906,7 +8924,6 @@ dependencies = [
  "thiserror",
  "tokio",
  "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc2)",
- "zk_evm 1.4.0",
  "zk_evm 1.4.1",
  "zkevm_test_harness 1.3.3",
  "zksync_basic_types",
