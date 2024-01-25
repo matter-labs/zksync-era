@@ -1812,6 +1812,31 @@ impl BlocksDal<'_, '_> {
         .collect())
     }
 
+    pub async fn delete_initial_writes(
+        &mut self,
+        last_batch_to_keep: L1BatchNumber,
+    ) -> sqlx::Result<()> {
+        self.delete_initial_writes_inner(Some(last_batch_to_keep))
+            .await
+    }
+
+    pub async fn delete_initial_writes_inner(
+        &mut self,
+        last_batch_to_keep: Option<L1BatchNumber>,
+    ) -> sqlx::Result<()> {
+        let block_number = last_batch_to_keep.map_or(-1, |number| number.0 as i64);
+        sqlx::query!(
+            r#"
+            DELETE FROM initial_writes
+            WHERE
+                l1_batch_number > $1
+            "#,
+            block_number
+        )
+        .execute(self.storage.conn())
+        .await?;
+        Ok(())
+    }
     /// Deletes all L1 batches from the storage so that the specified batch number is the last one left.
     pub async fn delete_l1_batches(
         &mut self,
@@ -2181,6 +2206,9 @@ impl BlocksDal<'_, '_> {
         self.delete_l1_batches_inner(None)
             .await
             .context("delete_l1_batches_inner()")?;
+        self.delete_initial_writes_inner(None)
+            .await
+            .context("delete_initial_writes_inner()")?;
         Ok(())
     }
 }
@@ -2202,6 +2230,10 @@ mod tests {
         let mut conn = pool.access_storage().await.unwrap();
         conn.blocks_dal()
             .delete_l1_batches(L1BatchNumber(0))
+            .await
+            .unwrap();
+        conn.blocks_dal()
+            .delete_initial_writes(L1BatchNumber(0))
             .await
             .unwrap();
         conn.protocol_versions_dal()
@@ -2263,6 +2295,10 @@ mod tests {
         let mut conn = pool.access_storage().await.unwrap();
         conn.blocks_dal()
             .delete_l1_batches(L1BatchNumber(0))
+            .await
+            .unwrap();
+        conn.blocks_dal()
+            .delete_initial_writes(L1BatchNumber(0))
             .await
             .unwrap();
         conn.protocol_versions_dal()

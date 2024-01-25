@@ -167,7 +167,8 @@ async fn insert_base_system_contracts_to_factory_deps(
     storage
         .storage_dal()
         .insert_factory_deps(MiniblockNumber(0), &factory_deps)
-        .await;
+        .await
+        .unwrap();
 }
 
 async fn insert_system_contracts(
@@ -275,7 +276,8 @@ async fn insert_system_contracts(
     transaction
         .storage_dal()
         .insert_factory_deps(MiniblockNumber(0), &factory_deps)
-        .await;
+        .await
+        .unwrap();
 
     transaction.commit().await.unwrap();
 }

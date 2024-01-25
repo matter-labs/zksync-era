@@ -205,7 +205,8 @@ async fn prepare_postgres(
         let factory_deps = gen_factory_deps(rng, 10);
         conn.storage_dal()
             .insert_factory_deps(MiniblockNumber(block_number), &factory_deps)
-            .await;
+            .await
+            .unwrap();
 
         // Since we generate `logs` randomly, all of them are written the first time.
         create_l1_batch(conn, L1BatchNumber(block_number), &logs).await;

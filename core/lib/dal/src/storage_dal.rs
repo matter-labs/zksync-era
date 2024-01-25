@@ -19,7 +19,7 @@ impl StorageDal<'_, '_> {
         &mut self,
         block_number: MiniblockNumber,
         factory_deps: &HashMap<H256, Vec<u8>>,
-    ) {
+    ) -> sqlx::Result<()> {
         let (bytecode_hashes, bytecodes): (Vec<_>, Vec<_>) = factory_deps
             .iter()
             .map(|dep| (dep.0.as_bytes(), dep.1.as_slice()))
@@ -45,8 +45,9 @@ impl StorageDal<'_, '_> {
             block_number.0 as i64,
         )
         .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .await?;
+
+        Ok(())
     }
 
     /// Returns bytecode for a factory dependency with the specified bytecode `hash`.

@@ -2,8 +2,10 @@ use std::{collections::HashMap, ops, time::Instant};
 
 use sqlx::{types::chrono::Utc, Row};
 use zksync_types::{
-    get_code_key, AccountTreeId, Address, L1BatchNumber, MiniblockNumber, StorageKey, StorageLog,
-    FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H256,
+    get_code_key,
+    snapshots::{SnapshotStorageLog, StorageLogDbRow},
+    AccountTreeId, Address, L1BatchNumber, MiniblockNumber, StorageKey, StorageLog,
+    FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H160, H256,
 };
 
 pub use crate::models::storage_log::StorageRecoveryLogEntry;
@@ -66,6 +68,46 @@ impl StorageLogsDal<'_, '_> {
         }
         copy.send(buffer.as_bytes()).await.unwrap();
         copy.finish().await.unwrap();
+    }
+
+    pub async fn insert_storage_logs_from_snapshot(
+        &mut self,
+        miniblock_number: MiniblockNumber,
+        snapshot_storage_logs: &[SnapshotStorageLog],
+    ) -> sqlx::Result<()> {
+        let mut copy = self
+            .storage
+            .conn()
+            .copy_in_raw(
+                "COPY storage_logs(
+                    hashed_key, address, key, value, operation_number, tx_hash, miniblock_number,
+                    created_at, updated_at
+                )
+                FROM STDIN WITH (DELIMITER '|')",
+            )
+            .await?;
+
+        let mut buffer = String::new();
+        let now = Utc::now().naive_utc().to_string();
+        for log in snapshot_storage_logs.iter() {
+            write_str!(
+                &mut buffer,
+                r"\\x{hashed_key:x}|\\x{address:x}|\\x{key:x}|\\x{value:x}|",
+                hashed_key = log.key.hashed_key(),
+                address = log.key.address(),
+                key = log.key.key(),
+                value = log.value
+            );
+            writeln_str!(
+                &mut buffer,
+                r"{}|\\x{:x}|{miniblock_number}|{now}|{now}",
+                log.enumeration_index,
+                H256::zero()
+            );
+        }
+        copy.send(buffer.as_bytes()).await?;
+        copy.finish().await?;
+        Ok(())
     }
 
     pub async fn append_storage_logs(
@@ -501,6 +543,38 @@ impl StorageLogsDal<'_, '_> {
                 (key, value)
             })
             .collect())
+    }
+
+    /// Retrieves all storage log entries for testing purposes.
+    pub async fn dump_all_storage_logs_for_tests(&mut self) -> Vec<StorageLogDbRow> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT
+                hashed_key,
+                address,
+                key,
+                value,
+                operation_number,
+                tx_hash,
+                miniblock_number
+            FROM
+                storage_logs
+            "#
+        )
+        .fetch_all(self.storage.conn())
+        .await
+        .expect("get_all_storage_logs_for_tests");
+        rows.into_iter()
+            .map(|row| StorageLogDbRow {
+                hashed_key: H256::from_slice(&row.hashed_key),
+                address: H160::from_slice(&row.address),
+                key: H256::from_slice(&row.key),
+                value: H256::from_slice(&row.value),
+                operation_number: row.operation_number as u64,
+                tx_hash: H256::from_slice(&row.tx_hash),
+                miniblock_number: MiniblockNumber(row.miniblock_number as u32),
+            })
+            .collect()
     }
 
     pub async fn get_miniblock_storage_logs(

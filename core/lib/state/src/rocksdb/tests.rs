@@ -165,7 +165,8 @@ async fn insert_factory_deps(
         .collect();
     conn.storage_dal()
         .insert_factory_deps(miniblock_number, &factory_deps)
-        .await;
+        .await
+        .unwrap();
 }
 
 #[tokio::test]
@@ -372,7 +373,8 @@ async fn recovering_factory_deps_from_snapshot() {
         create_miniblock(&mut conn, number, vec![]).await;
         conn.storage_dal()
             .insert_factory_deps(number, &HashMap::from([(bytecode_hash, bytecode)]))
-            .await;
+            .await
+            .unwrap();
     }
 
     let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
