@@ -6,6 +6,7 @@ enum ObjectStoreMode {
   GCS = 0;
   GCS_WITH_CREDENTIAL_FILE = 1;
   FILE_BACKED = 2;
+  GCS_ANONYMOUS_READ_ONLY = 3;
 }
 
 message ObjectStore {

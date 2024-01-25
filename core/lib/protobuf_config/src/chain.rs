@@ -33,6 +33,24 @@ impl proto::Network {
     }
 }
 
+impl proto::FeeModelVersion {
+    fn new(n: &configs::chain::FeeModelVersion) -> Self {
+        use configs::chain::FeeModelVersion as From;
+        match n {
+            From::V1 => Self::V1,
+            From::V2 => Self::V2,
+        }
+    }
+
+    fn parse(&self) -> configs::chain::FeeModelVersion {
+        use configs::chain::FeeModelVersion as To;
+        match self {
+            Self::V1 => To::V1,
+            Self::V2 => To::V2,
+        }
+    }
+}
+
 impl ProtoRepr for proto::EthNetwork {
     type Type = configs::chain::NetworkConfig;
     fn read(&self) -> anyhow::Result<Self::Type> {
@@ -93,7 +111,21 @@ impl ProtoRepr for proto::StateKeeper {
             fee_account_addr: required(&self.fee_account_addr)
                 .and_then(|a| parse_h160(a))
                 .context("fee_account_addr")?,
-            fair_l2_gas_price: *required(&self.fair_l2_gas_price).context("fair_l2_gas_price")?,
+            minimal_l2_gas_price: *required(&self.minimal_l2_gas_price)
+                .context("minimal_l2_gas_price")?,
+            compute_overhead_part: *required(&self.compute_overhead_part)
+                .context("compute_overhead_part")?,
+            pubdata_overhead_part: *required(&self.pubdata_overhead_part)
+                .context("pubdata_overhead_part")?,
+            batch_overhead_l1_gas: *required(&self.batch_overhead_l1_gas)
+                .context("batch_overhead_l1_gas")?,
+            max_gas_per_batch: *required(&self.max_gas_per_batch).context("max_gas_per_batch")?,
+            max_pubdata_per_batch: *required(&self.max_pubdata_per_batch)
+                .context("max_pubdata_per_batch")?,
+            fee_model_version: required(&self.fee_model_version)
+                .and_then(|x| Ok(proto::FeeModelVersion::try_from(*x)?))
+                .context("fee_model_version")?
+                .parse(),
             validation_computational_gas_limit: *required(&self.validation_computational_gas_limit)
                 .context("validation_computational_gas_limit")?,
             save_call_traces: *required(&self.save_call_traces).context("save_call_traces")?,
@@ -128,7 +160,13 @@ impl ProtoRepr for proto::StateKeeper {
             close_block_at_eth_params_percentage: Some(this.close_block_at_eth_params_percentage),
             close_block_at_gas_percentage: Some(this.close_block_at_gas_percentage),
             fee_account_addr: Some(this.fee_account_addr.as_bytes().into()),
-            fair_l2_gas_price: Some(this.fair_l2_gas_price),
+            minimal_l2_gas_price: Some(this.minimal_l2_gas_price),
+            compute_overhead_part: Some(this.compute_overhead_part),
+            pubdata_overhead_part: Some(this.pubdata_overhead_part),
+            batch_overhead_l1_gas: Some(this.batch_overhead_l1_gas),
+            max_gas_per_batch: Some(this.max_gas_per_batch),
+            max_pubdata_per_batch: Some(this.max_pubdata_per_batch),
+            fee_model_version: Some(proto::FeeModelVersion::new(&this.fee_model_version).into()),
             validation_computational_gas_limit: Some(this.validation_computational_gas_limit),
             save_call_traces: Some(this.save_call_traces),
             virtual_blocks_interval: Some(this.virtual_blocks_interval),

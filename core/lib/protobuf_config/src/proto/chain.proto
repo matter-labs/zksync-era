@@ -13,6 +13,11 @@ enum Network {
   TEST = 7;
 }
 
+enum FeeModelVersion {
+  V1 = 0;
+  V2 = 1;
+}
+
 message EthNetwork {
   optional Network network = 1; // required
   optional string zksync_network = 2; // required
@@ -33,13 +38,19 @@ message StateKeeper {
   optional double close_block_at_eth_params_percentage = 11; // required; %
   optional double close_block_at_gas_percentage = 12; // required; %
   optional bytes fee_account_addr = 13; // required; H160
-  optional uint64 fair_l2_gas_price = 14; // required; wei
-  optional uint32 validation_computational_gas_limit = 15; // required; wei?
-  optional bool save_call_traces = 16; // required
-  optional uint32 virtual_blocks_interval = 17; // required
-  optional uint32 virtual_blocks_per_miniblock = 18; // required
-  optional bool upload_witness_inputs_to_gcs = 19; // required
-  optional uint64 enum_index_migration_chunk_size = 20; // optional
+  optional uint64 minimal_l2_gas_price = 14; // required; wei?
+  optional double compute_overhead_part = 15; // required; [0,1]
+  optional double pubdata_overhead_part = 16; // required; [0,1]
+  optional uint64 batch_overhead_l1_gas = 17; // required; wei?
+  optional uint64 max_gas_per_batch = 18; // required; wei?
+  optional uint64 max_pubdata_per_batch = 19; // required; bytes?
+  optional FeeModelVersion fee_model_version = 20; // required
+  optional uint32 validation_computational_gas_limit = 21; // required; wei?
+  optional bool save_call_traces = 22; // required
+  optional uint32 virtual_blocks_interval = 23; // required
+  optional uint32 virtual_blocks_per_miniblock = 24; // required
+  optional bool upload_witness_inputs_to_gcs = 25; // required
+  optional uint64 enum_index_migration_chunk_size = 26; // optional
 }
 
 message OperationsManager {

@@ -145,6 +145,15 @@ impl RandomConfig for Network {
     }
 }
 
+impl RandomConfig for configs::chain::FeeModelVersion {
+    fn sample(g: &mut Gen<impl Rng>) -> Self {
+        match g.rng.gen_range(0..2) {
+            0 => Self::V1,
+            _ => Self::V2,
+        }
+    }
+}
+
 impl RandomConfig for configs::AlertsConfig {
     fn sample(g: &mut Gen<impl Rng>) -> Self {
         Self {
@@ -182,6 +191,7 @@ impl RandomConfig for configs::api::Web3JsonRpcConfig {
             account_pks: g.gen(),
             estimate_gas_scale_factor: g.gen(),
             estimate_gas_acceptable_overestimation: g.gen(),
+            l1_to_l2_transactions_compatibility_mode: g.gen(),
             max_tx_size: g.gen(),
             vm_execution_cache_misses_limit: g.gen(),
             vm_concurrency_limit: g.gen(),
@@ -254,7 +264,13 @@ impl RandomConfig for configs::chain::StateKeeperConfig {
             close_block_at_eth_params_percentage: g.gen(),
             close_block_at_gas_percentage: g.gen(),
             fee_account_addr: g.gen(),
-            fair_l2_gas_price: g.gen(),
+            minimal_l2_gas_price: g.gen(),
+            compute_overhead_part: g.gen(),
+            pubdata_overhead_part: g.gen(),
+            batch_overhead_l1_gas: g.gen(),
+            max_gas_per_batch: g.gen(),
+            max_pubdata_per_batch: g.gen(),
+            fee_model_version: g.gen(),
             validation_computational_gas_limit: g.gen(),
             save_call_traces: g.gen(),
             virtual_blocks_interval: g.gen(),
@@ -616,10 +632,11 @@ impl RandomConfig for configs::house_keeper::HouseKeeperConfig {
 
 impl RandomConfig for configs::object_store::ObjectStoreMode {
     fn sample(g: &mut Gen<impl Rng>) -> Self {
-        match g.rng.gen_range(0..3) {
+        match g.rng.gen_range(0..4) {
             0 => Self::GCS,
             1 => Self::GCSWithCredentialFile,
-            _ => Self::FileBacked,
+            2 => Self::FileBacked,
+            _ => Self::GCSAnonymousReadOnly,
         }
     }
 }

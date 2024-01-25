@@ -11,6 +11,7 @@ impl proto::ObjectStoreMode {
             From::GCS => Self::Gcs,
             From::GCSWithCredentialFile => Self::GcsWithCredentialFile,
             From::FileBacked => Self::FileBacked,
+            From::GCSAnonymousReadOnly => Self::GcsAnonymousReadOnly,
         }
     }
     fn parse(&self) -> configs::object_store::ObjectStoreMode {
@@ -19,6 +20,7 @@ impl proto::ObjectStoreMode {
             Self::Gcs => To::GCS,
             Self::GcsWithCredentialFile => To::GCSWithCredentialFile,
             Self::FileBacked => To::FileBacked,
+            Self::GcsAnonymousReadOnly => To::GCSAnonymousReadOnly,
         }
     }
 }
