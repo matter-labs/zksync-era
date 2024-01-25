@@ -452,7 +452,8 @@ impl L1BatchExecutorBuilder for TestBatchExecutorBuilder {
         &mut self,
         _l1batch_params: L1BatchEnv,
         _system_env: SystemEnv,
-    ) -> BatchExecutorHandle {
+        _stop_receiver: &watch::Receiver<bool>,
+    ) -> Option<BatchExecutorHandle> {
         let (commands_sender, commands_receiver) = mpsc::channel(1);
 
         let executor = TestBatchExecutor::new(
@@ -462,7 +463,7 @@ impl L1BatchExecutorBuilder for TestBatchExecutorBuilder {
         );
         let handle = tokio::task::spawn_blocking(move || executor.run());
 
-        BatchExecutorHandle::from_raw(handle, commands_sender)
+        Some(BatchExecutorHandle::from_raw(handle, commands_sender))
     }
 }
 
@@ -780,7 +781,8 @@ impl L1BatchExecutorBuilder for MockBatchExecutorBuilder {
         &mut self,
         _l1batch_params: L1BatchEnv,
         _system_env: SystemEnv,
-    ) -> BatchExecutorHandle {
+        _stop_receiver: &watch::Receiver<bool>,
+    ) -> Option<BatchExecutorHandle> {
         let (send, recv) = mpsc::channel(1);
         let handle = tokio::task::spawn(async {
             let mut recv = recv;
@@ -797,6 +799,6 @@ impl L1BatchExecutorBuilder for MockBatchExecutorBuilder {
                 }
             }
         });
-        BatchExecutorHandle::from_raw(handle, send)
+        Some(BatchExecutorHandle::from_raw(handle, send))
     }
 }
