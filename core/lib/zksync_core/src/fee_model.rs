@@ -73,7 +73,7 @@ impl BatchFeeModelInputProvider for MainNodeFeeInputProvider {
     }
 
     fn get_erc20_conversion_rate(&self) -> u64 {
-        todo!()
+        self.provider.get_erc20_conversion_rate()
     }
 }
 
