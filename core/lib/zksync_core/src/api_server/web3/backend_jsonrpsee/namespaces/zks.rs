@@ -142,7 +142,7 @@ impl ZksNamespaceServer for ZksNamespace {
     }
 
     async fn get_l1_gas_price(&self) -> RpcResult<U64> {
-        Ok(self.get_l1_gas_price_impl())
+        Ok(self.get_l1_gas_price_impl().await)
     }
 
     async fn get_fee_params(&self) -> RpcResult<FeeParams> {

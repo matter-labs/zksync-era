@@ -9,17 +9,6 @@ use std::{
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, Bytes};
-use zkevm_test_harness::{
-    abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit,
-    bellman::{bn256::Bn256, plonk::better_better_cs::proof::Proof},
-    encodings::{recursion_request::RecursionRequest, QueueSimulator},
-    witness::{
-        full_block_artifact::{BlockBasicCircuits, BlockBasicCircuitsPublicInputs},
-        oracle::VmWitnessOracle,
-    },
-    LeafAggregationOutputDataWitness, NodeAggregationOutputDataWitness,
-    SchedulerCircuitInstanceWitness,
-};
 use zksync_basic_types::{L1BatchNumber, H256, U256};
 
 const HASH_LEN: usize = H256::len_bytes();
@@ -57,12 +46,6 @@ impl StorageLogMetadata {
             );
         })
     }
-}
-
-#[derive(Clone)]
-pub struct WitnessGeneratorJobMetadata {
-    pub block_number: L1BatchNumber,
-    pub proofs: Vec<Proof<Bn256, ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>>>,
 }
 
 /// Represents the sequential number of the proof aggregation round.
@@ -233,38 +216,6 @@ pub struct BasicCircuitWitnessGeneratorInput {
     pub used_bytecodes_hashes: Vec<U256>,
     pub initial_heap_content: Vec<(usize, U256)>,
     pub merkle_paths_input: PrepareBasicCircuitsJob,
-}
-
-#[derive(Clone)]
-pub struct PrepareLeafAggregationCircuitsJob {
-    pub basic_circuits: BlockBasicCircuits<Bn256>,
-    pub basic_circuits_inputs: BlockBasicCircuitsPublicInputs<Bn256>,
-    pub basic_circuits_proofs: Vec<Proof<Bn256, ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>>>,
-}
-
-#[derive(Clone)]
-pub struct PrepareNodeAggregationCircuitJob {
-    pub previous_level_proofs: Vec<Proof<Bn256, ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>>>,
-    pub previous_level_leafs_aggregations: Vec<LeafAggregationOutputDataWitness<Bn256>>,
-    pub previous_sequence: Vec<QueueSimulator<Bn256, RecursionRequest<Bn256>, 2, 2>>,
-}
-
-#[derive(Clone)]
-pub struct PrepareSchedulerCircuitJob {
-    pub incomplete_scheduler_witness: SchedulerCircuitInstanceWitness<Bn256>,
-    pub final_node_aggregations: NodeAggregationOutputDataWitness<Bn256>,
-    pub node_final_proof_level_proof: Proof<Bn256, ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>>,
-    pub previous_aux_hash: [u8; 32],
-    pub previous_meta_hash: [u8; 32],
-}
-
-#[derive(Debug, Clone)]
-pub struct ProverJobMetadata {
-    pub id: u32,
-    pub block_number: L1BatchNumber,
-    pub circuit_type: String,
-    pub aggregation_round: AggregationRound,
-    pub sequence_number: usize,
 }
 
 #[derive(Debug, Clone)]

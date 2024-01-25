@@ -1,5 +1,6 @@
 use std::convert::TryFrom;
 
+use anyhow::Context as _;
 use num_enum::TryFromPrimitive;
 use rlp::{Rlp, RlpStream};
 use serde::{Deserialize, Serialize};
@@ -205,7 +206,7 @@ impl L2Tx {
         );
 
         let data = res.get_signed_bytes(chain_id);
-        res.set_signature(PackedEthSignature::sign_raw(private_key, &data)?);
+        res.set_signature(PackedEthSignature::sign_raw(private_key, &data).context("sign_raw")?);
         Ok(res)
     }
 

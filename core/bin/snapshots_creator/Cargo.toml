@@ -16,7 +16,6 @@ prometheus_exporter = { path = "../../lib/prometheus_exporter" }
 zksync_config = { path = "../../lib/config" }
 zksync_dal = { path = "../../lib/dal" }
 zksync_env_config = { path = "../../lib/env_config" }
-zksync_utils = { path = "../../lib/utils" }
 zksync_types = { path = "../../lib/types" }
 zksync_object_store = { path = "../../lib/object_store" }
 vlog = { path = "../../lib/vlog" }

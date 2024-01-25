@@ -109,7 +109,8 @@ async fn test_filter_with_no_pending_batch() {
     let want_filter = l2_tx_filter(
         &tester.create_batch_fee_input_provider().await,
         ProtocolVersionId::latest().into(),
-    );
+    )
+    .await;
 
     // Create a mempool without pending batch and ensure that filter is not initialized just yet.
     let (mut mempool, mut guard) = tester.create_test_mempool_io(connection_pool, 1).await;
@@ -155,7 +156,8 @@ async fn test_timestamps_are_distinct(
     let tx_filter = l2_tx_filter(
         &tester.create_batch_fee_input_provider().await,
         ProtocolVersionId::latest().into(),
-    );
+    )
+    .await;
     tester.insert_tx(&mut guard, tx_filter.fee_per_gas, tx_filter.gas_per_pubdata);
 
     let batch_params = mempool
@@ -273,7 +275,8 @@ async fn processing_storage_logs_when_sealing_miniblock() {
     let touched_slots = conn
         .storage_logs_dal()
         .get_touched_slots_for_l1_batch(l1_batch_number)
-        .await;
+        .await
+        .unwrap();
 
     // Keys that are only read must not be written to `storage_logs`.
     let account = AccountTreeId::default();

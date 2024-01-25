@@ -349,11 +349,10 @@ mod tests {
             miniblock_timestamp: 42,
             miniblock_hash: H256::zero(),
             protocol_version: ProtocolVersionId::latest(),
-            last_finished_chunk_id: None,
-            total_chunk_count: 100,
+            storage_logs_chunks_processed: vec![true; 100],
         };
         conn.snapshot_recovery_dal()
-            .set_applied_snapshot_status(&snapshot_recovery)
+            .insert_initial_recovery_status(&snapshot_recovery)
             .await
             .unwrap();
 

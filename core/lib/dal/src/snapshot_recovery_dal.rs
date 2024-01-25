@@ -10,7 +10,7 @@ pub struct SnapshotRecoveryDal<'a, 'c> {
 }
 
 impl SnapshotRecoveryDal<'_, '_> {
-    pub async fn set_applied_snapshot_status(
+    pub async fn insert_initial_recovery_status(
         &mut self,
         status: &SnapshotRecoveryStatus,
     ) -> sqlx::Result<()> {
@@ -25,26 +25,12 @@ impl SnapshotRecoveryDal<'_, '_> {
                     miniblock_timestamp,
                     miniblock_hash,
                     protocol_version,
-                    last_finished_chunk_id,
-                    total_chunk_count,
+                    storage_logs_chunks_processed,
                     updated_at,
                     created_at
                 )
             VALUES
-                ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
-            ON CONFLICT (l1_batch_number) DO
-            UPDATE
-            SET
-                l1_batch_number = excluded.l1_batch_number,
-                l1_batch_timestamp = excluded.l1_batch_timestamp,
-                l1_batch_root_hash = excluded.l1_batch_root_hash,
-                miniblock_number = excluded.miniblock_number,
-                miniblock_timestamp = excluded.miniblock_timestamp,
-                miniblock_hash = excluded.miniblock_hash,
-                protocol_version = excluded.protocol_version,
-                last_finished_chunk_id = excluded.last_finished_chunk_id,
-                total_chunk_count = excluded.total_chunk_count,
-                updated_at = excluded.updated_at
+                ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
             "#,
             status.l1_batch_number.0 as i64,
             status.l1_batch_timestamp as i64,
@@ -53,11 +39,29 @@ impl SnapshotRecoveryDal<'_, '_> {
             status.miniblock_timestamp as i64,
             status.miniblock_hash.0.as_slice(),
             status.protocol_version as i32,
-            status.last_finished_chunk_id.map(|v| v as i32),
-            status.total_chunk_count as i64,
+            &status.storage_logs_chunks_processed,
         )
         .execute(self.storage.conn())
         .await?;
+        Ok(())
+    }
+
+    pub async fn mark_storage_logs_chunk_as_processed(
+        &mut self,
+        chunk_id: u64,
+    ) -> sqlx::Result<()> {
+        sqlx::query!(
+            r#"
+            UPDATE snapshot_recovery
+            SET
+                storage_logs_chunks_processed[$1] = TRUE,
+                updated_at = NOW()
+            "#,
+            chunk_id as i32 + 1
+        )
+        .execute(self.storage.conn())
+        .await?;
+
         Ok(())
     }
 
@@ -74,8 +78,7 @@ impl SnapshotRecoveryDal<'_, '_> {
                 miniblock_timestamp,
                 miniblock_hash,
                 protocol_version,
-                last_finished_chunk_id,
-                total_chunk_count
+                storage_logs_chunks_processed
             FROM
                 snapshot_recovery
             "#,
@@ -91,8 +94,7 @@ impl SnapshotRecoveryDal<'_, '_> {
             miniblock_timestamp: row.miniblock_timestamp as u64,
             miniblock_hash: H256::from_slice(&row.miniblock_hash),
             protocol_version: ProtocolVersionId::try_from(row.protocol_version as u16).unwrap(),
-            last_finished_chunk_id: row.last_finished_chunk_id.map(|v| v as u64),
-            total_chunk_count: row.total_chunk_count as u64,
+            storage_logs_chunks_processed: row.storage_logs_chunks_processed,
         }))
     }
 }
@@ -115,7 +117,7 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(None, empty_status);
-        let status = SnapshotRecoveryStatus {
+        let mut status = SnapshotRecoveryStatus {
             l1_batch_number: L1BatchNumber(123),
             l1_batch_timestamp: 123,
             l1_batch_root_hash: H256::random(),
@@ -123,11 +125,10 @@ mod tests {
             miniblock_timestamp: 234,
             miniblock_hash: H256::random(),
             protocol_version: ProtocolVersionId::latest(),
-            last_finished_chunk_id: None,
-            total_chunk_count: 345,
+            storage_logs_chunks_processed: vec![false, false, true, false],
         };
         applied_status_dal
-            .set_applied_snapshot_status(&status)
+            .insert_initial_recovery_status(&status)
             .await
             .unwrap();
         let status_from_db = applied_status_dal
@@ -136,19 +137,20 @@ mod tests {
             .unwrap();
         assert_eq!(status, status_from_db.unwrap());
 
-        let updated_status = SnapshotRecoveryStatus {
-            last_finished_chunk_id: Some(2345),
-            total_chunk_count: 345,
-            ..status
-        };
+        status.storage_logs_chunks_processed = vec![false, true, true, true];
         applied_status_dal
-            .set_applied_snapshot_status(&updated_status)
+            .mark_storage_logs_chunk_as_processed(1)
             .await
             .unwrap();
+        applied_status_dal
+            .mark_storage_logs_chunk_as_processed(3)
+            .await
+            .unwrap();
+
         let updated_status_from_db = applied_status_dal
             .get_applied_snapshot_status()
             .await
             .unwrap();
-        assert_eq!(updated_status, updated_status_from_db.unwrap());
+        assert_eq!(status, updated_status_from_db.unwrap());
     }
 }

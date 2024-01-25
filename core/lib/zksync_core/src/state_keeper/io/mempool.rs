@@ -11,6 +11,7 @@ use multivm::{
     interface::{FinishedL1Batch, L1BatchEnv, SystemEnv},
     utils::derive_base_fee_and_gas_per_pubdata,
 };
+use vm_utils::storage::{l1_batch_params, L1BatchParamsProvider};
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_dal::ConnectionPool;
 use zksync_mempool::L2TxFilter;
@@ -27,7 +28,7 @@ use crate::{
     state_keeper::{
         extractors,
         io::{
-            common::{l1_batch_params, poll_iters, IoCursor, L1BatchParamsProvider},
+            common::{load_pending_batch, poll_iters, IoCursor},
             MiniblockParams, MiniblockSealerHandle, PendingBatchData, StateKeeperIO,
         },
         mempool_actor::l2_tx_filter,
@@ -106,9 +107,9 @@ impl StateKeeperIO for MempoolIO {
                 )
             })
             .unwrap()?;
-        let pending_batch_data = self
+        let (system_env, l1_batch_env) = self
             .l1_batch_params_provider
-            .load_pending_batch(
+            .load_l1_batch_params(
                 &mut storage,
                 &pending_miniblock_header,
                 self.fee_account,
@@ -118,7 +119,16 @@ impl StateKeeperIO for MempoolIO {
             .await
             .with_context(|| {
                 format!(
-                    "failed loading pending L1 batch #{}",
+                    "failed loading params for L1 batch #{}",
+                    self.current_l1_batch_number
+                )
+            })
+            .unwrap();
+        let pending_batch_data = load_pending_batch(&mut storage, system_env, l1_batch_env)
+            .await
+            .with_context(|| {
+                format!(
+                    "failed loading data for re-execution for pending L1 batch #{}",
                     self.current_l1_batch_number
                 )
             })
@@ -181,7 +191,8 @@ impl StateKeeperIO for MempoolIO {
             self.filter = l2_tx_filter(
                 self.batch_fee_input_provider.as_ref(),
                 protocol_version.into(),
-            );
+            )
+            .await;
             // We only need to get the root hash when we're certain that we have a new transaction.
             if !self.mempool.has_next(&self.filter) {
                 tokio::time::sleep(self.delay_interval).await;

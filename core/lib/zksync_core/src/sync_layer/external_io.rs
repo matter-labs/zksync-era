@@ -3,6 +3,7 @@ use std::{collections::HashMap, convert::TryInto, iter::FromIterator, time::Dura
 use anyhow::Context as _;
 use async_trait::async_trait;
 use multivm::interface::{FinishedL1Batch, L1BatchEnv, SystemEnv};
+use vm_utils::storage::{l1_batch_params, L1BatchParamsProvider};
 use zksync_contracts::{BaseSystemContracts, SystemContractCode};
 use zksync_dal::ConnectionPool;
 use zksync_types::{
@@ -21,7 +22,7 @@ use crate::{
     metrics::{BlockStage, APP_METRICS},
     state_keeper::{
         io::{
-            common::{l1_batch_params, poll_iters, IoCursor, L1BatchParamsProvider},
+            common::{load_pending_batch, poll_iters, IoCursor},
             MiniblockParams, MiniblockSealerHandle, PendingBatchData, StateKeeperIO,
         },
         metrics::KEEPER_METRICS,
@@ -215,7 +216,8 @@ impl ExternalIO {
                         self.current_miniblock_number,
                         &HashMap::from_iter([(contract.hash, be_words_to_bytes(&contract.code))]),
                     )
-                    .await;
+                    .await
+                    .unwrap();
                 contract
             }
         }
@@ -291,9 +293,9 @@ impl StateKeeperIO for ExternalIO {
             pending_miniblock_header.set_protocol_version(sync_block.protocol_version);
         }
 
-        let data = self
+        let (system_env, l1_batch_env) = self
             .l1_batch_params_provider
-            .load_pending_batch(
+            .load_l1_batch_params(
                 &mut storage,
                 &pending_miniblock_header,
                 fee_account,
@@ -303,7 +305,16 @@ impl StateKeeperIO for ExternalIO {
             .await
             .with_context(|| {
                 format!(
-                    "failed loading data for pending L1 batch #{}",
+                    "failed loading parameters for pending L1 batch #{}",
+                    self.current_l1_batch_number
+                )
+            })
+            .unwrap();
+        let data = load_pending_batch(&mut storage, system_env, l1_batch_env)
+            .await
+            .with_context(|| {
+                format!(
+                    "failed loading data for re-execution for pending L1 batch #{}",
                     self.current_l1_batch_number
                 )
             })

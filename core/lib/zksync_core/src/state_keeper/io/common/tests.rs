@@ -1,14 +1,18 @@
 //! Tests for the common I/O utils.
+//!
+//! `L1BatchParamsProvider` tests are (temporarily?) here because of `testonly` utils in this crate to create L1 batches,
+//! miniblocks, transactions etc.
 
 use std::{collections::HashMap, ops};
 
 use futures::FutureExt;
+use vm_utils::storage::L1BatchParamsProvider;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::ConnectionPool;
 use zksync_types::{
     block::{BlockGasCount, MiniblockHasher},
     fee::TransactionExecutionMetrics,
-    ProtocolVersion,
+    Address, L2ChainId, ProtocolVersion, ProtocolVersionId,
 };
 
 use super::*;
@@ -104,7 +108,6 @@ async fn waiting_for_l1_batch_params_with_genesis() {
             .unwrap();
 
     let provider = L1BatchParamsProvider::new(&mut storage).await.unwrap();
-    assert!(provider.snapshot.is_none());
     let (hash, timestamp) = provider
         .wait_for_l1_batch_params(&mut storage, L1BatchNumber(0))
         .await
@@ -143,7 +146,6 @@ async fn waiting_for_l1_batch_params_after_snapshot_recovery() {
     let snapshot_recovery = prepare_empty_recovery_snapshot(&mut storage, 23).await;
 
     let provider = L1BatchParamsProvider::new(&mut storage).await.unwrap();
-    assert!(provider.snapshot.is_some());
     let (hash, timestamp) = provider
         .wait_for_l1_batch_params(&mut storage, snapshot_recovery.l1_batch_number)
         .await
@@ -325,14 +327,17 @@ async fn loading_pending_batch_with_genesis() {
         .expect("no first miniblock");
     assert_eq!(first_miniblock_in_batch.number(), MiniblockNumber(1));
 
-    let pending_batch = provider
-        .load_pending_batch(
+    let (system_env, l1_batch_env) = provider
+        .load_l1_batch_params(
             &mut storage,
             &first_miniblock_in_batch,
             Address::zero(),
             u32::MAX,
             L2ChainId::default(),
         )
+        .await
+        .unwrap();
+    let pending_batch = load_pending_batch(&mut storage, system_env, l1_batch_env)
         .await
         .unwrap();
 
@@ -400,7 +405,8 @@ async fn loading_pending_batch_after_snapshot_recovery() {
     storage
         .storage_dal()
         .insert_factory_deps(snapshot_recovery.miniblock_number + 1, &factory_deps)
-        .await;
+        .await
+        .unwrap();
 
     let provider = L1BatchParamsProvider::new(&mut storage).await.unwrap();
     let first_miniblock_in_batch = provider
@@ -413,14 +419,17 @@ async fn loading_pending_batch_after_snapshot_recovery() {
         snapshot_recovery.miniblock_number + 1
     );
 
-    let pending_batch = provider
-        .load_pending_batch(
+    let (system_env, l1_batch_env) = provider
+        .load_l1_batch_params(
             &mut storage,
             &first_miniblock_in_batch,
             Address::zero(),
             u32::MAX,
             L2ChainId::default(),
         )
+        .await
+        .unwrap();
+    let pending_batch = load_pending_batch(&mut storage, system_env, l1_batch_env)
         .await
         .unwrap();
 

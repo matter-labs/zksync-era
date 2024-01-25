@@ -171,12 +171,11 @@ pub(crate) async fn prepare_recovery_snapshot(
         miniblock_timestamp: miniblock.timestamp,
         miniblock_hash: H256::zero(), // not used
         protocol_version: ProtocolVersionId::latest(),
-        last_finished_chunk_id: None,
-        total_chunk_count: 100,
+        storage_logs_chunks_processed: vec![true; 100],
     };
     storage
         .snapshot_recovery_dal()
-        .set_applied_snapshot_status(&snapshot_recovery)
+        .insert_initial_recovery_status(&snapshot_recovery)
         .await
         .unwrap();
     storage.commit().await.unwrap();
@@ -201,12 +200,11 @@ pub(crate) async fn prepare_empty_recovery_snapshot(
         miniblock_timestamp: l1_batch_number.into(),
         miniblock_hash: H256::zero(), // not used
         protocol_version: ProtocolVersionId::latest(),
-        last_finished_chunk_id: None,
-        total_chunk_count: 100,
+        storage_logs_chunks_processed: vec![true; 100],
     };
     storage
         .snapshot_recovery_dal()
-        .set_applied_snapshot_status(&snapshot_recovery)
+        .insert_initial_recovery_status(&snapshot_recovery)
         .await
         .unwrap();
     snapshot_recovery

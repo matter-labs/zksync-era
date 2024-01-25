@@ -161,8 +161,13 @@ impl ZkSyncStateKeeper {
 
         let mut batch_executor = self
             .batch_executor_base
-            .init_batch(l1_batch_env.clone(), system_env.clone())
-            .await;
+            .init_batch(
+                l1_batch_env.clone(),
+                system_env.clone(),
+                &self.stop_receiver,
+            )
+            .await
+            .ok_or(Error::Canceled)?;
 
         self.restore_state(&batch_executor, &mut updates_manager, pending_miniblocks)
             .await?;
@@ -213,8 +218,13 @@ impl ZkSyncStateKeeper {
             );
             batch_executor = self
                 .batch_executor_base
-                .init_batch(l1_batch_env.clone(), system_env.clone())
-                .await;
+                .init_batch(
+                    l1_batch_env.clone(),
+                    system_env.clone(),
+                    &self.stop_receiver,
+                )
+                .await
+                .ok_or(Error::Canceled)?;
 
             let version_changed = system_env.version != sealed_batch_protocol_version;
 
