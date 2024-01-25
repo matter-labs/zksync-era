@@ -1,5 +1,7 @@
 //! WS-related tests.
 
+use std::collections::HashSet;
+
 use async_trait::async_trait;
 use jsonrpsee::core::{client::ClientT, params::BatchRequestBuilder, ClientError};
 use reqwest::StatusCode;
@@ -48,15 +50,42 @@ async fn wait_for_notifiers(
     events: &mut mpsc::UnboundedReceiver<PubSubEvent>,
     sub_types: &[SubscriptionType],
 ) {
+    let mut sub_types: HashSet<_> = sub_types.iter().copied().collect();
     let wait_future = tokio::time::timeout(TEST_TIMEOUT, async {
         loop {
             let event = events
                 .recv()
                 .await
                 .expect("Events emitter unexpectedly dropped");
-            if matches!(event, PubSubEvent::NotifyIterationFinished(ty) if sub_types.contains(&ty))
-            {
-                break;
+            if let PubSubEvent::NotifyIterationFinished(ty) = event {
+                sub_types.remove(&ty);
+                if sub_types.is_empty() {
+                    break;
+                }
+            } else {
+                tracing::trace!(?event, "Skipping event");
+            }
+        }
+    });
+    wait_future.await.expect("Timed out waiting for notifier");
+}
+
+#[allow(clippy::needless_pass_by_ref_mut)] // false positive
+async fn wait_for_notifier_miniblock(
+    events: &mut mpsc::UnboundedReceiver<PubSubEvent>,
+    sub_type: SubscriptionType,
+    expected: MiniblockNumber,
+) {
+    let wait_future = tokio::time::timeout(TEST_TIMEOUT, async {
+        loop {
+            let event = events
+                .recv()
+                .await
+                .expect("Events emitter unexpectedly dropped");
+            if let PubSubEvent::MiniblockAdvanced(ty, number) = event {
+                if ty == sub_type && number >= expected {
+                    break;
+                }
             } else {
                 tracing::trace!(?event, "Skipping event");
             }
@@ -531,15 +560,21 @@ impl WsTest for LogSubscriptionsWithDelayTest {
         pool: &ConnectionPool,
         mut pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
     ) -> anyhow::Result<()> {
+        // Wait until notifiers are initialized.
+        wait_for_notifiers(&mut pub_sub_events, &[SubscriptionType::Logs]).await;
+
         // Store a miniblock w/o subscriptions being present.
         let mut storage = pool.access_storage().await?;
         store_events(&mut storage, 1, 0).await?;
         drop(storage);
 
-        while pub_sub_events.try_recv().is_ok() {
-            // Drain all existing pub-sub events.
-        }
-        wait_for_notifiers(&mut pub_sub_events, &[SubscriptionType::Logs]).await;
+        // Wait for the log notifier to process the new miniblock.
+        wait_for_notifier_miniblock(
+            &mut pub_sub_events,
+            SubscriptionType::Logs,
+            MiniblockNumber(1),
+        )
+        .await;
 
         let params = rpc_params!["logs"];
         let mut all_logs_subscription = client

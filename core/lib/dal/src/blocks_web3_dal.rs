@@ -7,7 +7,6 @@ use zksync_types::{
     l2_to_l1_log::L2ToL1Log,
     vm_trace::Call,
     web3::types::{BlockHeader, U64},
-    zkevm_test_harness::zk_evm::zkevm_opcode_defs::system_params,
     Bytes, L1BatchNumber, L2ChainId, MiniblockNumber, H160, H2048, H256, U256,
 };
 use zksync_utils::bigdecimal_to_u256;
@@ -24,7 +23,7 @@ use crate::{
     StorageProcessor,
 };
 
-const BLOCK_GAS_LIMIT: u32 = system_params::VM_INITIAL_FRAME_ERGS;
+const BLOCK_GAS_LIMIT: u32 = u32::MAX;
 
 #[derive(Debug)]
 pub struct BlocksWeb3Dal<'a, 'c> {

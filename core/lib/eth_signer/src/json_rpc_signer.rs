@@ -439,9 +439,8 @@ mod tests {
     };
     use futures::future::{AbortHandle, Abortable};
     use jsonrpc_core::{Failure, Id, Output, Success, Version};
-    use parity_crypto::publickey::{Generator, KeyPair, Random};
     use serde_json::json;
-    use zksync_types::{tx::primitives::PackedEthSignature, Address};
+    use zksync_types::{tx::primitives::PackedEthSignature, Address, H256};
 
     use super::{is_signature_from_address, messages::JsonRpcRequest};
     use crate::{raw_ethereum_tx::TransactionParameters, EthereumSigner, JsonRpcSigner};
@@ -451,8 +450,9 @@ mod tests {
         let resp = match req.method.as_str() {
             "eth_accounts" => {
                 let mut addresses = vec![];
-                for pair in &state.key_pairs {
-                    addresses.push(pair.address())
+                for pk in &state.private_keys {
+                    let address = PackedEthSignature::address_from_private_key(pk).unwrap();
+                    addresses.push(address)
                 }
 
                 create_success(json!(addresses))
@@ -463,8 +463,7 @@ mod tests {
                 let data: String = serde_json::from_value(req.params[1].clone()).unwrap();
                 let data_bytes = hex::decode(&data[2..]).unwrap();
                 let signature =
-                    PackedEthSignature::sign(&state.key_pairs[0].secret().0.into(), &data_bytes)
-                        .unwrap();
+                    PackedEthSignature::sign(&state.private_keys[0], &data_bytes).unwrap();
                 create_success(json!(signature))
             }
             "eth_signTransaction" => {
@@ -499,7 +498,7 @@ mod tests {
     }
     #[derive(Clone)]
     struct State {
-        key_pairs: Vec<KeyPair>,
+        private_keys: Vec<H256>,
     }
 
     fn run_server(state: State) -> (String, AbortHandle) {
@@ -533,7 +532,7 @@ mod tests {
     #[actix_rt::test]
     async fn run_client() {
         let (address, abort_handle) = run_server(State {
-            key_pairs: vec![Random.generate()],
+            private_keys: vec![H256::repeat_byte(0x17)],
         });
         // Get address is ok,  unlock address is ok, recover address from signature is also ok
         let client = JsonRpcSigner::new(address, None, None, None).await.unwrap();

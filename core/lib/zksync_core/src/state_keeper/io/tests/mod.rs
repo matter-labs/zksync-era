@@ -106,7 +106,8 @@ async fn test_filter_with_no_pending_batch() {
     let want_filter = l2_tx_filter(
         &tester.create_batch_fee_input_provider().await,
         ProtocolVersionId::latest().into(),
-    );
+    )
+    .await;
 
     // Create a mempool without pending batch and ensure that filter is not initialized just yet.
     let (mut mempool, mut guard) = tester.create_test_mempool_io(connection_pool, 1).await;
@@ -150,7 +151,8 @@ async fn test_timestamps_are_distinct(
     let tx_filter = l2_tx_filter(
         &tester.create_batch_fee_input_provider().await,
         ProtocolVersionId::latest().into(),
-    );
+    )
+    .await;
     tester.insert_tx(&mut guard, tx_filter.fee_per_gas, tx_filter.gas_per_pubdata);
 
     let batch_params = mempool

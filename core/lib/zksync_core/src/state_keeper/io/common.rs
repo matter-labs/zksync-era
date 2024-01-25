@@ -4,6 +4,7 @@ use multivm::{
     interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode},
     vm_latest::constants::BLOCK_GAS_LIMIT,
 };
+use vm_utils::storage::load_l1_batch_params;
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::StorageProcessor;
 use zksync_types::{
@@ -13,7 +14,6 @@ use zksync_types::{
 use zksync_utils::u256_to_h256;
 
 use super::PendingBatchData;
-use crate::state_keeper::extractors;
 
 /// Returns the parameters required to initialize the VM for the next L1 batch.
 #[allow(clippy::too_many_arguments)]
@@ -65,74 +65,6 @@ pub(crate) fn poll_iters(delay_interval: Duration, max_wait: Duration) -> usize 
     assert!(delay_interval_millis > 0, "delay interval must be positive");
 
     ((max_wait_millis + delay_interval_millis - 1) / delay_interval_millis).max(1) as usize
-}
-
-pub(crate) async fn load_l1_batch_params(
-    storage: &mut StorageProcessor<'_>,
-    current_l1_batch_number: L1BatchNumber,
-    fee_account: Address,
-    validation_computational_gas_limit: u32,
-    chain_id: L2ChainId,
-) -> Option<(SystemEnv, L1BatchEnv)> {
-    // If miniblock doesn't exist (for instance if it's pending), it means that there is no unsynced state (i.e. no transactions
-    // were executed after the last sealed batch).
-    let pending_miniblock_number = {
-        let (_, last_miniblock_number_included_in_l1_batch) = storage
-            .blocks_dal()
-            .get_miniblock_range_of_l1_batch(current_l1_batch_number - 1)
-            .await
-            .unwrap()
-            .unwrap();
-        last_miniblock_number_included_in_l1_batch + 1
-    };
-    let pending_miniblock_header = storage
-        .blocks_dal()
-        .get_miniblock_header(pending_miniblock_number)
-        .await
-        .unwrap()?;
-
-    tracing::info!("Getting previous batch hash");
-    let (previous_l1_batch_hash, _) =
-        extractors::wait_for_prev_l1_batch_params(storage, current_l1_batch_number).await;
-
-    tracing::info!("Getting previous miniblock hash");
-    let prev_miniblock_hash = storage
-        .blocks_dal()
-        .get_miniblock_header(pending_miniblock_number - 1)
-        .await
-        .unwrap()
-        .unwrap()
-        .hash;
-
-    let base_system_contracts = storage
-        .storage_dal()
-        .get_base_system_contracts(
-            pending_miniblock_header
-                .base_system_contracts_hashes
-                .bootloader,
-            pending_miniblock_header
-                .base_system_contracts_hashes
-                .default_aa,
-        )
-        .await;
-
-    tracing::info!("Previous l1_batch_hash: {}", previous_l1_batch_hash);
-    Some(l1_batch_params(
-        current_l1_batch_number,
-        fee_account,
-        pending_miniblock_header.timestamp,
-        previous_l1_batch_hash,
-        pending_miniblock_header.batch_fee_input,
-        pending_miniblock_number,
-        prev_miniblock_hash,
-        base_system_contracts,
-        validation_computational_gas_limit,
-        pending_miniblock_header
-            .protocol_version
-            .expect("`protocol_version` must be set for pending miniblock"),
-        pending_miniblock_header.virtual_blocks,
-        chain_id,
-    ))
 }
 
 /// Loads the pending L1 block data from the database.

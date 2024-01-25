@@ -11,7 +11,8 @@ use zksync_types::{
     aggregated_operations::AggregatedActionType,
     block::{BlockGasCount, L1BatchHeader, MiniblockHeader},
     commitment::{L1BatchMetadata, L1BatchWithMetadata},
-    Address, L1BatchNumber, LogQuery, MiniblockNumber, ProtocolVersionId, H256, U256,
+    zk_evm_types::LogQuery,
+    Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256, U256,
 };
 
 use crate::{
