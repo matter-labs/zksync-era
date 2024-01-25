@@ -64,7 +64,8 @@ async function initHyperchain() {
         testTokens: {
             deploy: deployTestTokens,
             args: ['--private-key', deployerPrivateKey, '--envFile', process.env.CHAIN_ETH_NETWORK!]
-        }
+        },
+        validiumMode: false
     };
 
     await init(initArgs);
@@ -785,7 +786,8 @@ async function configDemoHyperchain(cmd: Command) {
         testTokens: {
             deploy: deployTestTokens,
             args: ['--private-key', deployerPrivateKey, '--envFile', process.env.CHAIN_ETH_NETWORK!]
-        }
+        },
+        validiumMode: false
     };
 
     if (!cmd.skipEnvSetup) {

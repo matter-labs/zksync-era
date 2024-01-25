@@ -18,8 +18,17 @@ const success = chalk.green;
 const timestamp = chalk.grey;
 
 export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
-    const { skipSubmodulesCheckout, skipEnvSetup, testTokens, governorPrivateKeyArgs, deployerL2ContractInput } =
-        initArgs;
+    const {
+        skipSubmodulesCheckout,
+        skipEnvSetup,
+        testTokens,
+        governorPrivateKeyArgs,
+        deployerL2ContractInput,
+        validiumMode
+    } = initArgs;
+
+    process.env.VALIDIUM_MODE = validiumMode.toString();
+    await announced(`Initializing in ${validiumMode ? 'Validium mode' : 'Roll-up mode'}`);
 
     if (!process.env.CI && !skipEnvSetup) {
         await announced('Pulling images', docker.pull());
@@ -63,7 +72,10 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
 
 // A smaller version of `init` that "resets" the localhost environment, for which `init` was already called before.
 // It does less and runs much faster.
-export async function reinit() {
+export async function reinit(validiumMode: boolean) {
+    process.env.VALIDIUM_MODE = validiumMode.toString();
+    await announced(`Initializing in ${validiumMode ? 'Validium mode' : 'Roll-up mode'}`);
+
     await announced('Setting up containers', up());
     await announced('Compiling JS packages', run.yarn());
     await announced('Compile l2 contracts', compiler.compileAll());
@@ -83,7 +95,11 @@ export async function reinit() {
 }
 
 // A lightweight version of `init` that sets up local databases, generates genesis and deploys precompiled contracts
-export async function lightweightInit() {
+export async function lightweightInit(validiumMode: boolean) {
+    process.env.VALIDIUM_MODE = validiumMode.toString();
+    await announced(`Initializing in ${validiumMode ? 'Validium mode' : 'Roll-up mode'}`);
+
+    await announced(`Setting up containers`, up());
     await announced('Clean rocksdb', clean('db'));
     await announced('Clean backups', clean('backups'));
     await announced('Deploying L1 verifier', contract.deployVerifier([]));
@@ -144,6 +160,7 @@ export interface InitArgs {
         deploy: boolean;
         args: any[];
     };
+    validiumMode: boolean;
 }
 
 const DEFAULT_ARGS: InitArgs = {
@@ -151,12 +168,14 @@ const DEFAULT_ARGS: InitArgs = {
     skipEnvSetup: false,
     governorPrivateKeyArgs: [],
     deployerL2ContractInput: { args: [], includePaymaster: true, includeL2WETH: true },
-    testTokens: { deploy: true, args: [] }
+    testTokens: { deploy: true, args: [] },
+    validiumMode: false
 };
 
 export const initCommand = new Command('init')
     .option('--skip-submodules-checkout')
     .option('--skip-env-setup')
+    .option('--validium-mode')
     .description('perform zksync network initialization for development')
     .action(async (cmd: Command) => {
         const initArgs: InitArgs = {
@@ -164,13 +183,18 @@ export const initCommand = new Command('init')
             skipEnvSetup: cmd.skipEnvSetup,
             governorPrivateKeyArgs: [],
             deployerL2ContractInput: { args: [], includePaymaster: true, includeL2WETH: true },
-            testTokens: { deploy: true, args: [] }
+            testTokens: { deploy: true, args: [] },
+            validiumMode: cmd.validiumMode
         };
         await init(initArgs);
     });
 export const reinitCommand = new Command('reinit')
     .description('"reinitializes" network. Runs faster than `init`, but requires `init` to be executed prior')
-    .action(reinit);
+    .action(async (cmd: Command) => {
+        await reinit(cmd.validiumMode);
+    });
 export const lightweightInitCommand = new Command('lightweight-init')
     .description('perform lightweight zksync network initialization for development')
-    .action(lightweightInit);
+    .action(async (cmd: Command) => {
+        await lightweightInit(cmd.validiumMode);
+    });
