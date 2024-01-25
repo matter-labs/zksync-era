@@ -196,7 +196,9 @@ async fn init_tasks(
         memtable_capacity: config.optional.merkle_tree_memtable_capacity(),
         stalled_writes_timeout: config.optional.merkle_tree_stalled_writes_timeout(),
     };
-    let metadata_calculator = MetadataCalculator::new(metadata_calculator_config, None).await;
+    let metadata_calculator = MetadataCalculator::new(metadata_calculator_config, None)
+        .await
+        .context("failed initializing metadata calculator")?;
     healthchecks.push(Box::new(metadata_calculator.tree_health_check()));
 
     let consistency_checker = ConsistencyChecker::new(
@@ -218,7 +220,7 @@ async fn init_tasks(
             .await
             .context("failed to build a connection pool for BatchStatusUpdater")?,
     )
-    .await;
+    .context("failed initializing batch status updater")?;
 
     // Run the components.
     let tree_stop_receiver = stop_receiver.clone();

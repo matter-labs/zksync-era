@@ -6,10 +6,10 @@ use multivm::{
     vm_latest::constants::INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
 };
 use tempfile::TempDir;
+use tokio::sync::watch;
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::{get_loadnext_contract, test_contracts::LoadnextContractExecutionParams};
 use zksync_dal::ConnectionPool;
-use zksync_state::RocksdbStorage;
 use zksync_test_account::{Account, DeployContractsTx, TxType};
 use zksync_types::{
     ethabi::Token, fee::Fee, system_contracts::get_system_smart_contracts,
@@ -24,10 +24,11 @@ use crate::{
     state_keeper::{
         batch_executor::BatchExecutorHandle,
         tests::{default_l1_batch_env, default_system_env, BASE_SYSTEM_CONTRACTS},
+        L1BatchExecutorBuilder, MainBatchExecutorBuilder,
     },
 };
 
-const DEFAULT_GAS_PER_PUBDATA: u32 = 100;
+const DEFAULT_GAS_PER_PUBDATA: u32 = 10000;
 const CHAIN_ID: u32 = 270;
 
 /// Representation of configuration parameters used by the state keeper.
@@ -86,34 +87,27 @@ impl Tester {
     /// Creates a batch executor instance.
     /// This function intentionally uses sensible defaults to not introduce boilerplate.
     pub(super) async fn create_batch_executor(&self) -> BatchExecutorHandle {
+        let mut builder = MainBatchExecutorBuilder::new(
+            self.db_dir.path().to_str().unwrap().to_owned(),
+            self.pool.clone(),
+            self.config.max_allowed_tx_gas_limit.into(),
+            self.config.save_call_traces,
+            self.config.upload_witness_inputs_to_gcs,
+            100,
+            false,
+        );
+
         // Not really important for the batch executor - it operates over a single batch.
-        let (l1_batch, system_env) = self.batch_params(
+        let (l1_batch_env, system_env) = self.batch_params(
             L1BatchNumber(1),
             100,
             self.config.validation_computational_gas_limit,
         );
-
-        let mut secondary_storage = RocksdbStorage::new(self.db_dir.path());
-        let mut conn = self
-            .pool
-            .access_storage_tagged("state_keeper")
+        let (_stop_sender, stop_receiver) = watch::channel(false);
+        builder
+            .init_batch(l1_batch_env, system_env, &stop_receiver)
             .await
-            .unwrap();
-
-        secondary_storage.update_from_postgres(&mut conn).await;
-        drop(conn);
-
-        // We don't use the builder because it would require us to clone the `ConnectionPool`, which is forbidden
-        // for the test pool (see the doc-comment on `TestPool` for details).
-        BatchExecutorHandle::new(
-            self.config.save_call_traces,
-            self.config.max_allowed_tx_gas_limit.into(),
-            secondary_storage,
-            l1_batch,
-            system_env,
-            self.config.upload_witness_inputs_to_gcs,
-            false,
-        )
+            .expect("Batch executor was interrupted")
     }
 
     /// Creates test batch params that can be fed into the VM.

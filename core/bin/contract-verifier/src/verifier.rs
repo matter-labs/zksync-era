@@ -75,6 +75,12 @@ impl ContractVerifier {
         );
 
         if artifacts.bytecode != deployed_bytecode {
+            tracing::info!(
+                "Bytecode mismatch req {}, deployed: 0x{}, compiled 0x{}",
+                request.id,
+                hex::encode(deployed_bytecode),
+                hex::encode(artifacts.bytecode)
+            );
             return Err(ContractVerifierError::BytecodeMismatch);
         }
 

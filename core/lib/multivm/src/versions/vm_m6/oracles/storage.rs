@@ -6,21 +6,19 @@ use zk_evm_1_3_1::{
     zkevm_opcode_defs::system_params::INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
 };
 use zksync_types::{
-    utils::storage_key_for_eth_balance, AccountTreeId, Address, StorageKey, StorageLogQuery,
-    StorageLogQueryType, BOOTLOADER_ADDRESS, U256,
+    utils::storage_key_for_eth_balance, AccountTreeId, Address, StorageKey, StorageLogQueryType,
+    BOOTLOADER_ADDRESS, U256,
 };
 use zksync_utils::u256_to_h256;
 
 use super::OracleWithHistory;
-use crate::{
-    glue::GlueInto,
-    vm_m6::{
-        history_recorder::{
-            AppDataFrameManagerWithHistory, HashMapHistoryEvent, HistoryEnabled, HistoryMode,
-            HistoryRecorder, StorageWrapper, WithHistory,
-        },
-        storage::{Storage, StoragePtr},
+use crate::vm_m6::{
+    history_recorder::{
+        AppDataFrameManagerWithHistory, HashMapHistoryEvent, HistoryEnabled, HistoryMode,
+        HistoryRecorder, StorageWrapper, WithHistory,
     },
+    storage::{Storage, StoragePtr},
+    utils::StorageLogQuery,
 };
 
 // While the storage does not support different shards, it was decided to write the
@@ -85,7 +83,7 @@ impl<S: Storage, H: HistoryMode> StorageOracle<S, H> {
 
         self.frames_stack.push_forward(
             StorageLogQuery {
-                log_query: query.glue_into(),
+                log_query: query,
                 log_type: StorageLogQueryType::Read,
             },
             query.timestamp,
@@ -109,7 +107,7 @@ impl<S: Storage, H: HistoryMode> StorageOracle<S, H> {
         query.read_value = current_value;
 
         let mut storage_log_query = StorageLogQuery {
-            log_query: query.glue_into(),
+            log_query: query,
             log_type: log_query_type,
         };
         self.frames_stack
@@ -266,7 +264,7 @@ impl<S: Storage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
                     }
                 };
 
-                let LogQuery { written_value, .. } = query.log_query.glue_into();
+                let LogQuery { written_value, .. } = query.log_query;
                 let key = triplet_to_storage_key(
                     query.log_query.shard_id,
                     query.log_query.address,
