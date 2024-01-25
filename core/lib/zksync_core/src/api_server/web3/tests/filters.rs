@@ -22,6 +22,10 @@ impl HttpTest for BasicFilterChangesTest {
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
         let block_filter_id = client.new_block_filter().await?;
         let tx_filter_id = client.new_pending_transaction_filter().await?;
+
+        // Sleep a little so that the filter timestamp is strictly lesser than the transaction "received at" timestamp.
+        tokio::time::sleep(POLL_INTERVAL).await;
+
         let tx_result = execute_l2_transaction(create_l2_transaction(1, 2));
         let new_tx_hash = tx_result.hash;
         let new_miniblock = store_miniblock(
