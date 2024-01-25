@@ -630,6 +630,15 @@ export function getTokens(network: string): L1Token[] {
     }
 }
 
+export function getNativeToken(): L1Token {
+    const configPath = `${process.env.ZKSYNC_HOME}/etc/tokens/native_erc20.json`;
+    return JSON.parse(
+        fs.readFileSync(configPath, {
+            encoding: 'utf-8'
+        })
+    );
+}
+
 async function selectHyperchainConfiguration() {
     const envs = env.getAvailableEnvsFromFiles();
 

@@ -4,7 +4,7 @@ import { Wallet } from 'ethers';
 import fs from 'fs';
 import * as path from 'path';
 import * as dataRestore from './data-restore';
-import { getTokens } from '../hyperchain_wizard';
+import { getNativeToken, getTokens } from '../hyperchain_wizard';
 import * as env from '../env';
 import { IERC20Factory } from 'zksync-web3/build/typechain';
 import { Provider } from 'zksync-web3';
@@ -50,9 +50,17 @@ export async function deployERC20(
         env.modify('CONTRACTS_L1_WETH_TOKEN_ADDR', `CONTRACTS_L1_WETH_TOKEN_ADDR=${WETH.address}`);
     } else if (command == 'new') {
         let destinationFile = 'native_erc20';
-        await utils.spawn(
-            `yarn --silent --cwd contracts/ethereum deploy-erc20 add --token-name ${name} --symbol ${symbol} --decimals ${decimals} > ./etc/tokens/${destinationFile}.json`
-        );
+        await utils
+            .spawn(
+                `yarn --silent --cwd contracts/ethereum deploy-erc20 add --token-name ${name} --symbol ${symbol} --decimals ${decimals} > ./etc/tokens/${destinationFile}.json`
+            )
+            .then(() => {
+                const NATIVE_ERC20 = getNativeToken();
+                env.modify(
+                    'CONTRACTS_L1_NATIVE_ERC20_TOKEN_ADDR',
+                    `CONTRACTS_L1_NATIVE_ERC20_TOKEN_ADDR=${NATIVE_ERC20.address}`
+                );
+            });
     }
 }
 
