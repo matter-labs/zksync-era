@@ -8519,6 +8519,7 @@ dependencies = [
 [[package]]
 name = "zk_evm"
 version = "1.5.0"
+source = "git+https://github.com/matter-labs/zk_evm.git?branch=sb-non-normalized-bytecode-hashes-for-decommitter#19fc6ff8b4e7bb552b158acc226ed08e3239aa0b"
 dependencies = [
  "anyhow",
  "lazy_static",
