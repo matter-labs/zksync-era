@@ -1,7 +1,9 @@
 use std::marker::PhantomData;
 
-use zk_evm_1_4_1::{
-    aux_structures::Timestamp,
+use itertools::Itertools;
+use zk_evm_1_4_1::aux_structures::LogQuery as LogQuery_1_4_1;
+use zk_evm_1_5_0::{
+    aux_structures::{LogQuery, Timestamp},
     tracing::{BeforeExecutionData, VmLocalStateData},
 };
 use zkevm_test_harness_1_4_1::witness::sort_storage_access::sort_storage_access_queries;
@@ -17,8 +19,9 @@ use zksync_types::{
 use zksync_utils::{h256_to_u256, u256_to_bytes_be, u256_to_h256};
 
 use crate::{
+    glue::GlueInto,
     interface::{
-        dyn_tracers::vm_1_4_1::DynTracer,
+        dyn_tracers::vm_1_5_0::DynTracer,
         tracer::{TracerExecutionStatus, TracerExecutionStopReason},
         types::inputs::L1BatchEnv,
         VmExecutionMode,
@@ -118,34 +121,39 @@ impl<S: WriteStorage> PubdataTracer<S> {
     // Packs part of L1Messenger total pubdata that corresponds to
     // State diffs needed to be published on L1
     fn get_state_diffs<H: HistoryMode>(storage: &StorageOracle<S, H>) -> Vec<StateDiffRecord> {
-        sort_storage_access_queries(
-            storage
-                .storage_log_queries_after_timestamp(Timestamp(0))
-                .iter()
-                .map(|log| &log.log_query),
-        )
-        .1
-        .into_iter()
-        .filter(|log| log.rw_flag)
-        .filter(|log| log.read_value != log.written_value)
-        .filter(|log| log.address != L1_MESSENGER_ADDRESS)
-        .map(|log| StateDiffRecord {
-            address: log.address,
-            key: log.key,
-            derived_key: log.derive_final_address(),
-            enumeration_index: storage
-                .storage
-                .get_ptr()
-                .borrow_mut()
-                .get_enumeration_index(&StorageKey::new(
-                    AccountTreeId::new(log.address),
-                    u256_to_h256(log.key),
-                ))
-                .unwrap_or_default(),
-            initial_value: log.read_value,
-            final_value: log.written_value,
-        })
-        .collect()
+        // FIXME: do not do this once harness 1.5.0 is available
+        let queries: Vec<LogQuery_1_4_1> = storage
+            .storage_log_queries_after_timestamp(Timestamp(0))
+            .iter()
+            .map(|log| log.log_query)
+            .collect_vec()
+            .into_iter()
+            .map(GlueInto::glue_into)
+            .collect();
+
+        sort_storage_access_queries(&queries)
+            .1
+            .into_iter()
+            .filter(|log| log.rw_flag)
+            .filter(|log| log.read_value != log.written_value)
+            .filter(|log| log.address != L1_MESSENGER_ADDRESS)
+            .map(|log| StateDiffRecord {
+                address: log.address,
+                key: log.key,
+                derived_key: log.derive_final_address(),
+                enumeration_index: storage
+                    .storage
+                    .get_ptr()
+                    .borrow_mut()
+                    .get_enumeration_index(&StorageKey::new(
+                        AccountTreeId::new(log.address),
+                        u256_to_h256(log.key),
+                    ))
+                    .unwrap_or_default(),
+                initial_value: log.read_value,
+                final_value: log.written_value,
+            })
+            .collect()
     }
 
     fn build_pubdata_input<H: HistoryMode>(&self, state: &ZkSyncVmState<S, H>) -> PubdataInput {

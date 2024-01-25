@@ -1,5 +1,5 @@
-use zk_evm_1_4_1::{
-    aux_structures::{MemoryPage, Timestamp},
+use zk_evm_1_5_0::{
+    aux_structures::{MemoryPage, PubdataCost, Timestamp},
     block_properties::BlockProperties,
     vm_state::{CallStackEntry, PrimitiveValue, VmState},
     witness_trace::DummyTracer,
@@ -128,6 +128,10 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
             default_aa_code_hash: h256_to_u256(
                 system_env.base_system_smart_contracts.default_aa.hash,
             ),
+            // FIXME: this is totally wrong
+            evm_simulator_code_hash: h256_to_u256(
+                system_env.base_system_smart_contracts.default_aa.hash,
+            ),
             zkporter_is_available: system_env.zk_porter_available,
         },
     );
@@ -154,6 +158,8 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
         is_static: false,
         is_local_frame: false,
         context_u128_value: 0,
+        total_pubdata_spent: PubdataCost(0),
+        stipend: 0,
     };
 
     // We consider the contract that is being run as a bootloader
@@ -161,7 +167,6 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
     vm.local_state.timestamp = STARTING_TIMESTAMP;
     vm.local_state.memory_page_counter = STARTING_BASE_PAGE;
     vm.local_state.monotonic_cycle_counter = INITIAL_MONOTONIC_CYCLE_COUNTER;
-    vm.local_state.current_ergs_per_pubdata_byte = 0;
     vm.local_state.registers[0] = formal_calldata_abi();
 
     // Deleting all the historical records brought by the initial

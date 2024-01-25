@@ -1,3 +1,4 @@
+use zk_evm_1_4_1::aux_structures::LogQuery as LogQuery_1_4_1;
 use zkevm_test_harness_1_4_1::witness::sort_storage_access::sort_storage_access_queries;
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{
@@ -8,7 +9,7 @@ use zksync_types::{
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use crate::{
-    glue::GlueInto,
+    glue::{GlueFrom, GlueInto},
     interface::{
         BootloaderMemory, BytecodeCompressionError, CurrentExecutionState, FinishedL1Batch,
         L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
@@ -107,8 +108,13 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
 
         let storage_log_queries = self.state.storage.get_final_log_queries();
 
-        let deduped_storage_log_queries =
-            sort_storage_access_queries(storage_log_queries.iter().map(|log| &log.log_query)).1;
+        // FIXME once harness 1.5.0 is there
+        let converted_queries: Vec<LogQuery_1_4_1> = storage_log_queries
+            .iter()
+            .map(|log| log.log_query)
+            .map(GlueFrom::glue_from)
+            .collect();
+        let deduped_storage_log_queries = sort_storage_access_queries(&converted_queries).1;
 
         CurrentExecutionState {
             events,

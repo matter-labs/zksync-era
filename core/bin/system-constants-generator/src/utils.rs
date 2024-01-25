@@ -2,7 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use multivm::{
     interface::{
-        dyn_tracers::vm_1_4_1::DynTracer, tracer::VmExecutionStopReason, L1BatchEnv, L2BlockEnv,
+        dyn_tracers::vm_1_5_0::DynTracer, tracer::VmExecutionStopReason, L1BatchEnv, L2BlockEnv,
         SystemEnv, TxExecutionMode, VmExecutionMode, VmInterface,
     },
     vm_latest::{

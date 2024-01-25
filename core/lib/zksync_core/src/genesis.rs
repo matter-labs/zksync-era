@@ -5,7 +5,7 @@
 use anyhow::Context as _;
 use multivm::{
     utils::get_max_gas_per_pubdata_byte,
-    zk_evm_latest::aux_structures::{LogQuery as MultiVmLogQuery, Timestamp as MultiVMTimestamp},
+    zk_evm_1_4_1::aux_structures::{LogQuery as MultiVmLogQuery, Timestamp as MultiVMTimestamp},
     zkevm_test_harness_latest::witness::sort_storage_access::sort_storage_access_queries,
 };
 use zksync_contracts::{read_sys_contract_bytecode, BaseSystemContracts, ContractLanguage};

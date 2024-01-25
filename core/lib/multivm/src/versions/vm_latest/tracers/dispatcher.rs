@@ -1,11 +1,11 @@
-use zk_evm_1_4_1::tracing::{
+use zk_evm_1_5_0::tracing::{
     AfterDecodingData, AfterExecutionData, BeforeExecutionData, VmLocalStateData,
 };
 use zksync_state::{StoragePtr, WriteStorage};
 
 use crate::{
     interface::{
-        dyn_tracers::vm_1_4_1::DynTracer,
+        dyn_tracers::vm_1_5_0::DynTracer,
         tracer::{TracerExecutionStatus, VmExecutionStopReason},
     },
     vm_latest::{
