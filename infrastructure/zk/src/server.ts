@@ -57,6 +57,10 @@ export class IsolatedExternalNode {
     }
 }
 
+// For some class of tests (for instance for testing snapshots creator) we need to be able to spawn fresh isolated instances of EN node
+// It spawns fresh EN instance running in a fresh docker containers based on integration-test-rust-binaries-runner image
+// and spawns fresh Database instances.
+// Both the images and the databases are then automatically removed when the context is torn down
 export async function isolatedExternalNode() {
     const randomSuffix = Math.floor(Math.random() * 1000000)
         .toString()
