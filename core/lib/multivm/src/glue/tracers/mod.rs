@@ -32,7 +32,7 @@
 
 use zksync_state::WriteStorage;
 
-use crate::HistoryMode;
+use crate::{tracers::old_tracers::OldTracers, HistoryMode};
 
 pub type MultiVmTracerPointer<S, H> = Box<dyn MultiVMTracer<S, H>>;
 
@@ -41,6 +41,7 @@ pub trait MultiVMTracer<S: WriteStorage, H: HistoryMode>:
     + IntoVmVirtualBlocksTracer<S, H>
     + IntoVmRefundsEnhancementTracer<S, H>
     + IntoVmBoojumIntegrationTracer<S, H>
+    + IntoOldVmTracer
 {
     fn into_tracer_pointer(self) -> MultiVmTracerPointer<S, H>
     where
@@ -70,6 +71,18 @@ pub trait IntoVmBoojumIntegrationTracer<S: WriteStorage, H: HistoryMode> {
     fn vm_boojum_integration(
         &self,
     ) -> Box<dyn crate::vm_boojum_integration::VmTracer<S, H::VmBoojumIntegration>>;
+}
+
+/// Into tracers for old VM versions.
+/// Even though number of tracers is limited, we still need to have this trait to be able to convert
+/// tracers to old VM tracers.
+/// Unfortunately we can't implement this trait for `T`, because specialization is not stable yet.
+/// You can follow the conversation here: https://github.com/rust-lang/rust/issues/31844
+/// For all new tracers we need to implement this trait manually.
+pub trait IntoOldVmTracer {
+    fn old_tracer(&self) -> OldTracers {
+        OldTracers::None
+    }
 }
 
 impl<S, T, H> IntoLatestTracer<S, H> for T
@@ -132,6 +145,7 @@ where
     T: IntoLatestTracer<S, H>
         + IntoVmVirtualBlocksTracer<S, H>
         + IntoVmRefundsEnhancementTracer<S, H>
-        + IntoVmBoojumIntegrationTracer<S, H>,
+        + IntoVmBoojumIntegrationTracer<S, H>
+        + IntoOldVmTracer,
 {
 }

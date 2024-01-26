@@ -6,6 +6,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use chrono::Utc;
 use itertools::Itertools;
 use multivm::{
     interface::{FinishedL1Batch, L1BatchEnv},
@@ -38,7 +39,10 @@ use crate::{
     metrics::{BlockStage, MiniblockStage, APP_METRICS},
     state_keeper::{
         extractors,
-        metrics::{L1BatchSealStage, MiniblockSealStage, L1_BATCH_METRICS, MINIBLOCK_METRICS},
+        metrics::{
+            L1BatchSealStage, MiniblockSealStage, KEEPER_METRICS, L1_BATCH_METRICS,
+            MINIBLOCK_METRICS,
+        },
         types::ExecutionMetricsForCriteria,
         updates::{MiniblockSealCommand, UpdatesManager},
     },
@@ -404,7 +408,8 @@ impl MiniblockSealCommand {
             transaction
                 .storage_dal()
                 .insert_factory_deps(miniblock_number, new_factory_deps)
-                .await;
+                .await
+                .unwrap();
         }
         progress.observe(new_factory_deps_count);
 
@@ -475,6 +480,17 @@ impl MiniblockSealCommand {
 
         transaction.commit().await.unwrap();
         progress.observe(None);
+
+        let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::ReportTxMetrics, is_fictive);
+        self.miniblock.executed_transactions.iter().for_each(|tx| {
+            KEEPER_METRICS
+                .transaction_inclusion_delay
+                .observe(Duration::from_millis(
+                    Utc::now().timestamp_millis() as u64 - tx.transaction.received_timestamp_ms,
+                ))
+        });
+        progress.observe(Some(self.miniblock.executed_transactions.len()));
+
         self.report_miniblock_metrics(started_at, current_l2_virtual_block_number);
     }
 
