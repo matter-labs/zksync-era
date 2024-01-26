@@ -1206,10 +1206,11 @@ dependencies = [
 [[package]]
 name = "circuit_definitions"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.0#43aeb53d7d9c909508a98f9fc140edff0e9d2357"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.0#de2ecad62ac8c12777e576dca20311ad8ec770d1"
 dependencies = [
  "crossbeam 0.8.2",
  "derivative",
+ "seq-macro",
  "serde",
  "snark_wrapper",
  "zk_evm 1.4.0",
@@ -1219,7 +1220,7 @@ dependencies = [
 [[package]]
 name = "circuit_definitions"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1#49028029f0a9a4b399ada3f0c5bdbc31cd368a3e"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1#ef77c44f919ba161df5976ec3899cf57a1585e7c"
 dependencies = [
  "crossbeam 0.8.2",
  "derivative",
@@ -3997,6 +3998,7 @@ dependencies = [
  "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc2)",
  "zk_evm 1.4.0",
  "zk_evm 1.4.1",
+ "zkevm_test_harness 1.3.3",
  "zkevm_test_harness 1.4.0",
  "zkevm_test_harness 1.4.1",
  "zksync_contracts",
@@ -6154,7 +6156,6 @@ dependencies = [
  "zksync_env_config",
  "zksync_object_store",
  "zksync_types",
- "zksync_utils",
 ]
 
 [[package]]
@@ -6685,6 +6686,7 @@ dependencies = [
  "once_cell",
  "serde",
  "serde_json",
+ "zkevm_test_harness 1.3.3",
  "zksync_contracts",
  "zksync_state",
  "zksync_types",
@@ -7461,6 +7463,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "vm_utils"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "multivm",
+ "tokio",
+ "tracing",
+ "zksync_contracts",
+ "zksync_dal",
+ "zksync_state",
+ "zksync_types",
+ "zksync_utils",
+]
+
+[[package]]
 name = "walkdir"
 version = "2.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8122,7 +8139,7 @@ dependencies = [
  "codegen 0.2.0",
  "crossbeam 0.8.2",
  "derivative",
- "env_logger 0.10.0",
+ "env_logger 0.9.3",
  "hex",
  "num-bigint 0.4.4",
  "num-integer",
@@ -8142,7 +8159,7 @@ dependencies = [
 [[package]]
 name = "zkevm_test_harness"
 version = "1.4.0"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.0#43aeb53d7d9c909508a98f9fc140edff0e9d2357"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.0#de2ecad62ac8c12777e576dca20311ad8ec770d1"
 dependencies = [
  "bincode",
  "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.0)",
@@ -8165,7 +8182,7 @@ dependencies = [
 [[package]]
 name = "zkevm_test_harness"
 version = "1.4.1"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1#49028029f0a9a4b399ada3f0c5bdbc31cd368a3e"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1#ef77c44f919ba161df5976ec3899cf57a1585e7c"
 dependencies = [
  "bincode",
  "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1)",
@@ -8243,7 +8260,10 @@ name = "zksync_commitment_utils"
 version = "0.1.0"
 dependencies = [
  "multivm",
+ "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc2)",
+ "zk_evm 1.4.1",
  "zkevm_test_harness 1.4.0",
+ "zkevm_test_harness 1.4.1",
  "zksync_types",
  "zksync_utils",
 ]
@@ -8503,6 +8523,7 @@ dependencies = [
  "tracing",
  "vise",
  "vlog",
+ "vm_utils",
  "zksync_circuit_breaker",
  "zksync_commitment_utils",
  "zksync_concurrency",
@@ -8829,14 +8850,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_snapshots_applier"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "vise",
+ "zksync_dal",
+ "zksync_object_store",
+ "zksync_types",
+ "zksync_utils",
+ "zksync_web3_decl",
+]
+
+[[package]]
 name = "zksync_state"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "assert_matches",
  "itertools 0.10.5",
  "mini-moka",
  "rand 0.8.5",
  "tempfile",
+ "test-casing",
  "tokio",
  "tracing",
  "vise",
@@ -8903,9 +8943,6 @@ dependencies = [
  "strum",
  "thiserror",
  "tokio",
- "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc2)",
- "zk_evm 1.4.0",
- "zk_evm 1.4.1",
  "zkevm_test_harness 1.3.3",
  "zkevm_test_harness 1.4.0",
  "zksync_basic_types",

@@ -4,6 +4,7 @@ use std::{
 };
 
 use zk_evm_1_4_1::{
+    aux_structures::Timestamp,
     tracing::{
         AfterDecodingData, AfterExecutionData, BeforeExecutionData, Tracer, VmLocalStateData,
     },
@@ -12,7 +13,6 @@ use zk_evm_1_4_1::{
     zkevm_opcode_defs::{decoding::EncodingModeProduction, Opcode, RetOpcode},
 };
 use zksync_state::{StoragePtr, WriteStorage};
-use zksync_types::Timestamp;
 
 use super::PubdataTracer;
 use crate::{

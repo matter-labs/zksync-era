@@ -45,7 +45,7 @@ impl IntoZkSyncTask for MetadataCalculatorTaskBuilder {
         }
 
         let metadata_calculator =
-            MetadataCalculator::new(self.0, object_store.map(|os| os.0)).await;
+            MetadataCalculator::new(self.0, object_store.map(|os| os.0)).await?;
 
         let healthchecks = node
             .get_resource_or_default::<ResourceCollection<HealthCheckResource>>()

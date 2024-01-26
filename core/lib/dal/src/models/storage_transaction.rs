@@ -514,8 +514,7 @@ pub fn extract_web3_transaction(db_row: PgRow, chain_id: L2ChainId) -> api::Tran
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
-pub struct CallTrace {
-    pub tx_hash: Vec<u8>,
+pub(crate) struct CallTrace {
     pub call_trace: Vec<u8>,
 }
 
