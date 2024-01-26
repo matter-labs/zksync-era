@@ -13,7 +13,7 @@ use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, Storage
 use zksync_health_check::CheckHealth;
 use zksync_types::{
     api,
-    block::{BlockGasCount, MiniblockHeader},
+    block::MiniblockHeader,
     fee::TransactionExecutionMetrics,
     get_nonce_key,
     l2::L2Tx,
@@ -227,7 +227,7 @@ impl StorageInitialization {
                         MiniblockNumber(Self::SNAPSHOT_RECOVERY_BLOCK),
                         factory_deps,
                     )
-                    .await;
+                    .await?;
             }
         }
         Ok(())
@@ -264,11 +264,24 @@ async fn test_http_server(test: impl HttpTest) {
 }
 
 fn assert_logs_match(actual_logs: &[api::Log], expected_logs: &[&VmEvent]) {
-    assert_eq!(actual_logs.len(), expected_logs.len());
+    assert_eq!(
+        actual_logs.len(),
+        expected_logs.len(),
+        "expected: {expected_logs:?}, actual: {actual_logs:?}"
+    );
     for (actual_log, &expected_log) in actual_logs.iter().zip(expected_logs) {
-        assert_eq!(actual_log.address, expected_log.address);
-        assert_eq!(actual_log.topics, expected_log.indexed_topics);
-        assert_eq!(actual_log.data.0, expected_log.value);
+        assert_eq!(
+            actual_log.address, expected_log.address,
+            "expected: {expected_logs:?}, actual: {actual_logs:?}"
+        );
+        assert_eq!(
+            actual_log.topics, expected_log.indexed_topics,
+            "expected: {expected_logs:?}, actual: {actual_logs:?}"
+        );
+        assert_eq!(
+            actual_log.data.0, expected_log.value,
+            "expected: {expected_logs:?}, actual: {actual_logs:?}"
+        );
     }
 }
 
@@ -318,10 +331,7 @@ async fn seal_l1_batch(
     number: L1BatchNumber,
 ) -> anyhow::Result<()> {
     let header = create_l1_batch(number.0);
-    storage
-        .blocks_dal()
-        .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[], 0)
-        .await?;
+    storage.blocks_dal().insert_mock_l1_batch(&header).await?;
     storage
         .blocks_dal()
         .mark_miniblocks_as_executed_in_l1_batch(number)

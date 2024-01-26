@@ -29,7 +29,7 @@ gates and gate placement strategy, which will be useful for setting up the const
 
 ![Contest(6).png](<./img/circuit_testing/Contest(6).png>)
 
-The constaint system is almost ready! We still need to add the lookup tables for common boolean functions:
+The constraint system is almost ready! We still need to add the lookup tables for common boolean functions:
 
 ![Contest(7).png](<./img/circuit_testing/Contest(7).png>)
 

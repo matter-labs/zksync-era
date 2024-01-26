@@ -16,7 +16,6 @@ serde = "1.0"
 thiserror = "1.0"
 once_cell = "1.7"
 hex = "0.4"
-base64 = "0.13"
 sha2 = "0.9"
 blake2 = "0.10"
 
