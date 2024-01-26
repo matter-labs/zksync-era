@@ -278,18 +278,21 @@ pub struct SystemContractCode {
 pub struct BaseSystemContracts {
     pub bootloader: SystemContractCode,
     pub default_aa: SystemContractCode,
+    pub evm_simualator: SystemContractCode,
 }
 
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq)]
 pub struct BaseSystemContractsHashes {
     pub bootloader: H256,
     pub default_aa: H256,
+    pub evm_simualator: H256,
 }
 
 impl PartialEq for BaseSystemContracts {
     fn eq(&self, other: &Self) -> bool {
         self.bootloader.hash == other.bootloader.hash
             && self.default_aa.hash == other.default_aa.hash
+            && self.evm_simualator.hash == other.evm_simualator.hash
     }
 }
 
@@ -333,6 +336,11 @@ impl BaseSystemContracts {
         BaseSystemContracts {
             bootloader,
             default_aa,
+            // FIXME
+            evm_simualator: SystemContractCode {
+                code: vec![],
+                hash: H256::zero(),
+            },
         }
     }
     // BaseSystemContracts with proved bootloader - for handling transactions.
@@ -433,6 +441,7 @@ impl BaseSystemContracts {
         BaseSystemContractsHashes {
             bootloader: self.bootloader.hash,
             default_aa: self.default_aa.hash,
+            evm_simualator: self.evm_simualator.hash,
         }
     }
 }
