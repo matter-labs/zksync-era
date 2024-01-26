@@ -8534,6 +8534,7 @@ dependencies = [
  "num 0.3.1",
  "once_cell",
  "prometheus_exporter",
+ "prost",
  "rand 0.8.5",
  "reqwest",
  "serde",
