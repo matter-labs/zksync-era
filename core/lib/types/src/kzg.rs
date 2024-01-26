@@ -28,8 +28,8 @@ const BYTES_PER_PUBDATA_COMMITMENT: usize = 144;
 const VERSIONED_HASH_VERSION_KZG: u8 = 0x01;
 
 /// All the info needed for both the network transaction and by our L1 contracts. As part of the network transaction we need to encode
-/// the sidecar which contains the: blob, kzg commitment, and the blob proof. The transaction payload will utilize the versioned hash.
-/// The info needed for `commitBatches` is the kzg commitment, opening point, opening value, and opening proof.
+/// the sidecar which contains the: blob, `kzg` commitment, and the blob proof. The transaction payload will utilize the versioned hash.
+/// The info needed for `commitBatches` is the `kzg` commitment, opening point, opening value, and opening proof.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct KzgInfo {
     /// 4844 Compatible blob containing pubdata
@@ -38,13 +38,13 @@ pub struct KzgInfo {
     pub kzg_commitment: [u8; 48],
     /// Point used by the point evaluation precompile
     pub opening_point: [u8; 32],
-    /// Value retrieved by evaluation the kzg commitment at the `opening_point`
+    /// Value retrieved by evaluation the `kzg` commitment at the `opening_point`
     pub opening_value: [u8; 32],
-    /// Proof that opening the kzg commitment at the opening point yields the opening value
+    /// Proof that opening the `kzg` commitment at the opening point yields the opening value
     pub opening_proof: [u8; 48],
-    /// Hash of the kzg commitment where the first byte has been substituted for `VERSIONED_HASH_VERSION_KZG`
+    /// Hash of the `kzg` commitment where the first byte has been substituted for `VERSIONED_HASH_VERSION_KZG`
     pub versioned_hash: [u8; 32],
-    /// Proof that the blob and kzg commitment represent the same data.
+    /// Proof that the blob and `kzg` commitment represent the same data.
     pub blob_proof: [u8; 48],
 }
 
@@ -190,7 +190,7 @@ impl KzgInfo {
 
         let linear_hash: [u8; 32] = Keccak256::digest(zksync_blob).into();
 
-        // We need to convert pubdata into poly form and apply fft/bitreverse transformations
+        // We need to convert pubdata into poly form and apply `fft/bitreverse` transformations
         let mut poly = zksync_pubdata_into_monomial_form_poly(&zksync_blob);
         fft(&mut poly);
         bitreverse(&mut poly);
