@@ -36,9 +36,9 @@ export async function up(composeFile?: string) {
     await utils.sleep(1);
     createVolumes();
     if (composeFile) {
-        await utils.spawn(`docker compose -f ${composeFile} up -d geth postgres`);
+        await utils.spawn(`docker-compose -f ${composeFile} up -d geth postgres`);
     } else {
-        await utils.spawn('docker compose up -d');
+        await utils.spawn('docker-compose up -d');
     }
 }
 
