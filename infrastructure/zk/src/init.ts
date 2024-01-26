@@ -27,7 +27,7 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
 }
 
 export async function initSetup(initArgs: InitArgs = DEFAULT_ARGS) {
-    const { skipSubmodulesCheckout, skipEnvSetup  } = initArgs;
+    const { skipSubmodulesCheckout, skipEnvSetup } = initArgs;
 
     if (!process.env.CI && !skipEnvSetup) {
         await announced('Pulling images', docker.pull());
@@ -59,7 +59,10 @@ export async function initBridgehubStateTransition(initArgs: InitArgs = DEFAULT_
 
     await announced('Running server genesis setup', server.genesisFromSources());
     if (testTokens.deploy) {
-        await announced('Deploying localhost ERC20 and Weth tokens', run.deployERC20AndWeth('dev', '', '', '', testTokens.args));
+        await announced(
+            'Deploying localhost ERC20 and Weth tokens',
+            run.deployERC20AndWeth('dev', '', '', '', testTokens.args)
+        );
     } else if (testTokens.deployWeth) {
         await announced('Deploying localhost Weth tokens', run.deployWeth(testTokens.args));
     }
@@ -133,7 +136,7 @@ export async function lightweightInit() {
 }
 
 export async function finishBridgeInit(initArgs: InitArgs = DEFAULT_ARGS) {
-    const {  deployerL2ContractInput,  } = initArgs;
+    const { deployerL2ContractInput } = initArgs;
     await announced('Finishing initializing weth bridge', contract.wethBridgeFinish(deployerL2ContractInput.args));
     await announced('Finishing initializing erc20 bridge', contract.erc20BridgeFinish(deployerL2ContractInput.args));
 }
@@ -339,7 +342,7 @@ export const finishBridgeInitCommand = new Command('finish-bridge-init')
         const initArgs: InitArgs = {
             skipSubmodulesCheckout: true,
             skipEnvSetup: true,
-                governorPrivateKeyArgs: process.env.GOVERNOR_PRIVATE_KEY
+            governorPrivateKeyArgs: process.env.GOVERNOR_PRIVATE_KEY
                 ? ['--private-key', process.env.GOVERNOR_PRIVATE_KEY]
                 : [],
             deployerL2ContractInput: {

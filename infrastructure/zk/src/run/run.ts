@@ -54,9 +54,7 @@ export async function deployERC20AndWeth(
     }
 }
 
-export async function deployWeth(
-    args: any = []
-) {
+export async function deployWeth(args: any = []) {
     let destinationFile = process.env.CHAIN_ETH_NETWORK!;
     if (args.includes('--envFile')) {
         destinationFile = args[args.indexOf('--envFile') + 1];
@@ -66,23 +64,25 @@ export async function deployWeth(
         [
             { "name": "Wrapped Ether", "symbol": "WETH", "decimals": 18, "implementation": "WETH9"}
         ]' ${args.join(' ')} > deployedTokens.log`);
-    let newlyDeployedTokens :Token[];
+    let newlyDeployedTokens: Token[];
     try {
-        newlyDeployedTokens =  JSON.parse(
-            fs.readFileSync("deployedTokens.log", {
+        newlyDeployedTokens = JSON.parse(
+            fs.readFileSync('deployedTokens.log', {
                 encoding: 'utf-8'
             })
         );
     } catch (e) {
-        console.log("No new tokens deployed");
+        console.log('No new tokens deployed');
         return;
     }
-    const alreadyDeployedToken : Token[]= JSON.parse(
+    const alreadyDeployedToken: Token[] = JSON.parse(
         fs.readFileSync(`./etc/tokens/${destinationFile}.json`, {
             encoding: 'utf-8'
-        }) 
+        })
     );
-    const finalTokens: Token[] = alreadyDeployedToken.filter((token) => newlyDeployedTokens.find((newToken) => newToken.symbol === token.symbol) === undefined).concat(newlyDeployedTokens);
+    const finalTokens: Token[] = alreadyDeployedToken
+        .filter((token) => newlyDeployedTokens.find((newToken) => newToken.symbol === token.symbol) === undefined)
+        .concat(newlyDeployedTokens);
     fs.writeFileSync(`./etc/tokens/${destinationFile}.json`, JSON.stringify(finalTokens, null, 2));
     const WETH = getTokens(destinationFile).find((token) => token.symbol === 'WETH')!;
     env.modify(
@@ -98,7 +98,7 @@ export type Token = {
     name: string;
     symbol: string;
     decimals: number;
-  };
+};
 
 export async function tokenInfo(address: string) {
     await utils.spawn(`yarn l1-contracts token-info info ${address}`);

@@ -60,7 +60,6 @@ export async function initializeL1AllowList(args: any[] = []) {
     await utils.spawn(`${baseCommandL1} initialize-allow-list ${args.join(' ')} | tee initializeL1AllowList.log`);
 }
 
-
 export async function deployWeth(
     command: 'dev' | 'new',
     name?: string,
@@ -77,9 +76,7 @@ export async function deployWeth(
             ${args.join(' ')} | tee deployL1.log`);
 
     const deployLog = fs.readFileSync('deployL1.log').toString();
-    const l1DeploymentEnvVars = [
-        'CONTRACTS_L1_WETH_TOKEN_ADDR',
-    ];
+    const l1DeploymentEnvVars = ['CONTRACTS_L1_WETH_TOKEN_ADDR'];
     updateContractsEnv(
         `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`,
         deployLog,
