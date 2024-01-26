@@ -1,15 +1,14 @@
 use std::{fmt, ops, str::FromStr};
 
-use codegen::serialize_proof;
 use serde::{Deserialize, Serialize};
 use zkevm_test_harness::{
     abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit,
     bellman::{bn256::Bn256, plonk::better_better_cs::proof::Proof},
     witness::oracle::VmWitnessOracle,
 };
-use zksync_basic_types::{ethabi::Token, L1BatchNumber};
+use zksync_basic_types::L1BatchNumber;
 
-use crate::{commitment::L1BatchWithMetadata, ProtocolVersionId, U256};
+use crate::{commitment::L1BatchWithMetadata, ProtocolVersionId};
 
 fn l1_batch_range_from_batches(
     batches: &[L1BatchWithMetadata],
@@ -32,17 +31,6 @@ pub struct L1BatchCommitOperation {
 }
 
 impl L1BatchCommitOperation {
-    pub fn get_eth_tx_args(&self) -> Vec<Token> {
-        let stored_batch_info = self.last_committed_l1_batch.l1_header_data();
-        let l1_batches_to_commit = self
-            .l1_batches
-            .iter()
-            .map(L1BatchWithMetadata::l1_commit_data)
-            .collect();
-
-        vec![stored_batch_info, Token::Array(l1_batches_to_commit)]
-    }
-
     pub fn l1_batch_range(&self) -> ops::RangeInclusive<L1BatchNumber> {
         l1_batch_range_from_batches(&self.l1_batches)
     }
@@ -78,57 +66,6 @@ pub struct L1BatchProofOperation {
 }
 
 impl L1BatchProofOperation {
-    pub fn get_eth_tx_args(&self) -> Vec<Token> {
-        let prev_l1_batch = self.prev_l1_batch.l1_header_data();
-        let batches_arg = self
-            .l1_batches
-            .iter()
-            .map(L1BatchWithMetadata::l1_header_data)
-            .collect();
-        let batches_arg = Token::Array(batches_arg);
-
-        if self.should_verify {
-            // currently we only support submitting a single proof
-            assert_eq!(self.proofs.len(), 1);
-            assert_eq!(self.l1_batches.len(), 1);
-
-            let L1BatchProofForL1 {
-                aggregation_result_coords,
-                scheduler_proof,
-            } = self.proofs.first().unwrap();
-
-            let (_, proof) = serialize_proof(scheduler_proof);
-
-            let aggregation_result_coords = if self.l1_batches[0]
-                .header
-                .protocol_version
-                .unwrap()
-                .is_pre_boojum()
-            {
-                Token::Array(
-                    aggregation_result_coords
-                        .iter()
-                        .map(|bytes| Token::Uint(U256::from_big_endian(bytes)))
-                        .collect(),
-                )
-            } else {
-                Token::Array(Vec::new())
-            };
-            let proof_input = Token::Tuple(vec![
-                aggregation_result_coords,
-                Token::Array(proof.into_iter().map(Token::Uint).collect()),
-            ]);
-
-            vec![prev_l1_batch, batches_arg, proof_input]
-        } else {
-            vec![
-                prev_l1_batch,
-                batches_arg,
-                Token::Tuple(vec![Token::Array(vec![]), Token::Array(vec![])]),
-            ]
-        }
-    }
-
     pub fn l1_batch_range(&self) -> ops::RangeInclusive<L1BatchNumber> {
         l1_batch_range_from_batches(&self.l1_batches)
     }
@@ -140,15 +77,6 @@ pub struct L1BatchExecuteOperation {
 }
 
 impl L1BatchExecuteOperation {
-    pub fn get_eth_tx_args(&self) -> Vec<Token> {
-        vec![Token::Array(
-            self.l1_batches
-                .iter()
-                .map(L1BatchWithMetadata::l1_header_data)
-                .collect(),
-        )]
-    }
-
     pub fn l1_batch_range(&self) -> ops::RangeInclusive<L1BatchNumber> {
         l1_batch_range_from_batches(&self.l1_batches)
     }

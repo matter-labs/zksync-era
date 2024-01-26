@@ -38,6 +38,8 @@ zksync_health_check = { path = "../health_check" }
 vlog = { path = "../vlog" }
 
 multivm = { path = "../multivm" }
+codegen = { git = "https://github.com/matter-labs/solidity_plonk_verifier.git", branch = "dev" }
+
 # Consensus dependenices
 zksync_concurrency = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "5727a3e0b22470bb90092388f9125bcb366df613" }
 zksync_consensus_crypto = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "5727a3e0b22470bb90092388f9125bcb366df613" }

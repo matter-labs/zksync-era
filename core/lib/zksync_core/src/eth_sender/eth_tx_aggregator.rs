@@ -21,6 +21,7 @@ use zksync_types::{
 
 use crate::{
     eth_sender::{
+        eth_tx_args::EthTxArgs,
         metrics::{PubdataKind, METRICS},
         zksync_functions::ZkSyncFunctions,
         Aggregator, ETHSenderError,
