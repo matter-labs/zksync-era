@@ -12,6 +12,7 @@ use zksync_types::{
     block::MiniblockHeader,
     fee::TransactionExecutionMetrics,
     fee_model::{BatchFeeInput, FeeModelConfig, FeeModelConfigV1},
+    l2::L2Tx,
     protocol_version::L1VerifierConfig,
     system_contracts::get_system_smart_contracts,
     tx::TransactionExecutionResult,
@@ -22,7 +23,7 @@ use crate::{
     fee_model::MainNodeFeeInputProvider,
     genesis::create_genesis_l1_batch,
     l1_gas_price::GasAdjuster,
-    state_keeper::{io::MiniblockSealer, tests::create_transaction, MempoolGuard, MempoolIO},
+    state_keeper::{io::MiniblockSealer, MempoolGuard, MempoolIO},
     utils::testonly::{
         create_l1_batch, create_l2_transaction, create_miniblock, execute_l2_transaction,
     },
@@ -213,8 +214,9 @@ impl Tester {
         guard: &mut MempoolGuard,
         fee_per_gas: u64,
         gas_per_pubdata: u32,
-    ) {
-        let tx = create_transaction(fee_per_gas, gas_per_pubdata);
-        guard.insert(vec![tx], Default::default());
+    ) -> L2Tx {
+        let tx = create_l2_transaction(fee_per_gas, gas_per_pubdata);
+        guard.insert(vec![tx.clone().into()], Default::default());
+        tx
     }
 }

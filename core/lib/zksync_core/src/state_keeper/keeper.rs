@@ -128,11 +128,7 @@ impl ZkSyncStateKeeper {
         };
 
         let protocol_version = system_env.version;
-        let mut updates_manager = UpdatesManager::new(
-            l1_batch_env.clone(),
-            system_env.base_system_smart_contracts.hashes(),
-            protocol_version,
-        );
+        let mut updates_manager = UpdatesManager::new(&l1_batch_env, &system_env);
 
         let previous_batch_protocol_version = self
             .io
@@ -211,11 +207,7 @@ impl ZkSyncStateKeeper {
 
             // Start the new batch.
             (system_env, l1_batch_env) = self.wait_for_new_batch_params().await?;
-            updates_manager = UpdatesManager::new(
-                l1_batch_env.clone(),
-                system_env.base_system_smart_contracts.hashes(),
-                system_env.version,
-            );
+            updates_manager = UpdatesManager::new(&l1_batch_env, &system_env);
             batch_executor = self
                 .batch_executor_base
                 .init_batch(

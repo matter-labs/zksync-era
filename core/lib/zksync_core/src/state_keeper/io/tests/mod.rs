@@ -7,6 +7,7 @@ use zksync_dal::ConnectionPool;
 use zksync_mempool::L2TxFilter;
 use zksync_types::{
     block::{BlockGasCount, MiniblockHasher},
+    fee::TransactionExecutionMetrics,
     fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
     tx::ExecutionMetrics,
     AccountTreeId, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, StorageKey, VmEvent,
@@ -21,7 +22,7 @@ use crate::{
         mempool_actor::l2_tx_filter,
         tests::{
             create_execution_result, create_transaction, create_updates_manager,
-            default_l1_batch_env, default_vm_block_result, Query,
+            default_l1_batch_env, default_system_env, default_vm_block_result, Query,
         },
         updates::{MiniblockSealCommand, MiniblockUpdates, UpdatesManager},
     },
@@ -379,11 +380,7 @@ async fn test_miniblock_and_l1_batch_processing(
         .await;
 
     let l1_batch_env = default_l1_batch_env(1, 1, Address::random());
-    let mut updates = UpdatesManager::new(
-        l1_batch_env.clone(),
-        BaseSystemContractsHashes::default(),
-        ProtocolVersionId::latest(),
-    );
+    let mut updates = UpdatesManager::new(&l1_batch_env, &default_system_env());
 
     let tx = create_transaction(10, 100);
     updates.extend_from_executed_transaction(
@@ -437,8 +434,6 @@ async fn miniblock_and_l1_batch_processing_with_sync_sealer() {
     test_miniblock_and_l1_batch_processing(pool, 0).await;
 }
 
-// FIXME (PLA-589): Doesn't work because of missing system contracts, which cannot be added w/o a miniblock
-#[ignore]
 #[tokio::test]
 async fn miniblock_processing_after_snapshot_recovery() {
     let connection_pool = ConnectionPool::test_pool().await;
@@ -446,8 +441,8 @@ async fn miniblock_processing_after_snapshot_recovery() {
     let snapshot_recovery = prepare_recovery_snapshot(&mut storage, 23, &[]).await;
     let tester = Tester::new();
 
-    let (mut mempool, _) = tester
-        .create_test_mempool_io(connection_pool.clone(), 1)
+    let (mut mempool, mut mempool_guard) = tester
+        .create_test_mempool_io(connection_pool.clone(), 0)
         .await;
     assert_eq!(
         mempool.current_miniblock_number(),
@@ -459,7 +454,23 @@ async fn miniblock_processing_after_snapshot_recovery() {
     );
     assert!(mempool.load_pending_batch().await.is_none());
 
-    let (_, l1_batch_env) = mempool
+    // Insert a transaction into the mempool in order to open a new batch.
+    let tx_filter = l2_tx_filter(
+        &tester.create_batch_fee_input_provider().await,
+        ProtocolVersionId::latest().into(),
+    )
+    .await;
+    let tx = tester.insert_tx(
+        &mut mempool_guard,
+        tx_filter.fee_per_gas,
+        tx_filter.gas_per_pubdata,
+    );
+    storage
+        .transactions_dal()
+        .insert_transaction_l2(tx.clone(), TransactionExecutionMetrics::default())
+        .await;
+
+    let (system_env, l1_batch_env) = mempool
         .wait_for_new_batch_params(Duration::from_secs(10))
         .await
         .unwrap();
@@ -473,16 +484,11 @@ async fn miniblock_processing_after_snapshot_recovery() {
         snapshot_recovery.miniblock_hash
     );
 
-    let mut updates = UpdatesManager::new(
-        l1_batch_env,
-        BaseSystemContractsHashes::default(),
-        ProtocolVersionId::latest(),
-    );
+    let mut updates = UpdatesManager::new(&l1_batch_env, &system_env);
 
-    let tx = create_transaction(10, 100);
     let tx_hash = tx.hash();
     updates.extend_from_executed_transaction(
-        tx,
+        tx.into(),
         create_execution_result(0, []),
         vec![],
         BlockGasCount::default(),
@@ -515,9 +521,17 @@ async fn miniblock_processing_after_snapshot_recovery() {
         miniblock_hasher.finalize(ProtocolVersionId::latest())
     );
 
+    let miniblock_transactions = storage
+        .transactions_web3_dal()
+        .get_raw_miniblock_transactions(persisted_miniblock.number)
+        .await
+        .unwrap();
+    assert_eq!(miniblock_transactions.len(), 1);
+    assert_eq!(miniblock_transactions[0].hash(), tx_hash);
+
     // Emulate node restart.
     let (mut mempool, _) = tester
-        .create_test_mempool_io(connection_pool.clone(), 1)
+        .create_test_mempool_io(connection_pool.clone(), 0)
         .await;
     assert_eq!(
         mempool.current_miniblock_number(),
@@ -527,21 +541,31 @@ async fn miniblock_processing_after_snapshot_recovery() {
         mempool.current_l1_batch_number(),
         snapshot_recovery.l1_batch_number + 1
     );
-    assert!(mempool.load_pending_batch().await.is_some());
 
-    let (_, l1_batch_env) = mempool
-        .wait_for_new_batch_params(Duration::from_secs(10))
-        .await
-        .unwrap();
-    assert_eq!(l1_batch_env.number, snapshot_recovery.l1_batch_number + 1);
+    let pending_batch = mempool.load_pending_batch().await.unwrap();
     assert_eq!(
-        l1_batch_env.previous_batch_hash,
+        pending_batch.l1_batch_env.number,
+        snapshot_recovery.l1_batch_number + 1
+    );
+    assert_eq!(
+        pending_batch.l1_batch_env.previous_batch_hash,
         Some(snapshot_recovery.l1_batch_root_hash)
     );
     assert_eq!(
-        l1_batch_env.first_l2_block.prev_block_hash,
+        pending_batch.l1_batch_env.first_l2_block.prev_block_hash,
         snapshot_recovery.miniblock_hash
     );
+    assert_eq!(pending_batch.pending_miniblocks.len(), 1);
+    assert_eq!(
+        pending_batch.pending_miniblocks[0].number,
+        snapshot_recovery.miniblock_number + 1
+    );
+    assert_eq!(
+        pending_batch.pending_miniblocks[0].prev_block_hash,
+        snapshot_recovery.miniblock_hash
+    );
+    assert_eq!(pending_batch.pending_miniblocks[0].txs.len(), 1);
+    assert_eq!(pending_batch.pending_miniblocks[0].txs[0].hash(), tx_hash);
 }
 
 #[tokio::test]

@@ -134,17 +134,19 @@ pub(crate) async fn prepare_recovery_snapshot(
         .collect();
     let l1_batch_root_hash = ZkSyncTree::process_genesis_batch(&tree_instructions).root_hash;
 
-    storage
-        .protocol_versions_dal()
-        .save_protocol_version_with_tx(ProtocolVersion::default())
-        .await;
-
     let miniblock = create_miniblock(l1_batch_number);
     let l1_batch = create_l1_batch(l1_batch_number);
     // Miniblock and L1 batch are intentionally **not** inserted into the storage.
 
     // Store factory deps for the base system contracts.
     let contracts = GenesisParams::mock().base_system_contracts;
+    storage
+        .protocol_versions_dal()
+        .save_protocol_version_with_tx(ProtocolVersion {
+            base_system_contracts_hashes: contracts.hashes(),
+            ..ProtocolVersion::default()
+        })
+        .await;
     let factory_deps = HashMap::from([
         (
             contracts.bootloader.hash,

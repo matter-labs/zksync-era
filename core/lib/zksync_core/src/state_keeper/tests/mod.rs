@@ -15,7 +15,7 @@ use multivm::{
 };
 use once_cell::sync::Lazy;
 use zksync_config::configs::chain::StateKeeperConfig;
-use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
+use zksync_contracts::BaseSystemContracts;
 use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
@@ -115,11 +115,7 @@ pub(super) fn default_vm_block_result() -> FinishedL1Batch {
 
 pub(super) fn create_updates_manager() -> UpdatesManager {
     let l1_batch_env = default_l1_batch_env(1, 1, Address::default());
-    UpdatesManager::new(
-        l1_batch_env,
-        BaseSystemContractsHashes::default(),
-        ProtocolVersionId::latest(),
-    )
+    UpdatesManager::new(&l1_batch_env, &default_system_env())
 }
 
 pub(super) fn create_transaction(fee_per_gas: u64, gas_per_pubdata: u32) -> Transaction {
