@@ -28,6 +28,12 @@ contract EvmSimulatorTest {
         }
     }
 
+    function testGas(uint256 _gasToPass, uint256 _ratio) external {
+        uint256 obtainedEVMGas = this.getEVMGas{gas: _gasToPass}(_ratio);
+
+        storageVariable = obtainedEVMGas;
+    } 
+
     function testStaticCallInner() external {
         // 1. Ensuring that we are in static call
         uint256 callFlags = SystemContractHelper.getCallFlags();

@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use ethabi::Contract;
+use ethabi::{Contract, Token};
 use zk_evm_1_5_0::zkevm_opcode_defs::{BlobSha256Format, VersionedHashLen32};
 use zksync_contracts::{BaseSystemContracts, SystemContractCode};
 use zksync_state::InMemoryStorage;
@@ -109,4 +109,110 @@ fn test_evm_simulator_get_gas() {
     let gas_received = h256_to_u256(saved_value).as_u32();
 
     assert!(gas_received > EXPECTED_EVM_STIPEND, "Stipend wasnt applied");
+}
+
+fn test_gas_conversion(gas_to_pass: u32, ratio: u32) -> u32 {
+    // We check that simulator can correctly calculate how much "real" gas was passed to it
+    let (mut vm, test_address, evm_simulator) = set_up_evm_simulator_contract();
+
+    let account = &mut vm.rich_accounts[0];
+
+    // It is of course possible that a bit of gas will be spent on the initial functionality
+    let tx = account.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(test_address),
+            calldata: evm_simulator
+                .function("testGas")
+                .unwrap()
+                .encode_input(&[
+                    Token::Uint(U256::from(gas_to_pass)),
+                    Token::Uint(U256::from(ratio)),
+                ])
+                .unwrap(),
+            value: U256::zero(),
+            factory_deps: None,
+        },
+        None,
+    );
+
+    vm.vm.push_transaction(tx);
+    let tx_result = vm.vm.execute(VmExecutionMode::OneTx);
+
+    assert!(
+        !tx_result.result.is_failed(),
+        "Transaction wasn't successful"
+    );
+
+    let batch_result = vm.vm.execute(VmExecutionMode::Batch);
+    assert!(!batch_result.result.is_failed(), "Batch wasn't successful");
+
+    let saved_value = vm.vm.storage.borrow_mut().get_value(&StorageKey::new(
+        AccountTreeId::new(test_address),
+        H256::zero(),
+    ));
+
+    h256_to_u256(saved_value).as_u32()
+}
+
+#[test]
+fn test_evm_simulator_gas_conversion() {
+    // We check that there is a constant factor for getitng the EVM gas.
+    let gas_obtained = test_gas_conversion(100_000, 100);
+    assert!(gas_obtained >= 995, "Gas obtained is too low");
+    assert!(gas_obtained <= 1000, "Gas obtained is too high");
+
+    let gas_obtained_large = test_gas_conversion(1_000_000, 100);
+    assert!(gas_obtained_large >= 9950, "Gas obtained is too low");
+    assert!(gas_obtained_large <= 10000, "Gas obtained is too high");
+
+    assert_eq!(
+        1000 - gas_obtained,
+        10000 - gas_obtained_large,
+        "The difference between gas obtained is constant"
+    );
+}
+
+#[test]
+fn test_evm_simulator_static_call() {
+    // EVM simulator should detect + circuimvent static context requirements
+    let (mut vm, test_address, evm_simulator) = set_up_evm_simulator_contract();
+
+    let account = &mut vm.rich_accounts[0];
+
+    let tx = account.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(test_address),
+            calldata: evm_simulator
+                .function("testStaticCall")
+                .unwrap()
+                .encode_input(&[])
+                .unwrap(),
+            value: U256::zero(),
+            factory_deps: None,
+        },
+        None,
+    );
+
+    vm.vm.push_transaction(tx);
+    let tx_result = vm.vm.execute(VmExecutionMode::OneTx);
+
+    assert!(
+        !tx_result.result.is_failed(),
+        "Transaction wasn't successful"
+    );
+
+    let batch_result = vm.vm.execute(VmExecutionMode::Batch);
+    assert!(!batch_result.result.is_failed(), "Batch wasn't successful");
+
+    let saved_value = vm.vm.storage.borrow_mut().get_value(&StorageKey::new(
+        AccountTreeId::new(test_address),
+        H256::zero(),
+    ));
+
+    // The contract will store `1` in case the test was successful
+    assert_eq!(
+        h256_to_u256(saved_value),
+        U256::one(),
+        "Static call wasn't successful"
+    );
 }
