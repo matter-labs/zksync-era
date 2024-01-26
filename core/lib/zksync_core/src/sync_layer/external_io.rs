@@ -280,7 +280,7 @@ impl StateKeeperIO for ExternalIO {
             pending_miniblock_header.set_protocol_version(sync_block.protocol_version);
         }
 
-        // TODO: this workaround won't be necessary once fee address is moved to miniblock entity.
+        // TODO (PLA-674): this workaround won't be necessary once fee address is moved to miniblock entity.
         let fee_account = storage
             .blocks_dal()
             .get_fee_address_for_l1_batch(self.current_l1_batch_number - 1)
@@ -292,7 +292,7 @@ impl StateKeeperIO for ExternalIO {
                 let last_miniblock_number_in_prev_batch = pending_miniblock_header.number() - 1;
                 tracing::info!(
                     "Fee address for L1 batch #{} is not available locally; fetching from main node \
-                     (miniblock #{last_miniblock_number_in_prev_batch})",
+                     (in miniblock #{last_miniblock_number_in_prev_batch})",
                     self.current_l1_batch_number - 1
                 );
                 let prev_block = self

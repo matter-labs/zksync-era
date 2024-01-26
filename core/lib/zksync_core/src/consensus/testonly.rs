@@ -1,4 +1,5 @@
 //! Utilities for testing the consensus module.
+
 use anyhow::Context as _;
 use rand::Rng;
 use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
@@ -6,8 +7,8 @@ use zksync_consensus_roles::validator;
 use zksync_contracts::{BaseSystemContractsHashes, SystemContractCode};
 use zksync_dal::ConnectionPool;
 use zksync_types::{
-    api, block::MiniblockHasher, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
-    ProtocolVersionId, H256,
+    api, block::MiniblockHasher, snapshots::SnapshotRecoveryStatus, Address, L1BatchNumber,
+    L2ChainId, MiniblockNumber, ProtocolVersionId, H256,
 };
 
 use crate::{
@@ -31,9 +32,35 @@ use crate::{
 pub(crate) struct MockMainNodeClient {
     prev_miniblock_hash: H256,
     l2_blocks: Vec<api::en::SyncBlock>,
+    block_number_offset: u32,
 }
 
 impl MockMainNodeClient {
+    pub fn for_snapshot_recovery(snapshot: &SnapshotRecoveryStatus) -> Self {
+        // This block may be requested during node initialization
+        let last_miniblock_in_snapshot_batch = api::en::SyncBlock {
+            number: snapshot.miniblock_number,
+            l1_batch_number: snapshot.l1_batch_number,
+            last_in_batch: true,
+            timestamp: snapshot.miniblock_timestamp,
+            l1_gas_price: 2,
+            l2_fair_gas_price: 3,
+            fair_pubdata_price: Some(24),
+            base_system_contracts_hashes: BaseSystemContractsHashes::default(),
+            operator_address: Address::repeat_byte(2),
+            transactions: Some(vec![]),
+            virtual_blocks: Some(0),
+            hash: Some(snapshot.miniblock_hash),
+            protocol_version: ProtocolVersionId::latest(),
+        };
+
+        Self {
+            prev_miniblock_hash: snapshot.miniblock_hash,
+            l2_blocks: vec![last_miniblock_in_snapshot_batch],
+            block_number_offset: snapshot.miniblock_number.0,
+        }
+    }
+
     /// `miniblock_count` doesn't include a fictive miniblock. Returns hashes of generated transactions.
     pub fn push_l1_batch(&mut self, miniblock_count: u32) -> Vec<H256> {
         let l1_batch_number = self
@@ -129,7 +156,10 @@ impl MainNodeClient for MockMainNodeClient {
         number: MiniblockNumber,
         with_transactions: bool,
     ) -> anyhow::Result<Option<api::en::SyncBlock>> {
-        let Some(mut block) = self.l2_blocks.get(number.0 as usize).cloned() else {
+        let Some(block_index) = number.0.checked_sub(self.block_number_offset) else {
+            return Ok(None);
+        };
+        let Some(mut block) = self.l2_blocks.get(block_index as usize).cloned() else {
             return Ok(None);
         };
         if !with_transactions {
