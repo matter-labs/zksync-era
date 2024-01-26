@@ -597,13 +597,15 @@ mod tests {
     use zksync_types::{
         block::{MiniblockHasher, MiniblockHeader},
         fee::TransactionExecutionMetrics,
-        snapshots::SnapshotRecoveryStatus,
         MiniblockNumber, ProtocolVersion, ProtocolVersionId,
     };
 
     use super::*;
     use crate::{
-        tests::{create_miniblock_header, mock_execution_result, mock_l2_transaction},
+        tests::{
+            create_miniblock_header, create_snapshot_recovery, mock_execution_result,
+            mock_l2_transaction,
+        },
         ConnectionPool,
     };
 
@@ -762,16 +764,7 @@ mod tests {
     async fn resolving_pending_block_id_for_snapshot_recovery() {
         let connection_pool = ConnectionPool::test_pool().await;
         let mut conn = connection_pool.access_storage().await.unwrap();
-        let snapshot_recovery = SnapshotRecoveryStatus {
-            l1_batch_number: L1BatchNumber(23),
-            l1_batch_timestamp: 23,
-            l1_batch_root_hash: H256::zero(),
-            miniblock_number: MiniblockNumber(42),
-            miniblock_timestamp: 42,
-            miniblock_hash: H256::zero(),
-            protocol_version: ProtocolVersionId::latest(),
-            storage_logs_chunks_processed: vec![true; 100],
-        };
+        let snapshot_recovery = create_snapshot_recovery();
         conn.snapshot_recovery_dal()
             .insert_initial_recovery_status(&snapshot_recovery)
             .await

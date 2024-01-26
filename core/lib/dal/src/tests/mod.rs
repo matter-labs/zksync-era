@@ -8,9 +8,10 @@ use zksync_types::{
     helpers::unix_timestamp_ms,
     l1::{L1Tx, OpProcessingType, PriorityQueueType},
     l2::L2Tx,
+    snapshots::SnapshotRecoveryStatus,
     tx::{tx_execution_info::TxExecutionStatus, ExecutionMetrics, TransactionExecutionResult},
-    Address, Execute, L1BlockNumber, L1TxCommonData, L2ChainId, MiniblockNumber, PriorityOpId,
-    ProtocolVersionId, H160, H256, U256,
+    Address, Execute, L1BatchNumber, L1BlockNumber, L1TxCommonData, L2ChainId, MiniblockNumber,
+    PriorityOpId, ProtocolVersionId, H160, H256, U256,
 };
 
 use crate::{
@@ -114,6 +115,19 @@ pub(crate) fn mock_execution_result(transaction: L2Tx) -> TransactionExecutionRe
         compressed_bytecodes: vec![],
         call_traces: vec![],
         revert_reason: None,
+    }
+}
+
+pub(crate) fn create_snapshot_recovery() -> SnapshotRecoveryStatus {
+    SnapshotRecoveryStatus {
+        l1_batch_number: L1BatchNumber(23),
+        l1_batch_timestamp: 23,
+        l1_batch_root_hash: H256::zero(),
+        miniblock_number: MiniblockNumber(42),
+        miniblock_timestamp: 42,
+        miniblock_hash: H256::zero(),
+        protocol_version: ProtocolVersionId::latest(),
+        storage_logs_chunks_processed: vec![true; 100],
     }
 }
 
