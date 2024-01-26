@@ -96,6 +96,12 @@ jobs:
     name: CI for Docs
     uses: ./.github/workflows/ci-docs-reusable.yml
 
+  ci-for-common:
+    needs: changed_files
+    if: ${{ (needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
+    name: CI for Common Components (prover or core)
+    uses: ./.github/workflows/ci-common-reusable.yml
+
   build-contracts:
     name: Build contracts
     needs: changed_files
