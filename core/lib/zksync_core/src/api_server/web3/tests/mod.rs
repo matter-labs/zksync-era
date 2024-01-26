@@ -191,7 +191,8 @@ enum StorageInitialization {
 }
 
 impl StorageInitialization {
-    const SNAPSHOT_RECOVERY_BLOCK: u32 = 23;
+    const SNAPSHOT_RECOVERY_BATCH: L1BatchNumber = L1BatchNumber(23);
+    const SNAPSHOT_RECOVERY_BLOCK: MiniblockNumber = MiniblockNumber(23);
 
     fn empty_recovery() -> Self {
         Self::Recovery {
@@ -217,13 +218,16 @@ impl StorageInitialization {
                 }
             }
             Self::Recovery { logs, factory_deps } => {
-                prepare_recovery_snapshot(storage, Self::SNAPSHOT_RECOVERY_BLOCK, logs).await;
+                prepare_recovery_snapshot(
+                    storage,
+                    Self::SNAPSHOT_RECOVERY_BATCH,
+                    Self::SNAPSHOT_RECOVERY_BLOCK,
+                    logs,
+                )
+                .await;
                 storage
                     .storage_dal()
-                    .insert_factory_deps(
-                        MiniblockNumber(Self::SNAPSHOT_RECOVERY_BLOCK),
-                        factory_deps,
-                    )
+                    .insert_factory_deps(Self::SNAPSHOT_RECOVERY_BLOCK, factory_deps)
                     .await?;
             }
         }
@@ -456,17 +460,17 @@ impl HttpTest for BlockMethodsWithSnapshotRecovery {
 
         let block_number = client.get_block_number().await?;
         let expected_block_number = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
-        assert_eq!(block_number, expected_block_number.into());
+        assert_eq!(block_number, expected_block_number.0.into());
 
-        for block_number in [api::BlockNumber::Latest, expected_block_number.into()] {
+        for block_number in [api::BlockNumber::Latest, expected_block_number.0.into()] {
             let block = client
                 .get_block_by_number(block_number, false)
                 .await?
                 .context("no latest block")?;
-            assert_eq!(block.number, expected_block_number.into());
+            assert_eq!(block.number, expected_block_number.0.into());
         }
 
-        for number in [0, 1, expected_block_number - 1] {
+        for number in [0, 1, expected_block_number.0 - 1] {
             let error = client
                 .get_block_details(MiniblockNumber(number))
                 .await
@@ -494,7 +498,7 @@ impl HttpTest for BlockMethodsWithSnapshotRecovery {
     }
 }
 
-fn assert_pruned_block_error(error: &ClientError, first_retained_block: u32) {
+fn assert_pruned_block_error(error: &ClientError, first_retained_block: MiniblockNumber) {
     if let ClientError::Call(error) = error {
         assert_eq!(error.code(), ErrorCode::InvalidParams.code());
         assert!(
@@ -533,58 +537,58 @@ impl HttpTest for L1BatchMethodsWithSnapshotRecovery {
 
         let mut storage = pool.access_storage().await?;
         let miniblock_number = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
-        store_miniblock(&mut storage, MiniblockNumber(miniblock_number), &[]).await?;
-        seal_l1_batch(&mut storage, L1BatchNumber(miniblock_number)).await?;
+        let l1_batch_number = StorageInitialization::SNAPSHOT_RECOVERY_BATCH + 1;
+        store_miniblock(&mut storage, miniblock_number, &[]).await?;
+        seal_l1_batch(&mut storage, l1_batch_number).await?;
         drop(storage);
 
-        let l1_batch_number = client.get_l1_batch_number().await?;
-        assert_eq!(l1_batch_number, miniblock_number.into());
+        assert_eq!(
+            client.get_l1_batch_number().await?,
+            l1_batch_number.0.into()
+        );
 
         // `get_miniblock_range` method
         let miniblock_range = client
-            .get_miniblock_range(L1BatchNumber(miniblock_number))
+            .get_miniblock_range(l1_batch_number)
             .await?
             .context("no range for sealed L1 batch")?;
-        assert_eq!(miniblock_range.0, miniblock_number.into());
-        assert_eq!(miniblock_range.1, miniblock_number.into());
+        assert_eq!(miniblock_range.0, miniblock_number.0.into());
+        assert_eq!(miniblock_range.1, miniblock_number.0.into());
 
-        let miniblock_range_for_future_batch = client
-            .get_miniblock_range(L1BatchNumber(miniblock_number) + 1)
-            .await?;
+        let miniblock_range_for_future_batch =
+            client.get_miniblock_range(l1_batch_number + 1).await?;
         assert_eq!(miniblock_range_for_future_batch, None);
 
         let error = client
-            .get_miniblock_range(L1BatchNumber(miniblock_number) - 1)
+            .get_miniblock_range(l1_batch_number - 1)
             .await
             .unwrap_err();
-        assert_pruned_l1_batch_error(&error, miniblock_number);
+        assert_pruned_l1_batch_error(&error, l1_batch_number);
 
         // `get_l1_batch_details` method
         let details = client
-            .get_l1_batch_details(L1BatchNumber(miniblock_number))
+            .get_l1_batch_details(l1_batch_number)
             .await?
             .context("no details for sealed L1 batch")?;
-        assert_eq!(details.number, L1BatchNumber(miniblock_number));
+        assert_eq!(details.number, l1_batch_number);
 
-        let details_for_future_batch = client
-            .get_l1_batch_details(L1BatchNumber(miniblock_number) + 1)
-            .await?;
+        let details_for_future_batch = client.get_l1_batch_details(l1_batch_number + 1).await?;
         assert!(
             details_for_future_batch.is_none(),
             "{details_for_future_batch:?}"
         );
 
         let error = client
-            .get_l1_batch_details(L1BatchNumber(miniblock_number) - 1)
+            .get_l1_batch_details(l1_batch_number - 1)
             .await
             .unwrap_err();
-        assert_pruned_l1_batch_error(&error, miniblock_number);
+        assert_pruned_l1_batch_error(&error, l1_batch_number);
 
         Ok(())
     }
 }
 
-fn assert_pruned_l1_batch_error(error: &ClientError, first_retained_l1_batch: u32) {
+fn assert_pruned_l1_batch_error(error: &ClientError, first_retained_l1_batch: L1BatchNumber) {
     if let ClientError::Call(error) = error {
         assert_eq!(error.code(), ErrorCode::InvalidParams.code());
         assert!(
@@ -631,7 +635,7 @@ impl HttpTest for StorageAccessWithSnapshotRecovery {
 
         let address = Address::repeat_byte(1);
         let first_local_miniblock = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
-        for number in [0, 1, first_local_miniblock - 1] {
+        for number in [0, 1, first_local_miniblock.0 - 1] {
             let number = api::BlockIdVariant::BlockNumber(number.into());
             let error = client.get_code(address, Some(number)).await.unwrap_err();
             assert_pruned_block_error(&error, first_local_miniblock);
@@ -641,13 +645,13 @@ impl HttpTest for StorageAccessWithSnapshotRecovery {
                 .get_storage_at(address, 0.into(), Some(number))
                 .await
                 .unwrap_err();
-            assert_pruned_block_error(&error, 24);
+            assert_pruned_block_error(&error, first_local_miniblock);
         }
 
-        store_miniblock(&mut storage, MiniblockNumber(first_local_miniblock), &[]).await?;
+        store_miniblock(&mut storage, first_local_miniblock, &[]).await?;
         drop(storage);
 
-        for number in [api::BlockNumber::Latest, first_local_miniblock.into()] {
+        for number in [api::BlockNumber::Latest, first_local_miniblock.0.into()] {
             let number = api::BlockIdVariant::BlockNumber(number);
             let code = client.get_code(address, Some(number)).await?;
             assert_eq!(code.0, b"code");
@@ -789,7 +793,7 @@ impl HttpTest for TransactionCountAfterSnapshotRecoveryTest {
         let pruned_block_numbers = [
             api::BlockNumber::Earliest,
             0.into(),
-            StorageInitialization::SNAPSHOT_RECOVERY_BLOCK.into(),
+            StorageInitialization::SNAPSHOT_RECOVERY_BLOCK.0.into(),
         ];
         for number in pruned_block_numbers {
             let number = api::BlockIdVariant::BlockNumber(number);
@@ -801,9 +805,9 @@ impl HttpTest for TransactionCountAfterSnapshotRecoveryTest {
         }
 
         let latest_miniblock_number = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
-        store_miniblock(&mut storage, MiniblockNumber(latest_miniblock_number), &[]).await?;
+        store_miniblock(&mut storage, latest_miniblock_number, &[]).await?;
 
-        let latest_block_numbers = [api::BlockNumber::Latest, latest_miniblock_number.into()];
+        let latest_block_numbers = [api::BlockNumber::Latest, latest_miniblock_number.0.into()];
         for number in latest_block_numbers {
             let number = api::BlockIdVariant::BlockNumber(number);
             let latest_count = client

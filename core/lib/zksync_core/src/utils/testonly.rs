@@ -121,7 +121,8 @@ pub(crate) fn execute_l2_transaction(transaction: L2Tx) -> TransactionExecutionR
 /// Prepares a recovery snapshot without performing genesis.
 pub(crate) async fn prepare_recovery_snapshot(
     storage: &mut StorageProcessor<'_>,
-    l1_batch_number: u32,
+    l1_batch_number: L1BatchNumber,
+    miniblock_number: MiniblockNumber,
     snapshot_logs: &[StorageLog],
 ) -> SnapshotRecoveryStatus {
     let mut storage = storage.start_transaction().await.unwrap();
@@ -134,8 +135,8 @@ pub(crate) async fn prepare_recovery_snapshot(
         .collect();
     let l1_batch_root_hash = ZkSyncTree::process_genesis_batch(&tree_instructions).root_hash;
 
-    let miniblock = create_miniblock(l1_batch_number);
-    let l1_batch = create_l1_batch(l1_batch_number);
+    let miniblock = create_miniblock(miniblock_number.0);
+    let l1_batch = create_l1_batch(l1_batch_number.0);
     // Miniblock and L1 batch are intentionally **not** inserted into the storage.
 
     // Store factory deps for the base system contracts.

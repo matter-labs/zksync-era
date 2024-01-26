@@ -30,11 +30,11 @@ impl HttpTest for BasicFilterChangesTest {
         let new_tx_hash = tx_result.hash;
         let new_miniblock = store_miniblock(
             &mut pool.access_storage().await?,
-            MiniblockNumber(if self.snapshot_recovery {
+            if self.snapshot_recovery {
                 StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1
             } else {
-                1
-            }),
+                MiniblockNumber(1)
+            },
             &[tx_result],
         )
         .await?;
@@ -116,7 +116,7 @@ impl HttpTest for LogFilterChangesTest {
 
         let mut storage = pool.access_storage().await?;
         let first_local_miniblock = if self.snapshot_recovery {
-            StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1
+            StorageInitialization::SNAPSHOT_RECOVERY_BLOCK.0 + 1
         } else {
             1
         };

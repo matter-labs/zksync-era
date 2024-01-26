@@ -242,7 +242,13 @@ async fn entire_recovery_workflow(case: RecoveryWorkflowCase) {
     // Emulate the recovered view of Postgres. Unlike with previous tests, we don't perform genesis.
     let snapshot_logs = gen_storage_logs(100..300, 1).pop().unwrap();
     let mut storage = pool.access_storage().await.unwrap();
-    let snapshot_recovery = prepare_recovery_snapshot(&mut storage, 23, &snapshot_logs).await;
+    let snapshot_recovery = prepare_recovery_snapshot(
+        &mut storage,
+        L1BatchNumber(23),
+        MiniblockNumber(42),
+        &snapshot_logs,
+    )
+    .await;
 
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
     let merkle_tree_config = MerkleTreeConfig {

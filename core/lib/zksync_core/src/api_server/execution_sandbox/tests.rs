@@ -67,7 +67,8 @@ async fn creating_block_args() {
 async fn creating_block_args_after_snapshot_recovery() {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
-    let snapshot_recovery = prepare_recovery_snapshot(&mut storage, 23, &[]).await;
+    let snapshot_recovery =
+        prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await;
 
     let pending_block_args = BlockArgs::pending(&mut storage).await.unwrap();
     assert_eq!(

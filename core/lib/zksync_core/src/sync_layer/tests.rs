@@ -168,7 +168,7 @@ async fn external_io_basics(snapshot_recovery: bool) {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
     let snapshot = if snapshot_recovery {
-        prepare_recovery_snapshot(&mut storage, 23, &[]).await
+        prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await
     } else {
         ensure_genesis(&mut storage).await;
         genesis_snapshot_recovery_status()
@@ -238,7 +238,7 @@ pub(super) async fn run_state_keeper_with_multiple_miniblocks(
 ) -> (SnapshotRecoveryStatus, Vec<H256>) {
     let mut storage = pool.access_storage().await.unwrap();
     let snapshot = if snapshot_recovery {
-        prepare_recovery_snapshot(&mut storage, 23, &[]).await
+        prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await
     } else {
         ensure_genesis(&mut storage).await;
         genesis_snapshot_recovery_status()

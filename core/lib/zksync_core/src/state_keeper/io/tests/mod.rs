@@ -438,7 +438,8 @@ async fn miniblock_and_l1_batch_processing_with_sync_sealer() {
 async fn miniblock_processing_after_snapshot_recovery() {
     let connection_pool = ConnectionPool::test_pool().await;
     let mut storage = connection_pool.access_storage().await.unwrap();
-    let snapshot_recovery = prepare_recovery_snapshot(&mut storage, 23, &[]).await;
+    let snapshot_recovery =
+        prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await;
     let tester = Tester::new();
 
     let (mut mempool, mut mempool_guard) = tester

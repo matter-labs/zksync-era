@@ -69,7 +69,8 @@ async fn creating_io_cursor_with_genesis() {
 async fn creating_io_cursor_with_snapshot_recovery() {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
-    let snapshot_recovery = prepare_recovery_snapshot(&mut storage, 23, &[]).await;
+    let snapshot_recovery =
+        prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await;
 
     let cursor = IoCursor::new(&mut storage).await.unwrap();
     assert_eq!(cursor.l1_batch, L1BatchNumber(24));
@@ -143,7 +144,8 @@ async fn waiting_for_l1_batch_params_with_genesis() {
 async fn waiting_for_l1_batch_params_after_snapshot_recovery() {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
-    let snapshot_recovery = prepare_recovery_snapshot(&mut storage, 23, &[]).await;
+    let snapshot_recovery =
+        prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await;
 
     let provider = L1BatchParamsProvider::new(&mut storage).await.unwrap();
     let (hash, timestamp) = provider
@@ -261,7 +263,8 @@ async fn assert_first_miniblock_numbers(
 async fn getting_first_miniblock_in_batch_after_snapshot_recovery() {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
-    let snapshot_recovery = prepare_recovery_snapshot(&mut storage, 23, &[]).await;
+    let snapshot_recovery =
+        prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await;
 
     let provider = L1BatchParamsProvider::new(&mut storage).await.unwrap();
     let mut batches_and_miniblocks = HashMap::from([
@@ -382,7 +385,8 @@ async fn store_pending_miniblocks(
 async fn loading_pending_batch_after_snapshot_recovery() {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
-    let snapshot_recovery = prepare_recovery_snapshot(&mut storage, 23, &[]).await;
+    let snapshot_recovery =
+        prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await;
 
     let starting_miniblock_number = snapshot_recovery.miniblock_number.0 + 1;
     store_pending_miniblocks(
@@ -483,7 +487,8 @@ async fn getting_batch_version_with_genesis() {
 async fn getting_batch_version_after_snapshot_recovery() {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
-    let snapshot_recovery = prepare_recovery_snapshot(&mut storage, 23, &[]).await;
+    let snapshot_recovery =
+        prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await;
 
     let provider = L1BatchParamsProvider::new(&mut storage).await.unwrap();
     let version = provider
