@@ -25,7 +25,7 @@ export async function server(rebuildTree: boolean, uring: boolean, components?: 
     await utils.spawn(`cargo run --bin zksync_server --release ${options}`);
 }
 
-export async function externalNode(reinit: boolean = false) {
+export async function externalNode(reinit: boolean = false, enableConsensus: boolean = false) {
     if (process.env.ZKSYNC_ENV != 'ext-node') {
         console.warn(`WARNING: using ${process.env.ZKSYNC_ENV} environment for external node`);
         console.warn('If this is a mistake, set $ZKSYNC_ENV to "ext-node" or other environment');
@@ -45,7 +45,11 @@ export async function externalNode(reinit: boolean = false) {
         clean(path.dirname(process.env.EN_MERKLE_TREE_PATH!));
     }
 
-    await utils.spawn('cargo run --release --bin zksync_external_node');
+    let options = '';
+    if (enableConsensus) {
+        options += ' --enable-consensus';
+    }
+    await utils.spawn(`cargo run --release --bin zksync_external_node -- ${options}`);
 }
 
 async function create_genesis(cmd: string) {
@@ -135,6 +139,7 @@ export const serverCommand = new Command('server')
 export const enCommand = new Command('external-node')
     .description('start zksync external node')
     .option('--reinit', 'reset postgres and rocksdb before starting')
+    .option('--enable-consensus', 'enables consensus component')
     .action(async (cmd: Command) => {
-        await externalNode(cmd.reinit);
+        await externalNode(cmd.reinit, cmd.enableConsensus);
     });
