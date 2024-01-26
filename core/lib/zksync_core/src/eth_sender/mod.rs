@@ -5,6 +5,7 @@ mod eth_tx_manager;
 mod metrics;
 mod publish_criterion;
 mod zksync_functions;
+pub mod data_provider;
 
 #[cfg(test)]
 mod tests;

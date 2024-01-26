@@ -29,6 +29,8 @@ use crate::{
     metrics::BlockL1Stage,
 };
 
+use super::data_provider::{DataProvider, Rollup, Validium};
+
 /// Data queried from L1 using multicall contract.
 #[derive(Debug)]
 pub struct MulticallData {
@@ -42,7 +44,7 @@ pub struct MulticallData {
 /// Such as CommitBlocks, PublishProofBlocksOnchain and ExecuteBlock
 /// These eth_txs will be used as a queue for generating signed txs and send them later
 #[derive(Debug)]
-pub struct EthTxAggregator {
+pub struct EthTxAggregator<T> where T: DataProvider {
     aggregator: Aggregator,
     eth_client: Arc<dyn BoundEthInterface>,
     config: SenderConfig,
@@ -51,9 +53,10 @@ pub struct EthTxAggregator {
     pub(super) main_zksync_contract_address: Address,
     functions: ZkSyncFunctions,
     base_nonce: u64,
+    data_provider: T,
 }
 
-impl EthTxAggregator {
+impl<T> EthTxAggregator<T> where T: DataProvider{
     pub fn new(
         config: SenderConfig,
         aggregator: Aggregator,
@@ -62,6 +65,7 @@ impl EthTxAggregator {
         l1_multicall3_address: Address,
         main_zksync_contract_address: Address,
         base_nonce: u64,
+        data_provider: T,
     ) -> Self {
         let functions = ZkSyncFunctions::default();
         Self {
@@ -73,6 +77,7 @@ impl EthTxAggregator {
             main_zksync_contract_address,
             functions,
             base_nonce,
+            data_provider,
         }
     }
 
