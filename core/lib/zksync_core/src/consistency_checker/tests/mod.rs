@@ -8,9 +8,8 @@ use tokio::sync::mpsc;
 use zksync_dal::StorageProcessor;
 use zksync_eth_client::clients::MockEthereum;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType, block::BlockGasCount,
-    commitment::L1BatchWithMetadata, web3::contract::Options, L2ChainId, ProtocolVersion,
-    ProtocolVersionId, H256,
+    aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata,
+    web3::contract::Options, L2ChainId, ProtocolVersion, ProtocolVersionId, H256,
 };
 
 use super::*;
@@ -195,7 +194,7 @@ impl SaveAction<'_> {
             Self::InsertBatch(l1_batch) => {
                 storage
                     .blocks_dal()
-                    .insert_l1_batch(&l1_batch.header, &[], BlockGasCount::default(), &[], &[], 0)
+                    .insert_mock_l1_batch(&l1_batch.header)
                     .await
                     .unwrap();
             }
