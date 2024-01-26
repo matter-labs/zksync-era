@@ -6,6 +6,7 @@ use zk_evm_1_4_1::{
     zkevm_opcode_defs::{LogOpcode, Opcode, UMAOpcode},
 };
 use zksync_state::{StoragePtr, WriteStorage};
+use zksync_types::circuit::CircuitCycleStatistic;
 
 use super::circuits_capacity::*;
 use crate::{
@@ -20,29 +21,16 @@ use crate::{
 
 /// Tracer responsible for collecting information about refunds.
 #[derive(Debug)]
-pub(crate) struct CircuitsTracer<S> {
-    pub(crate) estimated_circuits_used: f32,
+pub(crate) struct CircuitsTracer<S, H> {
+    pub(crate) statistics: CircuitCycleStatistic,
     last_decommitment_history_entry_checked: Option<usize>,
     last_written_keys_history_entry_checked: Option<usize>,
     last_read_keys_history_entry_checked: Option<usize>,
     last_precompile_inner_entry_checked: Option<usize>,
-    _phantom_data: PhantomData<S>,
+    _phantom_data: PhantomData<(S, H)>,
 }
 
-impl<S: WriteStorage> CircuitsTracer<S> {
-    pub(crate) fn new() -> Self {
-        Self {
-            estimated_circuits_used: 0.0,
-            last_decommitment_history_entry_checked: None,
-            last_written_keys_history_entry_checked: None,
-            last_read_keys_history_entry_checked: None,
-            last_precompile_inner_entry_checked: None,
-            _phantom_data: Default::default(),
-        }
-    }
-}
-
-impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for CircuitsTracer<S> {
+impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for CircuitsTracer<S, H> {
     fn before_execution(
         &mut self,
         _state: VmLocalStateData<'_>,
@@ -50,7 +38,9 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for Circuits
         _memory: &SimpleMemory<H>,
         _storage: StoragePtr<S>,
     ) {
-        let used = match data.opcode.variant.opcode {
+        self.statistics.main_vm_cycles += 1;
+
+        match data.opcode.variant.opcode {
             Opcode::Nop(_)
             | Opcode::Add(_)
             | Opcode::Sub(_)
@@ -59,27 +49,51 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for Circuits
             | Opcode::Jump(_)
             | Opcode::Binop(_)
             | Opcode::Shift(_)
-            | Opcode::Ptr(_) => RICH_ADDRESSING_OPCODE_FRACTION,
-            Opcode::Context(_) | Opcode::Ret(_) | Opcode::NearCall(_) => AVERAGE_OPCODE_FRACTION,
-            Opcode::Log(LogOpcode::StorageRead) => STORAGE_READ_BASE_FRACTION,
-            Opcode::Log(LogOpcode::StorageWrite) => STORAGE_WRITE_BASE_FRACTION,
-            Opcode::Log(LogOpcode::ToL1Message) | Opcode::Log(LogOpcode::Event) => {
-                EVENT_OR_L1_MESSAGE_FRACTION
+            | Opcode::Ptr(_) => {
+                self.statistics.ram_permutation_cycles += RICH_ADDRESSING_OPCODE_RAM_CYCLES;
             }
-            Opcode::Log(LogOpcode::PrecompileCall) => PRECOMPILE_CALL_COMMON_FRACTION,
-            Opcode::FarCall(_) => FAR_CALL_FRACTION,
-            Opcode::UMA(UMAOpcode::AuxHeapWrite | UMAOpcode::HeapWrite) => UMA_WRITE_FRACTION,
+            Opcode::Context(_) | Opcode::Ret(_) | Opcode::NearCall(_) => {
+                self.statistics.ram_permutation_cycles += AVERAGE_OPCODE_RAM_CYCLES;
+            }
+            Opcode::Log(LogOpcode::StorageRead) => {
+                self.statistics.ram_permutation_cycles += STORAGE_READ_RAM_CYCLES;
+                self.statistics.log_demuxer_cycles += STORAGE_READ_LOG_DEMUXER_CYCLES;
+                self.statistics.storage_sorter_cycles += STORAGE_READ_STORAGE_SORTER_CYCLES;
+            }
+            Opcode::Log(LogOpcode::StorageWrite) => {
+                self.statistics.ram_permutation_cycles += STORAGE_WRITE_RAM_CYCLES;
+                self.statistics.log_demuxer_cycles += STORAGE_WRITE_LOG_DEMUXER_CYCLES;
+                self.statistics.storage_sorter_cycles += STORAGE_WRITE_STORAGE_SORTER_CYCLES;
+            }
+            Opcode::Log(LogOpcode::ToL1Message) | Opcode::Log(LogOpcode::Event) => {
+                self.statistics.ram_permutation_cycles += EVENT_RAM_CYCLES;
+                self.statistics.log_demuxer_cycles += EVENT_LOG_DEMUXER_CYCLES;
+                self.statistics.events_sorter_cycles += EVENT_EVENTS_SORTER_CYCLES;
+            }
+            Opcode::Log(LogOpcode::PrecompileCall) => {
+                self.statistics.ram_permutation_cycles += PRECOMPILE_RAM_CYCLES;
+                self.statistics.log_demuxer_cycles += PRECOMPILE_LOG_DEMUXER_CYCLES;
+            }
+            Opcode::FarCall(_) => {
+                self.statistics.ram_permutation_cycles += FAR_CALL_RAM_CYCLES;
+                self.statistics.code_decommitter_sorter_cycles +=
+                    FAR_CALL_CODE_DECOMMITTER_SORTER_CYCLES;
+                self.statistics.storage_sorter_cycles += FAR_CALL_STORAGE_SORTER_CYCLES;
+            }
+            Opcode::UMA(UMAOpcode::AuxHeapWrite | UMAOpcode::HeapWrite) => {
+                self.statistics.ram_permutation_cycles += UMA_WRITE_RAM_CYCLES;
+            }
             Opcode::UMA(
                 UMAOpcode::AuxHeapRead | UMAOpcode::HeapRead | UMAOpcode::FatPointerRead,
-            ) => UMA_READ_FRACTION,
+            ) => {
+                self.statistics.ram_permutation_cycles += UMA_READ_RAM_CYCLES;
+            }
             Opcode::Invalid(_) => unreachable!(), // invalid opcodes are never executed
         };
-
-        self.estimated_circuits_used += used;
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CircuitsTracer<S> {
+impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CircuitsTracer<S, H> {
     fn initialize_tracer(&mut self, state: &mut ZkSyncVmState<S, H>) {
         self.last_decommitment_history_entry_checked = Some(
             state
@@ -108,7 +122,28 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CircuitsTracer<S> {
         state: &mut ZkSyncVmState<S, H>,
         _bootloader_state: &mut BootloaderState,
     ) -> TracerExecutionStatus {
-        // Trace decommitments.
+        self.trace_decommitments(state);
+        self.trace_storage_writes(state);
+        self.trace_storage_reads(state);
+        self.trace_precompile_calls(state);
+
+        TracerExecutionStatus::Continue
+    }
+}
+
+impl<S: WriteStorage, H: HistoryMode> CircuitsTracer<S, H> {
+    pub(crate) fn new() -> Self {
+        Self {
+            statistics: CircuitCycleStatistic::new(),
+            last_decommitment_history_entry_checked: None,
+            last_written_keys_history_entry_checked: None,
+            last_read_keys_history_entry_checked: None,
+            last_precompile_inner_entry_checked: None,
+            _phantom_data: Default::default(),
+        }
+    }
+
+    fn trace_decommitments(&mut self, state: &ZkSyncVmState<S, H>) {
         let last_decommitment_history_entry_checked = self
             .last_decommitment_history_entry_checked
             .expect("Value must be set during init");
@@ -130,12 +165,12 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CircuitsTracer<S> {
             // Each cycle of `CodeDecommitter` processes 2 words.
             // If the number of words in bytecode is odd, then number of cycles must be rounded up.
             let decommitter_cycles_used = (bytecode_len + 1) / 2;
-            self.estimated_circuits_used +=
-                (decommitter_cycles_used as f32) * CODE_DECOMMITTER_CYCLE_FRACTION;
+            self.statistics.code_decommitter_cycles += decommitter_cycles_used as u32;
         }
         self.last_decommitment_history_entry_checked = Some(history.len());
+    }
 
-        // Process storage writes.
+    fn trace_storage_writes(&mut self, state: &ZkSyncVmState<S, H>) {
         let last_writes_history_entry_checked = self
             .last_written_keys_history_entry_checked
             .expect("Value must be set during init");
@@ -144,11 +179,12 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CircuitsTracer<S> {
             // We assume that only insertions may happen during a single VM inspection.
             assert!(history_event.value.is_none());
 
-            self.estimated_circuits_used += 2.0 * STORAGE_APPLICATION_CYCLE_FRACTION;
+            self.statistics.storage_application_cycles += STORAGE_WRITE_STORAGE_APPLICATION_CYCLES;
         }
         self.last_written_keys_history_entry_checked = Some(history.len());
+    }
 
-        // Process storage reads.
+    fn trace_storage_reads(&mut self, state: &ZkSyncVmState<S, H>) {
         let last_reads_history_entry_checked = self
             .last_read_keys_history_entry_checked
             .expect("Value must be set during init");
@@ -164,12 +200,14 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CircuitsTracer<S> {
                 .inner()
                 .contains_key(&history_event.key)
             {
-                self.estimated_circuits_used += STORAGE_APPLICATION_CYCLE_FRACTION;
+                self.statistics.storage_application_cycles +=
+                    STORAGE_READ_STORAGE_APPLICATION_CYCLES;
             }
         }
         self.last_read_keys_history_entry_checked = Some(history.len());
+    }
 
-        // Process precompiles.
+    fn trace_precompile_calls(&mut self, state: &ZkSyncVmState<S, H>) {
         let last_precompile_inner_entry_checked = self
             .last_precompile_inner_entry_checked
             .expect("Value must be set during init");
@@ -178,15 +216,18 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CircuitsTracer<S> {
             .precompile_cycles_history
             .inner();
         for (precompile, cycles) in &inner[last_precompile_inner_entry_checked..] {
-            let fraction = match precompile {
-                PrecompileAddress::Ecrecover => ECRECOVER_CYCLE_FRACTION,
-                PrecompileAddress::SHA256 => SHA256_CYCLE_FRACTION,
-                PrecompileAddress::Keccak256 => KECCAK256_CYCLE_FRACTION,
+            match precompile {
+                PrecompileAddress::Ecrecover => {
+                    self.statistics.ecrecover_cycles += *cycles as u32;
+                }
+                PrecompileAddress::SHA256 => {
+                    self.statistics.sha256_cycles += *cycles as u32;
+                }
+                PrecompileAddress::Keccak256 => {
+                    self.statistics.keccak256_cycles += *cycles as u32;
+                }
             };
-            self.estimated_circuits_used += (*cycles as f32) * fraction;
         }
         self.last_precompile_inner_entry_checked = Some(inner.len());
-
-        TracerExecutionStatus::Continue
     }
 }
