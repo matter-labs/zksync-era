@@ -14,6 +14,8 @@ use zksync_config::{
     GasAdjusterConfig, ObjectStoreConfig, PostgresConfig,
 };
 
+use crate::consensus;
+
 // TODO (QIT-22): This structure is going to be removed when components will be responsible for their own configs.
 /// A temporary config store allowing to pass deserialized configs from `zksync_server` to `zksync_core`.
 /// All the configs are optional, since for some component combination it is not needed to pass all the configs.
@@ -44,4 +46,5 @@ pub struct TempConfigStore {
     pub eth_watch_config: Option<ETHWatchConfig>,
     pub gas_adjuster_config: Option<GasAdjusterConfig>,
     pub object_store_config: Option<ObjectStoreConfig>,
+    pub consensus_config: Option<consensus::MainNodeConfig>,
 }

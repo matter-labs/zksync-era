@@ -13,7 +13,7 @@ use zksync_types::{
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
     tx::tx_execution_info::TxExecutionStatus,
     vm_trace::{Call, VmExecutionTrace, VmTrace},
-    L1BatchNumber, StorageLogQuery, VmEvent, H256, U256,
+    L1BatchNumber, VmEvent, H256, U256,
 };
 
 use crate::{
@@ -41,7 +41,7 @@ use crate::{
         utils::{
             calculate_computational_gas_used, collect_log_queries_after_timestamp,
             collect_storage_log_queries_after_timestamp, dump_memory_page_using_primitive_value,
-            precompile_calls_count_after_timestamp,
+            precompile_calls_count_after_timestamp, StorageLogQuery,
         },
         vm_with_bootloader::{
             BootloaderJobType, DerivedBlockContext, TxExecutionMode, BOOTLOADER_HEAP_PAGE,
@@ -436,10 +436,7 @@ impl<H: HistoryMode, S: Storage> VmInstance<S, H> {
             .collect();
         (
             events,
-            l1_messages
-                .into_iter()
-                .map(|log| L2ToL1Log::from(GlueInto::<zksync_types::EventMessage>::glue_into(log)))
-                .collect(),
+            l1_messages.into_iter().map(GlueInto::glue_into).collect(),
         )
     }
 
@@ -463,7 +460,7 @@ impl<H: HistoryMode, S: Storage> VmInstance<S, H> {
             from_timestamp,
         );
         VmExecutionLogs {
-            storage_logs,
+            storage_logs: storage_logs.into_iter().map(GlueInto::glue_into).collect(),
             events,
             user_l2_to_l1_logs: l2_to_l1_logs.into_iter().map(UserL2ToL1Log).collect(),
             system_l2_to_l1_logs: vec![],
@@ -788,12 +785,8 @@ impl<H: HistoryMode, S: Storage> VmInstance<S, H> {
                         e.into_vm_event(L1BatchNumber(self.block_context.context.block_number))
                     })
                     .collect();
-                full_result.l2_to_l1_logs = l1_messages
-                    .into_iter()
-                    .map(|log| {
-                        L2ToL1Log::from(GlueInto::<zksync_types::EventMessage>::glue_into(log))
-                    })
-                    .collect();
+                full_result.l2_to_l1_logs =
+                    l1_messages.into_iter().map(GlueInto::glue_into).collect();
                 full_result.computational_gas_used = block_tip_result.computational_gas_used;
                 VmBlockResult {
                     full_result,

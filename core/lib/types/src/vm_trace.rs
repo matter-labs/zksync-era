@@ -5,11 +5,10 @@ use std::{
 };
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use zk_evm::zkevm_opcode_defs::FarCallOpcode;
 use zksync_system_constants::BOOTLOADER_ADDRESS;
 use zksync_utils::u256_to_h256;
 
-use crate::{Address, U256};
+use crate::{zk_evm_types::FarCallOpcode, Address, U256};
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub enum VmTrace {

@@ -1,7 +1,11 @@
 use std::collections::HashSet;
 
 use sqlx::types::chrono::Utc;
-use zksync_types::{AccountTreeId, Address, L1BatchNumber, LogQuery, StorageKey, H256};
+use zksync_types::{
+    snapshots::{InitialWriteDbRow, SnapshotStorageLog},
+    zk_evm_types::LogQuery,
+    AccountTreeId, Address, L1BatchNumber, StorageKey, H256,
+};
 use zksync_utils::u256_to_h256;
 
 use crate::StorageProcessor;
@@ -44,6 +48,38 @@ impl StorageLogsDedupDal<'_, '_> {
 
     /// Insert initial writes and assigns indices to them.
     /// Assumes indices are already assigned for all saved initial_writes, so must be called only after the migration.
+    pub async fn insert_initial_writes_from_snapshot(
+        &mut self,
+        snapshot_storage_logs: &[SnapshotStorageLog],
+    ) -> sqlx::Result<()> {
+        let mut copy = self
+            .storage
+            .conn()
+            .copy_in_raw(
+                "COPY initial_writes (hashed_key, index, l1_batch_number, created_at, updated_at) \
+                FROM STDIN WITH (DELIMITER '|')",
+            )
+            .await?;
+
+        let mut bytes: Vec<u8> = Vec::new();
+        let now = Utc::now().naive_utc().to_string();
+        for log in snapshot_storage_logs.iter() {
+            let row = format!(
+                "\\\\x{:x}|{}|{}|{}|{}\n",
+                log.key.hashed_key(),
+                log.enumeration_index,
+                log.l1_batch_number_of_initial_write,
+                now,
+                now,
+            );
+            bytes.extend_from_slice(row.as_bytes());
+        }
+        copy.send(bytes).await?;
+        copy.finish().await?;
+
+        Ok(())
+    }
+
     pub async fn insert_initial_writes(
         &mut self,
         l1_batch_number: L1BatchNumber,
@@ -190,5 +226,30 @@ impl StorageLogsDedupDal<'_, '_> {
         .into_iter()
         .map(|row| H256::from_slice(&row.hashed_key))
         .collect()
+    }
+
+    /// Retrieves all initial write entries for testing purposes.
+    pub async fn dump_all_initial_writes_for_tests(&mut self) -> Vec<InitialWriteDbRow> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT
+                hashed_key,
+                l1_batch_number,
+                INDEX
+            FROM
+                initial_writes
+            "#
+        )
+        .fetch_all(self.storage.conn())
+        .await
+        .expect("get_all_initial_writes_for_tests");
+
+        rows.into_iter()
+            .map(|row| InitialWriteDbRow {
+                hashed_key: H256::from_slice(&row.hashed_key),
+                l1_batch_number: L1BatchNumber(row.l1_batch_number as u32),
+                index: row.index as u64,
+            })
+            .collect()
     }
 }

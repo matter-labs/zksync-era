@@ -10,6 +10,7 @@ use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::configs::chain::NetworkConfig;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::{
+    fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
     Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, Transaction, H256,
 };
 
@@ -35,6 +36,7 @@ fn open_l1_batch(number: u32, timestamp: u64, first_miniblock_number: u32) -> Sy
         timestamp,
         l1_gas_price: 2,
         l2_fair_gas_price: 3,
+        fair_pubdata_price: Some(4),
         operator_address: OPERATOR_ADDRESS,
         protocol_version: ProtocolVersionId::latest(),
         first_miniblock_info: (MiniblockNumber(first_miniblock_number), 1),
@@ -145,7 +147,7 @@ async fn external_io_basics() {
     let tx = create_l2_transaction(10, 100);
     let tx_hash = tx.hash();
     let tx = SyncAction::Tx(Box::new(tx.into()));
-    let actions = vec![open_l1_batch, tx, SyncAction::SealMiniblock(None)];
+    let actions = vec![open_l1_batch, tx, SyncAction::SealMiniblock];
 
     let (actions_sender, action_queue) = ActionQueue::new();
     let state_keeper =
@@ -165,8 +167,15 @@ async fn external_io_basics() {
         .unwrap()
         .expect("Miniblock #1 is not persisted");
     assert_eq!(miniblock.timestamp, 1);
-    assert_eq!(miniblock.batch_fee_input.l1_gas_price(), 2);
-    assert_eq!(miniblock.batch_fee_input.fair_l2_gas_price(), 3);
+
+    let expected_fee_input =
+        BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
+            fair_l2_gas_price: 3,
+            fair_pubdata_price: 4,
+            l1_gas_price: 2,
+        });
+
+    assert_eq!(miniblock.batch_fee_input, expected_fee_input);
     assert_eq!(miniblock.l1_tx_count, 0);
     assert_eq!(miniblock.l2_tx_count, 1);
 
@@ -188,7 +197,7 @@ pub(super) async fn run_state_keeper_with_multiple_miniblocks(pool: ConnectionPo
     });
     let first_miniblock_actions: Vec<_> = iter::once(open_l1_batch)
         .chain(txs)
-        .chain([SyncAction::SealMiniblock(None)])
+        .chain([SyncAction::SealMiniblock])
         .collect();
 
     let open_miniblock = SyncAction::Miniblock {
@@ -202,7 +211,7 @@ pub(super) async fn run_state_keeper_with_multiple_miniblocks(pool: ConnectionPo
     });
     let second_miniblock_actions: Vec<_> = iter::once(open_miniblock)
         .chain(more_txs)
-        .chain([SyncAction::SealMiniblock(None)])
+        .chain([SyncAction::SealMiniblock])
         .collect();
 
     let tx_hashes = extract_tx_hashes(
@@ -276,7 +285,7 @@ async fn test_external_io_recovery(pool: ConnectionPool, mut tx_hashes: Vec<H256
         timestamp: 3,
         virtual_blocks: 1,
     };
-    let actions = vec![open_miniblock, new_tx, SyncAction::SealMiniblock(None)];
+    let actions = vec![open_miniblock, new_tx, SyncAction::SealMiniblock];
     actions_sender.push_actions(actions).await;
     state_keeper
         .wait(|state| state.get_local_block() == MiniblockNumber(3))
@@ -324,24 +333,21 @@ pub(super) async fn run_state_keeper_with_multiple_l1_batches(
     let first_tx = create_l2_transaction(10, 100);
     let first_tx_hash = first_tx.hash();
     let first_tx = SyncAction::Tx(Box::new(first_tx.into()));
-    let first_l1_batch_actions = vec![l1_batch, first_tx, SyncAction::SealMiniblock(None)];
+    let first_l1_batch_actions = vec![l1_batch, first_tx, SyncAction::SealMiniblock];
 
     let fictive_miniblock = SyncAction::Miniblock {
         number: MiniblockNumber(2),
         timestamp: 2,
         virtual_blocks: 0,
     };
-    let seal_l1_batch = SyncAction::SealBatch {
-        virtual_blocks: 0,
-        consensus: None,
-    };
+    let seal_l1_batch = SyncAction::SealBatch { virtual_blocks: 0 };
     let fictive_miniblock_actions = vec![fictive_miniblock, seal_l1_batch];
 
     let l1_batch = open_l1_batch(2, 3, 3);
     let second_tx = create_l2_transaction(10, 100);
     let second_tx_hash = second_tx.hash();
     let second_tx = SyncAction::Tx(Box::new(second_tx.into()));
-    let second_l1_batch_actions = vec![l1_batch, second_tx, SyncAction::SealMiniblock(None)];
+    let second_l1_batch_actions = vec![l1_batch, second_tx, SyncAction::SealMiniblock];
 
     let (actions_sender, action_queue) = ActionQueue::new();
     let state_keeper = StateKeeperHandles::new(
@@ -463,7 +469,7 @@ async fn fetcher_basics() {
                 assert_eq!(tx.hash(), tx_hashes.pop_front().unwrap());
                 tx_count_in_miniblock += 1;
             }
-            SyncAction::SealMiniblock(_) => {
+            SyncAction::SealMiniblock => {
                 assert_eq!(tx_count_in_miniblock, 1);
             }
         }
@@ -492,8 +498,13 @@ async fn fetcher_with_real_server() {
     // Start the API server.
     let network_config = NetworkConfig::for_tests();
     let (stop_sender, stop_receiver) = watch::channel(false);
-    let server_handles =
-        spawn_http_server(&network_config, pool.clone(), stop_receiver.clone()).await;
+    let server_handles = spawn_http_server(
+        &network_config,
+        pool.clone(),
+        Default::default(),
+        stop_receiver.clone(),
+    )
+    .await;
     server_handles.wait_until_ready().await;
     let server_addr = &server_handles.local_addr;
 
@@ -545,7 +556,7 @@ async fn fetcher_with_real_server() {
                 assert_eq!(tx.hash(), tx_hashes.pop_front().unwrap());
                 tx_count_in_miniblock += 1;
             }
-            SyncAction::SealMiniblock(_) => {
+            SyncAction::SealMiniblock => {
                 assert_eq!(
                     tx_count_in_miniblock,
                     miniblock_number_to_tx_count[&current_miniblock_number]

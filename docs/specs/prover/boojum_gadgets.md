@@ -120,7 +120,7 @@ As you see, you can allocate both with and without witnesses.
 
 ## Hash function
 
-In gadgets we have a lot of hast implementation:
+In gadgets we have a lot of hash implementation:
 
 - blake2s
 - keccak256

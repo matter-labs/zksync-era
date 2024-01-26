@@ -6,12 +6,12 @@ use zk_evm_1_3_3::{
     tracing::{BeforeExecutionData, VmLocalStateData},
     vm_state::VmLocalState,
 };
+use zkevm_test_harness_1_3_3::witness::sort_storage_access::sort_storage_access_queries;
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_system_constants::{PUBLISH_BYTECODE_OVERHEAD, SYSTEM_CONTEXT_ADDRESS};
 use zksync_types::{
     event::{extract_long_l2_to_l1_messages, extract_published_bytecodes},
     l2_to_l1_log::L2ToL1Log,
-    zkevm_test_harness::witness::sort_storage_access::sort_storage_access_queries,
     L1BatchNumber, StorageKey, U256,
 };
 use zksync_utils::{bytecode::bytecode_len_in_bytes, ceil_div_u256, u256_to_h256};

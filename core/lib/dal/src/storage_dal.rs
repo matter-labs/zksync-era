@@ -19,7 +19,7 @@ impl StorageDal<'_, '_> {
         &mut self,
         block_number: MiniblockNumber,
         factory_deps: &HashMap<H256, Vec<u8>>,
-    ) {
+    ) -> sqlx::Result<()> {
         let (bytecode_hashes, bytecodes): (Vec<_>, Vec<_>) = factory_deps
             .iter()
             .map(|dep| (dep.0.as_bytes(), dep.1.as_slice()))
@@ -45,8 +45,9 @@ impl StorageDal<'_, '_> {
             block_number.0 as i64,
         )
         .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .await?;
+
+        Ok(())
     }
 
     /// Returns bytecode for a factory dependency with the specified bytecode `hash`.
@@ -134,8 +135,8 @@ impl StorageDal<'_, '_> {
     pub async fn get_factory_deps_for_revert(
         &mut self,
         block_number: MiniblockNumber,
-    ) -> Vec<H256> {
-        sqlx::query!(
+    ) -> sqlx::Result<Vec<H256>> {
+        Ok(sqlx::query!(
             r#"
             SELECT
                 bytecode_hash
@@ -147,11 +148,10 @@ impl StorageDal<'_, '_> {
             block_number.0 as i64
         )
         .fetch_all(self.storage.conn())
-        .await
-        .unwrap()
+        .await?
         .into_iter()
         .map(|row| H256::from_slice(&row.bytecode_hash))
-        .collect()
+        .collect())
     }
 
     /// Applies the specified storage logs for a miniblock. Returns the map of unique storage updates.
@@ -222,10 +222,9 @@ impl StorageDal<'_, '_> {
     }
 
     /// Gets the current storage value at the specified `key`.
-    pub async fn get_by_key(&mut self, key: &StorageKey) -> Option<H256> {
+    pub async fn get_by_key(&mut self, key: &StorageKey) -> sqlx::Result<Option<H256>> {
         let hashed_key = key.hashed_key();
-
-        sqlx::query!(
+        let row = sqlx::query!(
             r#"
             SELECT
                 value
@@ -240,9 +239,9 @@ impl StorageDal<'_, '_> {
         .report_latency()
         .with_arg("key", &hashed_key)
         .fetch_optional(self.storage.conn())
-        .await
-        .unwrap()
-        .map(|row| H256::from_slice(&row.value))
+        .await?;
+
+        Ok(row.map(|row| H256::from_slice(&row.value)))
     }
 
     /// Removes all factory deps with a miniblock number strictly greater than the specified `block_number`.
@@ -284,8 +283,8 @@ mod tests {
         conn.storage_dal().apply_storage_logs(&updates).await;
 
         let first_value = conn.storage_dal().get_by_key(&first_key).await.unwrap();
-        assert_eq!(first_value, H256::repeat_byte(1));
+        assert_eq!(first_value, Some(H256::repeat_byte(1)));
         let second_value = conn.storage_dal().get_by_key(&second_key).await.unwrap();
-        assert_eq!(second_value, H256::repeat_byte(2));
+        assert_eq!(second_value, Some(H256::repeat_byte(2)));
     }
 }
