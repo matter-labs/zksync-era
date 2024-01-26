@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use ethabi::Contract;
 use zk_evm_1_5_0::zkevm_opcode_defs::{BlobSha256Format, VersionedHashLen32};
-use zksync_contracts::BaseSystemContracts;
+use zksync_contracts::{BaseSystemContracts, SystemContractCode};
 use zksync_state::InMemoryStorage;
 use zksync_system_constants::L2_ETH_TOKEN_ADDRESS;
 use zksync_types::{
@@ -10,7 +10,7 @@ use zksync_types::{
     system_contracts::{DEPLOYMENT_NONCE_INCREMENT, TX_NONCE_INCREMENT},
     AccountTreeId, Address, Execute, StorageKey, H256, U256,
 };
-use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
+use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256};
 
 use super::tester::VmTester;
 use crate::{
@@ -49,12 +49,20 @@ fn set_up_evm_simulator_contract() -> (VmTester<HistoryEnabled>, Address, Contra
     let (evm_simulator_bytecode, evm_simualator) = read_test_evm_simulator();
 
     let mut base_system_contracts = BaseSystemContracts::playground();
-    base_system_contracts.evm_simualator = hash_bytecode(&evm_simulator_bytecode);
+    base_system_contracts.evm_simualator = SystemContractCode {
+        hash: hash_bytecode(&evm_simulator_bytecode),
+        code: bytes_to_be_words(evm_simulator_bytecode.clone()),
+    };
+
+    storage.store_factory_dep(
+        base_system_contracts.evm_simualator.hash,
+        evm_simulator_bytecode,
+    );
 
     let vm: crate::vm_latest::tests::tester::VmTester<HistoryEnabled> =
         VmTesterBuilder::new(HistoryEnabled)
             .with_storage(storage)
-            .with_base_system_smart_contracts(base_system_smart_contracts)
+            .with_base_system_smart_contracts(base_system_contracts)
             .with_execution_mode(TxExecutionMode::VerifyExecute)
             .with_random_rich_accounts(1)
             .build();
@@ -85,6 +93,7 @@ fn test_evm_simulator_get_gas() {
 
     vm.vm.push_transaction(tx);
     let tx_result = vm.vm.execute(VmExecutionMode::OneTx);
+
     assert!(
         !tx_result.result.is_failed(),
         "Transaction wasn't successful"

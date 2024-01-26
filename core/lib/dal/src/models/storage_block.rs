@@ -117,6 +117,8 @@ fn convert_base_system_contracts_hashes(
         default_aa: default_aa_code_hash
             .map(|hash| H256::from_slice(&hash))
             .expect("should not be none"),
+        // FIXME
+        evm_simulator: H256::default(),
     }
 }
 

@@ -2215,6 +2215,7 @@ mod tests {
             BaseSystemContractsHashes {
                 bootloader: H256::repeat_byte(1),
                 default_aa: H256::repeat_byte(42),
+                evm_simulator: H256::repeat_byte(55),
             },
             ProtocolVersionId::latest(),
         );

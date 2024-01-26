@@ -84,7 +84,7 @@ impl TryFrom<StorageSyncBlock> for SyncBlock {
                         .context("default_aa_code_hash should not be none")?,
                 )
                 .context("default_aa_code_hash")?,
-                evm_simualator: H256::zero(),
+                evm_simulator: H256::zero(),
             },
             fee_account_address: block
                 .fee_account_address

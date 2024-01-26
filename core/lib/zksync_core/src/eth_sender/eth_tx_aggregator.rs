@@ -228,6 +228,7 @@ impl EthTxAggregator {
             let base_system_contracts_hashes = BaseSystemContractsHashes {
                 bootloader,
                 default_aa,
+                evm_simulator: H256::zero(),
             };
 
             let multicall3_verifier_params =

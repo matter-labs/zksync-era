@@ -49,7 +49,7 @@ pub(crate) fn protocol_version_from_storage(
         base_system_contracts_hashes: BaseSystemContractsHashes {
             bootloader: H256::from_slice(&storage_version.bootloader_code_hash),
             default_aa: H256::from_slice(&storage_version.default_account_code_hash),
-            evm_simualator: H256::zero(),
+            evm_simulator: H256::zero(),
         },
         verifier_address: Address::from_slice(&storage_version.verifier_address),
         tx,
@@ -84,6 +84,7 @@ impl From<StorageProtocolVersion> for api::ProtocolVersion {
             base_system_contracts: BaseSystemContractsHashes {
                 bootloader: H256::from_slice(&storage_protocol_version.bootloader_code_hash),
                 default_aa: H256::from_slice(&storage_protocol_version.default_account_code_hash),
+                evm_simulator: H256::zero(),
             },
             l2_system_upgrade_tx_hash,
         }

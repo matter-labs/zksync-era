@@ -285,7 +285,7 @@ pub struct BaseSystemContracts {
 pub struct BaseSystemContractsHashes {
     pub bootloader: H256,
     pub default_aa: H256,
-    pub evm_simualator: H256,
+    pub evm_simulator: H256,
 }
 
 impl PartialEq for BaseSystemContracts {
@@ -441,7 +441,7 @@ impl BaseSystemContracts {
         BaseSystemContractsHashes {
             bootloader: self.bootloader.hash,
             default_aa: self.default_aa.hash,
-            evm_simualator: self.evm_simualator.hash,
+            evm_simulator: self.evm_simualator.hash,
         }
     }
 }

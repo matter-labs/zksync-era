@@ -130,7 +130,7 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
             ),
             // FIXME: this is totally wrong
             evm_simulator_code_hash: h256_to_u256(
-                system_env.base_system_smart_contracts.default_aa.hash,
+                system_env.base_system_smart_contracts.evm_simualator.hash,
             ),
             zkporter_is_available: system_env.zk_porter_available,
         },

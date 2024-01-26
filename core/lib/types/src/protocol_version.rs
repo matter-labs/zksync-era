@@ -604,7 +604,7 @@ impl ProtocolVersion {
                     .default_account_code_hash
                     .unwrap_or(self.base_system_contracts_hashes.default_aa),
                 // FIXME: support new simulators in upgrades
-                evm_simualator: self.base_system_contracts_hashes.evm_simualator,
+                evm_simulator: H256::zero(),
             },
             verifier_address: upgrade.verifier_address.unwrap_or(self.verifier_address),
             tx: upgrade.tx,
