@@ -109,7 +109,7 @@ jobs:
     name: Build base image
     needs: changed_files
     if: ${{ (needs.changed_files.outputs.base_image == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
-    uses: ./.github/workflows/ci-base-template.yml
+    uses: ./.github/workflows/build-base-template.yml
     with:
       action: "build"
     secrets:
