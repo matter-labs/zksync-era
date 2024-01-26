@@ -38,7 +38,7 @@ pub struct KzgInfo {
     pub kzg_commitment: [u8; 48],
     /// Point used by the point evaluation precompile
     pub opening_point: [u8; 32],
-    /// Value retrieved by evaluation the kzg commitment at the `opening_point`  
+    /// Value retrieved by evaluation the kzg commitment at the `opening_point`
     pub opening_value: [u8; 32],
     /// Proof that opening the kzg commitment at the opening point yields the opening value
     pub opening_proof: [u8; 48],
@@ -246,10 +246,20 @@ impl KzgInfo {
 
 #[cfg(test)]
 mod tests {
+    use super::KzgInfo;
     use serde::{Deserialize, Serialize};
     use serde_with::serde_as;
-
-    use super::KzgInfo;
+    use zkevm_circuits::boojum::pairing::bls12_381::{Fr, FrRepr};
+    use zkevm_circuits::eip_4844::{bitreverse, fft};
+    use zkevm_test_harness::ff::PrimeField;
+    use zkevm_test_harness_1_4_1::boojum::pairing::{bls12_381::G1Compressed, EncodedPoint};
+    use zkevm_test_harness_1_4_1::kzg::verify_kzg_proof;
+    use zkevm_test_harness_1_4_1::{
+        kzg::verify_proof_poly,
+        zkevm_circuits::eip_4844::{
+            ethereum_4844_data_into_zksync_pubdata, zksync_pubdata_into_monomial_form_poly,
+        },
+    };
 
     #[serde_as]
     #[derive(Debug, Serialize, Deserialize)]
@@ -278,6 +288,21 @@ mod tests {
         expected_outputs: ExpectedOutputs,
     }
 
+    fn u8_repr_to_fr(bytes: &[u8]) -> Fr {
+        assert_eq!(bytes.len(), 32);
+        let mut ret = [0u64; 4];
+
+        for i in 0..ret.len() {
+            let mut repr = [0u8; 8];
+            let end = 32 - (8 * i);
+            let beg = 32 - (8 * (i + 1));
+            repr.copy_from_slice(&bytes[beg..end]);
+            ret[i] = u64::from_be_bytes(repr);
+        }
+
+        Fr::from_repr(FrRepr(ret)).unwrap()
+    }
+
     #[test]
     fn kzg_test() {
         let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
@@ -287,6 +312,7 @@ mod tests {
 
         let kzg_info = KzgInfo::new(kzg_test.pubdata);
 
+        // Verify all the fields were correctly computed
         assert_eq!(
             hex::encode(kzg_info.kzg_commitment),
             hex::encode(kzg_test.expected_outputs.kzg_commitment)
@@ -311,5 +337,59 @@ mod tests {
             hex::encode(kzg_info.blob_proof),
             hex::encode(kzg_test.expected_outputs.blob_proof)
         );
+
+        // Verify data we need for blob commitment on L1 returns the correct data
+        assert_eq!(
+            hex::encode(kzg_info.to_pubdata_commitment()),
+            hex::encode(kzg_test.expected_outputs.pubdata_commitment)
+        );
+
+        // Verify that the blob, commitment, and proofs are all valid
+        let blob = ethereum_4844_data_into_zksync_pubdata(&kzg_info.blob);
+        let mut poly = zksync_pubdata_into_monomial_form_poly(&blob);
+        fft(&mut poly);
+        bitreverse(&mut poly);
+
+        let mut commitment = G1Compressed::empty();
+        let v = commitment.as_mut();
+        v.copy_from_slice(&kzg_info.kzg_commitment);
+        let commitment = commitment.into_affine().unwrap();
+
+        let mut blob_proof = G1Compressed::empty();
+        let v = blob_proof.as_mut();
+        v.copy_from_slice(&kzg_info.blob_proof);
+        let blob_proof = blob_proof.into_affine().unwrap();
+
+        let valid_blob_proof = verify_proof_poly(&poly, &commitment, &blob_proof);
+        assert!(valid_blob_proof);
+
+        let opening_point = u8_repr_to_fr(&kzg_info.opening_point);
+        let opening_value = u8_repr_to_fr(&kzg_info.opening_value);
+
+        let mut opening_proof = G1Compressed::empty();
+        let v = opening_proof.as_mut();
+        v.copy_from_slice(&kzg_info.opening_proof);
+        let opening_proof = opening_proof.into_affine().unwrap();
+
+        let valid_opening_proof =
+            verify_kzg_proof(&commitment, &opening_point, &opening_value, &opening_proof);
+        assert!(valid_opening_proof);
+    }
+
+    #[test]
+    fn bytes_test() {
+        let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
+        let path = std::path::Path::new(&zksync_home).join("etc/kzg_tests/kzg_test_0.json");
+        let contents = std::fs::read_to_string(path).unwrap();
+        let kzg_test: KzgTest = serde_json::from_str(&contents).unwrap();
+
+        let kzg_info = KzgInfo::new(kzg_test.pubdata);
+
+        let encoded_info = kzg_info.to_bytes();
+        assert_eq!(KzgInfo::SERIALIZED_SIZE, encoded_info.len());
+
+        let decoded_kzg_info = KzgInfo::from_slice(&encoded_info);
+
+        assert_eq!(kzg_info, decoded_kzg_info);
     }
 }
