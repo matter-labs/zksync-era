@@ -10,6 +10,7 @@ use sqlx::Row;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     block::{BlockGasCount, L1BatchHeader, MiniblockHeader},
+    circuit::CircuitStatistic,
     commitment::{L1BatchMetadata, L1BatchWithMetadata},
     zk_evm_types::LogQuery,
     Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256, U256,
@@ -448,7 +449,7 @@ impl BlocksDal<'_, '_> {
         predicted_block_gas: BlockGasCount,
         events_queue: &[LogQuery],
         storage_refunds: &[u32],
-        predicted_circuits: u32,
+        predicted_circuits_by_type: CircuitStatistic, // predicted number of circuits for each circuit type
     ) -> anyhow::Result<()> {
         let priority_onchain_data: Vec<Vec<u8>> = header
             .priority_ops_onchain_data
@@ -508,7 +509,7 @@ impl BlocksDal<'_, '_> {
                     system_logs,
                     storage_refunds,
                     pubdata_input,
-                    predicted_circuits,
+                    predicted_circuits_by_type,
                     created_at,
                     updated_at
                 )
@@ -567,7 +568,7 @@ impl BlocksDal<'_, '_> {
             &system_logs,
             &storage_refunds,
             pubdata_input,
-            predicted_circuits as i32,
+            serde_json::to_value(predicted_circuits_by_type).unwrap(),
         )
         .execute(transaction.conn())
         .await?;
@@ -2198,6 +2199,18 @@ impl BlocksDal<'_, '_> {
         Ok(())
     }
 
+    pub async fn insert_mock_l1_batch(&mut self, header: &L1BatchHeader) -> anyhow::Result<()> {
+        self.insert_l1_batch(
+            header,
+            &[],
+            Default::default(),
+            &[],
+            &[],
+            Default::default(),
+        )
+        .await
+    }
+
     /// Deletes all miniblocks and L1 batches, including the genesis ones. Should only be used in tests.
     pub async fn delete_genesis(&mut self) -> anyhow::Result<()> {
         self.delete_miniblocks_inner(None)
@@ -2264,7 +2277,7 @@ mod tests {
         header.l2_to_l1_messages.push(vec![33; 33]);
 
         conn.blocks_dal()
-            .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[], 0)
+            .insert_mock_l1_batch(&header)
             .await
             .unwrap();
 
@@ -2317,7 +2330,7 @@ mod tests {
             execute: 10,
         };
         conn.blocks_dal()
-            .insert_l1_batch(&header, &[], predicted_gas, &[], &[], 0)
+            .insert_l1_batch(&header, &[], predicted_gas, &[], &[], Default::default())
             .await
             .unwrap();
 
@@ -2325,7 +2338,7 @@ mod tests {
         header.timestamp += 100;
         predicted_gas += predicted_gas;
         conn.blocks_dal()
-            .insert_l1_batch(&header, &[], predicted_gas, &[], &[], 0)
+            .insert_l1_batch(&header, &[], predicted_gas, &[], &[], Default::default())
             .await
             .unwrap();
 
