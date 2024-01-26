@@ -8944,7 +8944,6 @@ dependencies = [
  "thiserror",
  "tokio",
  "zkevm_test_harness 1.3.3",
- "zkevm_test_harness 1.4.0",
  "zksync_basic_types",
  "zksync_config",
  "zksync_contracts",
