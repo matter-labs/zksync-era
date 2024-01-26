@@ -246,20 +246,22 @@ impl KzgInfo {
 
 #[cfg(test)]
 mod tests {
-    use super::KzgInfo;
     use serde::{Deserialize, Serialize};
     use serde_with::serde_as;
-    use zkevm_circuits::boojum::pairing::bls12_381::{Fr, FrRepr};
-    use zkevm_circuits::eip_4844::{bitreverse, fft};
+    use zkevm_circuits::{
+        boojum::pairing::bls12_381::{Fr, FrRepr},
+        eip_4844::{bitreverse, fft},
+    };
     use zkevm_test_harness::ff::PrimeField;
-    use zkevm_test_harness_1_4_1::boojum::pairing::{bls12_381::G1Compressed, EncodedPoint};
-    use zkevm_test_harness_1_4_1::kzg::verify_kzg_proof;
     use zkevm_test_harness_1_4_1::{
-        kzg::verify_proof_poly,
+        boojum::pairing::{bls12_381::G1Compressed, EncodedPoint},
+        kzg::{verify_kzg_proof, verify_proof_poly},
         zkevm_circuits::eip_4844::{
             ethereum_4844_data_into_zksync_pubdata, zksync_pubdata_into_monomial_form_poly,
         },
     };
+
+    use super::KzgInfo;
 
     #[serde_as]
     #[derive(Debug, Serialize, Deserialize)]
