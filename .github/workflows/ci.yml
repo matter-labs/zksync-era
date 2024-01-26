@@ -22,6 +22,7 @@ jobs:
       prover: ${{ steps.changed-files.outputs.prover_any_changed }}
       docs: ${{ steps.changed-files.outputs.docs_any_changed }}
       all: ${{ steps.changed-files.outputs.all_any_changed }}
+      base_image: ${{ steps.changed-files.outputs.base_image_any_changed }}
     steps:
       - uses: actions/checkout@v3
         with:
@@ -33,6 +34,8 @@ jobs:
         uses: tj-actions/changed-files@v39
         with:
           files_yaml: |
+            base_image:
+              - 'docker/base/**'
             prover:
               - 'prover/**'
               - '!prover/CHANGELOG.md'
@@ -102,6 +105,17 @@ jobs:
     if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
     uses: ./.github/workflows/build-contracts.yml
 
+  build-base-image:
+    name: Build base image
+    needs: changed_files
+    if: ${{ (needs.changed_files.outputs.base_image == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
+    uses: ./.github/workflows/ci-base-template.yml
+    with:
+      action: "build"
+    secrets:
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+
   build-core-images:
     name: Build core images
     needs: build-contracts
@@ -132,7 +146,7 @@ jobs:
     name: Github Status Check
     runs-on: ubuntu-latest
     if: always() && !cancelled()
-    needs: [ci-for-core-lint, ci-for-core, ci-for-prover, ci-for-docs, build-contracts, build-core-images, build-prover-images]
+    needs: [ci-for-core-lint, ci-for-core, ci-for-prover, ci-for-docs, build-contracts, build-base-image, build-core-images, build-prover-images]
     steps:
       - name: Status
         run: |
