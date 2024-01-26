@@ -12,7 +12,7 @@ variables circuit columns that are under PLONK copy-permutation constraints (so 
 in programming languages), and the witness ephemeral values that can be used to prove certain constraints, for example
 by providing an inverse if the variable must be non-zero.
 
-![Check_if_satisfied.png](./img/boojum_function_check_if_satisfied/check_if_satisfied.png)
+![Check_if_satisfied.png](./img/boojum_function_check_if_satisfied/Check_if_satisfied.png)
 
 Next we prepare a view. Instead of working with all of the columns at once, it can be helpful to work with only a
 subset.
