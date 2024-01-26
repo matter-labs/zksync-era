@@ -52,6 +52,7 @@ use crate::{
         web3::{state::InternalApiConfig, ApiServerHandles, Namespace},
     },
     basic_witness_input_producer::BasicWitnessInputProducer,
+    eth_sender::data_provider::{DataProvider, Rollup, Validium},
     eth_sender::{Aggregator, EthTxAggregator, EthTxManager},
     eth_watch::start_eth_watch,
     house_keeper::{
@@ -72,7 +73,6 @@ use crate::{
     state_keeper::{
         create_state_keeper, MempoolFetcher, MempoolGuard, MiniblockSealer, SequencerSealer,
     },
-    eth_sender::data_provider::{DataProvider, Rollup, Validium}
 };
 
 pub mod api_server;
@@ -551,7 +551,7 @@ pub async fn initialize_components(
         let eth_client =
             PKSigningClient::from_config(&eth_sender, &contracts_config, &eth_client_config);
         let nonce = eth_client.pending_nonce("eth_sender").await.unwrap();
-        let data_provider = Validium{};
+        let data_provider = Validium {};
         let eth_tx_aggregator_actor = EthTxAggregator::new(
             eth_sender.sender.clone(),
             Aggregator::new(

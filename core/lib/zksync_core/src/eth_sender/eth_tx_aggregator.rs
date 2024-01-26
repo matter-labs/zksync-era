@@ -44,7 +44,10 @@ pub struct MulticallData {
 /// Such as CommitBlocks, PublishProofBlocksOnchain and ExecuteBlock
 /// These eth_txs will be used as a queue for generating signed txs and send them later
 #[derive(Debug)]
-pub struct EthTxAggregator<T> where T: DataProvider {
+pub struct EthTxAggregator<T>
+where
+    T: DataProvider,
+{
     aggregator: Aggregator,
     eth_client: Arc<dyn BoundEthInterface>,
     config: SenderConfig,
@@ -56,7 +59,10 @@ pub struct EthTxAggregator<T> where T: DataProvider {
     data_provider: T,
 }
 
-impl<T> EthTxAggregator<T> where T: DataProvider{
+impl<T> EthTxAggregator<T>
+where
+    T: DataProvider,
+{
     pub fn new(
         config: SenderConfig,
         aggregator: Aggregator,

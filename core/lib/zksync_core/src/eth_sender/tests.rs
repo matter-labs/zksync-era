@@ -45,7 +45,10 @@ static DUMMY_OPERATION: Lazy<AggregatedOperation> = Lazy::new(|| {
 });
 
 #[derive(Debug)]
-struct EthSenderTester<T> where T: DataProvider {
+struct EthSenderTester<T>
+where
+    T: DataProvider,
+{
     conn: ConnectionPool,
     gateway: Arc<MockEthereum>,
     manager: MockEthTxManager,
@@ -53,7 +56,10 @@ struct EthSenderTester<T> where T: DataProvider {
     gas_adjuster: Arc<GasAdjuster<Arc<MockEthereum>>>,
 }
 
-impl<T> EthSenderTester<T> where T: DataProvider {
+impl<T> EthSenderTester<T>
+where
+    T: DataProvider,
+{
     const WAIT_CONFIRMATIONS: u64 = 10;
     const MAX_BASE_FEE_SAMPLES: usize = 3;
 
@@ -96,7 +102,7 @@ impl<T> EthSenderTester<T> where T: DataProvider {
             .unwrap(),
         );
         let store_factory = ObjectStoreFactory::mock();
-        let data_provider = Validium{};
+        let data_provider = Validium {};
 
         let aggregator = EthTxAggregator::<DataProvider>::new(
             SenderConfig {
@@ -883,7 +889,10 @@ async fn insert_genesis_protocol_version<T: DataProvider>(tester: &EthSenderTest
         .await;
 }
 
-async fn insert_l1_batch<T: DataProvider>(tester: &EthSenderTester<T>, number: L1BatchNumber) -> L1BatchHeader {
+async fn insert_l1_batch<T: DataProvider>(
+    tester: &EthSenderTester<T>,
+    number: L1BatchNumber,
+) -> L1BatchHeader {
     let header = create_l1_batch(number.0);
 
     // Save L1 batch to the database
