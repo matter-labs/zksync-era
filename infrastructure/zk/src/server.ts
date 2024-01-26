@@ -100,11 +100,31 @@ async function create_genesis(cmd: string) {
     const label = `${process.env.ZKSYNC_ENV}-Genesis_gen-${year}-${month}-${day}-${hour}${minute}${second}`;
     fs.mkdirSync(`logs/${label}`, { recursive: true });
     fs.copyFileSync('genesis.log', `logs/${label}/genesis.log`);
-    env.modify('CONTRACTS_GENESIS_ROOT', genesisRoot, 'etc/env/l1-inits/.init.env');
-    env.modify('CHAIN_STATE_KEEPER_BOOTLOADER_HASH', genesisBootloaderHash, 'etc/env/l1-inits/.init.env');
-    env.modify('CHAIN_STATE_KEEPER_DEFAULT_AA_HASH', genesisDefaultAAHash, 'etc/env/l1-inits/.init.env');
-    env.modify('CONTRACTS_GENESIS_BATCH_COMMITMENT', genesisBlockCommitment, 'etc/env/l1-inits/.init.env');
-    env.modify('CONTRACTS_GENESIS_ROLLUP_LEAF_INDEX', genesisRollupLeafIndex, 'etc/env/l1-inits/.init.env');
+    env.modify(
+        'CONTRACTS_GENESIS_ROOT',
+        genesisRoot,
+        `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`
+    );
+    env.modify(
+        'CHAIN_STATE_KEEPER_BOOTLOADER_HASH',
+        genesisBootloaderHash,
+        `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`
+    );
+    env.modify(
+        'CHAIN_STATE_KEEPER_DEFAULT_AA_HASH',
+        genesisDefaultAAHash,
+        `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`
+    );
+    env.modify(
+        'CONTRACTS_GENESIS_BATCH_COMMITMENT',
+        genesisBlockCommitment,
+        `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`
+    );
+    env.modify(
+        'CONTRACTS_GENESIS_ROLLUP_LEAF_INDEX',
+        genesisRollupLeafIndex,
+        `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`
+    );
 }
 
 export async function genesisFromSources() {

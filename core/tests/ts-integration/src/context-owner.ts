@@ -171,8 +171,8 @@ export class TestContextOwner {
         this.reporter.debug(`Sent ERC20 cancel approve transaction. Hash: ${tx.hash}, nonce ${tx.nonce}`);
 
         if (baseToken != zksync.utils.ETH_ADDRESS_IN_CONTRACTS) {
-            const l1Erc20Contract = new ethers.Contract(baseToken, l1Erc20ABI, this.mainEthersWallet);
-            const tx = await l1Erc20Contract.approve(erc20Bridge, 0);
+            const baseTokenContract = new ethers.Contract(baseToken, l1Erc20ABI, this.mainEthersWallet);
+            const tx = await baseTokenContract.approve(erc20Bridge, 0);
             await tx.wait();
             this.reporter.debug(`Sent base token cancel approve transaction. Hash: ${tx.hash}, nonce ${tx.nonce}`);
         }

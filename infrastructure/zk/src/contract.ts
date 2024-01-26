@@ -33,20 +33,6 @@ function updateContractsEnv(initEnv: string, deployLog: String, envVars: Array<s
     return updatedContracts;
 }
 
-export async function initializeValidator(args: any[] = []) {
-    await utils.confirmAction();
-
-    const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
-    const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/l1-contracts` : `yarn l1-contracts`;
-
-    const governorPrivateKey = process.env.GOVERNOR_PRIVATE_KEY;
-    if (governorPrivateKey) {
-        args.push('--private-key', governorPrivateKey);
-    }
-
-    await utils.spawn(`${baseCommandL1} initialize-validator ${args.join(' ')} | tee initializeValidator.log`);
-}
-
 export async function initializeGovernance(args: any[] = []) {
     await utils.confirmAction();
 
@@ -71,23 +57,33 @@ export async function initializeL1AllowList(args: any[] = []) {
     const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
     const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/ethereum` : `yarn l1-contracts`;
 
-    const governorPrivateKey = process.env.GOVERNOR_PRIVATE_KEY;
-    if (governorPrivateKey) {
-        args.push('--private-key', governorPrivateKey);
-    }
-
     await utils.spawn(`${baseCommandL1} initialize-allow-list ${args.join(' ')} | tee initializeL1AllowList.log`);
 }
 
-/// kl todo: delete, not needed anymore
-export async function initializeWethToken(args: any[] = []) {
-    await utils.confirmAction();
 
-    const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
-    const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/l1-contracts` : `yarn l1-contracts`;
+export async function deployWeth(
+    command: 'dev' | 'new',
+    name?: string,
+    symbol?: string,
+    decimals?: string,
+    args: any = []
+) {
+    let destinationFile = 'localhost';
+    if (args.includes('--envFile')) {
+        destinationFile = args[args.indexOf('--envFile') + 1];
+        args.splice(args.indexOf('--envFile'), 2);
+    }
+    await utils.spawn(`yarn --silent --cwd contracts/l1-contracts deploy-weth '
+            ${args.join(' ')} | tee deployL1.log`);
 
-    await utils.spawn(
-        `${baseCommandL1} initialize-l2-weth-token instant-call ${args.join(' ')} | tee initializeWeth.log`
+    const deployLog = fs.readFileSync('deployL1.log').toString();
+    const l1DeploymentEnvVars = [
+        'CONTRACTS_L1_WETH_TOKEN_ADDR',
+    ];
+    updateContractsEnv(
+        `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`,
+        deployLog,
+        l1DeploymentEnvVars
     );
 }
 
@@ -101,15 +97,10 @@ export async function initializeBridges(args: any[] = []) {
     await utils.spawn(`${baseCommandL1} initialize-weth-bridge ${args.join(' ')} | tee -a deployL1.log`);
 }
 
-export async function deployL2(args: any[] = [], includePaymaster?: boolean, includeWETH?: boolean) {
+export async function deployL2(args: any[] = [], includePaymaster?: boolean) {
     await utils.confirmAction();
 
     const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
-
-    const deployerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
-    if (deployerPrivateKey) {
-        args.push('--private-key', deployerPrivateKey);
-    }
 
     // In the localhost setup scenario we don't have the workspace,
     // so we have to `--cwd` into the required directory.
@@ -121,9 +112,7 @@ export async function deployL2(args: any[] = [], includePaymaster?: boolean, inc
 
     await utils.spawn(`${baseCommandL1} erc20-deploy-on-chain ${args.join(' ')} | tee deployL2.log`);
 
-    if (includeWETH) {
-        await utils.spawn(`${baseCommandL1} weth-deploy-on-chain ${args.join(' ')} | tee -a deployL2.log`);
-    }
+    await utils.spawn(`${baseCommandL1} weth-deploy-on-chain ${args.join(' ')} | tee -a deployL2.log`);
 
     if (includePaymaster) {
         await utils.spawn(`${baseCommandL2} deploy-testnet-paymaster ${args.join(' ')} | tee -a deployL2.log`);
@@ -172,6 +161,7 @@ export async function deployL1(args: any[]) {
         'CONTRACTS_GETTERS_FACET_ADDR',
 
         'CONTRACTS_VERIFIER_ADDR',
+        'CONTRACTS_VALIDATOR_TIMELOCK_ADDR',
 
         'CONTRACTS_GENESIS_TX_HASH',
         'CONTRACTS_TRANSPARENT_PROXY_ADMIN_ADDR',
@@ -183,8 +173,12 @@ export async function deployL1(args: any[]) {
         'CONTRACTS_L1_MULTICALL3_ADDR'
     ];
 
-    console.log('Writing to', 'etc/env/l1-inits/.init.env');
-    const updatedContracts = updateContractsEnv('etc/env/l1-inits/.init.env', deployLog, l1EnvVars);
+    console.log('Writing to', `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`);
+    const updatedContracts = updateContractsEnv(
+        `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`,
+        deployLog,
+        l1EnvVars
+    );
 
     // Write updated contract addresses and tx hashes to the separate file
     // Currently it's used by loadtest github action to update deployment configmap.
@@ -195,11 +189,6 @@ export async function wethBridgeFinish(args: any[] = [], includePaymaster?: bool
     await utils.confirmAction();
 
     const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
-
-    const deployerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
-    if (deployerPrivateKey) {
-        args.push('--private-key', deployerPrivateKey);
-    }
 
     // In the localhost setup scenario we don't have the workspace,
     // so we have to `--cwd` into the required directory.
@@ -213,11 +202,6 @@ export async function erc20BridgeFinish(args: any[] = [], includePaymaster?: boo
 
     const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
 
-    const deployerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
-    if (deployerPrivateKey) {
-        args.push('--private-key', deployerPrivateKey);
-    }
-
     // In the localhost setup scenario we don't have the workspace,
     // so we have to `--cwd` into the required directory.
     const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/ethereum` : `yarn l1-contracts`;
@@ -226,25 +210,11 @@ export async function erc20BridgeFinish(args: any[] = [], includePaymaster?: boo
 }
 
 export async function redeployL1(args: any[]) {
-    const deployerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
-    const governorAddress = process.env.GOVERNOR_ADDRESS;
-
-    if (deployerPrivateKey && governorAddress) {
-        args.concat(['--private-key', deployerPrivateKey, '--governor-address', governorAddress]);
-    }
-
     await deployL1(args);
     await verifyL1Contracts();
 }
 
 export async function registerHyperchain(args: any[]) {
-    const deployerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
-    const governorAddress = process.env.GOVERNOR_ADDRESS;
-
-    if (deployerPrivateKey && governorAddress) {
-        args.concat(['--private-key', deployerPrivateKey, '--governor-address', governorAddress]);
-    }
-
     await utils.confirmAction();
 
     // In the localhost setup scenario we don't have the workspace,
@@ -257,7 +227,6 @@ export async function registerHyperchain(args: any[]) {
     const l2EnvVars = [
         'CHAIN_ETH_ZKSYNC_NETWORK_ID',
         'CONTRACTS_DIAMOND_PROXY_ADDR',
-        'CONTRACTS_VALIDATOR_TIMELOCK_ADDR',
         'CONTRACTS_BASE_TOKEN_ADDR',
         'CONTRACTS_BASE_TOKEN_BRIDGE_ADDR'
     ];
@@ -276,9 +245,6 @@ export async function registerHyperchain(args: any[]) {
 
 export async function deployVerifier(args: any[]) {
     const deployerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
-    if (deployerPrivateKey) {
-        args.concat(['--private-key', deployerPrivateKey]);
-    }
     await deployL1([...args, '--only-verifier']);
 }
 
@@ -291,5 +257,5 @@ command
     .action(redeployL1);
 command.command('deploy [deploy-opts...]').allowUnknownOption(true).description('deploy contracts').action(deployL1);
 command.command('build').description('build contracts').action(build);
-command.command('initialize-validator').description('initialize validator').action(initializeValidator);
+// command.command('initialize-validator').description('initialize validator').action(initializeValidator);
 command.command('verify').description('verify L1 contracts').action(verifyL1Contracts);

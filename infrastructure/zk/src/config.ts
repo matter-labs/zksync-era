@@ -127,6 +127,7 @@ export function compileConfig(environment?: string) {
 export function pushConfig(environment?: string, diff?: string) {
     environment ??= process.env.ZKSYNC_ENV!;
     const l2InitFile = `etc/env/l2-inits/${environment}.init.env`;
+    const l1InitFile = `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`;
     const difference: number = parseInt(diff ? diff : '0');
     env.modify('API_WEB3_JSON_RPC_HTTP_PORT', `${3050 + 2 * difference}`, l2InitFile, false);
 
@@ -161,7 +162,7 @@ export function pushConfig(environment?: string, diff?: string) {
         env.modify(
             'CONTRACTS_LATEST_PROTOCOL_VERSION',
             (parseInt(process.env.CONTRACTS_LATEST_PROTOCOL_VERSION!) + 1).toString(),
-            l2InitFile,
+            l1InitFile,
             false
         );
     }

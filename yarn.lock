@@ -1992,7 +1992,7 @@
     fs-extra "^11.1.1"
     semver "^7.5.1"
 
-"@matterlabs/hardhat-zksync-solc@0.4.2", "@matterlabs/hardhat-zksync-solc@^0.4.2":
+"@matterlabs/hardhat-zksync-solc@0.4.2":
   version "0.4.2"
   resolved "https://registry.yarnpkg.com/@matterlabs/hardhat-zksync-solc/-/hardhat-zksync-solc-0.4.2.tgz#64121082e88c5ab22eb4e9594d120e504f6af499"
   integrity sha512-6NFWPSZiOAoo7wNuhMg4ztj7mMEH+tLrx09WuCbcURrHPijj/KxYNsJD6Uw5lapKr7G8H7SQISGid1/MTXVmXQ==
@@ -2013,7 +2013,7 @@
     chalk "4.1.2"
     dockerode "^3.3.4"
 
-"@matterlabs/hardhat-zksync-solc@^1.0.5":
+"@matterlabs/hardhat-zksync-solc@^1.0.5", "@matterlabs/hardhat-zksync-solc@^1.0.6":
   version "1.1.0"
   resolved "https://registry.yarnpkg.com/@matterlabs/hardhat-zksync-solc/-/hardhat-zksync-solc-1.1.0.tgz#14e05b4365392fe7a473a636e132883687dcf69a"
   integrity sha512-DbknnOFsRNVqYMkxIrVofUk0cXA6uRIqSqyuVvhktg53KTHWubYlj6zEqCC+Q+wtONXijXQoN1BTIQ5FqDmAIQ==

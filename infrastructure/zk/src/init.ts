@@ -23,11 +23,11 @@ export const ADDRESS_ONE = '0x0000000000000000000000000000000000000001';
 export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
     await initSetup(initArgs);
     await initBridgehubStateTransition(initArgs);
-    await initHyperchain(initArgs);
+    await initHyper(initArgs);
 }
 
-async function initSetup(initArgs: InitArgs = DEFAULT_ARGS) {
-    const { skipSubmodulesCheckout, skipEnvSetup, testTokens } = initArgs;
+export async function initSetup(initArgs: InitArgs = DEFAULT_ARGS) {
+    const { skipSubmodulesCheckout, skipEnvSetup  } = initArgs;
 
     if (!process.env.CI && !skipEnvSetup) {
         await announced('Pulling images', docker.pull());
@@ -41,15 +41,11 @@ async function initSetup(initArgs: InitArgs = DEFAULT_ARGS) {
 
     await announced('Compiling JS packages', run.yarn());
     await announced('Building L1 L2 contracts', contract.build());
-    if (testTokens.deploy) {
-        await announced('Deploying localhost ERC20 tokens', run.deployERC20('dev', '', '', '', testTokens.args));
-    }
-
     await announced('Compile L2 system contracts', compiler.compileAll());
 }
 
 export async function initBridgehubStateTransition(initArgs: InitArgs = DEFAULT_ARGS) {
-    const { governorPrivateKeyArgs, deployerL2ContractInput } = initArgs;
+    const { governorPrivateKeyArgs, deployerL2ContractInput, testTokens } = initArgs;
 
     await announced('Building L1 L2 contracts', contract.build());
 
@@ -58,26 +54,25 @@ export async function initBridgehubStateTransition(initArgs: InitArgs = DEFAULT_
     await announced('Setup postgres db', db.setup());
     await announced('Clean rocksdb', clean(`db/${process.env.ZKSYNC_ENV!}`));
     await announced('Clean backups', clean(`backups/${process.env.ZKSYNC_ENV!}`));
-    await announced('Deploying L1 verifier', contract.deployVerifier([])); //KL todo what this?
+    await announced('Deploying L1 verifier', contract.deployVerifier(deployerL2ContractInput.args));
     await announced('Reloading env', env.reload());
 
     await announced('Running server genesis setup', server.genesisFromSources());
+    if (testTokens.deploy) {
+        await announced('Deploying localhost ERC20 and Weth tokens', run.deployERC20AndWeth('dev', '', '', '', testTokens.args));
+    } else if (testTokens.deployWeth) {
+        await announced('Deploying localhost Weth tokens', run.deployWeth(testTokens.args));
+    }
     await announced('Deploying L1 contracts', contract.redeployL1(governorPrivateKeyArgs));
     await announced('Initializing bridges', contract.initializeBridges(governorPrivateKeyArgs));
-    await announced(
-        'Initializing governance',
-        contract.initializeGovernance([
-            ...governorPrivateKeyArgs,
-            !deployerL2ContractInput.includeL2WETH ? ['--skip-weth-bridge'] : []
-        ])
-    );
+    await announced('Initializing governance', contract.initializeGovernance(governorPrivateKeyArgs));
     await announced('Reloading env', env.reload());
 }
 
-export async function initHyperchain(initArgs: InitArgs = DEFAULT_ARGS) {
+export async function initHyper(initArgs: InitArgs = DEFAULT_ARGS) {
     const { governorPrivateKeyArgs, deployerL2ContractInput, baseToken } = initArgs;
 
-    await announced('Building L1 L2 contracts', contract.build());
+    // await announced('Building L1 L2 contracts', contract.build());
 
     // we initialise with genesis chainId
     await announced('Drop postgres db', db.drop());
@@ -92,24 +87,16 @@ export async function initHyperchain(initArgs: InitArgs = DEFAULT_ARGS) {
     } else if (baseToken.name) {
         baseTokenArgs = ['--base-token-name', baseToken.name];
     }
-    await announced('Registering Hyperchain', contract.registerHyperchain(baseTokenArgs));
+    await announced(
+        'Registering Hyperchain',
+        contract.registerHyperchain([...governorPrivateKeyArgs, ...baseTokenArgs])
+    );
     await announced('Reloading env', env.reload());
-    await announced('Initializing validator', contract.initializeValidator(governorPrivateKeyArgs));
     await announced(
         'Deploying L2 contracts',
-        contract.deployL2(
-            deployerL2ContractInput.args,
-            deployerL2ContractInput.includePaymaster,
-            deployerL2ContractInput.includeL2WETH
-        )
+        contract.deployL2(deployerL2ContractInput.args, deployerL2ContractInput.includePaymaster)
     );
-    await announced(
-        'Initializing governance of chain',
-        contract.initializeGovernanceChain([
-            ...governorPrivateKeyArgs,
-            !deployerL2ContractInput.includeL2WETH ? ['--skip-weth-bridge'] : []
-        ])
-    );
+    await announced('Initializing governance of chain', contract.initializeGovernanceChain(governorPrivateKeyArgs));
 }
 
 // A smaller version of `init` that "resets" the localhost environment, for which `init` was already called before.
@@ -128,10 +115,8 @@ export async function reinit() {
     await announced('Reloading env', env.reload());
     await announced('Running server genesis setup', server.genesisFromSources());
     await announced('Deploying L1 contracts', contract.redeployL1([]));
-    await announced('Deploying L2 contracts', contract.deployL2([], true, true));
-    await announced('Initializing L2 WETH token', contract.initializeWethToken());
+    await announced('Deploying L2 contracts', contract.deployL2([], true));
     await announced('Initializing governance', contract.initializeGovernance());
-    await announced('Initializing validator', contract.initializeValidator());
 }
 
 // A lightweight version of `init` that sets up local databases, generates genesis and deploys precompiled contracts
@@ -141,16 +126,16 @@ export async function lightweightInit() {
     await announced('Deploying L1 verifier', contract.deployVerifier([]));
     await announced('Reloading env', env.reload());
     await announced('Running server genesis setup', server.genesisFromBinary());
-    await announced('Deploying localhost ERC20 tokens', run.deployERC20('dev', '', '', '', []));
+    await announced('Deploying localhost ERC20 and Weth tokens', run.deployERC20AndWeth('dev', '', '', '', []));
     await announced('Deploying L1 contracts', contract.redeployL1([]));
-    await announced('Initializing validator', contract.initializeValidator());
-    await announced('Deploying L2 contracts', contract.deployL2([], true, false));
+    await announced('Deploying L2 contracts', contract.deployL2([], true));
     await announced('Initializing governance', contract.initializeGovernance());
 }
 
-export async function finishBridgeInit() {
-    await announced('Finishing initializing weth bridge', contract.wethBridgeFinish());
-    await announced('Finishing initializing erc20 bridge', contract.erc20BridgeFinish());
+export async function finishBridgeInit(initArgs: InitArgs = DEFAULT_ARGS) {
+    const {  deployerL2ContractInput,  } = initArgs;
+    await announced('Finishing initializing weth bridge', contract.wethBridgeFinish(deployerL2ContractInput.args));
+    await announced('Finishing initializing erc20 bridge', contract.erc20BridgeFinish(deployerL2ContractInput.args));
 }
 
 // Wrapper that writes an announcement and completion notes for each executed task.
@@ -195,10 +180,10 @@ export interface InitArgs {
     deployerL2ContractInput: {
         args: any[];
         includePaymaster: boolean;
-        includeL2WETH: boolean;
     };
     testTokens: {
         deploy: boolean;
+        deployWeth: boolean;
         args: any[];
     };
     baseToken: {
@@ -211,8 +196,8 @@ const DEFAULT_ARGS: InitArgs = {
     skipSubmodulesCheckout: false,
     skipEnvSetup: false,
     governorPrivateKeyArgs: [],
-    deployerL2ContractInput: { args: [], includePaymaster: true, includeL2WETH: true },
-    testTokens: { deploy: true, args: [] },
+    deployerL2ContractInput: { args: [], includePaymaster: true },
+    testTokens: { deploy: true, deployWeth: true, args: [] },
     baseToken: { name: 'ETH', address: ADDRESS_ONE }
 };
 
@@ -232,9 +217,18 @@ export const initCommand = new Command('init')
         const initArgs: InitArgs = {
             skipSubmodulesCheckout: cmd.skipSubmodulesCheckout,
             skipEnvSetup: cmd.skipEnvSetup,
-            governorPrivateKeyArgs: [],
-            deployerL2ContractInput: { args: [], includePaymaster: true, includeL2WETH: true },
-            testTokens: { deploy: true, args: [] },
+            governorPrivateKeyArgs: process.env.GOVERNOR_PRIVATE_KEY
+                ? ['--private-key', process.env.GOVERNOR_PRIVATE_KEY]
+                : [],
+            deployerL2ContractInput: {
+                args: process.env.DEPLOYER_PRIVATE_KEY ? ['--private-key', process.env.DEPLOYER_PRIVATE_KEY] : [],
+                includePaymaster: true
+            },
+            testTokens: {
+                deploy: true,
+                deployWeth: true,
+                args: process.env.DEPLOYER_PRIVATE_KEY ? ['--private-key', process.env.DEPLOYER_PRIVATE_KEY] : []
+            },
             baseToken: {
                 name: cmd.baseTokenName,
                 address: cmd.baseTokenAddress ? cmd.baseTokenAddress : ethers.constants.AddressZero
@@ -276,16 +270,63 @@ export const initHyperCommand = new Command('init-hyper')
         const initArgs: InitArgs = {
             skipSubmodulesCheckout: cmd.skipSubmodulesCheckout,
             skipEnvSetup: cmd.skipEnvSetup,
-            governorPrivateKeyArgs: [],
-            deployerL2ContractInput: { args: [], includePaymaster: true, includeL2WETH: true },
-            testTokens: { deploy: true, args: [] },
+            governorPrivateKeyArgs: process.env.GOVERNOR_PRIVATE_KEY
+                ? ['--private-key', process.env.GOVERNOR_PRIVATE_KEY]
+                : [],
+            deployerL2ContractInput: {
+                args: process.env.DEPLOYER_PRIVATE_KEY ? ['--private-key', process.env.DEPLOYER_PRIVATE_KEY] : [],
+                includePaymaster: true
+            },
+            testTokens: {
+                deploy: false,
+                deployWeth: false,
+                args: process.env.DEPLOYER_PRIVATE_KEY ? ['--private-key', process.env.DEPLOYER_PRIVATE_KEY] : []
+            },
             baseToken: {
                 name: cmd.baseTokenName,
                 // we use zero here to show that it is unspecified. If it is ether it is one.
                 address: cmd.baseTokenAddress ? cmd.baseTokenAddress : ethers.constants.AddressZero
             }
         };
-        await initHyperchain(initArgs);
+        await initHyper(initArgs);
+    });
+export const initSharedBridgeCommand = new Command('init-shared-bridge')
+    .description('initialize just the L2, currently with own bridge')
+    .option('--env-name <env-name>', 'env name to use for initialization')
+    // .options('--no-test-tokens', 'if flag is set test tokens will not be deployed')
+    .option('--base-token-name <base-token-name>', 'base token name')
+    .option('--base-token-address <base-token-address>', 'base token address')
+    .action(async (cmd: Command) => {
+        if (cmd.envName) {
+            process.env.ZKSYNC_ENV = cmd.envName;
+            env.reload();
+        }
+        // const deployTestTokens = cmd.noTestTokens ? false : true; // kl todo this does not work for some reason
+        const deployTestTokens = false;
+        const deployWeth = false;
+        const initArgs: InitArgs = {
+            skipSubmodulesCheckout: cmd.skipSubmodulesCheckout,
+            skipEnvSetup: cmd.skipEnvSetup,
+            governorPrivateKeyArgs: process.env.GOVERNOR_PRIVATE_KEY
+                ? ['--private-key', process.env.GOVERNOR_PRIVATE_KEY]
+                : [],
+            deployerL2ContractInput: {
+                args: process.env.DEPLOYER_PRIVATE_KEY ? ['--private-key', process.env.DEPLOYER_PRIVATE_KEY] : [],
+                includePaymaster: true
+            },
+            testTokens: {
+                deploy: deployTestTokens,
+                deployWeth: deployWeth,
+                args: process.env.DEPLOYER_PRIVATE_KEY ? ['--private-key', process.env.DEPLOYER_PRIVATE_KEY] : []
+            },
+            baseToken: {
+                name: cmd.baseTokenName,
+                // we use zero here to show that it is unspecified. If it is ether would be one.
+                address: cmd.baseTokenAddress ? cmd.baseTokenAddress : ethers.constants.AddressZero
+            }
+        };
+        await initSetup(initArgs);
+        await initBridgehubStateTransition(initArgs);
     });
 export const finishBridgeInitCommand = new Command('finish-bridge-init')
     .description('finishing bridge init')
@@ -295,6 +336,27 @@ export const finishBridgeInitCommand = new Command('finish-bridge-init')
             process.env.ZKSYNC_ENV = cmd.envName;
             env.reload();
         }
+        const initArgs: InitArgs = {
+            skipSubmodulesCheckout: true,
+            skipEnvSetup: true,
+                governorPrivateKeyArgs: process.env.GOVERNOR_PRIVATE_KEY
+                ? ['--private-key', process.env.GOVERNOR_PRIVATE_KEY]
+                : [],
+            deployerL2ContractInput: {
+                args: process.env.DEPLOYER_PRIVATE_KEY ? ['--private-key', process.env.DEPLOYER_PRIVATE_KEY] : [],
+                includePaymaster: true
+            },
+            testTokens: {
+                deploy: false,
+                deployWeth: false,
+                args: process.env.DEPLOYER_PRIVATE_KEY ? ['--private-key', process.env.DEPLOYER_PRIVATE_KEY] : []
+            },
+            baseToken: {
+                name: cmd.baseTokenName,
+                // we use zero here to show that it is unspecified. If it is ether would be one.
+                address: cmd.baseTokenAddress ? cmd.baseTokenAddress : ethers.constants.AddressZero
+            }
+        };
 
-        await finishBridgeInit();
+        await finishBridgeInit(initArgs);
     });

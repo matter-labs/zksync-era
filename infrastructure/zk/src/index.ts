@@ -12,6 +12,7 @@ import {
     reinitCommand as reinit,
     lightweightInitCommand as lightweightInit,
     initHyperCommand as initHyper,
+    initSharedBridgeCommand,
     finishBridgeInitCommand as finishBridgeInit
 } from './init';
 import { initHyperchainCommand } from './hyperchain_wizard';
@@ -45,6 +46,7 @@ const COMMANDS = [
     lightweightInit,
     initHyperchainCommand,
     initHyper,
+    initSharedBridgeCommand,
     finishBridgeInit,
     run,
     test,

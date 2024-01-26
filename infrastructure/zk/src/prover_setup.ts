@@ -37,7 +37,6 @@ export async function setupProver(proverType: ProverType) {
                 process.env.ENV_FILE!
             );
         }
-        env.mergeInitToEnv();
     } else {
         console.error(`Unknown prover type: ${proverType}`);
         process.exit(1);

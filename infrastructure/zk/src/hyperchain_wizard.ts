@@ -4,7 +4,7 @@ import { BigNumber, ethers, utils } from 'ethers';
 import chalk from 'chalk';
 import * as contract from './contract';
 import { compileConfig, pushConfig } from './config';
-import { announced, init, InitArgs, ADDRESS_ONE } from './init';
+import { announced, init, InitArgs, ADDRESS_ONE, initSetup, initHyper } from './init';
 import * as server from './server';
 import * as docker from './docker';
 import * as db from './database';
@@ -62,11 +62,11 @@ async function initHyperchain(envName: string) {
         governorPrivateKeyArgs: ['--private-key', governorPrivateKey],
         deployerL2ContractInput: {
             args: ['--private-key', deployerPrivateKey],
-            includePaymaster: false,
-            includeL2WETH: deployL2Weth
+            includePaymaster: false
         },
         testTokens: {
             deploy: deployTestTokens,
+            deployWeth: false,
             args: ['--private-key', deployerPrivateKey, '--envFile', process.env.CHAIN_ETH_NETWORK!]
         },
         baseToken: {
@@ -75,18 +75,22 @@ async function initHyperchain(envName: string) {
         }
     };
 
-    await init(initArgs);
+    await initHyper(initArgs);
 
     // if we used matterlabs/geth network, we need custom ENV file for hyperchain compose parts
     // This breaks `zk status prover` command, but neccessary for working in isolated docker-network
     // TODO: Think about better implementation
     // PLA:681
     if (isLocalhost) {
-        env.modify('ETH_CLIENT_WEB3_URL', 'http://geth:8545', 'etc/env/l1-inits/.init.env');
+        env.modify(
+            'ETH_CLIENT_WEB3_URL',
+            'http://geth:8545',
+            `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`
+        );
         env.modify(
             'DATABASE_URL',
             'postgres://postgres:notsecurepassword@postgres:5432/zksync_local',
-            'etc/env/l1-inits/.init.env'
+            `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`
         );
     }
 
@@ -281,7 +285,11 @@ async function setHyperchainMetadata() {
         l1Rpc = 'http://localhost:8545';
         l1Id = 9;
         databaseUrl = 'postgres://postgres:notsecurepassword@localhost:5432/zksync_local';
-        env.modify('DATABASE_URL', databaseUrl, 'etc/env/l1-inits/.init.env');
+        env.modify(
+            'DATABASE_URL',
+            databaseUrl,
+            `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`
+        );
 
         const richWalletsRaw = await fetch(
             'https://raw.githubusercontent.com/matter-labs/local-setup/main/rich-wallets.json'
@@ -299,8 +307,8 @@ async function setHyperchainMetadata() {
         await announced('Ensuring databases are up', db.wait());
     }
 
+    // testTokens and weth will be done for the shared bridge.
     // await initializeTestERC20s();
-    // await initializeWethTokenForHyperchain();
 
     console.log('\n');
 
@@ -338,7 +346,11 @@ async function setHyperchainMetadata() {
 
             const etherscanResults: any = await enquirer.prompt(etherscanQuestions);
 
-            env.modify('MISC_ETHERSCAN_API_KEY', etherscanResults.etherscanKey, 'etc/env/l1-inits/.init.env');
+            env.modify(
+                'MISC_ETHERSCAN_API_KEY',
+                etherscanResults.etherscanKey,
+                `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`
+            );
         }
     }
 
@@ -348,28 +360,36 @@ async function setHyperchainMetadata() {
     env.set(environment);
     // TODO: Generate url for data-compressor with selected region or fix env variable for keys location
     // PLA-595
-    env.modify('DATABASE_URL', databaseUrl, 'etc/env/l1-inits/.init.env');
-    env.modify('ETH_CLIENT_CHAIN_ID', l1Id.toString(), 'etc/env/l1-inits/.init.env');
-    env.modify('ETH_CLIENT_WEB3_URL', l1Rpc, 'etc/env/l1-inits/.init.env');
-    env.modify('CHAIN_ETH_NETWORK', getL1Name(results.l1Chain), 'etc/env/l1-inits/.init.env');
+    env.modify('DATABASE_URL', databaseUrl, process.env.ENV_FILE!);
+    env.modify('ETH_CLIENT_CHAIN_ID', l1Id.toString(), `etc/env/l1-inits/${results.l1Chain}.init.env`);
+    env.modify(
+        'ETH_CLIENT_WEB3_URL',
+        l1Rpc,
+        `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`
+    );
+    env.modify(
+        'CHAIN_ETH_NETWORK',
+        getL1Name(results.l1Chain),
+        `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`
+    );
     env.modify('CHAIN_ETH_ZKSYNC_NETWORK', results.chainName, process.env.ENV_FILE!);
     env.modify('CHAIN_ETH_ZKSYNC_NETWORK_ID', results.chainId, process.env.ENV_FILE!);
-    env.modify('ETH_SENDER_SENDER_OPERATOR_PRIVATE_KEY', ethOperator.privateKey, 'etc/env/l1-inits/.init.env');
-    env.modify('ETH_SENDER_SENDER_OPERATOR_COMMIT_ETH_ADDR', ethOperator.address, 'etc/env/l1-inits/.init.env');
-    env.modify('DEPLOYER_PRIVATE_KEY', deployer.privateKey, 'etc/env/l1-inits/.init.env');
-    env.modify('GOVERNOR_PRIVATE_KEY', governor.privateKey, 'etc/env/l1-inits/.init.env');
-    env.modify('GOVERNOR_ADDRESS', governor.address, 'etc/env/l1-inits/.init.env');
-    env.modify('CHAIN_STATE_KEEPER_FEE_ACCOUNT_ADDR', feeReceiverAddress, 'etc/env/l1-inits/.init.env');
+    env.modify('ETH_SENDER_SENDER_OPERATOR_PRIVATE_KEY', ethOperator.privateKey, process.env.ENV_FILE!);
+    env.modify('ETH_SENDER_SENDER_OPERATOR_COMMIT_ETH_ADDR', ethOperator.address, process.env.ENV_FILE!);
+    env.modify('DEPLOYER_PRIVATE_KEY', deployer.privateKey, process.env.ENV_FILE!);
+    env.modify('GOVERNOR_PRIVATE_KEY', governor.privateKey, process.env.ENV_FILE!);
+    env.modify('GOVERNOR_ADDRESS', governor.address, process.env.ENV_FILE!);
+    env.modify('CHAIN_STATE_KEEPER_FEE_ACCOUNT_ADDR', feeReceiverAddress, process.env.ENV_FILE!);
     env.modify('ETH_SENDER_SENDER_PROOF_SENDING_MODE', 'SkipEveryProof', process.env.ENV_FILE!);
 
     if (feeReceiver) {
-        env.modify('FEE_RECEIVER_PRIVATE_KEY', feeReceiver.privateKey, 'etc/env/l1-inits/.init.env');
+        env.modify('FEE_RECEIVER_PRIVATE_KEY', feeReceiver.privateKey, process.env.ENV_FILE!);
     }
 
     // For now force delay to 20 seconds to ensure batch execution doesn't not happen in same block as batch proving
     // This bug will be fixed on the smart contract soon
-    env.modify('CONTRACTS_VALIDATOR_TIMELOCK_EXECUTION_DELAY', '0', 'etc/env/l1-inits/.init.env');
-    env.modify('ETH_SENDER_SENDER_L1_BATCH_MIN_AGE_BEFORE_EXECUTE_SECONDS', '20', 'etc/env/l1-inits/.init.env');
+    env.modify('CONTRACTS_VALIDATOR_TIMELOCK_EXECUTION_DELAY', '0', process.env.ENV_FILE!);
+    env.modify('ETH_SENDER_SENDER_L1_BATCH_MIN_AGE_BEFORE_EXECUTE_SECONDS', '20', process.env.ENV_FILE!);
     const diff = env.getAvailableEnvsFromFiles().size;
     pushConfig(undefined, diff.toString());
 
@@ -434,66 +454,6 @@ function printAddressInfo(name: string, address: string) {
 //         );
 //     }
 // }
-
-// async function initializeWethTokenForHyperchain() {
-//     const questions: BasePromptOptions[] = [
-//         {
-//             message: 'Do you want to deploy Wrapped ETH to your hyperchain?',
-//             name: 'deployWeth',
-//             type: 'confirm'
-//         }
-//     ];
-
-//     const results: any = await enquirer.prompt(questions);
-
-//     if (results.deployWeth) {
-//         env.modify('DEPLOY_L2_WETH', 'true', `etc/env/l2-inits/${process.env.ZKSYNC_ENV}.init.env`);
-
-//         if (!process.env.DEPLOY_TEST_TOKENS) {
-//             // Only try to fetch this info if no test tokens will be deployed, otherwise WETH address will be defined later.
-//             const tokens = getTokens(process.env.CHAIN_ETH_NETWORK!);
-
-//             let baseWethToken = tokens.find((token: { symbol: string }) => token.symbol == 'WETH')?.address;
-
-//             if (!baseWethToken) {
-//                 const wethQuestions = [
-//                     {
-//                         message: 'What is the address of the Wrapped ETH on the base chain?',
-//                         name: 'l1Weth',
-//                         type: 'input',
-//                         required: true
-//                     }
-//                 ];
-
-//                 const wethResults: any = await enquirer.prompt(wethQuestions);
-
-//                 baseWethToken = wethResults.l1Weth;
-
-//                 if (fs.existsSync(`/etc/tokens/${getEnv(process.env.ZKSYNC_ENV!)}.json`)) {
-//                     tokens.push({
-//                         name: 'Wrapped Ether',
-//                         symbol: 'WETH',
-//                         decimals: 18,
-//                         address: baseWethToken!
-//                     });
-//                     fs.writeFileSync(
-//                         `/etc/tokens/${getEnv(process.env.ZKSYNC_ENV!)}.json`,
-//                         JSON.stringify(tokens, null, 4)
-//                     );
-//                 }
-//             }
-
-//             env.modify('CONTRACTS_L1_WETH_TOKEN_ADDR', baseWethToken!, 'etc/env/l1-inits/.init.env');
-//         }
-//         const governorPrivateKey = process.env.GOVERNOR_PRIVATE_KEY;
-
-//         await announced(
-//             'Initializing L2 WETH token',
-//             contract.initializeWethToken(['--private-key', governorPrivateKey])
-//         );
-//     }
-// }
-
 async function startServer() {
     const YES_DEFAULT = 'Yes (default components)';
     const YES_CUSTOM = 'Yes (custom components)';
@@ -810,11 +770,11 @@ async function configDemoHyperchain(cmd: Command) {
         governorPrivateKeyArgs: ['--private-key', governorPrivateKey],
         deployerL2ContractInput: {
             args: ['--private-key', deployerPrivateKey],
-            includePaymaster: false,
-            includeL2WETH: deployL2Weth
+            includePaymaster: false
         },
         testTokens: {
             deploy: deployTestTokens,
+            deployWeth: false,
             args: ['--private-key', deployerPrivateKey, '--envFile', process.env.CHAIN_ETH_NETWORK!]
         },
         baseToken: {
