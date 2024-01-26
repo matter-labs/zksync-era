@@ -63,6 +63,9 @@ jobs:
       - name: Rust unit tests
         run: ci_run zk test rust
 
+      - name: Prover "smoke" tests
+        run: ci_run bash -c "cd prover && cargo check --all-targets"
+
   loadtest:
     runs-on: [matterlabs-ci-runner]
 
