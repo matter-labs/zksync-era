@@ -174,7 +174,8 @@ So the format of the pubdata will be the following:
 - Then for each `<key, value>` pair for each initial write:
   - print key as 32-byte derived key.
   - packing type as a 1 byte value, which consists of 5 bits to denote the length of the packing and 3 bits to denote
-    the type of the packing (either `Add`, `Sub`, `Transform` or `NoCompression`).
+    the type of the packing (either `Add`, `Sub`, `Transform` or `NoCompression`). More on it
+    [below](https://www.notion.so/Pubdata-compression-v1-4b0dd8c151014c8ab96dbd7e66e17599?pvs=21).
   - The packed value itself.
 
 #### Part 3. Repeated writes
