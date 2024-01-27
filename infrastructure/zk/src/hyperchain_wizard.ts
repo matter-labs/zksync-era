@@ -22,9 +22,11 @@ const announce = chalk.yellow;
 enum BaseNetwork {
     LOCALHOST = 'localhost (matterlabs/geth)',
     LOCALHOST_CUSTOM = 'localhost (custom)',
+    LINEATEST = 'lineatest',
     SEPOLIA = 'sepolia',
     GOERLI = 'goerli',
-    MAINNET = 'mainnet'
+    MAINNET = 'mainnet',
+    LINEA = 'linea'
 }
 
 enum ProverTypeOption {
@@ -106,9 +108,11 @@ async function setHyperchainMetadata() {
     const BASE_NETWORKS = [
         BaseNetwork.LOCALHOST,
         BaseNetwork.LOCALHOST_CUSTOM,
+        BaseNetwork.LINEATEST,
         BaseNetwork.SEPOLIA,
         BaseNetwork.GOERLI,
-        BaseNetwork.MAINNET
+        BaseNetwork.MAINNET,
+        BaseNetwork.LINEA
     ];
     const GENERATE_KEYS = 'Generate keys';
     const INSERT_KEYS = 'Insert keys';
@@ -564,12 +568,16 @@ function getL1Id(baseChain: BaseNetwork) {
     switch (baseChain) {
         case BaseNetwork.LOCALHOST:
             return 9;
+        case BaseNetwork.LINEATEST:
+            return 59140;
         case BaseNetwork.SEPOLIA:
             return 11155111;
         case BaseNetwork.GOERLI:
             return 5;
         case BaseNetwork.MAINNET:
             return 1;
+        case BaseNetwork.LINEA:
+            return 59144;
         default:
             throw Error('Unknown base layer chain');
     }
