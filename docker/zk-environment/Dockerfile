@@ -2,7 +2,7 @@
 FROM debian:bookworm as solidity-builder
 
 # Install prerequisites
-RUN apt-get update && apt-get install -y \
+RUN chmod 1777 /tmp && apt-get update && apt-get install -y \
     build-essential \
     cmake \
     git \
@@ -31,7 +31,7 @@ WORKDIR /usr/src/zksync
 ENV DEBIAN_FRONTEND noninteractive
 
 # Install required dependencies
-RUN apt-get update && apt-get install -y \
+RUN chmod 1777 /tmp && apt-get update && apt-get install -y \
     cmake \
     make \
     bash \
@@ -56,7 +56,7 @@ RUN apt-get update && apt-get install -y \
     unzip
 
 # Install dependencies for RocksDB.
-RUN apt-get update && \
+RUN chmod 1777 /tmp && apt-get update && \
     apt-get install -y \
     gnutls-bin git \
     build-essential \
@@ -67,7 +67,7 @@ RUN apt-get update && \
     libclang-dev
 
 # Install Docker
-RUN apt-get update && \
+RUN chmod 1777 /tmp && apt-get update && \
     apt-get install ca-certificates gnupg && \
     install -m 0755 -d /etc/apt/keyrings && \
     wget -c -O - https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg && \

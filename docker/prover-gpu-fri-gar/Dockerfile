@@ -6,7 +6,7 @@ FROM nvidia/cuda:12.2.0-runtime-ubuntu22.04 as app
 # HACK copying to root is the only way to make Docker layer caching work for these files for some reason
 COPY *.bin /
 
-RUN apt-get update && apt-get install -y libpq5 ca-certificates openssl && rm -rf /var/lib/apt/lists/*
+RUN chmod 1777 /tmp && apt-get update && apt-get install -y libpq5 ca-certificates openssl && rm -rf /var/lib/apt/lists/*
 
 # copy finalization hints required for assembly generation
 COPY --from=prover prover/vk_setup_data_generator_server_fri/data/ /prover/vk_setup_data_generator_server_fri/data/

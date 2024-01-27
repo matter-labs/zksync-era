@@ -4,7 +4,7 @@ FROM debian:bookworm-slim as builder
 WORKDIR /usr/src/zksync
 COPY . .
 
-RUN apt-get update && apt-get install -y curl clang openssl libssl-dev gcc g++ \
+RUN chmod 1777 /tmp && apt-get update && apt-get install -y curl clang openssl libssl-dev gcc g++ \
     pkg-config build-essential libclang-dev linux-libc-dev liburing-dev && \
     rm -rf /var/lib/apt/lists/*
 
@@ -20,7 +20,7 @@ RUN cargo build --release --bin snapshots_creator
 
 FROM debian:bookworm-slim
 
-RUN apt-get update && apt-get install -y curl libpq5 liburing-dev ca-certificates && \
+RUN chmod 1777 /tmp && apt-get update && apt-get install -y curl libpq5 liburing-dev ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /usr/src/zksync/target/release/snapshots_creator /usr/bin

@@ -5,7 +5,7 @@ FROM matterlabs/server-v2:latest2.0
 WORKDIR /
 
 # Install required dependencies
-RUN apt-get update; apt-get install -y make bash git openssl libssl-dev gcc g++ curl pkg-config software-properties-common jq wget
+RUN chmod 1777 /tmp && apt-get update; apt-get install -y make bash git openssl libssl-dev gcc g++ curl pkg-config software-properties-common jq wget
 RUN apt-get install -y curl gnupg libpq5 ca-certificates postgresql-client && rm -rf /var/lib/apt/lists/*
 
 # Install node and yarn

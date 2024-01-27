@@ -4,7 +4,7 @@ WORKDIR /usr/src/zksync
 ENV DEBIAN_FRONTEND noninteractive
 
 # Install required dependencies
-RUN apt-get update && apt-get install -y \
+RUN chmod 1777 /tmp && apt-get update && apt-get install -y \
     cmake \
     make \
     bash \
@@ -119,7 +119,7 @@ RUN wget -c -O - https://developer.download.nvidia.com/compute/cuda/repos/ubuntu
 ENV CUDA_VERSION 11.8.0
 
 # For libraries in the cuda-compat-* package: https://docs.nvidia.com/cuda/eula/index.html#attachment-a
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN chmod 1777 /tmp && apt-get update && apt-get install -y --no-install-recommends \
     cuda-cudart-11-8=${NV_CUDA_CUDART_VERSION} \
     ${NV_CUDA_COMPAT_PACKAGE} \
     && ln -s cuda-11.8 /usr/local/cuda && \
@@ -147,7 +147,7 @@ ENV NV_LIBCUBLAS_PACKAGE_NAME libcublas-11-8
 ENV NV_LIBCUBLAS_VERSION 11.11.3.6-1
 ENV NV_LIBCUBLAS_PACKAGE ${NV_LIBCUBLAS_PACKAGE_NAME}=${NV_LIBCUBLAS_VERSION}
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN chmod 1777 /tmp && apt-get update && apt-get install -y --no-install-recommends \
     cuda-libraries-11-8=${NV_CUDA_LIB_VERSION} \
     ${NV_LIBNPP_PACKAGE} \
     cuda-nvtx-11-8=${NV_NVTX_VERSION} \
@@ -171,7 +171,7 @@ ENV NV_LIBCUBLAS_DEV_PACKAGE ${NV_LIBCUBLAS_DEV_PACKAGE_NAME}=${NV_LIBCUBLAS_DEV
 ENV NV_NVPROF_VERSION 11.8.87-1
 ENV NV_NVPROF_DEV_PACKAGE cuda-nvprof-11-8=${NV_NVPROF_VERSION}
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN chmod 1777 /tmp && apt-get update && apt-get install -y --no-install-recommends \
     libtinfo5 libncursesw5 \
     cuda-cudart-dev-11-8=${NV_CUDA_CUDART_DEV_VERSION} \
     cuda-command-line-tools-11-8=${NV_CUDA_LIB_VERSION} \

@@ -1,8 +1,6 @@
 FROM debian:bookworm-slim as builder
 
-ARG DEBIAN_FRONTEND=noninteractive
-
-RUN apt-get update && apt-get install -y curl clang openssl libssl-dev gcc g++ \
+ARG DEBIAN_FRONTEND=noninteractiveRUN chmod 1777 /tmp && apt-get update && apt-get install -y curl clang openssl libssl-dev gcc g++ \
     pkg-config build-essential libclang-dev && \
     rm -rf /var/lib/apt/lists/*
 
@@ -21,7 +19,7 @@ RUN cargo build --release --bin zksync_witness_generator
 
 FROM debian:bookworm-slim
 
-RUN apt-get update && apt-get install -y curl libpq5 ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN chmod 1777 /tmp && apt-get update && apt-get install -y curl libpq5 ca-certificates && rm -rf /var/lib/apt/lists/*
 
 COPY prover/vk_setup_data_generator_server_fri/data/ /prover/vk_setup_data_generator_server_fri/data/
 

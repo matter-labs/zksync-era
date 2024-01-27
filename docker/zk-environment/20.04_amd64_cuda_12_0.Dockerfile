@@ -4,7 +4,7 @@ WORKDIR /usr/src/zksync
 ENV DEBIAN_FRONTEND noninteractive
 
 # Install required dependencies
-RUN apt-get update && apt-get install -y \
+RUN chmod 1777 /tmp && apt-get update && apt-get install -y \
     cmake \
     make \
     bash \
@@ -115,7 +115,7 @@ ENV NV_CUDA_CUDART_VERSION 12.0.107-1
 ENV NV_CUDA_COMPAT_PACKAGE cuda-compat-12-0
 
 # curl purging is removed, it's required in next steps
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN chmod 1777 /tmp && apt-get update && apt-get install -y --no-install-recommends \
     gnupg2 curl ca-certificates && \
     wget -c -O - https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/${NVARCH}/3bf863cc.pub | apt-key add - && \
     echo "deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/${NVARCH} /" > /etc/apt/sources.list.d/cuda.list && \
@@ -124,7 +124,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ENV CUDA_VERSION 12.0.0
 
 # For libraries in the cuda-compat-* package: https://docs.nvidia.com/cuda/eula/index.html#attachment-a
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN chmod 1777 /tmp && apt-get update && apt-get install -y --no-install-recommends \
     cuda-cudart-12-0=${NV_CUDA_CUDART_VERSION} \
     ${NV_CUDA_COMPAT_PACKAGE} \
     && rm -rf /var/lib/apt/lists/*
@@ -170,7 +170,7 @@ ENV NV_LIBNCCL_PACKAGE_VERSION 2.17.1-1
 ENV NCCL_VERSION 2.17.1-1
 ENV NV_LIBNCCL_PACKAGE ${NV_LIBNCCL_PACKAGE_NAME}=${NV_LIBNCCL_PACKAGE_VERSION}+cuda12.0
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN chmod 1777 /tmp && apt-get update && apt-get install -y --no-install-recommends \
     cuda-libraries-12-0=${NV_CUDA_LIB_VERSION} \
     ${NV_LIBNPP_PACKAGE} \
     cuda-nvtx-12-0=${NV_NVTX_VERSION} \
@@ -225,7 +225,7 @@ ENV NV_LIBNCCL_DEV_PACKAGE_VERSION 2.17.1-1
 ENV NCCL_VERSION 2.17.1-1
 ENV NV_LIBNCCL_DEV_PACKAGE ${NV_LIBNCCL_DEV_PACKAGE_NAME}=${NV_LIBNCCL_DEV_PACKAGE_VERSION}+cuda12.0
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN chmod 1777 /tmp && apt-get update && apt-get install -y --no-install-recommends \
     libtinfo5 libncursesw5 \
     cuda-cudart-dev-12-0=${NV_CUDA_CUDART_DEV_VERSION} \
     cuda-command-line-tools-12-0=${NV_CUDA_LIB_VERSION} \

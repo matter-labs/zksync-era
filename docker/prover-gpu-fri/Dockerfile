@@ -5,7 +5,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 ARG CUDA_ARCH=89
 ENV CUDAARCHS=${CUDA_ARCH}
 
-RUN apt-get update && apt-get install -y curl clang openssl libssl-dev gcc g++ \
+RUN chmod 1777 /tmp && apt-get update && apt-get install -y curl clang openssl libssl-dev gcc g++ \
     pkg-config build-essential libclang-dev && \
     rm -rf /var/lib/apt/lists/*
 
@@ -28,7 +28,7 @@ RUN cargo build --release --features "gpu" --bin zksync_prover_fri
 
 FROM nvidia/cuda:12.2.0-runtime-ubuntu22.04
 
-RUN apt-get update && apt-get install -y curl libpq5 ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN chmod 1777 /tmp && apt-get update && apt-get install -y curl libpq5 ca-certificates && rm -rf /var/lib/apt/lists/*
 
 # copy finalization hints required for assembly generation
 COPY prover/vk_setup_data_generator_server_fri/data/ /prover/vk_setup_data_generator_server_fri/data/
