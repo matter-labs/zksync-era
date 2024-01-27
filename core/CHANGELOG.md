@@ -1,5 +1,47 @@
 # Changelog
 
+## [20.1.0](https://github.com/matter-labs/zksync-era/compare/core-v20.0.0...core-v20.1.0) (2024-01-23)
+
+
+### Features
+
+* **api:** Get historical fee input ([#919](https://github.com/matter-labs/zksync-era/issues/919)) ([8e1009f](https://github.com/matter-labs/zksync-era/commit/8e1009fc4626465524183ae10a8ff26739fbb647))
+* ZK Stack framework MVP ([#880](https://github.com/matter-labs/zksync-era/issues/880)) ([3e5c528](https://github.com/matter-labs/zksync-era/commit/3e5c528767e907e116e29310460019e2bf9161d1))
+
+
+### Bug Fixes
+
+* **test:** Provide higher min allowance in estimation ([#923](https://github.com/matter-labs/zksync-era/issues/923)) ([d379612](https://github.com/matter-labs/zksync-era/commit/d37961296c102555e7128424fb1e9b998579b1de))
+
+## [20.0.0](https://github.com/matter-labs/zksync-era/compare/core-v19.2.0...core-v20.0.0) (2024-01-19)
+
+
+### ⚠ BREAKING CHANGES
+
+* **vm:** fee model updates + 1.4.1 ([#791](https://github.com/matter-labs/zksync-era/issues/791))
+
+### Features
+
+* **api:** Consider State keeper fee model input in the API ([#901](https://github.com/matter-labs/zksync-era/issues/901)) ([3211687](https://github.com/matter-labs/zksync-era/commit/32116878ba0ac68a7b90afa1a7e0fe170bdcd902))
+* **api:** Make Web3 API server work with pruned data ([#838](https://github.com/matter-labs/zksync-era/issues/838)) ([0b7cd0b](https://github.com/matter-labs/zksync-era/commit/0b7cd0b50ead2406915528becad2fac8b7e48f85))
+* **vm:** fee model updates + 1.4.1 ([#791](https://github.com/matter-labs/zksync-era/issues/791)) ([3564aff](https://github.com/matter-labs/zksync-era/commit/3564affbb246c87d668ea2ec74809384bc9d621f))
+
+
+### Bug Fixes
+
+* addresses broken links in preparation for ci link check ([#869](https://github.com/matter-labs/zksync-era/issues/869)) ([a78d03c](https://github.com/matter-labs/zksync-era/commit/a78d03cc53d0097f6be892de65a2c35bd7f1baa3))
+* Incorrect exposing of log indexes ([#896](https://github.com/matter-labs/zksync-era/issues/896)) ([12974fc](https://github.com/matter-labs/zksync-era/commit/12974fcba74c5704b89fa63d7f73222d4fa58228))
+
+## [19.2.0](https://github.com/matter-labs/zksync-era/compare/core-v19.1.1...core-v19.2.0) (2024-01-17)
+
+
+### Features
+
+* adds `zk linkcheck` to zk tool and updates zk env for `zk linkcheck` ci usage ([#868](https://github.com/matter-labs/zksync-era/issues/868)) ([d64f584](https://github.com/matter-labs/zksync-era/commit/d64f584f6d505b19cd6424928e9dc68e370e17fd))
+* **contract-verifier:** Support zkVM solc contract verification ([#854](https://github.com/matter-labs/zksync-era/issues/854)) ([1ed5a95](https://github.com/matter-labs/zksync-era/commit/1ed5a95462dbd73151acd8afbc4ab6158a2aecda))
+* **en:** Make batch status updater work with pruned data ([#863](https://github.com/matter-labs/zksync-era/issues/863)) ([3a07890](https://github.com/matter-labs/zksync-era/commit/3a07890dacebf6179636c44d7cce1afd21ab49eb))
+* rewritten gossip sync to be async from block processing ([#711](https://github.com/matter-labs/zksync-era/issues/711)) ([3af4644](https://github.com/matter-labs/zksync-era/commit/3af4644f428af0328cdea0fbae8a8f965489c6c4))
+
 ## [19.1.1](https://github.com/matter-labs/zksync-era/compare/core-v19.1.0...core-v19.1.1) (2024-01-12)
 
 
@@ -433,7 +475,7 @@
 ### Features
 
 * Implement dynamic L2-to-L1 log tree depth ([#126](https://github.com/matter-labs/zksync-era/issues/126)) ([7dfbc5e](https://github.com/matter-labs/zksync-era/commit/7dfbc5eddab94cd24f96912e0d43ba36e1cf363f))
-* **vm:** Introduce new way of returning from the tracer [#2569](https://github.com/matter-labs/zksync-era/issues/2569) ([#116](https://github.com/matter-labs/zksync-era/issues/116)) ([cf44a49](https://github.com/matter-labs/zksync-era/commit/cf44a491a324199b4cf457d28658da44b6dafc61))
+* **vm:** Introduce new way of returning from the tracer [#2569](https://github.com/matter-labs/zksync-2-dev/issues/2569) ([#116](https://github.com/matter-labs/zksync-era/issues/116)) ([cf44a49](https://github.com/matter-labs/zksync-era/commit/cf44a491a324199b4cf457d28658da44b6dafc61))
 * **vm:** Restore system-constants-generator ([#115](https://github.com/matter-labs/zksync-era/issues/115)) ([5e61bdc](https://github.com/matter-labs/zksync-era/commit/5e61bdc75b2baa03004d4d3e801170c094766964))
 
 ## [15.0.1](https://github.com/matter-labs/zksync-2-dev/compare/core-v15.0.0...core-v15.0.1) (2023-09-27)

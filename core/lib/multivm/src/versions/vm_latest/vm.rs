@@ -1,3 +1,4 @@
+use zkevm_test_harness_1_4_1::witness::sort_storage_access::sort_storage_access_queries;
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{
     event::extract_l2tol1logs_from_l1_messenger,
@@ -7,6 +8,7 @@ use zksync_types::{
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use crate::{
+    glue::GlueInto,
     interface::{
         BootloaderMemory, BytecodeCompressionError, CurrentExecutionState, FinishedL1Batch,
         L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
@@ -27,7 +29,7 @@ use crate::{
 pub struct Vm<S: WriteStorage, H: HistoryMode> {
     pub(crate) bootloader_state: BootloaderState,
     // Current state and oracles of virtual machine
-    pub(crate) state: ZkSyncVmState<S, H::VmLatest>,
+    pub(crate) state: ZkSyncVmState<S, H::Vm1_4_1>,
     pub(crate) storage: StoragePtr<S>,
     pub(crate) system_env: SystemEnv,
     pub(crate) batch_env: L1BatchEnv,
@@ -37,7 +39,7 @@ pub struct Vm<S: WriteStorage, H: HistoryMode> {
 }
 
 impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
-    type TracerDispatcher = TracerDispatcher<S, H::VmLatest>;
+    type TracerDispatcher = TracerDispatcher<S, H::Vm1_4_1>;
 
     fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
         let (state, bootloader_state) = new_vm_state(storage.clone(), &system_env, &batch_env);
@@ -93,7 +95,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
         let user_l2_to_l1_logs = extract_l2tol1logs_from_l1_messenger(&events);
         let system_logs = l1_messages
             .into_iter()
-            .map(|log| SystemL2ToL1Log(log.into()))
+            .map(|log| SystemL2ToL1Log(log.glue_into()))
             .collect();
         let total_log_queries = self.state.event_sink.get_log_queries()
             + self
@@ -103,9 +105,21 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
                 .len()
             + self.state.storage.get_final_log_queries().len();
 
+        let storage_log_queries = self.state.storage.get_final_log_queries();
+
+        let deduped_storage_log_queries =
+            sort_storage_access_queries(storage_log_queries.iter().map(|log| &log.log_query)).1;
+
         CurrentExecutionState {
             events,
-            storage_log_queries: self.state.storage.get_final_log_queries(),
+            storage_log_queries: storage_log_queries
+                .into_iter()
+                .map(GlueInto::glue_into)
+                .collect(),
+            deduplicated_storage_log_queries: deduped_storage_log_queries
+                .into_iter()
+                .map(GlueInto::glue_into)
+                .collect(),
             used_contract_hashes: self.get_used_contracts(),
             user_l2_to_l1_logs: user_l2_to_l1_logs
                 .into_iter()
@@ -114,7 +128,10 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
             system_logs,
             total_log_queries,
             cycles_used: self.state.local_state.monotonic_cycle_counter,
-            deduplicated_events_logs,
+            deduplicated_events_logs: deduplicated_events_logs
+                .into_iter()
+                .map(GlueInto::glue_into)
+                .collect(),
             storage_refunds: self.state.storage.returned_refunds.inner().clone(),
         }
     }

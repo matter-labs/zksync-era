@@ -43,6 +43,7 @@ impl SyncDal<'_, '_> {
                 miniblocks.timestamp,
                 miniblocks.l1_gas_price,
                 miniblocks.l2_fair_gas_price,
+                miniblocks.fair_pubdata_price,
                 miniblocks.bootloader_code_hash,
                 miniblocks.default_aa_code_hash,
                 miniblocks.virtual_blocks,
@@ -94,9 +95,8 @@ impl SyncDal<'_, '_> {
 #[cfg(test)]
 mod tests {
     use zksync_types::{
-        block::{BlockGasCount, L1BatchHeader},
-        fee::TransactionExecutionMetrics,
-        L1BatchNumber, ProtocolVersion, ProtocolVersionId, Transaction,
+        block::L1BatchHeader, fee::TransactionExecutionMetrics, L1BatchNumber, ProtocolVersion,
+        ProtocolVersionId, Transaction,
     };
 
     use super::*;
@@ -126,7 +126,7 @@ mod tests {
             ProtocolVersionId::latest(),
         );
         conn.blocks_dal()
-            .insert_l1_batch(&l1_batch_header, &[], BlockGasCount::default(), &[], &[], 0)
+            .insert_mock_l1_batch(&l1_batch_header)
             .await
             .unwrap();
         conn.blocks_dal()
@@ -201,7 +201,7 @@ mod tests {
         l1_batch_header.number = L1BatchNumber(1);
         l1_batch_header.timestamp = 1;
         conn.blocks_dal()
-            .insert_l1_batch(&l1_batch_header, &[], BlockGasCount::default(), &[], &[], 0)
+            .insert_mock_l1_batch(&l1_batch_header)
             .await
             .unwrap();
         conn.blocks_dal()

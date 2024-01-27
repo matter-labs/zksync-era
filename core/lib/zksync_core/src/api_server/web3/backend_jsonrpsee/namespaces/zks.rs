@@ -136,11 +136,13 @@ impl ZksNamespaceServer for ZksNamespace {
     }
 
     async fn get_bytecode_by_hash(&self, hash: H256) -> RpcResult<Option<Vec<u8>>> {
-        Ok(self.get_bytecode_by_hash_impl(hash).await)
+        self.get_bytecode_by_hash_impl(hash)
+            .await
+            .map_err(into_jsrpc_error)
     }
 
     async fn get_l1_gas_price(&self) -> RpcResult<U64> {
-        Ok(self.get_l1_gas_price_impl())
+        Ok(self.get_l1_gas_price_impl().await)
     }
 
     async fn get_fee_params(&self) -> RpcResult<FeeParams> {
@@ -151,7 +153,9 @@ impl ZksNamespaceServer for ZksNamespace {
         &self,
         version_id: Option<u16>,
     ) -> RpcResult<Option<ProtocolVersion>> {
-        Ok(self.get_protocol_version_impl(version_id).await)
+        self.get_protocol_version_impl(version_id)
+            .await
+            .map_err(into_jsrpc_error)
     }
 
     async fn get_proof(

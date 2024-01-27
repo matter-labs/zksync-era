@@ -334,7 +334,7 @@ let no_rounds_left = state.precompile_call_params.num_rounds.is_zero(cs);
 let write_result = Boolean::multi_and(cs, &[state.read_words_for_round, no_rounds_left]);
 
 let mut write_word = zero_u256;
-// some endianess magic
+// some endianness magic
 for (dst, src) in write_word
   .inner
   .iter_mut()

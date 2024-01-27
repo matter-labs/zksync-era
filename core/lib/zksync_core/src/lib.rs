@@ -3,7 +3,7 @@
 use std::{net::Ipv4Addr, str::FromStr, sync::Arc, time::Instant};
 
 use anyhow::Context as _;
-use fee_model::MainNodeFeeInputProvider;
+use fee_model::{ApiFeeInputProvider, MainNodeFeeInputProvider};
 use futures::channel::oneshot;
 use prometheus_exporter::PrometheusExporterConfig;
 use temp_config_store::TempConfigStore;
@@ -12,6 +12,7 @@ use zksync_circuit_breaker::{
     l1_txs::FailedL1TransactionChecker, replication_lag::ReplicationLagChecker, CircuitBreaker,
     CircuitBreakerChecker, CircuitBreakerError,
 };
+use zksync_concurrency::{ctx, scope};
 use zksync_config::{
     configs::{
         api::{MerkleTreeApiConfig, Web3JsonRpcConfig},
@@ -35,7 +36,7 @@ use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{
-    fee_model::FeeModelConfigV1,
+    fee_model::FeeModelConfig,
     protocol_version::{L1VerifierConfig, VerifierParams},
     system_contracts::get_system_smart_contracts,
     web3::contract::tokens::Detokenize,
@@ -230,6 +231,8 @@ pub enum Component {
     Housekeeper,
     /// Component for exposing APIs to prover for providing proof generation data and accepting proofs.
     ProofDataHandler,
+    /// Component generating BFT consensus certificates for miniblocks.
+    Consensus,
 }
 
 #[derive(Debug)]
@@ -264,6 +267,7 @@ impl FromStr for Components {
             "eth_tx_aggregator" => Ok(Components(vec![Component::EthTxAggregator])),
             "eth_tx_manager" => Ok(Components(vec![Component::EthTxManager])),
             "proof_data_handler" => Ok(Components(vec![Component::ProofDataHandler])),
+            "consensus" => Ok(Components(vec![Component::Consensus])),
             other => Err(format!("{} is not a valid component name", other)),
         }
     }
@@ -505,6 +509,39 @@ pub async fn initialize_components(
         tracing::info!("initialized State Keeper in {elapsed:?}");
     }
 
+    if components.contains(&Component::Consensus) {
+        let cfg = configs
+            .consensus_config
+            .clone()
+            .context("consensus component's config is missing")?;
+        let started_at = Instant::now();
+        tracing::info!("initializing Consensus");
+        let pool = connection_pool.clone();
+        let mut stop_receiver = stop_receiver.clone();
+        task_futures.push(tokio::spawn(async move {
+            scope::run!(&ctx::root(), |ctx, s| async {
+                s.spawn_bg(async {
+                    // Consensus is a new component.
+                    // For now in case of error we just log it and allow the server
+                    // to continue running.
+                    if let Err(err) = cfg.run(ctx, pool).await {
+                        tracing::error!(%err, "Consensus actor failed");
+                    } else {
+                        tracing::info!("Consensus actor stopped");
+                    }
+                    Ok(())
+                });
+                let _ = stop_receiver.wait_for(|stop| *stop).await?;
+                Ok(())
+            })
+            .await
+        }));
+
+        let elapsed = started_at.elapsed();
+        APP_METRICS.init_latency[&InitStage::Consensus].set(elapsed);
+        tracing::info!("initialized Consensus in {elapsed:?}");
+    }
+
     let main_zksync_contract_address = contracts_config.diamond_proxy_addr;
     if components.contains(&Component::EthWatcher) {
         let started_at = Instant::now();
@@ -697,9 +734,7 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
 
     let batch_fee_input_provider = Arc::new(MainNodeFeeInputProvider::new(
         gas_adjuster,
-        zksync_types::fee_model::FeeModelConfig::V1(FeeModelConfigV1 {
-            minimal_l2_gas_price: state_keeper_config.fair_l2_gas_price,
-        }),
+        FeeModelConfig::from_state_keeper_config(&state_keeper_config),
     ));
 
     let miniblock_sealer_pool = pool_builder
@@ -813,7 +848,9 @@ async fn run_tree(
     tracing::info!("Initializing Merkle tree in {mode_str} mode");
 
     let config = MetadataCalculatorConfig::for_main_node(merkle_tree_config, operation_manager);
-    let metadata_calculator = MetadataCalculator::new(config, object_store).await;
+    let metadata_calculator = MetadataCalculator::new(config, object_store)
+        .await
+        .context("failed initializing metadata_calculator")?;
     if let Some(api_config) = api_config {
         let address = (Ipv4Addr::UNSPECIFIED, api_config.port).into();
         let tree_reader = metadata_calculator.tree_reader();
@@ -1008,18 +1045,17 @@ async fn build_tx_sender(
     storage_caches: PostgresStorageCaches,
 ) -> (TxSender, VmConcurrencyBarrier) {
     let sequencer_sealer = SequencerSealer::new(state_keeper_config.clone());
-    let tx_sender_builder = TxSenderBuilder::new(tx_sender_config.clone(), replica_pool)
+    let tx_sender_builder = TxSenderBuilder::new(tx_sender_config.clone(), replica_pool.clone())
         .with_main_connection_pool(master_pool)
         .with_sealer(Arc::new(sequencer_sealer));
 
     let max_concurrency = web3_json_config.vm_concurrency_limit();
     let (vm_concurrency_limiter, vm_barrier) = VmConcurrencyLimiter::new(max_concurrency);
 
-    let batch_fee_input_provider = MainNodeFeeInputProvider::new(
+    let batch_fee_input_provider = ApiFeeInputProvider::new(
         l1_gas_price_provider,
-        zksync_types::fee_model::FeeModelConfig::V1(FeeModelConfigV1 {
-            minimal_l2_gas_price: state_keeper_config.fair_l2_gas_price,
-        }),
+        FeeModelConfig::from_state_keeper_config(state_keeper_config),
+        replica_pool,
     );
 
     let tx_sender = tx_sender_builder
@@ -1034,7 +1070,7 @@ async fn build_tx_sender(
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn run_http_api<G: L1GasPriceProvider + Send + Sync + 'static>(
+async fn run_http_api<G: L1GasPriceProvider>(
     postgres_config: &PostgresConfig,
     tx_sender_config: &TxSenderConfig,
     state_keeper_config: &StateKeeperConfig,

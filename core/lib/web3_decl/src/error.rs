@@ -1,12 +1,16 @@
 //! Definition of errors that can occur in the zkSync Web3 API.
 
 use thiserror::Error;
-use zksync_types::api::SerializationTransactionError;
+use zksync_types::{api::SerializationTransactionError, L1BatchNumber, MiniblockNumber};
 
 #[derive(Debug, Error)]
 pub enum Web3Error {
     #[error("Block with such an ID doesn't exist yet")]
     NoBlock,
+    #[error("Block with such an ID is pruned; the first retained block is {0}")]
+    PrunedBlock(MiniblockNumber),
+    #[error("L1 batch with such an ID is pruned; the first retained L1 batch is {0}")]
+    PrunedL1Batch(L1BatchNumber),
     #[error("Request timeout")]
     RequestTimeout,
     #[error("Internal error")]

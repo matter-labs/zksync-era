@@ -3,6 +3,7 @@ use std::{collections::HashMap, convert::TryInto, iter::FromIterator, time::Dura
 use async_trait::async_trait;
 use futures::future;
 use multivm::interface::{FinishedL1Batch, L1BatchEnv, SystemEnv};
+use vm_utils::storage::wait_for_prev_l1_batch_params;
 use zksync_contracts::{BaseSystemContracts, SystemContractCode};
 use zksync_dal::ConnectionPool;
 use zksync_types::{
@@ -20,7 +21,6 @@ use super::{
 use crate::{
     metrics::{BlockStage, APP_METRICS},
     state_keeper::{
-        extractors,
         io::{
             common::{l1_batch_params, load_pending_batch, poll_iters},
             MiniblockParams, MiniblockSealerHandle, PendingBatchData, StateKeeperIO,
@@ -71,21 +71,24 @@ impl ExternalIO {
         chain_id: L2ChainId,
     ) -> Self {
         let mut storage = pool.access_storage_tagged("sync_layer").await.unwrap();
-        let last_sealed_l1_batch_header = storage
+        // TODO (PLA-703): Support no L1 batches / miniblocks in the storage
+        let last_sealed_l1_batch_number = storage
             .blocks_dal()
-            .get_newest_l1_batch_header()
+            .get_sealed_l1_batch_number()
             .await
-            .unwrap();
+            .unwrap()
+            .expect("No L1 batches sealed");
         let last_miniblock_number = storage
             .blocks_dal()
             .get_sealed_miniblock_number()
             .await
-            .unwrap();
+            .unwrap()
+            .expect("empty storage not supported"); // FIXME (PLA-703): handle empty storage
         drop(storage);
 
         tracing::info!(
             "Initialized the ExternalIO: current L1 batch number {}, current miniblock number {}",
-            last_sealed_l1_batch_header.number + 1,
+            last_sealed_l1_batch_number + 1,
             last_miniblock_number + 1,
         );
 
@@ -94,7 +97,7 @@ impl ExternalIO {
         Self {
             miniblock_sealer_handle,
             pool,
-            current_l1_batch_number: last_sealed_l1_batch_header.number + 1,
+            current_l1_batch_number: last_sealed_l1_batch_number + 1,
             current_miniblock_number: last_miniblock_number + 1,
             actions,
             sync_state,
@@ -109,8 +112,7 @@ impl ExternalIO {
         let mut storage = self.pool.access_storage_tagged("sync_layer").await.unwrap();
         let wait_latency = KEEPER_METRICS.wait_for_prev_hash_time.start();
         let (hash, _) =
-            extractors::wait_for_prev_l1_batch_params(&mut storage, self.current_l1_batch_number)
-                .await;
+            wait_for_prev_l1_batch_params(&mut storage, self.current_l1_batch_number).await;
         wait_latency.observe();
         hash
     }
@@ -209,7 +211,8 @@ impl ExternalIO {
                         self.current_miniblock_number,
                         &HashMap::from_iter([(contract.hash, be_words_to_bytes(&contract.code))]),
                     )
-                    .await;
+                    .await
+                    .unwrap();
                 contract
             }
         }
@@ -311,6 +314,7 @@ impl StateKeeperIO for ExternalIO {
                     timestamp,
                     l1_gas_price,
                     l2_fair_gas_price,
+                    fair_pubdata_price,
                     operator_address,
                     protocol_version,
                     first_miniblock_info: (miniblock_number, virtual_blocks),
@@ -337,7 +341,12 @@ impl StateKeeperIO for ExternalIO {
                         operator_address,
                         timestamp,
                         previous_l1_batch_hash,
-                        BatchFeeInput::l1_pegged(l1_gas_price, l2_fair_gas_price),
+                        BatchFeeInput::for_protocol_version(
+                            protocol_version,
+                            l2_fair_gas_price,
+                            fair_pubdata_price,
+                            l1_gas_price,
+                        ),
                         miniblock_number,
                         previous_miniblock_hash,
                         base_system_contracts,
