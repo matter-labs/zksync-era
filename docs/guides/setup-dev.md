@@ -14,6 +14,10 @@ sudo apt-get install build-essential pkg-config cmake clang lldb lld libssl-dev 
 # Docker
 sudo usermod -aG docker YOUR_USER
 
+##  docker-buildx
+sudo apt install docker-buildx
+
+
 ## You might need to re-connect (due to usermod change).
 
 # Node & yarn
@@ -27,6 +31,8 @@ cargo install sqlx-cli --version 0.7.3
 sudo systemctl stop postgresql
 # Start docker.
 sudo systemctl start docker
+# Start docker buildx
+sudo docker buildx enable
 ```
 
 ## Supported operating systems

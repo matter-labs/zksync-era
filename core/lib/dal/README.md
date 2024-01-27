@@ -28,7 +28,7 @@ The tables below are used by different parts of witness generation.
 ### TODO
 
 | Table name                            |
-| ------------------------------------- |
+|---------------------------------------|
 | \_sqlx_migrations                     |
 | aggregated_proof                      |
 | contract_verification_requests        |
@@ -46,7 +46,7 @@ The tables below are used by different parts of witness generation.
 | miniblocks                            |
 | proof                                 |
 | protective_reads                      |
-| prover_jobs                           |
+| prover_jobs_fri                       |
 | static_artifact_storage               |
 | storage_logs_dedup                    |
 | tokens                                |
