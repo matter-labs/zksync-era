@@ -10,6 +10,7 @@ use multivm::{
     interface::{FinishedL1Batch, L1BatchEnv, SystemEnv},
     utils::derive_base_fee_and_gas_per_pubdata,
 };
+use vm_utils::storage::wait_for_prev_l1_batch_params;
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_dal::ConnectionPool;
 use zksync_mempool::L2TxFilter;
@@ -163,7 +164,8 @@ impl StateKeeperIO for MempoolIO {
             self.filter = l2_tx_filter(
                 self.batch_fee_input_provider.as_ref(),
                 protocol_version.into(),
-            );
+            )
+            .await;
             // We only need to get the root hash when we're certain that we have a new transaction.
             if !self.mempool.has_next(&self.filter) {
                 tokio::time::sleep(self.delay_interval).await;
@@ -415,16 +417,19 @@ impl MempoolIO {
         );
 
         let mut storage = pool.access_storage_tagged("state_keeper").await.unwrap();
-        let last_sealed_l1_batch_header = storage
+        // TODO (PLA-703): Support no L1 batches / miniblocks in the storage
+        let last_sealed_l1_batch_number = storage
             .blocks_dal()
-            .get_newest_l1_batch_header()
+            .get_sealed_l1_batch_number()
             .await
-            .unwrap();
+            .unwrap()
+            .expect("No L1 batches sealed");
         let last_miniblock_number = storage
             .blocks_dal()
             .get_sealed_miniblock_number()
             .await
-            .unwrap();
+            .unwrap()
+            .expect("empty storage not supported"); // FIXME (PLA-703): handle empty storage
 
         drop(storage);
 
@@ -435,7 +440,7 @@ impl MempoolIO {
             timeout_sealer: TimeoutSealer::new(config),
             filter: L2TxFilter::default(),
             // ^ Will be initialized properly on the first newly opened batch
-            current_l1_batch_number: last_sealed_l1_batch_header.number + 1,
+            current_l1_batch_number: last_sealed_l1_batch_number + 1,
             miniblock_sealer_handle,
             current_miniblock_number: last_miniblock_number + 1,
             fee_account: config.fee_account_addr,
@@ -462,8 +467,7 @@ impl MempoolIO {
             .await
             .unwrap();
         let (batch_hash, _) =
-            extractors::wait_for_prev_l1_batch_params(&mut storage, self.current_l1_batch_number)
-                .await;
+            wait_for_prev_l1_batch_params(&mut storage, self.current_l1_batch_number).await;
 
         wait_latency.observe();
         tracing::info!(

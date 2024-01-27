@@ -1,4 +1,4 @@
-use zk_evm_1_4_0::aux_structures::Timestamp;
+use zk_evm_1_4_1::aux_structures::Timestamp;
 use zksync_state::WriteStorage;
 use zksync_types::{
     event::extract_l2tol1logs_from_l1_messenger,
@@ -7,6 +7,7 @@ use zksync_types::{
 };
 
 use crate::{
+    glue::GlueInto,
     interface::types::outputs::VmExecutionLogs,
     vm_latest::{old_vm::utils::precompile_calls_count_after_timestamp, utils::logs, vm::Vm},
     HistoryMode,
@@ -45,7 +46,10 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             storage_logs_count + log_queries.len() + precompile_calls_count;
 
         VmExecutionLogs {
-            storage_logs,
+            storage_logs: storage_logs
+                .into_iter()
+                .map(|log| log.glue_into())
+                .collect(),
             events,
             user_l2_to_l1_logs: user_logs
                 .into_iter()
@@ -66,7 +70,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         logs::collect_events_and_l1_system_logs_after_timestamp(
             &self.state,
             &self.batch_env,
-            from_timestamp,
+            from_timestamp.glue_into(),
         )
     }
 }

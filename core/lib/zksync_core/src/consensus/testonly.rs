@@ -1,8 +1,11 @@
 //! Utilities for testing the consensus module.
 use anyhow::Context as _;
-use rand::Rng;
+use rand::{
+    distributions::{Distribution, Standard},
+    Rng,
+};
 use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
-use zksync_consensus_roles::validator;
+use zksync_consensus_roles::{node, validator};
 use zksync_contracts::{BaseSystemContractsHashes, SystemContractCode};
 use zksync_dal::ConnectionPool;
 use zksync_types::{
@@ -12,6 +15,7 @@ use zksync_types::{
 
 use crate::{
     consensus::{
+        config::Config,
         storage::{BlockStore, CtxStorage},
         Store,
     },
@@ -26,6 +30,30 @@ use crate::{
     },
     utils::testonly::{create_l1_batch_metadata, create_l2_transaction},
 };
+
+fn make_addr<R: Rng + ?Sized>(rng: &mut R) -> std::net::SocketAddr {
+    std::net::SocketAddr::new(std::net::IpAddr::from(rng.gen::<[u8; 16]>()), rng.gen())
+}
+
+fn make_node_key<R: Rng + ?Sized>(rng: &mut R) -> node::PublicKey {
+    rng.gen::<node::SecretKey>().public()
+}
+
+impl Distribution<Config> for Standard {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Config {
+        Config {
+            server_addr: make_addr(rng),
+            public_addr: make_addr(rng),
+            validators: rng.gen(),
+            max_payload_size: usize::MAX,
+            gossip_dynamic_inbound_limit: rng.gen(),
+            gossip_static_inbound: (0..3).map(|_| make_node_key(rng)).collect(),
+            gossip_static_outbound: (0..5)
+                .map(|_| (make_node_key(rng), make_addr(rng)))
+                .collect(),
+        }
+    }
+}
 
 #[derive(Debug, Default)]
 pub(crate) struct MockMainNodeClient {
@@ -74,6 +102,7 @@ impl MockMainNodeClient {
                 timestamp: number.into(),
                 l1_gas_price: 2,
                 l2_fair_gas_price: 3,
+                fair_pubdata_price: Some(24),
                 base_system_contracts_hashes: BaseSystemContractsHashes::default(),
                 operator_address: Address::repeat_byte(2),
                 transactions: Some(transactions),
@@ -140,7 +169,7 @@ impl MainNodeClient for MockMainNodeClient {
 
 /// Fake StateKeeper for tests.
 pub(super) struct StateKeeper {
-    // Batch of the last_block.
+    // Batch of the `last_block`.
     last_batch: L1BatchNumber,
     last_block: MiniblockNumber,
     // timestamp of the last block.
@@ -183,11 +212,20 @@ impl StateKeeper {
                 .await
                 .context("ensure_genesis_state()")?;
         }
-        let last_batch = storage
+
+        let last_l1_batch_number = storage
             .blocks_dal()
-            .get_newest_l1_batch_header()
+            .get_sealed_l1_batch_number()
             .await
-            .context("get_newest_l1_batch_header()")?;
+            .context("get_sealed_l1_batch_number()")?
+            .context("no L1 batches in storage")?;
+        let last_miniblock_header = storage
+            .blocks_dal()
+            .get_last_sealed_miniblock_header()
+            .await
+            .context("get_last_sealed_miniblock_header()")?
+            .context("no miniblocks in storage")?;
+
         let pending_batch = storage
             .blocks_dal()
             .pending_batch_exists()
@@ -196,13 +234,9 @@ impl StateKeeper {
         let (actions_sender, actions_queue) = ActionQueue::new();
         Ok((
             Self {
-                last_batch: last_batch.number + if pending_batch { 1 } else { 0 },
-                last_block: storage
-                    .blocks_dal()
-                    .get_sealed_miniblock_number()
-                    .await
-                    .context("get_sealed_miniblock_number()")?,
-                last_timestamp: last_batch.timestamp,
+                last_batch: last_l1_batch_number + if pending_batch { 1 } else { 0 },
+                last_block: last_miniblock_header.number,
+                last_timestamp: last_miniblock_header.timestamp,
                 batch_sealed: !pending_batch,
                 fee_per_gas: 10,
                 gas_per_pubdata: 100,
@@ -229,6 +263,7 @@ impl StateKeeper {
                 timestamp: self.last_timestamp,
                 l1_gas_price: 2,
                 l2_fair_gas_price: 3,
+                fair_pubdata_price: Some(24),
                 operator_address: self.operator_address,
                 protocol_version: ProtocolVersionId::latest(),
                 first_miniblock_info: (self.last_block, 1),
@@ -292,6 +327,7 @@ impl StateKeeper {
     // Wait for all pushed miniblocks to be produced.
     pub async fn wait_for_miniblocks(&self, ctx: &ctx::Ctx) -> ctx::Result<()> {
         const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(100);
+
         loop {
             let mut storage = CtxStorage::access(ctx, &self.pool).await.wrap("access()")?;
             if storage

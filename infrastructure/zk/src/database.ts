@@ -53,10 +53,21 @@ export async function setup() {
         // Remote database, we can't show the contents.
         console.log(`WARNING! Using prod db!`);
     }
-    await utils.spawn('cargo sqlx database create');
-    await utils.spawn('cargo sqlx migrate run');
-    if (process.env.DATABASE_URL!.startsWith(localDbUrl)) {
-        await utils.spawn('cargo sqlx prepare --check -- --tests || cargo sqlx prepare -- --tests');
+    if (process.env.TEMPLATE_DATABASE_URL !== undefined) {
+        // Dump and restore from template database (simulate backup)
+        console.log(`Template DB URL provided. Creating a DB via dump from ${process.env.TEMPLATE_DATABASE_URL}`);
+        await utils.spawn('cargo sqlx database drop -y');
+        await utils.spawn('cargo sqlx database create');
+        await utils.spawn(
+            `pg_dump ${process.env.TEMPLATE_DATABASE_URL} -F c | pg_restore -d ${process.env.DATABASE_URL}`
+        );
+    } else {
+        // Create an empty database.
+        await utils.spawn('cargo sqlx database create');
+        await utils.spawn('cargo sqlx migrate run');
+        if (process.env.DATABASE_URL!.startsWith(localDbUrl)) {
+            await utils.spawn('cargo sqlx prepare --check -- --tests || cargo sqlx prepare -- --tests');
+        }
     }
 
     process.chdir(process.env.ZKSYNC_HOME as string);

@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                hashed_key,\n                value AS \"value!\"\n            FROM\n                storage\n            WHERE\n                hashed_key = ANY ($1)\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "hashed_key",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 1,
+        "name": "value!",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "ByteaArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "a45dd1d1344bf6b3447a2d72949067ee3bff92b04766e98336ca9338a19aef46"
+}

@@ -11,7 +11,10 @@ use zksync_types::{
 };
 use zksync_utils::{address_to_h256, bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256};
 
-use crate::vm_latest::utils::overhead::{get_amortized_overhead, OverheadCoefficients};
+use crate::vm_latest::{
+    constants::{L1_TX_TYPE, MAX_GAS_PER_PUBDATA_BYTE, PRIORITY_TX_MAX_GAS_LIMIT},
+    utils::overhead::derive_overhead,
+};
 
 /// This structure represents the data that is used by
 /// the Bootloader to describe the transaction.
@@ -59,12 +62,22 @@ impl From<Transaction> for TransactionData {
                     U256::zero()
                 };
 
+                // Ethereum transactions do not sign gas per pubdata limit, and so for them we need to use
+                // some default value. We use the maximum possible value that is allowed by the bootloader
+                // (i.e. we can not use u64::MAX, because the bootloader requires gas per pubdata for such
+                // transactions to be higher than `MAX_GAS_PER_PUBDATA_BYTE`).
+                let gas_per_pubdata_limit = if common_data.transaction_type.is_ethereum_type() {
+                    MAX_GAS_PER_PUBDATA_BYTE.into()
+                } else {
+                    common_data.fee.gas_per_pubdata_limit
+                };
+
                 TransactionData {
                     tx_type: (common_data.transaction_type as u32) as u8,
                     from: common_data.initiator_address,
                     to: execute_tx.execute.contract_address,
                     gas_limit: common_data.fee.gas_limit,
-                    pubdata_price_limit: common_data.fee.gas_per_pubdata_limit,
+                    pubdata_price_limit: gas_per_pubdata_limit,
                     max_fee_per_gas: common_data.fee.max_fee_per_gas,
                     max_priority_fee_per_gas: common_data.fee.max_priority_fee_per_gas,
                     paymaster: common_data.paymaster_params.paymaster,
@@ -189,21 +202,7 @@ impl TransactionData {
         bytes_to_be_words(bytes)
     }
 
-    pub(crate) fn effective_gas_price_per_pubdata(&self, block_gas_price_per_pubdata: u32) -> u32 {
-        // It is enforced by the protocol that the L1 transactions always pay the exact amount of gas per pubdata
-        // as was supplied in the transaction.
-        if is_l1_tx_type(self.tx_type) {
-            self.pubdata_price_limit.as_u32()
-        } else {
-            block_gas_price_per_pubdata
-        }
-    }
-
-    pub(crate) fn overhead_gas(&self, block_gas_price_per_pubdata: u32) -> u32 {
-        let total_gas_limit = self.gas_limit.as_u32();
-        let gas_price_per_pubdata =
-            self.effective_gas_price_per_pubdata(block_gas_price_per_pubdata);
-
+    pub(crate) fn overhead_gas(&self) -> u32 {
         let encoded_len = encoding_len(
             self.data.len() as u64,
             self.signature.len() as u64,
@@ -212,16 +211,16 @@ impl TransactionData {
             self.reserved_dynamic.len() as u64,
         );
 
-        let coefficients = OverheadCoefficients::from_tx_type(self.tx_type);
-        get_amortized_overhead(
-            total_gas_limit,
-            gas_price_per_pubdata,
-            encoded_len,
-            coefficients,
-        )
+        derive_overhead(encoded_len)
     }
 
-    pub(crate) fn trusted_ergs_limit(&self, _block_gas_price_per_pubdata: u64) -> U256 {
+    pub(crate) fn trusted_ergs_limit(&self) -> U256 {
+        if self.tx_type == L1_TX_TYPE {
+            // In case we get a users' transactions with unexpected gas limit, we do not let it have more than
+            // a certain limit
+            return U256::from(PRIORITY_TX_MAX_GAS_LIMIT).min(self.gas_limit);
+        }
+
         // TODO (EVM-66): correctly calculate the trusted gas limit for a transaction
         self.gas_limit
     }

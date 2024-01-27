@@ -22,7 +22,8 @@ const IGNORED_DIRS = [
     'binaryen',
     'system-contracts',
     'artifacts-zk',
-    'cache-zk'
+    'cache-zk',
+    'contracts/l1-contracts/lib'
 ];
 const IGNORED_FILES = ['KeysWithPlonkVerifier.sol', 'TokenInit.sol', '.tslintrc.js'];
 

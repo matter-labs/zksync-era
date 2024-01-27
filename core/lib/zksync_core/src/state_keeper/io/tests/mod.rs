@@ -6,8 +6,11 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::ConnectionPool;
 use zksync_mempool::L2TxFilter;
 use zksync_types::{
-    block::BlockGasCount, fee_model::BatchFeeInput, tx::ExecutionMetrics, AccountTreeId, Address,
-    L1BatchNumber, MiniblockNumber, ProtocolVersionId, StorageKey, VmEvent, H256, U256,
+    block::BlockGasCount,
+    fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
+    tx::ExecutionMetrics,
+    AccountTreeId, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, StorageKey, VmEvent,
+    H256, U256,
 };
 use zksync_utils::time::seconds_since_epoch;
 
@@ -60,7 +63,11 @@ async fn test_filter_with_pending_batch() {
     // Inserting a pending miniblock that isn't included in a sealed batch means there is a pending batch.
     // The gas values are randomly chosen but so affect filter values calculation.
 
-    let fee_input = BatchFeeInput::l1_pegged(100, 1000);
+    let fee_input = BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
+        l1_gas_price: 100,
+        fair_l2_gas_price: 1000,
+        fair_pubdata_price: 500,
+    });
 
     tester
         .insert_miniblock(&connection_pool, 2, 10, fee_input)
@@ -99,7 +106,8 @@ async fn test_filter_with_no_pending_batch() {
     let want_filter = l2_tx_filter(
         &tester.create_batch_fee_input_provider().await,
         ProtocolVersionId::latest().into(),
-    );
+    )
+    .await;
 
     // Create a mempool without pending batch and ensure that filter is not initialized just yet.
     let (mut mempool, mut guard) = tester.create_test_mempool_io(connection_pool, 1).await;
@@ -143,7 +151,8 @@ async fn test_timestamps_are_distinct(
     let tx_filter = l2_tx_filter(
         &tester.create_batch_fee_input_provider().await,
         ProtocolVersionId::latest().into(),
-    );
+    )
+    .await;
     tester.insert_tx(&mut guard, tx_filter.fee_per_gas, tx_filter.gas_per_pubdata);
 
     let batch_params = mempool
@@ -233,8 +242,11 @@ async fn processing_storage_logs_when_sealing_miniblock() {
         miniblock_number: MiniblockNumber(3),
         miniblock,
         first_tx_index: 0,
-        l1_gas_price: 100,
-        fair_l2_gas_price: 100,
+        fee_input: BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
+            l1_gas_price: 100,
+            fair_l2_gas_price: 100,
+            fair_pubdata_price: 100,
+        }),
         base_fee_per_gas: 10,
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
@@ -258,7 +270,8 @@ async fn processing_storage_logs_when_sealing_miniblock() {
     let touched_slots = conn
         .storage_logs_dal()
         .get_touched_slots_for_l1_batch(l1_batch_number)
-        .await;
+        .await
+        .unwrap();
 
     // Keys that are only read must not be written to `storage_logs`.
     let account = AccountTreeId::default();
@@ -309,8 +322,11 @@ async fn processing_events_when_sealing_miniblock() {
         miniblock_number,
         miniblock,
         first_tx_index: 0,
-        l1_gas_price: 100,
-        fair_l2_gas_price: 100,
+        fee_input: BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
+            l1_gas_price: 100,
+            fair_l2_gas_price: 100,
+            fair_pubdata_price: 100,
+        }),
         base_fee_per_gas: 10,
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
@@ -394,14 +410,14 @@ async fn test_miniblock_and_l1_batch_processing(
             .get_sealed_miniblock_number()
             .await
             .unwrap(),
-        MiniblockNumber(2) // + fictive miniblock
+        Some(MiniblockNumber(2)) // + fictive miniblock
     );
     let l1_batch_header = conn
         .blocks_dal()
         .get_l1_batch_header(L1BatchNumber(1))
         .await
         .unwrap()
-        .unwrap();
+        .expect("No L1 batch #1");
     assert_eq!(l1_batch_header.l2_tx_count, 1);
     assert!(l1_batch_header.is_finished);
 }

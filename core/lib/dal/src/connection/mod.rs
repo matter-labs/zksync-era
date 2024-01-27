@@ -11,6 +11,7 @@ use crate::{metrics::CONNECTION_METRICS, StorageProcessor};
 pub mod holder;
 
 /// Builder for [`ConnectionPool`]s.
+#[derive(Clone)]
 pub struct ConnectionPoolBuilder {
     database_url: String,
     max_size: u32,
@@ -65,6 +66,15 @@ impl ConnectionPoolBuilder {
             max_size: self.max_size,
         })
     }
+
+    /// Builds a connection pool that has a single connection.
+    pub async fn build_singleton(&self) -> anyhow::Result<ConnectionPool> {
+        let singleton_builder = Self {
+            max_size: 1,
+            ..self.clone()
+        };
+        singleton_builder.build().await
+    }
 }
 
 #[derive(Clone)]
@@ -77,7 +87,7 @@ pub struct ConnectionPool {
 impl fmt::Debug for ConnectionPool {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         // We don't print the `database_url`, as is may contain
-        // sensistive information (e.g. database password).
+        // sensitive information (e.g. database password).
         formatter
             .debug_struct("ConnectionPool")
             .field("max_size", &self.max_size)

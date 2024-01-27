@@ -107,12 +107,21 @@ impl StorageWeb3Dal<'_, '_> {
                     WHERE
                         number = $1
                 ) AS "block_batch?",
-                (
-                    SELECT
-                        MAX(number) + 1
-                    FROM
-                        l1_batches
-                ) AS "max_batch?"
+                COALESCE(
+                    (
+                        SELECT
+                            MAX(number) + 1
+                        FROM
+                            l1_batches
+                    ),
+                    (
+                        SELECT
+                            MAX(l1_batch_number) + 1
+                        FROM
+                            snapshot_recovery
+                    ),
+                    0
+                ) AS "pending_batch!"
             "#,
             miniblock_number.0 as i64
         )
@@ -121,7 +130,7 @@ impl StorageWeb3Dal<'_, '_> {
 
         Ok(ResolvedL1BatchForMiniblock {
             miniblock_l1_batch: row.block_batch.map(|n| L1BatchNumber(n as u32)),
-            pending_l1_batch: L1BatchNumber(row.max_batch.unwrap_or(0) as u32),
+            pending_l1_batch: L1BatchNumber(row.pending_batch as u32),
         })
     }
 
@@ -243,5 +252,163 @@ impl StorageWeb3Dal<'_, '_> {
             .await
             .map(|option_row| option_row.map(|row| row.bytecode))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use zksync_types::{
+        block::L1BatchHeader, snapshots::SnapshotRecoveryStatus, ProtocolVersion, ProtocolVersionId,
+    };
+
+    use super::*;
+    use crate::{tests::create_miniblock_header, ConnectionPool};
+
+    #[tokio::test]
+    async fn resolving_l1_batch_number_of_miniblock() {
+        let pool = ConnectionPool::test_pool().await;
+        let mut conn = pool.access_storage().await.unwrap();
+        conn.protocol_versions_dal()
+            .save_protocol_version_with_tx(ProtocolVersion::default())
+            .await;
+        conn.blocks_dal()
+            .insert_miniblock(&create_miniblock_header(0))
+            .await
+            .unwrap();
+        let l1_batch_header = L1BatchHeader::new(
+            L1BatchNumber(0),
+            0,
+            Address::repeat_byte(0x42),
+            Default::default(),
+            ProtocolVersionId::latest(),
+        );
+        conn.blocks_dal()
+            .insert_mock_l1_batch(&l1_batch_header)
+            .await
+            .unwrap();
+        conn.blocks_dal()
+            .mark_miniblocks_as_executed_in_l1_batch(L1BatchNumber(0))
+            .await
+            .unwrap();
+
+        let first_miniblock = create_miniblock_header(1);
+        conn.blocks_dal()
+            .insert_miniblock(&first_miniblock)
+            .await
+            .unwrap();
+
+        let resolved = conn
+            .storage_web3_dal()
+            .resolve_l1_batch_number_of_miniblock(MiniblockNumber(0))
+            .await
+            .unwrap();
+        assert_eq!(resolved.miniblock_l1_batch, Some(L1BatchNumber(0)));
+        assert_eq!(resolved.pending_l1_batch, L1BatchNumber(1));
+        assert_eq!(resolved.expected_l1_batch(), L1BatchNumber(0));
+
+        let timestamp = conn
+            .blocks_web3_dal()
+            .get_expected_l1_batch_timestamp(&resolved)
+            .await
+            .unwrap();
+        assert_eq!(timestamp, Some(0));
+
+        for pending_miniblock_number in [1, 2] {
+            let resolved = conn
+                .storage_web3_dal()
+                .resolve_l1_batch_number_of_miniblock(MiniblockNumber(pending_miniblock_number))
+                .await
+                .unwrap();
+            assert_eq!(resolved.miniblock_l1_batch, None);
+            assert_eq!(resolved.pending_l1_batch, L1BatchNumber(1));
+            assert_eq!(resolved.expected_l1_batch(), L1BatchNumber(1));
+
+            let timestamp = conn
+                .blocks_web3_dal()
+                .get_expected_l1_batch_timestamp(&resolved)
+                .await
+                .unwrap();
+            assert_eq!(timestamp, Some(first_miniblock.timestamp));
+        }
+    }
+
+    #[tokio::test]
+    async fn resolving_l1_batch_number_of_miniblock_with_snapshot_recovery() {
+        let pool = ConnectionPool::test_pool().await;
+        let mut conn = pool.access_storage().await.unwrap();
+        conn.protocol_versions_dal()
+            .save_protocol_version_with_tx(ProtocolVersion::default())
+            .await;
+        let snapshot_recovery = SnapshotRecoveryStatus {
+            l1_batch_number: L1BatchNumber(23),
+            l1_batch_root_hash: H256::zero(),
+            miniblock_number: MiniblockNumber(42),
+            miniblock_root_hash: H256::zero(),
+            storage_logs_chunks_processed: vec![true; 100],
+        };
+        conn.snapshot_recovery_dal()
+            .insert_initial_recovery_status(&snapshot_recovery)
+            .await
+            .unwrap();
+
+        let first_miniblock = create_miniblock_header(snapshot_recovery.miniblock_number.0 + 1);
+        conn.blocks_dal()
+            .insert_miniblock(&first_miniblock)
+            .await
+            .unwrap();
+
+        let resolved = conn
+            .storage_web3_dal()
+            .resolve_l1_batch_number_of_miniblock(snapshot_recovery.miniblock_number + 1)
+            .await
+            .unwrap();
+        assert_eq!(resolved.miniblock_l1_batch, None);
+        assert_eq!(
+            resolved.pending_l1_batch,
+            snapshot_recovery.l1_batch_number + 1
+        );
+        assert_eq!(
+            resolved.expected_l1_batch(),
+            snapshot_recovery.l1_batch_number + 1
+        );
+
+        let timestamp = conn
+            .blocks_web3_dal()
+            .get_expected_l1_batch_timestamp(&resolved)
+            .await
+            .unwrap();
+        assert_eq!(timestamp, Some(first_miniblock.timestamp));
+
+        let l1_batch_header = L1BatchHeader::new(
+            snapshot_recovery.l1_batch_number + 1,
+            100,
+            Address::repeat_byte(0x42),
+            Default::default(),
+            ProtocolVersionId::latest(),
+        );
+        conn.blocks_dal()
+            .insert_mock_l1_batch(&l1_batch_header)
+            .await
+            .unwrap();
+        conn.blocks_dal()
+            .mark_miniblocks_as_executed_in_l1_batch(l1_batch_header.number)
+            .await
+            .unwrap();
+
+        let resolved = conn
+            .storage_web3_dal()
+            .resolve_l1_batch_number_of_miniblock(snapshot_recovery.miniblock_number + 1)
+            .await
+            .unwrap();
+        assert_eq!(resolved.miniblock_l1_batch, Some(l1_batch_header.number));
+        assert_eq!(resolved.pending_l1_batch, l1_batch_header.number + 1);
+        assert_eq!(resolved.expected_l1_batch(), l1_batch_header.number);
+
+        let timestamp = conn
+            .blocks_web3_dal()
+            .get_expected_l1_batch_timestamp(&resolved)
+            .await
+            .unwrap();
+        assert_eq!(timestamp, Some(first_miniblock.timestamp));
     }
 }

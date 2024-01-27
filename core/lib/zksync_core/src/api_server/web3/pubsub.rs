@@ -24,6 +24,7 @@ use super::{
     metrics::{SubscriptionType, PUB_SUB_METRICS},
     namespaces::eth::EVENT_TOPIC_NUMBER_LIMIT,
 };
+use crate::api_server::execution_sandbox::BlockStartInfo;
 
 const BROADCAST_CHANNEL_CAPACITY: usize = 1024;
 const SUBSCRIPTION_SINK_SEND_TIMEOUT: Duration = Duration::from_secs(1);
@@ -43,6 +44,7 @@ impl IdProvider for EthSubscriptionIdProvider {
 pub(super) enum PubSubEvent {
     Subscribed(SubscriptionType),
     NotifyIterationFinished(SubscriptionType),
+    MiniblockAdvanced(SubscriptionType, MiniblockNumber),
 }
 
 /// Manager of notifications for a certain type of subscriptions.
@@ -55,15 +57,25 @@ struct PubSubNotifier {
 }
 
 impl PubSubNotifier {
-    async fn sealed_miniblock_number(&self) -> anyhow::Result<MiniblockNumber> {
-        self.connection_pool
+    async fn get_starting_miniblock_number(&self) -> anyhow::Result<MiniblockNumber> {
+        let mut storage = self
+            .connection_pool
             .access_storage_tagged("api")
             .await
-            .context("access_storage_tagged")?
-            .blocks_web3_dal()
+            .context("access_storage_tagged")?;
+        let sealed_miniblock_number = storage
+            .blocks_dal()
             .get_sealed_miniblock_number()
             .await
-            .context("get_sealed_miniblock_number()")
+            .context("get_sealed_miniblock_number()")?;
+        Ok(match sealed_miniblock_number {
+            Some(number) => number,
+            None => {
+                // We don't have miniblocks in the storage yet. Use the snapshot miniblock number instead.
+                let start_info = BlockStartInfo::new(&mut storage).await?;
+                MiniblockNumber(start_info.first_miniblock.saturating_sub(1))
+            }
+        })
     }
 
     fn emit_event(&self, event: PubSubEvent) {
@@ -75,7 +87,7 @@ impl PubSubNotifier {
 
 impl PubSubNotifier {
     async fn notify_blocks(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
-        let mut last_block_number = self.sealed_miniblock_number().await?;
+        let mut last_block_number = self.get_starting_miniblock_number().await?;
         let mut timer = interval(self.polling_interval);
         loop {
             if *stop_receiver.borrow() {
@@ -92,6 +104,10 @@ impl PubSubNotifier {
                 last_block_number = MiniblockNumber(last_block.number.unwrap().as_u32());
                 let new_blocks = new_blocks.into_iter().map(PubSubResult::Header).collect();
                 self.send_pub_sub_results(new_blocks, SubscriptionType::Blocks);
+                self.emit_event(PubSubEvent::MiniblockAdvanced(
+                    SubscriptionType::Blocks,
+                    last_block_number,
+                ));
             }
             self.emit_event(PubSubEvent::NotifyIterationFinished(
                 SubscriptionType::Blocks,
@@ -159,7 +175,8 @@ impl PubSubNotifier {
     }
 
     async fn notify_logs(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
-        let mut last_block_number = self.sealed_miniblock_number().await?;
+        let mut last_block_number = self.get_starting_miniblock_number().await?;
+
         let mut timer = interval(self.polling_interval);
         loop {
             if *stop_receiver.borrow() {
@@ -176,6 +193,10 @@ impl PubSubNotifier {
                 last_block_number = MiniblockNumber(last_log.block_number.unwrap().as_u32());
                 let new_logs = new_logs.into_iter().map(PubSubResult::Log).collect();
                 self.send_pub_sub_results(new_logs, SubscriptionType::Logs);
+                self.emit_event(PubSubEvent::MiniblockAdvanced(
+                    SubscriptionType::Logs,
+                    last_block_number,
+                ));
             }
             self.emit_event(PubSubEvent::NotifyIterationFinished(SubscriptionType::Logs));
         }

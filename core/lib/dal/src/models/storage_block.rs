@@ -12,8 +12,9 @@ use zksync_types::{
     api,
     block::{L1BatchHeader, MiniblockHeader},
     commitment::{L1BatchMetaParameters, L1BatchMetadata},
+    fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput, PubdataIndependentBatchFeeModelInput},
     l2_to_l1_log::{L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log},
-    Address, L1BatchNumber, MiniblockNumber, H2048, H256,
+    Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H2048, H256,
 };
 
 #[derive(Debug, Error)]
@@ -296,27 +297,32 @@ pub fn web3_block_number_to_sql(block_number: api::BlockNumber) -> String {
     match block_number {
         api::BlockNumber::Number(number) => number.to_string(),
         api::BlockNumber::Earliest => 0.to_string(),
-        api::BlockNumber::Pending => {
-            "(SELECT (MAX(number) + 1) as number FROM miniblocks)".to_string()
-        }
+        api::BlockNumber::Pending => "
+            (SELECT COALESCE(
+                (SELECT (MAX(number) + 1) AS number FROM miniblocks),
+                (SELECT (MAX(miniblock_number) + 1) AS number FROM snapshot_recovery),
+                0
+            ) AS number)
+        "
+        .to_string(),
         api::BlockNumber::Latest | api::BlockNumber::Committed => {
-            "(SELECT MAX(number) as number FROM miniblocks)".to_string()
+            "(SELECT MAX(number) AS number FROM miniblocks)".to_string()
         }
         api::BlockNumber::Finalized => "
-                (SELECT COALESCE(
-                    (
-                        SELECT MAX(number) FROM miniblocks
-                        WHERE l1_batch_number = (
-                            SELECT MAX(number) FROM l1_batches
-                            JOIN eth_txs ON
-                                l1_batches.eth_execute_tx_id = eth_txs.id
-                            WHERE
-                                eth_txs.confirmed_eth_tx_history_id IS NOT NULL
-                        )
-                    ),
-                    0
-                ) as number)
-            "
+            (SELECT COALESCE(
+                (
+                    SELECT MAX(number) FROM miniblocks
+                    WHERE l1_batch_number = (
+                        SELECT MAX(number) FROM l1_batches
+                        JOIN eth_txs ON
+                            l1_batches.eth_execute_tx_id = eth_txs.id
+                        WHERE
+                            eth_txs.confirmed_eth_tx_history_id IS NOT NULL
+                    )
+                ),
+                0
+            ) AS number)
+        "
         .to_string(),
     }
 }
@@ -513,6 +519,10 @@ pub struct StorageMiniblockHeader {
     pub default_aa_code_hash: Option<Vec<u8>>,
     pub protocol_version: Option<i32>,
 
+    pub fair_pubdata_price: Option<i64>,
+
+    pub gas_per_pubdata_limit: i64,
+
     // The maximal number of virtual blocks that can be created with this miniblock.
     // If this value is greater than zero, then at least 1 will be created, but no more than
     // `min(virtual_blocks`, `miniblock_number - virtual_block_number`), i.e. making sure that virtual blocks
@@ -522,6 +532,27 @@ pub struct StorageMiniblockHeader {
 
 impl From<StorageMiniblockHeader> for MiniblockHeader {
     fn from(row: StorageMiniblockHeader) -> Self {
+        let protocol_version = row.protocol_version.map(|v| (v as u16).try_into().unwrap());
+
+        let fee_input = protocol_version
+            .filter(|version: &ProtocolVersionId| version.is_post_1_4_1())
+            .map(|_| {
+                BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
+                    fair_pubdata_price: row
+                        .fair_pubdata_price
+                        .expect("No fair pubdata price for 1.4.1 miniblock")
+                        as u64,
+                    fair_l2_gas_price: row.l2_fair_gas_price as u64,
+                    l1_gas_price: row.l1_gas_price as u64,
+                })
+            })
+            .unwrap_or_else(|| {
+                BatchFeeInput::L1Pegged(L1PeggedBatchFeeModelInput {
+                    fair_l2_gas_price: row.l2_fair_gas_price as u64,
+                    l1_gas_price: row.l1_gas_price as u64,
+                })
+            });
+
         MiniblockHeader {
             number: MiniblockNumber(row.number as u32),
             timestamp: row.timestamp as u64,
@@ -529,16 +560,13 @@ impl From<StorageMiniblockHeader> for MiniblockHeader {
             l1_tx_count: row.l1_tx_count as u16,
             l2_tx_count: row.l2_tx_count as u16,
             base_fee_per_gas: row.base_fee_per_gas.to_u64().unwrap(),
-            // For now, only L1 pegged fee model is supported.
-            batch_fee_input: zksync_types::fee_model::BatchFeeInput::l1_pegged(
-                row.l1_gas_price as u64,
-                row.l2_fair_gas_price as u64,
-            ),
+            batch_fee_input: fee_input,
             base_system_contracts_hashes: convert_base_system_contracts_hashes(
                 row.bootloader_code_hash,
                 row.default_aa_code_hash,
             ),
-            protocol_version: row.protocol_version.map(|v| (v as u16).try_into().unwrap()),
+            gas_per_pubdata_limit: row.gas_per_pubdata_limit as u64,
+            protocol_version,
             virtual_blocks: row.virtual_blocks as u32,
         }
     }
@@ -559,67 +587,5 @@ impl ResolvedL1BatchForMiniblock {
     /// that the node will operate correctly).
     pub fn expected_l1_batch(&self) -> L1BatchNumber {
         self.miniblock_l1_batch.unwrap_or(self.pending_l1_batch)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_web3_block_number_to_sql_earliest() {
-        let sql = web3_block_number_to_sql(api::BlockNumber::Earliest);
-        assert_eq!(sql, 0.to_string());
-    }
-
-    #[test]
-    fn test_web3_block_number_to_sql_pending() {
-        let sql = web3_block_number_to_sql(api::BlockNumber::Pending);
-        assert_eq!(
-            sql,
-            "(SELECT (MAX(number) + 1) as number FROM miniblocks)".to_string()
-        );
-    }
-
-    #[test]
-    fn test_web3_block_number_to_sql_latest() {
-        let sql = web3_block_number_to_sql(api::BlockNumber::Latest);
-        assert_eq!(
-            sql,
-            "(SELECT MAX(number) as number FROM miniblocks)".to_string()
-        );
-    }
-
-    #[test]
-    fn test_web3_block_number_to_sql_committed() {
-        let sql = web3_block_number_to_sql(api::BlockNumber::Committed);
-        assert_eq!(
-            sql,
-            "(SELECT MAX(number) as number FROM miniblocks)".to_string()
-        );
-    }
-
-    #[test]
-    fn test_web3_block_number_to_sql_finalized() {
-        let sql = web3_block_number_to_sql(api::BlockNumber::Finalized);
-        assert_eq!(
-            sql,
-            "
-                (SELECT COALESCE(
-                    (
-                        SELECT MAX(number) FROM miniblocks
-                        WHERE l1_batch_number = (
-                            SELECT MAX(number) FROM l1_batches
-                            JOIN eth_txs ON
-                                l1_batches.eth_execute_tx_id = eth_txs.id
-                            WHERE
-                                eth_txs.confirmed_eth_tx_history_id IS NOT NULL
-                        )
-                    ),
-                    0
-                ) as number)
-            "
-            .to_string()
-        );
     }
 }

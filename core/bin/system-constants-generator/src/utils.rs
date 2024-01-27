@@ -2,7 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use multivm::{
     interface::{
-        dyn_tracers::vm_1_4_0::DynTracer, tracer::VmExecutionStopReason, L1BatchEnv, L2BlockEnv,
+        dyn_tracers::vm_1_4_1::DynTracer, tracer::VmExecutionStopReason, L1BatchEnv, L2BlockEnv,
         SystemEnv, TxExecutionMode, VmExecutionMode, VmInterface,
     },
     vm_latest::{
@@ -10,6 +10,7 @@ use multivm::{
         BootloaderState, HistoryEnabled, HistoryMode, SimpleMemory, ToTracerPointer, Vm, VmTracer,
         ZkSyncVmState,
     },
+    zk_evm_latest::aux_structures::Timestamp,
 };
 use once_cell::sync::Lazy;
 use zksync_contracts::{
@@ -20,10 +21,9 @@ use zksync_state::{InMemoryStorage, StorageView, WriteStorage};
 use zksync_types::{
     block::MiniblockHasher, ethabi::Token, fee::Fee, fee_model::BatchFeeInput, l1::L1Tx, l2::L2Tx,
     utils::storage_key_for_eth_balance, AccountTreeId, Address, Execute, L1BatchNumber,
-    L1TxCommonData, L2ChainId, MiniblockNumber, Nonce, ProtocolVersionId, StorageKey, Timestamp,
-    Transaction, BOOTLOADER_ADDRESS, H256, SYSTEM_CONTEXT_ADDRESS,
-    SYSTEM_CONTEXT_GAS_PRICE_POSITION, SYSTEM_CONTEXT_TX_ORIGIN_POSITION, U256,
-    ZKPORTER_IS_AVAILABLE,
+    L1TxCommonData, L2ChainId, MiniblockNumber, Nonce, ProtocolVersionId, StorageKey, Transaction,
+    BOOTLOADER_ADDRESS, H256, SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_GAS_PRICE_POSITION,
+    SYSTEM_CONTEXT_TX_ORIGIN_POSITION, U256, ZKPORTER_IS_AVAILABLE,
 };
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, u256_to_h256};
 

@@ -23,6 +23,7 @@ import { command as verifyUpgrade } from './verify-upgrade';
 import { proverCommand } from './prover_setup';
 import { command as status } from './status';
 import { command as spellcheck } from './spellcheck';
+import { command as linkcheck } from './linkcheck';
 import * as env from './env';
 
 const COMMANDS = [
@@ -50,6 +51,7 @@ const COMMANDS = [
     env.command,
     status,
     spellcheck,
+    linkcheck,
     completion(program as Command)
 ];
 

@@ -31,6 +31,7 @@ pub(crate) struct FetchedBlock {
     pub reference_hash: Option<H256>,
     pub l1_gas_price: u64,
     pub l2_fair_gas_price: u64,
+    pub fair_pubdata_price: Option<u64>,
     pub virtual_blocks: u32,
     pub operator_address: Address,
     pub transactions: Vec<zksync_types::Transaction>,
@@ -59,6 +60,7 @@ impl TryFrom<SyncBlock> for FetchedBlock {
             reference_hash: block.hash,
             l1_gas_price: block.l1_gas_price,
             l2_fair_gas_price: block.l2_fair_gas_price,
+            fair_pubdata_price: block.fair_pubdata_price,
             virtual_blocks: block.virtual_blocks.unwrap_or(0),
             operator_address: block.operator_address,
             transactions: block
@@ -80,11 +82,13 @@ pub struct FetcherCursor {
 impl FetcherCursor {
     /// Loads the cursor from Postgres.
     pub async fn new(storage: &mut StorageProcessor<'_>) -> anyhow::Result<Self> {
-        let last_sealed_l1_batch_header = storage
+        // TODO (PLA-703): Support no L1 batches / miniblocks in the storage
+        let last_sealed_l1_batch_number = storage
             .blocks_dal()
-            .get_newest_l1_batch_header()
+            .get_sealed_l1_batch_number()
             .await
-            .context("Failed getting newest L1 batch header")?;
+            .context("Failed getting sealed L1 batch number")?
+            .context("No L1 batches sealed")?;
         let last_miniblock_header = storage
             .blocks_dal()
             .get_last_sealed_miniblock_header()
@@ -106,10 +110,10 @@ impl FetcherCursor {
         // Decide whether the next batch should be explicitly opened or not.
         let l1_batch = if was_new_batch_open {
             // No `OpenBatch` action needed.
-            last_sealed_l1_batch_header.number + 1
+            last_sealed_l1_batch_number + 1
         } else {
             // We need to open the next batch.
-            last_sealed_l1_batch_header.number
+            last_sealed_l1_batch_number
         };
 
         Ok(Self {
@@ -153,6 +157,7 @@ impl FetcherCursor {
                 timestamp: block.timestamp,
                 l1_gas_price: block.l1_gas_price,
                 l2_fair_gas_price: block.l2_fair_gas_price,
+                fair_pubdata_price: block.fair_pubdata_price,
                 operator_address: block.operator_address,
                 protocol_version: block.protocol_version,
                 // `block.virtual_blocks` can be `None` only for old VM versions where it's not used, so it's fine to provide any number.
