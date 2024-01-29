@@ -529,4 +529,53 @@ async fn detector_errors_on_earliest_batch_hash_mismatch_with_snapshot_recovery(
     assert_matches!(err, HashMatchError::EarliestHashMismatch(L1BatchNumber(3)));
 }
 
-// FIXME: test reorg
+#[tokio::test]
+async fn reorg_is_detected_without_waiting_for_main_node_to_catch_up() {
+    let pool = ConnectionPool::test_pool().await;
+    let mut storage = pool.access_storage().await.unwrap();
+    let genesis_root_hash =
+        ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
+            .await
+            .unwrap();
+    // Fill in local storage with some data, so that it's ahead of the main node.
+    for number in 1..5 {
+        store_miniblock(&mut storage, number, H256::zero()).await;
+        seal_l1_batch(&mut storage, number, H256::zero()).await;
+    }
+    drop(storage);
+
+    let mut client = MockMainNodeClient::default();
+    client
+        .l1_batch_root_hash_responses
+        .insert(L1BatchNumber(0), genesis_root_hash);
+    for number in 1..3 {
+        client
+            .miniblock_hash_responses
+            .insert(MiniblockNumber(number), H256::zero());
+        client
+            .l1_batch_root_hash_responses
+            .insert(L1BatchNumber(number), H256::zero());
+    }
+    client
+        .miniblock_hash_responses
+        .insert(MiniblockNumber(3), H256::zero());
+    client
+        .l1_batch_root_hash_responses
+        .insert(L1BatchNumber(3), H256::repeat_byte(0xff));
+    client.latest_l1_batch_response = Some(L1BatchNumber(3));
+    client.latest_miniblock_response = Some(MiniblockNumber(3));
+
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    let detector = ReorgDetector {
+        client: Box::new(client),
+        block_updater: Box::new(()),
+        pool,
+        stop_receiver,
+        sleep_interval: Duration::from_millis(10),
+    };
+    let detector_task = tokio::spawn(detector.run());
+
+    let task_result = detector_task.await.unwrap();
+    let last_correct_l1_batch = task_result.unwrap();
+    assert_eq!(last_correct_l1_batch, Some(L1BatchNumber(2)));
+}
