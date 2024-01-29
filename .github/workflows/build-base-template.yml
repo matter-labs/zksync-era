@@ -20,7 +20,7 @@ jobs:
     runs-on: ${{ fromJSON('["matterlabs-ci-runner", "matterlabs-ci-runner-arm"]')[contains(matrix.platforms, 'arm')] }}
     strategy:
       matrix:
-          components:
+          component:
             - base
           platforms:
             - linux/amd64
@@ -37,7 +37,7 @@ jobs:
       - name: Init
         run: |
           echo PLATFORM=$(echo $PLATFORM | tr '/' '-') >> $GITHUB_ENV
-          echo COMPONENT=${{ matrix.components }} >> $GITHUB_ENV
+          echo COMPONENT=${{ matrix.component }} >> $GITHUB_ENV
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
