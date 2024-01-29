@@ -9,7 +9,8 @@ use crate::{
     vm_boojum_integration::{
         old_vm::utils::{vm_may_have_ended_inner, VmExecutionResult},
         tracers::{
-            dispatcher::TracerDispatcher, DefaultExecutionTracer, PubdataTracer, RefundsTracer,
+            circuits_capacity::circuit_statistic_from_cycles, dispatcher::TracerDispatcher,
+            DefaultExecutionTracer, PubdataTracer, RefundsTracer,
         },
         vm::Vm,
     },
@@ -80,7 +81,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             spent_pubdata_counter_before,
             pubdata_published,
             logs.total_log_queries_count,
-            tx_tracer.circuits_tracer.estimated_circuits_used,
+            circuit_statistic_from_cycles(tx_tracer.circuits_tracer.statistics),
         );
         let result = tx_tracer.result_tracer.into_result();
 
