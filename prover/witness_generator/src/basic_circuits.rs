@@ -22,9 +22,7 @@ use zkevm_test_harness::{
 };
 use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_dal::{fri_witness_generator_dal::FriWitnessJobStatus, ConnectionPool};
-use zksync_object_store::{
-    Bucket, ClosedFormInputKey, ObjectStore, ObjectStoreFactory, StoredObject,
-};
+use zksync_object_store::{Bucket, ObjectStore, ObjectStoreFactory, StoredObject};
 use zksync_prover_fri_types::{
     circuit_definitions::{
         boojum::{
@@ -36,15 +34,17 @@ use zksync_prover_fri_types::{
         },
         ZkSyncDefaultRoundFunction,
     },
-    get_current_pod_name, AuxOutputWitnessWrapper,
+    get_current_pod_name,
+    keys::ClosedFormInputKey,
+    AuxOutputWitnessWrapper,
 };
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
+use zksync_prover_interface::inputs::{BasicCircuitWitnessGeneratorInput, PrepareBasicCircuitsJob};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_state::{PostgresStorage, StorageView};
 use zksync_types::{
-    proofs::{AggregationRound, BasicCircuitWitnessGeneratorInput, PrepareBasicCircuitsJob},
-    protocol_version::FriProtocolVersionId,
-    Address, L1BatchNumber, ProtocolVersionId, BOOTLOADER_ADDRESS, H256, U256,
+    basic_fri_types::AggregationRound, protocol_version::FriProtocolVersionId, Address,
+    L1BatchNumber, ProtocolVersionId, BOOTLOADER_ADDRESS, H256, U256,
 };
 use zksync_utils::{bytes_to_chunks, h256_to_u256, u256_to_h256};
 

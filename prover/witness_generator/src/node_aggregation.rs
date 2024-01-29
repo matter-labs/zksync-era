@@ -6,8 +6,8 @@ use zkevm_test_harness::witness::recursive_aggregation::{
     compute_node_vk_commitment, create_node_witnesses,
 };
 use zksync_config::configs::FriWitnessGeneratorConfig;
-use zksync_dal::ConnectionPool;
-use zksync_object_store::{AggregationsKey, ObjectStore, ObjectStoreFactory};
+use zksync_dal::{fri_prover_dal::types::NodeAggregationJobMetadata, ConnectionPool};
+use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_prover_fri_types::{
     circuit_definitions::{
         boojum::field::goldilocks::GoldilocksField,
@@ -18,13 +18,13 @@ use zksync_prover_fri_types::{
         encodings::recursion_request::RecursionQueueSimulator,
         zkevm_circuits::recursion::leaf_layer::input::RecursionLeafParametersWitness,
     },
-    get_current_pod_name, FriProofWrapper,
+    get_current_pod_name,
+    keys::AggregationsKey,
+    FriProofWrapper,
 };
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{
-    proofs::{AggregationRound, NodeAggregationJobMetadata},
-    protocol_version::FriProtocolVersionId,
-    L1BatchNumber,
+    basic_fri_types::AggregationRound, protocol_version::FriProtocolVersionId, L1BatchNumber,
 };
 use zksync_vk_setup_data_server_fri::{
     get_recursive_layer_vk_for_circuit_type, utils::get_leaf_vk_params,
