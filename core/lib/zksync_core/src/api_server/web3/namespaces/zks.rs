@@ -654,7 +654,8 @@ impl ZksNamespace {
             .blocks_dal()
             .get_l1_batch_pubdata(l1_batch_number)
             .await
-            .map_err(|err| internal_error(METHOD_NAME, err))?;
+            .map_err(|err| internal_error(METHOD_NAME, err))?
+            .ok_or(Web3Error::PubdataNotFound)?;
 
         method_latency.observe();
         Ok(pubdata)

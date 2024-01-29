@@ -2152,13 +2152,18 @@ impl BlocksDal<'_, '_> {
     pub async fn get_l1_batch_pubdata(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> sqlx::Result<Vec<u8>> {
-        let l1_batch_header = self.get_l1_batch_header(l1_batch_number).await?.unwrap();
-        let l1_batch_metadata = self
+    ) -> anyhow::Result<Option<Vec<u8>>> {
+        let l1_batch_header = self
+            .get_l1_batch_header(l1_batch_number)
+            .await?
+            .context("L1 batch pubdata not found: get_l1_batch_metadata()")?;
+        let Some(l1_batch_metadata) = self
             .get_l1_batch_metadata(l1_batch_number)
             .await
-            .unwrap()
-            .unwrap();
+            .context("L1 batch pubdata not found: get_l1_batch_metadata()")?
+        else {
+            return Ok(None);
+        };
 
         let mut res = Vec::new();
 
@@ -2185,7 +2190,7 @@ impl BlocksDal<'_, '_> {
         // Extend with Compressed StateDiffs
         res.extend(&l1_batch_metadata.metadata.state_diffs_compressed);
 
-        Ok(res)
+        Ok(Some(res))
     }
 }
 
