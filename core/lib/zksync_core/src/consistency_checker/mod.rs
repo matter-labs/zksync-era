@@ -304,6 +304,7 @@ impl ConsistencyChecker {
                     }
                     L1DataMismatchBehavior::Log => {
                         tracing::warn!("L1 Batch #{batch_number} is inconsistent with L1");
+                        batch_number += 1; // We don't want to infinitely loop failing the check on the same batch
                     }
                 },
                 Err(CheckError::Web3(err)) => {
