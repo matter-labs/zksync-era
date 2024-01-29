@@ -64,7 +64,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           push: ${{ inputs.action == 'push' }}
-          file: docker/${{ env.COMPONENT }}
+          file: docker/${{ env.COMPONENT }}/Dockerfile
           tags: |
             matterlabs/${{ env.COMPONENT }}:latest-${{ env.PLATFORM }}
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ env.COMPONENT }}:latest-${{ env.PLATFORM }}
