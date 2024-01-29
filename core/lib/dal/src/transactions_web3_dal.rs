@@ -22,6 +22,8 @@ pub struct TransactionsWeb3Dal<'a, 'c> {
 }
 
 impl TransactionsWeb3Dal<'_, '_> {
+    /// Returns receipts by transactions hashes.
+    /// Hashes are expected to be unique.
     pub async fn get_transaction_receipts(
         &mut self,
         hashes: &[H256],
@@ -66,8 +68,6 @@ impl TransactionsWeb3Dal<'_, '_> {
                 AND sl.tx_hash = transactions.hash
             WHERE
                 transactions.hash = ANY ($3)
-            ORDER BY
-                transactions.index_in_block ASC
             "#,
             ACCOUNT_CODE_STORAGE_ADDRESS.as_bytes(),
             FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH.as_bytes(),

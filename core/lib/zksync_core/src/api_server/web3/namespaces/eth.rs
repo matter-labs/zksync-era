@@ -355,7 +355,7 @@ impl EthNamespace {
             })
             .collect();
 
-        let receipts = self
+        let mut receipts = self
             .state
             .connection_pool
             .access_storage_tagged("api")
@@ -365,6 +365,8 @@ impl EthNamespace {
             .get_transaction_receipts(&hashes)
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?;
+
+        receipts.sort_unstable_by_key(|receipt| receipt.transaction_index);
 
         if let Some(block) = block {
             self.report_latency_with_block_id(method_latency, block.number.as_u32().into());
