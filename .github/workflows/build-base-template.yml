@@ -14,6 +14,10 @@ on:
         type: string
         default: "push"
         required: false
+      image_tag_suffix:
+        description: "Optional suffix to override tag name generation"
+        type: string
+        required: false
 jobs:
   build-images:
     name: Build and Push Docker Images
@@ -30,22 +34,38 @@ jobs:
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
         with:
           submodules: "recursive"
+
       - name: login to Docker registries
         if: ${{ inputs.action == 'push' }}
         run: |
           docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
           gcloud auth configure-docker us-docker.pkg.dev -q
+
       - name: Init
         run: |
           echo PLATFORM=$(echo $PLATFORM | tr '/' '-') >> $GITHUB_ENV
           echo COMPONENT=${{ matrix.component }} >> $GITHUB_ENV
+
+      - name: Generate image tag suffix
+        id: generate-tag-suffix
+        if: ${{ inputs.image_tag_suffix == '' }}
+        run: |
+          sha=$(git rev-parse --short HEAD)
+          ts=$(date +%s%N | cut -b1-13)
+          echo "IMAGE_TAG_SUFFIX=${sha}-${ts}" >> $GITHUB_OUTPUT
+
+      - name: Set image tag suffix
+        id: generate-tag-suffix
+        if: ${{ inputs.image_tag_suffix != '' }}
+        run: |
+          echo "IMAGE_TAG_SUFFIX=${{ inputs.image_tag_suffix }}" >> $GITHUB_OUTPUT
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
-          push: false #${{ inputs.action == 'push' }}
+          push: ${{ inputs.action == 'push' }}
           file: docker/${{ env.COMPONENT }}
           tags: |
             matterlabs/${{ env.COMPONENT }}:latest-${{ env.PLATFORM }}
@@ -56,18 +76,14 @@ jobs:
     runs-on: matterlabs-ci-runner
     needs: build-images
     if: ${{ inputs.action == 'push' }}
+    env:
+      IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
     strategy:
       matrix:
         component:
           - name: base
             platform: linux/amd64,linux/arm64
-
-    env:
-      IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
     steps:
-      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
-        with:
-          submodules: "recursive"
       - name: login to Docker registries
         run: |
           docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
@@ -83,8 +99,6 @@ jobs:
               platform=$(echo $platform | tr '/' '-')
               platform_tags+=" --amend ${repo}:${IMAGE_TAG_SUFFIX}-${platform}"
             done
-            for manifest in "${repo}:${IMAGE_TAG_SUFFIX}" "${repo}:2.0-${IMAGE_TAG_SUFFIX}" "${repo}:latest" "${repo}:latest2.0"; do
-              docker manifest create ${manifest} ${platform_tags}
-              docker manifest push ${manifest}
-            done
+            docker manifest create latest ${platform_tags}
+            docker manifest push latest
           done

@@ -112,6 +112,7 @@ jobs:
     uses: ./.github/workflows/build-base-template.yml
     with:
       action: "build"
+      image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
     secrets:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
