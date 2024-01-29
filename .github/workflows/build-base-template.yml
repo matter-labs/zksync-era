@@ -47,7 +47,6 @@ jobs:
           echo COMPONENT=${{ matrix.component }} >> $GITHUB_ENV
 
       - name: Generate image tag suffix
-        id: generate-tag-suffix
         if: ${{ inputs.image_tag_suffix == '' }}
         run: |
           sha=$(git rev-parse --short HEAD)
@@ -55,7 +54,6 @@ jobs:
           echo "IMAGE_TAG_SUFFIX=${sha}-${ts}" >> $GITHUB_OUTPUT
 
       - name: Set image tag suffix
-        id: generate-tag-suffix
         if: ${{ inputs.image_tag_suffix != '' }}
         run: |
           echo "IMAGE_TAG_SUFFIX=${{ inputs.image_tag_suffix }}" >> $GITHUB_OUTPUT
