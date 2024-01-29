@@ -10,9 +10,8 @@ use vm_utils::storage::L1BatchParamsProvider;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::ConnectionPool;
 use zksync_types::{
-    block::{BlockGasCount, MiniblockHasher},
-    fee::TransactionExecutionMetrics,
-    Address, L2ChainId, ProtocolVersion, ProtocolVersionId,
+    block::MiniblockHasher, fee::TransactionExecutionMetrics, Address, L2ChainId, ProtocolVersion,
+    ProtocolVersionId,
 };
 
 use super::*;
@@ -119,7 +118,7 @@ async fn waiting_for_l1_batch_params_with_genesis() {
     let new_l1_batch = create_l1_batch(1);
     storage
         .blocks_dal()
-        .insert_l1_batch(&new_l1_batch, &[], BlockGasCount::default(), &[], &[], 0)
+        .insert_mock_l1_batch(&new_l1_batch)
         .await
         .unwrap();
 
@@ -165,7 +164,7 @@ async fn waiting_for_l1_batch_params_after_snapshot_recovery() {
     let new_l1_batch = create_l1_batch(snapshot_recovery.l1_batch_number.0 + 1);
     storage
         .blocks_dal()
-        .insert_l1_batch(&new_l1_batch, &[], BlockGasCount::default(), &[], &[], 0)
+        .insert_mock_l1_batch(&new_l1_batch)
         .await
         .unwrap();
 
@@ -222,7 +221,7 @@ async fn getting_first_miniblock_in_batch_with_genesis() {
     let new_l1_batch = create_l1_batch(1);
     storage
         .blocks_dal()
-        .insert_l1_batch(&new_l1_batch, &[], BlockGasCount::default(), &[], &[], 0)
+        .insert_mock_l1_batch(&new_l1_batch)
         .await
         .unwrap();
     storage
@@ -291,7 +290,7 @@ async fn getting_first_miniblock_in_batch_after_snapshot_recovery() {
     let new_l1_batch = create_l1_batch(snapshot_recovery.l1_batch_number.0 + 1);
     storage
         .blocks_dal()
-        .insert_l1_batch(&new_l1_batch, &[], BlockGasCount::default(), &[], &[], 0)
+        .insert_mock_l1_batch(&new_l1_batch)
         .await
         .unwrap();
     storage
@@ -472,7 +471,7 @@ async fn getting_batch_version_with_genesis() {
     let new_l1_batch = create_l1_batch(1);
     storage
         .blocks_dal()
-        .insert_l1_batch(&new_l1_batch, &[], BlockGasCount::default(), &[], &[], 0)
+        .insert_mock_l1_batch(&new_l1_batch)
         .await
         .unwrap();
 
@@ -518,7 +517,7 @@ async fn getting_batch_version_after_snapshot_recovery() {
     new_l1_batch.protocol_version = Some(ProtocolVersionId::next());
     storage
         .blocks_dal()
-        .insert_l1_batch(&new_l1_batch, &[], BlockGasCount::default(), &[], &[], 0)
+        .insert_mock_l1_batch(&new_l1_batch)
         .await
         .unwrap();
 

@@ -324,7 +324,7 @@ impl ZkSyncStateKeeper {
                 let ExecutionMetricsForCriteria {
                     l1_gas: tx_l1_gas_this_tx,
                     execution_metrics: tx_execution_metrics,
-                } = tx_metrics;
+                } = *tx_metrics;
 
                 let tx_hash = tx.hash();
                 let is_l1 = tx.is_l1();
@@ -439,7 +439,7 @@ impl ZkSyncStateKeeper {
                     let ExecutionMetricsForCriteria {
                         l1_gas: tx_l1_gas_this_tx,
                         execution_metrics: tx_execution_metrics,
-                    } = tx_metrics;
+                    } = *tx_metrics;
                     updates_manager.extend_from_executed_transaction(
                         tx,
                         *tx_result,
@@ -509,7 +509,7 @@ impl ZkSyncStateKeeper {
                     l1_gas: tx_l1_gas_this_tx,
                     execution_metrics: tx_execution_metrics,
                     ..
-                } = tx_metrics;
+                } = *tx_metrics;
                 updates_manager.extend_from_executed_transaction(
                     tx,
                     *tx_result,
@@ -580,7 +580,7 @@ impl ZkSyncStateKeeper {
                 let ExecutionMetricsForCriteria {
                     l1_gas: tx_l1_gas_this_tx,
                     execution_metrics: tx_execution_metrics,
-                } = *tx_metrics;
+                } = **tx_metrics;
 
                 tracing::trace!(
                     "finished tx {:?} by {:?} (is_l1: {}) (#{} in l1 batch {}) (#{} in miniblock {}) \
@@ -603,7 +603,7 @@ impl ZkSyncStateKeeper {
                 let ExecutionMetricsForCriteria {
                     l1_gas: finish_block_l1_gas,
                     execution_metrics: finish_block_execution_metrics,
-                } = *bootloader_dry_run_metrics;
+                } = **bootloader_dry_run_metrics;
 
                 let encoding_len = tx.encoding_len();
 

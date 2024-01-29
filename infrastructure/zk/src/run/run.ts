@@ -56,7 +56,7 @@ export async function tokenInfo(address: string) {
 
 // installs all dependencies
 export async function yarn() {
-    await utils.spawn('yarn');
+    await utils.spawn('yarn install --frozen-lockfile');
 }
 
 export async function deployTestkit(genesisRoot: string) {
@@ -113,12 +113,6 @@ export async function readVariable(address: string, contractName: string, variab
         );
 }
 
-export async function cross_en_checker() {
-    let logLevel = 'RUST_LOG=cross_external_nodes_checker=debug';
-    let suffix = 'cargo run --release --bin cross_external_nodes_checker';
-    await utils.spawn(`${logLevel} ${suffix}`);
-}
-
 export async function snapshots_creator() {
     process.chdir(`${process.env.ZKSYNC_HOME}`);
     let logLevel = 'RUST_LOG=snapshots_creator=debug';
@@ -127,7 +121,7 @@ export async function snapshots_creator() {
 export const command = new Command('run').description('run miscellaneous applications').addCommand(dataRestore.command);
 
 command.command('test-accounts').description('print ethereum test accounts').action(testAccounts);
-command.command('yarn').description('install all JS dependencies').action(yarn);
+command.command('yarn install --frozen-lockfile').description('install all JS dependencies').action(yarn);
 command.command('cat-logs [exit_code]').description('print server and prover logs').action(catLogs);
 
 command
@@ -194,107 +188,3 @@ command
     });
 
 command.command('snapshots-creator').action(snapshots_creator);
-
-command
-    .command('cross-en-checker')
-    .description('run the cross external nodes checker. See Checker Readme the default run mode and configuration.')
-    .option(
-        '--mode <mode>',
-        '`Rpc` to run only the RPC checker; `PubSub` to run only the PubSub checker; `All` to run both.'
-    )
-    .option(
-        '--env <env>',
-        `Provide the env the checker will test in to use the default urls for that env. 'Local', 'Stage, 'Testnet', or 'Mainnet'`
-    )
-    .option('--main_node_http_url <url>', 'Manually provide the HTTP URL of the main node')
-    .option('--instances_http_urls <urls>', 'Manually provide the HTTP URLs of the instances to check')
-    .option('--main_node_ws_url <url>', 'Manually provide the WS URL of the main node')
-    .option('--instances_ws_urls <urls>', 'Manually provide the WS URLs of the instances to check')
-    .option(
-        '--rpc_mode <rpc_mode>',
-        'The mode to run the RPC checker in. `Triggered` to run once; `Continuous` to run forever.'
-    )
-    .option(
-        '--start_miniblock <start_miniblock>',
-        'Check all miniblocks starting from this. If not set, then check from genesis. Inclusive.'
-    )
-    .option(
-        '--finish_miniblock <finish_miniblock>',
-        'For Triggered mode. If not set, then check all available miniblocks. Inclusive.'
-    )
-    .option(
-        '--max_transactions_to_check <max_transactions_to_check>',
-        'The maximum number of transactions to be checked at random in each miniblock.'
-    )
-    .option(
-        '--instance_poll_period <instance_poll_period>',
-        'For RPC mode. In seconds, how often to poll the instance node for new miniblocks.'
-    )
-    .option(
-        '--subscription_duration <subscription_duration>',
-        'For PubSub mode. Time in seconds for a subscription to be active. If not set, then the subscription will run forever.'
-    )
-    .action(async (cmd: Command) => {
-        interface Environment {
-            httpMain: string;
-            httpInstances: string;
-            wsMain: string;
-            wsInstances: string;
-        }
-
-        const nodeUrls: Record<string, Environment> = {
-            Local: {
-                httpMain: 'http://127.0.0.1:3050',
-                httpInstances: 'http://127.0.0.1:3060',
-                wsMain: 'ws://127.0.0.1:3051',
-                wsInstances: 'ws://127.0.0.1:3061'
-            },
-            Stage: {
-                httpMain: 'https://z2-dev-api.zksync.dev:443',
-                httpInstances: 'https://external-node-dev.zksync.dev:443',
-                wsMain: 'wss://z2-dev-api.zksync.dev:443/ws',
-                wsInstances: 'wss://external-node-dev.zksync.dev:443/ws'
-            },
-            Testnet: {
-                httpMain: 'https://zksync2-testnet.zksync.dev:443',
-                httpInstances: 'https://external-node-testnet.zksync.dev:443',
-                wsMain: 'wss://zksync2-testnet.zksync.dev:443/ws',
-                wsInstances: 'wss://external-node-testnet.zksync.dev:443/ws'
-            },
-            Mainnet: {
-                httpMain: 'https://zksync2-mainnet.zksync.io:443',
-                httpInstances: 'https://external-node-mainnet.zksync.dev:443',
-                wsMain: 'wss://zksync2-mainnet.zksync.io:443/ws',
-                wsInstances: 'wss://external-node-mainnet.zksync.dev:443/ws'
-            }
-        };
-
-        if (cmd.env && nodeUrls[cmd.env]) {
-            process.env.CHECKER_MAIN_NODE_HTTP_URL = nodeUrls[cmd.env].httpMain;
-            process.env.CHECKER_INSTANCES_HTTP_URLS = nodeUrls[cmd.env].httpInstances;
-            process.env.CHECKER_MAIN_NODE_WS_URL = nodeUrls[cmd.env].wsMain;
-            process.env.CHECKER_INSTANCES_WS_URLS = nodeUrls[cmd.env].wsInstances;
-        }
-
-        const envVarMap = {
-            mode: 'CHECKER_MODE',
-            rpc_mode: 'CHECKER_RPC_MODE',
-            main_node_http_url: 'CHECKER_MAIN_NODE_HTTP_URL',
-            instances_http_urls: 'CHECKER_INSTANCES_HTTP_URLS',
-            main_node_ws_url: 'CHECKER_MAIN_NODE_WS_URL',
-            instances_ws_urls: 'CHECKER_INSTANCES_WS_URLS',
-            start_miniblock: 'CHECKER_START_MINIBLOCK',
-            finish_miniblock: 'CHECKER_FINISH_MINIBLOCK',
-            max_transactions_to_check: 'CHECKER_MAX_TRANSACTIONS_TO_CHECK',
-            instance_poll_period: 'CHECKER_INSTANCE_POLL_PERIOD',
-            subscription_duration: 'CHECKER_SUBSCRIPTION_DURATION'
-        };
-
-        for (const [cmdOption, envVar] of Object.entries(envVarMap)) {
-            if (cmd[cmdOption]) {
-                process.env[envVar] = cmd[cmdOption];
-            }
-        }
-
-        await cross_en_checker();
-    });

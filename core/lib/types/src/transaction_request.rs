@@ -182,7 +182,7 @@ pub enum SerializationTransactionError {
     /// OversizedData is returned if the raw tx size is greater
     /// than some meaningful limit a user might use. This is not a consensus error
     /// making the transaction invalid, rather a DOS protection.
-    #[error("oversized data. max: {0}; actual: {0}")]
+    #[error("oversized data. max: {0}; actual: {1}")]
     OversizedData(usize, usize),
     #[error("gas per pub data limit is zero")]
     GasPerPubDataLimitZero,

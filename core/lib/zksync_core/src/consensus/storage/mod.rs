@@ -255,14 +255,22 @@ impl BlockStore {
             .await
             .wrap("payload()")?
             .context("miniblock disappeared")?;
-        let (genesis, _) = zksync_consensus_bft::testonly::make_genesis(
-            &[validator_key.clone()],
-            payload.encode(),
-            number,
-        );
-        txn.insert_certificate(ctx, &genesis.justification, self.inner.operator_address)
-            .await
-            .wrap("insert_certificate()")?;
+        let mut genesis = validator::GenesisSetup {
+            keys: vec![validator_key.clone()],
+            blocks: vec![],
+        };
+        genesis
+            .next_block()
+            .block_number(number)
+            .payload(payload.encode())
+            .push();
+        txn.insert_certificate(
+            ctx,
+            &genesis.blocks[0].justification,
+            self.inner.operator_address,
+        )
+        .await
+        .wrap("insert_certificate()")?;
         txn.commit(ctx).await.wrap("commit()")
     }
 
@@ -407,7 +415,15 @@ impl PayloadManager for Store {
                 .await
                 .wrap("payload()")?
             {
-                return Ok(payload.encode());
+                let encoded_payload = payload.encode();
+                if encoded_payload.0.len() > 1 << 20 {
+                    tracing::warn!(
+                        "large payload ({}B) with {} transactions",
+                        encoded_payload.0.len(),
+                        payload.transactions.len()
+                    );
+                }
+                return Ok(encoded_payload);
             }
             drop(storage);
             ctx.sleep(POLL_INTERVAL).await?;

@@ -18,6 +18,7 @@ pub(crate) enum InitStage {
     EthTxManager,
     Tree,
     BasicWitnessInputProducer,
+    Consensus,
 }
 
 impl fmt::Display for InitStage {
@@ -32,6 +33,7 @@ impl fmt::Display for InitStage {
             Self::EthTxManager => formatter.write_str("eth_tx_manager"),
             Self::Tree => formatter.write_str("tree"),
             Self::BasicWitnessInputProducer => formatter.write_str("basic_witness_input_producer"),
+            Self::Consensus => formatter.write_str("consensus"),
         }
     }
 }

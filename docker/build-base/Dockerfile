@@ -1,5 +1,4 @@
-# syntax=docker/dockerfile:experimental
-FROM debian:bookworm-slim as builder
+FROM debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y curl clang openssl libssl-dev gcc g++ \
     pkg-config build-essential libclang-dev && \
@@ -13,15 +12,4 @@ RUN curl https://sh.rustup.rs -sSf | bash -s -- -y && \
     rustup install nightly-2023-08-21 && \
     rustup default nightly-2023-08-21
 
-WORKDIR /usr/src/zksync
-COPY . .
-
-RUN cargo build --release
-
-FROM debian:bookworm-slim
-
-RUN apt-get update && apt-get install -y curl ca-certificates && rm -rf /var/lib/apt/lists/*
-
-COPY --from=builder /usr/src/zksync/target/release/cross_external_nodes_checker /usr/bin
-
-ENTRYPOINT ["cross_external_nodes_checker"]
+RUN cargo install sqlx-cli --version 0.7.3
