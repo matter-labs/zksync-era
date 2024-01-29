@@ -184,7 +184,7 @@ export const initCommand = new Command('init')
             governorPrivateKeyArgs: [],
             deployerL2ContractInput: { args: [], includePaymaster: true, includeL2WETH: true },
             testTokens: { deploy: true, args: [] },
-            validiumMode: cmd.validiumMode
+            validiumMode: cmd.validiumMode !== undefined ? cmd.validiumMode : false
         };
         await init(initArgs);
     });
