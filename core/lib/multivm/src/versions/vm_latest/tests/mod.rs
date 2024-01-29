@@ -5,7 +5,7 @@ mod default_aa;
 mod bytecode_publishing;
 mod call_tracer;
 mod circuits;
-mod evm_simulator;
+mod dummy_evm_simulator;
 mod gas_limit;
 mod get_used_contracts;
 mod is_write_initial;
