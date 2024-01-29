@@ -250,15 +250,15 @@ mod tests {
     use serde_with::serde_as;
     use zkevm_circuits::{
         boojum::pairing::bls12_381::{Fr, FrRepr},
-        eip_4844::{bitreverse, fft},
+        eip_4844::{
+            bitreverse, ethereum_4844_data_into_zksync_pubdata, fft,
+            zksync_pubdata_into_monomial_form_poly,
+        },
     };
     use zkevm_test_harness::ff::PrimeField;
     use zkevm_test_harness_1_4_1::{
         boojum::pairing::{bls12_381::G1Compressed, EncodedPoint},
         kzg::{verify_kzg_proof, verify_proof_poly},
-        zkevm_circuits::eip_4844::{
-            ethereum_4844_data_into_zksync_pubdata, zksync_pubdata_into_monomial_form_poly,
-        },
     };
 
     use super::KzgInfo;
