@@ -456,11 +456,13 @@ mod tests {
 
         prepare_transactions(&mut conn, vec![tx1.clone(), tx2.clone()]).await;
 
-        let receipts = conn
+        let mut receipts = conn
             .transactions_web3_dal()
             .get_transaction_receipts(&[tx1_hash, tx2_hash])
             .await
             .unwrap();
+
+        receipts.sort_unstable_by_key(|receipt| receipt.transaction_index);
 
         assert_eq!(receipts.len(), 2);
         assert_eq!(receipts[0].transaction_hash, tx1_hash);
