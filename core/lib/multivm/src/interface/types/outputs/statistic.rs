@@ -1,3 +1,5 @@
+use zksync_types::circuit::CircuitStatistic;
+
 /// Statistics of the tx execution.
 #[derive(Debug, Default, Clone)]
 pub struct VmExecutionStatistics {
@@ -12,7 +14,7 @@ pub struct VmExecutionStatistics {
     /// Number of log queries produced by the VM during the tx execution.
     pub total_log_queries: usize,
     pub pubdata_published: u32,
-    pub estimated_circuits_used: f32,
+    pub circuit_statistic: CircuitStatistic,
 }
 
 /// Oracle metrics of the VM.

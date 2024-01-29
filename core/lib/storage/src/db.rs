@@ -298,11 +298,11 @@ pub struct RocksDB<CF> {
 }
 
 impl<CF: NamedColumnFamily> RocksDB<CF> {
-    pub fn new(path: &Path) -> Self {
+    pub fn new(path: &Path) -> Result<Self, rocksdb::Error> {
         Self::with_options(path, RocksDBOptions::default())
     }
 
-    pub fn with_options(path: &Path, options: RocksDBOptions) -> Self {
+    pub fn with_options(path: &Path, options: RocksDBOptions) -> Result<Self, rocksdb::Error> {
         let caches = RocksDBCaches::new(options.block_cache_capacity);
         let db_options = Self::rocksdb_options(None, None);
         let existing_cfs = DB::list_cf(&db_options, path).unwrap_or_else(|err| {
@@ -354,7 +354,7 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
             ColumnFamilyDescriptor::new(cf_name, cf_options)
         });
 
-        let db = DB::open_cf_descriptors(&db_options, path, cfs).expect("failed to init rocksdb");
+        let db = DB::open_cf_descriptors(&db_options, path, cfs)?;
         let inner = Arc::new(RocksDBInner {
             db,
             db_name: CF::DB_NAME,
@@ -371,12 +371,12 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
         );
 
         inner.wait_for_writes_to_resume(&options.stalled_writes_retries);
-        Self {
+        Ok(Self {
             inner,
             sync_writes: false,
             stalled_writes_retries: options.stalled_writes_retries,
             _cf: PhantomData,
-        }
+        })
     }
 
     /// Switches on sync writes in [`Self::write()`] and [`Self::put()`]. This has a performance
@@ -665,13 +665,15 @@ mod tests {
     #[test]
     fn changing_column_families() {
         let temp_dir = TempDir::new().unwrap();
-        let db = RocksDB::<OldColumnFamilies>::new(temp_dir.path()).with_sync_writes();
+        let db = RocksDB::<OldColumnFamilies>::new(temp_dir.path())
+            .unwrap()
+            .with_sync_writes();
         let mut batch = db.new_write_batch();
         batch.put_cf(OldColumnFamilies::Default, b"test", b"value");
         db.write(batch).unwrap();
         drop(db);
 
-        let db = RocksDB::<NewColumnFamilies>::new(temp_dir.path());
+        let db = RocksDB::<NewColumnFamilies>::new(temp_dir.path()).unwrap();
         let value = db.get_cf(NewColumnFamilies::Default, b"test").unwrap();
         assert_eq!(value.unwrap(), b"value");
     }
@@ -691,13 +693,15 @@ mod tests {
     #[test]
     fn default_column_family_does_not_need_to_be_explicitly_opened() {
         let temp_dir = TempDir::new().unwrap();
-        let db = RocksDB::<OldColumnFamilies>::new(temp_dir.path()).with_sync_writes();
+        let db = RocksDB::<OldColumnFamilies>::new(temp_dir.path())
+            .unwrap()
+            .with_sync_writes();
         let mut batch = db.new_write_batch();
         batch.put_cf(OldColumnFamilies::Junk, b"test", b"value");
         db.write(batch).unwrap();
         drop(db);
 
-        let db = RocksDB::<JunkColumnFamily>::new(temp_dir.path());
+        let db = RocksDB::<JunkColumnFamily>::new(temp_dir.path()).unwrap();
         let value = db.get_cf(JunkColumnFamily, b"test").unwrap();
         assert_eq!(value.unwrap(), b"value");
     }
@@ -705,7 +709,9 @@ mod tests {
     #[test]
     fn write_batch_can_be_restored_from_bytes() {
         let temp_dir = TempDir::new().unwrap();
-        let db = RocksDB::<NewColumnFamilies>::new(temp_dir.path()).with_sync_writes();
+        let db = RocksDB::<NewColumnFamilies>::new(temp_dir.path())
+            .unwrap()
+            .with_sync_writes();
         let mut batch = db.new_write_batch();
         batch.put_cf(NewColumnFamilies::Default, b"test", b"value");
         batch.put_cf(NewColumnFamilies::Default, b"test2", b"value2");

@@ -76,7 +76,7 @@ impl ZksNamespace {
         tx.common_data.fee.max_priority_fee_per_gas = 0u64.into();
         tx.common_data.fee.gas_per_pubdata_limit = U256::from(DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE);
 
-        let fee = self.estimate_fee(tx.into()).await?;
+        let fee = self.estimate_fee(tx.into(), METHOD_NAME).await?;
         method_latency.observe();
         Ok(fee)
     }
@@ -102,24 +102,25 @@ impl ZksNamespace {
             .try_into()
             .map_err(Web3Error::SerializationError)?;
 
-        let fee = self.estimate_fee(tx.into()).await?;
+        let fee = self.estimate_fee(tx.into(), METHOD_NAME).await?;
         method_latency.observe();
         Ok(fee.gas_limit)
     }
 
-    async fn estimate_fee(&self, tx: Transaction) -> Result<Fee, Web3Error> {
+    async fn estimate_fee(
+        &self,
+        tx: Transaction,
+        method_name: &'static str,
+    ) -> Result<Fee, Web3Error> {
         let scale_factor = self.state.api_config.estimate_gas_scale_factor;
         let acceptable_overestimation =
             self.state.api_config.estimate_gas_acceptable_overestimation;
 
-        let fee = self
-            .state
+        self.state
             .tx_sender
             .get_txs_fee_in_wei(tx, scale_factor, acceptable_overestimation)
             .await
-            .map_err(|err| Web3Error::SubmitTransactionError(err.to_string(), err.data()))?;
-
-        Ok(fee)
+            .map_err(|err| err.into_web3_error(method_name))
     }
 
     #[tracing::instrument(skip(self))]

@@ -1,9 +1,7 @@
 use std::convert::TryInto;
 
-use zk_evm::{
-    sha2::Sha256,
-    sha3::{Digest, Keccak256},
-};
+use sha2::Sha256;
+use sha3::{Digest, Keccak256};
 use zkevm_circuits::{
     boojum::pairing::{
         bls12_381::{Fr, FrRepr, G1Affine},

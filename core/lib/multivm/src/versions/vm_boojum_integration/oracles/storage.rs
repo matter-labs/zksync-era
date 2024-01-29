@@ -12,17 +12,19 @@ use zksync_types::{
         compression::compress_with_best_strategy, BYTES_PER_DERIVED_KEY,
         BYTES_PER_ENUMERATION_INDEX,
     },
-    AccountTreeId, Address, StorageKey, StorageLogQuery, StorageLogQueryType, BOOTLOADER_ADDRESS,
-    U256,
+    AccountTreeId, Address, StorageKey, StorageLogQueryType, BOOTLOADER_ADDRESS, U256,
 };
 use zksync_utils::u256_to_h256;
 
-use crate::vm_boojum_integration::old_vm::{
-    history_recorder::{
-        AppDataFrameManagerWithHistory, HashMapHistoryEvent, HistoryEnabled, HistoryMode,
-        HistoryRecorder, StorageWrapper, VectorHistoryEvent, WithHistory,
+use crate::vm_boojum_integration::{
+    old_vm::{
+        history_recorder::{
+            AppDataFrameManagerWithHistory, HashMapHistoryEvent, HistoryEnabled, HistoryMode,
+            HistoryRecorder, StorageWrapper, VectorHistoryEvent, WithHistory,
+        },
+        oracles::OracleWithHistory,
     },
-    oracles::OracleWithHistory,
+    utils::logs::StorageLogQuery,
 };
 
 // While the storage does not support different shards, it was decided to write the
