@@ -141,13 +141,26 @@ pub(crate) async fn prepare_recovery_snapshot(
 
     // Store factory deps for the base system contracts.
     let contracts = GenesisParams::mock().base_system_contracts;
-    storage
+
+    let protocol_version = storage
         .protocol_versions_dal()
-        .save_protocol_version_with_tx(ProtocolVersion {
-            base_system_contracts_hashes: contracts.hashes(),
-            ..ProtocolVersion::default()
-        })
+        .get_protocol_version(ProtocolVersionId::latest())
         .await;
+    if let Some(protocol_version) = protocol_version {
+        assert_eq!(
+            protocol_version.base_system_contracts_hashes,
+            contracts.hashes(),
+            "Protocol version set up with incorrect base system contracts"
+        );
+    } else {
+        storage
+            .protocol_versions_dal()
+            .save_protocol_version_with_tx(ProtocolVersion {
+                base_system_contracts_hashes: contracts.hashes(),
+                ..ProtocolVersion::default()
+            })
+            .await;
+    }
     let factory_deps = HashMap::from([
         (
             contracts.bootloader.hash,

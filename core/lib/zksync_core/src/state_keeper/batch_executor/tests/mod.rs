@@ -1,11 +1,11 @@
 use assert_matches::assert_matches;
+use test_casing::test_casing;
 use zksync_dal::ConnectionPool;
 use zksync_test_account::Account;
-use zksync_types::PriorityOpId;
+use zksync_types::{get_nonce_key, utils::storage_key_for_eth_balance, PriorityOpId};
 
-use self::tester::Tester;
+use self::tester::{AccountLoadNextExecutable, StorageSnapshot, TestConfig, Tester};
 use super::TxExecutionResult;
-use crate::state_keeper::batch_executor::tests::tester::{AccountLoadNextExecutable, TestConfig};
 
 mod tester;
 
@@ -34,9 +34,7 @@ fn assert_reverted(execution_result: &TxExecutionResult) {
 async fn execute_l2_tx() {
     let connection_pool = ConnectionPool::test_pool().await;
     let mut alice = Account::random();
-
     let tester = Tester::new(connection_pool);
-
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
     let executor = tester.create_batch_executor().await;
@@ -44,6 +42,58 @@ async fn execute_l2_tx() {
     let res = executor.execute_tx(alice.execute()).await;
     assert_executed(&res);
     executor.finish_batch().await;
+}
+
+#[derive(Debug, Clone, Copy)]
+enum SnapshotRecoveryMutation {
+    RemoveNonce,
+    RemoveBalance,
+}
+
+impl SnapshotRecoveryMutation {
+    const ALL: [Option<Self>; 3] = [None, Some(Self::RemoveNonce), Some(Self::RemoveBalance)];
+
+    fn mutate_snapshot(self, storage_snapshot: &mut StorageSnapshot, alice: &Account) {
+        match self {
+            Self::RemoveNonce => {
+                let nonce_key = get_nonce_key(&alice.address());
+                let nonce_value = storage_snapshot.storage_logs.remove(&nonce_key);
+                assert!(nonce_value.is_some());
+            }
+            Self::RemoveBalance => {
+                let balance_key = storage_key_for_eth_balance(&alice.address());
+                let balance_value = storage_snapshot.storage_logs.remove(&balance_key);
+                assert!(balance_value.is_some());
+            }
+        }
+    }
+}
+
+/// Tests that we can continue executing account transactions after emulating snapshot recovery.
+/// Test cases with a set `mutation` ensure that the VM executor correctly detects missing data (e.g., dropped account nonce).
+#[test_casing(3, SnapshotRecoveryMutation::ALL)]
+#[tokio::test]
+async fn execute_l2_tx_after_snapshot_recovery(mutation: Option<SnapshotRecoveryMutation>) {
+    let mut alice = Account::random();
+    let connection_pool = ConnectionPool::test_pool().await;
+
+    let mut storage_snapshot = StorageSnapshot::new(&connection_pool, &mut alice, 10).await;
+    assert!(storage_snapshot.storage_logs.len() > 10); // sanity check
+    assert!(!storage_snapshot.factory_deps.is_empty());
+    if let Some(mutation) = mutation {
+        mutation.mutate_snapshot(&mut storage_snapshot, &alice);
+    }
+    let snapshot = storage_snapshot.recover(&connection_pool).await;
+
+    let tester = Tester::new(connection_pool);
+    let executor = tester.recover_batch_executor(&snapshot).await;
+    let res = executor.execute_tx(alice.execute()).await;
+    if mutation.is_none() {
+        assert_executed(&res);
+        executor.finish_batch().await;
+    } else {
+        assert_rejected(&res);
+    }
 }
 
 /// Checks that we can successfully execute a single L1 tx in batch executor.
