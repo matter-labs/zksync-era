@@ -442,6 +442,7 @@ impl Executor {
             let paymaster_params = get_approval_based_paymaster_input_for_estimation(
                 paymaster_address,
                 self.l2_main_token,
+                MIN_ALLOWANCE_FOR_PAYMASTER_ESTIMATE.into(),
             );
 
             let fee = builder.estimate_fee(Some(paymaster_params)).await?;

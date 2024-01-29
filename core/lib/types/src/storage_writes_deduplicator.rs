@@ -219,10 +219,11 @@ impl StorageWritesDeduplicator {
 
 #[cfg(test)]
 mod tests {
-    use zk_evm::aux_structures::{LogQuery, Timestamp};
-
     use super::*;
-    use crate::H160;
+    use crate::{
+        zk_evm_types::{LogQuery, Timestamp},
+        H160,
+    };
 
     fn storage_log_query(
         key: U256,

@@ -1,9 +1,10 @@
 use std::collections::HashMap;
 
-use zk_evm_1_3_1::aux_structures::Timestamp;
+use itertools::Itertools;
+use zk_evm_1_3_1::aux_structures::{LogQuery, Timestamp};
+use zkevm_test_harness_1_3_3::witness::sort_storage_access::sort_storage_access_queries;
 use zksync_types::{
     event::{extract_long_l2_to_l1_messages, extract_published_bytecodes},
-    zkevm_test_harness::witness::sort_storage_access::sort_storage_access_queries,
     StorageKey, PUBLISH_BYTECODE_OVERHEAD, SYSTEM_CONTEXT_ADDRESS,
 };
 use zksync_utils::bytecode::bytecode_len_in_bytes;
@@ -85,14 +86,27 @@ impl<S: Storage> VmInstance<S> {
                 .forward,
             from_timestamp,
         );
-        let (_, deduplicated_logs) =
-            sort_storage_access_queries(storage_logs.iter().map(|log| &log.log_query));
+
+        // To allow calling the `vm-1.3.3`s. method, the `v1.3.1`'s `LogQuery` has to be converted
+        // to the `vm-1.3.3`'s `LogQuery`. Then, we need to convert it back.
+        let deduplicated_logs: Vec<LogQuery> = sort_storage_access_queries(
+            &storage_logs
+                .iter()
+                .map(|log| {
+                    GlueInto::<zk_evm_1_3_3::aux_structures::LogQuery>::glue_into(log.log_query)
+                })
+                .collect_vec(),
+        )
+        .1
+        .into_iter()
+        .map(GlueInto::<zk_evm_1_3_1::aux_structures::LogQuery>::glue_into)
+        .collect();
 
         deduplicated_logs
             .into_iter()
             .filter_map(|log| {
                 if log.rw_flag {
-                    let key = storage_key_of_log(&log.glue_into());
+                    let key = storage_key_of_log(&log);
                     let pre_paid = pre_paid_before_tx(&key);
                     let to_pay_by_user = self.state.storage.base_price_for_write(&log.glue_into());
 

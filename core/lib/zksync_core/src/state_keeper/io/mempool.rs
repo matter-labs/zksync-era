@@ -10,6 +10,7 @@ use multivm::{
     interface::{FinishedL1Batch, L1BatchEnv, SystemEnv},
     utils::derive_base_fee_and_gas_per_pubdata,
 };
+use vm_utils::storage::wait_for_prev_l1_batch_params;
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_dal::ConnectionPool;
 use zksync_mempool::L2TxFilter;
@@ -466,8 +467,7 @@ impl MempoolIO {
             .await
             .unwrap();
         let (batch_hash, _) =
-            extractors::wait_for_prev_l1_batch_params(&mut storage, self.current_l1_batch_number)
-                .await;
+            wait_for_prev_l1_batch_params(&mut storage, self.current_l1_batch_number).await;
 
         wait_latency.observe();
         tracing::info!(

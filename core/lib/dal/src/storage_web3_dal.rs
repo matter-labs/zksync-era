@@ -258,9 +258,7 @@ impl StorageWeb3Dal<'_, '_> {
 #[cfg(test)]
 mod tests {
     use zksync_types::{
-        block::{BlockGasCount, L1BatchHeader},
-        snapshots::SnapshotRecoveryStatus,
-        ProtocolVersion, ProtocolVersionId,
+        block::L1BatchHeader, snapshots::SnapshotRecoveryStatus, ProtocolVersion, ProtocolVersionId,
     };
 
     use super::*;
@@ -285,7 +283,7 @@ mod tests {
             ProtocolVersionId::latest(),
         );
         conn.blocks_dal()
-            .insert_l1_batch(&l1_batch_header, &[], BlockGasCount::default(), &[], &[], 0)
+            .insert_mock_l1_batch(&l1_batch_header)
             .await
             .unwrap();
         conn.blocks_dal()
@@ -346,11 +344,10 @@ mod tests {
             l1_batch_root_hash: H256::zero(),
             miniblock_number: MiniblockNumber(42),
             miniblock_root_hash: H256::zero(),
-            last_finished_chunk_id: None,
-            total_chunk_count: 100,
+            storage_logs_chunks_processed: vec![true; 100],
         };
         conn.snapshot_recovery_dal()
-            .set_applied_snapshot_status(&snapshot_recovery)
+            .insert_initial_recovery_status(&snapshot_recovery)
             .await
             .unwrap();
 
@@ -390,7 +387,7 @@ mod tests {
             ProtocolVersionId::latest(),
         );
         conn.blocks_dal()
-            .insert_l1_batch(&l1_batch_header, &[], BlockGasCount::default(), &[], &[], 0)
+            .insert_mock_l1_batch(&l1_batch_header)
             .await
             .unwrap();
         conn.blocks_dal()

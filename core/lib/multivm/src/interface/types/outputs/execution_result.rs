@@ -101,7 +101,7 @@ impl VmExecutionResultAndLogs {
             cycles_used: self.statistics.cycles_used,
             computational_gas_used: self.statistics.computational_gas_used,
             pubdata_published: self.statistics.pubdata_published,
-            estimated_circuits_used: self.statistics.estimated_circuits_used,
+            circuit_statistic: self.statistics.circuit_statistic,
         }
     }
 }

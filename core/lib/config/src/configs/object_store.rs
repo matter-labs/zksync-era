@@ -5,6 +5,7 @@ pub enum ObjectStoreMode {
     GCS,
     GCSWithCredentialFile,
     FileBacked,
+    GCSAnonymousReadOnly,
 }
 
 /// Configuration for the object store
