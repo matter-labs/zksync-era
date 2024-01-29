@@ -340,10 +340,18 @@ impl ReorgDetector {
                         tracing::info!(
                             "Main node has no L1 batch #{sealed_l1_batch_number}; will check last L1 batch on the main node"
                         );
-                        sealed_l1_batch_number = self.client.sealed_l1_batch_number().await?;
+                        let fetched_number = self.client.sealed_l1_batch_number().await?;
+                        let number_changed = fetched_number != sealed_l1_batch_number;
+                        sealed_l1_batch_number = fetched_number;
                         tracing::debug!(
                             "Fetched last L1 batch on the main node: #{sealed_l1_batch_number}"
                         );
+
+                        if !number_changed {
+                            // May happen if the main node has an L1 batch, but its state root hash is not computed yet.
+                            tracing::debug!("Last L1 batch number on the main node has not changed; waiting until its state hash is computed");
+                            tokio::time::sleep(self.sleep_interval / 10).await;
+                        }
                     }
                 }
             };
