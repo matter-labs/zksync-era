@@ -5027,13 +5027,13 @@ dependencies = [
 [[package]]
 name = "shivini"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-shivini.git?branch=v1.4.1#011aaabcfb77ad3dc189086012267161375d9cc2"
+source = "git+https://github.com/matter-labs/era-shivini.git?branch=jms-fix-memory-use#86a13ca583c79a4ac703d46d03fe3ffa55b0a925"
 dependencies = [
  "bincode",
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "boojum",
  "boojum-cuda",
- "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1)",
+ "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=jms-fix-memory-use)",
  "cudart",
  "derivative",
  "hex",
