@@ -16,7 +16,13 @@ pub mod i_executor;
 /// Allows to encode the input data as smart contract input.
 pub trait IntoTokens {
     /// Transforms the data into the `ethabi::Token` representation.
-    fn into_tokens(self) -> ethabi::Token;
+    ///
+    /// Note: vector of tokens is interpreted differently from `Token::Tuple` variant.
+    /// Vector may be used to encode several arguments that represent an input of some function,
+    /// while `Tuple` represents a single argument that is a combination of several tokens.
+    /// If you need to encode some structure, you should return a vector with a single `Tuple` token,
+    /// and if you're encoding function input, you probably need to return a vector of tokens.
+    fn into_tokens(self) -> Vec<ethabi::Token>;
 }
 
 /// Allows to decode the input data from the smart contract input.

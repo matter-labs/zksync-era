@@ -7,8 +7,8 @@ use crate::IntoTokens;
 pub struct CommitBatchInfo<'a>(pub &'a L1BatchWithMetadata);
 
 impl<'a> IntoTokens for CommitBatchInfo<'a> {
-    fn into_tokens(self) -> Token {
-        if self.0.header.protocol_version.unwrap().is_pre_boojum() {
+    fn into_tokens(self) -> Vec<Token> {
+        let token = if self.0.header.protocol_version.unwrap().is_pre_boojum() {
             Token::Tuple(vec![
                 Token::Uint(U256::from(self.0.header.number.0)),
                 Token::Uint(U256::from(self.0.header.timestamp)),
@@ -91,6 +91,7 @@ impl<'a> IntoTokens for CommitBatchInfo<'a> {
                         .unwrap_or(self.0.construct_pubdata()),
                 ),
             ])
-        }
+        };
+        vec![token]
     }
 }

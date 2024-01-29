@@ -7,8 +7,8 @@ use crate::IntoTokens;
 pub struct StoredBatchInfo<'a>(pub &'a L1BatchWithMetadata);
 
 impl<'a> IntoTokens for StoredBatchInfo<'a> {
-    fn into_tokens(self) -> Token {
-        Token::Tuple(vec![
+    fn into_tokens(self) -> Vec<Token> {
+        let token = Token::Tuple(vec![
             // `batchNumber`
             Token::Uint(U256::from(self.0.header.number.0)),
             // `batchHash`
@@ -31,6 +31,7 @@ impl<'a> IntoTokens for StoredBatchInfo<'a> {
             Token::Uint(U256::from(self.0.header.timestamp)),
             // commitment
             Token::FixedBytes(self.0.metadata.commitment.as_bytes().to_vec()),
-        ])
+        ]);
+        vec![token]
     }
 }
