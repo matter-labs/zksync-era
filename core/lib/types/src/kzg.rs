@@ -63,7 +63,7 @@ fn commitment_to_versioned_hash(kzg_commitment: G1Affine) -> [u8; 32] {
 /// this point by hashing together the linear hash and versioned hash and only taking the last 16 bytes
 fn compute_opening_point(linear_hash: [u8; 32], versioned_hash: [u8; 32]) -> u128 {
     let evaluation_point = &Keccak256::digest(
-        &linear_hash
+        linear_hash
             .iter()
             .chain(&versioned_hash)
             .map(|x| *x)
@@ -294,12 +294,12 @@ mod tests {
         assert_eq!(bytes.len(), 32);
         let mut ret = [0u64; 4];
 
-        for i in 0..ret.len() {
+        for (i, item) in ret.iter_mut().enumerate() {
             let mut repr = [0u8; 8];
             let end = 32 - (8 * i);
             let beg = 32 - (8 * (i + 1));
             repr.copy_from_slice(&bytes[beg..end]);
-            ret[i] = u64::from_be_bytes(repr);
+            *item = u64::from_be_bytes(repr);
         }
 
         Fr::from_repr(FrRepr(ret)).unwrap()
