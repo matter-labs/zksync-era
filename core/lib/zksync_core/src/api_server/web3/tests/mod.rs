@@ -13,7 +13,7 @@ use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, Storage
 use zksync_health_check::CheckHealth;
 use zksync_types::{
     api,
-    api::{BlockId, BlockNumber},
+    api::BlockId,
     block::{BlockGasCount, MiniblockHeader},
     fee::TransactionExecutionMetrics,
     get_nonce_key,
@@ -859,9 +859,7 @@ impl HttpTest for TransactionReceiptsTest {
         }
 
         let receipts = client
-            .get_block_receipts(BlockId::Number(BlockNumber::Number(U64::from(
-                miniblock_number.0,
-            ))))
+            .get_block_receipts(BlockId::Number(miniblock_number.0.into()))
             .await?;
         assert_eq!(receipts.len(), 2);
         for (receipt, expected_receipt) in receipts.iter().zip(&expected_receipts) {

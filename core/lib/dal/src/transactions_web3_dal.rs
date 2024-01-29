@@ -82,7 +82,11 @@ impl TransactionsWeb3Dal<'_, '_> {
         .map(Into::into)
         .collect();
 
-        let mut logs = self.storage.events_dal().get_logs_by_hashes(hashes).await?;
+        let mut logs = self
+            .storage
+            .events_dal()
+            .get_logs_by_tx_hashes(hashes)
+            .await?;
 
         let mut l2_to_l1_logs = self
             .storage
@@ -364,11 +368,10 @@ mod tests {
             .await
             .unwrap();
 
-        let mut tx_results = Vec::new();
-
-        for tx in txs {
-            tx_results.push(mock_execution_result(tx));
-        }
+        let tx_results = txs
+            .into_iter()
+            .map(mock_execution_result)
+            .collect::<Vec<_>>();
 
         conn.transactions_dal()
             .mark_txs_as_executed_in_miniblock(MiniblockNumber(1), &tx_results, U256::from(1))

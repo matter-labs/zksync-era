@@ -322,8 +322,8 @@ impl From<StorageTransaction> for Transaction {
     }
 }
 
-#[derive(Serialize, Deserialize, sqlx::FromRow)]
-pub struct StorageTransactionReceipt {
+#[derive(sqlx::FromRow)]
+pub(crate) struct StorageTransactionReceipt {
     pub error: Option<String>,
     pub tx_format: Option<i32>,
     pub index_in_block: Option<i32>,
@@ -332,8 +332,8 @@ pub struct StorageTransactionReceipt {
     pub block_number: i64,
     pub l1_batch_tx_index: Option<i32>,
     pub l1_batch_number: Option<i64>,
-    pub transfer_to: Option<sqlx::types::JsonValue>,
-    pub execute_contract_address: Option<sqlx::types::JsonValue>,
+    pub transfer_to: Option<serde_json::Value>,
+    pub execute_contract_address: Option<serde_json::Value>,
     pub refunded_gas: i64,
     pub gas_limit: Option<BigDecimal>,
     pub effective_gas_price: Option<BigDecimal>,
@@ -343,16 +343,14 @@ pub struct StorageTransactionReceipt {
 
 impl From<StorageTransactionReceipt> for TransactionReceipt {
     fn from(storage_receipt: StorageTransactionReceipt) -> Self {
-        let status = storage_receipt
-            .error
-            .map(|_| U64::zero())
-            .unwrap_or_else(U64::one);
+        let status = storage_receipt.error.map_or_else(U64::one, |_| U64::zero());
 
-        let tx_type = storage_receipt.tx_format.map(U64::from).unwrap_or_default();
+        let tx_type = storage_receipt
+            .tx_format
+            .map_or_else(Default::default, U64::from);
         let transaction_index = storage_receipt
             .index_in_block
-            .map(U64::from)
-            .unwrap_or_default();
+            .map_or_else(Default::default, U64::from);
 
         let block_hash = H256::from_slice(&storage_receipt.block_hash);
         TransactionReceipt {

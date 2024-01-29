@@ -332,6 +332,8 @@ impl EthNamespace {
 
         let method_latency = API_METRICS.start_block_call(METHOD_NAME, block_id);
 
+        self.state.start_info.ensure_not_pruned(block_id)?;
+
         let block = self
             .state
             .connection_pool
@@ -343,18 +345,15 @@ impl EthNamespace {
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?;
 
-        let transactions = match block.clone() {
-            Some(block) => block.transactions,
-            None => vec![],
-        };
-
-        let hashes = transactions
-            .into_iter()
+        let transactions: &[TransactionVariant] =
+            block.as_ref().map_or(&[], |block| &block.transactions);
+        let hashes: Vec<_> = transactions
+            .iter()
             .map(|tx| match tx {
                 TransactionVariant::Full(tx) => tx.hash,
-                TransactionVariant::Hash(hash) => hash,
+                TransactionVariant::Hash(hash) => *hash,
             })
-            .collect::<Vec<H256>>();
+            .collect();
 
         let receipts = self
             .state
@@ -367,10 +366,11 @@ impl EthNamespace {
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?;
 
-        self.report_latency_with_block_id(
-            method_latency,
-            MiniblockNumber(block.unwrap().number.as_u32()),
-        );
+        if let Some(block) = block {
+            self.report_latency_with_block_id(method_latency, block.number.as_u32().into());
+        } else {
+            method_latency.observe_without_diff();
+        }
 
         Ok(receipts)
     }

@@ -186,7 +186,7 @@ impl EventsDal<'_, '_> {
         .unwrap();
     }
 
-    pub(crate) async fn get_logs_by_hashes(
+    pub(crate) async fn get_logs_by_tx_hashes(
         &mut self,
         hashes: &[H256],
     ) -> Result<HashMap<H256, Vec<api::Log>>, SqlxError> {
