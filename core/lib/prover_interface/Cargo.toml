@@ -20,3 +20,7 @@ serde = "1.0.90"
 strum = { version = "0.24", features = ["derive"] }
 serde_with = { version = "1", features = ["base64"] }
 chrono = { version = "0.4", features = ["serde"] }
+
+[dev-dependencies]
+tokio = { version = "1.21.2", features = ["full"] }
+bincode = "1"

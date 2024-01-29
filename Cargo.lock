@@ -8833,10 +8833,12 @@ dependencies = [
 name = "zksync_prover_interface"
 version = "0.1.0"
 dependencies = [
+ "bincode",
  "chrono",
  "serde",
  "serde_with",
  "strum",
+ "tokio",
  "zkevm_test_harness 1.3.3",
  "zksync_object_store",
  "zksync_types",
