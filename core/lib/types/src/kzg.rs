@@ -66,7 +66,7 @@ fn compute_opening_point(linear_hash: [u8; 32], versioned_hash: [u8; 32]) -> u12
         linear_hash
             .iter()
             .chain(&versioned_hash)
-            .map(|x| *x)
+            .copied()
             .collect::<Vec<u8>>(),
     )[16..];
 
