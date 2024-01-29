@@ -10,9 +10,6 @@ use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::{clients::MockEthereum, EthInterface};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_types::{
-    aggregated_operations::{
-        AggregatedOperation, L1BatchCommitOperation, L1BatchExecuteOperation, L1BatchProofOperation,
-    },
     block::L1BatchHeader,
     commitment::{L1BatchMetaParameters, L1BatchMetadata, L1BatchWithMetadata},
     ethabi::Token,
@@ -23,7 +20,12 @@ use zksync_types::{
 
 use crate::{
     eth_sender::{
-        eth_tx_manager::L1BlockNumbers, Aggregator, ETHSenderError, EthTxAggregator, EthTxManager,
+        aggregated_operations::{
+            AggregatedOperation, L1BatchCommitOperation, L1BatchExecuteOperation,
+            L1BatchProofOperation,
+        },
+        eth_tx_manager::L1BlockNumbers,
+        Aggregator, ETHSenderError, EthTxAggregator, EthTxManager,
     },
     l1_gas_price::GasAdjuster,
     utils::testonly::create_l1_batch,

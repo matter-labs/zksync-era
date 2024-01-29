@@ -1,7 +1,7 @@
 use std::fs;
 
 use zksync_prover_fri_types::{CircuitWrapper, ProverJob, ProverServiceDataKey};
-use zksync_types::{proofs::AggregationRound, L1BatchNumber};
+use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
 use zksync_witness_vector_generator::generator::WitnessVectorGenerator;
 
 #[test]

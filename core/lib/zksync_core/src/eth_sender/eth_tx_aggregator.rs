@@ -6,7 +6,6 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::{BoundEthInterface, CallFunctionArgs};
 use zksync_types::{
-    aggregated_operations::AggregatedOperation,
     contracts::{Multicall3Call, Multicall3Result},
     eth_sender::EthTx,
     ethabi::{Contract, Token},
@@ -19,6 +18,7 @@ use zksync_types::{
     Address, ProtocolVersionId, H256, U256,
 };
 
+use super::aggregated_operations::AggregatedOperation;
 use crate::{
     eth_sender::{
         eth_tx_args::EthTxArgs,

@@ -4,20 +4,21 @@ use zksync_config::configs::eth_sender::{ProofLoadingMode, ProofSendingMode, Sen
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::StorageProcessor;
 use zksync_object_store::{ObjectStore, ObjectStoreError};
+use zksync_prover_interface::outputs::L1BatchProofForL1;
 use zksync_types::{
-    aggregated_operations::{
-        AggregatedActionType, AggregatedOperation, L1BatchCommitOperation, L1BatchExecuteOperation,
-        L1BatchProofForL1, L1BatchProofOperation,
-    },
-    commitment::L1BatchWithMetadata,
-    helpers::unix_timestamp_ms,
-    protocol_version::L1VerifierConfig,
-    L1BatchNumber, ProtocolVersionId,
+    aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata,
+    helpers::unix_timestamp_ms, protocol_version::L1VerifierConfig, L1BatchNumber,
+    ProtocolVersionId,
 };
 
-use super::publish_criterion::{
-    DataSizeCriterion, GasCriterion, L1BatchPublishCriterion, NumberCriterion,
-    TimestampDeadlineCriterion,
+use super::{
+    aggregated_operations::{
+        AggregatedOperation, L1BatchCommitOperation, L1BatchExecuteOperation, L1BatchProofOperation,
+    },
+    publish_criterion::{
+        DataSizeCriterion, GasCriterion, L1BatchPublishCriterion, NumberCriterion,
+        TimestampDeadlineCriterion,
+    },
 };
 
 #[derive(Debug)]

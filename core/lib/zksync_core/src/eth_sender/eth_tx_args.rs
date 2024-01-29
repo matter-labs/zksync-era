@@ -1,11 +1,9 @@
 use codegen::serialize_proof;
-use zksync_types::{
-    aggregated_operations::{
-        L1BatchCommitOperation, L1BatchExecuteOperation, L1BatchProofForL1, L1BatchProofOperation,
-    },
-    commitment::L1BatchWithMetadata,
-    ethabi::Token,
-    U256,
+use zksync_prover_interface::outputs::L1BatchProofForL1;
+use zksync_types::{commitment::L1BatchWithMetadata, ethabi::Token, U256};
+
+use super::aggregated_operations::{
+    L1BatchCommitOperation, L1BatchExecuteOperation, L1BatchProofOperation,
 };
 
 /// Trait for the types that can be encuded into the Ethereum transaction input.

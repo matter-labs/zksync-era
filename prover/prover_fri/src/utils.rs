@@ -27,7 +27,10 @@ use zksync_prover_fri_types::{
     CircuitWrapper, FriProofWrapper, ProverServiceDataKey, WitnessVectorArtifacts,
 };
 use zksync_prover_fri_utils::get_base_layer_circuit_id_for_recursive_layer;
-use zksync_types::{basic_fri_types::CircuitIdRoundTuple, proofs::AggregationRound, L1BatchNumber};
+use zksync_types::{
+    basic_fri_types::{AggregationRound, CircuitIdRoundTuple},
+    L1BatchNumber,
+};
 
 use crate::metrics::METRICS;
 
