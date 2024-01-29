@@ -14,7 +14,7 @@ use zksync_health_check::CheckHealth;
 use zksync_types::{
     api,
     api::BlockId,
-    block::{BlockGasCount, MiniblockHeader},
+    block::MiniblockHeader,
     fee::TransactionExecutionMetrics,
     get_nonce_key,
     l2::L2Tx,
@@ -228,7 +228,7 @@ impl StorageInitialization {
                         MiniblockNumber(Self::SNAPSHOT_RECOVERY_BLOCK),
                         factory_deps,
                     )
-                    .await;
+                    .await?;
             }
         }
         Ok(())
@@ -332,10 +332,7 @@ async fn seal_l1_batch(
     number: L1BatchNumber,
 ) -> anyhow::Result<()> {
     let header = create_l1_batch(number.0);
-    storage
-        .blocks_dal()
-        .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[], 0)
-        .await?;
+    storage.blocks_dal().insert_mock_l1_batch(&header).await?;
     storage
         .blocks_dal()
         .mark_miniblocks_as_executed_in_l1_batch(number)
