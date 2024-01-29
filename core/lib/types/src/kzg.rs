@@ -1,5 +1,6 @@
 use std::convert::TryInto;
 
+use nom::bytes::streaming::take;
 use sha2::Sha256;
 use sha3::{Digest, Keccak256};
 use zkevm_circuits::{
@@ -95,37 +96,42 @@ impl KzgInfo {
     pub fn from_slice(data: &[u8]) -> Self {
         assert_eq!(data.len(), Self::SERIALIZED_SIZE);
 
-        let mut ptr = 0;
-
+        let (data, blob_bytes) =
+            take::<usize, &[u8], ()>(EIP_4844_BYTES_PER_BLOB)(data).expect("Missing data - blob");
         let mut blob = [0u8; EIP_4844_BYTES_PER_BLOB];
-        blob.copy_from_slice(&data[ptr..ptr + EIP_4844_BYTES_PER_BLOB]);
-        ptr += EIP_4844_BYTES_PER_BLOB;
+        blob.copy_from_slice(blob_bytes);
 
+        let (data, kzg_bytes) =
+            take::<usize, &[u8], ()>(48)(data).expect("Missing data - kzg commitment");
         let mut kzg_commitment = [0u8; 48];
-        kzg_commitment.copy_from_slice(&data[ptr..ptr + 48]);
-        ptr += 48;
+        kzg_commitment.copy_from_slice(kzg_bytes);
 
+        let (data, opening_point_bytes) =
+            take::<usize, &[u8], ()>(32)(data).expect("Missing data - opening point");
         let mut opening_point = [0u8; 32];
-        opening_point.copy_from_slice(&data[ptr..ptr + 32]);
-        ptr += 32;
+        opening_point.copy_from_slice(opening_point_bytes);
 
+        let (data, opening_value_bytes) =
+            take::<usize, &[u8], ()>(32)(data).expect("Missing data - opening value");
         let mut opening_value = [0u8; 32];
-        opening_value.copy_from_slice(&data[ptr..ptr + 32]);
-        ptr += 32;
+        opening_value.copy_from_slice(opening_value_bytes);
 
+        let (data, opening_proof_bytes) =
+            take::<usize, &[u8], ()>(48)(data).expect("Missing data - opening proof");
         let mut opening_proof = [0u8; 48];
-        opening_proof.copy_from_slice(&data[ptr..ptr + 48]);
-        ptr += 48;
+        opening_proof.copy_from_slice(opening_proof_bytes);
 
+        let (data, versioned_hash_bytes) =
+            take::<usize, &[u8], ()>(32)(data).expect("Missing data - versioned hash");
         let mut versioned_hash = [0u8; 32];
-        versioned_hash.copy_from_slice(&data[ptr..ptr + 32]);
-        ptr += 32;
+        versioned_hash.copy_from_slice(versioned_hash_bytes);
 
+        let (data, blob_proof_bytes) =
+            take::<usize, &[u8], ()>(48)(data).expect("Missing data - blob proof");
         let mut blob_proof = [0u8; 48];
-        blob_proof.copy_from_slice(&data[ptr..ptr + 48]);
-        ptr += 48;
+        blob_proof.copy_from_slice(blob_proof_bytes);
 
-        assert_eq!(ptr, Self::SERIALIZED_SIZE);
+        assert_eq!(data.len(), 0);
 
         Self {
             blob,
