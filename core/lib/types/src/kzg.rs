@@ -181,11 +181,12 @@ impl KzgInfo {
     ///     1. zksync blob <- `pad_right`(pubdata)
     ///     2. linear hash <- hash(zksync blob)
     ///     3. 4844 blob <- `zksync_pubdata_into_ethereum_4844_data`(zksync blob)
-    ///     4. 4844 `kzg` commitment <- `blob_to_kzg_commitment`(4844 blob)
-    ///     5. versioned hash <- hash(4844 `kzg` commitment)
-    ///     6. opening point <- keccak(linear hash || versioned hash)[16..]
-    ///     7. opening value, opening proof <- `compute_kzg_proof`(4844)
-    ///     8. blob proof <- `compute_blob_kzg_proof`(blob, 4844 `kzg` commitment)
+    ///     4. `kzg` polynomial <- `zksync_pubdata_into_monomial_form_poly`(zksync blob)
+    ///     5. 4844 `kzg` commitment <- `compute_commitment`(4844 blob)
+    ///     6. versioned hash <- hash(4844 `kzg` commitment)
+    ///     7. opening point <- keccak(linear hash || versioned hash)[16..]
+    ///     8. opening value, opening proof <- `compute_kzg_proof`(4844)
+    ///     9. blob proof <- `compute_proof_poly`(blob, 4844 `kzg` commitment)
     pub fn new(pubdata: Vec<u8>) -> Self {
         assert!(pubdata.len() <= ZK_SYNC_BYTES_PER_BLOB);
 
