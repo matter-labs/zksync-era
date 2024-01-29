@@ -85,10 +85,20 @@ impl UpdateCorrectBlock for () {
         last_correct_miniblock: MiniblockNumber,
         last_correct_l1_batch: L1BatchNumber,
     ) {
-        EN_METRICS.last_correct_batch[&CheckerComponent::ReorgDetector]
-            .set(last_correct_miniblock.0.into());
-        EN_METRICS.last_correct_miniblock[&CheckerComponent::ReorgDetector]
-            .set(last_correct_l1_batch.0.into());
+        let last_correct_miniblock = last_correct_miniblock.0.into();
+        let prev_checked_miniblock = EN_METRICS.last_correct_miniblock
+            [&CheckerComponent::ReorgDetector]
+            .set(last_correct_miniblock);
+        if prev_checked_miniblock != last_correct_miniblock {
+            tracing::debug!("No reorg at miniblock #{last_correct_miniblock}");
+        }
+
+        let last_correct_l1_batch = last_correct_l1_batch.0.into();
+        let prev_checked_l1_batch = EN_METRICS.last_correct_batch[&CheckerComponent::ReorgDetector]
+            .set(last_correct_l1_batch);
+        if prev_checked_l1_batch != last_correct_l1_batch {
+            tracing::debug!("No reorg at L1 batch #{last_correct_l1_batch}");
+        }
     }
 }
 
