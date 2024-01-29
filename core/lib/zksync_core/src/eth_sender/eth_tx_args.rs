@@ -6,7 +6,7 @@ use super::aggregated_operations::{
     L1BatchCommitOperation, L1BatchExecuteOperation, L1BatchProofOperation,
 };
 
-/// Trait for the types that can be encuded into the Ethereum transaction input.
+/// Trait for the types that can be encoded into the Ethereum transaction input.
 pub(super) trait EthTxArgs {
     /// Formats the arguments into the Ethereum transaction input.
     fn get_eth_tx_args(&self) -> Vec<Token>;
