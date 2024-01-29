@@ -8,9 +8,7 @@ use std::{
 use anyhow::Context as _;
 use async_trait::async_trait;
 use circuit_definitions::{
-    aux_definitions::witness_oracle::VmWitnessOracle,
-    boojum::implementations::poseidon2::Poseidon2Goldilocks,
-    circuit_definitions::base_layer::{ZkSyncBaseLayerCircuit, ZkSyncBaseLayerStorage},
+    circuit_definitions::base_layer::ZkSyncBaseLayerStorage,
     encodings::recursion_request::RecursionQueueSimulator,
     zkevm_circuits::fsm_input_output::ClosedFormInputCompactFormWitness,
 };
@@ -602,22 +600,8 @@ async fn generate_witness(
     // The following part is CPU-heavy, so we move it to a separate thread.
     let rt_handle = tokio::runtime::Handle::current();
 
-    let (sender, mut receiver) = tokio::sync::mpsc::channel(1);
-
-    enum Message {
-        Circuit(
-            ZkSyncBaseLayerCircuit<
-                GoldilocksField,
-                VmWitnessOracle<GoldilocksField>,
-                Poseidon2Goldilocks,
-            >,
-        ),
-        RecursionQueue(
-            u8,
-            RecursionQueueSimulator<GoldilocksField>,
-            Vec<ClosedFormInputCompactFormWitness<GoldilocksField>>,
-        ),
-    }
+    let (circuit_sender, mut circuit_receiver) = tokio::sync::mpsc::channel(1);
+    let (queue_sender, mut queue_receiver) = tokio::sync::mpsc::channel(1);
 
     let make_circuits = tokio::task::spawn_blocking(move || {
         let connection = rt_handle
@@ -645,13 +629,9 @@ async fn generate_witness(
             storage_oracle,
             &mut tree,
             |circuit| {
-                sender.blocking_send(Message::Circuit(circuit)).unwrap();
+                circuit_sender.blocking_send(circuit).unwrap();
             },
-            |a, b, c| {
-                sender
-                    .blocking_send(Message::RecursionQueue(a as u8, b, c))
-                    .unwrap()
-            },
+            |a, b, c| queue_sender.blocking_send((a as u8, b, c)).unwrap(),
         );
         (scheduler_witness, block_witness)
     });
@@ -660,18 +640,19 @@ async fn generate_witness(
     let mut recursion_urls = vec![];
 
     let save_circuits = async {
-        while let Some(x) = receiver.recv().await {
-            match x {
-                Message::Circuit(circuit) => {
+        loop {
+            tokio::select! {
+                Some(circuit) = circuit_receiver.recv() => {
                     circuit_urls.push(
                         save_circuit(block_number, circuit, circuit_urls.len(), object_store).await,
                     );
                 }
-                Message::RecursionQueue(circuit_id, queue, inputs) => recursion_urls.push(
+                Some((circuit_id, queue, inputs)) = queue_receiver.recv() =>recursion_urls.push(
                     save_recursion_queue(block_number, circuit_id, queue, &inputs, object_store)
                         .await,
                 ),
-            }
+                else => break,
+            };
         }
     };
 
