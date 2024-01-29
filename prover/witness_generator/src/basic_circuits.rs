@@ -649,7 +649,7 @@ async fn generate_witness(
             },
             |a, b, c| {
                 sender
-                    .blocking_send(Message::RecursionQueue(a, b, c))
+                    .blocking_send(Message::RecursionQueue(a as u8, b, c))
                     .unwrap()
             },
         );
