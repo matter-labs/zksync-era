@@ -1,4 +1,5 @@
 FROM debian:bookworm-slim
+ARG DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y curl clang openssl libssl-dev gcc g++ \
     pkg-config build-essential libclang-dev && \
