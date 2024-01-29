@@ -27,6 +27,7 @@ export const command = new Command('clean')
             const env = process.env.ZKSYNC_ENV;
             clean(`etc/env/${env}.env`);
             clean('etc/env/.init.env');
+            clean('etc/env/.current');
         }
 
         if (cmd.all || cmd.artifacts) {

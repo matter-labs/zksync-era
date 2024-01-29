@@ -49,7 +49,6 @@ jobs:
               - 'core/**'
               - '!core/CHANGELOG.md'
               - 'docker/contract-verifier/**'
-              - 'docker/cross-external-nodes-checker/**'
               - 'docker/external-node/**'
               - 'docker/server/**'
               - '.github/workflows/build-core-template.yml'
