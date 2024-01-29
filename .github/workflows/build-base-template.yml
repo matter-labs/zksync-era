@@ -37,16 +37,18 @@ jobs:
       - name: Init
         run: |
           echo PLATFORM=$(echo $PLATFORM | tr '/' '-') >> $GITHUB_ENV
+          echo COMPONENT=${{ matrix.components }} >> $GITHUB_ENV
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
           push: false #${{ inputs.action == 'push' }}
-          file: docker/${{ matrix.components }}
+          file: docker/${{ env.COMPONENT }}
           tags: |
-            matterlabs/${{ matrix.component }}::latest-$PLATFORM
-            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component }}:latest-$PLATFORM
+            matterlabs/${{ env.COMPONENT }}:latest-${{ env.$PLATFORM }}
+            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ env.COMPONENT }}:latest-${{ env.$PLATFORM }}
 
   create_manifest:
     name: Create release manifest
