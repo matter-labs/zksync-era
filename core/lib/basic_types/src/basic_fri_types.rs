@@ -4,7 +4,7 @@ use std::{convert::TryFrom, str::FromStr};
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Deserialize, Serialize, Clone, Eq, Hash, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, Eq, Hash, PartialEq, PartialOrd, Ord)]
 pub struct CircuitIdRoundTuple {
     pub circuit_id: u8,
     pub aggregation_round: u8,

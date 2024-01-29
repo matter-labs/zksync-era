@@ -16,9 +16,8 @@ use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_prover_interface::inputs::PrepareBasicCircuitsJob;
 use zksync_types::{
-    block::{BlockGasCount, L1BatchHeader},
-    AccountTreeId, Address, L1BatchNumber, L2ChainId, MiniblockNumber, StorageKey, StorageLog,
-    H256,
+    block::L1BatchHeader, AccountTreeId, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
+    StorageKey, StorageLog, H256,
 };
 use zksync_utils::u32_to_h256;
 
@@ -282,14 +281,7 @@ async fn test_postgres_backup_recovery(
         // Re-insert the last batch without metadata immediately.
         storage
             .blocks_dal()
-            .insert_l1_batch(
-                batch_without_metadata,
-                &[],
-                BlockGasCount::default(),
-                &[],
-                &[],
-                0,
-            )
+            .insert_mock_l1_batch(batch_without_metadata)
             .await
             .unwrap();
         insert_initial_writes_for_batch(&mut storage, batch_without_metadata.number).await;
@@ -314,7 +306,7 @@ async fn test_postgres_backup_recovery(
     for batch_header in &removed_batches {
         let mut txn = storage.start_transaction().await.unwrap();
         txn.blocks_dal()
-            .insert_l1_batch(batch_header, &[], BlockGasCount::default(), &[], &[], 0)
+            .insert_mock_l1_batch(batch_header)
             .await
             .unwrap();
         insert_initial_writes_for_batch(&mut txn, batch_header.number).await;
@@ -504,7 +496,7 @@ pub(super) async fn extend_db_state_from_l1_batch(
 
         storage
             .blocks_dal()
-            .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[], 0)
+            .insert_mock_l1_batch(&header)
             .await
             .unwrap();
         storage
