@@ -168,4 +168,10 @@ impl ZksNamespaceServer for ZksNamespace {
             .await
             .map_err(into_jsrpc_error)
     }
+
+    async fn get_l1_batch_pubdata(&self, l1_batch_number: L1BatchNumber) -> RpcResult<Vec<u8>> {
+        self.get_l1_batch_pubdata_impl(l1_batch_number)
+            .await
+            .map_err(into_jsrpc_error)
+    }
 }

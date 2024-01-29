@@ -2148,6 +2148,45 @@ impl BlocksDal<'_, '_> {
         .await?
         .map(|row| row.virtual_blocks as u32))
     }
+
+    pub async fn get_l1_batch_pubdata(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> sqlx::Result<Vec<u8>> {
+        let l1_batch_header = self.get_l1_batch_header(l1_batch_number).await?.unwrap();
+        let l1_batch_metadata = self
+            .get_l1_batch_metadata(l1_batch_number)
+            .await
+            .unwrap()
+            .unwrap();
+
+        let mut res = Vec::new();
+
+        // Process and Pack Logs
+        res.extend((l1_batch_header.l2_to_l1_logs.len() as u32).to_be_bytes());
+        for l2_to_l1_log in &l1_batch_header.l2_to_l1_logs {
+            res.extend(l2_to_l1_log.0.to_bytes());
+        }
+
+        // Process and Pack Messages
+        res.extend((l1_batch_header.l2_to_l1_messages.len() as u32).to_be_bytes());
+        for msg in &l1_batch_header.l2_to_l1_messages {
+            res.extend((msg.len() as u32).to_be_bytes());
+            res.extend(msg);
+        }
+
+        // Process and Pack Bytecodes
+        res.extend((l1_batch_metadata.factory_deps.len() as u32).to_be_bytes());
+        for bytecode in &l1_batch_metadata.factory_deps {
+            res.extend((bytecode.len() as u32).to_be_bytes());
+            res.extend(bytecode);
+        }
+
+        // Extend with Compressed StateDiffs
+        res.extend(&l1_batch_metadata.metadata.state_diffs_compressed);
+
+        Ok(res)
+    }
 }
 
 /// Temporary methods for migrating `fee_account_address`.
