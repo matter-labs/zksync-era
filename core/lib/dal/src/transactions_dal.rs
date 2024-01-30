@@ -979,6 +979,7 @@ impl TransactionsDal<'_, '_> {
             .collect();
 
         let storage_keys: Vec<_> = nonce_keys.keys().map(H256::as_bytes).collect();
+        // FIXME: storage access
         let nonce_rows = sqlx::query!(
             r#"
             SELECT

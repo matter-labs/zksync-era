@@ -24,7 +24,8 @@ pub(crate) async fn prepare_postgres(conn: &mut StorageProcessor<'_>) {
 
     conn.storage_logs_dal()
         .rollback_storage_logs(MiniblockNumber(0))
-        .await;
+        .await
+        .unwrap();
     conn.blocks_dal()
         .delete_miniblocks(MiniblockNumber(0))
         .await

@@ -41,6 +41,7 @@ impl AccountsDal<'_, '_> {
                 .to_vec()
             })
             .collect();
+        // FIXME: storage access
         let rows = sqlx::query!(
             r#"
             SELECT
