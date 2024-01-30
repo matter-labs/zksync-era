@@ -418,6 +418,7 @@ impl EthTxAggregator {
                         .expect("Missing ABI for commitBatches")
                 };
                 f.encode_input(&op.to_eth_args())
+                    .expect("Failed to encode commit transaction data")
             }
             AggregatedOperation::PublishProofOnchain(op) => {
                 assert_eq!(contracts_are_pre_boojum, operation_is_pre_boojum);
@@ -430,6 +431,7 @@ impl EthTxAggregator {
                         .expect("Missing ABI for proveBatches")
                 };
                 f.encode_input(&op.to_eth_args())
+                    .expect("Failed to encode prove transaction data")
             }
             AggregatedOperation::Execute(op) => {
                 let f = if contracts_are_pre_boojum {
@@ -441,9 +443,9 @@ impl EthTxAggregator {
                         .expect("Missing ABI for executeBatches")
                 };
                 f.encode_input(&op.to_eth_args())
+                    .expect("Failed to encode execute transaction data")
             }
         }
-        .expect("Failed to encode transaction data")
     }
 
     pub(super) async fn save_eth_tx(
