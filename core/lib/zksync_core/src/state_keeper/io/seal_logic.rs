@@ -392,13 +392,6 @@ impl MiniblockSealCommand {
             .await;
         progress.observe(write_log_count);
 
-        let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::ApplyStorageLogs, is_fictive);
-        let unique_updates = transaction
-            .storage_dal()
-            .apply_storage_logs(&write_logs)
-            .await;
-        progress.observe(write_log_count);
-
         let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::InsertFactoryDeps, is_fictive);
         let new_factory_deps = &self.miniblock.new_factory_deps;
         let new_factory_deps_count = new_factory_deps.len();
@@ -413,6 +406,7 @@ impl MiniblockSealCommand {
 
         let progress =
             MINIBLOCK_METRICS.start(MiniblockSealStage::ExtractContractsDeployed, is_fictive);
+        let unique_updates = HashMap::new(); // FIXME
         let deployed_contract_count = Self::count_deployed_contracts(&unique_updates);
         progress.observe(deployed_contract_count);
 
@@ -465,14 +459,13 @@ impl MiniblockSealCommand {
 
         let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::CommitMiniblock, is_fictive);
         let current_l2_virtual_block_info = transaction
-            .storage_dal()
-            .get_by_key(&StorageKey::new(
+            .storage_web3_dal()
+            .get_value(&StorageKey::new(
                 AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
                 CURRENT_VIRTUAL_BLOCK_INFO_POSITION,
             ))
             .await
-            .expect("failed getting virtual block info from VM state")
-            .unwrap_or_default();
+            .expect("failed getting virtual block info from VM state");
         let (current_l2_virtual_block_number, _) =
             unpack_block_info(h256_to_u256(current_l2_virtual_block_info));
 

@@ -439,7 +439,8 @@ pub(crate) async fn reset_db_state(pool: &ConnectionPool, num_batches: usize) {
     storage
         .storage_logs_dal()
         .rollback_storage_logs(MiniblockNumber(0))
-        .await;
+        .await
+        .unwrap();
     storage
         .blocks_dal()
         .delete_miniblocks(MiniblockNumber(0))

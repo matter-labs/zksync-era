@@ -264,11 +264,6 @@ async fn insert_system_contracts(
         .insert_initial_writes(L1BatchNumber(0), &written_storage_keys)
         .await;
 
-    transaction
-        .storage_dal()
-        .apply_storage_logs(&storage_logs)
-        .await;
-
     let factory_deps = contracts
         .iter()
         .map(|c| (hash_bytecode(&c.bytecode), c.bytecode.clone()))

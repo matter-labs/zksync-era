@@ -173,10 +173,6 @@ impl Tester {
                 .storage_logs_dal()
                 .append_storage_logs(MiniblockNumber(0), &[(H256::zero(), vec![storage_log])])
                 .await;
-            storage
-                .storage_dal()
-                .apply_storage_logs(&[(H256::zero(), vec![storage_log])])
-                .await;
             if storage
                 .storage_logs_dedup_dal()
                 .filter_written_slots(&[storage_log.key.hashed_key()])

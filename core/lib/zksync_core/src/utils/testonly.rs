@@ -143,10 +143,6 @@ pub(crate) async fn prepare_recovery_snapshot(
         .storage_logs_dal()
         .insert_storage_logs(miniblock.number, &[(H256::zero(), snapshot_logs.to_vec())])
         .await;
-    storage
-        .storage_dal()
-        .apply_storage_logs(&[(H256::zero(), snapshot_logs.to_vec())])
-        .await;
 
     let snapshot_recovery = SnapshotRecoveryStatus {
         l1_batch_number: l1_batch.number,
