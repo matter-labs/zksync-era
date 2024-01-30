@@ -45,7 +45,6 @@ members = [
 
     # Test infrastructure
     "core/tests/test_account",
-    "core/tests/cross_external_nodes_checker",
     "core/tests/loadnext",
     "core/tests/vm-benchmark",
     "core/tests/vm-benchmark/harness",
