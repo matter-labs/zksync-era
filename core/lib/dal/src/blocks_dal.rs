@@ -2149,7 +2149,7 @@ impl BlocksDal<'_, '_> {
         .map(|row| row.virtual_blocks as u32))
     }
 
-    pub async fn get_l1_batch_pubdata(
+    pub async fn get_batch_pubdata(
         &mut self,
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<Option<Vec<u8>>> {

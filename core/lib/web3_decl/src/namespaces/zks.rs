@@ -119,6 +119,6 @@ pub trait ZksNamespace {
         l1_batch_number: L1BatchNumber,
     ) -> RpcResult<Proof>;
 
-    #[method(name = "getL1BatchPubdata")]
-    async fn get_l1_batch_pubdata(&self, l1_batch_number: L1BatchNumber) -> RpcResult<Vec<u8>>;
+    #[method(name = "getBatchPubdata")]
+    async fn get_batch_pubdata(&self, l1_batch_number: L1BatchNumber) -> RpcResult<Vec<u8>>;
 }
