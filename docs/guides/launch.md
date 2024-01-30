@@ -1,6 +1,6 @@
 # Running the application
 
-This document covers common scenarios of launching zkSync applications set locally.
+This document covers common scenarios for launching zkSync applications set locally.
 
 ## Prerequisites
 

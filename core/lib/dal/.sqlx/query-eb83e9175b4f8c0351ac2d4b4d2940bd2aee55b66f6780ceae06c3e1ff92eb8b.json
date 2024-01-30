@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO\n                snapshot_recovery (\n                    l1_batch_number,\n                    l1_batch_root_hash,\n                    miniblock_number,\n                    miniblock_root_hash,\n                    storage_logs_chunks_processed,\n                    updated_at,\n                    created_at\n                )\n            VALUES\n                ($1, $2, $3, $4, $5, NOW(), NOW())\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Bytea",
+        "Int8",
+        "Bytea",
+        "BoolArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "eb83e9175b4f8c0351ac2d4b4d2940bd2aee55b66f6780ceae06c3e1ff92eb8b"
+}
