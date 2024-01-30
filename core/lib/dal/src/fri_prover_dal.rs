@@ -14,6 +14,7 @@ use crate::{
     StorageProcessor,
 };
 
+// TODO (PLA-775): Should not be an embedded submodule in a concrete DAL file.
 pub mod types {
     //! Types exposed by the prover DAL for general-purpose use.
 
@@ -61,6 +62,7 @@ pub mod types {
         pub attempts: u64,
     }
 
+    // TODO (PLA-774): Redundant structure, should be replaced with `std::net::SocketAddr`.
     #[derive(Debug, Clone)]
     pub struct SocketAddress {
         pub host: IpAddr,

@@ -1,5 +1,7 @@
 //! Basic types for FRI prover.
 
+// TODO (PLA-773): Should be moved to the prover workspace.
+
 use std::{convert::TryFrom, str::FromStr};
 
 use serde::{Deserialize, Serialize};
