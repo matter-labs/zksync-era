@@ -1,8 +1,10 @@
 use codegen::serialize_proof;
 use zksync_prover_interface::outputs::L1BatchProofForL1;
-use zksync_types::{commitment::L1BatchWithMetadata, ethabi::Token, U256};
+use zksync_types::{
+    commitment::L1BatchWithMetadata, ethabi::Token, web3::contract::tokens::Tokenizable, U256,
+};
 
-use crate::{i_executor::structures::StoredBatchInfo, ToEthArgs};
+use crate::{i_executor::structures::StoredBatchInfo, Tokenize};
 
 /// Input required to encode `proveBatches` call.
 #[derive(Debug, Clone)]
@@ -13,13 +15,13 @@ pub struct ProveBatches {
     pub should_verify: bool,
 }
 
-impl ToEthArgs for ProveBatches {
-    fn to_eth_args(&self) -> Vec<Token> {
-        let prev_l1_batch = Token::from(StoredBatchInfo(&self.prev_l1_batch));
+impl Tokenize for ProveBatches {
+    fn into_tokens(self) -> Vec<Token> {
+        let prev_l1_batch = StoredBatchInfo(&self.prev_l1_batch).into_token();
         let batches_arg = self
             .l1_batches
             .iter()
-            .map(|batch| Token::from(StoredBatchInfo(batch)))
+            .map(|batch| StoredBatchInfo(batch).into_token())
             .collect();
         let batches_arg = Token::Array(batches_arg);
 

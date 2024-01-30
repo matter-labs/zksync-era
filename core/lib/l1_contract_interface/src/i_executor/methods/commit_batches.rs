@@ -2,7 +2,7 @@ use zksync_types::{commitment::L1BatchWithMetadata, ethabi::Token};
 
 use crate::{
     i_executor::structures::{CommitBatchInfo, StoredBatchInfo},
-    ToEthArgs,
+    Tokenizable, Tokenize,
 };
 
 /// Input required to encode `commitBatches` call.
@@ -12,13 +12,13 @@ pub struct CommitBatches {
     pub l1_batches: Vec<L1BatchWithMetadata>,
 }
 
-impl ToEthArgs for CommitBatches {
-    fn to_eth_args(&self) -> Vec<Token> {
-        let stored_batch_info = Token::from(StoredBatchInfo(&self.last_committed_l1_batch));
+impl Tokenize for CommitBatches {
+    fn into_tokens(self) -> Vec<Token> {
+        let stored_batch_info = StoredBatchInfo(&self.last_committed_l1_batch).into_token();
         let l1_batches_to_commit = self
             .l1_batches
             .iter()
-            .map(|batch| Token::from(CommitBatchInfo(batch)))
+            .map(|batch| CommitBatchInfo(batch).into_token())
             .collect();
 
         vec![stored_batch_info, Token::Array(l1_batches_to_commit)]

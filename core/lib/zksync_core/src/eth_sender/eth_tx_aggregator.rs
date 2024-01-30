@@ -5,7 +5,7 @@ use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::{BoundEthInterface, CallFunctionArgs};
-use zksync_l1_contract_interface::{pre_boojum_verifier::old_l1_vk_commitment, ToEthArgs};
+use zksync_l1_contract_interface::{pre_boojum_verifier::old_l1_vk_commitment, Tokenize};
 use zksync_types::{
     contracts::{Multicall3Call, Multicall3Result},
     eth_sender::EthTx,
@@ -406,7 +406,7 @@ impl EthTxAggregator {
 
         // For "commit" and "prove" operations it's necessary that the contracts are of the same version as L1 batches are.
         // For "execute" it's not required, i.e. we can "execute" pre-boojum batches with post-boojum contracts.
-        match &op {
+        match op.clone() {
             AggregatedOperation::Commit(op) => {
                 assert_eq!(contracts_are_pre_boojum, operation_is_pre_boojum);
                 let f = if contracts_are_pre_boojum {
@@ -417,7 +417,7 @@ impl EthTxAggregator {
                         .as_ref()
                         .expect("Missing ABI for commitBatches")
                 };
-                f.encode_input(&op.to_eth_args())
+                f.encode_input(&op.into_tokens())
                     .expect("Failed to encode commit transaction data")
             }
             AggregatedOperation::PublishProofOnchain(op) => {
@@ -430,7 +430,7 @@ impl EthTxAggregator {
                         .as_ref()
                         .expect("Missing ABI for proveBatches")
                 };
-                f.encode_input(&op.to_eth_args())
+                f.encode_input(&op.into_tokens())
                     .expect("Failed to encode prove transaction data")
             }
             AggregatedOperation::Execute(op) => {
@@ -442,7 +442,7 @@ impl EthTxAggregator {
                         .as_ref()
                         .expect("Missing ABI for executeBatches")
                 };
-                f.encode_input(&op.to_eth_args())
+                f.encode_input(&op.into_tokens())
                     .expect("Failed to encode execute transaction data")
             }
         }

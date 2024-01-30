@@ -2,30 +2,16 @@
 //!
 //! Provides utilities both to encode input data for the contract and to decode
 //! the data provided by the contract.
+//!
+//! This crate utilizes traits provided by the `web3` crate to encode and decode
+//! data. `Tokenizable` trait represents items that are encoded via single `Token`,
+//! while `Tokenize` trait represents items that are encoded via array of `Token`s
+//! (for example, transaction input).
 
-use zksync_types::ethabi;
+pub use zksync_types::web3::contract::tokens::{Tokenizable, Tokenize};
 
 /// Rust interface for `IExector.sol`.
 pub mod i_executor;
 /// Utilities for interacting with the old verifier contract.
-/// Reuired for backward compatibility only.
+/// Required for backward compatibility only.
 pub mod pre_boojum_verifier;
-
-/// Allows to encode the input data as smart contract input.
-///
-/// Should not be used for types that logically represent a single token
-/// (e.g. Solidity structures), use `From` trait for that.
-pub trait ToEthArgs {
-    fn to_eth_args(&self) -> Vec<ethabi::Token>;
-}
-
-/// Allows to decode the input data from the smart contract input.
-pub trait FromTokens {
-    /// The error type that can be returned during the decoding.
-    type Error;
-
-    /// Decodes the data from the `ethabi::Token` representation.
-    fn from_tokens(tokens: &[ethabi::Token]) -> Result<Self, Self::Error>
-    where
-        Self: Sized;
-}
