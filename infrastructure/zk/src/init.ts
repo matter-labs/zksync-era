@@ -12,6 +12,8 @@ import * as run from './run/run';
 import * as server from './server';
 import { up } from './up';
 
+import * as fs from 'fs';
+
 const entry = chalk.bold.yellow;
 const announce = chalk.yellow;
 const success = chalk.green;
@@ -27,7 +29,9 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
         validiumMode
     } = initArgs;
 
-    process.env.VALIDIUM_MODE = validiumMode.toString();
+    let envFileContent = fs.readFileSync(process.env.ENV_FILE!).toString();
+    envFileContent += `VALIDIUM_MODE=${validiumMode}\n`;
+    fs.writeFileSync(process.env.ENV_FILE!, envFileContent);
     await announced(`Initializing in ${validiumMode ? 'Validium mode' : 'Roll-up mode'}`);
 
     if (!process.env.CI && !skipEnvSetup) {
@@ -184,7 +188,7 @@ export const initCommand = new Command('init')
             governorPrivateKeyArgs: [],
             deployerL2ContractInput: { args: [], includePaymaster: true, includeL2WETH: true },
             testTokens: { deploy: true, args: [] },
-            validiumMode: cmd.validiumMode
+            validiumMode: cmd.validiumMode !== undefined ? cmd.validiumMode : false
         };
         await init(initArgs);
     });
