@@ -7,6 +7,9 @@ use zksync_types::ethabi;
 
 /// Rust interface for `IExector.sol`.
 pub mod i_executor;
+/// Utilities for interacting with the old verifier contract.
+/// Reuired for backward compatibility only.
+pub mod pre_boojum_verifier;
 
 /// Allows to encode the input data as smart contract input.
 ///

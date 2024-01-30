@@ -5,13 +5,12 @@ use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::{BoundEthInterface, CallFunctionArgs};
-use zksync_l1_contract_interface::ToEthArgs;
+use zksync_l1_contract_interface::{pre_boojum_verifier::old_l1_vk_commitment, ToEthArgs};
 use zksync_types::{
     contracts::{Multicall3Call, Multicall3Result},
     eth_sender::EthTx,
     ethabi::{Contract, Token},
     protocol_version::{L1VerifierConfig, VerifierParams},
-    vk_transform::l1_vk_commitment,
     web3::contract::{
         tokens::{Detokenize, Tokenizable},
         Error,
@@ -311,7 +310,7 @@ impl EthTxAggregator {
                 .for_contract(verifier_address, abi);
 
             let vk = self.eth_client.call_contract_function(args).await?;
-            Ok(l1_vk_commitment(Token::from_tokens(vk)?))
+            Ok(old_l1_vk_commitment(Token::from_tokens(vk)?))
         } else {
             let get_vk_hash = self.functions.verification_key_hash.as_ref();
             tracing::debug!("Calling verificationKeyHash");

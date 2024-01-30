@@ -8732,6 +8732,7 @@ name = "zksync_l1_contract_interface"
 version = "0.1.0"
 dependencies = [
  "codegen 0.1.0",
+ "zkevm_test_harness 1.3.3",
  "zksync_prover_interface",
  "zksync_types",
 ]
@@ -9020,7 +9021,6 @@ dependencies = [
  "strum",
  "thiserror",
  "tokio",
- "zkevm_test_harness 1.3.3",
  "zksync_basic_types",
  "zksync_config",
  "zksync_contracts",

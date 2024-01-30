@@ -54,7 +54,6 @@ pub mod helpers;
 pub mod proto;
 pub mod transaction_request;
 pub mod utils;
-pub mod vk_transform;
 pub mod vm_version;
 
 /// Denotes the first byte of the special zkSync's EIP-712-signed transaction.
