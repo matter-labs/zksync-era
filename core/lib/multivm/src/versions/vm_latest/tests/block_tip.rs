@@ -1,12 +1,10 @@
-use std::{borrow::BorrowMut, num};
+use std::borrow::BorrowMut;
 
 use ethabi::Token;
-use itertools::Itertools;
 use zk_evm_1_4_1::{
     aux_structures::Timestamp, zkevm_opcode_defs::system_params::MAX_PUBDATA_PER_BLOCK,
 };
 use zksync_contracts::load_sys_contract;
-use zksync_state::{InMemoryStorage, StorageView};
 use zksync_system_constants::{
     CONTRACT_FORCE_DEPLOYER_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS,
 };
@@ -18,13 +16,10 @@ use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u25
 
 use super::utils::{get_complex_upgrade_abi, read_complex_upgrade};
 use crate::{
-    interface::{ExecutionResult, Halt, TxExecutionMode, VmExecutionMode, VmInterface},
+    interface::{TxExecutionMode, VmExecutionMode, VmInterface},
     vm_latest::{
-        constants::{BOOTLOADER_BATCH_TIP_OVERHEAD, BOOTLOADER_HEAP_PAGE},
-        tests::{
-            tester::{get_empty_storage, InMemoryStorageView, VmTesterBuilder},
-            utils::{get_bootloader, verify_required_memory, BASE_SYSTEM_CONTRACTS},
-        },
+        constants::BOOTLOADER_BATCH_TIP_OVERHEAD,
+        tests::tester::{get_empty_storage, InMemoryStorageView, VmTesterBuilder},
         tracers::PubdataTracer,
         HistoryEnabled, TracerDispatcher,
     },

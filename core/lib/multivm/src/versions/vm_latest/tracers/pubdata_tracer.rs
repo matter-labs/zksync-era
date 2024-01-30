@@ -59,6 +59,7 @@ impl<S: WriteStorage> PubdataTracer<S> {
 
     // Creates the pubdata tracer with constant state diffs.
     // To be used in tests only.
+    #[cfg(test)]
     pub(crate) fn new_with_forced_state_diffs(
         l1_batch_env: L1BatchEnv,
         execution_mode: VmExecutionMode,
