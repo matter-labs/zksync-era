@@ -2,13 +2,11 @@ use std::{collections::HashMap, ops, time::Instant};
 
 use sqlx::{types::chrono::Utc, Row};
 use zksync_types::{
-    get_code_key,
-    snapshots::{SnapshotStorageLog, StorageLogDbRow},
-    AccountTreeId, Address, L1BatchNumber, MiniblockNumber, StorageKey, StorageLog,
-    FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H160, H256,
+    get_code_key, snapshots::SnapshotStorageLog, AccountTreeId, Address, L1BatchNumber,
+    MiniblockNumber, StorageKey, StorageLog, FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H160, H256,
 };
 
-pub use crate::models::storage_log::StorageRecoveryLogEntry;
+pub use crate::models::storage_log::{DbStorageLog, StorageRecoveryLogEntry};
 use crate::{instrument::InstrumentExt, StorageProcessor};
 
 #[derive(Debug)]
@@ -546,7 +544,7 @@ impl StorageLogsDal<'_, '_> {
     }
 
     /// Retrieves all storage log entries for testing purposes.
-    pub async fn dump_all_storage_logs_for_tests(&mut self) -> Vec<StorageLogDbRow> {
+    pub async fn dump_all_storage_logs_for_tests(&mut self) -> Vec<DbStorageLog> {
         let rows = sqlx::query!(
             r#"
             SELECT
@@ -564,8 +562,9 @@ impl StorageLogsDal<'_, '_> {
         .fetch_all(self.storage.conn())
         .await
         .expect("get_all_storage_logs_for_tests");
+
         rows.into_iter()
-            .map(|row| StorageLogDbRow {
+            .map(|row| DbStorageLog {
                 hashed_key: H256::from_slice(&row.hashed_key),
                 address: H160::from_slice(&row.address),
                 key: H256::from_slice(&row.key),

@@ -215,14 +215,12 @@ mod snapshots_applier_tests {
             .storage_logs_dedup_dal()
             .dump_all_initial_writes_for_tests()
             .await;
-
         assert_eq!(all_initial_writes.len(), all_snapshot_storage_logs.len());
 
         let all_storage_logs = storage
             .storage_logs_dal()
             .dump_all_storage_logs_for_tests()
             .await;
-
         assert_eq!(all_storage_logs.len(), all_snapshot_storage_logs.len());
     }
 }
