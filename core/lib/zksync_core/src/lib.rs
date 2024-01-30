@@ -36,6 +36,9 @@ use zksync_queued_job_processor::JobProcessor;
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{
     fee_model::FeeModelConfig,
+    l1_batch_committer::{
+        L1BatchCommitter, RollupModeL1BatchCommitter, ValidiumModeL1BatchCommitter,
+    },
     protocol_version::{L1VerifierConfig, VerifierParams},
     system_contracts::get_system_smart_contracts,
     web3::contract::tokens::Detokenize,
@@ -52,7 +55,6 @@ use crate::{
         web3::{state::InternalApiConfig, ApiServerHandles, Namespace},
     },
     basic_witness_input_producer::BasicWitnessInputProducer,
-    eth_sender::data_provider::{DataProvider, Rollup, Validium},
     eth_sender::{Aggregator, EthTxAggregator, EthTxManager},
     eth_watch::start_eth_watch,
     house_keeper::{
@@ -551,19 +553,24 @@ pub async fn initialize_components(
         let eth_client =
             PKSigningClient::from_config(&eth_sender, &contracts_config, &eth_client_config);
         let nonce = eth_client.pending_nonce("eth_sender").await.unwrap();
-        let data_provider = Validium {};
+        let l1_batch_committer: Arc<dyn L1BatchCommitter> =
+            if std::env::var("VALIDIUM_MODE") == Ok("true".to_owned()) {
+                Arc::new(ValidiumModeL1BatchCommitter {})
+            } else {
+                Arc::new(RollupModeL1BatchCommitter {})
+            };
         let eth_tx_aggregator_actor = EthTxAggregator::new(
             eth_sender.sender.clone(),
             Aggregator::new(
                 eth_sender.sender.clone(),
                 store_factory.create_store().await,
+                l1_batch_committer,
             ),
             Arc::new(eth_client),
             contracts_config.validator_timelock_addr,
             contracts_config.l1_multicall3_addr,
             main_zksync_contract_address,
             nonce.as_u64(),
-            data_provider,
         );
         task_futures.push(tokio::spawn(
             eth_tx_aggregator_actor.run(eth_sender_pool, stop_receiver.clone()),
