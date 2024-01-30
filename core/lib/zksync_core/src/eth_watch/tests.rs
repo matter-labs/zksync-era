@@ -7,7 +7,10 @@ use zksync_types::{
     ethabi::{encode, Hash, Token},
     l1::{L1Tx, OpProcessingType, PriorityQueueType},
     protocol_version::{ProtocolUpgradeTx, ProtocolUpgradeTxCommonData},
-    web3::types::{Address, BlockNumber, Log},
+    web3::{
+        signing::keccak256,
+        types::{Address, BlockNumber, Log},
+    },
     Execute, L1TxCommonData, PriorityOpId, ProtocolUpgrade, ProtocolVersion, ProtocolVersionId,
     Transaction, H256, U256,
 };
@@ -196,11 +199,11 @@ fn build_l1_tx(serial_id: u64, eth_block: u64) -> L1Tx {
 }
 
 fn build_upgrade_tx(id: ProtocolVersionId, eth_block: u64) -> ProtocolUpgradeTx {
-    ProtocolUpgradeTx {
+    let mut tx = ProtocolUpgradeTx {
         execute: Execute {
             contract_address: Address::repeat_byte(0x11),
             calldata: vec![1, 2, 3],
-            factory_deps: None,
+            factory_deps: Some(Vec::new()),
             value: U256::zero(),
         },
         common_data: ProtocolUpgradeTxCommonData {
@@ -216,7 +219,10 @@ fn build_upgrade_tx(id: ProtocolVersionId, eth_block: u64) -> ProtocolUpgradeTx 
             canonical_tx_hash: H256::from_low_u64_be(id as u64),
         },
         received_timestamp_ms: 0,
-    }
+    };
+
+    tx.common_data.canonical_tx_hash = H256(keccak256(&encode(&[tx_into_token(tx.clone())])));
+    tx
 }
 
 #[tokio::test]
@@ -544,9 +550,11 @@ async fn test_overlapping_batches() {
 
 #[tokio::test]
 async fn test_set_chain_id_upgrade() {
+    let protocol_version = ProtocolVersionId::latest();
     let diamond_proxy_address = Address::repeat_byte(0x18);
     let connection_pool = ConnectionPool::test_pool().await;
     setup_db(&connection_pool).await;
+    let mut storage = connection_pool.access_storage().await.unwrap();
 
     let mut client = FakeEthClient::new();
     let mut watcher = EthWatch::new(
@@ -558,16 +566,33 @@ async fn test_set_chain_id_upgrade() {
     )
     .await;
 
-    let tx_hash = H256::random();
-    let mut upgrade_tx = build_upgrade_tx(ProtocolVersionId::latest(), 18);
-    upgrade_tx.common_data.canonical_tx_hash = tx_hash;
+    // Set initial protocol version
+    storage
+        .protocol_versions_dal()
+        .save_protocol_version(
+            protocol_version,
+            0,
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            None,
+        )
+        .await;
 
-    let mut storage = connection_pool.access_storage().await.unwrap();
+    assert_eq!(
+        storage
+            .protocol_versions_dal()
+            .get_protocol_upgrade_tx(protocol_version)
+            .await,
+        None
+    );
+
+    let tx = build_upgrade_tx(protocol_version, 18);
     client
         .add_set_chain_id_upgrade(
             ProtocolUpgrade {
-                id: ProtocolVersionId::next(),
-                tx: Some(upgrade_tx.clone()),
+                id: protocol_version,
+                tx: Some(tx.clone()),
                 ..Default::default()
             },
             18,
@@ -576,16 +601,14 @@ async fn test_set_chain_id_upgrade() {
 
     client.set_last_finalized_block_number(18).await;
     watcher.loop_iteration(&mut storage).await.unwrap();
-    let db_txs = get_all_db_txs(&mut storage).await;
-    assert!(db_txs.contains(&upgrade_tx.into()));
 
-    let protocol_upgrade_tx = storage
+    let upgrade_tx = storage
         .protocol_versions_dal()
-        .get_protocol_upgrade_tx(ProtocolVersionId::latest())
+        .get_protocol_upgrade_tx(protocol_version)
         .await
         .unwrap();
 
-    assert_eq!(protocol_upgrade_tx.common_data.hash(), tx_hash);
+    assert_eq!(tx.common_data.hash(), upgrade_tx.common_data.hash());
 }
 
 async fn get_all_db_txs(storage: &mut StorageProcessor<'_>) -> Vec<Transaction> {
@@ -670,18 +693,19 @@ fn upgrade_into_diamond_proxy_log(upgrade: ProtocolUpgrade, eth_block: u64) -> L
 }
 
 fn upgrade_into_set_chain_id_log(upgrade: ProtocolUpgrade, eth_block: u64) -> Log {
-    let data = encode(&[tx_into_token(upgrade.tx.unwrap())]);
+    let tx = upgrade.tx.unwrap();
+    let data = encode(&[tx_into_token(tx.clone())]);
     Log {
         address: Address::repeat_byte(0x1),
         topics: vec![
             SET_CHAIN_ID_EVENT.signature(),
             Address::repeat_byte(0x18).into(), // diamond proxy address
-            H256::from_low_u64_be(ProtocolVersionId::latest() as u64).into(),
+            H256::from_low_u64_be(ProtocolVersionId::latest() as u64),
         ],
         data: data.into(),
         block_hash: Some(H256::repeat_byte(0x11)),
         block_number: Some(eth_block.into()),
-        transaction_hash: Some(H256::random()),
+        transaction_hash: Some([2; 32].into()),
         transaction_index: Some(0u64.into()),
         log_index: Some(0u64.into()),
         transaction_log_index: Some(0u64.into()),

@@ -570,101 +570,82 @@ pub static SET_CHAIN_ID_EVENT: Lazy<Event> = Lazy::new(|| {
       "inputs": [
         {
           "indexed": true,
-          "internalType": "address",
           "name": "_stateTransitionChain",
           "type": "address"
         },
         {
           "components": [
             {
-              "internalType": "uint256",
               "name": "txType",
               "type": "uint256"
             },
             {
-              "internalType": "uint256",
               "name": "from",
               "type": "uint256"
             },
             {
-              "internalType": "uint256",
               "name": "to",
               "type": "uint256"
             },
             {
-              "internalType": "uint256",
               "name": "gasLimit",
               "type": "uint256"
             },
             {
-              "internalType": "uint256",
               "name": "gasPerPubdataByteLimit",
               "type": "uint256"
             },
             {
-              "internalType": "uint256",
               "name": "maxFeePerGas",
               "type": "uint256"
             },
             {
-              "internalType": "uint256",
               "name": "maxPriorityFeePerGas",
               "type": "uint256"
             },
             {
-              "internalType": "uint256",
               "name": "paymaster",
               "type": "uint256"
             },
             {
-              "internalType": "uint256",
               "name": "nonce",
               "type": "uint256"
             },
             {
-              "internalType": "uint256",
               "name": "value",
               "type": "uint256"
             },
             {
-              "internalType": "uint256[4]",
               "name": "reserved",
               "type": "uint256[4]"
             },
             {
-              "internalType": "bytes",
               "name": "data",
               "type": "bytes"
             },
             {
-              "internalType": "bytes",
               "name": "signature",
               "type": "bytes"
             },
             {
-              "internalType": "uint256[]",
               "name": "factoryDeps",
               "type": "uint256[]"
             },
             {
-              "internalType": "bytes",
               "name": "paymasterInput",
               "type": "bytes"
             },
             {
-              "internalType": "bytes",
               "name": "reservedDynamic",
               "type": "bytes"
             }
           ],
           "indexed": false,
-          "internalType": "struct L2CanonicalTransaction",
           "name": "_l2Transaction",
           "type": "tuple"
         },
         {
           "indexed": true,
-          "internalType": "uint256",
           "name": "_protocolVersion",
           "type": "uint256"
         }

@@ -28,7 +28,7 @@ use zksync_contracts::{governance_contract, BaseSystemContracts};
 use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
 use zksync_eth_client::{
     clients::{PKSigningClient, QueryClient},
-    BoundEthInterface, CallFunctionArgs, EthInterface,
+    CallFunctionArgs, EthInterface,
 };
 use zksync_health_check::{CheckHealth, HealthStatus, ReactiveHealthCheck};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
@@ -552,7 +552,6 @@ pub async fn initialize_components(
             .context("eth_sender_config")?;
         let eth_client =
             PKSigningClient::from_config(&eth_sender, &contracts_config, &eth_client_config);
-        let nonce = eth_client.pending_nonce("eth_sender").await.unwrap();
         let eth_tx_aggregator_actor = EthTxAggregator::new(
             eth_sender.sender.clone(),
             Aggregator::new(
@@ -563,13 +562,13 @@ pub async fn initialize_components(
             contracts_config.validator_timelock_addr,
             contracts_config.l1_multicall3_addr,
             main_zksync_contract_address,
-            nonce.as_u64(),
             configs
                 .network_config
                 .as_ref()
                 .context("netowrk_config")?
                 .zksync_network_id,
-        );
+        )
+        .await;
         task_futures.push(tokio::spawn(
             eth_tx_aggregator_actor.run(eth_sender_pool, stop_receiver.clone()),
         ));

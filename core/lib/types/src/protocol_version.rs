@@ -670,7 +670,7 @@ impl ProtocolVersion {
     }
 }
 
-#[derive(Default, Debug, Clone, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProtocolUpgradeTxCommonData {
     /// Sender of the transaction.
@@ -705,7 +705,7 @@ impl ProtocolUpgradeTxCommonData {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ProtocolUpgradeTx {
     pub execute: Execute,
     pub common_data: ProtocolUpgradeTxCommonData,

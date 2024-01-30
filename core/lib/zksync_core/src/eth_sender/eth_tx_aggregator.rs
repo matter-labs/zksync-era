@@ -54,17 +54,21 @@ pub struct EthTxAggregator {
 }
 
 impl EthTxAggregator {
-    pub fn new(
+    pub async fn new(
         config: SenderConfig,
         aggregator: Aggregator,
         eth_client: Arc<dyn BoundEthInterface>,
         timelock_contract_address: Address,
         l1_multicall3_address: Address,
         main_zksync_contract_address: Address,
-        base_nonce: u64,
         rollup_chain_id: L2ChainId,
     ) -> Self {
         let functions = ZkSyncFunctions::default();
+        let base_nonce = eth_client
+            .pending_nonce("eth_sender")
+            .await
+            .unwrap()
+            .as_u64();
         Self {
             config,
             aggregator,

@@ -110,9 +110,9 @@ impl EthSenderTester {
             Address::random(),
             contracts_config.l1_multicall3_addr,
             Address::random(),
-            0,
             270.into(),
-        );
+        )
+        .await;
 
         let manager = EthTxManager::new(
             eth_sender_config.sender,
@@ -955,7 +955,7 @@ async fn send_operation(
         .save_eth_tx(
             &mut tester.conn.access_storage().await.unwrap(),
             &aggregated_operation,
-            false,
+            true,
         )
         .await
         .unwrap();
