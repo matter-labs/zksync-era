@@ -119,6 +119,9 @@ impl ProtoRepr for proto::Web3JsonRpc {
                 .transpose()
                 .context("websocket_requests_per_minute_limit")?,
             tree_api_url: self.tree_api_url.clone(),
+            api_eth_transfer_events: required(&self.api_eth_transfer_events)
+                .map(|x| (*x).try_into().unwrap())
+                .context("api_eth_transfer_events")?,
         })
     }
     fn build(this: &Self::Type) -> Self {
@@ -167,6 +170,7 @@ impl ProtoRepr for proto::Web3JsonRpc {
                 .websocket_requests_per_minute_limit
                 .map(|x| x.into()),
             tree_api_url: this.tree_api_url.clone(),
+            api_eth_transfer_events: Some(this.api_eth_transfer_events.clone().into()),
         }
     }
 }

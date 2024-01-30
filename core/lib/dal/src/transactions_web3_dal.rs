@@ -167,9 +167,7 @@ impl TransactionsWeb3Dal<'_, '_> {
 
                     let logs = db_logs
                         .into_iter()
-                        .filter_map(|log| {
-                            log.maybe_into_extended_storage_log(api_eth_transfer_events)
-                        })
+                        .filter_map(|log| log.into_api_log(api_eth_transfer_events))
                         .map(|storage_log| {
                             let mut log = api::Log::from(storage_log);
                             log.block_hash = Some(receipt.block_hash);

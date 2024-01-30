@@ -96,23 +96,16 @@ async fn are_event_indexes_migrated(
         .events_dal()
         .are_event_indexes_migrated(range.clone())
         .await
-        .with_context(|| {
-            format!(
-                "Failed getting event indexes for miniblocks in range #{}..=#{}",
-                range.start().0,
-                range.end().0
-            )
-        })
+        .with_context(|| format!("Failed getting event indexes for miniblocks in range {range:?}"))
 }
 
 #[cfg(test)]
 mod tests {
-    use multivm::zk_evm_1_3_1::ethereum_types::H256;
     use test_casing::test_casing;
     use zksync_system_constants::{L2_ETH_TOKEN_ADDRESS, TRANSFER_EVENT_TOPIC};
     use zksync_types::{
         api::GetLogsFilter, tx::IncludedTxLocation, Address, L1BatchNumber, ProtocolVersion,
-        VmEvent,
+        VmEvent, H256,
     };
 
     use super::*;

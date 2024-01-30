@@ -83,17 +83,14 @@ impl EventsWeb3Dal<'_, '_> {
         limit: usize,
         api_eth_transfer_events: ApiEthTransferEvents,
     ) -> Result<Vec<Log>, SqlxError> {
-        {
-            let logs = self
-                .get_raw_logs(filter, limit)
-                .await?
-                .into_iter()
-                .filter_map(|log| log.maybe_into_extended_storage_log(api_eth_transfer_events))
-                .map(Into::into)
-                .collect();
+        let logs = self
+            .get_raw_logs(filter, limit)
+            .await?
+            .into_iter()
+            .filter_map(|log| log.into_api_log(api_eth_transfer_events))
+            .collect();
 
-            Ok(logs)
-        }
+        Ok(logs)
     }
 
     // Return raw extended logs for a given filter.
@@ -232,8 +229,7 @@ impl EventsWeb3Dal<'_, '_> {
 
             let logs = db_logs
                 .into_iter()
-                .filter_map(|log| log.maybe_into_extended_storage_log(api_eth_transfer_events))
-                .map(Into::into)
+                .filter_map(|log| log.into_api_log(api_eth_transfer_events))
                 .collect();
 
             Ok(logs)

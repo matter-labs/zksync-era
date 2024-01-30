@@ -177,7 +177,6 @@ impl PubSubNotifier {
     async fn notify_logs(
         self,
         stop_receiver: watch::Receiver<bool>,
-
         api_eth_transfer_events: ApiEthTransferEvents,
     ) -> anyhow::Result<()> {
         let mut last_block_number = self.get_starting_miniblock_number().await?;

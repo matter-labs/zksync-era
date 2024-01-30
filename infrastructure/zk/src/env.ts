@@ -162,19 +162,19 @@ export function checkEthTransferEvents() {
 export function getEthTransferEvents(print: boolean) {
     checkEthTransferEvents();
 
-    const EthTransferEvents =
+    const ethTransferEvents =
         process.env.EN_API_ETH_TRANSFER_EVENTS ?? process.env.API_WEB3_JSON_RPC_API_ETH_TRANSFER_EVENTS;
 
     if (print) {
         const modes = getAvailableEthTransferEvents();
 
-        if (!EthTransferEvents || !modes.includes(EthTransferEvents)) {
+        if (!ethTransferEvents || !modes.includes(ethTransferEvents)) {
             console.error('Unknown api mode or api mode is not set.\nPlease, check your .env files.');
             process.exit(1);
         }
 
         for (const mode of modes) {
-            if (mode === EthTransferEvents) {
+            if (mode === ethTransferEvents) {
                 console.log(`* ${mode}`);
             } else {
                 console.log(`  ${mode}`);
@@ -182,7 +182,7 @@ export function getEthTransferEvents(print: boolean) {
         }
     }
 
-    return EthTransferEvents;
+    return ethTransferEvents;
 }
 
 export function setEthTransferEvents(mode: string, print: boolean) {

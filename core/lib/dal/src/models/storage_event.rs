@@ -25,68 +25,51 @@ pub struct StorageWeb3Log {
 }
 
 impl StorageWeb3Log {
-    pub fn maybe_into_extended_storage_log(
-        self,
-        api_eth_transfer_events: ApiEthTransferEvents,
-    ) -> Option<ExtendedStorageWeb3Log> {
+    pub fn into_api_log(self, api_eth_transfer_events: ApiEthTransferEvents) -> Option<Log> {
         if api_eth_transfer_events == ApiEthTransferEvents::Disabled
             && self.address == L2_ETH_TOKEN_ADDRESS.as_bytes()
             && self.topic1 == TRANSFER_EVENT_TOPIC.as_bytes()
         {
             None
         } else {
-            Some(ExtendedStorageWeb3Log(
-                self.clone(),
-                api_eth_transfer_events,
-            ))
-        }
-    }
-}
+            let event_index_in_block = match api_eth_transfer_events {
+                ApiEthTransferEvents::Enabled => self.event_index_in_block,
+                ApiEthTransferEvents::Disabled => self
+                    .event_index_in_block_without_eth_transfer
+                    .expect("indexes without ETH Transfer were not assigned"),
+            };
+            let event_index_in_tx = match api_eth_transfer_events {
+                ApiEthTransferEvents::Enabled => self.event_index_in_tx,
+                ApiEthTransferEvents::Disabled => self
+                    .event_index_in_tx_without_eth_transfer
+                    .expect("indexes without ETH Transfer were not assigned"),
+            };
 
-pub struct ExtendedStorageWeb3Log(pub StorageWeb3Log, pub ApiEthTransferEvents);
+            let topics = vec![self.topic1, self.topic2, self.topic3, self.topic4]
+                .into_iter()
+                .filter_map(|topic| {
+                    if !topic.is_empty() {
+                        Some(H256::from_slice(&topic))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
 
-impl From<ExtendedStorageWeb3Log> for Log {
-    fn from(log_with_transfer_events_mode: ExtendedStorageWeb3Log) -> Log {
-        let log = log_with_transfer_events_mode.0;
-        let api_eth_transfer_events = log_with_transfer_events_mode.1;
-
-        let event_index_in_block = match api_eth_transfer_events {
-            ApiEthTransferEvents::Enabled => log.event_index_in_block,
-            ApiEthTransferEvents::Disabled => {
-                log.event_index_in_block_without_eth_transfer.unwrap_or(0)
-            }
-        };
-        let event_index_in_tx = match api_eth_transfer_events {
-            ApiEthTransferEvents::Enabled => log.event_index_in_tx,
-            ApiEthTransferEvents::Disabled => {
-                log.event_index_in_tx_without_eth_transfer.unwrap_or(0)
-            }
-        };
-
-        let topics = vec![log.topic1, log.topic2, log.topic3, log.topic4]
-            .into_iter()
-            .filter_map(|topic| {
-                if !topic.is_empty() {
-                    Some(H256::from_slice(&topic))
-                } else {
-                    None
-                }
+            Some(Log {
+                address: Address::from_slice(&self.address),
+                topics,
+                data: Bytes(self.value),
+                block_hash: self.block_hash.map(|hash| H256::from_slice(&hash)),
+                block_number: Some(U64::from(self.miniblock_number as u32)),
+                l1_batch_number: self.l1_batch_number.map(U64::from),
+                transaction_hash: Some(H256::from_slice(&self.tx_hash)),
+                transaction_index: Some(Index::from(self.tx_index_in_block as u32)),
+                log_index: Some(U256::from(event_index_in_block as u32)),
+                transaction_log_index: Some(U256::from(event_index_in_tx as u32)),
+                log_type: None,
+                removed: Some(false),
             })
-            .collect();
-
-        Log {
-            address: Address::from_slice(&log.address),
-            topics,
-            data: Bytes(log.value),
-            block_hash: log.block_hash.map(|hash| H256::from_slice(&hash)),
-            block_number: Some(U64::from(log.miniblock_number as u32)),
-            l1_batch_number: log.l1_batch_number.map(U64::from),
-            transaction_hash: Some(H256::from_slice(&log.tx_hash)),
-            transaction_index: Some(Index::from(log.tx_index_in_block as u32)),
-            log_index: Some(U256::from(event_index_in_block as u32)),
-            transaction_log_index: Some(U256::from(event_index_in_tx as u32)),
-            log_type: None,
-            removed: Some(false),
         }
     }
 }

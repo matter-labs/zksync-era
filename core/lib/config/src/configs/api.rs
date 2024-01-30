@@ -253,7 +253,26 @@ impl MerkleTreeApiConfig {
 #[derive(Copy, Clone, Debug, PartialEq, Default, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ApiEthTransferEvents {
-    #[default]
     Disabled,
+    #[default]
     Enabled,
+}
+
+impl From<u32> for ApiEthTransferEvents {
+    fn from(value: u32) -> Self {
+        match value {
+            0 => Self::Disabled,
+            1 => Self::Enabled,
+            _ => panic!("Invalid value for ApiEthTransferEvents"),
+        }
+    }
+}
+
+impl Into<u32> for ApiEthTransferEvents {
+    fn into(self) -> u32 {
+        match self {
+            Self::Disabled => 0,
+            Self::Enabled => 1,
+        }
+    }
 }
