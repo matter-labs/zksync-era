@@ -167,7 +167,7 @@ function montgomeryMul(multiplicand, multiplier) -> ret {
 
 ```solidity
 /// @notice Computes the Montgomery modular inverse skipping the Montgomery reduction step.
-/// @dev The Montgomery reduction step is skept because a modification in the binary extended Euclidean algorithm is used to compute the modular inverse.
+/// @dev The Montgomery reduction step is skipped because a modification in the binary extended Euclidean algorithm is used to compute the modular inverse.
 /// @dev See the function `binaryExtendedEuclideanAlgorithm` for further details.
 /// @param a The field element in Montgomery form to compute the modular inverse of.
 /// @return invmod The result of the Montgomery modular inverse (in Montgomery form).
