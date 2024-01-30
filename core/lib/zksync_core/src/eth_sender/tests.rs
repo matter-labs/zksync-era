@@ -17,6 +17,7 @@ use zksync_types::{
     commitment::{L1BatchMetaParameters, L1BatchMetadata, L1BatchWithMetadata},
     ethabi::Token,
     helpers::unix_timestamp_ms,
+    l1_batch_committer::{L1BatchCommitter, RollupModeL1BatchCommitter},
     web3::contract::Error,
     Address, L1BatchNumber, L1BlockNumber, ProtocolVersionId, H256,
 };
@@ -28,8 +29,6 @@ use crate::{
     l1_gas_price::GasAdjuster,
     utils::testonly::create_l1_batch,
 };
-
-use super::data_provider::{DataProvider, Rollup, Validium};
 
 // Alias to conveniently call static methods of `ETHSender`.
 type MockEthTxManager = EthTxManager;
@@ -45,21 +44,15 @@ static DUMMY_OPERATION: Lazy<AggregatedOperation> = Lazy::new(|| {
 });
 
 #[derive(Debug)]
-struct EthSenderTester<T>
-where
-    T: DataProvider,
-{
+struct EthSenderTester {
     conn: ConnectionPool,
     gateway: Arc<MockEthereum>,
     manager: MockEthTxManager,
-    aggregator: EthTxAggregator<T>,
+    aggregator: EthTxAggregator,
     gas_adjuster: Arc<GasAdjuster<Arc<MockEthereum>>>,
 }
 
-impl<T> EthSenderTester<T>
-where
-    T: DataProvider,
-{
+impl EthSenderTester {
     const WAIT_CONFIRMATIONS: u64 = 10;
     const MAX_BASE_FEE_SAMPLES: usize = 3;
 
@@ -67,6 +60,7 @@ where
         connection_pool: ConnectionPool,
         history: Vec<u64>,
         non_ordering_confirmations: bool,
+        l1_batch_committer: Arc<dyn L1BatchCommitter>,
     ) -> Self {
         let eth_sender_config = ETHSenderConfig::for_tests();
         let contracts_config = ContractsConfig::for_tests();
@@ -102,9 +96,8 @@ where
             .unwrap(),
         );
         let store_factory = ObjectStoreFactory::mock();
-        let data_provider = Validium {};
 
-        let aggregator = EthTxAggregator::<DataProvider>::new(
+        let aggregator = EthTxAggregator::new(
             SenderConfig {
                 proof_sending_mode: ProofSendingMode::SkipEveryProof,
                 ..eth_sender_config.sender.clone()
@@ -113,6 +106,7 @@ where
             Aggregator::new(
                 aggregator_config.clone(),
                 store_factory.create_store().await,
+                l1_batch_committer,
             ),
             gateway.clone(),
             // zkSync contract address
@@ -120,7 +114,6 @@ where
             contracts_config.l1_multicall3_addr,
             Address::random(),
             0,
-            data_provider,
         );
 
         let manager = EthTxManager::new(
@@ -152,7 +145,14 @@ where
 #[tokio::test]
 async fn confirm_many() -> anyhow::Result<()> {
     let connection_pool = ConnectionPool::test_pool().await;
-    let mut tester = EthSenderTester::new(connection_pool, vec![10; 100], false).await;
+    let l1_batch_committer = Arc::new(RollupModeL1BatchCommitter {});
+    let mut tester = EthSenderTester::new(
+        connection_pool,
+        vec![10; 100],
+        false,
+        l1_batch_committer.clone(),
+    )
+    .await;
 
     let mut hashes = vec![];
 
@@ -228,7 +228,14 @@ async fn confirm_many() -> anyhow::Result<()> {
 #[tokio::test]
 async fn resend_each_block() -> anyhow::Result<()> {
     let connection_pool = ConnectionPool::test_pool().await;
-    let mut tester = EthSenderTester::new(connection_pool, vec![7, 6, 5, 5, 5, 2, 1], false).await;
+    let l1_batch_committer = Arc::new(RollupModeL1BatchCommitter {});
+    let mut tester = EthSenderTester::new(
+        connection_pool,
+        vec![7, 6, 5, 5, 5, 2, 1],
+        false,
+        l1_batch_committer.clone(),
+    )
+    .await;
 
     // after this, median should be 6
     tester.gateway.advance_block_number(3);
@@ -339,7 +346,14 @@ async fn resend_each_block() -> anyhow::Result<()> {
 #[tokio::test]
 async fn dont_resend_already_mined() -> anyhow::Result<()> {
     let connection_pool = ConnectionPool::test_pool().await;
-    let mut tester = EthSenderTester::new(connection_pool, vec![100; 100], false).await;
+    let l1_batch_committer = Arc::new(RollupModeL1BatchCommitter {});
+    let mut tester = EthSenderTester::new(
+        connection_pool,
+        vec![100; 100],
+        false,
+        l1_batch_committer.clone(),
+    )
+    .await;
     let tx = tester
         .aggregator
         .save_eth_tx(
@@ -410,7 +424,14 @@ async fn dont_resend_already_mined() -> anyhow::Result<()> {
 #[tokio::test]
 async fn three_scenarios() -> anyhow::Result<()> {
     let connection_pool = ConnectionPool::test_pool().await;
-    let mut tester = EthSenderTester::new(connection_pool.clone(), vec![100; 100], false).await;
+    let l1_batch_committer = Arc::new(RollupModeL1BatchCommitter {});
+    let mut tester = EthSenderTester::new(
+        connection_pool.clone(),
+        vec![100; 100],
+        false,
+        l1_batch_committer.clone(),
+    )
+    .await;
     let mut hashes = vec![];
 
     for _ in 0..3 {
@@ -482,7 +503,14 @@ async fn three_scenarios() -> anyhow::Result<()> {
 #[tokio::test]
 async fn failed_eth_tx() {
     let connection_pool = ConnectionPool::test_pool().await;
-    let mut tester = EthSenderTester::new(connection_pool.clone(), vec![100; 100], false).await;
+    let l1_batch_committer = Arc::new(RollupModeL1BatchCommitter {});
+    let mut tester = EthSenderTester::new(
+        connection_pool.clone(),
+        vec![100; 100],
+        false,
+        l1_batch_committer.clone(),
+    )
+    .await;
 
     let tx = tester
         .aggregator
@@ -554,7 +582,14 @@ fn l1_batch_with_metadata(header: L1BatchHeader) -> L1BatchWithMetadata {
 #[tokio::test]
 async fn correct_order_for_confirmations() -> anyhow::Result<()> {
     let connection_pool = ConnectionPool::test_pool().await;
-    let mut tester = EthSenderTester::new(connection_pool, vec![100; 100], true).await;
+    let l1_batch_committer = Arc::new(RollupModeL1BatchCommitter {});
+    let mut tester = EthSenderTester::new(
+        connection_pool,
+        vec![100; 100],
+        true,
+        l1_batch_committer.clone(),
+    )
+    .await;
     insert_genesis_protocol_version(&tester).await;
     let genesis_l1_batch = insert_l1_batch(&tester, L1BatchNumber(0)).await;
     let first_l1_batch = insert_l1_batch(&tester, L1BatchNumber(1)).await;
@@ -565,6 +600,7 @@ async fn correct_order_for_confirmations() -> anyhow::Result<()> {
         genesis_l1_batch.clone(),
         first_l1_batch.clone(),
         true,
+        l1_batch_committer.clone(),
     )
     .await;
     prove_l1_batch(
@@ -580,6 +616,7 @@ async fn correct_order_for_confirmations() -> anyhow::Result<()> {
         first_l1_batch.clone(),
         second_l1_batch.clone(),
         true,
+        l1_batch_committer.clone(),
     )
     .await;
     prove_l1_batch(
@@ -615,7 +652,14 @@ async fn correct_order_for_confirmations() -> anyhow::Result<()> {
 #[tokio::test]
 async fn skipped_l1_batch_at_the_start() -> anyhow::Result<()> {
     let connection_pool = ConnectionPool::test_pool().await;
-    let mut tester = EthSenderTester::new(connection_pool, vec![100; 100], true).await;
+    let l1_batch_committer = Arc::new(RollupModeL1BatchCommitter {});
+    let mut tester = EthSenderTester::new(
+        connection_pool,
+        vec![100; 100],
+        true,
+        l1_batch_committer.clone(),
+    )
+    .await;
     insert_genesis_protocol_version(&tester).await;
     let genesis_l1_batch = insert_l1_batch(&tester, L1BatchNumber(0)).await;
     let first_l1_batch = insert_l1_batch(&tester, L1BatchNumber(1)).await;
@@ -626,6 +670,7 @@ async fn skipped_l1_batch_at_the_start() -> anyhow::Result<()> {
         genesis_l1_batch.clone(),
         first_l1_batch.clone(),
         true,
+        l1_batch_committer.clone(),
     )
     .await;
     prove_l1_batch(
@@ -641,6 +686,7 @@ async fn skipped_l1_batch_at_the_start() -> anyhow::Result<()> {
         first_l1_batch.clone(),
         second_l1_batch.clone(),
         true,
+        l1_batch_committer.clone(),
     )
     .await;
     prove_l1_batch(
@@ -660,6 +706,7 @@ async fn skipped_l1_batch_at_the_start() -> anyhow::Result<()> {
         second_l1_batch.clone(),
         third_l1_batch.clone(),
         false,
+        l1_batch_committer.clone(),
     )
     .await;
 
@@ -675,6 +722,7 @@ async fn skipped_l1_batch_at_the_start() -> anyhow::Result<()> {
         third_l1_batch.clone(),
         fourth_l1_batch.clone(),
         true,
+        l1_batch_committer.clone(),
     )
     .await;
     prove_l1_batch(
@@ -708,7 +756,14 @@ async fn skipped_l1_batch_at_the_start() -> anyhow::Result<()> {
 #[tokio::test]
 async fn skipped_l1_batch_in_the_middle() -> anyhow::Result<()> {
     let connection_pool = ConnectionPool::test_pool().await;
-    let mut tester = EthSenderTester::new(connection_pool, vec![100; 100], true).await;
+    let l1_batch_committer = Arc::new(RollupModeL1BatchCommitter {});
+    let mut tester = EthSenderTester::new(
+        connection_pool,
+        vec![100; 100],
+        true,
+        l1_batch_committer.clone(),
+    )
+    .await;
     insert_genesis_protocol_version(&tester).await;
     let genesis_l1_batch = insert_l1_batch(&tester, L1BatchNumber(0)).await;
     let first_l1_batch = insert_l1_batch(&tester, L1BatchNumber(1)).await;
@@ -718,6 +773,7 @@ async fn skipped_l1_batch_in_the_middle() -> anyhow::Result<()> {
         genesis_l1_batch.clone(),
         first_l1_batch.clone(),
         true,
+        l1_batch_committer.clone(),
     )
     .await;
     prove_l1_batch(&mut tester, genesis_l1_batch, first_l1_batch.clone(), true).await;
@@ -727,6 +783,7 @@ async fn skipped_l1_batch_in_the_middle() -> anyhow::Result<()> {
         first_l1_batch.clone(),
         second_l1_batch.clone(),
         true,
+        l1_batch_committer.clone(),
     )
     .await;
     prove_l1_batch(
@@ -745,6 +802,7 @@ async fn skipped_l1_batch_in_the_middle() -> anyhow::Result<()> {
         second_l1_batch.clone(),
         third_l1_batch.clone(),
         false,
+        l1_batch_committer.clone(),
     )
     .await;
 
@@ -760,6 +818,7 @@ async fn skipped_l1_batch_in_the_middle() -> anyhow::Result<()> {
         third_l1_batch.clone(),
         fourth_l1_batch.clone(),
         true,
+        l1_batch_committer.clone(),
     )
     .await;
     prove_l1_batch(
@@ -795,7 +854,14 @@ async fn skipped_l1_batch_in_the_middle() -> anyhow::Result<()> {
 #[tokio::test]
 async fn test_parse_multicall_data() {
     let connection_pool = ConnectionPool::test_pool().await;
-    let tester = EthSenderTester::new(connection_pool, vec![100; 100], false).await;
+    let l1_batch_committer = Arc::new(RollupModeL1BatchCommitter {});
+    let tester = EthSenderTester::new(
+        connection_pool,
+        vec![100; 100],
+        false,
+        l1_batch_committer.clone(),
+    )
+    .await;
 
     let original_correct_form_data = Token::Array(vec![
         Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![1u8; 32])]),
@@ -875,12 +941,19 @@ async fn test_parse_multicall_data() {
 #[tokio::test]
 async fn get_multicall_data() {
     let connection_pool = ConnectionPool::test_pool().await;
-    let mut tester = EthSenderTester::new(connection_pool, vec![100; 100], false).await;
+    let l1_batch_committer = Arc::new(RollupModeL1BatchCommitter {});
+    let mut tester = EthSenderTester::new(
+        connection_pool,
+        vec![100; 100],
+        false,
+        l1_batch_committer.clone(),
+    )
+    .await;
     let multicall_data = tester.aggregator.get_multicall_data().await;
     assert!(multicall_data.is_ok());
 }
 
-async fn insert_genesis_protocol_version<T: DataProvider>(tester: &EthSenderTester<T>) {
+async fn insert_genesis_protocol_version(tester: &EthSenderTester) {
     tester
         .storage()
         .await
@@ -889,10 +962,7 @@ async fn insert_genesis_protocol_version<T: DataProvider>(tester: &EthSenderTest
         .await;
 }
 
-async fn insert_l1_batch<T: DataProvider>(
-    tester: &EthSenderTester<T>,
-    number: L1BatchNumber,
-) -> L1BatchHeader {
+async fn insert_l1_batch(tester: &EthSenderTester, number: L1BatchNumber) -> L1BatchHeader {
     let header = create_l1_batch(number.0);
 
     // Save L1 batch to the database
@@ -918,8 +988,8 @@ async fn insert_l1_batch<T: DataProvider>(
     header
 }
 
-async fn execute_l1_batches<T: DataProvider>(
-    tester: &mut EthSenderTester<T>,
+async fn execute_l1_batches(
+    tester: &mut EthSenderTester,
     l1_batches: Vec<L1BatchHeader>,
     confirm: bool,
 ) -> H256 {
@@ -929,8 +999,8 @@ async fn execute_l1_batches<T: DataProvider>(
     send_operation(tester, operation, confirm).await
 }
 
-async fn prove_l1_batch<T: DataProvider>(
-    tester: &mut EthSenderTester<T>,
+async fn prove_l1_batch(
+    tester: &mut EthSenderTester,
     last_committed_l1_batch: L1BatchHeader,
     l1_batch: L1BatchHeader,
     confirm: bool,
@@ -944,21 +1014,23 @@ async fn prove_l1_batch<T: DataProvider>(
     send_operation(tester, operation, confirm).await
 }
 
-async fn commit_l1_batch<T: DataProvider>(
-    tester: &mut EthSenderTester<T>,
+async fn commit_l1_batch(
+    tester: &mut EthSenderTester,
     last_committed_l1_batch: L1BatchHeader,
     l1_batch: L1BatchHeader,
     confirm: bool,
+    l1_batch_committer: Arc<dyn L1BatchCommitter>,
 ) -> H256 {
     let operation = AggregatedOperation::Commit(L1BatchCommitOperation {
         last_committed_l1_batch: l1_batch_with_metadata(last_committed_l1_batch),
         l1_batches: vec![l1_batch_with_metadata(l1_batch)],
+        l1_batch_committer,
     });
     send_operation(tester, operation, confirm).await
 }
 
-async fn send_operation<T: DataProvider>(
-    tester: &mut EthSenderTester<T>,
+async fn send_operation(
+    tester: &mut EthSenderTester,
     aggregated_operation: AggregatedOperation,
     confirm: bool,
 ) -> H256 {
@@ -989,7 +1061,7 @@ async fn send_operation<T: DataProvider>(
     hash
 }
 
-async fn confirm_tx<T: DataProvider>(tester: &mut EthSenderTester<T>, hash: H256) {
+async fn confirm_tx(tester: &mut EthSenderTester, hash: H256) {
     tester
         .gateway
         .execute_tx(hash, true, EthSenderTester::WAIT_CONFIRMATIONS);
