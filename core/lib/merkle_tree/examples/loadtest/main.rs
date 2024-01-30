@@ -90,13 +90,11 @@ impl Cli {
                 "Created temp dir for RocksDB: {}",
                 dir.path().to_string_lossy()
             );
-            let db = RocksDB::with_options(
-                dir.path(),
-                RocksDBOptions {
-                    block_cache_capacity: self.block_cache,
-                    ..RocksDBOptions::default()
-                },
-            );
+            let db_options = RocksDBOptions {
+                block_cache_capacity: self.block_cache,
+                ..RocksDBOptions::default()
+            };
+            let db = RocksDB::with_options(dir.path(), db_options).unwrap();
             rocksdb = RocksDBWrapper::from(db);
 
             if let Some(chunk_size) = self.chunk_size {

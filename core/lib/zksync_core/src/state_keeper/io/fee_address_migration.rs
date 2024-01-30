@@ -150,8 +150,7 @@ mod tests {
     use test_casing::test_casing;
     use zksync_contracts::BaseSystemContractsHashes;
     use zksync_types::{
-        block::{BlockGasCount, L1BatchHeader},
-        Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId,
+        block::L1BatchHeader, Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId,
     };
 
     use super::*;
@@ -178,7 +177,7 @@ mod tests {
             );
             storage
                 .blocks_dal()
-                .insert_l1_batch(&l1_batch, &[], BlockGasCount::default(), &[], &[], 0)
+                .insert_mock_l1_batch(&l1_batch)
                 .await
                 .unwrap();
             #[allow(deprecated)]

@@ -175,8 +175,13 @@ impl ZkSyncStateKeeper {
 
         let mut batch_executor = self
             .batch_executor_base
-            .init_batch(l1_batch_env.clone(), system_env.clone())
-            .await;
+            .init_batch(
+                l1_batch_env.clone(),
+                system_env.clone(),
+                &self.stop_receiver,
+            )
+            .await
+            .ok_or(Error::Canceled)?;
 
         self.restore_state(&batch_executor, &mut updates_manager, pending_miniblocks)
             .await?;
@@ -227,8 +232,13 @@ impl ZkSyncStateKeeper {
             );
             batch_executor = self
                 .batch_executor_base
-                .init_batch(l1_batch_env.clone(), system_env.clone())
-                .await;
+                .init_batch(
+                    l1_batch_env.clone(),
+                    system_env.clone(),
+                    &self.stop_receiver,
+                )
+                .await
+                .ok_or(Error::Canceled)?;
 
             let version_changed = system_env.version != sealed_batch_protocol_version;
 
@@ -336,7 +346,7 @@ impl ZkSyncStateKeeper {
                 let ExecutionMetricsForCriteria {
                     l1_gas: tx_l1_gas_this_tx,
                     execution_metrics: tx_execution_metrics,
-                } = tx_metrics;
+                } = *tx_metrics;
 
                 let tx_hash = tx.hash();
                 let is_l1 = tx.is_l1();
@@ -451,7 +461,7 @@ impl ZkSyncStateKeeper {
                     let ExecutionMetricsForCriteria {
                         l1_gas: tx_l1_gas_this_tx,
                         execution_metrics: tx_execution_metrics,
-                    } = tx_metrics;
+                    } = *tx_metrics;
                     updates_manager.extend_from_executed_transaction(
                         tx,
                         *tx_result,
@@ -521,7 +531,7 @@ impl ZkSyncStateKeeper {
                     l1_gas: tx_l1_gas_this_tx,
                     execution_metrics: tx_execution_metrics,
                     ..
-                } = tx_metrics;
+                } = *tx_metrics;
                 updates_manager.extend_from_executed_transaction(
                     tx,
                     *tx_result,
@@ -592,7 +602,7 @@ impl ZkSyncStateKeeper {
                 let ExecutionMetricsForCriteria {
                     l1_gas: tx_l1_gas_this_tx,
                     execution_metrics: tx_execution_metrics,
-                } = *tx_metrics;
+                } = **tx_metrics;
 
                 tracing::trace!(
                     "finished tx {:?} by {:?} (is_l1: {}) (#{} in l1 batch {}) (#{} in miniblock {}) \
@@ -615,7 +625,7 @@ impl ZkSyncStateKeeper {
                 let ExecutionMetricsForCriteria {
                     l1_gas: finish_block_l1_gas,
                     execution_metrics: finish_block_execution_metrics,
-                } = *bootloader_dry_run_metrics;
+                } = **bootloader_dry_run_metrics;
 
                 let encoding_len = tx.encoding_len();
 

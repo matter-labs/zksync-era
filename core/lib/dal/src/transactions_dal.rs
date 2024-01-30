@@ -1316,25 +1316,22 @@ impl TransactionsDal<'_, '_> {
         }
     }
 
-    pub async fn get_call_trace(&mut self, tx_hash: H256) -> Option<Call> {
-        {
-            sqlx::query_as!(
-                CallTrace,
-                r#"
-                SELECT
-                    *
-                FROM
-                    call_traces
-                WHERE
-                    tx_hash = $1
-                "#,
-                tx_hash.as_bytes()
-            )
-            .fetch_optional(self.storage.conn())
-            .await
-            .unwrap()
-            .map(|trace| trace.into())
-        }
+    pub async fn get_call_trace(&mut self, tx_hash: H256) -> sqlx::Result<Option<Call>> {
+        Ok(sqlx::query_as!(
+            CallTrace,
+            r#"
+            SELECT
+                call_trace
+            FROM
+                call_traces
+            WHERE
+                tx_hash = $1
+            "#,
+            tx_hash.as_bytes()
+        )
+        .fetch_optional(self.storage.conn())
+        .await?
+        .map(Into::into))
     }
 
     pub(crate) async fn get_tx_by_hash(&mut self, hash: H256) -> Option<Transaction> {
@@ -1354,5 +1351,54 @@ impl TransactionsDal<'_, '_> {
         .await
         .unwrap()
         .map(|tx| tx.into())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use zksync_types::ProtocolVersion;
+
+    use super::*;
+    use crate::{
+        tests::{create_miniblock_header, mock_execution_result, mock_l2_transaction},
+        ConnectionPool,
+    };
+
+    #[tokio::test]
+    async fn getting_call_trace_for_transaction() {
+        let connection_pool = ConnectionPool::test_pool().await;
+        let mut conn = connection_pool.access_storage().await.unwrap();
+        conn.protocol_versions_dal()
+            .save_protocol_version_with_tx(ProtocolVersion::default())
+            .await;
+        conn.blocks_dal()
+            .insert_miniblock(&create_miniblock_header(1))
+            .await
+            .unwrap();
+
+        let tx = mock_l2_transaction();
+        let tx_hash = tx.hash();
+        conn.transactions_dal()
+            .insert_transaction_l2(tx.clone(), TransactionExecutionMetrics::default())
+            .await;
+        let mut tx_result = mock_execution_result(tx);
+        tx_result.call_traces.push(Call {
+            from: Address::from_low_u64_be(1),
+            to: Address::from_low_u64_be(2),
+            value: 100.into(),
+            ..Call::default()
+        });
+        let expected_call_trace = tx_result.call_trace().unwrap();
+        conn.transactions_dal()
+            .mark_txs_as_executed_in_miniblock(MiniblockNumber(1), &[tx_result], 1.into())
+            .await;
+
+        let call_trace = conn
+            .transactions_dal()
+            .get_call_trace(tx_hash)
+            .await
+            .unwrap()
+            .expect("no call trace");
+        assert_eq!(call_trace, expected_call_trace);
     }
 }
