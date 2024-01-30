@@ -1,7 +1,8 @@
-use std::{collections::HashMap, fmt, time::Duration};
+//! Logic for applying application-level snapshots to Postgres storage.
+
+use std::{collections::HashMap, fmt};
 
 use async_trait::async_trait;
-use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, Metrics, Unit};
 use zksync_dal::{ConnectionPool, SqlxError, StorageProcessor};
 use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_types::{
@@ -15,47 +16,11 @@ use zksync_types::{
 use zksync_utils::bytecode::hash_bytecode;
 use zksync_web3_decl::jsonrpsee::core::{client::Error, ClientError as RpcError};
 
+use self::metrics::{InitialStage, StorageLogsChunksStage, METRICS};
+
+mod metrics;
 #[cfg(test)]
 mod tests;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
-#[metrics(label = "stage", rename_all = "snake_case")]
-pub(crate) enum StorageLogsChunksStage {
-    LoadFromGcs,
-    SaveToPostgres,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
-#[metrics(label = "stage", rename_all = "snake_case")]
-pub(crate) enum InitialStage {
-    FetchMetadataFromMainNode,
-    ApplyFactoryDeps,
-}
-
-#[derive(Debug, Metrics)]
-#[metrics(prefix = "snapshots_applier")]
-pub(crate) struct SnapshotsApplierMetrics {
-    /// Number of chunks in the applied snapshot. Set when snapshots applier starts.
-    pub storage_logs_chunks_count: Gauge<usize>,
-
-    /// Number of chunks left to apply.
-    pub storage_logs_chunks_left_to_process: Gauge<usize>,
-
-    /// Total latency of applying snapshot.
-    #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds)]
-    pub snapshot_applying_duration: Histogram<Duration>,
-
-    /// Latency of initial recovery operation split by stage.
-    #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds)]
-    pub initial_stage_duration: Family<InitialStage, Histogram<Duration>>,
-
-    /// Latency of storage log chunk processing split by stage.
-    #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds)]
-    pub storage_logs_chunks_duration: Family<StorageLogsChunksStage, Histogram<Duration>>,
-}
-
-#[vise::register]
-pub(crate) static METRICS: vise::Global<SnapshotsApplierMetrics> = vise::Global::new();
 
 #[derive(thiserror::Error, Debug)]
 pub enum SnapshotsApplierError {
