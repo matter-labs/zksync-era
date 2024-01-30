@@ -7,7 +7,7 @@ DB_PATH = 'da_manager_example/data/pubdata_storage.json'
 
 def get_batch_pubdata(url, batch_number):
     headers = {"Content-Type": "application/json"}
-    data = {"jsonrpc": "2.0", "id": 1, "method": "zks_getL1BatchPubdata", "params": [batch_number]}
+    data = {"jsonrpc": "2.0", "id": 1, "method": "zks_getBatchPubdata", "params": [batch_number]}
     response = requests.post(url, headers=headers, data=json.dumps(data))
     return response.json()["result"]
 

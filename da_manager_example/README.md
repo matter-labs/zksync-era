@@ -3,7 +3,7 @@
 A `DA Manager` is introduced, a component that periodically queries for new batches and uploads their `pubdata` to some
 data availability solution, as a separate binary. The way this works is the following:
 
-- A new RPC endpoint is added to the `zk server`, called `zks_getL1BatchPubdata`, that takes a batch number or hash as a
+- A new RPC endpoint is added to the `zk server`, called `zks_getBatchPubdata`, that takes a batch number or hash as a
   parameter and returns the `pubdata` for that batch appropriately encoded as an array of bytes.
 - To construct the `pubdata`, the operator will query Postgres for the four components of pubdata from the `l1_batches`
   table (meaning that there’s no need to modify or add any schemas), then convert it into its byte representation using
