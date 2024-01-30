@@ -188,6 +188,7 @@ impl ProtoFmt for SnapshotStorageLogsChunk {
     }
 }
 
+/// Status of snapshot recovery process stored in Postgres.
 #[derive(Debug, PartialEq)]
 pub struct SnapshotRecoveryStatus {
     pub l1_batch_number: L1BatchNumber,
@@ -195,6 +196,16 @@ pub struct SnapshotRecoveryStatus {
     pub miniblock_number: MiniblockNumber,
     pub miniblock_root_hash: H256,
     pub storage_logs_chunks_processed: Vec<bool>,
+}
+
+impl SnapshotRecoveryStatus {
+    /// Returns the number of storage log chunks left to process.
+    pub fn storage_logs_chunks_left_to_process(&self) -> usize {
+        self.storage_logs_chunks_processed
+            .iter()
+            .filter(|&&is_processed| !is_processed)
+            .count()
+    }
 }
 
 // Used only in tests
