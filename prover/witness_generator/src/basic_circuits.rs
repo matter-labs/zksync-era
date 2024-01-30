@@ -33,7 +33,7 @@ use zksync_prover_fri_types::{
             block_header::BlockAuxilaryOutputWitness, input::SchedulerCircuitInstanceWitness,
         },
     },
-    AuxOutputWitnessWrapper,
+    get_current_pod_name, AuxOutputWitnessWrapper,
 };
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
 use zksync_queued_job_processor::JobProcessor;
