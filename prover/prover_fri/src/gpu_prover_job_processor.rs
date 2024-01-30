@@ -6,7 +6,7 @@ pub mod gpu_prover {
     use shivini::{gpu_prove_from_external_witness_data, ProverContext};
     use tokio::task::JoinHandle;
     use zksync_config::configs::{fri_prover_group::FriProverGroupConfig, FriProverConfig};
-    use zksync_dal::{fri_prover_dal::SocketAddress, ConnectionPool};
+    use zksync_dal::{fri_prover_dal::types::SocketAddress, ConnectionPool};
     use zksync_env_config::FromEnv;
     use zksync_object_store::ObjectStore;
     use zksync_prover_fri_types::{

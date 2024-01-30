@@ -12,7 +12,7 @@ pub mod gpu_socket_listener {
         sync::watch,
     };
     use zksync_dal::{
-        fri_prover_dal::{GpuProverInstanceStatus, SocketAddress},
+        fri_prover_dal::types::{GpuProverInstanceStatus, SocketAddress},
         ConnectionPool,
     };
     use zksync_object_store::bincode;
