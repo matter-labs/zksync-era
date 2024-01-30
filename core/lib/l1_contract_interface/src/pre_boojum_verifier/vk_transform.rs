@@ -13,7 +13,6 @@ use zkevm_test_harness::{
         recursive_aggregation::{compute_vk_encoding_and_committment, erase_vk_type},
     },
 };
-
 use zksync_types::{ethabi::Token, H256};
 
 /// Calculates commitment for vk from L1 verifier contract.
