@@ -1,3 +1,4 @@
+use rlp::RlpStream;
 use zksync_basic_types::{Address, H256};
 use zksync_utils::{address_to_h256, u256_to_h256};
 
@@ -75,6 +76,17 @@ pub fn deployed_address_create(sender: Address, deploy_nonce: U256) -> Address {
     bytes[64..].copy_from_slice(nonce_bytes.as_bytes());
 
     Address::from_slice(&keccak256(&bytes)[12..])
+}
+
+pub fn deployed_address_evm_create(sender: Address, deploy_nonce: U256) -> Address {
+    let mut rlp = RlpStream::new();
+    rlp.begin_unbounded_list();
+    rlp.append(&sender);
+    rlp.append(&deploy_nonce);
+    rlp.finalize_unbounded_list();
+    let hash = keccak256(&rlp.out().to_vec());
+
+    Address::from_slice(&hash[12..])
 }
 
 #[cfg(test)]

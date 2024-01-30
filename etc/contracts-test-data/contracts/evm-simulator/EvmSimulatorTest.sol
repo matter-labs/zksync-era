@@ -3,9 +3,18 @@
 pragma solidity ^0.8.0;
 
 import { SystemContractHelper } from "./SystemContractHelper.sol"; 
+import { DEPLOYER_SYSTEM_CONTRACT } from "./Constants.sol";
 
 /// Test for various VM invariants
 contract EvmSimulatorTest {
+    constructor() {
+        // We are just returning the same bytecode
+        bytes memory bytecodeToExecute = DEPLOYER_SYSTEM_CONTRACT.evmCode(address(this));
+        DEPLOYER_SYSTEM_CONTRACT.setDeployedCode(
+            bytecodeToExecute
+        );
+    }
+
     uint256 constant EXPECTED_STIPEND = (1 << 30);
 
     uint256 storageVariable;
@@ -48,7 +57,6 @@ contract EvmSimulatorTest {
 
     function testStaticCall() external view {
         // The function will be called directly without the use of `staticcall`.
-
         bytes4 selector = bytes4(keccak256("testStaticCallInner()"));
 
         bool result;
@@ -58,5 +66,23 @@ contract EvmSimulatorTest {
         }
 
         require(result, "Static call failed");
+    }
+
+    function getReturndata(bytes memory _calldata) external pure returns (bytes memory returndata) {
+        returndata = _calldata;
+    }
+
+    // TODO: this test doesnt wokr
+    function testRememberingReturndata() external {
+        this.getReturndata(hex"babacaca");
+        // Now we should be able to preserve the returndata
+        SystemContractHelper.loadReturndataIntoActivePtr();
+
+        this.getReturndata(hex"00");
+        // Firstly, let's check that the length was restored correctly
+        uint256 returndataLength = SystemContractHelper.getActivePtrDataSize();
+
+        storageVariable = returndataLength;
+        // require(returndataLength == 64, "Returndata length was not restored correctly");
     }
 }

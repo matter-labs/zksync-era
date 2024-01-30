@@ -48,7 +48,6 @@ impl InMemoryStorage {
         contracts: Vec<DeployedContract>,
     ) -> Self {
         let system_context_init_log = get_system_context_init_logs(chain_id);
-
         let state_without_indices: BTreeMap<_, _> = contracts
             .iter()
             .flat_map(|contract| {

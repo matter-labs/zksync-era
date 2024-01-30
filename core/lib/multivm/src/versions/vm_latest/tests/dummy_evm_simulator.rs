@@ -2,15 +2,19 @@ use std::str::FromStr;
 
 use ethabi::{Contract, Token};
 use zk_evm_1_5_0::zkevm_opcode_defs::{BlobSha256Format, VersionedHashLen32};
-use zksync_contracts::{BaseSystemContracts, SystemContractCode};
+use zksync_contracts::{deployer_contract, BaseSystemContracts, SystemContractCode};
 use zksync_state::InMemoryStorage;
-use zksync_system_constants::L2_ETH_TOKEN_ADDRESS;
+use zksync_system_constants::{CONTRACT_DEPLOYER_ADDRESS, L2_ETH_TOKEN_ADDRESS};
 use zksync_types::{
-    get_code_key, get_known_code_key, get_nonce_key,
+    get_code_key, get_deployer_key, get_known_code_key, get_nonce_key,
     system_contracts::{DEPLOYMENT_NONCE_INCREMENT, TX_NONCE_INCREMENT},
+    utils::deployed_address_evm_create,
+    web3::signing::keccak256,
     AccountTreeId, Address, Execute, StorageKey, H256, U256,
 };
-use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256};
+use zksync_utils::{
+    address_to_h256, bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256,
+};
 
 use super::tester::VmTester;
 use crate::{
@@ -47,10 +51,15 @@ fn set_up_evm_simulator_contract() -> (VmTester<HistoryEnabled>, Address, Contra
     storage.set_value(get_code_key(&test_address), sample_evm_bytecode_hash);
 
     let (evm_simulator_bytecode, evm_simualator) = read_test_evm_simulator();
+    let evm_simulator_bytecode_hash = hash_bytecode(&evm_simulator_bytecode);
 
+    storage.set_value(
+        get_deployer_key(u256_to_h256(1.into())),
+        evm_simulator_bytecode_hash,
+    );
     let mut base_system_contracts = BaseSystemContracts::playground();
     base_system_contracts.evm_simualator = SystemContractCode {
-        hash: hash_bytecode(&evm_simulator_bytecode),
+        hash: evm_simulator_bytecode_hash,
         code: bytes_to_be_words(evm_simulator_bytecode.clone()),
     };
 
@@ -215,4 +224,101 @@ fn test_evm_simulator_static_call() {
         U256::one(),
         "Static call wasn't successful"
     );
+}
+
+// TODO: this test does not work
+//#[test]
+fn test_evm_simulator_returndata_caching() {
+    // EVM simulator should use active ptr to remember the correct returndata
+    let (mut vm, test_address, evm_simulator) = set_up_evm_simulator_contract();
+
+    let account = &mut vm.rich_accounts[0];
+
+    let tx = account.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(test_address),
+            calldata: evm_simulator
+                .function("testRememberingReturndata")
+                .unwrap()
+                .encode_input(&[])
+                .unwrap(),
+            value: U256::zero(),
+            factory_deps: None,
+        },
+        None,
+    );
+
+    vm.vm.push_transaction(tx);
+    let tx_result = vm.vm.execute(VmExecutionMode::OneTx);
+
+    assert!(
+        !tx_result.result.is_failed(),
+        "Transaction wasn't successful"
+    );
+
+    let batch_result = vm.vm.execute(VmExecutionMode::Batch);
+    assert!(!batch_result.result.is_failed(), "Batch wasn't successful");
+
+    let saved_value = vm.vm.storage.borrow_mut().get_value(&StorageKey::new(
+        AccountTreeId::new(test_address),
+        H256::zero(),
+    ));
+
+    println!("Saved value: {:#?}", hex::encode(&saved_value));
+}
+
+#[test]
+fn test_evm_simulator_constructor() {
+    // EVM simulator should use active ptr to remember the correct returndata
+    let (mut vm, _, _) = set_up_evm_simulator_contract();
+
+    let account = &mut vm.rich_accounts[0];
+
+    let sample_evm_code = hex::decode("ffffffffffffffeeeeeeeabadbab").unwrap();
+    let evm_code_hash = H256(keccak256(&sample_evm_code));
+
+    let tx = account.get_l2_tx_for_execute(
+        Execute {
+            contract_address: None,
+            calldata: sample_evm_code,
+            value: U256::zero(),
+            factory_deps: None,
+        },
+        None,
+    );
+
+    vm.vm.push_transaction(tx);
+    let tx_result = vm.vm.execute(VmExecutionMode::OneTx);
+
+    assert!(
+        !tx_result.result.is_failed(),
+        "Transaction wasn't successful"
+    );
+
+    let batch_result = vm.vm.execute(VmExecutionMode::Batch);
+    assert!(!batch_result.result.is_failed(), "Batch wasn't successful");
+
+    let expected_deployed_address = deployed_address_evm_create(account.address, 0.into());
+
+    let stored_var = vm.vm.storage.borrow_mut().get_value(&StorageKey::new(
+        AccountTreeId::new(expected_deployed_address),
+        H256::zero(),
+    ));
+
+    let stored_evm_code_hash = vm.vm.storage.borrow_mut().get_value(&StorageKey::new(
+        AccountTreeId::new(CONTRACT_DEPLOYER_ADDRESS),
+        key_for_evm_hash(&expected_deployed_address),
+    ));
+
+    assert_eq!(
+        stored_evm_code_hash, evm_code_hash,
+        "EVM code hash wasn't stored correctly"
+    );
+}
+
+fn key_for_evm_hash(address: &Address) -> H256 {
+    let address_h256 = address_to_h256(address);
+
+    let bytes = [address_h256.as_bytes(), u256_to_h256(3.into()).as_bytes()].concat();
+    keccak256(&bytes).into()
 }

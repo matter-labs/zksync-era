@@ -2,6 +2,7 @@ use core::fmt::Debug;
 
 use blake2::{Blake2s256, Digest};
 use serde::{Deserialize, Serialize};
+use zkevm_test_harness::zk_evm::zkevm_opcode_defs::system_params::DEPLOYER_SYSTEM_CONTRACT_ADDRESS;
 use zksync_basic_types::{web3::signing::keccak256, L2ChainId};
 
 use crate::{AccountTreeId, Address, H160, H256, U256};
@@ -86,6 +87,11 @@ pub fn get_known_code_key(hash: &H256) -> StorageKey {
 pub fn get_system_context_key(key: H256) -> StorageKey {
     let system_context = AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS);
     StorageKey::new(system_context, key)
+}
+
+pub fn get_deployer_key(key: H256) -> StorageKey {
+    let deployer_contract = AccountTreeId::new(CONTRACT_DEPLOYER_ADDRESS);
+    StorageKey::new(deployer_contract, key)
 }
 
 pub fn get_is_account_key(account: &Address) -> StorageKey {

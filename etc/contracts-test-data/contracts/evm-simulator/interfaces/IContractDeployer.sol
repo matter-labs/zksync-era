@@ -3,6 +3,12 @@
 pragma solidity ^0.8.0;
 
 interface IContractDeployer {
+
+    function setDeployedCode(bytes calldata newDeployedCode) external;
+
+    function evmCode(address) external returns (bytes memory); 
+
+
     /// @notice Defines the version of the account abstraction protocol
     /// that a contract claims to follow.
     /// - `None` means that the account is just a contract and it should never be interacted
