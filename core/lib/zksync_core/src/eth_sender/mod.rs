@@ -1,5 +1,4 @@
 mod aggregator;
-pub mod data_provider;
 mod error;
 mod eth_tx_aggregator;
 mod eth_tx_manager;
