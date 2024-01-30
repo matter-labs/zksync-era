@@ -1,4 +1,4 @@
-use std::{fmt, ops, str::FromStr};
+use std::{fmt, ops, str::FromStr, sync::Arc};
 
 use codegen::serialize_proof;
 use serde::{Deserialize, Serialize};
@@ -9,7 +9,9 @@ use zkevm_test_harness::{
 };
 use zksync_basic_types::{ethabi::Token, L1BatchNumber};
 
-use crate::{commitment::L1BatchWithMetadata, ProtocolVersionId, U256};
+use crate::{
+    commitment::L1BatchWithMetadata, l1_batch_committer::L1BatchCommitter, ProtocolVersionId, U256,
+};
 
 fn l1_batch_range_from_batches(
     batches: &[L1BatchWithMetadata],
@@ -29,6 +31,7 @@ fn l1_batch_range_from_batches(
 pub struct L1BatchCommitOperation {
     pub last_committed_l1_batch: L1BatchWithMetadata,
     pub l1_batches: Vec<L1BatchWithMetadata>,
+    pub l1_batch_committer: Arc<dyn L1BatchCommitter>,
 }
 
 impl L1BatchCommitOperation {
@@ -37,7 +40,10 @@ impl L1BatchCommitOperation {
         let l1_batches_to_commit = self
             .l1_batches
             .iter()
-            .map(L1BatchWithMetadata::l1_commit_data)
+            .map(|l1_batch_with_metadata| {
+                self.l1_batch_committer
+                    .l1_commit_data(l1_batch_with_metadata)
+            })
             .collect();
 
         vec![stored_batch_info, Token::Array(l1_batches_to_commit)]
