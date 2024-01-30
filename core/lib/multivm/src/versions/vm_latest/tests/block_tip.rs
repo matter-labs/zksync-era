@@ -98,7 +98,7 @@ fn execute_test(test_data: L1MessengerTestData) -> u32 {
     let mut storage = get_empty_storage();
     let complex_upgrade_code = read_complex_upgrade();
 
-    // For this test we'll just put the bytecode onto the force deployers' address
+    // For this test we'll just put the bytecode onto the force deployer address
     storage.borrow_mut().set_value(
         get_code_key(&CONTRACT_FORCE_DEPLOYER_ADDRESS),
         hash_bytecode(&complex_upgrade_code),
@@ -201,7 +201,7 @@ fn generate_state_diffs(
 
 #[test]
 fn test_dry_run_upper_bound() {
-    // We are re-using the ComplexUpgrade contract as it already has the mimicCall functionality.
+    // We are re-using the `ComplexUpgrade` contract as it already has the `mimicCall` functionality.
     // To get the upper bound, we'll try to do the following:
     // 1. Max number of logs.
     // 2. Lots of small L2->L1 messages / one large L2->L1 message.
