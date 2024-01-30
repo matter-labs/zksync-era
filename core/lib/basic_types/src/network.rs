@@ -32,6 +32,10 @@ pub enum Network {
     Unknown,
     /// Test network for testkit purposes
     Test,
+    /// Linea testnet
+    Lineatest,
+    /// Linea mainnet
+    Linea,
 }
 
 impl FromStr for Network {
@@ -46,6 +50,8 @@ impl FromStr for Network {
             "localhost" => Self::Localhost,
             "sepolia" => Self::Sepolia,
             "test" => Self::Test,
+            "lineatest" => Self::Lineatest,
+            "linea" => Self::Linea,
             another => return Err(another.to_owned()),
         })
     }
@@ -62,6 +68,8 @@ impl fmt::Display for Network {
             Self::Sepolia => write!(f, "sepolia"),
             Self::Unknown => write!(f, "unknown"),
             Self::Test => write!(f, "test"),
+            Self::Lineatest => write!(f, "lineatest"),
+            Self::Linea => write!(f, "linea"),
         }
     }
 }
@@ -76,6 +84,8 @@ impl Network {
             5 => Self::Goerli,
             9 => Self::Localhost,
             11155111 => Self::Sepolia,
+            59140 => Self::Lineatest,
+            59144 => Self::Linea,
             _ => Self::Unknown,
         }
     }
@@ -91,6 +101,8 @@ impl Network {
             Self::Sepolia => L1ChainId(11155111),
             Self::Unknown => panic!("Unknown chain ID"),
             Self::Test => panic!("Test chain ID"),
+            Self::Lineatest => L1ChainId(59140),
+            Self::Linea => L1ChainId(59144),
         }
     }
 }

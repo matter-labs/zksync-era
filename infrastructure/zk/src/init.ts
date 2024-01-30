@@ -41,7 +41,7 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
     if (testTokens.deploy) {
         await announced('Deploying localhost ERC20 tokens', run.deployERC20('dev', '', '', '', testTokens.args));
     }
-    await announced('Deploying L1 verifier', contract.deployVerifier([]));
+    await announced('Deploying L1 verifier', contract.deployVerifier(governorPrivateKeyArgs));
     await announced('Reloading env', env.reload());
     await announced('Running server genesis setup', server.genesisFromSources());
     await announced('Deploying L1 contracts', contract.redeployL1(governorPrivateKeyArgs));
