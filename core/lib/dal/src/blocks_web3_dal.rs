@@ -258,31 +258,67 @@ impl BlocksWeb3Dal<'_, '_> {
         &mut self,
         l1_batch_number: &ResolvedL1BatchForMiniblock,
     ) -> sqlx::Result<Option<u64>> {
-        let timestamp = sqlx::query!(
-            r#"
-            SELECT
-                timestamp
-            FROM
-                miniblocks
-            WHERE
-                (
-                    $1::BIGINT IS NULL
-                    AND l1_batch_number IS NULL
-                )
-                OR (l1_batch_number = $1::BIGINT)
-            ORDER BY
-                number
-            LIMIT
-                1
-            "#,
-            l1_batch_number
-                .miniblock_l1_batch
-                .map(|number| i64::from(number.0))
-        )
-        .fetch_optional(self.storage.conn())
-        .await?
-        .map(|row| row.timestamp as u64);
-        Ok(timestamp)
+        if let Some(miniblock_l1_batch) = l1_batch_number.miniblock_l1_batch {
+            Ok(sqlx::query!(
+                r#"
+                SELECT
+                    timestamp
+                FROM
+                    miniblocks
+                WHERE
+                    l1_batch_number = $1
+                ORDER BY
+                    number
+                LIMIT
+                    1
+                "#,
+                i64::from(miniblock_l1_batch.0)
+            )
+            .fetch_optional(self.storage.conn())
+            .await?
+            .map(|row| row.timestamp as u64))
+        } else {
+            // Got a pending miniblock. Searching the timestamp of the first pending miniblock using
+            // `WHERE l1_batch_number IS NULL` is slow since it potentially locks the `miniblocks` table.
+            // Instead, we determine its number using the previous L1 batch, taking into the account that
+            // it may be stored in the `snapshot_recovery` table.
+            let prev_l1_batch_number = if l1_batch_number.pending_l1_batch == L1BatchNumber(0) {
+                return Ok(None); // We haven't created the genesis miniblock yet
+            } else {
+                l1_batch_number.pending_l1_batch - 1
+            };
+            Ok(sqlx::query!(
+                r#"
+                SELECT
+                    timestamp
+                FROM
+                    miniblocks
+                WHERE
+                    number = COALESCE(
+                        (
+                            SELECT
+                                MAX(number) + 1
+                            FROM
+                                miniblocks
+                            WHERE
+                                l1_batch_number = $1
+                        ),
+                        (
+                            SELECT
+                                MAX(miniblock_number) + 1
+                            FROM
+                                snapshot_recovery
+                            WHERE
+                                l1_batch_number = $1
+                        )
+                    )
+                "#,
+                i64::from(prev_l1_batch_number.0)
+            )
+            .fetch_optional(self.storage.conn())
+            .await?
+            .map(|row| row.timestamp as u64))
+        }
     }
 
     pub async fn get_miniblock_hash(
