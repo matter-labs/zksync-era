@@ -72,6 +72,13 @@ fn compute_opening_point(linear_hash: [u8; 32], versioned_hash: [u8; 32]) -> u12
     u128::from_be_bytes(evaluation_point.try_into().expect("should have 16 bytes"))
 }
 
+/// Copies the specified number of bytes from the input into out returning the rest of the data
+fn copy_n_bytes_return_rest<'a>(out: &'a mut [u8], input: &'a [u8], n: usize) -> &'a [u8] {
+    let (data, bytes) = take::<usize, &[u8], ()>(n)(input).expect("Missing data");
+    out.copy_from_slice(bytes);
+    data
+}
+
 impl KzgInfo {
     /// Size of `KzgInfo` is equal to size(blob) + size(`kzg_commitment`) + size(bytes32) + size(bytes32) + size(`kzg_proof`) + size(bytes32) + size(`kzg_proof`)
     /// Here we use the size of the blob expected for 4844 (4096 elements * 32 bytes per element) and not `BYTES_PER_BLOB_ZK_SYNC` which is (4096 elements * 31 bytes per element)
@@ -96,40 +103,26 @@ impl KzgInfo {
     pub fn from_slice(data: &[u8]) -> Self {
         assert_eq!(data.len(), Self::SERIALIZED_SIZE);
 
-        let (data, blob_bytes) =
-            take::<usize, &[u8], ()>(EIP_4844_BYTES_PER_BLOB)(data).expect("Missing data - blob");
         let mut blob = [0u8; EIP_4844_BYTES_PER_BLOB];
-        blob.copy_from_slice(blob_bytes);
+        let data = copy_n_bytes_return_rest(&mut blob, data, EIP_4844_BYTES_PER_BLOB);
 
-        let (data, kzg_bytes) =
-            take::<usize, &[u8], ()>(48)(data).expect("Missing data - kzg commitment");
         let mut kzg_commitment = [0u8; 48];
-        kzg_commitment.copy_from_slice(kzg_bytes);
+        let data = copy_n_bytes_return_rest(&mut kzg_commitment, data, 48);
 
-        let (data, opening_point_bytes) =
-            take::<usize, &[u8], ()>(32)(data).expect("Missing data - opening point");
         let mut opening_point = [0u8; 32];
-        opening_point.copy_from_slice(opening_point_bytes);
+        let data = copy_n_bytes_return_rest(&mut opening_point, data, 32);
 
-        let (data, opening_value_bytes) =
-            take::<usize, &[u8], ()>(32)(data).expect("Missing data - opening value");
         let mut opening_value = [0u8; 32];
-        opening_value.copy_from_slice(opening_value_bytes);
+        let data = copy_n_bytes_return_rest(&mut opening_value, data, 32);
 
-        let (data, opening_proof_bytes) =
-            take::<usize, &[u8], ()>(48)(data).expect("Missing data - opening proof");
         let mut opening_proof = [0u8; 48];
-        opening_proof.copy_from_slice(opening_proof_bytes);
+        let data = copy_n_bytes_return_rest(&mut opening_proof, data, 48);
 
-        let (data, versioned_hash_bytes) =
-            take::<usize, &[u8], ()>(32)(data).expect("Missing data - versioned hash");
         let mut versioned_hash = [0u8; 32];
-        versioned_hash.copy_from_slice(versioned_hash_bytes);
+        let data = copy_n_bytes_return_rest(&mut versioned_hash, data, 32);
 
-        let (data, blob_proof_bytes) =
-            take::<usize, &[u8], ()>(48)(data).expect("Missing data - blob proof");
         let mut blob_proof = [0u8; 48];
-        blob_proof.copy_from_slice(blob_proof_bytes);
+        let data = copy_n_bytes_return_rest(&mut blob_proof, data, 48);
 
         assert_eq!(data.len(), 0);
 
@@ -254,7 +247,7 @@ mod tests {
     use serde::{Deserialize, Serialize};
     use serde_with::serde_as;
     use zkevm_circuits::{
-        boojum::pairing::bls12_381::{Fr, FrRepr},
+        boojum::pairing::bls12_381::{Fr, FrRepr, G1Affine},
         eip_4844::{
             bitreverse, ethereum_4844_data_into_zksync_pubdata, fft,
             zksync_pubdata_into_monomial_form_poly,
@@ -295,19 +288,25 @@ mod tests {
         expected_outputs: ExpectedOutputs,
     }
 
+    /// Copy of function from https://github.com/matter-labs/era-zkevm_test_harness/blob/99956050a7705e26e0e5aa0729348896a27846c7/src/kzg/mod.rs#L339
     fn u8_repr_to_fr(bytes: &[u8]) -> Fr {
         assert_eq!(bytes.len(), 32);
         let mut ret = [0u64; 4];
 
-        for (i, item) in ret.iter_mut().enumerate() {
+        for (i, chunk) in bytes.array_chunks::<8>().enumerate() {
             let mut repr = [0u8; 8];
-            let end = 32 - (8 * i);
-            let beg = 32 - (8 * (i + 1));
-            repr.copy_from_slice(&bytes[beg..end]);
-            *item = u64::from_be_bytes(repr);
+            repr.copy_from_slice(chunk);
+            ret[3 - i] = u64::from_be_bytes(repr);
         }
 
         Fr::from_repr(FrRepr(ret)).unwrap()
+    }
+
+    fn bytes_to_g1(data: &[u8]) -> G1Affine {
+        let mut compressed = G1Compressed::empty();
+        let v = compressed.as_mut();
+        v.copy_from_slice(data);
+        compressed.into_affine().unwrap()
     }
 
     #[test]
@@ -357,26 +356,15 @@ mod tests {
         fft(&mut poly);
         bitreverse(&mut poly);
 
-        let mut commitment = G1Compressed::empty();
-        let v = commitment.as_mut();
-        v.copy_from_slice(&kzg_info.kzg_commitment);
-        let commitment = commitment.into_affine().unwrap();
-
-        let mut blob_proof = G1Compressed::empty();
-        let v = blob_proof.as_mut();
-        v.copy_from_slice(&kzg_info.blob_proof);
-        let blob_proof = blob_proof.into_affine().unwrap();
+        let commitment = bytes_to_g1(&kzg_info.kzg_commitment);
+        let blob_proof = bytes_to_g1(&kzg_info.blob_proof);
 
         let valid_blob_proof = verify_proof_poly(&poly, &commitment, &blob_proof);
         assert!(valid_blob_proof);
 
         let opening_point = u8_repr_to_fr(&kzg_info.opening_point);
         let opening_value = u8_repr_to_fr(&kzg_info.opening_value);
-
-        let mut opening_proof = G1Compressed::empty();
-        let v = opening_proof.as_mut();
-        v.copy_from_slice(&kzg_info.opening_proof);
-        let opening_proof = opening_proof.into_affine().unwrap();
+        let opening_proof = bytes_to_g1(&kzg_info.opening_proof);
 
         let valid_opening_proof =
             verify_kzg_proof(&commitment, &opening_point, &opening_value, &opening_proof);
