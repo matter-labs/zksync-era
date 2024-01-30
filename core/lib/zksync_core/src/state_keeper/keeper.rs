@@ -7,8 +7,11 @@ use anyhow::Context as _;
 use multivm::interface::{Halt, L1BatchEnv, SystemEnv};
 use tokio::sync::watch;
 use zksync_types::{
-    block::MiniblockExecutionData, l2::TransactionType, protocol_version::ProtocolUpgradeTx,
-    storage_writes_deduplicator::StorageWritesDeduplicator, L1BatchNumber, Transaction,
+    block::MiniblockExecutionData,
+    l2::TransactionType,
+    protocol_version::{ProtocolUpgradeTx, ProtocolVersionId},
+    storage_writes_deduplicator::StorageWritesDeduplicator,
+    L1BatchNumber, Transaction,
 };
 
 use super::{
@@ -134,52 +137,15 @@ impl ZkSyncStateKeeper {
             protocol_version,
         );
 
-        let previous_batch_protocol_version =
-            self.io.load_previous_batch_version_id().await.unwrap();
-
         let first_batch_in_shared_bridge =
             l1_batch_env.number == L1BatchNumber(1) && !protocol_version.is_pre_shared_bridge();
-        let version_changed = protocol_version != previous_batch_protocol_version;
-
-        let mut protocol_upgrade_tx = self.io.load_upgrade_tx(protocol_version).await;
-
-        // After the Shared Bridge is integrated,
-        // there has to be a setChainId upgrade transaction after the chain genesis.
-        // It has to be the first transaction of the first batch.
-        // If it's not present, we have to wait for it to be picked up by the event watcher.
-        // The setChainId upgrade does not bump the protocol version, rather attaches an upgrade
-        // transaction to the genesis protocol version.
-        while first_batch_in_shared_bridge && protocol_upgrade_tx.is_none() {
-            tracing::info!("Waiting for setChainId upgrade transaction to be picked up");
-            if self.is_canceled() {
-                return Err(Error::Canceled);
-            }
-            tokio::time::sleep(Duration::from_secs(1)).await;
-            protocol_upgrade_tx = self.io.load_upgrade_tx(protocol_version).await;
-        }
-
-        let mut protocol_upgrade_tx =
-            if pending_miniblocks.is_empty() && (version_changed || first_batch_in_shared_bridge) {
-                tracing::info!("We have upgrade tx to be executed in empty miniblock");
-                protocol_upgrade_tx
-            } else if !pending_miniblocks.is_empty()
-                && (version_changed || first_batch_in_shared_bridge)
-            {
-                // Sanity check: if `txs_to_reexecute` is not empty and upgrade tx is present for this block
-                // then it must be the first one in `txs_to_reexecute`.
-                if protocol_upgrade_tx.is_some() {
-                    let first_tx_to_reexecute = &pending_miniblocks[0].txs[0];
-                    assert_eq!(
-                        first_tx_to_reexecute.tx_format(),
-                        TransactionType::ProtocolUpgradeTransaction
-                    )
-                }
-                tracing::info!("We have no upgrade tx to execute");
-                None
-            } else {
-                tracing::info!("We are not changing protocol version");
-                None
-            };
+        let mut protocol_upgrade_tx = self
+            .load_protocol_upgrade_tx(
+                &pending_miniblocks,
+                protocol_version,
+                first_batch_in_shared_bridge,
+            )
+            .await?;
 
         let mut batch_executor = self
             .batch_executor_base
@@ -258,6 +224,59 @@ impl ZkSyncStateKeeper {
             };
         }
         Err(Error::Canceled)
+    }
+
+    async fn load_protocol_upgrade_tx(
+        &mut self,
+        pending_miniblocks: &[MiniblockExecutionData],
+        protocol_version: ProtocolVersionId,
+        first_batch_in_shared_bridge: bool,
+    ) -> Result<Option<ProtocolUpgradeTx>, Error> {
+        let previous_batch_protocol_version =
+            self.io.load_previous_batch_version_id().await.unwrap();
+
+        let version_changed = protocol_version != previous_batch_protocol_version;
+        let mut protocol_upgrade_tx = self.io.load_upgrade_tx(protocol_version).await;
+
+        // After the Shared Bridge is integrated,
+        // there has to be a setChainId upgrade transaction after the chain genesis.
+        // It has to be the first transaction of the first batch.
+        // If it's not present, we have to wait for it to be picked up by the event watcher.
+        // The setChainId upgrade does not bump the protocol version, rather attaches an upgrade
+        // transaction to the genesis protocol version.
+        while first_batch_in_shared_bridge && protocol_upgrade_tx.is_none() {
+            tracing::info!("Waiting for setChainId upgrade transaction to be picked up");
+            if self.is_canceled() {
+                return Err(Error::Canceled);
+            }
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            protocol_upgrade_tx = self.io.load_upgrade_tx(protocol_version).await;
+        }
+
+        let protocol_upgrade_tx =
+            if pending_miniblocks.is_empty() && (version_changed || first_batch_in_shared_bridge) {
+                tracing::info!("We have upgrade tx to be executed in empty miniblock");
+                protocol_upgrade_tx
+            } else if !pending_miniblocks.is_empty()
+                && (version_changed || first_batch_in_shared_bridge)
+            {
+                // Sanity check: if `txs_to_reexecute` is not empty and upgrade tx is present for this block
+                // then it must be the first one in `txs_to_reexecute`.
+                if protocol_upgrade_tx.is_some() {
+                    let first_tx_to_reexecute = &pending_miniblocks[0].txs[0];
+                    assert_eq!(
+                        first_tx_to_reexecute.tx_format(),
+                        TransactionType::ProtocolUpgradeTransaction
+                    )
+                }
+                tracing::info!("We have no upgrade tx to execute");
+                None
+            } else {
+                tracing::info!("We are not changing protocol version");
+                None
+            };
+
+        Ok(protocol_upgrade_tx)
     }
 
     fn is_canceled(&self) -> bool {

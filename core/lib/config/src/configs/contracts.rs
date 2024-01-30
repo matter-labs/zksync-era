@@ -14,13 +14,6 @@ pub enum ProverAtGenesis {
 pub struct ContractsConfig {
     pub governance_addr: Address,
     pub mailbox_facet_addr: Address,
-
-    pub bridgehub_proxy_addr: Option<Address>,
-    pub bridgehub_impl_addr: Option<Address>,
-    pub state_transition_proxy_addr: Option<Address>,
-    pub state_transition_impl_addr: Option<Address>,
-    pub transparent_proxy_admin_addr: Option<Address>,
-
     pub executor_facet_addr: Address,
     pub admin_facet_addr: Address,
     pub getters_facet_addr: Address,
@@ -47,6 +40,13 @@ pub struct ContractsConfig {
     pub fri_recursion_leaf_level_vk_hash: H256,
     pub prover_at_genesis: ProverAtGenesis,
     pub snark_wrapper_vk_hash: H256,
+
+    // These contracts will be used after shared bridge integration.
+    pub bridgehub_proxy_addr: Option<Address>,
+    pub bridgehub_impl_addr: Option<Address>,
+    pub state_transition_proxy_addr: Option<Address>,
+    pub state_transition_impl_addr: Option<Address>,
+    pub transparent_proxy_admin_addr: Option<Address>,
 }
 
 impl ContractsConfig {

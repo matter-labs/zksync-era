@@ -122,6 +122,31 @@ impl ProtoRepr for proto::Contracts {
             snark_wrapper_vk_hash: required(&self.snark_wrapper_vk_hash)
                 .and_then(|x| parse_h256(x))
                 .context("snark_wrapper_vk_hash")?,
+            bridgehub_proxy_addr: (&self.bridgehub_proxy_addr)
+                .as_ref()
+                .map(|x| parse_h160(x))
+                .transpose()
+                .context("bridgehub_proxy_addr")?,
+            bridgeub_impl_addr: (&self.bridgeub_impl_addr)
+                .as_ref()
+                .map(|x| parse_h160(x))
+                .transpose()
+                .context("bridgeub_impl_addr")?,
+            state_transition_proxy_addr: (&self.state_transition_proxy_addr)
+                .as_ref()
+                .map(|x| parse_h160(x))
+                .transpose()
+                .context("state_transition_proxy_addr")?,
+            state_transition_impl_addr: (&self.state_transition_impl_addr)
+                .as_ref()
+                .map(|x| parse_h160(x))
+                .transpose()
+                .context("state_transition_impl_addr")?,
+            transparent_proxy_admin_addr: (&self.transparent_proxy_admin_addr)
+                .as_ref()
+                .map(|x| parse_h160(x))
+                .transpose()
+                .context("transparent_proxy_admin_addr")?,
         })
     }
 
