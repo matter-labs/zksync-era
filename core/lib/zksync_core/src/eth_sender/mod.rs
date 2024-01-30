@@ -2,7 +2,6 @@ mod aggregated_operations;
 mod aggregator;
 mod error;
 mod eth_tx_aggregator;
-mod eth_tx_args;
 mod eth_tx_manager;
 mod metrics;
 mod publish_criterion;

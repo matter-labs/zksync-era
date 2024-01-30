@@ -25,6 +25,7 @@ zksync_system_constants = { path = "../../lib/constants" }
 zksync_commitment_utils = { path = "../commitment_utils" }
 zksync_eth_client = { path = "../eth_client" }
 zksync_eth_signer = { path = "../eth_signer" }
+zksync_l1_contract_interface = { path = "../l1_contract_interface" }
 zksync_mempool = { path = "../mempool" }
 zksync_queued_job_processor = { path = "../queued_job_processor" }
 zksync_circuit_breaker = { path = "../circuit_breaker" }
@@ -42,7 +43,6 @@ zksync_health_check = { path = "../health_check" }
 vlog = { path = "../vlog" }
 
 multivm = { path = "../multivm" }
-codegen = { git = "https://github.com/matter-labs/solidity_plonk_verifier.git", branch = "dev" }
 
 # Consensus dependenices
 zksync_concurrency = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "5b3d383d7a65b0fbe2a771fecf4313f5083be9ae" }

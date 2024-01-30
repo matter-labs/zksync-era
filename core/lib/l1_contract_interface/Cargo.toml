@@ -12,3 +12,6 @@ readme = "README.md"
 
 [dependencies]
 zksync_types = { path = "../types" }
+zksync_prover_interface = { path = "../prover_interface" }
+
+codegen = { git = "https://github.com/matter-labs/solidity_plonk_verifier.git", branch = "dev" }

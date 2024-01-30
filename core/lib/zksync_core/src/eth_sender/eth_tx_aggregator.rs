@@ -5,6 +5,7 @@ use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::{BoundEthInterface, CallFunctionArgs};
+use zksync_l1_contract_interface::ToEthArgs;
 use zksync_types::{
     contracts::{Multicall3Call, Multicall3Result},
     eth_sender::EthTx,
@@ -21,7 +22,6 @@ use zksync_types::{
 use super::aggregated_operations::AggregatedOperation;
 use crate::{
     eth_sender::{
-        eth_tx_args::EthTxArgs,
         metrics::{PubdataKind, METRICS},
         zksync_functions::ZkSyncFunctions,
         Aggregator, ETHSenderError,
@@ -418,7 +418,7 @@ impl EthTxAggregator {
                         .as_ref()
                         .expect("Missing ABI for commitBatches")
                 };
-                f.encode_input(&op.get_eth_tx_args())
+                f.encode_input(&op.to_eth_args())
             }
             AggregatedOperation::PublishProofOnchain(op) => {
                 assert_eq!(contracts_are_pre_boojum, operation_is_pre_boojum);
@@ -430,7 +430,7 @@ impl EthTxAggregator {
                         .as_ref()
                         .expect("Missing ABI for proveBatches")
                 };
-                f.encode_input(&op.get_eth_tx_args())
+                f.encode_input(&op.to_eth_args())
             }
             AggregatedOperation::Execute(op) => {
                 let f = if contracts_are_pre_boojum {
@@ -441,7 +441,7 @@ impl EthTxAggregator {
                         .as_ref()
                         .expect("Missing ABI for executeBatches")
                 };
-                f.encode_input(&op.get_eth_tx_args())
+                f.encode_input(&op.to_eth_args())
             }
         }
         .expect("Failed to encode transaction data")

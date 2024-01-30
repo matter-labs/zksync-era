@@ -2,36 +2,24 @@ use codegen::serialize_proof;
 use zksync_prover_interface::outputs::L1BatchProofForL1;
 use zksync_types::{commitment::L1BatchWithMetadata, ethabi::Token, U256};
 
-use super::aggregated_operations::{
-    L1BatchCommitOperation, L1BatchExecuteOperation, L1BatchProofOperation,
-};
+use crate::{i_executor::structures::StoredBatchInfo, ToEthArgs};
 
-/// Trait for the types that can be encoded into the Ethereum transaction input.
-pub(super) trait EthTxArgs {
-    /// Formats the arguments into the Ethereum transaction input.
-    fn get_eth_tx_args(&self) -> Vec<Token>;
+/// Input required to encode `proveBatches` call.
+#[derive(Debug, Clone)]
+pub struct ProveBatches {
+    pub prev_l1_batch: L1BatchWithMetadata,
+    pub l1_batches: Vec<L1BatchWithMetadata>,
+    pub proofs: Vec<L1BatchProofForL1>,
+    pub should_verify: bool,
 }
 
-impl EthTxArgs for L1BatchCommitOperation {
-    fn get_eth_tx_args(&self) -> Vec<Token> {
-        let stored_batch_info = self.last_committed_l1_batch.l1_header_data();
-        let l1_batches_to_commit = self
-            .l1_batches
-            .iter()
-            .map(L1BatchWithMetadata::l1_commit_data)
-            .collect();
-
-        vec![stored_batch_info, Token::Array(l1_batches_to_commit)]
-    }
-}
-
-impl EthTxArgs for L1BatchProofOperation {
-    fn get_eth_tx_args(&self) -> Vec<Token> {
-        let prev_l1_batch = self.prev_l1_batch.l1_header_data();
+impl ToEthArgs for ProveBatches {
+    fn to_eth_args(&self) -> Vec<Token> {
+        let prev_l1_batch = Token::from(StoredBatchInfo(&self.prev_l1_batch));
         let batches_arg = self
             .l1_batches
             .iter()
-            .map(L1BatchWithMetadata::l1_header_data)
+            .map(|batch| Token::from(StoredBatchInfo(batch)))
             .collect();
         let batches_arg = Token::Array(batches_arg);
 
@@ -75,16 +63,5 @@ impl EthTxArgs for L1BatchProofOperation {
                 Token::Tuple(vec![Token::Array(vec![]), Token::Array(vec![])]),
             ]
         }
-    }
-}
-
-impl EthTxArgs for L1BatchExecuteOperation {
-    fn get_eth_tx_args(&self) -> Vec<Token> {
-        vec![Token::Array(
-            self.l1_batches
-                .iter()
-                .map(L1BatchWithMetadata::l1_header_data)
-                .collect(),
-        )]
     }
 }

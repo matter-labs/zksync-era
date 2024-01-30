@@ -5,6 +5,7 @@ use tokio::sync::watch;
 use zksync_contracts::PRE_BOOJUM_COMMIT_FUNCTION;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::{clients::QueryClient, Error as L1ClientError, EthInterface};
+use zksync_l1_contract_interface::i_executor::structures::CommitBatchInfo;
 use zksync_types::{web3::ethabi, L1BatchNumber, H256};
 
 use crate::{
@@ -113,7 +114,7 @@ impl LocalL1BatchCommitData {
 
         Ok(Some(Self {
             is_pre_boojum,
-            l1_commit_data: l1_batch.l1_commit_data(),
+            l1_commit_data: CommitBatchInfo(&l1_batch).into(),
             commit_tx_hash,
         }))
     }

@@ -1,4 +1,4 @@
-mod commit_batch_info;
-mod stored_batch_info;
+//! Different interfaces exposed by the `IExecutor.sol`.
 
-pub use self::{commit_batch_info::CommitBatchInfo, stored_batch_info::StoredBatchInfo};
+pub mod methods;
+pub mod structures;
