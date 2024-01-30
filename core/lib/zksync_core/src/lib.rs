@@ -525,7 +525,7 @@ pub async fn initialize_components(
                     // For now in case of error we just log it and allow the server
                     // to continue running.
                     if let Err(err) = cfg.run(ctx, pool).await {
-                        tracing::error!(%err, "Consensus actor failed");
+                        tracing::error!("Consensus actor failed: {err:#}");
                     } else {
                         tracing::info!("Consensus actor stopped");
                     }

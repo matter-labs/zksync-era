@@ -1,7 +1,7 @@
 //! Tests for the reorg detector component.
 
 use std::{
-    collections::HashMap,
+    collections::BTreeMap,
     sync::{Arc, Mutex},
 };
 
@@ -58,7 +58,7 @@ async fn binary_search_with_simple_predicate() {
     }
 }
 
-type ResponsesMap<K> = HashMap<K, H256>;
+type ResponsesMap<K> = BTreeMap<K, H256>;
 
 #[derive(Debug, Clone, Copy)]
 enum RpcErrorKind {
@@ -106,6 +106,13 @@ impl MainNodeClient for MockMainNodeClient {
         } else {
             Ok(None)
         }
+    }
+
+    async fn last_miniblock(&self) -> Result<MiniblockNumber, RpcError> {
+        if let &Some(error_kind) = &*self.error_kind.lock().unwrap() {
+            return Err(error_kind.into());
+        }
+        Ok(*self.miniblock_hash_responses.last_key_value().unwrap().0)
     }
 }
 

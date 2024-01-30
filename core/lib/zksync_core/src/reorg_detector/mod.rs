@@ -51,6 +51,8 @@ trait MainNodeClient: fmt::Debug + Send + Sync {
     async fn miniblock_hash(&self, number: MiniblockNumber) -> Result<Option<H256>, RpcError>;
 
     async fn l1_batch_root_hash(&self, number: L1BatchNumber) -> Result<Option<H256>, RpcError>;
+
+    async fn last_miniblock(&self) -> Result<MiniblockNumber, RpcError>;
 }
 
 #[async_trait]
@@ -67,6 +69,12 @@ impl MainNodeClient for HttpClient {
             .get_l1_batch_details(number)
             .await?
             .and_then(|batch| batch.base.root_hash))
+    }
+
+    async fn last_miniblock(&self) -> Result<MiniblockNumber, RpcError> {
+        Ok(MiniblockNumber(
+            self.get_block_number().await?.try_into().unwrap(),
+        ))
     }
 }
 
@@ -259,6 +267,8 @@ impl ReorgDetector {
                 .get_sealed_miniblock_number()
                 .await?
                 .context("miniblocks table unexpectedly emptied")?;
+            let sealed_miniblock_number =
+                sealed_miniblock_number.min(self.client.last_miniblock().await?);
             drop(storage);
 
             tracing::trace!(
