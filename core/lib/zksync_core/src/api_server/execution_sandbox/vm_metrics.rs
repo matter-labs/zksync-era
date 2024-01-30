@@ -240,6 +240,6 @@ pub(super) fn collect_tx_execution_metrics(
         computational_gas_used: result.statistics.computational_gas_used,
         total_updated_values_size: writes_metrics.total_updated_values_size,
         pubdata_published: result.statistics.pubdata_published,
-        estimated_circuits_used: result.statistics.estimated_circuits_used,
+        circuit_statistic: result.statistics.circuit_statistic,
     }
 }

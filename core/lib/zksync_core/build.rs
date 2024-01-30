@@ -5,8 +5,8 @@ fn main() {
         proto_root: "zksync/core/consensus".into(),
         dependencies: vec![],
         protobuf_crate: "::zksync_protobuf".parse().unwrap(),
-        is_public: false,
+        is_public: true,
     }
     .generate()
-    .expect("generate()");
+    .unwrap();
 }

@@ -43,7 +43,7 @@ impl From<StorageWeb3Log> for Log {
             transaction_hash: Some(H256::from_slice(&log.tx_hash)),
             transaction_index: Some(Index::from(log.tx_index_in_block as u32)),
             log_index: Some(U256::from(log.event_index_in_block as u32)),
-            transaction_log_index: Some(U256::from(log.event_index_in_block as u32)),
+            transaction_log_index: Some(U256::from(log.event_index_in_tx as u32)),
             log_type: None,
             removed: Some(false),
         }

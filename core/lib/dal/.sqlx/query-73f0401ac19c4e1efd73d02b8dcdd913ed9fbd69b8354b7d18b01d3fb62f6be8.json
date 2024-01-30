@@ -1,0 +1,44 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                l1_batch_number,\n                l1_batch_root_hash,\n                miniblock_number,\n                miniblock_root_hash,\n                storage_logs_chunks_processed\n            FROM\n                snapshot_recovery\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "l1_batch_number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "l1_batch_root_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 2,
+        "name": "miniblock_number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "miniblock_root_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 4,
+        "name": "storage_logs_chunks_processed",
+        "type_info": "BoolArray"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "73f0401ac19c4e1efd73d02b8dcdd913ed9fbd69b8354b7d18b01d3fb62f6be8"
+}

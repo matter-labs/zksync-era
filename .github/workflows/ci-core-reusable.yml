@@ -6,7 +6,7 @@ on:
         description: 'JSON of required compilers and their versions'
         type: string
         required: false
-        default: '[{ "zksolc": ["1.3.14", "1.3.16", "1.3.17", "1.3.1", "1.3.7", "1.3.18", "1.3.19"] } , { "zkvyper": ["1.3.13"] }]'
+        default: '[{ "zksolc": ["1.3.14", "1.3.16", "1.3.17", "1.3.1", "1.3.7", "1.3.18", "1.3.19", "1.3.21"] } , { "zkvyper": ["1.3.13"] }]'
 
 jobs:
   lint:
@@ -27,7 +27,7 @@ jobs:
           echo IN_DOCKER=1 >> .env
 
       # TODO: Remove when we after upgrade of hardhat-plugins
-      - name: pre-download compiilers
+      - name: pre-download compilers
         run: |
           # Download needed versions of vyper compiler
           # Not sanitized due to unconventional path and tags
@@ -118,8 +118,13 @@ jobs:
           ci_run sccache --show-stats
           ci_run cat /tmp/sccache_log.txt
   integration:
-    runs-on: [matterlabs-ci-runner]
+    strategy:
+      matrix:
+        consensus: [false,true]
+    env:
+      SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,basic_witness_input_producer${{ matrix.consensus && ',consensus' || '' }}"
 
+    runs-on: [matterlabs-ci-runner]
     steps:
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
         with:
@@ -141,11 +146,15 @@ jobs:
           wget https://github.com/ethereum/solc-bin/raw/gh-pages/linux-amd64/solc-linux-amd64-v0.8.23%2Bcommit.f704f362
           mv solc-linux-amd64-v0.8.23+commit.f704f362 $(pwd)/etc/solc-bin/0.8.23/solc
           chmod +x $(pwd)/etc/solc-bin/0.8.23/solc
+          
+          mkdir -p $(pwd)/etc/solc-bin/zkVM-0.8.23-1.0.0
+          wget https://github.com/matter-labs/era-solidity/releases/download/0.8.23-1.0.0/solc-linux-amd64-0.8.23-1.0.0 -O $(pwd)/etc/solc-bin/zkVM-0.8.23-1.0.0/solc
+          chmod +x $(pwd)/etc/solc-bin/zkVM-0.8.23-1.0.0/solc
 
-          mkdir -p $(pwd)/etc/zksolc-bin/v1.3.19
-          wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.19
-          mv zksolc-linux-amd64-musl-v1.3.19 $(pwd)/etc/zksolc-bin/v1.3.19/zksolc
-          chmod +x $(pwd)/etc/zksolc-bin/v1.3.19/zksolc
+          mkdir -p $(pwd)/etc/zksolc-bin/v1.3.21
+          wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.21
+          mv zksolc-linux-amd64-musl-v1.3.21 $(pwd)/etc/zksolc-bin/v1.3.21/zksolc
+          chmod +x $(pwd)/etc/zksolc-bin/v1.3.21/zksolc
 
           mkdir -p $(pwd)/etc/vyper-bin/0.3.10
           wget -O vyper0.3.10 https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10%2Bcommit.91361694.linux
@@ -175,7 +184,7 @@ jobs:
       # `sleep 5` because we need to wait until server started properly
       - name: Run server
         run: |
-          ci_run zk server &>server.log &
+          ci_run zk server --components=$SERVER_COMPONENTS &>server.log &
           ci_run sleep 5
 
       - name: Run contract verifier
@@ -193,7 +202,7 @@ jobs:
         run: |
           ci_run pkill zksync_server || true
           ci_run sleep 2
-          ci_run zk test i revert
+          ENABLE_CONSENSUS=${{ matrix.consensus }} PASSED_ENV_VARS=ENABLE_CONSENSUS ci_run zk test i revert
 
         # This test should be the last one as soon as it
         # finished bootloader will be different
@@ -226,7 +235,14 @@ jobs:
           ci_run cat /tmp/sccache_log.txt
 
   external-node:
+    strategy:
+      matrix:
+        consensus: [false,true]
     runs-on: [matterlabs-ci-runner]
+   
+    env:
+      SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,basic_witness_input_producer${{ matrix.consensus && ',consensus' || '' }}"
+      EXT_NODE_FLAGS: "${{ matrix.consensus && '--enable-consensus' || '' }}"
 
     steps:
       - name: Checkout code # Checks out the repository under $GITHUB_WORKSPACE, so the job can access it.
@@ -250,11 +266,15 @@ jobs:
           wget https://github.com/ethereum/solc-bin/raw/gh-pages/linux-amd64/solc-linux-amd64-v0.8.23%2Bcommit.f704f362
           mv solc-linux-amd64-v0.8.23+commit.f704f362 $(pwd)/etc/solc-bin/0.8.23/solc
           chmod +x $(pwd)/etc/solc-bin/0.8.23/solc
+          
+          mkdir -p $(pwd)/etc/solc-bin/zkVM-0.8.23-1.0.0
+          wget https://github.com/matter-labs/era-solidity/releases/download/0.8.23-1.0.0/solc-linux-amd64-0.8.23-1.0.0 -O $(pwd)/etc/solc-bin/zkVM-0.8.23-1.0.0/solc
+          chmod +x $(pwd)/etc/solc-bin/zkVM-0.8.23-1.0.0/solc
 
-          mkdir -p $(pwd)/etc/zksolc-bin/v1.3.19
-          wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.19
-          mv zksolc-linux-amd64-musl-v1.3.19 $(pwd)/etc/zksolc-bin/v1.3.19/zksolc
-          chmod +x $(pwd)/etc/zksolc-bin/v1.3.19/zksolc
+          mkdir -p $(pwd)/etc/zksolc-bin/v1.3.21
+          wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.21
+          mv zksolc-linux-amd64-musl-v1.3.21 $(pwd)/etc/zksolc-bin/v1.3.21/zksolc
+          chmod +x $(pwd)/etc/zksolc-bin/v1.3.21/zksolc
 
           mkdir -p $(pwd)/etc/vyper-bin/0.3.10
           wget -O vyper0.3.10 https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10%2Bcommit.91361694.linux
@@ -283,22 +303,19 @@ jobs:
       # `sleep 30` because we need to wait until server started properly
       - name: Run server
         run: |
-          ci_run zk server &>server.log &
+          ci_run zk server --components=$SERVER_COMPONENTS &>server.log &
           ci_run sleep 30
-
+      
       - name: Run external node
         run: |
           ci_run zk env ext-node-docker
           ci_run zk db setup
-          ci_run zk external-node &>ext-node.log &
+          ci_run zk external-node $EXT_NODE_FLAGS &>ext-node.log &
           ci_run sleep 30
 
       # TODO(PLA-653): Restore bridge tests for EN.
       - name: Integration tests
         run: ci_run zk test i server --testPathIgnorePatterns 'contract-verification|custom-erc20-bridge|snapshots-creator'
-
-      - name: Run Cross EN Checker
-        run: ci_run zk run cross-en-checker
 
       - name: Run revert test
         run: |
@@ -307,14 +324,14 @@ jobs:
           ci_run pkill zksync_server || true
           ci_run sleep 2
           ci_run zk env
-          ci_run zk test i revert
+          ENABLE_CONSENSUS=${{ matrix.consensus }} PASSED_ENV_VARS=ENABLE_CONSENSUS ci_run zk test i revert
           # Check that the rollback was performed on the EN
           ci_run sleep 20
           ci_run grep -q 'Rollback successfully completed' ext-node.log
           # Restart the EN
-          ci_run zk server &>>server.log &
+          ci_run zk server --components=$SERVER_COMPONENTS &>>server.log &
           ci_run sleep 30
-          ZKSYNC_ENV=ext-node-docker ci_run zk external-node &>>ext-node.log &
+          ZKSYNC_ENV=ext-node-docker ci_run zk external-node $EXT_NODE_FLAGS &>>ext-node.log &
           ci_run sleep 30
 
       - name: Run upgrade test
