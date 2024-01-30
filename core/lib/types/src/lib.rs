@@ -30,7 +30,6 @@ pub mod block;
 pub mod circuit;
 pub mod commitment;
 pub mod contract_verification_api;
-pub mod contracts;
 pub mod event;
 pub mod fee;
 pub mod fee_model;

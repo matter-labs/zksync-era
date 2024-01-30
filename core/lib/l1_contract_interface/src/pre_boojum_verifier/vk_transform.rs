@@ -1,3 +1,6 @@
+//! This module contains functions for transforming vk from the old L1 verifier contract to the hash
+//! that serves as its commitment.
+
 use std::str::FromStr;
 
 use zkevm_test_harness::{
