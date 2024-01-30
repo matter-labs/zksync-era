@@ -2153,11 +2153,7 @@ impl BlocksDal<'_, '_> {
         &mut self,
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<Option<Vec<u8>>> {
-        let l1_batch_header = self
-            .get_l1_batch_header(l1_batch_number)
-            .await?
-            .context("L1 batch pubdata not found: get_l1_batch_metadata()")?;
-        let Some(l1_batch_metadata) = self
+        let Some(l1_batch_with_metadata) = self
             .get_l1_batch_metadata(l1_batch_number)
             .await
             .context("L1 batch pubdata not found: get_l1_batch_metadata()")?
@@ -2165,32 +2161,7 @@ impl BlocksDal<'_, '_> {
             return Ok(None);
         };
 
-        let mut res = Vec::new();
-
-        // Process and Pack Logs
-        res.extend((l1_batch_header.l2_to_l1_logs.len() as u32).to_be_bytes());
-        for l2_to_l1_log in &l1_batch_header.l2_to_l1_logs {
-            res.extend(l2_to_l1_log.0.to_bytes());
-        }
-
-        // Process and Pack Messages
-        res.extend((l1_batch_header.l2_to_l1_messages.len() as u32).to_be_bytes());
-        for msg in &l1_batch_header.l2_to_l1_messages {
-            res.extend((msg.len() as u32).to_be_bytes());
-            res.extend(msg);
-        }
-
-        // Process and Pack Bytecodes
-        res.extend((l1_batch_metadata.factory_deps.len() as u32).to_be_bytes());
-        for bytecode in &l1_batch_metadata.factory_deps {
-            res.extend((bytecode.len() as u32).to_be_bytes());
-            res.extend(bytecode);
-        }
-
-        // Extend with Compressed StateDiffs
-        res.extend(&l1_batch_metadata.metadata.state_diffs_compressed);
-
-        Ok(Some(res))
+        Ok(Some(l1_batch_with_metadata.construct_pubdata()))
     }
 }
 
