@@ -2,7 +2,7 @@ use prometheus_exporter::PrometheusExporterConfig;
 use zksync_health_check::{HealthStatus, HealthUpdater, ReactiveHealthCheck};
 
 use crate::{
-    implementations::resource::healthcheck::HealthCheckResource,
+    implementations::resources::healthcheck::HealthCheckResource,
     node::{NodeContext, StopReceiver},
     resource::ResourceCollection,
     task::Task,
@@ -10,8 +10,13 @@ use crate::{
 };
 
 /// Builder for a prometheus exporter.
+///
+/// ## Effects
+///
+/// - Adds prometheus health check to the `ResourceCollection<HealthCheckResource>`.
+/// - Adds `prometheus_exporter` to the node.
 #[derive(Debug)]
-pub struct PrometheusExporterTaskBuilder(pub PrometheusExporterConfig);
+pub struct PrometheusExporterLayer(pub PrometheusExporterConfig);
 
 #[derive(Debug)]
 pub struct PrometheusExporterTask {
@@ -20,7 +25,7 @@ pub struct PrometheusExporterTask {
 }
 
 #[async_trait::async_trait]
-impl WiringLayer for PrometheusExporterTaskBuilder {
+impl WiringLayer for PrometheusExporterLayer {
     fn layer_name(&self) -> &'static str {
         "prometheus_exporter"
     }

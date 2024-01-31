@@ -3,7 +3,7 @@ use zksync_dal::ConnectionPool;
 use zksync_storage::RocksDB;
 
 use crate::{
-    implementations::resource::{
+    implementations::resources::{
         healthcheck::HealthCheckResource, object_store::ObjectStoreResource,
         pools::MasterPoolResource,
     },
@@ -14,8 +14,15 @@ use crate::{
 };
 
 /// Builder for a metadata calculator.
+///
+/// ## Effects
+///
+/// - Resolves `MasterPoolResource`.
+/// - Resolves `ObjectStoreResource` (optional).
+/// - Adds `tree_health_check` to the `ResourceCollection<HealthCheckResource>`.
+/// - Adds `metadata_calculator` to the node.
 #[derive(Debug)]
-pub struct MetadataCalculatorTaskBuilder(pub MetadataCalculatorConfig);
+pub struct MetadataCalculatorLayer(pub MetadataCalculatorConfig);
 
 #[derive(Debug)]
 pub struct MetadataCalculatorTask {
@@ -24,9 +31,9 @@ pub struct MetadataCalculatorTask {
 }
 
 #[async_trait::async_trait]
-impl WiringLayer for MetadataCalculatorTaskBuilder {
+impl WiringLayer for MetadataCalculatorLayer {
     fn layer_name(&self) -> &'static str {
-        "metadata_calculator"
+        "metadata_calculator_layer"
     }
 
     async fn wire(self: Box<Self>, mut node: NodeContext<'_>) -> Result<(), WiringError> {

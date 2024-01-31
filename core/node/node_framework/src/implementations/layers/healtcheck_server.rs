@@ -4,7 +4,7 @@ use zksync_config::configs::api::HealthCheckConfig;
 use zksync_core::api_server::healthcheck::HealthCheckHandle;
 
 use crate::{
-    implementations::resource::healthcheck::HealthCheckResource,
+    implementations::resources::healthcheck::HealthCheckResource,
     node::{NodeContext, StopReceiver},
     resource::ResourceCollection,
     task::Task,
@@ -15,13 +15,20 @@ use crate::{
 ///
 /// Spawned task collects all the health checks added by different tasks to the
 /// corresponding resource collection and spawns an HTTP server exposing them.
+///
+/// This layer expects other tasks to add health checks to the `ResourceCollection<HealthCheckResource>`.
+///
+/// ## Effects
+///
+/// - Resolves `ResourceCollection<HealthCheckResource>`.
+/// - Adds `healthcheck_server` to the node.
 #[derive(Debug)]
-pub struct HealthCheckTaskBuilder(pub HealthCheckConfig);
+pub struct HealthCheckLayer(pub HealthCheckConfig);
 
 #[async_trait::async_trait]
-impl WiringLayer for HealthCheckTaskBuilder {
+impl WiringLayer for HealthCheckLayer {
     fn layer_name(&self) -> &'static str {
-        "healthcheck_server"
+        "healthcheck_layer"
     }
 
     async fn wire(self: Box<Self>, mut node: NodeContext<'_>) -> Result<(), WiringError> {

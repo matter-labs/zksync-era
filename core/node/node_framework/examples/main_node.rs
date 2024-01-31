@@ -8,11 +8,10 @@ use zksync_dal::ConnectionPool;
 use zksync_env_config::FromEnv;
 use zksync_node_framework::{
     implementations::{
-        resource::pools::MasterPoolResource,
-        task::{
-            healtcheck_server::HealthCheckTaskBuilder,
-            metadata_calculator::MetadataCalculatorTaskBuilder,
+        layers::{
+            healtcheck_server::HealthCheckLayer, metadata_calculator::MetadataCalculatorLayer,
         },
+        resources::pools::MasterPoolResource,
     },
     node::ZkStackService,
     resource::{Resource, ResourceId, ResourceProvider, StoredResource},
@@ -71,11 +70,11 @@ fn main() -> anyhow::Result<()> {
         &merkle_tree_env_config,
         &operations_manager_env_config,
     );
-    node.add_layer(MetadataCalculatorTaskBuilder(metadata_calculator_config));
+    node.add_layer(MetadataCalculatorLayer(metadata_calculator_config));
 
     // Add the healthcheck server.
     let healthcheck_config = zksync_config::ApiConfig::from_env()?.healthcheck;
-    node.add_layer(HealthCheckTaskBuilder(healthcheck_config));
+    node.add_layer(HealthCheckLayer(healthcheck_config));
 
     // Run the node until completion.
     node.run()?;
