@@ -35,7 +35,8 @@ pub(crate) async fn load_pending_batch(
     .with_fee_account(fee_account)
     .with_prev_batch_hash(previous_l1_batch_hash)
     .build(storage)
-    .await?;
+    .await
+    .ok()?;
 
     let pending_miniblocks = storage
         .transactions_dal()

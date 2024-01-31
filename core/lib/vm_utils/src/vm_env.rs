@@ -1,3 +1,4 @@
+use anyhow::Context;
 use multivm::{
     interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode},
     vm_latest::constants::BLOCK_GAS_LIMIT,
@@ -57,7 +58,7 @@ impl VmEnvBuilder {
         self
     }
 
-    pub async fn build(self, connection: &mut StorageProcessor<'_>) -> Option<VmEnv> {
+    pub async fn build(self, connection: &mut StorageProcessor<'_>) -> anyhow::Result<VmEnv> {
         let pending_miniblock_number: MiniblockNumber =
             if let Some(pending_miniblock_number) = self.miniblock_number {
                 pending_miniblock_number
@@ -67,23 +68,26 @@ impl VmEnvBuilder {
                 let (_, last_miniblock_number_included_in_l1_batch) = connection
                     .blocks_dal()
                     .get_miniblock_range_of_l1_batch(self.l1_batch_number - 1)
-                    .await
-                    .unwrap()?;
+                    .await?
+                    .context(format!("L1 batch {} not found", self.l1_batch_number))?;
+
                 last_miniblock_number_included_in_l1_batch + 1
             };
         let pending_miniblock_header = connection
             .blocks_dal()
             .get_miniblock_header(pending_miniblock_number)
-            .await
-            .unwrap()?;
+            .await?
+            .context(format!("Miniblock {} not found", pending_miniblock_number))?;
 
         tracing::info!("Getting previous miniblock hash");
         let prev_miniblock_hash = connection
             .blocks_dal()
             .get_miniblock_header(pending_miniblock_number - 1)
-            .await
-            .unwrap()
-            .unwrap()
+            .await?
+            .context(format!(
+                "Previous Miniblock {} not found",
+                pending_miniblock_number - 1
+            ))?
             .hash;
         let fee_account = if let Some(fee_account) = self.fee_account {
             fee_account
@@ -91,8 +95,8 @@ impl VmEnvBuilder {
             connection
                 .blocks_dal()
                 .get_fee_address_for_l1_batch(self.l1_batch_number)
-                .await
-                .unwrap()?
+                .await?
+                .context("Fee account not found")?
         };
         let base_system_contracts = connection
             .storage_dal()
@@ -112,8 +116,11 @@ impl VmEnvBuilder {
             connection
                 .blocks_dal()
                 .get_l1_batch_state_root_and_timestamp(self.l1_batch_number - 1)
-                .await
-                .unwrap()?
+                .await?
+                .context(format!(
+                    "Previous L1 batch not found {}",
+                    self.l1_batch_number - 1
+                ))?
                 .0
         };
         tracing::info!("Previous l1_batch_hash: {}", previous_l1_batch_hash);
@@ -133,7 +140,7 @@ impl VmEnvBuilder {
             pending_miniblock_header.virtual_blocks,
             self.chain_id,
         );
-        Some(VmEnv {
+        Ok(VmEnv {
             l1_batch_env,
             system_env,
         })
