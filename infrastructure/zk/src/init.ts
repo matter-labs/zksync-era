@@ -32,6 +32,7 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
     let envFileContent = fs.readFileSync(process.env.ENV_FILE!).toString();
     envFileContent += `VALIDIUM_MODE=${validiumMode}\n`;
     fs.writeFileSync(process.env.ENV_FILE!, envFileContent);
+    process.env.VALIDIUM_MODE = validiumMode.toString();
     await announced(`Initializing in ${validiumMode ? 'Validium mode' : 'Roll-up mode'}`);
 
     if (!process.env.CI && !skipEnvSetup) {
