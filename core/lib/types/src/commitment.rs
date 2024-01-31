@@ -17,14 +17,13 @@ use zksync_utils::u256_to_h256;
 
 use crate::{
     block::L1BatchHeader,
-    ethabi::Token,
     l2_to_l1_log::{L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log},
     web3::signing::keccak256,
     writes::{
         compress_state_diffs, InitialStorageWrite, RepeatedStorageWrite, StateDiffRecord,
         PADDED_ENCODED_STORAGE_DIFF_LEN_BYTES,
     },
-    ProtocolVersionId, H256, KNOWN_CODES_STORAGE_ADDRESS, U256,
+    ProtocolVersionId, H256, KNOWN_CODES_STORAGE_ADDRESS,
 };
 
 /// Type that can be serialized for commitment.
@@ -129,118 +128,6 @@ impl L1BatchWithMetadata {
                 None
             }
         })
-    }
-
-    /// Encodes L1Batch into `StorageBatchInfo` (see `IExecutor.sol`)
-    pub fn l1_header_data(&self) -> Token {
-        Token::Tuple(vec![
-            // `batchNumber`
-            Token::Uint(U256::from(self.header.number.0)),
-            // `batchHash`
-            Token::FixedBytes(self.metadata.root_hash.as_bytes().to_vec()),
-            // `indexRepeatedStorageChanges`
-            Token::Uint(U256::from(self.metadata.rollup_last_leaf_index)),
-            // `numberOfLayer1Txs`
-            Token::Uint(U256::from(self.header.l1_tx_count)),
-            // `priorityOperationsHash`
-            Token::FixedBytes(
-                self.header
-                    .priority_ops_onchain_data_hash()
-                    .as_bytes()
-                    .to_vec(),
-            ),
-            // `l2LogsTreeRoot`
-            Token::FixedBytes(self.metadata.l2_l1_merkle_root.as_bytes().to_vec()),
-            // timestamp
-            Token::Uint(U256::from(self.header.timestamp)),
-            // commitment
-            Token::FixedBytes(self.metadata.commitment.as_bytes().to_vec()),
-        ])
-    }
-
-    /// Encodes the L1Batch into CommitBatchInfo (see IExecutor.sol).
-    pub fn l1_commit_data(&self) -> Token {
-        if self.header.protocol_version.unwrap().is_pre_boojum() {
-            Token::Tuple(vec![
-                Token::Uint(U256::from(self.header.number.0)),
-                Token::Uint(U256::from(self.header.timestamp)),
-                Token::Uint(U256::from(self.metadata.rollup_last_leaf_index)),
-                Token::FixedBytes(self.metadata.merkle_root_hash.as_bytes().to_vec()),
-                Token::Uint(U256::from(self.header.l1_tx_count)),
-                Token::FixedBytes(self.metadata.l2_l1_merkle_root.as_bytes().to_vec()),
-                Token::FixedBytes(
-                    self.header
-                        .priority_ops_onchain_data_hash()
-                        .as_bytes()
-                        .to_vec(),
-                ),
-                Token::Bytes(self.metadata.initial_writes_compressed.clone()),
-                Token::Bytes(self.metadata.repeated_writes_compressed.clone()),
-                Token::Bytes(self.metadata.l2_l1_messages_compressed.clone()),
-                Token::Array(
-                    self.header
-                        .l2_to_l1_messages
-                        .iter()
-                        .map(|message| Token::Bytes(message.to_vec()))
-                        .collect(),
-                ),
-                Token::Array(
-                    self.factory_deps
-                        .iter()
-                        .map(|bytecode| Token::Bytes(bytecode.to_vec()))
-                        .collect(),
-                ),
-            ])
-        } else {
-            Token::Tuple(vec![
-                // `batchNumber`
-                Token::Uint(U256::from(self.header.number.0)),
-                // `timestamp`
-                Token::Uint(U256::from(self.header.timestamp)),
-                // `indexRepeatedStorageChanges`
-                Token::Uint(U256::from(self.metadata.rollup_last_leaf_index)),
-                // `newStateRoot`
-                Token::FixedBytes(self.metadata.merkle_root_hash.as_bytes().to_vec()),
-                // `numberOfLayer1Txs`
-                Token::Uint(U256::from(self.header.l1_tx_count)),
-                // `priorityOperationsHash`
-                Token::FixedBytes(
-                    self.header
-                        .priority_ops_onchain_data_hash()
-                        .as_bytes()
-                        .to_vec(),
-                ),
-                // `bootloaderHeapInitialContentsHash`
-                Token::FixedBytes(
-                    self.metadata
-                        .bootloader_initial_content_commitment
-                        .unwrap()
-                        .as_bytes()
-                        .to_vec(),
-                ),
-                // `eventsQueueStateHash`
-                Token::FixedBytes(
-                    self.metadata
-                        .events_queue_commitment
-                        .unwrap()
-                        .as_bytes()
-                        .to_vec(),
-                ),
-                // `systemLogs`
-                Token::Bytes(self.metadata.l2_l1_messages_compressed.clone()),
-                // `totalL2ToL1Pubdata`
-                Token::Bytes(
-                    self.header
-                        .pubdata_input
-                        .clone()
-                        .unwrap_or(self.construct_pubdata()),
-                ),
-            ])
-        }
-    }
-
-    pub fn l1_commit_data_size(&self) -> usize {
-        crate::ethabi::encode(&[Token::Array(vec![self.l1_commit_data()])]).len()
     }
 
     /// Packs all pubdata needed for batch commitment in boojum into one bytes array. The packing contains the

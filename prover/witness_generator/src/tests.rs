@@ -2,10 +2,8 @@ use std::iter;
 
 use const_decoder::Decoder::Hex;
 use zkevm_test_harness::witness::tree::{BinarySparseStorageTree, ZkSyncStorageLeaf};
-use zksync_types::{
-    proofs::{PrepareBasicCircuitsJob, StorageLogMetadata},
-    U256,
-};
+use zksync_prover_interface::inputs::{PrepareBasicCircuitsJob, StorageLogMetadata};
+use zksync_types::U256;
 
 use super::precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider;
 
