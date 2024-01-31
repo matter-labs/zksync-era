@@ -8963,8 +8963,6 @@ dependencies = [
 name = "zksync_system_constants"
 version = "0.1.0"
 dependencies = [
- "anyhow",
- "num 0.3.1",
  "once_cell",
  "zksync_basic_types",
  "zksync_utils",
