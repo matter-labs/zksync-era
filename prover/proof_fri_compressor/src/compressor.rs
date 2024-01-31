@@ -23,8 +23,9 @@ use zksync_prover_fri_types::{
     },
     get_current_pod_name, AuxOutputWitnessWrapper, FriProofWrapper,
 };
+use zksync_prover_interface::outputs::L1BatchProofForL1;
 use zksync_queued_job_processor::JobProcessor;
-use zksync_types::{aggregated_operations::L1BatchProofForL1, L1BatchNumber};
+use zksync_types::L1BatchNumber;
 use zksync_vk_setup_data_server_fri::{get_recursive_layer_vk_for_circuit_type, get_snark_vk};
 
 use crate::metrics::METRICS;

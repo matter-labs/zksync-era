@@ -23,7 +23,8 @@ use crate::{
     state_keeper::{
         io::{
             common::{load_pending_batch, poll_iters, IoCursor},
-            MiniblockParams, MiniblockSealerHandle, PendingBatchData, StateKeeperIO,
+            fee_address_migration, MiniblockParams, MiniblockSealerHandle, PendingBatchData,
+            StateKeeperIO,
         },
         metrics::KEEPER_METRICS,
         seal_criteria::IoSealCriteria,
@@ -79,6 +80,9 @@ impl ExternalIO {
         let l1_batch_params_provider = L1BatchParamsProvider::new(&mut storage)
             .await
             .context("failed initializing L1 batch params provider")?;
+        // We must run the migration for pending miniblocks synchronously, since we use `fee_account_address`
+        // from a pending miniblock in `load_pending_batch()` implementation.
+        fee_address_migration::migrate_pending_miniblocks(&mut storage).await;
         drop(storage);
 
         tracing::info!(
@@ -280,42 +284,11 @@ impl StateKeeperIO for ExternalIO {
             pending_miniblock_header.set_protocol_version(sync_block.protocol_version);
         }
 
-        // TODO (PLA-674): this workaround won't be necessary once fee address is moved to miniblock entity.
-        let fee_account = storage
-            .blocks_dal()
-            .get_fee_address_for_l1_batch(self.current_l1_batch_number - 1)
-            .await
-            .expect("Failed getting fee address for previous L1 batch");
-        let fee_account = match fee_account {
-            Some(account) => account,
-            None => {
-                let last_miniblock_number_in_prev_batch = pending_miniblock_header.number() - 1;
-                tracing::info!(
-                    "Fee address for L1 batch #{} is not available locally; fetching from main node \
-                     (in miniblock #{last_miniblock_number_in_prev_batch})",
-                    self.current_l1_batch_number - 1
-                );
-                let prev_block = self
-                    .main_node_client
-                    .fetch_l2_block(last_miniblock_number_in_prev_batch, false)
-                    .await
-                    .unwrap()
-                    .context("failed fetching block in previous L1 batch from main node")
-                    .unwrap();
-                assert_eq!(
-                    prev_block.l1_batch_number, self.current_l1_batch_number - 1,
-                    "Miniblock {prev_block:?} fetched to fill fee address has unexpected L1 batch number"
-                );
-                prev_block.operator_address
-            }
-        };
-
         let (system_env, l1_batch_env) = self
             .l1_batch_params_provider
             .load_l1_batch_params(
                 &mut storage,
                 &pending_miniblock_header,
-                fee_account,
                 self.validation_computational_gas_limit,
                 self.chain_id,
             )

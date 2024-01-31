@@ -101,6 +101,7 @@ impl Tester {
             minimal_l2_gas_price: self.minimal_l2_gas_price(),
             virtual_blocks_interval: 1,
             virtual_blocks_per_miniblock: 1,
+            fee_account_addr: Address::repeat_byte(0x11), // Maintain implicit invariant: fee address is never `Address::zero()`
             ..StateKeeperConfig::default()
         };
         let object_store = ObjectStoreFactory::mock().create_store().await;

@@ -29,7 +29,8 @@ use crate::{
         extractors,
         io::{
             common::{load_pending_batch, poll_iters, IoCursor},
-            MiniblockParams, MiniblockSealerHandle, PendingBatchData, StateKeeperIO,
+            fee_address_migration, MiniblockParams, MiniblockSealerHandle, PendingBatchData,
+            StateKeeperIO,
         },
         mempool_actor::l2_tx_filter,
         metrics::KEEPER_METRICS,
@@ -112,7 +113,6 @@ impl StateKeeperIO for MempoolIO {
             .load_l1_batch_params(
                 &mut storage,
                 &pending_miniblock_header,
-                self.fee_account,
                 self.validation_computational_gas_limit,
                 self.chain_id,
             )
@@ -458,6 +458,7 @@ impl MempoolIO {
         let l1_batch_params_provider = L1BatchParamsProvider::new(&mut storage)
             .await
             .context("failed initializing L1 batch params provider")?;
+        fee_address_migration::migrate_pending_miniblocks(&mut storage).await;
         drop(storage);
 
         Ok(Self {

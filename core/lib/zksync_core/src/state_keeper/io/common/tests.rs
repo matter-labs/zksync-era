@@ -10,7 +10,7 @@ use vm_utils::storage::L1BatchParamsProvider;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::ConnectionPool;
 use zksync_types::{
-    block::MiniblockHasher, fee::TransactionExecutionMetrics, Address, L2ChainId, ProtocolVersion,
+    block::MiniblockHasher, fee::TransactionExecutionMetrics, L2ChainId, ProtocolVersion,
     ProtocolVersionId,
 };
 
@@ -333,7 +333,6 @@ async fn loading_pending_batch_with_genesis() {
         .load_l1_batch_params(
             &mut storage,
             &first_miniblock_in_batch,
-            Address::zero(),
             u32::MAX,
             L2ChainId::default(),
         )
@@ -410,7 +409,6 @@ async fn loading_pending_batch_after_snapshot_recovery() {
         .load_l1_batch_params(
             &mut storage,
             &first_miniblock_in_batch,
-            Address::zero(),
             u32::MAX,
             L2ChainId::default(),
         )

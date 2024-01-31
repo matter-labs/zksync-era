@@ -34,15 +34,6 @@ pub fn create_vm(
         )
         .with_context(|| format!("failed loading first miniblock in L1 batch #{l1_batch_number}"))?
         .with_context(|| format!("no miniblocks persisted for L1 batch #{l1_batch_number}"))?;
-    let fee_account_addr = rt_handle
-        .block_on(
-            connection
-                .blocks_dal()
-                .get_fee_address_for_l1_batch(l1_batch_number),
-        )?
-        .with_context(|| {
-            format!("l1_batch_number {l1_batch_number:?} must have fee_address_account")
-        })?;
 
     // In the state keeper, this value is used to reject execution.
     // All batches ran by BasicWitnessInputProducer have already been executed by State Keeper.
@@ -53,7 +44,6 @@ pub fn create_vm(
         .block_on(l1_batch_params_provider.load_l1_batch_params(
             &mut connection,
             &first_miniblock_in_batch,
-            fee_account_addr,
             validation_computational_gas_limit,
             l2_chain_id,
         ))

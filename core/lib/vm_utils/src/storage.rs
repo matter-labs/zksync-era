@@ -234,7 +234,6 @@ impl L1BatchParamsProvider {
         &self,
         storage: &mut StorageProcessor<'_>,
         first_miniblock_in_batch: &FirstMiniblockInBatch,
-        fee_account: Address,
         validation_computational_gas_limit: u32,
         chain_id: L2ChainId,
     ) -> anyhow::Result<(SystemEnv, L1BatchEnv)> {
@@ -288,7 +287,7 @@ impl L1BatchParamsProvider {
 
         Ok(l1_batch_params(
             first_miniblock_in_batch.l1_batch_number,
-            fee_account,
+            first_miniblock_in_batch.header.fee_account_address,
             l1_batch_timestamp,
             prev_l1_batch_hash,
             first_miniblock_in_batch.header.batch_fee_input,
