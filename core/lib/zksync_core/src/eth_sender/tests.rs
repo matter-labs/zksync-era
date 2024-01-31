@@ -134,7 +134,11 @@ impl EthSenderTester {
     async fn get_block_numbers(&self) -> L1BlockNumbers {
         let latest = self.gateway.block_number("").await.unwrap().as_u32().into();
         let finalized = latest - Self::WAIT_CONFIRMATIONS as u32;
-        L1BlockNumbers { finalized, latest }
+        L1BlockNumbers {
+            finalized,
+            latest,
+            safe: finalized,
+        }
     }
 }
 
