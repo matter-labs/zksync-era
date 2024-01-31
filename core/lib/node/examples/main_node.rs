@@ -14,7 +14,7 @@ use zksync_node::{
             metadata_calculator::MetadataCalculatorTaskBuilder,
         },
     },
-    node::ZkSyncNode,
+    node::ZkStackService,
     resource::{Resource, ResourceId, ResourceProvider, StoredResource},
 };
 
@@ -62,7 +62,7 @@ fn main() -> anyhow::Result<()> {
     // Create the node with specified resource provider. We don't need to add any resources explicitly,
     // the task will request what they actually need. The benefit here is that we won't instantiate resources
     // that are not used, which would be complex otherwise, since the task set is often dynamic.
-    let mut node = ZkSyncNode::new(MainNodeResourceProvider)?;
+    let mut node = ZkStackService::new(MainNodeResourceProvider)?;
 
     // Add the metadata calculator task.
     let merkle_tree_env_config = DBConfig::from_env()?.merkle_tree;

@@ -7,7 +7,7 @@ use crate::{
     implementations::resource::healthcheck::HealthCheckResource,
     node::{NodeContext, StopReceiver},
     resource::ResourceCollection,
-    task::{TaskInitError, WiringLayer, ZkSyncTask},
+    task::{Task, TaskInitError, WiringLayer},
 };
 
 /// Builder for a health check server.
@@ -52,7 +52,7 @@ impl fmt::Debug for HealthCheckTask {
 }
 
 #[async_trait::async_trait]
-impl ZkSyncTask for HealthCheckTask {
+impl Task for HealthCheckTask {
     fn name(&self) -> &'static str {
         "healthcheck_server"
     }

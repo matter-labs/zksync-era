@@ -1,18 +1,18 @@
 use crate::{
-    node::ZkSyncNode,
+    node::ZkStackService,
     resource::{Resource, StoredResource},
-    task::ZkSyncTask,
+    task::Task,
 };
 
 /// An interface to the node's resources provided to the tasks during initialization.
 /// Provides the ability to fetch required resources, and also gives access to the Tokio runtime handle used by the node.
 #[derive(Debug)]
 pub struct NodeContext<'a> {
-    node: &'a mut ZkSyncNode,
+    node: &'a mut ZkStackService,
 }
 
 impl<'a> NodeContext<'a> {
-    pub(super) fn new(node: &'a mut ZkSyncNode) -> Self {
+    pub(super) fn new(node: &'a mut ZkStackService) -> Self {
         Self { node }
     }
 
@@ -27,7 +27,7 @@ impl<'a> NodeContext<'a> {
     }
 
     /// Adds an additional task to the node.
-    pub fn add_task(&mut self, task: Box<dyn ZkSyncTask>) -> &mut Self {
+    pub fn add_task(&mut self, task: Box<dyn Task>) -> &mut Self {
         self.node.tasks.push(task);
         self
     }

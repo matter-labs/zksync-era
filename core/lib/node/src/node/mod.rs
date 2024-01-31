@@ -6,7 +6,7 @@ use tokio::{runtime::Runtime, sync::watch};
 pub use self::{context::NodeContext, stop_receiver::StopReceiver};
 use crate::{
     resource::{ResourceId, ResourceProvider, StoredResource},
-    task::{TaskInitError, WiringLayer, ZkSyncTask},
+    task::{Task, TaskInitError, WiringLayer},
 };
 
 mod context;
@@ -28,7 +28,7 @@ mod stop_receiver;
 ///   - waits for the remaining tasks to finish.
 ///   - calls `after_node_shutdown` hook for every task that has provided it.
 ///   - returns the result of the task that has finished.
-pub struct ZkSyncNode {
+pub struct ZkStackService {
     /// Primary source of resources for tasks.
     resource_provider: Box<dyn ResourceProvider>,
     /// Cache of resources that have been requested at least by one task.
@@ -36,7 +36,7 @@ pub struct ZkSyncNode {
     /// List of task builders.
     task_builders: Vec<Box<dyn WiringLayer>>,
     /// Tasks added to the node.
-    tasks: Vec<Box<dyn ZkSyncTask>>,
+    tasks: Vec<Box<dyn Task>>,
 
     /// Sender used to stop the tasks.
     stop_sender: watch::Sender<bool>,
@@ -44,13 +44,13 @@ pub struct ZkSyncNode {
     runtime: Runtime,
 }
 
-impl fmt::Debug for ZkSyncNode {
+impl fmt::Debug for ZkStackService {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ZkSyncNode").finish_non_exhaustive()
     }
 }
 
-impl ZkSyncNode {
+impl ZkStackService {
     pub fn new<R: ResourceProvider>(resource_provider: R) -> anyhow::Result<Self> {
         if tokio::runtime::Handle::try_current().is_ok() {
             anyhow::bail!(

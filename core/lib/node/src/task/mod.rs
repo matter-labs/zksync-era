@@ -22,7 +22,7 @@ pub trait WiringLayer: 'static + Send + Sync {
 
 /// A task implementation.
 #[async_trait::async_trait]
-pub trait ZkSyncTask: 'static + Send + Sync {
+pub trait Task: 'static + Send + Sync {
     /// Unique name of the task.
     fn name(&self) -> &'static str;
 

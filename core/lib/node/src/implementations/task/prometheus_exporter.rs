@@ -5,7 +5,7 @@ use crate::{
     implementations::resource::healthcheck::HealthCheckResource,
     node::{NodeContext, StopReceiver},
     resource::ResourceCollection,
-    task::{TaskInitError, WiringLayer, ZkSyncTask},
+    task::{Task, TaskInitError, WiringLayer},
 };
 
 /// Builder for a prometheus exporter.
@@ -46,7 +46,7 @@ impl WiringLayer for PrometheusExporterTaskBuilder {
 }
 
 #[async_trait::async_trait]
-impl ZkSyncTask for PrometheusExporterTask {
+impl Task for PrometheusExporterTask {
     fn name(&self) -> &'static str {
         "prometheus_exporter"
     }

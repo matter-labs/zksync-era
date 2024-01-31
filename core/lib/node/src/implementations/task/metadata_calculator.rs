@@ -9,7 +9,7 @@ use crate::{
     },
     node::{NodeContext, StopReceiver},
     resource::{Resource, ResourceCollection},
-    task::{TaskInitError, WiringLayer, ZkSyncTask},
+    task::{Task, TaskInitError, WiringLayer},
 };
 
 /// Builder for a metadata calculator.
@@ -63,7 +63,7 @@ impl WiringLayer for MetadataCalculatorTaskBuilder {
 }
 
 #[async_trait::async_trait]
-impl ZkSyncTask for MetadataCalculatorTask {
+impl Task for MetadataCalculatorTask {
     fn name(&self) -> &'static str {
         "metadata_calculator"
     }
