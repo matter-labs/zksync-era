@@ -227,7 +227,7 @@ fn test_evm_simulator_static_call() {
 }
 
 // TODO: this test does not work
-//#[test]
+#[test]
 fn test_evm_simulator_returndata_caching() {
     // EVM simulator should use active ptr to remember the correct returndata
     let (mut vm, test_address, evm_simulator) = set_up_evm_simulator_contract();
@@ -258,13 +258,6 @@ fn test_evm_simulator_returndata_caching() {
 
     let batch_result = vm.vm.execute(VmExecutionMode::Batch);
     assert!(!batch_result.result.is_failed(), "Batch wasn't successful");
-
-    let saved_value = vm.vm.storage.borrow_mut().get_value(&StorageKey::new(
-        AccountTreeId::new(test_address),
-        H256::zero(),
-    ));
-
-    println!("Saved value: {:#?}", hex::encode(&saved_value));
 }
 
 #[test]

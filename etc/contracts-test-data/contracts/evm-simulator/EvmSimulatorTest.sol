@@ -72,8 +72,7 @@ contract EvmSimulatorTest {
         returndata = _calldata;
     }
 
-    // TODO: this test doesnt wokr
-    function testRememberingReturndata() external {
+    function testRememberingReturndata() external view {
         this.getReturndata(hex"babacaca");
         // Now we should be able to preserve the returndata
         SystemContractHelper.loadReturndataIntoActivePtr();
@@ -82,7 +81,22 @@ contract EvmSimulatorTest {
         // Firstly, let's check that the length was restored correctly
         uint256 returndataLength = SystemContractHelper.getActivePtrDataSize();
 
-        storageVariable = returndataLength;
-        // require(returndataLength == 64, "Returndata length was not restored correctly");
+        // It is 96 because it is a properly encoded bytes array;
+        // offset (32 bytes) + length (32 bytes) + padded hex"babacaca" (32 bytes)
+        require(returndataLength == 96, "Returndata length was not restored correctly");
+
+        bytes memory returndata;
+        {
+            bytes memory previousReturnData = new bytes(96);
+            uint256 location;
+            assembly {
+                location := add(previousReturnData, 32)
+            }
+            SystemContractHelper.copyActivePtrData(location, 0, 96);
+
+            returndata = abi.decode(previousReturnData, (bytes));
+        }
+
+        require(keccak256(returndata) == keccak256(hex"babacaca"), "Correct returndata caching");
     }
 }
