@@ -23,10 +23,7 @@ impl IntoZkSyncTask for HealthCheckTaskBuilder {
         "healthcheck_server"
     }
 
-    async fn create(
-        self: Box<Self>,
-        mut node: NodeContext<'_>,
-    ) -> Result<Box<dyn ZkSyncTask>, TaskInitError> {
+    async fn create(self: Box<Self>, mut node: NodeContext<'_>) -> Result<(), TaskInitError> {
         let healthchecks = node
             .get_resource_or_default::<ResourceCollection<HealthCheckResource>>()
             .await;
@@ -36,7 +33,8 @@ impl IntoZkSyncTask for HealthCheckTaskBuilder {
             healthchecks,
         };
 
-        Ok(Box::new(task))
+        node.add_task(Box::new(task));
+        Ok(())
     }
 }
 
@@ -55,6 +53,10 @@ impl fmt::Debug for HealthCheckTask {
 
 #[async_trait::async_trait]
 impl ZkSyncTask for HealthCheckTask {
+    fn name(&self) -> &'static str {
+        "healthcheck_server"
+    }
+
     async fn run(mut self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
         let healthchecks = self.healthchecks.resolve().await;
 

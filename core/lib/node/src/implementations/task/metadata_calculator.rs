@@ -28,10 +28,7 @@ impl IntoZkSyncTask for MetadataCalculatorTaskBuilder {
         "metadata_calculator"
     }
 
-    async fn create(
-        self: Box<Self>,
-        mut node: NodeContext<'_>,
-    ) -> Result<Box<dyn ZkSyncTask>, TaskInitError> {
+    async fn create(self: Box<Self>, mut node: NodeContext<'_>) -> Result<(), TaskInitError> {
         let pool = node.get_resource::<MasterPoolResource>().await.ok_or(
             TaskInitError::ResourceLacking(MasterPoolResource::resource_id()),
         )?;
@@ -56,15 +53,21 @@ impl IntoZkSyncTask for MetadataCalculatorTaskBuilder {
             ))
             .expect("Wiring stage");
 
-        Ok(Box::new(MetadataCalculatorTask {
+        let task = Box::new(MetadataCalculatorTask {
             metadata_calculator,
             main_pool,
-        }))
+        });
+        node.add_task(task);
+        Ok(())
     }
 }
 
 #[async_trait::async_trait]
 impl ZkSyncTask for MetadataCalculatorTask {
+    fn name(&self) -> &'static str {
+        "metadata_calculator"
+    }
+
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
         let result = self
             .metadata_calculator

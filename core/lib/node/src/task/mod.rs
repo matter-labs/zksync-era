@@ -22,15 +22,15 @@ pub trait IntoZkSyncTask: 'static + Send + Sync {
     ///
     /// `NodeContext` provides an interface to the utilities that task may need, e.g. ability to get resources
     /// or spawn additional tasks.
-    async fn create(
-        self: Box<Self>,
-        node: NodeContext<'_>,
-    ) -> Result<Box<dyn ZkSyncTask>, TaskInitError>;
+    async fn create(self: Box<Self>, node: NodeContext<'_>) -> Result<(), TaskInitError>;
 }
 
 /// A task implementation.
 #[async_trait::async_trait]
 pub trait ZkSyncTask: 'static + Send + Sync {
+    /// Unique name of the task.
+    fn name(&self) -> &'static str;
+
     /// Runs the task.
     ///
     /// Once any of the task returns, the node will shutdown.

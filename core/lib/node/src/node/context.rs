@@ -1,7 +1,7 @@
 use crate::{
     node::ZkSyncNode,
     resource::{Resource, StoredResource},
-    task::IntoZkSyncTask,
+    task::ZkSyncTask,
 };
 
 /// An interface to the node's resources provided to the tasks during initialization.
@@ -27,9 +27,8 @@ impl<'a> NodeContext<'a> {
     }
 
     /// Adds an additional task to the node.
-    /// This may be used if some task or its resource requires an additional routine for maintenance.
-    pub fn add_task<T: IntoZkSyncTask>(&mut self, builder: T) -> &mut Self {
-        self.node.add_task(builder);
+    pub fn add_task(&mut self, task: Box<dyn ZkSyncTask>) -> &mut Self {
+        self.node.tasks.push(task);
         self
     }
 

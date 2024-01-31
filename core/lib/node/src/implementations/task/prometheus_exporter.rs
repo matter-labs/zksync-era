@@ -24,10 +24,7 @@ impl IntoZkSyncTask for PrometheusExporterTaskBuilder {
         "prometheus_exporter"
     }
 
-    async fn create(
-        self: Box<Self>,
-        mut node: NodeContext<'_>,
-    ) -> Result<Box<dyn ZkSyncTask>, TaskInitError> {
+    async fn create(self: Box<Self>, mut node: NodeContext<'_>) -> Result<(), TaskInitError> {
         let (prometheus_health_check, prometheus_health_updater) =
             ReactiveHealthCheck::new("prometheus_exporter");
 
@@ -38,15 +35,22 @@ impl IntoZkSyncTask for PrometheusExporterTaskBuilder {
             .push(HealthCheckResource::new(prometheus_health_check))
             .expect("Wiring stage");
 
-        Ok(Box::new(PrometheusExporterTask {
+        let task = Box::new(PrometheusExporterTask {
             config: self.0,
             prometheus_health_updater,
-        }))
+        });
+
+        node.add_task(task);
+        Ok(())
     }
 }
 
 #[async_trait::async_trait]
 impl ZkSyncTask for PrometheusExporterTask {
+    fn name(&self) -> &'static str {
+        "prometheus_exporter"
+    }
+
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
         let prometheus_task = self.config.run(stop_receiver.0);
         self.prometheus_health_updater

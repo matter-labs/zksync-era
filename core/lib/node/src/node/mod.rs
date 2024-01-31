@@ -6,7 +6,7 @@ use tokio::{runtime::Runtime, sync::watch};
 pub use self::{context::NodeContext, stop_receiver::StopReceiver};
 use crate::{
     resource::{ResourceId, ResourceProvider, StoredResource},
-    task::{IntoZkSyncTask, TaskInitError},
+    task::{IntoZkSyncTask, TaskInitError, ZkSyncTask},
 };
 
 mod context;
@@ -35,6 +35,8 @@ pub struct ZkSyncNode {
     resources: HashMap<ResourceId, Box<dyn StoredResource>>,
     /// List of task builders.
     task_builders: Vec<Box<dyn IntoZkSyncTask>>,
+    /// Tasks added to the node.
+    tasks: Vec<Box<dyn ZkSyncTask>>,
 
     /// Sender used to stop the tasks.
     stop_sender: watch::Sender<bool>,
@@ -65,6 +67,7 @@ impl ZkSyncNode {
             resource_provider: Box::new(resource_provider),
             resources: HashMap::default(),
             task_builders: Vec::new(),
+            tasks: Vec::new(),
             stop_sender,
             runtime,
         };
@@ -87,8 +90,6 @@ impl ZkSyncNode {
         // Initialize tasks.
         let task_builders = std::mem::take(&mut self.task_builders);
 
-        let mut tasks = Vec::new();
-
         let mut errors: Vec<(String, TaskInitError)> = Vec::new();
 
         let runtime_handle = self.runtime.handle().clone();
@@ -96,24 +97,13 @@ impl ZkSyncNode {
             let name = task_builder.task_name().to_string();
             let task_result =
                 runtime_handle.block_on(task_builder.create(NodeContext::new(&mut self)));
-            let task = match task_result {
-                Ok(task) => task,
-                Err(err) => {
-                    // We don't want to bail on the first error, since it'll provide worse DevEx:
-                    // People likely want to fix as much problems as they can in one go, rather than have
-                    // to fix them one by one.
-                    errors.push((name, err));
-                    continue;
-                }
+            if let Err(err) = task_result {
+                // We don't want to bail on the first error, since it'll provide worse DevEx:
+                // People likely want to fix as much problems as they can in one go, rather than have
+                // to fix them one by one.
+                errors.push((name, err));
+                continue;
             };
-            let after_node_shutdown = task.after_node_shutdown();
-            let task_future = Box::pin(task.run(self.stop_receiver()));
-            let task_repr = TaskRepr {
-                name,
-                task: Some(task_future),
-                after_node_shutdown,
-            };
-            tasks.push(task_repr);
         }
 
         // Report all the errors we've met during the init.
@@ -124,8 +114,22 @@ impl ZkSyncNode {
             anyhow::bail!("One or more task weren't able to start");
         }
 
+        let mut tasks = Vec::new();
+
         if tasks.is_empty() {
             anyhow::bail!("No tasks to run");
+        }
+
+        for task in std::mem::take(&mut self.tasks) {
+            let name = task.name().to_string();
+            let after_node_shutdown = task.after_node_shutdown();
+            let task_future = Box::pin(task.run(self.stop_receiver()));
+            let task_repr = TaskRepr {
+                name,
+                task: Some(task_future),
+                after_node_shutdown,
+            };
+            tasks.push(task_repr);
         }
 
         // Wiring is now complete.
