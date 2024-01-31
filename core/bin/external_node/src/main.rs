@@ -515,7 +515,7 @@ async fn main() -> anyhow::Result<()> {
     let reorg_detector_last_correct_batch = reorg_detector_result.and_then(|result| match result {
         Ok(Ok(last_correct_batch)) => last_correct_batch,
         Ok(Err(err)) => {
-            tracing::error!("Reorg detector failed: {err}");
+            tracing::error!("Reorg detector failed: {err:#}");
             None
         }
         Err(err) => {
