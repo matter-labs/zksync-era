@@ -26,6 +26,7 @@ pub mod miniblock_updates;
 #[derive(Debug, Clone, PartialEq)]
 pub struct UpdatesManager {
     batch_timestamp: u64,
+    fee_account_address: Address,
     batch_fee_input: BatchFeeInput,
     base_fee_per_gas: u64,
     base_system_contract_hashes: BaseSystemContractsHashes,
@@ -43,6 +44,7 @@ impl UpdatesManager {
     ) -> Self {
         Self {
             batch_timestamp: l1_batch_env.timestamp,
+            fee_account_address: l1_batch_env.fee_account,
             batch_fee_input: l1_batch_env.fee_input,
             base_fee_per_gas: get_batch_base_fee(&l1_batch_env, protocol_version.into()),
             protocol_version,
@@ -67,14 +69,6 @@ impl UpdatesManager {
         self.base_system_contract_hashes
     }
 
-    pub(crate) fn l1_gas_price(&self) -> u64 {
-        self.batch_fee_input.l1_gas_price()
-    }
-
-    pub(crate) fn fair_l2_gas_price(&self) -> u64 {
-        self.batch_fee_input.fair_l2_gas_price()
-    }
-
     pub(crate) fn seal_miniblock_command(
         &self,
         l1_batch_number: L1BatchNumber,
@@ -87,6 +81,7 @@ impl UpdatesManager {
             miniblock_number,
             miniblock: self.miniblock.clone(),
             first_tx_index: self.l1_batch.executed_transactions.len(),
+            fee_account_address: self.fee_account_address,
             fee_input: self.batch_fee_input,
             base_fee_per_gas: self.base_fee_per_gas,
             base_system_contracts_hashes: self.base_system_contract_hashes,
@@ -172,6 +167,7 @@ pub(crate) struct MiniblockSealCommand {
     pub miniblock_number: MiniblockNumber,
     pub miniblock: MiniblockUpdates,
     pub first_tx_index: usize,
+    pub fee_account_address: Address,
     pub fee_input: BatchFeeInput,
     pub base_fee_per_gas: u64,
     pub base_system_contracts_hashes: BaseSystemContractsHashes,

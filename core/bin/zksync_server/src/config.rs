@@ -1,11 +1,6 @@
 use anyhow::Context as _;
 use zksync_consensus_roles::{node, validator};
 use zksync_core::consensus;
-use zksync_types::Address;
-
-fn read_operator_address() -> anyhow::Result<Address> {
-    Ok(std::env::var("CHAIN_STATE_KEEPER_FEE_ACCOUNT_ADDR")?.parse()?)
-}
 
 pub(crate) fn read_consensus_config() -> anyhow::Result<consensus::MainNodeConfig> {
     let path = std::env::var("CONSENSUS_CONFIG_PATH").context("CONSENSUS_CONFIG_PATH")?;
@@ -18,6 +13,5 @@ pub(crate) fn read_consensus_config() -> anyhow::Result<consensus::MainNodeConfi
     Ok(consensus::MainNodeConfig {
         executor: cfg.executor_config(node_key),
         validator: cfg.validator_config(validator_key),
-        operator_address: read_operator_address().context("read_operator_address()")?,
     })
 }

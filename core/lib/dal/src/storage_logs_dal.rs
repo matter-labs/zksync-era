@@ -790,14 +790,12 @@ mod tests {
     use crate::{tests::create_miniblock_header, ConnectionPool};
 
     async fn insert_miniblock(conn: &mut StorageProcessor<'_>, number: u32, logs: Vec<StorageLog>) {
-        let mut header = L1BatchHeader::new(
+        let header = L1BatchHeader::new(
             L1BatchNumber(number),
             0,
-            Address::default(),
             BaseSystemContractsHashes::default(),
             ProtocolVersionId::default(),
         );
-        header.is_finished = true;
         conn.blocks_dal()
             .insert_mock_l1_batch(&header)
             .await
