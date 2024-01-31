@@ -4,7 +4,6 @@
 //! blockchain primitives.
 
 #![allow(clippy::upper_case_acronyms, clippy::derive_partial_eq_without_eq)]
-#![feature(array_chunks)]
 
 use std::{fmt, fmt::Debug};
 
