@@ -26,7 +26,8 @@ impl<'a> NodeContext<'a> {
         self.node.runtime.handle()
     }
 
-    /// Adds an additional task to the node.
+    /// Adds a task to the node.
+    /// Added tasks will be launched after the wiring process will be finished.
     pub fn add_task(&mut self, task: Box<dyn Task>) -> &mut Self {
         self.node.tasks.push(task);
         self

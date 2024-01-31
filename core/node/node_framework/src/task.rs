@@ -1,9 +1,5 @@
 //! Tasks define the "runnable" concept of the node, e.g. something that can be launched and runs until the node
 //! is stopped.
-//!
-//! Task is normally defined by two types, one implementing two traits [`IntoZkSyncTask`], which acts like a
-//! constructor, and another one, which implements [`ZkSyncTask`], providing an interface for `ZkSyncNode` to
-//! implement the task lifecycle.
 
 use futures::future::BoxFuture;
 
@@ -29,7 +25,7 @@ pub trait Task: 'static + Send + Sync {
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()>;
 
     /// Asynchronous hook that will be called after *each task* has finished their cleanup.
-    /// It is guaranteed that no other task is running at this point, e.g. `ZkSyncNode` will invoke
+    /// It is guaranteed that no other task is running at this point, e.g. `ZkStackService` will invoke
     /// this hook sequentially for each task.
     ///
     /// This hook can be used to perform some cleanup that assumes exclusive access to the resources, e.g.

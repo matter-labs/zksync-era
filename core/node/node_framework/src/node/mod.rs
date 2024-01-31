@@ -18,12 +18,11 @@ mod stop_receiver;
 ///
 /// Initialization flow:
 /// - Node instance is created with access to the resource provider.
-/// - Task constructors are added to the node. At this step, tasks are not created yet.
-/// - Optionally, a healthcheck task constructor is also added.
+/// - Wiring layers are added to the node. At this step, tasks are not created yet.
 /// - Once the `run` method is invoked, node
-///   - attempts to create every task. If there are no tasks, or at least task
-///     constructor fails, the node will return an error.
-///   - initializes the healthcheck task if it's provided.
+///   - invokes a `wire` method on each added wiring layer. If any of the layers fails,
+///     the node will return an error. If no layers have added a task, the node will
+///     also return an error.
 ///   - waits for any of the tasks to finish.
 ///   - sends stop signal to all the tasks.
 ///   - waits for the remaining tasks to finish.
@@ -76,11 +75,9 @@ impl ZkStackService {
         Ok(self_)
     }
 
-    /// Adds a task to the node.
-    ///
-    /// The task is not created at this point, instead, the constructor is stored in the node
-    /// and will be invoked during [`ZkSyncNode::run`] method. Any error returned by the constructor
-    /// will prevent the node from starting and will be propagated by the [`ZkSyncNode::run`] method.
+    /// Adds a wiring layer.
+    /// During the [`run`](ZkStackService::run) call the node will invoke
+    /// `wire` method of every layer in the order they were added.
     pub fn add_layer<T: WiringLayer>(&mut self, layer: T) -> &mut Self {
         self.layers.push(Box::new(layer));
         self
