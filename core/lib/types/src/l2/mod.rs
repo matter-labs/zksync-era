@@ -1,5 +1,6 @@
 use std::convert::TryFrom;
 
+use anyhow::Context as _;
 use num_enum::TryFromPrimitive;
 use rlp::{Rlp, RlpStream};
 use serde::{Deserialize, Serialize};
@@ -26,13 +27,24 @@ pub mod error;
 pub enum TransactionType {
     // Native ECDSA Transaction
     LegacyTransaction = 0,
-
     EIP2930Transaction = 1,
     EIP1559Transaction = 2,
     // EIP 712 transaction with additional fields specified for zkSync
     EIP712Transaction = EIP_712_TX_TYPE as u32,
     PriorityOpTransaction = PRIORITY_OPERATION_L2_TX_TYPE as u32,
     ProtocolUpgradeTransaction = PROTOCOL_UPGRADE_TX_TYPE as u32,
+}
+
+impl TransactionType {
+    /// Returns whether a transaction type is an Ethereum transaction type.
+    pub fn is_ethereum_type(&self) -> bool {
+        matches!(
+            self,
+            TransactionType::LegacyTransaction
+                | TransactionType::EIP2930Transaction
+                | TransactionType::EIP1559Transaction
+        )
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -194,7 +206,7 @@ impl L2Tx {
         );
 
         let data = res.get_signed_bytes(chain_id);
-        res.set_signature(PackedEthSignature::sign_raw(private_key, &data)?);
+        res.set_signature(PackedEthSignature::sign_raw(private_key, &data).context("sign_raw")?);
         Ok(res)
     }
 

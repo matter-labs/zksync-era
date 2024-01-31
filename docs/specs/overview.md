@@ -8,9 +8,8 @@ A user submits their transaction to the sequencer. The job of the sequencer is t
 using the zkEVM, and to provide a soft confirmation to the user that their transaction was executed. If the user chooses
 they can force the sequencer to include their transaction by submitting it via L1. After the sequencer executes the
 block, it sends it over to the prover, who creates a cryptographic proof of the block's execution. This proof is then
-sent to the L1 contract alongside the necessary data. On the L1 a
-[smart contract](./zkEVM/high_level/l1_smart_contracts.md) verifies that the proof is valid and all the data has been
-submitted, and the rollup's state is also updated in the contract.
+sent to the L1 contract alongside the necessary data. On the L1 a [smart contract](./l1_smart_contracts.md) verifies
+that the proof is valid and all the data has been submitted, and the rollup's state is also updated in the contract.
 
 ![Components](./img/L2_Components.png)
 

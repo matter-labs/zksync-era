@@ -12,7 +12,7 @@ use multivm::{
 };
 use once_cell::sync::OnceCell;
 use tokio::{
-    sync::{mpsc, oneshot},
+    sync::{mpsc, oneshot, watch},
     task::JoinHandle,
 };
 use zksync_dal::ConnectionPool;
@@ -37,8 +37,8 @@ pub(crate) enum TxExecutionResult {
     /// Successful execution of the tx and the block tip dry run.
     Success {
         tx_result: Box<VmExecutionResultAndLogs>,
-        tx_metrics: ExecutionMetricsForCriteria,
-        bootloader_dry_run_metrics: ExecutionMetricsForCriteria,
+        tx_metrics: Box<ExecutionMetricsForCriteria>,
+        bootloader_dry_run_metrics: Box<ExecutionMetricsForCriteria>,
         bootloader_dry_run_result: Box<VmExecutionResultAndLogs>,
         compressed_bytecodes: Vec<CompressedBytecodeInfo>,
         call_tracer_result: Vec<Call>,
@@ -75,7 +75,8 @@ pub trait L1BatchExecutorBuilder: 'static + Send + Sync + fmt::Debug {
         &mut self,
         l1_batch_params: L1BatchEnv,
         system_env: SystemEnv,
-    ) -> BatchExecutorHandle;
+        stop_receiver: &watch::Receiver<bool>,
+    ) -> Option<BatchExecutorHandle>;
 }
 
 /// The default implementation of [`L1BatchExecutorBuilder`].
@@ -119,18 +120,23 @@ impl L1BatchExecutorBuilder for MainBatchExecutorBuilder {
         &mut self,
         l1_batch_params: L1BatchEnv,
         system_env: SystemEnv,
-    ) -> BatchExecutorHandle {
-        let mut secondary_storage = RocksdbStorage::new(self.state_keeper_db_path.as_ref());
+        stop_receiver: &watch::Receiver<bool>,
+    ) -> Option<BatchExecutorHandle> {
+        let mut secondary_storage = RocksdbStorage::builder(self.state_keeper_db_path.as_ref())
+            .await
+            .expect("Failed initializing state keeper storage");
         secondary_storage.enable_enum_index_migration(self.enum_index_migration_chunk_size);
         let mut conn = self
             .pool
             .access_storage_tagged("state_keeper")
             .await
             .unwrap();
-        secondary_storage.update_from_postgres(&mut conn).await;
-        drop(conn);
+        let secondary_storage = secondary_storage
+            .synchronize(&mut conn, stop_receiver)
+            .await
+            .expect("Failed synchronizing secondary state keeper storage")?;
 
-        BatchExecutorHandle::new(
+        Some(BatchExecutorHandle::new(
             self.save_call_traces,
             self.max_allowed_tx_gas_limit,
             secondary_storage,
@@ -138,7 +144,7 @@ impl L1BatchExecutorBuilder for MainBatchExecutorBuilder {
             system_env,
             self.upload_witness_inputs_to_gcs,
             self.optional_bytecode_compression,
-        )
+        ))
     }
 }
 
@@ -209,7 +215,7 @@ impl BatchExecutorHandle {
         let res = response_receiver.await.unwrap();
         let elapsed = latency.observe();
 
-        if let TxExecutionResult::Success { tx_metrics, .. } = res {
+        if let TxExecutionResult::Success { tx_metrics, .. } = &res {
             let gas_per_nanosecond = tx_metrics.execution_metrics.computational_gas_used as f64
                 / elapsed.as_nanos() as f64;
             EXECUTOR_METRICS
@@ -389,12 +395,16 @@ impl BatchExecutor {
 
         let tx_metrics = ExecutionMetricsForCriteria::new(Some(tx), &tx_result);
 
+        if !vm.has_enough_gas_for_batch_tip() {
+            return TxExecutionResult::BootloaderOutOfGasForBlockTip;
+        }
+
         let (bootloader_dry_run_result, bootloader_dry_run_metrics) = self.dryrun_block_tip(vm);
         match &bootloader_dry_run_result.result {
             ExecutionResult::Success { .. } => TxExecutionResult::Success {
                 tx_result: Box::new(tx_result),
-                tx_metrics,
-                bootloader_dry_run_metrics,
+                tx_metrics: Box::new(tx_metrics),
+                bootloader_dry_run_metrics: Box::new(bootloader_dry_run_metrics),
                 bootloader_dry_run_result: Box::new(bootloader_dry_run_result),
                 compressed_bytecodes,
                 call_tracer_result,

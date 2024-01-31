@@ -1,8 +1,7 @@
 //! API types related to the External Node specific methods.
 
 use serde::{Deserialize, Serialize};
-use zk_evm::ethereum_types::Address;
-use zksync_basic_types::{L1BatchNumber, MiniblockNumber, H256};
+use zksync_basic_types::{Address, L1BatchNumber, MiniblockNumber, H256};
 use zksync_contracts::BaseSystemContractsHashes;
 
 use crate::ProtocolVersionId;
@@ -28,6 +27,8 @@ pub struct SyncBlock {
     pub l1_gas_price: u64,
     /// L2 gas price used as VM parameter for the L1 batch corresponding to this L2 block.
     pub l2_fair_gas_price: u64,
+    /// The pubdata price used as VM parameter for the L1 batch corresponding to this L2 block.
+    pub fair_pubdata_price: Option<u64>,
     /// Hashes of the base system contracts used in for the L1 batch corresponding to this L2 block.
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
     /// Address of the operator account who produced for the L1 batch corresponding to this L2 block.

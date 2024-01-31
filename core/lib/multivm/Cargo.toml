@@ -10,11 +10,15 @@ keywords = ["blockchain", "zksync"]
 categories = ["cryptography"]
 
 [dependencies]
+zk_evm_1_4_1 = { package = "zk_evm", git = "https://github.com/matter-labs/era-zk_evm.git", branch = "v1.4.1" }
 zk_evm_1_4_0 = { package = "zk_evm", git = "https://github.com/matter-labs/era-zk_evm.git", branch = "v1.4.0" }
 zk_evm_1_3_3 = { package = "zk_evm", git = "https://github.com/matter-labs/era-zk_evm.git", tag= "v1.3.3-rc2" }
 zk_evm_1_3_1 = { package = "zk_evm", git = "https://github.com/matter-labs/era-zk_evm.git", tag= "v1.3.1-rc2" }
 
+zkevm_test_harness_1_3_3 = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.3.3", package = "zkevm_test_harness" }
 zkevm_test_harness_1_4_0 = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.0", package = "zkevm_test_harness" }
+zkevm_test_harness_1_4_1 = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.1", package = "zkevm_test_harness" }
+
 
 zksync_types = { path = "../types" }
 zksync_state = { path = "../state" }
@@ -33,6 +37,6 @@ vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev
 
 [dev-dependencies]
 tokio = { version = "1", features = ["time"] }
-zksync_test_account = { path = "../test_account" }
+zksync_test_account = { path = "../../tests/test_account" }
 ethabi = "18.0.0"
 zksync_eth_signer = { path = "../eth_signer" }

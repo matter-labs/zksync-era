@@ -64,13 +64,13 @@ impl Tester {
         MainNodeFeeInputProvider::new(
             gas_adjuster,
             FeeModelConfig::V1(FeeModelConfigV1 {
-                minimal_l2_gas_price: self.fair_l2_gas_price(),
+                minimal_l2_gas_price: self.minimal_l2_gas_price(),
             }),
         )
     }
 
     // Constant value to be used both in tests and inside of the IO.
-    pub(super) fn fair_l2_gas_price(&self) -> u64 {
+    pub(super) fn minimal_l2_gas_price(&self) -> u64 {
         100
     }
 
@@ -83,7 +83,7 @@ impl Tester {
         let batch_fee_input_provider = MainNodeFeeInputProvider::new(
             gas_adjuster,
             FeeModelConfig::V1(FeeModelConfigV1 {
-                minimal_l2_gas_price: self.fair_l2_gas_price(),
+                minimal_l2_gas_price: self.minimal_l2_gas_price(),
             }),
         );
 
@@ -93,7 +93,7 @@ impl Tester {
         tokio::spawn(miniblock_sealer.run());
 
         let config = StateKeeperConfig {
-            fair_l2_gas_price: self.fair_l2_gas_price(),
+            minimal_l2_gas_price: self.minimal_l2_gas_price(),
             virtual_blocks_interval: 1,
             virtual_blocks_per_miniblock: 1,
             ..StateKeeperConfig::default()
@@ -164,7 +164,7 @@ impl Tester {
         let mut storage = pool.access_storage_tagged("state_keeper").await.unwrap();
         storage
             .blocks_dal()
-            .insert_l1_batch(&batch_header, &[], Default::default(), &[], &[], 0)
+            .insert_mock_l1_batch(&batch_header)
             .await
             .unwrap();
         storage

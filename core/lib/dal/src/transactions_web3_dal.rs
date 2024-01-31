@@ -1,18 +1,16 @@
 use sqlx::types::chrono::NaiveDateTime;
 use zksync_types::{
-    api, Address, L2ChainId, MiniblockNumber, Transaction, ACCOUNT_CODE_STORAGE_ADDRESS,
-    FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H160, H256, U256, U64,
+    api, api::TransactionReceipt, Address, L2ChainId, MiniblockNumber, Transaction,
+    ACCOUNT_CODE_STORAGE_ADDRESS, FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H256, U256,
 };
-use zksync_utils::{bigdecimal_to_u256, h256_to_account_address};
 
 use crate::{
     instrument::InstrumentExt,
     models::{
         storage_block::{bind_block_where_sql_params, web3_block_where_sql},
-        storage_event::StorageWeb3Log,
         storage_transaction::{
             extract_web3_transaction, web3_transaction_select_sql, StorageTransaction,
-            StorageTransactionDetails,
+            StorageTransactionDetails, StorageTransactionReceipt,
         },
     },
     SqlxError, StorageProcessor,
@@ -24,171 +22,106 @@ pub struct TransactionsWeb3Dal<'a, 'c> {
 }
 
 impl TransactionsWeb3Dal<'_, '_> {
-    pub async fn get_transaction_receipt(
+    /// Returns receipts by transactions hashes.
+    /// Hashes are expected to be unique.
+    pub async fn get_transaction_receipts(
         &mut self,
-        hash: H256,
-    ) -> Result<Option<api::TransactionReceipt>, SqlxError> {
-        {
-            let receipt = sqlx::query!(
-                r#"
-                WITH
-                    sl AS (
-                        SELECT
-                            *
-                        FROM
-                            storage_logs
-                        WHERE
-                            storage_logs.address = $1
-                            AND storage_logs.tx_hash = $2
-                        ORDER BY
-                            storage_logs.miniblock_number DESC,
-                            storage_logs.operation_number DESC
-                        LIMIT
-                            1
-                    )
-                SELECT
-                    transactions.hash AS tx_hash,
-                    transactions.index_in_block AS index_in_block,
-                    transactions.l1_batch_tx_index AS l1_batch_tx_index,
-                    transactions.miniblock_number AS "block_number!",
-                    transactions.error AS error,
-                    transactions.effective_gas_price AS effective_gas_price,
-                    transactions.initiator_address AS initiator_address,
-                    transactions.data -> 'to' AS "transfer_to?",
-                    transactions.data -> 'contractAddress' AS "execute_contract_address?",
-                    transactions.tx_format AS "tx_format?",
-                    transactions.refunded_gas AS refunded_gas,
-                    transactions.gas_limit AS gas_limit,
-                    miniblocks.hash AS "block_hash",
-                    miniblocks.l1_batch_number AS "l1_batch_number?",
-                    sl.key AS "contract_address?"
-                FROM
-                    transactions
-                    JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
-                    LEFT JOIN sl ON sl.value != $3
-                WHERE
-                    transactions.hash = $2
-                "#,
-                ACCOUNT_CODE_STORAGE_ADDRESS.as_bytes(),
-                hash.as_bytes(),
-                FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH.as_bytes()
-            )
-            .instrument("get_transaction_receipt")
-            .with_arg("hash", &hash)
-            .fetch_optional(self.storage.conn())
-            .await?
-            .map(|db_row| {
-                let status = db_row.error.map(|_| U64::zero()).unwrap_or_else(U64::one);
+        hashes: &[H256],
+    ) -> Result<Vec<TransactionReceipt>, SqlxError> {
+        let mut receipts: Vec<TransactionReceipt> = sqlx::query_as!(
+            StorageTransactionReceipt,
+            r#"
+            WITH
+                sl AS (
+                    SELECT DISTINCT
+                        ON (storage_logs.tx_hash) *
+                    FROM
+                        storage_logs
+                    WHERE
+                        storage_logs.address = $1
+                        AND storage_logs.tx_hash = ANY ($3)
+                    ORDER BY
+                        storage_logs.tx_hash,
+                        storage_logs.miniblock_number DESC,
+                        storage_logs.operation_number DESC
+                )
+            SELECT
+                transactions.hash AS tx_hash,
+                transactions.index_in_block AS index_in_block,
+                transactions.l1_batch_tx_index AS l1_batch_tx_index,
+                transactions.miniblock_number AS "block_number!",
+                transactions.error AS error,
+                transactions.effective_gas_price AS effective_gas_price,
+                transactions.initiator_address AS initiator_address,
+                transactions.data -> 'to' AS "transfer_to?",
+                transactions.data -> 'contractAddress' AS "execute_contract_address?",
+                transactions.tx_format AS "tx_format?",
+                transactions.refunded_gas AS refunded_gas,
+                transactions.gas_limit AS gas_limit,
+                miniblocks.hash AS "block_hash",
+                miniblocks.l1_batch_number AS "l1_batch_number?",
+                sl.key AS "contract_address?"
+            FROM
+                transactions
+                JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
+                LEFT JOIN sl ON sl.value != $2
+                AND sl.tx_hash = transactions.hash
+            WHERE
+                transactions.hash = ANY ($3)
+            "#,
+            ACCOUNT_CODE_STORAGE_ADDRESS.as_bytes(),
+            FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH.as_bytes(),
+            &hashes
+                .iter()
+                .map(|h| h.as_bytes().to_vec())
+                .collect::<Vec<_>>()[..]
+        )
+        .fetch_all(self.storage.conn())
+        .await?
+        .into_iter()
+        .map(Into::into)
+        .collect();
 
-                let tx_type = db_row.tx_format.map(U64::from).unwrap_or_default();
-                let transaction_index = db_row.index_in_block.map(U64::from).unwrap_or_default();
+        let mut logs = self
+            .storage
+            .events_dal()
+            .get_logs_by_tx_hashes(hashes)
+            .await?;
 
-                let block_hash = H256::from_slice(&db_row.block_hash);
-                api::TransactionReceipt {
-                    transaction_hash: H256::from_slice(&db_row.tx_hash),
-                    transaction_index,
-                    block_hash,
-                    block_number: db_row.block_number.into(),
-                    l1_batch_tx_index: db_row.l1_batch_tx_index.map(U64::from),
-                    l1_batch_number: db_row.l1_batch_number.map(U64::from),
-                    from: H160::from_slice(&db_row.initiator_address),
-                    to: db_row
-                        .transfer_to
-                        .or(db_row.execute_contract_address)
-                        .map(|addr| {
-                            serde_json::from_value::<Address>(addr)
-                                .expect("invalid address value in the database")
-                        })
-                        // For better compatibility with various clients, we never return null.
-                        .or_else(|| Some(Address::default())),
-                    cumulative_gas_used: Default::default(), // TODO: Should be actually calculated (SMA-1183).
-                    gas_used: {
-                        let refunded_gas: U256 = db_row.refunded_gas.into();
-                        db_row.gas_limit.map(|val| {
-                            let gas_limit = bigdecimal_to_u256(val);
-                            gas_limit - refunded_gas
-                        })
-                    },
-                    effective_gas_price: Some(
-                        db_row
-                            .effective_gas_price
-                            .map(bigdecimal_to_u256)
-                            .unwrap_or_default(),
-                    ),
-                    contract_address: db_row
-                        .contract_address
-                        .map(|addr| h256_to_account_address(&H256::from_slice(&addr))),
-                    logs: vec![],
-                    l2_to_l1_logs: vec![],
-                    status,
-                    root: block_hash,
-                    logs_bloom: Default::default(),
-                    // Even though the Rust SDK recommends us to supply "None" for legacy transactions
-                    // we always supply some number anyway to have the same behavior as most popular RPCs
-                    transaction_type: Some(tx_type),
-                }
-            });
-            match receipt {
-                Some(mut receipt) => {
-                    let logs: Vec<_> = sqlx::query_as!(
-                        StorageWeb3Log,
-                        r#"
-                        SELECT
-                            address,
-                            topic1,
-                            topic2,
-                            topic3,
-                            topic4,
-                            value,
-                            NULL::bytea AS "block_hash",
-                            NULL::BIGINT AS "l1_batch_number?",
-                            miniblock_number,
-                            tx_hash,
-                            tx_index_in_block,
-                            event_index_in_block,
-                            event_index_in_tx
-                        FROM
-                            events
-                        WHERE
-                            tx_hash = $1
-                        ORDER BY
-                            miniblock_number ASC,
-                            event_index_in_block ASC
-                        "#,
-                        hash.as_bytes()
-                    )
-                    .instrument("get_transaction_receipt_events")
-                    .with_arg("hash", &hash)
-                    .fetch_all(self.storage.conn())
-                    .await?
+        let mut l2_to_l1_logs = self
+            .storage
+            .events_dal()
+            .get_l2_to_l1_logs_by_hashes(hashes)
+            .await?;
+
+        for receipt in &mut receipts {
+            let logs_for_tx = logs.remove(&receipt.transaction_hash);
+
+            if let Some(logs) = logs_for_tx {
+                receipt.logs = logs
                     .into_iter()
-                    .map(|storage_log| {
-                        let mut log = api::Log::from(storage_log);
+                    .map(|mut log| {
                         log.block_hash = Some(receipt.block_hash);
                         log.l1_batch_number = receipt.l1_batch_number;
                         log
                     })
                     .collect();
+            }
 
-                    receipt.logs = logs;
-
-                    let l2_to_l1_logs = self.storage.events_dal().l2_to_l1_logs(hash).await?;
-                    let l2_to_l1_logs: Vec<_> = l2_to_l1_logs
-                        .into_iter()
-                        .map(|storage_l2_to_l1_log| {
-                            let mut l2_to_l1_log = api::L2ToL1Log::from(storage_l2_to_l1_log);
-                            l2_to_l1_log.block_hash = Some(receipt.block_hash);
-                            l2_to_l1_log.l1_batch_number = receipt.l1_batch_number;
-                            l2_to_l1_log
-                        })
-                        .collect();
-                    receipt.l2_to_l1_logs = l2_to_l1_logs;
-
-                    Ok(Some(receipt))
-                }
-                None => Ok(None),
+            let l2_to_l1_logs_for_tx = l2_to_l1_logs.remove(&receipt.transaction_hash);
+            if let Some(l2_to_l1_logs) = l2_to_l1_logs_for_tx {
+                receipt.l2_to_l1_logs = l2_to_l1_logs
+                    .into_iter()
+                    .map(|mut log| {
+                        log.block_hash = Some(receipt.block_hash);
+                        log.l1_batch_number = receipt.l1_batch_number;
+                        log
+                    })
+                    .collect();
             }
         }
+
+        Ok(receipts)
     }
 
     pub async fn get_transaction(
@@ -321,23 +254,12 @@ impl TransactionsWeb3Dal<'_, '_> {
         Ok((hashes, last_loc))
     }
 
+    /// `committed_next_nonce` should equal the nonce for `initiator_address` in the storage.
     pub async fn next_nonce_by_initiator_account(
         &mut self,
         initiator_address: Address,
+        committed_next_nonce: u64,
     ) -> Result<U256, SqlxError> {
-        let latest_block_number = self
-            .storage
-            .blocks_web3_dal()
-            .resolve_block_id(api::BlockId::Number(api::BlockNumber::Latest))
-            .await?
-            .expect("Failed to get `latest` nonce");
-        let latest_nonce = self
-            .storage
-            .storage_web3_dal()
-            .get_address_historical_nonce(initiator_address, latest_block_number)
-            .await?
-            .as_u64();
-
         // Get nonces of non-rejected transactions, starting from the 'latest' nonce.
         // `latest` nonce is used, because it is guaranteed that there are no gaps before it.
         // `(miniblock_number IS NOT NULL OR error IS NULL)` is the condition that filters non-rejected transactions.
@@ -361,7 +283,7 @@ impl TransactionsWeb3Dal<'_, '_> {
                 nonce
             "#,
             initiator_address.as_bytes(),
-            latest_nonce as i64
+            committed_next_nonce as i64
         )
         .fetch_all(self.storage.conn())
         .await?
@@ -370,7 +292,7 @@ impl TransactionsWeb3Dal<'_, '_> {
         .collect();
 
         // Find pending nonce as the first "gap" in nonces.
-        let mut pending_nonce = latest_nonce;
+        let mut pending_nonce = committed_next_nonce;
         for nonce in non_rejected_nonces {
             if pending_nonce == nonce {
                 pending_nonce += 1;
@@ -411,8 +333,10 @@ impl TransactionsWeb3Dal<'_, '_> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use zksync_types::{
-        block::MiniblockHasher, fee::TransactionExecutionMetrics, l2::L2Tx, ProtocolVersion,
+        block::MiniblockHasher, fee::TransactionExecutionMetrics, l2::L2Tx, Nonce, ProtocolVersion,
         ProtocolVersionId,
     };
 
@@ -422,26 +346,33 @@ mod tests {
         ConnectionPool,
     };
 
-    async fn prepare_transaction(conn: &mut StorageProcessor<'_>, tx: L2Tx) {
+    async fn prepare_transactions(conn: &mut StorageProcessor<'_>, txs: Vec<L2Tx>) {
         conn.blocks_dal()
             .delete_miniblocks(MiniblockNumber(0))
             .await
             .unwrap();
-        conn.transactions_dal()
-            .insert_transaction_l2(tx.clone(), TransactionExecutionMetrics::default())
-            .await;
+
+        for tx in &txs {
+            conn.transactions_dal()
+                .insert_transaction_l2(tx.clone(), TransactionExecutionMetrics::default())
+                .await;
+        }
         conn.blocks_dal()
             .insert_miniblock(&create_miniblock_header(0))
             .await
             .unwrap();
         let mut miniblock_header = create_miniblock_header(1);
-        miniblock_header.l2_tx_count = 1;
+        miniblock_header.l2_tx_count = txs.len() as u16;
         conn.blocks_dal()
             .insert_miniblock(&miniblock_header)
             .await
             .unwrap();
 
-        let tx_results = [mock_execution_result(tx)];
+        let tx_results = txs
+            .into_iter()
+            .map(mock_execution_result)
+            .collect::<Vec<_>>();
+
         conn.transactions_dal()
             .mark_txs_as_executed_in_miniblock(MiniblockNumber(1), &tx_results, U256::from(1))
             .await;
@@ -456,7 +387,7 @@ mod tests {
             .await;
         let tx = mock_l2_transaction();
         let tx_hash = tx.hash();
-        prepare_transaction(&mut conn, tx).await;
+        prepare_transactions(&mut conn, vec![tx]).await;
 
         let block_hash = MiniblockHasher::new(MiniblockNumber(1), 0, H256::zero())
             .finalize(ProtocolVersionId::latest());
@@ -511,6 +442,34 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn getting_receipts() {
+        let connection_pool = ConnectionPool::test_pool().await;
+        let mut conn = connection_pool.access_storage().await.unwrap();
+        conn.protocol_versions_dal()
+            .save_protocol_version_with_tx(ProtocolVersion::default())
+            .await;
+
+        let tx1 = mock_l2_transaction();
+        let tx1_hash = tx1.hash();
+        let tx2 = mock_l2_transaction();
+        let tx2_hash = tx2.hash();
+
+        prepare_transactions(&mut conn, vec![tx1.clone(), tx2.clone()]).await;
+
+        let mut receipts = conn
+            .transactions_web3_dal()
+            .get_transaction_receipts(&[tx1_hash, tx2_hash])
+            .await
+            .unwrap();
+
+        receipts.sort_unstable_by_key(|receipt| receipt.transaction_index);
+
+        assert_eq!(receipts.len(), 2);
+        assert_eq!(receipts[0].transaction_hash, tx1_hash);
+        assert_eq!(receipts[1].transaction_hash, tx2_hash);
+    }
+
+    #[tokio::test]
     async fn getting_miniblock_transactions() {
         let connection_pool = ConnectionPool::test_pool().await;
         let mut conn = connection_pool.access_storage().await.unwrap();
@@ -519,7 +478,7 @@ mod tests {
             .await;
         let tx = mock_l2_transaction();
         let tx_hash = tx.hash();
-        prepare_transaction(&mut conn, tx).await;
+        prepare_transactions(&mut conn, vec![tx]).await;
 
         let raw_txs = conn
             .transactions_web3_dal()
@@ -535,5 +494,103 @@ mod tests {
             .unwrap();
         assert_eq!(raw_txs.len(), 1);
         assert_eq!(raw_txs[0].hash(), tx_hash);
+    }
+
+    #[tokio::test]
+    async fn getting_next_nonce_by_initiator_account() {
+        let connection_pool = ConnectionPool::test_pool().await;
+        let mut conn = connection_pool.access_storage().await.unwrap();
+        conn.protocol_versions_dal()
+            .save_protocol_version_with_tx(ProtocolVersion::default())
+            .await;
+
+        let initiator = Address::repeat_byte(1);
+        let next_nonce = conn
+            .transactions_web3_dal()
+            .next_nonce_by_initiator_account(initiator, 0)
+            .await
+            .unwrap();
+        assert_eq!(next_nonce, 0.into());
+
+        let mut tx_by_nonce = HashMap::new();
+        for nonce in [0, 1, 4] {
+            let mut tx = mock_l2_transaction();
+            // Changing transaction fields invalidates its signature, but it's OK for test purposes
+            tx.common_data.nonce = Nonce(nonce);
+            tx.common_data.initiator_address = initiator;
+            tx_by_nonce.insert(nonce, tx.clone());
+            conn.transactions_dal()
+                .insert_transaction_l2(tx, TransactionExecutionMetrics::default())
+                .await;
+        }
+
+        let next_nonce = conn
+            .transactions_web3_dal()
+            .next_nonce_by_initiator_account(initiator, 0)
+            .await
+            .unwrap();
+        assert_eq!(next_nonce, 2.into());
+
+        // Reject the transaction with nonce 1, so that it'd be not taken into account.
+        conn.transactions_dal()
+            .mark_tx_as_rejected(tx_by_nonce[&1].hash(), "oops")
+            .await;
+        let next_nonce = conn
+            .transactions_web3_dal()
+            .next_nonce_by_initiator_account(initiator, 0)
+            .await
+            .unwrap();
+        assert_eq!(next_nonce, 1.into());
+
+        // Include transactions in a miniblock (including the rejected one), so that they are taken into account again.
+        let mut miniblock = create_miniblock_header(1);
+        miniblock.l2_tx_count = 2;
+        conn.blocks_dal()
+            .insert_miniblock(&miniblock)
+            .await
+            .unwrap();
+        let executed_txs = [
+            mock_execution_result(tx_by_nonce[&0].clone()),
+            mock_execution_result(tx_by_nonce[&1].clone()),
+        ];
+        conn.transactions_dal()
+            .mark_txs_as_executed_in_miniblock(miniblock.number, &executed_txs, 1.into())
+            .await;
+
+        let next_nonce = conn
+            .transactions_web3_dal()
+            .next_nonce_by_initiator_account(initiator, 0)
+            .await
+            .unwrap();
+        assert_eq!(next_nonce, 2.into());
+    }
+
+    #[tokio::test]
+    async fn getting_next_nonce_by_initiator_account_after_snapshot_recovery() {
+        // Emulate snapshot recovery: no transactions with past nonces are present in the storage
+        let connection_pool = ConnectionPool::test_pool().await;
+        let mut conn = connection_pool.access_storage().await.unwrap();
+        let initiator = Address::repeat_byte(1);
+        let next_nonce = conn
+            .transactions_web3_dal()
+            .next_nonce_by_initiator_account(initiator, 1)
+            .await
+            .unwrap();
+        assert_eq!(next_nonce, 1.into());
+
+        let mut tx = mock_l2_transaction();
+        // Changing transaction fields invalidates its signature, but it's OK for test purposes
+        tx.common_data.nonce = Nonce(1);
+        tx.common_data.initiator_address = initiator;
+        conn.transactions_dal()
+            .insert_transaction_l2(tx, TransactionExecutionMetrics::default())
+            .await;
+
+        let next_nonce = conn
+            .transactions_web3_dal()
+            .next_nonce_by_initiator_account(initiator, 1)
+            .await
+            .unwrap();
+        assert_eq!(next_nonce, 2.into());
     }
 }

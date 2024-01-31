@@ -39,11 +39,22 @@ describe('web3 API compatibility tests', () => {
         const blockWithTxsByNumber = await alice.provider.getBlockWithTransactions(blockNumber);
         expect(blockWithTxsByNumber.gasLimit).bnToBeGt(0);
         let sumTxGasUsed = ethers.BigNumber.from(0);
+
         for (const tx of blockWithTxsByNumber.transactions) {
             const receipt = await alice.provider.getTransactionReceipt(tx.hash);
             sumTxGasUsed = sumTxGasUsed.add(receipt.gasUsed);
         }
         expect(blockWithTxsByNumber.gasUsed).bnToBeGte(sumTxGasUsed);
+
+        let expectedReceipts = [];
+
+        for (const tx of blockWithTxsByNumber.transactions) {
+            const receipt = await alice.provider.send('eth_getTransactionReceipt', [tx.hash]);
+            expectedReceipts.push(receipt);
+        }
+
+        let receipts = await alice.provider.send('eth_getBlockReceipts', [blockNumberHex]);
+        expect(receipts).toEqual(expectedReceipts);
 
         // eth_getBlockByHash
         await alice.provider.getBlock(blockHash);
@@ -787,7 +798,7 @@ describe('web3 API compatibility tests', () => {
     test('Should check transaction signature', async () => {
         const CHAIN_ID = +process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!;
         const value = 1;
-        const gasLimit = 300000;
+        const gasLimit = 350000;
         const gasPrice = await alice.provider.getGasPrice();
         const data = '0x';
         const to = alice.address;
