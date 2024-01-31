@@ -1,11 +1,9 @@
-//! Integration tests for object store.
+//! Integration tests for object store serialization of job objects.
 
 use tokio::fs;
 use zksync_object_store::{Bucket, ObjectStoreFactory};
-use zksync_types::{
-    proofs::{PrepareBasicCircuitsJob, StorageLogMetadata},
-    L1BatchNumber,
-};
+use zksync_prover_interface::inputs::{PrepareBasicCircuitsJob, StorageLogMetadata};
+use zksync_types::L1BatchNumber;
 
 /// Tests compatibility of the `PrepareBasicCircuitsJob` serialization to the previously used
 /// one.

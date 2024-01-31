@@ -395,6 +395,10 @@ impl BatchExecutor {
 
         let tx_metrics = ExecutionMetricsForCriteria::new(Some(tx), &tx_result);
 
+        if !vm.has_enough_gas_for_batch_tip() {
+            return TxExecutionResult::BootloaderOutOfGasForBlockTip;
+        }
+
         let (bootloader_dry_run_result, bootloader_dry_run_metrics) = self.dryrun_block_tip(vm);
         match &bootloader_dry_run_result.result {
             ExecutionResult::Success { .. } => TxExecutionResult::Success {
