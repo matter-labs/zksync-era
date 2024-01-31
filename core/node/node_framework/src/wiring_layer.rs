@@ -3,7 +3,7 @@ use crate::{node::NodeContext, resource::ResourceId};
 /// Wiring layer provides a way to customize the `ZkStackService` by
 /// adding new tasks or resources to it.
 ///
-/// Implementors of this trait are adviced to specify in doc comments
+/// Structures that implement this trait are advised to specify in doc comments
 /// which resources they use or add, and the list of tasks they add.
 #[async_trait::async_trait]
 pub trait WiringLayer: 'static + Send + Sync {
