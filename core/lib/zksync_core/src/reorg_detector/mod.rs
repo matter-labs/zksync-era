@@ -1,4 +1,4 @@
-use std::{fmt, time::Duration};
+use std::{fmt, future::Future, time::Duration};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
@@ -15,7 +15,7 @@ use zksync_web3_decl::{
 
 use crate::{
     metrics::{CheckerComponent, EN_METRICS},
-    utils::{binary_search_with, wait_for_l1_batch_with_metadata},
+    utils::wait_for_l1_batch_with_metadata,
 };
 
 #[cfg(test)]
@@ -427,4 +427,22 @@ impl ReorgDetector {
             tokio::time::sleep(self.sleep_interval).await;
         }
     }
+}
+
+async fn binary_search_with<F, Fut, E>(mut left: u32, mut right: u32, mut f: F) -> Result<u32, E>
+where
+    F: FnMut(u32) -> Fut,
+    Fut: Future<Output = Result<bool, E>>,
+{
+    while left + 1 < right {
+        let middle = (left + right) / 2;
+        assert!(middle < right); // middle <= (right - 2 + right) / 2 = right - 1
+
+        if f(middle).await? {
+            left = middle;
+        } else {
+            right = middle;
+        }
+    }
+    Ok(left)
 }

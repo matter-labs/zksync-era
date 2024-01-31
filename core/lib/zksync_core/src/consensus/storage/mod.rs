@@ -1,12 +1,11 @@
 //! Storage implementation based on DAL.
-
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, sync, time};
 use zksync_consensus_bft::PayloadManager;
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage::{BlockStoreState, PersistentBlockStore, ReplicaState, ReplicaStore};
 use zksync_dal::{consensus_dal::Payload, ConnectionPool};
-use zksync_types::MiniblockNumber;
+use zksync_types::{Address, MiniblockNumber};
 
 #[cfg(test)]
 mod testonly;
@@ -62,9 +61,14 @@ impl<'a> CtxStorage<'a> {
         &mut self,
         ctx: &ctx::Ctx,
         number: validator::BlockNumber,
+        operator_address: Address,
     ) -> ctx::Result<Option<Payload>> {
         Ok(ctx
-            .wait(self.0.consensus_dal().block_payload(number))
+            .wait(
+                self.0
+                    .consensus_dal()
+                    .block_payload(number, operator_address),
+            )
             .await??)
     }
 
@@ -104,9 +108,14 @@ impl<'a> CtxStorage<'a> {
         &mut self,
         ctx: &ctx::Ctx,
         cert: &validator::CommitQC,
+        operator_address: Address,
     ) -> ctx::Result<()> {
         Ok(ctx
-            .wait(self.0.consensus_dal().insert_certificate(cert))
+            .wait(
+                self.0
+                    .consensus_dal()
+                    .insert_certificate(cert, operator_address),
+            )
             .await??)
     }
 
@@ -183,6 +192,7 @@ impl Cursor {
 #[derive(Clone, Debug)]
 pub(super) struct Store {
     pool: ConnectionPool,
+    operator_address: Address,
 }
 
 /// Wrapper of `ConnectionPool` implementing `PersistentBlockStore`.
@@ -195,8 +205,11 @@ pub(super) struct BlockStore {
 
 impl Store {
     /// Creates a `Store`. `pool` should have multiple connections to work efficiently.
-    pub fn new(pool: ConnectionPool) -> Self {
-        Self { pool }
+    pub fn new(pool: ConnectionPool, operator_address: Address) -> Self {
+        Self {
+            pool,
+            operator_address,
+        }
     }
 
     /// Converts `Store` into a `BlockStore`.
@@ -238,7 +251,7 @@ impl BlockStore {
             return Ok(());
         }
         let payload = txn
-            .payload(ctx, number)
+            .payload(ctx, number, self.inner.operator_address)
             .await
             .wrap("payload()")?
             .context("miniblock disappeared")?;
@@ -251,9 +264,13 @@ impl BlockStore {
             .block_number(number)
             .payload(payload.encode())
             .push();
-        txn.insert_certificate(ctx, &genesis.blocks[0].justification)
-            .await
-            .wrap("insert_certificate()")?;
+        txn.insert_certificate(
+            ctx,
+            &genesis.blocks[0].justification,
+            self.inner.operator_address,
+        )
+        .await
+        .wrap("insert_certificate()")?;
         txn.commit(ctx).await.wrap("commit()")
     }
 
@@ -308,7 +325,7 @@ impl PersistentBlockStore for BlockStore {
             .wrap("certificate()")?
             .context("not found")?;
         let payload = storage
-            .payload(ctx, number)
+            .payload(ctx, number, self.inner.operator_address)
             .await
             .wrap("payload()")?
             .context("miniblock disappeared from storage")?;
@@ -347,7 +364,7 @@ impl PersistentBlockStore for BlockStore {
                 .wrap("last_miniblock_number()")?;
             if number >= block.header().number {
                 storage
-                    .insert_certificate(ctx, &block.justification)
+                    .insert_certificate(ctx, &block.justification, self.inner.operator_address)
                     .await
                     .wrap("insert_certificate()")?;
                 return Ok(());
@@ -393,7 +410,11 @@ impl PayloadManager for Store {
         drop(storage);
         loop {
             let mut storage = CtxStorage::access(ctx, &self.pool).await.wrap("access()")?;
-            if let Some(payload) = storage.payload(ctx, block_number).await.wrap("payload()")? {
+            if let Some(payload) = storage
+                .payload(ctx, block_number, self.operator_address)
+                .await
+                .wrap("payload()")?
+            {
                 let encoded_payload = payload.encode();
                 if encoded_payload.0.len() > 1 << 20 {
                     tracing::warn!(

@@ -34,7 +34,7 @@ function formatQuery(query: string) {
     return formattedQuery;
 }
 
-function extractQueryFromRustString(query: string, isRaw: boolean): string {
+function extractQueryFromRustString(query: string): string {
     query = query.trim();
     if (query.endsWith(',')) {
         query = query.slice(0, query.length - 1);
@@ -46,10 +46,9 @@ function extractQueryFromRustString(query: string, isRaw: boolean): string {
         query = query.slice(3, query.length - 2);
     }
 
-    // Get rid of all "\" characters, both from escapes and line breaks.
-    if (!isRaw) {
-        query = query.replace(/\\(.|\n)/g, '$1');
-    }
+    //getting rid of all "\" characters, both from escapes and line breaks
+    query = query.replace(/\\/g, '');
+
     return query;
 }
 
@@ -64,9 +63,9 @@ function addIndent(query: string, indent: number) {
         .join('\n');
 }
 
-function formatRustStringQuery(query: string, isRaw: boolean) {
+function formatRustStringQuery(query: string) {
     const baseIndent = query.search(/\S/);
-    const rawQuery = extractQueryFromRustString(query, isRaw);
+    const rawQuery = extractQueryFromRustString(query);
     const formattedQuery = formatQuery(rawQuery);
     const reconstructedRustString = embedTextInsideRustString(formattedQuery);
 
@@ -82,7 +81,7 @@ function formatOneLineQuery(line: string): string {
     const queryEnd = isRawString ? line.indexOf('"#') + 2 : line.slice(1).search(/(^|[^\\])"/) + 3;
     const suffix = line.slice(queryEnd);
     const query = line.slice(0, queryEnd);
-    let formattedQuery = formatRustStringQuery(query, isRawString);
+    let formattedQuery = formatRustStringQuery(query);
     formattedQuery = addIndent(formattedQuery, baseIndent);
 
     return prefix + '\n' + formattedQuery + '\n' + suffix;
@@ -125,7 +124,7 @@ async function formatFile(filePath: string, check: boolean) {
         }
 
         if (isInsideQuery) {
-            const queryNotEmpty = builtQuery !== '' || line.trim().length > 1;
+            const queryNotEmpty = builtQuery || line.trim().length > 1;
             const rawStringQueryEnded = line.endsWith('"#,') || line.endsWith('"#');
             const regularStringQueryEnded = (line.endsWith('",') || line.endsWith('"')) && queryNotEmpty;
             builtQuery += line + '\n';
@@ -136,7 +135,7 @@ async function formatFile(filePath: string, check: boolean) {
             ) {
                 isInsideQuery = false;
                 let endedWithComma = builtQuery.trimEnd().endsWith(',');
-                modifiedFile += formatRustStringQuery(builtQuery, isRawString).trimEnd();
+                modifiedFile += formatRustStringQuery(builtQuery).trimEnd();
                 modifiedFile += endedWithComma ? ',' : '';
                 modifiedFile += '\n';
             }

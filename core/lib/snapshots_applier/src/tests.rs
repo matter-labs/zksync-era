@@ -64,7 +64,13 @@ mod utils {
         root_hash: H256,
     ) -> L1BatchWithMetadata {
         L1BatchWithMetadata {
-            header: L1BatchHeader::new(l1_batch_number, 0, Default::default(), Default::default()),
+            header: L1BatchHeader::new(
+                l1_batch_number,
+                0,
+                Default::default(),
+                Default::default(),
+                Default::default(),
+            ),
             metadata: L1BatchMetadata {
                 root_hash,
                 rollup_last_leaf_index: 0,
