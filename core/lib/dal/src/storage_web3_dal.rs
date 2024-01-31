@@ -278,6 +278,7 @@ mod tests {
         let l1_batch_header = L1BatchHeader::new(
             L1BatchNumber(0),
             0,
+            Address::repeat_byte(0x42),
             Default::default(),
             ProtocolVersionId::latest(),
         );
@@ -381,6 +382,7 @@ mod tests {
         let l1_batch_header = L1BatchHeader::new(
             snapshot_recovery.l1_batch_number + 1,
             100,
+            Address::repeat_byte(0x42),
             Default::default(),
             ProtocolVersionId::latest(),
         );

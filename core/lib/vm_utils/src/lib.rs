@@ -41,10 +41,10 @@ pub fn create_vm(
         .block_on(
             connection
                 .blocks_dal()
-                .get_fee_address_for_miniblock(miniblock_number + 1),
+                .get_fee_address_for_l1_batch(l1_batch_number),
         )?
         .with_context(|| {
-            format!("l1_batch_number {l1_batch_number:?} must have fee_account_address")
+            format!("l1_batch_number {l1_batch_number:?} must have fee_address_account")
         })?;
 
     // In the state keeper, this value is used to reject execution.

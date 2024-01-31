@@ -108,7 +108,7 @@ impl L1BatchStagesMap {
         for (number, stage) in self.iter() {
             let local_details = storage
                 .blocks_web3_dal()
-                .get_block_details(MiniblockNumber(number.0))
+                .get_block_details(MiniblockNumber(number.0), Address::zero())
                 .await
                 .unwrap()
                 .unwrap_or_else(|| panic!("no details for block #{number}"));
