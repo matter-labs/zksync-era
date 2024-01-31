@@ -19,7 +19,7 @@ pub(crate) struct StorageSyncBlock {
     pub fair_pubdata_price: Option<i64>,
     pub bootloader_code_hash: Option<Vec<u8>>,
     pub default_aa_code_hash: Option<Vec<u8>>,
-    pub fee_account_address: Option<Vec<u8>>, // May be None if the block is not yet sealed
+    pub fee_account_address: Vec<u8>,
     pub protocol_version: i32,
     pub virtual_blocks: i64,
     pub hash: Vec<u8>,
@@ -42,7 +42,7 @@ pub(crate) struct SyncBlock {
     pub l2_fair_gas_price: u64,
     pub fair_pubdata_price: Option<u64>,
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
-    pub fee_account_address: Option<Address>,
+    pub fee_account_address: Address,
     pub virtual_blocks: u32,
     pub hash: H256,
     pub protocol_version: ProtocolVersionId,
@@ -85,10 +85,7 @@ impl TryFrom<StorageSyncBlock> for SyncBlock {
                 )
                 .context("default_aa_code_hash")?,
             },
-            fee_account_address: block
-                .fee_account_address
-                .map(|a| parse_h160(&a))
-                .transpose()
+            fee_account_address: parse_h160(&block.fee_account_address)
                 .context("fee_account_address")?,
             virtual_blocks: block.virtual_blocks.try_into().context("virtual_blocks")?,
             hash: parse_h256(&block.hash).context("hash")?,
@@ -101,11 +98,7 @@ impl TryFrom<StorageSyncBlock> for SyncBlock {
 }
 
 impl SyncBlock {
-    pub(crate) fn into_api(
-        self,
-        current_operator_address: Address,
-        transactions: Option<Vec<Transaction>>,
-    ) -> en::SyncBlock {
+    pub(crate) fn into_api(self, transactions: Option<Vec<Transaction>>) -> en::SyncBlock {
         en::SyncBlock {
             number: self.number,
             l1_batch_number: self.l1_batch_number,
@@ -115,7 +108,7 @@ impl SyncBlock {
             l2_fair_gas_price: self.l2_fair_gas_price,
             fair_pubdata_price: self.fair_pubdata_price,
             base_system_contracts_hashes: self.base_system_contracts_hashes,
-            operator_address: self.fee_account_address.unwrap_or(current_operator_address),
+            operator_address: self.fee_account_address,
             transactions,
             virtual_blocks: Some(self.virtual_blocks),
             hash: Some(self.hash),
@@ -123,11 +116,7 @@ impl SyncBlock {
         }
     }
 
-    pub(crate) fn into_payload(
-        self,
-        current_operator_address: Address,
-        transactions: Vec<Transaction>,
-    ) -> Payload {
+    pub(crate) fn into_payload(self, transactions: Vec<Transaction>) -> Payload {
         Payload {
             protocol_version: self.protocol_version,
             hash: self.hash,
@@ -137,7 +126,7 @@ impl SyncBlock {
             l2_fair_gas_price: self.l2_fair_gas_price,
             fair_pubdata_price: self.fair_pubdata_price,
             virtual_blocks: self.virtual_blocks,
-            operator_address: self.fee_account_address.unwrap_or(current_operator_address),
+            operator_address: self.fee_account_address,
             transactions,
             last_in_batch: self.last_in_batch,
         }
