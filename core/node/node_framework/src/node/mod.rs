@@ -34,8 +34,8 @@ pub struct ZkStackService {
     resource_provider: Box<dyn ResourceProvider>,
     /// Cache of resources that have been requested at least by one task.
     resources: HashMap<ResourceId, Box<dyn StoredResource>>,
-    /// List of task builders.
-    task_builders: Vec<Box<dyn WiringLayer>>,
+    /// List of wiring layers.
+    layers: Vec<Box<dyn WiringLayer>>,
     /// Tasks added to the node.
     tasks: Vec<Box<dyn Task>>,
 
@@ -67,7 +67,7 @@ impl ZkStackService {
         let self_ = Self {
             resource_provider: Box::new(resource_provider),
             resources: HashMap::default(),
-            task_builders: Vec::new(),
+            layers: Vec::new(),
             tasks: Vec::new(),
             stop_sender,
             runtime,
@@ -81,23 +81,22 @@ impl ZkStackService {
     /// The task is not created at this point, instead, the constructor is stored in the node
     /// and will be invoked during [`ZkSyncNode::run`] method. Any error returned by the constructor
     /// will prevent the node from starting and will be propagated by the [`ZkSyncNode::run`] method.
-    pub fn add_task<T: WiringLayer>(&mut self, builder: T) -> &mut Self {
-        self.task_builders.push(Box::new(builder));
+    pub fn add_layer<T: WiringLayer>(&mut self, layer: T) -> &mut Self {
+        self.layers.push(Box::new(layer));
         self
     }
 
     /// Runs the system.
     pub fn run(mut self) -> anyhow::Result<()> {
         // Initialize tasks.
-        let task_builders = std::mem::take(&mut self.task_builders);
+        let wiring_layers = std::mem::take(&mut self.layers);
 
         let mut errors: Vec<(String, WiringError)> = Vec::new();
 
         let runtime_handle = self.runtime.handle().clone();
-        for task_builder in task_builders {
-            let name = task_builder.task_name().to_string();
-            let task_result =
-                runtime_handle.block_on(task_builder.wire(NodeContext::new(&mut self)));
+        for layer in wiring_layers {
+            let name = layer.layer_name().to_string();
+            let task_result = runtime_handle.block_on(layer.wire(NodeContext::new(&mut self)));
             if let Err(err) = task_result {
                 // We don't want to bail on the first error, since it'll provide worse DevEx:
                 // People likely want to fix as much problems as they can in one go, rather than have

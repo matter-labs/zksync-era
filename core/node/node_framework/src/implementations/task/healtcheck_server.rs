@@ -20,7 +20,7 @@ pub struct HealthCheckTaskBuilder(pub HealthCheckConfig);
 
 #[async_trait::async_trait]
 impl WiringLayer for HealthCheckTaskBuilder {
-    fn task_name(&self) -> &'static str {
+    fn layer_name(&self) -> &'static str {
         "healthcheck_server"
     }
 

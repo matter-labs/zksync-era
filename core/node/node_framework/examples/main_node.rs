@@ -71,11 +71,11 @@ fn main() -> anyhow::Result<()> {
         &merkle_tree_env_config,
         &operations_manager_env_config,
     );
-    node.add_task(MetadataCalculatorTaskBuilder(metadata_calculator_config));
+    node.add_layer(MetadataCalculatorTaskBuilder(metadata_calculator_config));
 
     // Add the healthcheck server.
     let healthcheck_config = zksync_config::ApiConfig::from_env()?.healthcheck;
-    node.add_task(HealthCheckTaskBuilder(healthcheck_config));
+    node.add_layer(HealthCheckTaskBuilder(healthcheck_config));
 
     // Run the node until completion.
     node.run()?;

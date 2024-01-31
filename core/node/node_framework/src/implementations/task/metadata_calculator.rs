@@ -25,7 +25,7 @@ pub struct MetadataCalculatorTask {
 
 #[async_trait::async_trait]
 impl WiringLayer for MetadataCalculatorTaskBuilder {
-    fn task_name(&self) -> &'static str {
+    fn layer_name(&self) -> &'static str {
         "metadata_calculator"
     }
 

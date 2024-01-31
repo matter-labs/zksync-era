@@ -3,7 +3,7 @@ use crate::{node::NodeContext, resource::ResourceId};
 #[async_trait::async_trait]
 pub trait WiringLayer: 'static + Send + Sync {
     /// Identifier of the wiring layer.
-    fn task_name(&self) -> &'static str;
+    fn layer_name(&self) -> &'static str;
 
     async fn wire(self: Box<Self>, node: NodeContext<'_>) -> Result<(), WiringError>;
 }

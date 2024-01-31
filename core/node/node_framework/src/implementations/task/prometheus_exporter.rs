@@ -21,7 +21,7 @@ pub struct PrometheusExporterTask {
 
 #[async_trait::async_trait]
 impl WiringLayer for PrometheusExporterTaskBuilder {
-    fn task_name(&self) -> &'static str {
+    fn layer_name(&self) -> &'static str {
         "prometheus_exporter"
     }
 
