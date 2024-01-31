@@ -5,8 +5,8 @@ pub use sqlx::{types::BigDecimal, Error as SqlxError};
 
 pub use crate::connection::ConnectionPool;
 use crate::{
-    accounts_dal::AccountsDal, basic_witness_input_producer_dal::BasicWitnessInputProducerDal,
-    blocks_dal::BlocksDal, blocks_web3_dal::BlocksWeb3Dal, connection::holder::ConnectionHolder,
+    basic_witness_input_producer_dal::BasicWitnessInputProducerDal, blocks_dal::BlocksDal,
+    blocks_web3_dal::BlocksWeb3Dal, connection::holder::ConnectionHolder,
     consensus_dal::ConsensusDal, contract_verification_dal::ContractVerificationDal,
     eth_sender_dal::EthSenderDal, events_dal::EventsDal, events_web3_dal::EventsWeb3Dal,
     fri_gpu_prover_queue_dal::FriGpuProverQueueDal,
@@ -26,7 +26,6 @@ use crate::{
 
 #[macro_use]
 mod macro_utils;
-pub mod accounts_dal;
 pub mod basic_witness_input_producer_dal;
 pub mod blocks_dal;
 pub mod blocks_web3_dal;
@@ -127,10 +126,6 @@ impl<'a> StorageProcessor<'a> {
 
     pub fn transactions_web3_dal(&mut self) -> TransactionsWeb3Dal<'_, 'a> {
         TransactionsWeb3Dal { storage: self }
-    }
-
-    pub fn accounts_dal(&mut self) -> AccountsDal<'_, 'a> {
-        AccountsDal { storage: self }
     }
 
     pub fn basic_witness_input_producer_dal(&mut self) -> BasicWitnessInputProducerDal<'_, 'a> {

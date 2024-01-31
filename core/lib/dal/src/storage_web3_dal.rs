@@ -1,4 +1,4 @@
-use std::ops;
+use std::{collections::HashMap, ops};
 
 use zksync_types::{
     get_code_key, get_nonce_key,
@@ -49,6 +49,20 @@ impl StorageWeb3Dal<'_, '_> {
     pub async fn get_value(&mut self, key: &StorageKey) -> sqlx::Result<H256> {
         self.get_historical_value_unchecked(key, MiniblockNumber(u32::MAX))
             .await
+    }
+
+    /// Gets the current values for the specified `hashed_keys`. The returned map has requested hashed keys as keys
+    /// and current storage values as values.
+    pub async fn get_values(&mut self, hashed_keys: &[H256]) -> sqlx::Result<HashMap<H256, H256>> {
+        let storage_map = self
+            .storage
+            .storage_logs_dal()
+            .get_storage_values(hashed_keys, MiniblockNumber(u32::MAX))
+            .await?;
+        Ok(storage_map
+            .into_iter()
+            .map(|(key, value)| (key, value.unwrap_or_default()))
+            .collect())
     }
 
     /// This method does not check if a block with this number exists in the database.
