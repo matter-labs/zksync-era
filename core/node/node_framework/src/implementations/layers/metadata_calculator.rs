@@ -7,8 +7,8 @@ use crate::{
         healthcheck::HealthCheckResource, object_store::ObjectStoreResource,
         pools::MasterPoolResource,
     },
-    node::{NodeContext, StopReceiver},
     resource::{Resource, ResourceCollection},
+    service::{ServiceContext, StopReceiver},
     task::Task,
     wiring_layer::{WiringError, WiringLayer},
 };
@@ -36,7 +36,7 @@ impl WiringLayer for MetadataCalculatorLayer {
         "metadata_calculator_layer"
     }
 
-    async fn wire(self: Box<Self>, mut node: NodeContext<'_>) -> Result<(), WiringError> {
+    async fn wire(self: Box<Self>, mut node: ServiceContext<'_>) -> Result<(), WiringError> {
         let pool =
             node.get_resource::<MasterPoolResource>()
                 .await

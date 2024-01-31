@@ -9,7 +9,7 @@
 //! - [`Resource`](resource::Resource) - a piece of logic that can be shared between tasks. Most resources are
 //!   represented by generic interfaces and also serve as points of customization for tasks.
 //! - [`ResourceProvider`](resource::ResourceProvider) - a trait that allows one to provide resources to the node.
-//! - [`ZkStackService`](node::ZkStackService) - a container for tasks and resources that takes care of initialization, running
+//! - [`ZkStackService`](service::ZkStackService) - a container for tasks and resources that takes care of initialization, running
 //!   and shutting down.
 //!
 //! The general flow to compose a node is as follows:
@@ -19,7 +19,7 @@
 //! - Run it.
 
 pub mod implementations;
-pub mod node;
 pub mod resource;
+pub mod service;
 pub mod task;
 pub mod wiring_layer;

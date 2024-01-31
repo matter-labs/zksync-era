@@ -5,8 +5,8 @@ use zksync_core::api_server::healthcheck::HealthCheckHandle;
 
 use crate::{
     implementations::resources::healthcheck::HealthCheckResource,
-    node::{NodeContext, StopReceiver},
     resource::ResourceCollection,
+    service::{ServiceContext, StopReceiver},
     task::Task,
     wiring_layer::{WiringError, WiringLayer},
 };
@@ -31,7 +31,7 @@ impl WiringLayer for HealthCheckLayer {
         "healthcheck_layer"
     }
 
-    async fn wire(self: Box<Self>, mut node: NodeContext<'_>) -> Result<(), WiringError> {
+    async fn wire(self: Box<Self>, mut node: ServiceContext<'_>) -> Result<(), WiringError> {
         let healthchecks = node
             .get_resource_or_default::<ResourceCollection<HealthCheckResource>>()
             .await;

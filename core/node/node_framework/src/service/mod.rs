@@ -3,7 +3,7 @@ use std::{collections::HashMap, fmt};
 use futures::{future::BoxFuture, FutureExt};
 use tokio::{runtime::Runtime, sync::watch};
 
-pub use self::{context::NodeContext, stop_receiver::StopReceiver};
+pub use self::{context::ServiceContext, stop_receiver::StopReceiver};
 use crate::{
     resource::{ResourceId, ResourceProvider, StoredResource},
     task::Task,
@@ -13,15 +13,15 @@ use crate::{
 mod context;
 mod stop_receiver;
 
-/// "Manager" class of the node. Collects all the resources and tasks,
+/// "Manager" class for a set of tasks. Collects all the resources and tasks,
 /// then runs tasks until completion.
 ///
 /// Initialization flow:
-/// - Node instance is created with access to the resource provider.
-/// - Wiring layers are added to the node. At this step, tasks are not created yet.
-/// - Once the `run` method is invoked, node
+/// - Service instance is created with access to the resource provider.
+/// - Wiring layers are added to the service. At this step, tasks are not created yet.
+/// - Once the `run` method is invoked, service
 ///   - invokes a `wire` method on each added wiring layer. If any of the layers fails,
-///     the node will return an error. If no layers have added a task, the node will
+///     the service will return an error. If no layers have added a task, the service will
 ///     also return an error.
 ///   - waits for any of the tasks to finish.
 ///   - sends stop signal to all the tasks.
@@ -35,7 +35,7 @@ pub struct ZkStackService {
     resources: HashMap<ResourceId, Box<dyn StoredResource>>,
     /// List of wiring layers.
     layers: Vec<Box<dyn WiringLayer>>,
-    /// Tasks added to the node.
+    /// Tasks added to the service.
     tasks: Vec<Box<dyn Task>>,
 
     /// Sender used to stop the tasks.
@@ -76,7 +76,7 @@ impl ZkStackService {
     }
 
     /// Adds a wiring layer.
-    /// During the [`run`](ZkStackService::run) call the node will invoke
+    /// During the [`run`](ZkStackService::run) call the service will invoke
     /// `wire` method of every layer in the order they were added.
     pub fn add_layer<T: WiringLayer>(&mut self, layer: T) -> &mut Self {
         self.layers.push(Box::new(layer));
@@ -93,7 +93,7 @@ impl ZkStackService {
         let runtime_handle = self.runtime.handle().clone();
         for layer in wiring_layers {
             let name = layer.layer_name().to_string();
-            let task_result = runtime_handle.block_on(layer.wire(NodeContext::new(&mut self)));
+            let task_result = runtime_handle.block_on(layer.wire(ServiceContext::new(&mut self)));
             if let Err(err) = task_result {
                 // We don't want to bail on the first error, since it'll provide worse DevEx:
                 // People likely want to fix as much problems as they can in one go, rather than have

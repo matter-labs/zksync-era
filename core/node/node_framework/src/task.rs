@@ -3,7 +3,7 @@
 
 use futures::future::BoxFuture;
 
-use crate::node::StopReceiver;
+use crate::service::StopReceiver;
 
 /// A task implementation.
 #[async_trait::async_trait]

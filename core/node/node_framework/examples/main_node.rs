@@ -13,8 +13,8 @@ use zksync_node_framework::{
         },
         resources::pools::MasterPoolResource,
     },
-    node::ZkStackService,
     resource::{Resource, ResourceId, ResourceProvider, StoredResource},
+    service::ZkStackService,
 };
 
 /// Resource provider for the main node.

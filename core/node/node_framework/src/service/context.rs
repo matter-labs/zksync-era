@@ -1,35 +1,35 @@
 use crate::{
-    node::ZkStackService,
     resource::{Resource, StoredResource},
+    service::ZkStackService,
     task::Task,
 };
 
-/// An interface to the node's resources provided to the tasks during initialization.
-/// Provides the ability to fetch required resources, and also gives access to the Tokio runtime handle used by the node.
+/// An interface to the service's resources provided to the tasks during initialization.
+/// Provides the ability to fetch required resources, and also gives access to the Tokio runtime handle.
 #[derive(Debug)]
-pub struct NodeContext<'a> {
-    node: &'a mut ZkStackService,
+pub struct ServiceContext<'a> {
+    service: &'a mut ZkStackService,
 }
 
-impl<'a> NodeContext<'a> {
-    pub(super) fn new(node: &'a mut ZkStackService) -> Self {
-        Self { node }
+impl<'a> ServiceContext<'a> {
+    pub(super) fn new(service: &'a mut ZkStackService) -> Self {
+        Self { service }
     }
 
-    /// Provides access to the runtime used by the node.
+    /// Provides access to the runtime used by the service.
     /// Can be used to spawn additional tasks within the same runtime.
     /// If some tasks stores the handle to spawn additional tasks, it is expected to do all the required
     /// cleanup.
     ///
     /// In most cases, however, it is recommended to use [`add_task`] method instead.
     pub fn runtime_handle(&self) -> &tokio::runtime::Handle {
-        self.node.runtime.handle()
+        self.service.runtime.handle()
     }
 
-    /// Adds a task to the node.
+    /// Adds a task to the service.
     /// Added tasks will be launched after the wiring process will be finished.
     pub fn add_task(&mut self, task: Box<dyn Task>) -> &mut Self {
-        self.node.tasks.push(task);
+        self.service.tasks.push(task);
         self
     }
 
@@ -57,16 +57,16 @@ impl<'a> NodeContext<'a> {
 
         let name = T::resource_id();
         // Check whether the resource is already available.
-        if let Some(resource) = self.node.resources.get(&name) {
+        if let Some(resource) = self.service.resources.get(&name) {
             return Some(downcast_clone(resource));
         }
 
         // Try to fetch the resource from the provider.
-        if let Some(resource) = self.node.resource_provider.get_resource(&name).await {
+        if let Some(resource) = self.service.resource_provider.get_resource(&name).await {
             // First, ensure the type matches.
             let downcasted = downcast_clone(&resource);
             // Then, add it to the local resources.
-            self.node.resources.insert(name, resource);
+            self.service.resources.insert(name, resource);
             return Some(downcasted);
         }
 
@@ -87,7 +87,7 @@ impl<'a> NodeContext<'a> {
 
         // No such resource, insert a new one.
         let resource = f();
-        self.node
+        self.service
             .resources
             .insert(T::resource_id(), Box::new(resource.clone()));
         resource

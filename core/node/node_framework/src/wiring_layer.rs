@@ -1,4 +1,4 @@
-use crate::{node::NodeContext, resource::ResourceId};
+use crate::{resource::ResourceId, service::ServiceContext};
 
 /// Wiring layer provides a way to customize the `ZkStackService` by
 /// adding new tasks or resources to it.
@@ -12,7 +12,7 @@ pub trait WiringLayer: 'static + Send + Sync {
 
     /// Performs the wiring process, e.g. adds tasks and resources to the node.
     /// This method will be called once during the node initialization.
-    async fn wire(self: Box<Self>, node: NodeContext<'_>) -> Result<(), WiringError>;
+    async fn wire(self: Box<Self>, node: ServiceContext<'_>) -> Result<(), WiringError>;
 }
 
 /// An error that can occur during the wiring phase.
