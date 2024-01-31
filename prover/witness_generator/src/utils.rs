@@ -1,7 +1,9 @@
-use multivm::utils::get_used_bootloader_memory_bytes;
-use zkevm_test_harness::{
-    boojum::field::goldilocks::GoldilocksField, witness::full_block_artifact::BlockBasicCircuits,
+use circuit_definitions::{
+    aux_definitions::witness_oracle::VmWitnessOracle,
+    circuit_definitions::base_layer::ZkSyncBaseLayerCircuit,
 };
+use multivm::utils::get_used_bootloader_memory_bytes;
+use zkevm_test_harness::boojum::field::goldilocks::GoldilocksField;
 use zksync_object_store::{serialize_using_bincode, Bucket, ObjectStore, StoredObject};
 use zksync_prover_fri_types::{
     circuit_definitions::{
@@ -103,30 +105,29 @@ impl StoredObject for SchedulerPartialInputWrapper {
     serialize_using_bincode!();
 }
 
-pub async fn save_base_prover_input_artifacts(
+pub async fn save_circuit(
     block_number: L1BatchNumber,
-    circuits: BlockBasicCircuits<GoldilocksField, ZkSyncDefaultRoundFunction>,
+    circuit: ZkSyncBaseLayerCircuit<
+        GoldilocksField,
+        VmWitnessOracle<GoldilocksField>,
+        ZkSyncDefaultRoundFunction,
+    >,
+    sequence_number: usize,
     object_store: &dyn ObjectStore,
-    aggregation_round: AggregationRound,
-) -> Vec<(u8, String)> {
-    let circuits = circuits.into_flattened_set();
-    let mut ids_and_urls = Vec::with_capacity(circuits.len());
-    for (sequence_number, circuit) in circuits.into_iter().enumerate() {
-        let circuit_id = circuit.numeric_circuit_type();
-        let circuit_key = FriCircuitKey {
-            block_number,
-            sequence_number,
-            circuit_id,
-            aggregation_round,
-            depth: 0,
-        };
-        let blob_url = object_store
-            .put(circuit_key, &CircuitWrapper::Base(circuit))
-            .await
-            .unwrap();
-        ids_and_urls.push((circuit_id, blob_url));
-    }
-    ids_and_urls
+) -> (u8, String) {
+    let circuit_id = circuit.numeric_circuit_type();
+    let circuit_key = FriCircuitKey {
+        block_number,
+        sequence_number,
+        circuit_id,
+        aggregation_round: AggregationRound::BasicCircuits,
+        depth: 0,
+    };
+    let blob_url = object_store
+        .put(circuit_key, &CircuitWrapper::Base(circuit))
+        .await
+        .unwrap();
+    (circuit_id, blob_url)
 }
 
 pub async fn save_recursive_layer_prover_input_artifacts(
