@@ -23,18 +23,13 @@ pub(crate) async fn load_pending_batch(
     validation_computational_gas_limit: u32,
     chain_id: L2ChainId,
 ) -> Option<PendingBatchData> {
-    let previous_l1_batch_hash = wait_for_prev_l1_batch_params(storage, current_l1_batch_number)
-        .await
-        .0;
-
     let vm_env = VmEnvBuilder::new(
         current_l1_batch_number,
         validation_computational_gas_limit,
         chain_id,
     )
-    .with_fee_account(fee_account)
-    .with_prev_batch_hash(previous_l1_batch_hash)
-    .build(storage)
+    .override_fee_account(fee_account)
+    .build_for_pending_pending_batch(storage)
     .await
     .ok()?;
 

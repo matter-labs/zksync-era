@@ -10,6 +10,8 @@ use zksync_types::{
     ProtocolVersionId, H256, ZKPORTER_IS_AVAILABLE,
 };
 
+use crate::db::wait_for_prev_l1_batch_params;
+
 /// The environment required to initialize the VM.
 #[derive(Clone, Debug)]
 pub struct VmEnv {
@@ -43,36 +45,95 @@ impl VmEnvBuilder {
             fee_account: None,
         }
     }
-    pub fn with_miniblock_number(mut self, miniblock_number: MiniblockNumber) -> Self {
+    pub fn override_miniblock_number(mut self, miniblock_number: MiniblockNumber) -> Self {
         self.miniblock_number = Some(miniblock_number);
         self
     }
 
-    pub fn with_fee_account(mut self, fee_account: Address) -> Self {
+    pub fn override_fee_account(mut self, fee_account: Address) -> Self {
         self.fee_account = Some(fee_account);
         self
     }
 
-    pub fn with_prev_batch_hash(mut self, prev_batch_hash: H256) -> Self {
-        self.prev_batch_hash = Some(prev_batch_hash);
-        self
+    /// Builds the `VmEnv` for the executed L1 batch. It verifies that the previous L1 batch is sealed and miniblock
+    /// is included in the L1 batch.
+    pub async fn build_for_executed_batch(
+        mut self,
+        connection: &mut StorageProcessor<'_>,
+    ) -> anyhow::Result<VmEnv> {
+        let batch_hash = connection
+            .blocks_dal()
+            .get_l1_batch_state_root_and_timestamp(self.l1_batch_number - 1)
+            .await?
+            .context(format!(
+                "Previous L1 batch not found {}",
+                self.l1_batch_number - 1
+            ))?
+            .0;
+
+        let (
+            first_miniblock_number_included_in_l1_batch,
+            last_miniblock_number_included_in_l1_batch,
+        ) = connection
+            .blocks_dal()
+            .get_miniblock_range_of_l1_batch(self.l1_batch_number)
+            .await?
+            .context(format!("L1 batch {} not found", self.l1_batch_number))?;
+
+        self.miniblock_number = if let Some(pending_miniblock_number) = self.miniblock_number {
+            if first_miniblock_number_included_in_l1_batch >= pending_miniblock_number
+                || pending_miniblock_number >= last_miniblock_number_included_in_l1_batch
+            {
+                anyhow::bail!(
+                    "Miniblock {} is not included in L1 batch {}",
+                    pending_miniblock_number,
+                    self.l1_batch_number - 1
+                )
+            }
+            Some(pending_miniblock_number)
+        } else {
+            Some(first_miniblock_number_included_in_l1_batch)
+        };
+        self.prev_batch_hash = Some(batch_hash);
+        self.build(connection).await
     }
 
-    pub async fn build(self, connection: &mut StorageProcessor<'_>) -> anyhow::Result<VmEnv> {
-        let pending_miniblock_number: MiniblockNumber =
-            if let Some(pending_miniblock_number) = self.miniblock_number {
-                pending_miniblock_number
-            } else {
-                // If miniblock doesn't exist (for instance if it's pending), it means that there is no unsynced state (i.e. no transactions
-                // were executed after the last sealed batch).
-                let (_, last_miniblock_number_included_in_l1_batch) = connection
-                    .blocks_dal()
-                    .get_miniblock_range_of_l1_batch(self.l1_batch_number - 1)
-                    .await?
-                    .context(format!("L1 batch {} not found", self.l1_batch_number))?;
+    /// Builds the `VmEnv` for the pending L1 batch. Please note, that this method is waiting for
+    /// the previous L1 batch to be sealed.
+    pub async fn build_for_pending_pending_batch(
+        mut self,
+        connection: &mut StorageProcessor<'_>,
+    ) -> anyhow::Result<VmEnv> {
+        let batch_hash = wait_for_prev_l1_batch_params(connection, self.l1_batch_number - 1)
+            .await
+            .0;
 
-                last_miniblock_number_included_in_l1_batch + 1
-            };
+        let (_, last_miniblock_number_included_in_l1_batch) = connection
+            .blocks_dal()
+            .get_miniblock_range_of_l1_batch(self.l1_batch_number)
+            .await?
+            .context(format!("L1 batch {} not found", self.l1_batch_number - 1))?;
+
+        if let Some(pending_miniblock_number) = self.miniblock_number {
+            if pending_miniblock_number != last_miniblock_number_included_in_l1_batch + 1 {
+                anyhow::bail!(
+                    "Miniblock {}  shouldn't be from previous L1 batch {}",
+                    pending_miniblock_number,
+                    self.l1_batch_number - 1
+                )
+            }
+        }
+
+        self.miniblock_number = Some(last_miniblock_number_included_in_l1_batch + 1);
+        self.prev_batch_hash = Some(batch_hash);
+        self.build(connection).await
+    }
+
+    async fn build(self, connection: &mut StorageProcessor<'_>) -> anyhow::Result<VmEnv> {
+        let pending_miniblock_number = self
+            .miniblock_number
+            .context("Miniblock number not found")?;
+
         let pending_miniblock_header = connection
             .blocks_dal()
             .get_miniblock_header(pending_miniblock_number)
@@ -110,18 +171,8 @@ impl VmEnvBuilder {
             )
             .await;
 
-        let previous_l1_batch_hash = if let Some(previous_l1_batch_hash) = self.prev_batch_hash {
-            previous_l1_batch_hash
-        } else {
-            connection
-                .blocks_dal()
-                .get_l1_batch_state_root_and_timestamp(self.l1_batch_number - 1)
-                .await?
-                .context(format!(
-                    "Previous L1 batch not found {}",
-                    self.l1_batch_number - 1
-                ))?
-                .0
+        let Some(previous_l1_batch_hash) = self.prev_batch_hash else {
+            anyhow::bail!("Previous L1 batch hash not found")
         };
         tracing::info!("Previous l1_batch_hash: {}", previous_l1_batch_hash);
         let (system_env, l1_batch_env) = l1_batch_params(
