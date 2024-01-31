@@ -56,8 +56,6 @@ pub mod transaction_request;
 pub mod utils;
 pub mod vm_version;
 
-pub mod kzg;
-
 /// Denotes the first byte of the special zkSync's EIP-712-signed transaction.
 pub const EIP_712_TX_TYPE: u8 = 0x71;
 
