@@ -10,7 +10,6 @@ pub use self::{
     oracle_tools::OracleTools,
     oracles::storage::StorageOracle,
     vm::Vm,
-    vm_instance::{VmBlockResult, VmExecutionResult},
 };
 
 mod bootloader_state;

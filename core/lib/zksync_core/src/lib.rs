@@ -12,6 +12,7 @@ use zksync_circuit_breaker::{
     l1_txs::FailedL1TransactionChecker, replication_lag::ReplicationLagChecker, CircuitBreaker,
     CircuitBreakerChecker, CircuitBreakerError,
 };
+use zksync_concurrency::{ctx, scope};
 use zksync_config::{
     configs::{
         api::{MerkleTreeApiConfig, Web3JsonRpcConfig},
@@ -230,6 +231,8 @@ pub enum Component {
     Housekeeper,
     /// Component for exposing APIs to prover for providing proof generation data and accepting proofs.
     ProofDataHandler,
+    /// Component generating BFT consensus certificates for miniblocks.
+    Consensus,
 }
 
 #[derive(Debug)]
@@ -264,6 +267,7 @@ impl FromStr for Components {
             "eth_tx_aggregator" => Ok(Components(vec![Component::EthTxAggregator])),
             "eth_tx_manager" => Ok(Components(vec![Component::EthTxManager])),
             "proof_data_handler" => Ok(Components(vec![Component::ProofDataHandler])),
+            "consensus" => Ok(Components(vec![Component::Consensus])),
             other => Err(format!("{} is not a valid component name", other)),
         }
     }
@@ -503,6 +507,39 @@ pub async fn initialize_components(
         let elapsed = started_at.elapsed();
         APP_METRICS.init_latency[&InitStage::StateKeeper].set(elapsed);
         tracing::info!("initialized State Keeper in {elapsed:?}");
+    }
+
+    if components.contains(&Component::Consensus) {
+        let cfg = configs
+            .consensus_config
+            .clone()
+            .context("consensus component's config is missing")?;
+        let started_at = Instant::now();
+        tracing::info!("initializing Consensus");
+        let pool = connection_pool.clone();
+        let mut stop_receiver = stop_receiver.clone();
+        task_futures.push(tokio::spawn(async move {
+            scope::run!(&ctx::root(), |ctx, s| async {
+                s.spawn_bg(async {
+                    // Consensus is a new component.
+                    // For now in case of error we just log it and allow the server
+                    // to continue running.
+                    if let Err(err) = cfg.run(ctx, pool).await {
+                        tracing::error!(%err, "Consensus actor failed");
+                    } else {
+                        tracing::info!("Consensus actor stopped");
+                    }
+                    Ok(())
+                });
+                let _ = stop_receiver.wait_for(|stop| *stop).await?;
+                Ok(())
+            })
+            .await
+        }));
+
+        let elapsed = started_at.elapsed();
+        APP_METRICS.init_latency[&InitStage::Consensus].set(elapsed);
+        tracing::info!("initialized Consensus in {elapsed:?}");
     }
 
     let main_zksync_contract_address = contracts_config.diamond_proxy_addr;
@@ -811,7 +848,9 @@ async fn run_tree(
     tracing::info!("Initializing Merkle tree in {mode_str} mode");
 
     let config = MetadataCalculatorConfig::for_main_node(merkle_tree_config, operation_manager);
-    let metadata_calculator = MetadataCalculator::new(config, object_store).await;
+    let metadata_calculator = MetadataCalculator::new(config, object_store)
+        .await
+        .context("failed initializing metadata_calculator")?;
     if let Some(api_config) = api_config {
         let address = (Ipv4Addr::UNSPECIFIED, api_config.port).into();
         let tree_reader = metadata_calculator.tree_reader();

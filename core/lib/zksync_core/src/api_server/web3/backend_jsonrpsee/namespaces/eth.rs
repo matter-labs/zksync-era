@@ -112,6 +112,12 @@ impl EthNamespaceServer for EthNamespace {
             .map_err(into_jsrpc_error)
     }
 
+    async fn get_block_receipts(&self, block_id: BlockId) -> RpcResult<Vec<TransactionReceipt>> {
+        self.get_block_receipts_impl(block_id)
+            .await
+            .map_err(into_jsrpc_error)
+    }
+
     async fn get_block_transaction_count_by_hash(
         &self,
         block_hash: H256,

@@ -9,7 +9,8 @@ use crate::{
     vm_latest::{
         old_vm::utils::{vm_may_have_ended_inner, VmExecutionResult},
         tracers::{
-            dispatcher::TracerDispatcher, DefaultExecutionTracer, PubdataTracer, RefundsTracer,
+            circuits_capacity::circuit_statistic_from_cycles, dispatcher::TracerDispatcher,
+            DefaultExecutionTracer, PubdataTracer, RefundsTracer,
         },
         vm::Vm,
     },
@@ -21,6 +22,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         &mut self,
         dispatcher: TracerDispatcher<S, H::Vm1_4_1>,
         execution_mode: VmExecutionMode,
+        custom_pubdata_tracer: Option<PubdataTracer<S>>,
     ) -> VmExecutionResultAndLogs {
         let mut enable_refund_tracer = false;
         if let VmExecutionMode::OneTx = execution_mode {
@@ -29,8 +31,12 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             enable_refund_tracer = true;
         }
 
-        let (_, result) =
-            self.inspect_and_collect_results(dispatcher, execution_mode, enable_refund_tracer);
+        let (_, result) = self.inspect_and_collect_results(
+            dispatcher,
+            execution_mode,
+            enable_refund_tracer,
+            custom_pubdata_tracer,
+        );
         result
     }
 
@@ -41,6 +47,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         dispatcher: TracerDispatcher<S, H::Vm1_4_1>,
         execution_mode: VmExecutionMode,
         with_refund_tracer: bool,
+        custom_pubdata_tracer: Option<PubdataTracer<S>>,
     ) -> (VmExecutionStopReason, VmExecutionResultAndLogs) {
         let refund_tracers =
             with_refund_tracer.then_some(RefundsTracer::new(self.batch_env.clone()));
@@ -50,7 +57,8 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             dispatcher,
             self.storage.clone(),
             refund_tracers,
-            Some(PubdataTracer::new(self.batch_env.clone(), execution_mode)),
+            custom_pubdata_tracer
+                .or_else(|| Some(PubdataTracer::new(self.batch_env.clone(), execution_mode))),
         );
 
         let timestamp_initial = Timestamp(self.state.local_state.timestamp);
@@ -79,7 +87,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             spent_pubdata_counter_before,
             pubdata_published,
             logs.total_log_queries_count,
-            tx_tracer.circuits_tracer.estimated_circuits_used,
+            circuit_statistic_from_cycles(tx_tracer.circuits_tracer.statistics),
         );
         let result = tx_tracer.result_tracer.into_result();
 

@@ -4,7 +4,6 @@ import * as utils from './utils';
 const IMAGES = [
     'server-v2',
     'external-node',
-    'cross-external-nodes-checker',
     'contract-verifier',
     'prover-v2',
     'geth',
@@ -70,7 +69,6 @@ function defaultTagList(image: string, imageTagSha: string, imageTagShaTS: strin
     const tagList = [
         'server-v2',
         'external-node',
-        'cross-external-nodes-checker',
         'prover',
         'contract-verifier',
         'prover-v2',

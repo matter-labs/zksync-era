@@ -6,6 +6,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use chrono::Utc;
 use itertools::Itertools;
 use multivm::{
     interface::{FinishedL1Batch, L1BatchEnv},
@@ -20,13 +21,13 @@ use zksync_types::{
     l2::L2Tx,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     protocol_version::ProtocolUpgradeTx,
-    sort_storage_access::sort_storage_access_queries,
     storage_writes_deduplicator::{ModifiedSlot, StorageWritesDeduplicator},
     tx::{
         tx_execution_info::DeduplicatedWritesMetrics, IncludedTxLocation,
         TransactionExecutionResult,
     },
-    AccountTreeId, Address, ExecuteTransactionCommon, L1BatchNumber, L1BlockNumber, LogQuery,
+    zk_evm_types::LogQuery,
+    AccountTreeId, Address, ExecuteTransactionCommon, L1BatchNumber, L1BlockNumber,
     MiniblockNumber, ProtocolVersionId, StorageKey, StorageLog, StorageLogQuery, StorageValue,
     Transaction, VmEvent, CURRENT_VIRTUAL_BLOCK_INFO_POSITION, H256, SYSTEM_CONTEXT_ADDRESS,
 };
@@ -38,7 +39,10 @@ use crate::{
     state_keeper::{
         extractors,
         io::common::wait_for_prev_l1_batch_params,
-        metrics::{L1BatchSealStage, MiniblockSealStage, L1_BATCH_METRICS, MINIBLOCK_METRICS},
+        metrics::{
+            L1BatchSealStage, MiniblockSealStage, KEEPER_METRICS, L1_BATCH_METRICS,
+            MINIBLOCK_METRICS,
+        },
         types::ExecutionMetricsForCriteria,
         updates::{MiniblockSealCommand, UpdatesManager},
     },
@@ -82,21 +86,24 @@ impl UpdatesManager {
         progress.observe(None);
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::LogDeduplication);
-        let (_, deduped_log_queries) = sort_storage_access_queries(
+
+        progress.observe(
             finished_batch
                 .final_execution_state
-                .storage_log_queries
-                .iter()
-                .map(|log| &log.log_query),
+                .deduplicated_storage_log_queries
+                .len(),
         );
-        progress.observe(deduped_log_queries.len());
 
         let (l1_tx_count, l2_tx_count) = l1_l2_tx_count(&self.l1_batch.executed_transactions);
         let (writes_count, reads_count) = storage_log_query_write_read_counts(
             &finished_batch.final_execution_state.storage_log_queries,
         );
-        let (dedup_writes_count, dedup_reads_count) =
-            log_query_write_read_counts(deduped_log_queries.iter());
+        let (dedup_writes_count, dedup_reads_count) = log_query_write_read_counts(
+            finished_batch
+                .final_execution_state
+                .deduplicated_storage_log_queries
+                .iter(),
+        );
 
         tracing::info!(
             "Sealing L1 batch {current_l1_batch_number} with {total_tx_count} \
@@ -160,9 +167,7 @@ impl UpdatesManager {
                 self.pending_l1_gas_count(),
                 &events_queue,
                 &finished_batch.final_execution_state.storage_refunds,
-                self.pending_execution_metrics()
-                    .estimated_circuits_used
-                    .ceil() as u32,
+                self.pending_execution_metrics().circuit_statistic,
             )
             .await
             .unwrap();
@@ -187,7 +192,9 @@ impl UpdatesManager {
         progress.observe(None);
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::InsertProtectiveReads);
-        let (deduplicated_writes, protective_reads): (Vec<_>, Vec<_>) = deduped_log_queries
+        let (deduplicated_writes, protective_reads): (Vec<_>, Vec<_>) = finished_batch
+            .final_execution_state
+            .deduplicated_storage_log_queries
             .into_iter()
             .partition(|log_query| log_query.rw_flag);
         transaction
@@ -399,7 +406,8 @@ impl MiniblockSealCommand {
             transaction
                 .storage_dal()
                 .insert_factory_deps(miniblock_number, new_factory_deps)
-                .await;
+                .await
+                .unwrap();
         }
         progress.observe(new_factory_deps_count);
 
@@ -470,6 +478,17 @@ impl MiniblockSealCommand {
 
         transaction.commit().await.unwrap();
         progress.observe(None);
+
+        let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::ReportTxMetrics, is_fictive);
+        self.miniblock.executed_transactions.iter().for_each(|tx| {
+            KEEPER_METRICS
+                .transaction_inclusion_delay
+                .observe(Duration::from_millis(
+                    Utc::now().timestamp_millis() as u64 - tx.transaction.received_timestamp_ms,
+                ))
+        });
+        progress.observe(Some(self.miniblock.executed_transactions.len()));
+
         self.report_miniblock_metrics(started_at, current_l2_virtual_block_number);
     }
 

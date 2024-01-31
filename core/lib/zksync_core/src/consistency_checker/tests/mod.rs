@@ -7,10 +7,10 @@ use test_casing::{test_casing, Product};
 use tokio::sync::mpsc;
 use zksync_dal::StorageProcessor;
 use zksync_eth_client::clients::MockEthereum;
+use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType, block::BlockGasCount,
-    commitment::L1BatchWithMetadata, web3::contract::Options, L2ChainId, ProtocolVersion,
-    ProtocolVersionId, H256,
+    aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata,
+    web3::contract::Options, L2ChainId, ProtocolVersion, ProtocolVersionId, H256,
 };
 
 use super::*;
@@ -43,7 +43,9 @@ fn create_pre_boojum_l1_batch_with_metadata(number: u32) -> L1BatchWithMetadata 
 }
 
 fn build_commit_tx_input_data(batches: &[L1BatchWithMetadata]) -> Vec<u8> {
-    let commit_tokens = batches.iter().map(L1BatchWithMetadata::l1_commit_data);
+    let commit_tokens = batches
+        .iter()
+        .map(|batch| CommitBatchInfo(batch).into_token());
     let commit_tokens = ethabi::Token::Array(commit_tokens.collect());
 
     let mut encoded = vec![];
@@ -52,7 +54,7 @@ fn build_commit_tx_input_data(batches: &[L1BatchWithMetadata]) -> Vec<u8> {
     // Mock an additional argument used in real `commitBlocks` / `commitBatches`. In real transactions,
     // it's taken from the L1 batch previous to `batches[0]`, but since this argument is not checked,
     // it's OK to use `batches[0]`.
-    let prev_header_tokens = batches[0].l1_header_data();
+    let prev_header_tokens = StoredBatchInfo(&batches[0]).into_token();
     encoded.extend_from_slice(&ethabi::encode(&[prev_header_tokens, commit_tokens]));
     encoded
 }
@@ -93,7 +95,7 @@ fn build_commit_tx_input_data_is_correct() {
             batch.header.number,
         )
         .unwrap();
-        assert_eq!(commit_data, batch.l1_commit_data());
+        assert_eq!(commit_data, CommitBatchInfo(batch).into_token());
     }
 }
 
@@ -195,7 +197,7 @@ impl SaveAction<'_> {
             Self::InsertBatch(l1_batch) => {
                 storage
                     .blocks_dal()
-                    .insert_l1_batch(&l1_batch.header, &[], BlockGasCount::default(), &[], &[], 0)
+                    .insert_mock_l1_batch(&l1_batch.header)
                     .await
                     .unwrap();
             }

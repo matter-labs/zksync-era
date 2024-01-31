@@ -250,9 +250,10 @@ async fn remove_stuck_txs() {
     // We shouldn't collect executed tx
     let storage = transactions_dal.storage;
     let mut transactions_web3_dal = TransactionsWeb3Dal { storage };
-    transactions_web3_dal
-        .get_transaction_receipt(executed_tx.hash())
+    let receipts = transactions_web3_dal
+        .get_transaction_receipts(&[executed_tx.hash()])
         .await
-        .unwrap()
         .unwrap();
+
+    assert_eq!(receipts.len(), 1);
 }

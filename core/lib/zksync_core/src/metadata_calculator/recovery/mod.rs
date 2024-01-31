@@ -27,7 +27,7 @@
 
 use std::{
     fmt, ops,
-    sync::atomic::{AtomicUsize, Ordering},
+    sync::atomic::{AtomicU64, Ordering},
 };
 
 use anyhow::Context as _;
@@ -38,8 +38,10 @@ use tokio::sync::{watch, Mutex, Semaphore};
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater};
 use zksync_merkle_tree::TreeEntry;
-use zksync_types::{snapshots::SnapshotRecoveryStatus, MiniblockNumber, H256, U256};
-use zksync_utils::u256_to_h256;
+use zksync_types::{
+    snapshots::{uniform_hashed_keys_chunk, SnapshotRecoveryStatus},
+    MiniblockNumber, H256,
+};
 
 use super::{
     helpers::{AsyncTree, AsyncTreeRecovery, GenericAsyncTree},
@@ -53,7 +55,7 @@ mod tests;
 /// to control recovery behavior in tests.
 #[async_trait]
 trait HandleRecoveryEvent: fmt::Debug + Send + Sync {
-    fn recovery_started(&mut self, _chunk_count: usize, _recovered_chunk_count: usize) {
+    fn recovery_started(&mut self, _chunk_count: u64, _recovered_chunk_count: u64) {
         // Default implementation does nothing
     }
 
@@ -70,16 +72,16 @@ trait HandleRecoveryEvent: fmt::Debug + Send + Sync {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 struct RecoveryMerkleTreeInfo {
     mode: &'static str, // always set to "recovery" to distinguish from `MerkleTreeInfo`
-    chunk_count: usize,
-    recovered_chunk_count: usize,
+    chunk_count: u64,
+    recovered_chunk_count: u64,
 }
 
 /// [`HealthUpdater`]-based [`HandleRecoveryEvent`] implementation.
 #[derive(Debug)]
 struct RecoveryHealthUpdater<'a> {
     inner: &'a HealthUpdater,
-    chunk_count: usize,
-    recovered_chunk_count: AtomicUsize,
+    chunk_count: u64,
+    recovered_chunk_count: AtomicU64,
 }
 
 impl<'a> RecoveryHealthUpdater<'a> {
@@ -87,14 +89,14 @@ impl<'a> RecoveryHealthUpdater<'a> {
         Self {
             inner,
             chunk_count: 0,
-            recovered_chunk_count: AtomicUsize::new(0),
+            recovered_chunk_count: AtomicU64::new(0),
         }
     }
 }
 
 #[async_trait]
 impl HandleRecoveryEvent for RecoveryHealthUpdater<'_> {
-    fn recovery_started(&mut self, chunk_count: usize, recovered_chunk_count: usize) {
+    fn recovery_started(&mut self, chunk_count: u64, recovered_chunk_count: u64) {
         self.chunk_count = chunk_count;
         *self.recovered_chunk_count.get_mut() = recovered_chunk_count;
         RECOVERY_METRICS
@@ -146,15 +148,15 @@ impl SnapshotParameters {
         })
     }
 
-    fn chunk_count(&self) -> usize {
-        zksync_utils::ceil_div(self.log_count, Self::DESIRED_CHUNK_SIZE) as usize
+    fn chunk_count(&self) -> u64 {
+        self.log_count.div_ceil(Self::DESIRED_CHUNK_SIZE)
     }
 }
 
 /// Options for tree recovery.
 #[derive(Debug)]
 struct RecoveryOptions<'a> {
-    chunk_count: usize,
+    chunk_count: u64,
     concurrency_limit: usize,
     events: Box<dyn HandleRecoveryEvent + 'a>,
 }
@@ -219,7 +221,9 @@ impl AsyncTreeRecovery {
         stop_receiver: &watch::Receiver<bool>,
     ) -> anyhow::Result<Option<AsyncTree>> {
         let chunk_count = options.chunk_count;
-        let chunks: Vec<_> = Self::hashed_key_ranges(chunk_count).collect();
+        let chunks: Vec<_> = (0..chunk_count)
+            .map(|chunk_id| uniform_hashed_keys_chunk(chunk_id, chunk_count))
+            .collect();
         tracing::info!(
             "Recovering Merkle tree from Postgres snapshot in {chunk_count} concurrent chunks"
         );
@@ -231,7 +235,7 @@ impl AsyncTreeRecovery {
         drop(storage);
         options
             .events
-            .recovery_started(chunk_count, chunk_count - remaining_chunks.len());
+            .recovery_started(chunk_count, chunk_count - remaining_chunks.len() as u64);
         tracing::info!(
             "Filtered recovered key chunks; {} / {chunk_count} chunks remaining",
             remaining_chunks.len()
@@ -271,26 +275,6 @@ impl AsyncTreeRecovery {
         Ok(Some(tree))
     }
 
-    fn hashed_key_ranges(count: usize) -> impl Iterator<Item = ops::RangeInclusive<H256>> {
-        assert!(count > 0);
-        let mut stride = U256::MAX / count;
-        let stride_minus_one = if stride < U256::MAX {
-            stride += U256::one();
-            stride - 1
-        } else {
-            stride // `stride` is really 1 << 256 == U256::MAX + 1
-        };
-
-        (0..count).map(move |i| {
-            let start = stride * i;
-            let (mut end, is_overflow) = stride_minus_one.overflowing_add(start);
-            if is_overflow {
-                end = U256::MAX;
-            }
-            u256_to_h256(start)..=u256_to_h256(end)
-        })
-    }
-
     /// Filters out `key_chunks` for which recovery was successfully performed.
     async fn filter_chunks(
         &mut self,
@@ -317,7 +301,7 @@ impl AsyncTreeRecovery {
             .filter_map(|(i, &start)| Some((i, start?)));
         let start_keys = existing_starts
             .clone()
-            .map(|(_, start_entry)| start_entry.key)
+            .map(|(_, start_entry)| start_entry.tree_key())
             .collect();
         let tree_entries = self.entries(start_keys).await;
 
@@ -389,7 +373,7 @@ impl AsyncTreeRecovery {
         let all_entries = all_entries
             .into_iter()
             .map(|entry| TreeEntry {
-                key: entry.key,
+                key: entry.tree_key(),
                 value: entry.value,
                 leaf_index: entry.leaf_index,
             })

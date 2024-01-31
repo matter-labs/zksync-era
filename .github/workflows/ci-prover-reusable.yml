@@ -34,9 +34,6 @@ jobs:
       - name: Formatting
         run: ci_run bash -c "cd prover && cargo fmt --check"
 
-      - name: Lints
-        run: ci_run zk lint prover
-
   unit-tests:
     runs-on: [matterlabs-ci-runner]
     env:

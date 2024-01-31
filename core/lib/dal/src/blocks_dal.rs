@@ -10,8 +10,10 @@ use sqlx::Row;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     block::{BlockGasCount, L1BatchHeader, MiniblockHeader},
+    circuit::CircuitStatistic,
     commitment::{L1BatchMetadata, L1BatchWithMetadata},
-    Address, L1BatchNumber, LogQuery, MiniblockNumber, ProtocolVersionId, H256, U256,
+    zk_evm_types::LogQuery,
+    Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256, U256,
 };
 
 use crate::{
@@ -447,7 +449,7 @@ impl BlocksDal<'_, '_> {
         predicted_block_gas: BlockGasCount,
         events_queue: &[LogQuery],
         storage_refunds: &[u32],
-        predicted_circuits: u32,
+        predicted_circuits_by_type: CircuitStatistic, // predicted number of circuits for each circuit type
     ) -> anyhow::Result<()> {
         let priority_onchain_data: Vec<Vec<u8>> = header
             .priority_ops_onchain_data
@@ -507,7 +509,7 @@ impl BlocksDal<'_, '_> {
                     system_logs,
                     storage_refunds,
                     pubdata_input,
-                    predicted_circuits,
+                    predicted_circuits_by_type,
                     created_at,
                     updated_at
                 )
@@ -566,7 +568,7 @@ impl BlocksDal<'_, '_> {
             &system_logs,
             &storage_refunds,
             pubdata_input,
-            predicted_circuits as i32,
+            serde_json::to_value(predicted_circuits_by_type).unwrap(),
         )
         .execute(transaction.conn())
         .await?;
@@ -1811,6 +1813,31 @@ impl BlocksDal<'_, '_> {
         .collect())
     }
 
+    pub async fn delete_initial_writes(
+        &mut self,
+        last_batch_to_keep: L1BatchNumber,
+    ) -> sqlx::Result<()> {
+        self.delete_initial_writes_inner(Some(last_batch_to_keep))
+            .await
+    }
+
+    pub async fn delete_initial_writes_inner(
+        &mut self,
+        last_batch_to_keep: Option<L1BatchNumber>,
+    ) -> sqlx::Result<()> {
+        let block_number = last_batch_to_keep.map_or(-1, |number| number.0 as i64);
+        sqlx::query!(
+            r#"
+            DELETE FROM initial_writes
+            WHERE
+                l1_batch_number > $1
+            "#,
+            block_number
+        )
+        .execute(self.storage.conn())
+        .await?;
+        Ok(())
+    }
     /// Deletes all L1 batches from the storage so that the specified batch number is the last one left.
     pub async fn delete_l1_batches(
         &mut self,
@@ -2172,6 +2199,18 @@ impl BlocksDal<'_, '_> {
         Ok(())
     }
 
+    pub async fn insert_mock_l1_batch(&mut self, header: &L1BatchHeader) -> anyhow::Result<()> {
+        self.insert_l1_batch(
+            header,
+            &[],
+            Default::default(),
+            &[],
+            &[],
+            Default::default(),
+        )
+        .await
+    }
+
     /// Deletes all miniblocks and L1 batches, including the genesis ones. Should only be used in tests.
     pub async fn delete_genesis(&mut self) -> anyhow::Result<()> {
         self.delete_miniblocks_inner(None)
@@ -2180,6 +2219,9 @@ impl BlocksDal<'_, '_> {
         self.delete_l1_batches_inner(None)
             .await
             .context("delete_l1_batches_inner()")?;
+        self.delete_initial_writes_inner(None)
+            .await
+            .context("delete_initial_writes_inner()")?;
         Ok(())
     }
 }
@@ -2201,6 +2243,10 @@ mod tests {
         let mut conn = pool.access_storage().await.unwrap();
         conn.blocks_dal()
             .delete_l1_batches(L1BatchNumber(0))
+            .await
+            .unwrap();
+        conn.blocks_dal()
+            .delete_initial_writes(L1BatchNumber(0))
             .await
             .unwrap();
         conn.protocol_versions_dal()
@@ -2231,7 +2277,7 @@ mod tests {
         header.l2_to_l1_messages.push(vec![33; 33]);
 
         conn.blocks_dal()
-            .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[], 0)
+            .insert_mock_l1_batch(&header)
             .await
             .unwrap();
 
@@ -2264,6 +2310,10 @@ mod tests {
             .delete_l1_batches(L1BatchNumber(0))
             .await
             .unwrap();
+        conn.blocks_dal()
+            .delete_initial_writes(L1BatchNumber(0))
+            .await
+            .unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -2280,7 +2330,7 @@ mod tests {
             execute: 10,
         };
         conn.blocks_dal()
-            .insert_l1_batch(&header, &[], predicted_gas, &[], &[], 0)
+            .insert_l1_batch(&header, &[], predicted_gas, &[], &[], Default::default())
             .await
             .unwrap();
 
@@ -2288,7 +2338,7 @@ mod tests {
         header.timestamp += 100;
         predicted_gas += predicted_gas;
         conn.blocks_dal()
-            .insert_l1_batch(&header, &[], predicted_gas, &[], &[], 0)
+            .insert_l1_batch(&header, &[], predicted_gas, &[], &[], Default::default())
             .await
             .unwrap();
 

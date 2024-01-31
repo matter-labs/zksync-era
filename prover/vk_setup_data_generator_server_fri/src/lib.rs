@@ -51,7 +51,7 @@ use zksync_prover_fri_types::{
     },
     ProverServiceDataKey,
 };
-use zksync_types::proofs::AggregationRound;
+use zksync_types::basic_fri_types::AggregationRound;
 #[cfg(feature = "gpu")]
 use {shivini::cs::GpuSetup, std::alloc::Global};
 

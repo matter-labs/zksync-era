@@ -21,20 +21,15 @@ pub use protocol_version::{ProtocolUpgrade, ProtocolVersion, ProtocolVersionId};
 pub use storage::*;
 pub use tx::{primitives::*, Execute};
 pub use vm_version::VmVersion;
-pub use zk_evm::{
-    aux_structures::{LogQuery, Timestamp},
-    reference_impls::event_sink::EventMessage,
-    zkevm_opcode_defs::FarCallOpcode,
-};
 pub use zksync_basic_types::*;
 
 use crate::{l2::TransactionType, protocol_version::ProtocolUpgradeTxCommonData};
 
 pub mod aggregated_operations;
 pub mod block;
+pub mod circuit;
 pub mod commitment;
 pub mod contract_verification_api;
-pub mod contracts;
 pub mod event;
 pub mod fee;
 pub mod fee_model;
@@ -50,17 +45,14 @@ pub mod system_contracts;
 pub mod tokens;
 pub mod tx;
 pub mod vm_trace;
+pub mod zk_evm_types;
 
 pub mod api;
 pub mod eth_sender;
 pub mod helpers;
-pub mod proofs;
 pub mod proto;
-pub mod prover_server_api;
-pub mod sort_storage_access;
 pub mod transaction_request;
 pub mod utils;
-pub mod vk_transform;
 pub mod vm_version;
 
 /// Denotes the first byte of the special zkSync's EIP-712-signed transaction.
