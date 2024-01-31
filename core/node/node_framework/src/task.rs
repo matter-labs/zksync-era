@@ -7,18 +7,7 @@
 
 use futures::future::BoxFuture;
 
-use crate::{
-    node::{NodeContext, StopReceiver},
-    resource::ResourceId,
-};
-
-#[async_trait::async_trait]
-pub trait WiringLayer: 'static + Send + Sync {
-    /// Unique name of the task.
-    fn task_name(&self) -> &'static str;
-
-    async fn wire(self: Box<Self>, node: NodeContext<'_>) -> Result<(), TaskInitError>;
-}
+use crate::node::StopReceiver;
 
 /// A task implementation.
 #[async_trait::async_trait]
@@ -52,14 +41,4 @@ pub trait Task: 'static + Send + Sync {
     fn after_node_shutdown(&self) -> Option<BoxFuture<'static, ()>> {
         None
     }
-}
-
-/// An error that can occur during the task initialization.
-#[derive(thiserror::Error, Debug)]
-#[non_exhaustive]
-pub enum TaskInitError {
-    #[error("Resource {0} is not provided")]
-    ResourceLacking(ResourceId),
-    #[error(transparent)]
-    Internal(#[from] anyhow::Error),
 }

@@ -5,7 +5,8 @@ use crate::{
     implementations::resource::healthcheck::HealthCheckResource,
     node::{NodeContext, StopReceiver},
     resource::ResourceCollection,
-    task::{Task, TaskInitError, WiringLayer},
+    task::Task,
+    wiring_layer::{WiringError, WiringLayer},
 };
 
 /// Builder for a prometheus exporter.
@@ -24,7 +25,7 @@ impl WiringLayer for PrometheusExporterTaskBuilder {
         "prometheus_exporter"
     }
 
-    async fn wire(self: Box<Self>, mut node: NodeContext<'_>) -> Result<(), TaskInitError> {
+    async fn wire(self: Box<Self>, mut node: NodeContext<'_>) -> Result<(), WiringError> {
         let (prometheus_health_check, prometheus_health_updater) =
             ReactiveHealthCheck::new("prometheus_exporter");
 

@@ -7,7 +7,8 @@ use crate::{
     implementations::resource::healthcheck::HealthCheckResource,
     node::{NodeContext, StopReceiver},
     resource::ResourceCollection,
-    task::{Task, TaskInitError, WiringLayer},
+    task::Task,
+    wiring_layer::{WiringError, WiringLayer},
 };
 
 /// Builder for a health check server.
@@ -23,7 +24,7 @@ impl WiringLayer for HealthCheckTaskBuilder {
         "healthcheck_server"
     }
 
-    async fn wire(self: Box<Self>, mut node: NodeContext<'_>) -> Result<(), TaskInitError> {
+    async fn wire(self: Box<Self>, mut node: NodeContext<'_>) -> Result<(), WiringError> {
         let healthchecks = node
             .get_resource_or_default::<ResourceCollection<HealthCheckResource>>()
             .await;

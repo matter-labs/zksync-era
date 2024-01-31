@@ -4,7 +4,7 @@
 //!
 //! This crate provides core abstractions that allow one to compose a ZK Stack node.
 //! Main concepts used in this crate are:
-//! - [`WiringLayer`](task::WiringLayer) - builder interface for tasks.
+//! - [`WiringLayer`](wiring_layer::WiringLayer) - builder interface for tasks.
 //! - [`Task`](task::Task) - a unit of work that can be executed by the node.
 //! - [`Resource`](resource::Resource) - a piece of logic that can be shared between tasks. Most resources are
 //!   represented by generic interfaces and also serve as points of customization for tasks.
@@ -22,3 +22,4 @@ pub mod implementations;
 pub mod node;
 pub mod resource;
 pub mod task;
+pub mod wiring_layer;

@@ -9,7 +9,8 @@ use crate::{
     },
     node::{NodeContext, StopReceiver},
     resource::{Resource, ResourceCollection},
-    task::{Task, TaskInitError, WiringLayer},
+    task::Task,
+    wiring_layer::{WiringError, WiringLayer},
 };
 
 /// Builder for a metadata calculator.
@@ -28,10 +29,13 @@ impl WiringLayer for MetadataCalculatorTaskBuilder {
         "metadata_calculator"
     }
 
-    async fn wire(self: Box<Self>, mut node: NodeContext<'_>) -> Result<(), TaskInitError> {
-        let pool = node.get_resource::<MasterPoolResource>().await.ok_or(
-            TaskInitError::ResourceLacking(MasterPoolResource::resource_id()),
-        )?;
+    async fn wire(self: Box<Self>, mut node: NodeContext<'_>) -> Result<(), WiringError> {
+        let pool =
+            node.get_resource::<MasterPoolResource>()
+                .await
+                .ok_or(WiringError::ResourceLacking(
+                    MasterPoolResource::resource_id(),
+                ))?;
         let main_pool = pool.get().await.unwrap();
         let object_store = node.get_resource::<ObjectStoreResource>().await; // OK to be None.
 

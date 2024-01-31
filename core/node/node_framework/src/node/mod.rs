@@ -6,7 +6,8 @@ use tokio::{runtime::Runtime, sync::watch};
 pub use self::{context::NodeContext, stop_receiver::StopReceiver};
 use crate::{
     resource::{ResourceId, ResourceProvider, StoredResource},
-    task::{Task, TaskInitError, WiringLayer},
+    task::Task,
+    wiring_layer::{WiringError, WiringLayer},
 };
 
 mod context;
@@ -90,7 +91,7 @@ impl ZkStackService {
         // Initialize tasks.
         let task_builders = std::mem::take(&mut self.task_builders);
 
-        let mut errors: Vec<(String, TaskInitError)> = Vec::new();
+        let mut errors: Vec<(String, WiringError)> = Vec::new();
 
         let runtime_handle = self.runtime.handle().clone();
         for task_builder in task_builders {
