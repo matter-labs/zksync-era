@@ -1,12 +1,12 @@
-use std::{sync::Arc, time::Duration};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use multivm::utils::derive_base_fee_and_gas_per_pubdata;
 use tokio::sync::watch;
 use zksync_config::configs::chain::MempoolConfig;
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_mempool::L2TxFilter;
-use zksync_types::VmVersion;
+use zksync_types::{get_nonce_key, Address, Nonce, Transaction, VmVersion};
 
 use super::{metrics::KEEPER_METRICS, types::MempoolGuard};
 use crate::{api_server::execution_sandbox::BlockArgs, fee_model::BatchFeeModelInputProvider};
@@ -98,7 +98,7 @@ impl<G: BatchFeeModelInputProvider> MempoolFetcher<G> {
             )
             .await;
 
-            let (transactions, nonces) = storage
+            let transactions = storage
                 .transactions_dal()
                 .sync_mempool(
                     &mempool_info.stashed_accounts,
@@ -109,6 +109,7 @@ impl<G: BatchFeeModelInputProvider> MempoolFetcher<G> {
                 )
                 .await
                 .context("failed syncing mempool")?;
+            let nonces = Self::get_transaction_nonces(&mut storage, &transactions).await?;
             drop(storage);
 
             let all_transactions_loaded = transactions.len() < self.sync_batch_size;
@@ -119,5 +120,34 @@ impl<G: BatchFeeModelInputProvider> MempoolFetcher<G> {
             }
         }
         Ok(())
+    }
+
+    /// Loads nonces for all distinct `transactions` initiators from the storage.
+    async fn get_transaction_nonces(
+        storage: &mut StorageProcessor<'_>,
+        transactions: &[Transaction],
+    ) -> anyhow::Result<HashMap<Address, Nonce>> {
+        let (nonce_keys, address_by_nonce_key): (Vec<_>, HashMap<_, _>) = transactions
+            .iter()
+            .map(|tx| {
+                let address = tx.initiator_account();
+                let nonce_key = get_nonce_key(&address).hashed_key();
+                (nonce_key, (nonce_key, address))
+            })
+            .unzip();
+
+        let nonce_values = storage
+            .storage_web3_dal()
+            .get_values(&nonce_keys)
+            .await
+            .context("failed getting nonces from storage")?;
+
+        Ok(nonce_values
+            .into_iter()
+            .map(|(nonce_key, nonce_value)| {
+                let nonce = Nonce(zksync_utils::h256_to_u32(nonce_value));
+                (address_by_nonce_key[&nonce_key], nonce)
+            })
+            .collect())
     }
 }
