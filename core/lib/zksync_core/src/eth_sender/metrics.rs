@@ -2,13 +2,15 @@
 
 use std::{fmt, time::Duration};
 
-use crate::eth_sender::eth_tx_manager::L1BlockNumbers;
 use vise::{Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, Metrics};
 use zksync_dal::StorageProcessor;
 use zksync_types::{aggregated_operations::AggregatedActionType, eth_sender::EthTx};
 use zksync_utils::time::seconds_since_epoch;
 
-use crate::metrics::{BlockL1Stage, BlockStage, APP_METRICS};
+use crate::{
+    eth_sender::eth_tx_manager::L1BlockNumbers,
+    metrics::{BlockL1Stage, BlockStage, APP_METRICS},
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet, EncodeLabelValue)]
 #[metrics(label = "kind", rename_all = "snake_case")]
@@ -93,7 +95,7 @@ pub(super) struct EthSenderMetrics {
     pub l1_gas_used: Family<ActionTypeLabel, Histogram<f64>>,
     #[metrics(buckets = Buckets::LATENCIES)]
     pub l1_tx_mined_latency: Family<ActionTypeLabel, Histogram<Duration>>,
-    #[metrics(buckets = &[1.0, 2.0, 3.0, 5.0, 7.0, 10.0, 20.0, 30.0, 50.0])]
+    #[metrics(buckets = & [1.0, 2.0, 3.0, 5.0, 7.0, 10.0, 20.0, 30.0, 50.0])]
     pub l1_blocks_waited_in_mempool: Family<ActionTypeLabel, Histogram<u64>>,
     /// Number of L1 batches aggregated for publishing with a specific reason.
     pub block_aggregation_reason: Family<AggregationReasonLabels, Counter>,
