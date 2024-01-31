@@ -1,4 +1,4 @@
-use std::{fmt, future::Future, time::Duration};
+use std::{fmt, time::Duration};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
@@ -15,7 +15,7 @@ use zksync_web3_decl::{
 
 use crate::{
     metrics::{CheckerComponent, EN_METRICS},
-    utils::wait_for_l1_batch_with_metadata,
+    utils::{binary_search_with, wait_for_l1_batch_with_metadata},
 };
 
 #[cfg(test)]
@@ -32,6 +32,13 @@ enum HashMatchError {
         Using an earlier snapshot could help."
     )]
     EarliestHashMismatch(L1BatchNumber),
+    #[error(
+        "Unrecoverable error: the earliest L1 batch #{0} in the local DB \
+        is truncated on the main node. Make sure you're connected to the right network; \
+        if you've recovered from a snapshot, re-check snapshot authenticity. \
+        Using an earlier snapshot could help."
+    )]
+    EarliestL1BatchTruncated(L1BatchNumber),
     #[error("Internal error")]
     Internal(#[from] anyhow::Error),
 }
@@ -48,6 +55,10 @@ fn is_transient_err(err: &RpcError) -> bool {
 
 #[async_trait]
 trait MainNodeClient: fmt::Debug + Send + Sync {
+    async fn sealed_miniblock_number(&self) -> Result<MiniblockNumber, RpcError>;
+
+    async fn sealed_l1_batch_number(&self) -> Result<L1BatchNumber, RpcError>;
+
     async fn miniblock_hash(&self, number: MiniblockNumber) -> Result<Option<H256>, RpcError>;
 
     async fn l1_batch_root_hash(&self, number: L1BatchNumber) -> Result<Option<H256>, RpcError>;
@@ -55,6 +66,18 @@ trait MainNodeClient: fmt::Debug + Send + Sync {
 
 #[async_trait]
 impl MainNodeClient for HttpClient {
+    async fn sealed_miniblock_number(&self) -> Result<MiniblockNumber, RpcError> {
+        let number = self.get_block_number().await?;
+        let number = u32::try_from(number).map_err(|err| RpcError::Custom(err.to_owned()))?;
+        Ok(MiniblockNumber(number))
+    }
+
+    async fn sealed_l1_batch_number(&self) -> Result<L1BatchNumber, RpcError> {
+        let number = self.get_l1_batch_number().await?;
+        let number = u32::try_from(number).map_err(|err| RpcError::Custom(err.to_owned()))?;
+        Ok(L1BatchNumber(number))
+    }
+
     async fn miniblock_hash(&self, number: MiniblockNumber) -> Result<Option<H256>, RpcError> {
         Ok(self
             .get_block_by_number(number.0.into(), false)
@@ -85,10 +108,38 @@ impl UpdateCorrectBlock for () {
         last_correct_miniblock: MiniblockNumber,
         last_correct_l1_batch: L1BatchNumber,
     ) {
-        EN_METRICS.last_correct_batch[&CheckerComponent::ReorgDetector]
-            .set(last_correct_miniblock.0.into());
-        EN_METRICS.last_correct_miniblock[&CheckerComponent::ReorgDetector]
-            .set(last_correct_l1_batch.0.into());
+        let last_correct_miniblock = last_correct_miniblock.0.into();
+        let prev_checked_miniblock = EN_METRICS.last_correct_miniblock
+            [&CheckerComponent::ReorgDetector]
+            .set(last_correct_miniblock);
+        if prev_checked_miniblock != last_correct_miniblock {
+            tracing::debug!("No reorg at miniblock #{last_correct_miniblock}");
+        }
+
+        let last_correct_l1_batch = last_correct_l1_batch.0.into();
+        let prev_checked_l1_batch = EN_METRICS.last_correct_batch[&CheckerComponent::ReorgDetector]
+            .set(last_correct_l1_batch);
+        if prev_checked_l1_batch != last_correct_l1_batch {
+            tracing::debug!("No reorg at L1 batch #{last_correct_l1_batch}");
+        }
+    }
+}
+
+/// Output of hash match methods in [`ReorgDetector`].
+#[derive(Debug)]
+enum MatchOutput {
+    Match,
+    Mismatch,
+    NoRemoteReference,
+}
+
+impl MatchOutput {
+    fn new(is_match: bool) -> Self {
+        if is_match {
+            Self::Match
+        } else {
+            Self::Mismatch
+        }
     }
 }
 
@@ -135,7 +186,7 @@ impl ReorgDetector {
     async fn miniblock_hashes_match(
         &self,
         miniblock_number: MiniblockNumber,
-    ) -> Result<bool, HashMatchError> {
+    ) -> Result<MatchOutput, HashMatchError> {
         let mut storage = self.pool.access_storage().await?;
         let local_hash = storage
             .blocks_dal()
@@ -151,7 +202,7 @@ impl ReorgDetector {
             // Due to reorg, locally we may be ahead of the main node.
             // Lack of the hash on the main node is treated as a hash match,
             // We need to wait for our knowledge of main node to catch up.
-            return Ok(true);
+            return Ok(MatchOutput::NoRemoteReference);
         };
 
         if remote_hash != local_hash {
@@ -160,14 +211,39 @@ impl ReorgDetector {
                 main node {remote_hash:?} (miniblock #{miniblock_number})"
             );
         }
-        Ok(remote_hash == local_hash)
+        Ok(MatchOutput::new(remote_hash == local_hash))
+    }
+
+    /// Checks hash correspondence for the latest miniblock sealed both locally and on the main node.
+    async fn check_sealed_miniblock_hash(
+        &self,
+        sealed_miniblock_number: MiniblockNumber,
+    ) -> Result<(MiniblockNumber, bool), HashMatchError> {
+        let mut main_node_sealed_miniblock_number = sealed_miniblock_number;
+        loop {
+            let checked_number = sealed_miniblock_number.min(main_node_sealed_miniblock_number);
+            match self.miniblock_hashes_match(checked_number).await? {
+                MatchOutput::Match => break Ok((checked_number, true)),
+                MatchOutput::Mismatch => break Ok((checked_number, false)),
+                MatchOutput::NoRemoteReference => {
+                    tracing::info!(
+                        "Main node has no miniblock #{checked_number}; will check last miniblock on the main node"
+                    );
+                    main_node_sealed_miniblock_number =
+                        self.client.sealed_miniblock_number().await?;
+                    tracing::debug!(
+                        "Fetched last miniblock on the main node: #{main_node_sealed_miniblock_number}"
+                    );
+                }
+            }
+        }
     }
 
     /// Compares root hashes of the latest local batch and of the same batch from the main node.
     async fn root_hashes_match(
         &self,
         l1_batch_number: L1BatchNumber,
-    ) -> Result<bool, HashMatchError> {
+    ) -> Result<MatchOutput, HashMatchError> {
         let mut storage = self.pool.access_storage().await?;
         let local_hash = storage
             .blocks_dal()
@@ -182,7 +258,7 @@ impl ReorgDetector {
             // Due to reorg, locally we may be ahead of the main node.
             // Lack of the root hash on the main node is treated as a hash match,
             // We need to wait for our knowledge of main node to catch up.
-            return Ok(true);
+            return Ok(MatchOutput::NoRemoteReference);
         };
 
         if remote_hash != local_hash {
@@ -191,7 +267,37 @@ impl ReorgDetector {
                 main node {remote_hash:?} (L1 batch #{l1_batch_number})"
             );
         }
-        Ok(remote_hash == local_hash)
+        Ok(MatchOutput::new(remote_hash == local_hash))
+    }
+
+    /// Checks hash correspondence for the latest L1 batch sealed and having metadata both locally and on the main node.
+    async fn check_sealed_l1_batch_root_hash(
+        &self,
+        sealed_l1_batch_number: L1BatchNumber,
+    ) -> Result<(L1BatchNumber, bool), HashMatchError> {
+        let mut main_node_sealed_l1_batch_number = sealed_l1_batch_number;
+        loop {
+            let checked_number = sealed_l1_batch_number.min(main_node_sealed_l1_batch_number);
+            match self.root_hashes_match(checked_number).await? {
+                MatchOutput::Match => break Ok((checked_number, true)),
+                MatchOutput::Mismatch => break Ok((checked_number, false)),
+                MatchOutput::NoRemoteReference => {
+                    tracing::info!(
+                        "Main node has no L1 batch #{checked_number}; will check last L1 batch on the main node"
+                    );
+                    let fetched_number = self.client.sealed_l1_batch_number().await?;
+                    tracing::debug!("Fetched last L1 batch on the main node: #{fetched_number}");
+                    let number_changed = fetched_number != main_node_sealed_l1_batch_number;
+                    main_node_sealed_l1_batch_number = fetched_number;
+
+                    if !number_changed {
+                        // May happen if the main node has an L1 batch, but its state root hash is not computed yet.
+                        tracing::debug!("Last L1 batch number on the main node has not changed; waiting until its state hash is computed");
+                        tokio::time::sleep(self.sleep_interval / 10).await;
+                    }
+                }
+            }
+        }
     }
 
     /// Localizes a re-org: performs binary search to determine the last non-diverged block.
@@ -202,9 +308,16 @@ impl ReorgDetector {
     ) -> Result<L1BatchNumber, HashMatchError> {
         // TODO (BFT-176, BFT-181): We have to look through the whole history, since batch status updater may mark
         //   a block as executed even if the state diverges for it.
-        binary_search_with(known_valid_l1_batch.0, diverged_l1_batch.0, |number| {
-            self.root_hashes_match(L1BatchNumber(number))
-        })
+        binary_search_with(
+            known_valid_l1_batch.0,
+            diverged_l1_batch.0,
+            |number| async move {
+                Ok(match self.root_hashes_match(L1BatchNumber(number)).await? {
+                    MatchOutput::Match | MatchOutput::NoRemoteReference => true,
+                    MatchOutput::Mismatch => false,
+                })
+            },
+        )
         .await
         .map(L1BatchNumber)
     }
@@ -238,10 +351,18 @@ impl ReorgDetector {
         tracing::debug!(
             "Checking root hash match for earliest L1 batch #{earliest_l1_batch_number}"
         );
-        if !self.root_hashes_match(earliest_l1_batch_number).await? {
-            return Err(HashMatchError::EarliestHashMismatch(
-                earliest_l1_batch_number,
-            ));
+        match self.root_hashes_match(earliest_l1_batch_number).await? {
+            MatchOutput::Match => { /* we're good */ }
+            MatchOutput::Mismatch => {
+                return Err(HashMatchError::EarliestHashMismatch(
+                    earliest_l1_batch_number,
+                ))
+            }
+            MatchOutput::NoRemoteReference => {
+                return Err(HashMatchError::EarliestL1BatchTruncated(
+                    earliest_l1_batch_number,
+                ))
+            }
         }
 
         loop {
@@ -266,9 +387,12 @@ impl ReorgDetector {
                  miniblock number #{sealed_miniblock_number}"
             );
 
-            let root_hashes_match = self.root_hashes_match(sealed_l1_batch_number).await?;
-            let miniblock_hashes_match =
-                self.miniblock_hashes_match(sealed_miniblock_number).await?;
+            let (checked_l1_batch_number, root_hashes_match) = self
+                .check_sealed_l1_batch_root_hash(sealed_l1_batch_number)
+                .await?;
+            let (checked_miniblock_number, miniblock_hashes_match) = self
+                .check_sealed_miniblock_hash(sealed_miniblock_number)
+                .await?;
 
             // The only event that triggers re-org detection and node rollback is if the
             // hash mismatch at the same block height is detected, be it miniblocks or batches.
@@ -278,12 +402,12 @@ impl ReorgDetector {
             // a re-org taking place.
             if root_hashes_match && miniblock_hashes_match {
                 self.block_updater
-                    .update_correct_block(sealed_miniblock_number, sealed_l1_batch_number);
+                    .update_correct_block(checked_miniblock_number, checked_l1_batch_number);
             } else {
                 let diverged_l1_batch_number = if root_hashes_match {
-                    sealed_l1_batch_number + 1 // Non-sealed L1 batch has diverged
+                    checked_l1_batch_number + 1 // Non-sealed L1 batch has diverged
                 } else {
-                    sealed_l1_batch_number
+                    checked_l1_batch_number
                 };
 
                 tracing::info!("Searching for the first diverged L1 batch");
@@ -303,22 +427,4 @@ impl ReorgDetector {
             tokio::time::sleep(self.sleep_interval).await;
         }
     }
-}
-
-async fn binary_search_with<F, Fut, E>(mut left: u32, mut right: u32, mut f: F) -> Result<u32, E>
-where
-    F: FnMut(u32) -> Fut,
-    Fut: Future<Output = Result<bool, E>>,
-{
-    while left + 1 < right {
-        let middle = (left + right) / 2;
-        assert!(middle < right); // middle <= (right - 2 + right) / 2 = right - 1
-
-        if f(middle).await? {
-            left = middle;
-        } else {
-            right = middle;
-        }
-    }
-    Ok(left)
 }
