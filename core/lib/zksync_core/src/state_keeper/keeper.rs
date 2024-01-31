@@ -319,9 +319,13 @@ impl ZkSyncStateKeeper {
                     ..
                 } = result
                 else {
-                    return Err(anyhow::anyhow!(
+                    tracing::error!(
                         "Re-executing stored tx failed. Tx: {tx:?}. Err: {:?}",
                         result.err()
+                    );
+                    return Err(anyhow::anyhow!(
+                        "Re-executing stored tx failed. It means that transaction was executed \
+                         successfully before, but failed after a restart."
                     )
                     .into());
                 };
@@ -358,6 +362,10 @@ impl ZkSyncStateKeeper {
                 );
             }
         }
+
+        tracing::debug!(
+            "All the transactions from the pending state were re-executed successfully"
+        );
 
         // We've processed all the miniblocks, and right now we're initializing the next *actual* miniblock.
         let new_miniblock_params = self
