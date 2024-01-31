@@ -16,12 +16,13 @@ use zksync_types::{
         signing::{self, Signature},
         types::{AccessList, SignedTransaction},
     },
-    U256, U64,
+    H256, U256, U64,
 };
 
 const LEGACY_TX_ID: u64 = 0;
 const ACCESSLISTS_TX_ID: u64 = 1;
 const EIP1559_TX_ID: u64 = 2;
+const EIP4844_TX_ID: u64 = 3;
 
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct TransactionParameters {
@@ -47,6 +48,10 @@ pub struct TransactionParameters {
     pub max_fee_per_gas: U256,
     /// miner bribe
     pub max_priority_fee_per_gas: U256,
+    /// Max fee per blob gas
+    pub max_fee_per_blob_gas: Option<U256>,
+    /// blob versioned hashes
+    pub blob_versioned_hashes: Option<Vec<H256>>,
 }
 
 /// A transaction used for RLP encoding, hashing and signing.
@@ -61,6 +66,9 @@ pub struct Transaction {
     pub transaction_type: Option<U64>,
     pub access_list: AccessList,
     pub max_priority_fee_per_gas: U256,
+    /// EIP-4844 optional specific fields
+    pub max_fee_per_blob_gas: Option<U256>,
+    pub blob_versioned_hashes: Option<Vec<H256>>,
 }
 
 impl Transaction {
@@ -147,6 +155,42 @@ impl Transaction {
         stream
     }
 
+    /// Encodes a [`eip4844`] transaction: <https://eips.ethereum.org/EIPS/eip-4844>
+    fn encode_eip4844_payload(&self, chain_id: u64, signature: Option<&Signature>) -> RlpStream {
+        let mut stream = RlpStream::new();
+
+        let list_size = if signature.is_some() { 14 } else { 11 };
+        stream.begin_list(list_size);
+
+        stream.append(&chain_id);
+        stream.append(&self.nonce);
+        stream.append(&self.max_priority_fee_per_gas);
+        stream.append(&self.gas_price);
+        stream.append(&self.gas);
+
+        // The field to deviates slightly from the semantics with the
+        // exception that it MUST NOT be nil and therefore must always
+        // represent a 20-byte address. This means that blob transactions
+        // cannot have the form of a create transaction.
+        stream.append(self.to.as_ref().unwrap());
+
+        stream.append(&self.value);
+        stream.append(&self.data);
+
+        stream.append(&self.max_fee_per_blob_gas.unwrap());
+        // TODO: is this the correct way to encode a vector of versioned hashes
+        // to RLP here?
+        stream.append_list(self.blob_versioned_hashes.as_ref().unwrap());
+
+        self.rlp_append_access_list(&mut stream);
+
+        if let Some(signature) = signature {
+            self.rlp_append_signature(&mut stream, signature);
+        }
+
+        stream
+    }
+
     fn rlp_append_signature(&self, stream: &mut RlpStream, signature: &Signature) {
         stream.append(&signature.v);
         stream.append(&U256::from_big_endian(signature.r.as_bytes()));
@@ -181,6 +225,12 @@ impl Transaction {
             Some(EIP1559_TX_ID) => {
                 let tx_id: u8 = EIP1559_TX_ID as u8;
                 let stream = self.encode_eip1559_payload(chain_id, signature);
+                [&[tx_id], stream.as_raw()].concat()
+            }
+
+            Some(EIP4844_TX_ID) => {
+                let tx_id: u8 = EIP4844_TX_ID as u8;
+                let stream = self.encode_eip4844_payload(chain_id, signature);
                 [&[tx_id], stream.as_raw()].concat()
             }
 

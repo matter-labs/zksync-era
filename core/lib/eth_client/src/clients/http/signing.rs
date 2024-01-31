@@ -270,6 +270,8 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
             transaction_type: Some(EIP_1559_TX_TYPE.into()),
             access_list: None,
             max_fee_per_gas,
+            max_fee_per_blob_gas: None,
+            blob_versioned_hashes: None,
         };
 
         let signed_tx = self.inner.eth_signer.sign_transaction(tx).await?;

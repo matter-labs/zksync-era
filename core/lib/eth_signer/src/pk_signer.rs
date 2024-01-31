@@ -77,6 +77,8 @@ impl EthereumSigner for PrivateKeySigner {
             transaction_type: raw_tx.transaction_type,
             access_list: raw_tx.access_list.unwrap_or_default(),
             max_priority_fee_per_gas,
+            max_fee_per_blob_gas: raw_tx.max_fee_per_blob_gas,
+            blob_versioned_hashes: raw_tx.blob_versioned_hashes,
         };
 
         let signed = tx.sign(&key, raw_tx.chain_id);
