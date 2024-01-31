@@ -12,17 +12,12 @@ use crate::{
     resource::ResourceId,
 };
 
-/// Factory that can create a task.
 #[async_trait::async_trait]
-pub trait IntoZkSyncTask: 'static + Send + Sync {
+pub trait WiringLayer: 'static + Send + Sync {
     /// Unique name of the task.
     fn task_name(&self) -> &'static str;
 
-    /// Creates a new task.
-    ///
-    /// `NodeContext` provides an interface to the utilities that task may need, e.g. ability to get resources
-    /// or spawn additional tasks.
-    async fn create(self: Box<Self>, node: NodeContext<'_>) -> Result<(), TaskInitError>;
+    async fn wire(self: Box<Self>, node: NodeContext<'_>) -> Result<(), TaskInitError>;
 }
 
 /// A task implementation.

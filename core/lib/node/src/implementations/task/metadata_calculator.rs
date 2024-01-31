@@ -9,7 +9,7 @@ use crate::{
     },
     node::{NodeContext, StopReceiver},
     resource::{Resource, ResourceCollection},
-    task::{IntoZkSyncTask, TaskInitError, ZkSyncTask},
+    task::{TaskInitError, WiringLayer, ZkSyncTask},
 };
 
 /// Builder for a metadata calculator.
@@ -23,12 +23,12 @@ pub struct MetadataCalculatorTask {
 }
 
 #[async_trait::async_trait]
-impl IntoZkSyncTask for MetadataCalculatorTaskBuilder {
+impl WiringLayer for MetadataCalculatorTaskBuilder {
     fn task_name(&self) -> &'static str {
         "metadata_calculator"
     }
 
-    async fn create(self: Box<Self>, mut node: NodeContext<'_>) -> Result<(), TaskInitError> {
+    async fn wire(self: Box<Self>, mut node: NodeContext<'_>) -> Result<(), TaskInitError> {
         let pool = node.get_resource::<MasterPoolResource>().await.ok_or(
             TaskInitError::ResourceLacking(MasterPoolResource::resource_id()),
         )?;

@@ -5,7 +5,7 @@ use crate::{
     implementations::resource::healthcheck::HealthCheckResource,
     node::{NodeContext, StopReceiver},
     resource::ResourceCollection,
-    task::{IntoZkSyncTask, TaskInitError, ZkSyncTask},
+    task::{TaskInitError, WiringLayer, ZkSyncTask},
 };
 
 /// Builder for a prometheus exporter.
@@ -19,12 +19,12 @@ pub struct PrometheusExporterTask {
 }
 
 #[async_trait::async_trait]
-impl IntoZkSyncTask for PrometheusExporterTaskBuilder {
+impl WiringLayer for PrometheusExporterTaskBuilder {
     fn task_name(&self) -> &'static str {
         "prometheus_exporter"
     }
 
-    async fn create(self: Box<Self>, mut node: NodeContext<'_>) -> Result<(), TaskInitError> {
+    async fn wire(self: Box<Self>, mut node: NodeContext<'_>) -> Result<(), TaskInitError> {
         let (prometheus_health_check, prometheus_health_updater) =
             ReactiveHealthCheck::new("prometheus_exporter");
 

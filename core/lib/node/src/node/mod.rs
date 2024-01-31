@@ -6,7 +6,7 @@ use tokio::{runtime::Runtime, sync::watch};
 pub use self::{context::NodeContext, stop_receiver::StopReceiver};
 use crate::{
     resource::{ResourceId, ResourceProvider, StoredResource},
-    task::{IntoZkSyncTask, TaskInitError, ZkSyncTask},
+    task::{TaskInitError, WiringLayer, ZkSyncTask},
 };
 
 mod context;
@@ -34,7 +34,7 @@ pub struct ZkSyncNode {
     /// Cache of resources that have been requested at least by one task.
     resources: HashMap<ResourceId, Box<dyn StoredResource>>,
     /// List of task builders.
-    task_builders: Vec<Box<dyn IntoZkSyncTask>>,
+    task_builders: Vec<Box<dyn WiringLayer>>,
     /// Tasks added to the node.
     tasks: Vec<Box<dyn ZkSyncTask>>,
 
@@ -80,7 +80,7 @@ impl ZkSyncNode {
     /// The task is not created at this point, instead, the constructor is stored in the node
     /// and will be invoked during [`ZkSyncNode::run`] method. Any error returned by the constructor
     /// will prevent the node from starting and will be propagated by the [`ZkSyncNode::run`] method.
-    pub fn add_task<T: IntoZkSyncTask>(&mut self, builder: T) -> &mut Self {
+    pub fn add_task<T: WiringLayer>(&mut self, builder: T) -> &mut Self {
         self.task_builders.push(Box::new(builder));
         self
     }
@@ -96,7 +96,7 @@ impl ZkSyncNode {
         for task_builder in task_builders {
             let name = task_builder.task_name().to_string();
             let task_result =
-                runtime_handle.block_on(task_builder.create(NodeContext::new(&mut self)));
+                runtime_handle.block_on(task_builder.wire(NodeContext::new(&mut self)));
             if let Err(err) = task_result {
                 // We don't want to bail on the first error, since it'll provide worse DevEx:
                 // People likely want to fix as much problems as they can in one go, rather than have

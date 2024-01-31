@@ -7,7 +7,7 @@ use crate::{
     implementations::resource::healthcheck::HealthCheckResource,
     node::{NodeContext, StopReceiver},
     resource::ResourceCollection,
-    task::{IntoZkSyncTask, TaskInitError, ZkSyncTask},
+    task::{TaskInitError, WiringLayer, ZkSyncTask},
 };
 
 /// Builder for a health check server.
@@ -18,12 +18,12 @@ use crate::{
 pub struct HealthCheckTaskBuilder(pub HealthCheckConfig);
 
 #[async_trait::async_trait]
-impl IntoZkSyncTask for HealthCheckTaskBuilder {
+impl WiringLayer for HealthCheckTaskBuilder {
     fn task_name(&self) -> &'static str {
         "healthcheck_server"
     }
 
-    async fn create(self: Box<Self>, mut node: NodeContext<'_>) -> Result<(), TaskInitError> {
+    async fn wire(self: Box<Self>, mut node: NodeContext<'_>) -> Result<(), TaskInitError> {
         let healthchecks = node
             .get_resource_or_default::<ResourceCollection<HealthCheckResource>>()
             .await;
