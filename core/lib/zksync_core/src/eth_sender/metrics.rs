@@ -2,6 +2,7 @@
 
 use std::{fmt, time::Duration};
 
+use crate::eth_sender::eth_tx_manager::L1BlockNumbers;
 use vise::{Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, Metrics};
 use zksync_dal::StorageProcessor;
 use zksync_types::{aggregated_operations::AggregatedActionType, eth_sender::EthTx};
@@ -16,6 +17,15 @@ pub(super) enum PubdataKind {
     L2ToL1MessagesCompressed,
     InitialWritesCompressed,
     RepeatedWritesCompressed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet, EncodeLabelValue)]
+#[metrics(label = "block_number_variant", rename_all = "snake_case")]
+#[allow(clippy::enum_variant_names)]
+pub(super) enum BlockNumberVariant {
+    Latest,
+    Finalized,
+    Safe,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet, EncodeLabelValue)]
@@ -76,7 +86,7 @@ pub(super) struct EthSenderMetrics {
     #[metrics(buckets = FEE_BUCKETS)]
     pub used_priority_fee_per_gas: Histogram<u64>,
     /// Last L1 block observed by the Ethereum sender.
-    pub last_known_l1_block: Gauge<u64>,
+    pub last_known_l1_block: Family<BlockNumberVariant, Gauge<usize>>,
     /// Number of in-flight txs produced by the Ethereum sender.
     pub number_of_inflight_txs: Gauge<usize>,
     #[metrics(buckets = GAS_BUCKETS)]
@@ -90,6 +100,14 @@ pub(super) struct EthSenderMetrics {
 }
 
 impl EthSenderMetrics {
+    pub fn track_block_numbers(&self, l1_block_numbers: &L1BlockNumbers) {
+        self.last_known_l1_block[&BlockNumberVariant::Latest]
+            .set(l1_block_numbers.latest.0 as usize);
+        self.last_known_l1_block[&BlockNumberVariant::Finalized]
+            .set(l1_block_numbers.finalized.0 as usize);
+        self.last_known_l1_block[&BlockNumberVariant::Safe].set(l1_block_numbers.safe.0 as usize);
+    }
+
     pub async fn track_eth_tx_metrics(
         &self,
         connection: &mut StorageProcessor<'_>,
