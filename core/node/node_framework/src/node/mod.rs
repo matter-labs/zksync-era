@@ -112,11 +112,6 @@ impl ZkStackService {
         }
 
         let mut tasks = Vec::new();
-
-        if tasks.is_empty() {
-            anyhow::bail!("No tasks to run");
-        }
-
         for task in std::mem::take(&mut self.tasks) {
             let name = task.name().to_string();
             let after_node_shutdown = task.after_node_shutdown();
@@ -127,6 +122,9 @@ impl ZkStackService {
                 after_node_shutdown,
             };
             tasks.push(task_repr);
+        }
+        if tasks.is_empty() {
+            anyhow::bail!("No tasks to run");
         }
 
         // Wiring is now complete.
