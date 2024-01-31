@@ -6,7 +6,7 @@ use zksync_config::{configs::chain::OperationsManagerConfig, DBConfig, PostgresC
 use zksync_core::metadata_calculator::MetadataCalculatorConfig;
 use zksync_dal::ConnectionPool;
 use zksync_env_config::FromEnv;
-use zksync_node::{
+use zksync_node_framework::{
     implementations::{
         resource::pools::MasterPoolResource,
         task::{
