@@ -1,6 +1,6 @@
 use std::mem;
 
-use crate::{
+use zksync_types::{
     ethabi::Token,
     web3::contract::{tokens::Tokenizable, Error},
     Address,

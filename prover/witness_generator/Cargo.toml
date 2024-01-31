@@ -15,6 +15,7 @@ vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev
 
 zksync_dal = { path = "../../core/lib/dal" }
 zksync_config = { path = "../../core/lib/config" }
+zksync_prover_interface = { path = "../../core/lib/prover_interface" }
 zksync_env_config = { path = "../../core/lib/env_config" }
 zksync_system_constants = { path = "../../core/lib/constants" }
 prometheus_exporter = { path = "../../core/lib/prometheus_exporter" }

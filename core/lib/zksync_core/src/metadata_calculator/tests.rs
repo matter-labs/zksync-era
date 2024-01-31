@@ -14,9 +14,10 @@ use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_health_check::{CheckHealth, HealthStatus};
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
+use zksync_prover_interface::inputs::PrepareBasicCircuitsJob;
 use zksync_types::{
-    block::L1BatchHeader, proofs::PrepareBasicCircuitsJob, AccountTreeId, Address, L1BatchNumber,
-    L2ChainId, MiniblockNumber, StorageKey, StorageLog, H256,
+    block::L1BatchHeader, AccountTreeId, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
+    StorageKey, StorageLog, H256,
 };
 use zksync_utils::u32_to_h256;
 

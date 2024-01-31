@@ -1,3 +1,6 @@
+//! This module contains functions for transforming vk from the old L1 verifier contract to the hash
+//! that serves as its commitment.
+
 use std::str::FromStr;
 
 use zkevm_test_harness::{
@@ -13,16 +16,15 @@ use zkevm_test_harness::{
         recursive_aggregation::{compute_vk_encoding_and_committment, erase_vk_type},
     },
 };
-
-use crate::{ethabi::Token, H256};
+use zksync_types::{ethabi::Token, H256};
 
 /// Calculates commitment for vk from L1 verifier contract.
-pub fn l1_vk_commitment(token: Token) -> H256 {
+pub fn old_l1_vk_commitment(token: Token) -> H256 {
     let vk = vk_from_token(token);
     generate_vk_commitment(vk)
 }
 
-pub fn generate_vk_commitment(
+fn generate_vk_commitment(
     vk: VerificationKey<Bn256, ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>>,
 ) -> H256 {
     let (_, scheduler_vk_commitment) = compute_vk_encoding_and_committment(erase_vk_type(vk));

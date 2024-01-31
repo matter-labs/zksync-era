@@ -2,8 +2,8 @@
 
 use rayon::{ThreadPool, ThreadPoolBuilder};
 use zksync_crypto::hasher::blake2::Blake2Hasher;
+use zksync_prover_interface::inputs::{PrepareBasicCircuitsJob, StorageLogMetadata};
 use zksync_types::{
-    proofs::{PrepareBasicCircuitsJob, StorageLogMetadata},
     writes::{InitialStorageWrite, RepeatedStorageWrite, StateDiffRecord},
     L1BatchNumber, StorageKey, U256,
 };

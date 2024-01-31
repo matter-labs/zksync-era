@@ -1,11 +1,13 @@
-use serde::{Deserialize, Serialize};
-use zksync_basic_types::L1BatchNumber;
+//! Prover and server subsystems communicate via the API.
+//! This module defines the types used in the API.
 
-use crate::{
-    aggregated_operations::L1BatchProofForL1,
-    proofs::PrepareBasicCircuitsJob,
+use serde::{Deserialize, Serialize};
+use zksync_types::{
     protocol_version::{FriProtocolVersionId, L1VerifierConfig},
+    L1BatchNumber,
 };
+
+use crate::{inputs::PrepareBasicCircuitsJob, outputs::L1BatchProofForL1};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ProofGenerationData {

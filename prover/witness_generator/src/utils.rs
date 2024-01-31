@@ -4,10 +4,7 @@ use circuit_definitions::{
 };
 use multivm::utils::get_used_bootloader_memory_bytes;
 use zkevm_test_harness::boojum::field::goldilocks::GoldilocksField;
-use zksync_object_store::{
-    serialize_using_bincode, AggregationsKey, Bucket, ClosedFormInputKey, FriCircuitKey,
-    ObjectStore, StoredObject,
-};
+use zksync_object_store::{serialize_using_bincode, Bucket, ObjectStore, StoredObject};
 use zksync_prover_fri_types::{
     circuit_definitions::{
         boojum::{
@@ -22,9 +19,10 @@ use zksync_prover_fri_types::{
         zkevm_circuits::scheduler::input::SchedulerCircuitInstanceWitness,
         ZkSyncDefaultRoundFunction,
     },
+    keys::{AggregationsKey, ClosedFormInputKey, FriCircuitKey},
     CircuitWrapper, FriProofWrapper,
 };
-use zksync_types::{proofs::AggregationRound, L1BatchNumber, ProtocolVersionId, U256};
+use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber, ProtocolVersionId, U256};
 
 pub fn expand_bootloader_contents(
     packed: &[(usize, U256)],
