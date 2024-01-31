@@ -177,12 +177,12 @@ impl Transaction {
         stream.append(&self.value);
         stream.append(&self.data);
 
+        self.rlp_append_access_list(&mut stream);
+
         stream.append(&self.max_fee_per_blob_gas.unwrap());
         // TODO: is this the correct way to encode a vector of versioned hashes
         // to RLP here?
         stream.append_list(self.blob_versioned_hashes.as_ref().unwrap());
-
-        self.rlp_append_access_list(&mut stream);
 
         if let Some(signature) = signature {
             self.rlp_append_signature(&mut stream, signature);
