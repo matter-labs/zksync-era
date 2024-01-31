@@ -29,7 +29,8 @@ use crate::{
         extractors,
         io::{
             common::{l1_batch_params, load_pending_batch, poll_iters},
-            MiniblockParams, MiniblockSealerHandle, PendingBatchData, StateKeeperIO,
+            fee_address_migration, MiniblockParams, MiniblockSealerHandle, PendingBatchData,
+            StateKeeperIO,
         },
         mempool_actor::l2_tx_filter,
         metrics::KEEPER_METRICS,
@@ -430,7 +431,7 @@ impl MempoolIO {
             .await
             .unwrap()
             .expect("empty storage not supported"); // FIXME (PLA-703): handle empty storage
-
+        fee_address_migration::migrate_pending_miniblocks(&mut storage).await;
         drop(storage);
 
         Self {

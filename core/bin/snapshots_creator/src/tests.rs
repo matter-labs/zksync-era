@@ -142,6 +142,7 @@ async fn create_miniblock(
         hash: H256::from_low_u64_be(u64::from(miniblock_number.0)),
         l1_tx_count: 0,
         l2_tx_count: 0,
+        fee_account_address: Address::repeat_byte(1),
         base_fee_per_gas: 0,
         gas_per_pubdata_limit: 0,
         batch_fee_input: Default::default(),
@@ -164,14 +165,7 @@ async fn create_l1_batch(
     l1_batch_number: L1BatchNumber,
     logs_for_initial_writes: &[StorageLog],
 ) {
-    let mut header = L1BatchHeader::new(
-        l1_batch_number,
-        0,
-        Address::default(),
-        Default::default(),
-        Default::default(),
-    );
-    header.is_finished = true;
+    let header = L1BatchHeader::new(l1_batch_number, 0, Default::default(), Default::default());
     conn.blocks_dal()
         .insert_mock_l1_batch(&header)
         .await
