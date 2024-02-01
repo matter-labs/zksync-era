@@ -23,8 +23,6 @@ pub mod oracles;
 mod pubdata_utils;
 mod refunds;
 pub mod test_utils;
-#[cfg(test)]
-mod tests;
 pub mod transaction_data;
 pub mod utils;
 mod vm;

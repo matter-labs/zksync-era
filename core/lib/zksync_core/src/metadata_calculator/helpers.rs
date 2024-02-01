@@ -437,7 +437,8 @@ impl L1BatchWithLogs {
 mod tests {
     use tempfile::TempDir;
     use zksync_dal::ConnectionPool;
-    use zksync_types::{proofs::PrepareBasicCircuitsJob, L2ChainId, StorageKey, StorageLog};
+    use zksync_prover_interface::inputs::PrepareBasicCircuitsJob;
+    use zksync_types::{L2ChainId, StorageKey, StorageLog};
 
     use super::*;
     use crate::{

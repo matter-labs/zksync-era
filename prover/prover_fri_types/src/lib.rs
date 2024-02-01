@@ -11,9 +11,12 @@ use circuit_definitions::{
     zkevm_circuits::scheduler::block_header::BlockAuxilaryOutputWitness,
     ZkSyncDefaultRoundFunction,
 };
-use zksync_object_store::{serialize_using_bincode, Bucket, FriCircuitKey, StoredObject};
-use zksync_types::{proofs::AggregationRound, L1BatchNumber};
+use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject};
+use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
 
+use crate::keys::FriCircuitKey;
+
+pub mod keys;
 pub mod queue;
 
 #[derive(serde::Serialize, serde::Deserialize, Clone)]

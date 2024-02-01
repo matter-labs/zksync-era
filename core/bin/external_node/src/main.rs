@@ -270,6 +270,8 @@ async fn init_tasks(
     let consistency_checker_handle = tokio::spawn(consistency_checker.run(stop_receiver.clone()));
 
     let updater_handle = task::spawn(batch_status_updater.run(stop_receiver.clone()));
+    let fee_address_migration_handle =
+        task::spawn(state_keeper.run_fee_address_migration(connection_pool.clone()));
     let sk_handle = task::spawn(state_keeper.run());
     let fee_params_fetcher_handle =
         tokio::spawn(fee_params_fetcher.clone().run(stop_receiver.clone()));
@@ -355,12 +357,13 @@ async fn init_tasks(
     task_handles.extend(cache_update_handle);
     task_handles.extend([
         sk_handle,
+        fee_address_migration_handle,
         fetcher_handle,
         updater_handle,
         tree_handle,
+        consistency_checker_handle,
         fee_params_fetcher_handle,
     ]);
-    task_handles.push(consistency_checker_handle);
 
     Ok((task_handles, stop_sender, healthcheck_handle, stop_receiver))
 }
@@ -515,7 +518,7 @@ async fn main() -> anyhow::Result<()> {
     let reorg_detector_last_correct_batch = reorg_detector_result.and_then(|result| match result {
         Ok(Ok(last_correct_batch)) => last_correct_batch,
         Ok(Err(err)) => {
-            tracing::error!("Reorg detector failed: {err}");
+            tracing::error!("Reorg detector failed: {err:#}");
             None
         }
         Err(err) => {

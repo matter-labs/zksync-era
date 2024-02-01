@@ -7,6 +7,7 @@ use zksync_types::{
 };
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
+use super::constants::BOOTLOADER_BATCH_TIP_OVERHEAD;
 use crate::{
     glue::GlueInto,
     interface::{
@@ -65,7 +66,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
         tracer: Self::TracerDispatcher,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
-        self.inspect_inner(tracer, execution_mode)
+        self.inspect_inner(tracer, execution_mode, None)
     }
 
     /// Get current state of bootloader memory.
@@ -149,7 +150,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
         VmExecutionResultAndLogs,
     ) {
         self.push_transaction_with_compression(tx, with_compression);
-        let result = self.inspect_inner(tracer, VmExecutionMode::OneTx);
+        let result = self.inspect_inner(tracer, VmExecutionMode::OneTx, None);
         if self.has_unpublished_bytecodes() {
             (
                 Err(BytecodeCompressionError::BytecodeCompressionFailed),
@@ -162,6 +163,10 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
 
     fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
         self.record_vm_memory_metrics_inner()
+    }
+
+    fn has_enough_gas_for_batch_tip(&self) -> bool {
+        self.state.local_state.callstack.current.ergs_remaining >= BOOTLOADER_BATCH_TIP_OVERHEAD
     }
 
     fn finish_batch(&mut self) -> FinishedL1Batch {

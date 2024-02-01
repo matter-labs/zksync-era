@@ -17,8 +17,6 @@ pub mod utils;
 pub mod vm_instance;
 pub mod vm_with_bootloader;
 
-#[cfg(test)]
-mod tests;
 mod vm;
 
 pub use errors::TxRevertReason;

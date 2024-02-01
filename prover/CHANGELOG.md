@@ -1,5 +1,32 @@
 # Changelog
 
+## [11.0.0](https://github.com/matter-labs/zksync-era/compare/prover-v10.1.0...prover-v11.0.0) (2024-01-29)
+
+
+### ⚠ BREAKING CHANGES
+
+* **vm:** fee model updates + 1.4.1 ([#791](https://github.com/matter-labs/zksync-era/issues/791))
+
+### Features
+
+* **api:** Make Web3 API server work with pruned data ([#838](https://github.com/matter-labs/zksync-era/issues/838)) ([0b7cd0b](https://github.com/matter-labs/zksync-era/commit/0b7cd0b50ead2406915528becad2fac8b7e48f85))
+* consensus component config for main node and external node ([#881](https://github.com/matter-labs/zksync-era/issues/881)) ([1aed8de](https://github.com/matter-labs/zksync-era/commit/1aed8de0f1651686bf9e9f8aa7dc9ba15625cc42))
+* **en:** Restore state keeper storage from snapshot ([#885](https://github.com/matter-labs/zksync-era/issues/885)) ([a9553b5](https://github.com/matter-labs/zksync-era/commit/a9553b537a857a6f6a755cd700da4c096c1f80f0))
+* fee model updates + 1.4.1 stage upgrade ([#897](https://github.com/matter-labs/zksync-era/issues/897)) ([fa48c13](https://github.com/matter-labs/zksync-era/commit/fa48c13da0cfa20117f68c51c243ee3738184408))
+* protobuf-generated json configs for the main node (BFT-371) ([#458](https://github.com/matter-labs/zksync-era/issues/458)) ([f938314](https://github.com/matter-labs/zksync-era/commit/f9383143b4f1f0c18af658980bae8ec93b6b588f))
+* Remove zkevm_test_harness public reexport from zksync_types ([#929](https://github.com/matter-labs/zksync-era/issues/929)) ([dd1a35e](https://github.com/matter-labs/zksync-era/commit/dd1a35eec006b40db66da73e6fa3d8963efb7d60))
+* **state-keeper:** circuits seal criterion ([#729](https://github.com/matter-labs/zksync-era/issues/729)) ([c4a86bb](https://github.com/matter-labs/zksync-era/commit/c4a86bbbc5697b5391a517299bbd7a5e882a7314))
+* **vm:** fee model updates + 1.4.1 ([#791](https://github.com/matter-labs/zksync-era/issues/791)) ([3564aff](https://github.com/matter-labs/zksync-era/commit/3564affbb246c87d668ea2ec74809384bc9d621f))
+
+
+### Bug Fixes
+
+* address issue with spellchecker not checking against prover workspace ([#855](https://github.com/matter-labs/zksync-era/issues/855)) ([4f55926](https://github.com/matter-labs/zksync-era/commit/4f55926f48aaec3f43322594626148af0a0358dd))
+* addresses broken links in preparation for ci link check ([#869](https://github.com/matter-labs/zksync-era/issues/869)) ([a78d03c](https://github.com/matter-labs/zksync-era/commit/a78d03cc53d0097f6be892de65a2c35bd7f1baa3))
+* **prover:** Update shivini ([#915](https://github.com/matter-labs/zksync-era/issues/915)) ([f141a00](https://github.com/matter-labs/zksync-era/commit/f141a00cd25ae5e5d2a054aa4ecda544a2abbbd7))
+* **witness-generator:** Update era-zkevm_test_harness ([#912](https://github.com/matter-labs/zksync-era/issues/912)) ([c03c2e3](https://github.com/matter-labs/zksync-era/commit/c03c2e3df71b5737cbdae889c8330511345c52c2))
+* **witness-generator:** Update zkevm_test_harness ([#930](https://github.com/matter-labs/zksync-era/issues/930)) ([16fdcff](https://github.com/matter-labs/zksync-era/commit/16fdcffc67274f30a4a254c26b8969f4928918bc))
+
 ## [10.1.0](https://github.com/matter-labs/zksync-era/compare/prover-v10.0.2...prover-v10.1.0) (2024-01-05)
 
 

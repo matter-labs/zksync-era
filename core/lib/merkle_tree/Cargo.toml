@@ -14,6 +14,7 @@ vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev
 zksync_types = { path = "../types" }
 zksync_crypto = { path = "../crypto" }
 zksync_storage = { path = "../storage" }
+zksync_prover_interface = { path = "../prover_interface" }
 zksync_utils = { path = "../utils" }
 
 leb128 = "0.2.5"
