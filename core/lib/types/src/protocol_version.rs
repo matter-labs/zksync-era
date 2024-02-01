@@ -94,7 +94,8 @@ impl ProtocolVersionId {
     }
 
     pub fn is_pre_shared_bridge(&self) -> bool {
-        self <= &Self::Version20
+        // TODO: review this when we actually deploy shared bridge
+        self <= &Self::Version21
     }
 
     pub fn is_1_4_0(&self) -> bool {
