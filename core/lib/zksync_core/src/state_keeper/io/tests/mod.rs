@@ -663,12 +663,11 @@ async fn different_timestamp_for_miniblocks_in_same_batch() {
     tester.genesis(&connection_pool).await;
     let (mut mempool, _) = tester.create_test_mempool_io(connection_pool, 1).await;
     let current_timestamp = seconds_since_epoch();
-    let MiniblockParams {
-        timestamp: next_timestamp,
-        ..
-    } = mempool
-        .wait_for_new_miniblock_params(Duration::from_secs(10), current_timestamp)
+    mempool.set_prev_miniblock_timestamp(current_timestamp);
+
+    let miniblock_params = mempool
+        .wait_for_new_miniblock_params(Duration::from_secs(10))
         .await
         .unwrap();
-    assert!(next_timestamp > current_timestamp);
+    assert!(miniblock_params.timestamp > current_timestamp);
 }

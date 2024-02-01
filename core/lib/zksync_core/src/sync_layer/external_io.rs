@@ -385,7 +385,6 @@ impl StateKeeperIO for ExternalIO {
     async fn wait_for_new_miniblock_params(
         &mut self,
         max_wait: Duration,
-        _prev_miniblock_timestamp: u64,
     ) -> Option<MiniblockParams> {
         // Wait for the next miniblock to appear in the queue.
         let actions = &mut self.actions;

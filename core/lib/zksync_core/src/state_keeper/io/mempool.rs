@@ -222,13 +222,12 @@ impl StateKeeperIO for MempoolIO {
     async fn wait_for_new_miniblock_params(
         &mut self,
         max_wait: Duration,
-        prev_miniblock_timestamp: u64,
     ) -> Option<MiniblockParams> {
         // We must provide different timestamps for each miniblock.
         // If miniblock sealing interval is greater than 1 second then `sleep_past` won't actually sleep.
         let timestamp = tokio::time::timeout(
             max_wait,
-            sleep_past(prev_miniblock_timestamp, self.current_miniblock_number),
+            sleep_past(self.prev_miniblock_timestamp, self.current_miniblock_number),
         )
         .await
         .ok()?;
@@ -544,6 +543,10 @@ impl MempoolIO {
 impl MempoolIO {
     pub(super) fn filter(&self) -> &L2TxFilter {
         &self.filter
+    }
+
+    pub(super) fn set_prev_miniblock_timestamp(&mut self, timestamp: u64) {
+        self.prev_miniblock_timestamp = timestamp;
     }
 }
 

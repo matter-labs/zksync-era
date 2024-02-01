@@ -196,9 +196,7 @@ impl ZkSyncStateKeeper {
                 self.io.seal_miniblock(&updates_manager).await;
                 // We've sealed the miniblock that we had, but we still need to setup the timestamp
                 // for the fictive miniblock.
-                let new_miniblock_params = self
-                    .wait_for_new_miniblock_params(updates_manager.miniblock.timestamp)
-                    .await?;
+                let new_miniblock_params = self.wait_for_new_miniblock_params().await?;
                 Self::start_next_miniblock(
                     new_miniblock_params,
                     &mut updates_manager,
@@ -259,14 +257,11 @@ impl ZkSyncStateKeeper {
         Err(Error::Canceled)
     }
 
-    async fn wait_for_new_miniblock_params(
-        &mut self,
-        prev_miniblock_timestamp: u64,
-    ) -> Result<MiniblockParams, Error> {
+    async fn wait_for_new_miniblock_params(&mut self) -> Result<MiniblockParams, Error> {
         while !self.is_canceled() {
             if let Some(params) = self
                 .io
-                .wait_for_new_miniblock_params(POLL_WAIT_DURATION, prev_miniblock_timestamp)
+                .wait_for_new_miniblock_params(POLL_WAIT_DURATION)
                 .await
             {
                 return Ok(params);
@@ -381,7 +376,7 @@ impl ZkSyncStateKeeper {
 
         // We've processed all the miniblocks, and right now we're initializing the next *actual* miniblock.
         let new_miniblock_params = self
-            .wait_for_new_miniblock_params(updates_manager.miniblock.timestamp)
+            .wait_for_new_miniblock_params()
             .await
             .map_err(|e| e.context("wait_for_new_miniblock_params"))?;
         Self::start_next_miniblock(new_miniblock_params, updates_manager, batch_executor).await;
@@ -421,7 +416,7 @@ impl ZkSyncStateKeeper {
                 self.io.seal_miniblock(updates_manager).await;
 
                 let new_miniblock_params = self
-                    .wait_for_new_miniblock_params(updates_manager.miniblock.timestamp)
+                    .wait_for_new_miniblock_params()
                     .await
                     .map_err(|e| e.context("wait_for_new_miniblock_params"))?;
                 tracing::debug!(
