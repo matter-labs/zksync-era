@@ -1,5 +1,12 @@
 # Changelog
 
+## [20.4.0](https://github.com/matter-labs/zksync-era/compare/core-v20.3.0...core-v20.4.0) (2024-01-31)
+
+
+### Features
+
+* **en:** Revert "feat(en): Fix operator address assignment for ENs" ([#977](https://github.com/matter-labs/zksync-era/issues/977)) ([e051f7a](https://github.com/matter-labs/zksync-era/commit/e051f7a80bd1c1c5b76a6e74288fab9f820738b2))
+
 ## [20.3.0](https://github.com/matter-labs/zksync-era/compare/core-v20.2.0...core-v20.3.0) (2024-01-31)
 
 

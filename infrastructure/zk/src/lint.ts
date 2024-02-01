@@ -30,7 +30,7 @@ async function lintContracts(check: boolean = false) {
 
 async function clippy() {
     process.chdir(process.env.ZKSYNC_HOME!);
-    await utils.spawn('cargo clippy --tests --locked -- -D warnings');
+    await utils.spawn('cargo clippy --tests --locked -- -D warnings -D unstable_features');
 }
 
 async function proverClippy() {
