@@ -18,7 +18,17 @@ use crate::{
 
 #[repr(u16)]
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, TryFromPrimitive, Serialize, Deserialize,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    TryFromPrimitive,
+    Serialize,
+    Deserialize,
 )]
 pub enum ProtocolVersionId {
     Version0 = 0,

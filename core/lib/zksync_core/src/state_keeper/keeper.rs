@@ -31,7 +31,7 @@ pub(super) const POLL_WAIT_DURATION: Duration = Duration::from_secs(1);
 
 /// Structure used to indicate that task cancellation was requested.
 #[derive(thiserror::Error, Debug)]
-enum Error {
+pub(super) enum Error {
     #[error("canceled")]
     Canceled,
     #[error(transparent)]
@@ -226,7 +226,7 @@ impl ZkSyncStateKeeper {
         Err(Error::Canceled)
     }
 
-    async fn load_protocol_upgrade_tx(
+    pub(super) async fn load_protocol_upgrade_tx(
         &mut self,
         pending_miniblocks: &[MiniblockExecutionData],
         protocol_version: ProtocolVersionId,
