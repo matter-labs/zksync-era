@@ -7,11 +7,10 @@ use serde_with::{hex::Hex, serde_as};
 use tempfile::TempDir;
 use zksync_crypto::hasher::blake2::Blake2Hasher;
 use zksync_merkle_tree::{domain::ZkSyncTree, HashTree, TreeEntry, TreeInstruction};
+use zksync_prover_interface::inputs::StorageLogMetadata;
 use zksync_storage::RocksDB;
 use zksync_system_constants::ACCOUNT_CODE_STORAGE_ADDRESS;
-use zksync_types::{
-    proofs::StorageLogMetadata, AccountTreeId, Address, L1BatchNumber, StorageKey, H256,
-};
+use zksync_types::{AccountTreeId, Address, L1BatchNumber, StorageKey, H256};
 
 fn gen_storage_logs() -> Vec<TreeInstruction<StorageKey>> {
     let addrs = vec![

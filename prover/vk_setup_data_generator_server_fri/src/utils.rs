@@ -15,10 +15,6 @@ use zkevm_test_harness::{
     sha3::{Digest, Keccak256},
     toolset::GeometryConfig,
     witness::{
-        full_block_artifact::{
-            BlockBasicCircuits, BlockBasicCircuitsPublicCompactFormsWitnesses,
-            BlockBasicCircuitsPublicInputs,
-        },
         recursive_aggregation::compute_leaf_params,
         tree::{BinarySparseStorageTree, ZKSyncTestingTree},
     },
@@ -27,10 +23,9 @@ use zksync_prover_fri_types::circuit_definitions::{
     aux_definitions::witness_oracle::VmWitnessOracle,
     base_layer_proof_config,
     boojum::{
-        field::goldilocks::{GoldilocksExt2, GoldilocksField},
+        field::goldilocks::GoldilocksField,
         gadgets::{
             queue::full_state_queue::FullStateCircuitQueueRawWitness,
-            recursion::recursive_tree_hasher::CircuitGoldilocksPoseidon2Sponge,
             traits::allocatable::CSAllocatable,
         },
     },
@@ -91,10 +86,92 @@ pub fn get_basic_circuits(
     >,
 > {
     let path = format!("{}/witness_artifacts.json", get_base_path());
-    let test_artifact = read_witness_artifact(&path).context("read_withess_artifact()")?;
-    let (base_layer_circuit, _, _, _) = get_circuits(test_artifact, cycle_limit, geometry);
-    Ok(base_layer_circuit
-        .into_flattened_set()
+    let mut test_artifact = read_witness_artifact(&path).context("read_withess_artifact()")?;
+
+    let mut storage_impl = InMemoryStorage::new();
+    let mut tree = ZKSyncTestingTree::empty();
+
+    test_artifact.entry_point_address =
+        *zk_evm::zkevm_opcode_defs::system_params::BOOTLOADER_FORMAL_ADDRESS;
+
+    let predeployed_contracts = test_artifact
+        .predeployed_contracts
+        .clone()
+        .into_iter()
+        .chain(Some((
+            test_artifact.entry_point_address,
+            test_artifact.entry_point_code.clone(),
+        )))
+        .collect::<HashMap<_, _>>();
+    save_predeployed_contracts(&mut storage_impl, &mut tree, &predeployed_contracts);
+
+    let used_bytecodes = HashMap::from_iter(
+        test_artifact
+            .predeployed_contracts
+            .values()
+            .map(|bytecode| {
+                (
+                    bytecode_to_code_hash(bytecode).unwrap().into(),
+                    bytecode.clone(),
+                )
+            })
+            .chain(
+                Some(test_artifact.default_account_code.clone()).map(|bytecode| {
+                    (
+                        bytecode_to_code_hash(&bytecode).unwrap().into(),
+                        bytecode.clone(),
+                    )
+                }),
+            ),
+    );
+
+    let previous_enumeration_index = tree.next_enumeration_index();
+    let previous_root = tree.root();
+    // simulate content hash
+
+    let mut hasher = Keccak256::new();
+    hasher.update(previous_enumeration_index.to_be_bytes());
+    hasher.update(previous_root);
+    hasher.update(0u64.to_be_bytes()); // porter shard
+    hasher.update([0u8; 32]); // porter shard
+
+    let mut previous_data_hash = [0u8; 32];
+    previous_data_hash[..].copy_from_slice(hasher.finalize().as_slice());
+
+    let previous_aux_hash = [0u8; 32];
+    let previous_meta_hash = [0u8; 32];
+
+    let mut hasher = Keccak256::new();
+    hasher.update(previous_data_hash);
+    hasher.update(previous_meta_hash);
+    hasher.update(previous_aux_hash);
+
+    let mut previous_content_hash = [0u8; 32];
+    previous_content_hash[..].copy_from_slice(hasher.finalize().as_slice());
+
+    let default_account_codehash =
+        bytecode_to_code_hash(&test_artifact.default_account_code).unwrap();
+    let default_account_codehash = U256::from_big_endian(&default_account_codehash);
+
+    let mut base_layer_circuits = vec![];
+    let _ = run(
+        Address::zero(),
+        test_artifact.entry_point_address,
+        test_artifact.entry_point_code,
+        vec![],
+        false,
+        default_account_codehash,
+        used_bytecodes,
+        vec![],
+        cycle_limit,
+        geometry,
+        storage_impl,
+        &mut tree,
+        |circuit| base_layer_circuits.push(circuit),
+        |_, _, _| {},
+    );
+
+    Ok(base_layer_circuits
         .into_iter()
         .dedup_by(|a, b| a.numeric_circuit_type() == b.numeric_circuit_type())
         .collect())
@@ -241,116 +318,4 @@ pub fn get_leaf_vk_params(
         leaf_vk_commits.push((circuit_type, params));
     }
     Ok(leaf_vk_commits)
-}
-
-#[allow(clippy::type_complexity)]
-fn get_circuits(
-    mut test_artifact: TestArtifact,
-    cycle_limit: usize,
-    geometry: GeometryConfig,
-) -> (
-    BlockBasicCircuits<GoldilocksField, ZkSyncDefaultRoundFunction>,
-    BlockBasicCircuitsPublicInputs<GoldilocksField>,
-    BlockBasicCircuitsPublicCompactFormsWitnesses<GoldilocksField>,
-    SchedulerCircuitInstanceWitness<
-        GoldilocksField,
-        CircuitGoldilocksPoseidon2Sponge,
-        GoldilocksExt2,
-    >,
-) {
-    let round_function = ZkSyncDefaultRoundFunction::default();
-
-    let mut storage_impl = InMemoryStorage::new();
-    let mut tree = ZKSyncTestingTree::empty();
-
-    test_artifact.entry_point_address =
-        *zk_evm::zkevm_opcode_defs::system_params::BOOTLOADER_FORMAL_ADDRESS;
-
-    let predeployed_contracts = test_artifact
-        .predeployed_contracts
-        .clone()
-        .into_iter()
-        .chain(Some((
-            test_artifact.entry_point_address,
-            test_artifact.entry_point_code.clone(),
-        )))
-        .collect::<HashMap<_, _>>();
-    save_predeployed_contracts(&mut storage_impl, &mut tree, &predeployed_contracts);
-
-    let used_bytecodes = HashMap::from_iter(
-        test_artifact
-            .predeployed_contracts
-            .values()
-            .map(|bytecode| {
-                (
-                    bytecode_to_code_hash(bytecode).unwrap().into(),
-                    bytecode.clone(),
-                )
-            })
-            .chain(
-                Some(test_artifact.default_account_code.clone()).map(|bytecode| {
-                    (
-                        bytecode_to_code_hash(&bytecode).unwrap().into(),
-                        bytecode.clone(),
-                    )
-                }),
-            ),
-    );
-
-    let previous_enumeration_index = tree.next_enumeration_index();
-    let previous_root = tree.root();
-    // simulate content hash
-
-    let mut hasher = Keccak256::new();
-    hasher.update(previous_enumeration_index.to_be_bytes());
-    hasher.update(previous_root);
-    hasher.update(0u64.to_be_bytes()); // porter shard
-    hasher.update([0u8; 32]); // porter shard
-
-    let mut previous_data_hash = [0u8; 32];
-    previous_data_hash[..].copy_from_slice(hasher.finalize().as_slice());
-
-    let previous_aux_hash = [0u8; 32];
-    let previous_meta_hash = [0u8; 32];
-
-    let mut hasher = Keccak256::new();
-    hasher.update(previous_data_hash);
-    hasher.update(previous_meta_hash);
-    hasher.update(previous_aux_hash);
-
-    let mut previous_content_hash = [0u8; 32];
-    previous_content_hash[..].copy_from_slice(hasher.finalize().as_slice());
-
-    let default_account_codehash =
-        bytecode_to_code_hash(&test_artifact.default_account_code).unwrap();
-    let default_account_codehash = U256::from_big_endian(&default_account_codehash);
-
-    let (
-        basic_block_circuits,
-        basic_block_circuits_inputs,
-        closed_form_inputs,
-        scheduler_partial_input,
-        _,
-    ) = run(
-        Address::zero(),
-        test_artifact.entry_point_address,
-        test_artifact.entry_point_code,
-        vec![],
-        false,
-        default_account_codehash,
-        used_bytecodes,
-        vec![],
-        cycle_limit,
-        round_function,
-        geometry,
-        storage_impl,
-        &mut tree,
-    );
-
-    (
-        basic_block_circuits,
-        basic_block_circuits_inputs,
-        closed_form_inputs,
-        scheduler_partial_input,
-    )
 }
