@@ -9,8 +9,10 @@ use std::{
 use test_casing::test_casing;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::configs::chain::NetworkConfig;
+use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::{
+    api,
     block::MiniblockHasher,
     fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
     snapshots::SnapshotRecoveryStatus,
@@ -232,6 +234,87 @@ async fn external_io_basics(snapshot_recovery: bool) {
         (snapshot.miniblock_number.0 + 1).into()
     );
     assert_eq!(tx_receipt.transaction_index, 0.into());
+}
+
+#[test_casing(2, [false, true])]
+#[tokio::test]
+async fn external_io_works_without_local_protocol_version(snapshot_recovery: bool) {
+    let pool = ConnectionPool::test_pool().await;
+    let mut storage = pool.access_storage().await.unwrap();
+    let snapshot = if snapshot_recovery {
+        prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await
+    } else {
+        ensure_genesis(&mut storage).await;
+        genesis_snapshot_recovery_status()
+    };
+
+    let mut open_l1_batch = open_l1_batch(
+        snapshot.l1_batch_number.0 + 1,
+        snapshot.miniblock_timestamp + 1,
+        snapshot.miniblock_number.0 + 1,
+    );
+    if let SyncAction::OpenBatch {
+        protocol_version, ..
+    } = &mut open_l1_batch
+    {
+        *protocol_version = ProtocolVersionId::next();
+    } else {
+        unreachable!();
+    };
+
+    let tx = create_l2_transaction(10, 100);
+    let tx = SyncAction::Tx(Box::new(tx.into()));
+    let actions = vec![open_l1_batch, tx, SyncAction::SealMiniblock];
+
+    let (actions_sender, action_queue) = ActionQueue::new();
+    let mut client = MockMainNodeClient::default();
+    let next_protocol_version = api::ProtocolVersion {
+        version_id: ProtocolVersionId::next() as u16,
+        timestamp: snapshot.miniblock_timestamp + 1,
+        base_system_contracts: BaseSystemContractsHashes {
+            bootloader: H256::repeat_byte(1),
+            default_aa: H256::repeat_byte(2),
+        },
+        ..api::ProtocolVersion::default()
+    };
+    client.insert_protocol_version(next_protocol_version.clone());
+
+    let state_keeper = StateKeeperHandles::new(
+        pool.clone(),
+        client,
+        action_queue,
+        &[&extract_tx_hashes(&actions)],
+    )
+    .await;
+    actions_sender.push_actions(actions).await;
+    // Wait until the miniblock is sealed.
+    state_keeper
+        .wait(|state| state.get_local_block() == snapshot.miniblock_number + 1)
+        .await;
+
+    // Check that the miniblock and the protocol version for it are persisted.
+    let persisted_protocol_version = storage
+        .protocol_versions_dal()
+        .get_protocol_version(ProtocolVersionId::next())
+        .await
+        .expect("next protocol version not persisted");
+    assert_eq!(
+        persisted_protocol_version.timestamp,
+        next_protocol_version.timestamp
+    );
+    assert_eq!(
+        persisted_protocol_version.base_system_contracts_hashes,
+        next_protocol_version.base_system_contracts
+    );
+
+    let miniblock = storage
+        .blocks_dal()
+        .get_miniblock_header(snapshot.miniblock_number + 1)
+        .await
+        .unwrap()
+        .expect("New miniblock is not persisted");
+    assert_eq!(miniblock.timestamp, snapshot.miniblock_timestamp + 1);
+    assert_eq!(miniblock.protocol_version, Some(ProtocolVersionId::next()));
 }
 
 pub(super) async fn run_state_keeper_with_multiple_miniblocks(

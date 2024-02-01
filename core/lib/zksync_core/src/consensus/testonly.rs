@@ -1,5 +1,7 @@
 //! Utilities for testing the consensus module.
 
+use std::collections::HashMap;
+
 use anyhow::Context as _;
 use rand::{
     distributions::{Distribution, Standard},
@@ -11,7 +13,7 @@ use zksync_contracts::{BaseSystemContractsHashes, SystemContractCode};
 use zksync_dal::ConnectionPool;
 use zksync_types::{
     api, block::MiniblockHasher, snapshots::SnapshotRecoveryStatus, Address, L1BatchNumber,
-    L2ChainId, MiniblockNumber, ProtocolVersionId, H256,
+    L2ChainId, MiniblockNumber, ProtocolVersionId, H256, U256,
 };
 
 use crate::{
@@ -61,6 +63,8 @@ pub(crate) struct MockMainNodeClient {
     prev_miniblock_hash: H256,
     l2_blocks: Vec<api::en::SyncBlock>,
     block_number_offset: u32,
+    protocol_versions: HashMap<u16, api::ProtocolVersion>,
+    system_contracts: HashMap<H256, Vec<U256>>,
 }
 
 impl MockMainNodeClient {
@@ -86,6 +90,7 @@ impl MockMainNodeClient {
             prev_miniblock_hash: snapshot.miniblock_hash,
             l2_blocks: vec![last_miniblock_in_snapshot_batch],
             block_number_offset: snapshot.miniblock_number.0,
+            ..Self::default()
         }
     }
 
@@ -142,15 +147,28 @@ impl MockMainNodeClient {
         self.l2_blocks.extend(l2_blocks);
         tx_hashes
     }
+
+    pub fn insert_protocol_version(&mut self, version: api::ProtocolVersion) {
+        self.system_contracts
+            .insert(version.base_system_contracts.bootloader, vec![]);
+        self.system_contracts
+            .insert(version.base_system_contracts.default_aa, vec![]);
+        self.protocol_versions.insert(version.version_id, version);
+    }
 }
 
 #[async_trait::async_trait]
 impl MainNodeClient for MockMainNodeClient {
     async fn fetch_system_contract_by_hash(
         &self,
-        _hash: H256,
+        hash: H256,
     ) -> anyhow::Result<SystemContractCode> {
-        anyhow::bail!("Not implemented");
+        let code = self
+            .system_contracts
+            .get(&hash)
+            .cloned()
+            .with_context(|| format!("requested unexpected system contract {hash:?}"))?;
+        Ok(SystemContractCode { hash, code })
     }
 
     async fn fetch_genesis_contract_bytecode(
@@ -162,9 +180,13 @@ impl MainNodeClient for MockMainNodeClient {
 
     async fn fetch_protocol_version(
         &self,
-        _protocol_version: ProtocolVersionId,
+        protocol_version: ProtocolVersionId,
     ) -> anyhow::Result<api::ProtocolVersion> {
-        anyhow::bail!("Not implemented");
+        let protocol_version = protocol_version as u16;
+        self.protocol_versions
+            .get(&protocol_version)
+            .cloned()
+            .with_context(|| format!("requested unexpected protocol version {protocol_version}"))
     }
 
     async fn fetch_genesis_l1_batch_hash(&self) -> anyhow::Result<H256> {

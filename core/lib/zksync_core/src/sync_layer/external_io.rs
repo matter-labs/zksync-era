@@ -1,4 +1,4 @@
-use std::{collections::HashMap, convert::TryInto, iter::FromIterator, time::Duration};
+use std::{collections::HashMap, time::Duration};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
@@ -154,6 +154,8 @@ impl ExternalIO {
         match base_system_contracts {
             Some(version) => version,
             None => {
+                tracing::info!("Fetching protocol version {id:?} from the main node");
+
                 let protocol_version = self
                     .main_node_client
                     .fetch_protocol_version(id)
@@ -205,7 +207,10 @@ impl ExternalIO {
                 hash,
             },
             None => {
-                tracing::info!("Fetching base system contract bytecode from the main node");
+                tracing::info!(
+                    "Fetching base system contract bytecode with hash {hash:?} from the main node"
+                );
+
                 let contract = self
                     .main_node_client
                     .fetch_system_contract_by_hash(hash)
@@ -218,7 +223,7 @@ impl ExternalIO {
                     .storage_dal()
                     .insert_factory_deps(
                         self.current_miniblock_number,
-                        &HashMap::from_iter([(contract.hash, be_words_to_bytes(&contract.code))]),
+                        &HashMap::from([(contract.hash, be_words_to_bytes(&contract.code))]),
                     )
                     .await
                     .unwrap();
