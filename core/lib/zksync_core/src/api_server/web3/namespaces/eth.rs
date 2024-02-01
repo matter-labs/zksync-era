@@ -303,6 +303,7 @@ impl EthNamespace {
         const METHOD_NAME: &str = "get_block_transaction_count";
 
         let method_latency = API_METRICS.start_block_call(METHOD_NAME, block_id);
+
         self.state.start_info.ensure_not_pruned(block_id)?;
         let tx_count = self
             .state
@@ -489,6 +490,15 @@ impl EthNamespace {
                 .await
                 .map_err(|err| internal_error(method_name, err))?;
         }
+
+        if let Some(proxy) = &self.state.tx_sender.0.proxy {
+            for tx in proxy.get_txs_by_account(address).await {
+                // If nonce is not sequential, then we should not increment nonce.
+                if tx.nonce().0 == account_nonce.as_u32() + 1 {
+                    account_nonce += U256::one();
+                }
+            }
+        };
 
         let block_diff = self.state.last_sealed_miniblock.diff(block_number);
         method_latency.observe(block_diff);
