@@ -1,6 +1,7 @@
-use std::sync::Arc;
+use std::{borrow::BorrowMut, collections::HashMap, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
+use metrics::atomics::AtomicU64;
 use tokio::{
     sync::{watch, Mutex, OnceCell},
     task::JoinHandle,
@@ -21,8 +22,7 @@ impl From<anyhow::Error> for Error {
 
 #[async_trait]
 pub trait Erc20Fetcher: 'static + std::fmt::Debug + Send + Sync {
-    async fn conversion_rate(&self) -> anyhow::Result<f64>;
-    async fn token_price(&self) -> anyhow::Result<f64>;
+    async fn conversion_rate(&self) -> anyhow::Result<u64>;
 }
 
 pub(crate) struct NativeErc20FetcherSingleton {
@@ -63,16 +63,14 @@ pub(crate) struct NativeErc20Fetcher {
     // TODO: we probably need to add a http client here
     // to avoid creating a new one for each request
     pub config: NativeErc20FetcherConfig,
-    pub latest_to_eth_conversion_rate: Arc<Mutex<f64>>,
-    pub latest_token_price: Arc<Mutex<f64>>,
+    pub latest_to_eth_conversion_rate: AtomicU64,
 }
 
 impl NativeErc20Fetcher {
     pub(crate) fn new(config: NativeErc20FetcherConfig) -> Self {
         Self {
             config,
-            latest_to_eth_conversion_rate: Arc::new(Mutex::new(0.0)),
-            latest_token_price: Arc::new(Mutex::new(0.0)),
+            latest_to_eth_conversion_rate: AtomicU64::new(0),
         }
     }
 
@@ -82,31 +80,36 @@ impl NativeErc20Fetcher {
                 tracing::info!("Stop signal received, eth_tx_manager is shutting down");
                 break;
             }
-            // TODO: update:
-            // - latest_to_eth_conversion_rate
-            // - latest_token_price
+
+            let conversion_rate = reqwest::get(format!("{}/conversion_rate", &self.config.host))
+                .await?
+                .json::<u64>()
+                .await
+                .unwrap();
+
+            self.latest_to_eth_conversion_rate
+                .store(conversion_rate, std::sync::atomic::Ordering::Relaxed);
+
+            tokio::time::sleep(Duration::from_secs(self.config.poll_interval)).await;
         }
 
         Ok(())
     }
 
     // TODO: implement the actual fetch logic
-    pub(crate) async fn fetch_conversion_rate(&self) -> anyhow::Result<f64> {
-        todo!()
-    }
-
-    pub(crate) async fn fetch_token_price(&self) -> anyhow::Result<f64> {
-        todo!()
+    pub(crate) async fn fetch_conversion_rate(&self) -> anyhow::Result<u64> {
+        Ok(self
+            .latest_to_eth_conversion_rate
+            .load(std::sync::atomic::Ordering::Relaxed))
     }
 }
 
 #[async_trait]
 impl Erc20Fetcher for NativeErc20Fetcher {
-    async fn conversion_rate(&self) -> anyhow::Result<f64> {
-        anyhow::Ok(self.latest_to_eth_conversion_rate.lock().await.clone())
-    }
-
-    async fn token_price(&self) -> anyhow::Result<f64> {
-        anyhow::Ok(self.latest_token_price.lock().await.clone())
+    async fn conversion_rate(&self) -> anyhow::Result<u64> {
+        anyhow::Ok(
+            self.latest_to_eth_conversion_rate
+                .load(std::sync::atomic::Ordering::Relaxed),
+        )
     }
 }

@@ -1,0 +1,4 @@
+[native_erc20_fetcher]
+host="http://127.0.0.1:5000"
+# Poll interval is in seconds
+poll_interval=10
