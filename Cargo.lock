@@ -1220,7 +1220,7 @@ dependencies = [
 [[package]]
 name = "circuit_definitions"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1#32241e8732d68352a2d447a87d5a77be1d78262c"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1#408d3c6f72781afd3ba3e57bc229ef9a4722bb82"
 dependencies = [
  "crossbeam 0.8.4",
  "derivative",
@@ -2819,9 +2819,9 @@ dependencies = [
 
 [[package]]
 name = "handlebars"
-version = "5.1.1"
+version = "5.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c73166c591e67fb4bf9bc04011b4e35f12e89fe8d676193aa263df065955a379"
+checksum = "ab283476b99e66691dee3f1640fea91487a8d81f50fb5ecc75538f8f8879a1e4"
 dependencies = [
  "log",
  "pest",
@@ -5453,9 +5453,9 @@ dependencies = [
 
 [[package]]
 name = "rust_decimal"
-version = "1.34.0"
+version = "1.34.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d7de2711cae7bdec993f4d2319352599ceb0d003e9f7900ea7c6ef4c5fc16831"
+checksum = "755392e1a2f77afd95580d3f0d0e94ac83eeeb7167552c9b5bca549e61a94d83"
 dependencies = [
  "arrayvec 0.7.4",
  "borsh",
@@ -8209,7 +8209,7 @@ dependencies = [
 [[package]]
 name = "zkevm_test_harness"
 version = "1.4.1"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1#32241e8732d68352a2d447a87d5a77be1d78262c"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1#408d3c6f72781afd3ba3e57bc229ef9a4722bb82"
 dependencies = [
  "bincode",
  "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1)",
