@@ -1,7 +1,7 @@
 FROM debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y curl clang openssl libssl-dev gcc g++ \
-    pkg-config build-essential libclang-dev && \
+    pkg-config build-essential libclang-dev linux-libc-dev liburing-dev && \
     rm -rf /var/lib/apt/lists/*
 
 ENV RUSTUP_HOME=/usr/local/rustup \
