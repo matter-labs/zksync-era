@@ -122,7 +122,11 @@ impl ExternalIO {
         self.prev_miniblock_hash = miniblock.get_miniblock_hash();
     }
 
-    async fn load_previous_l1_batch_hash(&self) -> H256 {
+    async fn wait_for_previous_l1_batch_hash(&self) -> H256 {
+        tracing::info!(
+            "Getting previous L1 batch hash for L1 batch #{}",
+            self.current_l1_batch_number
+        );
         let mut storage = self.pool.access_storage_tagged("sync_layer").await.unwrap();
         let wait_latency = KEEPER_METRICS.wait_for_prev_hash_time.start();
         let prev_l1_batch_number = self.current_l1_batch_number - 1;
@@ -338,10 +342,9 @@ impl StateKeeperIO for ExternalIO {
                         number, self.current_l1_batch_number,
                         "Batch number mismatch"
                     );
-                    tracing::info!("Getting previous L1 batch hash");
-                    let previous_l1_batch_hash = self.load_previous_l1_batch_hash().await;
+                    let previous_l1_batch_hash = self.wait_for_previous_l1_batch_hash().await;
                     tracing::info!(
-                        "Previous L1 batch hash: {previous_l1_batch_hash}, previous miniblock hash: {:?}",
+                        "Previous L1 batch hash: {previous_l1_batch_hash:?}, previous miniblock hash: {:?}",
                         self.prev_miniblock_hash
                     );
 
@@ -369,7 +372,7 @@ impl StateKeeperIO for ExternalIO {
                     ));
                 }
                 Some(other) => {
-                    panic!("Unexpected action in the action queue: {:?}", other);
+                    panic!("Unexpected action in the action queue: {other:?}");
                 }
                 None => {
                     tokio::time::sleep(POLL_INTERVAL).await;
@@ -415,13 +418,11 @@ impl StateKeeperIO for ExternalIO {
                 }
                 Some(other) => {
                     panic!(
-                        "Unexpected action in the queue while waiting for the next miniblock {:?}",
-                        other
+                        "Unexpected action in the queue while waiting for the next miniblock: {other:?}"
                     );
                 }
-                _ => {
+                None => {
                     tokio::time::sleep(POLL_INTERVAL).await;
-                    continue;
                 }
             }
         }

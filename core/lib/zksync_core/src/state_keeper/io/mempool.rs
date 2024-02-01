@@ -162,7 +162,7 @@ impl StateKeeperIO for MempoolIO {
     ) -> Option<(SystemEnv, L1BatchEnv)> {
         let deadline = Instant::now() + max_wait;
         // FIXME: why do we wait for hash immediately and not below? (changed in #809)
-        let prev_l1_batch_hash = self.load_previous_l1_batch_hash().await;
+        let prev_l1_batch_hash = self.wait_for_previous_l1_batch_hash().await;
 
         // Block until at least one transaction in the mempool can match the filter (or timeout happens).
         // This is needed to ensure that block timestamp is not too old.
@@ -495,7 +495,7 @@ impl MempoolIO {
         self.prev_miniblock_timestamp = miniblock.timestamp;
     }
 
-    async fn load_previous_l1_batch_hash(&self) -> H256 {
+    async fn wait_for_previous_l1_batch_hash(&self) -> H256 {
         tracing::info!(
             "Getting previous L1 batch hash for L1 batch #{}",
             self.current_l1_batch_number
