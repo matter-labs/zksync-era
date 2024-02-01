@@ -1,34 +1,37 @@
 use std::convert::TryInto;
 
-use nom::bytes::streaming::take;
 use sha2::Sha256;
 use sha3::{Digest, Keccak256};
-use zkevm_circuits::{
-    boojum::pairing::{
-        bls12_381::{Fr, FrRepr, G1Affine},
-        CurveAffine,
-    },
-    eip_4844::{
-        bitreverse, fft,
-        input::{BLOB_CHUNK_SIZE, ELEMENTS_PER_4844_BLOCK},
-        zksync_pubdata_into_ethereum_4844_data, zksync_pubdata_into_monomial_form_poly,
+use zkevm_test_harness_1_3_1::ff::{PrimeField, PrimeFieldRepr};
+use zkevm_test_harness_1_4_1::{
+    kzg::{compute_commitment, compute_proof, compute_proof_poly},
+    zkevm_circuits::{
+        boojum::pairing::{
+            bls12_381::{Fr, FrRepr, G1Affine},
+            CurveAffine,
+        },
+        eip_4844::{
+            bitreverse, fft,
+            input::{BLOB_CHUNK_SIZE, ELEMENTS_PER_4844_BLOCK},
+            zksync_pubdata_into_ethereum_4844_data, zksync_pubdata_into_monomial_form_poly,
+        },
     },
 };
-use zkevm_test_harness::ff::{PrimeField, PrimeFieldRepr};
-use zkevm_test_harness_1_4_1::kzg::{compute_commitment, compute_proof, compute_proof_poly};
 
 const ZK_SYNC_BYTES_PER_BLOB: usize = BLOB_CHUNK_SIZE * ELEMENTS_PER_4844_BLOCK;
 const EIP_4844_BYTES_PER_BLOB: usize = 32 * ELEMENTS_PER_4844_BLOCK;
 
 /// Packed pubdata commitments.
-/// Format: opening point (16 bytes) || claimed value (32 bytes) || commitment (48 bytes) || opening proof (48 bytes)) = 144 bytes
+/// Format: opening point (16 bytes) || claimed value (32 bytes) || commitment (48 bytes)
+///         || opening proof (48 bytes)) = 144 bytes
 const BYTES_PER_PUBDATA_COMMITMENT: usize = 144;
 
 const VERSIONED_HASH_VERSION_KZG: u8 = 0x01;
 
-/// All the info needed for both the network transaction and by our L1 contracts. As part of the network transaction we need to encode
-/// the sidecar which contains the: blob, `kzg` commitment, and the blob proof. The transaction payload will utilize the versioned hash.
-/// The info needed for `commitBatches` is the `kzg` commitment, opening point, opening value, and opening proof.
+/// All the info needed for both the network transaction and by our L1 contracts. As part of the network transaction we
+/// need to encode the sidecar which contains the: blob, `kzg` commitment, and the blob proof. The transaction payload
+/// will utilize the versioned hash. The info needed for `commitBatches` is the `kzg` commitment, opening point,
+/// opening value, and opening proof.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct KzgInfo {
     /// 4844 Compatible blob containing pubdata
@@ -74,19 +77,22 @@ fn compute_opening_point(linear_hash: [u8; 32], versioned_hash: [u8; 32]) -> u12
 
 /// Copies the specified number of bytes from the input into out returning the rest of the data
 fn copy_n_bytes_return_rest<'a>(out: &'a mut [u8], input: &'a [u8], n: usize) -> &'a [u8] {
-    let (data, bytes) = take::<usize, &[u8], ()>(n)(input).expect("Missing data");
+    let (bytes, data) = input.split_at(n);
     out.copy_from_slice(bytes);
     data
 }
 
 impl KzgInfo {
-    /// Size of `KzgInfo` is equal to size(blob) + size(`kzg_commitment`) + size(bytes32) + size(bytes32) + size(`kzg_proof`) + size(bytes32) + size(`kzg_proof`)
-    /// Here we use the size of the blob expected for 4844 (4096 elements * 32 bytes per element) and not `BYTES_PER_BLOB_ZK_SYNC` which is (4096 elements * 31 bytes per element)
+    /// Size of `KzgInfo` is equal to size(blob) + size(`kzg_commitment`) + size(bytes32) + size(bytes32)
+    /// + size(`kzg_proof`) + size(bytes32) + size(`kzg_proof`)
+    /// Here we use the size of the blob expected for 4844 (4096 elements * 32 bytes per element) and not
+    /// `BYTES_PER_BLOB_ZK_SYNC` which is (4096 elements * 31 bytes per element)
     /// The zksync interpretation of the blob uses 31 byte fields so we can ensure they fit into a field element.
     const SERIALIZED_SIZE: usize = EIP_4844_BYTES_PER_BLOB + 48 + 32 + 32 + 48 + 32 + 48;
 
     /// Returns the bytes necessary for pubdata commitment part of batch commitments when blobs are used.
-    /// Return format: opening point (16 bytes) || claimed value (32 bytes) || commitment (48 bytes) || opening proof (48 bytes))
+    /// Return format: opening point (16 bytes) || claimed value (32 bytes) || commitment (48 bytes)
+    ///                || opening proof (48 bytes))
     pub fn to_pubdata_commitment(&self) -> [u8; BYTES_PER_PUBDATA_COMMITMENT] {
         let mut res = [0u8; BYTES_PER_PUBDATA_COMMITMENT];
         // The crypto team/batch commitment expects the opening point to be 16 bytes
@@ -246,20 +252,19 @@ impl KzgInfo {
 mod tests {
     use serde::{Deserialize, Serialize};
     use serde_with::serde_as;
-    use zkevm_circuits::{
-        boojum::pairing::bls12_381::{Fr, FrRepr, G1Affine},
-        eip_4844::{
+    use zkevm_test_harness_1_4_1::{
+        boojum::pairing::{
+            bls12_381::{Fr, FrRepr, G1Affine, G1Compressed},
+            EncodedPoint,
+        },
+        kzg::{verify_kzg_proof, verify_proof_poly},
+        zkevm_circuits::eip_4844::{
             bitreverse, ethereum_4844_data_into_zksync_pubdata, fft,
             zksync_pubdata_into_monomial_form_poly,
         },
     };
-    use zkevm_test_harness::ff::PrimeField;
-    use zkevm_test_harness_1_4_1::{
-        boojum::pairing::{bls12_381::G1Compressed, EncodedPoint},
-        kzg::{verify_kzg_proof, verify_proof_poly},
-    };
 
-    use super::KzgInfo;
+    use super::{KzgInfo, PrimeField};
 
     #[serde_as]
     #[derive(Debug, Serialize, Deserialize)]
@@ -293,7 +298,7 @@ mod tests {
         assert_eq!(bytes.len(), 32);
         let mut ret = [0u64; 4];
 
-        for (i, chunk) in bytes.array_chunks::<8>().enumerate() {
+        for (i, chunk) in bytes.chunks(8).enumerate() {
             let mut repr = [0u8; 8];
             repr.copy_from_slice(chunk);
             ret[3 - i] = u64::from_be_bytes(repr);
