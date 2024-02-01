@@ -214,10 +214,8 @@ impl ZkSyncStateKeeper {
                 .await
                 .ok_or(Error::Canceled)?;
 
-            let version_changed_or_first_batch =
-                system_env.version != sealed_batch_protocol_version || first_batch_in_shared_bridge;
-
-            protocol_upgrade_tx = if version_changed_or_first_batch {
+            let version_changed = system_env.version != sealed_batch_protocol_version;
+            protocol_upgrade_tx = if version_changed {
                 self.io.load_upgrade_tx(system_env.version).await
             } else {
                 None
