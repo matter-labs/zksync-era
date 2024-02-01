@@ -131,7 +131,7 @@ impl VmEnvBuilder {
         } else {
             connection
                 .blocks_dal()
-                .get_fee_address_for_l1_batch(self.l1_batch_number)
+                .get_fee_address_for_miniblock(pending_miniblock_number)
                 .await?
                 .context("Fee account not found")?
         };
