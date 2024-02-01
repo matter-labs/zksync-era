@@ -1,5 +1,6 @@
-use crate::{envy_load, FromEnv};
 use zksync_config::configs::native_erc20_fetcher::NativeErc20FetcherConfig;
+
+use crate::{envy_load, FromEnv};
 
 impl FromEnv for NativeErc20FetcherConfig {
     fn from_env() -> anyhow::Result<Self> {
