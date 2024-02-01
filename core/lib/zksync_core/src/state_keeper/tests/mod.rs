@@ -5,7 +5,6 @@ use std::{
     },
     time::Instant,
 };
-use tokio::sync::watch;
 
 use multivm::{
     interface::{
@@ -15,6 +14,7 @@ use multivm::{
     vm_latest::{constants::BLOCK_GAS_LIMIT, VmExecutionLogs},
 };
 use once_cell::sync::Lazy;
+use tokio::sync::watch;
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
 use zksync_system_constants::ZKPORTER_IS_AVAILABLE;

@@ -253,28 +253,36 @@ impl ZkSyncStateKeeper {
             protocol_upgrade_tx = self.io.load_upgrade_tx(protocol_version).await;
         }
 
-        let protocol_upgrade_tx =
-            if pending_miniblocks.is_empty() && (version_changed || first_batch_in_shared_bridge) {
-                tracing::info!("We have upgrade tx to be executed in empty miniblock");
-                protocol_upgrade_tx
-            } else if !pending_miniblocks.is_empty()
-                && (version_changed || first_batch_in_shared_bridge)
-            {
-                // Sanity check: if `txs_to_reexecute` is not empty and upgrade tx is present for this block
-                // then it must be the first one in `txs_to_reexecute`.
-                if protocol_upgrade_tx.is_some() {
-                    let first_tx_to_reexecute = &pending_miniblocks[0].txs[0];
-                    assert_eq!(
-                        first_tx_to_reexecute.tx_format(),
-                        TransactionType::ProtocolUpgradeTransaction
-                    )
-                }
-                tracing::info!("We have no upgrade tx to execute");
-                None
-            } else {
-                tracing::info!("We are not changing protocol version");
-                None
-            };
+        let protocol_upgrade_tx = if pending_miniblocks.is_empty()
+            && (version_changed || first_batch_in_shared_bridge)
+        {
+            tracing::info!("We have upgrade tx to be executed in empty miniblock");
+            assert!(
+                protocol_upgrade_tx.is_some(),
+                "Expected upgrade transaction to be present for version {:?}",
+                protocol_version
+            );
+            protocol_upgrade_tx
+        } else if !pending_miniblocks.is_empty()
+            && (version_changed || first_batch_in_shared_bridge)
+        {
+            // Sanity check: if `txs_to_reexecute` is not empty and upgrade tx is present for this block
+            // then it must be the first one in `txs_to_reexecute`.
+            if protocol_upgrade_tx.is_some() {
+                let first_tx_to_reexecute = &pending_miniblocks[0].txs[0];
+                assert_eq!(
+                    first_tx_to_reexecute.tx_format(),
+                    TransactionType::ProtocolUpgradeTransaction,
+                    "Expected an upgrade transaction to be the first one in pending_miniblocks, but found {:?}",
+                    first_tx_to_reexecute.hash()
+                );
+            }
+            tracing::info!("We have no upgrade tx to execute");
+            None
+        } else {
+            tracing::info!("We are not changing protocol version");
+            None
+        };
 
         Ok(protocol_upgrade_tx)
     }

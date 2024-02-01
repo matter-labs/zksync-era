@@ -758,6 +758,7 @@ fn upgrade_into_governor_log(upgrade: ProtocolUpgrade, eth_block: u64) -> Log {
     }
 }
 
+/// Encoding of `L2CanonicalTransaction` from IMailbox.sol.
 fn tx_into_token(tx: ProtocolUpgradeTx) -> Token {
     Token::Tuple(vec![
         Token::Uint(0xfe.into()),
