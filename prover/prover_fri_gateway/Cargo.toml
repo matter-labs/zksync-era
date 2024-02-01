@@ -11,6 +11,7 @@ zksync_dal = { path = "../../core/lib/dal" }
 zksync_config = { path = "../../core/lib/config" }
 zksync_env_config = { path = "../../core/lib/env_config" }
 zksync_object_store = { path = "../../core/lib/object_store" }
+zksync_prover_interface = { path = "../../core/lib/prover_interface" }
 zksync_utils = { path = "../../core/lib/utils" }
 prometheus_exporter = { path = "../../core/lib/prometheus_exporter" }
 vlog = { path = "../../core/lib/vlog" }

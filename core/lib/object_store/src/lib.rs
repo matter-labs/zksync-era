@@ -39,6 +39,6 @@ pub mod _reexports {
 }
 
 pub use self::{
-    objects::{AggregationsKey, CircuitKey, ClosedFormInputKey, FriCircuitKey, StoredObject},
+    objects::StoredObject,
     raw::{Bucket, ObjectStore, ObjectStoreError, ObjectStoreFactory},
 };

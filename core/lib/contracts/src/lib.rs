@@ -33,10 +33,6 @@ const MULTICALL3_CONTRACT_FILE: &str =
     "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/dev-contracts/Multicall3.sol/Multicall3.json";
 const VERIFIER_CONTRACT_FILE: &str =
     "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/zksync/Verifier.sol/Verifier.json";
-const IERC20_CONTRACT_FILE: &str =
-    "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/common/interfaces/IERC20.sol/IERC20.json";
-const FAIL_ON_RECEIVE_CONTRACT_FILE: &str =
-    "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/zksync/dev-contracts/FailOnReceive.sol/FailOnReceive.json";
 const L2_BRIDGE_CONTRACT_FILE: &str =
     "contracts/l2-contracts/artifacts-zk/contracts-preprocessed/bridge/interfaces/IL2Bridge.sol/IL2Bridge.json";
 const LOADNEXT_CONTRACT_FILE: &str =
@@ -53,7 +49,7 @@ fn read_file_to_json_value(path: impl AsRef<Path>) -> serde_json::Value {
     .unwrap_or_else(|e| panic!("Failed to parse file {:?}: {}", path, e))
 }
 
-pub fn load_contract_if_present<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Option<Contract> {
+fn load_contract_if_present<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Option<Contract> {
     let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
     let path = Path::new(&zksync_home).join(path);
     path.exists().then(|| {
@@ -75,13 +71,6 @@ pub fn load_sys_contract(contract_name: &str) -> Contract {
     ))
 }
 
-pub fn read_contract_abi(path: impl AsRef<Path>) -> String {
-    read_file_to_json_value(path)["abi"]
-        .as_str()
-        .expect("Failed to parse abi")
-        .to_string()
-}
-
 pub fn governance_contract() -> Contract {
     load_contract_if_present(GOVERNANCE_CONTRACT_FILE).expect("Governance contract not found")
 }
@@ -92,10 +81,6 @@ pub fn zksync_contract() -> Contract {
 
 pub fn multicall_contract() -> Contract {
     load_contract(MULTICALL3_CONTRACT_FILE)
-}
-
-pub fn erc20_contract() -> Contract {
-    load_contract(IERC20_CONTRACT_FILE)
 }
 
 pub fn l2_bridge_contract() -> Contract {
@@ -129,18 +114,8 @@ pub fn get_loadnext_contract() -> TestContract {
 }
 
 // Returns loadnext contract and its factory dependencies
-pub fn loadnext_contract() -> Contract {
+fn loadnext_contract() -> Contract {
     load_contract("etc/contracts-test-data/artifacts-zk/contracts/loadnext/loadnext_contract.sol/LoadnextContract.json")
-}
-
-pub fn loadnext_simple_contract() -> Contract {
-    load_contract(
-        "etc/contracts-test-data/artifacts-zk/contracts/loadnext/loadnext_contract.sol/Foo.json",
-    )
-}
-
-pub fn fail_on_receive_contract() -> Contract {
-    load_contract(FAIL_ON_RECEIVE_CONTRACT_FILE)
 }
 
 pub fn deployer_contract() -> Contract {
@@ -151,22 +126,15 @@ pub fn l1_messenger_contract() -> Contract {
     load_sys_contract("L1Messenger")
 }
 
-pub fn eth_contract() -> Contract {
-    load_sys_contract("L2EthToken")
-}
-
-pub fn known_codes_contract() -> Contract {
-    load_sys_contract("KnownCodesStorage")
-}
-
 /// Reads bytecode from the path RELATIVE to the ZKSYNC_HOME environment variable.
 pub fn read_bytecode(relative_path: impl AsRef<Path>) -> Vec<u8> {
     let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
     let artifact_path = Path::new(&zksync_home).join(relative_path);
     read_bytecode_from_path(artifact_path)
 }
+
 /// Reads bytecode from a given path.
-pub fn read_bytecode_from_path(artifact_path: PathBuf) -> Vec<u8> {
+fn read_bytecode_from_path(artifact_path: PathBuf) -> Vec<u8> {
     let artifact = read_file_to_json_value(artifact_path.clone());
 
     let bytecode = artifact["bytecode"]
@@ -179,15 +147,11 @@ pub fn read_bytecode_from_path(artifact_path: PathBuf) -> Vec<u8> {
         .unwrap_or_else(|err| panic!("Can't decode bytecode in {:?}: {}", artifact_path, err))
 }
 
-pub fn default_erc20_bytecode() -> Vec<u8> {
-    read_bytecode("etc/ERC20/artifacts-zk/contracts/ZkSyncERC20.sol/ZkSyncERC20.json")
-}
-
 pub fn read_sys_contract_bytecode(directory: &str, name: &str, lang: ContractLanguage) -> Vec<u8> {
     DEFAULT_SYSTEM_CONTRACTS_REPO.read_sys_contract_bytecode(directory, name, lang)
 }
 
-pub static DEFAULT_SYSTEM_CONTRACTS_REPO: Lazy<SystemContractsRepo> =
+static DEFAULT_SYSTEM_CONTRACTS_REPO: Lazy<SystemContractsRepo> =
     Lazy::new(SystemContractsRepo::from_env);
 
 /// Structure representing a system contract repository - that allows
@@ -207,6 +171,7 @@ impl SystemContractsRepo {
             root: zksync_home.join("contracts/system-contracts"),
         }
     }
+
     pub fn read_sys_contract_bytecode(
         &self,
         directory: &str,
@@ -233,26 +198,12 @@ pub fn read_bootloader_code(bootloader_type: &str) -> Vec<u8> {
     ))
 }
 
-pub fn read_proved_batch_bootloader_bytecode() -> Vec<u8> {
+fn read_proved_batch_bootloader_bytecode() -> Vec<u8> {
     read_bootloader_code("proved_batch")
 }
 
-pub fn read_playground_batch_bootloader_bytecode() -> Vec<u8> {
+fn read_playground_batch_bootloader_bytecode() -> Vec<u8> {
     read_bootloader_code("playground_batch")
-}
-
-pub fn get_loadnext_test_contract_path(file_name: &str, contract_name: &str) -> String {
-    format!(
-        "core/tests/loadnext/test-contracts/loadnext_contract/artifacts/loadnext_contract.sol/{}.sol:{}.abi",
-        file_name, contract_name
-    )
-}
-
-pub fn get_loadnext_test_contract_bytecode(file_name: &str, contract_name: &str) -> String {
-    format!(
-        "core/tests/loadnext/test-contracts/loadnext_contract/artifacts/loadnext_contract.sol/{}.sol:{}.zbin",
-        file_name, contract_name
-    )
 }
 
 /// Reads zbin bytecode from a given path, relative to ZKSYNC_HOME.
@@ -263,7 +214,7 @@ pub fn read_zbin_bytecode(relative_zbin_path: impl AsRef<Path>) -> Vec<u8> {
 }
 
 /// Reads zbin bytecode from a given path.
-pub fn read_zbin_bytecode_from_path(bytecode_path: PathBuf) -> Vec<u8> {
+fn read_zbin_bytecode_from_path(bytecode_path: PathBuf) -> Vec<u8> {
     fs::read(&bytecode_path)
         .unwrap_or_else(|err| panic!("Can't read .zbin bytecode at {:?}: {}", bytecode_path, err))
 }
@@ -292,26 +243,6 @@ impl PartialEq for BaseSystemContracts {
             && self.default_aa.hash == other.default_aa.hash
     }
 }
-
-pub static PLAYGROUND_BLOCK_BOOTLOADER_CODE: Lazy<SystemContractCode> = Lazy::new(|| {
-    let bytecode = read_playground_batch_bootloader_bytecode();
-    let hash = hash_bytecode(&bytecode);
-
-    SystemContractCode {
-        code: bytes_to_be_words(bytecode),
-        hash,
-    }
-});
-
-pub static ESTIMATE_FEE_BLOCK_CODE: Lazy<SystemContractCode> = Lazy::new(|| {
-    let bytecode = read_bootloader_code("fee_estimate");
-    let hash = hash_bytecode(&bytecode);
-
-    SystemContractCode {
-        code: bytes_to_be_words(bytecode),
-        hash,
-    }
-});
 
 impl BaseSystemContracts {
     fn load_with_bootloader(bootloader_bytecode: Vec<u8>) -> Self {
@@ -378,12 +309,6 @@ impl BaseSystemContracts {
         let bootloader_bytecode = read_zbin_bytecode(
             "etc/multivm_bootloaders/vm_1_4_1/playground_batch.yul/playground_batch.yul.zbin",
         );
-        BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
-    }
-
-    /// BaseSystemContracts with playground bootloader - used for handling eth_calls.
-    pub fn estimate_gas() -> Self {
-        let bootloader_bytecode = read_bootloader_code("fee_estimate");
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
 
