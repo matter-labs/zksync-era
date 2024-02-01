@@ -325,7 +325,7 @@ mod tests {
         let path = std::path::Path::new(&zksync_home).join("trusted_setup.json");
         let kzg_settings = KzgSettings::new(path.to_str().unwrap());
 
-        let kzg_info = KzgInfo::new(&&kzg_settings, kzg_test.pubdata);
+        let kzg_info = KzgInfo::new(&kzg_settings, kzg_test.pubdata);
 
         // Verify all the fields were correctly computed
         assert_eq!(
