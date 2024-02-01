@@ -1,3 +1,5 @@
+use std::{future::Future, pin::Pin};
+
 use anyhow::Context;
 use multivm::{
     interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode},
@@ -6,8 +8,8 @@ use multivm::{
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::StorageProcessor;
 use zksync_types::{
-    fee_model::BatchFeeInput, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
-    ProtocolVersionId, H256, ZKPORTER_IS_AVAILABLE,
+    fee_model::BatchFeeInput, web3::futures::future::BoxFuture, Address, L1BatchNumber, L2ChainId,
+    MiniblockNumber, ProtocolVersionId, H256, ZKPORTER_IS_AVAILABLE,
 };
 
 use crate::db::wait_for_prev_l1_batch_params;
@@ -45,10 +47,6 @@ impl VmEnvBuilder {
             fee_account: None,
         }
     }
-    pub fn override_miniblock_number(mut self, miniblock_number: MiniblockNumber) -> Self {
-        self.miniblock_number = Some(miniblock_number);
-        self
-    }
 
     pub fn override_fee_account(mut self, fee_account: Address) -> Self {
         self.fee_account = Some(fee_account);
@@ -65,64 +63,40 @@ impl VmEnvBuilder {
             .blocks_dal()
             .get_l1_batch_state_root_and_timestamp(self.l1_batch_number - 1)
             .await?
-            .context(format!(
-                "Previous L1 batch not found {}",
-                self.l1_batch_number - 1
-            ))?
+            .with_context(|| format!("Previous L1 batch not found {}", self.l1_batch_number - 1))?
             .0;
 
-        let (
-            first_miniblock_number_included_in_l1_batch,
-            last_miniblock_number_included_in_l1_batch,
-        ) = connection
+        let (first_miniblock_number_included_in_l1_batch, _) = connection
             .blocks_dal()
             .get_miniblock_range_of_l1_batch(self.l1_batch_number)
             .await?
-            .context(format!("L1 batch {} not found", self.l1_batch_number))?;
+            .with_context(|| format!("L1 batch {} not found", self.l1_batch_number))?;
 
-        self.miniblock_number = if let Some(pending_miniblock_number) = self.miniblock_number {
-            if first_miniblock_number_included_in_l1_batch >= pending_miniblock_number
-                || pending_miniblock_number >= last_miniblock_number_included_in_l1_batch
-            {
-                anyhow::bail!(
-                    "Miniblock {} is not included in L1 batch {}",
-                    pending_miniblock_number,
-                    self.l1_batch_number - 1
-                )
-            }
-            Some(pending_miniblock_number)
-        } else {
-            Some(first_miniblock_number_included_in_l1_batch)
-        };
+        self.miniblock_number = Some(first_miniblock_number_included_in_l1_batch);
         self.prev_batch_hash = Some(batch_hash);
         self.build(connection).await
     }
 
-    /// Builds the `VmEnv` for the pending L1 batch. Please note, that this method is waiting for
-    /// the previous L1 batch to be sealed.
-    pub async fn build_for_pending_pending_batch(
+    /// Builds the `VmEnv` for the pending L1 batch.
+    /// the previous L1 batch must be sealed.
+    pub async fn build_for_pending_batch<F>(
         mut self,
+        get_prev_batch_hash: F,
         connection: &mut StorageProcessor<'_>,
-    ) -> anyhow::Result<VmEnv> {
-        let batch_hash = wait_for_prev_l1_batch_params(connection, self.l1_batch_number - 1)
-            .await
-            .0;
+    ) -> anyhow::Result<VmEnv>
+    where
+        F: FnOnce(
+            &mut StorageProcessor<'_>,
+            L1BatchNumber,
+        ) -> BoxFuture<'static, anyhow::Result<H256>>,
+    {
+        let batch_hash = get_prev_batch_hash(connection, self.l1_batch_number - 1).await?;
 
         let (_, last_miniblock_number_included_in_l1_batch) = connection
             .blocks_dal()
             .get_miniblock_range_of_l1_batch(self.l1_batch_number)
             .await?
-            .context(format!("L1 batch {} not found", self.l1_batch_number - 1))?;
-
-        if let Some(pending_miniblock_number) = self.miniblock_number {
-            if pending_miniblock_number != last_miniblock_number_included_in_l1_batch + 1 {
-                anyhow::bail!(
-                    "Miniblock {}  shouldn't be from previous L1 batch {}",
-                    pending_miniblock_number,
-                    self.l1_batch_number - 1
-                )
-            }
-        }
+            .with_context(|| format!("L1 batch {} not found", self.l1_batch_number - 1))?;
 
         self.miniblock_number = Some(last_miniblock_number_included_in_l1_batch + 1);
         self.prev_batch_hash = Some(batch_hash);
@@ -138,17 +112,19 @@ impl VmEnvBuilder {
             .blocks_dal()
             .get_miniblock_header(pending_miniblock_number)
             .await?
-            .context(format!("Miniblock {} not found", pending_miniblock_number))?;
+            .with_context(|| format!("Miniblock {} not found", pending_miniblock_number))?;
 
         tracing::info!("Getting previous miniblock hash");
         let prev_miniblock_hash = connection
             .blocks_dal()
             .get_miniblock_header(pending_miniblock_number - 1)
             .await?
-            .context(format!(
-                "Previous Miniblock {} not found",
-                pending_miniblock_number - 1
-            ))?
+            .with_context(|| {
+                format!(
+                    "Previous Miniblock {} not found",
+                    pending_miniblock_number - 1
+                )
+            })?
             .hash;
         let fee_account = if let Some(fee_account) = self.fee_account {
             fee_account

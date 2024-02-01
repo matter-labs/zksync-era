@@ -1,5 +1,6 @@
 use std::time::{Duration, Instant};
 
+use futures::future::BoxFuture;
 use vm_utils::vm_env::VmEnvBuilder;
 use zksync_dal::StorageProcessor;
 use zksync_types::{Address, L1BatchNumber, L2ChainId, H256};
@@ -29,7 +30,7 @@ pub(crate) async fn load_pending_batch(
         chain_id,
     )
     .override_fee_account(fee_account)
-    .build_for_pending_pending_batch(storage)
+    .build_for_pending_batch(wait_for_prev_l1_batch_hash, storage)
     .await
     .ok()?;
 
@@ -44,6 +45,13 @@ pub(crate) async fn load_pending_batch(
         system_env: vm_env.system_env,
         pending_miniblocks,
     })
+}
+
+pub(crate) fn wait_for_prev_l1_batch_hash<'a>(
+    storage: &'a mut StorageProcessor<'_>,
+    number: L1BatchNumber,
+) -> BoxFuture<'a, anyhow::Result<H256>> {
+    Box::pin(async { wait_for_prev_l1_batch_params(storage, number).await.0 })
 }
 
 pub(crate) async fn wait_for_prev_l1_batch_params(
