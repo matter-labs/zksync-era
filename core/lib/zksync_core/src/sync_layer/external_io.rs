@@ -153,7 +153,8 @@ impl ExternalIO {
             .unwrap()
             .protocol_versions_dal()
             .load_base_system_contracts_by_version_id(id as u16)
-            .await;
+            .await
+            .expect("Failed loading base system contracts");
 
         match base_system_contracts {
             Some(version) => version,
@@ -204,7 +205,8 @@ impl ExternalIO {
             .unwrap()
             .factory_deps_dal()
             .get_factory_dep(hash)
-            .await;
+            .await
+            .unwrap();
 
         match bytecode {
             Some(bytecode) => SystemContractCode {

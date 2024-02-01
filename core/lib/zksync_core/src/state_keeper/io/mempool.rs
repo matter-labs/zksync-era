@@ -187,7 +187,8 @@ impl StateKeeperIO for MempoolIO {
             let (base_system_contracts, protocol_version) = storage
                 .protocol_versions_dal()
                 .base_system_contracts_by_timestamp(current_timestamp)
-                .await;
+                .await
+                .expect("Failed loading base system contracts");
             drop(storage);
 
             // We create a new filter each time, since parameters may change and a previously
