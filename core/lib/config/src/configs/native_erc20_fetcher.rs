@@ -4,6 +4,4 @@ use serde::Deserialize;
 pub struct NativeErc20FetcherConfig {
     pub poll_interval: u64,
     pub host: String,
-    pub name: String,
-    pub symbol: String,
 }
