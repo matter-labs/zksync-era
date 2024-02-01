@@ -1,11 +1,12 @@
 //! Consensus-related functionality.
+
 #![allow(clippy::redundant_locals)]
+
 use zksync_concurrency::{ctx, error::Wrap as _, scope, time};
 use zksync_consensus_executor as executor;
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage::BlockStore;
 use zksync_dal::ConnectionPool;
-use zksync_types::Address;
 
 use self::storage::Store;
 use crate::sync_layer::{sync_action::ActionQueueSender, MainNodeClient, SyncState};
@@ -23,7 +24,6 @@ mod tests;
 pub struct MainNodeConfig {
     pub executor: executor::Config,
     pub validator: executor::ValidatorConfig,
-    pub operator_address: Address,
 }
 
 impl MainNodeConfig {
@@ -36,7 +36,7 @@ impl MainNodeConfig {
             "currently only consensus with just 1 validator is supported"
         );
         scope::run!(&ctx, |ctx, s| async {
-            let store = Store::new(pool, self.operator_address);
+            let store = Store::new(pool);
             let mut block_store = store.clone().into_block_store();
             block_store
                 .try_init_genesis(ctx, &self.validator.key)
@@ -88,7 +88,6 @@ pub async fn run_main_node_state_fetcher(
 #[derive(Debug, Clone)]
 pub struct FetcherConfig {
     pub executor: executor::Config,
-    pub operator_address: Address,
 }
 
 impl FetcherConfig {
@@ -100,7 +99,7 @@ impl FetcherConfig {
         actions: ActionQueueSender,
     ) -> anyhow::Result<()> {
         scope::run!(ctx, |ctx, s| async {
-            let store = Store::new(pool, self.operator_address);
+            let store = Store::new(pool);
             let mut block_store = store.clone().into_block_store();
             block_store
                 .set_actions_queue(ctx, actions)

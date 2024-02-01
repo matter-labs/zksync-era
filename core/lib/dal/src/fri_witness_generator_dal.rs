@@ -2,15 +2,13 @@ use std::{collections::HashMap, convert::TryFrom, time::Duration};
 
 use sqlx::Row;
 use zksync_types::{
-    proofs::{
-        AggregationRound, JobCountStatistics, LeafAggregationJobMetadata,
-        NodeAggregationJobMetadata, StuckJobs,
-    },
-    protocol_version::FriProtocolVersionId,
-    L1BatchNumber,
+    basic_fri_types::AggregationRound, protocol_version::FriProtocolVersionId, L1BatchNumber,
 };
 
 use crate::{
+    fri_prover_dal::types::{
+        JobCountStatistics, LeafAggregationJobMetadata, NodeAggregationJobMetadata, StuckJobs,
+    },
     metrics::MethodLatency,
     time_utils::{duration_to_naive_time, pg_interval_from_duration},
     StorageProcessor,

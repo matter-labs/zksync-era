@@ -3,7 +3,7 @@ use zksync_basic_types::Address;
 /// Priority op should be executed for this number of eth blocks.
 pub const PRIORITY_EXPIRATION: u64 = 50000;
 pub const MAX_L1_TRANSACTION_GAS_LIMIT: u64 = 300000;
-pub static ETHEREUM_ADDRESS: Address = Address::zero();
+pub const ETHEREUM_ADDRESS: Address = Address::zero();
 
 /// The maximum number of pubdata per L1 batch. This limit is due to the fact that the Ethereum
 /// nodes do not accept transactions that have more than 128kb of pubdata.

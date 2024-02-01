@@ -11,13 +11,13 @@ use zksync_config::configs::{
 };
 use zksync_dal::{ConnectionPool, SqlxError};
 use zksync_object_store::{ObjectStore, ObjectStoreError};
+use zksync_prover_interface::api::{
+    ProofGenerationData, ProofGenerationDataRequest, ProofGenerationDataResponse,
+    SubmitProofRequest, SubmitProofResponse,
+};
 use zksync_types::{
     commitment::serialize_commitments,
     protocol_version::{FriProtocolVersionId, L1VerifierConfig},
-    prover_server_api::{
-        ProofGenerationData, ProofGenerationDataRequest, ProofGenerationDataResponse,
-        SubmitProofRequest, SubmitProofResponse,
-    },
     web3::signing::keccak256,
     L1BatchNumber, H256,
 };

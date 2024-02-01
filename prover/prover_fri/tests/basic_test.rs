@@ -4,10 +4,12 @@ use anyhow::Context as _;
 use serde::Serialize;
 use zksync_config::{configs::FriProverConfig, ObjectStoreConfig};
 use zksync_env_config::FromEnv;
-use zksync_object_store::{bincode, FriCircuitKey, ObjectStoreFactory};
+use zksync_object_store::{bincode, ObjectStoreFactory};
 use zksync_prover_fri::prover_job_processor::Prover;
-use zksync_prover_fri_types::{CircuitWrapper, ProverJob, ProverServiceDataKey};
-use zksync_types::{proofs::AggregationRound, L1BatchNumber};
+use zksync_prover_fri_types::{
+    keys::FriCircuitKey, CircuitWrapper, ProverJob, ProverServiceDataKey,
+};
+use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
 use zksync_vk_setup_data_server_fri::generate_cpu_base_layer_setup_data;
 
 fn compare_serialized<T: Serialize>(expected: &T, actual: &T) {

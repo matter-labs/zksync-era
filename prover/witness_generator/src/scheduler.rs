@@ -4,7 +4,7 @@ use anyhow::Context as _;
 use async_trait::async_trait;
 use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_dal::ConnectionPool;
-use zksync_object_store::{FriCircuitKey, ObjectStore, ObjectStoreFactory};
+use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_prover_fri_types::{
     circuit_definitions::{
         boojum::{
@@ -18,11 +18,13 @@ use zksync_prover_fri_types::{
         recursion_layer_proof_config,
         zkevm_circuits::scheduler::{input::SchedulerCircuitInstanceWitness, SchedulerConfig},
     },
-    get_current_pod_name, CircuitWrapper, FriProofWrapper,
+    get_current_pod_name,
+    keys::FriCircuitKey,
+    CircuitWrapper, FriProofWrapper,
 };
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{
-    proofs::AggregationRound, protocol_version::FriProtocolVersionId, L1BatchNumber,
+    basic_fri_types::AggregationRound, protocol_version::FriProtocolVersionId, L1BatchNumber,
 };
 use zksync_vk_setup_data_server_fri::{
     get_recursive_layer_vk_for_circuit_type, utils::get_leaf_vk_params,
