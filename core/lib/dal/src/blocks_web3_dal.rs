@@ -61,7 +61,8 @@ impl BlocksWeb3Dal<'_, '_> {
                 ON l1_batches.number = miniblocks.l1_batch_number
             LEFT JOIN transactions
                 ON transactions.miniblock_number = miniblocks.number
-            WHERE {}",
+            WHERE {}
+            ORDER BY transactions.index_in_block ASC",
             transactions_sql,
             web3_block_where_sql(block_id, 1)
         );
