@@ -6,12 +6,13 @@ use zksync_utils::{bytes_to_be_words, bytes_to_chunks};
 
 use crate::StorageProcessor;
 
+/// DAL methods related to factory dependencies.
 #[derive(Debug)]
-pub struct StorageDal<'a, 'c> {
+pub struct FactoryDepsDal<'a, 'c> {
     pub(crate) storage: &'a mut StorageProcessor<'c>,
 }
 
-impl StorageDal<'_, '_> {
+impl FactoryDepsDal<'_, '_> {
     /// Inserts factory dependencies for a miniblock. Factory deps are specified as a map of
     /// `(bytecode_hash, bytecode)` entries.
     pub async fn insert_factory_deps(

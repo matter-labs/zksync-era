@@ -9,7 +9,7 @@ use crate::{
     blocks_web3_dal::BlocksWeb3Dal, connection::holder::ConnectionHolder,
     consensus_dal::ConsensusDal, contract_verification_dal::ContractVerificationDal,
     eth_sender_dal::EthSenderDal, events_dal::EventsDal, events_web3_dal::EventsWeb3Dal,
-    fri_gpu_prover_queue_dal::FriGpuProverQueueDal,
+    factory_deps_dal::FactoryDepsDal, fri_gpu_prover_queue_dal::FriGpuProverQueueDal,
     fri_proof_compressor_dal::FriProofCompressorDal,
     fri_protocol_versions_dal::FriProtocolVersionsDal, fri_prover_dal::FriProverDal,
     fri_scheduler_dependency_tracker_dal::FriSchedulerDependencyTrackerDal,
@@ -17,7 +17,7 @@ use crate::{
     protocol_versions_dal::ProtocolVersionsDal,
     protocol_versions_web3_dal::ProtocolVersionsWeb3Dal,
     snapshot_recovery_dal::SnapshotRecoveryDal, snapshots_creator_dal::SnapshotsCreatorDal,
-    snapshots_dal::SnapshotsDal, storage_dal::StorageDal, storage_logs_dal::StorageLogsDal,
+    snapshots_dal::SnapshotsDal, storage_logs_dal::StorageLogsDal,
     storage_logs_dedup_dal::StorageLogsDedupDal, storage_web3_dal::StorageWeb3Dal,
     sync_dal::SyncDal, system_dal::SystemDal, tokens_dal::TokensDal,
     tokens_web3_dal::TokensWeb3Dal, transactions_dal::TransactionsDal,
@@ -35,6 +35,7 @@ pub mod contract_verification_dal;
 pub mod eth_sender_dal;
 pub mod events_dal;
 pub mod events_web3_dal;
+pub mod factory_deps_dal;
 pub mod fri_gpu_prover_queue_dal;
 pub mod fri_proof_compressor_dal;
 pub mod fri_protocol_versions_dal;
@@ -51,7 +52,6 @@ pub mod protocol_versions_web3_dal;
 pub mod snapshot_recovery_dal;
 pub mod snapshots_creator_dal;
 pub mod snapshots_dal;
-pub mod storage_dal;
 pub mod storage_logs_dal;
 pub mod storage_logs_dedup_dal;
 pub mod storage_web3_dal;
@@ -156,8 +156,8 @@ impl<'a> StorageProcessor<'a> {
         EventsWeb3Dal { storage: self }
     }
 
-    pub fn storage_dal(&mut self) -> StorageDal<'_, 'a> {
-        StorageDal { storage: self }
+    pub fn factory_deps_dal(&mut self) -> FactoryDepsDal<'_, 'a> {
+        FactoryDepsDal { storage: self }
     }
 
     pub fn storage_web3_dal(&mut self) -> StorageWeb3Dal<'_, 'a> {

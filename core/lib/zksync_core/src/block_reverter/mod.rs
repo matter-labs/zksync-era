@@ -258,7 +258,7 @@ impl BlockReverter {
             .await;
         tracing::info!("rolling back factory deps....");
         transaction
-            .storage_dal()
+            .factory_deps_dal()
             .rollback_factory_deps(last_miniblock_to_keep)
             .await;
         tracing::info!("rolling back storage logs...");

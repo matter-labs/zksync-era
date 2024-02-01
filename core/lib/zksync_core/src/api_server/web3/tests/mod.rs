@@ -226,7 +226,7 @@ impl StorageInitialization {
             Self::Recovery { logs, factory_deps } => {
                 prepare_recovery_snapshot(storage, Self::SNAPSHOT_RECOVERY_BLOCK, logs).await;
                 storage
-                    .storage_dal()
+                    .factory_deps_dal()
                     .insert_factory_deps(
                         MiniblockNumber(Self::SNAPSHOT_RECOVERY_BLOCK),
                         factory_deps,

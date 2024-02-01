@@ -264,7 +264,7 @@ impl<'a, 'b> SnapshotsApplier<'a, 'b> {
             .map(|dep| (hash_bytecode(&dep.bytecode.0), dep.bytecode.0))
             .collect();
         storage
-            .storage_dal()
+            .factory_deps_dal()
             .insert_factory_deps(
                 self.applied_snapshot_status.miniblock_number,
                 &all_deps_hashmap,

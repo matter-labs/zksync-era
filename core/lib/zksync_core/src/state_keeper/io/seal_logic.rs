@@ -393,7 +393,7 @@ impl MiniblockSealCommand {
         let new_factory_deps_count = new_factory_deps.len();
         if !new_factory_deps.is_empty() {
             transaction
-                .storage_dal()
+                .factory_deps_dal()
                 .insert_factory_deps(miniblock_number, new_factory_deps)
                 .await
                 .unwrap();
