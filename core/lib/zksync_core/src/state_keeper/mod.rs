@@ -17,7 +17,10 @@ pub use self::{
 pub(crate) use self::{
     mempool_actor::MempoolFetcher, seal_criteria::SequencerSealer, types::MempoolGuard,
 };
-use crate::fee_model::BatchFeeModelInputProvider;
+use crate::{
+    fee_model::BatchFeeModelInputProvider,
+    native_erc20_fetcher::{Erc20Fetcher, NativeErc20Fetcher},
+};
 
 mod batch_executor;
 pub(crate) mod extractors;
@@ -43,6 +46,7 @@ pub(crate) async fn create_state_keeper(
     batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     miniblock_sealer_handle: MiniblockSealerHandle,
     object_store: Arc<dyn ObjectStore>,
+    native_erc20_fetcher: Option<Arc<dyn Erc20Fetcher>>,
     stop_receiver: watch::Receiver<bool>,
 ) -> ZkSyncStateKeeper {
     let batch_executor_base = MainBatchExecutorBuilder::new(
@@ -75,5 +79,6 @@ pub(crate) async fn create_state_keeper(
         Box::new(io),
         Box::new(batch_executor_base),
         Box::new(sealer),
+        Box::new(native_erc20_fetcher),
     )
 }

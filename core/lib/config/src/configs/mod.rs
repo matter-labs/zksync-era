@@ -36,6 +36,7 @@ pub mod fri_prover_group;
 pub mod fri_witness_generator;
 pub mod fri_witness_vector_generator;
 pub mod house_keeper;
+pub mod native_erc20_fetcher;
 pub mod object_store;
 pub mod proof_data_handler;
 pub mod snapshots_creator;

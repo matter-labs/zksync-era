@@ -375,6 +375,7 @@ impl StateKeeperRunner {
                     Box::new(io),
                     Box::new(MockBatchExecutorBuilder),
                     Box::new(NoopSealer),
+                    Box::new(None),
                 )
                 .run(),
             );

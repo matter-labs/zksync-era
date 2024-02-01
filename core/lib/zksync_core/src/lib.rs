@@ -5,6 +5,7 @@ use std::{net::Ipv4Addr, str::FromStr, sync::Arc, time::Instant};
 use anyhow::Context as _;
 use fee_model::MainNodeFeeInputProvider;
 use futures::channel::oneshot;
+use native_erc20_fetcher::Erc20Fetcher;
 use prometheus_exporter::PrometheusExporterConfig;
 use temp_config_store::TempConfigStore;
 use tokio::{sync::watch, task::JoinHandle};
@@ -69,6 +70,7 @@ use crate::{
     l1_gas_price::{GasAdjusterSingleton, L1GasPriceProvider},
     metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
     metrics::{InitStage, APP_METRICS},
+    native_erc20_fetcher::{NativeErc20Fetcher, NativeErc20FetcherSingleton},
     state_keeper::{
         create_state_keeper, MempoolFetcher, MempoolGuard, MiniblockSealer, SequencerSealer,
     },
@@ -88,6 +90,7 @@ pub mod house_keeper;
 pub mod l1_gas_price;
 pub mod metadata_calculator;
 mod metrics;
+pub mod native_erc20_fetcher;
 pub mod proof_data_handler;
 pub mod reorg_detector;
 pub mod state_keeper;
@@ -230,6 +233,8 @@ pub enum Component {
     Housekeeper,
     /// Component for exposing APIs to prover for providing proof generation data and accepting proofs.
     ProofDataHandler,
+    /// Native ERC20 fetcher
+    NativeERC20Fetcher,
 }
 
 #[derive(Debug)]
@@ -264,6 +269,7 @@ impl FromStr for Components {
             "eth_tx_aggregator" => Ok(Components(vec![Component::EthTxAggregator])),
             "eth_tx_manager" => Ok(Components(vec![Component::EthTxManager])),
             "proof_data_handler" => Ok(Components(vec![Component::ProofDataHandler])),
+            "native_erc20_fetcher" => Ok(Components(vec![Component::NativeERC20Fetcher])),
             other => Err(format!("{} is not a valid component name", other)),
         }
     }
@@ -325,6 +331,19 @@ pub async fn initialize_components(
     let mut gas_adjuster =
         GasAdjusterSingleton::new(eth_client_config.web3_url.clone(), gas_adjuster_config);
 
+    // spawn the native ERC20 fetcher if it is enabled
+    let mut fetcher_component = if components.contains(&Component::NativeERC20Fetcher) {
+        let fetcher = NativeErc20FetcherSingleton::new(
+            configs
+                .native_erc20_fetcher_config
+                .clone()
+                .context("native_erc20_fetcher_config")?,
+        );
+
+        Some(fetcher)
+    } else {
+        None
+    };
     let (stop_sender, stop_receiver) = watch::channel(false);
     let (cb_sender, cb_receiver) = oneshot::channel();
 
@@ -482,6 +501,21 @@ pub async fn initialize_components(
             .get_or_init()
             .await
             .context("gas_adjuster.get_or_init()")?;
+
+        let native_erc20_fetcher = if let Some(ref mut fetcher_singleton) = fetcher_component {
+            let fetcher = fetcher_singleton
+                .get_or_init()
+                .await
+                .context("fetcher.get_or_init()")?;
+            Some(fetcher)
+        } else {
+            None
+        };
+
+        let erc20_fetcher_dyn: Option<Arc<dyn Erc20Fetcher>> = native_erc20_fetcher
+            .as_ref()
+            .map(|fetcher| fetcher.clone() as Arc<dyn Erc20Fetcher>);
+
         add_state_keeper_to_task_futures(
             &mut task_futures,
             &postgres_config,
@@ -495,6 +529,7 @@ pub async fn initialize_components(
             &configs.mempool_config.clone().context("mempool_config")?,
             bounded_gas_adjuster,
             store_factory.create_store().await,
+            erc20_fetcher_dyn,
             stop_receiver.clone(),
         )
         .await
@@ -671,6 +706,15 @@ pub async fn initialize_components(
     if let Some(task) = gas_adjuster.run_if_initialized(stop_receiver.clone()) {
         task_futures.push(task);
     }
+
+    // check if the native ERC20 fetcher is enabled and run it if it is
+    fetcher_component
+        .and_then(|c| c.run_if_initialized(stop_receiver.clone()))
+        .into_iter()
+        .for_each(|handle| {
+            task_futures.push(handle);
+        });
+
     Ok((task_futures, stop_sender, cb_receiver, health_check_handle))
 }
 
@@ -685,6 +729,7 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
     mempool_config: &MempoolConfig,
     gas_adjuster: Arc<E>,
     object_store: Arc<dyn ObjectStore>,
+    native_erc20_fetcher: Option<Arc<dyn Erc20Fetcher>>,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
     let pool_builder = ConnectionPool::singleton(postgres_config.master_url()?);
@@ -728,6 +773,7 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
         batch_fee_input_provider.clone(),
         miniblock_sealer_handle,
         object_store,
+        native_erc20_fetcher,
         stop_receiver.clone(),
     )
     .await;

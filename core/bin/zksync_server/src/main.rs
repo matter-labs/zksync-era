@@ -11,6 +11,7 @@ use zksync_config::{
         },
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
+        native_erc20_fetcher::NativeErc20FetcherConfig,
         FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig, PrometheusConfig,
         ProofDataHandlerConfig, WitnessGeneratorConfig,
     },
@@ -119,6 +120,7 @@ async fn main() -> anyhow::Result<()> {
         eth_watch_config: ETHWatchConfig::from_env().ok(),
         gas_adjuster_config: GasAdjusterConfig::from_env().ok(),
         object_store_config: ObjectStoreConfig::from_env().ok(),
+        native_erc20_fetcher_config: NativeErc20FetcherConfig::from_env().ok(),
     };
 
     let postgres_config = configs.postgres_config.clone().context("PostgresConfig")?;

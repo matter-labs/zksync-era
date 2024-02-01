@@ -1,11 +1,13 @@
 use std::{
     convert::Infallible,
+    sync::Arc,
     time::{Duration, Instant},
 };
 
 use anyhow::Context as _;
 use multivm::interface::{Halt, L1BatchEnv, SystemEnv};
 use tokio::sync::watch;
+use zksync_config::configs::native_erc20_fetcher;
 use zksync_types::{
     block::MiniblockExecutionData, l2::TransactionType, protocol_version::ProtocolUpgradeTx,
     storage_writes_deduplicator::StorageWritesDeduplicator, L1BatchNumber, Transaction,
@@ -20,7 +22,10 @@ use super::{
     types::ExecutionMetricsForCriteria,
     updates::UpdatesManager,
 };
-use crate::gas_tracker::gas_count_from_writes;
+use crate::{
+    gas_tracker::gas_count_from_writes,
+    native_erc20_fetcher::{Erc20Fetcher, NativeErc20Fetcher},
+};
 
 /// Amount of time to block on waiting for some resource. The exact value is not really important,
 /// we only need it to not block on waiting indefinitely and be able to process cancellation requests.
@@ -59,6 +64,7 @@ pub struct ZkSyncStateKeeper {
     io: Box<dyn StateKeeperIO>,
     batch_executor_base: Box<dyn L1BatchExecutorBuilder>,
     sealer: Box<dyn ConditionalSealer>,
+    native_erc20_fetcher: Box<Option<Arc<dyn Erc20Fetcher>>>,
 }
 
 impl ZkSyncStateKeeper {
@@ -67,12 +73,14 @@ impl ZkSyncStateKeeper {
         io: Box<dyn StateKeeperIO>,
         batch_executor_base: Box<dyn L1BatchExecutorBuilder>,
         sealer: Box<dyn ConditionalSealer>,
+        native_erc20_fetcher: Box<Option<Arc<dyn Erc20Fetcher>>>,
     ) -> Self {
         Self {
             stop_receiver,
             io,
             batch_executor_base,
             sealer,
+            native_erc20_fetcher,
         }
     }
 

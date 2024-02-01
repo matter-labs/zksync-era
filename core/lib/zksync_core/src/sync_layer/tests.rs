@@ -85,6 +85,7 @@ impl StateKeeperHandles {
             Box::new(io),
             Box::new(batch_executor_base),
             Box::new(NoopSealer),
+            Box::new(None),
         );
         Self {
             stop_sender,
