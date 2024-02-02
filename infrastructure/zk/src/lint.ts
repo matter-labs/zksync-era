@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import * as utils from './utils';
+import {validateMigrations} from "./validate_migrations";
 
 // Note that `rust` is not noted here, as clippy isn't run via `yarn`.
 // `rust` option is still supported though.
@@ -38,6 +39,10 @@ async function proverClippy() {
     await utils.spawn('cargo clippy --tests --locked -- -D warnings -A incomplete_features');
 }
 
+async function migrations() {
+    await validateMigrations()
+}
+
 const ARGS = [...EXTENSIONS, 'rust', 'prover', 'contracts'];
 
 export const command = new Command('lint')
@@ -63,6 +68,7 @@ export const command = new Command('lint')
             const promises = EXTENSIONS.map((ext) => lint(ext, cmd.check));
             promises.push(lintContracts(cmd.check));
             promises.push(clippy());
+            promises.push(migrations());
             await Promise.all(promises);
         }
     });
