@@ -4,7 +4,7 @@
 use std::{
     future::{self, Future},
     sync::Arc,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use anyhow::Context as _;
@@ -25,7 +25,7 @@ use zksync_types::{
 
 pub(crate) use self::helpers::{AsyncTreeReader, L1BatchWithLogs, MerkleTreeInfo};
 use self::{
-    helpers::{create_db, Delayer, GenericAsyncTree},
+    helpers::{create_db, Delayer, GenericAsyncTree, MerkleTreeHealth},
     metrics::{TreeUpdateStage, METRICS},
     updater::TreeUpdater,
 };
@@ -133,6 +133,10 @@ impl MetadataCalculator {
     }
 
     async fn create_tree(&self) -> anyhow::Result<GenericAsyncTree> {
+        self.health_updater
+            .update(MerkleTreeHealth::Initialization.into());
+
+        let started_at = Instant::now();
         let db = create_db(
             self.config.db_path.clone().into(),
             self.config.block_cache_capacity,
@@ -148,8 +152,9 @@ impl MetadataCalculator {
             )
         })?;
         tracing::info!(
-            "Opened Merkle tree RocksDB with configuration {:?}",
-            self.config
+            "Opened Merkle tree RocksDB with configuration {:?} in {:?}",
+            self.config,
+            started_at.elapsed()
         );
 
         Ok(GenericAsyncTree::new(db, self.config.mode).await)
