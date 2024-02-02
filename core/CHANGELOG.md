@@ -1,5 +1,19 @@
 # Changelog
 
+## [20.5.0](https://github.com/matter-labs/zksync-era/compare/core-v20.4.0...core-v20.5.0) (2024-02-02)
+
+
+### Features
+
+* **merkle-tree:** Do not wait for tree initialization when starting node ([#992](https://github.com/matter-labs/zksync-era/issues/992)) ([fdbfcb1](https://github.com/matter-labs/zksync-era/commit/fdbfcb1622ee1eccd380e1930ec5401c52b73567))
+
+
+### Bug Fixes
+
+* added consensus column back ([#986](https://github.com/matter-labs/zksync-era/issues/986)) ([b9b48d4](https://github.com/matter-labs/zksync-era/commit/b9b48d45fa5d854b21c3a3b9ff57665a788a53c5))
+* get_block_receipts test ([#989](https://github.com/matter-labs/zksync-era/issues/989)) ([c301359](https://github.com/matter-labs/zksync-era/commit/c30135902afa3c39d1ac0ce2ff3b70f5c1746373))
+* **vm:** Save empty bootloader memory for batches with ancient vms ([#991](https://github.com/matter-labs/zksync-era/issues/991)) ([af7f64f](https://github.com/matter-labs/zksync-era/commit/af7f64f37faa5300ae258874d74cdcfe009dfaae))
+
 ## [20.4.0](https://github.com/matter-labs/zksync-era/compare/core-v20.3.0...core-v20.4.0) (2024-01-31)
 
 
