@@ -64,6 +64,7 @@ db/
 en_db/
 db-ssd/
 backups/
+cache/
 artifacts/
 artifacts-zk/
 cache-zk/

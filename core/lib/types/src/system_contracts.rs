@@ -1,12 +1,12 @@
 use std::path::PathBuf;
 
 use once_cell::sync::Lazy;
-use zksync_basic_types::{AccountTreeId, Address, U256};
+use zksync_basic_types::{AccountTreeId, Address, H256, U256};
 use zksync_contracts::{read_sys_contract_bytecode, ContractLanguage, SystemContractsRepo};
 use zksync_system_constants::{
-    BOOTLOADER_UTILITIES_ADDRESS, COMPRESSOR_ADDRESS, EVENT_WRITER_ADDRESS,
-    EVM_GAS_MANAGER_ADDRESS, EVM_INTERPRETER_ADDRESS,
+    BOOTLOADER_UTILITIES_ADDRESS, COMPRESSOR_ADDRESS, EVENT_WRITER_ADDRESS, EVM_GAS_MANAGER_ADDRESS,
 };
+use zksync_utils::bytecode::hash_bytecode;
 
 use crate::{
     block::DeployedContract, ACCOUNT_CODE_STORAGE_ADDRESS, BOOTLOADER_ADDRESS,
@@ -25,7 +25,7 @@ use crate::{
 pub const TX_NONCE_INCREMENT: U256 = U256([1, 0, 0, 0]); // 1
 pub const DEPLOYMENT_NONCE_INCREMENT: U256 = U256([0, 0, 1, 0]); // 2^128
 
-static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 22] = [
+static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 21] = [
     (
         "",
         "AccountCodeStorage",
@@ -131,12 +131,6 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 22] = [
     ),
     (
         "",
-        "EvmInterpreter",
-        EVM_INTERPRETER_ADDRESS,
-        ContractLanguage::Sol,
-    ),
-    (
-        "",
         "EvmGasManager",
         EVM_GAS_MANAGER_ADDRESS,
         ContractLanguage::Sol,
@@ -162,9 +156,21 @@ static SYSTEM_CONTRACTS: Lazy<Vec<DeployedContract>> = Lazy::new(|| {
         .collect::<Vec<_>>()
 });
 
+static EVM_INTERPRETER_HASH: Lazy<H256> = Lazy::new(|| {
+    hash_bytecode(&read_sys_contract_bytecode(
+        "",
+        "EvmInterpreter",
+        ContractLanguage::Sol,
+    ))
+});
+
 /// Gets default set of system contracts, based on ZKSYNC_HOME environment variable.
 pub fn get_system_smart_contracts() -> Vec<DeployedContract> {
     SYSTEM_CONTRACTS.clone()
+}
+
+pub fn get_evm_interpreter_hash() -> H256 {
+    EVM_INTERPRETER_HASH.clone()
 }
 
 /// Loads system contracts from a given directory.

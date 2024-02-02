@@ -23,7 +23,8 @@ use crate::{
         tests::{
             tester::{DeployContractsTx, TxType, VmTesterBuilder},
             utils::{
-                get_balance, read_test_contract, read_test_evm_simulator, verify_required_storage,
+                get_balance, key_for_evm_hash, read_test_contract, read_test_evm_simulator,
+                verify_required_storage,
             },
         },
         utils::fee::get_batch_base_fee,
@@ -58,13 +59,13 @@ fn set_up_evm_simulator_contract() -> (VmTester<HistoryEnabled>, Address, Contra
         evm_simulator_bytecode_hash,
     );
     let mut base_system_contracts = BaseSystemContracts::playground();
-    base_system_contracts.evm_simualator = SystemContractCode {
+    base_system_contracts.evm_simulator = SystemContractCode {
         hash: evm_simulator_bytecode_hash,
         code: bytes_to_be_words(evm_simulator_bytecode.clone()),
     };
 
     storage.store_factory_dep(
-        base_system_contracts.evm_simualator.hash,
+        base_system_contracts.evm_simulator.hash,
         evm_simulator_bytecode,
     );
 
@@ -307,11 +308,4 @@ fn test_evm_simulator_constructor() {
         stored_evm_code_hash, evm_code_hash,
         "EVM code hash wasn't stored correctly"
     );
-}
-
-fn key_for_evm_hash(address: &Address) -> H256 {
-    let address_h256 = address_to_h256(address);
-
-    let bytes = [address_h256.as_bytes(), u256_to_h256(3.into()).as_bytes()].concat();
-    keccak256(&bytes).into()
 }

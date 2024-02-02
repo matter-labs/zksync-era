@@ -5,9 +5,12 @@ use zksync_contracts::{
 };
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{
-    utils::storage_key_for_standard_token_balance, AccountTreeId, Address, StorageKey, H256, U256,
+    utils::storage_key_for_standard_token_balance, web3::signing::keccak256, AccountTreeId,
+    Address, StorageKey, H256, U256,
 };
-use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256};
+use zksync_utils::{
+    address_to_h256, bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256,
+};
 
 use crate::vm_latest::{
     tests::tester::InMemoryStorageView, types::internals::ZkSyncVmState, HistoryMode,
@@ -113,4 +116,11 @@ pub(crate) fn read_precompiles_contract() -> Vec<u8> {
     read_bytecode(
         "etc/contracts-test-data/artifacts-zk/contracts/precompiles/precompiles.sol/Precompiles.json",
     )
+}
+
+pub(crate) fn key_for_evm_hash(address: &Address) -> H256 {
+    let address_h256 = address_to_h256(address);
+
+    let bytes = [address_h256.as_bytes(), u256_to_h256(3.into()).as_bytes()].concat();
+    keccak256(&bytes).into()
 }

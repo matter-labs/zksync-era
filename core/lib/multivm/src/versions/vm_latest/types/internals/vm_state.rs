@@ -98,6 +98,18 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
         Timestamp(0),
     );
 
+    decommittment_processor.populate(
+        vec![(
+            h256_to_u256(system_env.base_system_smart_contracts.evm_simulator.hash),
+            system_env
+                .base_system_smart_contracts
+                .evm_simulator
+                .code
+                .clone(),
+        )],
+        Timestamp(0),
+    );
+
     memory.populate(
         vec![(
             BOOTLOADER_CODE_PAGE,
@@ -130,7 +142,7 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
             ),
             // FIXME: this is totally wrong
             evm_simulator_code_hash: h256_to_u256(
-                system_env.base_system_smart_contracts.evm_simualator.hash,
+                system_env.base_system_smart_contracts.evm_simulator.hash,
             ),
             zkporter_is_available: system_env.zk_porter_available,
         },

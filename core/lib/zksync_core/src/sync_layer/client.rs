@@ -37,7 +37,7 @@ pub trait MainNodeClient: 'static + Send + Sync + fmt::Debug {
             default_aa: self
                 .fetch_system_contract_by_hash(hashes.default_aa)
                 .await?,
-            evm_simualator: SystemContractCode {
+            evm_simulator: SystemContractCode {
                 code: vec![],
                 hash: H256::zero(),
             },

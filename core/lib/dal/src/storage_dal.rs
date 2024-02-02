@@ -94,7 +94,7 @@ impl StorageDal<'_, '_> {
         BaseSystemContracts {
             bootloader: bootloader_code,
             default_aa: default_aa_code,
-            evm_simualator: SystemContractCode {
+            evm_simulator: SystemContractCode {
                 code: vec![],
                 hash: H256::zero(),
             },

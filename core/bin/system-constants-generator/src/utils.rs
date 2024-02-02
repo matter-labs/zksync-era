@@ -75,7 +75,7 @@ pub static GAS_TEST_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> = Lazy::new(|| {
             hash,
         },
         bootloader,
-        evm_simualator: SystemContractCode {
+        evm_simulator: SystemContractCode {
             // FIXME:
             code: vec![],
             hash: H256::default(),
@@ -221,7 +221,7 @@ pub(super) fn execute_internal_transfer_test() -> u32 {
     let base_system_smart_contracts = BaseSystemContracts {
         bootloader,
         default_aa,
-        evm_simualator: SystemContractCode {
+        evm_simulator: SystemContractCode {
             code: vec![],
             hash: H256::zero(),
         },

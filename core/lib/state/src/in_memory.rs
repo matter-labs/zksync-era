@@ -1,9 +1,10 @@
 use std::collections::{hash_map::Entry, BTreeMap, HashMap};
 
 use zksync_types::{
-    block::DeployedContract, get_code_key, get_known_code_key, get_system_context_init_logs,
-    system_contracts::get_system_smart_contracts, L2ChainId, StorageKey, StorageLog,
-    StorageLogKind, StorageValue, H256, U256,
+    block::DeployedContract,
+    get_code_key, get_deployer_key, get_known_code_key, get_system_context_init_logs,
+    system_contracts::{get_evm_interpreter_hash, get_system_smart_contracts},
+    L2ChainId, StorageKey, StorageLog, StorageLogKind, StorageValue, H256, U256,
 };
 use zksync_utils::u256_to_h256;
 
@@ -48,6 +49,7 @@ impl InMemoryStorage {
         contracts: Vec<DeployedContract>,
     ) -> Self {
         let system_context_init_log = get_system_context_init_logs(chain_id);
+
         let state_without_indices: BTreeMap<_, _> = contracts
             .iter()
             .flat_map(|contract| {
@@ -62,6 +64,10 @@ impl InMemoryStorage {
                 ]
             })
             .chain(system_context_init_log)
+            .chain(vec![StorageLog::new_write_log(
+                get_deployer_key(u256_to_h256(1.into())),
+                get_evm_interpreter_hash(),
+            )])
             .filter_map(|log| (log.kind == StorageLogKind::Write).then_some((log.key, log.value)))
             .collect();
         let state: HashMap<_, _> = state_without_indices

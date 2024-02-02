@@ -165,6 +165,18 @@ pub fn read_bytecode(relative_path: impl AsRef<Path>) -> Vec<u8> {
     let artifact_path = Path::new(&zksync_home).join(relative_path);
     read_bytecode_from_path(artifact_path)
 }
+
+// bytecode + deployed bytecode
+pub fn read_evm_bytecode(relative_path: impl AsRef<Path>) -> (Vec<u8>, Vec<u8>) {
+    let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
+    let artifact_path = Path::new(&zksync_home).join(relative_path);
+
+    (
+        read_bytecode_from_path(artifact_path.clone()),
+        read_deployed_bytecode_from_path(artifact_path),
+    )
+}
+
 /// Reads bytecode from a given path.
 pub fn read_bytecode_from_path(artifact_path: PathBuf) -> Vec<u8> {
     let artifact = read_file_to_json_value(artifact_path.clone());
@@ -177,6 +189,23 @@ pub fn read_bytecode_from_path(artifact_path: PathBuf) -> Vec<u8> {
 
     hex::decode(bytecode)
         .unwrap_or_else(|err| panic!("Can't decode bytecode in {:?}: {}", artifact_path, err))
+}
+
+pub fn read_deployed_bytecode_from_path(artifact_path: PathBuf) -> Vec<u8> {
+    let artifact = read_file_to_json_value(artifact_path.clone());
+
+    let deployed_bytecode = artifact["deployedBytecode"]
+        .as_str()
+        .unwrap_or_else(|| panic!("Deployed bytecode not found in {:?}", artifact_path))
+        .strip_prefix("0x")
+        .unwrap_or_else(|| panic!("Deployed bytecode in {:?} is not hex", artifact_path));
+
+    hex::decode(deployed_bytecode)
+        .unwrap_or_else(|err| panic!("Can't decode bytecode in {:?}: {}", artifact_path, err))
+}
+
+pub fn read_test_evm_bytecode(relative_path: impl AsRef<Path>) -> (Vec<u8>, Vec<u8>) {
+    read_evm_bytecode("etc/")
 }
 
 pub fn default_erc20_bytecode() -> Vec<u8> {
@@ -278,7 +307,7 @@ pub struct SystemContractCode {
 pub struct BaseSystemContracts {
     pub bootloader: SystemContractCode,
     pub default_aa: SystemContractCode,
-    pub evm_simualator: SystemContractCode,
+    pub evm_simulator: SystemContractCode,
 }
 
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq)]
@@ -292,7 +321,7 @@ impl PartialEq for BaseSystemContracts {
     fn eq(&self, other: &Self) -> bool {
         self.bootloader.hash == other.bootloader.hash
             && self.default_aa.hash == other.default_aa.hash
-            && self.evm_simualator.hash == other.evm_simualator.hash
+            && self.evm_simulator.hash == other.evm_simulator.hash
     }
 }
 
@@ -325,22 +354,27 @@ impl BaseSystemContracts {
             hash,
         };
 
-        let bytecode = read_sys_contract_bytecode("", "DefaultAccount", ContractLanguage::Sol);
-        let hash = hash_bytecode(&bytecode);
+        let default_account_bytecode =
+            read_sys_contract_bytecode("", "DefaultAccount", ContractLanguage::Sol);
+        let default_account_hash = hash_bytecode(&default_account_bytecode);
 
         let default_aa = SystemContractCode {
-            code: bytes_to_be_words(bytecode),
-            hash,
+            code: bytes_to_be_words(default_account_bytecode),
+            hash: default_account_hash,
+        };
+
+        let evm_simulator_bytecode =
+            read_sys_contract_bytecode("", "EvmInterpreter", ContractLanguage::Sol);
+        let evm_simulator_hash = hash_bytecode(&evm_simulator_bytecode);
+        let evm_simulator = SystemContractCode {
+            code: bytes_to_be_words(evm_simulator_bytecode),
+            hash: evm_simulator_hash,
         };
 
         BaseSystemContracts {
             bootloader,
             default_aa,
-            // FIXME
-            evm_simualator: SystemContractCode {
-                code: vec![],
-                hash: H256::zero(),
-            },
+            evm_simulator,
         }
     }
     // BaseSystemContracts with proved bootloader - for handling transactions.
@@ -441,7 +475,7 @@ impl BaseSystemContracts {
         BaseSystemContractsHashes {
             bootloader: self.bootloader.hash,
             default_aa: self.default_aa.hash,
-            evm_simulator: self.evm_simualator.hash,
+            evm_simulator: self.evm_simulator.hash,
         }
     }
 }

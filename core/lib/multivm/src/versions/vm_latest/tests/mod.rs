@@ -6,6 +6,7 @@ mod bytecode_publishing;
 mod call_tracer;
 mod circuits;
 mod dummy_evm_simulator;
+mod evm_simulator;
 mod gas_limit;
 mod get_used_contracts;
 mod is_write_initial;

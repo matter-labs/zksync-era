@@ -13,7 +13,7 @@ pub mod writes;
 
 pub use log::*;
 pub use zksync_system_constants::*;
-use zksync_utils::address_to_h256;
+use zksync_utils::{address_to_h256, u256_to_h256};
 
 /// Typed fully qualified key of the storage slot in global state tree.
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
@@ -58,7 +58,7 @@ impl StorageKey {
 
 // Returns the storage key where the value for mapping(address => x)
 // at position `position` is stored.
-fn get_address_mapping_key(address: &Address, position: H256) -> H256 {
+pub fn get_address_mapping_key(address: &Address, position: H256) -> H256 {
     let padded_address = address_to_h256(address);
     H256(keccak256(
         &[padded_address.as_bytes(), position.as_bytes()].concat(),
@@ -77,6 +77,14 @@ pub fn get_nonce_key(account: &Address) -> StorageKey {
 pub fn get_code_key(account: &Address) -> StorageKey {
     let account_code_storage = AccountTreeId::new(ACCOUNT_CODE_STORAGE_ADDRESS);
     StorageKey::new(account_code_storage, address_to_h256(account))
+}
+
+pub fn get_evm_code_key(account: &Address) -> StorageKey {
+    get_deployer_key(get_address_mapping_key(account, u256_to_h256(2.into())))
+}
+
+pub fn get_evm_code_hash_key(account: &Address) -> StorageKey {
+    get_deployer_key(get_address_mapping_key(account, u256_to_h256(3.into())))
 }
 
 pub fn get_known_code_key(hash: &H256) -> StorageKey {

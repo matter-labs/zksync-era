@@ -175,7 +175,7 @@ impl ExternalIO {
                 BaseSystemContracts {
                     bootloader,
                     default_aa,
-                    evm_simualator: SystemContractCode {
+                    evm_simulator: SystemContractCode {
                         code: vec![],
                         hash: H256::zero(),
                     },
