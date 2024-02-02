@@ -12,9 +12,8 @@ use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::{
     aggregated_operations::AggregatedActionType, api, L1BatchNumber, MiniblockNumber, H256,
 };
-use zksync_web3_decl::error::RpcErrorWithDetails;
 use zksync_web3_decl::{
-    error::{EnrichRpcError, WithArgRpcError},
+    error::{EnrichRpcError, RpcErrorWithDetails, WithArgRpcError},
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
     namespaces::ZksNamespaceClient,
 };

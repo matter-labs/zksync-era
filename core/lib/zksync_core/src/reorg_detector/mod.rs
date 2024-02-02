@@ -5,9 +5,8 @@ use async_trait::async_trait;
 use tokio::sync::watch;
 use zksync_dal::ConnectionPool;
 use zksync_types::{L1BatchNumber, MiniblockNumber, H256};
-use zksync_web3_decl::error::RpcErrorWithDetails;
 use zksync_web3_decl::{
-    error::{EnrichRpcError, WithArgRpcError},
+    error::{EnrichRpcError, RpcErrorWithDetails, WithArgRpcError},
     jsonrpsee::{
         core::ClientError as RpcError,
         http_client::{HttpClient, HttpClientBuilder},
