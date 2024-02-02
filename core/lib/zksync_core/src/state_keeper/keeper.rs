@@ -137,14 +137,8 @@ impl ZkSyncStateKeeper {
             protocol_version,
         );
 
-        let first_batch_in_shared_bridge =
-            l1_batch_env.number == L1BatchNumber(1) && !protocol_version.is_pre_shared_bridge();
         let mut protocol_upgrade_tx = self
-            .load_protocol_upgrade_tx(
-                &pending_miniblocks,
-                protocol_version,
-                first_batch_in_shared_bridge,
-            )
+            .load_protocol_upgrade_tx(&pending_miniblocks, protocol_version, l1_batch_env.number)
             .await?;
 
         let mut batch_executor = self
@@ -224,12 +218,17 @@ impl ZkSyncStateKeeper {
         Err(Error::Canceled)
     }
 
+    /// This function is meant to be called only once during the state-keeper initialization.
+    /// It will check if we should load a protocol upgrade transaction, wait for it to be picked up
+    /// by the event watcher if it's a `SetChainIdUpgrade`, perform some checks and return it.
     pub(super) async fn load_protocol_upgrade_tx(
         &mut self,
         pending_miniblocks: &[MiniblockExecutionData],
         protocol_version: ProtocolVersionId,
-        first_batch_in_shared_bridge: bool,
+        l1_batch_number: L1BatchNumber,
     ) -> Result<Option<ProtocolUpgradeTx>, Error> {
+        let first_batch_in_shared_bridge =
+            l1_batch_number == L1BatchNumber(1) && !protocol_version.is_pre_shared_bridge();
         let previous_batch_protocol_version =
             self.io.load_previous_batch_version_id().await.unwrap();
 

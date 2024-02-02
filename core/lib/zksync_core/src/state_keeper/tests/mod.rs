@@ -464,7 +464,7 @@ async fn load_upgrade_tx() {
     // Since the version hasn't changed, and we are not using shared bridge, we should not load any
     // upgrade transactions.
     assert_eq!(
-        sk.load_protocol_upgrade_tx(&[], ProtocolVersionId::latest(), false)
+        sk.load_protocol_upgrade_tx(&[], ProtocolVersionId::latest(), L1BatchNumber(2))
             .await
             .unwrap(),
         None
@@ -472,20 +472,15 @@ async fn load_upgrade_tx() {
 
     // If the protocol version has changed, we should load the upgrade transaction.
     assert_eq!(
-        sk.load_protocol_upgrade_tx(&[], ProtocolVersionId::next(), false)
+        sk.load_protocol_upgrade_tx(&[], ProtocolVersionId::next(), L1BatchNumber(2))
             .await
             .unwrap(),
         Some(random_upgrade_tx(2))
     );
 
+    // TODO: add one more test case for the shared bridge after it's integrated.
     // If we are processing the 1st batch while using the shared bridge,
     // we should load the upgrade transaction -- that's the `SetChainIdUpgrade`.
-    assert_eq!(
-        sk.load_protocol_upgrade_tx(&[], ProtocolVersionId::latest(), true)
-            .await
-            .unwrap(),
-        Some(random_upgrade_tx(1))
-    );
 }
 
 /// Unconditionally seal the batch without triggering specific criteria.
