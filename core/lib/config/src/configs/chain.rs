@@ -45,6 +45,18 @@ impl Default for FeeModelVersion {
     }
 }
 
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+pub enum L1BatchCommitDataGeneratorMode {
+    Rollup,
+    Validium,
+}
+
+impl Default for L1BatchCommitDataGeneratorMode {
+    fn default() -> Self {
+        Self::Rollup
+    }
+}
+
 #[derive(Debug, Deserialize, Clone, PartialEq, Default)]
 pub struct StateKeeperConfig {
     /// The max number of slots for txs in a block before it should be sealed by the slots sealer.
@@ -116,6 +128,8 @@ pub struct StateKeeperConfig {
 
     /// Number of keys that is processed by enum_index migration in State Keeper each L1 batch.
     pub enum_index_migration_chunk_size: Option<usize>,
+
+    pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
 }
 
 impl StateKeeperConfig {
@@ -150,6 +164,7 @@ impl StateKeeperConfig {
             virtual_blocks_per_miniblock: 1,
             upload_witness_inputs_to_gcs: false,
             enum_index_migration_chunk_size: None,
+            l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode::Rollup,
         }
     }
 

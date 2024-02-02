@@ -34,7 +34,7 @@ use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
 use zksync_health_check::CheckHealth;
 use zksync_state::PostgresStorageCaches;
 use zksync_storage::RocksDB;
-use zksync_types::l1_batch_committer::RollupModeL1BatchCommitter;
+use zksync_types::l1_batch_commit_data_generator::RollupModeL1BatchCommitDataGenerator;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 
 mod config;
@@ -229,10 +229,11 @@ async fn init_tasks(
         .context("failed to build a tree_pool")?;
     let tree_handle = task::spawn(metadata_calculator.run(tree_pool, tree_stop_receiver));
 
-    let l1_batch_committer = Arc::new(RollupModeL1BatchCommitter {});
+    let l1_batch_commit_data_generator = Arc::new(RollupModeL1BatchCommitDataGenerator {});
 
-    let consistency_checker_handle =
-        tokio::spawn(consistency_checker.run(stop_receiver.clone(), l1_batch_committer));
+    let consistency_checker_handle = tokio::spawn(
+        consistency_checker.run(stop_receiver.clone(), l1_batch_commit_data_generator),
+    );
 
     let updater_handle = task::spawn(batch_status_updater.run(stop_receiver.clone()));
     let sk_handle = task::spawn(state_keeper.run());

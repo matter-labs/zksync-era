@@ -2,7 +2,7 @@ use zksync_basic_types::{ethabi::Token, U256};
 
 use crate::{commitment::L1BatchWithMetadata, utils};
 
-pub trait L1BatchCommitter
+pub trait L1BatchCommitDataGenerator
 where
     Self: std::fmt::Debug + Send + Sync,
 {
@@ -16,12 +16,12 @@ where
 }
 
 #[derive(Debug, Clone)]
-pub struct RollupModeL1BatchCommitter {}
+pub struct RollupModeL1BatchCommitDataGenerator {}
 
 #[derive(Debug, Clone)]
-pub struct ValidiumModeL1BatchCommitter {}
+pub struct ValidiumModeL1BatchCommitDataGenerator {}
 
-impl L1BatchCommitter for RollupModeL1BatchCommitter {
+impl L1BatchCommitDataGenerator for RollupModeL1BatchCommitDataGenerator {
     fn l1_commit_data(&self, l1_batch_with_metadata: &L1BatchWithMetadata) -> Token {
         println!("RollupModeL1BatchCommitter");
         let commit_data = if l1_batch_with_metadata
@@ -38,7 +38,7 @@ impl L1BatchCommitter for RollupModeL1BatchCommitter {
     }
 }
 
-impl L1BatchCommitter for ValidiumModeL1BatchCommitter {
+impl L1BatchCommitDataGenerator for ValidiumModeL1BatchCommitDataGenerator {
     fn l1_commit_data(&self, l1_batch_with_metadata: &L1BatchWithMetadata) -> Token {
         println!("ValidiumModeL1BatchCommitter");
         let commit_data = if l1_batch_with_metadata

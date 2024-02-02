@@ -10,7 +10,8 @@ use zkevm_test_harness::{
 use zksync_basic_types::{ethabi::Token, L1BatchNumber};
 
 use crate::{
-    commitment::L1BatchWithMetadata, l1_batch_committer::L1BatchCommitter, ProtocolVersionId, U256,
+    commitment::L1BatchWithMetadata, l1_batch_commit_data_generator::L1BatchCommitDataGenerator,
+    ProtocolVersionId, U256,
 };
 
 fn l1_batch_range_from_batches(
@@ -31,7 +32,7 @@ fn l1_batch_range_from_batches(
 pub struct L1BatchCommitOperation {
     pub last_committed_l1_batch: L1BatchWithMetadata,
     pub l1_batches: Vec<L1BatchWithMetadata>,
-    pub l1_batch_committer: Arc<dyn L1BatchCommitter>,
+    pub l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
 }
 
 impl L1BatchCommitOperation {
@@ -41,7 +42,7 @@ impl L1BatchCommitOperation {
             .l1_batches
             .iter()
             .map(|l1_batch_with_metadata| {
-                self.l1_batch_committer
+                self.l1_batch_commit_data_generator
                     .l1_commit_data(l1_batch_with_metadata)
             })
             .collect();

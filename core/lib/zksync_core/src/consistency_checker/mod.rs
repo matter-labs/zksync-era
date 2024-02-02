@@ -5,7 +5,9 @@ use tokio::sync::watch;
 use zksync_contracts::PRE_BOOJUM_COMMIT_FUNCTION;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::{clients::QueryClient, Error as L1ClientError, EthInterface};
-use zksync_types::{l1_batch_committer::L1BatchCommitter, web3::ethabi, L1BatchNumber, H256};
+use zksync_types::{
+    l1_batch_commit_data_generator::L1BatchCommitDataGenerator, web3::ethabi, L1BatchNumber, H256,
+};
 
 use crate::{
     metrics::{CheckerComponent, EN_METRICS},
@@ -66,7 +68,7 @@ impl LocalL1BatchCommitData {
     async fn new(
         storage: &mut StorageProcessor<'_>,
         batch_number: L1BatchNumber,
-        l1_batch_committer: Arc<dyn L1BatchCommitter>,
+        l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
     ) -> anyhow::Result<Option<Self>> {
         let Some(storage_l1_batch) = storage
             .blocks_dal()
@@ -114,7 +116,7 @@ impl LocalL1BatchCommitData {
 
         Ok(Some(Self {
             is_pre_boojum,
-            l1_commit_data: l1_batch_committer.l1_commit_data(&l1_batch),
+            l1_commit_data: l1_batch_commit_data_generator.l1_commit_data(&l1_batch),
             commit_tx_hash,
         }))
     }
@@ -251,7 +253,7 @@ impl ConsistencyChecker {
     pub async fn run(
         mut self,
         mut stop_receiver: watch::Receiver<bool>,
-        l1_batch_committer: Arc<dyn L1BatchCommitter>,
+        l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
     ) -> anyhow::Result<()> {
         // It doesn't make sense to start the checker until we have at least one L1 batch with metadata.
         let earliest_l1_batch_number =
@@ -290,9 +292,12 @@ impl ConsistencyChecker {
             // The batch might be already committed but not yet processed by the external node's tree
             // OR the batch might be processed by the external node's tree but not yet committed.
             // We need both.
-            let Some(local) =
-                LocalL1BatchCommitData::new(&mut storage, batch_number, l1_batch_committer.clone())
-                    .await?
+            let Some(local) = LocalL1BatchCommitData::new(
+                &mut storage,
+                batch_number,
+                l1_batch_commit_data_generator.clone(),
+            )
+            .await?
             else {
                 tokio::time::sleep(self.sleep_interval).await;
                 continue;

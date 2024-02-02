@@ -37,7 +37,7 @@ impl FromEnv for MempoolConfig {
 #[cfg(test)]
 mod tests {
     use zksync_basic_types::L2ChainId;
-    use zksync_config::configs::chain::FeeModelVersion;
+    use zksync_config::configs::chain::{FeeModelVersion, L1BatchCommitDataGeneratorMode};
 
     use super::*;
     use crate::test_utils::{addr, EnvMutex};
@@ -94,6 +94,7 @@ mod tests {
             virtual_blocks_per_miniblock: 1,
             upload_witness_inputs_to_gcs: false,
             enum_index_migration_chunk_size: Some(2_000),
+            l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode::Rollup,
         }
     }
 

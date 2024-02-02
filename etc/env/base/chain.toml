@@ -93,6 +93,8 @@ virtual_blocks_per_miniblock=1
 # This variable should not be set to true in any customer facing environment.
 upload_witness_inputs_to_gcs=false
 
+l1_batch_commit_data_generator_mode="Validium"
+
 [chain.operations_manager]
 # Sleep time when there is no new input data
 delay_interval=100
