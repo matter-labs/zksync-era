@@ -5,7 +5,11 @@ use clap::Parser;
 use futures::{future::FusedFuture, FutureExt as _};
 use metrics::EN_METRICS;
 use prometheus_exporter::PrometheusExporterConfig;
-use tokio::{sync::watch, task, time::sleep};
+use tokio::{
+    sync::{watch, RwLock},
+    task,
+    time::sleep,
+};
 use zksync_basic_types::{Address, L2ChainId};
 use zksync_concurrency::{ctx, scope};
 use zksync_config::configs::database::MerkleTreeMode;
@@ -13,7 +17,7 @@ use zksync_core::{
     api_server::{
         execution_sandbox::VmConcurrencyLimiter,
         healthcheck::HealthCheckHandle,
-        tx_sender::{ApiContracts, TxSenderBuilder},
+        tx_sender::{ApiContracts, TxCache, TxSenderBuilder},
         web3::{ApiBuilder, Namespace},
     },
     block_reverter::{BlockReverter, BlockReverterFlags, L1ExecutedBatchesRevert},
@@ -58,6 +62,7 @@ async fn build_state_keeper(
     miniblock_sealer_handle: MiniblockSealerHandle,
     stop_receiver: watch::Receiver<bool>,
     chain_id: L2ChainId,
+    proxy_cache: Arc<RwLock<TxCache>>,
 ) -> ZkSyncStateKeeper {
     // These config values are used on the main node, and depending on these values certain transactions can
     // be *rejected* (that is, not included into the block). However, external node only mirrors what the main
@@ -91,6 +96,7 @@ async fn build_state_keeper(
         l2_erc20_bridge_addr,
         validation_computational_gas_limit,
         chain_id,
+        proxy_cache,
     )
     .await;
 
@@ -154,6 +160,7 @@ async fn init_tasks(
             tokio::time::sleep(Duration::from_secs(10)).await;
         }
     }));
+    let tx_cache = Arc::new(RwLock::new(TxCache::default()));
 
     let state_keeper = build_state_keeper(
         action_queue,
@@ -165,6 +172,7 @@ async fn init_tasks(
         miniblock_sealer_handle,
         stop_receiver.clone(),
         config.remote.l2_chain_id,
+        tx_cache.clone(),
     )
     .await;
 
@@ -280,7 +288,7 @@ async fn init_tasks(
         let tx_sender_builder =
             TxSenderBuilder::new(config.clone().into(), connection_pool.clone())
                 .with_main_connection_pool(connection_pool.clone())
-                .with_tx_proxy(&main_node_url);
+                .with_tx_proxy(&main_node_url, tx_cache.clone());
 
         if config.optional.transactions_per_sec_limit.is_some() {
             tracing::warn!("`transactions_per_sec_limit` option is deprecated and ignored");

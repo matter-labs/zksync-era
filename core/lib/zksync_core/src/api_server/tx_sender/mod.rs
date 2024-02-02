@@ -8,6 +8,7 @@ use multivm::{
     utils::{adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead},
     vm_latest::constants::{BLOCK_GAS_LIMIT, MAX_PUBDATA_PER_BLOCK},
 };
+use tokio::sync::RwLock;
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig};
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, StorageProcessor};
@@ -27,6 +28,7 @@ use zksync_types::{
 use zksync_utils::h256_to_u256;
 
 pub(super) use self::{proxy::TxProxy, result::SubmitTxError};
+pub use crate::api_server::tx_sender::proxy::TxCache;
 use crate::{
     api_server::{
         execution_sandbox::{
@@ -163,8 +165,8 @@ impl TxSenderBuilder {
         self
     }
 
-    pub fn with_tx_proxy(mut self, main_node_url: &str) -> Self {
-        self.proxy = Some(TxProxy::new(main_node_url));
+    pub fn with_tx_proxy(mut self, main_node_url: &str, tx_cache: Arc<RwLock<TxCache>>) -> Self {
+        self.proxy = Some(TxProxy::new(main_node_url, tx_cache));
         self
     }
 
@@ -352,10 +354,6 @@ impl TxSender {
             // Before it reaches the main node.
             proxy.save_tx(tx.hash(), tx.clone()).await;
             proxy.submit_tx(&tx).await?;
-            // Now, after we are sure that the tx is on the main node, remove it from cache
-            // since we don't want to store txs that might have been replaced or otherwise removed
-            // from the mempool.
-            proxy.forget_tx(tx.hash()).await;
             SANDBOX_METRICS.submit_tx[&SubmitTxStage::TxProxy].observe(stage_started_at.elapsed());
             APP_METRICS.processed_txs[&TxStage::Proxied].inc();
             return Ok(L2TxSubmissionResult::Proxied);

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use itertools::Itertools;
 use tokio::sync::RwLock;
@@ -14,7 +14,7 @@ use zksync_web3_decl::{
 };
 
 #[derive(Debug, Default)]
-struct TxCache {
+pub struct TxCache {
     tx_cache: HashMap<H256, L2Tx>,
     tx_cache_by_account: HashMap<Address, Vec<H256>>,
 }
@@ -47,7 +47,7 @@ impl TxCache {
         txs.into_iter().sorted_by_key(|tx| tx.nonce()).collect()
     }
 
-    fn remove_tx(&mut self, tx_hash: &H256) {
+    pub(crate) fn remove_tx(&mut self, tx_hash: &H256) {
         let tx = self.tx_cache.remove(tx_hash);
         if let Some(tx) = tx {
             let account_tx_hashes = self
@@ -64,17 +64,14 @@ impl TxCache {
 /// and store them while they're not synced back yet
 #[derive(Debug)]
 pub struct TxProxy {
-    tx_cache: RwLock<TxCache>,
+    tx_cache: Arc<RwLock<TxCache>>,
     client: HttpClient,
 }
 
 impl TxProxy {
-    pub fn new(main_node_url: &str) -> Self {
+    pub fn new(main_node_url: &str, tx_cache: Arc<RwLock<TxCache>>) -> Self {
         let client = HttpClientBuilder::default().build(main_node_url).unwrap();
-        Self {
-            client,
-            tx_cache: RwLock::new(TxCache::default()),
-        }
+        Self { client, tx_cache }
     }
 
     pub async fn find_tx(&self, tx_hash: H256) -> Option<L2Tx> {

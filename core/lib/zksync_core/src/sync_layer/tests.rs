@@ -3,10 +3,14 @@
 use std::{
     collections::{HashMap, VecDeque},
     iter,
+    sync::Arc,
     time::{Duration, Instant},
 };
 
-use tokio::{sync::watch, task::JoinHandle};
+use tokio::{
+    sync::{watch, RwLock},
+    task::JoinHandle,
+};
 use zksync_config::configs::chain::NetworkConfig;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::{
@@ -16,7 +20,7 @@ use zksync_types::{
 
 use super::{fetcher::FetcherCursor, sync_action::SyncAction, *};
 use crate::{
-    api_server::web3::tests::spawn_http_server,
+    api_server::{tx_sender::TxCache, web3::tests::spawn_http_server},
     consensus::testonly::MockMainNodeClient,
     genesis::{ensure_genesis_state, GenesisParams},
     state_keeper::{
@@ -61,7 +65,7 @@ impl StateKeeperHandles {
         let sync_state = SyncState::new();
         let (miniblock_sealer, miniblock_sealer_handle) = MiniblockSealer::new(pool.clone(), 5);
         tokio::spawn(miniblock_sealer.run());
-
+        let tx_cache = Arc::new(RwLock::new(TxCache::default()));
         let io = ExternalIO::new(
             miniblock_sealer_handle,
             pool,
@@ -71,6 +75,7 @@ impl StateKeeperHandles {
             Address::repeat_byte(1),
             u32::MAX,
             L2ChainId::default(),
+            tx_cache,
         )
         .await;
 
