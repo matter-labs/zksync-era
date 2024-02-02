@@ -38,7 +38,6 @@ async function proverClippy() {
     await utils.spawn('cargo clippy --tests --locked -- -D warnings -A incomplete_features');
 }
 
-
 const ARGS = [...EXTENSIONS, 'rust', 'prover', 'contracts'];
 
 export const command = new Command('lint')
