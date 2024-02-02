@@ -15,7 +15,7 @@ use zksync_types::{
         extract_l2tol1logs_from_l1_messenger, extract_long_l2_to_l1_messages, L1MessengerL2ToL1Log,
     },
     writes::StateDiffRecord,
-    AccountTreeId, StorageKey, L1_MESSENGER_ADDRESS, U256,
+    AccountTreeId, Address, StorageKey, L1_MESSENGER_ADDRESS, U256,
 };
 use zksync_utils::{h256_to_u256, u256_to_bytes_be, u256_to_h256};
 
@@ -27,11 +27,13 @@ use crate::{
     },
 };
 
-pub(crate) struct EvmDebugTracer {}
+pub(crate) struct EvmDebugTracer {
+    address: Address,
+}
 
 impl EvmDebugTracer {
-    pub fn new() -> Self {
-        Self {}
+    pub fn new(address: Address) -> Self {
+        Self { address }
     }
 }
 
@@ -57,6 +59,7 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for EvmDebugTracer {
         let value = data.src1_value.value;
 
         const DEBUG_SLOT: u32 = 32 * 32;
+        const STACK_POINT: u32 = DEBUG_SLOT + 32 * 5;
         let debug_magic = U256::from_dec_str(
             "33509158800074003487174289148292687789659295220513886355337449724907776218753",
         )
@@ -67,17 +70,37 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for EvmDebugTracer {
             || fat_ptr.offset != DEBUG_SLOT
             || value != debug_magic
         {
+            // println!("I tried");
             return;
         }
 
         let ip = memory.read_slot(heap_page as usize, 32 + 1).value;
         let tos = memory.read_slot(heap_page as usize, 32 + 2).value;
+        let gasleft = memory.read_slot(heap_page as usize, 32 + 3).value;
+        let true_opcode = memory.read_slot(heap_page as usize, 32 + 4).value.as_u32() as u8;
+
+        let opcode_id = memory.read_unaligned_bytes(heap_page as usize, ip.as_usize(), 1);
+
+        let mut stack = vec![];
+        for i in 0..16 {
+            let point = tos - i * 32;
+            if point >= U256::from(STACK_POINT) {
+                stack.push(
+                    memory
+                        .read_slot(heap_page as usize, point.as_usize() / 32)
+                        .value,
+                );
+            }
+        }
 
         println!(
-            "EVM execution at {}. TOS: {}, IP: {}",
+            "EVM execution at {}. TOS: {}, IP: {}, OPCODE: 0x{}/0x{}, GASLEFT: {gasleft}\nStack: {:#?}\n",
             hex::encode(&code_address.0),
             tos,
-            ip
+            ip,
+            hex::encode(&opcode_id),
+            hex::encode(&[true_opcode]),
+            stack
         );
     }
 }

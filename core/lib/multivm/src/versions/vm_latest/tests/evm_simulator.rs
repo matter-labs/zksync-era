@@ -36,9 +36,10 @@ use crate::{
         },
         tracers::evm_debug_tracer::EvmDebugTracer,
         utils::fee::get_batch_base_fee,
-        HistoryEnabled, TracerDispatcher, TracerPointer,
+        HistoryEnabled, ToTracerPointer, TracerDispatcher, TracerPointer,
     },
     vm_m5::storage::Storage,
+    HistoryMode,
 };
 
 fn read_test_evm_bytecode(folder_name: &str, contract_name: &str) -> (Vec<u8>, Vec<u8>) {
@@ -198,21 +199,16 @@ fn test_basic_evm_vectors() {
     );
 }
 
-#[test]
-fn test_basic_evm_interaction() {
-    // In this test, we aim to test whether a simple account interaction (without any fee logic)
-    // will work. The account will try to deploy a simple contract from integration tests.
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
-        .with_empty_in_memory_storage()
-        .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .with_random_rich_accounts(1)
-        .build();
-
-    let account = &mut vm.rich_accounts[0];
+fn deploy_evm_contract<H: HistoryMode>(
+    tester: &mut VmTester<H>,
+    folder_name: &str,
+    contract_name: &str,
+) -> (Address, Contract) {
+    let account = &mut tester.rich_accounts[0];
 
     let (counter_bytecode, counter_deployed_bytecode) =
-        read_test_evm_bytecode("counter", "Counter");
-    let abi = load_test_evm_contract("counter", "Counter");
+        read_test_evm_bytecode(folder_name, contract_name);
+    let abi = load_test_evm_contract(folder_name, contract_name);
 
     let sample_evm_code = counter_bytecode;
     let expected_deployed_code_hash = H256(keccak256(&counter_deployed_bytecode));
@@ -227,9 +223,9 @@ fn test_basic_evm_interaction() {
         None,
     );
 
-    vm.vm.push_transaction(tx);
+    tester.vm.push_transaction(tx);
     let tx_result: crate::vm_latest::VmExecutionResultAndLogs =
-        vm.vm.execute(VmExecutionMode::OneTx);
+        tester.vm.execute(VmExecutionMode::OneTx);
 
     assert!(
         !tx_result.result.is_failed(),
@@ -237,7 +233,7 @@ fn test_basic_evm_interaction() {
     );
 
     let expected_deployed_address = deployed_address_evm_create(account.address, 0.into());
-    let stored_evm_code_hash = vm.vm.storage.borrow_mut().get_value(&StorageKey::new(
+    let stored_evm_code_hash = tester.vm.storage.borrow_mut().get_value(&StorageKey::new(
         AccountTreeId::new(CONTRACT_DEPLOYER_ADDRESS),
         key_for_evm_hash(&expected_deployed_address),
     ));
@@ -245,6 +241,22 @@ fn test_basic_evm_interaction() {
         stored_evm_code_hash, expected_deployed_code_hash,
         "EVM code hash wasn't stored correctly"
     );
+
+    (expected_deployed_address, abi)
+}
+
+#[test]
+fn test_basic_evm_interaction() {
+    // In this test, we aim to test whether a simple account interaction (without any fee logic)
+    // will work. The account will try to deploy a simple contract from integration tests.
+    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+        .with_empty_in_memory_storage()
+        .with_execution_mode(TxExecutionMode::VerifyExecute)
+        .with_random_rich_accounts(1)
+        .build();
+
+    let (expected_deployed_address, abi) = deploy_evm_contract(&mut vm, "counter", "Counter");
+    let account = &mut vm.rich_accounts[0];
 
     let tx2 = account.get_l2_tx_for_execute(
         Execute {
@@ -296,4 +308,41 @@ fn test_basic_evm_interaction() {
         H256::zero(),
     ));
     assert_eq!(h256_to_u256(saved_value), U256::from(50));
+}
+
+#[test]
+fn test_evm_gas_consumption() {
+    // In this test, we aim to test whether a simple account interaction (without any fee logic)
+    // will work. The account will try to deploy a simple contract from integration tests.
+    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+        .with_empty_in_memory_storage()
+        .with_execution_mode(TxExecutionMode::VerifyExecute)
+        .with_random_rich_accounts(1)
+        .build();
+
+    let (expected_deployed_address, abi) = deploy_evm_contract(&mut vm, "gas-tester", "GasTester");
+    println!("Deployed address: {:?}", expected_deployed_address);
+
+    let account = &mut vm.rich_accounts[0];
+
+    let tx1 = account.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(expected_deployed_address),
+            calldata: abi.function("testGas").unwrap().encode_input(&[]).unwrap(),
+            value: U256::zero(),
+            factory_deps: None,
+        },
+        None,
+    );
+    vm.vm.push_transaction(tx1);
+    let tx_result = vm.vm.inspect(
+        EvmDebugTracer::new(expected_deployed_address)
+            .into_tracer_pointer()
+            .into(),
+        VmExecutionMode::OneTx,
+    );
+    assert!(
+        !tx_result.result.is_failed(),
+        "Transaction wasn't successful"
+    );
 }
