@@ -14,7 +14,7 @@ use zksync_prover_fri_types::{
     },
     ProverServiceDataKey,
 };
-use zksync_types::proofs::AggregationRound;
+use zksync_types::basic_fri_types::AggregationRound;
 use zksync_vk_setup_data_server_fri::{
     get_round_for_recursive_circuit_type, save_base_layer_vk, save_finalization_hints,
     save_recursive_layer_vk,

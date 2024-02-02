@@ -606,6 +606,9 @@ type L1Token = {
 
 export function getTokens(network: string): L1Token[] {
     const configPath = `${process.env.ZKSYNC_HOME}/etc/tokens/${network}.json`;
+    if (!fs.existsSync(configPath)) {
+        return [];
+    }
     try {
         return JSON.parse(
             fs.readFileSync(configPath, {
@@ -772,7 +775,7 @@ async function configDemoHyperchain(cmd: Command) {
     const deployerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
     const governorPrivateKey = process.env.GOVERNOR_PRIVATE_KEY;
     const deployL2Weth = Boolean(process.env.DEPLOY_L2_WETH || false);
-    const deployTestTokens = Boolean(process.env.DEPLOY_TEST_TOKENS || false);
+    const deployTestTokens = Boolean(process.env.DEPLOY_TEST_TOKENS || true);
 
     const initArgs: InitArgs = {
         skipSubmodulesCheckout: false,

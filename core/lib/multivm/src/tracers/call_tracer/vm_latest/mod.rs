@@ -9,7 +9,8 @@ use zksync_state::{StoragePtr, WriteStorage};
 use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_types::{
     vm_trace::{Call, CallType},
-    FarCallOpcode, U256,
+    zk_evm_types::FarCallOpcode,
+    U256,
 };
 
 use crate::{

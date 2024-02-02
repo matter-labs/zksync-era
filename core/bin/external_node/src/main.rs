@@ -7,6 +7,7 @@ use metrics::EN_METRICS;
 use prometheus_exporter::PrometheusExporterConfig;
 use tokio::{sync::watch, task, time::sleep};
 use zksync_basic_types::{Address, L2ChainId};
+use zksync_concurrency::{ctx, scope};
 use zksync_config::configs::database::MerkleTreeMode;
 use zksync_core::{
     api_server::{
@@ -16,6 +17,7 @@ use zksync_core::{
         web3::{ApiBuilder, Namespace},
     },
     block_reverter::{BlockReverter, BlockReverterFlags, L1ExecutedBatchesRevert},
+    consensus,
     consistency_checker::ConsistencyChecker,
     l1_gas_price::MainNodeFeeParamsFetcher,
     metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
@@ -169,22 +171,57 @@ async fn init_tasks(
     let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
         .context("Failed creating JSON-RPC client for main node")?;
     let singleton_pool_builder = ConnectionPool::singleton(&config.postgres.database_url);
-    let fetcher_cursor = {
-        let pool = singleton_pool_builder
-            .build()
-            .await
-            .context("failed to build a connection pool for `MainNodeFetcher`")?;
-        let mut storage = pool.access_storage_tagged("sync_layer").await?;
-        FetcherCursor::new(&mut storage)
-            .await
-            .context("failed to load `MainNodeFetcher` cursor from Postgres")?
+
+    let fetcher_handle = match config.consensus.clone() {
+        None => {
+            let fetcher_cursor = {
+                let pool = singleton_pool_builder
+                    .build()
+                    .await
+                    .context("failed to build a connection pool for `MainNodeFetcher`")?;
+                let mut storage = pool.access_storage_tagged("sync_layer").await?;
+                FetcherCursor::new(&mut storage)
+                    .await
+                    .context("failed to load `MainNodeFetcher` cursor from Postgres")?
+            };
+            let fetcher = fetcher_cursor.into_fetcher(
+                Box::new(main_node_client),
+                action_queue_sender,
+                sync_state.clone(),
+                stop_receiver.clone(),
+            );
+            tokio::spawn(fetcher.run())
+        }
+        Some(cfg) => {
+            let pool = connection_pool.clone();
+            let mut stop_receiver = stop_receiver.clone();
+            let sync_state = sync_state.clone();
+            #[allow(clippy::redundant_locals)]
+            tokio::spawn(async move {
+                let sync_state = sync_state;
+                let main_node_client = main_node_client;
+                scope::run!(&ctx::root(), |ctx, s| async {
+                    s.spawn_bg(async {
+                        let res = cfg.run(ctx, pool, action_queue_sender).await;
+                        tracing::info!("Consensus actor stopped");
+                        res
+                    });
+                    // TODO: information about the head block of the validators
+                    // (currently just the main node)
+                    // should also be provided over the gossip network.
+                    s.spawn_bg(async {
+                        consensus::run_main_node_state_fetcher(ctx, &main_node_client, &sync_state)
+                            .await?;
+                        Ok(())
+                    });
+                    ctx.wait(stop_receiver.wait_for(|stop| *stop)).await??;
+                    Ok(())
+                })
+                .await
+                .context("consensus actor")
+            })
+        }
     };
-    let fetcher = fetcher_cursor.into_fetcher(
-        Box::new(main_node_client),
-        action_queue_sender,
-        sync_state.clone(),
-        stop_receiver.clone(),
-    );
 
     let metadata_calculator_config = MetadataCalculatorConfig {
         db_path: config.required.merkle_tree_path.clone(),
@@ -196,7 +233,9 @@ async fn init_tasks(
         memtable_capacity: config.optional.merkle_tree_memtable_capacity(),
         stalled_writes_timeout: config.optional.merkle_tree_stalled_writes_timeout(),
     };
-    let metadata_calculator = MetadataCalculator::new(metadata_calculator_config, None).await;
+    let metadata_calculator = MetadataCalculator::new(metadata_calculator_config, None)
+        .await
+        .context("failed initializing metadata calculator")?;
     healthchecks.push(Box::new(metadata_calculator.tree_health_check()));
 
     let consistency_checker = ConsistencyChecker::new(
@@ -231,8 +270,9 @@ async fn init_tasks(
     let consistency_checker_handle = tokio::spawn(consistency_checker.run(stop_receiver.clone()));
 
     let updater_handle = task::spawn(batch_status_updater.run(stop_receiver.clone()));
+    let fee_address_migration_handle =
+        task::spawn(state_keeper.run_fee_address_migration(connection_pool.clone()));
     let sk_handle = task::spawn(state_keeper.run());
-    let fetcher_handle = tokio::spawn(fetcher.run());
     let fee_params_fetcher_handle =
         tokio::spawn(fee_params_fetcher.clone().run(stop_receiver.clone()));
 
@@ -317,12 +357,13 @@ async fn init_tasks(
     task_handles.extend(cache_update_handle);
     task_handles.extend([
         sk_handle,
+        fee_address_migration_handle,
         fetcher_handle,
         updater_handle,
         tree_handle,
+        consistency_checker_handle,
         fee_params_fetcher_handle,
     ]);
-    task_handles.push(consistency_checker_handle);
 
     Ok((task_handles, stop_sender, healthcheck_handle, stop_receiver))
 }
@@ -345,6 +386,8 @@ async fn shutdown_components(
 struct Cli {
     #[arg(long)]
     revert_pending_l1_batch: bool,
+    #[arg(long)]
+    enable_consensus: bool,
 }
 
 #[tokio::main]
@@ -375,9 +418,13 @@ async fn main() -> anyhow::Result<()> {
         tracing::info!("No sentry URL was provided");
     }
 
-    let config = ExternalNodeConfig::collect()
+    let mut config = ExternalNodeConfig::collect()
         .await
         .context("Failed to load external node config")?;
+    if opt.enable_consensus {
+        config.consensus =
+            Some(config::read_consensus_config().context("read_consensus_config()")?);
+    }
     let main_node_url = config
         .required
         .main_node_url()
@@ -471,7 +518,7 @@ async fn main() -> anyhow::Result<()> {
     let reorg_detector_last_correct_batch = reorg_detector_result.and_then(|result| match result {
         Ok(Ok(last_correct_batch)) => last_correct_batch,
         Ok(Err(err)) => {
-            tracing::error!("Reorg detector failed: {err}");
+            tracing::error!("Reorg detector failed: {err:#}");
             None
         }
         Err(err) => {

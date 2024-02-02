@@ -8,7 +8,7 @@ use zksync_prover_fri_types::{
     },
     ProverServiceDataKey,
 };
-use zksync_types::proofs::AggregationRound;
+use zksync_types::basic_fri_types::AggregationRound;
 use zksync_vk_setup_data_server_fri::{
     get_base_layer_vk_for_circuit_type, get_base_path, get_file_path, get_finalization_hints,
     get_recursive_layer_vk_for_circuit_type, get_round_for_recursive_circuit_type,

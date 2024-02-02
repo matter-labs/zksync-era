@@ -324,6 +324,60 @@ impl EthNamespace {
     }
 
     #[tracing::instrument(skip(self))]
+    pub async fn get_block_receipts_impl(
+        &self,
+        block_id: BlockId,
+    ) -> Result<Vec<TransactionReceipt>, Web3Error> {
+        const METHOD_NAME: &str = "get_block_receipts";
+
+        let method_latency = API_METRICS.start_block_call(METHOD_NAME, block_id);
+
+        self.state.start_info.ensure_not_pruned(block_id)?;
+
+        let block = self
+            .state
+            .connection_pool
+            .access_storage_tagged("api")
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err))?
+            .blocks_web3_dal()
+            .get_block_by_web3_block_id(block_id, false, self.state.api_config.l2_chain_id)
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err))?;
+
+        let transactions: &[TransactionVariant] =
+            block.as_ref().map_or(&[], |block| &block.transactions);
+        let hashes: Vec<_> = transactions
+            .iter()
+            .map(|tx| match tx {
+                TransactionVariant::Full(tx) => tx.hash,
+                TransactionVariant::Hash(hash) => *hash,
+            })
+            .collect();
+
+        let mut receipts = self
+            .state
+            .connection_pool
+            .access_storage_tagged("api")
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err))?
+            .transactions_web3_dal()
+            .get_transaction_receipts(&hashes)
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err))?;
+
+        receipts.sort_unstable_by_key(|receipt| receipt.transaction_index);
+
+        if let Some(block) = block {
+            self.report_latency_with_block_id(method_latency, block.number.as_u32().into());
+        } else {
+            method_latency.observe_without_diff();
+        }
+
+        Ok(receipts)
+    }
+
+    #[tracing::instrument(skip(self))]
     pub async fn get_code_impl(
         &self,
         address: Address,
@@ -495,19 +549,20 @@ impl EthNamespace {
         const METHOD_NAME: &str = "get_transaction_receipt";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-        let receipt = self
+        let receipts = self
             .state
             .connection_pool
             .access_storage_tagged("api")
             .await
             .unwrap()
             .transactions_web3_dal()
-            .get_transaction_receipt(hash)
+            .get_transaction_receipts(&[hash])
             .await
-            .map_err(|err| internal_error(METHOD_NAME, err));
+            .map_err(|err| internal_error(METHOD_NAME, err))?;
 
         method_latency.observe();
-        receipt
+
+        Ok(receipts.into_iter().next())
     }
 
     #[tracing::instrument(skip(self))]

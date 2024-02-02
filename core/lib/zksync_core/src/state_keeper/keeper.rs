@@ -1,11 +1,13 @@
 use std::{
     convert::Infallible,
+    future::{self, Future},
     time::{Duration, Instant},
 };
 
 use anyhow::Context as _;
 use multivm::interface::{Halt, L1BatchEnv, SystemEnv};
 use tokio::sync::watch;
+use zksync_dal::ConnectionPool;
 use zksync_types::{
     block::MiniblockExecutionData, l2::TransactionType, protocol_version::ProtocolUpgradeTx,
     storage_writes_deduplicator::StorageWritesDeduplicator, Transaction,
@@ -20,7 +22,7 @@ use super::{
     types::ExecutionMetricsForCriteria,
     updates::UpdatesManager,
 };
-use crate::gas_tracker::gas_count_from_writes;
+use crate::{gas_tracker::gas_count_from_writes, state_keeper::io::fee_address_migration};
 
 /// Amount of time to block on waiting for some resource. The exact value is not really important,
 /// we only need it to not block on waiting indefinitely and be able to process cancellation requests.
@@ -73,6 +75,21 @@ impl ZkSyncStateKeeper {
             io,
             batch_executor_base,
             sealer,
+        }
+    }
+
+    /// Temporary method to migrate fee addresses from L1 batches to miniblocks.
+    pub fn run_fee_address_migration(
+        &self,
+        pool: ConnectionPool,
+    ) -> impl Future<Output = anyhow::Result<()>> {
+        let last_miniblock = self.io.current_miniblock_number() - 1;
+        let stop_receiver = self.stop_receiver.clone();
+        async move {
+            fee_address_migration::migrate_miniblocks(pool, last_miniblock, stop_receiver).await?;
+            future::pending::<()>().await;
+            // ^ Since this is run as a task, we don't want it to exit on success (this would shut down the node).
+            anyhow::Ok(())
         }
     }
 
@@ -158,8 +175,13 @@ impl ZkSyncStateKeeper {
 
         let mut batch_executor = self
             .batch_executor_base
-            .init_batch(l1_batch_env.clone(), system_env.clone())
-            .await;
+            .init_batch(
+                l1_batch_env.clone(),
+                system_env.clone(),
+                &self.stop_receiver,
+            )
+            .await
+            .ok_or(Error::Canceled)?;
 
         self.restore_state(&batch_executor, &mut updates_manager, pending_miniblocks)
             .await?;
@@ -210,8 +232,13 @@ impl ZkSyncStateKeeper {
             );
             batch_executor = self
                 .batch_executor_base
-                .init_batch(l1_batch_env.clone(), system_env.clone())
-                .await;
+                .init_batch(
+                    l1_batch_env.clone(),
+                    system_env.clone(),
+                    &self.stop_receiver,
+                )
+                .await
+                .ok_or(Error::Canceled)?;
 
             let version_changed = system_env.version != sealed_batch_protocol_version;
 
@@ -309,9 +336,13 @@ impl ZkSyncStateKeeper {
                     ..
                 } = result
                 else {
-                    return Err(anyhow::anyhow!(
+                    tracing::error!(
                         "Re-executing stored tx failed. Tx: {tx:?}. Err: {:?}",
                         result.err()
+                    );
+                    return Err(anyhow::anyhow!(
+                        "Re-executing stored tx failed. It means that transaction was executed \
+                         successfully before, but failed after a restart."
                     )
                     .into());
                 };
@@ -319,7 +350,7 @@ impl ZkSyncStateKeeper {
                 let ExecutionMetricsForCriteria {
                     l1_gas: tx_l1_gas_this_tx,
                     execution_metrics: tx_execution_metrics,
-                } = tx_metrics;
+                } = *tx_metrics;
 
                 let tx_hash = tx.hash();
                 let is_l1 = tx.is_l1();
@@ -348,6 +379,10 @@ impl ZkSyncStateKeeper {
                 );
             }
         }
+
+        tracing::debug!(
+            "All the transactions from the pending state were re-executed successfully"
+        );
 
         // We've processed all the miniblocks, and right now we're initializing the next *actual* miniblock.
         let new_miniblock_params = self
@@ -434,7 +469,7 @@ impl ZkSyncStateKeeper {
                     let ExecutionMetricsForCriteria {
                         l1_gas: tx_l1_gas_this_tx,
                         execution_metrics: tx_execution_metrics,
-                    } = tx_metrics;
+                    } = *tx_metrics;
                     updates_manager.extend_from_executed_transaction(
                         tx,
                         *tx_result,
@@ -504,7 +539,7 @@ impl ZkSyncStateKeeper {
                     l1_gas: tx_l1_gas_this_tx,
                     execution_metrics: tx_execution_metrics,
                     ..
-                } = tx_metrics;
+                } = *tx_metrics;
                 updates_manager.extend_from_executed_transaction(
                     tx,
                     *tx_result,
@@ -575,7 +610,7 @@ impl ZkSyncStateKeeper {
                 let ExecutionMetricsForCriteria {
                     l1_gas: tx_l1_gas_this_tx,
                     execution_metrics: tx_execution_metrics,
-                } = *tx_metrics;
+                } = **tx_metrics;
 
                 tracing::trace!(
                     "finished tx {:?} by {:?} (is_l1: {}) (#{} in l1 batch {}) (#{} in miniblock {}) \
@@ -598,7 +633,7 @@ impl ZkSyncStateKeeper {
                 let ExecutionMetricsForCriteria {
                     l1_gas: finish_block_l1_gas,
                     execution_metrics: finish_block_execution_metrics,
-                } = *bootloader_dry_run_metrics;
+                } = **bootloader_dry_run_metrics;
 
                 let encoding_len = tx.encoding_len();
 

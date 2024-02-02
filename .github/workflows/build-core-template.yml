@@ -30,7 +30,6 @@ jobs:
             - server-v2
             - external-node
             - contract-verifier
-            - cross-external-nodes-checker
             - snapshots-creator
           platforms:
             - linux/amd64
@@ -74,7 +73,8 @@ jobs:
           ci_run yarn zk build
           ci_run curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
 
-      - name: login to Docker registries
+      - name: Login to Docker registries
+        if: ${{ inputs.action == 'push' }}
         run: |
           ci_run docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
           ci_run gcloud auth configure-docker us-docker.pkg.dev -q
@@ -107,8 +107,6 @@ jobs:
           - name: external-node
             platform: linux/amd64,linux/arm64
           - name: contract-verifier
-            platform: linux/amd64
-          - name: cross-external-nodes-checker
             platform: linux/amd64
           - name: snapshots-creator
             platform: linux/amd64

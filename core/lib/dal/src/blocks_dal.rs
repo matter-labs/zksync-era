@@ -10,8 +10,10 @@ use sqlx::Row;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     block::{BlockGasCount, L1BatchHeader, MiniblockHeader},
+    circuit::CircuitStatistic,
     commitment::{L1BatchMetadata, L1BatchWithMetadata},
-    Address, L1BatchNumber, LogQuery, MiniblockNumber, ProtocolVersionId, H256, U256,
+    zk_evm_types::LogQuery,
+    Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256, U256,
 };
 
 use crate::{
@@ -48,8 +50,6 @@ impl BlocksDal<'_, '_> {
                 MAX(number) AS "number"
             FROM
                 l1_batches
-            WHERE
-                is_finished = TRUE
             "#
         )
         .instrument("get_sealed_block_number")
@@ -151,16 +151,11 @@ impl BlocksDal<'_, '_> {
                 l1_tx_count,
                 l2_tx_count,
                 timestamp,
-                is_finished,
-                fee_account_address,
                 l2_to_l1_logs,
                 l2_to_l1_messages,
                 bloom,
                 priority_ops_onchain_data,
                 used_contract_hashes,
-                base_fee_per_gas,
-                l1_gas_price,
-                l2_fair_gas_price,
                 bootloader_code_hash,
                 default_aa_code_hash,
                 protocol_version,
@@ -194,10 +189,8 @@ impl BlocksDal<'_, '_> {
             SELECT
                 number,
                 timestamp,
-                is_finished,
                 l1_tx_count,
                 l2_tx_count,
-                fee_account_address,
                 bloom,
                 priority_ops_onchain_data,
                 hash,
@@ -216,13 +209,10 @@ impl BlocksDal<'_, '_> {
                 compressed_repeated_writes,
                 l2_l1_compressed_messages,
                 l2_l1_merkle_root,
-                l1_gas_price,
-                l2_fair_gas_price,
                 rollup_last_leaf_index,
                 zkporter_is_available,
                 bootloader_code_hash,
                 default_aa_code_hash,
-                base_fee_per_gas,
                 aux_data_hash,
                 pass_through_data_hash,
                 meta_parameters_hash,
@@ -258,16 +248,11 @@ impl BlocksDal<'_, '_> {
                 l1_tx_count,
                 l2_tx_count,
                 timestamp,
-                is_finished,
-                fee_account_address,
                 l2_to_l1_logs,
                 l2_to_l1_messages,
                 bloom,
                 priority_ops_onchain_data,
                 used_contract_hashes,
-                base_fee_per_gas,
-                l1_gas_price,
-                l2_fair_gas_price,
                 bootloader_code_hash,
                 default_aa_code_hash,
                 protocol_version,
@@ -447,7 +432,7 @@ impl BlocksDal<'_, '_> {
         predicted_block_gas: BlockGasCount,
         events_queue: &[LogQuery],
         storage_refunds: &[u32],
-        predicted_circuits: u32,
+        predicted_circuits_by_type: CircuitStatistic, // predicted number of circuits for each circuit type
     ) -> anyhow::Result<()> {
         let priority_onchain_data: Vec<Vec<u8>> = header
             .priority_ops_onchain_data
@@ -474,8 +459,6 @@ impl BlocksDal<'_, '_> {
         // Serialization should always succeed.
         let used_contract_hashes = serde_json::to_value(&header.used_contract_hashes)
             .expect("failed to serialize used_contract_hashes to JSON value");
-        let base_fee_per_gas = BigDecimal::from_u64(header.base_fee_per_gas)
-            .context("block.base_fee_per_gas should fit in u64")?;
         let storage_refunds: Vec<_> = storage_refunds.iter().map(|n| *n as i64).collect();
 
         let mut transaction = self.storage.start_transaction().await?;
@@ -487,8 +470,6 @@ impl BlocksDal<'_, '_> {
                     l1_tx_count,
                     l2_tx_count,
                     timestamp,
-                    is_finished,
-                    fee_account_address,
                     l2_to_l1_logs,
                     l2_to_l1_messages,
                     bloom,
@@ -498,16 +479,13 @@ impl BlocksDal<'_, '_> {
                     predicted_execute_gas_cost,
                     initial_bootloader_heap_content,
                     used_contract_hashes,
-                    base_fee_per_gas,
-                    l1_gas_price,
-                    l2_fair_gas_price,
                     bootloader_code_hash,
                     default_aa_code_hash,
                     protocol_version,
                     system_logs,
                     storage_refunds,
                     pubdata_input,
-                    predicted_circuits,
+                    predicted_circuits_by_type,
                     created_at,
                     updated_at
                 )
@@ -533,11 +511,6 @@ impl BlocksDal<'_, '_> {
                     $18,
                     $19,
                     $20,
-                    $21,
-                    $22,
-                    $23,
-                    $24,
-                    $25,
                     NOW(),
                     NOW()
                 )
@@ -546,8 +519,6 @@ impl BlocksDal<'_, '_> {
             header.l1_tx_count as i32,
             header.l2_tx_count as i32,
             header.timestamp as i64,
-            header.is_finished,
-            header.fee_account_address.as_bytes(),
             &l2_to_l1_logs,
             &header.l2_to_l1_messages,
             header.bloom.as_bytes(),
@@ -557,16 +528,13 @@ impl BlocksDal<'_, '_> {
             predicted_block_gas.execute as i64,
             initial_bootloader_contents,
             used_contract_hashes,
-            base_fee_per_gas,
-            header.l1_gas_price as i64,
-            header.l2_fair_gas_price as i64,
             header.base_system_contracts_hashes.bootloader.as_bytes(),
             header.base_system_contracts_hashes.default_aa.as_bytes(),
             header.protocol_version.map(|v| v as i32),
             &system_logs,
             &storage_refunds,
             pubdata_input,
-            predicted_circuits as i32,
+            serde_json::to_value(predicted_circuits_by_type).unwrap(),
         )
         .execute(transaction.conn())
         .await?;
@@ -604,6 +572,7 @@ impl BlocksDal<'_, '_> {
                     hash,
                     l1_tx_count,
                     l2_tx_count,
+                    fee_account_address,
                     base_fee_per_gas,
                     l1_gas_price,
                     l2_fair_gas_price,
@@ -617,13 +586,14 @@ impl BlocksDal<'_, '_> {
                     updated_at
                 )
             VALUES
-                ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), NOW())
+                ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), NOW())
             "#,
             miniblock_header.number.0 as i64,
             miniblock_header.timestamp as i64,
             miniblock_header.hash.as_bytes(),
             miniblock_header.l1_tx_count as i32,
             miniblock_header.l2_tx_count as i32,
+            miniblock_header.fee_account_address.as_bytes(),
             base_fee_per_gas,
             miniblock_header.batch_fee_input.l1_gas_price() as i64,
             miniblock_header.batch_fee_input.fair_l2_gas_price() as i64,
@@ -648,7 +618,7 @@ impl BlocksDal<'_, '_> {
     pub async fn get_last_sealed_miniblock_header(
         &mut self,
     ) -> sqlx::Result<Option<MiniblockHeader>> {
-        Ok(sqlx::query_as!(
+        let header = sqlx::query_as!(
             StorageMiniblockHeader,
             r#"
             SELECT
@@ -657,6 +627,7 @@ impl BlocksDal<'_, '_> {
                 hash,
                 l1_tx_count,
                 l2_tx_count,
+                fee_account_address AS "fee_account_address!",
                 base_fee_per_gas,
                 l1_gas_price,
                 l2_fair_gas_price,
@@ -675,15 +646,25 @@ impl BlocksDal<'_, '_> {
             "#,
         )
         .fetch_optional(self.storage.conn())
-        .await?
-        .map(Into::into))
+        .await?;
+
+        let Some(header) = header else {
+            return Ok(None);
+        };
+        let mut header = MiniblockHeader::from(header);
+        // FIXME (PLA-728): remove after 2nd phase of `fee_account_address` migration
+        #[allow(deprecated)]
+        self.maybe_load_fee_address(&mut header.fee_account_address, header.number)
+            .await?;
+
+        Ok(Some(header))
     }
 
     pub async fn get_miniblock_header(
         &mut self,
         miniblock_number: MiniblockNumber,
     ) -> sqlx::Result<Option<MiniblockHeader>> {
-        Ok(sqlx::query_as!(
+        let header = sqlx::query_as!(
             StorageMiniblockHeader,
             r#"
             SELECT
@@ -692,6 +673,7 @@ impl BlocksDal<'_, '_> {
                 hash,
                 l1_tx_count,
                 l2_tx_count,
+                fee_account_address AS "fee_account_address!",
                 base_fee_per_gas,
                 l1_gas_price,
                 l2_fair_gas_price,
@@ -709,8 +691,18 @@ impl BlocksDal<'_, '_> {
             miniblock_number.0 as i64,
         )
         .fetch_optional(self.storage.conn())
-        .await?
-        .map(Into::into))
+        .await?;
+
+        let Some(header) = header else {
+            return Ok(None);
+        };
+        let mut header = MiniblockHeader::from(header);
+        // FIXME (PLA-728): remove after 2nd phase of `fee_account_address` migration
+        #[allow(deprecated)]
+        self.maybe_load_fee_address(&mut header.fee_account_address, header.number)
+            .await?;
+
+        Ok(Some(header))
     }
 
     pub async fn mark_miniblocks_as_executed_in_l1_batch(
@@ -935,10 +927,8 @@ impl BlocksDal<'_, '_> {
             SELECT
                 number,
                 timestamp,
-                is_finished,
                 l1_tx_count,
                 l2_tx_count,
-                fee_account_address,
                 bloom,
                 priority_ops_onchain_data,
                 hash,
@@ -957,13 +947,10 @@ impl BlocksDal<'_, '_> {
                 compressed_repeated_writes,
                 l2_l1_compressed_messages,
                 l2_l1_merkle_root,
-                l1_gas_price,
-                l2_fair_gas_price,
                 rollup_last_leaf_index,
                 zkporter_is_available,
                 bootloader_code_hash,
                 default_aa_code_hash,
-                base_fee_per_gas,
                 aux_data_hash,
                 pass_through_data_hash,
                 meta_parameters_hash,
@@ -1121,10 +1108,8 @@ impl BlocksDal<'_, '_> {
             SELECT
                 number,
                 timestamp,
-                is_finished,
                 l1_tx_count,
                 l2_tx_count,
-                fee_account_address,
                 bloom,
                 priority_ops_onchain_data,
                 hash,
@@ -1143,13 +1128,10 @@ impl BlocksDal<'_, '_> {
                 compressed_repeated_writes,
                 l2_l1_compressed_messages,
                 l2_l1_merkle_root,
-                l1_gas_price,
-                l2_fair_gas_price,
                 rollup_last_leaf_index,
                 zkporter_is_available,
                 bootloader_code_hash,
                 default_aa_code_hash,
-                base_fee_per_gas,
                 aux_data_hash,
                 pass_through_data_hash,
                 meta_parameters_hash,
@@ -1234,10 +1216,8 @@ impl BlocksDal<'_, '_> {
             SELECT
                 number,
                 timestamp,
-                is_finished,
                 l1_tx_count,
                 l2_tx_count,
-                fee_account_address,
                 bloom,
                 priority_ops_onchain_data,
                 hash,
@@ -1256,13 +1236,10 @@ impl BlocksDal<'_, '_> {
                 compressed_repeated_writes,
                 l2_l1_compressed_messages,
                 l2_l1_merkle_root,
-                l1_gas_price,
-                l2_fair_gas_price,
                 rollup_last_leaf_index,
                 zkporter_is_available,
                 bootloader_code_hash,
                 default_aa_code_hash,
-                base_fee_per_gas,
                 aux_data_hash,
                 pass_through_data_hash,
                 meta_parameters_hash,
@@ -1321,10 +1298,8 @@ impl BlocksDal<'_, '_> {
                     SELECT
                         number,
                         timestamp,
-                        is_finished,
                         l1_tx_count,
                         l2_tx_count,
-                        fee_account_address,
                         bloom,
                         priority_ops_onchain_data,
                         hash,
@@ -1343,13 +1318,10 @@ impl BlocksDal<'_, '_> {
                         compressed_repeated_writes,
                         l2_l1_compressed_messages,
                         l2_l1_merkle_root,
-                        l1_gas_price,
-                        l2_fair_gas_price,
                         rollup_last_leaf_index,
                         zkporter_is_available,
                         bootloader_code_hash,
                         default_aa_code_hash,
-                        base_fee_per_gas,
                         aux_data_hash,
                         pass_through_data_hash,
                         meta_parameters_hash,
@@ -1460,10 +1432,8 @@ impl BlocksDal<'_, '_> {
                 SELECT
                     number,
                     timestamp,
-                    is_finished,
                     l1_tx_count,
                     l2_tx_count,
-                    fee_account_address,
                     bloom,
                     priority_ops_onchain_data,
                     hash,
@@ -1482,13 +1452,10 @@ impl BlocksDal<'_, '_> {
                     compressed_repeated_writes,
                     l2_l1_compressed_messages,
                     l2_l1_merkle_root,
-                    l1_gas_price,
-                    l2_fair_gas_price,
                     rollup_last_leaf_index,
                     zkporter_is_available,
                     bootloader_code_hash,
                     default_aa_code_hash,
-                    base_fee_per_gas,
                     aux_data_hash,
                     pass_through_data_hash,
                     meta_parameters_hash,
@@ -1538,10 +1505,8 @@ impl BlocksDal<'_, '_> {
             SELECT
                 number,
                 l1_batches.timestamp,
-                is_finished,
                 l1_tx_count,
                 l2_tx_count,
-                fee_account_address,
                 bloom,
                 priority_ops_onchain_data,
                 hash,
@@ -1560,13 +1525,10 @@ impl BlocksDal<'_, '_> {
                 compressed_repeated_writes,
                 l2_l1_compressed_messages,
                 l2_l1_merkle_root,
-                l1_gas_price,
-                l2_fair_gas_price,
                 rollup_last_leaf_index,
                 zkporter_is_available,
                 l1_batches.bootloader_code_hash,
                 l1_batches.default_aa_code_hash,
-                base_fee_per_gas,
                 aux_data_hash,
                 pass_through_data_hash,
                 meta_parameters_hash,
@@ -1626,10 +1588,8 @@ impl BlocksDal<'_, '_> {
             SELECT
                 number,
                 l1_batches.timestamp,
-                is_finished,
                 l1_tx_count,
                 l2_tx_count,
-                fee_account_address,
                 bloom,
                 priority_ops_onchain_data,
                 hash,
@@ -1648,13 +1608,10 @@ impl BlocksDal<'_, '_> {
                 compressed_repeated_writes,
                 l2_l1_compressed_messages,
                 l2_l1_merkle_root,
-                l1_gas_price,
-                l2_fair_gas_price,
                 rollup_last_leaf_index,
                 zkporter_is_available,
                 l1_batches.bootloader_code_hash,
                 l1_batches.default_aa_code_hash,
-                base_fee_per_gas,
                 aux_data_hash,
                 pass_through_data_hash,
                 meta_parameters_hash,
@@ -1811,6 +1768,31 @@ impl BlocksDal<'_, '_> {
         .collect())
     }
 
+    pub async fn delete_initial_writes(
+        &mut self,
+        last_batch_to_keep: L1BatchNumber,
+    ) -> sqlx::Result<()> {
+        self.delete_initial_writes_inner(Some(last_batch_to_keep))
+            .await
+    }
+
+    pub async fn delete_initial_writes_inner(
+        &mut self,
+        last_batch_to_keep: Option<L1BatchNumber>,
+    ) -> sqlx::Result<()> {
+        let block_number = last_batch_to_keep.map_or(-1, |number| number.0 as i64);
+        sqlx::query!(
+            r#"
+            DELETE FROM initial_writes
+            WHERE
+                l1_batch_number > $1
+            "#,
+            block_number
+        )
+        .execute(self.storage.conn())
+        .await?;
+        Ok(())
+    }
     /// Deletes all L1 batches from the storage so that the specified batch number is the last one left.
     pub async fn delete_l1_batches(
         &mut self,
@@ -2107,24 +2089,44 @@ impl BlocksDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn get_fee_address_for_l1_batch(
+    pub async fn get_fee_address_for_miniblock(
         &mut self,
-        l1_batch_number: L1BatchNumber,
+        number: MiniblockNumber,
     ) -> sqlx::Result<Option<Address>> {
-        Ok(sqlx::query!(
+        let Some(mut fee_account_address) = self.raw_fee_address_for_miniblock(number).await?
+        else {
+            return Ok(None);
+        };
+
+        // FIXME (PLA-728): remove after 2nd phase of `fee_account_address` migration
+        #[allow(deprecated)]
+        self.maybe_load_fee_address(&mut fee_account_address, number)
+            .await?;
+        Ok(Some(fee_account_address))
+    }
+
+    async fn raw_fee_address_for_miniblock(
+        &mut self,
+        number: MiniblockNumber,
+    ) -> sqlx::Result<Option<Address>> {
+        let Some(row) = sqlx::query!(
             r#"
             SELECT
                 fee_account_address
             FROM
-                l1_batches
+                miniblocks
             WHERE
                 number = $1
             "#,
-            l1_batch_number.0 as i32
+            number.0 as i32
         )
         .fetch_optional(self.storage.conn())
         .await?
-        .map(|row| Address::from_slice(&row.fee_account_address)))
+        else {
+            return Ok(None);
+        };
+
+        Ok(Some(Address::from_slice(&row.fee_account_address)))
     }
 
     pub async fn get_virtual_blocks_for_miniblock(
@@ -2148,7 +2150,149 @@ impl BlocksDal<'_, '_> {
     }
 }
 
-/// These functions should only be used for tests.
+/// Temporary methods for migrating `fee_account_address`.
+#[deprecated(note = "will be removed after the fee address migration is complete")]
+impl BlocksDal<'_, '_> {
+    pub(crate) async fn maybe_load_fee_address(
+        &mut self,
+        fee_address: &mut Address,
+        miniblock_number: MiniblockNumber,
+    ) -> sqlx::Result<()> {
+        if *fee_address != Address::default() {
+            return Ok(());
+        }
+
+        // This clause should be triggered only for non-migrated miniblock rows. After `fee_account_address`
+        // is filled for all miniblocks, it won't be called; thus, `fee_account_address` column could be removed
+        // from `l1_batches` even with this code present.
+        let Some(row) = sqlx::query!(
+            r#"
+            SELECT
+                l1_batches.fee_account_address
+            FROM
+                l1_batches
+                INNER JOIN miniblocks ON miniblocks.l1_batch_number = l1_batches.number
+            WHERE
+                miniblocks.number = $1
+            "#,
+            miniblock_number.0 as i32
+        )
+        .fetch_optional(self.storage.conn())
+        .await?
+        else {
+            return Ok(());
+        };
+
+        *fee_address = Address::from_slice(&row.fee_account_address);
+        Ok(())
+    }
+
+    /// Checks whether `fee_account_address` is migrated for the specified miniblock. Returns
+    /// `Ok(None)` if the miniblock doesn't exist.
+    pub async fn is_fee_address_migrated(
+        &mut self,
+        number: MiniblockNumber,
+    ) -> sqlx::Result<Option<bool>> {
+        Ok(self
+            .raw_fee_address_for_miniblock(number)
+            .await?
+            .map(|address| address != Address::default()))
+    }
+
+    /// Copies `fee_account_address` for pending miniblocks (ones without an associated L1 batch)
+    /// from the last L1 batch. Returns the number of affected rows.
+    pub async fn copy_fee_account_address_for_pending_miniblocks(&mut self) -> sqlx::Result<u64> {
+        let execution_result = sqlx::query!(
+            r#"
+            UPDATE miniblocks
+            SET
+                fee_account_address = (
+                    SELECT
+                        l1_batches.fee_account_address
+                    FROM
+                        l1_batches
+                    ORDER BY
+                        l1_batches.number DESC
+                    LIMIT
+                        1
+                )
+            WHERE
+                l1_batch_number IS NULL
+                AND fee_account_address = '\x0000000000000000000000000000000000000000'::bytea
+            "#
+        )
+        .execute(self.storage.conn())
+        .await?;
+
+        Ok(execution_result.rows_affected())
+    }
+
+    pub async fn check_l1_batches_have_fee_account_address(&mut self) -> sqlx::Result<bool> {
+        let count = sqlx::query_scalar!(
+            r#"
+            SELECT COUNT(*)
+            FROM information_schema.columns
+            WHERE table_name = 'l1_batches' AND column_name = 'fee_account_address'
+            "#
+        )
+        .fetch_one(self.storage.conn())
+        .await?
+        .unwrap_or(0);
+
+        Ok(count > 0)
+    }
+
+    /// Copies `fee_account_address` for miniblocks in the given range from the L1 batch they belong to.
+    /// Returns the number of affected rows.
+    pub async fn copy_fee_account_address_for_miniblocks(
+        &mut self,
+        numbers: ops::RangeInclusive<MiniblockNumber>,
+    ) -> sqlx::Result<u64> {
+        let execution_result = sqlx::query!(
+            r#"
+            UPDATE miniblocks
+            SET
+                fee_account_address = l1_batches.fee_account_address
+            FROM
+                l1_batches
+            WHERE
+                l1_batches.number = miniblocks.l1_batch_number
+                AND miniblocks.number BETWEEN $1 AND $2
+                AND miniblocks.fee_account_address = '\x0000000000000000000000000000000000000000'::bytea
+            "#,
+            numbers.start().0 as i64,
+            numbers.end().0 as i64
+        )
+        .execute(self.storage.conn())
+        .await?;
+
+        Ok(execution_result.rows_affected())
+    }
+
+    /// Sets `fee_account_address` for an L1 batch. Should only be used in tests.
+    pub async fn set_l1_batch_fee_address(
+        &mut self,
+        l1_batch: L1BatchNumber,
+        fee_account_address: Address,
+    ) -> sqlx::Result<()> {
+        sqlx::query!(
+            r#"
+            UPDATE l1_batches
+            SET
+                fee_account_address = $1::bytea
+            WHERE
+                number = $2
+            "#,
+            fee_account_address.as_bytes(),
+            l1_batch.0 as i64
+        )
+        .execute(self.storage.conn())
+        .await?;
+        Ok(())
+    }
+}
+
+/// These methods should only be used for tests.
 impl BlocksDal<'_, '_> {
     // The actual l1 batch hash is only set by the metadata calculator.
     pub async fn set_l1_batch_hash(
@@ -2172,6 +2316,18 @@ impl BlocksDal<'_, '_> {
         Ok(())
     }
 
+    pub async fn insert_mock_l1_batch(&mut self, header: &L1BatchHeader) -> anyhow::Result<()> {
+        self.insert_l1_batch(
+            header,
+            &[],
+            Default::default(),
+            &[],
+            &[],
+            Default::default(),
+        )
+        .await
+    }
+
     /// Deletes all miniblocks and L1 batches, including the genesis ones. Should only be used in tests.
     pub async fn delete_genesis(&mut self) -> anyhow::Result<()> {
         self.delete_miniblocks_inner(None)
@@ -2180,6 +2336,9 @@ impl BlocksDal<'_, '_> {
         self.delete_l1_batches_inner(None)
             .await
             .context("delete_l1_batches_inner()")?;
+        self.delete_initial_writes_inner(None)
+            .await
+            .context("delete_initial_writes_inner()")?;
         Ok(())
     }
 }
@@ -2193,16 +2352,12 @@ mod tests {
     };
 
     use super::*;
-    use crate::ConnectionPool;
+    use crate::{tests::create_miniblock_header, ConnectionPool};
 
     #[tokio::test]
     async fn loading_l1_batch_header() {
         let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
-        conn.blocks_dal()
-            .delete_l1_batches(L1BatchNumber(0))
-            .await
-            .unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -2210,7 +2365,6 @@ mod tests {
         let mut header = L1BatchHeader::new(
             L1BatchNumber(1),
             100,
-            Address::default(),
             BaseSystemContractsHashes {
                 bootloader: H256::repeat_byte(1),
                 default_aa: H256::repeat_byte(42),
@@ -2231,7 +2385,7 @@ mod tests {
         header.l2_to_l1_messages.push(vec![33; 33]);
 
         conn.blocks_dal()
-            .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[], 0)
+            .insert_mock_l1_batch(&header)
             .await
             .unwrap();
 
@@ -2260,17 +2414,12 @@ mod tests {
     async fn getting_predicted_gas() {
         let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
-        conn.blocks_dal()
-            .delete_l1_batches(L1BatchNumber(0))
-            .await
-            .unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
         let mut header = L1BatchHeader::new(
             L1BatchNumber(1),
             100,
-            Address::default(),
             BaseSystemContractsHashes::default(),
             ProtocolVersionId::default(),
         );
@@ -2280,7 +2429,7 @@ mod tests {
             execute: 10,
         };
         conn.blocks_dal()
-            .insert_l1_batch(&header, &[], predicted_gas, &[], &[], 0)
+            .insert_l1_batch(&header, &[], predicted_gas, &[], &[], Default::default())
             .await
             .unwrap();
 
@@ -2288,7 +2437,7 @@ mod tests {
         header.timestamp += 100;
         predicted_gas += predicted_gas;
         conn.blocks_dal()
-            .insert_l1_batch(&header, &[], predicted_gas, &[], &[], 0)
+            .insert_l1_batch(&header, &[], predicted_gas, &[], &[], Default::default())
             .await
             .unwrap();
 
@@ -2318,6 +2467,146 @@ mod tests {
                 .await
                 .unwrap();
             assert_eq!(gas, 3 * expected_gas);
+        }
+    }
+
+    #[allow(deprecated)] // that's the whole point
+    #[tokio::test]
+    async fn checking_fee_account_address_in_l1_batches() {
+        let pool = ConnectionPool::test_pool().await;
+        let mut conn = pool.access_storage().await.unwrap();
+        assert!(conn
+            .blocks_dal()
+            .check_l1_batches_have_fee_account_address()
+            .await
+            .unwrap());
+    }
+
+    #[allow(deprecated)] // that's the whole point
+    #[tokio::test]
+    async fn ensuring_fee_account_address_for_miniblocks() {
+        let pool = ConnectionPool::test_pool().await;
+        let mut conn = pool.access_storage().await.unwrap();
+        conn.protocol_versions_dal()
+            .save_protocol_version_with_tx(ProtocolVersion::default())
+            .await;
+
+        for number in [1, 2] {
+            let l1_batch = L1BatchHeader::new(
+                L1BatchNumber(number),
+                100,
+                BaseSystemContractsHashes {
+                    bootloader: H256::repeat_byte(1),
+                    default_aa: H256::repeat_byte(42),
+                },
+                ProtocolVersionId::latest(),
+            );
+            let miniblock = MiniblockHeader {
+                fee_account_address: Address::default(),
+                ..create_miniblock_header(number)
+            };
+            conn.blocks_dal()
+                .insert_miniblock(&miniblock)
+                .await
+                .unwrap();
+            conn.blocks_dal()
+                .insert_mock_l1_batch(&l1_batch)
+                .await
+                .unwrap();
+            conn.blocks_dal()
+                .mark_miniblocks_as_executed_in_l1_batch(L1BatchNumber(number))
+                .await
+                .unwrap();
+
+            assert_eq!(
+                conn.blocks_dal()
+                    .is_fee_address_migrated(miniblock.number)
+                    .await
+                    .unwrap(),
+                Some(false)
+            );
+        }
+
+        // Manually set `fee_account_address` for the inserted L1 batches.
+        conn.blocks_dal()
+            .set_l1_batch_fee_address(L1BatchNumber(1), Address::repeat_byte(0x23))
+            .await
+            .unwrap();
+        conn.blocks_dal()
+            .set_l1_batch_fee_address(L1BatchNumber(2), Address::repeat_byte(0x42))
+            .await
+            .unwrap();
+
+        // Add a pending miniblock.
+        let miniblock = MiniblockHeader {
+            fee_account_address: Address::default(),
+            ..create_miniblock_header(3)
+        };
+        conn.blocks_dal()
+            .insert_miniblock(&miniblock)
+            .await
+            .unwrap();
+
+        let rows_affected = conn
+            .blocks_dal()
+            .copy_fee_account_address_for_miniblocks(MiniblockNumber(0)..=MiniblockNumber(100))
+            .await
+            .unwrap();
+
+        assert_eq!(rows_affected, 2);
+        let first_miniblock_addr = conn
+            .blocks_dal()
+            .raw_fee_address_for_miniblock(MiniblockNumber(1))
+            .await
+            .unwrap()
+            .expect("No fee address for block #1");
+        assert_eq!(first_miniblock_addr, Address::repeat_byte(0x23));
+        let second_miniblock_addr = conn
+            .blocks_dal()
+            .raw_fee_address_for_miniblock(MiniblockNumber(2))
+            .await
+            .unwrap()
+            .expect("No fee address for block #1");
+        assert_eq!(second_miniblock_addr, Address::repeat_byte(0x42));
+        // The pending miniblock should not be affected.
+        let pending_miniblock_addr = conn
+            .blocks_dal()
+            .raw_fee_address_for_miniblock(MiniblockNumber(3))
+            .await
+            .unwrap()
+            .expect("No fee address for block #3");
+        assert_eq!(pending_miniblock_addr, Address::default());
+        assert_eq!(
+            conn.blocks_dal()
+                .is_fee_address_migrated(MiniblockNumber(3))
+                .await
+                .unwrap(),
+            Some(false)
+        );
+
+        let rows_affected = conn
+            .blocks_dal()
+            .copy_fee_account_address_for_pending_miniblocks()
+            .await
+            .unwrap();
+        assert_eq!(rows_affected, 1);
+
+        let pending_miniblock_addr = conn
+            .blocks_dal()
+            .raw_fee_address_for_miniblock(MiniblockNumber(3))
+            .await
+            .unwrap()
+            .expect("No fee address for block #3");
+        assert_eq!(pending_miniblock_addr, Address::repeat_byte(0x42));
+
+        for number in 1..=3 {
+            assert_eq!(
+                conn.blocks_dal()
+                    .is_fee_address_migrated(MiniblockNumber(number))
+                    .await
+                    .unwrap(),
+                Some(true)
+            );
         }
     }
 }

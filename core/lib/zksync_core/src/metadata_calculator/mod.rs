@@ -4,9 +4,10 @@
 use std::{
     future::{self, Future},
     sync::Arc,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
+use anyhow::Context as _;
 use tokio::sync::watch;
 use zksync_config::configs::{
     chain::OperationsManagerConfig,
@@ -24,7 +25,7 @@ use zksync_types::{
 
 pub(crate) use self::helpers::{AsyncTreeReader, L1BatchWithLogs, MerkleTreeInfo};
 use self::{
-    helpers::{create_db, Delayer, GenericAsyncTree},
+    helpers::{create_db, Delayer, GenericAsyncTree, MerkleTreeHealth},
     metrics::{TreeUpdateStage, METRICS},
     updater::TreeUpdater,
 };
@@ -80,7 +81,7 @@ impl MetadataCalculatorConfig {
 
 #[derive(Debug)]
 pub struct MetadataCalculator {
-    tree: GenericAsyncTree,
+    config: MetadataCalculatorConfig,
     tree_reader: watch::Sender<Option<AsyncTreeReader>>,
     object_store: Option<Arc<dyn ObjectStore>>,
     delayer: Delayer,
@@ -93,31 +94,21 @@ impl MetadataCalculator {
     pub async fn new(
         config: MetadataCalculatorConfig,
         object_store: Option<Arc<dyn ObjectStore>>,
-    ) -> Self {
-        assert!(
+    ) -> anyhow::Result<Self> {
+        anyhow::ensure!(
             config.max_l1_batches_per_iter > 0,
             "Maximum L1 batches per iteration is misconfigured to be 0; please update it to positive value"
         );
 
-        let db = create_db(
-            config.db_path.clone().into(),
-            config.block_cache_capacity,
-            config.memtable_capacity,
-            config.stalled_writes_timeout,
-            config.multi_get_chunk_size,
-        )
-        .await;
-        let tree = GenericAsyncTree::new(db, config.mode).await;
-
         let (_, health_updater) = ReactiveHealthCheck::new("tree");
-        Self {
-            tree,
+        Ok(Self {
             tree_reader: watch::channel(None).0,
             object_store,
             delayer: Delayer::new(config.delay_interval),
             health_updater,
             max_l1_batches_per_iter: config.max_l1_batches_per_iter,
-        }
+            config,
+        })
     }
 
     /// Returns a health check for this calculator.
@@ -141,19 +132,52 @@ impl MetadataCalculator {
         }
     }
 
+    async fn create_tree(&self) -> anyhow::Result<GenericAsyncTree> {
+        self.health_updater
+            .update(MerkleTreeHealth::Initialization.into());
+
+        let started_at = Instant::now();
+        let db = create_db(
+            self.config.db_path.clone().into(),
+            self.config.block_cache_capacity,
+            self.config.memtable_capacity,
+            self.config.stalled_writes_timeout,
+            self.config.multi_get_chunk_size,
+        )
+        .await
+        .with_context(|| {
+            format!(
+                "failed opening Merkle tree RocksDB with configuration {:?}",
+                self.config
+            )
+        })?;
+        tracing::info!(
+            "Opened Merkle tree RocksDB with configuration {:?} in {:?}",
+            self.config,
+            started_at.elapsed()
+        );
+
+        Ok(GenericAsyncTree::new(db, self.config.mode).await)
+    }
+
     pub async fn run(
         self,
         pool: ConnectionPool,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
-        let tree = self
-            .tree
+        let tree = self.create_tree().await?;
+        let tree = tree
             .ensure_ready(&pool, &stop_receiver, &self.health_updater)
             .await?;
         let Some(tree) = tree else {
             return Ok(()); // recovery was aborted because a stop signal was received
         };
-        self.tree_reader.send_replace(Some(tree.reader()));
+        let tree_reader = tree.reader();
+        tracing::info!(
+            "Merkle tree is initialized and ready to process L1 batches: {:?}",
+            tree_reader.clone().info().await
+        );
+        self.tree_reader.send_replace(Some(tree_reader));
 
         let updater = TreeUpdater::new(tree, self.max_l1_batches_per_iter, self.object_store);
         updater

@@ -1,4 +1,5 @@
 mod block_context_mode;
+mod storage_query;
 mod tx_execution_mode;
 mod tx_revert_reason;
 mod vm_block_result;

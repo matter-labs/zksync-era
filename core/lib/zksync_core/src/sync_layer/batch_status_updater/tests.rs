@@ -6,7 +6,7 @@ use chrono::TimeZone;
 use test_casing::{test_casing, Product};
 use tokio::sync::{watch, Mutex};
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_types::{block::BlockGasCount, Address, L2ChainId, ProtocolVersionId};
+use zksync_types::{Address, L2ChainId, ProtocolVersionId};
 
 use super::*;
 use crate::{
@@ -28,7 +28,7 @@ async fn seal_l1_batch(storage: &mut StorageProcessor<'_>, number: L1BatchNumber
     let l1_batch = create_l1_batch(number.0);
     storage
         .blocks_dal()
-        .insert_l1_batch(&l1_batch, &[], BlockGasCount::default(), &[], &[], 0)
+        .insert_mock_l1_batch(&l1_batch)
         .await
         .unwrap();
     storage
@@ -108,7 +108,7 @@ impl L1BatchStagesMap {
         for (number, stage) in self.iter() {
             let local_details = storage
                 .blocks_web3_dal()
-                .get_block_details(MiniblockNumber(number.0), Address::zero())
+                .get_block_details(MiniblockNumber(number.0))
                 .await
                 .unwrap()
                 .unwrap_or_else(|| panic!("no details for block #{number}"));

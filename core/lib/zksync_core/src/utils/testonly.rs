@@ -29,6 +29,7 @@ pub(crate) fn create_miniblock(number: u32) -> MiniblockHeader {
         l2_tx_count: 0,
         base_fee_per_gas: 100,
         batch_fee_input: BatchFeeInput::l1_pegged(100, 100),
+        fee_account_address: Address::zero(),
         gas_per_pubdata_limit: get_max_gas_per_pubdata_byte(ProtocolVersionId::latest().into()),
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
@@ -38,15 +39,12 @@ pub(crate) fn create_miniblock(number: u32) -> MiniblockHeader {
 
 /// Creates an L1 batch header with the specified number and deterministic contents.
 pub(crate) fn create_l1_batch(number: u32) -> L1BatchHeader {
-    let mut header = L1BatchHeader::new(
+    L1BatchHeader::new(
         L1BatchNumber(number),
         number.into(),
-        Address::default(),
         BaseSystemContractsHashes::default(),
         ProtocolVersionId::latest(),
-    );
-    header.is_finished = true;
-    header
+    )
 }
 
 /// Creates metadata for an L1 batch with the specified number.
@@ -131,7 +129,7 @@ pub(crate) async fn prepare_recovery_snapshot(
     let l1_batch = create_l1_batch(l1_batch_number);
     storage
         .blocks_dal()
-        .insert_l1_batch(&l1_batch, &[], Default::default(), &[], &[], 0)
+        .insert_mock_l1_batch(&l1_batch)
         .await
         .unwrap();
 
@@ -153,12 +151,11 @@ pub(crate) async fn prepare_recovery_snapshot(
         l1_batch_root_hash,
         miniblock_number: miniblock.number,
         miniblock_root_hash: H256::zero(), // not used
-        last_finished_chunk_id: None,
-        total_chunk_count: 100,
+        storage_logs_chunks_processed: vec![true; 100],
     };
     storage
         .snapshot_recovery_dal()
-        .set_applied_snapshot_status(&snapshot_recovery)
+        .insert_initial_recovery_status(&snapshot_recovery)
         .await
         .unwrap();
     storage.commit().await.unwrap();
@@ -180,12 +177,11 @@ pub(crate) async fn prepare_empty_recovery_snapshot(
         l1_batch_root_hash: H256::zero(),
         miniblock_number: l1_batch_number.into(),
         miniblock_root_hash: H256::zero(), // not used
-        last_finished_chunk_id: None,
-        total_chunk_count: 100,
+        storage_logs_chunks_processed: vec![true; 100],
     };
     storage
         .snapshot_recovery_dal()
-        .set_applied_snapshot_status(&snapshot_recovery)
+        .insert_initial_recovery_status(&snapshot_recovery)
         .await
         .unwrap();
     snapshot_recovery

@@ -23,7 +23,8 @@ use crate::{
     state_keeper::{
         io::{
             common::{l1_batch_params, load_pending_batch, poll_iters},
-            MiniblockParams, MiniblockSealerHandle, PendingBatchData, StateKeeperIO,
+            fee_address_migration, MiniblockParams, MiniblockSealerHandle, PendingBatchData,
+            StateKeeperIO,
         },
         metrics::KEEPER_METRICS,
         seal_criteria::IoSealCriteria,
@@ -84,6 +85,9 @@ impl ExternalIO {
             .await
             .unwrap()
             .expect("empty storage not supported"); // FIXME (PLA-703): handle empty storage
+                                                    // We must run the migration for pending miniblocks synchronously, since we use `fee_account_address`
+                                                    // from a pending miniblock in `load_pending_batch()` implementation.
+        fee_address_migration::migrate_pending_miniblocks(&mut storage).await;
         drop(storage);
 
         tracing::info!(
@@ -211,7 +215,8 @@ impl ExternalIO {
                         self.current_miniblock_number,
                         &HashMap::from_iter([(contract.hash, be_words_to_bytes(&contract.code))]),
                     )
-                    .await;
+                    .await
+                    .unwrap();
                 contract
             }
         }
@@ -244,19 +249,6 @@ impl StateKeeperIO for ExternalIO {
     async fn load_pending_batch(&mut self) -> Option<PendingBatchData> {
         let mut storage = self.pool.access_storage_tagged("sync_layer").await.unwrap();
 
-        // TODO (BFT-99): Do not assume that fee account is the same as in previous batch.
-        let fee_account = storage
-            .blocks_dal()
-            .get_l1_batch_header(self.current_l1_batch_number - 1)
-            .await
-            .unwrap()
-            .unwrap_or_else(|| {
-                panic!(
-                    "No block header for batch {}",
-                    self.current_l1_batch_number - 1
-                )
-            })
-            .fee_account_address;
         let pending_miniblock_number = {
             let (_, last_miniblock_number_included_in_l1_batch) = storage
                 .blocks_dal()
@@ -271,6 +263,7 @@ impl StateKeeperIO for ExternalIO {
             .get_miniblock_header(pending_miniblock_number)
             .await
             .unwrap()?;
+        let fee_account = pending_miniblock_header.fee_account_address;
 
         if pending_miniblock_header.protocol_version.is_none() {
             // Fetch protocol version ID for pending miniblocks to know which VM to use to re-execute them.

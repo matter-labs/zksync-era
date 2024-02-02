@@ -40,7 +40,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             total_log_queries: total_log_queries_count,
             // This field will be populated by the `RefundTracer`
             pubdata_published: 0,
-            estimated_circuits_used: 0.0,
+            circuit_statistic: Default::default(),
         }
     }
 

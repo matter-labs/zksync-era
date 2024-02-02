@@ -2,9 +2,8 @@
 #![warn(unused_extern_crates)]
 #![warn(unused_imports)]
 
-pub use zk_evm_1_3_1;
-pub use zk_evm_1_3_3;
-pub use zk_evm_1_4_1;
+pub use zk_evm_1_4_1 as zk_evm_latest;
+pub use zkevm_test_harness_1_4_1 as zkevm_test_harness_latest;
 pub use zksync_types::vm_version::VmVersion;
 
 pub use self::versions::{

@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics};
-use zksync_types::proofs::AggregationRound;
+use zksync_types::basic_fri_types::AggregationRound;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet)]
 pub struct CircuitLabels {

@@ -1,8 +1,11 @@
 //! Utilities for testing the consensus module.
 use anyhow::Context as _;
-use rand::Rng;
+use rand::{
+    distributions::{Distribution, Standard},
+    Rng,
+};
 use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
-use zksync_consensus_roles::validator;
+use zksync_consensus_roles::{node, validator};
 use zksync_contracts::{BaseSystemContractsHashes, SystemContractCode};
 use zksync_dal::ConnectionPool;
 use zksync_types::{
@@ -12,6 +15,7 @@ use zksync_types::{
 
 use crate::{
     consensus::{
+        config::Config,
         storage::{BlockStore, CtxStorage},
         Store,
     },
@@ -26,6 +30,30 @@ use crate::{
     },
     utils::testonly::{create_l1_batch_metadata, create_l2_transaction},
 };
+
+fn make_addr<R: Rng + ?Sized>(rng: &mut R) -> std::net::SocketAddr {
+    std::net::SocketAddr::new(std::net::IpAddr::from(rng.gen::<[u8; 16]>()), rng.gen())
+}
+
+fn make_node_key<R: Rng + ?Sized>(rng: &mut R) -> node::PublicKey {
+    rng.gen::<node::SecretKey>().public()
+}
+
+impl Distribution<Config> for Standard {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Config {
+        Config {
+            server_addr: make_addr(rng),
+            public_addr: make_addr(rng),
+            validators: rng.gen(),
+            max_payload_size: usize::MAX,
+            gossip_dynamic_inbound_limit: rng.gen(),
+            gossip_static_inbound: (0..3).map(|_| make_node_key(rng)).collect(),
+            gossip_static_outbound: (0..5)
+                .map(|_| (make_node_key(rng), make_addr(rng)))
+                .collect(),
+        }
+    }
+}
 
 #[derive(Debug, Default)]
 pub(crate) struct MockMainNodeClient {
@@ -150,7 +178,6 @@ pub(super) struct StateKeeper {
 
     fee_per_gas: u64,
     gas_per_pubdata: u32,
-    operator_address: Address,
 
     pub(super) actions_sender: ActionQueueSender,
     pub(super) pool: ConnectionPool,
@@ -159,17 +186,13 @@ pub(super) struct StateKeeper {
 /// Fake StateKeeper task to be executed in the background.
 pub(super) struct StateKeeperRunner {
     actions_queue: ActionQueue,
-    operator_address: Address,
     pool: ConnectionPool,
 }
 
 impl StateKeeper {
     /// Constructs and initializes a new `StateKeeper`.
     /// Caller has to run `StateKeeperRunner.run()` task in the background.
-    pub async fn new(
-        pool: ConnectionPool,
-        operator_address: Address,
-    ) -> anyhow::Result<(Self, StateKeeperRunner)> {
+    pub async fn new(pool: ConnectionPool) -> anyhow::Result<(Self, StateKeeperRunner)> {
         // ensure genesis
         let mut storage = pool.access_storage().await.context("access_storage()")?;
         if storage
@@ -178,9 +201,7 @@ impl StateKeeper {
             .await
             .context("is_genesis_needed()")?
         {
-            let mut params = GenesisParams::mock();
-            params.first_validator = operator_address;
-            ensure_genesis_state(&mut storage, L2ChainId::default(), &params)
+            ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
                 .await
                 .context("ensure_genesis_state()")?;
         }
@@ -212,12 +233,10 @@ impl StateKeeper {
                 batch_sealed: !pending_batch,
                 fee_per_gas: 10,
                 gas_per_pubdata: 100,
-                operator_address,
                 actions_sender,
                 pool: pool.clone(),
             },
             StateKeeperRunner {
-                operator_address,
                 actions_queue,
                 pool: pool.clone(),
             },
@@ -236,7 +255,7 @@ impl StateKeeper {
                 l1_gas_price: 2,
                 l2_fair_gas_price: 3,
                 fair_pubdata_price: Some(24),
-                operator_address: self.operator_address,
+                operator_address: GenesisParams::mock().first_validator,
                 protocol_version: ProtocolVersionId::latest(),
                 first_miniblock_info: (self.last_block, 1),
             }
@@ -293,7 +312,7 @@ impl StateKeeper {
 
     /// Creates a new `BlockStore` for the underlying `ConnectionPool`.
     pub fn store(&self) -> BlockStore {
-        Store::new(self.pool.clone(), self.operator_address).into_block_store()
+        Store::new(self.pool.clone()).into_block_store()
     }
 
     // Wait for all pushed miniblocks to be produced.
@@ -303,7 +322,7 @@ impl StateKeeper {
         loop {
             let mut storage = CtxStorage::access(ctx, &self.pool).await.wrap("access()")?;
             if storage
-                .payload(ctx, self.last_block(), self.operator_address)
+                .payload(ctx, self.last_block())
                 .await
                 .wrap("storage.payload()")?
                 .is_some()
@@ -362,7 +381,7 @@ impl StateKeeperRunner {
                 self.actions_queue,
                 SyncState::new(),
                 Box::<MockMainNodeClient>::default(),
-                self.operator_address,
+                Address::repeat_byte(11),
                 u32::MAX,
                 L2ChainId::default(),
             )

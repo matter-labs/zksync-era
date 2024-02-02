@@ -1,0 +1,20 @@
+[package]
+name = "zksync_l1_contract_interface"
+version = "0.1.0"
+edition = "2018"
+authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
+homepage = "https://zksync.io/"
+repository = "https://github.com/matter-labs/zksync-era"
+license = "MIT OR Apache-2.0"
+keywords = ["blockchain", "zksync"]
+categories = ["cryptography"]
+readme = "README.md"
+
+[dependencies]
+zksync_types = { path = "../types" }
+zksync_prover_interface = { path = "../prover_interface" }
+
+# Used to serialize proof data
+codegen = { git = "https://github.com/matter-labs/solidity_plonk_verifier.git", branch = "dev" }
+# Used to calculate commitment for vk from the old L1 verifier contract (backward comatibility needs)
+zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.3.3" }

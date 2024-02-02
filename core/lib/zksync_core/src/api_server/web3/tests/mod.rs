@@ -13,7 +13,8 @@ use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, Storage
 use zksync_health_check::CheckHealth;
 use zksync_types::{
     api,
-    block::{BlockGasCount, MiniblockHeader},
+    api::BlockId,
+    block::MiniblockHeader,
     fee::TransactionExecutionMetrics,
     get_nonce_key,
     l2::L2Tx,
@@ -227,7 +228,7 @@ impl StorageInitialization {
                         MiniblockNumber(Self::SNAPSHOT_RECOVERY_BLOCK),
                         factory_deps,
                     )
-                    .await;
+                    .await?;
             }
         }
         Ok(())
@@ -331,10 +332,7 @@ async fn seal_l1_batch(
     number: L1BatchNumber,
 ) -> anyhow::Result<()> {
     let header = create_l1_batch(number.0);
-    storage
-        .blocks_dal()
-        .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[], 0)
-        .await?;
+    storage.blocks_dal().insert_mock_l1_batch(&header).await?;
     storage
         .blocks_dal()
         .mark_miniblocks_as_executed_in_l1_batch(number)
@@ -821,4 +819,54 @@ impl HttpTest for TransactionCountAfterSnapshotRecoveryTest {
 #[tokio::test]
 async fn getting_transaction_count_for_account_after_snapshot_recovery() {
     test_http_server(TransactionCountAfterSnapshotRecoveryTest).await;
+}
+
+#[derive(Debug)]
+struct TransactionReceiptsTest;
+
+#[async_trait]
+impl HttpTest for TransactionReceiptsTest {
+    async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
+        let mut storage = pool.access_storage().await?;
+        let miniblock_number = MiniblockNumber(1);
+
+        let tx1 = create_l2_transaction(10, 200);
+        let tx2 = create_l2_transaction(10, 200);
+
+        let tx_results = vec![
+            execute_l2_transaction(tx1.clone()),
+            execute_l2_transaction(tx2.clone()),
+        ];
+
+        store_miniblock(&mut storage, miniblock_number, &tx_results).await?;
+
+        let mut expected_receipts = Vec::new();
+
+        for tx in &tx_results {
+            expected_receipts.push(
+                client
+                    .get_transaction_receipt(tx.hash)
+                    .await?
+                    .expect("Receipt found"),
+            );
+        }
+
+        for (tx_result, receipt) in tx_results.iter().zip(&expected_receipts) {
+            assert_eq!(tx_result.hash, receipt.transaction_hash);
+        }
+
+        let receipts = client
+            .get_block_receipts(BlockId::Number(miniblock_number.0.into()))
+            .await?;
+        assert_eq!(receipts.len(), 2);
+        for (receipt, expected_receipt) in receipts.iter().zip(&expected_receipts) {
+            assert_eq!(receipt, expected_receipt);
+        }
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn transaction_receipts() {
+    test_http_server(TransactionReceiptsTest).await;
 }
