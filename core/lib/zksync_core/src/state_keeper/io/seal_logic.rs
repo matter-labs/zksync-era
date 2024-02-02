@@ -1,10 +1,7 @@
 //! This module is a source-of-truth on what is expected to be done when sealing a block.
 //! It contains the logic of the block sealing, which is used by both the mempool-based and external node IO.
 
-use std::{
-    collections::HashMap,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 
 use chrono::Utc;
 use itertools::Itertools;
@@ -14,7 +11,6 @@ use multivm::{
 };
 use vm_utils::storage::wait_for_prev_l1_batch_params;
 use zksync_dal::StorageProcessor;
-use zksync_system_constants::ACCOUNT_CODE_STORAGE_ADDRESS;
 use zksync_types::{
     block::{unpack_block_info, L1BatchHeader, MiniblockHeader},
     event::{extract_added_tokens, extract_long_l2_to_l1_messages},
@@ -29,8 +25,8 @@ use zksync_types::{
     },
     zk_evm_types::LogQuery,
     AccountTreeId, Address, ExecuteTransactionCommon, L1BatchNumber, L1BlockNumber,
-    MiniblockNumber, ProtocolVersionId, StorageKey, StorageLog, StorageLogQuery, StorageValue,
-    Transaction, VmEvent, CURRENT_VIRTUAL_BLOCK_INFO_POSITION, H256, SYSTEM_CONTEXT_ADDRESS,
+    MiniblockNumber, ProtocolVersionId, StorageKey, StorageLog, StorageLogQuery, Transaction,
+    VmEvent, CURRENT_VIRTUAL_BLOCK_INFO_POSITION, H256, SYSTEM_CONTEXT_ADDRESS,
 };
 // TODO (SMA-1206): use seconds instead of milliseconds.
 use zksync_utils::{h256_to_u256, time::millis_since_epoch, u256_to_h256};
@@ -400,12 +396,6 @@ impl MiniblockSealCommand {
         }
         progress.observe(new_factory_deps_count);
 
-        let progress =
-            MINIBLOCK_METRICS.start(MiniblockSealStage::ExtractContractsDeployed, is_fictive);
-        let unique_updates = HashMap::new(); // FIXME
-        let deployed_contract_count = Self::count_deployed_contracts(&unique_updates);
-        progress.observe(deployed_contract_count);
-
         let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::ExtractAddedTokens, is_fictive);
         let added_tokens = extract_added_tokens(self.l2_erc20_bridge_addr, &self.miniblock.events);
         progress.observe(added_tokens.len());
@@ -548,24 +538,6 @@ impl MiniblockSealCommand {
     fn transaction(&self, index: usize) -> &Transaction {
         let tx_result = &self.miniblock.executed_transactions[index - self.first_tx_index];
         &tx_result.transaction
-    }
-
-    fn count_deployed_contracts(
-        unique_updates: &HashMap<StorageKey, (H256, StorageValue)>,
-    ) -> usize {
-        let mut count = 0;
-        for (key, (_, value)) in unique_updates {
-            if *key.account().address() == ACCOUNT_CODE_STORAGE_ADDRESS {
-                let bytecode_hash = *value;
-                // TODO(SMA-1554): Support contracts deletion.
-                //  For now, we expected that if the `bytecode_hash` is zero, the contract was not deployed
-                //  in the first place, so we don't do anything
-                if bytecode_hash != H256::zero() {
-                    count += 1;
-                }
-            }
-        }
-        count
     }
 
     fn extract_events(&self, is_fictive: bool) -> Vec<(IncludedTxLocation, Vec<&VmEvent>)> {

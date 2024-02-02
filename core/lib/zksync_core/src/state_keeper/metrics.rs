@@ -243,7 +243,6 @@ pub(super) enum MiniblockSealStage {
     MarkTransactionsInMiniblock,
     InsertStorageLogs,
     InsertFactoryDeps,
-    ExtractContractsDeployed,
     ExtractAddedTokens,
     InsertTokens,
     ExtractEvents,
