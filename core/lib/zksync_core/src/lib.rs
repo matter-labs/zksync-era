@@ -561,9 +561,11 @@ pub async fn initialize_components(
         let l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator> =
             match state_keeper_config.l1_batch_commit_data_generator_mode {
                 L1BatchCommitDataGeneratorMode::Rollup => {
+                    tracing::debug!("RollupModeL1BatchCommitDataGenerator");
                     Arc::new(RollupModeL1BatchCommitDataGenerator {})
                 }
                 L1BatchCommitDataGeneratorMode::Validium => {
+                    tracing::debug!("ValidiumModeL1BatchCommitDataGenerator");
                     Arc::new(ValidiumModeL1BatchCommitDataGenerator {})
                 }
             };
