@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import * as utils from './utils';
-import {validateMigrations} from "./validate_migrations";
+import { validateMigrations } from './validate_migrations';
 
 // Note that `rust` is not noted here, as clippy isn't run via `yarn`.
 // `rust` option is still supported though.
@@ -40,7 +40,7 @@ async function proverClippy() {
 }
 
 async function migrations() {
-    await validateMigrations()
+    await validateMigrations();
 }
 
 const ARGS = [...EXTENSIONS, 'rust', 'prover', 'contracts'];
