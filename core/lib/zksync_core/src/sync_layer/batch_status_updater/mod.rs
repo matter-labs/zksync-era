@@ -12,11 +12,10 @@ use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::{
     aggregated_operations::AggregatedActionType, api, L1BatchNumber, MiniblockNumber, H256,
 };
+use zksync_web3_decl::error::RpcErrorWithDetails;
 use zksync_web3_decl::{
-    jsonrpsee::{
-        core::ClientError,
-        http_client::{HttpClient, HttpClientBuilder},
-    },
+    error::{EnrichRpcError, WithArgRpcError},
+    jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
     namespaces::ZksNamespaceClient,
 };
 
@@ -60,7 +59,7 @@ impl StatusChanges {
 #[derive(Debug, thiserror::Error)]
 enum UpdaterError {
     #[error("JSON-RPC error communicating with main node")]
-    Web3(#[from] ClientError),
+    Web3(#[from] RpcErrorWithDetails),
     #[error("Internal error")]
     Internal(#[from] anyhow::Error),
 }
@@ -77,12 +76,12 @@ trait MainNodeClient: fmt::Debug + Send + Sync {
     async fn resolve_l1_batch_to_miniblock(
         &self,
         number: L1BatchNumber,
-    ) -> Result<Option<MiniblockNumber>, ClientError>;
+    ) -> Result<Option<MiniblockNumber>, RpcErrorWithDetails>;
 
     async fn block_details(
         &self,
         number: MiniblockNumber,
-    ) -> Result<Option<api::BlockDetails>, ClientError>;
+    ) -> Result<Option<api::BlockDetails>, RpcErrorWithDetails>;
 }
 
 #[async_trait]
@@ -90,11 +89,13 @@ impl MainNodeClient for HttpClient {
     async fn resolve_l1_batch_to_miniblock(
         &self,
         number: L1BatchNumber,
-    ) -> Result<Option<MiniblockNumber>, ClientError> {
+    ) -> Result<Option<MiniblockNumber>, RpcErrorWithDetails> {
         let request_latency = FETCHER_METRICS.requests[&FetchStage::GetMiniblockRange].start();
         let number = self
             .get_miniblock_range(number)
-            .await?
+            .await
+            .rpc_context("resolve_l1_batch_to_miniblock")
+            .with_arg("number", &number)?
             .map(|(start, _)| MiniblockNumber(start.as_u32()));
         request_latency.observe();
         Ok(number)
@@ -103,9 +104,13 @@ impl MainNodeClient for HttpClient {
     async fn block_details(
         &self,
         number: MiniblockNumber,
-    ) -> Result<Option<api::BlockDetails>, ClientError> {
+    ) -> Result<Option<api::BlockDetails>, RpcErrorWithDetails> {
         let request_latency = FETCHER_METRICS.requests[&FetchStage::GetBlockDetails].start();
-        let details = self.get_block_details(number).await?;
+        let details = self
+            .get_block_details(number)
+            .await
+            .rpc_context("block_details")
+            .with_arg("number", &number)?;
         request_latency.observe();
         Ok(details)
     }

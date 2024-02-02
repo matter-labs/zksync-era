@@ -5,7 +5,9 @@ use async_trait::async_trait;
 use tokio::sync::watch;
 use zksync_dal::ConnectionPool;
 use zksync_types::{L1BatchNumber, MiniblockNumber, H256};
+use zksync_web3_decl::error::RpcErrorWithDetails;
 use zksync_web3_decl::{
+    error::{EnrichRpcError, WithArgRpcError},
     jsonrpsee::{
         core::ClientError as RpcError,
         http_client::{HttpClient, HttpClientBuilder},
@@ -24,7 +26,7 @@ mod tests;
 #[derive(Debug, thiserror::Error)]
 enum HashMatchError {
     #[error("RPC error calling main node")]
-    Rpc(#[from] RpcError),
+    Rpc(#[from] RpcErrorWithDetails),
     #[error(
         "Unrecoverable error: the earliest L1 batch #{0} in the local DB \
         has mismatched hash with the main node. Make sure you're connected to the right network; \
@@ -49,46 +51,75 @@ impl From<zksync_dal::SqlxError> for HashMatchError {
     }
 }
 
-fn is_transient_err(err: &RpcError) -> bool {
-    matches!(err, RpcError::Transport(_) | RpcError::RequestTimeout)
+fn is_transient_err(err: &RpcErrorWithDetails) -> bool {
+    matches!(
+        err.inner_error,
+        RpcError::Transport(_) | RpcError::RequestTimeout
+    )
 }
 
 #[async_trait]
 trait MainNodeClient: fmt::Debug + Send + Sync {
-    async fn sealed_miniblock_number(&self) -> Result<MiniblockNumber, RpcError>;
+    async fn sealed_miniblock_number(&self) -> Result<MiniblockNumber, RpcErrorWithDetails>;
 
-    async fn sealed_l1_batch_number(&self) -> Result<L1BatchNumber, RpcError>;
+    async fn sealed_l1_batch_number(&self) -> Result<L1BatchNumber, RpcErrorWithDetails>;
 
-    async fn miniblock_hash(&self, number: MiniblockNumber) -> Result<Option<H256>, RpcError>;
+    async fn miniblock_hash(
+        &self,
+        number: MiniblockNumber,
+    ) -> Result<Option<H256>, RpcErrorWithDetails>;
 
-    async fn l1_batch_root_hash(&self, number: L1BatchNumber) -> Result<Option<H256>, RpcError>;
+    async fn l1_batch_root_hash(
+        &self,
+        number: L1BatchNumber,
+    ) -> Result<Option<H256>, RpcErrorWithDetails>;
 }
 
 #[async_trait]
 impl MainNodeClient for HttpClient {
-    async fn sealed_miniblock_number(&self) -> Result<MiniblockNumber, RpcError> {
-        let number = self.get_block_number().await?;
-        let number = u32::try_from(number).map_err(|err| RpcError::Custom(err.to_owned()))?;
+    async fn sealed_miniblock_number(&self) -> Result<MiniblockNumber, RpcErrorWithDetails> {
+        let number = self
+            .get_block_number()
+            .await
+            .rpc_context("sealed_miniblock_number")?;
+        let number = u32::try_from(number)
+            .map_err(|err| RpcError::Custom(err.to_owned()))
+            .rpc_context("sealed_miniblock_number")?;
         Ok(MiniblockNumber(number))
     }
 
-    async fn sealed_l1_batch_number(&self) -> Result<L1BatchNumber, RpcError> {
-        let number = self.get_l1_batch_number().await?;
-        let number = u32::try_from(number).map_err(|err| RpcError::Custom(err.to_owned()))?;
+    async fn sealed_l1_batch_number(&self) -> Result<L1BatchNumber, RpcErrorWithDetails> {
+        let number = self
+            .get_l1_batch_number()
+            .await
+            .rpc_context("sealed_l1_batch_number")?;
+        let number = u32::try_from(number)
+            .map_err(|err| RpcError::Custom(err.to_owned()))
+            .rpc_context("sealed_l1_batch_number")?;
         Ok(L1BatchNumber(number))
     }
 
-    async fn miniblock_hash(&self, number: MiniblockNumber) -> Result<Option<H256>, RpcError> {
+    async fn miniblock_hash(
+        &self,
+        number: MiniblockNumber,
+    ) -> Result<Option<H256>, RpcErrorWithDetails> {
         Ok(self
             .get_block_by_number(number.0.into(), false)
-            .await?
+            .await
+            .rpc_context("miniblock_hash")
+            .with_arg("number", &number)?
             .map(|block| block.hash))
     }
 
-    async fn l1_batch_root_hash(&self, number: L1BatchNumber) -> Result<Option<H256>, RpcError> {
+    async fn l1_batch_root_hash(
+        &self,
+        number: L1BatchNumber,
+    ) -> Result<Option<H256>, RpcErrorWithDetails> {
         Ok(self
             .get_l1_batch_details(number)
-            .await?
+            .await
+            .rpc_context("l1_batch_root_hash")
+            .with_arg("number", &number)?
             .and_then(|batch| batch.base.root_hash))
     }
 }

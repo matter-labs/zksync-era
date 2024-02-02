@@ -11,6 +11,7 @@ use zksync_types::{
     get_code_key, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256, U64,
 };
 use zksync_web3_decl::{
+    error::{EnrichRpcError, WithArgRpcError},
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
     namespaces::{EnNamespaceClient, EthNamespaceClient, ZksNamespaceClient},
 };
@@ -74,7 +75,11 @@ impl MainNodeClient for HttpClient {
         &self,
         hash: H256,
     ) -> anyhow::Result<SystemContractCode> {
-        let bytecode = self.get_bytecode_by_hash(hash).await?.with_context(|| {
+        let bytecode = self.get_bytecode_by_hash(hash)
+            .await
+            .rpc_context("fetch_system_contract_by_hash")
+            .with_arg("hash", &hash)?
+            .with_context(|| {
             format!(
                 "Base system contract bytecode is absent on the main node. Dependency hash: {hash:?}"
             )
@@ -104,6 +109,8 @@ impl MainNodeClient for HttpClient {
                 Some(GENESIS_BLOCK),
             )
             .await
+            .rpc_context("fetch_genesis_contract_bytecode")
+            .with_arg("address", &address)
             .context("Unable to query storage at genesis state")?;
         self.get_bytecode_by_hash(code_hash)
             .await
@@ -116,7 +123,9 @@ impl MainNodeClient for HttpClient {
     ) -> anyhow::Result<api::ProtocolVersion> {
         Ok(self
             .get_protocol_version(Some(protocol_version as u16))
-            .await?
+            .await
+            .rpc_context("fetch_protocol_version")
+            .with_arg("protocol_version", &protocol_version)?
             .with_context(|| {
                 format!("Protocol version {protocol_version:?} must exist on main node")
             })?)
@@ -126,6 +135,7 @@ impl MainNodeClient for HttpClient {
         let genesis_l1_batch = self
             .get_l1_batch_details(L1BatchNumber(0))
             .await
+            .rpc_context("fetch_genesis_l1_batch_hash")
             .context("couldn't get genesis block from the main node")?
             .context("main node did not return a genesis block")?;
         genesis_l1_batch
@@ -146,6 +156,7 @@ impl MainNodeClient for HttpClient {
     ) -> anyhow::Result<Option<SyncBlock>> {
         self.sync_l2_block(number, with_transactions)
             .await
+            .rpc_context("fetch_l2_block")
             .map_err(Into::into)
     }
 }

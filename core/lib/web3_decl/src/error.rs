@@ -1,5 +1,6 @@
 //! Definition of errors that can occur in the zkSync Web3 API.
 
+use jsonrpsee::core::ClientError as RpcError;
 use thiserror::Error;
 use zksync_types::{api::SerializationTransactionError, L1BatchNumber, MiniblockNumber};
 
@@ -41,4 +42,66 @@ pub enum Web3Error {
     InvalidFilterBlockHash,
     #[error("Tree API is not available")]
     TreeApiUnavailable,
+}
+
+use std::{collections::HashMap, error, fmt, fmt::Debug};
+
+#[derive(Debug)]
+pub struct RpcErrorWithDetails {
+    pub inner_error: RpcError,
+    pub method: String,
+    pub args: HashMap<String, String>,
+}
+impl error::Error for RpcErrorWithDetails {}
+
+impl fmt::Display for RpcErrorWithDetails {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let args_formatted: Vec<String> =
+            self.args.iter().map(|(k, v)| format!("{k}: {v}")).collect();
+        write!(
+            formatter,
+            "JsonRPC request: {} with args: {} failed because of: {}",
+            self.method,
+            args_formatted.join(", "),
+            self.inner_error
+        )
+    }
+}
+
+pub trait EnrichRpcError<T> {
+    fn rpc_context(self, method: &str) -> Result<T, RpcErrorWithDetails>;
+}
+
+impl<T> EnrichRpcError<T> for Result<T, RpcError> {
+    fn rpc_context(self, method: &str) -> Result<T, RpcErrorWithDetails> {
+        match self {
+            Ok(t) => Ok(t),
+            Err(error) => Err(RpcErrorWithDetails {
+                inner_error: error,
+                method: method.to_string(),
+                args: HashMap::default(),
+            }),
+        }
+    }
+}
+
+pub trait WithArgRpcError<T> {
+    fn with_arg(self, arg: &str, value: &dyn fmt::Debug) -> Result<T, RpcErrorWithDetails>;
+}
+
+impl<T> WithArgRpcError<T> for Result<T, RpcErrorWithDetails> {
+    fn with_arg(self, arg: &str, value: &dyn Debug) -> Result<T, RpcErrorWithDetails> {
+        match self {
+            Ok(t) => Ok(t),
+            Err(error) => {
+                let mut new_args = error.args.clone();
+                new_args.insert(arg.to_string(), format!("{value:?}"));
+                Err(RpcErrorWithDetails {
+                    inner_error: error.inner_error,
+                    method: error.method,
+                    args: new_args,
+                })
+            }
+        }
+    }
 }
