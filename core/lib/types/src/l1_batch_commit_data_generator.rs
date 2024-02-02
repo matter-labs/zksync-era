@@ -23,7 +23,6 @@ pub struct ValidiumModeL1BatchCommitDataGenerator {}
 
 impl L1BatchCommitDataGenerator for RollupModeL1BatchCommitDataGenerator {
     fn l1_commit_data(&self, l1_batch_with_metadata: &L1BatchWithMetadata) -> Token {
-        println!("RollupModeL1BatchCommitter");
         let commit_data = if l1_batch_with_metadata
             .header
             .protocol_version
@@ -40,7 +39,6 @@ impl L1BatchCommitDataGenerator for RollupModeL1BatchCommitDataGenerator {
 
 impl L1BatchCommitDataGenerator for ValidiumModeL1BatchCommitDataGenerator {
     fn l1_commit_data(&self, l1_batch_with_metadata: &L1BatchWithMetadata) -> Token {
-        println!("ValidiumModeL1BatchCommitter");
         let commit_data = if l1_batch_with_metadata
             .header
             .protocol_version
