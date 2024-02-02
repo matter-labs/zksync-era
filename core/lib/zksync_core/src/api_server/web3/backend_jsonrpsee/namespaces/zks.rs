@@ -20,6 +20,7 @@ use zksync_web3_decl::{
 use crate::api_server::web3::{backend_jsonrpsee::into_jsrpc_error, ZksNamespace};
 
 #[async_trait]
+
 impl ZksNamespaceServer for ZksNamespace {
     async fn estimate_fee(&self, req: CallRequest) -> RpcResult<Fee> {
         self.estimate_fee_impl(req).await.map_err(into_jsrpc_error)
@@ -169,6 +170,12 @@ impl ZksNamespaceServer for ZksNamespace {
         l1_batch_number: L1BatchNumber,
     ) -> RpcResult<Proof> {
         self.get_proofs_impl(address, keys, l1_batch_number)
+            .await
+            .map_err(into_jsrpc_error)
+    }
+
+    async fn get_base_token_l1_address(&self) -> RpcResult<Address> {
+        self.get_base_token_l1_address_impl()
             .await
             .map_err(into_jsrpc_error)
     }

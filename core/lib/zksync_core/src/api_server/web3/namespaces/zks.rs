@@ -1,4 +1,4 @@
-use std::{collections::HashMap, convert::TryInto};
+use std::{collections::HashMap, convert::TryInto, env, str::FromStr};
 
 use bigdecimal::{BigDecimal, Zero};
 use zksync_dal::StorageProcessor;
@@ -16,8 +16,8 @@ use zksync_types::{
     l2_to_l1_log::L2ToL1Log,
     tokens::ETHEREUM_ADDRESS,
     transaction_request::CallRequest,
-    AccountTreeId, L1BatchNumber, MiniblockNumber, StorageKey, Transaction, L1_MESSENGER_ADDRESS,
-    L2_ETH_TOKEN_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
+    AccountTreeId, L1BatchNumber, MiniblockNumber, StorageKey, Transaction, H160,
+    L1_MESSENGER_ADDRESS, L2_ETH_TOKEN_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
 };
 use zksync_utils::{address_to_h256, ratio_to_big_decimal_normalized};
 use zksync_web3_decl::{
@@ -645,5 +645,15 @@ impl ZksNamespace {
             address,
             storage_proof,
         })
+    }
+
+    #[tracing::instrument(skip_all)]
+    pub async fn get_base_token_l1_address_impl(&self) -> Result<Address, Web3Error> {
+        const METHOD_NAME: &str = "get_base_token_l1_address_impl";
+        let l1_token_env_var = env::var("CONTRACTS_BASE_TOKEN_ADDR")
+            .map_err(|_err| internal_error(METHOD_NAME, "Missing env variable for base token"))?;
+        Ok(H160::from_str(&l1_token_env_var).map_err(|_err| {
+            internal_error(METHOD_NAME, "Set value for base token is not an address")
+        })?)
     }
 }
