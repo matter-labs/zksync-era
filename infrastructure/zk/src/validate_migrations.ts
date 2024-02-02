@@ -13,8 +13,12 @@ async function validateMigration(filePath: string) {
 async function getWhitelistedMigrations() {
     const whitelistFilepath = 'not-backwards-compatible-migrations-whitelist.txt';
     const whitelistedFilesRaw = await fs.promises.readFile(whitelistFilepath, { encoding: 'utf-8' });
-    //filtering out comments
-    return whitelistedFilesRaw.split('\n').filter((x) => !x.trim().startsWith('//'));
+    //filtering out comments and empty lines
+    return whitelistedFilesRaw
+        .split('\n')
+        .map((x) => x.trim())
+        .filter((x) => !x.startsWith('//'))
+        .filter((x) => x.length);
 }
 
 export async function validateMigrations() {
