@@ -2,7 +2,8 @@ import * as utils from './utils';
 import fs from 'fs';
 
 async function validateMigration(filePath: string) {
-    const content = await fs.promises.readFile(filePath, { encoding: 'utf-8' });
+    let content = await fs.promises.readFile(filePath, { encoding: 'utf-8' });
+    content = content.toUpperCase();
     const isBackwardsCompatible = !content.includes('RENAME') && !content.includes('DROP');
     if (!isBackwardsCompatible) {
         console.warn(`Found not backwards-compatible migration in ${filePath}!`);
