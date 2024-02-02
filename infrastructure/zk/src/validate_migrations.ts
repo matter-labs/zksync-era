@@ -10,11 +10,11 @@ async function validateMigration(filePath: string) {
     return isBackwardsCompatible;
 }
 
-async function getWhitelistedMigrations() {
-    const whitelistFilepath = 'not-backwards-compatible-migrations-whitelist.txt';
-    const whitelistedFilesRaw = await fs.promises.readFile(whitelistFilepath, { encoding: 'utf-8' });
+async function getallowlistedMigrations() {
+    const allowlistFilepath = 'not-backwards-compatible-migrations-allowlist.txt';
+    const allowlistedFilesRaw = await fs.promises.readFile(allowlistFilepath, { encoding: 'utf-8' });
     //filtering out comments and empty lines
-    return whitelistedFilesRaw
+    return allowlistedFilesRaw
         .split('\n')
         .map((x) => x.trim())
         .filter((x) => !x.startsWith('//'))
@@ -22,18 +22,18 @@ async function getWhitelistedMigrations() {
 }
 
 export async function validateMigrations() {
-    const whitelistedMigrations = await getWhitelistedMigrations();
+    const allowlistedMigrations = await getallowlistedMigrations();
     let { stdout: filesRaw } = await utils.exec('find core/lib/dal -type f -name "*up.sql"');
     const files = filesRaw
         .trim()
         .split('\n')
         .sort()
-        .filter((filepath) => !whitelistedMigrations.includes(filepath));
+        .filter((filepath) => !allowlistedMigrations.includes(filepath));
     const validateResults = await Promise.all(files.map((file) => validateMigration(file)));
     if (validateResults.includes(false)) {
         throw new Error(
             'A new migration that is not backwards-compatible was detected! As such migrations can easily cause an outage,' +
-                'they have to be explicitly added to a whitelist: not-backwards-compatible-migrations-whitelist.txt'
+                'they have to be explicitly added to an allowlist: not-backwards-compatible-migrations-allowlist.txt'
         );
     }
 }

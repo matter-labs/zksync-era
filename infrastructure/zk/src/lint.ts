@@ -39,10 +39,6 @@ async function proverClippy() {
     await utils.spawn('cargo clippy --tests --locked -- -D warnings -A incomplete_features');
 }
 
-async function migrations() {
-    await validateMigrations();
-}
-
 const ARGS = [...EXTENSIONS, 'rust', 'prover', 'contracts'];
 
 export const command = new Command('lint')
@@ -68,7 +64,7 @@ export const command = new Command('lint')
             const promises = EXTENSIONS.map((ext) => lint(ext, cmd.check));
             promises.push(lintContracts(cmd.check));
             promises.push(clippy());
-            promises.push(migrations());
+            promises.push(validateMigrations());
             await Promise.all(promises);
         }
     });
