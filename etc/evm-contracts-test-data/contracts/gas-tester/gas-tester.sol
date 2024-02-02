@@ -24,6 +24,7 @@ contract GasTester {
         }
 
         uint256 gasAfter = gasleft();
+
         assertEqGas(gasBefore - gasAfter, 20000);
     }
 
