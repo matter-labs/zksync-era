@@ -47,6 +47,10 @@ impl TxCache {
         txs.into_iter().sorted_by_key(|tx| tx.nonce()).collect()
     }
 
+    pub(crate) fn get_txs_hash(&self) -> Vec<H256> {
+        self.tx_cache.keys().cloned().collect()
+    }
+
     pub(crate) fn remove_tx(&mut self, tx_hash: &H256) {
         let tx = self.tx_cache.remove(tx_hash);
         if let Some(tx) = tx {

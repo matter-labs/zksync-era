@@ -62,7 +62,6 @@ async fn build_state_keeper(
     miniblock_sealer_handle: MiniblockSealerHandle,
     stop_receiver: watch::Receiver<bool>,
     chain_id: L2ChainId,
-    proxy_cache: Arc<RwLock<TxCache>>,
 ) -> ZkSyncStateKeeper {
     // These config values are used on the main node, and depending on these values certain transactions can
     // be *rejected* (that is, not included into the block). However, external node only mirrors what the main
@@ -96,7 +95,6 @@ async fn build_state_keeper(
         l2_erc20_bridge_addr,
         validation_computational_gas_limit,
         chain_id,
-        proxy_cache,
     )
     .await;
 
@@ -172,7 +170,6 @@ async fn init_tasks(
         miniblock_sealer_handle,
         stop_receiver.clone(),
         config.remote.l2_chain_id,
-        tx_cache.clone(),
     )
     .await;
 
@@ -284,7 +281,7 @@ async fn init_tasks(
     let fee_params_fetcher_handle =
         tokio::spawn(fee_params_fetcher.clone().run(stop_receiver.clone()));
 
-    let (tx_sender, vm_barrier, cache_update_handle) = {
+    let (tx_sender, vm_barrier, cache_update_handle, tx_cache) = {
         let tx_sender_builder =
             TxSenderBuilder::new(config.clone().into(), connection_pool.clone())
                 .with_main_connection_pool(connection_pool.clone())
@@ -317,7 +314,7 @@ async fn init_tasks(
                 storage_caches,
             )
             .await;
-        (tx_sender, vm_barrier, cache_update_handle)
+        (tx_sender, vm_barrier, cache_update_handle, tx_cache)
     };
 
     let http_server_handles =
@@ -328,6 +325,7 @@ async fn init_tasks(
             .with_response_body_size_limit(config.optional.max_response_body_size())
             .with_tx_sender(tx_sender.clone(), vm_barrier.clone())
             .with_sync_state(sync_state.clone())
+            .with_tx_cache_updater(tx_cache)
             .enable_api_namespaces(config.optional.api_namespaces())
             .build(stop_receiver.clone())
             .await

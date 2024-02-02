@@ -1352,6 +1352,27 @@ impl TransactionsDal<'_, '_> {
         .unwrap()
         .map(|tx| tx.into())
     }
+
+    pub async fn check_tx_hashes(&mut self, tx_hashes: &[H256]) -> sqlx::Result<Vec<H256>> {
+        let hashes: Vec<_> = tx_hashes.iter().map(|hash| hash.as_bytes()).collect();
+        let res = sqlx::query!(
+            r#"
+            SELECT
+                hash
+            FROM
+                transactions
+            WHERE
+                hash = ANY ($1)
+            "#,
+            &hashes as &[&[u8]],
+        )
+        .fetch_all(self.storage.conn())
+        .await?
+        .into_iter()
+        .map(|row| H256::from_slice(&row.hash))
+        .collect();
+        Ok(res)
+    }
 }
 
 #[cfg(test)]

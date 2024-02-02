@@ -1,9 +1,8 @@
-use std::{collections::HashMap, convert::TryInto, iter::FromIterator, sync::Arc, time::Duration};
+use std::{collections::HashMap, convert::TryInto, iter::FromIterator, time::Duration};
 
 use async_trait::async_trait;
 use futures::future;
 use multivm::interface::{FinishedL1Batch, L1BatchEnv, SystemEnv};
-use tokio::sync::RwLock;
 use vm_utils::storage::wait_for_prev_l1_batch_params;
 use zksync_contracts::{BaseSystemContracts, SystemContractCode};
 use zksync_dal::ConnectionPool;
@@ -20,7 +19,6 @@ use super::{
     SyncState,
 };
 use crate::{
-    api_server::tx_sender::TxCache,
     metrics::{BlockStage, APP_METRICS},
     state_keeper::{
         io::{
@@ -59,7 +57,6 @@ pub struct ExternalIO {
     // TODO it's required for system env, probably we have to get rid of getting system env
     validation_computational_gas_limit: u32,
     chain_id: L2ChainId,
-    proxy_cache: Arc<RwLock<TxCache>>,
 }
 
 impl ExternalIO {
@@ -73,7 +70,6 @@ impl ExternalIO {
         l2_erc20_bridge_addr: Address,
         validation_computational_gas_limit: u32,
         chain_id: L2ChainId,
-        proxy_cache: Arc<RwLock<TxCache>>,
     ) -> Self {
         let mut storage = pool.access_storage_tagged("sync_layer").await.unwrap();
         // TODO (PLA-703): Support no L1 batches / miniblocks in the storage
@@ -113,7 +109,6 @@ impl ExternalIO {
             l2_erc20_bridge_addr,
             validation_computational_gas_limit,
             chain_id,
-            proxy_cache,
         }
     }
 
@@ -428,10 +423,6 @@ impl StateKeeperIO for ExternalIO {
                     let SyncAction::Tx(tx) = actions.pop_action().unwrap() else {
                         unreachable!()
                     };
-                    // Now, after we are sure that the tx is on the main node, remove it from cache
-                    // since we don't want to store txs that might have been replaced or otherwise removed
-                    // from the mempool.
-                    self.proxy_cache.write().await.remove_tx(&tx.hash());
                     return Some(*tx);
                 }
                 _ => {

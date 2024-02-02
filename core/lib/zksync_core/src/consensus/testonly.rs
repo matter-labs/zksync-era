@@ -1,12 +1,10 @@
 //! Utilities for testing the consensus module.
-use std::sync::Arc;
 
 use anyhow::Context as _;
 use rand::{
     distributions::{Distribution, Standard},
     Rng,
 };
-use tokio::sync::RwLock;
 use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
 use zksync_consensus_roles::{node, validator};
 use zksync_contracts::{BaseSystemContractsHashes, SystemContractCode};
@@ -17,7 +15,6 @@ use zksync_types::{
 };
 
 use crate::{
-    api_server::tx_sender::TxCache,
     consensus::{
         config::Config,
         storage::{BlockStore, CtxStorage},
@@ -379,7 +376,6 @@ impl StateKeeperRunner {
             let (stop_sender, stop_receiver) = sync::watch::channel(false);
             let (miniblock_sealer, miniblock_sealer_handle) =
                 MiniblockSealer::new(self.pool.clone(), 5);
-            let tx_cache = Arc::new(RwLock::new(TxCache::default()));
 
             let io = ExternalIO::new(
                 miniblock_sealer_handle,
@@ -390,7 +386,6 @@ impl StateKeeperRunner {
                 Address::repeat_byte(11),
                 u32::MAX,
                 L2ChainId::default(),
-                tx_cache,
             )
             .await;
             s.spawn_bg(miniblock_sealer.run());
