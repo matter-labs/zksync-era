@@ -191,13 +191,15 @@ pub struct HealthUpdater {
 impl HealthUpdater {
     /// Updates the health check information, returning if a change occurred from previous state.
     /// Note, description change on Health is counted as a change, even if status is the same.
-    /// I.E. `Health { Ready, None }` to `Health { Ready, Some(_) }` is considered a change.
+    /// I.e., `Health { Ready, None }` to `Health { Ready, Some(_) }` is considered a change.
     pub fn update(&self, health: Health) -> bool {
         let old_health = self.health_sender.send_replace(health.clone());
         if old_health != health {
             tracing::debug!(
-                "Changed health of `{}` from {old_health:?} to {health:?}",
-                self.name
+                "Changed health of `{}` from {} to {}",
+                self.name,
+                serde_json::to_string(&old_health).unwrap_or_else(|_| format!("{old_health:?}")),
+                serde_json::to_string(&health).unwrap_or_else(|_| format!("{health:?}"))
             );
             return true;
         }
