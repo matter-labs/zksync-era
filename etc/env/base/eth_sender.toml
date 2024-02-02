@@ -63,3 +63,4 @@ internal_l1_pricing_multiplier=0.8
 # Node polling period in seconds.
 poll_period=5
 internal_enforced_l1_gas_price=45_000_000_000
+l1_gas_per_pubdata_byte=0

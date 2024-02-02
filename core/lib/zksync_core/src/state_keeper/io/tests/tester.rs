@@ -52,6 +52,7 @@ impl Tester {
             internal_enforced_l1_gas_price: None,
             poll_period: 10,
             max_l1_gas_price: None,
+            l1_gas_per_pubdata_byte: 17,
         };
 
         GasAdjuster::new(eth_client, gas_adjuster_config)

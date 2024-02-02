@@ -8,7 +8,6 @@ use std::{
 use tokio::sync::watch;
 use zksync_config::GasAdjusterConfig;
 use zksync_eth_client::{Error, EthInterface};
-use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
 
 use self::metrics::METRICS;
 use super::{L1GasPriceProvider, L1TxParamsProvider};
@@ -130,7 +129,7 @@ impl<E: EthInterface> L1GasPriceProvider for GasAdjuster<E> {
 
     fn estimate_effective_pubdata_price(&self) -> u64 {
         // For now, pubdata is only sent via calldata, so its price is pegged to the L1 gas price.
-        self.estimate_effective_gas_price() * L1_GAS_PER_PUBDATA_BYTE as u64
+        self.estimate_effective_gas_price() * self.config.l1_gas_per_pubdata_byte
     }
 }
 
