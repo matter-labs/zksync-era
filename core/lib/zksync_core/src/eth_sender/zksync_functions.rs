@@ -17,8 +17,10 @@ pub(super) struct ZkSyncFunctions {
     pub(super) get_verifier: Function,
     pub(super) get_verifier_params: Function,
     pub(super) get_protocol_version: Function,
+    pub(super) is_batches_synced: Function,
 
     pub(super) verifier_contract: Contract,
+    pub(super) zksync_contract: Contract,
     pub(super) get_verification_key: Function,
     pub(super) verification_key_hash: Option<Function>,
 
@@ -65,6 +67,7 @@ impl Default for ZkSyncFunctions {
         let get_protocol_version = get_function(&zksync_contract, "getProtocolVersion");
         let get_verification_key = PRE_BOOJUM_GET_VK_FUNCTION.clone();
         let aggregate3 = get_function(&multicall_contract, "aggregate3");
+        let is_batches_synced = get_function(&zksync_contract, "isBatchesSynced");
         let verification_key_hash =
             get_optional_function(&verifier_contract, "verificationKeyHash");
 
@@ -80,7 +83,9 @@ impl Default for ZkSyncFunctions {
             get_verifier,
             get_verifier_params,
             get_protocol_version,
+            is_batches_synced,
             verifier_contract,
+            zksync_contract,
             get_verification_key,
             verification_key_hash,
             multicall_contract,

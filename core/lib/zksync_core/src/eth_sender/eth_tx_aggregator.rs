@@ -18,6 +18,7 @@ use zksync_types::{
     },
     Address, ProtocolVersionId, H256, U256,
 };
+use zksync_types::aggregated_operations::L1BatchExecuteOperation;
 
 use crate::{
     eth_sender::{
@@ -358,12 +359,30 @@ impl EthTxAggregator {
             )
             .await
         {
-            let tx = self
-                .save_eth_tx(storage, &agg_op, contracts_are_pre_boojum)
-                .await?;
-            Self::report_eth_tx_saving(storage, agg_op, &tx).await;
+            if if let AggregatedOperation::Execute(ref op) = agg_op {
+                self.is_batches_synced(op).await?
+            } else {
+                true
+            } {
+                let tx = self
+                    .save_eth_tx(storage, &agg_op, contracts_are_pre_boojum)
+                    .await?;
+                Self::report_eth_tx_saving(storage, agg_op, &tx).await;
+            }
         }
         Ok(())
+    }
+
+    async fn is_batches_synced(&self, op: &L1BatchExecuteOperation) -> Result<bool, Error> {
+        let is_batches_synced = &*self.functions.is_batches_synced.name;
+
+        let params = op.get_eth_tx_args();
+        let args = CallFunctionArgs::new(is_batches_synced, params)
+            .for_contract(self.main_zksync_contract_address, self.functions.zksync_contract.clone());
+        let res_tokens = self.eth_client.call_contract_function(args)
+            .await
+            .map_err(|e| Error::InvalidOutputType(e.to_string()))?;
+        Ok(bool::from_tokens(res_tokens)?)
     }
 
     async fn report_eth_tx_saving(
