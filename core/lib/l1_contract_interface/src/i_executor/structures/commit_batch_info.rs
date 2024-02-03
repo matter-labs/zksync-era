@@ -1,8 +1,9 @@
-use zksync_config::configs::chain::L1BatchCommitDataGeneratorMode;
+use std::sync::Arc;
+
 use zksync_types::{
     commitment::L1BatchWithMetadata,
     ethabi::Token,
-    utils,
+    l1_batch_commit_data_generator::L1BatchCommitDataGenerator,
     web3::{contract::Error as Web3ContractError, error::Error as Web3ApiError},
     U256,
 };
@@ -13,13 +14,13 @@ use crate::Tokenizable;
 #[derive(Debug)]
 pub struct CommitBatchInfo<'a> {
     pub l1_batch_with_metadata: &'a L1BatchWithMetadata,
-    pub l1_batch_commit_data_generator: L1BatchCommitDataGeneratorMode,
+    pub l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
 }
 
 impl<'a> CommitBatchInfo<'a> {
     pub fn new(
         l1_batch_with_metadata: &'a L1BatchWithMetadata,
-        l1_batch_commit_data_generator: L1BatchCommitDataGeneratorMode,
+        l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
     ) -> Self {
         Self {
             l1_batch_with_metadata,
@@ -51,14 +52,8 @@ impl<'a> Tokenizable for CommitBatchInfo<'a> {
         {
             pre_boojum_into_token(self.l1_batch_with_metadata)
         } else {
-            match self.l1_batch_commit_data_generator {
-                L1BatchCommitDataGeneratorMode::Rollup => {
-                    Token::Tuple(rollup_mode_l1_commit_data(self.l1_batch_with_metadata))
-                }
-                L1BatchCommitDataGeneratorMode::Validium => {
-                    Token::Tuple(validium_mode_l1_commit_data(self.l1_batch_with_metadata))
-                }
-            }
+            self.l1_batch_commit_data_generator
+                .l1_commit_data(self.l1_batch_with_metadata)
         }
     }
 }
@@ -92,50 +87,4 @@ fn pre_boojum_into_token<'a>(l1_batch_commit_with_metadata: &'a L1BatchWithMetad
                 .collect(),
         ),
     ])
-}
-
-fn validium_mode_l1_commit_data<'a>(l1_batch_with_metadata: &'a L1BatchWithMetadata) -> Vec<Token> {
-    let header = &l1_batch_with_metadata.header;
-    let metadata = &l1_batch_with_metadata.metadata;
-    let commit_data = vec![
-        // `batchNumber`
-        Token::Uint(U256::from(header.number.0)),
-        // `timestamp`
-        Token::Uint(U256::from(header.timestamp)),
-        // `indexRepeatedStorageChanges`
-        Token::Uint(U256::from(metadata.rollup_last_leaf_index)),
-        // `newStateRoot`
-        Token::FixedBytes(metadata.merkle_root_hash.as_bytes().to_vec()),
-        // `numberOfLayer1Txs`
-        Token::Uint(U256::from(header.l1_tx_count)),
-        // `priorityOperationsHash`
-        Token::FixedBytes(header.priority_ops_onchain_data_hash().as_bytes().to_vec()),
-        // `bootloaderHeapInitialContentsHash`
-        Token::FixedBytes(
-            metadata
-                .bootloader_initial_content_commitment
-                .unwrap()
-                .as_bytes()
-                .to_vec(),
-        ),
-        // `eventsQueueStateHash`
-        Token::FixedBytes(
-            metadata
-                .events_queue_commitment
-                .unwrap()
-                .as_bytes()
-                .to_vec(),
-        ),
-        // `systemLogs`
-        Token::Bytes(metadata.l2_l1_messages_compressed.clone()),
-    ];
-    commit_data
-}
-
-fn rollup_mode_l1_commit_data<'a>(l1_batch_with_metadata: &'a L1BatchWithMetadata) -> Vec<Token> {
-    let mut commit_data = validium_mode_l1_commit_data(l1_batch_with_metadata);
-    commit_data.push(Token::Bytes(utils::construct_pubdata(
-        l1_batch_with_metadata,
-    )));
-    commit_data
 }

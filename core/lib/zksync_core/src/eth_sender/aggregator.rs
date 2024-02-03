@@ -1,9 +1,6 @@
 use std::sync::Arc;
 
-use zksync_config::configs::{
-    chain::L1BatchCommitDataGeneratorMode,
-    eth_sender::{ProofLoadingMode, ProofSendingMode, SenderConfig},
-};
+use zksync_config::configs::eth_sender::{ProofLoadingMode, ProofSendingMode, SenderConfig};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::StorageProcessor;
 use zksync_l1_contract_interface::i_executor::methods::{
@@ -13,8 +10,8 @@ use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_prover_interface::outputs::L1BatchProofForL1;
 use zksync_types::{
     aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata,
-    helpers::unix_timestamp_ms, protocol_version::L1VerifierConfig, L1BatchNumber,
-    ProtocolVersionId,
+    helpers::unix_timestamp_ms, l1_batch_commit_data_generator::L1BatchCommitDataGenerator,
+    protocol_version::L1VerifierConfig, L1BatchNumber, ProtocolVersionId,
 };
 
 use super::{
@@ -32,14 +29,14 @@ pub struct Aggregator {
     execute_criteria: Vec<Box<dyn L1BatchPublishCriterion>>,
     config: SenderConfig,
     blob_store: Arc<dyn ObjectStore>,
-    l1_batch_commit_data_generator: L1BatchCommitDataGeneratorMode,
+    l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
 }
 
 impl Aggregator {
     pub fn new(
         config: SenderConfig,
         blob_store: Arc<dyn ObjectStore>,
-        l1_batch_commit_data_generator: L1BatchCommitDataGeneratorMode,
+        l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
     ) -> Self {
         Self {
             commit_criteria: vec![
@@ -234,7 +231,7 @@ impl Aggregator {
         batches.map(|batches| CommitBatches {
             last_committed_l1_batch,
             l1_batches: batches,
-            l1_batch_commit_data_generator: self.l1_batch_commit_data_generator,
+            l1_batch_commit_data_generator: self.l1_batch_commit_data_generator.clone(),
         })
     }
 
@@ -324,7 +321,7 @@ impl Aggregator {
         storage: &mut StorageProcessor<'_>,
         ready_for_proof_l1_batches: Vec<L1BatchWithMetadata>,
         last_sealed_l1_batch: L1BatchNumber,
-        l1_batch_commit_data_generator: L1BatchCommitDataGeneratorMode,
+        l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
     ) -> Option<ProveBatches> {
         let batches = extract_ready_subrange(
             storage,
@@ -418,7 +415,7 @@ async fn extract_ready_subrange(
     publish_criteria: &mut [Box<dyn L1BatchPublishCriterion>],
     unpublished_l1_batches: Vec<L1BatchWithMetadata>,
     last_sealed_l1_batch: L1BatchNumber,
-    l1_batch_commit_data_generator: L1BatchCommitDataGeneratorMode,
+    l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
 ) -> Option<Vec<L1BatchWithMetadata>> {
     let mut last_l1_batch: Option<L1BatchNumber> = None;
     for criterion in publish_criteria {
