@@ -7,12 +7,6 @@ where
     Self: std::fmt::Debug + Send + Sync,
 {
     fn l1_commit_data(&self, l1_batch_with_metadata: &L1BatchWithMetadata) -> Token;
-    fn l1_commit_data_size(&self, l1_batch_with_metadata: &L1BatchWithMetadata) -> usize {
-        crate::ethabi::encode(&[Token::Array(vec![
-            self.l1_commit_data(l1_batch_with_metadata)
-        ])])
-        .len()
-    }
 }
 
 #[derive(Debug, Clone)]
