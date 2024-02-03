@@ -106,14 +106,16 @@ impl Aggregator {
         };
 
         if let Some(op) = self
-            .get_execute_operations(
+            .get_commit_operation(
                 storage,
-                self.config.max_aggregated_blocks_to_execute as usize,
+                self.config.max_aggregated_blocks_to_commit as usize,
                 last_sealed_l1_batch_number,
+                base_system_contracts_hashes,
+                protocol_version_id,
             )
             .await
         {
-            Some(AggregatedOperation::Execute(op))
+            Some(AggregatedOperation::Commit(op))
         } else if let Some(op) = self
             .get_proof_operation(
                 storage,
@@ -125,15 +127,13 @@ impl Aggregator {
         {
             Some(AggregatedOperation::PublishProofOnchain(op))
         } else {
-            self.get_commit_operation(
+            self.get_execute_operations(
                 storage,
-                self.config.max_aggregated_blocks_to_commit as usize,
+                self.config.max_aggregated_blocks_to_execute as usize,
                 last_sealed_l1_batch_number,
-                base_system_contracts_hashes,
-                protocol_version_id,
             )
             .await
-            .map(AggregatedOperation::Commit)
+            .map(AggregatedOperation::Execute)
         }
     }
 
