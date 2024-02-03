@@ -26,7 +26,9 @@ enum BaseNetwork {
     SEPOLIA = 'sepolia',
     GOERLI = 'goerli',
     MAINNET = 'mainnet',
-    LINEA = 'linea'
+    LINEA = 'linea',
+    ARBITRUMTEST = 'arbitrumtest',
+    ARBITRUM = 'arbitrum'
 }
 
 enum ProverTypeOption {
@@ -112,7 +114,9 @@ async function setHyperchainMetadata() {
         BaseNetwork.SEPOLIA,
         BaseNetwork.GOERLI,
         BaseNetwork.MAINNET,
-        BaseNetwork.LINEA
+        BaseNetwork.LINEA,
+        BaseNetwork.ARBITRUMTEST,
+        BaseNetwork.ARBITRUM
     ];
     const GENERATE_KEYS = 'Generate keys';
     const INSERT_KEYS = 'Insert keys';
@@ -578,6 +582,10 @@ function getL1Id(baseChain: BaseNetwork) {
             return 1;
         case BaseNetwork.LINEA:
             return 59144;
+        case BaseNetwork.ARBITRUMTEST:
+            return 421614;
+        case BaseNetwork.ARBITRUM:
+            return 42161;
         default:
             throw Error('Unknown base layer chain');
     }

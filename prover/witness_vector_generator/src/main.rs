@@ -8,6 +8,7 @@ use zksync_config::configs::{
     fri_prover_group::FriProverGroupConfig, FriProverConfig, FriWitnessVectorGeneratorConfig,
     PostgresConfig,
 };
+use zksync_config::configs::object_store::ObjectStoreMode;
 use zksync_dal::ConnectionPool;
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
@@ -73,8 +74,11 @@ async fn main() -> anyhow::Result<()> {
     let circuit_ids_for_round_to_be_proven =
         get_all_circuit_id_round_tuples_for(circuit_ids_for_round_to_be_proven);
     let fri_prover_config = FriProverConfig::from_env().context("FriProverConfig::from_env()")?;
-    let zone_url = &fri_prover_config.zone_read_url;
-    let zone = get_zone(zone_url).await.context("get_zone()")?;
+    let zone = if let ObjectStoreMode::GCS | ObjectStoreMode::GCSWithCredentialFile = object_store_config.0.mode {
+        get_zone(&fri_prover_config.zone_read_url).await.context("get_zone()")?
+    } else {
+        "file_backed".to_string()
+    };
     let vk_commitments = get_cached_commitments();
     let witness_vector_generator = WitnessVectorGenerator::new(
         blob_store,

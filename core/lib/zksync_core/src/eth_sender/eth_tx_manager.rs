@@ -217,8 +217,9 @@ impl EthTxManager {
                 .await
             {
                 tracing::warn!(
-                    "Error when sending new signed tx for tx {}, base_fee_per_gas {}, priority_fee_per_gas: {}: {}",
+                    "Error when sending new signed tx for tx {}, gas_limit {}, base_fee_per_gas {}, priority_fee_per_gas: {}: {}",
                     tx.id,
+                    self.config.max_aggregated_tx_gas,
                     base_fee_per_gas,
                     priority_fee_per_gas,
                     error

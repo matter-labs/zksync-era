@@ -11,6 +11,7 @@ use tokio::{
 use zksync_config::configs::{
     fri_prover_group::FriProverGroupConfig, FriProverConfig, PostgresConfig,
 };
+use zksync_config::configs::object_store::ObjectStoreMode;
 use zksync_dal::ConnectionPool;
 use zksync_env_config::{
     object_store::{ProverObjectStoreConfig, PublicObjectStoreConfig},
@@ -23,6 +24,7 @@ use zksync_types::{
     basic_fri_types::CircuitIdRoundTuple,
     proofs::{GpuProverInstanceStatus, SocketAddress},
 };
+use zksync_types::ethabi::ParamType::String;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 
 mod gpu_prover_job_processor;
@@ -221,9 +223,17 @@ async fn get_prover_tasks(
     let shared_witness_vector_queue = Arc::new(Mutex::new(witness_vector_queue));
     let consumer = shared_witness_vector_queue.clone();
 
-    let zone = get_zone(&prover_config.zone_read_url)
-        .await
-        .context("get_zone()")?;
+    let store_config = store_factory.get_config();
+
+    let zone = if let Some(ObjectStoreMode::GCS) | Some(ObjectStoreMode::GCSWithCredentialFile) =
+        store_config.map(|config| config.mode) {
+        get_zone(&prover_config.zone_read_url)
+            .await
+            .context("get_zone()")?
+    } else {
+        "file_backed".to_string()
+    };
+
     let local_ip = local_ip().context("Failed obtaining local IP address")?;
     let address = SocketAddress {
         host: local_ip,

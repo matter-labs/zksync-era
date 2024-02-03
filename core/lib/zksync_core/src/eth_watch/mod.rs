@@ -163,10 +163,14 @@ impl EthWatch {
     #[tracing::instrument(skip(self, storage))]
     async fn loop_iteration(&mut self, storage: &mut StorageProcessor<'_>) -> Result<(), Error> {
         let stage_latency = METRICS.poll_eth_node[&PollStage::Request].start();
-        let to_block = self.client.finalized_block_number().await?;
+        let mut to_block = self.client.finalized_block_number().await?;
         if to_block <= self.last_processed_ethereum_block {
             return Ok(());
         }
+
+        // BlockPI support
+        // to_block = min(self.last_processed_ethereum_block + 5000, to_block)
+        to_block = std::cmp::min(self.last_processed_ethereum_block + 5000, to_block);
 
         let events = self
             .client

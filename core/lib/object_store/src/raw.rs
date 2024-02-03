@@ -185,6 +185,13 @@ impl ObjectStoreFactory {
         }
     }
 
+    pub fn get_config(&self) -> Option<ObjectStoreConfig> {
+        match &self.origin {
+            ObjectStoreOrigin::Config(config) => Some(config.clone()),
+            ObjectStoreOrigin::Mock(_) => None,
+        }
+    }
+
     async fn create_from_config(config: &ObjectStoreConfig) -> Arc<dyn ObjectStore> {
         let gcs_credential_file_path = match config.mode {
             ObjectStoreMode::GCSWithCredentialFile => Some(config.gcs_credential_file_path.clone()),
