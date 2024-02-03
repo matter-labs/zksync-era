@@ -14,11 +14,10 @@ use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_health_check::{CheckHealth, HealthStatus};
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
+use zksync_prover_interface::inputs::PrepareBasicCircuitsJob;
 use zksync_types::{
-    block::{BlockGasCount, L1BatchHeader},
-    proofs::PrepareBasicCircuitsJob,
-    AccountTreeId, Address, L1BatchNumber, L2ChainId, MiniblockNumber, StorageKey, StorageLog,
-    H256,
+    block::L1BatchHeader, AccountTreeId, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
+    StorageKey, StorageLog, H256,
 };
 use zksync_utils::u32_to_h256;
 
@@ -50,8 +49,9 @@ async fn genesis_creation() {
     run_calculator(calculator, pool.clone()).await;
     let (calculator, _) = setup_calculator(temp_dir.path(), &pool).await;
 
-    let GenericAsyncTree::Ready(tree) = &calculator.tree else {
-        panic!("Unexpected tree state: {:?}", calculator.tree);
+    let tree = calculator.create_tree().await.unwrap();
+    let GenericAsyncTree::Ready(tree) = tree else {
+        panic!("Unexpected tree state: {tree:?}");
     };
     assert_eq!(tree.next_l1_batch_number(), L1BatchNumber(1));
 }
@@ -78,8 +78,9 @@ async fn basic_workflow() {
     assert!(merkle_paths.iter().all(|log| log.is_write));
 
     let (calculator, _) = setup_calculator(temp_dir.path(), &pool).await;
-    let GenericAsyncTree::Ready(tree) = &calculator.tree else {
-        panic!("Unexpected tree state: {:?}", calculator.tree);
+    let tree = calculator.create_tree().await.unwrap();
+    let GenericAsyncTree::Ready(tree) = tree else {
+        panic!("Unexpected tree state: {tree:?}");
     };
     assert_eq!(tree.next_l1_batch_number(), L1BatchNumber(2));
 }
@@ -282,14 +283,7 @@ async fn test_postgres_backup_recovery(
         // Re-insert the last batch without metadata immediately.
         storage
             .blocks_dal()
-            .insert_l1_batch(
-                batch_without_metadata,
-                &[],
-                BlockGasCount::default(),
-                &[],
-                &[],
-                0,
-            )
+            .insert_mock_l1_batch(batch_without_metadata)
             .await
             .unwrap();
         insert_initial_writes_for_batch(&mut storage, batch_without_metadata.number).await;
@@ -314,7 +308,7 @@ async fn test_postgres_backup_recovery(
     for batch_header in &removed_batches {
         let mut txn = storage.start_transaction().await.unwrap();
         txn.blocks_dal()
-            .insert_l1_batch(batch_header, &[], BlockGasCount::default(), &[], &[], 0)
+            .insert_mock_l1_batch(batch_header)
             .await
             .unwrap();
         insert_initial_writes_for_batch(&mut txn, batch_header.number).await;
@@ -400,7 +394,9 @@ async fn setup_calculator_with_options(
 ) -> MetadataCalculator {
     let calculator_config =
         MetadataCalculatorConfig::for_main_node(merkle_tree_config, operation_config);
-    let metadata_calculator = MetadataCalculator::new(calculator_config, object_store).await;
+    let metadata_calculator = MetadataCalculator::new(calculator_config, object_store)
+        .await
+        .unwrap();
 
     let mut storage = pool.access_storage().await.unwrap();
     if storage.blocks_dal().is_genesis_needed().await.unwrap() {
@@ -457,6 +453,11 @@ pub(crate) async fn reset_db_state(pool: &ConnectionPool, num_batches: usize) {
         .await
         .unwrap();
     storage
+        .blocks_dal()
+        .delete_initial_writes(L1BatchNumber(0))
+        .await
+        .unwrap();
+    storage
         .basic_witness_input_producer_dal()
         .delete_all_jobs()
         .await
@@ -497,7 +498,7 @@ pub(super) async fn extend_db_state_from_l1_batch(
 
         storage
             .blocks_dal()
-            .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[], 0)
+            .insert_mock_l1_batch(&header)
             .await
             .unwrap();
         storage
@@ -526,6 +527,7 @@ async fn insert_initial_writes_for_batch(
         .storage_logs_dal()
         .get_touched_slots_for_l1_batch(l1_batch_number)
         .await
+        .unwrap()
         .into_iter()
         .filter_map(|(key, value)| (!value.is_zero()).then_some(key))
         .collect();
@@ -613,6 +615,11 @@ async fn remove_l1_batches(
         .delete_l1_batches(last_l1_batch_to_keep)
         .await
         .unwrap();
+    storage
+        .blocks_dal()
+        .delete_initial_writes(last_l1_batch_to_keep)
+        .await
+        .unwrap();
     batch_headers
 }
 
@@ -631,7 +638,8 @@ async fn deduplication_works_as_expected() {
     let initial_writes = storage
         .storage_logs_dal()
         .get_l1_batches_and_indices_for_initial_writes(&hashed_keys)
-        .await;
+        .await
+        .unwrap();
     assert_eq!(initial_writes.len(), hashed_keys.len());
     assert!(initial_writes
         .values()
@@ -650,7 +658,8 @@ async fn deduplication_works_as_expected() {
     let initial_writes = storage
         .storage_logs_dal()
         .get_l1_batches_and_indices_for_initial_writes(&hashed_keys)
-        .await;
+        .await
+        .unwrap();
     assert_eq!(initial_writes.len(), hashed_keys.len());
     assert!(initial_writes
         .values()
@@ -659,7 +668,8 @@ async fn deduplication_works_as_expected() {
     let initial_writes = storage
         .storage_logs_dal()
         .get_l1_batches_and_indices_for_initial_writes(&new_hashed_keys)
-        .await;
+        .await
+        .unwrap();
     assert_eq!(initial_writes.len(), new_hashed_keys.len());
     assert!(initial_writes
         .values()
@@ -675,7 +685,8 @@ async fn deduplication_works_as_expected() {
     let initial_writes = storage
         .storage_logs_dal()
         .get_l1_batches_and_indices_for_initial_writes(&no_op_hashed_keys)
-        .await;
+        .await
+        .unwrap();
     assert!(initial_writes.is_empty());
 
     let updated_logs: Vec<_> = no_op_logs
@@ -692,7 +703,8 @@ async fn deduplication_works_as_expected() {
     let initial_writes = storage
         .storage_logs_dal()
         .get_l1_batches_and_indices_for_initial_writes(&no_op_hashed_keys)
-        .await;
+        .await
+        .unwrap();
     assert_eq!(initial_writes.len(), no_op_hashed_keys.len() / 2);
     for key in no_op_hashed_keys.iter().step_by(2) {
         assert_eq!(initial_writes[key].0, L1BatchNumber(4));

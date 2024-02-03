@@ -6,7 +6,7 @@ use zksync_config::configs::{FriProverGatewayConfig, PostgresConfig};
 use zksync_dal::ConnectionPool;
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
-use zksync_types::prover_server_api::{ProofGenerationDataRequest, SubmitProofRequest};
+use zksync_prover_interface::api::{ProofGenerationDataRequest, SubmitProofRequest};
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 
 use crate::api_data_fetcher::{PeriodicApiStruct, PROOF_GENERATION_DATA_PATH, SUBMIT_PROOF_PATH};

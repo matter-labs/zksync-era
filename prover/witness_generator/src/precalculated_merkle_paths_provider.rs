@@ -3,7 +3,7 @@ use zk_evm::blake2::Blake2s256;
 use zkevm_test_harness::witness::tree::{
     BinaryHasher, BinarySparseStorageTree, EnumeratedBinaryLeaf, LeafQuery, ZkSyncStorageLeaf,
 };
-use zksync_types::proofs::{PrepareBasicCircuitsJob, StorageLogMetadata};
+use zksync_prover_interface::inputs::{PrepareBasicCircuitsJob, StorageLogMetadata};
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct PrecalculatedMerklePathsProvider {

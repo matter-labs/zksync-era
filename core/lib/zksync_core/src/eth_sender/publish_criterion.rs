@@ -1,11 +1,13 @@
-use std::{fmt, sync::Arc};
+use std::fmt;
 
 use async_trait::async_trait;
 use chrono::Utc;
+use zksync_config::configs::chain::L1BatchCommitDataGeneratorMode;
 use zksync_dal::StorageProcessor;
+use zksync_l1_contract_interface::{i_executor::structures::CommitBatchInfo, Tokenizable};
 use zksync_types::{
-    aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata,
-    l1_batch_commit_data_generator::L1BatchCommitDataGenerator, L1BatchNumber,
+    aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata, ethabi,
+    L1BatchNumber,
 };
 
 use super::metrics::METRICS;
@@ -23,7 +25,7 @@ pub trait L1BatchPublishCriterion: fmt::Debug + Send + Sync {
         storage: &mut StorageProcessor<'_>,
         consecutive_l1_batches: &[L1BatchWithMetadata],
         last_sealed_l1_batch: L1BatchNumber,
-        _l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
+        _l1_batch_commit_data_generator: L1BatchCommitDataGeneratorMode,
     ) -> Option<L1BatchNumber>;
 }
 
@@ -45,7 +47,7 @@ impl L1BatchPublishCriterion for NumberCriterion {
         _storage: &mut StorageProcessor<'_>,
         consecutive_l1_batches: &[L1BatchWithMetadata],
         _last_sealed_l1_batch: L1BatchNumber,
-        _l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
+        _l1_batch_commit_data_generator: L1BatchCommitDataGeneratorMode,
     ) -> Option<L1BatchNumber> {
         let mut batch_numbers = consecutive_l1_batches
             .iter()
@@ -92,7 +94,7 @@ impl L1BatchPublishCriterion for TimestampDeadlineCriterion {
         _storage: &mut StorageProcessor<'_>,
         consecutive_l1_batches: &[L1BatchWithMetadata],
         last_sealed_l1_batch: L1BatchNumber,
-        _l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
+        _l1_batch_commit_data_generator: L1BatchCommitDataGeneratorMode,
     ) -> Option<L1BatchNumber> {
         let first_l1_batch = consecutive_l1_batches.iter().next()?;
         let last_l1_batch_number = consecutive_l1_batches.iter().last()?.header.number.0;
@@ -157,7 +159,7 @@ impl L1BatchPublishCriterion for GasCriterion {
         storage: &mut StorageProcessor<'_>,
         consecutive_l1_batches: &[L1BatchWithMetadata],
         _last_sealed_l1_batch: L1BatchNumber,
-        _l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
+        _l1_batch_commit_data_generator: L1BatchCommitDataGeneratorMode,
     ) -> Option<L1BatchNumber> {
         let base_cost = agg_l1_batch_base_cost(self.op);
         assert!(
@@ -215,13 +217,20 @@ impl L1BatchPublishCriterion for DataSizeCriterion {
         _storage: &mut StorageProcessor<'_>,
         consecutive_l1_batches: &[L1BatchWithMetadata],
         _last_sealed_l1_batch: L1BatchNumber,
-        l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
+        l1_batch_commit_data_generator: L1BatchCommitDataGeneratorMode,
     ) -> Option<L1BatchNumber> {
         const STORED_BLOCK_INFO_SIZE: usize = 96; // size of `StoredBlockInfo` solidity struct
         let mut data_size_left = self.data_limit - STORED_BLOCK_INFO_SIZE;
 
         for (index, l1_batch) in consecutive_l1_batches.iter().enumerate() {
-            let l1_commit_data_size = l1_batch_commit_data_generator.l1_commit_data_size(l1_batch);
+            // TODO (PLA-771): Make sure that this estimation is correct.
+            let l1_commit_data_size =
+                ethabi::encode(&[ethabi::Token::Array(vec![CommitBatchInfo::new(
+                    l1_batch,
+                    l1_batch_commit_data_generator,
+                )
+                .into_token()])])
+                .len();
             if data_size_left < l1_commit_data_size {
                 if index == 0 {
                     panic!(

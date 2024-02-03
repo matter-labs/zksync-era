@@ -36,7 +36,7 @@ impl SyncState {
         self.inner.read().unwrap().local_block.unwrap_or_default()
     }
 
-    pub(super) fn set_main_node_block(&self, block: MiniblockNumber) {
+    pub(crate) fn set_main_node_block(&self, block: MiniblockNumber) {
         let mut inner = self.inner.write().unwrap();
         if let Some(local_block) = inner.local_block {
             if block.0 < local_block.0 {

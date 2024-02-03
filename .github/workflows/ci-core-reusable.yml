@@ -118,8 +118,13 @@ jobs:
           ci_run sccache --show-stats
           ci_run cat /tmp/sccache_log.txt
   integration:
-    runs-on: [matterlabs-ci-runner]
+    strategy:
+      matrix:
+        consensus: [false,true]
+    env:
+      SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,basic_witness_input_producer${{ matrix.consensus && ',consensus' || '' }}"
 
+    runs-on: [matterlabs-ci-runner]
     steps:
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
         with:
@@ -179,7 +184,7 @@ jobs:
       # `sleep 5` because we need to wait until server started properly
       - name: Run server
         run: |
-          ci_run zk server &>server.log &
+          ci_run zk server --components=$SERVER_COMPONENTS &>server.log &
           ci_run sleep 5
 
       - name: Run contract verifier
@@ -197,7 +202,7 @@ jobs:
         run: |
           ci_run pkill zksync_server || true
           ci_run sleep 2
-          ci_run zk test i revert
+          ENABLE_CONSENSUS=${{ matrix.consensus }} PASSED_ENV_VARS=ENABLE_CONSENSUS ci_run zk test i revert
 
         # This test should be the last one as soon as it
         # finished bootloader will be different
@@ -230,7 +235,14 @@ jobs:
           ci_run cat /tmp/sccache_log.txt
 
   external-node:
+    strategy:
+      matrix:
+        consensus: [false,true]
     runs-on: [matterlabs-ci-runner]
+   
+    env:
+      SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,basic_witness_input_producer${{ matrix.consensus && ',consensus' || '' }}"
+      EXT_NODE_FLAGS: "${{ matrix.consensus && '--enable-consensus' || '' }}"
 
     steps:
       - name: Checkout code # Checks out the repository under $GITHUB_WORKSPACE, so the job can access it.
@@ -291,22 +303,19 @@ jobs:
       # `sleep 30` because we need to wait until server started properly
       - name: Run server
         run: |
-          ci_run zk server &>server.log &
+          ci_run zk server --components=$SERVER_COMPONENTS &>server.log &
           ci_run sleep 30
-
+      
       - name: Run external node
         run: |
           ci_run zk env ext-node-docker
           ci_run zk db setup
-          ci_run zk external-node &>ext-node.log &
+          ci_run zk external-node $EXT_NODE_FLAGS &>ext-node.log &
           ci_run sleep 30
 
       # TODO(PLA-653): Restore bridge tests for EN.
       - name: Integration tests
         run: ci_run zk test i server --testPathIgnorePatterns 'contract-verification|custom-erc20-bridge|snapshots-creator'
-
-      - name: Run Cross EN Checker
-        run: ci_run zk run cross-en-checker
 
       - name: Run revert test
         run: |
@@ -315,14 +324,14 @@ jobs:
           ci_run pkill zksync_server || true
           ci_run sleep 2
           ci_run zk env
-          ci_run zk test i revert
+          ENABLE_CONSENSUS=${{ matrix.consensus }} PASSED_ENV_VARS=ENABLE_CONSENSUS ci_run zk test i revert
           # Check that the rollback was performed on the EN
           ci_run sleep 20
           ci_run grep -q 'Rollback successfully completed' ext-node.log
           # Restart the EN
-          ci_run zk server &>>server.log &
+          ci_run zk server --components=$SERVER_COMPONENTS &>>server.log &
           ci_run sleep 30
-          ZKSYNC_ENV=ext-node-docker ci_run zk external-node &>>ext-node.log &
+          ZKSYNC_ENV=ext-node-docker ci_run zk external-node $EXT_NODE_FLAGS &>>ext-node.log &
           ci_run sleep 30
 
       - name: Run upgrade test

@@ -4,9 +4,13 @@ use anyhow::Context;
 use serde::Deserialize;
 use url::Url;
 use zksync_basic_types::{Address, L1ChainId, L2ChainId};
-use zksync_core::api_server::{
-    tx_sender::TxSenderConfig,
-    web3::{state::InternalApiConfig, Namespace},
+use zksync_consensus_roles::node;
+use zksync_core::{
+    api_server::{
+        tx_sender::TxSenderConfig,
+        web3::{state::InternalApiConfig, Namespace},
+    },
+    consensus,
 };
 use zksync_types::api::BridgeAddresses;
 use zksync_web3_decl::{
@@ -73,6 +77,12 @@ impl RemoteENConfig {
             l1_chain_id,
         })
     }
+}
+
+#[derive(Debug, Deserialize, Clone, PartialEq)]
+pub enum BlockFetcher {
+    ServerAPI,
+    Consensus,
 }
 
 /// This part of the external node config is completely optional to provide.
@@ -406,14 +416,27 @@ impl PostgresConfig {
     }
 }
 
+pub(crate) fn read_consensus_config() -> anyhow::Result<consensus::FetcherConfig> {
+    let path = std::env::var("EN_CONSENSUS_CONFIG_PATH")
+        .context("EN_CONSENSUS_CONFIG_PATH env variable is not set")?;
+    let cfg = std::fs::read_to_string(&path).context(path)?;
+    let cfg: consensus::config::Config =
+        consensus::config::decode_json(&cfg).context("failed decoding JSON")?;
+    let node_key: node::SecretKey = consensus::config::read_secret("EN_CONSENSUS_NODE_KEY")?;
+    Ok(consensus::FetcherConfig {
+        executor: cfg.executor_config(node_key),
+    })
+}
+
 /// External Node Config contains all the configuration required for the EN operation.
 /// It is split into three parts: required, optional and remote for easier navigation.
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct ExternalNodeConfig {
     pub required: RequiredENConfig,
     pub postgres: PostgresConfig,
     pub optional: OptionalENConfig,
     pub remote: RemoteENConfig,
+    pub consensus: Option<consensus::FetcherConfig>,
 }
 
 impl ExternalNodeConfig {
@@ -434,7 +457,6 @@ impl ExternalNodeConfig {
         let remote = RemoteENConfig::fetch(&client)
             .await
             .context("Unable to fetch required config values from the main node")?;
-
         // We can query them from main node, but it's better to set them explicitly
         // as well to avoid connecting to wrong environment variables unintentionally.
         let eth_chain_id = HttpClientBuilder::default()
@@ -479,6 +501,7 @@ impl ExternalNodeConfig {
             postgres,
             required,
             optional,
+            consensus: None,
         })
     }
 }

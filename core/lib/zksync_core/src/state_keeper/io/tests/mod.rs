@@ -242,6 +242,7 @@ async fn processing_storage_logs_when_sealing_miniblock() {
         miniblock_number: MiniblockNumber(3),
         miniblock,
         first_tx_index: 0,
+        fee_account_address: Address::repeat_byte(0x23),
         fee_input: BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
             l1_gas_price: 100,
             fair_l2_gas_price: 100,
@@ -270,7 +271,8 @@ async fn processing_storage_logs_when_sealing_miniblock() {
     let touched_slots = conn
         .storage_logs_dal()
         .get_touched_slots_for_l1_batch(l1_batch_number)
-        .await;
+        .await
+        .unwrap();
 
     // Keys that are only read must not be written to `storage_logs`.
     let account = AccountTreeId::default();
@@ -321,6 +323,7 @@ async fn processing_events_when_sealing_miniblock() {
         miniblock_number,
         miniblock,
         first_tx_index: 0,
+        fee_account_address: Address::repeat_byte(0x23),
         fee_input: BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
             l1_gas_price: 100,
             fair_l2_gas_price: 100,
@@ -418,7 +421,6 @@ async fn test_miniblock_and_l1_batch_processing(
         .unwrap()
         .expect("No L1 batch #1");
     assert_eq!(l1_batch_header.l2_tx_count, 1);
-    assert!(l1_batch_header.is_finished);
 }
 
 #[tokio::test]

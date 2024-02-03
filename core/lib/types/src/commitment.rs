@@ -17,14 +17,13 @@ use zksync_utils::u256_to_h256;
 
 use crate::{
     block::L1BatchHeader,
-    ethabi::Token,
     l2_to_l1_log::{L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log},
     web3::signing::keccak256,
     writes::{
         compress_state_diffs, InitialStorageWrite, RepeatedStorageWrite, StateDiffRecord,
         PADDED_ENCODED_STORAGE_DIFF_LEN_BYTES,
     },
-    ProtocolVersionId, H256, KNOWN_CODES_STORAGE_ADDRESS, U256,
+    ProtocolVersionId, H256, KNOWN_CODES_STORAGE_ADDRESS,
 };
 
 /// Type that can be serialized for commitment.
@@ -129,33 +128,6 @@ impl L1BatchWithMetadata {
                 None
             }
         })
-    }
-
-    /// Encodes L1Batch into `StorageBatchInfo` (see `IExecutor.sol`)
-    pub fn l1_header_data(&self) -> Token {
-        Token::Tuple(vec![
-            // `batchNumber`
-            Token::Uint(U256::from(self.header.number.0)),
-            // `batchHash`
-            Token::FixedBytes(self.metadata.root_hash.as_bytes().to_vec()),
-            // `indexRepeatedStorageChanges`
-            Token::Uint(U256::from(self.metadata.rollup_last_leaf_index)),
-            // `numberOfLayer1Txs`
-            Token::Uint(U256::from(self.header.l1_tx_count)),
-            // `priorityOperationsHash`
-            Token::FixedBytes(
-                self.header
-                    .priority_ops_onchain_data_hash()
-                    .as_bytes()
-                    .to_vec(),
-            ),
-            // `l2LogsTreeRoot`
-            Token::FixedBytes(self.metadata.l2_l1_merkle_root.as_bytes().to_vec()),
-            // timestamp
-            Token::Uint(U256::from(self.header.timestamp)),
-            // commitment
-            Token::FixedBytes(self.metadata.commitment.as_bytes().to_vec()),
-        ])
     }
 }
 

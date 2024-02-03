@@ -12,12 +12,13 @@ use zksync_circuit_breaker::{
     l1_txs::FailedL1TransactionChecker, replication_lag::ReplicationLagChecker, CircuitBreaker,
     CircuitBreakerChecker, CircuitBreakerError,
 };
+use zksync_concurrency::{ctx, scope};
 use zksync_config::{
     configs::{
         api::{MerkleTreeApiConfig, Web3JsonRpcConfig},
         chain::{
-            CircuitBreakerConfig, L1BatchCommitDataGeneratorMode, MempoolConfig, NetworkConfig,
-            OperationsManagerConfig, StateKeeperConfig,
+            CircuitBreakerConfig, MempoolConfig, NetworkConfig, OperationsManagerConfig,
+            StateKeeperConfig,
         },
         contracts::ProverAtGenesis,
         database::{MerkleTreeConfig, MerkleTreeMode},
@@ -36,10 +37,6 @@ use zksync_queued_job_processor::JobProcessor;
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{
     fee_model::FeeModelConfig,
-    l1_batch_commit_data_generator::{
-        L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
-        ValidiumModeL1BatchCommitDataGenerator,
-    },
     protocol_version::{L1VerifierConfig, VerifierParams},
     system_contracts::get_system_smart_contracts,
     web3::contract::tokens::Detokenize,
@@ -234,6 +231,8 @@ pub enum Component {
     Housekeeper,
     /// Component for exposing APIs to prover for providing proof generation data and accepting proofs.
     ProofDataHandler,
+    /// Component generating BFT consensus certificates for miniblocks.
+    Consensus,
 }
 
 #[derive(Debug)]
@@ -268,6 +267,7 @@ impl FromStr for Components {
             "eth_tx_aggregator" => Ok(Components(vec![Component::EthTxAggregator])),
             "eth_tx_manager" => Ok(Components(vec![Component::EthTxManager])),
             "proof_data_handler" => Ok(Components(vec![Component::ProofDataHandler])),
+            "consensus" => Ok(Components(vec![Component::Consensus])),
             other => Err(format!("{} is not a valid component name", other)),
         }
     }
@@ -509,6 +509,39 @@ pub async fn initialize_components(
         tracing::info!("initialized State Keeper in {elapsed:?}");
     }
 
+    if components.contains(&Component::Consensus) {
+        let cfg = configs
+            .consensus_config
+            .clone()
+            .context("consensus component's config is missing")?;
+        let started_at = Instant::now();
+        tracing::info!("initializing Consensus");
+        let pool = connection_pool.clone();
+        let mut stop_receiver = stop_receiver.clone();
+        task_futures.push(tokio::spawn(async move {
+            scope::run!(&ctx::root(), |ctx, s| async {
+                s.spawn_bg(async {
+                    // Consensus is a new component.
+                    // For now in case of error we just log it and allow the server
+                    // to continue running.
+                    if let Err(err) = cfg.run(ctx, pool).await {
+                        tracing::error!(%err, "Consensus actor failed");
+                    } else {
+                        tracing::info!("Consensus actor stopped");
+                    }
+                    Ok(())
+                });
+                let _ = stop_receiver.wait_for(|stop| *stop).await?;
+                Ok(())
+            })
+            .await
+        }));
+
+        let elapsed = started_at.elapsed();
+        APP_METRICS.init_latency[&InitStage::Consensus].set(elapsed);
+        tracing::info!("initialized Consensus in {elapsed:?}");
+    }
+
     let main_zksync_contract_address = contracts_config.diamond_proxy_addr;
     if components.contains(&Component::EthWatcher) {
         let started_at = Instant::now();
@@ -558,23 +591,12 @@ pub async fn initialize_components(
             .state_keeper_config
             .clone()
             .context("state_keeper_config")?;
-        let l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator> =
-            match state_keeper_config.l1_batch_commit_data_generator_mode {
-                L1BatchCommitDataGeneratorMode::Rollup => {
-                    tracing::debug!("RollupModeL1BatchCommitDataGenerator");
-                    Arc::new(RollupModeL1BatchCommitDataGenerator {})
-                }
-                L1BatchCommitDataGeneratorMode::Validium => {
-                    tracing::debug!("ValidiumModeL1BatchCommitDataGenerator");
-                    Arc::new(ValidiumModeL1BatchCommitDataGenerator {})
-                }
-            };
         let eth_tx_aggregator_actor = EthTxAggregator::new(
             eth_sender.sender.clone(),
             Aggregator::new(
                 eth_sender.sender.clone(),
                 store_factory.create_store().await,
-                l1_batch_commit_data_generator,
+                state_keeper_config.l1_batch_commit_data_generator_mode,
             ),
             Arc::new(eth_client),
             contracts_config.validator_timelock_addr,
@@ -736,7 +758,7 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
         db_config,
         network_config,
         mempool_config,
-        state_keeper_pool,
+        state_keeper_pool.clone(),
         mempool.clone(),
         batch_fee_input_provider.clone(),
         miniblock_sealer_handle,
@@ -744,6 +766,10 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
         stop_receiver.clone(),
     )
     .await;
+
+    task_futures.push(tokio::spawn(
+        state_keeper.run_fee_address_migration(state_keeper_pool),
+    ));
     task_futures.push(tokio::spawn(state_keeper.run()));
 
     let mempool_fetcher_pool = pool_builder
@@ -831,7 +857,9 @@ async fn run_tree(
     tracing::info!("Initializing Merkle tree in {mode_str} mode");
 
     let config = MetadataCalculatorConfig::for_main_node(merkle_tree_config, operation_manager);
-    let metadata_calculator = MetadataCalculator::new(config, object_store).await;
+    let metadata_calculator = MetadataCalculator::new(config, object_store)
+        .await
+        .context("failed initializing metadata_calculator")?;
     if let Some(api_config) = api_config {
         let address = (Ipv4Addr::UNSPECIFIED, api_config.port).into();
         let tree_reader = metadata_calculator.tree_reader();

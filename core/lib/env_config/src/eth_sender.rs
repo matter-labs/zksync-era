@@ -64,6 +64,7 @@ mod tests {
                 internal_enforced_l1_gas_price: None,
                 poll_period: 15,
                 max_l1_gas_price: Some(100000000),
+                l1_gas_per_pubdata_byte: 17,
             },
         }
     }

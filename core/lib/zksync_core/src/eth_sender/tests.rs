@@ -3,30 +3,31 @@ use std::sync::Arc;
 use assert_matches::assert_matches;
 use once_cell::sync::Lazy;
 use zksync_config::{
-    configs::eth_sender::{ProofSendingMode, SenderConfig},
+    configs::{
+        chain::L1BatchCommitDataGeneratorMode,
+        eth_sender::{ProofSendingMode, SenderConfig},
+    },
     ContractsConfig, ETHSenderConfig, GasAdjusterConfig,
 };
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::{clients::MockEthereum, EthInterface};
+use zksync_l1_contract_interface::i_executor::methods::{
+    CommitBatches, ExecuteBatches, ProveBatches,
+};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_types::{
-    aggregated_operations::{
-        AggregatedOperation, L1BatchCommitOperation, L1BatchExecuteOperation, L1BatchProofOperation,
-    },
     block::L1BatchHeader,
     commitment::{L1BatchMetaParameters, L1BatchMetadata, L1BatchWithMetadata},
     ethabi::Token,
     helpers::unix_timestamp_ms,
-    l1_batch_commit_data_generator::{
-        L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
-    },
     web3::contract::Error,
     Address, L1BatchNumber, L1BlockNumber, ProtocolVersionId, H256,
 };
 
 use crate::{
     eth_sender::{
-        eth_tx_manager::L1BlockNumbers, Aggregator, ETHSenderError, EthTxAggregator, EthTxManager,
+        aggregated_operations::AggregatedOperation, eth_tx_manager::L1BlockNumbers, Aggregator,
+        ETHSenderError, EthTxAggregator, EthTxManager,
     },
     l1_gas_price::GasAdjuster,
     utils::testonly::create_l1_batch,
@@ -36,7 +37,7 @@ use crate::{
 type MockEthTxManager = EthTxManager;
 
 static DUMMY_OPERATION: Lazy<AggregatedOperation> = Lazy::new(|| {
-    AggregatedOperation::Execute(L1BatchExecuteOperation {
+    AggregatedOperation::Execute(ExecuteBatches {
         l1_batches: vec![L1BatchWithMetadata {
             header: create_l1_batch(1),
             metadata: default_l1_batch_metadata(),
@@ -62,7 +63,7 @@ impl EthSenderTester {
         connection_pool: ConnectionPool,
         history: Vec<u64>,
         non_ordering_confirmations: bool,
-        l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
+        l1_batch_commit_data_generator: L1BatchCommitDataGeneratorMode,
     ) -> Self {
         let eth_sender_config = ETHSenderConfig::for_tests();
         let contracts_config = ContractsConfig::for_tests();
@@ -139,7 +140,11 @@ impl EthSenderTester {
     async fn get_block_numbers(&self) -> L1BlockNumbers {
         let latest = self.gateway.block_number("").await.unwrap().as_u32().into();
         let finalized = latest - Self::WAIT_CONFIRMATIONS as u32;
-        L1BlockNumbers { finalized, latest }
+        L1BlockNumbers {
+            finalized,
+            latest,
+            safe: finalized,
+        }
     }
 }
 
@@ -147,7 +152,7 @@ impl EthSenderTester {
 #[tokio::test]
 async fn confirm_many() -> anyhow::Result<()> {
     let connection_pool = ConnectionPool::test_pool().await;
-    let l1_batch_commit_data_generator = Arc::new(RollupModeL1BatchCommitDataGenerator {});
+    let l1_batch_commit_data_generator = L1BatchCommitDataGeneratorMode::Rollup;
     let mut tester = EthSenderTester::new(
         connection_pool,
         vec![10; 100],
@@ -230,7 +235,7 @@ async fn confirm_many() -> anyhow::Result<()> {
 #[tokio::test]
 async fn resend_each_block() -> anyhow::Result<()> {
     let connection_pool = ConnectionPool::test_pool().await;
-    let l1_batch_commit_data_generator = Arc::new(RollupModeL1BatchCommitDataGenerator {});
+    let l1_batch_commit_data_generator = L1BatchCommitDataGeneratorMode::Rollup;
     let mut tester = EthSenderTester::new(
         connection_pool,
         vec![7, 6, 5, 5, 5, 2, 1],
@@ -348,7 +353,7 @@ async fn resend_each_block() -> anyhow::Result<()> {
 #[tokio::test]
 async fn dont_resend_already_mined() -> anyhow::Result<()> {
     let connection_pool = ConnectionPool::test_pool().await;
-    let l1_batch_commit_data_generator = Arc::new(RollupModeL1BatchCommitDataGenerator {});
+    let l1_batch_commit_data_generator = L1BatchCommitDataGeneratorMode::Rollup;
     let mut tester = EthSenderTester::new(
         connection_pool,
         vec![100; 100],
@@ -426,7 +431,7 @@ async fn dont_resend_already_mined() -> anyhow::Result<()> {
 #[tokio::test]
 async fn three_scenarios() -> anyhow::Result<()> {
     let connection_pool = ConnectionPool::test_pool().await;
-    let l1_batch_commit_data_generator = Arc::new(RollupModeL1BatchCommitDataGenerator {});
+    let l1_batch_commit_data_generator = L1BatchCommitDataGeneratorMode::Rollup;
     let mut tester = EthSenderTester::new(
         connection_pool.clone(),
         vec![100; 100],
@@ -505,7 +510,7 @@ async fn three_scenarios() -> anyhow::Result<()> {
 #[tokio::test]
 async fn failed_eth_tx() {
     let connection_pool = ConnectionPool::test_pool().await;
-    let l1_batch_commit_data_generator = Arc::new(RollupModeL1BatchCommitDataGenerator {});
+    let l1_batch_commit_data_generator = L1BatchCommitDataGeneratorMode::Rollup;
     let mut tester = EthSenderTester::new(
         connection_pool.clone(),
         vec![100; 100],
@@ -584,7 +589,7 @@ fn l1_batch_with_metadata(header: L1BatchHeader) -> L1BatchWithMetadata {
 #[tokio::test]
 async fn correct_order_for_confirmations() -> anyhow::Result<()> {
     let connection_pool = ConnectionPool::test_pool().await;
-    let l1_batch_commit_data_generator = Arc::new(RollupModeL1BatchCommitDataGenerator {});
+    let l1_batch_commit_data_generator = L1BatchCommitDataGeneratorMode::Rollup;
     let mut tester = EthSenderTester::new(
         connection_pool,
         vec![100; 100],
@@ -654,7 +659,7 @@ async fn correct_order_for_confirmations() -> anyhow::Result<()> {
 #[tokio::test]
 async fn skipped_l1_batch_at_the_start() -> anyhow::Result<()> {
     let connection_pool = ConnectionPool::test_pool().await;
-    let l1_batch_commit_data_generator = Arc::new(RollupModeL1BatchCommitDataGenerator {});
+    let l1_batch_commit_data_generator = L1BatchCommitDataGeneratorMode::Rollup;
     let mut tester = EthSenderTester::new(
         connection_pool,
         vec![100; 100],
@@ -758,7 +763,7 @@ async fn skipped_l1_batch_at_the_start() -> anyhow::Result<()> {
 #[tokio::test]
 async fn skipped_l1_batch_in_the_middle() -> anyhow::Result<()> {
     let connection_pool = ConnectionPool::test_pool().await;
-    let l1_batch_commit_data_generator = Arc::new(RollupModeL1BatchCommitDataGenerator {});
+    let l1_batch_commit_data_generator = L1BatchCommitDataGeneratorMode::Rollup;
     let mut tester = EthSenderTester::new(
         connection_pool,
         vec![100; 100],
@@ -856,7 +861,7 @@ async fn skipped_l1_batch_in_the_middle() -> anyhow::Result<()> {
 #[tokio::test]
 async fn test_parse_multicall_data() {
     let connection_pool = ConnectionPool::test_pool().await;
-    let l1_batch_commit_data_generator = Arc::new(RollupModeL1BatchCommitDataGenerator {});
+    let l1_batch_commit_data_generator = L1BatchCommitDataGeneratorMode::Rollup;
     let tester = EthSenderTester::new(
         connection_pool,
         vec![100; 100],
@@ -943,7 +948,7 @@ async fn test_parse_multicall_data() {
 #[tokio::test]
 async fn get_multicall_data() {
     let connection_pool = ConnectionPool::test_pool().await;
-    let l1_batch_commit_data_generator = Arc::new(RollupModeL1BatchCommitDataGenerator {});
+    let l1_batch_commit_data_generator = L1BatchCommitDataGeneratorMode::Rollup;
     let mut tester = EthSenderTester::new(
         connection_pool,
         vec![100; 100],
@@ -972,7 +977,7 @@ async fn insert_l1_batch(tester: &EthSenderTester, number: L1BatchNumber) -> L1B
         .storage()
         .await
         .blocks_dal()
-        .insert_l1_batch(&header, &[], Default::default(), &[], &[], 0)
+        .insert_mock_l1_batch(&header)
         .await
         .unwrap();
     tester
@@ -995,7 +1000,7 @@ async fn execute_l1_batches(
     l1_batches: Vec<L1BatchHeader>,
     confirm: bool,
 ) -> H256 {
-    let operation = AggregatedOperation::Execute(L1BatchExecuteOperation {
+    let operation = AggregatedOperation::Execute(ExecuteBatches {
         l1_batches: l1_batches.into_iter().map(l1_batch_with_metadata).collect(),
     });
     send_operation(tester, operation, confirm).await
@@ -1007,7 +1012,7 @@ async fn prove_l1_batch(
     l1_batch: L1BatchHeader,
     confirm: bool,
 ) -> H256 {
-    let operation = AggregatedOperation::PublishProofOnchain(L1BatchProofOperation {
+    let operation = AggregatedOperation::PublishProofOnchain(ProveBatches {
         prev_l1_batch: l1_batch_with_metadata(last_committed_l1_batch),
         l1_batches: vec![l1_batch_with_metadata(l1_batch)],
         proofs: vec![],
@@ -1021,9 +1026,9 @@ async fn commit_l1_batch(
     last_committed_l1_batch: L1BatchHeader,
     l1_batch: L1BatchHeader,
     confirm: bool,
-    l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
+    l1_batch_commit_data_generator: L1BatchCommitDataGeneratorMode,
 ) -> H256 {
-    let operation = AggregatedOperation::Commit(L1BatchCommitOperation {
+    let operation = AggregatedOperation::Commit(CommitBatches {
         last_committed_l1_batch: l1_batch_with_metadata(last_committed_l1_batch),
         l1_batches: vec![l1_batch_with_metadata(l1_batch)],
         l1_batch_commit_data_generator,
