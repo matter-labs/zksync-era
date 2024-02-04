@@ -73,7 +73,7 @@ async fn random_block_number(wallet: &SyncWallet, rng: &mut LoadtestRng) -> api:
     match block_number {
         BlockNumber::Committed => api::BlockNumber::Committed,
         BlockNumber::Number => {
-            // Choose a random block in the range [0, latest_committed_block_number).
+            // Choose a random block in the range `[0, latest_committed_block_number)`.
             match wallet
                 .provider
                 .get_block_by_number(api::BlockNumber::Committed, false)

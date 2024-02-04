@@ -197,14 +197,14 @@ Additional checks for length. We should always check whether the sorted queue an
 length.
 
 ```rust
-let unsorted_queue_lenght = Num::from_variable(unsorted_queue.length.get_variable());
-let intermediate_sorted_queue_lenght =
+let unsorted_queue_length = Num::from_variable(unsorted_queue.length.get_variable());
+let intermediate_sorted_queue_length =
     Num::from_variable(intermediate_sorted_queue.length.get_variable());
 
 Num::enforce_equal(
     cs,
-    &unsorted_queue_lenght,
-    &intermediate_sorted_queue_lenght,
+    &unsorted_queue_length,
+    &intermediate_sorted_queue_length,
 );
 ```
 
@@ -266,7 +266,7 @@ values_are_equal.conditionally_enforce_true(cs, should_enforce);
 let this_item_is_non_trivial_rollback =
     Boolean::multi_and(cs, &[sorted_item.rollback, should_pop]);
 let negate_previous_item_rollback = previous_item.rollback.negated(cs);
-let prevous_item_is_non_trivial_write = Boolean::multi_and(
+let previous_item_is_non_trivial_write = Boolean::multi_and(
     cs,
     &[negate_previous_item_rollback, negate_previous_is_trivial],
 );
@@ -274,7 +274,7 @@ let is_sequential_rollback = Boolean::multi_and(
     cs,
     &[
         this_item_is_non_trivial_rollback,
-        prevous_item_is_non_trivial_write,
+        previous_item_is_non_trivial_write,
     ],
 );
 same_log.conditionally_enforce_true(cs, is_sequential_rollback);

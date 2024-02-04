@@ -6,12 +6,12 @@ use zk_evm_1_3_3::{
     tracing::{BeforeExecutionData, VmLocalStateData},
     vm_state::VmLocalState,
 };
+use zkevm_test_harness_1_3_3::witness::sort_storage_access::sort_storage_access_queries;
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_system_constants::{PUBLISH_BYTECODE_OVERHEAD, SYSTEM_CONTEXT_ADDRESS};
 use zksync_types::{
     event::{extract_long_l2_to_l1_messages, extract_published_bytecodes},
     l2_to_l1_log::L2ToL1Log,
-    zkevm_test_harness::witness::sort_storage_access::sort_storage_access_queries,
     L1BatchNumber, StorageKey, U256,
 };
 use zksync_utils::{bytecode::bytecode_len_in_bytes, ceil_div_u256, u256_to_h256};
@@ -32,6 +32,7 @@ use crate::{
             },
         },
         types::internals::ZkSyncVmState,
+        utils::fee::get_batch_base_fee,
     },
 };
 
@@ -109,13 +110,14 @@ impl RefundsTracer {
             });
 
         // For now, bootloader charges only for base fee.
-        let effective_gas_price = self.l1_batch.base_fee();
+        let effective_gas_price = get_batch_base_fee(&self.l1_batch);
 
         let bootloader_eth_price_per_pubdata_byte =
             U256::from(effective_gas_price) * U256::from(current_ergs_per_pubdata_byte);
 
-        let fair_eth_price_per_pubdata_byte =
-            U256::from(eth_price_per_pubdata_byte(self.l1_batch.l1_gas_price));
+        let fair_eth_price_per_pubdata_byte = U256::from(eth_price_per_pubdata_byte(
+            self.l1_batch.fee_input.l1_gas_price(),
+        ));
 
         // For now, L1 originated transactions are allowed to pay less than fair fee per pubdata,
         // so we should take it into account.
@@ -125,7 +127,7 @@ impl RefundsTracer {
         );
 
         let fair_fee_eth = U256::from(gas_spent_on_computation)
-            * U256::from(self.l1_batch.fair_l2_gas_price)
+            * U256::from(self.l1_batch.fee_input.fair_l2_gas_price())
             + U256::from(pubdata_published) * eth_price_per_pubdata_byte_for_calculation;
         let pre_paid_eth = U256::from(tx_gas_limit) * U256::from(effective_gas_price);
         let refund_eth = pre_paid_eth.checked_sub(fair_fee_eth).unwrap_or_else(|| {
@@ -208,8 +210,8 @@ impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for RefundsTrace
         #[vise::register]
         static METRICS: vise::Global<RefundMetrics> = vise::Global::new();
 
-        // This means that the bootloader has informed the system (usually via VMHooks) - that some gas
-        // should be refunded back (see askOperatorForRefund in bootloader.yul for details).
+        // This means that the bootloader has informed the system (usually via `VMHooks`) - that some gas
+        // should be refunded back (see `askOperatorForRefund` in `bootloader.yul` for details).
         if let Some(bootloader_refund) = self.requested_refund() {
             assert!(
                 self.operator_refund.is_none(),

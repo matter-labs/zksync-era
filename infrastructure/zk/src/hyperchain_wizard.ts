@@ -43,9 +43,6 @@ export interface BasePromptOptions {
     skip?: ((state: object) => boolean | Promise<boolean>) | boolean;
 }
 
-// PLA:681
-let isLocalhost = false;
-
 // An init command that allows configuring and spinning up a new hyperchain network.
 async function initHyperchain() {
     await announced('Initializing hyperchain creation', setupConfiguration());
@@ -71,15 +68,6 @@ async function initHyperchain() {
     };
 
     await init(initArgs);
-
-    // if we used matterlabs/geth network, we need custom ENV file for hyperchain compose parts
-    // This breaks `zk status prover` command, but neccessary for working in isolated docker-network
-    // TODO: Think about better implementation
-    // PLA:681
-    if (isLocalhost) {
-        wrapEnvModify('ETH_CLIENT_WEB3_URL', 'http://geth:8545');
-        wrapEnvModify('DATABASE_URL', 'postgres://postgres:notsecurepassword@postgres:5432/zksync_local');
-    }
 
     env.mergeInitToEnv();
 
@@ -262,8 +250,6 @@ async function setHyperchainMetadata() {
             feeReceiverAddress = keyResults.feeReceiver;
         }
     } else {
-        // PLA:681
-        isLocalhost = true;
         l1Rpc = 'http://localhost:8545';
         l1Id = 9;
         databaseUrl = 'postgres://postgres:notsecurepassword@localhost:5432/zksync_local';
@@ -619,6 +605,9 @@ type L1Token = {
 
 export function getTokens(network: string): L1Token[] {
     const configPath = `${process.env.ZKSYNC_HOME}/etc/tokens/${network}.json`;
+    if (!fs.existsSync(configPath)) {
+        return [];
+    }
     try {
         return JSON.parse(
             fs.readFileSync(configPath, {
@@ -785,7 +774,7 @@ async function configDemoHyperchain(cmd: Command) {
     const deployerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
     const governorPrivateKey = process.env.GOVERNOR_PRIVATE_KEY;
     const deployL2Weth = Boolean(process.env.DEPLOY_L2_WETH || false);
-    const deployTestTokens = Boolean(process.env.DEPLOY_TEST_TOKENS || false);
+    const deployTestTokens = Boolean(process.env.DEPLOY_TEST_TOKENS || true);
 
     const initArgs: InitArgs = {
         skipSubmodulesCheckout: false,

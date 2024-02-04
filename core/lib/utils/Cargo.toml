@@ -14,8 +14,8 @@ zksync_basic_types = { path = "../../lib/basic_types" }
 zk_evm = { git = "https://github.com/matter-labs/era-zk_evm.git", tag = "v1.3.3-rc2" }
 vlog = { path = "../../lib/vlog" }
 
-num = { version = "0.3.1", features = ["serde"] }
-bigdecimal = { version = "0.2.2", features = ["serde"] }
+bigdecimal = { version = "0.3.0", features = ["serde"] }
+num = { version = "0.4.0", features = ["serde"] }
 serde = { version = "1.0", features = ["derive"] }
 tokio = { version = "1", features = ["time"] }
 tracing = "0.1"

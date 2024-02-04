@@ -79,7 +79,7 @@ fn inserting_entries_in_empty_database() {
 
 fn assert_storage_with_2_keys(updater: &TreeUpdater) {
     // Check the internal nodes with a single child that should be created at keys
-    // '', 'd', 'de', ..., 'deadbeef'.
+    // `'', 'd', 'de', ..., 'deadbeef'`.
     let internal_node_nibbles = (0..8).map(|i| {
         let nibbles = Nibbles::new(&FIRST_KEY, i);
         let next_nibble = Nibbles::nibble(&FIRST_KEY, i);
@@ -96,7 +96,7 @@ fn assert_storage_with_2_keys(updater: &TreeUpdater) {
         assert!(!child_ref.is_leaf);
     }
 
-    // Check the final internal node with 2 leaf children at 'deadbeef0'.
+    // Check the final internal node with 2 leaf children at `deadbeef0`.
     let nibbles = Nibbles::new(&FIRST_KEY, 9);
     let node = updater.patch_set.get(&nibbles).unwrap();
     let Node::Internal(node) = node else {

@@ -1,4 +1,4 @@
-use std::convert::{TryFrom, TryInto};
+use std::convert::TryInto;
 
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
 use zksync_types::{
@@ -96,51 +96,6 @@ impl ProtocolVersionsDal<'_, '_> {
             .await;
 
         db_transaction.commit().await.unwrap();
-    }
-
-    pub async fn save_prover_protocol_version(&mut self, version: ProtocolVersion) {
-        sqlx::query!(
-            r#"
-            INSERT INTO
-                prover_protocol_versions (
-                    id,
-                    timestamp,
-                    recursion_scheduler_level_vk_hash,
-                    recursion_node_level_vk_hash,
-                    recursion_leaf_level_vk_hash,
-                    recursion_circuits_set_vks_hash,
-                    verifier_address,
-                    created_at
-                )
-            VALUES
-                ($1, $2, $3, $4, $5, $6, $7, NOW())
-            "#,
-            version.id as i32,
-            version.timestamp as i64,
-            version
-                .l1_verifier_config
-                .recursion_scheduler_level_vk_hash
-                .as_bytes(),
-            version
-                .l1_verifier_config
-                .params
-                .recursion_node_level_vk_hash
-                .as_bytes(),
-            version
-                .l1_verifier_config
-                .params
-                .recursion_leaf_level_vk_hash
-                .as_bytes(),
-            version
-                .l1_verifier_config
-                .params
-                .recursion_circuits_set_vks_hash
-                .as_bytes(),
-            version.verifier_address.as_bytes(),
-        )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
     }
 
     pub async fn base_system_contracts_by_timestamp(
@@ -391,62 +346,5 @@ impl ProtocolVersionsDal<'_, '_> {
         } else {
             None
         }
-    }
-
-    pub async fn protocol_version_for(
-        &mut self,
-        vk_commitments: &L1VerifierConfig,
-    ) -> Vec<ProtocolVersionId> {
-        sqlx::query!(
-            r#"
-            SELECT
-                id
-            FROM
-                prover_protocol_versions
-            WHERE
-                recursion_circuits_set_vks_hash = $1
-                AND recursion_leaf_level_vk_hash = $2
-                AND recursion_node_level_vk_hash = $3
-                AND recursion_scheduler_level_vk_hash = $4
-            "#,
-            vk_commitments
-                .params
-                .recursion_circuits_set_vks_hash
-                .as_bytes(),
-            vk_commitments
-                .params
-                .recursion_leaf_level_vk_hash
-                .as_bytes(),
-            vk_commitments
-                .params
-                .recursion_node_level_vk_hash
-                .as_bytes(),
-            vk_commitments.recursion_scheduler_level_vk_hash.as_bytes(),
-        )
-        .fetch_all(self.storage.conn())
-        .await
-        .unwrap()
-        .into_iter()
-        .map(|row| ProtocolVersionId::try_from(row.id as u16).unwrap())
-        .collect()
-    }
-
-    pub async fn prover_protocol_version_exists(&mut self, id: ProtocolVersionId) -> bool {
-        sqlx::query!(
-            r#"
-            SELECT
-                COUNT(*) AS "count!"
-            FROM
-                prover_protocol_versions
-            WHERE
-                id = $1
-            "#,
-            id as i32
-        )
-        .fetch_one(self.storage.conn())
-        .await
-        .unwrap()
-        .count
-            > 0
     }
 }

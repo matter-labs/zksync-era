@@ -16,7 +16,7 @@
 | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
 | [era-compiler-tester](https://github.com/matter-labs/era-compiler-tester)             | Integration testing framework for running executable tests on zkEVM |
 | [era-compiler-tests](https://github.com/matter-labs/era-compiler-tests)               | Collection of executable tests for zkEVM                            |
-| [era-compiler-llvm](https://github.com/matter-labs/compiler-llvm)                     | zkEVM fork of the LLVM framework                                    |
+| [era-compiler-llvm](https://github.com/matter-labs//era-compiler-llvm)                | zkEVM fork of the LLVM framework                                    |
 | [era-compiler-solidity](https://github.com/matter-labs/era-compiler-solidity)         | Solidity Yul/EVMLA compiler front end                               |
 | [era-compiler-vyper](https://github.com/matter-labs/era-compiler-vyper)               | Vyper LLL compiler front end                                        |
 | [era-compiler-llvm-context](https://github.com/matter-labs/era-compiler-llvm-context) | LLVM IR generator logic shared by multiple front ends               |
@@ -46,7 +46,7 @@
 | ----------------------------------------------------------------------------- | ------------------------------------------------------------------- |
 | [era-bellman-cuda](https://github.com/matter-labs/era-bellman-cuda)           | Cuda implementations for cryptographic functions used by the prover |
 | [era-heavy-ops-service](https://github.com/matter-labs/era-heavy-ops-service) | Main circuit prover that requires GPU to run                        |
-| [era-cicruit_testing](https://github.com/matter-labs/era-circuit_testing)     | ??                                                                  |
+| [era-circuit_testing](https://github.com/matter-labs/era-circuit_testing)     | ??                                                                  |
 
 ### Tools & contract developers
 

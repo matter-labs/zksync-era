@@ -4,16 +4,17 @@ use multivm::{
     interface::{
         L2BlockEnv, TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
     },
+    utils::get_max_gas_per_pubdata_byte,
     vm_latest::{constants::BLOCK_GAS_LIMIT, HistoryEnabled, Vm},
 };
 use once_cell::sync::Lazy;
 use zksync_contracts::{deployer_contract, BaseSystemContracts};
 use zksync_state::{InMemoryStorage, StorageView};
-use zksync_system_constants::ethereum::MAX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     block::MiniblockHasher,
     ethabi::{encode, Token},
     fee::Fee,
+    fee_model::BatchFeeInput,
     helpers::unix_timestamp_ms,
     l2::L2Tx,
     utils::storage_key_for_eth_balance,
@@ -39,7 +40,7 @@ pub fn cut_to_allowed_bytecode_size(bytes: &[u8]) -> Option<&[u8]> {
 static STORAGE: Lazy<InMemoryStorage> = Lazy::new(|| {
     let mut storage = InMemoryStorage::with_system_contracts(hash_bytecode);
 
-    // give PRIVATE_KEY some money
+    // give `PRIVATE_KEY` some money
     let my_addr = PackedEthSignature::address_from_private_key(&PRIVATE_KEY).unwrap();
     let key = storage_key_for_eth_balance(&my_addr);
     storage.set_value(key, zksync_utils::u256_to_h256(U256([0, 0, 1, 0])));
@@ -69,8 +70,10 @@ impl BenchmarkingVm {
                 previous_batch_hash: None,
                 number: L1BatchNumber(1),
                 timestamp,
-                l1_gas_price: 50_000_000_000,   // 50 gwei
-                fair_l2_gas_price: 250_000_000, // 0.25 gwei
+                fee_input: BatchFeeInput::l1_pegged(
+                    50_000_000_000, // 50 gwei
+                    250_000_000,    // 0.25 gwei
+                ),
                 fee_account: Address::random(),
                 enforced_base_fee: None,
                 first_l2_block: L2BlockEnv {
@@ -119,7 +122,9 @@ pub fn get_deploy_tx(code: &[u8]) -> Transaction {
             gas_limit: U256::from(30000000u32),
             max_fee_per_gas: U256::from(250_000_000),
             max_priority_fee_per_gas: U256::from(0),
-            gas_per_pubdata_limit: U256::from(MAX_GAS_PER_PUBDATA_BYTE),
+            gas_per_pubdata_limit: U256::from(get_max_gas_per_pubdata_byte(
+                ProtocolVersionId::latest().into(),
+            )),
         },
         U256::zero(),
         L2ChainId::from(270),

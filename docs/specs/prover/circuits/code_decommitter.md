@@ -23,12 +23,12 @@ pub struct CodeDecommitterOutputData<F: SmallField> {
 
 ```rust
 pub struct CodeDecommitterFSMInputOutput<F: SmallField> {
-    pub internal_fsm: CodeDecommittmentFSM<F>,
-    pub decommittment_requests_queue_state: QueueState<F, FULL_SPONGE_QUEUE_STATE_WIDTH>,
+    pub internal_fsm: CodeDecommitmentFSM<F>,
+    pub decommitment_requests_queue_state: QueueState<F, FULL_SPONGE_QUEUE_STATE_WIDTH>,
     pub memory_queue_state: QueueState<F, FULL_SPONGE_QUEUE_STATE_WIDTH>,
 }
 
-pub struct CodeDecommittmentFSM<F: SmallField> {
+pub struct CodeDecommitmentFSM<F: SmallField> {
     pub sha256_inner_state: [UInt32<F>; 8], // 8 uint32 words of internal sha256 state
     pub hash_to_compare_against: UInt256<F>,
     pub current_index: UInt32<F>,
@@ -64,7 +64,7 @@ let mut structured_input =
     CodeDecommitterCycleInputOutput::alloc_ignoring_outputs(cs, closed_form_input.clone());
 ```
 
-We chose what `memory_queue` state and `deccomitments_queue` state to continue to work with.
+We chose what `memory_queue` state and `decommitments_queue` state to continue to work with.
 
 ```rust
 let requests_queue_state = QueueState::conditionally_select(
@@ -75,7 +75,7 @@ let requests_queue_state = QueueState::conditionally_select(
         .sorted_requests_queue_initial_state,
     &structured_input
         .hidden_fsm_input
-        .decommittment_requests_queue_state,
+        .decommitment_requests_queue_state,
 );
 
 let memory_queue_state = QueueState::conditionally_select(
@@ -89,7 +89,7 @@ let memory_queue_state = QueueState::conditionally_select(
 We do the same with inner FSM part.
 
 ```rust
-let initial_state = CodeDecommittmentFSM::conditionally_select(
+let initial_state = CodeDecommitmentFSM::conditionally_select(
     cs,
     structured_input.start_flag,
     &starting_fsm_state,

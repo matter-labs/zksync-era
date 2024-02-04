@@ -38,7 +38,7 @@ That’s how we can make our prover structure more optimized and flexible.
 For now, we have 13 base layer circuits:
 
 - [MainVM](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Circuits%20Section/Circuits/Main%20Vm.md)
-- [CodeDecommittmentsSorter](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Circuits%20Section/Circuits/SortDecommitments.md)
+- [CodeDecommitmentsSorter](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Circuits%20Section/Circuits/SortDecommitments.md)
 - [CodeDecommitter](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Circuits%20Section/Circuits/CodeDecommitter.md)
 - [LogDemuxer](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Circuits%20Section/Circuits/DemuxLogQueue.md)
 - [KeccakRoundFunction](https://github.com/code-423n4/2023-10-zksync/blob/main/docs/Circuits%20Section/Circuits/KeccakRoundFunction.md)

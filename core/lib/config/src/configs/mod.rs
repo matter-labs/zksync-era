@@ -2,8 +2,6 @@
 pub use self::{
     alerts::AlertsConfig,
     api::ApiConfig,
-    chain::ChainConfig,
-    circuit_synthesizer::CircuitSynthesizerConfig,
     contract_verifier::ContractVerifierConfig,
     contracts::ContractsConfig,
     database::{DBConfig, PostgresConfig},
@@ -17,8 +15,6 @@ pub use self::{
     fri_witness_vector_generator::FriWitnessVectorGeneratorConfig,
     object_store::ObjectStoreConfig,
     proof_data_handler::ProofDataHandlerConfig,
-    prover::{ProverConfig, ProverConfigs},
-    prover_group::ProverGroupConfig,
     snapshots_creator::SnapshotsCreatorConfig,
     utils::PrometheusConfig,
     witness_generator::WitnessGeneratorConfig,
@@ -27,7 +23,6 @@ pub use self::{
 pub mod alerts;
 pub mod api;
 pub mod chain;
-pub mod circuit_synthesizer;
 pub mod contract_verifier;
 pub mod contracts;
 pub mod database;
@@ -43,8 +38,6 @@ pub mod fri_witness_vector_generator;
 pub mod house_keeper;
 pub mod object_store;
 pub mod proof_data_handler;
-pub mod prover;
-pub mod prover_group;
 pub mod snapshots_creator;
 pub mod utils;
 pub mod witness_generator;

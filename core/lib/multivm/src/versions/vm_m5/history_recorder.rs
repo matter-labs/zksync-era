@@ -19,13 +19,13 @@ pub type MemoryWithHistory = HistoryRecorder<MemoryWrapper>;
 pub type FrameManagerWithHistory<T> = HistoryRecorder<FrameManager<T>>;
 pub type IntFrameManagerWithHistory<T> = FrameManagerWithHistory<Vec<T>>;
 
-// Within the same cycle, timestamps in range timestamp..timestamp+TIME_DELTA_PER_CYCLE-1
-// can be used. This can sometimes vioalate monotonicity of the timestamp within the
+// Within the same cycle, timestamps in range `timestamp..timestamp+TIME_DELTA_PER_CYCLE-1`
+// can be used. This can sometimes violate monotonicity of the timestamp within the
 // same cycle, so it should be normalized.
 fn normalize_timestamp(timestamp: Timestamp) -> Timestamp {
     let timestamp = timestamp.0;
 
-    // Making sure it is divisible by TIME_DELTA_PER_CYCLE
+    // Making sure it is divisible by `TIME_DELTA_PER_CYCLE`
     Timestamp(timestamp - timestamp % zkevm_opcode_defs::TIME_DELTA_PER_CYCLE)
 }
 

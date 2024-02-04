@@ -15,7 +15,7 @@ use crate::vm_1_3_2::history_recorder::{
     HistoryEnabled, HistoryMode, HistoryRecorder, WithHistory,
 };
 
-/// The main job of the DecommiterOracle is to implement the DecommittmentProcessor trait - that is
+/// The main job of the DecommiterOracle is to implement the DecommitmentProcessor trait - that is
 /// used by the VM to 'load' bytecodes into memory.
 #[derive(Debug)]
 pub struct DecommitterOracle<S, const B: bool, H: HistoryMode> {

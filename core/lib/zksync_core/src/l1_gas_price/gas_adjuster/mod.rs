@@ -7,7 +7,8 @@ use std::{
 
 use tokio::sync::watch;
 use zksync_config::GasAdjusterConfig;
-use zksync_eth_client::{types::Error, EthInterface};
+use zksync_eth_client::{Error, EthInterface};
+use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
 
 use self::metrics::METRICS;
 use super::{L1GasPriceProvider, L1TxParamsProvider};
@@ -126,6 +127,11 @@ impl<E: EthInterface> L1GasPriceProvider for GasAdjuster<E> {
         // Bound the price if it's too high.
         self.bound_gas_price(calculated_price)
     }
+
+    fn estimate_effective_pubdata_price(&self) -> u64 {
+        // For now, pubdata is only sent via calldata, so its price is pegged to the L1 gas price.
+        self.estimate_effective_gas_price() * L1_GAS_PER_PUBDATA_BYTE as u64
+    }
 }
 
 impl<E: EthInterface> L1TxParamsProvider for GasAdjuster<E> {
@@ -141,7 +147,7 @@ impl<E: EthInterface> L1TxParamsProvider for GasAdjuster<E> {
 
         // Currently we use an exponential formula.
         // The alternative is a linear one:
-        // let scale_factor = a + b * time_in_mempool as f64;
+        // `let scale_factor = a + b * time_in_mempool as f64;`
         let scale_factor = a * b.powf(time_in_mempool as f64);
         let median = self.statistics.median();
         METRICS.median_base_fee_per_gas.set(median);
@@ -158,11 +164,11 @@ impl<E: EthInterface> L1TxParamsProvider for GasAdjuster<E> {
 
     // Priority fee is set to constant, sourced from config.
     // Reasoning behind this is the following:
-    // High priority_fee means high demand for block space,
-    // which means base_fee will increase, which means priority_fee
+    // High `priority_fee` means high demand for block space,
+    // which means `base_fee` will increase, which means `priority_fee`
     // will decrease. The EIP-1559 mechanism is designed such that
-    // base_fee will balance out priority_fee in such a way that
-    // priority_fee will be a small fraction of the overall fee.
+    // `base_fee` will balance out `priority_fee` in such a way that
+    // `priority_fee` will be a small fraction of the overall fee.
     fn get_priority_fee(&self) -> u64 {
         self.config.default_priority_fee_per_gas
     }

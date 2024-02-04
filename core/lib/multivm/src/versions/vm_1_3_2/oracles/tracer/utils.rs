@@ -48,7 +48,7 @@ impl VmHook {
 
         let value = data.src1_value.value;
 
-        // Only UMA opcodes in the bootloader serve for vm hooks
+        // Only `UMA` opcodes in the bootloader serve for vm hooks
         if !matches!(opcode_variant.opcode, Opcode::UMA(UMAOpcode::HeapWrite))
             || heap_page != BOOTLOADER_HEAP_PAGE
             || fat_ptr.offset != VM_HOOK_POSITION * 32

@@ -70,7 +70,7 @@ override getDeployTransaction(..) {
 }
 ```
 
-Also `ContractDeployer` adding a special prefix for all the new contract addresses. This means that contract addesses
+Also `ContractDeployer` adding a special prefix for all the new contract addresses. This means that contract addresses
 WILL be different on `zkSync` and Ethereum (and also leaves us the possibility of adding Ethereum addresses in the
 future if needed).
 
@@ -86,9 +86,9 @@ changed - so updating the same slot multiple times doesn't increase the amount o
 
 ### Account abstraction and some method calls
 
-As `zkSync` has a built-in AccountAbstraction (more on this in a separate article) - you shouldn't depend on some of the
-solidity functions (like `ecrecover` - that checks the keys, or `tx.origin`) - in all the cases, the compiler will try
-to warn you.
+As `zkSync` has a built-in Account Abstraction (more on this in a separate article) - you shouldn't depend on some of
+the solidity functions (like `ecrecover` - that checks the keys, or `tx.origin`) - in all the cases, the compiler will
+try to warn you.
 
 ## Summary
 

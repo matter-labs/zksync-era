@@ -1,8 +1,8 @@
-use anyhow::Context as _;
-use zksync_prover_utils::vk_commitment_helper::{
-    get_toml_formatted_value, read_contract_toml, write_contract_toml,
+use anyhow::Context;
+use zksync_vk_setup_data_server_fri::{
+    commitment_utils::generate_commitments,
+    vk_commitment_helper::{get_toml_formatted_value, read_contract_toml, write_contract_toml},
 };
-use zksync_vk_setup_data_server_fri::commitment_utils::generate_commitments;
 
 fn main() -> anyhow::Result<()> {
     tracing::info!("Starting commitment generation!");

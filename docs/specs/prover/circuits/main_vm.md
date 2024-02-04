@@ -40,8 +40,8 @@ pub struct VmLocalState<F: SmallField> {
     pub callstack: Callstack<F>,
     pub memory_queue_state: [Num<F>; FULL_SPONGE_QUEUE_STATE_WIDTH],
     pub memory_queue_length: UInt32<F>,
-    pub code_decommittment_queue_state: [Num<F>; FULL_SPONGE_QUEUE_STATE_WIDTH],
-    pub code_decommittment_queue_length: UInt32<F>,
+    pub code_decommitment_queue_state: [Num<F>; FULL_SPONGE_QUEUE_STATE_WIDTH],
+    pub code_decommitment_queue_length: UInt32<F>,
     pub context_composite_u128: [UInt32<F>; 4],
 }
 ```
@@ -120,7 +120,7 @@ for _cycle_idx in 0..limit {
 The VM runs in cycles. For each cycle,
 
 1. Start in a prestate - perform all common operations for every opcode, namely deal with exceptions, resources, edge
-   cases like end of execution, select opcods, compute common values. Within the zkEVM framework, numerous entities
+   cases like end of execution, select opcodes, compute common values. Within the zkEVM framework, numerous entities
    identified as "opcodes" in the EVM paradigm are elegantly manifested as mere function calls. This modification is
    rooted in the succinct observation that, from the perspective of an external caller, an inlined function (analogous
    to an opcode) is inherently indistinguishable from an internal function call.
@@ -185,7 +185,7 @@ pub struct StateDiffsAccumulator<F: SmallField> {
     // other meta parameters of VM
     pub new_tx_number: Option<(Boolean<F>, UInt32<F>)>,
     pub new_ergs_per_pubdata: Option<(Boolean<F>, UInt32<F>)>,
-    // memory bouds
+    // memory bounds
     pub new_heap_bounds: Vec<(Boolean<F>, UInt32<F>)>,
     pub new_aux_heap_bounds: Vec<(Boolean<F>, UInt32<F>)>,
     // u128 special register, one from context, another from call/ret
@@ -194,7 +194,7 @@ pub struct StateDiffsAccumulator<F: SmallField> {
     pub callstacks: Vec<(Boolean<F>, Callstack<F>)>,
     // memory page counter
     pub memory_page_counters: Option<UInt32<F>>,
-    // decommittment queue
+    // decommitment queue
     pub decommitment_queue_candidates: Option<(
         Boolean<F>,
         UInt32<F>,
@@ -271,8 +271,8 @@ let memory_queue_final_tail = QueueTailState::conditionally_select(
 
 ```rust
 let decommitment_queue_current_tail = QueueTailState {
-        tail: final_state.code_decommittment_queue_state,
-        length: final_state.code_decommittment_queue_length,
+        tail: final_state.code_decommitment_queue_state,
+        length: final_state.code_decommitment_queue_length,
   };
 let decommitment_queue_final_tail = QueueTailState::conditionally_select(
     cs,

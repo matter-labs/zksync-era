@@ -41,15 +41,17 @@ pub enum ProtocolVersionId {
     Version17,
     Version18,
     Version19,
+    Version20,
+    Version21,
 }
 
 impl ProtocolVersionId {
     pub fn latest() -> Self {
-        Self::Version18
+        Self::Version20
     }
 
     pub fn next() -> Self {
-        Self::Version19
+        Self::Version21
     }
 
     /// Returns VM version to be used by API for this protocol version.
@@ -76,11 +78,27 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version17 => VmVersion::VmVirtualBlocksRefundsEnhancement,
             ProtocolVersionId::Version18 => VmVersion::VmBoojumIntegration,
             ProtocolVersionId::Version19 => VmVersion::VmBoojumIntegration,
+            ProtocolVersionId::Version20 => VmVersion::Vm1_4_1,
+            ProtocolVersionId::Version21 => VmVersion::Vm1_4_1,
         }
     }
 
+    // It is possible that some external nodes do not store protocol versions for versions below 9.
+    // That's why we assume that whenever a protocol version is not present, version 9 is to be used.
+    pub fn last_potentially_undefined() -> Self {
+        Self::Version9
+    }
+
     pub fn is_pre_boojum(&self) -> bool {
-        self < &ProtocolVersionId::Version18
+        self <= &Self::Version17
+    }
+
+    pub fn is_1_4_0(&self) -> bool {
+        self >= &ProtocolVersionId::Version18 && self < &ProtocolVersionId::Version20
+    }
+
+    pub fn is_post_1_4_1(&self) -> bool {
+        self >= &ProtocolVersionId::Version20
     }
 }
 
@@ -239,11 +257,11 @@ impl TryFrom<Log> for ProtocolUpgrade {
         };
 
         let transaction_param_type = ParamType::Tuple(vec![
-            ParamType::Uint(256),                                     // txType
+            ParamType::Uint(256),                                     // `txType`
             ParamType::Uint(256),                                     // sender
             ParamType::Uint(256),                                     // to
             ParamType::Uint(256),                                     // gasLimit
-            ParamType::Uint(256),                                     // gasPerPubdataLimit
+            ParamType::Uint(256),                                     // `gasPerPubdataLimit`
             ParamType::Uint(256),                                     // maxFeePerGas
             ParamType::Uint(256),                                     // maxPriorityFeePerGas
             ParamType::Uint(256),                                     // paymaster
@@ -254,7 +272,7 @@ impl TryFrom<Log> for ProtocolUpgrade {
             ParamType::Bytes,                                         // signature
             ParamType::Array(Box::new(ParamType::Uint(256))),         // factory deps
             ParamType::Bytes,                                         // paymaster input
-            ParamType::Bytes,                                         // reservedDynamic
+            ParamType::Bytes,                                         // `reservedDynamic`
         ]);
         let verifier_params_type = ParamType::Tuple(vec![
             ParamType::FixedBytes(32),
@@ -349,7 +367,7 @@ impl TryFrom<Log> for ProtocolUpgrade {
                 let paymaster_input = transaction.remove(0).into_bytes().unwrap();
                 assert_eq!(paymaster_input.len(), 0);
 
-                // TODO (SMA-1621): check that reservedDynamic are constructed correctly.
+                // TODO (SMA-1621): check that `reservedDynamic` are constructed correctly.
                 let reserved_dynamic = transaction.remove(0).into_bytes().unwrap();
                 assert_eq!(reserved_dynamic.len(), 0);
 
@@ -695,6 +713,8 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version17 => VmVersion::VmVirtualBlocksRefundsEnhancement,
             ProtocolVersionId::Version18 => VmVersion::VmBoojumIntegration,
             ProtocolVersionId::Version19 => VmVersion::VmBoojumIntegration,
+            ProtocolVersionId::Version20 => VmVersion::Vm1_4_1,
+            ProtocolVersionId::Version21 => VmVersion::Vm1_4_1,
         }
     }
 }

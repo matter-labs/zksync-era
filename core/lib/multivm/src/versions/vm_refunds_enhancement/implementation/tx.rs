@@ -7,6 +7,7 @@ use crate::{
         constants::BOOTLOADER_HEAP_PAGE,
         implementation::bytecode::{bytecode_to_factory_dep, compress_bytecodes},
         types::internals::TransactionData,
+        utils::fee::get_batch_gas_per_pubdata,
         vm::Vm,
     },
     HistoryMode,
@@ -38,8 +39,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             .decommittment_processor
             .populate(codes_for_decommiter, timestamp);
 
-        let trusted_ergs_limit =
-            tx.trusted_ergs_limit(self.batch_env.block_gas_price_per_pubdata());
+        let trusted_ergs_limit = tx.trusted_ergs_limit(get_batch_gas_per_pubdata(&self.batch_env));
 
         let memory = self.bootloader_state.push_tx(
             tx,
@@ -61,7 +61,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         with_compression: bool,
     ) {
         let tx: TransactionData = tx.into();
-        let block_gas_per_pubdata_byte = self.batch_env.block_gas_price_per_pubdata();
+        let block_gas_per_pubdata_byte = get_batch_gas_per_pubdata(&self.batch_env);
         let overhead = tx.overhead_gas(block_gas_per_pubdata_byte as u32);
         self.push_raw_transaction(tx, overhead, 0, with_compression);
     }

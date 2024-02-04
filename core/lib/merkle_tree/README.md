@@ -111,7 +111,7 @@ following order of RocksDB storage consumption at the end of the test:
 [gauge] rocksdb.total_mem_table_size{db=merkle_tree, cf=stale_keys} = 19924992 bytes
 ```
 
-I.e., pruning reduces RocksDB size ~8.7 times in this case.
+I.e., pruning reduces RocksDB size approximately 8.7 times in this case.
 
 [jellyfish merkle tree]: https://developers.diem.com/papers/jellyfish-merkle-tree/2021-01-14.pdf
 [`insta`]: https://docs.rs/insta/

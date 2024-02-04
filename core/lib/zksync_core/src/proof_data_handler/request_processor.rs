@@ -11,13 +11,13 @@ use zksync_config::configs::{
 };
 use zksync_dal::{ConnectionPool, SqlxError};
 use zksync_object_store::{ObjectStore, ObjectStoreError};
+use zksync_prover_interface::api::{
+    ProofGenerationData, ProofGenerationDataRequest, ProofGenerationDataResponse,
+    SubmitProofRequest, SubmitProofResponse,
+};
 use zksync_types::{
     commitment::serialize_commitments,
     protocol_version::{FriProtocolVersionId, L1VerifierConfig},
-    prover_server_api::{
-        ProofGenerationData, ProofGenerationDataRequest, ProofGenerationDataResponse,
-        SubmitProofRequest, SubmitProofResponse,
-    },
     web3::signing::keccak256,
     L1BatchNumber, H256,
 };
@@ -65,13 +65,13 @@ impl IntoResponse for RequestProcessorError {
 
 impl RequestProcessor {
     pub(crate) fn new(
-        blob_store: Box<dyn ObjectStore>,
+        blob_store: Arc<dyn ObjectStore>,
         pool: ConnectionPool,
         config: ProofDataHandlerConfig,
         l1_verifier_config: Option<L1VerifierConfig>,
     ) -> Self {
         Self {
-            blob_store: Arc::from(blob_store),
+            blob_store,
             pool,
             config,
             l1_verifier_config,

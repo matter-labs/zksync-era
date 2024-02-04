@@ -314,12 +314,12 @@ impl NodeKey {
     #[allow(clippy::cast_possible_truncation)]
     pub(crate) fn to_db_key(self) -> Vec<u8> {
         let nibbles_byte_len = (self.nibbles.nibble_count + 1) / 2;
-        // ^ equivalent to ceil(self.nibble_count / 2)
+        // ^ equivalent to `ceil(self.nibble_count / 2)`
         let mut bytes = Vec::with_capacity(9 + nibbles_byte_len);
         // ^ 8 bytes for `version` + 1 byte for nibble count
         bytes.extend_from_slice(&self.version.to_be_bytes());
         bytes.push(self.nibbles.nibble_count as u8);
-        // ^ conversion is safe: nibble_count <= 64
+        // ^ conversion is safe: `nibble_count <= 64`
         bytes.extend_from_slice(&self.nibbles.bytes[..nibbles_byte_len]);
         bytes
     }
@@ -568,7 +568,7 @@ mod tests {
     use super::*;
 
     // `U256` uses little-endian `u64` ordering; i.e., this is
-    // 0x_dead_beef_0000_0000_.._0000.
+    // `0x_dead_beef_0000_0000_.._0000.`
     const TEST_KEY: Key = U256([0, 0, 0, 0x_dead_beef_0000_0000]);
 
     #[test]

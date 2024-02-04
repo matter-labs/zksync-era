@@ -127,7 +127,7 @@ Form the final state (depending on flag we choose between states):
     );
 
     structured_input.hidden_fsm_output.internal_fsm = final_state;
-    structured_input.hidden_fsm_output.log_queue_state = final_requets_state;
+    structured_input.hidden_fsm_output.log_queue_state = final_request_state;
     structured_input.hidden_fsm_output.memory_queue_state = final_memory_state;
 ```
 
@@ -166,7 +166,7 @@ progress:
 
 ```rust
 let input_queue_is_empty = precompile_calls_queue.is_empty(cs);
-let can_finish_immediatelly =
+let can_finish_immediately =
     Boolean::multi_and(cs, &[state.read_precompile_call, input_queue_is_empty]);
 ```
 
@@ -334,7 +334,7 @@ let no_rounds_left = state.precompile_call_params.num_rounds.is_zero(cs);
 let write_result = Boolean::multi_and(cs, &[state.read_words_for_round, no_rounds_left]);
 
 let mut write_word = zero_u256;
-// some endianess magic
+// some endianness magic
 for (dst, src) in write_word
   .inner
   .iter_mut()

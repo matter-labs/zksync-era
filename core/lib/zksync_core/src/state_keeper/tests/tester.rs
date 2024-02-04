@@ -15,21 +15,22 @@ use multivm::{
 };
 use tokio::sync::{mpsc, watch};
 use zksync_types::{
-    block::MiniblockExecutionData, protocol_version::ProtocolUpgradeTx,
+    block::MiniblockExecutionData, fee_model::BatchFeeInput, protocol_version::ProtocolUpgradeTx,
     witness_block_state::WitnessBlockState, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
     ProtocolVersionId, Transaction, H256,
 };
 
-use crate::state_keeper::{
-    batch_executor::{BatchExecutorHandle, Command, L1BatchExecutorBuilder, TxExecutionResult},
-    io::{MiniblockParams, PendingBatchData, StateKeeperIO},
-    seal_criteria::{ConditionalSealer, IoSealCriteria},
-    tests::{
-        create_l2_transaction, default_l1_batch_env, default_vm_block_result, BASE_SYSTEM_CONTRACTS,
+use crate::{
+    state_keeper::{
+        batch_executor::{BatchExecutorHandle, Command, L1BatchExecutorBuilder, TxExecutionResult},
+        io::{MiniblockParams, PendingBatchData, StateKeeperIO},
+        seal_criteria::{IoSealCriteria, SequencerSealer},
+        tests::{default_l1_batch_env, default_vm_block_result, BASE_SYSTEM_CONTRACTS},
+        types::ExecutionMetricsForCriteria,
+        updates::UpdatesManager,
+        ZkSyncStateKeeper,
     },
-    types::ExecutionMetricsForCriteria,
-    updates::UpdatesManager,
-    ZkSyncStateKeeper,
+    utils::testonly::create_l2_transaction,
 };
 
 const FEE_ACCOUNT: Address = Address::repeat_byte(0x11);
@@ -189,7 +190,7 @@ impl TestScenario {
 
     /// Launches the test.
     /// Provided `SealManager` is expected to be externally configured to adhere the written scenario logic.
-    pub(crate) async fn run(self, sealer: ConditionalSealer) {
+    pub(crate) async fn run(self, sealer: SequencerSealer) {
         assert!(!self.actions.is_empty(), "Test scenario can't be empty");
 
         let batch_executor_base = TestBatchExecutorBuilder::new(&self);
@@ -199,7 +200,7 @@ impl TestScenario {
             stop_receiver,
             Box::new(io),
             Box::new(batch_executor_base),
-            sealer,
+            Box::new(sealer),
         );
         let sk_thread = tokio::spawn(sk.run());
 
@@ -241,14 +242,14 @@ pub(crate) fn successful_exec() -> TxExecutionResult {
             statistics: Default::default(),
             refunds: Default::default(),
         }),
-        tx_metrics: ExecutionMetricsForCriteria {
+        tx_metrics: Box::new(ExecutionMetricsForCriteria {
             l1_gas: Default::default(),
             execution_metrics: Default::default(),
-        },
-        bootloader_dry_run_metrics: ExecutionMetricsForCriteria {
+        }),
+        bootloader_dry_run_metrics: Box::new(ExecutionMetricsForCriteria {
             l1_gas: Default::default(),
             execution_metrics: Default::default(),
-        },
+        }),
         bootloader_dry_run_result: Box::new(VmExecutionResultAndLogs {
             result: ExecutionResult::Success { output: vec![] },
             logs: Default::default(),
@@ -271,11 +272,11 @@ pub(crate) fn successful_exec_with_metrics(
             statistics: Default::default(),
             refunds: Default::default(),
         }),
-        tx_metrics,
-        bootloader_dry_run_metrics: ExecutionMetricsForCriteria {
+        tx_metrics: Box::new(tx_metrics),
+        bootloader_dry_run_metrics: Box::new(ExecutionMetricsForCriteria {
             l1_gas: Default::default(),
             execution_metrics: Default::default(),
-        },
+        }),
         bootloader_dry_run_result: Box::new(VmExecutionResultAndLogs {
             result: ExecutionResult::Success { output: vec![] },
             logs: Default::default(),
@@ -451,7 +452,8 @@ impl L1BatchExecutorBuilder for TestBatchExecutorBuilder {
         &mut self,
         _l1batch_params: L1BatchEnv,
         _system_env: SystemEnv,
-    ) -> BatchExecutorHandle {
+        _stop_receiver: &watch::Receiver<bool>,
+    ) -> Option<BatchExecutorHandle> {
         let (commands_sender, commands_receiver) = mpsc::channel(1);
 
         let executor = TestBatchExecutor::new(
@@ -461,7 +463,7 @@ impl L1BatchExecutorBuilder for TestBatchExecutorBuilder {
         );
         let handle = tokio::task::spawn_blocking(move || executor.run());
 
-        BatchExecutorHandle::from_raw(handle, commands_sender)
+        Some(BatchExecutorHandle::from_raw(handle, commands_sender))
     }
 }
 
@@ -542,8 +544,7 @@ pub(crate) struct TestIO {
     stop_sender: watch::Sender<bool>,
     batch_number: L1BatchNumber,
     timestamp: u64,
-    l1_gas_price: u64,
-    fair_l2_gas_price: u64,
+    fee_input: BatchFeeInput,
     miniblock_number: MiniblockNumber,
     fee_account: Address,
     scenario: TestScenario,
@@ -560,8 +561,7 @@ impl TestIO {
             stop_sender,
             batch_number: L1BatchNumber(1),
             timestamp: 1,
-            l1_gas_price: 1,
-            fair_l2_gas_price: 1,
+            fee_input: BatchFeeInput::default(),
             miniblock_number: MiniblockNumber(1),
             fee_account: FEE_ACCOUNT,
             scenario,
@@ -650,8 +650,7 @@ impl StateKeeperIO for TestIO {
                 previous_batch_hash: Some(H256::zero()),
                 number: self.batch_number,
                 timestamp: self.timestamp,
-                l1_gas_price: self.l1_gas_price,
-                fair_l2_gas_price: self.fair_l2_gas_price,
+                fee_input: self.fee_input,
                 fee_account: self.fee_account,
                 enforced_base_fee: None,
                 first_l2_block: first_miniblock_info,
@@ -771,8 +770,8 @@ impl StateKeeperIO for TestIO {
     }
 }
 
-/// `L1BatchExecutorBuilder` which doesn't check anything at all.
-/// Accepts all transactions.
+/// `L1BatchExecutorBuilder` which doesn't check anything at all. Accepts all transactions.
+// FIXME: move to `utils`?
 #[derive(Debug)]
 pub(crate) struct MockBatchExecutorBuilder;
 
@@ -782,8 +781,9 @@ impl L1BatchExecutorBuilder for MockBatchExecutorBuilder {
         &mut self,
         _l1batch_params: L1BatchEnv,
         _system_env: SystemEnv,
-    ) -> BatchExecutorHandle {
-        let (send, recv) = tokio::sync::mpsc::channel(1);
+        _stop_receiver: &watch::Receiver<bool>,
+    ) -> Option<BatchExecutorHandle> {
+        let (send, recv) = mpsc::channel(1);
         let handle = tokio::task::spawn(async {
             let mut recv = recv;
             while let Some(cmd) = recv.recv().await {
@@ -799,6 +799,6 @@ impl L1BatchExecutorBuilder for MockBatchExecutorBuilder {
                 }
             }
         });
-        BatchExecutorHandle::from_raw(handle, send)
+        Some(BatchExecutorHandle::from_raw(handle, send))
     }
 }

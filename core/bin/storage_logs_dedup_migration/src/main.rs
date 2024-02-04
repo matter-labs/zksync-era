@@ -57,7 +57,8 @@ async fn main() {
         .blocks_dal()
         .get_sealed_miniblock_number()
         .await
-        .unwrap();
+        .unwrap()
+        .expect("Cannot start migration for Postgres recovered from snapshot");
     println!(
         "Migration started for miniblock range {}..={}",
         opt.start_from_miniblock, sealed_miniblock
@@ -107,7 +108,8 @@ async fn main() {
             let values_for_missing_keys: HashMap<_, _> = connection
                 .storage_logs_dal()
                 .get_storage_values(&missing_keys, miniblock_number - 1)
-                .await;
+                .await
+                .expect("failed getting storage values for missing keys");
 
             in_memory_prev_values_iter
                 .chain(

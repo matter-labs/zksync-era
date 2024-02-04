@@ -23,7 +23,7 @@ implementation that is inspired by the [mudgen reference implementation](https:/
 external functions, only the fallback that delegates a call to one of the facets (target/implementation contract). So
 even an upgrade system is a separate facet that can be replaced.
 
-One of the differences from the reference implementation is access freezability. Each of the facets has an associated
+One of the differences from the reference implementation is access freezable. Each of the facets has an associated
 parameter that indicates if it is possible to freeze access to the facet. Privileged actors can freeze the **diamond**
 (not a specific facet!) and all facets with the marker `isFreezable` should be inaccessible until the governor or admin
 unfreezes the diamond. Note that it is a very dangerous thing since the diamond proxy can freeze the upgrade system and

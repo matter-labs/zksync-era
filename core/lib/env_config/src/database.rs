@@ -27,11 +27,11 @@ impl FromEnv for PostgresConfig {
             .ok()
             .map(|val| val.parse().context("failed to parse DATABASE_POOL_SIZE"))
             .transpose()?;
-        let statement_timeout_sec = env::var("DATABASE_STATEMENT_TIMEOUT")
+        let statement_timeout_sec = env::var("DATABASE_STATEMENT_TIMEOUT_SEC")
             .ok()
             .map(|val| {
                 val.parse()
-                    .context("failed to parse DATABASE_STATEMENT_TIMEOUT")
+                    .context("failed to parse DATABASE_STATEMENT_TIMEOUT_SEC")
             })
             .transpose()?;
 
@@ -47,6 +47,8 @@ impl FromEnv for PostgresConfig {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use zksync_config::configs::database::MerkleTreeMode;
 
     use super::*;
@@ -119,5 +121,27 @@ mod tests {
         lock.set_env("DATABASE_MERKLE_TREE_MAX_L1_BATCHES_PER_ITER=50");
         let db_config = DBConfig::from_env().unwrap();
         assert_eq!(db_config.merkle_tree.max_l1_batches_per_iter, 50);
+    }
+
+    #[test]
+    fn postgres_from_env() {
+        let mut lock = MUTEX.lock();
+        let config = r#"
+            DATABASE_URL=postgres://postgres@localhost/zksync_local
+            DATABASE_POOL_SIZE=50
+            DATABASE_STATEMENT_TIMEOUT_SEC=300
+        "#;
+        lock.set_env(config);
+
+        let postgres_config = PostgresConfig::from_env().unwrap();
+        assert_eq!(
+            postgres_config.master_url().unwrap(),
+            "postgres://postgres@localhost/zksync_local"
+        );
+        assert_eq!(postgres_config.max_connections().unwrap(), 50);
+        assert_eq!(
+            postgres_config.statement_timeout(),
+            Some(Duration::from_secs(300))
+        );
     }
 }

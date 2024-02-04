@@ -3,11 +3,13 @@ use std::{collections::HashMap, convert::TryInto, iter::FromIterator, time::Dura
 use async_trait::async_trait;
 use futures::future;
 use multivm::interface::{FinishedL1Batch, L1BatchEnv, SystemEnv};
+use vm_utils::storage::wait_for_prev_l1_batch_params;
 use zksync_contracts::{BaseSystemContracts, SystemContractCode};
 use zksync_dal::ConnectionPool;
 use zksync_types::{
-    ethabi::Address, protocol_version::ProtocolUpgradeTx, witness_block_state::WitnessBlockState,
-    L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, Transaction, H256, U256,
+    ethabi::Address, fee_model::BatchFeeInput, protocol_version::ProtocolUpgradeTx,
+    witness_block_state::WitnessBlockState, L1BatchNumber, L2ChainId, MiniblockNumber,
+    ProtocolVersionId, Transaction, H256, U256,
 };
 use zksync_utils::{be_words_to_bytes, bytes_to_be_words};
 
@@ -19,10 +21,10 @@ use super::{
 use crate::{
     metrics::{BlockStage, APP_METRICS},
     state_keeper::{
-        extractors,
         io::{
             common::{l1_batch_params, load_pending_batch, poll_iters},
-            MiniblockParams, MiniblockSealerHandle, PendingBatchData, StateKeeperIO,
+            fee_address_migration, MiniblockParams, MiniblockSealerHandle, PendingBatchData,
+            StateKeeperIO,
         },
         metrics::KEEPER_METRICS,
         seal_criteria::IoSealCriteria,
@@ -70,21 +72,27 @@ impl ExternalIO {
         chain_id: L2ChainId,
     ) -> Self {
         let mut storage = pool.access_storage_tagged("sync_layer").await.unwrap();
-        let last_sealed_l1_batch_header = storage
+        // TODO (PLA-703): Support no L1 batches / miniblocks in the storage
+        let last_sealed_l1_batch_number = storage
             .blocks_dal()
-            .get_newest_l1_batch_header()
+            .get_sealed_l1_batch_number()
             .await
-            .unwrap();
+            .unwrap()
+            .expect("No L1 batches sealed");
         let last_miniblock_number = storage
             .blocks_dal()
             .get_sealed_miniblock_number()
             .await
-            .unwrap();
+            .unwrap()
+            .expect("empty storage not supported"); // FIXME (PLA-703): handle empty storage
+                                                    // We must run the migration for pending miniblocks synchronously, since we use `fee_account_address`
+                                                    // from a pending miniblock in `load_pending_batch()` implementation.
+        fee_address_migration::migrate_pending_miniblocks(&mut storage).await;
         drop(storage);
 
         tracing::info!(
             "Initialized the ExternalIO: current L1 batch number {}, current miniblock number {}",
-            last_sealed_l1_batch_header.number + 1,
+            last_sealed_l1_batch_number + 1,
             last_miniblock_number + 1,
         );
 
@@ -93,7 +101,7 @@ impl ExternalIO {
         Self {
             miniblock_sealer_handle,
             pool,
-            current_l1_batch_number: last_sealed_l1_batch_header.number + 1,
+            current_l1_batch_number: last_sealed_l1_batch_number + 1,
             current_miniblock_number: last_miniblock_number + 1,
             actions,
             sync_state,
@@ -108,8 +116,7 @@ impl ExternalIO {
         let mut storage = self.pool.access_storage_tagged("sync_layer").await.unwrap();
         let wait_latency = KEEPER_METRICS.wait_for_prev_hash_time.start();
         let (hash, _) =
-            extractors::wait_for_prev_l1_batch_params(&mut storage, self.current_l1_batch_number)
-                .await;
+            wait_for_prev_l1_batch_params(&mut storage, self.current_l1_batch_number).await;
         wait_latency.observe();
         hash
     }
@@ -208,7 +215,8 @@ impl ExternalIO {
                         self.current_miniblock_number,
                         &HashMap::from_iter([(contract.hash, be_words_to_bytes(&contract.code))]),
                     )
-                    .await;
+                    .await
+                    .unwrap();
                 contract
             }
         }
@@ -224,10 +232,7 @@ impl IoSealCriteria for ExternalIO {
     }
 
     fn should_seal_miniblock(&mut self, _manager: &UpdatesManager) -> bool {
-        matches!(
-            self.actions.peek_action(),
-            Some(SyncAction::SealMiniblock(_))
-        )
+        matches!(self.actions.peek_action(), Some(SyncAction::SealMiniblock))
     }
 }
 
@@ -244,19 +249,6 @@ impl StateKeeperIO for ExternalIO {
     async fn load_pending_batch(&mut self) -> Option<PendingBatchData> {
         let mut storage = self.pool.access_storage_tagged("sync_layer").await.unwrap();
 
-        // TODO (BFT-99): Do not assume that fee account is the same as in previous batch.
-        let fee_account = storage
-            .blocks_dal()
-            .get_l1_batch_header(self.current_l1_batch_number - 1)
-            .await
-            .unwrap()
-            .unwrap_or_else(|| {
-                panic!(
-                    "No block header for batch {}",
-                    self.current_l1_batch_number - 1
-                )
-            })
-            .fee_account_address;
         let pending_miniblock_number = {
             let (_, last_miniblock_number_included_in_l1_batch) = storage
                 .blocks_dal()
@@ -271,6 +263,7 @@ impl StateKeeperIO for ExternalIO {
             .get_miniblock_header(pending_miniblock_number)
             .await
             .unwrap()?;
+        let fee_account = pending_miniblock_header.fee_account_address;
 
         if pending_miniblock_header.protocol_version.is_none() {
             // Fetch protocol version ID for pending miniblocks to know which VM to use to re-execute them.
@@ -313,6 +306,7 @@ impl StateKeeperIO for ExternalIO {
                     timestamp,
                     l1_gas_price,
                     l2_fair_gas_price,
+                    fair_pubdata_price,
                     operator_address,
                     protocol_version,
                     first_miniblock_info: (miniblock_number, virtual_blocks),
@@ -339,8 +333,12 @@ impl StateKeeperIO for ExternalIO {
                         operator_address,
                         timestamp,
                         previous_l1_batch_hash,
-                        l1_gas_price,
-                        l2_fair_gas_price,
+                        BatchFeeInput::for_protocol_version(
+                            protocol_version,
+                            l2_fair_gas_price,
+                            fair_pubdata_price,
+                            l1_gas_price,
+                        ),
                         miniblock_number,
                         previous_miniblock_hash,
                         base_system_contracts,
@@ -452,7 +450,7 @@ impl StateKeeperIO for ExternalIO {
 
     async fn seal_miniblock(&mut self, updates_manager: &UpdatesManager) {
         let action = self.actions.pop_action();
-        let Some(SyncAction::SealMiniblock(consensus)) = action else {
+        let Some(SyncAction::SealMiniblock) = action else {
             panic!("State keeper requested to seal miniblock, but the next action is {action:?}");
         };
 
@@ -461,7 +459,6 @@ impl StateKeeperIO for ExternalIO {
             self.current_l1_batch_number,
             self.current_miniblock_number,
             self.l2_erc20_bridge_addr,
-            consensus,
             true,
         );
         self.miniblock_sealer_handle.submit(command).await;
@@ -481,7 +478,7 @@ impl StateKeeperIO for ExternalIO {
         finished_batch: FinishedL1Batch,
     ) -> anyhow::Result<()> {
         let action = self.actions.pop_action();
-        let Some(SyncAction::SealBatch { consensus, .. }) = action else {
+        let Some(SyncAction::SealBatch { .. }) = action else {
             anyhow::bail!(
                 "State keeper requested to seal the batch, but the next action is {action:?}"
             );
@@ -499,7 +496,6 @@ impl StateKeeperIO for ExternalIO {
                 l1_batch_env,
                 finished_batch,
                 self.l2_erc20_bridge_addr,
-                consensus,
             )
             .await;
         transaction.commit().await.unwrap();

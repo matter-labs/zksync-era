@@ -20,7 +20,9 @@ use zksync_types::{
 use crate::{
     account::{AccountLifespan, ExecutionType},
     command::{IncorrectnessModifier, TxCommand, TxType},
-    constants::{ETH_CONFIRMATION_TIMEOUT, ETH_POLLING_INTERVAL},
+    constants::{
+        ETH_CONFIRMATION_TIMEOUT, ETH_POLLING_INTERVAL, MIN_ALLOWANCE_FOR_PAYMASTER_ESTIMATE,
+    },
     corrupted_tx::Corrupted,
     report::ReportLabel,
     utils::format_gwei,
@@ -201,7 +203,7 @@ impl AccountLifespan {
         }?;
 
         // Update current nonce for future txs
-        // If the transaction has a tx_hash and is small enough to be included in a block, this tx will change the nonce.
+        // If the transaction has a `tx_hash` and is small enough to be included in a block, this tx will change the nonce.
         // We can be sure that the nonce will be changed based on this assumption.
         if let SubmitResult::TxHash(_) = &result {
             self.current_nonce = Some(nonce + 1)
@@ -228,6 +230,7 @@ impl AccountLifespan {
             .estimate_fee(Some(get_approval_based_paymaster_input_for_estimation(
                 self.paymaster_address,
                 self.main_l2_token,
+                MIN_ALLOWANCE_FOR_PAYMASTER_ESTIMATE.into(),
             )))
             .await?;
         builder = builder.fee(fee.clone());
@@ -276,6 +279,7 @@ impl AccountLifespan {
             .estimate_fee(Some(get_approval_based_paymaster_input_for_estimation(
                 self.paymaster_address,
                 self.main_l2_token,
+                MIN_ALLOWANCE_FOR_PAYMASTER_ESTIMATE.into(),
             )))
             .await?;
         builder = builder.fee(fee.clone());
@@ -403,6 +407,7 @@ impl AccountLifespan {
             .estimate_fee(Some(get_approval_based_paymaster_input_for_estimation(
                 self.paymaster_address,
                 self.main_l2_token,
+                MIN_ALLOWANCE_FOR_PAYMASTER_ESTIMATE.into(),
             )))
             .await?;
         tracing::trace!(

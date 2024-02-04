@@ -1,6 +1,6 @@
 use zksync_types::{
-    snapshots::{SnapshotFactoryDependency, SnapshotStorageLog},
-    AccountTreeId, Address, L1BatchNumber, MiniblockNumber, StorageKey, H256,
+    snapshots::SnapshotStorageLog, AccountTreeId, Address, L1BatchNumber, MiniblockNumber,
+    StorageKey, H256,
 };
 
 use crate::{instrument::InstrumentExt, StorageProcessor};
@@ -93,19 +93,21 @@ impl SnapshotsCreatorDal<'_, '_> {
             ),
             value: H256::from_slice(&row.value),
             l1_batch_number_of_initial_write: L1BatchNumber(row.l1_batch_number as u32),
-            enumeration_index: row.index.unwrap() as u64,
+            enumeration_index: row.index as u64,
         })
         .collect();
         Ok(storage_logs)
     }
 
+    /// Returns all factory dependencies up to and including the specified `miniblock_number`.
     pub async fn get_all_factory_deps(
         &mut self,
         miniblock_number: MiniblockNumber,
-    ) -> sqlx::Result<Vec<SnapshotFactoryDependency>> {
+    ) -> sqlx::Result<Vec<(H256, Vec<u8>)>> {
         let rows = sqlx::query!(
             r#"
             SELECT
+                bytecode_hash,
                 bytecode
             FROM
                 factory_deps
@@ -121,9 +123,7 @@ impl SnapshotsCreatorDal<'_, '_> {
 
         Ok(rows
             .into_iter()
-            .map(|row| SnapshotFactoryDependency {
-                bytecode: row.bytecode.into(),
-            })
+            .map(|row| (H256::from_slice(&row.bytecode_hash), row.bytecode))
             .collect())
     }
 }

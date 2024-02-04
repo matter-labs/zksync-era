@@ -1,22 +1,25 @@
+use std::sync::Arc;
+
 use zksync_config::configs::eth_sender::{ProofLoadingMode, ProofSendingMode, SenderConfig};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::StorageProcessor;
-use zksync_object_store::ObjectStore;
-use zksync_prover_utils::gcs_proof_fetcher::load_wrapped_fri_proofs_for_range;
+use zksync_l1_contract_interface::i_executor::methods::{
+    CommitBatches, ExecuteBatches, ProveBatches,
+};
+use zksync_object_store::{ObjectStore, ObjectStoreError};
+use zksync_prover_interface::outputs::L1BatchProofForL1;
 use zksync_types::{
-    aggregated_operations::{
-        AggregatedActionType, AggregatedOperation, L1BatchCommitOperation, L1BatchExecuteOperation,
-        L1BatchProofOperation,
-    },
-    commitment::L1BatchWithMetadata,
-    helpers::unix_timestamp_ms,
-    protocol_version::L1VerifierConfig,
-    L1BatchNumber, ProtocolVersionId,
+    aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata,
+    helpers::unix_timestamp_ms, protocol_version::L1VerifierConfig, L1BatchNumber,
+    ProtocolVersionId,
 };
 
-use super::publish_criterion::{
-    DataSizeCriterion, GasCriterion, L1BatchPublishCriterion, NumberCriterion,
-    TimestampDeadlineCriterion,
+use super::{
+    aggregated_operations::AggregatedOperation,
+    publish_criterion::{
+        DataSizeCriterion, GasCriterion, L1BatchPublishCriterion, NumberCriterion,
+        TimestampDeadlineCriterion,
+    },
 };
 
 #[derive(Debug)]
@@ -25,11 +28,11 @@ pub struct Aggregator {
     proof_criteria: Vec<Box<dyn L1BatchPublishCriterion>>,
     execute_criteria: Vec<Box<dyn L1BatchPublishCriterion>>,
     config: SenderConfig,
-    blob_store: Box<dyn ObjectStore>,
+    blob_store: Arc<dyn ObjectStore>,
 }
 
 impl Aggregator {
-    pub fn new(config: SenderConfig, blob_store: Box<dyn ObjectStore>) -> Self {
+    pub fn new(config: SenderConfig, blob_store: Arc<dyn ObjectStore>) -> Self {
         Self {
             commit_criteria: vec![
                 Box::from(NumberCriterion {
@@ -95,11 +98,15 @@ impl Aggregator {
         protocol_version_id: ProtocolVersionId,
         l1_verifier_config: L1VerifierConfig,
     ) -> Option<AggregatedOperation> {
-        let last_sealed_l1_batch_number = storage
+        let Some(last_sealed_l1_batch_number) = storage
             .blocks_dal()
             .get_sealed_l1_batch_number()
             .await
-            .unwrap();
+            .unwrap()
+        else {
+            return None; // No L1 batches in Postgres; no operations are ready yet
+        };
+
         if let Some(op) = self
             .get_execute_operations(
                 storage,
@@ -137,7 +144,7 @@ impl Aggregator {
         storage: &mut StorageProcessor<'_>,
         limit: usize,
         last_sealed_l1_batch: L1BatchNumber,
-    ) -> Option<L1BatchExecuteOperation> {
+    ) -> Option<ExecuteBatches> {
         let max_l1_batch_timestamp_millis = self
             .config
             .l1_batch_min_age_before_execute_seconds
@@ -155,7 +162,7 @@ impl Aggregator {
         )
         .await;
 
-        l1_batches.map(|l1_batches| L1BatchExecuteOperation { l1_batches })
+        l1_batches.map(|l1_batches| ExecuteBatches { l1_batches })
     }
 
     async fn get_commit_operation(
@@ -165,7 +172,7 @@ impl Aggregator {
         last_sealed_batch: L1BatchNumber,
         base_system_contracts_hashes: BaseSystemContractsHashes,
         protocol_version_id: ProtocolVersionId,
-    ) -> Option<L1BatchCommitOperation> {
+    ) -> Option<CommitBatches> {
         let mut blocks_dal = storage.blocks_dal();
         let last_committed_l1_batch = blocks_dal
             .get_last_committed_to_eth_l1_batch()
@@ -213,7 +220,7 @@ impl Aggregator {
         )
         .await;
 
-        batches.map(|batches| L1BatchCommitOperation {
+        batches.map(|batches| CommitBatches {
             last_committed_l1_batch,
             l1_batches: batches,
         })
@@ -224,7 +231,7 @@ impl Aggregator {
         l1_verifier_config: L1VerifierConfig,
         proof_loading_mode: &ProofLoadingMode,
         blob_store: &dyn ObjectStore,
-    ) -> Option<L1BatchProofOperation> {
+    ) -> Option<ProveBatches> {
         let previous_proven_batch_number = storage
             .blocks_dal()
             .get_last_l1_batch_with_prove_tx()
@@ -292,7 +299,7 @@ impl Aggregator {
                 );
             });
 
-        Some(L1BatchProofOperation {
+        Some(ProveBatches {
             prev_l1_batch: previous_proven_batch_metadata,
             l1_batches: vec![metadata_for_batch_being_proved],
             proofs,
@@ -305,7 +312,7 @@ impl Aggregator {
         storage: &mut StorageProcessor<'_>,
         ready_for_proof_l1_batches: Vec<L1BatchWithMetadata>,
         last_sealed_l1_batch: L1BatchNumber,
-    ) -> Option<L1BatchProofOperation> {
+    ) -> Option<ProveBatches> {
         let batches = extract_ready_subrange(
             storage,
             &mut self.proof_criteria,
@@ -321,7 +328,7 @@ impl Aggregator {
             .await
             .unwrap()?;
 
-        Some(L1BatchProofOperation {
+        Some(ProveBatches {
             prev_l1_batch: prev_batch,
             l1_batches: batches,
             proofs: vec![],
@@ -335,7 +342,7 @@ impl Aggregator {
         limit: usize,
         last_sealed_l1_batch: L1BatchNumber,
         l1_verifier_config: L1VerifierConfig,
-    ) -> Option<L1BatchProofOperation> {
+    ) -> Option<ProveBatches> {
         match self.config.proof_sending_mode {
             ProofSendingMode::OnlyRealProofs => {
                 Self::load_real_proof_operation(
@@ -413,4 +420,24 @@ async fn extract_ready_subrange(
             .take_while(|l1_batch| l1_batch.header.number <= last_l1_batch)
             .collect(),
     )
+}
+
+pub async fn load_wrapped_fri_proofs_for_range(
+    from: L1BatchNumber,
+    to: L1BatchNumber,
+    blob_store: &dyn ObjectStore,
+) -> Vec<L1BatchProofForL1> {
+    let mut proofs = Vec::new();
+    for l1_batch_number in from.0..=to.0 {
+        let l1_batch_number = L1BatchNumber(l1_batch_number);
+        match blob_store.get(l1_batch_number).await {
+            Ok(proof) => proofs.push(proof),
+            Err(ObjectStoreError::KeyNotFound(_)) => (), // do nothing, proof is not ready yet
+            Err(err) => panic!(
+                "Failed to load proof for batch {}: {}",
+                l1_batch_number.0, err
+            ),
+        }
+    }
+    proofs
 }

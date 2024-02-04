@@ -1,6 +1,6 @@
 use once_cell::sync::Lazy;
 use zk_evm_1_3_3::{
-    aux_structures::{MemoryPage, Timestamp},
+    aux_structures::{LogQuery, MemoryPage, Timestamp},
     block_properties::BlockProperties,
     vm_state::PrimitiveValue,
     zkevm_opcode_defs::FatPointer,
@@ -8,7 +8,7 @@ use zk_evm_1_3_3::{
 use zksync_contracts::{read_zbin_bytecode, BaseSystemContracts};
 use zksync_state::WriteStorage;
 use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
-use zksync_types::{Address, H160, MAX_L2_TX_GAS_LIMIT, U256};
+use zksync_types::{Address, StorageLogQueryType, H160, MAX_L2_TX_GAS_LIMIT, U256};
 use zksync_utils::h256_to_u256;
 
 use crate::vm_1_3_2::{
@@ -190,7 +190,7 @@ impl IntoFixedLengthByteIterator<32> for U256 {
 
 /// Receives sorted slice of timestamps.
 /// Returns count of timestamps that are greater than or equal to `from_timestamp`.
-/// Works in O(log(sorted_timestamps.len())).
+/// Works in `O(log(sorted_timestamps.len()))`.
 pub fn precompile_calls_count_after_timestamp(
     sorted_timestamps: &[Timestamp],
     from_timestamp: Timestamp,
@@ -221,8 +221,8 @@ pub fn create_test_block_params() -> (BlockContext, BlockProperties) {
 
 pub fn read_bootloader_test_code(test: &str) -> Vec<u8> {
     read_zbin_bytecode(format!(
-        "contracts/system-contracts/bootloader/tests/artifacts/{}.yul/{}.yul.zbin",
-        test, test
+        "contracts/system-contracts/bootloader/tests/artifacts/{}.yul.zbin",
+        test
     ))
 }
 
@@ -251,4 +251,11 @@ pub(crate) fn calculate_computational_gas_used<
             );
             0
         })
+}
+
+/// Log query, which handle initial and repeated writes to the storage
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StorageLogQuery {
+    pub log_query: LogQuery,
+    pub log_type: StorageLogQueryType,
 }

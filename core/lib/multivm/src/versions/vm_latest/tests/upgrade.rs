@@ -1,5 +1,5 @@
-use zk_evm_1_4_0::aux_structures::Timestamp;
-use zksync_contracts::{deployer_contract, load_contract, load_sys_contract, read_bytecode};
+use zk_evm_1_4_1::aux_structures::Timestamp;
+use zksync_contracts::{deployer_contract, load_sys_contract, read_bytecode};
 use zksync_state::WriteStorage;
 use zksync_test_account::TxType;
 use zksync_types::{
@@ -12,14 +12,17 @@ use zksync_types::{
 };
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256};
 
-use super::utils::read_test_contract;
+use super::utils::{get_complex_upgrade_abi, read_test_contract};
 use crate::{
     interface::{
         ExecutionResult, Halt, TxExecutionMode, VmExecutionMode, VmInterface,
         VmInterfaceHistoryEnabled,
     },
     vm_latest::{
-        tests::{tester::VmTesterBuilder, utils::verify_required_storage},
+        tests::{
+            tester::VmTesterBuilder,
+            utils::{read_complex_upgrade, verify_required_storage},
+        },
         HistoryEnabled,
     },
 };
@@ -45,7 +48,7 @@ fn test_protocol_upgrade_is_first() {
     let protocol_upgrade_transaction = get_forced_deploy_tx(&[ForceDeployment {
         // The bytecode hash to put on an address
         bytecode_hash,
-        // The address on which to deploy the bytecodehash to
+        // The address on which to deploy the bytecode hash to
         address: H160::random(),
         // Whether to run the constructor on the force deployment
         call_constructor: false,
@@ -59,7 +62,7 @@ fn test_protocol_upgrade_is_first() {
     let another_protocol_upgrade_transaction = get_forced_deploy_tx(&[ForceDeployment {
         // The bytecode hash to put on an address
         bytecode_hash,
-        // The address on which to deploy the bytecodehash to
+        // The address on which to deploy the bytecode hash to
         address: H160::random(),
         // Whether to run the constructor on the force deployment
         call_constructor: false,
@@ -141,7 +144,7 @@ fn test_force_deploy_upgrade() {
     let transaction = get_forced_deploy_tx(&[ForceDeployment {
         // The bytecode hash to put on an address
         bytecode_hash,
-        // The address on which to deploy the bytecodehash to
+        // The address on which to deploy the bytecode hash to
         address: address_to_deploy,
         // Whether to run the constructor on the force deployment
         call_constructor: false,
@@ -180,7 +183,7 @@ fn test_complex_upgrader() {
     let msg_sender_test_hash = hash_bytecode(&read_msg_sender_test());
 
     // Let's assume that the bytecode for the implementation of the complex upgrade
-    // is already deployed in some address in userspace
+    // is already deployed in some address in user space
     let upgrade_impl = H160::random();
     let account_code_key = get_code_key(&upgrade_impl);
 
@@ -240,7 +243,7 @@ fn test_complex_upgrader() {
 struct ForceDeployment {
     // The bytecode hash to put on an address
     bytecode_hash: H256,
-    // The address on which to deploy the bytecodehash to
+    // The address on which to deploy the bytecode hash to
     address: Address,
     // Whether to run the constructor on the force deployment
     call_constructor: bool,
@@ -295,8 +298,8 @@ fn get_forced_deploy_tx(deployment: &[ForceDeployment]) -> Transaction {
 
 // Returns the transaction that performs a complex protocol upgrade.
 // The first param is the address of the implementation of the complex upgrade
-// in user-space, while the next 3 params are params of the implenentaiton itself
-// For the explanatation for the parameters, please refer to:
+// in user-space, while the next 3 params are params of the implementation itself
+// For the explanation for the parameters, please refer to:
 // etc/contracts-test-data/complex-upgrade/complex-upgrade.sol
 fn get_complex_upgrade_tx(
     implementation_address: Address,
@@ -343,18 +346,8 @@ fn get_complex_upgrade_tx(
     }
 }
 
-fn read_complex_upgrade() -> Vec<u8> {
-    read_bytecode("etc/contracts-test-data/artifacts-zk/contracts/complex-upgrade/complex-upgrade.sol/ComplexUpgrade.json")
-}
-
 fn read_msg_sender_test() -> Vec<u8> {
     read_bytecode("etc/contracts-test-data/artifacts-zk/contracts/complex-upgrade/msg-sender.sol/MsgSenderTest.json")
-}
-
-fn get_complex_upgrade_abi() -> Contract {
-    load_contract(
-        "etc/contracts-test-data/artifacts-zk/contracts/complex-upgrade/complex-upgrade.sol/ComplexUpgrade.json"
-    )
 }
 
 fn get_complex_upgrader_abi() -> Contract {

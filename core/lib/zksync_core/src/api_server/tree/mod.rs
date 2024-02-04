@@ -73,7 +73,7 @@ impl IntoResponse for TreeApiError {
             }
         };
 
-        // Loosely conforms to HTTP Problem Details RFC: https://datatracker.ietf.org/doc/html/rfc7807
+        // Loosely conforms to HTTP Problem Details RFC: <https://datatracker.ietf.org/doc/html/rfc7807>
         let body = serde_json::json!({
             "type": "/errors#l1-batch-not-found",
             "title": title,

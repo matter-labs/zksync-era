@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use reqwest::Client;
@@ -16,7 +16,7 @@ pub(crate) const PROOF_GENERATION_DATA_PATH: &str = "/proof_generation_data";
 pub(crate) const SUBMIT_PROOF_PATH: &str = "/submit_proof";
 
 pub(crate) struct PeriodicApiStruct {
-    pub(crate) blob_store: Box<dyn ObjectStore>,
+    pub(crate) blob_store: Arc<dyn ObjectStore>,
     pub(crate) pool: ConnectionPool,
     pub(crate) api_url: String,
     pub(crate) poll_duration: Duration,

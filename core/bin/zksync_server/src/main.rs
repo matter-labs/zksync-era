@@ -12,10 +12,10 @@ use zksync_config::{
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
         FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig, PrometheusConfig,
-        ProofDataHandlerConfig, ProverGroupConfig, WitnessGeneratorConfig,
+        ProofDataHandlerConfig, WitnessGeneratorConfig,
     },
     ApiConfig, ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig, ETHWatchConfig,
-    GasAdjusterConfig, ObjectStoreConfig, PostgresConfig, ProverConfigs,
+    GasAdjusterConfig, ObjectStoreConfig, PostgresConfig,
 };
 use zksync_core::{
     genesis_init, initialize_components, is_genesis_needed, setup_sigint_handler,
@@ -24,6 +24,8 @@ use zksync_core::{
 use zksync_env_config::FromEnv;
 use zksync_storage::RocksDB;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
+
+mod config;
 
 #[cfg(not(target_env = "msvc"))]
 #[global_allocator]
@@ -93,7 +95,7 @@ async fn main() -> anyhow::Result<()> {
     // Right now, we are trying to deserialize all the configs that may be needed by `zksync_core`.
     // "May" is the key word here, since some configs are only used by certain component configuration,
     // hence we are using `Option`s.
-    let configs: TempConfigStore = TempConfigStore {
+    let mut configs: TempConfigStore = TempConfigStore {
         postgres_config: PostgresConfig::from_env().ok(),
         health_check_config: HealthCheckConfig::from_env().ok(),
         merkle_tree_api_config: MerkleTreeApiConfig::from_env().ok(),
@@ -105,12 +107,11 @@ async fn main() -> anyhow::Result<()> {
         state_keeper_config: StateKeeperConfig::from_env().ok(),
         house_keeper_config: HouseKeeperConfig::from_env().ok(),
         fri_proof_compressor_config: FriProofCompressorConfig::from_env().ok(),
-        fri_prover_config: FriProverConfig::from_env().ok(),
+        fri_prover_config: Some(FriProverConfig::from_env().context("fri_prover_config")?),
         fri_prover_group_config: FriProverGroupConfig::from_env().ok(),
         fri_witness_generator_config: FriWitnessGeneratorConfig::from_env().ok(),
         prometheus_config: PrometheusConfig::from_env().ok(),
         proof_data_handler_config: ProofDataHandlerConfig::from_env().ok(),
-        prover_group_config: ProverGroupConfig::from_env().ok(),
         witness_generator_config: WitnessGeneratorConfig::from_env().ok(),
         api_config: ApiConfig::from_env().ok(),
         contracts_config: ContractsConfig::from_env().ok(),
@@ -119,9 +120,14 @@ async fn main() -> anyhow::Result<()> {
         eth_sender_config: ETHSenderConfig::from_env().ok(),
         eth_watch_config: ETHWatchConfig::from_env().ok(),
         gas_adjuster_config: GasAdjusterConfig::from_env().ok(),
-        prover_configs: ProverConfigs::from_env().ok(),
         object_store_config: ObjectStoreConfig::from_env().ok(),
+        consensus_config: None,
     };
+
+    if opt.components.0.contains(&Component::Consensus) {
+        configs.consensus_config =
+            Some(config::read_consensus_config().context("read_consensus_config()")?);
+    }
 
     let postgres_config = configs.postgres_config.clone().context("PostgresConfig")?;
 

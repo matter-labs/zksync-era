@@ -111,15 +111,15 @@ There are two reasons for it:
 
 - A minor reason: sometimes it is less efficient in case the packing is used for very few slots (since for correct
   unpacking we need to provide the number of slots for each packing type).
-- A fundamental reason: currently enum indeces are stored directly in the merkle tree & have very strict order of
+- A fundamental reason: currently enum indices are stored directly in the merkle tree & have very strict order of
   incrementing enforced by the circuits and (they are given in order by pairs `(address, key)`), which are generally not
   accessible from pubdata.
 
 All this means that we are not allowed to change the order of “first writes” above, so indexes for them are directly
 recoverable from their order, and so we can not permute them. If we were to reorder keys without supplying the new
-enumeration indeces for them, the state would be unrecoverable. Always supplying the new enum index may add additional 5
+enumeration indices for them, the state would be unrecoverable. Always supplying the new enum index may add additional 5
 bytes for each key, which might negate the compression benefits in a lot of cases. Even if the compression will still be
 beneficial, the added complexity may not be worth it.
 
-That being said, we _could_ rearange those for _repeated_ writes, but for now we stick to the same value compression
+That being said, we _could_ rearrange those for _repeated_ writes, but for now we stick to the same value compression
 format for simplicity.

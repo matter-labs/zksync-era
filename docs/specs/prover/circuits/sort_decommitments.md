@@ -5,7 +5,7 @@
 ### [Input](https://github.com/matter-labs/era-zkevm_circuits/blob/main/src/sort_decommittment_requests/input.rs#L62)
 
 ```rust
-pub struct CodeDecommittmentsDeduplicatorInputData<F: SmallField> {
+pub struct CodeDecommitmentsDeduplicatorInputData<F: SmallField> {
     pub initial_queue_state: QueueState<F, FULL_SPONGE_QUEUE_STATE_WIDTH>,
     pub sorted_queue_initial_state: QueueState<F, FULL_SPONGE_QUEUE_STATE_WIDTH>,
 }
@@ -14,7 +14,7 @@ pub struct CodeDecommittmentsDeduplicatorInputData<F: SmallField> {
 ### [Output](https://github.com/matter-labs/era-zkevm_circuits/blob/main/src/sort_decommittment_requests/input.rs#L81)
 
 ```rust
-pub struct CodeDecommittmentsDeduplicatorOutputData<F: SmallField> {
+pub struct CodeDecommitmentsDeduplicatorOutputData<F: SmallField> {
     pub final_queue_state: QueueState<F, FULL_SPONGE_QUEUE_STATE_WIDTH>,
 }
 ```
@@ -22,7 +22,7 @@ pub struct CodeDecommittmentsDeduplicatorOutputData<F: SmallField> {
 ### [FSM Input and FSM Output](https://github.com/matter-labs/era-zkevm_circuits/blob/main/src/sort_decommittment_requests/input.rs#L26)
 
 ```rust
-pub struct CodeDecommittmentsDeduplicatorFSMInputOutput<F: SmallField> {
+pub struct CodeDecommitmentsDeduplicatorFSMInputOutput<F: SmallField> {
     pub initial_queue_state: QueueState<F, FULL_SPONGE_QUEUE_STATE_WIDTH>,
     pub sorted_queue_state: QueueState<F, FULL_SPONGE_QUEUE_STATE_WIDTH>,
     pub final_queue_state: QueueState<F, FULL_SPONGE_QUEUE_STATE_WIDTH>,
@@ -39,10 +39,10 @@ pub struct CodeDecommittmentsDeduplicatorFSMInputOutput<F: SmallField> {
 ## Main circuit logic
 
 This circuit handles the sorting and deduplication of code cancellation requests. Before starting, during the pre-start
-phase, the first decommiter queue is generated. To decommiter a code, the input will receive the hash root of the code,
-the length of the code, the code hash of the opcode, the number of opcodes and the code of the page. Next, it sorts the
-queue and, in the process, identifies and removes identical requests, serving as a filtering mechanism in case the same
-contract is called several times.
+phase, the first decommitter queue is generated. To decommitter a code, the input will receive the hash root of the
+code, the length of the code, the code hash of the opcode, the number of opcodes and the code of the page. Next, it
+sorts the queue and, in the process, identifies and removes identical requests, serving as a filtering mechanism in case
+the same contract is called several times.
 
 The detailed explanation of sorting and deduplicating can be found
 [here](https://github.com/code-423n4/2023-10-zksync/blob/c3ff020df5d11fe91209bd99d7fb0ec1272dc387/docs/Circuits%20Section/Circuits/Sorting.md).
@@ -52,13 +52,13 @@ The detailed explanation of sorting and deduplicating can be found
 The circuit begins with allocating input part of the PI.
 
 ```rust
-let CodeDecommittmentsDeduplicatorInstanceWitness {
+let CodeDecommitmentsDeduplicatorInstanceWitness {
     closed_form_input,
     initial_queue_witness,
     sorted_queue_witness,
 } = witness;
 
-let mut structured_input = CodeDecommittmentsDeduplicatorInputOutput::alloc_ignoring_outputs(
+let mut structured_input = CodeDecommitmentsDeduplicatorInputOutput::alloc_ignoring_outputs(
     cs,
     closed_form_input.clone(),
 );

@@ -62,7 +62,6 @@ This section provides a physical map of folders & files in this repository.
     - `/multivm`: A wrapper over several versions of VM that have been used by the main node.
     - `/object_store`: Abstraction for storing blobs outside the main data store.
     - `/prometheus_exporter`: Prometheus data exporter.
-    - `/prover_utils`: Utilities related to the proof generation.
     - `/queued_job_processor`: An abstraction for async job processing
     - `/state`: A state keeper responsible for handling transaction execution and creating miniblocks and L1 batches.
     - `/storage`: An encapsulated database interface.

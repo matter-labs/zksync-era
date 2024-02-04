@@ -1,9 +1,16 @@
-use std::time::Instant;
+use std::{sync::Arc, time::Instant};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
 use tokio::task::JoinHandle;
 use zkevm_test_harness::proof_wrapper_utils::{wrap_proof, WrapperConfig};
+use zkevm_test_harness_1_3_3::{
+    abstract_zksync_circuit::concrete_circuits::{
+        ZkSyncCircuit, ZkSyncProof, ZkSyncVerificationKey,
+    },
+    bellman::{bn256::Bn256, plonk::better_better_cs::proof::Proof},
+    witness::oracle::VmWitnessOracle,
+};
 use zksync_dal::ConnectionPool;
 use zksync_object_store::ObjectStore;
 use zksync_prover_fri_types::{
@@ -16,24 +23,15 @@ use zksync_prover_fri_types::{
     },
     get_current_pod_name, AuxOutputWitnessWrapper, FriProofWrapper,
 };
+use zksync_prover_interface::outputs::L1BatchProofForL1;
 use zksync_queued_job_processor::JobProcessor;
-use zksync_types::{
-    aggregated_operations::L1BatchProofForL1,
-    zkevm_test_harness::{
-        abstract_zksync_circuit::concrete_circuits::{
-            ZkSyncCircuit, ZkSyncProof, ZkSyncVerificationKey,
-        },
-        bellman::{bn256::Bn256, plonk::better_better_cs::proof::Proof},
-        witness::oracle::VmWitnessOracle,
-    },
-    L1BatchNumber,
-};
+use zksync_types::L1BatchNumber;
 use zksync_vk_setup_data_server_fri::{get_recursive_layer_vk_for_circuit_type, get_snark_vk};
 
 use crate::metrics::METRICS;
 
 pub struct ProofCompressor {
-    blob_store: Box<dyn ObjectStore>,
+    blob_store: Arc<dyn ObjectStore>,
     pool: ConnectionPool,
     compression_mode: u8,
     verify_wrapper_proof: bool,
@@ -42,7 +40,7 @@ pub struct ProofCompressor {
 
 impl ProofCompressor {
     pub fn new(
-        blob_store: Box<dyn ObjectStore>,
+        blob_store: Arc<dyn ObjectStore>,
         pool: ConnectionPool,
         compression_mode: u8,
         verify_wrapper_proof: bool,

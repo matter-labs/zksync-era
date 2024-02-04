@@ -7,6 +7,8 @@ use metrics::EN_METRICS;
 use prometheus_exporter::PrometheusExporterConfig;
 use tokio::{sync::watch, task, time::sleep};
 use zksync_basic_types::{Address, L2ChainId};
+use zksync_concurrency::{ctx, scope};
+use zksync_config::configs::database::MerkleTreeMode;
 use zksync_core::{
     api_server::{
         execution_sandbox::VmConcurrencyLimiter,
@@ -15,16 +17,15 @@ use zksync_core::{
         web3::{ApiBuilder, Namespace},
     },
     block_reverter::{BlockReverter, BlockReverterFlags, L1ExecutedBatchesRevert},
+    consensus,
     consistency_checker::ConsistencyChecker,
-    l1_gas_price::MainNodeGasPriceFetcher,
-    metadata_calculator::{
-        MetadataCalculator, MetadataCalculatorConfig, MetadataCalculatorModeConfig,
-    },
+    l1_gas_price::MainNodeFeeParamsFetcher,
+    metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
     reorg_detector::ReorgDetector,
     setup_sigint_handler,
     state_keeper::{
-        L1BatchExecutorBuilder, MainBatchExecutorBuilder, MiniblockSealer, MiniblockSealerHandle,
-        ZkSyncStateKeeper,
+        seal_criteria::NoopSealer, L1BatchExecutorBuilder, MainBatchExecutorBuilder,
+        MiniblockSealer, MiniblockSealerHandle, ZkSyncStateKeeper,
     },
     sync_layer::{
         batch_status_updater::BatchStatusUpdater, external_io::ExternalIO, fetcher::FetcherCursor,
@@ -75,6 +76,7 @@ async fn build_state_keeper(
             save_call_traces,
             false,
             config.optional.enum_index_migration_chunk_size,
+            true,
         ));
 
     let main_node_url = config.required.main_node_url().unwrap();
@@ -92,7 +94,12 @@ async fn build_state_keeper(
     )
     .await;
 
-    ZkSyncStateKeeper::without_sealer(stop_receiver, Box::new(io), batch_executor_base)
+    ZkSyncStateKeeper::new(
+        stop_receiver,
+        Box::new(io),
+        batch_executor_base,
+        Box::new(NoopSealer),
+    )
 }
 
 async fn init_tasks(
@@ -119,7 +126,7 @@ async fn init_tasks(
     let (stop_sender, stop_receiver) = watch::channel(false);
     let mut healthchecks: Vec<Box<dyn CheckHealth>> = Vec::new();
     // Create components.
-    let gas_adjuster = Arc::new(MainNodeGasPriceFetcher::new(&main_node_url));
+    let fee_params_fetcher = Arc::new(MainNodeFeeParamsFetcher::new(&main_node_url));
 
     let sync_state = SyncState::new();
     let (action_queue_sender, action_queue) = ActionQueue::new();
@@ -164,36 +171,71 @@ async fn init_tasks(
     let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
         .context("Failed creating JSON-RPC client for main node")?;
     let singleton_pool_builder = ConnectionPool::singleton(&config.postgres.database_url);
-    let fetcher_cursor = {
-        let pool = singleton_pool_builder
-            .build()
-            .await
-            .context("failed to build a connection pool for `MainNodeFetcher`")?;
-        let mut storage = pool.access_storage_tagged("sync_layer").await?;
-        FetcherCursor::new(&mut storage)
-            .await
-            .context("failed to load `MainNodeFetcher` cursor from Postgres")?
-    };
-    let fetcher = fetcher_cursor.into_fetcher(
-        Box::new(main_node_client),
-        action_queue_sender,
-        sync_state.clone(),
-        stop_receiver.clone(),
-    );
 
-    let metadata_calculator = MetadataCalculator::new(&MetadataCalculatorConfig {
-        db_path: &config.required.merkle_tree_path,
-        mode: MetadataCalculatorModeConfig::Full {
-            store_factory: None,
-        },
+    let fetcher_handle = match config.consensus.clone() {
+        None => {
+            let fetcher_cursor = {
+                let pool = singleton_pool_builder
+                    .build()
+                    .await
+                    .context("failed to build a connection pool for `MainNodeFetcher`")?;
+                let mut storage = pool.access_storage_tagged("sync_layer").await?;
+                FetcherCursor::new(&mut storage)
+                    .await
+                    .context("failed to load `MainNodeFetcher` cursor from Postgres")?
+            };
+            let fetcher = fetcher_cursor.into_fetcher(
+                Box::new(main_node_client),
+                action_queue_sender,
+                sync_state.clone(),
+                stop_receiver.clone(),
+            );
+            tokio::spawn(fetcher.run())
+        }
+        Some(cfg) => {
+            let pool = connection_pool.clone();
+            let mut stop_receiver = stop_receiver.clone();
+            let sync_state = sync_state.clone();
+            #[allow(clippy::redundant_locals)]
+            tokio::spawn(async move {
+                let sync_state = sync_state;
+                let main_node_client = main_node_client;
+                scope::run!(&ctx::root(), |ctx, s| async {
+                    s.spawn_bg(async {
+                        let res = cfg.run(ctx, pool, action_queue_sender).await;
+                        tracing::info!("Consensus actor stopped");
+                        res
+                    });
+                    // TODO: information about the head block of the validators
+                    // (currently just the main node)
+                    // should also be provided over the gossip network.
+                    s.spawn_bg(async {
+                        consensus::run_main_node_state_fetcher(ctx, &main_node_client, &sync_state)
+                            .await?;
+                        Ok(())
+                    });
+                    ctx.wait(stop_receiver.wait_for(|stop| *stop)).await??;
+                    Ok(())
+                })
+                .await
+                .context("consensus actor")
+            })
+        }
+    };
+
+    let metadata_calculator_config = MetadataCalculatorConfig {
+        db_path: config.required.merkle_tree_path.clone(),
+        mode: MerkleTreeMode::Full,
         delay_interval: config.optional.metadata_calculator_delay(),
         max_l1_batches_per_iter: config.optional.max_l1_batches_per_tree_iter,
         multi_get_chunk_size: config.optional.merkle_tree_multi_get_chunk_size,
         block_cache_capacity: config.optional.merkle_tree_block_cache_size(),
         memtable_capacity: config.optional.merkle_tree_memtable_capacity(),
         stalled_writes_timeout: config.optional.merkle_tree_stalled_writes_timeout(),
-    })
-    .await;
+    };
+    let metadata_calculator = MetadataCalculator::new(metadata_calculator_config, None)
+        .await
+        .context("failed initializing metadata calculator")?;
     healthchecks.push(Box::new(metadata_calculator.tree_health_check()));
 
     let consistency_checker = ConsistencyChecker::new(
@@ -215,7 +257,7 @@ async fn init_tasks(
             .await
             .context("failed to build a connection pool for BatchStatusUpdater")?,
     )
-    .await;
+    .context("failed initializing batch status updater")?;
 
     // Run the components.
     let tree_stop_receiver = stop_receiver.clone();
@@ -228,19 +270,20 @@ async fn init_tasks(
     let consistency_checker_handle = tokio::spawn(consistency_checker.run(stop_receiver.clone()));
 
     let updater_handle = task::spawn(batch_status_updater.run(stop_receiver.clone()));
+    let fee_address_migration_handle =
+        task::spawn(state_keeper.run_fee_address_migration(connection_pool.clone()));
     let sk_handle = task::spawn(state_keeper.run());
-    let fetcher_handle = tokio::spawn(fetcher.run());
-    let gas_adjuster_handle = tokio::spawn(gas_adjuster.clone().run(stop_receiver.clone()));
+    let fee_params_fetcher_handle =
+        tokio::spawn(fee_params_fetcher.clone().run(stop_receiver.clone()));
 
     let (tx_sender, vm_barrier, cache_update_handle) = {
-        let mut tx_sender_builder =
+        let tx_sender_builder =
             TxSenderBuilder::new(config.clone().into(), connection_pool.clone())
                 .with_main_connection_pool(connection_pool.clone())
                 .with_tx_proxy(&main_node_url);
 
-        // Add rate limiter if enabled.
-        if let Some(tps_limit) = config.optional.transactions_per_sec_limit {
-            tx_sender_builder = tx_sender_builder.with_rate_limiter(tps_limit);
+        if config.optional.transactions_per_sec_limit.is_some() {
+            tracing::warn!("`transactions_per_sec_limit` option is deprecated and ignored");
         };
 
         let max_concurrency = config.optional.vm_concurrency_limit;
@@ -260,7 +303,7 @@ async fn init_tasks(
 
         let tx_sender = tx_sender_builder
             .build(
-                gas_adjuster,
+                fee_params_fetcher,
                 Arc::new(vm_concurrency_limiter),
                 ApiContracts::load_from_disk(), // TODO (BFT-138): Allow to dynamically reload API contracts
                 storage_caches,
@@ -275,7 +318,6 @@ async fn init_tasks(
             .with_filter_limit(config.optional.filters_limit)
             .with_batch_request_size_limit(config.optional.max_batch_request_size)
             .with_response_body_size_limit(config.optional.max_response_body_size())
-            .with_threads(config.required.threads_per_server)
             .with_tx_sender(tx_sender.clone(), vm_barrier.clone())
             .with_sync_state(sync_state.clone())
             .enable_api_namespaces(config.optional.api_namespaces())
@@ -291,7 +333,6 @@ async fn init_tasks(
             .with_batch_request_size_limit(config.optional.max_batch_request_size)
             .with_response_body_size_limit(config.optional.max_response_body_size())
             .with_polling_interval(config.optional.polling_interval())
-            .with_threads(config.required.threads_per_server)
             .with_tx_sender(tx_sender, vm_barrier)
             .with_sync_state(sync_state)
             .enable_api_namespaces(config.optional.api_namespaces())
@@ -316,12 +357,13 @@ async fn init_tasks(
     task_handles.extend(cache_update_handle);
     task_handles.extend([
         sk_handle,
+        fee_address_migration_handle,
         fetcher_handle,
         updater_handle,
         tree_handle,
-        gas_adjuster_handle,
+        consistency_checker_handle,
+        fee_params_fetcher_handle,
     ]);
-    task_handles.push(consistency_checker_handle);
 
     Ok((task_handles, stop_sender, healthcheck_handle, stop_receiver))
 }
@@ -344,6 +386,8 @@ async fn shutdown_components(
 struct Cli {
     #[arg(long)]
     revert_pending_l1_batch: bool,
+    #[arg(long)]
+    enable_consensus: bool,
 }
 
 #[tokio::main]
@@ -374,9 +418,13 @@ async fn main() -> anyhow::Result<()> {
         tracing::info!("No sentry URL was provided");
     }
 
-    let config = ExternalNodeConfig::collect()
+    let mut config = ExternalNodeConfig::collect()
         .await
         .context("Failed to load external node config")?;
+    if opt.enable_consensus {
+        config.consensus =
+            Some(config::read_consensus_config().context("read_consensus_config()")?);
+    }
     let main_node_url = config
         .required
         .main_node_url()
@@ -389,7 +437,6 @@ async fn main() -> anyhow::Result<()> {
     .build()
     .await
     .context("failed to build a connection_pool")?;
-
     if opt.revert_pending_l1_batch {
         tracing::info!("Rolling pending L1 batch back..");
         let reverter = BlockReverter::new(
@@ -400,12 +447,15 @@ async fn main() -> anyhow::Result<()> {
             L1ExecutedBatchesRevert::Allowed,
         );
 
-        let mut connection = connection_pool.access_storage().await.unwrap();
+        let mut connection = connection_pool.access_storage().await?;
         let sealed_l1_batch_number = connection
             .blocks_dal()
             .get_sealed_l1_batch_number()
             .await
-            .unwrap();
+            .context("Failed getting sealed L1 batch number")?
+            .context(
+                "Cannot roll back pending L1 batch since there are no L1 batches in Postgres",
+            )?;
         drop(connection);
 
         tracing::info!("Rolling back to l1 batch number {sealed_l1_batch_number}");
@@ -419,9 +469,7 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let sigint_receiver = setup_sigint_handler();
-
     tracing::warn!("The external node is in the alpha phase, and should be used with caution.");
-
     tracing::info!("Started the external node");
     tracing::info!("Main node URL is: {}", main_node_url);
 
@@ -470,7 +518,7 @@ async fn main() -> anyhow::Result<()> {
     let reorg_detector_last_correct_batch = reorg_detector_result.and_then(|result| match result {
         Ok(Ok(last_correct_batch)) => last_correct_batch,
         Ok(Err(err)) => {
-            tracing::error!("Reorg detector failed: {err}");
+            tracing::error!("Reorg detector failed: {err:#}");
             None
         }
         Err(err) => {

@@ -58,7 +58,7 @@ pub fn compress_bytecode(code: &[u8]) -> Result<Vec<u8>, FailedToCompressBytecod
         return Err(FailedToCompressBytecodeError::DictionaryOverflow);
     }
 
-    // Fill the dictionary with the pmost popular chunks.
+    // Fill the dictionary with the most popular chunks.
     // The most popular chunks will be encoded with the smallest indexes, so that
     // the 255 most popular chunks will be encoded with one zero byte.
     // And the encoded data will be filled with more zeros, so
@@ -214,9 +214,9 @@ mod test {
         let example_code =
             hex::decode("0000000000000000111111111111111111111111111111112222222222222222")
                 .unwrap();
-        // The size of the dictionary should be 0x0003
-        // The dictionary itself should put the most common chunk first, i.e. 0x1111111111111111
-        // Then, the ordering does not matter, but the algorithm will return the one with the highest position, i.e. 0x2222222222222222
+        // The size of the dictionary should be `0x0003`
+        // The dictionary itself should put the most common chunk first, i.e. `0x1111111111111111`
+        // Then, the ordering does not matter, but the algorithm will return the one with the highest position, i.e. `0x2222222222222222`
         let expected_encoding =
             hex::decode("00031111111111111111222222222222222200000000000000000002000000000001")
                 .unwrap();

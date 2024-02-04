@@ -9,10 +9,12 @@ use zksync_state::{StoragePtr, WriteStorage};
 use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_types::{
     vm_trace::{Call, CallType},
-    FarCallOpcode, U256,
+    zk_evm_types::FarCallOpcode,
+    U256,
 };
 
 use crate::{
+    glue::GlueInto,
     interface::{
         tracer::VmExecutionStopReason, traits::tracers::dyn_tracers::vm_1_3_3::DynTracer,
         VmRevertReason,
@@ -45,7 +47,7 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for CallTracer {
                     .unwrap_or(current_ergs);
 
                 let mut current_call = Call {
-                    r#type: CallType::Call(far_call),
+                    r#type: CallType::Call(far_call.glue_into()),
                     gas: 0,
                     parent_gas,
                     ..Default::default()
@@ -140,7 +142,7 @@ impl CallTracer {
         let fat_data_pointer =
             state.vm_local_state.registers[RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER as usize];
 
-        // if fat_data_pointer is not a pointer then there is no output
+        // if `fat_data_pointer` is not a pointer then there is no output
         let output = if fat_data_pointer.is_pointer {
             let fat_data_pointer = FatPointer::from_u256(fat_data_pointer.value);
             if !fat_data_pointer.is_trivial() {

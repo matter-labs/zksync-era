@@ -11,10 +11,13 @@ pub mod gpu_socket_listener {
         net::{TcpListener, TcpStream},
         sync::watch,
     };
-    use zksync_dal::ConnectionPool;
+    use zksync_dal::{
+        fri_prover_dal::types::{GpuProverInstanceStatus, SocketAddress},
+        ConnectionPool,
+    };
     use zksync_object_store::bincode;
     use zksync_prover_fri_types::{CircuitWrapper, ProverServiceDataKey, WitnessVectorArtifacts};
-    use zksync_types::proofs::{AggregationRound, GpuProverInstanceStatus, SocketAddress};
+    use zksync_types::basic_fri_types::AggregationRound;
     use zksync_vk_setup_data_server_fri::{
         get_finalization_hints, get_round_for_recursive_circuit_type,
     };
@@ -136,7 +139,7 @@ pub mod gpu_socket_listener {
                 witness_vector_artifacts: witness_vector,
                 assembly,
             };
-            // acquiring lock from queue and updating db must be done atomically otherwise it results in TOCTTOU
+            // acquiring lock from queue and updating db must be done atomically otherwise it results in `TOCTTOU`
             // Time-of-Check to Time-of-Use
             let mut queue = self.queue.lock().await;
 

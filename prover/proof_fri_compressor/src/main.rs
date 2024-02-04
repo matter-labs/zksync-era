@@ -11,9 +11,12 @@ use zksync_object_store::ObjectStoreFactory;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 
-use crate::compressor::ProofCompressor;
+use crate::{
+    compressor::ProofCompressor, initial_setup_keys::download_initial_setup_keys_if_not_present,
+};
 
 mod compressor;
+mod initial_setup_keys;
 mod metrics;
 
 #[derive(Debug, StructOpt)]
@@ -76,7 +79,7 @@ async fn main() -> anyhow::Result<()> {
     })
     .expect("Error setting Ctrl+C handler"); // Setting handler should always succeed.
 
-    zksync_prover_utils::ensure_initial_setup_keys_present(
+    download_initial_setup_keys_if_not_present(
         &config.universal_setup_path,
         &config.universal_setup_download_url,
     );

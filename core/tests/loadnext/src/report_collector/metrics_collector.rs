@@ -151,7 +151,7 @@ mod tests {
 
     #[test]
     fn histogram_window_size() {
-        // Vector of ((window_idx, window_size), expected_range)).
+        // Vector of `((window_idx, window_size), expected_range))`.
         let test_vector = [
             ((0, 100), (0, 99)),
             ((1, 100), (100, 199)),

@@ -1,4 +1,4 @@
-use zk_evm_1_4_0::{
+use zk_evm_1_4_1::{
     aux_structures::{MemoryPage, Timestamp},
     block_properties::BlockProperties,
     vm_state::{CallStackEntry, PrimitiveValue, VmState},
@@ -9,12 +9,10 @@ use zk_evm_1_4_0::{
         STARTING_BASE_PAGE, STARTING_TIMESTAMP,
     },
 };
+use zkevm_test_harness_1_3_3::INITIAL_MONOTONIC_CYCLE_COUNTER;
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_system_constants::BOOTLOADER_ADDRESS;
-use zksync_types::{
-    block::MiniblockHasher, zkevm_test_harness::INITIAL_MONOTONIC_CYCLE_COUNTER, Address,
-    MiniblockNumber,
-};
+use zksync_types::{block::MiniblockHasher, Address, MiniblockNumber};
 use zksync_utils::h256_to_u256;
 
 use crate::{
@@ -40,7 +38,7 @@ pub type ZkSyncVmState<S, H> = VmState<
     StorageOracle<S, H>,
     SimpleMemory<H>,
     InMemoryEventSink<H>,
-    PrecompilesProcessorWithHistory<false, H>,
+    PrecompilesProcessorWithHistory<H>,
     DecommitterOracle<false, S, H>,
     DummyTracer,
 >;
@@ -84,7 +82,7 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
     let storage_oracle: StorageOracle<S, H> = StorageOracle::new(storage.clone());
     let mut memory = SimpleMemory::default();
     let event_sink = InMemoryEventSink::default();
-    let precompiles_processor = PrecompilesProcessorWithHistory::<false, H>::default();
+    let precompiles_processor = PrecompilesProcessorWithHistory::<H>::default();
     let mut decommittment_processor: DecommitterOracle<false, S, H> =
         DecommitterOracle::new(storage);
 

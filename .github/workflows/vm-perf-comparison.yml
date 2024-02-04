@@ -46,6 +46,7 @@ jobs:
           ci_run zk
           ci_run zk compiler system-contracts
           ci_run cargo bench --package vm-benchmark --bench iai | tee base-iai
+          ci_run yarn workspace system-contracts clean
 
       - name: checkout PR
         run: git checkout --force FETCH_HEAD --recurse-submodules

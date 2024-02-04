@@ -13,9 +13,9 @@ use crate::{
     fri_proof_compressor_dal::FriProofCompressorDal,
     fri_protocol_versions_dal::FriProtocolVersionsDal, fri_prover_dal::FriProverDal,
     fri_scheduler_dependency_tracker_dal::FriSchedulerDependencyTrackerDal,
-    fri_witness_generator_dal::FriWitnessGeneratorDal, gpu_prover_queue_dal::GpuProverQueueDal,
-    proof_generation_dal::ProofGenerationDal, protocol_versions_dal::ProtocolVersionsDal,
-    protocol_versions_web3_dal::ProtocolVersionsWeb3Dal, prover_dal::ProverDal,
+    fri_witness_generator_dal::FriWitnessGeneratorDal, proof_generation_dal::ProofGenerationDal,
+    protocol_versions_dal::ProtocolVersionsDal,
+    protocol_versions_web3_dal::ProtocolVersionsWeb3Dal,
     snapshot_recovery_dal::SnapshotRecoveryDal, snapshots_creator_dal::SnapshotsCreatorDal,
     snapshots_dal::SnapshotsDal, storage_dal::StorageDal, storage_logs_dal::StorageLogsDal,
     storage_logs_dedup_dal::StorageLogsDedupDal, storage_web3_dal::StorageWeb3Dal,
@@ -42,7 +42,6 @@ pub mod fri_protocol_versions_dal;
 pub mod fri_prover_dal;
 pub mod fri_scheduler_dependency_tracker_dal;
 pub mod fri_witness_generator_dal;
-pub mod gpu_prover_queue_dal;
 pub mod healthcheck;
 mod instrument;
 mod metrics;
@@ -50,7 +49,6 @@ mod models;
 pub mod proof_generation_dal;
 pub mod protocol_versions_dal;
 pub mod protocol_versions_web3_dal;
-pub mod prover_dal;
 pub mod snapshot_recovery_dal;
 pub mod snapshots_creator_dal;
 pub mod snapshots_dal;
@@ -187,16 +185,8 @@ impl<'a> StorageProcessor<'a> {
         TokensWeb3Dal { storage: self }
     }
 
-    pub fn prover_dal(&mut self) -> ProverDal<'_, 'a> {
-        ProverDal { storage: self }
-    }
-
     pub fn contract_verification_dal(&mut self) -> ContractVerificationDal<'_, 'a> {
         ContractVerificationDal { storage: self }
-    }
-
-    pub fn gpu_prover_queue_dal(&mut self) -> GpuProverQueueDal<'_, 'a> {
-        GpuProverQueueDal { storage: self }
     }
 
     pub fn protocol_versions_dal(&mut self) -> ProtocolVersionsDal<'_, 'a> {

@@ -6,9 +6,14 @@ use std::{
     time::{Duration, Instant},
 };
 
+use chrono::Utc;
 use itertools::Itertools;
-use multivm::interface::{FinishedL1Batch, L1BatchEnv};
-use zksync_dal::{blocks_dal::ConsensusBlockFields, StorageProcessor};
+use multivm::{
+    interface::{FinishedL1Batch, L1BatchEnv},
+    utils::get_max_gas_per_pubdata_byte,
+};
+use vm_utils::storage::wait_for_prev_l1_batch_params;
+use zksync_dal::StorageProcessor;
 use zksync_system_constants::ACCOUNT_CODE_STORAGE_ADDRESS;
 use zksync_types::{
     block::{unpack_block_info, L1BatchHeader, MiniblockHeader},
@@ -22,10 +27,10 @@ use zksync_types::{
         tx_execution_info::DeduplicatedWritesMetrics, IncludedTxLocation,
         TransactionExecutionResult,
     },
-    zkevm_test_harness::witness::sort_storage_access::sort_storage_access_queries,
-    AccountTreeId, Address, ExecuteTransactionCommon, L1BatchNumber, L1BlockNumber, LogQuery,
-    MiniblockNumber, StorageKey, StorageLog, StorageLogQuery, StorageValue, Transaction, VmEvent,
-    CURRENT_VIRTUAL_BLOCK_INFO_POSITION, H256, SYSTEM_CONTEXT_ADDRESS,
+    zk_evm_types::LogQuery,
+    AccountTreeId, Address, ExecuteTransactionCommon, L1BatchNumber, L1BlockNumber,
+    MiniblockNumber, ProtocolVersionId, StorageKey, StorageLog, StorageLogQuery, StorageValue,
+    Transaction, VmEvent, CURRENT_VIRTUAL_BLOCK_INFO_POSITION, H256, SYSTEM_CONTEXT_ADDRESS,
 };
 // TODO (SMA-1206): use seconds instead of milliseconds.
 use zksync_utils::{h256_to_u256, time::millis_since_epoch, u256_to_h256};
@@ -34,7 +39,11 @@ use crate::{
     metrics::{BlockStage, MiniblockStage, APP_METRICS},
     state_keeper::{
         extractors,
-        metrics::{L1BatchSealStage, MiniblockSealStage, L1_BATCH_METRICS, MINIBLOCK_METRICS},
+        metrics::{
+            L1BatchSealStage, MiniblockSealStage, KEEPER_METRICS, L1_BATCH_METRICS,
+            MINIBLOCK_METRICS,
+        },
+        types::ExecutionMetricsForCriteria,
         updates::{MiniblockSealCommand, UpdatesManager},
     },
 };
@@ -50,7 +59,6 @@ impl UpdatesManager {
         l1_batch_env: &L1BatchEnv,
         finished_batch: FinishedL1Batch,
         l2_erc20_bridge_addr: Address,
-        consensus: Option<ConsensusBlockFields>,
     ) {
         let started_at = Instant::now();
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::VmFinalization);
@@ -58,34 +66,44 @@ impl UpdatesManager {
         progress.observe(None);
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::FictiveMiniblock);
-        self.extend_from_fictive_transaction(finished_batch.block_tip_execution_result);
+        let ExecutionMetricsForCriteria {
+            l1_gas: batch_tip_l1_gas,
+            execution_metrics: batch_tip_execution_metrics,
+        } = ExecutionMetricsForCriteria::new(None, &finished_batch.block_tip_execution_result);
+        self.extend_from_fictive_transaction(
+            finished_batch.block_tip_execution_result,
+            batch_tip_l1_gas,
+            batch_tip_execution_metrics,
+        );
         // Seal fictive miniblock with last events and storage logs.
         let miniblock_command = self.seal_miniblock_command(
             l1_batch_env.number,
             current_miniblock_number,
             l2_erc20_bridge_addr,
-            consensus,
             false, // fictive miniblocks don't have txs, so it's fine to pass `false` here.
         );
         miniblock_command.seal_inner(&mut transaction, true).await;
         progress.observe(None);
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::LogDeduplication);
-        let (_, deduped_log_queries) = sort_storage_access_queries(
+
+        progress.observe(
             finished_batch
                 .final_execution_state
-                .storage_log_queries
-                .iter()
-                .map(|log| &log.log_query),
+                .deduplicated_storage_log_queries
+                .len(),
         );
-        progress.observe(deduped_log_queries.len());
 
         let (l1_tx_count, l2_tx_count) = l1_l2_tx_count(&self.l1_batch.executed_transactions);
         let (writes_count, reads_count) = storage_log_query_write_read_counts(
             &finished_batch.final_execution_state.storage_log_queries,
         );
-        let (dedup_writes_count, dedup_reads_count) =
-            log_query_write_read_counts(deduped_log_queries.iter());
+        let (dedup_writes_count, dedup_reads_count) = log_query_write_read_counts(
+            finished_batch
+                .final_execution_state
+                .deduplicated_storage_log_queries
+                .iter(),
+        );
 
         tracing::info!(
             "Sealing L1 batch {current_l1_batch_number} with {total_tx_count} \
@@ -103,7 +121,7 @@ impl UpdatesManager {
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::InsertL1BatchHeader);
         let (_prev_hash, prev_timestamp) =
-            extractors::wait_for_prev_l1_batch_params(&mut transaction, l1_batch_env.number).await;
+            wait_for_prev_l1_batch_params(&mut transaction, l1_batch_env.number).await;
         assert!(
             prev_timestamp < l1_batch_env.timestamp,
             "Cannot seal L1 batch #{}: Timestamp of previous L1 batch ({}) >= provisional L1 batch timestamp ({}), \
@@ -118,9 +136,7 @@ impl UpdatesManager {
 
         let l1_batch = L1BatchHeader {
             number: l1_batch_env.number,
-            is_finished: true,
             timestamp: l1_batch_env.timestamp,
-            fee_account_address: l1_batch_env.fee_account,
             priority_ops_onchain_data: self.l1_batch.priority_ops_onchain_data.clone(),
             l1_tx_count: l1_tx_count as u16,
             l2_tx_count: l2_tx_count as u16,
@@ -128,9 +144,6 @@ impl UpdatesManager {
             l2_to_l1_messages,
             bloom: Default::default(),
             used_contract_hashes: finished_batch.final_execution_state.used_contract_hashes,
-            base_fee_per_gas: l1_batch_env.base_fee(),
-            l1_gas_price: self.l1_gas_price(),
-            l2_fair_gas_price: self.fair_l2_gas_price(),
             base_system_contracts_hashes: self.base_system_contract_hashes(),
             protocol_version: Some(self.protocol_version()),
             system_logs: finished_batch.final_execution_state.system_logs,
@@ -141,14 +154,19 @@ impl UpdatesManager {
             .final_execution_state
             .deduplicated_events_logs;
 
+        let final_bootloader_memory = finished_batch
+            .final_bootloader_memory
+            .clone()
+            .unwrap_or_default();
         transaction
             .blocks_dal()
             .insert_l1_batch(
                 &l1_batch,
-                finished_batch.final_bootloader_memory.as_ref().unwrap(),
-                self.l1_batch.l1_gas_count,
+                &final_bootloader_memory,
+                self.pending_l1_gas_count(),
                 &events_queue,
                 &finished_batch.final_execution_state.storage_refunds,
+                self.pending_execution_metrics().circuit_statistic,
             )
             .await
             .unwrap();
@@ -173,7 +191,9 @@ impl UpdatesManager {
         progress.observe(None);
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::InsertProtectiveReads);
-        let (deduplicated_writes, protective_reads): (Vec<_>, Vec<_>) = deduped_log_queries
+        let (deduplicated_writes, protective_reads): (Vec<_>, Vec<_>) = finished_batch
+            .final_execution_state
+            .deduplicated_storage_log_queries
             .into_iter()
             .partition(|log_query| log_query.rw_flag);
         transaction
@@ -331,11 +351,16 @@ impl MiniblockSealCommand {
             hash: self.miniblock.get_miniblock_hash(),
             l1_tx_count: l1_tx_count as u16,
             l2_tx_count: l2_tx_count as u16,
+            fee_account_address: self.fee_account_address,
             base_fee_per_gas: self.base_fee_per_gas,
-            l1_gas_price: self.l1_gas_price,
-            l2_fair_gas_price: self.fair_l2_gas_price,
+            batch_fee_input: self.fee_input,
             base_system_contracts_hashes: self.base_system_contracts_hashes,
             protocol_version: self.protocol_version,
+            gas_per_pubdata_limit: get_max_gas_per_pubdata_byte(
+                self.protocol_version
+                    .unwrap_or(ProtocolVersionId::last_potentially_undefined())
+                    .into(),
+            ),
             virtual_blocks: self.miniblock.virtual_blocks,
         };
 
@@ -381,7 +406,8 @@ impl MiniblockSealCommand {
             transaction
                 .storage_dal()
                 .insert_factory_deps(miniblock_number, new_factory_deps)
-                .await;
+                .await
+                .unwrap();
         }
         progress.observe(new_factory_deps_count);
 
@@ -437,18 +463,6 @@ impl MiniblockSealCommand {
             .await;
         progress.observe(user_l2_to_l1_log_count);
 
-        let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::InsertConsensus, is_fictive);
-        // We want to add miniblock consensus fields atomically with the miniblock data so that we
-        // don't need to deal with corner cases (e.g., a miniblock w/o consensus fields).
-        if let Some(consensus) = &self.consensus {
-            transaction
-                .blocks_dal()
-                .set_miniblock_consensus_fields(self.miniblock_number, consensus)
-                .await
-                .unwrap();
-        }
-        progress.observe(None);
-
         let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::CommitMiniblock, is_fictive);
         let current_l2_virtual_block_info = transaction
             .storage_dal()
@@ -457,12 +471,24 @@ impl MiniblockSealCommand {
                 CURRENT_VIRTUAL_BLOCK_INFO_POSITION,
             ))
             .await
+            .expect("failed getting virtual block info from VM state")
             .unwrap_or_default();
         let (current_l2_virtual_block_number, _) =
             unpack_block_info(h256_to_u256(current_l2_virtual_block_info));
 
         transaction.commit().await.unwrap();
         progress.observe(None);
+
+        let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::ReportTxMetrics, is_fictive);
+        self.miniblock.executed_transactions.iter().for_each(|tx| {
+            KEEPER_METRICS
+                .transaction_inclusion_delay
+                .observe(Duration::from_millis(
+                    Utc::now().timestamp_millis() as u64 - tx.transaction.received_timestamp_ms,
+                ))
+        });
+        progress.observe(Some(self.miniblock.executed_transactions.len()));
+
         self.report_miniblock_metrics(started_at, current_l2_virtual_block_number);
     }
 

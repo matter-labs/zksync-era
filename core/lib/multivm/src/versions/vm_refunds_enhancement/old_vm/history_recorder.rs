@@ -12,14 +12,14 @@ use zksync_utils::{h256_to_u256, u256_to_h256};
 pub(crate) type MemoryWithHistory<H> = HistoryRecorder<MemoryWrapper, H>;
 pub(crate) type IntFrameManagerWithHistory<T, H> = HistoryRecorder<FramedStack<T>, H>;
 
-// Within the same cycle, timestamps in range timestamp..timestamp+TIME_DELTA_PER_CYCLE-1
+// Within the same cycle, timestamps in range `timestamp..timestamp+TIME_DELTA_PER_CYCLE-1`
 // can be used. This can sometimes violate monotonicity of the timestamp within the
 // same cycle, so it should be normalized.
 #[inline]
 fn normalize_timestamp(timestamp: Timestamp) -> Timestamp {
     let timestamp = timestamp.0;
 
-    // Making sure it is divisible by TIME_DELTA_PER_CYCLE
+    // Making sure it is divisible by `TIME_DELTA_PER_CYCLE`
     Timestamp(timestamp - timestamp % zkevm_opcode_defs::TIME_DELTA_PER_CYCLE)
 }
 

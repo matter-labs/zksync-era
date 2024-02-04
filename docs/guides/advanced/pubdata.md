@@ -22,9 +22,9 @@ executed, we then will pull the transaction input and the relevant fields, apply
 current state of L2.
 
 One thing to note is that in both systems some of the contract bytecode is compressed into an array of indices where
-each 2 byte index corresponds to an 8 byte word in a dictionary. More on how that is done
-[here](./bytecode_compression.md). Once the bytecode has been expanded, the hash can be taken and checked against the
-storage writes within the `AccountCodeStorage` contract which connects an address on L2 with the 32 byte code hash:
+each 2 byte index corresponds to an 8 byte word in a dictionary. More on how that is done [here](./compression.md). Once
+the bytecode has been expanded, the hash can be taken and checked against the storage writes within the
+`AccountCodeStorage` contract which connects an address on L2 with the 32 byte code hash:
 
 ```solidity
 function _storeCodeHash(address _address, bytes32 _hash) internal {
@@ -79,8 +79,8 @@ The 4 main fields to look at here are:
    1. Structure: `num entries as u32 || for each entry: (8 byte id, 32 bytes final value)`
 3. `factoryDeps`: An array of uncompressed bytecodes
 4. `l2ArbitraryLengthMessages` : L2 → L1 Messages
-   1. We don’t need them all, we are just concerned with messages sent from the `Compressor/BytcodeCompressor` contract
-   2. These messages will follow the compression algorithm outline [here](./bytecode_compression.md)
+   1. We don’t need them all, we are just concerned with messages sent from the `Compressor/BytecodeCompressor` contract
+   2. These messages will follow the compression algorithm outline [here](./compression.md)
 
 For the ids on the repeated writes, they are generated as we process the first time keys. For example: if we see
 `[<key1, val1>, <key2, val2>]` (starting from an empty state) then we can assume that the next time a write happens to

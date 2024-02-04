@@ -1,10 +1,14 @@
-use std::time::{Duration, Instant};
+use std::{
+    net::SocketAddr,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
 use tokio::{task::JoinHandle, time::sleep};
 use zksync_config::configs::FriWitnessVectorGeneratorConfig;
-use zksync_dal::ConnectionPool;
+use zksync_dal::{fri_prover_dal::types::GpuProverInstanceStatus, ConnectionPool};
 use zksync_object_store::ObjectStore;
 use zksync_prover_fri_types::{
     circuit_definitions::boojum::field::goldilocks::GoldilocksField, CircuitWrapper, ProverJob,
@@ -14,17 +18,13 @@ use zksync_prover_fri_utils::{
     fetch_next_circuit, get_numeric_circuit_id, socket_utils::send_assembly,
 };
 use zksync_queued_job_processor::JobProcessor;
-use zksync_types::{
-    basic_fri_types::CircuitIdRoundTuple,
-    proofs::{GpuProverInstanceStatus, SocketAddress},
-    protocol_version::L1VerifierConfig,
-};
+use zksync_types::{basic_fri_types::CircuitIdRoundTuple, protocol_version::L1VerifierConfig};
 use zksync_vk_setup_data_server_fri::get_finalization_hints;
 
 use crate::metrics::METRICS;
 
 pub struct WitnessVectorGenerator {
-    blob_store: Box<dyn ObjectStore>,
+    blob_store: Arc<dyn ObjectStore>,
     pool: ConnectionPool,
     circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
     zone: String,
@@ -35,7 +35,7 @@ pub struct WitnessVectorGenerator {
 
 impl WitnessVectorGenerator {
     pub fn new(
-        blob_store: Box<dyn ObjectStore>,
+        blob_store: Arc<dyn ObjectStore>,
         prover_connection_pool: ConnectionPool,
         circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
         zone: String,
@@ -152,6 +152,7 @@ impl JobProcessor for WitnessVectorGenerator {
                 .await;
 
             if let Some(address) = prover {
+                let address = SocketAddr::from(address);
                 tracing::info!(
                     "Found prover after {:?}. Sending witness vector job...",
                     now.elapsed()
@@ -213,7 +214,7 @@ impl JobProcessor for WitnessVectorGenerator {
 async fn handle_send_result(
     result: &Result<(Duration, u64), String>,
     job_id: u32,
-    address: &SocketAddress,
+    address: &SocketAddr,
     pool: &ConnectionPool,
     zone: String,
 ) {
@@ -242,12 +243,16 @@ async fn handle_send_result(
                  reason: {err}"
             );
 
-            // mark prover instance in gpu_prover_queue dead
+            // mark prover instance in `gpu_prover_queue` dead
             pool.access_storage()
                 .await
                 .unwrap()
                 .fri_gpu_prover_queue_dal()
-                .update_prover_instance_status(address.clone(), GpuProverInstanceStatus::Dead, zone)
+                .update_prover_instance_status(
+                    (*address).into(),
+                    GpuProverInstanceStatus::Dead,
+                    zone,
+                )
                 .await;
 
             // mark the job as failed

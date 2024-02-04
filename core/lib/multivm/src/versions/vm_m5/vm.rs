@@ -1,3 +1,6 @@
+use itertools::Itertools;
+use zk_evm_1_3_1::aux_structures::LogQuery;
+use zkevm_test_harness_1_3_3::witness::sort_storage_access::sort_storage_access_queries;
 use zksync_state::StoragePtr;
 use zksync_types::{
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
@@ -153,15 +156,39 @@ impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
             .cloned()
             .collect();
 
+        let storage_log_queries = self.vm.get_final_log_queries();
+
+        // To allow calling the `vm-1.3.3`s. method, the `v1.3.1`'s `LogQuery` has to be converted
+        // to the `vm-1.3.3`'s `LogQuery`. Then, we need to convert it back.
+        let deduplicated_logs: Vec<LogQuery> = sort_storage_access_queries(
+            &storage_log_queries
+                .iter()
+                .map(|log| {
+                    GlueInto::<zk_evm_1_3_3::aux_structures::LogQuery>::glue_into(log.log_query)
+                })
+                .collect_vec(),
+        )
+        .1
+        .into_iter()
+        .map(GlueInto::<zk_evm_1_3_1::aux_structures::LogQuery>::glue_into)
+        .collect();
+
         CurrentExecutionState {
             events,
-            storage_log_queries: self.vm.get_final_log_queries(),
+            storage_log_queries: storage_log_queries
+                .into_iter()
+                .map(GlueInto::glue_into)
+                .collect(),
+            deduplicated_storage_log_queries: deduplicated_logs
+                .into_iter()
+                .map(GlueInto::glue_into)
+                .collect(),
             used_contract_hashes,
             system_logs: vec![],
             user_l2_to_l1_logs: l2_to_l1_logs,
             total_log_queries,
             cycles_used: self.vm.state.local_state.monotonic_cycle_counter,
-            // It's not applicable for vm5
+            // It's not applicable for `vm5`
             deduplicated_events_logs: vec![],
             storage_refunds: vec![],
         }
@@ -172,13 +199,16 @@ impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
         _tracer: Self::TracerDispatcher,
         tx: Transaction,
         _with_compression: bool,
-    ) -> Result<VmExecutionResultAndLogs, BytecodeCompressionError> {
+    ) -> (
+        Result<(), BytecodeCompressionError>,
+        VmExecutionResultAndLogs,
+    ) {
         crate::vm_m5::vm_with_bootloader::push_transaction_to_bootloader_memory(
             &mut self.vm,
             &tx,
             self.system_env.execution_mode.glue_into(),
         );
-        Ok(self.execute(VmExecutionMode::OneTx))
+        (Ok(()), self.execute(VmExecutionMode::OneTx))
     }
 
     fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
@@ -192,6 +222,12 @@ impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
             storage_inner: 0,
             storage_history: 0,
         }
+    }
+
+    fn has_enough_gas_for_batch_tip(&self) -> bool {
+        // For this version this overhead has not been calculated and it has not been used with those versions.
+        // We return some value just in case for backwards compatibility
+        true
     }
 
     fn finish_batch(&mut self) -> FinishedL1Batch {

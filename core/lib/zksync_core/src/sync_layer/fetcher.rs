@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use anyhow::Context as _;
 use tokio::sync::watch;
-use zksync_dal::{blocks_dal::ConsensusBlockFields, StorageProcessor};
+use zksync_dal::StorageProcessor;
 use zksync_types::{
     api::en::SyncBlock, block::MiniblockHasher, Address, L1BatchNumber, MiniblockNumber,
     ProtocolVersionId, H256,
@@ -22,7 +22,7 @@ const RETRY_DELAY_INTERVAL: Duration = Duration::from_secs(5);
 
 /// Common denominator for blocks fetched by an external node.
 #[derive(Debug)]
-pub(super) struct FetchedBlock {
+pub(crate) struct FetchedBlock {
     pub number: MiniblockNumber,
     pub l1_batch_number: L1BatchNumber,
     pub last_in_batch: bool,
@@ -31,10 +31,10 @@ pub(super) struct FetchedBlock {
     pub reference_hash: Option<H256>,
     pub l1_gas_price: u64,
     pub l2_fair_gas_price: u64,
+    pub fair_pubdata_price: Option<u64>,
     pub virtual_blocks: u32,
     pub operator_address: Address,
     pub transactions: Vec<zksync_types::Transaction>,
-    pub consensus: Option<ConsensusBlockFields>,
 }
 
 impl FetchedBlock {
@@ -60,17 +60,12 @@ impl TryFrom<SyncBlock> for FetchedBlock {
             reference_hash: block.hash,
             l1_gas_price: block.l1_gas_price,
             l2_fair_gas_price: block.l2_fair_gas_price,
+            fair_pubdata_price: block.fair_pubdata_price,
             virtual_blocks: block.virtual_blocks.unwrap_or(0),
             operator_address: block.operator_address,
             transactions: block
                 .transactions
                 .context("Transactions are always requested")?,
-            consensus: block
-                .consensus
-                .as_ref()
-                .map(ConsensusBlockFields::decode)
-                .transpose()
-                .context("ConsensusBlockFields::decode()")?,
         })
     }
 }
@@ -79,7 +74,7 @@ impl TryFrom<SyncBlock> for FetchedBlock {
 #[derive(Debug)]
 pub struct FetcherCursor {
     // Fields are public for testing purposes.
-    pub(super) next_miniblock: MiniblockNumber,
+    pub(crate) next_miniblock: MiniblockNumber,
     pub(super) prev_miniblock_hash: H256,
     pub(super) l1_batch: L1BatchNumber,
 }
@@ -87,11 +82,13 @@ pub struct FetcherCursor {
 impl FetcherCursor {
     /// Loads the cursor from Postgres.
     pub async fn new(storage: &mut StorageProcessor<'_>) -> anyhow::Result<Self> {
-        let last_sealed_l1_batch_header = storage
+        // TODO (PLA-703): Support no L1 batches / miniblocks in the storage
+        let last_sealed_l1_batch_number = storage
             .blocks_dal()
-            .get_newest_l1_batch_header()
+            .get_sealed_l1_batch_number()
             .await
-            .context("Failed getting newest L1 batch header")?;
+            .context("Failed getting sealed L1 batch number")?
+            .context("No L1 batches sealed")?;
         let last_miniblock_header = storage
             .blocks_dal()
             .get_last_sealed_miniblock_header()
@@ -113,10 +110,10 @@ impl FetcherCursor {
         // Decide whether the next batch should be explicitly opened or not.
         let l1_batch = if was_new_batch_open {
             // No `OpenBatch` action needed.
-            last_sealed_l1_batch_header.number + 1
+            last_sealed_l1_batch_number + 1
         } else {
             // We need to open the next batch.
-            last_sealed_l1_batch_header.number
+            last_sealed_l1_batch_number
         };
 
         Ok(Self {
@@ -126,7 +123,7 @@ impl FetcherCursor {
         })
     }
 
-    pub(super) fn advance(&mut self, block: FetchedBlock) -> Vec<SyncAction> {
+    pub(crate) fn advance(&mut self, block: FetchedBlock) -> Vec<SyncAction> {
         assert_eq!(block.number, self.next_miniblock);
         let local_block_hash = block.compute_hash(self.prev_miniblock_hash);
         if let Some(reference_hash) = block.reference_hash {
@@ -160,6 +157,7 @@ impl FetcherCursor {
                 timestamp: block.timestamp,
                 l1_gas_price: block.l1_gas_price,
                 l2_fair_gas_price: block.l2_fair_gas_price,
+                fair_pubdata_price: block.fair_pubdata_price,
                 operator_address: block.operator_address,
                 protocol_version: block.protocol_version,
                 // `block.virtual_blocks` can be `None` only for old VM versions where it's not used, so it's fine to provide any number.
@@ -189,10 +187,9 @@ impl FetcherCursor {
             new_actions.push(SyncAction::SealBatch {
                 // `block.virtual_blocks` can be `None` only for old VM versions where it's not used, so it's fine to provide any number.
                 virtual_blocks: block.virtual_blocks,
-                consensus: block.consensus,
             });
         } else {
-            new_actions.push(SyncAction::SealMiniblock(block.consensus));
+            new_actions.push(SyncAction::SealMiniblock);
         }
         self.next_miniblock += 1;
         self.prev_miniblock_hash = local_block_hash;
@@ -248,7 +245,7 @@ impl MainNodeFetcher {
                     {
                         tracing::warn!("Following transport error occurred: {err}");
                         tracing::info!("Trying again after a delay");
-                        tokio::time::sleep(RETRY_DELAY_INTERVAL).await; // TODO (BFT-100): Implement the fibonacci backoff.
+                        tokio::time::sleep(RETRY_DELAY_INTERVAL).await; // TODO (BFT-100): Implement the Fibonacci back-off.
                     } else {
                         return Err(err.context("Unexpected error in the fetcher"));
                     }

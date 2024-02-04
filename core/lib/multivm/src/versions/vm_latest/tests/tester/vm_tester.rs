@@ -4,6 +4,7 @@ use zksync_contracts::BaseSystemContracts;
 use zksync_state::{InMemoryStorage, StoragePtr, StorageView, WriteStorage};
 use zksync_types::{
     block::MiniblockHasher,
+    fee_model::BatchFeeInput,
     get_code_key, get_is_account_key,
     helpers::unix_timestamp_ms,
     utils::{deployed_address_create, storage_key_for_eth_balance},
@@ -76,7 +77,7 @@ impl<H: HistoryMode> VmTester<H> {
 
         if !self.custom_contracts.is_empty() {
             println!("Inserting custom contracts is not yet supported")
-            // insert_contracts(&mut self.storage, &self.custom_contracts);
+            // `insert_contracts(&mut self.storage, &self.custom_contracts);`
         }
 
         let mut l1_batch = self.vm.batch_env.clone();
@@ -251,8 +252,10 @@ pub(crate) fn default_l1_batch(number: L1BatchNumber) -> L1BatchEnv {
         previous_batch_hash: None,
         number,
         timestamp,
-        l1_gas_price: 50_000_000_000,   // 50 gwei
-        fair_l2_gas_price: 250_000_000, // 0.25 gwei
+        fee_input: BatchFeeInput::l1_pegged(
+            50_000_000_000, // 50 gwei
+            250_000_000,    // 0.25 gwei
+        ),
         fee_account: Address::random(),
         enforced_base_fee: None,
         first_l2_block: L2BlockEnv {

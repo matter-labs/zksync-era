@@ -1,7 +1,7 @@
 # Circuits
 
 - [Overview](./overview.md)
-- [Code decommiter](./code_decommitter.md)
+- [Code decommitter](./code_decommitter.md)
 - [Demux log queue](./demux_log_queue.md)
 - [ECRecover](./ecrecover.md)
 - [Keccak round function](./keccak_round_function.md)

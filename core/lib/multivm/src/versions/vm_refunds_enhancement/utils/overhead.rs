@@ -1,20 +1,20 @@
 use zk_evm_1_3_3::zkevm_opcode_defs::system_params::MAX_TX_ERGS_LIMIT;
-use zksync_system_constants::{MAX_L2_TX_GAS_LIMIT, MAX_TXS_IN_BLOCK};
+use zksync_system_constants::MAX_L2_TX_GAS_LIMIT;
 use zksync_types::{l1::is_l1_tx_type, U256};
 use zksync_utils::ceil_div_u256;
 
 use crate::vm_refunds_enhancement::constants::{
-    BLOCK_OVERHEAD_GAS, BLOCK_OVERHEAD_PUBDATA, BOOTLOADER_TX_ENCODING_SPACE,
+    BLOCK_OVERHEAD_GAS, BLOCK_OVERHEAD_PUBDATA, BOOTLOADER_TX_ENCODING_SPACE, MAX_TXS_IN_BLOCK,
 };
 
 /// Derives the overhead for processing transactions in a block.
-pub fn derive_overhead(
+pub(crate) fn derive_overhead(
     gas_limit: u32,
     gas_price_per_pubdata: u32,
     encoded_len: usize,
     coefficients: OverheadCoefficients,
 ) -> u32 {
-    // Even if the gas limit is greater than the MAX_TX_ERGS_LIMIT, we assume that everything beyond MAX_TX_ERGS_LIMIT
+    // Even if the gas limit is greater than the `MAX_TX_ERGS_LIMIT`, we assume that everything beyond `MAX_TX_ERGS_LIMIT`
     // will be spent entirely on publishing bytecodes and so we derive the overhead solely based on the capped value
     let gas_limit = std::cmp::min(MAX_TX_ERGS_LIMIT, gas_limit);
 
@@ -23,8 +23,8 @@ pub fn derive_overhead(
     let gas_limit = U256::from(gas_limit);
     let encoded_len = U256::from(encoded_len);
 
-    // The MAX_TX_ERGS_LIMIT is formed in a way that may fulfills a single-instance circuits
-    // if used in full. That is, within MAX_TX_ERGS_LIMIT it is possible to fully saturate all the single-instance
+    // The `MAX_TX_ERGS_LIMIT` is formed in a way that may fulfills a single-instance circuits
+    // if used in full. That is, within `MAX_TX_ERGS_LIMIT` it is possible to fully saturate all the single-instance
     // circuits.
     let overhead_for_single_instance_circuits =
         ceil_div_u256(gas_limit * max_block_overhead, MAX_TX_ERGS_LIMIT.into());
@@ -38,15 +38,17 @@ pub fn derive_overhead(
     // The overhead for occupying a single tx slot
     let tx_slot_overhead = ceil_div_u256(max_block_overhead, MAX_TXS_IN_BLOCK.into());
 
-    // We use "ceil" here for formal reasons to allow easier approach for calculating the overhead in O(1)
-    // let max_pubdata_in_tx = ceil_div_u256(gas_limit, gas_price_per_pubdata);
+    // We use `ceil` here for formal reasons to allow easier approach for calculating the overhead in O(1)
+    // `let max_pubdata_in_tx = ceil_div_u256(gas_limit, gas_price_per_pubdata);`
 
     // The maximal potential overhead from pubdata
     // TODO (EVM-67): possibly use overhead for pubdata
+    // ```
     // let pubdata_overhead = ceil_div_u256(
     //     max_pubdata_in_tx * max_block_overhead,
     //     MAX_PUBDATA_PER_BLOCK.into(),
     // );
+    // ```
 
     vec![
         (coefficients.ergs_limit_overhead_coeficient
@@ -102,8 +104,8 @@ impl OverheadCoefficients {
         OverheadCoefficients::new_checked(
             1.0, 1.0,
             // For L2 transactions we allow a certain default discount with regard to the number of ergs.
-            // Multiinstance circuits can in theory be spawned infinite times, while projected future limitations
-            // on gas per pubdata allow for roughly 800kk gas per L1 batch, so the rough trust "discount" on the proof's part
+            // Multi-instance circuits can in theory be spawned infinite times, while projected future limitations
+            // on gas per pubdata allow for roughly 800k gas per L1 batch, so the rough trust "discount" on the proof's part
             // to be paid by the users is 0.1.
             0.1,
         )
@@ -132,28 +134,28 @@ pub(crate) fn get_amortized_overhead(
     let encoded_len = U256::from(encoded_len);
 
     // Derivation of overhead consists of 4 parts:
-    // 1. The overhead for taking up a transaction's slot. (O1): O1 = 1 / MAX_TXS_IN_BLOCK
-    // 2. The overhead for taking up the bootloader's memory (O2): O2 = encoded_len / BOOTLOADER_TX_ENCODING_SPACE
-    // 3. The overhead for possible usage of pubdata. (O3): O3 = max_pubdata_in_tx / MAX_PUBDATA_PER_BLOCK
-    // 4. The overhead for possible usage of all the single-instance circuits. (O4): O4 = gas_limit / MAX_TX_ERGS_LIMIT
+    // 1. The overhead for taking up a transaction's slot. `(O1): O1 = 1 / MAX_TXS_IN_BLOCK`
+    // 2. The overhead for taking up the bootloader's memory `(O2): O2 = encoded_len / BOOTLOADER_TX_ENCODING_SPACE`
+    // 3. The overhead for possible usage of pubdata. `(O3): O3 = max_pubdata_in_tx / MAX_PUBDATA_PER_BLOCK`
+    // 4. The overhead for possible usage of all the single-instance circuits. `(O4): O4 = gas_limit / MAX_TX_ERGS_LIMIT`
     //
     // The maximum of these is taken to derive the part of the block's overhead to be paid by the users:
     //
-    // max_overhead = max(O1, O2, O3, O4)
-    // overhead_gas = ceil(max_overhead * overhead_for_block_gas). Thus, overhead_gas is a function of
-    // tx_gas_limit, gas_per_pubdata_byte_limit and encoded_len.
+    // `max_overhead = max(O1, O2, O3, O4)`
+    // `overhead_gas = ceil(max_overhead * overhead_for_block_gas)`. Thus, `overhead_gas` is a function of
+    // `tx_gas_limit`, `gas_per_pubdata_byte_limit` and `encoded_len`.
     //
-    // While it is possible to derive the overhead with binary search in O(log n), it is too expensive to be done
+    // While it is possible to derive the overhead with binary search in `O(log n)`, it is too expensive to be done
     // on L1, so here is a reference implementation of finding the overhead for transaction in O(1):
     //
-    // Given total_gas_limit = tx_gas_limit + overhead_gas, we need to find overhead_gas and tx_gas_limit, such that:
-    // 1. overhead_gas is maximal possible (the operator is paid fairly)
-    // 2. overhead_gas(tx_gas_limit, gas_per_pubdata_byte_limit, encoded_len) >= overhead_gas (the user does not overpay)
+    // Given `total_gas_limit = tx_gas_limit + overhead_gas`, we need to find `overhead_gas` and `tx_gas_limit`, such that:
+    // 1. `overhead_gas` is maximal possible (the operator is paid fairly)
+    // 2. `overhead_gas(tx_gas_limit, gas_per_pubdata_byte_limit, encoded_len) >= overhead_gas` (the user does not overpay)
     // The third part boils to the following 4 inequalities (at least one of these must hold):
-    // ceil(O1 * overhead_for_block_gas) >= overhead_gas
-    // ceil(O2 * overhead_for_block_gas) >= overhead_gas
-    // ceil(O3 * overhead_for_block_gas) >= overhead_gas
-    // ceil(O4 * overhead_for_block_gas) >= overhead_gas
+    // `ceil(O1 * overhead_for_block_gas) >= overhead_gas`
+    // `ceil(O2 * overhead_for_block_gas) >= overhead_gas`
+    // `ceil(O3 * overhead_for_block_gas) >= overhead_gas`
+    // `ceil(O4 * overhead_for_block_gas) >= overhead_gas`
     //
     // Now, we need to solve each of these separately:
 
@@ -164,7 +166,7 @@ pub(crate) fn get_amortized_overhead(
         (coefficients.slot_overhead_coeficient * tx_slot_overhead as f64).floor() as u32
     };
 
-    // 2. The overhead for occupying the bootloader memory can be derived from encoded_len
+    // 2. The overhead for occupying the bootloader memory can be derived from `encoded_len`
     let overhead_for_length = {
         let overhead_for_length = ceil_div_u256(
             encoded_len * overhead_for_block_gas,
@@ -177,15 +179,18 @@ pub(crate) fn get_amortized_overhead(
     };
 
     // TODO (EVM-67): possibly include the overhead for pubdata. The formula below has not been properly maintained,
-    // since the pubdat is not published. If decided to use the pubdata overhead, it needs to be updated.
-    // 3. ceil(O3 * overhead_for_block_gas) >= overhead_gas
-    // O3 = max_pubdata_in_tx / MAX_PUBDATA_PER_BLOCK = ceil(gas_limit / gas_per_pubdata_byte_limit) / MAX_PUBDATA_PER_BLOCK
-    // >= (gas_limit / (gas_per_pubdata_byte_limit * MAX_PUBDATA_PER_BLOCK). Throwing off the `ceil`, while may provide marginally lower
+    // since the pubdata is not published. If decided to use the pubdata overhead, it needs to be updated.
+    // ```
+    // 3. ceil(O3 * overhead_for_block_gas) >= overhead_gas`
+    // O3 = max_pubdata_in_tx / MAX_PUBDATA_PER_BLOCK = ceil(gas_limit / gas_per_pubdata_byte_limit) / MAX_PUBDATA_PER_BLOCK`
+    // >= (gas_limit / (gas_per_pubdata_byte_limit * MAX_PUBDATA_PER_BLOCK).
+    // ```
+    // Throwing off the `ceil`, while may provide marginally lower
     // overhead to the operator, provides substantially easier formula to work with.
     //
-    // For better clarity, let's denote gas_limit = GL, MAX_PUBDATA_PER_BLOCK = MP, gas_per_pubdata_byte_limit = EP, overhead_for_block_gas = OB, total_gas_limit = TL, overhead_gas = OE
-    // ceil(OB * (TL - OE) / (EP * MP)) >= OE
-    //
+    // For better clarity, let's denote `gas_limit = GL, MAX_PUBDATA_PER_BLOCK = MP, gas_per_pubdata_byte_limit = EP, overhead_for_block_gas = OB, total_gas_limit = TL, overhead_gas = OE`
+    // `ceil(OB * (TL - OE) / (EP * MP)) >= OE`
+    // ```
     // OB * (TL - OE) / (MP * EP) > OE - 1
     // OB * (TL - OE) > (OE - 1) * EP * MP
     // OB * TL + EP * MP > OE * EP * MP + OE * OB
@@ -196,7 +201,7 @@ pub(crate) fn get_amortized_overhead(
     //         + gas_per_pubdata_byte_limit * U256::from(MAX_PUBDATA_PER_BLOCK);
     //     let denominator =
     //         gas_per_pubdata_byte_limit * U256::from(MAX_PUBDATA_PER_BLOCK) + overhead_for_block_gas;
-
+    //
     //     // Corner case: if `total_gas_limit` = `gas_per_pubdata_byte_limit` = 0
     //     // then the numerator will be 0 and subtracting 1 will cause a panic, so we just return a zero.
     //     if numerator.is_zero() {
@@ -205,7 +210,7 @@ pub(crate) fn get_amortized_overhead(
     //         (numerator - 1) / denominator
     //     }
     // };
-
+    //
     // 4. K * ceil(O4 * overhead_for_block_gas) >= overhead_gas, where K is the discount
     // O4 = gas_limit / MAX_TX_ERGS_LIMIT. Using the notation from the previous equation:
     // ceil(OB * GL / MAX_TX_ERGS_LIMIT) >= (OE / K)
@@ -214,6 +219,7 @@ pub(crate) fn get_amortized_overhead(
     // OB * (TL - OE) > (OE/K) * MAX_TX_ERGS_LIMIT - MAX_TX_ERGS_LIMIT
     // OB * TL + MAX_TX_ERGS_LIMIT > OE * ( MAX_TX_ERGS_LIMIT/K + OB)
     // OE = floor(OB * TL + MAX_TX_ERGS_LIMIT / (MAX_TX_ERGS_LIMIT/K + OB)), with possible -1 if the division is without remainder
+    // ```
     let overhead_for_gas = {
         let numerator = overhead_for_block_gas * total_gas_limit + U256::from(MAX_TX_ERGS_LIMIT);
         let denominator: U256 = U256::from(
@@ -228,16 +234,16 @@ pub(crate) fn get_amortized_overhead(
     let overhead = vec![tx_slot_overhead, overhead_for_length, overhead_for_gas]
         .into_iter()
         .max()
-        // For the sake of consistency making sure that total_gas_limit >= max_overhead
+        // For the sake of consistency making sure that `total_gas_limit >= max_overhead`
         .map(|max_overhead| std::cmp::min(max_overhead, total_gas_limit.as_u32()))
         .unwrap();
 
     let limit_after_deducting_overhead = total_gas_limit - overhead;
 
     // During double checking of the overhead, the bootloader will assume that the
-    // body of the transaction does not have any more than MAX_L2_TX_GAS_LIMIT ergs available to it.
+    // body of the transaction does not have any more than `MAX_L2_TX_GAS_LIMIT` ergs available to it.
     if limit_after_deducting_overhead.as_u64() > MAX_L2_TX_GAS_LIMIT {
-        // We derive the same overhead that would exist for the MAX_L2_TX_GAS_LIMIT ergs
+        // We derive the same overhead that would exist for the `MAX_L2_TX_GAS_LIMIT` ergs
         derive_overhead(
             MAX_L2_TX_GAS_LIMIT as u32,
             gas_per_pubdata_byte_limit,
@@ -270,7 +276,7 @@ mod tests {
         } else {
             0u32
         };
-        // Safe cast: the gas_limit for a transaction can not be larger than 2^32
+        // Safe cast: the `gas_limit` for a transaction can not be larger than `2^32`
         let mut right_bound = total_gas_limit;
 
         // The closure returns whether a certain overhead would be accepted by the bootloader.

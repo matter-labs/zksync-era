@@ -1,7 +1,7 @@
 use zksync_types::U256;
 use zksync_utils::{address_to_u256, h256_to_u256};
 
-use crate::interface::L1BatchEnv;
+use crate::{interface::L1BatchEnv, vm_refunds_enhancement::utils::fee::get_batch_base_fee};
 
 const OPERATOR_ADDRESS_SLOT: usize = 0;
 const PREV_BLOCK_HASH_SLOT: usize = 1;
@@ -19,6 +19,8 @@ pub(crate) fn bootloader_initial_memory(l1_batch: &L1BatchEnv) -> Vec<(usize, U2
         .map(|prev_block_hash| (h256_to_u256(prev_block_hash), U256::one()))
         .unwrap_or_default();
 
+    let fee_input = l1_batch.fee_input.into_l1_pegged();
+
     vec![
         (
             OPERATOR_ADDRESS_SLOT,
@@ -27,12 +29,15 @@ pub(crate) fn bootloader_initial_memory(l1_batch: &L1BatchEnv) -> Vec<(usize, U2
         (PREV_BLOCK_HASH_SLOT, prev_block_hash),
         (NEW_BLOCK_TIMESTAMP_SLOT, U256::from(l1_batch.timestamp)),
         (NEW_BLOCK_NUMBER_SLOT, U256::from(l1_batch.number.0)),
-        (L1_GAS_PRICE_SLOT, U256::from(l1_batch.l1_gas_price)),
+        (L1_GAS_PRICE_SLOT, U256::from(fee_input.l1_gas_price)),
         (
             FAIR_L2_GAS_PRICE_SLOT,
-            U256::from(l1_batch.fair_l2_gas_price),
+            U256::from(fee_input.fair_l2_gas_price),
         ),
-        (EXPECTED_BASE_FEE_SLOT, U256::from(l1_batch.base_fee())),
+        (
+            EXPECTED_BASE_FEE_SLOT,
+            U256::from(get_batch_base_fee(l1_batch)),
+        ),
         (SHOULD_SET_NEW_BLOCK_SLOT, should_set_new_block),
     ]
 }

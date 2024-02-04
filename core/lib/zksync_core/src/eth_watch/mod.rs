@@ -39,32 +39,32 @@ struct EthWatchState {
 }
 
 #[derive(Debug)]
-pub struct EthWatch<W: EthClient + Sync> {
-    client: W,
+pub struct EthWatch {
+    client: Box<dyn EthClient>,
     poll_interval: Duration,
-    event_processors: Vec<Box<dyn EventProcessor<W>>>,
+    event_processors: Vec<Box<dyn EventProcessor>>,
 
     last_processed_ethereum_block: u64,
 }
 
-impl<W: EthClient + Sync> EthWatch<W> {
+impl EthWatch {
     pub async fn new(
         diamond_proxy_address: Address,
         governance_contract: Option<Contract>,
-        mut client: W,
+        mut client: Box<dyn EthClient>,
         pool: &ConnectionPool,
         poll_interval: Duration,
     ) -> Self {
         let mut storage = pool.access_storage_tagged("eth_watch").await.unwrap();
 
-        let state = Self::initialize_state(&client, &mut storage).await;
+        let state = Self::initialize_state(&*client, &mut storage).await;
 
         tracing::info!("initialized state: {:?}", state);
 
         let priority_ops_processor =
             PriorityOpsEventProcessor::new(state.next_expected_priority_id);
         let upgrades_processor = UpgradesEventProcessor::new(state.last_seen_version_id);
-        let mut event_processors: Vec<Box<dyn EventProcessor<W>>> = vec![
+        let mut event_processors: Vec<Box<dyn EventProcessor>> = vec![
             Box::new(priority_ops_processor),
             Box::new(upgrades_processor),
         ];
@@ -92,7 +92,10 @@ impl<W: EthClient + Sync> EthWatch<W> {
         }
     }
 
-    async fn initialize_state(client: &W, storage: &mut StorageProcessor<'_>) -> EthWatchState {
+    async fn initialize_state(
+        client: &dyn EthClient,
+        storage: &mut StorageProcessor<'_>,
+    ) -> EthWatchState {
         let next_expected_priority_id: PriorityOpId = storage
             .transactions_dal()
             .last_priority_id()
@@ -149,7 +152,7 @@ impl<W: EthClient + Sync> EthWatch<W> {
                 // thus entering priority mode, which is not desired.
                 tracing::error!("Failed to process new blocks {}", error);
                 self.last_processed_ethereum_block =
-                    Self::initialize_state(&self.client, &mut storage)
+                    Self::initialize_state(&*self.client, &mut storage)
                         .await
                         .last_processed_ethereum_block;
             }
@@ -177,7 +180,7 @@ impl<W: EthClient + Sync> EthWatch<W> {
 
         for processor in self.event_processors.iter_mut() {
             processor
-                .process_events(storage, &self.client, events.clone())
+                .process_events(storage, &*self.client, events.clone())
                 .await?;
         }
         self.last_processed_ethereum_block = to_block;
@@ -185,10 +188,10 @@ impl<W: EthClient + Sync> EthWatch<W> {
     }
 }
 
-pub async fn start_eth_watch<E: EthInterface + Send + Sync + 'static>(
+pub async fn start_eth_watch(
     config: ETHWatchConfig,
     pool: ConnectionPool,
-    eth_gateway: E,
+    eth_gateway: Box<dyn EthInterface>,
     diamond_proxy_addr: Address,
     governance: (Contract, Address),
     stop_receiver: watch::Receiver<bool>,
@@ -203,7 +206,7 @@ pub async fn start_eth_watch<E: EthInterface + Send + Sync + 'static>(
     let mut eth_watch = EthWatch::new(
         diamond_proxy_addr,
         Some(governance.0),
-        eth_client,
+        Box::new(eth_client),
         &pool,
         config.poll_interval(),
     )

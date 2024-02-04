@@ -1,4 +1,4 @@
-# L2 State Recosntruction Tool
+# L2 State Reconstruction Tool
 
 Given that we post all data to L1, there is a tool, created by the [Equilibrium Team](https://equilibrium.co/) that
 solely uses L1 pubdata for reconstructing the state and verifying that the state root on L1 can be created using

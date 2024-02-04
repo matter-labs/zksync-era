@@ -55,7 +55,7 @@ impl TxRevertReason {
             BootloaderErrorCode::UnacceptablePubdataPrice => {
                 Self::Halt(Halt::UnexpectedVMBehavior("UnacceptablePubdataPrice".to_owned()))
             }
-            // This is different from AccountTxValidationFailed error in a way that it means that
+            // This is different from `AccountTxValidationFailed` error in a way that it means that
             // the error was not produced by the account itself, but for some other unknown reason (most likely not enough gas)
             BootloaderErrorCode::TxValidationError => Self::Halt(Halt::ValidationFailed(revert_reason)),
             // Note, that `InnerTxError` is derived only after the actual tx execution, so

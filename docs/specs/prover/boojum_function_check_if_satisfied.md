@@ -12,7 +12,7 @@ variables circuit columns that are under PLONK copy-permutation constraints (so 
 in programming languages), and the witness ephemeral values that can be used to prove certain constraints, for example
 by providing an inverse if the variable must be non-zero.
 
-![Check_if_satisfied.png](./img/boojum_function_check_if_satisfied/check_if_satisfied.png)
+![Check_if_satisfied.png](./img/boojum_function_check_if_satisfied/Check_if_satisfied.png)
 
 Next we prepare a view. Instead of working with all of the columns at once, it can be helpful to work with only a
 subset.
@@ -70,7 +70,7 @@ we iterate over each gate_type_id and evaluator.
 ![Check_if_satisfied(9).png](<./img/boojum_function_check_if_satisfied/Check_if_satisfied(9).png>)
 
 If gate_type_id is a LookupFormalGate, we don’t need to do anything in this loop because it is handled by the lookup
-table. For all other cases, we need to check the evaluator’s total_quotient_terms_over_all_repititions is non-zero.
+table. For all other cases, we need to check the evaluator’s total_quotient_terms_over_all_repetitions is non-zero.
 
 ![Check_if_satisfied(11).png](<./img/boojum_function_check_if_satisfied/Check_if_satisfied(11).png>)
 

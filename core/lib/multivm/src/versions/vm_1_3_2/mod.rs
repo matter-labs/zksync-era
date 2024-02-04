@@ -10,7 +10,6 @@ pub use self::{
     oracle_tools::OracleTools,
     oracles::storage::StorageOracle,
     vm::Vm,
-    vm_instance::{VmBlockResult, VmExecutionResult},
 };
 
 mod bootloader_state;
@@ -24,8 +23,6 @@ pub mod oracles;
 mod pubdata_utils;
 mod refunds;
 pub mod test_utils;
-#[cfg(test)]
-mod tests;
 pub mod transaction_data;
 pub mod utils;
 mod vm;

@@ -13,13 +13,10 @@ use zksync_web3_decl::{
     types::{Filter, FilterChanges},
 };
 
-use crate::{
-    api_server::web3::{backend_jsonrpsee::into_jsrpc_error, EthNamespace},
-    l1_gas_price::L1GasPriceProvider,
-};
+use crate::api_server::web3::{backend_jsonrpsee::into_jsrpc_error, EthNamespace};
 
 #[async_trait]
-impl<G: L1GasPriceProvider + Send + Sync + 'static> EthNamespaceServer for EthNamespace<G> {
+impl EthNamespaceServer for EthNamespace {
     async fn get_block_number(&self) -> RpcResult<U64> {
         self.get_block_number_impl().await.map_err(into_jsrpc_error)
     }
@@ -41,7 +38,7 @@ impl<G: L1GasPriceProvider + Send + Sync + 'static> EthNamespaceServer for EthNa
     }
 
     async fn gas_price(&self) -> RpcResult<U256> {
-        self.gas_price_impl().map_err(into_jsrpc_error)
+        self.gas_price_impl().await.map_err(into_jsrpc_error)
     }
 
     async fn new_filter(&self, filter: Filter) -> RpcResult<U256> {
@@ -111,6 +108,12 @@ impl<G: L1GasPriceProvider + Send + Sync + 'static> EthNamespaceServer for EthNa
         block_number: BlockNumber,
     ) -> RpcResult<Option<U256>> {
         self.get_block_transaction_count_impl(BlockId::Number(block_number))
+            .await
+            .map_err(into_jsrpc_error)
+    }
+
+    async fn get_block_receipts(&self, block_id: BlockId) -> RpcResult<Vec<TransactionReceipt>> {
+        self.get_block_receipts_impl(block_id)
             .await
             .map_err(into_jsrpc_error)
     }

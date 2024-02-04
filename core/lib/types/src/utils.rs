@@ -48,7 +48,7 @@ pub fn storage_key_for_standard_token_balance(
     token_contract: AccountTreeId,
     address: &Address,
 ) -> StorageKey {
-    // We have different implementation of the standard erc20 contract and native
+    // We have different implementation of the standard ERC20 contract and native
     // eth contract. The key for the balance is different for each.
     let key = if token_contract.address() == &L2_ETH_TOKEN_ADDRESS {
         key_for_eth_balance(address)

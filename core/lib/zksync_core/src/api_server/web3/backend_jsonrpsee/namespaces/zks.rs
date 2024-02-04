@@ -7,6 +7,7 @@ use zksync_types::{
         TransactionDetails,
     },
     fee::Fee,
+    fee_model::FeeParams,
     transaction_request::CallRequest,
     Address, L1BatchNumber, MiniblockNumber, H256, U256, U64,
 };
@@ -16,13 +17,10 @@ use zksync_web3_decl::{
     types::Token,
 };
 
-use crate::{
-    api_server::web3::{backend_jsonrpsee::into_jsrpc_error, ZksNamespace},
-    l1_gas_price::L1GasPriceProvider,
-};
+use crate::api_server::web3::{backend_jsonrpsee::into_jsrpc_error, ZksNamespace};
 
 #[async_trait]
-impl<G: L1GasPriceProvider + Send + Sync + 'static> ZksNamespaceServer for ZksNamespace<G> {
+impl ZksNamespaceServer for ZksNamespace {
     async fn estimate_fee(&self, req: CallRequest) -> RpcResult<Fee> {
         self.estimate_fee_impl(req).await.map_err(into_jsrpc_error)
     }
@@ -138,18 +136,26 @@ impl<G: L1GasPriceProvider + Send + Sync + 'static> ZksNamespaceServer for ZksNa
     }
 
     async fn get_bytecode_by_hash(&self, hash: H256) -> RpcResult<Option<Vec<u8>>> {
-        Ok(self.get_bytecode_by_hash_impl(hash).await)
+        self.get_bytecode_by_hash_impl(hash)
+            .await
+            .map_err(into_jsrpc_error)
     }
 
     async fn get_l1_gas_price(&self) -> RpcResult<U64> {
-        Ok(self.get_l1_gas_price_impl())
+        Ok(self.get_l1_gas_price_impl().await)
+    }
+
+    async fn get_fee_params(&self) -> RpcResult<FeeParams> {
+        Ok(self.get_fee_params_impl())
     }
 
     async fn get_protocol_version(
         &self,
         version_id: Option<u16>,
     ) -> RpcResult<Option<ProtocolVersion>> {
-        Ok(self.get_protocol_version_impl(version_id).await)
+        self.get_protocol_version_impl(version_id)
+            .await
+            .map_err(into_jsrpc_error)
     }
 
     async fn get_proof(

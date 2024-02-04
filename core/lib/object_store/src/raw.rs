@@ -3,7 +3,11 @@ use std::{error, fmt, sync::Arc};
 use async_trait::async_trait;
 use zksync_config::configs::object_store::{ObjectStoreConfig, ObjectStoreMode};
 
-use crate::{file::FileBackedObjectStore, gcs::GoogleCloudStorage, mock::MockStore};
+use crate::{
+    file::FileBackedObjectStore,
+    gcs::{GoogleCloudStorage, GoogleCloudStorageAuthMode},
+    mock::MockStore,
+};
 
 /// Bucket for [`ObjectStore`] in which objects can be placed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -88,7 +92,7 @@ impl error::Error for ObjectStoreError {
 ///
 /// [`StoredObject`]: crate::StoredObject
 #[async_trait]
-pub trait ObjectStore: fmt::Debug + Send + Sync {
+pub trait ObjectStore: 'static + fmt::Debug + Send + Sync {
     /// Fetches the value for the given key from the given bucket if it exists.
     ///
     /// # Errors
@@ -178,14 +182,14 @@ impl ObjectStoreFactory {
     }
 
     /// Creates an [`ObjectStore`].
-    pub async fn create_store(&self) -> Box<dyn ObjectStore> {
+    pub async fn create_store(&self) -> Arc<dyn ObjectStore> {
         match &self.origin {
             ObjectStoreOrigin::Config(config) => Self::create_from_config(config).await,
-            ObjectStoreOrigin::Mock(store) => Box::new(Arc::clone(store)),
+            ObjectStoreOrigin::Mock(store) => Arc::new(Arc::clone(store)),
         }
     }
 
-    async fn create_from_config(config: &ObjectStoreConfig) -> Box<dyn ObjectStore> {
+    async fn create_from_config(config: &ObjectStoreConfig) -> Arc<dyn ObjectStore> {
         let gcs_credential_file_path = match config.mode {
             ObjectStoreMode::GCSWithCredentialFile => Some(config.gcs_credential_file_path.clone()),
             _ => None,
@@ -196,27 +200,40 @@ impl ObjectStoreFactory {
                     "Initialized GoogleCloudStorage Object store without credential file"
                 );
                 let store = GoogleCloudStorage::new(
-                    gcs_credential_file_path,
+                    GoogleCloudStorageAuthMode::Authenticated,
                     config.bucket_base_url.clone(),
                     config.max_retries,
                 )
                 .await;
-                Box::new(store)
+                Arc::new(store)
             }
             ObjectStoreMode::GCSWithCredentialFile => {
                 tracing::trace!("Initialized GoogleCloudStorage Object store with credential file");
                 let store = GoogleCloudStorage::new(
-                    gcs_credential_file_path,
+                    GoogleCloudStorageAuthMode::AuthenticatedWithCredentialFile(
+                        gcs_credential_file_path
+                            .expect("Credentials path must be provided for GCSWithCredentialFile"),
+                    ),
                     config.bucket_base_url.clone(),
                     config.max_retries,
                 )
                 .await;
-                Box::new(store)
+                Arc::new(store)
             }
             ObjectStoreMode::FileBacked => {
                 tracing::trace!("Initialized FileBacked Object store");
                 let store = FileBackedObjectStore::new(config.file_backed_base_path.clone()).await;
-                Box::new(store)
+                Arc::new(store)
+            }
+            ObjectStoreMode::GCSAnonymousReadOnly => {
+                tracing::trace!("Initialized GoogleCloudStoragePublicReadOnly store");
+                let store = GoogleCloudStorage::new(
+                    GoogleCloudStorageAuthMode::Anonymous,
+                    config.bucket_base_url.clone(),
+                    config.max_retries,
+                )
+                .await;
+                Arc::new(store)
             }
         }
     }

@@ -12,10 +12,14 @@ use zksync_types::{
 };
 use zksync_utils::{be_bytes_to_safe_address, u256_to_account_address, u256_to_h256};
 
-use crate::tracers::validator::types::{NewTrustedValidationItems, ValidationTracerMode};
 pub use crate::tracers::validator::types::{ValidationError, ValidationTracerParams};
+use crate::{
+    glue::tracers::IntoOldVmTracer,
+    tracers::validator::types::{NewTrustedValidationItems, ValidationTracerMode},
+};
 
 mod types;
+mod vm_boojum_integration;
 mod vm_latest;
 mod vm_refunds_enhancement;
 mod vm_virtual_blocks;
@@ -101,7 +105,7 @@ impl<H> ValidationTracer<H> {
             return true;
         }
 
-        // The pair of MSG_VALUE_SIMULATOR_ADDRESS & L2_ETH_TOKEN_ADDRESS simulates the behavior of transferring ETH
+        // The pair of `MSG_VALUE_SIMULATOR_ADDRESS` & `L2_ETH_TOKEN_ADDRESS` simulates the behavior of transferring ETH
         // that is safe for the DDoS protection rules.
         if valid_eth_token_call(address, msg_sender) {
             return true;
@@ -145,11 +149,11 @@ impl<H> ValidationTracer<H> {
         let (potential_address_bytes, potential_position_bytes) = calldata.split_at(32);
         let potential_address = be_bytes_to_safe_address(potential_address_bytes);
 
-        // If the validation_address is equal to the potential_address,
-        // then it is a request that could be used for mapping of kind mapping(address => ...).
+        // If the `validation_address` is equal to the `potential_address`,
+        // then it is a request that could be used for mapping of kind `mapping(address => ...).`
         //
-        // If the potential_position_bytes were already allowed before, then this keccak might be used
-        // for ERC-20 allowance or any other of mapping(address => mapping(...))
+        // If the `potential_position_bytes` were already allowed before, then this keccak might be used
+        // for ERC-20 allowance or any other of `mapping(address => mapping(...))`
         if potential_address == Some(validated_address)
             || self
                 .auxilary_allowed_slots
@@ -187,7 +191,7 @@ fn touches_allowed_context(address: Address, key: U256) -> bool {
         return false;
     }
 
-    // Only chain_id is allowed to be touched.
+    // Only `chain_id` is allowed to be touched.
     key == U256::from(0u32)
 }
 
@@ -215,3 +219,5 @@ fn valid_eth_token_call(address: Address, msg_sender: Address) -> bool {
         || msg_sender == BOOTLOADER_ADDRESS;
     address == L2_ETH_TOKEN_ADDRESS && is_valid_caller
 }
+
+impl<H> IntoOldVmTracer for ValidationTracer<H> {}

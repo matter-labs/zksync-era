@@ -6,21 +6,19 @@ use zk_evm_1_3_1::{
     zkevm_opcode_defs::system_params::INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
 };
 use zksync_types::{
-    utils::storage_key_for_eth_balance, AccountTreeId, Address, StorageKey, StorageLogQuery,
-    StorageLogQueryType, BOOTLOADER_ADDRESS, U256,
+    utils::storage_key_for_eth_balance, AccountTreeId, Address, StorageKey, StorageLogQueryType,
+    BOOTLOADER_ADDRESS, U256,
 };
 use zksync_utils::u256_to_h256;
 
 use super::OracleWithHistory;
-use crate::{
-    glue::GlueInto,
-    vm_m6::{
-        history_recorder::{
-            AppDataFrameManagerWithHistory, HashMapHistoryEvent, HistoryEnabled, HistoryMode,
-            HistoryRecorder, StorageWrapper, WithHistory,
-        },
-        storage::{Storage, StoragePtr},
+use crate::vm_m6::{
+    history_recorder::{
+        AppDataFrameManagerWithHistory, HashMapHistoryEvent, HistoryEnabled, HistoryMode,
+        HistoryRecorder, StorageWrapper, WithHistory,
     },
+    storage::{Storage, StoragePtr},
+    utils::StorageLogQuery,
 };
 
 // While the storage does not support different shards, it was decided to write the
@@ -85,7 +83,7 @@ impl<S: Storage, H: HistoryMode> StorageOracle<S, H> {
 
         self.frames_stack.push_forward(
             StorageLogQuery {
-                log_query: query.glue_into(),
+                log_query: query,
                 log_type: StorageLogQueryType::Read,
             },
             query.timestamp,
@@ -109,7 +107,7 @@ impl<S: Storage, H: HistoryMode> StorageOracle<S, H> {
         query.read_value = current_value;
 
         let mut storage_log_query = StorageLogQuery {
-            log_query: query.glue_into(),
+            log_query: query,
             log_type: log_query_type,
         };
         self.frames_stack
@@ -190,6 +188,7 @@ impl<S: Storage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
         _monotonic_cycle_counter: u32,
         query: LogQuery,
     ) -> LogQuery {
+        // ```
         // tracing::trace!(
         //     "execute partial query cyc {:?} addr {:?} key {:?}, rw {:?}, wr {:?}, tx {:?}",
         //     _monotonic_cycle_counter,
@@ -199,6 +198,7 @@ impl<S: Storage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
         //     query.written_value,
         //     query.tx_number_in_block
         // );
+        // ```
         assert!(!query.rollback);
         if query.rw_flag {
             // The number of bytes that have been compensated by the user to perform this write
@@ -264,7 +264,7 @@ impl<S: Storage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
                     }
                 };
 
-                let LogQuery { written_value, .. } = query.log_query.glue_into();
+                let LogQuery { written_value, .. } = query.log_query;
                 let key = triplet_to_storage_key(
                     query.log_query.shard_id,
                     query.log_query.address,
@@ -278,7 +278,7 @@ impl<S: Storage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
                 );
 
                 // Additional validation that the current value was correct
-                // Unwrap is safe because the return value from write_inner is the previous value in this leaf.
+                // Unwrap is safe because the return value from `write_inner` is the previous value in this leaf.
                 // It is impossible to set leaf value to `None`
                 assert_eq!(current_value, written_value);
             }
@@ -292,8 +292,8 @@ impl<S: Storage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
 
 /// Returns the number of bytes needed to publish a slot.
 // Since we need to publish the state diffs onchain, for each of the updated storage slot
-// we basically need to publish the following pair: (<storage_key, new_value>).
-// While new_value is always 32 bytes long, for key we use the following optimization:
+// we basically need to publish the following pair: `(<storage_key, new_value>)`.
+// While `new_value` is always 32 bytes long, for key we use the following optimization:
 //   - The first time we publish it, we use 32 bytes.
 //         Then, we remember a 8-byte id for this slot and assign it to it. We call this initial write.
 //   - The second time we publish it, we will use this 8-byte instead of the 32 bytes of the entire key.

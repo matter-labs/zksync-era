@@ -19,7 +19,7 @@ use crate::vm_m6::{
 };
 
 /// Allows any opcodes, but tells the VM to end the execution once the tx is over.
-// Internally depeds on Bootloader's VMHooks to get the notification once the transaction is finished.
+// Internally depends on Bootloader's `VMHooks` to get the notification once the transaction is finished.
 #[derive(Debug)]
 pub struct OneTxTracer<H: HistoryMode> {
     tx_has_been_processed: bool,
