@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                initiator_address AS \"initiator_address!\",\n                nonce AS \"nonce!\"\n            FROM\n                transactions\n            WHERE\n                hash = ANY ($1)\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "initiator_address!",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 1,
+        "name": "nonce!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "ByteaArray"
+      ]
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "5e0a5ed220014ae1c1f16bf25afbb824c2da5d81d4765fe72a5d9c7994a0d2fe"
+}

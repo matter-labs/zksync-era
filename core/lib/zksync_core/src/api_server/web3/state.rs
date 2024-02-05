@@ -138,8 +138,11 @@ impl TxProxyCacheUpdater {
                 .transactions_dal()
                 .check_tx_hashes(&hashes)
                 .await?;
-            for tx_hash in applied_tx_hashes {
-                tx_cache.write().await.remove_tx(&tx_hash);
+            for (account, nonce) in applied_tx_hashes {
+                tx_cache
+                    .write()
+                    .await
+                    .remove_tx_by_account_nonce(account, nonce);
             }
             drop(connection);
             tokio::time::sleep(update_interval).await;

@@ -1353,12 +1353,16 @@ impl TransactionsDal<'_, '_> {
         .map(|tx| tx.into())
     }
 
-    pub async fn check_tx_hashes(&mut self, tx_hashes: &[H256]) -> sqlx::Result<Vec<H256>> {
+    pub async fn check_tx_hashes(
+        &mut self,
+        tx_hashes: &[H256],
+    ) -> sqlx::Result<Vec<(Address, Nonce)>> {
         let hashes: Vec<_> = tx_hashes.iter().map(|hash| hash.as_bytes()).collect();
         let res = sqlx::query!(
             r#"
             SELECT
-                hash
+                initiator_address AS "initiator_address!",
+                nonce AS "nonce!"
             FROM
                 transactions
             WHERE
@@ -1369,7 +1373,12 @@ impl TransactionsDal<'_, '_> {
         .fetch_all(self.storage.conn())
         .await?
         .into_iter()
-        .map(|row| H256::from_slice(&row.hash))
+        .map(|row| {
+            (
+                Address::from_slice(&row.initiator_address),
+                Nonce(row.nonce as u32),
+            )
+        })
         .collect();
         Ok(res)
     }

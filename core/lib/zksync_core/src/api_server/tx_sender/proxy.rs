@@ -5,7 +5,7 @@ use tokio::sync::RwLock;
 use zksync_types::{
     api::{BlockId, Transaction, TransactionDetails, TransactionId},
     l2::L2Tx,
-    Address, H256,
+    Address, Nonce, H256,
 };
 use zksync_web3_decl::{
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
@@ -17,16 +17,20 @@ use zksync_web3_decl::{
 pub struct TxCache {
     tx_cache: HashMap<H256, L2Tx>,
     tx_cache_by_account: HashMap<Address, Vec<H256>>,
+    tx_cache_by_account_nonce: HashMap<(Address, Nonce), H256>,
 }
 
 impl TxCache {
     fn push(&mut self, tx_hash: H256, tx: L2Tx) {
         let account_address = tx.common_data.initiator_address;
+        let nonce = tx.common_data.nonce;
         self.tx_cache.insert(tx_hash, tx);
         self.tx_cache_by_account
             .entry(account_address)
             .or_default()
             .push(tx_hash);
+        self.tx_cache_by_account_nonce
+            .insert((account_address, nonce), tx_hash);
     }
 
     fn get_tx(&self, tx_hash: &H256) -> Option<L2Tx> {
@@ -51,6 +55,16 @@ impl TxCache {
         self.tx_cache.keys().cloned().collect()
     }
 
+    pub(crate) fn remove_tx_by_account_nonce(&mut self, account: Address, nonce: Nonce) {
+        let tx_hash = self
+            .tx_cache_by_account_nonce
+            .get(&(account, nonce))
+            .cloned();
+        if let Some(tx_hash) = tx_hash {
+            self.remove_tx(&tx_hash);
+        }
+    }
+
     pub(crate) fn remove_tx(&mut self, tx_hash: &H256) {
         let tx = self.tx_cache.remove(tx_hash);
         if let Some(tx) = tx {
@@ -60,6 +74,8 @@ impl TxCache {
             if let Some(account_tx_hashes) = account_tx_hashes {
                 account_tx_hashes.retain(|&hash| hash != *tx_hash);
             }
+            self.tx_cache_by_account_nonce
+                .remove(&(tx.common_data.initiator_address, tx.common_data.nonce));
         }
     }
 }
