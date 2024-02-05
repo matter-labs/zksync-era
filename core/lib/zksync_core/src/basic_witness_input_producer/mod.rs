@@ -2,9 +2,12 @@ use std::{sync::Arc, time::Instant};
 
 use anyhow::Context;
 use async_trait::async_trait;
-use multivm::interface::{L2BlockEnv, VmInterface};
+use multivm::{
+    interface::{L2BlockEnv, VmInterface},
+    vm_latest::HistoryEnabled,
+};
 use tokio::{runtime::Handle, task::JoinHandle};
-use vm_utils::{create_vm, execute_tx};
+use vm_utils::{create_vm_for_l1_batch, execute_tx};
 use zksync_dal::{basic_witness_input_producer_dal::JOB_MAX_ATTEMPT, ConnectionPool};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_queued_job_processor::JobProcessor;
@@ -55,9 +58,14 @@ impl BasicWitnessInputProducer {
                 .get_miniblocks_to_execute_for_l1_batch(l1_batch_number),
         )?;
 
-        let (mut vm, storage_view) =
-            create_vm(rt_handle.clone(), l1_batch_number, connection, l2_chain_id)
-                .context("failed to create vm for BasicWitnessInputProducer")?;
+        let (mut vm, storage_view) = rt_handle
+            .block_on(create_vm_for_l1_batch::<HistoryEnabled>(
+                l1_batch_number,
+                l2_chain_id,
+                rt_handle.clone(),
+                connection,
+            ))
+            .context("failed to create vm for BasicWitnessInputProducer")?;
 
         tracing::info!("Started execution of l1_batch: {l1_batch_number:?}");
 
