@@ -57,9 +57,6 @@ pub struct EthHttpQueryClient {
     client: Box<dyn EthInterface>,
     topics: Vec<H256>,
     zksync_contract_addr: Address,
-    /// Address of the `StateTransitionManager` contract. It's optional because it is present only
-    /// for post shared bridge chains. If address is some then client will listen to `SetChainId` events coming from it.
-    state_transition_manager_contract_addr: Option<Address>,
     /// Address of the `Governance` contract. It's optional because it is present only for post-boojum chains.
     /// If address is some then client will listen to events coming from it.
     governance_address: Option<Address>,
@@ -71,7 +68,6 @@ impl EthHttpQueryClient {
     pub fn new(
         client: Box<dyn EthInterface>,
         zksync_contract_addr: Address,
-        state_transition_manager_contract_addr: Option<Address>,
         governance_address: Option<Address>,
         confirmations_for_eth_event: Option<u64>,
     ) -> Self {
@@ -84,7 +80,6 @@ impl EthHttpQueryClient {
             client,
             topics: Vec::new(),
             zksync_contract_addr,
-            state_transition_manager_contract_addr,
             governance_address,
             verifier_contract_abi: verifier_contract(),
             confirmations_for_eth_event,
@@ -99,15 +94,11 @@ impl EthHttpQueryClient {
     ) -> Result<Vec<Log>, Error> {
         let filter = FilterBuilder::default()
             .address(
-                [
-                    Some(self.zksync_contract_addr),
-                    self.state_transition_manager_contract_addr,
-                    self.governance_address,
-                ]
-                .iter()
-                .flatten()
-                .copied()
-                .collect(),
+                [Some(self.zksync_contract_addr), self.governance_address]
+                    .iter()
+                    .flatten()
+                    .copied()
+                    .collect(),
             )
             .from_block(from)
             .to_block(to)

@@ -339,7 +339,7 @@ impl BlockArgs {
         )
     }
 
-    pub async fn resolve_block_info(
+    pub(crate) async fn resolve_block_info(
         &self,
         connection: &mut StorageProcessor<'_>,
     ) -> anyhow::Result<ResolvedBlockInfo> {

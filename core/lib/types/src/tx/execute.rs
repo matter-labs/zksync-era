@@ -5,7 +5,7 @@ use zksync_utils::ZeroPrefixHexSerde;
 use crate::{web3::ethabi, Address, EIP712TypedStructure, StructBuilder, H256, U256};
 
 /// `Execute` transaction executes a previously deployed smart contract in the L2 rollup.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Execute {
     pub contract_address: Address,
