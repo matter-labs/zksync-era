@@ -416,7 +416,7 @@ impl EthTxManager {
                     opt.max_fee_per_gas = Some(U256::from(base_fee_per_gas + priority_fee_per_gas));
                     opt.max_priority_fee_per_gas = Some(U256::from(priority_fee_per_gas));
                     opt.nonce = Some(tx.nonce.0.into());
-                    opt.transaction_type = Some(EIP_1559_TX_TYPE);
+                    opt.transaction_type = Some(EIP_1559_TX_TYPE.into());
                 }),
                 None,
                 None,

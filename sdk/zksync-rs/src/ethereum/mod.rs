@@ -23,7 +23,7 @@ use zksync_types::{
         transports::Http,
         types::{TransactionReceipt, H160, H256, U256},
     },
-    Address, L1ChainId, L1TxCommonData, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
+    Address, L1ChainId, L1TxCommonData, EIP_1559_TX_TYPE, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
 };
 use zksync_web3_decl::namespaces::{EthNamespaceClient, ZksNamespaceClient};
 
@@ -424,6 +424,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
                 tx_data,
                 Options::with(|f| {
                     f.gas = Some(U256::from(300000));
+                    f.transaction_type = Some(EIP_1559_TX_TYPE.into());
                     f.value = Some(value);
                     f.gas_price = Some(gas_price)
                 }),
