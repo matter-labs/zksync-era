@@ -33,10 +33,9 @@ use std::{
 use anyhow::Context as _;
 use async_trait::async_trait;
 use futures::future;
-use serde::{Deserialize, Serialize};
 use tokio::sync::{watch, Mutex, Semaphore};
 use zksync_dal::{ConnectionPool, StorageProcessor};
-use zksync_health_check::{Health, HealthStatus, HealthUpdater};
+use zksync_health_check::HealthUpdater;
 use zksync_merkle_tree::TreeEntry;
 use zksync_types::{
     snapshots::{uniform_hashed_keys_chunk, SnapshotRecoveryStatus},
@@ -44,7 +43,7 @@ use zksync_types::{
 };
 
 use super::{
-    helpers::{AsyncTree, AsyncTreeRecovery, GenericAsyncTree},
+    helpers::{AsyncTree, AsyncTreeRecovery, GenericAsyncTree, MerkleTreeHealth},
     metrics::{ChunkRecoveryStage, RecoveryStage, RECOVERY_METRICS},
 };
 
@@ -66,14 +65,6 @@ trait HandleRecoveryEvent: fmt::Debug + Send + Sync {
     async fn chunk_recovered(&self) {
         // Default implementation does nothing
     }
-}
-
-/// Information about a Merkle tree during its snapshot recovery.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-struct RecoveryMerkleTreeInfo {
-    mode: &'static str, // always set to "recovery" to distinguish from `MerkleTreeInfo`
-    chunk_count: u64,
-    recovered_chunk_count: u64,
 }
 
 /// [`HealthUpdater`]-based [`HandleRecoveryEvent`] implementation.
@@ -109,12 +100,11 @@ impl HandleRecoveryEvent for RecoveryHealthUpdater<'_> {
         RECOVERY_METRICS
             .recovered_chunk_count
             .set(recovered_chunk_count);
-        let health = Health::from(HealthStatus::Ready).with_details(RecoveryMerkleTreeInfo {
-            mode: "recovery",
+        let health = MerkleTreeHealth::Recovery {
             chunk_count: self.chunk_count,
             recovered_chunk_count,
-        });
-        self.inner.update(health);
+        };
+        self.inner.update(health.into());
     }
 }
 

@@ -6,16 +6,15 @@ use zksync_config::{configs::chain::OperationsManagerConfig, DBConfig, PostgresC
 use zksync_core::metadata_calculator::MetadataCalculatorConfig;
 use zksync_dal::ConnectionPool;
 use zksync_env_config::FromEnv;
-use zksync_node::{
+use zksync_node_framework::{
     implementations::{
-        resource::pools::MasterPoolResource,
-        task::{
-            healtcheck_server::HealthCheckTaskBuilder,
-            metadata_calculator::MetadataCalculatorTaskBuilder,
+        layers::{
+            healtcheck_server::HealthCheckLayer, metadata_calculator::MetadataCalculatorLayer,
         },
+        resources::pools::MasterPoolResource,
     },
-    node::ZkSyncNode,
     resource::{Resource, ResourceId, ResourceProvider, StoredResource},
+    service::ZkStackService,
 };
 
 /// Resource provider for the main node.
@@ -62,7 +61,7 @@ fn main() -> anyhow::Result<()> {
     // Create the node with specified resource provider. We don't need to add any resources explicitly,
     // the task will request what they actually need. The benefit here is that we won't instantiate resources
     // that are not used, which would be complex otherwise, since the task set is often dynamic.
-    let mut node = ZkSyncNode::new(MainNodeResourceProvider)?;
+    let mut node = ZkStackService::new(MainNodeResourceProvider)?;
 
     // Add the metadata calculator task.
     let merkle_tree_env_config = DBConfig::from_env()?.merkle_tree;
@@ -71,11 +70,11 @@ fn main() -> anyhow::Result<()> {
         &merkle_tree_env_config,
         &operations_manager_env_config,
     );
-    node.add_task(MetadataCalculatorTaskBuilder(metadata_calculator_config));
+    node.add_layer(MetadataCalculatorLayer(metadata_calculator_config));
 
     // Add the healthcheck server.
     let healthcheck_config = zksync_config::ApiConfig::from_env()?.healthcheck;
-    node.add_task(HealthCheckTaskBuilder(healthcheck_config));
+    node.add_layer(HealthCheckLayer(healthcheck_config));
 
     // Run the node until completion.
     node.run()?;

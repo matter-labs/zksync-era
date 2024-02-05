@@ -4,7 +4,7 @@ use thiserror::Error;
 use tokio::sync::watch;
 
 use super::{Resource, ResourceId};
-use crate::node::StopReceiver;
+use crate::service::StopReceiver;
 
 /// A lazy resource represents a resource that isn't available at the time when the tasks start.
 ///
