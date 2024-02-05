@@ -1,8 +1,6 @@
 export default {
     networks: {
-        hardhat: {
-            
-        }
+        hardhat: {}
     },
     solidity: {
         version: '0.8.16'
