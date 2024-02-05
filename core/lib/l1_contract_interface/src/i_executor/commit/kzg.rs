@@ -67,13 +67,7 @@ fn commitment_to_versioned_hash(kzg_commitment: G1Affine) -> [u8; 32] {
 /// Calculate the opening point for a given `linear_hash` and `versioned_hash`. We calculate
 /// this point by hashing together the linear hash and versioned hash and only taking the last 16 bytes
 fn compute_opening_point(linear_hash: [u8; 32], versioned_hash: [u8; 32]) -> u128 {
-    let evaluation_point = &Keccak256::digest(
-        linear_hash
-            .iter()
-            .chain(&versioned_hash)
-            .copied()
-            .collect::<Vec<u8>>(),
-    )[16..];
+    let evaluation_point = &Keccak256::digest([linear_hash, versioned_hash].concat())[16..];
 
     u128::from_be_bytes(evaluation_point.try_into().expect("should have 16 bytes"))
 }
