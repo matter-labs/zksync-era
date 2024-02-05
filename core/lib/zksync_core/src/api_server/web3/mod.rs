@@ -427,7 +427,7 @@ impl FullApiParams {
             let task = TxProxyCacheUpdater::run(
                 self.last_miniblock_pool.clone(),
                 tx_cache,
-                Duration::from_secs(10),
+                Duration::from_secs(1),
                 stop_receiver.clone(),
             );
             tasks.push(tokio::spawn(task));

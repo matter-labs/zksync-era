@@ -491,6 +491,10 @@ impl EthNamespace {
                 .map_err(|err| internal_error(method_name, err))?;
         }
 
+        // Number of txs accepted by the node.
+        // We should add the nonces from txs in our cache for making the nonce
+        // aligned with the main node. If the nonce is not sequential,
+        // then we should not increment nonce.
         let mut actual_tx_number = account_nonce.as_u32().saturating_sub(1);
         if let Some(proxy) = &self.state.tx_sender.0.proxy {
             for tx in proxy.get_txs_by_account(address).await {
@@ -501,6 +505,8 @@ impl EthNamespace {
             }
         };
 
+        // We should take the maximum nonce from the cache and the account nonce.
+        // If there are no txs in the cache the account nonce will be higher.
         let account_nonce = std::cmp::max(account_nonce, U256::from(actual_tx_number));
 
         let block_diff = self.state.last_sealed_miniblock.diff(block_number);
