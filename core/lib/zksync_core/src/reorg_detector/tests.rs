@@ -9,7 +9,10 @@ use assert_matches::assert_matches;
 use test_casing::{test_casing, Product};
 use tokio::sync::mpsc;
 use zksync_dal::StorageProcessor;
-use zksync_types::{block::MiniblockHeader, L2ChainId, ProtocolVersion};
+use zksync_types::{
+    block::{MiniblockHasher, MiniblockHeader},
+    L2ChainId, ProtocolVersion,
+};
 
 use super::*;
 use crate::{
@@ -154,6 +157,10 @@ async fn normal_reorg_function(snapshot_recovery: bool, with_transient_errors: b
             ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
                 .await
                 .unwrap();
+        client.miniblock_hash_responses.insert(
+            MiniblockNumber(0),
+            MiniblockHasher::legacy_hash(MiniblockNumber(0)),
+        );
         client
             .l1_batch_root_hash_responses
             .insert(L1BatchNumber(0), genesis_root_hash);
@@ -254,6 +261,10 @@ async fn reorg_is_detected_on_batch_hash_mismatch() {
             .await
             .unwrap();
     let mut client = MockMainNodeClient::default();
+    client.miniblock_hash_responses.insert(
+        MiniblockNumber(0),
+        MiniblockHasher::legacy_hash(MiniblockNumber(0)),
+    );
     client
         .l1_batch_root_hash_responses
         .insert(L1BatchNumber(0), genesis_root_hash);
@@ -302,6 +313,10 @@ async fn reorg_is_detected_on_miniblock_hash_mismatch() {
         ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
             .await
             .unwrap();
+    client.miniblock_hash_responses.insert(
+        MiniblockNumber(0),
+        MiniblockHasher::legacy_hash(MiniblockNumber(0)),
+    );
     client
         .l1_batch_root_hash_responses
         .insert(L1BatchNumber(0), genesis_root_hash);
