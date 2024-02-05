@@ -212,11 +212,13 @@ describe('System behavior checks', () => {
         const l1Token = testMaster.environment().erc20Token.l1Address;
         const amount = 1;
 
-        // Fund bob's account.
+        // Fund Bob's account.
         await alice.transfer({ amount, to: bob.address, token: l2Token }).then((tx) => tx.wait());
+        testMaster.reporter.debug('Sent L2 token to Bob');
         await alice
             .transfer({ amount: L2_ETH_PER_ACCOUNT.div(8), to: bob.address, token: zksync.utils.ETH_ADDRESS })
             .then((tx) => tx.wait());
+        testMaster.reporter.debug('Sent ethereum on L2 to Bob');
 
         // Prepare matcher modifiers for L1 balance change.
         const aliceChange = await shouldChangeTokenBalances(l1Token, [{ wallet: alice, change: amount }], { l1: true });
@@ -233,8 +235,16 @@ describe('System behavior checks', () => {
             .then((response) => response.waitFinalize());
 
         const [aliceReceipt, bobReceipt] = await Promise.all([aliceWithdrawalPromise, bobWithdrawalPromise]);
+        testMaster.reporter.debug(
+            `Obtained withdrawal receipt for Alice: blockNumber=${aliceReceipt.blockNumber}, l1BatchNumber=${aliceReceipt.l1BatchNumber}, status=${aliceReceipt.status}`
+        );
+        testMaster.reporter.debug(
+            `Obtained withdrawal receipt for Bob: blockNumber=${bobReceipt.blockNumber}, l1BatchNumber=${bobReceipt.l1BatchNumber}, status=${bobReceipt.status}`
+        );
         await expect(alice.finalizeWithdrawal(aliceReceipt.transactionHash)).toBeAccepted([aliceChange]);
+        testMaster.reporter.debug('Finalized withdrawal for Alice');
         await expect(alice.finalizeWithdrawal(bobReceipt.transactionHash)).toBeAccepted([bobChange]);
+        testMaster.reporter.debug('Finalized withdrawal for Bob');
     });
 
     test('Should execute a withdrawal with same parameters twice', async () => {
