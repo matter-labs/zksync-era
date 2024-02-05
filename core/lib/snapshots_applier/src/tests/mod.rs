@@ -93,10 +93,10 @@ async fn snapshots_creator_can_successfully_recover_db() {
     let expected_status = SnapshotRecoveryStatus {
         l1_batch_number,
         l1_batch_root_hash,
-        l1_batch_timestamp: l1_batch_number.0.into(),
+        l1_batch_timestamp: 0,
         miniblock_number,
         miniblock_hash,
-        miniblock_timestamp: miniblock_number.0.into(),
+        miniblock_timestamp: 0,
         protocol_version: ProtocolVersionId::default(),
         storage_logs_chunks_processed: vec![true, true],
     };
