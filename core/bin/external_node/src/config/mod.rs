@@ -47,10 +47,8 @@ impl RemoteENConfig {
             .get_testnet_paymaster()
             .await
             .context("Failed to fetch paymaster")?;
-        let bridgehub_proxy_addr = client
-            .get_bridgehub_contract()
-            .await
-            .context("Failed to fetch L1 bridgehub contract address")?;
+        // In case EN is connected to the old server version without `get_bridgehub_contract` method.
+        let bridgehub_proxy_addr = client.get_bridgehub_contract().await.ok().flatten();
         let diamond_proxy_addr = client
             .get_main_contract()
             .await
