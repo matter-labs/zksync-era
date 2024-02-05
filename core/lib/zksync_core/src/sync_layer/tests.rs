@@ -237,7 +237,6 @@ async fn external_io_basics(snapshot_recovery: bool) {
 }
 
 #[test_casing(2, [false, true])]
-#[ignore] // FIXME: fails with "Expected upgrade transaction to be present for version Version21"
 #[tokio::test]
 async fn external_io_works_without_local_protocol_version(snapshot_recovery: bool) {
     let pool = ConnectionPool::test_pool().await;

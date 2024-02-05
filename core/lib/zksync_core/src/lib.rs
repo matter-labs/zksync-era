@@ -29,7 +29,7 @@ use zksync_contracts::{governance_contract, BaseSystemContracts};
 use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
 use zksync_eth_client::{
     clients::{PKSigningClient, QueryClient},
-    CallFunctionArgs, EthInterface,
+    BoundEthInterface, CallFunctionArgs, EthInterface,
 };
 use zksync_health_check::{CheckHealth, HealthStatus, ReactiveHealthCheck};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
@@ -543,8 +543,6 @@ pub async fn initialize_components(
     }
 
     let main_zksync_contract_address = contracts_config.diamond_proxy_addr;
-    let state_transition_manager_contract = contracts_config.state_transition_proxy_addr;
-
     if components.contains(&Component::EthWatcher) {
         let started_at = Instant::now();
         tracing::info!("initializing ETH-Watcher");
@@ -563,7 +561,6 @@ pub async fn initialize_components(
                 eth_watch_pool,
                 Box::new(query_client.clone()),
                 main_zksync_contract_address,
-                state_transition_manager_contract,
                 governance,
                 stop_receiver.clone(),
             )
@@ -589,6 +586,7 @@ pub async fn initialize_components(
             .context("eth_sender_config")?;
         let eth_client =
             PKSigningClient::from_config(&eth_sender, &contracts_config, &eth_client_config);
+        let nonce = eth_client.pending_nonce("eth_sender").await.unwrap();
         let eth_tx_aggregator_actor = EthTxAggregator::new(
             eth_sender.sender.clone(),
             Aggregator::new(
@@ -599,13 +597,8 @@ pub async fn initialize_components(
             contracts_config.validator_timelock_addr,
             contracts_config.l1_multicall3_addr,
             main_zksync_contract_address,
-            configs
-                .network_config
-                .as_ref()
-                .context("netowrk_config")?
-                .zksync_network_id,
-        )
-        .await;
+            nonce.as_u64(),
+        );
         task_futures.push(tokio::spawn(
             eth_tx_aggregator_actor.run(eth_sender_pool, stop_receiver.clone()),
         ));

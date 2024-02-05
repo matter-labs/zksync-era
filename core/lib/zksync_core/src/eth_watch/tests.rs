@@ -1,16 +1,13 @@
 use std::{collections::HashMap, convert::TryInto, sync::Arc};
 
 use tokio::sync::RwLock;
-use zksync_contracts::{governance_contract, zksync_contract, SET_CHAIN_ID_EVENT};
+use zksync_contracts::{governance_contract, zksync_contract};
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::{
     ethabi::{encode, Hash, Token},
     l1::{L1Tx, OpProcessingType, PriorityQueueType},
     protocol_version::{ProtocolUpgradeTx, ProtocolUpgradeTxCommonData},
-    web3::{
-        signing::keccak256,
-        types::{Address, BlockNumber, Log},
-    },
+    web3::types::{Address, BlockNumber, Log},
     Execute, L1TxCommonData, PriorityOpId, ProtocolUpgrade, ProtocolVersion, ProtocolVersionId,
     Transaction, H256, U256,
 };
@@ -25,8 +22,6 @@ struct FakeEthClientData {
     transactions: HashMap<u64, Vec<Log>>,
     diamond_upgrades: HashMap<u64, Vec<Log>>,
     governance_upgrades: HashMap<u64, Vec<Log>>,
-    // Not `Vec` because there can be only one `setChainId` upgrade per chain.
-    set_chain_id_upgrades: HashMap<u64, Log>,
     last_finalized_block_number: u64,
 }
 
@@ -36,7 +31,6 @@ impl FakeEthClientData {
             transactions: Default::default(),
             diamond_upgrades: Default::default(),
             governance_upgrades: Default::default(),
-            set_chain_id_upgrades: Default::default(),
             last_finalized_block_number: 0,
         }
     }
@@ -69,12 +63,6 @@ impl FakeEthClientData {
         }
     }
 
-    fn add_set_chain_id_upgrade(&mut self, upgrade: ProtocolUpgrade, eth_block: u64) {
-        self.set_chain_id_upgrades
-            .entry(eth_block)
-            .or_insert_with(|| upgrade_into_set_chain_id_log(upgrade, eth_block));
-    }
-
     fn set_last_finalized_block_number(&mut self, number: u64) {
         self.last_finalized_block_number = number;
     }
@@ -102,13 +90,6 @@ impl FakeEthClient {
 
     async fn add_governance_upgrades(&mut self, upgrades: &[(ProtocolUpgrade, u64)]) {
         self.inner.write().await.add_governance_upgrades(upgrades);
-    }
-
-    async fn add_set_chain_id_upgrade(&mut self, upgrade: ProtocolUpgrade, eth_block: u64) {
-        self.inner
-            .write()
-            .await
-            .add_set_chain_id_upgrade(upgrade, eth_block);
     }
 
     async fn set_last_finalized_block_number(&mut self, number: u64) {
@@ -150,9 +131,6 @@ impl EthClient for FakeEthClient {
             }
             if let Some(ops) = self.inner.read().await.governance_upgrades.get(&number) {
                 logs.extend_from_slice(ops);
-            }
-            if let Some(op) = self.inner.read().await.set_chain_id_upgrades.get(&number) {
-                logs.push(op.clone());
             }
         }
         Ok(logs)
@@ -199,11 +177,11 @@ fn build_l1_tx(serial_id: u64, eth_block: u64) -> L1Tx {
 }
 
 fn build_upgrade_tx(id: ProtocolVersionId, eth_block: u64) -> ProtocolUpgradeTx {
-    let mut tx = ProtocolUpgradeTx {
+    ProtocolUpgradeTx {
         execute: Execute {
             contract_address: Address::repeat_byte(0x11),
             calldata: vec![1, 2, 3],
-            factory_deps: Some(Vec::new()),
+            factory_deps: None,
             value: U256::zero(),
         },
         common_data: ProtocolUpgradeTxCommonData {
@@ -219,10 +197,7 @@ fn build_upgrade_tx(id: ProtocolVersionId, eth_block: u64) -> ProtocolUpgradeTx 
             canonical_tx_hash: H256::from_low_u64_be(id as u64),
         },
         received_timestamp_ms: 0,
-    };
-
-    tx.common_data.canonical_tx_hash = H256(keccak256(&encode(&[tx_into_token(tx.clone())])));
-    tx
+    }
 }
 
 #[tokio::test]
@@ -548,69 +523,6 @@ async fn test_overlapping_batches() {
     assert_eq!(tx.common_data.serial_id.0, 4);
 }
 
-#[tokio::test]
-async fn test_set_chain_id_upgrade() {
-    let protocol_version = ProtocolVersionId::latest();
-    let diamond_proxy_address = Address::repeat_byte(0x18);
-    let connection_pool = ConnectionPool::test_pool().await;
-    setup_db(&connection_pool).await;
-    let mut storage = connection_pool.access_storage().await.unwrap();
-
-    let mut client = FakeEthClient::new();
-    let mut watcher = EthWatch::new(
-        diamond_proxy_address,
-        None,
-        Box::new(client.clone()),
-        &connection_pool,
-        std::time::Duration::from_nanos(1),
-    )
-    .await;
-
-    // Set initial protocol version
-    storage
-        .protocol_versions_dal()
-        .save_protocol_version(
-            protocol_version,
-            0,
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            None,
-        )
-        .await;
-
-    assert_eq!(
-        storage
-            .protocol_versions_dal()
-            .get_protocol_upgrade_tx(protocol_version)
-            .await,
-        None
-    );
-
-    let tx = build_upgrade_tx(protocol_version, 18);
-    client
-        .add_set_chain_id_upgrade(
-            ProtocolUpgrade {
-                id: protocol_version,
-                tx: Some(tx.clone()),
-                ..Default::default()
-            },
-            18,
-        )
-        .await;
-
-    client.set_last_finalized_block_number(18).await;
-    watcher.loop_iteration(&mut storage).await.unwrap();
-
-    let upgrade_tx = storage
-        .protocol_versions_dal()
-        .get_protocol_upgrade_tx(protocol_version)
-        .await
-        .unwrap();
-
-    assert_eq!(tx.common_data.hash(), upgrade_tx.common_data.hash());
-}
-
 async fn get_all_db_txs(storage: &mut StorageProcessor<'_>) -> Vec<Transaction> {
     storage.transactions_dal().reset_mempool().await.unwrap();
     let (txs, _) = storage
@@ -692,28 +604,6 @@ fn upgrade_into_diamond_proxy_log(upgrade: ProtocolUpgrade, eth_block: u64) -> L
     }
 }
 
-fn upgrade_into_set_chain_id_log(upgrade: ProtocolUpgrade, eth_block: u64) -> Log {
-    let tx = upgrade.tx.unwrap();
-    let data = encode(&[tx_into_token(tx.clone())]);
-    Log {
-        address: Address::repeat_byte(0x1),
-        topics: vec![
-            SET_CHAIN_ID_EVENT.signature(),
-            Address::repeat_byte(0x18).into(), // diamond proxy address
-            H256::from_low_u64_be(ProtocolVersionId::latest() as u64),
-        ],
-        data: data.into(),
-        block_hash: Some(H256::repeat_byte(0x11)),
-        block_number: Some(eth_block.into()),
-        transaction_hash: Some([2; 32].into()),
-        transaction_index: Some(0u64.into()),
-        log_index: Some(0u64.into()),
-        transaction_log_index: Some(0u64.into()),
-        log_type: None,
-        removed: None,
-    }
-}
-
 fn upgrade_into_governor_log(upgrade: ProtocolUpgrade, eth_block: u64) -> Log {
     let diamond_cut = upgrade_into_diamond_cut(upgrade);
     let execute_upgrade_selector = zksync_contract()
@@ -758,36 +648,31 @@ fn upgrade_into_governor_log(upgrade: ProtocolUpgrade, eth_block: u64) -> Log {
     }
 }
 
-/// Encoding of `L2CanonicalTransaction` from `IMailbox.sol`.
-fn tx_into_token(tx: ProtocolUpgradeTx) -> Token {
-    Token::Tuple(vec![
-        Token::Uint(0xfe.into()),
-        Token::Address(tx.common_data.sender),
-        Token::Address(tx.execute.contract_address),
-        Token::Uint(tx.common_data.gas_limit),
-        Token::Uint(tx.common_data.gas_per_pubdata_limit),
-        Token::Uint(tx.common_data.max_fee_per_gas),
-        Token::Uint(U256::zero()),
-        Token::Address(Address::zero()),
-        Token::Uint((tx.common_data.upgrade_id as u16).into()),
-        Token::Uint(tx.execute.value),
-        Token::FixedArray(vec![
-            Token::Uint(U256::zero()),
-            Token::Uint(U256::zero()),
-            Token::Uint(U256::zero()),
-            Token::Uint(U256::zero()),
-        ]),
-        Token::Bytes(tx.execute.calldata),
-        Token::Bytes(Vec::new()),
-        Token::Array(Vec::new()),
-        Token::Bytes(Vec::new()),
-        Token::Bytes(Vec::new()),
-    ])
-}
-
 fn upgrade_into_diamond_cut(upgrade: ProtocolUpgrade) -> Token {
     let tx_data_token = if let Some(tx) = upgrade.tx {
-        tx_into_token(tx)
+        Token::Tuple(vec![
+            Token::Uint(0xfe.into()),
+            Token::Address(tx.common_data.sender),
+            Token::Address(tx.execute.contract_address),
+            Token::Uint(tx.common_data.gas_limit),
+            Token::Uint(tx.common_data.gas_per_pubdata_limit),
+            Token::Uint(tx.common_data.max_fee_per_gas),
+            Token::Uint(U256::zero()),
+            Token::Address(Address::zero()),
+            Token::Uint((tx.common_data.upgrade_id as u16).into()),
+            Token::Uint(tx.execute.value),
+            Token::FixedArray(vec![
+                Token::Uint(U256::zero()),
+                Token::Uint(U256::zero()),
+                Token::Uint(U256::zero()),
+                Token::Uint(U256::zero()),
+            ]),
+            Token::Bytes(tx.execute.calldata),
+            Token::Bytes(Vec::new()),
+            Token::Array(Vec::new()),
+            Token::Bytes(Vec::new()),
+            Token::Bytes(Vec::new()),
+        ])
     } else {
         Token::Tuple(vec![
             Token::Uint(0.into()),
