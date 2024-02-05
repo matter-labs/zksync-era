@@ -4,29 +4,34 @@ use zksync_config::configs::api::HealthCheckConfig;
 use zksync_core::api_server::healthcheck::HealthCheckHandle;
 
 use crate::{
-    implementations::resource::healthcheck::HealthCheckResource,
-    node::{NodeContext, StopReceiver},
+    implementations::resources::healthcheck::HealthCheckResource,
     resource::ResourceCollection,
-    task::{IntoZkSyncTask, TaskInitError, ZkSyncTask},
+    service::{ServiceContext, StopReceiver},
+    task::Task,
+    wiring_layer::{WiringError, WiringLayer},
 };
 
 /// Builder for a health check server.
 ///
 /// Spawned task collects all the health checks added by different tasks to the
 /// corresponding resource collection and spawns an HTTP server exposing them.
+///
+/// This layer expects other tasks to add health checks to the `ResourceCollection<HealthCheckResource>`.
+///
+/// ## Effects
+///
+/// - Resolves `ResourceCollection<HealthCheckResource>`.
+/// - Adds `healthcheck_server` to the node.
 #[derive(Debug)]
-pub struct HealthCheckTaskBuilder(pub HealthCheckConfig);
+pub struct HealthCheckLayer(pub HealthCheckConfig);
 
 #[async_trait::async_trait]
-impl IntoZkSyncTask for HealthCheckTaskBuilder {
-    fn task_name(&self) -> &'static str {
-        "healthcheck_server"
+impl WiringLayer for HealthCheckLayer {
+    fn layer_name(&self) -> &'static str {
+        "healthcheck_layer"
     }
 
-    async fn create(
-        self: Box<Self>,
-        mut node: NodeContext<'_>,
-    ) -> Result<Box<dyn ZkSyncTask>, TaskInitError> {
+    async fn wire(self: Box<Self>, mut node: ServiceContext<'_>) -> Result<(), WiringError> {
         let healthchecks = node
             .get_resource_or_default::<ResourceCollection<HealthCheckResource>>()
             .await;
@@ -36,7 +41,8 @@ impl IntoZkSyncTask for HealthCheckTaskBuilder {
             healthchecks,
         };
 
-        Ok(Box::new(task))
+        node.add_task(Box::new(task));
+        Ok(())
     }
 }
 
@@ -54,7 +60,11 @@ impl fmt::Debug for HealthCheckTask {
 }
 
 #[async_trait::async_trait]
-impl ZkSyncTask for HealthCheckTask {
+impl Task for HealthCheckTask {
+    fn name(&self) -> &'static str {
+        "healthcheck_server"
+    }
+
     async fn run(mut self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
         let healthchecks = self.healthchecks.resolve().await;
 
