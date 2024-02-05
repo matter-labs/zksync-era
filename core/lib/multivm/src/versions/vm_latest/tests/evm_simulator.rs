@@ -5,17 +5,12 @@ use itertools::Itertools;
 // FIXME: 1.4.1 should not be imported from 1.5.0
 use zk_evm_1_4_1::sha2::{self};
 use zk_evm_1_5_0::zkevm_opcode_defs::{BlobSha256Format, VersionedHashLen32};
-use zksync_contracts::{
-    deployer_contract, load_contract, read_evm_bytecode, read_sys_contract_bytecode,
-    BaseSystemContracts, SystemContractCode,
-};
-use zksync_state::{InMemoryStorage, StorageView};
-use zksync_system_constants::{CONTRACT_DEPLOYER_ADDRESS, L2_ETH_TOKEN_ADDRESS};
+use zksync_contracts::{load_contract, read_evm_bytecode};
+use zksync_state::InMemoryStorage;
+use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_types::{
     get_address_mapping_key, get_code_key, get_deployer_key, get_evm_code_hash_key,
-    get_evm_code_key, get_known_code_key, get_nonce_key,
-    system_contracts::{DEPLOYMENT_NONCE_INCREMENT, TX_NONCE_INCREMENT},
-    utils::deployed_address_evm_create,
+    utils::{deployed_address_evm_create, deployed_address_evm_create2},
     web3::signing::keccak256,
     AccountTreeId, Address, Execute, StorageKey, H256, U256,
 };
@@ -43,12 +38,12 @@ use crate::{
 };
 
 fn read_test_evm_bytecode(folder_name: &str, contract_name: &str) -> (Vec<u8>, Vec<u8>) {
-    read_evm_bytecode(format!("etc/evm-contracts-test-data/artifacts/contracts/{folder_name}/{folder_name}.sol/{contract_name}.json"))
+    read_evm_bytecode(format!("etc/evm-contracts-test-data/artifacts/contracts/{folder_name}/{contract_name}.sol/{contract_name}.json"))
 }
 
 fn load_test_evm_contract(folder_name: &str, contract_name: &str) -> Contract {
     load_contract(format!(
-        "etc/evm-contracts-test-data/artifacts/contracts/{folder_name}/{folder_name}.sol/{contract_name}.json",
+        "etc/evm-contracts-test-data/artifacts/contracts/{folder_name}/{contract_name}.sol/{contract_name}.json",
     ))
 }
 
@@ -199,6 +194,21 @@ fn test_basic_evm_vectors() {
     );
 }
 
+fn assert_deployed_hash<H: HistoryMode>(
+    tester: &mut VmTester<H>,
+    address: Address,
+    expected_deployed_code_hash: H256,
+) {
+    let stored_evm_code_hash = tester.vm.storage.borrow_mut().get_value(&StorageKey::new(
+        AccountTreeId::new(CONTRACT_DEPLOYER_ADDRESS),
+        key_for_evm_hash(&address),
+    ));
+    assert_eq!(
+        stored_evm_code_hash, expected_deployed_code_hash,
+        "EVM code hash wasn't stored correctly"
+    );
+}
+
 fn deploy_evm_contract<H: HistoryMode>(
     tester: &mut VmTester<H>,
     folder_name: &str,
@@ -224,22 +234,23 @@ fn deploy_evm_contract<H: HistoryMode>(
     );
 
     tester.vm.push_transaction(tx);
-    let tx_result: crate::vm_latest::VmExecutionResultAndLogs =
-        tester.vm.execute(VmExecutionMode::OneTx);
+    let tx_result: crate::vm_latest::VmExecutionResultAndLogs = tester.vm.inspect(
+        EvmDebugTracer::new(Address::default())
+            .into_tracer_pointer()
+            .into(),
+        VmExecutionMode::OneTx,
+    );
 
     assert!(
         !tx_result.result.is_failed(),
         "Transaction wasn't successful"
     );
 
-    let expected_deployed_address = deployed_address_evm_create(account.address, 0.into());
-    let stored_evm_code_hash = tester.vm.storage.borrow_mut().get_value(&StorageKey::new(
-        AccountTreeId::new(CONTRACT_DEPLOYER_ADDRESS),
-        key_for_evm_hash(&expected_deployed_address),
-    ));
-    assert_eq!(
-        stored_evm_code_hash, expected_deployed_code_hash,
-        "EVM code hash wasn't stored correctly"
+    let expected_deployed_address = deployed_address_evm_create(account.address, U256::zero());
+    assert_deployed_hash(
+        tester,
+        expected_deployed_address,
+        expected_deployed_code_hash,
     );
 
     (expected_deployed_address, abi)
@@ -345,4 +356,37 @@ fn test_evm_gas_consumption() {
         !tx_result.result.is_failed(),
         "Transaction wasn't successful"
     );
+}
+
+#[test]
+fn test_evm_basic_create() {
+    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+        .with_empty_in_memory_storage()
+        .with_execution_mode(TxExecutionMode::VerifyExecute)
+        .with_random_rich_accounts(1)
+        .build();
+
+    let (factory_address, _) = deploy_evm_contract(&mut vm, "create", "Import");
+
+    // When the "Import" contract is deployed, it will create a new contract "Foo", so we just double check that it has also been deployed
+
+    let (foo_constructor_bytecode, foo_deployed_bytecode) = read_test_evm_bytecode("create", "Foo");
+
+    let expected_deployed_code_hash = H256(keccak256(&foo_deployed_bytecode));
+
+    assert_deployed_hash(
+        &mut vm,
+        deployed_address_evm_create(factory_address, U256::zero()),
+        expected_deployed_code_hash,
+    );
+
+    assert_deployed_hash(
+        &mut vm,
+        deployed_address_evm_create2(
+            factory_address,
+            H256::zero(),
+            H256(keccak256(&foo_constructor_bytecode)),
+        ),
+        expected_deployed_code_hash,
+    )
 }

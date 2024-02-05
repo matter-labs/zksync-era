@@ -29,11 +29,15 @@ use crate::{
 
 pub(crate) struct EvmDebugTracer {
     address: Address,
+    counter: u32,
 }
 
 impl EvmDebugTracer {
     pub fn new(address: Address) -> Self {
-        Self { address }
+        Self {
+            address,
+            counter: 0,
+        }
     }
 }
 
@@ -60,6 +64,8 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for EvmDebugTracer {
 
         const DEBUG_SLOT: u32 = 32 * 32;
         const STACK_POINT: u32 = DEBUG_SLOT + 32 * 5;
+        const BYTECODE_OFFSET: u32 = STACK_POINT + 1024;
+
         let debug_magic = U256::from_dec_str(
             "33509158800074003487174289148292687789659295220513886355337449724907776218753",
         )
@@ -74,6 +80,9 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for EvmDebugTracer {
             return;
         }
 
+        let bytecode_len = memory
+            .read_slot(heap_page as usize, BYTECODE_OFFSET as usize / 32)
+            .value;
         let ip = memory.read_slot(heap_page as usize, 32 + 1).value;
         let tos = memory.read_slot(heap_page as usize, 32 + 2).value;
         let gasleft = memory.read_slot(heap_page as usize, 32 + 3).value;
@@ -93,13 +102,17 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for EvmDebugTracer {
             }
         }
 
+        self.counter += 1;
+
         println!(
-            "EVM execution at {}. TOS: {}, IP: {}, OPCODE: 0x{}/0x{}, GASLEFT: {gasleft}\nStack: {:#?}\n",
+            "EVM execution at {}. TOS: {}, IP: {} (max: {}), OPCODE: 0x{}/0x{}, GASLEFT: {gasleft}, COUNTER: {}\nStack: {:#?}\n",
             hex::encode(&code_address.0),
             tos,
             ip,
+            bytecode_len,
             hex::encode(&opcode_id),
             hex::encode(&[true_opcode]),
+            self.counter,
             stack
         );
     }

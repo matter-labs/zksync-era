@@ -89,6 +89,19 @@ pub fn deployed_address_evm_create(sender: Address, deploy_nonce: U256) -> Addre
     Address::from_slice(&hash[12..])
 }
 
+pub fn deployed_address_evm_create2(sender: Address, salt: H256, bytecode_hash: H256) -> Address {
+    let mut digest = [0u8; 1 + 20 + 32 + 32];
+
+    digest[0] = 0xff;
+    digest[1..21].copy_from_slice(sender.as_bytes());
+    digest[21..53].copy_from_slice(salt.as_bytes());
+    digest[53..].copy_from_slice(bytecode_hash.as_bytes());
+
+    let hash = keccak256(&digest);
+
+    Address::from_slice(&hash[12..])
+}
+
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;

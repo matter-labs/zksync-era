@@ -9,23 +9,37 @@ contract GasTester {
 
     }
 
-    function infiniteCall() external {
+    function infiniteCall(uint256 _toReturn) external {
         // The job of this call is to just burn gas
-        while (true) {}
+        while (gasleft() > _toReturn) {}
     }
 
-    function testGas() external {
+    function testShouldSpendEverything() internal {
         uint256 gasBefore = gasleft();
 
-        // this.infiniteCall();
-        try this.infiniteCall{gas: 10000}() {
+        try this.infiniteCall{gas: 10000}(0) {
             revert("The infinite call must fail");
         } catch {
         }
 
         uint256 gasAfter = gasleft();
 
-        assertEqGas(gasBefore - gasAfter, 20000);
+        assertEqGas(gasBefore - gasAfter, 10000);
+    }
+
+    function testShouldSpendPart() internal {
+        uint256 gasBefore = gasleft();
+
+        this.infiniteCall{gas: 10000}(5000);
+
+        uint256 gasAfter = gasleft();
+
+        assertEqGas(gasBefore - gasAfter, 5000);
+    }
+
+    function testGas() external {
+        testShouldSpendEverything();
+        testShouldSpendPart();
     }
 
     function assertEqGas(uint256 a, uint256 b) internal pure returns (bool) {
@@ -36,7 +50,6 @@ contract GasTester {
             return a + 1000 >= b;
         }
     }
-
 
     fallback() external {
 
