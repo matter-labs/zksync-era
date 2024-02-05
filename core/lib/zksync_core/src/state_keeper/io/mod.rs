@@ -22,6 +22,7 @@ use super::{
 
 pub(crate) mod common;
 pub(crate) mod event_indexes_migration;
+pub(crate) mod fee_address_migration;
 pub(crate) mod mempool;
 pub(crate) mod seal_logic;
 #[cfg(test)]

@@ -1,0 +1,114 @@
+{
+  "db_name": "PostgreSQL",
+<<<<<<<< HEAD:core/lib/dal/.sqlx/query-b125f07aec89f9d18c7f61222b5fad85237efd4db5a531f44fdd915a1b5e15b1.json
+  "query": "\n                        SELECT\n                            address,\n                            topic1,\n                            topic2,\n                            topic3,\n                            topic4,\n                            value,\n                            miniblock_number,\n                            tx_hash,\n                            tx_index_in_block,\n                            event_index_in_block,\n                            event_index_in_tx,\n                            event_index_in_block_without_eth_transfer,\n                            event_index_in_tx_without_eth_transfer,\n                            NULL::bytea AS \"block_hash\",\n                            NULL::BIGINT AS \"l1_batch_number\"\n                        FROM\n                            events\n                        WHERE\n                            tx_hash = $1\n                        ORDER BY\n                            miniblock_number ASC,\n                            event_index_in_block ASC\n                        ",
+========
+  "query": "\n            SELECT\n                address,\n                topic1,\n                topic2,\n                topic3,\n                topic4,\n                value,\n                NULL::bytea AS \"block_hash\",\n                NULL::BIGINT AS \"l1_batch_number?\",\n                miniblock_number,\n                tx_hash,\n                tx_index_in_block,\n                event_index_in_block,\n                event_index_in_tx\n            FROM\n                events\n            WHERE\n                tx_hash = ANY ($1)\n            ORDER BY\n                miniblock_number ASC,\n                tx_index_in_block ASC,\n                event_index_in_block ASC\n            ",
+>>>>>>>> main:core/lib/dal/.sqlx/query-8cd11172fc47ff8d37c22ba4163cd2d08a708c3af75fee57379a709baa3c4bed.json
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "address",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 1,
+        "name": "topic1",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 2,
+        "name": "topic2",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 3,
+        "name": "topic3",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 4,
+        "name": "topic4",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 5,
+        "name": "value",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 6,
+        "name": "miniblock_number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 7,
+        "name": "tx_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 8,
+        "name": "tx_index_in_block",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 9,
+        "name": "event_index_in_block",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 10,
+        "name": "event_index_in_tx",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 11,
+        "name": "event_index_in_block_without_eth_transfer",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 12,
+        "name": "event_index_in_tx_without_eth_transfer",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 13,
+        "name": "block_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 14,
+        "name": "l1_batch_number",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "ByteaArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      null,
+      null
+    ]
+  },
+<<<<<<<< HEAD:core/lib/dal/.sqlx/query-b125f07aec89f9d18c7f61222b5fad85237efd4db5a531f44fdd915a1b5e15b1.json
+  "hash": "b125f07aec89f9d18c7f61222b5fad85237efd4db5a531f44fdd915a1b5e15b1"
+========
+  "hash": "8cd11172fc47ff8d37c22ba4163cd2d08a708c3af75fee57379a709baa3c4bed"
+>>>>>>>> main:core/lib/dal/.sqlx/query-8cd11172fc47ff8d37c22ba4163cd2d08a708c3af75fee57379a709baa3c4bed.json
+}

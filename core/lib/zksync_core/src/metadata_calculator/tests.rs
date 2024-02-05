@@ -14,9 +14,10 @@ use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_health_check::{CheckHealth, HealthStatus};
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
+use zksync_prover_interface::inputs::PrepareBasicCircuitsJob;
 use zksync_types::{
-    block::L1BatchHeader, proofs::PrepareBasicCircuitsJob, AccountTreeId, Address, L1BatchNumber,
-    L2ChainId, MiniblockNumber, StorageKey, StorageLog, H256,
+    block::L1BatchHeader, AccountTreeId, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
+    StorageKey, StorageLog, H256,
 };
 use zksync_utils::u32_to_h256;
 
@@ -48,8 +49,9 @@ async fn genesis_creation() {
     run_calculator(calculator, pool.clone()).await;
     let (calculator, _) = setup_calculator(temp_dir.path(), &pool).await;
 
-    let GenericAsyncTree::Ready(tree) = &calculator.tree else {
-        panic!("Unexpected tree state: {:?}", calculator.tree);
+    let tree = calculator.create_tree().await.unwrap();
+    let GenericAsyncTree::Ready(tree) = tree else {
+        panic!("Unexpected tree state: {tree:?}");
     };
     assert_eq!(tree.next_l1_batch_number(), L1BatchNumber(1));
 }
@@ -76,8 +78,9 @@ async fn basic_workflow() {
     assert!(merkle_paths.iter().all(|log| log.is_write));
 
     let (calculator, _) = setup_calculator(temp_dir.path(), &pool).await;
-    let GenericAsyncTree::Ready(tree) = &calculator.tree else {
-        panic!("Unexpected tree state: {:?}", calculator.tree);
+    let tree = calculator.create_tree().await.unwrap();
+    let GenericAsyncTree::Ready(tree) = tree else {
+        panic!("Unexpected tree state: {tree:?}");
     };
     assert_eq!(tree.next_l1_batch_number(), L1BatchNumber(2));
 }

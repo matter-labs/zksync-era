@@ -33,9 +33,27 @@ pub(crate) struct MerkleTreeInfo {
     pub leaf_count: u64,
 }
 
+/// Health details for a Merkle tree.
+#[derive(Debug, Serialize)]
+#[serde(tag = "stage", rename_all = "snake_case")]
+pub(super) enum MerkleTreeHealth {
+    Initialization,
+    Recovery {
+        chunk_count: u64,
+        recovered_chunk_count: u64,
+    },
+    MainLoop(MerkleTreeInfo),
+}
+
+impl From<MerkleTreeHealth> for Health {
+    fn from(details: MerkleTreeHealth) -> Self {
+        Self::from(HealthStatus::Ready).with_details(details)
+    }
+}
+
 impl From<MerkleTreeInfo> for Health {
-    fn from(tree_info: MerkleTreeInfo) -> Self {
-        Self::from(HealthStatus::Ready).with_details(tree_info)
+    fn from(info: MerkleTreeInfo) -> Self {
+        Self::from(HealthStatus::Ready).with_details(MerkleTreeHealth::MainLoop(info))
     }
 }
 
@@ -437,7 +455,8 @@ impl L1BatchWithLogs {
 mod tests {
     use tempfile::TempDir;
     use zksync_dal::ConnectionPool;
-    use zksync_types::{proofs::PrepareBasicCircuitsJob, L2ChainId, StorageKey, StorageLog};
+    use zksync_prover_interface::inputs::PrepareBasicCircuitsJob;
+    use zksync_types::{L2ChainId, StorageKey, StorageLog};
 
     use super::*;
     use crate::{
