@@ -161,8 +161,6 @@ impl StateKeeperIO for MempoolIO {
         max_wait: Duration,
     ) -> Option<(SystemEnv, L1BatchEnv)> {
         let deadline = Instant::now() + max_wait;
-        // FIXME: why do we wait for hash immediately and not below? (changed in #809)
-        let prev_l1_batch_hash = self.wait_for_previous_l1_batch_hash().await;
 
         // Block until at least one transaction in the mempool can match the filter (or timeout happens).
         // This is needed to ensure that block timestamp is not too old.
@@ -181,11 +179,16 @@ impl StateKeeperIO for MempoolIO {
                 self.current_l1_batch_number.0,
                 self.filter.fee_input
             );
-            let mut storage = self.pool.access_storage().await.unwrap();
+            let mut storage = self
+                .pool
+                .access_storage_tagged("state_keeper")
+                .await
+                .unwrap();
             let (base_system_contracts, protocol_version) = storage
                 .protocol_versions_dal()
                 .base_system_contracts_by_timestamp(current_timestamp)
                 .await;
+            drop(storage);
 
             // We create a new filter each time, since parameters may change and a previously
             // ignored transaction in the mempool may be scheduled for the execution.
@@ -194,12 +197,13 @@ impl StateKeeperIO for MempoolIO {
                 protocol_version.into(),
             )
             .await;
-            // We only need to get the root hash when we're certain that we have a new transaction.
             if !self.mempool.has_next(&self.filter) {
                 tokio::time::sleep(self.delay_interval).await;
                 continue;
             }
 
+            // We only need to get the root hash when we're certain that we have a new transaction.
+            let prev_l1_batch_hash = self.wait_for_previous_l1_batch_hash().await;
             return Some(l1_batch_params(
                 self.current_l1_batch_number,
                 self.fee_account,
@@ -372,7 +376,11 @@ impl StateKeeperIO for MempoolIO {
         &mut self,
         version_id: ProtocolVersionId,
     ) -> Option<ProtocolUpgradeTx> {
-        let mut storage = self.pool.access_storage().await.unwrap();
+        let mut storage = self
+            .pool
+            .access_storage_tagged("state_keeper")
+            .await
+            .unwrap();
         storage
             .protocol_versions_dal()
             .get_protocol_upgrade_tx(version_id)
