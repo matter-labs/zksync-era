@@ -225,23 +225,23 @@ impl EthSenderDal<'_, '_> {
 
         Ok(sqlx::query!(
                 r#"
-            INSERT INTO
-                eth_txs_history (
-                    eth_tx_id,
-                    base_fee_per_gas,
-                    priority_fee_per_gas,
-                    tx_hash,
-                    signed_raw_tx,
-                    created_at,
-                    updated_at,
-                    blob_sidecar
-                )
-            VALUES
-                ($1, $2, $3, $4, $5, NOW(), NOW(), $6)
-            ON CONFLICT (tx_hash) DO NOTHING
-            RETURNING
-                id
-            "#,
+                INSERT INTO
+                    eth_txs_history (
+                        eth_tx_id,
+                        base_fee_per_gas,
+                        priority_fee_per_gas,
+                        tx_hash,
+                        signed_raw_tx,
+                        created_at,
+                        updated_at,
+                        blob_sidecar
+                    )
+                VALUES
+                    ($1, $2, $3, $4, $5, NOW(), NOW(), $6)
+                ON CONFLICT (tx_hash) DO NOTHING
+                RETURNING
+                    id
+                "#,
                 eth_tx_id as i32,
                 base_fee_per_gas,
                 priority_fee_per_gas,
