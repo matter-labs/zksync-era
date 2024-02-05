@@ -1,3 +1,6 @@
+// ToDo: Remove once integrated into batch commitment
+#![allow(dead_code)]
+
 use std::convert::TryInto;
 
 use sha2::Sha256;
