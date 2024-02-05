@@ -1,11 +1,10 @@
 //! Definition of errors that can occur in the zkSync Web3 API.
 
+use std::{collections::HashMap, error, error::Error, fmt, fmt::Debug};
+
 use jsonrpsee::core::ClientError as RpcError;
 use thiserror::Error;
 use zksync_types::{api::SerializationTransactionError, L1BatchNumber, MiniblockNumber};
-
-use std::error::Error;
-use std::{collections::HashMap, error, fmt, fmt::Debug};
 
 #[derive(Debug, Error)]
 pub enum Web3Error {
