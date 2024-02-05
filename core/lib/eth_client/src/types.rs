@@ -312,7 +312,7 @@ mod tests {
         );
 
         let raw_tx_str = hex::encode(
-            &signed_call_result.raw_tx(
+            signed_call_result.raw_tx(
                 Some(EthTxBlobSidecar::EthTxBlobSidecarV1(EthTxBlobSidecarV1 {
                     blobs: vec![SidecarBlob {
                         blob,
