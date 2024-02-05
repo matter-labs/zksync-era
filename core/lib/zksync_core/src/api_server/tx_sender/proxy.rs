@@ -1,7 +1,12 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{BTreeSet, HashMap},
+    future::Future,
+    sync::Arc,
+    time::Duration,
+};
 
-use itertools::Itertools;
-use tokio::sync::RwLock;
+use tokio::sync::{watch, RwLock};
+use zksync_dal::ConnectionPool;
 use zksync_types::{
     api::{BlockId, Transaction, TransactionDetails, TransactionId},
     l2::L2Tx,
@@ -13,69 +18,84 @@ use zksync_web3_decl::{
     RpcResult,
 };
 
+#[derive(Debug, Clone, Default)]
+pub(crate) struct TxCache {
+    inner: Arc<RwLock<TxCacheInner>>,
+}
+
 #[derive(Debug, Default)]
-pub struct TxCache {
+struct TxCacheInner {
     tx_cache: HashMap<H256, L2Tx>,
-    tx_cache_by_account: HashMap<Address, Vec<H256>>,
-    tx_cache_by_account_nonce: HashMap<(Address, Nonce), H256>,
+    nonces_by_account: HashMap<Address, BTreeSet<Nonce>>,
 }
 
 impl TxCache {
-    fn push(&mut self, tx_hash: H256, tx: L2Tx) {
-        let account_address = tx.common_data.initiator_address;
-        let nonce = tx.common_data.nonce;
-        self.tx_cache.insert(tx_hash, tx);
-        self.tx_cache_by_account
-            .entry(account_address)
+    async fn push(&self, tx: L2Tx) {
+        let mut inner = self.inner.write().await;
+        inner
+            .nonces_by_account
+            .entry(tx.initiator_account())
             .or_default()
-            .push(tx_hash);
-        self.tx_cache_by_account_nonce
-            .insert((account_address, nonce), tx_hash);
+            .insert(tx.nonce());
+        inner.tx_cache.insert(tx.hash(), tx);
     }
 
-    fn get_tx(&self, tx_hash: &H256) -> Option<L2Tx> {
-        self.tx_cache.get(tx_hash).cloned()
+    async fn get_tx(&self, tx_hash: H256) -> Option<L2Tx> {
+        self.inner.read().await.tx_cache.get(&tx_hash).cloned()
     }
 
-    fn get_txs_by_account(&self, account_address: Address) -> Vec<L2Tx> {
-        let Some(tx_hashes) = self.tx_cache_by_account.get(&account_address) else {
-            return Vec::new();
-        };
-
-        let mut txs = Vec::new();
-        for tx_hash in tx_hashes {
-            if let Some(tx) = self.get_tx(tx_hash) {
-                txs.push(tx);
-            }
-        }
-        txs.into_iter().sorted_by_key(|tx| tx.nonce()).collect()
-    }
-
-    pub(crate) fn get_txs_hash(&self) -> Vec<H256> {
-        self.tx_cache.keys().cloned().collect()
-    }
-
-    pub(crate) fn remove_tx_by_account_nonce(&mut self, account: Address, nonce: Nonce) {
-        let tx_hash = self
-            .tx_cache_by_account_nonce
-            .get(&(account, nonce))
-            .cloned();
-        if let Some(tx_hash) = tx_hash {
-            self.remove_tx(&tx_hash);
+    async fn get_nonces_for_account(&self, account_address: Address) -> Vec<Nonce> {
+        let inner = self.inner.read().await;
+        if let Some(nonces) = inner.nonces_by_account.get(&account_address) {
+            nonces.iter().copied().collect()
+        } else {
+            vec![]
         }
     }
 
-    pub(crate) fn remove_tx(&mut self, tx_hash: &H256) {
-        let tx = self.tx_cache.remove(tx_hash);
-        if let Some(tx) = tx {
-            let account_tx_hashes = self
-                .tx_cache_by_account
-                .get_mut(&tx.common_data.initiator_address);
-            if let Some(account_tx_hashes) = account_tx_hashes {
-                account_tx_hashes.retain(|&hash| hash != *tx_hash);
+    async fn remove_tx(&self, tx_hash: H256) {
+        self.inner.write().await.tx_cache.remove(&tx_hash);
+        // We intentionally don't change `nonces_by_account`; they should only be changed in response to new miniblocks
+    }
+
+    async fn run_updates(
+        self,
+        pool: ConnectionPool,
+        stop_receiver: watch::Receiver<bool>,
+    ) -> anyhow::Result<()> {
+        const UPDATE_INTERVAL: Duration = Duration::from_secs(1);
+
+        loop {
+            if *stop_receiver.borrow() {
+                return Ok(());
             }
-            self.tx_cache_by_account_nonce
-                .remove(&(tx.common_data.initiator_address, tx.common_data.nonce));
+
+            let addresses: Vec<_> = {
+                // Split into 2 statements for readability.
+                let inner = self.inner.read().await;
+                inner.nonces_by_account.keys().copied().collect()
+            };
+            let mut storage = pool.access_storage_tagged("api").await?;
+            let nonces_for_accounts = storage
+                .storage_web3_dal()
+                .get_nonces_for_addresses(&addresses)
+                .await?;
+            drop(storage); // Don't hold both `storage` and lock on `inner` at the same time.
+
+            let mut inner = self.inner.write().await;
+            inner.nonces_by_account.retain(|address, account_nonces| {
+                let stored_nonce = nonces_for_accounts
+                    .get(address)
+                    .copied()
+                    .unwrap_or(Nonce(0));
+                // Retain only nonces exceeding the stored one.
+                *account_nonces = account_nonces.split_off(&(stored_nonce + 1));
+                // If we've removed all nonces, drop the account entry so we don't request stored nonces for it later.
+                !account_nonces.is_empty()
+            });
+            drop(inner);
+
+            tokio::time::sleep(UPDATE_INTERVAL).await;
         }
     }
 }
@@ -84,33 +104,33 @@ impl TxCache {
 /// and store them while they're not synced back yet
 #[derive(Debug)]
 pub struct TxProxy {
-    tx_cache: Arc<RwLock<TxCache>>,
+    tx_cache: TxCache,
     client: HttpClient,
 }
 
 impl TxProxy {
-    pub fn new(main_node_url: &str, tx_cache: Arc<RwLock<TxCache>>) -> Self {
+    pub fn new(main_node_url: &str) -> Self {
         let client = HttpClientBuilder::default().build(main_node_url).unwrap();
-        Self { client, tx_cache }
+        Self {
+            client,
+            tx_cache: TxCache::default(),
+        }
     }
 
     pub async fn find_tx(&self, tx_hash: H256) -> Option<L2Tx> {
-        self.tx_cache.read().await.get_tx(&tx_hash)
+        self.tx_cache.get_tx(tx_hash).await
     }
 
     pub async fn forget_tx(&self, tx_hash: H256) {
-        self.tx_cache.write().await.remove_tx(&tx_hash)
+        self.tx_cache.remove_tx(tx_hash).await;
     }
 
-    pub async fn save_tx(&self, tx_hash: H256, tx: L2Tx) {
-        self.tx_cache.write().await.push(tx_hash, tx)
+    pub async fn save_tx(&self, tx: L2Tx) {
+        self.tx_cache.push(tx).await;
     }
 
-    pub async fn get_txs_by_account(&self, account_address: Address) -> Vec<L2Tx> {
-        self.tx_cache
-            .read()
-            .await
-            .get_txs_by_account(account_address)
+    pub async fn get_nonces_by_account(&self, account_address: Address) -> Vec<Nonce> {
+        self.tx_cache.get_nonces_for_account(account_address).await
     }
 
     pub async fn submit_tx(&self, tx: &L2Tx) -> RpcResult<H256> {
@@ -138,5 +158,14 @@ impl TxProxy {
 
     pub async fn request_tx_details(&self, hash: H256) -> RpcResult<Option<TransactionDetails>> {
         self.client.get_transaction_details(hash).await
+    }
+
+    pub fn run_account_nonce_sweeper(
+        &self,
+        pool: ConnectionPool,
+        stop_receiver: watch::Receiver<bool>,
+    ) -> impl Future<Output = anyhow::Result<()>> {
+        let tx_cache = self.tx_cache.clone();
+        tx_cache.run_updates(pool, stop_receiver)
     }
 }

@@ -5,11 +5,7 @@ use clap::Parser;
 use futures::{future::FusedFuture, FutureExt as _};
 use metrics::EN_METRICS;
 use prometheus_exporter::PrometheusExporterConfig;
-use tokio::{
-    sync::{watch, RwLock},
-    task,
-    time::sleep,
-};
+use tokio::{sync::watch, task, time::sleep};
 use zksync_basic_types::{Address, L2ChainId};
 use zksync_concurrency::{ctx, scope};
 use zksync_config::configs::database::MerkleTreeMode;
@@ -17,7 +13,7 @@ use zksync_core::{
     api_server::{
         execution_sandbox::VmConcurrencyLimiter,
         healthcheck::HealthCheckHandle,
-        tx_sender::{ApiContracts, TxCache, TxSenderBuilder},
+        tx_sender::{ApiContracts, TxSenderBuilder},
         web3::{ApiBuilder, Namespace},
     },
     block_reverter::{BlockReverter, BlockReverterFlags, L1ExecutedBatchesRevert},
@@ -158,7 +154,6 @@ async fn init_tasks(
             tokio::time::sleep(Duration::from_secs(10)).await;
         }
     }));
-    let tx_cache = Arc::new(RwLock::new(TxCache::default()));
 
     let state_keeper = build_state_keeper(
         action_queue,
@@ -281,11 +276,11 @@ async fn init_tasks(
     let fee_params_fetcher_handle =
         tokio::spawn(fee_params_fetcher.clone().run(stop_receiver.clone()));
 
-    let (tx_sender, vm_barrier, cache_update_handle, tx_cache) = {
+    let (tx_sender, vm_barrier, cache_update_handle) = {
         let tx_sender_builder =
             TxSenderBuilder::new(config.clone().into(), connection_pool.clone())
                 .with_main_connection_pool(connection_pool.clone())
-                .with_tx_proxy(&main_node_url, tx_cache.clone());
+                .with_tx_proxy(&main_node_url);
 
         if config.optional.transactions_per_sec_limit.is_some() {
             tracing::warn!("`transactions_per_sec_limit` option is deprecated and ignored");
@@ -314,7 +309,7 @@ async fn init_tasks(
                 storage_caches,
             )
             .await;
-        (tx_sender, vm_barrier, cache_update_handle, tx_cache)
+        (tx_sender, vm_barrier, cache_update_handle)
     };
 
     let http_server_handles =
@@ -325,7 +320,6 @@ async fn init_tasks(
             .with_response_body_size_limit(config.optional.max_response_body_size())
             .with_tx_sender(tx_sender.clone(), vm_barrier.clone())
             .with_sync_state(sync_state.clone())
-            .with_tx_cache_updater(tx_cache)
             .enable_api_namespaces(config.optional.api_namespaces())
             .build(stop_receiver.clone())
             .await
