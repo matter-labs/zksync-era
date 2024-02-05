@@ -9,6 +9,7 @@ use zksync_types::{
         ethabi,
         types::{Address, BlockId, TransactionReceipt, H256, U256},
     },
+    EIP_4844_TX_TYPE,
 };
 
 /// Wrapper for `Vec<ethabi::Token>` that doesn't wrap them in an additional array in `Tokenize` implementation.
@@ -171,24 +172,20 @@ fn encode_blob_tx_with_sidecar(
     stream_outer.append_raw(&raw_tx[1..], 1);
 
     let mut blob_stream = RlpStream::new_list(blobs_count);
+    let mut commitment_stream = RlpStream::new_list(blobs_count);
+    let mut proof_stream = RlpStream::new_list(blobs_count);
+
     for i in 0..blobs_count {
         blob_stream.append(&sidecar.blobs[i].blob);
-    }
-    stream_outer.append_raw(&blob_stream.out(), blobs_count);
-
-    let mut commitment_stream = RlpStream::new_list(blobs_count);
-    for i in 0..blobs_count {
         commitment_stream.append(&sidecar.blobs[i].commitment);
-    }
-    stream_outer.append_raw(&commitment_stream.out(), blobs_count);
-
-    let mut proof_stream = RlpStream::new_list(blobs_count);
-    for i in 0..blobs_count {
         proof_stream.append(&sidecar.blobs[i].proof);
     }
+
+    stream_outer.append_raw(&blob_stream.out(), blobs_count);
+    stream_outer.append_raw(&commitment_stream.out(), blobs_count);
     stream_outer.append_raw(&proof_stream.out(), blobs_count);
 
-    let tx = [&[0x03], stream_outer.as_raw()].concat();
+    let tx = [&[EIP_4844_TX_TYPE], stream_outer.as_raw()].concat();
 
     let tx = rlp::encode(&tx);
 
@@ -269,8 +266,8 @@ mod tests {
         let signer = PrivateKeySigner::new(private_key);
 
         let mut blob = vec![0u8; 131072];
-        for i in 0..12 {
-            blob[i] = b'A';
+        for item in blob.iter_mut().take(12) {
+            *item = b'A';
         }
         blob[12] = 0x0a;
         let raw_transaction = TransactionParameters {
