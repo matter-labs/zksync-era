@@ -19,10 +19,6 @@ mod tests {
 
     fn expected_config() -> ContractsConfig {
         ContractsConfig {
-            bridgehub_proxy_addr: Some(addr("35ea7f92f4c5f433efe15284e99c040110cf6297")),
-            bridgehub_impl_addr: Some(addr("87d456da9ed212eb49d80d96afb44afddf36adf8")),
-            state_transition_proxy_addr: Some(addr("d90f1c081c6117241624e97cb6147257c3cb2097")),
-            state_transition_impl_addr: Some(addr("c957c0e82d3bafb5ad46ffbcc66900648784eb05")),
             governance_addr: addr("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"),
             mailbox_facet_addr: addr("0f6Fa881EF414Fc6E818180657c2d5CD7Ac6cCAd"),
             executor_facet_addr: addr("18B631537801963A964211C0E86645c1aBfbB2d3"),
@@ -32,7 +28,6 @@ mod tests {
             diamond_init_addr: addr("FFC35A5e767BE36057c34586303498e3de7C62Ba"),
             diamond_upgrade_init_addr: addr("FFC35A5e767BE36057c34586303498e3de7C62Ba"),
             diamond_proxy_addr: addr("F00B988a98Ca742e7958DeF9F7823b5908715f4a"),
-            transparent_proxy_admin_addr: Some(addr("dd6fa5c14e7550b4caf2aa2818d24c69cbc347e5")),
             validator_timelock_addr: addr("F00B988a98Ca742e7958DeF9F7823b5908715f4a"),
             genesis_tx_hash: hash(
                 "b99ebfea46cbe05a21cd80fe5597d97b204befc52a16303f579c607dc1ac2e2e",
@@ -105,11 +100,6 @@ CONTRACTS_FRI_RECURSION_NODE_LEVEL_VK_HASH="0x5a3ef282b21e12fe1f4438e5bb158fc506
 CONTRACTS_FRI_RECURSION_LEAF_LEVEL_VK_HASH="0x72167c43a46cf38875b267d67716edc4563861364a3c03ab7aee73498421e828"
 CONTRACTS_PROVER_AT_GENESIS="fri"
 CONTRACTS_SNARK_WRAPPER_VK_HASH="0x4be443afd605a782b6e56d199df2460a025c81b3dea144e135bece83612563f2"
-CONTRACTS_BRIDGEHUB_PROXY_ADDR="0x35ea7f92f4c5f433efe15284e99c040110cf6297"
-CONTRACTS_BRIDGEHUB_IMPL_ADDR="0x87d456da9ed212eb49d80d96afb44afddf36adf8"
-CONTRACTS_STATE_TRANSITION_PROXY_ADDR="0xd90f1c081c6117241624e97cb6147257c3cb2097"
-CONTRACTS_STATE_TRANSITION_IMPL_ADDR="0xc957c0e82d3bafb5ad46ffbcc66900648784eb05"
-CONTRACTS_TRANSPARENT_PROXY_ADMIN_ADDR="0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347e5"
         "#;
         lock.set_env(config);
 

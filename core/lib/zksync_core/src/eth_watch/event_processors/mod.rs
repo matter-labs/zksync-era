@@ -7,7 +7,6 @@ use crate::eth_watch::client::{Error, EthClient};
 
 pub mod governance_upgrades;
 pub mod priority_ops;
-pub mod set_chain_id;
 pub mod upgrades;
 
 #[async_trait::async_trait]
