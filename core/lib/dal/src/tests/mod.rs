@@ -36,6 +36,7 @@ pub(crate) fn create_miniblock_header(number: u32) -> MiniblockHeader {
         hash: MiniblockHasher::new(number, 0, H256::zero()).finalize(protocol_version),
         l1_tx_count: 0,
         l2_tx_count: 0,
+        fee_account_address: Address::default(),
         gas_per_pubdata_limit: 100,
         base_fee_per_gas: 100,
         batch_fee_input: BatchFeeInput::l1_pegged(100, 100),
@@ -250,9 +251,10 @@ async fn remove_stuck_txs() {
     // We shouldn't collect executed tx
     let storage = transactions_dal.storage;
     let mut transactions_web3_dal = TransactionsWeb3Dal { storage };
-    transactions_web3_dal
-        .get_transaction_receipt(executed_tx.hash())
+    let receipts = transactions_web3_dal
+        .get_transaction_receipts(&[executed_tx.hash()])
         .await
-        .unwrap()
         .unwrap();
+
+    assert_eq!(receipts.len(), 1);
 }

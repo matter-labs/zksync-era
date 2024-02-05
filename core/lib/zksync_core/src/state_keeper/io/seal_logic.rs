@@ -10,7 +10,7 @@ use chrono::Utc;
 use itertools::Itertools;
 use multivm::{
     interface::{FinishedL1Batch, L1BatchEnv},
-    utils::{get_batch_base_fee, get_max_gas_per_pubdata_byte},
+    utils::get_max_gas_per_pubdata_byte,
 };
 use vm_utils::storage::wait_for_prev_l1_batch_params;
 use zksync_dal::StorageProcessor;
@@ -136,9 +136,7 @@ impl UpdatesManager {
 
         let l1_batch = L1BatchHeader {
             number: l1_batch_env.number,
-            is_finished: true,
             timestamp: l1_batch_env.timestamp,
-            fee_account_address: l1_batch_env.fee_account,
             priority_ops_onchain_data: self.l1_batch.priority_ops_onchain_data.clone(),
             l1_tx_count: l1_tx_count as u16,
             l2_tx_count: l2_tx_count as u16,
@@ -146,9 +144,6 @@ impl UpdatesManager {
             l2_to_l1_messages,
             bloom: Default::default(),
             used_contract_hashes: finished_batch.final_execution_state.used_contract_hashes,
-            base_fee_per_gas: get_batch_base_fee(l1_batch_env, self.protocol_version().into()),
-            l1_gas_price: self.l1_gas_price(),
-            l2_fair_gas_price: self.fair_l2_gas_price(),
             base_system_contracts_hashes: self.base_system_contract_hashes(),
             protocol_version: Some(self.protocol_version()),
             system_logs: finished_batch.final_execution_state.system_logs,
@@ -159,11 +154,15 @@ impl UpdatesManager {
             .final_execution_state
             .deduplicated_events_logs;
 
+        let final_bootloader_memory = finished_batch
+            .final_bootloader_memory
+            .clone()
+            .unwrap_or_default();
         transaction
             .blocks_dal()
             .insert_l1_batch(
                 &l1_batch,
-                finished_batch.final_bootloader_memory.as_ref().unwrap(),
+                &final_bootloader_memory,
                 self.pending_l1_gas_count(),
                 &events_queue,
                 &finished_batch.final_execution_state.storage_refunds,
@@ -352,6 +351,7 @@ impl MiniblockSealCommand {
             hash: self.miniblock.get_miniblock_hash(),
             l1_tx_count: l1_tx_count as u16,
             l2_tx_count: l2_tx_count as u16,
+            fee_account_address: self.fee_account_address,
             base_fee_per_gas: self.base_fee_per_gas,
             batch_fee_input: self.fee_input,
             base_system_contracts_hashes: self.base_system_contracts_hashes,

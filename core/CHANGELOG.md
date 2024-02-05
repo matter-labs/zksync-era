@@ -1,5 +1,50 @@
 # Changelog
 
+## [20.5.2](https://github.com/matter-labs/zksync-era/compare/core-v20.5.1...core-v20.5.2) (2024-02-04)
+
+
+### Bug Fixes
+
+* **db:** miniblocks index ([#1004](https://github.com/matter-labs/zksync-era/issues/1004)) ([b3fd22e](https://github.com/matter-labs/zksync-era/commit/b3fd22e3a730499f37102a1bc00ad1004f192668))
+
+## [20.5.1](https://github.com/matter-labs/zksync-era/compare/core-v20.5.0...core-v20.5.1) (2024-02-02)
+
+
+### Bug Fixes
+
+* **db:** transaction index ([#998](https://github.com/matter-labs/zksync-era/issues/998)) ([2b03736](https://github.com/matter-labs/zksync-era/commit/2b037365543aa39a28601e63b30f9963e7d3e044))
+
+## [20.5.0](https://github.com/matter-labs/zksync-era/compare/core-v20.4.0...core-v20.5.0) (2024-02-02)
+
+
+### Features
+
+* **merkle-tree:** Do not wait for tree initialization when starting node ([#992](https://github.com/matter-labs/zksync-era/issues/992)) ([fdbfcb1](https://github.com/matter-labs/zksync-era/commit/fdbfcb1622ee1eccd380e1930ec5401c52b73567))
+
+
+### Bug Fixes
+
+* added consensus column back ([#986](https://github.com/matter-labs/zksync-era/issues/986)) ([b9b48d4](https://github.com/matter-labs/zksync-era/commit/b9b48d45fa5d854b21c3a3b9ff57665a788a53c5))
+* get_block_receipts test ([#989](https://github.com/matter-labs/zksync-era/issues/989)) ([c301359](https://github.com/matter-labs/zksync-era/commit/c30135902afa3c39d1ac0ce2ff3b70f5c1746373))
+* **vm:** Save empty bootloader memory for batches with ancient vms ([#991](https://github.com/matter-labs/zksync-era/issues/991)) ([af7f64f](https://github.com/matter-labs/zksync-era/commit/af7f64f37faa5300ae258874d74cdcfe009dfaae))
+
+## [20.4.0](https://github.com/matter-labs/zksync-era/compare/core-v20.3.0...core-v20.4.0) (2024-01-31)
+
+
+### Features
+
+* **en:** Revert "feat(en): Fix operator address assignment for ENs" ([#977](https://github.com/matter-labs/zksync-era/issues/977)) ([e051f7a](https://github.com/matter-labs/zksync-era/commit/e051f7a80bd1c1c5b76a6e74288fab9f820738b2))
+
+## [20.3.0](https://github.com/matter-labs/zksync-era/compare/core-v20.2.0...core-v20.3.0) (2024-01-31)
+
+
+### Features
+
+* add eth_getBlockReceipts ([#887](https://github.com/matter-labs/zksync-era/issues/887)) ([5dcbcfd](https://github.com/matter-labs/zksync-era/commit/5dcbcfdeb683b02d17b77031b0a2200fa69ac778))
+* **eth-sender:** metrics for finalized and safe L1 block numbers ([#972](https://github.com/matter-labs/zksync-era/issues/972)) ([32c1637](https://github.com/matter-labs/zksync-era/commit/32c163754d5e21b9996267728fe3f527ed8ec4da))
+* Optimized block tip seal criterion ([#968](https://github.com/matter-labs/zksync-era/issues/968)) ([8049eb3](https://github.com/matter-labs/zksync-era/commit/8049eb340eadcb2e9844465d8ea15ae8c08e0ef5))
+* Prover interface and L1 interface crates ([#959](https://github.com/matter-labs/zksync-era/issues/959)) ([4f7e107](https://github.com/matter-labs/zksync-era/commit/4f7e10783afdff67a24246f17f03b536f743352d))
+
 ## [20.2.0](https://github.com/matter-labs/zksync-era/compare/core-v20.1.0...core-v20.2.0) (2024-01-30)
 
 

@@ -29,6 +29,7 @@ pub(crate) fn create_miniblock(number: u32) -> MiniblockHeader {
         l2_tx_count: 0,
         base_fee_per_gas: 100,
         batch_fee_input: BatchFeeInput::l1_pegged(100, 100),
+        fee_account_address: Address::zero(),
         gas_per_pubdata_limit: get_max_gas_per_pubdata_byte(ProtocolVersionId::latest().into()),
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
@@ -38,15 +39,12 @@ pub(crate) fn create_miniblock(number: u32) -> MiniblockHeader {
 
 /// Creates an L1 batch header with the specified number and deterministic contents.
 pub(crate) fn create_l1_batch(number: u32) -> L1BatchHeader {
-    let mut header = L1BatchHeader::new(
+    L1BatchHeader::new(
         L1BatchNumber(number),
         number.into(),
-        Address::default(),
         BaseSystemContractsHashes::default(),
         ProtocolVersionId::latest(),
-    );
-    header.is_finished = true;
-    header
+    )
 }
 
 /// Creates metadata for an L1 batch with the specified number.
