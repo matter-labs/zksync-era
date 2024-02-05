@@ -310,7 +310,7 @@ async fn normal_checker_function(
             },
         );
         let signed_tx = signed_tx.unwrap();
-        client.send_raw_tx(signed_tx.raw_tx).await.unwrap();
+        client.send_raw_tx(signed_tx.raw_tx(None)).await.unwrap();
         client.execute_tx(signed_tx.hash, true, 1);
 
         commit_tx_hash_by_l1_batch.extend(
@@ -388,7 +388,7 @@ async fn checker_processes_pre_boojum_batches(
             },
         );
         let signed_tx = signed_tx.unwrap();
-        client.send_raw_tx(signed_tx.raw_tx).await.unwrap();
+        client.send_raw_tx(signed_tx.raw_tx(None)).await.unwrap();
         client.execute_tx(signed_tx.hash, true, 1);
 
         commit_tx_hash_by_l1_batch.insert(l1_batch.header.number, signed_tx.hash);
@@ -447,7 +447,7 @@ async fn checker_functions_after_snapshot_recovery(delay_batch_insertion: bool) 
     );
     let signed_tx = signed_tx.unwrap();
     let commit_tx_hash = signed_tx.hash;
-    client.send_raw_tx(signed_tx.raw_tx).await.unwrap();
+    client.send_raw_tx(signed_tx.raw_tx(None)).await.unwrap();
     client.execute_tx(commit_tx_hash, true, 1);
 
     let save_actions = [
@@ -552,7 +552,7 @@ impl IncorrectDataKind {
             },
         );
         let signed_tx = signed_tx.unwrap();
-        client.send_raw_tx(signed_tx.raw_tx).await.unwrap();
+        client.send_raw_tx(signed_tx.raw_tx(None)).await.unwrap();
         client.execute_tx(signed_tx.hash, successful_status, 1);
         signed_tx.hash
     }

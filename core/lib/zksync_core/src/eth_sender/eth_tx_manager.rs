@@ -208,13 +208,19 @@ impl EthTxManager {
                 base_fee_per_gas,
                 priority_fee_per_gas,
                 signed_tx.hash,
-                signed_tx.raw_tx.as_ref(),
+                signed_tx.raw_tx(tx.blob_sidecar.as_ref()).as_ref(),
+                &tx.blob_sidecar,
             )
             .await
             .unwrap()
         {
             if let Err(error) = self
-                .send_raw_transaction(storage, tx_history_id, signed_tx.raw_tx, current_block)
+                .send_raw_transaction(
+                    storage,
+                    tx_history_id,
+                    signed_tx.raw_tx(tx.blob_sidecar.as_ref()).clone(),
+                    current_block,
+                )
                 .await
             {
                 tracing::warn!(
@@ -411,6 +417,8 @@ impl EthTxManager {
                     opt.max_priority_fee_per_gas = Some(U256::from(priority_fee_per_gas));
                     opt.nonce = Some(tx.nonce.0.into());
                 }),
+                None,
+                None,
                 "eth_tx_manager",
             )
             .await

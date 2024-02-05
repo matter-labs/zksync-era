@@ -109,6 +109,8 @@ mod test {
             chain_id: 270,
             transaction_type: Some(U64::from(1u32)),
             access_list: None,
+            blob_versioned_hashes: None,
+            max_fee_per_blob_gas: None,
         };
         let raw_tx = signer
             .sign_transaction(raw_transaction.clone())

@@ -15,7 +15,7 @@ use zksync_types::{
             H160, H256, U256, U64,
         },
     },
-    L1ChainId, PackedEthSignature, EIP_1559_TX_TYPE,
+    L1ChainId, PackedEthSignature,
 };
 
 use super::{query::QueryClient, Method, LATENCIES};
@@ -217,6 +217,8 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
         data: Vec<u8>,
         contract_addr: H160,
         options: Options,
+        max_fee_per_blob_gas: Option<U256>,
+        blob_versioned_hashes: Option<Vec<H256>>,
         component: &'static str,
     ) -> Result<SignedCallResult, Error> {
         let latency = LATENCIES.direct[&Method::SignPreparedTx].start();
@@ -267,23 +269,24 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
             chain_id: self.inner.chain_id.0,
             max_priority_fee_per_gas,
             gas_price: None,
-            transaction_type: Some(EIP_1559_TX_TYPE.into()),
+            transaction_type: options.transaction_type,
             access_list: None,
             max_fee_per_gas,
-            max_fee_per_blob_gas: None,
-            blob_versioned_hashes: None,
+            max_fee_per_blob_gas,
+            blob_versioned_hashes,
         };
 
         let signed_tx = self.inner.eth_signer.sign_transaction(tx).await?;
         let hash = web3::signing::keccak256(&signed_tx).into();
         latency.observe();
-        Ok(SignedCallResult {
-            raw_tx: RawTransactionBytes(signed_tx),
+
+        Ok(SignedCallResult::new(
+            RawTransactionBytes(signed_tx),
             max_priority_fee_per_gas,
             max_fee_per_gas,
             nonce,
             hash,
-        })
+        ))
     }
 
     async fn allowance_on_account(

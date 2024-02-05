@@ -7,7 +7,7 @@ use sqlx::{
 };
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    eth_sender::{EthTx, TxHistory, TxHistoryToSend},
+    eth_sender::{EthTx, EthTxBlobSidecar, TxHistory, TxHistoryToSend},
     Address, L1BatchNumber, H256, U256,
 };
 
@@ -174,6 +174,7 @@ impl EthSenderDal<'_, '_> {
         tx_type: AggregatedActionType,
         contract_address: Address,
         predicted_gas_cost: u32,
+        blob_sidecar: Option<Vec<u8>>,
     ) -> sqlx::Result<EthTx> {
         let address = format!("{:#x}", contract_address);
         let eth_tx = sqlx::query_as!(
@@ -187,10 +188,11 @@ impl EthSenderDal<'_, '_> {
                     contract_address,
                     predicted_gas_cost,
                     created_at,
-                    updated_at
+                    updated_at,
+                    blob_sidecar
                 )
             VALUES
-                ($1, $2, $3, $4, $5, NOW(), NOW())
+                ($1, $2, $3, $4, $5, NOW(), NOW(), $6)
             RETURNING
                 *
             "#,
@@ -198,7 +200,8 @@ impl EthSenderDal<'_, '_> {
             nonce as i64,
             tx_type.to_string(),
             address,
-            predicted_gas_cost as i64
+            predicted_gas_cost as i64,
+            blob_sidecar,
         )
         .fetch_one(self.storage.conn())
         .await?;
@@ -212,6 +215,7 @@ impl EthSenderDal<'_, '_> {
         priority_fee_per_gas: u64,
         tx_hash: H256,
         raw_signed_tx: &[u8],
+        blob_sidecar: &Option<EthTxBlobSidecar>,
     ) -> anyhow::Result<Option<u32>> {
         let priority_fee_per_gas =
             i64::try_from(priority_fee_per_gas).context("Can't convert u64 to i64")?;
@@ -220,7 +224,7 @@ impl EthSenderDal<'_, '_> {
         let tx_hash = format!("{:#x}", tx_hash);
 
         Ok(sqlx::query!(
-            r#"
+                r#"
             INSERT INTO
                 eth_txs_history (
                     eth_tx_id,
@@ -229,20 +233,25 @@ impl EthSenderDal<'_, '_> {
                     tx_hash,
                     signed_raw_tx,
                     created_at,
-                    updated_at
+                    updated_at,
+                    blob_sidecar
                 )
             VALUES
-                ($1, $2, $3, $4, $5, NOW(), NOW())
+                ($1, $2, $3, $4, $5, NOW(), NOW(), $6)
             ON CONFLICT (tx_hash) DO NOTHING
             RETURNING
                 id
             "#,
-            eth_tx_id as i32,
-            base_fee_per_gas,
-            priority_fee_per_gas,
-            tx_hash,
-            raw_signed_tx
-        )
+                eth_tx_id as i32,
+                base_fee_per_gas,
+                priority_fee_per_gas,
+                tx_hash,
+                raw_signed_tx,
+                blob_sidecar
+                    .as_ref()
+                    .map(|b| bincode::serialize(b)
+                        .expect("Can always serialize EthTxBlobSidecar; qed"))
+            )
         .fetch_optional(self.storage.conn())
         .await?
         .map(|row| row.id as u32))

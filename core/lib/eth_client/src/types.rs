@@ -1,10 +1,14 @@
-use zksync_types::web3::{
-    contract::{
-        tokens::{Detokenize, Tokenize},
-        Error as ContractError, Options,
+use rlp::RlpStream;
+use zksync_types::{
+    eth_sender::EthTxBlobSidecar,
+    web3::{
+        contract::{
+            tokens::{Detokenize, Tokenize},
+            Error as ContractError, Options,
+        },
+        ethabi,
+        types::{Address, BlockId, TransactionReceipt, H256, U256},
     },
-    ethabi,
-    types::{Address, BlockId, TransactionReceipt, H256, U256},
 };
 
 /// Wrapper for `Vec<ethabi::Token>` that doesn't wrap them in an additional array in `Tokenize` implementation.
@@ -118,7 +122,7 @@ impl AsRef<[u8]> for RawTransactionBytes {
 #[derive(Debug, Clone, PartialEq)]
 pub struct SignedCallResult {
     /// Raw transaction bytes.
-    pub raw_tx: RawTransactionBytes,
+    raw_tx: RawTransactionBytes,
     /// `max_priority_fee_per_gas` field of transaction (EIP1559).
     pub max_priority_fee_per_gas: U256,
     /// `max_fee_per_gas` field of transaction (EIP1559).
@@ -127,6 +131,68 @@ pub struct SignedCallResult {
     pub nonce: U256,
     /// Transaction hash.
     pub hash: H256,
+}
+
+impl SignedCallResult {
+    pub fn new(
+        raw_tx: RawTransactionBytes,
+        max_priority_fee_per_gas: U256,
+        max_fee_per_gas: U256,
+        nonce: U256,
+        hash: H256,
+    ) -> Self {
+        Self {
+            raw_tx,
+            max_priority_fee_per_gas,
+            max_fee_per_gas,
+            nonce,
+            hash,
+        }
+    }
+
+    pub fn raw_tx(&self, blob_tx_sidecar: Option<&EthTxBlobSidecar>) -> RawTransactionBytes {
+        match blob_tx_sidecar {
+            None => self.raw_tx.clone(),
+            Some(sidecar) => encode_blob_tx_with_sidecar(&self.raw_tx, sidecar),
+        }
+    }
+}
+
+fn encode_blob_tx_with_sidecar(
+    raw_tx: &RawTransactionBytes,
+    sidecar: &EthTxBlobSidecar,
+) -> RawTransactionBytes {
+    let EthTxBlobSidecar::EthTxBlobSidecarV1(sidecar) = sidecar;
+    let blobs_count = sidecar.blobs.len();
+
+    let raw_tx = &raw_tx.0;
+    let mut stream_outer = RlpStream::new();
+    stream_outer.begin_list(4);
+    stream_outer.append_raw(&raw_tx[1..], 1);
+
+    let mut blob_stream = RlpStream::new_list(blobs_count);
+    for i in 0..blobs_count {
+        blob_stream.append(&sidecar.blobs[i].blob);
+    }
+    stream_outer.append_raw(&blob_stream.out(), blobs_count);
+
+    let mut commitment_stream = RlpStream::new_list(blobs_count);
+    for i in 0..blobs_count {
+        commitment_stream.append(&sidecar.blobs[i].commitment);
+    }
+    stream_outer.append_raw(&commitment_stream.out(), blobs_count);
+
+    let mut proof_stream = RlpStream::new_list(blobs_count);
+    for i in 0..blobs_count {
+        proof_stream.append(&sidecar.blobs[i].proof);
+    }
+    stream_outer.append_raw(&proof_stream.out(), blobs_count);
+
+    let tx = [&[0x03], stream_outer.as_raw()].concat();
+
+    let tx = rlp::encode(&tx);
+
+    RawTransactionBytes(tx.to_vec())
 }
 
 /// State of the executed Ethereum transaction.
@@ -162,6 +228,16 @@ pub struct FailureInfo {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
+    use pretty_assertions::assert_eq;
+    use zksync_eth_signer::{EthereumSigner, PrivateKeySigner, TransactionParameters};
+    use zksync_types::{
+        eth_sender::{EthTxBlobSidecarV1, SidecarBlob},
+        web3::{self},
+        EIP_4844_TX_TYPE, H160, H256, U256, U64,
+    };
+
     use super::*;
 
     #[test]
@@ -175,5 +251,80 @@ mod tests {
         let RawTokens(output_tokens) = RawTokens::from_tokens(output_tokens).unwrap();
         let hash = H256::from_tokens(output_tokens).unwrap();
         assert_eq!(hash, H256::repeat_byte(1));
+    }
+
+    #[tokio::test]
+    async fn test_generating_signed_raw_transaction_with_4844_sidecar() {
+        let private_key =
+            H256::from_str("27593fea79697e947890ecbecce7901b0008345e5d7259710d0dd5e500d040be")
+                .unwrap();
+        let commitment = hex::decode(
+"b62c43c192d54a50d79ad47cb10aa757cd73906b329d5869af1bc16ff4db69235d2827b316616e191113b816c16b3e85"
+).unwrap();
+
+        let proof =  hex::decode(
+"8b81d1d09565b1a5e44eea2c1a00ee8cc1072aea32f7da9ab463e951e1be5c7875f9904be432787a666425c8f0a52178"
+        ).unwrap();
+
+        let signer = PrivateKeySigner::new(private_key);
+
+        let mut blob = vec![0u8; 131072];
+        for i in 0..12 {
+            blob[i] = b'A';
+        }
+        blob[12] = 0x0a;
+        let raw_transaction = TransactionParameters {
+            chain_id: 9,
+            nonce: 0.into(),
+            max_priority_fee_per_gas: U256::from(1),
+            gas_price: Some(U256::from(4)),
+            to: Some(H160::from_str("0x0000000000000000000000000000000000000001").unwrap()),
+            gas: 0x3.into(),
+            value: Default::default(),
+            data: Default::default(),
+            transaction_type: Some(U64::from(EIP_4844_TX_TYPE)),
+            access_list: None,
+            max_fee_per_gas: U256::from(2),
+            max_fee_per_blob_gas: Some(0x4.into()),
+            blob_versioned_hashes: Some(vec![H256::from_slice(
+                hex::decode("01b68cce5212e20f8e58722e74edba030a2ab712cea72798ab3526a57afc3b6d")
+                    .unwrap()
+                    .as_ref(),
+            )]),
+        };
+        let raw_tx = signer
+            .sign_transaction(raw_transaction.clone())
+            .await
+            .unwrap();
+
+        let hash = web3::signing::keccak256(&raw_tx).into();
+        // Transaction generated with https://github.com/inphi/blob-utils with
+        // the above parameters.
+        let expected_str = include_str!("testdata/4844_tx_1.txt");
+        let expected_str = expected_str.trim();
+
+        let signed_call_result = SignedCallResult::new(
+            RawTransactionBytes(raw_tx),
+            U256::from(2),
+            U256::from(1),
+            0.into(),
+            hash,
+        );
+
+        let raw_tx_str = hex::encode(
+            &signed_call_result.raw_tx(
+                Some(EthTxBlobSidecar::EthTxBlobSidecarV1(EthTxBlobSidecarV1 {
+                    blobs: vec![SidecarBlob {
+                        blob,
+                        commitment,
+                        proof,
+                    }],
+                }))
+                .as_ref(),
+            ),
+        );
+
+        let expected_str = expected_str.to_owned();
+        pretty_assertions::assert_eq!(raw_tx_str, expected_str);
     }
 }

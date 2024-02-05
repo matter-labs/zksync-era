@@ -187,13 +187,13 @@ impl MockEthereum {
         // Concatenate `raw_tx` plus hash for test purposes
         let mut new_raw_tx = hash.as_bytes().to_vec();
         new_raw_tx.extend(raw_tx);
-        Ok(SignedCallResult {
-            raw_tx: RawTransactionBytes(new_raw_tx),
+        Ok(SignedCallResult::new(
+            RawTransactionBytes(new_raw_tx),
             max_priority_fee_per_gas,
             max_fee_per_gas,
             nonce,
             hash,
-        })
+        ))
     }
 
     pub fn advance_block_number(&self, val: u64) -> u64 {
@@ -389,6 +389,8 @@ impl BoundEthInterface for MockEthereum {
         data: Vec<u8>,
         _contract_addr: H160,
         options: Options,
+        _max_fee_per_blob_gas: Option<U256>,
+        _blob_versioned_hashes: Option<Vec<H256>>,
         _component: &'static str,
     ) -> Result<SignedCallResult, Error> {
         self.sign_prepared_tx(data, options)
@@ -456,7 +458,10 @@ mod tests {
         assert!(signed_tx.max_priority_fee_per_gas > 0.into());
         assert!(signed_tx.max_fee_per_gas > 0.into());
 
-        let tx_hash = client.send_raw_tx(signed_tx.raw_tx).await.unwrap();
+        let tx_hash = client
+            .send_raw_tx(signed_tx.raw_tx(None).clone())
+            .await
+            .unwrap();
         assert_eq!(tx_hash, signed_tx.hash);
 
         client.execute_tx(tx_hash, true, 3);

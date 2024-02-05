@@ -169,6 +169,8 @@ pub trait BoundEthInterface: EthInterface {
         data: Vec<u8>,
         contract_addr: H160,
         options: Options,
+        max_fee_per_blob_gas: Option<U256>,
+        blob_versioned_hashes: Option<Vec<H256>>,
         component: &'static str,
     ) -> Result<SignedCallResult, Error>;
 
@@ -193,10 +195,19 @@ pub trait BoundEthInterface: EthInterface {
         &self,
         data: Vec<u8>,
         options: Options,
+        max_fee_per_blob_gas: Option<U256>,
+        blob_versioned_hashes: Option<Vec<H256>>,
         component: &'static str,
     ) -> Result<SignedCallResult, Error> {
-        self.sign_prepared_tx_for_addr(data, self.contract_addr(), options, component)
-            .await
+        self.sign_prepared_tx_for_addr(
+            data,
+            self.contract_addr(),
+            options,
+            max_fee_per_blob_gas,
+            blob_versioned_hashes,
+            component,
+        )
+        .await
     }
 
     /// Returns the ETH balance of `Self::sender_account()`.

@@ -62,6 +62,11 @@
         "ordinal": 11,
         "name": "predicted_gas_cost",
         "type_info": "Int8"
+      },
+      {
+        "ordinal": 12,
+        "name": "blob_sidecar",
+        "type_info": "Bytea"
       }
     ],
     "parameters": {
@@ -81,7 +86,8 @@
       false,
       true,
       true,
-      false
+      false,
+      true
     ]
   },
   "hash": "5659480e5d79dab3399e35539b240e7eb9f598999c28015a504605f88bf84b33"

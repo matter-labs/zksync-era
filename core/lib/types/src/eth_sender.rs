@@ -1,4 +1,23 @@
+use serde::{Deserialize, Serialize};
+
 use crate::{aggregated_operations::AggregatedActionType, Address, Nonce, H256};
+
+#[derive(Clone, Deserialize, Serialize)]
+pub enum EthTxBlobSidecar {
+    EthTxBlobSidecarV1(EthTxBlobSidecarV1),
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+pub struct SidecarBlob {
+    pub blob: Vec<u8>,
+    pub commitment: Vec<u8>,
+    pub proof: Vec<u8>,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+pub struct EthTxBlobSidecarV1 {
+    pub blobs: Vec<SidecarBlob>,
+}
 
 #[derive(Clone)]
 pub struct EthTx {
@@ -9,6 +28,7 @@ pub struct EthTx {
     pub tx_type: AggregatedActionType,
     pub created_at_timestamp: u64,
     pub predicted_gas_cost: u64,
+    pub blob_sidecar: Option<EthTxBlobSidecar>,
 }
 
 impl std::fmt::Debug for EthTx {

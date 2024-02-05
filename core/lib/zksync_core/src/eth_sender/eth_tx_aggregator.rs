@@ -404,12 +404,12 @@ impl EthTxAggregator {
         &self,
         op: &AggregatedOperation,
         contracts_are_pre_boojum: bool,
-    ) -> Vec<u8> {
+    ) -> (Vec<u8>, Option<Vec<u8>>) {
         let operation_is_pre_boojum = op.protocol_version().is_pre_boojum();
 
         // For "commit" and "prove" operations it's necessary that the contracts are of the same version as L1 batches are.
         // For "execute" it's not required, i.e. we can "execute" pre-boojum batches with post-boojum contracts.
-        match op.clone() {
+        let calldata = match op.clone() {
             AggregatedOperation::Commit(op) => {
                 assert_eq!(contracts_are_pre_boojum, operation_is_pre_boojum);
                 let f = if contracts_are_pre_boojum {
@@ -448,7 +448,9 @@ impl EthTxAggregator {
                 f.encode_input(&op.into_tokens())
                     .expect("Failed to encode execute transaction data")
             }
-        }
+        };
+
+        (calldata, None)
     }
 
     pub(super) async fn save_eth_tx(
@@ -459,7 +461,8 @@ impl EthTxAggregator {
     ) -> Result<EthTx, ETHSenderError> {
         let mut transaction = storage.start_transaction().await.unwrap();
         let nonce = self.get_next_nonce(&mut transaction).await?;
-        let calldata = self.encode_aggregated_op(aggregated_op, contracts_are_pre_boojum);
+        let (calldata, blob_tx_sidecar) =
+            self.encode_aggregated_op(aggregated_op, contracts_are_pre_boojum);
         let l1_batch_number_range = aggregated_op.l1_batch_range();
         let op_type = aggregated_op.get_action_type();
 
@@ -478,6 +481,7 @@ impl EthTxAggregator {
                 op_type,
                 self.timelock_contract_address,
                 eth_tx_predicted_gas,
+                blob_tx_sidecar,
             )
             .await
             .unwrap();

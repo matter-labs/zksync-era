@@ -8630,7 +8630,10 @@ name = "zksync_eth_client"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "hex",
  "jsonrpc-core",
+ "pretty_assertions",
+ "rlp",
  "serde",
  "static_assertions",
  "thiserror",
