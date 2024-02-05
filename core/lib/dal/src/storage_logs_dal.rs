@@ -137,6 +137,93 @@ impl StorageLogsDal<'_, '_> {
             .await;
     }
 
+    /// Rolls back storage to the specified point in time.
+    #[deprecated(note = "`storage` table is soft-removed")]
+    pub async fn rollback_storage(
+        &mut self,
+        last_miniblock_to_keep: MiniblockNumber,
+    ) -> sqlx::Result<()> {
+        let stage_start = Instant::now();
+        let modified_keys = self
+            .modified_keys_since_miniblock(last_miniblock_to_keep)
+            .await?;
+        tracing::info!(
+            "Loaded {} keys changed after miniblock #{last_miniblock_to_keep} in {:?}",
+            modified_keys.len(),
+            stage_start.elapsed()
+        );
+
+        let stage_start = Instant::now();
+        let prev_values = self
+            .get_storage_values(&modified_keys, last_miniblock_to_keep)
+            .await?;
+        tracing::info!(
+            "Loaded previous storage values for modified keys in {:?}",
+            stage_start.elapsed()
+        );
+
+        let stage_start = Instant::now();
+        let mut keys_to_delete = vec![];
+        let mut keys_to_update = vec![];
+        let mut values_to_update = vec![];
+        for (key, maybe_value) in &prev_values {
+            if let Some(prev_value) = maybe_value {
+                keys_to_update.push(key.as_bytes());
+                values_to_update.push(prev_value.as_bytes());
+            } else {
+                keys_to_delete.push(key.as_bytes());
+            }
+        }
+        tracing::info!(
+            "Created revert plan (keys to update: {}, to delete: {}) in {:?}",
+            keys_to_update.len(),
+            keys_to_delete.len(),
+            stage_start.elapsed()
+        );
+
+        let stage_start = Instant::now();
+        sqlx::query!(
+            r#"
+            DELETE FROM storage
+            WHERE
+                hashed_key = ANY ($1)
+            "#,
+            &keys_to_delete as &[&[u8]],
+        )
+        .execute(self.storage.conn())
+        .await?;
+
+        tracing::info!(
+            "Removed {} keys in {:?}",
+            keys_to_delete.len(),
+            stage_start.elapsed()
+        );
+
+        let stage_start = Instant::now();
+        sqlx::query!(
+            r#"
+            UPDATE storage
+            SET
+                value = u.value
+            FROM
+                UNNEST($1::bytea[], $2::bytea[]) AS u (key, value)
+            WHERE
+                u.key = hashed_key
+            "#,
+            &keys_to_update as &[&[u8]],
+            &values_to_update as &[&[u8]],
+        )
+        .execute(self.storage.conn())
+        .await?;
+
+        tracing::info!(
+            "Updated {} keys to previous values in {:?}",
+            keys_to_update.len(),
+            stage_start.elapsed()
+        );
+        Ok(())
+    }
+
     /// Returns all storage keys that were modified after the specified miniblock.
     async fn modified_keys_since_miniblock(
         &mut self,
@@ -726,6 +813,8 @@ mod tests {
         conn.storage_logs_dal()
             .insert_storage_logs(MiniblockNumber(number), &logs)
             .await;
+        #[allow(deprecated)]
+        conn.storage_dal().apply_storage_logs(&logs).await;
         conn.blocks_dal()
             .mark_miniblocks_as_executed_in_l1_batch(L1BatchNumber(number))
             .await
@@ -762,6 +851,8 @@ mod tests {
         conn.storage_logs_dal()
             .append_storage_logs(MiniblockNumber(1), &more_logs)
             .await;
+        #[allow(deprecated)]
+        conn.storage_dal().apply_storage_logs(&more_logs).await;
 
         let touched_slots = conn
             .storage_logs_dal()
@@ -799,6 +890,17 @@ mod tests {
         let value = conn.storage_web3_dal().get_value(&new_key).await.unwrap();
         assert_eq!(value, H256::repeat_byte(0xfe));
 
+        // Check the outdated `storage` table as well.
+        #[allow(deprecated)]
+        {
+            let value = conn.storage_dal().get_by_key(&key).await.unwrap();
+            assert_eq!(value, Some(H256::repeat_byte(0xff)));
+            let value = conn.storage_dal().get_by_key(&second_key).await.unwrap();
+            assert_eq!(value, Some(H256::zero()));
+            let value = conn.storage_dal().get_by_key(&new_key).await.unwrap();
+            assert_eq!(value, Some(H256::repeat_byte(0xfe)));
+        }
+
         let prev_keys = vec![key.hashed_key(), new_key.hashed_key(), H256::zero()];
         let prev_values = conn
             .storage_logs_dal()
@@ -809,6 +911,20 @@ mod tests {
         assert_eq!(prev_values[&prev_keys[0]], Some(H256::repeat_byte(3)));
         assert_eq!(prev_values[&prev_keys[1]], None);
         assert_eq!(prev_values[&prev_keys[2]], None);
+
+        #[allow(deprecated)]
+        {
+            conn.storage_logs_dal()
+                .rollback_storage(MiniblockNumber(1))
+                .await
+                .unwrap();
+            let value = conn.storage_dal().get_by_key(&key).await.unwrap();
+            assert_eq!(value, Some(H256::repeat_byte(3)));
+            let value = conn.storage_dal().get_by_key(&second_key).await.unwrap();
+            assert_eq!(value, Some(H256::repeat_byte(2)));
+            let value = conn.storage_dal().get_by_key(&new_key).await.unwrap();
+            assert_eq!(value, None);
+        }
 
         conn.storage_logs_dal()
             .rollback_storage_logs(MiniblockNumber(1))

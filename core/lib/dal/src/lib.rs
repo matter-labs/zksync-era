@@ -52,6 +52,7 @@ pub mod protocol_versions_web3_dal;
 pub mod snapshot_recovery_dal;
 pub mod snapshots_creator_dal;
 pub mod snapshots_dal;
+mod storage_dal;
 pub mod storage_logs_dal;
 pub mod storage_logs_dedup_dal;
 pub mod storage_web3_dal;
@@ -166,6 +167,12 @@ impl<'a> StorageProcessor<'a> {
 
     pub fn storage_logs_dal(&mut self) -> StorageLogsDal<'_, 'a> {
         StorageLogsDal { storage: self }
+    }
+
+    #[deprecated(note = "Soft-removed in favor of `storage_logs`; don't use")]
+    #[allow(deprecated)]
+    pub fn storage_dal(&mut self) -> storage_dal::StorageDal<'_, 'a> {
+        storage_dal::StorageDal { storage: self }
     }
 
     pub fn storage_logs_dedup_dal(&mut self) -> StorageLogsDedupDal<'_, 'a> {
