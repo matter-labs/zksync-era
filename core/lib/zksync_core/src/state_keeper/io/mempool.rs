@@ -495,7 +495,7 @@ impl MempoolIO {
     }
 
     async fn wait_for_previous_l1_batch_hash(&self) -> H256 {
-        tracing::info!(
+        tracing::trace!(
             "Getting previous L1 batch hash for L1 batch #{}",
             self.current_l1_batch_number
         );
@@ -517,7 +517,7 @@ impl MempoolIO {
             .unwrap();
 
         wait_latency.observe();
-        tracing::info!(
+        tracing::trace!(
             "Got previous L1 batch hash: {batch_hash:?} for L1 batch #{}",
             self.current_l1_batch_number
         );

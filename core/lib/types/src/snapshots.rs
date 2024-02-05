@@ -7,7 +7,7 @@ use zksync_protobuf::{required, ProtoFmt};
 use zksync_utils::u256_to_h256;
 
 use crate::{
-    commitment::L1BatchWithMetadata, Bytes, ProtocolVersionId, StorageKey, StorageValue, H160, U256,
+    commitment::L1BatchWithMetadata, Bytes, ProtocolVersionId, StorageKey, StorageValue, U256,
 };
 
 /// Information about all snapshots persisted by the node.
@@ -190,6 +190,7 @@ impl ProtoFmt for SnapshotStorageLogsChunk {
     }
 }
 
+/// Status of snapshot recovery process stored in Postgres.
 #[derive(Debug, PartialEq)]
 pub struct SnapshotRecoveryStatus {
     pub l1_batch_number: L1BatchNumber,
@@ -202,24 +203,14 @@ pub struct SnapshotRecoveryStatus {
     pub storage_logs_chunks_processed: Vec<bool>,
 }
 
-// Used only in tests
-#[derive(Debug, PartialEq)]
-pub struct InitialWriteDbRow {
-    pub hashed_key: H256,
-    pub l1_batch_number: L1BatchNumber,
-    pub index: u64,
-}
-
-// Used only in tests
-#[derive(Debug, PartialEq)]
-pub struct StorageLogDbRow {
-    pub hashed_key: H256,
-    pub address: H160,
-    pub key: H256,
-    pub value: H256,
-    pub operation_number: u64,
-    pub tx_hash: H256,
-    pub miniblock_number: MiniblockNumber,
+impl SnapshotRecoveryStatus {
+    /// Returns the number of storage log chunks left to process.
+    pub fn storage_logs_chunks_left_to_process(&self) -> usize {
+        self.storage_logs_chunks_processed
+            .iter()
+            .filter(|&&is_processed| !is_processed)
+            .count()
+    }
 }
 
 /// Returns a chunk of `hashed_keys` with 0-based index `chunk_id` among `count`. Chunks do not intersect and jointly cover
