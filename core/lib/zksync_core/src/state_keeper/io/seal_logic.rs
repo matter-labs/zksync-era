@@ -150,11 +150,15 @@ impl UpdatesManager {
             .final_execution_state
             .deduplicated_events_logs;
 
+        let final_bootloader_memory = finished_batch
+            .final_bootloader_memory
+            .clone()
+            .unwrap_or_default();
         transaction
             .blocks_dal()
             .insert_l1_batch(
                 &l1_batch,
-                finished_batch.final_bootloader_memory.as_ref().unwrap(),
+                &final_bootloader_memory,
                 self.pending_l1_gas_count(),
                 &events_queue,
                 &finished_batch.final_execution_state.storage_refunds,

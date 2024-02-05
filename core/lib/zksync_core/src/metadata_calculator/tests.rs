@@ -49,8 +49,9 @@ async fn genesis_creation() {
     run_calculator(calculator, pool.clone()).await;
     let (calculator, _) = setup_calculator(temp_dir.path(), &pool).await;
 
-    let GenericAsyncTree::Ready(tree) = &calculator.tree else {
-        panic!("Unexpected tree state: {:?}", calculator.tree);
+    let tree = calculator.create_tree().await.unwrap();
+    let GenericAsyncTree::Ready(tree) = tree else {
+        panic!("Unexpected tree state: {tree:?}");
     };
     assert_eq!(tree.next_l1_batch_number(), L1BatchNumber(1));
 }
@@ -77,8 +78,9 @@ async fn basic_workflow() {
     assert!(merkle_paths.iter().all(|log| log.is_write));
 
     let (calculator, _) = setup_calculator(temp_dir.path(), &pool).await;
-    let GenericAsyncTree::Ready(tree) = &calculator.tree else {
-        panic!("Unexpected tree state: {:?}", calculator.tree);
+    let tree = calculator.create_tree().await.unwrap();
+    let GenericAsyncTree::Ready(tree) = tree else {
+        panic!("Unexpected tree state: {tree:?}");
     };
     assert_eq!(tree.next_l1_batch_number(), L1BatchNumber(2));
 }
