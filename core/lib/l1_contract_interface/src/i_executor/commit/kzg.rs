@@ -1,4 +1,4 @@
-// ToDo: Remove once integrated into batch commitment
+// TODO: Remove once integrated into batch commitment
 #![allow(dead_code)]
 
 use std::convert::TryInto;
