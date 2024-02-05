@@ -52,7 +52,7 @@ impl From<zksync_dal::SqlxError> for HashMatchError {
 
 fn is_transient_err(err: &RpcErrorWithDetails) -> bool {
     matches!(
-        err.inner_error,
+        err.inner(),
         RpcError::Transport(_) | RpcError::RequestTimeout
     )
 }

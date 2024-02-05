@@ -4,6 +4,9 @@ use jsonrpsee::core::ClientError as RpcError;
 use thiserror::Error;
 use zksync_types::{api::SerializationTransactionError, L1BatchNumber, MiniblockNumber};
 
+use std::error::Error;
+use std::{collections::HashMap, error, fmt, fmt::Debug};
+
 #[derive(Debug, Error)]
 pub enum Web3Error {
     #[error("Block with such an ID doesn't exist yet")]
@@ -44,58 +47,62 @@ pub enum Web3Error {
     TreeApiUnavailable,
 }
 
-use std::{collections::HashMap, error, fmt, fmt::Debug};
-
 #[derive(Debug)]
 pub struct RpcErrorWithDetails {
-    pub inner_error: RpcError,
-    pub method: String,
-    pub args: HashMap<String, String>,
+    inner_error: RpcError,
+    method: &'static str,
+    args: HashMap<&'static str, String>,
 }
-impl error::Error for RpcErrorWithDetails {}
+impl error::Error for RpcErrorWithDetails {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        Some(&self.inner_error)
+    }
+}
 
 impl fmt::Display for RpcErrorWithDetails {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let args_formatted: Vec<String> =
-            self.args.iter().map(|(k, v)| format!("{k}: {v}")).collect();
         write!(
             formatter,
-            "JsonRPC request: {} with args: {} failed because of: {}",
-            self.method,
-            args_formatted.join(", "),
-            self.inner_error
+            "JsonRPC request: {} with args: {:?} failed because of: {}",
+            self.method, self.args, self.inner_error
         )
     }
 }
 
 pub trait EnrichRpcError<T> {
-    fn rpc_context(self, method: &str) -> Result<T, RpcErrorWithDetails>;
+    fn rpc_context(self, method: &'static str) -> Result<T, RpcErrorWithDetails>;
 }
 
 impl<T> EnrichRpcError<T> for Result<T, RpcError> {
-    fn rpc_context(self, method: &str) -> Result<T, RpcErrorWithDetails> {
+    fn rpc_context(self, method: &'static str) -> Result<T, RpcErrorWithDetails> {
         match self {
             Ok(t) => Ok(t),
             Err(error) => Err(RpcErrorWithDetails {
                 inner_error: error,
-                method: method.to_string(),
+                method: method,
                 args: HashMap::default(),
             }),
         }
     }
 }
 
+impl RpcErrorWithDetails {
+    pub fn inner(&self) -> &RpcError {
+        &self.inner_error
+    }
+}
+
 pub trait WithArgRpcError<T> {
-    fn with_arg(self, arg: &str, value: &dyn fmt::Debug) -> Result<T, RpcErrorWithDetails>;
+    fn with_arg(self, arg: &'static str, value: &dyn fmt::Debug) -> Result<T, RpcErrorWithDetails>;
 }
 
 impl<T> WithArgRpcError<T> for Result<T, RpcErrorWithDetails> {
-    fn with_arg(self, arg: &str, value: &dyn Debug) -> Result<T, RpcErrorWithDetails> {
+    fn with_arg(self, arg: &'static str, value: &dyn Debug) -> Result<T, RpcErrorWithDetails> {
         match self {
             Ok(t) => Ok(t),
             Err(error) => {
-                let mut new_args = error.args.clone();
-                new_args.insert(arg.to_string(), format!("{value:?}"));
+                let mut new_args = error.args;
+                new_args.insert(arg, format!("{value:?}"));
                 Err(RpcErrorWithDetails {
                     inner_error: error.inner_error,
                     method: error.method,
