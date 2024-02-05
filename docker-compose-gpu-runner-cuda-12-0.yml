@@ -1,15 +1,7 @@
 version: '3.2'
 services:
-  geth:
-    image: "matterlabs/geth:latest"
-    environment:
-      - PLUGIN_CONFIG
-
   zk:
-    image: matterlabs/zk-environment:cuda-12-0-latest
-    depends_on:
-      - geth
-      - postgres
+    image: prover-gpu-fri
     security_opt:
       - seccomp:unconfined
     command: tail -f /dev/null
@@ -18,6 +10,8 @@ services:
       - /usr/src/cache:/usr/src/cache
       - /var/run/docker.sock:/var/run/docker.sock
       - /usr/src/keys:/mnt/prover_setup_keys
+      - /root/zklink/art:/obj
+      - /root/zklink/keys:/keys
     environment:
       - CACHE_DIR=/usr/src/cache
       - SCCACHE_CACHE_SIZE=50g
@@ -44,9 +38,3 @@ services:
         reservations:
           devices:
             - capabilities: [gpu]
-  postgres:
-    image: "postgres:14"
-    ports:
-      - 127.0.0.1:5432:5432
-    environment:
-      - POSTGRES_HOST_AUTH_METHOD=trust

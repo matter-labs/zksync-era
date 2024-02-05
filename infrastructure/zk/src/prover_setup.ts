@@ -33,7 +33,7 @@ export async function setupProver(proverType: ProverType) {
                 'FRI_PROVER_SETUP_DATA_PATH',
                 `${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${process.env.ZKSYNC_ENV}/${
                     proverType === ProverType.GPU ? 'gpu' : 'cpu'
-                }/`
+                }`
             );
         }
         env.mergeInitToEnv();
