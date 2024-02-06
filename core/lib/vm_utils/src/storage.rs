@@ -50,7 +50,7 @@ pub async fn load_l1_batch_params(
         .hash;
 
     let base_system_contracts = storage
-        .storage_dal()
+        .factory_deps_dal()
         .get_base_system_contracts(
             pending_miniblock_header
                 .base_system_contracts_hashes
