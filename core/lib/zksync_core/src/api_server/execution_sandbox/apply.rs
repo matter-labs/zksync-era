@@ -59,10 +59,12 @@ impl<'a> Sandbox<'a> {
         block_args: BlockArgs,
     ) -> anyhow::Result<Sandbox<'a>> {
         let resolve_started_at = Instant::now();
+        dbg!(&block_args);
         let resolved_block_info = block_args
             .resolve_block_info(&mut connection)
             .await
-            .with_context(|| format!("failed resolving block numbers for {block_args:?}"))?;
+            .with_context(|| format!("cannot resolve block numbers for {block_args:?}"))?;
+        dbg!(&resolved_block_info);
         let resolve_time = resolve_started_at.elapsed();
         // We don't want to emit too many logs.
         if resolve_time > Duration::from_millis(10) {
@@ -97,7 +99,7 @@ impl<'a> Sandbox<'a> {
             shared_args,
             execution_args,
             &resolved_block_info,
-            next_l2_block_info,
+            dbg!(next_l2_block_info),
         );
 
         Ok(Self {
@@ -115,10 +117,15 @@ impl<'a> Sandbox<'a> {
         resolved_block_info: &ResolvedBlockInfo,
     ) -> anyhow::Result<(L2BlockEnv, Option<StoredL2BlockInfo>)> {
         let mut l2_block_info_to_reset = None;
-        let current_l2_block_info =
-            StoredL2BlockInfo::new(connection, resolved_block_info.state_l2_block_number)
-                .await
-                .context("failed reading L2 block info")?;
+        let current_l2_block_info = StoredL2BlockInfo::new(
+            connection,
+            resolved_block_info.state_l2_block_number,
+            Some(resolved_block_info.state_l2_block_hash),
+        )
+        .await
+        .context("failed reading L2 block info")?;
+
+        dbg!(&current_l2_block_info);
 
         let next_l2_block_info = if is_pending_block {
             L2BlockEnv {
@@ -143,10 +150,13 @@ impl<'a> Sandbox<'a> {
         } else {
             // We need to reset L2 block info in storage to process transaction in the current block context.
             // Actual resetting will be done after `storage_view` is created.
-            let prev_l2_block_info =
-                StoredL2BlockInfo::new(connection, resolved_block_info.state_l2_block_number - 1)
-                    .await
-                    .context("failed reading previous L2 block info")?;
+            let prev_l2_block_info = StoredL2BlockInfo::new(
+                connection,
+                resolved_block_info.state_l2_block_number - 1,
+                None,
+            )
+            .await
+            .context("failed reading previous L2 block info")?;
 
             l2_block_info_to_reset = Some(prev_l2_block_info);
             L2BlockEnv {
@@ -268,8 +278,8 @@ impl<'a> Sandbox<'a> {
 
         let storage_view = self.storage_view.to_rc_ptr();
         let vm = Box::new(VmInstance::new_with_specific_version(
-            self.l1_batch_env,
-            self.system_env,
+            dbg!(self.l1_batch_env),
+            dbg!(self.system_env),
             storage_view.clone(),
             protocol_version.into_api_vm_version(),
         ));
@@ -346,9 +356,11 @@ struct StoredL2BlockInfo {
 }
 
 impl StoredL2BlockInfo {
+    /// If `miniblock_hash` is `None`, it needs to be fetched from the storage.
     async fn new(
         connection: &mut StorageProcessor<'_>,
         miniblock_number: MiniblockNumber,
+        miniblock_hash: Option<H256>,
     ) -> anyhow::Result<Self> {
         let l2_block_info_key = StorageKey::new(
             AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
@@ -371,12 +383,16 @@ impl StoredL2BlockInfo {
             .await
             .context("failed reading transaction rolling hash from VM state")?;
 
-        let l2_block_hash = connection
-            .blocks_web3_dal()
-            .get_miniblock_hash(miniblock_number)
-            .await
-            .with_context(|| format!("failed getting hash for miniblock #{miniblock_number}"))?
-            .with_context(|| format!("miniblock #{miniblock_number} disappeared from Postgres"))?;
+        let l2_block_hash = if let Some(hash) = miniblock_hash {
+            hash
+        } else {
+            connection
+                .blocks_web3_dal()
+                .get_miniblock_hash(miniblock_number)
+                .await
+                .with_context(|| format!("failed getting hash for miniblock #{miniblock_number}"))?
+                .with_context(|| format!("miniblock #{miniblock_number} not present in storage"))?
+        };
 
         Ok(Self {
             l2_block_number: l2_block_number as u32,
@@ -388,23 +404,24 @@ impl StoredL2BlockInfo {
 }
 
 #[derive(Debug)]
-pub(crate) struct ResolvedBlockInfo {
-    pub state_l2_block_number: MiniblockNumber,
-    pub vm_l1_batch_number: L1BatchNumber,
-    pub l1_batch_timestamp: u64,
-    pub protocol_version: ProtocolVersionId,
-    pub historical_fee_input: Option<BatchFeeInput>,
+struct ResolvedBlockInfo {
+    state_l2_block_number: MiniblockNumber,
+    state_l2_block_hash: H256,
+    vm_l1_batch_number: L1BatchNumber,
+    l1_batch_timestamp: u64,
+    protocol_version: ProtocolVersionId,
+    historical_fee_input: Option<BatchFeeInput>,
 }
 
 impl BlockArgs {
-    pub(crate) fn is_pending_miniblock(&self) -> bool {
+    fn is_pending_miniblock(&self) -> bool {
         matches!(
             self.block_id,
             api::BlockId::Number(api::BlockNumber::Pending)
         )
     }
 
-    pub(crate) fn is_estimate_like(&self) -> bool {
+    fn is_estimate_like(&self) -> bool {
         matches!(
             self.block_id,
             api::BlockId::Number(api::BlockNumber::Pending)
@@ -413,51 +430,83 @@ impl BlockArgs {
         )
     }
 
-    // FIXME: needs to support snapshot recovery (otherwise, empty storage will lead to panics)
     async fn resolve_block_info(
         &self,
         connection: &mut StorageProcessor<'_>,
     ) -> anyhow::Result<ResolvedBlockInfo> {
-        let (state_l2_block_number, vm_l1_batch_number, l1_batch_timestamp);
+        let (
+            state_l2_block_number,
+            state_l2_block_hash,
+            vm_l1_batch_number,
+            l1_batch_timestamp,
+            protocol_version,
+        );
 
         if self.is_pending_miniblock() {
-            let sealed_l1_batch_number =
-                connection.blocks_dal().get_sealed_l1_batch_number().await?;
+            let sealed_l1_batch_number = connection
+                .blocks_dal()
+                .get_sealed_l1_batch_number()
+                .await
+                .context("failed getting sealed L1 batch number")?;
             let sealed_miniblock_header = connection
                 .blocks_dal()
                 .get_last_sealed_miniblock_header()
-                .await?
-                .context("no miniblocks in storage")?;
+                .await
+                .context("failed getting sealed miniblock header")?;
 
             vm_l1_batch_number = match sealed_l1_batch_number {
                 Some(number) => number + 1,
                 None => projected_first_l1_batch(connection).await?,
             };
-            state_l2_block_number = sealed_miniblock_header.number;
+
+            let miniblock_timestamp = if let Some(miniblock_header) = sealed_miniblock_header {
+                state_l2_block_number = miniblock_header.number;
+                state_l2_block_hash = miniblock_header.hash;
+                protocol_version = miniblock_header.protocol_version;
+                miniblock_header.timestamp
+            } else {
+                let snapshot_recovery = connection
+                    .snapshot_recovery_dal()
+                    .get_applied_snapshot_status()
+                    .await
+                    .context("failed getting snapshot recovery info")?
+                    .context("storage contains neither miniblocks, nor snapshot recovery info")?;
+                state_l2_block_number = snapshot_recovery.miniblock_number;
+                state_l2_block_hash = snapshot_recovery.miniblock_hash;
+                protocol_version = Some(snapshot_recovery.protocol_version);
+                snapshot_recovery.miniblock_timestamp
+            };
             // Timestamp of the next L1 batch must be greater than the timestamp of the last miniblock.
-            l1_batch_timestamp = seconds_since_epoch().max(sealed_miniblock_header.timestamp + 1);
+            l1_batch_timestamp = seconds_since_epoch().max(miniblock_timestamp + 1);
         } else {
             vm_l1_batch_number = connection
                 .storage_web3_dal()
                 .resolve_l1_batch_number_of_miniblock(self.resolved_block_number)
-                .await?
+                .await
+                .context("failed resolving L1 batch for miniblock")?
                 .expected_l1_batch();
-            l1_batch_timestamp = self.l1_batch_timestamp_s.unwrap_or_else(|| {
-                panic!(
-                    "L1 batch timestamp is `None`, `block_id`: {:?}, `resolved_block_number`: {}",
-                    self.block_id, self.resolved_block_number.0
-                );
-            });
+            l1_batch_timestamp = self
+                .l1_batch_timestamp_s
+                .context("L1 batch timestamp is `None` for non-pending block args")?;
             state_l2_block_number = self.resolved_block_number;
+
+            let miniblock_header = connection
+                .blocks_dal()
+                .get_miniblock_header(self.resolved_block_number)
+                .await
+                .context("failed getting header of resolved miniblock")?
+                .context("resolved miniblock disappeared from storage")?;
+            state_l2_block_hash = miniblock_header.hash;
+            protocol_version = miniblock_header.protocol_version;
         };
 
         let historical_fee_input = if !self.is_estimate_like() {
             let miniblock_header = connection
                 .blocks_dal()
                 .get_miniblock_header(self.resolved_block_number)
-                .await?
-                .context("The resolved miniblock is not in storage")?;
-
+                .await
+                .context("failed getting resolved miniblock header")?
+                .context("resolved miniblock is not in storage")?;
             Some(miniblock_header.batch_fee_input)
         } else {
             None
@@ -465,14 +514,12 @@ impl BlockArgs {
 
         // Blocks without version specified are considered to be of `Version9`.
         // TODO: remove `unwrap_or` when protocol version ID will be assigned for each block.
-        let protocol_version = connection
-            .blocks_dal()
-            .get_miniblock_protocol_version_id(state_l2_block_number)
-            .await?
-            .unwrap_or(ProtocolVersionId::last_potentially_undefined());
+        let protocol_version =
+            protocol_version.unwrap_or(ProtocolVersionId::last_potentially_undefined());
 
         Ok(ResolvedBlockInfo {
             state_l2_block_number,
+            state_l2_block_hash,
             vm_l1_batch_number,
             l1_batch_timestamp,
             protocol_version,
