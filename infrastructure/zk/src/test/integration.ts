@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import * as utils from '../utils';
 import * as contract from '../contract';
-import * as run from '../run/run';
+import * as run from '../run';
 import * as compiler from '../compiler';
 import * as config from '../config';
 
@@ -11,7 +11,6 @@ export async function all() {
     await rustSDK();
     // have to kill server before running data-restore
     await utils.spawn('pkill zksync_server');
-    await run.dataRestore.checkExisting();
 }
 
 export async function api(bail: boolean = false) {
