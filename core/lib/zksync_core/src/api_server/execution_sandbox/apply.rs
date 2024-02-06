@@ -430,15 +430,9 @@ impl BlockArgs {
         &self,
         connection: &mut StorageProcessor<'_>,
     ) -> anyhow::Result<ResolvedBlockInfo> {
-        let (
-            state_l2_block_number,
-            state_l2_block_hash,
-            vm_l1_batch_number,
-            l1_batch_timestamp,
-            protocol_version,
-        );
+        let (state_l2_block_number, vm_l1_batch_number, l1_batch_timestamp);
 
-        if self.is_pending_miniblock() {
+        let miniblock_header = if self.is_pending_miniblock() {
             let sealed_l1_batch_number = connection
                 .blocks_dal()
                 .get_sealed_l1_batch_number()
@@ -448,32 +442,18 @@ impl BlockArgs {
                 .blocks_dal()
                 .get_last_sealed_miniblock_header()
                 .await
-                .context("failed getting sealed miniblock header")?;
+                .context("failed getting sealed miniblock header")?
+                .context("no miniblocks in storage")?;
 
             vm_l1_batch_number = match sealed_l1_batch_number {
                 Some(number) => number + 1,
                 None => projected_first_l1_batch(connection).await?,
             };
 
-            let miniblock_timestamp = if let Some(miniblock_header) = sealed_miniblock_header {
-                state_l2_block_number = miniblock_header.number;
-                state_l2_block_hash = miniblock_header.hash;
-                protocol_version = miniblock_header.protocol_version;
-                miniblock_header.timestamp
-            } else {
-                let snapshot_recovery = connection
-                    .snapshot_recovery_dal()
-                    .get_applied_snapshot_status()
-                    .await
-                    .context("failed getting snapshot recovery info")?
-                    .context("storage contains neither miniblocks, nor snapshot recovery info")?;
-                state_l2_block_number = snapshot_recovery.miniblock_number;
-                state_l2_block_hash = snapshot_recovery.miniblock_hash;
-                protocol_version = Some(snapshot_recovery.protocol_version);
-                snapshot_recovery.miniblock_timestamp
-            };
+            state_l2_block_number = sealed_miniblock_header.number;
             // Timestamp of the next L1 batch must be greater than the timestamp of the last miniblock.
-            l1_batch_timestamp = seconds_since_epoch().max(miniblock_timestamp + 1);
+            l1_batch_timestamp = seconds_since_epoch().max(sealed_miniblock_header.timestamp + 1);
+            sealed_miniblock_header
         } else {
             vm_l1_batch_number = connection
                 .storage_web3_dal()
@@ -486,14 +466,12 @@ impl BlockArgs {
                 .context("L1 batch timestamp is `None` for non-pending block args")?;
             state_l2_block_number = self.resolved_block_number;
 
-            let miniblock_header = connection
+            connection
                 .blocks_dal()
                 .get_miniblock_header(self.resolved_block_number)
                 .await
                 .context("failed getting header of resolved miniblock")?
-                .context("resolved miniblock disappeared from storage")?;
-            state_l2_block_hash = miniblock_header.hash;
-            protocol_version = miniblock_header.protocol_version;
+                .context("resolved miniblock disappeared from storage")?
         };
 
         let historical_fee_input = if !self.is_estimate_like() {
@@ -510,12 +488,13 @@ impl BlockArgs {
 
         // Blocks without version specified are considered to be of `Version9`.
         // TODO: remove `unwrap_or` when protocol version ID will be assigned for each block.
-        let protocol_version =
-            protocol_version.unwrap_or(ProtocolVersionId::last_potentially_undefined());
+        let protocol_version = miniblock_header
+            .protocol_version
+            .unwrap_or(ProtocolVersionId::last_potentially_undefined());
 
         Ok(ResolvedBlockInfo {
             state_l2_block_number,
-            state_l2_block_hash,
+            state_l2_block_hash: miniblock_header.hash,
             vm_l1_batch_number,
             l1_batch_timestamp,
             protocol_version,

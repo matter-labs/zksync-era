@@ -1,15 +1,12 @@
 //! Tests for the VM execution sandbox.
 
 use assert_matches::assert_matches;
-use zksync_test_account::Account;
 
 use super::*;
 use crate::{
     api_server::{execution_sandbox::apply::apply_vm_in_sandbox, tx_sender::ApiContracts},
     genesis::{ensure_genesis_state, GenesisParams},
-    utils::testonly::{
-        create_l2_transaction, create_miniblock, prepare_recovery_snapshot, StorageSnapshot,
-    },
+    utils::testonly::{create_l2_transaction, create_miniblock, prepare_recovery_snapshot},
 };
 
 #[tokio::test]
@@ -198,20 +195,4 @@ async fn test_instantiating_vm(pool: ConnectionPool, block_args: BlockArgs) {
     .await
     .expect("VM instantiation panicked")
     .expect("VM instantiation errored");
-}
-
-#[tokio::test]
-async fn instantiating_vm_after_snapshot_recovery() {
-    let pool = ConnectionPool::test_pool().await;
-    // Since VM reads multiple bootloader storage slots, we want to recreate a real storage snapshot
-    // by executing a real VM with real transactions.
-    let snapshot = StorageSnapshot::new(&pool, &mut Account::random(), 10).await;
-    assert!(!snapshot.storage_logs.is_empty()); // sanity check
-    let expected_miniblock = snapshot.miniblock_number + 1;
-    snapshot.recover(&pool).await;
-
-    let mut storage = pool.access_storage().await.unwrap();
-    let block_args = BlockArgs::pending(&mut storage).await.unwrap();
-    assert_eq!(block_args.resolved_block_number(), expected_miniblock);
-    test_instantiating_vm(pool.clone(), block_args).await;
 }
