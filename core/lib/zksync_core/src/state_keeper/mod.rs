@@ -11,7 +11,7 @@ use zksync_object_store::ObjectStore;
 use self::io::MempoolIO;
 pub use self::{
     batch_executor::{L1BatchExecutorBuilder, MainBatchExecutorBuilder},
-    io::{MiniblockSealer, MiniblockSealerHandle},
+    io::{MiniblockSealer, MiniblockSealerHandle, StateKeeperIO},
     keeper::ZkSyncStateKeeper,
 };
 pub(crate) use self::{
@@ -74,6 +74,6 @@ pub(crate) async fn create_state_keeper(
         stop_receiver,
         Box::new(io),
         Box::new(batch_executor_base),
-        Box::new(sealer),
+        Arc::new(sealer),
     )
 }

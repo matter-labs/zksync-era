@@ -1,4 +1,6 @@
 //! Utilities for testing the consensus module.
+use std::sync::Arc;
+
 use anyhow::Context as _;
 use rand::{
     distributions::{Distribution, Standard},
@@ -393,7 +395,7 @@ impl StateKeeperRunner {
                     stop_receiver,
                     Box::new(io),
                     Box::new(MockBatchExecutorBuilder),
-                    Box::new(NoopSealer),
+                    Arc::new(NoopSealer),
                 )
                 .run(),
             );
