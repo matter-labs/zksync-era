@@ -8,7 +8,7 @@ use std::{
 };
 
 use lru::LruCache;
-use tokio::sync::{watch, Mutex, RwLock};
+use tokio::sync::{watch, Mutex};
 use vise::GaugeGuard;
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::NetworkConfig, ContractsConfig};
 use zksync_dal::{ConnectionPool, StorageProcessor};
@@ -23,7 +23,7 @@ use crate::{
     api_server::{
         execution_sandbox::{BlockArgs, BlockArgsError, BlockStartInfo},
         tree::TreeApiHttpClient,
-        tx_sender::{TxCache, TxSender},
+        tx_sender::TxSender,
         web3::{backend_jsonrpsee::internal_error, TypedFilter},
     },
     sync_layer::SyncState,
@@ -110,42 +110,6 @@ impl InternalApiConfig {
             l2_testnet_paymaster_addr: contracts_config.l2_testnet_paymaster_addr,
             req_entities_limit: web3_config.req_entities_limit(),
             fee_history_limit: web3_config.fee_history_limit(),
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct TxProxyCacheUpdater;
-
-impl TxProxyCacheUpdater {
-    /// Creates a handle to the last sealed miniblock number together with a task that will update
-    /// it on a schedule.
-    pub async fn run(
-        connection_pool: ConnectionPool,
-        tx_cache: Arc<RwLock<TxCache>>,
-        update_interval: Duration,
-        stop_receiver: watch::Receiver<bool>,
-    ) -> anyhow::Result<()> {
-        loop {
-            if *stop_receiver.borrow() {
-                tracing::debug!("Stopping latest sealed miniblock updates");
-                return Ok(());
-            }
-
-            let hashes = tx_cache.read().await.get_txs_hash();
-            let mut connection = connection_pool.access_storage_tagged("api").await?;
-            let applied_tx_hashes = connection
-                .transactions_dal()
-                .check_tx_hashes(&hashes)
-                .await?;
-            for (account, nonce) in applied_tx_hashes {
-                tx_cache
-                    .write()
-                    .await
-                    .remove_tx_by_account_nonce(account, nonce);
-            }
-            drop(connection);
-            tokio::time::sleep(update_interval).await;
         }
     }
 }

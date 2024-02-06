@@ -5,7 +5,7 @@ use chrono::NaiveDateTime;
 use futures::future;
 use serde::Deserialize;
 use tokio::{
-    sync::{mpsc, oneshot, watch, Mutex, RwLock},
+    sync::{mpsc, oneshot, watch, Mutex},
     task::JoinHandle,
 };
 use tower_http::{cors::CorsLayer, metrics::InFlightRequestsLayer};
@@ -37,11 +37,8 @@ use crate::{
     api_server::{
         execution_sandbox::{BlockStartInfo, VmConcurrencyBarrier},
         tree::TreeApiHttpClient,
-        tx_sender::{TxCache, TxSender},
-        web3::{
-            backend_jsonrpsee::batch_limiter_middleware::LimitMiddleware,
-            state::TxProxyCacheUpdater,
-        },
+        tx_sender::TxSender,
+        web3::backend_jsonrpsee::batch_limiter_middleware::LimitMiddleware,
     },
     sync_layer::SyncState,
 };
@@ -117,7 +114,6 @@ struct OptionalApiParams {
     websocket_requests_per_minute_limit: Option<NonZeroU32>,
     tree_api_url: Option<String>,
     pub_sub_events_sender: Option<mpsc::UnboundedSender<PubSubEvent>>,
-    tx_cache: Option<Arc<RwLock<TxCache>>>,
 }
 
 /// Full API server parameters.
@@ -217,11 +213,6 @@ impl ApiBuilder {
     ) -> Self {
         self.optional.websocket_requests_per_minute_limit =
             Some(websocket_requests_per_minute_limit);
-        self
-    }
-
-    pub fn with_tx_cache_updater(mut self, tx_cache: Arc<RwLock<TxCache>>) -> Self {
-        self.optional.tx_cache = Some(tx_cache);
         self
     }
 
@@ -422,14 +413,9 @@ impl FullApiParams {
         );
 
         let mut tasks = vec![tokio::spawn(update_task)];
-
-        if let Some(tx_cache) = self.optional.tx_cache.clone() {
-            let task = TxProxyCacheUpdater::run(
-                self.last_miniblock_pool.clone(),
-                tx_cache,
-                Duration::from_secs(1),
-                stop_receiver.clone(),
-            );
+        if let Some(tx_proxy) = &self.tx_sender.0.proxy {
+            let task = tx_proxy
+                .run_account_nonce_sweeper(self.last_miniblock_pool.clone(), stop_receiver.clone());
             tasks.push(tokio::spawn(task));
         }
         let pub_sub = if matches!(transport, ApiTransport::WebSocket(_))

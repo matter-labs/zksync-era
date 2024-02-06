@@ -1,9 +1,9 @@
-use std::ops;
+use std::{collections::HashMap, ops};
 
 use zksync_types::{
     get_code_key, get_nonce_key,
     utils::{decompose_full_nonce, storage_key_for_standard_token_balance},
-    AccountTreeId, Address, L1BatchNumber, MiniblockNumber, StorageKey,
+    AccountTreeId, Address, L1BatchNumber, MiniblockNumber, Nonce, StorageKey,
     FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H256, U256,
 };
 use zksync_utils::h256_to_u256;
@@ -30,6 +30,16 @@ impl StorageWeb3Dal<'_, '_> {
             .await?;
         let full_nonce = h256_to_u256(nonce_value);
         Ok(decompose_full_nonce(full_nonce).0)
+    }
+
+    /// Returns the current *stored* nonces (i.e., w/o accounting for pending transactions) for the specified accounts.
+    pub async fn get_nonces_for_addresses(
+        &mut self,
+        _addresses: &[Address],
+    ) -> sqlx::Result<HashMap<Address, Nonce>> {
+        todo!()
+        // You should be able to implement this. This method could be reused in `MempoolFetcher`, esp. after
+        // https://github.com/matter-labs/zksync-era/pull/982 is merged
     }
 
     pub async fn standard_token_historical_balance(
