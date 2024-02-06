@@ -7,16 +7,15 @@ use sqlx::{error, types::chrono::NaiveDateTime};
 use zksync_types::{
     block::MiniblockExecutionData,
     fee::TransactionExecutionMetrics,
-    get_nonce_key,
     l1::L1Tx,
     l2::L2Tx,
     protocol_version::ProtocolUpgradeTx,
     tx::{tx_execution_info::TxExecutionStatus, TransactionExecutionResult},
     vm_trace::{Call, VmExecutionTrace},
-    Address, ExecuteTransactionCommon, L1BatchNumber, L1BlockNumber, MiniblockNumber, Nonce,
-    PriorityOpId, Transaction, H256, PROTOCOL_UPGRADE_TX_TYPE, U256,
+    Address, ExecuteTransactionCommon, L1BatchNumber, L1BlockNumber, MiniblockNumber, PriorityOpId,
+    Transaction, H256, PROTOCOL_UPGRADE_TX_TYPE, U256,
 };
-use zksync_utils::{h256_to_u32, u256_to_big_decimal};
+use zksync_utils::u256_to_big_decimal;
 
 use crate::{
     instrument::InstrumentExt,
@@ -886,7 +885,7 @@ impl TransactionsDal<'_, '_> {
         gas_per_pubdata: u32,
         fee_per_gas: u64,
         limit: usize,
-    ) -> sqlx::Result<(Vec<Transaction>, HashMap<Address, Nonce>)> {
+    ) -> sqlx::Result<Vec<Transaction>> {
         let stashed_addresses: Vec<_> = stashed_accounts.iter().map(Address::as_bytes).collect();
         sqlx::query!(
             r#"
@@ -969,43 +968,8 @@ impl TransactionsDal<'_, '_> {
         .fetch_all(self.storage.conn())
         .await?;
 
-        let nonce_keys: HashMap<_, _> = transactions
-            .iter()
-            .map(|tx| {
-                let address = Address::from_slice(&tx.initiator_address);
-                let nonce_key = get_nonce_key(&address).hashed_key();
-                (nonce_key, address)
-            })
-            .collect();
-
-        let storage_keys: Vec<_> = nonce_keys.keys().map(H256::as_bytes).collect();
-        let nonce_rows = sqlx::query!(
-            r#"
-            SELECT
-                hashed_key,
-                value AS "value!"
-            FROM
-                storage
-            WHERE
-                hashed_key = ANY ($1)
-            "#,
-            &storage_keys as &[&[u8]],
-        )
-        .fetch_all(self.storage.conn())
-        .await?;
-
-        let nonces = nonce_rows
-            .into_iter()
-            .map(|row| {
-                let nonce_key = H256::from_slice(&row.hashed_key);
-                let nonce = Nonce(h256_to_u32(H256::from_slice(&row.value)));
-                (nonce_keys[&nonce_key], nonce)
-            })
-            .collect();
-        Ok((
-            transactions.into_iter().map(|tx| tx.into()).collect(),
-            nonces,
-        ))
+        let transactions = transactions.into_iter().map(|tx| tx.into()).collect();
+        Ok(transactions)
     }
 
     pub async fn reset_mempool(&mut self) -> sqlx::Result<()> {

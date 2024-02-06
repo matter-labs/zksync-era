@@ -11,7 +11,7 @@ use zksync_types::{
     block::{L1BatchHeader, MiniblockHeader},
     commitment::{L1BatchMetaParameters, L1BatchMetadata},
     fee::Fee,
-    fee_model::BatchFeeInput,
+    fee_model::{BatchFeeInput, FeeParams},
     l2::L2Tx,
     snapshots::SnapshotRecoveryStatus,
     transaction_request::PaymasterParams,
@@ -20,7 +20,9 @@ use zksync_types::{
     StorageLog, H256, U256,
 };
 
-use crate::{genesis::GenesisParams, l1_gas_price::L1GasPriceProvider};
+use crate::{
+    fee_model::BatchFeeModelInputProvider, genesis::GenesisParams, l1_gas_price::L1GasPriceProvider,
+};
 
 /// Creates a miniblock header with the specified number and deterministic contents.
 pub(crate) fn create_miniblock(number: u32) -> MiniblockHeader {
@@ -76,7 +78,7 @@ pub(crate) fn create_l1_batch_metadata(number: u32) -> L1BatchMetadata {
 }
 
 /// Creates an L2 transaction with randomized parameters.
-pub(crate) fn create_l2_transaction(fee_per_gas: u64, gas_per_pubdata: u32) -> L2Tx {
+pub(crate) fn create_l2_transaction(fee_per_gas: u64, gas_per_pubdata: u64) -> L2Tx {
     let fee = Fee {
         gas_limit: 1000_u64.into(),
         max_fee_per_gas: fee_per_gas.into(),
@@ -170,7 +172,7 @@ pub(crate) async fn prepare_recovery_snapshot(
         ),
     ]);
     storage
-        .storage_dal()
+        .factory_deps_dal()
         .insert_factory_deps(miniblock.number, &factory_deps)
         .await
         .unwrap();
@@ -182,10 +184,6 @@ pub(crate) async fn prepare_recovery_snapshot(
     storage
         .storage_logs_dal()
         .insert_storage_logs(miniblock.number, &[(H256::zero(), snapshot_logs.to_vec())])
-        .await;
-    storage
-        .storage_dal()
-        .apply_storage_logs(&[(H256::zero(), snapshot_logs.to_vec())])
         .await;
 
     let snapshot_recovery = SnapshotRecoveryStatus {
@@ -218,5 +216,21 @@ impl L1GasPriceProvider for MockL1GasPriceProvider {
 
     fn estimate_effective_pubdata_price(&self) -> u64 {
         self.0 * u64::from(zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE)
+    }
+}
+
+/// Mock [`BatchFeeModelInputProvider`] implementation that returns a constant value.
+#[derive(Debug)]
+pub(crate) struct MockBatchFeeParamsProvider(pub FeeParams);
+
+impl Default for MockBatchFeeParamsProvider {
+    fn default() -> Self {
+        Self(FeeParams::sensible_v1_default())
+    }
+}
+
+impl BatchFeeModelInputProvider for MockBatchFeeParamsProvider {
+    fn get_fee_model_params(&self) -> FeeParams {
+        self.0
     }
 }

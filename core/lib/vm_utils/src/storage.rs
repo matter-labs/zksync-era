@@ -281,7 +281,7 @@ impl L1BatchParamsProvider {
 
         let contract_hashes = first_miniblock_in_batch.header.base_system_contracts_hashes;
         let base_system_contracts = storage
-            .storage_dal()
+            .factory_deps_dal()
             .get_base_system_contracts(contract_hashes.bootloader, contract_hashes.default_aa)
             .await;
 

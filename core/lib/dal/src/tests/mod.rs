@@ -220,7 +220,7 @@ async fn remove_stuck_txs() {
 
     // Get all txs
     transactions_dal.reset_mempool().await.unwrap();
-    let (txs, _) = transactions_dal
+    let txs = transactions_dal
         .sync_mempool(&[], &[], 0, 0, 1000)
         .await
         .unwrap();
@@ -243,7 +243,7 @@ async fn remove_stuck_txs() {
 
     // Get all txs
     transactions_dal.reset_mempool().await.unwrap();
-    let (txs, _) = transactions_dal
+    let txs = transactions_dal
         .sync_mempool(&[], &[], 0, 0, 1000)
         .await
         .unwrap();
@@ -256,7 +256,7 @@ async fn remove_stuck_txs() {
         .unwrap();
     assert_eq!(removed_txs, 1);
     transactions_dal.reset_mempool().await.unwrap();
-    let (txs, _) = transactions_dal
+    let txs = transactions_dal
         .sync_mempool(&[], &[], 0, 0, 1000)
         .await
         .unwrap();

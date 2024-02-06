@@ -772,12 +772,8 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
         .await
         .context("failed to build mempool_fetcher_pool")?;
     let mempool_fetcher = MempoolFetcher::new(mempool, batch_fee_input_provider, mempool_config);
-    let mempool_fetcher_handle = tokio::spawn(mempool_fetcher.run(
-        mempool_fetcher_pool,
-        mempool_config.remove_stuck_txs,
-        mempool_config.stuck_tx_timeout(),
-        stop_receiver,
-    ));
+    let mempool_fetcher_handle =
+        tokio::spawn(mempool_fetcher.run(mempool_fetcher_pool, stop_receiver));
     task_futures.push(mempool_fetcher_handle);
     Ok(())
 }

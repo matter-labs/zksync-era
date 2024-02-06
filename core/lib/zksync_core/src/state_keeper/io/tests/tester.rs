@@ -216,7 +216,7 @@ impl Tester {
         fee_per_gas: u64,
         gas_per_pubdata: u32,
     ) -> L2Tx {
-        let tx = create_l2_transaction(fee_per_gas, gas_per_pubdata);
+        let tx = create_l2_transaction(fee_per_gas, gas_per_pubdata.into());
         guard.insert(vec![tx.clone().into()], Default::default());
         tx
     }

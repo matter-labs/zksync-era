@@ -24,7 +24,8 @@ pub(crate) async fn prepare_postgres(conn: &mut StorageProcessor<'_>) {
 
     conn.storage_logs_dal()
         .rollback_storage_logs(MiniblockNumber(0))
-        .await;
+        .await
+        .unwrap();
     conn.blocks_dal()
         .delete_miniblocks(MiniblockNumber(0))
         .await
@@ -141,19 +142,17 @@ pub(crate) async fn prepare_postgres_for_snapshot_recovery(
         .await
         .unwrap();
 
-    // FIXME (PLA-589): don't store miniblock / L1 batch once the corresponding foreign keys are removed
     let snapshot_storage_logs = gen_storage_logs(100..200);
-    create_miniblock(
-        conn,
-        snapshot_recovery.miniblock_number,
-        snapshot_storage_logs.clone(),
-    )
-    .await;
-    create_l1_batch(
-        conn,
-        snapshot_recovery.l1_batch_number,
-        &snapshot_storage_logs,
-    )
-    .await;
+    conn.storage_logs_dal()
+        .insert_storage_logs(
+            snapshot_recovery.miniblock_number,
+            &[(H256::zero(), snapshot_storage_logs.clone())],
+        )
+        .await;
+    let mut written_keys: Vec<_> = snapshot_storage_logs.iter().map(|log| log.key).collect();
+    written_keys.sort_unstable();
+    conn.storage_logs_dedup_dal()
+        .insert_initial_writes(snapshot_recovery.l1_batch_number, &written_keys)
+        .await;
     (snapshot_recovery, snapshot_storage_logs)
 }

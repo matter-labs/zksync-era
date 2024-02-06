@@ -201,7 +201,7 @@ impl ExternalIO {
             .access_storage_tagged("sync_layer")
             .await
             .unwrap()
-            .storage_dal()
+            .factory_deps_dal()
             .get_factory_dep(hash)
             .await;
 
@@ -224,7 +224,7 @@ impl ExternalIO {
                     .access_storage_tagged("sync_layer")
                     .await
                     .unwrap()
-                    .storage_dal()
+                    .factory_deps_dal()
                     .insert_factory_deps(
                         self.current_miniblock_number,
                         &HashMap::from([(contract.hash, be_words_to_bytes(&contract.code))]),
