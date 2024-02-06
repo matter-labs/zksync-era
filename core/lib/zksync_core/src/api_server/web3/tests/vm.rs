@@ -102,44 +102,12 @@ impl HttpTest for CallTestAfterSnapshotRecovery {
         CallTest::create_executor(first_local_miniblock)
     }
 
-    async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
-        let call_result = client.call(CallTest::call_request(b"first"), None).await?;
-        assert_eq!(call_result.0, b"output");
-        let pending_block_number = api::BlockIdVariant::BlockNumber(api::BlockNumber::Pending);
+    async fn test(&self, client: &HttpClient, _pool: &ConnectionPool) -> anyhow::Result<()> {
         let call_result = client
-            .call(CallTest::call_request(b"first"), Some(pending_block_number))
+            .call(CallTest::call_request(b"pending"), None)
             .await?;
         assert_eq!(call_result.0, b"output");
-
-        let first_local_miniblock = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
-        let first_miniblock_numbers = [api::BlockNumber::Latest, first_local_miniblock.0.into()];
-        for number in first_miniblock_numbers {
-            let number = api::BlockIdVariant::BlockNumber(number);
-            let error = client
-                .call(CallTest::call_request(b"first"), Some(number))
-                .await
-                .unwrap_err();
-            if let ClientError::Call(error) = error {
-                assert_eq!(error.code(), ErrorCode::InvalidParams.code());
-            } else {
-                panic!("Unexpected error: {error:?}");
-            }
-        }
-
-        let pruned_block_numbers = [0, 1, StorageInitialization::SNAPSHOT_RECOVERY_BLOCK.0];
-        for number in pruned_block_numbers {
-            let number = api::BlockIdVariant::BlockNumber(number.into());
-            let error = client
-                .call(CallTest::call_request(b"pruned"), Some(number))
-                .await
-                .unwrap_err();
-            assert_pruned_block_error(&error, StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1);
-        }
-
-        let mut storage = pool.access_storage().await?;
-        store_miniblock(&mut storage, first_local_miniblock, &[]).await?;
-        drop(storage);
-
+        let pending_block_number = api::BlockIdVariant::BlockNumber(api::BlockNumber::Pending);
         let call_result = client
             .call(
                 CallTest::call_request(b"pending"),
@@ -148,6 +116,18 @@ impl HttpTest for CallTestAfterSnapshotRecovery {
             .await?;
         assert_eq!(call_result.0, b"output");
 
+        let first_local_miniblock = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
+        let pruned_block_numbers = [0, 1, StorageInitialization::SNAPSHOT_RECOVERY_BLOCK.0];
+        for number in pruned_block_numbers {
+            let number = api::BlockIdVariant::BlockNumber(number.into());
+            let error = client
+                .call(CallTest::call_request(b"pruned"), Some(number))
+                .await
+                .unwrap_err();
+            assert_pruned_block_error(&error, first_local_miniblock);
+        }
+
+        let first_miniblock_numbers = [api::BlockNumber::Latest, first_local_miniblock.0.into()];
         for number in first_miniblock_numbers {
             let number = api::BlockIdVariant::BlockNumber(number);
             let call_result = client
@@ -226,7 +206,7 @@ impl HttpTest for SendRawTransactionTest {
     fn transaction_executor(&self) -> MockTransactionExecutor {
         let mut tx_executor = MockTransactionExecutor::default();
         let pending_block = if self.snapshot_recovery {
-            StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1
+            StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 2
         } else {
             MiniblockNumber(1)
         };
@@ -358,8 +338,8 @@ impl HttpTest for TraceCallTestAfterSnapshotRecovery {
         CallTest::create_executor(number)
     }
 
-    async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
-        let call_request = CallTest::call_request(b"first");
+    async fn test(&self, client: &HttpClient, _pool: &ConnectionPool) -> anyhow::Result<()> {
+        let call_request = CallTest::call_request(b"pending");
         let call_result = client.trace_call(call_request.clone(), None, None).await?;
         TraceCallTest::assert_debug_call(&call_request, &call_result);
         let pending_block_number = api::BlockId::Number(api::BlockNumber::Pending);
@@ -369,20 +349,6 @@ impl HttpTest for TraceCallTestAfterSnapshotRecovery {
         TraceCallTest::assert_debug_call(&call_request, &call_result);
 
         let first_local_miniblock = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
-        let first_miniblock_numbers = [api::BlockNumber::Latest, first_local_miniblock.0.into()];
-        for number in first_miniblock_numbers {
-            let number = api::BlockId::Number(number);
-            let error = client
-                .trace_call(CallTest::call_request(b"first"), Some(number), None)
-                .await
-                .unwrap_err();
-            if let ClientError::Call(error) = error {
-                assert_eq!(error.code(), ErrorCode::InvalidParams.code());
-            } else {
-                panic!("Unexpected error: {error:?}");
-            }
-        }
-
         let pruned_block_numbers = [0, 1, StorageInitialization::SNAPSHOT_RECOVERY_BLOCK.0];
         for number in pruned_block_numbers {
             let number = api::BlockIdVariant::BlockNumber(number.into());
@@ -390,20 +356,11 @@ impl HttpTest for TraceCallTestAfterSnapshotRecovery {
                 .call(CallTest::call_request(b"pruned"), Some(number))
                 .await
                 .unwrap_err();
-            assert_pruned_block_error(&error, StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1);
+            assert_pruned_block_error(&error, first_local_miniblock);
         }
 
-        let mut storage = pool.access_storage().await?;
-        store_miniblock(&mut storage, first_local_miniblock, &[]).await?;
-        drop(storage);
-
-        let call_request = CallTest::call_request(b"pending");
-        let call_result = client
-            .trace_call(call_request.clone(), Some(pending_block_number), None)
-            .await?;
-        TraceCallTest::assert_debug_call(&call_request, &call_result);
-
         let call_request = CallTest::call_request(b"first");
+        let first_miniblock_numbers = [api::BlockNumber::Latest, first_local_miniblock.0.into()];
         for number in first_miniblock_numbers {
             let number = api::BlockId::Number(number);
             let call_result = client
@@ -444,8 +401,8 @@ impl HttpTest for EstimateGasTest {
 
     fn transaction_executor(&self) -> MockTransactionExecutor {
         let mut tx_executor = MockTransactionExecutor::default();
-        let expected_block_number = if self.snapshot_recovery {
-            StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1
+        let pending_block_number = if self.snapshot_recovery {
+            StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 2
         } else {
             MiniblockNumber(1)
         };
@@ -453,7 +410,7 @@ impl HttpTest for EstimateGasTest {
         tx_executor.set_call_responses(move |tx, block_args| {
             assert_eq!(tx.execute.calldata(), [] as [u8; 0]);
             assert_eq!(tx.nonce(), Some(Nonce(0)));
-            assert_eq!(block_args.resolved_block_number(), expected_block_number);
+            assert_eq!(block_args.resolved_block_number(), pending_block_number);
 
             let gas_limit_threshold = gas_limit_threshold.load(Ordering::SeqCst);
             if tx.gas_limit() >= U256::from(gas_limit_threshold) {

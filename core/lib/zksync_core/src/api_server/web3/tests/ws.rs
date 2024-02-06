@@ -267,7 +267,7 @@ impl WsTest for BasicSubscriptionsTest {
         let tx_result = execute_l2_transaction(create_l2_transaction(1, 2));
         let new_tx_hash = tx_result.hash;
         let miniblock_number = if self.snapshot_recovery {
-            StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1
+            StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 2
         } else {
             MiniblockNumber(1)
         };
@@ -389,12 +389,12 @@ impl WsTest for LogSubscriptionsTest {
         } = LogSubscriptions::new(client, &mut pub_sub_events).await?;
 
         let mut storage = pool.access_storage().await?;
-        let miniblock_number = if self.snapshot_recovery {
-            StorageInitialization::SNAPSHOT_RECOVERY_BLOCK.0 + 1
+        let next_miniblock_number = if self.snapshot_recovery {
+            StorageInitialization::SNAPSHOT_RECOVERY_BLOCK.0 + 2
         } else {
             1
         };
-        let (tx_location, events) = store_events(&mut storage, miniblock_number, 0).await?;
+        let (tx_location, events) = store_events(&mut storage, next_miniblock_number, 0).await?;
         drop(storage);
         let events: Vec<_> = events.iter().collect();
 
@@ -403,7 +403,7 @@ impl WsTest for LogSubscriptionsTest {
             assert_eq!(log.transaction_index, Some(0.into()));
             assert_eq!(log.log_index, Some(i.into()));
             assert_eq!(log.transaction_hash, Some(tx_location.tx_hash));
-            assert_eq!(log.block_number, Some(miniblock_number.into()));
+            assert_eq!(log.block_number, Some(next_miniblock_number.into()));
         }
         assert_logs_match(&all_logs, &events);
 
