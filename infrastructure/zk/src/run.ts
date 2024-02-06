@@ -1,13 +1,10 @@
 import { Command } from 'commander';
-import * as utils from '../utils';
+import * as utils from './utils';
 import { Wallet } from 'ethers';
 import fs from 'fs';
 import * as path from 'path';
-import * as dataRestore from './data-restore';
-import { getTokens } from '../hyperchain_wizard';
-import * as env from '../env';
-
-export { dataRestore };
+import { getTokens } from './hyperchain_wizard';
+import * as env from './env';
 
 export async function deployERC20(
     command: 'dev' | 'new',
@@ -59,16 +56,8 @@ export async function yarn() {
     await utils.spawn('yarn install --frozen-lockfile');
 }
 
-export async function deployTestkit(genesisRoot: string) {
-    await utils.spawn(`yarn l1-contracts deploy-testkit --genesis-root ${genesisRoot}`);
-}
-
 export async function revertReason(txHash: string, web3url?: string) {
     await utils.spawn(`yarn l1-contracts ts-node scripts/revert-reason.ts ${txHash} ${web3url || ''}`);
-}
-
-export async function exitProof(...args: string[]) {
-    await utils.spawn(`cargo run --example generate_exit_proof --release -- ${args.join(' ')}`);
 }
 
 export async function catLogs(exitCode?: number) {
@@ -118,7 +107,7 @@ export async function snapshots_creator() {
     let logLevel = 'RUST_LOG=snapshots_creator=debug';
     await utils.spawn(`${logLevel} cargo run --bin snapshots_creator --release`);
 }
-export const command = new Command('run').description('run miscellaneous applications').addCommand(dataRestore.command);
+export const command = new Command('run').description('run miscellaneous applications');
 
 command.command('test-accounts').description('print ethereum test accounts').action(testAccounts);
 command.command('yarn install --frozen-lockfile').description('install all JS dependencies').action(yarn);
@@ -142,31 +131,9 @@ command
     });
 
 command
-    .command('deploy-testkit')
-    .description('deploy testkit contracts')
-    .requiredOption('--genesis-root <hash>')
-    .action(async (cmd: Command) => {
-        await deployTestkit(cmd.genesisRoot);
-    });
-
-command
     .command('revert-reason <tx_hash> [web3_url]')
     .description('get the revert reason for ethereum transaction')
     .action(revertReason);
-
-command
-    .command('exit-proof')
-    .option('--account <id>')
-    .option('--token <id>')
-    .option('--help')
-    .description('generate exit proof')
-    .action(async (cmd: Command) => {
-        if (!cmd.account || !cmd.token) {
-            await exitProof('--help');
-        } else {
-            await exitProof('--account_id', cmd.account, '--token', cmd.token);
-        }
-    });
 
 command
     .command('loadtest [options...]')
