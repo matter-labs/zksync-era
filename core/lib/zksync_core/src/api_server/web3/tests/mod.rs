@@ -3,6 +3,7 @@ use std::{collections::HashMap, time::Instant};
 use assert_matches::assert_matches;
 use async_trait::async_trait;
 use jsonrpsee::core::ClientError;
+use multivm::zk_evm_latest::ethereum_types::U256;
 use tokio::sync::watch;
 use zksync_config::configs::{
     api::Web3JsonRpcConfig,
@@ -19,13 +20,15 @@ use zksync_types::{
     get_nonce_key,
     l2::L2Tx,
     storage::get_code_key,
+    tokens::{TokenInfo, TokenMetadata},
     tx::{
         tx_execution_info::TxExecutionStatus, ExecutionMetrics, IncludedTxLocation,
         TransactionExecutionResult,
     },
-    utils::storage_key_for_eth_balance,
+    utils::{storage_key_for_eth_balance, storage_key_for_standard_token_balance},
     AccountTreeId, Address, L1BatchNumber, Nonce, StorageKey, StorageLog, VmEvent, H256, U64,
 };
+use zksync_utils::u256_to_h256;
 use zksync_web3_decl::{
     jsonrpsee::{http_client::HttpClient, types::error::ErrorCode},
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
@@ -223,7 +226,7 @@ impl StorageInitialization {
             Self::Recovery { logs, factory_deps } => {
                 prepare_recovery_snapshot(storage, Self::SNAPSHOT_RECOVERY_BLOCK, logs).await;
                 storage
-                    .storage_dal()
+                    .factory_deps_dal()
                     .insert_factory_deps(
                         MiniblockNumber(Self::SNAPSHOT_RECOVERY_BLOCK),
                         factory_deps,
@@ -869,4 +872,74 @@ impl HttpTest for TransactionReceiptsTest {
 #[tokio::test]
 async fn transaction_receipts() {
     test_http_server(TransactionReceiptsTest).await;
+}
+
+#[derive(Debug)]
+struct AllAccountBalancesTest;
+
+impl AllAccountBalancesTest {
+    const ADDRESS: Address = Address::repeat_byte(0x11);
+}
+
+#[async_trait]
+impl HttpTest for AllAccountBalancesTest {
+    async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
+        let balances = client.get_all_account_balances(Self::ADDRESS).await?;
+        assert_eq!(balances, HashMap::new());
+
+        let mut storage = pool.access_storage().await?;
+        store_miniblock(&mut storage, MiniblockNumber(1), &[]).await?;
+
+        let eth_balance_key = storage_key_for_eth_balance(&Self::ADDRESS);
+        let eth_balance = U256::one() << 64;
+        let eth_balance_log = StorageLog::new_write_log(eth_balance_key, u256_to_h256(eth_balance));
+        storage
+            .storage_logs_dal()
+            .insert_storage_logs(MiniblockNumber(1), &[(H256::zero(), vec![eth_balance_log])])
+            .await;
+        // Create a custom token, but don't set balance for it yet.
+        let custom_token = TokenInfo {
+            l1_address: Address::repeat_byte(0xfe),
+            l2_address: Address::repeat_byte(0xfe),
+            metadata: TokenMetadata::default(Address::repeat_byte(0xfe)),
+        };
+        storage
+            .tokens_dal()
+            .add_tokens(vec![custom_token.clone()])
+            .await;
+
+        let balances = client.get_all_account_balances(Self::ADDRESS).await?;
+        assert_eq!(balances, HashMap::from([(Address::zero(), eth_balance)]));
+
+        store_miniblock(&mut storage, MiniblockNumber(2), &[]).await?;
+        let token_balance_key = storage_key_for_standard_token_balance(
+            AccountTreeId::new(custom_token.l2_address),
+            &Self::ADDRESS,
+        );
+        let token_balance = 123.into();
+        let token_balance_log =
+            StorageLog::new_write_log(token_balance_key, u256_to_h256(token_balance));
+        storage
+            .storage_logs_dal()
+            .insert_storage_logs(
+                MiniblockNumber(2),
+                &[(H256::zero(), vec![token_balance_log])],
+            )
+            .await;
+
+        let balances = client.get_all_account_balances(Self::ADDRESS).await?;
+        assert_eq!(
+            balances,
+            HashMap::from([
+                (Address::zero(), eth_balance),
+                (custom_token.l2_address, token_balance),
+            ])
+        );
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn getting_all_account_balances() {
+    test_http_server(AllAccountBalancesTest).await;
 }
