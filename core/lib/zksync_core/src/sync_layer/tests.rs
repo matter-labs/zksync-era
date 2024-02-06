@@ -489,24 +489,40 @@ pub(super) async fn mock_l1_batch_hash_computation(pool: ConnectionPool, number:
 /// Returns tx hashes of all generated transactions, grouped by the L1 batch.
 pub(super) async fn run_state_keeper_with_multiple_l1_batches(
     pool: ConnectionPool,
-) -> Vec<Vec<H256>> {
-    ensure_genesis(&mut pool.access_storage().await.unwrap()).await;
+    snapshot_recovery: bool,
+) -> (SnapshotRecoveryStatus, Vec<Vec<H256>>) {
+    let mut storage = pool.access_storage().await.unwrap();
+    let snapshot = if snapshot_recovery {
+        prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await
+    } else {
+        ensure_genesis(&mut storage).await;
+        genesis_snapshot_recovery_status()
+    };
+    drop(storage);
 
-    let l1_batch = open_l1_batch(1, 1, 1);
+    let l1_batch = open_l1_batch(
+        snapshot.l1_batch_number.0 + 1,
+        snapshot.miniblock_timestamp + 1,
+        snapshot.miniblock_number.0 + 1,
+    );
     let first_tx = create_l2_transaction(10, 100);
     let first_tx_hash = first_tx.hash();
     let first_tx = SyncAction::Tx(Box::new(first_tx.into()));
     let first_l1_batch_actions = vec![l1_batch, first_tx, SyncAction::SealMiniblock];
 
     let fictive_miniblock = SyncAction::Miniblock {
-        number: MiniblockNumber(2),
-        timestamp: 2,
+        number: snapshot.miniblock_number + 2,
+        timestamp: snapshot.miniblock_timestamp + 2,
         virtual_blocks: 0,
     };
     let seal_l1_batch = SyncAction::SealBatch { virtual_blocks: 0 };
     let fictive_miniblock_actions = vec![fictive_miniblock, seal_l1_batch];
 
-    let l1_batch = open_l1_batch(2, 3, 3);
+    let l1_batch = open_l1_batch(
+        snapshot.l1_batch_number.0 + 2,
+        snapshot.miniblock_timestamp + 3,
+        snapshot.miniblock_number.0 + 3,
+    );
     let second_tx = create_l2_transaction(10, 100);
     let second_tx_hash = second_tx.hash();
     let second_tx = SyncAction::Tx(Box::new(second_tx.into()));
@@ -524,20 +540,23 @@ pub(super) async fn run_state_keeper_with_multiple_l1_batches(
     actions_sender.push_actions(fictive_miniblock_actions).await;
     actions_sender.push_actions(second_l1_batch_actions).await;
 
-    let hash_task = tokio::spawn(mock_l1_batch_hash_computation(pool.clone(), 1));
+    let hash_task = tokio::spawn(mock_l1_batch_hash_computation(
+        pool.clone(),
+        snapshot.l1_batch_number.0 + 1,
+    ));
     // Wait until the miniblocks are sealed.
     state_keeper
-        .wait(|state| state.get_local_block() == MiniblockNumber(3))
+        .wait(|state| state.get_local_block() == snapshot.miniblock_number + 3)
         .await;
     hash_task.await.unwrap();
 
-    vec![vec![first_tx_hash], vec![second_tx_hash]]
+    (snapshot, vec![vec![first_tx_hash], vec![second_tx_hash]])
 }
 
 #[tokio::test]
 async fn external_io_with_multiple_l1_batches() {
     let pool = ConnectionPool::test_pool().await;
-    run_state_keeper_with_multiple_l1_batches(pool.clone()).await;
+    run_state_keeper_with_multiple_l1_batches(pool.clone(), false).await;
 
     let mut storage = pool.access_storage().await.unwrap();
     let l1_batch_header = storage
@@ -650,10 +669,11 @@ async fn fetcher_basics() {
 #[tokio::test]
 async fn fetcher_with_real_server(snapshot_recovery: bool) {
     let pool = ConnectionPool::test_pool().await;
-    // Fill in transactions grouped in multiple miniblocks in the storage.
+    // Fill in transactions grouped in multiple L1 batches in the storage. We need at least one L1 batch,
+    // so that the API server doesn't hang up waiting for it.
     let (snapshot, tx_hashes) =
-        run_state_keeper_with_multiple_miniblocks(pool.clone(), snapshot_recovery).await;
-    let mut tx_hashes = VecDeque::from(tx_hashes);
+        run_state_keeper_with_multiple_l1_batches(pool.clone(), snapshot_recovery).await;
+    let mut tx_hashes: VecDeque<_> = tx_hashes.into_iter().flatten().collect();
 
     // Start the API server.
     let network_config = NetworkConfig::for_tests();
@@ -687,10 +707,12 @@ async fn fetcher_with_real_server(snapshot_recovery: bool) {
 
     // Check generated actions.
     let mut current_miniblock_number = snapshot.miniblock_number;
+    let mut current_l1_batch_number = snapshot.l1_batch_number + 1;
     let mut tx_count_in_miniblock = 0;
     let miniblock_number_to_tx_count = HashMap::from([
-        (snapshot.miniblock_number + 1, 5),
-        (snapshot.miniblock_number + 2, 3),
+        (snapshot.miniblock_number + 1, 1),
+        (snapshot.miniblock_number + 2, 0),
+        (snapshot.miniblock_number + 3, 1),
     ]);
     let started_at = Instant::now();
     let deadline = started_at + TEST_TIMEOUT;
@@ -698,18 +720,20 @@ async fn fetcher_with_real_server(snapshot_recovery: bool) {
         let action = tokio::time::timeout_at(deadline.into(), actions.recv_action())
             .await
             .unwrap();
-        match action {
+        match dbg!(action) {
             SyncAction::OpenBatch {
                 number,
                 first_miniblock_info,
                 ..
             } => {
-                assert_eq!(number, snapshot.l1_batch_number + 1);
+                assert_eq!(number, current_l1_batch_number);
                 current_miniblock_number += 1; // First miniblock is implicitly opened
                 tx_count_in_miniblock = 0;
                 assert_eq!(first_miniblock_info.0, current_miniblock_number);
             }
-            SyncAction::SealBatch { .. } => unreachable!("L1 batches are not sealed in test"),
+            SyncAction::SealBatch { .. } => {
+                current_l1_batch_number += 1;
+            }
             SyncAction::Miniblock { number, .. } => {
                 current_miniblock_number += 1;
                 tx_count_in_miniblock = 0;
@@ -724,7 +748,7 @@ async fn fetcher_with_real_server(snapshot_recovery: bool) {
                     tx_count_in_miniblock,
                     miniblock_number_to_tx_count[&current_miniblock_number]
                 );
-                if current_miniblock_number == snapshot.miniblock_number + 2 {
+                if current_miniblock_number == snapshot.miniblock_number + 3 {
                     break;
                 }
             }
