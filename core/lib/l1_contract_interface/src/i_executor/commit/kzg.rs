@@ -5,7 +5,7 @@ use std::convert::TryInto;
 
 use sha2::Sha256;
 use sha3::{Digest, Keccak256};
-use zkevm_test_harness_1_3_1::ff::{PrimeField, PrimeFieldRepr};
+use zkevm_test_harness_1_3_3::ff::{PrimeField, PrimeFieldRepr};
 use zkevm_test_harness_1_4_1::{
     kzg::{compute_commitment, compute_proof, compute_proof_poly, KzgSettings},
     zkevm_circuits::{
