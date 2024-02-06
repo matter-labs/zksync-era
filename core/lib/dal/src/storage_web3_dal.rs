@@ -35,11 +35,41 @@ impl StorageWeb3Dal<'_, '_> {
     /// Returns the current *stored* nonces (i.e., w/o accounting for pending transactions) for the specified accounts.
     pub async fn get_nonces_for_addresses(
         &mut self,
-        _addresses: &[Address],
+        addresses: &[Address],
     ) -> sqlx::Result<HashMap<Address, Nonce>> {
-        todo!()
-        // You should be able to implement this. This method could be reused in `MempoolFetcher`, esp. after
-        // https://github.com/matter-labs/zksync-era/pull/982 is merged
+        let res = sqlx::query!(
+            r#"
+            SELECT
+                initiator_address,
+                MAX(nonce)
+            FROM
+                transactions
+            WHERE
+                initiator_address = ANY ($1)
+                AND is_priority = FALSE
+                AND (
+                    miniblock_number IS NOT NULL
+                    OR error IS NULL
+                )
+            GROUP BY
+                initiator_address
+            "#,
+            &addresses
+                .iter()
+                .map(|address| address.as_bytes().to_vec())
+                .collect::<Vec<_>>()
+        )
+        .fetch_all(self.storage.conn())
+        .await?
+        .into_iter()
+        .map(|row| {
+            (
+                Address::from_slice(&row.initiator_address),
+                Nonce(row.max.unwrap_or_default() as u32),
+            )
+        })
+        .collect();
+        Ok(res)
     }
 
     pub async fn standard_token_historical_balance(
