@@ -78,7 +78,7 @@ impl<T> EnrichRpcError<T> for Result<T, RpcError> {
             Ok(t) => Ok(t),
             Err(error) => Err(RpcErrorWithDetails {
                 inner_error: error,
-                method: method,
+                method,
                 args: HashMap::default(),
             }),
         }
