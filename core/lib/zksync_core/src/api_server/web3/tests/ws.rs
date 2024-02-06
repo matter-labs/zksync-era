@@ -172,17 +172,17 @@ async fn test_ws_server(test: impl WsTest) {
     drop(storage);
 
     let (stop_sender, stop_receiver) = watch::channel(false);
-    let (server_handles, pub_sub_events) = spawn_ws_server(
+    let (mut server_handles, pub_sub_events) = spawn_ws_server(
         &network_config,
         pool.clone(),
         stop_receiver,
         test.websocket_requests_per_minute_limit(),
     )
     .await;
-    server_handles.wait_until_ready().await;
 
+    let local_addr = server_handles.wait_until_ready().await;
     let client = WsClientBuilder::default()
-        .build(format!("ws://{}", server_handles.local_addr))
+        .build(format!("ws://{local_addr}"))
         .await
         .unwrap();
     test.test(&client, &pool, pub_sub_events).await.unwrap();

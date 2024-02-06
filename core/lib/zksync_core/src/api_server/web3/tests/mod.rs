@@ -1,4 +1,4 @@
-use std::{collections::HashMap, time::Instant};
+use std::{collections::HashMap, pin::Pin, time::Instant};
 
 use assert_matches::assert_matches;
 use async_trait::async_trait;
@@ -56,8 +56,8 @@ const TEST_TIMEOUT: Duration = Duration::from_secs(10);
 const POLL_INTERVAL: Duration = Duration::from_millis(50);
 
 impl ApiServerHandles {
-    /// Waits until the server health check reports the ready state.
-    pub(crate) async fn wait_until_ready(&self) {
+    /// Waits until the server health check reports the ready state. Must be called once per server instance.
+    pub(crate) async fn wait_until_ready(&mut self) -> SocketAddr {
         let started_at = Instant::now();
         loop {
             assert!(
@@ -70,6 +70,13 @@ impl ApiServerHandles {
             }
             tokio::time::sleep(POLL_INTERVAL).await;
         }
+
+        let mut local_addr_future = Pin::new(&mut self.local_addr);
+        local_addr_future
+            .as_mut()
+            .await
+            .expect("API server panicked");
+        local_addr_future.output_mut().copied().unwrap()
     }
 
     pub(crate) async fn shutdown(self) {
@@ -253,17 +260,17 @@ async fn test_http_server(test: impl HttpTest) {
     drop(storage);
 
     let (stop_sender, stop_receiver) = watch::channel(false);
-    let server_handles = spawn_http_server(
+    let mut server_handles = spawn_http_server(
         &network_config,
         pool.clone(),
         test.transaction_executor(),
         stop_receiver,
     )
     .await;
-    server_handles.wait_until_ready().await;
 
+    let local_addr = server_handles.wait_until_ready().await;
     let client = <HttpClient>::builder()
-        .build(format!("http://{}/", server_handles.local_addr))
+        .build(format!("http://{local_addr}/"))
         .unwrap();
     test.test(&client, &pool).await.unwrap();
 

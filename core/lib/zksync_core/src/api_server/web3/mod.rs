@@ -41,6 +41,7 @@ use crate::{
         web3::backend_jsonrpsee::batch_limiter_middleware::LimitMiddleware,
     },
     sync_layer::SyncState,
+    utils::wait_for_l1_batch,
 };
 
 pub mod backend_jsonrpsee;
@@ -98,9 +99,10 @@ impl Namespace {
 /// Handles to the initialized API server.
 #[derive(Debug)]
 pub struct ApiServerHandles {
-    pub local_addr: SocketAddr,
     pub tasks: Vec<JoinHandle<anyhow::Result<()>>>,
     pub health_check: ReactiveHealthCheck,
+    #[allow(unused)] // only used in tests
+    pub(crate) local_addr: future::TryMaybeDone<oneshot::Receiver<SocketAddr>>,
 }
 
 /// Optional part of the API server parameters.
@@ -441,22 +443,11 @@ impl FullApiParams {
             health_updater,
         ));
 
-        let local_addr = match local_addr.await {
-            Ok(addr) => addr,
-            Err(_) => {
-                // If the local address was not transmitted, `server_task` must have failed.
-                let err = server_task
-                    .await
-                    .with_context(|| format!("{health_check_name} server panicked"))?
-                    .unwrap_err();
-                return Err(err);
-            }
-        };
         tasks.push(server_task);
         Ok(ApiServerHandles {
-            local_addr,
             health_check,
             tasks,
+            local_addr: future::try_maybe_done(local_addr),
         })
     }
 
@@ -468,6 +459,16 @@ impl FullApiParams {
         local_addr_sender: oneshot::Sender<SocketAddr>,
         health_updater: HealthUpdater,
     ) -> anyhow::Result<()> {
+        // We don't want to start the server until at least one L1 batch is stored in Postgres.
+        let earliest_l1_batch_number =
+            wait_for_l1_batch(&self.pool, self.polling_interval, &mut stop_receiver)
+                .await
+                .context("error while waiting for L1 batch in Postgres")?;
+
+        if earliest_l1_batch_number.is_none() {
+            return Ok(()); // received shutdown signal
+        }
+
         let transport = self.transport;
         let batch_request_config = self
             .optional
@@ -549,6 +550,7 @@ impl FullApiParams {
         let local_addr = local_addr.with_context(|| {
             format!("Failed getting local address for {transport_str} JSON-RPC server")
         })?;
+        tracing::info!("Initialized {transport_str} API on {local_addr:?}");
         local_addr_sender.send(local_addr).ok();
 
         let close_handle = server_handle.clone();
