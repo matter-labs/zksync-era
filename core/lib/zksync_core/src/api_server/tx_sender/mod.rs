@@ -352,6 +352,10 @@ impl TxSender {
             // Before it reaches the main node.
             proxy.save_tx(tx.clone()).await;
             proxy.submit_tx(&tx).await?;
+            // Now, after we are sure that the tx is on the main node, remove it from cache
+            // since we don't want to store txs that might have been replaced or otherwise removed
+            // from the mempool.
+            proxy.forget_tx(tx.hash()).await;
             SANDBOX_METRICS.submit_tx[&SubmitTxStage::TxProxy].observe(stage_started_at.elapsed());
             APP_METRICS.processed_txs[&TxStage::Proxied].inc();
             return Ok(L2TxSubmissionResult::Proxied);
