@@ -59,12 +59,10 @@ impl<'a> Sandbox<'a> {
         block_args: BlockArgs,
     ) -> anyhow::Result<Sandbox<'a>> {
         let resolve_started_at = Instant::now();
-        dbg!(&block_args);
         let resolved_block_info = block_args
             .resolve_block_info(&mut connection)
             .await
             .with_context(|| format!("cannot resolve block numbers for {block_args:?}"))?;
-        dbg!(&resolved_block_info);
         let resolve_time = resolve_started_at.elapsed();
         // We don't want to emit too many logs.
         if resolve_time > Duration::from_millis(10) {
@@ -99,7 +97,7 @@ impl<'a> Sandbox<'a> {
             shared_args,
             execution_args,
             &resolved_block_info,
-            dbg!(next_l2_block_info),
+            next_l2_block_info,
         );
 
         Ok(Self {
@@ -124,8 +122,6 @@ impl<'a> Sandbox<'a> {
         )
         .await
         .context("failed reading L2 block info")?;
-
-        dbg!(&current_l2_block_info);
 
         let next_l2_block_info = if is_pending_block {
             L2BlockEnv {
@@ -278,8 +274,8 @@ impl<'a> Sandbox<'a> {
 
         let storage_view = self.storage_view.to_rc_ptr();
         let vm = Box::new(VmInstance::new_with_specific_version(
-            dbg!(self.l1_batch_env),
-            dbg!(self.system_env),
+            self.l1_batch_env,
+            self.system_env,
             storage_view.clone(),
             protocol_version.into_api_vm_version(),
         ));
