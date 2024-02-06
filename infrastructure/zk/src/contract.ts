@@ -16,6 +16,7 @@ export async function verifyL1Contracts() {
         return;
     }
     await utils.spawn('yarn l1-contracts verify');
+    await utils.spawn('yarn l1-contracts verify-governance');
 }
 
 function updateContractsEnv(deployLog: String, envVars: Array<string>) {

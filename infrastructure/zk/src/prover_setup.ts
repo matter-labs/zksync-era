@@ -55,7 +55,7 @@ async function downloadCSR(proverType: ProverType, region: string) {
     );
     await utils.sleep(1);
     process.chdir(process.env.ZKSYNC_HOME as string);
-    wrapEnvModify('CRS_FILE', `${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${currentEnv}/${proverType}/`);
+    wrapEnvModify('CRS_FILE', `${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${currentEnv}/${proverType}`);
 }
 
 async function setupProverKeys(proverType: ProverType) {
@@ -171,6 +171,7 @@ async function setupArtifactsMode() {
         wrapEnvModify('PROVER_OBJECT_STORE_MODE', 'GCSWithCredentialFile');
         wrapEnvModify('OBJECT_STORE_GCS_CREDENTIAL_FILE_PATH', gcp.gcpPath);
         wrapEnvModify('PUBLIC_OBJECT_STORE_GCS_CREDENTIAL_FILE_PATH', gcp.gcpPath);
+        wrapEnvModify('OBJECT_STORE_BUCKET_BASE_URL', gcp.gcpPath);
         wrapEnvModify('PUBLIC_OBJECT_STORE_BUCKET_BASE_URL', gcp.bucket);
         wrapEnvModify('PROVER_OBJECT_STORE_BUCKET_BASE_URL', gcp.bucket);
     }
