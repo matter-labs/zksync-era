@@ -579,12 +579,9 @@ impl EthNamespace {
             .blocks_dal()
             .get_sealed_miniblock_number()
             .await
-            .map_err(|err| internal_error(METHOD_NAME, err))?;
-        let next_block_number = match last_block_number {
-            Some(number) => number + 1,
-            // If we don't have miniblocks in the storage, use the first projected miniblock number as the cursor
-            None => self.state.start_info.first_miniblock,
-        };
+            .map_err(|err| internal_error(METHOD_NAME, err))?
+            .ok_or_else(|| internal_error(METHOD_NAME, "no miniblocks in storage"))?;
+        let next_block_number = last_block_number + 1;
         drop(storage);
 
         let idx = self

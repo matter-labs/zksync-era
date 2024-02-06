@@ -142,14 +142,13 @@ pub(crate) async fn pending_protocol_version(
         });
     }
     // No miniblocks in the storage; use snapshot recovery information.
-    let _snapshot_recovery = storage
+    let snapshot_recovery = storage
         .snapshot_recovery_dal()
         .get_applied_snapshot_status()
         .await
         .context("failed getting snapshot recovery status")?
         .context("storage contains neither miniblocks, nor snapshot recovery info")?;
-    // FIXME: actually get version from snapshot recovery
-    Ok(ProtocolVersionId::latest())
+    Ok(snapshot_recovery.protocol_version)
 }
 
 #[cfg(test)]

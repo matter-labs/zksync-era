@@ -352,13 +352,10 @@ impl RpcState {
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?;
 
-        // Since we might not have miniblocks in the storage, we resolve the pending block (which is guaranteed to succeed),
-        // and then subtract 1 to get (possibly projected) latest block number.
-        let pending_block_id = api::BlockId::Number(api::BlockNumber::Pending);
-        let pending_block_number = self
-            .resolve_block(&mut connection, pending_block_id, METHOD_NAME)
+        let latest_block_id = api::BlockId::Number(api::BlockNumber::Latest);
+        let latest_block_number = self
+            .resolve_block(&mut connection, latest_block_id, METHOD_NAME)
             .await?;
-        let latest_block_number = MiniblockNumber(pending_block_number.saturating_sub(1));
 
         let from = call_request.from.unwrap_or_default();
         let address_historical_nonce = connection

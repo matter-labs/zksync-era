@@ -37,7 +37,6 @@ use super::{
     vm_metrics::{self, SandboxStage, SANDBOX_METRICS},
     BlockArgs, TxExecutionArgs, TxSharedArgs, VmPermit,
 };
-use crate::utils::projected_first_l1_batch;
 
 type SandboxStorageView<'a> = StorageView<PostgresStorage<'a>>;
 type BoxedVm<'a> = Box<VmInstance<SandboxStorageView<'a>, HistoryDisabled>>;
@@ -433,22 +432,18 @@ impl BlockArgs {
         let (state_l2_block_number, vm_l1_batch_number, l1_batch_timestamp);
 
         let miniblock_header = if self.is_pending_miniblock() {
-            let sealed_l1_batch_number = connection
+            vm_l1_batch_number = connection
                 .blocks_dal()
                 .get_sealed_l1_batch_number()
                 .await
-                .context("failed getting sealed L1 batch number")?;
+                .context("failed getting sealed L1 batch number")?
+                .context("no L1 batches in storage")?;
             let sealed_miniblock_header = connection
                 .blocks_dal()
                 .get_last_sealed_miniblock_header()
                 .await
                 .context("failed getting sealed miniblock header")?
                 .context("no miniblocks in storage")?;
-
-            vm_l1_batch_number = match sealed_l1_batch_number {
-                Some(number) => number + 1,
-                None => projected_first_l1_batch(connection).await?,
-            };
 
             state_l2_block_number = sealed_miniblock_header.number;
             // Timestamp of the next L1 batch must be greater than the timestamp of the last miniblock.
