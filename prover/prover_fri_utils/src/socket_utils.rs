@@ -19,7 +19,7 @@ pub fn send_assembly(
     let mut error_messages = vec![];
 
     for _ in 0..10 {
-        match TcpStream::connect(socket_address) {
+        match TcpStream::connect_timeout(socket_address, Duration::from_secs(6)) {
             Ok(mut stream) => {
                 return send(&mut serialized, &mut stream)
                     .map(|result| (started_at.elapsed(), result))
