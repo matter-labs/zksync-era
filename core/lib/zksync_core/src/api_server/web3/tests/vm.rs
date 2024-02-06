@@ -208,8 +208,11 @@ impl HttpTest for SendRawTransactionTest {
             // Manually set sufficient balance for the transaction account.
             let mut storage = pool.access_storage().await?;
             storage
-                .storage_dal()
-                .apply_storage_logs(&[(H256::zero(), vec![Self::balance_storage_log()])])
+                .storage_logs_dal()
+                .append_storage_logs(
+                    MiniblockNumber(0),
+                    &[(H256::zero(), vec![Self::balance_storage_log()])],
+                )
                 .await;
         }
 

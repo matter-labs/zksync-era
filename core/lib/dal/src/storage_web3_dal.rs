@@ -23,7 +23,7 @@ impl StorageWeb3Dal<'_, '_> {
         &mut self,
         address: Address,
         block_number: MiniblockNumber,
-    ) -> Result<U256, SqlxError> {
+    ) -> sqlx::Result<U256> {
         let nonce_key = get_nonce_key(&address);
         let nonce_value = self
             .get_historical_value_unchecked(&nonce_key, block_number)
@@ -77,12 +77,32 @@ impl StorageWeb3Dal<'_, '_> {
         token_id: AccountTreeId,
         account_id: AccountTreeId,
         block_number: MiniblockNumber,
-    ) -> Result<U256, SqlxError> {
+    ) -> sqlx::Result<U256> {
         let key = storage_key_for_standard_token_balance(token_id, account_id.address());
         let balance = self
             .get_historical_value_unchecked(&key, block_number)
             .await?;
         Ok(h256_to_u256(balance))
+    }
+
+    /// Gets the current value for the specified `key`.
+    pub async fn get_value(&mut self, key: &StorageKey) -> sqlx::Result<H256> {
+        self.get_historical_value_unchecked(key, MiniblockNumber(u32::MAX))
+            .await
+    }
+
+    /// Gets the current values for the specified `hashed_keys`. The returned map has requested hashed keys as keys
+    /// and current storage values as values.
+    pub async fn get_values(&mut self, hashed_keys: &[H256]) -> sqlx::Result<HashMap<H256, H256>> {
+        let storage_map = self
+            .storage
+            .storage_logs_dal()
+            .get_storage_values(hashed_keys, MiniblockNumber(u32::MAX))
+            .await?;
+        Ok(storage_map
+            .into_iter()
+            .map(|(key, value)| (key, value.unwrap_or_default()))
+            .collect())
     }
 
     /// This method does not check if a block with this number exists in the database.
@@ -91,42 +111,40 @@ impl StorageWeb3Dal<'_, '_> {
         &mut self,
         key: &StorageKey,
         block_number: MiniblockNumber,
-    ) -> Result<H256, SqlxError> {
-        {
-            // We need to proper distinguish if the value is zero or None
-            // for the VM to correctly determine initial writes.
-            // So, we accept that the value is None if it's zero and it wasn't initially written at the moment.
-            let hashed_key = key.hashed_key();
+    ) -> sqlx::Result<H256> {
+        // We need to proper distinguish if the value is zero or None
+        // for the VM to correctly determine initial writes.
+        // So, we accept that the value is None if it's zero and it wasn't initially written at the moment.
+        let hashed_key = key.hashed_key();
 
-            sqlx::query!(
-                r#"
-                SELECT
-                    value
-                FROM
-                    storage_logs
-                WHERE
-                    storage_logs.hashed_key = $1
-                    AND storage_logs.miniblock_number <= $2
-                ORDER BY
-                    storage_logs.miniblock_number DESC,
-                    storage_logs.operation_number DESC
-                LIMIT
-                    1
-                "#,
-                hashed_key.as_bytes(),
-                block_number.0 as i64
-            )
-            .instrument("get_historical_value_unchecked")
-            .report_latency()
-            .with_arg("key", &hashed_key)
-            .fetch_optional(self.storage.conn())
-            .await
-            .map(|option_row| {
-                option_row
-                    .map(|row| H256::from_slice(&row.value))
-                    .unwrap_or_else(H256::zero)
-            })
-        }
+        sqlx::query!(
+            r#"
+            SELECT
+                value
+            FROM
+                storage_logs
+            WHERE
+                storage_logs.hashed_key = $1
+                AND storage_logs.miniblock_number <= $2
+            ORDER BY
+                storage_logs.miniblock_number DESC,
+                storage_logs.operation_number DESC
+            LIMIT
+                1
+            "#,
+            hashed_key.as_bytes(),
+            block_number.0 as i64
+        )
+        .instrument("get_historical_value_unchecked")
+        .report_latency()
+        .with_arg("key", &hashed_key)
+        .fetch_optional(self.storage.conn())
+        .await
+        .map(|option_row| {
+            option_row
+                .map(|row| H256::from_slice(&row.value))
+                .unwrap_or_else(H256::zero)
+        })
     }
 
     /// Provides information about the L1 batch that the specified miniblock is a part of.

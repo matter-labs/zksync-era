@@ -165,7 +165,7 @@ async fn insert_base_system_contracts_to_factory_deps(
         .collect();
 
     storage
-        .storage_dal()
+        .factory_deps_dal()
         .insert_factory_deps(MiniblockNumber(0), &factory_deps)
         .await
         .unwrap();
@@ -264,6 +264,7 @@ async fn insert_system_contracts(
         .insert_initial_writes(L1BatchNumber(0), &written_storage_keys)
         .await;
 
+    #[allow(deprecated)]
     transaction
         .storage_dal()
         .apply_storage_logs(&storage_logs)
@@ -274,7 +275,7 @@ async fn insert_system_contracts(
         .map(|c| (hash_bytecode(&c.bytecode), c.bytecode.clone()))
         .collect();
     transaction
-        .storage_dal()
+        .factory_deps_dal()
         .insert_factory_deps(MiniblockNumber(0), &factory_deps)
         .await
         .unwrap();

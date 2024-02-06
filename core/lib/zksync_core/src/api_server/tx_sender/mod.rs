@@ -566,10 +566,9 @@ impl TxSender {
         let balance = self
             .acquire_replica_connection()
             .await?
-            .storage_dal()
-            .get_by_key(&eth_balance_key)
-            .await?
-            .unwrap_or_default();
+            .storage_web3_dal()
+            .get_value(&eth_balance_key)
+            .await?;
         Ok(h256_to_u256(balance))
     }
 
@@ -706,16 +705,15 @@ impl TxSender {
         let account_code_hash = self
             .acquire_replica_connection()
             .await?
-            .storage_dal()
-            .get_by_key(&hashed_key)
+            .storage_web3_dal()
+            .get_value(&hashed_key)
             .await
             .with_context(|| {
                 format!(
                     "failed getting code hash for account {:?}",
                     tx.initiator_account()
                 )
-            })?
-            .unwrap_or_default();
+            })?;
 
         if !tx.is_l1()
             && account_code_hash == H256::zero()

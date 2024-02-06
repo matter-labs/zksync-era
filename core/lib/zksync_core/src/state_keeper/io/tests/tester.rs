@@ -185,7 +185,7 @@ impl Tester {
         fee_per_gas: u64,
         gas_per_pubdata: u32,
     ) {
-        let tx = create_transaction(fee_per_gas, gas_per_pubdata);
+        let tx = create_transaction(fee_per_gas, gas_per_pubdata.into());
         guard.insert(vec![tx], Default::default());
     }
 }
