@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use anyhow::Context;
 use zksync_core::state_keeper::{
     seal_criteria::ConditionalSealer, L1BatchExecutorBuilder, StateKeeperIO, ZkSyncStateKeeper,
 };
@@ -36,24 +37,31 @@ impl WiringLayer for StateKeeperLayer {
             .await
             .ok_or(WiringError::ResourceLacking(
                 StateKeeperIOResource::resource_id(),
-            ))?;
+            ))?
+            .0
+            .take()
+            .context("StateKeeperIO was provided but taken by some other task")?;
         let batch_executor_base = context
             .get_resource::<L1BatchExecutorBuilderResource>()
             .await
             .ok_or(WiringError::ResourceLacking(
                 L1BatchExecutorBuilderResource::resource_id(),
-            ))?;
+            ))?
+            .0
+            .take()
+            .context("L1BatchExecutorBuilder was provided but taken by some other task")?;
         let sealer = context
             .get_resource::<ConditionalSealerResource>()
             .await
             .ok_or(WiringError::ResourceLacking(
                 ConditionalSealerResource::resource_id(),
-            ))?;
+            ))?
+            .0;
 
         context.add_task(Box::new(StateKeeperTask {
-            io: io.0.take().unwrap(), // TODO: Do not unwrap
-            batch_executor_base: batch_executor_base.0.take().unwrap(), // TODO: Do not unwrap
-            sealer: sealer.0,
+            io,
+            batch_executor_base,
+            sealer,
         }));
         Ok(())
     }
