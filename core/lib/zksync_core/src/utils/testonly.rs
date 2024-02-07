@@ -7,7 +7,10 @@ use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
 use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
 use zksync_types::{
     block::{L1BatchHeader, MiniblockHeader},
-    commitment::{L1BatchMetaParameters, L1BatchMetadata},
+    commitment::{
+        AuxCommitments, L1BatchCommitmentArtifacts, L1BatchCommitmentHash, L1BatchMetaParameters,
+        L1BatchMetadata,
+    },
     fee::Fee,
     fee_model::BatchFeeInput,
     l2::L2Tx,
@@ -53,10 +56,9 @@ pub(crate) fn create_l1_batch_metadata(number: u32) -> L1BatchMetadata {
         root_hash: H256::from_low_u64_be(number.into()),
         rollup_last_leaf_index: u64::from(number) + 20,
         merkle_root_hash: H256::from_low_u64_be(number.into()),
-        initial_writes_compressed: vec![],
-        repeated_writes_compressed: vec![],
+        initial_writes_compressed: Some(vec![]),
+        repeated_writes_compressed: Some(vec![]),
         commitment: H256::from_low_u64_be(number.into()),
-        l2_l1_messages_compressed: vec![],
         l2_l1_merkle_root: H256::from_low_u64_be(number.into()),
         block_meta_params: L1BatchMetaParameters {
             zkporter_is_available: ZKPORTER_IS_AVAILABLE,
@@ -69,6 +71,36 @@ pub(crate) fn create_l1_batch_metadata(number: u32) -> L1BatchMetadata {
         events_queue_commitment: Some(H256::zero()),
         bootloader_initial_content_commitment: Some(H256::zero()),
         state_diffs_compressed: vec![],
+    }
+}
+
+pub(crate) fn l1_batch_metadata_to_commitment_artifacts(
+    metadata: &L1BatchMetadata,
+) -> L1BatchCommitmentArtifacts {
+    L1BatchCommitmentArtifacts {
+        commitment_hash: L1BatchCommitmentHash {
+            pass_through_data: metadata.pass_through_data_hash,
+            aux_output: metadata.aux_data_hash,
+            meta_parameters: metadata.meta_parameters_hash,
+            commitment: metadata.commitment,
+        },
+        l2_l1_merkle_root: metadata.l2_l1_merkle_root,
+        compressed_state_diffs: Some(metadata.state_diffs_compressed.clone()),
+        compressed_initial_writes: metadata.initial_writes_compressed.clone(),
+        compressed_repeated_writes: metadata.repeated_writes_compressed.clone(),
+        zkporter_is_available: ZKPORTER_IS_AVAILABLE,
+        aux_commitments: match (
+            metadata.bootloader_initial_content_commitment,
+            metadata.events_queue_commitment,
+        ) {
+            (Some(bootloader_initial_content_commitment), Some(events_queue_commitment)) => {
+                Some(AuxCommitments {
+                    bootloader_initial_content_commitment,
+                    events_queue_commitment,
+                })
+            }
+            _ => None,
+        },
     }
 }
 

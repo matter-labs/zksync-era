@@ -12,8 +12,11 @@ use zksync_contracts::BaseSystemContracts;
 use zksync_dal::StorageProcessor;
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_types::{
-    block::{BlockGasCount, DeployedContract, L1BatchHeader, MiniblockHasher, MiniblockHeader},
-    commitment::{L1BatchCommitment, L1BatchMetadata},
+    block::{
+        BlockGasCount, DeployedContract, L1BatchHeader, L1BatchTreeData, MiniblockHasher,
+        MiniblockHeader,
+    },
+    commitment::{AuxCommitments, CommitmentCommonInput, CommitmentInput, L1BatchCommitment},
     fee_model::BatchFeeInput,
     get_code_key, get_system_context_init_logs,
     protocol_version::{L1VerifierConfig, ProtocolVersion},
@@ -101,24 +104,36 @@ pub async fn ensure_genesis_state(
     let genesis_root_hash = metadata.root_hash;
     let rollup_last_leaf_index = metadata.leaf_count + 1;
 
-    let block_commitment = L1BatchCommitment::new(
-        vec![],
+    let commitment_common_input = CommitmentCommonInput {
+        l2_to_l1_logs: Vec::new(),
         rollup_last_leaf_index,
-        genesis_root_hash,
-        vec![],
-        vec![],
-        base_system_contracts_hashes.bootloader,
-        base_system_contracts_hashes.default_aa,
-        vec![],
-        vec![],
-        H256::zero(),
-        H256::zero(),
-        *protocol_version,
-    );
+        rollup_root_hash: genesis_root_hash,
+        bootloader_code_hash: base_system_contracts_hashes.bootloader,
+        default_aa_code_hash: base_system_contracts_hashes.default_aa,
+        protocol_version: *protocol_version,
+    };
+    let commitment_input = if protocol_version.is_pre_boojum() {
+        CommitmentInput::PreBoojum {
+            common: commitment_common_input,
+            initial_writes: Vec::new(),
+            repeated_writes: Vec::new(),
+        }
+    } else {
+        CommitmentInput::PostBoojum {
+            common: commitment_common_input,
+            system_logs: Vec::new(),
+            state_diffs: Vec::new(),
+            aux_commitments: AuxCommitments {
+                events_queue_commitment: H256::zero(),
+                bootloader_initial_content_commitment: H256::zero(),
+            },
+        }
+    };
+    let block_commitment = L1BatchCommitment::new(commitment_input);
 
     save_genesis_l1_batch_metadata(
         &mut transaction,
-        &block_commitment,
+        block_commitment.clone(),
         genesis_root_hash,
         rollup_last_leaf_index,
     )
@@ -388,34 +403,33 @@ pub(crate) async fn add_eth_token(storage: &mut StorageProcessor<'_>) {
 
 pub(crate) async fn save_genesis_l1_batch_metadata(
     storage: &mut StorageProcessor<'_>,
-    commitment: &L1BatchCommitment,
+    commitment: L1BatchCommitment,
     genesis_root_hash: H256,
     rollup_last_leaf_index: u64,
 ) {
-    let commitment_hash = commitment.hash();
+    let mut transaction = storage.start_transaction().await.unwrap();
 
-    let metadata = L1BatchMetadata {
-        root_hash: genesis_root_hash,
+    let tree_data = L1BatchTreeData {
+        hash: genesis_root_hash,
         rollup_last_leaf_index,
-        merkle_root_hash: genesis_root_hash,
-        initial_writes_compressed: vec![],
-        repeated_writes_compressed: vec![],
-        commitment: commitment_hash.commitment,
-        l2_l1_messages_compressed: vec![],
-        l2_l1_merkle_root: Default::default(),
-        block_meta_params: commitment.meta_parameters(),
-        aux_data_hash: commitment_hash.aux_output,
-        meta_parameters_hash: commitment_hash.meta_parameters,
-        pass_through_data_hash: commitment_hash.pass_through_data,
-        events_queue_commitment: None,
-        bootloader_initial_content_commitment: None,
-        state_diffs_compressed: vec![],
     };
-    storage
+    transaction
         .blocks_dal()
-        .save_genesis_l1_batch_metadata(&metadata)
+        .save_l1_batch_tree_data(L1BatchNumber(0), &tree_data)
         .await
         .unwrap();
+
+    let mut commitment_artifacts = commitment.artifacts();
+    // `l2_l1_merkle_root` for genesis batch is set to 0 on L1 contract, same must be here.
+    commitment_artifacts.l2_l1_merkle_root = H256::zero();
+
+    transaction
+        .blocks_dal()
+        .save_l1_batch_commitment_artifacts(L1BatchNumber(0), &commitment_artifacts)
+        .await
+        .unwrap();
+
+    transaction.commit().await.unwrap();
 }
 
 #[cfg(test)]
