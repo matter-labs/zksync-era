@@ -122,7 +122,7 @@ pub(super) fn create_updates_manager() -> UpdatesManager {
     )
 }
 
-pub(super) fn create_transaction(fee_per_gas: u64, gas_per_pubdata: u32) -> Transaction {
+pub(super) fn create_transaction(fee_per_gas: u64, gas_per_pubdata: u64) -> Transaction {
     create_l2_transaction(fee_per_gas, gas_per_pubdata).into()
 }
 

@@ -177,7 +177,7 @@ pub(super) struct StateKeeper {
     batch_sealed: bool,
 
     fee_per_gas: u64,
-    gas_per_pubdata: u32,
+    gas_per_pubdata: u64,
 
     pub(super) actions_sender: ActionQueueSender,
     pub(super) pool: ConnectionPool,
