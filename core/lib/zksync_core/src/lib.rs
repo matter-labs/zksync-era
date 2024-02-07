@@ -1100,7 +1100,7 @@ async fn run_http_api<G: L1GasPriceProvider>(
     }
     namespaces.push(Namespace::Snapshots);
 
-    let last_miniblock_pool = ConnectionPool::singleton(postgres_config.replica_url()?)
+    let updaters_pool = ConnectionPool::singleton(postgres_config.replica_url()?)
         .build()
         .await
         .context("failed to build last_miniblock_pool")?;
@@ -1108,7 +1108,7 @@ async fn run_http_api<G: L1GasPriceProvider>(
     let api_builder =
         web3::ApiBuilder::jsonrpsee_backend(internal_api.clone(), replica_connection_pool)
             .http(api_config.web3_json_rpc.http_port)
-            .with_last_miniblock_pool(last_miniblock_pool)
+            .with_updaters_pool(updaters_pool)
             .with_filter_limit(api_config.web3_json_rpc.filters_limit())
             .with_tree_api(api_config.web3_json_rpc.tree_api_url())
             .with_batch_request_size_limit(api_config.web3_json_rpc.max_batch_request_size())
@@ -1152,7 +1152,7 @@ async fn run_ws_api<G: L1GasPriceProvider + Send + Sync + 'static>(
     let api_builder =
         web3::ApiBuilder::jsonrpsee_backend(internal_api.clone(), replica_connection_pool)
             .ws(api_config.web3_json_rpc.ws_port)
-            .with_last_miniblock_pool(last_miniblock_pool)
+            .with_updaters_pool(last_miniblock_pool)
             .with_filter_limit(api_config.web3_json_rpc.filters_limit())
             .with_subscriptions_limit(api_config.web3_json_rpc.subscriptions_limit())
             .with_batch_request_size_limit(api_config.web3_json_rpc.max_batch_request_size())

@@ -120,7 +120,7 @@ struct OptionalApiParams {
 #[derive(Debug)]
 struct FullApiParams {
     pool: ConnectionPool,
-    last_miniblock_pool: ConnectionPool,
+    updaters_pool: ConnectionPool,
     config: InternalApiConfig,
     transport: ApiTransport,
     tx_sender: TxSender,
@@ -133,7 +133,7 @@ struct FullApiParams {
 #[derive(Debug)]
 pub struct ApiBuilder {
     pool: ConnectionPool,
-    last_miniblock_pool: ConnectionPool,
+    updaters_pool: ConnectionPool,
     config: InternalApiConfig,
     polling_interval: Duration,
     // Mandatory params that must be set using builder methods.
@@ -151,7 +151,7 @@ impl ApiBuilder {
 
     pub fn jsonrpsee_backend(config: InternalApiConfig, pool: ConnectionPool) -> Self {
         Self {
-            last_miniblock_pool: pool.clone(),
+            updaters_pool: pool.clone(),
             pool,
             config,
             polling_interval: Self::DEFAULT_POLLING_INTERVAL,
@@ -173,11 +173,12 @@ impl ApiBuilder {
         self
     }
 
-    /// Configures a dedicated DB pool to be used for updating the latest miniblock information
+    /// Configures a dedicated DB pool to be used for updating different information,
+    /// such as last mined block number or account nonces. This pool is used to execute
     /// in a background task. If not called, the main pool will be used. If the API server is under high load,
     /// it may make sense to supply a single-connection pool to reduce pool contention with the API methods.
-    pub fn with_last_miniblock_pool(mut self, pool: ConnectionPool) -> Self {
-        self.last_miniblock_pool = pool;
+    pub fn with_updaters_pool(mut self, pool: ConnectionPool) -> Self {
+        self.updaters_pool = pool;
         self
     }
 
@@ -245,7 +246,7 @@ impl ApiBuilder {
     fn into_full_params(self) -> anyhow::Result<FullApiParams> {
         Ok(FullApiParams {
             pool: self.pool,
-            last_miniblock_pool: self.last_miniblock_pool,
+            updaters_pool: self.updaters_pool,
             config: self.config,
             transport: self.transport.context("API transport not set")?,
             tx_sender: self.tx_sender.context("Transaction sender not set")?,
@@ -276,10 +277,7 @@ impl FullApiParams {
         self,
         last_sealed_miniblock: SealedMiniblockNumber,
     ) -> anyhow::Result<RpcState> {
-        let mut storage = self
-            .last_miniblock_pool
-            .access_storage_tagged("api")
-            .await?;
+        let mut storage = self.updaters_pool.access_storage_tagged("api").await?;
         let start_info = BlockStartInfo::new(&mut storage).await?;
         drop(storage);
 
@@ -407,7 +405,7 @@ impl FullApiParams {
         let (health_check, health_updater) = ReactiveHealthCheck::new(health_check_name);
 
         let (last_sealed_miniblock, update_task) = SealedMiniblockNumber::new(
-            self.last_miniblock_pool.clone(),
+            self.updaters_pool.clone(),
             SEALED_MINIBLOCK_UPDATE_INTERVAL,
             stop_receiver.clone(),
         );
@@ -415,7 +413,7 @@ impl FullApiParams {
         let mut tasks = vec![tokio::spawn(update_task)];
         if let Some(tx_proxy) = &self.tx_sender.0.proxy {
             let task = tx_proxy
-                .run_account_nonce_sweeper(self.last_miniblock_pool.clone(), stop_receiver.clone());
+                .run_account_nonce_sweeper(self.updaters_pool.clone(), stop_receiver.clone());
             tasks.push(tokio::spawn(task));
         }
         let pub_sub = if matches!(transport, ApiTransport::WebSocket(_))
