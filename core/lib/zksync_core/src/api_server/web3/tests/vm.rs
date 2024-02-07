@@ -447,8 +447,8 @@ impl HttpTest for EstimateGasTest {
             let storage_log = SendRawTransactionTest::balance_storage_log();
             let mut storage = pool.access_storage().await?;
             storage
-                .storage_dal()
-                .apply_storage_logs(&[(H256::zero(), vec![storage_log])])
+                .storage_logs_dal()
+                .append_storage_logs(MiniblockNumber(0), &[(H256::zero(), vec![storage_log])])
                 .await;
         }
         let mut call_request = CallRequest::from(l2_transaction);
