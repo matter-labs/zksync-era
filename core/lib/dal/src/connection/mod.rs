@@ -1,4 +1,4 @@
-use std::{env, fmt, time::Duration};
+use std::{env, fmt, future::Future, panic::Location, time::Duration};
 
 use anyhow::Context as _;
 use sqlx::{
@@ -6,9 +6,11 @@ use sqlx::{
     postgres::{PgConnectOptions, PgPool, PgPoolOptions, Postgres},
 };
 
-use crate::{metrics::CONNECTION_METRICS, StorageProcessor};
+pub use self::processor::StorageProcessor;
+use self::processor::StorageProcessorTags;
+use crate::metrics::CONNECTION_METRICS;
 
-pub mod holder;
+mod processor;
 
 /// Builder for [`ConnectionPool`]s.
 #[derive(Clone)]
@@ -77,24 +79,7 @@ impl ConnectionPoolBuilder {
     }
 }
 
-#[derive(Clone)]
-pub struct ConnectionPool {
-    pub(crate) inner: PgPool,
-    database_url: String,
-    max_size: u32,
-}
-
-impl fmt::Debug for ConnectionPool {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // We don't print the `database_url`, as is may contain
-        // sensitive information (e.g. database password).
-        formatter
-            .debug_struct("ConnectionPool")
-            .field("max_size", &self.max_size)
-            .finish_non_exhaustive()
-    }
-}
-
+#[derive(Debug)]
 pub struct TestTemplate(url::Url);
 
 impl TestTemplate {
@@ -178,6 +163,24 @@ impl TestTemplate {
     }
 }
 
+#[derive(Clone)]
+pub struct ConnectionPool {
+    pub(crate) inner: PgPool,
+    database_url: String,
+    max_size: u32,
+}
+
+impl fmt::Debug for ConnectionPool {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // We don't print the `database_url`, as is may contain
+        // sensitive information (e.g. database password).
+        formatter
+            .debug_struct("ConnectionPool")
+            .field("max_size", &self.max_size)
+            .finish_non_exhaustive()
+    }
+}
+
 impl ConnectionPool {
     pub async fn test_pool() -> ConnectionPool {
         TestTemplate::empty().unwrap().create_db().await.unwrap()
@@ -222,16 +225,24 @@ impl ConnectionPool {
     ///
     /// WARN: This method should not be used if it will result in too many time series (e.g.
     /// from witness generators or provers), otherwise Prometheus won't be able to handle it.
-    pub async fn access_storage_tagged(
+    #[track_caller] // In order to use it, we have to desugar `async fn`
+    pub fn access_storage_tagged(
         &self,
         requester: &'static str,
-    ) -> anyhow::Result<StorageProcessor<'_>> {
-        self.access_storage_inner(Some(requester)).await
+    ) -> impl Future<Output = anyhow::Result<StorageProcessor<'_>>> + '_ {
+        let location = Location::caller();
+        async move {
+            let tags = StorageProcessorTags {
+                requester,
+                location,
+            };
+            self.access_storage_inner(Some(tags)).await
+        }
     }
 
     async fn access_storage_inner(
         &self,
-        requester: Option<&'static str>,
+        tags: Option<StorageProcessorTags>,
     ) -> anyhow::Result<StorageProcessor<'_>> {
         let acquire_latency = CONNECTION_METRICS.acquire.start();
         let conn = self
@@ -239,10 +250,10 @@ impl ConnectionPool {
             .await
             .context("acquire_connection_retried()")?;
         let elapsed = acquire_latency.observe();
-        if let Some(requester) = requester {
-            CONNECTION_METRICS.acquire_tagged[&requester].observe(elapsed);
+        if let Some(tags) = &tags {
+            CONNECTION_METRICS.acquire_tagged[&tags.requester].observe(elapsed);
         }
-        Ok(StorageProcessor::from_pool(conn))
+        Ok(StorageProcessor::from_pool(conn, tags))
     }
 
     async fn acquire_connection_retried(&self) -> anyhow::Result<PoolConnection<Postgres>> {
