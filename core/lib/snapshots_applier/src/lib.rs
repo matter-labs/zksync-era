@@ -203,15 +203,22 @@ impl<'a> SnapshotsApplier<'a> {
             .fetch_l2_block(miniblock_number)
             .await?
             .with_context(|| format!("miniblock #{miniblock_number} is missing on main node"))?;
-        let miniblock_root_hash = miniblock
+        let miniblock_hash = miniblock
             .hash
             .context("snapshot miniblock fetched from main node doesn't have hash set")?;
 
         Ok(SnapshotRecoveryStatus {
             l1_batch_number,
+            l1_batch_timestamp: snapshot.last_l1_batch_with_metadata.header.timestamp,
             l1_batch_root_hash: snapshot.last_l1_batch_with_metadata.metadata.root_hash,
             miniblock_number: snapshot.miniblock_number,
-            miniblock_root_hash,
+            miniblock_timestamp: miniblock.timestamp,
+            miniblock_hash,
+            protocol_version: snapshot
+                .last_l1_batch_with_metadata
+                .header
+                .protocol_version
+                .unwrap(),
             storage_logs_chunks_processed: vec![false; snapshot.storage_logs_chunks.len()],
         })
     }

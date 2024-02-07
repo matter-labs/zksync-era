@@ -315,12 +315,13 @@ impl StorageWeb3Dal<'_, '_> {
 
 #[cfg(test)]
 mod tests {
-    use zksync_types::{
-        block::L1BatchHeader, snapshots::SnapshotRecoveryStatus, ProtocolVersion, ProtocolVersionId,
-    };
+    use zksync_types::{block::L1BatchHeader, ProtocolVersion, ProtocolVersionId};
 
     use super::*;
-    use crate::{tests::create_miniblock_header, ConnectionPool};
+    use crate::{
+        tests::{create_miniblock_header, create_snapshot_recovery},
+        ConnectionPool,
+    };
 
     #[tokio::test]
     async fn resolving_l1_batch_number_of_miniblock() {
@@ -396,13 +397,7 @@ mod tests {
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
-        let snapshot_recovery = SnapshotRecoveryStatus {
-            l1_batch_number: L1BatchNumber(23),
-            l1_batch_root_hash: H256::zero(),
-            miniblock_number: MiniblockNumber(42),
-            miniblock_root_hash: H256::zero(),
-            storage_logs_chunks_processed: vec![true; 100],
-        };
+        let snapshot_recovery = create_snapshot_recovery();
         conn.snapshot_recovery_dal()
             .insert_initial_recovery_status(&snapshot_recovery)
             .await
