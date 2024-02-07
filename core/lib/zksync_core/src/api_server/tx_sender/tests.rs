@@ -1,6 +1,6 @@
 //! Tests for the transaction sender.
 
-use zksync_types::{get_nonce_key, StorageLog};
+use zksync_types::{get_nonce_key, L1BatchNumber, StorageLog};
 
 use super::*;
 use crate::{
@@ -89,7 +89,7 @@ async fn getting_nonce_for_account() {
 
 #[tokio::test]
 async fn getting_nonce_for_account_after_snapshot_recovery() {
-    const SNAPSHOT_MINIBLOCK_NUMBER: u32 = 42;
+    const SNAPSHOT_MINIBLOCK_NUMBER: MiniblockNumber = MiniblockNumber(42);
 
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
@@ -99,7 +99,13 @@ async fn getting_nonce_for_account_after_snapshot_recovery() {
         StorageLog::new_write_log(get_nonce_key(&test_address), H256::from_low_u64_be(123)),
         StorageLog::new_write_log(get_nonce_key(&other_address), H256::from_low_u64_be(25)),
     ];
-    prepare_recovery_snapshot(&mut storage, SNAPSHOT_MINIBLOCK_NUMBER, &nonce_logs).await;
+    prepare_recovery_snapshot(
+        &mut storage,
+        L1BatchNumber(23),
+        SNAPSHOT_MINIBLOCK_NUMBER,
+        &nonce_logs,
+    )
+    .await;
 
     let l2_chain_id = L2ChainId::default();
     let tx_executor = MockTransactionExecutor::default().into();
@@ -115,7 +121,7 @@ async fn getting_nonce_for_account_after_snapshot_recovery() {
 
     storage
         .blocks_dal()
-        .insert_miniblock(&create_miniblock(SNAPSHOT_MINIBLOCK_NUMBER + 1))
+        .insert_miniblock(&create_miniblock(SNAPSHOT_MINIBLOCK_NUMBER.0 + 1))
         .await
         .unwrap();
     let new_nonce_logs = vec![StorageLog::new_write_log(
@@ -125,7 +131,7 @@ async fn getting_nonce_for_account_after_snapshot_recovery() {
     storage
         .storage_logs_dal()
         .insert_storage_logs(
-            MiniblockNumber(SNAPSHOT_MINIBLOCK_NUMBER + 1),
+            SNAPSHOT_MINIBLOCK_NUMBER + 1,
             &[(H256::default(), new_nonce_logs)],
         )
         .await;

@@ -9,7 +9,6 @@ use multivm::{
     interface::{FinishedL1Batch, L1BatchEnv},
     utils::get_max_gas_per_pubdata_byte,
 };
-use vm_utils::storage::wait_for_prev_l1_batch_params;
 use zksync_dal::StorageProcessor;
 use zksync_types::{
     block::{unpack_block_info, L1BatchHeader, MiniblockHeader},
@@ -34,20 +33,20 @@ use zksync_utils::{h256_to_u256, time::millis_since_epoch, u256_to_h256};
 use crate::{
     metrics::{BlockStage, MiniblockStage, APP_METRICS},
     state_keeper::{
-        extractors,
         metrics::{
             L1BatchSealStage, MiniblockSealStage, KEEPER_METRICS, L1_BATCH_METRICS,
             MINIBLOCK_METRICS,
         },
         types::ExecutionMetricsForCriteria,
-        updates::{MiniblockSealCommand, UpdatesManager},
+        updates::{MiniblockSealCommand, MiniblockUpdates, UpdatesManager},
     },
 };
 
 impl UpdatesManager {
     /// Persists an L1 batch in the storage.
     /// This action includes a creation of an empty "fictive" miniblock that contains
-    /// the events generated during the bootloader "tip phase".
+    /// the events generated during the bootloader "tip phase". Returns updates for this fictive miniblock.
+    #[must_use = "fictive miniblock must be used to update I/O params"]
     pub(crate) async fn seal_l1_batch(
         mut self,
         storage: &mut StorageProcessor<'_>,
@@ -55,7 +54,7 @@ impl UpdatesManager {
         l1_batch_env: &L1BatchEnv,
         finished_batch: FinishedL1Batch,
         l2_erc20_bridge_addr: Address,
-    ) {
+    ) -> MiniblockUpdates {
         let started_at = Instant::now();
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::VmFinalization);
         let mut transaction = storage.start_transaction().await.unwrap();
@@ -116,20 +115,8 @@ impl UpdatesManager {
         );
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::InsertL1BatchHeader);
-        let (_prev_hash, prev_timestamp) =
-            wait_for_prev_l1_batch_params(&mut transaction, l1_batch_env.number).await;
-        assert!(
-            prev_timestamp < l1_batch_env.timestamp,
-            "Cannot seal L1 batch #{}: Timestamp of previous L1 batch ({}) >= provisional L1 batch timestamp ({}), \
-             meaning that L1 batch will be rejected by the bootloader",
-            l1_batch_env.number,
-            extractors::display_timestamp(prev_timestamp),
-            extractors::display_timestamp(l1_batch_env.timestamp)
-        );
-
         let l2_to_l1_messages =
             extract_long_l2_to_l1_messages(&finished_batch.final_execution_state.events);
-
         let l1_batch = L1BatchHeader {
             number: l1_batch_env.number,
             timestamp: l1_batch_env.timestamp,
@@ -247,6 +234,7 @@ impl UpdatesManager {
             l1_batch_env.timestamp,
             &writes_metrics,
         );
+        miniblock_command.miniblock
     }
 
     fn report_l1_batch_metrics(
