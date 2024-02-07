@@ -8766,7 +8766,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "zksync_node"
+name = "zksync_node_framework"
 version = "0.1.0"
 dependencies = [
  "anyhow",

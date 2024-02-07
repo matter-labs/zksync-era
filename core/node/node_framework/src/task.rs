@@ -1,36 +1,16 @@
 //! Tasks define the "runnable" concept of the node, e.g. something that can be launched and runs until the node
 //! is stopped.
-//!
-//! Task is normally defined by two types, one implementing two traits [`IntoZkSyncTask`], which acts like a
-//! constructor, and another one, which implements [`ZkSyncTask`], providing an interface for `ZkSyncNode` to
-//! implement the task lifecycle.
 
 use futures::future::BoxFuture;
 
-use crate::{
-    node::{NodeContext, StopReceiver},
-    resource::ResourceId,
-};
-
-/// Factory that can create a task.
-#[async_trait::async_trait]
-pub trait IntoZkSyncTask: 'static + Send + Sync {
-    /// Unique name of the task.
-    fn task_name(&self) -> &'static str;
-
-    /// Creates a new task.
-    ///
-    /// `NodeContext` provides an interface to the utilities that task may need, e.g. ability to get resources
-    /// or spawn additional tasks.
-    async fn create(
-        self: Box<Self>,
-        node: NodeContext<'_>,
-    ) -> Result<Box<dyn ZkSyncTask>, TaskInitError>;
-}
+use crate::service::StopReceiver;
 
 /// A task implementation.
 #[async_trait::async_trait]
-pub trait ZkSyncTask: 'static + Send + Sync {
+pub trait Task: 'static + Send + Sync {
+    /// Unique name of the task.
+    fn name(&self) -> &'static str;
+
     /// Runs the task.
     ///
     /// Once any of the task returns, the node will shutdown.
@@ -45,7 +25,7 @@ pub trait ZkSyncTask: 'static + Send + Sync {
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()>;
 
     /// Asynchronous hook that will be called after *each task* has finished their cleanup.
-    /// It is guaranteed that no other task is running at this point, e.g. `ZkSyncNode` will invoke
+    /// It is guaranteed that no other task is running at this point, e.g. `ZkStackService` will invoke
     /// this hook sequentially for each task.
     ///
     /// This hook can be used to perform some cleanup that assumes exclusive access to the resources, e.g.
@@ -57,14 +37,4 @@ pub trait ZkSyncTask: 'static + Send + Sync {
     fn after_node_shutdown(&self) -> Option<BoxFuture<'static, ()>> {
         None
     }
-}
-
-/// An error that can occur during the task initialization.
-#[derive(thiserror::Error, Debug)]
-#[non_exhaustive]
-pub enum TaskInitError {
-    #[error("Resource {0} is not provided")]
-    ResourceLacking(ResourceId),
-    #[error(transparent)]
-    Internal(#[from] anyhow::Error),
 }

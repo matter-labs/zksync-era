@@ -3,18 +3,26 @@ use zksync_dal::ConnectionPool;
 use zksync_storage::RocksDB;
 
 use crate::{
-    implementations::resource::{
+    implementations::resources::{
         healthcheck::HealthCheckResource, object_store::ObjectStoreResource,
         pools::MasterPoolResource,
     },
-    node::{NodeContext, StopReceiver},
     resource::{Resource, ResourceCollection},
-    task::{IntoZkSyncTask, TaskInitError, ZkSyncTask},
+    service::{ServiceContext, StopReceiver},
+    task::Task,
+    wiring_layer::{WiringError, WiringLayer},
 };
 
 /// Builder for a metadata calculator.
+///
+/// ## Effects
+///
+/// - Resolves `MasterPoolResource`.
+/// - Resolves `ObjectStoreResource` (optional).
+/// - Adds `tree_health_check` to the `ResourceCollection<HealthCheckResource>`.
+/// - Adds `metadata_calculator` to the node.
 #[derive(Debug)]
-pub struct MetadataCalculatorTaskBuilder(pub MetadataCalculatorConfig);
+pub struct MetadataCalculatorLayer(pub MetadataCalculatorConfig);
 
 #[derive(Debug)]
 pub struct MetadataCalculatorTask {
@@ -23,18 +31,18 @@ pub struct MetadataCalculatorTask {
 }
 
 #[async_trait::async_trait]
-impl IntoZkSyncTask for MetadataCalculatorTaskBuilder {
-    fn task_name(&self) -> &'static str {
-        "metadata_calculator"
+impl WiringLayer for MetadataCalculatorLayer {
+    fn layer_name(&self) -> &'static str {
+        "metadata_calculator_layer"
     }
 
-    async fn create(
-        self: Box<Self>,
-        mut node: NodeContext<'_>,
-    ) -> Result<Box<dyn ZkSyncTask>, TaskInitError> {
-        let pool = node.get_resource::<MasterPoolResource>().await.ok_or(
-            TaskInitError::ResourceLacking(MasterPoolResource::resource_id()),
-        )?;
+    async fn wire(self: Box<Self>, mut node: ServiceContext<'_>) -> Result<(), WiringError> {
+        let pool =
+            node.get_resource::<MasterPoolResource>()
+                .await
+                .ok_or(WiringError::ResourceLacking(
+                    MasterPoolResource::resource_id(),
+                ))?;
         let main_pool = pool.get().await.unwrap();
         let object_store = node.get_resource::<ObjectStoreResource>().await; // OK to be None.
 
@@ -56,15 +64,21 @@ impl IntoZkSyncTask for MetadataCalculatorTaskBuilder {
             ))
             .expect("Wiring stage");
 
-        Ok(Box::new(MetadataCalculatorTask {
+        let task = Box::new(MetadataCalculatorTask {
             metadata_calculator,
             main_pool,
-        }))
+        });
+        node.add_task(task);
+        Ok(())
     }
 }
 
 #[async_trait::async_trait]
-impl ZkSyncTask for MetadataCalculatorTask {
+impl Task for MetadataCalculatorTask {
+    fn name(&self) -> &'static str {
+        "metadata_calculator"
+    }
+
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
         let result = self
             .metadata_calculator

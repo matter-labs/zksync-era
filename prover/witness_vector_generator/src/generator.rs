@@ -154,7 +154,7 @@ impl JobProcessor for WitnessVectorGenerator {
             if let Some(address) = prover {
                 let address = SocketAddr::from(address);
                 tracing::info!(
-                    "Found prover after {:?}. Sending witness vector job...",
+                    "Found prover at address {address:?} after {:?}. Sending witness vector job...",
                     now.elapsed()
                 );
                 let result = send_assembly(job_id, &serialized, &address);

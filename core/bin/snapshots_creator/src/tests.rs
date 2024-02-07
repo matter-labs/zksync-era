@@ -197,7 +197,7 @@ async fn prepare_postgres(
         create_miniblock(conn, MiniblockNumber(block_number), logs.clone()).await;
 
         let factory_deps = gen_factory_deps(rng, 10);
-        conn.storage_dal()
+        conn.factory_deps_dal()
             .insert_factory_deps(MiniblockNumber(block_number), &factory_deps)
             .await
             .unwrap();
