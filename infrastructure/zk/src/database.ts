@@ -26,14 +26,14 @@ function getDals(opts: any): Map<string, string> {
 function getTestDals(opts: any): Map<string, string> {
     let dals = new Map<string, string>();
     if (!opts.prover && !opts.server) {
-        dals.set('core/lib/dal', process.env.DATABASE_TEST_URL!);
-        dals.set('prover/prover_dal', process.env.DATABASE_PROVER_URL!);
+        dals.set('core/lib/dal', process.env.TEST_DATABASE_URL!);
+        dals.set('prover/prover_dal', process.env.TEST_DATABASE_PROVER_URL!);
     }
     if (opts.prover) {
-        dals.set('prover/prover_dal', process.env.DATABASE_PROVER_TEST_URL!);
+        dals.set('prover/prover_dal', process.env.TEST_DATABASE_PROVER_URL!);
     }
     if (opts.server) {
-        dals.set('core/lib/dal', process.env.DATABASE_TEST_URL!);
+        dals.set('core/lib/dal', process.env.TEST_DATABASE_URL!);
     }
     return dals;
 }
@@ -114,7 +114,7 @@ export async function setupForDal(dalPath: string, dalDb: string) {
     await utils.spawn(`cargo sqlx database create --database-url ${dalDb}`);
     await utils.spawn(`cargo sqlx migrate run --database-url ${dalDb}`);
     if (dalDb.startsWith(localDbUrl)) {
-        await utils.spawn(`cargo sqlx prepare --check -- --tests || cargo sqlx prepare -- --tests`);
+        await utils.spawn(`cargo sqlx prepare --check --database-url ${dalDb} -- --tests || cargo sqlx prepare --database-url ${dalDb} -- --tests`);
     }
 
     process.chdir(process.env.ZKSYNC_HOME as string);
@@ -146,7 +146,7 @@ export async function wait(opts: any, tries: number = 4) {
 
 async function checkSqlxDataForDal(dalPath: string, dalDb: string) {
     process.chdir(dalPath);
-    await utils.spawn(`cargo sqlx prepare --check -- --tests`);
+    await utils.spawn(`cargo sqlx prepare --check --database-url ${dalDb} -- --tests`);
     process.chdir(process.env.ZKSYNC_HOME as string);
 }
 
