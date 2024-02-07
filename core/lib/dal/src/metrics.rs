@@ -91,7 +91,7 @@ pub(crate) struct ConnectionMetrics {
     pub pool_acquire_error: Family<ConnectionErrorKind, Counter>,
     /// Lifetime of a DB connection, tagged with the requester label.
     #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds, labels = ["requester"])]
-    pub connection_lifetime: LabeledFamily<&'static str, Histogram<Duration>>,
+    pub lifetime: LabeledFamily<&'static str, Histogram<Duration>>,
 }
 
 #[vise::register]

@@ -109,14 +109,14 @@ impl Drop for PooledStorageProcessor<'_> {
         const LONG_CONNECTION_THRESHOLD: Duration = Duration::from_secs(5);
 
         if let Some(tags) = &self.tags {
-            let connection_duration = self.created_at.elapsed();
-            CONNECTION_METRICS.connection_lifetime[&tags.requester].observe(connection_duration);
+            let lifetime = self.created_at.elapsed();
+            CONNECTION_METRICS.lifetime[&tags.requester].observe(lifetime);
 
-            if connection_duration > LONG_CONNECTION_THRESHOLD {
+            if lifetime > LONG_CONNECTION_THRESHOLD {
                 let file = tags.location.file();
                 let line = tags.location.line();
                 tracing::info!(
-                    "Long-living connection for `{}` created at {file}:{line}: {connection_duration:?}",
+                    "Long-living connection for `{}` created at {file}:{line}: {lifetime:?}",
                     tags.requester
                 );
             }

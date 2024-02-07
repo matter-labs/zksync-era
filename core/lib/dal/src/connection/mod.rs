@@ -34,7 +34,8 @@ impl fmt::Debug for ConnectionPoolBuilder {
 }
 
 impl ConnectionPoolBuilder {
-    // TODO: replace with *total* acquire timeout?
+    /// Sets the acquire timeout for a single connection attempt. There are multiple attempts (currently 3)
+    /// before `access_storage*` methods return an error.
     pub fn set_acquire_timeout(&mut self, timeout: Duration) -> &mut Self {
         self.acquire_timeout = timeout;
         self
@@ -66,12 +67,7 @@ impl ConnectionPoolBuilder {
             .connect_with(connect_options)
             .await
             .context("Failed connecting to database")?;
-        tracing::info!(
-            "Created pool with {max_connections} max connections \
-             and {statement_timeout:?} statement timeout",
-            max_connections = self.max_size,
-            statement_timeout = self.statement_timeout
-        );
+        tracing::info!("Created DB pool with parameters {self:?}");
         Ok(ConnectionPool {
             database_url: self.database_url.clone(),
             inner: pool,
