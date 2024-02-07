@@ -74,7 +74,9 @@ export async function drop(opts: any) {
 
 async function migrateForDal(dalPath: string, dalDb: string) {
     console.log(`Running migrations for ${dalPath}...`);
-    await utils.spawn(`cd ${dalPath} && cargo sqlx database create --database-url ${dalDb} && cargo sqlx migrate run --database-url ${dalDb}`);
+    await utils.spawn(
+        `cd ${dalPath} && cargo sqlx database create --database-url ${dalDb} && cargo sqlx migrate run --database-url ${dalDb}`
+    );
 }
 
 export async function migrate(opts: any) {
@@ -161,9 +163,39 @@ export const command = new Command('db').description('database management');
 
 command.command('drop').description('drop the database').option('-p, --prover').option('-s, --server').action(drop);
 command.command('migrate').description('run migrations').option('-p, --prover').option('-s, --server').action(migrate);
-command.command('new-migration <name>').description('generate a new migration').option('-p, --prover').option('-s, --server').action(generateMigration);
-command.command('setup').description('initialize the database and perform migrations').option('-p, --prover').option('-s, --server').action(setup);
-command.command('wait').description('wait for database to get ready for interaction').option('-p, --prover').option('-s, --server').action(wait);
-command.command('reset').description('reinitialize the database').option('-p, --prover').option('-s, --server').action(reset);
-command.command('reset-test').description('reinitialize the database for test').option('-p, --prover').option('-s, --server').action(resetTest);
-command.command('check-sqlx-data').description('check sqlx-data.json is up to date').option('-p, --prover').option('-s, --server').action(checkSqlxData);
+command
+    .command('new-migration <name>')
+    .description('generate a new migration')
+    .option('-p, --prover')
+    .option('-s, --server')
+    .action(generateMigration);
+command
+    .command('setup')
+    .description('initialize the database and perform migrations')
+    .option('-p, --prover')
+    .option('-s, --server')
+    .action(setup);
+command
+    .command('wait')
+    .description('wait for database to get ready for interaction')
+    .option('-p, --prover')
+    .option('-s, --server')
+    .action(wait);
+command
+    .command('reset')
+    .description('reinitialize the database')
+    .option('-p, --prover')
+    .option('-s, --server')
+    .action(reset);
+command
+    .command('reset-test')
+    .description('reinitialize the database for test')
+    .option('-p, --prover')
+    .option('-s, --server')
+    .action(resetTest);
+command
+    .command('check-sqlx-data')
+    .description('check sqlx-data.json is up to date')
+    .option('-p, --prover')
+    .option('-s, --server')
+    .action(checkSqlxData);
