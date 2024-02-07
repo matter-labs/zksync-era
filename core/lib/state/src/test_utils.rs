@@ -6,8 +6,8 @@ use zksync_dal::StorageProcessor;
 use zksync_types::{
     block::{L1BatchHeader, MiniblockHeader},
     snapshots::SnapshotRecoveryStatus,
-    AccountTreeId, Address, L1BatchNumber, MiniblockNumber, ProtocolVersion, StorageKey,
-    StorageLog, H256,
+    AccountTreeId, Address, L1BatchNumber, MiniblockNumber, ProtocolVersion, ProtocolVersionId,
+    StorageKey, StorageLog, H256,
 };
 
 pub(crate) async fn prepare_postgres(conn: &mut StorageProcessor<'_>) {
@@ -129,9 +129,12 @@ pub(crate) async fn prepare_postgres_for_snapshot_recovery(
 
     let snapshot_recovery = SnapshotRecoveryStatus {
         l1_batch_number: L1BatchNumber(23),
+        l1_batch_timestamp: 23,
         l1_batch_root_hash: H256::zero(), // not used
         miniblock_number: MiniblockNumber(42),
-        miniblock_root_hash: H256::zero(), // not used
+        miniblock_timestamp: 42,
+        miniblock_hash: H256::zero(), // not used
+        protocol_version: ProtocolVersionId::latest(),
         storage_logs_chunks_processed: vec![true; 100],
     };
     conn.snapshot_recovery_dal()
