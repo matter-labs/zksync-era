@@ -11,7 +11,8 @@
         "contract-verification-test": "zk f jest -- api/contract-verification.test.ts",
         "build": "hardhat compile",
         "build-yul": "hardhat run scripts/compile-yul.ts",
-        "snapshots-creator-test": "zk f jest -- api/snapshots-creator.test.ts"
+        "snapshots-creator-test": "zk f jest -- api/snapshots-creator.test.ts",
+        "isolated-binaries-test": "zk f jest -- isolated-binaries.test.ts"
     },
     "devDependencies": {
         "@matterlabs/hardhat-zksync-deploy": "^0.6.1",

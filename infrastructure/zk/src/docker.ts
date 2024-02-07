@@ -16,7 +16,8 @@ const IMAGES = [
     'witness-vector-generator',
     'prover-fri-gateway',
     'proof-fri-compressor',
-    'snapshots-creator'
+    'snapshots-creator',
+    'integration-test-rust-binaries-runner'
 ];
 
 const DOCKER_REGISTRIES = ['us-docker.pkg.dev/matterlabs-infra/matterlabs-docker', 'matterlabs'];
@@ -79,7 +80,8 @@ function defaultTagList(image: string, imageTagSha: string, imageTagShaTS: strin
         'witness-vector-generator',
         'prover-fri-gateway',
         'proof-fri-compressor',
-        'snapshots-creator'
+        'snapshots-creator',
+        'integration-test-rust-binaries-runner'
     ].includes(image)
         ? ['latest', 'latest2.0', `2.0-${imageTagSha}`, `${imageTagSha}`, `2.0-${imageTagShaTS}`, `${imageTagShaTS}`]
         : [`latest2.0`, 'latest'];

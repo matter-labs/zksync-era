@@ -6,6 +6,7 @@ import fs from 'fs';
 import { unloadInit } from './env';
 import * as path from 'path';
 import * as db from './database';
+import { ChildProcess } from 'child_process';
 
 export async function server(rebuildTree: boolean, uring: boolean, components?: string) {
     let options = '';
@@ -52,6 +53,81 @@ export async function externalNode(reinit: boolean = false, enableConsensus: boo
     await utils.spawn(`cargo run --release --bin zksync_external_node -- ${options}`);
 }
 
+export class IsolatedExternalNode {
+    public readonly process: ChildProcess;
+
+    public constructor(process: ChildProcess) {
+        this.process = process;
+    }
+}
+
+// For some class of tests (for instance for testing snapshots creator) we need to be able to spawn fresh isolated instances of EN node
+// It spawns fresh EN instance running in a fresh docker containers based on integration-test-rust-binaries-runner image
+// and spawns fresh Database instances.
+// Both the images and the databases are then automatically removed when the context is torn down
+export async function isolatedExternalNode() {
+    const randomSuffix = Math.floor(Math.random() * 1000000)
+        .toString()
+        .padStart(6, '0');
+    const instanceName = `zksync_ext_node_${randomSuffix}`;
+    fs.writeFileSync(path.join(process.env.ZKSYNC_HOME as string, 'instances_to_clean'), instanceName + '\n', {
+        flag: 'a+'
+    });
+
+    const binaryPath = '/usr/bin/zksync_external_node';
+    let dockerEnv = ` --env "INTEGRATION_TEST_NODE_BINARY_PATH=${binaryPath}" `;
+    const extNodeEnv = env.getEnvVariables('ext-node');
+    const dbUrl = await db.setupIsolatedDatabase(instanceName);
+    for (const envVar in extNodeEnv) {
+        let envVarValue = extNodeEnv[envVar];
+        if (envVar === 'DATABASE_URL') {
+            envVarValue = dbUrl;
+        }
+        envVarValue = envVarValue.replace('@postgres', '@host.docker.internal');
+        envVarValue = envVarValue.replace('localhost', 'host.docker.internal');
+        envVarValue = envVarValue.replace('127.0.0.1', 'host.docker.internal');
+        dockerEnv += ` --env "${envVar}=${envVarValue}" `;
+    }
+    const artifactsHostDirectory = path.join(process.env.ZKSYNC_HOME as string, 'artifacts');
+    const dockerVolumes = ` -v ${artifactsHostDirectory}:/usr/src/zksync/artifacts `;
+    //http_port = 3060, ws_port = 3061, healthcheck_port = 3081, prometheus_port = 3322
+    const publishedPorts = '-p 3060:3060 -p 3061:3061 -p 3081:3081 -p 3322:3322';
+    const networkingFlags = '--add-host=host.docker.internal:host-gateway';
+    const nameFlag = `--name ${instanceName}`;
+    const allFlags = `${networkingFlags} ${publishedPorts} ${dockerVolumes} ${dockerEnv} ${nameFlag}`;
+    const cmd = `docker container run -d ${allFlags} matterlabs/integration-test-rust-binaries-runner`;
+    const enProcess = utils.background(cmd);
+
+    let startTime = new Date();
+    while (true) {
+        if (new Date().getTime() - startTime.getTime() > 60 * 1000) {
+            await utils.spawn(`docker logs ${instanceName}`);
+            throw new Error('Timeout waiting for EN to start');
+        }
+        try {
+            const healthcheckPort = extNodeEnv['EN_HEALTHCHECK_PORT'];
+            // for some reason we use host instead of host.docker.internal in our docker compose files
+            const instanceIp = process.env.IN_DOCKER ? 'host' : 'localhost';
+            const healthcheckUrl = `http://${instanceIp}:${healthcheckPort}/health`;
+            const response = await fetch(healthcheckUrl);
+            const json = await response.json();
+            if (json['status'] == 'ready') {
+                break;
+            }
+        } catch (err) {
+            await utils.sleep(0.1);
+            const { stdout: status } = await utils.exec(
+                `docker container inspect ${instanceName} --format={{.State.Status}}`
+            );
+            if (status.trim() == 'exited') {
+                await utils.spawn(`docker logs ${instanceName}`);
+                throw new Error('EN instance exited before reporting to be ready');
+            }
+        }
+    }
+    console.log(`EN instance ready after ${new Date().getTime() - startTime.getTime()}ms`);
+    return new IsolatedExternalNode(enProcess);
+}
 async function create_genesis(cmd: string) {
     await utils.confirmAction();
     await utils.spawn(`${cmd} | tee genesis.log`);

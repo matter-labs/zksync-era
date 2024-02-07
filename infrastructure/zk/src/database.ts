@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import * as utils from './utils';
+import path from 'path';
 
 export async function reset() {
     await utils.confirmAction();
@@ -41,6 +42,19 @@ export async function generateMigration(name: String) {
     await utils.exec(`cargo sqlx migrate add -r ${name}`);
 
     process.chdir(process.env.ZKSYNC_HOME as string);
+}
+
+export function isolatedDatabaseUrl(instanceName: string) {
+    return `${process.env.DATABASE_URL}_isolated_${instanceName}`;
+}
+
+export async function setupIsolatedDatabase(instanceName: string) {
+    const databaseUrl = isolatedDatabaseUrl(instanceName);
+    const migrationsDirectory = path.join(process.env.ZKSYNC_HOME as string, 'core/lib/dal/migrations');
+
+    await utils.exec(`cargo sqlx database create --database-url ${databaseUrl}`);
+    await utils.exec(`cargo sqlx migrate run --database-url ${databaseUrl} --source ${migrationsDirectory} `);
+    return databaseUrl;
 }
 
 export async function setup() {
