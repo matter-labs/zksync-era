@@ -12,7 +12,7 @@ use super::*;
 use crate::{
     genesis::{ensure_genesis_state, GenesisParams},
     sync_layer::metrics::L1BatchStage,
-    utils::testonly::{create_l1_batch, create_miniblock, prepare_empty_recovery_snapshot},
+    utils::testonly::{create_l1_batch, create_miniblock, prepare_recovery_snapshot},
 };
 
 async fn seal_l1_batch(storage: &mut StorageProcessor<'_>, number: L1BatchNumber) {
@@ -261,7 +261,7 @@ async fn updater_cursor_for_storage_with_genesis_block() {
 async fn updater_cursor_after_snapshot_recovery() {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
-    prepare_empty_recovery_snapshot(&mut storage, 23).await;
+    prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await;
 
     let cursor = UpdaterCursor::new(&mut storage).await.unwrap();
     assert_eq!(cursor.last_committed_l1_batch, L1BatchNumber(23));
@@ -275,7 +275,7 @@ async fn normal_updater_operation(snapshot_recovery: bool, async_batches: bool) 
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
     let first_batch_number = if snapshot_recovery {
-        prepare_empty_recovery_snapshot(&mut storage, 23).await;
+        prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await;
         L1BatchNumber(24)
     } else {
         ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
@@ -347,7 +347,7 @@ async fn updater_with_gradual_main_node_updates(snapshot_recovery: bool) {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
     let first_batch_number = if snapshot_recovery {
-        prepare_empty_recovery_snapshot(&mut storage, 23).await;
+        prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await;
         L1BatchNumber(24)
     } else {
         ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())

@@ -98,8 +98,13 @@ async fn wait_for_notifier_miniblock(
 async fn notifiers_start_after_snapshot_recovery() {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
-    prepare_empty_recovery_snapshot(&mut storage, StorageInitialization::SNAPSHOT_RECOVERY_BLOCK)
-        .await;
+    prepare_recovery_snapshot(
+        &mut storage,
+        StorageInitialization::SNAPSHOT_RECOVERY_BATCH,
+        StorageInitialization::SNAPSHOT_RECOVERY_BLOCK,
+        &[],
+    )
+    .await;
 
     let (stop_sender, stop_receiver) = watch::channel(false);
     let (events_sender, mut events_receiver) = mpsc::unbounded_channel();
@@ -116,7 +121,7 @@ async fn notifiers_start_after_snapshot_recovery() {
     }
 
     // Emulate creating the first miniblock; check that notifiers react to it.
-    let first_local_miniblock = MiniblockNumber(StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1);
+    let first_local_miniblock = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
     store_miniblock(&mut storage, first_local_miniblock, &[])
         .await
         .unwrap();
@@ -261,11 +266,11 @@ impl WsTest for BasicSubscriptionsTest {
         let mut storage = pool.access_storage().await?;
         let tx_result = execute_l2_transaction(create_l2_transaction(1, 2));
         let new_tx_hash = tx_result.hash;
-        let miniblock_number = MiniblockNumber(if self.snapshot_recovery {
+        let miniblock_number = if self.snapshot_recovery {
             StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1
         } else {
-            1
-        });
+            MiniblockNumber(1)
+        };
         let new_miniblock = store_miniblock(&mut storage, miniblock_number, &[tx_result]).await?;
         drop(storage);
 
@@ -385,7 +390,7 @@ impl WsTest for LogSubscriptionsTest {
 
         let mut storage = pool.access_storage().await?;
         let miniblock_number = if self.snapshot_recovery {
-            StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1
+            StorageInitialization::SNAPSHOT_RECOVERY_BLOCK.0 + 1
         } else {
             1
         };

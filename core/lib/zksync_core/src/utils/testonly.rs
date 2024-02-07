@@ -1,5 +1,7 @@
 //! Test utils.
 
+use std::collections::HashMap;
+
 use multivm::utils::get_max_gas_per_pubdata_byte;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::StorageProcessor;
@@ -16,11 +18,14 @@ use zksync_types::{
     l2::L2Tx,
     snapshots::SnapshotRecoveryStatus,
     transaction_request::PaymasterParams,
+    tx::{tx_execution_info::TxExecutionStatus, ExecutionMetrics, TransactionExecutionResult},
     Address, L1BatchNumber, L2ChainId, MiniblockNumber, Nonce, ProtocolVersion, ProtocolVersionId,
     StorageLog, H256, U256,
 };
 
-use crate::{fee_model::BatchFeeModelInputProvider, l1_gas_price::L1GasPriceProvider};
+use crate::{
+    fee_model::BatchFeeModelInputProvider, genesis::GenesisParams, l1_gas_price::L1GasPriceProvider,
+};
 
 /// Creates a miniblock header with the specified number and deterministic contents.
 pub(crate) fn create_miniblock(number: u32) -> MiniblockHeader {
@@ -131,10 +136,25 @@ pub(crate) fn create_l2_transaction(fee_per_gas: u64, gas_per_pubdata: u64) -> L
     tx
 }
 
+pub(crate) fn execute_l2_transaction(transaction: L2Tx) -> TransactionExecutionResult {
+    TransactionExecutionResult {
+        hash: transaction.hash(),
+        transaction: transaction.into(),
+        execution_info: ExecutionMetrics::default(),
+        execution_status: TxExecutionStatus::Success,
+        refunded_gas: 0,
+        operator_suggested_refund: 0,
+        compressed_bytecodes: vec![],
+        call_traces: vec![],
+        revert_reason: None,
+    }
+}
+
 /// Prepares a recovery snapshot without performing genesis.
 pub(crate) async fn prepare_recovery_snapshot(
     storage: &mut StorageProcessor<'_>,
-    l1_batch_number: u32,
+    l1_batch_number: L1BatchNumber,
+    miniblock_number: MiniblockNumber,
     snapshot_logs: &[StorageLog],
 ) -> SnapshotRecoveryStatus {
     let mut storage = storage.start_transaction().await.unwrap();
@@ -147,21 +167,45 @@ pub(crate) async fn prepare_recovery_snapshot(
         .collect();
     let l1_batch_root_hash = ZkSyncTree::process_genesis_batch(&tree_instructions).root_hash;
 
-    storage
+    let miniblock = create_miniblock(miniblock_number.0);
+    let l1_batch = create_l1_batch(l1_batch_number.0);
+    // Miniblock and L1 batch are intentionally **not** inserted into the storage.
+
+    // Store factory deps for the base system contracts.
+    let contracts = GenesisParams::mock().base_system_contracts;
+
+    let protocol_version = storage
         .protocol_versions_dal()
-        .save_protocol_version_with_tx(ProtocolVersion::default())
+        .get_protocol_version(ProtocolVersionId::latest())
         .await;
-    // TODO (PLA-596): Don't insert L1 batches / miniblocks once the relevant foreign keys are removed
-    let miniblock = create_miniblock(l1_batch_number);
+    if let Some(protocol_version) = protocol_version {
+        assert_eq!(
+            protocol_version.base_system_contracts_hashes,
+            contracts.hashes(),
+            "Protocol version set up with incorrect base system contracts"
+        );
+    } else {
+        storage
+            .protocol_versions_dal()
+            .save_protocol_version_with_tx(ProtocolVersion {
+                base_system_contracts_hashes: contracts.hashes(),
+                ..ProtocolVersion::default()
+            })
+            .await;
+    }
+    let factory_deps = HashMap::from([
+        (
+            contracts.bootloader.hash,
+            zksync_utils::be_words_to_bytes(&contracts.bootloader.code),
+        ),
+        (
+            contracts.default_aa.hash,
+            zksync_utils::be_words_to_bytes(&contracts.default_aa.code),
+        ),
+    ]);
     storage
-        .blocks_dal()
-        .insert_miniblock(&miniblock)
-        .await
-        .unwrap();
-    let l1_batch = create_l1_batch(l1_batch_number);
-    storage
-        .blocks_dal()
-        .insert_mock_l1_batch(&l1_batch)
+        .factory_deps_dal()
+        .insert_factory_deps(miniblock.number, &factory_deps)
         .await
         .unwrap();
 
@@ -176,9 +220,12 @@ pub(crate) async fn prepare_recovery_snapshot(
 
     let snapshot_recovery = SnapshotRecoveryStatus {
         l1_batch_number: l1_batch.number,
+        l1_batch_timestamp: l1_batch.timestamp,
         l1_batch_root_hash,
         miniblock_number: miniblock.number,
-        miniblock_root_hash: H256::zero(), // not used
+        miniblock_timestamp: miniblock.timestamp,
+        miniblock_hash: H256::zero(), // not used
+        protocol_version: ProtocolVersionId::latest(),
         storage_logs_chunks_processed: vec![true; 100],
     };
     storage
@@ -187,31 +234,6 @@ pub(crate) async fn prepare_recovery_snapshot(
         .await
         .unwrap();
     storage.commit().await.unwrap();
-    snapshot_recovery
-}
-
-// TODO (PLA-596): Replace with `prepare_recovery_snapshot(.., &[])`
-pub(crate) async fn prepare_empty_recovery_snapshot(
-    storage: &mut StorageProcessor<'_>,
-    l1_batch_number: u32,
-) -> SnapshotRecoveryStatus {
-    storage
-        .protocol_versions_dal()
-        .save_protocol_version_with_tx(ProtocolVersion::default())
-        .await;
-
-    let snapshot_recovery = SnapshotRecoveryStatus {
-        l1_batch_number: l1_batch_number.into(),
-        l1_batch_root_hash: H256::zero(),
-        miniblock_number: l1_batch_number.into(),
-        miniblock_root_hash: H256::zero(), // not used
-        storage_logs_chunks_processed: vec![true; 100],
-    };
-    storage
-        .snapshot_recovery_dal()
-        .insert_initial_recovery_status(&snapshot_recovery)
-        .await
-        .unwrap();
     snapshot_recovery
 }
 
