@@ -1,9 +1,10 @@
 use std::marker::PhantomData;
 
+use zk_evm_1_3_1::zkevm_opcode_defs::FarCallOpcode;
 use zk_evm_1_5_0::{
     tracing::{AfterDecodingData, BeforeExecutionData, VmLocalStateData},
     vm_state::{ErrorFlags, VmLocalState},
-    zkevm_opcode_defs::FatPointer,
+    zkevm_opcode_defs::{FatPointer, Opcode, RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER},
 };
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::U256;
@@ -33,12 +34,79 @@ enum Result {
     Halt { reason: Halt },
 }
 
+/// Responsible for tracing the far calls from the bootloader.
+#[derive(Debug, Copy, Clone)]
+enum FarCallTracker {
+    NoFarCallObserved,
+    FarCallOserved(usize),
+    ReturndataObserved(FatPointer),
+}
+
+impl Default for FarCallTracker {
+    fn default() -> Self {
+        FarCallTracker::NoFarCallObserved
+    }
+}
+
+impl FarCallTracker {
+    // Should be called before opcode is executed
+    fn far_call_observed(&mut self, local_state: &VmLocalStateData<'_>) {
+        match &self {
+            FarCallTracker::NoFarCallObserved => {
+                *self = FarCallTracker::FarCallOserved(
+                    local_state.vm_local_state.callstack.inner.len(),
+                );
+            }
+            FarCallTracker::FarCallOserved(_) => {
+                panic!("Two far calls from bootloader in a row is not possible")
+            }
+            FarCallTracker::ReturndataObserved(_) => {
+                // Now we forget about the load returndata
+                *self = FarCallTracker::FarCallOserved(
+                    local_state.vm_local_state.callstack.inner.len(),
+                );
+            }
+        }
+    }
+
+    // should be called after opcode is executed
+    fn return_observed(&mut self, local_state: &VmLocalStateData<'_>) {
+        let returndata_pointer =
+            local_state.vm_local_state.registers[RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER as usize];
+        assert!(
+            returndata_pointer.is_pointer,
+            "Returndata pointer is not a pointer"
+        );
+
+        if let FarCallTracker::FarCallOserved(x) = &self {
+            if *x != local_state.vm_local_state.callstack.inner.len() {
+                return;
+            }
+
+            *self =
+                FarCallTracker::ReturndataObserved(FatPointer::from_u256(returndata_pointer.value));
+        } else {
+            return;
+        }
+    }
+
+    fn into_result(self) -> Option<FatPointer> {
+        match self {
+            FarCallTracker::ReturndataObserved(x) => Some(x),
+            _ => None,
+        }
+    }
+}
+
 /// Tracer responsible for handling the VM execution result.
 #[derive(Debug, Clone)]
 pub(crate) struct ResultTracer<S> {
     result: Option<Result>,
     bootloader_out_of_gas: bool,
     execution_mode: VmExecutionMode,
+
+    far_call_tracker: FarCallTracker,
+
     _phantom: PhantomData<S>,
 }
 
@@ -48,6 +116,7 @@ impl<S> ResultTracer<S> {
             result: None,
             bootloader_out_of_gas: false,
             execution_mode,
+            far_call_tracker: Default::default(),
             _phantom: PhantomData,
         }
     }
@@ -88,8 +157,11 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for ResultTracer<S> {
         if let VmHook::ExecutionResult = hook {
             let vm_hook_params = get_vm_hook_params(memory);
             let success = vm_hook_params[0];
-            let returndata_ptr = FatPointer::from_u256(vm_hook_params[1]);
-            let returndata = read_pointer(memory, returndata_ptr);
+            let returndata = self
+                .far_call_tracker
+                .into_result()
+                .map(|ptr| read_pointer(memory, ptr))
+                .unwrap_or_default();
             if success == U256::zero() {
                 self.result = Some(Result::Error {
                     // Tx has reverted, without bootloader error, we can simply parse the revert reason
@@ -100,6 +172,26 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for ResultTracer<S> {
                     return_data: returndata,
                 });
             }
+
+            let opcode_variant = data.opcode.variant;
+
+            if let Opcode::FarCall(_) = opcode_variant.opcode {
+                self.far_call_tracker.far_call_observed(&state);
+            }
+        }
+    }
+
+    fn after_execution(
+        &mut self,
+        state: VmLocalStateData<'_>,
+        data: zk_evm_1_5_0::tracing::AfterExecutionData,
+        _memory: &SimpleMemory<H>,
+        _storage: StoragePtr<S>,
+    ) {
+        let opcode_variant = data.opcode.variant;
+
+        if let Opcode::Ret(_) = opcode_variant.opcode {
+            self.far_call_tracker.return_observed(&state);
         }
     }
 }
