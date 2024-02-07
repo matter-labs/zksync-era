@@ -15,7 +15,7 @@ use zksync_types::{
             H160, H256, U256, U64,
         },
     },
-    L1ChainId, PackedEthSignature,
+    L1ChainId, PackedEthSignature, EIP_4844_TX_TYPE,
 };
 
 use super::{query::QueryClient, Method, LATENCIES};
@@ -227,6 +227,15 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
             Some(max_priority_fee_per_gas) => max_priority_fee_per_gas,
             None => self.inner.default_priority_fee_per_gas,
         };
+
+        if options.transaction_type == Some(EIP_4844_TX_TYPE.into()) {
+            if max_fee_per_blob_gas.is_none() {
+                return Err(Error::Eip4844MissingMaxFeePerBlobGas);
+            }
+            if blob_versioned_hashes.is_none() {
+                return Err(Error::Eip4844MissingBlobVersionedHashes);
+            }
+        }
 
         // Fetch current base fee and add `max_priority_fee_per_gas`
         let max_fee_per_gas = match options.max_fee_per_gas {

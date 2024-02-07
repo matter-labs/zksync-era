@@ -14,7 +14,7 @@ use zksync_types::{
         error::Error as Web3Error,
         types::{BlockId, BlockNumber},
     },
-    L1BlockNumber, Nonce, EIP_1559_TX_TYPE, H256, U256,
+    L1BlockNumber, Nonce, EIP_1559_TX_TYPE, EIP_4844_TX_TYPE, H256, U256,
 };
 use zksync_utils::time::seconds_since_epoch;
 
@@ -416,7 +416,11 @@ impl EthTxManager {
                     opt.max_fee_per_gas = Some(U256::from(base_fee_per_gas + priority_fee_per_gas));
                     opt.max_priority_fee_per_gas = Some(U256::from(priority_fee_per_gas));
                     opt.nonce = Some(tx.nonce.0.into());
-                    opt.transaction_type = Some(EIP_1559_TX_TYPE.into());
+                    opt.transaction_type = if tx.blob_sidecar.is_some() {
+                        Some(EIP_4844_TX_TYPE.into())
+                    } else {
+                        Some(EIP_1559_TX_TYPE.into())
+                    };
                 }),
                 None,
                 None,
