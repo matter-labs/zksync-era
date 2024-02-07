@@ -7,8 +7,10 @@ use zksync_types::{
     l2::{L2Tx, TransactionType},
     transaction_request::CallRequest,
     utils::decompose_full_nonce,
-    web3,
-    web3::types::{FeeHistory, SyncInfo, SyncState},
+    web3::{
+        self,
+        types::{FeeHistory, SyncInfo, SyncState},
+    },
     AccountTreeId, Bytes, MiniblockNumber, StorageKey, H256, L2_ETH_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::u256_to_h256;
@@ -484,30 +486,23 @@ impl EthNamespace {
         if matches!(block_id, BlockId::Number(BlockNumber::Pending)) {
             let account_nonce_u64 = u64::try_from(account_nonce)
                 .map_err(|err| internal_error(method_name, anyhow::anyhow!(err)))?;
-            account_nonce = connection
-                .transactions_web3_dal()
-                .next_nonce_by_initiator_account(address, account_nonce_u64)
-                .await
-                .map_err(|err| internal_error(method_name, err))?;
+            account_nonce = if let Some(proxy) = &self.state.tx_sender.0.proxy {
+                // EN: get pending nonces from the transaction cache
+                // We don't have mempool in EN, it's safe to use the proxy cache as a mempool
+                proxy
+                    .next_nonce_by_initiator_account(address, account_nonce_u64 as u32)
+                    .await
+                    .0
+                    .into()
+            } else {
+                // Main node: get pending nonces from the mempool
+                connection
+                    .transactions_web3_dal()
+                    .next_nonce_by_initiator_account(address, account_nonce_u64)
+                    .await
+                    .map_err(|err| internal_error(method_name, err))?
+            };
         }
-
-        // Number of txs accepted by the node.
-        // We should add the nonces from txs in our cache for making the nonce
-        // aligned with the main node. If the nonce is not sequential,
-        // then we should not increment nonce.
-        let mut actual_tx_number = account_nonce.as_u32().saturating_sub(1);
-        if let Some(proxy) = &self.state.tx_sender.0.proxy {
-            for pending_nonce in proxy.get_nonces_by_account(address).await {
-                // If nonce is not sequential, then we should not increment nonce.
-                if pending_nonce.0 == actual_tx_number + 1 {
-                    actual_tx_number += 1;
-                }
-            }
-        };
-
-        // We should take the maximum nonce from the cache and the account nonce.
-        // If there are no txs in the cache the account nonce will be higher.
-        let account_nonce = std::cmp::max(account_nonce, U256::from(actual_tx_number));
 
         let block_diff = self.state.last_sealed_miniblock.diff(block_number);
         method_latency.observe(block_diff);

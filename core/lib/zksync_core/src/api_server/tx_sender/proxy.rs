@@ -133,6 +133,21 @@ impl TxProxy {
         self.tx_cache.get_nonces_for_account(account_address).await
     }
 
+    pub async fn next_nonce_by_initiator_account(
+        &self,
+        account_address: Address,
+        mut current_nonce: u32,
+    ) -> Nonce {
+        let nonces = self.get_nonces_by_account(account_address).await;
+        for pending_nonce in nonces {
+            // If nonce is not sequential, then we should not increment nonce.
+            if pending_nonce.0 == current_nonce + 1 {
+                current_nonce += 1;
+            }
+        }
+        Nonce(current_nonce + 1)
+    }
+
     pub async fn submit_tx(&self, tx: &L2Tx) -> RpcResult<H256> {
         let input_data = tx.common_data.input_data().expect("raw tx is absent");
         let raw_tx = zksync_types::Bytes(input_data.to_vec());

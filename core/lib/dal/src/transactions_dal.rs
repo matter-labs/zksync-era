@@ -12,8 +12,8 @@ use zksync_types::{
     protocol_version::ProtocolUpgradeTx,
     tx::{tx_execution_info::TxExecutionStatus, TransactionExecutionResult},
     vm_trace::{Call, VmExecutionTrace},
-    Address, ExecuteTransactionCommon, L1BatchNumber, L1BlockNumber, MiniblockNumber, Nonce,
-    PriorityOpId, Transaction, H256, PROTOCOL_UPGRADE_TX_TYPE, U256,
+    Address, ExecuteTransactionCommon, L1BatchNumber, L1BlockNumber, MiniblockNumber, PriorityOpId,
+    Transaction, H256, PROTOCOL_UPGRADE_TX_TYPE, U256,
 };
 use zksync_utils::u256_to_big_decimal;
 
@@ -1343,36 +1343,6 @@ impl TransactionsDal<'_, '_> {
         .await
         .unwrap()
         .map(|tx| tx.into())
-    }
-
-    pub async fn check_tx_hashes(
-        &mut self,
-        tx_hashes: &[H256],
-    ) -> sqlx::Result<Vec<(Address, Nonce)>> {
-        let hashes: Vec<_> = tx_hashes.iter().map(|hash| hash.as_bytes()).collect();
-        let res = sqlx::query!(
-            r#"
-            SELECT
-                initiator_address AS "initiator_address!",
-                nonce AS "nonce!"
-            FROM
-                transactions
-            WHERE
-                hash = ANY ($1)
-            "#,
-            &hashes as &[&[u8]],
-        )
-        .fetch_all(self.storage.conn())
-        .await?
-        .into_iter()
-        .map(|row| {
-            (
-                Address::from_slice(&row.initiator_address),
-                Nonce(row.nonce as u32),
-            )
-        })
-        .collect();
-        Ok(res)
     }
 }
 
