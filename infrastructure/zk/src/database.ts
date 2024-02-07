@@ -114,7 +114,9 @@ export async function setupForDal(dalPath: string, dalDb: string) {
     await utils.spawn(`cargo sqlx database create --database-url ${dalDb}`);
     await utils.spawn(`cargo sqlx migrate run --database-url ${dalDb}`);
     if (dalDb.startsWith(localDbUrl)) {
-        await utils.spawn(`cargo sqlx prepare --check --database-url ${dalDb} -- --tests || cargo sqlx prepare --database-url ${dalDb} -- --tests`);
+        await utils.spawn(
+            `cargo sqlx prepare --check --database-url ${dalDb} -- --tests || cargo sqlx prepare --database-url ${dalDb} -- --tests`
+        );
     }
 
     process.chdir(process.env.ZKSYNC_HOME as string);
