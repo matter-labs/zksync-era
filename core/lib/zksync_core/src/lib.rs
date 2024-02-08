@@ -70,7 +70,7 @@ use crate::{
     l1_gas_price::{GasAdjusterSingleton, L1GasPriceProvider},
     metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
     metrics::{InitStage, APP_METRICS},
-    native_erc20_fetcher::{NativeErc20Fetcher, NativeErc20FetcherSingleton},
+    native_erc20_fetcher::NativeErc20FetcherSingleton,
     state_keeper::{
         create_state_keeper, MempoolFetcher, MempoolGuard, MiniblockSealer, SequencerSealer,
     },
@@ -326,11 +326,6 @@ pub async fn initialize_components(
         panic!("Circuit breaker triggered: {}", err);
     });
 
-    let query_client = QueryClient::new(&eth_client_config.web3_url).unwrap();
-    let gas_adjuster_config = configs.gas_adjuster_config.context("gas_adjuster_config")?;
-    let mut gas_adjuster =
-        GasAdjusterSingleton::new(eth_client_config.web3_url.clone(), gas_adjuster_config);
-
     // spawn the native ERC20 fetcher if it is enabled
     let mut fetcher_component = if components.contains(&Component::NativeERC20Fetcher) {
         let fetcher = NativeErc20FetcherSingleton::new(
@@ -346,6 +341,28 @@ pub async fn initialize_components(
     };
     let (stop_sender, stop_receiver) = watch::channel(false);
     let (cb_sender, cb_receiver) = oneshot::channel();
+
+    let native_erc20_fetcher = if let Some(ref mut fetcher_singleton) = fetcher_component {
+        let fetcher = fetcher_singleton
+            .get_or_init()
+            .await
+            .context("fetcher.get_or_init()")?;
+        Some(fetcher)
+    } else {
+        None
+    };
+
+    let erc20_fetcher_dyn: Option<Arc<dyn Erc20Fetcher>> = native_erc20_fetcher
+        .as_ref()
+        .map(|fetcher| fetcher.clone() as Arc<dyn Erc20Fetcher>);
+
+    let query_client = QueryClient::new(&eth_client_config.web3_url).unwrap();
+    let gas_adjuster_config = configs.gas_adjuster_config.context("gas_adjuster_config")?;
+    let mut gas_adjuster = GasAdjusterSingleton::new(
+        eth_client_config.web3_url.clone(),
+        gas_adjuster_config,
+        erc20_fetcher_dyn,
+    );
 
     // Prometheus exporter and circuit breaker checker should run for every component configuration.
     let prom_config = configs

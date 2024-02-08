@@ -12,7 +12,7 @@ use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
 
 use self::metrics::METRICS;
 use super::{L1GasPriceProvider, L1TxParamsProvider};
-use crate::state_keeper::metrics::KEEPER_METRICS;
+use crate::{native_erc20_fetcher::Erc20Fetcher, state_keeper::metrics::KEEPER_METRICS};
 
 mod metrics;
 #[cfg(test)]
@@ -25,10 +25,15 @@ pub struct GasAdjuster<E> {
     pub(super) statistics: GasStatistics,
     pub(super) config: GasAdjusterConfig,
     eth_client: E,
+    erc20_fetcher_dyn: Option<Arc<dyn Erc20Fetcher>>,
 }
 
 impl<E: EthInterface> GasAdjuster<E> {
-    pub async fn new(eth_client: E, config: GasAdjusterConfig) -> Result<Self, Error> {
+    pub async fn new(
+        eth_client: E,
+        config: GasAdjusterConfig,
+        erc20_fetcher_dyn: Option<Arc<dyn Erc20Fetcher>>,
+    ) -> Result<Self, Error> {
         // Subtracting 1 from the "latest" block number to prevent errors in case
         // the info about the latest block is not yet present on the node.
         // This sometimes happens on Infura.
@@ -44,6 +49,7 @@ impl<E: EthInterface> GasAdjuster<E> {
             statistics: GasStatistics::new(config.max_base_fee_samples, current_block, &history),
             eth_client,
             config,
+            erc20_fetcher_dyn,
         })
     }
 
@@ -125,7 +131,13 @@ impl<E: EthInterface> L1GasPriceProvider for GasAdjuster<E> {
             (self.config.internal_l1_pricing_multiplier * effective_gas_price as f64) as u64;
 
         // Bound the price if it's too high.
-        self.bound_gas_price(calculated_price)
+        let conversion_rate = match self.erc20_fetcher_dyn.as_ref() {
+            Some(fetcher) => fetcher.conversion_rate().unwrap_or(1) as u64,
+            None => 1,
+        };
+        // let conversion_rate = 100_000_000_000_000;
+
+        self.bound_gas_price(calculated_price) * conversion_rate
     }
 
     fn estimate_effective_pubdata_price(&self) -> u64 {

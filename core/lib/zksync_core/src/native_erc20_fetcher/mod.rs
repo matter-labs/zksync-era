@@ -20,9 +20,8 @@ impl From<anyhow::Error> for Error {
     }
 }
 
-#[async_trait]
 pub trait Erc20Fetcher: 'static + std::fmt::Debug + Send + Sync {
-    async fn conversion_rate(&self) -> anyhow::Result<u64>;
+    fn conversion_rate(&self) -> anyhow::Result<u64>;
 }
 
 pub(crate) struct NativeErc20FetcherSingleton {
@@ -106,7 +105,7 @@ impl NativeErc20Fetcher {
 
 #[async_trait]
 impl Erc20Fetcher for NativeErc20Fetcher {
-    async fn conversion_rate(&self) -> anyhow::Result<u64> {
+    fn conversion_rate(&self) -> anyhow::Result<u64> {
         anyhow::Ok(
             self.latest_to_eth_conversion_rate
                 .load(std::sync::atomic::Ordering::Relaxed),

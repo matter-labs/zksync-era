@@ -8,7 +8,7 @@ use tokio::{
 use zksync_config::GasAdjusterConfig;
 use zksync_eth_client::clients::QueryClient;
 
-use crate::l1_gas_price::GasAdjuster;
+use crate::{l1_gas_price::GasAdjuster, native_erc20_fetcher::Erc20Fetcher};
 
 /// Special struct for creating a singleton of `GasAdjuster`.
 /// This is needed only for running the server.
@@ -17,6 +17,7 @@ pub struct GasAdjusterSingleton {
     web3_url: String,
     gas_adjuster_config: GasAdjusterConfig,
     singleton: OnceCell<Result<Arc<GasAdjuster<QueryClient>>, Error>>,
+    erc20_fetcher_dyn: Option<Arc<dyn Erc20Fetcher>>,
 }
 
 #[derive(thiserror::Error, Debug, Clone)]
@@ -30,11 +31,16 @@ impl From<anyhow::Error> for Error {
 }
 
 impl GasAdjusterSingleton {
-    pub fn new(web3_url: String, gas_adjuster_config: GasAdjusterConfig) -> Self {
+    pub fn new(
+        web3_url: String,
+        gas_adjuster_config: GasAdjusterConfig,
+        erc20_fetcher_dyn: Option<Arc<dyn Erc20Fetcher>>,
+    ) -> Self {
         Self {
             web3_url,
             gas_adjuster_config,
             singleton: OnceCell::new(),
+            erc20_fetcher_dyn,
         }
     }
 
@@ -44,9 +50,13 @@ impl GasAdjusterSingleton {
             .get_or_init(|| async {
                 let query_client =
                     QueryClient::new(&self.web3_url).context("QueryClient::new()")?;
-                let adjuster = GasAdjuster::new(query_client.clone(), self.gas_adjuster_config)
-                    .await
-                    .context("GasAdjuster::new()")?;
+                let adjuster = GasAdjuster::new(
+                    query_client.clone(),
+                    self.gas_adjuster_config,
+                    self.erc20_fetcher_dyn.clone(),
+                )
+                .await
+                .context("GasAdjuster::new()")?;
                 Ok(Arc::new(adjuster))
             })
             .await;
