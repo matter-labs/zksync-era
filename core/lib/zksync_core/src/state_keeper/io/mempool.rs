@@ -45,7 +45,7 @@ use crate::{
 /// Decides which batch parameters should be used for the new batch.
 /// This is an IO for the main server application.
 #[derive(Debug)]
-pub(crate) struct MempoolIO {
+pub struct MempoolIO {
     mempool: MempoolGuard,
     pool: ConnectionPool,
     object_store: Arc<dyn ObjectStore>,
@@ -396,7 +396,7 @@ async fn sleep_past(timestamp: u64, miniblock: MiniblockNumber) -> u64 {
 
 impl MempoolIO {
     #[allow(clippy::too_many_arguments)]
-    pub(in crate::state_keeper) async fn new(
+    pub async fn new(
         mempool: MempoolGuard,
         object_store: Arc<dyn ObjectStore>,
         miniblock_sealer_handle: MiniblockSealerHandle,

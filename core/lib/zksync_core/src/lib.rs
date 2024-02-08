@@ -722,15 +722,15 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
         .build()
         .await
         .context("failed to build state_keeper_pool")?;
-    let next_priority_id = state_keeper_pool
-        .access_storage()
-        .await
-        .unwrap()
-        .transactions_dal()
-        .next_priority_id()
-        .await;
-    let mempool = MempoolGuard::new(next_priority_id, mempool_config.capacity);
-    mempool.register_metrics();
+    let mempool = {
+        let mut storage = state_keeper_pool
+            .access_storage()
+            .await
+            .context("Access storage to build mempool")?;
+        let mempool = MempoolGuard::from_storage(&mut storage, mempool_config.capacity).await;
+        mempool.register_metrics();
+        mempool
+    };
 
     let batch_fee_input_provider = Arc::new(MainNodeFeeInputProvider::new(
         gas_adjuster,
@@ -771,13 +771,13 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
         .build()
         .await
         .context("failed to build mempool_fetcher_pool")?;
-    let mempool_fetcher = MempoolFetcher::new(mempool, batch_fee_input_provider, mempool_config);
-    let mempool_fetcher_handle = tokio::spawn(mempool_fetcher.run(
+    let mempool_fetcher = MempoolFetcher::new(
+        mempool,
+        batch_fee_input_provider,
+        mempool_config,
         mempool_fetcher_pool,
-        mempool_config.remove_stuck_txs,
-        mempool_config.stuck_tx_timeout(),
-        stop_receiver,
-    ));
+    );
+    let mempool_fetcher_handle = tokio::spawn(mempool_fetcher.run(stop_receiver));
     task_futures.push(mempool_fetcher_handle);
     Ok(())
 }

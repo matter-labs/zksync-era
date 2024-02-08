@@ -19,6 +19,8 @@ pub trait WiringLayer: 'static + Send + Sync {
 #[derive(thiserror::Error, Debug)]
 #[non_exhaustive]
 pub enum WiringError {
+    #[error("Layer attempted to add resource {0}, but it is already provided")]
+    ResourceAlreadyProvided(ResourceId),
     #[error("Resource {0} is not provided")]
     ResourceLacking(ResourceId),
     #[error(transparent)]

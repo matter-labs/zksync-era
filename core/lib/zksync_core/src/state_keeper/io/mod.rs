@@ -13,7 +13,6 @@ use zksync_types::{
     Transaction,
 };
 
-pub(crate) use self::mempool::MempoolIO;
 use super::{
     metrics::{MiniblockQueueStage, MINIBLOCK_METRICS},
     seal_criteria::IoSealCriteria,

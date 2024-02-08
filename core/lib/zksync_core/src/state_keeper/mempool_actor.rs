@@ -29,40 +29,41 @@ pub async fn l2_tx_filter(
 }
 
 #[derive(Debug)]
-pub struct MempoolFetcher<G> {
+pub struct MempoolFetcher {
     mempool: MempoolGuard,
-    batch_fee_input_provider: Arc<G>,
+    pool: ConnectionPool,
+    batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     sync_interval: Duration,
     sync_batch_size: usize,
+    remove_stuck_txs: bool,
+    stuck_tx_timeout: Duration,
 }
 
-impl<G: BatchFeeModelInputProvider> MempoolFetcher<G> {
+impl MempoolFetcher {
     pub fn new(
         mempool: MempoolGuard,
-        batch_fee_input_provider: Arc<G>,
+        batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
         config: &MempoolConfig,
+        pool: ConnectionPool,
     ) -> Self {
         Self {
             mempool,
+            pool,
             batch_fee_input_provider,
             sync_interval: config.sync_interval(),
             sync_batch_size: config.sync_batch_size,
+            remove_stuck_txs: config.remove_stuck_txs,
+            stuck_tx_timeout: config.stuck_tx_timeout(),
         }
     }
 
-    pub async fn run(
-        mut self,
-        pool: ConnectionPool,
-        remove_stuck_txs: bool,
-        stuck_tx_timeout: Duration,
-        stop_receiver: watch::Receiver<bool>,
-    ) -> anyhow::Result<()> {
+    pub async fn run(mut self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         {
-            let mut storage = pool.access_storage_tagged("state_keeper").await?;
-            if remove_stuck_txs {
+            let mut storage = self.pool.access_storage_tagged("state_keeper").await?;
+            if self.remove_stuck_txs {
                 let removed_txs = storage
                     .transactions_dal()
-                    .remove_stuck_txs(stuck_tx_timeout)
+                    .remove_stuck_txs(self.stuck_tx_timeout)
                     .await
                     .context("failed removing stuck transactions")?;
                 tracing::info!("Number of stuck txs was removed: {removed_txs}");
@@ -80,7 +81,7 @@ impl<G: BatchFeeModelInputProvider> MempoolFetcher<G> {
                 break;
             }
             let latency = KEEPER_METRICS.mempool_sync.start();
-            let mut storage = pool.access_storage_tagged("state_keeper").await?;
+            let mut storage = self.pool.access_storage_tagged("state_keeper").await?;
             let mempool_info = self.mempool.get_mempool_info();
 
             let latest_miniblock = BlockArgs::pending(&mut storage)

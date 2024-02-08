@@ -2,6 +2,7 @@ use crate::{
     resource::{Resource, StoredResource},
     service::ZkStackService,
     task::Task,
+    wiring_layer::WiringError,
 };
 
 /// An interface to the service's resources provided to the tasks during initialization.
@@ -97,5 +98,16 @@ impl<'a> ServiceContext<'a> {
     /// If the resource is not available, it is created using `T::default()`.
     pub async fn get_resource_or_default<T: Resource + Clone + Default>(&mut self) -> T {
         self.get_resource_or_insert_with(T::default).await
+    }
+
+    /// Adds a resource to the service.
+    /// If the resource with the same name is already provided, the method will return an error.
+    pub fn add_resource<T: Resource>(&mut self, resource: T) -> Result<(), WiringError> {
+        let name = T::resource_id();
+        if self.service.resources.contains_key(&name) {
+            return Err(WiringError::ResourceAlreadyProvided(name));
+        }
+        self.service.resources.insert(name, Box::new(resource));
+        Ok(())
     }
 }

@@ -4,6 +4,7 @@ use anyhow::Context;
 use zksync_core::state_keeper::{
     seal_criteria::ConditionalSealer, L1BatchExecutorBuilder, StateKeeperIO, ZkSyncStateKeeper,
 };
+use zksync_storage::RocksDB;
 
 pub mod mempool_io;
 
@@ -86,6 +87,13 @@ impl Task for StateKeeperTask {
             self.batch_executor_base,
             self.sealer,
         );
-        state_keeper.run().await
+        let result = state_keeper.run().await;
+
+        // Wait for all the instances of RocksDB to be destroyed.
+        tokio::task::spawn_blocking(RocksDB::await_rocksdb_termination)
+            .await
+            .unwrap();
+
+        result
     }
 }
