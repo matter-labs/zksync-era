@@ -16,8 +16,8 @@ The gas fee covers the following expenses:
 
 We have two pricing models:
 
-- the ``L1Pegged`` - until protocol version 19
-- the ``PubdataIndependent`` - from protocol version 20 (release 1.4.1)
+- the `L1Pegged` - until protocol version 19
+- the `PubdataIndependent` - from protocol version 20 (release 1.4.1)
 
 ### L1 pegged ('old' fee model)
 
@@ -49,13 +49,15 @@ In this model, there are 8 config options, let's walk through them:
 
 And config options (`FeeModelConfigV2`) contain:
 
-- `minimal_l2_gas_price` - similar meaning to the one in the previous model - this should cover the $ costs of running the machines (node operator costs).
+- `minimal_l2_gas_price` - similar meaning to the one in the previous model - this should cover the $ costs of running
+  the machines (node operator costs).
 
-2 fields around the maximum capacity of the batch (note - that these are used only for the fee calculation, the actual sealing criteria are specified in different configuration):
+2 fields around the maximum capacity of the batch (note - that these are used only for the fee calculation, the actual
+sealing criteria are specified in different configuration):
 
-- `max_gas_per_batch` - expected maximum amount of gas in a batch 
-- `max_pubdata_per_batch` - expected maximum amount of pubdata that we can put in a single batch - due to Ethereum limitations (usually it is around 128kb
-  when using calldata, and 250 when using 2 blobs)
+- `max_gas_per_batch` - expected maximum amount of gas in a batch
+- `max_pubdata_per_batch` - expected maximum amount of pubdata that we can put in a single batch - due to Ethereum
+  limitations (usually it is around 128kb when using calldata, and 250 when using 2 blobs)
 
 the actual cost of the batch:
 
@@ -70,14 +72,15 @@ And 2 fields about who contributed to closing the batch:
 #### Cost distribution between transactions
 
 Batches are closed, when we either run out of circuits (a.k.a gas / computation), or run out of pubdata capacity (too
-much data to publish to L1 in one transaction), or run out of transactions slots  (which should be a rare event with recent improvements)
+much data to publish to L1 in one transaction), or run out of transactions slots (which should be a rare event with
+recent improvements)
 
 Closing each batch, has some cost for the operator - especially the one related to L1 costs - where operator has to
 submit a bunch of transactions, including the one to verify the proof (these costs are counted in
 `batch_overhead_l1_gas`).
 
-Now the problem that operator is facing is, who should pay for closing of the batch. In a perfect world, we'd look at the
-reason for batch closure (for example pubdata) - and then charge the transactions proportionally to the amount of
+Now the problem that operator is facing is, who should pay for closing of the batch. In a perfect world, we'd look at
+the reason for batch closure (for example pubdata) - and then charge the transactions proportionally to the amount of
 pubdata that they used. Unfortunately this is not feasible, as we have to charge the transactions as we go, rather than
 at the end of the batch (that can have 1000s of transactions).
 
@@ -96,19 +99,21 @@ When running a system based on a custom token, all the gas values above, should 
 Example, if you're running USDC as base token, and ETH currently costs 2000$, and current L1 gas price is 30 Gwei.
 
 - `l1_gas_price` param should be set to 30 \* 2000 == 60'000 Gwei
-- `l1_pubdata_price` should be also updated accordingly (also multiplied by 2'000). (note: currently bootloader has a cap of 1M gwei per pubdata price - and we're working on removing this limitation)
+- `l1_pubdata_price` should be also updated accordingly (also multiplied by 2'000). (note: currently bootloader has a
+  cap of 1M gwei per pubdata price - and we're working on removing this limitation)
 - `minimal_l2_gas_price` should be set in such way, that `minimal_l2_gas_price * max_gas_per_batch / 10**18 $` is enough
   to pay for your CPUs and GPUs
 
 #### Validium / Data-availability configurations
 
-If you're running a system with validium without any DA, you can just set the `l1_pubdata_price` to 0, `max_pubdata_per_batch` to some
-large value, and set `pubdata_overhead_part` to 0, and `compute_overhead_part` to 1.
+If you're running a system with validium without any DA, you can just set the `l1_pubdata_price` to 0,
+`max_pubdata_per_batch` to some large value, and set `pubdata_overhead_part` to 0, and `compute_overhead_part` to 1.
 
 If you're running alternative DA, you should adjust the `l1_pubdata_price` to roughly cover the cost of writing one byte
-to the DA, and set `max_pubdata_per_batch` to the DA limits. 
+to the DA, and set `max_pubdata_per_batch` to the DA limits.
 
-Note: currently system still requires operator to keep the data in memory and compress it, which means that setting huge values of `max_pubdata_per_batch` might not work. This will be fixed in the future.
+Note: currently system still requires operator to keep the data in memory and compress it, which means that setting huge
+values of `max_pubdata_per_batch` might not work. This will be fixed in the future.
 
 Assumption: ETH costs 2'000$, L1 gas cost is 30 Gwei, blob costs 2Gwei (per byte), and DA allows 1MB payload that cost 1
 cent.
