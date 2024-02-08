@@ -2,9 +2,9 @@ use std::fmt;
 
 use zksync_contracts::verifier_contract;
 use zksync_eth_client::{CallFunctionArgs, Error as EthClientError, EthInterface};
+use zksync_l1_contract_interface::pre_boojum_verifier::old_l1_vk_commitment;
 use zksync_types::{
     ethabi::{Contract, Token},
-    vk_transform::l1_vk_commitment,
     web3::{
         self,
         contract::tokens::Detokenize,
@@ -126,7 +126,7 @@ impl EthClient for EthHttpQueryClient {
             let args = CallFunctionArgs::new("get_verification_key", ())
                 .for_contract(verifier_address, self.verifier_contract_abi.clone());
             let vk = self.client.call_contract_function(args).await?;
-            Ok(l1_vk_commitment(Token::from_tokens(vk)?))
+            Ok(old_l1_vk_commitment(Token::from_tokens(vk)?))
         }
     }
 

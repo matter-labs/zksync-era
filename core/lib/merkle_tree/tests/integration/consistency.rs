@@ -21,7 +21,7 @@ fn five_thousand_angry_monkeys_vs_merkle_tree() {
     const RNG_SEED: u64 = 42;
 
     let dir = TempDir::new().expect("failed creating temporary dir for RocksDB");
-    let mut db = RocksDBWrapper::new(dir.path());
+    let mut db = RocksDBWrapper::new(dir.path()).unwrap();
     let mut tree = MerkleTree::new(&mut db);
 
     let kvs = generate_key_value_pairs(0..100);

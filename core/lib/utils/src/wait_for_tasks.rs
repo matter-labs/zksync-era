@@ -25,7 +25,7 @@ pub async fn wait_for_tasks<Fut>(
             }
         }
         Ok(Err(err)) => {
-            let err = format!("One of the tokio actors unexpectedly finished with error: {err}");
+            let err = format!("One of the tokio actors unexpectedly finished with error: {err:#}");
             tracing::error!("{err}");
             vlog::capture_message(&err, vlog::AlertLevel::Warning);
             if let Some(graceful_shutdown) = graceful_shutdown {
@@ -36,9 +36,7 @@ pub async fn wait_for_tasks<Fut>(
             let is_panic = error.is_panic();
             let panic_message = try_extract_panic_message(error);
 
-            tracing::info!(
-                "One of the tokio actors unexpectedly finished with error: {panic_message}"
-            );
+            tracing::info!("One of the tokio actors panicked: {panic_message}");
 
             if is_panic {
                 if let Some(particular_alerts) = particular_crypto_alerts {

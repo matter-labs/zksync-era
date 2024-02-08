@@ -1,8 +1,8 @@
-use std::{collections::HashMap, thread};
+use std::{collections::HashMap, thread, time::Duration};
 
 // Public re-export for other crates to be able to implement the interface.
 pub use async_trait::async_trait;
-use futures::{future, FutureExt};
+use futures::future;
 use serde::Serialize;
 use tokio::sync::watch;
 
@@ -80,11 +80,10 @@ pub struct AppHealth {
 
 impl AppHealth {
     /// Aggregates health info from the provided checks.
-    pub async fn new(health_checks: &[Box<dyn CheckHealth>]) -> Self {
-        let check_futures = health_checks.iter().map(|check| {
-            let check_name = check.name();
-            check.check_health().map(move |health| (check_name, health))
-        });
+    pub async fn new<T: AsRef<dyn CheckHealth>>(health_checks: &[T]) -> Self {
+        let check_futures = health_checks
+            .iter()
+            .map(|check| Self::check_health_with_time_limit(check.as_ref()));
         let components: HashMap<_, _> = future::join_all(check_futures).await.into_iter().collect();
 
         let aggregated_status = components
@@ -94,7 +93,40 @@ impl AppHealth {
             .unwrap_or(HealthStatus::Ready);
         let inner = aggregated_status.into();
 
-        Self { inner, components }
+        let this = Self { inner, components };
+        if !this.inner.status.is_ready() {
+            // Only log non-ready application health so that logs are not spammed without a reason.
+            tracing::debug!("Aggregated application health: {this:?}");
+        }
+        this
+    }
+
+    async fn check_health_with_time_limit(check: &dyn CheckHealth) -> (&'static str, Health) {
+        const WARNING_TIME_LIMIT: Duration = Duration::from_secs(3);
+        /// Chosen to be lesser than a typical HTTP client timeout (~30s).
+        const HARD_TIME_LIMIT: Duration = Duration::from_secs(20);
+
+        let check_name = check.name();
+        let timeout_at = tokio::time::Instant::now() + HARD_TIME_LIMIT;
+        let mut check_future = check.check_health();
+        match tokio::time::timeout(WARNING_TIME_LIMIT, &mut check_future).await {
+            Ok(output) => return (check_name, output),
+            Err(_) => {
+                tracing::info!(
+                    "Health check `{check_name}` takes >{WARNING_TIME_LIMIT:?} to complete"
+                );
+            }
+        }
+
+        match tokio::time::timeout_at(timeout_at, check_future).await {
+            Ok(output) => (check_name, output),
+            Err(_) => {
+                tracing::warn!(
+                    "Health check `{check_name}` timed out, taking >{HARD_TIME_LIMIT:?} to complete; marking as not ready"
+                );
+                (check_name, HealthStatus::NotReady.into())
+            }
+        }
     }
 
     pub fn is_ready(&self) -> bool {
@@ -159,11 +191,16 @@ pub struct HealthUpdater {
 impl HealthUpdater {
     /// Updates the health check information, returning if a change occurred from previous state.
     /// Note, description change on Health is counted as a change, even if status is the same.
-    /// I.E. `Health { Ready, None }` to `Health { Ready, Some(_) }` is considered a change.
+    /// I.e., `Health { Ready, None }` to `Health { Ready, Some(_) }` is considered a change.
     pub fn update(&self, health: Health) -> bool {
         let old_health = self.health_sender.send_replace(health.clone());
         if old_health != health {
-            tracing::debug!("changed health from {:?} to {:?}", old_health, health);
+            tracing::debug!(
+                "Changed health of `{}` from {} to {}",
+                self.name,
+                serde_json::to_string(&old_health).unwrap_or_else(|_| format!("{old_health:?}")),
+                serde_json::to_string(&health).unwrap_or_else(|_| format!("{health:?}"))
+            );
             return true;
         }
         false

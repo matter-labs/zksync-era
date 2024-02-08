@@ -15,7 +15,7 @@ use zksync_dal::ConnectionPool;
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_queued_job_processor::JobProcessor;
-use zksync_types::{proofs::AggregationRound, web3::futures::StreamExt};
+use zksync_types::{basic_fri_types::AggregationRound, web3::futures::StreamExt};
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 use zksync_vk_setup_data_server_fri::commitment_utils::get_cached_commitments;
 
@@ -33,6 +33,13 @@ mod precalculated_merkle_paths_provider;
 mod scheduler;
 mod storage_oracle;
 mod utils;
+
+#[cfg(not(target_env = "msvc"))]
+use jemallocator::Jemalloc;
+
+#[cfg(not(target_env = "msvc"))]
+#[global_allocator]
+static GLOBAL: Jemalloc = Jemalloc;
 
 #[derive(Debug, StructOpt)]
 #[structopt(

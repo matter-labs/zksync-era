@@ -1,8 +1,10 @@
+use zkevm_test_harness_1_3_3::witness::sort_storage_access::sort_storage_access_queries;
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{l2_to_l1_log::UserL2ToL1Log, Transaction};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use crate::{
+    glue::GlueInto,
     interface::{
         BootloaderMemory, BytecodeCompressionError, CurrentExecutionState, L1BatchEnv, L2BlockEnv,
         SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
@@ -89,7 +91,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
 
         let l2_to_l1_logs = l1_messages
             .into_iter()
-            .map(|log| UserL2ToL1Log(log.into()))
+            .map(|log| UserL2ToL1Log(log.glue_into()))
             .collect();
         let total_log_queries = self.state.event_sink.get_log_queries()
             + self
@@ -99,15 +101,30 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
                 .len()
             + self.state.storage.get_final_log_queries().len();
 
+        let storage_log_queries = self.state.storage.get_final_log_queries();
+
+        let deduped_storage_log_queries =
+            sort_storage_access_queries(storage_log_queries.iter().map(|log| &log.log_query)).1;
+
         CurrentExecutionState {
             events,
-            storage_log_queries: self.state.storage.get_final_log_queries(),
+            storage_log_queries: storage_log_queries
+                .into_iter()
+                .map(GlueInto::glue_into)
+                .collect(),
+            deduplicated_storage_log_queries: deduped_storage_log_queries
+                .into_iter()
+                .map(GlueInto::glue_into)
+                .collect(),
             used_contract_hashes: self.get_used_contracts(),
             user_l2_to_l1_logs: l2_to_l1_logs,
             system_logs: vec![],
             total_log_queries,
             cycles_used: self.state.local_state.monotonic_cycle_counter,
-            deduplicated_events_logs,
+            deduplicated_events_logs: deduplicated_events_logs
+                .into_iter()
+                .map(GlueInto::glue_into)
+                .collect(),
             storage_refunds: Vec::new(),
         }
     }
@@ -132,6 +149,12 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
         } else {
             (Ok(()), result)
         }
+    }
+
+    fn has_enough_gas_for_batch_tip(&self) -> bool {
+        // For this version this overhead has not been calculated and it has not been used with those versions.
+        // We return some value just in case for backwards compatibility
+        true
     }
 
     fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {

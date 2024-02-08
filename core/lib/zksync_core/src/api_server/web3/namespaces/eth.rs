@@ -85,8 +85,7 @@ impl EthNamespace {
         let tx = L2Tx::from_request(request.into(), self.state.api_config.max_tx_size)?;
 
         let call_result = self.state.tx_sender.eth_call(block_args, tx).await;
-        let res_bytes = call_result
-            .map_err(|err| Web3Error::SubmitTransactionError(err.to_string(), err.data()))?;
+        let res_bytes = call_result.map_err(|err| err.into_web3_error(METHOD_NAME))?;
 
         let block_diff = self
             .state
@@ -134,7 +133,9 @@ impl EthNamespace {
         // When we're estimating fee, we are trying to deduce values related to fee, so we should
         // not consider provided ones.
 
-        tx.common_data.fee.max_fee_per_gas = self.state.tx_sender.gas_price().await.into();
+        let gas_price = self.state.tx_sender.gas_price().await;
+        let gas_price = gas_price.map_err(|err| internal_error(METHOD_NAME, err))?;
+        tx.common_data.fee.max_fee_per_gas = gas_price.into();
         tx.common_data.fee.max_priority_fee_per_gas = tx.common_data.fee.max_fee_per_gas;
 
         // Modify the l1 gas price with the scale factor
@@ -147,8 +148,7 @@ impl EthNamespace {
             .tx_sender
             .get_txs_fee_in_wei(tx.into(), scale_factor, acceptable_overestimation)
             .await
-            .map_err(|err| Web3Error::SubmitTransactionError(err.to_string(), err.data()))?;
-
+            .map_err(|err| err.into_web3_error(METHOD_NAME))?;
         method_latency.observe();
         Ok(fee.gas_limit)
     }
@@ -158,9 +158,10 @@ impl EthNamespace {
         const METHOD_NAME: &str = "gas_price";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-        let price = self.state.tx_sender.gas_price().await;
+        let gas_price = self.state.tx_sender.gas_price().await;
+        let gas_price = gas_price.map_err(|err| internal_error(METHOD_NAME, err))?;
         method_latency.observe();
-        Ok(price.into())
+        Ok(gas_price.into())
     }
 
     #[tracing::instrument(skip(self))]
@@ -320,6 +321,60 @@ impl EthNamespace {
             method_latency.observe_without_diff();
         }
         Ok(tx_count?.map(|(_, count)| count))
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub async fn get_block_receipts_impl(
+        &self,
+        block_id: BlockId,
+    ) -> Result<Vec<TransactionReceipt>, Web3Error> {
+        const METHOD_NAME: &str = "get_block_receipts";
+
+        let method_latency = API_METRICS.start_block_call(METHOD_NAME, block_id);
+
+        self.state.start_info.ensure_not_pruned(block_id)?;
+
+        let block = self
+            .state
+            .connection_pool
+            .access_storage_tagged("api")
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err))?
+            .blocks_web3_dal()
+            .get_block_by_web3_block_id(block_id, false, self.state.api_config.l2_chain_id)
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err))?;
+
+        let transactions: &[TransactionVariant] =
+            block.as_ref().map_or(&[], |block| &block.transactions);
+        let hashes: Vec<_> = transactions
+            .iter()
+            .map(|tx| match tx {
+                TransactionVariant::Full(tx) => tx.hash,
+                TransactionVariant::Hash(hash) => *hash,
+            })
+            .collect();
+
+        let mut receipts = self
+            .state
+            .connection_pool
+            .access_storage_tagged("api")
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err))?
+            .transactions_web3_dal()
+            .get_transaction_receipts(&hashes)
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err))?;
+
+        receipts.sort_unstable_by_key(|receipt| receipt.transaction_index);
+
+        if let Some(block) = block {
+            self.report_latency_with_block_id(method_latency, block.number.as_u32().into());
+        } else {
+            method_latency.observe_without_diff();
+        }
+
+        Ok(receipts)
     }
 
     #[tracing::instrument(skip(self))]
@@ -494,19 +549,20 @@ impl EthNamespace {
         const METHOD_NAME: &str = "get_transaction_receipt";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-        let receipt = self
+        let receipts = self
             .state
             .connection_pool
             .access_storage_tagged("api")
             .await
             .unwrap()
             .transactions_web3_dal()
-            .get_transaction_receipt(hash)
+            .get_transaction_receipts(&[hash])
             .await
-            .map_err(|err| internal_error(METHOD_NAME, err));
+            .map_err(|err| internal_error(METHOD_NAME, err))?;
 
         method_latency.observe();
-        receipt
+
+        Ok(receipts.into_iter().next())
     }
 
     #[tracing::instrument(skip(self))]
@@ -643,7 +699,7 @@ impl EthNamespace {
         let submit_result = submit_result.map(|_| hash).map_err(|err| {
             tracing::debug!("Send raw transaction error: {err}");
             API_METRICS.submit_tx_error[&err.prom_error_code()].inc();
-            Web3Error::SubmitTransactionError(err.to_string(), err.data())
+            err.into_web3_error(METHOD_NAME)
         });
 
         method_latency.observe();

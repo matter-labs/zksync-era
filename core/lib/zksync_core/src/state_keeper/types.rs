@@ -56,6 +56,14 @@ impl MempoolGuard {
             .get_mempool_info()
     }
 
+    #[cfg(test)]
+    pub fn stats(&self) -> zksync_mempool::MempoolStats {
+        self.0
+            .lock()
+            .expect("failed to acquire mempool lock")
+            .stats()
+    }
+
     pub fn register_metrics(&self) {
         StateKeeperGauges::register(Arc::downgrade(&self.0));
     }

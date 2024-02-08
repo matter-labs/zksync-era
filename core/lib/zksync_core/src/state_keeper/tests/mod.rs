@@ -15,15 +15,16 @@ use multivm::{
 };
 use once_cell::sync::Lazy;
 use zksync_config::configs::chain::StateKeeperConfig;
-use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
+use zksync_contracts::BaseSystemContracts;
 use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     block::{BlockGasCount, MiniblockExecutionData, MiniblockHasher},
     fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
     tx::tx_execution_info::ExecutionMetrics,
-    Address, L1BatchNumber, L2ChainId, LogQuery, MiniblockNumber, ProtocolVersionId,
-    StorageLogQuery, StorageLogQueryType, Timestamp, Transaction, H256, U256,
+    zk_evm_types::{LogQuery, Timestamp},
+    Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, StorageLogQuery,
+    StorageLogQueryType, Transaction, H256, U256,
 };
 
 mod tester;
@@ -98,6 +99,7 @@ pub(super) fn default_vm_block_result() -> FinishedL1Batch {
         final_execution_state: CurrentExecutionState {
             events: vec![],
             storage_log_queries: vec![],
+            deduplicated_storage_log_queries: vec![],
             used_contract_hashes: vec![],
             user_l2_to_l1_logs: vec![],
             system_logs: vec![],
@@ -113,14 +115,10 @@ pub(super) fn default_vm_block_result() -> FinishedL1Batch {
 
 pub(super) fn create_updates_manager() -> UpdatesManager {
     let l1_batch_env = default_l1_batch_env(1, 1, Address::default());
-    UpdatesManager::new(
-        l1_batch_env,
-        BaseSystemContractsHashes::default(),
-        ProtocolVersionId::latest(),
-    )
+    UpdatesManager::new(&l1_batch_env, &default_system_env())
 }
 
-pub(super) fn create_transaction(fee_per_gas: u64, gas_per_pubdata: u32) -> Transaction {
+pub(super) fn create_transaction(fee_per_gas: u64, gas_per_pubdata: u64) -> Transaction {
     create_l2_transaction(fee_per_gas, gas_per_pubdata).into()
 }
 
@@ -150,7 +148,7 @@ pub(super) fn create_execution_result(
             computational_gas_used: 0,
             total_log_queries,
             pubdata_published: 0,
-            estimated_circuits_used: 0.0,
+            circuit_statistic: Default::default(),
         },
         refunds: Refunds::default(),
     }

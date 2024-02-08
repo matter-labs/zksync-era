@@ -1,5 +1,7 @@
 //! WS-related tests.
 
+use std::collections::HashSet;
+
 use async_trait::async_trait;
 use jsonrpsee::core::{client::ClientT, params::BatchRequestBuilder, ClientError};
 use reqwest::StatusCode;
@@ -48,15 +50,42 @@ async fn wait_for_notifiers(
     events: &mut mpsc::UnboundedReceiver<PubSubEvent>,
     sub_types: &[SubscriptionType],
 ) {
+    let mut sub_types: HashSet<_> = sub_types.iter().copied().collect();
     let wait_future = tokio::time::timeout(TEST_TIMEOUT, async {
         loop {
             let event = events
                 .recv()
                 .await
                 .expect("Events emitter unexpectedly dropped");
-            if matches!(event, PubSubEvent::NotifyIterationFinished(ty) if sub_types.contains(&ty))
-            {
-                break;
+            if let PubSubEvent::NotifyIterationFinished(ty) = event {
+                sub_types.remove(&ty);
+                if sub_types.is_empty() {
+                    break;
+                }
+            } else {
+                tracing::trace!(?event, "Skipping event");
+            }
+        }
+    });
+    wait_future.await.expect("Timed out waiting for notifier");
+}
+
+#[allow(clippy::needless_pass_by_ref_mut)] // false positive
+async fn wait_for_notifier_miniblock(
+    events: &mut mpsc::UnboundedReceiver<PubSubEvent>,
+    sub_type: SubscriptionType,
+    expected: MiniblockNumber,
+) {
+    let wait_future = tokio::time::timeout(TEST_TIMEOUT, async {
+        loop {
+            let event = events
+                .recv()
+                .await
+                .expect("Events emitter unexpectedly dropped");
+            if let PubSubEvent::MiniblockAdvanced(ty, number) = event {
+                if ty == sub_type && number >= expected {
+                    break;
+                }
             } else {
                 tracing::trace!(?event, "Skipping event");
             }
@@ -69,8 +98,13 @@ async fn wait_for_notifiers(
 async fn notifiers_start_after_snapshot_recovery() {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
-    prepare_empty_recovery_snapshot(&mut storage, StorageInitialization::SNAPSHOT_RECOVERY_BLOCK)
-        .await;
+    prepare_recovery_snapshot(
+        &mut storage,
+        StorageInitialization::SNAPSHOT_RECOVERY_BATCH,
+        StorageInitialization::SNAPSHOT_RECOVERY_BLOCK,
+        &[],
+    )
+    .await;
 
     let (stop_sender, stop_receiver) = watch::channel(false);
     let (events_sender, mut events_receiver) = mpsc::unbounded_channel();
@@ -87,7 +121,7 @@ async fn notifiers_start_after_snapshot_recovery() {
     }
 
     // Emulate creating the first miniblock; check that notifiers react to it.
-    let first_local_miniblock = MiniblockNumber(StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1);
+    let first_local_miniblock = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
     store_miniblock(&mut storage, first_local_miniblock, &[])
         .await
         .unwrap();
@@ -232,11 +266,11 @@ impl WsTest for BasicSubscriptionsTest {
         let mut storage = pool.access_storage().await?;
         let tx_result = execute_l2_transaction(create_l2_transaction(1, 2));
         let new_tx_hash = tx_result.hash;
-        let miniblock_number = MiniblockNumber(if self.snapshot_recovery {
+        let miniblock_number = if self.snapshot_recovery {
             StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1
         } else {
-            1
-        });
+            MiniblockNumber(1)
+        };
         let new_miniblock = store_miniblock(&mut storage, miniblock_number, &[tx_result]).await?;
         drop(storage);
 
@@ -356,7 +390,7 @@ impl WsTest for LogSubscriptionsTest {
 
         let mut storage = pool.access_storage().await?;
         let miniblock_number = if self.snapshot_recovery {
-            StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1
+            StorageInitialization::SNAPSHOT_RECOVERY_BLOCK.0 + 1
         } else {
             1
         };
@@ -531,15 +565,21 @@ impl WsTest for LogSubscriptionsWithDelayTest {
         pool: &ConnectionPool,
         mut pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
     ) -> anyhow::Result<()> {
+        // Wait until notifiers are initialized.
+        wait_for_notifiers(&mut pub_sub_events, &[SubscriptionType::Logs]).await;
+
         // Store a miniblock w/o subscriptions being present.
         let mut storage = pool.access_storage().await?;
         store_events(&mut storage, 1, 0).await?;
         drop(storage);
 
-        while pub_sub_events.try_recv().is_ok() {
-            // Drain all existing pub-sub events.
-        }
-        wait_for_notifiers(&mut pub_sub_events, &[SubscriptionType::Logs]).await;
+        // Wait for the log notifier to process the new miniblock.
+        wait_for_notifier_miniblock(
+            &mut pub_sub_events,
+            SubscriptionType::Logs,
+            MiniblockNumber(1),
+        )
+        .await;
 
         let params = rpc_params!["logs"];
         let mut all_logs_subscription = client

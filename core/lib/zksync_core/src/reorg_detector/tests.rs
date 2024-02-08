@@ -10,7 +10,7 @@ use test_casing::{test_casing, Product};
 use tokio::sync::mpsc;
 use zksync_dal::StorageProcessor;
 use zksync_types::{
-    block::{BlockGasCount, MiniblockHeader},
+    block::{MiniblockHasher, MiniblockHeader},
     L2ChainId, ProtocolVersion,
 };
 
@@ -36,7 +36,7 @@ async fn seal_l1_batch(storage: &mut StorageProcessor<'_>, number: u32, hash: H2
     let header = create_l1_batch(number);
     storage
         .blocks_dal()
-        .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[], 0)
+        .insert_mock_l1_batch(&header)
         .await
         .unwrap();
     storage
@@ -61,8 +61,6 @@ async fn binary_search_with_simple_predicate() {
     }
 }
 
-type ResponsesMap<K> = HashMap<K, H256>;
-
 #[derive(Debug, Clone, Copy)]
 enum RpcErrorKind {
     Transient,
@@ -80,13 +78,33 @@ impl From<RpcErrorKind> for RpcError {
 
 #[derive(Debug, Default)]
 struct MockMainNodeClient {
-    miniblock_hash_responses: ResponsesMap<MiniblockNumber>,
-    l1_batch_root_hash_responses: ResponsesMap<L1BatchNumber>,
+    latest_miniblock_response: Option<MiniblockNumber>,
+    latest_l1_batch_response: Option<L1BatchNumber>,
+    miniblock_hash_responses: HashMap<MiniblockNumber, H256>,
+    l1_batch_root_hash_responses: HashMap<L1BatchNumber, H256>,
     error_kind: Arc<Mutex<Option<RpcErrorKind>>>,
 }
 
 #[async_trait]
 impl MainNodeClient for MockMainNodeClient {
+    async fn sealed_miniblock_number(&self) -> Result<MiniblockNumber, RpcError> {
+        if let &Some(error_kind) = &*self.error_kind.lock().unwrap() {
+            return Err(error_kind.into());
+        }
+        Ok(self
+            .latest_miniblock_response
+            .expect("unexpected `sealed_miniblock_number` request"))
+    }
+
+    async fn sealed_l1_batch_number(&self) -> Result<L1BatchNumber, RpcError> {
+        if let &Some(error_kind) = &*self.error_kind.lock().unwrap() {
+            return Err(error_kind.into());
+        }
+        Ok(self
+            .latest_l1_batch_response
+            .expect("unexpected `sealed_l1_batch_number` request"))
+    }
+
     async fn miniblock_hash(&self, number: MiniblockNumber) -> Result<Option<H256>, RpcError> {
         if let &Some(error_kind) = &*self.error_kind.lock().unwrap() {
             return Err(error_kind.into());
@@ -128,18 +146,26 @@ impl UpdateCorrectBlock for mpsc::UnboundedSender<(MiniblockNumber, L1BatchNumbe
 async fn normal_reorg_function(snapshot_recovery: bool, with_transient_errors: bool) {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
+    let mut client = MockMainNodeClient::default();
     if snapshot_recovery {
         storage
             .protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
     } else {
-        ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
-            .await
-            .unwrap();
+        let genesis_root_hash =
+            ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
+                .await
+                .unwrap();
+        client.miniblock_hash_responses.insert(
+            MiniblockNumber(0),
+            MiniblockHasher::legacy_hash(MiniblockNumber(0)),
+        );
+        client
+            .l1_batch_root_hash_responses
+            .insert(L1BatchNumber(0), genesis_root_hash);
     }
 
-    let mut client = MockMainNodeClient::default();
     let l1_batch_numbers = if snapshot_recovery {
         11_u32..=20
     } else {
@@ -230,12 +256,20 @@ async fn detector_stops_on_fatal_rpc_error() {
 async fn reorg_is_detected_on_batch_hash_mismatch() {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
-    ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
-        .await
-        .unwrap();
+    let genesis_root_hash =
+        ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
+            .await
+            .unwrap();
+    let mut client = MockMainNodeClient::default();
+    client.miniblock_hash_responses.insert(
+        MiniblockNumber(0),
+        MiniblockHasher::legacy_hash(MiniblockNumber(0)),
+    );
+    client
+        .l1_batch_root_hash_responses
+        .insert(L1BatchNumber(0), genesis_root_hash);
 
     let (_stop_sender, stop_receiver) = watch::channel(false);
-    let mut client = MockMainNodeClient::default();
     let miniblock_hash = H256::from_low_u64_be(23);
     client
         .miniblock_hash_responses
@@ -274,12 +308,20 @@ async fn reorg_is_detected_on_batch_hash_mismatch() {
 async fn reorg_is_detected_on_miniblock_hash_mismatch() {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
-    ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
-        .await
-        .unwrap();
+    let mut client = MockMainNodeClient::default();
+    let genesis_root_hash =
+        ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
+            .await
+            .unwrap();
+    client.miniblock_hash_responses.insert(
+        MiniblockNumber(0),
+        MiniblockHasher::legacy_hash(MiniblockNumber(0)),
+    );
+    client
+        .l1_batch_root_hash_responses
+        .insert(L1BatchNumber(0), genesis_root_hash);
 
     let (_stop_sender, stop_receiver) = watch::channel(false);
-    let mut client = MockMainNodeClient::default();
     let miniblock_hash = H256::from_low_u64_be(23);
     client
         .miniblock_hash_responses
@@ -352,6 +394,13 @@ async fn reorg_is_detected_on_historic_batch_hash_mismatch(
     seal_l1_batch(&mut storage, earliest_l1_batch_number, H256::zero()).await;
 
     let mut client = MockMainNodeClient::default();
+    client
+        .miniblock_hash_responses
+        .insert(MiniblockNumber(earliest_l1_batch_number), H256::zero());
+    client
+        .l1_batch_root_hash_responses
+        .insert(L1BatchNumber(earliest_l1_batch_number), H256::zero());
+
     let miniblock_and_l1_batch_hashes = l1_batch_numbers.clone().map(|number| {
         let mut miniblock_hash = H256::from_low_u64_be(number.into());
         client
@@ -493,4 +542,55 @@ async fn detector_errors_on_earliest_batch_hash_mismatch_with_snapshot_recovery(
 
     let err = detector.run_inner().await.unwrap_err();
     assert_matches!(err, HashMatchError::EarliestHashMismatch(L1BatchNumber(3)));
+}
+
+#[tokio::test]
+async fn reorg_is_detected_without_waiting_for_main_node_to_catch_up() {
+    let pool = ConnectionPool::test_pool().await;
+    let mut storage = pool.access_storage().await.unwrap();
+    let genesis_root_hash =
+        ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
+            .await
+            .unwrap();
+    // Fill in local storage with some data, so that it's ahead of the main node.
+    for number in 1..5 {
+        store_miniblock(&mut storage, number, H256::zero()).await;
+        seal_l1_batch(&mut storage, number, H256::zero()).await;
+    }
+    drop(storage);
+
+    let mut client = MockMainNodeClient::default();
+    client
+        .l1_batch_root_hash_responses
+        .insert(L1BatchNumber(0), genesis_root_hash);
+    for number in 1..3 {
+        client
+            .miniblock_hash_responses
+            .insert(MiniblockNumber(number), H256::zero());
+        client
+            .l1_batch_root_hash_responses
+            .insert(L1BatchNumber(number), H256::zero());
+    }
+    client
+        .miniblock_hash_responses
+        .insert(MiniblockNumber(3), H256::zero());
+    client
+        .l1_batch_root_hash_responses
+        .insert(L1BatchNumber(3), H256::repeat_byte(0xff));
+    client.latest_l1_batch_response = Some(L1BatchNumber(3));
+    client.latest_miniblock_response = Some(MiniblockNumber(3));
+
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    let detector = ReorgDetector {
+        client: Box::new(client),
+        block_updater: Box::new(()),
+        pool,
+        stop_receiver,
+        sleep_interval: Duration::from_millis(10),
+    };
+    let detector_task = tokio::spawn(detector.run());
+
+    let task_result = detector_task.await.unwrap();
+    let last_correct_l1_batch = task_result.unwrap();
+    assert_eq!(last_correct_l1_batch, Some(L1BatchNumber(2)));
 }

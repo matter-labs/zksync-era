@@ -96,7 +96,7 @@ impl HttpTest for CallTestAfterSnapshotRecovery {
         assert_eq!(call_result.0, b"output");
 
         let first_local_miniblock = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
-        let first_miniblock_numbers = [api::BlockNumber::Latest, first_local_miniblock.into()];
+        let first_miniblock_numbers = [api::BlockNumber::Latest, first_local_miniblock.0.into()];
         for number in first_miniblock_numbers {
             let number = api::BlockIdVariant::BlockNumber(number);
             let error = client
@@ -110,7 +110,7 @@ impl HttpTest for CallTestAfterSnapshotRecovery {
             }
         }
 
-        let pruned_block_numbers = [0, 1, StorageInitialization::SNAPSHOT_RECOVERY_BLOCK];
+        let pruned_block_numbers = [0, 1, StorageInitialization::SNAPSHOT_RECOVERY_BLOCK.0];
         for number in pruned_block_numbers {
             let number = api::BlockIdVariant::BlockNumber(number.into());
             let error = client
@@ -121,7 +121,7 @@ impl HttpTest for CallTestAfterSnapshotRecovery {
         }
 
         let mut storage = pool.access_storage().await?;
-        store_miniblock(&mut storage, MiniblockNumber(first_local_miniblock), &[]).await?;
+        store_miniblock(&mut storage, first_local_miniblock, &[]).await?;
         drop(storage);
 
         for number in first_miniblock_numbers {
@@ -208,8 +208,11 @@ impl HttpTest for SendRawTransactionTest {
             // Manually set sufficient balance for the transaction account.
             let mut storage = pool.access_storage().await?;
             storage
-                .storage_dal()
-                .apply_storage_logs(&[(H256::zero(), vec![Self::balance_storage_log()])])
+                .storage_logs_dal()
+                .append_storage_logs(
+                    MiniblockNumber(0),
+                    &[(H256::zero(), vec![Self::balance_storage_log()])],
+                )
                 .await;
         }
 

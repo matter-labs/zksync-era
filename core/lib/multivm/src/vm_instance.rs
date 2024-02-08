@@ -116,6 +116,10 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for VmInstance<S, H> {
         dispatch_vm!(self.record_vm_memory_metrics())
     }
 
+    fn has_enough_gas_for_batch_tip(&self) -> bool {
+        dispatch_vm!(self.has_enough_gas_for_batch_tip())
+    }
+
     /// Return the results of execution of all batch
     fn finish_batch(&mut self) -> FinishedL1Batch {
         dispatch_vm!(self.finish_batch())
