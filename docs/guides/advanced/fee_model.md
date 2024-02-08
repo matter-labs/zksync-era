@@ -14,7 +14,7 @@ The gas fee covers the following expenses:
 
 ## Price configuration
 
-We have two pricing models:
+We have two pricing models (old and new):
 
 - the `L1Pegged` - until protocol version 19
 - the `PubdataIndependent` - from protocol version 20 (release 1.4.1)
