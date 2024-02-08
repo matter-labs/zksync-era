@@ -12,7 +12,6 @@ use crate::{
     implementations::resources::state_keeper::{
         ConditionalSealerResource, L1BatchExecutorBuilderResource, StateKeeperIOResource,
     },
-    resource::Resource,
     service::{ServiceContext, StopReceiver},
     task::Task,
     wiring_layer::{WiringError, WiringLayer},
@@ -35,29 +34,17 @@ impl WiringLayer for StateKeeperLayer {
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         let io = context
             .get_resource::<StateKeeperIOResource>()
-            .await
-            .ok_or(WiringError::ResourceLacking(
-                StateKeeperIOResource::resource_id(),
-            ))?
+            .await?
             .0
             .take()
             .context("StateKeeperIO was provided but taken by some other task")?;
         let batch_executor_base = context
             .get_resource::<L1BatchExecutorBuilderResource>()
-            .await
-            .ok_or(WiringError::ResourceLacking(
-                L1BatchExecutorBuilderResource::resource_id(),
-            ))?
+            .await?
             .0
             .take()
             .context("L1BatchExecutorBuilder was provided but taken by some other task")?;
-        let sealer = context
-            .get_resource::<ConditionalSealerResource>()
-            .await
-            .ok_or(WiringError::ResourceLacking(
-                ConditionalSealerResource::resource_id(),
-            ))?
-            .0;
+        let sealer = context.get_resource::<ConditionalSealerResource>().await?.0;
 
         context.add_task(Box::new(StateKeeperTask {
             io,

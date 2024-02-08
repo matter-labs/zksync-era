@@ -10,7 +10,7 @@ use crate::{
         fee_input::FeeInputResource, object_store::ObjectStoreResource, pools::MasterPoolResource,
         state_keeper::StateKeeperIOResource,
     },
-    resource::{Resource, Unique},
+    resource::Unique,
     service::{ServiceContext, StopReceiver},
     task::Task,
     wiring_layer::{WiringError, WiringLayer},
@@ -51,21 +51,9 @@ impl WiringLayer for MempoolIOLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         // Fetch required resources.
-        let batch_fee_input_provider = context
-            .get_resource::<FeeInputResource>()
-            .await
-            .ok_or(WiringError::ResourceLacking(FeeInputResource::resource_id()))?
-            .0;
-        let object_store = context
-            .get_resource::<ObjectStoreResource>()
-            .await
-            .ok_or(WiringError::ResourceLacking(
-                ObjectStoreResource::resource_id(),
-            ))?
-            .0;
-        let master_pool = context.get_resource::<MasterPoolResource>().await.ok_or(
-            WiringError::ResourceLacking(MasterPoolResource::resource_id()),
-        )?;
+        let batch_fee_input_provider = context.get_resource::<FeeInputResource>().await?.0;
+        let object_store = context.get_resource::<ObjectStoreResource>().await?.0;
+        let master_pool = context.get_resource::<MasterPoolResource>().await?;
 
         // Create miniblock sealer task.
         let (miniblock_sealer, miniblock_sealer_handle) = MiniblockSealer::new(

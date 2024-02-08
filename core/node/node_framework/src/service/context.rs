@@ -41,7 +41,7 @@ impl<'a> ServiceContext<'a> {
     /// ## Panics
     ///
     /// Panics if the resource with the specified name exists, but is not of the requested type.
-    pub async fn get_resource<T: Resource + Clone>(&mut self) -> Option<T> {
+    pub async fn get_resource<T: Resource + Clone>(&mut self) -> Result<T, WiringError> {
         #[allow(clippy::borrowed_box)]
         let downcast_clone = |resource: &Box<dyn StoredResource>| {
             resource
@@ -59,7 +59,7 @@ impl<'a> ServiceContext<'a> {
         let name = T::resource_id();
         // Check whether the resource is already available.
         if let Some(resource) = self.service.resources.get(&name) {
-            return Some(downcast_clone(resource));
+            return Ok(downcast_clone(resource));
         }
 
         // Try to fetch the resource from the provider.
@@ -68,12 +68,12 @@ impl<'a> ServiceContext<'a> {
             let downcasted = downcast_clone(&resource);
             // Then, add it to the local resources.
             self.service.resources.insert(name, resource);
-            return Some(downcasted);
+            return Ok(downcasted);
         }
 
         // No such resource.
         // The requester is allowed to decide whether this is an error or not.
-        None
+        Err(WiringError::ResourceLacking(T::resource_id()))
     }
 
     /// Attempts to retrieve the resource with the specified name.
@@ -82,7 +82,7 @@ impl<'a> ServiceContext<'a> {
         &mut self,
         f: F,
     ) -> T {
-        if let Some(resource) = self.get_resource::<T>().await {
+        if let Ok(resource) = self.get_resource::<T>().await {
             return resource;
         }
 

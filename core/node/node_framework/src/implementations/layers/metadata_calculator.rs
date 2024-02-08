@@ -7,7 +7,7 @@ use crate::{
         healthcheck::HealthCheckResource, object_store::ObjectStoreResource,
         pools::MasterPoolResource,
     },
-    resource::{Resource, ResourceCollection},
+    resource::ResourceCollection,
     service::{ServiceContext, StopReceiver},
     task::Task,
     wiring_layer::{WiringError, WiringLayer},
@@ -37,11 +37,9 @@ impl WiringLayer for MetadataCalculatorLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let pool = context.get_resource::<MasterPoolResource>().await.ok_or(
-            WiringError::ResourceLacking(MasterPoolResource::resource_id()),
-        )?;
+        let pool = context.get_resource::<MasterPoolResource>().await?;
         let main_pool = pool.get().await.unwrap();
-        let object_store = context.get_resource::<ObjectStoreResource>().await; // OK to be None.
+        let object_store = context.get_resource::<ObjectStoreResource>().await.ok(); // OK to be None.
 
         if object_store.is_none() {
             tracing::info!(
