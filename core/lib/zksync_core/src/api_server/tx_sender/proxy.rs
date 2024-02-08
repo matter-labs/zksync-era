@@ -136,16 +136,17 @@ impl TxProxy {
     pub async fn next_nonce_by_initiator_account(
         &self,
         account_address: Address,
-        mut current_nonce: u32,
+        current_nonce: u32,
     ) -> Nonce {
+        let mut exprected_nonce = current_nonce;
         let nonces = self.get_nonces_by_account(account_address).await;
         for pending_nonce in nonces {
             // If nonce is not sequential, then we should not increment nonce.
-            if pending_nonce.0 == current_nonce + 1 {
-                current_nonce += 1;
+            if pending_nonce.0 == exprected_nonce {
+                exprected_nonce += 1;
             }
         }
-        Nonce(current_nonce + 1)
+        Nonce(exprected_nonce)
     }
 
     pub async fn submit_tx(&self, tx: &L2Tx) -> RpcResult<H256> {
