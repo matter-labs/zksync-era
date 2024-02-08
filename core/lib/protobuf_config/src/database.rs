@@ -85,6 +85,7 @@ impl ProtoRepr for proto::Db {
 
 impl ProtoRepr for proto::Postgres {
     type Type = configs::database::PostgresConfig;
+
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {
             master_url: self.master_url.clone(),
@@ -93,6 +94,8 @@ impl ProtoRepr for proto::Postgres {
             max_connections: self.max_connections,
             acquire_timeout_sec: self.acquire_timeout_sec,
             statement_timeout_sec: self.statement_timeout_sec,
+            long_connection_threshold_ms: self.long_connection_threshold_ms,
+            slow_query_threshold_ms: self.slow_query_threshold_ms,
         })
     }
 
@@ -104,6 +107,8 @@ impl ProtoRepr for proto::Postgres {
             max_connections: this.max_connections,
             acquire_timeout_sec: this.acquire_timeout_sec,
             statement_timeout_sec: this.statement_timeout_sec,
+            long_connection_threshold_ms: this.long_connection_threshold_ms,
+            slow_query_threshold_ms: this.slow_query_threshold_ms,
         }
     }
 }

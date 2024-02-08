@@ -7,13 +7,11 @@ use sqlx::{
     query::{Map, Query, QueryAs},
     FromRow, IntoArguments, Postgres,
 };
-use tokio::time::{Duration, Instant};
+use tokio::time::Instant;
 
-use crate::metrics::REQUEST_METRICS;
+use crate::{metrics::REQUEST_METRICS, ConnectionPool};
 
 type ThreadSafeDebug<'a> = dyn fmt::Debug + Send + Sync + 'a;
-
-const SLOW_QUERY_TIMEOUT: Duration = Duration::from_millis(100);
 
 /// Logged arguments for an SQL query.
 #[derive(Debug, Default)]
@@ -116,14 +114,15 @@ impl<'a> InstrumentedData<'a> {
         let started_at = Instant::now();
         tokio::pin!(query_future);
 
+        let slow_query_threshold = ConnectionPool::global_config().slow_query_threshold();
         let mut is_slow = false;
         let output =
-            tokio::time::timeout_at(started_at + SLOW_QUERY_TIMEOUT, &mut query_future).await;
+            tokio::time::timeout_at(started_at + slow_query_threshold, &mut query_future).await;
         let output = match output {
             Ok(output) => output,
             Err(_) => {
                 tracing::warn!(
-                    "Query {name}{args} called at {file}:{line} is executing for more than {SLOW_QUERY_TIMEOUT:?}",
+                    "Query {name}{args} called at {file}:{line} is executing for more than {slow_query_threshold:?}",
                     file = location.file(),
                     line = location.line()
                 );

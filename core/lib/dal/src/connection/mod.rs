@@ -1,4 +1,13 @@
-use std::{env, fmt, future::Future, panic::Location, sync::Arc, time::Duration};
+use std::{
+    env, fmt,
+    future::Future,
+    panic::Location,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
+    time::Duration,
+};
 
 use anyhow::Context as _;
 use rand::Rng;
@@ -169,6 +178,47 @@ impl TestTemplate {
     }
 }
 
+#[derive(Debug)]
+pub struct GlobalConnectionPoolConfig {
+    long_connection_threshold_ms: AtomicU64,
+    slow_query_threshold_ms: AtomicU64,
+}
+
+impl GlobalConnectionPoolConfig {
+    const fn new() -> Self {
+        Self {
+            long_connection_threshold_ms: AtomicU64::new(5_000), // 5 seconds
+            slow_query_threshold_ms: AtomicU64::new(100),        // 0.1 seconds
+        }
+    }
+
+    pub(crate) fn long_connection_threshold(&self) -> Duration {
+        Duration::from_millis(self.long_connection_threshold_ms.load(Ordering::Relaxed))
+    }
+
+    pub(crate) fn slow_query_threshold(&self) -> Duration {
+        Duration::from_millis(self.slow_query_threshold_ms.load(Ordering::Relaxed))
+    }
+
+    pub fn set_long_connection_threshold(&self, threshold: Duration) -> anyhow::Result<&Self> {
+        let millis = u64::try_from(threshold.as_millis())
+            .context("long_connection_threshold is unreasonably large")?;
+        self.long_connection_threshold_ms
+            .store(millis, Ordering::Relaxed);
+        tracing::debug!("Set long connection threshold to {threshold:?}");
+        Ok(self)
+    }
+
+    pub fn set_slow_query_threshold(&self, threshold: Duration) -> anyhow::Result<&Self> {
+        let millis = u64::try_from(threshold.as_millis())
+            .context("slow_query_threshold is unreasonably large")?;
+        self.slow_query_threshold_ms
+            .store(millis, Ordering::Relaxed);
+        tracing::debug!("Set slow query threshold to {threshold:?}");
+        Ok(self)
+    }
+}
+
 #[derive(Clone)]
 pub struct ConnectionPool {
     pub(crate) inner: PgPool,
@@ -190,6 +240,11 @@ impl fmt::Debug for ConnectionPool {
 
 impl ConnectionPool {
     const TEST_ACQUIRE_TIMEOUT: Duration = Duration::from_secs(1);
+
+    pub fn global_config() -> &'static GlobalConnectionPoolConfig {
+        static CONFIG: GlobalConnectionPoolConfig = GlobalConnectionPoolConfig::new();
+        &CONFIG
+    }
 
     /// Creates a test pool with a reasonably large number of connections.
     ///

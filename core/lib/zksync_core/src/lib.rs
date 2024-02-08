@@ -286,6 +286,12 @@ pub async fn initialize_components(
 
     let db_config = configs.db_config.clone().context("db_config")?;
     let postgres_config = configs.postgres_config.clone().context("postgres_config")?;
+    if let Some(threshold) = postgres_config.slow_query_threshold() {
+        ConnectionPool::global_config().set_slow_query_threshold(threshold)?;
+    }
+    if let Some(threshold) = postgres_config.long_connection_threshold() {
+        ConnectionPool::global_config().set_long_connection_threshold(threshold)?;
+    }
 
     let pool_size = postgres_config.max_connections()?;
     let connection_pool = ConnectionPool::builder(postgres_config.master_url()?, pool_size)

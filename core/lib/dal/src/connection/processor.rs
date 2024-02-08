@@ -6,19 +6,18 @@ use std::{
         atomic::{AtomicUsize, Ordering},
         Mutex,
     },
-    time::{Duration, Instant, SystemTime},
+    time::{Instant, SystemTime},
 };
 
 use sqlx::{pool::PoolConnection, types::chrono, Connection, PgConnection, Postgres, Transaction};
 
-use crate::metrics::CONNECTION_METRICS;
+use crate::{metrics::CONNECTION_METRICS, ConnectionPool};
 
 /// Tags that can be associated with a connection.
 #[derive(Debug, Clone, Copy)]
 pub(super) struct StorageProcessorTags {
     pub requester: &'static str,
     pub location: &'static Location<'static>,
-    // TODO: custom tags (e.g., method for API)?
 }
 
 impl fmt::Display for StorageProcessorTags {
@@ -107,14 +106,11 @@ impl fmt::Debug for PooledStorageProcessor<'_> {
 
 impl Drop for PooledStorageProcessor<'_> {
     fn drop(&mut self) {
-        // FIXME: configure (on pool level? globally?)
-        const LONG_CONNECTION_THRESHOLD: Duration = Duration::from_secs(5);
-
         if let Some(tags) = &self.tags {
             let lifetime = self.created_at.elapsed();
             CONNECTION_METRICS.lifetime[&tags.requester].observe(lifetime);
 
-            if lifetime > LONG_CONNECTION_THRESHOLD {
+            if lifetime > ConnectionPool::global_config().long_connection_threshold() {
                 let file = tags.location.file();
                 let line = tags.location.line();
                 tracing::info!(
