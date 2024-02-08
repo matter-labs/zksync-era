@@ -459,17 +459,30 @@ impl FullApiParams {
         local_addr_sender: oneshot::Sender<SocketAddr>,
         health_updater: HealthUpdater,
     ) -> anyhow::Result<()> {
-        // We don't want to start the server until at least one L1 batch is stored in Postgres.
+        let transport = self.transport;
+        let (transport_str, is_http, addr) = match transport {
+            ApiTransport::Http(addr) => ("HTTP", true, addr),
+            ApiTransport::WebSocket(addr) => ("WS", false, addr),
+        };
+        let transport_label = (&transport).into();
+
+        tracing::info!(
+            "Waiting for at least one L1 batch in Postgres to start {transport_str} API server"
+        );
+        // Starting the server before L1 batches are present in Postgres can lead to some invariants the server logic
+        // implicitly assumes not being upheld. The only case when we'll actually wait here is immediately after snapshot recovery.
         let earliest_l1_batch_number =
             wait_for_l1_batch(&self.pool, self.polling_interval, &mut stop_receiver)
                 .await
                 .context("error while waiting for L1 batch in Postgres")?;
 
-        if earliest_l1_batch_number.is_none() {
-            return Ok(()); // received shutdown signal
+        if let Some(number) = earliest_l1_batch_number {
+            tracing::info!("Successfully waited for at least one L1 batch in Postgres; the earliest one is #{number}");
+        } else {
+            tracing::info!("Received shutdown signal before {transport_str} API server is started; shutting down");
+            return Ok(());
         }
 
-        let transport = self.transport;
         let batch_request_config = self
             .optional
             .batch_request_size_limit
@@ -487,12 +500,6 @@ impl FullApiParams {
         let rpc = self
             .build_rpc_module(pub_sub, last_sealed_miniblock)
             .await?;
-
-        let (transport_str, is_http, addr) = match transport {
-            ApiTransport::Http(addr) => ("HTTP", true, addr),
-            ApiTransport::WebSocket(addr) => ("WS", false, addr),
-        };
-        let transport_label = (&transport).into();
 
         // Setup CORS.
         let cors = is_http.then(|| {
