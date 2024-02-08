@@ -13,7 +13,7 @@ use zksync_types::H256;
 use zksync_types::{get_nonce_key, Address, Nonce, Transaction, VmVersion};
 
 use super::{metrics::KEEPER_METRICS, types::MempoolGuard};
-use crate::{api_server::execution_sandbox::BlockArgs, fee_model::BatchFeeModelInputProvider};
+use crate::{fee_model::BatchFeeModelInputProvider, utils::pending_protocol_version};
 
 /// Creates a mempool filter for L2 transactions based on the current L1 gas price.
 /// The filter is used to filter out transactions from the mempool that do not cover expenses
@@ -89,15 +89,9 @@ impl<G: BatchFeeModelInputProvider> MempoolFetcher<G> {
             let latency = KEEPER_METRICS.mempool_sync.start();
             let mut storage = pool.access_storage_tagged("state_keeper").await?;
             let mempool_info = self.mempool.get_mempool_info();
-
-            let latest_miniblock = BlockArgs::pending(&mut storage)
+            let protocol_version = pending_protocol_version(&mut storage)
                 .await
-                .context("failed obtaining latest miniblock")?;
-            let protocol_version = latest_miniblock
-                .resolve_block_info(&mut storage)
-                .await
-                .with_context(|| format!("failed resolving block info for {latest_miniblock:?}"))?
-                .protocol_version;
+                .context("failed getting pending protocol version")?;
 
             let l2_tx_filter = l2_tx_filter(
                 self.batch_fee_input_provider.as_ref(),
