@@ -797,7 +797,8 @@ impl BlocksDal<'_, '_> {
             .await?
             .count;
 
-            anyhow::ensure!(matched == 1,
+            anyhow::ensure!(
+                matched == 1,
                 "Root hash verification failed. Hash for L1 batch #{} does not match the expected value \
                  (expected root hash: {:?})",
                 number,
@@ -880,7 +881,8 @@ impl BlocksDal<'_, '_> {
             .await?
             .count;
 
-            anyhow::ensure!(matched == 1,
+            anyhow::ensure!(
+                matched == 1,
                 "Commitment verification failed. Commitment for L1 batch #{} does not match the expected value \
                  (expected commitment: {:?})",
                 number,
@@ -901,11 +903,11 @@ impl BlocksDal<'_, '_> {
             commitment_artifacts.aux_commitments
                 .map(|a| a.bootloader_initial_content_commitment.0.to_vec()),
         )
-            .instrument("save_batch_aux_commitments")
-            .with_arg("number", &number)
-            .report_latency()
-            .execute(transaction.conn())
-            .await?;
+        .instrument("save_batch_aux_commitments")
+        .with_arg("number", &number)
+        .report_latency()
+        .execute(transaction.conn())
+        .await?;
 
         transaction.commit().await?;
         Ok(())
@@ -1708,15 +1710,12 @@ impl BlocksDal<'_, '_> {
         )
         .fetch_optional(self.storage.conn())
         .await?;
-        Ok(
-            row.and_then(|row| match (row.hash, row.rollup_last_leaf_index) {
-                (Some(hash), Some(rollup_last_leaf_index)) => Some(L1BatchTreeData {
-                    hash: H256::from_slice(&hash),
-                    rollup_last_leaf_index: rollup_last_leaf_index as u64,
-                }),
-                _ => None,
-            }),
-        )
+        Ok(row.and_then(|row| {
+            Some(L1BatchTreeData {
+                hash: H256::from_slice(&row.hash?),
+                rollup_last_leaf_index: row.rollup_last_leaf_index? as u64,
+            })
+        }))
     }
 
     pub async fn get_l1_batch_with_metadata(
@@ -1741,7 +1740,7 @@ impl BlocksDal<'_, '_> {
             header,
             metadata,
             unsorted_factory_deps,
-            raw_published_bytecode_hashes,
+            &raw_published_bytecode_hashes,
         )))
     }
 

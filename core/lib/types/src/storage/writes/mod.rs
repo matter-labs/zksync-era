@@ -24,7 +24,8 @@ pub const PADDED_ENCODED_STORAGE_DIFF_LEN_BYTES: usize = 272;
 /// we assign an index to it and in the future we should use index instead of full key.
 /// It allows us to compress the data, as the full key would use 32 bytes, and the index can be
 /// represented only as BYTES_PER_ENUMERATION_INDEX bytes
-#[derive(Clone, Debug, Deserialize, Serialize, Default, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[cfg_attr(test, derive(Serialize, Deserialize))]
 pub struct InitialStorageWrite {
     pub index: u64,
     pub key: U256,
@@ -33,7 +34,8 @@ pub struct InitialStorageWrite {
 
 /// For repeated writes, we can substitute the 32 byte key for a BYTES_PER_ENUMERATION_INDEX byte index
 /// representing its leaf index in the tree.
-#[derive(Clone, Debug, Deserialize, Serialize, Default, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[cfg_attr(test, derive(Serialize, Deserialize))]
 pub struct RepeatedStorageWrite {
     pub index: u64,
     pub value: H256,

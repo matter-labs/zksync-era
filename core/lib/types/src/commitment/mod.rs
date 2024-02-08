@@ -27,6 +27,9 @@ use crate::{
     ProtocolVersionId, H256,
 };
 
+#[cfg(test)]
+mod tests;
+
 /// Type that can be serialized for commitment.
 pub trait SerializeCommitment {
     /// Size of the structure in bytes.
@@ -107,7 +110,7 @@ impl L1BatchWithMetadata {
         header: L1BatchHeader,
         metadata: L1BatchMetadata,
         unsorted_factory_deps: HashMap<H256, Vec<u8>>,
-        raw_published_bytecode_hashes: Vec<H256>,
+        raw_published_bytecode_hashes: &[H256],
     ) -> Self {
         Self {
             raw_published_factory_deps: Self::factory_deps_in_appearance_order(
@@ -124,7 +127,7 @@ impl L1BatchWithMetadata {
     pub fn factory_deps_in_appearance_order(
         header: &L1BatchHeader,
         mut unsorted_factory_deps: HashMap<H256, Vec<u8>>,
-        raw_published_bytecode_hashes: Vec<H256>,
+        raw_published_bytecode_hashes: &[H256],
     ) -> Vec<Vec<u8>> {
         // TODO(PLA-731): ensure that the protocol version is always available.
         let protocol_version = header
@@ -147,10 +150,10 @@ impl L1BatchWithMetadata {
             }).collect()
         } else {
             raw_published_bytecode_hashes
-                .into_iter()
+                .iter()
                 .map(|bytecode_hash| {
                     unsorted_factory_deps
-                        .remove(&bytecode_hash)
+                        .remove(bytecode_hash)
                         .unwrap_or_else(|| {
                             panic!(
                                 "Failed to get bytecode that was marked as known: bytecode_hash {:?}, L1 batch number {:?}",
@@ -250,14 +253,16 @@ impl SerializeCommitment for StateDiffRecord {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq)]
+#[cfg_attr(test, derive(Serialize, Deserialize))]
 struct L1BatchAuxiliaryCommonOutput {
     l2_l1_logs_merkle_root: H256,
     protocol_version: ProtocolVersionId,
 }
 
 /// Block Output produced by Virtual Machine
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq)]
+#[cfg_attr(test, derive(Serialize, Deserialize))]
 enum L1BatchAuxiliaryOutput {
     PreBoojum {
         common: L1BatchAuxiliaryCommonOutput,
@@ -277,7 +282,6 @@ enum L1BatchAuxiliaryOutput {
 }
 
 impl L1BatchAuxiliaryOutput {
-    #[allow(clippy::too_many_arguments)]
     fn new(input: CommitmentInput) -> Self {
         match input {
             CommitmentInput::PreBoojum {
@@ -463,13 +467,15 @@ impl L1BatchMetaParameters {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq)]
+#[cfg_attr(test, derive(Serialize, Deserialize))]
 struct RootState {
     pub last_leaf_index: u64,
     pub root_hash: H256,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq)]
+#[cfg_attr(test, derive(Serialize, Deserialize))]
 struct L1BatchPassThroughData {
     shared_states: Vec<RootState>,
 }
@@ -503,7 +509,8 @@ pub struct L1BatchCommitment {
     meta_parameters: L1BatchMetaParameters,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(test, derive(Serialize, Deserialize))]
 pub struct L1BatchCommitmentHash {
     pub pass_through_data: H256,
     pub aux_output: H256,
@@ -604,13 +611,15 @@ impl L1BatchCommitment {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(test, derive(Serialize, Deserialize))]
 pub struct AuxCommitments {
     pub events_queue_commitment: H256,
     pub bootloader_initial_content_commitment: H256,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(test, derive(Serialize, Deserialize))]
 pub struct CommitmentCommonInput {
     pub l2_to_l1_logs: Vec<UserL2ToL1Log>,
     pub rollup_last_leaf_index: u64,
@@ -620,7 +629,8 @@ pub struct CommitmentCommonInput {
     pub protocol_version: ProtocolVersionId,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(test, derive(Serialize, Deserialize))]
 pub enum CommitmentInput {
     PreBoojum {
         common: CommitmentCommonInput,
@@ -653,54 +663,4 @@ pub struct L1BatchCommitmentArtifacts {
     pub compressed_repeated_writes: Option<Vec<u8>>,
     pub zkporter_is_available: bool,
     pub aux_commitments: Option<AuxCommitments>,
-}
-
-#[cfg(test)]
-mod tests {
-    use serde::{Deserialize, Serialize};
-
-    use super::{
-        CommitmentInput, L1BatchAuxiliaryOutput, L1BatchCommitment, L1BatchCommitmentHash,
-        L1BatchMetaParameters, L1BatchPassThroughData,
-    };
-
-    #[derive(Debug, Serialize, Deserialize)]
-    struct CommitmentTest {
-        input: CommitmentInput,
-        pass_through_data: L1BatchPassThroughData,
-        meta_parameters: L1BatchMetaParameters,
-        auxiliary_output: L1BatchAuxiliaryOutput,
-        hashes: L1BatchCommitmentHash,
-    }
-
-    fn run_test(test_name: &str) {
-        let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
-        let path = std::path::Path::new(&zksync_home)
-            .join(format!("etc/commitment_tests/{test_name}.json"));
-        let contents = std::fs::read_to_string(path).unwrap();
-        let commitment_test: CommitmentTest = serde_json::from_str(&contents).unwrap();
-
-        let commitment = L1BatchCommitment::new(commitment_test.input);
-
-        assert_eq!(
-            commitment.pass_through_data,
-            commitment_test.pass_through_data
-        );
-        assert_eq!(commitment.meta_parameters, commitment_test.meta_parameters);
-        assert_eq!(
-            commitment.auxiliary_output,
-            commitment_test.auxiliary_output
-        );
-        assert_eq!(commitment.hash(), commitment_test.hashes);
-    }
-
-    #[test]
-    fn pre_boojum() {
-        run_test("pre_boojum_test");
-    }
-
-    #[test]
-    fn post_boojum() {
-        run_test("post_boojum_test");
-    }
 }

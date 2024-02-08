@@ -1,4 +1,4 @@
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use anyhow::Context;
 use itertools::Itertools;
@@ -36,8 +36,8 @@ impl CommitmentGenerator {
         conn: &mut StorageProcessor<'_>,
         l1_batch_number: L1BatchNumber,
         protocol_version: ProtocolVersionId,
-    ) -> anyhow::Result<Option<AuxCommitments>> {
-        let mut started_at = Instant::now();
+    ) -> anyhow::Result<AuxCommitments> {
+        let latency = METRICS.events_queue_commitment_latency.start();
         let events_queue = conn
             .blocks_dal()
             .get_events_queue(l1_batch_number)
@@ -45,11 +45,9 @@ impl CommitmentGenerator {
             .context("Events queue is required for post-boojum batch")?;
         let events_queue_commitment = events_queue_commitment(&events_queue, protocol_version)
             .context("Events queue commitment is required for post-boojum batch")?;
-        METRICS
-            .events_queue_commitment_latency
-            .observe(started_at.elapsed());
+        latency.observe();
 
-        started_at = Instant::now();
+        let latency = METRICS.bootloader_content_commitment_latency.start();
         let initial_bootloader_contents = conn
             .blocks_dal()
             .get_initial_bootloader_heap(l1_batch_number)
@@ -58,14 +56,12 @@ impl CommitmentGenerator {
         let bootloader_initial_content_commitment =
             bootloader_initial_content_commitment(&initial_bootloader_contents, protocol_version)
                 .context("Bootloader content commitment is required for post-boojum batch")?;
-        METRICS
-            .bootloader_content_commitment_latency
-            .observe(started_at.elapsed());
+        latency.observe();
 
-        Ok(Some(AuxCommitments {
+        Ok(AuxCommitments {
             events_queue_commitment,
             bootloader_initial_content_commitment,
-        }))
+        })
     }
 
     async fn prepare_input(
@@ -138,8 +134,7 @@ impl CommitmentGenerator {
         } else {
             let aux_commitments =
                 Self::calculate_aux_commitments(connection, header.number, protocol_version)
-                    .await?
-                    .context("Expected aux commitments")?;
+                    .await?;
 
             let mut state_diffs = Vec::new();
             for (key, value) in touched_slots {
@@ -186,24 +181,24 @@ impl CommitmentGenerator {
         connection: &mut StorageProcessor<'_>,
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<()> {
-        let mut stage_started_at = Instant::now();
+        let latency =
+            METRICS.generate_commitment_latency_stage[&CommitmentStage::PrepareInput].start();
         let input = Self::prepare_input(connection, l1_batch_number).await?;
-        METRICS.generate_commitment_latency_stage[&CommitmentStage::PrepareInput]
-            .observe(stage_started_at.elapsed());
+        latency.observe();
 
-        stage_started_at = Instant::now();
+        let latency =
+            METRICS.generate_commitment_latency_stage[&CommitmentStage::Calculate].start();
         let commitment = L1BatchCommitment::new(input);
         let artifacts = commitment.artifacts();
-        METRICS.generate_commitment_latency_stage[&CommitmentStage::Calculate]
-            .observe(stage_started_at.elapsed());
+        latency.observe();
 
-        stage_started_at = Instant::now();
+        let latency =
+            METRICS.generate_commitment_latency_stage[&CommitmentStage::SaveResults].start();
         connection
             .blocks_dal()
             .save_l1_batch_commitment_artifacts(l1_batch_number, &artifacts)
             .await?;
-        METRICS.generate_commitment_latency_stage[&CommitmentStage::SaveResults]
-            .observe(stage_started_at.elapsed());
+        latency.observe();
 
         Ok(())
     }
