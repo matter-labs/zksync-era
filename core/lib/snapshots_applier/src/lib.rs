@@ -1,11 +1,15 @@
 //! Logic for applying application-level snapshots to Postgres storage.
 
+use std::ops::Mul;
+use std::time::Duration;
 use std::{collections::HashMap, fmt};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
+use tokio::sync::{AcquireError, Semaphore};
 use zksync_dal::{ConnectionPool, SqlxError, StorageProcessor};
 use zksync_object_store::{ObjectStore, ObjectStoreError};
+use zksync_types::web3::futures;
 use zksync_types::{
     api::en::SyncBlock,
     snapshots::{
@@ -36,6 +40,12 @@ pub enum SnapshotsApplierError {
 impl SnapshotsApplierError {
     fn canceled(message: &str) -> Self {
         Self::Canceled(message.to_owned())
+    }
+}
+
+impl From<AcquireError> for SnapshotsApplierError {
+    fn from(value: AcquireError) -> Self {
+        Self::Fatal(value.into())
     }
 }
 
@@ -135,6 +145,44 @@ impl<'a> SnapshotsApplier<'a> {
         }
     }
 
+    pub async fn load_snapshots_with_retries(
+        connection_pool: &'a ConnectionPool,
+        main_node_client: &dyn SnapshotsApplierMainNodeClient,
+        blob_store: &'a dyn ObjectStore,
+    ) -> Result<(), SnapshotsApplierError> {
+        let retries = 5;
+        let mut retry_id = 0;
+        let mut backoff = Duration::from_secs(5);
+        assert_ne!(retries, 0);
+        loop {
+            let result =
+                SnapshotsApplier::load_snapshot(connection_pool, main_node_client, blob_store)
+                    .await;
+            match result {
+                Ok(()) => {
+                    return result;
+                }
+                Err(SnapshotsApplierError::Fatal(_)) => {
+                    tracing::info!("A fatal error occured during snapshots recovery!");
+                    return result;
+                }
+                Err(SnapshotsApplierError::Canceled(err)) => {
+                    tracing::info!("Cancelled snapshots recovery because: {err}");
+                    return Ok(());
+                }
+                Err(SnapshotsApplierError::Retryable(_)) => {
+                    retry_id += 1;
+                    if retry_id == retries {
+                        tracing::info!("Snapshots recovery ran out of retries attempts!");
+                        return result;
+                    }
+                    tracing::info!("An error occurred during snapshots recovery, trying to recover, attempt({retry_id}/{retries}), retrying in {backoff:?}");
+                    tokio::time::sleep(backoff).await;
+                    backoff = backoff.mul(2);
+                }
+            }
+        }
+    }
     pub async fn load_snapshot(
         connection_pool: &'a ConnectionPool,
         main_node_client: &dyn SnapshotsApplierMainNodeClient,
@@ -259,7 +307,7 @@ impl<'a> SnapshotsApplier<'a> {
     }
 
     async fn insert_initial_writes_chunk(
-        &mut self,
+        &self,
         storage_logs: &[SnapshotStorageLog],
         storage: &mut StorageProcessor<'_>,
     ) -> Result<(), SnapshotsApplierError> {
@@ -271,7 +319,7 @@ impl<'a> SnapshotsApplier<'a> {
     }
 
     async fn insert_storage_logs_chunk(
-        &mut self,
+        &self,
         storage_logs: &[SnapshotStorageLog],
         storage: &mut StorageProcessor<'_>,
     ) -> Result<(), SnapshotsApplierError> {
@@ -287,9 +335,11 @@ impl<'a> SnapshotsApplier<'a> {
 
     #[tracing::instrument(level = "debug", err, skip(self))]
     async fn recover_storage_logs_single_chunk(
-        &mut self,
+        &self,
+        semaphore: &Semaphore,
         chunk_id: u64,
     ) -> Result<(), SnapshotsApplierError> {
+        let _permit = semaphore.acquire().await?;
         tracing::info!("Processing storage logs chunk {chunk_id}");
         let latency =
             METRICS.storage_logs_chunks_duration[&StorageLogsChunksStage::LoadFromGcs].start();
@@ -322,7 +372,6 @@ impl<'a> SnapshotsApplier<'a> {
         self.insert_initial_writes_chunk(storage_logs, &mut storage_transaction)
             .await?;
 
-        self.applied_snapshot_status.storage_logs_chunks_processed[chunk_id as usize] = true;
         storage_transaction
             .snapshot_recovery_dal()
             .mark_storage_logs_chunk_as_processed(chunk_id)
@@ -336,18 +385,18 @@ impl<'a> SnapshotsApplier<'a> {
         Ok(())
     }
 
-    pub async fn recover_storage_logs(mut self) -> Result<(), SnapshotsApplierError> {
-        for chunk_id in 0..self
+    pub async fn recover_storage_logs(self) -> Result<(), SnapshotsApplierError> {
+        let semaphore = Semaphore::new(self.connection_pool.max_size() as usize);
+        let tasks = self
             .applied_snapshot_status
             .storage_logs_chunks_processed
-            .len()
-        {
-            //TODO Add retries and parallelize this step
-            if !self.applied_snapshot_status.storage_logs_chunks_processed[chunk_id] {
-                self.recover_storage_logs_single_chunk(chunk_id as u64)
-                    .await?;
-            }
-        }
+            .iter()
+            .enumerate()
+            .filter(|(chunk_id, is_processed)| !**is_processed)
+            .map(|(chunk_id, _)| {
+                self.recover_storage_logs_single_chunk(&semaphore, chunk_id as u64)
+            });
+        futures::future::try_join_all(tasks).await?;
 
         Ok(())
     }
