@@ -32,8 +32,6 @@ zkSync Era is distributed under the terms of either
 - Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or <http://www.apache.org/licenses/LICENSE-2.0>)
 - MIT license ([LICENSE-MIT](LICENSE-MIT) or <https://opensource.org/license/mit/>)
 
-at your option.
-
 ## Official Links
 
 - [Website](https://zksync.io/)
