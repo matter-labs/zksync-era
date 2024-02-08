@@ -65,11 +65,11 @@ impl EthWatch {
         let priority_ops_processor =
             PriorityOpsEventProcessor::new(state.next_expected_priority_id);
         let upgrades_processor = UpgradesEventProcessor::new(state.last_seen_version_id);
-        let set_chain_id_processor = SetChainIDEventProcessor::new(diamond_proxy_address);
+        // let set_chain_id_processor = SetChainIDEventProcessor::new(diamond_proxy_address);
         let mut event_processors: Vec<Box<dyn EventProcessor>> = vec![
             Box::new(priority_ops_processor),
             Box::new(upgrades_processor),
-            Box::new(set_chain_id_processor),
+            // Box::new(set_chain_id_processor),
         ];
 
         if let Some(governance_contract) = governance_contract {
@@ -92,6 +92,31 @@ impl EthWatch {
             poll_interval,
             event_processors,
             last_processed_ethereum_block: state.last_processed_ethereum_block,
+        }
+    }
+
+    /// EthWatch is only meant to be created this way during genesis, since
+    /// we only need to save the `setChainId` event once -- after the chain creation.
+    pub async fn new_set_chain_id_watch(
+        diamond_proxy_address: Address,
+        mut client: Box<dyn EthClient>,
+        poll_interval: Duration,
+    ) -> Self {
+        // To be safe, scan the last 50k blocks.
+        let last_processed_ethereum_block = client
+            .finalized_block_number()
+            .await
+            .expect("cannot initialize eth watch: cannot get current ETH block")
+            .saturating_sub(PRIORITY_EXPIRATION);
+
+        let set_chain_id_processor = SetChainIDEventProcessor::new(diamond_proxy_address);
+        client.set_topics(vec![set_chain_id_processor.relevant_topic()]);
+
+        Self {
+            client,
+            poll_interval,
+            event_processors: vec![Box::new(set_chain_id_processor)],
+            last_processed_ethereum_block,
         }
     }
 
@@ -134,13 +159,15 @@ impl EthWatch {
         }
     }
 
-    pub async fn run(
+    async fn run(
         &mut self,
         pool: ConnectionPool,
         stop_receiver: watch::Receiver<bool>,
+        limit: Option<usize>,
     ) -> anyhow::Result<()> {
         let mut timer = tokio::time::interval(self.poll_interval);
-        loop {
+        let mut processed_events = 0;
+        while limit.map(|l| processed_events < l).unwrap_or(true) {
             if *stop_receiver.borrow() {
                 tracing::info!("Stop signal received, eth_watch is shutting down");
                 break;
@@ -150,25 +177,32 @@ impl EthWatch {
             METRICS.eth_poll.inc();
 
             let mut storage = pool.access_storage_tagged("eth_watch").await.unwrap();
-            if let Err(error) = self.loop_iteration(&mut storage).await {
-                // This is an error because otherwise we could potentially miss a priority operation
-                // thus entering priority mode, which is not desired.
-                tracing::error!("Failed to process new blocks {}", error);
-                self.last_processed_ethereum_block =
-                    Self::initialize_state(&*self.client, &mut storage)
-                        .await
-                        .last_processed_ethereum_block;
+            match self.loop_iteration(&mut storage).await {
+                Ok(events) => {
+                    tracing::info!("Processed {:?} events", events);
+                    processed_events += events;
+                }
+                Err(error) => {
+                    // This is an error because otherwise we could potentially miss a priority operation
+                    // thus entering priority mode, which is not desired.
+                    tracing::error!("Failed to process new blocks {}", error);
+                    self.last_processed_ethereum_block =
+                        Self::initialize_state(&*self.client, &mut storage)
+                            .await
+                            .last_processed_ethereum_block;
+                }
             }
         }
         Ok(())
     }
 
+    /// If `Ok`, returns the number of processed events.
     #[tracing::instrument(skip(self, storage))]
-    async fn loop_iteration(&mut self, storage: &mut StorageProcessor<'_>) -> Result<(), Error> {
+    async fn loop_iteration(&mut self, storage: &mut StorageProcessor<'_>) -> Result<usize, Error> {
         let stage_latency = METRICS.poll_eth_node[&PollStage::Request].start();
         let to_block = self.client.finalized_block_number().await?;
         if to_block <= self.last_processed_ethereum_block {
-            return Ok(());
+            return Ok(0);
         }
 
         let events = self
@@ -181,13 +215,14 @@ impl EthWatch {
             .await?;
         stage_latency.observe();
 
+        let mut processed_events = 0;
         for processor in self.event_processors.iter_mut() {
-            processor
+            processed_events += processor
                 .process_events(storage, &*self.client, events.clone())
                 .await?;
         }
         self.last_processed_ethereum_block = to_block;
-        Ok(())
+        Ok(processed_events)
     }
 }
 
@@ -218,6 +253,6 @@ pub async fn start_eth_watch(
     .await;
 
     Ok(tokio::spawn(async move {
-        eth_watch.run(pool, stop_receiver).await
+        eth_watch.run(pool, stop_receiver, None).await
     }))
 }

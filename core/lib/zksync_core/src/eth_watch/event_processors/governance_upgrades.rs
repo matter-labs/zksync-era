@@ -44,7 +44,7 @@ impl EventProcessor for GovernanceUpgradesEventProcessor {
         storage: &mut StorageProcessor<'_>,
         client: &dyn EthClient,
         events: Vec<Log>,
-    ) -> Result<(), Error> {
+    ) -> Result<usize, Error> {
         let mut upgrades = Vec::new();
         for event in events
             .into_iter()
@@ -76,22 +76,17 @@ impl EventProcessor for GovernanceUpgradesEventProcessor {
             }
         }
 
-        if upgrades.is_empty() {
-            return Ok(());
-        }
-
-        let ids_str: Vec<_> = upgrades
-            .iter()
-            .map(|(u, _)| format!("{}", u.id as u16))
-            .collect();
-        tracing::debug!("Received upgrades with ids: {}", ids_str.join(", "));
-
         let new_upgrades: Vec<_> = upgrades
             .into_iter()
             .skip_while(|(v, _)| v.id as u16 <= self.last_seen_version_id as u16)
             .collect();
+
+        let new_upgrades_count = new_upgrades.len();
+        let ids: Vec<_> = new_upgrades.iter().map(|(u, _)| u.id as u16).collect();
+        tracing::debug!("Received new upgrades with ids: {:?}", ids);
+
         if new_upgrades.is_empty() {
-            return Ok(());
+            return Ok(0);
         }
 
         let last_id = new_upgrades.last().unwrap().0.id;
@@ -116,8 +111,7 @@ impl EventProcessor for GovernanceUpgradesEventProcessor {
         metrics::histogram!("eth_watcher.poll_eth_node", stage_start.elapsed(), "stage" => "persist_upgrades");
 
         self.last_seen_version_id = last_id;
-
-        Ok(())
+        Ok(new_upgrades_count)
     }
 
     fn relevant_topic(&self) -> H256 {

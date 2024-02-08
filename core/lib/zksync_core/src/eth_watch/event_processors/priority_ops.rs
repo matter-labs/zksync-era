@@ -39,7 +39,7 @@ impl EventProcessor for PriorityOpsEventProcessor {
         storage: &mut StorageProcessor<'_>,
         _client: &dyn EthClient,
         events: Vec<Log>,
-    ) -> Result<(), Error> {
+    ) -> Result<usize, Error> {
         let mut priority_ops = Vec::new();
         for event in events
             .into_iter()
@@ -50,7 +50,7 @@ impl EventProcessor for PriorityOpsEventProcessor {
         }
 
         if priority_ops.is_empty() {
-            return Ok(());
+            return Ok(0);
         }
 
         let first = &priority_ops[0];
@@ -72,8 +72,9 @@ impl EventProcessor for PriorityOpsEventProcessor {
             .into_iter()
             .skip_while(|tx| tx.serial_id() < self.next_expected_priority_id)
             .collect();
+        let new_ops_count = new_ops.len();
         if new_ops.is_empty() {
-            return Ok(());
+            return Ok(0);
         }
 
         let first_new = &new_ops[0];
@@ -96,7 +97,7 @@ impl EventProcessor for PriorityOpsEventProcessor {
         }
         stage_latency.observe();
         self.next_expected_priority_id = last_new.serial_id().next();
-        Ok(())
+        Ok(new_ops_count)
     }
 
     fn relevant_topic(&self) -> H256 {
