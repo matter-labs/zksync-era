@@ -38,8 +38,7 @@ use super::{
     BlockArgs, TxExecutionArgs, TxSharedArgs, VmPermit,
 };
 
-type SandboxStorageView<'a> = StorageView<PostgresStorage<'a>>;
-type BoxedVm<'a> = Box<VmInstance<SandboxStorageView<'a>, HistoryDisabled>>;
+type BoxedVm<'a> = Box<VmInstance<StorageView<PostgresStorage<'a>>, HistoryDisabled>>;
 
 #[derive(Debug)]
 struct Sandbox<'a> {
@@ -47,7 +46,7 @@ struct Sandbox<'a> {
     l1_batch_env: L1BatchEnv,
     execution_args: &'a TxExecutionArgs,
     l2_block_info_to_reset: Option<StoredL2BlockInfo>,
-    storage_view: SandboxStorageView<'a>,
+    storage_view: StorageView<PostgresStorage<'a>>,
 }
 
 impl<'a> Sandbox<'a> {
@@ -260,7 +259,7 @@ impl<'a> Sandbox<'a> {
         mut self,
         tx: &Transaction,
         adjust_pubdata_price: bool,
-    ) -> (BoxedVm<'a>, StoragePtr<SandboxStorageView<'a>>) {
+    ) -> (BoxedVm<'a>, StoragePtr<StorageView<PostgresStorage<'a>>>) {
         self.setup_storage_view(tx);
         let protocol_version = self.system_env.version;
         if adjust_pubdata_price {
