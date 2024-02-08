@@ -209,7 +209,6 @@ impl EthTxManager {
                 priority_fee_per_gas,
                 signed_tx.hash,
                 signed_tx.raw_tx(tx.blob_sidecar.as_ref()).as_ref(),
-                &tx.blob_sidecar,
             )
             .await
             .unwrap()
