@@ -264,7 +264,7 @@ mod tests {
     use pretty_assertions::assert_eq;
     use zksync_eth_signer::{EthereumSigner, PrivateKeySigner, TransactionParameters};
     use zksync_types::{
-        eth_sender::{EthTxBlobSidecarV1, SidecarBlob},
+        eth_sender::{EthTxBlobSidecarV1, SidecarBlobV1},
         web3::{self},
         EIP_4844_TX_TYPE, H160, H256, U256, U64,
     };
@@ -353,7 +353,7 @@ mod tests {
         let raw_tx_str = hex::encode(
             signed_call_result.raw_tx(
                 Some(EthTxBlobSidecar::EthTxBlobSidecarV1(EthTxBlobSidecarV1 {
-                    blobs: vec![SidecarBlob {
+                    blobs: vec![SidecarBlobV1 {
                         blob,
                         commitment,
                         proof,
@@ -458,12 +458,12 @@ mod tests {
             signed_call_result.raw_tx(
                 Some(EthTxBlobSidecar::EthTxBlobSidecarV1(EthTxBlobSidecarV1 {
                     blobs: vec![
-                        SidecarBlob {
+                        SidecarBlobV1 {
                             blob: blob_1,
                             commitment: commitment_1,
                             proof: proof_1,
                         },
-                        SidecarBlob {
+                        SidecarBlobV1 {
                             blob: blob_2,
                             commitment: commitment_2,
                             proof: proof_2,
