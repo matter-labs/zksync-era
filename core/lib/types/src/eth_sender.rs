@@ -5,7 +5,7 @@ use crate::{aggregated_operations::AggregatedActionType, Address, Nonce, H256};
 /// A forward-compatible `enum` describing a EIP4844 sidecar
 ///
 /// This enum in `bincode`-encoded form is stored in the database
-/// alongise all other transaction-related fields for EIP4844 transactions
+/// alongside all other transaction-related fields for EIP4844 transactions
 /// in `eth_txs` and `eth_tx_history` tables.
 #[derive(Clone, Deserialize, Serialize)]
 pub enum EthTxBlobSidecar {
