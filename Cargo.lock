@@ -8680,6 +8680,8 @@ dependencies = [
  "zksync_core",
  "zksync_dal",
  "zksync_health_check",
+ "zksync_object_store",
+ "zksync_snapshots_applier",
  "zksync_state",
  "zksync_storage",
  "zksync_types",

@@ -8,7 +8,10 @@ use prometheus_exporter::PrometheusExporterConfig;
 use tokio::{sync::watch, task, time::sleep};
 use zksync_basic_types::{Address, L2ChainId};
 use zksync_concurrency::{ctx, scope};
-use zksync_config::configs::database::MerkleTreeMode;
+use zksync_config::{
+    configs::{database::MerkleTreeMode, object_store::ObjectStoreMode},
+    ObjectStoreConfig,
+};
 use zksync_core::{
     api_server::{
         execution_sandbox::VmConcurrencyLimiter,
@@ -35,6 +38,8 @@ use zksync_core::{
 };
 use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
 use zksync_health_check::CheckHealth;
+use zksync_object_store::ObjectStoreFactory;
+use zksync_snapshots_applier::SnapshotsApplier;
 use zksync_state::PostgresStorageCaches;
 use zksync_storage::RocksDB;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
@@ -45,7 +50,7 @@ mod metrics;
 const RELEASE_MANIFEST: &str =
     std::include_str!("../../../../.github/release-please/manifest.json");
 
-use crate::config::ExternalNodeConfig;
+use crate::config::{read_snapshots_recovery_config, ExternalNodeConfig};
 
 /// Creates the state keeper configured to work in the external node mode.
 #[allow(clippy::too_many_arguments)]
@@ -385,6 +390,8 @@ struct Cli {
     revert_pending_l1_batch: bool,
     #[arg(long)]
     enable_consensus: bool,
+    #[arg(long)]
+    enable_snapshots_recovery: bool,
 }
 
 #[tokio::main]
@@ -422,10 +429,13 @@ async fn main() -> anyhow::Result<()> {
         config.consensus =
             Some(config::read_consensus_config().context("read_consensus_config()")?);
     }
+
     let main_node_url = config
         .required
         .main_node_url()
         .context("Main node URL is incorrect")?;
+    let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
+        .context("Failed creating JSON-RPC client for main node")?;
 
     let connection_pool = ConnectionPool::builder(
         &config.postgres.database_url,
@@ -434,6 +444,25 @@ async fn main() -> anyhow::Result<()> {
     .build()
     .await
     .context("failed to build a connection_pool")?;
+
+    if opt.enable_snapshots_recovery {
+        let recovery_config = read_snapshots_recovery_config()?;
+        let object_store_config = ObjectStoreConfig {
+            bucket_base_url: recovery_config.snapshots_bucket_base_url.to_string(),
+            mode: ObjectStoreMode::GCSAnonymousReadOnly,
+            file_backed_base_path: "".to_string(), // not used
+            gcs_credential_file_path: "".to_string(), // not used
+            max_retries: 5,
+        };
+        let blob_store = ObjectStoreFactory::new(object_store_config)
+            .create_store()
+            .await;
+
+        SnapshotsApplier::load_snapshot(&connection_pool, &main_node_client, &blob_store)
+            .await
+            .unwrap();
+    }
+
     if opt.revert_pending_l1_batch {
         tracing::info!("Rolling pending L1 batch back..");
         let reverter = BlockReverter::new(
@@ -471,8 +500,6 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("Main node URL is: {}", main_node_url);
 
     // Make sure that genesis is performed.
-    let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
-        .context("Failed creating JSON-RPC client for main node")?;
     perform_genesis_if_needed(
         &mut connection_pool.access_storage().await.unwrap(),
         config.remote.l2_chain_id,

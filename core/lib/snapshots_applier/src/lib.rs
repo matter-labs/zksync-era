@@ -16,6 +16,8 @@ use zksync_types::{
 };
 use zksync_utils::bytecode::hash_bytecode;
 use zksync_web3_decl::jsonrpsee::core::{client::Error, ClientError as RpcError};
+use zksync_web3_decl::jsonrpsee::http_client::HttpClient;
+use zksync_web3_decl::namespaces::{EnNamespaceClient, SnapshotsNamespaceClient};
 
 use self::metrics::{InitialStage, StorageLogsChunksStage, METRICS};
 
@@ -80,6 +82,25 @@ pub trait SnapshotsApplierMainNodeClient: fmt::Debug + Send + Sync {
     async fn fetch_l2_block(&self, number: MiniblockNumber) -> Result<Option<SyncBlock>, RpcError>;
 
     async fn fetch_newest_snapshot(&self) -> Result<Option<SnapshotHeader>, RpcError>;
+}
+
+#[async_trait]
+impl SnapshotsApplierMainNodeClient for HttpClient {
+    async fn fetch_l2_block(&self, number: MiniblockNumber) -> Result<Option<SyncBlock>, RpcError> {
+        Ok(self.sync_l2_block(number, false).await?)
+    }
+
+    async fn fetch_newest_snapshot(&self) -> Result<Option<SnapshotHeader>, RpcError> {
+        let snapshots = self.get_all_snapshots().await?;
+        if snapshots.snapshots_l1_batch_numbers.is_empty() {
+            Ok(None)
+        } else {
+            let newest_snapshot = snapshots.snapshots_l1_batch_numbers[0];
+            Ok(self
+                .get_snapshot_by_l1_batch_number(newest_snapshot)
+                .await?)
+        }
+    }
 }
 
 /// Applying application-level storage snapshots to the Postgres storage.

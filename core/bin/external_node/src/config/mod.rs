@@ -428,6 +428,20 @@ pub(crate) fn read_consensus_config() -> anyhow::Result<consensus::FetcherConfig
     })
 }
 
+#[derive(Debug, Clone)]
+pub struct SnapshotsRecoveryConfig {
+    pub snapshots_bucket_base_url: String,
+}
+
+pub(crate) fn read_snapshots_recovery_config() -> anyhow::Result<SnapshotsRecoveryConfig> {
+    // TODO add instructions where to find this bucket url
+    let snapshots_bucket_base_url = std::env::var("EN_SNAPSHOTS_RECOVERY_BUCKET_BASE_URL")
+        .context("EN_SNAPSHOTS_RECOVERY_BUCKET_BASE_URL env variable needs to be set if snapshots recovery is enabled")?;
+    Ok(SnapshotsRecoveryConfig {
+        snapshots_bucket_base_url,
+    })
+}
+
 /// External Node Config contains all the configuration required for the EN operation.
 /// It is split into three parts: required, optional and remote for easier navigation.
 #[derive(Debug, Clone)]
