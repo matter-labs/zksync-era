@@ -223,11 +223,12 @@ mod tests {
 
     #[tokio::test]
     async fn syncing_mempool_basics() {
-        let pool = ConnectionPool::test_pool().await;
+        let pool = ConnectionPool::constrained_test_pool(1).await;
         let mut storage = pool.access_storage().await.unwrap();
         ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
             .await
             .unwrap();
+        drop(storage);
 
         let mempool = MempoolGuard::new(PriorityOpId(0), 100);
         let fee_params_provider = Arc::new(MockBatchFeeParamsProvider::default());
@@ -245,10 +246,12 @@ mod tests {
         // Add a new transaction to the storage.
         let transaction = create_l2_transaction(base_fee, gas_per_pubdata);
         let transaction_hash = transaction.hash();
+        let mut storage = pool.access_storage().await.unwrap();
         storage
             .transactions_dal()
             .insert_transaction_l2(transaction, TransactionExecutionMetrics::default())
             .await;
+        drop(storage);
 
         // Check that the transaction is eventually synced.
         let tx_hashes = wait_for_new_transactions(&mut tx_hashes_receiver).await;
@@ -273,11 +276,12 @@ mod tests {
 
     #[tokio::test]
     async fn ignoring_transaction_with_insufficient_fee() {
-        let pool = ConnectionPool::test_pool().await;
+        let pool = ConnectionPool::constrained_test_pool(1).await;
         let mut storage = pool.access_storage().await.unwrap();
         ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
             .await
             .unwrap();
+        drop(storage);
 
         let mempool = MempoolGuard::new(PriorityOpId(0), 100);
         let fee_params_provider = Arc::new(MockBatchFeeParamsProvider::default());
@@ -292,10 +296,12 @@ mod tests {
 
         // Add a transaction with insufficient fee to the storage.
         let transaction = create_l2_transaction(base_fee / 2, gas_per_pubdata / 2);
+        let mut storage = pool.access_storage().await.unwrap();
         storage
             .transactions_dal()
             .insert_transaction_l2(transaction, TransactionExecutionMetrics::default())
             .await;
+        drop(storage);
 
         tokio::time::sleep(TEST_MEMPOOL_CONFIG.sync_interval() * 5).await;
         assert_eq!(mempool.stats().l2_transaction_count, 0);
@@ -306,11 +312,12 @@ mod tests {
 
     #[tokio::test]
     async fn ignoring_transaction_with_old_nonce() {
-        let pool = ConnectionPool::test_pool().await;
+        let pool = ConnectionPool::constrained_test_pool(1).await;
         let mut storage = pool.access_storage().await.unwrap();
         ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
             .await
             .unwrap();
+        drop(storage);
 
         let mempool = MempoolGuard::new(PriorityOpId(0), 100);
         let fee_params_provider = Arc::new(MockBatchFeeParamsProvider::default());
@@ -331,6 +338,7 @@ mod tests {
         let transaction_hash = transaction.hash();
         let nonce_key = get_nonce_key(&transaction.initiator_account());
         let nonce_log = StorageLog::new_write_log(nonce_key, u256_to_h256(42.into()));
+        let mut storage = pool.access_storage().await.unwrap();
         storage
             .storage_logs_dal()
             .append_storage_logs(MiniblockNumber(0), &[(H256::zero(), vec![nonce_log])])
@@ -339,6 +347,7 @@ mod tests {
             .transactions_dal()
             .insert_transaction_l2(transaction, TransactionExecutionMetrics::default())
             .await;
+        drop(storage);
 
         // Check that the transaction is eventually synced.
         let tx_hashes = wait_for_new_transactions(&mut tx_hashes_receiver).await;

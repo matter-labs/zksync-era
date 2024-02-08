@@ -396,6 +396,7 @@ impl StorageSnapshot {
             .into_iter()
             .map(|log| (log.key, log.value))
             .collect();
+        drop(storage);
 
         let executor = tester.create_batch_executor().await;
         let mut l2_block_env = L2BlockEnv {
@@ -449,6 +450,7 @@ impl StorageSnapshot {
         )
         .finalize(ProtocolVersionId::latest());
 
+        let mut storage = connection_pool.access_storage().await.unwrap();
         storage.blocks_dal().delete_genesis().await.unwrap();
         Self {
             miniblock_number: MiniblockNumber(l2_block_env.number),
