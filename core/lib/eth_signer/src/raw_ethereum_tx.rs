@@ -161,7 +161,7 @@ impl Transaction {
     fn encode_eip4844_payload(&self, chain_id: u64, signature: Option<&Signature>) -> RlpStream {
         let mut stream = RlpStream::new();
 
-        // `EIP4844` adds two new fields to the `EIP1559` tranasaction.
+        // `EIP4844` adds two new fields to the `EIP1559` transaction.
         // `list_size` is set to the same values from `encode_eip1559_payload`
         // increased by two.
         let list_size = if signature.is_some() { 14 } else { 11 };
