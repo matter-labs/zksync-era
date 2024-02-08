@@ -9909,7 +9909,6 @@ version = "0.1.0"
 dependencies = [
  "codegen 0.1.0",
  "zkevm_test_harness 1.3.3",
- "zksync_config",
  "zksync_prover_interface",
  "zksync_types",
 ]
