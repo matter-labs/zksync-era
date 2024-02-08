@@ -98,7 +98,7 @@ impl StorageWeb3Dal<'_, '_> {
         .instrument("get_historical_value_unchecked")
         .report_latency()
         .with_arg("key", &hashed_key)
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage)
         .await
         .map(|option_row| {
             option_row
@@ -171,7 +171,7 @@ impl StorageWeb3Dal<'_, '_> {
         .instrument("get_l1_batch_number_for_initial_write")
         .report_latency()
         .with_arg("key", &hashed_key)
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage)
         .await?;
 
         let l1_batch_number = row.map(|record| L1BatchNumber(record.l1_batch_number as u32));

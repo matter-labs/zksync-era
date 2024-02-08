@@ -13,11 +13,19 @@ use sqlx::{pool::PoolConnection, types::chrono, Connection, PgConnection, Postgr
 
 use crate::{metrics::CONNECTION_METRICS, ConnectionPool};
 
+// FIXME: propagate tags to transactions
+
 /// Tags that can be associated with a connection.
 #[derive(Debug, Clone, Copy)]
-pub(super) struct StorageProcessorTags {
+pub(crate) struct StorageProcessorTags {
     pub requester: &'static str,
     pub location: &'static Location<'static>,
+}
+
+impl StorageProcessorTags {
+    pub fn display(this: Option<&Self>) -> &(dyn fmt::Display + Send + Sync) {
+        this.map_or(&"not tagged", |tags| tags)
+    }
 }
 
 impl fmt::Display for StorageProcessorTags {
@@ -41,10 +49,7 @@ impl fmt::Debug for TracedConnectionInfo {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         let timestamp: chrono::DateTime<chrono::Utc> =
             (SystemTime::now() - self.created_at.elapsed()).into();
-        let tags_display: &dyn fmt::Display = match &self.tags {
-            Some(tags) => tags,
-            None => &"not tagged",
-        };
+        let tags_display = StorageProcessorTags::display(self.tags.as_ref());
         write!(formatter, "[{timestamp} - {tags_display}]")
     }
 }
@@ -184,6 +189,13 @@ impl<'a> StorageProcessor<'a> {
         match &mut self.inner {
             StorageProcessorInner::Pooled(pooled) => &mut pooled.connection,
             StorageProcessorInner::Transaction(transaction) => transaction,
+        }
+    }
+
+    pub(crate) fn conn_and_tags(&mut self) -> (&mut PgConnection, Option<&StorageProcessorTags>) {
+        match &mut self.inner {
+            StorageProcessorInner::Pooled(pooled) => (&mut pooled.connection, pooled.tags.as_ref()),
+            StorageProcessorInner::Transaction(transaction) => (transaction, None),
         }
     }
 }

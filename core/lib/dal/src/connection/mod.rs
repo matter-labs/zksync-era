@@ -17,7 +17,8 @@ use sqlx::{
 };
 
 pub use self::processor::StorageProcessor;
-use self::processor::{StorageProcessorTags, TracedConnections};
+pub(crate) use self::processor::StorageProcessorTags;
+use self::processor::TracedConnections;
 use crate::metrics::CONNECTION_METRICS;
 
 mod processor;
@@ -369,10 +370,7 @@ impl ConnectionPool {
             };
 
             Self::report_connection_error(&connection_err);
-            let tags_display: &(dyn fmt::Display + Send + Sync) = match tags {
-                Some(tags) => tags,
-                None => &"not tagged",
-            };
+            let tags_display = StorageProcessorTags::display(tags);
             tracing::warn!(
                 "Failed to get connection to DB ({tags_display}), backing off for {BACKOFF_INTERVAL:?}: {connection_err}"
             );
@@ -387,10 +385,7 @@ impl ConnectionPool {
             Ok(conn) => Ok(conn),
             Err(err) => {
                 Self::report_connection_error(&err);
-                let tags_display: &dyn fmt::Display = match tags {
-                    Some(tags) => tags,
-                    None => &"not tagged",
-                };
+                let tags_display = StorageProcessorTags::display(tags);
                 if let Some(traced_connections) = &self.traced_connections {
                     anyhow::bail!(
                         "Run out of retries getting a DB connection ({tags_display}), last error: {err}\n\
