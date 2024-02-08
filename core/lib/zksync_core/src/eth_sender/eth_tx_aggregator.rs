@@ -400,7 +400,7 @@ impl EthTxAggregator {
             .await;
     }
 
-    /// Encode an aggregated_op.
+    /// Encode an `AggregatedOperation`.
     ///
     /// A commit operation may be either a blob transaction or a calldata
     /// transaction. In case of a blob transaction the second field of
@@ -455,7 +455,7 @@ impl EthTxAggregator {
             }
         };
 
-        // EIP4844 transactions for commiting batches are not live yet,
+        // EIP4844 transactions for committing batches are not live yet,
         // always return None as a second field for now.
         (calldata, None)
     }

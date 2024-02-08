@@ -99,10 +99,10 @@ pub enum Error {
     /// Incorrect fee provided for a transaction.
     #[error("Max fee {0} less than priority fee {1}")]
     WrongFeeProvided(U256, U256),
-    /// Eip4844 transaction lacks `max_fee_per_blob_gas` field
+    /// EIP4844 transaction lacks `max_fee_per_blob_gas` field
     #[error("EIP4844 transaction lacks max_fee_per_blob_gas field")]
     Eip4844MissingMaxFeePerBlobGas,
-    /// Eip4844 transaction lacks `blob_versioned_hashes` field
+    /// EIP4844 transaction lacks `blob_versioned_hashes` field
     #[error("EIP4844 transaction lacks blob_versioned_hashes field")]
     Eip4844MissingBlobVersionedHashes,
 }
@@ -177,7 +177,7 @@ fn encode_blob_tx_with_sidecar(
     let raw_tx = &raw_tx.0;
     let mut stream_outer = RlpStream::new();
 
-    // top-level rlp encoded struct is defined as
+    // top-level RLP encoded struct is defined as
     //
     // ```
     // rlp([tx_payload_body, blobs, commitments, proofs])
@@ -302,11 +302,12 @@ mod tests {
 
         let signer = PrivateKeySigner::new(private_key);
 
-        // A blob we want to test is the 12 bytes 'A'. It gets
+        // A blob we want to test is the 12 bytes `'A'`. It gets
         // expanded to the constant size of the blob since blobs in
         // EIP4844 transactions are of constant size.
         let mut blob = vec![0u8; 131072];
-        // set the blob first 12 bytes to 'A'.
+
+        // set the blob first 12 bytes to `'A'`.
         for item in blob.iter_mut().take(12) {
             *item = b'A';
         }
@@ -402,8 +403,17 @@ mod tests {
 
         let signer = PrivateKeySigner::new(private_key);
 
+        // Two blobs we want to test are:
+        //  1. the 12 bytes are set to `'A'`.
+        //  2. the 12 bytes are set to `'B'`.
+        //
+        //
+        // They get expanded to the constant size of the blob since blobs in
+        // EIP4844 transactions are of constant size.
         let mut blob_1 = vec![0u8; 131072];
         let mut blob_2 = vec![0u8; 131072];
+
+        // set the blobs first 12 bytes to `'A'` and `'B'` respectively.
         for i in 0..12 {
             blob_1[i] = b'A';
             blob_2[i] = b'B';
