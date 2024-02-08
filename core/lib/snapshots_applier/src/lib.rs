@@ -390,7 +390,7 @@ impl<'a> SnapshotsApplier<'a> {
             .storage_logs_chunks_processed
             .iter()
             .enumerate()
-            .filter(|(chunk_id, is_processed)| !**is_processed)
+            .filter(|(_chunk_id, is_processed)| !**is_processed)
             .map(|(chunk_id, _)| {
                 self.recover_storage_logs_single_chunk(&semaphore, chunk_id as u64)
             });
