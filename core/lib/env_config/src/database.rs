@@ -27,6 +27,13 @@ impl FromEnv for PostgresConfig {
             .ok()
             .map(|val| val.parse().context("failed to parse DATABASE_POOL_SIZE"))
             .transpose()?;
+        let acquire_timeout_sec = env::var("DATABASE_ACQUIRE_TIMEOUT_SEC")
+            .ok()
+            .map(|val| {
+                val.parse()
+                    .context("failed to parse DATABASE_ACQUIRE_TIMEOUT_SEC")
+            })
+            .transpose()?;
         let statement_timeout_sec = env::var("DATABASE_STATEMENT_TIMEOUT_SEC")
             .ok()
             .map(|val| {
@@ -40,6 +47,7 @@ impl FromEnv for PostgresConfig {
             replica_url,
             prover_url,
             max_connections,
+            acquire_timeout_sec,
             statement_timeout_sec,
         })
     }
@@ -129,6 +137,7 @@ mod tests {
         let config = r#"
             DATABASE_URL=postgres://postgres@localhost/zksync_local
             DATABASE_POOL_SIZE=50
+            DATABASE_ACQUIRE_TIMEOUT_SEC=15
             DATABASE_STATEMENT_TIMEOUT_SEC=300
         "#;
         lock.set_env(config);
@@ -143,5 +152,6 @@ mod tests {
             postgres_config.statement_timeout(),
             Some(Duration::from_secs(300))
         );
+        assert_eq!(postgres_config.acquire_timeout(), Duration::from_secs(15));
     }
 }

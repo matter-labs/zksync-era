@@ -91,6 +91,7 @@ impl ProtoRepr for proto::Postgres {
             replica_url: self.replica_url.clone(),
             prover_url: self.prover_url.clone(),
             max_connections: self.max_connections,
+            acquire_timeout_sec: self.acquire_timeout_sec,
             statement_timeout_sec: self.statement_timeout_sec,
         })
     }
@@ -101,6 +102,7 @@ impl ProtoRepr for proto::Postgres {
             replica_url: this.replica_url.clone(),
             prover_url: this.prover_url.clone(),
             max_connections: this.max_connections,
+            acquire_timeout_sec: this.acquire_timeout_sec,
             statement_timeout_sec: this.statement_timeout_sec,
         }
     }

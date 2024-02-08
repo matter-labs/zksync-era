@@ -1,6 +1,7 @@
 use std::{env, fmt, future::Future, panic::Location, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
+use rand::Rng;
 use sqlx::{
     pool::PoolConnection,
     postgres::{PgConnectOptions, PgPool, PgPoolOptions, Postgres},
@@ -150,7 +151,6 @@ impl TestTemplate {
     /// The database is not cleaned up automatically, but rather the whole Postgres
     /// container is recreated whenever you call "zk test rust".
     pub async fn create_db(&self, connections: u32) -> anyhow::Result<ConnectionPoolBuilder> {
-        use rand::Rng as _;
         use sqlx::Executor as _;
 
         let mut conn = Self::connect_to(&self.url(""))
@@ -298,11 +298,10 @@ impl ConnectionPool {
         &self,
         tags: Option<&StorageProcessorTags>,
     ) -> anyhow::Result<PoolConnection<Postgres>> {
-        const DB_CONNECTION_RETRIES: u32 = 3;
+        const DB_CONNECTION_RETRIES: usize = 3;
         const BACKOFF_INTERVAL: Duration = Duration::from_secs(1);
 
-        let mut retry_count = 0;
-        while retry_count < DB_CONNECTION_RETRIES {
+        for _ in 0..DB_CONNECTION_RETRIES {
             CONNECTION_METRICS
                 .pool_size
                 .observe(self.inner.size() as usize);
@@ -311,10 +310,7 @@ impl ConnectionPool {
             let connection = self.inner.acquire().await;
             let connection_err = match connection {
                 Ok(connection) => return Ok(connection),
-                Err(err) => {
-                    retry_count += 1;
-                    err
-                }
+                Err(err) => err,
             };
 
             Self::report_connection_error(&connection_err);
@@ -325,7 +321,10 @@ impl ConnectionPool {
             tracing::warn!(
                 "Failed to get connection to DB ({tags_display}), backing off for {BACKOFF_INTERVAL:?}: {connection_err}"
             );
-            tokio::time::sleep(BACKOFF_INTERVAL).await;
+
+            // Slightly randomize backoff interval so that we don't end up stampeding the DB.
+            let jitter = rand::thread_rng().gen_range(0.8..1.2);
+            tokio::time::sleep(BACKOFF_INTERVAL.mul_f32(jitter)).await;
         }
 
         // Attempting to get the pooled connection for the last time

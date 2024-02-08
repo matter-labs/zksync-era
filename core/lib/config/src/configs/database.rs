@@ -133,12 +133,17 @@ pub struct PostgresConfig {
     pub prover_url: Option<String>,
     /// Maximum size of the connection pool.
     pub max_connections: Option<u32>,
+    /// Acquire timeout in seconds for a single connection attempt. There are multiple attempts (currently 3)
+    /// before acquire methods will return an error.
+    pub acquire_timeout_sec: Option<u64>,
     /// Statement timeout in seconds for Postgres connections. Applies only to the replica
     /// connection pool used by the API servers.
     pub statement_timeout_sec: Option<u64>,
 }
 
 impl PostgresConfig {
+    const DEFAULT_ACQUIRE_TIMEOUT: Duration = Duration::from_secs(10);
+
     /// Returns a copy of the master database URL as a `Result` to simplify error propagation.
     pub fn master_url(&self) -> anyhow::Result<&str> {
         self.master_url
@@ -168,5 +173,11 @@ impl PostgresConfig {
     /// Returns the Postgres statement timeout.
     pub fn statement_timeout(&self) -> Option<Duration> {
         self.statement_timeout_sec.map(Duration::from_secs)
+    }
+
+    /// Returns the acquire timeout for a single connection attempt.
+    pub fn acquire_timeout(&self) -> Duration {
+        self.acquire_timeout_sec
+            .map_or(Self::DEFAULT_ACQUIRE_TIMEOUT, Duration::from_secs)
     }
 }

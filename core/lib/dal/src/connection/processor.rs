@@ -18,6 +18,7 @@ use crate::metrics::CONNECTION_METRICS;
 pub(super) struct StorageProcessorTags {
     pub requester: &'static str,
     pub location: &'static Location<'static>,
+    // TODO: custom tags (e.g., method for API)?
 }
 
 impl fmt::Display for StorageProcessorTags {
@@ -106,6 +107,7 @@ impl fmt::Debug for PooledStorageProcessor<'_> {
 
 impl Drop for PooledStorageProcessor<'_> {
     fn drop(&mut self) {
+        // FIXME: configure (on pool level? globally?)
         const LONG_CONNECTION_THRESHOLD: Duration = Duration::from_secs(5);
 
         if let Some(tags) = &self.tags {

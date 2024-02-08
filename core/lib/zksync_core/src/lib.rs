@@ -287,15 +287,17 @@ pub async fn initialize_components(
     let db_config = configs.db_config.clone().context("db_config")?;
     let postgres_config = configs.postgres_config.clone().context("postgres_config")?;
 
-    let statement_timeout = postgres_config.statement_timeout();
     let pool_size = postgres_config.max_connections()?;
     let connection_pool = ConnectionPool::builder(postgres_config.master_url()?, pool_size)
         .build()
         .await
         .context("failed to build connection_pool")?;
+    // We're most interested in setting acquire / statement timeouts for the API server, which puts the most load
+    // on Postgres.
     let replica_connection_pool =
         ConnectionPool::builder(postgres_config.replica_url()?, pool_size)
-            .set_statement_timeout(statement_timeout)
+            .set_acquire_timeout(postgres_config.acquire_timeout())
+            .set_statement_timeout(postgres_config.statement_timeout())
             .build()
             .await
             .context("failed to build replica_connection_pool")?;
