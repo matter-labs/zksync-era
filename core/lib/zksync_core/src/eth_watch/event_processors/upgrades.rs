@@ -56,11 +56,8 @@ impl EventProcessor for UpgradesEventProcessor {
             return Ok(());
         }
 
-        let ids_str: Vec<_> = upgrades
-            .iter()
-            .map(|(u, _)| format!("{}", u.id as u16))
-            .collect();
-        tracing::debug!("Received upgrades with ids: {}", ids_str.join(", "));
+        let ids: Vec<_> = upgrades.iter().map(|(u, _)| u.id as u16).collect();
+        tracing::debug!("Received upgrades with ids: {:?}", ids);
 
         let new_upgrades: Vec<_> = upgrades
             .into_iter()

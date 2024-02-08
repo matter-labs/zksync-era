@@ -133,7 +133,7 @@ impl ProtoRepr for proto::Contracts {
                 .as_ref()
                 .map(|x| parse_h160(x))
                 .transpose()
-                .context("bridgeub_impl_addr")?,
+                .context("bridgehub_impl_addr")?,
             state_transition_proxy_addr: self
                 .state_transition_proxy_addr
                 .as_ref()

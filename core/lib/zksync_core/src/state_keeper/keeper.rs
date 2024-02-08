@@ -219,46 +219,31 @@ impl ZkSyncStateKeeper {
     }
 
     /// This function is meant to be called only once during the state-keeper initialization.
-    /// It will check if we should load a protocol upgrade transaction, wait for it to be picked up
-    /// by the event watcher if it's a `SetChainIdUpgrade`, perform some checks and return it.
+    /// It will check if we should load a protocol upgrade or a `setChainId` transaction,
+    /// perform some checks and return it.
     pub(super) async fn load_protocol_upgrade_tx(
         &mut self,
         pending_miniblocks: &[MiniblockExecutionData],
         protocol_version: ProtocolVersionId,
         l1_batch_number: L1BatchNumber,
     ) -> Result<Option<ProtocolUpgradeTx>, Error> {
+        // After the Shared Bridge is integrated,
+        // there has to be a setChainId upgrade transaction after the chain genesis.
+        // It has to be the first transaction of the first batch.
+        // The setChainId upgrade does not bump the protocol version, but attaches an upgrade
+        // transaction to the genesis protocol version version.
         let first_batch_in_shared_bridge =
             l1_batch_number == L1BatchNumber(1) && !protocol_version.is_pre_shared_bridge();
         let previous_batch_protocol_version =
             self.io.load_previous_batch_version_id().await.unwrap();
 
         let version_changed = protocol_version != previous_batch_protocol_version;
-        let mut protocol_upgrade_tx = self.io.load_upgrade_tx(protocol_version).await;
-
-        // After the Shared Bridge is integrated,
-        // there has to be a setChainId upgrade transaction after the chain genesis.
-        // It has to be the first transaction of the first batch.
-        // If it's not present, we have to wait for it to be picked up by the event watcher.
-        // The setChainId upgrade does not bump the protocol version, rather attaches an upgrade
-        // transaction to the genesis protocol version.
-        while first_batch_in_shared_bridge && protocol_upgrade_tx.is_none() {
-            tracing::info!("Waiting for setChainId upgrade transaction to be picked up");
-            if self.is_canceled() {
-                return Err(Error::Canceled);
-            }
-            tokio::time::sleep(Duration::from_secs(1)).await;
-            protocol_upgrade_tx = self.io.load_upgrade_tx(protocol_version).await;
-        }
+        let protocol_upgrade_tx = self.io.load_upgrade_tx(protocol_version).await;
 
         let protocol_upgrade_tx = if pending_miniblocks.is_empty()
             && (version_changed || first_batch_in_shared_bridge)
         {
             tracing::info!("We have upgrade tx to be executed in empty miniblock");
-            assert!(
-                protocol_upgrade_tx.is_some(),
-                "Expected upgrade transaction to be present for version {:?}",
-                protocol_version
-            );
             protocol_upgrade_tx
         } else if !pending_miniblocks.is_empty()
             && (version_changed || first_batch_in_shared_bridge)

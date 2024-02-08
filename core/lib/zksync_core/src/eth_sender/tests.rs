@@ -111,7 +111,7 @@ impl EthSenderTester {
             Address::random(),
             contracts_config.l1_multicall3_addr,
             Address::random(),
-            270.into(),
+            Default::default(),
         )
         .await;
 

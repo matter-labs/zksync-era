@@ -52,14 +52,8 @@ impl EventProcessor for SetChainIDEventProcessor {
             return Ok(());
         }
 
-        let ids_str: Vec<_> = upgrades
-            .iter()
-            .map(|(id, _tx)| format!("{}", *id as u16))
-            .collect();
-        tracing::debug!(
-            "Received setChainId upgrade with version_id: {}",
-            ids_str.join(", ")
-        );
+        let ids: Vec<_> = upgrades.iter().map(|(id, _tx)| *id as u16).collect();
+        tracing::debug!("Received setChainId upgrade with version_id: {:?}", ids);
 
         let stage_latency = METRICS.poll_eth_node[&PollStage::PersistUpgrades].start();
         for (version_id, tx) in upgrades {
