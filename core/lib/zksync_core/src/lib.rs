@@ -415,8 +415,8 @@ pub async fn initialize_components(
             let elapsed = started_at.elapsed();
             APP_METRICS.init_latency[&InitStage::HttpApi].set(elapsed);
             tracing::info!(
-                "Initialized HTTP API on {:?} in {elapsed:?}",
-                server_handles.local_addr
+                "Initialized HTTP API on port {:?} in {elapsed:?}",
+                api_config.web3_json_rpc.http_port
             );
         }
 
@@ -453,8 +453,8 @@ pub async fn initialize_components(
             let elapsed = started_at.elapsed();
             APP_METRICS.init_latency[&InitStage::WsApi].set(elapsed);
             tracing::info!(
-                "initialized WS API on {:?} in {elapsed:?}",
-                server_handles.local_addr
+                "Initialized WS API on port {} in {elapsed:?}",
+                api_config.web3_json_rpc.ws_port
             );
         }
 

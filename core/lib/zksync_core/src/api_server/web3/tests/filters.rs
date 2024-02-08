@@ -31,7 +31,7 @@ impl HttpTest for BasicFilterChangesTest {
         let new_miniblock = store_miniblock(
             &mut pool.access_storage().await?,
             if self.snapshot_recovery {
-                StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1
+                StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 2
             } else {
                 MiniblockNumber(1)
             },
@@ -115,12 +115,12 @@ impl HttpTest for LogFilterChangesTest {
         let topics_filter_id = client.new_filter(topics_filter).await?;
 
         let mut storage = pool.access_storage().await?;
-        let first_local_miniblock = if self.snapshot_recovery {
-            StorageInitialization::SNAPSHOT_RECOVERY_BLOCK.0 + 1
+        let next_local_miniblock = if self.snapshot_recovery {
+            StorageInitialization::SNAPSHOT_RECOVERY_BLOCK.0 + 2
         } else {
             1
         };
-        let (_, events) = store_events(&mut storage, first_local_miniblock, 0).await?;
+        let (_, events) = store_events(&mut storage, next_local_miniblock, 0).await?;
         drop(storage);
         let events: Vec<_> = events.iter().collect();
 
