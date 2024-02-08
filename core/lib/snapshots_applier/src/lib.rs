@@ -1,21 +1,19 @@
 //! Logic for applying application-level snapshots to Postgres storage.
 
-use std::ops::Mul;
-use std::time::Duration;
-use std::{collections::HashMap, fmt};
+use std::{collections::HashMap, fmt, ops::Mul, time::Duration};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
 use tokio::sync::{AcquireError, Semaphore};
 use zksync_dal::{ConnectionPool, SqlxError, StorageProcessor};
 use zksync_object_store::{ObjectStore, ObjectStoreError};
-use zksync_types::web3::futures;
 use zksync_types::{
     api::en::SyncBlock,
     snapshots::{
         SnapshotFactoryDependencies, SnapshotHeader, SnapshotRecoveryStatus, SnapshotStorageLog,
         SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey,
     },
+    web3::futures,
     MiniblockNumber, H256,
 };
 use zksync_utils::bytecode::hash_bytecode;
