@@ -15,9 +15,13 @@ use zksync_types::{
     MiniblockNumber, H256,
 };
 use zksync_utils::bytecode::hash_bytecode;
-use zksync_web3_decl::jsonrpsee::core::{client::Error, ClientError as RpcError};
-use zksync_web3_decl::jsonrpsee::http_client::HttpClient;
-use zksync_web3_decl::namespaces::{EnNamespaceClient, SnapshotsNamespaceClient};
+use zksync_web3_decl::{
+    jsonrpsee::{
+        core::{client::Error, ClientError as RpcError},
+        http_client::HttpClient,
+    },
+    namespaces::{EnNamespaceClient, SnapshotsNamespaceClient},
+};
 
 use self::metrics::{InitialStage, StorageLogsChunksStage, METRICS};
 
