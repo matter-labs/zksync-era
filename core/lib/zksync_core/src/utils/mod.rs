@@ -1,6 +1,10 @@
 //! Miscellaneous utils used by multiple components.
 
-use std::{future::Future, time::Duration};
+use std::{
+    future::Future,
+    sync::atomic::{AtomicBool, Ordering},
+    time::Duration,
+};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
@@ -131,15 +135,23 @@ pub(crate) async fn projected_first_l1_batch(
 pub(crate) async fn pending_protocol_version(
     storage: &mut StorageProcessor<'_>,
 ) -> anyhow::Result<ProtocolVersionId> {
+    static WARNED_ABOUT_NO_VERSION: AtomicBool = AtomicBool::new(false);
+
     let last_miniblock = storage
         .blocks_dal()
         .get_last_sealed_miniblock_header()
         .await
         .context("failed getting last sealed miniblock")?;
     if let Some(last_miniblock) = last_miniblock {
-        return last_miniblock.protocol_version.with_context(|| {
-            format!("protocol version not set for recent miniblock: {last_miniblock:?}")
-        });
+        return Ok(last_miniblock.protocol_version.unwrap_or_else(|| {
+            // Protocol version should be set for the most recent miniblock even in cases it's not filled
+            // for old miniblocks, hence the warning. We don't want to rely on this assumption, so we treat
+            // the lack of it as in other similar places, replacing with the default value.
+            if !WARNED_ABOUT_NO_VERSION.fetch_or(true, Ordering::Relaxed) {
+                tracing::warn!("Protocol version not set for recent miniblock: {last_miniblock:?}");
+            }
+            ProtocolVersionId::last_potentially_undefined()
+        }));
     }
     // No miniblocks in the storage; use snapshot recovery information.
     let snapshot_recovery = storage
