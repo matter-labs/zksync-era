@@ -22,6 +22,9 @@ pub struct StorageEthTx {
     pub updated_at: NaiveDateTime,
     // TODO (SMA-1614): remove the field
     pub sent_at_block: Option<i32>,
+    // A `EIP_4844_TX_TYPE` transaction blob sidecar.
+    //
+    // Format: a `bincode`-encoded `EthTxBlobSidecar` enum.
     pub blob_sidecar: Option<Vec<u8>>,
 }
 

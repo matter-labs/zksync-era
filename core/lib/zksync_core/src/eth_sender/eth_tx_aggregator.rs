@@ -38,6 +38,11 @@ pub struct MulticallData {
     pub protocol_version_id: ProtocolVersionId,
 }
 
+struct TxData {
+    calldata: Vec<u8>,
+    sidecar: Option<Vec<u8>>,
+}
+
 /// The component is responsible for aggregating l1 batches into eth_txs:
 /// Such as CommitBlocks, PublishProofBlocksOnchain and ExecuteBlock
 /// These eth_txs will be used as a queue for generating signed txs and send them later
@@ -400,11 +405,16 @@ impl EthTxAggregator {
             .await;
     }
 
+    /// Encode an `AggregatedOperation`.
+    ///
+    /// A commit operation may be either a blob transaction or a calldata
+    /// transaction. In case of a blob transaction the second field of
+    /// the returned tuple is `Some` and contains the encoded blob sidecar.
     fn encode_aggregated_op(
         &self,
         op: &AggregatedOperation,
         contracts_are_pre_boojum: bool,
-    ) -> (Vec<u8>, Option<Vec<u8>>) {
+    ) -> TxData {
         let operation_is_pre_boojum = op.protocol_version().is_pre_boojum();
 
         // For "commit" and "prove" operations it's necessary that the contracts are of the same version as L1 batches are.
@@ -450,7 +460,12 @@ impl EthTxAggregator {
             }
         };
 
-        (calldata, None)
+        // EIP4844 transactions for committing batches are not live yet,
+        // always return None as a second field for now.
+        TxData {
+            calldata,
+            sidecar: None,
+        }
     }
 
     pub(super) async fn save_eth_tx(
@@ -461,7 +476,7 @@ impl EthTxAggregator {
     ) -> Result<EthTx, ETHSenderError> {
         let mut transaction = storage.start_transaction().await.unwrap();
         let nonce = self.get_next_nonce(&mut transaction).await?;
-        let (calldata, blob_tx_sidecar) =
+        let encoded_aggregated_op =
             self.encode_aggregated_op(aggregated_op, contracts_are_pre_boojum);
         let l1_batch_number_range = aggregated_op.l1_batch_range();
         let op_type = aggregated_op.get_action_type();
@@ -477,11 +492,11 @@ impl EthTxAggregator {
             .eth_sender_dal()
             .save_eth_tx(
                 nonce,
-                calldata,
+                encoded_aggregated_op.calldata,
                 op_type,
                 self.timelock_contract_address,
                 eth_tx_predicted_gas,
-                blob_tx_sidecar,
+                encoded_aggregated_op.sidecar,
             )
             .await
             .unwrap();

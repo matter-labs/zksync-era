@@ -2,21 +2,32 @@ use serde::{Deserialize, Serialize};
 
 use crate::{aggregated_operations::AggregatedActionType, Address, Nonce, H256};
 
+/// A forward-compatible `enum` describing a EIP4844 sidecar
+///
+/// This enum in `bincode`-encoded form is stored in the database
+/// alongside all other transaction-related fields for EIP4844 transactions
+/// in `eth_txs` and `eth_tx_history` tables.
 #[derive(Clone, Deserialize, Serialize)]
 pub enum EthTxBlobSidecar {
     EthTxBlobSidecarV1(EthTxBlobSidecarV1),
 }
 
+/// All sidecar data for a single blob for the EIP4844 transaction.
 #[derive(Clone, Deserialize, Serialize)]
-pub struct SidecarBlob {
+pub struct SidecarBlobV1 {
+    /// Blob itself
     pub blob: Vec<u8>,
+    /// Blob commitment
     pub commitment: Vec<u8>,
+    /// Blob proof
     pub proof: Vec<u8>,
 }
 
+/// A first version of sidecars for blob transactions as they are described in EIP4844.
 #[derive(Clone, Deserialize, Serialize)]
 pub struct EthTxBlobSidecarV1 {
-    pub blobs: Vec<SidecarBlob>,
+    /// A vector of blobs for this tx and their commitments and proofs.
+    pub blobs: Vec<SidecarBlobV1>,
 }
 
 #[derive(Clone)]

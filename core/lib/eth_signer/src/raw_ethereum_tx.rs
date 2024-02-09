@@ -48,9 +48,11 @@ pub struct TransactionParameters {
     pub max_fee_per_gas: U256,
     /// miner bribe
     pub max_priority_fee_per_gas: U256,
-    /// Max fee per blob gas
+    /// Max fee per blob gas. Should be set for `EIP4844` blob transactions.
     pub max_fee_per_blob_gas: Option<U256>,
-    /// blob versioned hashes
+    /// Blob versioned hashes. Should be set for `EIP4844` transactions
+    /// and their count should match the number of blobs this
+    /// transactions attempts to send.
     pub blob_versioned_hashes: Option<Vec<H256>>,
 }
 
@@ -159,6 +161,9 @@ impl Transaction {
     fn encode_eip4844_payload(&self, chain_id: u64, signature: Option<&Signature>) -> RlpStream {
         let mut stream = RlpStream::new();
 
+        // `EIP4844` adds two new fields to the `EIP1559` transaction.
+        // `list_size` is set to the same values from `encode_eip1559_payload`
+        // increased by two.
         let list_size = if signature.is_some() { 14 } else { 11 };
         stream.begin_list(list_size);
 
@@ -180,8 +185,6 @@ impl Transaction {
         self.rlp_append_access_list(&mut stream);
 
         stream.append(&self.max_fee_per_blob_gas.unwrap());
-        // TODO: is this the correct way to encode a vector of versioned hashes
-        // to RLP here?
         stream.append_list(self.blob_versioned_hashes.as_ref().unwrap());
 
         if let Some(signature) = signature {

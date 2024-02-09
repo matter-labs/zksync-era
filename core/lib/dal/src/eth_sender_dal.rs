@@ -7,7 +7,7 @@ use sqlx::{
 };
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    eth_sender::{EthTx, EthTxBlobSidecar, TxHistory, TxHistoryToSend},
+    eth_sender::{EthTx, TxHistory, TxHistoryToSend},
     Address, L1BatchNumber, H256, U256,
 };
 
@@ -215,7 +215,6 @@ impl EthSenderDal<'_, '_> {
         priority_fee_per_gas: u64,
         tx_hash: H256,
         raw_signed_tx: &[u8],
-        blob_sidecar: &Option<EthTxBlobSidecar>,
     ) -> anyhow::Result<Option<u32>> {
         let priority_fee_per_gas =
             i64::try_from(priority_fee_per_gas).context("Can't convert u64 to i64")?;
@@ -224,34 +223,29 @@ impl EthSenderDal<'_, '_> {
         let tx_hash = format!("{:#x}", tx_hash);
 
         Ok(sqlx::query!(
-                r#"
-                INSERT INTO
-                    eth_txs_history (
-                        eth_tx_id,
-                        base_fee_per_gas,
-                        priority_fee_per_gas,
-                        tx_hash,
-                        signed_raw_tx,
-                        created_at,
-                        updated_at,
-                        blob_sidecar
-                    )
-                VALUES
-                    ($1, $2, $3, $4, $5, NOW(), NOW(), $6)
-                ON CONFLICT (tx_hash) DO NOTHING
-                RETURNING
-                    id
-                "#,
-                eth_tx_id as i32,
-                base_fee_per_gas,
-                priority_fee_per_gas,
-                tx_hash,
-                raw_signed_tx,
-                blob_sidecar
-                    .as_ref()
-                    .map(|b| bincode::serialize(b)
-                        .expect("Can always serialize EthTxBlobSidecar; qed"))
-            )
+            r#"
+            INSERT INTO
+                eth_txs_history (
+                    eth_tx_id,
+                    base_fee_per_gas,
+                    priority_fee_per_gas,
+                    tx_hash,
+                    signed_raw_tx,
+                    created_at,
+                    updated_at
+                )
+            VALUES
+                ($1, $2, $3, $4, $5, NOW(), NOW())
+            ON CONFLICT (tx_hash) DO NOTHING
+            RETURNING
+                id
+            "#,
+            eth_tx_id as i32,
+            base_fee_per_gas,
+            priority_fee_per_gas,
+            tx_hash,
+            raw_signed_tx,
+        )
         .fetch_optional(self.storage.conn())
         .await?
         .map(|row| row.id as u32))
@@ -466,13 +460,15 @@ impl EthSenderDal<'_, '_> {
             StorageTxHistory,
             r#"
             SELECT
-                *
+                eth_txs_history.*,
+                eth_txs.blob_sidecar
             FROM
                 eth_txs_history
+                LEFT JOIN eth_txs ON eth_tx_id = eth_txs.id
             WHERE
                 eth_tx_id = $1
             ORDER BY
-                created_at DESC
+                eth_txs_history.created_at DESC
             "#,
             eth_tx_id as i32
         )
@@ -502,13 +498,15 @@ impl EthSenderDal<'_, '_> {
             StorageTxHistory,
             r#"
             SELECT
-                *
+                eth_txs_history.*,
+                eth_txs.blob_sidecar
             FROM
                 eth_txs_history
+                LEFT JOIN eth_txs ON eth_tx_id = eth_txs.id
             WHERE
                 eth_tx_id = $1
             ORDER BY
-                created_at DESC
+                eth_txs_history.created_at DESC
             LIMIT
                 1
             "#,
