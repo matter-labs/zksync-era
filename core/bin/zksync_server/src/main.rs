@@ -22,6 +22,7 @@ use zksync_core::{
     temp_config_store::TempConfigStore, Component, Components,
 };
 use zksync_env_config::FromEnv;
+use zksync_l1_contract_interface::i_executor::structures::load_kzg_settings;
 use zksync_storage::RocksDB;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 
@@ -90,6 +91,8 @@ async fn main() -> anyhow::Result<()> {
     } else {
         tracing::info!("No sentry URL was provided");
     }
+
+    let _ = load_kzg_settings();
 
     // TODO (QIT-22): Only deserialize configs on demand.
     // Right now, we are trying to deserialize all the configs that may be needed by `zksync_core`.

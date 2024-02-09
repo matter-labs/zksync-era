@@ -24,6 +24,8 @@ zksync_consensus_roles = { version = "0.1.0", git = "https://github.com/matter-l
 zksync_consensus_executor = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "5b3d383d7a65b0fbe2a771fecf4313f5083be9ae" }
 zksync_concurrency = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "5b3d383d7a65b0fbe2a771fecf4313f5083be9ae" }
 
+zksync_l1_contract_interface = { path = "../../lib/l1_contract_interface" }
+
 vlog = { path = "../../lib/vlog" }
 
 anyhow = "1.0"

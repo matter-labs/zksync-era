@@ -8709,6 +8709,7 @@ version = "0.1.0"
 dependencies = [
  "codegen 0.1.0",
  "hex",
+ "once_cell",
  "serde",
  "serde_json",
  "serde_with",
@@ -8906,6 +8907,7 @@ dependencies = [
  "zksync_consensus_roles",
  "zksync_core",
  "zksync_env_config",
+ "zksync_l1_contract_interface",
  "zksync_storage",
  "zksync_types",
  "zksync_utils",

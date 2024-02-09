@@ -6,6 +6,7 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::{BoundEthInterface, CallFunctionArgs};
 use zksync_l1_contract_interface::{
+    i_executor::{commit::kzg::KzgInfo, structures::load_kzg_settings},
     multicall3::{Multicall3Call, Multicall3Result},
     pre_boojum_verifier::old_l1_vk_commitment,
     Detokenize, Tokenizable, Tokenize,
@@ -419,7 +420,7 @@ impl EthTxAggregator {
 
         // For "commit" and "prove" operations it's necessary that the contracts are of the same version as L1 batches are.
         // For "execute" it's not required, i.e. we can "execute" pre-boojum batches with post-boojum contracts.
-        let calldata = match op.clone() {
+        let (calldata, side_car) = match op.clone() {
             AggregatedOperation::Commit(op) => {
                 assert_eq!(contracts_are_pre_boojum, operation_is_pre_boojum);
                 let f = if contracts_are_pre_boojum {
@@ -430,8 +431,16 @@ impl EthTxAggregator {
                         .as_ref()
                         .expect("Missing ABI for commitBatches")
                 };
-                f.encode_input(&op.into_tokens())
-                    .expect("Failed to encode commit transaction data")
+                let kzg_settings = load_kzg_settings();
+                let kzg_info = KzgInfo::new(
+                    &kzg_settings,
+                    op.l1_batches[0].header.pubdata_input.clone().unwrap(),
+                );
+                (
+                    f.encode_input(&op.into_tokens())
+                        .expect("Failed to encode commit transaction data"),
+                    None,
+                )
             }
             AggregatedOperation::PublishProofOnchain(op) => {
                 assert_eq!(contracts_are_pre_boojum, operation_is_pre_boojum);
@@ -443,8 +452,11 @@ impl EthTxAggregator {
                         .as_ref()
                         .expect("Missing ABI for proveBatches")
                 };
-                f.encode_input(&op.into_tokens())
-                    .expect("Failed to encode prove transaction data")
+                (
+                    f.encode_input(&op.into_tokens())
+                        .expect("Failed to encode prove transaction data"),
+                    None,
+                )
             }
             AggregatedOperation::Execute(op) => {
                 let f = if contracts_are_pre_boojum {
@@ -455,17 +467,17 @@ impl EthTxAggregator {
                         .as_ref()
                         .expect("Missing ABI for executeBatches")
                 };
-                f.encode_input(&op.into_tokens())
-                    .expect("Failed to encode execute transaction data")
+                (
+                    f.encode_input(&op.into_tokens())
+                        .expect("Failed to encode execute transaction data"),
+                    None,
+                )
             }
         };
 
         // EIP4844 transactions for committing batches are not live yet,
         // always return None as a second field for now.
-        TxData {
-            calldata,
-            sidecar: None,
-        }
+        TxData { calldata, sidecar }
     }
 
     pub(super) async fn save_eth_tx(
