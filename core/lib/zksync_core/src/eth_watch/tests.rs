@@ -557,11 +557,9 @@ async fn test_set_chain_id_upgrade() {
     let mut storage = connection_pool.access_storage().await.unwrap();
 
     let mut client = FakeEthClient::new();
-    let mut watcher = EthWatch::new(
+    let mut watcher = EthWatch::new_set_chain_id_watch(
         diamond_proxy_address,
-        None,
         Box::new(client.clone()),
-        &connection_pool,
         std::time::Duration::from_nanos(1),
     )
     .await;

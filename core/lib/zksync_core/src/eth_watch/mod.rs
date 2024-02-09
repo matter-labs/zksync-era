@@ -65,11 +65,9 @@ impl EthWatch {
         let priority_ops_processor =
             PriorityOpsEventProcessor::new(state.next_expected_priority_id);
         let upgrades_processor = UpgradesEventProcessor::new(state.last_seen_version_id);
-        // let set_chain_id_processor = SetChainIDEventProcessor::new(diamond_proxy_address);
         let mut event_processors: Vec<Box<dyn EventProcessor>> = vec![
             Box::new(priority_ops_processor),
             Box::new(upgrades_processor),
-            // Box::new(set_chain_id_processor),
         ];
 
         if let Some(governance_contract) = governance_contract {
