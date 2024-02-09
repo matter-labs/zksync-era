@@ -10,6 +10,8 @@ CREATE TABLE IF NOT EXISTS prover_fri_protocol_versions (
     created_at                        TIMESTAMP NOT NULL
 );
 
+COMMENT ON TABLE prover_fri_protocol_versions IS 'Used for determining which version of the FRI protocol is used for a given batch. Useful for VM upgrades, but currently more of a kludge.';
+
 ---- GPU PROVER QUEUE FRI
 
 -- Serves as "registration" hub for provers. WVGs query this table to know which provers are available and how to reach them.
@@ -25,6 +27,8 @@ CREATE TABLE IF NOT EXISTS gpu_prover_queue_fri (
     updated_at                  TIMESTAMP NOT NULL,
     processing_started_at       TIMESTAMP
 );
+
+COMMENT ON TABLE gpu_prover_queue_fri IS 'Serves as "registration" hub for provers. WVGs query this table to know which provers are available and how to reach them.';
 
 CREATE UNIQUE INDEX IF NOT EXISTS gpu_prover_queue_fri_host_port_zone_idx
     ON gpu_prover_queue_fri (instance_host, instance_port, zone);
@@ -49,6 +53,8 @@ CREATE TABLE IF NOT EXISTS gpu_prover_queue_fri_archive (
     processing_started_at       TIMESTAMP
 );
 
+COMMENT ON TABLE gpu_prover_queue_fri_archive IS 'Table created during the inscriptions outage. May be further used in similar circumstances or as part of an archival process (to be defined in the future).';
+
 ---- LEAF AGGREGATION WITNESS JOBS FRI
 
 -- Leaf aggregation jobs. Each is picked by a WG which produces input for provers.
@@ -71,6 +77,8 @@ CREATE TABLE IF NOT EXISTS leaf_aggregation_witness_jobs_fri (
     protocol_version            INT REFERENCES prover_fri_protocol_versions (id),
     picked_by                   TEXT
 );
+
+COMMENT ON TABLE leaf_aggregation_witness_jobs_fri IS 'Leaf aggregation jobs. Each is picked by a WG which produces input for provers.';
 
 CREATE UNIQUE INDEX IF NOT EXISTS leaf_aggregation_witness_jobs_fri_composite_index
     ON leaf_aggregation_witness_jobs_fri(l1_batch_number, circuit_id);
@@ -102,6 +110,8 @@ CREATE TABLE IF NOT EXISTS node_aggregation_witness_jobs_fri (
     picked_by                TEXT
 );
 
+COMMENT ON TABLE node_aggregation_witness_jobs_fri IS 'Node aggregation jobs. Each is picked by a WG which produces input for provers.';
+
 CREATE UNIQUE INDEX IF NOT EXISTS node_aggregation_witness_jobs_fri_composite_index
     ON node_aggregation_witness_jobs_fri (l1_batch_number, circuit_id, depth);
 CREATE INDEX IF NOT EXISTS idx_node_aggregation_witness_jobs_fri_queued_order
@@ -127,6 +137,8 @@ CREATE TABLE IF NOT EXISTS proof_compression_jobs_fri (
     time_taken            TIME,
     picked_by             TEXT
 );
+
+COMMENT ON TABLE proof_compression_jobs_fri IS 'Proof compression jobs. Last step, turning the wrapping the STARK proof into a SNARK wrapper. (STARK -> SNARK)';
 
 CREATE INDEX IF NOT EXISTS idx_proof_compression_jobs_fri_status_processing_attempts
     ON proof_compression_jobs_fri (processing_started_at, attempts)
@@ -161,6 +173,8 @@ CREATE TABLE IF NOT EXISTS prover_jobs_fri (
     protocol_version      INTEGER REFERENCES prover_fri_protocol_versions (id),
     picked_by             TEXT
 );
+
+COMMENT ON TABLE prover_jobs_fri IS 'Prover jobs. Each is picked by a WVG and is finished by a prover.';
 
 CREATE INDEX IF NOT EXISTS idx_prover_jobs_fri_circuit_id_agg_batch_num
     ON prover_jobs_fri (circuit_id, aggregation_round, l1_batch_number)
@@ -211,6 +225,8 @@ CREATE TABLE IF NOT EXISTS prover_jobs_fri_archive (
     picked_by             TEXT
 );
 
+COMMENT ON TABLE prover_jobs_fri_archive IS 'Table created during the inscriptions outage. May be further used in similar circumstances or as part of an archival process (to be defined in the future).';
+
 ---- SCHEDULER DEPENDENCY TRACKER FRI
 
 -- Used to track all node completions, before we can queue the scheduler.
@@ -234,6 +250,8 @@ CREATE TABLE IF NOT EXISTS scheduler_dependency_tracker_fri (
     updated_at                     TIMESTAMP NOT NULL
 );
 
+COMMENT ON TABLE scheduler_dependency_tracker_fri IS 'Used to track all node completions, before we can queue the scheduler.';
+
 CREATE INDEX IF NOT EXISTS idx_scheduler_dependency_tracker_fri_circuit_ids_filtered
     ON public.scheduler_dependency_tracker_fri (circuit_1_final_prover_job_id, circuit_2_final_prover_job_id, circuit_3_final_prover_job_id, circuit_4_final_prover_job_id, circuit_5_final_prover_job_id, circuit_6_final_prover_job_id, circuit_7_final_prover_job_id, circuit_8_final_prover_job_id, circuit_9_final_prover_job_id, circuit_10_final_prover_job_id, circuit_11_final_prover_job_id, circuit_12_final_prover_job_id, circuit_13_final_prover_job_id)
     WHERE (status <> 'queued'::text);
@@ -254,6 +272,8 @@ CREATE TABLE IF NOT EXISTS scheduler_witness_jobs_fri (
     protocol_version                 INTEGER REFERENCES prover_fri_protocol_versions (id),
     picked_by                        TEXT
 );
+
+COMMENT ON TABLE scheduler_witness_jobs_fri IS 'Scheduler jobs. Each is picked by a WG which produces input for provers.';
 
 CREATE INDEX IF NOT EXISTS idx_scheduler_fri_status_processing_attempts
     ON public.scheduler_witness_jobs_fri (processing_started_at, attempts)
@@ -278,6 +298,8 @@ CREATE TABLE IF NOT EXISTS witness_inputs_fri (
     protocol_version           INTEGER REFERENCES prover_fri_protocol_versions (id),
     picked_by                  TEXT
 );
+
+COMMENT ON TABLE witness_inputs_fri IS 'Witness input jobs. Each is picked by a WG which produces input for provers.';
 
 CREATE INDEX IF NOT EXISTS idx_witness_inputs_fri_status_processing_attempts
     ON witness_inputs_fri (processing_started_at, attempts)
