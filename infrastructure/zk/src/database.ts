@@ -126,7 +126,7 @@ export async function setupForDal(dalPath: DalPath, dbUrl: string) {
         console.log(`Using localhost database -- ${dbUrl}`);
     } else {
         // Remote database, we can't show the contents.
-        console.log(`WARNING! Using prod main db!`);
+        console.log(`WARNING! Using prod db!`);
     }
     await utils.spawn(`cargo sqlx database create --database-url ${dbUrl}`);
     await utils.spawn(`cargo sqlx migrate run --database-url ${dbUrl}`);
