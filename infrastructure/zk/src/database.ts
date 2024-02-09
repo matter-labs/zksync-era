@@ -99,9 +99,11 @@ async function generateMigrationForDal(dalPath: DalPath, dbUrl: string, name: St
 
 export async function generateMigration(opts: any) {
     if ((!opts.prover && !opts.server) || (opts.prover && opts.server)) {
-        throw new Error('[aborted] please specify a single database to generate migration for (i.e. to generate a migration for server `zk db new-migration --server name_of_migration`');
+        throw new Error(
+            '[aborted] please specify a single database to generate migration for (i.e. to generate a migration for server `zk db new-migration --server name_of_migration`'
+        );
     }
-    let name = "";
+    let name = '';
     if (opts.prover) {
         name = opts.prover;
     }

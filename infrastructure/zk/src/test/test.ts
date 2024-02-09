@@ -15,7 +15,7 @@ export async function prover() {
     await utils.spawn('cargo test --release --workspace --locked');
 }
 export async function rust(options: string[]) {
-    await db.resetTest({ "server": true, "prover": true });
+    await db.resetTest({ server: true, prover: true });
 
     let result = await utils.exec('cargo install --list');
     let test_runner = 'cargo nextest run';
