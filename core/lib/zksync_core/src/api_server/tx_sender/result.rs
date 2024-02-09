@@ -67,7 +67,7 @@ pub enum SubmitTxError {
     IntrinsicGas,
     /// Error returned from main node
     #[error("{0}")]
-    ProxyError(#[from] RpcErrorWithDetails), // FIXME: strip details when returning to client?
+    ProxyError(#[from] RpcErrorWithDetails),
     #[error("not enough gas to publish compressed bytecodes")]
     FailedToPublishCompressedBytecodes,
     /// Catch-all internal error (e.g., database error) that should not be exposed to the caller.
