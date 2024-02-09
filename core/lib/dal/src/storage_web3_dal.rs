@@ -37,38 +37,22 @@ impl StorageWeb3Dal<'_, '_> {
         &mut self,
         addresses: &[Address],
     ) -> sqlx::Result<HashMap<Address, Nonce>> {
-        let res = sqlx::query!(
-            r#"
-            SELECT
-                initiator_address,
-                MAX(nonce)
-            FROM
-                transactions
-            WHERE
-                initiator_address = ANY ($1)
-                AND is_priority = FALSE
-                AND (
-                    miniblock_number IS NOT NULL
-                    OR error IS NULL
-                )
-            GROUP BY
-                initiator_address
-            "#,
-            &addresses
-                .iter()
-                .map(|address| address.as_bytes().to_vec())
-                .collect::<Vec<_>>()
-        )
-        .fetch_all(self.storage.conn())
-        .await?
-        .into_iter()
-        .map(|row| {
-            (
-                Address::from_slice(&row.initiator_address),
-                Nonce(row.max.unwrap_or_default() as u32),
-            )
-        })
-        .collect();
+        let nonce_keys: HashMap<_, _> = addresses
+            .iter()
+            .map(|address| (get_nonce_key(address).hashed_key(), *address))
+            .collect();
+
+        let res = self
+            .get_values(&nonce_keys.keys().cloned().collect::<Vec<_>>())
+            .await?
+            .into_iter()
+            .filter_map(|(hashed_key, value)| {
+                let address = nonce_keys.get(&hashed_key)?;
+                let full_nonce = h256_to_u256(value);
+                let (nonce, _) = decompose_full_nonce(full_nonce);
+                Some((*address, Nonce(nonce.as_u32())))
+            })
+            .collect();
         Ok(res)
     }
 
