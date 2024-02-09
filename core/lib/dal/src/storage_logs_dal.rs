@@ -458,7 +458,7 @@ impl StorageLogsDal<'_, '_> {
         )
         .instrument("get_l1_batches_and_indices_for_initial_writes")
         .report_latency()
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage)
         .await?;
 
         Ok(rows
