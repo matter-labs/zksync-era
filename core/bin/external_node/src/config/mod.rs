@@ -51,15 +51,11 @@ impl RemoteENConfig {
             .get_main_contract()
             .rpc_context("get_main_contract")
             .await?;
-        let l2_chain_id =
-            L2ChainId::try_from(client.chain_id().rpc_context("chain_id").await?.as_u64()).unwrap();
-        let l1_chain_id = L1ChainId(
-            client
-                .l1_chain_id()
-                .rpc_context("l1_chain_id")
-                .await?
-                .as_u64(),
-        );
+        let l2_chain_id = client.chain_id().rpc_context("chain_id").await?;
+        let l2_chain_id = L2ChainId::try_from(l2_chain_id.as_u64())
+            .map_err(|err| anyhow::anyhow!("invalid chain ID supplied by main node: {err}"))?;
+        let l1_chain_id = client.l1_chain_id().rpc_context("l1_chain_id").await?;
+        let l1_chain_id = L1ChainId(l1_chain_id.as_u64());
 
         Ok(Self {
             diamond_proxy_addr,

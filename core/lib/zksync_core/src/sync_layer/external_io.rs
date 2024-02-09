@@ -165,7 +165,7 @@ impl ExternalIO {
                     .fetch_protocol_version(id)
                     .await
                     .expect("Failed to fetch protocol version from the main node")
-                    .expect("Protocol version missing on the main node");
+                    .expect("Protocol version is missing on the main node");
                 self.pool
                     .access_storage_tagged("sync_layer")
                     .await
