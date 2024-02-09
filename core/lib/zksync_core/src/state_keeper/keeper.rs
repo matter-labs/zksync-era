@@ -150,7 +150,7 @@ impl ZkSyncStateKeeper {
         let protocol_version = system_env.version;
         let mut updates_manager = UpdatesManager::new(&l1_batch_env, &system_env);
 
-        let mut protocol_upgrade_tx = self
+        let mut protocol_upgrade_tx: Option<ProtocolUpgradeTx> = self
             .load_protocol_upgrade_tx(&pending_miniblocks, protocol_version, l1_batch_env.number)
             .await?;
 
@@ -250,11 +250,13 @@ impl ZkSyncStateKeeper {
         let protocol_upgrade_tx = if pending_miniblocks.is_empty()
             && (version_changed || first_batch_in_shared_bridge)
         {
-            tracing::info!("We have upgrade tx to be executed in empty miniblock");
+            // We have a new upgrade transaction - either a regular protocol upgrade or a `setChainId` upgrade.
+            tracing::info!("There is an new upgrade tx to be executed in this batch");
             protocol_upgrade_tx
         } else if !pending_miniblocks.is_empty()
             && (version_changed || first_batch_in_shared_bridge)
         {
+            // We already processed the upgrade tx but did not seal the batch it was in.
             // Sanity check: if `txs_to_reexecute` is not empty and upgrade tx is present for this block
             // then it must be the first one in `txs_to_reexecute`.
             if protocol_upgrade_tx.is_some() {
@@ -266,10 +268,13 @@ impl ZkSyncStateKeeper {
                     first_tx_to_reexecute.hash()
                 );
             }
-            tracing::info!("We have no upgrade tx to execute");
+            tracing::info!(
+                "There is a protocol upgrade in this batch, upgrade tx already processed"
+            );
             None
         } else {
-            tracing::info!("We are not changing protocol version");
+            // We do not have any upgrade transactins in this batch.
+            tracing::info!("There is no protocol upgrade in this batch");
             None
         };
 

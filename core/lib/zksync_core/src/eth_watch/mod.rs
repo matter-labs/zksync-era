@@ -95,7 +95,7 @@ impl EthWatch {
 
     /// `EthWatch` is only meant to be created this way during genesis, since
     /// we only need to save the `setChainId` event once -- after the chain creation.
-    pub async fn new_set_chain_id_watch(
+    async fn new_set_chain_id_watch(
         diamond_proxy_address: Address,
         mut client: Box<dyn EthClient>,
         poll_interval: Duration,

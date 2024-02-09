@@ -98,7 +98,7 @@ impl ProtocolVersionsDal<'_, '_> {
         db_transaction.commit().await.unwrap();
     }
 
-    async fn save_genesis_upgrade(&mut self, id: ProtocolVersionId, tx_hash: Option<H256>) {
+    async fn save_genesis_upgrade_tx_hash(&mut self, id: ProtocolVersionId, tx_hash: Option<H256>) {
         sqlx::query!(
             r#"
             UPDATE protocol_versions
@@ -133,7 +133,7 @@ impl ProtocolVersionsDal<'_, '_> {
 
         db_transaction
             .protocol_versions_dal()
-            .save_genesis_upgrade(id, tx_hash)
+            .save_genesis_upgrade_tx_hash(id, tx_hash)
             .await;
 
         db_transaction.commit().await.unwrap();
