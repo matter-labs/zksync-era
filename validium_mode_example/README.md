@@ -11,7 +11,7 @@ command:
 zk && zk clean --all && zk init --validium-mode && zk server
 ```
 
-> [!IMPORTANT] Make sure that the flag `--validium-mode` is present when initilizing the server.
+> [!IMPORTANT] Make sure that the flag `--validium-mode` is present when initializing the server.
 
 This will set up the Ethereum node with the validium contracts, and also define an `env` var which the server will pick
 up in order to run as a validium node.
@@ -68,5 +68,5 @@ L2 fee: 31366500000000
 L1 max fee per gas: 1000000010
 ```
 
-> [!NOTE] You can observe how the diferent fields evolve depending on the operation. The `transaction hash` is a
+> [!NOTE] You can observe how the different fields evolve depending on the operation. The `transaction hash` is a
 > changing field.
