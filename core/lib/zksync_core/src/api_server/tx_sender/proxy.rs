@@ -89,7 +89,7 @@ impl TxCache {
                     .copied()
                     .unwrap_or(Nonce(0));
                 // Retain only nonces exceeding the stored one.
-                *account_nonces = account_nonces.split_off(&(stored_nonce + 1));
+                *account_nonces = account_nonces.split_off(&(stored_nonce));
                 // If we've removed all nonces, drop the account entry so we don't request stored nonces for it later.
                 !account_nonces.is_empty()
             });
@@ -138,15 +138,16 @@ impl TxProxy {
         account_address: Address,
         current_nonce: u32,
     ) -> Nonce {
-        let mut exprected_nonce = current_nonce;
+        let mut expected_nonce = current_nonce.saturating_sub(1);
         let nonces = self.get_nonces_by_account(account_address).await;
         for pending_nonce in nonces {
             // If nonce is not sequential, then we should not increment nonce.
-            if pending_nonce.0 == exprected_nonce {
-                exprected_nonce += 1;
+            if pending_nonce.0 == expected_nonce + 1 {
+                expected_nonce += 1;
             }
         }
-        Nonce(exprected_nonce)
+
+        Nonce(std::cmp::max(expected_nonce, current_nonce))
     }
 
     pub async fn submit_tx(&self, tx: &L2Tx) -> RpcResult<H256> {
