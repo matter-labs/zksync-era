@@ -11,9 +11,9 @@ use zksync_l1_contract_interface::{
     pre_boojum_verifier::old_l1_vk_commitment,
     Detokenize, Tokenizable, Tokenize,
 };
-use zksync_object_store::bincode;
+
 use zksync_types::{
-    eth_sender::{EthTx, EthTxBlobSidecar},
+    eth_sender::{EthTx, EthTxBlobSidecar, EthTxBlobSidecarV1, SidecarBlobV1},
     ethabi::{Contract, Token},
     protocol_version::{L1VerifierConfig, VerifierParams},
     web3::contract::Error as Web3ContractError,
@@ -440,13 +440,17 @@ impl EthTxAggregator {
                 let sidecar = SidecarBlobV1 {
                     blob: kzg_info.blob.to_vec(),
                     commitment: kzg_info.kzg_commitment.to_vec(),
-                    proof: kzg_info.blob_proof.to_vec()
+                    proof: kzg_info.blob_proof.to_vec(),
                 };
-                let encoded_sidecar = bincode::serialize(&sidecar).unwrap();
+
+                let eth_tx_sidecar = EthTxBlobSidecarV1 {
+                    blobs: vec![sidecar],
+                };
+
                 (
                     f.encode_input(&op.into_tokens())
                         .expect("Failed to encode commit transaction data"),
-                    Some(encoded_sidecar),
+                    Some(EthTxBlobSidecar::EthTxBlobSidecarV1(eth_tx_sidecar)),
                 )
             }
             AggregatedOperation::PublishProofOnchain(op) => {
