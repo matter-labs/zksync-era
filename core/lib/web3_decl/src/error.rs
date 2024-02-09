@@ -56,6 +56,9 @@ pub enum Web3Error {
     TreeApiUnavailable,
 }
 
+/// RPC error with additional details: the method name and arguments of the called method.
+///
+/// The wrapped error can be accessed using [`AsRef`].
 #[derive(Debug)]
 pub struct RpcErrorWithDetails {
     inner_error: RpcError,
@@ -64,6 +67,7 @@ pub struct RpcErrorWithDetails {
 }
 
 impl RpcErrorWithDetails {
+    /// Wraps the specified `inner_error`.
     pub fn new(inner_error: RpcError, method: &'static str) -> Self {
         Self {
             inner_error,
@@ -72,6 +76,8 @@ impl RpcErrorWithDetails {
         }
     }
 
+    /// Adds a tracked argument for this error.
+    #[must_use]
     pub fn with_arg(mut self, name: &'static str, value: &dyn fmt::Debug) -> Self {
         self.args.insert(name, format!("{value:?}"));
         self
@@ -118,6 +124,8 @@ impl fmt::Display for RpcErrorWithDetails {
 }
 
 pin_project! {
+    /// Contextual information about an RPC. Returned by [`EnrichRpcError::rpc_context()`]. The context is eventually converted
+    /// to a result with [`RpcErrorWithDetails`] error type.
     #[derive(Debug)]
     pub struct RpcContext<'a, F> {
         #[pin]
@@ -131,6 +139,8 @@ impl<'a, T, F> RpcContext<'a, F>
 where
     F: Future<Output = Result<T, RpcError>>,
 {
+    /// Adds a tracked argument for this context.
+    #[must_use]
     pub fn with_arg(
         mut self,
         name: &'static str,
@@ -168,7 +178,9 @@ where
     }
 }
 
+/// Extension trait allowing to add context to an RPC. Can be used on any future resolving to `Result<_, RpcError>`.
 pub trait EnrichRpcError: Sized {
+    /// Adds basic context information: the name of the invoked RPC method.
     fn rpc_context(self, method: &'static str) -> RpcContext<Self>;
 }
 
