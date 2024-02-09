@@ -6,11 +6,11 @@ use assert_matches::assert_matches;
 use test_casing::{test_casing, Product};
 use tokio::sync::mpsc;
 use zksync_dal::StorageProcessor;
-use zksync_eth_client::clients::MockEthereum;
+use zksync_eth_client::{clients::MockEthereum, Options};
 use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata,
-    web3::contract::Options, L2ChainId, ProtocolVersion, ProtocolVersionId, H256,
+    aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata, L2ChainId,
+    ProtocolVersion, ProtocolVersionId, H256,
 };
 
 use super::*;

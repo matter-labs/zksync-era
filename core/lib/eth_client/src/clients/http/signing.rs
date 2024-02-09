@@ -7,7 +7,7 @@ use zksync_eth_signer::{raw_ethereum_tx::TransactionParameters, EthereumSigner, 
 use zksync_types::{
     web3::{
         self,
-        contract::{tokens::Detokenize, Options},
+        contract::tokens::Detokenize,
         ethabi,
         transports::Http,
         types::{
@@ -21,7 +21,7 @@ use zksync_types::{
 use super::{query::QueryClient, Method, LATENCIES};
 use crate::{
     types::{Error, ExecutedTxStatus, FailureInfo, SignedCallResult},
-    BoundEthInterface, CallFunctionArgs, ContractCall, EthInterface, RawTransactionBytes,
+    BoundEthInterface, CallFunctionArgs, ContractCall, EthInterface, Options, RawTransactionBytes,
 };
 
 /// HTTP-based Ethereum client, backed by a private key to sign transactions.
@@ -217,8 +217,6 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
         data: Vec<u8>,
         contract_addr: H160,
         options: Options,
-        max_fee_per_blob_gas: Option<U256>,
-        blob_versioned_hashes: Option<Vec<H256>>,
         component: &'static str,
     ) -> Result<SignedCallResult, Error> {
         let latency = LATENCIES.direct[&Method::SignPreparedTx].start();
@@ -229,10 +227,10 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
         };
 
         if options.transaction_type == Some(EIP_4844_TX_TYPE.into()) {
-            if max_fee_per_blob_gas.is_none() {
+            if options.max_fee_per_blob_gas.is_none() {
                 return Err(Error::Eip4844MissingMaxFeePerBlobGas);
             }
-            if blob_versioned_hashes.is_none() {
+            if options.blob_versioned_hashes.is_none() {
                 return Err(Error::Eip4844MissingBlobVersionedHashes);
             }
         }
@@ -281,8 +279,8 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
             transaction_type: options.transaction_type,
             access_list: None,
             max_fee_per_gas,
-            max_fee_per_blob_gas,
-            blob_versioned_hashes,
+            max_fee_per_blob_gas: options.max_fee_per_blob_gas,
+            blob_versioned_hashes: options.blob_versioned_hashes,
         };
 
         let signed_tx = self.inner.eth_signer.sign_transaction(tx).await?;
