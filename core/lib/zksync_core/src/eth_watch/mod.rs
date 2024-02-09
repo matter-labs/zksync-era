@@ -165,7 +165,7 @@ impl EthWatch {
     ) -> anyhow::Result<()> {
         let mut timer = tokio::time::interval(self.poll_interval);
         let mut processed_events = 0;
-        while limit.map(|l| processed_events < l).unwrap_or(true) {
+        while limit.map_or(true, |l| processed_events < l) {
             if *stop_receiver.borrow() {
                 tracing::info!("Stop signal received, eth_watch is shutting down");
                 break;

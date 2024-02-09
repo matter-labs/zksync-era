@@ -618,7 +618,7 @@ pub async fn initialize_components(
             configs
                 .network_config
                 .as_ref()
-                .context("netowrk_config")?
+                .context("network_config")?
                 .zksync_network_id,
         )
         .await;

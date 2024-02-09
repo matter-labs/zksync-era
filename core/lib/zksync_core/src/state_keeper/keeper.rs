@@ -251,6 +251,7 @@ impl ZkSyncStateKeeper {
             && (version_changed || first_batch_in_shared_bridge)
         {
             // We have a new upgrade transaction - either a regular protocol upgrade or a `setChainId` upgrade.
+            // If we are running an EN, `protocol_upgrade_tx` will be `None` here since it is fetched from the main node.
             tracing::info!("There is an new upgrade tx to be executed in this batch");
             protocol_upgrade_tx
         } else if !pending_miniblocks.is_empty()
@@ -273,7 +274,7 @@ impl ZkSyncStateKeeper {
             );
             None
         } else {
-            // We do not have any upgrade transactins in this batch.
+            // We do not have any upgrade transactions in this batch.
             tracing::info!("There is no protocol upgrade in this batch");
             None
         };

@@ -65,7 +65,7 @@ impl ProtocolVersionsDal<'_, '_> {
             base_system_contracts_hashes.bootloader.as_bytes(),
             base_system_contracts_hashes.default_aa.as_bytes(),
             verifier_address.as_bytes(),
-            tx_hash.map(|tx_hash| tx_hash.0.to_vec()),
+            tx_hash.as_ref().map(H256::as_bytes),
         )
         .execute(self.storage.conn())
         .await
@@ -107,7 +107,7 @@ impl ProtocolVersionsDal<'_, '_> {
             WHERE
                 id = $2
             "#,
-            tx_hash.map(|tx_hash| tx_hash.0.to_vec()),
+            tx_hash.as_ref().map(H256::as_bytes),
             id as i32,
         )
         .execute(self.storage.conn())
