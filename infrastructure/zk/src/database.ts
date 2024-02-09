@@ -141,7 +141,7 @@ export async function setupForDal(dalPath: DalPath, dbUrl: string) {
 
 export async function setup(opts: any) {
     if (process.env.TEMPLATE_DATABASE_URL !== undefined) {
-        process.chdir('core/lib/dal');
+        process.chdir(DalPath.CoreDal);
 
         // Dump and restore from template database (simulate backup)
         console.log(`Template DB URL provided. Creating a DB via dump from ${process.env.TEMPLATE_DATABASE_URL}`);
