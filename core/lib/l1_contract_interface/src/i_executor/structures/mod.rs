@@ -4,6 +4,6 @@ mod commit_batch_info;
 mod stored_batch_info;
 
 pub use self::{
-    commit_batch_info::load_kzg_settings, commit_batch_info::CommitBatchInfo,
+    commit_batch_info::{load_kzg_settings, CommitBatchInfo},
     stored_batch_info::StoredBatchInfo,
 };

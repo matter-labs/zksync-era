@@ -1,3 +1,4 @@
+use once_cell::sync::Lazy;
 use zkevm_test_harness_1_4_1::kzg::KzgSettings;
 use zksync_types::{
     commitment::L1BatchWithMetadata,
@@ -7,8 +8,6 @@ use zksync_types::{
 };
 
 use crate::{i_executor::commit::kzg::KzgInfo, Tokenizable};
-
-use once_cell::sync::Lazy;
 
 /// Loads KZG settings from the file system.
 pub fn load_kzg_settings() -> KzgSettings {

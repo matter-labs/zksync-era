@@ -11,7 +11,6 @@ use zksync_l1_contract_interface::{
     pre_boojum_verifier::old_l1_vk_commitment,
     Detokenize, Tokenizable, Tokenize,
 };
-
 use zksync_types::{
     eth_sender::{EthTx, EthTxBlobSidecar, EthTxBlobSidecarV1, SidecarBlobV1},
     ethabi::{Contract, Token},
