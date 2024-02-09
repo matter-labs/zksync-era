@@ -11,7 +11,7 @@ use zksync_types::{
     get_code_key, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256, U64,
 };
 use zksync_web3_decl::{
-    error::{EnrichRpcError, WithArgRpcError},
+    error::EnrichRpcError,
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
     namespaces::{EnNamespaceClient, EthNamespaceClient, ZksNamespaceClient},
 };
@@ -75,18 +75,16 @@ impl MainNodeClient for HttpClient {
         &self,
         hash: H256,
     ) -> anyhow::Result<SystemContractCode> {
-        let bytecode = self.get_bytecode_by_hash(hash)
-            .await
+        let bytecode = self
+            .get_bytecode_by_hash(hash)
             .rpc_context("fetch_system_contract_by_hash")
-            .with_arg("hash", &hash)?
-            .with_context(|| {
-            format!(
-                "Base system contract bytecode is absent on the main node. Dependency hash: {hash:?}"
-            )
-        })?;
+            .with_arg("hash", &hash)
+            .await?
+            .with_context(|| format!("Base system contract {hash:?} is absent on the main node"))?;
+        let actual_bytecode_hash = zksync_utils::bytecode::hash_bytecode(&bytecode);
         anyhow::ensure!(
-            hash == zksync_utils::bytecode::hash_bytecode(&bytecode),
-            "Got invalid base system contract bytecode from main node"
+            hash == actual_bytecode_hash,
+            "Got invalid base system contract bytecode from main node: expected hash {hash:?}, got {actual_bytecode_hash:?}"
         );
         Ok(SystemContractCode {
             code: zksync_utils::bytes_to_be_words(bytecode),
@@ -108,10 +106,9 @@ impl MainNodeClient for HttpClient {
                 zksync_utils::h256_to_u256(*code_key.key()),
                 Some(GENESIS_BLOCK),
             )
-            .await
             .rpc_context("fetch_genesis_contract_bytecode")
             .with_arg("address", &address)
-            .context("Unable to query storage at genesis state")?;
+            .await?;
         self.get_bytecode_by_hash(code_hash)
             .await
             .context("Unable to query system contract bytecode")
@@ -123,9 +120,9 @@ impl MainNodeClient for HttpClient {
     ) -> anyhow::Result<api::ProtocolVersion> {
         Ok(self
             .get_protocol_version(Some(protocol_version as u16))
-            .await
             .rpc_context("fetch_protocol_version")
-            .with_arg("protocol_version", &protocol_version)?
+            .with_arg("protocol_version", &protocol_version)
+            .await?
             .with_context(|| {
                 format!("Protocol version {protocol_version:?} must exist on main node")
             })?)
@@ -134,10 +131,9 @@ impl MainNodeClient for HttpClient {
     async fn fetch_genesis_l1_batch_hash(&self) -> anyhow::Result<H256> {
         let genesis_l1_batch = self
             .get_l1_batch_details(L1BatchNumber(0))
-            .await
             .rpc_context("fetch_genesis_l1_batch_hash")
-            .context("couldn't get genesis block from the main node")?
-            .context("main node did not return a genesis block")?;
+            .await?
+            .context("main node did not return genesis block")?;
         genesis_l1_batch
             .base
             .root_hash
@@ -155,8 +151,10 @@ impl MainNodeClient for HttpClient {
         with_transactions: bool,
     ) -> anyhow::Result<Option<SyncBlock>> {
         self.sync_l2_block(number, with_transactions)
-            .await
             .rpc_context("fetch_l2_block")
+            .with_arg("number", &number)
+            .with_arg("transactions", &with_transactions)
+            .await
             .map_err(Into::into)
     }
 }

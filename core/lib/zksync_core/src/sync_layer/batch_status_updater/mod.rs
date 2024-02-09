@@ -13,7 +13,7 @@ use zksync_types::{
     aggregated_operations::AggregatedActionType, api, L1BatchNumber, MiniblockNumber, H256,
 };
 use zksync_web3_decl::{
-    error::{EnrichRpcError, RpcErrorWithDetails, WithArgRpcError},
+    error::{EnrichRpcError, RpcErrorWithDetails},
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
     namespaces::ZksNamespaceClient,
 };
@@ -92,9 +92,9 @@ impl MainNodeClient for HttpClient {
         let request_latency = FETCHER_METRICS.requests[&FetchStage::GetMiniblockRange].start();
         let number = self
             .get_miniblock_range(number)
-            .await
             .rpc_context("resolve_l1_batch_to_miniblock")
-            .with_arg("number", &number)?
+            .with_arg("number", &number)
+            .await?
             .map(|(start, _)| MiniblockNumber(start.as_u32()));
         request_latency.observe();
         Ok(number)
@@ -107,9 +107,9 @@ impl MainNodeClient for HttpClient {
         let request_latency = FETCHER_METRICS.requests[&FetchStage::GetBlockDetails].start();
         let details = self
             .get_block_details(number)
-            .await
             .rpc_context("block_details")
-            .with_arg("number", &number)?;
+            .with_arg("number", &number)
+            .await?;
         request_latency.observe();
         Ok(details)
     }

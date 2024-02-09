@@ -1,8 +1,18 @@
 //! Definition of errors that can occur in the zkSync Web3 API.
 
-use std::{collections::HashMap, error, error::Error, fmt, fmt::Debug};
+use std::{
+    collections::HashMap,
+    error,
+    error::Error,
+    fmt,
+    future::Future,
+    mem,
+    pin::Pin,
+    task::{Context, Poll},
+};
 
 use jsonrpsee::core::ClientError as RpcError;
+use pin_project_lite::pin_project;
 use thiserror::Error;
 use zksync_types::{api::SerializationTransactionError, L1BatchNumber, MiniblockNumber};
 
@@ -52,6 +62,28 @@ pub struct RpcErrorWithDetails {
     method: &'static str,
     args: HashMap<&'static str, String>,
 }
+
+impl RpcErrorWithDetails {
+    pub fn new(inner_error: RpcError, method: &'static str) -> Self {
+        Self {
+            inner_error,
+            method,
+            args: HashMap::new(),
+        }
+    }
+
+    pub fn with_arg(mut self, name: &'static str, value: &dyn fmt::Debug) -> Self {
+        self.args.insert(name, format!("{value:?}"));
+        self
+    }
+}
+
+impl AsRef<RpcError> for RpcErrorWithDetails {
+    fn as_ref(&self) -> &RpcError {
+        &self.inner_error
+    }
+}
+
 impl error::Error for RpcErrorWithDetails {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         Some(&self.inner_error)
@@ -60,54 +92,95 @@ impl error::Error for RpcErrorWithDetails {
 
 impl fmt::Display for RpcErrorWithDetails {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        struct DebugArgs<'a>(&'a HashMap<&'static str, String>);
+
+        impl fmt::Debug for DebugArgs<'_> {
+            fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str("(")?;
+                for (i, (name, value)) in self.0.iter().enumerate() {
+                    write!(formatter, "{name}={value}")?;
+                    if i + 1 < self.0.len() {
+                        formatter.write_str(", ")?;
+                    }
+                }
+                formatter.write_str(")")
+            }
+        }
+
         write!(
             formatter,
-            "JsonRPC request: {} with args: {:?} failed because of: {}",
-            self.method, self.args, self.inner_error
+            "JSON-RPC request {}{:?} failed: {}",
+            self.method,
+            DebugArgs(&self.args),
+            self.inner_error
         )
     }
 }
 
-pub trait EnrichRpcError<T> {
-    fn rpc_context(self, method: &'static str) -> Result<T, RpcErrorWithDetails>;
+pin_project! {
+    #[derive(Debug)]
+    pub struct RpcContext<'a, F> {
+        #[pin]
+        inner: F,
+        method: &'static str,
+        args: HashMap<&'static str, &'a (dyn fmt::Debug + Send + Sync)>,
+    }
 }
 
-impl<T> EnrichRpcError<T> for Result<T, RpcError> {
-    fn rpc_context(self, method: &'static str) -> Result<T, RpcErrorWithDetails> {
-        match self {
-            Ok(t) => Ok(t),
-            Err(error) => Err(RpcErrorWithDetails {
-                inner_error: error,
-                method,
-                args: HashMap::default(),
-            }),
+impl<'a, T, F> RpcContext<'a, F>
+where
+    F: Future<Output = Result<T, RpcError>>,
+{
+    pub fn with_arg(
+        mut self,
+        name: &'static str,
+        value: &'a (dyn fmt::Debug + Send + Sync),
+    ) -> Self {
+        self.args.insert(name, value);
+        self
+    }
+}
+
+impl<T, F> Future for RpcContext<'_, F>
+where
+    F: Future<Output = Result<T, RpcError>>,
+{
+    type Output = Result<T, RpcErrorWithDetails>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let projection = self.project();
+        match projection.inner.poll(cx) {
+            Poll::Pending => Poll::Pending,
+            Poll::Ready(Ok(value)) => Poll::Ready(Ok(value)),
+            Poll::Ready(Err(err)) => {
+                let err = RpcErrorWithDetails {
+                    inner_error: err,
+                    method: projection.method,
+                    // `mem::take()` is safe to use: by contract, a `Future` shouldn't be polled after completion
+                    args: mem::take(projection.args)
+                        .into_iter()
+                        .map(|(name, value)| (name, format!("{value:?}")))
+                        .collect(),
+                };
+                Poll::Ready(Err(err))
+            }
         }
     }
 }
 
-impl RpcErrorWithDetails {
-    pub fn inner(&self) -> &RpcError {
-        &self.inner_error
-    }
+pub trait EnrichRpcError: Sized {
+    fn rpc_context(self, method: &'static str) -> RpcContext<Self>;
 }
 
-pub trait WithArgRpcError<T> {
-    fn with_arg(self, arg: &'static str, value: &dyn fmt::Debug) -> Result<T, RpcErrorWithDetails>;
-}
-
-impl<T> WithArgRpcError<T> for Result<T, RpcErrorWithDetails> {
-    fn with_arg(self, arg: &'static str, value: &dyn Debug) -> Result<T, RpcErrorWithDetails> {
-        match self {
-            Ok(t) => Ok(t),
-            Err(error) => {
-                let mut new_args = error.args;
-                new_args.insert(arg, format!("{value:?}"));
-                Err(RpcErrorWithDetails {
-                    inner_error: error.inner_error,
-                    method: error.method,
-                    args: new_args,
-                })
-            }
+impl<T, F> EnrichRpcError for F
+where
+    F: Future<Output = Result<T, RpcError>>,
+{
+    fn rpc_context(self, method: &'static str) -> RpcContext<Self> {
+        RpcContext {
+            inner: self,
+            method,
+            args: HashMap::new(),
         }
     }
 }

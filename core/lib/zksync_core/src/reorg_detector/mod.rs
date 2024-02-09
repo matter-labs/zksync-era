@@ -6,7 +6,7 @@ use tokio::sync::watch;
 use zksync_dal::ConnectionPool;
 use zksync_types::{L1BatchNumber, MiniblockNumber, H256};
 use zksync_web3_decl::{
-    error::{EnrichRpcError, RpcErrorWithDetails, WithArgRpcError},
+    error::{EnrichRpcError, RpcErrorWithDetails},
     jsonrpsee::{
         core::ClientError as RpcError,
         http_client::{HttpClient, HttpClientBuilder},
@@ -52,7 +52,7 @@ impl From<zksync_dal::SqlxError> for HashMatchError {
 
 fn is_transient_err(err: &RpcErrorWithDetails) -> bool {
     matches!(
-        err.inner(),
+        err.as_ref(),
         RpcError::Transport(_) | RpcError::RequestTimeout
     )
 }
@@ -79,22 +79,24 @@ impl MainNodeClient for HttpClient {
     async fn sealed_miniblock_number(&self) -> Result<MiniblockNumber, RpcErrorWithDetails> {
         let number = self
             .get_block_number()
-            .await
-            .rpc_context("sealed_miniblock_number")?;
-        let number = u32::try_from(number)
-            .map_err(|err| RpcError::Custom(err.to_owned()))
-            .rpc_context("sealed_miniblock_number")?;
+            .rpc_context("sealed_miniblock_number")
+            .await?;
+        let number = u32::try_from(number).map_err(|err| {
+            let err = RpcError::Custom(err.to_owned());
+            RpcErrorWithDetails::new(err, "u32::try_from")
+        })?;
         Ok(MiniblockNumber(number))
     }
 
     async fn sealed_l1_batch_number(&self) -> Result<L1BatchNumber, RpcErrorWithDetails> {
         let number = self
             .get_l1_batch_number()
-            .await
-            .rpc_context("sealed_l1_batch_number")?;
-        let number = u32::try_from(number)
-            .map_err(|err| RpcError::Custom(err.to_owned()))
-            .rpc_context("sealed_l1_batch_number")?;
+            .rpc_context("sealed_l1_batch_number")
+            .await?;
+        let number = u32::try_from(number).map_err(|err| {
+            let err = RpcError::Custom(err.to_owned());
+            RpcErrorWithDetails::new(err, "u32::try_from")
+        })?;
         Ok(L1BatchNumber(number))
     }
 
@@ -104,9 +106,9 @@ impl MainNodeClient for HttpClient {
     ) -> Result<Option<H256>, RpcErrorWithDetails> {
         Ok(self
             .get_block_by_number(number.0.into(), false)
-            .await
             .rpc_context("miniblock_hash")
-            .with_arg("number", &number)?
+            .with_arg("number", &number)
+            .await?
             .map(|block| block.hash))
     }
 
@@ -116,9 +118,9 @@ impl MainNodeClient for HttpClient {
     ) -> Result<Option<H256>, RpcErrorWithDetails> {
         Ok(self
             .get_l1_batch_details(number)
-            .await
             .rpc_context("l1_batch_root_hash")
-            .with_arg("number", &number)?
+            .with_arg("number", &number)
+            .await?
             .and_then(|batch| batch.base.root_hash))
     }
 }

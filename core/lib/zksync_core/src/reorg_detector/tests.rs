@@ -89,7 +89,10 @@ struct MockMainNodeClient {
 impl MainNodeClient for MockMainNodeClient {
     async fn sealed_miniblock_number(&self) -> Result<MiniblockNumber, RpcErrorWithDetails> {
         if let &Some(error_kind) = &*self.error_kind.lock().unwrap() {
-            return Err(error_kind.into()).rpc_context("sealed_miniblock_number");
+            return Err(RpcErrorWithDetails::new(
+                error_kind.into(),
+                "sealed_miniblock_number",
+            ));
         }
         Ok(self
             .latest_miniblock_response
@@ -98,7 +101,10 @@ impl MainNodeClient for MockMainNodeClient {
 
     async fn sealed_l1_batch_number(&self) -> Result<L1BatchNumber, RpcErrorWithDetails> {
         if let &Some(error_kind) = &*self.error_kind.lock().unwrap() {
-            return Err(error_kind.into()).rpc_context("sealed_l1_batch_number");
+            return Err(RpcErrorWithDetails::new(
+                error_kind.into(),
+                "sealed_l1_batch_number",
+            ));
         }
         Ok(self
             .latest_l1_batch_response
@@ -110,9 +116,10 @@ impl MainNodeClient for MockMainNodeClient {
         number: MiniblockNumber,
     ) -> Result<Option<H256>, RpcErrorWithDetails> {
         if let &Some(error_kind) = &*self.error_kind.lock().unwrap() {
-            return Err(error_kind.into())
-                .rpc_context("miniblock_hash")
-                .with_arg("number", &number);
+            return Err(
+                RpcErrorWithDetails::new(error_kind.into(), "miniblock_hash")
+                    .with_arg("number", &number),
+            );
         }
 
         if let Some(response) = self.miniblock_hash_responses.get(&number) {
@@ -127,9 +134,10 @@ impl MainNodeClient for MockMainNodeClient {
         number: L1BatchNumber,
     ) -> Result<Option<H256>, RpcErrorWithDetails> {
         if let &Some(error_kind) = &*self.error_kind.lock().unwrap() {
-            return Err(error_kind.into())
-                .rpc_context("l1_batch_root_hash")
-                .with_arg("number", &number);
+            return Err(
+                RpcErrorWithDetails::new(error_kind.into(), "l1_batch_root_hash")
+                    .with_arg("number", &number),
+            );
         }
 
         if let Some(response) = self.l1_batch_root_hash_responses.get(&number) {
