@@ -11,7 +11,7 @@ use zksync_types::{
     witness_block_state::WitnessBlockState, L1BatchNumber, L2ChainId, MiniblockNumber,
     ProtocolVersionId, Transaction, H256,
 };
-use zksync_utils::{be_words_to_bytes, bytes_to_be_words};
+use zksync_utils::bytes_to_be_words;
 
 use super::{
     client::MainNodeClient,
@@ -164,7 +164,8 @@ impl ExternalIO {
                     .main_node_client
                     .fetch_protocol_version(id)
                     .await
-                    .expect("Failed to fetch protocol version from the main node");
+                    .expect("Failed to fetch protocol version from the main node")
+                    .expect("Protocol version missing on the main node");
                 self.pool
                     .access_storage_tagged("sync_layer")
                     .await
@@ -215,11 +216,12 @@ impl ExternalIO {
                     "Fetching base system contract bytecode with hash {hash:?} from the main node"
                 );
 
-                let contract = self
+                let contract_bytecode = self
                     .main_node_client
                     .fetch_system_contract_by_hash(hash)
                     .await
-                    .expect("Failed to fetch base system contract bytecode from the main node");
+                    .expect("Failed to fetch base system contract bytecode from the main node")
+                    .expect("Base system contract is missing on the main node");
                 self.pool
                     .access_storage_tagged("sync_layer")
                     .await
@@ -227,11 +229,14 @@ impl ExternalIO {
                     .factory_deps_dal()
                     .insert_factory_deps(
                         self.current_miniblock_number,
-                        &HashMap::from([(contract.hash, be_words_to_bytes(&contract.code))]),
+                        &HashMap::from([(hash, contract_bytecode.clone())]),
                     )
                     .await
                     .unwrap();
-                contract
+                SystemContractCode {
+                    code: bytes_to_be_words(contract_bytecode),
+                    hash,
+                }
             }
         }
     }

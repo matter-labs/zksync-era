@@ -60,13 +60,16 @@ pub enum Web3Error {
 ///
 /// The wrapped error can be accessed using [`AsRef`].
 #[derive(Debug)]
-pub struct RpcErrorWithDetails {
+pub struct EnrichedRpcError {
     inner_error: RpcError,
     method: &'static str,
     args: HashMap<&'static str, String>,
 }
 
-impl RpcErrorWithDetails {
+/// Alias for a result with enriched RPC error.
+pub type EnrichedRpcResult<T> = Result<T, EnrichedRpcError>;
+
+impl EnrichedRpcError {
     /// Wraps the specified `inner_error`.
     pub fn new(inner_error: RpcError, method: &'static str) -> Self {
         Self {
@@ -74,6 +77,11 @@ impl RpcErrorWithDetails {
             method,
             args: HashMap::new(),
         }
+    }
+
+    /// Creates an error wrapping [`RpcError::Custom`].
+    pub fn custom(message: impl Into<String>, method: &'static str) -> Self {
+        Self::new(RpcError::Custom(message.into()), method)
     }
 
     /// Adds a tracked argument for this error.
@@ -84,19 +92,19 @@ impl RpcErrorWithDetails {
     }
 }
 
-impl AsRef<RpcError> for RpcErrorWithDetails {
+impl AsRef<RpcError> for EnrichedRpcError {
     fn as_ref(&self) -> &RpcError {
         &self.inner_error
     }
 }
 
-impl error::Error for RpcErrorWithDetails {
+impl error::Error for EnrichedRpcError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         Some(&self.inner_error)
     }
 }
 
-impl fmt::Display for RpcErrorWithDetails {
+impl fmt::Display for EnrichedRpcError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         struct DebugArgs<'a>(&'a HashMap<&'static str, String>);
 
@@ -125,7 +133,7 @@ impl fmt::Display for RpcErrorWithDetails {
 
 pin_project! {
     /// Contextual information about an RPC. Returned by [`EnrichRpcError::rpc_context()`]. The context is eventually converted
-    /// to a result with [`RpcErrorWithDetails`] error type.
+    /// to a result with [`EnrichedRpcError`] error type.
     #[derive(Debug)]
     pub struct RpcContext<'a, F> {
         #[pin]
@@ -155,7 +163,7 @@ impl<T, F> Future for RpcContext<'_, F>
 where
     F: Future<Output = Result<T, RpcError>>,
 {
-    type Output = Result<T, RpcErrorWithDetails>;
+    type Output = Result<T, EnrichedRpcError>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let projection = self.project();
@@ -163,7 +171,7 @@ where
             Poll::Pending => Poll::Pending,
             Poll::Ready(Ok(value)) => Poll::Ready(Ok(value)),
             Poll::Ready(Err(err)) => {
-                let err = RpcErrorWithDetails {
+                let err = EnrichedRpcError {
                     inner_error: err,
                     method: projection.method,
                     // `mem::take()` is safe to use: by contract, a `Future` shouldn't be polled after completion

@@ -7,7 +7,7 @@ use zksync_types::{
     H256,
 };
 use zksync_web3_decl::{
-    error::{EnrichRpcError, RpcErrorWithDetails},
+    error::{EnrichRpcError, EnrichedRpcResult},
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
 };
@@ -41,7 +41,7 @@ impl TxProxy {
         self.tx_cache.write().await.insert(tx_hash, tx);
     }
 
-    pub async fn submit_tx(&self, tx: &L2Tx) -> Result<H256, RpcErrorWithDetails> {
+    pub async fn submit_tx(&self, tx: &L2Tx) -> EnrichedRpcResult<H256> {
         let input_data = tx.common_data.input_data().expect("raw tx is absent");
         let raw_tx = zksync_types::Bytes(input_data.to_vec());
         let tx_hash = tx.hash();
@@ -53,10 +53,7 @@ impl TxProxy {
             .await
     }
 
-    pub async fn request_tx(
-        &self,
-        id: TransactionId,
-    ) -> Result<Option<Transaction>, RpcErrorWithDetails> {
+    pub async fn request_tx(&self, id: TransactionId) -> EnrichedRpcResult<Option<Transaction>> {
         match id {
             TransactionId::Block(BlockId::Hash(block), index) => {
                 self.client
@@ -87,7 +84,7 @@ impl TxProxy {
     pub async fn request_tx_details(
         &self,
         hash: H256,
-    ) -> Result<Option<TransactionDetails>, RpcErrorWithDetails> {
+    ) -> EnrichedRpcResult<Option<TransactionDetails>> {
         self.client
             .get_transaction_details(hash)
             .rpc_context("get_transaction_details")

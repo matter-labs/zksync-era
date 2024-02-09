@@ -87,9 +87,9 @@ struct MockMainNodeClient {
 
 #[async_trait]
 impl MainNodeClient for MockMainNodeClient {
-    async fn sealed_miniblock_number(&self) -> Result<MiniblockNumber, RpcErrorWithDetails> {
+    async fn sealed_miniblock_number(&self) -> EnrichedRpcResult<MiniblockNumber> {
         if let &Some(error_kind) = &*self.error_kind.lock().unwrap() {
-            return Err(RpcErrorWithDetails::new(
+            return Err(EnrichedRpcError::new(
                 error_kind.into(),
                 "sealed_miniblock_number",
             ));
@@ -99,9 +99,9 @@ impl MainNodeClient for MockMainNodeClient {
             .expect("unexpected `sealed_miniblock_number` request"))
     }
 
-    async fn sealed_l1_batch_number(&self) -> Result<L1BatchNumber, RpcErrorWithDetails> {
+    async fn sealed_l1_batch_number(&self) -> EnrichedRpcResult<L1BatchNumber> {
         if let &Some(error_kind) = &*self.error_kind.lock().unwrap() {
-            return Err(RpcErrorWithDetails::new(
+            return Err(EnrichedRpcError::new(
                 error_kind.into(),
                 "sealed_l1_batch_number",
             ));
@@ -111,15 +111,10 @@ impl MainNodeClient for MockMainNodeClient {
             .expect("unexpected `sealed_l1_batch_number` request"))
     }
 
-    async fn miniblock_hash(
-        &self,
-        number: MiniblockNumber,
-    ) -> Result<Option<H256>, RpcErrorWithDetails> {
+    async fn miniblock_hash(&self, number: MiniblockNumber) -> EnrichedRpcResult<Option<H256>> {
         if let &Some(error_kind) = &*self.error_kind.lock().unwrap() {
-            return Err(
-                RpcErrorWithDetails::new(error_kind.into(), "miniblock_hash")
-                    .with_arg("number", &number),
-            );
+            return Err(EnrichedRpcError::new(error_kind.into(), "miniblock_hash")
+                .with_arg("number", &number));
         }
 
         if let Some(response) = self.miniblock_hash_responses.get(&number) {
@@ -129,13 +124,10 @@ impl MainNodeClient for MockMainNodeClient {
         }
     }
 
-    async fn l1_batch_root_hash(
-        &self,
-        number: L1BatchNumber,
-    ) -> Result<Option<H256>, RpcErrorWithDetails> {
+    async fn l1_batch_root_hash(&self, number: L1BatchNumber) -> EnrichedRpcResult<Option<H256>> {
         if let &Some(error_kind) = &*self.error_kind.lock().unwrap() {
             return Err(
-                RpcErrorWithDetails::new(error_kind.into(), "l1_batch_root_hash")
+                EnrichedRpcError::new(error_kind.into(), "l1_batch_root_hash")
                     .with_arg("number", &number),
             );
         }

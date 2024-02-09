@@ -9,12 +9,13 @@ use rand::{
 };
 use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
 use zksync_consensus_roles::{node, validator};
-use zksync_contracts::{BaseSystemContractsHashes, SystemContractCode};
+use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::ConnectionPool;
 use zksync_types::{
     api, block::MiniblockHasher, snapshots::SnapshotRecoveryStatus, Address, L1BatchNumber,
-    L2ChainId, MiniblockNumber, ProtocolVersionId, H256, U256,
+    L2ChainId, MiniblockNumber, ProtocolVersionId, H256,
 };
+use zksync_web3_decl::error::{EnrichedRpcError, EnrichedRpcResult};
 
 use crate::{
     consensus::{
@@ -64,7 +65,7 @@ pub(crate) struct MockMainNodeClient {
     l2_blocks: Vec<api::en::SyncBlock>,
     block_number_offset: u32,
     protocol_versions: HashMap<u16, api::ProtocolVersion>,
-    system_contracts: HashMap<H256, Vec<U256>>,
+    system_contracts: HashMap<H256, Vec<u8>>,
 }
 
 impl MockMainNodeClient {
@@ -162,42 +163,43 @@ impl MainNodeClient for MockMainNodeClient {
     async fn fetch_system_contract_by_hash(
         &self,
         hash: H256,
-    ) -> anyhow::Result<SystemContractCode> {
-        let code = self
-            .system_contracts
-            .get(&hash)
-            .cloned()
-            .with_context(|| format!("requested unexpected system contract {hash:?}"))?;
-        Ok(SystemContractCode { hash, code })
+    ) -> EnrichedRpcResult<Option<Vec<u8>>> {
+        Ok(self.system_contracts.get(&hash).cloned())
     }
 
     async fn fetch_genesis_contract_bytecode(
         &self,
         _address: Address,
-    ) -> anyhow::Result<Option<Vec<u8>>> {
-        anyhow::bail!("Not implemented");
+    ) -> EnrichedRpcResult<Option<Vec<u8>>> {
+        Err(EnrichedRpcError::custom(
+            "not implemented",
+            "fetch_genesis_contract_bytecode",
+        ))
     }
 
     async fn fetch_protocol_version(
         &self,
         protocol_version: ProtocolVersionId,
-    ) -> anyhow::Result<api::ProtocolVersion> {
+    ) -> EnrichedRpcResult<Option<api::ProtocolVersion>> {
         let protocol_version = protocol_version as u16;
-        self.protocol_versions
-            .get(&protocol_version)
-            .cloned()
-            .with_context(|| format!("requested unexpected protocol version {protocol_version}"))
+        Ok(self.protocol_versions.get(&protocol_version).cloned())
     }
 
-    async fn fetch_genesis_l1_batch_hash(&self) -> anyhow::Result<H256> {
-        anyhow::bail!("Not implemented");
+    async fn fetch_genesis_l1_batch_hash(&self) -> EnrichedRpcResult<H256> {
+        Err(EnrichedRpcError::custom(
+            "not implemented",
+            "fetch_genesis_l1_batch_hash",
+        ))
     }
 
-    async fn fetch_l2_block_number(&self) -> anyhow::Result<MiniblockNumber> {
+    async fn fetch_l2_block_number(&self) -> EnrichedRpcResult<MiniblockNumber> {
         if let Some(number) = self.l2_blocks.len().checked_sub(1) {
             Ok(MiniblockNumber(number as u32))
         } else {
-            anyhow::bail!("Not implemented");
+            Err(EnrichedRpcError::custom(
+                "not implemented",
+                "fetch_l2_block_number",
+            ))
         }
     }
 
@@ -205,7 +207,7 @@ impl MainNodeClient for MockMainNodeClient {
         &self,
         number: MiniblockNumber,
         with_transactions: bool,
-    ) -> anyhow::Result<Option<api::en::SyncBlock>> {
+    ) -> EnrichedRpcResult<Option<api::en::SyncBlock>> {
         let Some(block_index) = number.0.checked_sub(self.block_number_offset) else {
             return Ok(None);
         };
