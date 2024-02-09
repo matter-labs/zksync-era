@@ -147,8 +147,6 @@ pub struct PostgresConfig {
 }
 
 impl PostgresConfig {
-    const DEFAULT_ACQUIRE_TIMEOUT: Duration = Duration::from_secs(10);
-
     /// Returns a copy of the master database URL as a `Result` to simplify error propagation.
     pub fn master_url(&self) -> anyhow::Result<&str> {
         self.master_url
@@ -181,9 +179,8 @@ impl PostgresConfig {
     }
 
     /// Returns the acquire timeout for a single connection attempt.
-    pub fn acquire_timeout(&self) -> Duration {
-        self.acquire_timeout_sec
-            .map_or(Self::DEFAULT_ACQUIRE_TIMEOUT, Duration::from_secs)
+    pub fn acquire_timeout(&self) -> Option<Duration> {
+        self.acquire_timeout_sec.map(Duration::from_secs)
     }
 
     pub fn long_connection_threshold(&self) -> Option<Duration> {

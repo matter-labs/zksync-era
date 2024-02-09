@@ -158,7 +158,10 @@ mod tests {
             postgres_config.statement_timeout(),
             Some(Duration::from_secs(300))
         );
-        assert_eq!(postgres_config.acquire_timeout(), Duration::from_secs(15));
+        assert_eq!(
+            postgres_config.acquire_timeout(),
+            Some(Duration::from_secs(15))
+        );
         assert_eq!(
             postgres_config.long_connection_threshold(),
             Some(Duration::from_secs(3))

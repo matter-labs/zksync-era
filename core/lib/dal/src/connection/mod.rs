@@ -46,9 +46,11 @@ impl fmt::Debug for ConnectionPoolBuilder {
 
 impl ConnectionPoolBuilder {
     /// Sets the acquire timeout for a single connection attempt. There are multiple attempts (currently 3)
-    /// before `access_storage*` methods return an error.
-    pub fn set_acquire_timeout(&mut self, timeout: Duration) -> &mut Self {
-        self.acquire_timeout = timeout;
+    /// before `access_storage*` methods return an error. If not specified, the acquire timeout will not be set.
+    pub fn set_acquire_timeout(&mut self, timeout: Option<Duration>) -> &mut Self {
+        if let Some(timeout) = timeout {
+            self.acquire_timeout = timeout;
+        }
         self
     }
 
@@ -209,7 +211,7 @@ impl GlobalConnectionPoolConfig {
             .context("long_connection_threshold is unreasonably large")?;
         self.long_connection_threshold_ms
             .store(millis, Ordering::Relaxed);
-        tracing::debug!("Set long connection threshold to {threshold:?}");
+        tracing::info!("Set long connection threshold to {threshold:?}");
         Ok(self)
     }
 
@@ -219,7 +221,7 @@ impl GlobalConnectionPoolConfig {
             .context("slow_query_threshold is unreasonably large")?;
         self.slow_query_threshold_ms
             .store(millis, Ordering::Relaxed);
-        tracing::debug!("Set slow query threshold to {threshold:?}");
+        tracing::info!("Set slow query threshold to {threshold:?}");
         Ok(self)
     }
 }
@@ -272,7 +274,7 @@ impl ConnectionPool {
             .await
             .expect("failed creating database for tests");
         let mut pool = builder
-            .set_acquire_timeout(Self::TEST_ACQUIRE_TIMEOUT)
+            .set_acquire_timeout(Some(Self::TEST_ACQUIRE_TIMEOUT))
             .build()
             .await
             .expect("cannot build connection pool");
