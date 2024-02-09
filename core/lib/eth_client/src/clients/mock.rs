@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use jsonrpc_core::types::error::Error as RpcError;
 use zksync_types::{
     web3::{
-        contract::{tokens::Tokenize, Options},
+        contract::tokens::Tokenize,
         ethabi,
         types::{Block, BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt, U64},
         Error as Web3Error,
@@ -17,7 +17,7 @@ use zksync_types::{
 
 use crate::{
     types::{Error, ExecutedTxStatus, FailureInfo, SignedCallResult},
-    BoundEthInterface, ContractCall, EthInterface, RawTransactionBytes,
+    BoundEthInterface, ContractCall, EthInterface, Options, RawTransactionBytes,
 };
 
 #[derive(Debug, Clone)]
@@ -389,8 +389,6 @@ impl BoundEthInterface for MockEthereum {
         data: Vec<u8>,
         _contract_addr: H160,
         options: Options,
-        _max_fee_per_blob_gas: Option<U256>,
-        _blob_versioned_hashes: Option<Vec<H256>>,
         _component: &'static str,
     ) -> Result<SignedCallResult, Error> {
         self.sign_prepared_tx(data, options)
@@ -450,7 +448,7 @@ mod tests {
                 b"test".to_vec(),
                 Options {
                     nonce: Some(1.into()),
-                    ..Options::default()
+                    ..Default::default()
                 },
             )
             .unwrap();

@@ -7,7 +7,7 @@ use std::{
 
 use serde_json::{Map, Value};
 use zksync_eth_client::{
-    clients::SigningClient, BoundEthInterface, CallFunctionArgs, Error, EthInterface,
+    clients::SigningClient, BoundEthInterface, CallFunctionArgs, Error, EthInterface, Options,
 };
 use zksync_eth_signer::EthereumSigner;
 use zksync_types::{
@@ -15,10 +15,7 @@ use zksync_types::{
     l1::L1Tx,
     network::Network,
     web3::{
-        contract::{
-            tokens::{Detokenize, Tokenize},
-            Options,
-        },
+        contract::tokens::{Detokenize, Tokenize},
         ethabi,
         transports::Http,
         types::{TransactionReceipt, H160, H256, U256},
@@ -246,8 +243,6 @@ impl<S: EthereumSigner> EthereumProvider<S> {
                     gas: Some(300_000.into()),
                     ..Default::default()
                 },
-                None,
-                None,
                 "provider",
             )
             .await
@@ -278,7 +273,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
                 ..options.unwrap_or_default()
             };
             self.client()
-                .sign_prepared_tx_for_addr(Vec::new(), to, options, None, None, "provider")
+                .sign_prepared_tx_for_addr(Vec::new(), to, options, "provider")
                 .await
                 .map_err(|_| ClientError::IncorrectCredentials)?
         } else {
@@ -299,8 +294,6 @@ impl<S: EthereumSigner> EthereumProvider<S> {
                         gas: Some(300_000.into()),
                         ..options.unwrap_or_default()
                     },
-                    None,
-                    None,
                     "provider",
                 )
                 .await
@@ -341,8 +334,6 @@ impl<S: EthereumSigner> EthereumProvider<S> {
                         gas: Some(100_000.into()),
                         ..Default::default()
                     },
-                    None,
-                    None,
                     "provider",
                 )
                 .await
@@ -428,8 +419,6 @@ impl<S: EthereumSigner> EthereumProvider<S> {
                     f.value = Some(value);
                     f.gas_price = Some(gas_price)
                 }),
-                None,
-                None,
                 "zksync-rs",
             )
             .await
@@ -555,7 +544,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
 
             let signed_tx = self
                 .eth_client
-                .sign_prepared_tx_for_addr(data, bridge_address, options, None, None, "provider")
+                .sign_prepared_tx_for_addr(data, bridge_address, options, "provider")
                 .await
                 .map_err(|_| ClientError::IncorrectCredentials)?;
             self.eth_client

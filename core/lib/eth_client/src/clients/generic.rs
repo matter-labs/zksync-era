@@ -3,7 +3,6 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use zksync_types::{
     web3::{
-        contract::Options,
         ethabi,
         types::{
             Address, Block, BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt,
@@ -14,7 +13,7 @@ use zksync_types::{
 };
 
 use crate::{
-    BoundEthInterface, ContractCall, Error, EthInterface, ExecutedTxStatus, FailureInfo,
+    BoundEthInterface, ContractCall, Error, EthInterface, ExecutedTxStatus, FailureInfo, Options,
     RawTransactionBytes, SignedCallResult,
 };
 
@@ -149,19 +148,10 @@ impl<C: BoundEthInterface + ?Sized> BoundEthInterface for Arc<C> {
         data: Vec<u8>,
         contract_addr: H160,
         options: Options,
-        max_fee_per_blob_gas: Option<U256>,
-        blob_versioned_hashes: Option<Vec<H256>>,
         component: &'static str,
     ) -> Result<SignedCallResult, Error> {
         self.as_ref()
-            .sign_prepared_tx_for_addr(
-                data,
-                contract_addr,
-                options,
-                max_fee_per_blob_gas,
-                blob_versioned_hashes,
-                component,
-            )
+            .sign_prepared_tx_for_addr(data, contract_addr, options, component)
             .await
     }
 

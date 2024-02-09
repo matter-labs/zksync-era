@@ -12,7 +12,7 @@ use zksync_l1_contract_interface::{
     Detokenize, Tokenizable, Tokenize,
 };
 use zksync_types::{
-    eth_sender::EthTx,
+    eth_sender::{EthTx, EthTxBlobSidecar},
     ethabi::{Contract, Token},
     protocol_version::{L1VerifierConfig, VerifierParams},
     web3::contract::Error as Web3ContractError,
@@ -41,7 +41,7 @@ pub struct MulticallData {
 
 struct TxData {
     calldata: Vec<u8>,
-    sidecar: Option<Vec<u8>>,
+    sidecar: Option<EthTxBlobSidecar>,
 }
 
 /// The component is responsible for aggregating l1 batches into eth_txs:
