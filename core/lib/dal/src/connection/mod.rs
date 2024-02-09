@@ -179,8 +179,10 @@ impl TestTemplate {
     }
 }
 
+/// Global DB connection parameters applied to all [`ConnectionPool`] instances.
 #[derive(Debug)]
 pub struct GlobalConnectionPoolConfig {
+    // We consider millisecond precision to be enough for config purposes.
     long_connection_threshold_ms: AtomicU64,
     slow_query_threshold_ms: AtomicU64,
 }
@@ -201,6 +203,7 @@ impl GlobalConnectionPoolConfig {
         Duration::from_millis(self.slow_query_threshold_ms.load(Ordering::Relaxed))
     }
 
+    /// Sets the threshold for the DB connection lifetime to denote a connection as long-living and log its details.
     pub fn set_long_connection_threshold(&self, threshold: Duration) -> anyhow::Result<&Self> {
         let millis = u64::try_from(threshold.as_millis())
             .context("long_connection_threshold is unreasonably large")?;
@@ -210,6 +213,7 @@ impl GlobalConnectionPoolConfig {
         Ok(self)
     }
 
+    /// Sets the threshold to denote a DB query as "slow" and log its details.
     pub fn set_slow_query_threshold(&self, threshold: Duration) -> anyhow::Result<&Self> {
         let millis = u64::try_from(threshold.as_millis())
             .context("slow_query_threshold is unreasonably large")?;
@@ -242,6 +246,8 @@ impl fmt::Debug for ConnectionPool {
 impl ConnectionPool {
     const TEST_ACQUIRE_TIMEOUT: Duration = Duration::from_secs(1);
 
+    /// Returns a reference to the global configuration parameters applied for all DB pools. For consistency, these parameters
+    /// should be changed early in the app life cycle.
     pub fn global_config() -> &'static GlobalConnectionPoolConfig {
         static CONFIG: GlobalConnectionPoolConfig = GlobalConnectionPoolConfig::new();
         &CONFIG
@@ -355,7 +361,7 @@ impl ConnectionPool {
         tags: Option<&StorageProcessorTags>,
     ) -> anyhow::Result<PoolConnection<Postgres>> {
         const DB_CONNECTION_RETRIES: usize = 3;
-        const BACKOFF_INTERVAL: Duration = Duration::from_secs(1);
+        const AVG_BACKOFF_INTERVAL: Duration = Duration::from_secs(1);
 
         for _ in 0..DB_CONNECTION_RETRIES {
             CONNECTION_METRICS
@@ -370,14 +376,14 @@ impl ConnectionPool {
             };
 
             Self::report_connection_error(&connection_err);
+            // Slightly randomize back-off interval so that we don't end up stampeding the DB.
+            let jitter = rand::thread_rng().gen_range(0.8..1.2);
+            let backoff_interval = AVG_BACKOFF_INTERVAL.mul_f32(jitter);
             let tags_display = StorageProcessorTags::display(tags);
             tracing::warn!(
-                "Failed to get connection to DB ({tags_display}), backing off for {BACKOFF_INTERVAL:?}: {connection_err}"
+                "Failed to get connection to DB ({tags_display}), backing off for {backoff_interval:?}: {connection_err}"
             );
-
-            // Slightly randomize backoff interval so that we don't end up stampeding the DB.
-            let jitter = rand::thread_rng().gen_range(0.8..1.2);
-            tokio::time::sleep(BACKOFF_INTERVAL.mul_f32(jitter)).await;
+            tokio::time::sleep(backoff_interval).await;
         }
 
         // Attempting to get the pooled connection for the last time
