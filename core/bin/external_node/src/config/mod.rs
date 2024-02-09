@@ -14,6 +14,7 @@ use zksync_core::{
 };
 use zksync_types::api::BridgeAddresses;
 use zksync_web3_decl::{
+    error::EnrichRpcError,
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
 };
@@ -40,29 +41,23 @@ impl RemoteENConfig {
     pub async fn fetch(client: &HttpClient) -> anyhow::Result<Self> {
         let bridges = client
             .get_bridge_contracts()
-            .await
-            .context("Failed to fetch bridge contracts")?;
+            .rpc_context("get_bridge_contracts")
+            .await?;
         let l2_testnet_paymaster_addr = client
             .get_testnet_paymaster()
-            .await
-            .context("Failed to fetch paymaster")?;
+            .rpc_context("get_testnet_paymaster")
+            .await?;
         let diamond_proxy_addr = client
             .get_main_contract()
-            .await
-            .context("Failed to fetch L1 contract address")?;
-        let l2_chain_id = L2ChainId::try_from(
-            client
-                .chain_id()
-                .await
-                .context("Failed to fetch L2 chain ID")?
-                .as_u64(),
-        )
-        .unwrap();
+            .rpc_context("get_main_contract")
+            .await?;
+        let l2_chain_id =
+            L2ChainId::try_from(client.chain_id().rpc_context("chain_id").await?.as_u64()).unwrap();
         let l1_chain_id = L1ChainId(
             client
                 .l1_chain_id()
-                .await
-                .context("Failed to fetch L1 chain ID")?
+                .rpc_context("l1_chain_id")
+                .await?
                 .as_u64(),
         );
 

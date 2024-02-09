@@ -83,7 +83,7 @@ impl MainNodeClient for HttpClient {
             .await?;
         let number = u32::try_from(number).map_err(|err| {
             let err = RpcError::Custom(err.to_owned());
-            RpcErrorWithDetails::new(err, "u32::try_from")
+            RpcErrorWithDetails::new(err, "u32::try_from").with_arg("number", &number)
         })?;
         Ok(MiniblockNumber(number))
     }
@@ -95,7 +95,7 @@ impl MainNodeClient for HttpClient {
             .await?;
         let number = u32::try_from(number).map_err(|err| {
             let err = RpcError::Custom(err.to_owned());
-            RpcErrorWithDetails::new(err, "u32::try_from")
+            RpcErrorWithDetails::new(err, "u32::try_from").with_arg("number", &number)
         })?;
         Ok(L1BatchNumber(number))
     }

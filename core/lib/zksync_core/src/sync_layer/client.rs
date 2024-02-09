@@ -141,7 +141,10 @@ impl MainNodeClient for HttpClient {
     }
 
     async fn fetch_l2_block_number(&self) -> anyhow::Result<MiniblockNumber> {
-        let U64([number]) = self.get_block_number().await?;
+        let U64([number]) = self
+            .get_block_number()
+            .rpc_context("fetch_l2_block_number")
+            .await?;
         Ok(MiniblockNumber(number.try_into()?))
     }
 
@@ -153,7 +156,7 @@ impl MainNodeClient for HttpClient {
         self.sync_l2_block(number, with_transactions)
             .rpc_context("fetch_l2_block")
             .with_arg("number", &number)
-            .with_arg("transactions", &with_transactions)
+            .with_arg("with_transactions", &with_transactions)
             .await
             .map_err(Into::into)
     }
