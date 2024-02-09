@@ -34,7 +34,7 @@ impl EventProcessor for SetChainIDEventProcessor {
         storage: &mut StorageProcessor<'_>,
         _client: &dyn EthClient,
         events: Vec<Log>,
-    ) -> Result<usize, Error> {
+    ) -> Result<(), Error> {
         // SetChainId does not go through the governance contract, so we need to parse it separately.
         let upgrades = events
             .into_iter()
@@ -48,9 +48,8 @@ impl EventProcessor for SetChainIDEventProcessor {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        let upgrades_count = upgrades.len();
         if upgrades.is_empty() {
-            return Ok(0);
+            return Ok(());
         }
 
         let ids: Vec<_> = upgrades.iter().map(|(id, _tx)| *id as u16).collect();
@@ -64,7 +63,7 @@ impl EventProcessor for SetChainIDEventProcessor {
                 .await;
         }
         stage_latency.observe();
-        Ok(upgrades_count)
+        Ok(())
     }
 
     fn relevant_topic(&self) -> H256 {

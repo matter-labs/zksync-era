@@ -12,13 +12,13 @@ pub mod upgrades;
 
 #[async_trait::async_trait]
 pub trait EventProcessor: 'static + fmt::Debug + Send + Sync {
-    /// Processes given events. If `Ok`, returns the number of processed events of interest.
+    /// Processes given events
     async fn process_events(
         &mut self,
         storage: &mut StorageProcessor<'_>,
         client: &dyn EthClient,
         events: Vec<Log>,
-    ) -> Result<usize, Error>;
+    ) -> Result<(), Error>;
 
     /// Relevant topic which defines what events to be processed
     fn relevant_topic(&self) -> H256;
