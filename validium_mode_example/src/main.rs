@@ -80,8 +80,6 @@ async fn main() {
         )
         .from(zk_wallet.l2_address());
 
-        // Send the deployment transaction and wait until we receive the contract address.
-        //let address = zk_wallet.deploy(&request).await.unwrap();
 
         let eip712_request: Eip712TransactionRequest = request.clone().try_into().unwrap();
         println!("{}", "Deploy".bright_magenta());
@@ -97,7 +95,6 @@ async fn main() {
             .unwrap()
             .unwrap();
 
-        // println!("{:#?}", transaction_receipt);
         let address = transaction_receipt.contract_address.unwrap();
         println!("Contract address: {:#?}", address);
 
@@ -167,7 +164,6 @@ async fn main() {
         transaction_gas_used_formatted_mint.cyan()
     );
     let l2_transaction_mint = {
-        // println!("{}", "Getting l2 transaction details with rpc...");
         loop {
             let l2_transaction = l2_rpc_client
                 .get_transaction_details(transaction_hash_mint)
@@ -239,7 +235,6 @@ async fn main() {
             transaction_gas_used_formatted_transfer.cyan()
         );
         let l2_transaction_transfer = {
-            // println!("{}", "Getting l2 transaction details with rpc...");
             loop {
                 let l2_transaction = l2_rpc_client
                     .get_transaction_details(transaction_hash_transfer)
