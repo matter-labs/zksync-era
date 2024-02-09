@@ -7,7 +7,7 @@ use sqlx::{
 };
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    eth_sender::{EthTx, TxHistory, TxHistoryToSend},
+    eth_sender::{EthTx, EthTxBlobSidecar, TxHistory, TxHistoryToSend},
     Address, L1BatchNumber, H256, U256,
 };
 
@@ -174,7 +174,7 @@ impl EthSenderDal<'_, '_> {
         tx_type: AggregatedActionType,
         contract_address: Address,
         predicted_gas_cost: u32,
-        blob_sidecar: Option<Vec<u8>>,
+        blob_sidecar: Option<EthTxBlobSidecar>,
     ) -> sqlx::Result<EthTx> {
         let address = format!("{:#x}", contract_address);
         let eth_tx = sqlx::query_as!(
@@ -201,7 +201,8 @@ impl EthSenderDal<'_, '_> {
             tx_type.to_string(),
             address,
             predicted_gas_cost as i64,
-            blob_sidecar,
+            blob_sidecar.map(|sidecar| bincode::serialize(&sidecar)
+                .expect("can always bincode serialize EthTxBlobSidecar; qed")),
         )
         .fetch_one(self.storage.conn())
         .await?;
