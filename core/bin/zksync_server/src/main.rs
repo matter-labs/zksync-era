@@ -140,13 +140,11 @@ async fn main() -> anyhow::Result<()> {
         let eth_sender = ETHSenderConfig::from_env().context("ETHSenderConfig")?;
         let contracts = ContractsConfig::from_env().context("ContractsConfig")?;
         let eth_client = ETHClientConfig::from_env().context("EthClientConfig")?;
-        let eth_watch = ETHWatchConfig::from_env().context("EthWatchConfig")?;
         genesis_init(
             &postgres_config,
             &eth_sender,
             &network,
             &contracts,
-            &eth_watch,
             &eth_client.web3_url,
             opt.set_chain_id,
         )

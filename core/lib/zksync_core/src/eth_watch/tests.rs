@@ -548,67 +548,6 @@ async fn test_overlapping_batches() {
     assert_eq!(tx.common_data.serial_id.0, 4);
 }
 
-#[tokio::test]
-async fn test_set_chain_id_upgrade() {
-    let protocol_version = ProtocolVersionId::latest();
-    let diamond_proxy_address = Address::repeat_byte(0x18);
-    let connection_pool = ConnectionPool::test_pool().await;
-    setup_db(&connection_pool).await;
-    let mut storage = connection_pool.access_storage().await.unwrap();
-
-    let mut client = FakeEthClient::new();
-    let mut watcher = EthWatch::new_set_chain_id_watch(
-        diamond_proxy_address,
-        Box::new(client.clone()),
-        std::time::Duration::from_nanos(1),
-    )
-    .await;
-
-    // Set initial protocol version
-    storage
-        .protocol_versions_dal()
-        .save_protocol_version(
-            protocol_version,
-            0,
-            Default::default(),
-            Default::default(),
-            Default::default(),
-            None,
-        )
-        .await;
-
-    assert_eq!(
-        storage
-            .protocol_versions_dal()
-            .get_protocol_upgrade_tx(protocol_version)
-            .await,
-        None
-    );
-
-    let tx = build_upgrade_tx(protocol_version, 18);
-    client
-        .add_set_chain_id_upgrade(
-            ProtocolUpgrade {
-                id: protocol_version,
-                tx: Some(tx.clone()),
-                ..Default::default()
-            },
-            18,
-        )
-        .await;
-
-    client.set_last_finalized_block_number(18).await;
-    watcher.loop_iteration(&mut storage).await.unwrap();
-
-    let upgrade_tx = storage
-        .protocol_versions_dal()
-        .get_protocol_upgrade_tx(protocol_version)
-        .await
-        .unwrap();
-
-    assert_eq!(tx.common_data.hash(), upgrade_tx.common_data.hash());
-}
-
 async fn get_all_db_txs(storage: &mut StorageProcessor<'_>) -> Vec<Transaction> {
     storage.transactions_dal().reset_mempool().await.unwrap();
     storage
