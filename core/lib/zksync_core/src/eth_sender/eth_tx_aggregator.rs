@@ -11,6 +11,7 @@ use zksync_l1_contract_interface::{
     pre_boojum_verifier::old_l1_vk_commitment,
     Detokenize, Tokenizable, Tokenize,
 };
+use zksync_object_store::bincode;
 use zksync_types::{
     eth_sender::{EthTx, EthTxBlobSidecar},
     ethabi::{Contract, Token},
@@ -420,7 +421,7 @@ impl EthTxAggregator {
 
         // For "commit" and "prove" operations it's necessary that the contracts are of the same version as L1 batches are.
         // For "execute" it's not required, i.e. we can "execute" pre-boojum batches with post-boojum contracts.
-        let (calldata, side_car) = match op.clone() {
+        let (calldata, sidecar) = match op.clone() {
             AggregatedOperation::Commit(op) => {
                 assert_eq!(contracts_are_pre_boojum, operation_is_pre_boojum);
                 let f = if contracts_are_pre_boojum {
@@ -436,10 +437,16 @@ impl EthTxAggregator {
                     &kzg_settings,
                     op.l1_batches[0].header.pubdata_input.clone().unwrap(),
                 );
+                let sidecar = SidecarBlobV1 {
+                    blob: kzg_info.blob.to_vec(),
+                    commitment: kzg_info.kzg_commitment.to_vec(),
+                    proof: kzg_info.blob_proof.to_vec()
+                };
+                let encoded_sidecar = bincode::serialize(&sidecar).unwrap();
                 (
                     f.encode_input(&op.into_tokens())
                         .expect("Failed to encode commit transaction data"),
-                    None,
+                    Some(encoded_sidecar),
                 )
             }
             AggregatedOperation::PublishProofOnchain(op) => {

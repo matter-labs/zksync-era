@@ -93,6 +93,7 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let _ = load_kzg_settings();
+    tracing::info!("Successfully loaded kzg settings");
 
     // TODO (QIT-22): Only deserialize configs on demand.
     // Right now, we are trying to deserialize all the configs that may be needed by `zksync_core`.
