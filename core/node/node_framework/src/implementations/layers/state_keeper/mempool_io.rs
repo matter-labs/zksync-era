@@ -1,14 +1,20 @@
+use std::sync::Arc;
+
 use anyhow::Context as _;
 use zksync_config::{
     configs::chain::{MempoolConfig, NetworkConfig, StateKeeperConfig},
     ContractsConfig,
 };
-use zksync_core::state_keeper::{MempoolFetcher, MempoolGuard, MempoolIO, MiniblockSealer};
+use zksync_core::state_keeper::{
+    MempoolFetcher, MempoolGuard, MempoolIO, MiniblockSealer, SequencerSealer,
+};
 
 use crate::{
     implementations::resources::{
-        fee_input::FeeInputResource, object_store::ObjectStoreResource, pools::MasterPoolResource,
-        state_keeper::StateKeeperIOResource,
+        fee_input::FeeInputResource,
+        object_store::ObjectStoreResource,
+        pools::MasterPoolResource,
+        state_keeper::{ConditionalSealerResource, StateKeeperIOResource},
     },
     resource::Unique,
     service::{ServiceContext, StopReceiver},
@@ -25,6 +31,20 @@ pub struct MempoolIOLayer {
 }
 
 impl MempoolIOLayer {
+    pub fn new(
+        network_config: NetworkConfig,
+        contracts_config: ContractsConfig,
+        state_keeper_config: StateKeeperConfig,
+        mempool_config: MempoolConfig,
+    ) -> Self {
+        Self {
+            network_config,
+            contracts_config,
+            state_keeper_config,
+            mempool_config,
+        }
+    }
+
     async fn build_mempool_guard(
         &self,
         master_pool: &MasterPoolResource,
@@ -98,6 +118,10 @@ impl WiringLayer for MempoolIOLayer {
         )
         .await;
         context.add_resource(StateKeeperIOResource(Unique::new(Box::new(io))))?;
+
+        // Create sealer.
+        let sealer = SequencerSealer::new(self.state_keeper_config);
+        context.add_resource(ConditionalSealerResource(Arc::new(sealer)))?;
 
         Ok(())
     }

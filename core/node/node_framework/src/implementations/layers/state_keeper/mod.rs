@@ -6,6 +6,7 @@ use zksync_core::state_keeper::{
 };
 use zksync_storage::RocksDB;
 
+pub mod main_node_batch_executor_builder;
 pub mod mempool_io;
 
 use crate::{

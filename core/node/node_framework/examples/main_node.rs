@@ -2,14 +2,22 @@
 //! This example defines a `ResourceProvider` that works using the main node env config, and
 //! initializes a single task with a health check server.
 
-use zksync_config::{configs::chain::OperationsManagerConfig, DBConfig, PostgresConfig};
+use zksync_config::{
+    configs::chain::{MempoolConfig, NetworkConfig, OperationsManagerConfig, StateKeeperConfig},
+    ContractsConfig, DBConfig, PostgresConfig,
+};
 use zksync_core::metadata_calculator::MetadataCalculatorConfig;
 use zksync_dal::ConnectionPool;
 use zksync_env_config::FromEnv;
 use zksync_node_framework::{
     implementations::{
         layers::{
-            healtcheck_server::HealthCheckLayer, metadata_calculator::MetadataCalculatorLayer,
+            healtcheck_server::HealthCheckLayer,
+            metadata_calculator::MetadataCalculatorLayer,
+            state_keeper::{
+                main_node_batch_executor_builder::MainNodeBatchExecutorBuilderLayer,
+                mempool_io::MempoolIOLayer, StateKeeperLayer,
+            },
         },
         resources::pools::MasterPoolResource,
     },
@@ -71,6 +79,22 @@ fn main() -> anyhow::Result<()> {
         &operations_manager_env_config,
     );
     node.add_layer(MetadataCalculatorLayer(metadata_calculator_config));
+
+    // Add the state keeper
+    let mempool_io_layer = MempoolIOLayer::new(
+        NetworkConfig::from_env()?,
+        ContractsConfig::from_env()?,
+        StateKeeperConfig::from_env()?,
+        MempoolConfig::from_env()?,
+    );
+    let main_node_batch_executor_builder_layer = MainNodeBatchExecutorBuilderLayer::new(
+        DBConfig::from_env()?,
+        StateKeeperConfig::from_env()?,
+    );
+    let state_keeper_layer = StateKeeperLayer;
+    node.add_layer(mempool_io_layer)
+        .add_layer(main_node_batch_executor_builder_layer)
+        .add_layer(state_keeper_layer);
 
     // Add the healthcheck server.
     let healthcheck_config = zksync_config::ApiConfig::from_env()?.healthcheck;
