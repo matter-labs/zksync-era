@@ -28,8 +28,9 @@ use zksync_core::{
         MiniblockSealer, MiniblockSealerHandle, ZkSyncStateKeeper,
     },
     sync_layer::{
-        batch_status_updater::BatchStatusUpdater, external_io::ExternalIO, fetcher::FetcherCursor,
-        genesis::perform_genesis_if_needed, ActionQueue, MainNodeClient, SyncState,
+        batch_status_updater::BatchStatusUpdater, external_io::ExternalIO,
+        fetcher::MainNodeFetcher, genesis::perform_genesis_if_needed, ActionQueue, MainNodeClient,
+        SyncState,
     },
 };
 use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
@@ -58,7 +59,7 @@ async fn build_state_keeper(
     miniblock_sealer_handle: MiniblockSealerHandle,
     stop_receiver: watch::Receiver<bool>,
     chain_id: L2ChainId,
-) -> ZkSyncStateKeeper {
+) -> anyhow::Result<ZkSyncStateKeeper> {
     // These config values are used on the main node, and depending on these values certain transactions can
     // be *rejected* (that is, not included into the block). However, external node only mirrors what the main
     // node has already executed, so we can safely set these values to the maximum possible values - if the main
@@ -79,9 +80,9 @@ async fn build_state_keeper(
             true,
         ));
 
-    let main_node_url = config.required.main_node_url().unwrap();
+    let main_node_url = config.required.main_node_url()?;
     let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
-        .expect("Failed creating JSON-RPC client for main node");
+        .context("Failed creating JSON-RPC client for main node")?;
     let io = ExternalIO::new(
         miniblock_sealer_handle,
         connection_pool,
@@ -92,14 +93,15 @@ async fn build_state_keeper(
         validation_computational_gas_limit,
         chain_id,
     )
-    .await;
+    .await
+    .context("Failed initializing I/O for external node state keeper")?;
 
-    ZkSyncStateKeeper::new(
+    Ok(ZkSyncStateKeeper::new(
         stop_receiver,
         Box::new(io),
         batch_executor_base,
         Box::new(NoopSealer),
-    )
+    ))
 }
 
 async fn init_tasks(
@@ -166,61 +168,56 @@ async fn init_tasks(
         stop_receiver.clone(),
         config.remote.l2_chain_id,
     )
-    .await;
+    .await?;
 
     let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
         .context("Failed creating JSON-RPC client for main node")?;
     let singleton_pool_builder = ConnectionPool::singleton(&config.postgres.database_url);
 
-    let fetcher_handle = match config.consensus.clone() {
-        None => {
-            let fetcher_cursor = {
-                let pool = singleton_pool_builder
-                    .build()
-                    .await
-                    .context("failed to build a connection pool for `MainNodeFetcher`")?;
-                let mut storage = pool.access_storage_tagged("sync_layer").await?;
-                FetcherCursor::new(&mut storage)
-                    .await
-                    .context("failed to load `MainNodeFetcher` cursor from Postgres")?
-            };
-            let fetcher = fetcher_cursor.into_fetcher(
-                Box::new(main_node_client),
-                action_queue_sender,
-                sync_state.clone(),
-                stop_receiver.clone(),
-            );
-            tokio::spawn(fetcher.run())
-        }
-        Some(cfg) => {
-            let pool = connection_pool.clone();
-            let mut stop_receiver = stop_receiver.clone();
-            let sync_state = sync_state.clone();
-            #[allow(clippy::redundant_locals)]
-            tokio::spawn(async move {
-                let sync_state = sync_state;
-                let main_node_client = main_node_client;
-                scope::run!(&ctx::root(), |ctx, s| async {
-                    s.spawn_bg(async {
-                        let res = cfg.run(ctx, pool, action_queue_sender).await;
-                        tracing::info!("Consensus actor stopped");
-                        res
-                    });
-                    // TODO: information about the head block of the validators
-                    // (currently just the main node)
-                    // should also be provided over the gossip network.
-                    s.spawn_bg(async {
-                        consensus::run_main_node_state_fetcher(ctx, &main_node_client, &sync_state)
-                            .await?;
-                        Ok(())
-                    });
-                    ctx.wait(stop_receiver.wait_for(|stop| *stop)).await??;
+    let fetcher_handle = if let Some(cfg) = config.consensus.clone() {
+        let pool = connection_pool.clone();
+        let mut stop_receiver = stop_receiver.clone();
+        let sync_state = sync_state.clone();
+
+        #[allow(clippy::redundant_locals)]
+        tokio::spawn(async move {
+            let sync_state = sync_state;
+            let main_node_client = main_node_client;
+            scope::run!(&ctx::root(), |ctx, s| async {
+                s.spawn_bg(async {
+                    let res = cfg.run(ctx, pool, action_queue_sender).await;
+                    tracing::info!("Consensus actor stopped");
+                    res
+                });
+                // TODO: information about the head block of the validators (currently just the main node)
+                //   should also be provided over the gossip network.
+                s.spawn_bg(async {
+                    consensus::run_main_node_state_fetcher(ctx, &main_node_client, &sync_state)
+                        .await?;
                     Ok(())
-                })
-                .await
-                .context("consensus actor")
+                });
+                ctx.wait(stop_receiver.wait_for(|stop| *stop)).await??;
+                Ok(())
             })
-        }
+            .await
+            .context("consensus actor")
+        })
+    } else {
+        let pool = singleton_pool_builder
+            .build()
+            .await
+            .context("failed to build a connection pool for `MainNodeFetcher`")?;
+        let mut storage = pool.access_storage_tagged("sync_layer").await?;
+        let fetcher = MainNodeFetcher::new(
+            &mut storage,
+            Box::new(main_node_client),
+            action_queue_sender,
+            sync_state.clone(),
+            stop_receiver.clone(),
+        )
+        .await
+        .context("failed initializing main node fetcher")?;
+        tokio::spawn(fetcher.run())
     };
 
     let metadata_calculator_config = MetadataCalculatorConfig {
@@ -270,6 +267,8 @@ async fn init_tasks(
     let consistency_checker_handle = tokio::spawn(consistency_checker.run(stop_receiver.clone()));
 
     let updater_handle = task::spawn(batch_status_updater.run(stop_receiver.clone()));
+    let fee_address_migration_handle =
+        task::spawn(state_keeper.run_fee_address_migration(connection_pool.clone()));
     let sk_handle = task::spawn(state_keeper.run());
     let fee_params_fetcher_handle =
         tokio::spawn(fee_params_fetcher.clone().run(stop_receiver.clone()));
@@ -355,12 +354,13 @@ async fn init_tasks(
     task_handles.extend(cache_update_handle);
     task_handles.extend([
         sk_handle,
+        fee_address_migration_handle,
         fetcher_handle,
         updater_handle,
         tree_handle,
+        consistency_checker_handle,
         fee_params_fetcher_handle,
     ]);
-    task_handles.push(consistency_checker_handle);
 
     Ok((task_handles, stop_sender, healthcheck_handle, stop_receiver))
 }

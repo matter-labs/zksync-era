@@ -611,12 +611,11 @@ async fn test_set_chain_id_upgrade() {
 
 async fn get_all_db_txs(storage: &mut StorageProcessor<'_>) -> Vec<Transaction> {
     storage.transactions_dal().reset_mempool().await.unwrap();
-    let (txs, _) = storage
+    storage
         .transactions_dal()
         .sync_mempool(&[], &[], 0, 0, 1000)
         .await
-        .unwrap();
-    txs
+        .unwrap()
 }
 
 fn tx_into_log(tx: L1Tx) -> Log {

@@ -98,8 +98,13 @@ async fn wait_for_notifier_miniblock(
 async fn notifiers_start_after_snapshot_recovery() {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
-    prepare_empty_recovery_snapshot(&mut storage, StorageInitialization::SNAPSHOT_RECOVERY_BLOCK)
-        .await;
+    prepare_recovery_snapshot(
+        &mut storage,
+        StorageInitialization::SNAPSHOT_RECOVERY_BATCH,
+        StorageInitialization::SNAPSHOT_RECOVERY_BLOCK,
+        &[],
+    )
+    .await;
 
     let (stop_sender, stop_receiver) = watch::channel(false);
     let (events_sender, mut events_receiver) = mpsc::unbounded_channel();
@@ -116,7 +121,7 @@ async fn notifiers_start_after_snapshot_recovery() {
     }
 
     // Emulate creating the first miniblock; check that notifiers react to it.
-    let first_local_miniblock = MiniblockNumber(StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1);
+    let first_local_miniblock = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
     store_miniblock(&mut storage, first_local_miniblock, &[])
         .await
         .unwrap();
@@ -167,17 +172,17 @@ async fn test_ws_server(test: impl WsTest) {
     drop(storage);
 
     let (stop_sender, stop_receiver) = watch::channel(false);
-    let (server_handles, pub_sub_events) = spawn_ws_server(
+    let (mut server_handles, pub_sub_events) = spawn_ws_server(
         &network_config,
         pool.clone(),
         stop_receiver,
         test.websocket_requests_per_minute_limit(),
     )
     .await;
-    server_handles.wait_until_ready().await;
 
+    let local_addr = server_handles.wait_until_ready().await;
     let client = WsClientBuilder::default()
-        .build(format!("ws://{}", server_handles.local_addr))
+        .build(format!("ws://{local_addr}"))
         .await
         .unwrap();
     test.test(&client, &pool, pub_sub_events).await.unwrap();
@@ -261,11 +266,11 @@ impl WsTest for BasicSubscriptionsTest {
         let mut storage = pool.access_storage().await?;
         let tx_result = execute_l2_transaction(create_l2_transaction(1, 2));
         let new_tx_hash = tx_result.hash;
-        let miniblock_number = MiniblockNumber(if self.snapshot_recovery {
-            StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1
+        let miniblock_number = if self.snapshot_recovery {
+            StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 2
         } else {
-            1
-        });
+            MiniblockNumber(1)
+        };
         let new_miniblock = store_miniblock(&mut storage, miniblock_number, &[tx_result]).await?;
         drop(storage);
 
@@ -384,12 +389,12 @@ impl WsTest for LogSubscriptionsTest {
         } = LogSubscriptions::new(client, &mut pub_sub_events).await?;
 
         let mut storage = pool.access_storage().await?;
-        let miniblock_number = if self.snapshot_recovery {
-            StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1
+        let next_miniblock_number = if self.snapshot_recovery {
+            StorageInitialization::SNAPSHOT_RECOVERY_BLOCK.0 + 2
         } else {
             1
         };
-        let (tx_location, events) = store_events(&mut storage, miniblock_number, 0).await?;
+        let (tx_location, events) = store_events(&mut storage, next_miniblock_number, 0).await?;
         drop(storage);
         let events: Vec<_> = events.iter().collect();
 
@@ -398,7 +403,7 @@ impl WsTest for LogSubscriptionsTest {
             assert_eq!(log.transaction_index, Some(0.into()));
             assert_eq!(log.log_index, Some(i.into()));
             assert_eq!(log.transaction_hash, Some(tx_location.tx_hash));
-            assert_eq!(log.block_number, Some(miniblock_number.into()));
+            assert_eq!(log.block_number, Some(next_miniblock_number.into()));
         }
         assert_logs_match(&all_logs, &events);
 

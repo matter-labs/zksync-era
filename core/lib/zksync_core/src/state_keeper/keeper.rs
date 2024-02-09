@@ -1,11 +1,13 @@
 use std::{
     convert::Infallible,
+    future::{self, Future},
     time::{Duration, Instant},
 };
 
 use anyhow::Context as _;
 use multivm::interface::{Halt, L1BatchEnv, SystemEnv};
 use tokio::sync::watch;
+use zksync_dal::ConnectionPool;
 use zksync_types::{
     block::MiniblockExecutionData,
     l2::TransactionType,
@@ -23,7 +25,7 @@ use super::{
     types::ExecutionMetricsForCriteria,
     updates::UpdatesManager,
 };
-use crate::gas_tracker::gas_count_from_writes;
+use crate::{gas_tracker::gas_count_from_writes, state_keeper::io::fee_address_migration};
 
 /// Amount of time to block on waiting for some resource. The exact value is not really important,
 /// we only need it to not block on waiting indefinitely and be able to process cancellation requests.
@@ -79,6 +81,21 @@ impl ZkSyncStateKeeper {
         }
     }
 
+    /// Temporary method to migrate fee addresses from L1 batches to miniblocks.
+    pub fn run_fee_address_migration(
+        &self,
+        pool: ConnectionPool,
+    ) -> impl Future<Output = anyhow::Result<()>> {
+        let last_miniblock = self.io.current_miniblock_number() - 1;
+        let stop_receiver = self.stop_receiver.clone();
+        async move {
+            fee_address_migration::migrate_miniblocks(pool, last_miniblock, stop_receiver).await?;
+            future::pending::<()>().await;
+            // ^ Since this is run as a task, we don't want it to exit on success (this would shut down the node).
+            anyhow::Ok(())
+        }
+    }
+
     pub async fn run(mut self) -> anyhow::Result<()> {
         match self.run_inner().await {
             Ok(_) => unreachable!(),
@@ -131,11 +148,7 @@ impl ZkSyncStateKeeper {
         };
 
         let protocol_version = system_env.version;
-        let mut updates_manager = UpdatesManager::new(
-            l1_batch_env.clone(),
-            system_env.base_system_smart_contracts.hashes(),
-            protocol_version,
-        );
+        let mut updates_manager = UpdatesManager::new(&l1_batch_env, &system_env);
 
         let mut protocol_upgrade_tx = self
             .load_protocol_upgrade_tx(&pending_miniblocks, protocol_version, l1_batch_env.number)
@@ -165,9 +178,7 @@ impl ZkSyncStateKeeper {
                 self.io.seal_miniblock(&updates_manager).await;
                 // We've sealed the miniblock that we had, but we still need to setup the timestamp
                 // for the fictive miniblock.
-                let new_miniblock_params = self
-                    .wait_for_new_miniblock_params(updates_manager.miniblock.timestamp)
-                    .await?;
+                let new_miniblock_params = self.wait_for_new_miniblock_params().await?;
                 Self::start_next_miniblock(
                     new_miniblock_params,
                     &mut updates_manager,
@@ -193,11 +204,7 @@ impl ZkSyncStateKeeper {
 
             // Start the new batch.
             (system_env, l1_batch_env) = self.wait_for_new_batch_params().await?;
-            updates_manager = UpdatesManager::new(
-                l1_batch_env.clone(),
-                system_env.base_system_smart_contracts.hashes(),
-                system_env.version,
-            );
+            updates_manager = UpdatesManager::new(&l1_batch_env, &system_env);
             batch_executor = self
                 .batch_executor_base
                 .init_batch(
@@ -282,14 +289,11 @@ impl ZkSyncStateKeeper {
         Err(Error::Canceled)
     }
 
-    async fn wait_for_new_miniblock_params(
-        &mut self,
-        prev_miniblock_timestamp: u64,
-    ) -> Result<MiniblockParams, Error> {
+    async fn wait_for_new_miniblock_params(&mut self) -> Result<MiniblockParams, Error> {
         while !self.is_canceled() {
             if let Some(params) = self
                 .io
-                .wait_for_new_miniblock_params(POLL_WAIT_DURATION, prev_miniblock_timestamp)
+                .wait_for_new_miniblock_params(POLL_WAIT_DURATION)
                 .await
             {
                 return Ok(params);
@@ -404,7 +408,7 @@ impl ZkSyncStateKeeper {
 
         // We've processed all the miniblocks, and right now we're initializing the next *actual* miniblock.
         let new_miniblock_params = self
-            .wait_for_new_miniblock_params(updates_manager.miniblock.timestamp)
+            .wait_for_new_miniblock_params()
             .await
             .map_err(|e| e.context("wait_for_new_miniblock_params"))?;
         Self::start_next_miniblock(new_miniblock_params, updates_manager, batch_executor).await;
@@ -444,7 +448,7 @@ impl ZkSyncStateKeeper {
                 self.io.seal_miniblock(updates_manager).await;
 
                 let new_miniblock_params = self
-                    .wait_for_new_miniblock_params(updates_manager.miniblock.timestamp)
+                    .wait_for_new_miniblock_params()
                     .await
                     .map_err(|e| e.context("wait_for_new_miniblock_params"))?;
                 tracing::debug!(

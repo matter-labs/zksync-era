@@ -2,7 +2,11 @@ use zksync_types::{fee_model::BatchFeeInput, Address, L1BatchNumber, H256};
 
 use super::L2BlockEnv;
 
-/// Unique params for each batch
+/// Unique params for each L1 batch.
+///
+/// Eventually, most of these parameters (`l1_gas_price`, `fair_l2_gas_price`, `fee_account`,
+/// `enforced_base_fee`) will be moved to [`L2BlockEnv`]. For now, the VM doesn't support changing
+/// them in the middle of execution; that's why these params are specified here.
 #[derive(Debug, Clone)]
 pub struct L1BatchEnv {
     // If previous batch hash is None, then this is the first batch

@@ -10,9 +10,9 @@ use zksync_config::configs::{
     chain::OperationsManagerConfig,
     database::{MerkleTreeConfig, MerkleTreeMode},
 };
-use zksync_health_check::{CheckHealth, ReactiveHealthCheck};
+use zksync_health_check::{CheckHealth, HealthStatus, ReactiveHealthCheck};
 use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
-use zksync_types::{L1BatchNumber, L2ChainId, StorageLog};
+use zksync_types::{L1BatchNumber, L2ChainId, ProtocolVersionId, StorageLog};
 
 use super::*;
 use crate::{
@@ -121,9 +121,12 @@ async fn prepare_recovery_snapshot_with_genesis(
 
     SnapshotRecoveryStatus {
         l1_batch_number: L1BatchNumber(1),
+        l1_batch_timestamp: 1,
         l1_batch_root_hash,
         miniblock_number: MiniblockNumber(1),
-        miniblock_root_hash: H256::zero(), // not used
+        miniblock_timestamp: 1,
+        miniblock_hash: H256::zero(), // not used
+        protocol_version: ProtocolVersionId::latest(),
         storage_logs_chunks_processed: vec![],
     }
 }
@@ -239,7 +242,13 @@ async fn entire_recovery_workflow(case: RecoveryWorkflowCase) {
     // Emulate the recovered view of Postgres. Unlike with previous tests, we don't perform genesis.
     let snapshot_logs = gen_storage_logs(100..300, 1).pop().unwrap();
     let mut storage = pool.access_storage().await.unwrap();
-    let snapshot_recovery = prepare_recovery_snapshot(&mut storage, 23, &snapshot_logs).await;
+    let snapshot_recovery = prepare_recovery_snapshot(
+        &mut storage,
+        L1BatchNumber(23),
+        MiniblockNumber(42),
+        &snapshot_logs,
+    )
+    .await;
 
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
     let merkle_tree_config = MerkleTreeConfig {

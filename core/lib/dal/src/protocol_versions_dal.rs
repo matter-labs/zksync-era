@@ -165,7 +165,7 @@ impl ProtocolVersionsDal<'_, '_> {
         .unwrap();
         let contracts = self
             .storage
-            .storage_dal()
+            .factory_deps_dal()
             .get_base_system_contracts(
                 H256::from_slice(&row.bootloader_code_hash),
                 H256::from_slice(&row.default_account_code_hash),
@@ -196,7 +196,7 @@ impl ProtocolVersionsDal<'_, '_> {
         if let Some(row) = row {
             Some(
                 self.storage
-                    .storage_dal()
+                    .factory_deps_dal()
                     .get_base_system_contracts(
                         H256::from_slice(&row.bootloader_code_hash),
                         H256::from_slice(&row.default_account_code_hash),

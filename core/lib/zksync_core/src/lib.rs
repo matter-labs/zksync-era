@@ -82,7 +82,7 @@ pub mod consensus;
 pub mod consistency_checker;
 pub mod eth_sender;
 pub mod eth_watch;
-mod fee_model;
+pub mod fee_model;
 pub mod gas_tracker;
 pub mod genesis;
 pub mod house_keeper;
@@ -431,8 +431,8 @@ pub async fn initialize_components(
             let elapsed = started_at.elapsed();
             APP_METRICS.init_latency[&InitStage::HttpApi].set(elapsed);
             tracing::info!(
-                "Initialized HTTP API on {:?} in {elapsed:?}",
-                server_handles.local_addr
+                "Initialized HTTP API on port {:?} in {elapsed:?}",
+                api_config.web3_json_rpc.http_port
             );
         }
 
@@ -469,8 +469,8 @@ pub async fn initialize_components(
             let elapsed = started_at.elapsed();
             APP_METRICS.init_latency[&InitStage::WsApi].set(elapsed);
             tracing::info!(
-                "initialized WS API on {:?} in {elapsed:?}",
-                server_handles.local_addr
+                "Initialized WS API on port {} in {elapsed:?}",
+                api_config.web3_json_rpc.ws_port
             );
         }
 
@@ -776,7 +776,7 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
         db_config,
         network_config,
         mempool_config,
-        state_keeper_pool,
+        state_keeper_pool.clone(),
         mempool.clone(),
         batch_fee_input_provider.clone(),
         miniblock_sealer_handle,
@@ -784,6 +784,10 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
         stop_receiver.clone(),
     )
     .await;
+
+    task_futures.push(tokio::spawn(
+        state_keeper.run_fee_address_migration(state_keeper_pool),
+    ));
     task_futures.push(tokio::spawn(state_keeper.run()));
 
     let mempool_fetcher_pool = pool_builder
@@ -791,12 +795,8 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
         .await
         .context("failed to build mempool_fetcher_pool")?;
     let mempool_fetcher = MempoolFetcher::new(mempool, batch_fee_input_provider, mempool_config);
-    let mempool_fetcher_handle = tokio::spawn(mempool_fetcher.run(
-        mempool_fetcher_pool,
-        mempool_config.remove_stuck_txs,
-        mempool_config.stuck_tx_timeout(),
-        stop_receiver,
-    ));
+    let mempool_fetcher_handle =
+        tokio::spawn(mempool_fetcher.run(mempool_fetcher_pool, stop_receiver));
     task_futures.push(mempool_fetcher_handle);
     Ok(())
 }

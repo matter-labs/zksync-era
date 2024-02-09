@@ -165,7 +165,7 @@ async fn insert_base_system_contracts_to_factory_deps(
         .collect();
 
     storage
-        .storage_dal()
+        .factory_deps_dal()
         .insert_factory_deps(MiniblockNumber(0), &factory_deps)
         .await
         .unwrap();
@@ -264,6 +264,7 @@ async fn insert_system_contracts(
         .insert_initial_writes(L1BatchNumber(0), &written_storage_keys)
         .await;
 
+    #[allow(deprecated)]
     transaction
         .storage_dal()
         .apply_storage_logs(&storage_logs)
@@ -274,7 +275,7 @@ async fn insert_system_contracts(
         .map(|c| (hash_bytecode(&c.bytecode), c.bytecode.clone()))
         .collect();
     transaction
-        .storage_dal()
+        .factory_deps_dal()
         .insert_factory_deps(MiniblockNumber(0), &factory_deps)
         .await
         .unwrap();
@@ -302,14 +303,12 @@ pub(crate) async fn create_genesis_l1_batch(
         tx: None,
     };
 
-    let mut genesis_l1_batch_header = L1BatchHeader::new(
+    let genesis_l1_batch_header = L1BatchHeader::new(
         L1BatchNumber(0),
         0,
-        first_validator_address,
         base_system_contracts.hashes(),
         protocol_version,
     );
-    genesis_l1_batch_header.is_finished = true;
 
     let genesis_miniblock_header = MiniblockHeader {
         number: MiniblockNumber(0),
@@ -317,6 +316,7 @@ pub(crate) async fn create_genesis_l1_batch(
         hash: MiniblockHasher::legacy_hash(MiniblockNumber(0)),
         l1_tx_count: 0,
         l2_tx_count: 0,
+        fee_account_address: first_validator_address,
         base_fee_per_gas: 0,
         gas_per_pubdata_limit: get_max_gas_per_pubdata_byte(protocol_version.into()),
         batch_fee_input: BatchFeeInput::l1_pegged(0, 0),
