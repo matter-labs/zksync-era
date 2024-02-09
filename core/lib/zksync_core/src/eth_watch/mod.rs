@@ -226,6 +226,35 @@ impl EthWatch {
     }
 }
 
+/// This method creates an `EthWatch` instance that only looks for the `setChainId` event and runs
+/// it. Once the event is found and the tx is saved into the db, it will exit.
+pub async fn wait_for_set_chain_id(
+    config: ETHWatchConfig,
+    pool: ConnectionPool,
+    eth_gateway: Box<dyn EthInterface>,
+    diamond_proxy_addr: Address,
+    state_transition_manager_addr: Address,
+) -> anyhow::Result<()> {
+    let eth_client = EthHttpQueryClient::new(
+        eth_gateway,
+        diamond_proxy_addr,
+        Some(state_transition_manager_addr),
+        None,
+        config.confirmations_for_eth_event,
+    );
+
+    let mut eth_watch = EthWatch::new_set_chain_id_watch(
+        diamond_proxy_addr,
+        Box::new(eth_client),
+        config.poll_interval(),
+    )
+    .await;
+
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    // We want to exit after 1 event is found, hence the limit is `Some(1)`.
+    eth_watch.run(pool, stop_receiver, Some(1)).await
+}
+
 pub async fn start_eth_watch(
     config: ETHWatchConfig,
     pool: ConnectionPool,

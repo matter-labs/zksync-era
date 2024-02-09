@@ -37,6 +37,10 @@ struct Cli {
     /// Generate genesis block for the first contract deployment using temporary DB.
     #[arg(long)]
     genesis: bool,
+    /// Wait for the `setChainId` event during genesis.
+    /// If `--genesis` is not set, this flag is ignored.
+    #[arg(long)]
+    set_chain_id: bool,
     /// Rebuild tree.
     #[arg(long)]
     rebuild_tree: bool,
@@ -136,12 +140,15 @@ async fn main() -> anyhow::Result<()> {
         let eth_sender = ETHSenderConfig::from_env().context("ETHSenderConfig")?;
         let contracts = ContractsConfig::from_env().context("ContractsConfig")?;
         let eth_client = ETHClientConfig::from_env().context("EthClientConfig")?;
+        let eth_watch = ETHWatchConfig::from_env().context("EthWatchConfig")?;
         genesis_init(
             &postgres_config,
             &eth_sender,
             &network,
             &contracts,
+            &eth_watch,
             &eth_client.web3_url,
+            opt.set_chain_id,
         )
         .await
         .context("genesis_init")?;

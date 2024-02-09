@@ -23,7 +23,7 @@ use zksync_config::{
         contracts::ProverAtGenesis,
         database::{MerkleTreeConfig, MerkleTreeMode},
     },
-    ApiConfig, ContractsConfig, DBConfig, ETHSenderConfig, PostgresConfig,
+    ApiConfig, ContractsConfig, DBConfig, ETHSenderConfig, ETHWatchConfig, PostgresConfig,
 };
 use zksync_contracts::{governance_contract, BaseSystemContracts};
 use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
@@ -102,7 +102,9 @@ pub async fn genesis_init(
     eth_sender: &ETHSenderConfig,
     network_config: &NetworkConfig,
     contracts_config: &ContractsConfig,
+    ethwatch_config: &ETHWatchConfig,
     eth_client_url: &str,
+    wait_for_set_chain_id: bool,
 ) -> anyhow::Result<()> {
     let db_url = postgres_config.master_url()?;
     let pool = ConnectionPool::singleton(db_url)
@@ -117,6 +119,7 @@ pub async fn genesis_init(
             .context("Private key is required for genesis init")?,
     )
     .context("Failed to restore operator address from private key")?;
+    let eth_client = QueryClient::new(eth_client_url)?;
 
     // Select the first prover to be used during genesis.
     // Later we can change provers using the system upgrades, but for genesis
@@ -132,7 +135,6 @@ pub async fn genesis_init(
                 recursion_scheduler_level_vk_hash: contracts_config.snark_wrapper_vk_hash,
             };
 
-            let eth_client = QueryClient::new(eth_client_url)?;
             let args = CallFunctionArgs::new("verificationKeyHash", ()).for_contract(
                 contracts_config.verifier_addr,
                 zksync_contracts::verifier_contract(),
@@ -174,6 +176,20 @@ pub async fn genesis_init(
         },
     )
     .await?;
+
+    if wait_for_set_chain_id {
+        eth_watch::wait_for_set_chain_id(
+            ethwatch_config.clone(),
+            pool.clone(),
+            Box::new(eth_client),
+            contracts_config.diamond_proxy_addr,
+            contracts_config
+                .state_transition_proxy_addr
+                .expect("state_transition_proxy_addr is not set, but needed for genesis"),
+        )
+        .await?;
+    }
+
     Ok(())
 }
 
