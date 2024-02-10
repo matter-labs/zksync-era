@@ -791,6 +791,20 @@ dependencies = [
 [[package]]
 name = "circuit_definitions"
 version = "0.1.0"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=mmzk_0210_fixing_read_basic_artifacts#eee3f148ad2985058d894d6021f2be11b9bd8c53"
+dependencies = [
+ "crossbeam 0.8.4",
+ "derivative",
+ "seq-macro",
+ "serde",
+ "snark_wrapper",
+ "zk_evm 1.4.1",
+ "zkevm_circuits 1.4.1",
+]
+
+[[package]]
+name = "circuit_definitions"
+version = "0.1.0"
 source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.0#de2ecad62ac8c12777e576dca20311ad8ec770d1"
 dependencies = [
  "crossbeam 0.8.4",
@@ -3084,7 +3098,7 @@ dependencies = [
  "zk_evm 1.4.1",
  "zkevm_test_harness 1.3.3",
  "zkevm_test_harness 1.4.0",
- "zkevm_test_harness 1.4.1",
+ "zkevm_test_harness 1.4.1 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1)",
  "zksync_contracts",
  "zksync_state",
  "zksync_system_constants",
@@ -6119,7 +6133,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bincode",
- "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1)",
+ "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=mmzk_0210_fixing_read_basic_artifacts)",
  "itertools 0.10.5",
  "once_cell",
  "proptest",
@@ -6132,7 +6146,7 @@ dependencies = [
  "tracing",
  "vlog",
  "zkevm_test_harness 1.3.3",
- "zkevm_test_harness 1.4.1",
+ "zkevm_test_harness 1.4.1 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=mmzk_0210_fixing_read_basic_artifacts)",
  "zksync_config",
  "zksync_env_config",
  "zksync_prover_fri_types",
@@ -6841,6 +6855,35 @@ dependencies = [
 [[package]]
 name = "zkevm_test_harness"
 version = "1.4.1"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=mmzk_0210_fixing_read_basic_artifacts#eee3f148ad2985058d894d6021f2be11b9bd8c53"
+dependencies = [
+ "bincode",
+ "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=mmzk_0210_fixing_read_basic_artifacts)",
+ "codegen",
+ "crossbeam 0.8.4",
+ "curl",
+ "derivative",
+ "env_logger 0.9.3",
+ "hex",
+ "lazy_static",
+ "rand 0.4.6",
+ "rayon",
+ "reqwest",
+ "rescue_poseidon 0.4.1 (git+https://github.com/matter-labs/rescue-poseidon.git?branch=poseidon2)",
+ "serde",
+ "serde_json",
+ "smallvec",
+ "snark_wrapper",
+ "structopt",
+ "test-log",
+ "tracing",
+ "walkdir",
+ "zkevm-assembly 1.3.2 (git+https://github.com/matter-labs/era-zkEVM-assembly.git?branch=v1.4.1)",
+]
+
+[[package]]
+name = "zkevm_test_harness"
+version = "1.4.1"
 source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1#bbd22e62894807f245cd837fea18be8456a7e49c"
 dependencies = [
  "bincode",
@@ -7100,7 +7143,7 @@ dependencies = [
  "vk_setup_data_generator_server_fri",
  "vlog",
  "zkevm_test_harness 1.3.3",
- "zkevm_test_harness 1.4.1",
+ "zkevm_test_harness 1.4.1 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1)",
  "zksync_config",
  "zksync_dal",
  "zksync_env_config",
@@ -7166,7 +7209,7 @@ dependencies = [
  "vise",
  "vk_setup_data_generator_server_fri",
  "vlog",
- "zkevm_test_harness 1.4.1",
+ "zkevm_test_harness 1.4.1 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1)",
  "zksync_config",
  "zksync_dal",
  "zksync_env_config",
@@ -7207,7 +7250,7 @@ dependencies = [
 name = "zksync_prover_fri_types"
 version = "0.1.0"
 dependencies = [
- "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1)",
+ "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=mmzk_0210_fixing_read_basic_artifacts)",
  "serde",
  "zksync_object_store",
  "zksync_types",
@@ -7367,7 +7410,7 @@ dependencies = [
  "vk_setup_data_generator_server_fri",
  "vlog",
  "zk_evm 1.4.1",
- "zkevm_test_harness 1.4.1",
+ "zkevm_test_harness 1.4.1 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1)",
  "zksync_config",
  "zksync_dal",
  "zksync_env_config",
