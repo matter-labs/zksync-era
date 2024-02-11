@@ -83,10 +83,104 @@ impl<T: Resource + Clone> LazyResource<T> {
     }
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq)]
 pub enum LazyResourceError {
     #[error("Node is shutting down")]
     NodeShutdown,
     #[error("Resource is already provided")]
     ResourceAlreadyProvided,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[derive(Debug, Clone, PartialEq)]
+    struct TestResource(Arc<u8>);
+
+    impl Resource for TestResource {
+        fn resource_id() -> ResourceId {
+            ResourceId::new("test_resource")
+        }
+    }
+
+    fn init_lazy_resource() -> LazyResource<TestResource> {
+        let (stop_sender, _stop_receiver) = watch::channel(false);
+        LazyResource::<TestResource>::new(StopReceiver(stop_sender.subscribe()))
+    }
+
+    fn init_test_resource() -> TestResource {
+        TestResource(Arc::new(1))
+    }
+
+    fn init_resources() -> (LazyResource<TestResource>, TestResource) {
+        (init_lazy_resource(), init_test_resource())
+    }
+
+    #[tokio::test]
+    async fn test_already_provided_resource_case() {
+        let (lazy_resource, test_resource) = init_resources();
+
+        let (mut lr_for_task1, tr_for_task1) = (lazy_resource.clone(), test_resource.clone());
+
+        let task1 = tokio::spawn(async move {
+            lr_for_task1.provide(tr_for_task1).await.unwrap();
+        });
+
+        let (mut lr_for_task2, tr_for_task2) = (lazy_resource.clone(), test_resource.clone());
+
+        let task2 = tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            assert_eq!(
+                lr_for_task2.provide(tr_for_task2).await,
+                Err(LazyResourceError::ResourceAlreadyProvided)
+            );
+        });
+
+        futures::future::join_all([task1, task2]).await;
+    }
+
+    #[tokio::test]
+    async fn test_successful_resolve_case() {
+        let (lazy_resource, test_resource) = init_resources();
+
+        let (mut lr_for_task1, tr_for_task1) = (lazy_resource.clone(), test_resource.clone());
+
+        let task1 = tokio::spawn(async move {
+            lr_for_task1.provide(tr_for_task1).await.unwrap();
+        });
+
+        let (lr_for_task2, tr_for_task2) = (lazy_resource.clone(), test_resource.clone());
+
+        let task2 = tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            assert_eq!(lr_for_task2.resolve().await, Ok(tr_for_task2));
+        });
+
+        futures::future::join_all([task1, task2]).await;
+    }
+
+    #[tokio::test]
+    async fn test_node_shutdown_case() {
+        let (stop_sender, _stop_receiver) = watch::channel(false);
+        let lazy_resource =
+            LazyResource::<TestResource>::new(StopReceiver(stop_sender.subscribe()));
+        let test_resource = init_test_resource();
+
+        let task1 = tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            stop_sender.send(true).unwrap();
+        });
+
+        let (lr_for_task2, _) = (lazy_resource.clone(), test_resource.clone());
+
+        let task2 = tokio::spawn(async move {
+            assert_eq!(
+                lr_for_task2.resolve().await,
+                Err(LazyResourceError::NodeShutdown)
+            );
+        });
+
+        futures::future::join_all([task1, task2]).await;
+    }
 }
