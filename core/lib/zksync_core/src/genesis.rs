@@ -16,7 +16,7 @@ use zksync_types::{
         BlockGasCount, DeployedContract, L1BatchHeader, L1BatchTreeData, MiniblockHasher,
         MiniblockHeader,
     },
-    commitment::{AuxCommitments, CommitmentCommonInput, CommitmentInput, L1BatchCommitment},
+    commitment::{CommitmentInput, L1BatchCommitment},
     fee_model::BatchFeeInput,
     get_code_key, get_system_context_init_logs,
     protocol_version::{L1VerifierConfig, ProtocolVersion},
@@ -104,31 +104,12 @@ pub async fn ensure_genesis_state(
     let genesis_root_hash = metadata.root_hash;
     let rollup_last_leaf_index = metadata.leaf_count + 1;
 
-    let commitment_common_input = CommitmentCommonInput {
-        l2_to_l1_logs: Vec::new(),
+    let commitment_input = CommitmentInput::for_genesis_batch(
+        genesis_root_hash,
         rollup_last_leaf_index,
-        rollup_root_hash: genesis_root_hash,
-        bootloader_code_hash: base_system_contracts_hashes.bootloader,
-        default_aa_code_hash: base_system_contracts_hashes.default_aa,
-        protocol_version: *protocol_version,
-    };
-    let commitment_input = if protocol_version.is_pre_boojum() {
-        CommitmentInput::PreBoojum {
-            common: commitment_common_input,
-            initial_writes: Vec::new(),
-            repeated_writes: Vec::new(),
-        }
-    } else {
-        CommitmentInput::PostBoojum {
-            common: commitment_common_input,
-            system_logs: Vec::new(),
-            state_diffs: Vec::new(),
-            aux_commitments: AuxCommitments {
-                events_queue_commitment: H256::zero(),
-                bootloader_initial_content_commitment: H256::zero(),
-            },
-        }
-    };
+        base_system_contracts_hashes,
+        *protocol_version,
+    );
     let block_commitment = L1BatchCommitment::new(commitment_input);
 
     save_genesis_l1_batch_metadata(

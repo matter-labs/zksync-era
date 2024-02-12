@@ -4,13 +4,13 @@ use anyhow::Context;
 use itertools::Itertools;
 use metrics::{CommitmentStage, METRICS};
 use multivm::zk_evm_latest::ethereum_types::U256;
-use tokio::sync::watch;
+use tokio::{sync::watch, task::JoinHandle};
 use zksync_commitment_utils::{bootloader_initial_content_commitment, events_queue_commitment};
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::ConnectionPool;
 use zksync_types::{
     commitment::{AuxCommitments, CommitmentCommonInput, CommitmentInput, L1BatchCommitment},
     writes::{InitialStorageWrite, RepeatedStorageWrite, StateDiffRecord},
-    L1BatchNumber, ProtocolVersionId, StorageKey,
+    L1BatchNumber, ProtocolVersionId, StorageKey, H256,
 };
 use zksync_utils::h256_to_u256;
 
@@ -33,30 +33,54 @@ impl CommitmentGenerator {
     }
 
     async fn calculate_aux_commitments(
-        conn: &mut StorageProcessor<'_>,
+        &self,
         l1_batch_number: L1BatchNumber,
         protocol_version: ProtocolVersionId,
     ) -> anyhow::Result<AuxCommitments> {
-        let latency = METRICS.events_queue_commitment_latency.start();
-        let events_queue = conn
+        let mut connection = self
+            .connection_pool
+            .access_storage_tagged("commitment_generator")
+            .await?;
+        let events_queue = connection
             .blocks_dal()
             .get_events_queue(l1_batch_number)
             .await?
             .context("Events queue is required for post-boojum batch")?;
-        let events_queue_commitment = events_queue_commitment(&events_queue, protocol_version)
-            .context("Events queue commitment is required for post-boojum batch")?;
-        latency.observe();
-
-        let latency = METRICS.bootloader_content_commitment_latency.start();
-        let initial_bootloader_contents = conn
+        let initial_bootloader_contents = connection
             .blocks_dal()
             .get_initial_bootloader_heap(l1_batch_number)
             .await?
             .context("Bootloader initial heap is missing")?;
-        let bootloader_initial_content_commitment =
-            bootloader_initial_content_commitment(&initial_bootloader_contents, protocol_version)
+        let events_commitment_task: JoinHandle<anyhow::Result<H256>> =
+            tokio::task::spawn_blocking(move || {
+                let latency = METRICS.events_queue_commitment_latency.start();
+                let events_queue_commitment =
+                    events_queue_commitment(&events_queue, protocol_version)
+                        .context("Events queue commitment is required for post-boojum batch")?;
+                latency.observe();
+
+                Ok(events_queue_commitment)
+            });
+
+        let bootloader_memory_commitment_task: JoinHandle<anyhow::Result<H256>> =
+            tokio::task::spawn_blocking(move || {
+                let latency = METRICS.bootloader_content_commitment_latency.start();
+                let bootloader_initial_content_commitment = bootloader_initial_content_commitment(
+                    &initial_bootloader_contents,
+                    protocol_version,
+                )
                 .context("Bootloader content commitment is required for post-boojum batch")?;
-        latency.observe();
+                latency.observe();
+
+                Ok(bootloader_initial_content_commitment)
+            });
+
+        let events_queue_commitment = events_commitment_task
+            .await
+            .context("`events_commitment_task` failed")??;
+        let bootloader_initial_content_commitment = bootloader_memory_commitment_task
+            .await
+            .context("`bootloader_memory_commitment_task` failed")??;
 
         Ok(AuxCommitments {
             events_queue_commitment,
@@ -65,9 +89,13 @@ impl CommitmentGenerator {
     }
 
     async fn prepare_input(
-        connection: &mut StorageProcessor<'_>,
+        &self,
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<CommitmentInput> {
+        let mut connection = self
+            .connection_pool
+            .access_storage_tagged("commitment_generator")
+            .await?;
         let header = connection
             .blocks_dal()
             .get_l1_batch_header(l1_batch_number)
@@ -105,6 +133,7 @@ impl CommitmentGenerator {
             .storage_logs_dal()
             .get_l1_batches_and_indices_for_initial_writes(&touched_hashed_keys)
             .await?;
+        drop(connection);
 
         let input = if protocol_version.is_pre_boojum() {
             let mut initial_writes = Vec::new();
@@ -136,9 +165,9 @@ impl CommitmentGenerator {
                 repeated_writes,
             }
         } else {
-            let aux_commitments =
-                Self::calculate_aux_commitments(connection, header.number, protocol_version)
-                    .await?;
+            let aux_commitments = self
+                .calculate_aux_commitments(header.number, protocol_version)
+                .await?;
 
             let mut state_diffs = Vec::new();
             for (key, value) in touched_slots {
@@ -185,13 +214,10 @@ impl CommitmentGenerator {
         Ok(input)
     }
 
-    async fn step(
-        connection: &mut StorageProcessor<'_>,
-        l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<()> {
+    async fn step(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<()> {
         let latency =
             METRICS.generate_commitment_latency_stage[&CommitmentStage::PrepareInput].start();
-        let input = Self::prepare_input(connection, l1_batch_number).await?;
+        let input = self.prepare_input(l1_batch_number).await?;
         latency.observe();
 
         let latency =
@@ -202,7 +228,9 @@ impl CommitmentGenerator {
 
         let latency =
             METRICS.generate_commitment_latency_stage[&CommitmentStage::SaveResults].start();
-        connection
+        self.connection_pool
+            .access_storage_tagged("commitment_generator")
+            .await?
             .blocks_dal()
             .save_l1_batch_commitment_artifacts(l1_batch_number, &artifacts)
             .await?;
@@ -212,17 +240,15 @@ impl CommitmentGenerator {
     }
 
     pub async fn run(self) -> anyhow::Result<()> {
-        let mut connection = self
-            .connection_pool
-            .access_storage_tagged("commitment_generator")
-            .await?;
-
         loop {
             if *self.stop_receiver.borrow() {
                 tracing::info!("Stop signal received, CommitmentGenerator is shutting down");
                 break;
             }
-            let Some(l1_batch_number) = connection
+            let Some(l1_batch_number) = self
+                .connection_pool
+                .access_storage_tagged("commitment_generator")
+                .await?
                 .blocks_dal()
                 .get_next_l1_batch_ready_for_commitment_generation()
                 .await?
@@ -231,7 +257,7 @@ impl CommitmentGenerator {
                 continue;
             };
 
-            Self::step(&mut connection, l1_batch_number).await?;
+            self.step(l1_batch_number).await?;
         }
         Ok(())
     }

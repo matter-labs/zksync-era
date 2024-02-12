@@ -9,6 +9,7 @@
 use std::{collections::HashMap, convert::TryFrom};
 
 use serde::{Deserialize, Serialize};
+use zksync_contracts::BaseSystemContractsHashes;
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_system_constants::{
     KNOWN_CODES_STORAGE_ADDRESS, L2_TO_L1_LOGS_TREE_ROOT_KEY, STATE_DIFF_HASH_KEY,
@@ -650,6 +651,39 @@ impl CommitmentInput {
         match self {
             Self::PreBoojum { common, .. } => common,
             Self::PostBoojum { common, .. } => common,
+        }
+    }
+
+    pub fn for_genesis_batch(
+        rollup_root_hash: H256,
+        rollup_last_leaf_index: u64,
+        base_system_contracts_hashes: BaseSystemContractsHashes,
+        protocol_version: ProtocolVersionId,
+    ) -> Self {
+        let commitment_common_input = CommitmentCommonInput {
+            l2_to_l1_logs: Vec::new(),
+            rollup_last_leaf_index,
+            rollup_root_hash,
+            bootloader_code_hash: base_system_contracts_hashes.bootloader,
+            default_aa_code_hash: base_system_contracts_hashes.default_aa,
+            protocol_version,
+        };
+        if protocol_version.is_pre_boojum() {
+            Self::PreBoojum {
+                common: commitment_common_input,
+                initial_writes: Vec::new(),
+                repeated_writes: Vec::new(),
+            }
+        } else {
+            Self::PostBoojum {
+                common: commitment_common_input,
+                system_logs: Vec::new(),
+                state_diffs: Vec::new(),
+                aux_commitments: AuxCommitments {
+                    events_queue_commitment: H256::zero(),
+                    bootloader_initial_content_commitment: H256::zero(),
+                },
+            }
         }
     }
 }
