@@ -234,6 +234,27 @@ pub struct ProtocolUpgrade {
     pub tx: Option<ProtocolUpgradeTx>,
 }
 
+fn get_transaction_param_type() -> ParamType {
+    ParamType::Tuple(vec![
+        ParamType::Uint(256),                                     // `txType`
+        ParamType::Uint(256),                                     // sender
+        ParamType::Uint(256),                                     // to
+        ParamType::Uint(256),                                     // gasLimit
+        ParamType::Uint(256),                                     // `gasPerPubdataLimit`
+        ParamType::Uint(256),                                     // maxFeePerGas
+        ParamType::Uint(256),                                     // maxPriorityFeePerGas
+        ParamType::Uint(256),                                     // paymaster
+        ParamType::Uint(256),                                     // nonce (serial ID)
+        ParamType::Uint(256),                                     // value
+        ParamType::FixedArray(Box::new(ParamType::Uint(256)), 4), // reserved
+        ParamType::Bytes,                                         // calldata
+        ParamType::Bytes,                                         // signature
+        ParamType::Array(Box::new(ParamType::Uint(256))),         // factory deps
+        ParamType::Bytes,                                         // paymaster input
+        ParamType::Bytes,                                         // `reservedDynamic`
+    ])
+}
+
 impl TryFrom<Log> for ProtocolUpgrade {
     type Error = crate::ethabi::Error;
 
@@ -259,24 +280,7 @@ impl TryFrom<Log> for ProtocolUpgrade {
             _ => unreachable!(),
         };
 
-        let transaction_param_type = ParamType::Tuple(vec![
-            ParamType::Uint(256),                                     // `txType`
-            ParamType::Uint(256),                                     // sender
-            ParamType::Uint(256),                                     // to
-            ParamType::Uint(256),                                     // gasLimit
-            ParamType::Uint(256),                                     // `gasPerPubdataLimit`
-            ParamType::Uint(256),                                     // maxFeePerGas
-            ParamType::Uint(256),                                     // maxPriorityFeePerGas
-            ParamType::Uint(256),                                     // paymaster
-            ParamType::Uint(256),                                     // nonce (serial ID)
-            ParamType::Uint(256),                                     // value
-            ParamType::FixedArray(Box::new(ParamType::Uint(256)), 4), // reserved
-            ParamType::Bytes,                                         // calldata
-            ParamType::Bytes,                                         // signature
-            ParamType::Array(Box::new(ParamType::Uint(256))),         // factory deps
-            ParamType::Bytes,                                         // paymaster input
-            ParamType::Bytes,                                         // `reservedDynamic`
-        ]);
+        let transaction_param_type: ParamType = get_transaction_param_type();
         let verifier_params_type = ParamType::Tuple(vec![
             ParamType::FixedBytes(32),
             ParamType::FixedBytes(32),
@@ -370,24 +374,7 @@ impl TryFrom<Log> for ProtocolUpgrade {
 pub fn decode_set_chain_id_event(
     event: Log,
 ) -> Result<(ProtocolVersionId, ProtocolUpgradeTx), crate::ethabi::Error> {
-    let transaction_param_type = ParamType::Tuple(vec![
-        ParamType::Uint(256),                                     // tx type
-        ParamType::Uint(256),                                     // sender
-        ParamType::Uint(256),                                     // to
-        ParamType::Uint(256),                                     // gas limit
-        ParamType::Uint(256),                                     // gas per pubdata limit
-        ParamType::Uint(256),                                     // max fee per gas
-        ParamType::Uint(256),                                     // max priority fee per gas
-        ParamType::Uint(256),                                     // paymaster
-        ParamType::Uint(256),                                     // nonce (serial ID)
-        ParamType::Uint(256),                                     // value
-        ParamType::FixedArray(Box::new(ParamType::Uint(256)), 4), // reserved
-        ParamType::Bytes,                                         // calldata
-        ParamType::Bytes,                                         // signature
-        ParamType::Array(Box::new(ParamType::Uint(256))),         // factory deps
-        ParamType::Bytes,                                         // paymaster input
-        ParamType::Bytes,                                         // reserved dynamic
-    ]);
+    let transaction_param_type: ParamType = get_transaction_param_type();
 
     let Token::Tuple(transaction) = decode(&[transaction_param_type], &event.data.0)?.remove(0)
     else {
