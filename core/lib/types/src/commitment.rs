@@ -11,7 +11,8 @@ use std::{collections::HashMap, convert::TryFrom};
 use serde::{Deserialize, Serialize};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_system_constants::{
-    L2_TO_L1_LOGS_TREE_ROOT_KEY, STATE_DIFF_HASH_KEY, ZKPORTER_IS_AVAILABLE,
+    L2_TO_L1_LOGS_TREE_ROOT_KEY, PUBDATA_CHUNK_PUBLISHER_ADDRESS, STATE_DIFF_HASH_KEY,
+    ZKPORTER_IS_AVAILABLE,
 };
 use zksync_utils::u256_to_h256;
 
@@ -249,6 +250,8 @@ struct L1BatchAuxiliaryOutput {
     bootloader_heap_hash: H256,
     events_state_queue_hash: H256,
     protocol_version: ProtocolVersionId,
+    blob_linear_hash: Vec<u8>,
+    blob_commitment: Vec<u8>,
 }
 
 impl L1BatchAuxiliaryOutput {
@@ -262,6 +265,7 @@ impl L1BatchAuxiliaryOutput {
         bootloader_heap_hash: H256,
         events_state_queue_hash: H256,
         protocol_version: ProtocolVersionId,
+        blob_commitment: Vec<u8>,
     ) -> Self {
         let state_diff_hash_from_logs = system_logs.iter().find_map(|log| {
             if log.0.key == u256_to_h256(STATE_DIFF_HASH_KEY.into()) {
@@ -301,6 +305,20 @@ impl L1BatchAuxiliaryOutput {
                 serialize_commitments(&system_logs),
                 serialize_commitments(&state_diffs),
             )
+        };
+
+        let blob_linear_hash = system_logs
+            .iter()
+            .filter(|log| {
+                log.0.sender == PUBDATA_CHUNK_PUBLISHER_ADDRESS
+                    && log.0.key == H256::from_low_u64_be(7u64)
+            })
+            .collect::<Vec<&SystemL2ToL1Log>>();
+
+        let blob_linear_hash = if blob_linear_hash.len() == 0 {
+            vec![0u8; 32]
+        } else {
+            blob_linear_hash[0].0.value.as_bytes().to_vec()
         };
 
         let state_diffs_compressed = compress_state_diffs(state_diffs.clone());
@@ -361,6 +379,8 @@ impl L1BatchAuxiliaryOutput {
             bootloader_heap_hash,
             events_state_queue_hash,
             protocol_version,
+            blob_linear_hash,
+            blob_commitment,
         }
     }
 
@@ -386,8 +406,8 @@ impl L1BatchAuxiliaryOutput {
             result.extend(self.events_state_queue_hash.as_bytes());
 
             // For now, we are using zeroes as commitments to the KZG pubdata.
-            result.extend(H256::zero().as_bytes());
-            result.extend(H256::zero().as_bytes());
+            result.extend(self.blob_linear_hash.as_slice());
+            result.extend(self.blob_commitment.as_slice());
             result.extend(H256::zero().as_bytes());
             result.extend(H256::zero().as_bytes());
         }
@@ -485,6 +505,7 @@ impl L1BatchCommitment {
         bootloader_heap_hash: H256,
         events_state_queue_hash: H256,
         protocol_version: ProtocolVersionId,
+        blob_commitment: Vec<u8>,
     ) -> Self {
         let meta_parameters = L1BatchMetaParameters {
             zkporter_is_available: ZKPORTER_IS_AVAILABLE,
@@ -515,6 +536,7 @@ impl L1BatchCommitment {
                 bootloader_heap_hash,
                 events_state_queue_hash,
                 protocol_version,
+                blob_commitment,
             ),
             meta_parameters,
         }
@@ -674,6 +696,7 @@ mod tests {
             H256::zero(),
             H256::zero(),
             ProtocolVersionId::latest(),
+            vec![0u8; 32],
         );
 
         let commitment = L1BatchCommitment {

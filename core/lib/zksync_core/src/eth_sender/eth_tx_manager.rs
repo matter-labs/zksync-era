@@ -425,7 +425,7 @@ impl EthTxManager {
                         Some(EIP_1559_TX_TYPE.into())
                     };
                     // TODO: real parameter
-                    opt.max_fee_per_blob_gas = Some(10000u64.into());
+                    opt.max_fee_per_blob_gas = Some(100_000u64.into());
                     opt.blob_versioned_hashes = tx.blob_sidecar.as_ref().map(|s| match s {
                         EthTxBlobSidecar::EthTxBlobSidecarV1(s) => s
                             .blobs

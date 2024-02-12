@@ -102,6 +102,20 @@ impl KzgInfo {
         res
     }
 
+    pub fn to_blob_commitment(&self) -> [u8; 32] {
+        let mut commitment = [0u8; 32];
+        let hash = &Keccak256::digest(
+            [
+                self.versioned_hash.to_vec(),
+                self.opening_point[16..].to_vec(),
+                self.opening_value.to_vec(),
+            ]
+            .concat(),
+        );
+        commitment.copy_from_slice(hash);
+        commitment
+    }
+
     /// Deserializes `Self::SERIALIZED_SIZE` bytes into `KzgInfo` struct
     pub fn from_slice(data: &[u8]) -> Self {
         assert_eq!(data.len(), Self::SERIALIZED_SIZE);
