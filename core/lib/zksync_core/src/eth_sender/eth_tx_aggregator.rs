@@ -440,6 +440,7 @@ impl EthTxAggregator {
                     blob: kzg_info.blob.to_vec(),
                     commitment: kzg_info.kzg_commitment.to_vec(),
                     proof: kzg_info.blob_proof.to_vec(),
+                    versioned_hash: kzg_info.versioned_hash.to_vec(),
                 };
 
                 let eth_tx_sidecar = EthTxBlobSidecarV1 {

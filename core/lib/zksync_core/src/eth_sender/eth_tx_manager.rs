@@ -9,7 +9,7 @@ use zksync_eth_client::{
     SignedCallResult,
 };
 use zksync_types::{
-    eth_sender::EthTx,
+    eth_sender::{EthTx, EthTxBlobSidecar},
     web3::{
         error::Error as Web3Error,
         types::{BlockId, BlockNumber},
@@ -424,6 +424,15 @@ impl EthTxManager {
                     } else {
                         Some(EIP_1559_TX_TYPE.into())
                     };
+                    // TODO: real parameter
+                    opt.max_fee_per_blob_gas = Some(10000u64.into());
+                    opt.blob_versioned_hashes = tx.blob_sidecar.as_ref().map(|s| match s {
+                        EthTxBlobSidecar::EthTxBlobSidecarV1(s) => s
+                            .blobs
+                            .iter()
+                            .map(|blob| H256::from_slice(&blob.versioned_hash))
+                            .collect(),
+                    });
                 }),
                 "eth_tx_manager",
             )

@@ -21,6 +21,8 @@ pub struct SidecarBlobV1 {
     pub commitment: Vec<u8>,
     /// Blob proof
     pub proof: Vec<u8>,
+    /// Blob commitment versioned hash
+    pub versioned_hash: Vec<u8>,
 }
 
 /// A first version of sidecars for blob transactions as they are described in EIP4844.
