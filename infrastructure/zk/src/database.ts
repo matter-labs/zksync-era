@@ -14,8 +14,8 @@ enum DalPath {
 }
 
 export interface DbOpts {
-    server: boolean,
-    prover: boolean,
+    server: boolean;
+    prover: boolean;
 }
 
 function getDals(opts: DbOpts): Map<DalPath, string> {
