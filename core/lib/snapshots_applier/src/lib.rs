@@ -4,7 +4,7 @@ use std::{collections::HashMap, fmt, time::Duration};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use tokio::sync::{AcquireError, Semaphore};
+use tokio::sync::Semaphore;
 use zksync_dal::{ConnectionPool, SqlxError, StorageProcessor};
 use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_types::{
@@ -36,39 +36,36 @@ enum SnapshotsApplierError {
     Retryable(anyhow::Error),
 }
 
-impl From<SnapshotsApplierOutcome> for SnapshotsApplierError {
-    fn from(outcome: SnapshotsApplierOutcome) -> Self {
-        Self::EarlyReturn(outcome)
-    }
-}
-
-impl From<AcquireError> for SnapshotsApplierError {
-    fn from(value: AcquireError) -> Self {
-        Self::Fatal(value.into())
-    }
-}
-
-impl From<ObjectStoreError> for SnapshotsApplierError {
-    fn from(error: ObjectStoreError) -> Self {
-        match error {
+impl SnapshotsApplierError {
+    fn object_store(err: ObjectStoreError, context: String) -> Self {
+        match err {
             ObjectStoreError::KeyNotFound(_) | ObjectStoreError::Serialization(_) => {
-                Self::Fatal(error.into())
+                Self::Fatal(anyhow::Error::from(err).context(context))
             }
-            ObjectStoreError::Other(_) => Self::Retryable(error.into()),
+            ObjectStoreError::Other(_) => {
+                Self::Retryable(anyhow::Error::from(err).context(context))
+            }
         }
     }
-}
 
-impl From<SqlxError> for SnapshotsApplierError {
-    fn from(error: SqlxError) -> Self {
-        match error {
+    fn db(err: SqlxError, context: impl Into<String>) -> Self {
+        let context = context.into();
+        match err {
             SqlxError::Database(_)
             | SqlxError::RowNotFound
             | SqlxError::ColumnNotFound(_)
             | SqlxError::Configuration(_)
-            | SqlxError::TypeNotFound { .. } => Self::Fatal(error.into()),
-            _ => Self::Retryable(error.into()),
+            | SqlxError::TypeNotFound { .. } => {
+                Self::Fatal(anyhow::Error::from(err).context(context))
+            }
+            _ => Self::Retryable(anyhow::Error::from(err).context(context)),
         }
+    }
+}
+
+impl From<SnapshotsApplierOutcome> for SnapshotsApplierError {
+    fn from(outcome: SnapshotsApplierOutcome) -> Self {
+        Self::EarlyReturn(outcome)
     }
 }
 
@@ -196,7 +193,10 @@ impl<'a> SnapshotsApplier<'a> {
         let applied_snapshot_status = storage
             .snapshot_recovery_dal()
             .get_applied_snapshot_status()
-            .await?;
+            .await
+            .map_err(|err| {
+                SnapshotsApplierError::db(err, "failed fetching applied snapshot status from DB")
+            })?;
 
         if let Some(applied_snapshot_status) = applied_snapshot_status {
             if !applied_snapshot_status
@@ -211,7 +211,15 @@ impl<'a> SnapshotsApplier<'a> {
 
             Ok((applied_snapshot_status, false))
         } else {
-            if !storage.blocks_dal().is_genesis_needed().await? {
+            let is_genesis_needed =
+                storage
+                    .blocks_dal()
+                    .is_genesis_needed()
+                    .await
+                    .map_err(|err| {
+                        SnapshotsApplierError::db(err, "failed checking genesis L1 batch in DB")
+                    })?;
+            if !is_genesis_needed {
                 return Err(SnapshotsApplierOutcome::InitializedWithoutSnapshot.into());
             }
 
@@ -232,7 +240,9 @@ impl<'a> SnapshotsApplier<'a> {
         let mut storage = connection_pool
             .access_storage_tagged("snapshots_applier")
             .await?;
-        let mut storage_transaction = storage.start_transaction().await?;
+        let mut storage_transaction = storage.start_transaction().await.map_err(|err| {
+            SnapshotsApplierError::db(err, "failed starting initial DB transaction")
+        })?;
 
         let (applied_snapshot_status, created_from_scratch) =
             Self::prepare_applied_snapshot_status(&mut storage_transaction, main_node_client)
@@ -263,9 +273,14 @@ impl<'a> SnapshotsApplier<'a> {
             storage_transaction
                 .snapshot_recovery_dal()
                 .insert_initial_recovery_status(&recovery.applied_snapshot_status)
-                .await?;
+                .await
+                .map_err(|err| {
+                    SnapshotsApplierError::db(err, "failed persisting initial recovery status")
+                })?;
         }
-        storage_transaction.commit().await?;
+        storage_transaction.commit().await.map_err(|err| {
+            SnapshotsApplierError::db(err, "failed committing initial DB transaction")
+        })?;
         drop(storage);
 
         recovery.recover_storage_logs().await?;
@@ -316,10 +331,14 @@ impl<'a> SnapshotsApplier<'a> {
         let latency = METRICS.initial_stage_duration[&InitialStage::ApplyFactoryDeps].start();
 
         tracing::debug!("Fetching factory dependencies from object store");
-        let factory_deps: SnapshotFactoryDependencies = self
-            .blob_store
-            .get(self.applied_snapshot_status.l1_batch_number)
-            .await?;
+        let l1_batch_number = self.applied_snapshot_status.l1_batch_number;
+        let factory_deps: SnapshotFactoryDependencies =
+            self.blob_store.get(l1_batch_number).await.map_err(|err| {
+                let context = format!(
+                    "cannot fetch factory deps for L1 batch #{l1_batch_number} from object store"
+                );
+                SnapshotsApplierError::object_store(err, context)
+            })?;
         tracing::debug!(
             "Fetched {} factory dependencies from object store",
             factory_deps.factory_deps.len()
@@ -336,7 +355,10 @@ impl<'a> SnapshotsApplier<'a> {
                 self.applied_snapshot_status.miniblock_number,
                 &all_deps_hashmap,
             )
-            .await?;
+            .await
+            .map_err(|err| {
+                SnapshotsApplierError::db(err, "failed persisting factory deps to DB")
+            })?;
 
         let latency = latency.observe();
         tracing::info!("Applied factory dependencies in {latency:?}");
@@ -346,18 +368,25 @@ impl<'a> SnapshotsApplier<'a> {
 
     async fn insert_initial_writes_chunk(
         &self,
+        chunk_id: u64,
         storage_logs: &[SnapshotStorageLog],
         storage: &mut StorageProcessor<'_>,
     ) -> Result<(), SnapshotsApplierError> {
         storage
             .storage_logs_dedup_dal()
             .insert_initial_writes_from_snapshot(storage_logs)
-            .await?;
+            .await
+            .map_err(|err| {
+                let context =
+                    format!("failed persisting initial writes from storage logs chunk {chunk_id}");
+                SnapshotsApplierError::db(err, context)
+            })?;
         Ok(())
     }
 
     async fn insert_storage_logs_chunk(
         &self,
+        chunk_id: u64,
         storage_logs: &[SnapshotStorageLog],
         storage: &mut StorageProcessor<'_>,
     ) -> Result<(), SnapshotsApplierError> {
@@ -367,7 +396,11 @@ impl<'a> SnapshotsApplier<'a> {
                 self.applied_snapshot_status.miniblock_number,
                 storage_logs,
             )
-            .await?;
+            .await
+            .map_err(|err| {
+                let context = format!("failed persisting storage logs from chunk {chunk_id}");
+                SnapshotsApplierError::db(err, context)
+            })?;
         Ok(())
     }
 
@@ -377,7 +410,9 @@ impl<'a> SnapshotsApplier<'a> {
         semaphore: &Semaphore,
         chunk_id: u64,
     ) -> Result<(), SnapshotsApplierError> {
-        let _permit = semaphore.acquire().await?;
+        // `unwrap()` is safe: the semaphore is never closed
+        let _permit = semaphore.acquire().await.unwrap();
+
         tracing::info!("Processing storage logs chunk {chunk_id}");
         let latency =
             METRICS.storage_logs_chunks_duration[&StorageLogsChunksStage::LoadFromGcs].start();
@@ -387,7 +422,11 @@ impl<'a> SnapshotsApplier<'a> {
             l1_batch_number: self.applied_snapshot_status.l1_batch_number,
         };
         let storage_snapshot_chunk: SnapshotStorageLogsChunk =
-            self.blob_store.get(storage_key).await?;
+            self.blob_store.get(storage_key).await.map_err(|err| {
+                let context =
+                    format!("cannot fetch storage logs {storage_key:?} from object store");
+                SnapshotsApplierError::object_store(err, context)
+            })?;
         let storage_logs = &storage_snapshot_chunk.storage_logs;
         let latency = latency.observe();
         tracing::info!(
@@ -402,19 +441,29 @@ impl<'a> SnapshotsApplier<'a> {
             .connection_pool
             .access_storage_tagged("snapshots_applier")
             .await?;
-        let mut storage_transaction = storage.start_transaction().await?;
+        let mut storage_transaction = storage.start_transaction().await.map_err(|err| {
+            let context = format!("cannot start DB transaction for storage logs chunk {chunk_id}");
+            SnapshotsApplierError::db(err, context)
+        })?;
 
         tracing::info!("Loading {} storage logs into Postgres", storage_logs.len());
-        self.insert_storage_logs_chunk(storage_logs, &mut storage_transaction)
+        self.insert_storage_logs_chunk(chunk_id, storage_logs, &mut storage_transaction)
             .await?;
-        self.insert_initial_writes_chunk(storage_logs, &mut storage_transaction)
+        self.insert_initial_writes_chunk(chunk_id, storage_logs, &mut storage_transaction)
             .await?;
 
         storage_transaction
             .snapshot_recovery_dal()
             .mark_storage_logs_chunk_as_processed(chunk_id)
-            .await?;
-        storage_transaction.commit().await?;
+            .await
+            .map_err(|err| {
+                let context = format!("failed marking storage logs chunk {chunk_id} as processed");
+                SnapshotsApplierError::db(err, context)
+            })?;
+        storage_transaction.commit().await.map_err(|err| {
+            let context = format!("cannot commit DB transaction for storage logs chunk {chunk_id}");
+            SnapshotsApplierError::db(err, context)
+        })?;
 
         let chunks_left = METRICS.storage_logs_chunks_left_to_process.dec_by(1) - 1;
         let latency = latency.observe();
