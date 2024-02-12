@@ -1,6 +1,6 @@
 //! Logic for applying application-level snapshots to Postgres storage.
 
-use std::{collections::HashMap, fmt, ops::Mul, time::Duration};
+use std::{collections::HashMap, fmt, time::Duration};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
@@ -25,19 +25,20 @@ mod metrics;
 #[cfg(test)]
 mod tests;
 
-#[derive(thiserror::Error, Debug)]
-pub enum SnapshotsApplierError {
-    #[error("canceled")]
-    Canceled(String),
+#[derive(Debug, thiserror::Error)]
+enum SnapshotsApplierError {
+    // Not really an error, just an early return from snapshot application logic.
+    #[error("snapshot application returned early: {0:?}")]
+    EarlyReturn(SnapshotsApplierOutcome),
     #[error(transparent)]
     Fatal(#[from] anyhow::Error),
     #[error(transparent)]
     Retryable(anyhow::Error),
 }
 
-impl SnapshotsApplierError {
-    fn canceled(message: &str) -> Self {
-        Self::Canceled(message.to_owned())
+impl From<SnapshotsApplierOutcome> for SnapshotsApplierError {
+    fn from(outcome: SnapshotsApplierOutcome) -> Self {
+        Self::EarlyReturn(outcome)
     }
 }
 
@@ -82,6 +83,18 @@ impl From<RpcError> for SnapshotsApplierError {
     }
 }
 
+/// Non-erroneous outcomes of the snapshot application.
+#[must_use = "Depending on app, `NoSnapshotsOnMainNode` may be considered an error"]
+#[derive(Debug)]
+pub enum SnapshotsApplierOutcome {
+    /// The node DB was successfully recovered from a snapshot.
+    Ok,
+    /// Main node does not have any ready snapshots.
+    NoSnapshotsOnMainNode,
+    /// The node was initialized without a snapshot. Detected by the presence of the genesis L1 batch in Postgres.
+    InitializedWithoutSnapshot,
+}
+
 /// Main node API used by the [`SnapshotsApplier`].
 #[async_trait]
 pub trait SnapshotsApplierMainNodeClient: fmt::Debug + Send + Sync {
@@ -117,9 +130,7 @@ impl<'a> SnapshotsApplier<'a> {
                 .storage_logs_chunks_processed
                 .contains(&false)
             {
-                return Err(SnapshotsApplierError::canceled(
-                    "This node has already been initialized from a snapshot",
-                ));
+                return Err(SnapshotsApplierOutcome::Ok.into());
             }
 
             let latency = latency.observe();
@@ -128,14 +139,11 @@ impl<'a> SnapshotsApplier<'a> {
             Ok((applied_snapshot_status, false))
         } else {
             if !storage.blocks_dal().is_genesis_needed().await? {
-                return Err(SnapshotsApplierError::canceled(
-                    "This node has already been initialized without a snapshot",
-                ));
+                return Err(SnapshotsApplierOutcome::InitializedWithoutSnapshot.into());
             }
 
             let latency = latency.observe();
             tracing::info!("Initialized fresh snapshots applier in {latency:?}");
-
             Ok((
                 SnapshotsApplier::create_fresh_recovery_status(main_node_client).await?,
                 true,
@@ -143,45 +151,50 @@ impl<'a> SnapshotsApplier<'a> {
         }
     }
 
-    pub async fn load_snapshots_with_retries(
+    pub async fn load_snapshot(
         connection_pool: &'a ConnectionPool,
         main_node_client: &dyn SnapshotsApplierMainNodeClient,
         blob_store: &'a dyn ObjectStore,
-    ) -> Result<(), SnapshotsApplierError> {
-        let retries = 5;
-        let mut retry_id = 0;
-        let mut backoff = Duration::from_secs(5);
-        assert_ne!(retries, 0);
-        loop {
-            let result =
-                SnapshotsApplier::load_snapshot(connection_pool, main_node_client, blob_store)
-                    .await;
+    ) -> anyhow::Result<SnapshotsApplierOutcome> {
+        const RETRY_COUNT: usize = 5;
+        const INITIAL_BACKOFF: Duration = Duration::from_secs(2);
+        const BACKOFF_MULTIPLIER: u32 = 2;
+
+        let mut backoff = INITIAL_BACKOFF;
+        let mut last_error = None;
+        for retry_id in 0..RETRY_COUNT {
+            let result = SnapshotsApplier::load_snapshot_inner(
+                connection_pool,
+                main_node_client,
+                blob_store,
+            )
+            .await;
             match result {
-                Ok(()) => {
-                    return result;
+                Ok(()) => return Ok(SnapshotsApplierOutcome::Ok),
+                Err(SnapshotsApplierError::Fatal(err)) => {
+                    tracing::error!("Fatal error occurred during snapshots recovery: {err:#}");
+                    return Err(err);
                 }
-                Err(SnapshotsApplierError::Fatal(_)) => {
-                    tracing::info!("A fatal error occured during snapshots recovery!");
-                    return result;
+                Err(SnapshotsApplierError::EarlyReturn(outcome)) => {
+                    tracing::info!("Cancelled snapshots recovery with the outcome: {outcome:?}");
+                    return Ok(outcome);
                 }
-                Err(SnapshotsApplierError::Canceled(err)) => {
-                    tracing::info!("Cancelled snapshots recovery because: {err}");
-                    return Ok(());
-                }
-                Err(SnapshotsApplierError::Retryable(_)) => {
-                    retry_id += 1;
-                    if retry_id == retries {
-                        tracing::info!("Snapshots recovery ran out of retries attempts!");
-                        return result;
-                    }
-                    tracing::info!("An error occurred during snapshots recovery, trying to recover, attempt({retry_id}/{retries}), retrying in {backoff:?}");
+                Err(SnapshotsApplierError::Retryable(err)) => {
+                    tracing::warn!("Retryable error occurred during snapshots recovery: {err:#}");
+                    last_error = Some(err);
+                    tracing::info!("Recovering from error; attempt {retry_id} / {RETRY_COUNT}, retrying in {backoff:?}");
                     tokio::time::sleep(backoff).await;
-                    backoff = backoff.mul(2);
+                    backoff *= BACKOFF_MULTIPLIER;
                 }
             }
         }
+
+        let last_error = last_error.unwrap(); // `unwrap()` is safe: `last_error` was assigned at least once
+        tracing::error!("Snapshot recovery run out of retries; last error: {last_error:#}");
+        Err(last_error)
     }
-    pub async fn load_snapshot(
+
+    async fn load_snapshot_inner(
         connection_pool: &'a ConnectionPool,
         main_node_client: &dyn SnapshotsApplierMainNodeClient,
         blob_store: &'a dyn ObjectStore,
@@ -234,10 +247,7 @@ impl<'a> SnapshotsApplier<'a> {
     ) -> Result<SnapshotRecoveryStatus, SnapshotsApplierError> {
         let snapshot_response = main_node_client.fetch_newest_snapshot().await?;
 
-        let snapshot = snapshot_response.ok_or(SnapshotsApplierError::canceled(
-            "Main node does not have any ready snapshots, skipping initialization from snapshot!",
-        ))?;
-
+        let snapshot = snapshot_response.ok_or(SnapshotsApplierOutcome::NoSnapshotsOnMainNode)?;
         let l1_batch_number = snapshot.l1_batch_number;
         let miniblock_number = snapshot.miniblock_number;
         tracing::info!(
@@ -383,14 +393,14 @@ impl<'a> SnapshotsApplier<'a> {
         Ok(())
     }
 
-    pub async fn recover_storage_logs(self) -> Result<(), SnapshotsApplierError> {
+    async fn recover_storage_logs(self) -> Result<(), SnapshotsApplierError> {
         let semaphore = Semaphore::new(self.connection_pool.max_size() as usize);
         let tasks = self
             .applied_snapshot_status
             .storage_logs_chunks_processed
             .iter()
             .enumerate()
-            .filter(|(_chunk_id, is_processed)| !**is_processed)
+            .filter(|(_, is_processed)| !**is_processed)
             .map(|(chunk_id, _)| {
                 self.recover_storage_logs_single_chunk(&semaphore, chunk_id as u64)
             });
