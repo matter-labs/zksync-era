@@ -7,13 +7,13 @@ use zksync_system_constants::{MAX_L2_TX_GAS_LIMIT, MAX_NEW_FACTORY_DEPS};
 use crate::vm_latest::old_vm::utils::heap_page_from_base;
 
 /// The amount of ergs to be reserved at the end of the batch to ensure that it has enough ergs to verify compression, etc.
-pub(crate) const BOOTLOADER_BATCH_TIP_OVERHEAD: u32 = 80_000_000;
+pub(crate) const BOOTLOADER_BATCH_TIP_OVERHEAD: u32 = 100_000_000;
 
 /// The size of the bootloader memory in bytes which is used by the protocol.
 /// While the maximal possible size is a lot higher, we restrict ourselves to a certain limit to reduce
 /// the requirements on RAM.
 /// In this version of the VM the used bootloader memory bytes has increased from `2^24`` to `24_000_000`.
-pub(crate) const USED_BOOTLOADER_MEMORY_BYTES: usize = 24_000_000;
+pub(crate) const USED_BOOTLOADER_MEMORY_BYTES: usize = 30_000_000;
 pub(crate) const USED_BOOTLOADER_MEMORY_WORDS: usize = USED_BOOTLOADER_MEMORY_BYTES / 32;
 
 // This the number of pubdata such that it should be always possible to publish
@@ -69,7 +69,7 @@ pub(crate) const TX_OVERHEAD_SLOTS: usize = MAX_TXS_IN_BATCH;
 pub(crate) const TX_TRUSTED_GAS_LIMIT_OFFSET: usize = TX_OVERHEAD_OFFSET + TX_OVERHEAD_SLOTS;
 pub(crate) const TX_TRUSTED_GAS_LIMIT_SLOTS: usize = MAX_TXS_IN_BATCH;
 
-pub(crate) const COMPRESSED_BYTECODES_SLOTS: usize = 32768;
+pub(crate) const COMPRESSED_BYTECODES_SLOTS: usize = 65536;
 
 pub(crate) const PRIORITY_TXS_L1_DATA_OFFSET: usize =
     COMPRESSED_BYTECODES_OFFSET + COMPRESSED_BYTECODES_SLOTS;
@@ -86,7 +86,7 @@ pub const OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_OFFSET: usize =
 ///
 /// In theory though much more calldata could be used (if for instance 1 byte is used for enum index). It is the responsibility of the
 /// operator to ensure that it can form the correct calldata for the L1Messenger.
-pub(crate) const OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS: usize = 208000;
+pub(crate) const OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS: usize = 411900;
 
 pub(crate) const BOOTLOADER_TX_DESCRIPTION_OFFSET: usize =
     OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_OFFSET + OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS;
