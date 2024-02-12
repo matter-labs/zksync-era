@@ -483,7 +483,7 @@ impl FriProverDal<'_, '_> {
         .instrument("save_fri_proof")
         .report_latency()
         .with_arg("id", &id)
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage)
         .await
         .unwrap()
         .map(|row| FriProverJobMetadata {

@@ -563,7 +563,7 @@ impl BlocksWeb3Dal<'_, '_> {
         .instrument("get_block_details")
         .with_arg("block_number", &block_number)
         .report_latency()
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage)
         .await?;
 
         let Some(storage_block_details) = storage_block_details else {
@@ -638,7 +638,7 @@ impl BlocksWeb3Dal<'_, '_> {
         .instrument("get_l1_batch_details")
         .with_arg("l1_batch_number", &l1_batch_number)
         .report_latency()
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage)
         .await?;
 
         Ok(l1_batch_details.map(Into::into))
