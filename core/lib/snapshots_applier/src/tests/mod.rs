@@ -2,25 +2,28 @@
 
 use std::collections::HashMap;
 
-use zksync_dal::ConnectionPool;
+use assert_matches::assert_matches;
+use test_casing::test_casing;
 use zksync_object_store::ObjectStoreFactory;
 use zksync_types::{
-    snapshots::{
-        SnapshotFactoryDependencies, SnapshotFactoryDependency, SnapshotHeader,
-        SnapshotRecoveryStatus, SnapshotStorageLog, SnapshotStorageLogsChunk,
-        SnapshotStorageLogsChunkMetadata, SnapshotStorageLogsStorageKey,
-    },
-    Bytes, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256,
+    block::{L1BatchHeader, MiniblockHeader},
+    snapshots::{SnapshotFactoryDependency, SnapshotStorageLogsChunkMetadata},
+    Address, Bytes, L1BatchNumber, ProtocolVersion, ProtocolVersionId,
 };
 
 use self::utils::{l1_block_metadata, miniblock_metadata, random_storage_logs, MockMainNodeClient};
-use crate::SnapshotsApplier;
+use super::*;
 
 mod utils;
 
+#[test_casing(2, [None, Some(2)])]
 #[tokio::test]
-async fn snapshots_creator_can_successfully_recover_db() {
-    let pool = ConnectionPool::test_pool().await;
+async fn snapshots_creator_can_successfully_recover_db(pool_size: Option<u32>) {
+    let pool = if let Some(pool_size) = pool_size {
+        ConnectionPool::constrained_test_pool(pool_size).await
+    } else {
+        ConnectionPool::test_pool().await
+    };
     let object_store_factory = ObjectStoreFactory::mock();
     let object_store = object_store_factory.create_store().await;
     let mut client = MockMainNodeClient::default();
@@ -83,9 +86,10 @@ async fn snapshots_creator_can_successfully_recover_db() {
         miniblock_metadata(miniblock_number, l1_batch_number, miniblock_hash),
     );
 
-    SnapshotsApplier::load_snapshot(&pool, &client, &object_store)
+    let outcome = SnapshotsApplier::load_snapshot(&pool, &client, &object_store)
         .await
         .unwrap();
+    assert_matches!(outcome, SnapshotsApplierOutcome::Ok);
 
     let mut storage = pool.access_storage().await.unwrap();
     let mut recovery_dal = storage.snapshot_recovery_dal();
@@ -130,4 +134,82 @@ async fn snapshots_creator_can_successfully_recover_db() {
         assert_eq!(db_log.value, expected_log.value);
         assert_eq!(db_log.miniblock_number, miniblock_number);
     }
+
+    // Try recovering again; it should return early.
+    let err = SnapshotsApplier::load_snapshot_inner(&pool, &client, &object_store)
+        .await
+        .unwrap_err();
+    assert_matches!(
+        err,
+        SnapshotsApplierError::EarlyReturn(SnapshotsApplierOutcome::Ok)
+    );
+}
+
+#[tokio::test]
+async fn applier_returns_early_after_genesis() {
+    let pool = ConnectionPool::test_pool().await;
+
+    // We don't want to depend on the core crate, so instead we cheaply emulate it.
+    let mut storage = pool.access_storage().await.unwrap();
+    storage
+        .protocol_versions_dal()
+        .save_protocol_version_with_tx(ProtocolVersion::default())
+        .await;
+    let genesis_miniblock = MiniblockHeader {
+        number: MiniblockNumber(0),
+        timestamp: 0,
+        hash: H256::zero(),
+        l1_tx_count: 0,
+        l2_tx_count: 0,
+        fee_account_address: Address::repeat_byte(1),
+        base_fee_per_gas: 1,
+        batch_fee_input: Default::default(),
+        gas_per_pubdata_limit: 2,
+        base_system_contracts_hashes: Default::default(),
+        protocol_version: Some(ProtocolVersionId::latest()),
+        virtual_blocks: 0,
+    };
+    storage
+        .blocks_dal()
+        .insert_miniblock(&genesis_miniblock)
+        .await
+        .unwrap();
+    let genesis_l1_batch = L1BatchHeader::new(
+        L1BatchNumber(0),
+        0,
+        Default::default(),
+        ProtocolVersionId::latest(),
+    );
+    storage
+        .blocks_dal()
+        .insert_mock_l1_batch(&genesis_l1_batch)
+        .await
+        .unwrap();
+    storage
+        .blocks_dal()
+        .mark_miniblocks_as_executed_in_l1_batch(L1BatchNumber(0))
+        .await
+        .unwrap();
+
+    let object_store_factory = ObjectStoreFactory::mock();
+    let object_store = object_store_factory.create_store().await;
+    let client = MockMainNodeClient::default();
+
+    let outcome = SnapshotsApplier::load_snapshot(&pool, &client, &object_store)
+        .await
+        .unwrap();
+    assert_matches!(outcome, SnapshotsApplierOutcome::InitializedWithoutSnapshot);
+}
+
+#[tokio::test]
+async fn applier_returns_early_without_snapshots() {
+    let pool = ConnectionPool::test_pool().await;
+    let object_store_factory = ObjectStoreFactory::mock();
+    let object_store = object_store_factory.create_store().await;
+    let client = MockMainNodeClient::default();
+
+    let outcome = SnapshotsApplier::load_snapshot(&pool, &client, &object_store)
+        .await
+        .unwrap();
+    assert_matches!(outcome, SnapshotsApplierOutcome::NoSnapshotsOnMainNode);
 }
