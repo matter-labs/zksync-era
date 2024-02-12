@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import * as utils from './utils';
 
-export async function reset(opts: any) {
+export async function reset(opts: DbOpts) {
     await utils.confirmAction();
     await wait(opts);
     await drop(opts);
@@ -13,7 +13,12 @@ enum DalPath {
     ProverDal = 'prover/prover_dal'
 }
 
-function getDals(opts: any): Map<DalPath, string> {
+export interface DbOpts {
+    server: boolean,
+    prover: boolean,
+}
+
+function getDals(opts: DbOpts): Map<DalPath, string> {
     let dals = new Map<DalPath, string>();
     if (!opts.prover && !opts.server) {
         dals.set(DalPath.CoreDal, process.env.DATABASE_URL!);
@@ -28,7 +33,7 @@ function getDals(opts: any): Map<DalPath, string> {
     return dals;
 }
 
-function getTestDals(opts: any): Map<DalPath, string> {
+function getTestDals(opts: DbOpts): Map<DalPath, string> {
     let dals = new Map<DalPath, string>();
     if (!opts.prover && !opts.server) {
         dals.set(DalPath.CoreDal, process.env.TEST_DATABASE_URL!);
@@ -47,7 +52,7 @@ async function resetTestDal(dalPath: DalPath, dbUrl: string) {
     console.log('recreating postgres container for unit tests');
     await utils.spawn('docker compose -f docker-compose-unit-tests.yml down');
     await utils.spawn('docker compose -f docker-compose-unit-tests.yml up -d');
-    await wait(100);
+    await waitForDal(dbUrl, 100);
     console.log('setting up a database template');
     await setupForDal(dalPath, dbUrl);
     console.log('disallowing connections to the template');
@@ -56,7 +61,7 @@ async function resetTestDal(dalPath: DalPath, dbUrl: string) {
     );
 }
 
-export async function resetTest(opts: any) {
+export async function resetTest(opts: DbOpts) {
     await utils.confirmAction();
     let dals = getTestDals(opts);
     for (const [dalPath, dbUrl] of dals.entries()) {
@@ -69,7 +74,7 @@ async function dropForDal(dalPath: DalPath, dbUrl: string) {
     await utils.spawn(`cargo sqlx database drop -y --database-url ${dbUrl}`);
 }
 
-export async function drop(opts: any) {
+export async function drop(opts: DbOpts) {
     await utils.confirmAction();
     let dals = getDals(opts);
     for (const [dalPath, dbUrl] of dals.entries()) {
@@ -84,7 +89,7 @@ async function migrateForDal(dalPath: DalPath, dbUrl: string) {
     );
 }
 
-export async function migrate(opts: any) {
+export async function migrate(opts: DbOpts) {
     await utils.confirmAction();
     let dals = getDals(opts);
     for (const [dalPath, dbUrl] of dals.entries()) {
@@ -97,25 +102,18 @@ async function generateMigrationForDal(dalPath: DalPath, dbUrl: string, name: St
     await utils.spawn(`cd ${dalPath} && cargo sqlx migrate add -r ${name}`);
 }
 
-export async function generateMigration(opts: any) {
-    if ((!opts.prover && !opts.server) || (opts.prover && opts.server)) {
-        throw new Error(
-            '[aborted] please specify a single database to generate migration for (i.e. to generate a migration for server `zk db new-migration --server name_of_migration`'
-        );
-    }
-    let name = '';
-    if (opts.prover) {
-        name = opts.prover;
-    }
-    if (opts.server) {
-        name = opts.server;
-    }
-    console.log('Generating migration... ');
-    let dals = getDals(opts);
-    for (const [dalPath, dbUrl] of dals.entries()) {
-        await generateMigrationForDal(dalPath, dbUrl, name);
-    }
+export enum DbType {
+    Core,
+    Prover
+}
 
+export async function generateMigration(dbType: DbType, name: string) {
+    console.log('Generating migration... ');
+    if (dbType === DbType.Core) {
+        await generateMigrationForDal(DalPath.CoreDal, process.env.DATABASE_URL!, name);
+    } else if (dbType === DbType.Prover) {
+        await generateMigrationForDal(DalPath.ProverDal, process.env.DATABASE_PROVER_URL!, name);
+    }
     process.chdir(process.env.ZKSYNC_HOME as string);
 }
 
@@ -139,7 +137,7 @@ export async function setupForDal(dalPath: DalPath, dbUrl: string) {
     process.chdir(process.env.ZKSYNC_HOME as string);
 }
 
-export async function setup(opts: any) {
+export async function setup(opts: DbOpts) {
     if (process.env.TEMPLATE_DATABASE_URL !== undefined) {
         process.chdir(DalPath.CoreDal);
 
@@ -171,7 +169,7 @@ async function waitForDal(dbUrl: string, tries: number) {
     await utils.exec(`pg_isready -d "${dbUrl}"`);
 }
 
-export async function wait(opts: any, tries: number = 4) {
+export async function wait(opts: DbOpts, tries: number = 4) {
     let dals = getDals(opts);
     for (const dbUrl of dals.values()) {
         await waitForDal(dbUrl, tries);
@@ -184,11 +182,16 @@ async function checkSqlxDataForDal(dalPath: DalPath, dbUrl: string) {
     process.chdir(process.env.ZKSYNC_HOME as string);
 }
 
-export async function checkSqlxData(opts: any) {
+export async function checkSqlxData(opts: DbOpts) {
     let dals = getDals(opts);
     for (const [dalPath, dbUrl] of dals.entries()) {
         await checkSqlxDataForDal(dalPath, dbUrl);
     }
+}
+
+interface DbGenerateMigrationOpts {
+    prover: string | undefined;
+    server: string | undefined;
 }
 
 export const command = new Command('db').description('database management');
@@ -200,7 +203,17 @@ command
     .description('generate a new migration for a specific database')
     .option('-p, --prover <name>')
     .option('-s, --server <name>')
-    .action(generateMigration);
+    .action((opts: DbGenerateMigrationOpts) => {
+        if ((!opts.prover && !opts.server) || (opts.prover && opts.server)) {
+            throw new Error(
+                '[aborted] please specify a single database to generate migration for (i.e. to generate a migration for server `zk db new-migration --server name_of_migration`'
+            );
+        }
+        if (opts.prover) {
+            return generateMigration(DbType.Prover, opts.prover);
+        }
+        return generateMigration(DbType.Core, opts.server!);
+    });
 command
     .command('setup')
     .description('initialize the database and perform migrations')
