@@ -786,7 +786,7 @@ impl TransactionsDal<'_, '_> {
                 )
                 .instrument("insert_call_tracer")
                 .report_latency()
-                .execute(transaction.conn())
+                .execute(&mut transaction)
                 .await
                 .unwrap();
             }

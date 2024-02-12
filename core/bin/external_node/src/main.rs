@@ -427,6 +427,13 @@ async fn main() -> anyhow::Result<()> {
         .main_node_url()
         .context("Main node URL is incorrect")?;
 
+    if let Some(threshold) = config.optional.slow_query_threshold() {
+        ConnectionPool::global_config().set_slow_query_threshold(threshold)?;
+    }
+    if let Some(threshold) = config.optional.long_connection_threshold() {
+        ConnectionPool::global_config().set_long_connection_threshold(threshold)?;
+    }
+
     let connection_pool = ConnectionPool::builder(
         &config.postgres.database_url,
         config.postgres.max_connections,
