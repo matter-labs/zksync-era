@@ -8,7 +8,7 @@ import * as contract from './contract';
 import * as db from './database';
 import * as docker from './docker';
 import * as env from './env';
-import * as run from './run/run';
+import * as run from './run';
 import * as server from './server';
 import { up } from './up';
 

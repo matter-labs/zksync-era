@@ -251,5 +251,5 @@ finalization hints if the circuit changes. Below steps can be used to perform ci
    PR to generate the gpu setup data.
 8. Once the setup data generation workflows are successful, update the PR with `setup_keys_id` id in
    [build-docker-from-tag.yml](../../.github/workflows/build-docker-from-tag.yml) and in
-   [fri-gpu-prover-integration-test.yml](https://github.com/matter-labs/zksync-2-dev/blob/main/.github/workflows/fri-gpu-prover-integration-test.yml),
+   [build-prover-fri-gpu-gar.yml](https://github.com/matter-labs/zksync-era/blob/main/.github/workflows/build-prover-fri-gpu-gar.yml),
    make sure to only do it from `FRI prover` not old.

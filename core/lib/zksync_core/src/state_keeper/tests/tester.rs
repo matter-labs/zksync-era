@@ -662,7 +662,6 @@ impl StateKeeperIO for TestIO {
     async fn wait_for_new_miniblock_params(
         &mut self,
         _max_wait: Duration,
-        _prev_miniblock_timestamp: u64,
     ) -> Option<MiniblockParams> {
         Some(MiniblockParams {
             timestamp: self.timestamp,

@@ -116,7 +116,7 @@ impl WiringLayer for MempoolIOLayer {
             self.state_keeper_config.validation_computational_gas_limit,
             self.network_config.zksync_network_id,
         )
-        .await;
+        .await?;
         context.add_resource(StateKeeperIOResource(Unique::new(Box::new(io))))?;
 
         // Create sealer.
