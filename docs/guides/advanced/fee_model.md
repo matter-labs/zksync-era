@@ -38,7 +38,7 @@ price, how much committing the proof to L1 costs etc).
 ### PubdataIndependent ('new' fee model)
 
 This method is called `PubdataIndependent` and the change was done to allow more flexibility in pubdata costs (for
-example if pubdata is published to another Data Availability layer, or it not published at all - in case of validium).
+example if pubdata is published to another Data Availability layer, or if not published at all - in case of validium).
 
 In this model, there are 8 config options, let's walk through them:
 
