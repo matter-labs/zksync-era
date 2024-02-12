@@ -4,6 +4,7 @@ use anyhow::Context;
 use serde::Deserialize;
 use url::Url;
 use zksync_basic_types::{Address, L1ChainId, L2ChainId};
+use zksync_config::ObjectStoreConfig;
 use zksync_consensus_roles::node;
 use zksync_core::{
     api_server::{
@@ -428,17 +429,19 @@ pub(crate) fn read_consensus_config() -> anyhow::Result<consensus::FetcherConfig
     })
 }
 
+/// Configuration for snapshot recovery. Loaded optionally, only if the corresponding command-line arg
+/// is supplied to the EN binary.
 #[derive(Debug, Clone)]
 pub struct SnapshotsRecoveryConfig {
-    pub snapshots_bucket_base_url: String,
+    pub snapshots_object_store: ObjectStoreConfig,
 }
 
 pub(crate) fn read_snapshots_recovery_config() -> anyhow::Result<SnapshotsRecoveryConfig> {
-    // TODO add instructions where to find this bucket url
-    let snapshots_bucket_base_url = std::env::var("EN_SNAPSHOTS_RECOVERY_BUCKET_BASE_URL")
-        .context("EN_SNAPSHOTS_RECOVERY_BUCKET_BASE_URL env variable needs to be set if snapshots recovery is enabled")?;
+    let snapshots_object_store = envy::prefixed("EN_SNAPSHOTS_OBJECT_STORE_")
+        .from_env::<ObjectStoreConfig>()
+        .context("failed loading snapshot object store config from env variables")?;
     Ok(SnapshotsRecoveryConfig {
-        snapshots_bucket_base_url,
+        snapshots_object_store,
     })
 }
 

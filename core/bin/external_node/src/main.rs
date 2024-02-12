@@ -8,10 +8,7 @@ use prometheus_exporter::PrometheusExporterConfig;
 use tokio::{sync::watch, task, time::sleep};
 use zksync_basic_types::{Address, L2ChainId};
 use zksync_concurrency::{ctx, scope};
-use zksync_config::{
-    configs::{database::MerkleTreeMode, object_store::ObjectStoreMode},
-    ObjectStoreConfig,
-};
+use zksync_config::configs::database::MerkleTreeMode;
 use zksync_core::{
     api_server::{
         execution_sandbox::VmConcurrencyLimiter,
@@ -447,20 +444,17 @@ async fn main() -> anyhow::Result<()> {
 
     if opt.enable_snapshots_recovery {
         let recovery_config = read_snapshots_recovery_config()?;
-        let object_store_config = ObjectStoreConfig {
-            bucket_base_url: recovery_config.snapshots_bucket_base_url.to_string(),
-            mode: ObjectStoreMode::GCSAnonymousReadOnly,
-            file_backed_base_path: "".to_string(), // not used
-            gcs_credential_file_path: "".to_string(), // not used
-            max_retries: 5,
-        };
-        let blob_store = ObjectStoreFactory::new(object_store_config)
+        let blob_store = ObjectStoreFactory::new(recovery_config.snapshots_object_store)
             .create_store()
             .await;
 
+        tracing::info!(
+            "Snapshot recovery is enabled. This is an experimental feature; use at your own risk"
+        );
         SnapshotsApplier::load_snapshot(&connection_pool, &main_node_client, &blob_store)
             .await
-            .unwrap();
+            .context("snapshot recovery failed")?;
+        tracing::info!("Snapshot recovery is complete");
     }
 
     if opt.revert_pending_l1_batch {
