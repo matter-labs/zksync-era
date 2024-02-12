@@ -120,7 +120,7 @@ cent.
 
 | flag                    | rollup with calldata | rollup with 4844 (blobs) | value for validium | value for DA |
 | ----------------------- | -------------------- | ------------------------ | ------------------ | ------------ |
-| `l1_pubdata_price`      | 510'000'000'000      | 3'000'000'000            | 0                  | 5'000        |
+| `l1_pubdata_price`      | 510'000'000'000      | 2'000'000'000            | 0                  | 5'000        |
 | `max_pubdata_per_batch` | 120'000              | 250'000                  | 1'000'000'000'000  | 1'000'000    |
 | `pubdata_overhead_part` | 0.7                  | 0.4                      | 0                  | 0.1          |
 | `compute_overhead_part` | 0.5                  | 0.7                      | 1                  | 1            |
