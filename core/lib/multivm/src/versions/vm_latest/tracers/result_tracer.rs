@@ -71,17 +71,18 @@ impl FarCallTracker {
 
     // should be called after opcode is executed
     fn return_observed(&mut self, local_state: &VmLocalStateData<'_>) {
-        let returndata_pointer =
-            local_state.vm_local_state.registers[RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER as usize];
-        assert!(
-            returndata_pointer.is_pointer,
-            "Returndata pointer is not a pointer"
-        );
-
         if let FarCallTracker::FarCallOserved(x) = &self {
             if *x != local_state.vm_local_state.callstack.inner.len() {
                 return;
             }
+
+            let returndata_pointer = local_state.vm_local_state.registers
+                [RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER as usize];
+
+            assert!(
+                returndata_pointer.is_pointer,
+                "Returndata pointer is not a pointer"
+            );
 
             *self =
                 FarCallTracker::ReturndataObserved(FatPointer::from_u256(returndata_pointer.value));

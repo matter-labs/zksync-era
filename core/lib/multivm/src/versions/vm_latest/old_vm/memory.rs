@@ -170,6 +170,9 @@ impl<H: HistoryMode> Memory for SimpleMemory<H> {
             MemoryType::Code => {
                 unreachable!("code should be through specialized query");
             }
+            MemoryType::StaticMemory => {
+                todo!("Not supported")
+            }
         }
 
         let page = query.location.page.0 as usize;

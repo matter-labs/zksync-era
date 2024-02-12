@@ -8014,7 +8014,6 @@ dependencies = [
 [[package]]
 name = "zk_evm"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/zk_evm.git?branch=sb-non-normalized-bytecode-hashes-for-decommitter#19fc6ff8b4e7bb552b158acc226ed08e3239aa0b"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -8052,11 +8051,11 @@ dependencies = [
 [[package]]
 name = "zk_evm_abstractions"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zk_evm_abstractions.git?branch=v1.5.0#1c9db10063c389d9d4a51d23b455844b2b84f2aa"
 dependencies = [
  "anyhow",
  "num_enum",
  "serde",
+ "static_assertions",
  "zkevm_opcode_defs 1.5.0",
 ]
 
@@ -8181,7 +8180,6 @@ dependencies = [
 [[package]]
 name = "zkevm_opcode_defs"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zkevm_opcode_defs.git?branch=v1.5.0#444ae1395c8644428dc6ad19db293e4eb58a1d88"
 dependencies = [
  "bitflags 2.4.1",
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -8189,6 +8187,7 @@ dependencies = [
  "k256 0.13.2",
  "lazy_static",
  "p256",
+ "serde",
  "sha2 0.10.8",
  "sha3 0.10.8",
 ]

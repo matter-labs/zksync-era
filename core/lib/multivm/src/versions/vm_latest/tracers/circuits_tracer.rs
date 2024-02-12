@@ -74,7 +74,11 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for Circuits
             Opcode::FarCall(_) => FAR_CALL_FRACTION,
             Opcode::UMA(UMAOpcode::AuxHeapWrite | UMAOpcode::HeapWrite) => UMA_WRITE_FRACTION,
             Opcode::UMA(
-                UMAOpcode::AuxHeapRead | UMAOpcode::HeapRead | UMAOpcode::FatPointerRead,
+                UMAOpcode::AuxHeapRead
+                | UMAOpcode::HeapRead
+                | UMAOpcode::FatPointerRead
+                | UMAOpcode::StaticMemoryRead
+                | UMAOpcode::StaticMemoryWrite,
             ) => UMA_READ_FRACTION,
             Opcode::Invalid(_) => unreachable!(), // invalid opcodes are never executed
         };
@@ -186,7 +190,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CircuitsTracer<S> {
                 PrecompileAddress::Ecrecover => ECRECOVER_CYCLE_FRACTION,
                 PrecompileAddress::SHA256 => SHA256_CYCLE_FRACTION,
                 PrecompileAddress::Keccak256 => KECCAK256_CYCLE_FRACTION,
-                PrecompileAddress::Secp256r1Verify => todo!(),
+                PrecompileAddress::Secp256r1Verify => SEKP256R1_CYCLE_FUNCTION,
             };
             self.estimated_circuits_used += (*cycles as f32) * fraction;
         }

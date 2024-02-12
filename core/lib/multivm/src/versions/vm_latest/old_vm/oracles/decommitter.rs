@@ -173,9 +173,14 @@ impl<S: ReadStorage + Debug, const B: bool, H: HistoryMode> DecommittmentProcess
         // erasing the constructor marker
         // FIXME: a better code could be used
         let hash_for_query = {
-            let mut hash = u256_to_h256(partial_query.hash);
-            hash.0[1] = 0;
-            h256_to_u256(hash)
+            let mut hash = [0u8; 32];
+
+            &mut hash[0..4].copy_from_slice(&partial_query.header.0);
+            &mut hash[4..32].copy_from_slice(&partial_query.normalized_preimage.0);
+
+            hash[1] = 0;
+
+            h256_to_u256(H256(hash))
         };
 
         // First - check if we didn't fetch this bytecode in the past.

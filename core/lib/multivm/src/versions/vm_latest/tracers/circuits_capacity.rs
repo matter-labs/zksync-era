@@ -31,6 +31,9 @@ pub(crate) const STORAGE_APPLICATION_CYCLE_FRACTION: f32 =
 pub(crate) const KECCAK256_CYCLE_FRACTION: f32 =
     OVERESTIMATE_PERCENT / GEOMETRY_CONFIG.cycles_per_keccak256_circuit as f32;
 
+// FIXME: use correct value once it is available
+pub(crate) const SEKP256R1_CYCLE_FUNCTION: f32 = 0.001;
+
 pub(crate) const SHA256_CYCLE_FRACTION: f32 =
     OVERESTIMATE_PERCENT / GEOMETRY_CONFIG.cycles_per_sha256_circuit as f32;
 
