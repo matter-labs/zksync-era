@@ -5,6 +5,7 @@ use zksync_basic_types::{AccountTreeId, Address, U256};
 use zksync_contracts::{read_sys_contract_bytecode, ContractLanguage, SystemContractsRepo};
 use zksync_system_constants::{
     BOOTLOADER_UTILITIES_ADDRESS, COMPRESSOR_ADDRESS, EVENT_WRITER_ADDRESS,
+    SEKP_256_R1_PRECOMPILE_ADDRESS,
 };
 
 use crate::{
@@ -24,7 +25,7 @@ use crate::{
 pub const TX_NONCE_INCREMENT: U256 = U256([1, 0, 0, 0]); // 1
 pub const DEPLOYMENT_NONCE_INCREMENT: U256 = U256([0, 0, 1, 0]); // 2^128
 
-static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 20] = [
+static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 21] = [
     (
         "",
         "AccountCodeStorage",
@@ -101,6 +102,12 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 20] = [
         "precompiles/",
         "EcMul",
         EC_MUL_PRECOMPILE_ADDRESS,
+        ContractLanguage::Yul,
+    ),
+    (
+        "precompiles/",
+        "Sekp256r1",
+        SEKP_256_R1_PRECOMPILE_ADDRESS,
         ContractLanguage::Yul,
     ),
     (
