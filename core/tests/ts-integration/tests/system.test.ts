@@ -356,7 +356,7 @@ describe('System behavior checks', () => {
 
     // it('should correctly return data in sekp256r1 precompile', async () => {
     //     // FIXME: address is not eip7212 compatible
-    //     const PRECOMPILE_ADDRESS = '0x0000000000000000000000000000000000008100';    
+    //     const PRECOMPILE_ADDRESS = '0x0000000000000000000000000000000000008100';
 
     //     console.log(await alice.call({
     //         to: PRECOMPILE_ADDRESS,
