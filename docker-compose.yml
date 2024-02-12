@@ -80,10 +80,8 @@ services:
       - --enable-debug-rpc-endpoints
     ports:
       - 4000:4000
-      - 3500:3500
       - 8080:8080
       - 6060:6060
-      - 9090:9090
     volumes:
       - ./volumes/prysm:/consensus
       - ./volumes/geth:/execution
