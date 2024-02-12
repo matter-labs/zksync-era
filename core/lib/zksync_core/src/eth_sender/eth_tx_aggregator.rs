@@ -389,21 +389,10 @@ impl EthTxAggregator {
                     .observe(batch.metadata.state_diffs_compressed.len());
                 METRICS.pubdata_size[&PubdataKind::UserL2ToL1Logs]
                     .observe(batch.header.l2_to_l1_logs.len() * UserL2ToL1Log::SERIALIZED_SIZE);
-                METRICS.pubdata_size[&PubdataKind::LongL2ToL1Messages].observe(
-                    batch
-                        .header
-                        .l2_to_l1_messages
-                        .iter()
-                        .map(|message| message.len())
-                        .sum(),
-                );
-                METRICS.pubdata_size[&PubdataKind::RawPublishedBytecodes].observe(
-                    batch
-                        .raw_published_factory_deps
-                        .iter()
-                        .map(|bytecode| bytecode.len())
-                        .sum(),
-                );
+                METRICS.pubdata_size[&PubdataKind::LongL2ToL1Messages]
+                    .observe(batch.header.l2_to_l1_messages.iter().map(Vec::len).sum());
+                METRICS.pubdata_size[&PubdataKind::RawPublishedBytecodes]
+                    .observe(batch.raw_published_factory_deps.iter().map(Vec::len).sum());
             }
         }
 

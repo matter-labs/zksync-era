@@ -124,7 +124,7 @@ impl L1BatchWithMetadata {
     }
 
     /// Iterates over factory deps in the order in which they appeared in this L1 batch.
-    pub fn factory_deps_in_appearance_order(
+    fn factory_deps_in_appearance_order(
         header: &L1BatchHeader,
         mut unsorted_factory_deps: HashMap<H256, Vec<u8>>,
         raw_published_bytecode_hashes: &[H256],

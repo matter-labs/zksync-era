@@ -1872,28 +1872,6 @@ impl BlocksDal<'_, '_> {
             .context("Sum of predicted gas costs should fit into u32")
     }
 
-    pub async fn update_predicted_l1_batch_commit_gas(
-        &mut self,
-        number: L1BatchNumber,
-        predicted_gas_cost: u32,
-    ) -> sqlx::Result<()> {
-        sqlx::query!(
-            r#"
-            UPDATE l1_batches
-            SET
-                predicted_commit_gas_cost = $2,
-                updated_at = NOW()
-            WHERE
-                number = $1
-            "#,
-            number.0 as i64,
-            predicted_gas_cost as i64
-        )
-        .execute(self.storage.conn())
-        .await?;
-        Ok(())
-    }
-
     pub async fn get_miniblock_range_of_l1_batch(
         &mut self,
         l1_batch_number: L1BatchNumber,

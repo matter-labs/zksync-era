@@ -114,14 +114,18 @@ impl CommitmentGenerator {
                 if previous_values[&hashed_key].unwrap_or_default() != value {
                     let (initial_write_l1_batch_number, index) =
                         l1_batches_for_initial_writes[&hashed_key];
+                    assert!(
+                        initial_write_l1_batch_number <= l1_batch_number,
+                        "Slot {hashed_key:?} was changed in L1 batch {l1_batch_number} but in DB L1 batch of initial write is greater"
+                    );
                     if initial_write_l1_batch_number == l1_batch_number {
                         initial_writes.push(InitialStorageWrite {
                             index,
                             key: key.hashed_key_u256(),
                             value,
-                        })
+                        });
                     } else {
-                        repeated_writes.push(RepeatedStorageWrite { index, value })
+                        repeated_writes.push(RepeatedStorageWrite { index, value });
                     }
                 }
             }
@@ -143,6 +147,10 @@ impl CommitmentGenerator {
                 if prev_value != value {
                     let (initial_write_l1_batch_number, index) =
                         l1_batches_for_initial_writes[&hashed_key];
+                    assert!(
+                        initial_write_l1_batch_number <= l1_batch_number,
+                        "Slot {hashed_key:?} was changed in L1 batch {l1_batch_number} but in DB L1 batch of initial write is greater"
+                    );
                     if initial_write_l1_batch_number == l1_batch_number {
                         state_diffs.push(StateDiffRecord {
                             address: *key.address(),
