@@ -542,14 +542,14 @@ dependencies = [
 
 [[package]]
 name = "boojum"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-boojum?branch=main#93b5e0f0dbff0a9b606d9025e207c8405c141bd9"
+version = "0.2.0"
+source = "git+https://github.com/matter-labs/era-boojum?branch=main#03888f0fbf810a18e98d010dd11891fe32097352"
 dependencies = [
  "arrayvec 0.7.4",
  "bincode",
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "const_format",
- "convert_case 0.6.0",
+ "convert_case",
  "crossbeam 0.8.4",
  "crypto-bigint 0.5.5",
  "cs_derive 0.1.0 (git+https://github.com/matter-labs/era-boojum?branch=main)",
@@ -791,7 +791,7 @@ dependencies = [
 [[package]]
 name = "circuit_definitions"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.0#de2ecad62ac8c12777e576dca20311ad8ec770d1"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.0#aff36380e6a740f7286c9c522e1416b8d38327ce"
 dependencies = [
  "crossbeam 0.8.4",
  "derivative",
@@ -951,15 +951,6 @@ name = "convert_case"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6245d59a3e82a7fc217c5828a6692dbc6dfb63a0c8c90495621f7b9d79704a0e"
-
-[[package]]
-name = "convert_case"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ec182b0ca2f35d8fc196cf3404988fd8b8c739a4d270ff118a398feb0cbec1ca"
-dependencies = [
- "unicode-segmentation",
-]
 
 [[package]]
 name = "core-foundation"
@@ -1227,7 +1218,7 @@ dependencies = [
 [[package]]
 name = "cs_derive"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-boojum?branch=main#93b5e0f0dbff0a9b606d9025e207c8405c141bd9"
+source = "git+https://github.com/matter-labs/era-boojum?branch=main#03888f0fbf810a18e98d010dd11891fe32097352"
 dependencies = [
  "proc-macro-error",
  "proc-macro2 1.0.76",
@@ -1441,7 +1432,7 @@ version = "0.99.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4fb810d30a7c1953f91334de7244731fc3f3c10d7fe163338a35b9f640960321"
 dependencies = [
- "convert_case 0.4.0",
+ "convert_case",
  "proc-macro2 1.0.76",
  "quote 1.0.35",
  "rustc_version",
@@ -5038,7 +5029,7 @@ dependencies = [
 [[package]]
 name = "snark_wrapper"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/snark-wrapper.git?branch=main#42661a9ff9d00853441589679c101f71e3785f55"
+source = "git+https://github.com/matter-labs/snark-wrapper.git?branch=main#76959cadabeec344b9fa1458728400d60340e496"
 dependencies = [
  "derivative",
  "rand 0.4.6",
@@ -6818,14 +6809,14 @@ dependencies = [
 [[package]]
 name = "zkevm_test_harness"
 version = "1.4.0"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.0#de2ecad62ac8c12777e576dca20311ad8ec770d1"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.0#aff36380e6a740f7286c9c522e1416b8d38327ce"
 dependencies = [
  "bincode",
  "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.0)",
  "codegen",
  "crossbeam 0.8.4",
  "derivative",
- "env_logger 0.10.1",
+ "env_logger 0.9.3",
  "hex",
  "rand 0.4.6",
  "rayon",
