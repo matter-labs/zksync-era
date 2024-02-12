@@ -103,9 +103,82 @@ pub trait SnapshotsApplierMainNodeClient: fmt::Debug + Send + Sync {
     async fn fetch_newest_snapshot(&self) -> Result<Option<SnapshotHeader>, RpcError>;
 }
 
+/// Snapshot applier configuration options.
+#[derive(Debug)]
+pub struct SnapshotsApplierConfig {
+    pub retry_count: usize,
+    pub initial_retry_backoff: Duration,
+    pub retry_backoff_multiplier: f32,
+}
+
+impl Default for SnapshotsApplierConfig {
+    fn default() -> Self {
+        Self {
+            retry_count: 5,
+            initial_retry_backoff: Duration::from_secs(2),
+            retry_backoff_multiplier: 2.0,
+        }
+    }
+}
+
+impl SnapshotsApplierConfig {
+    #[cfg(test)]
+    fn for_tests() -> Self {
+        Self {
+            initial_retry_backoff: Duration::from_millis(5),
+            ..Self::default()
+        }
+    }
+
+    /// Runs the snapshot applier with these options.
+    pub async fn run(
+        self,
+        connection_pool: &ConnectionPool,
+        main_node_client: &dyn SnapshotsApplierMainNodeClient,
+        blob_store: &dyn ObjectStore,
+    ) -> anyhow::Result<SnapshotsApplierOutcome> {
+        let mut backoff = self.initial_retry_backoff;
+        let mut last_error = None;
+        for retry_id in 0..self.retry_count {
+            let result = SnapshotsApplier::load_snapshot_inner(
+                connection_pool,
+                main_node_client,
+                blob_store,
+            )
+            .await;
+
+            match result {
+                Ok(()) => return Ok(SnapshotsApplierOutcome::Ok),
+                Err(SnapshotsApplierError::Fatal(err)) => {
+                    tracing::error!("Fatal error occurred during snapshots recovery: {err:?}");
+                    return Err(err);
+                }
+                Err(SnapshotsApplierError::EarlyReturn(outcome)) => {
+                    tracing::info!("Cancelled snapshots recovery with the outcome: {outcome:?}");
+                    return Ok(outcome);
+                }
+                Err(SnapshotsApplierError::Retryable(err)) => {
+                    tracing::warn!("Retryable error occurred during snapshots recovery: {err:?}");
+                    last_error = Some(err);
+                    tracing::info!(
+                        "Recovering from error; attempt {retry_id} / {}, retrying in {backoff:?}",
+                        self.retry_count
+                    );
+                    tokio::time::sleep(backoff).await;
+                    backoff = backoff.mul_f32(self.retry_backoff_multiplier);
+                }
+            }
+        }
+
+        let last_error = last_error.unwrap(); // `unwrap()` is safe: `last_error` was assigned at least once
+        tracing::error!("Snapshot recovery run out of retries; last error: {last_error:?}");
+        Err(last_error)
+    }
+}
+
 /// Applying application-level storage snapshots to the Postgres storage.
 #[derive(Debug)]
-pub struct SnapshotsApplier<'a> {
+struct SnapshotsApplier<'a> {
     connection_pool: &'a ConnectionPool,
     blob_store: &'a dyn ObjectStore,
     applied_snapshot_status: SnapshotRecoveryStatus,
@@ -149,49 +222,6 @@ impl<'a> SnapshotsApplier<'a> {
                 true,
             ))
         }
-    }
-
-    pub async fn load_snapshot(
-        connection_pool: &'a ConnectionPool,
-        main_node_client: &dyn SnapshotsApplierMainNodeClient,
-        blob_store: &'a dyn ObjectStore,
-    ) -> anyhow::Result<SnapshotsApplierOutcome> {
-        const RETRY_COUNT: usize = 5;
-        const INITIAL_BACKOFF: Duration = Duration::from_secs(2);
-        const BACKOFF_MULTIPLIER: u32 = 2;
-
-        let mut backoff = INITIAL_BACKOFF;
-        let mut last_error = None;
-        for retry_id in 0..RETRY_COUNT {
-            let result = SnapshotsApplier::load_snapshot_inner(
-                connection_pool,
-                main_node_client,
-                blob_store,
-            )
-            .await;
-            match result {
-                Ok(()) => return Ok(SnapshotsApplierOutcome::Ok),
-                Err(SnapshotsApplierError::Fatal(err)) => {
-                    tracing::error!("Fatal error occurred during snapshots recovery: {err:#}");
-                    return Err(err);
-                }
-                Err(SnapshotsApplierError::EarlyReturn(outcome)) => {
-                    tracing::info!("Cancelled snapshots recovery with the outcome: {outcome:?}");
-                    return Ok(outcome);
-                }
-                Err(SnapshotsApplierError::Retryable(err)) => {
-                    tracing::warn!("Retryable error occurred during snapshots recovery: {err:#}");
-                    last_error = Some(err);
-                    tracing::info!("Recovering from error; attempt {retry_id} / {RETRY_COUNT}, retrying in {backoff:?}");
-                    tokio::time::sleep(backoff).await;
-                    backoff *= BACKOFF_MULTIPLIER;
-                }
-            }
-        }
-
-        let last_error = last_error.unwrap(); // `unwrap()` is safe: `last_error` was assigned at least once
-        tracing::error!("Snapshot recovery run out of retries; last error: {last_error:#}");
-        Err(last_error)
     }
 
     async fn load_snapshot_inner(
