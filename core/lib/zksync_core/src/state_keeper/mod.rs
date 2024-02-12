@@ -1,5 +1,13 @@
 use std::sync::Arc;
 
+use tokio::sync::watch;
+use zksync_config::{
+    configs::chain::{MempoolConfig, NetworkConfig, StateKeeperConfig},
+    ContractsConfig, DBConfig,
+};
+use zksync_dal::ConnectionPool;
+use zksync_object_store::ObjectStore;
+
 pub use self::{
     batch_executor::{L1BatchExecutorBuilder, MainBatchExecutorBuilder},
     io::{mempool::MempoolIO, MiniblockSealer, MiniblockSealerHandle, StateKeeperIO},
@@ -9,13 +17,6 @@ pub use self::{
     types::MempoolGuard,
 };
 use crate::fee_model::BatchFeeModelInputProvider;
-use tokio::sync::watch;
-use zksync_config::{
-    configs::chain::{MempoolConfig, NetworkConfig, StateKeeperConfig},
-    ContractsConfig, DBConfig,
-};
-use zksync_dal::ConnectionPool;
-use zksync_object_store::ObjectStore;
 
 mod batch_executor;
 pub(crate) mod extractors;
