@@ -54,7 +54,7 @@ impl BlocksDal<'_, '_> {
         )
         .instrument("get_sealed_block_number")
         .report_latency()
-        .fetch_one(self.storage.conn())
+        .fetch_one(self.storage)
         .await?;
 
         Ok(row.number.map(|num| L1BatchNumber(num as u32)))
@@ -71,7 +71,7 @@ impl BlocksDal<'_, '_> {
         )
         .instrument("get_sealed_miniblock_number")
         .report_latency()
-        .fetch_one(self.storage.conn())
+        .fetch_one(self.storage)
         .await?;
 
         Ok(row.number.map(|number| MiniblockNumber(number as u32)))
@@ -89,7 +89,7 @@ impl BlocksDal<'_, '_> {
         )
         .instrument("get_earliest_l1_batch_number")
         .report_latency()
-        .fetch_one(self.storage.conn())
+        .fetch_one(self.storage)
         .await?;
 
         Ok(row.number.map(|num| L1BatchNumber(num as u32)))
@@ -110,7 +110,7 @@ impl BlocksDal<'_, '_> {
         )
         .instrument("get_last_block_number_with_metadata")
         .report_latency()
-        .fetch_one(self.storage.conn())
+        .fetch_one(self.storage)
         .await?;
 
         Ok(row.number.map(|num| L1BatchNumber(num as u32)))
@@ -136,7 +136,7 @@ impl BlocksDal<'_, '_> {
         )
         .instrument("get_next_l1_batch_ready_for_commitment_generation")
         .report_latency()
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage)
         .await?;
 
         Ok(row.map(|row| L1BatchNumber(row.number as u32)))
@@ -159,7 +159,7 @@ impl BlocksDal<'_, '_> {
         )
         .instrument("get_earliest_l1_batch_number_with_metadata")
         .report_latency()
-        .fetch_one(self.storage.conn())
+        .fetch_one(self.storage)
         .await?;
 
         Ok(row.number.map(|num| L1BatchNumber(num as u32)))
@@ -199,7 +199,7 @@ impl BlocksDal<'_, '_> {
         )
         .instrument("get_l1_batches_for_eth_tx_id")
         .with_arg("eth_tx_id", &eth_tx_id)
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage)
         .await?;
 
         Ok(l1_batches.into_iter().map(Into::into).collect())
@@ -254,7 +254,7 @@ impl BlocksDal<'_, '_> {
         )
         .instrument("get_storage_l1_batch")
         .with_arg("number", &number)
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage)
         .await
     }
 
@@ -290,7 +290,7 @@ impl BlocksDal<'_, '_> {
         )
         .instrument("get_l1_batch_header")
         .with_arg("number", &number)
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage)
         .await?
         .map(Into::into))
     }
@@ -314,7 +314,7 @@ impl BlocksDal<'_, '_> {
         .instrument("get_initial_bootloader_heap")
         .report_latency()
         .with_arg("number", &number)
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage)
         .await?
         else {
             return Ok(None);
@@ -343,7 +343,7 @@ impl BlocksDal<'_, '_> {
         .instrument("get_storage_refunds")
         .report_latency()
         .with_arg("number", &number)
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage)
         .await?
         else {
             return Ok(None);
@@ -374,7 +374,7 @@ impl BlocksDal<'_, '_> {
         .instrument("get_events_queue")
         .report_latency()
         .with_arg("number", &number)
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage)
         .await?
         else {
             return Ok(None);
@@ -770,7 +770,7 @@ impl BlocksDal<'_, '_> {
         .instrument("save_batch_tree_data")
         .with_arg("number", &number)
         .report_latency()
-        .execute(self.storage.conn())
+        .execute(self.storage)
         .await?;
 
         if update_result.rows_affected() == 0 {
@@ -793,7 +793,7 @@ impl BlocksDal<'_, '_> {
             .instrument("get_matching_batch_hash")
             .with_arg("number", &number)
             .report_latency()
-            .fetch_one(self.storage.conn())
+            .fetch_one(self.storage)
             .await?
             .count;
 
@@ -850,10 +850,10 @@ impl BlocksDal<'_, '_> {
             commitment_artifacts.compressed_repeated_writes,
             number.0 as i64,
         )
-        .instrument("save_blocks_metadata")
+        .instrument("save_l1_batch_commitment_artifacts")
         .with_arg("number", &number)
         .report_latency()
-        .execute(transaction.conn())
+        .execute(&mut transaction)
         .await?;
         if update_result.rows_affected() == 0 {
             tracing::debug!(
@@ -877,7 +877,7 @@ impl BlocksDal<'_, '_> {
             .instrument("get_matching_batch_commitment")
             .with_arg("number", &number)
             .report_latency()
-            .fetch_one(transaction.conn())
+            .fetch_one(&mut transaction)
             .await?
             .count;
 
@@ -906,7 +906,7 @@ impl BlocksDal<'_, '_> {
         .instrument("save_batch_aux_commitments")
         .with_arg("number", &number)
         .report_latency()
-        .execute(transaction.conn())
+        .execute(&mut transaction)
         .await?;
 
         transaction.commit().await?;
@@ -966,7 +966,7 @@ impl BlocksDal<'_, '_> {
             "#,
         )
         .instrument("get_last_committed_to_eth_l1_batch")
-        .fetch_one(self.storage.conn())
+        .fetch_one(self.storage)
         .await?;
         // genesis block is first generated without commitment, we should wait for the tree to set it.
         if block.commitment.is_none() {
@@ -1144,7 +1144,7 @@ impl BlocksDal<'_, '_> {
         )
         .instrument("get_ready_for_dummy_proof_l1_batches")
         .with_arg("limit", &limit)
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage)
         .await?;
 
         self.map_l1_batches(raw_batches)
@@ -1261,7 +1261,7 @@ impl BlocksDal<'_, '_> {
         )
         .instrument("get_skipped_for_proof_l1_batches")
         .with_arg("limit", &limit)
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage)
         .await?;
 
         self.map_l1_batches(raw_batches)
@@ -1326,7 +1326,7 @@ impl BlocksDal<'_, '_> {
                 )
                 .instrument("get_ready_for_execute_l1_batches/no_max_timestamp")
                 .with_arg("limit", &limit)
-                .fetch_all(self.storage.conn())
+                .fetch_all(self.storage)
                 .await?
             }
 
@@ -1461,7 +1461,7 @@ impl BlocksDal<'_, '_> {
                 &(expected_started_point..=max_ready_to_send_block),
             )
             .with_arg("limit", &limit)
-            .fetch_all(self.storage.conn())
+            .fetch_all(self.storage)
             .await?
         } else {
             vec![]
@@ -1539,7 +1539,7 @@ impl BlocksDal<'_, '_> {
         .with_arg("bootloader_hash", &bootloader_hash)
         .with_arg("default_aa_hash", &default_aa_hash)
         .with_arg("protocol_version_id", &protocol_version_id)
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage)
         .await?;
 
         self.map_l1_batches(raw_batches)
@@ -1620,7 +1620,7 @@ impl BlocksDal<'_, '_> {
         .with_arg("bootloader_hash", &bootloader_hash)
         .with_arg("default_aa_hash", &default_aa_hash)
         .with_arg("protocol_version_id", &protocol_version_id)
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage)
         .await?;
 
         self.map_l1_batches(raw_batches)

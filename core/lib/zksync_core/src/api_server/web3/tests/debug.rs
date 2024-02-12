@@ -152,7 +152,7 @@ impl HttpTest for TraceBlockTestWithSnapshotRecovery {
             assert_pruned_block_error(&error, snapshot_miniblock_number + 1);
         }
 
-        TraceBlockTest(snapshot_miniblock_number + 1)
+        TraceBlockTest(snapshot_miniblock_number + 2)
             .test(client, pool)
             .await?;
         Ok(())

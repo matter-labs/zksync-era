@@ -1,4 +1,4 @@
-use std::{collections::HashMap, time::Instant};
+use std::{collections::HashMap, pin::Pin, time::Instant};
 
 use assert_matches::assert_matches;
 use async_trait::async_trait;
@@ -14,7 +14,6 @@ use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, Storage
 use zksync_health_check::CheckHealth;
 use zksync_types::{
     api,
-    api::BlockId,
     block::MiniblockHeader,
     fee::TransactionExecutionMetrics,
     get_nonce_key,
@@ -57,8 +56,8 @@ const TEST_TIMEOUT: Duration = Duration::from_secs(10);
 const POLL_INTERVAL: Duration = Duration::from_millis(50);
 
 impl ApiServerHandles {
-    /// Waits until the server health check reports the ready state.
-    pub(crate) async fn wait_until_ready(&self) {
+    /// Waits until the server health check reports the ready state. Must be called once per server instance.
+    pub(crate) async fn wait_until_ready(&mut self) -> SocketAddr {
         let started_at = Instant::now();
         loop {
             assert!(
@@ -71,6 +70,13 @@ impl ApiServerHandles {
             }
             tokio::time::sleep(POLL_INTERVAL).await;
         }
+
+        let mut local_addr_future = Pin::new(&mut self.local_addr);
+        local_addr_future
+            .as_mut()
+            .await
+            .expect("API server panicked");
+        local_addr_future.output_mut().copied().unwrap()
     }
 
     pub(crate) async fn shutdown(self) {
@@ -233,6 +239,10 @@ impl StorageInitialization {
                     .factory_deps_dal()
                     .insert_factory_deps(Self::SNAPSHOT_RECOVERY_BLOCK, factory_deps)
                     .await?;
+
+                // Insert the next L1 batch in the storage so that the API server doesn't hang up.
+                store_miniblock(storage, Self::SNAPSHOT_RECOVERY_BLOCK + 1, &[]).await?;
+                seal_l1_batch(storage, Self::SNAPSHOT_RECOVERY_BATCH + 1).await?;
             }
         }
         Ok(())
@@ -250,17 +260,17 @@ async fn test_http_server(test: impl HttpTest) {
     drop(storage);
 
     let (stop_sender, stop_receiver) = watch::channel(false);
-    let server_handles = spawn_http_server(
+    let mut server_handles = spawn_http_server(
         &network_config,
         pool.clone(),
         test.transaction_executor(),
         stop_receiver,
     )
     .await;
-    server_handles.wait_until_ready().await;
 
+    let local_addr = server_handles.wait_until_ready().await;
     let client = <HttpClient>::builder()
-        .build(format!("http://{}/", server_handles.local_addr))
+        .build(format!("http://{local_addr}/"))
         .unwrap();
     test.test(&client, &pool).await.unwrap();
 
@@ -447,27 +457,12 @@ impl HttpTest for BlockMethodsWithSnapshotRecovery {
         StorageInitialization::empty_recovery()
     }
 
-    async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
-        let error = client.get_block_number().await.unwrap_err();
-        if let ClientError::Call(error) = error {
-            assert_eq!(error.code(), ErrorCode::InvalidParams.code());
-        } else {
-            panic!("Unexpected error: {error:?}");
-        }
-
-        let block = client
-            .get_block_by_number(api::BlockNumber::Latest, false)
-            .await?;
-        assert!(block.is_none());
+    async fn test(&self, client: &HttpClient, _pool: &ConnectionPool) -> anyhow::Result<()> {
         let block = client.get_block_by_number(1_000.into(), false).await?;
         assert!(block.is_none());
 
-        let mut storage = pool.access_storage().await?;
-        store_miniblock(&mut storage, MiniblockNumber(24), &[]).await?;
-        drop(storage);
-
-        let block_number = client.get_block_number().await?;
         let expected_block_number = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
+        let block_number = client.get_block_number().await?;
         assert_eq!(block_number, expected_block_number.0.into());
 
         for block_number in [api::BlockNumber::Latest, expected_block_number.0.into()] {
@@ -478,7 +473,7 @@ impl HttpTest for BlockMethodsWithSnapshotRecovery {
             assert_eq!(block.number, expected_block_number.0.into());
         }
 
-        for number in [0, 1, expected_block_number.0 - 1] {
+        for number in [0, 1, StorageInitialization::SNAPSHOT_RECOVERY_BLOCK.0] {
             let error = client
                 .get_block_details(MiniblockNumber(number))
                 .await
@@ -535,21 +530,9 @@ impl HttpTest for L1BatchMethodsWithSnapshotRecovery {
         StorageInitialization::empty_recovery()
     }
 
-    async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
-        let error = client.get_l1_batch_number().await.unwrap_err();
-        if let ClientError::Call(error) = error {
-            assert_eq!(error.code(), ErrorCode::InvalidParams.code());
-        } else {
-            panic!("Unexpected error: {error:?}");
-        }
-
-        let mut storage = pool.access_storage().await?;
+    async fn test(&self, client: &HttpClient, _pool: &ConnectionPool) -> anyhow::Result<()> {
         let miniblock_number = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
         let l1_batch_number = StorageInitialization::SNAPSHOT_RECOVERY_BATCH + 1;
-        store_miniblock(&mut storage, miniblock_number, &[]).await?;
-        seal_l1_batch(&mut storage, l1_batch_number).await?;
-        drop(storage);
-
         assert_eq!(
             client.get_l1_batch_number().await?,
             l1_batch_number.0.into()
@@ -638,9 +621,7 @@ impl HttpTest for StorageAccessWithSnapshotRecovery {
         StorageInitialization::Recovery { logs, factory_deps }
     }
 
-    async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
-        let mut storage = pool.access_storage().await?;
-
+    async fn test(&self, client: &HttpClient, _pool: &ConnectionPool) -> anyhow::Result<()> {
         let address = Address::repeat_byte(1);
         let first_local_miniblock = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
         for number in [0, 1, first_local_miniblock.0 - 1] {
@@ -655,9 +636,6 @@ impl HttpTest for StorageAccessWithSnapshotRecovery {
                 .unwrap_err();
             assert_pruned_block_error(&error, first_local_miniblock);
         }
-
-        store_miniblock(&mut storage, first_local_miniblock, &[]).await?;
-        drop(storage);
 
         for number in [api::BlockNumber::Latest, first_local_miniblock.0.into()] {
             let number = api::BlockIdVariant::BlockNumber(number);
@@ -813,8 +791,6 @@ impl HttpTest for TransactionCountAfterSnapshotRecoveryTest {
         }
 
         let latest_miniblock_number = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
-        store_miniblock(&mut storage, latest_miniblock_number, &[]).await?;
-
         let latest_block_numbers = [api::BlockNumber::Latest, latest_miniblock_number.0.into()];
         for number in latest_block_numbers {
             let number = api::BlockIdVariant::BlockNumber(number);
@@ -867,7 +843,7 @@ impl HttpTest for TransactionReceiptsTest {
         }
 
         let receipts = client
-            .get_block_receipts(BlockId::Number(miniblock_number.0.into()))
+            .get_block_receipts(api::BlockId::Number(miniblock_number.0.into()))
             .await?;
         assert_eq!(receipts.len(), 2);
         for (receipt, expected_receipt) in receipts.iter().zip(&expected_receipts) {
