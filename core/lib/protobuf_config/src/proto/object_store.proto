@@ -9,10 +9,11 @@ enum ObjectStoreMode {
   GCS_ANONYMOUS_READ_ONLY = 3;
 }
 
+// FIXME: rework to use `oneof`
 message ObjectStore {
-  optional string bucket_base_url = 1; // required; url
+  optional string bucket_base_url = 1; // optional (depends on mode); url
   optional ObjectStoreMode mode = 2; // required
-  optional string file_backed_base_path = 3; // required; fs path
-  optional string gcs_credential_file_path = 4; // required; fs path
+  optional string file_backed_base_path = 3; // optional (depends on mode); fs path
+  optional string gcs_credential_file_path = 4; // optional (depends on mode); fs path
   optional uint32 max_retries = 5; // required
 }
