@@ -65,7 +65,7 @@ impl SyncDal<'_, '_> {
         )
         .instrument("sync_dal_sync_block.block")
         .with_arg("block_number", &block_number)
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage)
         .await?
         else {
             return Ok(None);
