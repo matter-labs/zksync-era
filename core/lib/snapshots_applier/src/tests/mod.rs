@@ -86,7 +86,7 @@ async fn snapshots_creator_can_successfully_recover_db(
     }
 
     // Try recovering again; it should return early.
-    let err = SnapshotsApplier::load_snapshot_inner(&pool, &client, object_store)
+    let err = SnapshotsApplier::load_snapshot(&pool, &client, object_store)
         .await
         .unwrap_err();
     assert_matches!(

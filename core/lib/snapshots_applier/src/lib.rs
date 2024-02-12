@@ -137,12 +137,9 @@ impl SnapshotsApplierConfig {
         let mut backoff = self.initial_retry_backoff;
         let mut last_error = None;
         for retry_id in 0..self.retry_count {
-            let result = SnapshotsApplier::load_snapshot_inner(
-                connection_pool,
-                main_node_client,
-                blob_store,
-            )
-            .await;
+            let result =
+                SnapshotsApplier::load_snapshot(connection_pool, main_node_client, blob_store)
+                    .await;
 
             match result {
                 Ok(()) => return Ok(SnapshotsApplierOutcome::Ok),
@@ -232,7 +229,7 @@ impl<'a> SnapshotsApplier<'a> {
         }
     }
 
-    async fn load_snapshot_inner(
+    async fn load_snapshot(
         connection_pool: &'a ConnectionPool,
         main_node_client: &dyn SnapshotsApplierMainNodeClient,
         blob_store: &'a dyn ObjectStore,
