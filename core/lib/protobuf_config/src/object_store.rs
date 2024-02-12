@@ -8,29 +8,32 @@ impl ProtoRepr for proto::ObjectStore {
     type Type = ObjectStoreConfig;
 
     fn read(&self) -> anyhow::Result<Self::Type> {
-        let mode = match self.mode() {
-            proto::ObjectStoreMode::Gcs => ObjectStoreMode::GCS {
-                bucket_base_url: required(&self.bucket_base_url)
+        let mode = required(&self.mode).context("mode")?;
+        let mode = match mode {
+            proto::object_store::Mode::Gcs(mode) => ObjectStoreMode::GCS {
+                bucket_base_url: required(&mode.bucket_base_url)
                     .context("bucket_base_url")?
                     .clone(),
             },
-            proto::ObjectStoreMode::GcsWithCredentialFile => {
+            proto::object_store::Mode::GcsWithCredentialFile(mode) => {
                 ObjectStoreMode::GCSWithCredentialFile {
-                    bucket_base_url: required(&self.bucket_base_url)
+                    bucket_base_url: required(&mode.bucket_base_url)
                         .context("bucket_base_url")?
                         .clone(),
-                    gcs_credential_file_path: required(&self.gcs_credential_file_path)
+                    gcs_credential_file_path: required(&mode.gcs_credential_file_path)
                         .context("gcs_credential_file_path")?
                         .clone(),
                 }
             }
-            proto::ObjectStoreMode::GcsAnonymousReadOnly => ObjectStoreMode::GCSAnonymousReadOnly {
-                bucket_base_url: required(&self.bucket_base_url)
-                    .context("bucket_base_url")?
-                    .clone(),
-            },
-            proto::ObjectStoreMode::FileBacked => ObjectStoreMode::FileBacked {
-                file_backed_base_path: required(&self.file_backed_base_path)
+            proto::object_store::Mode::GcsAnonymousReadOnly(mode) => {
+                ObjectStoreMode::GCSAnonymousReadOnly {
+                    bucket_base_url: required(&mode.bucket_base_url)
+                        .context("bucket_base_url")?
+                        .clone(),
+                }
+            }
+            proto::object_store::Mode::FileBacked(mode) => ObjectStoreMode::FileBacked {
+                file_backed_base_path: required(&mode.file_backed_base_path)
                     .context("file_backed_base_path")?
                     .clone(),
             },
@@ -45,37 +48,38 @@ impl ProtoRepr for proto::ObjectStore {
     }
 
     fn build(this: &Self::Type) -> Self {
-        match &this.mode {
-            ObjectStoreMode::GCS { bucket_base_url } => Self {
-                mode: Some(proto::ObjectStoreMode::Gcs.into()),
-                bucket_base_url: Some(bucket_base_url.clone()),
-                max_retries: Some(this.max_retries.into()),
-                ..Self::default()
-            },
+        let mode = match &this.mode {
+            ObjectStoreMode::GCS { bucket_base_url } => {
+                proto::object_store::Mode::Gcs(proto::object_store::Gcs {
+                    bucket_base_url: Some(bucket_base_url.clone()),
+                })
+            }
             ObjectStoreMode::GCSWithCredentialFile {
                 bucket_base_url,
                 gcs_credential_file_path,
-            } => Self {
-                mode: Some(proto::ObjectStoreMode::GcsWithCredentialFile.into()),
-                bucket_base_url: Some(bucket_base_url.clone()),
-                gcs_credential_file_path: Some(gcs_credential_file_path.clone()),
-                max_retries: Some(this.max_retries.into()),
-                ..Self::default()
-            },
-            ObjectStoreMode::GCSAnonymousReadOnly { bucket_base_url } => Self {
-                mode: Some(proto::ObjectStoreMode::GcsAnonymousReadOnly.into()),
-                bucket_base_url: Some(bucket_base_url.clone()),
-                max_retries: Some(this.max_retries.into()),
-                ..Self::default()
-            },
+            } => proto::object_store::Mode::GcsWithCredentialFile(
+                proto::object_store::GcsWithCredentialFile {
+                    bucket_base_url: Some(bucket_base_url.clone()),
+                    gcs_credential_file_path: Some(gcs_credential_file_path.clone()),
+                },
+            ),
+            ObjectStoreMode::GCSAnonymousReadOnly { bucket_base_url } => {
+                proto::object_store::Mode::GcsAnonymousReadOnly(
+                    proto::object_store::GcsAnonymousReadOnly {
+                        bucket_base_url: Some(bucket_base_url.clone()),
+                    },
+                )
+            }
             ObjectStoreMode::FileBacked {
                 file_backed_base_path,
-            } => Self {
-                mode: Some(proto::ObjectStoreMode::FileBacked.into()),
+            } => proto::object_store::Mode::FileBacked(proto::object_store::FileBacked {
                 file_backed_base_path: Some(file_backed_base_path.clone()),
-                max_retries: Some(this.max_retries.into()),
-                ..Self::default()
-            },
+            }),
+        };
+
+        Self {
+            mode: Some(mode),
+            max_retries: Some(this.max_retries.into()),
         }
     }
 }
