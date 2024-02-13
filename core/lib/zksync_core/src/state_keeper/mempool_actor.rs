@@ -33,9 +33,9 @@ pub async fn l2_tx_filter(
 }
 
 #[derive(Debug)]
-pub struct MempoolFetcher<G> {
+pub struct MempoolFetcher {
     mempool: MempoolGuard,
-    batch_fee_input_provider: Arc<G>,
+    batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     sync_interval: Duration,
     sync_batch_size: usize,
     stuck_tx_timeout: Option<Duration>,
@@ -43,10 +43,10 @@ pub struct MempoolFetcher<G> {
     transaction_hashes_sender: mpsc::UnboundedSender<Vec<H256>>,
 }
 
-impl<G: BatchFeeModelInputProvider> MempoolFetcher<G> {
+impl MempoolFetcher {
     pub fn new(
         mempool: MempoolGuard,
-        batch_fee_input_provider: Arc<G>,
+        batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
         config: &MempoolConfig,
     ) -> Self {
         Self {
