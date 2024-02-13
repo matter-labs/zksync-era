@@ -11,7 +11,7 @@ use zksync_eth_client::{Error, EthInterface};
 use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
 
 use self::metrics::METRICS;
-use super::{L1GasPriceProvider, L1TxParamsProvider};
+use super::L1TxParamsProvider;
 use crate::state_keeper::metrics::KEEPER_METRICS;
 
 mod metrics;
@@ -112,12 +112,10 @@ impl GasAdjuster {
         }
         Ok(())
     }
-}
 
-impl L1GasPriceProvider for GasAdjuster {
     /// Returns the sum of base and priority fee, in wei, not considering time in mempool.
     /// Can be used to get an estimate of current gas price.
-    fn estimate_effective_gas_price(&self) -> u64 {
+    pub(crate) fn estimate_effective_gas_price(&self) -> u64 {
         if let Some(price) = self.config.internal_enforced_l1_gas_price {
             return price;
         }
@@ -131,7 +129,7 @@ impl L1GasPriceProvider for GasAdjuster {
         self.bound_gas_price(calculated_price)
     }
 
-    fn estimate_effective_pubdata_price(&self) -> u64 {
+    pub(crate) fn estimate_effective_pubdata_price(&self) -> u64 {
         // For now, pubdata is only sent via calldata, so its price is pegged to the L1 gas price.
         self.estimate_effective_gas_price() * L1_GAS_PER_PUBDATA_BYTE as u64
     }
