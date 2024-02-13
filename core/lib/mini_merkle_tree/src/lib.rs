@@ -5,7 +5,7 @@
 #![warn(clippy::all, clippy::pedantic)]
 #![allow(clippy::must_use_candidate, clippy::similar_names)]
 
-use std::{iter, str::FromStr};
+use std::iter;
 
 use once_cell::sync::Lazy;
 

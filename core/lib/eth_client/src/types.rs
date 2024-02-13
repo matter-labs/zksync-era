@@ -295,8 +295,12 @@ mod tests {
             H256::from_str("27593fea79697e947890ecbecce7901b0008345e5d7259710d0dd5e500d040be")
                 .unwrap();
         let commitment = hex::decode(
-"b5022d2a994ebd05f42c2f8e9b227185bf5963fcd1d412e17e97a026698d9670c0139872a400740d25835b5eaade22ad"
-).unwrap();
+            "b5022d2a994ebd05f42c2f8e9b227185bf5963fcd1d412e17e97a026698d9670c0139872a400740d25835b5eaade22ad"
+        ).unwrap();
+
+        let mut versioned_hash =
+            hex::decode("01a034bbe3f441bdce53ea4bcf4aa3c7561bc03d4559fdb88e1d33a868e5c56e")
+                .unwrap();
 
         let proof =  hex::decode(
 "9996e250c444400385d1ec7ef99a365d18eeed5d2d6eff969c0b7dcdea7829a309fe93e6678160599a5832f64619cbca"
@@ -359,6 +363,7 @@ mod tests {
                         blob,
                         commitment,
                         proof,
+                        versioned_hash,
                     }],
                 }))
                 .as_ref(),
@@ -464,11 +469,13 @@ mod tests {
                             blob: blob_1,
                             commitment: commitment_1,
                             proof: proof_1,
+                            versioned_hash: versioned_hash_1.to_fixed_bytes().to_vec(),
                         },
                         SidecarBlobV1 {
                             blob: blob_2,
                             commitment: commitment_2,
                             proof: proof_2,
+                            versioned_hash: versioned_hash_2.to_fixed_bytes().to_vec(),
                         },
                     ],
                 }))

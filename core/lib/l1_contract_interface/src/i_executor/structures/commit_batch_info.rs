@@ -84,15 +84,15 @@ impl<'a> Tokenizable for CommitBatchInfo<'a> {
 
             let kzg_settings = load_kzg_settings();
 
-            let pubdata_commitments = pubdata
+            let mut pubdata_commitments = pubdata
                 .chunks(ZK_SYNC_BYTES_PER_BLOB)
                 .map(|blob| {
                     let kzg_info = KzgInfo::new(&kzg_settings, blob.to_vec());
-                    let mut commitment = kzg_info.to_pubdata_commitment().to_vec();
-                    commitment.insert(0, 1u8);
-                    commitment
+                    kzg_info.to_pubdata_commitment().to_vec()
                 })
-                .collect::<Vec<Vec<u8>>>();
+                .flatten()
+                .collect::<Vec<u8>>();
+            pubdata_commitments.insert(0, 1u8);
 
             Token::Tuple(vec![
                 // `batchNumber`
@@ -134,7 +134,7 @@ impl<'a> Tokenizable for CommitBatchInfo<'a> {
                 // `systemLogs`
                 Token::Bytes(self.0.metadata.l2_l1_messages_compressed.clone()),
                 // `totalL2ToL1Pubdata`
-                Token::Bytes(pubdata_commitments.concat()),
+                Token::Bytes(pubdata_commitments),
             ])
         }
     }
