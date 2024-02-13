@@ -23,8 +23,8 @@ use super::{
     updates::UpdatesManager,
 };
 use crate::{
-    gas_tracker::gas_count_from_writes, state_keeper::io::event_indexes_migration,
-    state_keeper::io::fee_address_migration,
+    gas_tracker::gas_count_from_writes,
+    state_keeper::io::{event_indexes_migration, fee_address_migration},
 };
 
 /// Amount of time to block on waiting for some resource. The exact value is not really important,

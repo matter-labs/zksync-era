@@ -369,7 +369,6 @@ async fn init_tasks(
         fetcher_handle,
         updater_handle,
         tree_handle,
-        consistency_checker_handle,
         fee_params_fetcher_handle,
         event_indexes_migration_handle,
         consistency_checker_handle,

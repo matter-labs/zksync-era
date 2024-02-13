@@ -1,10 +1,10 @@
-use std::{collections::HashMap, fmt};
+use std::{collections::HashMap, fmt, ops};
 
 use sqlx::types::chrono::Utc;
-use zksync_system_constants::L1_MESSENGER_ADDRESS;
-use zksync_system_constants::{L2_ETH_TOKEN_ADDRESS, TRANSFER_EVENT_TOPIC};
+use zksync_system_constants::{L1_MESSENGER_ADDRESS, L2_ETH_TOKEN_ADDRESS, TRANSFER_EVENT_TOPIC};
 use zksync_types::{
     api,
+    api::ApiEthTransferEvents,
     event::L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE,
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
     tx::IncludedTxLocation,
@@ -208,12 +208,13 @@ impl EventsDal<'_, '_> {
     pub(crate) async fn get_logs_by_tx_hashes(
         &mut self,
         hashes: &[H256],
+        api_eth_transfer_events: ApiEthTransferEvents,
     ) -> Result<HashMap<H256, Vec<api::Log>>, SqlxError> {
         let hashes = hashes
             .iter()
             .map(|hash| hash.as_bytes().to_vec())
             .collect::<Vec<_>>();
-        let logs: Vec<_> = sqlx::query_as!(
+        let logs: Vec<StorageWeb3Log> = sqlx::query_as!(
             StorageWeb3Log,
             r#"
             SELECT
@@ -229,7 +230,9 @@ impl EventsDal<'_, '_> {
                 tx_hash,
                 tx_index_in_block,
                 event_index_in_block,
-                event_index_in_tx
+                event_index_in_tx,
+                event_index_in_block_without_eth_transfer,
+                event_index_in_tx_without_eth_transfer
             FROM
                 events
             WHERE
@@ -247,9 +250,10 @@ impl EventsDal<'_, '_> {
         let mut result = HashMap::<H256, Vec<api::Log>>::new();
 
         for storage_log in logs {
-            let current_log = api::Log::from(storage_log);
-            let tx_hash = current_log.transaction_hash.unwrap();
-            result.entry(tx_hash).or_default().push(current_log);
+            if let Some(current_log) = storage_log.into_api_log(api_eth_transfer_events) {
+                let tx_hash = current_log.transaction_hash.unwrap();
+                result.entry(tx_hash).or_default().push(current_log);
+            }
         }
 
         Ok(result)

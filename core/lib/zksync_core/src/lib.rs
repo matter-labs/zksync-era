@@ -794,7 +794,7 @@ async fn add_state_keeper_to_task_futures(
     .await;
 
     task_futures.push(tokio::spawn(
-        state_keeper.run_event_indexes_migration(state_keeper_pool),
+        state_keeper.run_event_indexes_migration(state_keeper_pool.clone()),
     ));
 
     task_futures.push(tokio::spawn(

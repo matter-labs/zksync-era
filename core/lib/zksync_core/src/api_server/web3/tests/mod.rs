@@ -16,7 +16,6 @@ use zksync_system_constants::{L2_ETH_TOKEN_ADDRESS, TRANSFER_EVENT_TOPIC};
 use zksync_types::{
     api,
     api::ApiEthTransferEvents,
-    api::BlockId,
     block::MiniblockHeader,
     fee::TransactionExecutionMetrics,
     get_nonce_key,

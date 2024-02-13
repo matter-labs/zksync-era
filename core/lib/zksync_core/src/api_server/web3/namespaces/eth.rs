@@ -365,7 +365,7 @@ impl EthNamespace {
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?
             .transactions_web3_dal()
-            .get_transaction_receipts(&hashes)
+            .get_transaction_receipts(&hashes, self.api_eth_transfer_events)
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?;
 
