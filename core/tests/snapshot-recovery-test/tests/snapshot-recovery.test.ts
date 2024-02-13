@@ -65,7 +65,7 @@ describe('snapshot recovery', () => {
     }
 
     step('create snapshot', async () => {
-        const logs = await fs.open('snapshot-creator.log');
+        const logs = await fs.open('snapshot-creator.log', 'w');
         const childProcess = spawn('cargo run  --release --bin snapshots_creator', {
             cwd: homeDir,
             stdio: [null, logs.fd, logs.fd],
@@ -232,9 +232,18 @@ async function decompressGzip(filePath: string): Promise<Buffer> {
 }
 
 async function killExternalNode() {
+    interface ChildProcessError extends Error {
+        readonly code: number | null;
+    }
+
     try {
-        await promisify(exec)('pkill -9 zksync_external_node');
+        await promisify(exec)('killall -q -KILL zksync_external_node');
     } catch (err) {
-        console.log('Failed killing external node. This is *probably* normal.', err);
+        const typedErr = err as ChildProcessError;
+        if (typedErr.code === 1) {
+            // No matching processes were found; this is fine.
+        } else {
+            throw err;
+        }
     }
 }
