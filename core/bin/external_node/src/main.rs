@@ -29,25 +29,22 @@ use zksync_core::{
     },
     sync_layer::{
         batch_status_updater::BatchStatusUpdater, external_io::ExternalIO,
-        fetcher::MainNodeFetcher, genesis::perform_genesis_if_needed, ActionQueue, MainNodeClient,
-        SyncState,
+        fetcher::MainNodeFetcher, ActionQueue, MainNodeClient, SyncState,
     },
 };
 use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
 use zksync_health_check::CheckHealth;
-use zksync_object_store::ObjectStoreFactory;
-use zksync_snapshots_applier::SnapshotsApplier;
 use zksync_state::PostgresStorageCaches;
 use zksync_storage::RocksDB;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 
+use crate::{config::ExternalNodeConfig, init::ensure_storage_initialized};
+
 mod config;
+mod init;
 mod metrics;
 
-const RELEASE_MANIFEST: &str =
-    std::include_str!("../../../../.github/release-please/manifest.json");
-
-use crate::config::{read_snapshots_recovery_config, ExternalNodeConfig};
+const RELEASE_MANIFEST: &str = include_str!("../../../../.github/release-please/manifest.json");
 
 /// Creates the state keeper configured to work in the external node mode.
 #[allow(clippy::too_many_arguments)]
@@ -442,21 +439,6 @@ async fn main() -> anyhow::Result<()> {
     .await
     .context("failed to build a connection_pool")?;
 
-    if opt.enable_snapshots_recovery {
-        let recovery_config = read_snapshots_recovery_config()?;
-        let blob_store = ObjectStoreFactory::new(recovery_config.snapshots_object_store)
-            .create_store()
-            .await;
-
-        tracing::info!(
-            "Snapshot recovery is enabled. This is an experimental feature; use at your own risk"
-        );
-        SnapshotsApplier::load_snapshot(&connection_pool, &main_node_client, &blob_store)
-            .await
-            .context("snapshot recovery failed")?;
-        tracing::info!("Snapshot recovery is complete");
-    }
-
     if opt.revert_pending_l1_batch {
         tracing::info!("Rolling pending L1 batch back..");
         let reverter = BlockReverter::new(
@@ -493,14 +475,14 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("Started the external node");
     tracing::info!("Main node URL is: {}", main_node_url);
 
-    // Make sure that genesis is performed.
-    perform_genesis_if_needed(
-        &mut connection_pool.access_storage().await.unwrap(),
-        config.remote.l2_chain_id,
+    // Make sure that the node storage is initialized either via genesis or snapshot recovery.
+    ensure_storage_initialized(
+        &connection_pool,
         &main_node_client,
+        config.remote.l2_chain_id,
+        opt.enable_snapshots_recovery,
     )
-    .await
-    .context("Performing genesis failed")?;
+    .await?;
 
     let (task_handles, stop_sender, health_check_handle, stop_receiver) =
         init_tasks(config.clone(), connection_pool.clone())
