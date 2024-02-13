@@ -3,7 +3,7 @@
 use std::{net::Ipv4Addr, str::FromStr, sync::Arc, time::Instant};
 
 use anyhow::Context as _;
-use fee_model::{ApiFeeInputProvider, MainNodeFeeInputProvider};
+use fee_model::{ApiFeeInputProvider, BatchFeeModelInputProvider, MainNodeFeeInputProvider};
 use futures::channel::oneshot;
 use prometheus_exporter::PrometheusExporterConfig;
 use temp_config_store::TempConfigStore;
@@ -53,6 +53,7 @@ use crate::{
         web3::{state::InternalApiConfig, ApiServerHandles, Namespace},
     },
     basic_witness_input_producer::BasicWitnessInputProducer,
+    commitment_generator::CommitmentGenerator,
     eth_sender::{Aggregator, EthTxAggregator, EthTxManager},
     eth_watch::start_eth_watch,
     house_keeper::{
@@ -67,7 +68,7 @@ use crate::{
         periodic_job::PeriodicJob,
         waiting_to_queued_fri_witness_job_mover::WaitingToQueuedFriWitnessJobMover,
     },
-    l1_gas_price::{GasAdjusterSingleton, L1GasPriceProvider},
+    l1_gas_price::GasAdjusterSingleton,
     metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
     metrics::{InitStage, APP_METRICS},
     state_keeper::{
@@ -78,6 +79,7 @@ use crate::{
 pub mod api_server;
 pub mod basic_witness_input_producer;
 pub mod block_reverter;
+pub mod commitment_generator;
 pub mod consensus;
 pub mod consistency_checker;
 pub mod eth_sender;
@@ -233,6 +235,8 @@ pub enum Component {
     ProofDataHandler,
     /// Component generating BFT consensus certificates for miniblocks.
     Consensus,
+    /// Component generating commitment for L1 batches.
+    CommitmentGenerator,
 }
 
 #[derive(Debug)]
@@ -268,6 +272,7 @@ impl FromStr for Components {
             "eth_tx_manager" => Ok(Components(vec![Component::EthTxManager])),
             "proof_data_handler" => Ok(Components(vec![Component::ProofDataHandler])),
             "consensus" => Ok(Components(vec![Component::Consensus])),
+            "commitment_generator" => Ok(Components(vec![Component::CommitmentGenerator])),
             other => Err(format!("{} is not a valid component name", other)),
         }
     }
@@ -402,6 +407,10 @@ pub async fn initialize_components(
                 .get_or_init()
                 .await
                 .context("gas_adjuster.get_or_init()")?;
+            let batch_fee_input_provider = Arc::new(MainNodeFeeInputProvider::new(
+                bounded_gas_adjuster,
+                FeeModelConfig::from_state_keeper_config(&state_keeper_config),
+            ));
             let server_handles = run_http_api(
                 &postgres_config,
                 &tx_sender_config,
@@ -411,7 +420,7 @@ pub async fn initialize_components(
                 connection_pool.clone(),
                 replica_connection_pool.clone(),
                 stop_receiver.clone(),
-                bounded_gas_adjuster.clone(),
+                batch_fee_input_provider,
                 state_keeper_config.save_call_traces,
                 storage_caches.clone().unwrap(),
             )
@@ -441,13 +450,17 @@ pub async fn initialize_components(
                 .get_or_init()
                 .await
                 .context("gas_adjuster.get_or_init()")?;
+            let batch_fee_input_provider = Arc::new(MainNodeFeeInputProvider::new(
+                bounded_gas_adjuster,
+                FeeModelConfig::from_state_keeper_config(&state_keeper_config),
+            ));
             let server_handles = run_ws_api(
                 &postgres_config,
                 &tx_sender_config,
                 &state_keeper_config,
                 &internal_api_config,
                 &api_config,
-                bounded_gas_adjuster.clone(),
+                batch_fee_input_provider,
                 connection_pool.clone(),
                 replica_connection_pool.clone(),
                 stop_receiver.clone(),
@@ -494,18 +507,23 @@ pub async fn initialize_components(
             .get_or_init()
             .await
             .context("gas_adjuster.get_or_init()")?;
+        let state_keeper_config = configs
+            .state_keeper_config
+            .clone()
+            .context("state_keeper_config")?;
+        let batch_fee_input_provider = Arc::new(MainNodeFeeInputProvider::new(
+            bounded_gas_adjuster,
+            FeeModelConfig::from_state_keeper_config(&state_keeper_config),
+        ));
         add_state_keeper_to_task_futures(
             &mut task_futures,
             &postgres_config,
             &contracts_config,
-            configs
-                .state_keeper_config
-                .clone()
-                .context("state_keeper_config")?,
+            state_keeper_config,
             &configs.network_config.clone().context("network_config")?,
             &db_config,
             &configs.mempool_config.clone().context("mempool_config")?,
-            bounded_gas_adjuster,
+            batch_fee_input_provider,
             store_factory.create_store().await,
             stop_receiver.clone(),
         )
@@ -694,6 +712,16 @@ pub async fn initialize_components(
         )));
     }
 
+    if components.contains(&Component::CommitmentGenerator) {
+        let commitment_generator_pool = ConnectionPool::singleton(postgres_config.master_url()?)
+            .build()
+            .await
+            .context("failed to build commitment_generator_pool")?;
+        let commitment_generator =
+            CommitmentGenerator::new(commitment_generator_pool, stop_receiver.clone());
+        task_futures.push(tokio::spawn(commitment_generator.run()));
+    }
+
     // Run healthcheck server for all components.
     healthchecks.push(Box::new(ConnectionPoolHealthCheck::new(
         replica_connection_pool,
@@ -713,7 +741,7 @@ pub async fn initialize_components(
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 'static>(
+async fn add_state_keeper_to_task_futures(
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     postgres_config: &PostgresConfig,
     contracts_config: &ContractsConfig,
@@ -721,7 +749,7 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
     network_config: &NetworkConfig,
     db_config: &DBConfig,
     mempool_config: &MempoolConfig,
-    gas_adjuster: Arc<E>,
+    batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     object_store: Arc<dyn ObjectStore>,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
@@ -739,11 +767,6 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
         .await;
     let mempool = MempoolGuard::new(next_priority_id, mempool_config.capacity);
     mempool.register_metrics();
-
-    let batch_fee_input_provider = Arc::new(MainNodeFeeInputProvider::new(
-        gas_adjuster,
-        FeeModelConfig::from_state_keeper_config(&state_keeper_config),
-    ));
 
     let miniblock_sealer_pool = pool_builder
         .build()
@@ -1049,7 +1072,7 @@ async fn build_tx_sender(
     state_keeper_config: &StateKeeperConfig,
     replica_pool: ConnectionPool,
     master_pool: ConnectionPool,
-    l1_gas_price_provider: Arc<dyn L1GasPriceProvider>,
+    batch_fee_model_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     storage_caches: PostgresStorageCaches,
 ) -> (TxSender, VmConcurrencyBarrier) {
     let sequencer_sealer = SequencerSealer::new(state_keeper_config.clone());
@@ -1060,11 +1083,8 @@ async fn build_tx_sender(
     let max_concurrency = web3_json_config.vm_concurrency_limit();
     let (vm_concurrency_limiter, vm_barrier) = VmConcurrencyLimiter::new(max_concurrency);
 
-    let batch_fee_input_provider = ApiFeeInputProvider::new(
-        l1_gas_price_provider,
-        FeeModelConfig::from_state_keeper_config(state_keeper_config),
-        replica_pool,
-    );
+    let batch_fee_input_provider =
+        ApiFeeInputProvider::new(batch_fee_model_input_provider, replica_pool);
 
     let tx_sender = tx_sender_builder
         .build(
@@ -1078,7 +1098,7 @@ async fn build_tx_sender(
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn run_http_api<G: L1GasPriceProvider>(
+async fn run_http_api(
     postgres_config: &PostgresConfig,
     tx_sender_config: &TxSenderConfig,
     state_keeper_config: &StateKeeperConfig,
@@ -1087,7 +1107,7 @@ async fn run_http_api<G: L1GasPriceProvider>(
     master_connection_pool: ConnectionPool,
     replica_connection_pool: ConnectionPool,
     stop_receiver: watch::Receiver<bool>,
-    gas_adjuster: Arc<G>,
+    batch_fee_model_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     with_debug_namespace: bool,
     storage_caches: PostgresStorageCaches,
 ) -> anyhow::Result<ApiServerHandles> {
@@ -1097,7 +1117,7 @@ async fn run_http_api<G: L1GasPriceProvider>(
         state_keeper_config,
         replica_connection_pool.clone(),
         master_connection_pool,
-        gas_adjuster,
+        batch_fee_model_input_provider,
         storage_caches,
     )
     .await;
@@ -1127,13 +1147,13 @@ async fn run_http_api<G: L1GasPriceProvider>(
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn run_ws_api<G: L1GasPriceProvider + Send + Sync + 'static>(
+async fn run_ws_api(
     postgres_config: &PostgresConfig,
     tx_sender_config: &TxSenderConfig,
     state_keeper_config: &StateKeeperConfig,
     internal_api: &InternalApiConfig,
     api_config: &ApiConfig,
-    gas_adjuster: Arc<G>,
+    batch_fee_model_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     master_connection_pool: ConnectionPool,
     replica_connection_pool: ConnectionPool,
     stop_receiver: watch::Receiver<bool>,
@@ -1145,7 +1165,7 @@ async fn run_ws_api<G: L1GasPriceProvider + Send + Sync + 'static>(
         state_keeper_config,
         replica_connection_pool.clone(),
         master_connection_pool,
-        gas_adjuster,
+        batch_fee_model_input_provider,
         storage_caches,
     )
     .await;
