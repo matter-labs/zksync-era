@@ -480,7 +480,7 @@ pub(super) async fn mock_l1_batch_hash_computation(pool: ConnectionPool, number:
         let metadata = create_l1_batch_metadata(number);
         storage
             .blocks_dal()
-            .save_l1_batch_metadata(L1BatchNumber(number), &metadata, H256::zero(), false)
+            .save_l1_batch_tree_data(L1BatchNumber(number), &metadata.tree_data())
             .await
             .unwrap();
         break;

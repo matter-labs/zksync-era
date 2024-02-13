@@ -10,7 +10,7 @@ use zksync_types::{
 };
 use zksync_utils::ceil_div_u256;
 
-use crate::l1_gas_price::L1GasPriceProvider;
+use crate::l1_gas_price::GasAdjuster;
 
 /// Trait responsible for providing fee info for a batch
 #[async_trait::async_trait]
@@ -53,7 +53,7 @@ pub trait BatchFeeModelInputProvider: fmt::Debug + 'static + Send + Sync {
 /// it from other node.
 #[derive(Debug)]
 pub(crate) struct MainNodeFeeInputProvider {
-    provider: Arc<dyn L1GasPriceProvider>,
+    provider: Arc<GasAdjuster>,
     config: FeeModelConfig,
 }
 
@@ -74,7 +74,7 @@ impl BatchFeeModelInputProvider for MainNodeFeeInputProvider {
 }
 
 impl MainNodeFeeInputProvider {
-    pub(crate) fn new(provider: Arc<dyn L1GasPriceProvider>, config: FeeModelConfig) -> Self {
+    pub(crate) fn new(provider: Arc<GasAdjuster>, config: FeeModelConfig) -> Self {
         Self { provider, config }
     }
 }
@@ -83,18 +83,17 @@ impl MainNodeFeeInputProvider {
 /// the one from the last sealed miniblock.
 #[derive(Debug)]
 pub(crate) struct ApiFeeInputProvider {
-    inner: MainNodeFeeInputProvider,
+    inner: Arc<dyn BatchFeeModelInputProvider>,
     connection_pool: ConnectionPool,
 }
 
 impl ApiFeeInputProvider {
     pub fn new(
-        provider: Arc<dyn L1GasPriceProvider>,
-        config: FeeModelConfig,
+        inner: Arc<dyn BatchFeeModelInputProvider>,
         connection_pool: ConnectionPool,
     ) -> Self {
         Self {
-            inner: MainNodeFeeInputProvider::new(provider, config),
+            inner,
             connection_pool,
         }
     }
