@@ -73,7 +73,7 @@ pub(crate) async fn ensure_storage_initialized(
                 .context("performing genesis failed")?;
         }
         InitDecision::SnapshotRecovery { is_complete } => {
-            // Do not require the CLA opt-in once the recovery is complete.
+            // Do not require the command-line opt-in once the recovery is complete.
             anyhow::ensure!(
                 is_complete || consider_snapshot_recovery,
                 "Snapshot recovery is required to proceed, but it is not enabled. Enable by supplying \

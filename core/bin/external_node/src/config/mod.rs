@@ -445,7 +445,7 @@ pub(crate) fn read_consensus_config() -> anyhow::Result<consensus::FetcherConfig
     })
 }
 
-/// Configuration for snapshot recovery. Loaded optionally, only if the corresponding command-line arg
+/// Configuration for snapshot recovery. Loaded optionally, only if the corresponding command-line argument
 /// is supplied to the EN binary.
 #[derive(Debug, Clone)]
 pub struct SnapshotsRecoveryConfig {
