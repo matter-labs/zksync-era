@@ -268,11 +268,11 @@ impl From<u32> for ApiEthTransferEvents {
     }
 }
 
-impl Into<u32> for ApiEthTransferEvents {
-    fn into(self) -> u32 {
-        match self {
-            Self::Disabled => 0,
-            Self::Enabled => 1,
+impl From<ApiEthTransferEvents> for u32 {
+    fn from(value: ApiEthTransferEvents) -> u32 {
+        match value {
+            ApiEthTransferEvents::Disabled => 0,
+            ApiEthTransferEvents::Enabled => 1,
         }
     }
 }
