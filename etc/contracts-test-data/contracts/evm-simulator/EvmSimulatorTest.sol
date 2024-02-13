@@ -11,6 +11,7 @@ contract EvmSimulatorTest {
         // We are just returning the same bytecode
         bytes memory bytecodeToExecute = DEPLOYER_SYSTEM_CONTRACT.evmCode(address(this));
         DEPLOYER_SYSTEM_CONTRACT.setDeployedCode(
+            100,
             bytecodeToExecute
         );
     }
