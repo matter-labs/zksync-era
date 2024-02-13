@@ -209,7 +209,12 @@ impl<S: WriteStorage, H: HistoryMode> Tracer for DefaultExecutionTracer<S, H> {
         }
 
         let hook = VmHook::from_opcode_memory(&state, &data);
-        print_debug_if_needed(&hook, &state, memory);
+        print_debug_if_needed(
+            &hook,
+            &state,
+            memory,
+            self.result_tracer.get_latest_result_ptr(),
+        );
 
         match hook {
             VmHook::TxHasEnded => self.tx_has_been_processed = true,

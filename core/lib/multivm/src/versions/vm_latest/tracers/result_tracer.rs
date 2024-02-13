@@ -7,6 +7,7 @@ use zk_evm_1_5_0::{
     zkevm_opcode_defs::{FatPointer, Opcode, RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER},
 };
 use zksync_state::{StoragePtr, WriteStorage};
+use zksync_system_constants::BOOTLOADER_ADDRESS;
 use zksync_types::U256;
 
 use crate::{
@@ -91,7 +92,7 @@ impl FarCallTracker {
         }
     }
 
-    fn into_result(self) -> Option<FatPointer> {
+    fn get_latest_returndata(self) -> Option<FatPointer> {
         match self {
             FarCallTracker::ReturndataObserved(x) => Some(x),
             _ => None,
@@ -160,7 +161,7 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for ResultTracer<S> {
             let success = vm_hook_params[0];
             let returndata = self
                 .far_call_tracker
-                .into_result()
+                .get_latest_returndata()
                 .map(|ptr| read_pointer(memory, ptr))
                 .unwrap_or_default();
             if success == U256::zero() {
@@ -173,9 +174,10 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for ResultTracer<S> {
                     return_data: returndata,
                 });
             }
+        }
 
+        if state.vm_local_state.callstack.current.this_address == BOOTLOADER_ADDRESS {
             let opcode_variant = data.opcode.variant;
-
             if let Opcode::FarCall(_) = opcode_variant.opcode {
                 self.far_call_tracker.far_call_observed(&state);
             }
@@ -191,8 +193,10 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for ResultTracer<S> {
     ) {
         let opcode_variant = data.opcode.variant;
 
-        if let Opcode::Ret(_) = opcode_variant.opcode {
-            self.far_call_tracker.return_observed(&state);
+        if state.vm_local_state.callstack.current.this_address == BOOTLOADER_ADDRESS {
+            if let Opcode::Ret(_) = opcode_variant.opcode {
+                self.far_call_tracker.return_observed(&state);
+            }
         }
     }
 }
@@ -322,6 +326,10 @@ impl<S: WriteStorage> ResultTracer<S> {
             },
             Result::Halt { reason } => ExecutionResult::Halt { reason },
         }
+    }
+
+    pub(crate) fn get_latest_result_ptr(&self) -> Option<FatPointer> {
+        self.far_call_tracker.get_latest_returndata()
     }
 }
 
