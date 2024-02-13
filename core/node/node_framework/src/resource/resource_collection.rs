@@ -64,7 +64,7 @@ impl<T> fmt::Debug for ResourceCollection<T> {
     }
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq)]
 pub enum ResourceCollectionError {
     #[error("Adding resources to the collection is not allowed after the wiring is complete")]
     AlreadyWired,
@@ -102,5 +102,64 @@ impl<T: Resource + Clone> ResourceCollection<T> {
 
         let handle = self.resources.lock().unwrap();
         (*handle).clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+    use tokio::time::timeout;
+
+    use super::*;
+
+    #[derive(Debug, Clone, PartialEq)]
+    struct TestResource(Arc<u8>);
+
+    impl Resource for TestResource {
+        fn resource_id() -> ResourceId {
+            ResourceId::new("test_resource")
+        }
+    }
+
+    #[tokio::test]
+    async fn test_push() {
+        let collection = ResourceCollection::<TestResource>::new();
+        let resource = TestResource(Arc::new(1));
+
+        collection.clone().push(resource).unwrap();
+
+        assert_eq!(
+            *collection.resources.lock().unwrap(),
+            vec![TestResource(Arc::new(1))]
+        );
+    }
+
+    #[tokio::test]
+    async fn test_already_wired() {
+        let mut collection = ResourceCollection::<TestResource>::new();
+        let resource = TestResource(Arc::new(1));
+
+        let rc_clone = collection.clone();
+
+        collection.on_resource_wired();
+
+        assert_eq!(
+            rc_clone.push(resource),
+            Err(ResourceCollectionError::AlreadyWired)
+        );
+    }
+
+    #[tokio::test]
+    async fn test_resolve() {
+        let mut collection = ResourceCollection::<TestResource>::new();
+
+        collection.on_resource_wired();
+
+        let resolved = collection.resolve().await;
+        assert_eq!(resolved, vec![]);
+
+        let collection = ResourceCollection::<TestResource>::new();
+        let result = timeout(Duration::from_secs(1), collection.resolve()).await;
+        assert!(result.is_err(), "Future resolved before a second");
     }
 }
