@@ -1,6 +1,7 @@
 use std::fmt;
 
 use async_trait::async_trait;
+use serde::Deserialize;
 use zksync_types::{
     web3::{
         ethabi,
@@ -19,6 +20,15 @@ pub use crate::types::{
 
 pub mod clients;
 mod types;
+
+#[derive(Deserialize)]
+pub struct BlockWithExtraBlobGas<TX> {
+    #[serde(flatten)]
+    pub block: Block<TX>,
+
+    #[serde(default, rename = "excessBlobGas")]
+    pub excess_blob_gas: Option<U256>,
+}
 
 /// Contract Call/Query Options
 #[derive(Default, Debug, Clone, PartialEq)]
@@ -104,6 +114,9 @@ pub trait EthInterface: 'static + Sync + Send + fmt::Debug {
 
     /// Returns the current gas price.
     async fn get_gas_price(&self, component: &'static str) -> Result<U256, Error>;
+
+    /// Returns an estimate of current blob gas price.
+    async fn get_blob_gas_price(&self, component: &'static str) -> Result<U256, Error>;
 
     /// Returns the current block number.
     async fn block_number(&self, component: &'static str) -> Result<U64, Error>;

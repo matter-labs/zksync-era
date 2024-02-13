@@ -197,8 +197,19 @@ impl EthTxManager {
             .used_priority_fee_per_gas
             .observe(priority_fee_per_gas);
 
+        let blob_gas_price = if tx.blob_sidecar.is_some() {
+            Some(
+                self.ethereum_gateway
+                    .get_blob_gas_price("eth_tx_manager")
+                    .await?,
+            )
+        } else {
+            None
+        };
+        tracing::error!("blob gas price {blob_gas_price:?}");
+
         let signed_tx = self
-            .sign_tx(tx, base_fee_per_gas, priority_fee_per_gas)
+            .sign_tx(tx, base_fee_per_gas, priority_fee_per_gas, blob_gas_price)
             .await;
 
         if let Some(tx_history_id) = storage
@@ -408,6 +419,7 @@ impl EthTxManager {
         tx: &EthTx,
         base_fee_per_gas: u64,
         priority_fee_per_gas: u64,
+        blob_gas_price: Option<U256>,
     ) -> SignedCallResult {
         self.ethereum_gateway
             .sign_prepared_tx_for_addr(
@@ -420,12 +432,11 @@ impl EthTxManager {
                     opt.max_priority_fee_per_gas = Some(U256::from(priority_fee_per_gas));
                     opt.nonce = Some(tx.nonce.0.into());
                     opt.transaction_type = if tx.blob_sidecar.is_some() {
+                        opt.max_fee_per_blob_gas = blob_gas_price;
                         Some(EIP_4844_TX_TYPE.into())
                     } else {
                         Some(EIP_1559_TX_TYPE.into())
                     };
-                    // TODO: real parameter
-                    opt.max_fee_per_blob_gas = Some(100_000u64.into());
                     opt.blob_versioned_hashes = tx.blob_sidecar.as_ref().map(|s| match s {
                         EthTxBlobSidecar::EthTxBlobSidecarV1(s) => s
                             .blobs

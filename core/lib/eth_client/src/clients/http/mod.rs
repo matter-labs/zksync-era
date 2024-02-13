@@ -33,6 +33,7 @@ enum Method {
     #[metrics(name = "sign_prepared_tx_for_addr")]
     SignPreparedTx,
     Allowance,
+    BlobGasPrice,
 }
 
 #[derive(Debug, Metrics)]
