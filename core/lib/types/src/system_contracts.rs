@@ -4,7 +4,8 @@ use once_cell::sync::Lazy;
 use zksync_basic_types::{AccountTreeId, Address, H256, U256};
 use zksync_contracts::{read_sys_contract_bytecode, ContractLanguage, SystemContractsRepo};
 use zksync_system_constants::{
-    BOOTLOADER_UTILITIES_ADDRESS, COMPRESSOR_ADDRESS, EVENT_WRITER_ADDRESS, EVM_GAS_MANAGER_ADDRESS,
+    BOOTLOADER_UTILITIES_ADDRESS, COMPRESSOR_ADDRESS, EVENT_WRITER_ADDRESS,
+    SEKP_256_R1_PRECOMPILE_ADDRESS,
 };
 use zksync_utils::bytecode::hash_bytecode;
 
@@ -102,6 +103,12 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 21] = [
         "precompiles/",
         "EcMul",
         EC_MUL_PRECOMPILE_ADDRESS,
+        ContractLanguage::Yul,
+    ),
+    (
+        "precompiles/",
+        "Sekp256r1",
+        SEKP_256_R1_PRECOMPILE_ADDRESS,
         ContractLanguage::Yul,
     ),
     (

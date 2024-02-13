@@ -11,8 +11,7 @@ use crate::{
     },
 };
 
-// FIXME: restore this test
-// #[test]
+#[test]
 fn test_tracing_of_execution_errors() {
     let contract_address = H160::random();
     let mut vm = VmTesterBuilder::new(HistoryEnabled)
