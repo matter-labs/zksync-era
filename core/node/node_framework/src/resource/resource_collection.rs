@@ -159,6 +159,7 @@ mod tests {
         let resolved = collection.resolve().await;
         assert_eq!(resolved, vec![]);
 
+        // check the case that it is not allowed to resolve the collection when it is not wired
         let collection = ResourceCollection::<TestResource>::new();
         let result = timeout(Duration::from_secs(1), collection.resolve()).await;
         assert!(result.is_err(), "Future resolved before a second");
