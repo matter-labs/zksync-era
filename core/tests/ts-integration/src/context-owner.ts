@@ -328,11 +328,9 @@ export class TestContextOwner {
 
         this.reporter.debug(`Sent ${l1TxPromises.length} initial transactions on L1`);
 
-
-        if(this.env.network === 'localhost') {
+        if (this.env.network === 'localhost') {
             await Promise.all(l1TxPromises);
-        }
-        else{
+        } else {
             for (const promise of l1TxPromises) {
                 await promise;
             }
