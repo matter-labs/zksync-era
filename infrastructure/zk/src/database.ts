@@ -22,10 +22,12 @@ function getDals(opts: DbOpts): Map<DalPath, string> {
     let dals = new Map<DalPath, string>();
     if (!opts.prover && !opts.server) {
         dals.set(DalPath.CoreDal, process.env.DATABASE_URL!);
-        dals.set(DalPath.ProverDal, process.env.DATABASE_PROVER_URL!);
+        if (process.env.DATABASE_PROVER_URL) {
+            dals.set(DalPath.ProverDal, process.env.DATABASE_PROVER_URL);
+        }
     }
-    if (opts.prover) {
-        dals.set(DalPath.ProverDal, process.env.DATABASE_PROVER_URL!);
+    if (opts.prover && process.env.DATABASE_PROVER_URL) {
+        dals.set(DalPath.ProverDal, process.env.DATABASE_PROVER_URL);
     }
     if (opts.server) {
         dals.set(DalPath.CoreDal, process.env.DATABASE_URL!);
