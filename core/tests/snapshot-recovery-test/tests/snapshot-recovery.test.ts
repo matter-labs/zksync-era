@@ -54,10 +54,6 @@ describe('snapshot recovery', () => {
         await killExternalNode();
     });
 
-    after(async () => {
-        await killExternalNode();
-    });
-
     async function getAllSnapshots() {
         const output = await mainNode.send('snapshots_getAllSnapshots', []);
         return output as AllSnapshotsResponse;
@@ -195,8 +191,14 @@ describe('snapshot recovery', () => {
                     break;
                 }
             }
+
+            // If `enProcess` fails early, we'll trip these checks.
+            expect(enProcess.exitCode).to.be.null;
+            expect(consistencyCheckerSucceeded, 'consistency check failed').to.be.true;
+            expect(reorgDetectorSucceeded, 'reorg detection check failed').to.be.true;
         } finally {
             enProcess.kill();
+            await killExternalNode();
         }
     });
 });
