@@ -84,16 +84,6 @@ export async function deployWeth(
     );
 }
 
-export async function initializeBridges(args: any[] = []) {
-    await utils.confirmAction();
-
-    const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
-    const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/ethereum` : `yarn l1-contracts`;
-
-    await utils.spawn(`${baseCommandL1} initialize-erc20-bridge ${args.join(' ')} | tee deployL1.log`);
-    await utils.spawn(`${baseCommandL1} initialize-weth-bridge ${args.join(' ')} | tee -a deployL1.log`);
-}
-
 export async function deployL2(args: any[] = [], includePaymaster?: boolean) {
     await utils.confirmAction();
 
@@ -102,14 +92,11 @@ export async function deployL2(args: any[] = [], includePaymaster?: boolean) {
     // In the localhost setup scenario we don't have the workspace,
     // so we have to `--cwd` into the required directory.
     const baseCommandL2 = isLocalSetup ? `yarn --cwd /contracts/l2-contracts` : `yarn l2-contracts`;
-    const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/l1-contracts` : `yarn l1-contracts`;
 
     // Skip compilation for local setup, since we already copied artifacts into the container.
     await utils.spawn(`${baseCommandL2} build`);
 
-    await utils.spawn(`${baseCommandL1} erc20-deploy-on-chain ${args.join(' ')} | tee deployL2.log`);
-
-    await utils.spawn(`${baseCommandL1} weth-deploy-on-chain ${args.join(' ')} | tee -a deployL2.log`);
+    await utils.spawn(`${baseCommandL2} erc20-deploy-on-chain ${args.join(' ')} | tee deployL2.log`);
 
     if (includePaymaster) {
         await utils.spawn(`${baseCommandL2} deploy-testnet-paymaster ${args.join(' ')} | tee -a deployL2.log`);
@@ -121,6 +108,38 @@ export async function deployL2(args: any[] = [], includePaymaster?: boolean) {
     const l2DeploymentEnvVars = [
         'CONTRACTS_L2_ERC20_BRIDGE_ADDR',
         'CONTRACTS_L2_WETH_BRIDGE_ADDR',
+        'CONTRACTS_L2_TESTNET_PAYMASTER_ADDR',
+        'CONTRACTS_L2_WETH_TOKEN_IMPL_ADDR',
+        'CONTRACTS_L2_WETH_TOKEN_PROXY_ADDR',
+        'CONTRACTS_L2_DEFAULT_UPGRADE_ADDR'
+    ];
+    updateContractsEnv(`etc/env/l2-inits/${process.env.ZKSYNC_ENV!}.init.env`, l2DeployLog, l2DeploymentEnvVars);
+}
+
+// for testnet and development purposes it is ok to deploy contracts form L1.
+export async function deployL2ThroughL1(args: any[] = [], includePaymaster?: boolean) {
+    await utils.confirmAction();
+
+    const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
+
+    // In the localhost setup scenario we don't have the workspace,
+    // so we have to `--cwd` into the required directory.
+    const baseCommandL2 = isLocalSetup ? `yarn --cwd /contracts/l2-contracts` : `yarn l2-contracts`;
+
+    // Skip compilation for local setup, since we already copied artifacts into the container.
+    await utils.spawn(`${baseCommandL2} build`);
+
+    await utils.spawn(`${baseCommandL2} erc20-deploy-on-chain-through-l1 ${args.join(' ')} | tee deployL2.log`);
+
+    if (includePaymaster) {
+        await utils.spawn(`${baseCommandL2} deploy-testnet-paymaster-through-l1 ${args.join(' ')} | tee -a deployL2.log`);
+    }
+
+    await utils.spawn(`${baseCommandL2} deploy-force-deploy-upgrader-through-l1 ${args.join(' ')} | tee -a deployL2.log`);
+
+    let l2DeployLog = fs.readFileSync('deployL2.log').toString();
+    const l2DeploymentEnvVars = [
+        'CONTRACTS_L2_ERC20_BRIDGE_ADDR',
         'CONTRACTS_L2_TESTNET_PAYMASTER_ADDR',
         'CONTRACTS_L2_WETH_TOKEN_IMPL_ADDR',
         'CONTRACTS_L2_WETH_TOKEN_PROXY_ADDR',
@@ -162,9 +181,8 @@ export async function deployL1(args: any[]) {
 
         'CONTRACTS_GENESIS_TX_HASH',
         'CONTRACTS_TRANSPARENT_PROXY_ADMIN_ADDR',
-        'CONTRACTS_L1_ERC20_BRIDGE_PROXY_ADDR',
-        'CONTRACTS_L1_ERC20_BRIDGE_IMPL_ADDR',
-        'CONTRACTS_L1_ERC20_BRIDGE_MESSAGE_PARSING_ADDR',
+        'CONTRACTS_L1_SHARED_BRIDGE_PROXY_ADDR',
+        'CONTRACTS_L1_SHARED_BRIDGE_IMPL_ADDR',
         'CONTRACTS_L1_WETH_BRIDGE_IMPL_ADDR',
         'CONTRACTS_L1_WETH_BRIDGE_PROXY_ADDR',
         'CONTRACTS_L1_MULTICALL3_ADDR'
@@ -221,12 +239,7 @@ export async function registerHyperchain(args: any[]) {
     await utils.spawn(`${baseCommand} register-hyperchain ${args.join(' ')} | tee registerHyperchain.log`);
     const deployLog = fs.readFileSync('registerHyperchain.log').toString();
 
-    const l2EnvVars = [
-        'CHAIN_ETH_ZKSYNC_NETWORK_ID',
-        'CONTRACTS_DIAMOND_PROXY_ADDR',
-        'CONTRACTS_BASE_TOKEN_ADDR',
-        'CONTRACTS_BASE_TOKEN_BRIDGE_ADDR'
-    ];
+    const l2EnvVars = ['CHAIN_ETH_ZKSYNC_NETWORK_ID', 'CONTRACTS_DIAMOND_PROXY_ADDR', 'CONTRACTS_BASE_TOKEN_ADDR'];
     console.log('Writing to', `etc/env/l2-inits/${process.env.ZKSYNC_ENV!}.init.env`);
 
     const updatedContracts = updateContractsEnv(
@@ -254,5 +267,4 @@ command
     .action(redeployL1);
 command.command('deploy [deploy-opts...]').allowUnknownOption(true).description('deploy contracts').action(deployL1);
 command.command('build').description('build contracts').action(build);
-// command.command('initialize-validator').description('initialize validator').action(initializeValidator);
 command.command('verify').description('verify L1 contracts').action(verifyL1Contracts);

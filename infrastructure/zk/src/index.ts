@@ -8,12 +8,12 @@ import { command as up } from './up';
 import { command as down } from './down';
 import { command as contract } from './contract';
 import {
-    initCommand as init,
-    reinitCommand as reinit,
-    lightweightInitCommand as lightweightInit,
-    initHyperCommand as initHyper,
+    initCommand,
+    reinitCommand,
+    lightweightInitCommand,
+    initHyperCommand,
     initSharedBridgeCommand,
-    finishBridgeInitCommand as finishBridgeInit
+    deployL2ContractsCommand
 } from './init';
 import { initHyperchainCommand } from './hyperchain_wizard';
 import { command as run } from './run/run';
@@ -41,13 +41,13 @@ const COMMANDS = [
     down,
     db,
     contract,
-    init,
-    reinit,
-    lightweightInit,
+    initCommand,
+    reinitCommand,
+    lightweightInitCommand,
     initHyperchainCommand,
-    initHyper,
+    initHyperCommand,
     initSharedBridgeCommand,
-    finishBridgeInit,
+    deployL2ContractsCommand,
     run,
     test,
     fmt,

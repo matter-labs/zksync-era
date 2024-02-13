@@ -71,7 +71,7 @@ So the last question is -- what is the 'magic' contract address: `0x800a` ?
 
 ```solidity
 /// @dev The address of the eth token system contract
-address constant L2_ETH_TOKEN_SYSTEM_CONTRACT_ADDR = address(0x800a);
+address constant L2_BASE_TOKEN_SYSTEM_CONTRACT_ADDR = address(0x800a);
 
 ```
 
@@ -84,7 +84,7 @@ list here
 This is the place where we specify that `bootloader` is at address 0x8001, `NonceHolder` at 0x8003 etc.
 
 This brings us to
-[L2EthToken.sol](https://github.com/matter-labs/era-system-contracts/blob/main/contracts/L2EthToken.sol) that has the
+[L2BaseToken.sol](https://github.com/matter-labs/era-system-contracts/blob/main/contracts/L2BaseToken.sol) that has the
 implementation of the L2 Eth.
 
 When we look inside, we can see:

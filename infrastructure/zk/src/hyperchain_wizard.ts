@@ -53,15 +53,17 @@ async function initHyperchain(envName: string) {
 
     const deployerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
     const governorPrivateKey = process.env.GOVERNOR_PRIVATE_KEY;
-    const deployL2Weth = Boolean(process.env.DEPLOY_L2_WETH || false);
+    const deployL2WrappedBaseToken = Boolean(process.env.DEPLOY_L2_WETH || false);
     const deployTestTokens = Boolean(process.env.DEPLOY_TEST_TOKENS || false);
 
     const initArgs: InitArgs = {
         skipSubmodulesCheckout: false,
         skipEnvSetup: true,
+        skipSetupCompletely: false,
         governorPrivateKeyArgs: ['--private-key', governorPrivateKey],
         deployerL2ContractInput: {
             args: ['--private-key', deployerPrivateKey],
+            throughL1: true,
             includePaymaster: false
         },
         testTokens: {
@@ -761,15 +763,17 @@ async function configDemoHyperchain(cmd: Command) {
 
     const deployerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
     const governorPrivateKey = process.env.GOVERNOR_PRIVATE_KEY;
-    const deployL2Weth = Boolean(process.env.DEPLOY_L2_WETH || false);
+    const deployL2WrappedBaseToken = Boolean(process.env.DEPLOY_L2_WETH || false);
     const deployTestTokens = Boolean(process.env.DEPLOY_TEST_TOKENS || false);
 
     const initArgs: InitArgs = {
         skipSubmodulesCheckout: false,
         skipEnvSetup: cmd.skipEnvSetup,
+        skipSetupCompletely: false,
         governorPrivateKeyArgs: ['--private-key', governorPrivateKey],
         deployerL2ContractInput: {
             args: ['--private-key', deployerPrivateKey],
+            throughL1: true,
             includePaymaster: false
         },
         testTokens: {

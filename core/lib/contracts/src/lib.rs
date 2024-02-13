@@ -170,7 +170,7 @@ pub fn l1_messenger_contract() -> Contract {
 }
 
 pub fn eth_contract() -> Contract {
-    load_sys_contract("L2EthToken")
+    load_sys_contract("L2BaseToken")
 }
 
 pub fn known_codes_contract() -> Contract {
