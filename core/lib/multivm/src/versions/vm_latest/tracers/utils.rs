@@ -119,33 +119,35 @@ pub(crate) fn read_pointer<H: HistoryMode>(
     memory: &SimpleMemory<H>,
     pointer: FatPointer,
 ) -> Vec<u8> {
-    // FIXME
-    vec![]
+    let FatPointer {
+        offset,
+        length,
+        start,
+        memory_page,
+    } = pointer;
 
-    // let FatPointer {
-    //     offset,
-    //     length,
-    //     start,
-    //     memory_page,
-    // } = pointer;
+    // The actual bounds of the returndata ptr is [start+offset..start+length]
+    let mem_region_start = start + offset;
+    let mem_region_length = length - offset;
 
-    // // The actual bounds of the returndata ptr is [start+offset..start+length]
-    // let mem_region_start = start + offset;
-    // let mem_region_length = length - offset;
-
-    // memory.read_unaligned_bytes(
-    //     memory_page as usize,
-    //     mem_region_start as usize,
-    //     mem_region_length as usize,
-    // )
+    memory.read_unaligned_bytes(
+        memory_page as usize,
+        mem_region_start as usize,
+        mem_region_length as usize,
+    )
 }
 
 /// Outputs the returndata for the latest call.
 /// This is usually used to output the revert reason.
-pub(crate) fn get_debug_returndata<H: HistoryMode>(memory: &SimpleMemory<H>) -> String {
-    let vm_hook_params: Vec<_> = get_vm_hook_params(memory);
-    let returndata_ptr = FatPointer::from_u256(vm_hook_params[0]);
-    let returndata = read_pointer(memory, returndata_ptr);
+pub(crate) fn get_debug_returndata<H: HistoryMode>(
+    memory: &SimpleMemory<H>,
+    latest_returndata_ptr: Option<FatPointer>,
+) -> String {
+    let returndata = if let Some(ptr) = latest_returndata_ptr {
+        read_pointer(memory, ptr)
+    } else {
+        vec![]
+    };
 
     format!("0x{}", hex::encode(returndata))
 }
@@ -155,10 +157,11 @@ pub(crate) fn print_debug_if_needed<H: HistoryMode>(
     hook: &VmHook,
     state: &VmLocalStateData<'_>,
     memory: &SimpleMemory<H>,
+    latest_returndata_ptr: Option<FatPointer>,
 ) {
     let log = match hook {
         VmHook::DebugLog => get_debug_log(state, memory),
-        VmHook::DebugReturnData => get_debug_returndata(memory),
+        VmHook::DebugReturnData => get_debug_returndata(memory, latest_returndata_ptr),
         _ => return,
     };
 
