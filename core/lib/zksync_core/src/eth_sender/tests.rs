@@ -49,7 +49,7 @@ struct EthSenderTester {
     gateway: Arc<MockEthereum>,
     manager: MockEthTxManager,
     aggregator: EthTxAggregator,
-    gas_adjuster: Arc<GasAdjuster<Arc<MockEthereum>>>,
+    gas_adjuster: Arc<GasAdjuster>,
 }
 
 impl EthSenderTester {
