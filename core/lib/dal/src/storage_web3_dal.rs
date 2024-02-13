@@ -43,7 +43,7 @@ impl StorageWeb3Dal<'_, '_> {
             .collect();
 
         let res = self
-            .get_values(&nonce_keys.keys().cloned().collect::<Vec<_>>())
+            .get_values(&nonce_keys.keys().copied().collect::<Vec<_>>())
             .await?
             .into_iter()
             .filter_map(|(hashed_key, value)| {
