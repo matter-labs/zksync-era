@@ -186,9 +186,9 @@ The owner of the L1ERC20Bridge is the Governance contract.
 
 ### L1SharedBridge
 
-The main bridge implementation handles transfers Ether, ERC20 tokens and of WETH tokens between the two domains. It is designed to streamline and
-enhance the user experience for bridging WETH tokens by minimizing the number of transactions required and reducing
-liquidity fragmentation thus improving efficiency and user experience.
+The main bridge implementation handles transfers Ether, ERC20 tokens and of WETH tokens between the two domains. It is
+designed to streamline and enhance the user experience for bridging WETH tokens by minimizing the number of transactions
+required and reducing liquidity fragmentation thus improving efficiency and user experience.
 
 This contract accepts WETH deposits on L1, unwraps them to ETH, and sends the ETH to the L2 WETH bridge contract, where
 it is wrapped back into WETH and delivered to the L2 recipient.
@@ -208,12 +208,6 @@ The L2 counterpart of the L1 Shared bridge.
 - `finalizeDeposit` - finalize the deposit and mint funds on L2. The function is only callable by L1 bridge.
 
 The owner of the L2SharedBridge and the contracts related to it is the Governance contract.
-
-
-
-
-
-
 
 ## Governance
 

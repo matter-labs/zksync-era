@@ -132,10 +132,14 @@ export async function deployL2ThroughL1(args: any[] = [], includePaymaster?: boo
     await utils.spawn(`${baseCommandL2} erc20-deploy-on-chain-through-l1 ${args.join(' ')} | tee deployL2.log`);
 
     if (includePaymaster) {
-        await utils.spawn(`${baseCommandL2} deploy-testnet-paymaster-through-l1 ${args.join(' ')} | tee -a deployL2.log`);
+        await utils.spawn(
+            `${baseCommandL2} deploy-testnet-paymaster-through-l1 ${args.join(' ')} | tee -a deployL2.log`
+        );
     }
 
-    await utils.spawn(`${baseCommandL2} deploy-force-deploy-upgrader-through-l1 ${args.join(' ')} | tee -a deployL2.log`);
+    await utils.spawn(
+        `${baseCommandL2} deploy-force-deploy-upgrader-through-l1 ${args.join(' ')} | tee -a deployL2.log`
+    );
 
     let l2DeployLog = fs.readFileSync('deployL2.log').toString();
     const l2DeploymentEnvVars = [

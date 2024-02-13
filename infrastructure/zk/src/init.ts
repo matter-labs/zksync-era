@@ -83,7 +83,7 @@ export async function initHyper(initArgs: InitArgs = DEFAULT_ARGS) {
         contract.registerHyperchain([...governorPrivateKeyArgs, ...baseTokenArgs])
     );
     await announced('Reloading env', env.reload());
-    if (deployerL2ContractInput.throughL1){
+    if (deployerL2ContractInput.throughL1) {
         await announced(
             'Deploying L2 contracts',
             contract.deployL2ThroughL1(deployerL2ContractInput.args, deployerL2ContractInput.includePaymaster)
@@ -196,9 +196,9 @@ export interface InitArgs {
 const DEFAULT_ARGS: InitArgs = {
     skipSubmodulesCheckout: false,
     skipEnvSetup: false,
-    skipSetupCompletely : false,
+    skipSetupCompletely: false,
     governorPrivateKeyArgs: [],
-    deployerL2ContractInput: { args: [],throughL1:true, includePaymaster: true },
+    deployerL2ContractInput: { args: [], throughL1: true, includePaymaster: true },
     testTokens: { deploy: true, deployWeth: true, args: [] },
     baseToken: { name: 'ETH', address: ADDRESS_ONE }
 };
