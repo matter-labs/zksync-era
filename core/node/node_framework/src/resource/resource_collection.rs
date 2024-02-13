@@ -108,6 +108,7 @@ impl<T: Resource + Clone> ResourceCollection<T> {
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
+
     use tokio::time::timeout;
 
     use super::*;
