@@ -16,7 +16,9 @@ use zksync_types::{
 use super::*;
 use crate::{
     genesis::{ensure_genesis_state, GenesisParams},
-    utils::testonly::{create_l1_batch, create_l1_batch_metadata},
+    utils::testonly::{
+        create_l1_batch, create_l1_batch_metadata, l1_batch_metadata_to_commitment_artifacts,
+    },
 };
 
 /// **NB.** For tests to run correctly, the returned value must be deterministic (i.e., depend only on `number`).
@@ -24,7 +26,7 @@ fn create_l1_batch_with_metadata(number: u32) -> L1BatchWithMetadata {
     L1BatchWithMetadata {
         header: create_l1_batch(number),
         metadata: create_l1_batch_metadata(number),
-        factory_deps: vec![],
+        raw_published_factory_deps: vec![],
     }
 }
 
@@ -34,7 +36,7 @@ fn create_pre_boojum_l1_batch_with_metadata(number: u32) -> L1BatchWithMetadata 
     let mut l1_batch = L1BatchWithMetadata {
         header: create_l1_batch(number),
         metadata: create_l1_batch_metadata(number),
-        factory_deps: vec![],
+        raw_published_factory_deps: vec![],
     };
     l1_batch.header.protocol_version = Some(PRE_BOOJUM_PROTOCOL_VERSION);
     l1_batch.metadata.bootloader_initial_content_commitment = None;
@@ -204,11 +206,14 @@ impl SaveAction<'_> {
             Self::SaveMetadata(l1_batch) => {
                 storage
                     .blocks_dal()
-                    .save_l1_batch_metadata(
+                    .save_l1_batch_tree_data(l1_batch.header.number, &l1_batch.metadata.tree_data())
+                    .await
+                    .unwrap();
+                storage
+                    .blocks_dal()
+                    .save_l1_batch_commitment_artifacts(
                         l1_batch.header.number,
-                        &l1_batch.metadata,
-                        H256::default(),
-                        l1_batch.header.protocol_version.unwrap().is_pre_boojum(),
+                        &l1_batch_metadata_to_commitment_artifacts(&l1_batch.metadata),
                     )
                     .await
                     .unwrap();
