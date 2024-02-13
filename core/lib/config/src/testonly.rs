@@ -406,7 +406,10 @@ impl RandomConfig for configs::database::PostgresConfig {
             replica_url: g.gen(),
             prover_url: g.gen(),
             max_connections: g.gen(),
+            acquire_timeout_sec: g.gen(),
             statement_timeout_sec: g.gen(),
+            long_connection_threshold_ms: g.gen(),
+            slow_query_threshold_ms: g.gen(),
         }
     }
 }

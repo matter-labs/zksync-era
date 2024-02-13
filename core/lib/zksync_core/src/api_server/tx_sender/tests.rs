@@ -6,7 +6,7 @@ use super::*;
 use crate::{
     api_server::execution_sandbox::{testonly::MockTransactionExecutor, VmConcurrencyBarrier},
     genesis::{ensure_genesis_state, GenesisParams},
-    utils::testonly::{create_miniblock, prepare_recovery_snapshot, MockL1GasPriceProvider},
+    utils::testonly::{create_miniblock, prepare_recovery_snapshot, MockBatchFeeParamsProvider},
 };
 
 pub(crate) async fn create_test_tx_sender(
@@ -26,14 +26,14 @@ pub(crate) async fn create_test_tx_sender(
     );
     tokio::task::spawn_blocking(cache_update_task);
 
-    let gas_adjuster = Arc::new(MockL1GasPriceProvider(1));
+    let batch_fee_model_input_provider = Arc::new(MockBatchFeeParamsProvider::default());
     let (mut tx_sender, vm_barrier) = crate::build_tx_sender(
         &tx_sender_config,
         &web3_config,
         &state_keeper_config,
         pool.clone(),
         pool,
-        gas_adjuster,
+        batch_fee_model_input_provider,
         storage_caches,
     )
     .await;
