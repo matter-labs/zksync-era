@@ -195,12 +195,11 @@ jobs:
       - name: Server integration tests
         run: ci_run zk test i server
 
-      - name: Fee projection tests
-        run: ci_run zk test i fees
-
-      # Must run before `zksync_server` is killed.
       - name: Snapshot recovery test
         run: ci_run zk test i snapshot-recovery
+
+      - name: Fee projection tests
+        run: ci_run zk test i fees
 
       - name: Run revert test
         run: |
