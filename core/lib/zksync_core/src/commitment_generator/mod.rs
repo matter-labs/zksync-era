@@ -51,6 +51,8 @@ impl CommitmentGenerator {
             .get_initial_bootloader_heap(l1_batch_number)
             .await?
             .context("Bootloader initial heap is missing")?;
+        drop(connection);
+
         let events_commitment_task: JoinHandle<anyhow::Result<H256>> =
             tokio::task::spawn_blocking(move || {
                 let latency = METRICS.events_queue_commitment_latency.start();
