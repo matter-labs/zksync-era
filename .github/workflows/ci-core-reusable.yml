@@ -198,6 +198,10 @@ jobs:
       - name: Fee projection tests
         run: ci_run zk test i fees
 
+      # Must run before `zksync_server` is killed.
+      - name: Snapshot recovery test
+        run: ci_run zk test i snapshot-recovery
+
       - name: Run revert test
         run: |
           ci_run pkill zksync_server || true
@@ -219,6 +223,13 @@ jobs:
       - name: Show contract_verifier.log logs
         if: always()
         run: ci_run cat contract_verifier.log || true
+
+      - name: Show snapshot-creator.log logs
+        if: always()
+        run: ci_run cat core/tests/snapshot-recovery-test/snapshot-creator.log || true
+      - name: Show snapshot-recovery.log logs
+        if: always()
+        run: ci_run cat core/tests/snapshot-recovery-test/snapshot-recovery.log || true
 
       - name: Show revert.log logs
         if: always()
