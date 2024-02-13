@@ -53,7 +53,7 @@ export async function setup() {
         // Remote database, we can't show the contents.
         console.log(`WARNING! Using prod db!`);
     }
-    if (process.env.TEMPLATE_DATABASE_URL !== undefined) {
+    if (process.env.TEMPLATE_DATABASE_URL) {
         // Dump and restore from template database (simulate backup)
         console.log(`Template DB URL provided. Creating a DB via dump from ${process.env.TEMPLATE_DATABASE_URL}`);
         await utils.spawn('cargo sqlx database drop -y');

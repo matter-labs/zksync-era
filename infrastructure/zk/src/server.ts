@@ -25,7 +25,11 @@ export async function server(rebuildTree: boolean, uring: boolean, components?: 
     await utils.spawn(`cargo run --bin zksync_server --release ${options}`);
 }
 
-export async function externalNode(reinit: boolean = false, enableConsensus: boolean = false) {
+export async function externalNode(
+    reinit: boolean = false,
+    enableConsensus: boolean = false,
+    enableSnapshotsRecovery: boolean = false
+) {
     if (process.env.ZKSYNC_ENV != 'ext-node') {
         console.warn(`WARNING: using ${process.env.ZKSYNC_ENV} environment for external node`);
         console.warn('If this is a mistake, set $ZKSYNC_ENV to "ext-node" or other environment');
@@ -48,6 +52,9 @@ export async function externalNode(reinit: boolean = false, enableConsensus: boo
     let options = '';
     if (enableConsensus) {
         options += ' --enable-consensus';
+    }
+    if (enableSnapshotsRecovery) {
+        options += ' --enable-snapshots-recovery';
     }
     await utils.spawn(`cargo run --release --bin zksync_external_node -- ${options}`);
 }
@@ -140,6 +147,7 @@ export const enCommand = new Command('external-node')
     .description('start zksync external node')
     .option('--reinit', 'reset postgres and rocksdb before starting')
     .option('--enable-consensus', 'enables consensus component')
+    .option('--enable-snapshots-recovery', 'enables recovery from an app-level snapshot')
     .action(async (cmd: Command) => {
-        await externalNode(cmd.reinit, cmd.enableConsensus);
+        await externalNode(cmd.reinit, cmd.enableConsensus, cmd.enableSnapshotsRecovery);
     });
