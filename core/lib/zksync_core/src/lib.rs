@@ -53,6 +53,7 @@ use crate::{
         web3::{state::InternalApiConfig, ApiServerHandles, Namespace},
     },
     basic_witness_input_producer::BasicWitnessInputProducer,
+    commitment_generator::CommitmentGenerator,
     eth_sender::{Aggregator, EthTxAggregator, EthTxManager},
     eth_watch::start_eth_watch,
     house_keeper::{
@@ -78,6 +79,7 @@ use crate::{
 pub mod api_server;
 pub mod basic_witness_input_producer;
 pub mod block_reverter;
+pub mod commitment_generator;
 pub mod consensus;
 pub mod consistency_checker;
 pub mod eth_sender;
@@ -233,6 +235,8 @@ pub enum Component {
     ProofDataHandler,
     /// Component generating BFT consensus certificates for miniblocks.
     Consensus,
+    /// Component generating commitment for L1 batches.
+    CommitmentGenerator,
 }
 
 #[derive(Debug)]
@@ -268,6 +272,7 @@ impl FromStr for Components {
             "eth_tx_manager" => Ok(Components(vec![Component::EthTxManager])),
             "proof_data_handler" => Ok(Components(vec![Component::ProofDataHandler])),
             "consensus" => Ok(Components(vec![Component::Consensus])),
+            "commitment_generator" => Ok(Components(vec![Component::CommitmentGenerator])),
             other => Err(format!("{} is not a valid component name", other)),
         }
     }
@@ -692,6 +697,16 @@ pub async fn initialize_components(
             connection_pool.clone(),
             stop_receiver.clone(),
         )));
+    }
+
+    if components.contains(&Component::CommitmentGenerator) {
+        let commitment_generator_pool = ConnectionPool::singleton(postgres_config.master_url()?)
+            .build()
+            .await
+            .context("failed to build commitment_generator_pool")?;
+        let commitment_generator =
+            CommitmentGenerator::new(commitment_generator_pool, stop_receiver.clone());
+        task_futures.push(tokio::spawn(commitment_generator.run()));
     }
 
     // Run healthcheck server for all components.

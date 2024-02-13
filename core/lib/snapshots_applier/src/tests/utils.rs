@@ -69,10 +69,9 @@ pub(crate) fn l1_block_metadata(
             root_hash,
             rollup_last_leaf_index: 0,
             merkle_root_hash: H256::zero(),
-            initial_writes_compressed: vec![],
-            repeated_writes_compressed: vec![],
+            initial_writes_compressed: Some(vec![]),
+            repeated_writes_compressed: Some(vec![]),
             commitment: H256::zero(),
-            l2_l1_messages_compressed: vec![],
             l2_l1_merkle_root: H256::zero(),
             block_meta_params: L1BatchMetaParameters {
                 zkporter_is_available: false,
@@ -86,7 +85,7 @@ pub(crate) fn l1_block_metadata(
             bootloader_initial_content_commitment: None,
             state_diffs_compressed: vec![],
         },
-        factory_deps: vec![],
+        raw_published_factory_deps: vec![],
     }
 }
 
