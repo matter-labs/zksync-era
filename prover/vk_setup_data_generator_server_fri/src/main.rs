@@ -24,7 +24,6 @@ use zksync_vk_setup_data_server_fri::{
 
 #[cfg(test)]
 mod tests;
-mod vk_generator;
 
 fn save_vks(source: &dyn SetupDataSource) -> anyhow::Result<()> {
     for base_circuit_type in
