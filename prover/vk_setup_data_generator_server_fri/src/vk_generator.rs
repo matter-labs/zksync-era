@@ -1,7 +1,36 @@
 use anyhow::Context as _;
+use std::sync::Arc;
+
+use circuit_definitions::{
+    aux_definitions::witness_oracle::VmWitnessOracle,
+    boojum::{
+        cs::traits::circuit::CircuitBuilder, field::goldilocks::GoldilocksField,
+        implementations::poseidon2::Poseidon2Goldilocks,
+    },
+    circuit_definitions::{
+        base_layer::{StorageApplicationInstanceSynthesisFunction, ZkSyncBaseLayerCircuit},
+        ZkSyncUniformCircuitInstance,
+    },
+    zkevm_circuits::{
+        code_unpacker_sha256::input::CodeDecommitterCircuitInstanceWitness,
+        demux_log_queue::input::LogDemuxerCircuitInstanceWitness,
+        ecrecover::EcrecoverCircuitInstanceWitness,
+        fsm_input_output::circuit_inputs::main_vm::VmCircuitWitness,
+        keccak256_round_function::input::Keccak256RoundFunctionCircuitInstanceWitness,
+        linear_hasher::input::LinearHasherCircuitInstanceWitness,
+        log_sorter::input::EventsDeduplicatorInstanceWitness,
+        ram_permutation::input::RamPermutationCircuitInstanceWitness,
+        sha256_round_function::input::Sha256RoundFunctionCircuitInstanceWitness,
+        sort_decommittment_requests::input::CodeDecommittmentsDeduplicatorInstanceWitness,
+        storage_application::input::StorageApplicationCircuitInstanceWitness,
+        storage_validity_by_grand_product::input::StorageDeduplicatorInstanceWitness,
+    },
+};
+use crossbeam::atomic::AtomicCell;
 use zkevm_test_harness::{
     geometry_config::get_geometry_config,
     prover_utils::{create_base_layer_setup_data, create_recursive_layer_setup_data},
+    toolset::GeometryConfig,
 };
 use zksync_prover_fri_types::{
     circuit_definitions::{
@@ -27,11 +56,125 @@ fn main() -> anyhow::Result<()> {
     generate_basic_circuit_vks().context("generate_basic_circuit_vks()")
 }
 
+fn get_all_basic_circuits(
+    geometry: &GeometryConfig,
+) -> Vec<
+    ZkSyncBaseLayerCircuit<GoldilocksField, VmWitnessOracle<GoldilocksField>, Poseidon2Goldilocks>,
+> {
+    vec![
+        ZkSyncBaseLayerCircuit::MainVM(ZkSyncUniformCircuitInstance {
+            witness: AtomicCell::new(Some(VmCircuitWitness::<
+                GoldilocksField,
+                VmWitnessOracle<GoldilocksField>,
+            >::default())),
+            config: Arc::new(geometry.cycles_per_vm_snapshot as usize),
+            round_function: Arc::new(Poseidon2Goldilocks),
+            expected_public_input: None,
+        }),
+        ZkSyncBaseLayerCircuit::CodeDecommittmentsSorter(ZkSyncUniformCircuitInstance {
+            witness: AtomicCell::new(Some(CodeDecommittmentsDeduplicatorInstanceWitness::<
+                GoldilocksField,
+            >::default())),
+            config: Arc::new(geometry.cycles_code_decommitter_sorter as usize),
+            round_function: Arc::new(Poseidon2Goldilocks),
+            expected_public_input: None,
+        }),
+        ZkSyncBaseLayerCircuit::CodeDecommitter(ZkSyncUniformCircuitInstance {
+            witness: AtomicCell::new(Some(
+                CodeDecommitterCircuitInstanceWitness::<GoldilocksField>::default(),
+            )),
+            config: Arc::new(geometry.cycles_per_code_decommitter as usize),
+            round_function: Arc::new(Poseidon2Goldilocks),
+            expected_public_input: None,
+        }),
+        ZkSyncBaseLayerCircuit::LogDemuxer(ZkSyncUniformCircuitInstance {
+            witness: AtomicCell::new(Some(
+                LogDemuxerCircuitInstanceWitness::<GoldilocksField>::default(),
+            )),
+            config: Arc::new(geometry.cycles_per_log_demuxer as usize),
+            round_function: Arc::new(Poseidon2Goldilocks),
+            expected_public_input: None,
+        }),
+        ZkSyncBaseLayerCircuit::KeccakRoundFunction(ZkSyncUniformCircuitInstance {
+            witness: AtomicCell::new(Some(Keccak256RoundFunctionCircuitInstanceWitness::<
+                GoldilocksField,
+            >::default())),
+            config: Arc::new(geometry.cycles_per_keccak256_circuit as usize),
+            round_function: Arc::new(Poseidon2Goldilocks),
+            expected_public_input: None,
+        }),
+        ZkSyncBaseLayerCircuit::Sha256RoundFunction(ZkSyncUniformCircuitInstance {
+            witness: AtomicCell::new(Some(Sha256RoundFunctionCircuitInstanceWitness::<
+                GoldilocksField,
+            >::default())),
+            config: Arc::new(geometry.cycles_per_sha256_circuit as usize),
+            round_function: Arc::new(Poseidon2Goldilocks),
+            expected_public_input: None,
+        }),
+        ZkSyncBaseLayerCircuit::ECRecover(ZkSyncUniformCircuitInstance {
+            witness: AtomicCell::new(Some(
+                EcrecoverCircuitInstanceWitness::<GoldilocksField>::default(),
+            )),
+            config: Arc::new(geometry.cycles_per_ecrecover_circuit as usize),
+            round_function: Arc::new(Poseidon2Goldilocks),
+            expected_public_input: None,
+        }),
+        ZkSyncBaseLayerCircuit::RAMPermutation(ZkSyncUniformCircuitInstance {
+            witness: AtomicCell::new(Some(
+                RamPermutationCircuitInstanceWitness::<GoldilocksField>::default(),
+            )),
+            config: Arc::new(geometry.cycles_per_ram_permutation as usize),
+            round_function: Arc::new(Poseidon2Goldilocks),
+            expected_public_input: None,
+        }),
+        ZkSyncBaseLayerCircuit::StorageSorter(ZkSyncUniformCircuitInstance {
+            witness: AtomicCell::new(Some(
+                StorageDeduplicatorInstanceWitness::<GoldilocksField>::default(),
+            )),
+            config: Arc::new(geometry.cycles_per_storage_sorter as usize),
+            round_function: Arc::new(Poseidon2Goldilocks),
+            expected_public_input: None,
+        }),
+        ZkSyncBaseLayerCircuit::StorageApplication(ZkSyncUniformCircuitInstance {
+            witness: AtomicCell::new(Some(StorageApplicationCircuitInstanceWitness::<
+                GoldilocksField,
+            >::default())),
+            config: Arc::new(geometry.cycles_per_storage_application as usize),
+            round_function: Arc::new(Poseidon2Goldilocks),
+            expected_public_input: None,
+        }),
+        ZkSyncBaseLayerCircuit::EventsSorter(ZkSyncUniformCircuitInstance {
+            witness: AtomicCell::new(Some(
+                EventsDeduplicatorInstanceWitness::<GoldilocksField>::default(),
+            )),
+            config: Arc::new(geometry.cycles_per_events_or_l1_messages_sorter as usize),
+            round_function: Arc::new(Poseidon2Goldilocks),
+            expected_public_input: None,
+        }),
+        ZkSyncBaseLayerCircuit::L1MessagesSorter(ZkSyncUniformCircuitInstance {
+            witness: AtomicCell::new(Some(
+                EventsDeduplicatorInstanceWitness::<GoldilocksField>::default(),
+            )),
+            config: Arc::new(geometry.cycles_per_events_or_l1_messages_sorter as usize),
+            round_function: Arc::new(Poseidon2Goldilocks),
+            expected_public_input: None,
+        }),
+        ZkSyncBaseLayerCircuit::L1MessagesHasher(ZkSyncUniformCircuitInstance {
+            witness: AtomicCell::new(Some(
+                LinearHasherCircuitInstanceWitness::<GoldilocksField>::default(),
+            )),
+            config: Arc::new(geometry.limit_for_l1_messages_pudata_hasher as usize),
+            round_function: Arc::new(Poseidon2Goldilocks),
+            expected_public_input: None,
+        }),
+    ]
+}
+
 pub fn generate_basic_circuit_vks() -> anyhow::Result<()> {
     let worker = Worker::new();
-    for circuit in
-        get_basic_circuits(CYCLE_LIMIT, get_geometry_config()).context("get_basic_circuits()")?
-    {
+    let geometry = get_geometry_config();
+
+    for circuit in get_all_basic_circuits(&geometry) {
         let circuit_type = circuit.numeric_circuit_type();
         let (_, _, vk, _, _, _, finalization_hint) = create_base_layer_setup_data(
             circuit.clone(),
