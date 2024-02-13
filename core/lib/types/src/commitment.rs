@@ -250,8 +250,8 @@ struct L1BatchAuxiliaryOutput {
     bootloader_heap_hash: H256,
     events_state_queue_hash: H256,
     protocol_version: ProtocolVersionId,
-    blob_linear_hash: Vec<u8>,
-    blob_commitment: Vec<u8>,
+    blob_linear_hashes: Vec<Vec<u8>>,
+    blob_commitments: Vec<Vec<u8>>,
 }
 
 impl L1BatchAuxiliaryOutput {
@@ -265,7 +265,7 @@ impl L1BatchAuxiliaryOutput {
         bootloader_heap_hash: H256,
         events_state_queue_hash: H256,
         protocol_version: ProtocolVersionId,
-        blob_commitment: Vec<u8>,
+        blob_commitments: Vec<Vec<u8>>,
     ) -> Self {
         let state_diff_hash_from_logs = system_logs.iter().find_map(|log| {
             if log.0.key == u256_to_h256(STATE_DIFF_HASH_KEY.into()) {
@@ -307,18 +307,26 @@ impl L1BatchAuxiliaryOutput {
             )
         };
 
-        let blob_linear_hash = system_logs
+        let mut blob_linear_hash = system_logs
             .iter()
             .filter(|log| {
                 log.0.sender == PUBDATA_CHUNK_PUBLISHER_ADDRESS
-                    && log.0.key == H256::from_low_u64_be(7u64)
+                    && (log.0.key == H256::from_low_u64_be(7u64)
+                        || log.0.key == H256::from_low_u64_be(8u64))
             })
             .collect::<Vec<&SystemL2ToL1Log>>();
 
-        let blob_linear_hash = if blob_linear_hash.len() == 0 {
-            vec![0u8; 32]
+        blob_linear_hash.sort_unstable_by_key(|log| log.0.key);
+
+        let blob_linear_hashes = if blob_linear_hash.len() == 0 {
+            vec![vec![0u8; 32], vec![0u8; 32]]
+        } else if blob_linear_hash.len() == 1 {
+            vec![blob_linear_hash[0].0.value.as_bytes().to_vec()]
         } else {
-            blob_linear_hash[0].0.value.as_bytes().to_vec()
+            vec![
+                blob_linear_hash[0].0.value.as_bytes().to_vec(),
+                blob_linear_hash[1].0.value.as_bytes().to_vec(),
+            ]
         };
 
         let state_diffs_compressed = compress_state_diffs(state_diffs.clone());
@@ -379,8 +387,8 @@ impl L1BatchAuxiliaryOutput {
             bootloader_heap_hash,
             events_state_queue_hash,
             protocol_version,
-            blob_linear_hash,
-            blob_commitment,
+            blob_linear_hashes,
+            blob_commitments,
         }
     }
 
@@ -405,11 +413,23 @@ impl L1BatchAuxiliaryOutput {
             result.extend(self.bootloader_heap_hash.as_bytes());
             result.extend(self.events_state_queue_hash.as_bytes());
 
+            let blob_1_commitment = if self.blob_commitments.get(0).is_none() {
+                vec![0u8; 32]
+            } else {
+                self.blob_commitments[0].clone()
+            };
+
+            let blob_2_commitment = if self.blob_commitments.get(1).is_none() {
+                vec![0u8; 32]
+            } else {
+                self.blob_commitments[1].clone()
+            };
+
             // For now, we are using zeroes as commitments to the KZG pubdata.
-            result.extend(self.blob_linear_hash.as_slice());
-            result.extend(self.blob_commitment.as_slice());
-            result.extend(H256::zero().as_bytes());
-            result.extend(H256::zero().as_bytes());
+            result.extend(self.blob_linear_hashes[0].as_slice());
+            result.extend(blob_1_commitment.as_slice());
+            result.extend(self.blob_linear_hashes[1].as_slice());
+            result.extend(blob_2_commitment.as_slice());
         }
         result
     }
@@ -505,7 +525,7 @@ impl L1BatchCommitment {
         bootloader_heap_hash: H256,
         events_state_queue_hash: H256,
         protocol_version: ProtocolVersionId,
-        blob_commitment: Vec<u8>,
+        blob_commitments: Vec<Vec<u8>>,
     ) -> Self {
         let meta_parameters = L1BatchMetaParameters {
             zkporter_is_available: ZKPORTER_IS_AVAILABLE,
@@ -536,7 +556,7 @@ impl L1BatchCommitment {
                 bootloader_heap_hash,
                 events_state_queue_hash,
                 protocol_version,
-                blob_commitment,
+                blob_commitments,
             ),
             meta_parameters,
         }
@@ -696,7 +716,7 @@ mod tests {
             H256::zero(),
             H256::zero(),
             ProtocolVersionId::latest(),
-            vec![0u8; 32],
+            vec![vec![0u8; 32], vec![0u8; 32]],
         );
 
         let commitment = L1BatchCommitment {

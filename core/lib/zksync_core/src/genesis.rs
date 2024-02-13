@@ -114,7 +114,7 @@ pub async fn ensure_genesis_state(
         H256::zero(),
         H256::zero(),
         *protocol_version,
-        vec![0u8; 32],
+        vec![vec![0u8; 32], vec![0u8; 32]],
     );
 
     save_genesis_l1_batch_metadata(

@@ -7,7 +7,10 @@ use zksync_types::{
     U256,
 };
 
-use crate::{i_executor::commit::kzg::KzgInfo, Tokenizable};
+use crate::{
+    i_executor::commit::kzg::{KzgInfo, ZK_SYNC_BYTES_PER_BLOB},
+    Tokenizable,
+};
 
 /// Loads KZG settings from the file system.
 pub fn load_kzg_settings() -> KzgSettings {
@@ -78,9 +81,18 @@ impl<'a> Tokenizable for CommitBatchInfo<'a> {
                 .pubdata_input
                 .clone()
                 .unwrap_or(self.0.construct_pubdata());
-            let kzg_info = KzgInfo::new(&load_kzg_settings(), pubdata);
-            let mut pubdata_commitment = kzg_info.to_pubdata_commitment().to_vec();
-            pubdata_commitment.insert(0, 1u8);
+
+            let kzg_settings = load_kzg_settings();
+
+            let pubdata_commitments = pubdata
+                .chunks(ZK_SYNC_BYTES_PER_BLOB)
+                .map(|blob| {
+                    let kzg_info = KzgInfo::new(&kzg_settings, blob.to_vec());
+                    let mut commitment = kzg_info.to_pubdata_commitment().to_vec();
+                    commitment.insert(0, 1u8);
+                    commitment
+                })
+                .collect::<Vec<Vec<u8>>>();
 
             Token::Tuple(vec![
                 // `batchNumber`
@@ -122,7 +134,7 @@ impl<'a> Tokenizable for CommitBatchInfo<'a> {
                 // `systemLogs`
                 Token::Bytes(self.0.metadata.l2_l1_messages_compressed.clone()),
                 // `totalL2ToL1Pubdata`
-                Token::Bytes(pubdata_commitment),
+                Token::Bytes(pubdata_commitments.concat()),
             ])
         }
     }

@@ -6,7 +6,10 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::{BoundEthInterface, CallFunctionArgs};
 use zksync_l1_contract_interface::{
-    i_executor::{commit::kzg::KzgInfo, structures::load_kzg_settings},
+    i_executor::{
+        commit::kzg::{KzgInfo, ZK_SYNC_BYTES_PER_BLOB},
+        structures::load_kzg_settings,
+    },
     multicall3::{Multicall3Call, Multicall3Result},
     pre_boojum_verifier::old_l1_vk_commitment,
     Detokenize, Tokenizable, Tokenize,
@@ -431,21 +434,27 @@ impl EthTxAggregator {
                         .as_ref()
                         .expect("Missing ABI for commitBatches")
                 };
-                let kzg_settings = load_kzg_settings();
-                let kzg_info = KzgInfo::new(
-                    &kzg_settings,
-                    op.l1_batches[0].header.pubdata_input.clone().unwrap(),
-                );
-                let sidecar = SidecarBlobV1 {
-                    blob: kzg_info.blob.to_vec(),
-                    commitment: kzg_info.kzg_commitment.to_vec(),
-                    proof: kzg_info.blob_proof.to_vec(),
-                    versioned_hash: kzg_info.versioned_hash.to_vec(),
-                };
 
-                let eth_tx_sidecar = EthTxBlobSidecarV1 {
-                    blobs: vec![sidecar],
-                };
+                let kzg_settings = load_kzg_settings();
+
+                let side_car = op.l1_batches[0]
+                    .header
+                    .pubdata_input
+                    .clone()
+                    .unwrap()
+                    .chunks(ZK_SYNC_BYTES_PER_BLOB)
+                    .map(|blob| {
+                        let kzg_info = KzgInfo::new(&kzg_settings, blob.to_vec());
+                        SidecarBlobV1 {
+                            blob: kzg_info.blob.to_vec(),
+                            commitment: kzg_info.kzg_commitment.to_vec(),
+                            proof: kzg_info.blob_proof.to_vec(),
+                            versioned_hash: kzg_info.versioned_hash.to_vec(),
+                        }
+                    })
+                    .collect::<Vec<SidecarBlobV1>>();
+
+                let eth_tx_sidecar = EthTxBlobSidecarV1 { blobs: side_car };
 
                 (
                     f.encode_input(&op.into_tokens())

@@ -16,7 +16,8 @@ use zksync_config::configs::{
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_health_check::{HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::i_executor::{
-    commit::kzg::KzgInfo, structures::load_kzg_settings,
+    commit::kzg::{KzgInfo, ZK_SYNC_BYTES_PER_BLOB},
+    structures::load_kzg_settings,
 };
 use zksync_merkle_tree::domain::TreeMetadata;
 use zksync_object_store::ObjectStore;
@@ -228,8 +229,16 @@ impl MetadataCalculator {
         let merkle_root_hash = tree_metadata.root_hash;
 
         let kzg_settings = load_kzg_settings();
-        let kzg_info = KzgInfo::new(&kzg_settings, header.pubdata_input.clone().unwrap());
-        let blob_commitment = kzg_info.to_blob_commitment().to_vec();
+        let blob_commitments = header
+            .pubdata_input
+            .clone()
+            .unwrap()
+            .chunks(ZK_SYNC_BYTES_PER_BLOB)
+            .map(|blob| {
+                let kzg_info = KzgInfo::new(&kzg_settings, blob.to_vec());
+                kzg_info.to_blob_commitment().to_vec()
+            })
+            .collect::<Vec<Vec<u8>>>();
 
         let commitment = L1BatchCommitment::new(
             header.l2_to_l1_logs.clone(),
@@ -244,7 +253,7 @@ impl MetadataCalculator {
             bootloader_initial_content_commitment.unwrap_or_default(),
             events_queue_commitment.unwrap_or_default(),
             protocol_version,
-            blob_commitment,
+            blob_commitments,
         );
         let commitment_hash = commitment.hash();
         tracing::trace!("L1 batch commitment: {commitment:?}");
