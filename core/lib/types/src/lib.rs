@@ -7,23 +7,21 @@
 
 use std::{fmt, fmt::Debug};
 
-use fee::encoding_len;
-use serde::{Deserialize, Serialize};
-
-pub use crate::{Nonce, H256, U256, U64};
-
-pub type SerialId = u64;
-
 pub use event::{VmEvent, VmEventGroupKey};
+use fee::encoding_len;
 pub use l1::L1TxCommonData;
 pub use l2::L2TxCommonData;
 pub use protocol_version::{ProtocolUpgrade, ProtocolVersion, ProtocolVersionId};
+use serde::{Deserialize, Serialize};
 pub use storage::*;
 pub use tx::{primitives::*, Execute};
 pub use vm_version::VmVersion;
 pub use zksync_basic_types::*;
 
 use crate::{l2::TransactionType, protocol_version::ProtocolUpgradeTxCommonData};
+pub use crate::{Nonce, H256, U256, U64};
+
+pub type SerialId = u64;
 
 pub mod aggregated_operations;
 pub mod block;
