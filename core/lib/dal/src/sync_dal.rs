@@ -30,6 +30,12 @@ impl SyncDal<'_, '_> {
                             (MAX(number) + 1)
                         FROM
                             l1_batches
+                    ),
+                    (
+                        SELECT
+                            MAX(l1_batch_number) + 1
+                        FROM
+                            snapshot_recovery
                     )
                 ) AS "l1_batch_number!",
                 (
@@ -59,7 +65,7 @@ impl SyncDal<'_, '_> {
         )
         .instrument("sync_dal_sync_block.block")
         .with_arg("block_number", &block_number)
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage)
         .await?
         else {
             return Ok(None);
@@ -108,7 +114,10 @@ mod tests {
 
     use super::*;
     use crate::{
-        tests::{create_miniblock_header, mock_execution_result, mock_l2_transaction},
+        tests::{
+            create_miniblock_header, create_snapshot_recovery, mock_execution_result,
+            mock_l2_transaction,
+        },
         ConnectionPool,
     };
 
@@ -226,5 +235,44 @@ mod tests {
         assert_eq!(block.l1_batch_number, L1BatchNumber(1));
         assert!(block.last_in_batch);
         assert_eq!(block.operator_address, miniblock_header.fee_account_address);
+    }
+
+    #[tokio::test]
+    async fn sync_block_after_snapshot_recovery() {
+        let pool = ConnectionPool::test_pool().await;
+        let mut conn = pool.access_storage().await.unwrap();
+
+        // Simulate snapshot recovery.
+        conn.protocol_versions_dal()
+            .save_protocol_version_with_tx(ProtocolVersion::default())
+            .await;
+        let snapshot_recovery = create_snapshot_recovery();
+        conn.snapshot_recovery_dal()
+            .insert_initial_recovery_status(&snapshot_recovery)
+            .await
+            .unwrap();
+
+        assert!(conn
+            .sync_dal()
+            .sync_block(snapshot_recovery.miniblock_number, false)
+            .await
+            .unwrap()
+            .is_none());
+
+        let miniblock_header = create_miniblock_header(snapshot_recovery.miniblock_number.0 + 1);
+        conn.blocks_dal()
+            .insert_miniblock(&miniblock_header)
+            .await
+            .unwrap();
+
+        let block = conn
+            .sync_dal()
+            .sync_block(miniblock_header.number, false)
+            .await
+            .unwrap()
+            .expect("No new miniblock");
+        assert_eq!(block.number, miniblock_header.number);
+        assert_eq!(block.timestamp, miniblock_header.timestamp);
+        assert_eq!(block.l1_batch_number, snapshot_recovery.l1_batch_number + 1);
     }
 }

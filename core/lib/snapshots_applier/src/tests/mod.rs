@@ -10,7 +10,7 @@ use zksync_types::{
         SnapshotRecoveryStatus, SnapshotStorageLog, SnapshotStorageLogsChunk,
         SnapshotStorageLogsChunkMetadata, SnapshotStorageLogsStorageKey,
     },
-    Bytes, L1BatchNumber, MiniblockNumber, H256,
+    Bytes, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256,
 };
 
 use self::utils::{l1_block_metadata, miniblock_metadata, random_storage_logs, MockMainNodeClient};
@@ -93,8 +93,11 @@ async fn snapshots_creator_can_successfully_recover_db() {
     let expected_status = SnapshotRecoveryStatus {
         l1_batch_number,
         l1_batch_root_hash,
+        l1_batch_timestamp: 0,
         miniblock_number,
-        miniblock_root_hash: miniblock_hash,
+        miniblock_hash,
+        miniblock_timestamp: 0,
+        protocol_version: ProtocolVersionId::default(),
         storage_logs_chunks_processed: vec![true, true],
     };
 

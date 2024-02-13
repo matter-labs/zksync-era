@@ -191,6 +191,12 @@ pub struct OptionalENConfig {
     #[serde(default = "OptionalENConfig::default_merkle_tree_stalled_writes_timeout_sec")]
     merkle_tree_stalled_writes_timeout_sec: u64,
 
+    // Postgres config (new parameters)
+    /// Threshold in milliseconds for the DB connection lifetime to denote it as long-living and log its details.
+    database_long_connection_threshold_ms: Option<u64>,
+    /// Threshold in milliseconds to denote a DB query as "slow" and log its details.
+    database_slow_query_threshold_ms: Option<u64>,
+
     // Other config settings
     /// Port on which the Prometheus exporter server is listening.
     pub prometheus_port: Option<u16>,
@@ -344,6 +350,16 @@ impl OptionalENConfig {
     /// Returns the timeout to wait for the Merkle tree database to run compaction on stalled writes.
     pub fn merkle_tree_stalled_writes_timeout(&self) -> Duration {
         Duration::from_secs(self.merkle_tree_stalled_writes_timeout_sec)
+    }
+
+    pub fn long_connection_threshold(&self) -> Option<Duration> {
+        self.database_long_connection_threshold_ms
+            .map(Duration::from_millis)
+    }
+
+    pub fn slow_query_threshold(&self) -> Option<Duration> {
+        self.database_slow_query_threshold_ms
+            .map(Duration::from_millis)
     }
 
     pub fn api_namespaces(&self) -> Vec<Namespace> {

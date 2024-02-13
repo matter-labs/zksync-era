@@ -8,7 +8,7 @@ import * as contract from './contract';
 import * as db from './database';
 import * as docker from './docker';
 import * as env from './env';
-import * as run from './run/run';
+import * as run from './run';
 import * as server from './server';
 import { up } from './up';
 
@@ -33,8 +33,8 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
 
     await announced('Compiling JS packages', run.yarn());
     await announced('Compile l2 contracts', compiler.compileAll());
-    await announced('Drop postgres db', db.drop());
-    await announced('Setup postgres db', db.setup());
+    await announced('Drop postgres db', db.drop({ server: true, prover: true }));
+    await announced('Setup postgres db', db.setup({ server: true, prover: true }));
     await announced('Clean rocksdb', clean('db'));
     await announced('Clean backups', clean('backups'));
     await announced('Building contracts', contract.build());
@@ -67,8 +67,8 @@ export async function reinit() {
     await announced('Setting up containers', up());
     await announced('Compiling JS packages', run.yarn());
     await announced('Compile l2 contracts', compiler.compileAll());
-    await announced('Drop postgres db', db.drop());
-    await announced('Setup postgres db', db.setup());
+    await announced('Drop postgres db', db.drop({ server: true, prover: true }));
+    await announced('Setup postgres db', db.setup({ server: true, prover: true }));
     await announced('Clean rocksdb', clean('db'));
     await announced('Clean backups', clean('backups'));
     await announced('Building contracts', contract.build());
