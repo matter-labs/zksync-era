@@ -82,7 +82,7 @@ pub mod consensus;
 pub mod consistency_checker;
 pub mod eth_sender;
 pub mod eth_watch;
-mod fee_model;
+pub mod fee_model;
 pub mod gas_tracker;
 pub mod genesis;
 pub mod house_keeper;
@@ -286,16 +286,24 @@ pub async fn initialize_components(
 
     let db_config = configs.db_config.clone().context("db_config")?;
     let postgres_config = configs.postgres_config.clone().context("postgres_config")?;
+    if let Some(threshold) = postgres_config.slow_query_threshold() {
+        ConnectionPool::global_config().set_slow_query_threshold(threshold)?;
+    }
+    if let Some(threshold) = postgres_config.long_connection_threshold() {
+        ConnectionPool::global_config().set_long_connection_threshold(threshold)?;
+    }
 
-    let statement_timeout = postgres_config.statement_timeout();
     let pool_size = postgres_config.max_connections()?;
     let connection_pool = ConnectionPool::builder(postgres_config.master_url()?, pool_size)
         .build()
         .await
         .context("failed to build connection_pool")?;
+    // We're most interested in setting acquire / statement timeouts for the API server, which puts the most load
+    // on Postgres.
     let replica_connection_pool =
         ConnectionPool::builder(postgres_config.replica_url()?, pool_size)
-            .set_statement_timeout(statement_timeout)
+            .set_acquire_timeout(postgres_config.acquire_timeout())
+            .set_statement_timeout(postgres_config.statement_timeout())
             .build()
             .await
             .context("failed to build replica_connection_pool")?;
@@ -415,8 +423,8 @@ pub async fn initialize_components(
             let elapsed = started_at.elapsed();
             APP_METRICS.init_latency[&InitStage::HttpApi].set(elapsed);
             tracing::info!(
-                "Initialized HTTP API on {:?} in {elapsed:?}",
-                server_handles.local_addr
+                "Initialized HTTP API on port {:?} in {elapsed:?}",
+                api_config.web3_json_rpc.http_port
             );
         }
 
@@ -453,8 +461,8 @@ pub async fn initialize_components(
             let elapsed = started_at.elapsed();
             APP_METRICS.init_latency[&InitStage::WsApi].set(elapsed);
             tracing::info!(
-                "initialized WS API on {:?} in {elapsed:?}",
-                server_handles.local_addr
+                "Initialized WS API on port {} in {elapsed:?}",
+                api_config.web3_json_rpc.ws_port
             );
         }
 
@@ -753,7 +761,7 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
         db_config,
         network_config,
         mempool_config,
-        state_keeper_pool,
+        state_keeper_pool.clone(),
         mempool.clone(),
         batch_fee_input_provider.clone(),
         miniblock_sealer_handle,
@@ -761,6 +769,10 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
         stop_receiver.clone(),
     )
     .await;
+
+    task_futures.push(tokio::spawn(
+        state_keeper.run_fee_address_migration(state_keeper_pool),
+    ));
     task_futures.push(tokio::spawn(state_keeper.run()));
 
     let mempool_fetcher_pool = pool_builder
@@ -768,12 +780,8 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
         .await
         .context("failed to build mempool_fetcher_pool")?;
     let mempool_fetcher = MempoolFetcher::new(mempool, batch_fee_input_provider, mempool_config);
-    let mempool_fetcher_handle = tokio::spawn(mempool_fetcher.run(
-        mempool_fetcher_pool,
-        mempool_config.remove_stuck_txs,
-        mempool_config.stuck_tx_timeout(),
-        stop_receiver,
-    ));
+    let mempool_fetcher_handle =
+        tokio::spawn(mempool_fetcher.run(mempool_fetcher_pool, stop_receiver));
     task_futures.push(mempool_fetcher_handle);
     Ok(())
 }

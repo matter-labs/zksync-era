@@ -2,7 +2,7 @@ import { TestMaster } from '../../src/index';
 import fs from 'fs';
 import * as zlib from 'zlib';
 import * as protobuf from 'protobufjs';
-import { snapshots_creator } from 'zk/build/run/run';
+import { snapshots_creator } from 'zk/build/run';
 import path from 'path';
 
 describe('Snapshots API tests', () => {

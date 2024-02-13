@@ -191,6 +191,12 @@ pub struct OptionalENConfig {
     #[serde(default = "OptionalENConfig::default_merkle_tree_stalled_writes_timeout_sec")]
     merkle_tree_stalled_writes_timeout_sec: u64,
 
+    // Postgres config (new parameters)
+    /// Threshold in milliseconds for the DB connection lifetime to denote it as long-living and log its details.
+    database_long_connection_threshold_ms: Option<u64>,
+    /// Threshold in milliseconds to denote a DB query as "slow" and log its details.
+    database_slow_query_threshold_ms: Option<u64>,
+
     // Other config settings
     /// Port on which the Prometheus exporter server is listening.
     pub prometheus_port: Option<u16>,
@@ -346,6 +352,16 @@ impl OptionalENConfig {
         Duration::from_secs(self.merkle_tree_stalled_writes_timeout_sec)
     }
 
+    pub fn long_connection_threshold(&self) -> Option<Duration> {
+        self.database_long_connection_threshold_ms
+            .map(Duration::from_millis)
+    }
+
+    pub fn slow_query_threshold(&self) -> Option<Duration> {
+        self.database_slow_query_threshold_ms
+            .map(Duration::from_millis)
+    }
+
     pub fn api_namespaces(&self) -> Vec<Namespace> {
         self.api_namespaces
             .clone()
@@ -416,10 +432,6 @@ impl PostgresConfig {
     }
 }
 
-fn read_operator_address() -> anyhow::Result<Address> {
-    Ok(std::env::var("EN_OPERATOR_ADDR")?.parse()?)
-}
-
 pub(crate) fn read_consensus_config() -> anyhow::Result<consensus::FetcherConfig> {
     let path = std::env::var("EN_CONSENSUS_CONFIG_PATH")
         .context("EN_CONSENSUS_CONFIG_PATH env variable is not set")?;
@@ -429,7 +441,6 @@ pub(crate) fn read_consensus_config() -> anyhow::Result<consensus::FetcherConfig
     let node_key: node::SecretKey = consensus::config::read_secret("EN_CONSENSUS_NODE_KEY")?;
     Ok(consensus::FetcherConfig {
         executor: cfg.executor_config(node_key),
-        operator_address: read_operator_address().context("read_operator_address()")?,
     })
 }
 

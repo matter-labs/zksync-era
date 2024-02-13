@@ -11,10 +11,13 @@ pub mod gpu_socket_listener {
         net::{TcpListener, TcpStream},
         sync::watch,
     };
-    use zksync_dal::ConnectionPool;
+    use zksync_dal::{
+        fri_prover_dal::types::{GpuProverInstanceStatus, SocketAddress},
+        ConnectionPool,
+    };
     use zksync_object_store::bincode;
     use zksync_prover_fri_types::{CircuitWrapper, ProverServiceDataKey, WitnessVectorArtifacts};
-    use zksync_types::proofs::{AggregationRound, GpuProverInstanceStatus, SocketAddress};
+    use zksync_types::basic_fri_types::AggregationRound;
     use zksync_vk_setup_data_server_fri::{
         get_finalization_hints, get_round_for_recursive_circuit_type,
     };
