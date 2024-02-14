@@ -37,8 +37,8 @@ impl ProtoFmt for Payload {
 
     fn read(message: &Self::Proto) -> anyhow::Result<Self> {
         let mut transactions = Vec::with_capacity(message.transactions.len());
-        for tx in message.transactions.iter() {
-            transactions.push(tx.read()?)
+        for (i, tx) in message.transactions.iter().enumerate() {
+            transactions.push(tx.read().with_context(|| format!("transactions[{i}]"))?)
         }
 
         Ok(Self {
