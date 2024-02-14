@@ -563,7 +563,7 @@ dependencies = [
 [[package]]
 name = "boojum-cuda"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-boojum-cuda?branch=main#97169a9c49d86be2ace81f9504fe0ecefe746114"
+source = "git+https://github.com/matter-labs/era-boojum-cuda?branch=main#34f3a51d116ba3ea45d8f47837d2d2c746d005e1"
 dependencies = [
  "boojum",
  "cmake",
@@ -4775,7 +4775,7 @@ dependencies = [
 [[package]]
 name = "shivini"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-shivini.git?branch=v1.4.1#2c804d1092e93bd64e099d503741695c2515fa36"
+source = "git+https://github.com/matter-labs/era-shivini.git?branch=v1.4.1#f4bf41f45a1c5bb3a9e487114bc314d68d4e1aaf"
 dependencies = [
  "bincode",
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
