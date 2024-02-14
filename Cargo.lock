@@ -9039,6 +9039,7 @@ dependencies = [
  "chrono",
  "itertools 0.10.5",
  "jsonrpsee",
+ "pin-project-lite",
  "rlp",
  "serde",
  "serde_json",
