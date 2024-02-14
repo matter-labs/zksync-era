@@ -4,7 +4,8 @@
 
 use zksync_config::{
     configs::chain::{MempoolConfig, NetworkConfig, OperationsManagerConfig, StateKeeperConfig},
-    ApiConfig, ContractsConfig, DBConfig, ETHClientConfig, GasAdjusterConfig, PostgresConfig,
+    ApiConfig, ContractsConfig, DBConfig, ETHClientConfig, GasAdjusterConfig, ObjectStoreConfig,
+    PostgresConfig,
 };
 use zksync_core::metadata_calculator::MetadataCalculatorConfig;
 use zksync_env_config::FromEnv;
@@ -13,6 +14,7 @@ use zksync_node_framework::{
         fee_input::SequencerFeeInputLayer,
         healtcheck_server::HealthCheckLayer,
         metadata_calculator::MetadataCalculatorLayer,
+        object_store::ObjectStoreLayer,
         pools_layer::PoolsLayerBuilder,
         state_keeper::{
             main_node_batch_executor_builder::MainNodeBatchExecutorBuilderLayer,
@@ -54,6 +56,13 @@ impl MainNodeBuilder {
             state_keeper_config,
         );
         self.node.add_layer(fee_input_layer);
+        Ok(self)
+    }
+
+    fn add_object_store_layer(mut self) -> anyhow::Result<Self> {
+        let object_store_config = ObjectStoreConfig::from_env()?;
+        self.node
+            .add_layer(ObjectStoreLayer::new(object_store_config));
         Ok(self)
     }
 
@@ -109,6 +118,7 @@ fn main() -> anyhow::Result<()> {
     MainNodeBuilder::new()
         .add_pools_layer()?
         .add_fee_input_layer()?
+        .add_object_store_layer()?
         .add_metadata_calculator_layer()?
         .add_state_keeper_layer()?
         .add_healthcheck_layer()?
