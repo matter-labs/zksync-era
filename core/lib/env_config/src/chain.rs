@@ -126,6 +126,7 @@ mod tests {
             CHAIN_STATE_KEEPER_SAVE_CALL_TRACES="false"
             CHAIN_STATE_KEEPER_UPLOAD_WITNESS_INPUTS_TO_GCS="false"
             CHAIN_STATE_KEEPER_ENUM_INDEX_MIGRATION_CHUNK_SIZE="2000"
+            CHAIN_STATE_KEEPER_L1_BATCH_COMMIT_DATA_GENERATOR_MODE=Rollup
         "#;
         lock.set_env(config);
 
