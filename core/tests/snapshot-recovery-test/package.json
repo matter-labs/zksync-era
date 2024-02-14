@@ -13,7 +13,7 @@
     ]
   },
   "scripts": {
-    "snapshot-recovery-test": "zk f mocha tests/snapshot-recovery.test.ts"
+    "snapshot-recovery-test": "mocha tests/snapshot-recovery.test.ts"
   },
   "devDependencies": {
     "@types/chai": "^4.2.21",

@@ -34,22 +34,28 @@ interface StorageLog {
     readonly enumerationIndex: number;
 }
 
-// Assumptions:
-//  - Main node is run for the duration of the test.
+/**
+ * Assumptions:
+ *
+ * - Main node is run for the duration of the test.
+ * - `ZKSYNC_ENV` variable is not set (checked at the start of the test). For this reason,
+ *   the test doesn't have a `zk` wrapper; it should be launched using `yarn`.
+ */
 describe('snapshot recovery', () => {
-    const STORAGE_LOG_SAMPLE_PROBABILITY = 0.05;
+    const STORAGE_LOG_SAMPLE_PROBABILITY = 0.1;
     const IMPORTANT_LINE_REGEX =
         /zksync_external_node::init|zksync_core::consistency_checker|zksync_core::reorg_detector/;
 
     const homeDir = process.env.ZKSYNC_HOME!!;
     const externalNodeEnv = {
-        PATH: process.env.PATH,
-        ZKSYNC_HOME: homeDir,
+        ...process.env,
         ZKSYNC_ENV: process.env.IN_DOCKER ? 'ext-node-docker' : 'ext-node'
     };
     let mainNode: zkweb3.Provider;
 
     before(async () => {
+        expect(process.env.ZKSYNC_ENV, '`ZKSYNC_ENV` should not be set to allow running both server and EN components')
+            .to.be.undefined;
         mainNode = new zkweb3.Provider('http://127.0.0.1:3050');
         await killExternalNode();
     });
@@ -66,7 +72,7 @@ describe('snapshot recovery', () => {
 
     step('create snapshot', async () => {
         const logs = await fs.open('snapshot-creator.log', 'w');
-        const childProcess = spawn('cargo run  --release --bin snapshots_creator', {
+        const childProcess = spawn('zk run snapshots-creator', {
             cwd: homeDir,
             stdio: [null, logs.fd, logs.fd],
             shell: true

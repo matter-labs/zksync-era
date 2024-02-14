@@ -196,7 +196,10 @@ jobs:
         run: ci_run zk test i server
 
       - name: Snapshot recovery test
-        run: ci_run zk test i snapshot-recovery
+        # We use `yarn` directly because the test launches both `zk` commands in both server and EN envs.
+        # An empty topmost environment helps avoid a mess when redefining env vars shared between both envs
+        # (e.g., DATABASE_URL).
+        run: ci_run yarn snapshot-recovery-test snapshot-recovery-test
 
       - name: Fee projection tests
         run: ci_run zk test i fees
