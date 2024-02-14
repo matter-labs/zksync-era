@@ -51,18 +51,25 @@ export async function initializeGovernance(args: any[] = []) {
     await utils.spawn(`${baseCommandL1} initialize-governance ${args.join(' ')} | tee initializeGovernance.log`);
 }
 
-export async function initializeWethToken(args: any[] = []) {
+export async function initializeWethToken(args: any[] = [], nativeToken?: boolean) {
     await utils.confirmAction();
 
     const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
     const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/l1-contracts` : `yarn l1-contracts`;
 
     await utils.spawn(
-        `${baseCommandL1} initialize-l2-weth-token instant-call ${args.join(' ')} | tee initializeWeth.log`
+        `${baseCommandL1} initialize-l2-weth-token ${nativeToken ? ' --native-erc20' : ''} instant-call ${args.join(
+            ' '
+        )} | tee initializeWeth.log`
     );
 }
 
-export async function deployL2(args: any[] = [], includePaymaster?: boolean, includeWETH?: boolean) {
+export async function deployL2(
+    args: any[] = [],
+    includePaymaster?: boolean,
+    includeWETH?: boolean,
+    nativeToken?: boolean
+) {
     await utils.confirmAction();
 
     const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
@@ -75,10 +82,18 @@ export async function deployL2(args: any[] = [], includePaymaster?: boolean, inc
     // Skip compilation for local setup, since we already copied artifacts into the container.
     await utils.spawn(`${baseCommandL2} build`);
 
-    await utils.spawn(`${baseCommandL1} initialize-bridges ${args.join(' ')} | tee deployL2.log`);
+    await utils.spawn(
+        `${baseCommandL1} initialize-bridges ${nativeToken ? ' --native-erc20' : ''} ${args.join(
+            ' '
+        )} | tee deployL2.log`
+    );
 
     if (includePaymaster) {
-        await utils.spawn(`${baseCommandL2} deploy-testnet-paymaster ${args.join(' ')} | tee -a deployL2.log`);
+        await utils.spawn(
+            `${baseCommandL2} deploy-testnet-paymaster ${nativeToken ? ' --native-erc20' : ''} ${args.join(
+                ' '
+            )} | tee -a deployL2.log`
+        );
     }
 
     if (includeWETH) {
@@ -98,7 +113,11 @@ export async function deployL2(args: any[] = [], includePaymaster?: boolean, inc
     updateContractsEnv(l2DeployLog, l2DeploymentEnvVars);
 
     if (includeWETH) {
-        await utils.spawn(`${baseCommandL1} initialize-weth-bridges ${args.join(' ')} | tee -a deployL1.log`);
+        await utils.spawn(
+            `${baseCommandL1} initialize-weth-bridges ${nativeToken ? ' --native-erc20' : ''} ${args.join(
+                ' '
+            )} | tee -a deployL1.log`
+        );
     }
 
     const l1DeployLog = fs.readFileSync('deployL1.log').toString();

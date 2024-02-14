@@ -403,7 +403,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             (
                 contract_address,
                 l2_value,
-                0,
+                value,
                 calldata,
                 gas_limit,
                 L1_TO_L2_GAS_PER_PUBDATA,

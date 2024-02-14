@@ -48,7 +48,8 @@ export async function waitForServer() {
  */
 export async function loadTestEnvironment(): Promise<TestEnvironment> {
     const network = process.env.CHAIN_ETH_NETWORK || 'localhost';
-    const nativeErc20Testing = process.env.CONTRACTS_L1_NATIVE_ERC20_TOKEN_ADDR ? true : false; // if set, we assume user wants to test native erc20 tokens
+    // const nativeErc20Testing = process.env.CONTRACTS_L1_NATIVE_ERC20_TOKEN_ADDR ? true : false; // if set, we assume user wants to test native erc20 tokens
+    const nativeErc20Testing = true; // if set, we assume user wants to test native erc20 tokens
 
     let mainWalletPK;
     if (nativeErc20Testing) {
@@ -103,6 +104,13 @@ export async function loadTestEnvironment(): Promise<TestEnvironment> {
         ethers.getDefaultProvider(l1NodeUrl)
     ).l2TokenAddress(weth.address);
 
+    const nonNativeToken = tokens.find((token: { symbol: string }) => token.symbol == 'MLTT')!;
+    const nonNativeTokenL2Address = await new zksync.Wallet(
+        mainWalletPK,
+        new zksync.Provider(l2NodeUrl),
+        ethers.getDefaultProvider(l1NodeUrl)
+    ).l2TokenAddress(nonNativeToken.address);
+
     return {
         network,
         mainWalletPK,
@@ -123,6 +131,13 @@ export async function loadTestEnvironment(): Promise<TestEnvironment> {
             decimals: weth.decimals,
             l1Address: weth.address,
             l2Address: l2WethAddress
+        },
+        nonNativeToken: {
+            name: nonNativeToken.name,
+            symbol: nonNativeToken.symbol,
+            decimals: nonNativeToken.decimals,
+            l1Address: nonNativeToken.address,
+            l2Address: nonNativeTokenL2Address
         },
         nativeErc20Testing
     };
