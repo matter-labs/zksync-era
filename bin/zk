@@ -29,9 +29,10 @@ check_yarn_version() {
     desired_version="1.22"
     installed_version=$(yarn --version | cut -d'.' -f1,2)
 
-    if [ "$installed_version" != "$desired_version" ]; then
-        echo -e "${RED}Warning: Yarn is not at the desired version ($desired_version). Installed version is ($installed_version).${NC}"
-        echo -e "This might cause errors - we recommend to run: ${WHITE_BOLD} yarn set version $desired_version.${NC}"
+   if [ "$installed_version" != "$desired_version" ]; then
+    echo -e "${RED}Warning: Yarn is not at the desired version ($desired_version). Installed version is ($installed_version).${NC}"
+    echo -e "This might cause errors - we recommend to run: ${WHITE_BOLD} yarn set version $desired_version.${NC}"
+    exit 1
     fi
 }
 
