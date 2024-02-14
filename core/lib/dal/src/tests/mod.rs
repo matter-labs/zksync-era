@@ -71,7 +71,7 @@ pub(crate) fn mock_l2_transaction() -> L2Tx {
     l2_tx
 }
 
-fn mock_l1_execute() -> L1Tx {
+pub(crate) fn mock_l1_execute() -> L1Tx {
     let serial_id = 1;
     let priority_op_data = L1TxCommonData {
         sender: H160::random(),
