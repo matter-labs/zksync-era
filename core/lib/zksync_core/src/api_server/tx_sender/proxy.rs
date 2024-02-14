@@ -44,12 +44,12 @@ impl TxCache {
         self.inner.read().await.tx_cache.get(&tx_hash).cloned()
     }
 
-    async fn get_nonces_for_account(&self, account_address: Address) -> Vec<Nonce> {
+    async fn get_nonces_for_account(&self, account_address: Address) -> BTreeSet<Nonce> {
         let inner = self.inner.read().await;
         if let Some(nonces) = inner.nonces_by_account.get(&account_address) {
-            nonces.iter().copied().collect()
+            nonces.clone()
         } else {
-            vec![]
+            BTreeSet::new()
         }
     }
 
@@ -129,7 +129,7 @@ impl TxProxy {
         self.tx_cache.push(tx).await;
     }
 
-    pub async fn get_nonces_by_account(&self, account_address: Address) -> Vec<Nonce> {
+    pub async fn get_nonces_by_account(&self, account_address: Address) -> BTreeSet<Nonce> {
         self.tx_cache.get_nonces_for_account(account_address).await
     }
 
@@ -138,20 +138,18 @@ impl TxProxy {
         account_address: Address,
         current_nonce: u32,
     ) -> Nonce {
-        let mut expected_nonce = Nonce(current_nonce);
-        let nonces = BTreeSet::from_iter(
-            self.get_nonces_by_account(account_address)
-                .await
-                .into_iter(),
-        );
-        for pending_nonce in nonces.range(expected_nonce + 1..) {
+        let mut pending_nonce = Nonce(current_nonce);
+        let nonces = self.get_nonces_by_account(account_address).await;
+        for nonce in nonces.range(pending_nonce + 1..) {
             // If nonce is not sequential, then we should not increment nonce.
-            if pending_nonce.0 == expected_nonce.0 {
-                expected_nonce += 1;
+            if nonce == &pending_nonce {
+                pending_nonce += 1;
+            } else {
+                break;
             }
         }
 
-        expected_nonce
+        pending_nonce
     }
 
     pub async fn submit_tx(&self, tx: &L2Tx) -> RpcResult<H256> {
