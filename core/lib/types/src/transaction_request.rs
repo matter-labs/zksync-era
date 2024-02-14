@@ -1509,4 +1509,25 @@ mod tests {
             L2Tx::from_request(call_request_without_nonce.into(), MAX_ENCODED_TX_SIZE).unwrap();
         assert_eq!(l2_tx.nonce(), Nonce(0u32));
     }
+
+    #[test]
+    fn test_correct_data_field() {
+        let mut call_request = CallRequest {
+            input: Some(Bytes(vec![1, 2, 3])),
+            data: Some(Bytes(vec![3, 2, 1])),
+            ..Default::default()
+        };
+
+        let tx_request = TransactionRequest::from(call_request.clone());
+        assert_eq!(tx_request.input, call_request.input.unwrap());
+
+        call_request.input = None;
+        let tx_request = TransactionRequest::from(call_request.clone());
+        assert_eq!(tx_request.input, call_request.data.unwrap());
+
+        call_request.input = Some(Bytes(vec![1, 2, 3]));
+        call_request.data = None;
+        let tx_request = TransactionRequest::from(call_request.clone());
+        assert_eq!(tx_request.input, call_request.input.unwrap());
+    }
 }
