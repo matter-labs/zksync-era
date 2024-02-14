@@ -54,7 +54,7 @@ impl WiringLayer for SequencerFeeInputLayer {
         ));
         context.add_resource(FeeInputResource(batch_fee_input_provider))?;
 
-        context.add_task(Box::new(GasAdjusterTask::new(gas_adjuster.clone())));
+        context.add_task(Box::new(GasAdjusterTask { gas_adjuster }));
         Ok(())
     }
 }
@@ -62,12 +62,6 @@ impl WiringLayer for SequencerFeeInputLayer {
 #[derive(Debug)]
 struct GasAdjusterTask {
     gas_adjuster: Arc<GasAdjuster>,
-}
-
-impl GasAdjusterTask {
-    pub fn new(gas_adjuster: Arc<GasAdjuster>) -> Self {
-        Self { gas_adjuster }
-    }
 }
 
 #[async_trait::async_trait]
