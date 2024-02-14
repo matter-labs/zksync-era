@@ -1,12 +1,14 @@
-use std::{any::TypeId, fmt};
+use std::any::TypeId;
 
 pub use self::{
     lazy_resource::LazyResource, resource_collection::ResourceCollection, resource_id::ResourceId,
+    unique::Unique,
 };
 
 mod lazy_resource;
 mod resource_collection;
 mod resource_id;
+mod unique;
 
 /// A trait for anything that can be stored (and retrieved) as a resource.
 /// Typically, the type that implements this trait also should implement `Clone`
@@ -29,7 +31,7 @@ pub trait Resource: 'static + Send + Sync + std::any::Any {
 ///
 /// This trait is implemented for any type that implements [`Resource`], so there is no need to
 /// implement it manually.
-pub trait StoredResource: 'static + std::any::Any + Send + Sync {
+pub(crate) trait StoredResource: 'static + std::any::Any + Send + Sync {
     /// An object-safe version of [`Resource::resource_id`].
     fn stored_resource_id(&self) -> ResourceId;
 
@@ -60,24 +62,4 @@ impl dyn StoredResource {
             None
         }
     }
-}
-
-/// An entity that knows how to initialize resources.
-///
-/// It exists to simplify the initialization process, as both tasks and *resources* can depend on other resources,
-/// and by having an entity that can initialize the resource on demand we can avoid the need to provide resources
-/// in any particular order.
-///
-/// Node will only call `get_resource` method once per resource, and will cache the result. This guarantees that
-/// all the resource consumers will interact with the same resource instance, which may be important for getting
-/// the consistent state (e.g. to make sure that L1 gas price is the same for all the tasks).
-#[async_trait::async_trait]
-pub trait ResourceProvider: 'static + Send + Sync + fmt::Debug {
-    /// Returns a resource with the given name.
-    ///
-    /// In case it isn't possible to obtain the resource (for example, if some error occurred during initialization),
-    /// the provider is free to either return `None` (if it assumes that the node can continue without this resource),
-    /// or to panic.
-    // Note: we have to use `Box<dyn Any>` here, since we can't use `Box<dyn Resource>` due to it not being object-safe.
-    async fn get_resource(&self, resource: &ResourceId) -> Option<Box<dyn StoredResource>>;
 }

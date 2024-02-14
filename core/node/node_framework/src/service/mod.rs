@@ -5,7 +5,7 @@ use tokio::{runtime::Runtime, sync::watch};
 
 pub use self::{context::ServiceContext, stop_receiver::StopReceiver};
 use crate::{
-    resource::{ResourceId, ResourceProvider, StoredResource},
+    resource::{ResourceId, StoredResource},
     task::Task,
     wiring_layer::{WiringError, WiringLayer},
 };
@@ -29,8 +29,6 @@ mod stop_receiver;
 ///   - calls `after_node_shutdown` hook for every task that has provided it.
 ///   - returns the result of the task that has finished.
 pub struct ZkStackService {
-    /// Primary source of resources for tasks.
-    resource_provider: Box<dyn ResourceProvider>,
     /// Cache of resources that have been requested at least by one task.
     resources: HashMap<ResourceId, Box<dyn StoredResource>>,
     /// List of wiring layers.
@@ -51,7 +49,7 @@ impl fmt::Debug for ZkStackService {
 }
 
 impl ZkStackService {
-    pub fn new<R: ResourceProvider>(resource_provider: R) -> anyhow::Result<Self> {
+    pub fn new() -> anyhow::Result<Self> {
         if tokio::runtime::Handle::try_current().is_ok() {
             anyhow::bail!(
                 "Detected a Tokio Runtime. ZkSyncNode manages its own runtime and does not support nested runtimes"
@@ -64,7 +62,6 @@ impl ZkStackService {
 
         let (stop_sender, _stop_receiver) = watch::channel(false);
         let self_ = Self {
-            resource_provider: Box::new(resource_provider),
             resources: HashMap::default(),
             layers: Vec::new(),
             tasks: Vec::new(),

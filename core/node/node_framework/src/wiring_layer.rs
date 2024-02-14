@@ -12,15 +12,19 @@ pub trait WiringLayer: 'static + Send + Sync {
 
     /// Performs the wiring process, e.g. adds tasks and resources to the node.
     /// This method will be called once during the node initialization.
-    async fn wire(self: Box<Self>, node: ServiceContext<'_>) -> Result<(), WiringError>;
+    async fn wire(self: Box<Self>, context: ServiceContext<'_>) -> Result<(), WiringError>;
 }
 
 /// An error that can occur during the wiring phase.
 #[derive(thiserror::Error, Debug)]
 #[non_exhaustive]
 pub enum WiringError {
+    #[error("Layer attempted to add resource {0}, but it is already provided")]
+    ResourceAlreadyProvided(ResourceId),
     #[error("Resource {0} is not provided")]
     ResourceLacking(ResourceId),
+    #[error("Wiring layer has been incorrectly configured: {0}")]
+    Configuration(String),
     #[error(transparent)]
     Internal(#[from] anyhow::Error),
 }
