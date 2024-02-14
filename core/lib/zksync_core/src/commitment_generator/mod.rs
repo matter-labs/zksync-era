@@ -7,6 +7,10 @@ use multivm::zk_evm_latest::ethereum_types::U256;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_commitment_utils::{bootloader_initial_content_commitment, events_queue_commitment};
 use zksync_dal::ConnectionPool;
+use zksync_l1_contract_interface::i_executor::{
+    commit::kzg::{KzgInfo, ZK_SYNC_BYTES_PER_BLOB},
+    structures::load_kzg_settings,
+};
 use zksync_types::{
     commitment::{AuxCommitments, CommitmentCommonInput, CommitmentInput, L1BatchCommitment},
     writes::{InitialStorageWrite, RepeatedStorageWrite, StateDiffRecord},
@@ -113,6 +117,17 @@ impl CommitmentGenerator {
         let protocol_version = header
             .protocol_version
             .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
+        let kzg_settings = load_kzg_settings();
+        let blob_commitments = header
+            .pubdata_input
+            .clone()
+            .unwrap()
+            .chunks(ZK_SYNC_BYTES_PER_BLOB)
+            .map(|blob| {
+                let kzg_info = KzgInfo::new(&kzg_settings, blob.to_vec());
+                kzg_info.to_blob_commitment().to_vec()
+            })
+            .collect::<Vec<Vec<u8>>>();
         let common = CommitmentCommonInput {
             l2_to_l1_logs: header.l2_to_l1_logs,
             rollup_last_leaf_index: tree_data.rollup_last_leaf_index,
@@ -120,7 +135,7 @@ impl CommitmentGenerator {
             bootloader_code_hash: header.base_system_contracts_hashes.bootloader,
             default_aa_code_hash: header.base_system_contracts_hashes.default_aa,
             protocol_version,
-            blob_commitments: vec![vec![0u8; 32], vec![0u8; 32]],
+            blob_commitments,
         };
         let touched_slots = connection
             .storage_logs_dal()
