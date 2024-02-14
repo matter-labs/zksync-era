@@ -8,7 +8,7 @@ use prometheus_exporter::PrometheusExporterConfig;
 use tokio::{sync::watch, task, time::sleep};
 use zksync_basic_types::{Address, L2ChainId};
 use zksync_concurrency::{ctx, scope};
-use zksync_config::configs::{chain::L1BatchCommitDataGeneratorMode, database::MerkleTreeMode};
+use zksync_config::configs::database::MerkleTreeMode;
 use zksync_core::{
     api_server::{
         execution_sandbox::VmConcurrencyLimiter,

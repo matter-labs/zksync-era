@@ -58,7 +58,7 @@ impl<'a> Tokenizable for CommitBatchInfo<'a> {
     }
 }
 
-fn pre_boojum_into_token<'a>(l1_batch_commit_with_metadata: &'a L1BatchWithMetadata) -> Token {
+fn pre_boojum_into_token(l1_batch_commit_with_metadata: &L1BatchWithMetadata) -> Token {
     let header = &l1_batch_commit_with_metadata.header;
     let metadata = &l1_batch_commit_with_metadata.metadata;
     Token::Tuple(vec![
