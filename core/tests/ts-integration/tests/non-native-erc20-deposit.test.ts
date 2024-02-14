@@ -32,7 +32,6 @@ describe('ERC20 contract checks', () => {
 
     test('Can perform a deposit', async () => {
         const tokenAddress = nonNativeToken.l1Address;
-        // const tokenAddress = tokenDetails.l1Address;
         const amount = BigNumber.from(555);
         const gasPrice = scaledGasPrice(alice);
         const nativeToken = '0xD47a77a7A93c099a451a2c269ea5fB35238dC52c';
