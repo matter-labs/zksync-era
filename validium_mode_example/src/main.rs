@@ -80,7 +80,6 @@ async fn main() {
         )
         .from(zk_wallet.l2_address());
 
-
         let eip712_request: Eip712TransactionRequest = request.clone().try_into().unwrap();
         println!("{}", "Deploy".bright_magenta());
 
