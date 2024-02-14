@@ -2,6 +2,7 @@ use std::{
     collections::{HashMap, HashSet, VecDeque},
     convert::TryInto,
     fmt,
+    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -200,7 +201,7 @@ impl TestScenario {
             stop_receiver,
             Box::new(io),
             Box::new(batch_executor_base),
-            Box::new(sealer),
+            Arc::new(sealer),
         );
         let sk_thread = tokio::spawn(sk.run());
 

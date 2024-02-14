@@ -1,6 +1,7 @@
 use std::{
     convert::Infallible,
     future::{self, Future},
+    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -60,7 +61,7 @@ pub struct ZkSyncStateKeeper {
     stop_receiver: watch::Receiver<bool>,
     io: Box<dyn StateKeeperIO>,
     batch_executor_base: Box<dyn L1BatchExecutorBuilder>,
-    sealer: Box<dyn ConditionalSealer>,
+    sealer: Arc<dyn ConditionalSealer>,
 }
 
 impl ZkSyncStateKeeper {
@@ -68,7 +69,7 @@ impl ZkSyncStateKeeper {
         stop_receiver: watch::Receiver<bool>,
         io: Box<dyn StateKeeperIO>,
         batch_executor_base: Box<dyn L1BatchExecutorBuilder>,
-        sealer: Box<dyn ConditionalSealer>,
+        sealer: Arc<dyn ConditionalSealer>,
     ) -> Self {
         Self {
             stop_receiver,

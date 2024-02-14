@@ -3,6 +3,7 @@
 use std::{
     collections::{HashMap, VecDeque},
     iter,
+    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -94,7 +95,7 @@ impl StateKeeperHandles {
             stop_receiver,
             Box::new(io),
             Box::new(batch_executor_base),
-            Box::new(NoopSealer),
+            Arc::new(NoopSealer),
         );
         Self {
             stop_sender,

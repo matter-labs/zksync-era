@@ -1,6 +1,5 @@
 //! Utilities for testing the consensus module.
-
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use anyhow::Context as _;
 use rand::{
@@ -447,7 +446,7 @@ impl StateKeeperRunner {
                     stop_receiver,
                     Box::new(io),
                     Box::new(MockBatchExecutorBuilder),
-                    Box::new(NoopSealer),
+                    Arc::new(NoopSealer),
                 )
                 .run(),
             );
