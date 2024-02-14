@@ -87,27 +87,36 @@ struct MockMainNodeClient {
 
 #[async_trait]
 impl MainNodeClient for MockMainNodeClient {
-    async fn sealed_miniblock_number(&self) -> Result<MiniblockNumber, RpcError> {
+    async fn sealed_miniblock_number(&self) -> EnrichedClientResult<MiniblockNumber> {
         if let &Some(error_kind) = &*self.error_kind.lock().unwrap() {
-            return Err(error_kind.into());
+            return Err(EnrichedClientError::new(
+                error_kind.into(),
+                "sealed_miniblock_number",
+            ));
         }
         Ok(self
             .latest_miniblock_response
             .expect("unexpected `sealed_miniblock_number` request"))
     }
 
-    async fn sealed_l1_batch_number(&self) -> Result<L1BatchNumber, RpcError> {
+    async fn sealed_l1_batch_number(&self) -> EnrichedClientResult<L1BatchNumber> {
         if let &Some(error_kind) = &*self.error_kind.lock().unwrap() {
-            return Err(error_kind.into());
+            return Err(EnrichedClientError::new(
+                error_kind.into(),
+                "sealed_l1_batch_number",
+            ));
         }
         Ok(self
             .latest_l1_batch_response
             .expect("unexpected `sealed_l1_batch_number` request"))
     }
 
-    async fn miniblock_hash(&self, number: MiniblockNumber) -> Result<Option<H256>, RpcError> {
+    async fn miniblock_hash(&self, number: MiniblockNumber) -> EnrichedClientResult<Option<H256>> {
         if let &Some(error_kind) = &*self.error_kind.lock().unwrap() {
-            return Err(error_kind.into());
+            return Err(
+                EnrichedClientError::new(error_kind.into(), "miniblock_hash")
+                    .with_arg("number", &number),
+            );
         }
 
         if let Some(response) = self.miniblock_hash_responses.get(&number) {
@@ -117,9 +126,15 @@ impl MainNodeClient for MockMainNodeClient {
         }
     }
 
-    async fn l1_batch_root_hash(&self, number: L1BatchNumber) -> Result<Option<H256>, RpcError> {
+    async fn l1_batch_root_hash(
+        &self,
+        number: L1BatchNumber,
+    ) -> EnrichedClientResult<Option<H256>> {
         if let &Some(error_kind) = &*self.error_kind.lock().unwrap() {
-            return Err(error_kind.into());
+            return Err(
+                EnrichedClientError::new(error_kind.into(), "l1_batch_root_hash")
+                    .with_arg("number", &number),
+            );
         }
 
         if let Some(response) = self.l1_batch_root_hash_responses.get(&number) {

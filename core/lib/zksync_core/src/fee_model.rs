@@ -52,7 +52,7 @@ pub trait BatchFeeModelInputProvider: fmt::Debug + 'static + Send + Sync {
 /// it explicitly gets the L1 gas price from the provider and uses it to calculate the batch fee input instead of getting
 /// it from other node.
 #[derive(Debug)]
-pub(crate) struct MainNodeFeeInputProvider {
+pub struct MainNodeFeeInputProvider {
     provider: Arc<GasAdjuster>,
     config: FeeModelConfig,
 }
@@ -74,7 +74,7 @@ impl BatchFeeModelInputProvider for MainNodeFeeInputProvider {
 }
 
 impl MainNodeFeeInputProvider {
-    pub(crate) fn new(provider: Arc<GasAdjuster>, config: FeeModelConfig) -> Self {
+    pub fn new(provider: Arc<GasAdjuster>, config: FeeModelConfig) -> Self {
         Self { provider, config }
     }
 }
