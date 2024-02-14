@@ -157,7 +157,8 @@ async fn create_miniblock(
         .unwrap();
     conn.storage_logs_dal()
         .insert_storage_logs(miniblock_number, &[(H256::zero(), block_logs)])
-        .await;
+        .await
+        .unwrap();
 }
 
 async fn create_l1_batch(
@@ -179,7 +180,8 @@ async fn create_l1_batch(
     written_keys.sort_unstable();
     conn.storage_logs_dedup_dal()
         .insert_initial_writes(l1_batch_number, &written_keys)
-        .await;
+        .await
+        .unwrap();
 }
 
 async fn prepare_postgres(
