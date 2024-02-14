@@ -149,7 +149,7 @@ async fn workflow_with_submit_tx_equal_hashes() {
         .insert_transaction_l2(tx, mock_tx_execution_metrics())
         .await;
 
-    assert_eq!(result, L2TxSubmissionResult::Replaced);
+    assert_eq!(result, L2TxSubmissionResult::Duplicate);
 }
 
 #[tokio::test]
