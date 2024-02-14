@@ -414,9 +414,9 @@ async fn run_mock_metadata_calculator(ctx: &ctx::Ctx, pool: &ConnectionPool) -> 
             let metadata = create_l1_batch_metadata(n.0);
             storage
                 .blocks_dal()
-                .save_l1_batch_metadata(n, &metadata, H256::zero(), false)
+                .save_l1_batch_tree_data(n, &metadata.tree_data())
                 .await
-                .context("save_l1_batch_metadata()")?;
+                .context("save_l1_batch_tree_data()")?;
         }
     }
     Ok(())

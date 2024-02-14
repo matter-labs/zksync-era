@@ -42,7 +42,7 @@ use crate::{
     genesis::{ensure_genesis_state, GenesisParams},
     utils::testonly::{
         create_l1_batch, create_l1_batch_metadata, create_l2_transaction, create_miniblock,
-        prepare_recovery_snapshot,
+        l1_batch_metadata_to_commitment_artifacts, prepare_recovery_snapshot,
     },
 };
 
@@ -354,7 +354,14 @@ async fn seal_l1_batch(
     let metadata = create_l1_batch_metadata(number.0);
     storage
         .blocks_dal()
-        .save_l1_batch_metadata(number, &metadata, H256::zero(), false)
+        .save_l1_batch_tree_data(number, &metadata.tree_data())
+        .await?;
+    storage
+        .blocks_dal()
+        .save_l1_batch_commitment_artifacts(
+            number,
+            &l1_batch_metadata_to_commitment_artifacts(&metadata),
+        )
         .await?;
     Ok(())
 }
