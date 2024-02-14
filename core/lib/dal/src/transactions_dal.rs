@@ -274,6 +274,7 @@ impl TransactionsDal<'_, '_> {
             .is_some();
 
             if is_duplicate {
+                tracing::debug!("Prevented inserting duplicate L2 transaction {tx_hash:?} to DB");
                 return L2TxSubmissionResult::Duplicate;
             }
 
@@ -432,6 +433,7 @@ impl TransactionsDal<'_, '_> {
                     if let error::Error::Database(ref error) = err {
                         if let Some(constraint) = error.constraint() {
                             if constraint == "transactions_pkey" {
+                                tracing::debug!("Attempted to insert duplicate L2 transaction {tx_hash:?} to DB");
                                 return L2TxSubmissionResult::Duplicate;
                             }
                         }
