@@ -173,7 +173,8 @@ impl Tester {
                 Default::default(),
                 Default::default(),
             )
-            .await;
+            .await
+            .unwrap();
         }
     }
 
@@ -199,7 +200,8 @@ impl Tester {
             storage
                 .storage_logs_dal()
                 .append_storage_logs(MiniblockNumber(0), &[(H256::zero(), vec![storage_log])])
-                .await;
+                .await
+                .unwrap();
             if storage
                 .storage_logs_dedup_dal()
                 .filter_written_slots(&[storage_log.key.hashed_key()])
@@ -210,6 +212,7 @@ impl Tester {
                     .storage_logs_dedup_dal()
                     .insert_initial_writes(L1BatchNumber(0), &[storage_log.key])
                     .await
+                    .unwrap();
             }
         }
     }

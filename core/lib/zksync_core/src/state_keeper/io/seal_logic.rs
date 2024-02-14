@@ -182,7 +182,8 @@ impl UpdatesManager {
         transaction
             .storage_logs_dedup_dal()
             .insert_protective_reads(l1_batch_env.number, &protective_reads)
-            .await;
+            .await
+            .unwrap();
         progress.observe(protective_reads.len());
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::FilterWrittenSlots);
@@ -213,7 +214,8 @@ impl UpdatesManager {
         transaction
             .storage_logs_dedup_dal()
             .insert_initial_writes(l1_batch_env.number, &written_storage_keys)
-            .await;
+            .await
+            .unwrap();
         progress.observe(deduplicated_writes.len());
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::CommitL1Batch);
@@ -373,7 +375,8 @@ impl MiniblockSealCommand {
         transaction
             .storage_logs_dal()
             .insert_storage_logs(miniblock_number, &write_logs)
-            .await;
+            .await
+            .unwrap();
         progress.observe(write_log_count);
 
         #[allow(deprecated)] // Will be removed shortly

@@ -194,7 +194,8 @@ mod tests {
         storage
             .storage_logs_dal()
             .insert_storage_logs(MiniblockNumber(0), &[(H256::zero(), vec![nonce_log])])
-            .await;
+            .await
+            .unwrap();
 
         let other_transaction = create_l2_transaction(10, 100);
         let other_transaction_initiator = other_transaction.initiator_account();
@@ -336,7 +337,8 @@ mod tests {
         storage
             .storage_logs_dal()
             .append_storage_logs(MiniblockNumber(0), &[(H256::zero(), vec![nonce_log])])
-            .await;
+            .await
+            .unwrap();
         storage
             .transactions_dal()
             .insert_transaction_l2(transaction, TransactionExecutionMetrics::default())
