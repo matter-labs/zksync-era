@@ -99,7 +99,8 @@ mod tests {
             ETH_SENDER_SENDER_L1_BATCH_MIN_AGE_BEFORE_EXECUTE_SECONDS="1000"
             ETH_SENDER_SENDER_MAX_ACCEPTABLE_PRIORITY_FEE_IN_GWEI="100000000000"
             ETH_SENDER_SENDER_PROOF_LOADING_MODE="OldProofFromDb"
-        "#;
+            ETH_SENDER_GAS_ADJUSTER_L1_GAS_PER_PUBDATA_BYTE=17
+            "#;
         lock.set_env(config);
 
         let actual = ETHSenderConfig::from_env().unwrap();
