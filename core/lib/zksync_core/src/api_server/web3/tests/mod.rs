@@ -1,4 +1,4 @@
-use std::{collections::HashMap, pin::Pin, time::Instant};
+use std::{collections::HashMap, pin::Pin, slice, time::Instant};
 
 use assert_matches::assert_matches;
 use async_trait::async_trait;
@@ -889,8 +889,8 @@ impl HttpTest for AllAccountBalancesTest {
         };
         storage
             .tokens_dal()
-            .add_tokens(vec![custom_token.clone()])
-            .await;
+            .add_tokens(slice::from_ref(&custom_token))
+            .await?;
 
         let balances = client.get_all_account_balances(Self::ADDRESS).await?;
         assert_eq!(balances, HashMap::from([(Address::zero(), eth_balance)]));

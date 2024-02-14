@@ -2,6 +2,10 @@
 //! It initializes the Merkle tree with the basic setup (such as fields of special service accounts),
 //! setups the required databases, and outputs the data required to initialize a smart contract.
 
+// FIXME: propagate errors; reduce visibility
+
+use std::slice;
+
 use anyhow::Context as _;
 use multivm::{
     utils::get_max_gas_per_pubdata_byte,
@@ -352,13 +356,13 @@ pub(crate) async fn create_genesis_l1_batch(
 
     insert_base_system_contracts_to_factory_deps(&mut transaction, base_system_contracts).await;
     insert_system_contracts(&mut transaction, system_contracts, chain_id).await;
-
-    add_eth_token(&mut transaction).await;
+    add_eth_token(&mut transaction).await.unwrap();
 
     transaction.commit().await.unwrap();
 }
 
-pub(crate) async fn add_eth_token(storage: &mut StorageProcessor<'_>) {
+async fn add_eth_token(transaction: &mut StorageProcessor<'_>) -> anyhow::Result<()> {
+    assert!(transaction.in_transaction()); // sanity check
     let eth_token = TokenInfo {
         l1_address: ETHEREUM_ADDRESS,
         l2_address: ETHEREUM_ADDRESS,
@@ -369,18 +373,17 @@ pub(crate) async fn add_eth_token(storage: &mut StorageProcessor<'_>) {
         },
     };
 
-    let mut transaction = storage.start_transaction().await.unwrap();
-
     transaction
         .tokens_dal()
-        .add_tokens(vec![eth_token.clone()])
-        .await;
+        .add_tokens(slice::from_ref(&eth_token))
+        .await
+        .context("failed adding Ether token")?;
     transaction
         .tokens_dal()
-        .update_well_known_l1_token(&ETHEREUM_ADDRESS, eth_token.metadata)
-        .await;
-
-    transaction.commit().await.unwrap();
+        .update_well_known_l1_token(ETHEREUM_ADDRESS, &eth_token.metadata)
+        .await
+        .context("failed marking Ether token as well-known")?;
+    Ok(())
 }
 
 pub(crate) async fn save_genesis_l1_batch_metadata(

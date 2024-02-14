@@ -405,7 +405,11 @@ impl MiniblockSealCommand {
         let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::InsertTokens, is_fictive);
         let added_tokens_len = added_tokens.len();
         if !added_tokens.is_empty() {
-            transaction.tokens_dal().add_tokens(added_tokens).await;
+            transaction
+                .tokens_dal()
+                .add_tokens(&added_tokens)
+                .await
+                .unwrap();
         }
         progress.observe(added_tokens_len);
 
