@@ -14,6 +14,7 @@ use zksync_node_framework::{
         layers::{
             healtcheck_server::HealthCheckLayer,
             metadata_calculator::MetadataCalculatorLayer,
+            pools_layer::PoolsLayerBuilder,
             state_keeper::{
                 main_node_batch_executor_builder::MainNodeBatchExecutorBuilderLayer,
                 mempool_io::MempoolIOLayer, StateKeeperLayer,
@@ -21,7 +22,7 @@ use zksync_node_framework::{
         },
         resources::pools::MasterPoolResource,
     },
-    resource::{Resource, ResourceId, ResourceProvider, StoredResource},
+    resource::{ResourceId, ResourceProvider, StoredResource},
     service::ZkStackService,
 };
 
@@ -48,14 +49,7 @@ impl MainNodeResourceProvider {
 #[async_trait::async_trait]
 impl ResourceProvider for MainNodeResourceProvider {
     async fn get_resource(&self, name: &ResourceId) -> Option<Box<dyn StoredResource>> {
-        match name {
-            name if name == &MasterPoolResource::resource_id() => {
-                let resource =
-                    Self::master_pool_resource().expect("Failed to create pools resource");
-                Some(Box::new(resource))
-            }
-            _ => None,
-        }
+        None
     }
 }
 
@@ -70,6 +64,15 @@ fn main() -> anyhow::Result<()> {
     // the task will request what they actually need. The benefit here is that we won't instantiate resources
     // that are not used, which would be complex otherwise, since the task set is often dynamic.
     let mut node = ZkStackService::new(MainNodeResourceProvider)?;
+
+    // Add pools.
+    let postgres_config = PostgresConfig::from_env()?;
+    let pools_layer = PoolsLayerBuilder::empty(postgres_config)
+        .with_master(true)
+        .with_replica(true)
+        .with_prover(true)
+        .build();
+    node.add_layer(pools_layer);
 
     // Add the metadata calculator task.
     let merkle_tree_env_config = DBConfig::from_env()?.merkle_tree;

@@ -23,6 +23,8 @@ pub enum WiringError {
     ResourceAlreadyProvided(ResourceId),
     #[error("Resource {0} is not provided")]
     ResourceLacking(ResourceId),
+    #[error("Wiring layer has been incorrectly configured: {0}")]
+    Configuration(String),
     #[error(transparent)]
     Internal(#[from] anyhow::Error),
 }
