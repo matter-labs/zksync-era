@@ -4,8 +4,6 @@
 
 // FIXME: propagate errors; reduce visibility
 
-use std::slice;
-
 use anyhow::Context as _;
 use multivm::{
     utils::get_max_gas_per_pubdata_byte,
@@ -375,12 +373,12 @@ async fn add_eth_token(transaction: &mut StorageProcessor<'_>) -> anyhow::Result
 
     transaction
         .tokens_dal()
-        .add_tokens(slice::from_ref(&eth_token))
+        .add_tokens(&[eth_token])
         .await
         .context("failed adding Ether token")?;
     transaction
         .tokens_dal()
-        .update_well_known_l1_token(ETHEREUM_ADDRESS, &eth_token.metadata)
+        .mark_token_as_well_known(ETHEREUM_ADDRESS)
         .await
         .context("failed marking Ether token as well-known")?;
     Ok(())

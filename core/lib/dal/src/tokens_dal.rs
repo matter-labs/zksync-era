@@ -1,7 +1,6 @@
 use sqlx::types::chrono::Utc;
 use zksync_types::{
-    tokens::{TokenInfo, TokenMetadata},
-    Address, MiniblockNumber, ACCOUNT_CODE_STORAGE_ADDRESS,
+    tokens::TokenInfo, Address, MiniblockNumber, ACCOUNT_CODE_STORAGE_ADDRESS,
     FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH,
 };
 
@@ -45,27 +44,17 @@ impl TokensDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn update_well_known_l1_token(
-        &mut self,
-        l1_address: Address,
-        metadata: &TokenMetadata,
-    ) -> sqlx::Result<()> {
+    pub async fn mark_token_as_well_known(&mut self, l1_address: Address) -> sqlx::Result<()> {
         sqlx::query!(
             r#"
             UPDATE tokens
             SET
-                token_list_name = $2,
-                token_list_symbol = $3,
-                token_list_decimals = $4,
                 well_known = TRUE,
                 updated_at = NOW()
             WHERE
                 l1_address = $1
             "#,
-            l1_address.as_bytes(),
-            metadata.name,
-            metadata.symbol,
-            metadata.decimals as i32,
+            l1_address.as_bytes()
         )
         .execute(self.storage.conn())
         .await?;
