@@ -1,9 +1,9 @@
 use zksync_types::{
-    tokens::{TokenInfo, TokenMetadata, TokenPrice},
+    tokens::{TokenInfo, TokenMetadata},
     Address,
 };
 
-use crate::{models::storage_token::StorageTokenPrice, StorageProcessor};
+use crate::StorageProcessor;
 
 #[derive(Debug)]
 pub struct TokensWeb3Dal<'a, 'c> {
@@ -43,29 +43,5 @@ impl TokensWeb3Dal<'_, '_> {
                 },
             })
             .collect())
-    }
-
-    // FIXME: remove
-    pub async fn get_token_price(
-        &mut self,
-        l2_address: &Address,
-    ) -> sqlx::Result<Option<TokenPrice>> {
-        let storage_price = sqlx::query_as!(
-            StorageTokenPrice,
-            r#"
-            SELECT
-                usd_price,
-                usd_price_updated_at
-            FROM
-                tokens
-            WHERE
-                l2_address = $1
-            "#,
-            l2_address.as_bytes(),
-        )
-        .fetch_optional(self.storage.conn())
-        .await?;
-
-        Ok(storage_price.and_then(Into::into))
     }
 }

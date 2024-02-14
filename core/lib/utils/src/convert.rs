@@ -21,6 +21,7 @@ pub fn ratio_to_big_decimal(num: &Ratio<BigUint>, precision: usize) -> BigDecima
     BigDecimal::new(bigint, precision as i64)
 }
 
+// FIXME: not used
 pub fn ratio_to_big_decimal_normalized(
     num: &Ratio<BigUint>,
     precision: usize,

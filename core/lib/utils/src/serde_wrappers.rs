@@ -6,6 +6,7 @@ use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::convert::*;
 
+// FIXME: not used
 #[derive(Clone, Debug)]
 pub struct UnsignedRatioSerializeAsDecimal;
 impl UnsignedRatioSerializeAsDecimal {
