@@ -1,8 +1,8 @@
-## Validium example
+# Validium example
 
 In order to start the node as a validium and run the example follow the next steps.
 
-### Run the server
+## Run the server
 
 To run this example we need to run the server in validium mode. In the `zksync-era` directory, you can run the following
 command:
@@ -16,7 +16,7 @@ zk && zk clean --all && zk init --validium-mode && zk server
 This will set up the Ethereum node with the validium contracts, and also define an `env` var which the server will pick
 up in order to run as a validium node.
 
-### Run the example
+## Run the example
 
 In this example we're going to run some transactions.
 
@@ -35,7 +35,7 @@ This test does the following:
 - Mint 100000 tokens into the address `CD2a3d9F938E13CD947Ec05AbC7FE734Df8DD826`
 - Transfer 1000 tokens from `CD2a3d9F938E13CD947Ec05AbC7FE734Df8DD826` to `bBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB`
 
-### Logs and prints
+## Logs and prints
 
 - For each transaction, we use the rpc client to query the transaction details and print them out. The following fields
   are printed:
@@ -43,7 +43,7 @@ This test does the following:
   - `Transaction gas used`: The gas used to perform this transaction.
   - `L2 fee`: The total cost of this transaction.
 
-### Example output
+## Example output
 
 You will have an output similar to this one:
 
