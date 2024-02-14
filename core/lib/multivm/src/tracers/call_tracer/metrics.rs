@@ -6,7 +6,6 @@ pub struct CallMetrics {
     /// Maximum call stack depth during the execution of the transaction.
     pub call_stack_depth: Gauge<usize>,
     /// Maximum number of near calls during the execution of the transaction.
-    #[metrics(buckets = Buckets::exponential(1.0..=64.0, 2.0))]
     pub max_near_calls: Gauge<usize>,
 }
 
