@@ -2,16 +2,16 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use zksync_core::state_keeper::{
-    seal_criteria::ConditionalSealer, L1BatchExecutorBuilder, StateKeeperIO, ZkSyncStateKeeper,
+    seal_criteria::ConditionalSealer, BatchExecutor, StateKeeperIO, ZkSyncStateKeeper,
 };
 use zksync_storage::RocksDB;
 
-pub mod main_node_batch_executor_builder;
+pub mod main_batch_executor;
 pub mod mempool_io;
 
 use crate::{
     implementations::resources::state_keeper::{
-        ConditionalSealerResource, L1BatchExecutorBuilderResource, StateKeeperIOResource,
+        BatchExecutorResource, ConditionalSealerResource, StateKeeperIOResource,
     },
     service::{ServiceContext, StopReceiver},
     task::Task,
@@ -20,7 +20,7 @@ use crate::{
 
 /// Requests:
 /// - `StateKeeperIOResource`
-/// - `L1BatchExecutorBuilderResource`
+/// - `BatchExecutorResource`
 /// - `ConditionalSealerResource`
 ///
 #[derive(Debug)]
@@ -40,7 +40,7 @@ impl WiringLayer for StateKeeperLayer {
             .take()
             .context("StateKeeperIO was provided but taken by some other task")?;
         let batch_executor_base = context
-            .get_resource::<L1BatchExecutorBuilderResource>()
+            .get_resource::<BatchExecutorResource>()
             .await?
             .0
             .take()
@@ -58,7 +58,7 @@ impl WiringLayer for StateKeeperLayer {
 
 struct StateKeeperTask {
     io: Box<dyn StateKeeperIO>,
-    batch_executor_base: Box<dyn L1BatchExecutorBuilder>,
+    batch_executor_base: Box<dyn BatchExecutor>,
     sealer: Arc<dyn ConditionalSealer>,
 }
 

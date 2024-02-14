@@ -17,6 +17,7 @@ use zksync_state::{RocksdbStorage, StorageView, WriteStorage};
 use zksync_types::{vm_trace::Call, Transaction, U256};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
+use super::{BatchExecutor, BatchExecutorHandle, Command, TxExecutionResult};
 use crate::{
     metrics::{InteractionType, TxStage, APP_METRICS},
     state_keeper::{
@@ -24,8 +25,6 @@ use crate::{
         types::ExecutionMetricsForCriteria,
     },
 };
-
-use super::{BatchExecutor, BatchExecutorHandle, Command, TxExecutionResult};
 
 /// The default implementation of [`BatchExecutor`].
 /// Creates a "real" batch executor which maintains the VM (as opposed to the test builder which doesn't use the VM).
