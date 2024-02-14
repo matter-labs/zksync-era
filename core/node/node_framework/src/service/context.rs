@@ -93,7 +93,7 @@ impl<'a> ServiceContext<'a> {
 
     /// Adds a resource to the service.
     /// If the resource with the same name is already provided, the method will return an error.
-    pub fn add_resource<T: Resource>(&mut self, resource: T) -> Result<(), WiringError> {
+    pub fn insert_resource<T: Resource>(&mut self, resource: T) -> Result<(), WiringError> {
         let name = T::resource_id();
         if self.service.resources.contains_key(&name) {
             return Err(WiringError::ResourceAlreadyProvided(name));

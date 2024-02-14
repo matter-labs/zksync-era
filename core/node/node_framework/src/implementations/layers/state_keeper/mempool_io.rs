@@ -117,11 +117,11 @@ impl WiringLayer for MempoolIOLayer {
             self.network_config.zksync_network_id,
         )
         .await?;
-        context.add_resource(StateKeeperIOResource(Unique::new(Box::new(io))))?;
+        context.insert_resource(StateKeeperIOResource(Unique::new(Box::new(io))))?;
 
         // Create sealer.
         let sealer = SequencerSealer::new(self.state_keeper_config);
-        context.add_resource(ConditionalSealerResource(Arc::new(sealer)))?;
+        context.insert_resource(ConditionalSealerResource(Arc::new(sealer)))?;
 
         Ok(())
     }

@@ -26,7 +26,7 @@ impl WiringLayer for ObjectStoreLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         let object_store = ObjectStoreFactory::new(self.config).create_store().await;
-        context.add_resource(ObjectStoreResource(object_store))?;
+        context.insert_resource(ObjectStoreResource(object_store))?;
         Ok(())
     }
 }

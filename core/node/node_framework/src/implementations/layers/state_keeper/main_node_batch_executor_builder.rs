@@ -44,7 +44,7 @@ impl WiringLayer for MainNodeBatchExecutorBuilderLayer {
             false,
         );
 
-        context.add_resource(L1BatchExecutorBuilderResource(Unique::new(Box::new(
+        context.insert_resource(L1BatchExecutorBuilderResource(Unique::new(Box::new(
             builder,
         ))))?;
         Ok(())

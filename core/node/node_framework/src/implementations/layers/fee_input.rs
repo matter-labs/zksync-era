@@ -52,7 +52,7 @@ impl WiringLayer for SequencerFeeInputLayer {
             gas_adjuster.clone(),
             FeeModelConfig::from_state_keeper_config(&self.state_keeper_config),
         ));
-        context.add_resource(FeeInputResource(batch_fee_input_provider))?;
+        context.insert_resource(FeeInputResource(batch_fee_input_provider))?;
 
         context.add_task(Box::new(GasAdjusterTask { gas_adjuster }));
         Ok(())

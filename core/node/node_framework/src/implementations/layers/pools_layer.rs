@@ -77,21 +77,21 @@ impl WiringLayer for PoolsLayer {
             let mut master_pool =
                 ConnectionPool::builder(self.config.master_url()?, self.config.max_connections()?);
             master_pool.set_statement_timeout(self.config.statement_timeout());
-            context.add_resource(MasterPoolResource::new(master_pool))?;
+            context.insert_resource(MasterPoolResource::new(master_pool))?;
         }
 
         if self.with_replica {
             let mut replica_pool =
                 ConnectionPool::builder(self.config.replica_url()?, self.config.max_connections()?);
             replica_pool.set_statement_timeout(self.config.statement_timeout());
-            context.add_resource(ReplicaPoolResource::new(replica_pool))?;
+            context.insert_resource(ReplicaPoolResource::new(replica_pool))?;
         }
 
         if self.with_prover {
             let mut prover_pool =
                 ConnectionPool::builder(self.config.prover_url()?, self.config.max_connections()?);
             prover_pool.set_statement_timeout(self.config.statement_timeout());
-            context.add_resource(ProverPoolResource::new(prover_pool))?;
+            context.insert_resource(ProverPoolResource::new(prover_pool))?;
         }
 
         Ok(())
