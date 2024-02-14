@@ -50,6 +50,9 @@ pub struct CallRequest {
     /// Data (None for empty data)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub data: Option<Bytes>,
+    /// Input (None for empty)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub input: Option<Bytes>,
     /// Nonce
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub nonce: Option<U256>,
@@ -120,6 +123,11 @@ impl CallRequestBuilder {
     /// Set data (None for empty data)
     pub fn data(mut self, data: Bytes) -> Self {
         self.call_request.data = Some(data);
+        self
+    }
+
+    pub fn input(mut self, input: Bytes) -> Self {
+        self.call_request.input = Some(input);
         self
     }
 
@@ -869,7 +877,7 @@ impl From<CallRequest> for TransactionRequest {
             value: call_request.value.unwrap_or_default(),
             gas_price: call_request.gas_price.unwrap_or_default(),
             gas: call_request.gas.unwrap_or_default(),
-            input: call_request.data.unwrap_or_default(),
+            input: call_request.data.or(call_request.input).unwrap_or_default(),
             transaction_type: call_request.transaction_type,
             access_list: call_request.access_list,
             eip712_meta: call_request.eip712_meta,
@@ -1457,6 +1465,7 @@ mod tests {
             max_priority_fee_per_gas: Some(U256::from(12u32)),
             value: Some(U256::from(12u32)),
             data: Some(Bytes(factory_dep)),
+            input: None,
             nonce: None,
             transaction_type: Some(U64::from(EIP_712_TX_TYPE)),
             access_list: None,
@@ -1483,6 +1492,7 @@ mod tests {
             max_priority_fee_per_gas: Some(U256::from(12u32)),
             value: Some(U256::from(12u32)),
             data: Some(Bytes(vec![1, 2, 3])),
+            input: None,
             nonce: Some(U256::from(123u32)),
             transaction_type: Some(U64::from(EIP_712_TX_TYPE)),
             access_list: None,

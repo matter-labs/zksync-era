@@ -262,7 +262,10 @@ impl TraceCallTest {
         assert_eq!(call_result.from, Address::zero());
         assert_eq!(call_result.gas, call_request.gas.unwrap());
         assert_eq!(call_result.value, call_request.value.unwrap());
-        assert_eq!(call_result.input, *call_request.data.as_ref().unwrap());
+        assert_eq!(
+            call_result.input,
+            call_request.data.or(call_request.clone().input).unwrap()
+        );
         assert_eq!(call_result.output.0, b"output");
     }
 }
