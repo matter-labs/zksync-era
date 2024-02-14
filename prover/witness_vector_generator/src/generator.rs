@@ -57,7 +57,7 @@ impl WitnessVectorGenerator {
     pub fn generate_witness_vector(job: ProverJob) -> anyhow::Result<WitnessVectorArtifacts> {
         let finalization_hints = get_finalization_hints(job.setup_data_key.clone())
             .context("get_finalization_hints()")?;
-        let mut cs = match job.circuit_wrapper.clone() {
+        let cs = match job.circuit_wrapper.clone() {
             CircuitWrapper::Base(base_circuit) => {
                 base_circuit.synthesis::<GoldilocksField>(&finalization_hints)
             }
@@ -65,10 +65,7 @@ impl WitnessVectorGenerator {
                 recursive_circuit.synthesis::<GoldilocksField>(&finalization_hints)
             }
         };
-        Ok(WitnessVectorArtifacts::new(
-            cs.materialize_witness_vec(),
-            job,
-        ))
+        Ok(WitnessVectorArtifacts::new(cs.witness.unwrap(), job))
     }
 }
 
@@ -154,7 +151,7 @@ impl JobProcessor for WitnessVectorGenerator {
             if let Some(address) = prover {
                 let address = SocketAddr::from(address);
                 tracing::info!(
-                    "Found prover after {:?}. Sending witness vector job...",
+                    "Found prover at address {address:?} after {:?}. Sending witness vector job...",
                     now.elapsed()
                 );
                 let result = send_assembly(job_id, &serialized, &address);

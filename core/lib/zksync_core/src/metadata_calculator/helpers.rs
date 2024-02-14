@@ -33,9 +33,27 @@ pub(crate) struct MerkleTreeInfo {
     pub leaf_count: u64,
 }
 
+/// Health details for a Merkle tree.
+#[derive(Debug, Serialize)]
+#[serde(tag = "stage", rename_all = "snake_case")]
+pub(super) enum MerkleTreeHealth {
+    Initialization,
+    Recovery {
+        chunk_count: u64,
+        recovered_chunk_count: u64,
+    },
+    MainLoop(MerkleTreeInfo),
+}
+
+impl From<MerkleTreeHealth> for Health {
+    fn from(details: MerkleTreeHealth) -> Self {
+        Self::from(HealthStatus::Ready).with_details(details)
+    }
+}
+
 impl From<MerkleTreeInfo> for Health {
-    fn from(tree_info: MerkleTreeInfo) -> Self {
-        Self::from(HealthStatus::Ready).with_details(tree_info)
+    fn from(info: MerkleTreeInfo) -> Self {
+        Self::from(HealthStatus::Ready).with_details(MerkleTreeHealth::MainLoop(info))
     }
 }
 
@@ -129,10 +147,6 @@ impl AsyncTree {
         self.inner.as_mut().expect(Self::INCONSISTENT_MSG)
     }
 
-    pub fn mode(&self) -> MerkleTreeMode {
-        self.mode
-    }
-
     pub fn reader(&self) -> AsyncTreeReader {
         AsyncTreeReader {
             inner: self.inner.as_ref().expect(Self::INCONSISTENT_MSG).reader(),
@@ -148,6 +162,7 @@ impl AsyncTree {
         self.as_ref().next_l1_batch_number()
     }
 
+    #[cfg(test)]
     pub fn root_hash(&self) -> H256 {
         self.as_ref().root_hash()
     }

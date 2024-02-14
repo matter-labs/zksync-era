@@ -2,6 +2,7 @@ use std::{
     collections::{HashMap, HashSet, VecDeque},
     convert::TryInto,
     fmt,
+    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -200,7 +201,7 @@ impl TestScenario {
             stop_receiver,
             Box::new(io),
             Box::new(batch_executor_base),
-            Box::new(sealer),
+            Arc::new(sealer),
         );
         let sk_thread = tokio::spawn(sk.run());
 
@@ -661,7 +662,6 @@ impl StateKeeperIO for TestIO {
     async fn wait_for_new_miniblock_params(
         &mut self,
         _max_wait: Duration,
-        _prev_miniblock_timestamp: u64,
     ) -> Option<MiniblockParams> {
         Some(MiniblockParams {
             timestamp: self.timestamp,

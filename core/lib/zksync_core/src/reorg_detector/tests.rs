@@ -9,7 +9,10 @@ use assert_matches::assert_matches;
 use test_casing::{test_casing, Product};
 use tokio::sync::mpsc;
 use zksync_dal::StorageProcessor;
-use zksync_types::{block::MiniblockHeader, L2ChainId, ProtocolVersion};
+use zksync_types::{
+    block::{MiniblockHasher, MiniblockHeader},
+    L2ChainId, ProtocolVersion,
+};
 
 use super::*;
 use crate::{
@@ -84,27 +87,36 @@ struct MockMainNodeClient {
 
 #[async_trait]
 impl MainNodeClient for MockMainNodeClient {
-    async fn sealed_miniblock_number(&self) -> Result<MiniblockNumber, RpcError> {
+    async fn sealed_miniblock_number(&self) -> EnrichedClientResult<MiniblockNumber> {
         if let &Some(error_kind) = &*self.error_kind.lock().unwrap() {
-            return Err(error_kind.into());
+            return Err(EnrichedClientError::new(
+                error_kind.into(),
+                "sealed_miniblock_number",
+            ));
         }
         Ok(self
             .latest_miniblock_response
             .expect("unexpected `sealed_miniblock_number` request"))
     }
 
-    async fn sealed_l1_batch_number(&self) -> Result<L1BatchNumber, RpcError> {
+    async fn sealed_l1_batch_number(&self) -> EnrichedClientResult<L1BatchNumber> {
         if let &Some(error_kind) = &*self.error_kind.lock().unwrap() {
-            return Err(error_kind.into());
+            return Err(EnrichedClientError::new(
+                error_kind.into(),
+                "sealed_l1_batch_number",
+            ));
         }
         Ok(self
             .latest_l1_batch_response
             .expect("unexpected `sealed_l1_batch_number` request"))
     }
 
-    async fn miniblock_hash(&self, number: MiniblockNumber) -> Result<Option<H256>, RpcError> {
+    async fn miniblock_hash(&self, number: MiniblockNumber) -> EnrichedClientResult<Option<H256>> {
         if let &Some(error_kind) = &*self.error_kind.lock().unwrap() {
-            return Err(error_kind.into());
+            return Err(
+                EnrichedClientError::new(error_kind.into(), "miniblock_hash")
+                    .with_arg("number", &number),
+            );
         }
 
         if let Some(response) = self.miniblock_hash_responses.get(&number) {
@@ -114,9 +126,15 @@ impl MainNodeClient for MockMainNodeClient {
         }
     }
 
-    async fn l1_batch_root_hash(&self, number: L1BatchNumber) -> Result<Option<H256>, RpcError> {
+    async fn l1_batch_root_hash(
+        &self,
+        number: L1BatchNumber,
+    ) -> EnrichedClientResult<Option<H256>> {
         if let &Some(error_kind) = &*self.error_kind.lock().unwrap() {
-            return Err(error_kind.into());
+            return Err(
+                EnrichedClientError::new(error_kind.into(), "l1_batch_root_hash")
+                    .with_arg("number", &number),
+            );
         }
 
         if let Some(response) = self.l1_batch_root_hash_responses.get(&number) {
@@ -154,6 +172,10 @@ async fn normal_reorg_function(snapshot_recovery: bool, with_transient_errors: b
             ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
                 .await
                 .unwrap();
+        client.miniblock_hash_responses.insert(
+            MiniblockNumber(0),
+            MiniblockHasher::legacy_hash(MiniblockNumber(0)),
+        );
         client
             .l1_batch_root_hash_responses
             .insert(L1BatchNumber(0), genesis_root_hash);
@@ -254,6 +276,10 @@ async fn reorg_is_detected_on_batch_hash_mismatch() {
             .await
             .unwrap();
     let mut client = MockMainNodeClient::default();
+    client.miniblock_hash_responses.insert(
+        MiniblockNumber(0),
+        MiniblockHasher::legacy_hash(MiniblockNumber(0)),
+    );
     client
         .l1_batch_root_hash_responses
         .insert(L1BatchNumber(0), genesis_root_hash);
@@ -302,6 +328,10 @@ async fn reorg_is_detected_on_miniblock_hash_mismatch() {
         ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
             .await
             .unwrap();
+    client.miniblock_hash_responses.insert(
+        MiniblockNumber(0),
+        MiniblockHasher::legacy_hash(MiniblockNumber(0)),
+    );
     client
         .l1_batch_root_hash_responses
         .insert(L1BatchNumber(0), genesis_root_hash);

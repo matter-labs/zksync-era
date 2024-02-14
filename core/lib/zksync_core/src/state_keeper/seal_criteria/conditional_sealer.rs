@@ -115,7 +115,7 @@ impl ConditionalSealer for SequencerSealer {
 }
 
 impl SequencerSealer {
-    pub(crate) fn new(config: StateKeeperConfig) -> Self {
+    pub fn new(config: StateKeeperConfig) -> Self {
         let sealers = Self::default_sealers();
         Self { config, sealers }
     }

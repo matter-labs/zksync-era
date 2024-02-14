@@ -7,9 +7,9 @@ use zksync_types::{
     H256,
 };
 use zksync_web3_decl::{
+    error::{ClientRpcContext, EnrichedClientResult},
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
-    RpcResult,
 };
 
 /// Used by external node to proxy transaction to the main node
@@ -41,30 +41,54 @@ impl TxProxy {
         self.tx_cache.write().await.insert(tx_hash, tx);
     }
 
-    pub async fn submit_tx(&self, tx: &L2Tx) -> RpcResult<H256> {
+    pub async fn submit_tx(&self, tx: &L2Tx) -> EnrichedClientResult<H256> {
         let input_data = tx.common_data.input_data().expect("raw tx is absent");
         let raw_tx = zksync_types::Bytes(input_data.to_vec());
-        tracing::info!("Proxying tx {}", tx.hash());
-        self.client.send_raw_transaction(raw_tx).await
+        let tx_hash = tx.hash();
+        tracing::info!("Proxying tx {tx_hash:?}");
+        self.client
+            .send_raw_transaction(raw_tx)
+            .rpc_context("send_raw_transaction")
+            .with_arg("tx_hash", &tx_hash)
+            .await
     }
 
-    pub async fn request_tx(&self, id: TransactionId) -> RpcResult<Option<Transaction>> {
+    pub async fn request_tx(&self, id: TransactionId) -> EnrichedClientResult<Option<Transaction>> {
         match id {
             TransactionId::Block(BlockId::Hash(block), index) => {
                 self.client
                     .get_transaction_by_block_hash_and_index(block, index)
+                    .rpc_context("get_transaction_by_block_hash_and_index")
+                    .with_arg("block", &block)
+                    .with_arg("index", &index)
                     .await
             }
             TransactionId::Block(BlockId::Number(block), index) => {
                 self.client
                     .get_transaction_by_block_number_and_index(block, index)
+                    .rpc_context("get_transaction_by_block_number_and_index")
+                    .with_arg("block", &block)
+                    .with_arg("index", &index)
                     .await
             }
-            TransactionId::Hash(hash) => self.client.get_transaction_by_hash(hash).await,
+            TransactionId::Hash(hash) => {
+                self.client
+                    .get_transaction_by_hash(hash)
+                    .rpc_context("get_transaction_by_hash")
+                    .with_arg("hash", &hash)
+                    .await
+            }
         }
     }
 
-    pub async fn request_tx_details(&self, hash: H256) -> RpcResult<Option<TransactionDetails>> {
-        self.client.get_transaction_details(hash).await
+    pub async fn request_tx_details(
+        &self,
+        hash: H256,
+    ) -> EnrichedClientResult<Option<TransactionDetails>> {
+        self.client
+            .get_transaction_details(hash)
+            .rpc_context("get_transaction_details")
+            .with_arg("hash", &hash)
+            .await
     }
 }
