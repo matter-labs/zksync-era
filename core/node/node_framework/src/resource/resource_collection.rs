@@ -109,8 +109,6 @@ impl<T: Resource + Clone> ResourceCollection<T> {
 mod tests {
     use std::time::Duration;
 
-    use tokio::time::timeout;
-
     use super::*;
 
     #[derive(Debug, Clone, PartialEq)]
@@ -125,13 +123,15 @@ mod tests {
     #[tokio::test]
     async fn test_push() {
         let collection = ResourceCollection::<TestResource>::new();
-        let resource = TestResource(Arc::new(1));
+        let resource1 = TestResource(Arc::new(1));
+        collection.clone().push(resource1.clone()).unwrap();
 
-        collection.clone().push(resource).unwrap();
+        let resource2 = TestResource(Arc::new(2));
+        collection.clone().push(resource2.clone()).unwrap();
 
         assert_eq!(
             *collection.resources.lock().unwrap(),
-            vec![TestResource(Arc::new(1))]
+            vec![resource1, resource2]
         );
     }
 
@@ -153,15 +153,18 @@ mod tests {
     #[tokio::test]
     async fn test_resolve() {
         let mut collection = ResourceCollection::<TestResource>::new();
+        let timeout = Duration::from_millis(500);
+        let result = tokio::time::timeout(timeout, collection.clone().resolve()).await;
+
+        assert!(
+            result.is_err(),
+            "Future resolved before timeout: {} ms",
+            timeout.as_millis()
+        );
 
         collection.on_resource_wired();
 
         let resolved = collection.resolve().await;
         assert_eq!(resolved, vec![]);
-
-        // check the case that it is not allowed to resolve the collection when it is not wired
-        let collection = ResourceCollection::<TestResource>::new();
-        let result = timeout(Duration::from_secs(1), collection.resolve()).await;
-        assert!(result.is_err(), "Future resolved before a second");
     }
 }
