@@ -8779,6 +8779,7 @@ dependencies = [
  "zksync_core",
  "zksync_dal",
  "zksync_env_config",
+ "zksync_eth_client",
  "zksync_health_check",
  "zksync_object_store",
  "zksync_storage",

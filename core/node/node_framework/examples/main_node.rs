@@ -4,12 +4,13 @@
 
 use zksync_config::{
     configs::chain::{MempoolConfig, NetworkConfig, OperationsManagerConfig, StateKeeperConfig},
-    ContractsConfig, DBConfig, PostgresConfig,
+    ApiConfig, ContractsConfig, DBConfig, ETHClientConfig, GasAdjusterConfig, PostgresConfig,
 };
 use zksync_core::metadata_calculator::MetadataCalculatorConfig;
 use zksync_env_config::FromEnv;
 use zksync_node_framework::{
     implementations::layers::{
+        fee_input::SequencerFeeInputLayer,
         healtcheck_server::HealthCheckLayer,
         metadata_calculator::MetadataCalculatorLayer,
         pools_layer::PoolsLayerBuilder,
@@ -40,6 +41,19 @@ impl MainNodeBuilder {
             .with_prover(true)
             .build();
         self.node.add_layer(pools_layer);
+        Ok(self)
+    }
+
+    fn add_fee_input_layer(mut self) -> anyhow::Result<Self> {
+        let gas_adjuster_config = GasAdjusterConfig::from_env()?;
+        let eth_client_config = ETHClientConfig::from_env()?;
+        let state_keeper_config = StateKeeperConfig::from_env()?;
+        let fee_input_layer = SequencerFeeInputLayer::new(
+            gas_adjuster_config,
+            eth_client_config,
+            state_keeper_config,
+        );
+        self.node.add_layer(fee_input_layer);
         Ok(self)
     }
 
@@ -75,7 +89,7 @@ impl MainNodeBuilder {
     }
 
     fn add_healthcheck_layer(mut self) -> anyhow::Result<Self> {
-        let healthcheck_config = zksync_config::ApiConfig::from_env()?.healthcheck;
+        let healthcheck_config = ApiConfig::from_env()?.healthcheck;
         self.node.add_layer(HealthCheckLayer(healthcheck_config));
         Ok(self)
     }
@@ -94,6 +108,7 @@ fn main() -> anyhow::Result<()> {
 
     MainNodeBuilder::new()
         .add_pools_layer()?
+        .add_fee_input_layer()?
         .add_metadata_calculator_layer()?
         .add_state_keeper_layer()?
         .add_healthcheck_layer()?
