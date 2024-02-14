@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                number,\n                l1_tx_count,\n                l2_tx_count,\n                timestamp,\n                is_finished,\n                fee_account_address,\n                l2_to_l1_logs,\n                l2_to_l1_messages,\n                bloom,\n                priority_ops_onchain_data,\n                used_contract_hashes,\n                base_fee_per_gas,\n                l1_gas_price,\n                l2_fair_gas_price,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                protocol_version,\n                system_logs,\n                compressed_state_diffs,\n                pubdata_input\n            FROM\n                l1_batches\n            WHERE\n                eth_commit_tx_id = $1\n                OR eth_prove_tx_id = $1\n                OR eth_execute_tx_id = $1\n            ",
+  "query": "\n            SELECT\n                number,\n                l1_tx_count,\n                l2_tx_count,\n                timestamp,\n                is_finished,\n                fee_account_address,\n                l2_to_l1_logs,\n                l2_to_l1_messages,\n                bloom,\n                priority_ops_onchain_data,\n                used_contract_hashes,\n                base_fee_per_gas,\n                l1_gas_price,\n                l2_fair_gas_price,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                evm_simulator_code_hash,\n                protocol_version,\n                compressed_state_diffs,\n                system_logs,\n                pubdata_input\n            FROM\n                l1_batches\n            WHERE\n                number = $1\n            ",
   "describe": {
     "columns": [
       {
@@ -85,13 +85,13 @@
       },
       {
         "ordinal": 16,
-        "name": "protocol_version",
-        "type_info": "Int4"
+        "name": "evm_simulator_code_hash",
+        "type_info": "Bytea"
       },
       {
         "ordinal": 17,
-        "name": "system_logs",
-        "type_info": "ByteaArray"
+        "name": "protocol_version",
+        "type_info": "Int4"
       },
       {
         "ordinal": 18,
@@ -100,13 +100,18 @@
       },
       {
         "ordinal": 19,
+        "name": "system_logs",
+        "type_info": "ByteaArray"
+      },
+      {
+        "ordinal": 20,
         "name": "pubdata_input",
         "type_info": "Bytea"
       }
     ],
     "parameters": {
       "Left": [
-        "Int4"
+        "Int8"
       ]
     },
     "nullable": [
@@ -127,10 +132,11 @@
       true,
       true,
       true,
-      false,
       true,
+      true,
+      false,
       true
     ]
   },
-  "hash": "d8e0f98a67ffb53a1caa6820f8475da2787332deca5708d1d08730cdbfc73541"
+  "hash": "64877be014df0920258cc7d2609732eaa7cdc893ec5917123a0b2bd695b66906"
 }

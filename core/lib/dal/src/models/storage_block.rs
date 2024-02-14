@@ -42,6 +42,7 @@ pub struct StorageL1BatchHeader {
     pub l2_fair_gas_price: i64,
     pub bootloader_code_hash: Option<Vec<u8>>,
     pub default_aa_code_hash: Option<Vec<u8>>,
+    pub evm_simulator_code_hash: Option<Vec<u8>>,
     pub protocol_version: Option<i32>,
 
     // Both `system_logs` and `compressed_state_diffs` are introduced as part of boojum and will be
@@ -86,6 +87,7 @@ impl From<StorageL1BatchHeader> for L1BatchHeader {
             base_system_contracts_hashes: convert_base_system_contracts_hashes(
                 l1_batch.bootloader_code_hash,
                 l1_batch.default_aa_code_hash,
+                l1_batch.evm_simulator_code_hash,
             ),
             l1_gas_price: l1_batch.l1_gas_price as u64,
             l2_fair_gas_price: l1_batch.l2_fair_gas_price as u64,
@@ -109,6 +111,7 @@ fn convert_l2_to_l1_logs(raw_logs: Vec<Vec<u8>>) -> Vec<L2ToL1Log> {
 fn convert_base_system_contracts_hashes(
     bootloader_code_hash: Option<Vec<u8>>,
     default_aa_code_hash: Option<Vec<u8>>,
+    evm_simulator_code_hash: Option<Vec<u8>>,
 ) -> BaseSystemContractsHashes {
     BaseSystemContractsHashes {
         bootloader: bootloader_code_hash
@@ -117,8 +120,10 @@ fn convert_base_system_contracts_hashes(
         default_aa: default_aa_code_hash
             .map(|hash| H256::from_slice(&hash))
             .expect("should not be none"),
-        // FIXME
-        evm_simulator: H256::default(),
+        // EVM simulator can be zero for older batches
+        evm_simulator: evm_simulator_code_hash
+            .map(|hash| H256::from_slice(&hash))
+            .unwrap_or_default(),
     }
 }
 
@@ -148,6 +153,7 @@ pub struct StorageL1Batch {
     pub zkporter_is_available: Option<bool>,
     pub bootloader_code_hash: Option<Vec<u8>>,
     pub default_aa_code_hash: Option<Vec<u8>>,
+    pub evm_simulator_code_hash: Option<Vec<u8>>,
 
     pub l2_to_l1_messages: Vec<Vec<u8>>,
     pub l2_l1_compressed_messages: Option<Vec<u8>>,
@@ -209,6 +215,7 @@ impl From<StorageL1Batch> for L1BatchHeader {
             base_system_contracts_hashes: convert_base_system_contracts_hashes(
                 l1_batch.bootloader_code_hash,
                 l1_batch.default_aa_code_hash,
+                l1_batch.evm_simulator_code_hash,
             ),
             l1_gas_price: l1_batch.l1_gas_price as u64,
             l2_fair_gas_price: l1_batch.l2_fair_gas_price as u64,
@@ -377,6 +384,7 @@ pub struct StorageBlockDetails {
     pub l2_fair_gas_price: i64,
     pub bootloader_code_hash: Option<Vec<u8>>,
     pub default_aa_code_hash: Option<Vec<u8>>,
+    pub evm_simulator_code_hash: Option<Vec<u8>>,
     pub fee_account_address: Option<Vec<u8>>, // May be None if the block is not yet sealed
     pub protocol_version: Option<i32>,
 }
@@ -421,6 +429,7 @@ impl StorageBlockDetails {
             base_system_contracts_hashes: convert_base_system_contracts_hashes(
                 self.bootloader_code_hash,
                 self.default_aa_code_hash,
+                self.evm_simulator_code_hash,
             ),
         };
         api::BlockDetails {
@@ -455,6 +464,7 @@ pub struct StorageL1BatchDetails {
     pub l2_fair_gas_price: i64,
     pub bootloader_code_hash: Option<Vec<u8>>,
     pub default_aa_code_hash: Option<Vec<u8>>,
+    pub evm_simulator_code_hash: Option<Vec<u8>>,
 }
 
 impl From<StorageL1BatchDetails> for api::L1BatchDetails {
@@ -497,6 +507,7 @@ impl From<StorageL1BatchDetails> for api::L1BatchDetails {
             base_system_contracts_hashes: convert_base_system_contracts_hashes(
                 details.bootloader_code_hash,
                 details.default_aa_code_hash,
+                details.evm_simulator_code_hash,
             ),
         };
         api::L1BatchDetails {
@@ -519,6 +530,7 @@ pub struct StorageMiniblockHeader {
     // L2 gas price assumed in the corresponding batch
     pub bootloader_code_hash: Option<Vec<u8>>,
     pub default_aa_code_hash: Option<Vec<u8>>,
+    pub evm_simulator_code_hash: Option<Vec<u8>>,
     pub protocol_version: Option<i32>,
 
     pub fair_pubdata_price: Option<i64>,
@@ -566,6 +578,7 @@ impl From<StorageMiniblockHeader> for MiniblockHeader {
             base_system_contracts_hashes: convert_base_system_contracts_hashes(
                 row.bootloader_code_hash,
                 row.default_aa_code_hash,
+                row.evm_simulator_code_hash,
             ),
             gas_per_pubdata_limit: row.gas_per_pubdata_limit as u64,
             protocol_version,

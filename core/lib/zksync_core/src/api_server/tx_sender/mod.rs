@@ -807,6 +807,20 @@ impl TxSender {
                 .await
                 .context("estimate_gas step failed")?;
 
+            // if tx.execute.contract_address.is_none() {
+            println!(
+                "from / to {} : {}",
+                hex::encode(&tx.initiator_account().0),
+                hex::encode(tx.execute.contract_address.unwrap_or_default())
+            );
+            println!("gas per pubdata: {gas_per_pubdata_byte}");
+            println!(
+                "Estimating deployment: {try_gas_limit} {:#?}",
+                result.result
+            );
+            println!("status: {:#?}", result.statistics);
+            // }
+
             if result.result.is_failed() {
                 lower_bound = mid + 1;
             } else {

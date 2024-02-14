@@ -27,21 +27,24 @@ use crate::{
     },
 };
 
-pub(crate) struct EvmDebugTracer {
-    address: Address,
+pub(crate) struct EvmDebugTracer<S: WriteStorage, H: HistoryMode> {
     counter: u32,
+
+    _storage: PhantomData<S>,
+    _history: PhantomData<H>,
 }
 
-impl EvmDebugTracer {
-    pub fn new(address: Address) -> Self {
+impl<S: WriteStorage, H: HistoryMode> EvmDebugTracer<S, H> {
+    pub fn new() -> Self {
         Self {
-            address,
             counter: 0,
+            _storage: PhantomData,
+            _history: PhantomData,
         }
     }
 }
 
-impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for EvmDebugTracer {
+impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for EvmDebugTracer<S, H> {
     fn before_execution(
         &mut self,
         state: VmLocalStateData<'_>,
@@ -63,7 +66,7 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for EvmDebugTracer {
         let value = data.src1_value.value;
 
         const DEBUG_SLOT: u32 = 32 * 32;
-        const STACK_POINT: u32 = DEBUG_SLOT + 32 * 5;
+        const STACK_POINT: u32 = DEBUG_SLOT + 32 * 5 + 32;
         const BYTECODE_OFFSET: u32 = STACK_POINT + 1024;
 
         let debug_magic = U256::from_dec_str(
@@ -118,7 +121,7 @@ impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for EvmDebugTracer {
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for EvmDebugTracer {
+impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for EvmDebugTracer<S, H> {
     // fn finish_cycle(
     //         &mut self,
     //         _state: &mut ZkSyncVmState<S, H>,

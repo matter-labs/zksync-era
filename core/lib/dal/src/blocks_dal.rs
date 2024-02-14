@@ -164,6 +164,7 @@ impl BlocksDal<'_, '_> {
                 l2_fair_gas_price,
                 bootloader_code_hash,
                 default_aa_code_hash,
+                evm_simulator_code_hash,
                 protocol_version,
                 system_logs,
                 compressed_state_diffs,
@@ -223,6 +224,7 @@ impl BlocksDal<'_, '_> {
                 zkporter_is_available,
                 bootloader_code_hash,
                 default_aa_code_hash,
+                evm_simulator_code_hash,
                 base_fee_per_gas,
                 aux_data_hash,
                 pass_through_data_hash,
@@ -271,6 +273,7 @@ impl BlocksDal<'_, '_> {
                 l2_fair_gas_price,
                 bootloader_code_hash,
                 default_aa_code_hash,
+                evm_simulator_code_hash,
                 protocol_version,
                 compressed_state_diffs,
                 system_logs,
@@ -504,6 +507,7 @@ impl BlocksDal<'_, '_> {
                     l2_fair_gas_price,
                     bootloader_code_hash,
                     default_aa_code_hash,
+                    evm_simulator_code_hash,
                     protocol_version,
                     system_logs,
                     storage_refunds,
@@ -539,6 +543,7 @@ impl BlocksDal<'_, '_> {
                     $23,
                     $24,
                     $25,
+                    $26,
                     NOW(),
                     NOW()
                 )
@@ -563,6 +568,7 @@ impl BlocksDal<'_, '_> {
             header.l2_fair_gas_price as i64,
             header.base_system_contracts_hashes.bootloader.as_bytes(),
             header.base_system_contracts_hashes.default_aa.as_bytes(),
+            header.base_system_contracts_hashes.evm_simulator.as_bytes(),
             header.protocol_version.map(|v| v as i32),
             &system_logs,
             &storage_refunds,
@@ -611,6 +617,7 @@ impl BlocksDal<'_, '_> {
                     gas_per_pubdata_limit,
                     bootloader_code_hash,
                     default_aa_code_hash,
+                    evm_simulator_code_hash,
                     protocol_version,
                     virtual_blocks,
                     fair_pubdata_price,
@@ -618,7 +625,7 @@ impl BlocksDal<'_, '_> {
                     updated_at
                 )
             VALUES
-                ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), NOW())
+                ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), NOW())
             "#,
             miniblock_header.number.0 as i64,
             miniblock_header.timestamp as i64,
@@ -636,6 +643,10 @@ impl BlocksDal<'_, '_> {
             miniblock_header
                 .base_system_contracts_hashes
                 .default_aa
+                .as_bytes(),
+            miniblock_header
+                .base_system_contracts_hashes
+                .evm_simulator
                 .as_bytes(),
             miniblock_header.protocol_version.map(|v| v as i32),
             miniblock_header.virtual_blocks as i64,
@@ -664,6 +675,7 @@ impl BlocksDal<'_, '_> {
                 gas_per_pubdata_limit,
                 bootloader_code_hash,
                 default_aa_code_hash,
+                evm_simulator_code_hash,
                 protocol_version,
                 virtual_blocks,
                 fair_pubdata_price
@@ -699,6 +711,7 @@ impl BlocksDal<'_, '_> {
                 gas_per_pubdata_limit,
                 bootloader_code_hash,
                 default_aa_code_hash,
+                evm_simulator_code_hash,
                 protocol_version,
                 virtual_blocks,
                 fair_pubdata_price
@@ -964,6 +977,7 @@ impl BlocksDal<'_, '_> {
                 zkporter_is_available,
                 bootloader_code_hash,
                 default_aa_code_hash,
+                evm_simulator_code_hash,
                 base_fee_per_gas,
                 aux_data_hash,
                 pass_through_data_hash,
@@ -1150,6 +1164,7 @@ impl BlocksDal<'_, '_> {
                 zkporter_is_available,
                 bootloader_code_hash,
                 default_aa_code_hash,
+                evm_simulator_code_hash,
                 base_fee_per_gas,
                 aux_data_hash,
                 pass_through_data_hash,
@@ -1263,6 +1278,7 @@ impl BlocksDal<'_, '_> {
                 zkporter_is_available,
                 bootloader_code_hash,
                 default_aa_code_hash,
+                evm_simulator_code_hash,
                 base_fee_per_gas,
                 aux_data_hash,
                 pass_through_data_hash,
@@ -1350,6 +1366,7 @@ impl BlocksDal<'_, '_> {
                         zkporter_is_available,
                         bootloader_code_hash,
                         default_aa_code_hash,
+                        evm_simulator_code_hash,
                         base_fee_per_gas,
                         aux_data_hash,
                         pass_through_data_hash,
@@ -1489,6 +1506,7 @@ impl BlocksDal<'_, '_> {
                     zkporter_is_available,
                     bootloader_code_hash,
                     default_aa_code_hash,
+                    evm_simulator_code_hash,
                     base_fee_per_gas,
                     aux_data_hash,
                     pass_through_data_hash,
@@ -1567,6 +1585,7 @@ impl BlocksDal<'_, '_> {
                 zkporter_is_available,
                 l1_batches.bootloader_code_hash,
                 l1_batches.default_aa_code_hash,
+                l1_batches.evm_simulator_code_hash,
                 base_fee_per_gas,
                 aux_data_hash,
                 pass_through_data_hash,
@@ -1655,6 +1674,7 @@ impl BlocksDal<'_, '_> {
                 zkporter_is_available,
                 l1_batches.bootloader_code_hash,
                 l1_batches.default_aa_code_hash,
+                l1_batches.evm_simulator_code_hash,
                 base_fee_per_gas,
                 aux_data_hash,
                 pass_through_data_hash,

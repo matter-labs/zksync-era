@@ -72,6 +72,7 @@ impl StorageDal<'_, '_> {
         &mut self,
         bootloader_hash: H256,
         default_aa_hash: H256,
+        evm_simulator_hash: Option<H256>,
     ) -> BaseSystemContracts {
         let bootloader_bytecode = self
             .get_factory_dep(bootloader_hash)
@@ -86,18 +87,33 @@ impl StorageDal<'_, '_> {
             .get_factory_dep(default_aa_hash)
             .await
             .expect("Default account code should be present in the database");
-
         let default_aa_code = SystemContractCode {
             code: bytes_to_be_words(default_aa_bytecode),
             hash: default_aa_hash,
         };
+
+        let evm_simulator_code = if let Some(hash) = evm_simulator_hash {
+            println!("asking for hash {}", hex::encode(hash));
+            let evm_simulator_bytecode = self
+                .get_factory_dep(hash)
+                .await
+                .expect("EVM simulator code should be present in the database");
+
+            SystemContractCode {
+                code: bytes_to_be_words(evm_simulator_bytecode),
+                hash,
+            }
+        } else {
+            SystemContractCode {
+                code: vec![],
+                hash: H256::zero(),
+            }
+        };
+
         BaseSystemContracts {
             bootloader: bootloader_code,
             default_aa: default_aa_code,
-            evm_simulator: SystemContractCode {
-                code: vec![],
-                hash: H256::zero(),
-            },
+            evm_simulator: evm_simulator_code,
         }
     }
 

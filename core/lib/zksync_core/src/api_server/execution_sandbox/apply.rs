@@ -221,6 +221,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
         default_validation_computational_gas_limit: validation_computational_gas_limit,
         chain_id,
     };
+
     let l1_batch_env = L1BatchEnv {
         previous_batch_hash: None,
         number: vm_l1_batch_number,

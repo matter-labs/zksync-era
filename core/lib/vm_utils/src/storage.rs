@@ -58,6 +58,11 @@ pub async fn load_l1_batch_params(
             pending_miniblock_header
                 .base_system_contracts_hashes
                 .default_aa,
+            Some(
+                pending_miniblock_header
+                    .base_system_contracts_hashes
+                    .evm_simulator,
+            ),
         )
         .await;
 

@@ -14,7 +14,7 @@ use zk_evm_1_5_0::{
 };
 use zksync_state::{StoragePtr, WriteStorage};
 
-use super::PubdataTracer;
+use super::{evm_debug_tracer::EvmDebugTracer, PubdataTracer};
 use crate::{
     glue::GlueInto,
     interface::{
@@ -64,6 +64,8 @@ pub(crate) struct DefaultExecutionTracer<S: WriteStorage, H: HistoryMode> {
     // take into account e.g circuits produced by the initial bootloader memory commitment.
     pub(crate) circuits_tracer: CircuitsTracer<S>,
 
+    pub(crate) evm_tracer: Option<EvmDebugTracer<S, H>>,
+
     storage: StoragePtr<S>,
     _phantom: PhantomData<H>,
 }
@@ -91,6 +93,7 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
             ret_from_the_bootloader: None,
             circuits_tracer: CircuitsTracer::new(),
             storage,
+            evm_tracer: Some(EvmDebugTracer::new()),
             _phantom: PhantomData,
         }
     }
@@ -167,6 +170,9 @@ macro_rules! dispatch_tracers {
             tracer.$function($( $params ),*);
         }
         if let Some(tracer) = &mut $self.pubdata_tracer {
+            tracer.$function($( $params ),*);
+        }
+        if let Some(tracer) = &mut $self.evm_tracer {
             tracer.$function($( $params ),*);
         }
         $self.circuits_tracer.$function($( $params ),*);

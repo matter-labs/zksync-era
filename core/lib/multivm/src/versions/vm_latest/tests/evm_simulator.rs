@@ -234,12 +234,8 @@ fn deploy_evm_contract<H: HistoryMode>(
     );
 
     tester.vm.push_transaction(tx);
-    let tx_result: crate::vm_latest::VmExecutionResultAndLogs = tester.vm.inspect(
-        EvmDebugTracer::new(Address::default())
-            .into_tracer_pointer()
-            .into(),
-        VmExecutionMode::OneTx,
-    );
+    let tx_result: crate::vm_latest::VmExecutionResultAndLogs =
+        tester.vm.execute(VmExecutionMode::OneTx);
 
     assert!(
         !tx_result.result.is_failed(),
@@ -347,9 +343,7 @@ fn test_evm_gas_consumption() {
     );
     vm.vm.push_transaction(tx1);
     let tx_result = vm.vm.inspect(
-        EvmDebugTracer::new(expected_deployed_address)
-            .into_tracer_pointer()
-            .into(),
+        EvmDebugTracer::new().into_tracer_pointer().into(),
         VmExecutionMode::OneTx,
     );
     assert!(

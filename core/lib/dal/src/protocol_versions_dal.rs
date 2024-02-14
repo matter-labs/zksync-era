@@ -38,12 +38,13 @@ impl ProtocolVersionsDal<'_, '_> {
                     recursion_circuits_set_vks_hash,
                     bootloader_code_hash,
                     default_account_code_hash,
+                    evm_simulator_code_hash,
                     verifier_address,
                     upgrade_tx_hash,
                     created_at
                 )
             VALUES
-                ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
+                ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
             "#,
             id as i32,
             timestamp as i64,
@@ -64,6 +65,7 @@ impl ProtocolVersionsDal<'_, '_> {
                 .as_bytes(),
             base_system_contracts_hashes.bootloader.as_bytes(),
             base_system_contracts_hashes.default_aa.as_bytes(),
+            base_system_contracts_hashes.evm_simulator.as_bytes(),
             verifier_address.as_bytes(),
             tx_hash.map(|tx_hash| tx_hash.0.to_vec()),
         )
@@ -107,6 +109,7 @@ impl ProtocolVersionsDal<'_, '_> {
             SELECT
                 bootloader_code_hash,
                 default_account_code_hash,
+                evm_simulator_code_hash,
                 id
             FROM
                 protocol_versions
@@ -128,6 +131,8 @@ impl ProtocolVersionsDal<'_, '_> {
             .get_base_system_contracts(
                 H256::from_slice(&row.bootloader_code_hash),
                 H256::from_slice(&row.default_account_code_hash),
+                row.evm_simulator_code_hash
+                    .map(|hash| H256::from_slice(&hash)),
             )
             .await;
         (contracts, (row.id as u16).try_into().unwrap())
@@ -141,7 +146,8 @@ impl ProtocolVersionsDal<'_, '_> {
             r#"
             SELECT
                 bootloader_code_hash,
-                default_account_code_hash
+                default_account_code_hash,
+                evm_simulator_code_hash
             FROM
                 protocol_versions
             WHERE
@@ -159,6 +165,8 @@ impl ProtocolVersionsDal<'_, '_> {
                     .get_base_system_contracts(
                         H256::from_slice(&row.bootloader_code_hash),
                         H256::from_slice(&row.default_account_code_hash),
+                        row.evm_simulator_code_hash
+                            .map(|hash| H256::from_slice(&hash)),
                     )
                     .await,
             )

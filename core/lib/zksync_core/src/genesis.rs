@@ -160,10 +160,14 @@ async fn insert_base_system_contracts_to_factory_deps(
     storage: &mut StorageProcessor<'_>,
     contracts: &BaseSystemContracts,
 ) {
-    let factory_deps = [&contracts.bootloader, &contracts.default_aa]
-        .iter()
-        .map(|c| (c.hash, be_words_to_bytes(&c.code)))
-        .collect();
+    let factory_deps = [
+        &contracts.bootloader,
+        &contracts.default_aa,
+        &contracts.evm_simulator,
+    ]
+    .iter()
+    .map(|c| (c.hash, be_words_to_bytes(&c.code)))
+    .collect();
 
     storage
         .storage_dal()
@@ -178,19 +182,20 @@ async fn insert_system_contracts(
 ) {
     let system_context_init_logs = (H256::default(), get_system_context_init_logs(chain_id));
 
-    let evm_proxy_bytecode = read_sys_contract_bytecode("", "EvmContract", ContractLanguage::Sol);
-    let evm_proxy_hash = hash_bytecode(&evm_proxy_bytecode);
-    let evm_proxy_hash_log = vec![StorageLog::new_write_log(
+    let evm_simulator_bytecode =
+        read_sys_contract_bytecode("", "EvmInterpreter", ContractLanguage::Sol);
+    let evm_simulator_hash = hash_bytecode(&evm_simulator_bytecode);
+    let evm_simulator_hash_log = vec![StorageLog::new_write_log(
         StorageKey::new(
             AccountTreeId::new(CONTRACT_DEPLOYER_ADDRESS),
             H256::from_low_u64_be(1),
         ),
-        evm_proxy_hash,
+        evm_simulator_hash,
     )];
-    let evm_proxy_known_code_log = vec![StorageLog::new_write_log(
+    let evm_simulator_known_code_log = vec![StorageLog::new_write_log(
         StorageKey::new(
             AccountTreeId::new(KNOWN_CODES_STORAGE_ADDRESS),
-            evm_proxy_hash,
+            evm_simulator_hash,
         ),
         H256::from_low_u64_be(1),
     )];
@@ -207,8 +212,8 @@ async fn insert_system_contracts(
             )
         })
         .chain(Some(system_context_init_logs))
-        .chain(Some((H256::default(), evm_proxy_hash_log)))
-        .chain(Some((H256::default(), evm_proxy_known_code_log)))
+        .chain(Some((H256::default(), evm_simulator_hash_log)))
+        .chain(Some((H256::default(), evm_simulator_known_code_log)))
         .collect();
 
     let mut transaction = storage.start_transaction().await.unwrap();
@@ -279,7 +284,7 @@ async fn insert_system_contracts(
     let factory_deps = contracts
         .iter()
         .map(|c| (hash_bytecode(&c.bytecode), c.bytecode.clone()))
-        .chain(Some((evm_proxy_hash, evm_proxy_bytecode.clone())))
+        .chain(Some((evm_simulator_hash, evm_simulator_bytecode.clone())))
         .collect();
     transaction
         .storage_dal()

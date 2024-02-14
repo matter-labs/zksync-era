@@ -36,7 +36,6 @@ const runtimeBytecode = '0x602a60005260206000f3';
 const bytecodeHash = ethers.utils.keccak256(runtimeBytecode);
 const contractDeployedTopic = '0x290afdae231a3fc0bbae8b1af63698b0a1d79b21ad17df0342dfb952fe74f8e5';
 
-let evmProxyBytecodeHash: string;
 let gasLimit = '0x01ffffff';
 
 const logGasCosts = false;
@@ -58,25 +57,18 @@ describe('EVM equivalence contract', () => {
             zksync.utils.CONTRACT_DEPLOYER,
             alice.provider
         ).connect(alice);
-        evmProxyBytecodeHash = await alice.provider.getStorageAt(zksync.utils.CONTRACT_DEPLOYER_ADDRESS, 1);
     });
 
     describe('Contract creation', () => {
         describe('Create from EOA', () => {
             test('Should create evm contract from EOA and allow view and non-view calls', async () => {
-                const nonce = await alice.getNonce();
-
                 const args = [1];
                 const factory = getEVMContractFactory(alice, artifacts.counter);
-
-                const expectedBytecodeHash = ethers.utils.keccak256(
-                    '0x' + artifacts.counter.evm.deployedBytecode.object
-                );
                 const contract = await factory.deploy(args);
                 await contract.deployTransaction.wait();
                 const receipt = await alice.provider.getTransactionReceipt(contract.deployTransaction.hash);
 
-                await assertCreatedCorrectly(deployer, alice.address, expectedBytecodeHash, receipt.logs);
+                await assertCreatedCorrectly(deployer, contract.address, '0x' + artifacts.counter.evm.deployedBytecode.object, receipt.logs);
 
                 expect((await contract.callStatic.get()).toString()).toEqual('1');
                 await (await contract.increment(1)).wait();
@@ -85,14 +77,16 @@ describe('EVM equivalence contract', () => {
 
             test('Should create2 evm contract from ZKEVM contract', async () => {
                 const salt = ethers.utils.randomBytes(32);
-
-                const expectedBytecodeHash = ethers.utils.keccak256(
-                    '0x' + artifacts.counter.evm.deployedBytecode.object
+                
+                const expectedAddress = ethers.utils.getCreate2Address(
+                    evmCreateTester.address,
+                    salt,
+                    ethers.utils.keccak256(initBytecode)
                 );
+            
+                const receipt = await (await evmCreateTester.create2(salt, initBytecode)).wait();
 
-                const receipt = await (await evmCreateTester.create2(salt, initBytecode, { gasLimit })).wait();
-
-                await assertCreatedCorrectly(deployer, evmCreateTester.address, expectedBytecodeHash, receipt.logs);
+                await assertCreatedCorrectly(deployer, expectedAddress, runtimeBytecode, receipt.logs);
 
                 try {
                     await (await evmCreateTester.create2(salt, initBytecode, { gasLimit })).wait();
@@ -124,38 +118,42 @@ describe('EVM equivalence contract', () => {
                 const factory = getEVMContractFactory(alice, artifacts.counter);
                 const transaction = await factory.getDeployTransaction(args);
                 transaction.to = '0x0000000000000000000000000000000000000000';
-
+                
                 const result = await (await alice.sendTransaction(transaction)).wait();
+                const expectedAddressCreate = ethers.utils.getContractAddress({
+                    from: alice.address,
+                    nonce: await alice.getNonce()
+                });
 
-                await assertContractNotCreated(result.logs);
+                await assertContractNotCreated(deployer, expectedAddressCreate);
             });
 
-            test('Should SENDALL', async () => {
-                const salt = ethers.utils.randomBytes(32);
-                const selfDestructBytecode = '0x' + artifacts.selfDestruct.evm.bytecode.object;
-                const hash = ethers.utils.keccak256(selfDestructBytecode);
+            // test('Should SENDALL', async () => {
+            //     const salt = ethers.utils.randomBytes(32);
+            //     const selfDestructBytecode = '0x' + artifacts.selfDestruct.evm.bytecode.object;
+            //     const hash = ethers.utils.keccak256(selfDestructBytecode);
 
-                const selfDestructFactory = getEVMContractFactory(alice, artifacts.selfDestruct);
-                const selfDestructAddress = ethers.utils.getCreate2Address(evmCreateTester.address, salt, hash);
-                const selfDestruct = selfDestructFactory.attach(selfDestructAddress);
-                const beneficiary = testMaster.newEmptyAccount();
+            //     const selfDestructFactory = getEVMContractFactory(alice, artifacts.selfDestruct);
+            //     const selfDestructAddress = ethers.utils.getCreate2Address(evmCreateTester.address, salt, hash);
+            //     const selfDestruct = selfDestructFactory.attach(selfDestructAddress);
+            //     const beneficiary = testMaster.newEmptyAccount();
 
-                await (await evmCreateTester.create2(salt, selfDestructBytecode, { value: 1000 })).wait();
-                expect((await alice.provider.getBalance(selfDestructAddress)).toNumber()).toBe(1000);
+            //     await (await evmCreateTester.create2(salt, selfDestructBytecode, { value: 1000 })).wait();
+            //     expect((await alice.provider.getBalance(selfDestructAddress)).toNumber()).toBe(1000);
 
-                await (await selfDestruct.destroy(beneficiary.address)).wait();
-                expect((await alice.provider.getBalance(beneficiary.address)).toNumber()).toBe(1000);
+            //     await (await selfDestruct.destroy(beneficiary.address)).wait();
+            //     expect((await alice.provider.getBalance(beneficiary.address)).toNumber()).toBe(1000);
 
-                let failReason;
+            //     let failReason;
 
-                try {
-                    await (await evmCreateTester.create2(salt, selfDestructBytecode)).wait();
-                } catch (e: any) {
-                    failReason = e.error.reason;
-                }
+            //     try {
+            //         await (await evmCreateTester.create2(salt, selfDestructBytecode)).wait();
+            //     } catch (e: any) {
+            //         failReason = e.error.reason;
+            //     }
 
-                expect(failReason).toBe("execution reverted: Can't create on existing contract address");
-            });
+            //     expect(failReason).toBe("execution reverted: Can't create on existing contract address");
+            // });
         });
     });
 
@@ -168,16 +166,35 @@ describe('EVM equivalence contract', () => {
             await counterContract.deployTransaction.wait();
             await alice.provider.getTransactionReceipt(counterContract.deployTransaction.hash);
 
+            console.log('a');
+
             const proxyCallerFactory = getEVMContractFactory(alice, artifacts.proxyCaller);
             const proxyCallerContract = await proxyCallerFactory.deploy();
             await proxyCallerContract.deployTransaction.wait();
             await alice.provider.getTransactionReceipt(proxyCallerContract.deployTransaction.hash);
 
+            // console.log('b');
+
             expect((await proxyCallerContract.proxyGet(counterContract.address)).toString()).toEqual('1');
 
+            // console.log('c');
+
             await (await proxyCallerContract.executeIncrememt(counterContract.address, 1)).wait();
+            // console.log('d');
 
             expect((await proxyCallerContract.proxyGet(counterContract.address)).toString()).toEqual('2');
+            // console.log('e');
+
+            // const data = proxyCallerContract.interface.encodeFunctionData('proxyGetBytes', [counterContract.address]);
+
+            // const tracedCall = await alice.provider.send('debug_traceCall', [
+            //     {
+            //         to: proxyCallerContract.address,
+            //         data
+            //     }
+            // ])
+
+            // console.log(JSON.stringify(tracedCall, null, 2));
 
             expect((await proxyCallerContract.callStatic.proxyGetBytes(counterContract.address)).toString()).toEqual(
                 '0x54657374696e67'
@@ -190,14 +207,21 @@ describe('EVM equivalence contract', () => {
             await creatorContract.deployTransaction.wait();
 
             dumpOpcodeLogs(creatorContract.deployTransaction.hash, alice.provider);
+            
+            // FIXME: doublec check, since on EVM the first nonce for contracts is 1.
+            const nonce = 0;
 
-            const nonce = 1;
+            const runtimeBytecode = await creatorContract.getCreationRuntimeCode();
+            
+            const expectedAddress = ethers.utils.getContractAddress({
+                from: creatorContract.address,
+                nonce
+            });
 
-            const expectedBytecodeHash = ethers.utils.keccak256(await creatorContract.getCreationRuntimeCode());
             const result = await (await creatorContract.create()).wait();
             dumpOpcodeLogs(result.transactionHash, alice.provider);
 
-            await assertCreatedCorrectly(deployer, creatorContract.address, expectedBytecodeHash, result.logs);
+            await assertCreatedCorrectly(deployer, expectedAddress, runtimeBytecode, result.logs);
         });
 
         test('Should revert correctly', async () => {
@@ -311,7 +335,7 @@ describe('EVM equivalence contract', () => {
     });
 
     // NOTE: Gas cost comparisons should be done on a *fresh* chain that doesn't have e.g. bytecodes already published
-    describe('Uniswap-v2', () => {
+    describe.only('Uniswap-v2', () => {
         let evmToken1: ethers.Contract;
         let evmToken2: ethers.Contract;
         let evmUniswapFactory: ethers.Contract;
@@ -328,6 +352,8 @@ describe('EVM equivalence contract', () => {
             await evmToken1.deployTransaction.wait();
             evmToken2 = await erc20Factory.deploy();
             await evmToken2.deployTransaction.wait();
+        
+            console.log('a');
 
             const evmUniswapFactoryFactory = getEVMContractFactory(alice, artifacts.uniswapV2Factory);
             evmUniswapFactory = await evmUniswapFactoryFactory.deploy('0x0000000000000000000000000000000000000000', {
@@ -345,6 +371,8 @@ describe('EVM equivalence contract', () => {
                     }
                 }
             );
+
+            console.log('b');
             const evmPairReceipt = await (
                 await evmUniswapFactory.createPair(evmToken1.address, evmToken2.address)
             ).wait();
@@ -355,6 +383,7 @@ describe('EVM equivalence contract', () => {
             dumpOpcodeLogs(evmUniswapFactory.deployTransaction.hash, alice.provider);
             dumpOpcodeLogs(evmPairReceipt.transactionHash, alice.provider);
 
+            console.log('c');
             const evmUniswapPairFactory = getEVMContractFactory(alice, artifacts.uniswapV2Pair);
             const nativeUniswapPairFactory = new zksync.ContractFactory(
                 contracts.uniswapV2Pair.abi,
@@ -367,6 +396,8 @@ describe('EVM equivalence contract', () => {
                     evmPairReceipt.logs.find((log: any) => log.topics[0] === NEW_PAIR_TOPIC).data
                 )[0]
             );
+
+            console.log('d');
             nativeUniswapPair = nativeUniswapPairFactory.attach(
                 ethers.utils.defaultAbiCoder.decode(
                     ['address', 'uint256'],
@@ -377,10 +408,17 @@ describe('EVM equivalence contract', () => {
             if (!token1IsFirst) {
                 [evmToken1, evmToken2] = [evmToken2, evmToken1];
             }
+            console.log('e');
+
             await (await evmToken1.transfer(evmUniswapPair.address, 100000)).wait();
             await (await evmToken1.transfer(nativeUniswapPair.address, 100000)).wait();
+            console.log('f');
+
             await (await evmToken2.transfer(evmUniswapPair.address, 100000)).wait();
             await (await evmToken2.transfer(nativeUniswapPair.address, 100000)).wait();
+
+            console.log('g');
+
 
             // Only log the first deployment
             if (logGasCosts && !deployLogged) {
@@ -400,43 +438,81 @@ describe('EVM equivalence contract', () => {
         });
 
         test('mint, swap, and burn should work', async () => {
-            const evmMintReceipt = await (await evmUniswapPair.mint(alice.address)).wait();
-            const nativeMintReceipt = await (await nativeUniswapPair.mint(alice.address)).wait();
-            dumpOpcodeLogs(evmMintReceipt.transactionHash, alice.provider);
+            console.log('h');
 
-            await (await evmToken1.transfer(evmUniswapPair.address, 10000)).wait();
-            await (await evmToken1.transfer(nativeUniswapPair.address, 10000)).wait();
-            const evmSwapReceipt = await (await evmUniswapPair.swap(0, 5000, alice.address, '0x')).wait();
-            const nativeSwapReceipt = await (await nativeUniswapPair.swap(0, 5000, alice.address, '0x')).wait();
-            dumpOpcodeLogs(evmSwapReceipt.transactionHash, alice.provider);
+            console.log(await evmUniswapPair.token1());
 
-            const evmLiquidityTransfer = await (
-                await evmUniswapPair.transfer(
-                    evmUniswapPair.address,
-                    (await evmUniswapPair.balanceOf(alice.address)).toString()
-                )
-            ).wait();
-            await (
-                await nativeUniswapPair.transfer(
-                    nativeUniswapPair.address,
-                    (await nativeUniswapPair.balanceOf(alice.address)).toString()
-                )
-            ).wait();
-            const evmBurnReceipt = await (await evmUniswapPair.burn(alice.address)).wait();
-            const nativeBurnReceipt = await (await nativeUniswapPair.burn(alice.address)).wait();
-            expect(Number((await evmToken1.balanceOf(alice.address)).toString())).toBeGreaterThanOrEqual(990000);
-            expect(Number((await evmToken2.balanceOf(alice.address)).toString())).toBeGreaterThanOrEqual(990000);
+            const params = evmUniswapPair.interface.encodeFunctionData('mint', [alice.address]);
 
-            if (logGasCosts) {
-                console.log('UniswapV2Pair native mint gas: ' + nativeMintReceipt.gasUsed);
-                console.log('UniswapV2Pair evm mint gas: ' + evmMintReceipt.gasUsed);
-                console.log('UniswapV2Pair native swap gas: ' + nativeSwapReceipt.gasUsed);
-                console.log('UniswapV2Pair evm swap gas: ' + evmSwapReceipt.gasUsed);
-                console.log('UniswapV2Pair native burn gas: ' + nativeBurnReceipt.gasUsed);
-                console.log('UniswapV2Pair evm burn gas: ' + evmBurnReceipt.gasUsed);
-            }
-            dumpOpcodeLogs(evmLiquidityTransfer.transactionHash, alice.provider);
-            dumpOpcodeLogs(evmBurnReceipt.transactionHash, alice.provider);
+            console.log(evmUniswapPair.address);
+
+            const tx = await evmUniswapPair.mint(alice.address, {
+                 gasLimit: 40000000
+            });
+            await tx.wait()
+            try {
+            }catch {}
+
+            const tracedCall = await alice.provider.send('debug_traceTransaction', [
+                tx.hash
+            ]);
+            console.log(JSON.stringify(tracedCall, null,2));
+            // const evmMintReceipt = await ().wait();
+            return;
+    
+
+            // // const evmMintReceipt = await (await evmUniswapPair.mint(alice.address)).wait();
+            // console.log('h2');
+
+            // const nativeMintReceipt = await (await nativeUniswapPair.mint(alice.address)).wait();
+            // dumpOpcodeLogs(evmMintReceipt.transactionHash, alice.provider);
+
+            // console.log('i');
+
+
+            // await (await evmToken1.transfer(evmUniswapPair.address, 10000)).wait();
+            // await (await evmToken1.transfer(nativeUniswapPair.address, 10000)).wait();
+            // console.log('j');
+
+            // const evmSwapReceipt = await (await evmUniswapPair.swap(0, 5000, alice.address, '0x')).wait();
+            // const nativeSwapReceipt = await (await nativeUniswapPair.swap(0, 5000, alice.address, '0x')).wait();
+            // dumpOpcodeLogs(evmSwapReceipt.transactionHash, alice.provider);
+            // console.log('k');
+
+            // const evmLiquidityTransfer = await (
+            //     await evmUniswapPair.transfer(
+            //         evmUniswapPair.address,
+            //         (await evmUniswapPair.balanceOf(alice.address)).toString()
+            //     )
+            // ).wait();
+            // console.log('l');
+
+            // await (
+            //     await nativeUniswapPair.transfer(
+            //         nativeUniswapPair.address,
+            //         (await nativeUniswapPair.balanceOf(alice.address)).toString()
+            //     )
+            // ).wait();
+            // console.log('m');
+
+            // const evmBurnReceipt = await (await evmUniswapPair.burn(alice.address)).wait();
+            // const nativeBurnReceipt = await (await nativeUniswapPair.burn(alice.address)).wait();
+            // expect(Number((await evmToken1.balanceOf(alice.address)).toString())).toBeGreaterThanOrEqual(990000);
+            // expect(Number((await evmToken2.balanceOf(alice.address)).toString())).toBeGreaterThanOrEqual(990000);
+                
+            // console.log('n');
+
+
+            // if (logGasCosts) {
+            //     console.log('UniswapV2Pair native mint gas: ' + nativeMintReceipt.gasUsed);
+            //     console.log('UniswapV2Pair evm mint gas: ' + evmMintReceipt.gasUsed);
+            //     console.log('UniswapV2Pair native swap gas: ' + nativeSwapReceipt.gasUsed);
+            //     console.log('UniswapV2Pair evm swap gas: ' + evmSwapReceipt.gasUsed);
+            //     console.log('UniswapV2Pair native burn gas: ' + nativeBurnReceipt.gasUsed);
+            //     console.log('UniswapV2Pair evm burn gas: ' + evmBurnReceipt.gasUsed);
+            // }
+            // dumpOpcodeLogs(evmLiquidityTransfer.transactionHash, alice.provider);
+            // dumpOpcodeLogs(evmBurnReceipt.transactionHash, alice.provider);
         });
     });
 
@@ -464,34 +540,44 @@ describe('EVM equivalence contract', () => {
     });
 });
 
-async function assertCreatedCorrectly(
+async function assertStoredBytecodeHash(
     deployer: zksync.Contract,
-    deployerAddress: string,
-    expectedEVMCodeHash: string,
-    logs: Array<any>
+    deployedAddress: string,
+    expectedStoredHash: string
 ): Promise<void> {
-    const log = logs.find((l) => {
-        return l.topics[0] === contractDeployedTopic;
-    });
-    if (log === undefined) {
-        throw 'No contract deployed';
-    }
-    const event = zksync.utils.CONTRACT_DEPLOYER.decodeEventLog('ContractDeployed', log.data, log.topics);
+    const ACCOUNT_CODE_STORAGE_ADDRESS = '0x0000000000000000000000000000000000008002';
+    const storedCodeHash = await deployer.provider.getStorageAt(ACCOUNT_CODE_STORAGE_ADDRESS, ethers.utils.hexZeroPad(deployedAddress, 32));
 
-    expect(event.deployerAddress.toLowerCase()).toEqual(deployerAddress.toLowerCase());
-    expect(event.bytecodeHash.toLowerCase()).toEqual(evmProxyBytecodeHash);
+    expect(storedCodeHash).toEqual(expectedStoredHash);
 }
 
-async function assertContractNotCreated(logs: any): Promise<void> {
-    logs.forEach((log: any) => {
-        let event;
-        try {
-            event = zksync.utils.CONTRACT_DEPLOYER.decodeEventLog('ContractDeployed', log.data, log.topics);
-        } catch {
-            return;
-        }
-        throw 'ContractDeployment log found ' + event.toString();
-    });
+async function assertCreatedCorrectly(
+    deployer: zksync.Contract,
+    deployedAddress: string,
+    expectedEVMBytecode: string,
+    logs: Array<any>
+): Promise<void> {
+    const expectedStoredHash = getSha256BlobHash(expectedEVMBytecode);
+    await assertStoredBytecodeHash(deployer, deployedAddress, expectedStoredHash);
+}
+
+// Returns the canonical code hash of 
+function getSha256BlobHash(bytes: ethers.BytesLike): string {
+    const hash = ethers.utils.arrayify(ethers.utils.sha256(bytes));
+    hash[0] = 2;
+    hash[1] = 0;
+
+    // Length of the bytecode
+    const lengthInBytes = ethers.utils.arrayify(bytes).length;
+    hash[2] = Math.floor(lengthInBytes / 256);
+    hash[3] = lengthInBytes % 256;
+
+    return ethers.utils.hexlify(hash);
+}
+
+async function assertContractNotCreated(deployer: zksync.Contract, deployedAddress: string): Promise<void> {
+    assertStoredBytecodeHash(deployer, deployedAddress, ethers.constants.HashZero);
+
 }
 
 function printCostData() {

@@ -19,6 +19,7 @@ pub(crate) struct StorageSyncBlock {
     pub fair_pubdata_price: Option<i64>,
     pub bootloader_code_hash: Option<Vec<u8>>,
     pub default_aa_code_hash: Option<Vec<u8>>,
+    pub evm_simulator_code_hash: Option<Vec<u8>>,
     pub fee_account_address: Option<Vec<u8>>, // May be None if the block is not yet sealed
     pub protocol_version: i32,
     pub virtual_blocks: i64,
@@ -84,7 +85,11 @@ impl TryFrom<StorageSyncBlock> for SyncBlock {
                         .context("default_aa_code_hash should not be none")?,
                 )
                 .context("default_aa_code_hash")?,
-                evm_simulator: H256::zero(),
+                evm_simulator: parse_h256(
+                    // Value 0 was used in older batches
+                    &block.evm_simulator_code_hash.unwrap_or_else(|| vec![0; 32]),
+                )
+                .context("evm_simulator_hash")?,
             },
             fee_account_address: block
                 .fee_account_address
