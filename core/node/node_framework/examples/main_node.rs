@@ -7,51 +7,19 @@ use zksync_config::{
     ContractsConfig, DBConfig, PostgresConfig,
 };
 use zksync_core::metadata_calculator::MetadataCalculatorConfig;
-use zksync_dal::ConnectionPool;
 use zksync_env_config::FromEnv;
 use zksync_node_framework::{
-    implementations::{
-        layers::{
-            healtcheck_server::HealthCheckLayer,
-            metadata_calculator::MetadataCalculatorLayer,
-            pools_layer::PoolsLayerBuilder,
-            state_keeper::{
-                main_node_batch_executor_builder::MainNodeBatchExecutorBuilderLayer,
-                mempool_io::MempoolIOLayer, StateKeeperLayer,
-            },
+    implementations::layers::{
+        healtcheck_server::HealthCheckLayer,
+        metadata_calculator::MetadataCalculatorLayer,
+        pools_layer::PoolsLayerBuilder,
+        state_keeper::{
+            main_node_batch_executor_builder::MainNodeBatchExecutorBuilderLayer,
+            mempool_io::MempoolIOLayer, StateKeeperLayer,
         },
-        resources::pools::MasterPoolResource,
     },
-    resource::{ResourceId, ResourceProvider, StoredResource},
     service::ZkStackService,
 };
-
-/// Resource provider for the main node.
-/// It defines which resources the tasks will receive. This particular provider is stateless, e.g. it always uses
-/// the main node env config, and always knows which resources to provide.
-/// The resource provider can be dynamic, however. For example, we can define a resource provider which may use
-/// different config load scheme (e.g. env variables / protobuf / yaml / toml), and which resources to provide
-/// (e.g. decide whether we need MempoolIO or ExternalIO depending on some config).
-#[derive(Debug)]
-struct MainNodeResourceProvider;
-
-impl MainNodeResourceProvider {
-    fn master_pool_resource() -> anyhow::Result<MasterPoolResource> {
-        let config = PostgresConfig::from_env()?;
-        let mut master_pool =
-            ConnectionPool::builder(config.master_url()?, config.max_connections()?);
-        master_pool.set_statement_timeout(config.statement_timeout());
-
-        Ok(MasterPoolResource::new(master_pool))
-    }
-}
-
-#[async_trait::async_trait]
-impl ResourceProvider for MainNodeResourceProvider {
-    async fn get_resource(&self, name: &ResourceId) -> Option<Box<dyn StoredResource>> {
-        None
-    }
-}
 
 fn main() -> anyhow::Result<()> {
     #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
@@ -63,7 +31,7 @@ fn main() -> anyhow::Result<()> {
     // Create the node with specified resource provider. We don't need to add any resources explicitly,
     // the task will request what they actually need. The benefit here is that we won't instantiate resources
     // that are not used, which would be complex otherwise, since the task set is often dynamic.
-    let mut node = ZkStackService::new(MainNodeResourceProvider)?;
+    let mut node = ZkStackService::new()?;
 
     // Add pools.
     let postgres_config = PostgresConfig::from_env()?;

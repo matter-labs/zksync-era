@@ -62,15 +62,6 @@ impl<'a> ServiceContext<'a> {
             return Ok(downcast_clone(resource));
         }
 
-        // Try to fetch the resource from the provider.
-        if let Some(resource) = self.service.resource_provider.get_resource(&name).await {
-            // First, ensure the type matches.
-            let downcasted = downcast_clone(&resource);
-            // Then, add it to the local resources.
-            self.service.resources.insert(name, resource);
-            return Ok(downcasted);
-        }
-
         // No such resource.
         // The requester is allowed to decide whether this is an error or not.
         Err(WiringError::ResourceLacking(T::resource_id()))
