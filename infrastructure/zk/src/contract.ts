@@ -33,8 +33,10 @@ function updateContractsEnv(initEnv: string, deployLog: String, envVars: Array<s
     return updatedContracts;
 }
 
-export async function initializeGovernance(args: any[] = []) {
+export async function initializeGovernance({ privateKey }: { privateKey?: string }) {
     await utils.confirmAction();
+
+    const args = [privateKey ? `--private-key ${privateKey}` : ''];
 
     const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
     const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/l1-contracts` : `yarn l1-contracts`;
@@ -42,8 +44,10 @@ export async function initializeGovernance(args: any[] = []) {
     await utils.spawn(`${baseCommandL1} initialize-governance ${args.join(' ')} | tee initializeGovernance.log`);
 }
 
-export async function initializeGovernanceChain(args: any[] = []) {
+export async function initializeGovernanceChain({ privateKey }: { privateKey?: string }) {
     await utils.confirmAction();
+
+    const args = [privateKey ? `--private-key ${privateKey}` : ''];
 
     const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
     const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/ethereum` : `yarn l1-contracts`;
@@ -117,8 +121,16 @@ export async function deployL2(args: any[] = [], includePaymaster?: boolean) {
 }
 
 // for testnet and development purposes it is ok to deploy contracts form L1.
-export async function deployL2ThroughL1(args: any[] = [], includePaymaster?: boolean) {
+export async function deployL2ThroughL1({
+    privateKey,
+    includePaymaster
+}: {
+    privateKey?: string;
+    includePaymaster: boolean;
+}) {
     await utils.confirmAction();
+
+    const args = [privateKey ? `--private-key ${privateKey}` : ''];
 
     const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
 
@@ -152,8 +164,10 @@ export async function deployL2ThroughL1(args: any[] = [], includePaymaster?: boo
     updateContractsEnv(`etc/env/l2-inits/${process.env.ZKSYNC_ENV!}.init.env`, l2DeployLog, l2DeploymentEnvVars);
 }
 
-export async function deployL1(args: any[]) {
+export async function deployL1({ privateKey, onlyVerifier }: { privateKey?: string; onlyVerifier?: boolean }) {
     await utils.confirmAction();
+
+    const args = [privateKey ? `--private-key ${privateKey}` : '', onlyVerifier ? '--only-verifier' : ''];
 
     // In the localhost setup scenario we don't have the workspace,
     // so we have to `--cwd` into the required directory.
@@ -228,13 +242,25 @@ export async function erc20BridgeFinish(args: any[] = [], includePaymaster?: boo
     await utils.spawn(`${baseCommandL1} erc20-finish-deployment-on-chain ${args.join(' ')} | tee -a deployL2.log`);
 }
 
-export async function redeployL1(args: any[]) {
-    await deployL1(args);
+export async function redeployL1({ privateKey }: { privateKey?: string }) {
+    await deployL1({ privateKey });
     await verifyL1Contracts();
 }
 
-export async function registerHyperchain(args: any[]) {
+export async function registerHyperchain({
+    privateKey,
+    baseToken
+}: {
+    privateKey?: string;
+    baseToken: { name?: string; address: string };
+}) {
     await utils.confirmAction();
+
+    const args = [
+        privateKey ? `--private-key ${privateKey}` : '',
+        baseToken.name ? `--base-token-name ${baseToken.name}` : '',
+        `--base-token-address ${baseToken.address}`
+    ];
 
     // In the localhost setup scenario we don't have the workspace,
     // so we have to `--cwd` into the required directory.
@@ -257,9 +283,8 @@ export async function registerHyperchain(args: any[]) {
     fs.writeFileSync('register_hyperchain.log', updatedContracts);
 }
 
-export async function deployVerifier(args: any[]) {
-    const deployerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
-    await deployL1([...args, '--only-verifier']);
+export async function deployVerifier({ privateKey }: { privateKey?: string }) {
+    await deployL1({ privateKey, onlyVerifier: true });
 }
 
 export const command = new Command('contract').description('contract management');

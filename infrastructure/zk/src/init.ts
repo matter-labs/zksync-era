@@ -20,7 +20,7 @@ const success = chalk.green;
 const timestamp = chalk.grey;
 export const ADDRESS_ONE = '0x0000000000000000000000000000000000000001';
 
-export async function initSetup(initArgs: InitArgs = DEFAULT_ARGS) {
+export async function initSetup(initArgs: InitArgs) {
     const { skipSubmodulesCheckout, skipEnvSetup } = initArgs;
 
     if (!process.env.CI && !skipEnvSetup) {
@@ -38,62 +38,77 @@ export async function initSetup(initArgs: InitArgs = DEFAULT_ARGS) {
     await announced('Compile L2 system contracts', compiler.compileAll());
 }
 
-export async function initSetupDatabase(initArgs: InitArgs = DEFAULT_ARGS, skipVerifierDeployment: boolean = false) {
-    const { deployerL2ContractInput } = initArgs;
-
+export async function initSetupDatabase(
+    { deployerL2ContractInput }: InitArgs,
+    skipVerifierDeployment: boolean = false
+) {
     await announced('Drop postgres db', db.drop());
     await announced('Setup postgres db', db.setup());
     await announced('Clean rocksdb', clean(`db/${process.env.ZKSYNC_ENV!}`));
     await announced('Clean backups', clean(`backups/${process.env.ZKSYNC_ENV!}`));
     if (!skipVerifierDeployment) {
-        await announced('Deploying L1 verifier', contract.deployVerifier(deployerL2ContractInput.args));
+        await announced(
+            'Deploying L1 verifier',
+            contract.deployVerifier({
+                privateKey: deployerL2ContractInput.deployerPrivateKey
+            })
+        );
         await announced('Reloading env', env.reload());
     }
 
     await announced('Running server genesis setup', server.genesisFromSources());
 }
 
-export async function initBridgehubStateTransition(initArgs: InitArgs = DEFAULT_ARGS) {
-    const { governorPrivateKeyArgs, deployerL2ContractInput, testTokens } = initArgs;
-
+export async function initBridgehubStateTransition({ governorPrivateKey, testTokens }: InitArgs) {
     if (testTokens.deploy) {
         await announced(
             'Deploying localhost ERC20 and Weth tokens',
-            run.deployERC20AndWeth('dev', '', '', '', testTokens.args)
+            run.deployERC20AndWeth({
+                command: 'dev',
+                privateKey: testTokens.deployerPrivateKey
+            })
         );
     } else if (testTokens.deployWeth) {
-        await announced('Deploying localhost Weth tokens', run.deployWeth(testTokens.args));
+        await announced(
+            'Deploying localhost Weth tokens',
+            run.deployWeth({ privateKey: testTokens.deployerPrivateKey })
+        );
     }
-    await announced('Deploying L1 contracts', contract.redeployL1(governorPrivateKeyArgs));
-    await announced('Initializing governance', contract.initializeGovernance(governorPrivateKeyArgs));
+    await announced('Deploying L1 contracts', contract.redeployL1({ privateKey: governorPrivateKey }));
+    await announced('Initializing governance', contract.initializeGovernance({ privateKey: governorPrivateKey }));
     await announced('Reloading env', env.reload());
 }
 
-export async function initHyper(initArgs: InitArgs = DEFAULT_ARGS) {
-    const { governorPrivateKeyArgs, deployerL2ContractInput, baseToken } = initArgs;
-
-    let baseTokenArgs: any[] = [];
-    if (baseToken.address !== ethers.constants.AddressZero) {
-        baseTokenArgs = ['--base-token-address', baseToken.address];
-    } else if (baseToken.name) {
-        baseTokenArgs = ['--base-token-name', baseToken.name];
-    }
+export async function initHyper({ governorPrivateKey, deployerL2ContractInput, baseToken }: InitArgs) {
     await announced(
         'Registering Hyperchain',
-        contract.registerHyperchain([...governorPrivateKeyArgs, ...baseTokenArgs])
+        contract.registerHyperchain({ privateKey: governorPrivateKey, baseToken })
     );
     await announced('Reloading env', env.reload());
     if (deployerL2ContractInput.throughL1) {
         await announced(
             'Deploying L2 contracts',
-            contract.deployL2ThroughL1(deployerL2ContractInput.args, deployerL2ContractInput.includePaymaster)
+            contract.deployL2ThroughL1({
+                privateKey: deployerL2ContractInput.deployerPrivateKey,
+                includePaymaster: deployerL2ContractInput.includePaymaster
+            })
         );
     }
-    await announced('Initializing governance of chain', contract.initializeGovernanceChain(governorPrivateKeyArgs));
+    await announced(
+        'Initializing governance of chain',
+        contract.initializeGovernanceChain({ privateKey: governorPrivateKey })
+    );
+}
+
+export async function initSharedBridge(initArgs: InitArgs) {
+    await initSetup(initArgs);
+    // we have to initiate the db here, as we need to create the genesis block to initialize the L1 contracts
+    await initSetupDatabase(initArgs, false);
+    await initBridgehubStateTransition(initArgs);
 }
 
 // we keep the old function which deploys the shared bridge and registers the hyperchain as quickly as possible
-export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
+export async function init(initArgs: InitArgs) {
     await initSetup(initArgs);
     // we have to initiate the db here, as we need to create the genesis block to initialize the L1 contracts
     await initSetupDatabase(initArgs, false);
@@ -114,28 +129,28 @@ export async function reinit() {
     await announced('Clean backups', clean(`backups/${process.env.ZKSYNC_ENV!}`));
     await announced('Building contracts', contract.build());
     //note no ERC20 tokens are deployed here
-    await announced('Deploying L1 verifier', contract.deployVerifier([]));
+    await announced('Deploying L1 verifier', contract.deployVerifier({}));
     await announced('Reloading env', env.reload());
     await announced('Running server genesis setup', server.genesisFromSources());
-    await announced('Deploying L1 contracts', contract.redeployL1([]));
-    await announced('Deploying L2 contracts', contract.deployL2ThroughL1([], true));
-    await announced('Initializing governance', contract.initializeGovernance());
+    await announced('Deploying L1 contracts', contract.redeployL1({}));
+    await announced('Deploying L2 contracts', contract.deployL2ThroughL1({ includePaymaster: true }));
+    await announced('Initializing governance', contract.initializeGovernance({}));
 }
 
 // A lightweight version of `init` that sets up local databases, generates genesis and deploys precompiled contracts
 export async function lightweightInit() {
     await announced('Clean rocksdb', clean('db'));
     await announced('Clean backups', clean('backups'));
-    await announced('Deploying L1 verifier', contract.deployVerifier([]));
+    await announced('Deploying L1 verifier', contract.deployVerifier({}));
     await announced('Reloading env', env.reload());
     await announced('Running server genesis setup', server.genesisFromBinary());
-    await announced('Deploying localhost ERC20 and Weth tokens', run.deployERC20AndWeth('dev', '', '', '', []));
-    await announced('Deploying L1 contracts', contract.redeployL1([]));
-    await announced('Deploying L2 contracts', contract.deployL2ThroughL1([], true));
-    await announced('Initializing governance', contract.initializeGovernance());
+    await announced('Deploying localhost ERC20 and Weth tokens', run.deployERC20AndWeth({ command: 'dev' }));
+    await announced('Deploying L1 contracts', contract.redeployL1({}));
+    await announced('Deploying L2 contracts', contract.deployL2ThroughL1({ includePaymaster: true }));
+    await announced('Initializing governance', contract.initializeGovernance({}));
 }
 
-export async function deployL2Contracts(initArgs: InitArgs = DEFAULT_ARGS) {}
+export async function deployL2Contracts(initArgs: InitArgs) {}
 
 // Wrapper that writes an announcement and completion notes for each executed task.
 export async function announced(fn: string, promise: Promise<void> | void) {
@@ -176,16 +191,17 @@ export interface InitArgs {
     skipSubmodulesCheckout: boolean;
     skipEnvSetup: boolean;
     skipSetupCompletely: boolean;
-    governorPrivateKeyArgs: any[];
+    governorPrivateKey?: string;
     deployerL2ContractInput: {
-        args: any[];
+        deployerPrivateKey?: string;
         throughL1: boolean;
         includePaymaster: boolean;
     };
     testTokens: {
         deploy: boolean;
         deployWeth: boolean;
-        args: any[];
+        deployerPrivateKey?: string;
+        envFile?: string;
     };
     baseToken: {
         address: string;
@@ -193,45 +209,29 @@ export interface InitArgs {
     };
 }
 
-const DEFAULT_ARGS: InitArgs = {
-    skipSubmodulesCheckout: false,
-    skipEnvSetup: false,
-    skipSetupCompletely: false,
-    governorPrivateKeyArgs: [],
-    deployerL2ContractInput: { args: [], throughL1: true, includePaymaster: true },
-    testTokens: { deploy: true, deployWeth: true, args: [] },
-    baseToken: { name: 'ETH', address: ADDRESS_ONE }
-};
-
 export const initCommand = new Command('init')
     .option('--skip-submodules-checkout')
     .option('--skip-env-setup')
-    .option('--env-name <env-name>', 'chain name to use for initialization')
     .option('--base-token-name <base-token-name>', 'base token name')
     .option('--base-token-address <base-token-address>', 'base token address')
     .description('perform zksync network initialization for development')
     .action(async (cmd: Command) => {
-        if (cmd.envName) {
-            process.env.ZKSYNC_ENV = cmd.envName;
-            env.reload();
-        }
+        env.reload();
 
         const initArgs: InitArgs = {
             skipSubmodulesCheckout: cmd.skipSubmodulesCheckout,
             skipEnvSetup: cmd.skipEnvSetup,
             skipSetupCompletely: cmd.skipSetupCompletely,
-            governorPrivateKeyArgs: process.env.GOVERNOR_PRIVATE_KEY
-                ? ['--private-key', process.env.GOVERNOR_PRIVATE_KEY]
-                : [],
+            governorPrivateKey: process.env.GOVERNOR_PRIVATE_KEY,
             deployerL2ContractInput: {
-                args: process.env.DEPLOYER_PRIVATE_KEY ? ['--private-key', process.env.DEPLOYER_PRIVATE_KEY] : [],
+                deployerPrivateKey: process.env.DEPLOYER_PRIVATE_KEY,
                 throughL1: true,
                 includePaymaster: true
             },
             testTokens: {
                 deploy: true,
                 deployWeth: true,
-                args: process.env.DEPLOYER_PRIVATE_KEY ? ['--private-key', process.env.DEPLOYER_PRIVATE_KEY] : []
+                deployerPrivateKey: process.env.DEPLOYER_PRIVATE_KEY
             },
             baseToken: {
                 name: cmd.baseTokenName,
@@ -240,53 +240,44 @@ export const initCommand = new Command('init')
         };
         await init(initArgs);
     });
+
 export const reinitCommand = new Command('reinit')
     .description('"reinitializes" network. Runs faster than `init`, but requires `init` to be executed prior')
-    .option('--env-name <env-name>', 'env name to use for initialization')
     .action(async (cmd: Command) => {
-        if (cmd.envName) {
-            process.env.ZKSYNC_ENV = cmd.envName;
-            env.reload();
-        }
+        env.reload();
+
         await reinit();
     });
+
 export const lightweightInitCommand = new Command('lightweight-init')
     .description('perform lightweight zksync network initialization for development')
-    .option('--env-name <env-name>', 'env name to use for initialization')
     .action(async (cmd: Command) => {
-        if (cmd.envName) {
-            process.env.ZKSYNC_ENV = cmd.envName;
-            env.reload();
-        }
+        env.reload();
+
         await lightweightInit();
     });
+
 export const initHyperCommand = new Command('init-hyper')
     .description('initialize just the L2, currently with own bridge')
-    .option('--env-name <env-name>', 'env name to use for initialization')
     .option('--base-token-name <base-token-name>', 'base token name')
     .option('--base-token-address <base-token-address>', 'base token address')
     .action(async (cmd: Command) => {
-        if (cmd.envName) {
-            process.env.ZKSYNC_ENV = cmd.envName;
-            env.reload();
-        }
+        env.reload();
 
         const initArgs: InitArgs = {
             skipSubmodulesCheckout: cmd.skipSubmodulesCheckout,
             skipEnvSetup: cmd.skipEnvSetup,
             skipSetupCompletely: cmd.skipSetupCompletely,
-            governorPrivateKeyArgs: process.env.GOVERNOR_PRIVATE_KEY
-                ? ['--private-key', process.env.GOVERNOR_PRIVATE_KEY]
-                : [],
+            governorPrivateKey: process.env.GOVERNOR_PRIVATE_KEY,
             deployerL2ContractInput: {
-                args: process.env.DEPLOYER_PRIVATE_KEY ? ['--private-key', process.env.DEPLOYER_PRIVATE_KEY] : [],
+                deployerPrivateKey: process.env.DEPLOYER_PRIVATE_KEY,
                 throughL1: true,
                 includePaymaster: true
             },
             testTokens: {
                 deploy: false,
                 deployWeth: false,
-                args: process.env.DEPLOYER_PRIVATE_KEY ? ['--private-key', process.env.DEPLOYER_PRIVATE_KEY] : []
+                deployerPrivateKey: process.env.DEPLOYER_PRIVATE_KEY
             },
             baseToken: {
                 name: cmd.baseTokenName,
@@ -294,40 +285,33 @@ export const initHyperCommand = new Command('init-hyper')
                 address: cmd.baseTokenAddress ? cmd.baseTokenAddress : ethers.constants.AddressZero
             }
         };
+
         // await initSetup(initArgs);
         // await initSetupDatabase(initArgs, true); // we skip Verifier deployment, it is only deployed with sharedBridge
         await initHyper(initArgs);
     });
+
 export const initSharedBridgeCommand = new Command('init-shared-bridge')
     .description('initialize just the L2, currently with own bridge')
-    .option('--env-name <env-name>', 'env name to use for initialization')
-    // .options('--no-test-tokens', 'if flag is set test tokens will not be deployed')
     .option('--base-token-name <base-token-name>', 'base token name')
     .option('--base-token-address <base-token-address>', 'base token address')
     .action(async (cmd: Command) => {
-        if (cmd.envName) {
-            process.env.ZKSYNC_ENV = cmd.envName;
-            env.reload();
-        }
-        // const deployTestTokens = cmd.noTestTokens ? false : true; // kl todo this does not work for some reason
-        const deployTestTokens = false;
-        const deployWeth = false;
+        env.reload();
+
         const initArgs: InitArgs = {
             skipSubmodulesCheckout: cmd.skipSubmodulesCheckout,
             skipEnvSetup: cmd.skipEnvSetup,
             skipSetupCompletely: cmd.skipSetupCompletely,
-            governorPrivateKeyArgs: process.env.GOVERNOR_PRIVATE_KEY
-                ? ['--private-key', process.env.GOVERNOR_PRIVATE_KEY]
-                : [],
+            governorPrivateKey: process.env.GOVERNOR_PRIVATE_KEY,
             deployerL2ContractInput: {
-                args: process.env.DEPLOYER_PRIVATE_KEY ? ['--private-key', process.env.DEPLOYER_PRIVATE_KEY] : [],
+                deployerPrivateKey: process.env.DEPLOYER_PRIVATE_KEY,
                 throughL1: true,
                 includePaymaster: true
             },
             testTokens: {
-                deploy: deployTestTokens,
-                deployWeth: deployWeth,
-                args: process.env.DEPLOYER_PRIVATE_KEY ? ['--private-key', process.env.DEPLOYER_PRIVATE_KEY] : []
+                deploy: false,
+                deployWeth: false,
+                deployerPrivateKey: process.env.DEPLOYER_PRIVATE_KEY
             },
             baseToken: {
                 name: cmd.baseTokenName,
@@ -335,36 +319,29 @@ export const initSharedBridgeCommand = new Command('init-shared-bridge')
                 address: cmd.baseTokenAddress ? cmd.baseTokenAddress : ethers.constants.AddressZero
             }
         };
-        await initSetup(initArgs);
-        // we have to initiate the db here, as we need to create the genesis block to initialize the L1 contracts
-        await initSetupDatabase(initArgs, false);
-        await initBridgehubStateTransition(initArgs);
+
+        await initSharedBridge(initArgs);
     });
 
 export const deployL2ContractsCommand = new Command('deploy-l2-contracts')
     .description('deploying l2 contracts once the hyperchain server is running')
-    .option('--env-name <env-name>', 'env name to use for initialization')
     .action(async (cmd: Command) => {
-        if (cmd.envName) {
-            process.env.ZKSYNC_ENV = cmd.envName;
-            env.reload();
-        }
+        env.reload();
+
         const initArgs: InitArgs = {
             skipSubmodulesCheckout: true,
             skipEnvSetup: true,
             skipSetupCompletely: cmd.skipSetupCompletely,
-            governorPrivateKeyArgs: process.env.GOVERNOR_PRIVATE_KEY
-                ? ['--private-key', process.env.GOVERNOR_PRIVATE_KEY]
-                : [],
+            governorPrivateKey: process.env.GOVERNOR_PRIVATE_KEY,
             deployerL2ContractInput: {
-                args: process.env.DEPLOYER_PRIVATE_KEY ? ['--private-key', process.env.DEPLOYER_PRIVATE_KEY] : [],
+                deployerPrivateKey: process.env.DEPLOYER_PRIVATE_KEY,
                 throughL1: true,
                 includePaymaster: true
             },
             testTokens: {
                 deploy: false,
                 deployWeth: false,
-                args: process.env.DEPLOYER_PRIVATE_KEY ? ['--private-key', process.env.DEPLOYER_PRIVATE_KEY] : []
+                deployerPrivateKey: process.env.DEPLOYER_PRIVATE_KEY
             },
             baseToken: {
                 name: cmd.baseTokenName,

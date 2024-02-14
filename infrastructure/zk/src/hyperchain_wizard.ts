@@ -60,16 +60,17 @@ async function initHyperchain(envName: string) {
         skipSubmodulesCheckout: false,
         skipEnvSetup: true,
         skipSetupCompletely: false,
-        governorPrivateKeyArgs: ['--private-key', governorPrivateKey],
+        governorPrivateKey,
         deployerL2ContractInput: {
-            args: ['--private-key', deployerPrivateKey],
+            deployerPrivateKey,
             throughL1: true,
             includePaymaster: false
         },
         testTokens: {
             deploy: deployTestTokens,
             deployWeth: false,
-            args: ['--private-key', deployerPrivateKey, '--envFile', process.env.CHAIN_ETH_NETWORK!]
+            deployerPrivateKey,
+            envFile: process.env.CHAIN_ETH_NETWORK!
         },
         baseToken: {
             name: 'ETH',
@@ -770,16 +771,17 @@ async function configDemoHyperchain(cmd: Command) {
         skipSubmodulesCheckout: false,
         skipEnvSetup: cmd.skipEnvSetup,
         skipSetupCompletely: false,
-        governorPrivateKeyArgs: ['--private-key', governorPrivateKey],
+        governorPrivateKey,
         deployerL2ContractInput: {
-            args: ['--private-key', deployerPrivateKey],
+            deployerPrivateKey,
             throughL1: true,
             includePaymaster: false
         },
         testTokens: {
             deploy: deployTestTokens,
             deployWeth: false,
-            args: ['--private-key', deployerPrivateKey, '--envFile', process.env.CHAIN_ETH_NETWORK!]
+            deployerPrivateKey,
+            envFile: process.env.CHAIN_ETH_NETWORK!
         },
         baseToken: {
             address: ADDRESS_ONE
