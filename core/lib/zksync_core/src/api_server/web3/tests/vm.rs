@@ -264,7 +264,11 @@ impl TraceCallTest {
         assert_eq!(call_result.value, call_request.value.unwrap());
         assert_eq!(
             call_result.input,
-            call_request.data.or(call_request.clone().input).unwrap()
+            call_request
+                .clone()
+                .input
+                .or(call_request.clone().data)
+                .unwrap()
         );
         assert_eq!(call_result.output.0, b"output");
     }

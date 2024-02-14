@@ -877,7 +877,7 @@ impl From<CallRequest> for TransactionRequest {
             value: call_request.value.unwrap_or_default(),
             gas_price: call_request.gas_price.unwrap_or_default(),
             gas: call_request.gas.unwrap_or_default(),
-            input: call_request.data.or(call_request.input).unwrap_or_default(),
+            input: call_request.input.or(call_request.data).unwrap_or_default(),
             transaction_type: call_request.transaction_type,
             access_list: call_request.access_list,
             eip712_meta: call_request.eip712_meta,
