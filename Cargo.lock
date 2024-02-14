@@ -6159,9 +6159,9 @@ dependencies = [
 
 [[package]]
 name = "snow"
-version = "0.9.4"
+version = "0.9.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "58021967fd0a5eeeb23b08df6cc244a4d4a5b4aec1d27c9e02fad1a58b4cd74e"
+checksum = "850948bee068e713b8ab860fe1adc4d109676ab4c3b621fd8147f06b261f2f85"
 dependencies = [
  "aes-gcm",
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -8783,6 +8783,7 @@ dependencies = [
  "zksync_core",
  "zksync_dal",
  "zksync_env_config",
+ "zksync_eth_client",
  "zksync_health_check",
  "zksync_object_store",
  "zksync_storage",
@@ -9044,6 +9045,7 @@ dependencies = [
  "chrono",
  "itertools 0.10.5",
  "jsonrpsee",
+ "pin-project-lite",
  "rlp",
  "serde",
  "serde_json",

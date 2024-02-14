@@ -1,7 +1,7 @@
 use once_cell::sync::Lazy;
 use zkevm_test_harness_1_4_1::kzg::KzgSettings;
 use zksync_types::{
-    commitment::L1BatchWithMetadata,
+    commitment::{pre_boojum_serialize_commitments, serialize_commitments, L1BatchWithMetadata},
     ethabi::Token,
     web3::{contract::Error as Web3ContractError, error::Error as Web3ApiError},
     U256,
@@ -55,9 +55,11 @@ impl<'a> Tokenizable for CommitBatchInfo<'a> {
                         .as_bytes()
                         .to_vec(),
                 ),
-                Token::Bytes(self.0.metadata.initial_writes_compressed.clone()),
-                Token::Bytes(self.0.metadata.repeated_writes_compressed.clone()),
-                Token::Bytes(self.0.metadata.l2_l1_messages_compressed.clone()),
+                Token::Bytes(self.0.metadata.initial_writes_compressed.clone().unwrap()),
+                Token::Bytes(self.0.metadata.repeated_writes_compressed.clone().unwrap()),
+                Token::Bytes(pre_boojum_serialize_commitments(
+                    &self.0.header.l2_to_l1_logs,
+                )),
                 Token::Array(
                     self.0
                         .header
@@ -68,7 +70,7 @@ impl<'a> Tokenizable for CommitBatchInfo<'a> {
                 ),
                 Token::Array(
                     self.0
-                        .factory_deps
+                        .raw_published_factory_deps
                         .iter()
                         .map(|bytecode| Token::Bytes(bytecode.to_vec()))
                         .collect(),
@@ -132,7 +134,7 @@ impl<'a> Tokenizable for CommitBatchInfo<'a> {
                         .to_vec(),
                 ),
                 // `systemLogs`
-                Token::Bytes(self.0.metadata.l2_l1_messages_compressed.clone()),
+                Token::Bytes(serialize_commitments(&self.0.header.system_logs)),
                 // `totalL2ToL1Pubdata`
                 Token::Bytes(pubdata_commitments),
             ])

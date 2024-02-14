@@ -256,6 +256,27 @@ impl TransactionsDal<'_, '_> {
     ) -> L2TxSubmissionResult {
         {
             let tx_hash = tx.hash();
+            let is_duplicate = sqlx::query!(
+                r#"
+                SELECT
+                    TRUE
+                FROM
+                    transactions
+                WHERE
+                    hash = $1
+                "#,
+                tx_hash.as_bytes(),
+            )
+            .fetch_optional(self.storage.conn())
+            .await
+            .unwrap()
+            .is_some();
+
+            if is_duplicate {
+                tracing::debug!("Prevented inserting duplicate L2 transaction {tx_hash:?} to DB");
+                return L2TxSubmissionResult::Duplicate;
+            }
+
             let initiator_address = tx.initiator_account();
             let contract_address = tx.execute.contract_address.as_bytes();
             let json_data = serde_json::to_value(&tx.execute)
@@ -411,6 +432,7 @@ impl TransactionsDal<'_, '_> {
                     if let error::Error::Database(ref error) = err {
                         if let Some(constraint) = error.constraint() {
                             if constraint == "transactions_pkey" {
+                                tracing::debug!("Attempted to insert duplicate L2 transaction {tx_hash:?} to DB");
                                 return L2TxSubmissionResult::Duplicate;
                             }
                         }
@@ -786,7 +808,7 @@ impl TransactionsDal<'_, '_> {
                 )
                 .instrument("insert_call_tracer")
                 .report_latency()
-                .execute(transaction.conn())
+                .execute(&mut transaction)
                 .await
                 .unwrap();
             }

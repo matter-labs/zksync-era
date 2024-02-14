@@ -33,9 +33,10 @@ pub async fn l2_tx_filter(
 }
 
 #[derive(Debug)]
-pub struct MempoolFetcher<G> {
+pub struct MempoolFetcher {
     mempool: MempoolGuard,
-    batch_fee_input_provider: Arc<G>,
+    pool: ConnectionPool,
+    batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     sync_interval: Duration,
     sync_batch_size: usize,
     stuck_tx_timeout: Option<Duration>,
@@ -43,14 +44,16 @@ pub struct MempoolFetcher<G> {
     transaction_hashes_sender: mpsc::UnboundedSender<Vec<H256>>,
 }
 
-impl<G: BatchFeeModelInputProvider> MempoolFetcher<G> {
+impl MempoolFetcher {
     pub fn new(
         mempool: MempoolGuard,
-        batch_fee_input_provider: Arc<G>,
+        batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
         config: &MempoolConfig,
+        pool: ConnectionPool,
     ) -> Self {
         Self {
             mempool,
+            pool,
             batch_fee_input_provider,
             sync_interval: config.sync_interval(),
             sync_batch_size: config.sync_batch_size,
@@ -60,12 +63,8 @@ impl<G: BatchFeeModelInputProvider> MempoolFetcher<G> {
         }
     }
 
-    pub async fn run(
-        mut self,
-        pool: ConnectionPool,
-        stop_receiver: watch::Receiver<bool>,
-    ) -> anyhow::Result<()> {
-        let mut storage = pool.access_storage_tagged("state_keeper").await?;
+    pub async fn run(mut self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        let mut storage = self.pool.access_storage_tagged("state_keeper").await?;
         if let Some(stuck_tx_timeout) = self.stuck_tx_timeout {
             let removed_txs = storage
                 .transactions_dal()
@@ -87,7 +86,7 @@ impl<G: BatchFeeModelInputProvider> MempoolFetcher<G> {
                 break;
             }
             let latency = KEEPER_METRICS.mempool_sync.start();
-            let mut storage = pool.access_storage_tagged("state_keeper").await?;
+            let mut storage = self.pool.access_storage_tagged("state_keeper").await?;
             let mempool_info = self.mempool.get_mempool_info();
             let protocol_version = pending_protocol_version(&mut storage)
                 .await
@@ -217,11 +216,12 @@ mod tests {
 
     #[tokio::test]
     async fn syncing_mempool_basics() {
-        let pool = ConnectionPool::test_pool().await;
+        let pool = ConnectionPool::constrained_test_pool(1).await;
         let mut storage = pool.access_storage().await.unwrap();
         ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
             .await
             .unwrap();
+        drop(storage);
 
         let mempool = MempoolGuard::new(PriorityOpId(0), 100);
         let fee_params_provider = Arc::new(MockBatchFeeParamsProvider::default());
@@ -229,20 +229,26 @@ mod tests {
         let (base_fee, gas_per_pubdata) =
             derive_base_fee_and_gas_per_pubdata(fee_input, ProtocolVersionId::latest().into());
 
-        let mut fetcher =
-            MempoolFetcher::new(mempool.clone(), fee_params_provider, &TEST_MEMPOOL_CONFIG);
+        let mut fetcher = MempoolFetcher::new(
+            mempool.clone(),
+            fee_params_provider,
+            &TEST_MEMPOOL_CONFIG,
+            pool.clone(),
+        );
         let (tx_hashes_sender, mut tx_hashes_receiver) = mpsc::unbounded_channel();
         fetcher.transaction_hashes_sender = tx_hashes_sender;
         let (stop_sender, stop_receiver) = watch::channel(false);
-        let fetcher_task = tokio::spawn(fetcher.run(pool.clone(), stop_receiver));
+        let fetcher_task = tokio::spawn(fetcher.run(stop_receiver));
 
         // Add a new transaction to the storage.
         let transaction = create_l2_transaction(base_fee, gas_per_pubdata);
         let transaction_hash = transaction.hash();
+        let mut storage = pool.access_storage().await.unwrap();
         storage
             .transactions_dal()
             .insert_transaction_l2(transaction, TransactionExecutionMetrics::default())
             .await;
+        drop(storage);
 
         // Check that the transaction is eventually synced.
         let tx_hashes = wait_for_new_transactions(&mut tx_hashes_receiver).await;
@@ -267,11 +273,12 @@ mod tests {
 
     #[tokio::test]
     async fn ignoring_transaction_with_insufficient_fee() {
-        let pool = ConnectionPool::test_pool().await;
+        let pool = ConnectionPool::constrained_test_pool(1).await;
         let mut storage = pool.access_storage().await.unwrap();
         ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
             .await
             .unwrap();
+        drop(storage);
 
         let mempool = MempoolGuard::new(PriorityOpId(0), 100);
         let fee_params_provider = Arc::new(MockBatchFeeParamsProvider::default());
@@ -279,17 +286,23 @@ mod tests {
         let (base_fee, gas_per_pubdata) =
             derive_base_fee_and_gas_per_pubdata(fee_input, ProtocolVersionId::latest().into());
 
-        let fetcher =
-            MempoolFetcher::new(mempool.clone(), fee_params_provider, &TEST_MEMPOOL_CONFIG);
+        let fetcher = MempoolFetcher::new(
+            mempool.clone(),
+            fee_params_provider,
+            &TEST_MEMPOOL_CONFIG,
+            pool.clone(),
+        );
         let (stop_sender, stop_receiver) = watch::channel(false);
-        let fetcher_task = tokio::spawn(fetcher.run(pool.clone(), stop_receiver));
+        let fetcher_task = tokio::spawn(fetcher.run(stop_receiver));
 
         // Add a transaction with insufficient fee to the storage.
         let transaction = create_l2_transaction(base_fee / 2, gas_per_pubdata / 2);
+        let mut storage = pool.access_storage().await.unwrap();
         storage
             .transactions_dal()
             .insert_transaction_l2(transaction, TransactionExecutionMetrics::default())
             .await;
+        drop(storage);
 
         tokio::time::sleep(TEST_MEMPOOL_CONFIG.sync_interval() * 5).await;
         assert_eq!(mempool.stats().l2_transaction_count, 0);
@@ -300,11 +313,12 @@ mod tests {
 
     #[tokio::test]
     async fn ignoring_transaction_with_old_nonce() {
-        let pool = ConnectionPool::test_pool().await;
+        let pool = ConnectionPool::constrained_test_pool(1).await;
         let mut storage = pool.access_storage().await.unwrap();
         ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
             .await
             .unwrap();
+        drop(storage);
 
         let mempool = MempoolGuard::new(PriorityOpId(0), 100);
         let fee_params_provider = Arc::new(MockBatchFeeParamsProvider::default());
@@ -312,12 +326,16 @@ mod tests {
         let (base_fee, gas_per_pubdata) =
             derive_base_fee_and_gas_per_pubdata(fee_input, ProtocolVersionId::latest().into());
 
-        let mut fetcher =
-            MempoolFetcher::new(mempool.clone(), fee_params_provider, &TEST_MEMPOOL_CONFIG);
+        let mut fetcher = MempoolFetcher::new(
+            mempool.clone(),
+            fee_params_provider,
+            &TEST_MEMPOOL_CONFIG,
+            pool.clone(),
+        );
         let (tx_hashes_sender, mut tx_hashes_receiver) = mpsc::unbounded_channel();
         fetcher.transaction_hashes_sender = tx_hashes_sender;
         let (stop_sender, stop_receiver) = watch::channel(false);
-        let fetcher_task = tokio::spawn(fetcher.run(pool.clone(), stop_receiver));
+        let fetcher_task = tokio::spawn(fetcher.run(stop_receiver));
 
         // Add a new transaction to the storage.
         let transaction = create_l2_transaction(base_fee * 2, gas_per_pubdata * 2);
@@ -325,6 +343,7 @@ mod tests {
         let transaction_hash = transaction.hash();
         let nonce_key = get_nonce_key(&transaction.initiator_account());
         let nonce_log = StorageLog::new_write_log(nonce_key, u256_to_h256(42.into()));
+        let mut storage = pool.access_storage().await.unwrap();
         storage
             .storage_logs_dal()
             .append_storage_logs(MiniblockNumber(0), &[(H256::zero(), vec![nonce_log])])
@@ -333,6 +352,7 @@ mod tests {
             .transactions_dal()
             .insert_transaction_l2(transaction, TransactionExecutionMetrics::default())
             .await;
+        drop(storage);
 
         // Check that the transaction is eventually synced.
         let tx_hashes = wait_for_new_transactions(&mut tx_hashes_receiver).await;

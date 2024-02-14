@@ -210,7 +210,7 @@ impl TransactionsWeb3Dal<'_, '_> {
             )
             .instrument("get_transaction_details")
             .with_arg("hash", &hash)
-            .fetch_optional(self.storage.conn())
+            .fetch_optional(self.storage)
             .await?;
 
             let tx = storage_tx_details.map(|tx_details| tx_details.into());

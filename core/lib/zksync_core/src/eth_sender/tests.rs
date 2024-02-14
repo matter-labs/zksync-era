@@ -27,7 +27,7 @@ use crate::{
         ETHSenderError, EthTxAggregator, EthTxManager,
     },
     l1_gas_price::GasAdjuster,
-    utils::testonly::create_l1_batch,
+    utils::testonly::{create_l1_batch, l1_batch_metadata_to_commitment_artifacts},
 };
 
 // Alias to conveniently call static methods of `ETHSender`.
@@ -38,7 +38,7 @@ static DUMMY_OPERATION: Lazy<AggregatedOperation> = Lazy::new(|| {
         l1_batches: vec![L1BatchWithMetadata {
             header: create_l1_batch(1),
             metadata: default_l1_batch_metadata(),
-            factory_deps: Vec::new(),
+            raw_published_factory_deps: Vec::new(),
         }],
     })
 });
@@ -49,7 +49,7 @@ struct EthSenderTester {
     gateway: Arc<MockEthereum>,
     manager: MockEthTxManager,
     aggregator: EthTxAggregator,
-    gas_adjuster: Arc<GasAdjuster<Arc<MockEthereum>>>,
+    gas_adjuster: Arc<GasAdjuster>,
 }
 
 impl EthSenderTester {
@@ -519,10 +519,9 @@ fn default_l1_batch_metadata() -> L1BatchMetadata {
         root_hash: Default::default(),
         rollup_last_leaf_index: 0,
         merkle_root_hash: Default::default(),
-        initial_writes_compressed: vec![],
-        repeated_writes_compressed: vec![],
+        initial_writes_compressed: Some(vec![]),
+        repeated_writes_compressed: Some(vec![]),
         commitment: Default::default(),
-        l2_l1_messages_compressed: vec![],
         l2_l1_merkle_root: Default::default(),
         block_meta_params: L1BatchMetaParameters {
             zkporter_is_available: false,
@@ -542,7 +541,7 @@ fn l1_batch_with_metadata(header: L1BatchHeader) -> L1BatchWithMetadata {
     L1BatchWithMetadata {
         header,
         metadata: default_l1_batch_metadata(),
-        factory_deps: vec![],
+        raw_published_factory_deps: vec![],
     }
 }
 
@@ -895,15 +894,21 @@ async fn insert_l1_batch(tester: &EthSenderTester, number: L1BatchNumber) -> L1B
         .insert_mock_l1_batch(&header)
         .await
         .unwrap();
+    let metadata = default_l1_batch_metadata();
     tester
         .storage()
         .await
         .blocks_dal()
-        .save_l1_batch_metadata(
+        .save_l1_batch_tree_data(header.number, &metadata.tree_data())
+        .await
+        .unwrap();
+    tester
+        .storage()
+        .await
+        .blocks_dal()
+        .save_l1_batch_commitment_artifacts(
             header.number,
-            &default_l1_batch_metadata(),
-            Default::default(),
-            false,
+            &l1_batch_metadata_to_commitment_artifacts(&metadata),
         )
         .await
         .unwrap();
