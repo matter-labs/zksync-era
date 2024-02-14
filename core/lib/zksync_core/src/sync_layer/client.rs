@@ -9,7 +9,7 @@ use zksync_types::{
     get_code_key, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256, U64,
 };
 use zksync_web3_decl::{
-    error::{EnrichRpcError, EnrichedRpcError, EnrichedRpcResult},
+    error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult},
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
     namespaces::{EnNamespaceClient, EthNamespaceClient, ZksNamespaceClient},
 };
@@ -22,28 +22,30 @@ const MAX_CONCURRENT_REQUESTS: usize = 100;
 /// Client abstracting connection to the main node.
 #[async_trait]
 pub trait MainNodeClient: 'static + Send + Sync + fmt::Debug {
-    async fn fetch_system_contract_by_hash(&self, hash: H256)
-        -> EnrichedRpcResult<Option<Vec<u8>>>;
+    async fn fetch_system_contract_by_hash(
+        &self,
+        hash: H256,
+    ) -> EnrichedClientResult<Option<Vec<u8>>>;
 
     async fn fetch_genesis_contract_bytecode(
         &self,
         address: Address,
-    ) -> EnrichedRpcResult<Option<Vec<u8>>>;
+    ) -> EnrichedClientResult<Option<Vec<u8>>>;
 
     async fn fetch_protocol_version(
         &self,
         protocol_version: ProtocolVersionId,
-    ) -> EnrichedRpcResult<Option<api::ProtocolVersion>>;
+    ) -> EnrichedClientResult<Option<api::ProtocolVersion>>;
 
-    async fn fetch_genesis_l1_batch_hash(&self) -> EnrichedRpcResult<H256>;
+    async fn fetch_genesis_l1_batch_hash(&self) -> EnrichedClientResult<H256>;
 
-    async fn fetch_l2_block_number(&self) -> EnrichedRpcResult<MiniblockNumber>;
+    async fn fetch_l2_block_number(&self) -> EnrichedClientResult<MiniblockNumber>;
 
     async fn fetch_l2_block(
         &self,
         number: MiniblockNumber,
         with_transactions: bool,
-    ) -> EnrichedRpcResult<Option<SyncBlock>>;
+    ) -> EnrichedClientResult<Option<SyncBlock>>;
 }
 
 impl dyn MainNodeClient {
@@ -58,7 +60,7 @@ impl MainNodeClient for HttpClient {
     async fn fetch_system_contract_by_hash(
         &self,
         hash: H256,
-    ) -> EnrichedRpcResult<Option<Vec<u8>>> {
+    ) -> EnrichedClientResult<Option<Vec<u8>>> {
         let bytecode = self
             .get_bytecode_by_hash(hash)
             .rpc_context("get_bytecode_by_hash")
@@ -67,7 +69,7 @@ impl MainNodeClient for HttpClient {
         if let Some(bytecode) = &bytecode {
             let actual_bytecode_hash = zksync_utils::bytecode::hash_bytecode(bytecode);
             if actual_bytecode_hash != hash {
-                return Err(EnrichedRpcError::custom(
+                return Err(EnrichedClientError::custom(
                     "Got invalid base system contract bytecode from main node",
                     "get_bytecode_by_hash",
                 )
@@ -81,7 +83,7 @@ impl MainNodeClient for HttpClient {
     async fn fetch_genesis_contract_bytecode(
         &self,
         address: Address,
-    ) -> EnrichedRpcResult<Option<Vec<u8>>> {
+    ) -> EnrichedClientResult<Option<Vec<u8>>> {
         const GENESIS_BLOCK: api::BlockIdVariant =
             api::BlockIdVariant::BlockNumber(api::BlockNumber::Number(U64([0])));
 
@@ -104,36 +106,36 @@ impl MainNodeClient for HttpClient {
     async fn fetch_protocol_version(
         &self,
         protocol_version: ProtocolVersionId,
-    ) -> EnrichedRpcResult<Option<api::ProtocolVersion>> {
+    ) -> EnrichedClientResult<Option<api::ProtocolVersion>> {
         self.get_protocol_version(Some(protocol_version as u16))
             .rpc_context("fetch_protocol_version")
             .with_arg("protocol_version", &protocol_version)
             .await
     }
 
-    async fn fetch_genesis_l1_batch_hash(&self) -> EnrichedRpcResult<H256> {
+    async fn fetch_genesis_l1_batch_hash(&self) -> EnrichedClientResult<H256> {
         let genesis_l1_batch = self
             .get_l1_batch_details(L1BatchNumber(0))
             .rpc_context("get_l1_batch_details")
             .await?
             .ok_or_else(|| {
-                EnrichedRpcError::custom(
+                EnrichedClientError::custom(
                     "main node did not return genesis block",
                     "get_l1_batch_details",
                 )
             })?;
         genesis_l1_batch.base.root_hash.ok_or_else(|| {
-            EnrichedRpcError::custom("missing genesis L1 batch hash", "get_l1_batch_details")
+            EnrichedClientError::custom("missing genesis L1 batch hash", "get_l1_batch_details")
         })
     }
 
-    async fn fetch_l2_block_number(&self) -> EnrichedRpcResult<MiniblockNumber> {
+    async fn fetch_l2_block_number(&self) -> EnrichedClientResult<MiniblockNumber> {
         let number = self
             .get_block_number()
             .rpc_context("get_block_number")
             .await?;
-        let number =
-            u32::try_from(number).map_err(|err| EnrichedRpcError::custom(err, "u32::try_from"))?;
+        let number = u32::try_from(number)
+            .map_err(|err| EnrichedClientError::custom(err, "u32::try_from"))?;
         Ok(MiniblockNumber(number))
     }
 
@@ -141,7 +143,7 @@ impl MainNodeClient for HttpClient {
         &self,
         number: MiniblockNumber,
         with_transactions: bool,
-    ) -> EnrichedRpcResult<Option<SyncBlock>> {
+    ) -> EnrichedClientResult<Option<SyncBlock>> {
         self.sync_l2_block(number, with_transactions)
             .rpc_context("fetch_l2_block")
             .with_arg("number", &number)
@@ -183,7 +185,7 @@ impl CachingMainNodeClient {
     pub async fn fetch_l2_block(
         &mut self,
         miniblock: MiniblockNumber,
-    ) -> EnrichedRpcResult<Option<SyncBlock>> {
+    ) -> EnrichedClientResult<Option<SyncBlock>> {
         FETCHER_METRICS.cache_total[&CachedMethod::SyncL2Block].inc();
         if let Some(block) = self.blocks.get(&miniblock).cloned() {
             FETCHER_METRICS.cache_hit[&CachedMethod::SyncL2Block].inc();
@@ -197,7 +199,7 @@ impl CachingMainNodeClient {
     }
 
     /// Re-export of [`MainNodeClient::fetch_l2_block_number()`]. Added to not expose the internal client.
-    pub async fn fetch_l2_block_number(&self) -> EnrichedRpcResult<MiniblockNumber> {
+    pub async fn fetch_l2_block_number(&self) -> EnrichedClientResult<MiniblockNumber> {
         self.client.fetch_l2_block_number().await
     }
 

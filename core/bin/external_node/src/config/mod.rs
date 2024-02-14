@@ -14,7 +14,7 @@ use zksync_core::{
 };
 use zksync_types::api::BridgeAddresses;
 use zksync_web3_decl::{
-    error::EnrichRpcError,
+    error::ClientRpcContext,
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
 };

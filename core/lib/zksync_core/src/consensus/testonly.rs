@@ -15,7 +15,7 @@ use zksync_types::{
     api, block::MiniblockHasher, snapshots::SnapshotRecoveryStatus, Address, L1BatchNumber,
     L2ChainId, MiniblockNumber, ProtocolVersionId, H256,
 };
-use zksync_web3_decl::error::{EnrichedRpcError, EnrichedRpcResult};
+use zksync_web3_decl::error::{EnrichedClientError, EnrichedClientResult};
 
 use crate::{
     consensus::{
@@ -163,15 +163,15 @@ impl MainNodeClient for MockMainNodeClient {
     async fn fetch_system_contract_by_hash(
         &self,
         hash: H256,
-    ) -> EnrichedRpcResult<Option<Vec<u8>>> {
+    ) -> EnrichedClientResult<Option<Vec<u8>>> {
         Ok(self.system_contracts.get(&hash).cloned())
     }
 
     async fn fetch_genesis_contract_bytecode(
         &self,
         _address: Address,
-    ) -> EnrichedRpcResult<Option<Vec<u8>>> {
-        Err(EnrichedRpcError::custom(
+    ) -> EnrichedClientResult<Option<Vec<u8>>> {
+        Err(EnrichedClientError::custom(
             "not implemented",
             "fetch_genesis_contract_bytecode",
         ))
@@ -180,23 +180,23 @@ impl MainNodeClient for MockMainNodeClient {
     async fn fetch_protocol_version(
         &self,
         protocol_version: ProtocolVersionId,
-    ) -> EnrichedRpcResult<Option<api::ProtocolVersion>> {
+    ) -> EnrichedClientResult<Option<api::ProtocolVersion>> {
         let protocol_version = protocol_version as u16;
         Ok(self.protocol_versions.get(&protocol_version).cloned())
     }
 
-    async fn fetch_genesis_l1_batch_hash(&self) -> EnrichedRpcResult<H256> {
-        Err(EnrichedRpcError::custom(
+    async fn fetch_genesis_l1_batch_hash(&self) -> EnrichedClientResult<H256> {
+        Err(EnrichedClientError::custom(
             "not implemented",
             "fetch_genesis_l1_batch_hash",
         ))
     }
 
-    async fn fetch_l2_block_number(&self) -> EnrichedRpcResult<MiniblockNumber> {
+    async fn fetch_l2_block_number(&self) -> EnrichedClientResult<MiniblockNumber> {
         if let Some(number) = self.l2_blocks.len().checked_sub(1) {
             Ok(MiniblockNumber(number as u32))
         } else {
-            Err(EnrichedRpcError::custom(
+            Err(EnrichedClientError::custom(
                 "not implemented",
                 "fetch_l2_block_number",
             ))
@@ -207,7 +207,7 @@ impl MainNodeClient for MockMainNodeClient {
         &self,
         number: MiniblockNumber,
         with_transactions: bool,
-    ) -> EnrichedRpcResult<Option<api::en::SyncBlock>> {
+    ) -> EnrichedClientResult<Option<api::en::SyncBlock>> {
         let Some(block_index) = number.0.checked_sub(self.block_number_offset) else {
             return Ok(None);
         };

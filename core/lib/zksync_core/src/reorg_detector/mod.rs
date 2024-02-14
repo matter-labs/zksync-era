@@ -6,7 +6,7 @@ use tokio::sync::watch;
 use zksync_dal::ConnectionPool;
 use zksync_types::{L1BatchNumber, MiniblockNumber, H256};
 use zksync_web3_decl::{
-    error::{EnrichRpcError, EnrichedRpcError, EnrichedRpcResult},
+    error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult},
     jsonrpsee::{
         core::ClientError as RpcError,
         http_client::{HttpClient, HttpClientBuilder},
@@ -25,7 +25,7 @@ mod tests;
 #[derive(Debug, thiserror::Error)]
 enum HashMatchError {
     #[error("RPC error calling main node")]
-    Rpc(#[from] EnrichedRpcError),
+    Rpc(#[from] EnrichedClientError),
     #[error(
         "Unrecoverable error: the earliest L1 batch #{0} in the local DB \
         has mismatched hash with the main node. Make sure you're connected to the right network; \
@@ -50,7 +50,7 @@ impl From<zksync_dal::SqlxError> for HashMatchError {
     }
 }
 
-fn is_transient_err(err: &EnrichedRpcError) -> bool {
+fn is_transient_err(err: &EnrichedClientError) -> bool {
     matches!(
         err.as_ref(),
         RpcError::Transport(_) | RpcError::RequestTimeout
@@ -59,40 +59,41 @@ fn is_transient_err(err: &EnrichedRpcError) -> bool {
 
 #[async_trait]
 trait MainNodeClient: fmt::Debug + Send + Sync {
-    async fn sealed_miniblock_number(&self) -> EnrichedRpcResult<MiniblockNumber>;
+    async fn sealed_miniblock_number(&self) -> EnrichedClientResult<MiniblockNumber>;
 
-    async fn sealed_l1_batch_number(&self) -> EnrichedRpcResult<L1BatchNumber>;
+    async fn sealed_l1_batch_number(&self) -> EnrichedClientResult<L1BatchNumber>;
 
-    async fn miniblock_hash(&self, number: MiniblockNumber) -> EnrichedRpcResult<Option<H256>>;
+    async fn miniblock_hash(&self, number: MiniblockNumber) -> EnrichedClientResult<Option<H256>>;
 
-    async fn l1_batch_root_hash(&self, number: L1BatchNumber) -> EnrichedRpcResult<Option<H256>>;
+    async fn l1_batch_root_hash(&self, number: L1BatchNumber)
+        -> EnrichedClientResult<Option<H256>>;
 }
 
 #[async_trait]
 impl MainNodeClient for HttpClient {
-    async fn sealed_miniblock_number(&self) -> EnrichedRpcResult<MiniblockNumber> {
+    async fn sealed_miniblock_number(&self) -> EnrichedClientResult<MiniblockNumber> {
         let number = self
             .get_block_number()
             .rpc_context("sealed_miniblock_number")
             .await?;
         let number = u32::try_from(number).map_err(|err| {
-            EnrichedRpcError::custom(err, "u32::try_from").with_arg("number", &number)
+            EnrichedClientError::custom(err, "u32::try_from").with_arg("number", &number)
         })?;
         Ok(MiniblockNumber(number))
     }
 
-    async fn sealed_l1_batch_number(&self) -> EnrichedRpcResult<L1BatchNumber> {
+    async fn sealed_l1_batch_number(&self) -> EnrichedClientResult<L1BatchNumber> {
         let number = self
             .get_l1_batch_number()
             .rpc_context("sealed_l1_batch_number")
             .await?;
         let number = u32::try_from(number).map_err(|err| {
-            EnrichedRpcError::custom(err, "u32::try_from").with_arg("number", &number)
+            EnrichedClientError::custom(err, "u32::try_from").with_arg("number", &number)
         })?;
         Ok(L1BatchNumber(number))
     }
 
-    async fn miniblock_hash(&self, number: MiniblockNumber) -> EnrichedRpcResult<Option<H256>> {
+    async fn miniblock_hash(&self, number: MiniblockNumber) -> EnrichedClientResult<Option<H256>> {
         Ok(self
             .get_block_by_number(number.0.into(), false)
             .rpc_context("miniblock_hash")
@@ -101,7 +102,10 @@ impl MainNodeClient for HttpClient {
             .map(|block| block.hash))
     }
 
-    async fn l1_batch_root_hash(&self, number: L1BatchNumber) -> EnrichedRpcResult<Option<H256>> {
+    async fn l1_batch_root_hash(
+        &self,
+        number: L1BatchNumber,
+    ) -> EnrichedClientResult<Option<H256>> {
         Ok(self
             .get_l1_batch_details(number)
             .rpc_context("l1_batch_root_hash")

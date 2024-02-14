@@ -11,7 +11,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use jsonrpsee::core::ClientError as RpcError;
+use jsonrpsee::core::ClientError;
 use pin_project_lite::pin_project;
 use thiserror::Error;
 use zksync_types::{api::SerializationTransactionError, L1BatchNumber, MiniblockNumber};
@@ -56,22 +56,22 @@ pub enum Web3Error {
     TreeApiUnavailable,
 }
 
-/// RPC error with additional details: the method name and arguments of the called method.
+/// Client RPC error with additional details: the method name and arguments of the called method.
 ///
 /// The wrapped error can be accessed using [`AsRef`].
 #[derive(Debug)]
-pub struct EnrichedRpcError {
-    inner_error: RpcError,
+pub struct EnrichedClientError {
+    inner_error: ClientError,
     method: &'static str,
     args: HashMap<&'static str, String>,
 }
 
-/// Alias for a result with enriched RPC error.
-pub type EnrichedRpcResult<T> = Result<T, EnrichedRpcError>;
+/// Alias for a result with enriched client RPC error.
+pub type EnrichedClientResult<T> = Result<T, EnrichedClientError>;
 
-impl EnrichedRpcError {
+impl EnrichedClientError {
     /// Wraps the specified `inner_error`.
-    pub fn new(inner_error: RpcError, method: &'static str) -> Self {
+    pub fn new(inner_error: ClientError, method: &'static str) -> Self {
         Self {
             inner_error,
             method,
@@ -81,7 +81,7 @@ impl EnrichedRpcError {
 
     /// Creates an error wrapping [`RpcError::Custom`].
     pub fn custom(message: impl Into<String>, method: &'static str) -> Self {
-        Self::new(RpcError::Custom(message.into()), method)
+        Self::new(ClientError::Custom(message.into()), method)
     }
 
     /// Adds a tracked argument for this error.
@@ -92,19 +92,19 @@ impl EnrichedRpcError {
     }
 }
 
-impl AsRef<RpcError> for EnrichedRpcError {
-    fn as_ref(&self) -> &RpcError {
+impl AsRef<ClientError> for EnrichedClientError {
+    fn as_ref(&self) -> &ClientError {
         &self.inner_error
     }
 }
 
-impl error::Error for EnrichedRpcError {
+impl error::Error for EnrichedClientError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         Some(&self.inner_error)
     }
 }
 
-impl fmt::Display for EnrichedRpcError {
+impl fmt::Display for EnrichedClientError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         struct DebugArgs<'a>(&'a HashMap<&'static str, String>);
 
@@ -132,10 +132,10 @@ impl fmt::Display for EnrichedRpcError {
 }
 
 pin_project! {
-    /// Contextual information about an RPC. Returned by [`EnrichRpcError::rpc_context()`]. The context is eventually converted
-    /// to a result with [`EnrichedRpcError`] error type.
+    /// Contextual information about an RPC. Returned by [`ClientRpcContext::rpc_context()`]. The context is eventually converted
+    /// to a result with [`EnrichedClientError`] error type.
     #[derive(Debug)]
-    pub struct RpcContext<'a, F> {
+    pub struct ClientCallWrapper<'a, F> {
         #[pin]
         inner: F,
         method: &'static str,
@@ -143,9 +143,9 @@ pin_project! {
     }
 }
 
-impl<'a, T, F> RpcContext<'a, F>
+impl<'a, T, F> ClientCallWrapper<'a, F>
 where
-    F: Future<Output = Result<T, RpcError>>,
+    F: Future<Output = Result<T, ClientError>>,
 {
     /// Adds a tracked argument for this context.
     #[must_use]
@@ -159,11 +159,11 @@ where
     }
 }
 
-impl<T, F> Future for RpcContext<'_, F>
+impl<T, F> Future for ClientCallWrapper<'_, F>
 where
-    F: Future<Output = Result<T, RpcError>>,
+    F: Future<Output = Result<T, ClientError>>,
 {
-    type Output = Result<T, EnrichedRpcError>;
+    type Output = Result<T, EnrichedClientError>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let projection = self.project();
@@ -171,7 +171,7 @@ where
             Poll::Pending => Poll::Pending,
             Poll::Ready(Ok(value)) => Poll::Ready(Ok(value)),
             Poll::Ready(Err(err)) => {
-                let err = EnrichedRpcError {
+                let err = EnrichedClientError {
                     inner_error: err,
                     method: projection.method,
                     // `mem::take()` is safe to use: by contract, a `Future` shouldn't be polled after completion
@@ -186,18 +186,18 @@ where
     }
 }
 
-/// Extension trait allowing to add context to an RPC. Can be used on any future resolving to `Result<_, RpcError>`.
-pub trait EnrichRpcError: Sized {
+/// Extension trait allowing to add context to client RPC calls. Can be used on any future resolving to `Result<_, ClientError>`.
+pub trait ClientRpcContext: Sized {
     /// Adds basic context information: the name of the invoked RPC method.
-    fn rpc_context(self, method: &'static str) -> RpcContext<Self>;
+    fn rpc_context(self, method: &'static str) -> ClientCallWrapper<Self>;
 }
 
-impl<T, F> EnrichRpcError for F
+impl<T, F> ClientRpcContext for F
 where
-    F: Future<Output = Result<T, RpcError>>,
+    F: Future<Output = Result<T, ClientError>>,
 {
-    fn rpc_context(self, method: &'static str) -> RpcContext<Self> {
-        RpcContext {
+    fn rpc_context(self, method: &'static str) -> ClientCallWrapper<Self> {
+        ClientCallWrapper {
             inner: self,
             method,
             args: HashMap::new(),

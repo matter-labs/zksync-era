@@ -183,7 +183,7 @@ impl MainNodeClient for MockMainNodeClient {
     async fn resolve_l1_batch_to_miniblock(
         &self,
         number: L1BatchNumber,
-    ) -> EnrichedRpcResult<Option<MiniblockNumber>> {
+    ) -> EnrichedClientResult<Option<MiniblockNumber>> {
         let map = self.0.lock().await;
         Ok(map
             .get(number)
@@ -194,7 +194,7 @@ impl MainNodeClient for MockMainNodeClient {
     async fn block_details(
         &self,
         number: MiniblockNumber,
-    ) -> EnrichedRpcResult<Option<api::BlockDetails>> {
+    ) -> EnrichedClientResult<Option<api::BlockDetails>> {
         let map = self.0.lock().await;
         let Some(stage) = map.get(L1BatchNumber(number.0)) else {
             return Ok(None);

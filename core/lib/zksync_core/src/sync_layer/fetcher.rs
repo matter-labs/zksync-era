@@ -7,7 +7,7 @@ use zksync_types::{
     api::en::SyncBlock, block::MiniblockHasher, Address, L1BatchNumber, MiniblockNumber,
     ProtocolVersionId, H256,
 };
-use zksync_web3_decl::{error::EnrichedRpcError, jsonrpsee::core::ClientError as RpcError};
+use zksync_web3_decl::{error::EnrichedClientError, jsonrpsee::core::ClientError as RpcError};
 
 use super::{
     client::{CachingMainNodeClient, MainNodeClient},
@@ -169,7 +169,7 @@ impl IoCursor {
 #[derive(Debug, thiserror::Error)]
 enum FetcherError {
     #[error("JSON-RPC error communicating with main node")]
-    Web3(#[from] EnrichedRpcError),
+    Web3(#[from] EnrichedClientError),
     #[error("internal fetcher error")]
     Internal(#[from] anyhow::Error),
 }

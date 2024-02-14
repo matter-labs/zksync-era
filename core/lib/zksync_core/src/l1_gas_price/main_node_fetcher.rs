@@ -6,7 +6,7 @@ use std::{
 use tokio::sync::watch::Receiver;
 use zksync_types::fee_model::FeeParams;
 use zksync_web3_decl::{
-    error::EnrichRpcError,
+    error::ClientRpcContext,
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
     namespaces::ZksNamespaceClient,
 };

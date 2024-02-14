@@ -13,7 +13,7 @@ use zksync_types::{
     aggregated_operations::AggregatedActionType, api, L1BatchNumber, MiniblockNumber, H256,
 };
 use zksync_web3_decl::{
-    error::{EnrichRpcError, EnrichedRpcError, EnrichedRpcResult},
+    error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult},
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
     namespaces::ZksNamespaceClient,
 };
@@ -58,7 +58,7 @@ impl StatusChanges {
 #[derive(Debug, thiserror::Error)]
 enum UpdaterError {
     #[error("JSON-RPC error communicating with main node")]
-    Web3(#[from] EnrichedRpcError),
+    Web3(#[from] EnrichedClientError),
     #[error("Internal error")]
     Internal(#[from] anyhow::Error),
 }
@@ -75,12 +75,12 @@ trait MainNodeClient: fmt::Debug + Send + Sync {
     async fn resolve_l1_batch_to_miniblock(
         &self,
         number: L1BatchNumber,
-    ) -> EnrichedRpcResult<Option<MiniblockNumber>>;
+    ) -> EnrichedClientResult<Option<MiniblockNumber>>;
 
     async fn block_details(
         &self,
         number: MiniblockNumber,
-    ) -> EnrichedRpcResult<Option<api::BlockDetails>>;
+    ) -> EnrichedClientResult<Option<api::BlockDetails>>;
 }
 
 #[async_trait]
@@ -88,7 +88,7 @@ impl MainNodeClient for HttpClient {
     async fn resolve_l1_batch_to_miniblock(
         &self,
         number: L1BatchNumber,
-    ) -> EnrichedRpcResult<Option<MiniblockNumber>> {
+    ) -> EnrichedClientResult<Option<MiniblockNumber>> {
         let request_latency = FETCHER_METRICS.requests[&FetchStage::GetMiniblockRange].start();
         let number = self
             .get_miniblock_range(number)
@@ -103,7 +103,7 @@ impl MainNodeClient for HttpClient {
     async fn block_details(
         &self,
         number: MiniblockNumber,
-    ) -> EnrichedRpcResult<Option<api::BlockDetails>> {
+    ) -> EnrichedClientResult<Option<api::BlockDetails>> {
         let request_latency = FETCHER_METRICS.requests[&FetchStage::GetBlockDetails].start();
         let details = self
             .get_block_details(number)
