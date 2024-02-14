@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 /// Wrapper for resources that only support one consumer.
 ///
-/// Normally, all the resources are expected to be shareable between several tasks,
+/// Normally, all the resources should support sharing between several tasks,
 /// but there are some cases where a resource should only be consumed by a single task.
 #[derive(Debug)]
 pub struct Unique<T: 'static + Send> {
