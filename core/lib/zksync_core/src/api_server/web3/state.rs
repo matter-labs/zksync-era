@@ -14,7 +14,7 @@ use zksync_config::configs::{api::Web3JsonRpcConfig, chain::NetworkConfig, Contr
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::{
     api, l2::L2Tx, transaction_request::CallRequest, Address, L1BatchNumber, L1ChainId, L2ChainId,
-    MiniblockNumber, H160, H256, U256, U64,
+    MiniblockNumber, H256, U256, U64,
 };
 use zksync_web3_decl::{error::Web3Error, types::Filter};
 
