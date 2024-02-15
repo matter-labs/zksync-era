@@ -141,7 +141,7 @@ export async function deployL2ThroughL1({
     // Skip compilation for local setup, since we already copied artifacts into the container.
     await utils.spawn(`${baseCommandL2} build`);
 
-    await utils.spawn(`${baseCommandL2} erc20-deploy-on-chain-through-l1 ${args.join(' ')} | tee deployL2.log`);
+    await utils.spawn(`${baseCommandL2} deploy-shared-bridge-on-l2-through-l1 ${args.join(' ')} | tee deployL2.log`);
 
     if (includePaymaster) {
         await utils.spawn(
