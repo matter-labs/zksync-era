@@ -5,7 +5,7 @@ use zksync_basic_types::{L1BatchNumber, L2ChainId};
 use zksync_core::sync_layer::genesis::perform_genesis_if_needed;
 use zksync_dal::ConnectionPool;
 use zksync_object_store::ObjectStoreFactory;
-use zksync_snapshots_applier::{SnapshotsApplier, SnapshotsApplierError};
+use zksync_snapshots_applier::{SnapshotsApplierConfig, SnapshotsApplierOutcome};
 use zksync_web3_decl::jsonrpsee::http_client::HttpClient;
 
 use crate::config::read_snapshots_recovery_config;
@@ -83,17 +83,24 @@ pub(crate) async fn ensure_storage_initialized(
             let blob_store = ObjectStoreFactory::new(recovery_config.snapshots_object_store)
                 .create_store()
                 .await;
-            // FIXME: change error handling once #1036 is merged; this is not always correct.
-            SnapshotsApplier::load_snapshot(pool, main_node_client, &blob_store)
+            let outcome = SnapshotsApplierConfig::default()
+                .run(pool, main_node_client, &blob_store)
                 .await
-                .or_else(|err| match err {
-                    SnapshotsApplierError::Canceled(message) => {
-                        tracing::info!("Snapshot recovery is canceled: {message}");
-                        Ok(())
-                    }
-                    _ => Err(err),
-                })?;
-            tracing::info!("Snapshot recovery is complete");
+                .context("snapshot recovery failed")?;
+            match outcome {
+                SnapshotsApplierOutcome::Ok => {
+                    tracing::info!("Snapshot recovery is complete");
+                }
+                SnapshotsApplierOutcome::NoSnapshotsOnMainNode => {
+                    anyhow::bail!("No snapshots on main node; snapshot recovery is impossible");
+                }
+                SnapshotsApplierOutcome::InitializedWithoutSnapshot => {
+                    anyhow::bail!(
+                        "Node contains a non-genesis L1 batch, but no genesis; snapshot recovery is unsafe. \
+                        This should never occur unless the node DB was manually tampered with"
+                    );
+                }
+            }
         }
     }
     Ok(())

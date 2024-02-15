@@ -100,7 +100,7 @@ async fn build_state_keeper(
         stop_receiver,
         Box::new(io),
         batch_executor_base,
-        Box::new(NoopSealer),
+        Arc::new(NoopSealer),
     ))
 }
 

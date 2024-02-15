@@ -2,6 +2,7 @@ use crate::{
     resource::{Resource, StoredResource},
     service::ZkStackService,
     task::Task,
+    wiring_layer::WiringError,
 };
 
 /// An interface to the service's resources provided to the tasks during initialization.
@@ -40,7 +41,7 @@ impl<'a> ServiceContext<'a> {
     /// ## Panics
     ///
     /// Panics if the resource with the specified name exists, but is not of the requested type.
-    pub async fn get_resource<T: Resource + Clone>(&mut self) -> Option<T> {
+    pub async fn get_resource<T: Resource + Clone>(&mut self) -> Result<T, WiringError> {
         #[allow(clippy::borrowed_box)]
         let downcast_clone = |resource: &Box<dyn StoredResource>| {
             resource
@@ -58,21 +59,12 @@ impl<'a> ServiceContext<'a> {
         let name = T::resource_id();
         // Check whether the resource is already available.
         if let Some(resource) = self.service.resources.get(&name) {
-            return Some(downcast_clone(resource));
-        }
-
-        // Try to fetch the resource from the provider.
-        if let Some(resource) = self.service.resource_provider.get_resource(&name).await {
-            // First, ensure the type matches.
-            let downcasted = downcast_clone(&resource);
-            // Then, add it to the local resources.
-            self.service.resources.insert(name, resource);
-            return Some(downcasted);
+            return Ok(downcast_clone(resource));
         }
 
         // No such resource.
         // The requester is allowed to decide whether this is an error or not.
-        None
+        Err(WiringError::ResourceLacking(T::resource_id()))
     }
 
     /// Attempts to retrieve the resource with the specified name.
@@ -81,7 +73,7 @@ impl<'a> ServiceContext<'a> {
         &mut self,
         f: F,
     ) -> T {
-        if let Some(resource) = self.get_resource::<T>().await {
+        if let Ok(resource) = self.get_resource::<T>().await {
             return resource;
         }
 
@@ -97,5 +89,16 @@ impl<'a> ServiceContext<'a> {
     /// If the resource is not available, it is created using `T::default()`.
     pub async fn get_resource_or_default<T: Resource + Clone + Default>(&mut self) -> T {
         self.get_resource_or_insert_with(T::default).await
+    }
+
+    /// Adds a resource to the service.
+    /// If the resource with the same name is already provided, the method will return an error.
+    pub fn insert_resource<T: Resource>(&mut self, resource: T) -> Result<(), WiringError> {
+        let name = T::resource_id();
+        if self.service.resources.contains_key(&name) {
+            return Err(WiringError::ResourceAlreadyProvided(name));
+        }
+        self.service.resources.insert(name, Box::new(resource));
+        Ok(())
     }
 }

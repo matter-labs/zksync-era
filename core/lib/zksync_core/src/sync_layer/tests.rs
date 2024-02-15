@@ -3,6 +3,7 @@
 use std::{
     collections::{HashMap, VecDeque},
     iter,
+    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -94,7 +95,7 @@ impl StateKeeperHandles {
             stop_receiver,
             Box::new(io),
             Box::new(batch_executor_base),
-            Box::new(NoopSealer),
+            Arc::new(NoopSealer),
         );
         Self {
             stop_sender,
@@ -720,7 +721,7 @@ async fn fetcher_with_real_server(snapshot_recovery: bool) {
         let action = tokio::time::timeout_at(deadline.into(), actions.recv_action())
             .await
             .unwrap();
-        match dbg!(action) {
+        match action {
             SyncAction::OpenBatch {
                 number,
                 first_miniblock_info,
