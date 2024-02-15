@@ -286,10 +286,37 @@ export const initHyperCommand = new Command('init-hyper')
             }
         };
 
-        // await initSetup(initArgs);
-        // await initSetupDatabase(initArgs, true); // we skip Verifier deployment, it is only deployed with sharedBridge
+        await initSetupDatabase(initArgs, true); // we skip Verifier deployment, it is only deployed with sharedBridge
         await initHyper(initArgs);
     });
+
+export const reinitHyperCommand = new Command('reinit-hyper').action(async (cmd: Command) => {
+    env.reload();
+
+    const initArgs: InitArgs = {
+        skipSubmodulesCheckout: cmd.skipSubmodulesCheckout,
+        skipEnvSetup: cmd.skipEnvSetup,
+        skipSetupCompletely: cmd.skipSetupCompletely,
+        governorPrivateKey: process.env.GOVERNOR_PRIVATE_KEY,
+        deployerL2ContractInput: {
+            deployerPrivateKey: process.env.DEPLOYER_PRIVATE_KEY,
+            throughL1: true,
+            includePaymaster: true
+        },
+        testTokens: {
+            deploy: false,
+            deployWeth: false,
+            deployerPrivateKey: process.env.DEPLOYER_PRIVATE_KEY
+        },
+        baseToken: {
+            name: cmd.baseTokenName,
+            // we use zero here to show that it is unspecified. If it is ether it is one.
+            address: ADDRESS_ONE
+        }
+    };
+    process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID! = (Number(process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!) + 1).toString();
+    await initHyper(initArgs);
+});
 
 export const initSharedBridgeCommand = new Command('init-shared-bridge')
     .description('initialize just the L2, currently with own bridge')

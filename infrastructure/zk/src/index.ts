@@ -13,7 +13,8 @@ import {
     lightweightInitCommand,
     initHyperCommand,
     initSharedBridgeCommand,
-    deployL2ContractsCommand
+    deployL2ContractsCommand,
+    reinitHyperCommand
 } from './init';
 import { initHyperchainCommand } from './hyperchain_wizard';
 import { command as run } from './run/run';
@@ -46,6 +47,7 @@ const COMMANDS = [
     lightweightInitCommand,
     initHyperchainCommand,
     initHyperCommand,
+    reinitHyperCommand,
     initSharedBridgeCommand,
     deployL2ContractsCommand,
     run,
