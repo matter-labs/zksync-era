@@ -9,12 +9,13 @@ use crate::{
 /// Provides the ability to fetch required resources, and also gives access to the Tokio runtime handle.
 #[derive(Debug)]
 pub struct ServiceContext<'a> {
+    layer: &'a str,
     service: &'a mut ZkStackService,
 }
 
 impl<'a> ServiceContext<'a> {
-    pub(super) fn new(service: &'a mut ZkStackService) -> Self {
-        Self { service }
+    pub(super) fn new(layer: &'a str, service: &'a mut ZkStackService) -> Self {
+        Self { layer, service }
     }
 
     /// Provides access to the runtime used by the service.
@@ -24,12 +25,17 @@ impl<'a> ServiceContext<'a> {
     ///
     /// In most cases, however, it is recommended to use [`add_task`] method instead.
     pub fn runtime_handle(&self) -> &tokio::runtime::Handle {
+        tracing::info!(
+            "Layer {} has requested access to the Tokio runtime",
+            self.layer
+        );
         self.service.runtime.handle()
     }
 
     /// Adds a task to the service.
     /// Added tasks will be launched after the wiring process will be finished.
     pub fn add_task(&mut self, task: Box<dyn Task>) -> &mut Self {
+        tracing::info!("Layer {} has added a new task: {}", self.layer, task.name());
         self.service.tasks.push(task);
         self
     }
@@ -59,8 +65,15 @@ impl<'a> ServiceContext<'a> {
         let name = T::resource_id();
         // Check whether the resource is already available.
         if let Some(resource) = self.service.resources.get(&name) {
+            tracing::info!("Layer {} has requested resource {}", self.layer, name);
             return Ok(downcast_clone(resource));
         }
+
+        tracing::info!(
+            "Layer {} has requested resource {}, but it is not available",
+            self.layer,
+            name
+        );
 
         // No such resource.
         // The requester is allowed to decide whether this is an error or not.
@@ -82,6 +95,11 @@ impl<'a> ServiceContext<'a> {
         self.service
             .resources
             .insert(T::resource_id(), Box::new(resource.clone()));
+        tracing::info!(
+            "Layer {} has created a new resource {}",
+            self.layer,
+            T::resource_id()
+        );
         resource
     }
 
@@ -96,9 +114,19 @@ impl<'a> ServiceContext<'a> {
     pub fn insert_resource<T: Resource>(&mut self, resource: T) -> Result<(), WiringError> {
         let name = T::resource_id();
         if self.service.resources.contains_key(&name) {
+            tracing::warn!(
+                "Layer {} has attempted to provide resource {}, but it is already available",
+                self.layer,
+                name
+            );
             return Err(WiringError::ResourceAlreadyProvided(name));
         }
         self.service.resources.insert(name, Box::new(resource));
+        tracing::info!(
+            "Layer {} has provided a new resource {}",
+            self.layer,
+            T::resource_id()
+        );
         Ok(())
     }
 }
