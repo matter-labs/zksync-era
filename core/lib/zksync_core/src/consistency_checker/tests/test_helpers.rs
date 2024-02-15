@@ -7,7 +7,6 @@ use zksync_types::{web3::contract::Options, L2ChainId, ProtocolVersion};
 use super::*;
 use crate::genesis::{ensure_genesis_state, GenesisParams};
 
-
 pub(crate) fn build_commit_tx_input_data_is_correct(
     l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
 ) {
