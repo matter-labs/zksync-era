@@ -256,6 +256,7 @@ async fn init_tasks(
             .context("failed to build a connection pool for BatchStatusUpdater")?,
     )
     .context("failed initializing batch status updater")?;
+    healthchecks.push(Box::new(batch_status_updater.health_check()));
 
     // Run the components.
     let tree_stop_receiver = stop_receiver.clone();
