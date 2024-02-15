@@ -316,7 +316,7 @@ Given the tx.gasLimit, it should find the maximal `overhead_gas(tx)`, such that 
 transaction, that is, if we denote by _Oop_ the overhead proposed by the operator, the following equation should hold:
 
 $$
-O_{op} ≤ overhead_gas(tx)
+O_{op} ≤ overhead\_gas(tx)
 $$
 
 for the $tx.bodyGasLimit$ we use the $tx.bodyGasLimit$ = $tx.gasLimit − O_{op}$.
