@@ -52,7 +52,7 @@ impl<T: Resource + Clone> LazyResource<T> {
             return Ok(resource.clone());
         }
 
-        tokio::select! {
+        let result = tokio::select! {
             _ = self.stop_receiver.0.changed() => {
                 Err(LazyResourceError::NodeShutdown)
             }
@@ -61,7 +61,13 @@ impl<T: Resource + Clone> LazyResource<T> {
                 let resource = resolve_receiver.borrow().as_ref().expect("Can only change if provided").clone();
                 Ok(resource)
             }
+        };
+
+        if result.is_ok() {
+            tracing::info!("Lazy resource {} has been resolved", T::resource_id());
         }
+
+        result
     }
 
     /// Provides the resource.
@@ -79,14 +85,104 @@ impl<T: Resource + Clone> LazyResource<T> {
             return Err(LazyResourceError::ResourceAlreadyProvided);
         }
 
+        tracing::info!("Lazy resource {} has been provided", T::resource_id());
+
         Ok(())
     }
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq)]
 pub enum LazyResourceError {
     #[error("Node is shutting down")]
     NodeShutdown,
     #[error("Resource is already provided")]
     ResourceAlreadyProvided,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[derive(Debug, Clone, PartialEq)]
+    struct TestResource(Arc<u8>);
+
+    impl Resource for TestResource {
+        fn resource_id() -> ResourceId {
+            ResourceId::new("test_resource")
+        }
+    }
+
+    struct TestContext {
+        test_resource: TestResource,
+        lazy_resource: LazyResource<TestResource>,
+        stop_sender: watch::Sender<bool>,
+    }
+
+    impl TestContext {
+        fn new() -> Self {
+            let (stop_sender, stop_receiver) = watch::channel(false);
+            Self {
+                test_resource: TestResource(Arc::new(1)),
+                lazy_resource: LazyResource::<TestResource>::new(StopReceiver(stop_receiver)),
+                stop_sender,
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_already_provided_resource_case() {
+        let TestContext {
+            test_resource,
+            lazy_resource,
+            stop_sender: _,
+        } = TestContext::new();
+
+        lazy_resource
+            .clone()
+            .provide(test_resource.clone())
+            .await
+            .unwrap();
+
+        assert_eq!(
+            lazy_resource.clone().provide(test_resource.clone()).await,
+            Err(LazyResourceError::ResourceAlreadyProvided)
+        );
+    }
+
+    #[tokio::test]
+    async fn test_successful_resolve_case() {
+        let TestContext {
+            test_resource,
+            lazy_resource,
+            stop_sender: _,
+        } = TestContext::new();
+
+        lazy_resource
+            .clone()
+            .provide(test_resource.clone())
+            .await
+            .unwrap();
+
+        assert_eq!(
+            lazy_resource.clone().resolve().await,
+            Ok(test_resource.clone())
+        );
+    }
+
+    #[tokio::test]
+    async fn test_node_shutdown_case() {
+        let TestContext {
+            test_resource: _,
+            lazy_resource,
+            stop_sender,
+        } = TestContext::new();
+
+        let resolve_task = tokio::spawn(async move { lazy_resource.resolve().await });
+
+        stop_sender.send(true).unwrap();
+
+        let result = resolve_task.await.unwrap();
+
+        assert_eq!(result, Err(LazyResourceError::NodeShutdown));
+    }
 }

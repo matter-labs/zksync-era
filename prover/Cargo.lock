@@ -585,7 +585,7 @@ dependencies = [
  "bincode",
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "const_format",
- "convert_case 0.6.0",
+ "convert_case",
  "crossbeam 0.8.4",
  "crypto-bigint 0.5.5",
  "cs_derive 0.1.0 (git+https://github.com/matter-labs/era-boojum?branch=main)",
@@ -934,15 +934,6 @@ name = "convert_case"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6245d59a3e82a7fc217c5828a6692dbc6dfb63a0c8c90495621f7b9d79704a0e"
-
-[[package]]
-name = "convert_case"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ec182b0ca2f35d8fc196cf3404988fd8b8c739a4d270ff118a398feb0cbec1ca"
-dependencies = [
- "unicode-segmentation",
-]
 
 [[package]]
 name = "core-foundation"
@@ -1387,7 +1378,7 @@ version = "0.99.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4fb810d30a7c1953f91334de7244731fc3f3c10d7fe163338a35b9f640960321"
 dependencies = [
- "convert_case 0.4.0",
+ "convert_case",
  "proc-macro2 1.0.78",
  "quote 1.0.35",
  "rustc_version",
@@ -3886,6 +3877,10 @@ dependencies = [
  "prost-types",
  "thiserror",
 ]
+
+[[package]]
+name = "prover_dal"
+version = "0.1.0"
 
 [[package]]
 name = "ptr_meta"
@@ -6763,7 +6758,7 @@ dependencies = [
  "codegen",
  "crossbeam 0.8.4",
  "derivative",
- "env_logger 0.11.1",
+ "env_logger 0.9.3",
  "hex",
  "rand 0.4.6",
  "rayon",
@@ -6779,7 +6774,7 @@ dependencies = [
 [[package]]
 name = "zkevm_test_harness"
 version = "1.4.1"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1#2ce7c0cbe952c46e70f7275033a8eb6392408d95"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1#bbd22e62894807f245cd837fea18be8456a7e49c"
 dependencies = [
  "bincode",
  "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1)",
@@ -6787,7 +6782,7 @@ dependencies = [
  "crossbeam 0.8.4",
  "curl",
  "derivative",
- "env_logger 0.11.1",
+ "env_logger 0.9.3",
  "hex",
  "lazy_static",
  "rand 0.4.6",
