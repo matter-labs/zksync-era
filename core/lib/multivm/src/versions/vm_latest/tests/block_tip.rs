@@ -1,9 +1,7 @@
 use std::borrow::BorrowMut;
 
 use ethabi::Token;
-use zk_evm_1_4_1::{
-    aux_structures::Timestamp, zkevm_opcode_defs::system_params::MAX_PUBDATA_PER_BLOCK,
-};
+use zk_evm_1_4_1::aux_structures::Timestamp;
 use zksync_contracts::load_sys_contract;
 use zksync_system_constants::{
     CONTRACT_FORCE_DEPLOYER_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS,
@@ -18,7 +16,10 @@ use super::utils::{get_complex_upgrade_abi, read_complex_upgrade};
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
     vm_latest::{
-        constants::BOOTLOADER_BATCH_TIP_OVERHEAD,
+        constants::{
+            BOOTLOADER_BATCH_TIP_OVERHEAD_CIRCUITS, BOOTLOADER_BATCH_TIP_OVERHEAD_GAS,
+            MAX_PUBDATA_PER_BATCH,
+        },
         tests::tester::{get_empty_storage, InMemoryStorageView, VmTesterBuilder},
         tracers::PubdataTracer,
         HistoryEnabled, TracerDispatcher,
@@ -94,7 +95,22 @@ fn populate_mimic_calls(data: L1MessengerTestData) -> Vec<u8> {
         .unwrap()
 }
 
-fn execute_test(test_data: L1MessengerTestData) -> u32 {
+#[derive(Debug, Clone, Default, Copy)]
+struct OverheadTestResult {
+    required_gas: u32,
+    required_circuits: u32,
+}
+
+impl OverheadTestResult {
+    fn stricter(&self, other: &Self) -> Self {
+        Self {
+            required_gas: self.required_gas.max(other.required_gas),
+            required_circuits: self.required_circuits.max(other.required_circuits),
+        }
+    }
+}
+
+fn execute_test(test_data: L1MessengerTestData) -> OverheadTestResult {
     let mut storage = get_empty_storage();
     let complex_upgrade_code = read_complex_upgrade();
 
@@ -165,7 +181,13 @@ fn execute_test(test_data: L1MessengerTestData) -> u32 {
 
     let ergs_after = vm.vm.state.local_state.callstack.current.ergs_remaining;
 
-    ergs_before - ergs_after
+    let required_gas = ergs_before - ergs_after;
+    let required_circuits = result.statistics.circuit_statistic.total() as u32;
+
+    OverheadTestResult {
+        required_gas,
+        required_circuits,
+    }
 }
 
 fn generate_state_diffs(
@@ -199,6 +221,23 @@ fn generate_state_diffs(
         .collect()
 }
 
+// A valid zkEVM bytecode has odd number of 32 byte words
+fn get_valid_bytecode_length(length: usize) -> usize {
+    // Firstly ensure that the length is divisible by 32
+    let length_padded_to_32 = if length % 32 == 0 {
+        length
+    } else {
+        length + 32 - (length % 32)
+    };
+
+    // Then we ensure that the number returned by division by 32 is odd
+    if length_padded_to_32 % 64 == 0 {
+        length_padded_to_32 + 32
+    } else {
+        length_padded_to_32
+    }
+}
+
 #[test]
 fn test_dry_run_upper_bound() {
     // We are re-using the `ComplexUpgrade` contract as it already has the `mimicCall` functionality.
@@ -208,60 +247,79 @@ fn test_dry_run_upper_bound() {
     // 3. Lots of small bytecodes / one large bytecode.
     // 4. Lots of storage slot updates.
 
+    // Some of the pubdata is consumed by constant fields (such as length of messages, number of logs, etc.).
+    // While this leaves some room for error, at the end of the test we require that the `BOOTLOADER_BATCH_TIP_OVERHEAD_GAS`
+    // is sufficient with a very large margin, so it is okay to ignore 1% of possible pubdata.
+    const MAX_EFFECTIVE_PUBDATA_PER_BATCH: usize = (MAX_PUBDATA_PER_BATCH as f64 * 0.99) as usize;
+
     let max_logs = execute_test(L1MessengerTestData {
-        l2_to_l1_logs: L2ToL1Log::MIN_L2_L1_LOGS_TREE_SIZE,
+        l2_to_l1_logs: MAX_EFFECTIVE_PUBDATA_PER_BATCH as usize / L2ToL1Log::SERIALIZED_SIZE,
         ..Default::default()
     });
 
     let max_messages = execute_test(L1MessengerTestData {
-        // Each L2->L1 message is accompanied by a Log, so the max number of pubdata is bound by it
-        messages: vec![vec![0; 0]; MAX_PUBDATA_PER_BLOCK as usize / L2ToL1Log::SERIALIZED_SIZE],
+        // Each L2->L1 message is accompanied by a Log + its length, which is a 4 byte number
+        messages: vec![
+            vec![0; 0];
+            MAX_EFFECTIVE_PUBDATA_PER_BATCH as usize / (L2ToL1Log::SERIALIZED_SIZE + 4)
+        ],
         ..Default::default()
     });
 
     let long_message = execute_test(L1MessengerTestData {
-        // Each L2->L1 message is accompanied by a Log, so the max number of pubdata is bound by it
-        messages: vec![vec![0; MAX_PUBDATA_PER_BLOCK as usize]; 1],
+        messages: vec![vec![0; MAX_EFFECTIVE_PUBDATA_PER_BATCH]; 1],
         ..Default::default()
     });
 
     let max_bytecodes = execute_test(L1MessengerTestData {
-        // Each bytecode must be at least 32 bytes long
-        bytecodes: vec![vec![0; 32]; MAX_PUBDATA_PER_BLOCK as usize / 32],
+        // Each uncompressed bytecode is accompanied by its length, which is a 4 byte number
+        bytecodes: vec![vec![0; 32]; MAX_EFFECTIVE_PUBDATA_PER_BATCH as usize / (32 + 4)],
         ..Default::default()
     });
 
     let long_bytecode = execute_test(L1MessengerTestData {
         // We have to add 48 since a valid bytecode must have an odd number of 32 byte words
-        bytecodes: vec![vec![0; MAX_PUBDATA_PER_BLOCK as usize + 48]; 1],
+        bytecodes: vec![vec![0; get_valid_bytecode_length(MAX_EFFECTIVE_PUBDATA_PER_BATCH)]; 1],
         ..Default::default()
     });
 
     let lots_of_small_repeated_writes = execute_test(L1MessengerTestData {
         // In theory each state diff can require only 5 bytes to be published (enum index + 4 bytes for the key)
-        state_diffs: generate_state_diffs(true, true, MAX_PUBDATA_PER_BLOCK as usize / 5),
+        state_diffs: generate_state_diffs(true, true, MAX_EFFECTIVE_PUBDATA_PER_BATCH as usize / 5),
         ..Default::default()
     });
 
     let lots_of_big_repeated_writes = execute_test(L1MessengerTestData {
-        // Each big write will approximately require 32 bytes to encode
-        state_diffs: generate_state_diffs(true, false, MAX_PUBDATA_PER_BLOCK as usize / 32),
+        // Each big repeated write will approximately require 4 bytes for key + 1 byte for encoding type + 32 bytes for value
+        state_diffs: generate_state_diffs(
+            true,
+            false,
+            MAX_EFFECTIVE_PUBDATA_PER_BATCH as usize / 37,
+        ),
         ..Default::default()
     });
 
     let lots_of_small_initial_writes = execute_test(L1MessengerTestData {
-        // Each initial write will take at least 32 bytes for derived key + 5 bytes for value
-        state_diffs: generate_state_diffs(false, true, MAX_PUBDATA_PER_BLOCK as usize / 37),
+        // Each small initial write will take at least 32 bytes for derived key + 1 bytes encoding zeroing out
+        state_diffs: generate_state_diffs(
+            false,
+            true,
+            MAX_EFFECTIVE_PUBDATA_PER_BATCH as usize / 33,
+        ),
         ..Default::default()
     });
 
     let lots_of_large_initial_writes = execute_test(L1MessengerTestData {
-        // Each big write will take at least 32 bytes for derived key + 32 bytes for value
-        state_diffs: generate_state_diffs(false, false, MAX_PUBDATA_PER_BLOCK as usize / 64),
+        // Each big write will take at least 32 bytes for derived key + 1 byte for encoding type + 32 bytes for value
+        state_diffs: generate_state_diffs(
+            false,
+            false,
+            MAX_EFFECTIVE_PUBDATA_PER_BATCH as usize / 65,
+        ),
         ..Default::default()
     });
 
-    let max_used_gas = vec![
+    let max_result = vec![
         max_logs,
         max_messages,
         long_message,
@@ -273,12 +331,16 @@ fn test_dry_run_upper_bound() {
         lots_of_large_initial_writes,
     ]
     .into_iter()
-    .max()
-    .unwrap();
+    .fold(OverheadTestResult::default(), |acc, x| acc.stricter(&x));
 
     // We use 2x overhead for the batch tip compared to the worst estimated scenario.
     assert!(
-        max_used_gas * 2 <= BOOTLOADER_BATCH_TIP_OVERHEAD,
-        "BOOTLOADER_BATCH_TIP_OVERHEAD is too low"
+        max_result.required_gas * 2 <= BOOTLOADER_BATCH_TIP_OVERHEAD_GAS,
+        "BOOTLOADER_BATCH_TIP_OVERHEAD_GAS is too low"
+    );
+
+    assert!(
+        max_result.required_circuits * 2 <= BOOTLOADER_BATCH_TIP_OVERHEAD_CIRCUITS,
+        "BOOTLOADER_BATCH_TIP_OVERHEAD_CIRCUITS is too low"
     );
 }

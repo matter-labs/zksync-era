@@ -247,3 +247,18 @@ pub fn get_used_bootloader_memory_words(version: VmVersion) -> usize {
         VmVersion::Vm1_4_1 => crate::vm_latest::constants::USED_BOOTLOADER_MEMORY_WORDS,
     }
 }
+
+pub fn get_bootloader_batch_tip_circuit_overhead(version: VmVersion) -> u32 {
+    match version {
+        // For versions before 1.4.1 this constant was not implemented, so we just return 0.
+        VmVersion::M5WithRefunds
+        | VmVersion::M5WithoutRefunds
+        | VmVersion::M6Initial
+        | VmVersion::M6BugWithCompressionFixed
+        | VmVersion::Vm1_3_2
+        | VmVersion::VmVirtualBlocks
+        | VmVersion::VmVirtualBlocksRefundsEnhancement
+        | VmVersion::VmBoojumIntegration => 0,
+        VmVersion::Vm1_4_1 => crate::vm_latest::constants::BOOTLOADER_BATCH_TIP_OVERHEAD_CIRCUITS,
+    }
+}

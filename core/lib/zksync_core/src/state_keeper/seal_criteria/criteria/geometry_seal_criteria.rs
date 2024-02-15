@@ -1,5 +1,6 @@
 use std::fmt;
 
+use multivm::utils::get_bootloader_batch_tip_circuit_overhead;
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_types::{tx::tx_execution_info::ExecutionMetrics, ProtocolVersionId};
 
@@ -59,11 +60,19 @@ where
 impl MetricExtractor for CircuitsCriterion {
     const PROM_METRIC_CRITERION_NAME: &'static str = "circuits";
 
-    fn limit_per_block(_protocol_version_id: ProtocolVersionId) -> usize {
+    fn limit_per_block(protocol_version_id: ProtocolVersionId) -> usize {
         // We subtract constant to take into account that circuits may be not fully filled.
         // This constant should be greater than number of circuits types
         // but we keep it larger to be on the safe side.
         const MARGIN_NUMBER_OF_CIRCUITS: usize = 10000;
+
+        let batch_tip_overhead_circuits =
+            get_bootloader_batch_tip_circuit_overhead(protocol_version_id.into());
+        assert!(
+            MARGIN_NUMBER_OF_CIRCUITS > 2 * (batch_tip_overhead_circuits as usize),
+            "The margin should cover batch tip overhead"
+        );
+
         const MAX_NUMBER_OF_CIRCUITS: usize = (1 << 14) + (1 << 13) - MARGIN_NUMBER_OF_CIRCUITS;
 
         MAX_NUMBER_OF_CIRCUITS
