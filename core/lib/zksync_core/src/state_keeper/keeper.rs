@@ -590,8 +590,6 @@ impl ZkSyncStateKeeper {
             TxExecutionResult::Success {
                 tx_result,
                 tx_metrics,
-                bootloader_dry_run_metrics,
-                bootloader_dry_run_result,
                 ..
             } => {
                 let tx_execution_status = &tx_result.result;
@@ -618,18 +616,9 @@ impl ZkSyncStateKeeper {
                     updates_manager.pending_execution_metrics() + tx_execution_metrics,
                 );
 
-                let ExecutionMetricsForCriteria {
-                    l1_gas: finish_block_l1_gas,
-                    execution_metrics: finish_block_execution_metrics,
-                } = **bootloader_dry_run_metrics;
-
                 let encoding_len = tx.encoding_len();
 
-                let logs_to_apply_iter = tx_result
-                    .logs
-                    .storage_logs
-                    .iter()
-                    .chain(&bootloader_dry_run_result.logs.storage_logs);
+                let logs_to_apply_iter = tx_result.logs.storage_logs.iter();
                 let block_writes_metrics = updates_manager
                     .storage_writes_deduplicator
                     .apply_and_rollback(logs_to_apply_iter.clone());
@@ -642,10 +631,10 @@ impl ZkSyncStateKeeper {
                     StorageWritesDeduplicator::apply_on_empty_state(logs_to_apply_iter);
                 let tx_writes_l1_gas =
                     gas_count_from_writes(&tx_writes_metrics, updates_manager.protocol_version());
-                let tx_gas_excluding_writes = tx_l1_gas_this_tx + finish_block_l1_gas;
+                let tx_gas_excluding_writes = tx_l1_gas_this_tx;
 
                 let tx_data = SealData {
-                    execution_metrics: tx_execution_metrics + finish_block_execution_metrics,
+                    execution_metrics: tx_execution_metrics,
                     gas_count: tx_gas_excluding_writes + tx_writes_l1_gas,
                     cumulative_size: encoding_len,
                     writes_metrics: tx_writes_metrics,

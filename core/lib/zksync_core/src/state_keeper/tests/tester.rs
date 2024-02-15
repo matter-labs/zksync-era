@@ -247,16 +247,6 @@ pub(crate) fn successful_exec() -> TxExecutionResult {
             l1_gas: Default::default(),
             execution_metrics: Default::default(),
         }),
-        bootloader_dry_run_metrics: Box::new(ExecutionMetricsForCriteria {
-            l1_gas: Default::default(),
-            execution_metrics: Default::default(),
-        }),
-        bootloader_dry_run_result: Box::new(VmExecutionResultAndLogs {
-            result: ExecutionResult::Success { output: vec![] },
-            logs: Default::default(),
-            statistics: Default::default(),
-            refunds: Default::default(),
-        }),
         compressed_bytecodes: vec![],
         call_tracer_result: vec![],
     }
@@ -274,16 +264,6 @@ pub(crate) fn successful_exec_with_metrics(
             refunds: Default::default(),
         }),
         tx_metrics: Box::new(tx_metrics),
-        bootloader_dry_run_metrics: Box::new(ExecutionMetricsForCriteria {
-            l1_gas: Default::default(),
-            execution_metrics: Default::default(),
-        }),
-        bootloader_dry_run_result: Box::new(VmExecutionResultAndLogs {
-            result: ExecutionResult::Success { output: vec![] },
-            logs: Default::default(),
-            statistics: Default::default(),
-            refunds: Default::default(),
-        }),
         compressed_bytecodes: vec![],
         call_tracer_result: vec![],
     }
