@@ -36,7 +36,6 @@ describe('Deposit', () => {
     beforeAll(async () => {
         testMaster = TestMaster.getInstance(__filename); // Configures env vars for the test.
         alice = testMaster.mainAccount(); // funded amount.
-        bob = testMaster.newEmptyAccount(); // empty account.
 
         tokenDetails = testMaster.environment().erc20Token; // Contains the native token details.
         erc20 = new zksync.Contract(tokenDetails.l2Address, zksync.utils.IERC20, alice); //
