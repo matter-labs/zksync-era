@@ -60,17 +60,17 @@ pub async fn ensure_genesis_state(
     zksync_chain_id: L2ChainId,
     genesis_params: &GenesisParams,
 ) -> anyhow::Result<H256> {
-    let mut transaction = storage.start_transaction().await.unwrap();
+    let mut transaction = storage.start_transaction().await?;
 
     // return if genesis block was already processed
-    if !transaction.blocks_dal().is_genesis_needed().await.unwrap() {
+    if !transaction.blocks_dal().is_genesis_needed().await? {
         tracing::debug!("genesis is not needed!");
         return transaction
             .blocks_dal()
             .get_l1_batch_state_root(L1BatchNumber(0))
             .await
-            .unwrap()
-            .context("genesis block hash is empty");
+            .context("failed fetching state root hash for genesis L1 batch")?
+            .context("genesis L1 batch hash is empty");
     }
 
     tracing::info!("running regenesis");
@@ -95,11 +95,13 @@ pub async fn ensure_genesis_state(
         *first_l1_verifier_config,
         *first_verifier_address,
     )
-    .await;
+    .await?;
     tracing::info!("chain_schema_genesis is complete");
 
     let storage_logs = L1BatchWithLogs::new(&mut transaction, L1BatchNumber(0)).await;
-    let storage_logs = storage_logs.unwrap().storage_logs;
+    let storage_logs = storage_logs
+        .context("genesis L1 batch disappeared from Postgres")?
+        .storage_logs;
     let metadata = ZkSyncTree::process_genesis_batch(&storage_logs);
     let genesis_root_hash = metadata.root_hash;
     let rollup_last_leaf_index = metadata.leaf_count + 1;
@@ -118,10 +120,10 @@ pub async fn ensure_genesis_state(
         genesis_root_hash,
         rollup_last_leaf_index,
     )
-    .await;
+    .await?;
     tracing::info!("operations_schema_genesis is complete");
 
-    transaction.commit().await.unwrap();
+    transaction.commit().await?;
 
     // We need to `println` this value because it will be used to initialize the smart contract.
     println!("CONTRACTS_GENESIS_ROOT={:?}", genesis_root_hash);
@@ -154,7 +156,7 @@ pub async fn ensure_genesis_state(
 async fn insert_base_system_contracts_to_factory_deps(
     storage: &mut StorageProcessor<'_>,
     contracts: &BaseSystemContracts,
-) {
+) -> anyhow::Result<()> {
     let factory_deps = [&contracts.bootloader, &contracts.default_aa]
         .iter()
         .map(|c| (c.hash, be_words_to_bytes(&c.code)))
@@ -164,36 +166,35 @@ async fn insert_base_system_contracts_to_factory_deps(
         .factory_deps_dal()
         .insert_factory_deps(MiniblockNumber(0), &factory_deps)
         .await
-        .unwrap();
+        .context("failed inserting base system contracts to Postgres")
 }
 
 async fn insert_system_contracts(
     storage: &mut StorageProcessor<'_>,
     contracts: &[DeployedContract],
     chain_id: L2ChainId,
-) {
+) -> anyhow::Result<()> {
     let system_context_init_logs = (H256::default(), get_system_context_init_logs(chain_id));
 
-    let storage_logs: Vec<(H256, Vec<StorageLog>)> = contracts
+    let storage_logs: Vec<_> = contracts
         .iter()
         .map(|contract| {
             let hash = hash_bytecode(&contract.bytecode);
             let code_key = get_code_key(contract.account_id.address());
-
             (
-                Default::default(),
+                H256::default(),
                 vec![StorageLog::new_write_log(code_key, hash)],
             )
         })
         .chain(Some(system_context_init_logs))
         .collect();
 
-    let mut transaction = storage.start_transaction().await.unwrap();
-
+    let mut transaction = storage.start_transaction().await?;
     transaction
         .storage_logs_dal()
         .insert_storage_logs(MiniblockNumber(0), &storage_logs)
-        .await;
+        .await
+        .context("failed inserting genesis storage logs")?;
 
     // we don't produce proof for the genesis block,
     // but we still need to populate the table
@@ -221,7 +222,7 @@ async fn insert_system_contracts(
                         is_service: false,
                     }
                 })
-                .collect::<Vec<MultiVmLogQuery>>()
+                .collect::<Vec<_>>()
         })
         .collect();
 
@@ -249,7 +250,8 @@ async fn insert_system_contracts(
     transaction
         .storage_logs_dedup_dal()
         .insert_protective_reads(L1BatchNumber(0), &protective_reads)
-        .await;
+        .await
+        .context("failed inserting genesis protective reads")?;
 
     let written_storage_keys: Vec<_> = deduplicated_writes
         .iter()
@@ -258,7 +260,8 @@ async fn insert_system_contracts(
     transaction
         .storage_logs_dedup_dal()
         .insert_initial_writes(L1BatchNumber(0), &written_storage_keys)
-        .await;
+        .await
+        .context("failed inserting genesis initial writes")?;
 
     #[allow(deprecated)]
     transaction
@@ -274,9 +277,10 @@ async fn insert_system_contracts(
         .factory_deps_dal()
         .insert_factory_deps(MiniblockNumber(0), &factory_deps)
         .await
-        .unwrap();
+        .context("failed inserting bytecodes for genesis smart contracts")?;
 
-    transaction.commit().await.unwrap();
+    transaction.commit().await?;
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -289,7 +293,7 @@ pub(crate) async fn create_genesis_l1_batch(
     system_contracts: &[DeployedContract],
     l1_verifier_config: L1VerifierConfig,
     verifier_address: Address,
-) {
+) -> anyhow::Result<()> {
     let version = ProtocolVersion {
         id: protocol_version,
         timestamp: 0,
@@ -321,7 +325,7 @@ pub(crate) async fn create_genesis_l1_batch(
         virtual_blocks: 0,
     };
 
-    let mut transaction = storage.start_transaction().await.unwrap();
+    let mut transaction = storage.start_transaction().await?;
 
     transaction
         .protocol_versions_dal()
@@ -338,27 +342,30 @@ pub(crate) async fn create_genesis_l1_batch(
             Default::default(),
         )
         .await
-        .unwrap();
+        .context("failed inserting genesis L1 batch")?;
     transaction
         .blocks_dal()
         .insert_miniblock(&genesis_miniblock_header)
         .await
-        .unwrap();
+        .context("failed inserting genesis miniblock")?;
     transaction
         .blocks_dal()
         .mark_miniblocks_as_executed_in_l1_batch(L1BatchNumber(0))
         .await
-        .unwrap();
+        .context("failed assigning genesis miniblock to L1 batch")?;
 
-    insert_base_system_contracts_to_factory_deps(&mut transaction, base_system_contracts).await;
-    insert_system_contracts(&mut transaction, system_contracts, chain_id).await;
+    insert_base_system_contracts_to_factory_deps(&mut transaction, base_system_contracts).await?;
+    insert_system_contracts(&mut transaction, system_contracts, chain_id)
+        .await
+        .context("cannot insert system contracts")?;
+    add_eth_token(&mut transaction).await?;
 
-    add_eth_token(&mut transaction).await;
-
-    transaction.commit().await.unwrap();
+    transaction.commit().await?;
+    Ok(())
 }
 
-pub(crate) async fn add_eth_token(storage: &mut StorageProcessor<'_>) {
+async fn add_eth_token(transaction: &mut StorageProcessor<'_>) -> anyhow::Result<()> {
+    assert!(transaction.in_transaction()); // sanity check
     let eth_token = TokenInfo {
         l1_address: ETHEREUM_ADDRESS,
         l2_address: ETHEREUM_ADDRESS,
@@ -369,27 +376,26 @@ pub(crate) async fn add_eth_token(storage: &mut StorageProcessor<'_>) {
         },
     };
 
-    let mut transaction = storage.start_transaction().await.unwrap();
-
     transaction
         .tokens_dal()
-        .add_tokens(vec![eth_token.clone()])
-        .await;
+        .add_tokens(&[eth_token])
+        .await
+        .context("failed adding Ether token")?;
     transaction
         .tokens_dal()
-        .update_well_known_l1_token(&ETHEREUM_ADDRESS, eth_token.metadata)
-        .await;
-
-    transaction.commit().await.unwrap();
+        .mark_token_as_well_known(ETHEREUM_ADDRESS)
+        .await
+        .context("failed marking Ether token as well-known")?;
+    Ok(())
 }
 
-pub(crate) async fn save_genesis_l1_batch_metadata(
+async fn save_genesis_l1_batch_metadata(
     storage: &mut StorageProcessor<'_>,
     commitment: L1BatchCommitment,
     genesis_root_hash: H256,
     rollup_last_leaf_index: u64,
-) {
-    let mut transaction = storage.start_transaction().await.unwrap();
+) -> anyhow::Result<()> {
+    let mut transaction = storage.start_transaction().await?;
 
     let tree_data = L1BatchTreeData {
         hash: genesis_root_hash,
@@ -399,7 +405,7 @@ pub(crate) async fn save_genesis_l1_batch_metadata(
         .blocks_dal()
         .save_l1_batch_tree_data(L1BatchNumber(0), &tree_data)
         .await
-        .unwrap();
+        .context("failed saving tree data for genesis L1 batch")?;
 
     let mut commitment_artifacts = commitment.artifacts();
     // `l2_l1_merkle_root` for genesis batch is set to 0 on L1 contract, same must be here.
@@ -409,9 +415,10 @@ pub(crate) async fn save_genesis_l1_batch_metadata(
         .blocks_dal()
         .save_l1_batch_commitment_artifacts(L1BatchNumber(0), &commitment_artifacts)
         .await
-        .unwrap();
+        .context("failed saving commitment for genesis L1 batch")?;
 
-    transaction.commit().await.unwrap();
+    transaction.commit().await?;
+    Ok(())
 }
 
 #[cfg(test)]

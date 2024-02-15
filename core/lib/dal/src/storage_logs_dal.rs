@@ -21,8 +21,8 @@ impl StorageLogsDal<'_, '_> {
         &mut self,
         block_number: MiniblockNumber,
         logs: &[(H256, Vec<StorageLog>)],
-    ) {
-        self.insert_storage_logs_inner(block_number, logs, 0).await;
+    ) -> sqlx::Result<()> {
+        self.insert_storage_logs_inner(block_number, logs, 0).await
     }
 
     async fn insert_storage_logs_inner(
@@ -30,7 +30,7 @@ impl StorageLogsDal<'_, '_> {
         block_number: MiniblockNumber,
         logs: &[(H256, Vec<StorageLog>)],
         mut operation_number: u32,
-    ) {
+    ) -> sqlx::Result<()> {
         let mut copy = self
             .storage
             .conn()
@@ -41,8 +41,7 @@ impl StorageLogsDal<'_, '_> {
                 )
                 FROM STDIN WITH (DELIMITER '|')",
             )
-            .await
-            .unwrap();
+            .await?;
 
         let mut buffer = String::new();
         let now = Utc::now().naive_utc().to_string();
@@ -64,8 +63,9 @@ impl StorageLogsDal<'_, '_> {
                 operation_number += 1;
             }
         }
-        copy.send(buffer.as_bytes()).await.unwrap();
-        copy.finish().await.unwrap();
+        copy.send(buffer.as_bytes()).await?;
+        copy.finish().await?;
+        Ok(())
     }
 
     pub async fn insert_storage_logs_from_snapshot(
@@ -112,7 +112,7 @@ impl StorageLogsDal<'_, '_> {
         &mut self,
         block_number: MiniblockNumber,
         logs: &[(H256, Vec<StorageLog>)],
-    ) {
+    ) -> sqlx::Result<()> {
         let operation_number = sqlx::query!(
             r#"
             SELECT
@@ -125,14 +125,13 @@ impl StorageLogsDal<'_, '_> {
             block_number.0 as i64
         )
         .fetch_one(self.storage.conn())
-        .await
-        .unwrap()
+        .await?
         .max
         .map(|max| max as u32 + 1)
         .unwrap_or(0);
 
         self.insert_storage_logs_inner(block_number, logs, operation_number)
-            .await;
+            .await
     }
 
     /// Rolls back storage to the specified point in time.
@@ -811,7 +810,8 @@ mod tests {
         let logs = [(H256::zero(), logs)];
         conn.storage_logs_dal()
             .insert_storage_logs(MiniblockNumber(number), &logs)
-            .await;
+            .await
+            .unwrap();
         #[allow(deprecated)]
         conn.storage_dal().apply_storage_logs(&logs).await;
         conn.blocks_dal()
@@ -849,7 +849,8 @@ mod tests {
         let more_logs = [(H256::repeat_byte(1), vec![third_log])];
         conn.storage_logs_dal()
             .append_storage_logs(MiniblockNumber(1), &more_logs)
-            .await;
+            .await
+            .unwrap();
         #[allow(deprecated)]
         conn.storage_dal().apply_storage_logs(&more_logs).await;
 
@@ -961,7 +962,8 @@ mod tests {
         let written_keys: Vec<_> = logs.iter().map(|log| log.key).collect();
         conn.storage_logs_dedup_dal()
             .insert_initial_writes(L1BatchNumber(1), &written_keys)
-            .await;
+            .await
+            .unwrap();
 
         let new_logs: Vec<_> = (5_u64..20)
             .map(|i| {
@@ -973,7 +975,8 @@ mod tests {
         let new_written_keys: Vec<_> = new_logs[5..].iter().map(|log| log.key).collect();
         conn.storage_logs_dedup_dal()
             .insert_initial_writes(L1BatchNumber(2), &new_written_keys)
-            .await;
+            .await
+            .unwrap();
 
         let logs_for_revert = conn
             .storage_logs_dal()
@@ -1032,7 +1035,8 @@ mod tests {
             assert!(initial_keys.len() < logs.len());
             conn.storage_logs_dedup_dal()
                 .insert_initial_writes(L1BatchNumber(l1_batch), &initial_keys)
-                .await;
+                .await
+                .unwrap();
         }
 
         let logs_for_revert = conn
@@ -1109,7 +1113,8 @@ mod tests {
         initial_keys.sort_unstable();
         conn.storage_logs_dedup_dal()
             .insert_initial_writes(L1BatchNumber(1), &initial_keys)
-            .await;
+            .await
+            .unwrap();
 
         let mut sorted_hashed_keys: Vec<_> = logs.iter().map(|log| log.key.hashed_key()).collect();
         sorted_hashed_keys.sort_unstable();

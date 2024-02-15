@@ -714,7 +714,8 @@ mod tests {
         storage
             .storage_logs_dedup_dal()
             .insert_protective_reads(L1BatchNumber(2), &read_logs)
-            .await;
+            .await
+            .unwrap();
 
         let l1_batch_with_logs = L1BatchWithLogs::new(&mut storage, L1BatchNumber(2))
             .await
