@@ -77,6 +77,7 @@ async function main() {
     // for it to run from $PWD and not from $ZKSYNC_HOME
     program
         .command('f <command...>')
+        .description('Execute a command in the current directory')
         .allowUnknownOption()
         .action((command: string[]) => {
             process.chdir(cwd);
