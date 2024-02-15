@@ -379,7 +379,9 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
 
             (
                 self.write_value(query),
-                PubdataCost(to_pay_by_user.wrapping_sub(prepaid) as i32),
+                // FIXME: this is not particularly correct, because it does not include the fact that
+                // the user wont pay anything if the storage has been rolled back
+                PubdataCost(to_pay_by_user.saturating_sub(prepaid) as i32),
             )
         } else {
             // Reading costs no pubdata

@@ -67,7 +67,7 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for EvmDebug
 
         const DEBUG_SLOT: u32 = 32 * 32;
         const STACK_POINT: u32 = DEBUG_SLOT + 32 * 5 + 32;
-        const BYTECODE_OFFSET: u32 = STACK_POINT + 1024;
+        const BYTECODE_OFFSET: u32 = STACK_POINT + 1024 * 32;
 
         let debug_magic = U256::from_dec_str(
             "33509158800074003487174289148292687789659295220513886355337449724907776218753",

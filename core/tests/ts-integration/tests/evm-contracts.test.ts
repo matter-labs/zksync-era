@@ -166,35 +166,16 @@ describe('EVM equivalence contract', () => {
             await counterContract.deployTransaction.wait();
             await alice.provider.getTransactionReceipt(counterContract.deployTransaction.hash);
 
-            console.log('a');
-
             const proxyCallerFactory = getEVMContractFactory(alice, artifacts.proxyCaller);
             const proxyCallerContract = await proxyCallerFactory.deploy();
             await proxyCallerContract.deployTransaction.wait();
             await alice.provider.getTransactionReceipt(proxyCallerContract.deployTransaction.hash);
 
-            // console.log('b');
-
             expect((await proxyCallerContract.proxyGet(counterContract.address)).toString()).toEqual('1');
 
-            // console.log('c');
-
             await (await proxyCallerContract.executeIncrememt(counterContract.address, 1)).wait();
-            // console.log('d');
 
             expect((await proxyCallerContract.proxyGet(counterContract.address)).toString()).toEqual('2');
-            // console.log('e');
-
-            // const data = proxyCallerContract.interface.encodeFunctionData('proxyGetBytes', [counterContract.address]);
-
-            // const tracedCall = await alice.provider.send('debug_traceCall', [
-            //     {
-            //         to: proxyCallerContract.address,
-            //         data
-            //     }
-            // ])
-
-            // console.log(JSON.stringify(tracedCall, null, 2));
 
             expect((await proxyCallerContract.callStatic.proxyGetBytes(counterContract.address)).toString()).toEqual(
                 '0x54657374696e67'
@@ -335,7 +316,7 @@ describe('EVM equivalence contract', () => {
     });
 
     // NOTE: Gas cost comparisons should be done on a *fresh* chain that doesn't have e.g. bytecodes already published
-    describe.only('Uniswap-v2', () => {
+    describe('Uniswap-v2', () => {
         let evmToken1: ethers.Contract;
         let evmToken2: ethers.Contract;
         let evmUniswapFactory: ethers.Contract;
@@ -352,8 +333,6 @@ describe('EVM equivalence contract', () => {
             await evmToken1.deployTransaction.wait();
             evmToken2 = await erc20Factory.deploy();
             await evmToken2.deployTransaction.wait();
-        
-            console.log('a');
 
             const evmUniswapFactoryFactory = getEVMContractFactory(alice, artifacts.uniswapV2Factory);
             evmUniswapFactory = await evmUniswapFactoryFactory.deploy('0x0000000000000000000000000000000000000000', {
@@ -371,8 +350,6 @@ describe('EVM equivalence contract', () => {
                     }
                 }
             );
-
-            console.log('b');
             const evmPairReceipt = await (
                 await evmUniswapFactory.createPair(evmToken1.address, evmToken2.address)
             ).wait();
@@ -383,7 +360,6 @@ describe('EVM equivalence contract', () => {
             dumpOpcodeLogs(evmUniswapFactory.deployTransaction.hash, alice.provider);
             dumpOpcodeLogs(evmPairReceipt.transactionHash, alice.provider);
 
-            console.log('c');
             const evmUniswapPairFactory = getEVMContractFactory(alice, artifacts.uniswapV2Pair);
             const nativeUniswapPairFactory = new zksync.ContractFactory(
                 contracts.uniswapV2Pair.abi,
@@ -396,8 +372,6 @@ describe('EVM equivalence contract', () => {
                     evmPairReceipt.logs.find((log: any) => log.topics[0] === NEW_PAIR_TOPIC).data
                 )[0]
             );
-
-            console.log('d');
             nativeUniswapPair = nativeUniswapPairFactory.attach(
                 ethers.utils.defaultAbiCoder.decode(
                     ['address', 'uint256'],
@@ -408,17 +382,10 @@ describe('EVM equivalence contract', () => {
             if (!token1IsFirst) {
                 [evmToken1, evmToken2] = [evmToken2, evmToken1];
             }
-            console.log('e');
-
             await (await evmToken1.transfer(evmUniswapPair.address, 100000)).wait();
             await (await evmToken1.transfer(nativeUniswapPair.address, 100000)).wait();
-            console.log('f');
-
             await (await evmToken2.transfer(evmUniswapPair.address, 100000)).wait();
             await (await evmToken2.transfer(nativeUniswapPair.address, 100000)).wait();
-
-            console.log('g');
-
 
             // Only log the first deployment
             if (logGasCosts && !deployLogged) {
@@ -438,81 +405,43 @@ describe('EVM equivalence contract', () => {
         });
 
         test('mint, swap, and burn should work', async () => {
-            console.log('h');
+            const evmMintReceipt = await (await evmUniswapPair.mint(alice.address)).wait();
+            const nativeMintReceipt = await (await nativeUniswapPair.mint(alice.address)).wait();
+            dumpOpcodeLogs(evmMintReceipt.transactionHash, alice.provider);
 
-            console.log(await evmUniswapPair.token1());
+            await (await evmToken1.transfer(evmUniswapPair.address, 10000)).wait();
+            await (await evmToken1.transfer(nativeUniswapPair.address, 10000)).wait();
+            const evmSwapReceipt = await (await evmUniswapPair.swap(0, 5000, alice.address, '0x')).wait();
+            const nativeSwapReceipt = await (await nativeUniswapPair.swap(0, 5000, alice.address, '0x')).wait();
+            dumpOpcodeLogs(evmSwapReceipt.transactionHash, alice.provider);
 
-            const params = evmUniswapPair.interface.encodeFunctionData('mint', [alice.address]);
+            const evmLiquidityTransfer = await (
+                await evmUniswapPair.transfer(
+                    evmUniswapPair.address,
+                    (await evmUniswapPair.balanceOf(alice.address)).toString()
+                )
+            ).wait();
+            await (
+                await nativeUniswapPair.transfer(
+                    nativeUniswapPair.address,
+                    (await nativeUniswapPair.balanceOf(alice.address)).toString()
+                )
+            ).wait();
+            const evmBurnReceipt = await (await evmUniswapPair.burn(alice.address)).wait();
+            const nativeBurnReceipt = await (await nativeUniswapPair.burn(alice.address)).wait();
+            expect(Number((await evmToken1.balanceOf(alice.address)).toString())).toBeGreaterThanOrEqual(990000);
+            expect(Number((await evmToken2.balanceOf(alice.address)).toString())).toBeGreaterThanOrEqual(990000);
 
-            console.log(evmUniswapPair.address);
-
-            const tx = await evmUniswapPair.mint(alice.address, {
-                //  gasLimit: 40000000
-            });
-            await tx.wait()
-            try {
-            }catch {}
-
-            const tracedCall = await alice.provider.send('debug_traceTransaction', [
-                tx.hash
-            ]);
-            console.log(JSON.stringify(tracedCall, null,2));
-            // const evmMintReceipt = await ().wait();
-            return;
-    
-
-            // // const evmMintReceipt = await (await evmUniswapPair.mint(alice.address)).wait();
-            // console.log('h2');
-
-            // const nativeMintReceipt = await (await nativeUniswapPair.mint(alice.address)).wait();
-            // dumpOpcodeLogs(evmMintReceipt.transactionHash, alice.provider);
-
-            // console.log('i');
-
-
-            // await (await evmToken1.transfer(evmUniswapPair.address, 10000)).wait();
-            // await (await evmToken1.transfer(nativeUniswapPair.address, 10000)).wait();
-            // console.log('j');
-
-            // const evmSwapReceipt = await (await evmUniswapPair.swap(0, 5000, alice.address, '0x')).wait();
-            // const nativeSwapReceipt = await (await nativeUniswapPair.swap(0, 5000, alice.address, '0x')).wait();
-            // dumpOpcodeLogs(evmSwapReceipt.transactionHash, alice.provider);
-            // console.log('k');
-
-            // const evmLiquidityTransfer = await (
-            //     await evmUniswapPair.transfer(
-            //         evmUniswapPair.address,
-            //         (await evmUniswapPair.balanceOf(alice.address)).toString()
-            //     )
-            // ).wait();
-            // console.log('l');
-
-            // await (
-            //     await nativeUniswapPair.transfer(
-            //         nativeUniswapPair.address,
-            //         (await nativeUniswapPair.balanceOf(alice.address)).toString()
-            //     )
-            // ).wait();
-            // console.log('m');
-
-            // const evmBurnReceipt = await (await evmUniswapPair.burn(alice.address)).wait();
-            // const nativeBurnReceipt = await (await nativeUniswapPair.burn(alice.address)).wait();
-            // expect(Number((await evmToken1.balanceOf(alice.address)).toString())).toBeGreaterThanOrEqual(990000);
-            // expect(Number((await evmToken2.balanceOf(alice.address)).toString())).toBeGreaterThanOrEqual(990000);
-                
-            // console.log('n');
-
-
-            // if (logGasCosts) {
-            //     console.log('UniswapV2Pair native mint gas: ' + nativeMintReceipt.gasUsed);
-            //     console.log('UniswapV2Pair evm mint gas: ' + evmMintReceipt.gasUsed);
-            //     console.log('UniswapV2Pair native swap gas: ' + nativeSwapReceipt.gasUsed);
-            //     console.log('UniswapV2Pair evm swap gas: ' + evmSwapReceipt.gasUsed);
-            //     console.log('UniswapV2Pair native burn gas: ' + nativeBurnReceipt.gasUsed);
-            //     console.log('UniswapV2Pair evm burn gas: ' + evmBurnReceipt.gasUsed);
-            // }
-            // dumpOpcodeLogs(evmLiquidityTransfer.transactionHash, alice.provider);
-            // dumpOpcodeLogs(evmBurnReceipt.transactionHash, alice.provider);
+            if (logGasCosts) {
+                console.log('UniswapV2Pair native mint gas: ' + nativeMintReceipt.gasUsed);
+                console.log('UniswapV2Pair evm mint gas: ' + evmMintReceipt.gasUsed);
+                console.log('UniswapV2Pair native swap gas: ' + nativeSwapReceipt.gasUsed);
+                console.log('UniswapV2Pair evm swap gas: ' + evmSwapReceipt.gasUsed);
+                console.log('UniswapV2Pair native burn gas: ' + nativeBurnReceipt.gasUsed);
+                console.log('UniswapV2Pair evm burn gas: ' + evmBurnReceipt.gasUsed);
+            }
+            dumpOpcodeLogs(evmLiquidityTransfer.transactionHash, alice.provider);
+            dumpOpcodeLogs(evmBurnReceipt.transactionHash, alice.provider);
         });
     });
 
