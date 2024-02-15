@@ -16,6 +16,7 @@ use zksync_node_framework::{
         metadata_calculator::MetadataCalculatorLayer,
         object_store::ObjectStoreLayer,
         pools_layer::PoolsLayerBuilder,
+        query_eth_client::QueryEthClientLayer,
         state_keeper::{
             main_node_batch_executor_builder::MainNodeBatchExecutorBuilderLayer,
             mempool_io::MempoolIOLayer, StateKeeperLayer,
@@ -46,15 +47,17 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
+    fn add_query_eth_client_layer(mut self) -> anyhow::Result<Self> {
+        let eth_client_config = ETHClientConfig::from_env()?;
+        let query_eth_client_layer = QueryEthClientLayer::new(eth_client_config.web3_url);
+        self.node.add_layer(query_eth_client_layer);
+        Ok(self)
+    }
+
     fn add_fee_input_layer(mut self) -> anyhow::Result<Self> {
         let gas_adjuster_config = GasAdjusterConfig::from_env()?;
-        let eth_client_config = ETHClientConfig::from_env()?;
         let state_keeper_config = StateKeeperConfig::from_env()?;
-        let fee_input_layer = SequencerFeeInputLayer::new(
-            gas_adjuster_config,
-            eth_client_config,
-            state_keeper_config,
-        );
+        let fee_input_layer = SequencerFeeInputLayer::new(gas_adjuster_config, state_keeper_config);
         self.node.add_layer(fee_input_layer);
         Ok(self)
     }
@@ -117,6 +120,7 @@ fn main() -> anyhow::Result<()> {
 
     MainNodeBuilder::new()
         .add_pools_layer()?
+        .add_query_eth_client_layer()?
         .add_fee_input_layer()?
         .add_object_store_layer()?
         .add_metadata_calculator_layer()?
