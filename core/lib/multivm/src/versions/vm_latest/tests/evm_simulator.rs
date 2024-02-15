@@ -5,7 +5,7 @@ use itertools::Itertools;
 // FIXME: 1.4.1 should not be imported from 1.5.0
 use zk_evm_1_4_1::sha2::{self};
 use zk_evm_1_5_0::zkevm_opcode_defs::{BlobSha256Format, VersionedHashLen32};
-use zksync_contracts::{load_contract, read_evm_bytecode};
+use zksync_contracts::{load_contract, read_bytecode, read_evm_bytecode};
 use zksync_state::InMemoryStorage;
 use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_types::{
@@ -383,4 +383,75 @@ fn test_evm_basic_create() {
         ),
         expected_deployed_code_hash,
     )
+}
+
+#[test]
+fn test_evm_staticcall_behavior() {
+    let zkevm_static_caller = read_bytecode("etc/contracts-test-data/artifacts-zk/contracts/evm-simulator/StaticCaller.sol/StaticCallTester.json");
+    let zkevm_static_caller_abi = load_contract("etc/contracts-test-data/artifacts-zk/contracts/evm-simulator/StaticCaller.sol/StaticCallTester.json");
+    let zkevm_static_caller_address = Address::random();
+
+    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+        .with_empty_in_memory_storage()
+        .with_execution_mode(TxExecutionMode::VerifyExecute)
+        .with_random_rich_accounts(1)
+        .with_custom_contracts(vec![(
+            zkevm_static_caller,
+            zkevm_static_caller_address,
+            false,
+        )])
+        .build();
+
+    let (address, abi) = deploy_evm_contract(&mut vm, "staticcall", "StaticCallTester");
+    let account = &mut vm.rich_accounts[0];
+
+    // Firsly, we check the correct behavior within EVM only.
+    let tx = account.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(address),
+            calldata: abi.function("test").unwrap().encode_input(&[]).unwrap(),
+            value: U256::zero(),
+            factory_deps: None,
+        },
+        None,
+    );
+    vm.vm.push_transaction(tx);
+    let tx_result: crate::vm_latest::VmExecutionResultAndLogs =
+        vm.vm.execute(VmExecutionMode::OneTx);
+    println!("{:#?}", tx_result.result);
+    assert!(
+        !tx_result.result.is_failed(),
+        "Transaction wasn't successful"
+    );
+
+    // Secondly, we check the correct behavior when zkEVM calls EVM.
+    let test_inner_calldata = abi
+        .function("testInner")
+        .unwrap()
+        .encode_input(&[])
+        .unwrap();
+    let tx = account.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(zkevm_static_caller_address),
+            calldata: zkevm_static_caller_abi
+                .function("performStaticCall")
+                .unwrap()
+                .encode_input(&[Token::Address(address), Token::Bytes(test_inner_calldata)])
+                .unwrap(),
+            value: U256::zero(),
+            factory_deps: None,
+        },
+        None,
+    );
+    vm.vm.push_transaction(tx);
+    let tx_result: crate::vm_latest::VmExecutionResultAndLogs =
+        vm.vm.execute(VmExecutionMode::OneTx);
+    println!("{:#?}", tx_result.result);
+    assert!(
+        !tx_result.result.is_failed(),
+        "Transaction wasn't successful"
+    );
+
+    let batch_result = vm.vm.execute(VmExecutionMode::Batch);
+    assert!(!batch_result.result.is_failed(), "Batch wasn't successful");
 }
