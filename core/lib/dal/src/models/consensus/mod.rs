@@ -1,9 +1,9 @@
+#[cfg(test)]
 mod tests;
 
 use anyhow::{anyhow, Context as _};
 use zksync_consensus_roles::validator;
-use zksync_protobuf::{required, ProtoFmt};
-use zksync_protobuf_config::repr::ProtoRepr;
+use zksync_protobuf::{required, ProtoFmt, ProtoRepr};
 use zksync_types::{
     fee::Fee,
     l1::{OpProcessingType, PriorityQueueType},
@@ -80,7 +80,7 @@ impl ProtoFmt for Payload {
             transactions: self
                 .transactions
                 .iter()
-                .map(|t| proto::Transaction::build(t))
+                .map(proto::Transaction::build)
                 .collect(),
             last_in_batch: Some(self.last_in_batch),
         }
@@ -105,98 +105,101 @@ impl ProtoRepr for proto::Transaction {
         let execute = required(&self.execute).context("execute")?;
         Ok(Self::Type {
             common_data: match common_data {
-                proto::transaction::CommonData::L1(data) => {
+                proto::transaction::CommonData::L1(common_data) => {
                     ExecuteTransactionCommon::L1(L1TxCommonData {
-                        sender: required(&data.sender_address)
+                        sender: required(&common_data.sender_address)
                             .and_then(|x| parse_h160(x))
                             .context("common_data.sender_address")?,
-                        serial_id: required(&data.serial_id)
+                        serial_id: required(&common_data.serial_id)
                             .map(|x| PriorityOpId(*x))
                             .context("common_data.serial_id")?,
-                        deadline_block: *required(&data.deadline_block)
+                        deadline_block: *required(&common_data.deadline_block)
                             .context("common_data.deadline_block")?,
-                        layer_2_tip_fee: required(&data.layer_2_tip_fee)
+                        layer_2_tip_fee: required(&common_data.layer_2_tip_fee)
                             .and_then(|x| parse_h256(x))
                             .map(h256_to_u256)
                             .context("common_data.layer_2_tip_fee")?,
-                        full_fee: required(&data.full_fee)
+                        full_fee: required(&common_data.full_fee)
                             .and_then(|x| parse_h256(x))
                             .map(h256_to_u256)
                             .context("common_data.full_fee")?,
-                        max_fee_per_gas: required(&data.max_fee_per_gas)
+                        max_fee_per_gas: required(&common_data.max_fee_per_gas)
                             .and_then(|x| parse_h256(x))
                             .map(h256_to_u256)
                             .context("common_data.max_fee_per_gas")?,
-                        gas_limit: required(&data.gas_limit)
+                        gas_limit: required(&common_data.gas_limit)
                             .and_then(|x| parse_h256(x))
                             .map(h256_to_u256)
                             .context("common_data.gas_limit")?,
-                        gas_per_pubdata_limit: required(&data.gas_per_pubdata_limit)
+                        gas_per_pubdata_limit: required(&common_data.gas_per_pubdata_limit)
                             .and_then(|x| parse_h256(x))
                             .map(h256_to_u256)
                             .context("common_data.gas_per_pubdata_limit")?,
-                        op_processing_type: required(&data.op_processing_type)
+                        op_processing_type: required(&common_data.op_processing_type)
                             .and_then(|x| {
                                 OpProcessingType::try_from(u8::try_from(*x)?)
                                     .map_err(|_| anyhow!("u8::try_from"))
                             })
                             .context("common_data.op_processing_type")?,
-                        priority_queue_type: required(&data.priority_queue_type)
+                        priority_queue_type: required(&common_data.priority_queue_type)
                             .and_then(|x| {
                                 PriorityQueueType::try_from(u8::try_from(*x)?)
                                     .map_err(|_| anyhow!("u8::try_from"))
                             })
                             .context("common_data.priority_queue_type")?,
-                        eth_hash: required(&data.eth_hash)
+                        eth_hash: required(&common_data.eth_hash)
                             .and_then(|x| parse_h256(x))
                             .context("common_data.eth_hash")?,
-                        eth_block: *required(&data.eth_block).context("common_data.eth_block")?,
-                        canonical_tx_hash: required(&data.canonical_tx_hash)
+                        eth_block: *required(&common_data.eth_block)
+                            .context("common_data.eth_block")?,
+                        canonical_tx_hash: required(&common_data.canonical_tx_hash)
                             .and_then(|x| parse_h256(x))
                             .context("common_data.canonical_tx_hash")?,
-                        to_mint: required(&data.to_mint)
+                        to_mint: required(&common_data.to_mint)
                             .and_then(|x| parse_h256(x))
                             .map(h256_to_u256)
                             .context("common_data.to_mint")?,
-                        refund_recipient: required(&data.refund_recipient_address)
+                        refund_recipient: required(&common_data.refund_recipient_address)
                             .and_then(|x| parse_h160(x))
                             .context("common_data.refund_recipient_address")?,
                     })
                 }
-                proto::transaction::CommonData::L2(data) => {
+                proto::transaction::CommonData::L2(common_data) => {
                     ExecuteTransactionCommon::L2(L2TxCommonData {
-                        nonce: required(&data.nonce)
+                        nonce: required(&common_data.nonce)
                             .map(|x| Nonce(*x))
                             .context("common_data.nonce")?,
                         fee: Fee {
-                            gas_limit: required(&data.gas_limit)
+                            gas_limit: required(&common_data.gas_limit)
                                 .and_then(|x| parse_h256(x))
                                 .map(h256_to_u256)
                                 .context("common_data.gas_limit")?,
-                            max_fee_per_gas: required(&data.max_fee_per_gas)
+                            max_fee_per_gas: required(&common_data.max_fee_per_gas)
                                 .and_then(|x| parse_h256(x))
                                 .map(h256_to_u256)
                                 .context("common_data.max_fee_per_gas")?,
-                            max_priority_fee_per_gas: required(&data.max_priority_fee_per_gas)
-                                .and_then(|x| parse_h256(x))
-                                .map(h256_to_u256)
-                                .context("common_data.max_priority_fee_per_gas")?,
-                            gas_per_pubdata_limit: required(&data.gas_per_pubdata_limit)
+                            max_priority_fee_per_gas: required(
+                                &common_data.max_priority_fee_per_gas,
+                            )
+                            .and_then(|x| parse_h256(x))
+                            .map(h256_to_u256)
+                            .context("common_data.max_priority_fee_per_gas")?,
+                            gas_per_pubdata_limit: required(&common_data.gas_per_pubdata_limit)
                                 .and_then(|x| parse_h256(x))
                                 .map(h256_to_u256)
                                 .context("common_data.gas_per_pubdata_limit")?,
                         },
-                        initiator_address: required(&data.initiator_address)
+                        initiator_address: required(&common_data.initiator_address)
                             .and_then(|x| parse_h160(x))
                             .context("common_data.initiator_address")?,
-                        signature: required(&data.signature)
+                        signature: required(&common_data.signature)
                             .context("common_data.signature")?
                             .clone(),
-                        transaction_type: required(&data.transaction_type)
-                            .and_then(|x| Ok(TransactionType::try_from(u32::try_from(*x)?)?))
+                        transaction_type: required(&common_data.transaction_type)
+                            .and_then(|x| Ok(TransactionType::try_from(*x)?))
                             .context("common_data.transaction_type")?,
                         input: {
-                            match &data.input {
+                            match &common_data.input {
                                 None => None,
                                 Some(input) => Some(InputData {
                                     hash: required(&input.hash)
@@ -209,7 +212,7 @@ impl ProtoRepr for proto::Transaction {
                             }
                         },
                         paymaster_params: {
-                            let params = required(&data.paymaster_params)?;
+                            let params = required(&common_data.paymaster_params)?;
                             PaymasterParams {
                                 paymaster: required(&params.paymaster_address)
                                     .and_then(|x| parse_h160(x))
@@ -221,52 +224,53 @@ impl ProtoRepr for proto::Transaction {
                         },
                     })
                 }
-                proto::transaction::CommonData::ProtocolUpgrade(data) => {
+                proto::transaction::CommonData::ProtocolUpgrade(common_data) => {
                     ExecuteTransactionCommon::ProtocolUpgrade(ProtocolUpgradeTxCommonData {
-                        sender: required(&data.sender_address)
+                        sender: required(&common_data.sender_address)
                             .and_then(|x| parse_h160(x))
                             .context("common_data.sender_address")?,
-                        upgrade_id: required(&data.upgrade_id)
+                        upgrade_id: required(&common_data.upgrade_id)
                             .and_then(|x| Ok(ProtocolVersionId::try_from(u16::try_from(*x)?)?))
-                            .context("protocol_version")?,
-                        max_fee_per_gas: required(&data.max_fee_per_gas)
+                            .context("common_data.upgrade_id")?,
+                        max_fee_per_gas: required(&common_data.max_fee_per_gas)
                             .and_then(|x| parse_h256(x))
                             .map(h256_to_u256)
-                            .context("max_fee_per_gas")?,
-                        gas_limit: required(&data.gas_limit)
+                            .context("common_data.max_fee_per_gas")?,
+                        gas_limit: required(&common_data.gas_limit)
                             .and_then(|x| parse_h256(x))
                             .map(h256_to_u256)
-                            .context("gas_limit")?,
-                        gas_per_pubdata_limit: required(&data.gas_per_pubdata_limit)
+                            .context("common_data.gas_limit")?,
+                        gas_per_pubdata_limit: required(&common_data.gas_per_pubdata_limit)
                             .and_then(|x| parse_h256(x))
                             .map(h256_to_u256)
-                            .context("gas_per_pubdata_limit")?,
-                        eth_hash: required(&data.eth_hash)
+                            .context("common_data.gas_per_pubdata_limit")?,
+                        eth_hash: required(&common_data.eth_hash)
                             .and_then(|x| parse_h256(x))
-                            .context("eth_hash")?,
-                        eth_block: *required(&data.eth_block).context("common_data.eth_block")?,
-                        canonical_tx_hash: required(&data.canonical_tx_hash)
+                            .context("common_data.eth_hash")?,
+                        eth_block: *required(&common_data.eth_block)
+                            .context("common_data.eth_block")?,
+                        canonical_tx_hash: required(&common_data.canonical_tx_hash)
                             .and_then(|x| parse_h256(x))
-                            .context("eth_hash")?,
-                        to_mint: required(&data.to_mint)
+                            .context("common_data.canonical_tx_hash")?,
+                        to_mint: required(&common_data.to_mint)
                             .and_then(|x| parse_h256(x))
                             .map(h256_to_u256)
-                            .context("max_fee_per_gas")?,
-                        refund_recipient: required(&data.refund_recipient_address)
+                            .context("common_data.to_mint")?,
+                        refund_recipient: required(&common_data.refund_recipient_address)
                             .and_then(|x| parse_h160(x))
-                            .context("common_data.sender_address")?,
+                            .context("common_data.refund_recipient_address")?,
                     })
                 }
             },
             execute: Execute {
                 contract_address: required(&execute.contract_address)
                     .and_then(|x| parse_h160(x))
-                    .context("contract_address")?,
+                    .context("execute.contract_address")?,
                 calldata: required(&execute.calldata).context("calldata")?.clone(),
                 value: required(&execute.value)
                     .and_then(|x| parse_h256(x))
                     .map(h256_to_u256)
-                    .context("contract_address")?,
+                    .context("execute.value")?,
                 factory_deps: match execute.factory_deps.is_empty() {
                     true => None,
                     false => Some(execute.factory_deps.clone()),

@@ -1,11 +1,11 @@
 use anyhow::Context as _;
 use zksync_config::configs::{api, ApiConfig};
-use zksync_protobuf::required;
-
-use crate::{
-    parse_h256, proto,
+use zksync_protobuf::{
     repr::{read_required_repr, ProtoRepr},
+    required,
 };
+
+use crate::{parse_h256, proto};
 
 impl ProtoRepr for proto::Api {
     type Type = ApiConfig;

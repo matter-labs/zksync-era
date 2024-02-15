@@ -1,24 +1,12 @@
-use anyhow::{anyhow, Context as _};
-use zksync_consensus_roles::validator;
+use anyhow::Context as _;
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_protobuf::{required, ProtoFmt};
-use zksync_protobuf_config::repr::ProtoRepr;
 use zksync_types::{
-    api::en,
-    fee::Fee,
-    l1::{OpProcessingType, PriorityQueueType},
-    l2::TransactionType,
-    protocol_version::ProtocolUpgradeTxCommonData,
-    transaction_request::PaymasterParams,
-    Address, Execute, ExecuteTransactionCommon, InputData, L1BatchNumber, L1TxCommonData,
-    L2TxCommonData, MiniblockNumber, Nonce, PriorityOpId, ProtocolVersionId, Transaction, H160,
-    H256,
+    api::en, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, Transaction, H256,
 };
-use zksync_utils::{h256_to_u256, u256_to_h256};
 
 use crate::{
     consensus_dal::Payload,
-    models::{parse_h160, parse_h256, proto},
+    models::{parse_h160, parse_h256},
 };
 
 #[derive(Debug, Clone, sqlx::FromRow)]
