@@ -18,10 +18,8 @@ use zksync_types::{
 };
 use zksync_utils::bytecode::hash_bytecode;
 use zksync_web3_decl::{
-    jsonrpsee::{
-        core::{client::Error, ClientError as RpcError},
-        http_client::HttpClient,
-    },
+    error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult},
+    jsonrpsee::{core::client, http_client::HttpClient},
     namespaces::{EnNamespaceClient, SnapshotsNamespaceClient},
 };
 
@@ -75,13 +73,13 @@ impl From<SnapshotsApplierOutcome> for SnapshotsApplierError {
     }
 }
 
-impl From<RpcError> for SnapshotsApplierError {
-    fn from(error: RpcError) -> Self {
-        match error {
-            Error::Transport(_) | Error::RequestTimeout | Error::RestartNeeded(_) => {
-                Self::Retryable(error.into())
+impl From<EnrichedClientError> for SnapshotsApplierError {
+    fn from(err: EnrichedClientError) -> Self {
+        match err.as_ref() {
+            client::Error::Transport(_) | client::Error::RequestTimeout => {
+                Self::Retryable(err.into())
             }
-            _ => Self::Fatal(error.into()),
+            _ => Self::Fatal(err.into()),
         }
     }
 }
@@ -101,28 +99,38 @@ pub enum SnapshotsApplierOutcome {
 /// Main node API used by the [`SnapshotsApplier`].
 #[async_trait]
 pub trait SnapshotsApplierMainNodeClient: fmt::Debug + Send + Sync {
-    async fn fetch_l2_block(&self, number: MiniblockNumber) -> Result<Option<SyncBlock>, RpcError>;
+    async fn fetch_l2_block(
+        &self,
+        number: MiniblockNumber,
+    ) -> EnrichedClientResult<Option<SyncBlock>>;
 
-    async fn fetch_newest_snapshot(&self) -> Result<Option<SnapshotHeader>, RpcError>;
+    async fn fetch_newest_snapshot(&self) -> EnrichedClientResult<Option<SnapshotHeader>>;
 }
 
 #[async_trait]
 impl SnapshotsApplierMainNodeClient for HttpClient {
-    async fn fetch_l2_block(&self, number: MiniblockNumber) -> Result<Option<SyncBlock>, RpcError> {
-        // FIXME: use RPC client extensions
-        Ok(self.sync_l2_block(number, false).await?)
+    async fn fetch_l2_block(
+        &self,
+        number: MiniblockNumber,
+    ) -> EnrichedClientResult<Option<SyncBlock>> {
+        self.sync_l2_block(number, false)
+            .rpc_context("sync_l2_block")
+            .with_arg("number", &number)
+            .await
     }
 
-    async fn fetch_newest_snapshot(&self) -> Result<Option<SnapshotHeader>, RpcError> {
-        let snapshots = self.get_all_snapshots().await?;
-        if snapshots.snapshots_l1_batch_numbers.is_empty() {
-            Ok(None)
-        } else {
-            let newest_snapshot = snapshots.snapshots_l1_batch_numbers[0];
-            Ok(self
-                .get_snapshot_by_l1_batch_number(newest_snapshot)
-                .await?)
-        }
+    async fn fetch_newest_snapshot(&self) -> EnrichedClientResult<Option<SnapshotHeader>> {
+        let snapshots = self
+            .get_all_snapshots()
+            .rpc_context("get_all_snapshots")
+            .await?;
+        let Some(newest_snapshot) = snapshots.snapshots_l1_batch_numbers.first() else {
+            return Ok(None);
+        };
+        self.get_snapshot_by_l1_batch_number(*newest_snapshot)
+            .rpc_context("get_snapshot_by_l1_batch_number")
+            .with_arg("number", newest_snapshot)
+            .await
     }
 }
 
