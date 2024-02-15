@@ -46,7 +46,7 @@ mod metrics;
 const RELEASE_MANIFEST: &str =
     std::include_str!("../../../../.github/release-please/manifest.json");
 
-use crate::config::{observability::ObservabilityConfig, ExternalNodeConfig};
+use crate::config::{observability::observability_config_from_env, ExternalNodeConfig};
 
 /// Creates the state keeper configured to work in the external node mode.
 #[allow(clippy::too_many_arguments)]
@@ -403,7 +403,7 @@ async fn main() -> anyhow::Result<()> {
     let opt = Cli::parse();
 
     let observability_config =
-        ObservabilityConfig::from_env().context("ObservabilityConfig::from_env()")?;
+        observability_config_from_env().context("ObservabilityConfig::from_env()")?;
     let log_format: vlog::LogFormat = observability_config
         .log_format
         .parse()
