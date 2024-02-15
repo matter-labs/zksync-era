@@ -1,0 +1,6 @@
+use zksync::{Wallet, types::Token};
+
+fn make_payment(wallet: &Wallet, amount: u64, recipient: &str) {
+    let token = Token::UsdCoin; // Assuming USDC is the token used
+    wallet.transfer(recipient, amount, &token).expect("Failed to make payment");
+}
