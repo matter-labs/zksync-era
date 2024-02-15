@@ -303,10 +303,7 @@ impl ContractVerifier {
                     vec![(file_name, source)].into_iter().collect();
                 let optimizer = Optimizer {
                     enabled: request.req.optimization_used,
-                    mode: request
-                        .req
-                        .optimizer_mode
-                        .and_then(|s| s.chars().into_iter().next()),
+                    mode: request.req.optimizer_mode.and_then(|s| s.chars().next()),
                 };
 
                 let settings = Settings {
