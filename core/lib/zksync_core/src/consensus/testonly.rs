@@ -432,7 +432,7 @@ impl StateKeeperRunner {
                 miniblock_sealer_handle,
                 self.pool.clone(),
                 self.actions_queue,
-                SyncState::new(),
+                SyncState::default(),
                 Box::<MockMainNodeClient>::default(),
                 Address::repeat_byte(11),
                 u32::MAX,

@@ -131,7 +131,7 @@ async fn init_tasks(
     // Create components.
     let fee_params_fetcher = Arc::new(MainNodeFeeParamsFetcher::new(&main_node_url));
 
-    let sync_state = SyncState::new();
+    let sync_state = SyncState::default();
     let (action_queue_sender, action_queue) = ActionQueue::new();
 
     let mut task_handles = vec![];
