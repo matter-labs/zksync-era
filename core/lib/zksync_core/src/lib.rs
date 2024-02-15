@@ -794,6 +794,10 @@ async fn add_state_keeper_to_task_futures(
     .await;
 
     task_futures.push(tokio::spawn(
+        state_keeper.run_event_indexes_migration(state_keeper_pool.clone()),
+    ));
+
+    task_futures.push(tokio::spawn(
         state_keeper.run_fee_address_migration(state_keeper_pool),
     ));
     task_futures.push(tokio::spawn(state_keeper.run()));
@@ -810,6 +814,7 @@ async fn add_state_keeper_to_task_futures(
     );
     let mempool_fetcher_handle = tokio::spawn(mempool_fetcher.run(stop_receiver));
     task_futures.push(mempool_fetcher_handle);
+
     Ok(())
 }
 

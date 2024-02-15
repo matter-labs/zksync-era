@@ -87,6 +87,8 @@ pub struct Web3JsonRpcConfig {
     pub websocket_requests_per_minute_limit: Option<NonZeroU32>,
     /// Tree API url, currently used to proxy `getProof` calls to the tree
     pub tree_api_url: Option<String>,
+    /// API mode, currently used to enable/disable filtering ETH Transfer events
+    pub api_eth_transfer_events: ApiEthTransferEvents,
 }
 
 impl Web3JsonRpcConfig {
@@ -121,6 +123,7 @@ impl Web3JsonRpcConfig {
             max_response_body_size_mb: Default::default(),
             websocket_requests_per_minute_limit: Default::default(),
             tree_api_url: None,
+            api_eth_transfer_events: Default::default(),
         }
     }
 
@@ -200,6 +203,10 @@ impl Web3JsonRpcConfig {
     pub fn tree_api_url(&self) -> Option<String> {
         self.tree_api_url.clone()
     }
+
+    pub fn api_eth_transfer_events(&self) -> ApiEthTransferEvents {
+        self.api_eth_transfer_events
+    }
 }
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -239,5 +246,33 @@ pub struct MerkleTreeApiConfig {
 impl MerkleTreeApiConfig {
     const fn default_port() -> u16 {
         3_072
+    }
+}
+
+/// API mode with respect to ETH Transfer events
+#[derive(Copy, Clone, Debug, PartialEq, Default, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ApiEthTransferEvents {
+    Disabled,
+    #[default]
+    Enabled,
+}
+
+impl From<u32> for ApiEthTransferEvents {
+    fn from(value: u32) -> Self {
+        match value {
+            0 => Self::Disabled,
+            1 => Self::Enabled,
+            _ => panic!("Invalid value for ApiEthTransferEvents"),
+        }
+    }
+}
+
+impl From<ApiEthTransferEvents> for u32 {
+    fn from(value: ApiEthTransferEvents) -> u32 {
+        match value {
+            ApiEthTransferEvents::Disabled => 0,
+            ApiEthTransferEvents::Enabled => 1,
+        }
     }
 }

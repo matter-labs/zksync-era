@@ -1,9 +1,10 @@
-use std::{collections::HashMap, fmt};
+use std::{collections::HashMap, fmt, ops};
 
 use sqlx::types::chrono::Utc;
-use zksync_system_constants::L1_MESSENGER_ADDRESS;
+use zksync_system_constants::{L1_MESSENGER_ADDRESS, L2_ETH_TOKEN_ADDRESS, TRANSFER_EVENT_TOPIC};
 use zksync_types::{
     api,
+    api::ApiEthTransferEvents,
     event::L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE,
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
     tx::IncludedTxLocation,
@@ -48,6 +49,8 @@ impl EventsDal<'_, '_> {
                 "COPY events(
                     miniblock_number, tx_hash, tx_index_in_block, address,
                     event_index_in_block, event_index_in_tx,
+                    event_index_in_block_without_eth_transfer,
+                    event_index_in_tx_without_eth_transfer,
                     topic1, topic2, topic3, topic4, value,
                     tx_initiator_address,
                     created_at, updated_at
@@ -60,6 +63,8 @@ impl EventsDal<'_, '_> {
         let mut buffer = String::new();
         let now = Utc::now().naive_utc().to_string();
         let mut event_index_in_block = 0_u32;
+        let mut event_index_in_block_without_eth_transfer = 0_u32;
+
         for (tx_location, events) in all_block_events {
             let IncludedTxLocation {
                 tx_hash,
@@ -67,6 +72,7 @@ impl EventsDal<'_, '_> {
                 tx_initiator_address,
             } = tx_location;
 
+            let mut event_index_in_tx_without_eth_transfer = 0_u32;
             for (event_index_in_tx, event) in events.iter().enumerate() {
                 write_str!(
                     &mut buffer,
@@ -74,6 +80,10 @@ impl EventsDal<'_, '_> {
                     address = event.address
                 );
                 write_str!(&mut buffer, "{event_index_in_block}|{event_index_in_tx}|");
+                write_str!(
+                    &mut buffer,
+                    "{event_index_in_block_without_eth_transfer}|{event_index_in_tx_without_eth_transfer}|",
+                );
                 write_str!(
                     &mut buffer,
                     r"\\x{topic0:x}|\\x{topic1:x}|\\x{topic2:x}|\\x{topic3:x}|",
@@ -87,6 +97,13 @@ impl EventsDal<'_, '_> {
                     r"\\x{value}|\\x{tx_initiator_address:x}|{now}|{now}",
                     value = hex::encode(&event.value)
                 );
+
+                if !(event.address == L2_ETH_TOKEN_ADDRESS
+                    && event.indexed_topics.get(0) == Some(&TRANSFER_EVENT_TOPIC))
+                {
+                    event_index_in_block_without_eth_transfer += 1;
+                    event_index_in_tx_without_eth_transfer += 1;
+                }
 
                 event_index_in_block += 1;
             }
@@ -191,12 +208,13 @@ impl EventsDal<'_, '_> {
     pub(crate) async fn get_logs_by_tx_hashes(
         &mut self,
         hashes: &[H256],
+        api_eth_transfer_events: ApiEthTransferEvents,
     ) -> Result<HashMap<H256, Vec<api::Log>>, SqlxError> {
         let hashes = hashes
             .iter()
             .map(|hash| hash.as_bytes().to_vec())
             .collect::<Vec<_>>();
-        let logs: Vec<_> = sqlx::query_as!(
+        let logs: Vec<StorageWeb3Log> = sqlx::query_as!(
             StorageWeb3Log,
             r#"
             SELECT
@@ -212,7 +230,9 @@ impl EventsDal<'_, '_> {
                 tx_hash,
                 tx_index_in_block,
                 event_index_in_block,
-                event_index_in_tx
+                event_index_in_tx,
+                event_index_in_block_without_eth_transfer,
+                event_index_in_tx_without_eth_transfer
             FROM
                 events
             WHERE
@@ -230,9 +250,10 @@ impl EventsDal<'_, '_> {
         let mut result = HashMap::<H256, Vec<api::Log>>::new();
 
         for storage_log in logs {
-            let current_log = api::Log::from(storage_log);
-            let tx_hash = current_log.transaction_hash.unwrap();
-            result.entry(tx_hash).or_default().push(current_log);
+            if let Some(current_log) = storage_log.into_api_log(api_eth_transfer_events) {
+                let tx_hash = current_log.transaction_hash.unwrap();
+                result.entry(tx_hash).or_default().push(current_log);
+            }
         }
 
         Ok(result)
@@ -330,9 +351,169 @@ impl EventsDal<'_, '_> {
     }
 }
 
+// Temporary methods for the migration of the event indexes without ETH transfer
+impl EventsDal<'_, '_> {
+    /// Method assigns indexes, that should be present without ETH transfer events for all the events in the given range.
+    pub async fn assign_indexes_without_eth_transfer(
+        &mut self,
+        numbers: ops::RangeInclusive<MiniblockNumber>,
+    ) -> sqlx::Result<u64> {
+        let count_eth_transfer_events = self
+            .assign_eth_transfer_event_indexes(numbers.clone())
+            .await?;
+
+        let result = sqlx::query!(
+            r#"
+            UPDATE events
+            SET
+                event_index_in_block_without_eth_transfer = subquery.event_index_in_block_without_eth_transfer,
+                event_index_in_tx_without_eth_transfer = subquery.event_index_in_tx_without_eth_transfer
+            FROM
+                (
+                    SELECT
+                        miniblock_number,
+                        tx_hash,
+                        address,
+                        topic1,
+                        tx_index_in_block,
+                        event_index_in_block,
+                        event_index_in_tx,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY
+                                miniblock_number
+                            ORDER BY
+                                event_index_in_block ASC
+                        ) - 1 AS event_index_in_block_without_eth_transfer,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY
+                                miniblock_number,
+                                tx_hash
+                            ORDER BY
+                                event_index_in_tx ASC
+                        ) - 1 AS event_index_in_tx_without_eth_transfer
+                    FROM
+                        events
+                    WHERE
+                        miniblock_number BETWEEN $1 AND $2
+                        AND NOT (
+                            address = $3
+                            AND topic1 = $4
+                        )
+                        AND (
+                            event_index_in_tx_without_eth_transfer IS NULL
+                            OR event_index_in_block_without_eth_transfer IS NULL
+                        )
+                ) AS subquery
+            WHERE
+                events.miniblock_number = subquery.miniblock_number
+                AND events.tx_hash = subquery.tx_hash
+                AND events.tx_index_in_block = subquery.tx_index_in_block
+                AND events.event_index_in_block = subquery.event_index_in_block
+                AND events.event_index_in_tx = subquery.event_index_in_tx
+            "#,
+            numbers.start().0 as i64,
+            numbers.end().0 as i64,
+            L2_ETH_TOKEN_ADDRESS.as_bytes(),
+            TRANSFER_EVENT_TOPIC.as_bytes()
+        )
+        .execute(self.storage.conn())
+        .await?;
+
+        Ok(result.rows_affected() + count_eth_transfer_events)
+    }
+
+    /// Method that assigns 0 for all the events with ETH transfer.
+    async fn assign_eth_transfer_event_indexes(
+        &mut self,
+        numbers: ops::RangeInclusive<MiniblockNumber>,
+    ) -> sqlx::Result<u64> {
+        let result = sqlx::query!(
+            r#"
+            UPDATE events
+            SET
+                event_index_in_block_without_eth_transfer = 0,
+                event_index_in_tx_without_eth_transfer = 0
+            WHERE
+                miniblock_number BETWEEN $1 AND $2
+                AND address = $3
+                AND topic1 = $4
+                AND (
+                    event_index_in_tx_without_eth_transfer IS NULL
+                    OR event_index_in_block_without_eth_transfer IS NULL
+                )
+            "#,
+            numbers.start().0 as i64,
+            numbers.end().0 as i64,
+            L2_ETH_TOKEN_ADDRESS.as_bytes(),
+            TRANSFER_EVENT_TOPIC.as_bytes()
+        )
+        .execute(self.storage.conn())
+        .await?;
+
+        Ok(result.rows_affected())
+    }
+
+    /// Method checks, whether any event in the miniblock has `index_without_eth_transfer` equal to NULL, which means that indexes are not migrated.
+    pub async fn are_event_indexes_migrated(
+        &mut self,
+        range: ops::RangeInclusive<MiniblockNumber>,
+    ) -> sqlx::Result<bool> {
+        let result = sqlx::query!(
+            r#"
+            SELECT
+                tx_hash
+            FROM
+                events
+            WHERE
+                miniblock_number BETWEEN $1 AND $2
+                AND (
+                    event_index_in_block_without_eth_transfer IS NULL
+                    OR event_index_in_tx_without_eth_transfer IS NULL
+                )
+            LIMIT
+                1
+            "#,
+            range.start().0 as i64,
+            range.end().0 as i64,
+        )
+        .fetch_optional(self.storage.conn())
+        .await?;
+
+        Ok(result.is_none())
+    }
+
+    /// Method sets `index_without_eth_transfer` equal to NULL, which means that indexes are not migrated.
+    /// Should be used only in tests!!!
+    pub async fn remove_event_indexes_without_eth_transfer(
+        &mut self,
+        numbers: ops::RangeInclusive<MiniblockNumber>,
+    ) -> sqlx::Result<u64> {
+        let result = sqlx::query!(
+            r#"
+            UPDATE events
+            SET
+                event_index_in_block_without_eth_transfer = NULL,
+                event_index_in_tx_without_eth_transfer = NULL
+            WHERE
+                miniblock_number BETWEEN $1 AND $2
+            "#,
+            numbers.start().0 as i64,
+            numbers.end().0 as i64,
+        )
+        .execute(self.storage.conn())
+        .await?;
+
+        Ok(result.rows_affected())
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use zksync_types::{Address, L1BatchNumber, ProtocolVersion};
+    use zksync_system_constants::{L2_ETH_TOKEN_ADDRESS, TRANSFER_EVENT_TOPIC};
+    use zksync_types::{
+        api::{ApiEthTransferEvents, GetLogsFilter},
+        Address, L1BatchNumber, ProtocolVersion,
+    };
 
     use super::*;
     use crate::{tests::create_miniblock_header, ConnectionPool};
@@ -370,19 +551,35 @@ mod tests {
             tx_initiator_address: Address::default(),
         };
         let first_events = vec![create_vm_event(0, 0), create_vm_event(1, 4)];
+
         let second_location = IncludedTxLocation {
             tx_hash: H256([2; 32]),
             tx_index_in_miniblock: 1,
             tx_initiator_address: Address::default(),
         };
-        let second_events = vec![
+        // ETH Transfer event, that should be filtered out
+        let second_events = vec![VmEvent {
+            location: (L1BatchNumber(1), 5),
+            address: L2_ETH_TOKEN_ADDRESS,
+            indexed_topics: vec![TRANSFER_EVENT_TOPIC],
+            value: vec![5],
+        }];
+
+        let third_location = IncludedTxLocation {
+            tx_hash: H256([3; 32]),
+            tx_index_in_miniblock: 2,
+            tx_initiator_address: Address::default(),
+        };
+        let third_events = vec![
             create_vm_event(2, 2),
             create_vm_event(3, 3),
             create_vm_event(4, 4),
         ];
+
         let all_events = vec![
             (first_location, first_events.iter().collect()),
             (second_location, second_events.iter().collect()),
+            (third_location, third_events.iter().collect()),
         ];
         conn.events_dal()
             .save_events(MiniblockNumber(1), &all_events)
@@ -390,15 +587,16 @@ mod tests {
 
         let logs = conn
             .events_web3_dal()
-            .get_all_logs(MiniblockNumber(0))
+            .get_all_logs(MiniblockNumber(0), ApiEthTransferEvents::Disabled)
             .await
             .unwrap();
+
         assert_eq!(logs.len(), 5);
         for (i, log) in logs.iter().enumerate() {
             let (expected_tx_index, expected_topics) = if i < first_events.len() {
                 (0_u64, &first_events[i].indexed_topics)
             } else {
-                (1_u64, &second_events[i - first_events.len()].indexed_topics)
+                (2_u64, &third_events[i - first_events.len()].indexed_topics)
             };
             let i = i as u8;
 
@@ -409,6 +607,165 @@ mod tests {
             assert_eq!(log.log_index, Some(i.into()));
             assert_eq!(log.data.0, [i]);
             assert_eq!(log.topics, *expected_topics);
+        }
+
+        let logs = conn
+            .events_web3_dal()
+            .get_all_logs(MiniblockNumber(0), ApiEthTransferEvents::Enabled)
+            .await
+            .unwrap();
+
+        assert_eq!(logs.len(), 6);
+        for (i, log) in logs.iter().enumerate() {
+            let (expected_tx_index, expected_topics) = if i < first_events.len() {
+                (0_u64, &first_events[i].indexed_topics)
+            } else if i < first_events.len() + second_events.len() {
+                (1_u64, &second_events[i - first_events.len()].indexed_topics)
+            } else {
+                (
+                    2_u64,
+                    &third_events[i - first_events.len() - second_events.len()].indexed_topics,
+                )
+            };
+            assert_eq!(log.block_number, Some(1_u64.into()));
+            assert_eq!(log.l1_batch_number, None);
+
+            if i < first_events.len() {
+                assert_eq!(log.address, Address::repeat_byte(i as u8));
+                assert_eq!(log.data.0, [i as u8]);
+            } else if i < first_events.len() + second_events.len() {
+                assert_eq!(log.address, L2_ETH_TOKEN_ADDRESS);
+                assert_eq!(log.data.0, [5u8]);
+            } else {
+                assert_eq!(log.address, Address::repeat_byte((i - 1) as u8));
+                assert_eq!(log.data.0, [(i - 1) as u8]);
+            }
+
+            assert_eq!(log.transaction_index, Some(expected_tx_index.into()));
+            assert_eq!(log.log_index, Some(i.into()));
+            assert_eq!(log.topics, *expected_topics);
+        }
+    }
+
+    #[tokio::test]
+    async fn assign_indexes_without_eth_transfer() {
+        let pool = ConnectionPool::test_pool().await;
+        let mut conn = pool.access_storage().await.unwrap();
+        conn.events_dal().rollback_events(MiniblockNumber(0)).await;
+        conn.blocks_dal()
+            .delete_miniblocks(MiniblockNumber(0))
+            .await
+            .unwrap();
+        conn.protocol_versions_dal()
+            .save_protocol_version_with_tx(ProtocolVersion::default())
+            .await;
+        conn.blocks_dal()
+            .insert_miniblock(&create_miniblock_header(1))
+            .await
+            .unwrap();
+
+        let first_location = IncludedTxLocation {
+            tx_hash: H256([1; 32]),
+            tx_index_in_miniblock: 0,
+            tx_initiator_address: Address::default(),
+        };
+        let first_events = vec![create_vm_event(0, 0), create_vm_event(1, 4)];
+
+        let second_location = IncludedTxLocation {
+            tx_hash: H256([2; 32]),
+            tx_index_in_miniblock: 1,
+            tx_initiator_address: Address::default(),
+        };
+        // ETH Transfer event, that should be filtered out
+        let second_events = vec![
+            VmEvent {
+                location: (L1BatchNumber(1), 5),
+                address: L2_ETH_TOKEN_ADDRESS,
+                indexed_topics: vec![TRANSFER_EVENT_TOPIC],
+                value: vec![5],
+            },
+            VmEvent {
+                location: (L1BatchNumber(1), 6),
+                address: L2_ETH_TOKEN_ADDRESS,
+                indexed_topics: vec![TRANSFER_EVENT_TOPIC],
+                value: vec![5],
+            },
+        ];
+
+        let third_location = IncludedTxLocation {
+            tx_hash: H256([3; 32]),
+            tx_index_in_miniblock: 2,
+            tx_initiator_address: Address::default(),
+        };
+        let third_events = vec![
+            create_vm_event(2, 2),
+            create_vm_event(3, 3),
+            create_vm_event(4, 4),
+        ];
+
+        let all_events = vec![
+            (first_location, first_events.iter().collect()),
+            (second_location, second_events.iter().collect()),
+            (third_location, third_events.iter().collect()),
+        ];
+
+        conn.events_dal()
+            .save_events(MiniblockNumber(1), &all_events)
+            .await;
+
+        conn.events_dal()
+            .remove_event_indexes_without_eth_transfer(MiniblockNumber(0)..=MiniblockNumber(1))
+            .await
+            .unwrap();
+
+        assert!(!conn
+            .events_dal()
+            .are_event_indexes_migrated(MiniblockNumber(0)..=MiniblockNumber(1))
+            .await
+            .unwrap());
+
+        let count = conn
+            .events_dal()
+            .assign_indexes_without_eth_transfer(MiniblockNumber(0)..=MiniblockNumber(1))
+            .await
+            .unwrap();
+        assert_eq!(count, 7);
+
+        let filter = GetLogsFilter {
+            from_block: MiniblockNumber(0),
+            to_block: MiniblockNumber(1),
+            topics: vec![],
+            addresses: vec![],
+        };
+
+        let raw_logs = conn
+            .events_web3_dal()
+            .get_raw_logs(filter, 1000)
+            .await
+            .unwrap();
+
+        for (i, log) in raw_logs.iter().enumerate() {
+            if log.address == L2_ETH_TOKEN_ADDRESS.as_bytes()
+                && log.topic1 == TRANSFER_EVENT_TOPIC.as_bytes()
+            {
+                assert_eq!(log.event_index_in_block_without_eth_transfer, Some(0));
+                assert_eq!(log.event_index_in_tx_without_eth_transfer, Some(0));
+            } else if i < first_events.len() {
+                assert_eq!(
+                    log.event_index_in_block_without_eth_transfer,
+                    Some(i as i32)
+                );
+                assert_eq!(log.event_index_in_tx_without_eth_transfer, Some(i as i32));
+            } else {
+                assert_eq!(
+                    log.event_index_in_block_without_eth_transfer,
+                    Some(i as i32 - 2)
+                );
+                assert_eq!(
+                    log.event_index_in_tx_without_eth_transfer,
+                    Some((i - first_events.len() - 2) as i32)
+                );
+            }
         }
     }
 

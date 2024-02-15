@@ -273,7 +273,8 @@ async fn init_tasks(
     let commitment_generator_handle = tokio::spawn(commitment_generator.run());
 
     let consistency_checker_handle = tokio::spawn(consistency_checker.run(stop_receiver.clone()));
-
+    let event_indexes_migration_handle =
+        task::spawn(state_keeper.run_event_indexes_migration(connection_pool.clone()));
     let updater_handle = task::spawn(batch_status_updater.run(stop_receiver.clone()));
     let fee_address_migration_handle =
         task::spawn(state_keeper.run_fee_address_migration(connection_pool.clone()));
@@ -347,6 +348,7 @@ async fn init_tasks(
 
     healthchecks.push(Box::new(ws_server_handles.health_check));
     healthchecks.push(Box::new(http_server_handles.health_check));
+
     healthchecks.push(Box::new(ConnectionPoolHealthCheck::new(connection_pool)));
     let healthcheck_handle = HealthCheckHandle::spawn_server(
         ([0, 0, 0, 0], config.required.healthcheck_port).into(),
@@ -366,8 +368,9 @@ async fn init_tasks(
         fetcher_handle,
         updater_handle,
         tree_handle,
-        consistency_checker_handle,
         fee_params_fetcher_handle,
+        event_indexes_migration_handle,
+        consistency_checker_handle,
         commitment_generator_handle,
     ]);
 
@@ -519,7 +522,7 @@ async fn main() -> anyhow::Result<()> {
             tracing::info!("Reorg detector terminated, shutting down");
             reorg_detector_result = Some(result);
         }
-    };
+    }
 
     // Reaching this point means that either some actor exited unexpectedly or we received a stop signal.
     // Broadcast the stop signal to all actors and exit.

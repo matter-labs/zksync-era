@@ -9,7 +9,7 @@ import * as zksync from 'zksync-web3';
  * @returns Matcher modifier object.
  */
 export function checkReceipt(
-    checkFn: (receipt: zksync.types.TransactionReceipt) => boolean,
+    checkFn: (receipt: zksync.types.TransactionReceipt) => Promise<boolean>,
     failMessage: string
 ): ShouldCheckReceipt {
     return new ShouldCheckReceipt(checkFn, failMessage);
@@ -20,17 +20,17 @@ export function checkReceipt(
  * Applied provided closure to the receipt.
  */
 class ShouldCheckReceipt extends MatcherModifier {
-    checkFn: (receipt: zksync.types.TransactionReceipt) => boolean;
+    checkFn: (receipt: zksync.types.TransactionReceipt) => Promise<boolean>;
     failMessage: string;
 
-    constructor(checkFn: (receipt: zksync.types.TransactionReceipt) => boolean, failMessage: string) {
+    constructor(checkFn: (receipt: zksync.types.TransactionReceipt) => Promise<boolean>, failMessage: string) {
         super();
         this.checkFn = checkFn;
         this.failMessage = failMessage;
     }
 
     async check(receipt: zksync.types.TransactionReceipt): Promise<MatcherMessage | null> {
-        if (!this.checkFn(receipt)) {
+        if (!(await this.checkFn(receipt))) {
             return {
                 pass: false,
                 message: () => this.failMessage

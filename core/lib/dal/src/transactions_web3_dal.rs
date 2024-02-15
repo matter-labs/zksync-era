@@ -1,7 +1,9 @@
 use sqlx::types::chrono::NaiveDateTime;
 use zksync_types::{
-    api, api::TransactionReceipt, Address, L2ChainId, MiniblockNumber, Transaction,
-    ACCOUNT_CODE_STORAGE_ADDRESS, FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H256, U256,
+    api,
+    api::{ApiEthTransferEvents, TransactionReceipt},
+    Address, L2ChainId, MiniblockNumber, Transaction, ACCOUNT_CODE_STORAGE_ADDRESS,
+    FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H256, U256,
 };
 
 use crate::{
@@ -27,6 +29,7 @@ impl TransactionsWeb3Dal<'_, '_> {
     pub async fn get_transaction_receipts(
         &mut self,
         hashes: &[H256],
+        api_eth_transfer_events: ApiEthTransferEvents,
     ) -> Result<Vec<TransactionReceipt>, SqlxError> {
         let mut receipts: Vec<TransactionReceipt> = sqlx::query_as!(
             StorageTransactionReceipt,
@@ -85,7 +88,7 @@ impl TransactionsWeb3Dal<'_, '_> {
         let mut logs = self
             .storage
             .events_dal()
-            .get_logs_by_tx_hashes(hashes)
+            .get_logs_by_tx_hashes(hashes, api_eth_transfer_events)
             .await?;
 
         let mut l2_to_l1_logs = self
@@ -458,7 +461,7 @@ mod tests {
 
         let mut receipts = conn
             .transactions_web3_dal()
-            .get_transaction_receipts(&[tx1_hash, tx2_hash])
+            .get_transaction_receipts(&[tx1_hash, tx2_hash], ApiEthTransferEvents::Disabled)
             .await
             .unwrap();
 

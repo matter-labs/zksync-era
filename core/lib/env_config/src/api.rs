@@ -87,6 +87,8 @@ mod tests {
                 max_response_body_size_mb: Some(10),
                 websocket_requests_per_minute_limit: Some(NonZeroU32::new(10).unwrap()),
                 tree_api_url: None,
+                api_eth_transfer_events:
+                    zksync_config::configs::api::ApiEthTransferEvents::Disabled,
             },
             contract_verification: ContractVerificationApiConfig {
                 port: 3070,
@@ -129,6 +131,7 @@ mod tests {
             API_WEB3_JSON_RPC_FEE_HISTORY_LIMIT=100
             API_WEB3_JSON_RPC_MAX_BATCH_REQUEST_SIZE=200
             API_WEB3_JSON_RPC_WEBSOCKET_REQUESTS_PER_MINUTE_LIMIT=10
+            API_WEB3_JSON_RPC_API_ETH_TRANSFER_EVENTS="disabled"
             API_CONTRACT_VERIFICATION_PORT="3070"
             API_CONTRACT_VERIFICATION_URL="http://127.0.0.1:3070"
             API_WEB3_JSON_RPC_MAX_RESPONSE_BODY_SIZE_MB=10

@@ -1,6 +1,7 @@
 use sqlx::Row;
+use zksync_system_constants::{L2_ETH_TOKEN_ADDRESS, TRANSFER_EVENT_TOPIC};
 use zksync_types::{
-    api::{GetLogsFilter, Log},
+    api::{ApiEthTransferEvents, GetLogsFilter, Log},
     Address, MiniblockNumber, H256,
 };
 
@@ -20,9 +21,19 @@ impl EventsWeb3Dal<'_, '_> {
         &mut self,
         filter: &GetLogsFilter,
         offset: usize,
+        api_eth_transfer_events: ApiEthTransferEvents,
     ) -> Result<Option<MiniblockNumber>, SqlxError> {
         {
-            let (where_sql, arg_index) = self.build_get_logs_where_clause(filter);
+            let (mut where_sql, mut arg_index) = self.build_get_logs_where_clause(filter);
+
+            if api_eth_transfer_events == ApiEthTransferEvents::Disabled {
+                where_sql += &format!(
+                    " AND NOT (address = ${} AND topic1 = ${})",
+                    arg_index,
+                    arg_index + 1
+                );
+                arg_index += 2;
+            }
 
             let query = format!(
                 r#"
@@ -45,6 +56,12 @@ impl EventsWeb3Dal<'_, '_> {
                 let topics: Vec<_> = topics.iter().map(H256::as_bytes).collect();
                 query = query.bind(topics);
             }
+
+            if api_eth_transfer_events == ApiEthTransferEvents::Disabled {
+                query = query.bind(L2_ETH_TOKEN_ADDRESS.as_bytes());
+                query = query.bind(TRANSFER_EVENT_TOPIC.as_bytes());
+            }
+
             query = query.bind(offset as i32);
             let log = query
                 .instrument("get_log_block_number")
@@ -64,7 +81,24 @@ impl EventsWeb3Dal<'_, '_> {
         &mut self,
         filter: GetLogsFilter,
         limit: usize,
+        api_eth_transfer_events: ApiEthTransferEvents,
     ) -> Result<Vec<Log>, SqlxError> {
+        let logs = self
+            .get_raw_logs(filter, limit)
+            .await?
+            .into_iter()
+            .filter_map(|log| log.into_api_log(api_eth_transfer_events))
+            .collect();
+
+        Ok(logs)
+    }
+
+    // Return raw extended logs for a given filter.
+    pub async fn get_raw_logs(
+        &mut self,
+        filter: GetLogsFilter,
+        limit: usize,
+    ) -> Result<Vec<StorageWeb3Log>, SqlxError> {
         {
             let (where_sql, arg_index) = self.build_get_logs_where_clause(&filter);
 
@@ -74,7 +108,9 @@ impl EventsWeb3Dal<'_, '_> {
                     SELECT
                         address, topic1, topic2, topic3, topic4, value,
                         miniblock_number, tx_hash, tx_index_in_block,
-                        event_index_in_block, event_index_in_tx
+                        event_index_in_block, event_index_in_tx,
+                        event_index_in_block_without_eth_transfer,
+                        event_index_in_tx_without_eth_transfer
                     FROM events
                     WHERE {}
                     ORDER BY miniblock_number ASC, event_index_in_block ASC
@@ -97,6 +133,7 @@ impl EventsWeb3Dal<'_, '_> {
                 let topics: Vec<_> = topics.iter().map(H256::as_bytes).collect();
                 query = query.bind(topics);
             }
+
             query = query.bind(limit as i32);
 
             let db_logs: Vec<StorageWeb3Log> = query
@@ -106,8 +143,8 @@ impl EventsWeb3Dal<'_, '_> {
                 .with_arg("limit", &limit)
                 .fetch_all(self.storage)
                 .await?;
-            let logs = db_logs.into_iter().map(Into::into).collect();
-            Ok(logs)
+
+            Ok(db_logs)
         }
     }
 
@@ -126,13 +163,13 @@ impl EventsWeb3Dal<'_, '_> {
             where_sql += &format!(" AND (topic{} = ANY(${}))", topic_index, arg_index);
             arg_index += 1;
         }
-
         (where_sql, arg_index)
     }
 
     pub async fn get_all_logs(
         &mut self,
         from_block: MiniblockNumber,
+        api_eth_transfer_events: ApiEthTransferEvents,
     ) -> Result<Vec<Log>, SqlxError> {
         {
             let db_logs: Vec<StorageWeb3Log> = sqlx::query_as!(
@@ -151,7 +188,9 @@ impl EventsWeb3Dal<'_, '_> {
                             tx_hash,
                             tx_index_in_block,
                             event_index_in_block,
-                            event_index_in_tx
+                            event_index_in_tx,
+                            event_index_in_block_without_eth_transfer,
+                            event_index_in_tx_without_eth_transfer
                         FROM
                             events
                         WHERE
@@ -173,7 +212,9 @@ impl EventsWeb3Dal<'_, '_> {
                     tx_hash AS "tx_hash!",
                     tx_index_in_block AS "tx_index_in_block!",
                     event_index_in_block AS "event_index_in_block!",
-                    event_index_in_tx AS "event_index_in_tx!"
+                    event_index_in_tx AS "event_index_in_tx!",
+                    event_index_in_block_without_eth_transfer AS "event_index_in_block_without_eth_transfer!",
+                    event_index_in_tx_without_eth_transfer AS "event_index_in_tx_without_eth_transfer!"
                 FROM
                     events_select
                     INNER JOIN miniblocks ON events_select.miniblock_number = miniblocks.number
@@ -185,7 +226,12 @@ impl EventsWeb3Dal<'_, '_> {
             )
             .fetch_all(self.storage.conn())
             .await?;
-            let logs = db_logs.into_iter().map(Into::into).collect();
+
+            let logs = db_logs
+                .into_iter()
+                .filter_map(|log| log.into_api_log(api_eth_transfer_events))
+                .collect();
+
             Ok(logs)
         }
     }

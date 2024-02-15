@@ -14,6 +14,7 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::{
     api,
+    api::ApiEthTransferEvents,
     block::MiniblockHasher,
     fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
     snapshots::SnapshotRecoveryStatus,
@@ -224,7 +225,7 @@ async fn external_io_basics(snapshot_recovery: bool) {
 
     let tx_receipt = storage
         .transactions_web3_dal()
-        .get_transaction_receipts(&[tx_hash])
+        .get_transaction_receipts(&[tx_hash], ApiEthTransferEvents::Disabled)
         .await
         .unwrap()
         .get(0)
@@ -684,6 +685,7 @@ async fn fetcher_with_real_server(snapshot_recovery: bool) {
         pool.clone(),
         Default::default(),
         stop_receiver.clone(),
+        ApiEthTransferEvents::Disabled,
     )
     .await;
     let server_addr = &server_handles.wait_until_ready().await;

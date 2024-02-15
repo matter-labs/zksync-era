@@ -307,6 +307,7 @@ impl FullApiParams {
     ) -> anyhow::Result<RpcModule<()>> {
         let namespaces = self.namespaces.clone();
         let zksync_network_id = self.config.l2_chain_id;
+        let api_eth_transfer_events = self.config.api_eth_transfer_events;
         let rpc_state = self.build_rpc_state(last_sealed_miniblock).await?;
 
         // Collect all the methods into a single RPC module.
@@ -317,7 +318,7 @@ impl FullApiParams {
         }
 
         if namespaces.contains(&Namespace::Eth) {
-            rpc.merge(EthNamespace::new(rpc_state.clone()).into_rpc())
+            rpc.merge(EthNamespace::new(rpc_state.clone(), api_eth_transfer_events).into_rpc())
                 .expect("Can't merge eth namespace");
         }
         if namespaces.contains(&Namespace::Net) {
@@ -329,7 +330,7 @@ impl FullApiParams {
                 .expect("Can't merge web3 namespace");
         }
         if namespaces.contains(&Namespace::Zks) {
-            rpc.merge(ZksNamespace::new(rpc_state.clone()).into_rpc())
+            rpc.merge(ZksNamespace::new(rpc_state.clone(), api_eth_transfer_events).into_rpc())
                 .expect("Can't merge zks namespace");
         }
         if namespaces.contains(&Namespace::En) {
@@ -427,6 +428,7 @@ impl FullApiParams {
                 self.pool.clone(),
                 self.polling_interval,
                 stop_receiver.clone(),
+                self.config.api_eth_transfer_events,
             ));
             Some(pub_sub)
         } else {

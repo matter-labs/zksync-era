@@ -8,7 +8,7 @@ use tokio::{
     time::{interval, Duration},
 };
 use zksync_dal::ConnectionPool;
-use zksync_types::{MiniblockNumber, H128, H256};
+use zksync_types::{api::ApiEthTransferEvents, MiniblockNumber, H128, H256};
 use zksync_web3_decl::{
     jsonrpsee::{
         core::{server::SubscriptionMessage, SubscriptionResult},
@@ -174,9 +174,12 @@ impl PubSubNotifier {
             .context("get_pending_txs_hashes_after()")
     }
 
-    async fn notify_logs(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+    async fn notify_logs(
+        self,
+        stop_receiver: watch::Receiver<bool>,
+        api_eth_transfer_events: ApiEthTransferEvents,
+    ) -> anyhow::Result<()> {
         let mut last_block_number = self.get_starting_miniblock_number().await?;
-
         let mut timer = interval(self.polling_interval);
         loop {
             if *stop_receiver.borrow() {
@@ -186,7 +189,9 @@ impl PubSubNotifier {
             timer.tick().await;
 
             let db_latency = PUB_SUB_METRICS.db_poll_latency[&SubscriptionType::Logs].start();
-            let new_logs = self.new_logs(last_block_number).await?;
+            let new_logs = self
+                .new_logs(last_block_number, api_eth_transfer_events)
+                .await?;
             db_latency.observe();
 
             if let Some(last_log) = new_logs.last() {
@@ -203,13 +208,17 @@ impl PubSubNotifier {
         Ok(())
     }
 
-    async fn new_logs(&self, last_block_number: MiniblockNumber) -> anyhow::Result<Vec<Log>> {
+    async fn new_logs(
+        &self,
+        last_block_number: MiniblockNumber,
+        api_eth_transfer_events: ApiEthTransferEvents,
+    ) -> anyhow::Result<Vec<Log>> {
         self.connection_pool
             .access_storage_tagged("api")
             .await
             .context("access_storage_tagged")?
             .events_web3_dal()
-            .get_all_logs(last_block_number)
+            .get_all_logs(last_block_number, api_eth_transfer_events)
             .await
             .context("events_web3_dal().get_all_logs()")
     }
@@ -418,6 +427,7 @@ impl EthSubscribe {
         connection_pool: ConnectionPool,
         polling_interval: Duration,
         stop_receiver: watch::Receiver<bool>,
+        api_eth_transfer_events: ApiEthTransferEvents,
     ) -> Vec<JoinHandle<anyhow::Result<()>>> {
         let mut notifier_tasks = Vec::with_capacity(3);
 
@@ -445,7 +455,8 @@ impl EthSubscribe {
             polling_interval,
             events_sender: self.events_sender.clone(),
         };
-        let notifier_task = tokio::spawn(notifier.notify_logs(stop_receiver));
+        let notifier_task =
+            tokio::spawn(notifier.notify_logs(stop_receiver, api_eth_transfer_events));
 
         notifier_tasks.push(notifier_task);
         notifier_tasks

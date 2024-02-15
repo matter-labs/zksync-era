@@ -174,6 +174,15 @@ impl RandomConfig for configs::ApiConfig {
     }
 }
 
+impl RandomConfig for configs::api::ApiEthTransferEvents {
+    fn sample(g: &mut Gen<impl Rng>) -> Self {
+        match g.rng.gen_range(0..2) {
+            0 => Self::Enabled,
+            _ => Self::Disabled,
+        }
+    }
+}
+
 impl RandomConfig for configs::api::Web3JsonRpcConfig {
     fn sample(g: &mut Gen<impl Rng>) -> Self {
         Self {
@@ -203,6 +212,7 @@ impl RandomConfig for configs::api::Web3JsonRpcConfig {
             max_response_body_size_mb: g.gen(),
             websocket_requests_per_minute_limit: g.gen(),
             tree_api_url: g.gen(),
+            api_eth_transfer_events: g.gen(),
         }
     }
 }

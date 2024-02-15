@@ -6,6 +6,7 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::ConnectionPool;
 use zksync_mempool::L2TxFilter;
 use zksync_types::{
+    api::ApiEthTransferEvents,
     block::{BlockGasCount, MiniblockHasher},
     fee::TransactionExecutionMetrics,
     fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
@@ -346,7 +347,7 @@ async fn processing_events_when_sealing_miniblock() {
 
     let logs = conn
         .events_web3_dal()
-        .get_all_logs(miniblock_number - 1)
+        .get_all_logs(miniblock_number - 1, ApiEthTransferEvents::Disabled)
         .await
         .unwrap();
 

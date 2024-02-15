@@ -1,8 +1,8 @@
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     api::{
-        BlockId, BlockNumber, GetLogsFilter, Transaction, TransactionId, TransactionReceipt,
-        TransactionVariant,
+        ApiEthTransferEvents, BlockId, BlockNumber, GetLogsFilter, Transaction, TransactionId,
+        TransactionReceipt, TransactionVariant,
     },
     l2::{L2Tx, TransactionType},
     transaction_request::CallRequest,
@@ -30,11 +30,15 @@ pub const PROTOCOL_VERSION: &str = "zks/1";
 #[derive(Debug)]
 pub struct EthNamespace {
     state: RpcState,
+    api_eth_transfer_events: ApiEthTransferEvents,
 }
 
 impl EthNamespace {
-    pub fn new(state: RpcState) -> Self {
-        Self { state }
+    pub fn new(state: RpcState, api_eth_transfer_events: ApiEthTransferEvents) -> Self {
+        Self {
+            state,
+            api_eth_transfer_events,
+        }
     }
 
     #[tracing::instrument(skip(self))]
@@ -361,7 +365,7 @@ impl EthNamespace {
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?
             .transactions_web3_dal()
-            .get_transaction_receipts(&hashes)
+            .get_transaction_receipts(&hashes, self.api_eth_transfer_events)
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?;
 
@@ -555,7 +559,7 @@ impl EthNamespace {
             .await
             .unwrap()
             .transactions_web3_dal()
-            .get_transaction_receipts(&[hash])
+            .get_transaction_receipts(&[hash], self.api_eth_transfer_events)
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?;
 
@@ -886,6 +890,7 @@ impl EthNamespace {
                         .get_log_block_number(
                             &get_logs_filter,
                             self.state.api_config.req_entities_limit,
+                            self.api_eth_transfer_events,
                         )
                         .await
                         .map_err(|err| internal_error(METHOD_NAME, err))?
@@ -900,7 +905,11 @@ impl EthNamespace {
 
                 let logs = storage
                     .events_web3_dal()
-                    .get_logs(get_logs_filter, i32::MAX as usize)
+                    .get_logs(
+                        get_logs_filter,
+                        i32::MAX as usize,
+                        self.api_eth_transfer_events,
+                    )
                     .await
                     .map_err(|err| internal_error(METHOD_NAME, err))?;
                 *from_block = to_block + 1;

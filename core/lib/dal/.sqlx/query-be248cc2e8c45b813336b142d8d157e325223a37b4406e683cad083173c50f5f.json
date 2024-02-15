@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                tx_hash\n            FROM\n                events\n            WHERE\n                miniblock_number BETWEEN $1 AND $2\n                AND (\n                    event_index_in_block_without_eth_transfer IS NULL\n                    OR event_index_in_tx_without_eth_transfer IS NULL\n                )\n            LIMIT\n                1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "tx_hash",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "be248cc2e8c45b813336b142d8d157e325223a37b4406e683cad083173c50f5f"
+}

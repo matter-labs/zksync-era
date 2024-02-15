@@ -12,7 +12,7 @@ use zksync_core::{
     },
     consensus,
 };
-use zksync_types::api::BridgeAddresses;
+use zksync_types::api::{ApiEthTransferEvents, BridgeAddresses};
 use zksync_web3_decl::{
     error::ClientRpcContext,
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
@@ -383,6 +383,8 @@ pub struct RequiredENConfig {
     pub state_cache_path: String,
     /// Fast SSD path. Used as a RocksDB dir for the Merkle tree (*new* implementation).
     pub merkle_tree_path: String,
+    /// Defines either the API server should return ETH Transfer events along with other events.
+    pub api_eth_transfer_events: ApiEthTransferEvents,
 }
 
 impl RequiredENConfig {
@@ -544,6 +546,7 @@ impl From<ExternalNodeConfig> for InternalApiConfig {
             l2_testnet_paymaster_addr: config.remote.l2_testnet_paymaster_addr,
             req_entities_limit: config.optional.req_entities_limit,
             fee_history_limit: config.optional.fee_history_limit,
+            api_eth_transfer_events: config.required.api_eth_transfer_events,
         }
     }
 }

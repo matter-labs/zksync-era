@@ -19,6 +19,15 @@ use crate::{
 
 pub mod en;
 
+/// Enum for choosing API mode
+#[derive(Copy, Clone, Debug, PartialEq, Display, Default, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ApiEthTransferEvents {
+    #[default]
+    Disabled,
+    Enabled,
+}
+
 /// Block Number
 #[derive(Copy, Clone, Debug, PartialEq, Display)]
 pub enum BlockNumber {

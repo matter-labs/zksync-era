@@ -14,6 +14,7 @@ export const getAvailableEnvsFromFiles = () => {
     });
     return envs;
 };
+
 export function get(print: boolean = false) {
     const current = `etc/env/.current`;
     const inCurrent = fs.existsSync(current) && fs.readFileSync(current).toString().trim();
@@ -111,19 +112,18 @@ export function load() {
 }
 
 // places the environment logged by `zk init` variables into the .init.env file
-export function modify(variable: string, assignedVariable: string) {
-    const initEnv = 'etc/env/.init.env';
-    if (!fs.existsSync(initEnv)) {
-        fs.writeFileSync(initEnv, assignedVariable);
+export function modify(variable: string, assignedVariable: string, envFile: string = 'etc/env/.init.env') {
+    if (!fs.existsSync(envFile)) {
+        fs.writeFileSync(envFile, assignedVariable);
         return;
     }
 
-    let source = fs.readFileSync(initEnv).toString();
+    let source = fs.readFileSync(envFile).toString();
     if (source.includes(variable)) {
-        utils.replaceInFile(initEnv, `${variable}=.*`, assignedVariable.trim());
+        utils.replaceInFile(envFile, `${variable}=.*`, assignedVariable.trim());
     } else {
         source += `\n${assignedVariable}`;
-        fs.writeFileSync(initEnv, source);
+        fs.writeFileSync(envFile, source);
     }
 
     reload();
@@ -143,9 +143,85 @@ export function mergeInitToEnv() {
     fs.writeFileSync(process.env.ENV_FILE!, output);
 }
 
+export function getAvailableEthTransferEvents() {
+    return ['disabled', 'enabled'];
+}
+
+export function checkEthTransferEvents() {
+    const EthTransferEventsEn = process.env.EN_API_ETH_TRANSFER_EVENTS;
+    const EthTransferEventsServer = process.env.API_WEB3_JSON_RPC_API_ETH_TRANSFER_EVENTS;
+
+    if (EthTransferEventsEn && EthTransferEventsServer && EthTransferEventsEn !== EthTransferEventsServer) {
+        console.error(
+            `Api mode mismatch: ${EthTransferEventsEn} != ${EthTransferEventsServer}.\nPlease, check your .env files.`
+        );
+        process.exit(1);
+    }
+}
+
+export function getEthTransferEvents(print: boolean) {
+    checkEthTransferEvents();
+
+    const ethTransferEvents =
+        process.env.EN_API_ETH_TRANSFER_EVENTS ?? process.env.API_WEB3_JSON_RPC_API_ETH_TRANSFER_EVENTS;
+
+    if (print) {
+        const modes = getAvailableEthTransferEvents();
+
+        if (!ethTransferEvents || !modes.includes(ethTransferEvents)) {
+            console.error('Unknown api mode or api mode is not set.\nPlease, check your .env files.');
+            process.exit(1);
+        }
+
+        for (const mode of modes) {
+            if (mode === ethTransferEvents) {
+                console.log(`* ${mode}`);
+            } else {
+                console.log(`  ${mode}`);
+            }
+        }
+    }
+
+    return ethTransferEvents;
+}
+
+export function setEthTransferEvents(mode: string, print: boolean) {
+    checkEthTransferEvents();
+
+    const modes = getAvailableEthTransferEvents();
+    if (!modes.includes(mode)) {
+        console.error(`Unknown api mode: ${mode}.\nPlease, check your .env files.`);
+        process.exit(1);
+    }
+
+    if (fs.existsSync('etc/env/ext-node.env')) {
+        modify('EN_API_ETH_TRANSFER_EVENTS', `EN_API_ETH_TRANSFER_EVENTS=${mode}`, 'etc/env/ext-node.env');
+    }
+    if (fs.existsSync('etc/env/ext-node-docker.env')) {
+        modify('EN_API_ETH_TRANSFER_EVENTS', `EN_API_ETH_TRANSFER_EVENTS=${mode}`, 'etc/env/ext-node-docker.env');
+    }
+    if (fs.existsSync('etc/env/dev.env')) {
+        modify(
+            'API_WEB3_JSON_RPC_API_ETH_TRANSFER_EVENTS',
+            `API_WEB3_JSON_RPC_API_ETH_TRANSFER_EVENTS=${mode}`,
+            'etc/env/dev.env'
+        );
+    }
+
+    getEthTransferEvents(print);
+}
+
 export const command = new Command('env')
     .arguments('[env_name]')
     .description('get or set zksync environment')
     .action((envName?: string) => {
         envName ? set(envName, true) : get(true);
+    });
+
+command
+    .command('eth-transfer-events')
+    .arguments('[mode]')
+    .description('get or set mode for ETH transfer events')
+    .action((mode?: string) => {
+        mode ? setEthTransferEvents(mode, true) : getEthTransferEvents(true);
     });

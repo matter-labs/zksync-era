@@ -2,7 +2,7 @@
  * This suite contains tests checking our handling of Ether (such as depositing, checking `msg.value`, etc).
  */
 
-import { TestMaster } from '../src/index';
+import { TestMaster } from '../src';
 import { shouldChangeETHBalances, shouldOnlyTakeFee } from '../src/modifiers/balance-checker';
 import { checkReceipt } from '../src/modifiers/receipt-check';
 
@@ -78,7 +78,7 @@ describe('ETH token checks', () => {
             { wallet: bob, change: value }
         ]);
         const correctReceiptType = checkReceipt(
-            (receipt) => receipt.type == LEGACY_TX_TYPE,
+            async (receipt) => receipt.type == LEGACY_TX_TYPE,
             'Incorrect tx type in receipt'
         );
 
@@ -87,6 +87,7 @@ describe('ETH token checks', () => {
         // Remove chainId and sign the transaction without it.
         transaction.chainId = undefined;
         const signedTransaction = await alice.signTransaction(transaction);
+
         await expect(alice.provider.sendTransaction(signedTransaction)).toBeAccepted([
             ethBalanceChange,
             correctReceiptType
@@ -102,7 +103,7 @@ describe('ETH token checks', () => {
             { wallet: bob, change: value }
         ]);
         const correctReceiptType = checkReceipt(
-            (receipt) => receipt.type == LEGACY_TX_TYPE,
+            async (receipt) => receipt.type == LEGACY_TX_TYPE,
             'Incorrect tx type in receipt'
         );
 
@@ -120,7 +121,7 @@ describe('ETH token checks', () => {
             { wallet: bob, change: value }
         ]);
         const correctReceiptType = checkReceipt(
-            (receipt) => receipt.type == zksync.utils.EIP712_TX_TYPE,
+            async (receipt) => receipt.type == zksync.utils.EIP712_TX_TYPE,
             'Incorrect tx type in receipt'
         );
 
@@ -138,7 +139,7 @@ describe('ETH token checks', () => {
             { wallet: bob, change: value }
         ]);
         const correctReceiptType = checkReceipt(
-            (receipt) => receipt.type == EIP1559_TX_TYPE,
+            async (receipt) => receipt.type == EIP1559_TX_TYPE,
             'Incorrect tx type in receipt'
         );
 

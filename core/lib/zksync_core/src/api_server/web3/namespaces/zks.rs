@@ -5,8 +5,8 @@ use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     api::{
-        BlockDetails, BridgeAddresses, GetLogsFilter, L1BatchDetails, L2ToL1LogProof, Proof,
-        ProtocolVersion, StorageProof, TransactionDetails,
+        ApiEthTransferEvents, BlockDetails, BridgeAddresses, GetLogsFilter, L1BatchDetails,
+        L2ToL1LogProof, Proof, ProtocolVersion, StorageProof, TransactionDetails,
     },
     fee::Fee,
     fee_model::FeeParams,
@@ -33,11 +33,15 @@ use crate::api_server::{
 #[derive(Debug)]
 pub struct ZksNamespace {
     pub state: RpcState,
+    pub api_eth_transfer_events: ApiEthTransferEvents,
 }
 
 impl ZksNamespace {
-    pub fn new(state: RpcState) -> Self {
-        Self { state }
+    pub fn new(state: RpcState, api_eth_transfer_events: ApiEthTransferEvents) -> Self {
+        Self {
+            state,
+            api_eth_transfer_events,
+        }
     }
 
     async fn access_storage(
@@ -262,6 +266,7 @@ impl ZksNamespace {
                         topics: vec![(2, vec![address_to_h256(&sender)]), (3, vec![msg])],
                     },
                     self.state.api_config.req_entities_limit,
+                    self.api_eth_transfer_events,
                 )
                 .await
                 .map_err(|err| internal_error(METHOD_NAME, err))?;

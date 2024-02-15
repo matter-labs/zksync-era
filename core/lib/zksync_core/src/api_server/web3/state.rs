@@ -85,6 +85,7 @@ pub struct InternalApiConfig {
     pub l2_testnet_paymaster_addr: Option<Address>,
     pub req_entities_limit: usize,
     pub fee_history_limit: u64,
+    pub api_eth_transfer_events: api::ApiEthTransferEvents,
 }
 
 impl InternalApiConfig {
@@ -93,6 +94,15 @@ impl InternalApiConfig {
         web3_config: &Web3JsonRpcConfig,
         contracts_config: &ContractsConfig,
     ) -> Self {
+        let api_eth_transfer_events = match web3_config.api_eth_transfer_events {
+            zksync_config::configs::api::ApiEthTransferEvents::Disabled => {
+                api::ApiEthTransferEvents::Disabled
+            }
+            zksync_config::configs::api::ApiEthTransferEvents::Enabled => {
+                api::ApiEthTransferEvents::Enabled
+            }
+        };
+
         Self {
             l1_chain_id: eth_config.network.chain_id(),
             l2_chain_id: eth_config.zksync_network_id,
@@ -110,6 +120,7 @@ impl InternalApiConfig {
             l2_testnet_paymaster_addr: contracts_config.l2_testnet_paymaster_addr,
             req_entities_limit: web3_config.req_entities_limit(),
             fee_history_limit: web3_config.fee_history_limit(),
+            api_eth_transfer_events,
         }
     }
 }
