@@ -108,10 +108,12 @@ pub trait StateKeeperIO: 'static + Send + IoSealCriteria {
     ) -> anyhow::Result<()>;
 
     /// Loads protocol version of the previous l1 batch.
-    async fn load_previous_batch_version_id(&mut self) -> Option<ProtocolVersionId>;
+    async fn load_previous_batch_version_id(&mut self) -> anyhow::Result<ProtocolVersionId>;
     /// Loads protocol upgrade tx for given version.
-    async fn load_upgrade_tx(&mut self, version_id: ProtocolVersionId)
-        -> Option<ProtocolUpgradeTx>;
+    async fn load_upgrade_tx(
+        &mut self,
+        version_id: ProtocolVersionId,
+    ) -> anyhow::Result<Option<ProtocolUpgradeTx>>;
 }
 
 impl fmt::Debug for dyn StateKeeperIO {

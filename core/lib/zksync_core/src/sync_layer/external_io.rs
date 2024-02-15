@@ -543,23 +543,23 @@ impl StateKeeperIO for ExternalIO {
         Ok(())
     }
 
-    async fn load_previous_batch_version_id(&mut self) -> Option<ProtocolVersionId> {
-        let mut storage = self.pool.access_storage_tagged("sync_layer").await.unwrap();
+    async fn load_previous_batch_version_id(&mut self) -> anyhow::Result<ProtocolVersionId> {
+        let mut storage = self.pool.access_storage_tagged("sync_layer").await?;
         let prev_l1_batch_number = self.current_l1_batch_number - 1;
         self.l1_batch_params_provider
             .load_l1_batch_protocol_version(&mut storage, prev_l1_batch_number)
             .await
             .with_context(|| {
                 format!("failed loading protocol version for L1 batch #{prev_l1_batch_number}")
-            })
-            .unwrap()
+            })?
+            .with_context(|| format!("L1 batch #{prev_l1_batch_number} misses protocol version"))
     }
 
     async fn load_upgrade_tx(
         &mut self,
         _version_id: ProtocolVersionId,
-    ) -> Option<ProtocolUpgradeTx> {
-        // External node will fetch upgrade tx from the main node.
-        None
+    ) -> anyhow::Result<Option<ProtocolUpgradeTx>> {
+        // External node will fetch upgrade tx from the main node
+        Ok(None)
     }
 }

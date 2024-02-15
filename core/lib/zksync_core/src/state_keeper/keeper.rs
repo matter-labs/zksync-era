@@ -150,23 +150,21 @@ impl ZkSyncStateKeeper {
         let protocol_version = system_env.version;
         let mut updates_manager = UpdatesManager::new(&l1_batch_env, &system_env);
 
-        let previous_batch_protocol_version =
-            self.io.load_previous_batch_version_id().await.unwrap();
+        let previous_batch_protocol_version = self.io.load_previous_batch_version_id().await?;
         let version_changed = protocol_version != previous_batch_protocol_version;
 
         let mut protocol_upgrade_tx = if pending_miniblocks.is_empty() && version_changed {
-            self.io.load_upgrade_tx(protocol_version).await
+            self.io.load_upgrade_tx(protocol_version).await?
         } else if !pending_miniblocks.is_empty() && version_changed {
             // Sanity check: if `txs_to_reexecute` is not empty and upgrade tx is present for this block
             // then it must be the first one in `txs_to_reexecute`.
-            if self.io.load_upgrade_tx(protocol_version).await.is_some() {
+            if self.io.load_upgrade_tx(protocol_version).await?.is_some() {
                 let first_tx_to_reexecute = &pending_miniblocks[0].txs[0];
                 assert_eq!(
                     first_tx_to_reexecute.tx_format(),
                     TransactionType::ProtocolUpgradeTransaction
                 )
             }
-
             None
         } else {
             None
@@ -236,7 +234,7 @@ impl ZkSyncStateKeeper {
             let version_changed = system_env.version != sealed_batch_protocol_version;
 
             protocol_upgrade_tx = if version_changed {
-                self.io.load_upgrade_tx(system_env.version).await
+                self.io.load_upgrade_tx(system_env.version).await?
             } else {
                 None
             };

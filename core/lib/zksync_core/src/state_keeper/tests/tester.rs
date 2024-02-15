@@ -758,15 +758,15 @@ impl StateKeeperIO for TestIO {
         Ok(())
     }
 
-    async fn load_previous_batch_version_id(&mut self) -> Option<ProtocolVersionId> {
-        Some(self.previous_batch_protocol_version)
+    async fn load_previous_batch_version_id(&mut self) -> anyhow::Result<ProtocolVersionId> {
+        Ok(self.previous_batch_protocol_version)
     }
 
     async fn load_upgrade_tx(
         &mut self,
         _version_id: ProtocolVersionId,
-    ) -> Option<ProtocolUpgradeTx> {
-        None
+    ) -> anyhow::Result<Option<ProtocolUpgradeTx>> {
+        Ok(None)
     }
 }
 
