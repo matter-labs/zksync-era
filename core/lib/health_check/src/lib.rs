@@ -15,6 +15,8 @@ pub enum HealthStatus {
     NotReady,
     /// Component is ready for operations.
     Ready,
+    /// Component has encountered a warning. The component is still considered healthy.
+    Warning,
     /// Component is shut down.
     ShutDown,
     /// Component has been abnormally interrupted by a panic.
@@ -22,17 +24,18 @@ pub enum HealthStatus {
 }
 
 impl HealthStatus {
-    /// Checks whether a component is ready according to this status.
-    pub fn is_ready(self) -> bool {
-        matches!(self, Self::Ready)
+    /// Checks whether a component is healthy according to this status.
+    pub fn is_healthy(self) -> bool {
+        matches!(self, Self::Ready | Self::Warning)
     }
 
     fn priority_for_aggregation(self) -> usize {
         match self {
             Self::Ready => 0,
-            Self::ShutDown => 1,
-            Self::NotReady => 2,
-            Self::Panicked => 3,
+            Self::Warning => 1,
+            Self::ShutDown => 2,
+            Self::NotReady => 3,
+            Self::Panicked => 4,
         }
     }
 }
@@ -94,7 +97,7 @@ impl AppHealth {
         let inner = aggregated_status.into();
 
         let this = Self { inner, components };
-        if !this.inner.status.is_ready() {
+        if !this.inner.status.is_healthy() {
             // Only log non-ready application health so that logs are not spammed without a reason.
             tracing::debug!("Aggregated application health: {this:?}");
         }
@@ -129,8 +132,8 @@ impl AppHealth {
         }
     }
 
-    pub fn is_ready(&self) -> bool {
-        self.inner.status.is_ready()
+    pub fn is_healthy(&self) -> bool {
+        self.inner.status.is_healthy()
     }
 }
 
@@ -144,7 +147,7 @@ pub trait CheckHealth: Send + Sync + 'static {
 }
 
 /// Basic implementation of [`CheckHealth`] trait that can be updated using a matching [`HealthUpdater`].
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ReactiveHealthCheck {
     name: &'static str,
     health_receiver: watch::Receiver<Health>,
@@ -293,4 +296,6 @@ mod tests {
         let updated = health_updater.update(health);
         assert!(updated);
     }
+
+    // FIXME: test aggregation
 }
