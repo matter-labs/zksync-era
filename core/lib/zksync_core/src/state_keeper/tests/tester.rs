@@ -623,21 +623,21 @@ impl StateKeeperIO for TestIO {
         self.miniblock_number
     }
 
-    async fn load_pending_batch(&mut self) -> Option<PendingBatchData> {
-        self.scenario.pending_batch.take()
+    async fn load_pending_batch(&mut self) -> anyhow::Result<Option<PendingBatchData>> {
+        Ok(self.scenario.pending_batch.take())
     }
 
     async fn wait_for_new_batch_params(
         &mut self,
         _max_wait: Duration,
-    ) -> Option<(SystemEnv, L1BatchEnv)> {
+    ) -> anyhow::Result<Option<(SystemEnv, L1BatchEnv)>> {
         let first_miniblock_info = L2BlockEnv {
             number: self.miniblock_number.0,
             timestamp: self.timestamp,
             prev_block_hash: H256::zero(),
             max_virtual_blocks_to_create: 1,
         };
-        Some((
+        Ok(Some((
             SystemEnv {
                 zk_porter_available: false,
                 version: self.protocol_version,
@@ -656,7 +656,7 @@ impl StateKeeperIO for TestIO {
                 enforced_base_fee: None,
                 first_l2_block: first_miniblock_info,
             },
-        ))
+        )))
     }
 
     async fn wait_for_new_miniblock_params(

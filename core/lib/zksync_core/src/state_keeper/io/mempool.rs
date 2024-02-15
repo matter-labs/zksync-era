@@ -90,12 +90,8 @@ impl StateKeeperIO for MempoolIO {
         self.current_miniblock_number
     }
 
-    async fn load_pending_batch(&mut self) -> Option<PendingBatchData> {
-        let mut storage = self
-            .pool
-            .access_storage_tagged("state_keeper")
-            .await
-            .unwrap();
+    async fn load_pending_batch(&mut self) -> anyhow::Result<Option<PendingBatchData>> {
+        let mut storage = self.pool.access_storage_tagged("state_keeper").await?;
 
         let pending_miniblock_header = self
             .l1_batch_params_provider
@@ -106,8 +102,11 @@ impl StateKeeperIO for MempoolIO {
                     "failed loading first miniblock for L1 batch #{}",
                     self.current_l1_batch_number
                 )
-            })
-            .unwrap()?;
+            })?;
+        let Some(pending_miniblock_header) = pending_miniblock_header else {
+            return Ok(None);
+        };
+
         let (system_env, l1_batch_env) = self
             .l1_batch_params_provider
             .load_l1_batch_params(
@@ -122,8 +121,7 @@ impl StateKeeperIO for MempoolIO {
                     "failed loading params for L1 batch #{}",
                     self.current_l1_batch_number
                 )
-            })
-            .unwrap();
+            })?;
         let pending_batch_data = load_pending_batch(&mut storage, system_env, l1_batch_env)
             .await
             .with_context(|| {
@@ -131,8 +129,7 @@ impl StateKeeperIO for MempoolIO {
                     "failed loading data for re-execution for pending L1 batch #{}",
                     self.current_l1_batch_number
                 )
-            })
-            .unwrap();
+            })?;
 
         let PendingBatchData {
             l1_batch_env,
@@ -149,17 +146,17 @@ impl StateKeeperIO for MempoolIO {
             gas_per_pubdata: gas_per_pubdata as u32,
         };
 
-        Some(PendingBatchData {
+        Ok(Some(PendingBatchData {
             l1_batch_env,
             system_env,
             pending_miniblocks,
-        })
+        }))
     }
 
     async fn wait_for_new_batch_params(
         &mut self,
         max_wait: Duration,
-    ) -> Option<(SystemEnv, L1BatchEnv)> {
+    ) -> anyhow::Result<Option<(SystemEnv, L1BatchEnv)>> {
         let deadline = Instant::now() + max_wait;
 
         // Block until at least one transaction in the mempool can match the filter (or timeout happens).
@@ -172,23 +169,21 @@ impl StateKeeperIO for MempoolIO {
                 deadline.into(),
                 sleep_past(self.prev_miniblock_timestamp, self.current_miniblock_number),
             );
-            let current_timestamp = current_timestamp.await.ok()?;
+            let Some(current_timestamp) = current_timestamp.await.ok() else {
+                return Ok(None);
+            };
 
             tracing::trace!(
                 "Fee input for L1 batch #{} is {:#?}",
                 self.current_l1_batch_number.0,
                 self.filter.fee_input
             );
-            let mut storage = self
-                .pool
-                .access_storage_tagged("state_keeper")
-                .await
-                .unwrap();
+            let mut storage = self.pool.access_storage_tagged("state_keeper").await?;
             let (base_system_contracts, protocol_version) = storage
                 .protocol_versions_dal()
                 .base_system_contracts_by_timestamp(current_timestamp)
                 .await
-                .expect("Failed loading base system contracts");
+                .context("Failed loading base system contracts")?;
             drop(storage);
 
             // We create a new filter each time, since parameters may change and a previously
@@ -204,8 +199,8 @@ impl StateKeeperIO for MempoolIO {
             }
 
             // We only need to get the root hash when we're certain that we have a new transaction.
-            let prev_l1_batch_hash = self.wait_for_previous_l1_batch_hash().await;
-            return Some(l1_batch_params(
+            let prev_l1_batch_hash = self.wait_for_previous_l1_batch_hash().await?;
+            return Ok(Some(l1_batch_params(
                 self.current_l1_batch_number,
                 self.fee_account,
                 current_timestamp,
@@ -218,9 +213,9 @@ impl StateKeeperIO for MempoolIO {
                 protocol_version,
                 self.get_virtual_blocks_count(true, self.current_miniblock_number.0),
                 self.chain_id,
-            ));
+            )));
         }
-        None
+        Ok(None)
     }
 
     // Returns the pair of timestamp and the number of virtual blocks to be produced in this miniblock
@@ -466,7 +461,7 @@ impl MempoolIO {
         let l1_batch_params_provider = L1BatchParamsProvider::new(&mut storage)
             .await
             .context("failed initializing L1 batch params provider")?;
-        fee_address_migration::migrate_pending_miniblocks(&mut storage).await;
+        fee_address_migration::migrate_pending_miniblocks(&mut storage).await?;
         drop(storage);
 
         Ok(Self {
@@ -503,18 +498,14 @@ impl MempoolIO {
         self.prev_miniblock_timestamp = miniblock.timestamp;
     }
 
-    async fn wait_for_previous_l1_batch_hash(&self) -> H256 {
+    async fn wait_for_previous_l1_batch_hash(&self) -> anyhow::Result<H256> {
         tracing::info!(
             "Getting previous L1 batch hash for L1 batch #{}",
             self.current_l1_batch_number
         );
         let wait_latency = KEEPER_METRICS.wait_for_prev_hash_time.start();
 
-        let mut storage = self
-            .pool
-            .access_storage_tagged("state_keeper")
-            .await
-            .unwrap();
+        let mut storage = self.pool.access_storage_tagged("state_keeper").await?;
         let prev_l1_batch_number = self.current_l1_batch_number - 1;
         let (batch_hash, _) = self
             .l1_batch_params_provider
@@ -522,15 +513,14 @@ impl MempoolIO {
             .await
             .with_context(|| {
                 format!("error waiting for params for L1 batch #{prev_l1_batch_number}")
-            })
-            .unwrap();
+            })?;
 
         wait_latency.observe();
         tracing::info!(
             "Got previous L1 batch hash: {batch_hash:?} for L1 batch #{}",
             self.current_l1_batch_number
         );
-        batch_hash
+        Ok(batch_hash)
     }
 
     /// "virtual_blocks_per_miniblock" will be created either if the miniblock_number % virtual_blocks_interval == 0 or

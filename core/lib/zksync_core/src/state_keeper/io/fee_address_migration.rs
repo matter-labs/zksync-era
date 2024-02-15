@@ -10,7 +10,9 @@ use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::MiniblockNumber;
 
 /// Runs the migration for pending miniblocks.
-pub(crate) async fn migrate_pending_miniblocks(storage: &mut StorageProcessor<'_>) {
+pub(crate) async fn migrate_pending_miniblocks(
+    storage: &mut StorageProcessor<'_>,
+) -> anyhow::Result<()> {
     let started_at = Instant::now();
     tracing::info!("Started migrating `fee_account_address` for pending miniblocks");
 
@@ -19,10 +21,10 @@ pub(crate) async fn migrate_pending_miniblocks(storage: &mut StorageProcessor<'_
         .blocks_dal()
         .check_l1_batches_have_fee_account_address()
         .await
-        .expect("Failed getting metadata for l1_batches table");
+        .context("failed getting metadata for l1_batches table")?;
     if !l1_batches_have_fee_account_address {
         tracing::info!("`l1_batches.fee_account_address` column is removed; assuming that the migration is complete");
-        return;
+        return Ok(());
     }
 
     #[allow(deprecated)]
@@ -30,9 +32,10 @@ pub(crate) async fn migrate_pending_miniblocks(storage: &mut StorageProcessor<'_
         .blocks_dal()
         .copy_fee_account_address_for_pending_miniblocks()
         .await
-        .expect("Failed migrating `fee_account_address` for pending miniblocks");
+        .context("failed migrating `fee_account_address` for pending miniblocks")?;
     let elapsed = started_at.elapsed();
     tracing::info!("Migrated `fee_account_address` for {rows_affected} miniblocks in {elapsed:?}");
+    Ok(())
 }
 
 /// Runs the migration for non-pending miniblocks. Should be run as a background task.

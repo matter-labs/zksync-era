@@ -62,21 +62,26 @@ pub struct MiniblockParams {
 /// `StateKeeperIO` provides the interactive layer for the state keeper:
 /// it's used to receive volatile parameters (such as batch parameters), and also it's used to perform
 /// mutable operations on the persistent state (e.g. persist executed batches).
+///
+/// All errors returned from this method are treated as unrecoverable.
 #[async_trait]
 pub trait StateKeeperIO: 'static + Send + IoSealCriteria {
     /// Returns the number of the currently processed L1 batch.
     fn current_l1_batch_number(&self) -> L1BatchNumber;
     /// Returns the number of the currently processed miniblock (aka L2 block).
     fn current_miniblock_number(&self) -> MiniblockNumber;
+
     /// Returns the data on the batch that was not sealed before the server restart.
     /// See `PendingBatchData` doc-comment for details.
-    async fn load_pending_batch(&mut self) -> Option<PendingBatchData>;
+    async fn load_pending_batch(&mut self) -> anyhow::Result<Option<PendingBatchData>>;
+
     /// Blocks for up to `max_wait` until the parameters for the next L1 batch are available.
     /// Returns the data required to initialize the VM for the next batch.
     async fn wait_for_new_batch_params(
         &mut self,
         max_wait: Duration,
-    ) -> Option<(SystemEnv, L1BatchEnv)>;
+    ) -> anyhow::Result<Option<(SystemEnv, L1BatchEnv)>>;
+
     /// Blocks for up to `max_wait` until the parameters for the next miniblock are available.
     async fn wait_for_new_miniblock_params(
         &mut self,

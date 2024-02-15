@@ -25,6 +25,8 @@ use super::{
 };
 use crate::{gas_tracker::gas_count_from_writes, state_keeper::io::fee_address_migration};
 
+// FIXME: add context to I/O method calls
+
 /// Amount of time to block on waiting for some resource. The exact value is not really important,
 /// we only need it to not block on waiting indefinitely and be able to process cancellation requests.
 pub(super) const POLL_WAIT_DURATION: Duration = Duration::from_secs(1);
@@ -118,7 +120,7 @@ impl ZkSyncStateKeeper {
             mut l1_batch_env,
             mut system_env,
             pending_miniblocks,
-        } = match self.io.load_pending_batch().await {
+        } = match self.io.load_pending_batch().await? {
             Some(params) => {
                 tracing::info!(
                     "There exists a pending batch consisting of {} miniblocks, the first one is {}",
@@ -248,7 +250,11 @@ impl ZkSyncStateKeeper {
 
     async fn wait_for_new_batch_params(&mut self) -> Result<(SystemEnv, L1BatchEnv), Error> {
         while !self.is_canceled() {
-            if let Some(params) = self.io.wait_for_new_batch_params(POLL_WAIT_DURATION).await {
+            if let Some(params) = self
+                .io
+                .wait_for_new_batch_params(POLL_WAIT_DURATION)
+                .await?
+            {
                 return Ok(params);
             }
         }
