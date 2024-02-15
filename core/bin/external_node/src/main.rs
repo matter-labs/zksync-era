@@ -397,6 +397,7 @@ struct Cli {
     enable_consensus: bool,
 }
 
+// FIXME: wire new health checks
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // Initial setup.
@@ -503,8 +504,8 @@ async fn main() -> anyhow::Result<()> {
             .await
             .context("init_tasks")?;
 
-    let reorg_detector = ReorgDetector::new(&main_node_url, connection_pool.clone(), stop_receiver);
-    let mut reorg_detector_handle = tokio::spawn(reorg_detector.run()).fuse();
+    let reorg_detector = ReorgDetector::new(&main_node_url, connection_pool.clone());
+    let mut reorg_detector_handle = tokio::spawn(reorg_detector.run(stop_receiver)).fuse();
     let mut reorg_detector_result = None;
 
     let particular_crypto_alerts = None;
