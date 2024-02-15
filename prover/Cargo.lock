@@ -585,7 +585,7 @@ dependencies = [
  "bincode",
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "const_format",
- "convert_case",
+ "convert_case 0.6.0",
  "crossbeam 0.8.4",
  "crypto-bigint 0.5.5",
  "cs_derive 0.1.0 (git+https://github.com/matter-labs/era-boojum?branch=main)",
@@ -611,7 +611,7 @@ dependencies = [
 [[package]]
 name = "boojum-cuda"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-boojum-cuda?branch=main#97169a9c49d86be2ace81f9504fe0ecefe746114"
+source = "git+https://github.com/matter-labs/era-boojum-cuda?branch=main#34f3a51d116ba3ea45d8f47837d2d2c746d005e1"
 dependencies = [
  "boojum",
  "cmake",
@@ -741,10 +741,11 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.0.85"
+version = "1.0.83"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9b918671670962b48bc23753aef0c51d072dca6f52f01f800854ada6ddb7f7d3"
+checksum = "f1174fb0b6ec23863f8b971027804a42614e347eafb0a95bf0b12cdae21fc4d0"
 dependencies = [
+ "jobserver",
  "libc",
 ]
 
@@ -807,7 +808,7 @@ dependencies = [
 [[package]]
 name = "circuit_definitions"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1#2ce7c0cbe952c46e70f7275033a8eb6392408d95"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1#f16b40eb4662768b5e29030b240420abc60d115b"
 dependencies = [
  "crossbeam 0.8.4",
  "derivative",
@@ -934,6 +935,15 @@ name = "convert_case"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6245d59a3e82a7fc217c5828a6692dbc6dfb63a0c8c90495621f7b9d79704a0e"
+
+[[package]]
+name = "convert_case"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ec182b0ca2f35d8fc196cf3404988fd8b8c739a4d270ff118a398feb0cbec1ca"
+dependencies = [
+ "unicode-segmentation",
+]
 
 [[package]]
 name = "core-foundation"
@@ -1378,7 +1388,7 @@ version = "0.99.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4fb810d30a7c1953f91334de7244731fc3f3c10d7fe163338a35b9f640960321"
 dependencies = [
- "convert_case",
+ "convert_case 0.4.0",
  "proc-macro2 1.0.78",
  "quote 1.0.35",
  "rustc_version",
@@ -1569,9 +1579,9 @@ dependencies = [
 
 [[package]]
 name = "env_logger"
-version = "0.11.1"
+version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "05e7cf40684ae96ade6232ed84582f40ce0a66efcd43a5117aef610534f8e0b8"
+checksum = "6c012a26a7f605efc424dd53697843a72be7dc86ad2d01f7814337794a12231d"
 dependencies = [
  "anstream",
  "anstyle",
@@ -2254,9 +2264,9 @@ dependencies = [
 
 [[package]]
 name = "hermit-abi"
-version = "0.3.5"
+version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d0c62115964e08cb8039170eb33c1d0e2388a256930279edca206fff675f82c3"
+checksum = "bd5256b483761cd23699d0da46cc6fd2ee3be420bbe6d020ae4a091e70b7e9fd"
 
 [[package]]
 name = "hex"
@@ -2588,6 +2598,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a0de374a9f8e63150e6f5e8a60cc14c668226d7a347d8aee1a45766e3c4dd3bc"
 dependencies = [
  "jemalloc-sys",
+ "libc",
+]
+
+[[package]]
+name = "jobserver"
+version = "0.1.28"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ab46a6e9526ddef3ae7f787c06f0f2600639ba80ea3eade3d8e670a2230f51d6"
+dependencies = [
  "libc",
 ]
 
@@ -3276,7 +3295,7 @@ version = "1.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4161fcb6d602d4d2081af7c3a45852d875a03dd337a6bfdd6e06407b61342a43"
 dependencies = [
- "hermit-abi 0.3.5",
+ "hermit-abi 0.3.6",
  "libc",
 ]
 
@@ -3599,9 +3618,9 @@ dependencies = [
 
 [[package]]
 name = "pkg-config"
-version = "0.3.29"
+version = "0.3.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2900ede94e305130c13ddd391e0ab7cbaeb783945ae07a279c268cb05109c6cb"
+checksum = "d231b230927b5e4ad203db57bbcbee2802f6bce620b1e4a9024a07d94e2907ec"
 
 [[package]]
 name = "platforms"
@@ -4191,7 +4210,7 @@ dependencies = [
 [[package]]
 name = "rescue_poseidon"
 version = "0.4.1"
-source = "git+https://github.com/matter-labs/rescue-poseidon.git?branch=poseidon2#dc7ad03f2c9297c0dd6bdf49327e9fe3786f3f10"
+source = "git+https://github.com/matter-labs/rescue-poseidon.git?branch=poseidon2#126937ef0e7a281f1ff9f512ac41a746a691a342"
 dependencies = [
  "addchain",
  "arrayvec 0.7.4",
@@ -4215,7 +4234,7 @@ dependencies = [
 [[package]]
 name = "rescue_poseidon"
 version = "0.4.1"
-source = "git+https://github.com/matter-labs/rescue-poseidon#d059b5042df5ed80e151f05751410b524a54d16c"
+source = "git+https://github.com/matter-labs/rescue-poseidon.git#d059b5042df5ed80e151f05751410b524a54d16c"
 dependencies = [
  "addchain",
  "arrayvec 0.7.4",
@@ -4858,7 +4877,7 @@ dependencies = [
 [[package]]
 name = "shivini"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-shivini.git?branch=v1.4.1#2c804d1092e93bd64e099d503741695c2515fa36"
+source = "git+https://github.com/matter-labs/era-shivini.git?branch=v1.4.1#f4bf41f45a1c5bb3a9e487114bc314d68d4e1aaf"
 dependencies = [
  "bincode",
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5399,7 +5418,7 @@ dependencies = [
  "num-traits",
  "once_cell",
  "rand 0.4.6",
- "rescue_poseidon 0.4.1 (git+https://github.com/matter-labs/rescue-poseidon)",
+ "rescue_poseidon 0.4.1 (git+https://github.com/matter-labs/rescue-poseidon.git)",
  "serde",
  "smallvec",
  "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?branch=v1.3.3)",
@@ -6731,7 +6750,7 @@ dependencies = [
  "codegen",
  "crossbeam 0.8.4",
  "derivative",
- "env_logger 0.11.1",
+ "env_logger 0.11.2",
  "hex",
  "num-bigint 0.4.4",
  "num-integer",
@@ -6758,7 +6777,7 @@ dependencies = [
  "codegen",
  "crossbeam 0.8.4",
  "derivative",
- "env_logger 0.9.3",
+ "env_logger 0.11.2",
  "hex",
  "rand 0.4.6",
  "rayon",
@@ -6774,7 +6793,7 @@ dependencies = [
 [[package]]
 name = "zkevm_test_harness"
 version = "1.4.1"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1#bbd22e62894807f245cd837fea18be8456a7e49c"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1#f16b40eb4662768b5e29030b240420abc60d115b"
 dependencies = [
  "bincode",
  "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1)",
@@ -6782,7 +6801,7 @@ dependencies = [
  "crossbeam 0.8.4",
  "curl",
  "derivative",
- "env_logger 0.9.3",
+ "env_logger 0.11.2",
  "hex",
  "lazy_static",
  "rand 0.4.6",
