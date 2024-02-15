@@ -337,7 +337,7 @@ impl StateKeeperIO for MempoolIO {
         }
 
         let pool = self.pool.clone();
-        let mut storage = pool.access_storage_tagged("state_keeper").await.unwrap();
+        let mut storage = pool.access_storage_tagged("state_keeper").await?;
 
         let fictive_miniblock = updates_manager
             .seal_l1_batch(

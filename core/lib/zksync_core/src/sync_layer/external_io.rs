@@ -170,7 +170,10 @@ impl ExternalIO {
                     .await?
                     .protocol_versions_dal()
                     .save_protocol_version(
-                        protocol_version.version_id.try_into().unwrap(),
+                        protocol_version
+                            .version_id
+                            .try_into()
+                            .context("cannot convert protocol version")?,
                         protocol_version.timestamp,
                         protocol_version.verification_keys_hashes,
                         protocol_version.base_system_contracts,
@@ -286,13 +289,16 @@ impl StateKeeperIO for ExternalIO {
         };
 
         if !pending_miniblock_header.has_protocol_version() {
+            let pending_miniblock_number = pending_miniblock_header.number();
             // Fetch protocol version ID for pending miniblocks to know which VM to use to re-execute them.
             let sync_block = self
                 .main_node_client
-                .fetch_l2_block(pending_miniblock_header.number(), false)
+                .fetch_l2_block(pending_miniblock_number, false)
                 .await
-                .expect("Failed to fetch block from the main node")
-                .expect("Block must exist");
+                .context("failed to fetch block from the main node")?
+                .with_context(|| {
+                    format!("pending miniblock #{pending_miniblock_number} is missing on main node")
+                })?;
             // Loading base system contracts will insert protocol version in the database if it's not present there.
             let protocol_version = sync_block.protocol_version;
             self.load_base_system_contracts_by_version_id(protocol_version)
@@ -525,7 +531,7 @@ impl StateKeeperIO for ExternalIO {
         // We cannot start sealing an L1 batch until we've sealed all miniblocks included in it.
         self.miniblock_sealer_handle.wait_for_all_commands().await;
 
-        let mut storage = self.pool.access_storage_tagged("sync_layer").await.unwrap();
+        let mut storage = self.pool.access_storage_tagged("sync_layer").await?;
         let fictive_miniblock = updates_manager
             .seal_l1_batch(
                 &mut storage,
