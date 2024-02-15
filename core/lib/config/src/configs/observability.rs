@@ -1,4 +1,4 @@
-/// Configuration for the essecial observability stack, like
+/// Configuration for the essential observability stack, like
 /// logging and sentry integration.
 #[derive(Debug, Clone)]
 pub struct ObservabilityConfig {

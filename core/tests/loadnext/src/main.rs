@@ -19,7 +19,7 @@ use zksync_config::configs::api::PrometheusConfig;
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // We don't want to introduce dependency on `zksync_env_config` in loadnext,
-    // but we historically rely on the environemnt variables for the obserability configuration,
+    // but we historically rely on the environment variables for the observability configuration,
     // so we load them directly here.
     let log_format: vlog::LogFormat = std::env::var("MISC_LOG_FORMAT")
         .ok()
