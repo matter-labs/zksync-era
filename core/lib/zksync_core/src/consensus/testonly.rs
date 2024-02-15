@@ -24,8 +24,7 @@ use crate::{
     },
     genesis::{ensure_genesis_state, GenesisParams},
     state_keeper::{
-        seal_criteria::NoopSealer, tests::MockBatchExecutorBuilder, MiniblockSealer,
-        ZkSyncStateKeeper,
+        seal_criteria::NoopSealer, tests::MockBatchExecutor, MiniblockSealer, ZkSyncStateKeeper,
     },
     sync_layer::{
         sync_action::{ActionQueue, ActionQueueSender, SyncAction},
@@ -445,7 +444,7 @@ impl StateKeeperRunner {
                 ZkSyncStateKeeper::new(
                     stop_receiver,
                     Box::new(io),
-                    Box::new(MockBatchExecutorBuilder),
+                    Box::new(MockBatchExecutor),
                     Arc::new(NoopSealer),
                 )
                 .run(),

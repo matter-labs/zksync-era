@@ -28,7 +28,7 @@ use crate::{
     state_keeper::{
         batch_executor::{BatchExecutorHandle, TxExecutionResult},
         tests::{default_l1_batch_env, default_system_env, BASE_SYSTEM_CONTRACTS},
-        L1BatchExecutorBuilder, MainBatchExecutorBuilder,
+        BatchExecutor, MainBatchExecutor,
     },
     utils::testonly::prepare_recovery_snapshot,
 };
@@ -103,7 +103,7 @@ impl Tester {
         l1_batch_env: L1BatchEnv,
         system_env: SystemEnv,
     ) -> BatchExecutorHandle {
-        let mut builder = MainBatchExecutorBuilder::new(
+        let mut builder = MainBatchExecutor::new(
             self.db_dir.path().to_str().unwrap().to_owned(),
             self.pool.clone(),
             self.config.max_allowed_tx_gas_limit.into(),

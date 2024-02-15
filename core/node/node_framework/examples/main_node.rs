@@ -18,8 +18,8 @@ use zksync_node_framework::{
         pools_layer::PoolsLayerBuilder,
         query_eth_client::QueryEthClientLayer,
         state_keeper::{
-            main_node_batch_executor_builder::MainNodeBatchExecutorBuilderLayer,
-            mempool_io::MempoolIOLayer, StateKeeperLayer,
+            main_batch_executor::MainBatchExecutorLayer, mempool_io::MempoolIOLayer,
+            StateKeeperLayer,
         },
     },
     service::ZkStackService,
@@ -88,10 +88,8 @@ impl MainNodeBuilder {
             StateKeeperConfig::from_env()?,
             MempoolConfig::from_env()?,
         );
-        let main_node_batch_executor_builder_layer = MainNodeBatchExecutorBuilderLayer::new(
-            DBConfig::from_env()?,
-            StateKeeperConfig::from_env()?,
-        );
+        let main_node_batch_executor_builder_layer =
+            MainBatchExecutorLayer::new(DBConfig::from_env()?, StateKeeperConfig::from_env()?);
         let state_keeper_layer = StateKeeperLayer;
         self.node
             .add_layer(mempool_io_layer)

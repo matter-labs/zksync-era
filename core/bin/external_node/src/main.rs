@@ -25,8 +25,8 @@ use zksync_core::{
     reorg_detector::ReorgDetector,
     setup_sigint_handler,
     state_keeper::{
-        seal_criteria::NoopSealer, L1BatchExecutorBuilder, MainBatchExecutorBuilder,
-        MiniblockSealer, MiniblockSealerHandle, ZkSyncStateKeeper,
+        seal_criteria::NoopSealer, BatchExecutor, MainBatchExecutor, MiniblockSealer,
+        MiniblockSealerHandle, ZkSyncStateKeeper,
     },
     sync_layer::{
         batch_status_updater::BatchStatusUpdater, external_io::ExternalIO,
@@ -70,16 +70,15 @@ async fn build_state_keeper(
     // We only need call traces on the external node if the `debug_` namespace is enabled.
     let save_call_traces = config.optional.api_namespaces().contains(&Namespace::Debug);
 
-    let batch_executor_base: Box<dyn L1BatchExecutorBuilder> =
-        Box::new(MainBatchExecutorBuilder::new(
-            state_keeper_db_path,
-            connection_pool.clone(),
-            max_allowed_l2_tx_gas_limit,
-            save_call_traces,
-            false,
-            config.optional.enum_index_migration_chunk_size,
-            true,
-        ));
+    let batch_executor_base: Box<dyn BatchExecutor> = Box::new(MainBatchExecutor::new(
+        state_keeper_db_path,
+        connection_pool.clone(),
+        max_allowed_l2_tx_gas_limit,
+        save_call_traces,
+        false,
+        config.optional.enum_index_migration_chunk_size,
+        true,
+    ));
 
     let main_node_url = config.required.main_node_url()?;
     let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
