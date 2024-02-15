@@ -118,9 +118,10 @@ jobs:
           ci_run sccache --show-stats
           ci_run cat /tmp/sccache_log.txt
   integration:
+    name: Integration (consensus=${{ matrix.consensus }})
     strategy:
       matrix:
-        consensus: [false,true]
+        consensus: [false, true]
     env:
       SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,basic_witness_input_producer,commitment_generator${{ matrix.consensus && ',consensus' || '' }}"
 
@@ -196,6 +197,7 @@ jobs:
         run: ci_run zk test i server
 
       - name: Snapshot recovery test
+        if: ${{ ! matrix.consensus }}
         # We use `yarn` directly because the test launches both `zk` commands in both server and EN envs.
         # An empty topmost environment helps avoid a mess when redefining env vars shared between both envs
         # (e.g., DATABASE_URL).
@@ -248,11 +250,12 @@ jobs:
           ci_run cat /tmp/sccache_log.txt
 
   external-node:
+    name: External node (consensus=${{ matrix.consensus }})
     strategy:
       matrix:
-        consensus: [false,true]
+        consensus: [false, true]
     runs-on: [matterlabs-ci-runner]
-   
+
     env:
       SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,basic_witness_input_producer,commitment_generator${{ matrix.consensus && ',consensus' || '' }}"
       EXT_NODE_FLAGS: "${{ matrix.consensus && '--enable-consensus' || '' }}"
