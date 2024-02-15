@@ -134,7 +134,7 @@ fn generate_snark_vk(
 }
 
 fn generate_vks() -> anyhow::Result<()> {
-    // Start by checking the trusted setup existance (CRS file).
+    // Start by checking the trusted setup existence.
     // This is used at the last step, but we want to fail early if user didn't configure everything
     // correctly.
     check_trusted_setup_file_existace();
