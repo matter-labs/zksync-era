@@ -35,7 +35,7 @@ use zksync_core::{
     },
 };
 use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
-use zksync_health_check::CheckHealth;
+use zksync_health_check::{CheckHealth, HealthStatus, ReactiveHealthCheck};
 use zksync_state::PostgresStorageCaches;
 use zksync_storage::RocksDB;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
@@ -355,9 +355,19 @@ async fn init_tasks(
     healthchecks.push(Box::new(ConnectionPoolHealthCheck::new(connection_pool)));
 
     if let Some(port) = config.optional.prometheus_port {
-        let prometheus_task = PrometheusExporterConfig::pull(port).run(stop_receiver.clone());
-        task_handles.push(tokio::spawn(prometheus_task));
+        let (prometheus_health_check, prometheus_health_updater) =
+            ReactiveHealthCheck::new("prometheus_exporter");
+        healthchecks.push(Box::new(prometheus_health_check));
+        task_handles.push(tokio::spawn(async move {
+            prometheus_health_updater.update(HealthStatus::Ready.into());
+            let result = PrometheusExporterConfig::pull(port)
+                .run(stop_receiver)
+                .await;
+            drop(prometheus_health_updater);
+            result
+        }));
     }
+
     task_handles.extend(http_server_handles.tasks);
     task_handles.extend(ws_server_handles.tasks);
     task_handles.extend(cache_update_handle);
