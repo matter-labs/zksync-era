@@ -387,14 +387,23 @@ async fn shutdown_components(
     healthcheck_handle.stop().await;
 }
 
+/// External node for zkSync Era.
 #[derive(Debug, Parser)]
-#[structopt(author = "Matter Labs", version)]
+#[command(author = "Matter Labs", version)]
 struct Cli {
+    /// Revert the pending L1 batch and exit.
     #[arg(long)]
     revert_pending_l1_batch: bool,
+    /// Enables consensus-based syncing instead of JSON-RPC based one. This is an experimental and incomplete feature;
+    /// do not use unless you know what you're doing.
     #[arg(long)]
     enable_consensus: bool,
-    #[arg(long)]
+    /// Enables application-level snapshot recovery. Required to start a node that was recovered from a snapshot,
+    /// or to initialize a node from a snapshot. Has no effect if a node that was initialized from a Postgres dump
+    /// or was synced from genesis.
+    ///
+    /// This is an experimental and incomplete feature; do not use unless you know what you're doing.
+    #[arg(long, conflicts_with = "enable_consensus")]
     enable_snapshots_recovery: bool,
 }
 
@@ -430,6 +439,12 @@ async fn main() -> anyhow::Result<()> {
         .await
         .context("Failed to load external node config")?;
     if opt.enable_consensus {
+        // This is more of a sanity check; the mutual exclusion of `enable_consensus` and `enable_snapshots_recovery`
+        // should be ensured by `clap`.
+        anyhow::ensure!(
+            !opt.enable_snapshots_recovery,
+            "Consensus logic does not support snapshot recovery yet"
+        );
         config.consensus =
             Some(config::read_consensus_config().context("read_consensus_config()")?);
     }

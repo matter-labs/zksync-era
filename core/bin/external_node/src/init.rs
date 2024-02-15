@@ -15,7 +15,7 @@ enum InitDecision {
     /// Perform or check genesis.
     Genesis,
     /// Perform or check snapshot recovery.
-    SnapshotRecovery { is_complete: bool },
+    SnapshotRecovery,
 }
 
 pub(crate) async fn ensure_storage_initialized(
@@ -50,14 +50,12 @@ pub(crate) async fn ensure_storage_initialized(
         }
         (None, Some(snapshot_recovery)) => {
             tracing::info!("Node has no genesis L1 batch and snapshot recovery information: {snapshot_recovery:?}");
-            InitDecision::SnapshotRecovery {
-                is_complete: snapshot_recovery.storage_logs_chunks_left_to_process() == 0,
-            }
+            InitDecision::SnapshotRecovery
         }
         (None, None) => {
             tracing::info!("Node has neither genesis L1 batch, nor snapshot recovery info");
             if consider_snapshot_recovery {
-                InitDecision::SnapshotRecovery { is_complete: false }
+                InitDecision::SnapshotRecovery
             } else {
                 InitDecision::Genesis
             }
@@ -72,10 +70,9 @@ pub(crate) async fn ensure_storage_initialized(
                 .await
                 .context("performing genesis failed")?;
         }
-        InitDecision::SnapshotRecovery { is_complete } => {
-            // Do not require the command-line opt-in once the recovery is complete.
+        InitDecision::SnapshotRecovery => {
             anyhow::ensure!(
-                is_complete || consider_snapshot_recovery,
+                consider_snapshot_recovery,
                 "Snapshot recovery is required to proceed, but it is not enabled. Enable by supplying \
                  `--enable-snapshots-recovery` command-line arg to the node binary, or reset the node storage \
                  to sync from genesis"
