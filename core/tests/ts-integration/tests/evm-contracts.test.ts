@@ -68,7 +68,12 @@ describe('EVM equivalence contract', () => {
                 await contract.deployTransaction.wait();
                 const receipt = await alice.provider.getTransactionReceipt(contract.deployTransaction.hash);
 
-                await assertCreatedCorrectly(deployer, contract.address, '0x' + artifacts.counter.evm.deployedBytecode.object, receipt.logs);
+                await assertCreatedCorrectly(
+                    deployer,
+                    contract.address,
+                    '0x' + artifacts.counter.evm.deployedBytecode.object,
+                    receipt.logs
+                );
 
                 expect((await contract.callStatic.get()).toString()).toEqual('1');
                 await (await contract.increment(1)).wait();
@@ -77,13 +82,13 @@ describe('EVM equivalence contract', () => {
 
             test('Should create2 evm contract from ZKEVM contract', async () => {
                 const salt = ethers.utils.randomBytes(32);
-                
+
                 const expectedAddress = ethers.utils.getCreate2Address(
                     evmCreateTester.address,
                     salt,
                     ethers.utils.keccak256(initBytecode)
                 );
-            
+
                 const receipt = await (await evmCreateTester.create2(salt, initBytecode)).wait();
 
                 await assertCreatedCorrectly(deployer, expectedAddress, runtimeBytecode, receipt.logs);
@@ -118,7 +123,7 @@ describe('EVM equivalence contract', () => {
                 const factory = getEVMContractFactory(alice, artifacts.counter);
                 const transaction = await factory.getDeployTransaction(args);
                 transaction.to = '0x0000000000000000000000000000000000000000';
-                
+
                 const result = await (await alice.sendTransaction(transaction)).wait();
                 const expectedAddressCreate = ethers.utils.getContractAddress({
                     from: alice.address,
@@ -188,12 +193,12 @@ describe('EVM equivalence contract', () => {
             await creatorContract.deployTransaction.wait();
 
             dumpOpcodeLogs(creatorContract.deployTransaction.hash, alice.provider);
-            
+
             // FIXME: doublec check, since on EVM the first nonce for contracts is 1.
             const nonce = 0;
 
             const runtimeBytecode = await creatorContract.getCreationRuntimeCode();
-            
+
             const expectedAddress = ethers.utils.getContractAddress({
                 from: creatorContract.address,
                 nonce
@@ -475,7 +480,10 @@ async function assertStoredBytecodeHash(
     expectedStoredHash: string
 ): Promise<void> {
     const ACCOUNT_CODE_STORAGE_ADDRESS = '0x0000000000000000000000000000000000008002';
-    const storedCodeHash = await deployer.provider.getStorageAt(ACCOUNT_CODE_STORAGE_ADDRESS, ethers.utils.hexZeroPad(deployedAddress, 32));
+    const storedCodeHash = await deployer.provider.getStorageAt(
+        ACCOUNT_CODE_STORAGE_ADDRESS,
+        ethers.utils.hexZeroPad(deployedAddress, 32)
+    );
 
     expect(storedCodeHash).toEqual(expectedStoredHash);
 }
@@ -490,7 +498,7 @@ async function assertCreatedCorrectly(
     await assertStoredBytecodeHash(deployer, deployedAddress, expectedStoredHash);
 }
 
-// Returns the canonical code hash of 
+// Returns the canonical code hash of
 function getSha256BlobHash(bytes: ethers.BytesLike): string {
     const hash = ethers.utils.arrayify(ethers.utils.sha256(bytes));
     hash[0] = 2;
@@ -506,7 +514,6 @@ function getSha256BlobHash(bytes: ethers.BytesLike): string {
 
 async function assertContractNotCreated(deployer: zksync.Contract, deployedAddress: string): Promise<void> {
     assertStoredBytecodeHash(deployer, deployedAddress, ethers.constants.HashZero);
-
 }
 
 function printCostData() {
