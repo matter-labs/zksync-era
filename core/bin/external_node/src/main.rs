@@ -106,13 +106,12 @@ async fn build_state_keeper(
 }
 
 async fn init_tasks(
-    config: ExternalNodeConfig,
+    config: &ExternalNodeConfig,
     connection_pool: ConnectionPool,
+    stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<(
     Vec<task::JoinHandle<anyhow::Result<()>>>,
-    watch::Sender<bool>,
-    HealthCheckHandle,
-    watch::Receiver<bool>,
+    Vec<Box<dyn CheckHealth>>,
 )> {
     let release_manifest: serde_json::Value = serde_json::from_str(RELEASE_MANIFEST)
         .expect("release manifest is a valid json document; qed");
@@ -126,12 +125,12 @@ async fn init_tasks(
         .required
         .main_node_url()
         .expect("Main node URL is incorrect");
-    let (stop_sender, stop_receiver) = watch::channel(false);
     let mut healthchecks: Vec<Box<dyn CheckHealth>> = Vec::new();
     // Create components.
     let fee_params_fetcher = Arc::new(MainNodeFeeParamsFetcher::new(&main_node_url));
 
     let sync_state = SyncState::default();
+    healthchecks.push(Box::new(sync_state.clone()));
     let (action_queue_sender, action_queue) = ActionQueue::new();
 
     let mut task_handles = vec![];
@@ -161,7 +160,7 @@ async fn init_tasks(
     let state_keeper = build_state_keeper(
         action_queue,
         config.required.state_cache_path.clone(),
-        &config,
+        config,
         connection_pool.clone(),
         sync_state.clone(),
         config.remote.l2_erc20_bridge_addr,
@@ -247,6 +246,7 @@ async fn init_tasks(
             .await
             .context("failed to build connection pool for ConsistencyChecker")?,
     );
+    healthchecks.push(Box::new(consistency_checker.health_check().clone()));
 
     let batch_status_updater = BatchStatusUpdater::new(
         &main_node_url,
@@ -349,10 +349,6 @@ async fn init_tasks(
     healthchecks.push(Box::new(ws_server_handles.health_check));
     healthchecks.push(Box::new(http_server_handles.health_check));
     healthchecks.push(Box::new(ConnectionPoolHealthCheck::new(connection_pool)));
-    let healthcheck_handle = HealthCheckHandle::spawn_server(
-        ([0, 0, 0, 0], config.required.healthcheck_port).into(),
-        healthchecks,
-    );
 
     if let Some(port) = config.optional.prometheus_port {
         let prometheus_task = PrometheusExporterConfig::pull(port).run(stop_receiver.clone());
@@ -372,7 +368,7 @@ async fn init_tasks(
         commitment_generator_handle,
     ]);
 
-    Ok((task_handles, stop_sender, healthcheck_handle, stop_receiver))
+    Ok((task_handles, healthchecks))
 }
 
 async fn shutdown_components(
@@ -499,12 +495,18 @@ async fn main() -> anyhow::Result<()> {
     .await
     .context("Performing genesis failed")?;
 
-    let (task_handles, stop_sender, health_check_handle, stop_receiver) =
-        init_tasks(config.clone(), connection_pool.clone())
+    let (stop_sender, stop_receiver) = watch::channel(false);
+    let (task_handles, mut healthchecks) =
+        init_tasks(&config, connection_pool.clone(), stop_receiver.clone())
             .await
             .context("init_tasks")?;
 
     let reorg_detector = ReorgDetector::new(&main_node_url, connection_pool.clone());
+    healthchecks.push(Box::new(reorg_detector.health_check().clone()));
+    let healthcheck_handle = HealthCheckHandle::spawn_server(
+        ([0, 0, 0, 0], config.required.healthcheck_port).into(),
+        healthchecks,
+    );
     let mut reorg_detector_handle = tokio::spawn(reorg_detector.run(stop_receiver)).fuse();
     let mut reorg_detector_result = None;
 
@@ -525,7 +527,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Reaching this point means that either some actor exited unexpectedly or we received a stop signal.
     // Broadcast the stop signal to all actors and exit.
-    shutdown_components(stop_sender, health_check_handle).await;
+    shutdown_components(stop_sender, healthcheck_handle).await;
 
     if !reorg_detector_handle.is_terminated() {
         reorg_detector_result = Some(reorg_detector_handle.await);
