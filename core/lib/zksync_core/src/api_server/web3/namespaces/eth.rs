@@ -229,6 +229,9 @@ impl EthNamespace {
         const METHOD_NAME: &str = "get_filter_logs";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
+        if !self.state.api_config.filters_enabled {
+            return Err(Web3Error::NotImplemented);
+        }
         // We clone the filter to not hold the filter lock for an extended period of time.
         let maybe_filter = self
             .state
@@ -569,6 +572,9 @@ impl EthNamespace {
         const METHOD_NAME: &str = "new_block_filter";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
+        if !self.state.api_config.filters_enabled {
+            return Err(Web3Error::NotImplemented);
+        }
         let mut storage = self
             .state
             .connection_pool
@@ -599,6 +605,9 @@ impl EthNamespace {
         const METHOD_NAME: &str = "new_filter";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
+        if !self.state.api_config.filters_enabled {
+            return Err(Web3Error::NotImplemented);
+        }
         if let Some(topics) = filter.topics.as_ref() {
             if topics.len() > EVENT_TOPIC_NUMBER_LIMIT {
                 return Err(Web3Error::TooManyTopics);
@@ -618,10 +627,13 @@ impl EthNamespace {
     }
 
     #[tracing::instrument(skip(self))]
-    pub async fn new_pending_transaction_filter_impl(&self) -> U256 {
+    pub async fn new_pending_transaction_filter_impl(&self) -> Result<U256, Web3Error> {
         const METHOD_NAME: &str = "new_pending_transaction_filter";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
+        if !self.state.api_config.filters_enabled {
+            return Err(Web3Error::NotImplemented);
+        }
         let idx = self
             .state
             .installed_filters
@@ -631,7 +643,7 @@ impl EthNamespace {
                 chrono::Utc::now().naive_utc(),
             ));
         method_latency.observe();
-        idx
+        Ok(idx)
     }
 
     #[tracing::instrument(skip(self))]
@@ -639,6 +651,9 @@ impl EthNamespace {
         const METHOD_NAME: &str = "get_filter_changes";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
+        if !self.state.api_config.filters_enabled {
+            return Err(Web3Error::NotImplemented);
+        }
         let mut filter = self
             .state
             .installed_filters
@@ -668,13 +683,16 @@ impl EthNamespace {
     }
 
     #[tracing::instrument(skip(self))]
-    pub async fn uninstall_filter_impl(&self, idx: U256) -> bool {
+    pub async fn uninstall_filter_impl(&self, idx: U256) -> Result<bool, Web3Error> {
         const METHOD_NAME: &str = "uninstall_filter";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
+        if !self.state.api_config.filters_enabled {
+            return Err(Web3Error::NotImplemented);
+        }
         let removed = self.state.installed_filters.lock().await.remove(idx);
         method_latency.observe();
-        removed
+        Ok(removed)
     }
 
     #[tracing::instrument(skip(self))]

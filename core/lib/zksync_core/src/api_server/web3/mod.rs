@@ -109,6 +109,7 @@ pub struct ApiServerHandles {
 #[derive(Debug, Default)]
 struct OptionalApiParams {
     sync_state: Option<SyncState>,
+    filters_enabled: Option<bool>,
     filters_limit: Option<usize>,
     subscriptions_limit: Option<usize>,
     batch_request_size_limit: Option<usize>,
@@ -351,8 +352,16 @@ impl FullApiParams {
         self,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<ApiServerHandles> {
-        if self.optional.filters_limit.is_none() {
-            tracing::warn!("Filters limit is not set - unlimited filters are allowed");
+        if self.optional.filters_enabled == Some(false) {
+            if self.optional.filters_limit.is_some() {
+                tracing::warn!(
+                    "Filters limit is not supported when filters are disabled, ignoring"
+                );
+            }
+        } else {
+            if self.optional.filters_limit.is_none() {
+                tracing::warn!("Filters limit is not set - unlimited filters are allowed");
+            }
         }
 
         if self.namespaces.contains(&Namespace::Pubsub)

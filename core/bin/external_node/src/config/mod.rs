@@ -136,6 +136,14 @@ pub struct OptionalENConfig {
     latest_values_cache_size_mb: usize,
     /// Enabled JSON RPC API namespaces.
     api_namespaces: Option<Vec<Namespace>>,
+    /// Whether to support methods installing filters and querying filter changes.
+    ///
+    /// Rationale for setting this to `false`:
+    /// Filters are local to the specific node they were created at. Meaning if
+    /// there are multiple nodes behind a load balancer the client cannot reliably
+    /// query the previously created filter as the request might get routed to a
+    /// different node.
+    pub filters_enabled: Option<bool>,
 
     // Gas estimation config
     /// The factor by which to scale the gasLimit
@@ -561,6 +569,7 @@ impl From<ExternalNodeConfig> for InternalApiConfig {
             l2_testnet_paymaster_addr: config.remote.l2_testnet_paymaster_addr,
             req_entities_limit: config.optional.req_entities_limit,
             fee_history_limit: config.optional.fee_history_limit,
+            filters_enabled: config.optional.filters_enabled.unwrap_or(true),
         }
     }
 }

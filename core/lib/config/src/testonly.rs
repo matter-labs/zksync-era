@@ -182,6 +182,7 @@ impl RandomConfig for configs::api::Web3JsonRpcConfig {
             ws_port: g.gen(),
             ws_url: g.gen(),
             req_entities_limit: g.gen(),
+            filters_enabled: g.gen(),
             filters_limit: g.gen(),
             subscriptions_limit: g.gen(),
             pubsub_polling_interval: g.gen(),

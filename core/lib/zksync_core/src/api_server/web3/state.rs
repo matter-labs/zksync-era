@@ -85,6 +85,7 @@ pub struct InternalApiConfig {
     pub l2_testnet_paymaster_addr: Option<Address>,
     pub req_entities_limit: usize,
     pub fee_history_limit: u64,
+    pub filters_enabled: bool,
 }
 
 impl InternalApiConfig {
@@ -110,6 +111,7 @@ impl InternalApiConfig {
             l2_testnet_paymaster_addr: contracts_config.l2_testnet_paymaster_addr,
             req_entities_limit: web3_config.req_entities_limit(),
             fee_history_limit: web3_config.fee_history_limit(),
+            filters_enabled: web3_config.filters_enabled.unwrap_or(true),
         }
     }
 }
