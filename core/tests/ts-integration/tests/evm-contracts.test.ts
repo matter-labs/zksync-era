@@ -447,7 +447,7 @@ describe('EVM equivalence contract', () => {
             console.log(evmUniswapPair.address);
 
             const tx = await evmUniswapPair.mint(alice.address, {
-                 gasLimit: 40000000
+                //  gasLimit: 40000000
             });
             await tx.wait()
             try {
