@@ -402,7 +402,7 @@ impl StateKeeperIO for ExternalIO {
     async fn wait_for_new_miniblock_params(
         &mut self,
         max_wait: Duration,
-    ) -> Option<MiniblockParams> {
+    ) -> anyhow::Result<Option<MiniblockParams>> {
         // Wait for the next miniblock to appear in the queue.
         let actions = &mut self.actions;
         for _ in 0..poll_iters(POLL_INTERVAL, max_wait) {
@@ -413,27 +413,28 @@ impl StateKeeperIO for ExternalIO {
                     virtual_blocks,
                 }) => {
                     self.actions.pop_action(); // We found the miniblock, remove it from the queue.
-                    assert_eq!(
-                        number, self.current_miniblock_number,
-                        "Miniblock number mismatch"
+                    anyhow::ensure!(
+                        number == self.current_miniblock_number,
+                        "Miniblock number mismatch: expected {}, got {number}",
+                        self.current_miniblock_number
                     );
-                    return Some(MiniblockParams {
+                    return Ok(Some(MiniblockParams {
                         timestamp,
                         virtual_blocks,
-                    });
+                    }));
                 }
                 Some(SyncAction::SealBatch { virtual_blocks, .. }) => {
                     // We've reached the next batch, so this situation would be handled by the batch sealer.
                     // No need to pop the action from the queue.
                     // It also doesn't matter which timestamp we return, since there will be no more miniblocks in this
                     // batch. We return 0 to make it easy to detect if it ever appears somewhere.
-                    return Some(MiniblockParams {
+                    return Ok(Some(MiniblockParams {
                         timestamp: 0,
                         virtual_blocks,
-                    });
+                    }));
                 }
                 Some(other) => {
-                    panic!(
+                    anyhow::bail!(
                         "Unexpected action in the queue while waiting for the next miniblock: {other:?}"
                     );
                 }
@@ -442,7 +443,7 @@ impl StateKeeperIO for ExternalIO {
                 }
             }
         }
-        None
+        Ok(None)
     }
 
     async fn wait_for_next_tx(&mut self, max_wait: Duration) -> Option<Transaction> {

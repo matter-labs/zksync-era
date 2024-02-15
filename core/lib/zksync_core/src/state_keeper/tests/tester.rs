@@ -662,12 +662,12 @@ impl StateKeeperIO for TestIO {
     async fn wait_for_new_miniblock_params(
         &mut self,
         _max_wait: Duration,
-    ) -> Option<MiniblockParams> {
-        Some(MiniblockParams {
+    ) -> anyhow::Result<Option<MiniblockParams>> {
+        Ok(Some(MiniblockParams {
             timestamp: self.timestamp,
             // 1 is just a constant used for tests.
             virtual_blocks: 1,
-        })
+        }))
     }
 
     async fn wait_for_next_tx(&mut self, max_wait: Duration) -> Option<Transaction> {

@@ -222,22 +222,23 @@ impl StateKeeperIO for MempoolIO {
     async fn wait_for_new_miniblock_params(
         &mut self,
         max_wait: Duration,
-    ) -> Option<MiniblockParams> {
+    ) -> anyhow::Result<Option<MiniblockParams>> {
         // We must provide different timestamps for each miniblock.
         // If miniblock sealing interval is greater than 1 second then `sleep_past` won't actually sleep.
-        let timestamp = tokio::time::timeout(
+        let timeout_result = tokio::time::timeout(
             max_wait,
             sleep_past(self.prev_miniblock_timestamp, self.current_miniblock_number),
         )
-        .await
-        .ok()?;
+        .await;
+        let Ok(timestamp) = timeout_result else {
+            return Ok(None);
+        };
 
         let virtual_blocks = self.get_virtual_blocks_count(false, self.current_miniblock_number.0);
-
-        Some(MiniblockParams {
+        Ok(Some(MiniblockParams {
             timestamp,
             virtual_blocks,
-        })
+        }))
     }
 
     async fn wait_for_next_tx(&mut self, max_wait: Duration) -> Option<Transaction> {

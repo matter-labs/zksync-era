@@ -671,6 +671,7 @@ async fn different_timestamp_for_miniblocks_in_same_batch() {
     let miniblock_params = mempool
         .wait_for_new_miniblock_params(Duration::from_secs(10))
         .await
-        .unwrap();
+        .unwrap()
+        .expect("no new miniblock params");
     assert!(miniblock_params.timestamp > current_timestamp);
 }

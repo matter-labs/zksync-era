@@ -86,7 +86,8 @@ pub trait StateKeeperIO: 'static + Send + IoSealCriteria {
     async fn wait_for_new_miniblock_params(
         &mut self,
         max_wait: Duration,
-    ) -> Option<MiniblockParams>;
+    ) -> anyhow::Result<Option<MiniblockParams>>;
+
     /// Blocks for up to `max_wait` until the next transaction is available for execution.
     /// Returns `None` if no transaction became available until the timeout.
     async fn wait_for_next_tx(&mut self, max_wait: Duration) -> Option<Transaction>;
@@ -94,8 +95,8 @@ pub trait StateKeeperIO: 'static + Send + IoSealCriteria {
     async fn rollback(&mut self, tx: Transaction);
     /// Marks the transaction as "rejected", e.g. one that is not correct and can't be executed.
     async fn reject(&mut self, tx: &Transaction, error: &str);
-    /// Marks the miniblock (aka L2 block) as sealed.
-    /// Returns the timestamp for the next miniblock.
+
+    /// Marks the miniblock (aka L2 block) as sealed. Returns the timestamp for the next miniblock.
     async fn seal_miniblock(&mut self, updates_manager: &UpdatesManager);
     /// Marks the L1 batch as sealed.
     async fn seal_l1_batch(
@@ -105,6 +106,7 @@ pub trait StateKeeperIO: 'static + Send + IoSealCriteria {
         l1_batch_env: &L1BatchEnv,
         finished_batch: FinishedL1Batch,
     ) -> anyhow::Result<()>;
+
     /// Loads protocol version of the previous l1 batch.
     async fn load_previous_batch_version_id(&mut self) -> Option<ProtocolVersionId>;
     /// Loads protocol upgrade tx for given version.

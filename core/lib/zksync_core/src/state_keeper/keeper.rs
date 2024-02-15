@@ -266,7 +266,7 @@ impl ZkSyncStateKeeper {
             if let Some(params) = self
                 .io
                 .wait_for_new_miniblock_params(POLL_WAIT_DURATION)
-                .await
+                .await?
             {
                 return Ok(params);
             }
