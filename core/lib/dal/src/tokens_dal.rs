@@ -31,7 +31,7 @@ impl TokensDal<'_, '_> {
                 token_info.l1_address,
                 token_info.l2_address
             );
-            write_str!(
+            writeln_str!(
                 &mut buffer,
                 "{}|{}|{}|FALSE|{now}|{now}",
                 token_info.metadata.name,
@@ -112,5 +112,72 @@ impl TokensDal<'_, '_> {
         .await?;
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+
+    use zksync_types::tokens::TokenMetadata;
+
+    use super::*;
+    use crate::ConnectionPool;
+
+    #[tokio::test]
+    async fn adding_and_getting_tokens() {
+        let pool = ConnectionPool::test_pool().await;
+        let mut storage = pool.access_storage().await.unwrap();
+        let tokens = [
+            TokenInfo {
+                l1_address: Address::repeat_byte(1),
+                l2_address: Address::repeat_byte(2),
+                metadata: TokenMetadata {
+                    name: "Test".to_string(),
+                    symbol: "TST".to_string(),
+                    decimals: 10,
+                },
+            },
+            TokenInfo {
+                l1_address: Address::repeat_byte(0),
+                l2_address: Address::repeat_byte(0),
+                metadata: TokenMetadata {
+                    name: "Ether".to_string(),
+                    symbol: "ETH".to_string(),
+                    decimals: 18,
+                },
+            },
+        ];
+        storage.tokens_dal().add_tokens(&tokens).await.unwrap();
+
+        let token_addresses = storage
+            .tokens_dal()
+            .get_all_l2_token_addresses()
+            .await
+            .unwrap();
+        assert_eq!(
+            token_addresses.into_iter().collect::<HashSet<_>>(),
+            tokens
+                .iter()
+                .map(|token| token.l2_address)
+                .collect::<HashSet<_>>(),
+        );
+
+        for token in &tokens {
+            storage
+                .tokens_dal()
+                .mark_token_as_well_known(token.l1_address)
+                .await
+                .unwrap();
+        }
+
+        let well_known_tokens = storage
+            .tokens_web3_dal()
+            .get_well_known_tokens()
+            .await
+            .unwrap();
+        assert_eq!(well_known_tokens.len(), 2);
+        assert!(well_known_tokens.contains(&tokens[0]));
+        assert!(well_known_tokens.contains(&tokens[1]));
     }
 }
