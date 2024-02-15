@@ -2,8 +2,12 @@
 //! This example defines a `ResourceProvider` that works using the main node env config, and
 //! initializes a single task with a health check server.
 
+use anyhow::Context;
 use zksync_config::{
-    configs::chain::{MempoolConfig, NetworkConfig, OperationsManagerConfig, StateKeeperConfig},
+    configs::{
+        chain::{MempoolConfig, NetworkConfig, OperationsManagerConfig, StateKeeperConfig},
+        ObservabilityConfig,
+    },
     ApiConfig, ContractsConfig, DBConfig, ETHClientConfig, GasAdjusterConfig, ObjectStoreConfig,
     PostgresConfig,
 };
@@ -109,8 +113,12 @@ impl MainNodeBuilder {
 }
 
 fn main() -> anyhow::Result<()> {
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let log_format = vlog::log_format_from_env();
+    let observability_config =
+        ObservabilityConfig::from_env().context("ObservabilityConfig::from_env()")?;
+    let log_format: vlog::LogFormat = observability_config
+        .log_format
+        .parse()
+        .context("Invalid log format")?;
     let _guard = vlog::ObservabilityBuilder::new()
         .with_log_format(log_format)
         .build();

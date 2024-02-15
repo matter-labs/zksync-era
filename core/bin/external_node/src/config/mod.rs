@@ -19,6 +19,7 @@ use zksync_web3_decl::{
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
 };
 
+pub(crate) mod observability;
 #[cfg(test)]
 mod tests;
 
