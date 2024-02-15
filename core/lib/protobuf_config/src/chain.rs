@@ -160,7 +160,7 @@ impl ProtoRepr for proto::StateKeeper {
                 .context("enum_index_migration_chunk_size")?,
             l1_batch_commit_data_generator_mode: required(&self.fee_model_version)
                 // TODO: this should depend on the mode (Validium or Rollup), but the tests are not adapted yet for this.
-                .and_then(|_x| Ok(proto::L1BatchCommitDataGeneratorMode::Rollup))
+                .map(|_x| proto::L1BatchCommitDataGeneratorMode::Rollup)
                 .context("l1_batch_commit_data_generator_mode")?
                 .parse(),
         })
