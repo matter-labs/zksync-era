@@ -7,7 +7,8 @@ use zksync_types::{web3::contract::Options, L2ChainId, ProtocolVersion};
 use super::*;
 use crate::genesis::{ensure_genesis_state, GenesisParams};
 
-pub fn build_commit_tx_input_data_is_correct(
+
+pub(crate) fn build_commit_tx_input_data_is_correct(
     l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
 ) {
     let contract = zksync_contracts::zksync_contract();
@@ -35,7 +36,7 @@ pub fn build_commit_tx_input_data_is_correct(
     }
 }
 
-pub async fn normal_checker_function(
+pub(crate) async fn normal_checker_function(
     batches_per_transaction: usize,
     (mapper_name, save_actions_mapper): (&'static str, SaveActionMapper),
     l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
@@ -104,7 +105,7 @@ pub async fn normal_checker_function(
     checker_task.await.unwrap().unwrap();
 }
 
-pub async fn checker_processes_pre_boojum_batches(
+pub(crate) async fn checker_processes_pre_boojum_batches(
     (mapper_name, save_actions_mapper): (&'static str, SaveActionMapper),
     l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
 ) {
@@ -250,7 +251,7 @@ pub async fn checker_functions_after_snapshot_recovery(
     checker_task.await.unwrap().unwrap();
 }
 
-pub async fn checker_detects_incorrect_tx_data(
+pub(crate) async fn checker_detects_incorrect_tx_data(
     kind: IncorrectDataKind,
     snapshot_recovery: bool,
     l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,

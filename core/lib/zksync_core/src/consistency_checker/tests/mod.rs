@@ -178,7 +178,7 @@ fn extracting_commit_data_for_pre_boojum_batch() {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum SaveAction<'a> {
+pub(crate) enum SaveAction<'a> {
     InsertBatch(&'a L1BatchWithMetadata),
     SaveMetadata(&'a L1BatchWithMetadata),
     InsertCommitTx(L1BatchNumber),
@@ -332,7 +332,7 @@ async fn checker_functions_after_snapshot_recovery(delay_batch_insertion: bool) 
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum IncorrectDataKind {
+pub(crate) enum IncorrectDataKind {
     MissingStatus,
     MismatchedStatus,
     BogusCommitDataFormat,
