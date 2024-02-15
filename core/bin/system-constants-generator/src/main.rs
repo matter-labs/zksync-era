@@ -29,7 +29,7 @@ mod utils;
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 struct L1SystemConfig {
     l2_tx_max_gas_limit: u32,
-    MAX_PUBDATA_PER_BATCH: u32,
+    max_pubdata_per_batch: u32,
     priority_tx_max_pubdata: u32,
     fair_l2_gas_price: u64,
     l1_gas_per_pubdata_byte: u32,
@@ -54,7 +54,7 @@ pub fn generate_l1_contracts_system_config(gas_constants: &IntrinsicSystemGasCon
 
     let l1_contracts_config = L1SystemConfig {
         l2_tx_max_gas_limit: MAX_TX_ERGS_LIMIT,
-        MAX_PUBDATA_PER_BATCH: MAX_PUBDATA_PER_BATCH as u32,
+        max_pubdata_per_batch: MAX_PUBDATA_PER_BATCH as u32,
         priority_tx_max_pubdata: (L1_TX_DECREASE * (MAX_PUBDATA_PER_BATCH as f64)) as u32,
         fair_l2_gas_price: FAIR_L2_GAS_PRICE_ON_L1_CONTRACT,
         l1_gas_per_pubdata_byte: L1_GAS_PER_PUBDATA_BYTE,
@@ -83,7 +83,7 @@ pub fn generate_l1_contracts_system_config(gas_constants: &IntrinsicSystemGasCon
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 struct L2SystemConfig {
     guaranteed_pubdata_bytes: u32,
-    MAX_PUBDATA_PER_BATCH: u32,
+    max_pubdata_per_batch: u32,
     max_transactions_in_block: u32,
     block_overhead_l1_gas: u32,
     l2_tx_intrinsic_gas: u32,
@@ -101,7 +101,7 @@ struct L2SystemConfig {
 pub fn generate_l2_contracts_system_config(gas_constants: &IntrinsicSystemGasConstants) -> String {
     let l2_contracts_config = L2SystemConfig {
         guaranteed_pubdata_bytes: GUARANTEED_PUBDATA_IN_TX,
-        MAX_PUBDATA_PER_BATCH: MAX_PUBDATA_PER_BATCH as u32,
+        max_pubdata_per_batch: MAX_PUBDATA_PER_BATCH as u32,
         max_transactions_in_block: get_bootloader_max_txs_in_batch(
             ProtocolVersionId::latest().into(),
         ) as u32,
