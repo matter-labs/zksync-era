@@ -97,7 +97,7 @@ pub(crate) async fn ensure_storage_initialized(
                 SnapshotsApplierOutcome::InitializedWithoutSnapshot => {
                     anyhow::bail!(
                         "Node contains a non-genesis L1 batch, but no genesis; snapshot recovery is unsafe. \
-                        This should never occur unless the node DB was manually tampered with"
+                         This should never occur unless the node DB was manually tampered with"
                     );
                 }
             }

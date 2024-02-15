@@ -162,7 +162,7 @@ describe('snapshot recovery', () => {
         const logs = await fs.open('snapshot-recovery.log', 'a');
         await logs.truncate();
 
-        const enProcess = spawn('zk external-node --enable-snapshots-recovery', {
+        const enProcess = spawn('zk external-node -- --enable-snapshots-recovery', {
             cwd: homeDir,
             stdio: [null, 'pipe', 'inherit'],
             shell: true,
