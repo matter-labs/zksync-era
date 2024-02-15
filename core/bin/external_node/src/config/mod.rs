@@ -31,6 +31,7 @@ pub struct RemoteENConfig {
     pub l2_testnet_paymaster_addr: Option<Address>,
     pub l2_chain_id: L2ChainId,
     pub l1_chain_id: L1ChainId,
+    pub base_token_addr: Address,
 }
 
 impl RemoteENConfig {
@@ -66,7 +67,10 @@ impl RemoteENConfig {
                 .context("Failed to fetch L1 chain ID")?
                 .as_u64(),
         );
-
+        let base_token_addr = client
+            .get_base_token_l1_address()
+            .await
+            .context("Failed to fetch base token address")?;
         Ok(Self {
             bridgehub_proxy_addr,
             diamond_proxy_addr,
@@ -77,6 +81,7 @@ impl RemoteENConfig {
             l2_weth_bridge_addr: bridges.l2_weth_bridge,
             l2_chain_id,
             l1_chain_id,
+            base_token_addr,
         })
     }
 }
@@ -521,6 +526,7 @@ impl From<ExternalNodeConfig> for InternalApiConfig {
             l2_testnet_paymaster_addr: config.remote.l2_testnet_paymaster_addr,
             req_entities_limit: config.optional.req_entities_limit,
             fee_history_limit: config.optional.fee_history_limit,
+            base_token_address: config.remote.base_token_addr,
         }
     }
 }

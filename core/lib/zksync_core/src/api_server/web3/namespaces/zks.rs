@@ -649,11 +649,6 @@ impl ZksNamespace {
 
     #[tracing::instrument(skip_all)]
     pub async fn get_base_token_l1_address_impl(&self) -> Result<Address, Web3Error> {
-        const METHOD_NAME: &str = "get_base_token_l1_address_impl";
-        let l1_token_env_var = env::var("CONTRACTS_BASE_TOKEN_ADDR")
-            .map_err(|_err| internal_error(METHOD_NAME, "Missing env variable for base token"))?;
-        Ok(H160::from_str(&l1_token_env_var).map_err(|_err| {
-            internal_error(METHOD_NAME, "Set value for base token is not an address")
-        })?)
+        Ok(self.state.api_config.base_token_address)
     }
 }

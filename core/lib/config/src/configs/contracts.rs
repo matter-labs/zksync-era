@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 // External uses
 use serde::Deserialize;
 // Workspace uses
@@ -49,6 +51,7 @@ pub struct ContractsConfig {
     pub fri_recursion_leaf_level_vk_hash: H256,
     pub prover_at_genesis: ProverAtGenesis,
     pub snark_wrapper_vk_hash: H256,
+    pub base_token_addr: Address,
 }
 
 impl ContractsConfig {
@@ -91,6 +94,8 @@ impl ContractsConfig {
             governance_addr: Address::repeat_byte(0x13),
             prover_at_genesis: ProverAtGenesis::Fri,
             snark_wrapper_vk_hash: H256::repeat_byte(0x09),
+            base_token_addr: Address::from_str("0x0000000000000000000000000000000000000001")
+                .unwrap(),
         }
     }
 }

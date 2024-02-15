@@ -10,6 +10,9 @@ impl FromEnv for ContractsConfig {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
+    use zksync_basic_types::Address;
     use zksync_config::configs::contracts::ProverAtGenesis;
 
     use super::*;
@@ -70,6 +73,8 @@ mod tests {
             snark_wrapper_vk_hash: hash(
                 "0x4be443afd605a782b6e56d199df2460a025c81b3dea144e135bece83612563f2",
             ),
+            base_token_addr: Address::from_str("0x0000000000000000000000000000000000000001")
+                .unwrap(),
         }
     }
 
@@ -105,6 +110,7 @@ CONTRACTS_FRI_RECURSION_NODE_LEVEL_VK_HASH="0x5a3ef282b21e12fe1f4438e5bb158fc506
 CONTRACTS_FRI_RECURSION_LEAF_LEVEL_VK_HASH="0x72167c43a46cf38875b267d67716edc4563861364a3c03ab7aee73498421e828"
 CONTRACTS_PROVER_AT_GENESIS="fri"
 CONTRACTS_SNARK_WRAPPER_VK_HASH="0x4be443afd605a782b6e56d199df2460a025c81b3dea144e135bece83612563f2"
+CONTRACTS_BASE_TOKEN_ADDR=0x0000000000000000000000000000000000000001
         "#;
         lock.set_env(config);
 
