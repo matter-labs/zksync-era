@@ -40,13 +40,14 @@ use zksync_state::PostgresStorageCaches;
 use zksync_storage::RocksDB;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 
+use crate::{config::ExternalNodeConfig, helpers::MainNodeHealthCheck};
+
 mod config;
+mod helpers;
 mod metrics;
 
 const RELEASE_MANIFEST: &str =
     std::include_str!("../../../../.github/release-please/manifest.json");
-
-use crate::config::ExternalNodeConfig;
 
 /// Creates the state keeper configured to work in the external node mode.
 #[allow(clippy::too_many_arguments)]
@@ -172,6 +173,9 @@ async fn init_tasks(
 
     let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
         .context("Failed creating JSON-RPC client for main node")?;
+    healthchecks.push(Box::new(MainNodeHealthCheck::from(
+        main_node_client.clone(),
+    )));
     let singleton_pool_builder = ConnectionPool::singleton(&config.postgres.database_url);
 
     let fetcher_handle = if let Some(cfg) = config.consensus.clone() {
