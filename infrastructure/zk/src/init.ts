@@ -179,11 +179,13 @@ export async function checkEnv() {
     for (const tool of tools) {
         await utils.exec(`which ${tool}`);
     }
-    const { stdout: version } = await utils.exec('node --version');
-    // Node v14.14 is required because
-    // the `fs.rmSync` function was added in v14.14.0
-    if ('v14.14' >= version) {
-        throw new Error('Error, node.js version 14.14.0 or higher is required');
+    const { stdout: nodeVersion } = await utils.exec('node --version');
+    if ('v18.18.0' >= nodeVersion) {
+        throw new Error('Error, node.js version 18.18.0 or higher is required');
+    }
+    const { stdout: yarnVersion } = await utils.exec('yarn --version');
+    if ('1.22.0' >= yarnVersion) {
+        throw new Error('Error, yarn version 1.22.0 is required');
     }
 }
 
