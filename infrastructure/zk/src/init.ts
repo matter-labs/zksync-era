@@ -235,7 +235,7 @@ export const initCommand = new Command('init')
             },
             baseToken: {
                 name: cmd.baseTokenName,
-                address: cmd.baseTokenAddress ? cmd.baseTokenAddress : ethers.constants.AddressZero
+                address: cmd.baseTokenAddress ? cmd.baseTokenAddress : ADDRESS_ONE
             }
         };
         await init(initArgs);
@@ -282,7 +282,7 @@ export const initHyperCommand = new Command('init-hyper')
             baseToken: {
                 name: cmd.baseTokenName,
                 // we use zero here to show that it is unspecified. If it is ether it is one.
-                address: cmd.baseTokenAddress ? cmd.baseTokenAddress : ethers.constants.AddressZero
+                address: cmd.baseTokenAddress ? cmd.baseTokenAddress : ADDRESS_ONE
             }
         };
 
@@ -316,7 +316,7 @@ export const initSharedBridgeCommand = new Command('init-shared-bridge')
             baseToken: {
                 name: cmd.baseTokenName,
                 // we use zero here to show that it is unspecified. If it is ether would be one.
-                address: cmd.baseTokenAddress ? cmd.baseTokenAddress : ethers.constants.AddressZero
+                address: cmd.baseTokenAddress ? cmd.baseTokenAddress : ADDRESS_ONE
             }
         };
 
@@ -346,7 +346,7 @@ export const deployL2ContractsCommand = new Command('deploy-l2-contracts')
             baseToken: {
                 name: cmd.baseTokenName,
                 // we use zero here to show that it is unspecified. If it is ether would be one.
-                address: cmd.baseTokenAddress ? cmd.baseTokenAddress : ethers.constants.AddressZero
+                address: cmd.baseTokenAddress ? cmd.baseTokenAddress : ADDRESS_ONE
             }
         };
 
