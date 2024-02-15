@@ -5,10 +5,6 @@ pragma solidity ^0.8.0;
 contract GasTester {
     constructor() {}
 
-    function checkGas(uint256 _expectedGas) external {
-
-    }
-
     function infiniteCall(uint256 _toReturn) external {
         // The job of this call is to just burn gas
         while (gasleft() > _toReturn) {}

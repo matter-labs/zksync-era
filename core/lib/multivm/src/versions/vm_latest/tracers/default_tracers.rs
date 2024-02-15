@@ -93,7 +93,7 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
             ret_from_the_bootloader: None,
             circuits_tracer: CircuitsTracer::new(),
             storage,
-            evm_tracer: Some(EvmDebugTracer::new()),
+            evm_tracer: None,
             _phantom: PhantomData,
         }
     }
