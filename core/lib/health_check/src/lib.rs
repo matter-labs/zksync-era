@@ -297,5 +297,58 @@ mod tests {
         assert!(updated);
     }
 
-    // FIXME: test aggregation
+    #[tokio::test]
+    async fn aggregating_health_checks() {
+        let (first_check, first_updater) = ReactiveHealthCheck::new("first");
+        let (second_check, second_updater) = ReactiveHealthCheck::new("second");
+        let checks: Vec<Box<dyn CheckHealth>> = vec![Box::new(first_check), Box::new(second_check)];
+
+        let app_health = AppHealth::new(&checks).await;
+        assert!(!app_health.is_healthy());
+        assert_matches!(app_health.inner.status(), HealthStatus::NotReady);
+        assert_matches!(
+            app_health.components["first"].status,
+            HealthStatus::NotReady
+        );
+        assert_matches!(
+            app_health.components["second"].status,
+            HealthStatus::NotReady
+        );
+
+        first_updater.update(HealthStatus::Ready.into());
+
+        let app_health = AppHealth::new(&checks).await;
+        assert!(!app_health.is_healthy());
+        assert_matches!(app_health.inner.status(), HealthStatus::NotReady);
+        assert_matches!(app_health.components["first"].status, HealthStatus::Ready);
+        assert_matches!(
+            app_health.components["second"].status,
+            HealthStatus::NotReady
+        );
+
+        second_updater.update(HealthStatus::Warning.into());
+
+        let app_health = AppHealth::new(&checks).await;
+        assert!(app_health.is_healthy());
+        assert_matches!(app_health.inner.status(), HealthStatus::Warning);
+        assert_matches!(app_health.components["first"].status, HealthStatus::Ready);
+        assert_matches!(
+            app_health.components["second"].status,
+            HealthStatus::Warning
+        );
+
+        drop(first_updater);
+
+        let app_health = AppHealth::new(&checks).await;
+        assert!(!app_health.is_healthy());
+        assert_matches!(app_health.inner.status(), HealthStatus::ShutDown);
+        assert_matches!(
+            app_health.components["first"].status,
+            HealthStatus::ShutDown
+        );
+        assert_matches!(
+            app_health.components["second"].status,
+            HealthStatus::Warning
+        );
+    }
 }

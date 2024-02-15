@@ -407,7 +407,6 @@ struct Cli {
     enable_consensus: bool,
 }
 
-// FIXME: wire new health checks
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // Initial setup.
