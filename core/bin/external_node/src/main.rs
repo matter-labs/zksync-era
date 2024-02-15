@@ -247,6 +247,7 @@ async fn init_tasks(
             .context("failed to build connection pool for ConsistencyChecker")?,
     );
     healthchecks.push(Box::new(consistency_checker.health_check().clone()));
+    let consistency_checker_handle = tokio::spawn(consistency_checker.run(stop_receiver.clone()));
 
     let batch_status_updater = BatchStatusUpdater::new(
         &main_node_url,
@@ -270,11 +271,9 @@ async fn init_tasks(
         .build()
         .await
         .context("failed to build a commitment_generator_pool")?;
-    let commitment_generator =
-        CommitmentGenerator::new(commitment_generator_pool, stop_receiver.clone());
-    let commitment_generator_handle = tokio::spawn(commitment_generator.run());
-
-    let consistency_checker_handle = tokio::spawn(consistency_checker.run(stop_receiver.clone()));
+    let commitment_generator = CommitmentGenerator::new(commitment_generator_pool);
+    healthchecks.push(Box::new(commitment_generator.health_check()));
+    let commitment_generator_handle = tokio::spawn(commitment_generator.run(stop_receiver.clone()));
 
     let updater_handle = task::spawn(batch_status_updater.run(stop_receiver.clone()));
     let fee_address_migration_handle =
