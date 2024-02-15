@@ -701,7 +701,7 @@ impl StateKeeperIO for TestIO {
         self.skipping_txs = false;
     }
 
-    async fn reject(&mut self, tx: &Transaction, error: &str) {
+    async fn reject(&mut self, tx: &Transaction, error: &str) -> anyhow::Result<()> {
         let action = self.pop_next_item("reject");
         let ScenarioItem::Reject(_, expected_tx, expected_err) = action else {
             panic!("Unexpected action: {:?}", action);
@@ -716,6 +716,7 @@ impl StateKeeperIO for TestIO {
             );
         }
         self.skipping_txs = false;
+        Ok(())
     }
 
     async fn seal_miniblock(&mut self, updates_manager: &UpdatesManager) {

@@ -263,32 +263,27 @@ impl StateKeeperIO for MempoolIO {
         self.mempool.insert(vec![tx], HashMap::new());
     }
 
-    async fn reject(&mut self, rejected: &Transaction, error: &str) {
-        assert!(
+    async fn reject(&mut self, rejected: &Transaction, error: &str) -> anyhow::Result<()> {
+        anyhow::ensure!(
             !rejected.is_l1(),
-            "L1 transactions should not be rejected: {}",
-            error
+            "L1 transactions should not be rejected: {error}"
         );
 
         // Reset the nonces in the mempool, but don't insert the transaction back.
         self.mempool.rollback(rejected);
 
         // Mark tx as rejected in the storage.
-        let mut storage = self
-            .pool
-            .access_storage_tagged("state_keeper")
-            .await
-            .unwrap();
+        let mut storage = self.pool.access_storage_tagged("state_keeper").await?;
         KEEPER_METRICS.rejected_transactions.inc();
         tracing::warn!(
-            "transaction {} is rejected with error {}",
-            rejected.hash(),
-            error
+            "transaction {} is rejected with error: {error}",
+            rejected.hash()
         );
         storage
             .transactions_dal()
-            .mark_tx_as_rejected(rejected.hash(), &format!("rejected: {}", error))
+            .mark_tx_as_rejected(rejected.hash(), &format!("rejected: {error}"))
             .await;
+        Ok(())
     }
 
     async fn seal_miniblock(&mut self, updates_manager: &UpdatesManager) {
