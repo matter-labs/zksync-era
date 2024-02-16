@@ -300,6 +300,52 @@ impl StorageLogsDal<'_, '_> {
         row.count > 0
     }
 
+    /// Returns addresses and the corresponding deployment miniblock numbers among the specified contract
+    /// `addresses`. `at_miniblock` allows filtering deployment by miniblocks.
+    // FIXME: test
+    pub(crate) async fn filter_deployed_contracts(
+        &mut self,
+        addresses: impl Iterator<Item = Address>,
+        at_miniblock: Option<MiniblockNumber>,
+    ) -> sqlx::Result<HashMap<Address, MiniblockNumber>> {
+        let (bytecode_hashed_keys, address_by_hashed_key): (Vec<_>, HashMap<_, _>) = addresses
+            .map(|address| {
+                let hashed_key = get_code_key(&address).hashed_key().0;
+                (hashed_key, (hashed_key, address))
+            })
+            .unzip();
+        let max_miniblock_number = at_miniblock.map_or(u32::MAX, |number| number.0);
+        let rows = sqlx::query!(
+            r#"
+            SELECT DISTINCT
+                ON (hashed_key) hashed_key,
+                miniblock_number
+            FROM
+                storage_logs
+            WHERE
+                hashed_key = ANY ($1)
+                AND miniblock_number <= $2
+                AND value != $3
+            ORDER BY
+                hashed_key,
+                miniblock_number DESC,
+                operation_number DESC
+            "#,
+            &bytecode_hashed_keys as &[_],
+            max_miniblock_number as i64,
+            FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH.as_bytes()
+        )
+        .fetch_all(self.storage.conn())
+        .await?;
+
+        let deployment_data = rows.into_iter().map(|row| {
+            let miniblock_number = MiniblockNumber(row.miniblock_number as u32);
+            let address = address_by_hashed_key[row.hashed_key.as_slice()];
+            (address, miniblock_number)
+        });
+        Ok(deployment_data.collect())
+    }
+
     /// Returns latest values for all [`StorageKey`]s written to in the specified L1 batch
     /// judging by storage logs (i.e., not taking deduplication logic into account).
     pub async fn get_touched_slots_for_l1_batch(

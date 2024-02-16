@@ -1,8 +1,5 @@
 use sqlx::types::chrono::Utc;
-use zksync_types::{
-    tokens::TokenInfo, Address, MiniblockNumber, ACCOUNT_CODE_STORAGE_ADDRESS,
-    FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH,
-};
+use zksync_types::{tokens::TokenInfo, Address, MiniblockNumber, ACCOUNT_CODE_STORAGE_ADDRESS};
 
 use crate::StorageProcessor;
 
@@ -79,34 +76,25 @@ impl TokensDal<'_, '_> {
             .collect())
     }
 
+    // FIXME: test
     pub async fn rollback_tokens(&mut self, block_number: MiniblockNumber) -> sqlx::Result<()> {
+        let all_token_addresses = self.get_all_l2_token_addresses().await?;
+        let token_deployment_data = self
+            .storage
+            .storage_logs_dal()
+            .filter_deployed_contracts(all_token_addresses.into_iter(), None)
+            .await?;
+        let token_addresses_to_be_removed: Vec<_> = token_deployment_data
+            .into_iter()
+            .filter_map(|(address, deployed_at)| (deployed_at > block_number).then_some(address.0))
+            .collect();
         sqlx::query!(
             r#"
             DELETE FROM tokens
             WHERE
-                l2_address IN (
-                    SELECT
-                        SUBSTRING(key, 12, 20)
-                    FROM
-                        storage_logs
-                    WHERE
-                        storage_logs.address = $1
-                        AND miniblock_number > $2
-                        AND NOT EXISTS (
-                            SELECT
-                                1
-                            FROM
-                                storage_logs AS s
-                            WHERE
-                                s.hashed_key = storage_logs.hashed_key
-                                AND (s.miniblock_number, s.operation_number) >= (storage_logs.miniblock_number, storage_logs.operation_number)
-                                AND s.value = $3
-                        )
-                )
+                l2_address = ANY ($1)
             "#,
-            ACCOUNT_CODE_STORAGE_ADDRESS.as_bytes(),
-            block_number.0 as i64,
-            FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH.as_bytes()
+            &token_addresses_to_be_removed as &[_]
         )
         .execute(self.storage.conn())
         .await?;
@@ -119,7 +107,8 @@ impl TokensDal<'_, '_> {
 mod tests {
     use std::collections::HashSet;
 
-    use zksync_types::tokens::TokenMetadata;
+    use zksync_types::{tokens::TokenMetadata, AccountTreeId, StorageKey};
+    use zksync_utils::address_to_h256;
 
     use super::*;
     use crate::ConnectionPool;
