@@ -118,11 +118,12 @@ jobs:
           ci_run sccache --show-stats
           ci_run cat /tmp/sccache_log.txt
   integration:
+    name: Integration (consensus=${{ matrix.consensus }})
     strategy:
       matrix:
-        consensus: [false,true]
+        consensus: [false, true]
     env:
-      SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,basic_witness_input_producer${{ matrix.consensus && ',consensus' || '' }}"
+      SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,basic_witness_input_producer,commitment_generator${{ matrix.consensus && ',consensus' || '' }}"
 
     runs-on: [matterlabs-ci-runner]
     steps:
@@ -195,6 +196,13 @@ jobs:
       - name: Server integration tests
         run: ci_run zk test i server
 
+      - name: Snapshot recovery test
+        if: ${{ ! matrix.consensus }}
+        # We use `yarn` directly because the test launches `zk` commands in both server and EN envs.
+        # An empty topmost environment helps avoid a mess when redefining env vars shared between both envs
+        # (e.g., DATABASE_URL).
+        run: ci_run yarn snapshot-recovery-test snapshot-recovery-test
+
       - name: Fee projection tests
         run: ci_run zk test i fees
 
@@ -220,6 +228,13 @@ jobs:
         if: always()
         run: ci_run cat contract_verifier.log || true
 
+      - name: Show snapshot-creator.log logs
+        if: always()
+        run: ci_run cat core/tests/snapshot-recovery-test/snapshot-creator.log || true
+      - name: Show snapshot-recovery.log logs
+        if: always()
+        run: ci_run cat core/tests/snapshot-recovery-test/snapshot-recovery.log || true
+
       - name: Show revert.log logs
         if: always()
         run: ci_run cat core/tests/revert-test/revert.log || true
@@ -235,14 +250,15 @@ jobs:
           ci_run cat /tmp/sccache_log.txt
 
   external-node:
+    name: External node (consensus=${{ matrix.consensus }})
     strategy:
       matrix:
-        consensus: [false,true]
+        consensus: [false, true]
     runs-on: [matterlabs-ci-runner]
-   
+
     env:
-      SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,basic_witness_input_producer${{ matrix.consensus && ',consensus' || '' }}"
-      EXT_NODE_FLAGS: "${{ matrix.consensus && '--enable-consensus' || '' }}"
+      SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,basic_witness_input_producer,commitment_generator${{ matrix.consensus && ',consensus' || '' }}"
+      EXT_NODE_FLAGS: "${{ matrix.consensus && '-- --enable-consensus' || '' }}"
 
     steps:
       - name: Checkout code # Checks out the repository under $GITHUB_WORKSPACE, so the job can access it.

@@ -47,7 +47,7 @@ struct Cli {
     /// Comma-separated list of components to launch.
     #[arg(
         long,
-        default_value = "api,tree,eth,state_keeper,housekeeper,basic_witness_input_producer"
+        default_value = "api,tree,eth,state_keeper,housekeeper,basic_witness_input_producer,commitment_generator"
     )]
     components: ComponentsToRun,
 }

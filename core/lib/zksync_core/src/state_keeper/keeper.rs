@@ -1,6 +1,7 @@
 use std::{
     convert::Infallible,
     future::{self, Future},
+    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -17,7 +18,7 @@ use zksync_types::{
 };
 
 use super::{
-    batch_executor::{BatchExecutorHandle, L1BatchExecutorBuilder, TxExecutionResult},
+    batch_executor::{BatchExecutor, BatchExecutorHandle, TxExecutionResult},
     extractors,
     io::{MiniblockParams, PendingBatchData, StateKeeperIO},
     metrics::{AGGREGATION_METRICS, KEEPER_METRICS, L1_BATCH_METRICS},
@@ -62,16 +63,16 @@ impl Error {
 pub struct ZkSyncStateKeeper {
     stop_receiver: watch::Receiver<bool>,
     io: Box<dyn StateKeeperIO>,
-    batch_executor_base: Box<dyn L1BatchExecutorBuilder>,
-    sealer: Box<dyn ConditionalSealer>,
+    batch_executor_base: Box<dyn BatchExecutor>,
+    sealer: Arc<dyn ConditionalSealer>,
 }
 
 impl ZkSyncStateKeeper {
     pub fn new(
         stop_receiver: watch::Receiver<bool>,
         io: Box<dyn StateKeeperIO>,
-        batch_executor_base: Box<dyn L1BatchExecutorBuilder>,
-        sealer: Box<dyn ConditionalSealer>,
+        batch_executor_base: Box<dyn BatchExecutor>,
+        sealer: Arc<dyn ConditionalSealer>,
     ) -> Self {
         Self {
             stop_receiver,
@@ -604,34 +605,50 @@ impl ZkSyncStateKeeper {
         tx: Transaction,
     ) -> (SealResolution, TxExecutionResult) {
         let exec_result = batch_executor.execute_tx(tx.clone()).await;
+        // All of `TxExecutionResult::BootloaderOutOfGasForTx`, `TxExecutionResult::BootloaderOutOfGasForBlockTip`,
+        // `Halt::NotEnoughGasProvided` correspond to out-of-gas errors but of different nature.
+        // - `BootloaderOutOfGasForTx`: it is returned when bootloader stack frame run out of gas before tx execution finished.
+        // - `BootloaderOutOfGasForBlockTip`: it is returned when bootloader stack frame run out of gas during batch tip dry run.
+        // - `Halt::NotEnoughGasProvided`: there are checks in bootloader in some places (search for `checkEnoughGas` calls).
+        //      They check if there is more gas in the frame than bootloader estimates it will need.
+        //      This error is returned when such a check fails. Basically, bootloader doesn't continue execution but panics prematurely instead.
+        // If some transaction fails with any of these errors and is the first transaction in L1 batch, then it's marked as unexecutable.
+        // Otherwise, `ExcludeAndSeal` resolution is returned, i.e. batch will be sealed and transaction will be included in the next L1 batch.
+
+        let is_first_tx = updates_manager.pending_executed_transactions_len() == 0;
         let resolution = match &exec_result {
-            TxExecutionResult::BootloaderOutOfGasForTx => {
-                AGGREGATION_METRICS
-                    .inc("bootloader_tx_out_of_gas", &SealResolution::ExcludeAndSeal);
-                SealResolution::ExcludeAndSeal
-            }
-            TxExecutionResult::BootloaderOutOfGasForBlockTip => {
-                AGGREGATION_METRICS.inc(
-                    "bootloader_block_tip_failed",
-                    &SealResolution::ExcludeAndSeal,
-                );
-                SealResolution::ExcludeAndSeal
-            }
-            TxExecutionResult::RejectedByVm { reason } => match reason {
-                Halt::NotEnoughGasProvided => {
-                    AGGREGATION_METRICS.inc(
-                        "not_enough_gas_provided_to_start_tx",
-                        &SealResolution::ExcludeAndSeal,
-                    );
+            TxExecutionResult::BootloaderOutOfGasForTx
+            | TxExecutionResult::BootloaderOutOfGasForBlockTip
+            | TxExecutionResult::RejectedByVm {
+                reason: Halt::NotEnoughGasProvided,
+            } => {
+                let error_message = match &exec_result {
+                    TxExecutionResult::BootloaderOutOfGasForTx => "bootloader_tx_out_of_gas",
+                    TxExecutionResult::BootloaderOutOfGasForBlockTip => {
+                        "bootloader_batch_tip_out_of_gas"
+                    }
+                    TxExecutionResult::RejectedByVm {
+                        reason: Halt::NotEnoughGasProvided,
+                    } => "not_enough_gas_provided_to_start_tx",
+                    _ => unreachable!(),
+                };
+                let resolution = if is_first_tx {
+                    SealResolution::Unexecutable(error_message.to_string())
+                } else {
                     SealResolution::ExcludeAndSeal
-                }
-                _ => SealResolution::Unexecutable(reason.to_string()),
-            },
+                };
+                AGGREGATION_METRICS.inc(error_message, &resolution);
+                resolution
+            }
+            TxExecutionResult::RejectedByVm { reason } => {
+                SealResolution::Unexecutable(reason.to_string())
+            }
             TxExecutionResult::Success {
                 tx_result,
                 tx_metrics,
                 bootloader_dry_run_metrics,
                 bootloader_dry_run_result,
+                gas_remaining,
                 ..
             } => {
                 let tx_execution_status = &tx_result.result;
@@ -689,6 +706,7 @@ impl ZkSyncStateKeeper {
                     gas_count: tx_gas_excluding_writes + tx_writes_l1_gas,
                     cumulative_size: encoding_len,
                     writes_metrics: tx_writes_metrics,
+                    gas_remaining: *gas_remaining,
                 };
                 let block_data = SealData {
                     execution_metrics: tx_data.execution_metrics
@@ -699,6 +717,7 @@ impl ZkSyncStateKeeper {
                     cumulative_size: tx_data.cumulative_size
                         + updates_manager.pending_txs_encoding_size(),
                     writes_metrics: block_writes_metrics,
+                    gas_remaining: *gas_remaining,
                 };
 
                 self.sealer.should_seal_l1_batch(

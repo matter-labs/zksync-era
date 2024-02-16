@@ -22,6 +22,7 @@ lazy_static! {
     static ref COMMITMENTS: Lazy<L1VerifierConfig> = Lazy::new(|| { circuit_commitments().unwrap() });
 }
 
+#[derive(Debug)]
 pub struct VkCommitments {
     pub leaf: String,
     pub node: String,
@@ -45,7 +46,7 @@ fn circuit_commitments() -> anyhow::Result<L1VerifierConfig> {
         // we load the SNARK-wrapper verification key.
         // This is due to the fact that these keys are used only for picking the
         // prover jobs / witgen jobs from the DB. The keys are matched with the ones in
-        // `prover_protocol_versions` table, which has the SNARK-wrapper verification key.
+        // `prover_fri_protocol_versions` table, which has the SNARK-wrapper verification key.
         // This is OK because if the FRI VK changes, the SNARK-wrapper VK will change as well.
         // You can actually compute the SNARK-wrapper VK from the FRI VK, but this is not yet
         // implemented in the `zkevm_test_harness`, so instead we're loading it from the env.

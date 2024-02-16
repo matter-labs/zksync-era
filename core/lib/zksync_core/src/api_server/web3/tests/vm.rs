@@ -228,7 +228,7 @@ impl HttpTest for SendRawTransactionTest {
                     MiniblockNumber(0),
                     &[(H256::zero(), vec![Self::balance_storage_log()])],
                 )
-                .await;
+                .await?;
         }
 
         let (tx_bytes, tx_hash) = Self::transaction_bytes_and_hash();
@@ -262,7 +262,14 @@ impl TraceCallTest {
         assert_eq!(call_result.from, Address::zero());
         assert_eq!(call_result.gas, call_request.gas.unwrap());
         assert_eq!(call_result.value, call_request.value.unwrap());
-        assert_eq!(call_result.input, *call_request.data.as_ref().unwrap());
+        assert_eq!(
+            call_result.input,
+            call_request
+                .clone()
+                .input
+                .or(call_request.clone().data)
+                .unwrap()
+        );
         assert_eq!(call_result.output.0, b"output");
     }
 }
@@ -449,7 +456,7 @@ impl HttpTest for EstimateGasTest {
             storage
                 .storage_logs_dal()
                 .append_storage_logs(MiniblockNumber(0), &[(H256::zero(), vec![storage_log])])
-                .await;
+                .await?;
         }
         let mut call_request = CallRequest::from(l2_transaction);
         call_request.from = Some(SendRawTransactionTest::private_key_and_address().1);

@@ -93,7 +93,8 @@ pub(crate) async fn create_miniblock(
         .unwrap();
     conn.storage_logs_dal()
         .insert_storage_logs(miniblock_number, &[(H256::zero(), block_logs)])
-        .await;
+        .await
+        .unwrap();
 }
 
 #[allow(clippy::default_trait_access)]
@@ -117,7 +118,8 @@ pub(crate) async fn create_l1_batch(
     written_keys.sort_unstable();
     conn.storage_logs_dedup_dal()
         .insert_initial_writes(l1_batch_number, &written_keys)
-        .await;
+        .await
+        .unwrap();
 }
 
 pub(crate) async fn prepare_postgres_for_snapshot_recovery(
@@ -148,11 +150,13 @@ pub(crate) async fn prepare_postgres_for_snapshot_recovery(
             snapshot_recovery.miniblock_number,
             &[(H256::zero(), snapshot_storage_logs.clone())],
         )
-        .await;
+        .await
+        .unwrap();
     let mut written_keys: Vec<_> = snapshot_storage_logs.iter().map(|log| log.key).collect();
     written_keys.sort_unstable();
     conn.storage_logs_dedup_dal()
         .insert_initial_writes(snapshot_recovery.l1_batch_number, &written_keys)
-        .await;
+        .await
+        .unwrap();
     (snapshot_recovery, snapshot_storage_logs)
 }

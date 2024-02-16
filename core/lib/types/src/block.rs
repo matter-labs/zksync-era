@@ -250,6 +250,12 @@ pub fn pack_block_info(block_number: u64, block_timestamp: u64) -> U256 {
         + U256::from(block_timestamp)
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct L1BatchTreeData {
+    pub hash: H256,
+    pub rollup_last_leaf_index: u64,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
