@@ -199,7 +199,7 @@ pub fn gas_bootloader_batch_tip_overhead(version: VmVersion) -> u32 {
         VmVersion::VmBoojumIntegration => {
             crate::vm_boojum_integration::constants::BOOTLOADER_BATCH_TIP_OVERHEAD
         }
-        VmVersion::Vm1_4_1 => crate::vm_latest::constants::BOOTLOADER_BATCH_TIP_OVERHEAD,
+        VmVersion::Vm1_4_1 => crate::vm_latest::constants::BOOTLOADER_BATCH_TIP_OVERHEAD_GAS,
     }
 }
 
