@@ -548,7 +548,6 @@ impl ZksNamespace {
         &self,
         hash: H256,
     ) -> Result<Option<Vec<u8>>, Web3Error> {
-        // FIXME: is `Vec<u8>` vs `Bytes` intentional here?
         const METHOD_NAME: &str = "get_bytecode_by_hash";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
