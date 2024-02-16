@@ -445,9 +445,8 @@ pub(crate) async fn save_set_chain_id_tx(
         .to_block(BlockNumber::Latest)
         .build();
     let mut logs = eth_client.logs(filter, "fetch_chain_id_tx").await?;
-    assert_eq!(
-        logs.len(),
-        1,
+    anyhow::ensure!(
+        logs.len() == 1,
         "Expected a single set_chain_id event, got {:?}",
         logs.len()
     );
