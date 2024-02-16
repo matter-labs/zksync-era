@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use anyhow::Context as _;
 use circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerVerificationKey;
 use clap::{Parser, Subcommand};
@@ -206,6 +208,7 @@ enum Command {
         #[arg(long)]
         numeric_circuit: Option<u8>,
 
+        /// If true, then setup keys are not written and only md5 sum is printed.
         #[arg(long, default_value = "false")]
         dry_run: bool,
     },
@@ -217,6 +220,10 @@ enum Command {
         /// Specify for which circuit to generate the keys.
         #[arg(long)]
         numeric_circuit: Option<u8>,
+
+        /// If true, then setup keys are not written and only md5 sum is printed.
+        #[arg(long, default_value = "false")]
+        dry_run: bool,
     },
     /// Generates and updates the commitments - used by the verification contracts.
     #[command(name = "update-commitments")]
@@ -224,6 +231,18 @@ enum Command {
         #[arg(long, default_value = "true")]
         dryrun: bool,
     },
+}
+
+fn print_stats(digests: HashMap<String, String>) -> anyhow::Result<()> {
+    let mut keys: Vec<&String> = digests.keys().collect();
+    keys.sort();
+    // Iterate over the sorted keys
+    for key in keys {
+        if let Some(value) = digests.get(key) {
+            tracing::info!("{key}: {value}");
+        }
+    }
+    Ok(())
 }
 
 fn main() -> anyhow::Result<()> {
@@ -245,6 +264,8 @@ fn main() -> anyhow::Result<()> {
             );
             generate_vks().context("generate_vks()")
         }
+        Command::UpdateCommitments { dryrun } => read_and_update_contract_toml(dryrun),
+
         Command::GenerateSetupKeys {
             circuits_type,
             numeric_circuit,
@@ -252,8 +273,8 @@ fn main() -> anyhow::Result<()> {
         } => match circuits_type {
             CircuitSelector::All => {
                 let digests = generate_all_cpu_setup_data(dry_run)?;
-                tracing::info!("Hashes: {:?}", digests);
-                Ok(())
+                tracing::info!("CPU Setup keys md5(s):");
+                print_stats(digests)
             }
             CircuitSelector::Recursive => {
                 let digest = generate_cpu_setup_data(
@@ -276,16 +297,36 @@ fn main() -> anyhow::Result<()> {
                 Ok(())
             }
         },
-        Command::UpdateCommitments { dryrun } => read_and_update_contract_toml(dryrun),
         Command::GenerateGPUSetupKeys {
             circuits_type,
             numeric_circuit,
+            dry_run,
         } => match circuits_type {
-            CircuitSelector::All => generate_all_gpu_setup_data(),
-            CircuitSelector::Recursive => generate_gpu_setup_data(false, numeric_circuit.unwrap())
-                .context("generate_cpu_setup_data()"),
-            CircuitSelector::Basic => generate_gpu_setup_data(true, numeric_circuit.unwrap())
-                .context("generate_cpu_setup_data()"),
+            CircuitSelector::All => {
+                let digests = generate_all_gpu_setup_data(dry_run)?;
+                tracing::info!("GPU Setup keys md5(s):");
+                print_stats(digests)
+            }
+            CircuitSelector::Recursive => {
+                let digest = generate_gpu_setup_data(
+                    false,
+                    numeric_circuit.expect("--numeric-circuit must be provided"),
+                    dry_run,
+                )
+                .context("generate_gpu_setup_data()")?;
+                tracing::info!("digest: {:?}", digest);
+                Ok(())
+            }
+            CircuitSelector::Basic => {
+                let digest = generate_gpu_setup_data(
+                    true,
+                    numeric_circuit.expect("--numeric-circuit must be provided"),
+                    dry_run,
+                )
+                .context("generate_gpu_setup_data()")?;
+                tracing::info!("digest: {:?}", digest);
+                Ok(())
+            }
         },
     }
 }

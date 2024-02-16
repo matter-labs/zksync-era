@@ -1,6 +1,10 @@
 use std::collections::HashMap;
 
 use anyhow::Context as _;
+use circuit_definitions::{
+    circuit_definitions::recursion_layer::ZkSyncRecursionLayerStorageType,
+    zkevm_circuits::scheduler::aux::BaseLayerCircuitType,
+};
 use zkevm_test_harness::{
     geometry_config::get_geometry_config, prover_utils::create_recursive_layer_setup_data,
 };
@@ -30,23 +34,37 @@ use {
     zksync_vk_setup_data_server_fri::GpuProverSetupData,
 };
 
-pub fn generate_all_cpu_setup_data(dry_run: bool) -> anyhow::Result<HashMap<String, String>> {
-    const MAX_CIRCUIT: u8 = 13;
+fn generate_all(
+    dry_run: bool,
+    f: fn(bool, u8, bool) -> anyhow::Result<String>,
+) -> anyhow::Result<HashMap<String, String>> {
     let mut result = HashMap::new();
 
-    for numeric_circuit in 1..=MAX_CIRCUIT {
-        let digest = generate_cpu_setup_data(true, numeric_circuit, dry_run)
+    for numeric_circuit in
+        BaseLayerCircuitType::VM as u8..=BaseLayerCircuitType::L1MessagesHasher as u8
+    {
+        let digest = f(true, numeric_circuit, dry_run)
             .context(format!("base layer, circuit {:?}", numeric_circuit))?;
         result.insert(format!("base_{}", numeric_circuit), digest);
     }
 
     // +2 - as '1' and '2' are scheduler and node respectively.
-    for numeric_circuit in 1..=MAX_CIRCUIT + 2 {
-        let digest = generate_cpu_setup_data(false, numeric_circuit, dry_run)
+    for numeric_circuit in ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8
+        ..=ZkSyncRecursionLayerStorageType::LeafLayerCircuitForL1MessagesHasher as u8
+    {
+        let digest = f(false, numeric_circuit, dry_run)
             .context(format!("recursive layer, circuit {:?}", numeric_circuit))?;
         result.insert(format!("recursive_{}", numeric_circuit), digest);
     }
     Ok(result)
+}
+
+pub fn generate_all_cpu_setup_data(dry_run: bool) -> anyhow::Result<HashMap<String, String>> {
+    generate_all(dry_run, generate_cpu_setup_data)
+}
+
+pub fn generate_all_gpu_setup_data(dry_run: bool) -> anyhow::Result<HashMap<String, String>> {
+    generate_all(dry_run, generate_gpu_setup_data)
 }
 
 pub fn generate_cpu_setup_data(
@@ -168,12 +186,20 @@ fn generate_cpu_recursive_layer_setup_data(
 }
 
 #[cfg(not(feature = "gpu"))]
-pub fn generate_gpu_setup_data(_is_base_layer: bool, _numeric_circuit: u8) -> anyhow::Result<()> {
+pub fn generate_gpu_setup_data(
+    _is_base_layer: bool,
+    _numeric_circuit: u8,
+    _dry_run: bool,
+) -> anyhow::Result<String> {
     anyhow::bail!("Must compile with --gpu feature to use this option.")
 }
 
 #[cfg(feature = "gpu")]
-pub fn generate_gpu_setup_data(is_base_layer: bool, numeric_circuit: u8) -> anyhow::Result<()> {
+pub fn generate_gpu_setup_data(
+    is_base_layer: bool,
+    numeric_circuit: u8,
+    dry_run: bool,
+) -> anyhow::Result<(String)> {
     let _context = ProverContext::create().context("failed initializing gpu prover context")?;
     let (cpu_setup_data, round) = match is_base_layer {
         true => {
@@ -212,24 +238,15 @@ pub fn generate_gpu_setup_data(is_base_layer: bool, numeric_circuit: u8) -> anyh
     // Serialization should always succeed.
     let serialized =
         bincode::serialize(&gpu_prover_setup_data).expect("Failed serializing setup data");
-    save_setup_data(
-        ProverServiceDataKey::new(numeric_circuit, round),
-        &serialized,
-    )
-    .context("save_setup_data")
-}
-
-pub fn generate_all_gpu_setup_data() -> anyhow::Result<()> {
-    const MAX_CIRCUIT: u8 = 13;
-    for numeric_circuit in 1..=MAX_CIRCUIT {
-        generate_gpu_setup_data(true, numeric_circuit)
-            .context(format!("base layer, circuit {:?}", numeric_circuit))?;
+    let digest = md5::compute(&serialized);
+    if !dry_run {
+        save_setup_data(
+            ProverServiceDataKey::new(numeric_circuit, round),
+            &serialized,
+        )
+        .context("save_setup_data")?;
+    } else {
+        tracing::warn!("Dry run - not writing the key");
     }
-
-    // +2 - as '1' and '2' are scheduler and node respectively.
-    for numeric_circuit in 1..=MAX_CIRCUIT + 2 {
-        generate_gpu_setup_data(false, numeric_circuit)
-            .context(format!("recursive layer, circuit {:?}", numeric_circuit))?;
-    }
-    Ok(())
+    Ok(format!("{:?}", digest))
 }
