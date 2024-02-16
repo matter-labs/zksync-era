@@ -1,6 +1,6 @@
 use zksync_types::{
     tokens::{TokenInfo, TokenMetadata},
-    Address,
+    Address, MiniblockNumber,
 };
 
 use crate::StorageProcessor;
@@ -60,7 +60,10 @@ impl TokensWeb3Dal<'_, '_> {
     }
 
     /// Returns information about all tokens.
-    pub async fn get_all_tokens(&mut self) -> sqlx::Result<Vec<TokenInfo>> {
+    pub async fn get_all_tokens(
+        &mut self,
+        at_miniblock: Option<MiniblockNumber>,
+    ) -> sqlx::Result<Vec<TokenInfo>> {
         let records = sqlx::query_as!(
             StorageTokenInfo,
             r#"
@@ -79,6 +82,19 @@ impl TokensWeb3Dal<'_, '_> {
         .fetch_all(self.storage.conn())
         .await?;
 
-        Ok(records.into_iter().map(Into::into).collect())
+        let mut all_tokens: Vec<_> = records.into_iter().map(TokenInfo::from).collect();
+        let Some(at_miniblock) = at_miniblock else {
+            return Ok(all_tokens); // No additional filtering is required
+        };
+
+        let token_addresses = all_tokens.iter().map(|token| token.l2_address);
+        let filtered_addresses = self
+            .storage
+            .storage_logs_dal()
+            .filter_deployed_contracts(token_addresses, Some(at_miniblock))
+            .await?;
+
+        all_tokens.retain(|token| filtered_addresses.contains_key(&token.l2_address));
+        Ok(all_tokens)
     }
 }

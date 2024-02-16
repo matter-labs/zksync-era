@@ -157,7 +157,11 @@ mod tests {
                 .collect::<HashSet<_>>(),
         );
 
-        let all_tokens = storage.tokens_web3_dal().get_all_tokens().await.unwrap();
+        let all_tokens = storage
+            .tokens_web3_dal()
+            .get_all_tokens(None)
+            .await
+            .unwrap();
         assert_eq!(all_tokens.len(), 2);
         assert!(all_tokens.contains(&tokens[0]));
         assert!(all_tokens.contains(&tokens[1]));
@@ -219,6 +223,8 @@ mod tests {
             .await
             .unwrap();
 
+        test_getting_all_tokens(&mut storage).await;
+
         storage
             .tokens_dal()
             .rollback_tokens(MiniblockNumber(2))
@@ -248,6 +254,28 @@ mod tests {
                 .unwrap(),
             [eth_info.l2_address]
         );
+    }
+
+    async fn test_getting_all_tokens(storage: &mut StorageProcessor<'_>) {
+        for at_miniblock in [None, Some(MiniblockNumber(2)), Some(MiniblockNumber(100))] {
+            let all_tokens = storage
+                .tokens_web3_dal()
+                .get_all_tokens(at_miniblock)
+                .await
+                .unwrap();
+            assert_eq!(all_tokens.len(), 2);
+            assert!(all_tokens.contains(&eth_token_info()));
+            assert!(all_tokens.contains(&test_token_info()));
+        }
+
+        for at_miniblock in [MiniblockNumber(0), MiniblockNumber(1)] {
+            let all_tokens = storage
+                .tokens_web3_dal()
+                .get_all_tokens(Some(at_miniblock))
+                .await
+                .unwrap();
+            assert_eq!(all_tokens, [eth_token_info()]);
+        }
     }
 
     #[tokio::test]
