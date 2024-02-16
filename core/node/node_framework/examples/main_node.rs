@@ -2,6 +2,7 @@
 //! This example defines a `ResourceProvider` that works using the main node env config, and
 //! initializes a single task with a health check server.
 
+use anyhow::Context; // Added to provide more context on errors
 use zksync_config::{
     configs::chain::{MempoolConfig, NetworkConfig, OperationsManagerConfig, StateKeeperConfig},
     ApiConfig, ContractsConfig, DBConfig, ETHClientConfig, GasAdjusterConfig, ObjectStoreConfig,
@@ -30,10 +31,9 @@ struct MainNodeBuilder {
 }
 
 impl MainNodeBuilder {
-    fn new() -> Self {
-        Self {
-            node: ZkStackService::new().expect("Failed to initialize the node"),
-        }
+    fn new() -> anyhow::Result<Self> {
+        let node = ZkStackService::new().context("Failed to initialize the node")?; // Added context to error message
+        Ok(Self { node })
     }
 
     fn add_pools_layer(mut self) -> anyhow::Result<Self> {
@@ -116,14 +116,14 @@ fn main() -> anyhow::Result<()> {
         .with_log_format(log_format)
         .build();
 
-    MainNodeBuilder::new()
-        .add_pools_layer()?
-        .add_query_eth_client_layer()?
-        .add_fee_input_layer()?
-        .add_object_store_layer()?
-        .add_metadata_calculator_layer()?
-        .add_state_keeper_layer()?
-        .add_healthcheck_layer()?
+    MainNodeBuilder::new()? // Added `?` for error handling
+        .add_pools_layer()? // Added `?` for error handling
+        .add_query_eth_client_layer()? // Added `?` for error handling
+        .add_fee_input_layer()? // Added `?` for error handling
+        .add_object_store_layer()? // Added `?` for error handling
+        .add_metadata_calculator_layer()? // Added `?` for error handling
+        .add_state_keeper_layer()? // Added `?` for error handling
+        .add_healthcheck_layer()? // Added `?` for error handling
         .build()
         .run()?;
 
