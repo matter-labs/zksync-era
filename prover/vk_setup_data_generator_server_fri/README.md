@@ -24,7 +24,7 @@ zk init keys/setup/setup_2^24.key
 
 ## Commitments
 
-Commitmets is basically a 'hash' of the verfication keys, that is used in our configuration, and also in Verifier.sol.
+Commitments is basically a 'hash' of the verification keys, that is used in our configuration, and also in Verifier.sol.
 
 You can run it with `dry-run`, to see the results, or set `dry-run` to false to update the config in
 `etc/env/base/contracts.toml`.
