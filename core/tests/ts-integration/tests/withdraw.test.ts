@@ -7,18 +7,20 @@ import { Token } from '../src/types';
 
 import * as zksync from 'zksync-web3';
 import * as ethers from 'ethers';
-import { ETH_ADDRESS } from 'zksync-web3/build/src/utils';
+import { ETH_ADDRESS, L2_ETH_TOKEN_ADDRESS } from 'zksync-web3/build/src/utils';
+import { shouldChangeTokenBalances } from '../src/modifiers/balance-checker';
 
 describe('ERC20 contract checks', () => {
     let testMaster: TestMaster;
     let alice: zksync.Wallet;
     let tokenDetails: Token;
     let aliceErc20: ethers.Contract;
-    const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+    let isNativeErc20: boolean;
 
     beforeAll(async () => {
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
+        isNativeErc20 = testMaster.environment().nativeErc20Testing;
 
         tokenDetails = testMaster.environment().erc20Token;
         aliceErc20 = (await alice.getL1BridgeContracts()).erc20;
@@ -29,13 +31,13 @@ describe('ERC20 contract checks', () => {
         if (testMaster.isFastMode()) {
             return;
         }
-        const amount = 1;
+        const amount = 500;
+        let tokenAddress = isNativeErc20 ? tokenDetails.l1Address : undefined
 
+        const l1ERC20InitialBalance = await alice.getBalanceL1(tokenAddress);
         const initialBalanceL2 = await alice.getBalance();
-        const initialBalanceL1 = await alice.getBalanceL1(tokenDetails.l1Address);
-
-        // First, a withdraw transaction is done on the L2,
-        const withdraw = await alice.withdraw({ token: ETH_ADDRESS, amount });
+        // First, a withdraw transaction is done on the L2.
+        const withdraw = await alice.withdraw({ token: L2_ETH_TOKEN_ADDRESS, amount });
         const withdrawalHash = withdraw.hash;
         await withdraw.waitFinalize();
 
@@ -46,16 +48,18 @@ describe('ERC20 contract checks', () => {
         const finalBalanceL2 = await alice.getBalance();
         let expected = initialBalanceL2.sub(amount).sub(fee);
         let actual = finalBalanceL2;
-        expect(actual == expected);
+        expect(expected).toStrictEqual(actual);
 
-        // Afterwards, a withdraw-finalize is done on the L1,
-        (await alice.finalizeWithdrawal(withdrawalHash)).wait();
+        let tx = await alice.finalizeWithdrawal(withdrawalHash);
+        await tx.wait();
 
-        // make sure that the balance on the L1 has increased by the amount withdrawn
-        const finalBalanceL1 = await alice.getBalanceL1(tokenDetails.l1Address);
-        expected = initialBalanceL1.add(amount);
-        actual = finalBalanceL1;
-        expect(actual == expected);
+        if (isNativeErc20) {
+            expect(await alice.getBalanceL1(tokenAddress)).toEqual(l1ERC20InitialBalance.add(amount));
+        } else {
+            let l1Receipt = await alice._providerL1().getTransactionReceipt(tx.hash);
+            const l1Fee = l1Receipt.effectiveGasPrice.mul(l1Receipt.gasUsed);
+            expect(await alice.getBalanceL1(tokenAddress)).toEqual(l1ERC20InitialBalance.add(amount).sub(l1Fee));
+        }
     });
 
     test(`Can't perform an invalid withdrawal`, async () => {
@@ -70,7 +74,7 @@ describe('ERC20 contract checks', () => {
             await alice.withdraw({ token: ETH_ADDRESS, amount });
         } catch (e: any) {
             const err = e.toString();
-            expect(err.includes('insufficient balance for transfer'));
+            expect(err.includes('insufficient balance for transfer')).toBe(true);
         }
     });
 
