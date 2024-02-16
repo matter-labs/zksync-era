@@ -109,12 +109,10 @@ Before you can start using `zk spellcheck` on your local machine, ensure that th
 system before proceeding. To install `cspell`, run the following command in your terminal:
 
 ```sh
-npm install -g cspell@^8.3.2
+npm install -g cspell
 ```
 
-This command installs the `cspell` spell checker globally on your system, making it accessible from any directory. The
-`@^8.3.2` specifies that npm should install version `8.3.2` or any minor version updates that do not introduce breaking
-changes.This is the version used in the CI environment.
+This command installs the `cspell` spell checker globally on your system, making it accessible from any directory.
 
 #### Installing cargo-spellcheck
 
@@ -194,7 +192,7 @@ installed on your system before proceeding. To install `markdown-link-check`, ru
 terminal:
 
 ```sh
-npm install -g markdown-link-check@^3.11.2
+npm install -g markdown-link-check
 ```
 
 This command installs the `markdown-link-check` link checker globally on your system, making it accessible from any
