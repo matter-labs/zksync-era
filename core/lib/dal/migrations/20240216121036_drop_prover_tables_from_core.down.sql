@@ -1,0 +1,3 @@
+-- There's no state to revert to, as the tables were a temporary measure.
+-- Whilst we can create the table here as an undo, this is infrastructure related, not software.
+-- The software was left in place until we migrated infrastructure (development environment, staging).
