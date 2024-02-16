@@ -22,7 +22,6 @@ impl SealCriterion for GasCriterion {
         _tx_count: usize,
         block_data: &SealData,
         tx_data: &SealData,
-        _gas_remaining: u32,
         _protocol_version_id: ProtocolVersionId,
     ) -> SealResolution {
         let tx_bound =
@@ -78,7 +77,6 @@ mod tests {
                 ..SealData::default()
             },
             &SealData::default(),
-            0,
             ProtocolVersionId::latest(),
         );
         assert_eq!(empty_block_resolution, SealResolution::NoSeal);
@@ -101,7 +99,6 @@ mod tests {
                 gas_count: tx_gas,
                 ..SealData::default()
             },
-            0,
             ProtocolVersionId::latest(),
         );
         assert_eq!(
@@ -129,7 +126,6 @@ mod tests {
                 gas_count: tx_gas,
                 ..SealData::default()
             },
-            0,
             ProtocolVersionId::latest(),
         );
         assert_eq!(resolution_after_first_tx, SealResolution::NoSeal);
@@ -146,7 +142,6 @@ mod tests {
                 gas_count: tx_gas,
                 ..SealData::default()
             },
-            0,
             ProtocolVersionId::latest(),
         );
         assert_eq!(resolution_after_second_tx, SealResolution::ExcludeAndSeal);
@@ -176,7 +171,6 @@ mod tests {
                 gas_count: tx_gas,
                 ..SealData::default()
             },
-            0,
             ProtocolVersionId::latest(),
         );
         assert_eq!(resolution_after_first_tx, SealResolution::IncludeAndSeal);

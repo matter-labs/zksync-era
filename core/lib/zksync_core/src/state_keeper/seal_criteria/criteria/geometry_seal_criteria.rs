@@ -29,7 +29,6 @@ where
         _tx_count: usize,
         block_data: &SealData,
         tx_data: &SealData,
-        _gas_remaining: u32,
         protocol_version_id: ProtocolVersionId,
     ) -> SealResolution {
         let reject_bound = (T::limit_per_block(protocol_version_id) as f64
@@ -104,7 +103,6 @@ mod tests {
                 ..SealData::default()
             },
             &SealData::default(),
-            0,
             protocol_version,
         );
         assert_eq!(block_resolution, SealResolution::NoSeal);
@@ -125,7 +123,6 @@ mod tests {
                 ..SealData::default()
             },
             &SealData::default(),
-            0,
             protocol_version,
         );
         assert_eq!(block_resolution, SealResolution::IncludeAndSeal);
@@ -146,7 +143,6 @@ mod tests {
                 ..SealData::default()
             },
             &SealData::default(),
-            0,
             protocol_version,
         );
         assert_eq!(block_resolution, SealResolution::ExcludeAndSeal);
@@ -167,7 +163,6 @@ mod tests {
                 execution_metrics: tx_execution_metrics,
                 ..SealData::default()
             },
-            0,
             protocol_version,
         );
 

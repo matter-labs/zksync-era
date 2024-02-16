@@ -19,12 +19,10 @@ pub trait ConditionalSealer: 'static + fmt::Debug + Send + Sync {
     fn find_unexecutable_reason(
         &self,
         data: &SealData,
-        gas_remaining: u32,
         protocol_version: ProtocolVersionId,
     ) -> Option<&'static str>;
 
     /// Returns the action that should be taken by the state keeper after executing a transaction.
-    #[allow(clippy::too_many_arguments)]
     fn should_seal_l1_batch(
         &self,
         l1_batch_number: u32,
@@ -32,7 +30,6 @@ pub trait ConditionalSealer: 'static + fmt::Debug + Send + Sync {
         tx_count: usize,
         block_data: &SealData,
         tx_data: &SealData,
-        gas_remaining: u32,
         protocol_version: ProtocolVersionId,
     ) -> SealResolution;
 }
@@ -52,7 +49,6 @@ impl ConditionalSealer for SequencerSealer {
     fn find_unexecutable_reason(
         &self,
         data: &SealData,
-        gas_remaining: u32,
         protocol_version: ProtocolVersionId,
     ) -> Option<&'static str> {
         for sealer in &self.sealers {
@@ -65,7 +61,6 @@ impl ConditionalSealer for SequencerSealer {
                 TX_COUNT,
                 data,
                 data,
-                gas_remaining,
                 protocol_version,
             );
             if matches!(resolution, SealResolution::Unexecutable(_)) {
@@ -82,7 +77,6 @@ impl ConditionalSealer for SequencerSealer {
         tx_count: usize,
         block_data: &SealData,
         tx_data: &SealData,
-        gas_remaining: u32,
         protocol_version: ProtocolVersionId,
     ) -> SealResolution {
         tracing::trace!(
@@ -99,7 +93,6 @@ impl ConditionalSealer for SequencerSealer {
                 tx_count,
                 block_data,
                 tx_data,
-                gas_remaining,
                 protocol_version,
             );
             match &seal_resolution {
@@ -157,7 +150,6 @@ impl ConditionalSealer for NoopSealer {
     fn find_unexecutable_reason(
         &self,
         _data: &SealData,
-        _gas_remaining: u32,
         _protocol_version: ProtocolVersionId,
     ) -> Option<&'static str> {
         None
@@ -170,7 +162,6 @@ impl ConditionalSealer for NoopSealer {
         _tx_count: usize,
         _block_data: &SealData,
         _tx_data: &SealData,
-        _gas_remaining: u32,
         _protocol_version: ProtocolVersionId,
     ) -> SealResolution {
         SealResolution::NoSeal

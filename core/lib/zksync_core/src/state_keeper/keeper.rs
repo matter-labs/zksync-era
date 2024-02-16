@@ -665,6 +665,7 @@ impl ZkSyncStateKeeper {
                     gas_count: tx_gas_excluding_writes + tx_writes_l1_gas,
                     cumulative_size: encoding_len,
                     writes_metrics: tx_writes_metrics,
+                    gas_remaining: *gas_remaining,
                 };
                 let block_data = SealData {
                     execution_metrics: tx_data.execution_metrics
@@ -675,6 +676,7 @@ impl ZkSyncStateKeeper {
                     cumulative_size: tx_data.cumulative_size
                         + updates_manager.pending_txs_encoding_size(),
                     writes_metrics: block_writes_metrics,
+                    gas_remaining: *gas_remaining,
                 };
 
                 self.sealer.should_seal_l1_batch(
@@ -683,7 +685,6 @@ impl ZkSyncStateKeeper {
                     updates_manager.pending_executed_transactions_len() + 1,
                     &block_data,
                     &tx_data,
-                    *gas_remaining,
                     updates_manager.protocol_version(),
                 )
             }

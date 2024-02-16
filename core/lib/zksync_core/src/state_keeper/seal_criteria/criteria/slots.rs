@@ -17,7 +17,6 @@ impl SealCriterion for SlotsCriterion {
         tx_count: usize,
         _block_data: &SealData,
         _tx_data: &SealData,
-        _gas_remaining: u32,
         protocol_version: ProtocolVersionId,
     ) -> SealResolution {
         let max_txs_in_batch = get_bootloader_max_txs_in_batch(protocol_version.into());
@@ -59,7 +58,6 @@ mod tests {
             config.transaction_slots - 1,
             &SealData::default(),
             &SealData::default(),
-            0,
             ProtocolVersionId::latest(),
         );
         assert_eq!(almost_full_block_resolution, SealResolution::NoSeal);
@@ -70,7 +68,6 @@ mod tests {
             config.transaction_slots,
             &SealData::default(),
             &SealData::default(),
-            0,
             ProtocolVersionId::latest(),
         );
         assert_eq!(full_block_resolution, SealResolution::IncludeAndSeal);

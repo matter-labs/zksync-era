@@ -15,7 +15,6 @@ impl SealCriterion for PubDataBytesCriterion {
         _tx_count: usize,
         block_data: &SealData,
         tx_data: &SealData,
-        _gas_remaining: u32,
         protocol_version: ProtocolVersionId,
     ) -> SealResolution {
         let max_pubdata_per_l1_batch = MAX_PUBDATA_PER_L1_BATCH as usize;
@@ -85,7 +84,6 @@ mod tests {
                 ..SealData::default()
             },
             &SealData::default(),
-            0,
             ProtocolVersionId::latest(),
         );
         assert_eq!(empty_block_resolution, SealResolution::NoSeal);
@@ -107,7 +105,6 @@ mod tests {
                 ..SealData::default()
             },
             &SealData::default(),
-            0,
             ProtocolVersionId::latest(),
         );
         assert_eq!(full_block_resolution, SealResolution::IncludeAndSeal);
@@ -125,7 +122,6 @@ mod tests {
                 ..SealData::default()
             },
             &SealData::default(),
-            0,
             ProtocolVersionId::latest(),
         );
         assert_eq!(full_block_resolution, SealResolution::ExcludeAndSeal);

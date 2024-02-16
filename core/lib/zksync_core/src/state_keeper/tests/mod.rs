@@ -145,7 +145,7 @@ pub(super) fn create_execution_result(
             contracts_used: 0,
             cycles_used: 0,
             gas_used: 0,
-            gas_remaining: u32::MAX,
+            gas_remaining: 0,
             computational_gas_used: 0,
             total_log_queries,
             pubdata_published: 0,
