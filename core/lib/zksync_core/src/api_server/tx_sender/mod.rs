@@ -953,11 +953,11 @@ impl TxSender {
         // still reject them as it's not.
         let protocol_version = ProtocolVersionId::latest();
         let seal_data = SealData::for_transaction(transaction, tx_metrics, protocol_version);
-        if let Some(reason) = self
-            .0
-            .sealer
-            .find_unexecutable_reason(&seal_data, protocol_version)
-        {
+        if let Some(reason) = self.0.sealer.find_unexecutable_reason(
+            &seal_data,
+            tx_metrics.gas_remaining,
+            protocol_version,
+        ) {
             let message = format!(
                 "Tx is Unexecutable because of {reason}; inputs for decision: {seal_data:?}"
             );

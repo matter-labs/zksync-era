@@ -9,6 +9,7 @@ pub struct TransactionExecutionMetrics {
     pub initial_storage_writes: usize,
     pub repeated_storage_writes: usize,
     pub gas_used: usize,
+    pub gas_remaining: u32,
     pub event_topics: u16,
     pub published_bytecode_bytes: usize,
     pub l2_l1_long_messages: usize,

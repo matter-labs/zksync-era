@@ -105,6 +105,7 @@ impl SealData {
 }
 
 pub(super) trait SealCriterion: fmt::Debug + Send + Sync + 'static {
+    #[allow(clippy::too_many_arguments)]
     fn should_seal(
         &self,
         config: &StateKeeperConfig,
@@ -112,6 +113,7 @@ pub(super) trait SealCriterion: fmt::Debug + Send + Sync + 'static {
         tx_count: usize,
         block_data: &SealData,
         tx_data: &SealData,
+        gas_remaining: u32,
         protocol_version: ProtocolVersionId,
     ) -> SealResolution;
 
