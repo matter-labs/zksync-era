@@ -4,6 +4,7 @@ use zksync_config::GasAdjusterConfig;
 use zksync_eth_client::clients::MockEthereum;
 
 use super::{GasAdjuster, GasStatisticsInner};
+use crate::l1_gas_price::RollupGasAdjuster;
 
 /// Check that we compute the median correctly
 #[test]
@@ -44,7 +45,6 @@ async fn kept_updated() {
             internal_enforced_l1_gas_price: None,
             poll_period: 5,
             max_l1_gas_price: None,
-            l1_gas_per_pubdata_byte: 17,
         },
     )
     .await

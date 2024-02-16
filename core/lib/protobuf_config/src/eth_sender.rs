@@ -159,8 +159,6 @@ impl ProtoRepr for proto::GasAdjuster {
             internal_enforced_l1_gas_price: self.internal_enforced_l1_gas_price,
             poll_period: *required(&self.poll_period).context("poll_period")?,
             max_l1_gas_price: self.max_l1_gas_price,
-            l1_gas_per_pubdata_byte: *required(&self.l1_gas_per_pubdata_byte)
-                .context("l1_gas_per_pubdata_byte")?,
         })
     }
 
@@ -174,7 +172,6 @@ impl ProtoRepr for proto::GasAdjuster {
             internal_enforced_l1_gas_price: this.internal_enforced_l1_gas_price,
             poll_period: Some(this.poll_period),
             max_l1_gas_price: this.max_l1_gas_price,
-            l1_gas_per_pubdata_byte: Some(this.l1_gas_per_pubdata_byte),
         }
     }
 }
