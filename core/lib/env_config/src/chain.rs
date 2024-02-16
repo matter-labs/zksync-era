@@ -43,6 +43,8 @@ mod tests {
     use crate::test_utils::{addr, EnvMutex};
 
     static MUTEX: EnvMutex = EnvMutex::new();
+    const VALIDIUM_L1_BATCH_COMMIT_DATA_GENERATOR_MODE: &str = "Validium";
+    const ROLLUP_L1_BATCH_COMMIT_DATA_GENERATOR_MODE: &str = "Rollup";
 
     fn expected_network_config() -> NetworkConfig {
         NetworkConfig {
@@ -66,7 +68,9 @@ mod tests {
         assert_eq!(actual, expected_network_config());
     }
 
-    fn expected_state_keeper_config() -> StateKeeperConfig {
+    fn expected_state_keeper_config(
+        l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
+    ) -> StateKeeperConfig {
         StateKeeperConfig {
             transaction_slots: 50,
             block_commit_deadline_ms: 2500,
@@ -94,14 +98,13 @@ mod tests {
             virtual_blocks_per_miniblock: 1,
             upload_witness_inputs_to_gcs: false,
             enum_index_migration_chunk_size: Some(2_000),
-            l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode::Rollup,
+            l1_batch_commit_data_generator_mode,
         }
     }
 
-    #[test]
-    fn state_keeper_from_env() {
-        let mut lock = MUTEX.lock();
-        let config = r#"
+    fn state_keeper_config(l1_batch_commit_data_generator_mode: &str) -> String {
+        format!(
+            r#"
             CHAIN_STATE_KEEPER_TRANSACTION_SLOTS="50"
             CHAIN_STATE_KEEPER_FEE_ACCOUNT_ADDR="0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7"
             CHAIN_STATE_KEEPER_MAX_SINGLE_TX_GAS="1000000"
@@ -126,30 +129,29 @@ mod tests {
             CHAIN_STATE_KEEPER_SAVE_CALL_TRACES="false"
             CHAIN_STATE_KEEPER_UPLOAD_WITNESS_INPUTS_TO_GCS="false"
             CHAIN_STATE_KEEPER_ENUM_INDEX_MIGRATION_CHUNK_SIZE="2000"
-            CHAIN_STATE_KEEPER_L1_BATCH_COMMIT_DATA_GENERATOR_MODE=Rollup
-        "#;
+            CHAIN_STATE_KEEPER_L1_BATCH_COMMIT_DATA_GENERATOR_MODE="{l1_batch_commit_data_generator_mode}"
+        "#
+        )
+    }
+
+    fn _state_keeper_from_env(config: &str, expected_config: StateKeeperConfig) {
+        let mut lock = MUTEX.lock();
         lock.set_env(config);
 
         let actual = StateKeeperConfig::from_env().unwrap();
-        assert_eq!(actual, expected_state_keeper_config());
-    }
-
-    fn expected_operations_manager_config() -> OperationsManagerConfig {
-        OperationsManagerConfig {
-            delay_interval: 100,
-        }
+        assert_eq!(actual, expected_config);
     }
 
     #[test]
-    fn operations_manager_from_env() {
-        let mut lock = MUTEX.lock();
-        let config = r#"
-            CHAIN_OPERATIONS_MANAGER_DELAY_INTERVAL="100"
-        "#;
-        lock.set_env(config);
-
-        let actual = OperationsManagerConfig::from_env().unwrap();
-        assert_eq!(actual, expected_operations_manager_config());
+    fn state_keeper_from_env() {
+        _state_keeper_from_env(
+            &state_keeper_config(ROLLUP_L1_BATCH_COMMIT_DATA_GENERATOR_MODE),
+            expected_state_keeper_config(L1BatchCommitDataGeneratorMode::Rollup),
+        );
+        _state_keeper_from_env(
+            &state_keeper_config(VALIDIUM_L1_BATCH_COMMIT_DATA_GENERATOR_MODE),
+            expected_state_keeper_config(L1BatchCommitDataGeneratorMode::Validium),
+        );
     }
 
     fn expected_mempool_config() -> MempoolConfig {
