@@ -266,6 +266,10 @@ impl SnapshotCreator {
         config: SnapshotsCreatorConfig,
         min_chunk_count: u64,
     ) -> anyhow::Result<()> {
+        tracing::info!(
+            "Starting snapshot creator with object store {:?} and config {config:?}",
+            self.blob_store
+        );
         let latency = METRICS.snapshot_generation_duration.start();
 
         let Some(progress) = self

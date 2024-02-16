@@ -34,8 +34,8 @@ use crate::{
     metrics::{BlockStage, MiniblockStage, APP_METRICS},
     state_keeper::{
         metrics::{
-            L1BatchSealStage, MiniblockSealStage, KEEPER_METRICS, L1_BATCH_METRICS,
-            MINIBLOCK_METRICS,
+            L1BatchSealStage, MiniblockSealStage, TxExecutionType, KEEPER_METRICS,
+            L1_BATCH_METRICS, MINIBLOCK_METRICS,
         },
         types::ExecutionMetricsForCriteria,
         updates::{MiniblockSealCommand, MiniblockUpdates, UpdatesManager},
@@ -481,8 +481,8 @@ impl MiniblockSealCommand {
                     "Transaction spent >10m in mempool before being included in a miniblock"
                 )
             }
-            KEEPER_METRICS
-                .transaction_inclusion_delay
+            KEEPER_METRICS.transaction_inclusion_delay
+                [&TxExecutionType::from_is_l1(tx.transaction.is_l1())]
                 .observe(inclusion_delay)
         });
         progress.observe(Some(self.miniblock.executed_transactions.len()));

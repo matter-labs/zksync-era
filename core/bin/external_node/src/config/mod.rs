@@ -4,6 +4,7 @@ use anyhow::Context;
 use serde::Deserialize;
 use url::Url;
 use zksync_basic_types::{Address, L1ChainId, L2ChainId};
+use zksync_config::ObjectStoreConfig;
 use zksync_consensus_roles::node;
 use zksync_core::{
     api_server::{
@@ -432,6 +433,22 @@ pub(crate) fn read_consensus_config() -> anyhow::Result<consensus::FetcherConfig
     let node_key: node::SecretKey = consensus::config::read_secret("EN_CONSENSUS_NODE_KEY")?;
     Ok(consensus::FetcherConfig {
         executor: cfg.executor_config(node_key),
+    })
+}
+
+/// Configuration for snapshot recovery. Loaded optionally, only if the corresponding command-line argument
+/// is supplied to the EN binary.
+#[derive(Debug, Clone)]
+pub struct SnapshotsRecoveryConfig {
+    pub snapshots_object_store: ObjectStoreConfig,
+}
+
+pub(crate) fn read_snapshots_recovery_config() -> anyhow::Result<SnapshotsRecoveryConfig> {
+    let snapshots_object_store = envy::prefixed("EN_SNAPSHOTS_OBJECT_STORE_")
+        .from_env::<ObjectStoreConfig>()
+        .context("failed loading snapshot object store config from env variables")?;
+    Ok(SnapshotsRecoveryConfig {
+        snapshots_object_store,
     })
 }
 
