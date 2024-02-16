@@ -373,9 +373,9 @@ mod tests {
     fn test_new_with_nested_runtime() {
         let runtime = Runtime::new().unwrap();
 
-        let _ = runtime.block_on(async {
+        runtime.block_on(async {
             assert!(ZkStackService::new().is_err());
-        });
+        })
     }
 
     #[test]
