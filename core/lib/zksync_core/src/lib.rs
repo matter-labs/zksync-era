@@ -690,7 +690,9 @@ pub async fn initialize_components(
             gas_adjuster
                 .get_or_init()
                 .await
-                .context("gas_adjuster.get_or_init()")?,
+                .context("gas_adjuster.get_or_init()")?
+                .clone()
+                .into_l1_tx_params_provider(),
             Arc::new(eth_client),
         );
         task_futures.extend([tokio::spawn(
