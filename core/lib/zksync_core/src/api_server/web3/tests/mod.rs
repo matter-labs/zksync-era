@@ -65,7 +65,7 @@ impl ApiServerHandles {
                 "Timed out waiting for API server"
             );
             let health = self.health_check.check_health().await;
-            if health.status().is_ready() {
+            if health.status().is_healthy() {
                 break;
             }
             tokio::time::sleep(POLL_INTERVAL).await;

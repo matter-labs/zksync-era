@@ -62,20 +62,34 @@ fn build_commit_tx_input_data(batches: &[L1BatchWithMetadata]) -> Vec<u8> {
 }
 
 fn create_mock_checker(client: MockEthereum, pool: ConnectionPool) -> ConsistencyChecker {
+    let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
     ConsistencyChecker {
         contract: zksync_contracts::zksync_contract(),
         max_batches_to_recheck: 100,
         sleep_interval: Duration::from_millis(10),
         l1_client: Box::new(client),
-        l1_batch_updater: Box::new(()),
+        event_handler: Box::new(health_updater),
         l1_data_mismatch_behavior: L1DataMismatchBehavior::Bail,
         pool,
+        health_check,
     }
 }
 
-impl UpdateCheckedBatch for mpsc::UnboundedSender<L1BatchNumber> {
+impl HandleConsistencyCheckerEvent for mpsc::UnboundedSender<L1BatchNumber> {
+    fn initialize(&mut self) {
+        // Do nothing
+    }
+
+    fn set_first_batch_to_check(&mut self, _first_batch_to_check: L1BatchNumber) {
+        // Do nothing
+    }
+
     fn update_checked_batch(&mut self, last_checked_batch: L1BatchNumber) {
         self.send(last_checked_batch).ok();
+    }
+
+    fn report_inconsistent_batch(&mut self, _number: L1BatchNumber) {
+        // Do nothing
     }
 }
 
@@ -327,7 +341,7 @@ async fn normal_checker_function(
 
     let (l1_batch_updates_sender, mut l1_batch_updates_receiver) = mpsc::unbounded_channel();
     let checker = ConsistencyChecker {
-        l1_batch_updater: Box::new(l1_batch_updates_sender),
+        event_handler: Box::new(l1_batch_updates_sender),
         ..create_mock_checker(client, pool.clone())
     };
 
@@ -401,7 +415,7 @@ async fn checker_processes_pre_boojum_batches(
 
     let (l1_batch_updates_sender, mut l1_batch_updates_receiver) = mpsc::unbounded_channel();
     let checker = ConsistencyChecker {
-        l1_batch_updater: Box::new(l1_batch_updates_sender),
+        event_handler: Box::new(l1_batch_updates_sender),
         ..create_mock_checker(client, pool.clone())
     };
 
@@ -472,7 +486,7 @@ async fn checker_functions_after_snapshot_recovery(delay_batch_insertion: bool) 
 
     let (l1_batch_updates_sender, mut l1_batch_updates_receiver) = mpsc::unbounded_channel();
     let checker = ConsistencyChecker {
-        l1_batch_updater: Box::new(l1_batch_updates_sender),
+        event_handler: Box::new(l1_batch_updates_sender),
         ..create_mock_checker(client, pool.clone())
     };
     let (stop_sender, stop_receiver) = watch::channel(false);

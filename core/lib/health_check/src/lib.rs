@@ -15,6 +15,8 @@ pub enum HealthStatus {
     NotReady,
     /// Component is ready for operations.
     Ready,
+    /// Component is affected by some non-fatal issue. The component is still considered healthy.
+    Affected,
     /// Component is shut down.
     ShutDown,
     /// Component has been abnormally interrupted by a panic.
@@ -22,17 +24,18 @@ pub enum HealthStatus {
 }
 
 impl HealthStatus {
-    /// Checks whether a component is ready according to this status.
-    pub fn is_ready(self) -> bool {
-        matches!(self, Self::Ready)
+    /// Checks whether a component is healthy according to this status.
+    pub fn is_healthy(self) -> bool {
+        matches!(self, Self::Ready | Self::Affected)
     }
 
     fn priority_for_aggregation(self) -> usize {
         match self {
             Self::Ready => 0,
-            Self::ShutDown => 1,
-            Self::NotReady => 2,
-            Self::Panicked => 3,
+            Self::Affected => 1,
+            Self::ShutDown => 2,
+            Self::NotReady => 3,
+            Self::Panicked => 4,
         }
     }
 }
@@ -94,7 +97,7 @@ impl AppHealth {
         let inner = aggregated_status.into();
 
         let this = Self { inner, components };
-        if !this.inner.status.is_ready() {
+        if !this.inner.status.is_healthy() {
             // Only log non-ready application health so that logs are not spammed without a reason.
             tracing::debug!("Aggregated application health: {this:?}");
         }
@@ -129,8 +132,8 @@ impl AppHealth {
         }
     }
 
-    pub fn is_ready(&self) -> bool {
-        self.inner.status.is_ready()
+    pub fn is_healthy(&self) -> bool {
+        self.inner.status.is_healthy()
     }
 }
 
@@ -144,7 +147,7 @@ pub trait CheckHealth: Send + Sync + 'static {
 }
 
 /// Basic implementation of [`CheckHealth`] trait that can be updated using a matching [`HealthUpdater`].
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ReactiveHealthCheck {
     name: &'static str,
     health_receiver: watch::Receiver<Health>,
@@ -292,5 +295,60 @@ mod tests {
         let health = health.with_details("new details are treated as status change");
         let updated = health_updater.update(health);
         assert!(updated);
+    }
+
+    #[tokio::test]
+    async fn aggregating_health_checks() {
+        let (first_check, first_updater) = ReactiveHealthCheck::new("first");
+        let (second_check, second_updater) = ReactiveHealthCheck::new("second");
+        let checks: Vec<Box<dyn CheckHealth>> = vec![Box::new(first_check), Box::new(second_check)];
+
+        let app_health = AppHealth::new(&checks).await;
+        assert!(!app_health.is_healthy());
+        assert_matches!(app_health.inner.status(), HealthStatus::NotReady);
+        assert_matches!(
+            app_health.components["first"].status,
+            HealthStatus::NotReady
+        );
+        assert_matches!(
+            app_health.components["second"].status,
+            HealthStatus::NotReady
+        );
+
+        first_updater.update(HealthStatus::Ready.into());
+
+        let app_health = AppHealth::new(&checks).await;
+        assert!(!app_health.is_healthy());
+        assert_matches!(app_health.inner.status(), HealthStatus::NotReady);
+        assert_matches!(app_health.components["first"].status, HealthStatus::Ready);
+        assert_matches!(
+            app_health.components["second"].status,
+            HealthStatus::NotReady
+        );
+
+        second_updater.update(HealthStatus::Affected.into());
+
+        let app_health = AppHealth::new(&checks).await;
+        assert!(app_health.is_healthy());
+        assert_matches!(app_health.inner.status(), HealthStatus::Affected);
+        assert_matches!(app_health.components["first"].status, HealthStatus::Ready);
+        assert_matches!(
+            app_health.components["second"].status,
+            HealthStatus::Affected
+        );
+
+        drop(first_updater);
+
+        let app_health = AppHealth::new(&checks).await;
+        assert!(!app_health.is_healthy());
+        assert_matches!(app_health.inner.status(), HealthStatus::ShutDown);
+        assert_matches!(
+            app_health.components["first"].status,
+            HealthStatus::ShutDown
+        );
+        assert_matches!(
+            app_health.components["second"].status,
+            HealthStatus::Affected
+        );
     }
 }
