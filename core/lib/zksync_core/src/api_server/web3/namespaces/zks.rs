@@ -9,6 +9,7 @@ use zksync_types::{
         BlockDetails, BridgeAddresses, GetLogsFilter, L1BatchDetails, L2ToL1LogProof, Proof,
         ProtocolVersion, StorageProof, TransactionDetails,
     },
+    commitment::L1BatchWithMetadata,
     fee::Fee,
     fee_model::FeeParams,
     l1::L1Tx,
@@ -644,18 +645,18 @@ impl ZksNamespace {
     pub async fn get_batch_pubdata_impl(
         &self,
         l1_batch_number: L1BatchNumber,
-    ) -> Result<Vec<u8>, Web3Error> {
+    ) -> Result<Option<Vec<u8>>, Web3Error> {
         const METHOD_NAME: &str = "get_batch_pubdata";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
         self.state.start_info.ensure_not_pruned(l1_batch_number)?;
         let mut storage = self.access_storage(METHOD_NAME).await?;
-        let pubdata = storage
+        let l1_batch_with_metadata = storage
             .blocks_dal()
-            .get_batch_pubdata(l1_batch_number)
+            .get_l1_batch_metadata(l1_batch_number)
             .await
-            .map_err(|_err| Web3Error::PubdataNotFound)?
-            .unwrap_or_default();
+            .unwrap_or(None);
+        let pubdata = l1_batch_with_metadata.map(|b| L1BatchWithMetadata::construct_pubdata(&b));
 
         method_latency.observe();
         Ok(pubdata)
