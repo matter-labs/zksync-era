@@ -18,8 +18,14 @@ const success = chalk.green;
 const timestamp = chalk.grey;
 
 export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
-    const { skipSubmodulesCheckout, skipEnvSetup, testTokens, governorPrivateKeyArgs, deployerL2ContractInput } =
-        initArgs;
+    const {
+        skipSubmodulesCheckout,
+        skipEnvSetup,
+        testTokens,
+        governorPrivateKeyArgs,
+        deployerPrivateKeyArgs,
+        deployerL2ContractInput
+    } = initArgs;
 
     if (!process.env.CI && !skipEnvSetup) {
         await announced('Pulling images', docker.pull());
@@ -41,10 +47,10 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
     if (testTokens.deploy) {
         await announced('Deploying localhost ERC20 tokens', run.deployERC20('dev', '', '', '', testTokens.args));
     }
-    await announced('Deploying L1 verifier', contract.deployVerifier([]));
+    await announced('Deploying L1 verifier', contract.deployVerifier(deployerPrivateKeyArgs));
     await announced('Reloading env', env.reload());
     await announced('Running server genesis setup', server.genesisFromSources());
-    await announced('Deploying L1 contracts', contract.redeployL1(governorPrivateKeyArgs));
+    await announced('Deploying L1 contracts', contract.redeployL1(deployerPrivateKeyArgs));
     await announced('Initializing validator', contract.initializeValidator(governorPrivateKeyArgs));
     await announced(
         'Deploying L2 contracts',
@@ -135,6 +141,7 @@ export interface InitArgs {
     skipSubmodulesCheckout: boolean;
     skipEnvSetup: boolean;
     governorPrivateKeyArgs: any[];
+    deployerPrivateKeyArgs: any[];
     deployerL2ContractInput: {
         args: any[];
         includePaymaster: boolean;
@@ -150,6 +157,7 @@ const DEFAULT_ARGS: InitArgs = {
     skipSubmodulesCheckout: false,
     skipEnvSetup: false,
     governorPrivateKeyArgs: [],
+    deployerPrivateKeyArgs: [],
     deployerL2ContractInput: { args: [], includePaymaster: true, includeL2WETH: true },
     testTokens: { deploy: true, args: [] }
 };
@@ -164,7 +172,8 @@ export const initCommand = new Command('init')
             skipEnvSetup: cmd.skipEnvSetup,
             governorPrivateKeyArgs: [],
             deployerL2ContractInput: { args: [], includePaymaster: true, includeL2WETH: true },
-            testTokens: { deploy: true, args: [] }
+            testTokens: { deploy: true, args: [] },
+            deployerPrivateKeyArgs: []
         };
         await init(initArgs);
     });
