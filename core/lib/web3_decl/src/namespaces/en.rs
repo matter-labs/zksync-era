@@ -1,5 +1,5 @@
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
-use zksync_types::{api::en::SyncBlock, MiniblockNumber};
+use zksync_types::{api::en, MiniblockNumber};
 
 #[cfg_attr(
     all(feature = "client", feature = "server"),
@@ -19,5 +19,10 @@ pub trait EnNamespace {
         &self,
         block_number: MiniblockNumber,
         include_transactions: bool,
-    ) -> RpcResult<Option<SyncBlock>>;
+    ) -> RpcResult<Option<en::SyncBlock>>;
+
+    #[method(name = "consensusBranches")]
+    async fn consensus_branches(
+        &self,
+    ) -> RpcResult<en::ConsensusBranches>;
 }

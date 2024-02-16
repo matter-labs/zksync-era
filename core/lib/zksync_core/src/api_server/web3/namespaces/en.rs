@@ -1,4 +1,4 @@
-use zksync_types::{api::en::SyncBlock, MiniblockNumber};
+use zksync_types::{api::en, MiniblockNumber};
 use zksync_web3_decl::error::Web3Error;
 
 use crate::api_server::web3::{backend_jsonrpsee::internal_error, state::RpcState};
@@ -15,12 +15,16 @@ impl EnNamespace {
         Self { state }
     }
 
+    pub async fn consensus_branches_impl(&self) -> Result<en::ConsensusBranches, Web3Error> {
+        unimplemented!()
+    }
+
     #[tracing::instrument(skip(self))]
     pub async fn sync_l2_block_impl(
         &self,
         block_number: MiniblockNumber,
         include_transactions: bool,
-    ) -> Result<Option<SyncBlock>, Web3Error> {
+    ) -> Result<Option<en::SyncBlock>, Web3Error> {
         const METHOD_NAME: &str = "en_syncL2Block";
 
         let mut storage = self

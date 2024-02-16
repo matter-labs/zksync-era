@@ -1,6 +1,6 @@
 use anyhow::Context as _;
 use zksync_consensus_roles::validator;
-use zksync_consensus_storage::ReplicaState;
+use zksync_consensus_storage::{ReplicaState};
 use zksync_types::MiniblockNumber;
 
 pub use crate::models::storage_sync::Payload;
@@ -12,13 +12,66 @@ pub struct ConsensusDal<'a, 'c> {
     pub storage: &'a mut StorageProcessor<'c>,
 }
 
+struct BlockId {
+    block: BlockNumber,
+    branch: BranchNumber,
+}
+
+struct Branches {
+    bases: Vec<BlockId>,
+}
+
+impl Branches {
+    pub fn push(&mut self, base: validator::BlockNumber) {
+        let base = BlockId {
+            block: base_block,
+            branch: self.find(block).unwrap_or(self.branches.size()),
+        };
+        self.bases.push(base);
+    }
+
+    pub fn find(&self, block: validator::BlockNumber) -> Option<validator::BranchNumber> {
+        let mut i = self.bases.len().checked_sub(1)?;
+        loop {
+            if self.bases[i].block < block {
+                return Some(validator::BranchNumber(i as u64));
+            }
+            if self.bases[i].branch.0 == (i as u64) {
+                return None;
+            }
+            i = self.bases[i].branch.0 as usize;
+        }
+    }
+}
+
 impl ConsensusDal<'_, '_> {
+    pub async fn set_branches(&mut self, branches: validator::Branches) -> sqlx::Result<()> {
+        let branches =
+            zksync_protobuf::serde::serialize(branches, serde_json::value::Serializer).unwrap();
+        sqlx::query!(
+            r#"
+            INSERT INTO
+                consensus_replica_state (fake_key, branches)
+            VALUES
+                (TRUE, $1)
+            ON CONFLICT (fake_key) DO
+            UPDATE
+            SET
+                branches = excluded.branches
+            "#,
+            state
+        )
+        .execute(self.storage.conn())
+        .await?;
+        Ok(())
+    }
+   
     /// Fetches the current BFT replica state.
-    pub async fn replica_state(&mut self) -> anyhow::Result<Option<ReplicaState>> {
+    pub async fn branches(&mut self) -> anyhow::Result<Option<validator::Branches>> {
         let Some(row) = sqlx::query!(
             r#"
             SELECT
-                state AS "state!"
+                branches
             FROM
                 consensus_replica_state
             WHERE
@@ -30,7 +83,29 @@ impl ConsensusDal<'_, '_> {
         else {
             return Ok(None);
         };
-        Ok(Some(zksync_protobuf::serde::deserialize(row.state)?))
+        let Some(branches) = row.branches else { return Ok(None); };
+        Ok(Some(zksync_protobuf::serde::deserialize(branches)?))
+    }
+
+    /// Fetches the current BFT replica state.
+    pub async fn replica_state(&mut self) -> anyhow::Result<Option<ReplicaState>> {
+        let Some(row) = sqlx::query!(
+            r#"
+            SELECT
+                state
+            FROM
+                consensus_replica_state
+            WHERE
+                fake_key
+            "#
+        )
+        .fetch_optional(self.storage.conn())
+        .await?
+        else {
+            return Ok(None);
+        };
+        let Some(state) = row.state else { return Ok(None); };
+        Ok(Some(zksync_protobuf::serde::deserialize(state)?))
     }
 
     /// Sets the current BFT replica state.

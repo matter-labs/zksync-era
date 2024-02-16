@@ -1,4 +1,4 @@
-use zksync_types::{api::en::SyncBlock, MiniblockNumber};
+use zksync_types::{api::en, MiniblockNumber};
 use zksync_web3_decl::{
     jsonrpsee::core::{async_trait, RpcResult},
     namespaces::en::EnNamespaceServer,
@@ -12,9 +12,15 @@ impl EnNamespaceServer for EnNamespace {
         &self,
         block_number: MiniblockNumber,
         include_transactions: bool,
-    ) -> RpcResult<Option<SyncBlock>> {
+    ) -> RpcResult<Option<en::SyncBlock>> {
         self.sync_l2_block_impl(block_number, include_transactions)
             .await
             .map_err(into_jsrpc_error)
+    }
+
+    async fn consensus_branches(
+        &self,
+    ) -> RpcResult<en::ConsensusBranches> {
+        self.consensus_branches_impl().await.map_err(into_jsrpc_error)
     }
 }
