@@ -1,7 +1,6 @@
-use std::{env, time::Duration};
-
 use anyhow::Context;
 use serde::Deserialize;
+use std::{env, str::FromStr, time::Duration};
 use url::Url;
 use zksync_basic_types::{Address, L1ChainId, L2ChainId};
 use zksync_core::api_server::{
@@ -9,8 +8,12 @@ use zksync_core::api_server::{
     web3::{state::InternalApiConfig, Namespace},
 };
 use zksync_types::api::BridgeAddresses;
+use zksync_web3_decl::jsonrpsee::core::ClientError;
 use zksync_web3_decl::{
-    jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
+    jsonrpsee::{
+        http_client::{HttpClient, HttpClientBuilder},
+        types::error::ErrorCode,
+    },
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
 };
 
@@ -67,10 +70,12 @@ impl RemoteENConfig {
                 .context("Failed to fetch L1 chain ID")?
                 .as_u64(),
         );
-        let base_token_addr = client
-            .get_base_token_l1_address()
-            .await
-            .context("Failed to fetch base token address")?;
+        let base_token_addr = match client.get_base_token_l1_address().await {
+            Err(ClientError::Call(err)) if ErrorCode::MethodNotFound.code() == err.code() => {
+                Address::from_str("0x0000000000000000000000000000000000000001")?
+            }
+            response => response.context("Failed to fetch base token address")?,
+        };
         Ok(Self {
             bridgehub_proxy_addr,
             diamond_proxy_addr,
