@@ -205,6 +205,9 @@ enum Command {
         /// Specify for which circuit to generate the keys.
         #[arg(long)]
         numeric_circuit: Option<u8>,
+
+        #[arg(long, default_value = "false")]
+        dry_run: bool,
     },
     /// Generates setup keys (used by the GPU prover).
     #[command(name = "generate-sk-gpu")]
@@ -245,18 +248,33 @@ fn main() -> anyhow::Result<()> {
         Command::GenerateSetupKeys {
             circuits_type,
             numeric_circuit,
+            dry_run,
         } => match circuits_type {
-            CircuitSelector::All => generate_all_cpu_setup_data(),
-            CircuitSelector::Recursive => generate_cpu_setup_data(
-                false,
-                numeric_circuit.expect("--numeric-circuit must be provided"),
-            )
-            .context("generate_cpu_setup_data()"),
-            CircuitSelector::Basic => generate_cpu_setup_data(
-                true,
-                numeric_circuit.expect("--numeric-circuit must be provided"),
-            )
-            .context("generate_cpu_setup_data()"),
+            CircuitSelector::All => {
+                let digests = generate_all_cpu_setup_data(dry_run)?;
+                tracing::info!("Hashes: {:?}", digests);
+                Ok(())
+            }
+            CircuitSelector::Recursive => {
+                let digest = generate_cpu_setup_data(
+                    false,
+                    numeric_circuit.expect("--numeric-circuit must be provided"),
+                    dry_run,
+                )
+                .context("generate_cpu_setup_data()")?;
+                tracing::info!("digest: {:?}", digest);
+                Ok(())
+            }
+            CircuitSelector::Basic => {
+                let digest = generate_cpu_setup_data(
+                    true,
+                    numeric_circuit.expect("--numeric-circuit must be provided"),
+                    dry_run,
+                )
+                .context("generate_cpu_setup_data()")?;
+                tracing::info!("digest: {:?}", digest);
+                Ok(())
+            }
         },
         Command::UpdateCommitments { dryrun } => read_and_update_contract_toml(dryrun),
         Command::GenerateGPUSetupKeys {
