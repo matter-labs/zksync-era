@@ -455,7 +455,7 @@ async fn load_upgrade_tx() {
         stop_receiver,
         Box::new(io),
         Box::new(batch_executor_base),
-        Box::new(sealer),
+        Arc::new(sealer),
     );
 
     // Since the version hasn't changed, and we are not using shared bridge, we should not load any

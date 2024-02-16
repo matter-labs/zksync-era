@@ -12,7 +12,7 @@ use zksync_l1_contract_interface::{
 use zksync_types::{
     commitment::SerializeCommitment,
     eth_sender::EthTx,
-    ethabi::{Contract, Token},
+    ethabi::Token,
     l2_to_l1_log::UserL2ToL1Log,
     protocol_version::{L1VerifierConfig, VerifierParams},
     web3::contract::Error as Web3ContractError,
