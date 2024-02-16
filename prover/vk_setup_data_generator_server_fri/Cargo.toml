@@ -5,7 +5,7 @@ edition = "2021"
 
 
 [[bin]]
-name = "zksync_vk_generator_fri"
+name = "key_generator"
 path = "src/main.rs"
 
 [lib]
