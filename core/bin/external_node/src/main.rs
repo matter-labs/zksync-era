@@ -25,13 +25,12 @@ use zksync_core::{
     reorg_detector::ReorgDetector,
     setup_sigint_handler,
     state_keeper::{
-        seal_criteria::NoopSealer, L1BatchExecutorBuilder, MainBatchExecutorBuilder,
-        MiniblockSealer, MiniblockSealerHandle, ZkSyncStateKeeper,
+        seal_criteria::NoopSealer, BatchExecutor, MainBatchExecutor, MiniblockSealer,
+        MiniblockSealerHandle, ZkSyncStateKeeper,
     },
     sync_layer::{
         batch_status_updater::BatchStatusUpdater, external_io::ExternalIO,
-        fetcher::MainNodeFetcher, genesis::perform_genesis_if_needed, ActionQueue, MainNodeClient,
-        SyncState,
+        fetcher::MainNodeFetcher, ActionQueue, MainNodeClient, SyncState,
     },
 };
 use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
@@ -40,14 +39,16 @@ use zksync_state::PostgresStorageCaches;
 use zksync_storage::RocksDB;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 
-use crate::{config::ExternalNodeConfig, helpers::MainNodeHealthCheck};
+use crate::{
+    config::ExternalNodeConfig, helpers::MainNodeHealthCheck, init::ensure_storage_initialized,
+};
 
 mod config;
 mod helpers;
+mod init;
 mod metrics;
 
-const RELEASE_MANIFEST: &str =
-    std::include_str!("../../../../.github/release-please/manifest.json");
+const RELEASE_MANIFEST: &str = include_str!("../../../../.github/release-please/manifest.json");
 
 /// Creates the state keeper configured to work in the external node mode.
 #[allow(clippy::too_many_arguments)]
@@ -71,16 +72,15 @@ async fn build_state_keeper(
     // We only need call traces on the external node if the `debug_` namespace is enabled.
     let save_call_traces = config.optional.api_namespaces().contains(&Namespace::Debug);
 
-    let batch_executor_base: Box<dyn L1BatchExecutorBuilder> =
-        Box::new(MainBatchExecutorBuilder::new(
-            state_keeper_db_path,
-            connection_pool.clone(),
-            max_allowed_l2_tx_gas_limit,
-            save_call_traces,
-            false,
-            config.optional.enum_index_migration_chunk_size,
-            true,
-        ));
+    let batch_executor_base: Box<dyn BatchExecutor> = Box::new(MainBatchExecutor::new(
+        state_keeper_db_path,
+        connection_pool.clone(),
+        max_allowed_l2_tx_gas_limit,
+        save_call_traces,
+        false,
+        config.optional.enum_index_migration_chunk_size,
+        true,
+    ));
 
     let main_node_url = config.required.main_node_url()?;
     let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
@@ -398,13 +398,24 @@ async fn shutdown_components(
     healthcheck_handle.stop().await;
 }
 
+/// External node for zkSync Era.
 #[derive(Debug, Parser)]
-#[structopt(author = "Matter Labs", version)]
+#[command(author = "Matter Labs", version)]
 struct Cli {
+    /// Revert the pending L1 batch and exit.
     #[arg(long)]
     revert_pending_l1_batch: bool,
+    /// Enables consensus-based syncing instead of JSON-RPC based one. This is an experimental and incomplete feature;
+    /// do not use unless you know what you're doing.
     #[arg(long)]
     enable_consensus: bool,
+    /// Enables application-level snapshot recovery. Required to start a node that was recovered from a snapshot,
+    /// or to initialize a node from a snapshot. Has no effect if a node that was initialized from a Postgres dump
+    /// or was synced from genesis.
+    ///
+    /// This is an experimental and incomplete feature; do not use unless you know what you're doing.
+    #[arg(long, conflicts_with = "enable_consensus")]
+    enable_snapshots_recovery: bool,
 }
 
 #[tokio::main]
@@ -439,13 +450,22 @@ async fn main() -> anyhow::Result<()> {
         .await
         .context("Failed to load external node config")?;
     if opt.enable_consensus {
+        // This is more of a sanity check; the mutual exclusion of `enable_consensus` and `enable_snapshots_recovery`
+        // should be ensured by `clap`.
+        anyhow::ensure!(
+            !opt.enable_snapshots_recovery,
+            "Consensus logic does not support snapshot recovery yet"
+        );
         config.consensus =
             Some(config::read_consensus_config().context("read_consensus_config()")?);
     }
+
     let main_node_url = config
         .required
         .main_node_url()
         .context("Main node URL is incorrect")?;
+    let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
+        .context("Failed creating JSON-RPC client for main node")?;
 
     if let Some(threshold) = config.optional.slow_query_threshold() {
         ConnectionPool::global_config().set_slow_query_threshold(threshold)?;
@@ -461,6 +481,7 @@ async fn main() -> anyhow::Result<()> {
     .build()
     .await
     .context("failed to build a connection_pool")?;
+
     if opt.revert_pending_l1_batch {
         tracing::info!("Rolling pending L1 batch back..");
         let reverter = BlockReverter::new(
@@ -497,16 +518,14 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("Started the external node");
     tracing::info!("Main node URL is: {}", main_node_url);
 
-    // Make sure that genesis is performed.
-    let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
-        .context("Failed creating JSON-RPC client for main node")?;
-    perform_genesis_if_needed(
-        &mut connection_pool.access_storage().await.unwrap(),
-        config.remote.l2_chain_id,
+    // Make sure that the node storage is initialized either via genesis or snapshot recovery.
+    ensure_storage_initialized(
+        &connection_pool,
         &main_node_client,
+        config.remote.l2_chain_id,
+        opt.enable_snapshots_recovery,
     )
-    .await
-    .context("Performing genesis failed")?;
+    .await?;
 
     let (stop_sender, stop_receiver) = watch::channel(false);
     let (task_handles, mut healthchecks) =

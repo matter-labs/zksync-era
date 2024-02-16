@@ -28,7 +28,7 @@ use crate::{
     state_keeper::{
         batch_executor::{BatchExecutorHandle, TxExecutionResult},
         tests::{default_l1_batch_env, default_system_env, BASE_SYSTEM_CONTRACTS},
-        L1BatchExecutorBuilder, MainBatchExecutorBuilder,
+        BatchExecutor, MainBatchExecutor,
     },
     utils::testonly::prepare_recovery_snapshot,
 };
@@ -103,7 +103,7 @@ impl Tester {
         l1_batch_env: L1BatchEnv,
         system_env: SystemEnv,
     ) -> BatchExecutorHandle {
-        let mut builder = MainBatchExecutorBuilder::new(
+        let mut builder = MainBatchExecutor::new(
             self.db_dir.path().to_str().unwrap().to_owned(),
             self.pool.clone(),
             self.config.max_allowed_tx_gas_limit.into(),
@@ -173,7 +173,8 @@ impl Tester {
                 Default::default(),
                 Default::default(),
             )
-            .await;
+            .await
+            .unwrap();
         }
     }
 
@@ -199,7 +200,8 @@ impl Tester {
             storage
                 .storage_logs_dal()
                 .append_storage_logs(MiniblockNumber(0), &[(H256::zero(), vec![storage_log])])
-                .await;
+                .await
+                .unwrap();
             if storage
                 .storage_logs_dedup_dal()
                 .filter_written_slots(&[storage_log.key.hashed_key()])
@@ -210,6 +212,7 @@ impl Tester {
                     .storage_logs_dedup_dal()
                     .insert_initial_writes(L1BatchNumber(0), &[storage_log.key])
                     .await
+                    .unwrap();
             }
         }
     }
