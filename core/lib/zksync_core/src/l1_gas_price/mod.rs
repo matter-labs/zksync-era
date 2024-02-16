@@ -2,7 +2,7 @@
 
 use std::fmt;
 
-pub use gas_adjuster::GasAdjuster;
+pub use gas_adjuster::{GasAdjuster, RollupGasAdjuster, ValidiumGasAdjuster};
 pub use main_node_fetcher::MainNodeFeeParamsFetcher;
 pub use singleton::GasAdjusterSingleton;
 
