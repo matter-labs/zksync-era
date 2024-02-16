@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use zksync_dal::StorageProcessor;
+use zksync_dal::{fri_prover_dal::types::FriProverJobMetadata, StorageProcessor};
 use zksync_object_store::ObjectStore;
 use zksync_prover_fri_types::{
     circuit_definitions::{
@@ -30,12 +30,12 @@ pub async fn fetch_next_circuit(
     circuit_ids_for_round_to_be_proven: &Vec<CircuitIdRoundTuple>,
     vk_commitments: &L1VerifierConfig,
 ) -> Option<ProverJob> {
-    let protocol_versions = storage
+    /*let protocol_versions = storage
         .fri_protocol_versions_dal()
         .protocol_version_for(vk_commitments)
         .await;
-    let pod_name = get_current_pod_name();
-    let prover_job = match &circuit_ids_for_round_to_be_proven.is_empty() {
+    let pod_name = get_current_pod_name();*/
+    /*let prover_job = match &circuit_ids_for_round_to_be_proven.is_empty() {
         false => {
             // Specialized prover: proving subset of configured circuits.
             storage
@@ -54,7 +54,25 @@ pub async fn fetch_next_circuit(
                 .get_next_job(&protocol_versions, &pod_name)
                 .await
         }
-    }?;
+    }?;*/
+    /*let prover_job = FriProverJobMetadata {
+        id: 223858302,
+        block_number: zksync_types::L1BatchNumber(478850),
+        circuit_id: 2,
+        aggregation_round: 0.into(),
+        sequence_number: 5443,
+        depth: 0,
+        is_node_final_proof: false,
+    };*/
+    let prover_job = FriProverJobMetadata {
+        id: 223063220,
+        block_number: zksync_types::L1BatchNumber(478757),
+        circuit_id: 7,
+        aggregation_round: 0.into(),
+        sequence_number: 9758,
+        depth: 0,
+        is_node_final_proof: false,
+    };
     tracing::info!("Started processing prover job: {:?}", prover_job);
 
     let circuit_key = FriCircuitKey {
