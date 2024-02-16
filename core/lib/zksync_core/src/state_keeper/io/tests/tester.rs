@@ -44,7 +44,7 @@ impl Tester {
         }
     }
 
-    async fn create_gas_adjuster(&self) -> GasAdjuster<MockEthereum> {
+    async fn create_gas_adjuster(&self) -> GasAdjuster {
         let eth_client =
             MockEthereum::default().with_fee_history(vec![0, 4, 6, 8, 7, 5, 5, 8, 10, 9]);
 
@@ -59,7 +59,7 @@ impl Tester {
             max_l1_gas_price: None,
         };
 
-        GasAdjuster::new(eth_client, gas_adjuster_config)
+        GasAdjuster::new(Arc::new(eth_client), gas_adjuster_config)
             .await
             .unwrap()
     }
@@ -141,7 +141,8 @@ impl Tester {
                 L1VerifierConfig::default(),
                 Address::zero(),
             )
-            .await;
+            .await
+            .unwrap();
         }
     }
 

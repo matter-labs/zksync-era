@@ -17,6 +17,7 @@ use zksync_core::{
         web3::{ApiBuilder, Namespace},
     },
     block_reverter::{BlockReverter, BlockReverterFlags, L1ExecutedBatchesRevert},
+    commitment_generator::CommitmentGenerator,
     consensus,
     consistency_checker::ConsistencyChecker,
     l1_gas_price::MainNodeFeeParamsFetcher,
@@ -24,8 +25,8 @@ use zksync_core::{
     reorg_detector::ReorgDetector,
     setup_sigint_handler,
     state_keeper::{
-        seal_criteria::NoopSealer, L1BatchExecutorBuilder, MainBatchExecutorBuilder,
-        MiniblockSealer, MiniblockSealerHandle, ZkSyncStateKeeper,
+        seal_criteria::NoopSealer, BatchExecutor, MainBatchExecutor, MiniblockSealer,
+        MiniblockSealerHandle, ZkSyncStateKeeper,
     },
     sync_layer::{
         batch_status_updater::BatchStatusUpdater, external_io::ExternalIO,
@@ -69,16 +70,15 @@ async fn build_state_keeper(
     // We only need call traces on the external node if the `debug_` namespace is enabled.
     let save_call_traces = config.optional.api_namespaces().contains(&Namespace::Debug);
 
-    let batch_executor_base: Box<dyn L1BatchExecutorBuilder> =
-        Box::new(MainBatchExecutorBuilder::new(
-            state_keeper_db_path,
-            connection_pool.clone(),
-            max_allowed_l2_tx_gas_limit,
-            save_call_traces,
-            false,
-            config.optional.enum_index_migration_chunk_size,
-            true,
-        ));
+    let batch_executor_base: Box<dyn BatchExecutor> = Box::new(MainBatchExecutor::new(
+        state_keeper_db_path,
+        connection_pool.clone(),
+        max_allowed_l2_tx_gas_limit,
+        save_call_traces,
+        false,
+        config.optional.enum_index_migration_chunk_size,
+        true,
+    ));
 
     let main_node_url = config.required.main_node_url()?;
     let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
@@ -100,7 +100,7 @@ async fn build_state_keeper(
         stop_receiver,
         Box::new(io),
         batch_executor_base,
-        Box::new(NoopSealer),
+        Arc::new(NoopSealer),
     ))
 }
 
@@ -264,6 +264,14 @@ async fn init_tasks(
         .context("failed to build a tree_pool")?;
     let tree_handle = task::spawn(metadata_calculator.run(tree_pool, tree_stop_receiver));
 
+    let commitment_generator_pool = singleton_pool_builder
+        .build()
+        .await
+        .context("failed to build a commitment_generator_pool")?;
+    let commitment_generator =
+        CommitmentGenerator::new(commitment_generator_pool, stop_receiver.clone());
+    let commitment_generator_handle = tokio::spawn(commitment_generator.run());
+
     let consistency_checker_handle = tokio::spawn(consistency_checker.run(stop_receiver.clone()));
 
     let updater_handle = task::spawn(batch_status_updater.run(stop_receiver.clone()));
@@ -360,6 +368,7 @@ async fn init_tasks(
         tree_handle,
         consistency_checker_handle,
         fee_params_fetcher_handle,
+        commitment_generator_handle,
     ]);
 
     Ok((task_handles, stop_sender, healthcheck_handle, stop_receiver))

@@ -182,7 +182,8 @@ impl UpdatesManager {
         transaction
             .storage_logs_dedup_dal()
             .insert_protective_reads(l1_batch_env.number, &protective_reads)
-            .await;
+            .await
+            .unwrap();
         progress.observe(protective_reads.len());
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::FilterWrittenSlots);
@@ -213,7 +214,8 @@ impl UpdatesManager {
         transaction
             .storage_logs_dedup_dal()
             .insert_initial_writes(l1_batch_env.number, &written_storage_keys)
-            .await;
+            .await
+            .unwrap();
         progress.observe(deduplicated_writes.len());
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::CommitL1Batch);
@@ -373,7 +375,8 @@ impl MiniblockSealCommand {
         transaction
             .storage_logs_dal()
             .insert_storage_logs(miniblock_number, &write_logs)
-            .await;
+            .await
+            .unwrap();
         progress.observe(write_log_count);
 
         #[allow(deprecated)] // Will be removed shortly
@@ -405,7 +408,11 @@ impl MiniblockSealCommand {
         let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::InsertTokens, is_fictive);
         let added_tokens_len = added_tokens.len();
         if !added_tokens.is_empty() {
-            transaction.tokens_dal().add_tokens(added_tokens).await;
+            transaction
+                .tokens_dal()
+                .add_tokens(&added_tokens)
+                .await
+                .unwrap();
         }
         progress.observe(added_tokens_len);
 
@@ -463,11 +470,20 @@ impl MiniblockSealCommand {
 
         let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::ReportTxMetrics, is_fictive);
         self.miniblock.executed_transactions.iter().for_each(|tx| {
+            let inclusion_delay = Duration::from_millis(
+                Utc::now().timestamp_millis() as u64 - tx.transaction.received_timestamp_ms,
+            );
+            if inclusion_delay > Duration::from_secs(600) {
+                tracing::info!(
+                    tx_hash = hex::encode(tx.hash),
+                    inclusion_delay_ms = inclusion_delay.as_millis(),
+                    received_timestamp_ms = tx.transaction.received_timestamp_ms,
+                    "Transaction spent >10m in mempool before being included in a miniblock"
+                )
+            }
             KEEPER_METRICS
                 .transaction_inclusion_delay
-                .observe(Duration::from_millis(
-                    Utc::now().timestamp_millis() as u64 - tx.transaction.received_timestamp_ms,
-                ))
+                .observe(inclusion_delay)
         });
         progress.observe(Some(self.miniblock.executed_transactions.len()));
 

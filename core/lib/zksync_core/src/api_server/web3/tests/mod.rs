@@ -1,4 +1,4 @@
-use std::{collections::HashMap, pin::Pin, time::Instant};
+use std::{collections::HashMap, pin::Pin, slice, time::Instant};
 
 use assert_matches::assert_matches;
 use async_trait::async_trait;
@@ -42,7 +42,7 @@ use crate::{
     genesis::{ensure_genesis_state, GenesisParams},
     utils::testonly::{
         create_l1_batch, create_l1_batch_metadata, create_l2_transaction, create_miniblock,
-        prepare_recovery_snapshot,
+        l1_batch_metadata_to_commitment_artifacts, prepare_recovery_snapshot,
     },
 };
 
@@ -354,7 +354,14 @@ async fn seal_l1_batch(
     let metadata = create_l1_batch_metadata(number.0);
     storage
         .blocks_dal()
-        .save_l1_batch_metadata(number, &metadata, H256::zero(), false)
+        .save_l1_batch_tree_data(number, &metadata.tree_data())
+        .await?;
+    storage
+        .blocks_dal()
+        .save_l1_batch_commitment_artifacts(
+            number,
+            &l1_batch_metadata_to_commitment_artifacts(&metadata),
+        )
         .await?;
     Ok(())
 }
@@ -677,7 +684,7 @@ impl HttpTest for TransactionCountTest {
             storage
                 .storage_logs_dal()
                 .insert_storage_logs(miniblock_number, &[(H256::zero(), vec![nonce_log])])
-                .await;
+                .await?;
         }
 
         let pending_count = client.get_transaction_count(test_address, None).await?;
@@ -873,7 +880,7 @@ impl HttpTest for AllAccountBalancesTest {
         storage
             .storage_logs_dal()
             .insert_storage_logs(MiniblockNumber(1), &[(H256::zero(), vec![eth_balance_log])])
-            .await;
+            .await?;
         // Create a custom token, but don't set balance for it yet.
         let custom_token = TokenInfo {
             l1_address: Address::repeat_byte(0xfe),
@@ -882,8 +889,8 @@ impl HttpTest for AllAccountBalancesTest {
         };
         storage
             .tokens_dal()
-            .add_tokens(vec![custom_token.clone()])
-            .await;
+            .add_tokens(slice::from_ref(&custom_token))
+            .await?;
 
         let balances = client.get_all_account_balances(Self::ADDRESS).await?;
         assert_eq!(balances, HashMap::from([(Address::zero(), eth_balance)]));
@@ -902,7 +909,7 @@ impl HttpTest for AllAccountBalancesTest {
                 MiniblockNumber(2),
                 &[(H256::zero(), vec![token_balance_log])],
             )
-            .await;
+            .await?;
 
         let balances = client.get_all_account_balances(Self::ADDRESS).await?;
         assert_eq!(

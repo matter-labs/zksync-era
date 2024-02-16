@@ -6,7 +6,7 @@ use super::*;
 use crate::{
     api_server::execution_sandbox::{testonly::MockTransactionExecutor, VmConcurrencyBarrier},
     genesis::{ensure_genesis_state, GenesisParams},
-    utils::testonly::{create_miniblock, prepare_recovery_snapshot, MockL1GasPriceProvider},
+    utils::testonly::{create_miniblock, prepare_recovery_snapshot, MockBatchFeeParamsProvider},
 };
 
 pub(crate) async fn create_test_tx_sender(
@@ -26,14 +26,14 @@ pub(crate) async fn create_test_tx_sender(
     );
     tokio::task::spawn_blocking(cache_update_task);
 
-    let gas_adjuster = Arc::new(MockL1GasPriceProvider(1));
+    let batch_fee_model_input_provider = Arc::new(MockBatchFeeParamsProvider::default());
     let (mut tx_sender, vm_barrier) = crate::build_tx_sender(
         &tx_sender_config,
         &web3_config,
         &state_keeper_config,
         pool.clone(),
         pool,
-        gas_adjuster,
+        batch_fee_model_input_provider,
         storage_caches,
     )
     .await;
@@ -57,7 +57,8 @@ async fn getting_nonce_for_account() {
     storage
         .storage_logs_dal()
         .append_storage_logs(MiniblockNumber(0), &[(H256::default(), vec![nonce_log])])
-        .await;
+        .await
+        .unwrap();
 
     let tx_executor = MockTransactionExecutor::default().into();
     let (tx_sender, _) = create_test_tx_sender(pool.clone(), l2_chain_id, tx_executor).await;
@@ -78,7 +79,8 @@ async fn getting_nonce_for_account() {
     storage
         .storage_logs_dal()
         .insert_storage_logs(MiniblockNumber(1), &[(H256::default(), vec![nonce_log])])
-        .await;
+        .await
+        .unwrap();
 
     let nonce = tx_sender.get_expected_nonce(test_address).await.unwrap();
     assert_eq!(nonce, Nonce(321));
@@ -134,7 +136,8 @@ async fn getting_nonce_for_account_after_snapshot_recovery() {
             SNAPSHOT_MINIBLOCK_NUMBER + 1,
             &[(H256::default(), new_nonce_logs)],
         )
-        .await;
+        .await
+        .unwrap();
 
     let nonce = tx_sender.get_expected_nonce(test_address).await.unwrap();
     assert_eq!(nonce, Nonce(321));
