@@ -1,9 +1,9 @@
-use std::{borrow::BorrowMut, collections::HashMap, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use metrics::atomics::AtomicU64;
 use tokio::{
-    sync::{watch, Mutex, OnceCell},
+    sync::{watch, OnceCell},
     task::JoinHandle,
 };
 use zksync_config::configs::native_erc20_fetcher::NativeErc20FetcherConfig;
@@ -93,13 +93,6 @@ impl NativeErc20Fetcher {
         }
 
         Ok(())
-    }
-
-    // TODO: implement the actual fetch logic
-    pub(crate) async fn fetch_conversion_rate(&self) -> anyhow::Result<u64> {
-        Ok(self
-            .latest_to_eth_conversion_rate
-            .load(std::sync::atomic::Ordering::Relaxed))
     }
 }
 

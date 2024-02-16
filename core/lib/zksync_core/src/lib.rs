@@ -519,20 +519,6 @@ pub async fn initialize_components(
             .await
             .context("gas_adjuster.get_or_init()")?;
 
-        let native_erc20_fetcher = if let Some(ref mut fetcher_singleton) = fetcher_component {
-            let fetcher = fetcher_singleton
-                .get_or_init()
-                .await
-                .context("fetcher.get_or_init()")?;
-            Some(fetcher)
-        } else {
-            None
-        };
-
-        let erc20_fetcher_dyn: Option<Arc<dyn Erc20Fetcher>> = native_erc20_fetcher
-            .as_ref()
-            .map(|fetcher| fetcher.clone() as Arc<dyn Erc20Fetcher>);
-
         add_state_keeper_to_task_futures(
             &mut task_futures,
             &postgres_config,
@@ -546,7 +532,6 @@ pub async fn initialize_components(
             &configs.mempool_config.clone().context("mempool_config")?,
             bounded_gas_adjuster,
             store_factory.create_store().await,
-            erc20_fetcher_dyn,
             stop_receiver.clone(),
         )
         .await
@@ -746,7 +731,6 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
     mempool_config: &MempoolConfig,
     gas_adjuster: Arc<E>,
     object_store: Arc<dyn ObjectStore>,
-    native_erc20_fetcher: Option<Arc<dyn Erc20Fetcher>>,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
     let pool_builder = ConnectionPool::singleton(postgres_config.master_url()?);
@@ -790,7 +774,6 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
         batch_fee_input_provider.clone(),
         miniblock_sealer_handle,
         object_store,
-        native_erc20_fetcher,
         stop_receiver.clone(),
     )
     .await;
