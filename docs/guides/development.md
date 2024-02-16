@@ -95,6 +95,35 @@ In our development workflow, we utilize a spell checking process to ensure the q
 and code comments. This is achieved using two primary tools: `cspell` and `cargo-spellcheck`. This section outlines how
 to use these tools and configure them for your needs.
 
+### Prerequisites for Local Usage
+
+Before you can start using `zk spellcheck` on your local machine, ensure that the following tools are installed:
+
+- **cspell**: A spell checker for code that helps in identifying spelling mistakes in text files, comments, and strings.
+- **cargo-spellcheck**: A utility for checking spelling and grammar in documentation and comments within your Rust projects.
+
+#### Installing cspell
+
+`cspell` can be installed globally using npm (Node Package Manager). Ensure you have Node.js and npm installed on your system before proceeding. To install `cspell`, run the following command in your terminal:
+
+```sh
+npm install -g cspell@^8.3.2
+```
+
+This command installs the `cspell` spell checker globally on your system, making it accessible from any directory. The `@^8.3.2` specifies that npm should install version `8.3.2` or any minor version updates that do not introduce breaking changes.This is the version used in the CI environment.
+
+#### Installing cargo-spellcheck
+
+`cargo-spellcheck` requires Rust and Cargo to be installed on your system. If you haven't already installed Rust, you can do so by following the instructions on the [official Rust website](https://www.rust-lang.org/tools/install).
+
+Once Rust is installed, you can install `cargo-spellcheck` by running the following command in your terminal:
+
+```sh
+cargo install --locked cargo-spellcheck
+```
+
+The `--locked` flag ensures that the installation process uses the exact versions of dependencies specified in `cargo-spellcheck`'s `Cargo.lock` file, which can help in avoiding potential inconsistencies and issues related to dependency versions.
+
 ### Using the Spellcheck Command
 
 The spell check command `zk spellcheck` is designed to check for spelling errors in our documentation and code. To run
@@ -106,23 +135,6 @@ Options:
 --pattern <pattern>: Specifies the glob pattern for files to check. Default is docs/**/*.
 --use-cargo: Utilize cargo spellcheck.
 --use-cspell: Utilize cspell.
-```
-
-## Link Checking
-
-To maintain the integrity and reliability of our documentation, we make use of a link checking process using the
-`markdown-link-check` tool. This ensures that all links in our markdown files are valid and accessible. The following
-section describes how to use this tool and configure it for specific needs.
-
-### Using the Link Check Command
-
-The link check command `zk linkcheck` is designed to verify the integrity of links in our markdown files. To execute the
-link check, use the following command:
-
-```
-zk linkcheck
-Options:
---config <config>: Path to the markdown-link-check configuration file. Default is './checks-config/links.json'.
 ```
 
 ### General Rules
@@ -155,6 +167,39 @@ configuration is maintained in `era.cfg`.
 
 To add a new word to the spell checker dictionary, navigate to `/spellcheck/era.dic` and include the word. Ensure that
 the word is relevant and necessary to be included in the dictionary to maintain the integrity of our documentation.
+
+## Link Checking
+
+To maintain the integrity and reliability of our documentation, we make use of a link checking process using the
+`markdown-link-check` tool. This ensures that all links in our markdown files are valid and accessible. The following
+section describes how to use this tool and configure it for specific needs.
+
+### Prerequisites for Local Usage
+
+Before you can start using `zk linkcheck` on your local machine, ensure that the following tools are installed:
+
+- **markdown-link-check**: A link checker for code that helps in identifying broken links in markdown files.
+
+#### Installing cargo-spellcheck
+
+`markdown-link-check` can be installed globally using npm (Node Package Manager). Ensure you have Node.js and npm installed on your system before proceeding. To install `markdown-link-check`, run the following command in your terminal:
+
+```sh
+npm install -g markdown-link-check@^3.11.2
+```
+
+This command installs the `markdown-link-check` link checker globally on your system, making it accessible from any directory.
+
+### Using the Link Check Command
+
+The link check command `zk linkcheck` is designed to verify the integrity of links in our markdown files. To execute the
+link check, use the following command:
+
+```
+zk linkcheck
+Options:
+--config <config>: Path to the markdown-link-check configuration file. Default is './checks-config/links.json'.
+```
 
 ## Using Dummy Prover
 
