@@ -132,7 +132,7 @@ impl<E: EthInterface> L1GasPriceProvider for GasAdjuster<E> {
 
         // Bound the price if it's too high.
         let conversion_rate = match self.erc20_fetcher_dyn.as_ref() {
-            Some(fetcher) => fetcher.conversion_rate().unwrap_or(1) as u64,
+            Some(fetcher) => fetcher.conversion_rate().unwrap_or(1),
             None => 1,
         };
 
