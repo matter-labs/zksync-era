@@ -302,7 +302,7 @@ impl StorageLogsDal<'_, '_> {
 
     /// Returns addresses and the corresponding deployment miniblock numbers among the specified contract
     /// `addresses`. `at_miniblock` allows filtering deployment by miniblocks.
-    pub(crate) async fn filter_deployed_contracts(
+    pub async fn filter_deployed_contracts(
         &mut self,
         addresses: impl Iterator<Item = Address>,
         at_miniblock: Option<MiniblockNumber>,
