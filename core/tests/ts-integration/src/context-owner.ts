@@ -242,7 +242,7 @@ export class TestContextOwner {
         const gasPrice = await scaledGasPrice(this.mainEthersWallet);
 
         // Deposit L2 tokens (if needed). Depositing ETH with current native implementation is not supported.
-        if (!l2ETHAmountToDeposit.isZero()) {
+        if (!l2ETHAmountToDeposit.isZero() && !this.env.nativeErc20Testing) {
             // Given that we've already sent a number of transactions,
             // we have to correctly send nonce.
             const depositHandle = await this.mainSyncWallet
@@ -268,7 +268,7 @@ export class TestContextOwner {
         // Mint ERC20.
         const l1Erc20ABI = ['function mint(address to, uint256 amount)'];
         const l1Erc20Contract = new ethers.Contract(erc20Token, l1Erc20ABI, this.mainEthersWallet);
-        const erc20MintPromise = l1Erc20Contract
+        const erc20MintPromise = await l1Erc20Contract
             .mint(this.mainSyncWallet.address, erc20MintAmount, {
                 nonce: nonce++,
                 gasPrice
@@ -279,9 +279,9 @@ export class TestContextOwner {
             });
 
         // Deposit ERC20.
-        const approveOverrides = !this.env.nativeErc20Testing ? { nonce: nonce++, gasPrice } : undefined;
-        const overrides = !this.env.nativeErc20Testing ? { nonce: nonce++, gasPrice } : undefined;
-        const erc20DepositPromise = this.mainSyncWallet
+        const approveOverrides = { nonce: nonce++, gasPrice };
+        const overrides = { nonce: nonce++, gasPrice };
+        const erc20DepositPromise = await this.mainSyncWallet
             .deposit(
                 {
                     to: this.mainEthersWallet.address,
@@ -291,7 +291,7 @@ export class TestContextOwner {
                     approveOverrides,
                     overrides
                 },
-                erc20Token
+                this.env.nativeErc20Testing ? erc20Token : undefined
             )
             .then((tx) => {
                 // Note: there is an `approve` tx, not listed here.
@@ -322,8 +322,6 @@ export class TestContextOwner {
             this.reporter
         );
 
-        l1TxPromises.push(erc20MintPromise);
-        l1TxPromises.push(erc20DepositPromise);
         l1TxPromises.push(...ethTransfers);
         l1TxPromises.push(...erc20Transfers);
 

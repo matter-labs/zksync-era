@@ -15,19 +15,19 @@ import { L2_ETH_PER_ACCOUNT } from '../src/context-owner';
 describe('ERC20 contract checks', () => {
     let testMaster: TestMaster;
     let alice: zksync.Wallet;
-    let bob: zksync.Wallet;
     let tokenDetails: Token;
     let nonNativeToken: Token;
     let aliceErc20: zksync.Contract;
+    let isNativeErc20: boolean;
 
     beforeAll(async () => {
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
-        bob = testMaster.newEmptyAccount();
 
         tokenDetails = testMaster.environment().erc20Token;
         nonNativeToken = testMaster.environment().nonNativeToken;
         aliceErc20 = new zksync.Contract(tokenDetails.l2Address, zksync.utils.IERC20, alice);
+        isNativeErc20 = testMaster.environment().nativeErc20Testing;
     });
 
     test('Can perform a deposit', async () => {
@@ -60,7 +60,7 @@ describe('ERC20 contract checks', () => {
                     gasPrice
                 }
             },
-            nativeToken
+            isNativeErc20 ? nativeToken : undefined
         );
 
         await deposit.waitFinalize();

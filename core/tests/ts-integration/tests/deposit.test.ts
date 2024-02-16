@@ -17,6 +17,8 @@ import { BigNumber, utils as etherUtils } from 'ethers';
 import * as ethers from 'ethers';
 import { scaledGasPrice, waitUntilBlockFinalized } from '../src/helpers';
 import { L2_ETH_PER_ACCOUNT } from '../src/context-owner';
+import { ETH_ADDRESS } from 'zksync-web3/build/src/utils';
+import { error } from 'console';
 
 async function get_wallet_balances(wallet: zksync.Wallet, tokenDetails: Token) {
     return {
@@ -29,14 +31,15 @@ async function get_wallet_balances(wallet: zksync.Wallet, tokenDetails: Token) {
 describe('Deposit', () => {
     let testMaster: TestMaster;
     let alice: zksync.Wallet;
-    let bob: zksync.Wallet;
     let tokenDetails: Token;
     let erc20: zksync.Contract;
+    let isNativeErc20: boolean;
 
     beforeAll(async () => {
         testMaster = TestMaster.getInstance(__filename); // Configures env vars for the test.
         alice = testMaster.mainAccount(); // funded amount.
 
+        isNativeErc20 = testMaster.environment().nativeErc20Testing;
         tokenDetails = testMaster.environment().erc20Token; // Contains the native token details.
         erc20 = new zksync.Contract(tokenDetails.l2Address, zksync.utils.IERC20, alice); //
     });
@@ -51,9 +54,9 @@ describe('Deposit', () => {
 
         const deposit = await alice.deposit(
             {
-                token: tokenDetails.l1Address,
+                token: isNativeErc20 ? tokenDetails.l1Address : ETH_ADDRESS,
                 amount,
-                approveERC20: true,
+                approveERC20: isNativeErc20,
                 approveOverrides: {
                     gasPrice
                 },
@@ -61,7 +64,7 @@ describe('Deposit', () => {
                     gasPrice
                 }
             },
-            tokenDetails.l1Address
+            isNativeErc20 ? tokenDetails.l1Address : undefined
         );
         await deposit.waitFinalize();
 
@@ -71,20 +74,30 @@ describe('Deposit', () => {
         // Check that the balances are correct.
         expect(finalBalances.nativeTokenL2).bnToBeGt(initialBalances.nativeTokenL2.add(amount));
         expect(finalBalances.ethL1).bnToBeLt(initialBalances.ethL1);
-        expect(finalBalances.nativeTokenL1).bnToBeLt(initialBalances.nativeTokenL1.sub(amount));
+        if (isNativeErc20) {
+            expect(finalBalances.nativeTokenL1).bnToBeLt(initialBalances.nativeTokenL1.sub(amount));
+        }
     });
 
     test('Not enough balance should revert', async () => {
         // Amount sending to the L2.
-        const amount = BigNumber.from('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff');
+        const amount = BigNumber.from('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffff');
         const gasPrice = scaledGasPrice(alice);
-        const gasLimit = 1_000_000_000_000;
+        const gasLimit = 10_000_000;
+        let errorMessage;
+
+        if (isNativeErc20) {
+            errorMessage = 'Not enough balance';
+        } else {
+            errorMessage = 'insufficient funds for intrinsic transaction cost';
+        }
+
         await expect(
             alice.deposit(
                 {
-                    token: tokenDetails.l1Address,
+                    token: isNativeErc20 ? tokenDetails.l1Address : ETH_ADDRESS,
                     amount,
-                    approveERC20: true,
+                    approveERC20: isNativeErc20,
                     approveOverrides: {
                         gasPrice,
                         gasLimit
@@ -95,9 +108,9 @@ describe('Deposit', () => {
                     },
                     l2GasLimit: gasLimit
                 },
-                tokenDetails.l1Address
+                isNativeErc20 ? tokenDetails.l1Address : undefined
             )
-        ).toBeRejected('Not enough balance');
+        ).toBeRejected(errorMessage);
     });
 
     afterAll(async () => {
