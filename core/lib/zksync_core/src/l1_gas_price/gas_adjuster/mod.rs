@@ -135,7 +135,6 @@ impl<E: EthInterface> L1GasPriceProvider for GasAdjuster<E> {
             Some(fetcher) => fetcher.conversion_rate().unwrap_or(1) as u64,
             None => 1,
         };
-        // let conversion_rate = 100_000_000_000_000;
 
         self.bound_gas_price(calculated_price) * conversion_rate
     }
