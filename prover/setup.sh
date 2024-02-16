@@ -29,22 +29,22 @@ SHOULD_GENERATE_KEYS=false
 for i in {1..13}
 do
     if ! [ -f vk_setup_data_generator_server_fri/data/setup_basic_${i}_data.bin ]; then
-        SHOULD_REBUILD=true        
+        SHOULD_GENERATE_KEYS=true        
     fi
 done
 
 if ! [ -f vk_setup_data_generator_server_fri/data/setup_scheduler_data.bin ]; then
-    SHOULD_REBUILD=true            
+    SHOULD_GENERATE_KEYS=true            
 fi
 
 if ! [ -f vk_setup_data_generator_server_fri/data/setup_node_data.bin ]; then
-    SHOULD_REBUILD=true        
+    SHOULD_GENERATE_KEYS=true        
 fi
 
 for i in {3..15}
 do
     if ! [ -f vk_setup_data_generator_server_fri/data/setup_leaf_${i}_data.bin ]; then
-        SHOULD_REBUILD=true        
+        SHOULD_GENERATE_KEYS=true        
     fi
 done
 
