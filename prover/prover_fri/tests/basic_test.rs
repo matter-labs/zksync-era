@@ -10,7 +10,9 @@ use zksync_prover_fri_types::{
     keys::FriCircuitKey, CircuitWrapper, ProverJob, ProverServiceDataKey,
 };
 use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
-use zksync_vk_setup_data_server_fri::generate_cpu_base_layer_setup_data;
+use zksync_vk_setup_data_server_fri::{
+    keystore::Keystore, setup_data_generator::generate_setup_data_common, GoldilocksProverSetupData,
+};
 
 fn compare_serialized<T: Serialize>(expected: &T, actual: &T) {
     let serialized_expected = bincode::serialize(expected).unwrap();
@@ -54,10 +56,19 @@ async fn prover_and_assert_base_layer(
         CircuitWrapper::Base(base) => base.clone(),
         CircuitWrapper::Recursive(_) => anyhow::bail!("Expected base layer circuit"),
     };
-    let setup_data = Arc::new(
-        generate_cpu_base_layer_setup_data(circuit)
-            .context("generate_cpu_base_layers_setup_data()")?,
-    );
+    let keystore = Keystore::default();
+    let circuit_setup_data =
+        generate_setup_data_common(&keystore, true, circuit.numeric_circuit_type())
+            .context("generate_cpu_base_layers_setup_data()")?;
+    let setup_data = Arc::new(GoldilocksProverSetupData {
+        setup_base: circuit_setup_data.setup_base,
+        setup: circuit_setup_data.setup,
+        vk: circuit_setup_data.vk,
+        setup_tree: circuit_setup_data.setup_tree,
+        vars_hint: circuit_setup_data.vars_hint,
+        wits_hint: circuit_setup_data.wits_hint,
+        finalization_hint: circuit_setup_data.finalization_hint,
+    });
     let setup_key = ProverServiceDataKey::new(circuit_id, aggregation_round);
     let prover_job = ProverJob::new(block_number, expected_proof_id, circuit_wrapper, setup_key);
     let artifacts = Prover::prove(

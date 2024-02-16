@@ -10,9 +10,10 @@ use zksync_prover_fri_types::circuit_definitions::{
     },
 };
 
-use crate::{get_base_layer_vk_for_circuit_type, get_recursive_layer_vk_for_circuit_type};
+use crate::keystore::Keystore;
 
 pub fn get_leaf_vk_params(
+    keystore: &Keystore,
 ) -> anyhow::Result<Vec<(u8, RecursionLeafParametersWitness<GoldilocksField>)>> {
     let mut leaf_vk_commits = vec![];
 
@@ -22,9 +23,11 @@ pub fn get_leaf_vk_params(
         let recursive_circuit_type = base_circuit_type_into_recursive_leaf_circuit_type(
             BaseLayerCircuitType::from_numeric_value(circuit_type),
         );
-        let base_vk = get_base_layer_vk_for_circuit_type(circuit_type)
+        let base_vk = keystore
+            .load_base_layer_verification_key(circuit_type)
             .with_context(|| format!("get_base_layer_vk_for_circuit_type({circuit_type})"))?;
-        let leaf_vk = get_recursive_layer_vk_for_circuit_type(recursive_circuit_type as u8)
+        let leaf_vk = keystore
+            .load_recursive_layer_verification_key(recursive_circuit_type as u8)
             .with_context(|| {
                 format!("get_recursive_layer_vk_for_circuit_type({recursive_circuit_type:?})")
             })?;
