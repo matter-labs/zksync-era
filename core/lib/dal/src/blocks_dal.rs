@@ -2148,21 +2148,6 @@ impl BlocksDal<'_, '_> {
         .await?
         .map(|row| row.virtual_blocks as u32))
     }
-
-    pub async fn get_batch_pubdata(
-        &mut self,
-        l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Option<Vec<u8>>> {
-        let Some(l1_batch_with_metadata) = self
-            .get_l1_batch_metadata(l1_batch_number)
-            .await
-            .context("L1 batch pubdata not found: get_l1_batch_metadata()")?
-        else {
-            return Ok(None);
-        };
-
-        Ok(Some(l1_batch_with_metadata.construct_pubdata()))
-    }
 }
 
 /// Temporary methods for migrating `fee_account_address`.
