@@ -1,0 +1,16 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract SimpleTokenSwap {
+    address public user;
+    uint256 public amount;
+
+    constructor(uint256 _amount) {
+        user = msg.sender;
+        amount = _amount;
+    }
+
+    function swap() external {
+        // Implement zkSync token swap logic here
+    }
+}
