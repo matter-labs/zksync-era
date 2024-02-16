@@ -4,7 +4,7 @@
 //! Poll interval is configured using the `ETH_POLL_INTERVAL` constant.
 //! Number of confirmations is configured using the `CONFIRMATIONS_FOR_ETH_EVENT` environment variable.
 
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::ETHWatchConfig;
@@ -191,7 +191,7 @@ impl EthWatch {
 pub async fn start_eth_watch(
     config: ETHWatchConfig,
     pool: ConnectionPool,
-    eth_gateway: Box<dyn EthInterface>,
+    eth_gateway: Arc<dyn EthInterface>,
     diamond_proxy_addr: Address,
     governance: (Contract, Address),
     stop_receiver: watch::Receiver<bool>,

@@ -90,7 +90,8 @@ impl ZkStackService {
         let runtime_handle = self.runtime.handle().clone();
         for layer in wiring_layers {
             let name = layer.layer_name().to_string();
-            let task_result = runtime_handle.block_on(layer.wire(ServiceContext::new(&mut self)));
+            let task_result =
+                runtime_handle.block_on(layer.wire(ServiceContext::new(&name, &mut self)));
             if let Err(err) = task_result {
                 // We don't want to bail on the first error, since it'll provide worse DevEx:
                 // People likely want to fix as much problems as they can in one go, rather than have

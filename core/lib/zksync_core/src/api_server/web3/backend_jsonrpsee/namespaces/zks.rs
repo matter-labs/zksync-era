@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use bigdecimal::BigDecimal;
 use zksync_types::{
     api::{
         BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, Proof, ProtocolVersion,
@@ -49,12 +48,6 @@ impl ZksNamespaceServer for ZksNamespace {
 
     async fn get_confirmed_tokens(&self, from: u32, limit: u8) -> RpcResult<Vec<Token>> {
         self.get_confirmed_tokens_impl(from, limit)
-            .await
-            .map_err(into_jsrpc_error)
-    }
-
-    async fn get_token_price(&self, token_address: Address) -> RpcResult<BigDecimal> {
-        self.get_token_price_impl(token_address)
             .await
             .map_err(into_jsrpc_error)
     }
