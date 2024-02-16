@@ -64,7 +64,7 @@ impl<T> fmt::Debug for ResourceCollection<T> {
     }
 }
 
-#[derive(Debug, Error, PartialEq)]
+#[derive(Debug, Error)]
 pub enum ResourceCollectionError {
     #[error("Adding resources to the collection is not allowed after the wiring is complete")]
     AlreadyWired,
@@ -107,7 +107,8 @@ impl<T: Resource + Clone> ResourceCollection<T> {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
+    use assert_matches::assert_matches;
+    use futures::FutureExt;
 
     use super::*;
 
@@ -120,8 +121,8 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_push() {
+    #[test]
+    fn test_push() {
         let collection = ResourceCollection::<TestResource>::new();
         let resource1 = TestResource(Arc::new(1));
         collection.clone().push(resource1.clone()).unwrap();
@@ -135,8 +136,8 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn test_already_wired() {
+    #[test]
+    fn test_already_wired() {
         let mut collection = ResourceCollection::<TestResource>::new();
         let resource = TestResource(Arc::new(1));
 
@@ -144,27 +145,22 @@ mod tests {
 
         collection.on_resource_wired();
 
-        assert_eq!(
+        assert_matches!(
             rc_clone.push(resource),
             Err(ResourceCollectionError::AlreadyWired)
         );
     }
 
-    #[tokio::test]
-    async fn test_resolve() {
+    #[test]
+    fn test_resolve() {
         let mut collection = ResourceCollection::<TestResource>::new();
-        let timeout = Duration::from_millis(500);
-        let result = tokio::time::timeout(timeout, collection.clone().resolve()).await;
+        let result = collection.clone().resolve().now_or_never();
 
-        assert!(
-            result.is_err(),
-            "Future resolved before timeout: {} ms",
-            timeout.as_millis()
-        );
+        assert!(result.is_none());
 
         collection.on_resource_wired();
 
-        let resolved = collection.resolve().await;
-        assert_eq!(resolved, vec![]);
+        let resolved = collection.resolve().now_or_never();
+        assert_eq!(resolved.unwrap(), vec![]);
     }
 }
