@@ -2,7 +2,10 @@ use anyhow::Context as _;
 use circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerVerificationKey;
 use clap::{Parser, Subcommand};
 use commitment_generator::read_and_update_contract_toml;
-use setup_data_generator::{generate_all_cpu_setup_data, generate_cpu_setup_data};
+use setup_data_generator::{
+    generate_all_cpu_setup_data, generate_all_gpu_setup_data, generate_cpu_setup_data,
+    generate_gpu_setup_data,
+};
 use tracing::level_filters::LevelFilter;
 use zkevm_test_harness::{
     compute_setups::{generate_base_layer_vks_and_proofs, generate_recursive_layer_vks_and_proofs},
@@ -193,11 +196,7 @@ enum Command {
     /// Generates verification keys (and finalization hints) for all the basic & leaf circuits.
     /// Used for verification.
     #[command(name = "generate-vk")]
-    GenerateVerificationKeys {
-        /// Directory to write the data to. If not provided, will write to ZKSYNC_HOME/prover/vk_setup_data_generator_server_fri/data
-        #[arg(long)]
-        path: Option<String>,
-    },
+    GenerateVerificationKeys {},
     /// Generates setup keys (used by the CPU prover).
     #[command(name = "generate-sk")]
     GenerateSetupKeys {
@@ -206,10 +205,6 @@ enum Command {
         /// Specify for which circuit to generate the keys.
         #[arg(long)]
         numeric_circuit: Option<u8>,
-
-        /// Directory to write the data to. If not provided, will write to ZKSYNC_HOME/prover/vk_setup_data_generator_server_fri/data
-        #[arg(long)]
-        path: Option<String>,
     },
     /// Generates setup keys (used by the GPU prover).
     #[command(name = "generate-sk-gpu")]
@@ -219,10 +214,6 @@ enum Command {
         /// Specify for which circuit to generate the keys.
         #[arg(long)]
         numeric_circuit: Option<u8>,
-
-        /// Directory to write the data to. If not provided, will write to ZKSYNC_HOME/prover/vk_setup_data_generator_server_fri/data
-        #[arg(long)]
-        path: Option<String>,
     },
     /// Generates and updates the commitments - used by the verification contracts.
     #[command(name = "update-commitments")]
@@ -244,7 +235,7 @@ fn main() -> anyhow::Result<()> {
     let opt = Cli::parse();
 
     match opt.command {
-        Command::GenerateVerificationKeys { path } => {
+        Command::GenerateVerificationKeys {} => {
             tracing::info!(
                 "Generating verification keys and storing them inside {:?}",
                 get_base_path()
@@ -254,27 +245,29 @@ fn main() -> anyhow::Result<()> {
         Command::GenerateSetupKeys {
             circuits_type,
             numeric_circuit,
-            path,
         } => match circuits_type {
             CircuitSelector::All => generate_all_cpu_setup_data(),
-            CircuitSelector::Recursive => generate_cpu_setup_data(false, numeric_circuit.unwrap())
-                .context("generate_cpu_setup_data()"),
-            CircuitSelector::Basic => generate_cpu_setup_data(true, numeric_circuit.unwrap())
-                .context("generate_cpu_setup_data()"),
+            CircuitSelector::Recursive => generate_cpu_setup_data(
+                false,
+                numeric_circuit.expect("--numeric-circuit must be provided"),
+            )
+            .context("generate_cpu_setup_data()"),
+            CircuitSelector::Basic => generate_cpu_setup_data(
+                true,
+                numeric_circuit.expect("--numeric-circuit must be provided"),
+            )
+            .context("generate_cpu_setup_data()"),
         },
         Command::UpdateCommitments { dryrun } => read_and_update_contract_toml(dryrun),
         Command::GenerateGPUSetupKeys {
             circuits_type,
             numeric_circuit,
-            path,
-        } => {
-            #[cfg(feature = "gpu")]
-            {}
-
-            #[cfg(not(feature = "gpu"))]
-            {
-                anyhow::bail!("Must compile with --gpu feature to use this option.")
-            }
-        }
+        } => match circuits_type {
+            CircuitSelector::All => generate_all_gpu_setup_data(),
+            CircuitSelector::Recursive => generate_gpu_setup_data(false, numeric_circuit.unwrap())
+                .context("generate_cpu_setup_data()"),
+            CircuitSelector::Basic => generate_gpu_setup_data(true, numeric_circuit.unwrap())
+                .context("generate_cpu_setup_data()"),
+        },
     }
 }

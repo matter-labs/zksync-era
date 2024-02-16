@@ -144,8 +144,13 @@ fn generate_cpu_recursive_layer_setup_data(
     })
 }
 
+#[cfg(not(feature = "gpu"))]
+pub fn generate_gpu_setup_data(_is_base_layer: bool, _numeric_circuit: u8) -> anyhow::Result<()> {
+    anyhow::bail!("Must compile with --gpu feature to use this option.")
+}
+
 #[cfg(feature = "gpu")]
-fn generate_gpu_setup_data(is_base_layer: bool, numeric_circuit: u8) -> anyhow::Result<()> {
+pub fn generate_gpu_setup_data(is_base_layer: bool, numeric_circuit: u8) -> anyhow::Result<()> {
     let _context = ProverContext::create().context("failed initializing gpu prover context")?;
     let (cpu_setup_data, round) = match is_base_layer {
         true => {
@@ -191,7 +196,6 @@ fn generate_gpu_setup_data(is_base_layer: bool, numeric_circuit: u8) -> anyhow::
     .context("save_setup_data")
 }
 
-#[cfg(feature = "gpu")]
 pub fn generate_all_gpu_setup_data() -> anyhow::Result<()> {
     const MAX_CIRCUIT: u8 = 13;
     for numeric_circuit in 1..=MAX_CIRCUIT {
