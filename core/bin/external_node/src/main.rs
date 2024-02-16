@@ -548,7 +548,7 @@ async fn main() -> anyhow::Result<()> {
 
     tokio::select! {
         _ = wait_for_tasks(task_handles, particular_crypto_alerts, graceful_shutdown, tasks_allowed_to_finish) => {},
-        _ = sigint_receiver => {
+        _ = handle_sigint(stop_sender) => {
             tracing::info!("Stop signal received, shutting down");
         },
         result = &mut reorg_detector_handle => {
