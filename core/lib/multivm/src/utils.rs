@@ -184,6 +184,25 @@ pub fn get_bootloader_max_txs_in_batch(version: VmVersion) -> usize {
     }
 }
 
+pub fn gas_bootloader_batch_tip_overhead(version: VmVersion) -> u32 {
+    match version {
+        VmVersion::M5WithRefunds
+        | VmVersion::M5WithoutRefunds
+        | VmVersion::M6Initial
+        | VmVersion::M6BugWithCompressionFixed
+        | VmVersion::Vm1_3_2
+        | VmVersion::VmVirtualBlocks
+        | VmVersion::VmVirtualBlocksRefundsEnhancement => {
+            // For these versions the overhead has not been calculated and it has not been used with those versions.
+            0
+        }
+        VmVersion::VmBoojumIntegration => {
+            crate::vm_boojum_integration::constants::BOOTLOADER_BATCH_TIP_OVERHEAD
+        }
+        VmVersion::Vm1_4_1 => crate::vm_latest::constants::BOOTLOADER_BATCH_TIP_OVERHEAD,
+    }
+}
+
 pub fn get_max_gas_per_pubdata_byte(version: VmVersion) -> u64 {
     match version {
         VmVersion::M5WithRefunds | VmVersion::M5WithoutRefunds => {

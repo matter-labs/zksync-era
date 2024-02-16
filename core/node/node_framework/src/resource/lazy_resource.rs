@@ -52,7 +52,7 @@ impl<T: Resource + Clone> LazyResource<T> {
             return Ok(resource.clone());
         }
 
-        tokio::select! {
+        let result = tokio::select! {
             _ = self.stop_receiver.0.changed() => {
                 Err(LazyResourceError::NodeShutdown)
             }
@@ -61,7 +61,13 @@ impl<T: Resource + Clone> LazyResource<T> {
                 let resource = resolve_receiver.borrow().as_ref().expect("Can only change if provided").clone();
                 Ok(resource)
             }
+        };
+
+        if result.is_ok() {
+            tracing::info!("Lazy resource {} has been resolved", T::resource_id());
         }
+
+        result
     }
 
     /// Provides the resource.
@@ -78,6 +84,8 @@ impl<T: Resource + Clone> LazyResource<T> {
         if !sent {
             return Err(LazyResourceError::ResourceAlreadyProvided);
         }
+
+        tracing::info!("Lazy resource {} has been provided", T::resource_id());
 
         Ok(())
     }

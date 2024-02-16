@@ -1,10 +1,12 @@
 use std::{fmt, time::Duration};
 
 use anyhow::Context as _;
+use serde::Serialize;
 use tokio::sync::watch;
 use zksync_contracts::PRE_BOOJUM_COMMIT_FUNCTION;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::{clients::QueryClient, Error as L1ClientError, EthInterface};
+use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::{i_executor::structures::CommitBatchInfo, Tokenizable};
 use zksync_types::{web3::ethabi, L1BatchNumber, H256};
 
@@ -30,15 +32,79 @@ impl From<zksync_dal::SqlxError> for CheckError {
     }
 }
 
-trait UpdateCheckedBatch: fmt::Debug + Send + Sync {
+/// Handler of life cycle events emitted by [`ConsistencyChecker`].
+trait HandleConsistencyCheckerEvent: fmt::Debug + Send + Sync {
+    fn initialize(&mut self);
+
+    fn set_first_batch_to_check(&mut self, first_batch_to_check: L1BatchNumber);
+
     fn update_checked_batch(&mut self, last_checked_batch: L1BatchNumber);
+
+    fn report_inconsistent_batch(&mut self, number: L1BatchNumber);
 }
 
-/// Default [`UpdateCheckedBatch`] implementation that reports the batch number as a metric.
-impl UpdateCheckedBatch for () {
+/// Health details reported by [`ConsistencyChecker`].
+#[derive(Debug, Default, Serialize)]
+struct ConsistencyCheckerDetails {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    first_checked_batch: Option<L1BatchNumber>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    last_checked_batch: Option<L1BatchNumber>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    inconsistent_batches: Vec<L1BatchNumber>,
+}
+
+impl ConsistencyCheckerDetails {
+    fn health(&self) -> Health {
+        let status = if self.inconsistent_batches.is_empty() {
+            HealthStatus::Ready
+        } else {
+            HealthStatus::Affected
+        };
+        Health::from(status).with_details(self)
+    }
+}
+
+/// Default [`HandleConsistencyCheckerEvent`] implementation that reports the batch number as a metric and via health check details.
+#[derive(Debug)]
+struct ConsistencyCheckerHealthUpdater {
+    inner: HealthUpdater,
+    current_details: ConsistencyCheckerDetails,
+}
+
+impl ConsistencyCheckerHealthUpdater {
+    fn new() -> (ReactiveHealthCheck, Self) {
+        let (health_check, health_updater) = ReactiveHealthCheck::new("consistency_checker");
+        let this = Self {
+            inner: health_updater,
+            current_details: ConsistencyCheckerDetails::default(),
+        };
+        (health_check, this)
+    }
+}
+
+impl HandleConsistencyCheckerEvent for ConsistencyCheckerHealthUpdater {
+    fn initialize(&mut self) {
+        self.inner.update(self.current_details.health());
+    }
+
+    fn set_first_batch_to_check(&mut self, first_batch_to_check: L1BatchNumber) {
+        self.current_details.first_checked_batch = Some(first_batch_to_check);
+        self.inner.update(self.current_details.health());
+    }
+
     fn update_checked_batch(&mut self, last_checked_batch: L1BatchNumber) {
+        tracing::info!("L1 batch #{last_checked_batch} is consistent with L1");
         EN_METRICS.last_correct_batch[&CheckerComponent::ConsistencyChecker]
             .set(last_checked_batch.0.into());
+        self.current_details.last_checked_batch = Some(last_checked_batch);
+        self.inner.update(self.current_details.health());
+    }
+
+    fn report_inconsistent_batch(&mut self, number: L1BatchNumber) {
+        tracing::warn!("L1 batch #{number} is inconsistent with L1");
+        self.current_details.inconsistent_batches.push(number);
+        self.inner.update(self.current_details.health());
     }
 }
 
@@ -128,9 +194,10 @@ pub struct ConsistencyChecker {
     max_batches_to_recheck: u32,
     sleep_interval: Duration,
     l1_client: Box<dyn EthInterface>,
-    l1_batch_updater: Box<dyn UpdateCheckedBatch>,
+    event_handler: Box<dyn HandleConsistencyCheckerEvent>,
     l1_data_mismatch_behavior: L1DataMismatchBehavior,
     pool: ConnectionPool,
+    health_check: ReactiveHealthCheck,
 }
 
 impl ConsistencyChecker {
@@ -138,15 +205,22 @@ impl ConsistencyChecker {
 
     pub fn new(web3_url: &str, max_batches_to_recheck: u32, pool: ConnectionPool) -> Self {
         let web3 = QueryClient::new(web3_url).unwrap();
+        let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
         Self {
             contract: zksync_contracts::zksync_contract(),
             max_batches_to_recheck,
             sleep_interval: Self::DEFAULT_SLEEP_INTERVAL,
             l1_client: Box::new(web3),
-            l1_batch_updater: Box::new(()),
+            event_handler: Box::new(health_updater),
             l1_data_mismatch_behavior: L1DataMismatchBehavior::Log,
             pool,
+            health_check,
         }
+    }
+
+    /// Returns health check associated with this checker.
+    pub fn health_check(&self) -> &ReactiveHealthCheck {
+        &self.health_check
     }
 
     async fn check_commitments(
@@ -249,6 +323,8 @@ impl ConsistencyChecker {
     }
 
     pub async fn run(mut self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        self.event_handler.initialize();
+
         // It doesn't make sense to start the checker until we have at least one L1 batch with metadata.
         let earliest_l1_batch_number =
             wait_for_l1_batch_with_metadata(&self.pool, self.sleep_interval, &mut stop_receiver)
@@ -274,6 +350,8 @@ impl ConsistencyChecker {
         tracing::info!(
             "Last committed L1 batch is #{last_committed_batch}; starting checks from L1 batch #{first_batch_to_check}"
         );
+        self.event_handler
+            .set_first_batch_to_check(first_batch_to_check);
 
         let mut batch_number = first_batch_to_check;
         loop {
@@ -294,20 +372,21 @@ impl ConsistencyChecker {
 
             match self.check_commitments(batch_number, &local).await {
                 Ok(true) => {
-                    tracing::info!("L1 batch #{batch_number} is consistent with L1");
-                    self.l1_batch_updater.update_checked_batch(batch_number);
+                    self.event_handler.update_checked_batch(batch_number);
                     batch_number += 1;
                 }
-                Ok(false) => match &self.l1_data_mismatch_behavior {
-                    #[cfg(test)]
-                    L1DataMismatchBehavior::Bail => {
-                        anyhow::bail!("L1 Batch #{batch_number} is inconsistent with L1");
+                Ok(false) => {
+                    self.event_handler.report_inconsistent_batch(batch_number);
+                    match &self.l1_data_mismatch_behavior {
+                        #[cfg(test)]
+                        L1DataMismatchBehavior::Bail => {
+                            anyhow::bail!("L1 batch #{batch_number} is inconsistent with L1");
+                        }
+                        L1DataMismatchBehavior::Log => {
+                            batch_number += 1; // We don't want to infinitely loop failing the check on the same batch
+                        }
                     }
-                    L1DataMismatchBehavior::Log => {
-                        tracing::warn!("L1 Batch #{batch_number} is inconsistent with L1");
-                        batch_number += 1; // We don't want to infinitely loop failing the check on the same batch
-                    }
-                },
+                }
                 Err(CheckError::Web3(err)) => {
                     tracing::warn!("Error accessing L1; will retry after a delay: {err}");
                     tokio::time::sleep(self.sleep_interval).await;

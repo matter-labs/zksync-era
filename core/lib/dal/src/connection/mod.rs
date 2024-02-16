@@ -63,6 +63,11 @@ impl ConnectionPoolBuilder {
         self
     }
 
+    /// Returns the maximum number of connections that can be allocated by the pool.
+    pub fn max_size(&self) -> u32 {
+        self.max_size
+    }
+
     /// Builds a connection pool from this builder.
     pub async fn build(&self) -> anyhow::Result<ConnectionPool> {
         let options = PgPoolOptions::new()

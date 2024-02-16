@@ -30,6 +30,15 @@ impl<T: 'static + Send> Unique<T> {
 
     /// Takes the resource from the container.
     pub fn take(&self) -> Option<T> {
-        self.inner.lock().unwrap().take()
+        let result = self.inner.lock().unwrap().take();
+
+        if result.is_some() {
+            tracing::info!(
+                "Resource {} has been taken",
+                std::any::type_name::<Unique<T>>()
+            );
+        }
+
+        result
     }
 }

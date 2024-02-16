@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Context as _;
 use serde::Serialize;
-use zksync_config::{configs::FriProverConfig, ObjectStoreConfig};
+use zksync_config::configs::{object_store::ObjectStoreMode, FriProverConfig, ObjectStoreConfig};
 use zksync_env_config::FromEnv;
 use zksync_object_store::{bincode, ObjectStoreFactory};
 use zksync_prover_fri::prover_job_processor::Prover;
@@ -24,9 +24,12 @@ async fn prover_and_assert_base_layer(
     block_number: L1BatchNumber,
     sequence_number: usize,
 ) -> anyhow::Result<()> {
-    let mut object_store_config =
-        ObjectStoreConfig::from_env().context("ObjectStoreConfig::from_env()")?;
-    object_store_config.file_backed_base_path = "./tests/data/".to_owned();
+    let object_store_config = ObjectStoreConfig {
+        mode: ObjectStoreMode::FileBacked {
+            file_backed_base_path: "./tests/data/".to_owned(),
+        },
+        max_retries: 5,
+    };
     let object_store = ObjectStoreFactory::new(object_store_config)
         .create_store()
         .await;

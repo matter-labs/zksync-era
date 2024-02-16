@@ -103,10 +103,10 @@ export async function readVariable(address: string, contractName: string, variab
 }
 
 export async function snapshots_creator() {
-    process.chdir(`${process.env.ZKSYNC_HOME}`);
-    let logLevel = 'RUST_LOG=snapshots_creator=debug';
-    await utils.spawn(`${logLevel} cargo run --bin snapshots_creator --release`);
+    process.chdir(process.env.ZKSYNC_HOME ?? '.');
+    await utils.spawn('cargo run  --release --bin snapshots_creator');
 }
+
 export const command = new Command('run').description('run miscellaneous applications');
 
 command.command('test-accounts').description('print ethereum test accounts').action(testAccounts);

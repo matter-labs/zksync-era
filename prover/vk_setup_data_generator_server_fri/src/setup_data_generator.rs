@@ -1,5 +1,10 @@
+use std::collections::HashMap;
+
 use anyhow::Context as _;
-use structopt::StructOpt;
+use circuit_definitions::{
+    circuit_definitions::recursion_layer::ZkSyncRecursionLayerStorageType,
+    zkevm_circuits::scheduler::aux::BaseLayerCircuitType,
+};
 use zkevm_test_harness::{
     geometry_config::get_geometry_config, prover_utils::create_recursive_layer_setup_data,
 };
@@ -29,40 +34,44 @@ use {
     zksync_vk_setup_data_server_fri::GpuProverSetupData,
 };
 
-#[derive(Debug, StructOpt)]
-#[structopt(
-    name = "Generate setup data for individual circuit",
-    about = "Tool for generating setup data for individual circuit"
-)]
-struct Opt {
-    /// Numeric circuit type valid value are
-    /// 1. for base layer [1-13].
-    /// 2. for recursive layer [1-15].
-    #[structopt(long)]
-    numeric_circuit: u8,
-    /// Boolean representing whether to generate for base layer or for recursive layer.
-    #[structopt(short = "b", long = "is_base_layer")]
+fn generate_all(
+    dry_run: bool,
+    f: fn(bool, u8, bool) -> anyhow::Result<String>,
+) -> anyhow::Result<HashMap<String, String>> {
+    let mut result = HashMap::new();
+
+    for numeric_circuit in
+        BaseLayerCircuitType::VM as u8..=BaseLayerCircuitType::L1MessagesHasher as u8
+    {
+        let digest = f(true, numeric_circuit, dry_run)
+            .context(format!("base layer, circuit {:?}", numeric_circuit))?;
+        result.insert(format!("base_{}", numeric_circuit), digest);
+    }
+
+    // +2 - as '1' and '2' are scheduler and node respectively.
+    for numeric_circuit in ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8
+        ..=ZkSyncRecursionLayerStorageType::LeafLayerCircuitForL1MessagesHasher as u8
+    {
+        let digest = f(false, numeric_circuit, dry_run)
+            .context(format!("recursive layer, circuit {:?}", numeric_circuit))?;
+        result.insert(format!("recursive_{}", numeric_circuit), digest);
+    }
+    Ok(result)
+}
+
+pub fn generate_all_cpu_setup_data(dry_run: bool) -> anyhow::Result<HashMap<String, String>> {
+    generate_all(dry_run, generate_cpu_setup_data)
+}
+
+pub fn generate_all_gpu_setup_data(dry_run: bool) -> anyhow::Result<HashMap<String, String>> {
+    generate_all(dry_run, generate_gpu_setup_data)
+}
+
+pub fn generate_cpu_setup_data(
     is_base_layer: bool,
-}
-
-fn main() -> anyhow::Result<()> {
-    let opt = Opt::from_args();
-
-    #[cfg(feature = "gpu")]
-    {
-        generate_gpu_setup_data(opt.is_base_layer, opt.numeric_circuit)
-            .context("generate_gpu_setup_data()")
-    }
-
-    #[cfg(not(feature = "gpu"))]
-    {
-        generate_cpu_setup_data(opt.is_base_layer, opt.numeric_circuit)
-            .context("generate_cpu_setup_data()")
-    }
-}
-
-#[allow(dead_code)]
-fn generate_cpu_setup_data(is_base_layer: bool, numeric_circuit: u8) -> anyhow::Result<()> {
+    numeric_circuit: u8,
+    dry_run: bool,
+) -> anyhow::Result<String> {
     match is_base_layer {
         true => {
             let circuit =
@@ -72,11 +81,18 @@ fn generate_cpu_setup_data(is_base_layer: bool, numeric_circuit: u8) -> anyhow::
             // Serialization should always succeed.
             let serialized =
                 bincode::serialize(&prover_setup_data).expect("Failed serializing setup data");
-            save_setup_data(
-                ProverServiceDataKey::new(numeric_circuit, AggregationRound::BasicCircuits),
-                &serialized,
-            )
-            .context("save_setup_data()")
+            let digest = md5::compute(&serialized);
+
+            if !dry_run {
+                save_setup_data(
+                    ProverServiceDataKey::new(numeric_circuit, AggregationRound::BasicCircuits),
+                    &serialized,
+                )
+                .context("save_setup_data()")?;
+            } else {
+                tracing::warn!("Dry run - not writing the key");
+            }
+            Ok(format!("{:?}", digest))
         }
         false => {
             let circuit =
@@ -87,11 +103,17 @@ fn generate_cpu_setup_data(is_base_layer: bool, numeric_circuit: u8) -> anyhow::
             let serialized =
                 bincode::serialize(&prover_setup_data).expect("Failed serializing setup data");
             let round = get_round_for_recursive_circuit_type(numeric_circuit);
-            save_setup_data(
-                ProverServiceDataKey::new(numeric_circuit, round),
-                &serialized,
-            )
-            .context("save_setup_data()")
+            let digest = md5::compute(&serialized);
+            if !dry_run {
+                save_setup_data(
+                    ProverServiceDataKey::new(numeric_circuit, round),
+                    &serialized,
+                )
+                .context("save_setup_data()")?;
+            } else {
+                tracing::warn!("Dry run - not writing the key");
+            }
+            Ok(format!("{:?}", digest))
         }
     }
 }
@@ -163,8 +185,21 @@ fn generate_cpu_recursive_layer_setup_data(
     })
 }
 
+#[cfg(not(feature = "gpu"))]
+pub fn generate_gpu_setup_data(
+    _is_base_layer: bool,
+    _numeric_circuit: u8,
+    _dry_run: bool,
+) -> anyhow::Result<String> {
+    anyhow::bail!("Must compile with --gpu feature to use this option.")
+}
+
 #[cfg(feature = "gpu")]
-fn generate_gpu_setup_data(is_base_layer: bool, numeric_circuit: u8) -> anyhow::Result<()> {
+pub fn generate_gpu_setup_data(
+    is_base_layer: bool,
+    numeric_circuit: u8,
+    dry_run: bool,
+) -> anyhow::Result<(String)> {
     let _context = ProverContext::create().context("failed initializing gpu prover context")?;
     let (cpu_setup_data, round) = match is_base_layer {
         true => {
@@ -203,9 +238,15 @@ fn generate_gpu_setup_data(is_base_layer: bool, numeric_circuit: u8) -> anyhow::
     // Serialization should always succeed.
     let serialized =
         bincode::serialize(&gpu_prover_setup_data).expect("Failed serializing setup data");
-    save_setup_data(
-        ProverServiceDataKey::new(numeric_circuit, round),
-        &serialized,
-    )
-    .context("save_setup_data")
+    let digest = md5::compute(&serialized);
+    if !dry_run {
+        save_setup_data(
+            ProverServiceDataKey::new(numeric_circuit, round),
+            &serialized,
+        )
+        .context("save_setup_data")?;
+    } else {
+        tracing::warn!("Dry run - not writing the key");
+    }
+    Ok(format!("{:?}", digest))
 }
