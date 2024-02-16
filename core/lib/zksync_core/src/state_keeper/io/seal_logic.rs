@@ -30,6 +30,7 @@ use zksync_types::{
 // TODO (SMA-1206): use seconds instead of milliseconds.
 use zksync_utils::{h256_to_u256, time::millis_since_epoch, u256_to_h256};
 
+use crate::state_keeper::metrics::TxExecutionType;
 use crate::{
     metrics::{BlockStage, MiniblockStage, APP_METRICS},
     state_keeper::{
@@ -463,8 +464,8 @@ impl MiniblockSealCommand {
 
         let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::ReportTxMetrics, is_fictive);
         self.miniblock.executed_transactions.iter().for_each(|tx| {
-            KEEPER_METRICS
-                .transaction_inclusion_delay
+            KEEPER_METRICS.transaction_inclusion_delay
+                [&TxExecutionType::from_is_l1(tx.transaction.is_l1())]
                 .observe(Duration::from_millis(
                     Utc::now().timestamp_millis() as u64 - tx.transaction.received_timestamp_ms,
                 ))
