@@ -141,7 +141,8 @@ impl Tester {
                 L1VerifierConfig::default(),
                 Address::zero(),
             )
-            .await;
+            .await
+            .unwrap();
         }
     }
 

@@ -22,6 +22,7 @@ lazy_static! {
     static ref COMMITMENTS: Lazy<L1VerifierConfig> = Lazy::new(|| { circuit_commitments().unwrap() });
 }
 
+#[derive(Debug)]
 pub struct VkCommitments {
     pub leaf: String,
     pub node: String,

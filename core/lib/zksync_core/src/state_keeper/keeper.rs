@@ -15,7 +15,7 @@ use zksync_types::{
 };
 
 use super::{
-    batch_executor::{BatchExecutorHandle, L1BatchExecutorBuilder, TxExecutionResult},
+    batch_executor::{BatchExecutor, BatchExecutorHandle, TxExecutionResult},
     extractors,
     io::{MiniblockParams, PendingBatchData, StateKeeperIO},
     metrics::{AGGREGATION_METRICS, KEEPER_METRICS, L1_BATCH_METRICS},
@@ -60,7 +60,7 @@ impl Error {
 pub struct ZkSyncStateKeeper {
     stop_receiver: watch::Receiver<bool>,
     io: Box<dyn StateKeeperIO>,
-    batch_executor_base: Box<dyn L1BatchExecutorBuilder>,
+    batch_executor_base: Box<dyn BatchExecutor>,
     sealer: Arc<dyn ConditionalSealer>,
 }
 
@@ -68,7 +68,7 @@ impl ZkSyncStateKeeper {
     pub fn new(
         stop_receiver: watch::Receiver<bool>,
         io: Box<dyn StateKeeperIO>,
-        batch_executor_base: Box<dyn L1BatchExecutorBuilder>,
+        batch_executor_base: Box<dyn BatchExecutor>,
         sealer: Arc<dyn ConditionalSealer>,
     ) -> Self {
         Self {

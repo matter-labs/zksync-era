@@ -44,6 +44,22 @@ pub(crate) async fn migrate_miniblocks(
     last_miniblock: MiniblockNumber,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
+    // `migrate_miniblocks_inner` assumes that miniblocks start from the genesis (i.e., no snapshot recovery).
+    // Since snapshot recovery is later that the fee address migration in terms of code versioning,
+    // the migration is always no-op in case of snapshot recovery; all miniblocks added after recovery are guaranteed
+    // to have their fee address set.
+    let mut storage = pool.access_storage_tagged("state_keeper").await?;
+    if storage
+        .snapshot_recovery_dal()
+        .get_applied_snapshot_status()
+        .await?
+        .is_some()
+    {
+        tracing::info!("Detected snapshot recovery; fee address migration is skipped as no-op");
+        return Ok(());
+    }
+    drop(storage);
+
     let MigrationOutput {
         miniblocks_affected,
     } = migrate_miniblocks_inner(
