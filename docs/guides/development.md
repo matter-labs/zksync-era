@@ -100,21 +100,26 @@ to use these tools and configure them for your needs.
 Before you can start using `zk spellcheck` on your local machine, ensure that the following tools are installed:
 
 - **cspell**: A spell checker for code that helps in identifying spelling mistakes in text files, comments, and strings.
-- **cargo-spellcheck**: A utility for checking spelling and grammar in documentation and comments within your Rust projects.
+- **cargo-spellcheck**: A utility for checking spelling and grammar in documentation and comments within your Rust
+  projects.
 
 #### Installing cspell
 
-`cspell` can be installed globally using npm (Node Package Manager). Ensure you have Node.js and npm installed on your system before proceeding. To install `cspell`, run the following command in your terminal:
+`cspell` can be installed globally using npm (Node Package Manager). Ensure you have Node.js and npm installed on your
+system before proceeding. To install `cspell`, run the following command in your terminal:
 
 ```sh
 npm install -g cspell@^8.3.2
 ```
 
-This command installs the `cspell` spell checker globally on your system, making it accessible from any directory. The `@^8.3.2` specifies that npm should install version `8.3.2` or any minor version updates that do not introduce breaking changes.This is the version used in the CI environment.
+This command installs the `cspell` spell checker globally on your system, making it accessible from any directory. The
+`@^8.3.2` specifies that npm should install version `8.3.2` or any minor version updates that do not introduce breaking
+changes.This is the version used in the CI environment.
 
 #### Installing cargo-spellcheck
 
-`cargo-spellcheck` requires Rust and Cargo to be installed on your system. If you haven't already installed Rust, you can do so by following the instructions on the [official Rust website](https://www.rust-lang.org/tools/install).
+`cargo-spellcheck` requires Rust and Cargo to be installed on your system. If you haven't already installed Rust, you
+can do so by following the instructions on the [official Rust website](https://www.rust-lang.org/tools/install).
 
 Once Rust is installed, you can install `cargo-spellcheck` by running the following command in your terminal:
 
@@ -122,7 +127,9 @@ Once Rust is installed, you can install `cargo-spellcheck` by running the follow
 cargo install --locked cargo-spellcheck
 ```
 
-The `--locked` flag ensures that the installation process uses the exact versions of dependencies specified in `cargo-spellcheck`'s `Cargo.lock` file, which can help in avoiding potential inconsistencies and issues related to dependency versions.
+The `--locked` flag ensures that the installation process uses the exact versions of dependencies specified in
+`cargo-spellcheck`'s `Cargo.lock` file, which can help in avoiding potential inconsistencies and issues related to
+dependency versions.
 
 ### Using the Spellcheck Command
 
@@ -182,13 +189,16 @@ Before you can start using `zk linkcheck` on your local machine, ensure that the
 
 #### Installing cargo-spellcheck
 
-`markdown-link-check` can be installed globally using npm (Node Package Manager). Ensure you have Node.js and npm installed on your system before proceeding. To install `markdown-link-check`, run the following command in your terminal:
+`markdown-link-check` can be installed globally using npm (Node Package Manager). Ensure you have Node.js and npm
+installed on your system before proceeding. To install `markdown-link-check`, run the following command in your
+terminal:
 
 ```sh
 npm install -g markdown-link-check@^3.11.2
 ```
 
-This command installs the `markdown-link-check` link checker globally on your system, making it accessible from any directory.
+This command installs the `markdown-link-check` link checker globally on your system, making it accessible from any
+directory.
 
 ### Using the Link Check Command
 
