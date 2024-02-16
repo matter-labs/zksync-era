@@ -41,6 +41,7 @@ use crate::{
         updates::{MiniblockSealCommand, MiniblockUpdates, UpdatesManager},
     },
 };
+use crate::state_keeper::metrics::TxExecutionType;
 
 impl UpdatesManager {
     /// Persists an L1 batch in the storage.
@@ -464,7 +465,7 @@ impl MiniblockSealCommand {
         let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::ReportTxMetrics, is_fictive);
         self.miniblock.executed_transactions.iter().for_each(|tx| {
             KEEPER_METRICS
-                .transaction_inclusion_delay
+                .transaction_inclusion_delay[&TxExecutionType::from_is_l1(tx.transaction.is_l1())]
                 .observe(Duration::from_millis(
                     Utc::now().timestamp_millis() as u64 - tx.transaction.received_timestamp_ms,
                 ))
