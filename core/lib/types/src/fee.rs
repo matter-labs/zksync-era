@@ -3,7 +3,7 @@ use zksync_utils::ceil_div;
 
 use crate::{circuit::CircuitStatistic, U256};
 
-#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "result")]
 pub struct TransactionExecutionMetrics {
     pub initial_storage_writes: usize,
@@ -26,6 +26,31 @@ pub struct TransactionExecutionMetrics {
     pub total_updated_values_size: usize,
     pub pubdata_published: u32,
     pub circuit_statistic: CircuitStatistic,
+}
+
+impl Default for TransactionExecutionMetrics {
+    fn default() -> Self {
+        Self {
+            initial_storage_writes: 0,
+            repeated_storage_writes: 0,
+            gas_used: 0,
+            gas_remaining: u32::MAX,
+            event_topics: 0,
+            published_bytecode_bytes: 0,
+            l2_l1_long_messages: 0,
+            l2_l1_logs: 0,
+            contracts_used: 0,
+            contracts_deployed: 0,
+            vm_events: 0,
+            storage_logs: 0,
+            total_log_queries: 0,
+            cycles_used: 0,
+            computational_gas_used: 0,
+            total_updated_values_size: 0,
+            pubdata_published: 0,
+            circuit_statistic: Default::default(),
+        }
+    }
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
