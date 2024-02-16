@@ -45,16 +45,11 @@ impl Default for FeeModelVersion {
     }
 }
 
-#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq, Default)]
 pub enum L1BatchCommitDataGeneratorMode {
+    #[default]
     Rollup,
     Validium,
-}
-
-impl Default for L1BatchCommitDataGeneratorMode {
-    fn default() -> Self {
-        Self::Rollup
-    }
 }
 
 #[derive(Debug, Deserialize, Clone, PartialEq, Default)]
