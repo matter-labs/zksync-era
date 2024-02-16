@@ -4,11 +4,15 @@
 use std::{fs, fs::File, io::Read};
 
 use anyhow::Context as _;
-use circuit_definitions::circuit_definitions::aux_layer::{
-    ZkSyncCompressionLayerStorageType, ZkSyncSnarkWrapperVK,
+use circuit_definitions::{
+    circuit_definitions::aux_layer::{ZkSyncCompressionLayerStorageType, ZkSyncSnarkWrapperVK},
+    zkevm_circuits::scheduler::aux::BaseLayerCircuitType,
 };
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use zkevm_test_harness::prover_utils::create_base_layer_setup_data;
+use zkevm_test_harness::{
+    data_source::{in_memory_data_source::InMemoryDataSource, SetupDataSource},
+    prover_utils::create_base_layer_setup_data,
+};
 use zkevm_test_harness_1_3_3::{
     abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit,
     bellman::{
@@ -139,6 +143,33 @@ pub fn get_base_path() -> String {
         "{}/prover/vk_setup_data_generator_server_fri/data",
         zksync_home
     )
+}
+
+/// Loads all the verification keys into the DataSource.
+/// Keys are loaded from the default 'base path' files.
+pub fn load_keys_to_memory() -> anyhow::Result<InMemoryDataSource> {
+    let mut data_source = InMemoryDataSource::new();
+    for base_circuit_type in
+        (BaseLayerCircuitType::VM as u8)..=(BaseLayerCircuitType::L1MessagesHasher as u8)
+    {
+        data_source
+            .set_base_layer_vk(get_base_layer_vk_for_circuit_type(base_circuit_type)?)
+            .unwrap();
+    }
+
+    for circuit_type in ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8
+        ..=ZkSyncRecursionLayerStorageType::LeafLayerCircuitForL1MessagesHasher as u8
+    {
+        data_source
+            .set_recursion_layer_vk(get_recursive_layer_vk_for_circuit_type(circuit_type)?)
+            .unwrap();
+    }
+    data_source
+        .set_recursion_layer_node_vk(get_recursive_layer_vk_for_circuit_type(
+            ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,
+        )?)
+        .unwrap();
+    Ok(data_source)
 }
 
 pub fn get_file_path(
