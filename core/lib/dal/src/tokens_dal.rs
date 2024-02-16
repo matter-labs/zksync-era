@@ -157,6 +157,11 @@ mod tests {
                 .collect::<HashSet<_>>(),
         );
 
+        let all_tokens = storage.tokens_web3_dal().get_all_tokens().await.unwrap();
+        assert_eq!(all_tokens.len(), 2);
+        assert!(all_tokens.contains(&tokens[0]));
+        assert!(all_tokens.contains(&tokens[1]));
+
         for token in &tokens {
             storage
                 .tokens_dal()

@@ -6,13 +6,38 @@ use zksync_types::{
 use crate::StorageProcessor;
 
 #[derive(Debug)]
+struct StorageTokenInfo {
+    l1_address: Vec<u8>,
+    l2_address: Vec<u8>,
+    name: String,
+    symbol: String,
+    decimals: i32,
+}
+
+impl From<StorageTokenInfo> for TokenInfo {
+    fn from(row: StorageTokenInfo) -> Self {
+        Self {
+            l1_address: Address::from_slice(&row.l1_address),
+            l2_address: Address::from_slice(&row.l2_address),
+            metadata: TokenMetadata {
+                name: row.name,
+                symbol: row.symbol,
+                decimals: row.decimals as u8,
+            },
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct TokensWeb3Dal<'a, 'c> {
     pub(crate) storage: &'a mut StorageProcessor<'c>,
 }
 
 impl TokensWeb3Dal<'_, '_> {
+    /// Returns information about well-known tokens.
     pub async fn get_well_known_tokens(&mut self) -> sqlx::Result<Vec<TokenInfo>> {
-        let records = sqlx::query!(
+        let records = sqlx::query_as!(
+            StorageTokenInfo,
             r#"
             SELECT
                 l1_address,
@@ -31,17 +56,29 @@ impl TokensWeb3Dal<'_, '_> {
         .fetch_all(self.storage.conn())
         .await?;
 
-        Ok(records
-            .into_iter()
-            .map(|record| TokenInfo {
-                l1_address: Address::from_slice(&record.l1_address),
-                l2_address: Address::from_slice(&record.l2_address),
-                metadata: TokenMetadata {
-                    name: record.name,
-                    symbol: record.symbol,
-                    decimals: record.decimals as u8,
-                },
-            })
-            .collect())
+        Ok(records.into_iter().map(Into::into).collect())
+    }
+
+    /// Returns information about all tokens.
+    pub async fn get_all_tokens(&mut self) -> sqlx::Result<Vec<TokenInfo>> {
+        let records = sqlx::query_as!(
+            StorageTokenInfo,
+            r#"
+            SELECT
+                l1_address,
+                l2_address,
+                NAME,
+                symbol,
+                decimals
+            FROM
+                tokens
+            ORDER BY
+                symbol
+            "#
+        )
+        .fetch_all(self.storage.conn())
+        .await?;
+
+        Ok(records.into_iter().map(Into::into).collect())
     }
 }
