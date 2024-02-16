@@ -262,7 +262,7 @@ dependencies.
 Edit the lines below and add them to your shell profile file (e.g. `~/.bash_profile`, `~/.zshrc`):
 
 ```bash
-# Add path here:
+# Add path here: (replace /path/to/zksync by the actual path)
 export ZKSYNC_HOME=/path/to/zksync
 
 export PATH=$ZKSYNC_HOME/bin:$PATH
