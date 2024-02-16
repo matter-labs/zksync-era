@@ -128,7 +128,7 @@ impl From<&SyncStateInner> for Health {
         let status = if is_synced {
             HealthStatus::Ready
         } else if block_diff.is_some() {
-            HealthStatus::Warning
+            HealthStatus::Affected
         } else {
             return HealthStatus::NotReady.into(); // `state` isn't initialized yet
         };
@@ -162,7 +162,7 @@ mod tests {
         assert!(!sync_state.is_synced());
 
         let health = sync_state.check_health().await;
-        assert_matches!(health.status(), HealthStatus::Warning);
+        assert_matches!(health.status(), HealthStatus::Affected);
 
         // Within the threshold, the node is synced.
         sync_state.set_local_block(MiniblockNumber(1));

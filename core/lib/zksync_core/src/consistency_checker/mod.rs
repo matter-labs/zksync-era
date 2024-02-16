@@ -59,7 +59,7 @@ impl ConsistencyCheckerDetails {
         let status = if self.inconsistent_batches.is_empty() {
             HealthStatus::Ready
         } else {
-            HealthStatus::Warning
+            HealthStatus::Affected
         };
         Health::from(status).with_details(self)
     }

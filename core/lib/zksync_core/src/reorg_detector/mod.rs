@@ -165,7 +165,7 @@ impl HandleReorgDetectorEvent for HealthUpdater {
         let health_details = serde_json::json!({
             "diverged_l1_batch": diverged_l1_batch,
         });
-        self.update(Health::from(HealthStatus::Warning).with_details(health_details));
+        self.update(Health::from(HealthStatus::Affected).with_details(health_details));
     }
 }
 

@@ -15,8 +15,8 @@ pub enum HealthStatus {
     NotReady,
     /// Component is ready for operations.
     Ready,
-    /// Component has encountered a warning. The component is still considered healthy.
-    Warning,
+    /// Component is affected by some non-fatal issue. The component is still considered healthy.
+    Affected,
     /// Component is shut down.
     ShutDown,
     /// Component has been abnormally interrupted by a panic.
@@ -26,13 +26,13 @@ pub enum HealthStatus {
 impl HealthStatus {
     /// Checks whether a component is healthy according to this status.
     pub fn is_healthy(self) -> bool {
-        matches!(self, Self::Ready | Self::Warning)
+        matches!(self, Self::Ready | Self::Affected)
     }
 
     fn priority_for_aggregation(self) -> usize {
         match self {
             Self::Ready => 0,
-            Self::Warning => 1,
+            Self::Affected => 1,
             Self::ShutDown => 2,
             Self::NotReady => 3,
             Self::Panicked => 4,
@@ -326,15 +326,15 @@ mod tests {
             HealthStatus::NotReady
         );
 
-        second_updater.update(HealthStatus::Warning.into());
+        second_updater.update(HealthStatus::Affected.into());
 
         let app_health = AppHealth::new(&checks).await;
         assert!(app_health.is_healthy());
-        assert_matches!(app_health.inner.status(), HealthStatus::Warning);
+        assert_matches!(app_health.inner.status(), HealthStatus::Affected);
         assert_matches!(app_health.components["first"].status, HealthStatus::Ready);
         assert_matches!(
             app_health.components["second"].status,
-            HealthStatus::Warning
+            HealthStatus::Affected
         );
 
         drop(first_updater);
@@ -348,7 +348,7 @@ mod tests {
         );
         assert_matches!(
             app_health.components["second"].status,
-            HealthStatus::Warning
+            HealthStatus::Affected
         );
     }
 }
