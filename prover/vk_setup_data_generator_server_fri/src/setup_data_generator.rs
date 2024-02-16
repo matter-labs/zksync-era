@@ -1,5 +1,4 @@
 use anyhow::Context as _;
-use structopt::StructOpt;
 use zkevm_test_harness::{
     geometry_config::get_geometry_config, prover_utils::create_recursive_layer_setup_data,
 };
@@ -29,40 +28,22 @@ use {
     zksync_vk_setup_data_server_fri::GpuProverSetupData,
 };
 
-#[derive(Debug, StructOpt)]
-#[structopt(
-    name = "Generate setup data for individual circuit",
-    about = "Tool for generating setup data for individual circuit"
-)]
-struct Opt {
-    /// Numeric circuit type valid value are
-    /// 1. for base layer [1-13].
-    /// 2. for recursive layer [1-15].
-    #[structopt(long)]
-    numeric_circuit: u8,
-    /// Boolean representing whether to generate for base layer or for recursive layer.
-    #[structopt(short = "b", long = "is_base_layer")]
-    is_base_layer: bool,
-}
-
-fn main() -> anyhow::Result<()> {
-    let opt = Opt::from_args();
-
-    #[cfg(feature = "gpu")]
-    {
-        generate_gpu_setup_data(opt.is_base_layer, opt.numeric_circuit)
-            .context("generate_gpu_setup_data()")
+pub fn generate_all_cpu_setup_data() -> anyhow::Result<()> {
+    const MAX_CIRCUIT: u8 = 13;
+    for numeric_circuit in 1..=MAX_CIRCUIT {
+        generate_cpu_setup_data(true, numeric_circuit)
+            .context(format!("base layer, circuit {:?}", numeric_circuit))?;
     }
 
-    #[cfg(not(feature = "gpu"))]
-    {
-        generate_cpu_setup_data(opt.is_base_layer, opt.numeric_circuit)
-            .context("generate_cpu_setup_data()")
+    // +2 - as '1' and '2' are scheduler and node respectively.
+    for numeric_circuit in 1..=MAX_CIRCUIT + 2 {
+        generate_cpu_setup_data(false, numeric_circuit)
+            .context(format!("recursive layer, circuit {:?}", numeric_circuit))?;
     }
+    Ok(())
 }
 
-#[allow(dead_code)]
-fn generate_cpu_setup_data(is_base_layer: bool, numeric_circuit: u8) -> anyhow::Result<()> {
+pub fn generate_cpu_setup_data(is_base_layer: bool, numeric_circuit: u8) -> anyhow::Result<()> {
     match is_base_layer {
         true => {
             let circuit =
@@ -208,4 +189,20 @@ fn generate_gpu_setup_data(is_base_layer: bool, numeric_circuit: u8) -> anyhow::
         &serialized,
     )
     .context("save_setup_data")
+}
+
+#[cfg(feature = "gpu")]
+pub fn generate_all_gpu_setup_data() -> anyhow::Result<()> {
+    const MAX_CIRCUIT: u8 = 13;
+    for numeric_circuit in 1..=MAX_CIRCUIT {
+        generate_gpu_setup_data(true, numeric_circuit)
+            .context(format!("base layer, circuit {:?}", numeric_circuit))?;
+    }
+
+    // +2 - as '1' and '2' are scheduler and node respectively.
+    for numeric_circuit in 1..=MAX_CIRCUIT + 2 {
+        generate_gpu_setup_data(false, numeric_circuit)
+            .context(format!("recursive layer, circuit {:?}", numeric_circuit))?;
+    }
+    Ok(())
 }

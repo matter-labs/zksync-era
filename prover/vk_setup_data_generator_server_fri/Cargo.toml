@@ -8,17 +8,10 @@ edition = "2021"
 name = "zksync_vk_generator_fri"
 path = "src/main.rs"
 
-[[bin]]
-name = "zksync_setup_data_generator_fri"
-path = "src/setup_data_generator.rs"
-
 [lib]
 name = "zksync_vk_setup_data_server_fri"
 path = "src/lib.rs"
 
-[[bin]]
-name = "zksync_commitment_generator_fri"
-path = "src/commitment_generator.rs"
 
 [dependencies]
 vlog = { path = "../../core/lib/vlog" }
@@ -35,6 +28,7 @@ zksync_config = { path = "../../core/lib/config" }
 zksync_env_config = { path = "../../core/lib/env_config" }
 
 anyhow = "1.0"
+clap = { version = "4.4.6", features = ["derive"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 serde_json = "1.0"
