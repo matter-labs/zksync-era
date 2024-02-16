@@ -9,7 +9,7 @@ use zksync_dal::ConnectionPool;
 use zksync_object_store::ObjectStore;
 
 pub use self::{
-    batch_executor::{L1BatchExecutorBuilder, MainBatchExecutorBuilder},
+    batch_executor::{main_executor::MainBatchExecutor, BatchExecutor},
     io::{mempool::MempoolIO, MiniblockSealer, MiniblockSealerHandle, StateKeeperIO},
     keeper::ZkSyncStateKeeper,
     mempool_actor::MempoolFetcher,
@@ -44,7 +44,7 @@ pub(crate) async fn create_state_keeper(
     object_store: Arc<dyn ObjectStore>,
     stop_receiver: watch::Receiver<bool>,
 ) -> ZkSyncStateKeeper {
-    let batch_executor_base = MainBatchExecutorBuilder::new(
+    let batch_executor_base = MainBatchExecutor::new(
         db_config.state_keeper_db_path.clone(),
         pool.clone(),
         state_keeper_config.max_allowed_l2_tx_gas_limit.into(),

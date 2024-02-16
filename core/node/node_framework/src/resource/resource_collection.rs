@@ -90,6 +90,10 @@ impl<T: Resource + Clone> ResourceCollection<T> {
 
         let mut handle = self.resources.lock().unwrap();
         handle.push(resource);
+        tracing::info!(
+            "A new item has been added to the resource collection {}",
+            Self::resource_id()
+        );
         Ok(())
     }
 
@@ -99,6 +103,11 @@ impl<T: Resource + Clone> ResourceCollection<T> {
         // is actually spawned (per framework rules). For most cases, this check will resolve immediately, unless
         // some tasks would spawn something from the `IntoZkSyncTask` impl.
         self.wired.changed().await.expect("Sender can't be dropped");
+
+        tracing::info!(
+            "Resource collection {} has been resolved",
+            Self::resource_id()
+        );
 
         let handle = self.resources.lock().unwrap();
         (*handle).clone()

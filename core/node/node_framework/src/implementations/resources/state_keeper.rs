@@ -1,8 +1,6 @@
 use std::sync::Arc;
 
-use zksync_core::state_keeper::{
-    seal_criteria::ConditionalSealer, L1BatchExecutorBuilder, StateKeeperIO,
-};
+use zksync_core::state_keeper::{seal_criteria::ConditionalSealer, BatchExecutor, StateKeeperIO};
 
 use crate::resource::{Resource, ResourceId, Unique};
 
@@ -16,11 +14,11 @@ impl Resource for StateKeeperIOResource {
 }
 
 #[derive(Debug, Clone)]
-pub struct L1BatchExecutorBuilderResource(pub Unique<Box<dyn L1BatchExecutorBuilder>>);
+pub struct BatchExecutorResource(pub Unique<Box<dyn BatchExecutor>>);
 
-impl Resource for L1BatchExecutorBuilderResource {
+impl Resource for BatchExecutorResource {
     fn resource_id() -> ResourceId {
-        "state_keeper/l1_batch_executor_builder".into()
+        "state_keeper/batch_executor".into()
     }
 }
 

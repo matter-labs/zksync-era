@@ -81,6 +81,7 @@ pub struct SealData {
     pub(super) gas_count: BlockGasCount,
     pub(super) cumulative_size: usize,
     pub(super) writes_metrics: DeduplicatedWritesMetrics,
+    pub(super) gas_remaining: u32,
 }
 
 impl SealData {
@@ -100,6 +101,7 @@ impl SealData {
             gas_count,
             cumulative_size: transaction.bootloader_encoding_size(),
             writes_metrics,
+            gas_remaining: tx_metrics.gas_remaining,
         }
     }
 }

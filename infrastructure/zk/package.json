@@ -19,14 +19,12 @@
         "handlebars": "^4.7.8",
         "node-fetch": "^2.6.1",
         "pg": "^8.11.3",
-        "tabtab": "^3.0.2",
-        "zksync-web3": "^0.15.5",
-        "protobufjs": "^7.2.5"
+        "tabtab": "^3.0.2"
     },
     "devDependencies": {
         "@matterlabs/hardhat-zksync-solc": "^0.3.15",
         "@types/deep-extend": "^0.4.31",
-        "@types/node": "^14.6.1",
+        "@types/node": "^18.19.15",
         "@types/node-fetch": "^2.5.7",
         "@types/pg": "^8.10.3",
         "@types/tabtab": "^3.0.1",
