@@ -244,29 +244,32 @@ pub fn get_round_for_recursive_circuit_type(circuit_type: u8) -> AggregationRoun
     }
 }
 
+fn save_json_pretty<T: Serialize>(filepath: String, data: &T) -> anyhow::Result<()> {
+    std::fs::write(&filepath, serde_json::to_string_pretty(data).unwrap())
+        .with_context(|| format!("writing to '{filepath}' failed"))
+}
+
 pub fn save_base_layer_vk(vk: ZkSyncBaseLayerVerificationKey) -> anyhow::Result<()> {
-    let circuit_type = vk.numeric_circuit_type();
     let filepath = get_file_path(
-        ProverServiceDataKey::new(circuit_type, AggregationRound::BasicCircuits),
+        ProverServiceDataKey::new(vk.numeric_circuit_type(), AggregationRound::BasicCircuits),
         ProverServiceDataType::VerificationKey,
     )
     .context("get_file_path()")?;
     tracing::info!("saving basic verification key to: {}", filepath);
-    std::fs::write(&filepath, serde_json::to_string_pretty(&vk).unwrap())
-        .with_context(|| format!("writing to '{filepath}' failed"))
+    save_json_pretty(filepath, &vk)
 }
 
 pub fn save_recursive_layer_vk(vk: ZkSyncRecursionLayerVerificationKey) -> anyhow::Result<()> {
-    let circuit_type = vk.numeric_circuit_type();
-    let round = get_round_for_recursive_circuit_type(circuit_type);
     let filepath = get_file_path(
-        ProverServiceDataKey::new(circuit_type, round),
+        ProverServiceDataKey::new(
+            vk.numeric_circuit_type(),
+            get_round_for_recursive_circuit_type(vk.numeric_circuit_type()),
+        ),
         ProverServiceDataType::VerificationKey,
     )
     .context("get_file_path()")?;
     tracing::info!("saving recursive layer verification key to: {}", filepath);
-    std::fs::write(&filepath, serde_json::to_string_pretty(&vk).unwrap())
-        .with_context(|| format!("writing to '{filepath}' failed"))
+    save_json_pretty(filepath, &vk)
 }
 
 pub fn save_snark_vk(vk: ZkSyncSnarkWrapperVK) -> anyhow::Result<()> {

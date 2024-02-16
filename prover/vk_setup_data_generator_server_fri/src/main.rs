@@ -1,3 +1,6 @@
+//! Tool to generate different types of keys used by the proving system.
+//!
+//! It can generate verification keys, setup keys, and also commitments.
 use std::collections::HashMap;
 
 use anyhow::Context as _;

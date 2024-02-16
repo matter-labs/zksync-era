@@ -1,3 +1,6 @@
+//! Set of functions to handle the generation of setup keys.
+//! We generate separate set of keys for CPU and for GPU proving.
+
 use std::collections::HashMap;
 
 use anyhow::Context as _;
@@ -95,6 +98,8 @@ fn generate_setup_data_common(
     Ok(circuit_setup_data)
 }
 
+/// Generates and stores the setup keys for CPU provers.
+/// Returns the md5 checksum of the stored file.
 pub fn generate_cpu_setup_data(
     is_base_layer: bool,
     numeric_circuit: u8,
@@ -136,6 +141,7 @@ pub fn generate_gpu_setup_data(
 }
 
 #[cfg(feature = "gpu")]
+/// Generates and stores the setup keys for GPU provers.
 pub fn generate_gpu_setup_data(
     is_base_layer: bool,
     numeric_circuit: u8,
