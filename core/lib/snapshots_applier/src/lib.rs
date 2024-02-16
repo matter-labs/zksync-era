@@ -93,7 +93,7 @@ pub enum SnapshotsApplierOutcome {
     Ok,
     /// Main node does not have any ready snapshots.
     NoSnapshotsOnMainNode,
-    /// The node was initialized without a snapshot. Detected by the presence of the genesis L1 batch in Postgres.
+    /// The node was initialized without a snapshot. Detected by the presence of L1 batches in Postgres.
     InitializedWithoutSnapshot,
 }
 
@@ -447,7 +447,7 @@ impl<'a> SnapshotsApplier<'a> {
         Ok(())
     }
 
-    #[tracing::instrument(level = "debug", err, skip(self))]
+    #[tracing::instrument(level = "debug", err, skip(self, semaphore))]
     async fn recover_storage_logs_single_chunk(
         &self,
         semaphore: &Semaphore,
