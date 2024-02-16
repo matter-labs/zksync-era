@@ -1,5 +1,13 @@
+use std::collections::HashMap;
+
 use anyhow::Context as _;
 use circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerVerificationKey;
+use clap::{Parser, Subcommand};
+use commitment_generator::read_and_update_contract_toml;
+use setup_data_generator::{
+    generate_all_cpu_setup_data, generate_all_gpu_setup_data, generate_cpu_setup_data,
+    generate_gpu_setup_data,
+};
 use tracing::level_filters::LevelFilter;
 use zkevm_test_harness::{
     compute_setups::{generate_base_layer_vks_and_proofs, generate_recursive_layer_vks_and_proofs},
@@ -21,6 +29,9 @@ use zksync_vk_setup_data_server_fri::{
     get_base_path, get_round_for_recursive_circuit_type, save_base_layer_vk,
     save_finalization_hints, save_recursive_layer_vk, save_snark_vk,
 };
+
+mod commitment_generator;
+mod setup_data_generator;
 
 #[cfg(test)]
 mod tests;
@@ -160,6 +171,80 @@ fn generate_vks() -> anyhow::Result<()> {
     generate_snark_vk(scheduler_vk, 1).context("generate_snark_vk")
 }
 
+#[derive(Debug, Parser)]
+#[command(
+    author = "Matter Labs",
+    version,
+    about = "Key generation tool. See https://github.com/matter-labs/zksync-era/blob/main/docs/guides/advanced/prover_keys.md for details.",
+    long_about = None
+)]
+struct Cli {
+    #[command(subcommand)]
+    command: Command,
+}
+
+#[derive(Debug, Clone, clap::ValueEnum)]
+enum CircuitSelector {
+    /// Select all circuits
+    All,
+    /// Select circuits from recursive group (leaf, node, scheduler)
+    Recursive,
+    /// Select circuits from basic group.
+    Basic,
+}
+
+#[derive(Debug, Subcommand)]
+enum Command {
+    /// Generates verification keys (and finalization hints) for all the basic & leaf circuits.
+    /// Used for verification.
+    #[command(name = "generate-vk")]
+    GenerateVerificationKeys {},
+    /// Generates setup keys (used by the CPU prover).
+    #[command(name = "generate-sk")]
+    GenerateSetupKeys {
+        circuits_type: CircuitSelector,
+
+        /// Specify for which circuit to generate the keys.
+        #[arg(long)]
+        numeric_circuit: Option<u8>,
+
+        /// If true, then setup keys are not written and only md5 sum is printed.
+        #[arg(long, default_value = "false")]
+        dry_run: bool,
+    },
+    /// Generates setup keys (used by the GPU prover).
+    #[command(name = "generate-sk-gpu")]
+    GenerateGPUSetupKeys {
+        circuits_type: CircuitSelector,
+
+        /// Specify for which circuit to generate the keys.
+        #[arg(long)]
+        numeric_circuit: Option<u8>,
+
+        /// If true, then setup keys are not written and only md5 sum is printed.
+        #[arg(long, default_value = "false")]
+        dry_run: bool,
+    },
+    /// Generates and updates the commitments - used by the verification contracts.
+    #[command(name = "update-commitments")]
+    UpdateCommitments {
+        #[arg(long, default_value = "true")]
+        dryrun: bool,
+    },
+}
+
+fn print_stats(digests: HashMap<String, String>) -> anyhow::Result<()> {
+    let mut keys: Vec<&String> = digests.keys().collect();
+    keys.sort();
+    // Iterate over the sorted keys
+    for key in keys {
+        if let Some(value) = digests.get(key) {
+            tracing::info!("{key}: {value}");
+        }
+    }
+    Ok(())
+}
+
 fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -169,9 +254,79 @@ fn main() -> anyhow::Result<()> {
         )
         .init();
 
-    tracing::info!(
-        "Generating verification keys and storing them inside {:?}",
-        get_base_path()
-    );
-    generate_vks().context("generate_vks()")
+    let opt = Cli::parse();
+
+    match opt.command {
+        Command::GenerateVerificationKeys {} => {
+            tracing::info!(
+                "Generating verification keys and storing them inside {:?}",
+                get_base_path()
+            );
+            generate_vks().context("generate_vks()")
+        }
+        Command::UpdateCommitments { dryrun } => read_and_update_contract_toml(dryrun),
+
+        Command::GenerateSetupKeys {
+            circuits_type,
+            numeric_circuit,
+            dry_run,
+        } => match circuits_type {
+            CircuitSelector::All => {
+                let digests = generate_all_cpu_setup_data(dry_run)?;
+                tracing::info!("CPU Setup keys md5(s):");
+                print_stats(digests)
+            }
+            CircuitSelector::Recursive => {
+                let digest = generate_cpu_setup_data(
+                    false,
+                    numeric_circuit.expect("--numeric-circuit must be provided"),
+                    dry_run,
+                )
+                .context("generate_cpu_setup_data()")?;
+                tracing::info!("digest: {:?}", digest);
+                Ok(())
+            }
+            CircuitSelector::Basic => {
+                let digest = generate_cpu_setup_data(
+                    true,
+                    numeric_circuit.expect("--numeric-circuit must be provided"),
+                    dry_run,
+                )
+                .context("generate_cpu_setup_data()")?;
+                tracing::info!("digest: {:?}", digest);
+                Ok(())
+            }
+        },
+        Command::GenerateGPUSetupKeys {
+            circuits_type,
+            numeric_circuit,
+            dry_run,
+        } => match circuits_type {
+            CircuitSelector::All => {
+                let digests = generate_all_gpu_setup_data(dry_run)?;
+                tracing::info!("GPU Setup keys md5(s):");
+                print_stats(digests)
+            }
+            CircuitSelector::Recursive => {
+                let digest = generate_gpu_setup_data(
+                    false,
+                    numeric_circuit.expect("--numeric-circuit must be provided"),
+                    dry_run,
+                )
+                .context("generate_gpu_setup_data()")?;
+                tracing::info!("digest: {:?}", digest);
+                Ok(())
+            }
+            CircuitSelector::Basic => {
+                let digest = generate_gpu_setup_data(
+                    true,
+                    numeric_circuit.expect("--numeric-circuit must be provided"),
+                    dry_run,
+                )
+                .context("generate_gpu_setup_data()")?;
+                tracing::info!("digest: {:?}", digest);
+                Ok(())
+            }
+        },
+    }
 }
