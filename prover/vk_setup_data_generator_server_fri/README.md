@@ -1,15 +1,15 @@
 # Circuit key generator
 
 Tool for generating different type of circuit related keys:
-* verification keys
-* setup keys (for CPU and GPU)
-* commitments
 
+- verification keys
+- setup keys (for CPU and GPU)
+- commitments
 
 ## Verification keys
-The current set of verification keys is committed under 'data/' directory.
-If you want to refresh it (for example after circuit changes), first please make sure that you have a CRS file (used for SNARK key), and then you can run:
 
+The current set of verification keys is committed under 'data/' directory. If you want to refresh it (for example after
+circuit changes), first please make sure that you have a CRS file (used for SNARK key), and then you can run:
 
 ```shell
 CRS_FILE=yyy ZKSYNC_HOME=xxx cargo run --release --bin key_generator generate-vk
@@ -26,16 +26,17 @@ zk init keys/setup/setup_2^24.key
 
 Commitmets is basically a 'hash' of the verfication keys, that is used in our configuration, and also in Verifier.sol.
 
-You can run it with `dry-run`, to see the results, or set `dry-run` to false to update the config in `etc/env/base/contracts.toml`.
+You can run it with `dry-run`, to see the results, or set `dry-run` to false to update the config in
+`etc/env/base/contracts.toml`.
 
 ```shell
 ZKSYNC_HOME=xxx cargo run --release --bin key_generator update-commitments --dry-run=true
 ```
 
-
 ## Setup keys
 
-Setup keys are used when you run the actual prover. They are around 15GB for each circuit type, and we have different setup keys for GPU vs CPU prover.
+Setup keys are used when you run the actual prover. They are around 15GB for each circuit type, and we have different
+setup keys for GPU vs CPU prover.
 
 For example, the command below will generate the setup keys for the basic circuit of type 3.
 
@@ -43,10 +44,9 @@ For example, the command below will generate the setup keys for the basic circui
 ZKSYNC_HOME=xxx cargo run --release --bin key_generator generate-sk basic 3
 ```
 
-
-And command below will generate all the GPU keys (notice that we have to build with 'gpu' feature enabled, as this adds additional dependencies).
+And command below will generate all the GPU keys (notice that we have to build with 'gpu' feature enabled, as this adds
+additional dependencies).
 
 ```shell
 ZKSYNC_HOME=xxx cargo run --feature=gpu --release --bin key_generator generate-sk-gpu all
 ```
-

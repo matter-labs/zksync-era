@@ -31,7 +31,8 @@ export async function setupProver(proverType: ProverType) {
         } else {
             wrapEnvModify(
                 'FRI_PROVER_SETUP_DATA_PATH',
-                `${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${process.env.ZKSYNC_ENV}/${proverType === ProverType.GPU ? 'gpu' : 'cpu'
+                `${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${process.env.ZKSYNC_ENV}/${
+                    proverType === ProverType.GPU ? 'gpu' : 'cpu'
                 }/`
             );
         }
@@ -94,7 +95,8 @@ async function setupProverKeys(proverType: ProverType) {
 
     wrapEnvModify(
         'FRI_PROVER_SETUP_DATA_PATH',
-        `${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${process.env.ZKSYNC_ENV}/${proverType === ProverType.GPU ? 'gpu' : 'cpu'
+        `${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${process.env.ZKSYNC_ENV}/${
+            proverType === ProverType.GPU ? 'gpu' : 'cpu'
         }/`
     );
 }
@@ -174,7 +176,6 @@ async function setupArtifactsMode() {
     }
 }
 
-
 async function generateAllSetupData(proverType: ProverType) {
     const currentEnv = env.get();
 
@@ -184,7 +185,7 @@ async function generateAllSetupData(proverType: ProverType) {
     process.chdir(proverDir);
     const gpuFeatureFlag = proverType == ProverType.GPU ? '--features "gpu"' : '';
     const command = proverType == ProverType.GPU ? 'generate-sk-gpu' : 'generate-sk';
-    const spawnCommand = `zk f cargo run ${gpuFeatureFlag} --release --bin key_generator -- ${command} all`
+    const spawnCommand = `zk f cargo run ${gpuFeatureFlag} --release --bin key_generator -- ${command} all`;
     await utils.spawn(spawnCommand);
 
     process.chdir(process.env.ZKSYNC_HOME as string);
