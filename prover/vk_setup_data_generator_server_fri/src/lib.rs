@@ -1,4 +1,3 @@
-#![feature(generic_const_exprs)]
 #![feature(allocator_api)]
 
 use std::{fs, fs::File, io::Read};
@@ -9,10 +8,7 @@ use circuit_definitions::{
     zkevm_circuits::scheduler::aux::BaseLayerCircuitType,
 };
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use zkevm_test_harness::{
-    data_source::{in_memory_data_source::InMemoryDataSource, SetupDataSource},
-    prover_utils::create_base_layer_setup_data,
-};
+use zkevm_test_harness::data_source::{in_memory_data_source::InMemoryDataSource, SetupDataSource};
 use zkevm_test_harness_1_3_3::{
     abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit,
     bellman::{
@@ -24,7 +20,6 @@ use zksync_config::configs::FriProverConfig;
 use zksync_env_config::FromEnv;
 use zksync_prover_fri_types::{
     circuit_definitions::{
-        aux_definitions::witness_oracle::VmWitnessOracle,
         boojum::{
             algebraic_props::{
                 round_function::AbsorptionModeOverwrite, sponge::GenericAlgebraicSponge,
@@ -43,15 +38,13 @@ use zksync_prover_fri_types::{
                 PrimeField, SmallField,
             },
             implementations::poseidon2::Poseidon2Goldilocks,
-            worker::Worker,
         },
         circuit_definitions::{
-            base_layer::{ZkSyncBaseLayerCircuit, ZkSyncBaseLayerVerificationKey},
+            base_layer::ZkSyncBaseLayerVerificationKey,
             recursion_layer::{
                 ZkSyncRecursionLayerStorageType, ZkSyncRecursionLayerVerificationKey,
             },
         },
-        ZkSyncDefaultRoundFunction, BASE_LAYER_CAP_SIZE, BASE_LAYER_FRI_LDE_FACTOR,
     },
     ProverServiceDataKey,
 };
@@ -343,48 +336,6 @@ pub fn save_setup_data(
     tracing::info!("saving {:?} setup data to: {}", key, filepath);
     std::fs::write(filepath.clone(), serialized_setup_data)
         .with_context(|| format!("Failed saving setup-data at path: {filepath:?}"))
-}
-
-pub fn generate_cpu_base_layer_setup_data(
-    circuit: ZkSyncBaseLayerCircuit<
-        GoldilocksField,
-        VmWitnessOracle<GoldilocksField>,
-        ZkSyncDefaultRoundFunction,
-    >,
-) -> anyhow::Result<GoldilocksProverSetupData> {
-    let circuit_type = circuit.numeric_circuit_type();
-    tracing::info!(
-        "starting setup data generator for base layer circuit: {}.",
-        circuit_type
-    );
-    let worker = Worker::new();
-    let (setup_base, setup, vk, setup_tree, vars_hint, wits_hint, finalization_hint) =
-        create_base_layer_setup_data(
-            circuit.clone(),
-            &worker,
-            BASE_LAYER_FRI_LDE_FACTOR,
-            BASE_LAYER_CAP_SIZE,
-        );
-    let key = ProverServiceDataKey::new(circuit_type, AggregationRound::BasicCircuits);
-    let existing_finalization_hint =
-        get_finalization_hints(key).context("get_finalization_hints()")?;
-    if existing_finalization_hint != finalization_hint {
-        anyhow::bail!("finalization hint mismatch for circuit: {circuit_type}");
-    }
-    let existing_vk = get_base_layer_vk_for_circuit_type(circuit_type)
-        .with_context(|| format!("get_base_layer_vk_for_circuit_type({circuit_type})"))?;
-    if existing_vk.into_inner() != vk {
-        anyhow::bail!("vk mismatch for circuit: {circuit_type}");
-    }
-    Ok(ProverSetupData {
-        setup_base,
-        setup,
-        vk,
-        setup_tree,
-        vars_hint,
-        wits_hint,
-        finalization_hint,
-    })
 }
 
 pub fn save_finalization_hints(

@@ -8,29 +8,12 @@ use circuit_definitions::{
 use zkevm_test_harness::{
     compute_setups::{generate_circuit_setup_data, CircuitSetupData},
     data_source::SetupDataSource,
-    geometry_config::get_geometry_config,
-    prover_utils::create_recursive_layer_setup_data,
 };
-use zksync_prover_fri_types::{
-    circuit_definitions::{
-        aux_definitions::witness_oracle::VmWitnessOracle,
-        boojum::{field::goldilocks::GoldilocksField, worker::Worker},
-        circuit_definitions::{
-            base_layer::ZkSyncBaseLayerCircuit, recursion_layer::ZkSyncRecursiveLayerCircuit,
-        },
-        ZkSyncDefaultRoundFunction, BASE_LAYER_CAP_SIZE, BASE_LAYER_FRI_LDE_FACTOR,
-    },
-    ProverServiceDataKey,
-};
+use zksync_prover_fri_types::ProverServiceDataKey;
 use zksync_types::basic_fri_types::AggregationRound;
 use zksync_vk_setup_data_server_fri::{
-    generate_cpu_base_layer_setup_data, get_finalization_hints,
-    get_recursive_layer_vk_for_circuit_type, get_round_for_recursive_circuit_type,
-    load_keys_to_memory, save_setup_data,
-    utils::{
-        get_basic_circuits, get_leaf_circuits, get_node_circuit, get_scheduler_circuit, CYCLE_LIMIT,
-    },
-    GoldilocksProverSetupData, ProverSetupData,
+    get_finalization_hints, get_round_for_recursive_circuit_type, load_keys_to_memory,
+    save_setup_data, GoldilocksProverSetupData,
 };
 #[cfg(feature = "gpu")]
 use {
@@ -52,7 +35,6 @@ fn generate_all(
         result.insert(format!("base_{}", numeric_circuit), digest);
     }
 
-    // +2 - as '1' and '2' are scheduler and node respectively.
     for numeric_circuit in ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8
         ..=ZkSyncRecursionLayerStorageType::LeafLayerCircuitForL1MessagesHasher as u8
     {
@@ -142,73 +124,6 @@ pub fn generate_cpu_setup_data(
         tracing::warn!("Dry run - not writing the key");
     }
     Ok(format!("{:?}", digest))
-}
-
-fn get_base_layer_circuit(
-    id: u8,
-) -> anyhow::Result<
-    ZkSyncBaseLayerCircuit<
-        GoldilocksField,
-        VmWitnessOracle<GoldilocksField>,
-        ZkSyncDefaultRoundFunction,
-    >,
-> {
-    get_basic_circuits(CYCLE_LIMIT, get_geometry_config())
-        .context("get_basic_circuits()")?
-        .into_iter()
-        .find(|circuit| id == circuit.numeric_circuit_type())
-        .with_context(|| format!("No basic circuit found for id: {id}"))
-}
-
-fn get_recursive_circuit(id: u8) -> anyhow::Result<ZkSyncRecursiveLayerCircuit> {
-    let mut recursive_circuits = get_leaf_circuits().context("get_leaf_circuits()")?;
-    recursive_circuits.push(get_node_circuit().context("get_node_circuit()")?);
-    recursive_circuits.push(get_scheduler_circuit().context("get_scheduler_circuit()")?);
-    recursive_circuits
-        .into_iter()
-        .find(|circuit| id == circuit.numeric_circuit_type())
-        .with_context(|| format!("No recursive circuit found for id: {id}"))
-}
-
-fn generate_cpu_recursive_layer_setup_data(
-    circuit: ZkSyncRecursiveLayerCircuit,
-) -> anyhow::Result<GoldilocksProverSetupData> {
-    let circuit_type = circuit.numeric_circuit_type();
-    tracing::info!(
-        "starting setup data generator for recursive layer circuit: {}.",
-        circuit_type
-    );
-    let worker = Worker::new();
-    let (setup_base, setup, vk, setup_tree, vars_hint, wits_hint, finalization_hint) =
-        create_recursive_layer_setup_data(
-            circuit.clone(),
-            &worker,
-            BASE_LAYER_FRI_LDE_FACTOR,
-            BASE_LAYER_CAP_SIZE,
-        );
-    let key = ProverServiceDataKey::new(
-        circuit_type,
-        get_round_for_recursive_circuit_type(circuit_type),
-    );
-    let existing_finalization_hint =
-        get_finalization_hints(key).context("get_finalization_hints()")?;
-    if existing_finalization_hint != finalization_hint {
-        anyhow::bail!("finalization hint mismatch for circuit: {circuit_type}");
-    }
-    let existing_vk = get_recursive_layer_vk_for_circuit_type(circuit_type)
-        .context("get_recursive_layer_vk_for_circuit_type()")?;
-    if existing_vk.into_inner() != vk {
-        anyhow::bail!("vk mismatch for circuit: {circuit_type}");
-    }
-    Ok(ProverSetupData {
-        setup_base,
-        setup,
-        vk: vk.clone(),
-        setup_tree,
-        vars_hint,
-        wits_hint,
-        finalization_hint,
-    })
 }
 
 #[cfg(not(feature = "gpu"))]
