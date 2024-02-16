@@ -510,7 +510,8 @@ pub(super) async fn extend_db_state_from_l1_batch(
         storage
             .storage_logs_dal()
             .insert_storage_logs(miniblock_number, &[(H256::zero(), batch_logs)])
-            .await;
+            .await
+            .unwrap();
         storage
             .blocks_dal()
             .mark_miniblocks_as_executed_in_l1_batch(batch_number)
@@ -549,7 +550,8 @@ async fn insert_initial_writes_for_batch(
     connection
         .storage_logs_dedup_dal()
         .insert_initial_writes(l1_batch_number, &keys_to_insert)
-        .await;
+        .await
+        .unwrap();
 }
 
 pub(crate) fn gen_storage_logs(
