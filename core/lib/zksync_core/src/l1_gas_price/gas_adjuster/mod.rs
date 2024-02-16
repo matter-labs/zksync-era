@@ -5,10 +5,9 @@ use std::{
     sync::{Arc, RwLock},
 };
 
+use async_trait::async_trait;
 use tokio::sync::watch;
-use zksync_config::GasAdjusterConfig;
 use zksync_eth_client::{Error, EthInterface};
-use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
 
 use self::metrics::METRICS;
 use super::L1TxParamsProvider;
