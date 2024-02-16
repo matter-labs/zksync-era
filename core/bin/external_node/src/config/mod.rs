@@ -1,6 +1,7 @@
+use std::{env, str::FromStr, time::Duration};
+
 use anyhow::Context;
 use serde::Deserialize;
-use std::{env, str::FromStr, time::Duration};
 use url::Url;
 use zksync_basic_types::{Address, L1ChainId, L2ChainId};
 use zksync_core::api_server::{
@@ -8,9 +9,9 @@ use zksync_core::api_server::{
     web3::{state::InternalApiConfig, Namespace},
 };
 use zksync_types::api::BridgeAddresses;
-use zksync_web3_decl::jsonrpsee::core::ClientError;
 use zksync_web3_decl::{
     jsonrpsee::{
+        core::ClientError,
         http_client::{HttpClient, HttpClientBuilder},
         types::error::ErrorCode,
     },
