@@ -17,13 +17,6 @@ use zksync_prover_fri_types::ProverServiceDataKey;
 use zksync_types::basic_fri_types::AggregationRound;
 
 use std::{fs, fs::File, io::Read};
-use zkevm_test_harness_1_3_3::{
-    abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit,
-    bellman::{
-        bn256::Bn256, plonk::better_better_cs::setup::VerificationKey as SnarkVerificationKey,
-    },
-    witness::oracle::VmWitnessOracle as SnarkWitnessOracle,
-};
 
 use crate::GoldilocksProverSetupData;
 
@@ -222,15 +215,17 @@ impl Keystore {
     ///   Snark wrapper
     ///
 
-    /// Warning: Snark verification key here is actually parsed as Key from the older version of zkevm_test_harness.
-    pub fn load_snark_verification_key(
-        &self,
-    ) -> anyhow::Result<SnarkVerificationKey<Bn256, ZkSyncCircuit<Bn256, SnarkWitnessOracle<Bn256>>>>
-    {
-        Self::load_json_from_file(self.get_file_path(
+    /// Loads snark verification key
+    // For snark wrapper - we're actually returning a raw serialized string, and the parsing happens
+    // on the reader's side (in proof compressor).
+    // This way, we avoid including the old 1_3_3 test harness to our main library.
+    pub fn load_snark_verification_key(&self) -> anyhow::Result<String> {
+        let filepath = self.get_file_path(
             ProverServiceDataKey::snark(),
             ProverServiceDataType::SnarkVerificationKey,
-        ))
+        );
+        std::fs::read_to_string(&filepath)
+            .with_context(|| format!("Failed reading Snark verification key from path: {filepath}"))
     }
 
     pub fn save_snark_verification_key(&self, vk: ZkSyncSnarkWrapperVK) -> anyhow::Result<()> {

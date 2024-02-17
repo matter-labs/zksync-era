@@ -8,7 +8,10 @@ use zkevm_test_harness_1_3_3::{
     abstract_zksync_circuit::concrete_circuits::{
         ZkSyncCircuit, ZkSyncProof, ZkSyncVerificationKey,
     },
-    bellman::{bn256::Bn256, plonk::better_better_cs::proof::Proof},
+    bellman::{
+        bn256::Bn256,
+        plonk::better_better_cs::{proof::Proof, setup::VerificationKey as SnarkVerificationKey},
+    },
     witness::oracle::VmWitnessOracle,
 };
 use zksync_dal::ConnectionPool;
@@ -78,9 +81,15 @@ impl ProofCompressor {
             bincode::deserialize(&serialized)
                 .expect("Failed to deserialize proof with ZkSyncCircuit");
         if verify_wrapper_proof {
-            let existing_vk = keystore
+            // We're fetching the key as String and deserializing it here
+            // as we don't want to include the old version of prover in the main libraries.
+            let existing_vk_serialized = keystore
                 .load_snark_verification_key()
                 .context("get_snark_vk()")?;
+            let existing_vk = serde_json::from_str::<
+                SnarkVerificationKey<Bn256, ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>>,
+            >(&existing_vk_serialized)?;
+
             let vk = ZkSyncVerificationKey::from_verification_key_and_numeric_type(0, existing_vk);
             let scheduler_proof = ZkSyncProof::from_proof_and_numeric_type(0, proof.clone());
             match vk.verify_proof(&scheduler_proof) {
