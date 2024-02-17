@@ -1,6 +1,6 @@
 # Introduction
 
-The goal of the ZK Stack is to power the internet of value. Value needs to be secured, and only blockchains are able
+The goal of the ZK Stack is to power the internet of value. Value needs to be secured, and only blockchains are able to
 provide the level of security that the internet needs. The ZK Stack can be used to launch zero-knowledge rollups, which
 are extra secure blockchains.
 
