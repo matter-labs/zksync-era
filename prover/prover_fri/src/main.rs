@@ -43,7 +43,7 @@ async fn graceful_shutdown(port: u16) -> anyhow::Result<impl Future<Output = ()>
     let zone_url = &FriProverConfig::from_env()
         .context("FriProverConfig::from_env()")?
         .zone_read_url;
-    let zone = zone_url;
+    let zone = zone_url.to_string();
     let address = SocketAddress { host, port };
     Ok(async move {
         pool.access_storage()
