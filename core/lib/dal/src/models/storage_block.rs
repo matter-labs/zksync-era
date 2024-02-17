@@ -234,15 +234,9 @@ impl TryInto<L1BatchMetadata> for StorageL1Batch {
                     .merkle_root_hash
                     .ok_or(StorageL1BatchConvertError::Incomplete)?,
             ),
-            initial_writes_compressed: self
-                .compressed_initial_writes
-                .ok_or(StorageL1BatchConvertError::Incomplete)?,
-            repeated_writes_compressed: self
-                .compressed_repeated_writes
-                .ok_or(StorageL1BatchConvertError::Incomplete)?,
-            l2_l1_messages_compressed: self
-                .l2_l1_compressed_messages
-                .ok_or(StorageL1BatchConvertError::Incomplete)?,
+            initial_writes_compressed: self.compressed_initial_writes.unwrap_or_default(),
+            repeated_writes_compressed: self.compressed_repeated_writes.unwrap_or_default(),
+            l2_l1_messages_compressed: self.l2_l1_compressed_messages.unwrap_or_default(),
             l2_l1_merkle_root: H256::from_slice(
                 &self
                     .l2_l1_merkle_root
