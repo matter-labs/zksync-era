@@ -19,6 +19,7 @@ The following questions will be answered by the following resources:
 | What is the logical project structure and architecture? | [architecture.md](docs/guides/architecture.md) |
 | Where can I find protocol specs?                        | [specs](docs/specs/README.md)                  |
 | Where can I find developer docs?                        | [docs](https://era.zksync.io/docs/)            |
+| Where can I find all repositories?                      | [repositories.md](docs/guides/repositories.md) |
 
 ## Policies
 
