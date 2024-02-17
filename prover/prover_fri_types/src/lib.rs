@@ -131,7 +131,7 @@ impl ProverServiceDataKey {
         Self { circuit_id, round }
     }
 
-    /// Creates a new data key for recursive type - with auto selectoin of the aggregation round.
+    /// Creates a new data key for recursive type - with auto selection of the aggregation round.
     pub fn new_recursive(circuit_id: u8) -> Self {
         Self {
             circuit_id,

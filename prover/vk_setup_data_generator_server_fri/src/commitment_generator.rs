@@ -30,7 +30,6 @@ mod test {
 
     #[test]
     fn test_read_and_update_contract_toml() {
-        // TODO: incorrect - fixme.
         read_and_update_contract_toml(&Keystore::default(), true).unwrap();
     }
 }

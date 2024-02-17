@@ -52,8 +52,8 @@ impl Default for Keystore {
 }
 
 impl Keystore {
-    /// Basedir is the location of smaller keys (like verification keys and finalization hints).
-    /// Setup_data_path is used for the large setup keys.
+    /// Base-dir is the location of smaller keys (like verification keys and finalization hints).
+    /// Setup data path is used for the large setup keys.
     pub fn new(basedir: String, setup_data_path: String) -> Self {
         Keystore {
             basedir,
@@ -217,7 +217,7 @@ impl Keystore {
     /// Loads snark verification key
     // For snark wrapper - we're actually returning a raw serialized string, and the parsing happens
     // on the reader's side (in proof compressor).
-    // This way, we avoid including the old 1_3_3 test harness to our main library.
+    // This way, we avoid including the old 1.3.3 test harness to our main library.
     pub fn load_snark_verification_key(&self) -> anyhow::Result<String> {
         let filepath = self.get_file_path(
             ProverServiceDataKey::snark(),
@@ -288,7 +288,7 @@ impl Keystore {
             .with_context(|| format!("Failed saving setup-data at path: {filepath:?}"))
     }
 
-    /// Loads all the verification keys into the DataSource.
+    /// Loads all the verification keys into the Data Source.
     /// Keys are loaded from the default 'base path' files.
     pub fn load_keys_to_data_source(&self) -> anyhow::Result<InMemoryDataSource> {
         let mut data_source = InMemoryDataSource::new();
