@@ -6,7 +6,6 @@ use std::collections::HashMap;
 use anyhow::Context as _;
 use clap::{Parser, Subcommand};
 use commitment_generator::read_and_update_contract_toml;
-
 use tracing::level_filters::LevelFilter;
 use zkevm_test_harness::{
     compute_setups::{generate_base_layer_vks_and_proofs, generate_recursive_layer_vks_and_proofs},

@@ -1,5 +1,4 @@
 use anyhow::Context as _;
-
 use zkevm_test_harness::witness::recursive_aggregation::compute_leaf_params;
 use zksync_prover_fri_types::circuit_definitions::{
     boojum::field::goldilocks::GoldilocksField,

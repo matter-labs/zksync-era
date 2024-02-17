@@ -14,14 +14,13 @@ use zkevm_test_harness::{
 };
 use zksync_prover_fri_types::ProverServiceDataKey;
 use zksync_types::basic_fri_types::AggregationRound;
-
-use crate::{keystore::Keystore, GoldilocksProverSetupData};
-
 #[cfg(feature = "gpu")]
 use {
     shivini::cs::setup::GpuSetup, shivini::ProverContext,
     zksync_vk_setup_data_server_fri::GpuProverSetupData,
 };
+
+use crate::{keystore::Keystore, GoldilocksProverSetupData};
 
 pub fn generate_setup_data_common(
     keystore: &Keystore,

@@ -1,5 +1,6 @@
-use anyhow::Context as _;
+use std::{fs, fs::File, io::Read};
 
+use anyhow::Context as _;
 use circuit_definitions::{
     boojum::cs::implementations::setup::FinalizationHintsForProver,
     circuit_definitions::{
@@ -15,8 +16,6 @@ use zksync_config::configs::FriProverConfig;
 use zksync_env_config::FromEnv;
 use zksync_prover_fri_types::ProverServiceDataKey;
 use zksync_types::basic_fri_types::AggregationRound;
-
-use std::{fs, fs::File, io::Read};
 
 use crate::GoldilocksProverSetupData;
 
