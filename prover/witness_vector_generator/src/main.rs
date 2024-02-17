@@ -12,7 +12,7 @@ use zksync_config::configs::object_store::ObjectStoreMode;
 use zksync_dal::ConnectionPool;
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
-use zksync_prover_fri_utils::{get_all_circuit_id_round_tuples_for, region_fetcher::get_zone};
+use zksync_prover_fri_utils::{get_all_circuit_id_round_tuples_for};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 use zksync_vk_setup_data_server_fri::commitment_utils::get_cached_commitments;
@@ -74,11 +74,7 @@ async fn main() -> anyhow::Result<()> {
     let circuit_ids_for_round_to_be_proven =
         get_all_circuit_id_round_tuples_for(circuit_ids_for_round_to_be_proven);
     let fri_prover_config = FriProverConfig::from_env().context("FriProverConfig::from_env()")?;
-    let zone = if let ObjectStoreMode::GCS | ObjectStoreMode::GCSWithCredentialFile = object_store_config.0.mode {
-        get_zone(&fri_prover_config.zone_read_url).await.context("get_zone()")?
-    } else {
-        "file_backed".to_string()
-    };
+    let zone = fri_prover_config.zone_read_url.clone();
     let vk_commitments = get_cached_commitments();
     let witness_vector_generator = WitnessVectorGenerator::new(
         blob_store,

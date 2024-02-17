@@ -18,7 +18,7 @@ use zksync_env_config::{
     FromEnv,
 };
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
-use zksync_prover_fri_utils::{get_all_circuit_id_round_tuples_for, region_fetcher::get_zone};
+use zksync_prover_fri_utils::{get_all_circuit_id_round_tuples_for};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{
     basic_fri_types::CircuitIdRoundTuple,
@@ -43,7 +43,7 @@ async fn graceful_shutdown(port: u16) -> anyhow::Result<impl Future<Output = ()>
     let zone_url = &FriProverConfig::from_env()
         .context("FriProverConfig::from_env()")?
         .zone_read_url;
-    let zone = get_zone(zone_url).await.context("get_zone()")?;
+    let zone = zone_url;
     let address = SocketAddress { host, port };
     Ok(async move {
         pool.access_storage()
@@ -225,14 +225,15 @@ async fn get_prover_tasks(
 
     let store_config = store_factory.get_config();
 
-    let zone = if let Some(ObjectStoreMode::GCS) | Some(ObjectStoreMode::GCSWithCredentialFile) =
-        store_config.map(|config| config.mode) {
-        get_zone(&prover_config.zone_read_url)
-            .await
-            .context("get_zone()")?
-    } else {
-        "file_backed".to_string()
-    };
+    // let zone = if let Some(ObjectStoreMode::GCS) | Some(ObjectStoreMode::GCSWithCredentialFile) =
+    //     store_config.map(|config| config.mode) {
+    //     get_zone(&prover_config.zone_read_url)
+    //         .await
+    //         .context("get_zone()")?
+    // } else {
+    //     "file_backed".to_string()
+    // };
+    let zone = prover_config.zone_read_url.clone();
 
     let local_ip = local_ip().context("Failed obtaining local IP address")?;
     let address = SocketAddress {
