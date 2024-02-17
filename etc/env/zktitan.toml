@@ -1,0 +1,10 @@
+# zktitan: deploy on linea goerli testnet
+[contracts]
+CREATE2_FACTORY_ADDR="0x8BaCfa1f4CE7f75095127e921F2Cda03786EacD6"
+L1_MULTICALL3_ADDR="0x45Fc42acD099c3e3A1d3e9fD9E5548Be66e97252"
+
+[eth_sender]
+[eth_sender.sender]
+proof_sending_mode="OnlyRealProofs"
+max_aggregated_tx_gas=100000000
+proof_loading_mode="FriProofFromGcs"
