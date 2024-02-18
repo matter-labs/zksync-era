@@ -1,6 +1,6 @@
 use anyhow::Context as _;
-use zksync_protobuf::{repr::ProtoRepr, required};
 use zksync_config::configs::object_store::{ObjectStoreConfig, ObjectStoreMode};
+use zksync_protobuf::{repr::ProtoRepr, required};
 
 use crate::proto;
 
