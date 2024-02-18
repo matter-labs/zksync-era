@@ -1,105 +1,137 @@
-use zksync_protobuf::repr::{decode, encode};
-use zksync_types::{ExecuteTransactionCommon, Transaction};
+use std::fmt::Debug;
+
+use zksync_protobuf::{
+    repr::{decode, encode},
+    ProtoRepr,
+};
+use zksync_types::{
+    l1::{OpProcessingType, PriorityQueueType},
+    protocol_version::ProtocolUpgradeTxCommonData,
+    Address, Bytes, Execute, ExecuteTransactionCommon, L1TxCommonData, L2TxCommonData,
+    PriorityOpId, ProtocolVersionId, Transaction, H256, U256,
+};
 
 use crate::tests::{mock_l1_execute, mock_l2_transaction, mock_protocol_upgrade_transaction};
 
 /// Tests struct <-> proto struct conversions.
 #[test]
 fn test_encoding() {
-    encode_decode(mock_l1_execute().into());
-    encode_decode(mock_l2_transaction().into());
-    encode_decode(mock_protocol_upgrade_transaction().into());
+    encode_decode::<super::proto::Transaction, ComparableTransaction>(mock_l1_execute().into());
+    encode_decode::<super::proto::Transaction, ComparableTransaction>(mock_l2_transaction().into());
+    encode_decode::<super::proto::Transaction, ComparableTransaction>(
+        mock_protocol_upgrade_transaction().into(),
+    );
 }
 
-fn encode_decode(tx1: Transaction) {
-    let bytes = encode::<super::proto::Transaction>(&tx1);
-    let tx2 = decode::<super::proto::Transaction>(&bytes).unwrap();
-    assert_transaction_eq(&tx1, &tx2);
+fn encode_decode<P, C>(msg: P::Type)
+where
+    P: ProtoRepr,
+    C: From<P::Type> + PartialEq + Debug,
+{
+    let got = decode::<P>(&encode::<P>(&msg)).unwrap();
+    let (got, msg): (C, C) = (msg.into(), got.into());
+    assert_eq!(&msg, &got, "binary encoding");
 }
 
-/// Checks equality. Top-level `PartialEq` of `Transaction` checks only
-/// the hash hence it's not usable here.
-fn assert_transaction_eq(tx1: &Transaction, tx2: &Transaction) {
-    assert_eq!(tx1.received_timestamp_ms, tx2.received_timestamp_ms);
-    assert_eq!(tx1.raw_bytes, tx2.raw_bytes);
-    assert_eq!(tx1.execute, tx2.execute);
-    match (&tx1.common_data, &tx2.common_data) {
-        (
-            ExecuteTransactionCommon::L1(tx1_common_data),
-            ExecuteTransactionCommon::L1(tx2_common_data),
-        ) => {
-            assert_eq!(tx1_common_data.sender, tx2_common_data.sender);
-            assert_eq!(tx1_common_data.serial_id, tx2_common_data.serial_id);
-            assert_eq!(
-                tx1_common_data.deadline_block,
-                tx2_common_data.deadline_block
-            );
-            assert_eq!(
-                tx1_common_data.layer_2_tip_fee,
-                tx2_common_data.layer_2_tip_fee
-            );
-            assert_eq!(tx1_common_data.full_fee, tx2_common_data.full_fee);
-            assert_eq!(
-                tx1_common_data.max_fee_per_gas,
-                tx2_common_data.max_fee_per_gas
-            );
-            assert_eq!(tx1_common_data.gas_limit, tx2_common_data.gas_limit);
-            assert_eq!(
-                tx1_common_data.gas_per_pubdata_limit,
-                tx2_common_data.gas_per_pubdata_limit
-            );
-            assert_eq!(
-                tx1_common_data.priority_queue_type,
-                tx2_common_data.priority_queue_type
-            );
-            assert_eq!(tx1_common_data.eth_hash, tx2_common_data.eth_hash);
-            assert_eq!(tx1_common_data.eth_block, tx2_common_data.eth_block);
-            assert_eq!(
-                tx1_common_data.canonical_tx_hash,
-                tx2_common_data.canonical_tx_hash
-            );
-            assert_eq!(tx1_common_data.to_mint, tx2_common_data.to_mint);
-            assert_eq!(
-                tx1_common_data.refund_recipient,
-                tx2_common_data.refund_recipient
-            );
+/// Derivative of `Transaction` to facilitate equality comparisons.
+#[derive(PartialEq, Debug)]
+pub struct ComparableTransaction {
+    l1_common_data: Option<ComparableL1TxCommonData>,
+    l2_common_data: Option<L2TxCommonData>,
+    protocol_upgrade_common_data: Option<ComparableProtocolUpgradeTxCommonData>,
+    execute: Execute,
+    received_timestamp_ms: u64,
+    raw_bytes: Option<Bytes>,
+}
+
+impl From<Transaction> for ComparableTransaction {
+    fn from(tx: Transaction) -> Self {
+        let (l1_common_data, l2_common_data, protocol_upgrade_common_data) = match tx.common_data {
+            ExecuteTransactionCommon::L1(data) => (Some(data), None, None),
+            ExecuteTransactionCommon::L2(data) => (None, Some(data), None),
+            ExecuteTransactionCommon::ProtocolUpgrade(data) => (None, None, Some(data)),
+        };
+        Self {
+            l1_common_data: l1_common_data.map(|x| x.into()),
+            l2_common_data,
+            protocol_upgrade_common_data: protocol_upgrade_common_data.map(|x| x.into()),
+            execute: tx.execute,
+            received_timestamp_ms: tx.received_timestamp_ms,
+            raw_bytes: tx.raw_bytes,
         }
-        (
-            ExecuteTransactionCommon::L2(tx1_common_data),
-            ExecuteTransactionCommon::L2(tx2_common_data),
-        ) => {
-            assert_eq!(tx1_common_data, tx2_common_data);
+    }
+}
+
+/// Derivative of `L1TxCommonData` to facilitate equality comparisons.
+#[derive(PartialEq, Debug)]
+pub struct ComparableL1TxCommonData {
+    pub sender: Address,
+    pub serial_id: PriorityOpId,
+    pub deadline_block: u64,
+    pub layer_2_tip_fee: U256,
+    pub full_fee: U256,
+    pub max_fee_per_gas: U256,
+    pub gas_limit: U256,
+    pub gas_per_pubdata_limit: U256,
+    pub op_processing_type: OpProcessingType,
+    pub priority_queue_type: PriorityQueueType,
+    pub eth_hash: H256,
+    pub eth_block: u64,
+    pub canonical_tx_hash: H256,
+    pub to_mint: U256,
+    pub refund_recipient: Address,
+}
+
+impl From<L1TxCommonData> for ComparableL1TxCommonData {
+    fn from(data: L1TxCommonData) -> Self {
+        Self {
+            sender: data.sender,
+            serial_id: data.serial_id,
+            deadline_block: data.deadline_block,
+            layer_2_tip_fee: data.layer_2_tip_fee,
+            full_fee: data.full_fee,
+            max_fee_per_gas: data.max_fee_per_gas,
+            gas_limit: data.gas_limit,
+            gas_per_pubdata_limit: data.gas_per_pubdata_limit,
+            op_processing_type: data.op_processing_type,
+            priority_queue_type: data.priority_queue_type,
+            eth_hash: data.eth_hash,
+            eth_block: data.eth_block,
+            canonical_tx_hash: data.canonical_tx_hash,
+            to_mint: data.to_mint,
+            refund_recipient: data.refund_recipient,
         }
-        (
-            ExecuteTransactionCommon::ProtocolUpgrade(tx1_common_data),
-            ExecuteTransactionCommon::ProtocolUpgrade(tx2_common_data),
-        ) => {
-            assert_eq!(tx1_common_data.sender, tx2_common_data.sender);
-            assert_eq!(tx1_common_data.upgrade_id, tx2_common_data.upgrade_id);
-            assert_eq!(
-                tx1_common_data.max_fee_per_gas,
-                tx2_common_data.max_fee_per_gas
-            );
-            assert_eq!(tx1_common_data.gas_limit, tx2_common_data.gas_limit);
-            assert_eq!(
-                tx1_common_data.gas_per_pubdata_limit,
-                tx2_common_data.gas_per_pubdata_limit
-            );
-            assert_eq!(tx1_common_data.eth_hash, tx2_common_data.eth_hash);
-            assert_eq!(tx1_common_data.eth_block, tx2_common_data.eth_block);
-            assert_eq!(
-                tx1_common_data.canonical_tx_hash,
-                tx2_common_data.canonical_tx_hash
-            );
-            assert_eq!(tx1_common_data.to_mint, tx2_common_data.to_mint);
-            assert_eq!(
-                tx1_common_data.refund_recipient,
-                tx2_common_data.refund_recipient
-            );
+    }
+}
+
+/// Derivative of `ProtocolUpgradeTxCommonData` to facilitate equality comparisons.
+#[derive(PartialEq, Debug)]
+pub struct ComparableProtocolUpgradeTxCommonData {
+    pub sender: Address,
+    pub upgrade_id: ProtocolVersionId,
+    pub max_fee_per_gas: U256,
+    pub gas_limit: U256,
+    pub gas_per_pubdata_limit: U256,
+    pub eth_hash: H256,
+    pub eth_block: u64,
+    pub canonical_tx_hash: H256,
+    pub to_mint: U256,
+    pub refund_recipient: Address,
+}
+
+impl From<ProtocolUpgradeTxCommonData> for ComparableProtocolUpgradeTxCommonData {
+    fn from(data: ProtocolUpgradeTxCommonData) -> Self {
+        Self {
+            sender: data.sender,
+            upgrade_id: data.upgrade_id,
+            max_fee_per_gas: data.max_fee_per_gas,
+            gas_limit: data.gas_limit,
+            gas_per_pubdata_limit: data.gas_per_pubdata_limit,
+            eth_hash: data.eth_hash,
+            eth_block: data.eth_block,
+            canonical_tx_hash: data.canonical_tx_hash,
+            to_mint: data.to_mint,
+            refund_recipient: data.refund_recipient,
         }
-        (_, _) => panic!(
-            "common_data variant mismatch:\n{}\n{}",
-            tx1.common_data, tx2.common_data
-        ),
     }
 }

@@ -16,6 +16,7 @@ use zksync_types::{
 use zksync_utils::{h256_to_u256, u256_to_h256};
 
 use crate::models::{parse_h160, parse_h256, proto};
+
 /// L2 block (= miniblock) payload.
 #[derive(Debug, PartialEq)]
 pub struct Payload {
