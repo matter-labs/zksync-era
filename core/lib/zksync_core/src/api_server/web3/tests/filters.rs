@@ -272,8 +272,7 @@ struct DisableFiltersTest;
 #[async_trait]
 impl HttpTest for DisableFiltersTest {
     async fn test(&self, client: &HttpClient, _pool: &ConnectionPool) -> anyhow::Result<()> {
-        use jsonrpsee::core::client::Error;
-        use jsonrpsee::types::error::ErrorCode;
+        use jsonrpsee::{core::client::Error, types::error::ErrorCode};
 
         fn assert_not_implemented<T: Debug>(result: Result<T, Error>) {
             assert_matches!(result, Err(Error::Call(e)) => {

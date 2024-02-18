@@ -358,10 +358,8 @@ impl FullApiParams {
                     "Filters limit is not supported when filters are disabled, ignoring"
                 );
             }
-        } else {
-            if self.optional.filters_limit.is_none() {
-                tracing::warn!("Filters limit is not set - unlimited filters are allowed");
-            }
+        } else if self.optional.filters_limit.is_none() {
+            tracing::warn!("Filters limit is not set - unlimited filters are allowed");
         }
 
         if self.namespaces.contains(&Namespace::Pubsub)
