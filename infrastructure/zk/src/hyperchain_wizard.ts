@@ -340,7 +340,7 @@ async function setHyperchainMetadata() {
     wrapEnvModify('GOVERNOR_PRIVATE_KEY', governor.privateKey);
     wrapEnvModify('GOVERNOR_ADDRESS', governor.address);
     wrapEnvModify('CHAIN_STATE_KEEPER_FEE_ACCOUNT_ADDR', feeReceiverAddress);
-    wrapEnvModify('ETH_SENDER_SENDER_PROOF_SENDING_MODE', 'SkipEveryProof');
+    wrapEnvModify('ETH_SENDER_SENDER_PROOF_SENDING_MODE', 'OnlyRealProofs');
 
     if (feeReceiver) {
         wrapEnvModify('FEE_RECEIVER_PRIVATE_KEY', feeReceiver.privateKey);

@@ -3,8 +3,14 @@
 CREATE2_FACTORY_ADDR="0x8BaCfa1f4CE7f75095127e921F2Cda03786EacD6"
 L1_MULTICALL3_ADDR="0x45Fc42acD099c3e3A1d3e9fD9E5548Be66e97252"
 
+[chain.state_keeper]
+transaction_slots=750
+miniblock_commit_deadline_ms=2000
+block_commit_deadline_ms=600000
+max_gas_per_batch=30000000
+
 [eth_sender]
 [eth_sender.sender]
 proof_sending_mode="OnlyRealProofs"
-max_aggregated_tx_gas=100000000
+max_aggregated_tx_gas=4000000
 proof_loading_mode="FriProofFromGcs"
