@@ -684,6 +684,7 @@ async fn fetcher_with_real_server(snapshot_recovery: bool) {
         pool.clone(),
         Default::default(),
         stop_receiver.clone(),
+        None,
     )
     .await;
     let server_addr = &server_handles.wait_until_ready().await;

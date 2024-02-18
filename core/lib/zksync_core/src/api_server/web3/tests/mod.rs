@@ -104,6 +104,7 @@ pub(crate) async fn spawn_http_server(
     pool: ConnectionPool,
     tx_executor: MockTransactionExecutor,
     stop_receiver: watch::Receiver<bool>,
+    api_config: Option<InternalApiConfig>,
 ) -> ApiServerHandles {
     spawn_server(
         ApiTransportLabel::Http,
@@ -112,6 +113,7 @@ pub(crate) async fn spawn_http_server(
         None,
         tx_executor,
         stop_receiver,
+        api_config,
     )
     .await
     .0
@@ -130,6 +132,7 @@ async fn spawn_ws_server(
         websocket_requests_per_minute_limit,
         MockTransactionExecutor::default(),
         stop_receiver,
+        None,
     )
     .await
 }
@@ -141,10 +144,13 @@ async fn spawn_server(
     websocket_requests_per_minute_limit: Option<NonZeroU32>,
     tx_executor: MockTransactionExecutor,
     stop_receiver: watch::Receiver<bool>,
+    api_config: Option<InternalApiConfig>,
 ) -> (ApiServerHandles, mpsc::UnboundedReceiver<PubSubEvent>) {
-    let contracts_config = ContractsConfig::for_tests();
-    let web3_config = Web3JsonRpcConfig::for_tests();
-    let api_config = InternalApiConfig::new(network_config, &web3_config, &contracts_config);
+    let api_config = api_config.unwrap_or_else(|| {
+        let contracts_config = ContractsConfig::for_tests();
+        let web3_config = Web3JsonRpcConfig::for_tests();
+        InternalApiConfig::new(network_config, &web3_config, &contracts_config)
+    });
     let (tx_sender, vm_barrier) =
         create_test_tx_sender(pool.clone(), api_config.l2_chain_id, tx_executor.into()).await;
     let (pub_sub_events_sender, pub_sub_events_receiver) = mpsc::unbounded_channel();
@@ -188,6 +194,11 @@ trait HttpTest: Send + Sync {
     }
 
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()>;
+
+    /// Overrides the `filters_enabled` configuration parameter for HTTP server startup
+    fn filters_enabled(&self) -> bool {
+        true
+    }
 }
 
 /// Storage initialization strategy.
@@ -260,11 +271,16 @@ async fn test_http_server(test: impl HttpTest) {
     drop(storage);
 
     let (stop_sender, stop_receiver) = watch::channel(false);
+    let contracts_config = ContractsConfig::for_tests();
+    let web3_config = Web3JsonRpcConfig::for_tests();
+    let mut api_config = InternalApiConfig::new(&network_config, &web3_config, &contracts_config);
+    api_config.filters_enabled = test.filters_enabled();
     let mut server_handles = spawn_http_server(
         &network_config,
         pool.clone(),
         test.transaction_executor(),
         stop_receiver,
+        Some(api_config),
     )
     .await;
 
