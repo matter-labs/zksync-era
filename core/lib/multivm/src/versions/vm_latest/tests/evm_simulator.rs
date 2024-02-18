@@ -1,4 +1,7 @@
-use std::str::FromStr;
+use std::{
+    ops::{Div, Sub},
+    str::FromStr,
+};
 
 use ethabi::{Contract, Token};
 use itertools::Itertools;
@@ -25,8 +28,8 @@ use crate::{
         tests::{
             tester::{DeployContractsTx, TxType, VmTesterBuilder},
             utils::{
-                get_balance, key_for_evm_hash, read_test_contract, read_test_evm_simulator,
-                verify_required_storage,
+                get_balance, key_for_evm_hash, read_erc20_contract, read_test_contract,
+                read_test_evm_simulator, verify_required_storage,
             },
         },
         tracers::evm_debug_tracer::EvmDebugTracer,
@@ -63,9 +66,7 @@ fn hash_evm_bytecode(bytecode: Vec<u8>) -> H256 {
     H256(output)
 }
 
-fn test_evm_vector(mut bytecode: Vec<u8>) -> U256 {
-    let mut storage = InMemoryStorage::with_system_contracts(hash_bytecode);
-
+fn insert_evm_contract(storage: &mut InMemoryStorage, mut bytecode: Vec<u8>) -> Address {
     // To avoid problems with correct encoding for these tests, we just pad the bytecode to be divisible by 32.
     while bytecode.len() % 32 != 0 {
         bytecode.push(0);
@@ -105,6 +106,14 @@ fn test_evm_vector(mut bytecode: Vec<u8>) -> U256 {
 
     storage.set_value(get_code_key(&test_address), blob_hash);
     storage.set_value(evm_code_hash_key, evm_hash);
+
+    test_address
+}
+
+fn test_evm_vector(mut bytecode: Vec<u8>) -> U256 {
+    let mut storage = InMemoryStorage::with_system_contracts(hash_bytecode);
+
+    let test_address = insert_evm_contract(&mut storage, bytecode.clone());
 
     let mut vm = VmTesterBuilder::new(HistoryEnabled)
         .with_storage(storage)
@@ -454,4 +463,224 @@ fn test_evm_staticcall_behavior() {
 
     let batch_result = vm.vm.execute(VmExecutionMode::Batch);
     assert!(!batch_result.result.is_failed(), "Batch wasn't successful");
+}
+
+struct EVMOpcodeBenchmarkParams {
+    pub number_of_opcodes: usize,
+    pub filler: Vec<u8>,
+    pub opcode: u8,
+}
+
+#[derive(Debug, Default)]
+struct EVMOpcodeBenchmarkResult {
+    pub used_zkevm_ergs: u32,
+    pub used_evm_gas: u32,
+    pub used_circuits: f32,
+}
+
+#[derive(Debug, Default)]
+struct ZkEVMBenchmarkResult {
+    pub used_zkevm_ergs: u32,
+    pub used_circuits: f32,
+}
+
+impl Sub for EVMOpcodeBenchmarkResult {
+    type Output = Self;
+
+    fn sub(self, other: Self) -> Self {
+        EVMOpcodeBenchmarkResult {
+            used_zkevm_ergs: self.used_zkevm_ergs - other.used_zkevm_ergs,
+            used_evm_gas: self.used_evm_gas - other.used_evm_gas,
+            used_circuits: self.used_circuits - other.used_circuits,
+        }
+    }
+}
+
+impl Div<usize> for EVMOpcodeBenchmarkResult {
+    type Output = Self;
+
+    fn div(self, other: usize) -> Self {
+        EVMOpcodeBenchmarkResult {
+            used_zkevm_ergs: self.used_zkevm_ergs / other as u32,
+            used_evm_gas: self.used_evm_gas / other as u32,
+            used_circuits: self.used_circuits / other as f32,
+        }
+    }
+}
+
+fn encode_multiple_push32(values: Vec<U256>) -> Vec<u8> {
+    values
+        .into_iter()
+        .flat_map(|value| {
+            let mut result: Vec<u8> = vec![0x7f];
+            result.extend_from_slice(&u256_to_h256(value).0);
+            result
+        })
+        .collect()
+}
+
+// eth transfer is very similar by cost to ERC20 transfer in zkEVM. A bit smaller, but gives a good refernce point
+fn perform_zkevm_benchmark() -> ZkEVMBenchmarkResult {
+    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+        .with_execution_mode(TxExecutionMode::VerifyExecute)
+        .with_random_rich_accounts(1)
+        .build();
+
+    // The first transaction's result can be pollutted with ergs used by the initial bootloader preparations, so we conduct one tx before conducting a
+    // the benchmarking transaction.
+
+    let account = &mut vm.rich_accounts[0];
+
+    let tx = account.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(Address::zero()),
+            calldata: vec![],
+            value: U256::zero(),
+            factory_deps: None,
+        },
+        None,
+    );
+    vm.vm.push_transaction(tx);
+    let tx_result: crate::vm_latest::VmExecutionResultAndLogs =
+        vm.vm.execute(VmExecutionMode::OneTx);
+    assert!(
+        !tx_result.result.is_failed(),
+        "Transaction wasn't successful"
+    );
+
+    // Now, we can do the benchmarking transaction.
+
+    let tx = account.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(Address::zero()),
+            calldata: vec![],
+            value: U256::one(),
+            factory_deps: None,
+        },
+        None,
+    );
+    let ergs_before = vm.vm.gas_remaining();
+    vm.vm.push_transaction(tx);
+    let tx_result: crate::vm_latest::VmExecutionResultAndLogs =
+        vm.vm.execute(VmExecutionMode::OneTx);
+    let ergs_after = vm.vm.gas_remaining();
+    assert!(
+        !tx_result.result.is_failed(),
+        "Transaction wasn't successful"
+    );
+
+    ZkEVMBenchmarkResult {
+        used_zkevm_ergs: ergs_before - ergs_after,
+        used_circuits: tx_result.statistics.estimated_circuits_used,
+    }
+}
+
+fn perform_benchmark(bytecode: Vec<u8>) -> EVMOpcodeBenchmarkResult {
+    let mut storage = InMemoryStorage::with_system_contracts(hash_bytecode);
+
+    let test_address = insert_evm_contract(&mut storage, bytecode.clone());
+
+    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+        .with_storage(storage)
+        .with_execution_mode(TxExecutionMode::VerifyExecute)
+        .with_random_rich_accounts(1)
+        .build();
+
+    let (benchmark_address, abi) = deploy_evm_contract(&mut vm, "benchmark", "BenchmarkCaller");
+
+    let account = &mut vm.rich_accounts[0];
+
+    let tx = account.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(benchmark_address),
+            calldata: abi
+                .function("callAndBenchmark")
+                .unwrap()
+                .encode_input(&[Token::Address(test_address)])
+                .unwrap(),
+            value: U256::zero(),
+            factory_deps: None,
+        },
+        None,
+    );
+
+    vm.vm.push_transaction(tx);
+
+    let ergs_before = vm.vm.gas_remaining();
+    let tx_result: crate::vm_latest::VmExecutionResultAndLogs =
+        vm.vm.execute(VmExecutionMode::OneTx);
+    let ergs_after = vm.vm.gas_remaining();
+
+    assert!(
+        !tx_result.result.is_failed(),
+        "Transaction wasn't successful"
+    );
+
+    let used_evm_gas = vm.vm.storage.borrow_mut().get_value(&StorageKey::new(
+        AccountTreeId::new(benchmark_address),
+        H256::zero(),
+    ));
+
+    EVMOpcodeBenchmarkResult {
+        used_zkevm_ergs: ergs_before - ergs_after,
+        used_evm_gas: h256_to_u256(used_evm_gas).as_u32(),
+        used_circuits: tx_result.statistics.estimated_circuits_used,
+    }
+}
+
+fn perform_opcode_benchmark(params: EVMOpcodeBenchmarkParams) -> EVMOpcodeBenchmarkResult {
+    /*
+        The test works the following way:
+
+        Let’s say that an opcode is like `ADD`` and it takes `N` params and we want to execute it `K` times.
+
+        We have to somehow extract the price of individual opcode, i.e. ensure that no other actions (such as copying the bytecode) distort the results.
+
+        We’ll need `N * K` params. So we’ll need `N * K` PUSH32 operations first. And the overall length of the bytecode will be `LEN = N * K + K` to accommodate for the opcode itself. So the algorithm will be the following one:
+
+        1. Create a contract with bytecode `LEN` bytes long and the corresponding `N * K` PUSH32 operations (the rest `K` bytes are zeroes). The bytecode will be full of 0s. Run the benchmark. It will return the number of ergs needed to process such bytecode without the tested opcode.
+        2. Create a contract with bytecode `LEN` bytes long and the corresponding `N * K` PUSH32 operations, where after each `N` operations there will be one of the tested opcode. It will return the number of ergs needed to process such bytecode with the tested opcode.
+    */
+
+    let bytecode_len = params.number_of_opcodes * params.filler.len() + params.number_of_opcodes;
+
+    let mut bytecode_with_filler_only = vec![0u8; bytecode_len];
+    for i in 0..params.number_of_opcodes {
+        let start = i * params.filler.len();
+        let end = start + params.filler.len();
+        bytecode_with_filler_only[start..end].copy_from_slice(&params.filler);
+    }
+
+    let mut bytecode_with_filler_and_opcode = vec![0u8; bytecode_len];
+    for i in 0..params.number_of_opcodes {
+        let start = i * params.filler.len() + i;
+        let end = start + params.filler.len();
+        bytecode_with_filler_and_opcode[start..end].copy_from_slice(&params.filler);
+        bytecode_with_filler_and_opcode[end] = params.opcode;
+    }
+
+    let benchmark_with_filler_only = perform_benchmark(bytecode_with_filler_only);
+    let benchmark_with_filler_and_opcode = perform_benchmark(bytecode_with_filler_and_opcode);
+
+    let diff = benchmark_with_filler_and_opcode - benchmark_with_filler_only;
+
+    diff / params.number_of_opcodes
+}
+
+// TODO: move this test to a separate binary
+#[test]
+fn test_evm_benchmark() {
+    println!("{:#?}", perform_zkevm_benchmark());
+
+    println!(
+        "{:#?}",
+        perform_opcode_benchmark(EVMOpcodeBenchmarkParams {
+            number_of_opcodes: 50,
+            filler: encode_multiple_push32(vec![
+                U256::from(2).pow(255.into()) + U256::from(1),
+                U256::from(2).pow(255.into())
+            ]),
+            opcode: 1 // add
+        })
+    );
 }

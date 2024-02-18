@@ -106,6 +106,11 @@ pub(crate) fn read_test_evm_simulator() -> (Vec<u8>, Contract) {
     (read_bytecode(path), load_contract(path))
 }
 
+pub(crate) fn read_erc20_contract() -> (Vec<u8>, Contract) {
+    let path = "etc/ERC20/artifacts-zk/contracts/ZkSyncERC20.sol/ZkSyncERC20.json";
+    (read_bytecode(path), load_contract(path))
+}
+
 pub(crate) fn read_max_depth_contract() -> Vec<u8> {
     read_zbin_bytecode(
         "core/tests/ts-integration/contracts/zkasm/artifacts/deep_stak.zkasm/deep_stak.zkasm.zbin",
