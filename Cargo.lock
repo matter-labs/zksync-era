@@ -8678,6 +8678,8 @@ dependencies = [
  "zksync_core",
  "zksync_dal",
  "zksync_health_check",
+ "zksync_object_store",
+ "zksync_snapshots_applier",
  "zksync_state",
  "zksync_storage",
  "zksync_types",
@@ -8766,6 +8768,7 @@ name = "zksync_node_framework"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "assert_matches",
  "async-trait",
  "futures 0.3.28",
  "prometheus_exporter",

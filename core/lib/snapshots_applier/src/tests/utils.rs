@@ -16,7 +16,7 @@ use zksync_types::{
     AccountTreeId, Bytes, L1BatchNumber, MiniblockNumber, ProtocolVersionId, StorageKey,
     StorageValue, H160, H256,
 };
-use zksync_web3_decl::jsonrpsee::core::ClientError as RpcError;
+use zksync_web3_decl::error::EnrichedClientResult;
 
 use crate::SnapshotsApplierMainNodeClient;
 
@@ -28,11 +28,14 @@ pub(super) struct MockMainNodeClient {
 
 #[async_trait]
 impl SnapshotsApplierMainNodeClient for MockMainNodeClient {
-    async fn fetch_l2_block(&self, number: MiniblockNumber) -> Result<Option<SyncBlock>, RpcError> {
+    async fn fetch_l2_block(
+        &self,
+        number: MiniblockNumber,
+    ) -> EnrichedClientResult<Option<SyncBlock>> {
         Ok(self.fetch_l2_block_responses.get(&number).cloned())
     }
 
-    async fn fetch_newest_snapshot(&self) -> Result<Option<SnapshotHeader>, RpcError> {
+    async fn fetch_newest_snapshot(&self) -> EnrichedClientResult<Option<SnapshotHeader>> {
         Ok(self.fetch_newest_snapshot_response.clone())
     }
 }

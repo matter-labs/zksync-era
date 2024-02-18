@@ -717,9 +717,11 @@ pub async fn initialize_components(
             .build()
             .await
             .context("failed to build commitment_generator_pool")?;
-        let commitment_generator =
-            CommitmentGenerator::new(commitment_generator_pool, stop_receiver.clone());
-        task_futures.push(tokio::spawn(commitment_generator.run()));
+        let commitment_generator = CommitmentGenerator::new(commitment_generator_pool);
+        healthchecks.push(Box::new(commitment_generator.health_check()));
+        task_futures.push(tokio::spawn(
+            commitment_generator.run(stop_receiver.clone()),
+        ));
     }
 
     // Run healthcheck server for all components.
