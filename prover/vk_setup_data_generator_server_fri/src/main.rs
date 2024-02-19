@@ -144,13 +144,12 @@ fn print_stats(digests: HashMap<String, String>) -> anyhow::Result<()> {
 
 fn keystore_from_optional_path(path: Option<String>, setup_path: Option<String>) -> Keystore {
     if let Some(path) = path {
-        Keystore::new_with_optional_setup_path(path, setup_path)
-    } else {
-        if setup_path.is_some() {
-            panic!("--setup_path must not be set when --path is not set");
-        }
-        Keystore::default()
+        return Keystore::new_with_optional_setup_path(path, setup_path);
     }
+    if setup_path.is_some() {
+        panic!("--setup_path must not be set when --path is not set");
+    }
+    Keystore::default()
 }
 
 fn generate_setup_keys(

@@ -1,6 +1,7 @@
 #![feature(allocator_api)]
 
 use serde::{Deserialize, Serialize};
+use zkevm_test_harness::compute_setups::CircuitSetupData;
 use zksync_prover_fri_types::circuit_definitions::boojum::{
     algebraic_props::{round_function::AbsorptionModeOverwrite, sponge::GenericAlgebraicSponge},
     cs::{
@@ -66,6 +67,20 @@ pub type GoldilocksProverSetupData = ProverSetupData<
         AbsorptionModeOverwrite,
     >,
 >;
+
+impl From<CircuitSetupData> for GoldilocksProverSetupData {
+    fn from(circuit_setup_data: CircuitSetupData) -> Self {
+        Self {
+            setup_base: circuit_setup_data.setup_base,
+            setup: circuit_setup_data.setup,
+            vk: circuit_setup_data.vk,
+            setup_tree: circuit_setup_data.setup_tree,
+            vars_hint: circuit_setup_data.vars_hint,
+            wits_hint: circuit_setup_data.wits_hint,
+            finalization_hint: circuit_setup_data.finalization_hint,
+        }
+    }
+}
 
 #[cfg(feature = "gpu")]
 #[derive(Debug, Serialize, Deserialize)]

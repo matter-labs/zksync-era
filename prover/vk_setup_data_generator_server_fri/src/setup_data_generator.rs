@@ -140,15 +140,8 @@ impl SetupDataGenerator for CPUSetupDataGenerator {
         let circuit_setup_data =
             generate_setup_data_common(&self.keystore, is_base_layer, numeric_circuit)?;
 
-        let prover_setup_data = GoldilocksProverSetupData {
-            setup_base: circuit_setup_data.setup_base,
-            setup: circuit_setup_data.setup,
-            vk: circuit_setup_data.vk,
-            setup_tree: circuit_setup_data.setup_tree,
-            vars_hint: circuit_setup_data.vars_hint,
-            wits_hint: circuit_setup_data.wits_hint,
-            finalization_hint: circuit_setup_data.finalization_hint,
-        };
+        let prover_setup_data: GoldilocksProverSetupData = circuit_setup_data.into();
+
         Ok(bincode::serialize(&prover_setup_data).expect("Failed serializing setup data"))
     }
 
