@@ -10,7 +10,9 @@ use zksync_prover_fri_types::{
     keys::FriCircuitKey, CircuitWrapper, ProverJob, ProverServiceDataKey,
 };
 use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
-use zksync_vk_setup_data_server_fri::generate_cpu_base_layer_setup_data;
+use zksync_vk_setup_data_server_fri::{
+    keystore::Keystore, setup_data_generator::generate_cpu_base_layer_setup_data,
+};
 
 fn compare_serialized<T: Serialize>(expected: &T, actual: &T) {
     let serialized_expected = bincode::serialize(expected).unwrap();
@@ -54,8 +56,9 @@ async fn prover_and_assert_base_layer(
         CircuitWrapper::Base(base) => base.clone(),
         CircuitWrapper::Recursive(_) => anyhow::bail!("Expected base layer circuit"),
     };
+    let keystore = Keystore::default();
     let setup_data = Arc::new(
-        generate_cpu_base_layer_setup_data(circuit)
+        generate_cpu_base_layer_setup_data(&keystore, circuit)
             .context("generate_cpu_base_layers_setup_data()")?,
     );
     let setup_key = ProverServiceDataKey::new(circuit_id, aggregation_round);

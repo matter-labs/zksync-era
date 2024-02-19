@@ -61,9 +61,7 @@ use zksync_prover_fri_types::circuit_definitions::{
     ZkSyncDefaultRoundFunction,
 };
 
-use crate::{
-    get_base_layer_vk_for_circuit_type, get_base_path, get_recursive_layer_vk_for_circuit_type,
-};
+use crate::keystore::Keystore;
 
 pub const CYCLE_LIMIT: usize = 20000;
 
@@ -74,6 +72,7 @@ fn read_witness_artifact(filepath: &str) -> anyhow::Result<TestArtifact> {
 }
 
 pub fn get_basic_circuits(
+    keystore: &Keystore,
     cycle_limit: usize,
     geometry: GeometryConfig,
 ) -> anyhow::Result<
@@ -85,7 +84,7 @@ pub fn get_basic_circuits(
         >,
     >,
 > {
-    let path = format!("{}/witness_artifacts.json", get_base_path());
+    let path = format!("{}/witness_artifacts.json", keystore.get_base_path());
     let mut test_artifact = read_witness_artifact(&path).context("read_withess_artifact()")?;
 
     let mut storage_impl = InMemoryStorage::new();
@@ -177,14 +176,15 @@ pub fn get_basic_circuits(
         .collect())
 }
 
-pub fn get_leaf_circuits() -> anyhow::Result<Vec<ZkSyncRecursiveLayerCircuit>> {
+pub fn get_leaf_circuits(keystore: &Keystore) -> anyhow::Result<Vec<ZkSyncRecursiveLayerCircuit>> {
     let mut circuits = vec![];
     for base_circuit_type in
         (BaseLayerCircuitType::VM as u8)..=(BaseLayerCircuitType::L1MessagesHasher as u8)
     {
         let input = RecursionLeafInput::placeholder_witness();
-        let vk = get_base_layer_vk_for_circuit_type(base_circuit_type)
-            .with_context(|| format!("get_base_layer_vk_for_circuit_type({base_circuit_type})"))?;
+        let vk = keystore
+            .load_base_layer_verification_key(base_circuit_type)
+            .with_context(|| format!("load_base_layer_verification_key({base_circuit_type})"))?;
 
         let witness = RecursionLeafInstanceWitness {
             input,
@@ -219,13 +219,14 @@ pub fn get_leaf_circuits() -> anyhow::Result<Vec<ZkSyncRecursiveLayerCircuit>> {
     Ok(circuits)
 }
 
-pub fn get_node_circuit() -> anyhow::Result<ZkSyncRecursiveLayerCircuit> {
+pub fn get_node_circuit(keystore: &Keystore) -> anyhow::Result<ZkSyncRecursiveLayerCircuit> {
     let input = RecursionNodeInput::placeholder_witness();
 
-    let input_vk = get_recursive_layer_vk_for_circuit_type(
-        ZkSyncRecursionLayerStorageType::LeafLayerCircuitForMainVM as u8,
-    )
-    .context("get_recursive_layer_vk_for_circuit_type(LeafLAyerCircyutFromMainVM")?;
+    let input_vk = keystore
+        .load_recursive_layer_verification_key(
+            ZkSyncRecursionLayerStorageType::LeafLayerCircuitForMainVM as u8,
+        )
+        .context("load_recursive_layer_verification_key(LeafLAyerCircyutFromMainVM")?;
     let witness = RecursionNodeInstanceWitness {
         input,
         vk_witness: input_vk.clone().into_inner(),
@@ -249,15 +250,16 @@ pub fn get_node_circuit() -> anyhow::Result<ZkSyncRecursiveLayerCircuit> {
     Ok(ZkSyncRecursiveLayerCircuit::NodeLayerCircuit(circuit))
 }
 
-pub fn get_scheduler_circuit() -> anyhow::Result<ZkSyncRecursiveLayerCircuit> {
+pub fn get_scheduler_circuit(keystore: &Keystore) -> anyhow::Result<ZkSyncRecursiveLayerCircuit> {
     let mut scheduler_witness = SchedulerCircuitInstanceWitness::placeholder();
 
     // node VK
-    let node_vk = get_recursive_layer_vk_for_circuit_type(
-        ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,
-    )
-    .context("get_recursive_layer_vk_for_circuit_type(NodeLayerCircuit)")?
-    .into_inner();
+    let node_vk = keystore
+        .load_recursive_layer_verification_key(
+            ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,
+        )
+        .context("load_recursive_layer_verification_key(NodeLayerCircuit)")?
+        .into_inner();
     scheduler_witness.node_layer_vk_witness = node_vk.clone();
 
     let config = SchedulerConfig {
@@ -299,6 +301,7 @@ fn get_recursive_layer_proofs() -> Vec<ZkSyncRecursionProof> {
 }
 
 pub fn get_leaf_vk_params(
+    keystore: &Keystore,
 ) -> anyhow::Result<Vec<(u8, RecursionLeafParametersWitness<GoldilocksField>)>> {
     let mut leaf_vk_commits = vec![];
 
@@ -308,9 +311,11 @@ pub fn get_leaf_vk_params(
         let recursive_circuit_type = base_circuit_type_into_recursive_leaf_circuit_type(
             BaseLayerCircuitType::from_numeric_value(circuit_type),
         );
-        let base_vk = get_base_layer_vk_for_circuit_type(circuit_type)
+        let base_vk = keystore
+            .load_base_layer_verification_key(circuit_type)
             .with_context(|| format!("get_base_layer_vk_for_circuit_type({circuit_type})"))?;
-        let leaf_vk = get_recursive_layer_vk_for_circuit_type(recursive_circuit_type as u8)
+        let leaf_vk = keystore
+            .load_recursive_layer_verification_key(recursive_circuit_type as u8)
             .with_context(|| {
                 format!("get_recursive_layer_vk_for_circuit_type({recursive_circuit_type:?})")
             })?;
