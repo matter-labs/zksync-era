@@ -1,3 +1,6 @@
+//! Tool to generate different types of keys used by the proving system.
+//!
+//! It can generate verification keys, setup keys, and also commitments.
 use std::collections::HashMap;
 
 use anyhow::Context as _;
@@ -15,10 +18,7 @@ use zkevm_test_harness::{
 use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerStorageType;
 use zksync_vk_setup_data_server_fri::{
     keystore::Keystore,
-    setup_data_generator::{
-        generate_all_cpu_setup_data, generate_all_gpu_setup_data, generate_cpu_setup_data,
-        generate_gpu_setup_data,
-    },
+    setup_data_generator::{CPUSetupDataGenerator, GPUSetupDataGenerator, SetupDataGenerator},
 };
 
 mod commitment_generator;
@@ -80,43 +80,53 @@ enum CircuitSelector {
     Basic,
 }
 
+#[derive(Debug, Parser)]
+struct GeneratorOptions {
+    circuits_type: CircuitSelector,
+
+    /// Specify for which circuit to generate the keys.
+    #[arg(long)]
+    numeric_circuit: Option<u8>,
+
+    /// If true, then setup keys are not written and only md5 sum is printed.
+    #[arg(long, default_value = "false")]
+    dry_run: bool,
+
+    #[arg(long)]
+    path: Option<String>,
+
+    #[arg(long)]
+    setup_path: Option<String>,
+}
+
 #[derive(Debug, Subcommand)]
 enum Command {
     /// Generates verification keys (and finalization hints) for all the basic & leaf circuits.
     /// Used for verification.
     #[command(name = "generate-vk")]
-    GenerateVerificationKeys {},
+    GenerateVerificationKeys {
+        #[arg(long)]
+        path: Option<String>,
+    },
     /// Generates setup keys (used by the CPU prover).
     #[command(name = "generate-sk")]
     GenerateSetupKeys {
-        circuits_type: CircuitSelector,
-
-        /// Specify for which circuit to generate the keys.
-        #[arg(long)]
-        numeric_circuit: Option<u8>,
-
-        /// If true, then setup keys are not written and only md5 sum is printed.
-        #[arg(long, default_value = "false")]
-        dry_run: bool,
+        #[command(flatten)]
+        options: GeneratorOptions,
     },
     /// Generates setup keys (used by the GPU prover).
     #[command(name = "generate-sk-gpu")]
     GenerateGPUSetupKeys {
-        circuits_type: CircuitSelector,
-
-        /// Specify for which circuit to generate the keys.
-        #[arg(long)]
-        numeric_circuit: Option<u8>,
-
-        /// If true, then setup keys are not written and only md5 sum is printed.
-        #[arg(long, default_value = "false")]
-        dry_run: bool,
+        #[command(flatten)]
+        options: GeneratorOptions,
     },
     /// Generates and updates the commitments - used by the verification contracts.
     #[command(name = "update-commitments")]
     UpdateCommitments {
         #[arg(long, default_value = "true")]
         dryrun: bool,
+        #[arg(long)]
+        path: Option<String>,
     },
 }
 
@@ -132,6 +142,55 @@ fn print_stats(digests: HashMap<String, String>) -> anyhow::Result<()> {
     Ok(())
 }
 
+fn keystore_from_optional_path(path: Option<String>, setup_path: Option<String>) -> Keystore {
+    if let Some(path) = path {
+        return Keystore::new_with_optional_setup_path(path, setup_path);
+    }
+    if setup_path.is_some() {
+        panic!("--setup_path must not be set when --path is not set");
+    }
+    Keystore::default()
+}
+
+fn generate_setup_keys(
+    generator: &dyn SetupDataGenerator,
+    options: &GeneratorOptions,
+) -> anyhow::Result<()> {
+    match options.circuits_type {
+        CircuitSelector::All => {
+            let digests = generator.generate_all(options.dry_run)?;
+            tracing::info!("Setup keys md5(s):");
+            print_stats(digests)
+        }
+        CircuitSelector::Recursive => {
+            let digest = generator
+                .generate_and_write_setup_data(
+                    false,
+                    options
+                        .numeric_circuit
+                        .expect("--numeric-circuit must be provided"),
+                    options.dry_run,
+                )
+                .context("generate_setup_data()")?;
+            tracing::info!("digest: {:?}", digest);
+            Ok(())
+        }
+        CircuitSelector::Basic => {
+            let digest = generator
+                .generate_and_write_setup_data(
+                    true,
+                    options
+                        .numeric_circuit
+                        .expect("--numeric-circuit must be provided"),
+                    options.dry_run,
+                )
+                .context("generate_setup_data()")?;
+            tracing::info!("digest: {:?}", digest);
+            Ok(())
+        }
+    }
+}
+
 fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -142,84 +201,39 @@ fn main() -> anyhow::Result<()> {
         .init();
 
     let opt = Cli::parse();
-    // Setting key store from argument flags will come in next PR.
-    let keystore = Keystore::default();
 
     match opt.command {
-        Command::GenerateVerificationKeys {} => {
+        Command::GenerateVerificationKeys { path } => {
+            let keystore = keystore_from_optional_path(path, None);
             tracing::info!(
                 "Generating verification keys and storing them inside {:?}",
                 keystore.get_base_path()
             );
             generate_vks(&keystore).context("generate_vks()")
         }
-        Command::UpdateCommitments { dryrun } => read_and_update_contract_toml(&keystore, dryrun),
+        Command::UpdateCommitments { dryrun, path } => {
+            let keystore = keystore_from_optional_path(path, None);
 
-        Command::GenerateSetupKeys {
-            circuits_type,
-            numeric_circuit,
-            dry_run,
-        } => match circuits_type {
-            CircuitSelector::All => {
-                let digests = generate_all_cpu_setup_data(&keystore, dry_run)?;
-                tracing::info!("CPU Setup keys md5(s):");
-                print_stats(digests)
-            }
-            CircuitSelector::Recursive => {
-                let digest = generate_cpu_setup_data(
-                    &keystore,
-                    false,
-                    numeric_circuit.expect("--numeric-circuit must be provided"),
-                    dry_run,
-                )
-                .context("generate_cpu_setup_data()")?;
-                tracing::info!("digest: {:?}", digest);
-                Ok(())
-            }
-            CircuitSelector::Basic => {
-                let digest = generate_cpu_setup_data(
-                    &keystore,
-                    true,
-                    numeric_circuit.expect("--numeric-circuit must be provided"),
-                    dry_run,
-                )
-                .context("generate_cpu_setup_data()")?;
-                tracing::info!("digest: {:?}", digest);
-                Ok(())
-            }
-        },
-        Command::GenerateGPUSetupKeys {
-            circuits_type,
-            numeric_circuit,
-            dry_run,
-        } => match circuits_type {
-            CircuitSelector::All => {
-                let digests = generate_all_gpu_setup_data(&keystore, dry_run)?;
-                tracing::info!("GPU Setup keys md5(s):");
-                print_stats(digests)
-            }
-            CircuitSelector::Recursive => {
-                let digest = generate_gpu_setup_data(
-                    &keystore,
-                    false,
-                    numeric_circuit.expect("--numeric-circuit must be provided"),
-                    dry_run,
-                )
-                .context("generate_gpu_setup_data()")?;
-                tracing::info!("digest: {:?}", digest);
-                Ok(())
-            }
-            CircuitSelector::Basic => {
-                let digest = generate_gpu_setup_data(
-                    &keystore,
-                    true,
-                    numeric_circuit.expect("--numeric-circuit must be provided"),
-                    dry_run,
-                )
-                .context("generate_gpu_setup_data()")?;
-                tracing::info!("digest: {:?}", digest);
-                Ok(())
-            }
-        },
+            read_and_update_contract_toml(&keystore, dryrun)
+        }
+
+        Command::GenerateSetupKeys { options } => {
+            let generator = CPUSetupDataGenerator {
+                keystore: keystore_from_optional_path(
+                    options.path.clone(),
+                    options.setup_path.clone(),
+                ),
+            };
+            generate_setup_keys(&generator, &options)
+        }
+        Command::GenerateGPUSetupKeys { options } => {
+            let generator = GPUSetupDataGenerator {
+                keystore: keystore_from_optional_path(
+                    options.path.clone(),
+                    options.setup_path.clone(),
+                ),
+            };
+            generate_setup_keys(&generator, &options)
+        }
     }
 }
