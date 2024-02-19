@@ -11,7 +11,7 @@ use zksync_prover_fri_types::{
 };
 use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
 use zksync_vk_setup_data_server_fri::{
-    keystore::Keystore, setup_data_generator::generate_setup_data_common, GoldilocksProverSetupData,
+    keystore::Keystore, setup_data_generator::generate_setup_data_common,
 };
 
 fn compare_serialized<T: Serialize>(expected: &T, actual: &T) {
