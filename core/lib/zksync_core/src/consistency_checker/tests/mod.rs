@@ -20,14 +20,16 @@ use zksync_types::{
 };
 
 use super::*;
-use crate::utils::testonly::{create_l1_batch, create_l1_batch_metadata};
+use crate::utils::testonly::{
+    create_l1_batch, create_l1_batch_metadata, l1_batch_metadata_to_commitment_artifacts,
+};
 
 /// **NB.** For tests to run correctly, the returned value must be deterministic (i.e., depend only on `number`).
 pub(crate) fn create_l1_batch_with_metadata(number: u32) -> L1BatchWithMetadata {
     L1BatchWithMetadata {
         header: create_l1_batch(number),
         metadata: create_l1_batch_metadata(number),
-        factory_deps: vec![],
+        raw_published_factory_deps: vec![],
     }
 }
 
@@ -37,7 +39,7 @@ pub(crate) fn create_pre_boojum_l1_batch_with_metadata(number: u32) -> L1BatchWi
     let mut l1_batch = L1BatchWithMetadata {
         header: create_l1_batch(number),
         metadata: create_l1_batch_metadata(number),
-        factory_deps: vec![],
+        raw_published_factory_deps: vec![],
     };
     l1_batch.header.protocol_version = Some(PRE_BOOJUM_PROTOCOL_VERSION);
     l1_batch.metadata.bootloader_initial_content_commitment = None;
@@ -70,21 +72,35 @@ pub(crate) fn create_mock_checker(
     pool: ConnectionPool,
     l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
 ) -> ConsistencyChecker {
+    let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
     ConsistencyChecker {
         contract: zksync_contracts::zksync_contract(),
         max_batches_to_recheck: 100,
         sleep_interval: Duration::from_millis(10),
         l1_client: Box::new(client),
-        l1_batch_updater: Box::new(()),
+        event_handler: Box::new(health_updater),
         l1_data_mismatch_behavior: L1DataMismatchBehavior::Bail,
         pool,
         l1_batch_commit_data_generator,
+        health_check,
     }
 }
 
-impl UpdateCheckedBatch for mpsc::UnboundedSender<L1BatchNumber> {
+impl HandleConsistencyCheckerEvent for mpsc::UnboundedSender<L1BatchNumber> {
+    fn initialize(&mut self) {
+        // Do nothing
+    }
+
+    fn set_first_batch_to_check(&mut self, _first_batch_to_check: L1BatchNumber) {
+        // Do nothing
+    }
+
     fn update_checked_batch(&mut self, last_checked_batch: L1BatchNumber) {
         self.send(last_checked_batch).ok();
+    }
+
+    fn report_inconsistent_batch(&mut self, _number: L1BatchNumber) {
+        // Do nothing
     }
 }
 
@@ -203,11 +219,14 @@ impl SaveAction<'_> {
             Self::SaveMetadata(l1_batch) => {
                 storage
                     .blocks_dal()
-                    .save_l1_batch_metadata(
+                    .save_l1_batch_tree_data(l1_batch.header.number, &l1_batch.metadata.tree_data())
+                    .await
+                    .unwrap();
+                storage
+                    .blocks_dal()
+                    .save_l1_batch_commitment_artifacts(
                         l1_batch.header.number,
-                        &l1_batch.metadata,
-                        H256::default(),
-                        l1_batch.header.protocol_version.unwrap().is_pre_boojum(),
+                        &l1_batch_metadata_to_commitment_artifacts(&l1_batch.metadata),
                     )
                     .await
                     .unwrap();

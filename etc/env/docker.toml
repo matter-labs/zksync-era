@@ -1,5 +1,7 @@
 database_url = "postgres://postgres@postgres/zksync_local"
+database_prover_url = "postgres://postgres@postgres/prover_local"
 test_database_url = "postgres://postgres@host:5433/zksync_local_test"
+test_database_prover_url="postgres://postgres@host:5433/prover_local_test"
 
 # for loadtest
 l1_rpc_address = "http://geth:8545"
@@ -10,3 +12,5 @@ web3_url = "http://geth:8545"
 [chain.state_keeper]
 miniblock_iteration_interval = 50
 
+[_metadata]
+base = ["dev.toml"]

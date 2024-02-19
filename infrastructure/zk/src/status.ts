@@ -102,7 +102,7 @@ async function compareVerificationKeys() {
         return;
     }
 
-    let protocol_version = await query('select recursion_scheduler_level_vk_hash from prover_protocol_versions');
+    let protocol_version = await query('select recursion_scheduler_level_vk_hash from prover_fri_protocol_versions');
     if (protocol_version.rowCount != 1) {
         console.log(`${redStart}Got ${protocol_version.rowCount} rows with protocol versions, expected 1${resetColor}`);
         return;

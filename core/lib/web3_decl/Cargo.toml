@@ -20,6 +20,7 @@ jsonrpsee = { version = "0.21.0", default-features = false, features = [
     "macros",
 ] }
 chrono = "0.4"
+pin-project-lite = "0.2.13"
 zksync_types = { path = "../../lib/types" }
 
 [features]

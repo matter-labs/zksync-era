@@ -1,22 +1,21 @@
 use std::{collections::HashMap, fmt, time::Duration};
 
-use anyhow::Context;
+use anyhow::Context as _;
 use bigdecimal::BigDecimal;
 use itertools::Itertools;
 use sqlx::{error, types::chrono::NaiveDateTime};
 use zksync_types::{
     block::MiniblockExecutionData,
     fee::TransactionExecutionMetrics,
-    get_nonce_key,
     l1::L1Tx,
     l2::L2Tx,
     protocol_version::ProtocolUpgradeTx,
     tx::{tx_execution_info::TxExecutionStatus, TransactionExecutionResult},
     vm_trace::{Call, VmExecutionTrace},
-    Address, ExecuteTransactionCommon, L1BatchNumber, L1BlockNumber, MiniblockNumber, Nonce,
-    PriorityOpId, Transaction, H256, PROTOCOL_UPGRADE_TX_TYPE, U256,
+    Address, ExecuteTransactionCommon, L1BatchNumber, L1BlockNumber, MiniblockNumber, PriorityOpId,
+    Transaction, H256, PROTOCOL_UPGRADE_TX_TYPE, U256,
 };
-use zksync_utils::{h256_to_u32, u256_to_big_decimal};
+use zksync_utils::u256_to_big_decimal;
 
 use crate::{
     instrument::InstrumentExt,
@@ -257,6 +256,27 @@ impl TransactionsDal<'_, '_> {
     ) -> L2TxSubmissionResult {
         {
             let tx_hash = tx.hash();
+            let is_duplicate = sqlx::query!(
+                r#"
+                SELECT
+                    TRUE
+                FROM
+                    transactions
+                WHERE
+                    hash = $1
+                "#,
+                tx_hash.as_bytes(),
+            )
+            .fetch_optional(self.storage.conn())
+            .await
+            .unwrap()
+            .is_some();
+
+            if is_duplicate {
+                tracing::debug!("Prevented inserting duplicate L2 transaction {tx_hash:?} to DB");
+                return L2TxSubmissionResult::Duplicate;
+            }
+
             let initiator_address = tx.initiator_account();
             let contract_address = tx.execute.contract_address.as_bytes();
             let json_data = serde_json::to_value(&tx.execute)
@@ -412,6 +432,7 @@ impl TransactionsDal<'_, '_> {
                     if let error::Error::Database(ref error) = err {
                         if let Some(constraint) = error.constraint() {
                             if constraint == "transactions_pkey" {
+                                tracing::debug!("Attempted to insert duplicate L2 transaction {tx_hash:?} to DB");
                                 return L2TxSubmissionResult::Duplicate;
                             }
                         }
@@ -787,7 +808,7 @@ impl TransactionsDal<'_, '_> {
                 )
                 .instrument("insert_call_tracer")
                 .report_latency()
-                .execute(transaction.conn())
+                .execute(&mut transaction)
                 .await
                 .unwrap();
             }
@@ -886,7 +907,7 @@ impl TransactionsDal<'_, '_> {
         gas_per_pubdata: u32,
         fee_per_gas: u64,
         limit: usize,
-    ) -> sqlx::Result<(Vec<Transaction>, HashMap<Address, Nonce>)> {
+    ) -> sqlx::Result<Vec<Transaction>> {
         let stashed_addresses: Vec<_> = stashed_accounts.iter().map(Address::as_bytes).collect();
         sqlx::query!(
             r#"
@@ -969,43 +990,8 @@ impl TransactionsDal<'_, '_> {
         .fetch_all(self.storage.conn())
         .await?;
 
-        let nonce_keys: HashMap<_, _> = transactions
-            .iter()
-            .map(|tx| {
-                let address = Address::from_slice(&tx.initiator_address);
-                let nonce_key = get_nonce_key(&address).hashed_key();
-                (nonce_key, address)
-            })
-            .collect();
-
-        let storage_keys: Vec<_> = nonce_keys.keys().map(H256::as_bytes).collect();
-        let nonce_rows = sqlx::query!(
-            r#"
-            SELECT
-                hashed_key,
-                value AS "value!"
-            FROM
-                storage
-            WHERE
-                hashed_key = ANY ($1)
-            "#,
-            &storage_keys as &[&[u8]],
-        )
-        .fetch_all(self.storage.conn())
-        .await?;
-
-        let nonces = nonce_rows
-            .into_iter()
-            .map(|row| {
-                let nonce_key = H256::from_slice(&row.hashed_key);
-                let nonce = Nonce(h256_to_u32(H256::from_slice(&row.value)));
-                (nonce_keys[&nonce_key], nonce)
-            })
-            .collect();
-        Ok((
-            transactions.into_iter().map(|tx| tx.into()).collect(),
-            nonces,
-        ))
+        let transactions = transactions.into_iter().map(|tx| tx.into()).collect();
+        Ok(transactions)
     }
 
     pub async fn reset_mempool(&mut self) -> sqlx::Result<()> {
@@ -1155,7 +1141,7 @@ impl TransactionsDal<'_, '_> {
         .fetch_all(self.storage.conn())
         .await?;
 
-        self.get_miniblocks_to_execute(transactions).await
+        self.map_transactions_to_execution_data(transactions).await
     }
 
     /// Returns miniblocks with their transactions to be used in VM execution.
@@ -1183,10 +1169,10 @@ impl TransactionsDal<'_, '_> {
         .fetch_all(self.storage.conn())
         .await?;
 
-        self.get_miniblocks_to_execute(transactions).await
+        self.map_transactions_to_execution_data(transactions).await
     }
 
-    async fn get_miniblocks_to_execute(
+    async fn map_transactions_to_execution_data(
         &mut self,
         transactions: Vec<StorageTransaction>,
     ) -> anyhow::Result<Vec<MiniblockExecutionData>> {
@@ -1204,14 +1190,10 @@ impl TransactionsDal<'_, '_> {
         if transactions_by_miniblock.is_empty() {
             return Ok(Vec::new());
         }
-        let from_miniblock = transactions_by_miniblock
-            .first()
-            .context("No first transaction found for miniblock")?
-            .0;
-        let to_miniblock = transactions_by_miniblock
-            .last()
-            .context("No last transaction found for miniblock")?
-            .0;
+        let from_miniblock = transactions_by_miniblock.first().unwrap().0;
+        let to_miniblock = transactions_by_miniblock.last().unwrap().0;
+        // `unwrap()`s are safe; `transactions_by_miniblock` is not empty as checked above
+
         let miniblock_data = sqlx::query!(
             r#"
             SELECT
@@ -1230,9 +1212,15 @@ impl TransactionsDal<'_, '_> {
         .fetch_all(self.storage.conn())
         .await?;
 
-        let prev_hashes = sqlx::query!(
+        anyhow::ensure!(
+            miniblock_data.len() == transactions_by_miniblock.len(),
+            "Not enough miniblock data retrieved"
+        );
+
+        let prev_miniblock_hashes = sqlx::query!(
             r#"
             SELECT
+                number,
                 hash
             FROM
                 miniblocks
@@ -1247,31 +1235,57 @@ impl TransactionsDal<'_, '_> {
         .fetch_all(self.storage.conn())
         .await?;
 
-        assert_eq!(
-            miniblock_data.len(),
-            transactions_by_miniblock.len(),
-            "Not enough miniblock data retrieved"
-        );
-        assert_eq!(
-            prev_hashes.len(),
-            transactions_by_miniblock.len(),
-            "Not enough previous hashes retrieved"
-        );
-
-        Ok(transactions_by_miniblock
+        let prev_miniblock_hashes: HashMap<_, _> = prev_miniblock_hashes
             .into_iter()
-            .zip(miniblock_data)
-            .zip(prev_hashes)
-            .map(
-                |(((number, txs), miniblock_data_row), prev_hash_row)| MiniblockExecutionData {
-                    number,
-                    timestamp: miniblock_data_row.timestamp as u64,
-                    prev_block_hash: H256::from_slice(&prev_hash_row.hash),
-                    virtual_blocks: miniblock_data_row.virtual_blocks as u32,
-                    txs,
-                },
-            )
-            .collect())
+            .map(|row| {
+                (
+                    MiniblockNumber(row.number as u32),
+                    H256::from_slice(&row.hash),
+                )
+            })
+            .collect();
+
+        let mut data = Vec::with_capacity(transactions_by_miniblock.len());
+        let it = transactions_by_miniblock.into_iter().zip(miniblock_data);
+        for ((number, txs), miniblock_row) in it {
+            let prev_miniblock_number = number - 1;
+            let prev_block_hash = match prev_miniblock_hashes.get(&prev_miniblock_number) {
+                Some(hash) => *hash,
+                None => {
+                    // Can occur after snapshot recovery; the first previous miniblock may not be present
+                    // in the storage.
+                    let row = sqlx::query!(
+                        r#"
+                        SELECT
+                            miniblock_hash
+                        FROM
+                            snapshot_recovery
+                        WHERE
+                            miniblock_number = $1
+                        "#,
+                        prev_miniblock_number.0 as i32
+                    )
+                    .fetch_optional(self.storage.conn())
+                    .await?
+                    .with_context(|| {
+                        format!(
+                            "miniblock #{prev_miniblock_number} is not in storage, and its hash is not \
+                             in snapshot recovery data"
+                        )
+                    })?;
+                    H256::from_slice(&row.miniblock_hash)
+                }
+            };
+
+            data.push(MiniblockExecutionData {
+                number,
+                timestamp: miniblock_row.timestamp as u64,
+                prev_block_hash,
+                virtual_blocks: miniblock_row.virtual_blocks as u32,
+                txs,
+            });
+        }
+        Ok(data)
     }
 
     pub async fn get_tx_locations(&mut self, l1_batch_number: L1BatchNumber) -> TxLocations {

@@ -75,7 +75,7 @@ pub(crate) async fn normal_checker_function(
 
     let (l1_batch_updates_sender, mut l1_batch_updates_receiver) = mpsc::unbounded_channel();
     let checker = ConsistencyChecker {
-        l1_batch_updater: Box::new(l1_batch_updates_sender),
+        event_handler: Box::new(l1_batch_updates_sender),
         ..create_mock_checker(client, pool.clone(), l1_batch_commit_data_generator)
     };
 
@@ -151,7 +151,7 @@ pub(crate) async fn checker_processes_pre_boojum_batches(
 
     let (l1_batch_updates_sender, mut l1_batch_updates_receiver) = mpsc::unbounded_channel();
     let checker = ConsistencyChecker {
-        l1_batch_updater: Box::new(l1_batch_updates_sender),
+        event_handler: Box::new(l1_batch_updates_sender),
         ..create_mock_checker(client, pool.clone(), l1_batch_commit_data_generator)
     };
 
@@ -226,7 +226,7 @@ pub async fn checker_functions_after_snapshot_recovery(
 
     let (l1_batch_updates_sender, mut l1_batch_updates_receiver) = mpsc::unbounded_channel();
     let checker = ConsistencyChecker {
-        l1_batch_updater: Box::new(l1_batch_updates_sender),
+        event_handler: Box::new(l1_batch_updates_sender),
         ..create_mock_checker(client, pool.clone(), l1_batch_commit_data_generator)
     };
     let (stop_sender, stop_receiver) = watch::channel(false);

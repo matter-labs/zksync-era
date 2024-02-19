@@ -1,6 +1,5 @@
 use std::{collections::HashMap, convert::TryInto};
 
-use bigdecimal::{BigDecimal, Zero};
 use zksync_dal::StorageProcessor;
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
@@ -16,10 +15,11 @@ use zksync_types::{
     l2_to_l1_log::L2ToL1Log,
     tokens::ETHEREUM_ADDRESS,
     transaction_request::CallRequest,
+    utils::storage_key_for_standard_token_balance,
     AccountTreeId, L1BatchNumber, MiniblockNumber, StorageKey, Transaction, L1_MESSENGER_ADDRESS,
     L2_ETH_TOKEN_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
 };
-use zksync_utils::{address_to_h256, ratio_to_big_decimal_normalized};
+use zksync_utils::{address_to_h256, h256_to_u256};
 use zksync_web3_decl::{
     error::Web3Error,
     types::{Address, Token, H256},
@@ -176,37 +176,6 @@ impl ZksNamespace {
     }
 
     #[tracing::instrument(skip(self))]
-    pub async fn get_token_price_impl(&self, l2_token: Address) -> Result<BigDecimal, Web3Error> {
-        const METHOD_NAME: &str = "get_token_price";
-
-        /// Amount of possible symbols after the decimal dot in the USD.
-        /// Used to convert `Ratio<BigUint>` to `BigDecimal`.
-        const USD_PRECISION: usize = 100;
-        /// Minimum amount of symbols after the decimal dot in the USD.
-        /// Used to convert `Ratio<BigUint>` to `BigDecimal`.
-        const MIN_PRECISION: usize = 2;
-
-        let method_latency = API_METRICS.start_call(METHOD_NAME);
-        let token_price_result = {
-            let mut storage = self.access_storage(METHOD_NAME).await?;
-            storage.tokens_web3_dal().get_token_price(&l2_token).await
-        };
-
-        let result = match token_price_result {
-            Ok(Some(price)) => Ok(ratio_to_big_decimal_normalized(
-                &price.usd_price,
-                USD_PRECISION,
-                MIN_PRECISION,
-            )),
-            Ok(None) => Ok(BigDecimal::zero()),
-            Err(err) => Err(internal_error(METHOD_NAME, err)),
-        };
-
-        method_latency.observe();
-        result
-    }
-
-    #[tracing::instrument(skip(self))]
     pub async fn get_all_account_balances_impl(
         &self,
         address: Address,
@@ -215,20 +184,38 @@ impl ZksNamespace {
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
         let mut storage = self.access_storage(METHOD_NAME).await?;
-        let balances = storage
-            .accounts_dal()
-            .get_balances_for_address(address)
+        let tokens = storage
+            .tokens_dal()
+            .get_all_l2_token_addresses()
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err))?;
+        let hashed_balance_keys = tokens.iter().map(|&token_address| {
+            let token_account = AccountTreeId::new(if token_address == ETHEREUM_ADDRESS {
+                L2_ETH_TOKEN_ADDRESS
+            } else {
+                token_address
+            });
+            let hashed_key =
+                storage_key_for_standard_token_balance(token_account, &address).hashed_key();
+            (hashed_key, (hashed_key, token_address))
+        });
+        let (hashed_balance_keys, hashed_key_to_token_address): (Vec<_>, HashMap<_, _>) =
+            hashed_balance_keys.unzip();
+
+        let balance_values = storage
+            .storage_web3_dal()
+            .get_values(&hashed_balance_keys)
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?;
 
-        let balances = balances
+        let balances = balance_values
             .into_iter()
-            .map(|(address, balance)| {
-                if address == L2_ETH_TOKEN_ADDRESS {
-                    (ETHEREUM_ADDRESS, balance)
-                } else {
-                    (address, balance)
+            .filter_map(|(hashed_key, balance)| {
+                let balance = h256_to_u256(balance);
+                if balance.is_zero() {
+                    return None;
                 }
+                Some((hashed_key_to_token_address[&hashed_key], balance))
             })
             .collect();
         method_latency.observe();
@@ -533,7 +520,7 @@ impl ZksNamespace {
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
         let mut storage = self.access_storage(METHOD_NAME).await?;
-        let bytecode = storage.storage_dal().get_factory_dep(hash).await;
+        let bytecode = storage.factory_deps_dal().get_factory_dep(hash).await;
 
         method_latency.observe();
         Ok(bytecode)

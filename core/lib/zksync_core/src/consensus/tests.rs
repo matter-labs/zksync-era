@@ -197,7 +197,7 @@ async fn test_fetcher() {
     // Run validator and fetchers in parallel.
     scope::run!(ctx, |ctx, s| async {
         // Run validator.
-        let pool = template.create_db().await?;
+        let pool = template.create_db(4).await?.build().await?;
         let (mut validator, runner) = testonly::StateKeeper::new(pool).await?;
         s.spawn_bg(async {
             runner
@@ -212,7 +212,7 @@ async fn test_fetcher() {
         let mut fetchers = vec![];
         for (i, cfg) in fetcher_cfgs.into_iter().enumerate() {
             let i = NoCopy::from(i);
-            let pool = template.create_db().await?;
+            let pool = template.create_db(4).await?.build().await?;
             let (fetcher, runner) = testonly::StateKeeper::new(pool).await?;
             fetchers.push(fetcher.store());
             s.spawn_bg(async {
@@ -293,13 +293,13 @@ async fn test_fetcher_backfill_certs() {
     // Run validator and fetchers in parallel.
     scope::run!(ctx, |ctx, s| async {
         // Run validator.
-        let pool = template.create_db().await?;
+        let pool = template.create_db(4).await?.build().await?;
         let (mut validator, runner) = testonly::StateKeeper::new(pool).await?;
         s.spawn_bg(runner.run(ctx));
         s.spawn_bg(cfg.run(ctx, validator.pool.clone()));
 
         // Run fetcher.
-        let pool = template.create_db().await?;
+        let pool = template.create_db(4).await?.build().await?;
         let (fetcher, runner) = testonly::StateKeeper::new(pool).await?;
         let fetcher_store = fetcher.store();
         s.spawn_bg(runner.run(ctx));

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use zksync_types::{
-    commitment::L1BatchWithMetadata,
+    commitment::{pre_boojum_serialize_commitments, L1BatchWithMetadata},
     ethabi::Token,
     l1_batch_commit_data_generator::L1BatchCommitDataGenerator,
     web3::{contract::Error as Web3ContractError, error::Error as Web3ApiError},
@@ -69,9 +69,9 @@ fn pre_boojum_into_token(l1_batch_commit_with_metadata: &L1BatchWithMetadata) ->
         Token::Uint(U256::from(header.l1_tx_count)),
         Token::FixedBytes(metadata.l2_l1_merkle_root.as_bytes().to_vec()),
         Token::FixedBytes(header.priority_ops_onchain_data_hash().as_bytes().to_vec()),
-        Token::Bytes(metadata.initial_writes_compressed.clone()),
-        Token::Bytes(metadata.repeated_writes_compressed.clone()),
-        Token::Bytes(metadata.l2_l1_messages_compressed.clone()),
+        Token::Bytes(metadata.initial_writes_compressed.clone().unwrap()),
+        Token::Bytes(metadata.repeated_writes_compressed.clone().unwrap()),
+        Token::Bytes(pre_boojum_serialize_commitments(&header.l2_to_l1_logs)),
         Token::Array(
             header
                 .l2_to_l1_messages
@@ -81,7 +81,7 @@ fn pre_boojum_into_token(l1_batch_commit_with_metadata: &L1BatchWithMetadata) ->
         ),
         Token::Array(
             l1_batch_commit_with_metadata
-                .factory_deps
+                .raw_published_factory_deps
                 .iter()
                 .map(|bytecode| Token::Bytes(bytecode.to_vec()))
                 .collect(),

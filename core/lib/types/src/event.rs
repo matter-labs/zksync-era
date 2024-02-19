@@ -102,7 +102,7 @@ impl From<L1MessengerL2ToL1Log> for L2ToL1Log {
     }
 }
 
-static L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE: Lazy<H256> = Lazy::new(|| {
+pub static L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE: Lazy<H256> = Lazy::new(|| {
     ethabi::long_signature(
         "BytecodeL1PublicationRequested",
         &[ethabi::ParamType::FixedBytes(32)],

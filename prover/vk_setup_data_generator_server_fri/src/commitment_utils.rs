@@ -15,21 +15,22 @@ use zksync_types::{
     H256,
 };
 
-use crate::{get_recursive_layer_vk_for_circuit_type, utils::get_leaf_vk_params};
+use crate::{keystore::Keystore, utils::get_leaf_vk_params};
 
 lazy_static! {
     // TODO: do not initialize a static const with data read in runtime.
-    static ref COMMITMENTS: Lazy<L1VerifierConfig> = Lazy::new(|| { circuit_commitments().unwrap() });
+    static ref COMMITMENTS: Lazy<L1VerifierConfig> = Lazy::new(|| { circuit_commitments(&Keystore::default()).unwrap() });
 }
 
+#[derive(Debug)]
 pub struct VkCommitments {
     pub leaf: String,
     pub node: String,
     pub scheduler: String,
 }
 
-fn circuit_commitments() -> anyhow::Result<L1VerifierConfig> {
-    let commitments = generate_commitments().context("generate_commitments()")?;
+fn circuit_commitments(keystore: &Keystore) -> anyhow::Result<L1VerifierConfig> {
+    let commitments = generate_commitments(keystore).context("generate_commitments()")?;
     let snark_wrapper_vk = std::env::var("CONTRACTS_SNARK_WRAPPER_VK_HASH")
         .context("SNARK wrapper VK not found in the config")?;
     Ok(L1VerifierConfig {
@@ -45,7 +46,7 @@ fn circuit_commitments() -> anyhow::Result<L1VerifierConfig> {
         // we load the SNARK-wrapper verification key.
         // This is due to the fact that these keys are used only for picking the
         // prover jobs / witgen jobs from the DB. The keys are matched with the ones in
-        // `prover_protocol_versions` table, which has the SNARK-wrapper verification key.
+        // `prover_fri_protocol_versions` table, which has the SNARK-wrapper verification key.
         // This is OK because if the FRI VK changes, the SNARK-wrapper VK will change as well.
         // You can actually compute the SNARK-wrapper VK from the FRI VK, but this is not yet
         // implemented in the `zkevm_test_harness`, so instead we're loading it from the env.
@@ -54,8 +55,8 @@ fn circuit_commitments() -> anyhow::Result<L1VerifierConfig> {
     })
 }
 
-pub fn generate_commitments() -> anyhow::Result<VkCommitments> {
-    let leaf_vk_params = get_leaf_vk_params().context("get_leaf_vk_params()")?;
+pub fn generate_commitments(keystore: &Keystore) -> anyhow::Result<VkCommitments> {
+    let leaf_vk_params = get_leaf_vk_params(keystore).context("get_leaf_vk_params()")?;
     let leaf_layer_params = leaf_vk_params
         .iter()
         .map(|el| el.1.clone())
@@ -64,16 +65,18 @@ pub fn generate_commitments() -> anyhow::Result<VkCommitments> {
         .unwrap();
     let leaf_vk_commitment = compute_leaf_vks_and_params_commitment(leaf_layer_params);
 
-    let node_vk = get_recursive_layer_vk_for_circuit_type(
-        ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,
-    )
-    .context("get_recursive_layer_vk_for_circuit_type(NodeLayerCircuit)")?;
+    let node_vk = keystore
+        .load_recursive_layer_verification_key(
+            ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,
+        )
+        .context("get_recursive_layer_vk_for_circuit_type(NodeLayerCircuit)")?;
     let node_vk_commitment = compute_node_vk_commitment(node_vk.clone());
 
-    let scheduler_vk = get_recursive_layer_vk_for_circuit_type(
-        ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8,
-    )
-    .context("get_recursive_layer_vk_for_circuit_type(SchedulerCircuit)")?;
+    let scheduler_vk = keystore
+        .load_recursive_layer_verification_key(
+            ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8,
+        )
+        .context("get_recursive_layer_vk_for_circuit_type(SchedulerCircuit)")?;
     let scheduler_vk_commitment = compute_node_vk_commitment(scheduler_vk.clone());
 
     let hex_concatenator = |hex_array: [GoldilocksField; 4]| {
