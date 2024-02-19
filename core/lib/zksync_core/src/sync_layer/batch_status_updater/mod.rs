@@ -5,18 +5,18 @@ use std::{fmt, time::Duration};
 use anyhow::Context as _;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use serde::Serialize;
 #[cfg(test)]
 use tokio::sync::mpsc;
 use tokio::sync::watch;
 use zksync_dal::{ConnectionPool, StorageProcessor};
-use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_types::{
     aggregated_operations::AggregatedActionType, api, L1BatchNumber, MiniblockNumber, H256,
 };
 use zksync_web3_decl::{
-    error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult},
-    jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
+    jsonrpsee::{
+        core::ClientError,
+        http_client::{HttpClient, HttpClientBuilder},
+    },
     namespaces::ZksNamespaceClient,
 };
 
@@ -60,7 +60,7 @@ impl StatusChanges {
 #[derive(Debug, thiserror::Error)]
 enum UpdaterError {
     #[error("JSON-RPC error communicating with main node")]
-    Web3(#[from] EnrichedClientError),
+    Web3(#[from] ClientError),
     #[error("Internal error")]
     Internal(#[from] anyhow::Error),
 }
@@ -77,12 +77,12 @@ trait MainNodeClient: fmt::Debug + Send + Sync {
     async fn resolve_l1_batch_to_miniblock(
         &self,
         number: L1BatchNumber,
-    ) -> EnrichedClientResult<Option<MiniblockNumber>>;
+    ) -> Result<Option<MiniblockNumber>, ClientError>;
 
     async fn block_details(
         &self,
         number: MiniblockNumber,
-    ) -> EnrichedClientResult<Option<api::BlockDetails>>;
+    ) -> Result<Option<api::BlockDetails>, ClientError>;
 }
 
 #[async_trait]
@@ -90,12 +90,10 @@ impl MainNodeClient for HttpClient {
     async fn resolve_l1_batch_to_miniblock(
         &self,
         number: L1BatchNumber,
-    ) -> EnrichedClientResult<Option<MiniblockNumber>> {
+    ) -> Result<Option<MiniblockNumber>, ClientError> {
         let request_latency = FETCHER_METRICS.requests[&FetchStage::GetMiniblockRange].start();
         let number = self
             .get_miniblock_range(number)
-            .rpc_context("resolve_l1_batch_to_miniblock")
-            .with_arg("number", &number)
             .await?
             .map(|(start, _)| MiniblockNumber(start.as_u32()));
         request_latency.observe();
@@ -105,20 +103,16 @@ impl MainNodeClient for HttpClient {
     async fn block_details(
         &self,
         number: MiniblockNumber,
-    ) -> EnrichedClientResult<Option<api::BlockDetails>> {
+    ) -> Result<Option<api::BlockDetails>, ClientError> {
         let request_latency = FETCHER_METRICS.requests[&FetchStage::GetBlockDetails].start();
-        let details = self
-            .get_block_details(number)
-            .rpc_context("block_details")
-            .with_arg("number", &number)
-            .await?;
+        let details = self.get_block_details(number).await?;
         request_latency.observe();
         Ok(details)
     }
 }
 
 /// Cursors for the last executed / proven / committed L1 batch numbers.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 struct UpdaterCursor {
     last_executed_l1_batch: L1BatchNumber,
     last_proven_l1_batch: L1BatchNumber,
@@ -244,7 +238,6 @@ impl UpdaterCursor {
 pub struct BatchStatusUpdater {
     client: Box<dyn MainNodeClient>,
     pool: ConnectionPool,
-    health_updater: HealthUpdater,
     sleep_interval: Duration,
     /// Test-only sender of status changes each time they are produced and applied to the storage.
     #[cfg(test)]
@@ -273,15 +266,10 @@ impl BatchStatusUpdater {
         Self {
             client,
             pool,
-            health_updater: ReactiveHealthCheck::new("batch_status_updater").1,
             sleep_interval,
             #[cfg(test)]
             changes_sender: mpsc::unbounded_channel().0,
         }
-    }
-
-    pub fn health_check(&self) -> ReactiveHealthCheck {
-        self.health_updater.subscribe()
     }
 
     pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
@@ -289,8 +277,6 @@ impl BatchStatusUpdater {
         let mut cursor = UpdaterCursor::new(&mut storage).await?;
         drop(storage);
         tracing::info!("Initialized batch status updater cursor: {cursor:?}");
-        self.health_updater
-            .update(Health::from(HealthStatus::Ready).with_details(cursor));
 
         loop {
             if *stop_receiver.borrow() {
@@ -315,8 +301,6 @@ impl BatchStatusUpdater {
             } else {
                 self.apply_status_changes(&mut cursor, status_changes)
                     .await?;
-                self.health_updater
-                    .update(Health::from(HealthStatus::Ready).with_details(cursor));
             }
         }
     }

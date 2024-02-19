@@ -163,7 +163,7 @@ async fn insert_factory_deps(
     let factory_deps = indices
         .map(|i| (H256::repeat_byte(i), vec![i; 64]))
         .collect();
-    conn.factory_deps_dal()
+    conn.storage_dal()
         .insert_factory_deps(miniblock_number, &factory_deps)
         .await
         .unwrap();
@@ -369,7 +369,9 @@ async fn recovering_factory_deps_from_snapshot() {
         all_factory_deps.insert(bytecode_hash, bytecode.clone());
 
         let number = MiniblockNumber(number);
-        conn.factory_deps_dal()
+        // FIXME (PLA-589): don't store miniblocks once the corresponding foreign keys are removed
+        create_miniblock(&mut conn, number, vec![]).await;
+        conn.storage_dal()
             .insert_factory_deps(number, &HashMap::from([(bytecode_hash, bytecode)]))
             .await
             .unwrap();

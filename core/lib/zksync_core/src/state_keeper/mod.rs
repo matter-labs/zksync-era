@@ -8,13 +8,14 @@ use zksync_config::{
 use zksync_dal::ConnectionPool;
 use zksync_object_store::ObjectStore;
 
+use self::io::MempoolIO;
 pub use self::{
-    batch_executor::{main_executor::MainBatchExecutor, BatchExecutor},
-    io::{mempool::MempoolIO, MiniblockSealer, MiniblockSealerHandle, StateKeeperIO},
+    batch_executor::{L1BatchExecutorBuilder, MainBatchExecutorBuilder},
+    io::{MiniblockSealer, MiniblockSealerHandle},
     keeper::ZkSyncStateKeeper,
-    mempool_actor::MempoolFetcher,
-    seal_criteria::SequencerSealer,
-    types::MempoolGuard,
+};
+pub(crate) use self::{
+    mempool_actor::MempoolFetcher, seal_criteria::SequencerSealer, types::MempoolGuard,
 };
 use crate::fee_model::BatchFeeModelInputProvider;
 
@@ -44,7 +45,7 @@ pub(crate) async fn create_state_keeper(
     object_store: Arc<dyn ObjectStore>,
     stop_receiver: watch::Receiver<bool>,
 ) -> ZkSyncStateKeeper {
-    let batch_executor_base = MainBatchExecutor::new(
+    let batch_executor_base = MainBatchExecutorBuilder::new(
         db_config.state_keeper_db_path.clone(),
         pool.clone(),
         state_keeper_config.max_allowed_l2_tx_gas_limit.into(),
@@ -66,14 +67,13 @@ pub(crate) async fn create_state_keeper(
         state_keeper_config.validation_computational_gas_limit,
         network_config.zksync_network_id,
     )
-    .await
-    .expect("Failed initializing main node I/O for state keeper");
+    .await;
 
     let sealer = SequencerSealer::new(state_keeper_config);
     ZkSyncStateKeeper::new(
         stop_receiver,
         Box::new(io),
         Box::new(batch_executor_base),
-        Arc::new(sealer),
+        Box::new(sealer),
     )
 }

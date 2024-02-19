@@ -18,9 +18,8 @@ pub fn send_assembly(
     let started_at = Instant::now();
     let mut error_messages = vec![];
 
-    // 10 attempts, each waiting for 6 seconds => 1 minute wait time at most
     for _ in 0..10 {
-        match TcpStream::connect_timeout(socket_address, Duration::from_secs(6)) {
+        match TcpStream::connect(socket_address) {
             Ok(mut stream) => {
                 return send(&mut serialized, &mut stream)
                     .map(|result| (started_at.elapsed(), result))

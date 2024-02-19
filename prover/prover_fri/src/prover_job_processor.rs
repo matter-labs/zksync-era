@@ -25,7 +25,9 @@ use zksync_prover_fri_types::{
 use zksync_prover_fri_utils::fetch_next_circuit;
 use zksync_queued_job_processor::{async_trait, JobProcessor};
 use zksync_types::{basic_fri_types::CircuitIdRoundTuple, protocol_version::L1VerifierConfig};
-use zksync_vk_setup_data_server_fri::{keystore::Keystore, GoldilocksProverSetupData};
+use zksync_vk_setup_data_server_fri::{
+    get_cpu_setup_data_for_circuit_type, GoldilocksProverSetupData,
+};
 
 use crate::{
     metrics::{CircuitLabels, Layer, METRICS},
@@ -86,10 +88,9 @@ impl Prover {
                 .clone(),
             SetupLoadMode::FromDisk => {
                 let started_at = Instant::now();
-                let keystore = Keystore::default();
-                let artifact: GoldilocksProverSetupData = keystore
-                    .load_cpu_setup_data_for_circuit_type(key.clone())
-                    .context("get_cpu_setup_data_for_circuit_type()")?;
+                let artifact: GoldilocksProverSetupData =
+                    get_cpu_setup_data_for_circuit_type(key.clone())
+                        .context("get_cpu_setup_data_for_circuit_type()")?;
                 METRICS.gpu_setup_data_load_time[&key.circuit_id.to_string()]
                     .observe(started_at.elapsed());
 
@@ -298,11 +299,9 @@ pub fn load_setup_data_cache(config: &FriProverConfig) -> anyhow::Result<SetupLo
                 &config.specialized_group_id,
                 prover_setup_metadata_list
             );
-            let keystore = Keystore::default();
             for prover_setup_metadata in prover_setup_metadata_list {
                 let key = setup_metadata_to_setup_data_key(&prover_setup_metadata);
-                let setup_data = keystore
-                    .load_cpu_setup_data_for_circuit_type(key.clone())
+                let setup_data = get_cpu_setup_data_for_circuit_type(key.clone())
                     .context("get_cpu_setup_data_for_circuit_type()")?;
                 cache.insert(key, Arc::new(setup_data));
             }

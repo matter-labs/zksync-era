@@ -10,7 +10,7 @@ use zksync_config::GasAdjusterConfig;
 use zksync_eth_client::{Error, EthInterface};
 
 use self::metrics::METRICS;
-use super::L1TxParamsProvider;
+use super::{L1GasPriceProvider, L1TxParamsProvider};
 use crate::state_keeper::metrics::KEEPER_METRICS;
 
 mod metrics;
@@ -20,17 +20,14 @@ mod tests;
 /// This component keeps track of the median base_fee from the last `max_base_fee_samples` blocks.
 /// It is used to adjust the base_fee of transactions sent to L1.
 #[derive(Debug)]
-pub struct GasAdjuster {
+pub struct GasAdjuster<E> {
     pub(super) statistics: GasStatistics,
     pub(super) config: GasAdjusterConfig,
-    eth_client: Arc<dyn EthInterface>,
+    eth_client: E,
 }
 
-impl GasAdjuster {
-    pub async fn new(
-        eth_client: Arc<dyn EthInterface>,
-        config: GasAdjusterConfig,
-    ) -> Result<Self, Error> {
+impl<E: EthInterface> GasAdjuster<E> {
+    pub async fn new(eth_client: E, config: GasAdjusterConfig) -> Result<Self, Error> {
         // Subtracting 1 from the "latest" block number to prevent errors in case
         // the info about the latest block is not yet present on the node.
         // This sometimes happens on Infura.
@@ -111,10 +108,12 @@ impl GasAdjuster {
         }
         Ok(())
     }
+}
 
+impl<E: EthInterface> L1GasPriceProvider for GasAdjuster<E> {
     /// Returns the sum of base and priority fee, in wei, not considering time in mempool.
     /// Can be used to get an estimate of current gas price.
-    pub(crate) fn estimate_effective_gas_price(&self) -> u64 {
+    fn estimate_effective_gas_price(&self) -> u64 {
         if let Some(price) = self.config.internal_enforced_l1_gas_price {
             return price;
         }
@@ -128,13 +127,13 @@ impl GasAdjuster {
         self.bound_gas_price(calculated_price)
     }
 
-    pub(crate) fn estimate_effective_pubdata_price(&self) -> u64 {
+    fn estimate_effective_pubdata_price(&self) -> u64 {
         // For now, pubdata is only sent via calldata, so its price is pegged to the L1 gas price.
         self.estimate_effective_gas_price() * self.config.l1_gas_per_pubdata_byte
     }
 }
 
-impl L1TxParamsProvider for GasAdjuster {
+impl<E: EthInterface> L1TxParamsProvider for GasAdjuster<E> {
     // This is the method where we decide how much we are ready to pay for the
     // base_fee based on the number of L1 blocks the transaction has been in the mempool.
     // This is done in order to avoid base_fee spikes (e.g. during NFT drops) and

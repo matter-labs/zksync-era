@@ -1,0 +1,61 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                storage.value AS \"value!\",\n                tokens.l1_address AS \"l1_address!\",\n                tokens.l2_address AS \"l2_address!\",\n                tokens.symbol AS \"symbol!\",\n                tokens.name AS \"name!\",\n                tokens.decimals AS \"decimals!\",\n                tokens.usd_price AS \"usd_price?\"\n            FROM\n                storage\n                INNER JOIN tokens ON storage.address = tokens.l2_address\n                OR (\n                    storage.address = $2\n                    AND tokens.l2_address = $3\n                )\n            WHERE\n                storage.hashed_key = ANY ($1)\n                AND storage.value != $4\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "value!",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 1,
+        "name": "l1_address!",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 2,
+        "name": "l2_address!",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 3,
+        "name": "symbol!",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "name!",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 5,
+        "name": "decimals!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "usd_price?",
+        "type_info": "Numeric"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "ByteaArray",
+        "Bytea",
+        "Bytea",
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "1d2cc4b485536af350089cf7950be3b85419fde77038dd3de6c55aa9c55d375c"
+}

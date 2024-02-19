@@ -45,12 +45,12 @@ static DUMMY_OPERATION: Lazy<AggregatedOperation> = Lazy::new(|| {
 });
 
 #[derive(Debug)]
-struct EthSenderTester {
+pub struct EthSenderTester {
     conn: ConnectionPool,
     gateway: Arc<MockEthereum>,
     manager: MockEthTxManager,
     aggregator: EthTxAggregator,
-    gas_adjuster: Arc<GasAdjuster>,
+    gas_adjuster: Arc<GasAdjuster<Arc<MockEthereum>>>,
 }
 
 impl EthSenderTester {

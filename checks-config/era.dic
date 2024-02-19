@@ -597,7 +597,7 @@ coinbase
 FIXME
 ASC
 DESC
-versioning
+Versioning
 initializer
 refactoring
 prefetch
@@ -897,4 +897,3 @@ parameterized
 reimplementation
 composability
 DeployRequest
-md5

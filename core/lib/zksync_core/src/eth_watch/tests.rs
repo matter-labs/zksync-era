@@ -525,11 +525,12 @@ async fn test_overlapping_batches() {
 
 async fn get_all_db_txs(storage: &mut StorageProcessor<'_>) -> Vec<Transaction> {
     storage.transactions_dal().reset_mempool().await.unwrap();
-    storage
+    let (txs, _) = storage
         .transactions_dal()
         .sync_mempool(&[], &[], 0, 0, 1000)
         .await
-        .unwrap()
+        .unwrap();
+    txs
 }
 
 fn tx_into_log(tx: L1Tx) -> Log {

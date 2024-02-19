@@ -93,6 +93,10 @@ impl ProtocolVersionId {
         self <= &Self::Version17
     }
 
+    pub fn is_1_4_0(&self) -> bool {
+        self >= &ProtocolVersionId::Version18 && self < &ProtocolVersionId::Version20
+    }
+
     pub fn is_post_1_4_1(&self) -> bool {
         self >= &ProtocolVersionId::Version20
     }

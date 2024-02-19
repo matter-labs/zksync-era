@@ -1,21 +1,18 @@
 import { TestMessage } from './matcher-helpers';
 import { MatcherModifier } from '../modifiers';
 import * as zksync from 'zksync-web3';
-import { AugmentedTransactionResponse } from '../retry-provider';
 
 // This file contains implementation of matchers for zkSync/ethereum transaction.
 // For actual doc-comments, see `typings/jest.d.ts` file.
 
 export async function toBeAccepted(
-    txPromise: Promise<AugmentedTransactionResponse>,
+    txPromise: Promise<any>,
     modifiers: MatcherModifier[] = [],
     additionalInfo?: string
 ) {
     try {
         const tx = await txPromise;
-        const reporter = tx.reporter;
-        reporter?.debug(`Waiting for transaction ${tx.hash} (from=${tx.from}, nonce=${tx.nonce}) to get accepted`);
-        const receipt = <zksync.types.TransactionReceipt>await tx.wait();
+        const receipt = await tx.wait();
 
         // Check receipt validity.
         const failReason = checkReceiptFields(tx, receipt);
@@ -31,7 +28,6 @@ export async function toBeAccepted(
             }
         }
 
-        reporter?.debug(`Transaction ${tx.hash} is accepted as expected`);
         return pass();
     } catch (error: any) {
         // Check if an error was raised by `jest` (e.g. by using `expect` inside of the modifier).
@@ -51,14 +47,12 @@ export async function toBeAccepted(
 }
 
 export async function toBeReverted(
-    txPromise: AugmentedTransactionResponse | Promise<AugmentedTransactionResponse>,
+    txPromise: zksync.types.TransactionResponse | Promise<zksync.types.TransactionResponse>,
     modifiers: MatcherModifier[] = [],
     additionalInfo?: string
 ) {
     try {
         const tx = await txPromise;
-        const reporter = tx.reporter;
-        reporter?.debug(`Waiting for transaction ${tx.hash} (from=${tx.from}, nonce=${tx.nonce}) to get reverted`);
         const receipt = await tx.wait();
 
         const message = new TestMessage()
@@ -207,7 +201,7 @@ function fail(message: string) {
  *
  * @returns If check has failed, returns a Jest error object. Otherwise, returns `undefined`.
  */
-function checkReceiptFields(request: zksync.types.TransactionResponse, receipt: zksync.types.TransactionReceipt) {
+function checkReceiptFields(request: zksync.types.TransactionRequest, receipt: zksync.types.TransactionReceipt) {
     const errorMessageBuilder = new TestMessage()
         .matcherHint('.checkReceiptFields')
         .line('Transaction receipt is not properly formatted. Transaction request:')

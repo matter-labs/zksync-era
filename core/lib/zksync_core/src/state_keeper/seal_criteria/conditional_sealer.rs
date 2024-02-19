@@ -115,7 +115,7 @@ impl ConditionalSealer for SequencerSealer {
 }
 
 impl SequencerSealer {
-    pub fn new(config: StateKeeperConfig) -> Self {
+    pub(crate) fn new(config: StateKeeperConfig) -> Self {
         let sealers = Self::default_sealers();
         Self { config, sealers }
     }
@@ -135,7 +135,6 @@ impl SequencerSealer {
             Box::new(criteria::PubDataBytesCriterion),
             Box::new(criteria::CircuitsCriterion),
             Box::new(criteria::TxEncodingSizeCriterion),
-            Box::new(criteria::GasForBatchTipCriterion),
         ]
     }
 }

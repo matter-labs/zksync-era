@@ -4,6 +4,6 @@ mod tests;
 mod types;
 
 pub use crate::{
-    mempool_store::{MempoolInfo, MempoolStats, MempoolStore},
+    mempool_store::{MempoolInfo, MempoolStore},
     types::L2TxFilter,
 };

@@ -97,8 +97,8 @@ pub fn construct_pubdata(l1_batch_with_metadata: &L1BatchWithMetadata) -> Vec<u8
     }
 
     // Process and Pack Bytecodes
-    res.extend((l1_batch_with_metadata.raw_published_factory_deps.len() as u32).to_be_bytes());
-    for bytecode in &l1_batch_with_metadata.raw_published_factory_deps {
+    res.extend((l1_batch_with_metadata.factory_deps.len() as u32).to_be_bytes());
+    for bytecode in &l1_batch_with_metadata.factory_deps {
         res.extend((bytecode.len() as u32).to_be_bytes());
         res.extend(bytecode);
     }

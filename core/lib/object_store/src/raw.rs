@@ -190,46 +190,46 @@ impl ObjectStoreFactory {
     }
 
     async fn create_from_config(config: &ObjectStoreConfig) -> Arc<dyn ObjectStore> {
-        match &config.mode {
-            ObjectStoreMode::GCS { bucket_base_url } => {
+        let gcs_credential_file_path = match config.mode {
+            ObjectStoreMode::GCSWithCredentialFile => Some(config.gcs_credential_file_path.clone()),
+            _ => None,
+        };
+        match config.mode {
+            ObjectStoreMode::GCS => {
                 tracing::trace!(
                     "Initialized GoogleCloudStorage Object store without credential file"
                 );
                 let store = GoogleCloudStorage::new(
                     GoogleCloudStorageAuthMode::Authenticated,
-                    bucket_base_url.clone(),
+                    config.bucket_base_url.clone(),
                     config.max_retries,
                 )
                 .await;
                 Arc::new(store)
             }
-            ObjectStoreMode::GCSWithCredentialFile {
-                bucket_base_url,
-                gcs_credential_file_path,
-            } => {
+            ObjectStoreMode::GCSWithCredentialFile => {
                 tracing::trace!("Initialized GoogleCloudStorage Object store with credential file");
                 let store = GoogleCloudStorage::new(
                     GoogleCloudStorageAuthMode::AuthenticatedWithCredentialFile(
-                        gcs_credential_file_path.clone(),
+                        gcs_credential_file_path
+                            .expect("Credentials path must be provided for GCSWithCredentialFile"),
                     ),
-                    bucket_base_url.clone(),
+                    config.bucket_base_url.clone(),
                     config.max_retries,
                 )
                 .await;
                 Arc::new(store)
             }
-            ObjectStoreMode::FileBacked {
-                file_backed_base_path,
-            } => {
+            ObjectStoreMode::FileBacked => {
                 tracing::trace!("Initialized FileBacked Object store");
-                let store = FileBackedObjectStore::new(file_backed_base_path.clone()).await;
+                let store = FileBackedObjectStore::new(config.file_backed_base_path.clone()).await;
                 Arc::new(store)
             }
-            ObjectStoreMode::GCSAnonymousReadOnly { bucket_base_url } => {
+            ObjectStoreMode::GCSAnonymousReadOnly => {
                 tracing::trace!("Initialized GoogleCloudStoragePublicReadOnly store");
                 let store = GoogleCloudStorage::new(
                     GoogleCloudStorageAuthMode::Anonymous,
-                    bucket_base_url.clone(),
+                    config.bucket_base_url.clone(),
                     config.max_retries,
                 )
                 .await;

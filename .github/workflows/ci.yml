@@ -58,7 +58,6 @@ jobs:
               - 'Cargo.lock'
               - '!**/*.md'
               - '!**/*.MD'
-              - 'docker-compose.yml'
             docs:
               - '**/*.md'
               - '**/*.MD'

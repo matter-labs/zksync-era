@@ -1,6 +1,9 @@
+use chrono::{DateTime, Utc};
+use num::{rational::Ratio, BigUint};
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::Address;
 pub use zksync_system_constants::ETHEREUM_ADDRESS;
+use zksync_utils::UnsignedRatioSerializeAsDecimal;
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct TokenInfo {
@@ -31,4 +34,12 @@ impl TokenMetadata {
             decimals: 18,
         }
     }
+}
+
+/// Token price known to the zkSync network.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TokenPrice {
+    #[serde(with = "UnsignedRatioSerializeAsDecimal")]
+    pub usd_price: Ratio<BigUint>,
+    pub last_updated: DateTime<Utc>,
 }

@@ -3,7 +3,6 @@ import * as ethers from 'ethers';
 import { TestEnvironment, TestContext } from './types';
 import { claimEtherBack } from './context-owner';
 import { RetryProvider } from './retry-provider';
-import { Reporter } from './reporter';
 
 /**
  * Test master is a singleton class (per suite) that is capable of providing wallets to the suite.
@@ -16,13 +15,13 @@ import { Reporter } from './reporter';
 export class TestMaster {
     private static _instance?: TestMaster;
 
-    private readonly env: TestEnvironment;
-    readonly reporter: Reporter;
-    private readonly l1Provider: ethers.providers.JsonRpcProvider;
-    private readonly l2Provider: zksync.Provider;
+    private env: TestEnvironment;
 
-    private readonly mainWallet: zksync.Wallet;
-    private readonly subAccounts: zksync.Wallet[] = [];
+    private l1Provider: ethers.providers.JsonRpcProvider;
+    private l2Provider: zksync.Provider;
+
+    private mainWallet: zksync.Wallet;
+    private subAccounts: zksync.Wallet[] = [];
 
     private constructor(file: string) {
         if (TestMaster._instance) {
@@ -36,7 +35,6 @@ export class TestMaster {
 
         const context = JSON.parse(contextStr) as TestContext;
         this.env = context.environment;
-        this.reporter = new Reporter();
 
         // Note: suite files may be nested, and the "name" here should contain the corresponding portion of the
         // directory path. Example: `ts-integration/tests/contracts/some.test.ts` -> `contracts/some.test.ts`.
@@ -52,14 +50,10 @@ export class TestMaster {
             throw new Error(`Wallet for ${suiteName} suite was not provided`);
         }
         this.l1Provider = new ethers.providers.JsonRpcProvider(this.env.l1NodeUrl);
-        this.l2Provider = new RetryProvider(
-            {
-                url: this.env.l2NodeUrl,
-                timeout: 1200 * 1000
-            },
-            undefined,
-            this.reporter
-        );
+        this.l2Provider = new RetryProvider({
+            url: this.env.l2NodeUrl,
+            timeout: 1200 * 1000
+        });
 
         if (context.environment.network == 'localhost') {
             // Setup small polling interval on localhost to speed up tests.

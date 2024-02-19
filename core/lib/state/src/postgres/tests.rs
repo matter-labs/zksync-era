@@ -226,7 +226,7 @@ fn test_factory_deps_cache(pool: &ConnectionPool, rt_handle: Handle) {
         .block_on(
             storage
                 .connection
-                .factory_deps_dal()
+                .storage_dal()
                 .insert_factory_deps(MiniblockNumber(0), &contracts),
         )
         .unwrap();

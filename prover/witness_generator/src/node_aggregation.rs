@@ -26,7 +26,9 @@ use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{
     basic_fri_types::AggregationRound, protocol_version::FriProtocolVersionId, L1BatchNumber,
 };
-use zksync_vk_setup_data_server_fri::{keystore::Keystore, utils::get_leaf_vk_params};
+use zksync_vk_setup_data_server_fri::{
+    get_recursive_layer_vk_for_circuit_type, utils::get_leaf_vk_params,
+};
 
 use crate::{
     metrics::WITNESS_GENERATOR_METRICS,
@@ -239,15 +241,12 @@ pub async fn prepare_job(
         .observe(started_at.elapsed());
 
     let started_at = Instant::now();
-    let keystore = Keystore::default();
-    let leaf_vk = keystore
-        .load_recursive_layer_verification_key(metadata.circuit_id)
+    let leaf_vk = get_recursive_layer_vk_for_circuit_type(metadata.circuit_id)
         .context("get_recursive_layer_vk_for_circuit_type")?;
-    let node_vk = keystore
-        .load_recursive_layer_verification_key(
-            ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,
-        )
-        .context("get_recursive_layer_vk_for_circuit_type()")?;
+    let node_vk = get_recursive_layer_vk_for_circuit_type(
+        ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,
+    )
+    .context("get_recursive_layer_vk_for_circuit_type()")?;
 
     let mut recursive_proofs = vec![];
     for wrapper in proofs {
@@ -273,7 +272,7 @@ pub async fn prepare_job(
         proofs: recursive_proofs,
         leaf_vk,
         node_vk,
-        all_leafs_layer_params: get_leaf_vk_params(&keystore).context("get_leaf_vk_params()")?,
+        all_leafs_layer_params: get_leaf_vk_params().context("get_leaf_vk_params()")?,
     })
 }
 

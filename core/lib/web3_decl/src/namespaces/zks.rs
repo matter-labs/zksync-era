@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use bigdecimal::BigDecimal;
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use zksync_types::{
     api::{
@@ -47,6 +48,8 @@ pub trait ZksNamespace {
 
     #[method(name = "getConfirmedTokens")]
     async fn get_confirmed_tokens(&self, from: u32, limit: u8) -> RpcResult<Vec<Token>>;
+    #[method(name = "getTokenPrice")]
+    async fn get_token_price(&self, token_address: Address) -> RpcResult<BigDecimal>;
 
     #[method(name = "getAllAccountBalances")]
     async fn get_all_account_balances(&self, address: Address)

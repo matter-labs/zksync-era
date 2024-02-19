@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                SELECT\n                    l1_address\n                FROM\n                    tokens\n                WHERE\n                    market_volume > $1\n                ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "l1_address",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Numeric"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "f22c5d136fe68bbfcee60beb304cfdc050b85e6d773b13f9699f15c335d42593"
+}

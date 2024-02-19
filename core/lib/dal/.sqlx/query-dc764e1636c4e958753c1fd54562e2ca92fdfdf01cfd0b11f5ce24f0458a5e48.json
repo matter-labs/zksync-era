@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE l1_batches\n            SET\n                hash = $1,\n                merkle_root_hash = $2,\n                compressed_repeated_writes = $3,\n                compressed_initial_writes = $4,\n                l2_l1_compressed_messages = $5,\n                l2_l1_merkle_root = $6,\n                zkporter_is_available = $7,\n                parent_hash = $8,\n                rollup_last_leaf_index = $9,\n                pass_through_data_hash = $10,\n                meta_parameters_hash = $11,\n                compressed_state_diffs = $12,\n                updated_at = NOW()\n            WHERE\n                number = $13\n                AND hash IS NULL\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Bytea",
+        "Bytea",
+        "Bytea",
+        "Bytea",
+        "Bytea",
+        "Bool",
+        "Bytea",
+        "Int8",
+        "Bytea",
+        "Bytea",
+        "Bytea",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "dc764e1636c4e958753c1fd54562e2ca92fdfdf01cfd0b11f5ce24f0458a5e48"
+}

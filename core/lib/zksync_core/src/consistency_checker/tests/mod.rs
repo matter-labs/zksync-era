@@ -20,12 +20,7 @@ use zksync_types::{
 };
 
 use super::*;
-use crate::{
-    genesis::{ensure_genesis_state, GenesisParams},
-    utils::testonly::{
-        create_l1_batch, create_l1_batch_metadata, l1_batch_metadata_to_commitment_artifacts,
-    },
-};
+use crate::utils::testonly::{create_l1_batch, create_l1_batch_metadata};
 
 /// **NB.** For tests to run correctly, the returned value must be deterministic (i.e., depend only on `number`).
 pub(crate) fn create_l1_batch_with_metadata(number: u32) -> L1BatchWithMetadata {
@@ -75,35 +70,21 @@ pub(crate) fn create_mock_checker(
     pool: ConnectionPool,
     l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
 ) -> ConsistencyChecker {
-    let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
     ConsistencyChecker {
         contract: zksync_contracts::zksync_contract(),
         max_batches_to_recheck: 100,
         sleep_interval: Duration::from_millis(10),
         l1_client: Box::new(client),
-        event_handler: Box::new(health_updater),
+        l1_batch_updater: Box::new(()),
         l1_data_mismatch_behavior: L1DataMismatchBehavior::Bail,
         pool,
-        health_check,
         l1_batch_commit_data_generator,
     }
 }
 
-impl HandleConsistencyCheckerEvent for mpsc::UnboundedSender<L1BatchNumber> {
-    fn initialize(&mut self) {
-        // Do nothing
-    }
-
-    fn set_first_batch_to_check(&mut self, _first_batch_to_check: L1BatchNumber) {
-        // Do nothing
-    }
-
+impl UpdateCheckedBatch for mpsc::UnboundedSender<L1BatchNumber> {
     fn update_checked_batch(&mut self, last_checked_batch: L1BatchNumber) {
         self.send(last_checked_batch).ok();
-    }
-
-    fn report_inconsistent_batch(&mut self, _number: L1BatchNumber) {
-        // Do nothing
     }
 }
 
@@ -222,14 +203,11 @@ impl SaveAction<'_> {
             Self::SaveMetadata(l1_batch) => {
                 storage
                     .blocks_dal()
-                    .save_l1_batch_tree_data(l1_batch.header.number, &l1_batch.metadata.tree_data())
-                    .await
-                    .unwrap();
-                storage
-                    .blocks_dal()
-                    .save_l1_batch_commitment_artifacts(
+                    .save_l1_batch_metadata(
                         l1_batch.header.number,
-                        &l1_batch_metadata_to_commitment_artifacts(&l1_batch.metadata),
+                        &l1_batch.metadata,
+                        H256::default(),
+                        l1_batch.header.protocol_version.unwrap().is_pre_boojum(),
                     )
                     .await
                     .unwrap();

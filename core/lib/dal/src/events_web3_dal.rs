@@ -51,7 +51,7 @@ impl EventsWeb3Dal<'_, '_> {
                 .report_latency()
                 .with_arg("filter", filter)
                 .with_arg("offset", &offset)
-                .fetch_optional(self.storage)
+                .fetch_optional(self.storage.conn())
                 .await?;
 
             Ok(log.map(|row| MiniblockNumber(row.get::<i64, _>("miniblock_number") as u32)))
@@ -104,7 +104,7 @@ impl EventsWeb3Dal<'_, '_> {
                 .report_latency()
                 .with_arg("filter", &filter)
                 .with_arg("limit", &limit)
-                .fetch_all(self.storage)
+                .fetch_all(self.storage.conn())
                 .await?;
             let logs = db_logs.into_iter().map(Into::into).collect();
             Ok(logs)

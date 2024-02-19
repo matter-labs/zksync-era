@@ -7,6 +7,7 @@ use zksync_types::{
 };
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
+use super::constants::BOOTLOADER_BATCH_TIP_OVERHEAD;
 use crate::{
     glue::GlueInto,
     interface::{
@@ -164,8 +165,8 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
         self.record_vm_memory_metrics_inner()
     }
 
-    fn gas_remaining(&self) -> u32 {
-        self.state.local_state.callstack.current.ergs_remaining
+    fn has_enough_gas_for_batch_tip(&self) -> bool {
+        self.state.local_state.callstack.current.ergs_remaining >= BOOTLOADER_BATCH_TIP_OVERHEAD
     }
 
     fn finish_batch(&mut self) -> FinishedL1Batch {

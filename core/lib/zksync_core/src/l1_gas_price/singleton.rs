@@ -16,7 +16,7 @@ use crate::l1_gas_price::GasAdjuster;
 pub struct GasAdjusterSingleton {
     web3_url: String,
     gas_adjuster_config: GasAdjusterConfig,
-    singleton: OnceCell<Result<Arc<GasAdjuster>, Error>>,
+    singleton: OnceCell<Result<Arc<GasAdjuster<QueryClient>>, Error>>,
 }
 
 #[derive(thiserror::Error, Debug, Clone)]
@@ -38,16 +38,15 @@ impl GasAdjusterSingleton {
         }
     }
 
-    pub async fn get_or_init(&mut self) -> Result<Arc<GasAdjuster>, Error> {
+    pub async fn get_or_init(&mut self) -> Result<Arc<GasAdjuster<QueryClient>>, Error> {
         let adjuster = self
             .singleton
             .get_or_init(|| async {
                 let query_client =
                     QueryClient::new(&self.web3_url).context("QueryClient::new()")?;
-                let adjuster =
-                    GasAdjuster::new(Arc::new(query_client.clone()), self.gas_adjuster_config)
-                        .await
-                        .context("GasAdjuster::new()")?;
+                let adjuster = GasAdjuster::new(query_client.clone(), self.gas_adjuster_config)
+                    .await
+                    .context("GasAdjuster::new()")?;
                 Ok(Arc::new(adjuster))
             })
             .await;

@@ -20,7 +20,7 @@ impl StorageLogsDedupDal<'_, '_> {
         &mut self,
         l1_batch_number: L1BatchNumber,
         read_logs: &[LogQuery],
-    ) -> sqlx::Result<()> {
+    ) {
         let mut copy = self
             .storage
             .conn()
@@ -28,7 +28,8 @@ impl StorageLogsDedupDal<'_, '_> {
                 "COPY protective_reads (l1_batch_number, address, key, created_at, updated_at) \
                 FROM STDIN WITH (DELIMITER '|')",
             )
-            .await?;
+            .await
+            .unwrap();
 
         let mut bytes: Vec<u8> = Vec::new();
         let now = Utc::now().naive_utc().to_string();
@@ -41,9 +42,8 @@ impl StorageLogsDedupDal<'_, '_> {
             );
             bytes.extend_from_slice(row.as_bytes());
         }
-        copy.send(bytes).await?;
-        copy.finish().await?;
-        Ok(())
+        copy.send(bytes).await.unwrap();
+        copy.finish().await.unwrap();
     }
 
     /// Insert initial writes and assigns indices to them.
@@ -84,7 +84,7 @@ impl StorageLogsDedupDal<'_, '_> {
         &mut self,
         l1_batch_number: L1BatchNumber,
         written_storage_keys: &[StorageKey],
-    ) -> sqlx::Result<()> {
+    ) {
         let hashed_keys: Vec<_> = written_storage_keys
             .iter()
             .map(|key| StorageKey::raw_hashed_key(key.address(), key.key()).to_vec())
@@ -113,9 +113,8 @@ impl StorageLogsDedupDal<'_, '_> {
             l1_batch_number.0 as i64,
         )
         .execute(self.storage.conn())
-        .await?;
-
-        Ok(())
+        .await
+        .unwrap();
     }
 
     pub async fn get_protective_reads_for_l1_batch(
