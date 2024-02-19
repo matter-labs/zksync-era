@@ -1,6 +1,9 @@
 use zksync_basic_types::{ethabi::Token, U256};
 
-use crate::{commitment::L1BatchWithMetadata, utils};
+use crate::{
+    commitment::{serialize_commitments, L1BatchWithMetadata},
+    utils,
+};
 
 pub trait L1BatchCommitDataGenerator
 where
@@ -62,7 +65,7 @@ fn validium_mode_l1_commit_data(l1_batch_with_metadata: &L1BatchWithMetadata) ->
                 .to_vec(),
         ),
         // `systemLogs`
-        Token::Bytes(metadata.l2_l1_messages_compressed.clone()),
+        Token::Bytes(serialize_commitments(&header.system_logs)),
     ];
     commit_data
 }

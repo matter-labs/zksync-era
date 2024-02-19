@@ -52,6 +52,11 @@ impl SubmitTxError {
     pub(crate) fn into_web3_error(self, method_name: &'static str) -> Web3Error {
         match self {
             Self::Internal(err) => internal_error(method_name, err),
+            Self::ProxyError(ref err) => {
+                // Strip internal error details that should not be exposed to the caller.
+                tracing::warn!("Error proxying call to main node in method {method_name}: {err}");
+                Web3Error::SubmitTransactionError(err.as_ref().to_string(), self.data())
+            }
             _ => Web3Error::SubmitTransactionError(self.to_string(), self.data()),
         }
     }

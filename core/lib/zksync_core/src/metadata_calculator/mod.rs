@@ -13,23 +13,15 @@ use zksync_config::configs::{
     chain::OperationsManagerConfig,
     database::{MerkleTreeConfig, MerkleTreeMode},
 };
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::ConnectionPool;
 use zksync_health_check::{HealthUpdater, ReactiveHealthCheck};
-use zksync_merkle_tree::domain::TreeMetadata;
 use zksync_object_store::ObjectStore;
-use zksync_types::{
-    block::L1BatchHeader,
-    commitment::{L1BatchCommitment, L1BatchMetadata},
-    ProtocolVersionId, H256,
-};
 
 pub(crate) use self::helpers::{AsyncTreeReader, L1BatchWithLogs, MerkleTreeInfo};
 use self::{
     helpers::{create_db, Delayer, GenericAsyncTree, MerkleTreeHealth},
-    metrics::{TreeUpdateStage, METRICS},
     updater::TreeUpdater,
 };
-use crate::gas_tracker::commit_gas_count_for_l1_batch;
 
 mod helpers;
 mod metrics;
@@ -183,88 +175,5 @@ impl MetadataCalculator {
         updater
             .loop_updating_tree(self.delayer, &pool, stop_receiver, self.health_updater)
             .await
-    }
-
-    /// This is used to improve L1 gas estimation for the commit operation. The estimations are computed
-    /// in the State Keeper, where storage writes aren't yet deduplicated, whereas L1 batch metadata
-    /// contains deduplicated storage writes.
-    async fn reestimate_l1_batch_commit_gas(
-        storage: &mut StorageProcessor<'_>,
-        header: &L1BatchHeader,
-        metadata: &L1BatchMetadata,
-    ) {
-        let estimate_latency = METRICS.start_stage(TreeUpdateStage::ReestimateGasCost);
-        let unsorted_factory_deps = storage
-            .blocks_dal()
-            .get_l1_batch_factory_deps(header.number)
-            .await
-            .unwrap();
-        let commit_gas_cost =
-            commit_gas_count_for_l1_batch(header, &unsorted_factory_deps, metadata);
-        storage
-            .blocks_dal()
-            .update_predicted_l1_batch_commit_gas(header.number, commit_gas_cost)
-            .await
-            .unwrap();
-        estimate_latency.observe();
-    }
-
-    fn build_l1_batch_metadata(
-        tree_metadata: TreeMetadata,
-        header: &L1BatchHeader,
-        events_queue_commitment: Option<H256>,
-        bootloader_initial_content_commitment: Option<H256>,
-    ) -> L1BatchMetadata {
-        // The commitment generation pre-boojum is the same for all the version, so in case the version is not present, we just supply the
-        // last pre-boojum version.
-        // TODO(PLA-731): make sure that protocol version is not an Option
-        let protocol_version = header
-            .protocol_version
-            .unwrap_or(ProtocolVersionId::last_potentially_undefined());
-
-        let merkle_root_hash = tree_metadata.root_hash;
-
-        let commitment = L1BatchCommitment::new(
-            header.l2_to_l1_logs.clone(),
-            tree_metadata.rollup_last_leaf_index,
-            merkle_root_hash,
-            tree_metadata.initial_writes,
-            tree_metadata.repeated_writes,
-            header.base_system_contracts_hashes.bootloader,
-            header.base_system_contracts_hashes.default_aa,
-            header.system_logs.clone(),
-            tree_metadata.state_diffs,
-            bootloader_initial_content_commitment.unwrap_or_default(),
-            events_queue_commitment.unwrap_or_default(),
-            protocol_version,
-        );
-        let commitment_hash = commitment.hash();
-        tracing::trace!("L1 batch commitment: {commitment:?}");
-
-        let l2_l1_messages_compressed = if protocol_version.is_pre_boojum() {
-            commitment.l2_l1_logs_compressed().to_vec()
-        } else {
-            commitment.system_logs_compressed().to_vec()
-        };
-        let metadata = L1BatchMetadata {
-            root_hash: merkle_root_hash,
-            rollup_last_leaf_index: tree_metadata.rollup_last_leaf_index,
-            merkle_root_hash,
-            initial_writes_compressed: commitment.initial_writes_compressed().to_vec(),
-            repeated_writes_compressed: commitment.repeated_writes_compressed().to_vec(),
-            commitment: commitment_hash.commitment,
-            l2_l1_messages_compressed,
-            l2_l1_merkle_root: commitment.l2_l1_logs_merkle_root(),
-            block_meta_params: commitment.meta_parameters(),
-            aux_data_hash: commitment_hash.aux_output,
-            meta_parameters_hash: commitment_hash.meta_parameters,
-            pass_through_data_hash: commitment_hash.pass_through_data,
-            state_diffs_compressed: commitment.state_diffs_compressed().to_vec(),
-            events_queue_commitment,
-            bootloader_initial_content_commitment,
-        };
-
-        tracing::trace!("L1 batch metadata: {metadata:?}");
-        metadata
     }
 }

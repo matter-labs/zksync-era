@@ -119,7 +119,6 @@ pub struct StorageL1Batch {
     pub l2_to_l1_logs: Vec<Vec<u8>>,
     pub priority_ops_onchain_data: Vec<Vec<u8>>,
 
-    pub parent_hash: Option<Vec<u8>>,
     pub hash: Option<Vec<u8>>,
     pub merkle_root_hash: Option<Vec<u8>>,
     pub commitment: Option<Vec<u8>>,
@@ -133,12 +132,9 @@ pub struct StorageL1Batch {
     pub default_aa_code_hash: Option<Vec<u8>>,
 
     pub l2_to_l1_messages: Vec<Vec<u8>>,
-    pub l2_l1_compressed_messages: Option<Vec<u8>>,
     pub l2_l1_merkle_root: Option<Vec<u8>>,
     pub compressed_initial_writes: Option<Vec<u8>>,
     pub compressed_repeated_writes: Option<Vec<u8>>,
-    pub compressed_write_logs: Option<Vec<u8>>,
-    pub compressed_contracts: Option<Vec<u8>>,
 
     pub eth_prove_tx_id: Option<i32>,
     pub eth_commit_tx_id: Option<i32>,
@@ -207,15 +203,8 @@ impl TryInto<L1BatchMetadata> for StorageL1Batch {
                     .merkle_root_hash
                     .ok_or(StorageL1BatchConvertError::Incomplete)?,
             ),
-            initial_writes_compressed: self
-                .compressed_initial_writes
-                .ok_or(StorageL1BatchConvertError::Incomplete)?,
-            repeated_writes_compressed: self
-                .compressed_repeated_writes
-                .ok_or(StorageL1BatchConvertError::Incomplete)?,
-            l2_l1_messages_compressed: self
-                .l2_l1_compressed_messages
-                .ok_or(StorageL1BatchConvertError::Incomplete)?,
+            initial_writes_compressed: self.compressed_initial_writes,
+            repeated_writes_compressed: self.compressed_repeated_writes,
             l2_l1_merkle_root: H256::from_slice(
                 &self
                     .l2_l1_merkle_root

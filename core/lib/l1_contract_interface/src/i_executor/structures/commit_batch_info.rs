@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use zksync_types::{
-    commitment::L1BatchWithMetadata,
+    commitment::{pre_boojum_serialize_commitments, serialize_commitments, L1BatchWithMetadata},
     ethabi::Token,
     l1_batch_commit_data_generator::L1BatchCommitDataGenerator,
     web3::{contract::Error as Web3ContractError, error::Error as Web3ApiError},
