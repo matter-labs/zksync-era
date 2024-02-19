@@ -314,33 +314,37 @@ impl StorageLogsDal<'_, '_> {
             })
             .unzip();
         let max_miniblock_number = at_miniblock.map_or(u32::MAX, |number| number.0);
+        // Get the latest `value` and corresponding `miniblock_number` for each of `bytecode_hashed_keys`. For failed deployments,
+        // this value will equal `FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH`, so that they can be easily filtered.
         let rows = sqlx::query!(
             r#"
             SELECT DISTINCT
                 ON (hashed_key) hashed_key,
-                miniblock_number
+                miniblock_number,
+                value
             FROM
                 storage_logs
             WHERE
                 hashed_key = ANY ($1)
                 AND miniblock_number <= $2
-                AND value != $3
             ORDER BY
                 hashed_key,
                 miniblock_number DESC,
                 operation_number DESC
             "#,
             &bytecode_hashed_keys as &[_],
-            max_miniblock_number as i64,
-            FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH.as_bytes()
+            max_miniblock_number as i64
         )
         .fetch_all(self.storage.conn())
         .await?;
 
-        let deployment_data = rows.into_iter().map(|row| {
+        let deployment_data = rows.into_iter().filter_map(|row| {
+            if row.value == FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH.as_bytes() {
+                return None;
+            }
             let miniblock_number = MiniblockNumber(row.miniblock_number as u32);
             let address = address_by_hashed_key[row.hashed_key.as_slice()];
-            (address, miniblock_number)
+            Some((address, miniblock_number))
         });
         Ok(deployment_data.collect())
     }
@@ -1203,16 +1207,21 @@ mod tests {
     async fn filtering_deployed_contracts() {
         let contract_address = Address::repeat_byte(1);
         let other_contract_address = Address::repeat_byte(23);
+        let successful_deployment =
+            StorageLog::new_write_log(get_code_key(&contract_address), H256::repeat_byte(0xff));
         let failed_deployment = StorageLog::new_write_log(
             get_code_key(&contract_address),
             FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH,
         );
+
         let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
+        // If deployment fails then two writes are issued, one that writes `bytecode_hash` to the "correct" value,
+        // and the next write reverts its value back to `FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH`.
         conn.storage_logs_dal()
             .insert_storage_logs(
                 MiniblockNumber(1),
-                &[(H256::zero(), vec![failed_deployment])],
+                &[(H256::zero(), vec![successful_deployment, failed_deployment])],
             )
             .await
             .unwrap();
@@ -1238,8 +1247,6 @@ mod tests {
             );
         }
 
-        let successful_deployment =
-            StorageLog::new_write_log(get_code_key(&contract_address), H256::repeat_byte(0xff));
         conn.storage_logs_dal()
             .insert_storage_logs(
                 MiniblockNumber(2),
