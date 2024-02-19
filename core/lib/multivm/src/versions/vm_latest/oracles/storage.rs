@@ -379,7 +379,7 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
 
             (
                 self.write_value(query),
-                PubdataCost(to_pay_by_user.wrapping_sub(prepaid) as i32),
+                PubdataCost(to_pay_by_user.saturating_sub(prepaid) as i32),
             )
         } else {
             // Reading costs no pubdata
