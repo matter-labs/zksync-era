@@ -68,6 +68,7 @@ pub(crate) fn build_commit_tx_input_data(
 pub(crate) fn create_mock_checker(
     client: MockEthereum,
     pool: ConnectionPool,
+    l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
 ) -> ConsistencyChecker {
     ConsistencyChecker {
         contract: zksync_contracts::zksync_contract(),
@@ -77,6 +78,7 @@ pub(crate) fn create_mock_checker(
         l1_batch_updater: Box::new(()),
         l1_data_mismatch_behavior: L1DataMismatchBehavior::Bail,
         pool,
+        l1_batch_commit_data_generator,
     }
 }
 

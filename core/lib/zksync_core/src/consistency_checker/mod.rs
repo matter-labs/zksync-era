@@ -135,12 +135,18 @@ pub struct ConsistencyChecker {
     l1_batch_updater: Box<dyn UpdateCheckedBatch>,
     l1_data_mismatch_behavior: L1DataMismatchBehavior,
     pool: ConnectionPool,
+    l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
 }
 
 impl ConsistencyChecker {
     const DEFAULT_SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 
-    pub fn new(web3_url: &str, max_batches_to_recheck: u32, pool: ConnectionPool) -> Self {
+    pub fn new(
+        web3_url: &str,
+        max_batches_to_recheck: u32,
+        pool: ConnectionPool,
+        l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
+    ) -> Self {
         let web3 = QueryClient::new(web3_url).unwrap();
         Self {
             contract: zksync_contracts::zksync_contract(),
@@ -150,6 +156,7 @@ impl ConsistencyChecker {
             l1_batch_updater: Box::new(()),
             l1_data_mismatch_behavior: L1DataMismatchBehavior::Log,
             pool,
+            l1_batch_commit_data_generator,
         }
     }
 
@@ -252,11 +259,7 @@ impl ConsistencyChecker {
             .await?)
     }
 
-    pub async fn run(
-        mut self,
-        mut stop_receiver: watch::Receiver<bool>,
-        l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
-    ) -> anyhow::Result<()> {
+    pub async fn run(mut self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         // It doesn't make sense to start the checker until we have at least one L1 batch with metadata.
         let earliest_l1_batch_number =
             wait_for_l1_batch_with_metadata(&self.pool, self.sleep_interval, &mut stop_receiver)
@@ -297,7 +300,7 @@ impl ConsistencyChecker {
             let Some(local) = LocalL1BatchCommitData::new(
                 &mut storage,
                 batch_number,
-                l1_batch_commit_data_generator.clone(),
+                self.l1_batch_commit_data_generator.clone(),
             )
             .await?
             else {

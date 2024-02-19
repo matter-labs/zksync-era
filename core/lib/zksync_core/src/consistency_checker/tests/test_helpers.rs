@@ -76,12 +76,11 @@ pub(crate) async fn normal_checker_function(
     let (l1_batch_updates_sender, mut l1_batch_updates_receiver) = mpsc::unbounded_channel();
     let checker = ConsistencyChecker {
         l1_batch_updater: Box::new(l1_batch_updates_sender),
-        ..create_mock_checker(client, pool.clone())
+        ..create_mock_checker(client, pool.clone(), l1_batch_commit_data_generator)
     };
 
     let (stop_sender, stop_receiver) = watch::channel(false);
-    let checker_task =
-        tokio::spawn(checker.run(stop_receiver, l1_batch_commit_data_generator.clone()));
+    let checker_task = tokio::spawn(checker.run(stop_receiver));
 
     // Add new batches to the storage.
     for save_action in save_actions_mapper(&l1_batches) {
@@ -153,11 +152,11 @@ pub(crate) async fn checker_processes_pre_boojum_batches(
     let (l1_batch_updates_sender, mut l1_batch_updates_receiver) = mpsc::unbounded_channel();
     let checker = ConsistencyChecker {
         l1_batch_updater: Box::new(l1_batch_updates_sender),
-        ..create_mock_checker(client, pool.clone())
+        ..create_mock_checker(client, pool.clone(), l1_batch_commit_data_generator)
     };
 
     let (stop_sender, stop_receiver) = watch::channel(false);
-    let checker_task = tokio::spawn(checker.run(stop_receiver, l1_batch_commit_data_generator));
+    let checker_task = tokio::spawn(checker.run(stop_receiver));
 
     // Add new batches to the storage.
     for save_action in save_actions_mapper(&l1_batches) {
@@ -228,10 +227,10 @@ pub async fn checker_functions_after_snapshot_recovery(
     let (l1_batch_updates_sender, mut l1_batch_updates_receiver) = mpsc::unbounded_channel();
     let checker = ConsistencyChecker {
         l1_batch_updater: Box::new(l1_batch_updates_sender),
-        ..create_mock_checker(client, pool.clone())
+        ..create_mock_checker(client, pool.clone(), l1_batch_commit_data_generator)
     };
     let (stop_sender, stop_receiver) = watch::channel(false);
-    let checker_task = tokio::spawn(checker.run(stop_receiver, l1_batch_commit_data_generator));
+    let checker_task = tokio::spawn(checker.run(stop_receiver));
 
     if delay_batch_insertion {
         tokio::time::sleep(Duration::from_millis(10)).await;
@@ -287,14 +286,11 @@ pub(crate) async fn checker_detects_incorrect_tx_data(
     }
     drop(storage);
 
-    let checker = create_mock_checker(client, pool);
+    let checker = create_mock_checker(client, pool, l1_batch_commit_data_generator);
     let (_stop_sender, stop_receiver) = watch::channel(false);
     // The checker must stop with an error.
-    tokio::time::timeout(
-        Duration::from_secs(30),
-        checker.run(stop_receiver, l1_batch_commit_data_generator),
-    )
-    .await
-    .expect("Timed out waiting for checker to stop")
-    .unwrap_err();
+    tokio::time::timeout(Duration::from_secs(30), checker.run(stop_receiver))
+        .await
+        .expect("Timed out waiting for checker to stop")
+        .unwrap_err();
 }
