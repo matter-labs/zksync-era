@@ -1,12 +1,13 @@
 use anyhow::Context;
 use zksync_vk_setup_data_server_fri::{
     commitment_utils::generate_commitments,
+    keystore::Keystore,
     vk_commitment_helper::{get_toml_formatted_value, read_contract_toml, write_contract_toml},
 };
 
-pub fn read_and_update_contract_toml(dryrun: bool) -> anyhow::Result<()> {
+pub fn read_and_update_contract_toml(keystore: &Keystore, dryrun: bool) -> anyhow::Result<()> {
     let mut contract_doc = read_contract_toml().context("read_contract_toml()")?;
-    let vk_commitments = generate_commitments().context("generate_commitments()")?;
+    let vk_commitments = generate_commitments(keystore).context("generate_commitments()")?;
 
     contract_doc["contracts"]["FRI_RECURSION_LEAF_LEVEL_VK_HASH"] =
         get_toml_formatted_value(vk_commitments.leaf);
@@ -29,6 +30,6 @@ mod test {
 
     #[test]
     fn test_read_and_update_contract_toml() {
-        read_and_update_contract_toml(true).unwrap();
+        read_and_update_contract_toml(&Keystore::default(), true).unwrap();
     }
 }

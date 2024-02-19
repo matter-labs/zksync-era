@@ -42,19 +42,23 @@ fn all_possible_prover_service_data_key() -> impl Strategy<Value = ProverService
 proptest! {
     #[test]
     fn test_get_base_layer_vk_for_circuit_type(circuit_id in 1u8..13) {
-        let vk = get_base_layer_vk_for_circuit_type(circuit_id).unwrap();
+        let keystore = Keystore::default();
+        let vk = keystore.load_base_layer_verification_key(circuit_id).unwrap();
         assert_eq!(circuit_id, vk.numeric_circuit_type());
     }
 
     #[test]
     fn test_get_recursive_layer_vk_for_circuit_type(circuit_id in 1u8..15) {
-        let vk = get_recursive_layer_vk_for_circuit_type(circuit_id).unwrap();
+        let keystore = Keystore::default();
+        let vk = keystore.load_recursive_layer_verification_key(circuit_id).unwrap();
         assert_eq!(circuit_id, vk.numeric_circuit_type());
     }
 
     #[test]
     fn test_get_finalization_hints(key in all_possible_prover_service_data_key()) {
-        let result = get_finalization_hints(key).unwrap();
+        let keystore = Keystore::default();
+
+        let result = keystore.load_finalization_hints(key).unwrap();
 
         assert!(!result.row_finalization_hints.is_empty(), "Row finalization hints should not be empty");
         assert!(!result.public_inputs.is_empty(), "Public inputs should not be empty");
@@ -68,16 +72,10 @@ proptest! {
 // Test `get_base_path` method
 #[test]
 fn test_get_base_path() {
-    let base_path = get_base_path();
-    assert!(!base_path.is_empty(), "Base path should not be empty");
-}
+    let keystore = Keystore::default();
 
-// Test `get_file_path` method
-#[test]
-fn test_get_file_path() {
-    let key = ProverServiceDataKey::new(1, AggregationRound::BasicCircuits);
-    let file_path = get_file_path(key, ProverServiceDataType::VerificationKey).unwrap();
-    assert!(!file_path.is_empty(), "File path should not be empty");
+    let base_path = keystore.get_base_path();
+    assert!(!base_path.is_empty(), "Base path should not be empty");
 }
 
 // Test `ProverServiceDataKey::new` method
@@ -92,18 +90,5 @@ fn test_proverservicedatakey_new() {
         key.round,
         AggregationRound::BasicCircuits,
         "Round should be equal to the given value"
-    );
-}
-
-// Test `get_round_for_recursive_circuit_type` method
-#[test]
-fn test_get_round_for_recursive_circuit_type() {
-    let round = get_round_for_recursive_circuit_type(
-        ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8,
-    );
-    assert_eq!(
-        round,
-        AggregationRound::Scheduler,
-        "Round should be scheduler"
     );
 }

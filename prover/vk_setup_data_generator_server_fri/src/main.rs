@@ -157,18 +157,23 @@ fn generate_vks() -> anyhow::Result<()> {
     tracing::info!("Generating verification keys for Recursive layer.");
     generate_recursive_layer_vks_and_proofs(&mut in_memory_source)
         .map_err(|err| anyhow::anyhow!("Failed generating recursive vk's: {err}"))?;
-    tracing::info!("Saving finalization hints.");
-    save_finalization_hints_using_source(&in_memory_source)
-        .context("save_finalization_hints_using_source()")?;
-    tracing::info!("Saving circuit verification keys.");
-    save_vks(&in_memory_source).context("save_vks()")?;
+    tracing::info!("Saving keys & hints");
+
+    keystore.save_keys_from_data_source(&in_memory_source)?;
 
     // Generate snark VK
     let scheduler_vk = in_memory_source
         .get_recursion_layer_vk(ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8)
         .map_err(|err| anyhow::anyhow!("Failed to get scheduler vk: {err}"))?;
     tracing::info!("Generating verification keys for snark wrapper.");
-    generate_snark_vk(scheduler_vk, 1).context("generate_snark_vk")
+
+    // Compression mode is 1
+    let config = WrapperConfig::new(1);
+
+    let (_, vk) = get_wrapper_setup_and_vk_from_scheduler_vk(scheduler_vk, config);
+    keystore
+        .save_snark_verification_key(vk)
+        .context("save_snark_vk")
 }
 
 #[derive(Debug, Parser)]
@@ -255,6 +260,8 @@ fn main() -> anyhow::Result<()> {
         .init();
 
     let opt = Cli::parse();
+    // Setting keystore from cli flags will come in next PRs.
+    let keystore = Keystore::default();
 
     match opt.command {
         Command::GenerateVerificationKeys {} => {
@@ -264,7 +271,7 @@ fn main() -> anyhow::Result<()> {
             );
             generate_vks().context("generate_vks()")
         }
-        Command::UpdateCommitments { dryrun } => read_and_update_contract_toml(dryrun),
+        Command::UpdateCommitments { dryrun } => read_and_update_contract_toml(&keystore, dryrun),
 
         Command::GenerateSetupKeys {
             circuits_type,

@@ -7092,6 +7092,8 @@ dependencies = [
  "futures 0.3.30",
  "prometheus_exporter",
  "reqwest",
+ "serde",
+ "serde_json",
  "structopt",
  "tokio",
  "tracing",
