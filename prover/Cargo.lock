@@ -579,13 +579,13 @@ dependencies = [
 [[package]]
 name = "boojum"
 version = "0.2.0"
-source = "git+https://github.com/matter-labs/era-boojum?branch=main#03888f0fbf810a18e98d010dd11891fe32097352"
+source = "git+https://github.com/matter-labs/era-boojum?branch=main#30300f043c9afaeeb35d0f7bd3cc0acaf69ccde4"
 dependencies = [
  "arrayvec 0.7.4",
  "bincode",
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "const_format",
- "convert_case 0.6.0",
+ "convert_case",
  "crossbeam 0.8.4",
  "crypto-bigint 0.5.5",
  "cs_derive 0.1.0 (git+https://github.com/matter-labs/era-boojum?branch=main)",
@@ -794,20 +794,6 @@ dependencies = [
 [[package]]
 name = "circuit_definitions"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=mmzk0216_move_around#5326e86ec26bc59bb1dcfc0cc34368e3d8972fcf"
-dependencies = [
- "crossbeam 0.8.4",
- "derivative",
- "seq-macro",
- "serde",
- "snark_wrapper",
- "zk_evm 1.4.1",
- "zkevm_circuits 1.4.1",
-]
-
-[[package]]
-name = "circuit_definitions"
-version = "0.1.0"
 source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.0#aff36380e6a740f7286c9c522e1416b8d38327ce"
 dependencies = [
  "crossbeam 0.8.4",
@@ -822,7 +808,7 @@ dependencies = [
 [[package]]
 name = "circuit_definitions"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1#f16b40eb4662768b5e29030b240420abc60d115b"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1#ce188bd36b9ea0d99a8cdb4da9beb91cd3f721c4"
 dependencies = [
  "crossbeam 0.8.4",
  "derivative",
@@ -989,15 +975,6 @@ name = "convert_case"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6245d59a3e82a7fc217c5828a6692dbc6dfb63a0c8c90495621f7b9d79704a0e"
-
-[[package]]
-name = "convert_case"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ec182b0ca2f35d8fc196cf3404988fd8b8c739a4d270ff118a398feb0cbec1ca"
-dependencies = [
- "unicode-segmentation",
-]
 
 [[package]]
 name = "core-foundation"
@@ -1229,7 +1206,7 @@ dependencies = [
 [[package]]
 name = "cs_derive"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-boojum?branch=main#03888f0fbf810a18e98d010dd11891fe32097352"
+source = "git+https://github.com/matter-labs/era-boojum?branch=main#30300f043c9afaeeb35d0f7bd3cc0acaf69ccde4"
 dependencies = [
  "proc-macro-error",
  "proc-macro2 1.0.78",
@@ -1442,7 +1419,7 @@ version = "0.99.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4fb810d30a7c1953f91334de7244731fc3f3c10d7fe163338a35b9f640960321"
 dependencies = [
- "convert_case 0.4.0",
+ "convert_case",
  "proc-macro2 1.0.78",
  "quote 1.0.35",
  "rustc_version",
@@ -3116,7 +3093,7 @@ dependencies = [
  "zk_evm 1.4.1",
  "zkevm_test_harness 1.3.3",
  "zkevm_test_harness 1.4.0",
- "zkevm_test_harness 1.4.1 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1)",
+ "zkevm_test_harness 1.4.1",
  "zksync_contracts",
  "zksync_state",
  "zksync_system_constants",
@@ -6130,7 +6107,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bincode",
- "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=mmzk0216_move_around)",
+ "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1)",
  "clap 4.4.6",
  "itertools 0.10.5",
  "md5",
@@ -6854,36 +6831,7 @@ dependencies = [
 [[package]]
 name = "zkevm_test_harness"
 version = "1.4.1"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=mmzk0216_move_around#5326e86ec26bc59bb1dcfc0cc34368e3d8972fcf"
-dependencies = [
- "bincode",
- "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=mmzk0216_move_around)",
- "codegen",
- "crossbeam 0.8.4",
- "curl",
- "derivative",
- "env_logger 0.9.3",
- "hex",
- "lazy_static",
- "rand 0.4.6",
- "rayon",
- "reqwest",
- "rescue_poseidon 0.4.1 (git+https://github.com/matter-labs/rescue-poseidon.git?branch=poseidon2)",
- "serde",
- "serde_json",
- "smallvec",
- "snark_wrapper",
- "structopt",
- "test-log",
- "tracing",
- "walkdir",
- "zkevm-assembly 1.3.2 (git+https://github.com/matter-labs/era-zkEVM-assembly.git?branch=v1.4.1)",
-]
-
-[[package]]
-name = "zkevm_test_harness"
-version = "1.4.1"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1#f16b40eb4662768b5e29030b240420abc60d115b"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1#ce188bd36b9ea0d99a8cdb4da9beb91cd3f721c4"
 dependencies = [
  "bincode",
  "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1)",
@@ -7143,7 +7091,7 @@ dependencies = [
  "vk_setup_data_generator_server_fri",
  "vlog",
  "zkevm_test_harness 1.3.3",
- "zkevm_test_harness 1.4.1 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=mmzk0216_move_around)",
+ "zkevm_test_harness 1.4.1",
  "zksync_config",
  "zksync_dal",
  "zksync_env_config",
@@ -7195,7 +7143,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=mmzk0216_move_around)",
+ "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1)",
  "ctrlc",
  "futures 0.3.30",
  "local-ip-address",
@@ -7209,7 +7157,7 @@ dependencies = [
  "vise",
  "vk_setup_data_generator_server_fri",
  "vlog",
- "zkevm_test_harness 1.4.1 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=mmzk0216_move_around)",
+ "zkevm_test_harness 1.4.1",
  "zksync_config",
  "zksync_dal",
  "zksync_env_config",
@@ -7250,7 +7198,7 @@ dependencies = [
 name = "zksync_prover_fri_types"
 version = "0.1.0"
 dependencies = [
- "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=mmzk0216_move_around)",
+ "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1)",
  "serde",
  "zksync_object_store",
  "zksync_types",
@@ -7392,7 +7340,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "bincode",
- "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=mmzk0216_move_around)",
+ "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1)",
  "const-decoder",
  "ctrlc",
  "futures 0.3.30",
@@ -7410,7 +7358,7 @@ dependencies = [
  "vk_setup_data_generator_server_fri",
  "vlog",
  "zk_evm 1.4.1",
- "zkevm_test_harness 1.4.1 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=mmzk0216_move_around)",
+ "zkevm_test_harness 1.4.1",
  "zksync_config",
  "zksync_dal",
  "zksync_env_config",
