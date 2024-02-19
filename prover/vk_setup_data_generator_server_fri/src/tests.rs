@@ -1,19 +1,13 @@
 use proptest::prelude::*;
 use zksync_prover_fri_types::{
     circuit_definitions::{
-        circuit_definitions::recursion_layer::{
-            base_circuit_type_into_recursive_leaf_circuit_type, ZkSyncRecursionLayerStorageType,
-        },
+        circuit_definitions::recursion_layer::base_circuit_type_into_recursive_leaf_circuit_type,
         zkevm_circuits::scheduler::aux::BaseLayerCircuitType,
     },
     ProverServiceDataKey,
 };
 use zksync_types::basic_fri_types::AggregationRound;
-use zksync_vk_setup_data_server_fri::{
-    get_base_layer_vk_for_circuit_type, get_base_path, get_file_path, get_finalization_hints,
-    get_recursive_layer_vk_for_circuit_type, get_round_for_recursive_circuit_type,
-    ProverServiceDataType,
-};
+use zksync_vk_setup_data_server_fri::keystore::Keystore;
 
 fn all_possible_prover_service_data_key() -> impl Strategy<Value = ProverServiceDataKey> {
     let mut keys = Vec::with_capacity(30);
