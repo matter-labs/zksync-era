@@ -17,6 +17,7 @@ mod require_eip712;
 mod rollbacks;
 mod sekp256r1;
 mod simple_execution;
+mod storage;
 mod tester;
 mod tracing_execution_error;
 mod upgrade;
