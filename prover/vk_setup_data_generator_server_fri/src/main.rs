@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use anyhow::Context as _;
-use circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerVerificationKey;
 use clap::{Parser, Subcommand};
 use commitment_generator::read_and_update_contract_toml;
 use tracing::level_filters::LevelFilter;
@@ -13,14 +12,7 @@ use zkevm_test_harness::{
         WrapperConfig,
     },
 };
-use zksync_prover_fri_types::{
-    circuit_definitions::{
-        circuit_definitions::recursion_layer::ZkSyncRecursionLayerStorageType,
-        zkevm_circuits::scheduler::aux::BaseLayerCircuitType,
-    },
-    ProverServiceDataKey,
-};
-use zksync_types::basic_fri_types::AggregationRound;
+use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerStorageType;
 use zksync_vk_setup_data_server_fri::keystore::Keystore;
 use zksync_vk_setup_data_server_fri::setup_data_generator::{
     generate_all_cpu_setup_data, generate_all_gpu_setup_data, generate_cpu_setup_data,
