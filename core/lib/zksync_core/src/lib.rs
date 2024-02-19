@@ -1100,7 +1100,7 @@ async fn run_http_api<G: L1GasPriceProvider>(
     }
     namespaces.push(Namespace::Snapshots);
 
-    let updaters_pool = ConnectionPool::singleton(postgres_config.replica_url()?)
+    let updaters_pool = ConnectionPool::builder(postgres_config.replica_url()?, 2)
         .build()
         .await
         .context("failed to build last_miniblock_pool")?;
