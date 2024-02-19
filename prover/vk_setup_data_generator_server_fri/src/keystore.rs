@@ -27,8 +27,15 @@ pub enum ProverServiceDataType {
     FinalizationHints,
     SnarkVerificationKey,
 }
+
+/// Key store manages all the prover keys.
+/// There are 2 types:
+/// - small verification, finalization keys (used only during verification)
+/// - large setup keys, used during proving.
 pub struct Keystore {
+    /// Directory to store all the small keys.
     basedir: String,
+    /// Directory to store large setup keys.
     setup_data_path: Option<String>,
 }
 
@@ -69,7 +76,7 @@ impl Keystore {
         }
     }
 
-    pub fn get_base_path(&self) -> &String {
+    pub fn get_base_path(&self) -> &str {
         &self.basedir
     }
 
