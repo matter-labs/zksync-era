@@ -56,22 +56,11 @@ impl Config {
     pub fn executor_config(&self, node_key: node::SecretKey) -> executor::Config {
         executor::Config {
             server_addr: self.server_addr,
-            validators: self.validators.clone(),
             max_payload_size: self.max_payload_size,
             node_key,
             gossip_dynamic_inbound_limit: self.gossip_dynamic_inbound_limit,
             gossip_static_inbound: self.gossip_static_inbound.clone().into_iter().collect(),
             gossip_static_outbound: self.gossip_static_outbound.clone().into_iter().collect(),
-        }
-    }
-
-    pub fn validator_config(
-        &self,
-        validator_key: validator::SecretKey,
-    ) -> executor::ValidatorConfig {
-        executor::ValidatorConfig {
-            public_addr: self.public_addr,
-            key: validator_key,
         }
     }
 }

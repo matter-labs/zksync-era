@@ -4,7 +4,7 @@ use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, sync, time};
 use zksync_consensus_bft::PayloadManager;
 use zksync_consensus_roles::validator;
-use zksync_consensus_storage::{BlockStoreState, PersistentBlockStore, ReplicaState, ReplicaStore};
+use zksync_consensus_storage::{PersistentBlockStore, ReplicaState, ReplicaStore};
 use zksync_dal::{consensus_dal::Payload, ConnectionPool};
 use zksync_types::MiniblockNumber;
 
@@ -131,6 +131,14 @@ impl<'a> CtxStorage<'a> {
     pub async fn new_fetcher_cursor(&mut self, ctx: &ctx::Ctx) -> ctx::Result<IoCursor> {
         Ok(ctx.wait(IoCursor::for_fetcher(&mut self.0)).await??)
     }
+
+    pub async fn try_init_genesis(&mut self, ctx: &ctx::Ctx, validators: &validator::ValidatorSet) -> ctx::Result<()> {
+        Ok(ctx.wait(self.0.consensus_dal().try_init_genesis(validators)).await??)
+    }
+
+    pub async fn set_genesis(&mut self, ctx: &ctx::Ctx, genesis: &validator::Genesis) -> ctx::Result<()> {
+        Ok(ctx.wait(self.0.consensus_dal().set_genesis(genesis)).await??)
+    }
 }
 
 #[derive(Debug)]
@@ -216,45 +224,9 @@ impl BlockStore {
         ctx: &ctx::Ctx,
         validator_key: &validator::SecretKey,
     ) -> ctx::Result<()> {
-        let mut storage = CtxStorage::access(ctx, &self.inner.pool)
-            .await
-            .wrap("access()")?;
-        // Fetch last miniblock number outside of the transaction to avoid taking a lock.
-        let number = storage
-            .last_miniblock_number(ctx)
-            .await
-            .wrap("last_miniblock_number()")?;
-
-        let mut txn = storage
-            .start_transaction(ctx)
-            .await
-            .wrap("start_transaction()")?;
-        if txn
-            .first_certificate(ctx)
-            .await
-            .wrap("first_certificate()")?
-            .is_some()
-        {
-            return Ok(());
-        }
-        let payload = txn
-            .payload(ctx, number)
-            .await
-            .wrap("payload()")?
-            .context("miniblock disappeared")?;
-        let mut genesis = validator::GenesisSetup {
-            keys: vec![validator_key.clone()],
-            blocks: vec![],
-        };
-        genesis
-            .next_block()
-            .block_number(number)
-            .payload(payload.encode())
-            .push();
-        txn.insert_certificate(ctx, &genesis.blocks[0].justification)
-            .await
-            .wrap("insert_certificate()")?;
-        txn.commit(ctx).await.wrap("commit()")
+        let validators = validator::ValidatorSet::new([validator_key.public()]).unwrap();
+        CtxStorage::access(ctx, &self.inner.pool).await.wrap("access()")?
+            .try_init_genesis(ctx,&validators).await.wrap("try_init_genesis")
     }
 
     /// Sets an `ActionQueueSender` in the `BlockStore`. See `store_next_block()` for details.
@@ -277,21 +249,22 @@ impl BlockStore {
 
 #[async_trait::async_trait]
 impl PersistentBlockStore for BlockStore {
-    async fn state(&self, ctx: &ctx::Ctx) -> ctx::Result<BlockStoreState> {
-        let mut storage = CtxStorage::access(ctx, &self.inner.pool)
+    async fn genesis(&self, ctx: &ctx::Ctx) -> ctx::Result<validator::Genesis> {
+        CtxStorage::access(ctx, &self.inner.pool)
             .await
-            .wrap("access()")?;
-        let first = storage
-            .first_certificate(ctx)
+            .wrap("access()")?
+            .genesis(ctx)
             .await
-            .wrap("first_certificate()")?
-            .context("store is empty")?;
-        let last = storage
+            .wrap("genesis()")
+    }
+
+    async fn last(&self, ctx: &ctx::Ctx) -> ctx::Result<Option<validator::CommitQC>> {
+        CtxStorage::access(ctx, &self.inner.pool)
+            .await
+            .wrap("access()")?
             .last_certificate(ctx)
             .await
-            .wrap("last_certificate()")?
-            .context("store is empty")?;
-        Ok(BlockStoreState { first, last })
+            .wrap("last_certificate()")
     }
 
     async fn block(
@@ -360,17 +333,14 @@ impl PersistentBlockStore for BlockStore {
 
 #[async_trait::async_trait]
 impl ReplicaStore for Store {
-    async fn state(&self, ctx: &ctx::Ctx) -> ctx::Result<Option<ReplicaState>> {
-        let storage = &mut CtxStorage::access(ctx, &self.pool).await.wrap("access()")?;
-        storage.replica_state(ctx).await.wrap("replica_state()")
+    async fn state(&self, ctx: &ctx::Ctx) -> ctx::Result<ReplicaState> {
+        CtxStorage::access(ctx, &self.pool).await.wrap("access()")?
+            .replica_state(ctx).await.wrap("replica_state()")
     }
 
     async fn set_state(&self, ctx: &ctx::Ctx, state: &ReplicaState) -> ctx::Result<()> {
-        let storage = &mut CtxStorage::access(ctx, &self.pool).await.wrap("access()")?;
-        storage
-            .set_replica_state(ctx, state)
-            .await
-            .wrap("set_replica_state()")
+        CtxStorage::access(ctx, &self.pool).await.wrap("access()")?
+            .set_replica_state(ctx, state).await.wrap("set_replica_state()")
     }
 }
 
@@ -384,13 +354,15 @@ impl PayloadManager for Store {
         block_number: validator::BlockNumber,
     ) -> ctx::Result<validator::Payload> {
         const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(50);
-        let mut storage = CtxStorage::access(ctx, &self.pool).await.wrap("access()")?;
-        storage
+        // TODO:
+        // if block_number < genesis.first_block { fail }
+        // if block_number > genesis.first_block { ensure certificate of the parent is there }
+        /*CtxStorage::access(ctx, &self.pool).await.wrap("access()")?
             .certificate(ctx, block_number.prev())
             .await
             .wrap("certificate()")?
             .with_context(|| format!("parent of {block_number:?} is missing"))?;
-        drop(storage);
+        */
         loop {
             let mut storage = CtxStorage::access(ctx, &self.pool).await.wrap("access()")?;
             if let Some(payload) = storage.payload(ctx, block_number).await.wrap("payload()")? {

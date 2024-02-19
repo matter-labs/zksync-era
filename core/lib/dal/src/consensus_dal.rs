@@ -1,6 +1,6 @@
 use anyhow::Context as _;
 use zksync_consensus_roles::validator;
-use zksync_consensus_storage::{ReplicaState};
+use zksync_consensus_storage::ReplicaState;
 use zksync_types::MiniblockNumber;
 
 pub use crate::models::storage_sync::Payload;
@@ -12,121 +12,101 @@ pub struct ConsensusDal<'a, 'c> {
     pub storage: &'a mut StorageProcessor<'c>,
 }
 
-struct BlockId {
-    block: BlockNumber,
-    branch: BranchNumber,
-}
-
-struct Branches {
-    bases: Vec<BlockId>,
-}
-
-impl Branches {
-    pub fn push(&mut self, base: validator::BlockNumber) {
-        let base = BlockId {
-            block: base_block,
-            branch: self.find(block).unwrap_or(self.branches.size()),
-        };
-        self.bases.push(base);
-    }
-
-    pub fn find(&self, block: validator::BlockNumber) -> Option<validator::BranchNumber> {
-        let mut i = self.bases.len().checked_sub(1)?;
-        loop {
-            if self.bases[i].block < block {
-                return Some(validator::BranchNumber(i as u64));
-            }
-            if self.bases[i].branch.0 == (i as u64) {
-                return None;
-            }
-            i = self.bases[i].branch.0 as usize;
-        }
-    }
-}
-
 impl ConsensusDal<'_, '_> {
-    pub async fn set_branches(&mut self, branches: validator::Branches) -> sqlx::Result<()> {
-        let branches =
-            zksync_protobuf::serde::serialize(branches, serde_json::value::Serializer).unwrap();
-        sqlx::query!(
-            r#"
-            INSERT INTO
-                consensus_replica_state (fake_key, branches)
-            VALUES
-                (TRUE, $1)
-            ON CONFLICT (fake_key) DO
-            UPDATE
-            SET
-                branches = excluded.branches
-            "#,
-            state
-        )
-        .execute(self.storage.conn())
-        .await?;
+    /// Fetches genesis.
+    pub async fn genesis(&mut self) -> anyhow::Result<Option<validator::Genesis>> {
+        let Some(row) = sqlx::query!("SELECT genesis FROM consensus_replica_state WHERE fake_key")
+            .fetch_optional(self.storage.conn())
+            .await?
+        else { return Ok(None); };
+        let Some(genesis) = row.genesis else { return Ok(None); };
+        Ok(Some(zksync_protobuf::serde::deserialize(genesis)?))
+    }
+
+    /// Resets the whole consensus state.
+    async fn set_genesis(&mut self, genesis: &validator::Genesis) -> anyhow::Result<()> {
+        if genesis.forks.iter().count()!=1 {
+            anyhow::bail!("many-fork genesis unsupported");
+        }
+        let mut txn = self.storage.start_transaction().await?;
+        if let Some(got) = txn.consensus_dal().genesis().await? {
+            // Exit if the genesis didn't change.
+            if &got==genesis { return Ok(()); }
+            if got.forks.current().number >= genesis.forks.current().number {
+                anyhow::bail!("transition to a past fork is not allowed");
+            }
+        }
+        let genesis = zksync_protobuf::serde::serialize(genesis, serde_json::value::Serializer).unwrap();
+        let state = zksync_protobuf::serde::serialize(&ReplicaState::default(), serde_json::value::Serializer).unwrap();
+        sqlx::query!("DELETE FROM miniblocks_consensus").execute(txn.conn()).await?;
+        sqlx::query!("DELETE FROM consensus_replica_state").execute(txn.conn()).await?;
+        sqlx::query!("INSERT INTO consensus_replica_state (fake_key, genesis, state) VALUES(TRUE, $1, $2)",
+            genesis,
+            state,
+        ).execute(txn.conn()).await?;
+        txn.commit().await?;
         Ok(())
     }
-   
-    /// Fetches the current BFT replica state.
-    pub async fn branches(&mut self) -> anyhow::Result<Option<validator::Branches>> {
-        let Some(row) = sqlx::query!(
-            r#"
-            SELECT
-                branches
-            FROM
-                consensus_replica_state
-            WHERE
-                fake_key
-            "#
-        )
-        .fetch_optional(self.storage.conn())
-        .await?
-        else {
-            return Ok(None);
+
+    pub async fn fork(&mut self, first_block: validator::BlockNumber) -> anyhow::Result<()> {
+        let mut txn = self.storage.start_transaction().await?;
+        let Some(old) = txn.consensus_dal().genesis().await? else { return Ok(()); };
+        let new = validator::Genesis {
+            validators: old.validators,
+            forks: validator::ForkSet::new(vec![validator::Fork {
+                number: old.forks.current().number,
+                first_block,
+                first_parent: None,
+            }]).unwrap(),
         };
-        let Some(branches) = row.branches else { return Ok(None); };
-        Ok(Some(zksync_protobuf::serde::deserialize(branches)?))
+        txn.consensus_dal().set_genesis(&new).await?;
+        txn.commit().await?;
+        Ok(())
+    }
+
+    pub async fn try_init_genesis(&mut self, validators: &validator::ValidatorSet) -> anyhow::Result<()> {
+        let first_block = self.storage.blocks_dal().get_sealed_miniblock_number().await?.map(|n|n+1).unwrap_or(0.into());
+        let first_block = validator::BlockNumber(first_block.0.into());
+        let mut txn = self.storage.start_transaction().await?;
+        if txn.consensus_dal().genesis().await?.is_some() {
+            return Ok(());
+        }
+        let genesis = validator::Genesis {
+            validators: validators.clone(),
+            forks: validator::ForkSet::new(vec![validator::Fork {
+                number: validator::ForkNumber(0),
+                first_block,
+                first_parent: None,
+            }]).unwrap(),
+        };
+        txn.consensus_dal().set_genesis(&genesis).await?;
+        txn.commit().await?;
+        Ok(())
     }
 
     /// Fetches the current BFT replica state.
-    pub async fn replica_state(&mut self) -> anyhow::Result<Option<ReplicaState>> {
-        let Some(row) = sqlx::query!(
+    pub async fn replica_state(&mut self) -> anyhow::Result<ReplicaState> {
+        let row = sqlx::query!(
             r#"
             SELECT
-                state
+                state as "state!"
             FROM
                 consensus_replica_state
             WHERE
                 fake_key
             "#
         )
-        .fetch_optional(self.storage.conn())
-        .await?
-        else {
-            return Ok(None);
-        };
-        let Some(state) = row.state else { return Ok(None); };
-        Ok(Some(zksync_protobuf::serde::deserialize(state)?))
+        .fetch_one(self.storage.conn())
+        .await?;
+        Ok(zksync_protobuf::serde::deserialize(row.state)?)
     }
 
     /// Sets the current BFT replica state.
     pub async fn set_replica_state(&mut self, state: &ReplicaState) -> sqlx::Result<()> {
-        let state =
-            zksync_protobuf::serde::serialize(state, serde_json::value::Serializer).unwrap();
-        sqlx::query!(
-            r#"
-            INSERT INTO
-                consensus_replica_state (fake_key, state)
-            VALUES
-                (TRUE, $1)
-            ON CONFLICT (fake_key) DO
-            UPDATE
-            SET
-                state = excluded.state
-            "#,
-            state
-        )
-        .execute(self.storage.conn())
-        .await?;
+        let state = zksync_protobuf::serde::serialize(state, serde_json::value::Serializer).unwrap();
+        sqlx::query!("UPDATE consensus_replica_state SET state = $1 WHERE fake_key", state)
+            .execute(self.storage.conn())
+            .await?;
         Ok(())
     }
 
@@ -245,12 +225,9 @@ impl ConsensusDal<'_, '_> {
                 last.number.next() == header.number,
                 "expected certificate for a block after the current head block"
             );
-            anyhow::ensure!(last.hash() == header.parent, "parent block mismatch");
+            anyhow::ensure!(Some(last.hash()) == header.parent, "parent block mismatch");
         } else {
-            anyhow::ensure!(
-                header.parent == validator::BlockHeaderHash::genesis_parent(),
-                "inserting first block with non-zero parent hash"
-            );
+            anyhow::ensure!(header.parent.is_none(), "inserting first block with parent");
         }
         let want_payload = txn
             .consensus_dal()
@@ -287,20 +264,16 @@ mod tests {
 
     #[tokio::test]
     async fn replica_state_read_write() {
+        let rng = &mut rand::thread_rng();
         let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
-        assert!(conn
-            .consensus_dal()
-            .replica_state()
-            .await
-            .unwrap()
-            .is_none());
-        let rng = &mut rand::thread_rng();
+        conn.consensus_dal().try_init_genesis(&rng.gen()).await.unwrap();
+        assert_eq!(ReplicaState::default(), conn.consensus_dal().replica_state().await.unwrap());
         for _ in 0..10 {
             let want: ReplicaState = rng.gen();
             conn.consensus_dal().set_replica_state(&want).await.unwrap();
             assert_eq!(
-                Some(want),
+                want,
                 conn.consensus_dal().replica_state().await.unwrap()
             );
         }

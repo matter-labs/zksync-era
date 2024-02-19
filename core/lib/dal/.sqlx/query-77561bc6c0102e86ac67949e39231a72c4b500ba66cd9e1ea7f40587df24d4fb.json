@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE consensus_replica_state SET state = $1 WHERE fake_key",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Jsonb"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "77561bc6c0102e86ac67949e39231a72c4b500ba66cd9e1ea7f40587df24d4fb"
+}

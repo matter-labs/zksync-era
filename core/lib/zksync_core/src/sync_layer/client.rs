@@ -5,7 +5,7 @@ use std::{collections::HashMap, fmt};
 use async_trait::async_trait;
 use zksync_system_constants::ACCOUNT_CODE_STORAGE_ADDRESS;
 use zksync_types::{
-    api::{self, en::SyncBlock},
+    api::{self, en},
     get_code_key, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256, U64,
 };
 use zksync_web3_decl::{
@@ -45,7 +45,9 @@ pub trait MainNodeClient: 'static + Send + Sync + fmt::Debug {
         &self,
         number: MiniblockNumber,
         with_transactions: bool,
-    ) -> EnrichedClientResult<Option<SyncBlock>>;
+    ) -> EnrichedClientResult<Option<en::SyncBlock>>;
+
+    async fn fetch_consensus_genesis(&self) -> EnrichedClientResult<Option<en::ConsensusGenesis>>;
 }
 
 impl dyn MainNodeClient {
@@ -143,12 +145,16 @@ impl MainNodeClient for HttpClient {
         &self,
         number: MiniblockNumber,
         with_transactions: bool,
-    ) -> EnrichedClientResult<Option<SyncBlock>> {
+    ) -> EnrichedClientResult<Option<en::SyncBlock>> {
         self.sync_l2_block(number, with_transactions)
             .rpc_context("fetch_l2_block")
             .with_arg("number", &number)
             .with_arg("with_transactions", &with_transactions)
             .await
+    }
+    
+    async fn fetch_consensus_genesis(&self) -> EnrichedClientResult<Option<en::ConsensusGenesis>> {
+        self.consensus_genesis().rpc_context("consensus_genesis").await
     }
 }
 
@@ -169,7 +175,7 @@ pub(super) struct CachingMainNodeClient {
     client: Box<dyn MainNodeClient>,
     /// Earliest miniblock number that is not yet cached. Used as a marker to refill the cache.
     next_refill_at: MiniblockNumber,
-    blocks: HashMap<MiniblockNumber, SyncBlock>,
+    blocks: HashMap<MiniblockNumber, en::SyncBlock>,
 }
 
 impl CachingMainNodeClient {
@@ -185,7 +191,7 @@ impl CachingMainNodeClient {
     pub async fn fetch_l2_block(
         &mut self,
         miniblock: MiniblockNumber,
-    ) -> EnrichedClientResult<Option<SyncBlock>> {
+    ) -> EnrichedClientResult<Option<en::SyncBlock>> {
         FETCHER_METRICS.cache_total[&CachedMethod::SyncL2Block].inc();
         if let Some(block) = self.blocks.get(&miniblock).cloned() {
             FETCHER_METRICS.cache_hit[&CachedMethod::SyncL2Block].inc();

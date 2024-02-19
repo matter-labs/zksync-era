@@ -21,8 +21,8 @@ pub trait EnNamespace {
         include_transactions: bool,
     ) -> RpcResult<Option<en::SyncBlock>>;
 
-    #[method(name = "consensusBranches")]
-    async fn consensus_branches(
+    #[method(name = "consensusGenesis")]
+    async fn consensus_genesis(
         &self,
-    ) -> RpcResult<en::ConsensusBranches>;
+    ) -> RpcResult<Option<en::ConsensusGenesis>>;
 }

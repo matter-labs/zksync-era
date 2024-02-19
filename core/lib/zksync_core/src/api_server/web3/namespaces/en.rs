@@ -15,8 +15,19 @@ impl EnNamespace {
         Self { state }
     }
 
-    pub async fn consensus_branches_impl(&self) -> Result<en::ConsensusBranches, Web3Error> {
-        unimplemented!()
+    pub async fn consensus_genesis_impl(&self) -> Result<Option<en::ConsensusGenesis>, Web3Error> {
+        async {
+            let Some(genesis) = self
+                .state
+                .connection_pool
+                .access_storage_tagged("api")
+                .await?
+                .consensus_dal()
+                .genesis()
+                .await?
+            else { return Ok(None) };
+            anyhow::Ok(Some(en::ConsensusGenesis(zksync_protobuf::serde::serialize(&genesis, serde_json::value::Serializer).unwrap())))
+        }.await.map_err(|err| internal_error("en_consensusGenesis", err))
     }
 
     #[tracing::instrument(skip(self))]

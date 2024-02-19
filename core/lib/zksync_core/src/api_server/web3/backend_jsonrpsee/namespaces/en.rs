@@ -18,9 +18,9 @@ impl EnNamespaceServer for EnNamespace {
             .map_err(into_jsrpc_error)
     }
 
-    async fn consensus_branches(
+    async fn consensus_genesis(
         &self,
-    ) -> RpcResult<en::ConsensusBranches> {
-        self.consensus_branches_impl().await.map_err(into_jsrpc_error)
+    ) -> RpcResult<Option<en::ConsensusGenesis>> {
+        self.consensus_genesis_impl().await.map_err(into_jsrpc_error)
     }
 }

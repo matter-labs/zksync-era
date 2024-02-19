@@ -45,20 +45,5 @@ pub struct SyncBlock {
     pub protocol_version: ProtocolVersionId,
 }
 
-/*
-pub struct BlockId {
-    branch: validator::BranchNumber,
-    number: validator::BlockNumber,
-}
-
-pub struct BranchBase {
-    branch: validator::BranchNumber,
-    number: validator::BlockNumber,
-
-    base: BlockId,
-}*/
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ConsensusBranches {
-    //branches: BTreeMap<validator::BranchNumber,Option<validator::BlockId>>,
-}
+pub struct ConsensusGenesis(pub serde_json::Value);

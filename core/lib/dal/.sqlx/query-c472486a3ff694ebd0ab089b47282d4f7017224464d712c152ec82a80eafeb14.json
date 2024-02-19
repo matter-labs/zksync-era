@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM consensus_replica_state",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "c472486a3ff694ebd0ab089b47282d4f7017224464d712c152ec82a80eafeb14"
+}
