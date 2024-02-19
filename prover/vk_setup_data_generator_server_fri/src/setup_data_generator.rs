@@ -76,7 +76,7 @@ pub trait SetupDataGenerator {
     fn keystore(&self) -> &Keystore;
 
     /// Generates and stores the setup keys.
-    /// Returns the md5 checksum of the stored file.
+    /// Returns the md5 check sum of the stored file.
     fn generate_and_write_setup_data(
         &self,
         is_base_layer: bool,
