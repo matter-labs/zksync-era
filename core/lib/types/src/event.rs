@@ -1,14 +1,19 @@
 use std::fmt::Debug;
 
+use itertools::Itertools;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::ethabi::Token;
-use zksync_utils::{h256_to_account_address, u256_to_bytes_be, u256_to_h256};
+use zksync_system_constants::EVENT_WRITER_ADDRESS;
+use zksync_utils::{
+    address_to_u256, h256_to_account_address, h256_to_u256, u256_to_bytes_be, u256_to_h256,
+};
 
 use crate::{
     ethabi,
     l2_to_l1_log::L2ToL1Log,
     tokens::{TokenInfo, TokenMetadata},
+    zk_evm_types::{LogQuery, Timestamp},
     Address, L1BatchNumber, CONTRACT_DEPLOYER_ADDRESS, H256, KNOWN_CODES_STORAGE_ADDRESS,
     L1_MESSENGER_ADDRESS, U256,
 };
@@ -337,6 +342,73 @@ pub fn extract_published_bytecodes(all_generated_events: &[VmEvent]) -> Vec<H256
 pub struct VmEventGroupKey {
     pub address: Address,
     pub topic: (u32, H256),
+}
+
+/// Each `VmEvent` can be translated to several log queries.
+/// This methods converts each event from input to log queries and returns all produced log queries.
+pub fn convert_vm_events_to_log_queries(events: &[VmEvent]) -> Vec<LogQuery> {
+    events
+        .iter()
+        .flat_map(|event| {
+            // Construct first query. This query holds an information about
+            // - number of event topics (on log query level `event.address` is treated as a topic, thus + 1 is added)
+            // - length of event value
+            // - `event.address` (or first topic in terms of log query terminology).
+            let first_key_word =
+                (event.indexed_topics.len() as u64 + 1) + ((event.value.len() as u64) << 32);
+            let key = U256([first_key_word, 0, 0, 0]);
+            let first_log = LogQuery {
+                timestamp: Timestamp(0),
+                tx_number_in_block: event.location.1 as u16,
+                aux_byte: 0,
+                shard_id: 0,
+                address: EVENT_WRITER_ADDRESS,
+                key,
+                read_value: U256::zero(),
+                written_value: address_to_u256(&event.address),
+                rw_flag: false,
+                rollback: false,
+                is_service: true,
+            };
+
+            // The next logs hold an information about remaining topics and `event.value`.
+            // Each log can hold at most two values each of 32 bytes.
+            // The following piece of code prepares these 32-byte values.
+            let values = event
+                .indexed_topics
+                .iter()
+                .map(|h| h256_to_u256(*h))
+                .chain(event.value.chunks(32).map(U256::from_big_endian));
+
+            // And now we process these values in chunks by two.
+            let value_chunks = values.chunks(2);
+            let other_logs = value_chunks.into_iter().map(|mut chunk| {
+                // The first value goes to `log_query.key`.
+                let key = chunk.next().unwrap();
+
+                // If the second one is present then it goes to `log_query.written_value`.
+                let written_value = chunk.next().unwrap_or_default();
+
+                LogQuery {
+                    timestamp: Timestamp(0),
+                    tx_number_in_block: event.location.1 as u16,
+                    aux_byte: 0,
+                    shard_id: 0,
+                    address: EVENT_WRITER_ADDRESS,
+                    key,
+                    read_value: U256::zero(),
+                    written_value,
+                    rw_flag: false,
+                    rollback: false,
+                    is_service: false,
+                }
+            });
+
+            std::iter::once(first_log)
+                .chain(other_logs)
+                .collect::<Vec<_>>()
+        })
+        .collect()
 }
 
 #[cfg(test)]
