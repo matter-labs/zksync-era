@@ -1,6 +1,6 @@
 use zksync_basic_types::{ethabi::Token, U256};
 
-use crate::{commitment::L1BatchWithMetadata, utils};
+use crate::commitment::L1BatchWithMetadata;
 
 pub trait L1BatchCommitDataGenerator
 where
@@ -69,7 +69,7 @@ fn validium_mode_l1_commit_data(l1_batch_with_metadata: &L1BatchWithMetadata) ->
 
 fn rollup_mode_l1_commit_data(l1_batch_with_metadata: &L1BatchWithMetadata) -> Vec<Token> {
     let mut commit_data = validium_mode_l1_commit_data(l1_batch_with_metadata);
-    commit_data.push(Token::Bytes(utils::construct_pubdata(
+    commit_data.push(Token::Bytes(L1BatchWithMetadata::construct_pubdata(
         l1_batch_with_metadata,
     )));
     commit_data

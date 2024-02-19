@@ -129,6 +129,38 @@ impl L1BatchWithMetadata {
             }
         })
     }
+
+    /// Packs all pubdata needed for batch commitment in boojum into one bytes array. The packing contains the
+    /// following: logs, messages, bytecodes, and compressed state diffs.
+    /// This data is currently part of calldata but will be submitted as part of the blob section post EIP-4844.
+    pub fn construct_pubdata(l1_batch_with_metadata: &L1BatchWithMetadata) -> Vec<u8> {
+        let mut res: Vec<u8> = vec![];
+
+        // Process and Pack Logs
+        res.extend((l1_batch_with_metadata.header.l2_to_l1_logs.len() as u32).to_be_bytes());
+        for l2_to_l1_log in &l1_batch_with_metadata.header.l2_to_l1_logs {
+            res.extend(l2_to_l1_log.0.to_bytes());
+        }
+
+        // Process and Pack Messages
+        res.extend((l1_batch_with_metadata.header.l2_to_l1_messages.len() as u32).to_be_bytes());
+        for msg in &l1_batch_with_metadata.header.l2_to_l1_messages {
+            res.extend((msg.len() as u32).to_be_bytes());
+            res.extend(msg);
+        }
+
+        // Process and Pack Bytecodes
+        res.extend((l1_batch_with_metadata.factory_deps.len() as u32).to_be_bytes());
+        for bytecode in &l1_batch_with_metadata.factory_deps {
+            res.extend((bytecode.len() as u32).to_be_bytes());
+            res.extend(bytecode);
+        }
+
+        // Extend with Compressed StateDiffs
+        res.extend(&l1_batch_with_metadata.metadata.state_diffs_compressed);
+
+        res
+    }
 }
 
 impl SerializeCommitment for L2ToL1Log {
