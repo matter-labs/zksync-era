@@ -57,7 +57,8 @@ async fn getting_nonce_for_account() {
     storage
         .storage_logs_dal()
         .append_storage_logs(MiniblockNumber(0), &[(H256::default(), vec![nonce_log])])
-        .await;
+        .await
+        .unwrap();
 
     let tx_executor = MockTransactionExecutor::default().into();
     let (tx_sender, _) = create_test_tx_sender(pool.clone(), l2_chain_id, tx_executor).await;
@@ -78,7 +79,8 @@ async fn getting_nonce_for_account() {
     storage
         .storage_logs_dal()
         .insert_storage_logs(MiniblockNumber(1), &[(H256::default(), vec![nonce_log])])
-        .await;
+        .await
+        .unwrap();
 
     let nonce = tx_sender.get_expected_nonce(test_address).await.unwrap();
     assert_eq!(nonce, Nonce(321));
@@ -134,7 +136,8 @@ async fn getting_nonce_for_account_after_snapshot_recovery() {
             SNAPSHOT_MINIBLOCK_NUMBER + 1,
             &[(H256::default(), new_nonce_logs)],
         )
-        .await;
+        .await
+        .unwrap();
 
     let nonce = tx_sender.get_expected_nonce(test_address).await.unwrap();
     assert_eq!(nonce, Nonce(321));

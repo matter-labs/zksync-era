@@ -5,10 +5,12 @@ use std::{fmt, time::Duration};
 use anyhow::Context as _;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+use serde::Serialize;
 #[cfg(test)]
 use tokio::sync::mpsc;
 use tokio::sync::watch;
 use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_types::{
     aggregated_operations::AggregatedActionType, api, L1BatchNumber, MiniblockNumber, H256,
 };
@@ -116,7 +118,7 @@ impl MainNodeClient for HttpClient {
 }
 
 /// Cursors for the last executed / proven / committed L1 batch numbers.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
 struct UpdaterCursor {
     last_executed_l1_batch: L1BatchNumber,
     last_proven_l1_batch: L1BatchNumber,
@@ -242,6 +244,7 @@ impl UpdaterCursor {
 pub struct BatchStatusUpdater {
     client: Box<dyn MainNodeClient>,
     pool: ConnectionPool,
+    health_updater: HealthUpdater,
     sleep_interval: Duration,
     /// Test-only sender of status changes each time they are produced and applied to the storage.
     #[cfg(test)]
@@ -270,10 +273,15 @@ impl BatchStatusUpdater {
         Self {
             client,
             pool,
+            health_updater: ReactiveHealthCheck::new("batch_status_updater").1,
             sleep_interval,
             #[cfg(test)]
             changes_sender: mpsc::unbounded_channel().0,
         }
+    }
+
+    pub fn health_check(&self) -> ReactiveHealthCheck {
+        self.health_updater.subscribe()
     }
 
     pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
@@ -281,6 +289,8 @@ impl BatchStatusUpdater {
         let mut cursor = UpdaterCursor::new(&mut storage).await?;
         drop(storage);
         tracing::info!("Initialized batch status updater cursor: {cursor:?}");
+        self.health_updater
+            .update(Health::from(HealthStatus::Ready).with_details(cursor));
 
         loop {
             if *stop_receiver.borrow() {
@@ -305,6 +315,8 @@ impl BatchStatusUpdater {
             } else {
                 self.apply_status_changes(&mut cursor, status_changes)
                     .await?;
+                self.health_updater
+                    .update(Health::from(HealthStatus::Ready).with_details(cursor));
             }
         }
     }

@@ -22,10 +22,12 @@ function getDals(opts: DbOpts): Map<DalPath, string> {
     let dals = new Map<DalPath, string>();
     if (!opts.prover && !opts.server) {
         dals.set(DalPath.CoreDal, process.env.DATABASE_URL!);
-        dals.set(DalPath.ProverDal, process.env.DATABASE_PROVER_URL!);
+        if (process.env.DATABASE_PROVER_URL) {
+            dals.set(DalPath.ProverDal, process.env.DATABASE_PROVER_URL);
+        }
     }
-    if (opts.prover) {
-        dals.set(DalPath.ProverDal, process.env.DATABASE_PROVER_URL!);
+    if (opts.prover && process.env.DATABASE_PROVER_URL) {
+        dals.set(DalPath.ProverDal, process.env.DATABASE_PROVER_URL);
     }
     if (opts.server) {
         dals.set(DalPath.CoreDal, process.env.DATABASE_URL!);
@@ -138,7 +140,7 @@ export async function setupForDal(dalPath: DalPath, dbUrl: string) {
 }
 
 export async function setup(opts: DbOpts) {
-    if (process.env.TEMPLATE_DATABASE_URL !== undefined) {
+    if (process.env.TEMPLATE_DATABASE_URL) {
         process.chdir(DalPath.CoreDal);
 
         // Dump and restore from template database (simulate backup)
