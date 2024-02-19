@@ -8707,7 +8707,6 @@ dependencies = [
 name = "zksync_l1_contract_interface"
 version = "0.1.0"
 dependencies = [
- "bincode",
  "codegen 0.1.0",
  "hex",
  "once_cell",

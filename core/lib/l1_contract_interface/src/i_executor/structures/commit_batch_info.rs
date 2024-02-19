@@ -1,5 +1,4 @@
 use once_cell::sync::Lazy;
-use serde::{Deserialize, Serialize};
 use zkevm_test_harness_1_4_1::kzg::KzgSettings;
 use zksync_types::{
     commitment::{pre_boojum_serialize_commitments, serialize_commitments, L1BatchWithMetadata},

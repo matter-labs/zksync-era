@@ -7,7 +7,6 @@ use zksync_types::{
 };
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
-use super::constants::BOOTLOADER_BATCH_TIP_OVERHEAD_GAS;
 use crate::{
     glue::GlueInto,
     interface::{
