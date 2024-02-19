@@ -22,6 +22,8 @@ use {
 
 use crate::{keystore::Keystore, GoldilocksProverSetupData};
 
+/// Internal helper function, that calls the test harness to generate the setup data.
+/// It also does a final sanity check to make sure that verification keys didn't change.
 pub fn generate_setup_data_common(
     keystore: &Keystore,
     is_base_layer: bool,
@@ -62,6 +64,7 @@ pub fn generate_setup_data_common(
     Ok(circuit_setup_data)
 }
 
+/// Trait to cover GPU and CPU setup data generation.
 pub trait SetupDataGenerator {
     /// Generates the setup keys.
     fn generate_setup_data(
