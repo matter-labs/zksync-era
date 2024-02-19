@@ -142,7 +142,7 @@ fn main() -> anyhow::Result<()> {
         .init();
 
     let opt = Cli::parse();
-    // Setting keystore from cli flags will come in next PRs.
+    // Setting key store from argument flags will come in next PR.
     let keystore = Keystore::default();
 
     match opt.command {

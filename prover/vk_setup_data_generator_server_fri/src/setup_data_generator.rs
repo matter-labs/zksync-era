@@ -22,10 +22,7 @@ use zksync_prover_fri_types::{
 };
 use zksync_types::basic_fri_types::AggregationRound;
 #[cfg(feature = "gpu")]
-use {
-    shivini::cs::setup::GpuSetup, shivini::ProverContext,
-    zksync_vk_setup_data_server_fri::GpuProverSetupData,
-};
+use {crate::GpuProverSetupData, shivini::cs::setup::GpuSetup, shivini::ProverContext};
 
 use crate::{
     keystore::Keystore,
@@ -261,7 +258,7 @@ pub fn generate_gpu_setup_data(
     is_base_layer: bool,
     numeric_circuit: u8,
     dry_run: bool,
-) -> anyhow::Result<(String)> {
+) -> anyhow::Result<String> {
     let _context = ProverContext::create().context("failed initializing gpu prover context")?;
     let (cpu_setup_data, key) = match is_base_layer {
         true => {
@@ -303,10 +300,7 @@ pub fn generate_gpu_setup_data(
     let digest = md5::compute(&serialized);
     if !dry_run {
         keystore
-            .save_setup_data_for_circuit_type(
-                ProverServiceDataKey::new(numeric_circuit, round),
-                &serialized,
-            )
+            .save_setup_data_for_circuit_type(key, &serialized)
             .context("save_setup_data_for_circuit_type")?;
     } else {
         tracing::warn!("Dry run - not writing the key");
