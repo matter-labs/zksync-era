@@ -322,6 +322,7 @@ export const reinitHyperCommand = new Command('reinit-hyper').action(async (cmd:
 
 export const initSharedBridgeCommand = new Command('init-shared-bridge')
     .description('initialize just the L2, currently with own bridge')
+    .option('--skip-submodules-checkout')
     .option('--base-token-name <base-token-name>', 'base token name')
     .option('--base-token-address <base-token-address>', 'base token address')
     .action(async (cmd: Command) => {
