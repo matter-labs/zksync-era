@@ -18,6 +18,8 @@ use zksync_prover_fri_types::ProverServiceDataKey;
 use zksync_types::basic_fri_types::AggregationRound;
 
 use crate::GoldilocksProverSetupData;
+#[cfg(feature = "gpu")]
+use crate::GoldilocksGpuProverSetupData;
 
 pub enum ProverServiceDataType {
     VerificationKey,

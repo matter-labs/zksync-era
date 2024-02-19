@@ -2,7 +2,7 @@ use proptest::prelude::*;
 use zksync_prover_fri_types::{
     circuit_definitions::{
         circuit_definitions::recursion_layer::{
-            base_circuit_type_into_recursive_leaf_circuit_type, ZkSyncRecursionLayerStorageType,
+            base_circuit_type_into_recursive_leaf_circuit_type,
         },
         zkevm_circuits::scheduler::aux::BaseLayerCircuitType,
     },
