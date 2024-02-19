@@ -1,13 +1,11 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use tokio::sync::watch;
 use zksync_config::GasAdjusterConfig;
 use zksync_eth_client::{Error, EthInterface};
 use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
 
 use super::{metrics::METRICS, GasAdjuster, GasStatistics, L1GasPriceProvider, L1TxParamsProvider};
-use crate::state_keeper::metrics::KEEPER_METRICS;
 
 #[derive(Debug)]
 pub struct RollupGasAdjuster<E> {
@@ -18,73 +16,24 @@ pub struct RollupGasAdjuster<E> {
 
 #[async_trait]
 impl<E: EthInterface> GasAdjuster<E> for RollupGasAdjuster<E> {
-    async fn keep_updated(&self) -> Result<(), Error> {
-        // Subtracting 1 from the "latest" block number to prevent errors in case
-        // the info about the latest block is not yet present on the node.
-        // This sometimes happens on Infura.
-        let current_block = self
-            .eth_client
-            .block_number("gas_adjuster")
-            .await?
-            .as_usize()
-            .saturating_sub(1);
-
-        let last_processed_block = self.statistics.last_processed_block();
-
-        if current_block > last_processed_block {
-            // Report the current price to be gathered by the statistics module.
-            let history = self
-                .eth_client
-                .base_fee_history(
-                    current_block,
-                    current_block - last_processed_block,
-                    "gas_adjuster",
-                )
-                .await?;
-
-            METRICS
-                .current_base_fee_per_gas
-                .set(*history.last().unwrap());
-            self.statistics.add_samples(&history);
-        }
-        Ok(())
-    }
-
-    fn bound_gas_price(&self, gas_price: u64) -> u64 {
-        let max_l1_gas_price = self.config.max_l1_gas_price();
-        if gas_price > max_l1_gas_price {
-            tracing::warn!(
-                "Effective gas price is too high: {gas_price}, using max allowed: {}",
-                max_l1_gas_price
-            );
-            KEEPER_METRICS.gas_price_too_high.inc();
-            return max_l1_gas_price;
-        }
-        gas_price
-    }
-
-    async fn run(&self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
-        loop {
-            if *stop_receiver.borrow() {
-                tracing::info!("Stop signal received, gas_adjuster is shutting down");
-                break;
-            }
-
-            if let Err(err) = self.keep_updated().await {
-                tracing::warn!("Cannot add the base fee to gas statistics: {}", err);
-            }
-
-            tokio::time::sleep(self.config.poll_period()).await;
-        }
-        Ok(())
-    }
-
     fn into_l1_gas_price_provider(self: Arc<Self>) -> Arc<dyn L1GasPriceProvider> {
         self
     }
 
     fn into_l1_tx_params_provider(self: Arc<Self>) -> Arc<dyn L1TxParamsProvider> {
         self
+    }
+
+    fn config(&self) -> &GasAdjusterConfig {
+        &self.config
+    }
+
+    fn eth_client(&self) -> &E {
+        &self.eth_client
+    }
+
+    fn statistics(&self) -> &GasStatistics {
+        &self.statistics
     }
 }
 

@@ -7,6 +7,7 @@ use std::{
 
 use async_trait::async_trait;
 use tokio::sync::watch;
+use zksync_config::GasAdjusterConfig;
 use zksync_eth_client::{Error, EthInterface};
 
 use self::metrics::METRICS;
@@ -224,7 +225,7 @@ impl GasStatisticsInner {
 }
 
 #[derive(Debug, Default)]
-pub(super) struct GasStatistics(RwLock<GasStatisticsInner>);
+pub struct GasStatistics(RwLock<GasStatisticsInner>);
 
 impl GasStatistics {
     pub fn new(max_samples: usize, block: usize, fee_history: &[u64]) -> Self {
