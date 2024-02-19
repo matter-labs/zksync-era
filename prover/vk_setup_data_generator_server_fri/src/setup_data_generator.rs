@@ -16,8 +16,7 @@ use zksync_prover_fri_types::ProverServiceDataKey;
 use zksync_types::basic_fri_types::AggregationRound;
 #[cfg(feature = "gpu")]
 use {
-    shivini::cs::setup::GpuSetup, shivini::ProverContext,
-    crate::GpuProverSetupData,
+    crate::GpuProverSetupData, shivini::cs::setup::GpuSetup, shivini::ProverContext,
     zksync_prover_fri_types::circuit_definitions::boojum::worker::Worker,
 };
 
@@ -174,7 +173,8 @@ impl SetupDataGenerator for GPUSetupDataGenerator {
         {
             let _context =
                 ProverContext::create().context("failed initializing gpu prover context")?;
-            let circuit_setup_data = generate_setup_data_common(&self.keystore, is_base_layer, numeric_circuit)?;
+            let circuit_setup_data =
+                generate_setup_data_common(&self.keystore, is_base_layer, numeric_circuit)?;
 
             let worker = Worker::new();
             let gpu_setup_data = GpuSetup::from_setup_and_hints(
