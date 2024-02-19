@@ -69,7 +69,7 @@ impl MetricExtractor for CircuitsCriterion {
         let batch_tip_overhead_circuits =
             get_bootloader_batch_tip_circuit_overhead(protocol_version_id.into());
         assert!(
-            MARGIN_NUMBER_OF_CIRCUITS > 2 * (batch_tip_overhead_circuits as usize),
+            MARGIN_NUMBER_OF_CIRCUITS >= 2 * (batch_tip_overhead_circuits as usize),
             "The margin should cover batch tip overhead"
         );
 

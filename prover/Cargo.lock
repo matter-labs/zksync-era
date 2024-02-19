@@ -904,6 +904,22 @@ dependencies = [
 
 [[package]]
 name = "codegen"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/solidity_plonk_verifier.git?branch=dev#82f96b7156551087f1c9bfe4f0ea68845b6debfc"
+dependencies = [
+ "ethereum-types",
+ "franklin-crypto 0.0.5 (git+https://github.com/matter-labs/franklin-crypto?branch=dev)",
+ "handlebars",
+ "hex",
+ "paste",
+ "rescue_poseidon 0.4.1 (git+https://github.com/matter-labs/rescue-poseidon.git)",
+ "serde",
+ "serde_derive",
+ "serde_json",
+]
+
+[[package]]
+name = "codegen"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ff61280aed771c3070e7dcc9e050c66f1eb1e3b96431ba66f9f74641d02fc41d"
@@ -2215,6 +2231,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "handlebars"
+version = "5.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ab283476b99e66691dee3f1640fea91487a8d81f50fb5ecc75538f8f8879a1e4"
+dependencies = [
+ "log",
+ "pest",
+ "pest_derive",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "hashbrown"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3104,6 +3134,7 @@ dependencies = [
  "zkevm_test_harness 1.4.0",
  "zkevm_test_harness 1.4.1",
  "zksync_contracts",
+ "zksync_l1_contract_interface",
  "zksync_state",
  "zksync_system_constants",
  "zksync_types",
@@ -3588,6 +3619,51 @@ name = "percent-encoding"
 version = "2.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e3148f5046208a5d56bcfc03053e3ca6334e51da8dfb19b6cdc8b306fae3283e"
+
+[[package]]
+name = "pest"
+version = "2.7.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "219c0dcc30b6a27553f9cc242972b67f75b60eb0db71f0b5462f38b058c41546"
+dependencies = [
+ "memchr",
+ "thiserror",
+ "ucd-trie",
+]
+
+[[package]]
+name = "pest_derive"
+version = "2.7.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "22e1288dbd7786462961e69bfd4df7848c1e37e8b74303dbdab82c3a9cdd2809"
+dependencies = [
+ "pest",
+ "pest_generator",
+]
+
+[[package]]
+name = "pest_generator"
+version = "2.7.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1381c29a877c6d34b8c176e734f35d7f7f5b3adaefe940cb4d1bb7af94678e2e"
+dependencies = [
+ "pest",
+ "pest_meta",
+ "proc-macro2 1.0.78",
+ "quote 1.0.35",
+ "syn 2.0.48",
+]
+
+[[package]]
+name = "pest_meta"
+version = "2.7.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d0934d6907f148c22a3acbda520c7eed243ad7487a30f51f6ce52b58b7077a8a"
+dependencies = [
+ "once_cell",
+ "pest",
+ "sha2 0.10.8",
+]
 
 [[package]]
 name = "petgraph"
@@ -5895,6 +5971,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "42ff0bf0c66b8238c6f3b578df37d0b7848e55df8577b3f74f92a69acceeb825"
 
 [[package]]
+name = "ucd-trie"
+version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ed646292ffc8188ef8ea4d1e0e0150fb15a5c2e12ad9b8fc191ae7a8a7f3c4b9"
+
+[[package]]
 name = "uint"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6795,7 +6877,7 @@ source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v
 dependencies = [
  "bincode",
  "circuit_testing",
- "codegen",
+ "codegen 0.2.0",
  "crossbeam 0.8.4",
  "derivative",
  "env_logger 0.11.2",
@@ -6822,7 +6904,7 @@ source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v
 dependencies = [
  "bincode",
  "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.0)",
- "codegen",
+ "codegen 0.2.0",
  "crossbeam 0.8.4",
  "derivative",
  "env_logger 0.11.2",
@@ -6845,7 +6927,7 @@ source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v
 dependencies = [
  "bincode",
  "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1)",
- "codegen",
+ "codegen 0.2.0",
  "crossbeam 0.8.4",
  "curl",
  "derivative",
@@ -7049,6 +7131,23 @@ dependencies = [
  "serde_json",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "zksync_l1_contract_interface"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "codegen 0.1.0",
+ "once_cell",
+ "serde",
+ "serde_json",
+ "sha2 0.10.8",
+ "sha3 0.10.8",
+ "zkevm_test_harness 1.3.3",
+ "zkevm_test_harness 1.4.1",
+ "zksync_prover_interface",
+ "zksync_types",
 ]
 
 [[package]]
