@@ -94,10 +94,6 @@ export async function initHyper({ governorPrivateKey, deployerL2ContractInput, b
             })
         );
     }
-    await announced(
-        'Initializing governance of chain',
-        contract.initializeGovernanceChain({ privateKey: governorPrivateKey })
-    );
 }
 
 export async function initSharedBridge(initArgs: InitArgs) {
