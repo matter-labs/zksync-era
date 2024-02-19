@@ -1,12 +1,5 @@
 use std::collections::HashMap;
 
-use crate::{
-    keystore::Keystore,
-    utils::{
-        get_basic_circuits, get_leaf_circuits, get_node_circuit, get_scheduler_circuit, CYCLE_LIMIT,
-    },
-    GoldilocksProverSetupData, ProverSetupData,
-};
 use anyhow::Context as _;
 use circuit_definitions::{
     circuit_definitions::recursion_layer::ZkSyncRecursionLayerStorageType,
@@ -32,6 +25,14 @@ use zksync_types::basic_fri_types::AggregationRound;
 use {
     shivini::cs::setup::GpuSetup, shivini::ProverContext,
     zksync_vk_setup_data_server_fri::GpuProverSetupData,
+};
+
+use crate::{
+    keystore::Keystore,
+    utils::{
+        get_basic_circuits, get_leaf_circuits, get_node_circuit, get_scheduler_circuit, CYCLE_LIMIT,
+    },
+    GoldilocksProverSetupData, ProverSetupData,
 };
 
 fn generate_all(

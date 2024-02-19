@@ -13,10 +13,12 @@ use zkevm_test_harness::{
     },
 };
 use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerStorageType;
-use zksync_vk_setup_data_server_fri::keystore::Keystore;
-use zksync_vk_setup_data_server_fri::setup_data_generator::{
-    generate_all_cpu_setup_data, generate_all_gpu_setup_data, generate_cpu_setup_data,
-    generate_gpu_setup_data,
+use zksync_vk_setup_data_server_fri::{
+    keystore::Keystore,
+    setup_data_generator::{
+        generate_all_cpu_setup_data, generate_all_gpu_setup_data, generate_cpu_setup_data,
+        generate_gpu_setup_data,
+    },
 };
 
 mod commitment_generator;

@@ -19,7 +19,6 @@ use zksync_types::basic_fri_types::AggregationRound;
 
 #[cfg(feature = "gpu")]
 use crate::GoldilocksGpuProverSetupData;
-
 use crate::GoldilocksProverSetupData;
 
 pub enum ProverServiceDataType {

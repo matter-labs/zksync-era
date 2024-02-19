@@ -2,7 +2,6 @@
 #![feature(allocator_api)]
 
 use serde::{Deserialize, Serialize};
-
 use zksync_prover_fri_types::circuit_definitions::boojum::{
     algebraic_props::{round_function::AbsorptionModeOverwrite, sponge::GenericAlgebraicSponge},
     cs::{
