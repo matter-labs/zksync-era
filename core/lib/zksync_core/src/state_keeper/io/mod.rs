@@ -13,7 +13,6 @@ use zksync_types::{
     Transaction,
 };
 
-pub(crate) use self::mempool::MempoolIO;
 use super::{
     metrics::{MiniblockQueueStage, MINIBLOCK_METRICS},
     seal_criteria::IoSealCriteria,
@@ -82,7 +81,6 @@ pub trait StateKeeperIO: 'static + Send + IoSealCriteria {
     async fn wait_for_new_miniblock_params(
         &mut self,
         max_wait: Duration,
-        prev_miniblock_timestamp: u64,
     ) -> Option<MiniblockParams>;
     /// Blocks for up to `max_wait` until the next transaction is available for execution.
     /// Returns `None` if no transaction became available until the timeout.

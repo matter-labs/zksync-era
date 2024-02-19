@@ -19,7 +19,7 @@ use zksync_prover_fri_utils::{
 };
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{basic_fri_types::CircuitIdRoundTuple, protocol_version::L1VerifierConfig};
-use zksync_vk_setup_data_server_fri::get_finalization_hints;
+use zksync_vk_setup_data_server_fri::keystore::Keystore;
 
 use crate::metrics::METRICS;
 
@@ -55,9 +55,11 @@ impl WitnessVectorGenerator {
     }
 
     pub fn generate_witness_vector(job: ProverJob) -> anyhow::Result<WitnessVectorArtifacts> {
-        let finalization_hints = get_finalization_hints(job.setup_data_key.clone())
+        let keystore = Keystore::default();
+        let finalization_hints = keystore
+            .load_finalization_hints(job.setup_data_key.clone())
             .context("get_finalization_hints()")?;
-        let mut cs = match job.circuit_wrapper.clone() {
+        let cs = match job.circuit_wrapper.clone() {
             CircuitWrapper::Base(base_circuit) => {
                 base_circuit.synthesis::<GoldilocksField>(&finalization_hints)
             }
@@ -65,10 +67,7 @@ impl WitnessVectorGenerator {
                 recursive_circuit.synthesis::<GoldilocksField>(&finalization_hints)
             }
         };
-        Ok(WitnessVectorArtifacts::new(
-            cs.materialize_witness_vec(),
-            job,
-        ))
+        Ok(WitnessVectorArtifacts::new(cs.witness.unwrap(), job))
     }
 }
 
@@ -154,7 +153,7 @@ impl JobProcessor for WitnessVectorGenerator {
             if let Some(address) = prover {
                 let address = SocketAddr::from(address);
                 tracing::info!(
-                    "Found prover after {:?}. Sending witness vector job...",
+                    "Found prover at address {address:?} after {:?}. Sending witness vector job...",
                     now.elapsed()
                 );
                 let result = send_assembly(job_id, &serialized, &address);

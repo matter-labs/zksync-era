@@ -10,6 +10,8 @@ members = [
     "core/bin/system-constants-generator",
     "core/bin/verified_sources_fetcher",
     "core/bin/zksync_server",
+    # Node services
+    "core/node/node_framework",
     # Libraries
     "core/lib/zksync_core",
     "core/lib/basic_types",
@@ -27,7 +29,6 @@ members = [
     "core/lib/mempool",
     "core/lib/merkle_tree",
     "core/lib/mini_merkle_tree",
-    "core/lib/node",
     "core/lib/object_store",
     "core/lib/prometheus_exporter",
     "core/lib/prover_interface",

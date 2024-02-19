@@ -34,6 +34,13 @@ mod scheduler;
 mod storage_oracle;
 mod utils;
 
+#[cfg(not(target_env = "msvc"))]
+use jemallocator::Jemalloc;
+
+#[cfg(not(target_env = "msvc"))]
+#[global_allocator]
+static GLOBAL: Jemalloc = Jemalloc;
+
 #[derive(Debug, StructOpt)]
 #[structopt(
     name = "Run witness generator for different aggregation round",
