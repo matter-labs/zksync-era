@@ -159,7 +159,7 @@ export class TestContextOwner {
         const chainId = process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!;
 
         const bridgehub = await this.mainSyncWallet.getBridgehubContract();
-        const erc20Bridge = await bridgehub.baseTokenBridge(chainId);
+        const erc20Bridge = await bridgehub.sharedBridge();
         const baseToken = await bridgehub.baseToken(chainId);
 
         const erc20Token = this.env.erc20Token.l1Address;

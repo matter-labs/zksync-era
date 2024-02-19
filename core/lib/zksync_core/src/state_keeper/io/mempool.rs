@@ -57,7 +57,7 @@ pub(crate) struct MempoolIO {
     delay_interval: Duration,
     // Used to keep track of gas prices to set accepted price per pubdata byte in blocks.
     batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
-    l2_erc20_bridge_addr: Address,
+    l2_shared_bridge_addr: Address,
     chain_id: L2ChainId,
 
     virtual_blocks_interval: u32,
@@ -265,7 +265,7 @@ impl StateKeeperIO for MempoolIO {
         let command = updates_manager.seal_miniblock_command(
             self.current_l1_batch_number,
             self.current_miniblock_number,
-            self.l2_erc20_bridge_addr,
+            self.l2_shared_bridge_addr,
             false,
         );
         self.miniblock_sealer_handle.submit(command).await;
@@ -315,7 +315,7 @@ impl StateKeeperIO for MempoolIO {
                 self.current_miniblock_number,
                 l1_batch_env,
                 finished_batch,
-                self.l2_erc20_bridge_addr,
+                self.l2_shared_bridge_addr,
             )
             .await;
         self.current_miniblock_number += 1; // Due to fictive miniblock being sealed.
@@ -401,7 +401,7 @@ impl MempoolIO {
         pool: ConnectionPool,
         config: &StateKeeperConfig,
         delay_interval: Duration,
-        l2_erc20_bridge_addr: Address,
+        l2_shared_bridge_addr: Address,
         validation_computational_gas_limit: u32,
         chain_id: L2ChainId,
     ) -> Self {
@@ -445,7 +445,7 @@ impl MempoolIO {
             validation_computational_gas_limit,
             delay_interval,
             batch_fee_input_provider,
-            l2_erc20_bridge_addr,
+            l2_shared_bridge_addr,
             chain_id,
             virtual_blocks_interval: config.virtual_blocks_interval,
             virtual_blocks_per_miniblock: config.virtual_blocks_per_miniblock,

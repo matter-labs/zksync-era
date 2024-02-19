@@ -12,6 +12,7 @@ import {
     reinitCommand,
     lightweightInitCommand,
     initHyperCommand,
+    reinitHyperCommand,
     initSharedBridgeCommand,
     deployL2ContractsCommand
 } from './init';
@@ -46,6 +47,7 @@ const COMMANDS = [
     lightweightInitCommand,
     initHyperchainCommand,
     initHyperCommand,
+    reinitHyperCommand,
     initSharedBridgeCommand,
     deployL2ContractsCommand,
     run,

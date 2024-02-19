@@ -42,15 +42,6 @@ export async function initializeGovernance(args: any[] = []) {
     await utils.spawn(`${baseCommandL1} initialize-governance ${args.join(' ')} | tee initializeGovernance.log`);
 }
 
-export async function initializeGovernanceChain(args: any[] = []) {
-    await utils.confirmAction();
-
-    const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
-    const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/ethereum` : `yarn l1-contracts`;
-
-    await utils.spawn(`${baseCommandL1} initialize-governance-chain ${args.join(' ')} | tee initializeGovernance.log`);
-}
-
 export async function initializeL1AllowList(args: any[] = []) {
     await utils.confirmAction();
 
@@ -96,7 +87,7 @@ export async function deployL2(args: any[] = [], includePaymaster?: boolean) {
     // Skip compilation for local setup, since we already copied artifacts into the container.
     await utils.spawn(`${baseCommandL2} build`);
 
-    await utils.spawn(`${baseCommandL2} erc20-deploy-on-chain ${args.join(' ')} | tee deployL2.log`);
+    await utils.spawn(`${baseCommandL2} deploy-shared-bridge-on-l2 ${args.join(' ')} | tee deployL2.log`);
 
     if (includePaymaster) {
         await utils.spawn(`${baseCommandL2} deploy-testnet-paymaster ${args.join(' ')} | tee -a deployL2.log`);
@@ -106,8 +97,7 @@ export async function deployL2(args: any[] = [], includePaymaster?: boolean) {
 
     let l2DeployLog = fs.readFileSync('deployL2.log').toString();
     const l2DeploymentEnvVars = [
-        'CONTRACTS_L2_ERC20_BRIDGE_ADDR',
-        'CONTRACTS_L2_WETH_BRIDGE_ADDR',
+        'CONTRACTS_L2_SHARED_BRIDGE_ADDR',
         'CONTRACTS_L2_TESTNET_PAYMASTER_ADDR',
         'CONTRACTS_L2_WETH_TOKEN_IMPL_ADDR',
         'CONTRACTS_L2_WETH_TOKEN_PROXY_ADDR',
@@ -129,7 +119,7 @@ export async function deployL2ThroughL1(args: any[] = [], includePaymaster?: boo
     // Skip compilation for local setup, since we already copied artifacts into the container.
     await utils.spawn(`${baseCommandL2} build`);
 
-    await utils.spawn(`${baseCommandL2} erc20-deploy-on-chain-through-l1 ${args.join(' ')} | tee deployL2.log`);
+    await utils.spawn(`${baseCommandL2} deploy-shared-bridge-on-l2-through-l1 ${args.join(' ')} | tee deployL2.log`);
 
     if (includePaymaster) {
         await utils.spawn(
@@ -143,7 +133,7 @@ export async function deployL2ThroughL1(args: any[] = [], includePaymaster?: boo
 
     let l2DeployLog = fs.readFileSync('deployL2.log').toString();
     const l2DeploymentEnvVars = [
-        'CONTRACTS_L2_ERC20_BRIDGE_ADDR',
+        'CONTRACTS_L2_SHARED_BRIDGE_ADDR',
         'CONTRACTS_L2_TESTNET_PAYMASTER_ADDR',
         'CONTRACTS_L2_WETH_TOKEN_IMPL_ADDR',
         'CONTRACTS_L2_WETH_TOKEN_PROXY_ADDR',
@@ -187,8 +177,8 @@ export async function deployL1(args: any[]) {
         'CONTRACTS_TRANSPARENT_PROXY_ADMIN_ADDR',
         'CONTRACTS_L1_SHARED_BRIDGE_PROXY_ADDR',
         'CONTRACTS_L1_SHARED_BRIDGE_IMPL_ADDR',
-        'CONTRACTS_L1_WETH_BRIDGE_IMPL_ADDR',
-        'CONTRACTS_L1_WETH_BRIDGE_PROXY_ADDR',
+        'CONTRACTS_L1_ERC20_BRIDGE_PROXY_ADDR',
+        'CONTRACTS_L1_ERC20_BRIDGE_IMPL_ADDR',
         'CONTRACTS_L1_MULTICALL3_ADDR'
     ];
 

@@ -89,7 +89,6 @@ export async function initHyper(initArgs: InitArgs = DEFAULT_ARGS) {
             contract.deployL2ThroughL1(deployerL2ContractInput.args, deployerL2ContractInput.includePaymaster)
         );
     }
-    await announced('Initializing governance of chain', contract.initializeGovernanceChain(governorPrivateKeyArgs));
 }
 
 // we keep the old function which deploys the shared bridge and registers the hyperchain as quickly as possible
@@ -175,7 +174,6 @@ export async function checkEnv() {
 export interface InitArgs {
     skipSubmodulesCheckout: boolean;
     skipEnvSetup: boolean;
-    skipSetupCompletely: boolean;
     governorPrivateKeyArgs: any[];
     deployerL2ContractInput: {
         args: any[];
@@ -196,7 +194,6 @@ export interface InitArgs {
 const DEFAULT_ARGS: InitArgs = {
     skipSubmodulesCheckout: false,
     skipEnvSetup: false,
-    skipSetupCompletely: false,
     governorPrivateKeyArgs: [],
     deployerL2ContractInput: { args: [], throughL1: true, includePaymaster: true },
     testTokens: { deploy: true, deployWeth: true, args: [] },
@@ -219,7 +216,6 @@ export const initCommand = new Command('init')
         const initArgs: InitArgs = {
             skipSubmodulesCheckout: cmd.skipSubmodulesCheckout,
             skipEnvSetup: cmd.skipEnvSetup,
-            skipSetupCompletely: cmd.skipSetupCompletely,
             governorPrivateKeyArgs: process.env.GOVERNOR_PRIVATE_KEY
                 ? ['--private-key', process.env.GOVERNOR_PRIVATE_KEY]
                 : [],
@@ -262,6 +258,49 @@ export const lightweightInitCommand = new Command('lightweight-init')
     });
 export const initHyperCommand = new Command('init-hyper')
     .description('initialize just the L2, currently with own bridge')
+    .option('--skip-setup-completely', 'skip the setup completely, use this if server was started already')
+    .option('--env-name <env-name>', 'env name to use for initialization')
+    .option('--base-token-name <base-token-name>', 'base token name')
+    .option('--base-token-address <base-token-address>', 'base token address')
+    .action(async (cmd: Command) => {
+        if (cmd.envName) {
+            process.env.ZKSYNC_ENV = cmd.envName;
+            env.reload();
+        }
+
+        const initArgs: InitArgs = {
+            skipSubmodulesCheckout: cmd.skipSubmodulesCheckout,
+            skipEnvSetup: true, // either we are launching locally, in which case we have called init-shared-bridge, or we are launching to a testnet
+            governorPrivateKeyArgs: process.env.GOVERNOR_PRIVATE_KEY
+                ? ['--private-key', process.env.GOVERNOR_PRIVATE_KEY]
+                : [],
+            deployerL2ContractInput: {
+                args: process.env.DEPLOYER_PRIVATE_KEY ? ['--private-key', process.env.DEPLOYER_PRIVATE_KEY] : [],
+                throughL1: true,
+                includePaymaster: true
+            },
+            testTokens: {
+                deploy: false,
+                deployWeth: false,
+                args: process.env.DEPLOYER_PRIVATE_KEY ? ['--private-key', process.env.DEPLOYER_PRIVATE_KEY] : []
+            },
+            baseToken: {
+                name: cmd.baseTokenName,
+                // we use zero here to show that it is unspecified. If it were ether it would be one.
+                address: cmd.baseTokenAddress ? cmd.baseTokenAddress : ethers.constants.AddressZero
+            }
+        };
+        if (!cmd.skipSetupCompletely) {
+            await initSetup(initArgs);
+        }
+        await initSetupDatabase(initArgs, true); // we skip Verifier deployment, it is only deployed with sharedBridge
+        await initHyper(initArgs);
+    });
+
+export const reinitHyperCommand = new Command('reinit-hyper')
+    .description(
+        'for development purposes, can be called again after "init" if the server was not started, and is faster than "init-hyper"'
+    )
     .option('--env-name <env-name>', 'env name to use for initialization')
     .option('--base-token-name <base-token-name>', 'base token name')
     .option('--base-token-address <base-token-address>', 'base token address')
@@ -274,7 +313,6 @@ export const initHyperCommand = new Command('init-hyper')
         const initArgs: InitArgs = {
             skipSubmodulesCheckout: cmd.skipSubmodulesCheckout,
             skipEnvSetup: cmd.skipEnvSetup,
-            skipSetupCompletely: cmd.skipSetupCompletely,
             governorPrivateKeyArgs: process.env.GOVERNOR_PRIVATE_KEY
                 ? ['--private-key', process.env.GOVERNOR_PRIVATE_KEY]
                 : [],
@@ -294,8 +332,6 @@ export const initHyperCommand = new Command('init-hyper')
                 address: cmd.baseTokenAddress ? cmd.baseTokenAddress : ethers.constants.AddressZero
             }
         };
-        // await initSetup(initArgs);
-        // await initSetupDatabase(initArgs, true); // we skip Verifier deployment, it is only deployed with sharedBridge
         await initHyper(initArgs);
     });
 export const initSharedBridgeCommand = new Command('init-shared-bridge')
@@ -315,7 +351,6 @@ export const initSharedBridgeCommand = new Command('init-shared-bridge')
         const initArgs: InitArgs = {
             skipSubmodulesCheckout: cmd.skipSubmodulesCheckout,
             skipEnvSetup: cmd.skipEnvSetup,
-            skipSetupCompletely: cmd.skipSetupCompletely,
             governorPrivateKeyArgs: process.env.GOVERNOR_PRIVATE_KEY
                 ? ['--private-key', process.env.GOVERNOR_PRIVATE_KEY]
                 : [],
@@ -352,7 +387,6 @@ export const deployL2ContractsCommand = new Command('deploy-l2-contracts')
         const initArgs: InitArgs = {
             skipSubmodulesCheckout: true,
             skipEnvSetup: true,
-            skipSetupCompletely: cmd.skipSetupCompletely,
             governorPrivateKeyArgs: process.env.GOVERNOR_PRIVATE_KEY
                 ? ['--private-key', process.env.GOVERNOR_PRIVATE_KEY]
                 : [],

@@ -70,7 +70,7 @@ where
                     .get_bridge_contracts()
                     .await
                     .map_err(|err| ClientError::NetworkError(err.to_string()))?;
-                default_bridges.l2_erc20_default_bridge
+                default_bridges.l2_shared_default_bridge
             };
 
             // TODO (SMA-1608): Do not implement the ABI manually, introduce ABI files with an update script similarly to

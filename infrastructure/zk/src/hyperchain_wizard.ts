@@ -59,7 +59,6 @@ async function initHyperchain(envName: string) {
     const initArgs: InitArgs = {
         skipSubmodulesCheckout: false,
         skipEnvSetup: true,
-        skipSetupCompletely: false,
         governorPrivateKeyArgs: ['--private-key', governorPrivateKey],
         deployerL2ContractInput: {
             args: ['--private-key', deployerPrivateKey],
@@ -769,7 +768,6 @@ async function configDemoHyperchain(cmd: Command) {
     const initArgs: InitArgs = {
         skipSubmodulesCheckout: false,
         skipEnvSetup: cmd.skipEnvSetup,
-        skipSetupCompletely: false,
         governorPrivateKeyArgs: ['--private-key', governorPrivateKey],
         deployerL2ContractInput: {
             args: ['--private-key', deployerPrivateKey],
