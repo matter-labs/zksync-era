@@ -6145,7 +6145,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "vlog",
- "zkevm_test_harness 1.4.1 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=mmzk0216_move_around)",
+ "zkevm_test_harness 1.4.1",
  "zksync_config",
  "zksync_env_config",
  "zksync_prover_fri_types",
