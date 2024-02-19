@@ -125,9 +125,9 @@ impl StateKeeperGauges {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue)]
-#[metrics(rename_all = "snake_case")]
-enum SealResolutionLabel {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
+#[metrics(label = "seal_resolution", rename_all = "snake_case")]
+pub(crate) enum SealResolutionLabel {
     NoSeal,
     IncludeAndSeal,
     ExcludeAndSeal,
@@ -155,6 +155,8 @@ struct TxAggregationLabels {
 #[metrics(prefix = "server_tx_aggregation")]
 pub(super) struct TxAggregationMetrics {
     reason: Family<TxAggregationLabels, Counter>,
+    #[metrics(buckets = Buckets::exponential(1024.0..=60000.0, 2.0))]
+    pub finish_block_l1_gas: Family<SealResolutionLabel, Histogram<usize>>,
 }
 
 impl TxAggregationMetrics {

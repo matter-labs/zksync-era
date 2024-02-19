@@ -661,14 +661,23 @@ impl ZkSyncStateKeeper {
                     writes_metrics: block_writes_metrics,
                 };
 
-                self.sealer.should_seal_l1_batch(
+                let resolution = self.sealer.should_seal_l1_batch(
                     self.io.current_l1_batch_number().0,
                     updates_manager.batch_timestamp() as u128 * 1_000,
                     updates_manager.pending_executed_transactions_len() + 1,
                     &block_data,
                     &tx_data,
                     updates_manager.protocol_version(),
-                )
+                );
+
+                let max_gas = finish_block_l1_gas
+                    .commit
+                    .max(finish_block_l1_gas.execute)
+                    .max(finish_block_l1_gas.prove);
+                AGGREGATION_METRICS.finish_block_l1_gas[&(&resolution).into()]
+                    .observe(max_gas as usize);
+
+                resolution
             }
         };
         (resolution, exec_result)
