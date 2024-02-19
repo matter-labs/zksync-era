@@ -6131,7 +6131,6 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "vlog",
- "zkevm_test_harness 1.3.3",
  "zkevm_test_harness 1.4.1",
  "zksync_config",
  "zksync_env_config",
