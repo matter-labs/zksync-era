@@ -35,8 +35,8 @@ impl ZksNamespaceServer for ZksNamespace {
         Ok(self.get_main_contract_impl())
     }
 
-    async fn get_native_token_address(&self) -> RpcResult<Address> {
-        self.get_native_token_address_impl()
+    async fn get_base_token_l1_address(&self) -> RpcResult<Address> {
+        self.get_base_token_l1_address_impl()
             .map_err(into_jsrpc_error)
     }
 
