@@ -10,8 +10,11 @@ use multivm::interface::{Halt, L1BatchEnv, SystemEnv};
 use tokio::sync::watch;
 use zksync_dal::ConnectionPool;
 use zksync_types::{
-    block::MiniblockExecutionData, l2::TransactionType, protocol_version::ProtocolUpgradeTx,
-    storage_writes_deduplicator::StorageWritesDeduplicator, ProtocolVersionId, Transaction,
+    block::MiniblockExecutionData,
+    l2::TransactionType,
+    protocol_version::{ProtocolUpgradeTx, ProtocolVersionId},
+    storage_writes_deduplicator::StorageWritesDeduplicator,
+    L1BatchNumber, Transaction,
 };
 
 use super::{
@@ -31,7 +34,7 @@ pub(super) const POLL_WAIT_DURATION: Duration = Duration::from_secs(1);
 
 /// Structure used to indicate that task cancellation was requested.
 #[derive(thiserror::Error, Debug)]
-enum Error {
+pub(super) enum Error {
     #[error("canceled")]
     Canceled,
     #[error(transparent)]
@@ -154,24 +157,9 @@ impl ZkSyncStateKeeper {
         let protocol_version = system_env.version;
         let mut updates_manager = UpdatesManager::new(&l1_batch_env, &system_env);
 
-        let previous_batch_protocol_version = self.io.load_previous_batch_version_id().await?;
-        let version_changed = protocol_version != previous_batch_protocol_version;
-        let mut protocol_upgrade_tx = if version_changed {
-            self.load_upgrade_tx(protocol_version).await?
-        } else {
-            None
-        };
-
-        // Sanity check: if `txs_to_reexecute` is not empty and upgrade tx is present for this block
-        // then it must be the first one in `txs_to_reexecute`.
-        if !pending_miniblocks.is_empty() && protocol_upgrade_tx.is_some() {
-            let first_tx_to_reexecute = &pending_miniblocks[0].txs[0];
-            assert_eq!(
-                first_tx_to_reexecute.tx_format(),
-                TransactionType::ProtocolUpgradeTransaction
-            );
-            protocol_upgrade_tx = None; // The protocol upgrade was already executed
-        }
+        let mut protocol_upgrade_tx: Option<ProtocolUpgradeTx> = self
+            .load_protocol_upgrade_tx(&pending_miniblocks, protocol_version, l1_batch_env.number)
+            .await?;
 
         let mut batch_executor = self
             .batch_executor_base
@@ -242,6 +230,54 @@ impl ZkSyncStateKeeper {
             };
         }
         Err(Error::Canceled)
+    }
+
+    /// This function is meant to be called only once during the state-keeper initialization.
+    /// It will check if we should load a protocol upgrade or a `setChainId` transaction,
+    /// perform some checks and return it.
+    pub(super) async fn load_protocol_upgrade_tx(
+        &mut self,
+        pending_miniblocks: &[MiniblockExecutionData],
+        protocol_version: ProtocolVersionId,
+        l1_batch_number: L1BatchNumber,
+    ) -> Result<Option<ProtocolUpgradeTx>, Error> {
+        // After the Shared Bridge is integrated,
+        // there has to be a setChainId upgrade transaction after the chain genesis.
+        // It has to be the first transaction of the first batch.
+        // The setChainId upgrade does not bump the protocol version, but attaches an upgrade
+        // transaction to the genesis protocol version version.
+        let first_batch_in_shared_bridge =
+            l1_batch_number == L1BatchNumber(1) && !protocol_version.is_pre_shared_bridge();
+        let previous_batch_protocol_version = self.io.load_previous_batch_version_id().await?;
+
+        let version_changed = protocol_version != previous_batch_protocol_version;
+        let mut protocol_upgrade_tx = if version_changed || first_batch_in_shared_bridge {
+            self.io.load_upgrade_tx(protocol_version).await?
+        } else {
+            None
+        };
+
+        // Sanity check: if `txs_to_reexecute` is not empty and upgrade tx is present for this block
+        // then it must be the first one in `txs_to_reexecute`.
+        if !pending_miniblocks.is_empty() && protocol_upgrade_tx.is_some() {
+            // We already processed the upgrade tx but did not seal the batch it was in.
+            let first_tx_to_reexecute = &pending_miniblocks[0].txs[0];
+            assert_eq!(
+                first_tx_to_reexecute.tx_format(),
+                TransactionType::ProtocolUpgradeTransaction,
+                "Expected an upgrade transaction to be the first one in pending_miniblocks, but found {:?}",
+                first_tx_to_reexecute.hash()
+            );
+            tracing::info!(
+                "There is a protocol upgrade in batch #{l1_batch_number}, upgrade tx already processed"
+            );
+            protocol_upgrade_tx = None; // The protocol upgrade was already executed
+        }
+
+        if protocol_upgrade_tx.is_some() {
+            tracing::info!("There is a new upgrade tx to be executed in batch #{l1_batch_number}");
+        }
+        Ok(protocol_upgrade_tx)
     }
 
     fn is_canceled(&self) -> bool {
@@ -585,34 +621,50 @@ impl ZkSyncStateKeeper {
         tx: Transaction,
     ) -> (SealResolution, TxExecutionResult) {
         let exec_result = batch_executor.execute_tx(tx.clone()).await;
+        // All of `TxExecutionResult::BootloaderOutOfGasForTx`, `TxExecutionResult::BootloaderOutOfGasForBlockTip`,
+        // `Halt::NotEnoughGasProvided` correspond to out-of-gas errors but of different nature.
+        // - `BootloaderOutOfGasForTx`: it is returned when bootloader stack frame run out of gas before tx execution finished.
+        // - `BootloaderOutOfGasForBlockTip`: it is returned when bootloader stack frame run out of gas during batch tip dry run.
+        // - `Halt::NotEnoughGasProvided`: there are checks in bootloader in some places (search for `checkEnoughGas` calls).
+        //      They check if there is more gas in the frame than bootloader estimates it will need.
+        //      This error is returned when such a check fails. Basically, bootloader doesn't continue execution but panics prematurely instead.
+        // If some transaction fails with any of these errors and is the first transaction in L1 batch, then it's marked as unexecutable.
+        // Otherwise, `ExcludeAndSeal` resolution is returned, i.e. batch will be sealed and transaction will be included in the next L1 batch.
+
+        let is_first_tx = updates_manager.pending_executed_transactions_len() == 0;
         let resolution = match &exec_result {
-            TxExecutionResult::BootloaderOutOfGasForTx => {
-                AGGREGATION_METRICS
-                    .inc("bootloader_tx_out_of_gas", &SealResolution::ExcludeAndSeal);
-                SealResolution::ExcludeAndSeal
-            }
-            TxExecutionResult::BootloaderOutOfGasForBlockTip => {
-                AGGREGATION_METRICS.inc(
-                    "bootloader_block_tip_failed",
-                    &SealResolution::ExcludeAndSeal,
-                );
-                SealResolution::ExcludeAndSeal
-            }
-            TxExecutionResult::RejectedByVm { reason } => match reason {
-                Halt::NotEnoughGasProvided => {
-                    AGGREGATION_METRICS.inc(
-                        "not_enough_gas_provided_to_start_tx",
-                        &SealResolution::ExcludeAndSeal,
-                    );
+            TxExecutionResult::BootloaderOutOfGasForTx
+            | TxExecutionResult::BootloaderOutOfGasForBlockTip
+            | TxExecutionResult::RejectedByVm {
+                reason: Halt::NotEnoughGasProvided,
+            } => {
+                let error_message = match &exec_result {
+                    TxExecutionResult::BootloaderOutOfGasForTx => "bootloader_tx_out_of_gas",
+                    TxExecutionResult::BootloaderOutOfGasForBlockTip => {
+                        "bootloader_batch_tip_out_of_gas"
+                    }
+                    TxExecutionResult::RejectedByVm {
+                        reason: Halt::NotEnoughGasProvided,
+                    } => "not_enough_gas_provided_to_start_tx",
+                    _ => unreachable!(),
+                };
+                let resolution = if is_first_tx {
+                    SealResolution::Unexecutable(error_message.to_string())
+                } else {
                     SealResolution::ExcludeAndSeal
-                }
-                _ => SealResolution::Unexecutable(reason.to_string()),
-            },
+                };
+                AGGREGATION_METRICS.inc(error_message, &resolution);
+                resolution
+            }
+            TxExecutionResult::RejectedByVm { reason } => {
+                SealResolution::Unexecutable(reason.to_string())
+            }
             TxExecutionResult::Success {
                 tx_result,
                 tx_metrics,
                 bootloader_dry_run_metrics,
                 bootloader_dry_run_result,
+                gas_remaining,
                 ..
             } => {
                 let tx_execution_status = &tx_result.result;
@@ -670,6 +722,7 @@ impl ZkSyncStateKeeper {
                     gas_count: tx_gas_excluding_writes + tx_writes_l1_gas,
                     cumulative_size: encoding_len,
                     writes_metrics: tx_writes_metrics,
+                    gas_remaining: *gas_remaining,
                 };
                 let block_data = SealData {
                     execution_metrics: tx_data.execution_metrics
@@ -680,6 +733,7 @@ impl ZkSyncStateKeeper {
                     cumulative_size: tx_data.cumulative_size
                         + updates_manager.pending_txs_encoding_size(),
                     writes_metrics: block_writes_metrics,
+                    gas_remaining: *gas_remaining,
                 };
 
                 self.sealer.should_seal_l1_batch(

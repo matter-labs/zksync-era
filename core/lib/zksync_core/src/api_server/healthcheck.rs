@@ -8,7 +8,7 @@ async fn check_health<T: AsRef<dyn CheckHealth>>(
     health_checks: State<Arc<[T]>>,
 ) -> (StatusCode, Json<AppHealth>) {
     let response = AppHealth::new(&health_checks).await;
-    let response_code = if response.is_ready() {
+    let response_code = if response.is_healthy() {
         StatusCode::OK
     } else {
         StatusCode::SERVICE_UNAVAILABLE

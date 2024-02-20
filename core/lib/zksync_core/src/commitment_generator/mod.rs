@@ -7,6 +7,7 @@ use multivm::zk_evm_latest::ethereum_types::U256;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_commitment_utils::{bootloader_initial_content_commitment, events_queue_commitment};
 use zksync_dal::ConnectionPool;
+use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_types::{
     commitment::{AuxCommitments, CommitmentCommonInput, CommitmentInput, L1BatchCommitment},
     writes::{InitialStorageWrite, RepeatedStorageWrite, StateDiffRecord},
@@ -21,15 +22,19 @@ const SLEEP_INTERVAL: Duration = Duration::from_millis(100);
 #[derive(Debug)]
 pub struct CommitmentGenerator {
     connection_pool: ConnectionPool,
-    stop_receiver: watch::Receiver<bool>,
+    health_updater: HealthUpdater,
 }
 
 impl CommitmentGenerator {
-    pub fn new(connection_pool: ConnectionPool, stop_receiver: watch::Receiver<bool>) -> Self {
+    pub fn new(connection_pool: ConnectionPool) -> Self {
         Self {
             connection_pool,
-            stop_receiver,
+            health_updater: ReactiveHealthCheck::new("commitment_generator").1,
         }
+    }
+
+    pub fn health_check(&self) -> ReactiveHealthCheck {
+        self.health_updater.subscribe()
     }
 
     async fn calculate_aux_commitments(
@@ -220,13 +225,17 @@ impl CommitmentGenerator {
         let latency =
             METRICS.generate_commitment_latency_stage[&CommitmentStage::PrepareInput].start();
         let input = self.prepare_input(l1_batch_number).await?;
-        latency.observe();
+        let latency = latency.observe();
+        tracing::debug!("Prepared commitment input for L1 batch #{l1_batch_number} in {latency:?}");
 
         let latency =
             METRICS.generate_commitment_latency_stage[&CommitmentStage::Calculate].start();
         let commitment = L1BatchCommitment::new(input);
         let artifacts = commitment.artifacts();
-        latency.observe();
+        let latency = latency.observe();
+        tracing::debug!(
+            "Generated commitment artifacts for L1 batch #{l1_batch_number} in {latency:?}"
+        );
 
         let latency =
             METRICS.generate_commitment_latency_stage[&CommitmentStage::SaveResults].start();
@@ -236,17 +245,27 @@ impl CommitmentGenerator {
             .blocks_dal()
             .save_l1_batch_commitment_artifacts(l1_batch_number, &artifacts)
             .await?;
-        latency.observe();
+        let latency = latency.observe();
+        tracing::debug!(
+            "Stored commitment artifacts for L1 batch #{l1_batch_number} in {latency:?}"
+        );
 
+        let health_details = serde_json::json!({
+            "l1_batch_number": l1_batch_number,
+        });
+        self.health_updater
+            .update(Health::from(HealthStatus::Ready).with_details(health_details));
         Ok(())
     }
 
-    pub async fn run(self) -> anyhow::Result<()> {
+    pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        self.health_updater.update(HealthStatus::Ready.into());
         loop {
-            if *self.stop_receiver.borrow() {
-                tracing::info!("Stop signal received, CommitmentGenerator is shutting down");
+            if *stop_receiver.borrow() {
+                tracing::info!("Stop signal received, commitment generator is shutting down");
                 break;
             }
+
             let Some(l1_batch_number) = self
                 .connection_pool
                 .access_storage_tagged("commitment_generator")

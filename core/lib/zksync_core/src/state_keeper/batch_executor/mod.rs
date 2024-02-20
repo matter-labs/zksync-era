@@ -32,6 +32,7 @@ pub(crate) enum TxExecutionResult {
         bootloader_dry_run_result: Box<VmExecutionResultAndLogs>,
         compressed_bytecodes: Vec<CompressedBytecodeInfo>,
         call_tracer_result: Vec<Call>,
+        gas_remaining: u32,
     },
     /// The VM rejected the tx for some reason.
     RejectedByVm { reason: Halt },

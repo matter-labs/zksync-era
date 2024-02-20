@@ -2,10 +2,11 @@ import { expect } from 'chai';
 import * as protobuf from 'protobufjs';
 import * as zlib from 'zlib';
 import * as zkweb3 from 'zksync-web3';
-import path from 'node:path';
 import fs from 'node:fs/promises';
-import { ChildProcess, spawn, exec } from 'node:child_process';
+import { ChildProcess, spawn, exec, ChildProcessByStdio } from 'node:child_process';
+import path from 'node:path';
 import readline from 'node:readline/promises';
+import { Readable, Writable } from 'node:stream';
 import { promisify } from 'node:util';
 
 interface AllSnapshotsResponse {
@@ -34,6 +35,12 @@ interface StorageLog {
     readonly enumerationIndex: number;
 }
 
+interface TokenInfo {
+    // FIXME: why isn't case changed?
+    readonly l1_address: string;
+    readonly l2_address: string;
+}
+
 /**
  * Assumptions:
  *
@@ -51,13 +58,25 @@ describe('snapshot recovery', () => {
         ...process.env,
         ZKSYNC_ENV: process.env.IN_DOCKER ? 'ext-node-docker' : 'ext-node'
     };
+
+    let snapshotMetadata: GetSnapshotResponse;
     let mainNode: zkweb3.Provider;
+    let externalNode: zkweb3.Provider;
+    let externalNodeProcess: ChildProcessByStdio<Writable, Readable, null>;
 
     before(async () => {
         expect(process.env.ZKSYNC_ENV, '`ZKSYNC_ENV` should not be set to allow running both server and EN components')
             .to.be.undefined;
         mainNode = new zkweb3.Provider('http://127.0.0.1:3050');
+        externalNode = new zkweb3.Provider('http://127.0.0.1:3060');
         await killExternalNode();
+    });
+
+    after(async () => {
+        if (externalNodeProcess) {
+            externalNodeProcess.kill();
+            await killExternalNode();
+        }
     });
 
     async function getAllSnapshots() {
@@ -68,6 +87,11 @@ describe('snapshot recovery', () => {
     async function getSnapshot(snapshotL1Batch: number) {
         const output = await mainNode.send('snapshots_getSnapshot', [snapshotL1Batch]);
         return output as GetSnapshotResponse;
+    }
+
+    async function getAllTokens(provider: zkweb3.Provider, atBlock?: number) {
+        const output = await provider.send('en_syncTokens', atBlock ? [atBlock] : []);
+        return output as TokenInfo[];
     }
 
     step('create snapshot', async () => {
@@ -90,16 +114,16 @@ describe('snapshot recovery', () => {
         const newBatchNumbers = allSnapshots.snapshotsL1BatchNumbers;
 
         const l1BatchNumber = Math.max(...newBatchNumbers);
-        const fullSnapshot = await getSnapshot(l1BatchNumber);
-        console.log('Obtained latest snapshot', fullSnapshot);
-        const miniblockNumber = fullSnapshot.miniblockNumber;
+        snapshotMetadata = await getSnapshot(l1BatchNumber);
+        console.log('Obtained latest snapshot', snapshotMetadata);
+        const miniblockNumber = snapshotMetadata.miniblockNumber;
 
         const protoPath = path.join(homeDir, 'core/lib/types/src/proto/mod.proto');
         const root = await protobuf.load(protoPath);
         const SnapshotStorageLogsChunk = root.lookupType('zksync.types.SnapshotStorageLogsChunk');
 
-        expect(fullSnapshot.l1BatchNumber).to.equal(l1BatchNumber);
-        for (const chunkMetadata of fullSnapshot.storageLogsChunks) {
+        expect(snapshotMetadata.l1BatchNumber).to.equal(l1BatchNumber);
+        for (const chunkMetadata of snapshotMetadata.storageLogsChunks) {
             const chunkPath = path.join(homeDir, chunkMetadata.filepath);
             console.log(`Checking storage logs chunk ${chunkPath}`);
             const output = SnapshotStorageLogsChunk.decode(await decompressGzip(chunkPath)) as any as StorageLogChunk;
@@ -162,7 +186,7 @@ describe('snapshot recovery', () => {
         const logs = await fs.open('snapshot-recovery.log', 'a');
         await logs.truncate();
 
-        const enProcess = spawn('zk external-node -- --enable-snapshots-recovery', {
+        externalNodeProcess = spawn('zk external-node -- --enable-snapshots-recovery', {
             cwd: homeDir,
             stdio: [null, 'pipe', 'inherit'],
             shell: true,
@@ -171,41 +195,63 @@ describe('snapshot recovery', () => {
 
         let consistencyCheckerSucceeded = false;
         let reorgDetectorSucceeded = false;
-        try {
-            const rl = readline.createInterface({
-                input: enProcess.stdout,
-                crlfDelay: Infinity
-            });
+        const rl = readline.createInterface({
+            input: externalNodeProcess.stdout,
+            crlfDelay: Infinity
+        });
 
-            // TODO: use a more reliable method to detect recovery success (e.g., based on health checks)
-            for await (const line of rl) {
-                if (IMPORTANT_LINE_REGEX.test(line)) {
-                    console.log('en> ' + line);
-                }
-                await fs.appendFile(logs, line + '\n');
+        // TODO: use a more reliable method to detect recovery success (e.g., based on health checks)
+        for await (const line of rl) {
+            if (IMPORTANT_LINE_REGEX.test(line)) {
+                console.log('en> ' + line);
+            }
+            await fs.appendFile(logs, line + '\n');
 
-                if (/L1 batch #\d+ is consistent with L1/.test(line)) {
-                    console.log('Consistency checker successfully checked post-snapshot L1 batch');
-                    consistencyCheckerSucceeded = true;
-                }
-                if (/No reorg at L1 batch #\d+/.test(line)) {
-                    console.log('Reorg detector successfully checked post-snapshot L1 batch');
-                    reorgDetectorSucceeded = true;
-                }
-
-                if (consistencyCheckerSucceeded && reorgDetectorSucceeded) {
-                    break;
-                }
+            if (/L1 batch #\d+ is consistent with L1/.test(line)) {
+                console.log('Consistency checker successfully checked post-snapshot L1 batch');
+                consistencyCheckerSucceeded = true;
+            }
+            if (/No reorg at L1 batch #\d+/.test(line)) {
+                console.log('Reorg detector successfully checked post-snapshot L1 batch');
+                reorgDetectorSucceeded = true;
             }
 
-            // If `enProcess` fails early, we'll trip these checks.
-            expect(enProcess.exitCode).to.be.null;
-            expect(consistencyCheckerSucceeded, 'consistency check failed').to.be.true;
-            expect(reorgDetectorSucceeded, 'reorg detection check failed').to.be.true;
-        } finally {
-            enProcess.kill();
-            await killExternalNode();
+            if (consistencyCheckerSucceeded && reorgDetectorSucceeded) {
+                break;
+            }
         }
+
+        // If `externalNodeProcess` fails early, we'll trip these checks.
+        expect(externalNodeProcess.exitCode).to.be.null;
+        expect(consistencyCheckerSucceeded, 'consistency check failed').to.be.true;
+        expect(reorgDetectorSucceeded, 'reorg detection check failed').to.be.true;
+    });
+
+    step('check basic EN Web3 endpoints', async () => {
+        const blockNumber = await externalNode.getBlockNumber();
+        console.log(`Block number on EN: ${blockNumber}`);
+        expect(blockNumber).to.be.greaterThan(snapshotMetadata.miniblockNumber);
+        const l1BatchNumber = await externalNode.getL1BatchNumber();
+        console.log(`L1 batch number on EN: ${l1BatchNumber}`);
+        expect(l1BatchNumber).to.be.greaterThan(snapshotMetadata.l1BatchNumber);
+    });
+
+    step('check tokens on EN', async () => {
+        const externalNodeTokens = await getAllTokens(externalNode);
+        console.log('Fetched tokens from EN', externalNodeTokens);
+        expect(externalNodeTokens).to.not.be.empty; // should contain at least ether
+        const mainNodeTokens = await getAllTokens(mainNode, snapshotMetadata.miniblockNumber);
+        console.log('Fetched tokens from main node', mainNodeTokens);
+
+        // Sort tokens deterministically, since the order in which they are returned is not guaranteed.
+        const compareFn = (x: TokenInfo, y: TokenInfo) => {
+            expect(x.l2_address, 'Multiple tokens with same L2 address').to.not.equal(y.l2_address);
+            return x.l2_address < y.l2_address ? -1 : 1;
+        };
+        externalNodeTokens.sort(compareFn);
+        mainNodeTokens.sort(compareFn);
+
+        expect(mainNodeTokens).to.deep.equal(externalNodeTokens);
     });
 });
 

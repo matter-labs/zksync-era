@@ -66,7 +66,7 @@ impl ProtocolVersionsDal<'_, '_> {
             base_system_contracts_hashes.bootloader.as_bytes(),
             base_system_contracts_hashes.default_aa.as_bytes(),
             verifier_address.as_bytes(),
-            tx_hash.map(|tx_hash| tx_hash.0.to_vec()),
+            tx_hash.as_ref().map(H256::as_bytes),
         )
         .execute(self.storage.conn())
         .await
@@ -94,6 +94,47 @@ impl ProtocolVersionsDal<'_, '_> {
                 version.verifier_address,
                 tx_hash,
             )
+            .await;
+
+        db_transaction.commit().await.unwrap();
+    }
+
+    async fn save_genesis_upgrade_tx_hash(&mut self, id: ProtocolVersionId, tx_hash: Option<H256>) {
+        sqlx::query!(
+            r#"
+            UPDATE protocol_versions
+            SET
+                upgrade_tx_hash = $1
+            WHERE
+                id = $2
+            "#,
+            tx_hash.as_ref().map(H256::as_bytes),
+            id as i32,
+        )
+        .execute(self.storage.conn())
+        .await
+        .unwrap();
+    }
+
+    /// Attaches a transaction used to set ChainId to the genesis protocol version.
+    /// Also inserts that transaction into the database.
+    pub async fn save_genesis_upgrade_with_tx(
+        &mut self,
+        id: ProtocolVersionId,
+        tx: ProtocolUpgradeTx,
+    ) {
+        let tx_hash = Some(tx.common_data.hash());
+
+        let mut db_transaction = self.storage.start_transaction().await.unwrap();
+
+        db_transaction
+            .transactions_dal()
+            .insert_system_transaction(tx)
+            .await;
+
+        db_transaction
+            .protocol_versions_dal()
+            .save_genesis_upgrade_tx_hash(id, tx_hash)
             .await;
 
         db_transaction.commit().await.unwrap();

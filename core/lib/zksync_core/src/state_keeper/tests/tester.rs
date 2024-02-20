@@ -234,6 +234,18 @@ pub(crate) fn random_tx(tx_number: u64) -> Transaction {
     tx.into()
 }
 
+/// Creates a random protocol upgrade transaction. Provided tx number would be used as a transaction hash,
+/// so it's easier to understand which transaction caused test to fail.
+pub(crate) fn random_upgrade_tx(tx_number: u64) -> ProtocolUpgradeTx {
+    let mut tx = ProtocolUpgradeTx {
+        execute: Default::default(),
+        common_data: Default::default(),
+        received_timestamp_ms: 0,
+    };
+    tx.common_data.canonical_tx_hash = H256::from_low_u64_be(tx_number);
+    tx
+}
+
 /// Creates a `TxExecutionResult` object denoting a successful tx execution.
 pub(crate) fn successful_exec() -> TxExecutionResult {
     TxExecutionResult::Success {
@@ -259,6 +271,7 @@ pub(crate) fn successful_exec() -> TxExecutionResult {
         }),
         compressed_bytecodes: vec![],
         call_tracer_result: vec![],
+        gas_remaining: Default::default(),
     }
 }
 
@@ -286,6 +299,7 @@ pub(crate) fn successful_exec_with_metrics(
         }),
         compressed_bytecodes: vec![],
         call_tracer_result: vec![],
+        gas_remaining: Default::default(),
     }
 }
 
@@ -383,7 +397,7 @@ pub(crate) struct TestBatchExecutorBuilder {
 }
 
 impl TestBatchExecutorBuilder {
-    fn new(scenario: &TestScenario) -> Self {
+    pub(super) fn new(scenario: &TestScenario) -> Self {
         let mut txs = VecDeque::new();
         let mut batch_txs = HashMap::new();
         let mut rollback_set = HashSet::new();
@@ -541,7 +555,7 @@ impl TestBatchExecutor {
 }
 
 #[derive(Debug)]
-pub(crate) struct TestIO {
+pub(super) struct TestIO {
     stop_sender: watch::Sender<bool>,
     batch_number: L1BatchNumber,
     timestamp: u64,
@@ -554,10 +568,11 @@ pub(crate) struct TestIO {
     skipping_txs: bool,
     protocol_version: ProtocolVersionId,
     previous_batch_protocol_version: ProtocolVersionId,
+    protocol_upgrade_txs: HashMap<ProtocolVersionId, ProtocolUpgradeTx>,
 }
 
 impl TestIO {
-    fn new(stop_sender: watch::Sender<bool>, scenario: TestScenario) -> Self {
+    pub(super) fn new(stop_sender: watch::Sender<bool>, scenario: TestScenario) -> Self {
         Self {
             stop_sender,
             batch_number: L1BatchNumber(1),
@@ -569,7 +584,12 @@ impl TestIO {
             skipping_txs: false,
             protocol_version: ProtocolVersionId::latest(),
             previous_batch_protocol_version: ProtocolVersionId::latest(),
+            protocol_upgrade_txs: HashMap::default(),
         }
+    }
+
+    pub(super) fn add_upgrade_tx(&mut self, version: ProtocolVersionId, tx: ProtocolUpgradeTx) {
+        self.protocol_upgrade_txs.insert(version, tx);
     }
 
     fn pop_next_item(&mut self, request: &str) -> ScenarioItem {
@@ -765,9 +785,9 @@ impl StateKeeperIO for TestIO {
 
     async fn load_upgrade_tx(
         &mut self,
-        _version_id: ProtocolVersionId,
+        version_id: ProtocolVersionId,
     ) -> anyhow::Result<Option<ProtocolUpgradeTx>> {
-        Ok(None)
+        Ok(self.protocol_upgrade_txs.get(&version_id).cloned())
     }
 }
 

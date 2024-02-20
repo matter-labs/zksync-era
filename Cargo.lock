@@ -8767,6 +8767,7 @@ name = "zksync_node_framework"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "assert_matches",
  "async-trait",
  "futures 0.3.28",
  "prometheus_exporter",
