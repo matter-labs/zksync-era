@@ -19,9 +19,9 @@ use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use super::{BatchExecutor, BatchExecutorHandle, Command, TxExecutionResult};
 use crate::{
-    metrics::{InteractionType, TxStage, APP_METRICS, BLOCK_TIP_METRICS},
+    metrics::{InteractionType, TxStage, APP_METRICS},
     state_keeper::{
-        metrics::{TxExecutionStage, EXECUTOR_METRICS, KEEPER_METRICS},
+        metrics::{TxExecutionStage, BLOCK_TIP_METRICS, EXECUTOR_METRICS, KEEPER_METRICS},
         types::ExecutionMetricsForCriteria,
     },
 };
@@ -274,40 +274,7 @@ impl CommandReceiver {
             );
         }
 
-        BLOCK_TIP_METRICS.computational_gas_used.observe(
-            result
-                .block_tip_execution_result
-                .statistics
-                .computational_gas_used,
-        );
-        BLOCK_TIP_METRICS
-            .contracts_used
-            .observe(result.block_tip_execution_result.statistics.contracts_used);
-        BLOCK_TIP_METRICS.circuit_statistic.observe(
-            result
-                .block_tip_execution_result
-                .statistics
-                .circuit_statistic
-                .total(),
-        );
-        BLOCK_TIP_METRICS
-            .cycles_used
-            .observe(result.block_tip_execution_result.statistics.cycles_used);
-        BLOCK_TIP_METRICS
-            .gas_used
-            .observe(result.block_tip_execution_result.statistics.gas_used);
-        BLOCK_TIP_METRICS.pubdata_published.observe(
-            result
-                .block_tip_execution_result
-                .statistics
-                .pubdata_published,
-        );
-        BLOCK_TIP_METRICS.total_log_queries.observe(
-            result
-                .block_tip_execution_result
-                .statistics
-                .total_log_queries,
-        );
+        BLOCK_TIP_METRICS.observe(&result.block_tip_execution_result);
         result
     }
 

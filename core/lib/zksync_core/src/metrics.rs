@@ -183,25 +183,3 @@ pub(crate) struct ExternalNodeMetrics {
 
 #[vise::register]
 pub(crate) static EN_METRICS: vise::Global<ExternalNodeMetrics> = vise::Global::new();
-
-#[derive(Debug, Metrics)]
-#[metrics(prefix = "block_tip")]
-pub(crate) struct BlockTipMetrics {
-    #[metrics(buckets = Buckets::exponential(1.0..=64.0, 2.0))]
-    pub contracts_used: Histogram<usize>,
-    #[metrics(buckets = Buckets::exponential(1.0..=64.0, 2.0))]
-    pub cycles_used: Histogram<u32>,
-    #[metrics(buckets = Buckets::exponential(1.0..=60000.0, 2.0))]
-    pub gas_used: Histogram<u32>,
-    #[metrics(buckets = Buckets::exponential(1.0..=60000.0, 2.0))]
-    pub computational_gas_used: Histogram<u32>,
-    #[metrics(buckets = Buckets::exponential(1.0..=2048.0, 2.0))]
-    pub total_log_queries: Histogram<usize>,
-    #[metrics(buckets = Buckets::exponential(1.0..=60000.0, 2.0))]
-    pub pubdata_published: Histogram<u32>,
-    #[metrics(buckets = Buckets::exponential(1.0..=60000.0, 2.0))]
-    pub circuit_statistic: Histogram<usize>,
-}
-
-#[vise::register]
-pub(crate) static BLOCK_TIP_METRICS: vise::Global<BlockTipMetrics> = vise::Global::new();

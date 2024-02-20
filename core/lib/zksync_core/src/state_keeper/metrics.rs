@@ -5,6 +5,7 @@ use std::{
     time::Duration,
 };
 
+use multivm::interface::{VmExecutionResultAndLogs, VmExecutionStatistics};
 use vise::{
     Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LatencyObserver,
     Metrics,
@@ -395,3 +396,31 @@ pub(super) struct ExecutorMetrics {
 
 #[vise::register]
 pub(super) static EXECUTOR_METRICS: vise::Global<ExecutorMetrics> = vise::Global::new();
+
+#[derive(Debug, Metrics)]
+#[metrics(prefix = "block_tip")]
+pub(crate) struct BlockTipMetrics {
+    #[metrics(buckets = Buckets::exponential(1.0..=60000.0, 2.0))]
+    gas_used: Histogram<u32>,
+    #[metrics(buckets = Buckets::exponential(1.0..=60000.0, 2.0))]
+    pubdata_published: Histogram<u32>,
+    #[metrics(buckets = Buckets::exponential(1.0..=60000.0, 2.0))]
+    circuit_statistic: Histogram<usize>,
+    #[metrics(buckets = Buckets::exponential(1.0..=60000.0, 2.0))]
+    execution_metrics: Histogram<usize>,
+}
+
+impl BlockTipMetrics {
+    pub fn observe(&self, execution_result: &VmExecutionResultAndLogs) {
+        self.gas_used.observe(execution_result.statistics.gas_used);
+        self.pubdata_published
+            .observe(execution_result.statistics.pubdata_published);
+        self.circuit_statistic
+            .observe(execution_result.statistics.circuit_statistic.total());
+        self.execution_metrics
+            .observe(execution_result.get_execution_metrics(None).size());
+    }
+}
+
+#[vise::register]
+pub(crate) static BLOCK_TIP_METRICS: vise::Global<BlockTipMetrics> = vise::Global::new();
