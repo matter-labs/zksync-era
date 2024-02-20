@@ -228,7 +228,7 @@ async fn init_tasks(
 
     let metadata_calculator_config = MetadataCalculatorConfig {
         db_path: config.required.merkle_tree_path.clone(),
-        mode: MerkleTreeMode::Full,
+        mode: MerkleTreeMode::Lightweight,
         delay_interval: config.optional.metadata_calculator_delay(),
         max_l1_batches_per_iter: config.optional.max_l1_batches_per_tree_iter,
         multi_get_chunk_size: config.optional.merkle_tree_multi_get_chunk_size,
