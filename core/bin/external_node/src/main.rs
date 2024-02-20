@@ -40,7 +40,9 @@ use zksync_storage::RocksDB;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 
 use crate::{
-    config::ExternalNodeConfig, helpers::MainNodeHealthCheck, init::ensure_storage_initialized,
+    config::{observability::observability_config_from_env, ExternalNodeConfig},
+    helpers::MainNodeHealthCheck,
+    init::ensure_storage_initialized,
 };
 
 mod config;
