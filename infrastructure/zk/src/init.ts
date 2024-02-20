@@ -284,6 +284,7 @@ export const initHyperCommand = new Command('init-hyper')
             }
         };
 
+        await initSetup(initArgs);
         await initSetupDatabase(initArgs, true); // we skip Verifier deployment, it is only deployed with sharedBridge
         await initHyper(initArgs);
     });
