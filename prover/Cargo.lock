@@ -3708,6 +3708,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "primeorder"
+version = "0.13.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "353e1ca18966c16d9deb1c69278edbc5f194139612772bd9537af60ac231e1e6"
+dependencies = [
+ "elliptic-curve 0.13.8",
+]
+
+[[package]]
 name = "primitive-types"
 version = "0.12.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6652,11 +6661,10 @@ dependencies = [
 [[package]]
 name = "zk_evm"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/zk_evm.git?branch=sb-non-normalized-bytecode-hashes-for-decommitter#19fc6ff8b4e7bb552b158acc226ed08e3239aa0b"
 dependencies = [
  "anyhow",
  "lazy_static",
- "num 0.4.1",
+ "num",
  "serde",
  "serde_json",
  "static_assertions",
@@ -6690,11 +6698,12 @@ dependencies = [
 [[package]]
 name = "zk_evm_abstractions"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zk_evm_abstractions.git?branch=v1.5.0#1c9db10063c389d9d4a51d23b455844b2b84f2aa"
+source = "git+https://github.com/matter-labs/era-zk_evm_abstractions.git?branch=sb-add-timestamp-for-new-tx#8fcc5a41e0c060efc4bd1ed63a18e43922a81f88"
 dependencies = [
  "anyhow",
  "num_enum",
  "serde",
+ "static_assertions",
  "zkevm_opcode_defs 1.5.0",
 ]
 
@@ -6822,7 +6831,7 @@ name = "zkevm_opcode_defs"
 version = "1.5.0"
 source = "git+https://github.com/matter-labs/era-zkevm_opcode_defs.git?branch=v1.5.0#444ae1395c8644428dc6ad19db293e4eb58a1d88"
 dependencies = [
- "bitflags 2.4.1",
+ "bitflags 2.4.2",
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "ethereum-types",
  "k256 0.13.3",

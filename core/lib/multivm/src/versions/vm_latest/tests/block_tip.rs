@@ -1,7 +1,7 @@
 use std::borrow::BorrowMut;
 
 use ethabi::Token;
-use zk_evm_1_4_1::{
+use zk_evm_1_5_0::{
     aux_structures::Timestamp, zkevm_opcode_defs::system_params::MAX_PUBDATA_PER_BLOCK,
 };
 use zksync_contracts::load_sys_contract;

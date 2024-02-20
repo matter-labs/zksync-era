@@ -112,9 +112,10 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CircuitsTracer<S, H> {
         );
 
         self.last_written_keys_history_entry_checked =
-            Some(state.storage.written_keys.history().len());
+            Some(state.storage.written_storage_keys.history().len());
 
-        self.last_read_keys_history_entry_checked = Some(state.storage.read_keys.history().len());
+        self.last_read_keys_history_entry_checked =
+            Some(state.storage.read_storage_keys.history().len());
 
         self.last_precompile_inner_entry_checked = Some(
             state
@@ -182,7 +183,7 @@ impl<S: WriteStorage, H: HistoryMode> CircuitsTracer<S, H> {
         let last_writes_history_entry_checked = self
             .last_written_keys_history_entry_checked
             .expect("Value must be set during init");
-        let history = state.storage.written_keys.history();
+        let history = state.storage.written_storage_keys.history();
         for (_, history_event) in &history[last_writes_history_entry_checked..] {
             // We assume that only insertions may happen during a single VM inspection.
             assert!(history_event.value.is_none());
@@ -196,7 +197,7 @@ impl<S: WriteStorage, H: HistoryMode> CircuitsTracer<S, H> {
         let last_reads_history_entry_checked = self
             .last_read_keys_history_entry_checked
             .expect("Value must be set during init");
-        let history = state.storage.read_keys.history();
+        let history = state.storage.read_storage_keys.history();
         for (_, history_event) in &history[last_reads_history_entry_checked..] {
             // We assume that only insertions may happen during a single VM inspection.
             assert!(history_event.value.is_none());
@@ -204,7 +205,7 @@ impl<S: WriteStorage, H: HistoryMode> CircuitsTracer<S, H> {
             // If the slot is already written to, then we've already taken 2 cycles into account.
             if !state
                 .storage
-                .written_keys
+                .written_storage_keys
                 .inner()
                 .contains_key(&history_event.key)
             {
