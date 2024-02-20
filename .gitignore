@@ -36,6 +36,7 @@ Cargo.lock
 /etc/env/l1-inits
 !/etc/env/l1-inits/.init.env
 !/etc/env/l1-inits/sepolia-shared-bridge.env
+!/etc/env/configs/sepolia-chain.toml
 /etc/env/l2-inits
 !/etc/env/base
 !/etc/env/configs/docker.toml
