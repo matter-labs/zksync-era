@@ -88,8 +88,7 @@ enum CircuitSelector {
     Recursive,
     /// Select circuits from basic group.
     Basic,
-
-    /// Eip 4844 circuit
+    /// EIP 4844 circuit
     Eip4844,
 }
 

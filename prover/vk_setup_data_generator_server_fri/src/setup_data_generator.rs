@@ -4,7 +4,6 @@
 use std::collections::HashMap;
 
 use anyhow::Context as _;
-
 use zkevm_test_harness::{
     compute_setups::{
         generate_circuit_setup_data, generate_circuit_setup_data_4844, CircuitSetupData,
@@ -12,7 +11,6 @@ use zkevm_test_harness::{
     data_source::SetupDataSource,
 };
 use zksync_prover_fri_types::ProverServiceDataKey;
-
 #[cfg(feature = "gpu")]
 use {
     crate::GpuProverSetupData, shivini::cs::setup::GpuSetup, shivini::ProverContext,
