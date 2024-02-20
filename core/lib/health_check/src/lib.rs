@@ -210,6 +210,7 @@ impl ReactiveHealthCheck {
         };
         let updater = HealthUpdater {
             name,
+            should_track_drop: true,
             health_sender,
         };
         (this, updater)
@@ -230,10 +231,11 @@ impl CheckHealth for ReactiveHealthCheck {
 /// Updater for [`ReactiveHealthCheck`]. Can be created using [`ReactiveHealthCheck::new()`].
 ///
 /// On drop, will automatically update status to [`HealthStatus::ShutDown`], or to [`HealthStatus::Panicked`]
-/// if the dropping thread is panicking.
+/// if the dropping thread is panicking, unless the drop is performed using [`Self::close()`].
 #[derive(Debug)]
 pub struct HealthUpdater {
     name: &'static str,
+    should_track_drop: bool,
     health_sender: watch::Sender<Health>,
 }
 
@@ -255,6 +257,11 @@ impl HealthUpdater {
         false
     }
 
+    /// Closes this updater so that the corresponding health check can no longer be updated.
+    pub fn close(mut self) {
+        self.should_track_drop = false;
+    }
+
     /// Creates a [`ReactiveHealthCheck`] attached to this updater. This allows not retaining the initial health check
     /// returned by [`ReactiveHealthCheck::new()`].
     pub fn subscribe(&self) -> ReactiveHealthCheck {
@@ -267,6 +274,10 @@ impl HealthUpdater {
 
 impl Drop for HealthUpdater {
     fn drop(&mut self) {
+        if !self.should_track_drop {
+            return;
+        }
+
         let terminal_health = if thread::panicking() {
             HealthStatus::Panicked.into()
         } else {
@@ -301,6 +312,18 @@ mod tests {
         assert_matches!(
             health_check.check_health().await.status(),
             HealthStatus::ShutDown
+        );
+    }
+
+    #[tokio::test]
+    async fn updating_health_status_on_closure() {
+        let (health_check, health_updater) = ReactiveHealthCheck::new("test");
+        health_updater.update(HealthStatus::Ready.into());
+        health_updater.close();
+
+        assert_matches!(
+            health_check.check_health().await.status(),
+            HealthStatus::Ready
         );
     }
 
