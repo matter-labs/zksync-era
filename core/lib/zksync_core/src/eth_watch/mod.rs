@@ -25,7 +25,7 @@ use self::{
     metrics::{PollStage, METRICS},
 };
 
-mod client;
+pub(super) mod client;
 mod event_processors;
 mod metrics;
 #[cfg(test)]
@@ -45,6 +45,7 @@ pub struct EthWatch {
     event_processors: Vec<Box<dyn EventProcessor>>,
 
     last_processed_ethereum_block: u64,
+    pool: ConnectionPool,
 }
 
 impl EthWatch {
@@ -55,6 +56,7 @@ impl EthWatch {
         pool: &ConnectionPool,
         poll_interval: Duration,
     ) -> Self {
+        let connection_pool = pool.clone();
         let mut storage = pool.access_storage_tagged("eth_watch").await.unwrap();
 
         let state = Self::initialize_state(&*client, &mut storage).await;
@@ -89,6 +91,7 @@ impl EthWatch {
             poll_interval,
             event_processors,
             last_processed_ethereum_block: state.last_processed_ethereum_block,
+            pool: connection_pool,
         }
     }
 
@@ -131,12 +134,9 @@ impl EthWatch {
         }
     }
 
-    pub async fn run(
-        &mut self,
-        pool: ConnectionPool,
-        stop_receiver: watch::Receiver<bool>,
-    ) -> anyhow::Result<()> {
+    pub async fn run(&mut self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let mut timer = tokio::time::interval(self.poll_interval);
+        let pool = self.pool.clone();
         loop {
             if *stop_receiver.borrow() {
                 tracing::info!("Stop signal received, eth_watch is shutting down");
@@ -212,7 +212,7 @@ pub async fn start_eth_watch(
     )
     .await;
 
-    Ok(tokio::spawn(async move {
-        eth_watch.run(pool, stop_receiver).await
-    }))
+    Ok(tokio::spawn(
+        async move { eth_watch.run(stop_receiver).await },
+    ))
 }
