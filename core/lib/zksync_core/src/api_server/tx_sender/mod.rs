@@ -351,7 +351,7 @@ impl TxSender {
             // We're running an external node: we have to proxy the transaction to the main node.
             // But before we do that, save the tx to cache in case someone will request it
             // Before it reaches the main node.
-            proxy.save_tx(tx.hash(), tx.clone()).await;
+            proxy.save_tx(tx.clone()).await;
             proxy.submit_tx(&tx).await?;
             // Now, after we are sure that the tx is on the main node, remove it from cache
             // since we don't want to store txs that might have been replaced or otherwise removed
