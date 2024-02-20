@@ -2,11 +2,40 @@
 
 set -e
 
-cd $ZKSYNC_HOME
+# Define variables for files and directories that will be copied
+PRYSM_CONFIG=./docker/prysm/config.yml
+JWT_SECRET=./docker/geth/jwtsecret
+PASSWORD_SEC=./docker/geth/password.sec
+KEYS_FILE=./docker/geth/keystore/UTC--2019-04-06T21-13-27.692266000Z--8a91dc2d28b689474298d91899f0c1baf62cb85b
 
-mkdir -p ./volumes/postgres ./volumes/geth/keystore ./volumes/prysm/beacon ./volumes/prysm/validator
-cp ./docker/prysm/config.yml ./volumes/prysm/config.yml
-cp ./docker/geth/jwtsecret ./volumes/geth/jwtsecret
-cp ./docker/geth/password.sec ./volumes/geth/password.sec
-cp ./docker/geth/keystore/UTC--2019-04-06T21-13-27.692266000Z--8a91dc2d28b689474298d91899f0c1baf62cb85b ./volumes/geth/keystore/
-docker-compose --profile runner up -d --wait
+# Error handling function
+handle_error() {
+    echo "Error: $1" >&2
+    exit 1
+}
+
+# Change directory to $ZKSYNC_HOME, if it exists
+echo "Changing directory to '$ZKSYNC_HOME' ..."
+cd $ZKSYNC_HOME 2>/dev/null || handle_error "ZKSYNC_HOME is not set or directory does not exist."
+
+# Create necessary volume directories for Docker
+echo "Creating volume directories for Docker..."
+mkdir -p ./volumes/postgres ./volumes/geth/keystore ./volumes/prysm/beacon ./volumes/prysm/validator || handle_error "Failed to create volume directories for Docker"
+
+# Copy all necessary files and directories
+echo "Copying Prysm config file to 'volumes/prysm/'..."
+cp "$PRYSM_CONFIG" ./volumes/prysm/config.yml || handle_error "Failed to copy Prysm config file"
+
+echo "Copying the JWT secret file to 'volumes/geth/'..."
+cp "$JWT_SECRET" ./volumes/geth/jwtsecret || handle_error "Failed to copy JWT secret file"
+
+echo "Copying the password file to 'volumes/geth/'..."
+cp "$PASSWORD_SEC" ./volumes/geth/password.sec || handle_error "Failed to copy password file"
+
+echo "Copying the keystore file to 'volumes/geth/keystore/'..."
+cp "$KEYS_FILE" ./volumes/geth/keystore/ || handle_error "Failed to copy keystore file"
+
+# Start Docker containers
+docker-compose --profile runner up -d --wait || handle_error "Failed to start Docker containers"
+
+echo "Files copied successfully and Docker containers started."
