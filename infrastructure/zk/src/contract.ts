@@ -25,11 +25,11 @@ function updateContractsEnv(initEnv: string, deployLog: String, envVars: Array<s
         const matches = deployLog.match(pattern);
         if (matches !== null) {
             const varContents = matches[0];
-            env.modify(envVar, varContents, initEnv);
+            env.modify(envVar, varContents, initEnv, false);
             updatedContracts += `${varContents}\n`;
         }
     }
-
+    env.reload();
     return updatedContracts;
 }
 
