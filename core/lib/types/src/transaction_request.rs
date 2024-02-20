@@ -50,6 +50,9 @@ pub struct CallRequest {
     /// Data (None for empty data)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub data: Option<Bytes>,
+    /// Input (None for empty)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub input: Option<Bytes>,
     /// Nonce
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub nonce: Option<U256>,
@@ -123,6 +126,11 @@ impl CallRequestBuilder {
         self
     }
 
+    pub fn input(mut self, input: Bytes) -> Self {
+        self.call_request.input = Some(input);
+        self
+    }
+
     /// Set transaction type, Some(1) for AccessList transaction, None for Legacy
     pub fn transaction_type(mut self, transaction_type: U64) -> Self {
         self.call_request.transaction_type = Some(transaction_type);
@@ -182,7 +190,7 @@ pub enum SerializationTransactionError {
     /// OversizedData is returned if the raw tx size is greater
     /// than some meaningful limit a user might use. This is not a consensus error
     /// making the transaction invalid, rather a DOS protection.
-    #[error("oversized data. max: {0}; actual: {0}")]
+    #[error("oversized data. max: {0}; actual: {1}")]
     OversizedData(usize, usize),
     #[error("gas per pub data limit is zero")]
     GasPerPubDataLimitZero,
@@ -869,7 +877,7 @@ impl From<CallRequest> for TransactionRequest {
             value: call_request.value.unwrap_or_default(),
             gas_price: call_request.gas_price.unwrap_or_default(),
             gas: call_request.gas.unwrap_or_default(),
-            input: call_request.data.unwrap_or_default(),
+            input: call_request.input.or(call_request.data).unwrap_or_default(),
             transaction_type: call_request.transaction_type,
             access_list: call_request.access_list,
             eip712_meta: call_request.eip712_meta,
@@ -1457,6 +1465,7 @@ mod tests {
             max_priority_fee_per_gas: Some(U256::from(12u32)),
             value: Some(U256::from(12u32)),
             data: Some(Bytes(factory_dep)),
+            input: None,
             nonce: None,
             transaction_type: Some(U64::from(EIP_712_TX_TYPE)),
             access_list: None,
@@ -1483,6 +1492,7 @@ mod tests {
             max_priority_fee_per_gas: Some(U256::from(12u32)),
             value: Some(U256::from(12u32)),
             data: Some(Bytes(vec![1, 2, 3])),
+            input: None,
             nonce: Some(U256::from(123u32)),
             transaction_type: Some(U64::from(EIP_712_TX_TYPE)),
             access_list: None,
@@ -1498,5 +1508,26 @@ mod tests {
         let l2_tx =
             L2Tx::from_request(call_request_without_nonce.into(), MAX_ENCODED_TX_SIZE).unwrap();
         assert_eq!(l2_tx.nonce(), Nonce(0u32));
+    }
+
+    #[test]
+    fn test_correct_data_field() {
+        let mut call_request = CallRequest {
+            input: Some(Bytes(vec![1, 2, 3])),
+            data: Some(Bytes(vec![3, 2, 1])),
+            ..Default::default()
+        };
+
+        let tx_request = TransactionRequest::from(call_request.clone());
+        assert_eq!(tx_request.input, call_request.input.unwrap());
+
+        call_request.input = None;
+        let tx_request = TransactionRequest::from(call_request.clone());
+        assert_eq!(tx_request.input, call_request.data.unwrap());
+
+        call_request.input = Some(Bytes(vec![1, 2, 3]));
+        call_request.data = None;
+        let tx_request = TransactionRequest::from(call_request.clone());
+        assert_eq!(tx_request.input, call_request.input.unwrap());
     }
 }

@@ -39,11 +39,22 @@ describe('web3 API compatibility tests', () => {
         const blockWithTxsByNumber = await alice.provider.getBlockWithTransactions(blockNumber);
         expect(blockWithTxsByNumber.gasLimit).bnToBeGt(0);
         let sumTxGasUsed = ethers.BigNumber.from(0);
+
         for (const tx of blockWithTxsByNumber.transactions) {
             const receipt = await alice.provider.getTransactionReceipt(tx.hash);
             sumTxGasUsed = sumTxGasUsed.add(receipt.gasUsed);
         }
         expect(blockWithTxsByNumber.gasUsed).bnToBeGte(sumTxGasUsed);
+
+        let expectedReceipts = [];
+
+        for (const tx of blockWithTxsByNumber.transactions) {
+            const receipt = await alice.provider.send('eth_getTransactionReceipt', [tx.hash]);
+            expectedReceipts.push(receipt);
+        }
+
+        let receipts = await alice.provider.send('eth_getBlockReceipts', [blockNumberHex]);
+        expect(receipts).toEqual(expectedReceipts);
 
         // eth_getBlockByHash
         await alice.provider.getBlock(blockHash);
@@ -204,9 +215,6 @@ describe('web3 API compatibility tests', () => {
     test('Should test various token methods', async () => {
         const tokens = await alice.provider.getConfirmedTokens();
         expect(tokens).not.toHaveLength(0); // Should not be an empty array.
-
-        const price = await alice.provider.getTokenPrice(l2Token);
-        expect(+price!).toEqual(expect.any(Number));
     });
 
     test('Should check transactions from API / Legacy tx', async () => {

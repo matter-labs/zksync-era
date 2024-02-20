@@ -1,15 +1,15 @@
 use std::time::Instant;
 
 use serde::Serialize;
-use zksync_config::ObjectStoreConfig;
-use zksync_env_config::FromEnv;
-use zksync_object_store::{AggregationsKey, FriCircuitKey, ObjectStoreFactory};
-use zksync_prover_fri_types::CircuitWrapper;
-use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
-use zksync_types::{
-    proofs::{AggregationRound, LeafAggregationJobMetadata, NodeAggregationJobMetadata},
-    L1BatchNumber,
+use zksync_config::{configs::object_store::ObjectStoreMode, ObjectStoreConfig};
+use zksync_dal::fri_prover_dal::types::{LeafAggregationJobMetadata, NodeAggregationJobMetadata};
+use zksync_object_store::ObjectStoreFactory;
+use zksync_prover_fri_types::{
+    keys::{AggregationsKey, FriCircuitKey},
+    CircuitWrapper,
 };
+use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
+use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
 use zksync_witness_generator::{
     leaf_aggregation::{prepare_leaf_aggregation_job, LeafAggregationWitnessGenerator},
     node_aggregation,
@@ -28,8 +28,12 @@ fn compare_serialized<T: Serialize>(expected: &T, actual: &T) {
 #[tokio::test]
 #[ignore] // re-enable with new artifacts
 async fn test_leaf_witness_gen() {
-    let mut object_store_config = ObjectStoreConfig::from_env().unwrap();
-    object_store_config.file_backed_base_path = "./tests/data/leaf/".to_owned();
+    let object_store_config = ObjectStoreConfig {
+        mode: ObjectStoreMode::FileBacked {
+            file_backed_base_path: "./tests/data/leaf/".to_owned(),
+        },
+        max_retries: 5,
+    };
     let object_store = ObjectStoreFactory::new(object_store_config)
         .create_store()
         .await;
@@ -64,8 +68,12 @@ async fn test_leaf_witness_gen() {
 #[tokio::test]
 #[ignore] // re-enable with new artifacts
 async fn test_node_witness_gen() {
-    let mut object_store_config = ObjectStoreConfig::from_env().unwrap();
-    object_store_config.file_backed_base_path = "./tests/data/node/".to_owned();
+    let object_store_config = ObjectStoreConfig {
+        mode: ObjectStoreMode::FileBacked {
+            file_backed_base_path: "./tests/data/node/".to_owned(),
+        },
+        max_retries: 5,
+    };
     let object_store = ObjectStoreFactory::new(object_store_config)
         .create_store()
         .await;
@@ -101,8 +109,12 @@ async fn test_node_witness_gen() {
 #[tokio::test]
 #[ignore] // re-enable with new artifacts
 async fn test_scheduler_witness_gen() {
-    let mut object_store_config = ObjectStoreConfig::from_env().unwrap();
-    object_store_config.file_backed_base_path = "./tests/data/scheduler/".to_owned();
+    let object_store_config = ObjectStoreConfig {
+        mode: ObjectStoreMode::FileBacked {
+            file_backed_base_path: "./tests/data/scheduler/".to_owned(),
+        },
+        max_retries: 5,
+    };
     let object_store = ObjectStoreFactory::new(object_store_config)
         .create_store()
         .await;

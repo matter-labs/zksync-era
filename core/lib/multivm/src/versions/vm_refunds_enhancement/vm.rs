@@ -151,6 +151,10 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
         }
     }
 
+    fn gas_remaining(&self) -> u32 {
+        self.state.local_state.callstack.current.ergs_remaining
+    }
+
     fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
         self.record_vm_memory_metrics_inner()
     }

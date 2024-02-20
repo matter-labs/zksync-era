@@ -4,8 +4,9 @@ use assert_matches::assert_matches;
 
 use super::*;
 use crate::{
+    api_server::{execution_sandbox::apply::apply_vm_in_sandbox, tx_sender::ApiContracts},
     genesis::{ensure_genesis_state, GenesisParams},
-    utils::testonly::{create_miniblock, prepare_empty_recovery_snapshot},
+    utils::testonly::{create_l2_transaction, create_miniblock, prepare_recovery_snapshot},
 };
 
 #[tokio::test]
@@ -67,7 +68,8 @@ async fn creating_block_args() {
 async fn creating_block_args_after_snapshot_recovery() {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
-    let snapshot_recovery = prepare_empty_recovery_snapshot(&mut storage, 23).await;
+    let snapshot_recovery =
+        prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await;
 
     let pending_block_args = BlockArgs::pending(&mut storage).await.unwrap();
     assert_eq!(
@@ -152,4 +154,45 @@ async fn creating_block_args_after_snapshot_recovery() {
             .unwrap_err();
         assert_matches!(err, BlockArgsError::Missing);
     }
+}
+
+#[tokio::test]
+async fn instantiating_vm() {
+    let pool = ConnectionPool::test_pool().await;
+    let mut storage = pool.access_storage().await.unwrap();
+    ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
+        .await
+        .unwrap();
+
+    let block_args = BlockArgs::pending(&mut storage).await.unwrap();
+    test_instantiating_vm(pool.clone(), block_args).await;
+    let start_info = BlockStartInfo::new(&mut storage).await.unwrap();
+    let block_args = BlockArgs::new(&mut storage, api::BlockId::Number(0.into()), start_info)
+        .await
+        .unwrap();
+    test_instantiating_vm(pool.clone(), block_args).await;
+}
+
+async fn test_instantiating_vm(pool: ConnectionPool, block_args: BlockArgs) {
+    let (vm_concurrency_limiter, _) = VmConcurrencyLimiter::new(1);
+    let vm_permit = vm_concurrency_limiter.acquire().await.unwrap();
+    let transaction = create_l2_transaction(10, 100).into();
+
+    tokio::task::spawn_blocking(move || {
+        apply_vm_in_sandbox(
+            vm_permit,
+            TxSharedArgs::mock(ApiContracts::load_from_disk().estimate_gas, pool.clone()),
+            true,
+            &TxExecutionArgs::for_gas_estimate(None, &transaction, 123),
+            &pool,
+            transaction.clone(),
+            block_args,
+            |_, received_tx| {
+                assert_eq!(received_tx, transaction);
+            },
+        )
+    })
+    .await
+    .expect("VM instantiation panicked")
+    .expect("VM instantiation errored");
 }

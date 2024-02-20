@@ -1,17 +1,5 @@
 # syntax=docker/dockerfile:experimental
-FROM debian:bookworm-slim as builder
-
-RUN apt-get update && apt-get install -y curl clang openssl libssl-dev gcc g++ \
-    pkg-config build-essential libclang-dev && \
-    rm -rf /var/lib/apt/lists/*
-
-ENV RUSTUP_HOME=/usr/local/rustup \
-    CARGO_HOME=/usr/local/cargo \
-    PATH=/usr/local/cargo/bin:$PATH
-
-RUN curl https://sh.rustup.rs -sSf | bash -s -- -y && \
-    rustup install nightly-2023-08-21 && \
-    rustup default nightly-2023-08-21
+FROM matterlabs/zksync-build-base:latest as builder
 
 WORKDIR /usr/src/zksync
 COPY . .
@@ -24,7 +12,7 @@ RUN apt-get update && apt-get install -y curl libpq5 ca-certificates wget python
 
 # install zksolc 1.3.x
 RUN skip_versions="v1.3.12 v1.3.15 v1.3.20" && \
-    for VERSION in $(seq -f "v1.3.%g" 0 22); do \
+    for VERSION in $(seq -f "v1.3.%g" 0 23); do \
     if echo " $skip_versions " | grep -q -w " $VERSION "; then \
     continue; \
     fi; \
@@ -34,7 +22,7 @@ RUN skip_versions="v1.3.12 v1.3.15 v1.3.20" && \
     done
 
 # install zkvyper 1.3.x
-RUN for VERSION in $(seq -f "v1.3.%g" 9 16); do \
+RUN for VERSION in $(seq -f "v1.3.%g" 9 17); do \
     mkdir -p /etc/zkvyper-bin/$VERSION && \
     wget https://github.com/matter-labs/zkvyper-bin/raw/main/linux-amd64/zkvyper-linux-amd64-musl-$VERSION -O /etc/zkvyper-bin/$VERSION/zkvyper && \
     chmod +x /etc/zkvyper-bin/$VERSION/zkvyper; \

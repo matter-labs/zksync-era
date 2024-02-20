@@ -4,12 +4,18 @@ use anyhow::Context;
 use serde::Deserialize;
 use url::Url;
 use zksync_basic_types::{Address, L1ChainId, L2ChainId};
-use zksync_core::api_server::{
-    tx_sender::TxSenderConfig,
-    web3::{state::InternalApiConfig, Namespace},
+use zksync_config::ObjectStoreConfig;
+use zksync_consensus_roles::node;
+use zksync_core::{
+    api_server::{
+        tx_sender::TxSenderConfig,
+        web3::{state::InternalApiConfig, Namespace},
+    },
+    consensus,
 };
 use zksync_types::api::BridgeAddresses;
 use zksync_web3_decl::{
+    error::ClientRpcContext,
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
 };
@@ -36,31 +42,21 @@ impl RemoteENConfig {
     pub async fn fetch(client: &HttpClient) -> anyhow::Result<Self> {
         let bridges = client
             .get_bridge_contracts()
-            .await
-            .context("Failed to fetch bridge contracts")?;
+            .rpc_context("get_bridge_contracts")
+            .await?;
         let l2_testnet_paymaster_addr = client
             .get_testnet_paymaster()
-            .await
-            .context("Failed to fetch paymaster")?;
+            .rpc_context("get_testnet_paymaster")
+            .await?;
         let diamond_proxy_addr = client
             .get_main_contract()
-            .await
-            .context("Failed to fetch L1 contract address")?;
-        let l2_chain_id = L2ChainId::try_from(
-            client
-                .chain_id()
-                .await
-                .context("Failed to fetch L2 chain ID")?
-                .as_u64(),
-        )
-        .unwrap();
-        let l1_chain_id = L1ChainId(
-            client
-                .l1_chain_id()
-                .await
-                .context("Failed to fetch L1 chain ID")?
-                .as_u64(),
-        );
+            .rpc_context("get_main_contract")
+            .await?;
+        let l2_chain_id = client.chain_id().rpc_context("chain_id").await?;
+        let l2_chain_id = L2ChainId::try_from(l2_chain_id.as_u64())
+            .map_err(|err| anyhow::anyhow!("invalid chain ID supplied by main node: {err}"))?;
+        let l1_chain_id = client.l1_chain_id().rpc_context("l1_chain_id").await?;
+        let l1_chain_id = L1ChainId(l1_chain_id.as_u64());
 
         Ok(Self {
             diamond_proxy_addr,
@@ -73,6 +69,12 @@ impl RemoteENConfig {
             l1_chain_id,
         })
     }
+}
+
+#[derive(Debug, Deserialize, Clone, PartialEq)]
+pub enum BlockFetcher {
+    ServerAPI,
+    Consensus,
 }
 
 /// This part of the external node config is completely optional to provide.
@@ -180,6 +182,12 @@ pub struct OptionalENConfig {
     /// Timeout to wait for the Merkle tree database to run compaction on stalled writes.
     #[serde(default = "OptionalENConfig::default_merkle_tree_stalled_writes_timeout_sec")]
     merkle_tree_stalled_writes_timeout_sec: u64,
+
+    // Postgres config (new parameters)
+    /// Threshold in milliseconds for the DB connection lifetime to denote it as long-living and log its details.
+    database_long_connection_threshold_ms: Option<u64>,
+    /// Threshold in milliseconds to denote a DB query as "slow" and log its details.
+    database_slow_query_threshold_ms: Option<u64>,
 
     // Other config settings
     /// Port on which the Prometheus exporter server is listening.
@@ -336,6 +344,16 @@ impl OptionalENConfig {
         Duration::from_secs(self.merkle_tree_stalled_writes_timeout_sec)
     }
 
+    pub fn long_connection_threshold(&self) -> Option<Duration> {
+        self.database_long_connection_threshold_ms
+            .map(Duration::from_millis)
+    }
+
+    pub fn slow_query_threshold(&self) -> Option<Duration> {
+        self.database_slow_query_threshold_ms
+            .map(Duration::from_millis)
+    }
+
     pub fn api_namespaces(&self) -> Vec<Namespace> {
         self.api_namespaces
             .clone()
@@ -406,14 +424,43 @@ impl PostgresConfig {
     }
 }
 
+pub(crate) fn read_consensus_config() -> anyhow::Result<consensus::FetcherConfig> {
+    let path = std::env::var("EN_CONSENSUS_CONFIG_PATH")
+        .context("EN_CONSENSUS_CONFIG_PATH env variable is not set")?;
+    let cfg = std::fs::read_to_string(&path).context(path)?;
+    let cfg: consensus::config::Config =
+        consensus::config::decode_json(&cfg).context("failed decoding JSON")?;
+    let node_key: node::SecretKey = consensus::config::read_secret("EN_CONSENSUS_NODE_KEY")?;
+    Ok(consensus::FetcherConfig {
+        executor: cfg.executor_config(node_key),
+    })
+}
+
+/// Configuration for snapshot recovery. Loaded optionally, only if the corresponding command-line argument
+/// is supplied to the EN binary.
+#[derive(Debug, Clone)]
+pub struct SnapshotsRecoveryConfig {
+    pub snapshots_object_store: ObjectStoreConfig,
+}
+
+pub(crate) fn read_snapshots_recovery_config() -> anyhow::Result<SnapshotsRecoveryConfig> {
+    let snapshots_object_store = envy::prefixed("EN_SNAPSHOTS_OBJECT_STORE_")
+        .from_env::<ObjectStoreConfig>()
+        .context("failed loading snapshot object store config from env variables")?;
+    Ok(SnapshotsRecoveryConfig {
+        snapshots_object_store,
+    })
+}
+
 /// External Node Config contains all the configuration required for the EN operation.
 /// It is split into three parts: required, optional and remote for easier navigation.
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct ExternalNodeConfig {
     pub required: RequiredENConfig,
     pub postgres: PostgresConfig,
     pub optional: OptionalENConfig,
     pub remote: RemoteENConfig,
+    pub consensus: Option<consensus::FetcherConfig>,
 }
 
 impl ExternalNodeConfig {
@@ -434,7 +481,6 @@ impl ExternalNodeConfig {
         let remote = RemoteENConfig::fetch(&client)
             .await
             .context("Unable to fetch required config values from the main node")?;
-
         // We can query them from main node, but it's better to set them explicitly
         // as well to avoid connecting to wrong environment variables unintentionally.
         let eth_chain_id = HttpClientBuilder::default()
@@ -479,6 +525,7 @@ impl ExternalNodeConfig {
             postgres,
             required,
             optional,
+            consensus: None,
         })
     }
 }

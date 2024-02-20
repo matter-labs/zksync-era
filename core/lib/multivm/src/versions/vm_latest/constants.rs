@@ -6,6 +6,9 @@ use zksync_system_constants::{MAX_L2_TX_GAS_LIMIT, MAX_NEW_FACTORY_DEPS};
 
 use crate::vm_latest::old_vm::utils::heap_page_from_base;
 
+/// The amount of ergs to be reserved at the end of the batch to ensure that it has enough ergs to verify compression, etc.
+pub(crate) const BOOTLOADER_BATCH_TIP_OVERHEAD: u32 = 80_000_000;
+
 /// The size of the bootloader memory in bytes which is used by the protocol.
 /// While the maximal possible size is a lot higher, we restrict ourselves to a certain limit to reduce
 /// the requirements on RAM.

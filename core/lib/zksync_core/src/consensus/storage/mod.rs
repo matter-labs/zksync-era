@@ -1,18 +1,19 @@
 //! Storage implementation based on DAL.
+
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, sync, time};
 use zksync_consensus_bft::PayloadManager;
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage::{BlockStoreState, PersistentBlockStore, ReplicaState, ReplicaStore};
 use zksync_dal::{consensus_dal::Payload, ConnectionPool};
-use zksync_types::{Address, MiniblockNumber};
+use zksync_types::MiniblockNumber;
 
 #[cfg(test)]
 mod testonly;
 
-use crate::sync_layer::{
-    fetcher::{FetchedBlock, FetcherCursor},
-    sync_action::ActionQueueSender,
+use crate::{
+    state_keeper::io::common::IoCursor,
+    sync_layer::{fetcher::FetchedBlock, sync_action::ActionQueueSender},
 };
 
 /// Context-aware `zksync_dal::StorageProcessor` wrapper.
@@ -61,14 +62,9 @@ impl<'a> CtxStorage<'a> {
         &mut self,
         ctx: &ctx::Ctx,
         number: validator::BlockNumber,
-        operator_address: Address,
     ) -> ctx::Result<Option<Payload>> {
         Ok(ctx
-            .wait(
-                self.0
-                    .consensus_dal()
-                    .block_payload(number, operator_address),
-            )
+            .wait(self.0.consensus_dal().block_payload(number))
             .await??)
     }
 
@@ -108,14 +104,9 @@ impl<'a> CtxStorage<'a> {
         &mut self,
         ctx: &ctx::Ctx,
         cert: &validator::CommitQC,
-        operator_address: Address,
     ) -> ctx::Result<()> {
         Ok(ctx
-            .wait(
-                self.0
-                    .consensus_dal()
-                    .insert_certificate(cert, operator_address),
-            )
+            .wait(self.0.consensus_dal().insert_certificate(cert))
             .await??)
     }
 
@@ -137,14 +128,14 @@ impl<'a> CtxStorage<'a> {
     }
 
     /// Wrapper for `FetcherCursor::new()`.
-    pub async fn new_fetcher_cursor(&mut self, ctx: &ctx::Ctx) -> ctx::Result<FetcherCursor> {
-        Ok(ctx.wait(FetcherCursor::new(&mut self.0)).await??)
+    pub async fn new_fetcher_cursor(&mut self, ctx: &ctx::Ctx) -> ctx::Result<IoCursor> {
+        Ok(ctx.wait(IoCursor::for_fetcher(&mut self.0)).await??)
     }
 }
 
 #[derive(Debug)]
 struct Cursor {
-    inner: FetcherCursor,
+    inner: IoCursor,
     actions: ActionQueueSender,
 }
 
@@ -192,7 +183,6 @@ impl Cursor {
 #[derive(Clone, Debug)]
 pub(super) struct Store {
     pool: ConnectionPool,
-    operator_address: Address,
 }
 
 /// Wrapper of `ConnectionPool` implementing `PersistentBlockStore`.
@@ -205,11 +195,8 @@ pub(super) struct BlockStore {
 
 impl Store {
     /// Creates a `Store`. `pool` should have multiple connections to work efficiently.
-    pub fn new(pool: ConnectionPool, operator_address: Address) -> Self {
-        Self {
-            pool,
-            operator_address,
-        }
+    pub fn new(pool: ConnectionPool) -> Self {
+        Self { pool }
     }
 
     /// Converts `Store` into a `BlockStore`.
@@ -251,16 +238,20 @@ impl BlockStore {
             return Ok(());
         }
         let payload = txn
-            .payload(ctx, number, self.inner.operator_address)
+            .payload(ctx, number)
             .await
             .wrap("payload()")?
             .context("miniblock disappeared")?;
-        let (genesis, _) = zksync_consensus_bft::testonly::make_genesis(
-            &[validator_key.clone()],
-            payload.encode(),
-            number,
-        );
-        txn.insert_certificate(ctx, &genesis.justification, self.inner.operator_address)
+        let mut genesis = validator::GenesisSetup {
+            keys: vec![validator_key.clone()],
+            blocks: vec![],
+        };
+        genesis
+            .next_block()
+            .block_number(number)
+            .payload(payload.encode())
+            .push();
+        txn.insert_certificate(ctx, &genesis.blocks[0].justification)
             .await
             .wrap("insert_certificate()")?;
         txn.commit(ctx).await.wrap("commit()")
@@ -317,7 +308,7 @@ impl PersistentBlockStore for BlockStore {
             .wrap("certificate()")?
             .context("not found")?;
         let payload = storage
-            .payload(ctx, number, self.inner.operator_address)
+            .payload(ctx, number)
             .await
             .wrap("payload()")?
             .context("miniblock disappeared from storage")?;
@@ -356,7 +347,7 @@ impl PersistentBlockStore for BlockStore {
                 .wrap("last_miniblock_number()")?;
             if number >= block.header().number {
                 storage
-                    .insert_certificate(ctx, &block.justification, self.inner.operator_address)
+                    .insert_certificate(ctx, &block.justification)
                     .await
                     .wrap("insert_certificate()")?;
                 return Ok(());
@@ -402,12 +393,16 @@ impl PayloadManager for Store {
         drop(storage);
         loop {
             let mut storage = CtxStorage::access(ctx, &self.pool).await.wrap("access()")?;
-            if let Some(payload) = storage
-                .payload(ctx, block_number, self.operator_address)
-                .await
-                .wrap("payload()")?
-            {
-                return Ok(payload.encode());
+            if let Some(payload) = storage.payload(ctx, block_number).await.wrap("payload()")? {
+                let encoded_payload = payload.encode();
+                if encoded_payload.0.len() > 1 << 20 {
+                    tracing::warn!(
+                        "large payload ({}B) with {} transactions",
+                        encoded_payload.0.len(),
+                        payload.transactions.len()
+                    );
+                }
+                return Ok(encoded_payload);
             }
             drop(storage);
             ctx.sleep(POLL_INTERVAL).await?;

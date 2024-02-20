@@ -8,11 +8,11 @@ use zksync_config::{
 };
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::{clients::MockEthereum, EthInterface};
+use zksync_l1_contract_interface::i_executor::methods::{
+    CommitBatches, ExecuteBatches, ProveBatches,
+};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_types::{
-    aggregated_operations::{
-        AggregatedOperation, L1BatchCommitOperation, L1BatchExecuteOperation, L1BatchProofOperation,
-    },
     block::L1BatchHeader,
     commitment::{L1BatchMetaParameters, L1BatchMetadata, L1BatchWithMetadata},
     ethabi::Token,
@@ -23,21 +23,22 @@ use zksync_types::{
 
 use crate::{
     eth_sender::{
-        eth_tx_manager::L1BlockNumbers, Aggregator, ETHSenderError, EthTxAggregator, EthTxManager,
+        aggregated_operations::AggregatedOperation, eth_tx_manager::L1BlockNumbers, Aggregator,
+        ETHSenderError, EthTxAggregator, EthTxManager,
     },
     l1_gas_price::GasAdjuster,
-    utils::testonly::create_l1_batch,
+    utils::testonly::{create_l1_batch, l1_batch_metadata_to_commitment_artifacts},
 };
 
 // Alias to conveniently call static methods of `ETHSender`.
 type MockEthTxManager = EthTxManager;
 
 static DUMMY_OPERATION: Lazy<AggregatedOperation> = Lazy::new(|| {
-    AggregatedOperation::Execute(L1BatchExecuteOperation {
+    AggregatedOperation::Execute(ExecuteBatches {
         l1_batches: vec![L1BatchWithMetadata {
             header: create_l1_batch(1),
             metadata: default_l1_batch_metadata(),
-            factory_deps: Vec::new(),
+            raw_published_factory_deps: Vec::new(),
         }],
     })
 });
@@ -48,7 +49,7 @@ struct EthSenderTester {
     gateway: Arc<MockEthereum>,
     manager: MockEthTxManager,
     aggregator: EthTxAggregator,
-    gas_adjuster: Arc<GasAdjuster<Arc<MockEthereum>>>,
+    gas_adjuster: Arc<GasAdjuster>,
 }
 
 impl EthSenderTester {
@@ -134,7 +135,11 @@ impl EthSenderTester {
     async fn get_block_numbers(&self) -> L1BlockNumbers {
         let latest = self.gateway.block_number("").await.unwrap().as_u32().into();
         let finalized = latest - Self::WAIT_CONFIRMATIONS as u32;
-        L1BlockNumbers { finalized, latest }
+        L1BlockNumbers {
+            finalized,
+            latest,
+            safe: finalized,
+        }
     }
 }
 
@@ -514,10 +519,9 @@ fn default_l1_batch_metadata() -> L1BatchMetadata {
         root_hash: Default::default(),
         rollup_last_leaf_index: 0,
         merkle_root_hash: Default::default(),
-        initial_writes_compressed: vec![],
-        repeated_writes_compressed: vec![],
+        initial_writes_compressed: Some(vec![]),
+        repeated_writes_compressed: Some(vec![]),
         commitment: Default::default(),
-        l2_l1_messages_compressed: vec![],
         l2_l1_merkle_root: Default::default(),
         block_meta_params: L1BatchMetaParameters {
             zkporter_is_available: false,
@@ -537,7 +541,7 @@ fn l1_batch_with_metadata(header: L1BatchHeader) -> L1BatchWithMetadata {
     L1BatchWithMetadata {
         header,
         metadata: default_l1_batch_metadata(),
-        factory_deps: vec![],
+        raw_published_factory_deps: vec![],
     }
 }
 
@@ -887,18 +891,24 @@ async fn insert_l1_batch(tester: &EthSenderTester, number: L1BatchNumber) -> L1B
         .storage()
         .await
         .blocks_dal()
-        .insert_l1_batch(&header, &[], Default::default(), &[], &[], 0)
+        .insert_mock_l1_batch(&header)
+        .await
+        .unwrap();
+    let metadata = default_l1_batch_metadata();
+    tester
+        .storage()
+        .await
+        .blocks_dal()
+        .save_l1_batch_tree_data(header.number, &metadata.tree_data())
         .await
         .unwrap();
     tester
         .storage()
         .await
         .blocks_dal()
-        .save_l1_batch_metadata(
+        .save_l1_batch_commitment_artifacts(
             header.number,
-            &default_l1_batch_metadata(),
-            Default::default(),
-            false,
+            &l1_batch_metadata_to_commitment_artifacts(&metadata),
         )
         .await
         .unwrap();
@@ -910,7 +920,7 @@ async fn execute_l1_batches(
     l1_batches: Vec<L1BatchHeader>,
     confirm: bool,
 ) -> H256 {
-    let operation = AggregatedOperation::Execute(L1BatchExecuteOperation {
+    let operation = AggregatedOperation::Execute(ExecuteBatches {
         l1_batches: l1_batches.into_iter().map(l1_batch_with_metadata).collect(),
     });
     send_operation(tester, operation, confirm).await
@@ -922,7 +932,7 @@ async fn prove_l1_batch(
     l1_batch: L1BatchHeader,
     confirm: bool,
 ) -> H256 {
-    let operation = AggregatedOperation::PublishProofOnchain(L1BatchProofOperation {
+    let operation = AggregatedOperation::PublishProofOnchain(ProveBatches {
         prev_l1_batch: l1_batch_with_metadata(last_committed_l1_batch),
         l1_batches: vec![l1_batch_with_metadata(l1_batch)],
         proofs: vec![],
@@ -937,7 +947,7 @@ async fn commit_l1_batch(
     l1_batch: L1BatchHeader,
     confirm: bool,
 ) -> H256 {
-    let operation = AggregatedOperation::Commit(L1BatchCommitOperation {
+    let operation = AggregatedOperation::Commit(CommitBatches {
         last_committed_l1_batch: l1_batch_with_metadata(last_committed_l1_batch),
         l1_batches: vec![l1_batch_with_metadata(l1_batch)],
     });
