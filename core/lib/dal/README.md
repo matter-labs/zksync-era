@@ -37,7 +37,8 @@ See [`zksync_state`] crate for more context.
   and as a part of the VM sandbox) etc.
 
 - `initial_writes`. Stores initial writes information for each L1 batch, i.e., the enumeration index assigned for each
-  key. Used when generating L1 batch metadata in Metadata calculator and Commitment generator components.
+  key. Used when generating L1 batch metadata in Metadata calculator and Commitment generator components, and in the VM
+  sandbox in API server for fee estimation.
 
 - `protective_reads`. Stores protective read information for each L1 batch, i.e., keys influencing VM execution for the
   batch that were not modified. Used when generating L1 batch metadata in Commitment generator.
@@ -53,7 +54,7 @@ See [`zksync_state`] crate for more context.
 - `l2_to_l1_logs`. Stores L2-to-L1 logs emitted by smart contracts during VM execution.
 
 - `call_traces`. Stores call traces for transactions emitted during VM execution. (Unlike with L1 node implementations,
-  in Era call traces must be proactively generated for all transactions to function correctly.)
+  in Era call traces are currently proactively generated for all transactions.)
 
 - `tokens`. Stores all ERC-20 tokens registered in the L1–L2 bridge.
 
