@@ -20,12 +20,6 @@ const success = chalk.green;
 const timestamp = chalk.grey;
 export const ADDRESS_ONE = '0x0000000000000000000000000000000000000001';
 
-export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
-    await initSetup(initArgs);
-    await initBridgehubStateTransition(initArgs);
-    await initHyper(initArgs);
-}
-
 export async function initSetup(initArgs: InitArgs = DEFAULT_ARGS) {
     const { skipSubmodulesCheckout, skipEnvSetup } = initArgs;
 
@@ -44,20 +38,24 @@ export async function initSetup(initArgs: InitArgs = DEFAULT_ARGS) {
     await announced('Compile L2 system contracts', compiler.compileAll());
 }
 
-export async function initBridgehubStateTransition(initArgs: InitArgs = DEFAULT_ARGS) {
-    const { governorPrivateKeyArgs, deployerL2ContractInput, testTokens } = initArgs;
+export async function initSetupDatabase(initArgs: InitArgs = DEFAULT_ARGS, skipVerifierDeployment: boolean = false) {
+    const { deployerL2ContractInput } = initArgs;
 
-    await announced('Building L1 L2 contracts', contract.build());
-
-    // we have to initiate the db here, as we need to create the genesis block to initialize the L1 contracts
     await announced('Drop postgres db', db.drop());
     await announced('Setup postgres db', db.setup());
     await announced('Clean rocksdb', clean(`db/${process.env.ZKSYNC_ENV!}`));
     await announced('Clean backups', clean(`backups/${process.env.ZKSYNC_ENV!}`));
-    await announced('Deploying L1 verifier', contract.deployVerifier(deployerL2ContractInput.args));
-    await announced('Reloading env', env.reload());
+    if (!skipVerifierDeployment) {
+        await announced('Deploying L1 verifier', contract.deployVerifier(deployerL2ContractInput.args));
+        await announced('Reloading env', env.reload());
+    }
 
     await announced('Running server genesis setup', server.genesisFromSources());
+}
+
+export async function initBridgehubStateTransition(initArgs: InitArgs = DEFAULT_ARGS) {
+    const { governorPrivateKeyArgs, deployerL2ContractInput, testTokens } = initArgs;
+
     if (testTokens.deploy) {
         await announced(
             'Deploying localhost ERC20 and Weth tokens',
@@ -67,7 +65,6 @@ export async function initBridgehubStateTransition(initArgs: InitArgs = DEFAULT_
         await announced('Deploying localhost Weth tokens', run.deployWeth(testTokens.args));
     }
     await announced('Deploying L1 contracts', contract.redeployL1(governorPrivateKeyArgs));
-    await announced('Initializing bridges', contract.initializeBridges(governorPrivateKeyArgs));
     await announced('Initializing governance', contract.initializeGovernance(governorPrivateKeyArgs));
     await announced('Reloading env', env.reload());
 }
@@ -75,15 +72,6 @@ export async function initBridgehubStateTransition(initArgs: InitArgs = DEFAULT_
 export async function initHyper(initArgs: InitArgs = DEFAULT_ARGS) {
     const { governorPrivateKeyArgs, deployerL2ContractInput, baseToken } = initArgs;
 
-    // await announced('Building L1 L2 contracts', contract.build());
-
-    // we initialise with genesis chainId
-    await announced('Drop postgres db', db.drop());
-    await announced('Setup postgres db', db.setup());
-    await announced('Clean rocksdb', clean(`db/${process.env.ZKSYNC_ENV!}`));
-    await announced('Clean backups', clean(`backups/${process.env.ZKSYNC_ENV!}`));
-
-    await announced('Running server genesis setup', server.genesisFromSources());
     let baseTokenArgs: any[] = [];
     if (baseToken.address !== ethers.constants.AddressZero) {
         baseTokenArgs = ['--base-token-address', baseToken.address];
@@ -95,11 +83,22 @@ export async function initHyper(initArgs: InitArgs = DEFAULT_ARGS) {
         contract.registerHyperchain([...governorPrivateKeyArgs, ...baseTokenArgs])
     );
     await announced('Reloading env', env.reload());
-    await announced(
-        'Deploying L2 contracts',
-        contract.deployL2(deployerL2ContractInput.args, deployerL2ContractInput.includePaymaster)
-    );
-    await announced('Initializing governance of chain', contract.initializeGovernanceChain(governorPrivateKeyArgs));
+    if (deployerL2ContractInput.throughL1) {
+        await announced(
+            'Deploying L2 contracts',
+            contract.deployL2ThroughL1(deployerL2ContractInput.args, deployerL2ContractInput.includePaymaster)
+        );
+    }
+}
+
+// we keep the old function which deploys the shared bridge and registers the hyperchain as quickly as possible
+export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
+    await initSetup(initArgs);
+    // we have to initiate the db here, as we need to create the genesis block to initialize the L1 contracts
+    await initSetupDatabase(initArgs, false);
+    await initBridgehubStateTransition(initArgs);
+    // we do not reinitalize the db here, as we can use the db that was initialized for the genesis block in the StateTransitionManager
+    await initHyper(initArgs);
 }
 
 // A smaller version of `init` that "resets" the localhost environment, for which `init` was already called before.
@@ -118,7 +117,7 @@ export async function reinit() {
     await announced('Reloading env', env.reload());
     await announced('Running server genesis setup', server.genesisFromSources());
     await announced('Deploying L1 contracts', contract.redeployL1([]));
-    await announced('Deploying L2 contracts', contract.deployL2([], true));
+    await announced('Deploying L2 contracts', contract.deployL2ThroughL1([], true));
     await announced('Initializing governance', contract.initializeGovernance());
 }
 
@@ -131,15 +130,11 @@ export async function lightweightInit() {
     await announced('Running server genesis setup', server.genesisFromBinary());
     await announced('Deploying localhost ERC20 and Weth tokens', run.deployERC20AndWeth('dev', '', '', '', []));
     await announced('Deploying L1 contracts', contract.redeployL1([]));
-    await announced('Deploying L2 contracts', contract.deployL2([], true));
+    await announced('Deploying L2 contracts', contract.deployL2ThroughL1([], true));
     await announced('Initializing governance', contract.initializeGovernance());
 }
 
-export async function finishBridgeInit(initArgs: InitArgs = DEFAULT_ARGS) {
-    const { deployerL2ContractInput } = initArgs;
-    await announced('Finishing initializing weth bridge', contract.wethBridgeFinish(deployerL2ContractInput.args));
-    await announced('Finishing initializing erc20 bridge', contract.erc20BridgeFinish(deployerL2ContractInput.args));
-}
+export async function deployL2Contracts(initArgs: InitArgs = DEFAULT_ARGS) {}
 
 // Wrapper that writes an announcement and completion notes for each executed task.
 export async function announced(fn: string, promise: Promise<void> | void) {
@@ -182,6 +177,7 @@ export interface InitArgs {
     governorPrivateKeyArgs: any[];
     deployerL2ContractInput: {
         args: any[];
+        throughL1: boolean;
         includePaymaster: boolean;
     };
     testTokens: {
@@ -199,7 +195,7 @@ const DEFAULT_ARGS: InitArgs = {
     skipSubmodulesCheckout: false,
     skipEnvSetup: false,
     governorPrivateKeyArgs: [],
-    deployerL2ContractInput: { args: [], includePaymaster: true },
+    deployerL2ContractInput: { args: [], throughL1: true, includePaymaster: true },
     testTokens: { deploy: true, deployWeth: true, args: [] },
     baseToken: { name: 'ETH', address: ADDRESS_ONE }
 };
@@ -225,6 +221,7 @@ export const initCommand = new Command('init')
                 : [],
             deployerL2ContractInput: {
                 args: process.env.DEPLOYER_PRIVATE_KEY ? ['--private-key', process.env.DEPLOYER_PRIVATE_KEY] : [],
+                throughL1: true,
                 includePaymaster: true
             },
             testTokens: {
@@ -243,7 +240,7 @@ export const reinitCommand = new Command('reinit')
     .description('"reinitializes" network. Runs faster than `init`, but requires `init` to be executed prior')
     .option('--env-name <env-name>', 'env name to use for initialization')
     .action(async (cmd: Command) => {
-        if (cmd.l2ChainName) {
+        if (cmd.envName) {
             process.env.ZKSYNC_ENV = cmd.envName;
             env.reload();
         }
@@ -253,7 +250,7 @@ export const lightweightInitCommand = new Command('lightweight-init')
     .description('perform lightweight zksync network initialization for development')
     .option('--env-name <env-name>', 'env name to use for initialization')
     .action(async (cmd: Command) => {
-        if (cmd.l2ChainName) {
+        if (cmd.envName) {
             process.env.ZKSYNC_ENV = cmd.envName;
             env.reload();
         }
@@ -261,6 +258,49 @@ export const lightweightInitCommand = new Command('lightweight-init')
     });
 export const initHyperCommand = new Command('init-hyper')
     .description('initialize just the L2, currently with own bridge')
+    .option('--skip-setup-completely', 'skip the setup completely, use this if server was started already')
+    .option('--env-name <env-name>', 'env name to use for initialization')
+    .option('--base-token-name <base-token-name>', 'base token name')
+    .option('--base-token-address <base-token-address>', 'base token address')
+    .action(async (cmd: Command) => {
+        if (cmd.envName) {
+            process.env.ZKSYNC_ENV = cmd.envName;
+            env.reload();
+        }
+
+        const initArgs: InitArgs = {
+            skipSubmodulesCheckout: cmd.skipSubmodulesCheckout,
+            skipEnvSetup: true, // either we are launching locally, in which case we have called init-shared-bridge, or we are launching to a testnet
+            governorPrivateKeyArgs: process.env.GOVERNOR_PRIVATE_KEY
+                ? ['--private-key', process.env.GOVERNOR_PRIVATE_KEY]
+                : [],
+            deployerL2ContractInput: {
+                args: process.env.DEPLOYER_PRIVATE_KEY ? ['--private-key', process.env.DEPLOYER_PRIVATE_KEY] : [],
+                throughL1: true,
+                includePaymaster: true
+            },
+            testTokens: {
+                deploy: false,
+                deployWeth: false,
+                args: process.env.DEPLOYER_PRIVATE_KEY ? ['--private-key', process.env.DEPLOYER_PRIVATE_KEY] : []
+            },
+            baseToken: {
+                name: cmd.baseTokenName,
+                // we use zero here to show that it is unspecified. If it were ether it would be one.
+                address: cmd.baseTokenAddress ? cmd.baseTokenAddress : ethers.constants.AddressZero
+            }
+        };
+        if (!cmd.skipSetupCompletely) {
+            await initSetup(initArgs);
+        }
+        await initSetupDatabase(initArgs, true); // we skip Verifier deployment, it is only deployed with sharedBridge
+        await initHyper(initArgs);
+    });
+
+export const reinitHyperCommand = new Command('reinit-hyper')
+    .description(
+        'for development purposes, can be called again after "init" if the server was not started, and is faster than "init-hyper"'
+    )
     .option('--env-name <env-name>', 'env name to use for initialization')
     .option('--base-token-name <base-token-name>', 'base token name')
     .option('--base-token-address <base-token-address>', 'base token address')
@@ -278,6 +318,7 @@ export const initHyperCommand = new Command('init-hyper')
                 : [],
             deployerL2ContractInput: {
                 args: process.env.DEPLOYER_PRIVATE_KEY ? ['--private-key', process.env.DEPLOYER_PRIVATE_KEY] : [],
+                throughL1: true,
                 includePaymaster: true
             },
             testTokens: {
@@ -315,6 +356,7 @@ export const initSharedBridgeCommand = new Command('init-shared-bridge')
                 : [],
             deployerL2ContractInput: {
                 args: process.env.DEPLOYER_PRIVATE_KEY ? ['--private-key', process.env.DEPLOYER_PRIVATE_KEY] : [],
+                throughL1: true,
                 includePaymaster: true
             },
             testTokens: {
@@ -329,13 +371,16 @@ export const initSharedBridgeCommand = new Command('init-shared-bridge')
             }
         };
         await initSetup(initArgs);
+        // we have to initiate the db here, as we need to create the genesis block to initialize the L1 contracts
+        await initSetupDatabase(initArgs, false);
         await initBridgehubStateTransition(initArgs);
     });
-export const finishBridgeInitCommand = new Command('finish-bridge-init')
-    .description('finishing bridge init')
+
+export const deployL2ContractsCommand = new Command('deploy-l2-contracts')
+    .description('deploying l2 contracts once the hyperchain server is running')
     .option('--env-name <env-name>', 'env name to use for initialization')
     .action(async (cmd: Command) => {
-        if (cmd.l2ChainName) {
+        if (cmd.envName) {
             process.env.ZKSYNC_ENV = cmd.envName;
             env.reload();
         }
@@ -347,6 +392,7 @@ export const finishBridgeInitCommand = new Command('finish-bridge-init')
                 : [],
             deployerL2ContractInput: {
                 args: process.env.DEPLOYER_PRIVATE_KEY ? ['--private-key', process.env.DEPLOYER_PRIVATE_KEY] : [],
+                throughL1: true,
                 includePaymaster: true
             },
             testTokens: {
@@ -361,5 +407,5 @@ export const finishBridgeInitCommand = new Command('finish-bridge-init')
             }
         };
 
-        await finishBridgeInit(initArgs);
+        await deployL2Contracts(initArgs);
     });

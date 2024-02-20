@@ -82,7 +82,7 @@ describe('Upgrade test', function () {
         if (!mainContract) {
             throw new Error('Server did not start');
         }
-        const governanceContractAddr = await mainContract.getGovernor();
+        const governanceContractAddr = await mainContract.getAdmin();
         governanceContract = new zkweb3.Contract(governanceContractAddr, GOVERNANCE_ABI, tester.syncWallet);
         let blocksCommitted = await mainContract.getTotalBlocksCommitted();
 

@@ -58,6 +58,13 @@ export const command = new Command('clean')
             clean('contracts/l2-contracts/artifacts-zk');
             clean('contracts/l2-contracts/cache-zk');
             clean('contracts/l2-contracts/typechain');
+            clean('contracts/system-contracts/artifacts-zk');
+            clean('contracts/system-contracts/cache-zk');
+            clean('contracts/system-contracts/typechain');
+            clean('contracts/system-contracts/bootloader/build');
+            clean('contracts/system-contracts/bootloader/tests/artifacts');
+            clean('contracts/system-contracts/contracts/artifacts');
+            clean('contracts/system-contracts/contracts/precompiles/artifacts');
         }
 
         if (cmd.all) {

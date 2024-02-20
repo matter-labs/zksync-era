@@ -53,7 +53,7 @@ impl UpdatesManager {
         current_miniblock_number: MiniblockNumber,
         l1_batch_env: &L1BatchEnv,
         finished_batch: FinishedL1Batch,
-        l2_erc20_bridge_addr: Address,
+        l2_shared_bridge_addr: Address,
     ) {
         let started_at = Instant::now();
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::VmFinalization);
@@ -74,7 +74,7 @@ impl UpdatesManager {
         let miniblock_command = self.seal_miniblock_command(
             l1_batch_env.number,
             current_miniblock_number,
-            l2_erc20_bridge_addr,
+            l2_shared_bridge_addr,
             false, // fictive miniblocks don't have txs, so it's fine to pass `false` here.
         );
         miniblock_command.seal_inner(&mut transaction, true).await;
@@ -287,7 +287,7 @@ impl MiniblockSealCommand {
     /// the bootloader enters the "tip" phase in which it can still generate events (e.g.,
     /// one for sending fees to the operator).
     ///
-    /// `l2_erc20_bridge_addr` is required to extract the information on newly added tokens.
+    /// `l2_shared_bridge_addr` is required to extract the information on newly added tokens.
     async fn seal_inner(&self, storage: &mut StorageProcessor<'_>, is_fictive: bool) {
         self.assert_valid_miniblock(is_fictive);
 
@@ -408,7 +408,7 @@ impl MiniblockSealCommand {
         progress.observe(deployed_contract_count);
 
         let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::ExtractAddedTokens, is_fictive);
-        let added_tokens = extract_added_tokens(self.l2_erc20_bridge_addr, &self.miniblock.events);
+        let added_tokens = extract_added_tokens(self.l2_shared_bridge_addr, &self.miniblock.events);
         progress.observe(added_tokens.len());
         let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::InsertTokens, is_fictive);
         let added_tokens_len = added_tokens.len();
