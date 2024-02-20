@@ -523,6 +523,7 @@ async fn main() -> anyhow::Result<()> {
     ensure_storage_initialized(
         &connection_pool,
         &main_node_client,
+        &app_health,
         config.remote.l2_chain_id,
         opt.enable_snapshots_recovery,
     )
