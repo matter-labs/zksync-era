@@ -255,7 +255,8 @@ impl BlockReverter {
         transaction
             .tokens_dal()
             .rollback_tokens(last_miniblock_to_keep)
-            .await;
+            .await
+            .expect("failed rolling back created tokens");
         tracing::info!("rolling back factory deps....");
         transaction
             .factory_deps_dal()

@@ -68,7 +68,7 @@ impl StateKeeperHandles {
         assert!(!tx_hashes.is_empty());
         assert!(tx_hashes.iter().all(|tx_hashes| !tx_hashes.is_empty()));
 
-        let sync_state = SyncState::new();
+        let sync_state = SyncState::default();
         let (miniblock_sealer, miniblock_sealer_handle) = MiniblockSealer::new(pool.clone(), 5);
         tokio::spawn(miniblock_sealer.run());
 

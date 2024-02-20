@@ -15,21 +15,22 @@ use zksync_types::{
     H256,
 };
 
-use crate::{get_recursive_layer_vk_for_circuit_type, utils::get_leaf_vk_params};
+use crate::{keystore::Keystore, utils::get_leaf_vk_params};
 
 lazy_static! {
     // TODO: do not initialize a static const with data read in runtime.
-    static ref COMMITMENTS: Lazy<L1VerifierConfig> = Lazy::new(|| { circuit_commitments().unwrap() });
+    static ref COMMITMENTS: Lazy<L1VerifierConfig> = Lazy::new(|| { circuit_commitments(&Keystore::default()).unwrap() });
 }
 
+#[derive(Debug)]
 pub struct VkCommitments {
     pub leaf: String,
     pub node: String,
     pub scheduler: String,
 }
 
-fn circuit_commitments() -> anyhow::Result<L1VerifierConfig> {
-    let commitments = generate_commitments().context("generate_commitments()")?;
+fn circuit_commitments(keystore: &Keystore) -> anyhow::Result<L1VerifierConfig> {
+    let commitments = generate_commitments(keystore).context("generate_commitments()")?;
     let snark_wrapper_vk = std::env::var("CONTRACTS_SNARK_WRAPPER_VK_HASH")
         .context("SNARK wrapper VK not found in the config")?;
     Ok(L1VerifierConfig {
@@ -54,8 +55,8 @@ fn circuit_commitments() -> anyhow::Result<L1VerifierConfig> {
     })
 }
 
-pub fn generate_commitments() -> anyhow::Result<VkCommitments> {
-    let leaf_vk_params = get_leaf_vk_params().context("get_leaf_vk_params()")?;
+pub fn generate_commitments(keystore: &Keystore) -> anyhow::Result<VkCommitments> {
+    let leaf_vk_params = get_leaf_vk_params(keystore).context("get_leaf_vk_params()")?;
     let leaf_layer_params = leaf_vk_params
         .iter()
         .map(|el| el.1.clone())
@@ -64,16 +65,18 @@ pub fn generate_commitments() -> anyhow::Result<VkCommitments> {
         .unwrap();
     let leaf_vk_commitment = compute_leaf_vks_and_params_commitment(leaf_layer_params);
 
-    let node_vk = get_recursive_layer_vk_for_circuit_type(
-        ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,
-    )
-    .context("get_recursive_layer_vk_for_circuit_type(NodeLayerCircuit)")?;
+    let node_vk = keystore
+        .load_recursive_layer_verification_key(
+            ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,
+        )
+        .context("get_recursive_layer_vk_for_circuit_type(NodeLayerCircuit)")?;
     let node_vk_commitment = compute_node_vk_commitment(node_vk.clone());
 
-    let scheduler_vk = get_recursive_layer_vk_for_circuit_type(
-        ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8,
-    )
-    .context("get_recursive_layer_vk_for_circuit_type(SchedulerCircuit)")?;
+    let scheduler_vk = keystore
+        .load_recursive_layer_verification_key(
+            ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8,
+        )
+        .context("get_recursive_layer_vk_for_circuit_type(SchedulerCircuit)")?;
     let scheduler_vk_commitment = compute_node_vk_commitment(scheduler_vk.clone());
 
     let hex_concatenator = |hex_array: [GoldilocksField; 4]| {
