@@ -25,6 +25,7 @@ use zksync_types::{
     MAX_NEW_FACTORY_DEPS, U256,
 };
 use zksync_utils::h256_to_u256;
+use zksync_web3_decl::jsonrpsee::http_client::HttpClient;
 
 pub(super) use self::{proxy::TxProxy, result::SubmitTxError};
 use crate::{
@@ -164,8 +165,8 @@ impl TxSenderBuilder {
         self
     }
 
-    pub fn with_tx_proxy(mut self, main_node_url: &str) -> Self {
-        self.proxy = Some(TxProxy::new(main_node_url));
+    pub fn with_tx_proxy(mut self, client: HttpClient) -> Self {
+        self.proxy = Some(TxProxy::new(client));
         self
     }
 

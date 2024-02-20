@@ -38,6 +38,7 @@ use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
 use zksync_state::PostgresStorageCaches;
 use zksync_storage::RocksDB;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
+use zksync_web3_decl::jsonrpsee::http_client::HttpClient;
 
 use crate::{
     config::{observability::observability_config_from_env, ExternalNodeConfig},
@@ -111,8 +112,11 @@ async fn build_state_keeper(
 async fn init_tasks(
     config: &ExternalNodeConfig,
     connection_pool: ConnectionPool,
+    main_node_client: HttpClient,
+    task_handles: &mut Vec<task::JoinHandle<anyhow::Result<()>>>,
+    app_health: &AppHealthCheck,
     stop_receiver: watch::Receiver<bool>,
-) -> anyhow::Result<(Vec<task::JoinHandle<anyhow::Result<()>>>, AppHealthCheck)> {
+) -> anyhow::Result<()> {
     let release_manifest: serde_json::Value = serde_json::from_str(RELEASE_MANIFEST)
         .expect("release manifest is a valid json document; qed");
     let release_manifest_version = release_manifest["core"].as_str().expect(
@@ -121,19 +125,13 @@ async fn init_tasks(
 
     let version = semver::Version::parse(release_manifest_version)
         .expect("version in manifest is a correct semver format; qed");
-    let main_node_url = config
-        .required
-        .main_node_url()
-        .expect("Main node URL is incorrect");
-    let app_health = AppHealthCheck::default();
     // Create components.
-    let fee_params_fetcher = Arc::new(MainNodeFeeParamsFetcher::new(&main_node_url));
+    let fee_params_fetcher = Arc::new(MainNodeFeeParamsFetcher::new(main_node_client.clone()));
 
     let sync_state = SyncState::default();
     app_health.insert_custom_component(Arc::new(sync_state.clone()));
     let (action_queue_sender, action_queue) = ActionQueue::new();
 
-    let mut task_handles = vec![];
     let (miniblock_sealer, miniblock_sealer_handle) = MiniblockSealer::new(
         connection_pool.clone(),
         config.optional.miniblock_seal_queue_capacity,
@@ -170,22 +168,15 @@ async fn init_tasks(
     )
     .await?;
 
-    let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
-        .context("Failed creating JSON-RPC client for main node")?;
-    app_health.insert_custom_component(Arc::new(MainNodeHealthCheck::from(
-        main_node_client.clone(),
-    )));
     let singleton_pool_builder = ConnectionPool::singleton(&config.postgres.database_url);
 
     let fetcher_handle = if let Some(cfg) = config.consensus.clone() {
         let pool = connection_pool.clone();
         let mut stop_receiver = stop_receiver.clone();
         let sync_state = sync_state.clone();
+        let main_node_client = main_node_client.clone();
 
-        #[allow(clippy::redundant_locals)]
         tokio::spawn(async move {
-            let sync_state = sync_state;
-            let main_node_client = main_node_client;
             scope::run!(&ctx::root(), |ctx, s| async {
                 s.spawn_bg(async {
                     let res = cfg.run(ctx, pool, action_queue_sender).await;
@@ -213,7 +204,7 @@ async fn init_tasks(
         let mut storage = pool.access_storage_tagged("sync_layer").await?;
         let fetcher = MainNodeFetcher::new(
             &mut storage,
-            Box::new(main_node_client),
+            Box::new(main_node_client.clone()),
             action_queue_sender,
             sync_state.clone(),
             stop_receiver.clone(),
@@ -253,13 +244,12 @@ async fn init_tasks(
     let consistency_checker_handle = tokio::spawn(consistency_checker.run(stop_receiver.clone()));
 
     let batch_status_updater = BatchStatusUpdater::new(
-        &main_node_url,
+        main_node_client.clone(),
         singleton_pool_builder
             .build()
             .await
             .context("failed to build a connection pool for BatchStatusUpdater")?,
-    )
-    .context("failed initializing batch status updater")?;
+    );
     app_health.insert_component(batch_status_updater.health_check());
 
     // Run the components.
@@ -289,7 +279,7 @@ async fn init_tasks(
         let tx_sender_builder =
             TxSenderBuilder::new(config.clone().into(), connection_pool.clone())
                 .with_main_connection_pool(connection_pool.clone())
-                .with_tx_proxy(&main_node_url);
+                .with_tx_proxy(main_node_client);
 
         if config.optional.transactions_per_sec_limit.is_some() {
             tracing::warn!("`transactions_per_sec_limit` option is deprecated and ignored");
@@ -351,7 +341,6 @@ async fn init_tasks(
 
     app_health.insert_component(ws_server_handles.health_check);
     app_health.insert_component(http_server_handles.health_check);
-    app_health.insert_custom_component(Arc::new(ConnectionPoolHealthCheck::new(connection_pool)));
 
     if let Some(port) = config.optional.prometheus_port {
         let (prometheus_health_check, prometheus_health_updater) =
@@ -381,7 +370,7 @@ async fn init_tasks(
         commitment_generator_handle,
     ]);
 
-    Ok((task_handles, app_health))
+    Ok(())
 }
 
 async fn shutdown_components(
@@ -459,13 +448,6 @@ async fn main() -> anyhow::Result<()> {
             Some(config::read_consensus_config().context("read_consensus_config()")?);
     }
 
-    let main_node_url = config
-        .required
-        .main_node_url()
-        .context("Main node URL is incorrect")?;
-    let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
-        .context("Failed creating JSON-RPC client for main node")?;
-
     if let Some(threshold) = config.optional.slow_query_threshold() {
         ConnectionPool::global_config().set_slow_query_threshold(threshold)?;
     }
@@ -515,7 +497,27 @@ async fn main() -> anyhow::Result<()> {
     let sigint_receiver = setup_sigint_handler();
     tracing::warn!("The external node is in the alpha phase, and should be used with caution.");
     tracing::info!("Started the external node");
-    tracing::info!("Main node URL is: {}", main_node_url);
+    let main_node_url = config
+        .required
+        .main_node_url()
+        .expect("Main node URL is incorrect");
+    tracing::info!("Main node URL is: {main_node_url}");
+
+    let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
+        .context("Failed creating JSON-RPC client for main node")?;
+    let app_health = Arc::new(AppHealthCheck::default());
+    app_health.insert_custom_component(Arc::new(MainNodeHealthCheck::from(
+        main_node_client.clone(),
+    )));
+    app_health.insert_custom_component(Arc::new(ConnectionPoolHealthCheck::new(
+        connection_pool.clone(),
+    )));
+
+    // Start the health check server early into the node lifecycle so that its health can be monitored from the very start.
+    let healthcheck_handle = HealthCheckHandle::spawn_server(
+        ([0, 0, 0, 0], config.required.healthcheck_port).into(),
+        app_health.clone(),
+    );
 
     // Make sure that the node storage is initialized either via genesis or snapshot recovery.
     ensure_storage_initialized(
@@ -527,17 +529,20 @@ async fn main() -> anyhow::Result<()> {
     .await?;
 
     let (stop_sender, stop_receiver) = watch::channel(false);
-    let (task_handles, app_health) =
-        init_tasks(&config, connection_pool.clone(), stop_receiver.clone())
-            .await
-            .context("init_tasks")?;
+    let mut task_handles = vec![];
+    init_tasks(
+        &config,
+        connection_pool.clone(),
+        main_node_client.clone(),
+        &mut task_handles,
+        &app_health,
+        stop_receiver.clone(),
+    )
+    .await
+    .context("init_tasks")?;
 
-    let reorg_detector = ReorgDetector::new(&main_node_url, connection_pool.clone());
+    let reorg_detector = ReorgDetector::new(main_node_client, connection_pool.clone());
     app_health.insert_component(reorg_detector.health_check().clone());
-    let healthcheck_handle = HealthCheckHandle::spawn_server(
-        ([0, 0, 0, 0], config.required.healthcheck_port).into(),
-        Arc::new(app_health),
-    );
     let mut reorg_detector_handle = tokio::spawn(reorg_detector.run(stop_receiver)).fuse();
     let mut reorg_detector_result = None;
 
