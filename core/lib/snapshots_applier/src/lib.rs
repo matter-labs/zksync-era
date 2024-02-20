@@ -44,9 +44,6 @@ struct SnapshotsApplierHealthDetails {
 
 #[derive(Debug, thiserror::Error)]
 enum SnapshotsApplierError {
-    // Not really an error, just an early return from snapshot application logic.
-    #[error("snapshot application returned early: {0:?}")]
-    EarlyReturn(SnapshotsApplierOutcome),
     #[error(transparent)]
     Fatal(#[from] anyhow::Error),
     #[error(transparent)]
@@ -80,12 +77,6 @@ impl SnapshotsApplierError {
     }
 }
 
-impl From<SnapshotsApplierOutcome> for SnapshotsApplierError {
-    fn from(outcome: SnapshotsApplierOutcome) -> Self {
-        Self::EarlyReturn(outcome)
-    }
-}
-
 impl From<EnrichedClientError> for SnapshotsApplierError {
     fn from(err: EnrichedClientError) -> Self {
         match err.as_ref() {
@@ -95,18 +86,6 @@ impl From<EnrichedClientError> for SnapshotsApplierError {
             _ => Self::Fatal(err.into()),
         }
     }
-}
-
-/// Non-erroneous outcomes of the snapshot application.
-#[must_use = "Depending on app, `NoSnapshotsOnMainNode` may be considered an error"]
-#[derive(Debug)]
-pub enum SnapshotsApplierOutcome {
-    /// The node DB was successfully recovered from a snapshot.
-    Ok,
-    /// Main node does not have any ready snapshots.
-    NoSnapshotsOnMainNode,
-    /// The node was initialized without a snapshot. Detected by the presence of L1 batches in Postgres.
-    InitializedWithoutSnapshot,
 }
 
 /// Main node API used by the [`SnapshotsApplier`].
@@ -197,12 +176,20 @@ impl SnapshotsApplierConfig {
     }
 
     /// Runs the snapshot applier with these options.
+    ///
+    /// # Errors
+    ///
+    /// This method will return an error if a fatal error occurs during recovery (e.g., the DB is unreachable),
+    /// or under any of the following conditions:
+    ///
+    /// - There are no snapshots on the main node
+    /// - Storage contains at least one L1 batch
     pub async fn run(
         self,
         connection_pool: &ConnectionPool,
         main_node_client: &dyn SnapshotsApplierMainNodeClient,
         blob_store: &dyn ObjectStore,
-    ) -> anyhow::Result<SnapshotsApplierOutcome> {
+    ) -> anyhow::Result<()> {
         let mut backoff = self.initial_retry_backoff;
         let mut last_error = None;
         for retry_id in 0..self.retry_count {
@@ -216,17 +203,14 @@ impl SnapshotsApplierConfig {
 
             match result {
                 Ok(()) => {
-                    self.health_updater.close();
-                    return Ok(SnapshotsApplierOutcome::Ok);
+                    // Freeze the health check in the "ready" status, so that the snapshot recovery isn't marked
+                    // as "shut down", which would lead to the app considered unhealthy.
+                    self.health_updater.freeze();
+                    return Ok(());
                 }
                 Err(SnapshotsApplierError::Fatal(err)) => {
                     tracing::error!("Fatal error occurred during snapshots recovery: {err:?}");
                     return Err(err);
-                }
-                Err(SnapshotsApplierError::EarlyReturn(outcome)) => {
-                    tracing::info!("Cancelled snapshots recovery with the outcome: {outcome:?}");
-                    self.health_updater.close(); // FIXME: remove outcome in favor of errors
-                    return Ok(outcome);
                 }
                 Err(SnapshotsApplierError::Retryable(err)) => {
                     tracing::warn!("Retryable error occurred during snapshots recovery: {err:?}");
@@ -291,7 +275,10 @@ impl<'a> SnapshotsApplier<'a> {
                         SnapshotsApplierError::db(err, "failed checking genesis L1 batch in DB")
                     })?;
             if !is_genesis_needed {
-                return Err(SnapshotsApplierOutcome::InitializedWithoutSnapshot.into());
+                let err = anyhow::anyhow!(
+                    "node contains a non-genesis L1 batch; snapshot recovery is unsafe"
+                );
+                return Err(SnapshotsApplierError::Fatal(err));
             }
 
             let latency = latency.observe();
@@ -373,7 +360,8 @@ impl<'a> SnapshotsApplier<'a> {
     ) -> Result<SnapshotRecoveryStatus, SnapshotsApplierError> {
         let snapshot_response = main_node_client.fetch_newest_snapshot().await?;
 
-        let snapshot = snapshot_response.ok_or(SnapshotsApplierOutcome::NoSnapshotsOnMainNode)?;
+        let snapshot = snapshot_response
+            .context("no snapshots on main node; snapshot recovery is impossible")?;
         let l1_batch_number = snapshot.l1_batch_number;
         let miniblock_number = snapshot.miniblock_number;
         tracing::info!(

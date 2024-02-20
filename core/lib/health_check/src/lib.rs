@@ -231,7 +231,7 @@ impl CheckHealth for ReactiveHealthCheck {
 /// Updater for [`ReactiveHealthCheck`]. Can be created using [`ReactiveHealthCheck::new()`].
 ///
 /// On drop, will automatically update status to [`HealthStatus::ShutDown`], or to [`HealthStatus::Panicked`]
-/// if the dropping thread is panicking, unless the drop is performed using [`Self::close()`].
+/// if the dropping thread is panicking, unless the drop is performed using [`Self::freeze()`].
 #[derive(Debug)]
 pub struct HealthUpdater {
     name: &'static str,
@@ -257,8 +257,8 @@ impl HealthUpdater {
         false
     }
 
-    /// Closes this updater so that the corresponding health check can no longer be updated.
-    pub fn close(mut self) {
+    /// Closes this updater so that the corresponding health check can no longer be updated, not even if the updater is dropped.
+    pub fn freeze(mut self) {
         self.should_track_drop = false;
     }
 
@@ -316,10 +316,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn updating_health_status_on_closure() {
+    async fn updating_health_status_after_freeze() {
         let (health_check, health_updater) = ReactiveHealthCheck::new("test");
         health_updater.update(HealthStatus::Ready.into());
-        health_updater.close();
+        health_updater.freeze();
 
         assert_matches!(
             health_check.check_health().await.status(),
