@@ -8,7 +8,10 @@ use clap::{Parser, Subcommand};
 use commitment_generator::read_and_update_contract_toml;
 use tracing::level_filters::LevelFilter;
 use zkevm_test_harness::{
-    compute_setups::{generate_base_layer_vks_and_proofs, generate_recursive_layer_vks_and_proofs},
+    compute_setups::{
+        generate_base_layer_vks_and_proofs, generate_eip4844_vks,
+        generate_recursive_layer_vks_and_proofs,
+    },
     data_source::{in_memory_data_source::InMemoryDataSource, SetupDataSource},
     proof_wrapper_utils::{
         check_trusted_setup_file_existace, get_wrapper_setup_and_vk_from_scheduler_vk,
@@ -39,6 +42,10 @@ fn generate_vks(keystore: &Keystore) -> anyhow::Result<()> {
     tracing::info!("Generating verification keys for Recursive layer.");
     generate_recursive_layer_vks_and_proofs(&mut in_memory_source)
         .map_err(|err| anyhow::anyhow!("Failed generating recursive vk's: {err}"))?;
+
+    generate_eip4844_vks(&mut in_memory_source)
+        .map_err(|err| anyhow::anyhow!("Failed generating 4844 vk's: {err}"))?;
+
     tracing::info!("Saving keys & hints");
 
     keystore.save_keys_from_data_source(&in_memory_source)?;
