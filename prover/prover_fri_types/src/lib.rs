@@ -146,6 +146,38 @@ impl ProverServiceDataKey {
             round: AggregationRound::Scheduler,
         }
     }
+
+    const EIP_4844_CIRCUIT_ID: u8 = 255;
+
+    /// Key for 4844 circuit.
+    // Currently this is a special 'aux' style circuit (as we have just one),
+    // But from VM 1.5.0 it will change into a 'basic' circuit.
+    pub fn eip4844() -> Self {
+        Self {
+            circuit_id: Self::EIP_4844_CIRCUIT_ID,
+            round: AggregationRound::BasicCircuits,
+        }
+    }
+    pub fn is_eip4844(&self) -> bool {
+        self.circuit_id == Self::EIP_4844_CIRCUIT_ID
+            && self.round == AggregationRound::BasicCircuits
+    }
+
+    pub fn name(&self) -> String {
+        if self.is_eip4844() {
+            return "eip4844".to_string();
+        }
+        match self.round {
+            AggregationRound::BasicCircuits => {
+                format!("basic_{}", self.circuit_id)
+            }
+            AggregationRound::LeafAggregation => {
+                format!("leaf_{}", self.circuit_id)
+            }
+            AggregationRound::NodeAggregation => "node".to_string(),
+            AggregationRound::Scheduler => "scheduler".to_string(),
+        }
+    }
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
