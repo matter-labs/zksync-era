@@ -377,6 +377,8 @@ impl EthTxAggregator {
         let is_batches_synced = &*self.functions.is_batches_synced.name;
 
         let params = op.get_eth_tx_args().pop().unwrap();
+        tracing::info!("is_batches_synced: {:?}", hex::encode(self.functions.is_batches_synced.encode_input(&op.get_eth_tx_args()).unwrap()));
+
         let args = CallFunctionArgs::new(is_batches_synced, params)
             .for_contract(self.main_zksync_contract_address, self.functions.zksync_contract.clone());
         let res_tokens = self.eth_client.call_contract_function(args)
