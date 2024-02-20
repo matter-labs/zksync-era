@@ -18,7 +18,10 @@ use zkevm_test_harness::{
         WrapperConfig,
     },
 };
-use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerStorageType;
+use zksync_prover_fri_types::{
+    circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerStorageType,
+    ProverServiceDataKey,
+};
 use zksync_vk_setup_data_server_fri::{
     keystore::Keystore,
     setup_data_generator::{CPUSetupDataGenerator, GPUSetupDataGenerator, SetupDataGenerator},
@@ -85,6 +88,9 @@ enum CircuitSelector {
     Recursive,
     /// Select circuits from basic group.
     Basic,
+
+    /// Eip 4844 circuit
+    Eip4844,
 }
 
 #[derive(Debug, Parser)]
@@ -163,39 +169,31 @@ fn generate_setup_keys(
     generator: &dyn SetupDataGenerator,
     options: &GeneratorOptions,
 ) -> anyhow::Result<()> {
-    match options.circuits_type {
+    let circuit_type = match options.circuits_type {
         CircuitSelector::All => {
             let digests = generator.generate_all(options.dry_run)?;
             tracing::info!("Setup keys md5(s):");
-            print_stats(digests)
+            print_stats(digests)?;
+            return Ok(());
         }
-        CircuitSelector::Recursive => {
-            let digest = generator
-                .generate_and_write_setup_data(
-                    false,
-                    options
-                        .numeric_circuit
-                        .expect("--numeric-circuit must be provided"),
-                    options.dry_run,
-                )
-                .context("generate_setup_data()")?;
-            tracing::info!("digest: {:?}", digest);
-            Ok(())
-        }
-        CircuitSelector::Basic => {
-            let digest = generator
-                .generate_and_write_setup_data(
-                    true,
-                    options
-                        .numeric_circuit
-                        .expect("--numeric-circuit must be provided"),
-                    options.dry_run,
-                )
-                .context("generate_setup_data()")?;
-            tracing::info!("digest: {:?}", digest);
-            Ok(())
-        }
-    }
+        CircuitSelector::Recursive => ProverServiceDataKey::new_recursive(
+            options
+                .numeric_circuit
+                .expect("--numeric-circuit must be provided"),
+        ),
+        CircuitSelector::Basic => ProverServiceDataKey::new_basic(
+            options
+                .numeric_circuit
+                .expect("--numeric-circuit must be provided"),
+        ),
+        CircuitSelector::Eip4844 => ProverServiceDataKey::eip4844(),
+    };
+
+    let digest = generator
+        .generate_and_write_setup_data(circuit_type, options.dry_run)
+        .context("generate_setup_data()")?;
+    tracing::info!("digest: {:?}", digest);
+    Ok(())
 }
 
 fn main() -> anyhow::Result<()> {
