@@ -1,8 +1,9 @@
-use std::{sync::Arc, time::Duration};
+use std::time::Duration;
 
 use zksync_config::{ContractsConfig, ETHWatchConfig};
 use zksync_contracts::governance_contract;
 use zksync_core::eth_watch::{client::EthHttpQueryClient, EthWatch};
+use zksync_dal::ConnectionPool;
 use zksync_types::{ethabi::Contract, Address};
 
 use crate::{
@@ -42,13 +43,13 @@ impl WiringLayer for EthWatchLayer {
         let eth_client = EthHttpQueryClient::new(
             client,
             self.contracts_config.diamond_proxy_addr,
-            Some(governance_contract()),
+            Some(self.contracts_config.governance_addr),
             self.eth_watch_config.confirmations_for_eth_event,
         );
         context.add_task(Box::new(EthWatchTask {
             main_pool,
             client: eth_client,
-            governance_contract: Some(self.contracts_config.governance_addr),
+            governance_contract: Some(governance_contract()),
             diamond_proxy_address: self.contracts_config.diamond_proxy_addr,
             poll_interval: self.eth_watch_config.poll_interval(),
         }));
@@ -81,6 +82,6 @@ impl Task for EthWatchTask {
         )
         .await;
 
-        eth_watch.run(stop_receiver).await
+        eth_watch.run(stop_receiver.0).await
     }
 }

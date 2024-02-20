@@ -25,7 +25,7 @@ use self::{
     metrics::{PollStage, METRICS},
 };
 
-pub(super) mod client;
+pub mod client;
 mod event_processors;
 mod metrics;
 #[cfg(test)]
