@@ -64,7 +64,8 @@ async function initHyperchain() {
         testTokens: {
             deploy: deployTestTokens,
             args: ['--private-key', deployerPrivateKey, '--envFile', process.env.CHAIN_ETH_NETWORK!]
-        }
+        },
+        deployerPrivateKeyArgs: ['--private-key', deployerPrivateKey]
     };
 
     await init(initArgs);
@@ -110,6 +111,7 @@ async function setHyperchainMetadata() {
         BaseNetwork.GOERLI,
         BaseNetwork.MAINNET
     ];
+
     const GENERATE_KEYS = 'Generate keys';
     const INSERT_KEYS = 'Insert keys';
     const questions: BasePromptOptions[] = [
@@ -138,6 +140,12 @@ async function setHyperchainMetadata() {
 
     let deployer, governor, ethOperator, feeReceiver: ethers.Wallet | undefined;
     let feeReceiverAddress, l1Rpc, l1Id, databaseUrl;
+
+    if (results.l1Chain !== BaseNetwork.LOCALHOST || results.l1Chain !== BaseNetwork.LOCALHOST_CUSTOM) {
+        // If it's not a localhost chain, we need to remove the CONTRACTS_CREATE2_FACTORY_ADDR from the .env file and use default value.
+        // Otherwise it's a chance that we will reuse create2 factory from the localhost chain.
+        env.removeFromInit('CONTRACTS_CREATE2_FACTORY_ADDR');
+    }
 
     if (results.l1Chain !== BaseNetwork.LOCALHOST) {
         const connectionsQuestions: BasePromptOptions[] = [
@@ -195,6 +203,7 @@ async function setHyperchainMetadata() {
             feeReceiver = ethers.Wallet.createRandom();
             feeReceiverAddress = feeReceiver.address;
         } else {
+            console.log(warning('The private keys for these wallets must be different from each other!\n'));
             const keyQuestions: BasePromptOptions[] = [
                 {
                     message: 'Private key of the L1 Deployer (the one that deploys the contracts)',
@@ -788,7 +797,8 @@ async function configDemoHyperchain(cmd: Command) {
         testTokens: {
             deploy: deployTestTokens,
             args: ['--private-key', deployerPrivateKey, '--envFile', process.env.CHAIN_ETH_NETWORK!]
-        }
+        },
+        deployerPrivateKeyArgs: ['--private-key', deployerPrivateKey]
     };
 
     if (!cmd.skipEnvSetup) {
