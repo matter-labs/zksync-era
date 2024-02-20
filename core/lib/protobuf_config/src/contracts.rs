@@ -122,6 +122,36 @@ impl ProtoRepr for proto::Contracts {
             snark_wrapper_vk_hash: required(&self.snark_wrapper_vk_hash)
                 .and_then(|x| parse_h256(x))
                 .context("snark_wrapper_vk_hash")?,
+            bridgehub_proxy_addr: self
+                .bridgehub_proxy_addr
+                .as_ref()
+                .map(|x| parse_h160(x))
+                .transpose()
+                .context("bridgehub_proxy_addr")?,
+            bridgehub_impl_addr: self
+                .bridgehub_impl_addr
+                .as_ref()
+                .map(|x| parse_h160(x))
+                .transpose()
+                .context("bridgehub_impl_addr")?,
+            state_transition_proxy_addr: self
+                .state_transition_proxy_addr
+                .as_ref()
+                .map(|x| parse_h160(x))
+                .transpose()
+                .context("state_transition_proxy_addr")?,
+            state_transition_impl_addr: self
+                .state_transition_impl_addr
+                .as_ref()
+                .map(|x| parse_h160(x))
+                .transpose()
+                .context("state_transition_impl_addr")?,
+            transparent_proxy_admin_addr: self
+                .transparent_proxy_admin_addr
+                .as_ref()
+                .map(|x| parse_h160(x))
+                .transpose()
+                .context("transparent_proxy_admin_addr")?,
         })
     }
 
@@ -174,6 +204,26 @@ impl ProtoRepr for proto::Contracts {
             ),
             prover_at_genesis: Some(proto::ProverAtGenesis::new(&this.prover_at_genesis).into()),
             snark_wrapper_vk_hash: Some(this.snark_wrapper_vk_hash.as_bytes().into()),
+            bridgehub_proxy_addr: this
+                .bridgehub_proxy_addr
+                .as_ref()
+                .map(|x| x.as_bytes().into()),
+            bridgehub_impl_addr: this
+                .bridgehub_impl_addr
+                .as_ref()
+                .map(|x| x.as_bytes().into()),
+            state_transition_proxy_addr: this
+                .state_transition_proxy_addr
+                .as_ref()
+                .map(|x| x.as_bytes().into()),
+            state_transition_impl_addr: this
+                .state_transition_impl_addr
+                .as_ref()
+                .map(|x| x.as_bytes().into()),
+            transparent_proxy_admin_addr: this
+                .transparent_proxy_admin_addr
+                .as_ref()
+                .map(|x| x.as_bytes().into()),
         }
     }
 }

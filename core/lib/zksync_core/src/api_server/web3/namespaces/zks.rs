@@ -124,6 +124,11 @@ impl ZksNamespace {
     }
 
     #[tracing::instrument(skip(self))]
+    pub fn get_bridgehub_contract_impl(&self) -> Option<Address> {
+        self.state.api_config.bridgehub_proxy_addr
+    }
+
+    #[tracing::instrument(skip(self))]
     pub fn get_main_contract_impl(&self) -> Address {
         self.state.api_config.diamond_proxy_addr
     }

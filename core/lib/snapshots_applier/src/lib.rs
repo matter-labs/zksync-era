@@ -13,6 +13,7 @@ use zksync_types::{
         SnapshotFactoryDependencies, SnapshotHeader, SnapshotRecoveryStatus, SnapshotStorageLog,
         SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey,
     },
+    tokens::TokenInfo,
     web3::futures,
     MiniblockNumber, H256,
 };
@@ -92,7 +93,7 @@ pub enum SnapshotsApplierOutcome {
     Ok,
     /// Main node does not have any ready snapshots.
     NoSnapshotsOnMainNode,
-    /// The node was initialized without a snapshot. Detected by the presence of the genesis L1 batch in Postgres.
+    /// The node was initialized without a snapshot. Detected by the presence of L1 batches in Postgres.
     InitializedWithoutSnapshot,
 }
 
@@ -105,6 +106,11 @@ pub trait SnapshotsApplierMainNodeClient: fmt::Debug + Send + Sync {
     ) -> EnrichedClientResult<Option<SyncBlock>>;
 
     async fn fetch_newest_snapshot(&self) -> EnrichedClientResult<Option<SnapshotHeader>>;
+
+    async fn fetch_tokens(
+        &self,
+        at_miniblock: MiniblockNumber,
+    ) -> EnrichedClientResult<Vec<TokenInfo>>;
 }
 
 #[async_trait]
@@ -130,6 +136,16 @@ impl SnapshotsApplierMainNodeClient for HttpClient {
         self.get_snapshot_by_l1_batch_number(*newest_snapshot)
             .rpc_context("get_snapshot_by_l1_batch_number")
             .with_arg("number", newest_snapshot)
+            .await
+    }
+
+    async fn fetch_tokens(
+        &self,
+        at_miniblock: MiniblockNumber,
+    ) -> EnrichedClientResult<Vec<TokenInfo>> {
+        self.sync_tokens(Some(at_miniblock))
+            .rpc_context("sync_tokens")
+            .with_arg("miniblock_number", &at_miniblock)
             .await
     }
 }
@@ -208,6 +224,7 @@ impl SnapshotsApplierConfig {
 #[derive(Debug)]
 struct SnapshotsApplier<'a> {
     connection_pool: &'a ConnectionPool,
+    main_node_client: &'a dyn SnapshotsApplierMainNodeClient,
     blob_store: &'a dyn ObjectStore,
     applied_snapshot_status: SnapshotRecoveryStatus,
 }
@@ -230,13 +247,6 @@ impl<'a> SnapshotsApplier<'a> {
             })?;
 
         if let Some(applied_snapshot_status) = applied_snapshot_status {
-            if !applied_snapshot_status
-                .storage_logs_chunks_processed
-                .contains(&false)
-            {
-                return Err(SnapshotsApplierOutcome::Ok.into());
-            }
-
             let latency = latency.observe();
             tracing::info!("Re-initialized snapshots applier after reset/failure in {latency:?}");
 
@@ -265,7 +275,7 @@ impl<'a> SnapshotsApplier<'a> {
 
     async fn load_snapshot(
         connection_pool: &'a ConnectionPool,
-        main_node_client: &dyn SnapshotsApplierMainNodeClient,
+        main_node_client: &'a dyn SnapshotsApplierMainNodeClient,
         blob_store: &'a dyn ObjectStore,
     ) -> Result<(), SnapshotsApplierError> {
         let mut storage = connection_pool
@@ -281,6 +291,7 @@ impl<'a> SnapshotsApplier<'a> {
 
         let mut recovery = Self {
             connection_pool,
+            main_node_client,
             blob_store,
             applied_snapshot_status,
         };
@@ -315,6 +326,7 @@ impl<'a> SnapshotsApplier<'a> {
         drop(storage);
 
         recovery.recover_storage_logs().await?;
+        recovery.recover_tokens().await?;
         Ok(())
     }
 
@@ -435,7 +447,7 @@ impl<'a> SnapshotsApplier<'a> {
         Ok(())
     }
 
-    #[tracing::instrument(level = "debug", err, skip(self))]
+    #[tracing::instrument(level = "debug", err, skip(self, semaphore))]
     async fn recover_storage_logs_single_chunk(
         &self,
         semaphore: &Semaphore,
@@ -503,7 +515,7 @@ impl<'a> SnapshotsApplier<'a> {
         Ok(())
     }
 
-    async fn recover_storage_logs(self) -> Result<(), SnapshotsApplierError> {
+    async fn recover_storage_logs(&self) -> Result<(), SnapshotsApplierError> {
         let semaphore = Semaphore::new(self.connection_pool.max_size() as usize);
         let tasks = self
             .applied_snapshot_status
@@ -516,6 +528,72 @@ impl<'a> SnapshotsApplier<'a> {
             });
         futures::future::try_join_all(tasks).await?;
 
+        Ok(())
+    }
+
+    /// Needs to run after recovering storage logs.
+    async fn recover_tokens(&self) -> Result<(), SnapshotsApplierError> {
+        // Check whether tokens are already recovered.
+        let mut storage = self
+            .connection_pool
+            .access_storage_tagged("snapshots_applier")
+            .await?;
+        let all_token_addresses = storage
+            .tokens_dal()
+            .get_all_l2_token_addresses()
+            .await
+            .map_err(|err| SnapshotsApplierError::db(err, "failed fetching L2 token addresses"))?;
+        if !all_token_addresses.is_empty() {
+            tracing::info!(
+                "{} tokens are already present in DB; skipping token recovery",
+                all_token_addresses.len()
+            );
+            return Ok(());
+        }
+        drop(storage);
+
+        let snapshot_miniblock_number = self.applied_snapshot_status.miniblock_number;
+        let tokens = self
+            .main_node_client
+            .fetch_tokens(snapshot_miniblock_number)
+            .await?;
+        tracing::info!("Retrieved {} tokens from main node", tokens.len());
+
+        // Check that all tokens returned by the main node were indeed successfully deployed.
+        let l2_addresses = tokens.iter().map(|token| token.l2_address);
+        let mut storage = self
+            .connection_pool
+            .access_storage_tagged("snapshots_applier")
+            .await?;
+        let filtered_addresses = storage
+            .storage_logs_dal()
+            .filter_deployed_contracts(l2_addresses, Some(snapshot_miniblock_number))
+            .await
+            .map_err(|err| {
+                SnapshotsApplierError::db(err, "failed querying L2 contracts for tokens")
+            })?;
+
+        let bogus_tokens = tokens.iter().filter(|token| {
+            // We need special handling for L2 ether; its `l2_address` doesn't have a deployed contract
+            !token.l2_address.is_zero() && !filtered_addresses.contains_key(&token.l2_address)
+        });
+        let bogus_tokens: Vec<_> = bogus_tokens.collect();
+        if !bogus_tokens.is_empty() {
+            let err = anyhow::anyhow!(
+                "Main node returned bogus tokens that are not deployed on L2: {bogus_tokens:?}"
+            );
+            return Err(SnapshotsApplierError::Retryable(err));
+        }
+
+        tracing::info!(
+            "Checked {} tokens deployment on L2; persisting tokens into DB",
+            tokens.len()
+        );
+        storage
+            .tokens_dal()
+            .add_tokens(&tokens)
+            .await
+            .map_err(|err| SnapshotsApplierError::db(err, "failed persisting tokens"))?;
         Ok(())
     }
 }

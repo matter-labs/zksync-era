@@ -14,6 +14,7 @@ pub use self::{
     fri_witness_generator::FriWitnessGeneratorConfig,
     fri_witness_vector_generator::FriWitnessVectorGeneratorConfig,
     object_store::ObjectStoreConfig,
+    observability::ObservabilityConfig,
     proof_data_handler::ProofDataHandlerConfig,
     snapshots_creator::SnapshotsCreatorConfig,
     utils::PrometheusConfig,
@@ -37,6 +38,7 @@ pub mod fri_witness_generator;
 pub mod fri_witness_vector_generator;
 pub mod house_keeper;
 pub mod object_store;
+pub mod observability;
 pub mod proof_data_handler;
 pub mod snapshots_creator;
 pub mod utils;

@@ -29,7 +29,7 @@ use zksync_contracts::{governance_contract, BaseSystemContracts};
 use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
 use zksync_eth_client::{
     clients::{PKSigningClient, QueryClient},
-    BoundEthInterface, CallFunctionArgs, EthInterface,
+    CallFunctionArgs, EthInterface,
 };
 use zksync_health_check::{CheckHealth, HealthStatus, ReactiveHealthCheck};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
@@ -105,6 +105,7 @@ pub async fn genesis_init(
     network_config: &NetworkConfig,
     contracts_config: &ContractsConfig,
     eth_client_url: &str,
+    wait_for_set_chain_id: bool,
 ) -> anyhow::Result<()> {
     let db_url = postgres_config.master_url()?;
     let pool = ConnectionPool::singleton(db_url)
@@ -176,6 +177,20 @@ pub async fn genesis_init(
         },
     )
     .await?;
+
+    if wait_for_set_chain_id {
+        genesis::save_set_chain_id_tx(
+            eth_client_url,
+            contracts_config.diamond_proxy_addr,
+            contracts_config
+                .state_transition_proxy_addr
+                .context("state_transition_proxy_addr is not set, but needed for genesis")?,
+            &mut storage,
+        )
+        .await
+        .context("Failed to save SetChainId upgrade transaction")?;
+    }
+
     Ok(())
 }
 
@@ -569,6 +584,7 @@ pub async fn initialize_components(
     }
 
     let main_zksync_contract_address = contracts_config.diamond_proxy_addr;
+
     if components.contains(&Component::EthWatcher) {
         let started_at = Instant::now();
         tracing::info!("initializing ETH-Watcher");
@@ -612,7 +628,6 @@ pub async fn initialize_components(
             .context("eth_sender_config")?;
         let eth_client =
             PKSigningClient::from_config(&eth_sender, &contracts_config, &eth_client_config);
-        let nonce = eth_client.pending_nonce("eth_sender").await.unwrap();
         let eth_tx_aggregator_actor = EthTxAggregator::new(
             eth_sender.sender.clone(),
             Aggregator::new(
@@ -623,8 +638,13 @@ pub async fn initialize_components(
             contracts_config.validator_timelock_addr,
             contracts_config.l1_multicall3_addr,
             main_zksync_contract_address,
-            nonce.as_u64(),
-        );
+            configs
+                .network_config
+                .as_ref()
+                .context("network_config")?
+                .zksync_network_id,
+        )
+        .await;
         task_futures.push(tokio::spawn(
             eth_tx_aggregator_actor.run(eth_sender_pool, stop_receiver.clone()),
         ));
@@ -1134,7 +1154,7 @@ async fn run_http_api(
     }
     namespaces.push(Namespace::Snapshots);
 
-    let last_miniblock_pool = ConnectionPool::singleton(postgres_config.replica_url()?)
+    let updaters_pool = ConnectionPool::builder(postgres_config.replica_url()?, 2)
         .build()
         .await
         .context("failed to build last_miniblock_pool")?;
@@ -1142,7 +1162,7 @@ async fn run_http_api(
     let api_builder =
         web3::ApiBuilder::jsonrpsee_backend(internal_api.clone(), replica_connection_pool)
             .http(api_config.web3_json_rpc.http_port)
-            .with_last_miniblock_pool(last_miniblock_pool)
+            .with_updaters_pool(updaters_pool)
             .with_filter_limit(api_config.web3_json_rpc.filters_limit())
             .with_tree_api(api_config.web3_json_rpc.tree_api_url())
             .with_batch_request_size_limit(api_config.web3_json_rpc.max_batch_request_size())
@@ -1186,7 +1206,7 @@ async fn run_ws_api(
     let api_builder =
         web3::ApiBuilder::jsonrpsee_backend(internal_api.clone(), replica_connection_pool)
             .ws(api_config.web3_json_rpc.ws_port)
-            .with_last_miniblock_pool(last_miniblock_pool)
+            .with_updaters_pool(last_miniblock_pool)
             .with_filter_limit(api_config.web3_json_rpc.filters_limit())
             .with_subscriptions_limit(api_config.web3_json_rpc.subscriptions_limit())
             .with_batch_request_size_limit(api_config.web3_json_rpc.max_batch_request_size())
