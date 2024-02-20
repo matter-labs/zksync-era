@@ -2,11 +2,11 @@
 
 #![allow(clippy::redundant_locals)]
 use anyhow::Context as _;
-use zksync_concurrency::{ctx, error::Wrap as _, scope, time};
+use zksync_concurrency::{sync, ctx, error::Wrap as _, scope, time};
 use zksync_consensus_executor as executor;
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage::BlockStore;
-
+use zksync_types::MiniblockNumber;
 pub use self::storage::Store;
 use crate::sync_layer::{sync_action::ActionQueueSender, MainNodeClient, SyncState};
 
@@ -85,12 +85,37 @@ pub struct Fetcher {
     pub config: FetcherConfig,
     pub sync_state: SyncState,
     pub client: Box<dyn MainNodeClient>,
-    pub actions: ActionQueueSender,
 }
 
 impl Fetcher {
+    async fn fetch_from_main_node(&self, ctx: &ctx::Ctx, cursor: &mut storage::Cursor, end: validator::BlockNumber) -> ctx::Result<()> {
+        let begin = cursor.next();
+        scope::run!(ctx, |ctx,s| async {
+            let (send,mut recv) = ctx::channel::bounded(100);
+            s.spawn(async {
+                let send = send;
+                let sub = &mut self.sync_state.subscribe();
+                for n in begin.0..end.0 {
+                    let n = ctx::NoCopy(MiniblockNumber(n.try_into().unwrap()));
+                    sync::wait_for(ctx, sub, |state| state.main_node_block() >= *n).await?;
+                    send.send(ctx,s.spawn(async {
+                        let n = n;
+                        // TODO: retries
+                        Ok(ctx.wait(self.client.fetch_l2_block(*n, /*with_transaction=*/true)).await?.context("fetch_l2_block()")?.context("missing block")?)
+                    })).await?;
+                }
+                Ok(())
+            });
+            while cursor.next() < end {
+                let block = recv.recv(ctx).await?.join(ctx).await?;
+                cursor.advance_fetched(block.try_into()?).await?;
+            }
+            Ok(())
+        }).await
+    }
+
     /// Task fetching L2 blocks using peer-to-peer gossip network.
-    pub async fn run(self, ctx: &ctx::Ctx, store: Store) -> anyhow::Result<()> {
+    pub async fn run(self, ctx: &ctx::Ctx, store: Store, actions: ActionQueueSender) -> anyhow::Result<()> {
         // TODO: restart or exit whenever new genesis is observed.
         // Initialize genesis.
         let genesis = ctx.wait(self.client.fetch_consensus_genesis()).await??
@@ -99,7 +124,7 @@ impl Fetcher {
         
         let mut conn = store.access(ctx).await.wrap("access()")?;
         conn.try_update_genesis(ctx,&genesis).await.wrap("set_genesis()")?;
-        let mut cursor = conn.new_fetcher_cursor(ctx).await.wrap("new_fetcher_cursor()")?;
+        let mut cursor = conn.new_fetcher_cursor(ctx,actions).await.wrap("new_fetcher_cursor()")?;
         drop(conn);
 
         scope::run!(ctx, |ctx, s| async {
@@ -108,24 +133,16 @@ impl Fetcher {
                 let _ = run_main_node_state_fetcher(ctx,&*self.client,&self.sync_state).await;
                 Ok(())
             });
-
-            // TODO: parallelize fetching and add retries.
-            while validator::BlockNumber(cursor.next_miniblock.0.into()) < genesis.forks.root().first_block {
-                let block = self.client.fetch_l2_block(cursor.next_miniblock, /*with_transactions=*/true).await?.context("missing block")?;
-                self.actions.push_actions(cursor.advance(block.try_into()?)).await;
-            }
+            self.fetch_from_main_node(ctx, &mut cursor, genesis.forks.root().first_block).await?;
 
             let mut block_store = store.into_block_store();
-            block_store
-                .set_actions_queue(ctx, self.actions)
-                .await
-                .wrap("block_store.set_actions_queue()")?;
+            block_store.set_cursor(cursor).context("block_store.set_cursor()")?;
             let (block_store, runner) = BlockStore::new(ctx, Box::new(block_store))
                 .await
                 .wrap("BlockStore::new()")?;
             s.spawn_bg(runner.run(ctx));
             let executor = executor::Executor {
-                config: self.config,
+                config: self.config.clone(),
                 block_store,
                 validator: None,
             };

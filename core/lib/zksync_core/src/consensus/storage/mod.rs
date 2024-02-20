@@ -121,8 +121,11 @@ impl<'a> Connection<'a> {
     }
 
     /// Wrapper for `FetcherCursor::new()`.
-    pub async fn new_fetcher_cursor(&mut self, ctx: &ctx::Ctx) -> ctx::Result<IoCursor> {
-        Ok(ctx.wait(IoCursor::for_fetcher(&mut self.0)).await??)
+    pub async fn new_fetcher_cursor(&mut self, ctx: &ctx::Ctx, actions: ActionQueueSender) -> ctx::Result<Cursor> {
+        Ok(Cursor {
+            inner: ctx.wait(IoCursor::for_fetcher(&mut self.0)).await??,
+            actions,
+        })
     }
 
     pub async fn genesis(&mut self, ctx: &ctx::Ctx) -> ctx::Result<Option<validator::Genesis>> {
@@ -139,12 +142,30 @@ impl<'a> Connection<'a> {
 }
 
 #[derive(Debug)]
-struct Cursor {
+pub(super) struct Cursor {
     inner: IoCursor,
     actions: ActionQueueSender,
 }
 
 impl Cursor {
+    pub(super) fn next(&self) -> validator::BlockNumber {
+        validator::BlockNumber(self.inner.next_miniblock.0.into())
+    }
+
+    pub(super) async fn advance_fetched(&mut self, block: FetchedBlock) -> anyhow::Result<()> { 
+        let want = self.inner.next_miniblock;
+        // Some blocks are missing.
+        if block.number > want {
+            anyhow::bail!("expected {want:?}, got {:?}",block.number);
+        }
+        // Block already processed.
+        if block.number < want {
+            return Ok(());
+        }
+        self.actions.push_actions(self.inner.advance(block)).await;
+        Ok(())
+    }
+
     /// Advances the cursor by converting the block into actions and pushing them
     /// to the actions queue.
     /// Does nothing and returns Ok() if the block has been already processed.
@@ -156,15 +177,6 @@ impl Cursor {
         );
         let payload =
             Payload::decode(&block.payload).context("Failed deserializing block payload")?;
-        let want = self.inner.next_miniblock;
-        // Some blocks are missing.
-        if number > want {
-            return Err(anyhow::anyhow!("expected {want:?}, got {number:?}"));
-        }
-        // Block already processed.
-        if number < want {
-            return Ok(());
-        }
         let block = FetchedBlock {
             number,
             l1_batch_number: payload.l1_batch_number,
@@ -179,8 +191,7 @@ impl Cursor {
             operator_address: payload.operator_address,
             transactions: payload.transactions,
         };
-        self.actions.push_actions(self.inner.advance(block)).await;
-        Ok(())
+        self.advance_fetched(block).await
     }
 }
 
@@ -231,20 +242,9 @@ impl BlockStore {
             .try_init_genesis(ctx,&validators).await.wrap("try_init_genesis")
     }
 
-    /// Sets an `ActionQueueSender` in the `BlockStore`. See `store_next_block()` for details.
-    pub async fn set_actions_queue(
-        &mut self,
-        ctx: &ctx::Ctx,
-        actions: ActionQueueSender,
-    ) -> ctx::Result<()> {
-        let mut conn = self.inner.access(ctx)
-            .await
-            .wrap("access()")?;
-        let inner = conn
-            .new_fetcher_cursor(ctx)
-            .await
-            .wrap("new_fetcher_cursor()")?;
-        *sync::lock(ctx, &self.store_next_block_mutex).await? = Some(Cursor { inner, actions });
+    /// Sets a `Cursor` in the `BlockStore`. See `store_next_block()` for details.
+    pub fn set_cursor(&mut self,cursor: Cursor) -> anyhow::Result<()> {
+        *self.store_next_block_mutex.try_lock()? = Some(cursor);
         Ok(())
     }
 }

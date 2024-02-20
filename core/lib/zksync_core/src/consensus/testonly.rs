@@ -259,6 +259,12 @@ impl MainNodeClient for MockMainNodeClient {
     }
 }
 
+impl Store {
+    pub fn client(&self) -> Box<dyn MainNodeClient> {
+        Box::new(StoreMainNodeClient(self.0.clone()))
+    }
+}
+
 /// Fake StateKeeper for tests.
 pub(super) struct StateKeeper {
     // Batch of the `last_block`.
@@ -400,11 +406,7 @@ impl StateKeeper {
             }
         }
     }
-
-    pub fn client(&self) -> Box<dyn MainNodeClient> {
-        Box::new(StoreMainNodeClient(self.store.0.clone()))
-    }
-
+ 
     /// Last block that has been pushed to the `StateKeeper` via `ActionQueue`.
     /// It might NOT be present in storage yet.
     pub fn last_block(&self) -> validator::BlockNumber {

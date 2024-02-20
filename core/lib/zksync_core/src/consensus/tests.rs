@@ -212,11 +212,10 @@ async fn test_full_nodes() {
             });
             let fetcher = Fetcher {
                 config: executor_config(cfg),
-                client: node.client(),
-                actions: node.actions_sender,
+                client: validator.store.client(),
                 sync_state: node.sync_state,
             };
-            s.spawn_bg(fetcher.run(ctx, node.store));
+            s.spawn_bg(fetcher.run(ctx, node.store, node.actions_sender));
         }
 
         // Make validator produce blocks and wait for fetchers to get them.
@@ -289,20 +288,20 @@ async fn test_fetcher_backfill_certs() {
         // Run fetcher.
         let pool = template.create_db(4).await?.build().await?;
         let (fetcher, runner) = testonly::StateKeeper::new(pool).await?;
-        let fetcher_store = fetcher.store.clone();
+        let store = fetcher.store.clone();
         s.spawn_bg(runner.run(ctx));
+        let actions = fetcher.actions_sender;
         let fetcher = Fetcher {
             config: executor_config(&new_fullnode(rng,&validator_cfgs[0])),
-            client: fetcher.client(),
+            client: validator.store.client(),
             sync_state: fetcher.sync_state,
-            actions: fetcher.actions_sender,
         };
-        s.spawn_bg(fetcher.run(ctx, fetcher_store.clone()));
+        s.spawn_bg(fetcher.run(ctx, store.clone(), actions));
 
         // Make validator produce new blocks and
         // wait for the fetcher to get both the missing certs and the new blocks.
         validator.push_random_blocks(rng, 5).await;
-        fetcher_store
+        store
             .wait_for_certificate(ctx, validator.last_block())
             .await?;
         Ok(())
