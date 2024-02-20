@@ -18,9 +18,8 @@ use zksync_types::{vm_trace::Call, Transaction, U256};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use super::{BatchExecutor, BatchExecutorHandle, Command, TxExecutionResult};
-use crate::metrics::BLOCK_TIP_METRICS;
 use crate::{
-    metrics::{InteractionType, TxStage, APP_METRICS},
+    metrics::{InteractionType, TxStage, APP_METRICS, BLOCK_TIP_METRICS},
     state_keeper::{
         metrics::{TxExecutionStage, EXECUTOR_METRICS, KEEPER_METRICS},
         types::ExecutionMetricsForCriteria,
