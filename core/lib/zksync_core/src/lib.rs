@@ -184,7 +184,7 @@ pub async fn genesis_init(
             contracts_config.diamond_proxy_addr,
             contracts_config
                 .state_transition_proxy_addr
-                .expect("state_transition_proxy_addr is not set, but needed for genesis"),
+                .context("state_transition_proxy_addr is not set, but needed for genesis")?,
             &mut storage,
         )
         .await

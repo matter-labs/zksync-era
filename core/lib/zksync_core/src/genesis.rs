@@ -447,8 +447,9 @@ pub(crate) async fn save_set_chain_id_tx(
     let mut logs = eth_client.logs(filter, "fetch_chain_id_tx").await?;
     anyhow::ensure!(
         logs.len() == 1,
-        "Expected a single set_chain_id event, got {:?}",
-        logs.len()
+        "Expected a single set_chain_id event, got these {}: {:?}",
+        logs.len(),
+        logs
     );
     let (version_id, upgrade_tx) = decode_set_chain_id_event(logs.remove(0))?;
     storage
