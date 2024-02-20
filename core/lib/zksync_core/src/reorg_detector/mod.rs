@@ -4,6 +4,7 @@ use anyhow::Context as _;
 use async_trait::async_trait;
 use tokio::sync::watch;
 use zksync_dal::ConnectionPool;
+use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_types::{L1BatchNumber, MiniblockNumber, H256};
 use zksync_web3_decl::{
     error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult},
@@ -115,16 +116,24 @@ impl MainNodeClient for HttpClient {
     }
 }
 
-trait UpdateCorrectBlock: fmt::Debug + Send + Sync {
+trait HandleReorgDetectorEvent: fmt::Debug + Send + Sync {
+    fn initialize(&mut self);
+
     fn update_correct_block(
         &mut self,
         last_correct_miniblock: MiniblockNumber,
         last_correct_l1_batch: L1BatchNumber,
     );
+
+    fn report_divergence(&mut self, diverged_l1_batch: L1BatchNumber);
 }
 
-/// Default implementation of [`UpdateCorrectBlock`] that reports values as metrics.
-impl UpdateCorrectBlock for () {
+/// Default implementation of [`HandleReorgDetectorEvent`] that reports values as metrics.
+impl HandleReorgDetectorEvent for HealthUpdater {
+    fn initialize(&mut self) {
+        self.update(Health::from(HealthStatus::Ready));
+    }
+
     fn update_correct_block(
         &mut self,
         last_correct_miniblock: MiniblockNumber,
@@ -144,6 +153,19 @@ impl UpdateCorrectBlock for () {
         if prev_checked_l1_batch != last_correct_l1_batch {
             tracing::debug!("No reorg at L1 batch #{last_correct_l1_batch}");
         }
+
+        let health_details = serde_json::json!({
+            "last_correct_miniblock": last_correct_miniblock,
+            "last_correct_l1_batch": last_correct_l1_batch,
+        });
+        self.update(Health::from(HealthStatus::Ready).with_details(health_details));
+    }
+
+    fn report_divergence(&mut self, diverged_l1_batch: L1BatchNumber) {
+        let health_details = serde_json::json!({
+            "diverged_l1_batch": diverged_l1_batch,
+        });
+        self.update(Health::from(HealthStatus::Affected).with_details(health_details));
     }
 }
 
@@ -182,26 +204,31 @@ impl MatchOutput {
 #[derive(Debug)]
 pub struct ReorgDetector {
     client: Box<dyn MainNodeClient>,
-    block_updater: Box<dyn UpdateCorrectBlock>,
+    event_handler: Box<dyn HandleReorgDetectorEvent>,
     pool: ConnectionPool,
-    stop_receiver: watch::Receiver<bool>,
     sleep_interval: Duration,
+    health_check: ReactiveHealthCheck,
 }
 
 impl ReorgDetector {
     const DEFAULT_SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 
-    pub fn new(url: &str, pool: ConnectionPool, stop_receiver: watch::Receiver<bool>) -> Self {
+    pub fn new(url: &str, pool: ConnectionPool) -> Self {
         let client = HttpClientBuilder::default()
             .build(url)
             .expect("Failed to create HTTP client");
+        let (health_check, health_updater) = ReactiveHealthCheck::new("reorg_detector");
         Self {
             client: Box::new(client),
-            block_updater: Box::new(()),
+            event_handler: Box::new(health_updater),
             pool,
-            stop_receiver,
             sleep_interval: Self::DEFAULT_SLEEP_INTERVAL,
+            health_check,
         }
+    }
+
+    pub fn health_check(&self) -> &ReactiveHealthCheck {
+        &self.health_check
     }
 
     /// Compares hashes of the given local miniblock and the same miniblock from main node.
@@ -344,9 +371,13 @@ impl ReorgDetector {
         .map(L1BatchNumber)
     }
 
-    pub async fn run(mut self) -> anyhow::Result<Option<L1BatchNumber>> {
+    pub async fn run(
+        mut self,
+        mut stop_receiver: watch::Receiver<bool>,
+    ) -> anyhow::Result<Option<L1BatchNumber>> {
+        self.event_handler.initialize();
         loop {
-            match self.run_inner().await {
+            match self.run_inner(&mut stop_receiver).await {
                 Ok(l1_batch_number) => return Ok(l1_batch_number),
                 Err(HashMatchError::Rpc(err)) if is_transient_err(&err) => {
                     tracing::warn!("Following transport error occurred: {err}");
@@ -359,13 +390,12 @@ impl ReorgDetector {
         }
     }
 
-    async fn run_inner(&mut self) -> Result<Option<L1BatchNumber>, HashMatchError> {
-        let earliest_l1_batch_number = wait_for_l1_batch_with_metadata(
-            &self.pool,
-            self.sleep_interval,
-            &mut self.stop_receiver,
-        )
-        .await?;
+    async fn run_inner(
+        &mut self,
+        stop_receiver: &mut watch::Receiver<bool>,
+    ) -> Result<Option<L1BatchNumber>, HashMatchError> {
+        let earliest_l1_batch_number =
+            wait_for_l1_batch_with_metadata(&self.pool, self.sleep_interval, stop_receiver).await?;
 
         let Some(earliest_l1_batch_number) = earliest_l1_batch_number else {
             return Ok(None); // Stop signal received
@@ -388,7 +418,7 @@ impl ReorgDetector {
         }
 
         loop {
-            let should_stop = *self.stop_receiver.borrow();
+            let should_stop = *stop_receiver.borrow();
 
             // At this point, we are guaranteed to have L1 batches and miniblocks in the storage.
             let mut storage = self.pool.access_storage().await?;
@@ -423,7 +453,7 @@ impl ReorgDetector {
             // the nodes needs to do catching up; however, it is not certain that there is actually
             // a re-org taking place.
             if root_hashes_match && miniblock_hashes_match {
-                self.block_updater
+                self.event_handler
                     .update_correct_block(checked_miniblock_number, checked_l1_batch_number);
             } else {
                 let diverged_l1_batch_number = if root_hashes_match {
@@ -431,6 +461,8 @@ impl ReorgDetector {
                 } else {
                     checked_l1_batch_number
                 };
+                self.event_handler
+                    .report_divergence(diverged_l1_batch_number);
 
                 tracing::info!("Searching for the first diverged L1 batch");
                 let last_correct_l1_batch = self

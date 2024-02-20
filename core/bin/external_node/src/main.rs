@@ -25,28 +25,30 @@ use zksync_core::{
     reorg_detector::ReorgDetector,
     setup_sigint_handler,
     state_keeper::{
-        seal_criteria::NoopSealer, L1BatchExecutorBuilder, MainBatchExecutorBuilder,
-        MiniblockSealer, MiniblockSealerHandle, ZkSyncStateKeeper,
+        seal_criteria::NoopSealer, BatchExecutor, MainBatchExecutor, MiniblockSealer,
+        MiniblockSealerHandle, ZkSyncStateKeeper,
     },
     sync_layer::{
         batch_status_updater::BatchStatusUpdater, external_io::ExternalIO,
-        fetcher::MainNodeFetcher, genesis::perform_genesis_if_needed, ActionQueue, MainNodeClient,
-        SyncState,
+        fetcher::MainNodeFetcher, ActionQueue, MainNodeClient, SyncState,
     },
 };
 use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
-use zksync_health_check::CheckHealth;
+use zksync_health_check::{CheckHealth, HealthStatus, ReactiveHealthCheck};
 use zksync_state::PostgresStorageCaches;
 use zksync_storage::RocksDB;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 
+use crate::{
+    config::ExternalNodeConfig, helpers::MainNodeHealthCheck, init::ensure_storage_initialized,
+};
+
 mod config;
+mod helpers;
+mod init;
 mod metrics;
 
-const RELEASE_MANIFEST: &str =
-    std::include_str!("../../../../.github/release-please/manifest.json");
-
-use crate::config::ExternalNodeConfig;
+const RELEASE_MANIFEST: &str = include_str!("../../../../.github/release-please/manifest.json");
 
 /// Creates the state keeper configured to work in the external node mode.
 #[allow(clippy::too_many_arguments)]
@@ -70,16 +72,15 @@ async fn build_state_keeper(
     // We only need call traces on the external node if the `debug_` namespace is enabled.
     let save_call_traces = config.optional.api_namespaces().contains(&Namespace::Debug);
 
-    let batch_executor_base: Box<dyn L1BatchExecutorBuilder> =
-        Box::new(MainBatchExecutorBuilder::new(
-            state_keeper_db_path,
-            connection_pool.clone(),
-            max_allowed_l2_tx_gas_limit,
-            save_call_traces,
-            false,
-            config.optional.enum_index_migration_chunk_size,
-            true,
-        ));
+    let batch_executor_base: Box<dyn BatchExecutor> = Box::new(MainBatchExecutor::new(
+        state_keeper_db_path,
+        connection_pool.clone(),
+        max_allowed_l2_tx_gas_limit,
+        save_call_traces,
+        false,
+        config.optional.enum_index_migration_chunk_size,
+        true,
+    ));
 
     let main_node_url = config.required.main_node_url()?;
     let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
@@ -106,13 +107,12 @@ async fn build_state_keeper(
 }
 
 async fn init_tasks(
-    config: ExternalNodeConfig,
+    config: &ExternalNodeConfig,
     connection_pool: ConnectionPool,
+    stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<(
     Vec<task::JoinHandle<anyhow::Result<()>>>,
-    watch::Sender<bool>,
-    HealthCheckHandle,
-    watch::Receiver<bool>,
+    Vec<Box<dyn CheckHealth>>,
 )> {
     let release_manifest: serde_json::Value = serde_json::from_str(RELEASE_MANIFEST)
         .expect("release manifest is a valid json document; qed");
@@ -126,12 +126,12 @@ async fn init_tasks(
         .required
         .main_node_url()
         .expect("Main node URL is incorrect");
-    let (stop_sender, stop_receiver) = watch::channel(false);
     let mut healthchecks: Vec<Box<dyn CheckHealth>> = Vec::new();
     // Create components.
     let fee_params_fetcher = Arc::new(MainNodeFeeParamsFetcher::new(&main_node_url));
 
-    let sync_state = SyncState::new();
+    let sync_state = SyncState::default();
+    healthchecks.push(Box::new(sync_state.clone()));
     let (action_queue_sender, action_queue) = ActionQueue::new();
 
     let mut task_handles = vec![];
@@ -161,7 +161,7 @@ async fn init_tasks(
     let state_keeper = build_state_keeper(
         action_queue,
         config.required.state_cache_path.clone(),
-        &config,
+        config,
         connection_pool.clone(),
         sync_state.clone(),
         config.remote.l2_erc20_bridge_addr,
@@ -173,6 +173,9 @@ async fn init_tasks(
 
     let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
         .context("Failed creating JSON-RPC client for main node")?;
+    healthchecks.push(Box::new(MainNodeHealthCheck::from(
+        main_node_client.clone(),
+    )));
     let singleton_pool_builder = ConnectionPool::singleton(&config.postgres.database_url);
 
     let fetcher_handle = if let Some(cfg) = config.consensus.clone() {
@@ -247,6 +250,8 @@ async fn init_tasks(
             .await
             .context("failed to build connection pool for ConsistencyChecker")?,
     );
+    healthchecks.push(Box::new(consistency_checker.health_check().clone()));
+    let consistency_checker_handle = tokio::spawn(consistency_checker.run(stop_receiver.clone()));
 
     let batch_status_updater = BatchStatusUpdater::new(
         &main_node_url,
@@ -256,6 +261,7 @@ async fn init_tasks(
             .context("failed to build a connection pool for BatchStatusUpdater")?,
     )
     .context("failed initializing batch status updater")?;
+    healthchecks.push(Box::new(batch_status_updater.health_check()));
 
     // Run the components.
     let tree_stop_receiver = stop_receiver.clone();
@@ -269,11 +275,9 @@ async fn init_tasks(
         .build()
         .await
         .context("failed to build a commitment_generator_pool")?;
-    let commitment_generator =
-        CommitmentGenerator::new(commitment_generator_pool, stop_receiver.clone());
-    let commitment_generator_handle = tokio::spawn(commitment_generator.run());
-
-    let consistency_checker_handle = tokio::spawn(consistency_checker.run(stop_receiver.clone()));
+    let commitment_generator = CommitmentGenerator::new(commitment_generator_pool);
+    healthchecks.push(Box::new(commitment_generator.health_check()));
+    let commitment_generator_handle = tokio::spawn(commitment_generator.run(stop_receiver.clone()));
 
     let updater_handle = task::spawn(batch_status_updater.run(stop_receiver.clone()));
     let fee_address_migration_handle =
@@ -349,15 +353,21 @@ async fn init_tasks(
     healthchecks.push(Box::new(ws_server_handles.health_check));
     healthchecks.push(Box::new(http_server_handles.health_check));
     healthchecks.push(Box::new(ConnectionPoolHealthCheck::new(connection_pool)));
-    let healthcheck_handle = HealthCheckHandle::spawn_server(
-        ([0, 0, 0, 0], config.required.healthcheck_port).into(),
-        healthchecks,
-    );
 
     if let Some(port) = config.optional.prometheus_port {
-        let prometheus_task = PrometheusExporterConfig::pull(port).run(stop_receiver.clone());
-        task_handles.push(tokio::spawn(prometheus_task));
+        let (prometheus_health_check, prometheus_health_updater) =
+            ReactiveHealthCheck::new("prometheus_exporter");
+        healthchecks.push(Box::new(prometheus_health_check));
+        task_handles.push(tokio::spawn(async move {
+            prometheus_health_updater.update(HealthStatus::Ready.into());
+            let result = PrometheusExporterConfig::pull(port)
+                .run(stop_receiver)
+                .await;
+            drop(prometheus_health_updater);
+            result
+        }));
     }
+
     task_handles.extend(http_server_handles.tasks);
     task_handles.extend(ws_server_handles.tasks);
     task_handles.extend(cache_update_handle);
@@ -372,7 +382,7 @@ async fn init_tasks(
         commitment_generator_handle,
     ]);
 
-    Ok((task_handles, stop_sender, healthcheck_handle, stop_receiver))
+    Ok((task_handles, healthchecks))
 }
 
 async fn shutdown_components(
@@ -388,13 +398,24 @@ async fn shutdown_components(
     healthcheck_handle.stop().await;
 }
 
+/// External node for zkSync Era.
 #[derive(Debug, Parser)]
-#[structopt(author = "Matter Labs", version)]
+#[command(author = "Matter Labs", version)]
 struct Cli {
+    /// Revert the pending L1 batch and exit.
     #[arg(long)]
     revert_pending_l1_batch: bool,
+    /// Enables consensus-based syncing instead of JSON-RPC based one. This is an experimental and incomplete feature;
+    /// do not use unless you know what you're doing.
     #[arg(long)]
     enable_consensus: bool,
+    /// Enables application-level snapshot recovery. Required to start a node that was recovered from a snapshot,
+    /// or to initialize a node from a snapshot. Has no effect if a node that was initialized from a Postgres dump
+    /// or was synced from genesis.
+    ///
+    /// This is an experimental and incomplete feature; do not use unless you know what you're doing.
+    #[arg(long, conflicts_with = "enable_consensus")]
+    enable_snapshots_recovery: bool,
 }
 
 #[tokio::main]
@@ -429,13 +450,22 @@ async fn main() -> anyhow::Result<()> {
         .await
         .context("Failed to load external node config")?;
     if opt.enable_consensus {
+        // This is more of a sanity check; the mutual exclusion of `enable_consensus` and `enable_snapshots_recovery`
+        // should be ensured by `clap`.
+        anyhow::ensure!(
+            !opt.enable_snapshots_recovery,
+            "Consensus logic does not support snapshot recovery yet"
+        );
         config.consensus =
             Some(config::read_consensus_config().context("read_consensus_config()")?);
     }
+
     let main_node_url = config
         .required
         .main_node_url()
         .context("Main node URL is incorrect")?;
+    let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
+        .context("Failed creating JSON-RPC client for main node")?;
 
     if let Some(threshold) = config.optional.slow_query_threshold() {
         ConnectionPool::global_config().set_slow_query_threshold(threshold)?;
@@ -451,6 +481,7 @@ async fn main() -> anyhow::Result<()> {
     .build()
     .await
     .context("failed to build a connection_pool")?;
+
     if opt.revert_pending_l1_batch {
         tracing::info!("Rolling pending L1 batch back..");
         let reverter = BlockReverter::new(
@@ -487,24 +518,28 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("Started the external node");
     tracing::info!("Main node URL is: {}", main_node_url);
 
-    // Make sure that genesis is performed.
-    let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
-        .context("Failed creating JSON-RPC client for main node")?;
-    perform_genesis_if_needed(
-        &mut connection_pool.access_storage().await.unwrap(),
-        config.remote.l2_chain_id,
+    // Make sure that the node storage is initialized either via genesis or snapshot recovery.
+    ensure_storage_initialized(
+        &connection_pool,
         &main_node_client,
+        config.remote.l2_chain_id,
+        opt.enable_snapshots_recovery,
     )
-    .await
-    .context("Performing genesis failed")?;
+    .await?;
 
-    let (task_handles, stop_sender, health_check_handle, stop_receiver) =
-        init_tasks(config.clone(), connection_pool.clone())
+    let (stop_sender, stop_receiver) = watch::channel(false);
+    let (task_handles, mut healthchecks) =
+        init_tasks(&config, connection_pool.clone(), stop_receiver.clone())
             .await
             .context("init_tasks")?;
 
-    let reorg_detector = ReorgDetector::new(&main_node_url, connection_pool.clone(), stop_receiver);
-    let mut reorg_detector_handle = tokio::spawn(reorg_detector.run()).fuse();
+    let reorg_detector = ReorgDetector::new(&main_node_url, connection_pool.clone());
+    healthchecks.push(Box::new(reorg_detector.health_check().clone()));
+    let healthcheck_handle = HealthCheckHandle::spawn_server(
+        ([0, 0, 0, 0], config.required.healthcheck_port).into(),
+        healthchecks,
+    );
+    let mut reorg_detector_handle = tokio::spawn(reorg_detector.run(stop_receiver)).fuse();
     let mut reorg_detector_result = None;
 
     let particular_crypto_alerts = None;
@@ -524,7 +559,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Reaching this point means that either some actor exited unexpectedly or we received a stop signal.
     // Broadcast the stop signal to all actors and exit.
-    shutdown_components(stop_sender, health_check_handle).await;
+    shutdown_components(stop_sender, healthcheck_handle).await;
 
     if !reorg_detector_handle.is_terminated() {
         reorg_detector_result = Some(reorg_detector_handle.await);

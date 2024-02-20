@@ -23,7 +23,7 @@ use zksync_types::{
 
 use crate::{
     state_keeper::{
-        batch_executor::{BatchExecutorHandle, Command, L1BatchExecutorBuilder, TxExecutionResult},
+        batch_executor::{BatchExecutor, BatchExecutorHandle, Command, TxExecutionResult},
         io::{MiniblockParams, PendingBatchData, StateKeeperIO},
         seal_criteria::{IoSealCriteria, SequencerSealer},
         tests::{default_l1_batch_env, default_vm_block_result, BASE_SYSTEM_CONTRACTS},
@@ -249,6 +249,7 @@ pub(crate) fn successful_exec() -> TxExecutionResult {
         }),
         compressed_bytecodes: vec![],
         call_tracer_result: vec![],
+        gas_remaining: Default::default(),
     }
 }
 
@@ -266,6 +267,7 @@ pub(crate) fn successful_exec_with_metrics(
         tx_metrics: Box::new(tx_metrics),
         compressed_bytecodes: vec![],
         call_tracer_result: vec![],
+        gas_remaining: Default::default(),
     }
 }
 
@@ -428,7 +430,7 @@ impl TestBatchExecutorBuilder {
 }
 
 #[async_trait]
-impl L1BatchExecutorBuilder for TestBatchExecutorBuilder {
+impl BatchExecutor for TestBatchExecutorBuilder {
     async fn init_batch(
         &mut self,
         _l1batch_params: L1BatchEnv,
@@ -750,13 +752,13 @@ impl StateKeeperIO for TestIO {
     }
 }
 
-/// `L1BatchExecutorBuilder` which doesn't check anything at all. Accepts all transactions.
+/// `BatchExecutor` which doesn't check anything at all. Accepts all transactions.
 // FIXME: move to `utils`?
 #[derive(Debug)]
-pub(crate) struct MockBatchExecutorBuilder;
+pub(crate) struct MockBatchExecutor;
 
 #[async_trait]
-impl L1BatchExecutorBuilder for MockBatchExecutorBuilder {
+impl BatchExecutor for MockBatchExecutor {
     async fn init_batch(
         &mut self,
         _l1batch_params: L1BatchEnv,

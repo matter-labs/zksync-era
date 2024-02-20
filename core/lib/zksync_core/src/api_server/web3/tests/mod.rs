@@ -1,4 +1,4 @@
-use std::{collections::HashMap, pin::Pin, time::Instant};
+use std::{collections::HashMap, pin::Pin, slice, time::Instant};
 
 use assert_matches::assert_matches;
 use async_trait::async_trait;
@@ -65,7 +65,7 @@ impl ApiServerHandles {
                 "Timed out waiting for API server"
             );
             let health = self.health_check.check_health().await;
-            if health.status().is_ready() {
+            if health.status().is_healthy() {
                 break;
             }
             tokio::time::sleep(POLL_INTERVAL).await;
@@ -684,7 +684,7 @@ impl HttpTest for TransactionCountTest {
             storage
                 .storage_logs_dal()
                 .insert_storage_logs(miniblock_number, &[(H256::zero(), vec![nonce_log])])
-                .await;
+                .await?;
         }
 
         let pending_count = client.get_transaction_count(test_address, None).await?;
@@ -880,7 +880,7 @@ impl HttpTest for AllAccountBalancesTest {
         storage
             .storage_logs_dal()
             .insert_storage_logs(MiniblockNumber(1), &[(H256::zero(), vec![eth_balance_log])])
-            .await;
+            .await?;
         // Create a custom token, but don't set balance for it yet.
         let custom_token = TokenInfo {
             l1_address: Address::repeat_byte(0xfe),
@@ -889,8 +889,8 @@ impl HttpTest for AllAccountBalancesTest {
         };
         storage
             .tokens_dal()
-            .add_tokens(vec![custom_token.clone()])
-            .await;
+            .add_tokens(slice::from_ref(&custom_token))
+            .await?;
 
         let balances = client.get_all_account_balances(Self::ADDRESS).await?;
         assert_eq!(balances, HashMap::from([(Address::zero(), eth_balance)]));
@@ -909,7 +909,7 @@ impl HttpTest for AllAccountBalancesTest {
                 MiniblockNumber(2),
                 &[(H256::zero(), vec![token_balance_log])],
             )
-            .await;
+            .await?;
 
         let balances = client.get_all_account_balances(Self::ADDRESS).await?;
         assert_eq!(
