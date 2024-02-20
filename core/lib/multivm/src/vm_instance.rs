@@ -116,6 +116,10 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for VmInstance<S, H> {
         dispatch_vm!(self.record_vm_memory_metrics())
     }
 
+    fn gas_remaining(&self) -> u32 {
+        dispatch_vm!(self.gas_remaining())
+    }
+
     /// Return the results of execution of all batch
     fn finish_batch(&mut self) -> FinishedL1Batch {
         dispatch_vm!(self.finish_batch())

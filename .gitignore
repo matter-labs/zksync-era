@@ -32,9 +32,12 @@ Cargo.lock
 
 /etc/env/*
 !/etc/env/base
+!/etc/env/dev.toml
 !/etc/env/docker.toml
 !/etc/env/ext-node.toml
 !/etc/env/ext-node-docker.toml
+!/etc/env/consensus_config.json
+!/etc/env/en_consensus_config.json
 /etc/tokens/localhost.json
 /etc/zksolc-bin/*
 /etc/zkvyper-bin/*

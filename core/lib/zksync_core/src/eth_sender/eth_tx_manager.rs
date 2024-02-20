@@ -5,7 +5,7 @@ use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::{
-    BoundEthInterface, Error, ExecutedTxStatus, RawTransactionBytes, SignedCallResult,
+    BoundEthInterface, Error, EthInterface, ExecutedTxStatus, RawTransactionBytes, SignedCallResult,
 };
 use zksync_types::{
     eth_sender::EthTx,
@@ -37,6 +37,7 @@ struct OperatorNonce {
 
 #[derive(Debug, Clone, Copy)]
 pub(super) struct L1BlockNumbers {
+    pub safe: L1BlockNumber,
     pub finalized: L1BlockNumber,
     pub latest: L1BlockNumber,
 }
@@ -276,22 +277,36 @@ impl EthTxManager {
     }
 
     async fn get_l1_block_numbers(&self) -> Result<L1BlockNumbers, ETHSenderError> {
-        let finalized = if let Some(confirmations) = self.config.wait_confirmations {
+        let (finalized, safe) = if let Some(confirmations) = self.config.wait_confirmations {
             let latest_block_number = self
                 .ethereum_gateway
                 .block_number("eth_tx_manager")
                 .await?
                 .as_u64();
-            (latest_block_number.saturating_sub(confirmations) as u32).into()
+
+            let finalized = (latest_block_number.saturating_sub(confirmations) as u32).into();
+            (finalized, finalized)
         } else {
-            self.ethereum_gateway
+            let finalized = self
+                .ethereum_gateway
                 .block(BlockId::Number(BlockNumber::Finalized), "eth_tx_manager")
                 .await?
                 .expect("Finalized block must be present on L1")
                 .number
                 .expect("Finalized block must contain number")
                 .as_u32()
-                .into()
+                .into();
+
+            let safe = self
+                .ethereum_gateway
+                .block(BlockId::Number(BlockNumber::Safe), "eth_tx_manager")
+                .await?
+                .expect("Safe block must be present on L1")
+                .number
+                .expect("Safe block must contain number")
+                .as_u32()
+                .into();
+            (finalized, safe)
         };
 
         let latest = self
@@ -300,7 +315,12 @@ impl EthTxManager {
             .await?
             .as_u32()
             .into();
-        Ok(L1BlockNumbers { finalized, latest })
+
+        Ok(L1BlockNumbers {
+            finalized,
+            latest,
+            safe,
+        })
     }
 
     // Monitors the in-flight transactions, marks mined ones as confirmed,
@@ -310,9 +330,7 @@ impl EthTxManager {
         storage: &mut StorageProcessor<'_>,
         l1_block_numbers: L1BlockNumbers,
     ) -> Result<Option<(EthTx, u32)>, ETHSenderError> {
-        METRICS
-            .last_known_l1_block
-            .set(l1_block_numbers.latest.0.into());
+        METRICS.track_block_numbers(&l1_block_numbers);
         let operator_nonce = self.get_operator_nonce(l1_block_numbers).await?;
         let inflight_txs = storage.eth_sender_dal().get_inflight_txs().await.unwrap();
         METRICS.number_of_inflight_txs.set(inflight_txs.len());

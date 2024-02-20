@@ -1,4 +1,5 @@
 use std::{
+    net::SocketAddr,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -7,7 +8,7 @@ use anyhow::Context as _;
 use async_trait::async_trait;
 use tokio::{task::JoinHandle, time::sleep};
 use zksync_config::configs::FriWitnessVectorGeneratorConfig;
-use zksync_dal::ConnectionPool;
+use zksync_dal::{fri_prover_dal::types::GpuProverInstanceStatus, ConnectionPool};
 use zksync_object_store::ObjectStore;
 use zksync_prover_fri_types::{
     circuit_definitions::boojum::field::goldilocks::GoldilocksField, CircuitWrapper, ProverJob,
@@ -17,12 +18,8 @@ use zksync_prover_fri_utils::{
     fetch_next_circuit, get_numeric_circuit_id, socket_utils::send_assembly,
 };
 use zksync_queued_job_processor::JobProcessor;
-use zksync_types::{
-    basic_fri_types::CircuitIdRoundTuple,
-    proofs::{GpuProverInstanceStatus, SocketAddress},
-    protocol_version::L1VerifierConfig,
-};
-use zksync_vk_setup_data_server_fri::get_finalization_hints;
+use zksync_types::{basic_fri_types::CircuitIdRoundTuple, protocol_version::L1VerifierConfig};
+use zksync_vk_setup_data_server_fri::keystore::Keystore;
 
 use crate::metrics::METRICS;
 
@@ -58,9 +55,11 @@ impl WitnessVectorGenerator {
     }
 
     pub fn generate_witness_vector(job: ProverJob) -> anyhow::Result<WitnessVectorArtifacts> {
-        let finalization_hints = get_finalization_hints(job.setup_data_key.clone())
+        let keystore = Keystore::default();
+        let finalization_hints = keystore
+            .load_finalization_hints(job.setup_data_key.clone())
             .context("get_finalization_hints()")?;
-        let mut cs = match job.circuit_wrapper.clone() {
+        let cs = match job.circuit_wrapper.clone() {
             CircuitWrapper::Base(base_circuit) => {
                 base_circuit.synthesis::<GoldilocksField>(&finalization_hints)
             }
@@ -68,10 +67,7 @@ impl WitnessVectorGenerator {
                 recursive_circuit.synthesis::<GoldilocksField>(&finalization_hints)
             }
         };
-        Ok(WitnessVectorArtifacts::new(
-            cs.materialize_witness_vec(),
-            job,
-        ))
+        Ok(WitnessVectorArtifacts::new(cs.witness.unwrap(), job))
     }
 }
 
@@ -155,8 +151,9 @@ impl JobProcessor for WitnessVectorGenerator {
                 .await;
 
             if let Some(address) = prover {
+                let address = SocketAddr::from(address);
                 tracing::info!(
-                    "Found prover after {:?}. Sending witness vector job...",
+                    "Found prover at address {address:?} after {:?}. Sending witness vector job...",
                     now.elapsed()
                 );
                 let result = send_assembly(job_id, &serialized, &address);
@@ -216,7 +213,7 @@ impl JobProcessor for WitnessVectorGenerator {
 async fn handle_send_result(
     result: &Result<(Duration, u64), String>,
     job_id: u32,
-    address: &SocketAddress,
+    address: &SocketAddr,
     pool: &ConnectionPool,
     zone: String,
 ) {
@@ -250,7 +247,11 @@ async fn handle_send_result(
                 .await
                 .unwrap()
                 .fri_gpu_prover_queue_dal()
-                .update_prover_instance_status(address.clone(), GpuProverInstanceStatus::Dead, zone)
+                .update_prover_instance_status(
+                    (*address).into(),
+                    GpuProverInstanceStatus::Dead,
+                    zone,
+                )
                 .await;
 
             // mark the job as failed

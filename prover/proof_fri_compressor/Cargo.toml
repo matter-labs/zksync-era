@@ -13,6 +13,7 @@ zksync_dal = { path = "../../core/lib/dal" }
 zksync_config = { path = "../../core/lib/config" }
 zksync_env_config = { path = "../../core/lib/env_config" }
 zksync_object_store = { path = "../../core/lib/object_store" }
+zksync_prover_interface = { path = "../../core/lib/prover_interface" }
 zksync_utils = { path = "../../core/lib/utils" }
 prometheus_exporter = { path = "../../core/lib/prometheus_exporter" }
 zksync_prover_fri_types = { path = "../prover_fri_types" }
@@ -26,9 +27,12 @@ zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harn
 anyhow = "1.0"
 tracing = "0.1"
 structopt = "0.3.26"
-tokio = { version = "1", features = ["time"] }
+tokio = { version = "1", features = ["time", "macros"] }
 futures = { version = "0.3", features = ["compat"] }
 ctrlc = { version = "3.1", features = ["termination"] }
 async-trait = "0.1"
 bincode = "1.0"
 reqwest = { version = "0.11", features = ["blocking"] }
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+

@@ -49,12 +49,10 @@ pub struct StorageOracle<S: WriteStorage, H: HistoryMode> {
 
     pub(crate) frames_stack: AppDataFrameManagerWithHistory<Box<StorageLogQuery>, H>,
 
-    // The changes that have been paid for in previous transactions.
+    // The changes that have been paid for in the current transaction.
     // It is a mapping from storage key to the number of *bytes* that was paid by the user
     // to cover this slot.
-    pub(crate) pre_paid_changes: HistoryRecorder<HashMap<StorageKey, u32>, H>,
-
-    // The changes that have been paid for in the current transaction
+    // Note, that this field has to be rolled back in case of a panicking frame.
     pub(crate) paid_changes: HistoryRecorder<HashMap<StorageKey, u32>, H>,
 
     // The map that contains all the first values read from storage for each slot.
@@ -65,9 +63,11 @@ pub struct StorageOracle<S: WriteStorage, H: HistoryMode> {
     // Storage refunds that oracle has returned in `estimate_refunds_for_write`.
     pub(crate) returned_refunds: HistoryRecorder<Vec<u32>, H>,
 
-    // Keeps track of storage keys that were ever written to.
+    // Keeps track of storage keys that were ever written to. This is needed for circuits tracer, this is why
+    // we dont roll this value back in case of a panicked frame.
     pub(crate) written_keys: HistoryRecorder<HashMap<StorageKey, ()>, HistoryEnabled>,
-    // Keeps track of storage keys that were ever read.
+    // Keeps track of storage keys that were ever read. This is needed for circuits tracer, this is why
+    // we dont roll this value back in case of a panicked frame.
     pub(crate) read_keys: HistoryRecorder<HashMap<StorageKey, ()>, HistoryEnabled>,
 }
 
@@ -75,7 +75,6 @@ impl<S: WriteStorage> OracleWithHistory for StorageOracle<S, HistoryEnabled> {
     fn rollback_to_timestamp(&mut self, timestamp: Timestamp) {
         self.storage.rollback_to_timestamp(timestamp);
         self.frames_stack.rollback_to_timestamp(timestamp);
-        self.pre_paid_changes.rollback_to_timestamp(timestamp);
         self.paid_changes.rollback_to_timestamp(timestamp);
         self.initial_values.rollback_to_timestamp(timestamp);
         self.returned_refunds.rollback_to_timestamp(timestamp);
@@ -89,7 +88,6 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
         Self {
             storage: HistoryRecorder::from_inner(StorageWrapper::new(storage)),
             frames_stack: Default::default(),
-            pre_paid_changes: Default::default(),
             paid_changes: Default::default(),
             initial_values: Default::default(),
             returned_refunds: Default::default(),
@@ -101,7 +99,6 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
     pub fn delete_history(&mut self) {
         self.storage.delete_history();
         self.frames_stack.delete_history();
-        self.pre_paid_changes.delete_history();
         self.paid_changes.delete_history();
         self.initial_values.delete_history();
         self.returned_refunds.delete_history();
@@ -185,67 +182,21 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
             .inner()
             .get(storage_key)
             .copied()
-            .unwrap_or_else(|| {
-                self.pre_paid_changes
-                    .inner()
-                    .get(storage_key)
-                    .copied()
-                    .unwrap_or(0)
-            })
-    }
-
-    // Remembers the changes that have been paid for in the current transaction.
-    // It also returns how much pubdata did the user pay for and how much was actually published.
-    pub(crate) fn save_paid_changes(&mut self, timestamp: Timestamp) -> u32 {
-        let mut published = 0;
-
-        let modified_keys = self
-            .paid_changes
-            .inner()
-            .iter()
-            .map(|(k, v)| (*k, *v))
-            .collect::<Vec<_>>();
-
-        for (key, _) in modified_keys {
-            // It is expected that for each slot for which we have paid changes, there is some
-            // first slot value already read.
-            let first_slot_value = self.initial_values.inner().get(&key).copied().unwrap();
-
-            // This is the value has been written to the storage slot at the end.
-            let current_slot_value = self.storage.read_from_storage(&key);
-
-            let required_pubdata =
-                self.base_price_for_write(&key, first_slot_value, current_slot_value);
-
-            // We assume that `prepaid_for_slot` represents both the number of pubdata published and the number of bytes paid by the previous transactions
-            // as they should be identical.
-            let prepaid_for_slot = self
-                .pre_paid_changes
-                .inner()
-                .get(&key)
-                .copied()
-                .unwrap_or_default();
-
-            published += required_pubdata.saturating_sub(prepaid_for_slot);
-
-            // We remove the slot from the paid changes and move to the pre-paid changes as
-            // the transaction ends.
-            self.paid_changes.remove(key, timestamp);
-            self.pre_paid_changes
-                .insert(key, prepaid_for_slot.max(required_pubdata), timestamp);
-        }
-
-        published
+            .unwrap_or(0)
     }
 
     fn base_price_for_write_query(&self, query: &LogQuery) -> u32 {
         let storage_key = storage_key_of_log(query);
 
-        let initial_value = self
-            .get_initial_value(&storage_key)
-            .unwrap_or(self.storage.read_from_storage(&storage_key));
+        self.base_price_for_key_write(&storage_key, query.written_value)
+    }
 
-        self.base_price_for_write(&storage_key, initial_value, query.written_value)
+    fn base_price_for_key_write(&self, storage_key: &StorageKey, new_value: U256) -> u32 {
+        let initial_value = self
+            .get_initial_value(storage_key)
+            .unwrap_or(self.storage.read_from_storage(storage_key));
+
+        self.base_price_for_write(storage_key, initial_value, new_value)
     }
 
     pub(crate) fn base_price_for_write(
@@ -265,29 +216,6 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
             .is_write_initial(storage_key);
 
         get_pubdata_price_bytes(prev_value, new_value, is_initial_write)
-    }
-
-    // Returns the price of the update in terms of pubdata bytes.
-    // TODO (SMA-1701): update VM to accept gas instead of pubdata.
-    fn value_update_price(&mut self, query: &LogQuery) -> u32 {
-        let storage_key = storage_key_of_log(query);
-
-        let base_cost = self.base_price_for_write_query(query);
-
-        let initial_value = self
-            .get_initial_value(&storage_key)
-            .unwrap_or(self.storage.read_from_storage(&storage_key));
-
-        self.set_initial_value(&storage_key, initial_value, query.timestamp);
-
-        let already_paid = self.prepaid_for_write(&storage_key);
-
-        if base_cost <= already_paid {
-            // Some other transaction has already paid for this slot, no need to pay anything
-            0u32
-        } else {
-            base_cost - already_paid
-        }
     }
 
     /// Returns storage log queries from current frame where `log.log_query.timestamp >= from_timestamp`.
@@ -367,22 +295,18 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
             let to_pay_by_user = self.base_price_for_write_query(&query);
             let prepaid = self.prepaid_for_write(&storage_key);
 
-            if to_pay_by_user > prepaid {
-                self.paid_changes.apply_historic_record(
-                    HashMapHistoryEvent {
-                        key: storage_key,
-                        value: Some(to_pay_by_user),
-                    },
-                    query.timestamp,
-                );
-            }
+            // Note, that the diff may be negative, e.g. in case the new write returns to the previous value.
+            let diff = (to_pay_by_user as i32) - (prepaid as i32);
 
-            (
-                self.write_value(query),
-                // FIXME: this is not particularly correct, because it does not include the fact that
-                // the user wont pay anything if the storage has been rolled back
-                PubdataCost(to_pay_by_user.saturating_sub(prepaid) as i32),
-            )
+            self.paid_changes.apply_historic_record(
+                HashMapHistoryEvent {
+                    key: storage_key,
+                    value: Some(to_pay_by_user),
+                },
+                query.timestamp,
+            );
+
+            (self.write_value(query), PubdataCost(diff))
         } else {
             // Reading costs no pubdata
             (self.read_value(query), PubdataCost(0))
@@ -403,36 +327,6 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
         // TODO: implement it correctly
         StorageAccessRefund::Cold
     }
-
-    // // We can return the size of the refund before each storage query.
-    // // Note, that while the `RefundType` allows to provide refunds both in
-    // // `ergs` and `pubdata`, only refunds in pubdata will be compensated for the users
-    // fn estimate_refunds_for_write(
-    //     &mut self, // to avoid any hacks inside, like prefetch
-    //     _monotonic_cycle_counter: u32,
-    //     partial_query: &LogQuery,
-    // ) -> RefundType {
-    //     let storage_key = storage_key_of_log(partial_query);
-    //     let mut partial_query = *partial_query;
-    //     let read_value = self.storage.read_from_storage(&storage_key);
-    //     partial_query.read_value = read_value;
-
-    //     let price_to_pay = self
-    //         .value_update_price(&partial_query)
-    //         .min(INITIAL_STORAGE_WRITE_PUBDATA_BYTES as u32);
-
-    //     let refund = RefundType::RepeatedWrite(RefundedAmounts {
-    //         ergs: 0,
-    //         // `INITIAL_STORAGE_WRITE_PUBDATA_BYTES` is the default amount of pubdata bytes the user pays for.
-    //         pubdata_bytes: (INITIAL_STORAGE_WRITE_PUBDATA_BYTES as u32) - price_to_pay,
-    //     });
-    //     self.returned_refunds.apply_historic_record(
-    //         VectorHistoryEvent::Push(refund.pubdata_refund()),
-    //         partial_query.timestamp,
-    //     );
-
-    //     refund
-    // }
 
     // Indicate a start of execution frame for rollback purposes
     fn start_frame(&mut self, timestamp: Timestamp) {
@@ -469,6 +363,16 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
                     // NOTE, that since it is a rollback query,
                     // the `read_value` is being set
                     read_value, timestamp,
+                );
+
+                // Now, we also need to roll back the changes to the paid changes.
+                let price_for_writing_new_value = self.base_price_for_key_write(&key, read_value);
+                self.paid_changes.apply_historic_record(
+                    HashMapHistoryEvent {
+                        key,
+                        value: Some(price_for_writing_new_value),
+                    },
+                    timestamp,
                 );
 
                 // Additional validation that the current value was correct

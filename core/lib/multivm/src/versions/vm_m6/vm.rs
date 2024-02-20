@@ -20,6 +20,7 @@ use crate::{
         L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode,
         VmExecutionResultAndLogs, VmInterface, VmInterfaceHistoryEnabled, VmMemoryMetrics,
     },
+    tracers::old_tracers::TracerDispatcher,
     vm_m6::{events::merge_events, storage::Storage, vm_instance::MultiVMSubversion, VmInstance},
 };
 
@@ -64,8 +65,7 @@ impl<S: Storage, H: HistoryMode> Vm<S, H> {
 }
 
 impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
-    /// Tracers are not supported. So we use `()` as a placeholder
-    type TracerDispatcher = ();
+    type TracerDispatcher = TracerDispatcher;
 
     fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
         let vm_version: VmVersion = system_env.version.into();
@@ -88,26 +88,35 @@ impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
 
     fn inspect(
         &mut self,
-        _tracer: Self::TracerDispatcher,
+        tracer: Self::TracerDispatcher,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
+        if let Some(storage_invocations) = tracer.storage_invocations {
+            self.vm
+                .execution_mode
+                .set_invocation_limit(storage_invocations);
+        }
+
         match execution_mode {
-            VmExecutionMode::OneTx => {
-                match self.system_env.execution_mode {
-                    TxExecutionMode::VerifyExecute => {
-                        // Even that call tracer is supported here, we don't use it now
-                        self.vm.execute_next_tx(
-                            self.system_env.default_validation_computational_gas_limit,
-                            false,
-                        ).glue_into()
+            VmExecutionMode::OneTx => match self.system_env.execution_mode {
+                TxExecutionMode::VerifyExecute => {
+                    let enable_call_tracer = tracer.call_tracer.is_some();
+                    let result = self.vm.execute_next_tx(
+                        self.system_env.default_validation_computational_gas_limit,
+                        enable_call_tracer,
+                    );
+                    if let (Ok(result), Some(call_tracer)) = (&result, &tracer.call_tracer) {
+                        call_tracer.set(result.call_traces.clone()).unwrap();
                     }
-                    TxExecutionMode::EstimateFee | TxExecutionMode::EthCall => self.vm
-                        .execute_till_block_end(
-                            crate::vm_m6::vm_with_bootloader::BootloaderJobType::TransactionExecution,
-                        )
-                        .glue_into(),
+                    result.glue_into()
                 }
-            }
+                TxExecutionMode::EstimateFee | TxExecutionMode::EthCall => self
+                    .vm
+                    .execute_till_block_end(
+                        crate::vm_m6::vm_with_bootloader::BootloaderJobType::TransactionExecution,
+                    )
+                    .glue_into(),
+            },
             VmExecutionMode::Batch => self.finish_batch().block_tip_execution_result,
             VmExecutionMode::Bootloader => self.vm.execute_block_tip().glue_into(),
         }
@@ -205,13 +214,19 @@ impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
 
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
-        _tracer: Self::TracerDispatcher,
+        tracer: Self::TracerDispatcher,
         tx: Transaction,
         with_compression: bool,
     ) -> (
         Result<(), BytecodeCompressionError>,
         VmExecutionResultAndLogs,
     ) {
+        if let Some(storage_invocations) = tracer.storage_invocations {
+            self.vm
+                .execution_mode
+                .set_invocation_limit(storage_invocations);
+        }
+
         self.last_tx_compressed_bytecodes = vec![];
         let bytecodes = if with_compression {
             let deps = tx.execute.factory_deps.as_deref().unwrap_or_default();
@@ -251,13 +266,17 @@ impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
 
         // Even that call tracer is supported here, we don't use it.
         let result = match self.system_env.execution_mode {
-            TxExecutionMode::VerifyExecute => self
-                .vm
-                .execute_next_tx(
+            TxExecutionMode::VerifyExecute => {
+                let enable_call_tracer = tracer.call_tracer.is_some();
+                let result = self.vm.execute_next_tx(
                     self.system_env.default_validation_computational_gas_limit,
-                    false,
-                )
-                .glue_into(),
+                    enable_call_tracer,
+                );
+                if let (Ok(result), Some(call_tracer)) = (&result, &tracer.call_tracer) {
+                    call_tracer.set(result.call_traces.clone()).unwrap();
+                }
+                result.glue_into()
+            }
             TxExecutionMode::EstimateFee | TxExecutionMode::EthCall => self
                 .vm
                 .execute_till_block_end(
@@ -293,6 +312,10 @@ impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
             storage_inner: self.vm.state.storage.get_size(),
             storage_history: self.vm.state.storage.get_history_size(),
         }
+    }
+
+    fn gas_remaining(&self) -> u32 {
+        self.vm.gas_remaining()
     }
 
     fn finish_batch(&mut self) -> FinishedL1Batch {

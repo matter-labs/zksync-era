@@ -6,14 +6,19 @@ use circuit_definitions::{
     boojum::{cs::implementations::witness::WitnessVec, field::goldilocks::GoldilocksField},
     circuit_definitions::{
         base_layer::{ZkSyncBaseLayerCircuit, ZkSyncBaseLayerProof},
-        recursion_layer::{ZkSyncRecursionLayerProof, ZkSyncRecursiveLayerCircuit},
+        recursion_layer::{
+            ZkSyncRecursionLayerProof, ZkSyncRecursionLayerStorageType, ZkSyncRecursiveLayerCircuit,
+        },
     },
     zkevm_circuits::scheduler::block_header::BlockAuxilaryOutputWitness,
     ZkSyncDefaultRoundFunction,
 };
-use zksync_object_store::{serialize_using_bincode, Bucket, FriCircuitKey, StoredObject};
-use zksync_types::{proofs::AggregationRound, L1BatchNumber};
+use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject};
+use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
 
+use crate::keys::FriCircuitKey;
+
+pub mod keys;
 pub mod queue;
 
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
@@ -109,9 +114,37 @@ pub struct ProverServiceDataKey {
     pub round: AggregationRound,
 }
 
+fn get_round_for_recursive_circuit_type(circuit_type: u8) -> AggregationRound {
+    match circuit_type {
+        circuit_type if circuit_type == ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8 => {
+            AggregationRound::Scheduler
+        }
+        circuit_type if circuit_type == ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8 => {
+            AggregationRound::NodeAggregation
+        }
+        _ => AggregationRound::LeafAggregation,
+    }
+}
+
 impl ProverServiceDataKey {
     pub fn new(circuit_id: u8, round: AggregationRound) -> Self {
         Self { circuit_id, round }
+    }
+
+    /// Creates a new data key for recursive type - with auto selection of the aggregation round.
+    pub fn new_recursive(circuit_id: u8) -> Self {
+        Self {
+            circuit_id,
+            round: get_round_for_recursive_circuit_type(circuit_id),
+        }
+    }
+
+    /// Data key for snark wrapper.
+    pub fn snark() -> Self {
+        Self {
+            circuit_id: 1,
+            round: AggregationRound::Scheduler,
+        }
     }
 }
 

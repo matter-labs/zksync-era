@@ -571,7 +571,7 @@ fn perform_zkevm_benchmark() -> ZkEVMBenchmarkResult {
 
     ZkEVMBenchmarkResult {
         used_zkevm_ergs: ergs_before - ergs_after,
-        used_circuits: tx_result.statistics.estimated_circuits_used,
+        used_circuits: tx_result.statistics.circuit_statistic.total_f32(),
     }
 }
 
@@ -624,7 +624,7 @@ fn perform_benchmark(bytecode: Vec<u8>) -> EVMOpcodeBenchmarkResult {
     EVMOpcodeBenchmarkResult {
         used_zkevm_ergs: ergs_before - ergs_after,
         used_evm_gas: h256_to_u256(used_evm_gas).as_u32(),
-        used_circuits: tx_result.statistics.estimated_circuits_used,
+        used_circuits: tx_result.statistics.circuit_statistic.total_f32(),
     }
 }
 

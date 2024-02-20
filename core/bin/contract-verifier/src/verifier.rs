@@ -301,7 +301,10 @@ impl ContractVerifier {
                 };
                 let sources: HashMap<String, Source> =
                     vec![(file_name, source)].into_iter().collect();
-                let optimizer = Optimizer::new(request.req.optimization_used);
+                let optimizer = Optimizer {
+                    enabled: request.req.optimization_used,
+                    mode: request.req.optimizer_mode.and_then(|s| s.chars().next()),
+                };
 
                 let settings = Settings {
                     libraries: None,

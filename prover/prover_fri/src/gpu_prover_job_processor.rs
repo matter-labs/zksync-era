@@ -6,7 +6,7 @@ pub mod gpu_prover {
     use shivini::{gpu_prove_from_external_witness_data, ProverContext};
     use tokio::task::JoinHandle;
     use zksync_config::configs::{fri_prover_group::FriProverGroupConfig, FriProverConfig};
-    use zksync_dal::ConnectionPool;
+    use zksync_dal::{fri_prover_dal::types::SocketAddress, ConnectionPool};
     use zksync_env_config::FromEnv;
     use zksync_object_store::ObjectStore;
     use zksync_prover_fri_types::{
@@ -26,10 +26,8 @@ pub mod gpu_prover {
         CircuitWrapper, FriProofWrapper, ProverServiceDataKey, WitnessVectorArtifacts,
     };
     use zksync_queued_job_processor::{async_trait, JobProcessor};
-    use zksync_types::{basic_fri_types::CircuitIdRoundTuple, proofs::SocketAddress};
-    use zksync_vk_setup_data_server_fri::{
-        get_setup_data_for_circuit_type, GoldilocksGpuProverSetupData,
-    };
+    use zksync_types::basic_fri_types::CircuitIdRoundTuple;
+    use zksync_vk_setup_data_server_fri::{keystore::Keystore, GoldilocksGpuProverSetupData};
 
     use crate::{
         metrics::METRICS,
@@ -103,9 +101,10 @@ pub mod gpu_prover {
                     .clone(),
                 SetupLoadMode::FromDisk => {
                     let started_at = Instant::now();
-                    let artifact: GoldilocksGpuProverSetupData =
-                        get_setup_data_for_circuit_type(key.clone())
-                            .context("get_setup_data_for_circuit_type()")?;
+                    let keystore = Keystore::default();
+                    let artifact: GoldilocksGpuProverSetupData = keystore
+                        .load_gpu_setup_data_for_circuit_type(key.clone())
+                        .context("load_gpu_setup_data_for_circuit_type()")?;
 
                     METRICS.gpu_setup_data_load_time[&key.circuit_id.to_string()]
                         .observe(started_at.elapsed());
@@ -326,10 +325,12 @@ pub mod gpu_prover {
                     &config.specialized_group_id,
                     prover_setup_metadata_list
                 );
+                let keystore = Keystore::default();
                 for prover_setup_metadata in prover_setup_metadata_list {
                     let key = setup_metadata_to_setup_data_key(&prover_setup_metadata);
-                    let setup_data = get_setup_data_for_circuit_type(key.clone())
-                        .context("get_setup_data_for_circuit_type()")?;
+                    let setup_data = keystore
+                        .load_gpu_setup_data_for_circuit_type(key.clone())
+                        .context("load_gpu_setup_data_for_circuit_type()")?;
                     cache.insert(key, Arc::new(setup_data));
                 }
                 SetupLoadMode::FromMemory(cache)

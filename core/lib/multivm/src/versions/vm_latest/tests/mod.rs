@@ -2,6 +2,7 @@ mod bootloader;
 mod default_aa;
 // TODO - fix this test
 // `mod invalid_bytecode;`
+mod block_tip;
 mod bytecode_publishing;
 mod call_tracer;
 mod circuits;
@@ -19,6 +20,7 @@ mod require_eip712;
 mod rollbacks;
 mod sekp256r1;
 mod simple_execution;
+mod storage;
 mod tester;
 mod tracing_execution_error;
 mod upgrade;

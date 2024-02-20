@@ -224,6 +224,10 @@ impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
         }
     }
 
+    fn gas_remaining(&self) -> u32 {
+        self.vm.gas_remaining()
+    }
+
     fn finish_batch(&mut self) -> FinishedL1Batch {
         self.vm
             .execute_till_block_end(

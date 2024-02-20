@@ -8,9 +8,10 @@ use zksync_types::{
     helpers::unix_timestamp_ms,
     l1::{L1Tx, OpProcessingType, PriorityQueueType},
     l2::L2Tx,
+    snapshots::SnapshotRecoveryStatus,
     tx::{tx_execution_info::TxExecutionStatus, ExecutionMetrics, TransactionExecutionResult},
-    Address, Execute, L1BlockNumber, L1TxCommonData, L2ChainId, MiniblockNumber, PriorityOpId,
-    ProtocolVersionId, H160, H256, U256,
+    Address, Execute, L1BatchNumber, L1BlockNumber, L1TxCommonData, L2ChainId, MiniblockNumber,
+    PriorityOpId, ProtocolVersionId, H160, H256, U256,
 };
 
 use crate::{
@@ -36,6 +37,7 @@ pub(crate) fn create_miniblock_header(number: u32) -> MiniblockHeader {
         hash: MiniblockHasher::new(number, 0, H256::zero()).finalize(protocol_version),
         l1_tx_count: 0,
         l2_tx_count: 0,
+        fee_account_address: Address::default(),
         gas_per_pubdata_limit: 100,
         base_fee_per_gas: 100,
         batch_fee_input: BatchFeeInput::l1_pegged(100, 100),
@@ -117,6 +119,19 @@ pub(crate) fn mock_execution_result(transaction: L2Tx) -> TransactionExecutionRe
     }
 }
 
+pub(crate) fn create_snapshot_recovery() -> SnapshotRecoveryStatus {
+    SnapshotRecoveryStatus {
+        l1_batch_number: L1BatchNumber(23),
+        l1_batch_timestamp: 23,
+        l1_batch_root_hash: H256::zero(),
+        miniblock_number: MiniblockNumber(42),
+        miniblock_timestamp: 42,
+        miniblock_hash: H256::zero(),
+        protocol_version: ProtocolVersionId::latest(),
+        storage_logs_chunks_processed: vec![true; 100],
+    }
+}
+
 #[tokio::test]
 async fn workflow_with_submit_tx_equal_hashes() {
     let connection_pool = ConnectionPool::test_pool().await;
@@ -134,7 +149,7 @@ async fn workflow_with_submit_tx_equal_hashes() {
         .insert_transaction_l2(tx, mock_tx_execution_metrics())
         .await;
 
-    assert_eq!(result, L2TxSubmissionResult::Replaced);
+    assert_eq!(result, L2TxSubmissionResult::Duplicate);
 }
 
 #[tokio::test]
@@ -205,7 +220,7 @@ async fn remove_stuck_txs() {
 
     // Get all txs
     transactions_dal.reset_mempool().await.unwrap();
-    let (txs, _) = transactions_dal
+    let txs = transactions_dal
         .sync_mempool(&[], &[], 0, 0, 1000)
         .await
         .unwrap();
@@ -228,7 +243,7 @@ async fn remove_stuck_txs() {
 
     // Get all txs
     transactions_dal.reset_mempool().await.unwrap();
-    let (txs, _) = transactions_dal
+    let txs = transactions_dal
         .sync_mempool(&[], &[], 0, 0, 1000)
         .await
         .unwrap();
@@ -241,7 +256,7 @@ async fn remove_stuck_txs() {
         .unwrap();
     assert_eq!(removed_txs, 1);
     transactions_dal.reset_mempool().await.unwrap();
-    let (txs, _) = transactions_dal
+    let txs = transactions_dal
         .sync_mempool(&[], &[], 0, 0, 1000)
         .await
         .unwrap();
@@ -250,9 +265,10 @@ async fn remove_stuck_txs() {
     // We shouldn't collect executed tx
     let storage = transactions_dal.storage;
     let mut transactions_web3_dal = TransactionsWeb3Dal { storage };
-    transactions_web3_dal
-        .get_transaction_receipt(executed_tx.hash())
+    let receipts = transactions_web3_dal
+        .get_transaction_receipts(&[executed_tx.hash()])
         .await
-        .unwrap()
         .unwrap();
+
+    assert_eq!(receipts.len(), 1);
 }

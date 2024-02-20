@@ -109,7 +109,7 @@ impl EthNamespace {
             .set_nonce_for_call_request(&mut request_with_gas_per_pubdata_overridden)
             .await?;
 
-        if let Some(ref mut eip712_meta) = request_with_gas_per_pubdata_overridden.eip712_meta {
+        if let Some(eip712_meta) = &mut request_with_gas_per_pubdata_overridden.eip712_meta {
             if eip712_meta.gas_per_pubdata == U256::zero() {
                 eip712_meta.gas_per_pubdata = DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE.into();
             }
@@ -132,7 +132,6 @@ impl EthNamespace {
 
         // When we're estimating fee, we are trying to deduce values related to fee, so we should
         // not consider provided ones.
-
         let gas_price = self.state.tx_sender.gas_price().await;
         let gas_price = gas_price.map_err(|err| internal_error(METHOD_NAME, err))?;
         tx.common_data.fee.max_fee_per_gas = gas_price.into();
@@ -324,6 +323,60 @@ impl EthNamespace {
     }
 
     #[tracing::instrument(skip(self))]
+    pub async fn get_block_receipts_impl(
+        &self,
+        block_id: BlockId,
+    ) -> Result<Vec<TransactionReceipt>, Web3Error> {
+        const METHOD_NAME: &str = "get_block_receipts";
+
+        let method_latency = API_METRICS.start_block_call(METHOD_NAME, block_id);
+
+        self.state.start_info.ensure_not_pruned(block_id)?;
+
+        let block = self
+            .state
+            .connection_pool
+            .access_storage_tagged("api")
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err))?
+            .blocks_web3_dal()
+            .get_block_by_web3_block_id(block_id, false, self.state.api_config.l2_chain_id)
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err))?;
+
+        let transactions: &[TransactionVariant] =
+            block.as_ref().map_or(&[], |block| &block.transactions);
+        let hashes: Vec<_> = transactions
+            .iter()
+            .map(|tx| match tx {
+                TransactionVariant::Full(tx) => tx.hash,
+                TransactionVariant::Hash(hash) => *hash,
+            })
+            .collect();
+
+        let mut receipts = self
+            .state
+            .connection_pool
+            .access_storage_tagged("api")
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err))?
+            .transactions_web3_dal()
+            .get_transaction_receipts(&hashes)
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err))?;
+
+        receipts.sort_unstable_by_key(|receipt| receipt.transaction_index);
+
+        if let Some(block) = block {
+            self.report_latency_with_block_id(method_latency, block.number.as_u32().into());
+        } else {
+            method_latency.observe_without_diff();
+        }
+
+        Ok(receipts)
+    }
+
+    #[tracing::instrument(skip(self))]
     pub async fn get_code_impl(
         &self,
         address: Address,
@@ -495,19 +548,20 @@ impl EthNamespace {
         const METHOD_NAME: &str = "get_transaction_receipt";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-        let receipt = self
+        let receipts = self
             .state
             .connection_pool
             .access_storage_tagged("api")
             .await
             .unwrap()
             .transactions_web3_dal()
-            .get_transaction_receipt(hash)
+            .get_transaction_receipts(&[hash])
             .await
-            .map_err(|err| internal_error(METHOD_NAME, err));
+            .map_err(|err| internal_error(METHOD_NAME, err))?;
 
         method_latency.observe();
-        receipt
+
+        Ok(receipts.into_iter().next())
     }
 
     #[tracing::instrument(skip(self))]
@@ -525,12 +579,9 @@ impl EthNamespace {
             .blocks_dal()
             .get_sealed_miniblock_number()
             .await
-            .map_err(|err| internal_error(METHOD_NAME, err))?;
-        let next_block_number = match last_block_number {
-            Some(number) => number + 1,
-            // If we don't have miniblocks in the storage, use the first projected miniblock number as the cursor
-            None => self.state.start_info.first_miniblock,
-        };
+            .map_err(|err| internal_error(METHOD_NAME, err))?
+            .ok_or_else(|| internal_error(METHOD_NAME, "no miniblocks in storage"))?;
+        let next_block_number = last_block_number + 1;
         drop(storage);
 
         let idx = self

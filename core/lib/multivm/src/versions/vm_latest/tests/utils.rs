@@ -129,3 +129,13 @@ pub(crate) fn key_for_evm_hash(address: &Address) -> H256 {
     let bytes = [address_h256.as_bytes(), u256_to_h256(3.into()).as_bytes()].concat();
     keccak256(&bytes).into()
 }
+
+pub(crate) fn read_complex_upgrade() -> Vec<u8> {
+    read_bytecode("etc/contracts-test-data/artifacts-zk/contracts/complex-upgrade/complex-upgrade.sol/ComplexUpgrade.json")
+}
+
+pub(crate) fn get_complex_upgrade_abi() -> Contract {
+    load_contract(
+        "etc/contracts-test-data/artifacts-zk/contracts/complex-upgrade/complex-upgrade.sol/ComplexUpgrade.json"
+    )
+}

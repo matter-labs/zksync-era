@@ -164,6 +164,10 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
         self.record_vm_memory_metrics_inner()
     }
 
+    fn gas_remaining(&self) -> u32 {
+        self.state.local_state.callstack.current.ergs_remaining
+    }
+
     fn finish_batch(&mut self) -> FinishedL1Batch {
         let result = self.execute(VmExecutionMode::Batch);
         let execution_state = self.get_current_execution_state();

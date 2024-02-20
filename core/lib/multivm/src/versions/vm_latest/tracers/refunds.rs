@@ -192,7 +192,8 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for RefundsTracer<S> {
     fn initialize_tracer(&mut self, state: &mut ZkSyncVmState<S, H>) {
         self.timestamp_initial = Timestamp(state.local_state.timestamp);
         self.gas_remaining_before = state.local_state.callstack.current.ergs_remaining;
-        self.spent_pubdata_counter_before = state.local_state.spent_pubdata_counter;
+        // TODO: maybe change the name of the field
+        self.spent_pubdata_counter_before = state.local_state.pubdata_revert_counter.0 as u32;
     }
 
     fn finish_cycle(
@@ -243,18 +244,14 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for RefundsTracer<S> {
                 .value
                 .as_u32();
 
-            let used_published_storage_slots = state
-                .storage
-                .save_paid_changes(Timestamp(state.local_state.timestamp));
-
-            let pubdata_published = pubdata_published(
-                state,
-                used_published_storage_slots,
-                self.timestamp_initial,
-                self.l1_batch.number,
+            assert!(
+                state.local_state.pubdata_revert_counter.0 >= 0,
+                "Global counter is negative"
             );
+            let current_counter = state.local_state.pubdata_revert_counter.0 as u32;
 
-            self.pubdata_published = pubdata_published;
+            self.pubdata_published =
+                current_counter.saturating_sub(self.spent_pubdata_counter_before);
 
             // let current_ergs_per_pubdata_byte = 0;
             let tx_body_refund = self.tx_body_refund(
@@ -262,7 +259,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for RefundsTracer<S> {
                 bootloader_refund.gas_spent_on_pubdata,
                 tx_gas_limit,
                 bootloader_refund.used_gas_per_pubdata_byte,
-                pubdata_published,
+                self.pubdata_published,
                 bootloader_state.last_l2_block().txs.last().unwrap().hash,
             );
 
