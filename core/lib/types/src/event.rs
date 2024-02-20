@@ -357,6 +357,8 @@ pub fn convert_vm_events_to_log_queries(events: &[VmEvent]) -> Vec<LogQuery> {
             let first_key_word =
                 (event.indexed_topics.len() as u64 + 1) + ((event.value.len() as u64) << 32);
             let key = U256([first_key_word, 0, 0, 0]);
+
+            // `timestamp`, `aux_byte`, `read_value`, `rw_flag`, `rollback` are set as per convention.
             let first_log = LogQuery {
                 timestamp: Timestamp(0),
                 tx_number_in_block: event.location.1 as u16,
@@ -374,11 +376,13 @@ pub fn convert_vm_events_to_log_queries(events: &[VmEvent]) -> Vec<LogQuery> {
             // The next logs hold an information about remaining topics and `event.value`.
             // Each log can hold at most two values each of 32 bytes.
             // The following piece of code prepares these 32-byte values.
-            let values = event
-                .indexed_topics
-                .iter()
-                .map(|h| h256_to_u256(*h))
-                .chain(event.value.chunks(32).map(U256::from_big_endian));
+            let values = event.indexed_topics.iter().map(|h| h256_to_u256(*h)).chain(
+                event.value.chunks(32).map(|value_chunk| {
+                    let mut padded = value_chunk.to_vec();
+                    padded.resize(32, 0);
+                    U256::from_big_endian(&padded)
+                }),
+            );
 
             // And now we process these values in chunks by two.
             let value_chunks = values.chunks(2);
@@ -413,21 +417,11 @@ pub fn convert_vm_events_to_log_queries(events: &[VmEvent]) -> Vec<LogQuery> {
 
 #[cfg(test)]
 mod tests {
-    use zksync_basic_types::{
-        ethabi::{self, Token},
-        Address, L1BatchNumber, U256,
-    };
-    use zksync_system_constants::{
-        BOOTLOADER_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS, L2_ETH_TOKEN_ADDRESS,
-    };
-    use zksync_utils::u256_to_h256;
+    use std::str::FromStr;
 
-    use super::{
-        extract_bytecode_publication_requests_from_l1_messenger,
-        extract_l2tol1logs_from_l1_messenger, L1MessengerBytecodePublicationRequest,
-        L1MessengerL2ToL1Log,
-    };
-    use crate::VmEvent;
+    use zksync_system_constants::{BOOTLOADER_ADDRESS, L2_ETH_TOKEN_ADDRESS};
+
+    use super::*;
 
     fn create_l2_to_l1_log_sent_value(
         tx_number: U256,
@@ -573,5 +567,106 @@ mod tests {
         let logs = extract_bytecode_publication_requests_from_l1_messenger(&events);
 
         assert_eq!(expected, logs);
+    }
+
+    #[test]
+    fn test_convert_vm_events_to_log_queries() {
+        let event_with_1_topic_and_long_value = VmEvent {
+            location: (Default::default(), 0),
+            address: Address::from_str("0x0000000000000000000000000000000000008008").unwrap(),
+            indexed_topics: vec![H256::from_str("0x27FE8C0B49F49507B9D4FE5968C9F49EDFE5C9DF277D433A07A0717EDE97638D").unwrap()],
+            value: hex::decode("0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008001835D4D504D1BF838056AECA450A2768B400A55FF247B31B29E98CC392BAE71190000000000000000000000000000000000000000000000000000000000000001").unwrap(),
+        };
+
+        let expected_list: Vec<LogQuery> = serde_json::from_str(r#"[{"key": "0xc000000002", "address": "0x000000000000000000000000000000000000800d", "rw_flag": false, "aux_byte": 0, "rollback": false, "shard_id": 0, "timestamp": 0, "is_service": true, "read_value": "0x0", "written_value": "0x8008", "tx_number_in_block": 0}, {"key": "0x27fe8c0b49f49507b9d4fe5968c9f49edfe5c9df277d433a07a0717ede97638d", "address": "0x000000000000000000000000000000000000800d", "rw_flag": false, "aux_byte": 0, "rollback": false, "shard_id": 0, "timestamp": 0, "is_service": false, "read_value": "0x0", "written_value": "0x0", "tx_number_in_block": 0}, {"key": "0x1", "address": "0x000000000000000000000000000000000000800d", "rw_flag": false, "aux_byte": 0, "rollback": false, "shard_id": 0, "timestamp": 0, "is_service": false, "read_value": "0x0", "written_value": "0x0", "tx_number_in_block": 0}, {"key": "0x8001", "address": "0x000000000000000000000000000000000000800d", "rw_flag": false, "aux_byte": 0, "rollback": false, "shard_id": 0, "timestamp": 0, "is_service": false, "read_value": "0x0", "written_value": "0x835d4d504d1bf838056aeca450a2768b400a55ff247b31b29e98cc392bae7119", "tx_number_in_block": 0}, {"key": "0x1", "address": "0x000000000000000000000000000000000000800d", "rw_flag": false, "aux_byte": 0, "rollback": false, "shard_id": 0, "timestamp": 0, "is_service": false, "read_value": "0x0", "written_value": "0x0", "tx_number_in_block": 0}]"#).unwrap();
+        let actual_list = convert_vm_events_to_log_queries(&[event_with_1_topic_and_long_value]);
+        assert_eq!(actual_list, expected_list);
+
+        let event_with_2_topics = VmEvent {
+            location: (Default::default(), 0),
+            address: Address::from_str("0x000000000000000000000000000000000000800A").unwrap(),
+            indexed_topics: vec![
+                H256::from_str(
+                    "0x0F6798A560793A54C3BCFE86A93CDE1E73087D944C0EA20544137D4121396885",
+                )
+                .unwrap(),
+                H256::from_str(
+                    "0x00000000000000000000000036615CF349D7F6344891B1E7CA7C72883F5DC049",
+                )
+                .unwrap(),
+            ],
+            value: hex::decode("00000000000000000000000000000000000000000000000068155A43676E0000")
+                .unwrap(),
+        };
+
+        let expected_list: Vec<LogQuery> = serde_json::from_str(r#"[{"key": "0x2000000003", "address": "0x000000000000000000000000000000000000800d", "rw_flag": false, "aux_byte": 0, "rollback": false, "shard_id": 0, "timestamp": 0, "is_service": true, "read_value": "0x0", "written_value": "0x800a", "tx_number_in_block": 0}, {"key": "0xf6798a560793a54c3bcfe86a93cde1e73087d944c0ea20544137d4121396885", "address": "0x000000000000000000000000000000000000800d", "rw_flag": false, "aux_byte": 0, "rollback": false, "shard_id": 0, "timestamp": 0, "is_service": false, "read_value": "0x0", "written_value": "0x36615cf349d7f6344891b1e7ca7c72883f5dc049", "tx_number_in_block": 0}, {"key": "0x68155a43676e0000", "address": "0x000000000000000000000000000000000000800d", "rw_flag": false, "aux_byte": 0, "rollback": false, "shard_id": 0, "timestamp": 0, "is_service": false, "read_value": "0x0", "written_value": "0x0", "tx_number_in_block": 0}]"#).unwrap();
+        let actual_list = convert_vm_events_to_log_queries(&[event_with_2_topics]);
+        assert_eq!(actual_list, expected_list);
+
+        let event_with_3_topics = VmEvent {
+            location: (Default::default(), 0),
+            address: Address::from_str("0x0000000000000000000000000000000000008004").unwrap(),
+            indexed_topics: vec![
+                H256::from_str(
+                    "0xC94722FF13EACF53547C4741DAB5228353A05938FFCDD5D4A2D533AE0E618287",
+                )
+                .unwrap(),
+                H256::from_str(
+                    "0x010000691FA4F751F8312BC555242F18ED78CDC9AABC0EA77D7D5A675EE8AC6F",
+                )
+                .unwrap(),
+                H256::from_str(
+                    "0x0000000000000000000000000000000000000000000000000000000000000000",
+                )
+                .unwrap(),
+            ],
+            value: Vec::new(),
+        };
+
+        let expected_list: Vec<LogQuery> = serde_json::from_str(r#"[{"key": "0x4", "address": "0x000000000000000000000000000000000000800d", "rw_flag": false, "aux_byte": 0, "rollback": false, "shard_id": 0, "timestamp": 0, "is_service": true, "read_value": "0x0", "written_value": "0x8004", "tx_number_in_block": 0}, {"key": "0xc94722ff13eacf53547c4741dab5228353a05938ffcdd5d4a2d533ae0e618287", "address": "0x000000000000000000000000000000000000800d", "rw_flag": false, "aux_byte": 0, "rollback": false, "shard_id": 0, "timestamp": 0, "is_service": false, "read_value": "0x0", "written_value": "0x10000691fa4f751f8312bc555242f18ed78cdc9aabc0ea77d7d5a675ee8ac6f", "tx_number_in_block": 0}, {"key": "0x0", "address": "0x000000000000000000000000000000000000800d", "rw_flag": false, "aux_byte": 0, "rollback": false, "shard_id": 0, "timestamp": 0, "is_service": false, "read_value": "0x0", "written_value": "0x0", "tx_number_in_block": 0}]"#).unwrap();
+        let actual_list = convert_vm_events_to_log_queries(&[event_with_3_topics]);
+        assert_eq!(actual_list, expected_list);
+
+        let event_with_4_topics = VmEvent {
+            location: (Default::default(), 1),
+            address: Address::from_str("0x0000000000000000000000000000000000008006").unwrap(),
+            indexed_topics: vec![
+                H256::from_str(
+                    "0x290AFDAE231A3FC0BBAE8B1AF63698B0A1D79B21AD17DF0342DFB952FE74F8E5",
+                )
+                .unwrap(),
+                H256::from_str(
+                    "0x0000000000000000000000004AB56CD027A9AC1E5408D1290E24FD4624B4E8D1",
+                )
+                .unwrap(),
+                H256::from_str(
+                    "0x010001E3C92E1345FB2A4EC50F5B99C01DEAB45EEB81EAB41D0F0AB8FF2F58B4",
+                )
+                .unwrap(),
+                H256::from_str(
+                    "0x000000000000000000000000E3C0F6A36D71E4F7354A8FB319474BC7E5D822CA",
+                )
+                .unwrap(),
+            ],
+            value: Vec::new(),
+        };
+
+        let expected_list: Vec<LogQuery> = serde_json::from_str(r#"[{"key": "0x5", "address": "0x000000000000000000000000000000000000800d", "rw_flag": false, "aux_byte": 0, "rollback": false, "shard_id": 0, "timestamp": 0, "is_service": true, "read_value": "0x0", "written_value": "0x8006", "tx_number_in_block": 1}, {"key": "0x290afdae231a3fc0bbae8b1af63698b0a1d79b21ad17df0342dfb952fe74f8e5", "address": "0x000000000000000000000000000000000000800d", "rw_flag": false, "aux_byte": 0, "rollback": false, "shard_id": 0, "timestamp": 0, "is_service": false, "read_value": "0x0", "written_value": "0x4ab56cd027a9ac1e5408d1290e24fd4624b4e8d1", "tx_number_in_block": 1}, {"key": "0x10001e3c92e1345fb2a4ec50f5b99c01deab45eeb81eab41d0f0ab8ff2f58b4", "address": "0x000000000000000000000000000000000000800d", "rw_flag": false, "aux_byte": 0, "rollback": false, "shard_id": 0, "timestamp": 0, "is_service": false, "read_value": "0x0", "written_value": "0xe3c0f6a36d71e4f7354a8fb319474bc7e5d822ca", "tx_number_in_block": 1}]"#).unwrap();
+        let actual_list = convert_vm_events_to_log_queries(&[event_with_4_topics]);
+        assert_eq!(actual_list, expected_list);
+
+        let event_with_value_len_1 = VmEvent {
+            location: (Default::default(), 1),
+            address: Address::from_str("0xED38C34B90B125D6B59C02B8AC7ED8387876A8C8").unwrap(),
+            indexed_topics: vec![H256::from_str(
+                "0x1111111111111111111111111111111111111111111111111111111111111111",
+            )
+            .unwrap()],
+            value: hex::decode("11").unwrap(),
+        };
+
+        let expected_list: Vec<LogQuery> = serde_json::from_str(r#"[{"key": "0x100000002", "address": "0x000000000000000000000000000000000000800d", "rw_flag": false, "aux_byte": 0, "rollback": false, "shard_id": 0, "timestamp": 0, "is_service": true, "read_value": "0x0", "written_value": "0xed38c34b90b125d6b59c02b8ac7ed8387876a8c8", "tx_number_in_block": 1}, {"key": "0x1111111111111111111111111111111111111111111111111111111111111111", "address": "0x000000000000000000000000000000000000800d", "rw_flag": false, "aux_byte": 0, "rollback": false, "shard_id": 0, "timestamp": 0, "is_service": false, "read_value": "0x0", "written_value": "0x1100000000000000000000000000000000000000000000000000000000000000", "tx_number_in_block": 1}]"#).unwrap();
+        let actual_list = convert_vm_events_to_log_queries(&[event_with_value_len_1]);
+        assert_eq!(actual_list, expected_list);
     }
 }
