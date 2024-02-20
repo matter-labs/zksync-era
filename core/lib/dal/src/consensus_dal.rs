@@ -23,8 +23,8 @@ impl ConsensusDal<'_, '_> {
         Ok(Some(zksync_protobuf::serde::deserialize(genesis)?))
     }
 
-    /// Resets the whole consensus state.
-    async fn set_genesis(&mut self, genesis: &validator::Genesis) -> anyhow::Result<()> {
+    /// Updates the genesis.
+    pub async fn try_update_genesis(&mut self, genesis: &validator::Genesis) -> anyhow::Result<()> {
         if genesis.forks.iter().count()!=1 {
             anyhow::bail!("many-fork genesis unsupported");
         }
@@ -59,7 +59,7 @@ impl ConsensusDal<'_, '_> {
                 first_parent: None,
             }]).unwrap(),
         };
-        txn.consensus_dal().set_genesis(&new).await?;
+        txn.consensus_dal().try_update_genesis(&new).await?;
         txn.commit().await?;
         Ok(())
     }
@@ -79,7 +79,7 @@ impl ConsensusDal<'_, '_> {
                 first_parent: None,
             }]).unwrap(),
         };
-        txn.consensus_dal().set_genesis(&genesis).await?;
+        txn.consensus_dal().try_update_genesis(&genesis).await?;
         txn.commit().await?;
         Ok(())
     }

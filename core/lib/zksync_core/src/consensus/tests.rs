@@ -3,42 +3,39 @@ use std::ops::Range;
 use anyhow::Context as _;
 use tracing::Instrument as _;
 use zksync_concurrency::{ctx, scope};
-use zksync_consensus_executor::testonly::{connect_full_node, ValidatorNode};
 use zksync_consensus_storage as storage;
 use zksync_consensus_storage::PersistentBlockStore as _;
-use zksync_consensus_utils::no_copy::NoCopy;
+use zksync_consensus_network::testonly::{new_configs,new_fullnode};
+use zksync_consensus_executor as executor;
+use zksync_consensus_network as network;
 use zksync_dal::{connection::TestTemplate, ConnectionPool};
+use zksync_consensus_roles::validator::testonly::Setup;
 use zksync_protobuf::testonly::test_encode_random;
+use rand::Rng as _;
 
 use super::*;
-use crate::consensus::storage::CtxStorage;
-
 async fn make_blocks(
     ctx: &ctx::Ctx,
-    pool: &ConnectionPool,
+    store: &Store,
     mut range: Range<validator::BlockNumber>,
 ) -> ctx::Result<Vec<validator::FinalBlock>> {
     let rng = &mut ctx.rng();
-    let mut storage = CtxStorage::access(ctx, pool).await.wrap("access()")?;
+    let mut conn = store.access(ctx).await.wrap("access()")?;
     let mut blocks: Vec<validator::FinalBlock> = vec![];
     while !range.is_empty() {
-        let payload = storage
+        let payload = conn
             .payload(ctx, range.start)
             .await
             .wrap(range.start)?
             .context("payload not found")?
             .encode();
-        let header = match blocks.last().as_ref() {
+        /*let header = match blocks.last().as_ref() {
             Some(parent) => validator::BlockHeader::new(parent.header(), payload.hash()),
             None => validator::BlockHeader::genesis(payload.hash(), range.start),
-        };
+        };*/
         blocks.push(validator::FinalBlock {
             payload,
-            justification: validator::testonly::make_justification(
-                rng,
-                &header,
-                validator::ProtocolVersion::EARLIEST,
-            ),
+            justification: rng.gen(), 
         });
         range.start = range.start.next();
     }
@@ -64,7 +61,7 @@ async fn test_validator_block_store() {
             start: validator::BlockNumber(4),
             end: sk.last_block(),
         };
-        make_blocks(ctx, &sk.pool, range)
+        make_blocks(ctx, &sk.store, range)
             .await
             .context("make_blocks")
     })
@@ -79,6 +76,18 @@ async fn test_validator_block_store() {
     }
 }
 
+fn executor_config(cfg:&network::Config) -> executor::Config {
+    executor::Config {
+        server_addr: *cfg.server_addr,
+        public_addr: cfg.public_addr,
+        max_payload_size: usize::MAX,
+        node_key: cfg.gossip.key.clone(),
+        gossip_dynamic_inbound_limit: cfg.gossip.dynamic_inbound_limit,
+        gossip_static_inbound: cfg.gossip.static_inbound.clone(),
+        gossip_static_outbound: cfg.gossip.static_outbound.clone(),
+    }
+}
+
 // In the current implementation, consensus certificates are created asynchronously
 // for the miniblocks constructed by the StateKeeper. This means that consensus actor
 // is effectively just back filling the consensus certificates for the miniblocks in storage.
@@ -87,6 +96,8 @@ async fn test_validator() {
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(10.));
     let rng = &mut ctx.rng();
+    let setup = Setup::new(rng, 1); 
+    let cfgs = new_configs(rng, &setup, 0);
 
     scope::run!(ctx, |ctx, s| async {
         // Start state keeper.
@@ -100,27 +111,24 @@ async fn test_validator() {
             .await
             .context("sk.wait_for_miniblocks(<1st phase>)")?;
 
-        let cfg = ValidatorNode::new(&mut ctx.rng());
-        let validators = cfg.node.validators.clone();
-
         // Restart consensus actor a couple times, making it process a bunch of blocks each time.
         for iteration in 0..3 {
             scope::run!(ctx, |ctx, s| async {
                 // Start consensus actor (in the first iteration it will select a genesis block and
                 // store a cert for it).
                 let cfg = MainNodeConfig {
-                    executor: cfg.node.clone(),
-                    validator: cfg.validator.clone(),
+                    executor: executor_config(&cfgs[0]),
+                    key: setup.keys[0].clone(),
                 };
-                s.spawn_bg(cfg.run(ctx, sk.pool.clone()));
-                sk.store()
+                s.spawn_bg(cfg.run(ctx, sk.store.clone()));
+                sk.store
                     .wait_for_certificate(ctx, sk.last_block())
                     .await
                     .context("wait_for_certificate(<1st phase>)")?;
 
                 // Generate couple more blocks and wait for consensus to catch up.
                 sk.push_random_blocks(rng, 3).await;
-                sk.store()
+                sk.store
                     .wait_for_certificate(ctx, sk.last_block())
                     .await
                     .context("wait_for_certificate(<2nd phase>)")?;
@@ -128,14 +136,14 @@ async fn test_validator() {
                 // Synchronously produce blocks one by one, and wait for consensus.
                 for _ in 0..2 {
                     sk.push_random_blocks(rng, 1).await;
-                    sk.store()
+                    sk.store
                         .wait_for_certificate(ctx, sk.last_block())
                         .await
                         .context("wait_for_certificate(<3rd phase>)")?;
                 }
 
-                sk.store()
-                    .wait_for_blocks_and_verify(ctx, &validators, sk.last_block())
+                sk.store
+                    .wait_for_blocks_and_verify(ctx, sk.last_block())
                     .await
                     .context("wait_for_blocks_and_verify()")?;
                 Ok(())
@@ -149,55 +157,30 @@ async fn test_validator() {
     .unwrap();
 }
 
-// Test running a validator node and a couple of full nodes (aka fetchers).
+// Test running a validator node and a couple of full nodes.
 // Validator is producing signed blocks and fetchers are expected to fetch
 // them directly or indirectly.
 #[tokio::test(flavor = "multi_thread")]
-async fn test_fetcher() {
-    const FETCHERS: usize = 2;
+async fn test_full_nodes() {
+    const NODES: usize = 2;
 
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(10.));
     let rng = &mut ctx.rng();
+    let setup = Setup::new(rng,1);
+    let validator_cfgs = new_configs(rng,&setup,0);
 
     // topology:
-    // validator <-> fetcher <-> fetcher <-> ...
-    let cfg = ValidatorNode::new(rng);
-    let validators = cfg.node.validators.clone();
-    let mut cfg = MainNodeConfig {
-        executor: cfg.node,
-        validator: cfg.validator,
-    };
-    let mut fetcher_cfgs = vec![connect_full_node(rng, &mut cfg.executor)];
-    while fetcher_cfgs.len() < FETCHERS {
-        let cfg = connect_full_node(rng, fetcher_cfgs.last_mut().unwrap());
-        fetcher_cfgs.push(cfg);
+    // validator <-> node <-> node <-> ... 
+    let mut node_cfgs = vec![];
+    for _ in 0..NODES {
+        node_cfgs.push(new_fullnode(rng, &node_cfgs.last().unwrap_or(&validator_cfgs[0])));
     }
-    let fetcher_cfgs: Vec<_> = fetcher_cfgs
-        .into_iter()
-        .map(|executor| FetcherConfig { executor })
-        .collect();
-
-    // Create an initial database snapshot, which contains a cert for genesis block.
-    let pool = scope::run!(ctx, |ctx, s| async {
-        let pool = ConnectionPool::test_pool().await;
-        let (mut sk, runner) = testonly::StateKeeper::new(pool).await?;
-        s.spawn_bg(runner.run(ctx));
-        s.spawn_bg(cfg.clone().run(ctx, sk.pool.clone()));
-        sk.push_random_blocks(rng, 5).await;
-        sk.store()
-            .wait_for_certificate(ctx, sk.last_block())
-            .await?;
-        Ok(sk.pool)
-    })
-    .await
-    .unwrap();
-    let template = TestTemplate::freeze(pool).await.unwrap();
 
     // Run validator and fetchers in parallel.
     scope::run!(ctx, |ctx, s| async {
         // Run validator.
-        let pool = template.create_db(4).await?.build().await?;
+        let pool = ConnectionPool::test_pool().await;
         let (mut validator, runner) = testonly::StateKeeper::new(pool).await?;
         s.spawn_bg(async {
             runner
@@ -206,39 +189,47 @@ async fn test_fetcher() {
                 .await
                 .context("validator")
         });
-        s.spawn_bg(cfg.run(ctx, validator.pool.clone()));
+        let cfg = MainNodeConfig {
+            executor: executor_config(&validator_cfgs[0]),
+            key: setup.keys[0].clone(),
+        };
+        s.spawn_bg(cfg.run(ctx, validator.store.clone()));
 
-        // Run fetchers.
-        let mut fetchers = vec![];
-        for (i, cfg) in fetcher_cfgs.into_iter().enumerate() {
-            let i = NoCopy::from(i);
-            let pool = template.create_db(4).await?.build().await?;
-            let (fetcher, runner) = testonly::StateKeeper::new(pool).await?;
-            fetchers.push(fetcher.store());
+        // Run nodes.
+        let mut nodes = vec![];
+        for (i, cfg) in node_cfgs.iter().enumerate() {
+            let i = ctx::NoCopy(i);
+            let pool = ConnectionPool::test_pool().await;
+            let (node, runner) = testonly::StateKeeper::new(pool).await?;
+            nodes.push(node.store.clone());
             s.spawn_bg(async {
                 let i = i;
                 runner
                     .run(ctx)
-                    .instrument(tracing::info_span!("fetcher", i = *i))
+                    .instrument(tracing::info_span!("node", i = *i))
                     .await
-                    .with_context(|| format!("fetcher{}", *i))
+                    .with_context(|| format!("node{}", *i))
             });
-            s.spawn_bg(cfg.run(ctx, fetcher.pool, fetcher.actions_sender));
+            let fetcher = Fetcher {
+                config: executor_config(cfg),
+                client: node.client(),
+                actions: node.actions_sender,
+                sync_state: node.sync_state,
+            };
+            s.spawn_bg(fetcher.run(ctx, node.store));
         }
 
         // Make validator produce blocks and wait for fetchers to get them.
         validator.push_random_blocks(rng, 5).await;
         let want_last = validator.last_block();
         let want = validator
-            .store()
-            .wait_for_blocks_and_verify(ctx, &validators, want_last)
+            .store
+            .wait_for_blocks_and_verify(ctx, want_last)
             .await?;
-        for fetcher in &fetchers {
+        for node in &nodes {
             assert_eq!(
                 want,
-                fetcher
-                    .wait_for_blocks_and_verify(ctx, &validators, want_last)
-                    .await?
+                node.wait_for_blocks_and_verify(ctx, want_last).await?
             );
         }
         Ok(())
@@ -253,28 +244,25 @@ async fn test_fetcher_backfill_certs() {
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(10.));
     let rng = &mut ctx.rng();
-
-    let cfg = ValidatorNode::new(rng);
-    let mut cfg = MainNodeConfig {
-        executor: cfg.node,
-        validator: cfg.validator,
-    };
-    let fetcher_cfg = FetcherConfig {
-        executor: connect_full_node(rng, &mut cfg.executor),
+    let setup = Setup::new(rng,1);
+    let validator_cfgs = new_configs(rng,&setup,0);
+    let cfg = MainNodeConfig {
+        executor: executor_config(&validator_cfgs[0]),
+        key: setup.keys[0].clone(),
     };
 
     // Create an initial database snapshot, which contains some blocks: some with certs, some
     // without.
     let pool = scope::run!(ctx, |ctx, s| async {
         let pool = ConnectionPool::test_pool().await;
-        let (mut sk, runner) = testonly::StateKeeper::new(pool).await?;
+        let (mut sk, runner) = testonly::StateKeeper::new(pool.clone()).await?;
         s.spawn_bg(runner.run(ctx));
 
         // Some blocks with certs.
         scope::run!(ctx, |ctx, s| async {
-            s.spawn_bg(cfg.clone().run(ctx, sk.pool.clone()));
+            s.spawn_bg(cfg.clone().run(ctx, sk.store.clone()));
             sk.push_random_blocks(rng, 5).await;
-            sk.store()
+            sk.store
                 .wait_for_certificate(ctx, sk.last_block())
                 .await?;
             Ok(())
@@ -284,7 +272,7 @@ async fn test_fetcher_backfill_certs() {
         // Some blocks without certs.
         sk.push_random_blocks(rng, 5).await;
         sk.wait_for_miniblocks(ctx).await?;
-        Ok(sk.pool)
+        Ok(pool)
     })
     .await
     .unwrap();
@@ -296,14 +284,20 @@ async fn test_fetcher_backfill_certs() {
         let pool = template.create_db(4).await?.build().await?;
         let (mut validator, runner) = testonly::StateKeeper::new(pool).await?;
         s.spawn_bg(runner.run(ctx));
-        s.spawn_bg(cfg.run(ctx, validator.pool.clone()));
+        s.spawn_bg(cfg.run(ctx, validator.store.clone()));
 
         // Run fetcher.
         let pool = template.create_db(4).await?.build().await?;
         let (fetcher, runner) = testonly::StateKeeper::new(pool).await?;
-        let fetcher_store = fetcher.store();
+        let fetcher_store = fetcher.store.clone();
         s.spawn_bg(runner.run(ctx));
-        s.spawn_bg(fetcher_cfg.run(ctx, fetcher.pool, fetcher.actions_sender));
+        let fetcher = Fetcher {
+            config: executor_config(&new_fullnode(rng,&validator_cfgs[0])),
+            client: fetcher.client(),
+            sync_state: fetcher.sync_state,
+            actions: fetcher.actions_sender,
+        };
+        s.spawn_bg(fetcher.run(ctx, fetcher_store.clone()));
 
         // Make validator produce new blocks and
         // wait for the fetcher to get both the missing certs and the new blocks.

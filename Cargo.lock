@@ -8530,6 +8530,7 @@ dependencies = [
  "zksync_consensus_bft",
  "zksync_consensus_crypto",
  "zksync_consensus_executor",
+ "zksync_consensus_network",
  "zksync_consensus_roles",
  "zksync_consensus_storage",
  "zksync_consensus_utils",

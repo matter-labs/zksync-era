@@ -550,7 +550,7 @@ pub async fn initialize_components(
                     // Consensus is a new component.
                     // For now in case of error we just log it and allow the server
                     // to continue running.
-                    if let Err(err) = cfg.run(ctx, pool).await {
+                    if let Err(err) = cfg.run(ctx, consensus::Store::new(pool)).await {
                         tracing::error!(%err, "Consensus actor failed");
                     } else {
                         tracing::info!("Consensus actor stopped");

@@ -19,7 +19,6 @@ use zksync_web3_decl::error::{EnrichedClientError, EnrichedClientResult};
 use crate::{
     consensus::{
         config::Config,
-        storage::{BlockStore, CtxStorage},
         Store,
     },
     genesis::{ensure_genesis_state, GenesisParams},
@@ -54,6 +53,43 @@ impl Distribution<Config> for Standard {
                 .map(|_| (make_node_key(rng), make_addr(rng)))
                 .collect(),
         }
+    }
+}
+
+#[derive(Debug)]
+pub(super) struct StoreMainNodeClient(pub ConnectionPool);
+
+#[async_trait::async_trait]
+impl MainNodeClient for StoreMainNodeClient {
+    async fn fetch_system_contract_by_hash(&self, _hash: H256) -> EnrichedClientResult<Option<Vec<u8>>> {
+        unimplemented!()
+    }
+
+    async fn fetch_genesis_contract_bytecode(&self,_address: Address) -> EnrichedClientResult<Option<Vec<u8>>> {
+        unimplemented!()
+    }
+
+    async fn fetch_protocol_version(&self, _protocol_version: ProtocolVersionId) -> EnrichedClientResult<Option<api::ProtocolVersion>> {
+        unimplemented!()
+    }
+
+    async fn fetch_genesis_l1_batch_hash(&self) -> EnrichedClientResult<H256> {
+        unimplemented!()
+    }
+
+    async fn fetch_l2_block_number(&self) -> EnrichedClientResult<MiniblockNumber> {
+        Ok(self.0.access_storage().await.unwrap().blocks_dal().get_sealed_miniblock_number().await.unwrap().unwrap())
+    }
+
+    async fn fetch_l2_block(&self, number: MiniblockNumber, with_transactions: bool) -> EnrichedClientResult<Option<api::en::SyncBlock>> {
+        Ok(self.0.access_storage().await.unwrap().sync_dal().sync_block(number,with_transactions).await.unwrap())
+    }
+
+    async fn fetch_consensus_genesis(&self) -> EnrichedClientResult<Option<api::en::ConsensusGenesis>> {
+        let genesis = self.0.access_storage().await.unwrap().consensus_dal().genesis().await.unwrap();
+        Ok(genesis.map(|g|api::en::ConsensusGenesis(
+            zksync_protobuf::serde::serialize(&g,serde_json::value::Serializer).unwrap()
+        )))
     }
 }
 
@@ -217,6 +253,10 @@ impl MainNodeClient for MockMainNodeClient {
         }
         Ok(Some(block))
     }
+
+    async fn fetch_consensus_genesis(&self) -> EnrichedClientResult<Option<api::en::ConsensusGenesis>> {
+        unimplemented!()
+    }
 }
 
 /// Fake StateKeeper for tests.
@@ -231,13 +271,15 @@ pub(super) struct StateKeeper {
     fee_per_gas: u64,
     gas_per_pubdata: u64,
 
+    pub(super) sync_state: SyncState,
     pub(super) actions_sender: ActionQueueSender,
-    pub(super) pool: ConnectionPool,
+    pub(super) store: Store,
 }
 
 /// Fake StateKeeper task to be executed in the background.
 pub(super) struct StateKeeperRunner {
     actions_queue: ActionQueue,
+    sync_state: SyncState,
     pool: ConnectionPool,
 }
 
@@ -277,6 +319,7 @@ impl StateKeeper {
             .await
             .context("pending_batch_exists()")?;
         let (actions_sender, actions_queue) = ActionQueue::new();
+        let sync_state = SyncState::new();
         Ok((
             Self {
                 last_batch: last_l1_batch_number + if pending_batch { 1 } else { 0 },
@@ -286,9 +329,11 @@ impl StateKeeper {
                 fee_per_gas: 10,
                 gas_per_pubdata: 100,
                 actions_sender,
-                pool: pool.clone(),
+                sync_state: sync_state.clone(),
+                store: Store::new(pool.clone()),
             },
             StateKeeperRunner {
+                sync_state,
                 actions_queue,
                 pool: pool.clone(),
             },
@@ -356,24 +401,25 @@ impl StateKeeper {
         }
     }
 
+    pub fn client(&self) -> Box<dyn MainNodeClient> {
+        Box::new(StoreMainNodeClient(self.store.0.clone()))
+    }
+
     /// Last block that has been pushed to the `StateKeeper` via `ActionQueue`.
     /// It might NOT be present in storage yet.
     pub fn last_block(&self) -> validator::BlockNumber {
         validator::BlockNumber(self.last_block.0 as u64)
     }
 
-    /// Creates a new `BlockStore` for the underlying `ConnectionPool`.
-    pub fn store(&self) -> BlockStore {
-        Store::new(self.pool.clone()).into_block_store()
-    }
-
     // Wait for all pushed miniblocks to be produced.
     pub async fn wait_for_miniblocks(&self, ctx: &ctx::Ctx) -> ctx::Result<()> {
         const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(100);
-
         loop {
-            let mut storage = CtxStorage::access(ctx, &self.pool).await.wrap("access()")?;
-            if storage
+            if self
+                .store
+                .access(ctx)
+                .await
+                .wrap("access()")?
                 .payload(ctx, self.last_block())
                 .await
                 .wrap("storage.payload()")?
@@ -431,7 +477,7 @@ impl StateKeeperRunner {
                 miniblock_sealer_handle,
                 self.pool.clone(),
                 self.actions_queue,
-                SyncState::new(),
+                self.sync_state,
                 Box::<MockMainNodeClient>::default(),
                 Address::repeat_byte(11),
                 u32::MAX,

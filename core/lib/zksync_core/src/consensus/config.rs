@@ -56,6 +56,7 @@ impl Config {
     pub fn executor_config(&self, node_key: node::SecretKey) -> executor::Config {
         executor::Config {
             server_addr: self.server_addr,
+            public_addr: self.public_addr,
             max_payload_size: self.max_payload_size,
             node_key,
             gossip_dynamic_inbound_limit: self.gossip_dynamic_inbound_limit,
