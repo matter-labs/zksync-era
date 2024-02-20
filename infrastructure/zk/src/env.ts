@@ -129,7 +129,7 @@ export function modify(variable: string, assignedVariable: string) {
     reload();
 }
 
-export function remove(variable: string) {
+export function removeFromInit(variable: string) {
     const initEnv = 'etc/env/.init.env';
     if (!fs.existsSync(initEnv)) {
         return;

@@ -144,7 +144,7 @@ async function setHyperchainMetadata() {
     if (results.l1Chain !== BaseNetwork.LOCALHOST || results.l1Chain !== BaseNetwork.LOCALHOST_CUSTOM) {
         // If it's not a localhost chain, we need to remove the CONTRACTS_CREATE2_FACTORY_ADDR from the .env file and use default value.
         // Otherwise it's a chance that we will reuse create2 factory from the localhost chain.
-        env.remove('CONTRACTS_CREATE2_FACTORY_ADDR');
+        env.removeFromInit('CONTRACTS_CREATE2_FACTORY_ADDR');
     }
 
     if (results.l1Chain !== BaseNetwork.LOCALHOST) {
