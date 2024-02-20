@@ -11,8 +11,8 @@ use zksync_config::{
         },
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
-        FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig, PrometheusConfig,
-        ProofDataHandlerConfig, WitnessGeneratorConfig,
+        FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig, ObservabilityConfig,
+        PrometheusConfig, ProofDataHandlerConfig, WitnessGeneratorConfig,
     },
     ApiConfig, ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig, ETHWatchConfig,
     GasAdjusterConfig, ObjectStoreConfig, PostgresConfig,
@@ -37,6 +37,10 @@ struct Cli {
     /// Generate genesis block for the first contract deployment using temporary DB.
     #[arg(long)]
     genesis: bool,
+    /// Wait for the `setChainId` event during genesis.
+    /// If `--genesis` is not set, this flag is ignored.
+    #[arg(long)]
+    set_chain_id: bool,
     /// Rebuild tree.
     #[arg(long)]
     rebuild_tree: bool,
@@ -68,24 +72,24 @@ impl FromStr for ComponentsToRun {
 async fn main() -> anyhow::Result<()> {
     let opt = Cli::parse();
 
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let log_format = vlog::log_format_from_env();
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let sentry_url = vlog::sentry_url_from_env();
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let environment = vlog::environment_from_env();
+    let observability_config =
+        ObservabilityConfig::from_env().context("ObservabilityConfig::from_env()")?;
+    let log_format: vlog::LogFormat = observability_config
+        .log_format
+        .parse()
+        .context("Invalid log format")?;
 
     let mut builder = vlog::ObservabilityBuilder::new().with_log_format(log_format);
-    if let Some(sentry_url) = &sentry_url {
+    if let Some(sentry_url) = &observability_config.sentry_url {
         builder = builder
             .with_sentry_url(sentry_url)
             .expect("Invalid Sentry URL")
-            .with_sentry_environment(environment);
+            .with_sentry_environment(observability_config.sentry_environment);
     }
     let _guard = builder.build();
 
     // Report whether sentry is running after the logging subsystem was initialized.
-    if let Some(sentry_url) = sentry_url {
+    if let Some(sentry_url) = observability_config.sentry_url {
         tracing::info!("Sentry configured with URL: {sentry_url}");
     } else {
         tracing::info!("No sentry URL was provided");
@@ -142,6 +146,7 @@ async fn main() -> anyhow::Result<()> {
             &network,
             &contracts,
             &eth_client.web3_url,
+            opt.set_chain_id,
         )
         .await
         .context("genesis_init")?;

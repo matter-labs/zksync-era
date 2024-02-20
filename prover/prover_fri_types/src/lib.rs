@@ -173,7 +173,7 @@ impl ProverServiceDataKey {
         }
     }
 
-    const EIP_4844_CIRCUIT_ID: u8 = 19;
+    const EIP_4844_CIRCUIT_ID: u8 = 255;
 
     /// Key for 4844 circuit.
     // Currently this is a special 'aux' style circuit (as we have just one),
