@@ -23,7 +23,9 @@ use crate::{
 };
 
 fn test_pubdata_counter(calldata: Vec<u8>) -> u32 {
-    let bytecode = read_bytecode("etc/contracts-test-data/artifacts-zk/contracts/pubdata-counter/pubdata-counter.sol/PubdataCounter.json");
+    let bytecode = read_bytecode(
+        "etc/contracts-test-data/artifacts-zk/contracts/storage/storage.sol/StorageTester.json",
+    );
 
     let test_contract_address = Address::random();
 
@@ -59,7 +61,9 @@ fn test_pubdata_counter(calldata: Vec<u8>) -> u32 {
 
 #[test]
 fn test_storage_behavior() {
-    let contract = load_contract("etc/contracts-test-data/artifacts-zk/contracts/pubdata-counter/pubdata-counter.sol/PubdataCounter.json");
+    let contract = load_contract(
+        "etc/contracts-test-data/artifacts-zk/contracts/storage/storage.sol/StorageTester.json",
+    );
 
     let base_pubdata = test_pubdata_counter(vec![]);
     let simple_test_pubdata = test_pubdata_counter(
