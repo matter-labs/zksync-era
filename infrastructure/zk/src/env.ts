@@ -129,6 +129,16 @@ export function modify(variable: string, assignedVariable: string) {
     reload();
 }
 
+export function removeFromInit(variable: string) {
+    const initEnv = 'etc/env/.init.env';
+    if (!fs.existsSync(initEnv)) {
+        return;
+    }
+
+    utils.replaceInFile(initEnv, `${variable}=.*`, '');
+    reload();
+}
+
 // merges .init.env with current env file so all configs are in the same place
 export function mergeInitToEnv() {
     const env = dotenv.parse(fs.readFileSync(process.env.ENV_FILE!));
