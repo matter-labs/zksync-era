@@ -1206,6 +1206,20 @@ dependencies = [
 [[package]]
 name = "circuit_definitions"
 version = "0.1.0"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=mmzk0221_add_finalization_hint#61b7366c5da85919de73bfe66de79c73823de5a9"
+dependencies = [
+ "crossbeam 0.8.2",
+ "derivative",
+ "seq-macro",
+ "serde",
+ "snark_wrapper",
+ "zk_evm 1.4.1",
+ "zkevm_circuits 1.4.1",
+]
+
+[[package]]
+name = "circuit_definitions"
+version = "0.1.0"
 source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.0#de2ecad62ac8c12777e576dca20311ad8ec770d1"
 dependencies = [
  "crossbeam 0.8.2",
@@ -1215,20 +1229,6 @@ dependencies = [
  "snark_wrapper",
  "zk_evm 1.4.0",
  "zkevm_circuits 1.4.0",
-]
-
-[[package]]
-name = "circuit_definitions"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1#d4e9215d4fe8f4d311e1c01a9b561e4d04cb426b"
-dependencies = [
- "crossbeam 0.8.2",
- "derivative",
- "seq-macro",
- "serde",
- "snark_wrapper",
- "zk_evm 1.4.1",
- "zkevm_circuits 1.4.1",
 ]
 
 [[package]]
@@ -8177,15 +8177,15 @@ dependencies = [
 [[package]]
 name = "zkevm_test_harness"
 version = "1.4.1"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1#d4e9215d4fe8f4d311e1c01a9b561e4d04cb426b"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=mmzk0221_add_finalization_hint#61b7366c5da85919de73bfe66de79c73823de5a9"
 dependencies = [
  "bincode",
- "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1)",
+ "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=mmzk0221_add_finalization_hint)",
  "codegen 0.2.0",
  "crossbeam 0.8.2",
  "curl",
  "derivative",
- "env_logger 0.10.0",
+ "env_logger 0.9.3",
  "hex",
  "lazy_static",
  "rand 0.4.6",

@@ -1,0 +1,23 @@
+[package]
+name = "testing"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+
+zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "mmzk0221_add_finalization_hint" }
+circuit_definitions = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "mmzk0221_add_finalization_hint" , features = [
+    "log_tracing",
+] }
+shivini = { git = "https://github.com/matter-labs/era-shivini.git", branch = "v1.4.1", optional = true }
+zksync_prover_fri_types = {path = "../prover_fri_types"}
+vk_setup_data_generator_server_fri = { path = "../vk_setup_data_generator_server_fri"}
+crossbeam = "0.8"
+zksync_witness_vector_generator = { path = "../witness_vector_generator"}
+zksync_types = { path = "../../core/lib/types" }
+serde = { version = "1.0", features = ["derive"] }
+serde_derive = "1.0"
+serde_json = "1.0"
+bincode = "1.0"
