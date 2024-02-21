@@ -5,7 +5,11 @@ use tokio::{
     sync::{watch, OnceCell},
     task::JoinHandle,
 };
-use zksync_config::GasAdjusterConfig;
+use zksync_config::{
+    configs::chain::{L1BatchCommitDataGeneratorMode, StateKeeperConfig},
+    GasAdjusterConfig,
+};
+use zksync_env_config::FromEnv;
 use zksync_eth_client::clients::QueryClient;
 
 use super::gas_adjuster::{RollupGasAdjuster, ValidiumGasAdjuster};
