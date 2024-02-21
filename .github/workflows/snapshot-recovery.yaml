@@ -11,7 +11,7 @@ jobs:
       - name: Step 1 - Make the preparation
         run: |
           echo "Install Rust"
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           echo "install NVM"
           curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
           echo "Install apt stuff"
