@@ -12,7 +12,6 @@ use vise::{
 };
 use zksync_mempool::MempoolStore;
 use zksync_types::{
-    storage_writes_deduplicator::StorageWritesDeduplicator,
     tx::tx_execution_info::DeduplicatedWritesMetrics, ProtocolVersionId, StorageLogQueryType,
 };
 
@@ -414,6 +413,7 @@ pub(crate) struct BlockTipMetrics {
     execution_metrics_size: Histogram<usize>,
     #[metrics(buckets = Buckets::exponential(1.0..=60000.0, 2.0))]
     block_writes_metrics_size: Histogram<usize>,
+    #[metrics(buckets = Buckets::exponential(1.0..=60000.0, 2.0))]
     block_writes_metrics_gas_count: Histogram<usize>,
 }
 
