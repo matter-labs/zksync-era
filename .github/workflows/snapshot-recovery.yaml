@@ -2,6 +2,9 @@ name: Check JSON RPC for External Node Snapshot Recovery
 on:
   pull_request:
 
+env:
+  ZKSYNC_HOME: ${{ github.workspace }}
+
 jobs:
   prepare_env:
     runs-on: [matterlabs-ci-runner]
@@ -47,8 +50,7 @@ jobs:
           
       - name: Step 2 - Run zk init
         run: |
-          ZKSYNC_HOME=$(pwd)
-          echo $(pwd)/bin  >> $GITHUB_PATH
+          echo "${{ env.ZKSYNC_HOME }}/bin" >> $GITHUB_PATH
           zk
           zk init
 
