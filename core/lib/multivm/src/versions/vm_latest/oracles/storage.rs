@@ -44,6 +44,15 @@ use crate::{
 const WARM_READ_COST_ERGS: u32 = 30;
 const WARM_WRITE_COST_ERGS: u32 = 60;
 
+/// If a write is after a read, we do not take into account the cost for reading the initial value from storage.
+const COLD_WRITE_AFTER_WARM_READ_COST: u32 =
+    STORAGE_ACCESS_COLD_WRITE_COST - STORAGE_ACCESS_COLD_READ_COST;
+
+const WARM_READ_REFUND: u32 = STORAGE_ACCESS_COLD_READ_COST - WARM_READ_COST_ERGS;
+const WARM_WRITE_REFUND: u32 = STORAGE_ACCESS_COLD_WRITE_COST - WARM_WRITE_COST_ERGS;
+const COLD_WRITE_AFTER_WARM_READ_REFUND: u32 =
+    STORAGE_ACCESS_COLD_WRITE_COST - COLD_WRITE_AFTER_WARM_READ_COST;
+
 // While the storage does not support different shards, it was decided to write the
 // code of the StorageOracle with the shard parameters in mind.
 pub(crate) fn triplet_to_storage_key(_shard_id: u8, address: Address, key: U256) -> StorageKey {
@@ -231,13 +240,13 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
         if query.rw_flag {
             if self.written_storage_keys.inner().contains_key(&key) {
                 StorageAccessRefund::Warm {
-                    ergs: STORAGE_ACCESS_COLD_WRITE_COST - WARM_WRITE_COST_ERGS,
+                    ergs: WARM_WRITE_REFUND,
                 }
             } else if self.read_storage_keys.inner().contains_key(&key) {
                 // If the user has read the value, but never written to it, the user will have to compensate for the write, but not for the read.
                 // So the user will pay `STORAGE_ACCESS_COLD_WRITE_COST - STORAGE_ACCESS_COLD_READ_COST` for such write.
                 StorageAccessRefund::Warm {
-                    ergs: STORAGE_ACCESS_COLD_READ_COST,
+                    ergs: COLD_WRITE_AFTER_WARM_READ_REFUND,
                 }
             } else {
                 StorageAccessRefund::Cold
@@ -245,7 +254,7 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
         } else {
             if self.read_storage_keys.inner().contains_key(&key) {
                 StorageAccessRefund::Warm {
-                    ergs: STORAGE_ACCESS_COLD_READ_COST - WARM_READ_COST_ERGS,
+                    ergs: WARM_READ_REFUND,
                 }
             } else {
                 StorageAccessRefund::Cold
@@ -550,6 +559,10 @@ fn get_pubdata_price_bytes(initial_value: U256, final_value: U256, is_initial: b
 
 #[cfg(test)]
 mod tests {
+    use zksync_state::{InMemoryStorage, StorageView};
+    use zksync_types::H256;
+    use zksync_utils::h256_to_u256;
+
     use super::*;
 
     #[test]
@@ -570,6 +583,187 @@ mod tests {
         assert_eq!(
             repeated_bytes_price,
             (compression_len + BYTES_PER_ENUMERATION_INDEX as usize) as u32
+        );
+    }
+
+    enum TestQueryType {
+        StorageRead,
+        StorageWrite,
+    }
+
+    fn make_storage_query(
+        key: StorageKey,
+        value: U256,
+        timestamp: Timestamp,
+        query_type: TestQueryType,
+    ) -> LogQuery {
+        let (rw_flag, aux_byte) = match query_type {
+            TestQueryType::StorageRead => (false, STORAGE_AUX_BYTE),
+            TestQueryType::StorageWrite => (true, STORAGE_AUX_BYTE),
+        };
+
+        LogQuery {
+            shard_id: 0,
+            address: *key.address(),
+            key: h256_to_u256(*key.key()),
+            read_value: U256::zero(),
+            written_value: value,
+            rw_flag,
+            aux_byte,
+            tx_number_in_block: 0,
+            timestamp,
+            is_service: false,
+            rollback: false,
+        }
+    }
+
+    #[test]
+    fn test_hot_cold_storage() {
+        let storage = StorageView::new(InMemoryStorage::default()).to_rc_ptr();
+
+        let mut storage_oracle = StorageOracle::<_, HistoryEnabled>::new(storage.clone());
+
+        storage_oracle.start_frame(Timestamp(0));
+
+        let key1 = StorageKey::new(AccountTreeId::new(Address::default()), H256::default());
+        let key2 = StorageKey::new(
+            AccountTreeId::new(Address::default()),
+            H256::from_low_u64_be(1),
+        );
+
+        assert!(
+            storage_oracle.get_access_refund(
+                0,
+                &make_storage_query(
+                    key1,
+                    U256::default(),
+                    Timestamp(0),
+                    TestQueryType::StorageRead
+                )
+            ) == StorageAccessRefund::Cold
+        );
+        assert!(
+            storage_oracle.get_access_refund(
+                0,
+                &make_storage_query(
+                    key1,
+                    U256::default(),
+                    Timestamp(0),
+                    TestQueryType::StorageWrite
+                )
+            ) == StorageAccessRefund::Cold
+        );
+
+        storage_oracle.execute_partial_query(
+            0,
+            make_storage_query(
+                key1,
+                U256::default(),
+                Timestamp(0),
+                TestQueryType::StorageRead,
+            ),
+        );
+
+        assert!(
+            storage_oracle.get_access_refund(
+                0,
+                &make_storage_query(
+                    key1,
+                    U256::default(),
+                    Timestamp(0),
+                    TestQueryType::StorageRead
+                )
+            ) == StorageAccessRefund::Warm {
+                ergs: WARM_READ_REFUND
+            }
+        );
+        assert!(
+            storage_oracle.get_access_refund(
+                0,
+                &make_storage_query(
+                    key1,
+                    U256::default(),
+                    Timestamp(0),
+                    TestQueryType::StorageWrite
+                )
+            ) == StorageAccessRefund::Warm {
+                ergs: COLD_WRITE_AFTER_WARM_READ_REFUND
+            }
+        );
+
+        storage_oracle.execute_partial_query(
+            0,
+            make_storage_query(
+                key1,
+                U256::default(),
+                Timestamp(0),
+                TestQueryType::StorageWrite,
+            ),
+        );
+
+        assert!(
+            storage_oracle.get_access_refund(
+                0,
+                &make_storage_query(
+                    key1,
+                    U256::default(),
+                    Timestamp(0),
+                    TestQueryType::StorageRead
+                )
+            ) == StorageAccessRefund::Warm {
+                ergs: WARM_READ_REFUND
+            }
+        );
+        assert!(
+            storage_oracle.get_access_refund(
+                0,
+                &make_storage_query(
+                    key1,
+                    U256::default(),
+                    Timestamp(0),
+                    TestQueryType::StorageWrite
+                )
+            ) == StorageAccessRefund::Warm {
+                ergs: WARM_WRITE_REFUND
+            }
+        );
+
+        // Now we also test that a write can make both writes and reads warm:
+        storage_oracle.execute_partial_query(
+            0,
+            make_storage_query(
+                key2,
+                U256::default(),
+                Timestamp(0),
+                TestQueryType::StorageWrite,
+            ),
+        );
+
+        assert!(
+            storage_oracle.get_access_refund(
+                0,
+                &make_storage_query(
+                    key2,
+                    U256::default(),
+                    Timestamp(0),
+                    TestQueryType::StorageRead
+                )
+            ) == StorageAccessRefund::Warm {
+                ergs: WARM_READ_REFUND
+            }
+        );
+        assert!(
+            storage_oracle.get_access_refund(
+                0,
+                &make_storage_query(
+                    key2,
+                    U256::default(),
+                    Timestamp(0),
+                    TestQueryType::StorageWrite
+                )
+            ) == StorageAccessRefund::Warm {
+                ergs: WARM_WRITE_REFUND
+            }
         );
     }
 }
