@@ -111,7 +111,7 @@ impl InternalApiConfig {
             l2_testnet_paymaster_addr: contracts_config.l2_testnet_paymaster_addr,
             req_entities_limit: web3_config.req_entities_limit(),
             fee_history_limit: web3_config.fee_history_limit(),
-            filters_disabled: web3_config.filters_disabled.unwrap_or(false),
+            filters_disabled: web3_config.filters_disabled,
         }
     }
 }

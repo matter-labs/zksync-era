@@ -39,7 +39,8 @@ pub struct Web3JsonRpcConfig {
     /// there are multiple nodes behind a load balancer the client cannot reliably
     /// query the previously created filter as the request might get routed to a
     /// different node.
-    pub filters_disabled: Option<bool>,
+    #[serde(default)]
+    pub filters_disabled: bool,
     /// Max possible limit of filters to be in the state at once.
     pub filters_limit: Option<u32>,
     /// Max possible limit of subscriptions to be in the state at once.
@@ -108,7 +109,7 @@ impl Web3JsonRpcConfig {
             ws_port: 3051,
             ws_url: "ws://localhost:3051".into(),
             req_entities_limit: Some(10000),
-            filters_disabled: Some(false),
+            filters_disabled: false,
             filters_limit: Some(10000),
             subscriptions_limit: Some(10000),
             pubsub_polling_interval: Some(200),

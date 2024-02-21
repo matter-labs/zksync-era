@@ -63,7 +63,7 @@ mod tests {
                 ws_port: 3051,
                 ws_url: "ws://127.0.0.1:3051".into(),
                 req_entities_limit: Some(10000),
-                filters_disabled: Some(true),
+                filters_disabled: false,
                 filters_limit: Some(10000),
                 subscriptions_limit: Some(10000),
                 pubsub_polling_interval: Some(200),
