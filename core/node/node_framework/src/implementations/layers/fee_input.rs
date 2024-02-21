@@ -2,7 +2,10 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use zksync_config::{configs::chain::StateKeeperConfig, GasAdjusterConfig};
-use zksync_core::{fee_model::MainNodeFeeInputProvider, l1_gas_price::GasAdjuster};
+use zksync_core::{
+    fee_model::MainNodeFeeInputProvider,
+    l1_gas_price::{GasAdjuster, RollupGasAdjuster, ValidiumGasAdjuster},
+};
 use zksync_types::fee_model::FeeModelConfig;
 
 use crate::{
@@ -40,10 +43,20 @@ impl WiringLayer for SequencerFeeInputLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         let client = context.get_resource::<EthInterfaceResource>().await?.0;
-        let adjuster = GasAdjuster::new(client, self.gas_adjuster_config)
-            .await
-            .context("GasAdjuster::new()")?;
-        let gas_adjuster = Arc::new(adjuster);
+        let validium_mode = std::env::var("VALIDIUM_MODE").unwrap() == "true";
+        let gas_adjuster: Arc<dyn GasAdjuster> = if validium_mode {
+            Arc::new(
+                ValidiumGasAdjuster::new(client, self.gas_adjuster_config)
+                    .await
+                    .context("ValidiumGasAdjuster::new()")?,
+            )
+        } else {
+            Arc::new(
+                RollupGasAdjuster::new(client, self.gas_adjuster_config)
+                    .await
+                    .context("RollupGasAdjuster::new()")?,
+            )
+        };
 
         let batch_fee_input_provider = Arc::new(MainNodeFeeInputProvider::new(
             gas_adjuster.clone(),
@@ -58,7 +71,7 @@ impl WiringLayer for SequencerFeeInputLayer {
 
 #[derive(Debug)]
 struct GasAdjusterTask {
-    gas_adjuster: Arc<GasAdjuster>,
+    gas_adjuster: Arc<dyn GasAdjuster>,
 }
 
 #[async_trait::async_trait]

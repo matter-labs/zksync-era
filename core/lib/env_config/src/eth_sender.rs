@@ -69,9 +69,7 @@ mod tests {
     }
 
     fn validium_expected_config() -> ETHSenderConfig {
-        let mut validium_config = rollup_expected_config();
-        validium_config.gas_adjuster.l1_gas_per_pubdata_byte = 0;
-        validium_config
+        rollup_expected_config()
     }
 
     fn from_env(config: &str, expected_config: ETHSenderConfig) {

@@ -5,40 +5,44 @@ use zksync_config::GasAdjusterConfig;
 use zksync_eth_client::{Error, EthInterface};
 use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
 
-use super::{metrics::METRICS, GasAdjuster, GasStatistics, L1GasPriceProvider, L1TxParamsProvider};
+use super::{metrics::METRICS, GasAdjuster, GasStatistics, L1TxParamsProvider};
 
 #[derive(Debug)]
-pub struct RollupGasAdjuster<E> {
+pub struct RollupGasAdjuster {
     pub(super) statistics: GasStatistics,
     pub(super) config: GasAdjusterConfig,
-    eth_client: E,
+    eth_client: Arc<dyn EthInterface>,
 }
 
 #[async_trait]
-impl<E: EthInterface> GasAdjuster<E> for RollupGasAdjuster<E> {
-    fn into_l1_gas_price_provider(self: Arc<Self>) -> Arc<dyn L1GasPriceProvider> {
-        self
-    }
-
-    fn into_l1_tx_params_provider(self: Arc<Self>) -> Arc<dyn L1TxParamsProvider> {
-        self
-    }
-
+impl GasAdjuster for RollupGasAdjuster {
     fn config(&self) -> &GasAdjusterConfig {
         &self.config
     }
 
-    fn eth_client(&self) -> &E {
+    fn eth_client(&self) -> &dyn EthInterface {
         &self.eth_client
     }
 
     fn statistics(&self) -> &GasStatistics {
         &self.statistics
     }
+
+    fn into_l1_tx_params_provider(self: Arc<Self>) -> Arc<dyn L1TxParamsProvider> {
+        self
+    }
+
+    fn estimate_effective_pubdata_price(&self) -> u64 {
+        // For now, pubdata is only sent via calldata, so its price is pegged to the L1 gas price.
+        self.estimate_effective_gas_price() * L1_GAS_PER_PUBDATA_BYTE as u64
+    }
 }
 
-impl<E: EthInterface> RollupGasAdjuster<E> {
-    pub async fn new(eth_client: E, config: GasAdjusterConfig) -> Result<Self, Error> {
+impl RollupGasAdjuster {
+    pub async fn new(
+        eth_client: Arc<dyn EthInterface>,
+        config: GasAdjusterConfig,
+    ) -> Result<Self, Error> {
         // Subtracting 1 from the "latest" block number to prevent errors in case
         // the info about the latest block is not yet present on the node.
         // This sometimes happens on Infura.
@@ -58,30 +62,7 @@ impl<E: EthInterface> RollupGasAdjuster<E> {
     }
 }
 
-impl<E: EthInterface> L1GasPriceProvider for RollupGasAdjuster<E> {
-    /// Returns the sum of base and priority fee, in wei, not considering time in mempool.
-    /// Can be used to get an estimate of current gas price.
-    fn estimate_effective_gas_price(&self) -> u64 {
-        if let Some(price) = self.config.internal_enforced_l1_gas_price {
-            return price;
-        }
-
-        let effective_gas_price = self.get_base_fee(0) + self.get_priority_fee();
-
-        let calculated_price =
-            (self.config.internal_l1_pricing_multiplier * effective_gas_price as f64) as u64;
-
-        // Bound the price if it's too high.
-        self.bound_gas_price(calculated_price)
-    }
-
-    fn estimate_effective_pubdata_price(&self) -> u64 {
-        // For now, pubdata is only sent via calldata, so its price is pegged to the L1 gas price.
-        self.estimate_effective_gas_price() * L1_GAS_PER_PUBDATA_BYTE as u64
-    }
-}
-
-impl<E: EthInterface> L1TxParamsProvider for RollupGasAdjuster<E> {
+impl L1TxParamsProvider for RollupGasAdjuster {
     // This is the method where we decide how much we are ready to pay for the
     // base_fee based on the number of L1 blocks the transaction has been in the mempool.
     // This is done in order to avoid base_fee spikes (e.g. during NFT drops) and

@@ -53,7 +53,7 @@ pub trait BatchFeeModelInputProvider: fmt::Debug + 'static + Send + Sync {
 /// it from other node.
 #[derive(Debug)]
 pub struct MainNodeFeeInputProvider {
-    provider: Arc<GasAdjuster>,
+    provider: Arc<dyn GasAdjuster>,
     config: FeeModelConfig,
 }
 
@@ -74,7 +74,7 @@ impl BatchFeeModelInputProvider for MainNodeFeeInputProvider {
 }
 
 impl MainNodeFeeInputProvider {
-    pub fn new(provider: Arc<GasAdjuster>, config: FeeModelConfig) -> Self {
+    pub fn new(provider: Arc<dyn GasAdjuster>, config: FeeModelConfig) -> Self {
         Self { provider, config }
     }
 }
