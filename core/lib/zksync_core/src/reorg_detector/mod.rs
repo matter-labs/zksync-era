@@ -8,10 +8,7 @@ use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthChe
 use zksync_types::{L1BatchNumber, MiniblockNumber, H256};
 use zksync_web3_decl::{
     error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult},
-    jsonrpsee::{
-        core::ClientError as RpcError,
-        http_client::{HttpClient, HttpClientBuilder},
-    },
+    jsonrpsee::{core::ClientError as RpcError, http_client::HttpClient},
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
 };
 
@@ -213,10 +210,7 @@ pub struct ReorgDetector {
 impl ReorgDetector {
     const DEFAULT_SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 
-    pub fn new(url: &str, pool: ConnectionPool) -> Self {
-        let client = HttpClientBuilder::default()
-            .build(url)
-            .expect("Failed to create HTTP client");
+    pub fn new(client: HttpClient, pool: ConnectionPool) -> Self {
         let (health_check, health_updater) = ReactiveHealthCheck::new("reorg_detector");
         Self {
             client: Box::new(client),

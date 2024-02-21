@@ -14,7 +14,7 @@ use zksync_types::{
 };
 use zksync_web3_decl::{
     error::{ClientRpcContext, EnrichedClientResult},
-    jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
+    jsonrpsee::http_client::HttpClient,
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
 };
 
@@ -109,8 +109,7 @@ pub struct TxProxy {
 }
 
 impl TxProxy {
-    pub fn new(main_node_url: &str) -> Self {
-        let client = HttpClientBuilder::default().build(main_node_url).unwrap();
+    pub fn new(client: HttpClient) -> Self {
         Self {
             client,
             tx_cache: TxCache::default(),

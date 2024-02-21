@@ -54,12 +54,14 @@ async fn prover_and_assert_base_layer(
         .context("circuit missing")?;
     let circuit = match &circuit_wrapper {
         CircuitWrapper::Base(base) => base.clone(),
-        CircuitWrapper::Recursive(_) => anyhow::bail!("Expected base layer circuit"),
+        _ => anyhow::bail!("Expected base layer circuit"),
     };
     let keystore = Keystore::default();
-    let circuit_setup_data =
-        generate_setup_data_common(&keystore, true, circuit.numeric_circuit_type())
-            .context("generate_cpu_base_layers_setup_data()")?;
+    let circuit_setup_data = generate_setup_data_common(
+        &keystore,
+        ProverServiceDataKey::new_basic(circuit.numeric_circuit_type()),
+    )
+    .context("generate_cpu_base_layers_setup_data()")?;
     let setup_data = Arc::new(circuit_setup_data.into());
     let setup_key = ProverServiceDataKey::new(circuit_id, aggregation_round);
     let prover_job = ProverJob::new(block_number, expected_proof_id, circuit_wrapper, setup_key);
