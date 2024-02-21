@@ -404,13 +404,13 @@ pub(super) static EXECUTOR_METRICS: vise::Global<ExecutorMetrics> = vise::Global
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "block_tip")]
 pub(crate) struct BlockTipMetrics {
-    #[metrics(buckets = Buckets::exponential(1.0..=60000.0, 2.0))]
+    #[metrics(buckets = Buckets::exponential(60000.0..=80000000.0, 2.0))]
     gas_used: Histogram<usize>,
     #[metrics(buckets = Buckets::exponential(1.0..=60000.0, 2.0))]
     pubdata_published: Histogram<usize>,
-    #[metrics(buckets = Buckets::exponential(1.0..=60000.0, 2.0))]
+    #[metrics(buckets = Buckets::exponential(1.0..=4096.0, 2.0))]
     circuit_statistic: Histogram<usize>,
-    #[metrics(buckets = Buckets::exponential(1.0..=60000.0, 2.0))]
+    #[metrics(buckets = Buckets::exponential(1.0..=4096.0, 2.0))]
     execution_metrics_size: Histogram<usize>,
     #[metrics(buckets = Buckets::exponential(1.0..=60000.0, 2.0))]
     block_writes_metrics: Histogram<usize>,
@@ -418,28 +418,21 @@ pub(crate) struct BlockTipMetrics {
 
 impl BlockTipMetrics {
     pub fn observe(&self, execution_result: &VmExecutionResultAndLogs) {
-        let execution_metrics = execution_result.get_execution_metrics(None);
-
         self.gas_used
-            .observe(gas_count_from_metrics(&execution_metrics).commit as usize);
+            .observe(execution_result.statistics.gas_used as usize);
         self.pubdata_published
             .observe(execution_result.statistics.pubdata_published as usize);
         self.circuit_statistic
             .observe(execution_result.statistics.circuit_statistic.total());
         self.execution_metrics_size
-            .observe(execution_metrics.size());
+            .observe(execution_result.get_execution_metrics(None).size());
 
         let logs_iter = execution_result.logs.storage_logs.iter();
         let writes_metrics = StorageWritesDeduplicator::apply_on_empty_state(logs_iter);
 
         let gas_count = gas_count_from_writes(&writes_metrics, ProtocolVersionId::Version20);
 
-        self.block_writes_metrics.observe(
-            vec![gas_count.commit, gas_count.prove, gas_count.execute]
-                .into_iter()
-                .max()
-                .unwrap() as usize,
-        );
+        self.block_writes_metrics.observe(gas_count.commit as usize);
     }
 }
 
