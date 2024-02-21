@@ -12,6 +12,6 @@ pub(crate) fn read_consensus_config() -> anyhow::Result<consensus::MainNodeConfi
     let node_key: node::SecretKey = consensus::config::read_secret("CONSENSUS_NODE_KEY")?;
     Ok(consensus::MainNodeConfig {
         executor: cfg.executor_config(node_key),
-        validator: cfg.validator_config(validator_key),
+        validator_key,
     })
 }

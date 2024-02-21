@@ -197,7 +197,7 @@ impl Cursor {
 
 /// Wrapper of `ConnectionPool` implementing `ReplicaStore` and `PayloadManager`.
 #[derive(Clone, Debug)]
-pub struct Store(pub(super) ConnectionPool);
+pub struct Store(pub ConnectionPool);
 
 /// Wrapper of `ConnectionPool` implementing `PersistentBlockStore`.
 #[derive(Debug)]
@@ -208,11 +208,6 @@ pub(super) struct BlockStore {
 }
 
 impl Store {
-    /// Creates a `Store`. `pool` should have multiple connections to work efficiently.
-    pub fn new(pool: ConnectionPool) -> Self {
-        Self(pool)
-    }
-
     /// Converts `Store` into a `BlockStore`.
     pub(super) fn into_block_store(self) -> BlockStore {
         BlockStore {

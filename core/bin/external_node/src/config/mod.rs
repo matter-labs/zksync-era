@@ -431,9 +431,7 @@ pub(crate) fn read_consensus_config() -> anyhow::Result<consensus::FetcherConfig
     let cfg: consensus::config::Config =
         consensus::config::decode_json(&cfg).context("failed decoding JSON")?;
     let node_key: node::SecretKey = consensus::config::read_secret("EN_CONSENSUS_NODE_KEY")?;
-    Ok(consensus::FetcherConfig {
-        executor: cfg.executor_config(node_key),
-    })
+    Ok(cfg.executor_config(node_key))
 }
 
 /// Configuration for snapshot recovery. Loaded optionally, only if the corresponding command-line argument

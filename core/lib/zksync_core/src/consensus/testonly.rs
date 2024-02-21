@@ -336,7 +336,7 @@ impl StateKeeper {
                 gas_per_pubdata: 100,
                 actions_sender,
                 sync_state: sync_state.clone(),
-                store: Store::new(pool.clone()),
+                store: Store(pool.clone()),
             },
             StateKeeperRunner {
                 sync_state,

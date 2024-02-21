@@ -70,7 +70,7 @@ async fn test_validator_block_store() {
 
     // Insert blocks one by one and check the storage state.
     for (i, block) in want.iter().enumerate() {
-        let store = Store::new(pool.clone()).into_block_store();
+        let store = Store(pool.clone()).into_block_store();
         store.store_next_block(ctx, block).await.unwrap();
         assert_eq!(want[..i + 1], storage::testonly::dump(ctx, &store).await);
     }
@@ -118,7 +118,7 @@ async fn test_validator() {
                 // store a cert for it).
                 let cfg = MainNodeConfig {
                     executor: executor_config(&cfgs[0]),
-                    key: setup.keys[0].clone(),
+                    validator_key: setup.keys[0].clone(),
                 };
                 s.spawn_bg(cfg.run(ctx, sk.store.clone()));
                 sk.store
@@ -191,7 +191,7 @@ async fn test_full_nodes() {
         });
         let cfg = MainNodeConfig {
             executor: executor_config(&validator_cfgs[0]),
-            key: setup.keys[0].clone(),
+            validator_key: setup.keys[0].clone(),
         };
         s.spawn_bg(cfg.run(ctx, validator.store.clone()));
 
@@ -247,7 +247,7 @@ async fn test_fetcher_backfill_certs() {
     let validator_cfgs = new_configs(rng,&setup,0);
     let cfg = MainNodeConfig {
         executor: executor_config(&validator_cfgs[0]),
-        key: setup.keys[0].clone(),
+        validator_key: setup.keys[0].clone(),
     };
 
     // Create an initial database snapshot, which contains some blocks: some with certs, some

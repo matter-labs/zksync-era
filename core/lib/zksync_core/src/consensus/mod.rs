@@ -8,7 +8,7 @@ use zksync_consensus_roles::validator;
 use zksync_consensus_storage::BlockStore;
 use zksync_types::MiniblockNumber;
 pub use self::storage::Store;
-use crate::sync_layer::{sync_action::ActionQueueSender, MainNodeClient, SyncState};
+use crate::sync_layer::{sync_action::ActionQueueSender, fetcher::is_transient, MainNodeClient, SyncState};
 
 pub mod config;
 pub mod proto;
@@ -22,7 +22,7 @@ mod tests;
 #[derive(Debug, Clone)]
 pub struct MainNodeConfig {
     pub executor: executor::Config,
-    pub key: validator::SecretKey,
+    pub validator_key: validator::SecretKey,
 }
 
 impl MainNodeConfig {
@@ -32,7 +32,7 @@ impl MainNodeConfig {
         scope::run!(&ctx, |ctx, s| async {
             let mut block_store = store.clone().into_block_store();
             block_store
-                .try_init_genesis(ctx, &self.key)
+                .try_init_genesis(ctx, &self.validator_key)
                 .await
                 .wrap("block_store.try_init_genesis()")?;
             let (block_store, runner) = BlockStore::new(ctx, Box::new(block_store))
@@ -43,7 +43,7 @@ impl MainNodeConfig {
                 config: self.executor,
                 block_store,
                 validator: Some(executor::Validator {
-                    key: self.key,
+                    key: self.validator_key,
                     replica_store: Box::new(store.clone()),
                     payload_manager: Box::new(store.clone()),
                 }),
@@ -54,30 +54,7 @@ impl MainNodeConfig {
     }
 }
 
-/// Periodically fetches the head of the main node
-/// and updates `SyncState` accordingly.
-async fn run_main_node_state_fetcher(
-    ctx: &ctx::Ctx,
-    client: &dyn MainNodeClient,
-    sync_state: &SyncState,
-) -> ctx::OrCanceled<()> {
-    const DELAY_INTERVAL: time::Duration = time::Duration::milliseconds(500);
-    const RETRY_DELAY_INTERVAL: time::Duration = time::Duration::seconds(5);
-    loop {
-        match ctx.wait(client.fetch_l2_block_number()).await? {
-            Ok(head) => {
-                sync_state.set_main_node_block(head);
-                ctx.sleep(DELAY_INTERVAL).await?;
-            }
-            Err(err) => {
-                tracing::warn!("main_node_client.fetch_l2_block_number(): {err}");
-                ctx.sleep(RETRY_DELAY_INTERVAL).await?;
-            }
-        }
-    }
-}
-
-type FetcherConfig = executor::Config;
+pub type FetcherConfig = executor::Config;
 
 /// External node consensus config.
 #[derive(Debug)]
@@ -88,10 +65,32 @@ pub struct Fetcher {
 }
 
 impl Fetcher {
-    async fn fetch_from_main_node(&self, ctx: &ctx::Ctx, cursor: &mut storage::Cursor, end: validator::BlockNumber) -> ctx::Result<()> {
+    /// Periodically fetches the head of the main node
+    /// and updates `SyncState` accordingly.
+    async fn fetch_state_loop(&self, ctx: &ctx::Ctx) -> ctx::Result<()> {
+        const DELAY_INTERVAL: time::Duration = time::Duration::milliseconds(500);
+        const RETRY_INTERVAL: time::Duration = time::Duration::seconds(5);
+        loop {
+            match ctx.wait(self.client.fetch_l2_block_number()).await? {
+                Ok(head) => {
+                    self.sync_state.set_main_node_block(head);
+                    ctx.sleep(DELAY_INTERVAL).await?;
+                }
+                Err(err) => {
+                    tracing::warn!("main_node_client.fetch_l2_block_number(): {err}");
+                    ctx.sleep(RETRY_INTERVAL).await?;
+                }
+            }
+        }
+    }
+
+    /// Fetches blocks from the main node in range `[cursor.next()..end)`.
+    async fn fetch_blocks(&self, ctx: &ctx::Ctx, cursor: &mut storage::Cursor, end: validator::BlockNumber) -> ctx::Result<()> {
+        const RETRY_INTERVAL: time::Duration = time::Duration::seconds(5);
+        const MAX_CONCURRENT_REQUESTS: usize = 100;
         let begin = cursor.next();
         scope::run!(ctx, |ctx,s| async {
-            let (send,mut recv) = ctx::channel::bounded(100);
+            let (send,mut recv) = ctx::channel::bounded(MAX_CONCURRENT_REQUESTS);
             s.spawn(async {
                 let send = send;
                 let sub = &mut self.sync_state.subscribe();
@@ -100,8 +99,15 @@ impl Fetcher {
                     sync::wait_for(ctx, sub, |state| state.main_node_block() >= *n).await?;
                     send.send(ctx,s.spawn(async {
                         let n = n;
-                        // TODO: retries
-                        Ok(ctx.wait(self.client.fetch_l2_block(*n, /*with_transaction=*/true)).await?.context("fetch_l2_block()")?.context("missing block")?)
+                        loop {
+                            match ctx.wait(self.client.fetch_l2_block(*n, /*with_transaction=*/true)).await? {
+                                Ok(Some(block)) => return Ok(block),
+                                Ok(None) => {}
+                                Err(err) if is_transient(&err) => {}
+                                Err(err) => return Err(anyhow::format_err!("client.fetch_l2_block({}): {err}",*n).into()),
+                            }
+                            ctx.sleep(RETRY_INTERVAL).await?;
+                        }
                     })).await?;
                 }
                 Ok(())
@@ -116,38 +122,39 @@ impl Fetcher {
 
     /// Task fetching L2 blocks using peer-to-peer gossip network.
     pub async fn run(self, ctx: &ctx::Ctx, store: Store, actions: ActionQueueSender) -> anyhow::Result<()> {
-        // TODO: restart or exit whenever new genesis is observed.
-        // Initialize genesis.
-        let genesis = ctx.wait(self.client.fetch_consensus_genesis()).await??
-            .context("main node is not running consensus component")?;
-        let genesis : validator::Genesis = zksync_protobuf::serde::deserialize(&genesis.0)?;
-        
-        let mut conn = store.access(ctx).await.wrap("access()")?;
-        conn.try_update_genesis(ctx,&genesis).await.wrap("set_genesis()")?;
-        let mut cursor = conn.new_fetcher_cursor(ctx,actions).await.wrap("new_fetcher_cursor()")?;
-        drop(conn);
+        let res : ctx::Result<()> = scope::run!(ctx, |ctx, s| async {
+            s.spawn_bg(self.fetch_state_loop(ctx));
 
-        scope::run!(ctx, |ctx, s| async {
-            s.spawn_bg(async {
-                // Ignore cancellation error.
-                let _ = run_main_node_state_fetcher(ctx,&*self.client,&self.sync_state).await;
-                Ok(())
-            });
-            self.fetch_from_main_node(ctx, &mut cursor, genesis.forks.root().first_block).await?;
+            // TODO: restart or exit whenever new genesis is observed.
+            // Initialize genesis.
+            let genesis = ctx.wait(self.client.fetch_consensus_genesis()).await?.context("fetch_consensus_genesis()")?
+                .context("main node is not running consensus component")?;
+            let genesis : validator::Genesis = zksync_protobuf::serde::deserialize(&genesis.0).context("deserialize(genesis)")?;
+            
+            let mut conn = store.access(ctx).await.wrap("access()")?;
+            conn.try_update_genesis(ctx,&genesis).await.wrap("set_genesis()")?;
+            let mut cursor = conn.new_fetcher_cursor(ctx,actions).await.wrap("new_fetcher_cursor()")?;
+            drop(conn);
+            self.fetch_blocks(ctx, &mut cursor, genesis.forks.root().first_block).await?;
 
             let mut block_store = store.into_block_store();
             block_store.set_cursor(cursor).context("block_store.set_cursor()")?;
             let (block_store, runner) = BlockStore::new(ctx, Box::new(block_store))
                 .await
                 .wrap("BlockStore::new()")?;
-            s.spawn_bg(runner.run(ctx));
+            s.spawn_bg(async { Ok(runner.run(ctx).await?) });
             let executor = executor::Executor {
                 config: self.config.clone(),
                 block_store,
                 validator: None,
             };
-            executor.run(ctx).await
+            executor.run(ctx).await?;
+            Ok(())
         })
-        .await
+        .await;
+        match res {
+            Ok(()) | Err(ctx::Error::Canceled(_)) => Ok(()),
+            Err(ctx::Error::Internal(err)) => Err(err),
+        }
     }
 }

@@ -168,21 +168,23 @@ impl IoCursor {
 /// Errors that can be emitted by [`MainNodeFetcher`].
 #[derive(Debug, thiserror::Error)]
 enum FetcherError {
-    #[error("JSON-RPC error communicating with main node")]
+    #[error("JSON-RPC error communicating with main node: {0}")]
     Web3(#[from] EnrichedClientError),
-    #[error("internal fetcher error")]
+    #[error("internal fetcher error: {0:#}")]
     Internal(#[from] anyhow::Error),
+}
+
+pub(crate) fn is_transient(err: &EnrichedClientError) -> bool {
+    matches!(
+        err.as_ref(),
+        RpcError::Transport(_) | RpcError::RequestTimeout
+    )
 }
 
 impl FetcherError {
     fn is_transient(&self) -> bool {
         match self {
-            Self::Web3(err) => {
-                matches!(
-                    err.as_ref(),
-                    RpcError::Transport(_) | RpcError::RequestTimeout
-                )
-            }
+            Self::Web3(err) => is_transient(err),
             Self::Internal(_) => false,
         }
     }
