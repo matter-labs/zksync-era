@@ -12,9 +12,9 @@ import {
     reinitCommand,
     lightweightInitCommand,
     initHyperCommand,
+    reinitHyperCommand,
     initSharedBridgeCommand,
-    deployL2ContractsCommand,
-    reinitHyperCommand
+    deployL2ContractsCommand
 } from './init';
 import { initHyperchainCommand } from './hyperchain_wizard';
 import { command as run } from './run/run';

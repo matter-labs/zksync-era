@@ -25,11 +25,11 @@ function updateContractsEnv(initEnv: string, deployLog: String, envVars: Array<s
         const matches = deployLog.match(pattern);
         if (matches !== null) {
             const varContents = matches[0];
-            env.modify(envVar, varContents, initEnv);
+            env.modify(envVar, varContents, initEnv, false);
             updatedContracts += `${varContents}\n`;
         }
     }
-
+    env.reload();
     return updatedContracts;
 }
 
@@ -89,7 +89,7 @@ export async function deployL2(args: any[] = [], includePaymaster?: boolean) {
     // Skip compilation for local setup, since we already copied artifacts into the container.
     await utils.spawn(`${baseCommandL2} build`);
 
-    await utils.spawn(`${baseCommandL2} erc20-deploy-on-chain ${args.join(' ')} | tee deployL2.log`);
+    await utils.spawn(`${baseCommandL2} deploy-shared-bridge-on-l2 ${args.join(' ')} | tee deployL2.log`);
 
     if (includePaymaster) {
         await utils.spawn(`${baseCommandL2} deploy-testnet-paymaster ${args.join(' ')} | tee -a deployL2.log`);
@@ -99,8 +99,7 @@ export async function deployL2(args: any[] = [], includePaymaster?: boolean) {
 
     let l2DeployLog = fs.readFileSync('deployL2.log').toString();
     const l2DeploymentEnvVars = [
-        'CONTRACTS_L2_ERC20_BRIDGE_ADDR',
-        'CONTRACTS_L2_WETH_BRIDGE_ADDR',
+        'CONTRACTS_L2_SHARED_BRIDGE_ADDR',
         'CONTRACTS_L2_TESTNET_PAYMASTER_ADDR',
         'CONTRACTS_L2_WETH_TOKEN_IMPL_ADDR',
         'CONTRACTS_L2_WETH_TOKEN_PROXY_ADDR',
@@ -144,7 +143,7 @@ export async function deployL2ThroughL1({
 
     let l2DeployLog = fs.readFileSync('deployL2.log').toString();
     const l2DeploymentEnvVars = [
-        'CONTRACTS_L2_ERC20_BRIDGE_ADDR',
+        'CONTRACTS_L2_SHARED_BRIDGE_ADDR',
         'CONTRACTS_L2_TESTNET_PAYMASTER_ADDR',
         'CONTRACTS_L2_WETH_TOKEN_IMPL_ADDR',
         'CONTRACTS_L2_WETH_TOKEN_PROXY_ADDR',
@@ -190,8 +189,8 @@ export async function deployL1({ privateKey, onlyVerifier }: { privateKey?: stri
         'CONTRACTS_TRANSPARENT_PROXY_ADMIN_ADDR',
         'CONTRACTS_L1_SHARED_BRIDGE_PROXY_ADDR',
         'CONTRACTS_L1_SHARED_BRIDGE_IMPL_ADDR',
-        'CONTRACTS_L1_WETH_BRIDGE_IMPL_ADDR',
-        'CONTRACTS_L1_WETH_BRIDGE_PROXY_ADDR',
+        'CONTRACTS_L1_ERC20_BRIDGE_PROXY_ADDR',
+        'CONTRACTS_L1_ERC20_BRIDGE_IMPL_ADDR',
         'CONTRACTS_L1_MULTICALL3_ADDR',
 
         'CONTRACTS_DEPLOYER_ADDR'

@@ -257,6 +257,8 @@ export const lightweightInitCommand = new Command('lightweight-init')
 
 export const initHyperCommand = new Command('init-hyper')
     .description('initialize just the L2, currently with own bridge')
+    .option('--skip-setup-completely', 'skip the setup completely, use this if server was started already')
+    .option('--env-name <env-name>', 'env name to use for initialization')
     .option('--base-token-name <base-token-name>', 'base token name')
     .option('--base-token-address <base-token-address>', 'base token address')
     .action(async (cmd: Command) => {
@@ -284,7 +286,11 @@ export const initHyperCommand = new Command('init-hyper')
             }
         };
 
-        await initSetup(initArgs);
+        if (!cmd.skipSetupCompletely) {
+            await initSetup(initArgs);
+        }
+        await initSetupDatabase(initArgs, true); // we skip Verifier deployment, it is only deployed with sharedBridge
+        await initHyper(initArgs);
         await initSetupDatabase(initArgs, true); // we skip Verifier deployment, it is only deployed with sharedBridge
         await initHyper(initArgs);
     });
