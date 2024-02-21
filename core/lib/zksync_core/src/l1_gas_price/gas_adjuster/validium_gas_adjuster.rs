@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use zksync_config::GasAdjusterConfig;
 use zksync_eth_client::{Error, EthInterface};
 
-use super::{metrics::METRICS, GasAdjuster, GasStatistics, L1TxParamsProvider};
+use super::{GasAdjuster, GasStatistics, L1TxParamsProvider};
 
 #[derive(Debug)]
 pub struct ValidiumGasAdjuster {

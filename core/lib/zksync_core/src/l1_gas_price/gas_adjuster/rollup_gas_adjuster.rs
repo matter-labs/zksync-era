@@ -5,7 +5,7 @@ use zksync_config::GasAdjusterConfig;
 use zksync_eth_client::{Error, EthInterface};
 use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
 
-use super::{metrics::METRICS, GasAdjuster, GasStatistics, L1TxParamsProvider};
+use super::{GasAdjuster, GasStatistics, L1TxParamsProvider};
 
 #[derive(Debug)]
 pub struct RollupGasAdjuster {
