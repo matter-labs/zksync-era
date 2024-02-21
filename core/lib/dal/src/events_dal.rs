@@ -219,7 +219,6 @@ impl EventsDal<'_, '_> {
                 tx_hash = ANY ($1)
             ORDER BY
                 miniblock_number ASC,
-                tx_index_in_block ASC,
                 event_index_in_block ASC
             "#,
             &hashes[..],
