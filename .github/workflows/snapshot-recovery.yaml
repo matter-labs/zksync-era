@@ -17,12 +17,14 @@ jobs:
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           echo "install NVM"
           curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
+          NVM_DIR="$HOME/.nvm"
+          echo "$HOME/.nvm" >> $GITHUB_PATH
           echo "Install apt stuff"
           sudo apt-get install -y build-essential pkg-config cmake clang lldb lld libssl-dev postgresql
           echo "change usermode for Docker"
           sudo usermod -aG docker $(whoami)          
           echo "Install Node & yarn"
-          nvm install 18
+          #nvm install 18
           npm install -g yarn
           yarn set version 1.22.19
           echo "Install SQL tools"
@@ -34,6 +36,7 @@ jobs:
 
       - name: Step 2 - Run zk init
         run: |
+          ZKSYNC_HOME=$(pwd)
           echo $(pwd)/bin  >> $GITHUB_PATH
           zk
           zk init
