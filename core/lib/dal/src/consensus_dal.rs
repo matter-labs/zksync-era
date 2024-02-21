@@ -65,7 +65,7 @@ impl ConsensusDal<'_, '_> {
     }
 
     pub async fn try_init_genesis(&mut self, validators: &validator::ValidatorSet) -> anyhow::Result<()> {
-        let first_block = self.storage.blocks_dal().get_sealed_miniblock_number().await?.map(|n|n+1).unwrap_or(0.into());
+        let first_block = self.storage.blocks_dal().get_sealed_miniblock_number().await?.unwrap_or(0.into());
         let first_block = validator::BlockNumber(first_block.0.into());
         let mut txn = self.storage.start_transaction().await?;
         if txn.consensus_dal().genesis().await?.is_some() {

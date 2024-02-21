@@ -1,5 +1,3 @@
-use std::ops::Range;
-
 use anyhow::Context as _;
 use tracing::Instrument as _;
 use zksync_concurrency::{ctx, scope};
@@ -14,33 +12,6 @@ use zksync_protobuf::testonly::test_encode_random;
 use rand::Rng as _;
 
 use super::*;
-async fn make_blocks(
-    ctx: &ctx::Ctx,
-    store: &Store,
-    mut range: Range<validator::BlockNumber>,
-) -> ctx::Result<Vec<validator::FinalBlock>> {
-    let rng = &mut ctx.rng();
-    let mut conn = store.access(ctx).await.wrap("access()")?;
-    let mut blocks: Vec<validator::FinalBlock> = vec![];
-    while !range.is_empty() {
-        let payload = conn
-            .payload(ctx, range.start)
-            .await
-            .wrap(range.start)?
-            .context("payload not found")?
-            .encode();
-        /*let header = match blocks.last().as_ref() {
-            Some(parent) => validator::BlockHeader::new(parent.header(), payload.hash()),
-            None => validator::BlockHeader::genesis(payload.hash(), range.start),
-        };*/
-        blocks.push(validator::FinalBlock {
-            payload,
-            justification: rng.gen(), 
-        });
-        range.start = range.start.next();
-    }
-    Ok(blocks)
-}
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_validator_block_store() {
@@ -57,17 +28,28 @@ async fn test_validator_block_store() {
         s.spawn_bg(runner.run(ctx));
         sk.push_random_blocks(rng, 10).await;
         sk.wait_for_miniblocks(ctx).await?;
-        let range = Range {
-            start: validator::BlockNumber(4),
-            end: sk.last_block(),
+        let fork = validator::Fork {
+            number: validator::ForkNumber(rng.gen()),
+            first_block: validator::BlockNumber(4),
+            first_parent: None,
         };
-        make_blocks(ctx, &sk.store, range)
-            .await
-            .context("make_blocks")
+        let mut setup = Setup::new_with_fork(rng,3,fork.clone());
+        let mut conn = sk.store.access(ctx).await.wrap("access()")?;
+        conn.try_update_genesis(ctx,&setup.genesis).await.wrap("try_update_genesis()")?;
+        for i in fork.first_block.0..sk.last_block().next().0 {
+            let payload = conn
+                .payload(ctx, validator::BlockNumber(i))
+                .await
+                .wrap(i)?
+                .context("payload not found")?
+                .encode();
+            setup.push_block(payload);
+        }
+        Ok(setup.blocks.clone())
     })
     .await
     .unwrap();
-
+    
     // Insert blocks one by one and check the storage state.
     for (i, block) in want.iter().enumerate() {
         let store = Store(pool.clone()).into_block_store();
