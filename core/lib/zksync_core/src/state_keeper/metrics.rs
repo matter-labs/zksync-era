@@ -5,7 +5,7 @@ use std::{
     time::Duration,
 };
 
-use multivm::interface::{VmExecutionResultAndLogs, VmExecutionStatistics};
+use multivm::interface::VmExecutionResultAndLogs;
 use vise::{
     Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LatencyObserver,
     Metrics,
@@ -405,15 +405,15 @@ pub(super) static EXECUTOR_METRICS: vise::Global<ExecutorMetrics> = vise::Global
 #[metrics(prefix = "block_tip")]
 pub(crate) struct BlockTipMetrics {
     #[metrics(buckets = Buckets::exponential(1.0..=60000.0, 2.0))]
-    gas_used: Histogram<u32>,
+    gas_used: Histogram<usize>,
     #[metrics(buckets = Buckets::exponential(1.0..=60000.0, 2.0))]
-    pubdata_published: Histogram<u32>,
+    pubdata_published: Histogram<usize>,
     #[metrics(buckets = Buckets::exponential(1.0..=60000.0, 2.0))]
     circuit_statistic: Histogram<usize>,
     #[metrics(buckets = Buckets::exponential(1.0..=60000.0, 2.0))]
     execution_metrics_size: Histogram<usize>,
     #[metrics(buckets = Buckets::exponential(1.0..=60000.0, 2.0))]
-    block_writes_metrics: Histogram<u32>,
+    block_writes_metrics: Histogram<usize>,
 }
 
 impl BlockTipMetrics {
@@ -421,9 +421,9 @@ impl BlockTipMetrics {
         let execution_metrics = execution_result.get_execution_metrics(None);
 
         self.gas_used
-            .observe(gas_count_from_metrics(&execution_metrics).commit);
+            .observe(gas_count_from_metrics(&execution_metrics).commit as usize);
         self.pubdata_published
-            .observe(execution_result.statistics.pubdata_published);
+            .observe(execution_result.statistics.pubdata_published as usize);
         self.circuit_statistic
             .observe(execution_result.statistics.circuit_statistic.total());
         self.execution_metrics_size
@@ -438,7 +438,7 @@ impl BlockTipMetrics {
             vec![gas_count.commit, gas_count.prove, gas_count.execute]
                 .into_iter()
                 .max()
-                .unwrap(),
+                .unwrap() as usize,
         );
     }
 }
