@@ -310,6 +310,7 @@ impl ContractVerifier {
                 let settings = Settings {
                     output_selection: Some(default_output_selection),
                     is_system: request.req.is_system,
+                    force_evmla: request.req.force_evmla,
                     other: serde_json::Value::Object(
                         vec![("optimizer".to_string(), optimizer_value)]
                             .into_iter()
