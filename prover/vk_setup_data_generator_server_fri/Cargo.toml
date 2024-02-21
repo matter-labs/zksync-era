@@ -18,8 +18,8 @@ vlog = { path = "../../core/lib/vlog" }
 zksync_types = { path = "../../core/lib/types" }
 zksync_prover_fri_types = { path = "../prover_fri_types" }
 
-zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "mmzk0221_together" }
-circuit_definitions = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "mmzk0221_together" , features = [
+zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.1" }
+circuit_definitions = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.1" , features = [
     "log_tracing",
 ] }
 shivini = { git = "https://github.com/matter-labs/era-shivini.git", branch = "v1.4.1", optional = true }
