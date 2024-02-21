@@ -58,6 +58,7 @@ impl WiringLayer for EthWatchLayer {
     }
 }
 
+#[derive(Debug)]
 struct EthWatchTask {
     main_pool: ConnectionPool,
     client: EthHttpQueryClient,
