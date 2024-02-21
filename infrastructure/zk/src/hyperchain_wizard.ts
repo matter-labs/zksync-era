@@ -52,6 +52,7 @@ async function initHyperchain() {
     const deployL2Weth = Boolean(process.env.DEPLOY_L2_WETH || false);
     const deployTestTokens = Boolean(process.env.DEPLOY_TEST_TOKENS || false);
 
+    const governorAdrress = ethers.utils.computeAddress(governorPrivateKey!);
     const initArgs: InitArgs = {
         skipSubmodulesCheckout: false,
         skipEnvSetup: true,
@@ -65,7 +66,7 @@ async function initHyperchain() {
             deploy: deployTestTokens,
             args: ['--private-key', deployerPrivateKey, '--envFile', process.env.CHAIN_ETH_NETWORK!]
         },
-        deployerPrivateKeyArgs: ['--private-key', deployerPrivateKey]
+        deployerPrivateKeyArgs: ['--private-key', deployerPrivateKey, '--owner-address', governorAdrress]
     };
 
     await init(initArgs);
@@ -173,7 +174,7 @@ async function setHyperchainMetadata() {
                 'What is the connection URL for your Postgress 14 main database (format is postgres://<user>:<pass>@<hostname>:<port>/<database>)?',
             name: 'dbUrl',
             type: 'input',
-            initial: 'postgres://postgres@localhost/zksync_local',
+            initial: 'postgres://postgres:notsecurepassword@127.0.0.1:5432/zksync_local',
             required: true
         });
 
@@ -182,7 +183,7 @@ async function setHyperchainMetadata() {
                 'What is the connection URL for your Postgress 14 prover database (format is postgres://<user>:<pass>@<hostname>:<port>/<database>)?',
             name: 'dbProverUrl',
             type: 'input',
-            initial: 'postgres://postgres@localhost/prover_local',
+            initial: 'postgres://postgres:notsecurepassword@127.0.0.1:5432/prover_local',
             required: true
         });
 
