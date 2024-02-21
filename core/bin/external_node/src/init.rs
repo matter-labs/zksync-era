@@ -4,8 +4,9 @@ use anyhow::Context as _;
 use zksync_basic_types::{L1BatchNumber, L2ChainId};
 use zksync_core::sync_layer::genesis::perform_genesis_if_needed;
 use zksync_dal::ConnectionPool;
+use zksync_health_check::AppHealthCheck;
 use zksync_object_store::ObjectStoreFactory;
-use zksync_snapshots_applier::{SnapshotsApplierConfig, SnapshotsApplierOutcome};
+use zksync_snapshots_applier::SnapshotsApplierConfig;
 use zksync_web3_decl::jsonrpsee::http_client::HttpClient;
 
 use crate::config::read_snapshots_recovery_config;
@@ -21,6 +22,7 @@ enum InitDecision {
 pub(crate) async fn ensure_storage_initialized(
     pool: &ConnectionPool,
     main_node_client: &HttpClient,
+    app_health: &AppHealthCheck,
     l2_chain_id: L2ChainId,
     consider_snapshot_recovery: bool,
 ) -> anyhow::Result<()> {
@@ -83,24 +85,14 @@ pub(crate) async fn ensure_storage_initialized(
             let blob_store = ObjectStoreFactory::new(recovery_config.snapshots_object_store)
                 .create_store()
                 .await;
-            let outcome = SnapshotsApplierConfig::default()
+
+            let config = SnapshotsApplierConfig::default();
+            app_health.insert_component(config.health_check());
+            config
                 .run(pool, main_node_client, &blob_store)
                 .await
                 .context("snapshot recovery failed")?;
-            match outcome {
-                SnapshotsApplierOutcome::Ok => {
-                    tracing::info!("Snapshot recovery is complete");
-                }
-                SnapshotsApplierOutcome::NoSnapshotsOnMainNode => {
-                    anyhow::bail!("No snapshots on main node; snapshot recovery is impossible");
-                }
-                SnapshotsApplierOutcome::InitializedWithoutSnapshot => {
-                    anyhow::bail!(
-                        "Node contains a non-genesis L1 batch, but no genesis; snapshot recovery is unsafe. \
-                         This should never occur unless the node DB was manually tampered with"
-                    );
-                }
-            }
+            tracing::info!("Snapshot recovery is complete");
         }
     }
     Ok(())
