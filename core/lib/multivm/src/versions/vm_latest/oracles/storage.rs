@@ -229,14 +229,6 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
     fn get_storage_access_refund(&self, query: &LogQuery) -> StorageAccessRefund {
         let key = storage_key_of_log(query);
         if query.rw_flag {
-            if self.read_storage_keys.inner().contains_key(&key) {
-                StorageAccessRefund::Warm {
-                    ergs: STORAGE_ACCESS_COLD_READ_COST - WARM_READ_COST_ERGS,
-                }
-            } else {
-                StorageAccessRefund::Cold
-            }
-        } else {
             if self.written_storage_keys.inner().contains_key(&key) {
                 StorageAccessRefund::Warm {
                     ergs: STORAGE_ACCESS_COLD_WRITE_COST - WARM_WRITE_COST_ERGS,
@@ -246,6 +238,14 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
                 // So the user will pay `STORAGE_ACCESS_COLD_WRITE_COST - STORAGE_ACCESS_COLD_READ_COST` for such write.
                 StorageAccessRefund::Warm {
                     ergs: STORAGE_ACCESS_COLD_READ_COST,
+                }
+            } else {
+                StorageAccessRefund::Cold
+            }
+        } else {
+            if self.read_storage_keys.inner().contains_key(&key) {
+                StorageAccessRefund::Warm {
+                    ergs: STORAGE_ACCESS_COLD_READ_COST - WARM_READ_COST_ERGS,
                 }
             } else {
                 StorageAccessRefund::Cold
@@ -410,8 +410,6 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
         monotonic_cycle_counter: u32,
         partial_query: &LogQuery,
     ) -> StorageAccessRefund {
-        let storage_key = storage_key_of_log(partial_query);
-
         let refund = if partial_query.aux_byte == TRANSIENT_STORAGE_AUX_BYTE {
             // Any transient access is warm. Also, no refund needs to be provided as it is already cheap
             StorageAccessRefund::Warm { ergs: 0 }
