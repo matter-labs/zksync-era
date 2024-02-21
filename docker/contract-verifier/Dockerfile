@@ -28,6 +28,13 @@ RUN for VERSION in $(seq -f "v1.3.%g" 9 17); do \
     chmod +x /etc/zkvyper-bin/$VERSION/zkvyper; \
     done
 
+# install zkvyper 1.4.x
+RUN for VERSION in $(seq -f "v1.4.%g" 0 0); do \
+    mkdir -p /etc/zkvyper-bin/$VERSION && \
+    wget https://github.com/matter-labs/zkvyper-bin/raw/main/linux-amd64/zkvyper-linux-amd64-musl-$VERSION -O /etc/zkvyper-bin/$VERSION/zkvyper && \
+    chmod +x /etc/zkvyper-bin/$VERSION/zkvyper; \
+    done
+
 # install solc
 COPY docker/contract-verifier/install-all-solc.sh install-all-solc.sh
 RUN bash ./install-all-solc.sh
