@@ -534,10 +534,11 @@ impl FullApiParams {
 
         let rpc_middleware = RpcServiceBuilder::new()
             .layer_fn(MetadataMiddleware::new)
-            .layer_fn(move |svc| {
-                // FIXME: make optional
-                LimitMiddleware::new(svc, websocket_requests_per_minute_limit)
-            });
+            .option_layer((!is_http).then(|| {
+                tower::layer::layer_fn(move |svc| {
+                    LimitMiddleware::new(svc, websocket_requests_per_minute_limit)
+                })
+            }));
 
         let server_builder = ServerBuilder::default()
             .max_connections(max_connections as u32)
@@ -555,7 +556,7 @@ impl FullApiParams {
                 .context("Failed building HTTP JSON-RPC server")?;
             (server.local_addr(), server.start(rpc))
         } else {
-            // WS specific settings
+            // WS-specific settings
             let server = server_builder
                 .set_id_provider(EthSubscriptionIdProvider)
                 .build(addr)
