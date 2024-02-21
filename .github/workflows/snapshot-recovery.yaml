@@ -1,0 +1,55 @@
+name: Check JSON RPC for External Node Snapshot Recovery
+on:
+  pull_request:
+
+jobs:
+  prepare_env:
+    runs-on: [matterlabs-ci-runner]
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Step 1 - Make the preparation
+        run: |
+          echo "Install Rust"
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+          echo "install NVM"
+          curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
+          echo "Install apt stuff"
+          sudo apt-get install build-essential pkg-config cmake clang lldb lld libssl-dev postgresql
+          echo "change usermode for Docker"
+          sudo usermod -aG docker YOUR_USER          
+          echo "Install Node & yarn"
+          nvm install 18
+          npm install -g yarn
+          yarn set version 1.22.19
+          echo "Install SQL tools"
+          cargo install sqlx-cli --version 0.7.3
+          echo "Stop default postgres (as we'll use the docker one)"
+          sudo systemctl stop postgresql
+          echo "Start docker."
+          sudo systemctl start docker
+
+      - name: Step 2 - Run zk init
+        run: |
+          echo $(pwd)/bin  >> $GITHUB_PATH
+          zk
+          zk init
+
+      - name: Step 3 - Run main node
+        run: |
+          zk server --components api,tree,eth,state_keeper,housekeeper,commitment_generator &>server.log &
+          EXPECTED_TX_COUNT=2500 ACCOUNTS_AMOUNT=40 DURATION_SEC=30 FAIL_FAST=true zk run loadtest > loadtest.log 2>loadtest_error.log
+
+      - name: Step 4 - Create a snapshot
+        run: |
+          zk env dev
+          zk run snapshots-creator
+
+      - name: Step 5 - Run external node
+        run: |
+          zk config compile ext-node
+          ZKSYNC_ENV=ext-node zk external-node --reinit -- --enable-snapshots-recovery &
+
+      - name: Step 6 - Stub - Try a curl request
+        run: |
+          curl -X POST -H "Content-Type: application/json" --data '{"jsonrpc": "2.0", "id": 1, "method": "zks_getBlockDetails", "params": [ 1 ]}'  "http://localhost:3060"
