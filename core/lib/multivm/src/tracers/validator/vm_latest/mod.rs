@@ -149,10 +149,6 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H::Vm1_4_1>>
         }
 
         let hook = VmHook::from_opcode_memory(&state, &data);
-        // FIXME: double check whether removing it here is fine. It should be fine because
-        // we already print the debug in the DefaultTracer
-        // print_debug_if_needed(&hook, &state, memory);
-
         let current_mode = self.validation_mode;
         match (current_mode, hook) {
             (ValidationTracerMode::NoValidation, VmHook::AccountValidationEntered) => {
