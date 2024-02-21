@@ -10,7 +10,9 @@ use circuit_definitions::{
             ZkSyncRecursionLayerProof, ZkSyncRecursionLayerStorageType, ZkSyncRecursiveLayerCircuit,
         },
     },
-    zkevm_circuits::scheduler::block_header::BlockAuxilaryOutputWitness,
+    zkevm_circuits::scheduler::{
+        aux::BaseLayerCircuitType, block_header::BlockAuxilaryOutputWitness,
+    },
     ZkSyncDefaultRoundFunction,
 };
 use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject};
@@ -138,6 +140,30 @@ impl ProverServiceDataKey {
             round: get_round_for_recursive_circuit_type(circuit_id),
         }
     }
+    pub fn new_basic(circuit_id: u8) -> Self {
+        Self {
+            circuit_id,
+            round: AggregationRound::BasicCircuits,
+        }
+    }
+
+    pub fn all_boojum() -> Vec<ProverServiceDataKey> {
+        let mut results = vec![];
+        for numeric_circuit in
+            BaseLayerCircuitType::VM as u8..=BaseLayerCircuitType::L1MessagesHasher as u8
+        {
+            results.push(ProverServiceDataKey::new_basic(numeric_circuit))
+        }
+        for numeric_circuit in ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8
+            ..=ZkSyncRecursionLayerStorageType::LeafLayerCircuitForL1MessagesHasher as u8
+        {
+            results.push(ProverServiceDataKey::new_recursive(numeric_circuit))
+        }
+        results.push(ProverServiceDataKey::eip4844());
+        // Don't include snark, as it uses the old proving system.
+
+        results
+    }
 
     /// Data key for snark wrapper.
     pub fn snark() -> Self {
@@ -161,6 +187,10 @@ impl ProverServiceDataKey {
     pub fn is_eip4844(&self) -> bool {
         self.circuit_id == Self::EIP_4844_CIRCUIT_ID
             && self.round == AggregationRound::BasicCircuits
+    }
+
+    pub fn is_base_layer(&self) -> bool {
+        self.round == AggregationRound::BasicCircuits && !self.is_eip4844()
     }
 
     pub fn name(&self) -> String {
