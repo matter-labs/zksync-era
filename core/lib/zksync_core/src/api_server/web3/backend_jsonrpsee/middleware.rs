@@ -120,10 +120,10 @@ impl<'a, S> RpcServiceT<'a> for MetadataMiddleware<S>
 where
     S: Send + Sync + RpcServiceT<'a>,
 {
-    type Future = Observed<S::Future>;
+    type Future = WithMethodMetadata<S::Future>;
 
     fn call(&self, request: Request<'a>) -> Self::Future {
-        Observed {
+        WithMethodMetadata {
             metadata: MethodMetadata::new(request.method.as_ref().to_owned()),
             inner: self.inner.call(request),
         }
@@ -132,14 +132,14 @@ where
 
 pin_project! {
     #[derive(Debug)]
-    pub(crate) struct Observed<F> {
+    pub(crate) struct WithMethodMetadata<F> {
         metadata: MethodMetadata,
         #[pin]
         inner: F,
     }
 }
 
-impl<F: Future<Output = MethodResponse>> Future for Observed<F> {
+impl<F: Future<Output = MethodResponse>> Future for WithMethodMetadata<F> {
     type Output = MethodResponse;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -206,7 +206,7 @@ impl MethodMetadata {
         }
     }
 
-    /// Accesses metadata for the current method.
+    /// Accesses metadata for the current method. Should not be called recursively.
     pub fn with(access_fn: impl FnOnce(&mut Self)) {
         CURRENT_METHOD.with(|cell| {
             if let Some(metadata) = &mut *cell.borrow_mut() {
@@ -261,5 +261,64 @@ impl From<&MethodMetadata> for MethodLabels {
             labels = labels.with_block_diff(block_diff);
         }
         labels
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use jsonrpsee::helpers::MethodResponseResult;
+    use rand::{thread_rng, Rng};
+    use test_casing::{test_casing, Product};
+
+    use super::*;
+
+    #[test_casing(4, Product(([false, true], [false, true])))]
+    #[tokio::test(flavor = "multi_thread")]
+    async fn metadata_middleware_basics(spawn_tasks: bool, sleep: bool) {
+        let tasks = (0_u64..100).map(|i| {
+            let inner = async move {
+                MethodMetadata::with(|meta| {
+                    assert_eq!(meta.block_id, None);
+                    meta.block_id = Some(api::BlockId::Number(i.into()));
+                });
+
+                for diff in 0_u32..10 {
+                    MethodMetadata::with(|meta| {
+                        assert_eq!(meta.block_id, Some(api::BlockId::Number(i.into())));
+                        assert_eq!(meta.block_diff, diff.checked_sub(1));
+                        meta.block_diff = Some(diff);
+                    });
+
+                    if sleep {
+                        let delay = thread_rng().gen_range(1..=5);
+                        tokio::time::sleep(Duration::from_millis(delay)).await;
+                    } else {
+                        tokio::task::yield_now().await;
+                    }
+                }
+
+                MethodResponse {
+                    result: "{}".to_string(),
+                    success_or_error: MethodResponseResult::Success,
+                    is_subscription: false,
+                }
+            };
+
+            WithMethodMetadata {
+                metadata: MethodMetadata::new("test".to_owned()),
+                inner,
+            }
+        });
+
+        if spawn_tasks {
+            let tasks: Vec<_> = tasks.map(tokio::spawn).collect();
+            for task in tasks {
+                task.await.unwrap();
+            }
+        } else {
+            futures::future::join_all(tasks).await;
+        }
     }
 }
