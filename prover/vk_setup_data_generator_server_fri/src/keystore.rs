@@ -1,4 +1,8 @@
-use std::{fs, fs::File, io::Read};
+use std::{
+    fs::{self, File},
+    io::Read,
+    path::Path,
+};
 
 use anyhow::Context as _;
 use circuit_definitions::{
@@ -291,6 +295,10 @@ impl Keystore {
         bincode::deserialize::<GoldilocksGpuProverSetupData>(&buffer).with_context(|| {
             format!("Failed deserializing setup-data at path: {filepath:?} for circuit: {key:?}")
         })
+    }
+
+    pub fn is_setup_data_present(&self, key: &ProverServiceDataKey) -> bool {
+        Path::new(&self.get_file_path(key.clone(), ProverServiceDataType::SetupData)).exists()
     }
 
     pub fn save_setup_data_for_circuit_type(
