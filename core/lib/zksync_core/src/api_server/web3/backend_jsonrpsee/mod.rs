@@ -21,21 +21,15 @@ pub(crate) fn into_jsrpc_error(err: Web3Error) -> ErrorObjectOwned {
     };
     ErrorObjectOwned::owned(
         match err {
-            Web3Error::InternalError | Web3Error::NotImplemented => ErrorCode::InternalError.code(),
+            Web3Error::InternalError => ErrorCode::InternalError.code(),
             Web3Error::NoBlock
             | Web3Error::PrunedBlock(_)
             | Web3Error::PrunedL1Batch(_)
-            | Web3Error::NoSuchFunction
-            | Web3Error::RLPError(_)
-            | Web3Error::InvalidTransactionData(_)
             | Web3Error::TooManyTopics
             | Web3Error::FilterNotFound
-            | Web3Error::InvalidFeeParams(_)
             | Web3Error::InvalidFilterBlockHash
             | Web3Error::LogsLimitExceeded(_, _, _) => ErrorCode::InvalidParams.code(),
             Web3Error::SubmitTransactionError(_, _) | Web3Error::SerializationError(_) => 3,
-            Web3Error::PubSubTimeout => 4,
-            Web3Error::RequestTimeout => 5,
             Web3Error::TreeApiUnavailable => 6,
         },
         match err {
