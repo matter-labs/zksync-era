@@ -285,8 +285,16 @@ impl FullApiParams {
         let start_info = BlockStartInfo::new(&mut storage).await?;
         drop(storage);
 
+        let installed_filters = if self.config.filters_disabled {
+            None
+        } else {
+            Some(Arc::new(Mutex::new(Filters::new(
+                self.optional.filters_limit,
+            ))))
+        };
+
         Ok(RpcState {
-            installed_filters: Arc::new(Mutex::new(Filters::new(self.optional.filters_limit))),
+            installed_filters,
             connection_pool: self.pool,
             tx_sender: self.tx_sender,
             sync_state: self.optional.sync_state,

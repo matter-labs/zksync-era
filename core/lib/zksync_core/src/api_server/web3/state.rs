@@ -194,7 +194,7 @@ impl SealedMiniblockNumber {
 /// Holder for the data required for the API to be functional.
 #[derive(Debug, Clone)]
 pub struct RpcState {
-    pub(crate) installed_filters: Arc<Mutex<Filters>>,
+    pub(crate) installed_filters: Option<Arc<Mutex<Filters>>>,
     pub connection_pool: ConnectionPool,
     pub tree_api: Option<TreeApiHttpClient>,
     pub tx_sender: TxSender,
