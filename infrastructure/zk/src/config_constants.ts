@@ -13,6 +13,7 @@ const ROLLUP_L1_GAS_PER_PUBDATA_BYTE: number = 17;
 const VALIDIUM_L1_BATCH_COMMIT_DATA_GENERATOR_MODE: string = '"Validium"';
 const ROLLUP_L1_BATCH_COMMIT_DATA_GENERATOR_MODE: string = '"Rollup"';
 
+//Define config file's path that are updated depending on the running mode (Validium or Rollup)
 export const CHAIN_CONFIG_PATH = 'etc/env/base/chain.toml';
 export const ETH_SENDER_PATH = 'etc/env/base/eth_sender.toml';
 

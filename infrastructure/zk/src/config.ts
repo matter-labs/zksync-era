@@ -4,8 +4,6 @@ import * as fs from 'fs';
 import * as config_constants from './config_constants';
 import deepExtend from 'deep-extend';
 
-//Define config file's path that are updated depending on the running mode (Validium or Rollup)
-
 function loadConfigFile(path: string) {
     const fileContents = fs.readFileSync(path);
     try {
@@ -95,6 +93,7 @@ function loadConfigRecursive(config: object, configPath: string, calledFrom: str
     deepExtend(config, overrides);
 }
 
+// Updates config file by overriding values received as param
 function updateConfigFile(path: string, modeConstantValues: Record<string, number | string | null>) {
     let content = fs.readFileSync(path, 'utf-8');
     let lines = content.split('\n');
