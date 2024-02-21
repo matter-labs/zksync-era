@@ -10,12 +10,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 18
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
 
       - name: Step 1 - Make the preparation
         run: |
-          echo "Install Rust"
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          # echo "Install Rust"
+          # curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           echo "install NVM"
           curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
           NVM_DIR="$HOME/.nvm"
@@ -24,8 +26,7 @@ jobs:
           sudo apt-get install -y build-essential pkg-config cmake clang lldb lld libssl-dev postgresql
           echo "change usermode for Docker"
           sudo usermod -aG docker $(whoami)          
-          echo "Install Node & yarn"
-          #nvm install 18
+          echo "Install yarn 1.22.19"
           npm install -g yarn
           yarn set version 1.22.19
           echo "Install SQL tools"
