@@ -51,7 +51,7 @@ fn parsing_optional_config_from_env() {
         .map(|(name, value)| (name.to_owned(), value.to_owned()));
 
     let config: OptionalENConfig = envy::prefixed("EN_").from_iter(env_vars).unwrap();
-    assert_eq!(config.filters_disabled, true);
+    assert!(config.filters_disabled);
     assert_eq!(config.filters_limit, 5_000);
     assert_eq!(config.subscriptions_limit, 20_000);
     assert_eq!(config.fee_history_limit, 1_000);
