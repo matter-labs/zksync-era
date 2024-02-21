@@ -55,7 +55,6 @@ pub struct StorageOracle<S: WriteStorage, H: HistoryMode> {
 
     pub(crate) storage_frames_stack: AppDataFrameManagerWithHistory<Box<StorageLogQuery>, H>,
 
-    // TODO: check whether it is needed to have a separate stack for transient storage
     pub(crate) transient_storage_frames_stack: AppDataFrameManagerWithHistory<Box<LogQuery>, H>,
 
     // The changes that have been paid for in the current transaction.
@@ -85,6 +84,8 @@ impl<S: WriteStorage> OracleWithHistory for StorageOracle<S, HistoryEnabled> {
     fn rollback_to_timestamp(&mut self, timestamp: Timestamp) {
         self.storage.rollback_to_timestamp(timestamp);
         self.storage_frames_stack.rollback_to_timestamp(timestamp);
+        self.transient_storage_frames_stack
+            .rollback_to_timestamp(timestamp);
         self.paid_changes.rollback_to_timestamp(timestamp);
         self.initial_values.rollback_to_timestamp(timestamp);
         self.returned_refunds.rollback_to_timestamp(timestamp);

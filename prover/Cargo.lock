@@ -6661,6 +6661,7 @@ dependencies = [
 [[package]]
 name = "zk_evm"
 version = "1.5.0"
+source = "git+https://github.com/matter-labs/zk_evm.git?branch=v1.5.0#caeaae62132d155c05e227ed20f1bc7cc09297df"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -6698,7 +6699,7 @@ dependencies = [
 [[package]]
 name = "zk_evm_abstractions"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zk_evm_abstractions.git?branch=sb-add-timestamp-for-new-tx#8fcc5a41e0c060efc4bd1ed63a18e43922a81f88"
+source = "git+https://github.com/matter-labs/era-zk_evm_abstractions.git?branch=v1.5.0#6e0d560a5297cf58668773d7e4ca0249c355ee42"
 dependencies = [
  "anyhow",
  "num_enum",
