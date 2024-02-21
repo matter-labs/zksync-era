@@ -167,6 +167,7 @@ impl AppHealthCheck {
     ) -> (&'static str, Health) {
         struct DropGuard {
             check_name: &'static str,
+            started_at: tokio::time::Instant,
             hard_time_limit: Duration,
             is_armed: bool,
         }
@@ -177,38 +178,38 @@ impl AppHealthCheck {
                     return;
                 }
 
+                let elapsed = self.started_at.elapsed();
                 tracing::warn!(
-                    "Health check `{}` was dropped before completion; check the configured check timeout ({:?}) and check logic",
-                    self.check_name,
-                    self.hard_time_limit
+                    "Health check `{name}` was dropped before completion after {elapsed:?}; check the configured check timeout ({timeout:?}) \
+                     and health check logic",
+                    name = self.check_name,
+                    timeout = self.hard_time_limit
                 );
             }
         }
 
         let check_name = check.name();
+        let started_at = tokio::time::Instant::now();
         let mut drop_guard = DropGuard {
             check_name,
+            started_at,
             hard_time_limit,
             is_armed: true,
         };
-        let timeout_at = tokio::time::Instant::now() + hard_time_limit;
-        let mut check_future = check.check_health();
-        match tokio::time::timeout(slow_time_limit, &mut check_future).await {
-            Ok(output) => {
-                drop_guard.is_armed = false;
-                return (check_name, output);
-            }
-            Err(_) => {
-                tracing::info!(
-                    "Health check `{check_name}` takes >{slow_time_limit:?} to complete"
-                );
-            }
-        }
-
-        let result = tokio::time::timeout_at(timeout_at, check_future).await;
+        let timeout_at = started_at + hard_time_limit;
+        let result = tokio::time::timeout_at(timeout_at, check.check_health()).await;
         drop_guard.is_armed = false;
+
         match result {
-            Ok(output) => (check_name, output),
+            Ok(output) => {
+                let elapsed = started_at.elapsed();
+                if elapsed > slow_time_limit {
+                    tracing::info!(
+                        "Health check `{check_name}` took >{slow_time_limit:?} to complete: {elapsed:?}"
+                    );
+                }
+                (check_name, output)
+            }
             Err(_) => {
                 tracing::warn!(
                     "Health check `{check_name}` timed out, taking >{hard_time_limit:?} to complete; marking as not ready"
