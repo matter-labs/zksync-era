@@ -143,7 +143,7 @@ pub(super) struct ApiMetrics {
     /// Number of transaction submission errors for a specific submission error reason.
     #[metrics(labels = ["reason"])]
     pub submit_tx_error: LabeledFamily<&'static str, Counter>,
-    #[metrics(buckets = Buckets::linear(0.0..=10.0, 1.0))]
+    #[metrics(buckets = Buckets::exponential(1.0..=128.0, 2.0))]
     pub web3_in_flight_requests: Family<ApiTransportLabel, Histogram<usize>>,
     /// Number of currently open WebSocket sessions.
     pub ws_open_sessions: Gauge,

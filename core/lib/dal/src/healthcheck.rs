@@ -41,8 +41,18 @@ impl CheckHealth for ConnectionPoolHealthCheck {
     async fn check_health(&self) -> Health {
         // This check is rather feeble, plan to make reliable here:
         // https://linear.app/matterlabs/issue/PLA-255/revamp-db-connection-health-check
-        self.connection_pool.access_storage().await.unwrap();
-        let details = ConnectionPoolHealthDetails::new(&self.connection_pool);
-        Health::from(HealthStatus::Ready).with_details(details)
+        match self.connection_pool.access_storage().await {
+            Ok(_) => {
+                let details = ConnectionPoolHealthDetails::new(&self.connection_pool);
+                Health::from(HealthStatus::Ready).with_details(details)
+            }
+            Err(err) => {
+                tracing::warn!("Failed acquiring DB connection for health check: {err:?}");
+                let details = serde_json::json!({
+                    "error": format!("{err:?}"),
+                });
+                Health::from(HealthStatus::NotReady).with_details(details)
+            }
+        }
     }
 }

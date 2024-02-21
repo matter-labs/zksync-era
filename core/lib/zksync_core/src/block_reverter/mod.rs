@@ -255,23 +255,28 @@ impl BlockReverter {
         transaction
             .tokens_dal()
             .rollback_tokens(last_miniblock_to_keep)
-            .await;
+            .await
+            .expect("failed rolling back created tokens");
         tracing::info!("rolling back factory deps....");
         transaction
-            .storage_dal()
+            .factory_deps_dal()
             .rollback_factory_deps(last_miniblock_to_keep)
             .await;
+
         tracing::info!("rolling back storage...");
+        #[allow(deprecated)]
         transaction
             .storage_logs_dal()
             .rollback_storage(last_miniblock_to_keep)
             .await
             .expect("failed rolling back storage");
+
         tracing::info!("rolling back storage logs...");
         transaction
             .storage_logs_dal()
             .rollback_storage_logs(last_miniblock_to_keep)
-            .await;
+            .await
+            .unwrap();
         tracing::info!("rolling back l1 batches...");
         transaction
             .blocks_dal()

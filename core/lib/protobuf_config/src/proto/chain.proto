@@ -18,6 +18,11 @@ enum FeeModelVersion {
   V2 = 1;
 }
 
+enum L1BatchCommitDataGeneratorMode {
+  Rollup = 0;
+  Validium = 1;
+}
+
 message EthNetwork {
   optional Network network = 1; // required
   optional string zksync_network = 2; // required
@@ -51,6 +56,7 @@ message StateKeeper {
   optional uint32 virtual_blocks_per_miniblock = 24; // required
   optional bool upload_witness_inputs_to_gcs = 25; // required
   optional uint64 enum_index_migration_chunk_size = 26; // optional
+  optional L1BatchCommitDataGeneratorMode l1_batch_commit_data_generator_mode = 27; // optional, default to rollup
 }
 
 message OperationsManager {

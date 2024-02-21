@@ -1,4 +1,6 @@
-use zksync_types::{snapshots::SnapshotRecoveryStatus, L1BatchNumber, MiniblockNumber, H256};
+use zksync_types::{
+    snapshots::SnapshotRecoveryStatus, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256,
+};
 
 use crate::StorageProcessor;
 
@@ -17,20 +19,26 @@ impl SnapshotRecoveryDal<'_, '_> {
             INSERT INTO
                 snapshot_recovery (
                     l1_batch_number,
+                    l1_batch_timestamp,
                     l1_batch_root_hash,
                     miniblock_number,
-                    miniblock_root_hash,
+                    miniblock_timestamp,
+                    miniblock_hash,
+                    protocol_version,
                     storage_logs_chunks_processed,
                     updated_at,
                     created_at
                 )
             VALUES
-                ($1, $2, $3, $4, $5, NOW(), NOW())
+                ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
             "#,
             status.l1_batch_number.0 as i64,
+            status.l1_batch_timestamp as i64,
             status.l1_batch_root_hash.0.as_slice(),
             status.miniblock_number.0 as i64,
-            status.miniblock_root_hash.0.as_slice(),
+            status.miniblock_timestamp as i64,
+            status.miniblock_hash.0.as_slice(),
+            status.protocol_version as i32,
             &status.storage_logs_chunks_processed,
         )
         .execute(self.storage.conn())
@@ -64,9 +72,12 @@ impl SnapshotRecoveryDal<'_, '_> {
             r#"
             SELECT
                 l1_batch_number,
+                l1_batch_timestamp,
                 l1_batch_root_hash,
                 miniblock_number,
-                miniblock_root_hash,
+                miniblock_timestamp,
+                miniblock_hash,
+                protocol_version,
                 storage_logs_chunks_processed
             FROM
                 snapshot_recovery
@@ -75,19 +86,24 @@ impl SnapshotRecoveryDal<'_, '_> {
         .fetch_optional(self.storage.conn())
         .await?;
 
-        Ok(record.map(|r| SnapshotRecoveryStatus {
-            l1_batch_number: L1BatchNumber(r.l1_batch_number as u32),
-            l1_batch_root_hash: H256::from_slice(&r.l1_batch_root_hash),
-            miniblock_number: MiniblockNumber(r.miniblock_number as u32),
-            miniblock_root_hash: H256::from_slice(&r.miniblock_root_hash),
-            storage_logs_chunks_processed: r.storage_logs_chunks_processed.into_iter().collect(),
+        Ok(record.map(|row| SnapshotRecoveryStatus {
+            l1_batch_number: L1BatchNumber(row.l1_batch_number as u32),
+            l1_batch_timestamp: row.l1_batch_timestamp as u64,
+            l1_batch_root_hash: H256::from_slice(&row.l1_batch_root_hash),
+            miniblock_number: MiniblockNumber(row.miniblock_number as u32),
+            miniblock_timestamp: row.miniblock_timestamp as u64,
+            miniblock_hash: H256::from_slice(&row.miniblock_hash),
+            protocol_version: ProtocolVersionId::try_from(row.protocol_version as u16).unwrap(),
+            storage_logs_chunks_processed: row.storage_logs_chunks_processed,
         }))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use zksync_types::{snapshots::SnapshotRecoveryStatus, L1BatchNumber, MiniblockNumber, H256};
+    use zksync_types::{
+        snapshots::SnapshotRecoveryStatus, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256,
+    };
 
     use crate::ConnectionPool;
 
@@ -103,9 +119,12 @@ mod tests {
         assert_eq!(None, empty_status);
         let mut status = SnapshotRecoveryStatus {
             l1_batch_number: L1BatchNumber(123),
+            l1_batch_timestamp: 123,
             l1_batch_root_hash: H256::random(),
             miniblock_number: MiniblockNumber(234),
-            miniblock_root_hash: H256::random(),
+            miniblock_timestamp: 234,
+            miniblock_hash: H256::random(),
+            protocol_version: ProtocolVersionId::latest(),
             storage_logs_chunks_processed: vec![false, false, true, false],
         };
         applied_status_dal

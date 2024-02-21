@@ -98,7 +98,11 @@ export class Reporter {
      */
     debug(message: string) {
         if (process.env.ZKSYNC_DEBUG_LOGS) {
-            console.log(this.indent(`DEBUG: ${message}`));
+            const testName = 'expect' in globalThis ? expect.getState().currentTestName : undefined;
+            // Timestamps only make sense to include in tests.
+            const timestampString = testName === undefined ? '' : timestamp(`${new Date().toISOString()} `);
+            const testString = testName ? info(` [${testName}]`) : '';
+            console.log(this.indent(`${timestampString}DEBUG${testString}: ${message}`));
         }
     }
 

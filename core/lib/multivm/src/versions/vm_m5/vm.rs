@@ -224,10 +224,8 @@ impl<S: Storage, H: HistoryMode> VmInterface<S, H> for Vm<S, H> {
         }
     }
 
-    fn has_enough_gas_for_batch_tip(&self) -> bool {
-        // For this version this overhead has not been calculated and it has not been used with those versions.
-        // We return some value just in case for backwards compatibility
-        true
+    fn gas_remaining(&self) -> u32 {
+        self.vm.gas_remaining()
     }
 
     fn finish_batch(&mut self) -> FinishedL1Batch {

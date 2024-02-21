@@ -34,7 +34,7 @@ async fn kept_updated() {
     eth_client.advance_block_number(5);
 
     let adjuster = GasAdjuster::new(
-        Arc::clone(&eth_client),
+        eth_client.clone(),
         GasAdjusterConfig {
             default_priority_fee_per_gas: 5,
             max_base_fee_samples: 5,

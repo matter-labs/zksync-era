@@ -277,38 +277,42 @@ impl EthTxManager {
     }
 
     async fn get_l1_block_numbers(&self) -> Result<L1BlockNumbers, ETHSenderError> {
-        let finalized = if let Some(confirmations) = self.config.wait_confirmations {
+        let (finalized, safe) = if let Some(confirmations) = self.config.wait_confirmations {
             let latest_block_number = self
                 .ethereum_gateway
                 .block_number("eth_tx_manager")
                 .await?
                 .as_u64();
-            (latest_block_number.saturating_sub(confirmations) as u32).into()
+
+            let finalized = (latest_block_number.saturating_sub(confirmations) as u32).into();
+            (finalized, finalized)
         } else {
-            self.ethereum_gateway
+            let finalized = self
+                .ethereum_gateway
                 .block(BlockId::Number(BlockNumber::Finalized), "eth_tx_manager")
                 .await?
                 .expect("Finalized block must be present on L1")
                 .number
                 .expect("Finalized block must contain number")
                 .as_u32()
-                .into()
+                .into();
+
+            let safe = self
+                .ethereum_gateway
+                .block(BlockId::Number(BlockNumber::Safe), "eth_tx_manager")
+                .await?
+                .expect("Safe block must be present on L1")
+                .number
+                .expect("Safe block must contain number")
+                .as_u32()
+                .into();
+            (finalized, safe)
         };
 
         let latest = self
             .ethereum_gateway
             .block_number("eth_tx_manager")
             .await?
-            .as_u32()
-            .into();
-
-        let safe = self
-            .ethereum_gateway
-            .block(BlockId::Number(BlockNumber::Safe), "eth_tx_manager")
-            .await?
-            .expect("Safe block must be present on L1")
-            .number
-            .expect("Safe block must contain number")
             .as_u32()
             .into();
 

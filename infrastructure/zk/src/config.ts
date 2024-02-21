@@ -3,32 +3,6 @@ import * as toml from '@iarna/toml';
 import * as fs from 'fs';
 import deepExtend from 'deep-extend';
 
-const CONFIG_FILES = [
-    'alerts.toml',
-    'api.toml',
-    'chain.toml',
-    'contract_verifier.toml',
-    'contracts.toml',
-    'database.toml',
-    'eth_client.toml',
-    'eth_sender.toml',
-    'eth_watch.toml',
-    'misc.toml',
-    'object_store.toml',
-    'nfs.toml',
-    'rust.toml',
-    'private.toml',
-    'witness_generator.toml',
-    'house_keeper.toml',
-    'fri_prover.toml',
-    'fri_witness_generator.toml',
-    'fri_prover_group.toml',
-    'proof_data_handler.toml',
-    'fri_witness_vector_generator.toml',
-    'fri_prover_gateway.toml',
-    'fri_proof_compressor.toml'
-];
-
 function loadConfigFile(path: string) {
     const fileContents = fs.readFileSync(path);
     try {
@@ -75,24 +49,47 @@ export function collectVariables(config: any, prefix: string = ''): Map<string, 
     return variables;
 }
 
-export function loadConfig(env?: string, forceAll: boolean = false): any {
+export function loadConfig(env?: string): object {
     env ??= process.env.ZKSYNC_ENV!;
-    let config = {};
 
-    if (forceAll || !env.startsWith('ext-node')) {
-        for (const configFile of CONFIG_FILES) {
-            const localConfig = loadConfigFile(`etc/env/base/${configFile}`);
-            deepExtend(config, localConfig);
+    let configPath = `${process.env.ZKSYNC_HOME}/etc/env/${env}.toml`;
+    const config = {};
+    if (fs.existsSync(configPath)) {
+        loadConfigRecursive(config, configPath, []);
+    } else {
+        configPath = `${process.env.ZKSYNC_HOME}/etc/env/dev.toml`;
+        loadConfigRecursive(config, configPath, []);
+    }
+    return config;
+}
+
+function loadConfigRecursive(config: object, configPath: string, calledFrom: string[]) {
+    if (calledFrom.includes(configPath)) {
+        throw new Error(`Config ${configPath} tried to include itself recursively from ${JSON.stringify(calledFrom)}`);
+    }
+
+    const overrides = loadConfigFile(configPath);
+    if (overrides._metadata) {
+        const metadata = overrides._metadata;
+        delete overrides._metadata;
+
+        if (typeof metadata !== 'object' || metadata instanceof Date || Array.isArray(metadata)) {
+            throw new TypeError('Expected `_metadata` to be a table');
+        }
+        const basePaths = metadata.base || [];
+        if (!Array.isArray(basePaths)) {
+            throw new TypeError('Expected `_metadata.base` to be an array');
+        }
+
+        for (const basePath of basePaths) {
+            if (typeof basePath !== 'string') {
+                throw new TypeError('`_metadata.base` array entries must be strings (paths to base configs)');
+            }
+            const fullPath = `${process.env.ZKSYNC_HOME}/etc/env/${basePath}`;
+            loadConfigRecursive(config, fullPath, [...calledFrom, configPath]);
         }
     }
-
-    const overridesPath = `${process.env.ZKSYNC_HOME}/etc/env/${env}.toml`;
-    if (fs.existsSync(overridesPath)) {
-        const overrides = loadConfigFile(overridesPath);
-        deepExtend(config, overrides);
-    }
-
-    return config;
+    deepExtend(config, overrides);
 }
 
 export function printAllConfigs(environment?: string) {

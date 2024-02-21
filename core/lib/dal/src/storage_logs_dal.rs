@@ -21,8 +21,8 @@ impl StorageLogsDal<'_, '_> {
         &mut self,
         block_number: MiniblockNumber,
         logs: &[(H256, Vec<StorageLog>)],
-    ) {
-        self.insert_storage_logs_inner(block_number, logs, 0).await;
+    ) -> sqlx::Result<()> {
+        self.insert_storage_logs_inner(block_number, logs, 0).await
     }
 
     async fn insert_storage_logs_inner(
@@ -30,7 +30,7 @@ impl StorageLogsDal<'_, '_> {
         block_number: MiniblockNumber,
         logs: &[(H256, Vec<StorageLog>)],
         mut operation_number: u32,
-    ) {
+    ) -> sqlx::Result<()> {
         let mut copy = self
             .storage
             .conn()
@@ -41,8 +41,7 @@ impl StorageLogsDal<'_, '_> {
                 )
                 FROM STDIN WITH (DELIMITER '|')",
             )
-            .await
-            .unwrap();
+            .await?;
 
         let mut buffer = String::new();
         let now = Utc::now().naive_utc().to_string();
@@ -64,8 +63,9 @@ impl StorageLogsDal<'_, '_> {
                 operation_number += 1;
             }
         }
-        copy.send(buffer.as_bytes()).await.unwrap();
-        copy.finish().await.unwrap();
+        copy.send(buffer.as_bytes()).await?;
+        copy.finish().await?;
+        Ok(())
     }
 
     pub async fn insert_storage_logs_from_snapshot(
@@ -112,7 +112,7 @@ impl StorageLogsDal<'_, '_> {
         &mut self,
         block_number: MiniblockNumber,
         logs: &[(H256, Vec<StorageLog>)],
-    ) {
+    ) -> sqlx::Result<()> {
         let operation_number = sqlx::query!(
             r#"
             SELECT
@@ -125,17 +125,17 @@ impl StorageLogsDal<'_, '_> {
             block_number.0 as i64
         )
         .fetch_one(self.storage.conn())
-        .await
-        .unwrap()
+        .await?
         .max
         .map(|max| max as u32 + 1)
         .unwrap_or(0);
 
         self.insert_storage_logs_inner(block_number, logs, operation_number)
-            .await;
+            .await
     }
 
     /// Rolls back storage to the specified point in time.
+    #[deprecated(note = "`storage` table is soft-removed")]
     pub async fn rollback_storage(
         &mut self,
         last_miniblock_to_keep: MiniblockNumber,
@@ -250,7 +250,10 @@ impl StorageLogsDal<'_, '_> {
     }
 
     /// Removes all storage logs with a miniblock number strictly greater than the specified `block_number`.
-    pub async fn rollback_storage_logs(&mut self, block_number: MiniblockNumber) {
+    pub async fn rollback_storage_logs(
+        &mut self,
+        block_number: MiniblockNumber,
+    ) -> sqlx::Result<()> {
         sqlx::query!(
             r#"
             DELETE FROM storage_logs
@@ -260,8 +263,8 @@ impl StorageLogsDal<'_, '_> {
             block_number.0 as i64
         )
         .execute(self.storage.conn())
-        .await
-        .unwrap();
+        .await?;
+        Ok(())
     }
 
     pub async fn is_contract_deployed_at_address(&mut self, address: Address) -> bool {
@@ -454,7 +457,7 @@ impl StorageLogsDal<'_, '_> {
         )
         .instrument("get_l1_batches_and_indices_for_initial_writes")
         .report_latency()
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage)
         .await?;
 
         Ok(rows
@@ -807,7 +810,9 @@ mod tests {
         let logs = [(H256::zero(), logs)];
         conn.storage_logs_dal()
             .insert_storage_logs(MiniblockNumber(number), &logs)
-            .await;
+            .await
+            .unwrap();
+        #[allow(deprecated)]
         conn.storage_dal().apply_storage_logs(&logs).await;
         conn.blocks_dal()
             .mark_miniblocks_as_executed_in_l1_batch(L1BatchNumber(number))
@@ -844,7 +849,9 @@ mod tests {
         let more_logs = [(H256::repeat_byte(1), vec![third_log])];
         conn.storage_logs_dal()
             .append_storage_logs(MiniblockNumber(1), &more_logs)
-            .await;
+            .await
+            .unwrap();
+        #[allow(deprecated)]
         conn.storage_dal().apply_storage_logs(&more_logs).await;
 
         let touched_slots = conn
@@ -872,12 +879,27 @@ mod tests {
         let logs = vec![log, other_log, new_key_log];
         insert_miniblock(conn, 2, logs).await;
 
-        let value = conn.storage_dal().get_by_key(&key).await.unwrap();
-        assert_eq!(value, Some(H256::repeat_byte(0xff)));
-        let value = conn.storage_dal().get_by_key(&second_key).await.unwrap();
-        assert_eq!(value, Some(H256::zero()));
-        let value = conn.storage_dal().get_by_key(&new_key).await.unwrap();
-        assert_eq!(value, Some(H256::repeat_byte(0xfe)));
+        let value = conn.storage_web3_dal().get_value(&key).await.unwrap();
+        assert_eq!(value, H256::repeat_byte(0xff));
+        let value = conn
+            .storage_web3_dal()
+            .get_value(&second_key)
+            .await
+            .unwrap();
+        assert_eq!(value, H256::zero());
+        let value = conn.storage_web3_dal().get_value(&new_key).await.unwrap();
+        assert_eq!(value, H256::repeat_byte(0xfe));
+
+        // Check the outdated `storage` table as well.
+        #[allow(deprecated)]
+        {
+            let value = conn.storage_dal().get_by_key(&key).await.unwrap();
+            assert_eq!(value, Some(H256::repeat_byte(0xff)));
+            let value = conn.storage_dal().get_by_key(&second_key).await.unwrap();
+            assert_eq!(value, Some(H256::zero()));
+            let value = conn.storage_dal().get_by_key(&new_key).await.unwrap();
+            assert_eq!(value, Some(H256::repeat_byte(0xfe)));
+        }
 
         let prev_keys = vec![key.hashed_key(), new_key.hashed_key(), H256::zero()];
         let prev_values = conn
@@ -890,17 +912,35 @@ mod tests {
         assert_eq!(prev_values[&prev_keys[1]], None);
         assert_eq!(prev_values[&prev_keys[2]], None);
 
+        #[allow(deprecated)]
+        {
+            conn.storage_logs_dal()
+                .rollback_storage(MiniblockNumber(1))
+                .await
+                .unwrap();
+            let value = conn.storage_dal().get_by_key(&key).await.unwrap();
+            assert_eq!(value, Some(H256::repeat_byte(3)));
+            let value = conn.storage_dal().get_by_key(&second_key).await.unwrap();
+            assert_eq!(value, Some(H256::repeat_byte(2)));
+            let value = conn.storage_dal().get_by_key(&new_key).await.unwrap();
+            assert_eq!(value, None);
+        }
+
         conn.storage_logs_dal()
-            .rollback_storage(MiniblockNumber(1))
+            .rollback_storage_logs(MiniblockNumber(1))
             .await
             .unwrap();
 
-        let value = conn.storage_dal().get_by_key(&key).await.unwrap();
-        assert_eq!(value, Some(H256::repeat_byte(3)));
-        let value = conn.storage_dal().get_by_key(&second_key).await.unwrap();
-        assert_eq!(value, Some(H256::repeat_byte(2)));
-        let value = conn.storage_dal().get_by_key(&new_key).await.unwrap();
-        assert_eq!(value, None);
+        let value = conn.storage_web3_dal().get_value(&key).await.unwrap();
+        assert_eq!(value, H256::repeat_byte(3));
+        let value = conn
+            .storage_web3_dal()
+            .get_value(&second_key)
+            .await
+            .unwrap();
+        assert_eq!(value, H256::repeat_byte(2));
+        let value = conn.storage_web3_dal().get_value(&new_key).await.unwrap();
+        assert_eq!(value, H256::zero());
     }
 
     #[tokio::test]
@@ -922,7 +962,8 @@ mod tests {
         let written_keys: Vec<_> = logs.iter().map(|log| log.key).collect();
         conn.storage_logs_dedup_dal()
             .insert_initial_writes(L1BatchNumber(1), &written_keys)
-            .await;
+            .await
+            .unwrap();
 
         let new_logs: Vec<_> = (5_u64..20)
             .map(|i| {
@@ -934,7 +975,8 @@ mod tests {
         let new_written_keys: Vec<_> = new_logs[5..].iter().map(|log| log.key).collect();
         conn.storage_logs_dedup_dal()
             .insert_initial_writes(L1BatchNumber(2), &new_written_keys)
-            .await;
+            .await
+            .unwrap();
 
         let logs_for_revert = conn
             .storage_logs_dal()
@@ -993,7 +1035,8 @@ mod tests {
             assert!(initial_keys.len() < logs.len());
             conn.storage_logs_dedup_dal()
                 .insert_initial_writes(L1BatchNumber(l1_batch), &initial_keys)
-                .await;
+                .await
+                .unwrap();
         }
 
         let logs_for_revert = conn
@@ -1070,7 +1113,8 @@ mod tests {
         initial_keys.sort_unstable();
         conn.storage_logs_dedup_dal()
             .insert_initial_writes(L1BatchNumber(1), &initial_keys)
-            .await;
+            .await
+            .unwrap();
 
         let mut sorted_hashed_keys: Vec<_> = logs.iter().map(|log| log.key.hashed_key()).collect();
         sorted_hashed_keys.sort_unstable();

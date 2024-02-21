@@ -1,10 +1,7 @@
 //! This module is a source-of-truth on what is expected to be done when sealing a block.
 //! It contains the logic of the block sealing, which is used by both the mempool-based and external node IO.
 
-use std::{
-    collections::HashMap,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 
 use chrono::Utc;
 use itertools::Itertools;
@@ -12,9 +9,7 @@ use multivm::{
     interface::{FinishedL1Batch, L1BatchEnv},
     utils::get_max_gas_per_pubdata_byte,
 };
-use vm_utils::storage::wait_for_prev_l1_batch_params;
 use zksync_dal::StorageProcessor;
-use zksync_system_constants::ACCOUNT_CODE_STORAGE_ADDRESS;
 use zksync_types::{
     block::{unpack_block_info, L1BatchHeader, MiniblockHeader},
     event::{extract_added_tokens, extract_long_l2_to_l1_messages},
@@ -29,8 +24,8 @@ use zksync_types::{
     },
     zk_evm_types::LogQuery,
     AccountTreeId, Address, ExecuteTransactionCommon, L1BatchNumber, L1BlockNumber,
-    MiniblockNumber, ProtocolVersionId, StorageKey, StorageLog, StorageLogQuery, StorageValue,
-    Transaction, VmEvent, CURRENT_VIRTUAL_BLOCK_INFO_POSITION, H256, SYSTEM_CONTEXT_ADDRESS,
+    MiniblockNumber, ProtocolVersionId, StorageKey, StorageLog, StorageLogQuery, Transaction,
+    VmEvent, CURRENT_VIRTUAL_BLOCK_INFO_POSITION, H256, SYSTEM_CONTEXT_ADDRESS,
 };
 // TODO (SMA-1206): use seconds instead of milliseconds.
 use zksync_utils::{h256_to_u256, time::millis_since_epoch, u256_to_h256};
@@ -38,20 +33,20 @@ use zksync_utils::{h256_to_u256, time::millis_since_epoch, u256_to_h256};
 use crate::{
     metrics::{BlockStage, MiniblockStage, APP_METRICS},
     state_keeper::{
-        extractors,
         metrics::{
-            L1BatchSealStage, MiniblockSealStage, KEEPER_METRICS, L1_BATCH_METRICS,
-            MINIBLOCK_METRICS,
+            L1BatchSealStage, MiniblockSealStage, TxExecutionType, KEEPER_METRICS,
+            L1_BATCH_METRICS, MINIBLOCK_METRICS,
         },
         types::ExecutionMetricsForCriteria,
-        updates::{MiniblockSealCommand, UpdatesManager},
+        updates::{MiniblockSealCommand, MiniblockUpdates, UpdatesManager},
     },
 };
 
 impl UpdatesManager {
     /// Persists an L1 batch in the storage.
     /// This action includes a creation of an empty "fictive" miniblock that contains
-    /// the events generated during the bootloader "tip phase".
+    /// the events generated during the bootloader "tip phase". Returns updates for this fictive miniblock.
+    #[must_use = "fictive miniblock must be used to update I/O params"]
     pub(crate) async fn seal_l1_batch(
         mut self,
         storage: &mut StorageProcessor<'_>,
@@ -59,7 +54,7 @@ impl UpdatesManager {
         l1_batch_env: &L1BatchEnv,
         finished_batch: FinishedL1Batch,
         l2_erc20_bridge_addr: Address,
-    ) {
+    ) -> MiniblockUpdates {
         let started_at = Instant::now();
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::VmFinalization);
         let mut transaction = storage.start_transaction().await.unwrap();
@@ -120,20 +115,8 @@ impl UpdatesManager {
         );
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::InsertL1BatchHeader);
-        let (_prev_hash, prev_timestamp) =
-            wait_for_prev_l1_batch_params(&mut transaction, l1_batch_env.number).await;
-        assert!(
-            prev_timestamp < l1_batch_env.timestamp,
-            "Cannot seal L1 batch #{}: Timestamp of previous L1 batch ({}) >= provisional L1 batch timestamp ({}), \
-             meaning that L1 batch will be rejected by the bootloader",
-            l1_batch_env.number,
-            extractors::display_timestamp(prev_timestamp),
-            extractors::display_timestamp(l1_batch_env.timestamp)
-        );
-
         let l2_to_l1_messages =
             extract_long_l2_to_l1_messages(&finished_batch.final_execution_state.events);
-
         let l1_batch = L1BatchHeader {
             number: l1_batch_env.number,
             timestamp: l1_batch_env.timestamp,
@@ -199,7 +182,8 @@ impl UpdatesManager {
         transaction
             .storage_logs_dedup_dal()
             .insert_protective_reads(l1_batch_env.number, &protective_reads)
-            .await;
+            .await
+            .unwrap();
         progress.observe(protective_reads.len());
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::FilterWrittenSlots);
@@ -230,7 +214,8 @@ impl UpdatesManager {
         transaction
             .storage_logs_dedup_dal()
             .insert_initial_writes(l1_batch_env.number, &written_storage_keys)
-            .await;
+            .await
+            .unwrap();
         progress.observe(deduplicated_writes.len());
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::CommitL1Batch);
@@ -251,6 +236,7 @@ impl UpdatesManager {
             l1_batch_env.timestamp,
             &writes_metrics,
         );
+        miniblock_command.miniblock
     }
 
     fn report_l1_batch_metrics(
@@ -389,32 +375,32 @@ impl MiniblockSealCommand {
         transaction
             .storage_logs_dal()
             .insert_storage_logs(miniblock_number, &write_logs)
-            .await;
+            .await
+            .unwrap();
         progress.observe(write_log_count);
 
-        let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::ApplyStorageLogs, is_fictive);
-        let unique_updates = transaction
-            .storage_dal()
-            .apply_storage_logs(&write_logs)
-            .await;
-        progress.observe(write_log_count);
+        #[allow(deprecated)] // Will be removed shortly
+        {
+            let progress =
+                MINIBLOCK_METRICS.start(MiniblockSealStage::ApplyStorageLogs, is_fictive);
+            transaction
+                .storage_dal()
+                .apply_storage_logs(&write_logs)
+                .await;
+            progress.observe(write_log_count);
+        }
 
         let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::InsertFactoryDeps, is_fictive);
         let new_factory_deps = &self.miniblock.new_factory_deps;
         let new_factory_deps_count = new_factory_deps.len();
         if !new_factory_deps.is_empty() {
             transaction
-                .storage_dal()
+                .factory_deps_dal()
                 .insert_factory_deps(miniblock_number, new_factory_deps)
                 .await
                 .unwrap();
         }
         progress.observe(new_factory_deps_count);
-
-        let progress =
-            MINIBLOCK_METRICS.start(MiniblockSealStage::ExtractContractsDeployed, is_fictive);
-        let deployed_contract_count = Self::count_deployed_contracts(&unique_updates);
-        progress.observe(deployed_contract_count);
 
         let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::ExtractAddedTokens, is_fictive);
         let added_tokens = extract_added_tokens(self.l2_erc20_bridge_addr, &self.miniblock.events);
@@ -422,7 +408,11 @@ impl MiniblockSealCommand {
         let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::InsertTokens, is_fictive);
         let added_tokens_len = added_tokens.len();
         if !added_tokens.is_empty() {
-            transaction.tokens_dal().add_tokens(added_tokens).await;
+            transaction
+                .tokens_dal()
+                .add_tokens(&added_tokens)
+                .await
+                .unwrap();
         }
         progress.observe(added_tokens_len);
 
@@ -465,14 +455,13 @@ impl MiniblockSealCommand {
 
         let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::CommitMiniblock, is_fictive);
         let current_l2_virtual_block_info = transaction
-            .storage_dal()
-            .get_by_key(&StorageKey::new(
+            .storage_web3_dal()
+            .get_value(&StorageKey::new(
                 AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
                 CURRENT_VIRTUAL_BLOCK_INFO_POSITION,
             ))
             .await
-            .expect("failed getting virtual block info from VM state")
-            .unwrap_or_default();
+            .expect("failed getting virtual block info from VM state");
         let (current_l2_virtual_block_number, _) =
             unpack_block_info(h256_to_u256(current_l2_virtual_block_info));
 
@@ -481,11 +470,20 @@ impl MiniblockSealCommand {
 
         let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::ReportTxMetrics, is_fictive);
         self.miniblock.executed_transactions.iter().for_each(|tx| {
-            KEEPER_METRICS
-                .transaction_inclusion_delay
-                .observe(Duration::from_millis(
-                    Utc::now().timestamp_millis() as u64 - tx.transaction.received_timestamp_ms,
-                ))
+            let inclusion_delay = Duration::from_millis(
+                Utc::now().timestamp_millis() as u64 - tx.transaction.received_timestamp_ms,
+            );
+            if inclusion_delay > Duration::from_secs(600) {
+                tracing::info!(
+                    tx_hash = hex::encode(tx.hash),
+                    inclusion_delay_ms = inclusion_delay.as_millis(),
+                    received_timestamp_ms = tx.transaction.received_timestamp_ms,
+                    "Transaction spent >10m in mempool before being included in a miniblock"
+                )
+            }
+            KEEPER_METRICS.transaction_inclusion_delay
+                [&TxExecutionType::from_is_l1(tx.transaction.is_l1())]
+                .observe(inclusion_delay)
         });
         progress.observe(Some(self.miniblock.executed_transactions.len()));
 
@@ -559,24 +557,6 @@ impl MiniblockSealCommand {
     fn transaction(&self, index: usize) -> &Transaction {
         let tx_result = &self.miniblock.executed_transactions[index - self.first_tx_index];
         &tx_result.transaction
-    }
-
-    fn count_deployed_contracts(
-        unique_updates: &HashMap<StorageKey, (H256, StorageValue)>,
-    ) -> usize {
-        let mut count = 0;
-        for (key, (_, value)) in unique_updates {
-            if *key.account().address() == ACCOUNT_CODE_STORAGE_ADDRESS {
-                let bytecode_hash = *value;
-                // TODO(SMA-1554): Support contracts deletion.
-                //  For now, we expected that if the `bytecode_hash` is zero, the contract was not deployed
-                //  in the first place, so we don't do anything
-                if bytecode_hash != H256::zero() {
-                    count += 1;
-                }
-            }
-        }
-        count
     }
 
     fn extract_events(&self, is_fictive: bool) -> Vec<(IncludedTxLocation, Vec<&VmEvent>)> {

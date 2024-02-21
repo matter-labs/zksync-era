@@ -81,9 +81,7 @@ services:
     ports:
       - 4000:4000
       - 3500:3500
-      - 8080:8080
       - 6060:6060
-      - 9090:9090
     volumes:
       - ./volumes/prysm:/consensus
       - ./volumes/geth:/execution
@@ -106,6 +104,7 @@ services:
       - ./volumes/prysm:/consensus
   postgres:
     image: "postgres:14"
+    command: postgres -c 'max_connections=200'
     ports:
       - 127.0.0.1:5432:5432
     volumes:

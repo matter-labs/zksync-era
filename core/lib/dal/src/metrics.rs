@@ -4,7 +4,7 @@ use std::{thread, time::Duration};
 
 use vise::{
     Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Histogram, LabeledFamily,
-    LatencyObserver, Metrics,
+    LatencyObserver, Metrics, Unit,
 };
 
 /// Request-related DB metrics.
@@ -89,6 +89,9 @@ pub(crate) struct ConnectionMetrics {
     pub pool_idle: Histogram<usize>,
     /// Number of errors occurred when acquiring a DB connection.
     pub pool_acquire_error: Family<ConnectionErrorKind, Counter>,
+    /// Lifetime of a DB connection, tagged with the requester label.
+    #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds, labels = ["requester"])]
+    pub lifetime: LabeledFamily<&'static str, Histogram<Duration>>,
 }
 
 #[vise::register]

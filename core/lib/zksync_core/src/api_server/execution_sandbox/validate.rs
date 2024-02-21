@@ -42,7 +42,7 @@ impl TransactionExecutor {
     ) -> Result<(), ValidationError> {
         #[cfg(test)]
         if let Self::Mock(mock) = self {
-            return mock.validate_tx(&tx);
+            return mock.validate_tx(tx, &block_args);
         }
 
         let stage_latency = SANDBOX_METRICS.sandbox[&SandboxStage::ValidateInSandbox].start();

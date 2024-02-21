@@ -57,7 +57,7 @@ impl SnapshotsDal<'_, '_> {
         )
         .instrument("add_snapshot")
         .report_latency()
-        .execute(self.storage.conn())
+        .execute(self.storage)
         .await?;
         Ok(())
     }
@@ -102,7 +102,7 @@ impl SnapshotsDal<'_, '_> {
         )
         .instrument("get_all_complete_snapshots")
         .report_latency()
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage)
         .await?;
 
         let snapshots_l1_batch_numbers = rows
@@ -133,7 +133,7 @@ impl SnapshotsDal<'_, '_> {
         )
         .instrument("get_newest_snapshot_metadata")
         .report_latency()
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage)
         .await?;
 
         Ok(row.map(Into::into))
@@ -159,7 +159,7 @@ impl SnapshotsDal<'_, '_> {
         )
         .instrument("get_snapshot_metadata")
         .report_latency()
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage)
         .await?;
 
         Ok(row.map(Into::into))

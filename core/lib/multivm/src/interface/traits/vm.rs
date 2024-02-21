@@ -129,8 +129,8 @@ pub trait VmInterface<S, H: HistoryMode> {
     /// Record VM memory metrics.
     fn record_vm_memory_metrics(&self) -> VmMemoryMetrics;
 
-    /// Whether the VM still has enough gas to execute the batch tip
-    fn has_enough_gas_for_batch_tip(&self) -> bool;
+    /// How much gas is left in the current stack frame.
+    fn gas_remaining(&self) -> u32;
 
     /// Execute batch till the end and return the result, with final execution state
     /// and bootloader memory.

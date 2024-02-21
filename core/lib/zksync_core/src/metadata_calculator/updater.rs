@@ -5,14 +5,14 @@ use std::{ops, sync::Arc, time::Instant};
 use anyhow::Context as _;
 use futures::{future, FutureExt};
 use tokio::sync::watch;
-use zksync_commitment_utils::{bootloader_initial_content_commitment, events_queue_commitment};
-use zksync_config::configs::database::MerkleTreeMode;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_health_check::HealthUpdater;
 use zksync_merkle_tree::domain::TreeMetadata;
 use zksync_object_store::ObjectStore;
 use zksync_types::{
-    block::L1BatchHeader, writes::InitialStorageWrite, L1BatchNumber, ProtocolVersionId, H256, U256,
+    block::{L1BatchHeader, L1BatchTreeData},
+    writes::InitialStorageWrite,
+    L1BatchNumber, U256,
 };
 
 use super::{
@@ -95,7 +95,6 @@ impl TreeUpdater {
         let last_l1_batch_number = L1BatchNumber(*l1_batch_numbers.end());
         let mut l1_batch_data = L1BatchWithLogs::new(storage, first_l1_batch_number).await;
 
-        let mut previous_root_hash = self.tree.root_hash();
         let mut total_logs = 0;
         let mut updated_headers = vec![];
         for l1_batch_number in l1_batch_numbers {
@@ -125,40 +124,14 @@ impl TreeUpdater {
             .await;
             check_consistency_latency.observe();
 
-            let (events_queue_commitment, bootloader_initial_content_commitment) =
-                if self.tree.mode() == MerkleTreeMode::Full {
-                    self.calculate_commitments(storage, &header).await
-                } else {
-                    (None, None)
-                };
-
-            let build_metadata_latency = METRICS.start_stage(TreeUpdateStage::BuildMetadata);
-            let metadata = MetadataCalculator::build_l1_batch_metadata(
-                metadata,
-                &header,
-                events_queue_commitment,
-                bootloader_initial_content_commitment,
-            );
-            build_metadata_latency.observe();
-
-            let reestimate_gas_cost_latency =
-                METRICS.start_stage(TreeUpdateStage::ReestimateGasCost);
-            MetadataCalculator::reestimate_l1_batch_commit_gas(storage, &header, &metadata).await;
-            reestimate_gas_cost_latency.observe();
-
             let save_postgres_latency = METRICS.start_stage(TreeUpdateStage::SavePostgres);
-            let is_pre_boojum = header
-                .protocol_version
-                .map(|v| v.is_pre_boojum())
-                .unwrap_or(true);
+            let tree_data = L1BatchTreeData {
+                hash: metadata.root_hash,
+                rollup_last_leaf_index: metadata.rollup_last_leaf_index,
+            };
             storage
                 .blocks_dal()
-                .save_l1_batch_metadata(
-                    l1_batch_number,
-                    &metadata,
-                    previous_root_hash,
-                    is_pre_boojum,
-                )
+                .save_l1_batch_tree_data(l1_batch_number, &tree_data)
                 .await
                 .unwrap();
             // ^ Note that `save_l1_batch_metadata()` will not blindly overwrite changes if L1 batch
@@ -180,7 +153,6 @@ impl TreeUpdater {
             save_postgres_latency.observe();
             tracing::info!("Updated metadata for L1 batch #{l1_batch_number} in Postgres");
 
-            previous_root_hash = metadata.merkle_root_hash;
             updated_headers.push(header);
             l1_batch_data = next_l1_batch_data;
         }
@@ -191,49 +163,6 @@ impl TreeUpdater {
         MetadataCalculator::update_metrics(&updated_headers, total_logs, start);
 
         last_l1_batch_number + 1
-    }
-
-    async fn calculate_commitments(
-        &self,
-        conn: &mut StorageProcessor<'_>,
-        header: &L1BatchHeader,
-    ) -> (Option<H256>, Option<H256>) {
-        let events_queue_commitment_latency =
-            METRICS.start_stage(TreeUpdateStage::EventsCommitment);
-        let events_queue = conn
-            .blocks_dal()
-            .get_events_queue(header.number)
-            .await
-            .unwrap();
-
-        // TODO(PLA-731): ensure that the protocol version is always available.
-        let protocol_version = header
-            .protocol_version
-            .unwrap_or(ProtocolVersionId::last_potentially_undefined());
-        let events_queue_commitment = (!protocol_version.is_pre_boojum()).then(|| {
-            let events_queue =
-                events_queue.expect("Events queue is required for post-boojum batch");
-            events_queue_commitment(&events_queue, protocol_version)
-                .expect("Events queue commitment is required for post-boojum batch")
-        });
-        events_queue_commitment_latency.observe();
-
-        let bootloader_commitment_latency =
-            METRICS.start_stage(TreeUpdateStage::BootloaderCommitment);
-        let initial_bootloader_contents = conn
-            .blocks_dal()
-            .get_initial_bootloader_heap(header.number)
-            .await
-            .unwrap()
-            .unwrap();
-        let bootloader_initial_content_commitment =
-            bootloader_initial_content_commitment(&initial_bootloader_contents, protocol_version);
-        bootloader_commitment_latency.observe();
-
-        (
-            events_queue_commitment,
-            bootloader_initial_content_commitment,
-        )
     }
 
     async fn step(

@@ -1,5 +1,5 @@
 use multivm::{
-    interface::{L1BatchEnv, VmExecutionResultAndLogs},
+    interface::{L1BatchEnv, SystemEnv, VmExecutionResultAndLogs},
     utils::get_batch_base_fee,
 };
 use zksync_contracts::BaseSystemContractsHashes;
@@ -37,18 +37,15 @@ pub struct UpdatesManager {
 }
 
 impl UpdatesManager {
-    pub(crate) fn new(
-        l1_batch_env: L1BatchEnv,
-        base_system_contract_hashes: BaseSystemContractsHashes,
-        protocol_version: ProtocolVersionId,
-    ) -> Self {
+    pub(crate) fn new(l1_batch_env: &L1BatchEnv, system_env: &SystemEnv) -> Self {
+        let protocol_version = system_env.version;
         Self {
             batch_timestamp: l1_batch_env.timestamp,
             fee_account_address: l1_batch_env.fee_account,
             batch_fee_input: l1_batch_env.fee_input,
-            base_fee_per_gas: get_batch_base_fee(&l1_batch_env, protocol_version.into()),
+            base_fee_per_gas: get_batch_base_fee(l1_batch_env, protocol_version.into()),
             protocol_version,
-            base_system_contract_hashes,
+            base_system_contract_hashes: system_env.base_system_smart_contracts.hashes(),
             l1_batch: L1BatchUpdates::new(),
             miniblock: MiniblockUpdates::new(
                 l1_batch_env.first_l2_block.timestamp,

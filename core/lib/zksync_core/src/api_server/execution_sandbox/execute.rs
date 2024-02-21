@@ -115,7 +115,7 @@ impl TransactionExecutor {
     ) -> anyhow::Result<TransactionExecutionOutput> {
         #[cfg(test)]
         if let Self::Mock(mock_executor) = self {
-            return mock_executor.execute_tx(&tx);
+            return mock_executor.execute_tx(&tx, &block_args);
         }
 
         let total_factory_deps = tx

@@ -219,14 +219,33 @@ pub(crate) struct TxSharedArgs {
     pub chain_id: L2ChainId,
 }
 
+impl TxSharedArgs {
+    #[cfg(test)]
+    pub fn mock(base_system_contracts: MultiVMBaseSystemContracts, pool: ConnectionPool) -> Self {
+        let mut caches = PostgresStorageCaches::new(1, 1);
+        tokio::task::spawn_blocking(caches.configure_storage_values_cache(
+            1,
+            pool,
+            Handle::current(),
+        ));
+
+        Self {
+            operator_account: AccountTreeId::default(),
+            fee_input: BatchFeeInput::l1_pegged(55, 555),
+            base_system_contracts,
+            caches,
+            validation_computational_gas_limit: u32::MAX,
+            chain_id: L2ChainId::default(),
+        }
+    }
+}
+
 /// Information about first L1 batch / miniblock in the node storage.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct BlockStartInfo {
-    /// Projected number of the first locally available miniblock. This miniblock is **not**
-    /// guaranteed to be present in the storage!
+    /// Number of the first locally available miniblock.
     pub first_miniblock: MiniblockNumber,
-    /// Projected number of the first locally available L1 batch. This L1 batch is **not**
-    /// guaranteed to be present in the storage!
+    /// Number of the first locally available L1 batch.
     pub first_l1_batch: L1BatchNumber,
 }
 
@@ -326,20 +345,16 @@ impl BlockArgs {
             .with_context(|| {
                 format!("failed resolving L1 batch number of miniblock #{resolved_block_number}")
             })?;
-        let l1_batch_timestamp_s = connection
+        let l1_batch_timestamp = connection
             .blocks_web3_dal()
             .get_expected_l1_batch_timestamp(&l1_batch)
             .await
-            .with_context(|| format!("failed getting timestamp for {l1_batch:?}"))?;
-        if l1_batch_timestamp_s.is_none() {
-            // Can happen after snapshot recovery if no miniblocks are persisted yet. In this case,
-            // we cannot proceed; the issue will be resolved shortly.
-            return Err(BlockArgsError::Missing);
-        }
+            .with_context(|| format!("failed getting timestamp for {l1_batch:?}"))?
+            .context("missing timestamp for non-pending block")?;
         Ok(Self {
             block_id,
             resolved_block_number,
-            l1_batch_timestamp_s,
+            l1_batch_timestamp_s: Some(l1_batch_timestamp),
         })
     }
 

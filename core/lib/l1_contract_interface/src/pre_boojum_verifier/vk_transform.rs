@@ -3,7 +3,7 @@
 
 use std::str::FromStr;
 
-use zkevm_test_harness::{
+use zkevm_test_harness_1_3_3::{
     abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit,
     bellman::{
         bn256::{Bn256, Fq, Fr, G1Affine},

@@ -1,6 +1,7 @@
 use multivm::interface::{ExecutionResult, VmExecutionResultAndLogs};
 use thiserror::Error;
 use zksync_types::{l2::error::TxCheckError, U256};
+use zksync_web3_decl::error::EnrichedClientError;
 
 use crate::api_server::execution_sandbox::{SandboxExecutionError, ValidationError};
 
@@ -66,7 +67,7 @@ pub enum SubmitTxError {
     IntrinsicGas,
     /// Error returned from main node
     #[error("{0}")]
-    ProxyError(#[from] zksync_web3_decl::jsonrpsee::core::ClientError),
+    ProxyError(#[from] EnrichedClientError),
     #[error("not enough gas to publish compressed bytecodes")]
     FailedToPublishCompressedBytecodes,
     /// Catch-all internal error (e.g., database error) that should not be exposed to the caller.

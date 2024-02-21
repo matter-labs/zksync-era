@@ -61,7 +61,7 @@ describe('Block reverting test', function () {
     let logs: fs.WriteStream;
 
     let enable_consensus = process.env.ENABLE_CONSENSUS == 'true';
-    let components = 'api,tree,eth,state_keeper';
+    let components = 'api,tree,eth,state_keeper,commitment_generator';
     if (enable_consensus) {
         components += ',consensus';
     }

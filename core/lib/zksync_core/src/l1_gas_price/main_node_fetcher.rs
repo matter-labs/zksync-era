@@ -6,6 +6,7 @@ use std::{
 use tokio::sync::watch::Receiver;
 use zksync_types::fee_model::FeeParams;
 use zksync_web3_decl::{
+    error::ClientRpcContext,
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
     namespaces::ZksNamespaceClient,
 };
@@ -47,7 +48,12 @@ impl MainNodeFeeParamsFetcher {
                 break;
             }
 
-            let main_node_fee_params = match self.client.get_fee_params().await {
+            let fetch_result = self
+                .client
+                .get_fee_params()
+                .rpc_context("get_fee_params")
+                .await;
+            let main_node_fee_params = match fetch_result {
                 Ok(price) => price,
                 Err(err) => {
                     tracing::warn!("Unable to get the gas price: {}", err);

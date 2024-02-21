@@ -18,11 +18,6 @@ pub(super) enum TreeUpdateStage {
     LoadChanges,
     Compute,
     CheckConsistency,
-    EventsCommitment,
-    BootloaderCommitment,
-    BuildMetadata,
-    #[metrics(name = "reestimate_block_commit_gas_cost")]
-    ReestimateGasCost,
     SavePostgres,
     SaveRocksdb,
     SaveGcs,

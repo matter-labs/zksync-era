@@ -11,8 +11,10 @@ use zksync_l1_contract_interface::{
     Detokenize, Tokenizable, Tokenize,
 };
 use zksync_types::{
+    commitment::SerializeCommitment,
     eth_sender::EthTx,
     ethabi::{Contract, Token},
+    l2_to_l1_log::UserL2ToL1Log,
     protocol_version::{L1VerifierConfig, VerifierParams},
     web3::contract::Error as Web3ContractError,
     Address, ProtocolVersionId, H256, U256,
@@ -383,12 +385,14 @@ impl EthTxAggregator {
 
         if let AggregatedOperation::Commit(commit_op) = &aggregated_op {
             for batch in &commit_op.l1_batches {
-                METRICS.pubdata_size[&PubdataKind::L2ToL1MessagesCompressed]
-                    .observe(batch.metadata.l2_l1_messages_compressed.len());
-                METRICS.pubdata_size[&PubdataKind::InitialWritesCompressed]
-                    .observe(batch.metadata.initial_writes_compressed.len());
-                METRICS.pubdata_size[&PubdataKind::RepeatedWritesCompressed]
-                    .observe(batch.metadata.repeated_writes_compressed.len());
+                METRICS.pubdata_size[&PubdataKind::StateDiffs]
+                    .observe(batch.metadata.state_diffs_compressed.len());
+                METRICS.pubdata_size[&PubdataKind::UserL2ToL1Logs]
+                    .observe(batch.header.l2_to_l1_logs.len() * UserL2ToL1Log::SERIALIZED_SIZE);
+                METRICS.pubdata_size[&PubdataKind::LongL2ToL1Messages]
+                    .observe(batch.header.l2_to_l1_messages.iter().map(Vec::len).sum());
+                METRICS.pubdata_size[&PubdataKind::RawPublishedBytecodes]
+                    .observe(batch.raw_published_factory_deps.iter().map(Vec::len).sum());
             }
         }
 

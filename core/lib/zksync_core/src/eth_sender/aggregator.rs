@@ -10,8 +10,8 @@ use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_prover_interface::outputs::L1BatchProofForL1;
 use zksync_types::{
     aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata,
-    helpers::unix_timestamp_ms, protocol_version::L1VerifierConfig, L1BatchNumber,
-    ProtocolVersionId,
+    helpers::unix_timestamp_ms, l1_batch_commit_data_generator::L1BatchCommitDataGenerator,
+    protocol_version::L1VerifierConfig, L1BatchNumber, ProtocolVersionId,
 };
 
 use super::{
@@ -29,10 +29,15 @@ pub struct Aggregator {
     execute_criteria: Vec<Box<dyn L1BatchPublishCriterion>>,
     config: SenderConfig,
     blob_store: Arc<dyn ObjectStore>,
+    l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
 }
 
 impl Aggregator {
-    pub fn new(config: SenderConfig, blob_store: Arc<dyn ObjectStore>) -> Self {
+    pub fn new(
+        config: SenderConfig,
+        blob_store: Arc<dyn ObjectStore>,
+        l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
+    ) -> Self {
         Self {
             commit_criteria: vec![
                 Box::from(NumberCriterion {
@@ -46,6 +51,7 @@ impl Aggregator {
                 Box::from(DataSizeCriterion {
                     op: AggregatedActionType::Commit,
                     data_limit: config.max_eth_tx_data_size,
+                    l1_batch_commit_data_generator: l1_batch_commit_data_generator.clone(),
                 }),
                 Box::from(TimestampDeadlineCriterion {
                     op: AggregatedActionType::Commit,
@@ -88,6 +94,7 @@ impl Aggregator {
             ],
             config,
             blob_store,
+            l1_batch_commit_data_generator,
         }
     }
 
@@ -223,6 +230,7 @@ impl Aggregator {
         batches.map(|batches| CommitBatches {
             last_committed_l1_batch,
             l1_batches: batches,
+            l1_batch_commit_data_generator: self.l1_batch_commit_data_generator.clone(),
         })
     }
 

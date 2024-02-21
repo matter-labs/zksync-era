@@ -328,7 +328,13 @@ export class TestContextOwner {
 
         this.reporter.debug(`Sent ${l1TxPromises.length} initial transactions on L1`);
 
-        await Promise.all(l1TxPromises);
+        if (this.env.network === 'localhost') {
+            await Promise.all(l1TxPromises);
+        } else {
+            for (const promise of l1TxPromises) {
+                await promise;
+            }
+        }
         this.reporter.finishAction();
     }
 
@@ -363,8 +369,8 @@ export class TestContextOwner {
             this.reporter
         );
         l2TxPromises.push(...erc20Promises);
-
         await Promise.all(l2TxPromises);
+
         this.reporter.finishAction();
     }
 

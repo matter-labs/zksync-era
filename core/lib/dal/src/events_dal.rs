@@ -1,11 +1,13 @@
 use std::{collections::HashMap, fmt};
 
 use sqlx::types::chrono::Utc;
+use zksync_system_constants::L1_MESSENGER_ADDRESS;
 use zksync_types::{
     api,
+    event::L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE,
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
     tx::IncludedTxLocation,
-    MiniblockNumber, VmEvent, H256,
+    L1BatchNumber, MiniblockNumber, VmEvent, H256,
 };
 
 use crate::{
@@ -232,6 +234,46 @@ impl EventsDal<'_, '_> {
             let tx_hash = current_log.transaction_hash.unwrap();
             result.entry(tx_hash).or_default().push(current_log);
         }
+
+        Ok(result)
+    }
+
+    pub(crate) async fn get_l1_batch_raw_published_bytecode_hashes(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> Result<Vec<H256>, SqlxError> {
+        let Some((from_miniblock, to_miniblock)) = self
+            .storage
+            .blocks_dal()
+            .get_miniblock_range_of_l1_batch(l1_batch_number)
+            .await?
+        else {
+            return Ok(Vec::new());
+        };
+        let result: Vec<_> = sqlx::query!(
+            r#"
+            SELECT
+                value
+            FROM
+                events
+            WHERE
+                miniblock_number BETWEEN $1 AND $2
+                AND address = $3
+                AND topic1 = $4
+            ORDER BY
+                miniblock_number,
+                event_index_in_block
+            "#,
+            from_miniblock.0 as i64,
+            to_miniblock.0 as i64,
+            L1_MESSENGER_ADDRESS.as_bytes(),
+            L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE.as_bytes()
+        )
+        .fetch_all(self.storage.conn())
+        .await?
+        .into_iter()
+        .map(|row| H256::from_slice(&row.value))
+        .collect();
 
         Ok(result)
     }

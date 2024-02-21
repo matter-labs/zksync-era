@@ -63,7 +63,7 @@ impl BasicWitnessInputProducerDal<'_, '_> {
         )
         .instrument("create_basic_witness_input_producer_job")
         .report_latency()
-        .execute(self.storage.conn())
+        .execute(self.storage)
         .await?;
 
         Ok(())
@@ -114,7 +114,7 @@ impl BasicWitnessInputProducerDal<'_, '_> {
         )
         .instrument("get_next_basic_witness_input_producer_job")
         .report_latency()
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage)
         .await?
         .map(|job| L1BatchNumber(job.l1_batch_number as u32));
 
@@ -167,7 +167,7 @@ impl BasicWitnessInputProducerDal<'_, '_> {
         )
         .instrument("mark_job_as_successful")
         .report_latency()
-        .execute(self.storage.conn())
+        .execute(self.storage)
         .await?;
 
         Ok(())
@@ -201,7 +201,7 @@ impl BasicWitnessInputProducerDal<'_, '_> {
         )
         .instrument("mark_job_as_failed")
         .report_latency()
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage)
         .await?
         .map(|job| job.attempts as u32);
 

@@ -513,7 +513,7 @@ impl RocksdbStorage {
         tracing::info!("Getting factory deps that need to be removed...");
         let stage_start = Instant::now();
         let factory_deps = connection
-            .storage_dal()
+            .factory_deps_dal()
             .get_factory_deps_for_revert(last_miniblock_to_keep)
             .await
             .with_context(|| {

@@ -509,13 +509,13 @@ async fn generate_witness(
         .unwrap();
 
     let bootloader_code_bytes = connection
-        .storage_dal()
+        .factory_deps_dal()
         .get_factory_dep(header.base_system_contracts_hashes.bootloader)
         .await
         .expect("Bootloader bytecode should exist");
     let bootloader_code = bytes_to_chunks(&bootloader_code_bytes);
     let account_bytecode_bytes = connection
-        .storage_dal()
+        .factory_deps_dal()
         .get_factory_dep(header.base_system_contracts_hashes.default_aa)
         .await
         .expect("Default aa bytecode should exist");
@@ -539,7 +539,10 @@ async fn generate_witness(
         .unwrap()
         .unwrap();
 
-    let mut used_bytecodes = connection.storage_dal().get_factory_deps(&hashes).await;
+    let mut used_bytecodes = connection
+        .factory_deps_dal()
+        .get_factory_deps(&hashes)
+        .await;
     if input.used_bytecodes_hashes.contains(&account_code_hash) {
         used_bytecodes.insert(account_code_hash, account_bytecode);
     }

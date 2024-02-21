@@ -3,6 +3,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
+use anyhow::Context as _;
 use tokio::{runtime::Handle, sync::mpsc};
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::{L1BatchNumber, MiniblockNumber, StorageKey, StorageValue, H256};
@@ -342,23 +343,46 @@ pub struct PostgresStorage<'a> {
 
 impl<'a> PostgresStorage<'a> {
     /// Creates a new storage using the specified connection.
+    ///
     /// # Panics
+    ///
     /// Panics on Postgres errors.
     pub fn new(
+        rt_handle: Handle,
+        connection: StorageProcessor<'a>,
+        block_number: MiniblockNumber,
+        consider_new_l1_batch: bool,
+    ) -> Self {
+        rt_handle
+            .clone()
+            .block_on(Self::new_async(
+                rt_handle,
+                connection,
+                block_number,
+                consider_new_l1_batch,
+            ))
+            .unwrap()
+    }
+
+    /// Asynchronous version of [`Self::new()`] that also propagates errors instead of panicking.
+    ///
+    /// # Errors
+    ///
+    /// Propagates Postgres errors.
+    pub async fn new_async(
         rt_handle: Handle,
         mut connection: StorageProcessor<'a>,
         block_number: MiniblockNumber,
         consider_new_l1_batch: bool,
-    ) -> PostgresStorage<'a> {
-        let resolved = rt_handle
-            .block_on(
-                connection
-                    .storage_web3_dal()
-                    .resolve_l1_batch_number_of_miniblock(block_number),
-            )
-            .expect("Failed resolving L1 batch number for miniblock");
-
-        Self {
+    ) -> anyhow::Result<PostgresStorage<'a>> {
+        let resolved = connection
+            .storage_web3_dal()
+            .resolve_l1_batch_number_of_miniblock(block_number)
+            .await
+            .with_context(|| {
+                format!("failed resolving L1 batch number for miniblock #{block_number}")
+            })?;
+        Ok(Self {
             rt_handle,
             connection,
             miniblock_number: block_number,
@@ -366,7 +390,7 @@ impl<'a> PostgresStorage<'a> {
             pending_l1_batch_number: resolved.pending_l1_batch,
             consider_new_l1_batch,
             caches: None,
-        }
+        })
     }
 
     /// Sets the caches to use with the storage.

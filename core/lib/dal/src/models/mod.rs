@@ -7,7 +7,6 @@ pub mod storage_log;
 pub mod storage_protocol_version;
 pub mod storage_prover_job_info;
 pub mod storage_sync;
-pub mod storage_token;
 pub mod storage_transaction;
 pub mod storage_verification_request;
 pub mod storage_witness_job_info;

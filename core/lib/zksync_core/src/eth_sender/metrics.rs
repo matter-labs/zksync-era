@@ -16,9 +16,10 @@ use crate::{
 #[metrics(label = "kind", rename_all = "snake_case")]
 #[allow(clippy::enum_variant_names)]
 pub(super) enum PubdataKind {
-    L2ToL1MessagesCompressed,
-    InitialWritesCompressed,
-    RepeatedWritesCompressed,
+    UserL2ToL1Logs,
+    StateDiffs,
+    LongL2ToL1Messages,
+    RawPublishedBytecodes,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet, EncodeLabelValue)]
@@ -76,7 +77,7 @@ pub(super) struct EthSenderMetrics {
     #[metrics(buckets = Buckets::LATENCIES)]
     metrics_latency: Histogram<Duration>,
     /// Size of data published on L1 for an L1 batch.
-    #[metrics(buckets = Buckets::exponential(16.0..=4_096.0, 2.0))]
+    #[metrics(buckets = Buckets::exponential(1024.0..=131_072.0, 2.0))]
     pub pubdata_size: Family<PubdataKind, Histogram<usize>>,
     /// Size of the L1 batch range for a certain Ethereum sender operation.
     #[metrics(buckets = Buckets::linear(1.0..=10.0, 1.0))]

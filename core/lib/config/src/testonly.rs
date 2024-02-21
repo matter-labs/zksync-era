@@ -248,6 +248,15 @@ impl RandomConfig for configs::chain::NetworkConfig {
     }
 }
 
+impl RandomConfig for configs::chain::L1BatchCommitDataGeneratorMode {
+    fn sample(g: &mut Gen<impl Rng>) -> Self {
+        match g.rng.gen_range(0..2) {
+            0 => Self::Rollup,
+            _ => Self::Validium,
+        }
+    }
+}
+
 impl RandomConfig for configs::chain::StateKeeperConfig {
     fn sample(g: &mut Gen<impl Rng>) -> Self {
         Self {
@@ -277,6 +286,9 @@ impl RandomConfig for configs::chain::StateKeeperConfig {
             virtual_blocks_per_miniblock: g.gen(),
             upload_witness_inputs_to_gcs: g.gen(),
             enum_index_migration_chunk_size: g.gen(),
+            // TODO: this should depend on the mode (Validium or Rollup), but the tests are not adapted yet for this.
+            l1_batch_commit_data_generator_mode:
+                configs::chain::L1BatchCommitDataGeneratorMode::Rollup,
         }
     }
 }
@@ -406,7 +418,10 @@ impl RandomConfig for configs::database::PostgresConfig {
             replica_url: g.gen(),
             prover_url: g.gen(),
             max_connections: g.gen(),
+            acquire_timeout_sec: g.gen(),
             statement_timeout_sec: g.gen(),
+            long_connection_threshold_ms: g.gen(),
+            slow_query_threshold_ms: g.gen(),
         }
     }
 }
@@ -483,7 +498,8 @@ impl RandomConfig for configs::eth_sender::GasAdjusterConfig {
             internal_enforced_l1_gas_price: g.gen(),
             poll_period: g.gen(),
             max_l1_gas_price: g.gen(),
-            l1_gas_per_pubdata_byte: g.gen(),
+            // TODO: this should depend on the mode (Validium or Rollup), but the tests are not adapted yet for this.
+            l1_gas_per_pubdata_byte: 17,
         }
     }
 }
@@ -634,10 +650,19 @@ impl RandomConfig for configs::house_keeper::HouseKeeperConfig {
 impl RandomConfig for configs::object_store::ObjectStoreMode {
     fn sample(g: &mut Gen<impl Rng>) -> Self {
         match g.rng.gen_range(0..4) {
-            0 => Self::GCS,
-            1 => Self::GCSWithCredentialFile,
-            2 => Self::FileBacked,
-            _ => Self::GCSAnonymousReadOnly,
+            0 => Self::GCS {
+                bucket_base_url: g.gen(),
+            },
+            1 => Self::GCSWithCredentialFile {
+                bucket_base_url: g.gen(),
+                gcs_credential_file_path: g.gen(),
+            },
+            2 => Self::FileBacked {
+                file_backed_base_path: g.gen(),
+            },
+            _ => Self::GCSAnonymousReadOnly {
+                bucket_base_url: g.gen(),
+            },
         }
     }
 }
@@ -645,10 +670,7 @@ impl RandomConfig for configs::object_store::ObjectStoreMode {
 impl RandomConfig for configs::ObjectStoreConfig {
     fn sample(g: &mut Gen<impl Rng>) -> Self {
         Self {
-            bucket_base_url: g.gen(),
             mode: g.gen(),
-            file_backed_base_path: g.gen(),
-            gcs_credential_file_path: g.gen(),
             max_retries: g.gen(),
         }
     }

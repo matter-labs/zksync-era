@@ -14,6 +14,7 @@
       "infrastructure/zk",
       "infrastructure/local-setup-preparation",
       "core/tests/revert-test",
+      "core/tests/snapshot-recovery-test",
       "core/tests/upgrade-test",
       "core/tests/ts-integration",
       "infrastructure/protocol-upgrade"
@@ -29,6 +30,7 @@
     "l2-contracts": "yarn workspace l2-contracts",
     "revert-test": "yarn workspace revert-test",
     "upgrade-test": "yarn workspace upgrade-test",
+    "snapshot-recovery-test": "yarn workspace snapshot-recovery-test",
     "ts-integration": "yarn workspace ts-integration",
     "zk": "yarn workspace zk"
   },

@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{fmt, sync::Arc};
 
 use zksync_contracts::verifier_contract;
 use zksync_eth_client::{CallFunctionArgs, Error as EthClientError, EthInterface};
@@ -54,7 +54,7 @@ const TOO_MANY_RESULTS_ALCHEMY: &str = "response size exceeded";
 
 #[derive(Debug)]
 pub struct EthHttpQueryClient {
-    client: Box<dyn EthInterface>,
+    client: Arc<dyn EthInterface>,
     topics: Vec<H256>,
     zksync_contract_addr: Address,
     /// Address of the `Governance` contract. It's optional because it is present only for post-boojum chains.
@@ -66,7 +66,7 @@ pub struct EthHttpQueryClient {
 
 impl EthHttpQueryClient {
     pub fn new(
-        client: Box<dyn EthInterface>,
+        client: Arc<dyn EthInterface>,
         zksync_contract_addr: Address,
         governance_address: Option<Address>,
         confirmations_for_eth_event: Option<u64>,

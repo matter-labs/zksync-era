@@ -147,10 +147,6 @@ impl AsyncTree {
         self.inner.as_mut().expect(Self::INCONSISTENT_MSG)
     }
 
-    pub fn mode(&self) -> MerkleTreeMode {
-        self.mode
-    }
-
     pub fn reader(&self) -> AsyncTreeReader {
         AsyncTreeReader {
             inner: self.inner.as_ref().expect(Self::INCONSISTENT_MSG).reader(),
@@ -166,6 +162,7 @@ impl AsyncTree {
         self.as_ref().next_l1_batch_number()
     }
 
+    #[cfg(test)]
     pub fn root_hash(&self) -> H256 {
         self.as_ref().root_hash()
     }
@@ -717,7 +714,8 @@ mod tests {
         storage
             .storage_logs_dedup_dal()
             .insert_protective_reads(L1BatchNumber(2), &read_logs)
-            .await;
+            .await
+            .unwrap();
 
         let l1_batch_with_logs = L1BatchWithLogs::new(&mut storage, L1BatchNumber(2))
             .await

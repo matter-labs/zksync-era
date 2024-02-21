@@ -49,12 +49,12 @@ mod tests {
 
     static MUTEX: EnvMutex = EnvMutex::new();
 
-    fn expected_config(bucket_base_url: &str) -> ObjectStoreConfig {
+    fn expected_gcs_config(bucket_base_url: &str) -> ObjectStoreConfig {
         ObjectStoreConfig {
-            bucket_base_url: bucket_base_url.to_string(),
-            mode: ObjectStoreMode::FileBacked,
-            file_backed_base_path: "artifacts".to_string(),
-            gcs_credential_file_path: "/path/to/credentials.json".to_string(),
+            mode: ObjectStoreMode::GCSWithCredentialFile {
+                bucket_base_url: bucket_base_url.to_owned(),
+                gcs_credential_file_path: "/path/to/credentials.json".to_owned(),
+            },
             max_retries: 5,
         }
     }
@@ -64,14 +64,30 @@ mod tests {
         let mut lock = MUTEX.lock();
         let config = r#"
             OBJECT_STORE_BUCKET_BASE_URL="/base/url"
-            OBJECT_STORE_MODE="FileBacked"
-            OBJECT_STORE_FILE_BACKED_BASE_PATH="artifacts"
+            OBJECT_STORE_MODE="GCSWithCredentialFile"
             OBJECT_STORE_GCS_CREDENTIAL_FILE_PATH="/path/to/credentials.json"
             OBJECT_STORE_MAX_RETRIES="5"
         "#;
         lock.set_env(config);
         let actual = ObjectStoreConfig::from_env().unwrap();
-        assert_eq!(actual, expected_config("/base/url"));
+        assert_eq!(actual, expected_gcs_config("/base/url"));
+    }
+
+    #[test]
+    fn file_backed_config_from_env() {
+        let mut lock = MUTEX.lock();
+        let config = r#"
+            OBJECT_STORE_MODE="FileBacked"
+            OBJECT_STORE_FILE_BACKED_BASE_PATH="artifacts"
+        "#;
+        lock.set_env(config);
+        let actual = ObjectStoreConfig::from_env().unwrap();
+        assert_eq!(
+            actual.mode,
+            ObjectStoreMode::FileBacked {
+                file_backed_base_path: "artifacts".to_owned(),
+            }
+        );
     }
 
     #[test]
@@ -79,14 +95,18 @@ mod tests {
         let mut lock = MUTEX.lock();
         let config = r#"
             PUBLIC_OBJECT_STORE_BUCKET_BASE_URL="/public_base_url"
-            PUBLIC_OBJECT_STORE_MODE="FileBacked"
-            PUBLIC_OBJECT_STORE_FILE_BACKED_BASE_PATH="artifacts"
-            PUBLIC_OBJECT_STORE_GCS_CREDENTIAL_FILE_PATH="/path/to/credentials.json"
-            PUBLIC_OBJECT_STORE_MAX_RETRIES="5"
+            PUBLIC_OBJECT_STORE_MODE="GCSAnonymousReadOnly"
+            PUBLIC_OBJECT_STORE_MAX_RETRIES="3"
         "#;
         lock.set_env(config);
         let actual = PublicObjectStoreConfig::from_env().unwrap().0;
-        assert_eq!(actual, expected_config("/public_base_url"));
+        assert_eq!(actual.max_retries, 3);
+        assert_eq!(
+            actual.mode,
+            ObjectStoreMode::GCSAnonymousReadOnly {
+                bucket_base_url: "/public_base_url".to_owned(),
+            }
+        );
     }
 
     #[test]
@@ -94,14 +114,13 @@ mod tests {
         let mut lock = MUTEX.lock();
         let config = r#"
             PROVER_OBJECT_STORE_BUCKET_BASE_URL="/prover_base_url"
-            PROVER_OBJECT_STORE_MODE="FileBacked"
-            PROVER_OBJECT_STORE_FILE_BACKED_BASE_PATH="artifacts"
+            PROVER_OBJECT_STORE_MODE="GCSWithCredentialFile"
             PROVER_OBJECT_STORE_GCS_CREDENTIAL_FILE_PATH="/path/to/credentials.json"
             PROVER_OBJECT_STORE_MAX_RETRIES="5"
         "#;
         lock.set_env(config);
         let actual = ProverObjectStoreConfig::from_env().unwrap().0;
-        assert_eq!(actual, expected_config("/prover_base_url"));
+        assert_eq!(actual, expected_gcs_config("/prover_base_url"));
     }
 
     #[test]
@@ -109,13 +128,16 @@ mod tests {
         let mut lock = MUTEX.lock();
         let config = r#"
             SNAPSHOTS_OBJECT_STORE_BUCKET_BASE_URL="/snapshots_base_url"
-            SNAPSHOTS_OBJECT_STORE_MODE="FileBacked"
-            SNAPSHOTS_OBJECT_STORE_FILE_BACKED_BASE_PATH="artifacts"
-            SNAPSHOTS_OBJECT_STORE_GCS_CREDENTIAL_FILE_PATH="/path/to/credentials.json"
+            SNAPSHOTS_OBJECT_STORE_MODE="GCS"
             SNAPSHOTS_OBJECT_STORE_MAX_RETRIES="5"
         "#;
         lock.set_env(config);
         let actual = SnapshotsObjectStoreConfig::from_env().unwrap().0;
-        assert_eq!(actual, expected_config("/snapshots_base_url"));
+        assert_eq!(
+            actual.mode,
+            ObjectStoreMode::GCS {
+                bucket_base_url: "/snapshots_base_url".to_owned(),
+            }
+        );
     }
 }
