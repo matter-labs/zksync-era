@@ -67,7 +67,7 @@ impl WitnessVectorGenerator {
                 recursive_circuit.synthesis::<GoldilocksField>(&finalization_hints)
             }
             CircuitWrapper::Eip4844(_) => {
-                // TODO: figure out if we even support 4844 as GPU.
+                // TODO: figure out if we support 4844 circuit as GPU.
                 todo!()
             }
         };

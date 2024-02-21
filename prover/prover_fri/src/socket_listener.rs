@@ -196,6 +196,14 @@ pub mod gpu_socket_listener {
                     .context("get_finalization_hints()")?;
                 init_recursive_layer_cs_for_repeated_proving(recursive_circuit, &finalization_hint)
             }
+            CircuitWrapper::Eip4844(_) => {
+                let key = ProverServiceDataKey::eip4844();
+                let finalization_hint = keystore
+                    .load_finalization_hints(key)
+                    .context("get_finalization_hints()")?;
+                // Check shivini's support.
+                todo!();
+            }
         };
         tracing::info!(
             "Successfully generated assembly without witness vector for job: {}, took: {:?}",
