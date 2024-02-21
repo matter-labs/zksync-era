@@ -229,7 +229,7 @@ impl EthNamespace {
         const METHOD_NAME: &str = "get_filter_logs";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-        if !self.state.api_config.filters_enabled {
+        if self.state.api_config.filters_disabled {
             return Err(Web3Error::NotImplemented);
         }
         // We clone the filter to not hold the filter lock for an extended period of time.
@@ -572,7 +572,7 @@ impl EthNamespace {
         const METHOD_NAME: &str = "new_block_filter";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-        if !self.state.api_config.filters_enabled {
+        if self.state.api_config.filters_disabled {
             return Err(Web3Error::NotImplemented);
         }
         let mut storage = self
@@ -605,7 +605,7 @@ impl EthNamespace {
         const METHOD_NAME: &str = "new_filter";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-        if !self.state.api_config.filters_enabled {
+        if self.state.api_config.filters_disabled {
             return Err(Web3Error::NotImplemented);
         }
         if let Some(topics) = filter.topics.as_ref() {
@@ -631,7 +631,7 @@ impl EthNamespace {
         const METHOD_NAME: &str = "new_pending_transaction_filter";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-        if !self.state.api_config.filters_enabled {
+        if self.state.api_config.filters_disabled {
             return Err(Web3Error::NotImplemented);
         }
         let idx = self
@@ -651,7 +651,7 @@ impl EthNamespace {
         const METHOD_NAME: &str = "get_filter_changes";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-        if !self.state.api_config.filters_enabled {
+        if self.state.api_config.filters_disabled {
             return Err(Web3Error::NotImplemented);
         }
         let mut filter = self
@@ -687,7 +687,7 @@ impl EthNamespace {
         const METHOD_NAME: &str = "uninstall_filter";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-        if !self.state.api_config.filters_enabled {
+        if self.state.api_config.filters_disabled {
             return Err(Web3Error::NotImplemented);
         }
         let removed = self.state.installed_filters.lock().await.remove(idx);

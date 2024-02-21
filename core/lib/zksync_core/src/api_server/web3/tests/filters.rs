@@ -295,8 +295,8 @@ impl HttpTest for DisableFiltersTest {
         Ok(())
     }
 
-    fn filters_enabled(&self) -> bool {
-        false
+    fn filters_disabled(&self) -> bool {
+        true
     }
 }
 

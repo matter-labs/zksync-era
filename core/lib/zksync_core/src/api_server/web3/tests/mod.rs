@@ -195,9 +195,9 @@ trait HttpTest: Send + Sync {
 
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()>;
 
-    /// Overrides the `filters_enabled` configuration parameter for HTTP server startup
-    fn filters_enabled(&self) -> bool {
-        true
+    /// Overrides the `filters_disabled` configuration parameter for HTTP server startup
+    fn filters_disabled(&self) -> bool {
+        false
     }
 }
 
@@ -274,7 +274,7 @@ async fn test_http_server(test: impl HttpTest) {
     let contracts_config = ContractsConfig::for_tests();
     let web3_config = Web3JsonRpcConfig::for_tests();
     let mut api_config = InternalApiConfig::new(&network_config, &web3_config, &contracts_config);
-    api_config.filters_enabled = test.filters_enabled();
+    api_config.filters_disabled = test.filters_disabled();
     let mut server_handles = spawn_http_server(
         &network_config,
         pool.clone(),
