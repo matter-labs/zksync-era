@@ -74,7 +74,10 @@ impl StoredObject for FriProofWrapper {
     serialize_using_bincode!();
 }
 
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
+/// Witness vector artifacts contain large amount of data, that is computed during GPU proving
+/// by WitnessVector Generator and then streamed directly to GPU prover.
+// Please do NOT support 'Clone' for this struct (as it might result in people doing a memory copy over this huge object).
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct WitnessVectorArtifacts {
     pub witness_vector: WitnessVec<GoldilocksField>,
     pub prover_job: ProverJob,

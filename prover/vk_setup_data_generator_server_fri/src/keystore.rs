@@ -1,4 +1,4 @@
-use std::{fs, fs::File, io::Read};
+use std::{fs::File, io::Read};
 
 use anyhow::Context as _;
 use circuit_definitions::{
@@ -21,7 +21,7 @@ use zksync_types::basic_fri_types::AggregationRound;
 use crate::GoldilocksGpuProverSetupData;
 use crate::GoldilocksProverSetupData;
 
-pub enum ProverServiceDataType {
+enum ProverServiceDataType {
     VerificationKey,
     SetupData,
     FinalizationHints,
@@ -100,7 +100,7 @@ impl Keystore {
                 )
             }
             ProverServiceDataType::FinalizationHints => {
-                format!("{}/finalization_hints_{}.bin", self.basedir, name)
+                format!("{}/finalization_hints_{}.json", self.basedir, name)
             }
             ProverServiceDataType::SnarkVerificationKey => {
                 format!("{}/snark_verification_{}_key.json", self.basedir, name)
@@ -206,9 +206,7 @@ impl Keystore {
         let filepath = self.get_file_path(key.clone(), ProverServiceDataType::FinalizationHints);
 
         tracing::info!("saving finalization hints for {:?} to: {}", key, filepath);
-        let serialized =
-            bincode::serialize(&hint).context("Failed to serialize finalization hints")?;
-        fs::write(filepath, serialized).context("Failed to write finalization hints to file")
+        Self::save_json_pretty(filepath, &hint)
     }
 
     pub fn load_finalization_hints(
@@ -221,9 +219,7 @@ impl Keystore {
         if key.round == AggregationRound::NodeAggregation {
             key.circuit_id = ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8;
         }
-        Self::load_bincode_from_file(
-            self.get_file_path(key, ProverServiceDataType::FinalizationHints),
-        )
+        Self::load_json_from_file(self.get_file_path(key, ProverServiceDataType::FinalizationHints))
     }
 
     ///
@@ -261,17 +257,9 @@ impl Keystore {
         key: ProverServiceDataKey,
     ) -> anyhow::Result<GoldilocksProverSetupData> {
         let filepath = self.get_file_path(key.clone(), ProverServiceDataType::SetupData);
-
-        let mut file = File::open(filepath.clone())
-            .with_context(|| format!("Failed reading setup-data from path: {filepath:?}"))?;
-        let mut buffer = Vec::new();
-        file.read_to_end(&mut buffer).with_context(|| {
-            format!("Failed reading setup-data to buffer from path: {filepath:?}")
-        })?;
         tracing::info!("loading {:?} setup data from path: {}", key, filepath);
-        bincode::deserialize::<GoldilocksProverSetupData>(&buffer).with_context(|| {
-            format!("Failed deserializing setup-data at path: {filepath:?} for circuit: {key:?}")
-        })
+
+        Self::load_bincode_from_file(filepath)
     }
 
     #[cfg(feature = "gpu")]
@@ -280,17 +268,8 @@ impl Keystore {
         key: ProverServiceDataKey,
     ) -> anyhow::Result<GoldilocksGpuProverSetupData> {
         let filepath = self.get_file_path(key.clone(), ProverServiceDataType::SetupData);
-
-        let mut file = File::open(filepath.clone())
-            .with_context(|| format!("Failed reading setup-data from path: {filepath:?}"))?;
-        let mut buffer = Vec::new();
-        file.read_to_end(&mut buffer).with_context(|| {
-            format!("Failed reading setup-data to buffer from path: {filepath:?}")
-        })?;
         tracing::info!("loading {:?} setup data from path: {}", key, filepath);
-        bincode::deserialize::<GoldilocksGpuProverSetupData>(&buffer).with_context(|| {
-            format!("Failed deserializing setup-data at path: {filepath:?} for circuit: {key:?}")
-        })
+        Self::load_bincode_from_file(filepath)
     }
 
     pub fn save_setup_data_for_circuit_type(
