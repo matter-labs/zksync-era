@@ -628,6 +628,10 @@ pub async fn initialize_components(
             .context("eth_sender_config")?;
         let eth_client =
             PKSigningClient::from_config(&eth_sender, &contracts_config, &eth_client_config);
+        let eth_client_blobs_addr =
+            PKSigningClient::from_config_blobs(&eth_sender, &contracts_config, &eth_client_config)
+                .map(|k| k.sender_account());
+
         let eth_tx_aggregator_actor = EthTxAggregator::new(
             eth_sender.sender.clone(),
             Aggregator::new(
@@ -643,6 +647,7 @@ pub async fn initialize_components(
                 .as_ref()
                 .context("network_config")?
                 .zksync_network_id,
+            eth_client_blobs_addr,
         )
         .await;
         task_futures.push(tokio::spawn(

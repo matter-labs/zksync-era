@@ -510,18 +510,24 @@ impl EthSenderDal<'_, '_> {
         Ok(history_item.map(|tx| tx.into()))
     }
 
-    pub async fn get_next_nonce(&mut self) -> sqlx::Result<Option<u64>> {
+    pub async fn get_next_nonce(
+        &mut self,
+        from_address: Option<Address>,
+    ) -> sqlx::Result<Option<u64>> {
         let row = sqlx::query!(
             r#"
             SELECT
                 nonce
             FROM
                 eth_txs
+            WHERE
+                from_addr = $1
             ORDER BY
                 id DESC
             LIMIT
                 1
-            "#
+            "#,
+            from_address.as_ref().map(Address::as_bytes),
         )
         .fetch_optional(self.storage.conn())
         .await?;

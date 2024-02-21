@@ -8,6 +8,7 @@ use zksync_eth_client::{
     BoundEthInterface, Error, EthInterface, ExecutedTxStatus, RawTransactionBytes, SignedCallResult,
 };
 use zksync_types::{
+    aggregated_operations::AggregatedActionType,
     eth_sender::EthTx,
     web3::{
         contract::Options,
@@ -407,7 +408,17 @@ impl EthTxManager {
         base_fee_per_gas: u64,
         priority_fee_per_gas: u64,
     ) -> SignedCallResult {
-        self.ethereum_gateway
+        let signing_gateway = if let Some(blobs_gateway) = self.ethereum_gateway_blobs.as_ref() {
+            if tx.tx_type == AggregatedActionType::Commit {
+                blobs_gateway
+            } else {
+                &self.ethereum_gateway
+            }
+        } else {
+            &self.ethereum_gateway
+        };
+
+        signing_gateway
             .sign_prepared_tx_for_addr(
                 tx.raw_tx.clone(),
                 tx.contract_address,

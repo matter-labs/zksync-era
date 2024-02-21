@@ -10,6 +10,7 @@ use zksync_l1_contract_interface::{
     Detokenize, Tokenizable, Tokenize,
 };
 use zksync_types::{
+    aggregated_operations::AggregatedActionType,
     commitment::SerializeCommitment,
     eth_sender::EthTx,
     ethabi::Token,
@@ -53,6 +54,7 @@ pub struct EthTxAggregator {
     functions: ZkSyncFunctions,
     base_nonce: u64,
     rollup_chain_id: L2ChainId,
+    custom_commit_sender_addr: Option<Address>,
 }
 
 impl EthTxAggregator {
@@ -64,6 +66,7 @@ impl EthTxAggregator {
         l1_multicall3_address: Address,
         main_zksync_contract_address: Address,
         rollup_chain_id: L2ChainId,
+        custom_commit_sender_addr: Option<Address>,
     ) -> Self {
         let functions = ZkSyncFunctions::default();
         let base_nonce = eth_client
@@ -81,6 +84,7 @@ impl EthTxAggregator {
             functions,
             base_nonce,
             rollup_chain_id,
+            custom_commit_sender_addr,
         }
     }
 
@@ -460,10 +464,16 @@ impl EthTxAggregator {
         contracts_are_pre_shared_bridge: bool,
     ) -> Result<EthTx, ETHSenderError> {
         let mut transaction = storage.start_transaction().await.unwrap();
-        let nonce = self.get_next_nonce(&mut transaction).await?;
+        let op_type = aggregated_op.get_action_type();
+        let nonce = match op_type {
+            AggregatedActionType::Commit => {
+                self.get_next_nonce(&mut transaction, self.custom_commit_sender_addr)
+                    .await?
+            }
+            _ => self.get_next_nonce(&mut transaction, None).await?,
+        };
         let calldata = self.encode_aggregated_op(aggregated_op, contracts_are_pre_shared_bridge);
         let l1_batch_number_range = aggregated_op.l1_batch_range();
-        let op_type = aggregated_op.get_action_type();
 
         let predicted_gas_for_batches = transaction
             .blocks_dal()
@@ -496,10 +506,11 @@ impl EthTxAggregator {
     async fn get_next_nonce(
         &self,
         storage: &mut StorageProcessor<'_>,
+        from_addr: Option<Address>,
     ) -> Result<u64, ETHSenderError> {
         let db_nonce = storage
             .eth_sender_dal()
-            .get_next_nonce()
+            .get_next_nonce(from_addr)
             .await
             .unwrap()
             .unwrap_or(0);
