@@ -9,7 +9,7 @@ implementation or a problem with configuration. This section tries to cover comm
 
 ## Panics
 
-Panics is the Rust programming language notion of irrecoverable errors, and normally if panic happens, the application
+Panics is the Rust programming language notion of irrecoverable errors, and normally if a panic occurs, the application
 will immediately crash.
 
 - Panic matching `called Result::unwrap() on an Err value: Database(PgDatabaseError`: problem communicating with the
