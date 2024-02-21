@@ -1,15 +1,13 @@
 //! Metrics for the JSON-RPC server.
 
-use std::{
-    fmt,
-    time::{Duration, Instant},
-};
+use std::{fmt, time::Duration};
 
 use vise::{
     Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LabeledFamily,
-    LatencyObserver, Metrics, Unit,
+    Metrics, Unit,
 };
 use zksync_types::api;
+use zksync_web3_decl::error::Web3Error;
 
 use super::{ApiTransport, TypedFilter};
 
@@ -58,16 +56,24 @@ impl fmt::Display for BlockDiffLabel {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, EncodeLabelSet)]
 pub(super) struct MethodLabels {
-    method: &'static str,
+    method: String,
     block_id: Option<BlockIdLabel>,
     block_diff: Option<BlockDiffLabel>,
 }
 
 impl MethodLabels {
+    pub fn new(method: String) -> Self {
+        Self {
+            method,
+            block_id: None,
+            block_diff: None,
+        }
+    }
+
     #[must_use]
-    fn with_block_id(mut self, block_id: api::BlockId) -> Self {
+    pub fn with_block_id(mut self, block_id: api::BlockId) -> Self {
         self.block_id = Some(match block_id {
             api::BlockId::Hash(_) => BlockIdLabel::Hash,
             api::BlockId::Number(api::BlockNumber::Number(_)) => BlockIdLabel::Number,
@@ -81,7 +87,7 @@ impl MethodLabels {
     }
 
     #[must_use]
-    fn with_block_diff(mut self, block_diff: u32) -> Self {
+    pub fn with_block_diff(mut self, block_diff: u32) -> Self {
         self.block_diff = Some(match block_diff {
             0..=2 => BlockDiffLabel::Exact(block_diff),
             3..=9 => BlockDiffLabel::Lt(10),
@@ -93,36 +99,42 @@ impl MethodLabels {
     }
 }
 
-impl From<&'static str> for MethodLabels {
-    fn from(method: &'static str) -> Self {
-        Self {
-            method,
-            block_id: None,
-            block_diff: None,
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue)]
+#[metrics(rename_all = "snake_case")]
+enum Web3ErrorKind {
+    NoBlock,
+    Pruned,
+    SubmitTransaction,
+    TransactionSerialization,
+    TooManyTopics,
+    FilterNotFound,
+    LogsLimitExceeded,
+    InvalidFilterBlockHash,
+    TreeApiUnavailable,
+    Internal,
+}
+
+impl Web3ErrorKind {
+    fn new(err: &Web3Error) -> Self {
+        match err {
+            Web3Error::NoBlock => Self::NoBlock,
+            Web3Error::PrunedBlock(_) | Web3Error::PrunedL1Batch(_) => Self::Pruned,
+            Web3Error::SubmitTransactionError(..) => Self::SubmitTransaction,
+            Web3Error::SerializationError(_) => Self::TransactionSerialization,
+            Web3Error::TooManyTopics => Self::TooManyTopics,
+            Web3Error::FilterNotFound => Self::FilterNotFound,
+            Web3Error::LogsLimitExceeded(..) => Self::LogsLimitExceeded,
+            Web3Error::InvalidFilterBlockHash => Self::InvalidFilterBlockHash,
+            Web3Error::TreeApiUnavailable => Self::TreeApiUnavailable,
+            Web3Error::InternalError => Self::Internal,
         }
     }
 }
 
-#[must_use = "Should be `observe()`d"]
-#[derive(Debug)]
-pub(super) struct BlockCallObserver<'a> {
-    metrics: &'a ApiMetrics,
-    start: Instant,
-    partial_labels: MethodLabels,
-}
-
-impl BlockCallObserver<'_> {
-    pub fn observe(self, block_diff: u32) {
-        let labels = self.partial_labels.with_block_diff(block_diff);
-        let elapsed = self.start.elapsed();
-        self.metrics.web3_call[&labels].observe(elapsed);
-        self.metrics.web3_call_block_diff[&labels.method].observe(elapsed);
-    }
-
-    pub fn observe_without_diff(self) {
-        let elapsed = self.start.elapsed();
-        self.metrics.web3_call[&self.partial_labels].observe(elapsed);
-    }
+#[derive(Debug, Clone, PartialEq, Eq, Hash, EncodeLabelSet)]
+struct Web3ErrorLabels {
+    method: String,
+    kind: Web3ErrorKind,
 }
 
 /// General-purpose API server metrics.
@@ -136,10 +148,9 @@ pub(super) struct ApiMetrics {
     /// Difference between the latest sealed miniblock and the resolved miniblock for a web3 call.
     #[metrics(buckets = Buckets::LATENCIES, labels = ["method"])]
     web3_call_block_diff: LabeledFamily<&'static str, Histogram<Duration>>,
-
-    /// Number of internal errors grouped by the Web3 method.
-    #[metrics(labels = ["method"])]
-    pub web3_internal_errors: LabeledFamily<&'static str, Counter>,
+    /// Number of errors grouped by error kind and method name. Only collected for errors that were successuflly routed
+    /// to a method (i.e., this method is defined).
+    web3_errors: Family<Web3ErrorLabels, Counter>,
     /// Number of transaction submission errors for a specific submission error reason.
     #[metrics(labels = ["reason"])]
     pub submit_tx_error: LabeledFamily<&'static str, Counter>,
@@ -150,22 +161,26 @@ pub(super) struct ApiMetrics {
 }
 
 impl ApiMetrics {
-    /// Starts observing a latency of a Web3 call.
-    pub fn start_call(&self, method: &'static str) -> LatencyObserver<'_> {
-        self.web3_call[&method.into()].start()
+    pub fn observe_latency(&self, labels: &MethodLabels, latency: Duration) {
+        self.web3_call[labels].observe(latency);
     }
 
-    /// Starts observing a latency of a Web3 call that has [`api::BlockId`] as one of its inputs.
-    pub fn start_block_call(
-        &self,
-        method: &'static str,
-        block_id: api::BlockId,
-    ) -> BlockCallObserver<'_> {
-        let partial_labels = MethodLabels::from(method).with_block_id(block_id);
-        BlockCallObserver {
-            metrics: self,
-            start: Instant::now(),
-            partial_labels,
+    pub fn observe_rpc_error(&self, _method: String, _error_code: i32) {
+        // FIXME
+    }
+
+    pub fn observe_web3_error(&self, method: String, err: &Web3Error) {
+        let labels = Web3ErrorLabels {
+            method,
+            kind: Web3ErrorKind::new(err),
+        };
+        if self.web3_errors[&labels].inc() == 0 {
+            // Only log the first error with the label to not spam logs.
+            tracing::info!(
+                "Observed new error type for method `{}`: {:?}",
+                labels.method,
+                labels.kind
+            );
         }
     }
 }

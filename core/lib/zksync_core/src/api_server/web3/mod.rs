@@ -38,7 +38,7 @@ use crate::{
         execution_sandbox::{BlockStartInfo, VmConcurrencyBarrier},
         tree::TreeApiHttpClient,
         tx_sender::TxSender,
-        web3::backend_jsonrpsee::batch_limiter_middleware::LimitMiddleware,
+        web3::backend_jsonrpsee::{LimitMiddleware, MetadataMiddleware},
     },
     sync_layer::SyncState,
     utils::wait_for_l1_batch,
@@ -531,11 +531,20 @@ impl FullApiParams {
             .then_some(subscriptions_limit)
             .flatten()
             .unwrap_or(5_000);
+
+        let rpc_middleware = RpcServiceBuilder::new()
+            .layer_fn(MetadataMiddleware::new)
+            .layer_fn(move |svc| {
+                // FIXME: make optional
+                LimitMiddleware::new(svc, websocket_requests_per_minute_limit)
+            });
+
         let server_builder = ServerBuilder::default()
             .max_connections(max_connections as u32)
             .set_http_middleware(middleware)
             .max_response_body_size(response_body_size_limit)
-            .set_batch_request_config(batch_request_config);
+            .set_batch_request_config(batch_request_config)
+            .set_rpc_middleware(rpc_middleware);
 
         let (local_addr, server_handle) = if is_http {
             // HTTP-specific settings
@@ -548,9 +557,6 @@ impl FullApiParams {
         } else {
             // WS specific settings
             let server = server_builder
-                .set_rpc_middleware(RpcServiceBuilder::new().layer_fn(move |a| {
-                    LimitMiddleware::new(a, websocket_requests_per_minute_limit)
-                }))
                 .set_id_provider(EthSubscriptionIdProvider)
                 .build(addr)
                 .await
