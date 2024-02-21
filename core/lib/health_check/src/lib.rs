@@ -12,6 +12,10 @@ use futures::future;
 use serde::Serialize;
 use tokio::sync::watch;
 
+use self::metrics::METRICS;
+use crate::metrics::CheckResult;
+
+mod metrics;
 #[cfg(test)]
 mod tests;
 
@@ -188,12 +192,16 @@ impl AppHealthCheck {
                 }
 
                 let elapsed = self.started_at.elapsed();
+                let &mut Self {
+                    check_name,
+                    hard_time_limit,
+                    ..
+                } = self;
                 tracing::warn!(
-                    "Health check `{name}` was dropped before completion after {elapsed:?}; check the configured check timeout ({timeout:?}) \
-                     and health check logic",
-                    name = self.check_name,
-                    timeout = self.hard_time_limit
+                    "Health check `{check_name}` was dropped before completion after {elapsed:?}; \
+                     check the configured check timeout ({hard_time_limit:?}) and health check logic"
                 );
+                METRICS.observe_abnormal_check(check_name, CheckResult::Dropped, elapsed);
             }
         }
 
@@ -206,16 +214,17 @@ impl AppHealthCheck {
             is_armed: true,
         };
         let timeout_at = started_at + hard_time_limit;
+
         let result = tokio::time::timeout_at(timeout_at, check.check_health()).await;
         drop_guard.is_armed = false;
-
+        let elapsed = started_at.elapsed();
         match result {
             Ok(output) => {
-                let elapsed = started_at.elapsed();
                 if elapsed > slow_time_limit {
                     tracing::info!(
                         "Health check `{check_name}` took >{slow_time_limit:?} to complete: {elapsed:?}"
                     );
+                    METRICS.observe_abnormal_check(check_name, CheckResult::Slow, elapsed);
                 }
                 (check_name, output)
             }
@@ -223,6 +232,7 @@ impl AppHealthCheck {
                 tracing::warn!(
                     "Health check `{check_name}` timed out, taking >{hard_time_limit:?} to complete; marking as not ready"
                 );
+                METRICS.observe_abnormal_check(check_name, CheckResult::TimedOut, elapsed);
                 (check_name, HealthStatus::NotReady.into())
             }
         }
