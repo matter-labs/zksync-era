@@ -2,6 +2,7 @@
 
 use std::fmt::Debug;
 
+use jsonrpsee::{core::client::Error, types::error::ErrorCode};
 use zksync_web3_decl::{jsonrpsee::core::ClientError as RpcError, types::FilterChanges};
 
 use super::*;
@@ -266,21 +267,19 @@ async fn log_filter_changes_with_block_boundaries() {
     test_http_server(LogFilterChangesWithBlockBoundariesTest).await;
 }
 
+fn assert_not_implemented<T: Debug>(result: Result<T, Error>) {
+    assert_matches!(result, Err(Error::Call(e)) => {
+        assert_eq!(e.code(), ErrorCode::InternalError.code());
+        assert_eq!(e.message(), "Not implemented");
+    });
+}
+
 #[derive(Debug)]
 struct DisableFiltersTest;
 
 #[async_trait]
 impl HttpTest for DisableFiltersTest {
     async fn test(&self, client: &HttpClient, _pool: &ConnectionPool) -> anyhow::Result<()> {
-        use jsonrpsee::{core::client::Error, types::error::ErrorCode};
-
-        fn assert_not_implemented<T: Debug>(result: Result<T, Error>) {
-            assert_matches!(result, Err(Error::Call(e)) => {
-                assert_eq!(e.code(), ErrorCode::InternalError.code());
-                assert_eq!(e.message(), "Not implemented");
-            });
-        }
-
         let filter = Filter {
             from_block: Some(api::BlockNumber::Number(2.into())),
             ..Filter::default()
