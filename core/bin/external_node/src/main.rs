@@ -185,7 +185,9 @@ async fn init_tasks(
                         config: cfg,
                         sync_state,
                         client: Box::new(main_node_client),
-                    }.run(ctx, consensus::Store(pool), action_queue_sender).await;
+                    }
+                    .run(ctx, consensus::Store(pool), action_queue_sender)
+                    .await;
                     tracing::info!("Consensus actor stopped");
                     res
                 });

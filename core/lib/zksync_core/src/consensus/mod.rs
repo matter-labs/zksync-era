@@ -2,13 +2,16 @@
 
 #![allow(clippy::redundant_locals)]
 use anyhow::Context as _;
-use zksync_concurrency::{sync, ctx, error::Wrap as _, scope, time};
+use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
 use zksync_consensus_executor as executor;
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage::BlockStore;
 use zksync_types::MiniblockNumber;
+
 pub use self::storage::Store;
-use crate::sync_layer::{sync_action::ActionQueueSender, fetcher::is_transient, MainNodeClient, SyncState};
+use crate::sync_layer::{
+    fetcher::is_transient, sync_action::ActionQueueSender, MainNodeClient, SyncState,
+};
 
 pub mod config;
 pub mod proto;
@@ -32,7 +35,7 @@ impl MainNodeConfig {
         scope::run!(&ctx, |ctx, s| async {
             let mut block_store = store.clone().into_block_store();
             block_store
-                .try_init_genesis(ctx, &self.validator_key)
+                .try_init_genesis(ctx, &self.validator_key.public())
                 .await
                 .wrap("block_store.try_init_genesis()")?;
             let (block_store, runner) = BlockStore::new(ctx, Box::new(block_store))
@@ -84,61 +87,120 @@ impl Fetcher {
         }
     }
 
+    /// Fetches genesis from the main node.
+    async fn fetch_genesis(&self, ctx: &ctx::Ctx) -> ctx::Result<validator::Genesis> {
+        let genesis = ctx
+            .wait(self.client.fetch_consensus_genesis())
+            .await?
+            .context("fetch_consensus_genesis()")?
+            .context("main node is not running consensus component")?;
+        Ok(zksync_protobuf::serde::deserialize(&genesis.0).context("deserialize(genesis)")?)
+    }
+
     /// Fetches blocks from the main node in range `[cursor.next()..end)`.
-    async fn fetch_blocks(&self, ctx: &ctx::Ctx, cursor: &mut storage::Cursor, end: validator::BlockNumber) -> ctx::Result<()> {
+    async fn fetch_blocks(
+        &self,
+        ctx: &ctx::Ctx,
+        cursor: &mut storage::Cursor,
+        end: validator::BlockNumber,
+    ) -> ctx::Result<()> {
         const RETRY_INTERVAL: time::Duration = time::Duration::seconds(5);
         const MAX_CONCURRENT_REQUESTS: usize = 100;
         let begin = cursor.next();
-        scope::run!(ctx, |ctx,s| async {
-            let (send,mut recv) = ctx::channel::bounded(MAX_CONCURRENT_REQUESTS);
+        scope::run!(ctx, |ctx, s| async {
+            let (send, mut recv) = ctx::channel::bounded(MAX_CONCURRENT_REQUESTS);
             s.spawn(async {
                 let send = send;
                 let sub = &mut self.sync_state.subscribe();
                 for n in begin.0..end.0 {
                     let n = ctx::NoCopy(MiniblockNumber(n.try_into().unwrap()));
                     sync::wait_for(ctx, sub, |state| state.main_node_block() >= *n).await?;
-                    send.send(ctx,s.spawn(async {
-                        let n = n;
-                        loop {
-                            match ctx.wait(self.client.fetch_l2_block(*n, /*with_transaction=*/true)).await? {
-                                Ok(Some(block)) => return Ok(block),
-                                Ok(None) => {}
-                                Err(err) if is_transient(&err) => {}
-                                Err(err) => return Err(anyhow::format_err!("client.fetch_l2_block({}): {err}",*n).into()),
+                    send.send(
+                        ctx,
+                        s.spawn(async {
+                            let n = n;
+                            loop {
+                                match ctx
+                                    .wait(
+                                        self.client
+                                            .fetch_l2_block(*n, /*with_transaction=*/ true),
+                                    )
+                                    .await?
+                                {
+                                    Ok(Some(block)) => return Ok(block),
+                                    Ok(None) => {}
+                                    Err(err) if is_transient(&err) => {}
+                                    Err(err) => {
+                                        return Err(anyhow::format_err!(
+                                            "client.fetch_l2_block({}): {err}",
+                                            *n
+                                        )
+                                        .into())
+                                    }
+                                }
+                                ctx.sleep(RETRY_INTERVAL).await?;
                             }
-                            ctx.sleep(RETRY_INTERVAL).await?;
-                        }
-                    })).await?;
+                        }),
+                    )
+                    .await?;
                 }
                 Ok(())
             });
             while cursor.next() < end {
                 let block = recv.recv(ctx).await?.join(ctx).await?;
-                cursor.advance_fetched(block.try_into()?).await?;
+                cursor.advance(block.try_into()?).await?;
             }
             Ok(())
-        }).await
+        })
+        .await
     }
 
     /// Task fetching L2 blocks using peer-to-peer gossip network.
-    pub async fn run(self, ctx: &ctx::Ctx, store: Store, actions: ActionQueueSender) -> anyhow::Result<()> {
-        let res : ctx::Result<()> = scope::run!(ctx, |ctx, s| async {
+    pub async fn run(
+        self,
+        ctx: &ctx::Ctx,
+        store: Store,
+        actions: ActionQueueSender,
+    ) -> anyhow::Result<()> {
+        let res: ctx::Result<()> = scope::run!(ctx, |ctx, s| async {
+            // Update sync state in the background.
             s.spawn_bg(self.fetch_state_loop(ctx));
 
-            // TODO: restart or exit whenever new genesis is observed.
             // Initialize genesis.
-            let genesis = ctx.wait(self.client.fetch_consensus_genesis()).await?.context("fetch_consensus_genesis()")?
-                .context("main node is not running consensus component")?;
-            let genesis : validator::Genesis = zksync_protobuf::serde::deserialize(&genesis.0).context("deserialize(genesis)")?;
-            
+            let genesis = self.fetch_genesis(ctx).await.wrap("fetch_genesis()")?;
             let mut conn = store.access(ctx).await.wrap("access()")?;
-            conn.try_update_genesis(ctx,&genesis).await.wrap("set_genesis()")?;
-            let mut cursor = conn.new_fetcher_cursor(ctx,actions).await.wrap("new_fetcher_cursor()")?;
+            conn.try_update_genesis(ctx, &genesis)
+                .await
+                .wrap("set_genesis()")?;
+            let mut cursor = conn
+                .new_fetcher_cursor(ctx, actions)
+                .await
+                .wrap("new_fetcher_cursor()")?;
             drop(conn);
-            self.fetch_blocks(ctx, &mut cursor, genesis.forks.root().first_block).await?;
 
+            // Fetch blocks before the genesis.
+            self.fetch_blocks(ctx, &mut cursor, genesis.forks.root().first_block)
+                .await?;
+
+            // Monitor the genesis of the main node.
+            // If it changes, it means that a hard fork occurred and we need to reset the consensus state.
+            s.spawn_bg::<()>(async {
+                let want = genesis;
+                loop {
+                    if let Ok(got) = self.fetch_genesis(ctx).await {
+                        if got != want {
+                            return Err(anyhow::format_err!("genesis changed").into());
+                        }
+                    }
+                    ctx.sleep(time::Duration::seconds(5)).await?;
+                }
+            });
+
+            // Run consensus component.
             let mut block_store = store.into_block_store();
-            block_store.set_cursor(cursor).context("block_store.set_cursor()")?;
+            block_store
+                .set_cursor(cursor)
+                .context("block_store.set_cursor()")?;
             let (block_store, runner) = BlockStore::new(ctx, Box::new(block_store))
                 .await
                 .wrap("BlockStore::new()")?;

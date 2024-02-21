@@ -152,9 +152,11 @@ impl MainNodeClient for HttpClient {
             .with_arg("with_transactions", &with_transactions)
             .await
     }
-    
+
     async fn fetch_consensus_genesis(&self) -> EnrichedClientResult<Option<en::ConsensusGenesis>> {
-        self.consensus_genesis().rpc_context("consensus_genesis").await
+        self.consensus_genesis()
+            .rpc_context("consensus_genesis")
+            .await
     }
 }
 

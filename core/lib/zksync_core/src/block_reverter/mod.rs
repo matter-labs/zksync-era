@@ -294,7 +294,8 @@ impl BlockReverter {
             .delete_miniblocks(last_miniblock_to_keep)
             .await
             .unwrap();
-
+        tracing::info!("performing consensus hard fork");
+        transaction.consensus_dal().fork().await.unwrap();
         transaction.commit().await.unwrap();
     }
 

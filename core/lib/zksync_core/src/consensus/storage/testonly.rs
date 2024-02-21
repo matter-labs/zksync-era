@@ -5,7 +5,7 @@ use zksync_consensus_roles::validator;
 use zksync_consensus_storage as storage;
 use zksync_consensus_storage::PersistentBlockStore as _;
 
-use super::{Store};
+use super::Store;
 
 impl Store {
     /// Waits for the `number` miniblock to have a certificate.
@@ -16,10 +16,12 @@ impl Store {
     ) -> ctx::Result<()> {
         const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(100);
         loop {
-            if self.access(ctx)
+            if self
+                .access(ctx)
                 .await
                 .wrap("access()")?
-                .certificate(ctx, number).await?
+                .certificate(ctx, number)
+                .await?
                 .is_some()
             {
                 return Ok(());
@@ -42,9 +44,7 @@ impl Store {
         let got_last = blocks.last().context("empty store")?.header().number;
         assert_eq!(got_last, want_last);
         for block in &blocks {
-            block
-                .verify(&genesis)
-                .context(block.header().number)?;
+            block.verify(&genesis).context(block.header().number)?;
         }
         Ok(blocks)
     }

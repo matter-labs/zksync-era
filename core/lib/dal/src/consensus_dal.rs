@@ -15,71 +15,100 @@ pub struct ConsensusDal<'a, 'c> {
 impl ConsensusDal<'_, '_> {
     /// Fetches genesis.
     pub async fn genesis(&mut self) -> anyhow::Result<Option<validator::Genesis>> {
-        let Some(row) = sqlx::query!("SELECT genesis FROM consensus_replica_state WHERE fake_key")
-            .fetch_optional(self.storage.conn())
-            .await?
-        else { return Ok(None); };
-        let Some(genesis) = row.genesis else { return Ok(None); };
+        let Some(row) = sqlx::query!(
+            r#"
+            SELECT
+                genesis
+            FROM
+                consensus_replica_state
+            WHERE
+                fake_key
+            "#
+        )
+        .fetch_optional(self.storage.conn())
+        .await?
+        else {
+            return Ok(None);
+        };
+        let Some(genesis) = row.genesis else {
+            return Ok(None);
+        };
         Ok(Some(zksync_protobuf::serde::deserialize(genesis)?))
     }
 
-    /// Updates the genesis.
+    /// Attempts to update the genesis.
+    /// Fails if the storage contains a newer genesis (higher fork number).
+    /// Noop if the new genesis is the same as the current one.
+    /// Resets the stored consensus state otherwise and purges all certificates.
     pub async fn try_update_genesis(&mut self, genesis: &validator::Genesis) -> anyhow::Result<()> {
-        if genesis.forks.iter().count()!=1 {
+        if genesis.forks.iter().count() != 1 {
             anyhow::bail!("many-fork genesis unsupported");
         }
         let mut txn = self.storage.start_transaction().await?;
         if let Some(got) = txn.consensus_dal().genesis().await? {
             // Exit if the genesis didn't change.
-            if &got==genesis { return Ok(()); }
+            if &got == genesis {
+                return Ok(());
+            }
             if got.forks.current().number >= genesis.forks.current().number {
                 anyhow::bail!("transition to a past fork is not allowed");
             }
         }
-        let genesis = zksync_protobuf::serde::serialize(genesis, serde_json::value::Serializer).unwrap();
-        let state = zksync_protobuf::serde::serialize(&ReplicaState::default(), serde_json::value::Serializer).unwrap();
-        sqlx::query!("DELETE FROM miniblocks_consensus").execute(txn.conn()).await?;
-        sqlx::query!("DELETE FROM consensus_replica_state").execute(txn.conn()).await?;
-        sqlx::query!("INSERT INTO consensus_replica_state (fake_key, genesis, state) VALUES(TRUE, $1, $2)",
+        let genesis =
+            zksync_protobuf::serde::serialize(genesis, serde_json::value::Serializer).unwrap();
+        let state = zksync_protobuf::serde::serialize(
+            &ReplicaState::default(),
+            serde_json::value::Serializer,
+        )
+        .unwrap();
+        sqlx::query!(
+            r#"
+            DELETE FROM miniblocks_consensus
+            "#
+        )
+        .execute(txn.conn())
+        .await?;
+        sqlx::query!(
+            r#"
+            DELETE FROM consensus_replica_state
+            "#
+        )
+        .execute(txn.conn())
+        .await?;
+        sqlx::query!(
+            r#"
+            INSERT INTO
+                consensus_replica_state (fake_key, genesis, state)
+            VALUES
+                (TRUE, $1, $2)
+            "#,
             genesis,
             state,
-        ).execute(txn.conn()).await?;
+        )
+        .execute(txn.conn())
+        .await?;
         txn.commit().await?;
         Ok(())
     }
 
-    pub async fn fork(&mut self, first_block: validator::BlockNumber) -> anyhow::Result<()> {
+    pub async fn fork(&mut self) -> anyhow::Result<()> {
         let mut txn = self.storage.start_transaction().await?;
-        let Some(old) = txn.consensus_dal().genesis().await? else { return Ok(()); };
+        let Some(old) = txn.consensus_dal().genesis().await? else {
+            return Ok(());
+        };
+        let last = txn.blocks_dal().get_sealed_miniblock_number().await?;
+        let first_block = validator::BlockNumber(last.map(|n| n.0.into()).unwrap_or(0));
+
         let new = validator::Genesis {
             validators: old.validators,
             forks: validator::ForkSet::new(vec![validator::Fork {
-                number: old.forks.current().number,
+                number: old.forks.current().number.next(),
                 first_block,
                 first_parent: None,
-            }]).unwrap(),
+            }])
+            .unwrap(),
         };
         txn.consensus_dal().try_update_genesis(&new).await?;
-        txn.commit().await?;
-        Ok(())
-    }
-
-    pub async fn try_init_genesis(&mut self, validators: &validator::ValidatorSet) -> anyhow::Result<()> {
-        let first_block = self.storage.blocks_dal().get_sealed_miniblock_number().await?.unwrap_or(0.into());
-        let first_block = validator::BlockNumber(first_block.0.into());
-        let mut txn = self.storage.start_transaction().await?;
-        if txn.consensus_dal().genesis().await?.is_some() {
-            return Ok(());
-        }
-        let genesis = validator::Genesis {
-            validators: validators.clone(),
-            forks: validator::ForkSet::new(vec![validator::Fork {
-                number: validator::ForkNumber(0),
-                first_block,
-                first_parent: None,
-            }]).unwrap(),
-        };
-        txn.consensus_dal().try_update_genesis(&genesis).await?;
         txn.commit().await?;
         Ok(())
     }
@@ -89,7 +118,7 @@ impl ConsensusDal<'_, '_> {
         let row = sqlx::query!(
             r#"
             SELECT
-                state as "state!"
+                state AS "state!"
             FROM
                 consensus_replica_state
             WHERE
@@ -103,36 +132,21 @@ impl ConsensusDal<'_, '_> {
 
     /// Sets the current BFT replica state.
     pub async fn set_replica_state(&mut self, state: &ReplicaState) -> sqlx::Result<()> {
-        let state = zksync_protobuf::serde::serialize(state, serde_json::value::Serializer).unwrap();
-        sqlx::query!("UPDATE consensus_replica_state SET state = $1 WHERE fake_key", state)
-            .execute(self.storage.conn())
-            .await?;
-        Ok(())
-    }
-
-    /// Fetches the first consensus certificate.
-    /// Note that we didn't backfill the certificates for the past miniblocks
-    /// when enabling consensus certificate generation, so it might NOT be the certificate
-    /// for the genesis miniblock.
-    pub async fn first_certificate(&mut self) -> anyhow::Result<Option<validator::CommitQC>> {
-        let Some(row) = sqlx::query!(
+        let state =
+            zksync_protobuf::serde::serialize(state, serde_json::value::Serializer).unwrap();
+        sqlx::query!(
             r#"
-            SELECT
-                certificate
-            FROM
-                miniblocks_consensus
-            ORDER BY
-                number ASC
-            LIMIT
-                1
-            "#
+            UPDATE consensus_replica_state
+            SET
+                state = $1
+            WHERE
+                fake_key
+            "#,
+            state
         )
-        .fetch_optional(self.storage.conn())
-        .await?
-        else {
-            return Ok(None);
-        };
-        Ok(Some(zksync_protobuf::serde::deserialize(row.certificate)?))
+        .execute(self.storage.conn())
+        .await?;
+        Ok(())
     }
 
     /// Fetches the last consensus certificate.
@@ -258,6 +272,7 @@ impl ConsensusDal<'_, '_> {
 #[cfg(test)]
 mod tests {
     use rand::Rng as _;
+    use zksync_consensus_roles::validator;
     use zksync_consensus_storage::ReplicaState;
 
     use crate::ConnectionPool;
@@ -267,15 +282,35 @@ mod tests {
         let rng = &mut rand::thread_rng();
         let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
-        conn.consensus_dal().try_init_genesis(&rng.gen()).await.unwrap();
-        assert_eq!(ReplicaState::default(), conn.consensus_dal().replica_state().await.unwrap());
-        for _ in 0..10 {
-            let want: ReplicaState = rng.gen();
-            conn.consensus_dal().set_replica_state(&want).await.unwrap();
+        assert_eq!(None, conn.consensus_dal().genesis().await.unwrap());
+        for n in 0..3 {
+            let fork = validator::Fork {
+                number: validator::ForkNumber(n),
+                first_block: rng.gen(),
+                first_parent: Some(rng.gen()),
+            };
+            let setup = validator::testonly::Setup::new_with_fork(rng, 3, fork);
+            conn.consensus_dal()
+                .try_update_genesis(&setup.genesis)
+                .await
+                .unwrap();
             assert_eq!(
-                want,
+                setup.genesis,
+                conn.consensus_dal().genesis().await.unwrap().unwrap()
+            );
+            assert_eq!(
+                ReplicaState::default(),
                 conn.consensus_dal().replica_state().await.unwrap()
             );
+            for _ in 0..5 {
+                let want: ReplicaState = rng.gen();
+                conn.consensus_dal().set_replica_state(&want).await.unwrap();
+                assert_eq!(
+                    setup.genesis,
+                    conn.consensus_dal().genesis().await.unwrap().unwrap()
+                );
+                assert_eq!(want, conn.consensus_dal().replica_state().await.unwrap());
+            }
         }
     }
 }

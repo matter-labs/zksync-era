@@ -22,7 +22,5 @@ pub trait EnNamespace {
     ) -> RpcResult<Option<en::SyncBlock>>;
 
     #[method(name = "consensusGenesis")]
-    async fn consensus_genesis(
-        &self,
-    ) -> RpcResult<Option<en::ConsensusGenesis>>;
+    async fn consensus_genesis(&self) -> RpcResult<Option<en::ConsensusGenesis>>;
 }

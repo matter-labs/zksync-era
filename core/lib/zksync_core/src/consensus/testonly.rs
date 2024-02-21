@@ -17,10 +17,7 @@ use zksync_types::{
 use zksync_web3_decl::error::{EnrichedClientError, EnrichedClientResult};
 
 use crate::{
-    consensus::{
-        config::Config,
-        Store,
-    },
+    consensus::{config::Config, Store},
     genesis::{ensure_genesis_state, GenesisParams},
     state_keeper::{
         seal_criteria::NoopSealer, tests::MockBatchExecutor, MiniblockSealer, ZkSyncStateKeeper,
@@ -61,15 +58,24 @@ pub(super) struct StoreMainNodeClient(pub ConnectionPool);
 
 #[async_trait::async_trait]
 impl MainNodeClient for StoreMainNodeClient {
-    async fn fetch_system_contract_by_hash(&self, _hash: H256) -> EnrichedClientResult<Option<Vec<u8>>> {
+    async fn fetch_system_contract_by_hash(
+        &self,
+        _hash: H256,
+    ) -> EnrichedClientResult<Option<Vec<u8>>> {
         unimplemented!()
     }
 
-    async fn fetch_genesis_contract_bytecode(&self,_address: Address) -> EnrichedClientResult<Option<Vec<u8>>> {
+    async fn fetch_genesis_contract_bytecode(
+        &self,
+        _address: Address,
+    ) -> EnrichedClientResult<Option<Vec<u8>>> {
         unimplemented!()
     }
 
-    async fn fetch_protocol_version(&self, _protocol_version: ProtocolVersionId) -> EnrichedClientResult<Option<api::ProtocolVersion>> {
+    async fn fetch_protocol_version(
+        &self,
+        _protocol_version: ProtocolVersionId,
+    ) -> EnrichedClientResult<Option<api::ProtocolVersion>> {
         unimplemented!()
     }
 
@@ -78,18 +84,51 @@ impl MainNodeClient for StoreMainNodeClient {
     }
 
     async fn fetch_l2_block_number(&self) -> EnrichedClientResult<MiniblockNumber> {
-        Ok(self.0.access_storage().await.unwrap().blocks_dal().get_sealed_miniblock_number().await.unwrap().unwrap())
+        Ok(self
+            .0
+            .access_storage()
+            .await
+            .unwrap()
+            .blocks_dal()
+            .get_sealed_miniblock_number()
+            .await
+            .unwrap()
+            .unwrap())
     }
 
-    async fn fetch_l2_block(&self, number: MiniblockNumber, with_transactions: bool) -> EnrichedClientResult<Option<api::en::SyncBlock>> {
-        Ok(self.0.access_storage().await.unwrap().sync_dal().sync_block(number,with_transactions).await.unwrap())
+    async fn fetch_l2_block(
+        &self,
+        number: MiniblockNumber,
+        with_transactions: bool,
+    ) -> EnrichedClientResult<Option<api::en::SyncBlock>> {
+        Ok(self
+            .0
+            .access_storage()
+            .await
+            .unwrap()
+            .sync_dal()
+            .sync_block(number, with_transactions)
+            .await
+            .unwrap())
     }
 
-    async fn fetch_consensus_genesis(&self) -> EnrichedClientResult<Option<api::en::ConsensusGenesis>> {
-        let genesis = self.0.access_storage().await.unwrap().consensus_dal().genesis().await.unwrap();
-        Ok(genesis.map(|g|api::en::ConsensusGenesis(
-            zksync_protobuf::serde::serialize(&g,serde_json::value::Serializer).unwrap()
-        )))
+    async fn fetch_consensus_genesis(
+        &self,
+    ) -> EnrichedClientResult<Option<api::en::ConsensusGenesis>> {
+        let genesis = self
+            .0
+            .access_storage()
+            .await
+            .unwrap()
+            .consensus_dal()
+            .genesis()
+            .await
+            .unwrap();
+        Ok(genesis.map(|g| {
+            api::en::ConsensusGenesis(
+                zksync_protobuf::serde::serialize(&g, serde_json::value::Serializer).unwrap(),
+            )
+        }))
     }
 }
 
@@ -254,7 +293,9 @@ impl MainNodeClient for MockMainNodeClient {
         Ok(Some(block))
     }
 
-    async fn fetch_consensus_genesis(&self) -> EnrichedClientResult<Option<api::en::ConsensusGenesis>> {
+    async fn fetch_consensus_genesis(
+        &self,
+    ) -> EnrichedClientResult<Option<api::en::ConsensusGenesis>> {
         unimplemented!()
     }
 }
@@ -406,7 +447,7 @@ impl StateKeeper {
             }
         }
     }
- 
+
     /// Last block that has been pushed to the `StateKeeper` via `ActionQueue`.
     /// It might NOT be present in storage yet.
     pub fn last_block(&self) -> validator::BlockNumber {

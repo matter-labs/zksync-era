@@ -1,15 +1,15 @@
 use anyhow::Context as _;
+use rand::Rng as _;
 use tracing::Instrument as _;
 use zksync_concurrency::{ctx, scope};
-use zksync_consensus_storage as storage;
-use zksync_consensus_storage::PersistentBlockStore as _;
-use zksync_consensus_network::testonly::{new_configs,new_fullnode};
 use zksync_consensus_executor as executor;
 use zksync_consensus_network as network;
-use zksync_dal::{connection::TestTemplate, ConnectionPool};
+use zksync_consensus_network::testonly::{new_configs, new_fullnode};
 use zksync_consensus_roles::validator::testonly::Setup;
+use zksync_consensus_storage as storage;
+use zksync_consensus_storage::PersistentBlockStore as _;
+use zksync_dal::{connection::TestTemplate, ConnectionPool};
 use zksync_protobuf::testonly::test_encode_random;
-use rand::Rng as _;
 
 use super::*;
 
@@ -33,9 +33,11 @@ async fn test_validator_block_store() {
             first_block: validator::BlockNumber(4),
             first_parent: None,
         };
-        let mut setup = Setup::new_with_fork(rng,3,fork.clone());
+        let mut setup = Setup::new_with_fork(rng, 3, fork.clone());
         let mut conn = sk.store.access(ctx).await.wrap("access()")?;
-        conn.try_update_genesis(ctx,&setup.genesis).await.wrap("try_update_genesis()")?;
+        conn.try_update_genesis(ctx, &setup.genesis)
+            .await
+            .wrap("try_update_genesis()")?;
         for i in fork.first_block.0..sk.last_block().next().0 {
             let payload = conn
                 .payload(ctx, validator::BlockNumber(i))
@@ -49,7 +51,7 @@ async fn test_validator_block_store() {
     })
     .await
     .unwrap();
-    
+
     // Insert blocks one by one and check the storage state.
     for (i, block) in want.iter().enumerate() {
         let store = Store(pool.clone()).into_block_store();
@@ -58,7 +60,7 @@ async fn test_validator_block_store() {
     }
 }
 
-fn executor_config(cfg:&network::Config) -> executor::Config {
+fn executor_config(cfg: &network::Config) -> executor::Config {
     executor::Config {
         server_addr: *cfg.server_addr,
         public_addr: cfg.public_addr,
@@ -78,7 +80,7 @@ async fn test_validator() {
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(10.));
     let rng = &mut ctx.rng();
-    let setup = Setup::new(rng, 1); 
+    let setup = Setup::new(rng, 1);
     let cfgs = new_configs(rng, &setup, 0);
 
     scope::run!(ctx, |ctx, s| async {
@@ -149,19 +151,21 @@ async fn test_full_nodes() {
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(10.));
     let rng = &mut ctx.rng();
-    let setup = Setup::new(rng,1);
-    let validator_cfgs = new_configs(rng,&setup,0);
+    let setup = Setup::new(rng, 1);
+    let validator_cfgs = new_configs(rng, &setup, 0);
 
     // topology:
-    // validator <-> node <-> node <-> ... 
+    // validator <-> node <-> node <-> ...
     let mut node_cfgs = vec![];
     for _ in 0..NODES {
-        node_cfgs.push(new_fullnode(rng, &node_cfgs.last().unwrap_or(&validator_cfgs[0])));
+        node_cfgs.push(new_fullnode(
+            rng,
+            &node_cfgs.last().unwrap_or(&validator_cfgs[0]),
+        ));
     }
 
     // Run validator and fetchers in parallel.
     scope::run!(ctx, |ctx, s| async {
-        // Run validator.
         let pool = ConnectionPool::test_pool().await;
         let (mut validator, runner) = testonly::StateKeeper::new(pool).await?;
         s.spawn_bg(async {
@@ -171,6 +175,11 @@ async fn test_full_nodes() {
                 .await
                 .context("validator")
         });
+        // Generate a couple of blocks, before initializing consensus genesis.
+        validator.push_random_blocks(rng, 5).await;
+        validator.wait_for_miniblocks(ctx).await.unwrap();
+
+        // Run validator.
         let cfg = MainNodeConfig {
             executor: executor_config(&validator_cfgs[0]),
             validator_key: setup.keys[0].clone(),
@@ -201,6 +210,7 @@ async fn test_full_nodes() {
         }
 
         // Make validator produce blocks and wait for fetchers to get them.
+        // Note that block from before and after genesis have to be fetched.
         validator.push_random_blocks(rng, 5).await;
         let want_last = validator.last_block();
         let want = validator
@@ -208,10 +218,7 @@ async fn test_full_nodes() {
             .wait_for_blocks_and_verify(ctx, want_last)
             .await?;
         for node in &nodes {
-            assert_eq!(
-                want,
-                node.wait_for_blocks_and_verify(ctx, want_last).await?
-            );
+            assert_eq!(want, node.wait_for_blocks_and_verify(ctx, want_last).await?);
         }
         Ok(())
     })
@@ -225,8 +232,8 @@ async fn test_fetcher_backfill_certs() {
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(10.));
     let rng = &mut ctx.rng();
-    let setup = Setup::new(rng,1);
-    let validator_cfgs = new_configs(rng,&setup,0);
+    let setup = Setup::new(rng, 1);
+    let validator_cfgs = new_configs(rng, &setup, 0);
     let cfg = MainNodeConfig {
         executor: executor_config(&validator_cfgs[0]),
         validator_key: setup.keys[0].clone(),
@@ -243,9 +250,7 @@ async fn test_fetcher_backfill_certs() {
         scope::run!(ctx, |ctx, s| async {
             s.spawn_bg(cfg.clone().run(ctx, sk.store.clone()));
             sk.push_random_blocks(rng, 5).await;
-            sk.store
-                .wait_for_certificate(ctx, sk.last_block())
-                .await?;
+            sk.store.wait_for_certificate(ctx, sk.last_block()).await?;
             Ok(())
         })
         .await?;
@@ -274,7 +279,7 @@ async fn test_fetcher_backfill_certs() {
         s.spawn_bg(runner.run(ctx));
         let actions = fetcher.actions_sender;
         let fetcher = Fetcher {
-            config: executor_config(&new_fullnode(rng,&validator_cfgs[0])),
+            config: executor_config(&new_fullnode(rng, &validator_cfgs[0])),
             client: validator.store.client(),
             sync_state: fetcher.sync_state,
         };

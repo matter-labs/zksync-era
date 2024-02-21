@@ -25,9 +25,15 @@ impl EnNamespace {
                 .consensus_dal()
                 .genesis()
                 .await?
-            else { return Ok(None) };
-            anyhow::Ok(Some(en::ConsensusGenesis(zksync_protobuf::serde::serialize(&genesis, serde_json::value::Serializer).unwrap())))
-        }.await.map_err(|err| internal_error("en_consensusGenesis", err))
+            else {
+                return Ok(None);
+            };
+            anyhow::Ok(Some(en::ConsensusGenesis(
+                zksync_protobuf::serde::serialize(&genesis, serde_json::value::Serializer).unwrap(),
+            )))
+        }
+        .await
+        .map_err(|err| internal_error("en_consensusGenesis", err))
     }
 
     #[tracing::instrument(skip(self))]

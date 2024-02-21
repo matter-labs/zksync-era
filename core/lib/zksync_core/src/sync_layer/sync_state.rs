@@ -1,6 +1,6 @@
 use std::sync::Arc;
-use tokio::sync::watch;
 
+use tokio::sync::watch;
 use zksync_types::MiniblockNumber;
 
 use crate::metrics::EN_METRICS;
@@ -15,7 +15,9 @@ use crate::metrics::EN_METRICS;
 pub struct SyncState(Arc<watch::Sender<SyncStateInner>>);
 
 impl Default for SyncState {
-    fn default() -> Self { Self(Arc::new(watch::channel(SyncStateInner::default()).0)) }
+    fn default() -> Self {
+        Self(Arc::new(watch::channel(SyncStateInner::default()).0))
+    }
 }
 
 /// A threshold constant intended to keep the sync status less flaky.
@@ -44,12 +46,12 @@ impl SyncState {
     }
 
     pub(super) fn set_local_block(&self, block: MiniblockNumber) {
-        self.0.send_modify(|inner| inner.set_local_block(block)); 
+        self.0.send_modify(|inner| inner.set_local_block(block));
     }
 
     pub(crate) fn is_synced(&self) -> bool {
         self.0.borrow().is_synced().0
-    } 
+    }
 }
 
 #[derive(Clone, Debug, Default)]
@@ -59,9 +61,13 @@ pub(crate) struct SyncStateInner {
 }
 
 impl SyncStateInner {
-    pub(crate) fn main_node_block(&self) -> MiniblockNumber { self.main_node_block.unwrap_or_default() }
+    pub(crate) fn main_node_block(&self) -> MiniblockNumber {
+        self.main_node_block.unwrap_or_default()
+    }
 
-    pub(crate) fn local_block(&self) -> MiniblockNumber { self.local_block.unwrap_or_default() }
+    pub(crate) fn local_block(&self) -> MiniblockNumber {
+        self.local_block.unwrap_or_default()
+    }
 
     fn set_main_node_block(&mut self, block: MiniblockNumber) {
         if let Some(local_block) = self.local_block {
@@ -78,7 +84,9 @@ impl SyncStateInner {
         if let Some(main_node_block) = self.main_node_block {
             if block > main_node_block {
                 // Probably it's fine -- will be checked by the re-org detector.
-                tracing::warn!("local_block({block}) is greater than main_node_block({main_node_block})");
+                tracing::warn!(
+                    "local_block({block}) is greater than main_node_block({main_node_block})"
+                );
             }
         }
         self.local_block = Some(block);
@@ -86,8 +94,7 @@ impl SyncStateInner {
     }
 
     fn is_synced(&self) -> (bool, Option<u32>) {
-        if let (Some(main_node_block), Some(local_block)) =
-            (self.main_node_block, self.local_block)
+        if let (Some(main_node_block), Some(local_block)) = (self.main_node_block, self.local_block)
         {
             let Some(block_diff) = main_node_block.0.checked_sub(local_block.0) else {
                 // We're ahead of the main node, this situation is handled by the re-org detector.
