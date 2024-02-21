@@ -154,7 +154,7 @@ impl JobProcessor for ProofCompressor {
             FriProofWrapper::Base(_) => anyhow::bail!("Must be a scheduler proof not base layer"),
             FriProofWrapper::Recursive(proof) => proof,
             FriProofWrapper::Eip4844(_) => {
-                anyhow::bail!("Must be a scheduler proof not base layer")
+                anyhow::bail!("Must be a scheduler proof not 4844")
             }
         };
         Ok(Some((l1_batch_number, scheduler_proof)))
