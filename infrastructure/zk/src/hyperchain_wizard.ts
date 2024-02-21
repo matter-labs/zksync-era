@@ -250,9 +250,9 @@ async function setHyperchainMetadata() {
             feeReceiverAddress = keyResults.feeReceiver;
         }
     } else {
-        l1Rpc = 'http://localhost:8545';
+        l1Rpc = 'http://127.0.0.1:8545';
         l1Id = 9;
-        databaseUrl = 'postgres://postgres:notsecurepassword@localhost:5432/zksync_local';
+        databaseUrl = 'postgres://postgres:notsecurepassword@127.0.0.1:5432/zksync_local';
         wrapEnvModify('DATABASE_URL', databaseUrl);
 
         const richWalletsRaw = await fetch(

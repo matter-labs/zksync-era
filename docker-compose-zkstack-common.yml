@@ -6,8 +6,8 @@ services:
   geth:
     image: "matterlabs/geth:latest"
     ports:
-      - "8545:8545"
-      - "8546:8546"
+      - "127.0.0.1:8545:8545"
+      - "127.0.0.1:8546:8546"
     volumes:
     - type: bind
       source: ./volumes/geth
@@ -19,7 +19,7 @@ services:
     image: "postgres:14"
     container_name: postgres
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - type: bind
         source: ./volumes/postgres
