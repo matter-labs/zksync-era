@@ -11,7 +11,10 @@ use vise::{
     Metrics,
 };
 use zksync_mempool::MempoolStore;
-use zksync_types::{storage_writes_deduplicator::StorageWritesDeduplicator, ProtocolVersionId};
+use zksync_types::{
+    storage_writes_deduplicator::StorageWritesDeduplicator,
+    tx::tx_execution_info::DeduplicatedWritesMetrics, ProtocolVersionId, StorageLogQueryType,
+};
 
 use super::seal_criteria::SealResolution;
 use crate::{gas_tracker::gas_count_from_writes, metrics::InteractionType};
@@ -410,7 +413,8 @@ pub(crate) struct BlockTipMetrics {
     #[metrics(buckets = Buckets::exponential(1.0..=4096.0, 2.0))]
     execution_metrics_size: Histogram<usize>,
     #[metrics(buckets = Buckets::exponential(1.0..=60000.0, 2.0))]
-    block_writes_metrics: Histogram<usize>,
+    block_writes_metrics_size: Histogram<usize>,
+    block_writes_metrics_gas_count: Histogram<usize>,
 }
 
 impl BlockTipMetrics {
@@ -424,12 +428,32 @@ impl BlockTipMetrics {
         self.execution_metrics_size
             .observe(execution_result.get_execution_metrics(None).size());
 
-        let logs_iter = execution_result.logs.storage_logs.iter();
-        let writes_metrics = StorageWritesDeduplicator::apply_on_empty_state(logs_iter);
+        let initial_writes = execution_result
+            .logs
+            .storage_logs
+            .iter()
+            .filter(|log| log.log_type == StorageLogQueryType::InitialWrite)
+            .count();
+        let repeated_writes = execution_result
+            .logs
+            .storage_logs
+            .iter()
+            .filter(|log| log.log_type == StorageLogQueryType::RepeatedWrite)
+            .count();
+        let total_updated_values_size = execution_result.logs.storage_logs.len() * (32 + 1); // 32 bytes per value + 1 metadata byte
 
-        let gas_count = gas_count_from_writes(&writes_metrics, ProtocolVersionId::Version20);
+        let writes_metrics = DeduplicatedWritesMetrics {
+            initial_storage_writes: initial_writes,
+            repeated_storage_writes: repeated_writes,
+            total_updated_values_size,
+        };
 
-        self.block_writes_metrics.observe(gas_count.commit as usize);
+        let gas_count = gas_count_from_writes(&writes_metrics, ProtocolVersionId::latest());
+
+        self.block_writes_metrics_gas_count
+            .observe(gas_count.commit as usize);
+        self.block_writes_metrics_size
+            .observe(writes_metrics.size(ProtocolVersionId::latest()));
     }
 }
 
