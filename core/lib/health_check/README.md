@@ -1,35 +1,36 @@
 # Health Monitoring
 
-Healthcheck infrastructure for node components allowing components to signal their current health state.
-Health states for all components run by the node are aggregated and are exposed as an HTTP `GET /health` endpoint
-bound to a dedicated healthcheck port, both for the main node and external node. This endpoint can be used
-as a readiness probe for Kubernetes, or used in other automations.
+Healthcheck infrastructure for node components allowing components to signal their current health state. Health states
+for all components run by the node are aggregated and are exposed as an HTTP `GET /health` endpoint bound to a dedicated
+healthcheck port, both for the main node and external node. This endpoint can be used as a readiness probe for
+Kubernetes, or used in other automations.
 
 ## Main concepts
 
-**Component** is a logically isolated part of a node that affects the ability of the node to handle requests (aka node health).
-Components are supposed to run indefinitely until the node receives a stop signal.
+**Component** is a logically isolated part of a node that affects the ability of the node to handle requests (aka node
+health). Components are supposed to run indefinitely until the node receives a stop signal.
 
-- Internal components correspond to one or more Tokio tasks. Examples of internal components are: JSON-RPC API server, Merkle tree,
-  consistency checker, reorg detector.
-- External components correspond to another process that the node communicates with. Examples of external components are:
-  Postgres connection pool, main node JSON-RPC (for the external node).
+- Internal components correspond to one or more Tokio tasks. Examples of internal components are: JSON-RPC API server,
+  Merkle tree, consistency checker, reorg detector.
+- External components correspond to another process that the node communicates with. Examples of external components
+  are: Postgres connection pool, main node JSON-RPC (for the external node).
 
 Each component can report its health, which consists of 2 parts:
 
 - **Status**, e.g., "not ready", "ready", "shut down", "panicked"; see the crate code for a full list.
-- **Details**, a JSON value with the component-specific schema. E.g., Merkle tree reports its L1 batch "cursor" as a part of this information.
+- **Details**, a JSON value with the component-specific schema. E.g., Merkle tree reports its L1 batch "cursor" as a
+  part of this information.
 
 Health from all components is aggregated into **application health**, which has its own status computed as the worst of
 component statuses. Application health is returned by the `/health` endpoint.
 
 ## `/health` endpoint format
 
-`/health` will return current application health encoded as a JSON object. The HTTP status of the response is 20x
-if the application is healthy, and 50x if it is not.
+`/health` will return current application health encoded as a JSON object. The HTTP status of the response is 20x if the
+application is healthy, and 50x if it is not.
 
-> **Warning.** The schema of data returned by the `/health` endpoint is not stable at this point and can change
-> without notice. Use at your own risk.
+> **Warning.** The schema of data returned by the `/health` endpoint is not stable at this point and can change without
+> notice. Use at your own risk.
 
 <details>
 <summary>Example of endpoint output for an external node:</summary>
@@ -117,5 +118,5 @@ if the application is healthy, and 50x if it is not.
   }
 }
 ```
-</details>
 
+</details>
