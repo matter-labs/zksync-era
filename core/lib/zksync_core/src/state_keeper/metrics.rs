@@ -14,10 +14,7 @@ use zksync_mempool::MempoolStore;
 use zksync_types::{storage_writes_deduplicator::StorageWritesDeduplicator, ProtocolVersionId};
 
 use super::seal_criteria::SealResolution;
-use crate::{
-    gas_tracker::{gas_count_from_metrics, gas_count_from_writes},
-    metrics::InteractionType,
-};
+use crate::{gas_tracker::gas_count_from_writes, metrics::InteractionType};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "stage", rename_all = "snake_case")]
