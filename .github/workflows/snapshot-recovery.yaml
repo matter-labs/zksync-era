@@ -5,6 +5,13 @@ on:
 jobs:
   prepare_env:
     runs-on: [matterlabs-ci-runner]
+    services:
+      postgres:
+        image: postgres:14
+        ports:
+          - 5432:5432
+      docker:
+        image: docker:latest
     env:
       CARGO_TARGET_DIR: ${{ github.workspace }}/cargo
     steps:
@@ -16,6 +23,9 @@ jobs:
         with:
           toolchain: stable
           override: true
+      
+      - name: Docker version
+        run: docker --version
 
       - name: Step 1 - Make the preparation
         run: |
@@ -24,7 +34,7 @@ jobs:
           NVM_DIR="$HOME/.nvm"
           echo "$HOME/.nvm" >> $GITHUB_PATH
           echo "Install apt stuff"
-          sudo apt-get install -y build-essential pkg-config cmake clang lldb lld libssl-dev postgresql
+          sudo apt-get install -y build-essential pkg-config cmake clang lldb lld libssl-dev
           echo "change usermode for Docker"
           sudo usermod -aG docker $(whoami)          
           echo "Install yarn 1.22.19"
@@ -33,10 +43,8 @@ jobs:
           echo "Install SQL tools"
           cargo install sqlx-cli --version 0.7.3
           echo "Stop default postgres (as we'll use the docker one)"
-          # sudo systemctl stop postgres.service
-          echo "Start docker."
-          sudo systemctl start docker
-
+          pg_ctl -D /var/lib/postgresql/14/main stop
+          
       - name: Step 2 - Run zk init
         run: |
           ZKSYNC_HOME=$(pwd)
