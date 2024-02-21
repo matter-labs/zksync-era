@@ -14,11 +14,10 @@ use zksync_prover_fri_types::{
     circuit_definitions::{
         boojum::{
             config::{CSConfig, ProvingCSConfig},
-            cs::{cs_builder::new_builder, cs_builder_reference::CsReferenceImplementationBuilder},
             dag::StCircuitResolver,
             field::goldilocks::GoldilocksField,
         },
-        snark_wrapper::franklin_crypto::bellman::plonk::better_cs::generator,
+        circuit_definitions::eip4844::synthesis,
     },
     CircuitWrapper, ProverJob, WitnessVectorArtifacts,
 };
@@ -66,7 +65,10 @@ impl WitnessVectorGenerator {
         Self::generate_witness_vector_with_keystore(job, &Keystore::default())
     }
 
-    pub fn generate_witness_vector_with_keystore(job: ProverJob, keystore: &Keystore) -> anyhow::Result<WitnessVectorArtifacts> {        
+    pub fn generate_witness_vector_with_keystore(
+        job: ProverJob,
+        keystore: &Keystore,
+    ) -> anyhow::Result<WitnessVectorArtifacts> {
         let finalization_hints = keystore
             .load_finalization_hints(job.setup_data_key.clone())
             .context("get_finalization_hints()")?;
@@ -77,26 +79,12 @@ impl WitnessVectorGenerator {
             CircuitWrapper::Recursive(recursive_circuit) => {
                 recursive_circuit.synthesis::<GoldilocksField>(&finalization_hints)
             }
-            CircuitWrapper::Eip4844(circuit) => {
-                let geometry = circuit.geometry_proxy();
-                let (max_trace_len, num_vars) = circuit.size_hint();
-                let builder_impl = CsReferenceImplementationBuilder::<
-                    GoldilocksField,
-                    GoldilocksField,
-                    ProvingCSConfig,
-                    StCircuitResolver<
-                        GoldilocksField,
-                        <ProvingCSConfig as CSConfig>::ResolverConfig,
-                    >,
-                >::new(geometry, max_trace_len.unwrap());
-                let cs_builder = new_builder::<_, GoldilocksField>(builder_impl);
-                let builder = circuit.configure_builder_proxy(cs_builder);
-                let mut cs = builder.build(num_vars.unwrap());
-                circuit.add_tables_proxy(&mut cs);
-                circuit.clone().synthesize_proxy(&mut cs);
-                cs.pad_and_shrink_using_hint(&finalization_hints);
-                cs.into_assembly()
-            }
+            CircuitWrapper::Eip4844(circuit) => synthesis::<
+                _,
+                _,
+                _,
+                StCircuitResolver<GoldilocksField, <ProvingCSConfig as CSConfig>::ResolverConfig>,
+            >(circuit, &finalization_hints),
         };
         Ok(WitnessVectorArtifacts::new(cs.witness.unwrap(), job))
     }

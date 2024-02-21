@@ -4,7 +4,6 @@ members = [
     "prover_fri_utils",
     "prover_fri_types",
     "prover_dal",
-    "testing", 
 
     # binaries
     "witness_generator",
