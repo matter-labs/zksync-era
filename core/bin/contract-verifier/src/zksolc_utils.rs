@@ -34,6 +34,9 @@ pub struct Source {
     pub content: String,
 }
 
+/// Compiler settings.
+/// There are fields like `output_selection` and `is_system` which are accessed by contract verifier explicitly.
+/// Other fields are accumulated in `other`, this way every field that was in the original request will be passed to a compiler.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
