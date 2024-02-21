@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                id,\n                contract_address,\n                source_code,\n                contract_name,\n                zk_compiler_version,\n                compiler_version,\n                optimization_used,\n                optimizer_mode,\n                constructor_arguments,\n                is_system\n            FROM\n                contract_verification_requests\n            WHERE\n                status = 'successful'\n            ORDER BY\n                id\n            ",
+  "query": "\n            SELECT\n                id,\n                contract_address,\n                source_code,\n                contract_name,\n                zk_compiler_version,\n                compiler_version,\n                optimization_used,\n                optimizer_mode,\n                constructor_arguments,\n                is_system,\n                force_evmla\n            FROM\n                contract_verification_requests\n            WHERE\n                status = 'successful'\n            ORDER BY\n                id\n            ",
   "describe": {
     "columns": [
       {
@@ -52,6 +52,11 @@
         "ordinal": 9,
         "name": "is_system",
         "type_info": "Bool"
+      },
+      {
+        "ordinal": 10,
+        "name": "force_evmla",
+        "type_info": "Bool"
       }
     ],
     "parameters": {
@@ -67,8 +72,9 @@
       false,
       true,
       false,
+      false,
       false
     ]
   },
-  "hash": "5f6885b5457aaa78e10917ae5b8cd0bc0e8923a6bae64f22f09242766835ee0c"
+  "hash": "a115f795672787fe25bfaa8fd345094de508af93f4085be7cf3b54b1e8ecdadd"
 }
