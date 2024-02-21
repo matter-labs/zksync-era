@@ -4,9 +4,7 @@ use zksync_types::{
 };
 use zksync_web3_decl::error::Web3Error;
 
-use crate::api_server::web3::{
-    backend_jsonrpsee::internal_error, metrics::API_METRICS, state::RpcState,
-};
+use crate::api_server::web3::{backend_jsonrpsee::internal_error, state::RpcState};
 
 #[derive(Debug, Clone)]
 pub struct SnapshotsNamespace {
@@ -19,43 +17,36 @@ impl SnapshotsNamespace {
     }
 
     pub async fn get_all_snapshots_impl(&self) -> Result<AllSnapshots, Web3Error> {
-        let method_name = "get_all_snapshots";
-        let method_latency = API_METRICS.start_call(method_name);
         let mut storage_processor = self
             .state
             .connection_pool
             .access_storage_tagged("api")
             .await
-            .map_err(|err| internal_error(method_name, err))?;
+            .map_err(internal_error)?;
         let mut snapshots_dal = storage_processor.snapshots_dal();
-        let response = snapshots_dal
+        snapshots_dal
             .get_all_complete_snapshots()
             .await
-            .map_err(|err| internal_error(method_name, err));
-        method_latency.observe();
-        response
+            .map_err(internal_error)
     }
 
     pub async fn get_snapshot_by_l1_batch_number_impl(
         &self,
         l1_batch_number: L1BatchNumber,
     ) -> Result<Option<SnapshotHeader>, Web3Error> {
-        let method_name = "get_snapshot_by_l1_batch_number";
-        let method_latency = API_METRICS.start_call(method_name);
         let mut storage_processor = self
             .state
             .connection_pool
             .access_storage_tagged("api")
             .await
-            .map_err(|err| internal_error(method_name, err))?;
+            .map_err(internal_error)?;
         let snapshot_metadata = storage_processor
             .snapshots_dal()
             .get_snapshot_metadata(l1_batch_number)
             .await
-            .map_err(|err| internal_error(method_name, err))?;
+            .map_err(internal_error)?;
 
         let Some(snapshot_metadata) = snapshot_metadata else {
-            method_latency.observe();
             return Ok(None);
         };
 
@@ -63,7 +54,6 @@ impl SnapshotsNamespace {
         let is_complete = snapshot_files.iter().all(Option::is_some);
         if !is_complete {
             // We don't return incomplete snapshots via API.
-            method_latency.observe();
             return Ok(None);
         }
 
@@ -81,22 +71,21 @@ impl SnapshotsNamespace {
             .blocks_dal()
             .get_l1_batch_metadata(l1_batch_number)
             .await
-            .map_err(|err| internal_error(method_name, err))?
+            .map_err(internal_error)?
             .ok_or_else(|| {
-                let err = format!("missing metadata for L1 batch #{l1_batch_number}");
-                internal_error(method_name, err)
+                internal_error(format!("missing metadata for L1 batch #{l1_batch_number}"))
             })?;
         let (_, miniblock_number) = storage_processor
             .blocks_dal()
             .get_miniblock_range_of_l1_batch(l1_batch_number)
             .await
-            .map_err(|err| internal_error(method_name, err))?
+            .map_err(internal_error)?
             .ok_or_else(|| {
-                let err = format!("missing miniblocks for L1 batch #{l1_batch_number}");
-                internal_error(method_name, err)
+                internal_error(format!(
+                    "missing miniblocks for L1 batch #{l1_batch_number}"
+                ))
             })?;
 
-        method_latency.observe();
         Ok(Some(SnapshotHeader {
             l1_batch_number: snapshot_metadata.l1_batch_number,
             miniblock_number,

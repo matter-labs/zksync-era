@@ -16,7 +16,10 @@ use zksync_web3_decl::error::Web3Error;
 use crate::api_server::{
     execution_sandbox::{ApiTracer, TxSharedArgs},
     tx_sender::{ApiContracts, TxSenderConfig},
-    web3::{backend_jsonrpsee::internal_error, metrics::API_METRICS, state::RpcState},
+    web3::{
+        backend_jsonrpsee::{internal_error, MethodMetadata},
+        state::RpcState,
+    },
 };
 
 #[derive(Debug, Clone)]
@@ -55,9 +58,10 @@ impl DebugNamespace {
         block_id: BlockId,
         options: Option<TracerConfig>,
     ) -> Result<Vec<ResultDebugCall>, Web3Error> {
-        const METHOD_NAME: &str = "debug_trace_block";
+        MethodMetadata::with(|meta| {
+            meta.block_id = Some(block_id);
+        });
 
-        let method_latency = API_METRICS.start_block_call(METHOD_NAME, block_id);
         let only_top_call = options
             .map(|options| options.tracer_config.only_top_call)
             .unwrap_or(false);
@@ -66,16 +70,17 @@ impl DebugNamespace {
             .connection_pool
             .access_storage_tagged("api")
             .await
-            .map_err(|err| internal_error(METHOD_NAME, err))?;
-        let block_number = self
-            .state
-            .resolve_block(&mut connection, block_id, METHOD_NAME)
-            .await?;
+            .map_err(internal_error)?;
+        let block_number = self.state.resolve_block(&mut connection, block_id).await?;
+        MethodMetadata::with(|meta| {
+            meta.block_diff = Some(self.state.last_sealed_miniblock.diff(block_number));
+        });
+
         let call_traces = connection
             .blocks_web3_dal()
             .get_traces_for_miniblock(block_number)
             .await
-            .map_err(|err| internal_error(METHOD_NAME, err))?;
+            .map_err(internal_error)?;
         let call_trace = call_traces
             .into_iter()
             .map(|call_trace| {
@@ -86,9 +91,6 @@ impl DebugNamespace {
                 ResultDebugCall { result }
             })
             .collect();
-
-        let block_diff = self.state.last_sealed_miniblock.diff(block_number);
-        method_latency.observe(block_diff);
         Ok(call_trace)
     }
 
@@ -98,8 +100,6 @@ impl DebugNamespace {
         tx_hash: H256,
         options: Option<TracerConfig>,
     ) -> Result<Option<DebugCall>, Web3Error> {
-        const METHOD_NAME: &str = "debug_trace_transaction";
-
         let only_top_call = options
             .map(|options| options.tracer_config.only_top_call)
             .unwrap_or(false);
@@ -108,12 +108,12 @@ impl DebugNamespace {
             .connection_pool
             .access_storage_tagged("api")
             .await
-            .map_err(|err| internal_error(METHOD_NAME, err))?;
+            .map_err(internal_error)?;
         let call_trace = connection
             .transactions_dal()
             .get_call_trace(tx_hash)
             .await
-            .map_err(|err| internal_error(METHOD_NAME, err))?;
+            .map_err(internal_error)?;
         Ok(call_trace.map(|call_trace| {
             let mut result: DebugCall = call_trace.into();
             if only_top_call {
@@ -130,10 +130,11 @@ impl DebugNamespace {
         block_id: Option<BlockId>,
         options: Option<TracerConfig>,
     ) -> Result<DebugCall, Web3Error> {
-        const METHOD_NAME: &str = "debug_trace_call";
-
         let block_id = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
-        let method_latency = API_METRICS.start_block_call(METHOD_NAME, block_id);
+        MethodMetadata::with(|meta| {
+            meta.block_id = Some(block_id);
+        });
+
         let only_top_call = options
             .map(|options| options.tracer_config.only_top_call)
             .unwrap_or(false);
@@ -143,13 +144,20 @@ impl DebugNamespace {
             .connection_pool
             .access_storage_tagged("api")
             .await
-            .map_err(|err| internal_error(METHOD_NAME, err))?;
+            .map_err(internal_error)?;
         let block_args = self
             .state
-            .resolve_block_args(&mut connection, block_id, METHOD_NAME)
+            .resolve_block_args(&mut connection, block_id)
             .await?;
         drop(connection);
 
+        MethodMetadata::with(|meta| {
+            meta.block_diff = Some(
+                self.state
+                    .last_sealed_miniblock
+                    .diff_with_block_args(&block_args),
+            );
+        });
         let tx = L2Tx::from_request(request.into(), MAX_ENCODED_TX_SIZE)?;
 
         let shared_args = self.shared_args();
@@ -181,7 +189,7 @@ impl DebugNamespace {
                 custom_tracers,
             )
             .await
-            .map_err(|err| internal_error(METHOD_NAME, err))?;
+            .map_err(internal_error)?;
 
         let (output, revert_reason) = match result.result {
             ExecutionResult::Success { output, .. } => (output, None),
@@ -208,12 +216,6 @@ impl DebugNamespace {
             revert_reason,
             trace,
         );
-
-        let block_diff = self
-            .state
-            .last_sealed_miniblock
-            .diff_with_block_args(&block_args);
-        method_latency.observe(block_diff);
         Ok(call.into())
     }
 

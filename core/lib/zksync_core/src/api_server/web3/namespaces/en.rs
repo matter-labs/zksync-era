@@ -21,19 +21,17 @@ impl EnNamespace {
         block_number: MiniblockNumber,
         include_transactions: bool,
     ) -> Result<Option<SyncBlock>, Web3Error> {
-        const METHOD_NAME: &str = "en_syncL2Block";
-
         let mut storage = self
             .state
             .connection_pool
             .access_storage_tagged("api")
             .await
-            .map_err(|err| internal_error(METHOD_NAME, err))?;
+            .map_err(internal_error)?;
         storage
             .sync_dal()
             .sync_block(block_number, include_transactions)
             .await
-            .map_err(|err| internal_error(METHOD_NAME, err))
+            .map_err(internal_error)
     }
 
     #[tracing::instrument(skip(self))]
@@ -41,18 +39,16 @@ impl EnNamespace {
         &self,
         block_number: Option<MiniblockNumber>,
     ) -> Result<Vec<TokenInfo>, Web3Error> {
-        const METHOD_NAME: &str = "sync_tokens";
-
         let mut storage = self
             .state
             .connection_pool
             .access_storage_tagged("api")
             .await
-            .map_err(|err| internal_error(METHOD_NAME, err))?;
+            .map_err(internal_error)?;
         storage
             .tokens_web3_dal()
             .get_all_tokens(block_number)
             .await
-            .map_err(|err| internal_error(METHOD_NAME, err))
+            .map_err(internal_error)
     }
 }
