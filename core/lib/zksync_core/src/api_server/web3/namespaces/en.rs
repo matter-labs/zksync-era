@@ -1,4 +1,4 @@
-use zksync_types::{api::en::SyncBlock, MiniblockNumber};
+use zksync_types::{api::en::SyncBlock, tokens::TokenInfo, MiniblockNumber};
 use zksync_web3_decl::error::Web3Error;
 
 use crate::api_server::web3::{backend_jsonrpsee::internal_error, state::RpcState};
@@ -32,6 +32,26 @@ impl EnNamespace {
         storage
             .sync_dal()
             .sync_block(block_number, include_transactions)
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err))
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub async fn sync_tokens_impl(
+        &self,
+        block_number: Option<MiniblockNumber>,
+    ) -> Result<Vec<TokenInfo>, Web3Error> {
+        const METHOD_NAME: &str = "sync_tokens";
+
+        let mut storage = self
+            .state
+            .connection_pool
+            .access_storage_tagged("api")
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err))?;
+        storage
+            .tokens_web3_dal()
+            .get_all_tokens(block_number)
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))
     }

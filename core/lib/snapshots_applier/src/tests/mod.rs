@@ -7,13 +7,14 @@ use test_casing::test_casing;
 use zksync_object_store::ObjectStoreFactory;
 use zksync_types::{
     block::{L1BatchHeader, MiniblockHeader},
-    Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId,
+    get_code_key, Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId,
 };
 
 use self::utils::{
     mock_recovery_status, prepare_clients, MockMainNodeClient, ObjectStoreWithErrors,
 };
 use super::*;
+use crate::tests::utils::{mock_tokens, random_storage_logs};
 
 mod utils;
 
@@ -29,7 +30,12 @@ async fn snapshots_creator_can_successfully_recover_db(
         ConnectionPool::test_pool().await
     };
     let expected_status = mock_recovery_status();
-    let (object_store, client, all_snapshot_storage_logs) = prepare_clients(&expected_status).await;
+    let storage_logs = random_storage_logs(expected_status.l1_batch_number, 200);
+    let (object_store, client) = prepare_clients(&expected_status, &storage_logs).await;
+    let storage_logs_by_hashed_key: HashMap<_, _> = storage_logs
+        .into_iter()
+        .map(|log| (log.key.hashed_key(), log))
+        .collect();
 
     let object_store_with_errors;
     let object_store: &dyn ObjectStore = if with_object_store_errors {
@@ -62,9 +68,9 @@ async fn snapshots_creator_can_successfully_recover_db(
         .storage_logs_dedup_dal()
         .dump_all_initial_writes_for_tests()
         .await;
-    assert_eq!(all_initial_writes.len(), all_snapshot_storage_logs.len());
+    assert_eq!(all_initial_writes.len(), storage_logs_by_hashed_key.len());
     for initial_write in all_initial_writes {
-        let log = &all_snapshot_storage_logs[&initial_write.hashed_key];
+        let log = &storage_logs_by_hashed_key[&initial_write.hashed_key];
         assert_eq!(
             initial_write.l1_batch_number,
             log.l1_batch_number_of_initial_write
@@ -76,23 +82,21 @@ async fn snapshots_creator_can_successfully_recover_db(
         .storage_logs_dal()
         .dump_all_storage_logs_for_tests()
         .await;
-    assert_eq!(all_storage_logs.len(), all_snapshot_storage_logs.len());
+    assert_eq!(all_storage_logs.len(), storage_logs_by_hashed_key.len());
     for db_log in all_storage_logs {
-        let expected_log = &all_snapshot_storage_logs[&db_log.hashed_key];
+        let expected_log = &storage_logs_by_hashed_key[&db_log.hashed_key];
         assert_eq!(db_log.address, *expected_log.key.address());
         assert_eq!(db_log.key, *expected_log.key.key());
         assert_eq!(db_log.value, expected_log.value);
         assert_eq!(db_log.miniblock_number, expected_status.miniblock_number);
     }
 
-    // Try recovering again; it should return early.
-    let err = SnapshotsApplier::load_snapshot(&pool, &client, object_store)
+    // Try recovering again.
+    let outcome = SnapshotsApplierConfig::for_tests()
+        .run(&pool, &client, object_store)
         .await
-        .unwrap_err();
-    assert_matches!(
-        err,
-        SnapshotsApplierError::EarlyReturn(SnapshotsApplierOutcome::Ok)
-    );
+        .unwrap();
+    assert_matches!(outcome, SnapshotsApplierOutcome::Ok);
 }
 
 #[tokio::test]
@@ -170,7 +174,8 @@ async fn applier_returns_early_without_snapshots() {
 async fn applier_returns_error_on_fatal_object_store_error() {
     let pool = ConnectionPool::test_pool().await;
     let expected_status = mock_recovery_status();
-    let (object_store, client, _) = prepare_clients(&expected_status).await;
+    let storage_logs = random_storage_logs(expected_status.l1_batch_number, 100);
+    let (object_store, client) = prepare_clients(&expected_status, &storage_logs).await;
     let object_store = ObjectStoreWithErrors::new(object_store, |_| {
         Err(ObjectStoreError::KeyNotFound("not found".into()))
     });
@@ -191,7 +196,8 @@ async fn applier_returns_error_on_fatal_object_store_error() {
 async fn applier_returns_error_after_too_many_object_store_retries() {
     let pool = ConnectionPool::test_pool().await;
     let expected_status = mock_recovery_status();
-    let (object_store, client, _) = prepare_clients(&expected_status).await;
+    let storage_logs = random_storage_logs(expected_status.l1_batch_number, 100);
+    let (object_store, client) = prepare_clients(&expected_status, &storage_logs).await;
     let object_store = ObjectStoreWithErrors::new(object_store, |_| {
         Err(ObjectStoreError::Other("service not available".into()))
     });
@@ -206,4 +212,56 @@ async fn applier_returns_error_after_too_many_object_store_retries() {
             Some(ObjectStoreError::Other(_))
         )
     }));
+}
+
+#[tokio::test]
+async fn recovering_tokens() {
+    let pool = ConnectionPool::test_pool().await;
+    let expected_status = mock_recovery_status();
+    let tokens = mock_tokens();
+    let mut storage_logs = random_storage_logs(expected_status.l1_batch_number, 200);
+    for token in &tokens {
+        if token.l2_address.is_zero() {
+            continue;
+        }
+        storage_logs.push(SnapshotStorageLog {
+            key: get_code_key(&token.l2_address),
+            value: H256::random(),
+            l1_batch_number_of_initial_write: L1BatchNumber(1),
+            enumeration_index: storage_logs.len() as u64 + 1,
+        });
+    }
+    let (object_store, mut client) = prepare_clients(&expected_status, &storage_logs).await;
+    client.tokens_response = tokens.clone();
+
+    let outcome = SnapshotsApplierConfig::for_tests()
+        .run(&pool, &client, &object_store)
+        .await
+        .unwrap();
+    assert_matches!(outcome, SnapshotsApplierOutcome::Ok);
+
+    // Check that tokens are successfully restored.
+    let mut storage = pool.access_storage().await.unwrap();
+    let recovered_tokens = storage
+        .tokens_web3_dal()
+        .get_all_tokens(None)
+        .await
+        .unwrap();
+    // Since we cannot guarantee token ordering, we need to convert them to maps.
+    let token_map: HashMap<_, _> = tokens
+        .into_iter()
+        .map(|token| (token.l2_address, token))
+        .collect();
+    let recovered_token_map: HashMap<_, _> = recovered_tokens
+        .into_iter()
+        .map(|token| (token.l2_address, token))
+        .collect();
+    assert_eq!(token_map, recovered_token_map);
+
+    // Check that recovering again works and is a no-op.
+    let outcome = SnapshotsApplierConfig::for_tests()
+        .run(&pool, &client, &object_store)
+        .await
+        .unwrap();
+    assert_matches!(outcome, SnapshotsApplierOutcome::Ok);
 }

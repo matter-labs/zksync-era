@@ -74,7 +74,6 @@ impl StateKeeperHandles {
         let sync_state = SyncState::default();
         let (miniblock_sealer, miniblock_sealer_handle) = MiniblockSealer::new(pool.clone(), 5);
         tokio::spawn(miniblock_sealer.run());
-
         let io = ExternalIO::new(
             miniblock_sealer_handle,
             pool,

@@ -7,8 +7,10 @@ use zksync_types::{
     l2::{L2Tx, TransactionType},
     transaction_request::CallRequest,
     utils::decompose_full_nonce,
-    web3,
-    web3::types::{FeeHistory, SyncInfo, SyncState},
+    web3::{
+        self,
+        types::{FeeHistory, SyncInfo, SyncState},
+    },
     AccountTreeId, Bytes, MiniblockNumber, StorageKey, H256, L2_ETH_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::u256_to_h256;
@@ -300,6 +302,7 @@ impl EthNamespace {
         const METHOD_NAME: &str = "get_block_transaction_count";
 
         let method_latency = API_METRICS.start_block_call(METHOD_NAME, block_id);
+
         self.state.start_info.ensure_not_pruned(block_id)?;
         let tx_count = self
             .state
@@ -480,11 +483,22 @@ impl EthNamespace {
         if matches!(block_id, BlockId::Number(BlockNumber::Pending)) {
             let account_nonce_u64 = u64::try_from(account_nonce)
                 .map_err(|err| internal_error(method_name, anyhow::anyhow!(err)))?;
-            account_nonce = connection
-                .transactions_web3_dal()
-                .next_nonce_by_initiator_account(address, account_nonce_u64)
-                .await
-                .map_err(|err| internal_error(method_name, err))?;
+            account_nonce = if let Some(proxy) = &self.state.tx_sender.0.proxy {
+                // EN: get pending nonces from the transaction cache
+                // We don't have mempool in EN, it's safe to use the proxy cache as a mempool
+                proxy
+                    .next_nonce_by_initiator_account(address, account_nonce_u64 as u32)
+                    .await
+                    .0
+                    .into()
+            } else {
+                // Main node: get pending nonces from the mempool
+                connection
+                    .transactions_web3_dal()
+                    .next_nonce_by_initiator_account(address, account_nonce_u64)
+                    .await
+                    .map_err(|err| internal_error(method_name, err))?
+            };
         }
 
         let block_diff = self.state.last_sealed_miniblock.diff(block_number);
