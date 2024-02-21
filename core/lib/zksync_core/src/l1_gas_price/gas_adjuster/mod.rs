@@ -124,6 +124,46 @@ impl GasAdjuster {
     fn statistics(&self) -> &GasStatistics;
 }
 
+impl<G: GasAdjuster> L1TxParamsProvider for G {
+    // This is the method where we decide how much we are ready to pay for the
+    // base_fee based on the number of L1 blocks the transaction has been in the mempool.
+    // This is done in order to avoid base_fee spikes (e.g. during NFT drops) and
+    // smooth out base_fee increases in general.
+    // In other words, in order to pay less fees, we are ready to wait longer.
+    // But the longer we wait, the more we are ready to pay.
+    fn get_base_fee(&self, time_in_mempool: u32) -> u64 {
+        let a = self.config().pricing_formula_parameter_a;
+        let b = self.config().pricing_formula_parameter_b;
+
+        // Currently we use an exponential formula.
+        // The alternative is a linear one:
+        // `let scale_factor = a + b * time_in_mempool as f64;`
+        let scale_factor = a * b.powf(time_in_mempool as f64);
+        let median = self.statistics().median();
+        METRICS.median_base_fee_per_gas.set(median);
+        let new_fee = median as f64 * scale_factor;
+        new_fee as u64
+    }
+
+    fn get_next_block_minimal_base_fee(&self) -> u64 {
+        let last_block_base_fee = self.statistics().last_added_value();
+
+        // The next block's base fee will decrease by a maximum of 12.5%.
+        last_block_base_fee * 875 / 1000
+    }
+
+    // Priority fee is set to constant, sourced from config.
+    // Reasoning behind this is the following:
+    // High `priority_fee` means high demand for block space,
+    // which means `base_fee` will increase, which means `priority_fee`
+    // will decrease. The EIP-1559 mechanism is designed such that
+    // `base_fee` will balance out `priority_fee` in such a way that
+    // `priority_fee` will be a small fraction of the overall fee.
+    fn get_priority_fee(&self) -> u64 {
+        self.config().default_priority_fee_per_gas
+    }
+}
+
 /// Helper structure responsible for collecting the data about recent transactions,
 /// calculating the median base fee.
 #[derive(Debug, Clone, Default)]
