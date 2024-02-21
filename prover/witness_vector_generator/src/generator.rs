@@ -19,7 +19,7 @@ use zksync_prover_fri_utils::{
 };
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{basic_fri_types::CircuitIdRoundTuple, protocol_version::L1VerifierConfig};
-use zksync_vk_setup_data_server_fri::get_finalization_hints;
+use zksync_vk_setup_data_server_fri::keystore::Keystore;
 
 use crate::metrics::METRICS;
 
@@ -55,7 +55,9 @@ impl WitnessVectorGenerator {
     }
 
     pub fn generate_witness_vector(job: ProverJob) -> anyhow::Result<WitnessVectorArtifacts> {
-        let finalization_hints = get_finalization_hints(job.setup_data_key.clone())
+        let keystore = Keystore::default();
+        let finalization_hints = keystore
+            .load_finalization_hints(job.setup_data_key.clone())
             .context("get_finalization_hints()")?;
         let cs = match job.circuit_wrapper.clone() {
             CircuitWrapper::Base(base_circuit) => {
@@ -63,6 +65,10 @@ impl WitnessVectorGenerator {
             }
             CircuitWrapper::Recursive(recursive_circuit) => {
                 recursive_circuit.synthesis::<GoldilocksField>(&finalization_hints)
+            }
+            CircuitWrapper::Eip4844(_) => {
+                // TODO: figure out if we support 4844 circuit as GPU.
+                todo!()
             }
         };
         Ok(WitnessVectorArtifacts::new(cs.witness.unwrap(), job))

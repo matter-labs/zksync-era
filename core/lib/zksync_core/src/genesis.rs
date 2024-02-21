@@ -8,9 +8,11 @@ use multivm::{
     zk_evm_latest::aux_structures::{LogQuery as MultiVmLogQuery, Timestamp as MultiVMTimestamp},
     zkevm_test_harness_latest::witness::sort_storage_access::sort_storage_access_queries,
 };
-use zksync_contracts::BaseSystemContracts;
+use zksync_contracts::{BaseSystemContracts, SET_CHAIN_ID_EVENT};
 use zksync_dal::StorageProcessor;
+use zksync_eth_client::{clients::QueryClient, EthInterface};
 use zksync_merkle_tree::domain::ZkSyncTree;
+use zksync_system_constants::PRIORITY_EXPIRATION;
 use zksync_types::{
     block::{
         BlockGasCount, DeployedContract, L1BatchHeader, L1BatchTreeData, MiniblockHasher,
@@ -19,8 +21,9 @@ use zksync_types::{
     commitment::{CommitmentInput, L1BatchCommitment},
     fee_model::BatchFeeInput,
     get_code_key, get_system_context_init_logs,
-    protocol_version::{L1VerifierConfig, ProtocolVersion},
+    protocol_version::{decode_set_chain_id_event, L1VerifierConfig, ProtocolVersion},
     tokens::{TokenInfo, TokenMetadata, ETHEREUM_ADDRESS},
+    web3::types::{BlockNumber, FilterBuilder},
     zk_evm_types::{LogQuery, Timestamp},
     AccountTreeId, Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId,
     StorageKey, StorageLog, StorageLogKind, H256,
@@ -418,6 +421,41 @@ async fn save_genesis_l1_batch_metadata(
         .context("failed saving commitment for genesis L1 batch")?;
 
     transaction.commit().await?;
+    Ok(())
+}
+
+pub(crate) async fn save_set_chain_id_tx(
+    eth_client_url: &str,
+    diamond_proxy_address: Address,
+    state_transition_manager_address: Address,
+    storage: &mut StorageProcessor<'_>,
+) -> anyhow::Result<()> {
+    let eth_client = QueryClient::new(eth_client_url)?;
+    let to = eth_client.block_number("fetch_chain_id_tx").await?.as_u64();
+    let from = to - PRIORITY_EXPIRATION;
+    let filter = FilterBuilder::default()
+        .address(vec![state_transition_manager_address])
+        .topics(
+            Some(vec![SET_CHAIN_ID_EVENT.signature()]),
+            Some(vec![diamond_proxy_address.into()]),
+            None,
+            None,
+        )
+        .from_block(from.into())
+        .to_block(BlockNumber::Latest)
+        .build();
+    let mut logs = eth_client.logs(filter, "fetch_chain_id_tx").await?;
+    anyhow::ensure!(
+        logs.len() == 1,
+        "Expected a single set_chain_id event, got these {}: {:?}",
+        logs.len(),
+        logs
+    );
+    let (version_id, upgrade_tx) = decode_set_chain_id_event(logs.remove(0))?;
+    storage
+        .protocol_versions_dal()
+        .save_genesis_upgrade_with_tx(version_id, upgrade_tx)
+        .await;
     Ok(())
 }
 

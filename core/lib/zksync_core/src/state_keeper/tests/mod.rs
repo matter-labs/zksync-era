@@ -14,6 +14,7 @@ use multivm::{
     vm_latest::{constants::BLOCK_GAS_LIMIT, VmExecutionLogs},
 };
 use once_cell::sync::Lazy;
+use tokio::sync::watch;
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::BaseSystemContracts;
 use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
@@ -30,8 +31,8 @@ use zksync_types::{
 mod tester;
 
 use self::tester::{
-    bootloader_tip_out_of_gas, pending_batch_data, random_tx, rejected_exec, successful_exec,
-    successful_exec_with_metrics, TestScenario,
+    bootloader_tip_out_of_gas, pending_batch_data, random_tx, random_upgrade_tx, rejected_exec,
+    successful_exec, successful_exec_with_metrics, TestIO, TestScenario,
 };
 pub(crate) use self::tester::{MockBatchExecutor, TestBatchExecutorBuilder};
 use crate::{
@@ -44,6 +45,7 @@ use crate::{
         },
         types::ExecutionMetricsForCriteria,
         updates::UpdatesManager,
+        ZkSyncStateKeeper,
     },
     utils::testonly::create_l2_transaction,
 };
@@ -435,6 +437,47 @@ async fn pending_batch_is_applied() {
         })
         .run(sealer)
         .await;
+}
+
+/// Load protocol upgrade transactions
+#[tokio::test]
+async fn load_upgrade_tx() {
+    let sealer = SequencerSealer::default();
+    let scenario = TestScenario::new();
+    let batch_executor_base = TestBatchExecutorBuilder::new(&scenario);
+    let (stop_sender, stop_receiver) = watch::channel(false);
+
+    let mut io = TestIO::new(stop_sender, scenario);
+    io.add_upgrade_tx(ProtocolVersionId::latest(), random_upgrade_tx(1));
+    io.add_upgrade_tx(ProtocolVersionId::next(), random_upgrade_tx(2));
+
+    let mut sk = ZkSyncStateKeeper::new(
+        stop_receiver,
+        Box::new(io),
+        Box::new(batch_executor_base),
+        Arc::new(sealer),
+    );
+
+    // Since the version hasn't changed, and we are not using shared bridge, we should not load any
+    // upgrade transactions.
+    assert_eq!(
+        sk.load_protocol_upgrade_tx(&[], ProtocolVersionId::latest(), L1BatchNumber(2))
+            .await
+            .unwrap(),
+        None
+    );
+
+    // If the protocol version has changed, we should load the upgrade transaction.
+    assert_eq!(
+        sk.load_protocol_upgrade_tx(&[], ProtocolVersionId::next(), L1BatchNumber(2))
+            .await
+            .unwrap(),
+        Some(random_upgrade_tx(2))
+    );
+
+    // TODO: add one more test case for the shared bridge after it's integrated.
+    // If we are processing the 1st batch while using the shared bridge,
+    // we should load the upgrade transaction -- that's the `SetChainIdUpgrade`.
 }
 
 /// Unconditionally seal the batch without triggering specific criteria.

@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                initiator_address,\n                MAX(nonce)\n            FROM\n                transactions\n            WHERE\n                initiator_address = ANY ($1)\n                AND is_priority = FALSE\n                AND (\n                    miniblock_number IS NOT NULL\n                    OR error IS NULL\n                )\n            GROUP BY\n                initiator_address\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "initiator_address",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 1,
+        "name": "max",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "ByteaArray"
+      ]
+    },
+    "nullable": [
+      false,
+      null
+    ]
+  },
+  "hash": "24fa393b7c3a0178806a223ad474e13d46b5ea54a144ec2345a76b865c85f84b"
+}

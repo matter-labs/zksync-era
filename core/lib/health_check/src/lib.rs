@@ -1,4 +1,10 @@
-use std::{collections::HashMap, thread, time::Duration};
+use std::{
+    collections::HashMap,
+    fmt,
+    sync::{Arc, Mutex},
+    thread,
+    time::Duration,
+};
 
 // Public re-export for other crates to be able to implement the interface.
 pub use async_trait::async_trait;
@@ -73,6 +79,37 @@ impl From<HealthStatus> for Health {
     }
 }
 
+/// Application health check aggregating health from multiple components.
+#[derive(Debug, Default)]
+pub struct AppHealthCheck(Mutex<Vec<Arc<dyn CheckHealth>>>);
+
+impl AppHealthCheck {
+    /// Inserts health check for a component.
+    pub fn insert_component(&self, health_check: ReactiveHealthCheck) {
+        self.insert_custom_component(Arc::new(health_check));
+    }
+
+    /// Inserts a custom health check for a component.
+    pub fn insert_custom_component(&self, health_check: Arc<dyn CheckHealth>) {
+        let health_check_name = health_check.name();
+        let mut guard = self.0.lock().expect("`AppHealthCheck` is poisoned");
+        if guard.iter().any(|check| check.name() == health_check_name) {
+            tracing::warn!(
+                "Health check with name `{health_check_name}` is redefined; only the last mention \
+                 will be present in `/health` endpoint output"
+            );
+        }
+        guard.push(health_check);
+    }
+
+    /// Checks the overall application health. This will query all component checks concurrently.
+    pub async fn check_health(&self) -> AppHealth {
+        // Clone checks so that we don't hold a lock for them across a wait point.
+        let health_checks = self.0.lock().expect("`AppHealthCheck` is poisoned").clone();
+        AppHealth::new(&health_checks).await
+    }
+}
+
 /// Health information for an application consisting of multiple components.
 #[derive(Debug, Serialize)]
 pub struct AppHealth {
@@ -83,7 +120,7 @@ pub struct AppHealth {
 
 impl AppHealth {
     /// Aggregates health info from the provided checks.
-    pub async fn new<T: AsRef<dyn CheckHealth>>(health_checks: &[T]) -> Self {
+    async fn new(health_checks: &[Arc<dyn CheckHealth>]) -> Self {
         let check_futures = health_checks
             .iter()
             .map(|check| Self::check_health_with_time_limit(check.as_ref()));
@@ -146,6 +183,15 @@ pub trait CheckHealth: Send + Sync + 'static {
     async fn check_health(&self) -> Health;
 }
 
+impl fmt::Debug for dyn CheckHealth {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("CheckHealth")
+            .field("name", &self.name())
+            .finish()
+    }
+}
+
 /// Basic implementation of [`CheckHealth`] trait that can be updated using a matching [`HealthUpdater`].
 #[derive(Debug, Clone)]
 pub struct ReactiveHealthCheck {
@@ -164,6 +210,7 @@ impl ReactiveHealthCheck {
         };
         let updater = HealthUpdater {
             name,
+            should_track_drop: true,
             health_sender,
         };
         (this, updater)
@@ -184,10 +231,11 @@ impl CheckHealth for ReactiveHealthCheck {
 /// Updater for [`ReactiveHealthCheck`]. Can be created using [`ReactiveHealthCheck::new()`].
 ///
 /// On drop, will automatically update status to [`HealthStatus::ShutDown`], or to [`HealthStatus::Panicked`]
-/// if the dropping thread is panicking.
+/// if the dropping thread is panicking, unless the drop is performed using [`Self::freeze()`].
 #[derive(Debug)]
 pub struct HealthUpdater {
     name: &'static str,
+    should_track_drop: bool,
     health_sender: watch::Sender<Health>,
 }
 
@@ -209,6 +257,11 @@ impl HealthUpdater {
         false
     }
 
+    /// Closes this updater so that the corresponding health check can no longer be updated, not even if the updater is dropped.
+    pub fn freeze(mut self) {
+        self.should_track_drop = false;
+    }
+
     /// Creates a [`ReactiveHealthCheck`] attached to this updater. This allows not retaining the initial health check
     /// returned by [`ReactiveHealthCheck::new()`].
     pub fn subscribe(&self) -> ReactiveHealthCheck {
@@ -221,6 +274,10 @@ impl HealthUpdater {
 
 impl Drop for HealthUpdater {
     fn drop(&mut self) {
+        if !self.should_track_drop {
+            return;
+        }
+
         let terminal_health = if thread::panicking() {
             HealthStatus::Panicked.into()
         } else {
@@ -255,6 +312,18 @@ mod tests {
         assert_matches!(
             health_check.check_health().await.status(),
             HealthStatus::ShutDown
+        );
+    }
+
+    #[tokio::test]
+    async fn updating_health_status_after_freeze() {
+        let (health_check, health_updater) = ReactiveHealthCheck::new("test");
+        health_updater.update(HealthStatus::Ready.into());
+        health_updater.freeze();
+
+        assert_matches!(
+            health_check.check_health().await.status(),
+            HealthStatus::Ready
         );
     }
 
@@ -301,7 +370,7 @@ mod tests {
     async fn aggregating_health_checks() {
         let (first_check, first_updater) = ReactiveHealthCheck::new("first");
         let (second_check, second_updater) = ReactiveHealthCheck::new("second");
-        let checks: Vec<Box<dyn CheckHealth>> = vec![Box::new(first_check), Box::new(second_check)];
+        let checks: Vec<Arc<dyn CheckHealth>> = vec![Arc::new(first_check), Arc::new(second_check)];
 
         let app_health = AppHealth::new(&checks).await;
         assert!(!app_health.is_healthy());
