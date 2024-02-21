@@ -5,7 +5,8 @@ use circuit_definitions::{
     aux_definitions::witness_oracle::VmWitnessOracle,
     boojum::{cs::implementations::witness::WitnessVec, field::goldilocks::GoldilocksField},
     circuit_definitions::{
-        base_layer::{ZkSyncBaseLayerCircuit, ZkSyncBaseLayerProof},
+        base_layer::{ZkSyncBaseLayerCircuit, ZkSyncBaseLayerProof, ZkSyncBaseProof},
+        eip4844::EIP4844Circuit,
         recursion_layer::{
             ZkSyncRecursionLayerProof, ZkSyncRecursionLayerStorageType, ZkSyncRecursiveLayerCircuit,
         },
@@ -34,6 +35,7 @@ pub enum CircuitWrapper {
         >,
     ),
     Recursive(ZkSyncRecursiveLayerCircuit),
+    Eip4844(EIP4844Circuit<GoldilocksField, ZkSyncDefaultRoundFunction>),
 }
 
 impl StoredObject for CircuitWrapper {
@@ -58,6 +60,7 @@ impl StoredObject for CircuitWrapper {
 pub enum FriProofWrapper {
     Base(ZkSyncBaseLayerProof),
     Recursive(ZkSyncRecursionLayerProof),
+    Eip4844(ZkSyncBaseProof),
 }
 
 impl StoredObject for FriProofWrapper {

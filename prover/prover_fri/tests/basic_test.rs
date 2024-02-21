@@ -54,7 +54,7 @@ async fn prover_and_assert_base_layer(
         .context("circuit missing")?;
     let circuit = match &circuit_wrapper {
         CircuitWrapper::Base(base) => base.clone(),
-        CircuitWrapper::Recursive(_) => anyhow::bail!("Expected base layer circuit"),
+        _ => anyhow::bail!("Expected base layer circuit"),
     };
     let keystore = Keystore::default();
     let circuit_setup_data = generate_setup_data_common(
