@@ -1,3 +1,18 @@
+//! WitnessVector Generator is used only during GPU proving, to offload CPU heavy computation away from expensive GPU machines.
+//
+// Proving generally consists of 2 steps:
+// * creating all the constraints and their polynomials
+// * actually creating the proof
+//
+// The first part is CPU heavy, while the second one can be run efficiently on GPU.
+//
+// When we run the 'CPU' prover, both of these parts are happening inside (you can look at prove_base_layer_circuit for example).
+//
+// When we run the 'GPU' prover, this job (witness vector generation) is taking care of the first part, and then streams this data
+// into the prover_fri component via socket_listener.
+// The output of the WitnessVector generator (WitnessVectorArtifacts) is quite large, which is why we try don't store it in any file,
+// but try to find a running GPU prover, connect to it, and stream data directly there.
+
 use std::{
     net::SocketAddr,
     sync::Arc,
@@ -24,11 +39,16 @@ use zksync_vk_setup_data_server_fri::keystore::Keystore;
 use crate::metrics::METRICS;
 
 pub struct WitnessVectorGenerator {
+    // Pointer to storage that holds the larger artifacts (both inputs and outputs).
     blob_store: Arc<dyn ObjectStore>,
+    // Database connection
     pool: ConnectionPool,
+    // Types of jobs to pickup.
     circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
+    // Zone is used to find the GPU provers that are nearby.
     zone: String,
     config: FriWitnessVectorGeneratorConfig,
+    // Given prover can only process jobs that are matching its circuits (commitments).
     vk_commitments: L1VerifierConfig,
     max_attempts: u32,
 }
@@ -123,6 +143,9 @@ impl JobProcessor for WitnessVectorGenerator {
         started_at: Instant,
         artifacts: WitnessVectorArtifacts,
     ) -> anyhow::Result<()> {
+        // We abuse the 'save_result' logic here, as rather than saving the WitnessVectorArtifact
+        // we stream it over to the GPU prover.
+
         let circuit_type =
             get_numeric_circuit_id(&artifacts.prover_job.circuit_wrapper).to_string();
 
@@ -136,6 +159,10 @@ impl JobProcessor for WitnessVectorGenerator {
 
         let serialized: Vec<u8> =
             bincode::serialize(&artifacts).expect("Failed to serialize witness vector artifacts");
+        tracing::info!(
+            "Serialized artifact size: {:?}. Now looking for a GPU prover to connect to.",
+            serialized.len()
+        );
 
         let now = Instant::now();
         let mut attempts = 0;
