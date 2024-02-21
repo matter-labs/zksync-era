@@ -20,7 +20,6 @@ const announce = chalk.yellow;
 const success = chalk.green;
 const timestamp = chalk.grey;
 
-
 export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
     const {
         skipSubmodulesCheckout,

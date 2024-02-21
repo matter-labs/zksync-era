@@ -6,7 +6,6 @@ import deepExtend from 'deep-extend';
 
 //Define config file's path that are updated depending on the running mode (Validium or Rollup)
 
-
 function loadConfigFile(path: string) {
     const fileContents = fs.readFileSync(path);
     try {
@@ -143,9 +142,8 @@ function updateConfigFile(path: string, modeConstantValues: Record<string, numbe
     fs.writeFileSync(path, content);
 }
 
-
 function updateChainConfig(validiumMode: boolean) {
-    const modeConstantValues = config_constants.getChainConfigConstants(validiumMode)
+    const modeConstantValues = config_constants.getChainConfigConstants(validiumMode);
     updateConfigFile(config_constants.CHAIN_CONFIG_PATH, modeConstantValues);
 }
 
