@@ -11,20 +11,28 @@ jobs:
         with:
           node-version: 18
 
+      - name: Prepare Cache Node modules
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.npm
+            ~/.cache/yarn
+          key: ${{ runner.os }}-node-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
       - name: Step 1 - Make the preparation
         run: |
           echo "Install Rust"
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           echo "install NVM"
           curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
-          NVM_DIR="$HOME/.nvm"
-          echo "$HOME/.nvm" >> $GITHUB_PATH
           echo "Install apt stuff"
           sudo apt-get install -y build-essential pkg-config cmake clang lldb lld libssl-dev postgresql
           echo "change usermode for Docker"
           sudo usermod -aG docker $(whoami)          
           echo "Install Node & yarn"
-          #nvm install 18
+          nvm install 18
           npm install -g yarn
           yarn set version 1.22.19
           echo "Install SQL tools"
@@ -34,9 +42,21 @@ jobs:
           echo "Start docker."
           sudo systemctl start docker
 
+      - name: Cache Rust target directory
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-rust-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-rust-
+
       - name: Step 2 - Run zk init
         run: |
-          ZKSYNC_HOME=$(pwd)
           echo $(pwd)/bin  >> $GITHUB_PATH
           zk
           zk init
