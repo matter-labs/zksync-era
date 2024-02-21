@@ -15,7 +15,7 @@ jobs:
           echo "install NVM"
           curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
           echo "Install apt stuff"
-          sudo apt-get install build-essential pkg-config cmake clang lldb lld libssl-dev postgresql
+          sudo apt-get install -y build-essential pkg-config cmake clang lldb lld libssl-dev postgresql
           echo "change usermode for Docker"
           sudo usermod -aG docker YOUR_USER          
           echo "Install Node & yarn"
