@@ -259,6 +259,7 @@ pub async fn prepare_job(
                 );
             }
             FriProofWrapper::Recursive(recursive_proof) => recursive_proofs.push(recursive_proof),
+            FriProofWrapper::Eip4844(_) => anyhow::bail!("EIP 4844 should not be run as a node."),
         }
     }
 
