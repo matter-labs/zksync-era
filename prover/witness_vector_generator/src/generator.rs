@@ -61,11 +61,7 @@ impl WitnessVectorGenerator {
         }
     }
 
-    pub fn generate_witness_vector(job: ProverJob) -> anyhow::Result<WitnessVectorArtifacts> {
-        Self::generate_witness_vector_with_keystore(job, &Keystore::default())
-    }
-
-    pub fn generate_witness_vector_with_keystore(
+    pub fn generate_witness_vector(
         job: ProverJob,
         keystore: &Keystore,
     ) -> anyhow::Result<WitnessVectorArtifacts> {
@@ -129,7 +125,9 @@ impl JobProcessor for WitnessVectorGenerator {
         job: ProverJob,
         _started_at: Instant,
     ) -> JoinHandle<anyhow::Result<Self::JobArtifacts>> {
-        tokio::task::spawn_blocking(move || Self::generate_witness_vector(job))
+        tokio::task::spawn_blocking(move || {
+            Self::generate_witness_vector(job, &Keystore::default())
+        })
     }
 
     async fn save_result(

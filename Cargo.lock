@@ -906,8 +906,8 @@ dependencies = [
 
 [[package]]
 name = "boojum"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-boojum.git?branch=main#93b5e0f0dbff0a9b606d9025e207c8405c141bd9"
+version = "0.2.0"
+source = "git+https://github.com/matter-labs/era-boojum.git?branch=main#30300f043c9afaeeb35d0f7bd3cc0acaf69ccde4"
 dependencies = [
  "arrayvec 0.7.4",
  "bincode",
@@ -1220,7 +1220,7 @@ dependencies = [
 [[package]]
 name = "circuit_definitions"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1#61b7366c5da85919de73bfe66de79c73823de5a9"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1#43f18a74f11c9c8d4af09cef4bfea59c8a3992b6"
 dependencies = [
  "crossbeam 0.8.2",
  "derivative",
@@ -1710,7 +1710,7 @@ dependencies = [
 [[package]]
 name = "cs_derive"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-boojum.git?branch=main#93b5e0f0dbff0a9b606d9025e207c8405c141bd9"
+source = "git+https://github.com/matter-labs/era-boojum.git?branch=main#30300f043c9afaeeb35d0f7bd3cc0acaf69ccde4"
 dependencies = [
  "proc-macro-error",
  "proc-macro2 1.0.69",
@@ -5268,7 +5268,7 @@ dependencies = [
 [[package]]
 name = "rescue_poseidon"
 version = "0.4.1"
-source = "git+https://github.com/matter-labs/rescue-poseidon.git?branch=poseidon2#2e5e8afb152adc326fcf776a71ad3735fa7f3186"
+source = "git+https://github.com/matter-labs/rescue-poseidon.git?branch=poseidon2#126937ef0e7a281f1ff9f512ac41a746a691a342"
 dependencies = [
  "addchain",
  "arrayvec 0.7.4",
@@ -5276,6 +5276,7 @@ dependencies = [
  "byteorder",
  "derivative",
  "franklin-crypto 0.0.5 (git+https://github.com/matter-labs/franklin-crypto?branch=snark_wrapper)",
+ "lazy_static",
  "log",
  "num-bigint 0.3.3",
  "num-integer",
@@ -5285,6 +5286,7 @@ dependencies = [
  "serde",
  "sha3 0.9.1",
  "smallvec",
+ "typemap_rev",
 ]
 
 [[package]]
@@ -6150,7 +6152,7 @@ dependencies = [
 [[package]]
 name = "snark_wrapper"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/snark-wrapper.git?branch=main#42661a9ff9d00853441589679c101f71e3785f55"
+source = "git+https://github.com/matter-labs/snark-wrapper.git?branch=main#76959cadabeec344b9fa1458728400d60340e496"
 dependencies = [
  "derivative",
  "rand 0.4.6",
@@ -7170,6 +7172,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3528ecfd12c466c6f163363caf2d02a71161dd5e1cc6ae7b34207ea2d42d81ed"
 
 [[package]]
+name = "typemap_rev"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "74b08b0c1257381af16a5c3605254d529d3e7e109f3c62befc5d168968192998"
+
+[[package]]
 name = "typenum"
 version = "1.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8067,7 +8075,7 @@ dependencies = [
 [[package]]
 name = "zkevm_circuits"
 version = "1.4.1"
-source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=v1.4.1#873fe0fcf0bb8df6be0ae1938ce8469d6bf63ebd"
+source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=v1.4.1#3a973afb3cf2b50b7138c1af61cc6ac3d7d0189f"
 dependencies = [
  "arrayvec 0.7.4",
  "bincode",
@@ -8177,7 +8185,7 @@ dependencies = [
 [[package]]
 name = "zkevm_test_harness"
 version = "1.4.1"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1#61b7366c5da85919de73bfe66de79c73823de5a9"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1#43f18a74f11c9c8d4af09cef4bfea59c8a3992b6"
 dependencies = [
  "bincode",
  "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1)",
@@ -8185,7 +8193,7 @@ dependencies = [
  "crossbeam 0.8.2",
  "curl",
  "derivative",
- "env_logger 0.9.3",
+ "env_logger 0.10.0",
  "hex",
  "lazy_static",
  "rand 0.4.6",
