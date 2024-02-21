@@ -201,7 +201,7 @@ pub mod gpu_socket_listener {
                 let finalization_hint = keystore
                     .load_finalization_hints(key)
                     .context("get_finalization_hints()")?;
-                // Check shivini's support.
+                // Check shivini support.
                 todo!();
             }
         };
