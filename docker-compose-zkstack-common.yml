@@ -1,7 +1,4 @@
 version: '3.2'
-networks:
-  zkstack:
-    driver: bridge
 services:
   geth:
     image: "matterlabs/geth:latest"
@@ -12,8 +9,6 @@ services:
     - type: bind
       source: ./volumes/geth
       target: /var/lib/geth/data
-    networks:
-      - zkstack
     container_name: geth
   postgres:
     image: "postgres:14"
@@ -31,5 +26,3 @@ services:
       - "postgres"
       - "-c"
       - "max_connections=1000"
-    networks:
-      - zkstack
