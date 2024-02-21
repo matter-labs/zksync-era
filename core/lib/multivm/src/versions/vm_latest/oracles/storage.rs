@@ -4,7 +4,8 @@ use zk_evm_1_5_0::{
     abstractions::{Storage as VmStorageOracle, StorageAccessRefund},
     aux_structures::{LogQuery, PubdataCost, Timestamp},
     zkevm_opcode_defs::system_params::{
-        INITIAL_STORAGE_WRITE_PUBDATA_BYTES, STORAGE_AUX_BYTE, TRANSIENT_STORAGE_AUX_BYTE,
+        INITIAL_STORAGE_WRITE_PUBDATA_BYTES, STORAGE_ACCESS_COLD_READ_COST,
+        STORAGE_ACCESS_COLD_WRITE_COST, STORAGE_AUX_BYTE, TRANSIENT_STORAGE_AUX_BYTE,
     },
 };
 use zksync_state::{StoragePtr, WriteStorage};
@@ -32,6 +33,16 @@ use crate::{
         utils::logs::StorageLogQuery,
     },
 };
+
+/// We employ the followinf rules for cold/warm storage rules:
+/// - We price a single "I/O" access as 2k ergs. This means that reading a single storage slot
+/// would cost 2k ergs, while writing to it would 4k ergs (since it involves both reading during execution and writing at the end of it).
+/// - Thereafter, "warm" reads cosst 30 ergs, while "warm" writes cost 60 ergs. Warm writes to account for the fact that they may be reverted
+/// and so require more RAM to store them.
+///
+/// FIXME: in zkevm_opcode_defs, ensure that the explanation above fits the code.
+const WARM_READ_COST_ERGS: u32 = 30;
+const WARM_WRITE_COST_ERGS: u32 = 60;
 
 // While the storage does not support different shards, it was decided to write the
 // code of the StorageOracle with the shard parameters in mind.
@@ -215,6 +226,33 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
         self.base_price_for_write(storage_key, initial_value, new_value)
     }
 
+    fn get_storage_access_refund(&self, query: &LogQuery) -> StorageAccessRefund {
+        let key = storage_key_of_log(query);
+        if query.rw_flag {
+            if self.read_storage_keys.inner().contains_key(&key) {
+                StorageAccessRefund::Warm {
+                    ergs: STORAGE_ACCESS_COLD_READ_COST - WARM_READ_COST_ERGS,
+                }
+            } else {
+                StorageAccessRefund::Cold
+            }
+        } else {
+            if self.written_storage_keys.inner().contains_key(&key) {
+                StorageAccessRefund::Warm {
+                    ergs: STORAGE_ACCESS_COLD_WRITE_COST - WARM_WRITE_COST_ERGS,
+                }
+            } else if self.read_storage_keys.inner().contains_key(&key) {
+                // If the user has read the value, but never written to it, the user will have to compensate for the write, but not for the read.
+                // So the user will pay `STORAGE_ACCESS_COLD_WRITE_COST - STORAGE_ACCESS_COLD_READ_COST` for such write.
+                StorageAccessRefund::Warm {
+                    ergs: STORAGE_ACCESS_COLD_READ_COST,
+                }
+            } else {
+                StorageAccessRefund::Cold
+            }
+        }
+    }
+
     pub(crate) fn base_price_for_write(
         &self,
         storage_key: &StorageKey,
@@ -372,12 +410,22 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
         monotonic_cycle_counter: u32,
         partial_query: &LogQuery,
     ) -> StorageAccessRefund {
-        // TODO: implement storage access refund
-        self.returned_refunds
-            .apply_historic_record(VectorHistoryEvent::Push(0), partial_query.timestamp);
+        let storage_key = storage_key_of_log(partial_query);
 
-        // TODO: implement it correctly
-        StorageAccessRefund::Cold
+        let refund = if partial_query.aux_byte == TRANSIENT_STORAGE_AUX_BYTE {
+            // Any transient access is warm. Also, no refund needs to be provided as it is already cheap
+            StorageAccessRefund::Warm { ergs: 0 }
+        } else {
+            assert!(partial_query.aux_byte == STORAGE_AUX_BYTE);
+            self.get_storage_access_refund(partial_query)
+        };
+
+        self.returned_refunds.apply_historic_record(
+            VectorHistoryEvent::Push(refund.refund()),
+            partial_query.timestamp,
+        );
+
+        refund
     }
 
     // Indicate a start of execution frame for rollback purposes
