@@ -21,7 +21,6 @@ zksync_health_check = { path = "../health_check" }
 zksync_consensus_roles = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "97d139969476a004c50f8b4a31ece748e5bee14e" }
 zksync_consensus_storage = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "97d139969476a004c50f8b4a31ece748e5bee14e" }
 zksync_protobuf = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "97d139969476a004c50f8b4a31ece748e5bee14e" }
-zksync_protobuf_config = { path= "../protobuf_config" }
 
 itertools = "0.10.1"
 thiserror = "1.0"
