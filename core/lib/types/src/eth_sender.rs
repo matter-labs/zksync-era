@@ -9,6 +9,7 @@ pub struct EthTx {
     pub tx_type: AggregatedActionType,
     pub created_at_timestamp: u64,
     pub predicted_gas_cost: u64,
+    pub from_addr: Option<Address>,
 }
 
 impl std::fmt::Debug for EthTx {

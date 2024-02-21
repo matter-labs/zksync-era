@@ -35,11 +35,44 @@ impl PKSigningClient {
     ) -> Self {
         // Gather required data from the config.
         // It's done explicitly to simplify getting rid of this function later.
-        let main_node_url = &eth_client.web3_url;
         let operator_private_key = eth_sender
             .sender
             .private_key()
             .expect("Operator private key is required for signing client");
+
+        Self::from_config_inner(
+            eth_sender,
+            contracts_config,
+            eth_client,
+            operator_private_key,
+        )
+    }
+
+    /// Create an signing client for the blobs account
+    pub fn from_config_blobs(
+        eth_sender: &ETHSenderConfig,
+        contracts_config: &ContractsConfig,
+        eth_client: &ETHClientConfig,
+    ) -> Option<Self> {
+        // Gather required data from the config.
+        // It's done explicitly to simplify getting rid of this function later.
+        let operator_private_key = eth_sender.sender.private_key_blobs()?;
+
+        Some(Self::from_config_inner(
+            eth_sender,
+            contracts_config,
+            eth_client,
+            operator_private_key,
+        ))
+    }
+
+    fn from_config_inner(
+        eth_sender: &ETHSenderConfig,
+        contracts_config: &ContractsConfig,
+        eth_client: &ETHClientConfig,
+        operator_private_key: H256,
+    ) -> Self {
+        let main_node_url = &eth_client.web3_url;
         let diamond_proxy_addr = contracts_config.diamond_proxy_addr;
         let default_priority_fee_per_gas = eth_sender.gas_adjuster.default_priority_fee_per_gas;
         let l1_chain_id = eth_client.chain_id;

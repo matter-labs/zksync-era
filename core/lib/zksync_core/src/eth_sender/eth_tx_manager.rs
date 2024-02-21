@@ -50,6 +50,7 @@ pub(super) struct L1BlockNumbers {
 #[derive(Debug)]
 pub struct EthTxManager {
     ethereum_gateway: Arc<dyn BoundEthInterface>,
+    ethereum_gateway_blobs: Option<Arc<dyn BoundEthInterface>>,
     config: SenderConfig,
     gas_adjuster: Arc<dyn L1TxParamsProvider>,
 }
@@ -59,9 +60,11 @@ impl EthTxManager {
         config: SenderConfig,
         gas_adjuster: Arc<dyn L1TxParamsProvider>,
         ethereum_gateway: Arc<dyn BoundEthInterface>,
+        ethereum_gateway_blobs: Option<Arc<dyn BoundEthInterface>>,
     ) -> Self {
         Self {
             ethereum_gateway,
+            ethereum_gateway_blobs,
             config,
             gas_adjuster,
         }
