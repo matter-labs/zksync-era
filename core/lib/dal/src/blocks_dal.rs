@@ -7,6 +7,7 @@ use std::{
 use anyhow::Context as _;
 use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive};
 use sqlx::Row;
+use zksync_l1_contract_interface::i_executor::ZK_SYNC_BYTES_PER_BLOB;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     block::{BlockGasCount, L1BatchHeader, L1BatchTreeData, MiniblockHeader},
@@ -2319,6 +2320,30 @@ impl BlocksDal<'_, '_> {
             .context("delete_initial_writes_inner()")?;
         Ok(())
     }
+
+    /// Retrieves the blobs for a given batch
+    pub async fn get_batch_blobs(
+        &mut self,
+        batch_number: L1BatchNumber,
+    ) -> anyhow::Result<Vec<Vec<u8>>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                pubdata_input
+            FROM
+                l1_batches
+            WHERE
+                number = $1
+            "#,
+            batch_number.0 as i64
+        )
+        .fetch_one(self.storage.conn())
+        .await?;
+        let mut pubdata = row.pubdata_input.unwrap_or_default();
+        pubdata.resize(ZK_SYNC_BYTES_PER_BLOB * 2, 0u8);
+        let (blob_1, blob_2) = pubdata.split_at(ZK_SYNC_BYTES_PER_BLOB);
+        Ok(vec![blob_1.to_vec(), blob_2.to_vec()])
+    }
 }
 
 #[cfg(test)]
@@ -2586,5 +2611,58 @@ mod tests {
                 Some(true)
             );
         }
+    }
+
+    #[tokio::test]
+    async fn get_batch_blobs() {
+        let pool = ConnectionPool::test_pool().await;
+        let mut conn = pool.access_storage().await.unwrap();
+        conn.protocol_versions_dal()
+            .save_protocol_version_with_tx(ProtocolVersion::default())
+            .await;
+
+        let mut header = L1BatchHeader::new(
+            L1BatchNumber(1),
+            100,
+            BaseSystemContractsHashes {
+                bootloader: H256::repeat_byte(1),
+                default_aa: H256::repeat_byte(42),
+            },
+            ProtocolVersionId::latest(),
+        );
+        header.l1_tx_count = 3;
+        header.l2_tx_count = 5;
+        header.l2_to_l1_logs.push(UserL2ToL1Log(L2ToL1Log {
+            shard_id: 0,
+            is_service: false,
+            tx_number_in_block: 2,
+            sender: Address::repeat_byte(2),
+            key: H256::repeat_byte(3),
+            value: H256::zero(),
+        }));
+        header.l2_to_l1_messages.push(vec![22; 22]);
+        header.l2_to_l1_messages.push(vec![33; 33]);
+        header.pubdata_input = Some(vec![1, 3, 3, 7]);
+
+        conn.blocks_dal()
+            .insert_mock_l1_batch(&header)
+            .await
+            .unwrap();
+
+        let blobs = conn
+            .blocks_dal()
+            .get_batch_blobs(L1BatchNumber(1))
+            .await
+            .unwrap();
+
+        let mut expected_blob_1 = vec![1, 3, 3, 7];
+        expected_blob_1.resize(ZK_SYNC_BYTES_PER_BLOB, 0u8);
+
+        let expected_blob_2 = vec![0u8; ZK_SYNC_BYTES_PER_BLOB];
+        assert_eq!(blobs.len(), 2);
+        assert_eq!(blobs[0], expected_blob_1);
+        assert_eq!(blobs[0].len(), ZK_SYNC_BYTES_PER_BLOB);
+        assert_eq!(blobs[1], expected_blob_2);
+        assert_eq!(blobs[1].len(), ZK_SYNC_BYTES_PER_BLOB);
     }
 }

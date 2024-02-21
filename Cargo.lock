@@ -8595,6 +8595,7 @@ dependencies = [
  "zksync_consensus_storage",
  "zksync_contracts",
  "zksync_health_check",
+ "zksync_l1_contract_interface",
  "zksync_protobuf",
  "zksync_protobuf_build",
  "zksync_system_constants",

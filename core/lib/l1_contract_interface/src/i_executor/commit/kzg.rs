@@ -21,8 +21,8 @@ use zkevm_test_harness_1_4_1::{
     },
 };
 
-const ZK_SYNC_BYTES_PER_BLOB: usize = BLOB_CHUNK_SIZE * ELEMENTS_PER_4844_BLOCK;
 const EIP_4844_BYTES_PER_BLOB: usize = 32 * ELEMENTS_PER_4844_BLOCK;
+pub const ZK_SYNC_BYTES_PER_BLOB: usize = BLOB_CHUNK_SIZE * ELEMENTS_PER_4844_BLOCK;
 
 /// Packed pubdata commitments.
 /// Format: opening point (16 bytes) || claimed value (32 bytes) || commitment (48 bytes)
