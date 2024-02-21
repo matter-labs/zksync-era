@@ -10,7 +10,7 @@ export function fail(message: string) {
 }
 
 // Creates a Jest matcher response for succeeded test.
-// It still needs a message, as it could've been preceeded by `.not`.
+// It still needs a message, as it could've been proceeded by `.not`.
 export function pass(message: string) {
     return {
         pass: true,
