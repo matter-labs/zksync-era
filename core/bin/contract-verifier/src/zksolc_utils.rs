@@ -45,7 +45,7 @@ pub struct Settings {
     /// Flag for system compilation mode.
     #[serde(default)]
     pub is_system: bool,
-    /// Flag to force evmla IR.
+    /// Flag to force `evmla` IR.
     #[serde(default)]
     pub force_evmla: bool,
     /// Other fields.
