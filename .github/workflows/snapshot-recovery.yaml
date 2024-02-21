@@ -33,8 +33,7 @@ jobs:
           echo "Install SQL tools"
           cargo install sqlx-cli --version 0.7.3
           echo "Stop default postgres (as we'll use the docker one)"
-          # sudo systemctl stop postgresql
-          sudo pg_ctl stop
+          # sudo systemctl stop postgres.service
           echo "Start docker."
           sudo systemctl start docker
 
