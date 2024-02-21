@@ -74,11 +74,11 @@ impl Task for EthWatchTask {
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        let mut eth_watch = EthWatch::new(
+        let eth_watch = EthWatch::new(
             self.diamond_proxy_address,
             self.governance_contract,
             Box::new(self.client),
-            &self.main_pool,
+            self.main_pool,
             self.poll_interval,
         )
         .await;
