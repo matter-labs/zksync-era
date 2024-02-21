@@ -97,7 +97,11 @@ mod tests {
                 pushgateway_url: "http://127.0.0.1:9091".into(),
                 push_interval_ms: Some(100),
             },
-            healthcheck: HealthCheckConfig { port: 8081 },
+            healthcheck: HealthCheckConfig {
+                port: 8081,
+                slow_time_limit_ms: Some(250),
+                hard_time_limit_ms: Some(2_000),
+            },
             merkle_tree: MerkleTreeApiConfig { port: 8082 },
         }
     }
@@ -136,6 +140,8 @@ mod tests {
             API_PROMETHEUS_PUSHGATEWAY_URL="http://127.0.0.1:9091"
             API_PROMETHEUS_PUSH_INTERVAL_MS=100
             API_HEALTHCHECK_PORT=8081
+            API_HEALTHCHECK_SLOW_TIME_LIMIT_MS=250
+            API_HEALTHCHECK_HARD_TIME_LIMIT_MS=2000
             API_MERKLE_TREE_PORT=8082
         "#;
         lock.set_env(config);

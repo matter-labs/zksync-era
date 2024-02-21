@@ -93,12 +93,18 @@ pub struct AppHealthCheck {
 
 impl Default for AppHealthCheck {
     fn default() -> Self {
-        Self::new(Duration::from_millis(500), Duration::from_secs(5))
+        Self::new(None, None)
     }
 }
 
 impl AppHealthCheck {
-    pub fn new(slow_time_limit: Duration, hard_time_limit: Duration) -> Self {
+    pub fn new(slow_time_limit: Option<Duration>, hard_time_limit: Option<Duration>) -> Self {
+        const DEFAULT_SLOW_TIME_LIMIT: Duration = Duration::from_millis(500);
+        const DEFAULT_HARD_TIME_LIMIT: Duration = Duration::from_secs(3);
+
+        let slow_time_limit = slow_time_limit.unwrap_or(DEFAULT_SLOW_TIME_LIMIT);
+        let hard_time_limit = hard_time_limit.unwrap_or(DEFAULT_HARD_TIME_LIMIT);
+        tracing::debug!("Created app health with time limits: slow={slow_time_limit:?}, hard={hard_time_limit:?}");
         Self {
             components: Mutex::default(),
             slow_time_limit,

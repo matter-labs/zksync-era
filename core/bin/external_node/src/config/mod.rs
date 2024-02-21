@@ -142,6 +142,14 @@ pub struct OptionalENConfig {
     /// Enabled JSON RPC API namespaces.
     api_namespaces: Option<Vec<Namespace>>,
 
+    // Health checks
+    /// Time limit in milliseconds to mark a health check as slow and log the corresponding warning.
+    /// If not specified, the default value in the health check crate will be used.
+    healthcheck_slow_time_limit_ms: Option<u64>,
+    /// Time limit in milliseconds to abort a health check and return "not ready" status for the corresponding component.
+    /// If not specified, the default value in the health check crate will be used.
+    healthcheck_hard_time_limit_ms: Option<u64>,
+
     // Gas estimation config
     /// The factor by which to scale the gasLimit
     #[serde(default = "OptionalENConfig::default_estimate_gas_scale_factor")]
@@ -367,6 +375,16 @@ impl OptionalENConfig {
 
     pub fn max_response_body_size(&self) -> usize {
         self.max_response_body_size_mb * BYTES_IN_MEGABYTE
+    }
+
+    pub fn healthcheck_slow_time_limit(&self) -> Option<Duration> {
+        self.healthcheck_slow_time_limit_ms
+            .map(Duration::from_millis)
+    }
+
+    pub fn healthcheck_hard_time_limit(&self) -> Option<Duration> {
+        self.healthcheck_hard_time_limit_ms
+            .map(Duration::from_millis)
     }
 }
 
