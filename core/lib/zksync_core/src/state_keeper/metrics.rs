@@ -11,9 +11,13 @@ use vise::{
     Metrics,
 };
 use zksync_mempool::MempoolStore;
+use zksync_types::{storage_writes_deduplicator::StorageWritesDeduplicator, ProtocolVersionId};
 
 use super::seal_criteria::SealResolution;
-use crate::metrics::InteractionType;
+use crate::{
+    gas_tracker::{gas_count_from_metrics, gas_count_from_writes},
+    metrics::InteractionType,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "stage", rename_all = "snake_case")]
@@ -407,18 +411,35 @@ pub(crate) struct BlockTipMetrics {
     #[metrics(buckets = Buckets::exponential(1.0..=60000.0, 2.0))]
     circuit_statistic: Histogram<usize>,
     #[metrics(buckets = Buckets::exponential(1.0..=60000.0, 2.0))]
-    execution_metrics: Histogram<usize>,
+    execution_metrics_size: Histogram<usize>,
+    #[metrics(buckets = Buckets::exponential(1.0..=60000.0, 2.0))]
+    block_writes_metrics: Histogram<u32>,
 }
 
 impl BlockTipMetrics {
     pub fn observe(&self, execution_result: &VmExecutionResultAndLogs) {
-        self.gas_used.observe(execution_result.statistics.gas_used);
+        let execution_metrics = execution_result.get_execution_metrics(None);
+
+        self.gas_used
+            .observe(gas_count_from_metrics(&execution_metrics).commit);
         self.pubdata_published
             .observe(execution_result.statistics.pubdata_published);
         self.circuit_statistic
             .observe(execution_result.statistics.circuit_statistic.total());
-        self.execution_metrics
-            .observe(execution_result.get_execution_metrics(None).size());
+        self.execution_metrics_size
+            .observe(execution_metrics.size());
+
+        let logs_iter = execution_result.logs.storage_logs.iter();
+        let writes_metrics = StorageWritesDeduplicator::apply_on_empty_state(logs_iter);
+
+        let gas_count = gas_count_from_writes(&writes_metrics, ProtocolVersionId::Version20);
+
+        self.block_writes_metrics.observe(
+            vec![gas_count.commit, gas_count.prove, gas_count.execute]
+                .into_iter()
+                .max()
+                .unwrap(),
+        );
     }
 }
 
