@@ -562,9 +562,15 @@ impl FullApiParams {
         })?;
         tracing::info!("Initialized {transport_str} API on {local_addr:?}");
         local_addr_sender.send(local_addr).ok();
+        health_updater.update(HealthStatus::Ready.into());
 
+        // We want to be able to immediately stop the server task if the server stops on its own for whatever reason.
+        // Hence, we monitor `stop_receiver` on a separate Tokio task.
         let close_handle = server_handle.clone();
         let closing_vm_barrier = vm_barrier.clone();
+        let health_updater = Arc::new(health_updater);
+        // We use `Weak` reference to the health updater in order to not prevent its drop if the server stops on its own.
+        let closing_health_updater = Arc::downgrade(&health_updater);
         tokio::spawn(async move {
             if stop_receiver.changed().await.is_err() {
                 tracing::warn!(
@@ -572,13 +578,15 @@ impl FullApiParams {
                      without sending a signal"
                 );
             }
+            if let Some(health_updater) = closing_health_updater.upgrade() {
+                health_updater.update(HealthStatus::ShuttingDown.into());
+            }
             tracing::info!(
                 "Stop signal received, {transport_str} JSON-RPC server is shutting down"
             );
             closing_vm_barrier.close();
             close_handle.stop().ok();
         });
-        health_updater.update(HealthStatus::Ready.into());
 
         server_handle.stopped().await;
         drop(health_updater);

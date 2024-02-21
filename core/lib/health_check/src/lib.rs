@@ -23,6 +23,9 @@ pub enum HealthStatus {
     Ready,
     /// Component is affected by some non-fatal issue. The component is still considered healthy.
     Affected,
+    /// Component has received a termination request and is in the process of shutting down.
+    /// Components that shut down instantly may skip this status and proceed directly to [`Self::ShutDown`].
+    ShuttingDown,
     /// Component is shut down.
     ShutDown,
     /// Component has been abnormally interrupted by a panic.
@@ -39,9 +42,10 @@ impl HealthStatus {
         match self {
             Self::Ready => 0,
             Self::Affected => 1,
-            Self::ShutDown => 2,
-            Self::NotReady => 3,
-            Self::Panicked => 4,
+            Self::ShuttingDown => 2,
+            Self::ShutDown => 3,
+            Self::NotReady => 4,
+            Self::Panicked => 5,
         }
     }
 }
@@ -279,11 +283,11 @@ impl Drop for HealthUpdater {
         }
 
         let terminal_health = if thread::panicking() {
-            HealthStatus::Panicked.into()
+            HealthStatus::Panicked
         } else {
-            HealthStatus::ShutDown.into()
+            HealthStatus::ShutDown
         };
-        self.health_sender.send_replace(terminal_health);
+        self.update(terminal_health.into());
     }
 }
 
