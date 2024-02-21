@@ -35,37 +35,16 @@ pub struct Source {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub enum MetadataHash {
-    /// Do not include bytecode hash.
-    #[serde(rename = "none")]
-    None,
-}
-
-#[derive(Debug, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Metadata {
-    /// The bytecode hash mode.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub bytecode_hash: Option<MetadataHash>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
-    /// The linker library addresses.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub libraries: Option<HashMap<String, HashMap<String, String>>>,
     /// The output selection filters.
     pub output_selection: Option<serde_json::Value>,
-    /// The optimizer settings.
-    #[serde(default)]
-    pub optimizer: Optimizer,
-    /// The metadata settings.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub metadata: Option<Metadata>,
     /// Flag for system compilation mode.
     #[serde(default)]
     pub is_system: bool,
+    /// Other fields.
+    #[serde(flatten)]
+    pub other: serde_json::Value,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
