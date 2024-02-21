@@ -76,23 +76,17 @@ impl EventProcessor for GovernanceUpgradesEventProcessor {
             }
         }
 
-        if upgrades.is_empty() {
-            return Ok(());
-        }
-
-        let ids_str: Vec<_> = upgrades
-            .iter()
-            .map(|(u, _)| format!("{}", u.id as u16))
-            .collect();
-        tracing::debug!("Received upgrades with ids: {}", ids_str.join(", "));
-
         let new_upgrades: Vec<_> = upgrades
             .into_iter()
             .skip_while(|(v, _)| v.id as u16 <= self.last_seen_version_id as u16)
             .collect();
+
         if new_upgrades.is_empty() {
             return Ok(());
         }
+
+        let ids: Vec<_> = new_upgrades.iter().map(|(u, _)| u.id as u16).collect();
+        tracing::debug!("Received upgrades with ids: {:?}", ids);
 
         let last_id = new_upgrades.last().unwrap().0.id;
         let stage_start = Instant::now();
