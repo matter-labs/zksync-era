@@ -132,7 +132,7 @@ installation as a pre-requisite, alongside these machine specs:
 - CPU: At least 8 physical cores
 - RAM: 16GB of RAM(if you have lower RAM machine enable swap)
 - Disk: 30GB of free disk
-- GPU: 1x Nvidia L4/T4 with 16GB of GPU RAM
+- GPU: 1x Nvidia L4/T4 with 6GB of GPU RAM
 
 1. Install the correct nightly version using command: `rustup install nightly-2023-07-21`
 2. Initialize DB and run migrations: `zk init`
