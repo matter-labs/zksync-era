@@ -161,6 +161,8 @@ pub(super) struct ApiMetrics {
     /// labels (the latter is the difference between the latest sealed miniblock and the resolved miniblock).
     #[metrics(buckets = Buckets::LATENCIES)]
     web3_call: Family<MethodLabels, Histogram<Duration>>,
+    #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds)]
+    web3_dropped_call_latency: Family<MethodLabels, Histogram<Duration>>,
     /// Difference between the latest sealed miniblock and the resolved miniblock for a web3 call.
     #[metrics(buckets = Buckets::LATENCIES, labels = ["method"])]
     web3_call_block_diff: LabeledFamily<&'static str, Histogram<Duration>>,
@@ -181,6 +183,11 @@ pub(super) struct ApiMetrics {
 impl ApiMetrics {
     pub fn observe_latency(&self, labels: &MethodLabels, latency: Duration) {
         self.web3_call[labels].observe(latency);
+    }
+
+    pub fn observe_dropped_call(&self, labels: &MethodLabels, latency: Duration) {
+        // FIXME: is it safe to record method name here?
+        self.web3_dropped_call_latency[labels].observe(latency);
     }
 
     pub fn observe_protocol_error(&self, mut method: String, error_code: i32, app_error: bool) {

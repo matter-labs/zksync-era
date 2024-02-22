@@ -281,7 +281,12 @@ struct MethodMetadataGuard {
 
 impl Drop for MethodMetadataGuard {
     fn drop(&mut self) {
-        // FIXME: observe dropped methods
+        if !self.is_completed {
+            API_METRICS.observe_dropped_call(
+                &MethodLabels::from(&self.inner),
+                self.inner.started_at.elapsed(),
+            );
+        }
     }
 }
 
