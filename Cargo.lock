@@ -8776,6 +8776,7 @@ dependencies = [
  "tracing",
  "vlog",
  "zksync_config",
+ "zksync_contracts",
  "zksync_core",
  "zksync_dal",
  "zksync_env_config",

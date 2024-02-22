@@ -30,6 +30,7 @@ fn parsing_optional_config_from_empty_env() {
 #[test]
 fn parsing_optional_config_from_env() {
     let env_vars = [
+        ("EN_FILTERS_DISABLED", "true"),
         ("EN_FILTERS_LIMIT", "5000"),
         ("EN_SUBSCRIPTIONS_LIMIT", "20000"),
         ("EN_FEE_HISTORY_LIMIT", "1000"),
@@ -50,6 +51,7 @@ fn parsing_optional_config_from_env() {
         .map(|(name, value)| (name.to_owned(), value.to_owned()));
 
     let config: OptionalENConfig = envy::prefixed("EN_").from_iter(env_vars).unwrap();
+    assert!(config.filters_disabled);
     assert_eq!(config.filters_limit, 5_000);
     assert_eq!(config.subscriptions_limit, 20_000);
     assert_eq!(config.fee_history_limit, 1_000);

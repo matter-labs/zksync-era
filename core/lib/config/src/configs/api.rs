@@ -32,6 +32,15 @@ pub struct Web3JsonRpcConfig {
     pub ws_url: String,
     /// Max possible limit of entities to be requested once.
     pub req_entities_limit: Option<u32>,
+    /// Whether to support methods installing filters and querying filter changes.
+    ///
+    /// When to set this value to `true`:
+    /// Filters are local to the specific node they were created at. Meaning if
+    /// there are multiple nodes behind a load balancer the client cannot reliably
+    /// query the previously created filter as the request might get routed to a
+    /// different node.
+    #[serde(default)]
+    pub filters_disabled: bool,
     /// Max possible limit of filters to be in the state at once.
     pub filters_limit: Option<u32>,
     /// Max possible limit of subscriptions to be in the state at once.
@@ -100,6 +109,7 @@ impl Web3JsonRpcConfig {
             ws_port: 3051,
             ws_url: "ws://localhost:3051".into(),
             req_entities_limit: Some(10000),
+            filters_disabled: false,
             filters_limit: Some(10000),
             subscriptions_limit: Some(10000),
             pubsub_polling_interval: Some(200),
