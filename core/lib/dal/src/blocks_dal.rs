@@ -1425,7 +1425,7 @@ impl BlocksDal<'_, '_> {
 
             let (confirmed_at_not_null, join_on_eth_tx_history) = if commited_tx_confirmed {
                 (
-                    "confirmed_at IS NOT NULL",
+                    "AND confirmed_at IS NOT NULL",
                     "JOIN eth_txs_history ON eth_commit_tx_id = eth_tx_id",
                 )
             } else {

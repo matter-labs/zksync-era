@@ -514,24 +514,31 @@ impl EthSenderDal<'_, '_> {
         &mut self,
         from_address: Option<Address>,
     ) -> sqlx::Result<Option<u64>> {
-        let row = sqlx::query!(
+        let optional_where_clause = from_address
+            .map(|a| format!("WHERE from_addr = {a:?}"))
+            .unwrap_or_default();
+
+        let query = format!(
             r#"
             SELECT
                 nonce
             FROM
                 eth_txs
-            WHERE
-                from_addr = $1
+            {optional_where_clause}
             ORDER BY
                 id DESC
             LIMIT
                 1
             "#,
-            from_address.as_ref().map(Address::as_bytes),
-        )
-        .fetch_optional(self.storage.conn())
-        .await?;
-        Ok(row.map(|row| row.nonce as u64 + 1))
+        );
+        let query = sqlx::query(&query);
+
+        let nonce: Option<i64> = query
+            .fetch_optional(self.storage.conn())
+            .await?
+            .map(|row| row.get("nonce"));
+
+        Ok(nonce.map(|n| n as u64 + 1))
     }
 
     pub async fn mark_failed_transaction(&mut self, eth_tx_id: u32) -> sqlx::Result<()> {
