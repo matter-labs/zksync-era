@@ -72,7 +72,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         last_l1_batch_to_process: u32,
         protocol_versions: &[FriProtocolVersionId],
         picked_by: &str,
-    ) -> Option<L1BatchNumber> {
+    ) -> Option<(L1BatchNumber, Vec<u8>)> {
         let protocol_versions: Vec<i32> = protocol_versions.iter().map(|&id| id as i32).collect();
         sqlx::query!(
             r#"
@@ -110,7 +110,12 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .fetch_optional(self.storage.conn())
         .await
         .unwrap()
-        .map(|row| L1BatchNumber(row.l1_batch_number as u32))
+        .map(|row| {
+            (
+                L1BatchNumber(row.l1_batch_number as u32),
+                row.blobs_4844.unwrap(),
+            )
+        })
     }
 
     pub async fn get_basic_circuit_witness_job_attempts(

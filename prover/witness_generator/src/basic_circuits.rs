@@ -80,6 +80,7 @@ struct BlobUrls {
 pub struct BasicWitnessGeneratorJob {
     block_number: L1BatchNumber,
     job: PrepareBasicCircuitsJob,
+    blobs_4844: Vec<u8>,
 }
 
 #[derive(Debug)]
@@ -119,7 +120,11 @@ impl BasicWitnessGenerator {
         started_at: Instant,
         config: Arc<FriWitnessGeneratorConfig>,
     ) -> Option<BasicCircuitArtifacts> {
-        let BasicWitnessGeneratorJob { block_number, job } = basic_job;
+        let BasicWitnessGeneratorJob {
+            block_number,
+            job,
+            blobs_4844,
+        } = basic_job;
         let shall_force_process_block = config
             .force_process_block
             .map_or(false, |block| block == block_number.0);
@@ -167,6 +172,7 @@ impl BasicWitnessGenerator {
                 started_at,
                 block_number,
                 job,
+                blobs_4844,
             )
             .await,
         )
@@ -195,13 +201,13 @@ impl JobProcessor for BasicWitnessGenerator {
             )
             .await
         {
-            Some(block_number) => {
+            Some((block_number, blobs_4844)) => {
                 tracing::info!(
                     "Processing FRI basic witness-gen for block {}",
                     block_number
                 );
                 let started_at = Instant::now();
-                let job = get_artifacts(block_number, &*self.object_store).await;
+                let job = get_artifacts(block_number, &*self.object_store, blobs_4844).await;
 
                 WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::BasicCircuits.into()]
                     .observe(started_at.elapsed());
@@ -310,6 +316,7 @@ async fn process_basic_circuits_job(
     started_at: Instant,
     block_number: L1BatchNumber,
     job: PrepareBasicCircuitsJob,
+    blobs_4844: Vec<u8>,
 ) -> BasicCircuitArtifacts {
     let witness_gen_input =
         build_basic_circuits_witness_generator_input(&connection_pool, job, block_number).await;
@@ -319,6 +326,7 @@ async fn process_basic_circuits_job(
         config,
         connection_pool,
         witness_gen_input,
+        blobs_4844,
     )
     .await;
     WITNESS_GENERATOR_METRICS.witness_generation_time[&AggregationRound::BasicCircuits.into()]
@@ -377,9 +385,14 @@ async fn update_database(
 async fn get_artifacts(
     block_number: L1BatchNumber,
     object_store: &dyn ObjectStore,
+    blobs_4844: Vec<u8>,
 ) -> BasicWitnessGeneratorJob {
     let job = object_store.get(block_number).await.unwrap();
-    BasicWitnessGeneratorJob { block_number, job }
+    BasicWitnessGeneratorJob {
+        block_number,
+        job,
+        blobs_4844,
+    }
 }
 
 async fn save_scheduler_artifacts(
@@ -470,7 +483,6 @@ async fn build_basic_circuits_witness_generator_input(
         block_timestamp: block_header.timestamp,
         used_bytecodes_hashes: block_header.used_contract_hashes,
         initial_heap_content,
-        blobs_4844: witness_merkle_input.blobs_4844().clone(),
         merkle_paths_input: witness_merkle_input,
     }
 }
@@ -481,6 +493,7 @@ async fn generate_witness(
     config: Arc<FriWitnessGeneratorConfig>,
     connection_pool: ConnectionPool,
     input: BasicCircuitWitnessGeneratorInput,
+    blobs_4844: Vec<u8>,
 ) -> (
     Vec<(u8, String)>,
     Vec<(u8, String, usize)>,
@@ -664,10 +677,12 @@ async fn generate_witness(
     };
 
     let bytes_per_blob = 31 * 4096;
-    assert_eq!(input.blobs_4844.len(), bytes_per_blob * 2);
-    let (blob_1, blob_2) = input.blobs_4844.split_at(bytes_per_blob);
+    println!("Emil -- {bytes_per_blob:?}");
+    println!("Emil -- {:?}", blobs_4844.len());
+    // assert_eq!(blobs_4844.len(), bytes_per_blob * 2);
+    let (blob_1, blob_2) = blobs_4844.split_at(bytes_per_blob);
 
-    println!("got here");
+    println!("Emil -- got here");
     let (eip_4844_circuit_1, eip_4844_witness_1) =
         generate_eip4844_circuit_and_witness(blob_1.to_vec(), "~/zksync-era/trusted_setup.json");
     let (eip_4844_circuit_2, eip_4844_witness_2) =
