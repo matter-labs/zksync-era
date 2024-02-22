@@ -484,8 +484,8 @@ export async function sendTransfers(
             });
             reporter?.debug(`Sent ERC20 transfer tx: ${tx.hash}, nonce: ${tx.nonce}`);
 
-            // @ts-ignore
             txPromises.push(
+                // @ts-ignore
                 tx.wait().then((tx) => {
                     reporter?.debug(`Obtained receipt for ERC20 transfer tx: ${tx.transactionHash}`);
                     return tx;
