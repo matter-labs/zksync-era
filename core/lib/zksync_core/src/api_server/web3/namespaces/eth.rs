@@ -485,16 +485,17 @@ impl EthNamespace {
         if matches!(block_id, BlockId::Number(BlockNumber::Pending)) {
             let account_nonce_u64 = u64::try_from(account_nonce)
                 .map_err(|err| internal_error(method_name, anyhow::anyhow!(err)))?;
-            account_nonce = if let Some(proxy) = &self.state.tx_sender.0.proxy {
-                // EN: get pending nonces from the transaction cache
-                // We don't have mempool in EN, it's safe to use the proxy cache as a mempool
-                proxy
-                    .next_nonce_by_initiator_account(address, account_nonce_u64 as u32)
-                    .await
-                    .0
-                    .into()
+            account_nonce = if let Some(account_nonce) = self
+                .state
+                .tx_sender
+                .0
+                .tx_sink
+                .lookup_pending_nonce(method_name, address, account_nonce_u64 as u32)
+                .await?
+            {
+                account_nonce.0.into()
             } else {
-                // Main node: get pending nonces from the mempool
+                // No nonce hint in the sink: get pending nonces from the mempool
                 connection
                     .transactions_web3_dal()
                     .next_nonce_by_initiator_account(address, account_nonce_u64)
@@ -527,27 +528,14 @@ impl EthNamespace {
             .await
             .map_err(|err| internal_error(METHOD_NAME, err));
 
-        if let Some(proxy) = &self.state.tx_sender.0.proxy {
-            // We're running an external node - check the proxy cache in
-            // case the transaction was proxied but not yet synced back to us
-            if let Ok(Some(tx)) = &transaction {
-                // If the transaction is already in the db, remove it from cache
-                proxy.forget_tx(tx.hash).await
-            } else {
-                if let TransactionId::Hash(hash) = id {
-                    // If the transaction is not in the db, check the cache
-                    if let Some(tx) = proxy.find_tx(hash).await {
-                        transaction = Ok(Some(tx.into()));
-                    }
-                }
-                if !matches!(transaction, Ok(Some(_))) {
-                    // If the transaction is not in the db or cache, query main node
-                    transaction = proxy
-                        .request_tx(id)
-                        .await
-                        .map_err(|err| internal_error(METHOD_NAME, err));
-                }
-            }
+        if let Ok(None) = transaction {
+            transaction = self
+                .state
+                .tx_sender
+                .0
+                .tx_sink
+                .lookup_tx(METHOD_NAME, id)
+                .await;
         }
 
         method_latency.observe();
