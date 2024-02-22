@@ -207,7 +207,7 @@ mod tests {
     }
 
     #[test]
-    fn deafult_state_keeper_mode() {
+    fn default_state_keeper_mode() {
         assert_eq!(
             StateKeeperConfig::default().l1_batch_commit_data_generator_mode,
             L1BatchCommitDataGeneratorMode::Rollup
