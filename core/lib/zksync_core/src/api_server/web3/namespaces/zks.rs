@@ -525,8 +525,11 @@ impl ZksNamespace {
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
         let mut storage = self.access_storage(METHOD_NAME).await?;
-        let bytecode = storage.factory_deps_dal().get_factory_dep(hash).await;
-
+        let bytecode = storage
+            .factory_deps_dal()
+            .get_factory_dep(hash)
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err))?;
         method_latency.observe();
         Ok(bytecode)
     }
