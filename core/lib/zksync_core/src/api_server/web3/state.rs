@@ -86,6 +86,7 @@ pub struct InternalApiConfig {
     pub l2_testnet_paymaster_addr: Option<Address>,
     pub req_entities_limit: usize,
     pub fee_history_limit: u64,
+    pub filters_disabled: bool,
 }
 
 impl InternalApiConfig {
@@ -112,6 +113,7 @@ impl InternalApiConfig {
             l2_testnet_paymaster_addr: contracts_config.l2_testnet_paymaster_addr,
             req_entities_limit: web3_config.req_entities_limit(),
             fee_history_limit: web3_config.fee_history_limit(),
+            filters_disabled: web3_config.filters_disabled,
         }
     }
 }
@@ -194,7 +196,7 @@ impl SealedMiniblockNumber {
 /// Holder for the data required for the API to be functional.
 #[derive(Debug, Clone)]
 pub struct RpcState {
-    pub(crate) installed_filters: Arc<Mutex<Filters>>,
+    pub(crate) installed_filters: Option<Arc<Mutex<Filters>>>,
     pub connection_pool: ConnectionPool,
     pub tree_api: Option<TreeApiHttpClient>,
     pub tx_sender: TxSender,
