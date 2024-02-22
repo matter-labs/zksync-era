@@ -1,6 +1,7 @@
 //! Consensus-related functionality.
 
 #![allow(clippy::redundant_locals)]
+#![allow(clippy::needless_pass_by_ref_mut)]
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
 use zksync_consensus_executor as executor;
@@ -179,7 +180,7 @@ impl Fetcher {
             drop(conn);
 
             // Fetch blocks before the genesis.
-            self.fetch_blocks(ctx, &mut cursor, genesis.forks.root().first_block)
+            self.fetch_blocks(ctx, &mut cursor, genesis.fork.first_block)
                 .await?;
 
             // Monitor the genesis of the main node.

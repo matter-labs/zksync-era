@@ -160,7 +160,7 @@ async fn test_full_nodes() {
     for _ in 0..NODES {
         node_cfgs.push(new_fullnode(
             rng,
-            &node_cfgs.last().unwrap_or(&validator_cfgs[0]),
+            node_cfgs.last().unwrap_or(&validator_cfgs[0]),
         ));
     }
 
@@ -221,53 +221,6 @@ async fn test_full_nodes() {
             assert_eq!(want, node.wait_for_blocks_and_verify(ctx, want_last).await?);
         }
         Ok(())
-    })
-    .await
-    .unwrap();
-}
-
-// Test hard fork on the main node.
-#[tokio::test(flavor = "multi_thread")]
-async fn test_full_nodes() {
-    const NODES: usize = 2;
-
-    zksync_concurrency::testonly::abort_on_panic();
-    let ctx = &ctx::test_root(&ctx::AffineClock::new(10.));
-    let rng = &mut ctx.rng();
-    let setup = Setup::new(rng, 1);
-    let validator_cfg = new_configs(rng, &setup, 0)[0];
-    let node_cfg = new_fullnode(rng,&validator_cfg);
-
-    // Run validator and fetchers in parallel.
-    scope::run!(ctx, |ctx, s| async {
-        // Run main node.
-        let pool = ConnectionPool::test_pool().await;
-        let (mut validator, runner) = testonly::StateKeeper::new(pool).await?;
-        s.spawn_bg(runner.run(ctx));
-        let cfg = MainNodeConfig {
-            executor: executor_config(&validator_cfg),
-            validator_key: setup.keys[0].clone(),
-        };
-        s.spawn_bg(cfg.run(ctx, validator.store.clone()));
-
-        // Run external node.
-        let pool = ConnectionPool::test_pool().await;
-        let (node, runner) = testonly::StateKeeper::new(pool).await?;
-        s.spawn_bg(runner.run(ctx));
-        let fetcher = Fetcher {
-            config: executor_config(cfg),
-            client: validator.store.client(),
-            sync_state: node.sync_state,
-        };
-        s.spawn_bg(fetcher.run(ctx, node.store.clone(), node.actions_sender));
-
-        // Process a couple of blocks.
-        validator.push_random_blocks(rng, 5).await;
-        node.store.wait_for_blocks(ctx, want_last).await.unwrap();
-    
-        // Terminate the main node and do a hard fork.
-        validator.terminate().await;
-        validator.store.fork();
     })
     .await
     .unwrap();

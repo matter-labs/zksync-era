@@ -41,16 +41,13 @@ impl ConsensusDal<'_, '_> {
     /// Noop if the new genesis is the same as the current one.
     /// Resets the stored consensus state otherwise and purges all certificates.
     pub async fn try_update_genesis(&mut self, genesis: &validator::Genesis) -> anyhow::Result<()> {
-        if genesis.forks.iter().count() != 1 {
-            anyhow::bail!("many-fork genesis unsupported");
-        }
         let mut txn = self.storage.start_transaction().await?;
         if let Some(got) = txn.consensus_dal().genesis().await? {
             // Exit if the genesis didn't change.
             if &got == genesis {
                 return Ok(());
             }
-            if got.forks.current().number >= genesis.forks.current().number {
+            if got.fork.number >= genesis.fork.number {
                 anyhow::bail!("transition to a past fork is not allowed");
             }
         }
@@ -101,12 +98,11 @@ impl ConsensusDal<'_, '_> {
 
         let new = validator::Genesis {
             validators: old.validators,
-            forks: validator::ForkSet::new(vec![validator::Fork {
-                number: old.forks.current().number.next(),
+            fork: validator::Fork {
+                number: old.fork.number.next(),
                 first_block,
                 first_parent: None,
-            }])
-            .unwrap(),
+            },
         };
         txn.consensus_dal().try_update_genesis(&new).await?;
         txn.commit().await?;

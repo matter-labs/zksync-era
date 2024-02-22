@@ -222,12 +222,11 @@ impl BlockStore {
         let genesis = validator::Genesis {
             // ValidatorSet::new() with a single validator should never fail.
             validators: validator::ValidatorSet::new([validator_key.clone()]).unwrap(),
-            forks: validator::ForkSet::new(vec![validator::Fork {
+            fork: validator::Fork {
                 number: validator::ForkNumber(0),
                 first_block,
                 first_parent: None,
-            }])
-            .unwrap(),
+            },
         };
         txn.try_update_genesis(ctx, &genesis)
             .await

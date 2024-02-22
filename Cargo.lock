@@ -1206,7 +1206,7 @@ dependencies = [
 [[package]]
 name = "circuit_definitions"
 version = "0.1.0"
-source = "git+file:///home/gprusak/github/era-zkevm_test_harness?branch=v1.4.0#a6a7f11d825a44d094563e5c39c0200e8a6487f2"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.0#de2ecad62ac8c12777e576dca20311ad8ec770d1"
 dependencies = [
  "crossbeam 0.8.2",
  "derivative",
@@ -3977,8 +3977,8 @@ dependencies = [
  "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc2)",
  "zk_evm 1.4.0",
  "zk_evm 1.4.1",
- "zkevm_test_harness 1.3.3 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.3.3)",
- "zkevm_test_harness 1.4.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.0)",
+ "zkevm_test_harness 1.3.3",
+ "zkevm_test_harness 1.4.0",
  "zkevm_test_harness 1.4.1",
  "zksync_contracts",
  "zksync_eth_signer",
@@ -6675,7 +6675,7 @@ dependencies = [
  "once_cell",
  "serde",
  "serde_json",
- "zkevm_test_harness 1.3.3 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.3.3)",
+ "zkevm_test_harness 1.3.3",
  "zksync_contracts",
  "zksync_state",
  "zksync_types",
@@ -8127,7 +8127,7 @@ dependencies = [
 [[package]]
 name = "zkevm_test_harness"
 version = "1.3.3"
-source = "git+file:///home/gprusak/github/era-zkevm_test_harness?branch=v1.3.3#c9fcea5369393799b77fb234af503847c26bbabc"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.3.3#d52b56d6ba8196c8a3c74c4933654469e6f27a5a"
 dependencies = [
  "bincode",
  "circuit_testing",
@@ -8153,17 +8153,11 @@ dependencies = [
 
 [[package]]
 name = "zkevm_test_harness"
-version = "1.3.3"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.3.3#d52b56d6ba8196c8a3c74c4933654469e6f27a5a"
-replace = "zkevm_test_harness 1.3.3 (git+file:///home/gprusak/github/era-zkevm_test_harness?branch=v1.3.3)"
-
-[[package]]
-name = "zkevm_test_harness"
 version = "1.4.0"
-source = "git+file:///home/gprusak/github/era-zkevm_test_harness?branch=v1.4.0#a6a7f11d825a44d094563e5c39c0200e8a6487f2"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.0#de2ecad62ac8c12777e576dca20311ad8ec770d1"
 dependencies = [
  "bincode",
- "circuit_definitions 0.1.0 (git+file:///home/gprusak/github/era-zkevm_test_harness?branch=v1.4.0)",
+ "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.0)",
  "codegen 0.2.0",
  "crossbeam 0.8.2",
  "derivative",
@@ -8179,12 +8173,6 @@ dependencies = [
  "tracing",
  "zkevm-assembly 1.3.2 (git+https://github.com/matter-labs/era-zkEVM-assembly.git?branch=v1.3.2)",
 ]
-
-[[package]]
-name = "zkevm_test_harness"
-version = "1.4.0"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.0#de2ecad62ac8c12777e576dca20311ad8ec770d1"
-replace = "zkevm_test_harness 1.4.0 (git+file:///home/gprusak/github/era-zkevm_test_harness?branch=v1.4.0)"
 
 [[package]]
 name = "zkevm_test_harness"
@@ -8269,7 +8257,7 @@ dependencies = [
  "multivm",
  "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc2)",
  "zk_evm 1.4.1",
- "zkevm_test_harness 1.4.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.0)",
+ "zkevm_test_harness 1.4.0",
  "zkevm_test_harness 1.4.1",
  "zksync_types",
  "zksync_utils",
@@ -8714,7 +8702,7 @@ dependencies = [
  "serde_with",
  "sha2 0.10.8",
  "sha3 0.10.8",
- "zkevm_test_harness 1.3.3 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.3.3)",
+ "zkevm_test_harness 1.3.3",
  "zkevm_test_harness 1.4.1",
  "zksync_prover_interface",
  "zksync_types",
@@ -8869,7 +8857,7 @@ dependencies = [
  "serde_with",
  "strum",
  "tokio",
- "zkevm_test_harness 1.3.3 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.3.3)",
+ "zkevm_test_harness 1.3.3",
  "zksync_object_store",
  "zksync_types",
 ]

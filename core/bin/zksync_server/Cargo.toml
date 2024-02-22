@@ -19,10 +19,10 @@ zksync_types = { path = "../../lib/types" }
 zksync_core = { path = "../../lib/zksync_core" }
 
 # Consensus dependenices
-zksync_consensus_crypto = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "5b3d383d7a65b0fbe2a771fecf4313f5083be9ae" }
-zksync_consensus_roles = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "5b3d383d7a65b0fbe2a771fecf4313f5083be9ae" }
-zksync_consensus_executor = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "5b3d383d7a65b0fbe2a771fecf4313f5083be9ae" }
-zksync_concurrency = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "5b3d383d7a65b0fbe2a771fecf4313f5083be9ae" }
+zksync_consensus_crypto = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "05de258ad636c216aea4b5129ae78580182654b8" }
+zksync_consensus_roles = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "05de258ad636c216aea4b5129ae78580182654b8" }
+zksync_consensus_executor = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "05de258ad636c216aea4b5129ae78580182654b8" }
+zksync_concurrency = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "05de258ad636c216aea4b5129ae78580182654b8" }
 
 vlog = { path = "../../lib/vlog" }
 
