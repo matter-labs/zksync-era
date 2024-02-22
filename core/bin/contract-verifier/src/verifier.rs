@@ -305,13 +305,17 @@ impl ContractVerifier {
                     enabled: request.req.optimization_used,
                     mode: request.req.optimizer_mode.and_then(|s| s.chars().next()),
                 };
+                let optimizer_value = serde_json::to_value(optimizer).unwrap();
 
                 let settings = Settings {
-                    libraries: None,
                     output_selection: Some(default_output_selection),
-                    optimizer,
                     is_system: request.req.is_system,
-                    metadata: None,
+                    force_evmla: request.req.force_evmla,
+                    other: serde_json::Value::Object(
+                        vec![("optimizer".to_string(), optimizer_value)]
+                            .into_iter()
+                            .collect(),
+                    ),
                 };
 
                 Ok(ZkSolcInput::StandardJson(StandardJson {

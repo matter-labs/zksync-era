@@ -52,6 +52,7 @@ async function initHyperchain() {
     const deployL2Weth = Boolean(process.env.DEPLOY_L2_WETH || false);
     const deployTestTokens = Boolean(process.env.DEPLOY_TEST_TOKENS || false);
 
+    const governorAdrress = ethers.utils.computeAddress(governorPrivateKey!);
     const initArgs: InitArgs = {
         skipSubmodulesCheckout: false,
         skipEnvSetup: true,
@@ -65,7 +66,7 @@ async function initHyperchain() {
             deploy: deployTestTokens,
             args: ['--private-key', deployerPrivateKey, '--envFile', process.env.CHAIN_ETH_NETWORK!]
         },
-        deployerPrivateKeyArgs: ['--private-key', deployerPrivateKey]
+        deployerPrivateKeyArgs: ['--private-key', deployerPrivateKey, '--owner-address', governorAdrress]
     };
 
     await init(initArgs);
@@ -139,7 +140,7 @@ async function setHyperchainMetadata() {
     const results: any = await enquirer.prompt(questions);
 
     let deployer, governor, ethOperator, feeReceiver: ethers.Wallet | undefined;
-    let feeReceiverAddress, l1Rpc, l1Id, databaseUrl;
+    let feeReceiverAddress, l1Rpc, l1Id, databaseUrl, databaseProverUrl;
 
     if (results.l1Chain !== BaseNetwork.LOCALHOST || results.l1Chain !== BaseNetwork.LOCALHOST_CUSTOM) {
         // If it's not a localhost chain, we need to remove the CONTRACTS_CREATE2_FACTORY_ADDR from the .env file and use default value.
@@ -170,10 +171,19 @@ async function setHyperchainMetadata() {
 
         connectionsQuestions.push({
             message:
-                'What is the connection URL for your Postgress 14 database (format is postgres://<user>:<pass>@<hostname>:<port>/<database>)?',
+                'What is the connection URL for your Postgress 14 main database (format is postgres://<user>:<pass>@<hostname>:<port>/<database>)?',
             name: 'dbUrl',
             type: 'input',
-            initial: 'postgres://postgres@localhost/zksync_local',
+            initial: 'postgres://postgres:notsecurepassword@127.0.0.1:5432/zksync_local',
+            required: true
+        });
+
+        connectionsQuestions.push({
+            message:
+                'What is the connection URL for your Postgress 14 prover database (format is postgres://<user>:<pass>@<hostname>:<port>/<database>)?',
+            name: 'dbProverUrl',
+            type: 'input',
+            initial: 'postgres://postgres:notsecurepassword@127.0.0.1:5432/prover_local',
             required: true
         });
 
@@ -189,6 +199,7 @@ async function setHyperchainMetadata() {
 
         l1Rpc = connectionsResults.l1Rpc;
         databaseUrl = connectionsResults.dbUrl;
+        databaseProverUrl = connectionsResults.dbProverUrl;
 
         if (results.l1Chain === BaseNetwork.LOCALHOST_CUSTOM) {
             l1Id = connectionsResults.l1NetworkId;
@@ -259,10 +270,12 @@ async function setHyperchainMetadata() {
             feeReceiverAddress = keyResults.feeReceiver;
         }
     } else {
-        l1Rpc = 'http://localhost:8545';
+        l1Rpc = 'http://127.0.0.1:8545';
         l1Id = 9;
-        databaseUrl = 'postgres://postgres:notsecurepassword@localhost:5432/zksync_local';
+        databaseUrl = 'postgres://postgres:notsecurepassword@127.0.0.1:5432/zksync_local';
         wrapEnvModify('DATABASE_URL', databaseUrl);
+        databaseProverUrl = 'postgres://postgres:notsecurepassword@127.0.0.1:5432/prover_local';
+        wrapEnvModify('DATABASE_PROVER_URL', databaseProverUrl);
 
         const richWalletsRaw = await fetch(
             'https://raw.githubusercontent.com/matter-labs/local-setup/main/rich-wallets.json'

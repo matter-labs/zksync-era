@@ -229,6 +229,9 @@ pub async fn prepare_leaf_aggregation_job(
             FriProofWrapper::Recursive(_) => {
                 anyhow::bail!("Expected only base proofs for leaf agg {}", metadata.id);
             }
+            FriProofWrapper::Eip4844(_) => {
+                anyhow::bail!("EIP4844 should be run as a leaf.");
+            }
         }
     }
     let leaf_params = compute_leaf_params(metadata.circuit_id, base_vk.clone(), leaf_vk);

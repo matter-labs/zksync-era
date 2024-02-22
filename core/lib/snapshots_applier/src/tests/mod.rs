@@ -2,7 +2,6 @@
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use assert_matches::assert_matches;
 use test_casing::test_casing;
 use zksync_object_store::ObjectStoreFactory;
 use zksync_types::{
@@ -52,11 +51,10 @@ async fn snapshots_creator_can_successfully_recover_db(
         &object_store
     };
 
-    let outcome = SnapshotsApplierConfig::for_tests()
+    SnapshotsApplierConfig::for_tests()
         .run(&pool, &client, object_store)
         .await
         .unwrap();
-    assert_matches!(outcome, SnapshotsApplierOutcome::Ok);
 
     let mut storage = pool.access_storage().await.unwrap();
     let mut recovery_dal = storage.snapshot_recovery_dal();
@@ -92,15 +90,14 @@ async fn snapshots_creator_can_successfully_recover_db(
     }
 
     // Try recovering again.
-    let outcome = SnapshotsApplierConfig::for_tests()
+    SnapshotsApplierConfig::for_tests()
         .run(&pool, &client, object_store)
         .await
         .unwrap();
-    assert_matches!(outcome, SnapshotsApplierOutcome::Ok);
 }
 
 #[tokio::test]
-async fn applier_returns_early_after_genesis() {
+async fn applier_errors_after_genesis() {
     let pool = ConnectionPool::test_pool().await;
 
     // We don't want to depend on the core crate, so instead we cheaply emulate it.
@@ -149,25 +146,23 @@ async fn applier_returns_early_after_genesis() {
     let object_store = object_store_factory.create_store().await;
     let client = MockMainNodeClient::default();
 
-    let outcome = SnapshotsApplierConfig::for_tests()
+    SnapshotsApplierConfig::for_tests()
         .run(&pool, &client, &object_store)
         .await
-        .unwrap();
-    assert_matches!(outcome, SnapshotsApplierOutcome::InitializedWithoutSnapshot);
+        .unwrap_err();
 }
 
 #[tokio::test]
-async fn applier_returns_early_without_snapshots() {
+async fn applier_errors_without_snapshots() {
     let pool = ConnectionPool::test_pool().await;
     let object_store_factory = ObjectStoreFactory::mock();
     let object_store = object_store_factory.create_store().await;
     let client = MockMainNodeClient::default();
 
-    let outcome = SnapshotsApplierConfig::for_tests()
+    SnapshotsApplierConfig::for_tests()
         .run(&pool, &client, &object_store)
         .await
-        .unwrap();
-    assert_matches!(outcome, SnapshotsApplierOutcome::NoSnapshotsOnMainNode);
+        .unwrap_err();
 }
 
 #[tokio::test]
@@ -234,11 +229,10 @@ async fn recovering_tokens() {
     let (object_store, mut client) = prepare_clients(&expected_status, &storage_logs).await;
     client.tokens_response = tokens.clone();
 
-    let outcome = SnapshotsApplierConfig::for_tests()
+    SnapshotsApplierConfig::for_tests()
         .run(&pool, &client, &object_store)
         .await
         .unwrap();
-    assert_matches!(outcome, SnapshotsApplierOutcome::Ok);
 
     // Check that tokens are successfully restored.
     let mut storage = pool.access_storage().await.unwrap();
@@ -259,9 +253,8 @@ async fn recovering_tokens() {
     assert_eq!(token_map, recovered_token_map);
 
     // Check that recovering again works and is a no-op.
-    let outcome = SnapshotsApplierConfig::for_tests()
+    SnapshotsApplierConfig::for_tests()
         .run(&pool, &client, &object_store)
         .await
         .unwrap();
-    assert_matches!(outcome, SnapshotsApplierOutcome::Ok);
 }
