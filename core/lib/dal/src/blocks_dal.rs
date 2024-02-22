@@ -1272,12 +1272,20 @@ impl BlocksDal<'_, '_> {
     pub async fn get_ready_for_execute_l1_batches(
         &mut self,
         limit: usize,
+        commited_tx_confirmed: bool,
         max_l1_batch_timestamp_millis: Option<u64>,
     ) -> anyhow::Result<Vec<L1BatchWithMetadata>> {
         let raw_batches = match max_l1_batch_timestamp_millis {
             None => {
-                sqlx::query_as!(
-                    StorageL1Batch,
+                let (confirmed_at_not_null, join_on_eth_tx_history) = if commited_tx_confirmed {
+                    (
+                        "confirmed_at IS NOT NULL",
+                        "JOIN eth_txs_history ON eth_commit_tx_id = eth_tx_id",
+                    )
+                } else {
+                    ("", "")
+                };
+                let query = format!(
                     r#"
                     SELECT
                         number,
@@ -1313,30 +1321,37 @@ impl BlocksDal<'_, '_> {
                         pubdata_input
                     FROM
                         l1_batches
-                        LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
+                        LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number {join_on_eth_tx_history}
                     WHERE
                         eth_prove_tx_id IS NOT NULL
                         AND eth_execute_tx_id IS NULL
+                        {confirmed_at_not_null}
                     ORDER BY
                         number
                     LIMIT
                         $1
                     "#,
-                    limit as i32,
-                )
-                .instrument("get_ready_for_execute_l1_batches/no_max_timestamp")
-                .with_arg("limit", &limit)
-                .fetch_all(self.storage)
-                .await?
+                );
+                let mut query = sqlx::query_as(&query);
+                query = query.bind(limit as i32);
+                query
+                    .instrument("get_ready_for_execute_l1_batches/no_max_timestamp")
+                    .with_arg("limit", &limit)
+                    .fetch_all(self.storage)
+                    .await?
             }
 
             Some(max_l1_batch_timestamp_millis) => {
                 // Do not lose the precision here, otherwise we can skip some L1 batches.
                 // Mostly needed for tests.
                 let max_l1_batch_timestamp_seconds = max_l1_batch_timestamp_millis as f64 / 1_000.0;
-                self.raw_ready_for_execute_l1_batches(max_l1_batch_timestamp_seconds, limit)
-                    .await
-                    .context("raw_ready_for_execute_l1_batches()")?
+                self.raw_ready_for_execute_l1_batches(
+                    max_l1_batch_timestamp_seconds,
+                    commited_tx_confirmed,
+                    limit,
+                )
+                .await
+                .context("raw_ready_for_execute_l1_batches()")?
             }
         };
 
@@ -1348,6 +1363,7 @@ impl BlocksDal<'_, '_> {
     async fn raw_ready_for_execute_l1_batches(
         &mut self,
         max_l1_batch_timestamp_seconds: f64,
+        commited_tx_confirmed: bool,
         limit: usize,
     ) -> anyhow::Result<Vec<StorageL1Batch>> {
         // We need to find the first L1 batch that is supposed to be executed.
@@ -1402,12 +1418,20 @@ impl BlocksDal<'_, '_> {
         .fetch_one(self.storage.conn())
         .await?;
 
-        Ok(if let Some(max_ready_to_send_block) = row.max {
+        let vec = if let Some(max_ready_to_send_block) = row.max {
             // If we found at least one ready to execute batch then we can simply return all blocks between
             // the expected started point and the max ready to send block because we send them to the L1 sequentially.
             assert!(max_ready_to_send_block >= expected_started_point);
-            sqlx::query_as!(
-                StorageL1Batch,
+
+            let (confirmed_at_not_null, join_on_eth_tx_history) = if commited_tx_confirmed {
+                (
+                    "confirmed_at IS NOT NULL",
+                    "JOIN eth_txs_history ON eth_commit_tx_id = eth_tx_id",
+                )
+            } else {
+                ("", "")
+            };
+            let query = format!(
                 r#"
                 SELECT
                     number,
@@ -1444,28 +1468,30 @@ impl BlocksDal<'_, '_> {
                 FROM
                     l1_batches
                     LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
+                    {join_on_eth_tx_history}
                 WHERE
                     number BETWEEN $1 AND $2
+                    {confirmed_at_not_null}
                 ORDER BY
                     number
                 LIMIT
                     $3
                 "#,
-                expected_started_point as i32,
-                max_ready_to_send_block,
-                limit as i32,
-            )
-            .instrument("get_ready_for_execute_l1_batches")
-            .with_arg(
-                "numbers",
-                &(expected_started_point..=max_ready_to_send_block),
-            )
-            .with_arg("limit", &limit)
-            .fetch_all(self.storage)
-            .await?
+            );
+
+            let mut query = sqlx::query_as(&query);
+
+            query = query.bind(expected_started_point as i32);
+            query = query.bind(max_ready_to_send_block);
+            query = query.bind(limit as i32);
+            let a: Vec<StorageL1Batch> = query.fetch_all(self.storage.conn()).await?;
+
+            a
         } else {
             vec![]
-        })
+        };
+
+        Ok(vec)
     }
 
     pub async fn pre_boojum_get_ready_for_commit_l1_batches(
