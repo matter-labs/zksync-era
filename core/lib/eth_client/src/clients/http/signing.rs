@@ -11,8 +11,8 @@ use zksync_types::{
         ethabi,
         transports::Http,
         types::{
-            Address, Block, BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt,
-            H160, H256, U256, U64,
+            Address, Block, BlockId, BlockNumber, CallRequest, Filter, Log, Transaction,
+            TransactionReceipt, H160, H256, U256, U64,
         },
     },
     L1ChainId, PackedEthSignature, EIP_1559_TX_TYPE,
@@ -94,6 +94,15 @@ impl<S: EthereumSigner> fmt::Debug for SigningClient<S> {
             .field("contract_addr", &self.inner.contract_addr)
             .field("chain_id", &self.inner.chain_id)
             .finish()
+    }
+}
+
+impl<S> SigningClient<S>
+where
+    S: EthereumSigner,
+{
+    pub async fn call(&self, params: CallRequest) -> Result<zksync_types::Bytes, web3::Error> {
+        self.query_client.call(params).await
     }
 }
 

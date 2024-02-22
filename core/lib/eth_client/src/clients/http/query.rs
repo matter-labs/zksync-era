@@ -7,8 +7,8 @@ use zksync_types::web3::{
     ethabi,
     transports::Http,
     types::{
-        Address, Block, BlockId, BlockNumber, Bytes, Filter, Log, Transaction, TransactionId,
-        TransactionReceipt, H256, U256, U64,
+        Address, Block, BlockId, BlockNumber, Bytes, CallRequest, Filter, Log, Transaction,
+        TransactionId, TransactionReceipt, H256, U256, U64,
     },
     Web3,
 };
@@ -39,6 +39,10 @@ impl QueryClient {
     pub fn new(node_url: &str) -> Result<Self, Error> {
         let transport = Http::new(node_url)?;
         Ok(transport.into())
+    }
+
+    pub async fn call(&self, params: CallRequest) -> Result<zksync_types::Bytes, web3::Error> {
+        self.web3.eth().call(params, None).await
     }
 }
 

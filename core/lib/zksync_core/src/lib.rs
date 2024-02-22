@@ -44,8 +44,9 @@ use zksync_types::{
     protocol_version::{L1VerifierConfig, VerifierParams},
     system_contracts::get_system_smart_contracts,
     web3::contract::tokens::Detokenize,
-    L2ChainId, PackedEthSignature, ProtocolVersionId,
+    Bytes, L2ChainId, PackedEthSignature, ProtocolVersionId,
 };
+use zksync_web3_decl::types::CallRequest;
 
 use crate::{
     api_server::{
@@ -630,6 +631,26 @@ pub async fn initialize_components(
                     Arc::new(ValidiumModeL1BatchCommitDataGenerator {})
                 }
             };
+
+        let current_commitment_mode_eth_response = eth_client
+            .call(
+                CallRequest::builder()
+                    .to((&contracts_config).executor_facet_addr.clone())
+                    .data(serde_json::from_str::<Bytes>(r#""0x252e5966""#).unwrap()) // The selector of "getPubdataPriceMode()"
+                    .build(),
+            )
+            .await
+            .unwrap();
+
+        let current_commitment_mode = L1BatchCommitDataGeneratorMode::from_eth_response(
+            &current_commitment_mode_eth_response,
+        )
+        .unwrap();
+
+        if current_commitment_mode != state_keeper_config.l1_batch_commit_data_generator_mode {
+            panic!("The selected L1BatchCommitDataGeneratorMode does not match the existing commitment mode");
+        }
+
         let eth_tx_aggregator_actor = EthTxAggregator::new(
             eth_sender.sender.clone(),
             Aggregator::new(

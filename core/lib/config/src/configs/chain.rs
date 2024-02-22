@@ -1,7 +1,7 @@
 use std::{str::FromStr, time::Duration};
 
 use serde::Deserialize;
-use zksync_basic_types::{network::Network, Address, L2ChainId};
+use zksync_basic_types::{network::Network, Address, Bytes, L2ChainId};
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct NetworkConfig {
@@ -50,6 +50,25 @@ pub enum L1BatchCommitDataGeneratorMode {
     #[default]
     Rollup,
     Validium,
+}
+
+// The cases are extracted from the `PubdataPricingMode` enum in the L1 contracts,
+// And knowing that, in Ethereum, the response is the index of the enum case.
+// If the bytes are "0x0000000000000000000000000000000000000000000000000000000000000000" i want the rollup case,
+// If the bytes are "0x0000000000000000000000000000000000000000000000000000000000000001" i want the validium case,
+// Else, an error.
+impl L1BatchCommitDataGeneratorMode {
+    pub fn from_eth_response(response: &Bytes) -> Result<Self, String> {
+        match &response.0.as_slice() {
+            &[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] => {
+                Ok(Self::Rollup)
+            }
+            &[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1] => {
+                Ok(Self::Validium)
+            }
+            _ => Err("Invalid response".to_string()),
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Clone, PartialEq, Default)]
