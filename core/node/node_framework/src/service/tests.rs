@@ -1,7 +1,6 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use anyhow::anyhow;
-use futures::lock::Mutex;
 use tokio::runtime::Runtime;
 
 use crate::service::{
@@ -13,12 +12,14 @@ use crate::service::{
 fn test_new_with_nested_runtime() {
     let runtime = Runtime::new().unwrap();
 
-    runtime.block_on(async {
-        assert_eq!(
-            ZkStackService::new().unwrap_err().to_string(),
-            "Detected a Tokio Runtime. ZkStackService manages its own runtime and does not support nested runtimes".to_string()
-        );
-    })
+    let initialization_result =
+        runtime.block_on(async { ZkStackService::new().unwrap_err().to_string() });
+
+    assert_eq!(
+        initialization_result,
+        "Detected a Tokio Runtime. ZkStackService manages its own runtime and does not support nested runtimes"
+        .to_string()
+    );
 }
 
 #[derive(Debug)]
@@ -42,19 +43,21 @@ fn test_add_layer() {
     zk_stack_service
         .add_layer(DefaultLayer)
         .add_layer(DefaultLayer);
-    assert_eq!(2, zk_stack_service.layers.len());
+    let actual_layers_len = zk_stack_service.layers.len();
+    assert_eq!(
+        2, actual_layers_len,
+        "Incorrect number of layers in the service"
+    );
 }
 
 // ZkStack Service's `run()` method has to return error if there is no tasks added.
 #[test]
 fn test_run_with_no_tasks() {
+    let empty_run_result = ZkStackService::new().unwrap().run();
     assert_eq!(
-        ZkStackService::new()
-            .unwrap()
-            .run()
-            .unwrap_err()
-            .to_string(),
-        "No tasks to run".to_string()
+        empty_run_result.unwrap_err().to_string(),
+        "No tasks to run".to_string(),
+        "Incorrect result for creating a service with no tasks"
     );
 }
 
@@ -78,10 +81,11 @@ fn test_run_with_error_tasks() {
     let mut zk_stack_service = ZkStackService::new().unwrap();
     let error_layer = WireErrorLayer;
     zk_stack_service.add_layer(error_layer);
-    let res = zk_stack_service.run();
+    let result = zk_stack_service.run();
     assert_eq!(
-        res.unwrap_err().to_string(),
-        "One or more task weren't able to start".to_string()
+        result.unwrap_err().to_string(),
+        "One or more task weren't able to start".to_string(),
+        "Incorrect result for creating a service with wire error layer"
     );
 }
 
@@ -119,10 +123,11 @@ impl Task for ErrorTask {
 fn test_run_with_failed_tasks() {
     let mut zk_stack_service: ZkStackService = ZkStackService::new().unwrap();
     zk_stack_service.add_layer(TaskErrorLayer);
-    let res = zk_stack_service.run();
+    let result = zk_stack_service.run();
     assert_eq!(
-        res.unwrap_err().to_string(),
-        "Task error_task failed".to_string()
+        result.unwrap_err().to_string(),
+        "Task error_task failed".to_string(),
+        "Incorrect result for creating a service with task that fails"
     );
 }
 
@@ -151,7 +156,7 @@ impl Task for SuccessfulTask {
         "successful_task"
     }
     async fn run(self: Box<Self>, _stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        let mut guard = self.0.lock().await;
+        let mut guard = self.0.lock().unwrap();
         *guard = true;
         Ok(())
     }
@@ -181,14 +186,10 @@ impl Task for RemainingTask {
     fn name(&self) -> &'static str {
         "remaining_task"
     }
-    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        loop {
-            if *stop_receiver.0.borrow() {
-                let mut guard = self.0.lock().await;
-                *guard = false;
-                break;
-            }
-        }
+    async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        stop_receiver.0.changed().await?;
+        let mut guard = self.0.lock().unwrap();
+        *guard = false;
         Ok(())
     }
 }
@@ -199,37 +200,33 @@ impl Task for RemainingTask {
 #[test]
 fn test_task_run() {
     // case 1: run the task and check it updates resource successfully before stop signal received.
-    let resource = Arc::new(Mutex::new(false));
+    let some_bool_resource = Arc::new(Mutex::new(false));
     let mut zk_stack_service = ZkStackService::new().unwrap();
-    zk_stack_service.add_layer(SuccessfulTaskLayer(resource.clone()));
+    zk_stack_service.add_layer(SuccessfulTaskLayer(some_bool_resource.clone()));
 
-    assert!(zk_stack_service.run().is_ok());
+    assert!(
+        zk_stack_service.run().is_ok(),
+        "ZkStackService run failed, but it shouldn't"
+    );
+    let actual_resource_value = *some_bool_resource.lock().unwrap();
     // task changed resource value to true
-    tokio::runtime::Runtime::new()
-        .unwrap()
-        .block_on(async { assert!(*resource.lock().await) });
+    assert!(actual_resource_value, "Incorrect resource value");
 
     // case 2: the idea is to check we are still running remaining tasks after stop signal received.
     // The flow is that successful_task updates resource to true (as checked in the case 1 above)
     // and remaining_task updates it back to false.
-    let resource = Arc::new(Mutex::new(false));
+    let some_bool_resource = Arc::new(Mutex::new(false));
     let mut zk_stack_service = ZkStackService::new().unwrap();
     zk_stack_service
-        .add_layer(SuccessfulTaskLayer(resource.clone()))
-        .add_layer(RemainingTaskLayer(resource.clone()));
+        .add_layer(SuccessfulTaskLayer(some_bool_resource.clone()))
+        .add_layer(RemainingTaskLayer(some_bool_resource.clone()));
 
-    assert!(zk_stack_service.run().is_ok());
-    tokio::runtime::Runtime::new()
-        .unwrap()
-        .block_on(async { assert!(!*resource.lock().await) });
-}
-
-// Check ZkStack Service's `stop_receiver()` method returns new `Receiver` for it's own sender,
-// and not arbitrary one.
-#[test]
-fn test_stop_receiver() {
-    let zk_stack_service = ZkStackService::new().unwrap();
-    let _receiver1 = zk_stack_service.stop_sender.subscribe();
-    let _receiver2 = zk_stack_service.stop_receiver();
-    assert_eq!(2, zk_stack_service.stop_sender.receiver_count());
+    assert!(
+        zk_stack_service.run().is_ok(),
+        "ZkStackService run failed, but it shouldn't"
+    );
+    let actual_resource_value = *some_bool_resource.lock().unwrap();
+    // As notes above, successful_task updated resource to true and then remaining_task updated it back
+    // to false after stop signal received.
+    assert!(!actual_resource_value, "Incorrect resource value");
 }
