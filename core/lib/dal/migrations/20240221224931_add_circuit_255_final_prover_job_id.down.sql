@@ -1,0 +1,1 @@
+ALTER TABLE scheduler_dependency_tracker_fri DROP COLUMN IF EXISTS circuit_255_final_prover_job_id;

@@ -39,6 +39,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         block_number: L1BatchNumber,
         object_key: &str,
         protocol_version_id: FriProtocolVersionId,
+        blobs_4844: Vec<u8>,
     ) {
         sqlx::query!(
             r#"
@@ -47,17 +48,19 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     l1_batch_number,
                     merkle_tree_paths_blob_url,
                     protocol_version,
+                    blobs_4844,
                     status,
                     created_at,
                     updated_at
                 )
             VALUES
-                ($1, $2, $3, 'queued', NOW(), NOW())
+                ($1, $2, $3, $4, 'queued', NOW(), NOW())
             ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
             block_number.0 as i64,
             object_key,
             protocol_version_id as i32,
+            bincode::serialize(&blobs_4844).expect("Failed to serialize 4844 blobs to bytes"),
         )
         .fetch_optional(self.storage.conn())
         .await

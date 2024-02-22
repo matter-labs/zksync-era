@@ -356,6 +356,19 @@ async fn update_database(
         )
         .await;
     prover_connection
+        .fri_prover_jobs_dal()
+        .insert_prover_job(
+            block_number,
+            255,
+            0,
+            0,
+            AggregationRound::BasicCircuits,
+            "not_needed",
+            true,
+            protocol_version_id,
+        )
+        .await;
+    prover_connection
         .fri_witness_generator_dal()
         .create_aggregation_jobs(
             block_number,
