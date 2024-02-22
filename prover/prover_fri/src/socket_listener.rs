@@ -4,7 +4,8 @@ pub mod gpu_socket_listener {
 
     use anyhow::Context as _;
     use shivini::synthesis_utils::{
-        init_base_layer_cs_for_repeated_proving, init_recursive_layer_cs_for_repeated_proving,
+        init_base_layer_cs_for_repeated_proving, init_eip4844_cs_for_repeated_proving,
+        init_recursive_layer_cs_for_repeated_proving,
     };
     use tokio::{
         io::copy,
@@ -196,13 +197,12 @@ pub mod gpu_socket_listener {
                     .context("get_finalization_hints()")?;
                 init_recursive_layer_cs_for_repeated_proving(recursive_circuit, &finalization_hint)
             }
-            CircuitWrapper::Eip4844(_) => {
+            CircuitWrapper::Eip4844(circuit) => {
                 let key = ProverServiceDataKey::eip4844();
                 let finalization_hint = keystore
                     .load_finalization_hints(key)
                     .context("get_finalization_hints()")?;
-                // Check shivini support.
-                todo!();
+                init_eip4844_cs_for_repeated_proving(circuit, &finalization_hint)
             }
         };
         tracing::info!(
