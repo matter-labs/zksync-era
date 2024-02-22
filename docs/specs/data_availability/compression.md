@@ -18,7 +18,7 @@ Once a key has been used, it can already use the 4 or 5 byte enumeration index a
 cheaper for keys that has been used already. The opportunity comes when remembering the ids for accounts to spare some
 bytes on nonce/balance key, but ultimately the complexity may not be worth it.
 
-There is some room for optimization of the keys that are being written for the first time, however, optimizing those is
+There is some room for optimization of the keys that are being written for the first time, however, optimizing those are
 more complex and achieves only a one-time effect (when the key is published for the first time), so they may be in scope
 of the future upgrades.
 

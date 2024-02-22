@@ -64,7 +64,7 @@ Afterwards you need to add something like this to your launch.json:
 
 ## Debugging contracts in vscode (using hardhat)
 
-Assuming that you created project in hardhat, that you'd normally test with `hardhat test` - you also also test it with
+Assuming that you created project in hardhat, that you'd normally test with `hardhat test` - you also test it with
 vscode (which is super powerful - especially as you can have both binaries' debug sessions running in VSCode at the same
 time).
 
@@ -124,7 +124,7 @@ detailed flame graph.
 Currently this is quite a complex process, but we're working on making it a little bit smoother.
 
 You start by installing the 'compiler-tester' repo (see its README.md instructions for details) - it is quite heavy as
-it needs the LLVM etc etc.
+it needs the LLVM etc.
 
 Afterwards, you can look at one of the tests (for example
 [tests/solidity/simple/default.sol](https://github.com/matter-labs/era-compiler-tests/blob/main/solidity/simple/default.sol)).
