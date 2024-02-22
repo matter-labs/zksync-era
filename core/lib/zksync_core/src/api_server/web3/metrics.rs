@@ -7,7 +7,7 @@ use vise::{
     Metrics, Unit,
 };
 use zksync_types::api;
-use zksync_web3_decl::{error::Web3Error, jsonrpsee::types::error::ErrorCode};
+use zksync_web3_decl::error::Web3Error;
 
 use super::{ApiTransport, TypedFilter};
 
@@ -56,15 +56,15 @@ impl fmt::Display for BlockDiffLabel {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, EncodeLabelSet)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet)]
 pub(super) struct MethodLabels {
-    method: String,
+    method: &'static str,
     block_id: Option<BlockIdLabel>,
     block_diff: Option<BlockDiffLabel>,
 }
 
 impl MethodLabels {
-    pub fn new(method: String) -> Self {
+    pub fn new(method: &'static str) -> Self {
         Self {
             method,
             block_id: None,
@@ -140,16 +140,16 @@ enum ProtocolErrorOrigin {
     Framework,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, EncodeLabelSet)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet)]
 struct ProtocolErrorLabels {
-    method: String,
+    method: &'static str,
     error_code: i32,
     origin: ProtocolErrorOrigin,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, EncodeLabelSet)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet)]
 struct Web3ErrorLabels {
-    method: String,
+    method: &'static str,
     kind: Web3ErrorKind,
 }
 
@@ -186,14 +186,10 @@ impl ApiMetrics {
     }
 
     pub fn observe_dropped_call(&self, labels: &MethodLabels, latency: Duration) {
-        // FIXME: is it safe to record method name here?
         self.web3_dropped_call_latency[labels].observe(latency);
     }
 
-    pub fn observe_protocol_error(&self, mut method: String, error_code: i32, app_error: bool) {
-        if error_code == ErrorCode::MethodNotFound.code() {
-            method = String::new(); // Do not blow up the labels space uncontrollably
-        }
+    pub fn observe_protocol_error(&self, method: &'static str, error_code: i32, app_error: bool) {
         let labels = ProtocolErrorLabels {
             method,
             error_code,
@@ -215,7 +211,7 @@ impl ApiMetrics {
         }
     }
 
-    pub fn observe_web3_error(&self, method: String, err: &Web3Error) {
+    pub fn observe_web3_error(&self, method: &'static str, err: &Web3Error) {
         // Log internal error details.
         match err {
             Web3Error::InternalError(err) => {

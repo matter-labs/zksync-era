@@ -1,4 +1,4 @@
-use std::{net::SocketAddr, num::NonZeroU32, sync::Arc, time::Duration};
+use std::{collections::HashSet, net::SocketAddr, num::NonZeroU32, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use chrono::NaiveDateTime;
@@ -516,6 +516,11 @@ impl FullApiParams {
         let rpc = self
             .build_rpc_module(pub_sub, last_sealed_miniblock)
             .await?;
+        let registered_method_names = Arc::new(rpc.method_names().collect::<HashSet<_>>());
+        tracing::debug!(
+            "Built RPC module with {} methods: {registered_method_names:?}",
+            registered_method_names.len()
+        );
 
         // Setup CORS.
         let cors = is_http.then(|| {
@@ -548,7 +553,7 @@ impl FullApiParams {
         #[allow(clippy::let_and_return)] // simplifies conditional compilation
         let rpc_middleware = RpcServiceBuilder::new()
             .layer_fn(move |svc| {
-                let middleware = MetadataMiddleware::new(svc);
+                let middleware = MetadataMiddleware::new(svc, registered_method_names.clone());
                 #[cfg(test)]
                 let middleware = middleware.with_call_tracer(call_tracer.clone());
                 middleware

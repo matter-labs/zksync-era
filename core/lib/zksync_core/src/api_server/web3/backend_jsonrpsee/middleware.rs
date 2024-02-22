@@ -1,9 +1,11 @@
 use std::{
     cell::RefCell,
+    collections::HashSet,
     future::Future,
     mem,
     num::NonZeroU32,
     pin::Pin,
+    sync::Arc,
     task::{Context, Poll},
     time::Instant,
 };
@@ -110,14 +112,16 @@ where
 #[derive(Debug)]
 pub(crate) struct MetadataMiddleware<S> {
     inner: S,
+    registered_method_names: Arc<HashSet<&'static str>>,
     #[cfg(test)]
     call_tracer: CallTracer,
 }
 
 impl<S> MetadataMiddleware<S> {
-    pub fn new(inner: S) -> Self {
+    pub fn new(inner: S, registered_method_names: Arc<HashSet<&'static str>>) -> Self {
         Self {
             inner,
+            registered_method_names,
             #[cfg(test)]
             call_tracer: CallTracer::default(),
         }
@@ -139,9 +143,15 @@ where
     type Future = WithMethodMetadata<S::Future>;
 
     fn call(&self, request: Request<'a>) -> Self::Future {
+        let method_name = self
+            .registered_method_names
+            .get(request.method_name())
+            .copied()
+            .unwrap_or("");
+
         WithMethodMetadata {
             metadata: MethodMetadataGuard::new(
-                request.method.as_ref().to_owned(),
+                method_name,
                 #[cfg(test)]
                 self.call_tracer.clone(),
             ),
@@ -209,7 +219,7 @@ thread_local! {
 /// Metadata assigned to a JSON-RPC method call.
 #[derive(Debug, Clone)]
 pub(crate) struct MethodMetadata {
-    name: String,
+    name: &'static str,
     started_at: Instant,
     /// Block ID requested by the call.
     pub block_id: Option<api::BlockId>,
@@ -231,7 +241,7 @@ impl MethodMetadata {
 
     #[cfg(test)]
     pub fn name(&self) -> &str {
-        &self.name
+        self.name
     }
 
     #[cfg(test)]
@@ -241,13 +251,13 @@ impl MethodMetadata {
 
     /// Sets an application-level error for this method.
     pub fn observe_error(&mut self, err: &Web3Error) {
-        API_METRICS.observe_web3_error(self.name.clone(), err);
+        API_METRICS.observe_web3_error(self.name, err);
         self.has_app_error = true;
     }
 
     fn observe_response(&self, response: &MethodResponse) {
         if let Some(error_code) = response.success_or_error.as_error_code() {
-            API_METRICS.observe_protocol_error(self.name.clone(), error_code, self.has_app_error);
+            API_METRICS.observe_protocol_error(self.name, error_code, self.has_app_error);
         }
 
         // Do not report latency for calls with protocol-level errors since it can blow up cardinality
@@ -260,7 +270,7 @@ impl MethodMetadata {
 
 impl From<&MethodMetadata> for MethodLabels {
     fn from(meta: &MethodMetadata) -> Self {
-        let mut labels = Self::new(meta.name.clone());
+        let mut labels = Self::new(meta.name);
         if let Some(block_id) = meta.block_id {
             labels = labels.with_block_id(block_id);
         }
@@ -291,7 +301,7 @@ impl Drop for MethodMetadataGuard {
 }
 
 impl MethodMetadataGuard {
-    fn new(name: String, #[cfg(test)] call_tracer: CallTracer) -> Self {
+    fn new(name: &'static str, #[cfg(test)] call_tracer: CallTracer) -> Self {
         let inner = MethodMetadata {
             name,
             started_at: Instant::now(),
@@ -361,7 +371,7 @@ mod tests {
             };
 
             WithMethodMetadata {
-                metadata: MethodMetadataGuard::new("test".to_owned(), calls),
+                metadata: MethodMetadataGuard::new("test", calls),
                 inner,
             }
         });
