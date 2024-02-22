@@ -1,5 +1,6 @@
 use std::{collections::HashMap, convert::TryInto};
 
+use anyhow::Context as _;
 use zksync_dal::StorageProcessor;
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
@@ -25,10 +26,7 @@ use zksync_web3_decl::{
     types::{Address, Token, H256},
 };
 
-use crate::api_server::{
-    tree::TreeApiClient,
-    web3::{backend_jsonrpsee::internal_error, RpcState},
-};
+use crate::api_server::{tree::TreeApiClient, web3::RpcState};
 
 #[derive(Debug)]
 pub struct ZksNamespace {
@@ -41,11 +39,11 @@ impl ZksNamespace {
     }
 
     async fn access_storage(&self) -> Result<StorageProcessor<'_>, Web3Error> {
-        self.state
+        Ok(self
+            .state
             .connection_pool
             .access_storage_tagged("api")
-            .await
-            .map_err(internal_error)
+            .await?)
     }
 
     #[tracing::instrument(skip(self, request))]
@@ -98,11 +96,11 @@ impl ZksNamespace {
         let acceptable_overestimation =
             self.state.api_config.estimate_gas_acceptable_overestimation;
 
-        self.state
+        Ok(self
+            .state
             .tx_sender
             .get_txs_fee_in_wei(tx, scale_factor, acceptable_overestimation)
-            .await
-            .map_err(|err| err.into_web3_error())
+            .await?)
     }
 
     #[tracing::instrument(skip(self))]
@@ -141,7 +139,7 @@ impl ZksNamespace {
             .tokens_web3_dal()
             .get_well_known_tokens()
             .await
-            .map_err(internal_error)?;
+            .context("get_well_known_tokens")?;
 
         let tokens = tokens
             .into_iter()
@@ -168,7 +166,7 @@ impl ZksNamespace {
             .tokens_dal()
             .get_all_l2_token_addresses()
             .await
-            .map_err(internal_error)?;
+            .context("get_all_l2_token_addresses")?;
         let hashed_balance_keys = tokens.iter().map(|&token_address| {
             let token_account = AccountTreeId::new(if token_address == ETHEREUM_ADDRESS {
                 L2_ETH_TOKEN_ADDRESS
@@ -186,7 +184,7 @@ impl ZksNamespace {
             .storage_web3_dal()
             .get_values(&hashed_balance_keys)
             .await
-            .map_err(internal_error)?;
+            .context("get_values")?;
 
         let balances = balance_values
             .into_iter()
@@ -215,7 +213,7 @@ impl ZksNamespace {
             .blocks_web3_dal()
             .get_l1_batch_number_of_miniblock(block_number)
             .await
-            .map_err(internal_error)?
+            .context("get_l1_batch_number_of_miniblock")?
         else {
             return Ok(None);
         };
@@ -223,8 +221,8 @@ impl ZksNamespace {
             .blocks_web3_dal()
             .get_miniblock_range_of_l1_batch(l1_batch_number)
             .await
-            .map_err(internal_error)?
-            .expect("L1 batch should contain at least one miniblock");
+            .context("get_miniblock_range_of_l1_batch")?
+            .context("L1 batch should contain at least one miniblock")?;
 
         // Position of l1 log in L1 batch relative to logs with identical data
         let l1_log_relative_position = if let Some(l2_log_position) = l2_log_position {
@@ -240,7 +238,7 @@ impl ZksNamespace {
                     self.state.api_config.req_entities_limit,
                 )
                 .await
-                .map_err(internal_error)?;
+                .context("get_logs")?;
             let maybe_pos = logs.iter().position(|event| {
                 event.block_number == Some(block_number.0.into())
                     && event.log_index == Some(l2_log_position.into())
@@ -279,7 +277,7 @@ impl ZksNamespace {
             .blocks_web3_dal()
             .get_l2_to_l1_logs(l1_batch_number)
             .await
-            .map_err(internal_error)?;
+            .context("get_l2_to_l1_logs")?;
 
         let Some((l1_log_index, _)) = all_l1_logs_in_batch
             .iter()
@@ -294,7 +292,7 @@ impl ZksNamespace {
             .blocks_dal()
             .get_l1_batch_header(l1_batch_number)
             .await
-            .map_err(internal_error)?
+            .context("get_l1_batch_header")?
         else {
             return Ok(None);
         };
@@ -331,7 +329,7 @@ impl ZksNamespace {
             .blocks_web3_dal()
             .get_l1_batch_info_for_tx(tx_hash)
             .await
-            .map_err(internal_error)?
+            .context("get_l1_batch_info_for_tx")?
         else {
             return Ok(None);
         };
@@ -354,7 +352,7 @@ impl ZksNamespace {
             .blocks_dal()
             .get_sealed_l1_batch_number()
             .await
-            .map_err(internal_error)?
+            .context("get_sealed_l1_batch_number")?
             .ok_or(Web3Error::NoBlock)?;
         Ok(l1_batch_number.0.into())
     }
@@ -366,12 +364,12 @@ impl ZksNamespace {
     ) -> Result<Option<(U64, U64)>, Web3Error> {
         self.state.start_info.ensure_not_pruned(batch)?;
         let mut storage = self.access_storage().await?;
-        storage
+        let range = storage
             .blocks_web3_dal()
             .get_miniblock_range_of_l1_batch(batch)
             .await
-            .map(|minmax| minmax.map(|(min, max)| (U64::from(min.0), U64::from(max.0))))
-            .map_err(internal_error)
+            .context("get_miniblock_range_of_l1_batch")?;
+        Ok(range.map(|(min, max)| (U64::from(min.0), U64::from(max.0))))
     }
 
     #[tracing::instrument(skip(self))]
@@ -381,11 +379,11 @@ impl ZksNamespace {
     ) -> Result<Option<BlockDetails>, Web3Error> {
         self.state.start_info.ensure_not_pruned(block_number)?;
         let mut storage = self.access_storage().await?;
-        storage
+        Ok(storage
             .blocks_web3_dal()
             .get_block_details(block_number)
             .await
-            .map_err(internal_error)
+            .context("get_block_details")?)
     }
 
     #[tracing::instrument(skip(self))]
@@ -395,11 +393,11 @@ impl ZksNamespace {
     ) -> Result<Vec<Transaction>, Web3Error> {
         self.state.start_info.ensure_not_pruned(block_number)?;
         let mut storage = self.access_storage().await?;
-        storage
+        Ok(storage
             .transactions_web3_dal()
             .get_raw_miniblock_transactions(block_number)
             .await
-            .map_err(internal_error)
+            .context("get_raw_miniblock_transactions")?)
     }
 
     #[tracing::instrument(skip(self))]
@@ -412,18 +410,18 @@ impl ZksNamespace {
             .transactions_web3_dal()
             .get_transaction_details(hash)
             .await
-            .map_err(internal_error);
+            .context("get_transaction_details")?;
         drop(storage);
 
         if let Some(proxy) = &self.state.tx_sender.0.proxy {
             // We're running an external node - we should query the main node directly
             // in case the transaction was proxied but not yet synced back to us
-            if matches!(tx_details, Ok(None)) {
+            if tx_details.is_none() {
                 // If the transaction is not in the db, query main node for details
-                tx_details = proxy.request_tx_details(hash).await.map_err(internal_error);
+                tx_details = proxy.request_tx_details(hash).await?;
             }
         }
-        tx_details
+        Ok(tx_details)
     }
 
     #[tracing::instrument(skip(self))]
@@ -433,11 +431,11 @@ impl ZksNamespace {
     ) -> Result<Option<L1BatchDetails>, Web3Error> {
         self.state.start_info.ensure_not_pruned(batch_number)?;
         let mut storage = self.access_storage().await?;
-        storage
+        Ok(storage
             .blocks_web3_dal()
             .get_l1_batch_details(batch_number)
             .await
-            .map_err(internal_error)
+            .context("get_l1_batch_details")?)
     }
 
     #[tracing::instrument(skip(self))]
@@ -506,14 +504,16 @@ impl ZksNamespace {
             .iter()
             .map(|key| StorageKey::new(AccountTreeId::new(address), *key).hashed_key_u256())
             .collect();
-        let storage_proof = self
+        let proofs = self
             .state
             .tree_api
             .as_ref()
             .ok_or(Web3Error::TreeApiUnavailable)?
             .get_proofs(l1_batch_number, hashed_keys)
             .await
-            .map_err(internal_error)?
+            .context("get_proofs")?;
+
+        let storage_proof = proofs
             .into_iter()
             .zip(keys)
             .map(|(proof, key)| StorageProof {

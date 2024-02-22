@@ -9041,8 +9041,7 @@ dependencies = [
 name = "zksync_web3_decl"
 version = "0.1.0"
 dependencies = [
- "bigdecimal",
- "chrono",
+ "anyhow",
  "itertools 0.10.5",
  "jsonrpsee",
  "pin-project-lite",

@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use anyhow::Context as _;
 use multivm::{interface::ExecutionResult, vm_latest::constants::BLOCK_GAS_LIMIT};
 use once_cell::sync::OnceCell;
 use zksync_system_constants::MAX_ENCODED_TX_SIZE;
@@ -16,10 +17,7 @@ use zksync_web3_decl::error::Web3Error;
 use crate::api_server::{
     execution_sandbox::{ApiTracer, TxSharedArgs},
     tx_sender::{ApiContracts, TxSenderConfig},
-    web3::{
-        backend_jsonrpsee::{internal_error, MethodMetadata},
-        state::RpcState,
-    },
+    web3::{backend_jsonrpsee::MethodMetadata, state::RpcState},
 };
 
 #[derive(Debug, Clone)]
@@ -69,8 +67,7 @@ impl DebugNamespace {
             .state
             .connection_pool
             .access_storage_tagged("api")
-            .await
-            .map_err(internal_error)?;
+            .await?;
         let block_number = self.state.resolve_block(&mut connection, block_id).await?;
         MethodMetadata::with(|meta| {
             meta.block_diff = Some(self.state.last_sealed_miniblock.diff(block_number));
@@ -80,7 +77,7 @@ impl DebugNamespace {
             .blocks_web3_dal()
             .get_traces_for_miniblock(block_number)
             .await
-            .map_err(internal_error)?;
+            .context("get_traces_for_miniblock")?;
         let call_trace = call_traces
             .into_iter()
             .map(|call_trace| {
@@ -107,13 +104,12 @@ impl DebugNamespace {
             .state
             .connection_pool
             .access_storage_tagged("api")
-            .await
-            .map_err(internal_error)?;
+            .await?;
         let call_trace = connection
             .transactions_dal()
             .get_call_trace(tx_hash)
             .await
-            .map_err(internal_error)?;
+            .context("get_call_trace")?;
         Ok(call_trace.map(|call_trace| {
             let mut result: DebugCall = call_trace.into();
             if only_top_call {
@@ -143,8 +139,7 @@ impl DebugNamespace {
             .state
             .connection_pool
             .access_storage_tagged("api")
-            .await
-            .map_err(internal_error)?;
+            .await?;
         let block_args = self
             .state
             .resolve_block_args(&mut connection, block_id)
@@ -167,7 +162,7 @@ impl DebugNamespace {
             .vm_concurrency_limiter()
             .acquire()
             .await;
-        let vm_permit = vm_permit.ok_or(Web3Error::InternalError)?;
+        let vm_permit = vm_permit.context("cannot acquire VM permit")?;
 
         // We don't need properly trace if we only need top call
         let call_tracer_result = Arc::new(OnceCell::default());
@@ -188,8 +183,7 @@ impl DebugNamespace {
                 self.sender_config().vm_execution_cache_misses_limit,
                 custom_tracers,
             )
-            .await
-            .map_err(internal_error)?;
+            .await?;
 
         let (output, revert_reason) = match result.result {
             ExecutionResult::Success { output, .. } => (output, None),

@@ -16,6 +16,7 @@ use pin_project_lite::pin_project;
 use thiserror::Error;
 use zksync_types::{api::SerializationTransactionError, L1BatchNumber, MiniblockNumber};
 
+/// Server-side representation of the RPC error.
 #[derive(Debug, Error)]
 pub enum Web3Error {
     #[error("Block with such an ID doesn't exist yet")]
@@ -24,6 +25,8 @@ pub enum Web3Error {
     PrunedBlock(MiniblockNumber),
     #[error("L1 batch with such an ID is pruned; the first retained L1 batch is {0}")]
     PrunedL1Batch(L1BatchNumber),
+    #[error("{}", _0.as_ref())]
+    ProxyError(#[from] EnrichedClientError),
     #[error("{0}")]
     SubmitTransactionError(String, Vec<u8>),
     #[error("Failed to serialize transaction: {0}")]
@@ -40,7 +43,7 @@ pub enum Web3Error {
     #[error("Tree API is not available")]
     TreeApiUnavailable,
     #[error("Internal error")]
-    InternalError,
+    InternalError(#[from] anyhow::Error),
 }
 
 /// Client RPC error with additional details: the method name and arguments of the called method.

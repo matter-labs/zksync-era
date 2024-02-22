@@ -106,6 +106,7 @@ enum Web3ErrorKind {
     Pruned,
     SubmitTransaction,
     TransactionSerialization,
+    Proxy,
     TooManyTopics,
     FilterNotFound,
     LogsLimitExceeded,
@@ -120,13 +121,14 @@ impl Web3ErrorKind {
             Web3Error::NoBlock => Self::NoBlock,
             Web3Error::PrunedBlock(_) | Web3Error::PrunedL1Batch(_) => Self::Pruned,
             Web3Error::SubmitTransactionError(..) => Self::SubmitTransaction,
+            Web3Error::ProxyError(_) => Self::Proxy,
             Web3Error::SerializationError(_) => Self::TransactionSerialization,
             Web3Error::TooManyTopics => Self::TooManyTopics,
             Web3Error::FilterNotFound => Self::FilterNotFound,
             Web3Error::LogsLimitExceeded(..) => Self::LogsLimitExceeded,
             Web3Error::InvalidFilterBlockHash => Self::InvalidFilterBlockHash,
             Web3Error::TreeApiUnavailable => Self::TreeApiUnavailable,
-            Web3Error::InternalError => Self::Internal,
+            Web3Error::InternalError(_) => Self::Internal,
         }
     }
 }
@@ -207,6 +209,17 @@ impl ApiMetrics {
     }
 
     pub fn observe_web3_error(&self, method: String, err: &Web3Error) {
+        // Log internal error details.
+        match err {
+            Web3Error::InternalError(err) => {
+                tracing::error!("Internal error in method `{method}`: {err}");
+            }
+            Web3Error::ProxyError(err) => {
+                tracing::warn!("Error proxying call to main node in method `{method}`: {err}");
+            }
+            _ => { /* do nothing */ }
+        }
+
         let labels = Web3ErrorLabels {
             method,
             kind: Web3ErrorKind::new(err),

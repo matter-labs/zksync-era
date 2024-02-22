@@ -1,7 +1,8 @@
+use anyhow::Context as _;
 use zksync_types::{api::en::SyncBlock, tokens::TokenInfo, MiniblockNumber};
 use zksync_web3_decl::error::Web3Error;
 
-use crate::api_server::web3::{backend_jsonrpsee::internal_error, state::RpcState};
+use crate::api_server::web3::state::RpcState;
 
 /// Namespace for External Node unique methods.
 /// Main use case for it is the EN synchronization.
@@ -25,13 +26,12 @@ impl EnNamespace {
             .state
             .connection_pool
             .access_storage_tagged("api")
-            .await
-            .map_err(internal_error)?;
-        storage
+            .await?;
+        Ok(storage
             .sync_dal()
             .sync_block(block_number, include_transactions)
             .await
-            .map_err(internal_error)
+            .context("sync_block")?)
     }
 
     #[tracing::instrument(skip(self))]
@@ -43,12 +43,11 @@ impl EnNamespace {
             .state
             .connection_pool
             .access_storage_tagged("api")
-            .await
-            .map_err(internal_error)?;
-        storage
+            .await?;
+        Ok(storage
             .tokens_web3_dal()
             .get_all_tokens(block_number)
             .await
-            .map_err(internal_error)
+            .context("get_all_tokens")?)
     }
 }

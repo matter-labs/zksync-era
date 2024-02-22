@@ -1,10 +1,11 @@
+use anyhow::Context as _;
 use zksync_types::{
     snapshots::{AllSnapshots, SnapshotHeader, SnapshotStorageLogsChunkMetadata},
     L1BatchNumber,
 };
 use zksync_web3_decl::error::Web3Error;
 
-use crate::api_server::web3::{backend_jsonrpsee::internal_error, state::RpcState};
+use crate::api_server::web3::state::RpcState;
 
 #[derive(Debug, Clone)]
 pub struct SnapshotsNamespace {
@@ -21,13 +22,12 @@ impl SnapshotsNamespace {
             .state
             .connection_pool
             .access_storage_tagged("api")
-            .await
-            .map_err(internal_error)?;
+            .await?;
         let mut snapshots_dal = storage_processor.snapshots_dal();
-        snapshots_dal
+        Ok(snapshots_dal
             .get_all_complete_snapshots()
             .await
-            .map_err(internal_error)
+            .context("get_all_complete_snapshots")?)
     }
 
     pub async fn get_snapshot_by_l1_batch_number_impl(
@@ -38,13 +38,12 @@ impl SnapshotsNamespace {
             .state
             .connection_pool
             .access_storage_tagged("api")
-            .await
-            .map_err(internal_error)?;
+            .await?;
         let snapshot_metadata = storage_processor
             .snapshots_dal()
             .get_snapshot_metadata(l1_batch_number)
             .await
-            .map_err(internal_error)?;
+            .context("get_snapshot_metadata")?;
 
         let Some(snapshot_metadata) = snapshot_metadata else {
             return Ok(None);
@@ -71,20 +70,14 @@ impl SnapshotsNamespace {
             .blocks_dal()
             .get_l1_batch_metadata(l1_batch_number)
             .await
-            .map_err(internal_error)?
-            .ok_or_else(|| {
-                internal_error(format!("missing metadata for L1 batch #{l1_batch_number}"))
-            })?;
+            .context("get_l1_batch_metadata")?
+            .with_context(|| format!("missing metadata for L1 batch #{l1_batch_number}"))?;
         let (_, miniblock_number) = storage_processor
             .blocks_dal()
             .get_miniblock_range_of_l1_batch(l1_batch_number)
             .await
-            .map_err(internal_error)?
-            .ok_or_else(|| {
-                internal_error(format!(
-                    "missing miniblocks for L1 batch #{l1_batch_number}"
-                ))
-            })?;
+            .context("get_miniblock_range_of_l1_batch")?
+            .with_context(|| format!("missing miniblocks for L1 batch #{l1_batch_number}"))?;
 
         Ok(Some(SnapshotHeader {
             l1_batch_number: snapshot_metadata.l1_batch_number,

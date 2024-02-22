@@ -215,21 +215,9 @@ impl MethodMetadata {
         });
     }
 
-    /// Returns the full name of the method, such as `eth_blockNumber`.
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
     /// Sets an application-level error for this method.
     pub fn set_error(&mut self, err: &Web3Error) {
         API_METRICS.observe_web3_error(self.name.clone(), err);
-        self.has_app_error = true;
-    }
-
-    /// Sets an internal error for this method.
-    pub fn set_internal_error(&mut self, error: &str) {
-        tracing::error!("Internal error in method {}: {error}", self.name);
-        // The error should be set on a subsequent call `Web3Error` conversion, so this is more of a defence.
         self.has_app_error = true;
     }
 
