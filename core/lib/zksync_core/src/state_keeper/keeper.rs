@@ -116,12 +116,18 @@ impl ZkSyncStateKeeper {
             self.io.current_miniblock_number()
         );
 
+        let pending_batch_params = self
+            .io
+            .load_pending_batch()
+            .await
+            .context("failed loading pending L1 batch")?;
+
         // Re-execute pending batch if it exists. Otherwise, initialize a new batch.
         let PendingBatchData {
             mut l1_batch_env,
             mut system_env,
             pending_miniblocks,
-        } = match self.io.load_pending_batch().await {
+        } = match pending_batch_params {
             Some(params) => {
                 tracing::info!(
                     "There exists a pending batch consisting of {} miniblocks, the first one is {}",
@@ -129,8 +135,8 @@ impl ZkSyncStateKeeper {
                     params
                         .pending_miniblocks
                         .first()
-                        .map(|miniblock| miniblock.number)
-                        .context("Empty pending block represented as Some")?,
+                        .context("expected at least one pending miniblock")?
+                        .number
                 );
                 params
             }
@@ -197,7 +203,7 @@ impl ZkSyncStateKeeper {
                     finished_batch,
                 )
                 .await
-                .context("seal_l1_batch")?;
+                .with_context(|| format!("failed sealing L1 batch {l1_batch_env:?}"))?;
             if let Some(delta) = l1_batch_seal_delta {
                 L1_BATCH_METRICS.seal_delta.observe(delta.elapsed());
             }
@@ -218,7 +224,7 @@ impl ZkSyncStateKeeper {
 
             let version_changed = system_env.version != sealed_batch_protocol_version;
             protocol_upgrade_tx = if version_changed {
-                self.io.load_upgrade_tx(system_env.version).await
+                self.load_upgrade_tx(system_env.version).await?
             } else {
                 None
             };
@@ -242,48 +248,35 @@ impl ZkSyncStateKeeper {
         // transaction to the genesis protocol version version.
         let first_batch_in_shared_bridge =
             l1_batch_number == L1BatchNumber(1) && !protocol_version.is_pre_shared_bridge();
-        let previous_batch_protocol_version =
-            self.io.load_previous_batch_version_id().await.unwrap();
+        let previous_batch_protocol_version = self.io.load_previous_batch_version_id().await?;
 
         let version_changed = protocol_version != previous_batch_protocol_version;
-        let protocol_upgrade_tx = self.io.load_upgrade_tx(protocol_version).await;
-
-        let protocol_upgrade_tx = if pending_miniblocks.is_empty()
-            && (version_changed || first_batch_in_shared_bridge)
-        {
-            // We have a new upgrade transaction - either a regular protocol upgrade or a `setChainId` upgrade.
-            // If we are running an EN, `protocol_upgrade_tx` will be `None` here since it is fetched from the main node.
-            tracing::info!(
-                "There is an new upgrade tx to be executed in batch #{}",
-                l1_batch_number
-            );
-            protocol_upgrade_tx
-        } else if !pending_miniblocks.is_empty()
-            && (version_changed || first_batch_in_shared_bridge)
-        {
-            // We already processed the upgrade tx but did not seal the batch it was in.
-            // Sanity check: if `txs_to_reexecute` is not empty and upgrade tx is present for this block
-            // then it must be the first one in `txs_to_reexecute`.
-            if protocol_upgrade_tx.is_some() {
-                let first_tx_to_reexecute = &pending_miniblocks[0].txs[0];
-                assert_eq!(
-                    first_tx_to_reexecute.tx_format(),
-                    TransactionType::ProtocolUpgradeTransaction,
-                    "Expected an upgrade transaction to be the first one in pending_miniblocks, but found {:?}",
-                    first_tx_to_reexecute.hash()
-                );
-            }
-            tracing::info!(
-                "There is a protocol upgrade in batch #{}, upgrade tx already processed",
-                l1_batch_number
-            );
-            None
+        let mut protocol_upgrade_tx = if version_changed || first_batch_in_shared_bridge {
+            self.io.load_upgrade_tx(protocol_version).await?
         } else {
-            // We do not have any upgrade transactions in this batch.
-            tracing::info!("There is no protocol upgrade in batch #{}", l1_batch_number);
             None
         };
 
+        // Sanity check: if `txs_to_reexecute` is not empty and upgrade tx is present for this block
+        // then it must be the first one in `txs_to_reexecute`.
+        if !pending_miniblocks.is_empty() && protocol_upgrade_tx.is_some() {
+            // We already processed the upgrade tx but did not seal the batch it was in.
+            let first_tx_to_reexecute = &pending_miniblocks[0].txs[0];
+            assert_eq!(
+                first_tx_to_reexecute.tx_format(),
+                TransactionType::ProtocolUpgradeTransaction,
+                "Expected an upgrade transaction to be the first one in pending_miniblocks, but found {:?}",
+                first_tx_to_reexecute.hash()
+            );
+            tracing::info!(
+                "There is a protocol upgrade in batch #{l1_batch_number}, upgrade tx already processed"
+            );
+            protocol_upgrade_tx = None; // The protocol upgrade was already executed
+        }
+
+        if protocol_upgrade_tx.is_some() {
+            tracing::info!("There is a new upgrade tx to be executed in batch #{l1_batch_number}");
+        }
         Ok(protocol_upgrade_tx)
     }
 
@@ -291,9 +284,24 @@ impl ZkSyncStateKeeper {
         *self.stop_receiver.borrow()
     }
 
+    async fn load_upgrade_tx(
+        &mut self,
+        protocol_version: ProtocolVersionId,
+    ) -> anyhow::Result<Option<ProtocolUpgradeTx>> {
+        self.io
+            .load_upgrade_tx(protocol_version)
+            .await
+            .with_context(|| format!("failed loading upgrade transaction for {protocol_version:?}"))
+    }
+
     async fn wait_for_new_batch_params(&mut self) -> Result<(SystemEnv, L1BatchEnv), Error> {
         while !self.is_canceled() {
-            if let Some(params) = self.io.wait_for_new_batch_params(POLL_WAIT_DURATION).await {
+            if let Some(params) = self
+                .io
+                .wait_for_new_batch_params(POLL_WAIT_DURATION)
+                .await
+                .context("error waiting for new L1 batch params")?
+            {
                 return Ok(params);
             }
         }
@@ -306,6 +314,7 @@ impl ZkSyncStateKeeper {
                 .io
                 .wait_for_new_miniblock_params(POLL_WAIT_DURATION)
                 .await
+                .context("error waiting for new miniblock params")?
             {
                 return Ok(params);
             }
@@ -518,7 +527,10 @@ impl ZkSyncStateKeeper {
                 }
                 SealResolution::Unexecutable(reason) => {
                     batch_executor.rollback_last_tx().await;
-                    self.io.reject(&tx, reason).await;
+                    self.io
+                        .reject(&tx, reason)
+                        .await
+                        .with_context(|| format!("cannot reject transaction {tx_hash:?}"))?;
                 }
             };
 
