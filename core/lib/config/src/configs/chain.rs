@@ -58,15 +58,15 @@ pub enum L1BatchCommitDataGeneratorMode {
 // If the bytes are "0x0000000000000000000000000000000000000000000000000000000000000001" i want the validium case,
 // Else, an error.
 impl L1BatchCommitDataGeneratorMode {
-    pub fn from_eth_response(response: &Bytes) -> Result<Self, String> {
+    pub fn from_eth_response(response: &Bytes) -> Self {
         match &response.0.as_slice() {
             &[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] => {
-                Ok(Self::Rollup)
+                Self::Rollup
             }
             &[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1] => {
-                Ok(Self::Validium)
+                Self::Validium
             }
-            _ => Err("Invalid response".to_string()),
+            _response => panic!("Invalid response: {:?}", _response),
         }
     }
 }

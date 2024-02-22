@@ -640,16 +640,19 @@ pub async fn initialize_components(
                     .build(),
             )
             .await
-            .unwrap();
+            .context("failed to get the current commitment mode from the Ethereum")?;
 
         let current_commitment_mode = L1BatchCommitDataGeneratorMode::from_eth_response(
             &current_commitment_mode_eth_response,
-        )
-        .unwrap();
+        );
 
-        if current_commitment_mode != state_keeper_config.l1_batch_commit_data_generator_mode {
-            panic!("The selected L1BatchCommitDataGeneratorMode does not match the existing commitment mode");
-        }
+        assert_eq!(
+            current_commitment_mode,
+            state_keeper_config.l1_batch_commit_data_generator_mode,
+            "The selected L1BatchCommitDataGeneratorMode ({:?}) does not match the existing commitment mode ({:?})",
+            state_keeper_config.l1_batch_commit_data_generator_mode,
+            current_commitment_mode
+        );
 
         let eth_tx_aggregator_actor = EthTxAggregator::new(
             eth_sender.sender.clone(),
