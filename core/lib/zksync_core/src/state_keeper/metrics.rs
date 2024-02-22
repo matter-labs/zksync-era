@@ -401,8 +401,8 @@ pub(super) struct ExecutorMetrics {
 pub(super) static EXECUTOR_METRICS: vise::Global<ExecutorMetrics> = vise::Global::new();
 
 #[derive(Debug, Metrics)]
-#[metrics(prefix = "block_tip")]
-pub(crate) struct BlockTipMetrics {
+#[metrics(prefix = "batch_tip")]
+pub(crate) struct BatchTipMetrics {
     #[metrics(buckets = Buckets::exponential(60000.0..=80000000.0, 2.0))]
     gas_used: Histogram<usize>,
     #[metrics(buckets = Buckets::exponential(1.0..=60000.0, 2.0))]
@@ -412,12 +412,12 @@ pub(crate) struct BlockTipMetrics {
     #[metrics(buckets = Buckets::exponential(1.0..=4096.0, 2.0))]
     execution_metrics_size: Histogram<usize>,
     #[metrics(buckets = Buckets::exponential(1.0..=60000.0, 2.0))]
-    block_writes_metrics_size: Histogram<usize>,
+    block_writes_metrics_positive_size: Histogram<usize>,
     #[metrics(buckets = Buckets::exponential(1.0..=60000.0, 2.0))]
-    block_writes_metrics_gas_count: Histogram<usize>,
+    block_writes_metrics_negative_size: Histogram<usize>,
 }
 
-impl BlockTipMetrics {
+impl BatchTipMetrics {
     pub fn observe(&self, execution_result: &VmExecutionResultAndLogs) {
         self.gas_used
             .observe(execution_result.statistics.gas_used as usize);
@@ -427,35 +427,25 @@ impl BlockTipMetrics {
             .observe(execution_result.statistics.circuit_statistic.total());
         self.execution_metrics_size
             .observe(execution_result.get_execution_metrics(None).size());
+    }
 
-        let initial_writes = execution_result
-            .logs
-            .storage_logs
-            .iter()
-            .filter(|log| log.log_type == StorageLogQueryType::InitialWrite)
-            .count();
-        let repeated_writes = execution_result
-            .logs
-            .storage_logs
-            .iter()
-            .filter(|log| log.log_type == StorageLogQueryType::RepeatedWrite)
-            .count();
-        let total_updated_values_size = execution_result.logs.storage_logs.len() * (32 + 1); // 32 bytes per value + 1 metadata byte
+    pub fn observe_writes_metrics(
+        &self,
+        initial_writes_metrics: &DeduplicatedWritesMetrics,
+        applied_writes_metrics: &DeduplicatedWritesMetrics,
+    ) {
+        let size_diff = applied_writes_metrics.size(ProtocolVersionId::latest()) as i128
+            - initial_writes_metrics.size(ProtocolVersionId::latest()) as i128;
 
-        let writes_metrics = DeduplicatedWritesMetrics {
-            initial_storage_writes: initial_writes,
-            repeated_storage_writes: repeated_writes,
-            total_updated_values_size,
-        };
-
-        let gas_count = gas_count_from_writes(&writes_metrics, ProtocolVersionId::latest());
-
-        self.block_writes_metrics_gas_count
-            .observe(gas_count.commit as usize);
-        self.block_writes_metrics_size
-            .observe(writes_metrics.size(ProtocolVersionId::latest()));
+        if size_diff > 0 {
+            self.block_writes_metrics_positive_size
+                .observe(size_diff as usize);
+        } else {
+            self.block_writes_metrics_negative_size
+                .observe(size_diff.abs() as usize);
+        }
     }
 }
 
 #[vise::register]
-pub(crate) static BLOCK_TIP_METRICS: vise::Global<BlockTipMetrics> = vise::Global::new();
+pub(crate) static BATCH_TIP_METRICS: vise::Global<BatchTipMetrics> = vise::Global::new();
