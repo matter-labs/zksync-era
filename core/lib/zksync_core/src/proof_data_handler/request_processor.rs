@@ -123,7 +123,7 @@ impl RequestProcessor {
             data: blob,
             fri_protocol_version_id,
             l1_verifier_config,
-            blobs_4844: vec![0; 31 * 4096], // hardcoded until we figure out how to get it from db
+            blobs_4844: vec![0; 31 * 4096 * 2], // hardcoded until we figure out how to get it from db
         };
 
         Ok(Json(ProofGenerationDataResponse::Success(Some(

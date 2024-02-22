@@ -63,6 +63,13 @@ pub struct PrepareBasicCircuitsJob {
     // Merkle paths and some auxiliary information for each read / write operation in a block.
     merkle_paths: Vec<StorageLogMetadata>,
     next_enumeration_index: u64,
+    blobs_4844: Vec<u8>,
+}
+
+impl PrepareBasicCircuitsJob {
+    pub fn blobs_4844(&self) -> Vec<u8> {
+        self.blobs_4844.clone()
+    }
 }
 
 impl StoredObject for PrepareBasicCircuitsJob {
@@ -82,6 +89,7 @@ impl PrepareBasicCircuitsJob {
         Self {
             merkle_paths: vec![],
             next_enumeration_index,
+            blobs_4844: vec![],
         }
     }
 
@@ -142,6 +150,7 @@ pub struct BasicCircuitWitnessGeneratorInput {
     pub used_bytecodes_hashes: Vec<U256>,
     pub initial_heap_content: Vec<(usize, U256)>,
     pub merkle_paths_input: PrepareBasicCircuitsJob,
+    pub blobs_4844: Vec<u8>,
 }
 
 #[cfg(test)]

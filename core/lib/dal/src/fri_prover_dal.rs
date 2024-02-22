@@ -249,6 +249,7 @@ impl FriProverDal<'_, '_> {
         for (sequence_number, (circuit_id, circuit_blob_url)) in
             circuit_ids_and_urls.iter().enumerate()
         {
+            let is_final = *circuit_id == 255;
             self.insert_prover_job(
                 l1_batch_number,
                 *circuit_id,
@@ -256,7 +257,7 @@ impl FriProverDal<'_, '_> {
                 sequence_number,
                 aggregation_round,
                 circuit_blob_url,
-                false,
+                is_final,
                 protocol_version_id,
             )
             .await;

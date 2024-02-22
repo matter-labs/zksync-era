@@ -87,6 +87,11 @@
         "ordinal": 16,
         "name": "updated_at",
         "type_info": "Timestamp"
+      },
+      {
+        "ordinal": 17,
+        "name": "circuit_255_final_prover_job_id",
+        "type_info": "Int8"
       }
     ],
     "parameters": {
@@ -110,6 +115,7 @@
       true,
       true,
       true,
+      false,
       false,
       false
     ]

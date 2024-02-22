@@ -17,7 +17,10 @@ use multivm::vm_latest::{
 };
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use zkevm_test_harness::{geometry_config::get_geometry_config, toolset::GeometryConfig};
+use zkevm_test_harness::{
+    geometry_config::get_geometry_config, toolset::GeometryConfig,
+    utils::generate_eip4844_circuit_and_witness,
+};
 use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_dal::{fri_witness_generator_dal::FriWitnessJobStatus, ConnectionPool};
 use zksync_object_store::{Bucket, ObjectStore, ObjectStoreFactory, StoredObject};
@@ -50,7 +53,7 @@ use crate::{
     precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider,
     storage_oracle::StorageOracle,
     utils::{
-        expand_bootloader_contents, save_circuit, ClosedFormInputWrapper,
+        expand_bootloader_contents, save_circuit, save_eip_4844_circuit, ClosedFormInputWrapper,
         SchedulerPartialInputWrapper,
     },
 };
@@ -356,19 +359,6 @@ async fn update_database(
         )
         .await;
     prover_connection
-        .fri_prover_jobs_dal()
-        .insert_prover_job(
-            block_number,
-            255,
-            0,
-            0,
-            AggregationRound::BasicCircuits,
-            "not_needed",
-            true,
-            protocol_version_id,
-        )
-        .await;
-    prover_connection
         .fri_witness_generator_dal()
         .create_aggregation_jobs(
             block_number,
@@ -480,6 +470,7 @@ async fn build_basic_circuits_witness_generator_input(
         block_timestamp: block_header.timestamp,
         used_bytecodes_hashes: block_header.used_contract_hashes,
         initial_heap_content,
+        blobs_4844: witness_merkle_input.blobs_4844().clone(),
         merkle_paths_input: witness_merkle_input,
     }
 }
@@ -672,7 +663,36 @@ async fn generate_witness(
         }
     };
 
+    let bytes_per_blob = 31 * 4096;
+    assert_eq!(input.blobs_4844.len(), bytes_per_blob * 2);
+    let (blob_1, blob_2) = input.blobs_4844.split_at(bytes_per_blob);
+
+    println!("got here");
+    let (eip_4844_circuit_1, eip_4844_witness_1) =
+        generate_eip4844_circuit_and_witness(blob_1.to_vec(), "~/zksync-era/trusted_setup.json");
+    let (eip_4844_circuit_2, eip_4844_witness_2) =
+        generate_eip4844_circuit_and_witness(blob_2.to_vec(), "~/zksync-era/trusted_setup.json");
+
     let (witnesses, ()) = tokio::join!(make_circuits, save_circuits);
+
+    circuit_urls.push(
+        save_eip_4844_circuit(
+            block_number,
+            eip_4844_circuit_1,
+            circuit_urls.len(),
+            object_store,
+        )
+        .await,
+    );
+    circuit_urls.push(
+        save_eip_4844_circuit(
+            block_number,
+            eip_4844_circuit_2,
+            circuit_urls.len(),
+            object_store,
+        )
+        .await,
+    );
 
     let (mut scheduler_witness, block_aux_witness) = witnesses.unwrap();
 
@@ -680,6 +700,10 @@ async fn generate_witness(
         previous_batch_with_metadata.metadata.meta_parameters_hash.0;
     scheduler_witness.previous_block_aux_hash =
         previous_batch_with_metadata.metadata.aux_data_hash.0;
+    scheduler_witness.eip4844_witnesses = Some([
+        eip_4844_witness_1.closed_form_input.observable_output,
+        eip_4844_witness_2.closed_form_input.observable_output,
+    ]);
 
     (
         circuit_urls,
