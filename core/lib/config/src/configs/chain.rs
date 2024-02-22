@@ -52,6 +52,10 @@ pub enum L1BatchCommitDataGeneratorMode {
     Validium,
 }
 
+fn default_l1_batch_commit_data_generator_mode() -> L1BatchCommitDataGeneratorMode {
+    L1BatchCommitDataGeneratorMode::Rollup
+}
+
 #[derive(Debug, Deserialize, Clone, PartialEq, Default)]
 pub struct StateKeeperConfig {
     /// The max number of slots for txs in a block before it should be sealed by the slots sealer.
@@ -123,7 +127,7 @@ pub struct StateKeeperConfig {
 
     /// Number of keys that is processed by enum_index migration in State Keeper each L1 batch.
     pub enum_index_migration_chunk_size: Option<usize>,
-
+    #[serde(default = "default_l1_batch_commit_data_generator_mode")]
     pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
 }
 
