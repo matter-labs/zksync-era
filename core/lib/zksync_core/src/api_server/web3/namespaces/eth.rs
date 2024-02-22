@@ -612,9 +612,11 @@ impl EthNamespace {
         const METHOD_NAME: &str = "new_filter";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-        let Some(installed_filters) = &self.state.installed_filters else {
-            return Err(Web3Error::NotImplemented);
-        };
+        let installed_filters = self
+            .state
+            .installed_filters
+            .as_ref()
+            .ok_or(Web3Error::NotImplemented)?;
         if let Some(topics) = filter.topics.as_ref() {
             if topics.len() > EVENT_TOPIC_NUMBER_LIMIT {
                 return Err(Web3Error::TooManyTopics);
