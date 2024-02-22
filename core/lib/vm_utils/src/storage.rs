@@ -283,7 +283,8 @@ impl L1BatchParamsProvider {
         let base_system_contracts = storage
             .factory_deps_dal()
             .get_base_system_contracts(contract_hashes.bootloader, contract_hashes.default_aa)
-            .await;
+            .await
+            .context("failed getting base system contracts")?;
 
         Ok(l1_batch_params(
             first_miniblock_in_batch.l1_batch_number,

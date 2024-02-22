@@ -336,6 +336,10 @@ impl Keystore {
                 ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,
             )?)
             .unwrap();
+
+        data_source
+            .set_eip4844_vk(self.load_4844_verification_key()?)
+            .unwrap();
         Ok(data_source)
     }
 
@@ -440,6 +444,13 @@ impl Keystore {
                 .map_err(|err| anyhow::anyhow!("No vk exist for 4844 circuit: {err}"))?,
         )
         .context("save_4844_verification_key()")?;
+
+        let eip4844_hint = source.get_eip4844_finalization_hint().map_err(|err| {
+            anyhow::anyhow!("No finalization hint exist for scheduler layer circuit: {err}")
+        })?;
+
+        self.save_finalization_hints(ProverServiceDataKey::eip4844(), &eip4844_hint)
+            .context("save_eip4844_hint()")?;
 
         Ok(())
     }
