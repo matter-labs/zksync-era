@@ -24,6 +24,8 @@ use zksync_web3_decl::{
     types::Filter,
 };
 
+#[cfg(test)]
+use self::backend_jsonrpsee::testonly::CallTracer;
 use self::{
     metrics::API_METRICS,
     namespaces::{
@@ -116,6 +118,8 @@ struct OptionalApiParams {
     websocket_requests_per_minute_limit: Option<NonZeroU32>,
     tree_api_url: Option<String>,
     pub_sub_events_sender: Option<mpsc::UnboundedSender<PubSubEvent>>,
+    #[cfg(test)]
+    call_tracer: Option<CallTracer>,
 }
 
 /// Full API server parameters.
@@ -242,6 +246,12 @@ impl ApiBuilder {
     #[cfg(test)]
     fn with_pub_sub_events(mut self, sender: mpsc::UnboundedSender<PubSubEvent>) -> Self {
         self.optional.pub_sub_events_sender = Some(sender);
+        self
+    }
+
+    #[cfg(test)]
+    fn with_call_tracer(mut self, call_tracer: CallTracer) -> Self {
+        self.optional.call_tracer = Some(call_tracer);
         self
     }
 
@@ -500,6 +510,9 @@ impl FullApiParams {
         let subscriptions_limit = self.optional.subscriptions_limit;
         let vm_barrier = self.vm_barrier.clone();
 
+        #[cfg(test)]
+        let call_tracer = self.optional.call_tracer.clone();
+
         let rpc = self
             .build_rpc_module(pub_sub, last_sealed_miniblock)
             .await?;
@@ -532,8 +545,14 @@ impl FullApiParams {
             .flatten()
             .unwrap_or(5_000);
 
+        #[allow(clippy::let_and_return)] // simplifies conditional compilation
         let rpc_middleware = RpcServiceBuilder::new()
-            .layer_fn(MetadataMiddleware::new)
+            .layer_fn(move |svc| {
+                let middleware = MetadataMiddleware::new(svc);
+                #[cfg(test)]
+                let middleware = middleware.with_call_tracer(call_tracer.clone());
+                middleware
+            })
             .option_layer((!is_http).then(|| {
                 tower::layer::layer_fn(move |svc| {
                     LimitMiddleware::new(svc, websocket_requests_per_minute_limit)

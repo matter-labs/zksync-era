@@ -103,6 +103,7 @@ pub(crate) async fn spawn_http_server(
     network_config: &NetworkConfig,
     pool: ConnectionPool,
     tx_executor: MockTransactionExecutor,
+    call_tracer: CallTracer,
     stop_receiver: watch::Receiver<bool>,
 ) -> ApiServerHandles {
     spawn_server(
@@ -111,6 +112,7 @@ pub(crate) async fn spawn_http_server(
         pool,
         None,
         tx_executor,
+        call_tracer,
         stop_receiver,
     )
     .await
@@ -129,6 +131,7 @@ async fn spawn_ws_server(
         pool,
         websocket_requests_per_minute_limit,
         MockTransactionExecutor::default(),
+        CallTracer::default(),
         stop_receiver,
     )
     .await
@@ -140,6 +143,7 @@ async fn spawn_server(
     pool: ConnectionPool,
     websocket_requests_per_minute_limit: Option<NonZeroU32>,
     tx_executor: MockTransactionExecutor,
+    call_tracer: CallTracer,
     stop_receiver: watch::Receiver<bool>,
 ) -> (ApiServerHandles, mpsc::UnboundedReceiver<PubSubEvent>) {
     let contracts_config = ContractsConfig::for_tests();
@@ -169,6 +173,7 @@ async fn spawn_server(
         .with_polling_interval(POLL_INTERVAL)
         .with_tx_sender(tx_sender, vm_barrier)
         .with_pub_sub_events(pub_sub_events_sender)
+        .with_call_tracer(call_tracer)
         .enable_api_namespaces(namespaces)
         .build(stop_receiver)
         .await
@@ -185,6 +190,10 @@ trait HttpTest: Send + Sync {
 
     fn transaction_executor(&self) -> MockTransactionExecutor {
         MockTransactionExecutor::default()
+    }
+
+    fn call_tracer(&self) -> CallTracer {
+        CallTracer::default()
     }
 
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()>;
@@ -264,6 +273,7 @@ async fn test_http_server(test: impl HttpTest) {
         &network_config,
         pool.clone(),
         test.transaction_executor(),
+        test.call_tracer(),
         stop_receiver,
     )
     .await;
@@ -926,4 +936,62 @@ impl HttpTest for AllAccountBalancesTest {
 #[tokio::test]
 async fn getting_all_account_balances() {
     test_http_server(AllAccountBalancesTest).await;
+}
+
+#[derive(Debug, Default)]
+struct RpcCallsTracingTest {
+    tracer: CallTracer,
+}
+
+#[async_trait]
+impl HttpTest for RpcCallsTracingTest {
+    fn call_tracer(&self) -> CallTracer {
+        self.tracer.clone()
+    }
+
+    async fn test(&self, client: &HttpClient, _pool: &ConnectionPool) -> anyhow::Result<()> {
+        let block_number = client.get_block_number().await?;
+        assert_eq!(block_number, U64::from(0));
+
+        let calls = self.tracer.take();
+        assert_eq!(calls.len(), 1);
+        assert!(calls[0].response.is_success());
+        assert_eq!(calls[0].metadata.name(), "eth_blockNumber");
+        assert_eq!(calls[0].metadata.block_id, None);
+        assert_eq!(calls[0].metadata.block_diff, None);
+
+        client
+            .get_block_by_number(api::BlockNumber::Latest, false)
+            .await?;
+
+        let calls = self.tracer.take();
+        assert_eq!(calls.len(), 1);
+        assert!(calls[0].response.is_success());
+        assert_eq!(calls[0].metadata.name(), "eth_getBlockByNumber");
+        assert_eq!(
+            calls[0].metadata.block_id,
+            Some(api::BlockId::Number(api::BlockNumber::Latest))
+        );
+        assert_eq!(calls[0].metadata.block_diff, Some(0));
+
+        let block_number = api::BlockNumber::Number(1.into());
+        client.get_block_by_number(block_number, false).await?;
+
+        let calls = self.tracer.take();
+        assert_eq!(calls.len(), 1);
+        assert!(calls[0].response.is_success());
+        assert_eq!(calls[0].metadata.name(), "eth_getBlockByNumber");
+        assert_eq!(
+            calls[0].metadata.block_id,
+            Some(api::BlockId::Number(block_number))
+        );
+        assert_eq!(calls[0].metadata.block_diff, None);
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn tracing_rpc_calls() {
+    test_http_server(RpcCallsTracingTest::default()).await;
 }

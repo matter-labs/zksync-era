@@ -682,6 +682,7 @@ async fn fetcher_with_real_server(snapshot_recovery: bool) {
         &network_config,
         pool.clone(),
         Default::default(),
+        Default::default(),
         stop_receiver.clone(),
     )
     .await;

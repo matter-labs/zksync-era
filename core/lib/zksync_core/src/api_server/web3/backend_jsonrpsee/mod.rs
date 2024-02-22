@@ -12,10 +12,12 @@ use crate::api_server::tx_sender::SubmitTxError;
 
 mod middleware;
 pub mod namespaces;
+#[cfg(test)]
+pub(crate) mod testonly;
 
 pub(crate) fn into_jsrpc_error(err: Web3Error) -> ErrorObjectOwned {
     MethodMetadata::with(|meta| {
-        meta.set_error(&err);
+        meta.observe_error(&err);
     });
 
     let data = match &err {
