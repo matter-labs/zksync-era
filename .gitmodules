@@ -1,4 +1,4 @@
 [submodule "contracts"]
 path = contracts
 url = https://github.com/LambdaClass/era-contracts.git
-branch = feat_validium_mode
+branch = feat_get_rid_of_solpp_need
