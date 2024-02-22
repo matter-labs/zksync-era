@@ -234,6 +234,11 @@ impl MethodMetadata {
         &self.name
     }
 
+    #[cfg(test)]
+    pub fn has_app_error(&self) -> bool {
+        self.has_app_error
+    }
+
     /// Sets an application-level error for this method.
     pub fn observe_error(&mut self, err: &Web3Error) {
         API_METRICS.observe_web3_error(self.name.clone(), err);

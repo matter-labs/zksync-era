@@ -1,8 +1,13 @@
-use std::{collections::HashMap, pin::Pin, slice, time::Instant};
+use std::{
+    collections::{HashMap, HashSet},
+    pin::Pin,
+    slice,
+    time::Instant,
+};
 
 use assert_matches::assert_matches;
 use async_trait::async_trait;
-use jsonrpsee::core::ClientError;
+use jsonrpsee::core::{client::ClientT, params::BatchRequestBuilder, ClientError};
 use multivm::zk_evm_latest::ethereum_types::U256;
 use tokio::sync::watch;
 use zksync_config::configs::{
@@ -986,6 +991,67 @@ impl HttpTest for RpcCallsTracingTest {
             Some(api::BlockId::Number(block_number))
         );
         assert_eq!(calls[0].metadata.block_diff, None);
+
+        // Check protocol-level errors.
+        client
+            .request::<serde_json::Value, _>("eth_unknownMethod", jsonrpsee::rpc_params![])
+            .await
+            .unwrap_err();
+
+        let calls = self.tracer.take();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(
+            calls[0].response.as_error_code(),
+            Some(ErrorCode::MethodNotFound.code())
+        );
+        assert!(!calls[0].metadata.has_app_error());
+
+        client
+            .request::<serde_json::Value, _>("eth_getBlockByNumber", jsonrpsee::rpc_params![0])
+            .await
+            .unwrap_err();
+
+        let calls = self.tracer.take();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(
+            calls[0].response.as_error_code(),
+            Some(ErrorCode::InvalidParams.code())
+        );
+        assert!(!calls[0].metadata.has_app_error());
+
+        // Check app-level error.
+        client
+            .request::<serde_json::Value, _>(
+                "eth_getFilterLogs",
+                jsonrpsee::rpc_params![U256::from(1)],
+            )
+            .await
+            .unwrap_err();
+
+        let calls = self.tracer.take();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(
+            calls[0].response.as_error_code(),
+            Some(ErrorCode::InvalidParams.code())
+        );
+        assert!(calls[0].metadata.has_app_error());
+
+        // Check batch RPC request.
+        let mut batch = BatchRequestBuilder::new();
+        batch.insert("eth_blockNumber", jsonrpsee::rpc_params![])?;
+        batch.insert("zks_L1BatchNumber", jsonrpsee::rpc_params![])?;
+        let response = client.batch_request::<U64>(batch).await?;
+        for response_part in response {
+            assert_eq!(response_part.unwrap(), U64::from(0));
+        }
+
+        let calls = self.tracer.take();
+        assert_eq!(calls.len(), 2);
+        let call_names: HashSet<_> = calls.iter().map(|call| call.metadata.name()).collect();
+        assert_eq!(
+            call_names,
+            HashSet::from(["eth_blockNumber", "zks_L1BatchNumber"])
+        );
 
         Ok(())
     }
