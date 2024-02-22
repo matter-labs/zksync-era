@@ -234,18 +234,13 @@ impl MethodMetadata {
     }
 
     fn observe_response(&self, response: &MethodResponse) {
-        let mut protocol_error = false;
-        if !self.has_app_error {
-            // Do not report error code for app-level errors.
-            if let Some(error_code) = response.success_or_error.as_error_code() {
-                API_METRICS.observe_rpc_error(self.name.clone(), error_code);
-                protocol_error = true;
-            }
+        if let Some(error_code) = response.success_or_error.as_error_code() {
+            API_METRICS.observe_protocol_error(self.name.clone(), error_code, self.has_app_error);
         }
 
         // Do not report latency for calls with protocol-level errors since it can blow up cardinality
         // of the method name label (it isn't guaranteed to exist).
-        if !protocol_error {
+        if response.success_or_error.is_success() || self.has_app_error {
             API_METRICS.observe_latency(&MethodLabels::from(self), self.started_at.elapsed());
         }
     }

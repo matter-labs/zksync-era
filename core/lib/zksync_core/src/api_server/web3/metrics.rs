@@ -7,7 +7,7 @@ use vise::{
     Metrics, Unit,
 };
 use zksync_types::api;
-use zksync_web3_decl::error::Web3Error;
+use zksync_web3_decl::{error::Web3Error, jsonrpsee::types::error::ErrorCode};
 
 use super::{ApiTransport, TypedFilter};
 
@@ -131,6 +131,20 @@ impl Web3ErrorKind {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue)]
+#[metrics(rename_all = "snake_case")]
+enum ProtocolErrorOrigin {
+    App,
+    Framework,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, EncodeLabelSet)]
+struct ProtocolErrorLabels {
+    method: String,
+    error_code: i32,
+    origin: ProtocolErrorOrigin,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, EncodeLabelSet)]
 struct Web3ErrorLabels {
     method: String,
@@ -148,9 +162,11 @@ pub(super) struct ApiMetrics {
     /// Difference between the latest sealed miniblock and the resolved miniblock for a web3 call.
     #[metrics(buckets = Buckets::LATENCIES, labels = ["method"])]
     web3_call_block_diff: LabeledFamily<&'static str, Histogram<Duration>>,
-    /// Number of errors grouped by error kind and method name. Only collected for errors that were successuflly routed
+    /// Number of application errors grouped by error kind and method name. Only collected for errors that were successfully routed
     /// to a method (i.e., this method is defined).
     web3_errors: Family<Web3ErrorLabels, Counter>,
+    /// Number of protocol errors grouped by error code and method name. Method name is not set for "method not found" errors.
+    web3_rpc_errors: Family<ProtocolErrorLabels, Counter>,
     /// Number of transaction submission errors for a specific submission error reason.
     #[metrics(labels = ["reason"])]
     pub submit_tx_error: LabeledFamily<&'static str, Counter>,
@@ -165,8 +181,29 @@ impl ApiMetrics {
         self.web3_call[labels].observe(latency);
     }
 
-    pub fn observe_rpc_error(&self, _method: String, _error_code: i32) {
-        // FIXME
+    pub fn observe_protocol_error(&self, mut method: String, error_code: i32, app_error: bool) {
+        if error_code == ErrorCode::MethodNotFound.code() {
+            method = String::new(); // Do not blow up the labels space uncontrollably
+        }
+        let labels = ProtocolErrorLabels {
+            method,
+            error_code,
+            origin: if app_error {
+                ProtocolErrorOrigin::App
+            } else {
+                ProtocolErrorOrigin::Framework
+            },
+        };
+        if self.web3_rpc_errors[&labels].inc() == 0 {
+            let ProtocolErrorLabels {
+                method,
+                error_code,
+                origin,
+            } = &labels;
+            tracing::info!(
+                "Observed new error code for method `{method}`: {error_code}, origin={origin:?}"
+            );
+        }
     }
 
     pub fn observe_web3_error(&self, method: String, err: &Web3Error) {
