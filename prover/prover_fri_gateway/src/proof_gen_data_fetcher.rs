@@ -17,6 +17,7 @@ impl PeriodicApiStruct {
             .fri_protocol_versions_dal()
             .save_prover_protocol_version(data.fri_protocol_version_id, data.l1_verifier_config)
             .await;
+        println!("Emil calling DAL = {:?}", data.blobs_4844.len());
         connection
             .fri_witness_generator_dal()
             .save_witness_inputs(
@@ -55,6 +56,7 @@ impl PeriodicApi<ProofGenerationDataRequest> for PeriodicApiStruct {
             }
             ProofGenerationDataResponse::Success(Some(data)) => {
                 tracing::info!("Received proof gen data for: {:?}", data.l1_batch_number);
+                println!("EMIL -- {:?}", data.blobs_4844.len());
                 self.save_proof_gen_data(data).await;
             }
             ProofGenerationDataResponse::Error(err) => {

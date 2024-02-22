@@ -120,11 +120,16 @@ impl BasicWitnessGenerator {
         started_at: Instant,
         config: Arc<FriWitnessGeneratorConfig>,
     ) -> Option<BasicCircuitArtifacts> {
+        println!(
+            "Emil -- process_job_impl = {:?}",
+            basic_job.blobs_4844.len()
+        );
         let BasicWitnessGeneratorJob {
             block_number,
             job,
             blobs_4844,
         } = basic_job;
+        println!("Emil -- process_job_impl = {:?}", blobs_4844.len());
         let shall_force_process_block = config
             .force_process_block
             .map_or(false, |block| block == block_number.0);
@@ -206,6 +211,7 @@ impl JobProcessor for BasicWitnessGenerator {
                     "Processing FRI basic witness-gen for block {}",
                     block_number
                 );
+                println!("EMIL get_next_job = {:?}", blobs_4844.len());
                 let started_at = Instant::now();
                 let job = get_artifacts(block_number, &*self.object_store, blobs_4844).await;
 
@@ -234,6 +240,7 @@ impl JobProcessor for BasicWitnessGenerator {
         job: BasicWitnessGeneratorJob,
         started_at: Instant,
     ) -> tokio::task::JoinHandle<anyhow::Result<Option<BasicCircuitArtifacts>>> {
+        println!("Emil -- process_job = {:?}", job.blobs_4844.len());
         let config = Arc::clone(&self.config);
         let object_store = Arc::clone(&self.object_store);
         let connection_pool = self.connection_pool.clone();
@@ -318,6 +325,10 @@ async fn process_basic_circuits_job(
     job: PrepareBasicCircuitsJob,
     blobs_4844: Vec<u8>,
 ) -> BasicCircuitArtifacts {
+    println!(
+        "Emil -- process_basic_circuits_job = {:?}",
+        blobs_4844.len()
+    );
     let witness_gen_input =
         build_basic_circuits_witness_generator_input(&connection_pool, job, block_number).await;
     let (circuit_urls, queue_urls, scheduler_witness, aux_output_witness) = generate_witness(
@@ -504,6 +515,7 @@ async fn generate_witness(
     >,
     BlockAuxilaryOutputWitness<GoldilocksField>,
 ) {
+    println!("Emil -- generate_witness = {:?}", blobs_4844.len());
     let mut connection = connection_pool.access_storage().await.unwrap();
     let header = connection
         .blocks_dal()
@@ -683,31 +695,21 @@ async fn generate_witness(
     let (blob_1, blob_2) = blobs_4844.split_at(bytes_per_blob);
 
     println!("Emil -- got here");
-    let (eip_4844_circuit_1, eip_4844_witness_1) =
-        generate_eip4844_circuit_and_witness(blob_1.to_vec(), "~/zksync-era/trusted_setup.json");
-    let (eip_4844_circuit_2, eip_4844_witness_2) =
-        generate_eip4844_circuit_and_witness(blob_2.to_vec(), "~/zksync-era/trusted_setup.json");
+    let (eip_4844_circuit_1, eip_4844_witness_1) = generate_eip4844_circuit_and_witness(
+        blob_1.to_vec(),
+        "/home/evl/zksync-era/trusted_setup.json",
+    );
+    let (eip_4844_circuit_2, eip_4844_witness_2) = generate_eip4844_circuit_and_witness(
+        blob_2.to_vec(),
+        "/home/evl/zksync-era/trusted_setup.json",
+    );
 
     let (witnesses, ()) = tokio::join!(make_circuits, save_circuits);
 
-    circuit_urls.push(
-        save_eip_4844_circuit(
-            block_number,
-            eip_4844_circuit_1,
-            circuit_urls.len(),
-            object_store,
-        )
-        .await,
-    );
-    circuit_urls.push(
-        save_eip_4844_circuit(
-            block_number,
-            eip_4844_circuit_2,
-            circuit_urls.len(),
-            object_store,
-        )
-        .await,
-    );
+    circuit_urls
+        .push(save_eip_4844_circuit(block_number, eip_4844_circuit_1, 0, object_store).await);
+    circuit_urls
+        .push(save_eip_4844_circuit(block_number, eip_4844_circuit_2, 1, object_store).await);
 
     let (mut scheduler_witness, block_aux_witness) = witnesses.unwrap();
 

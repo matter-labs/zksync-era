@@ -41,6 +41,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         protocol_version_id: FriProtocolVersionId,
         blobs_4844: Vec<u8>,
     ) {
+        println!("Emil saving to db = {:?}", blobs_4844.len());
         sqlx::query!(
             r#"
             INSERT INTO
@@ -111,9 +112,14 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .await
         .unwrap()
         .map(|row| {
+            if let Some(b) = &row.blobs_4844 {
+                println!("query 1 -- {:?}", b.len());
+            }
+            println!("query 2 -- {:?}", row.blobs_4844.as_ref().unwrap().len());
             (
                 L1BatchNumber(row.l1_batch_number as u32),
-                row.blobs_4844.unwrap(),
+                bincode::deserialize(&row.blobs_4844.unwrap())
+                    .expect("Failed to serialize 4844 blobs to bytes"),
             )
         })
     }

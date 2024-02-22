@@ -125,7 +125,7 @@ impl RequestProcessor {
             l1_verifier_config,
             blobs_4844: vec![0; 31 * 4096 * 2], // hardcoded until we figure out how to get it from db
         };
-
+        println!("EMIL -- {:?}", proof_gen_data.blobs_4844.len());
         Ok(Json(ProofGenerationDataResponse::Success(Some(
             proof_gen_data,
         ))))
