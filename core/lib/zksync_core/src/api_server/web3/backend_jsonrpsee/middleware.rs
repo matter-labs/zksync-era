@@ -143,6 +143,8 @@ where
     type Future = WithMethodMetadata<S::Future>;
 
     fn call(&self, request: Request<'a>) -> Self::Future {
+        // "Normalize" the method name by searching it in the set of all registered methods. This extends the lifetime
+        // of the name to `'static` and maps unknown methods to "", so that method name metric labels don't have unlimited cardinality.
         let method_name = self
             .registered_method_names
             .get(request.method_name())
@@ -259,12 +261,7 @@ impl MethodMetadata {
         if let Some(error_code) = response.success_or_error.as_error_code() {
             API_METRICS.observe_protocol_error(self.name, error_code, self.has_app_error);
         }
-
-        // Do not report latency for calls with protocol-level errors since it can blow up cardinality
-        // of the method name label (it isn't guaranteed to exist).
-        if response.success_or_error.is_success() || self.has_app_error {
-            API_METRICS.observe_latency(&MethodLabels::from(self), self.started_at.elapsed());
-        }
+        API_METRICS.observe_latency(&MethodLabels::from(self), self.started_at.elapsed());
     }
 }
 
