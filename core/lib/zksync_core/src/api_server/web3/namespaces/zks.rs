@@ -444,7 +444,11 @@ impl ZksNamespace {
         hash: H256,
     ) -> Result<Option<Vec<u8>>, Web3Error> {
         let mut storage = self.access_storage().await?;
-        Ok(storage.factory_deps_dal().get_factory_dep(hash).await)
+        Ok(storage
+            .factory_deps_dal()
+            .get_factory_dep(hash)
+            .await
+            .context("get_factory_dep")?)
     }
 
     #[tracing::instrument(skip(self))]
