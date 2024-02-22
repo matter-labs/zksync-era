@@ -427,11 +427,12 @@ impl StateKeeperRunner {
             let (stop_sender, stop_receiver) = sync::watch::channel(false);
             let (miniblock_sealer, miniblock_sealer_handle) =
                 MiniblockSealer::new(self.pool.clone(), 5);
+
             let io = ExternalIO::new(
                 miniblock_sealer_handle,
                 self.pool.clone(),
                 self.actions_queue,
-                SyncState::new(),
+                SyncState::default(),
                 Box::<MockMainNodeClient>::default(),
                 Address::repeat_byte(11),
                 u32::MAX,
