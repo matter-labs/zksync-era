@@ -231,9 +231,11 @@ impl EthNamespace {
         const METHOD_NAME: &str = "get_filter_logs";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-        let Some(installed_filters) = &self.state.installed_filters else {
-            return Err(Web3Error::NotImplemented);
-        };
+        let installed_filters = self
+            .state
+            .installed_filters
+            .as_ref()
+            .ok_or(Web3Error::NotImplemented)?;
         // We clone the filter to not hold the filter lock for an extended period of time.
         let maybe_filter = installed_filters.lock().await.get_and_update_stats(idx);
 
@@ -581,9 +583,11 @@ impl EthNamespace {
         const METHOD_NAME: &str = "new_block_filter";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-        let Some(installed_filters) = &self.state.installed_filters else {
-            return Err(Web3Error::NotImplemented);
-        };
+        let installed_filters = self
+            .state
+            .installed_filters
+            .as_ref()
+            .ok_or(Web3Error::NotImplemented)?;
         let mut storage = self
             .state
             .connection_pool
@@ -638,9 +642,11 @@ impl EthNamespace {
         const METHOD_NAME: &str = "new_pending_transaction_filter";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-        let Some(installed_filters) = &self.state.installed_filters else {
-            return Err(Web3Error::NotImplemented);
-        };
+        let installed_filters = self
+            .state
+            .installed_filters
+            .as_ref()
+            .ok_or(Web3Error::NotImplemented)?;
         let idx = installed_filters
             .lock()
             .await
@@ -656,9 +662,11 @@ impl EthNamespace {
         const METHOD_NAME: &str = "get_filter_changes";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-        let Some(installed_filters) = &self.state.installed_filters else {
-            return Err(Web3Error::NotImplemented);
-        };
+        let installed_filters = self
+            .state
+            .installed_filters
+            .as_ref()
+            .ok_or(Web3Error::NotImplemented)?;
         let mut filter = installed_filters
             .lock()
             .await
@@ -686,9 +694,11 @@ impl EthNamespace {
         const METHOD_NAME: &str = "uninstall_filter";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-        let Some(installed_filters) = &self.state.installed_filters else {
-            return Err(Web3Error::NotImplemented);
-        };
+        let installed_filters = self
+            .state
+            .installed_filters
+            .as_ref()
+            .ok_or(Web3Error::NotImplemented)?;
         let removed = installed_filters.lock().await.remove(idx);
         method_latency.observe();
         Ok(removed)
