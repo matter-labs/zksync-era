@@ -1,4 +1,4 @@
-use zksync_types::{api::en, MiniblockNumber};
+use zksync_types::{api::en, tokens::TokenInfo, MiniblockNumber};
 use zksync_web3_decl::{
     jsonrpsee::core::{async_trait, RpcResult},
     namespaces::en::EnNamespaceServer,
@@ -20,6 +20,15 @@ impl EnNamespaceServer for EnNamespace {
 
     async fn consensus_genesis(&self) -> RpcResult<Option<en::ConsensusGenesis>> {
         self.consensus_genesis_impl()
+            .await
+            .map_err(into_jsrpc_error)
+    }
+
+    async fn sync_tokens(
+        &self,
+        block_number: Option<MiniblockNumber>,
+    ) -> RpcResult<Vec<TokenInfo>> {
+        self.sync_tokens_impl(block_number)
             .await
             .map_err(into_jsrpc_error)
     }

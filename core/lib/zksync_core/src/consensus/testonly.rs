@@ -366,7 +366,7 @@ impl StateKeeper {
             .await
             .context("pending_batch_exists()")?;
         let (actions_sender, actions_queue) = ActionQueue::new();
-        let sync_state = SyncState::new();
+        let sync_state = SyncState::default();
         Ok((
             Self {
                 last_batch: last_l1_batch_number + if pending_batch { 1 } else { 0 },
@@ -516,6 +516,7 @@ impl StateKeeperRunner {
             let (stop_sender, stop_receiver) = sync::watch::channel(false);
             let (miniblock_sealer, miniblock_sealer_handle) =
                 MiniblockSealer::new(self.pool.clone(), 5);
+
             let io = ExternalIO::new(
                 miniblock_sealer_handle,
                 self.pool.clone(),

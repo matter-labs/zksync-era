@@ -1,5 +1,5 @@
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
-use zksync_types::{api::en, MiniblockNumber};
+use zksync_types::{api::en, tokens::TokenInfo, MiniblockNumber};
 
 #[cfg_attr(
     all(feature = "client", feature = "server"),
@@ -23,4 +23,11 @@ pub trait EnNamespace {
 
     #[method(name = "consensusGenesis")]
     async fn consensus_genesis(&self) -> RpcResult<Option<en::ConsensusGenesis>>;
+
+    /// Lists all tokens created at or before the specified `block_number`.
+    ///
+    /// This method is used by EN after snapshot recovery in order to recover token records.
+    #[method(name = "syncTokens")]
+    async fn sync_tokens(&self, block_number: Option<MiniblockNumber>)
+        -> RpcResult<Vec<TokenInfo>>;
 }

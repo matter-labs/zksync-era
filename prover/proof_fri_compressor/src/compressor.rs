@@ -8,7 +8,10 @@ use zkevm_test_harness_1_3_3::{
     abstract_zksync_circuit::concrete_circuits::{
         ZkSyncCircuit, ZkSyncProof, ZkSyncVerificationKey,
     },
-    bellman::{bn256::Bn256, plonk::better_better_cs::proof::Proof},
+    bellman::{
+        bn256::Bn256,
+        plonk::better_better_cs::{proof::Proof, setup::VerificationKey as SnarkVerificationKey},
+    },
     witness::oracle::VmWitnessOracle,
 };
 use zksync_dal::ConnectionPool;
@@ -26,7 +29,7 @@ use zksync_prover_fri_types::{
 use zksync_prover_interface::outputs::L1BatchProofForL1;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::L1BatchNumber;
-use zksync_vk_setup_data_server_fri::{get_recursive_layer_vk_for_circuit_type, get_snark_vk};
+use zksync_vk_setup_data_server_fri::keystore::Keystore;
 
 use crate::metrics::METRICS;
 
@@ -60,10 +63,12 @@ impl ProofCompressor {
         compression_mode: u8,
         verify_wrapper_proof: bool,
     ) -> anyhow::Result<Proof<Bn256, ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>>> {
-        let scheduler_vk = get_recursive_layer_vk_for_circuit_type(
-            ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8,
-        )
-        .context("get_recursiver_layer_vk_for_circuit_type()")?;
+        let keystore = Keystore::default();
+        let scheduler_vk = keystore
+            .load_recursive_layer_verification_key(
+                ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8,
+            )
+            .context("get_recursiver_layer_vk_for_circuit_type()")?;
         let config = WrapperConfig::new(compression_mode);
 
         let (wrapper_proof, _) = wrap_proof(proof, scheduler_vk, config);
@@ -76,7 +81,15 @@ impl ProofCompressor {
             bincode::deserialize(&serialized)
                 .expect("Failed to deserialize proof with ZkSyncCircuit");
         if verify_wrapper_proof {
-            let existing_vk = get_snark_vk().context("get_snark_vk()")?;
+            // We're fetching the key as String and deserializing it here
+            // as we don't want to include the old version of prover in the main libraries.
+            let existing_vk_serialized = keystore
+                .load_snark_verification_key()
+                .context("get_snark_vk()")?;
+            let existing_vk = serde_json::from_str::<
+                SnarkVerificationKey<Bn256, ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>>,
+            >(&existing_vk_serialized)?;
+
             let vk = ZkSyncVerificationKey::from_verification_key_and_numeric_type(0, existing_vk);
             let scheduler_proof = ZkSyncProof::from_proof_and_numeric_type(0, proof.clone());
             match vk.verify_proof(&scheduler_proof) {
@@ -140,6 +153,9 @@ impl JobProcessor for ProofCompressor {
         let scheduler_proof = match fri_proof {
             FriProofWrapper::Base(_) => anyhow::bail!("Must be a scheduler proof not base layer"),
             FriProofWrapper::Recursive(proof) => proof,
+            FriProofWrapper::Eip4844(_) => {
+                anyhow::bail!("Must be a scheduler proof not 4844")
+            }
         };
         Ok(Some((l1_batch_number, scheduler_proof)))
     }

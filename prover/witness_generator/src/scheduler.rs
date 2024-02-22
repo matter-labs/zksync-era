@@ -26,9 +26,7 @@ use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{
     basic_fri_types::AggregationRound, protocol_version::FriProtocolVersionId, L1BatchNumber,
 };
-use zksync_vk_setup_data_server_fri::{
-    get_recursive_layer_vk_for_circuit_type, utils::get_leaf_vk_params,
-};
+use zksync_vk_setup_data_server_fri::{keystore::Keystore, utils::get_leaf_vk_params};
 
 use crate::{
     metrics::WITNESS_GENERATOR_METRICS,
@@ -252,21 +250,26 @@ pub async fn prepare_job(
             FriProofWrapper::Recursive(recursive_proof) => {
                 recursive_proofs.push(recursive_proof.into_inner())
             }
+            FriProofWrapper::Eip4844(_) => {
+                anyhow::bail!("EIP 4844 should not be run as a scheduler")
+            }
         }
     }
 
     let started_at = Instant::now();
-    let node_vk = get_recursive_layer_vk_for_circuit_type(
-        ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,
-    )
-    .context("get_recursive_layer_vk_for_circuit_type()")?;
+    let keystore = Keystore::default();
+    let node_vk = keystore
+        .load_recursive_layer_verification_key(
+            ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,
+        )
+        .context("get_recursive_layer_vk_for_circuit_type()")?;
     let SchedulerPartialInputWrapper(mut scheduler_witness) =
         object_store.get(l1_batch_number).await.unwrap();
     scheduler_witness.node_layer_vk_witness = node_vk.clone().into_inner();
 
     scheduler_witness.proof_witnesses = recursive_proofs.into();
 
-    let leaf_vk_commits = get_leaf_vk_params().context("get_leaf_vk_params()")?;
+    let leaf_vk_commits = get_leaf_vk_params(&keystore).context("get_leaf_vk_params()")?;
     let leaf_layer_params = leaf_vk_commits
         .iter()
         .map(|el| el.1.clone())

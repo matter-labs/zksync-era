@@ -1,7 +1,7 @@
 //! This module contains the observability subsystem.
 //! It is responsible for providing a centralized interface for consistent observability configuration.
 
-use std::{backtrace::Backtrace, borrow::Cow, panic::PanicInfo};
+use std::{backtrace::Backtrace, borrow::Cow, panic::PanicInfo, str::FromStr};
 
 // Temporary re-export of `sentry::capture_message` aiming to simplify the transition from `vlog` to using
 // crates directly.
@@ -15,6 +15,29 @@ pub enum LogFormat {
     #[default]
     Plain,
     Json,
+}
+
+#[derive(Debug)]
+pub struct LogFormatError(&'static str);
+
+impl std::fmt::Display for LogFormatError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl std::error::Error for LogFormatError {}
+
+impl FromStr for LogFormat {
+    type Err = LogFormatError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "plain" => Ok(LogFormat::Plain),
+            "json" => Ok(LogFormat::Json),
+            _ => Err(LogFormatError("invalid log format")),
+        }
+    }
 }
 
 /// Builder for the observability subsystem.
@@ -123,70 +146,6 @@ impl ObservabilityBuilder {
             _sentry_guard: sentry_guard,
         }
     }
-}
-
-/// Loads the log format from the environment variable according to the existing zkSync configuration scheme.
-/// If the variable is not set, the default value is used.
-///
-/// This is a deprecated function existing for compatibility with the old configuration scheme.
-/// Not recommended for use in new applications.
-///
-/// # Panics
-///
-/// Panics if the value of the variable is set, but is not `plain` or `json`.
-#[deprecated(
-    note = "This function will be removed in the future. Applications are expected to handle their configuration themselves."
-)]
-pub fn log_format_from_env() -> LogFormat {
-    match std::env::var("MISC_LOG_FORMAT") {
-        Ok(log_format) => match log_format.as_str() {
-            "plain" => LogFormat::Plain,
-            "json" => LogFormat::Json,
-            _ => panic!("MISC_LOG_FORMAT has an unexpected value {}", log_format),
-        },
-        Err(_) => LogFormat::Plain,
-    }
-}
-
-/// Loads the Sentry URL from the environment variable according to the existing zkSync configuration scheme.
-/// If the environment value is present but the value is `unset`, `None` will be returned for compatibility with the
-/// existing configuration setup.
-///
-/// This is a deprecated function existing for compatibility with the old configuration scheme.
-/// Not recommended for use in new applications.
-#[deprecated(
-    note = "This function will be removed in the future. Applications are expected to handle their configuration themselves."
-)]
-pub fn sentry_url_from_env() -> Option<String> {
-    match std::env::var("MISC_SENTRY_URL") {
-        Ok(str) if str == "unset" => {
-            // This bogus value may be provided an sentry is expected to just not be initialized in this case.
-            None
-        }
-        Ok(str) => Some(str),
-        Err(_) => None,
-    }
-}
-
-/// Prepared the Sentry environment ID from the environment variable according to the existing zkSync configuration
-/// scheme.
-/// This function mimics like `vlog` configuration worked historically, e.g. it would also try to load environment
-/// for the external node, and the EN variable is preferred if it is set.
-///
-/// This is a deprecated function existing for compatibility with the old configuration scheme.
-/// Not recommended for use in new applications.
-#[deprecated(
-    note = "This function will be removed in the future. Applications are expected to handle their configuration themselves."
-)]
-pub fn environment_from_env() -> Option<String> {
-    if let Ok(en_env) = std::env::var("EN_SENTRY_ENVIRONMENT") {
-        return Some(en_env);
-    }
-
-    let l1_network = std::env::var("CHAIN_ETH_NETWORK").ok()?;
-    let l2_network = std::env::var("CHAIN_ETH_ZKSYNC_NETWORK").ok()?;
-
-    Some(format!("{} - {}", l1_network, l2_network))
 }
 
 fn json_panic_handler(panic_info: &PanicInfo) {

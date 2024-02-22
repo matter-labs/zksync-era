@@ -1,6 +1,9 @@
 use std::sync::Arc;
 
+use async_trait::async_trait;
+use serde::Serialize;
 use tokio::sync::watch;
+use zksync_health_check::{CheckHealth, Health, HealthStatus};
 use zksync_types::MiniblockNumber;
 
 use crate::metrics::EN_METRICS;
@@ -25,10 +28,6 @@ impl Default for SyncState {
 const SYNC_MINIBLOCK_DELTA: u32 = 10;
 
 impl SyncState {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
     pub(crate) fn get_main_node_block(&self) -> MiniblockNumber {
         self.0.borrow().main_node_block()
     }
@@ -92,7 +91,19 @@ impl SyncStateInner {
         self.local_block = Some(block);
         self.update_sync_metric();
     }
+}
 
+#[async_trait]
+impl CheckHealth for SyncState {
+    fn name(&self) -> &'static str {
+        "sync_state"
+    }
+
+    async fn check_health(&self) -> Health {
+        Health::from(&*self.0.borrow())
+    }
+}
+impl SyncStateInner {
     fn is_synced(&self) -> (bool, Option<u32>) {
         if let (Some(main_node_block), Some(local_block)) = (self.main_node_block, self.local_block)
         {
@@ -115,25 +126,63 @@ impl SyncStateInner {
     }
 }
 
+impl From<&SyncStateInner> for Health {
+    fn from(state: &SyncStateInner) -> Health {
+        #[derive(Debug, Serialize)]
+        struct SyncStateHealthDetails {
+            is_synced: bool,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            main_node_block: Option<MiniblockNumber>,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            local_block: Option<MiniblockNumber>,
+        }
+
+        let (is_synced, block_diff) = state.is_synced();
+        let status = if is_synced {
+            HealthStatus::Ready
+        } else if block_diff.is_some() {
+            HealthStatus::Affected
+        } else {
+            return HealthStatus::NotReady.into(); // `state` isn't initialized yet
+        };
+        Health::from(status).with_details(SyncStateHealthDetails {
+            is_synced,
+            main_node_block: state.main_node_block,
+            local_block: state.local_block,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use assert_matches::assert_matches;
+
     use super::*;
 
-    #[test]
-    fn test_sync_state() {
-        let sync_state = SyncState::new();
+    #[tokio::test]
+    async fn test_sync_state() {
+        let sync_state = SyncState::default();
 
         // The node is not synced if there is no data.
         assert!(!sync_state.is_synced());
+
+        let health = sync_state.check_health().await;
+        assert_matches!(health.status(), HealthStatus::NotReady);
 
         // The gap is too big, still not synced.
         sync_state.set_local_block(MiniblockNumber(0));
         sync_state.set_main_node_block(MiniblockNumber(SYNC_MINIBLOCK_DELTA + 1));
         assert!(!sync_state.is_synced());
 
+        let health = sync_state.check_health().await;
+        assert_matches!(health.status(), HealthStatus::Affected);
+
         // Within the threshold, the node is synced.
         sync_state.set_local_block(MiniblockNumber(1));
         assert!(sync_state.is_synced());
+
+        let health = sync_state.check_health().await;
+        assert_matches!(health.status(), HealthStatus::Ready);
 
         // Can reach the main node last block.
         sync_state.set_local_block(MiniblockNumber(SYNC_MINIBLOCK_DELTA + 1));
@@ -146,7 +195,7 @@ mod tests {
 
     #[test]
     fn test_sync_state_doesnt_panic_on_local_block() {
-        let sync_state = SyncState::new();
+        let sync_state = SyncState::default();
 
         sync_state.set_main_node_block(MiniblockNumber(1));
         sync_state.set_local_block(MiniblockNumber(2));
@@ -158,7 +207,7 @@ mod tests {
 
     #[test]
     fn test_sync_state_doesnt_panic_on_main_node_block() {
-        let sync_state = SyncState::new();
+        let sync_state = SyncState::default();
 
         sync_state.set_local_block(MiniblockNumber(2));
         sync_state.set_main_node_block(MiniblockNumber(1));
