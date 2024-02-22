@@ -104,6 +104,11 @@ struct GeneratorOptions {
     #[arg(long, default_value = "false")]
     dry_run: bool,
 
+    /// If true, then generate the setup key, only if it is missing.
+    // Warning: this doesn't check the correctness of the existing file.
+    #[arg(long, default_value = "false")]
+    recompute_if_missing: bool,
+
     #[arg(long)]
     path: Option<String>,
 
@@ -170,7 +175,7 @@ fn generate_setup_keys(
 ) -> anyhow::Result<()> {
     let circuit_type = match options.circuits_type {
         CircuitSelector::All => {
-            let digests = generator.generate_all(options.dry_run)?;
+            let digests = generator.generate_all(options.dry_run, options.recompute_if_missing)?;
             tracing::info!("Setup keys md5(s):");
             print_stats(digests)?;
             return Ok(());
@@ -189,7 +194,7 @@ fn generate_setup_keys(
     };
 
     let digest = generator
-        .generate_and_write_setup_data(circuit_type, options.dry_run)
+        .generate_and_write_setup_data(circuit_type, options.dry_run, options.recompute_if_missing)
         .context("generate_setup_data()")?;
     tracing::info!("digest: {:?}", digest);
     Ok(())

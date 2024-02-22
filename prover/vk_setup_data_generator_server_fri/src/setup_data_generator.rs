@@ -85,7 +85,15 @@ pub trait SetupDataGenerator {
         &self,
         circuit: ProverServiceDataKey,
         dry_run: bool,
+        recompute_if_missing: bool,
     ) -> anyhow::Result<String> {
+        if recompute_if_missing && self.keystore().is_setup_data_present(&circuit) {
+            tracing::info!(
+                "Skipping setup computation for {:?} as file is already present.",
+                circuit.name(),
+            );
+            return Ok("Skipped".to_string());
+        }
         let serialized = self.generate_setup_data(circuit.clone())?;
         let digest = md5::compute(&serialized);
 
@@ -100,12 +108,16 @@ pub trait SetupDataGenerator {
     }
 
     /// Generate all setup keys for boojum circuits.
-    fn generate_all(&self, dry_run: bool) -> anyhow::Result<HashMap<String, String>> {
+    fn generate_all(
+        &self,
+        dry_run: bool,
+        recompute_if_missing: bool,
+    ) -> anyhow::Result<HashMap<String, String>> {
         Ok(ProverServiceDataKey::all_boojum()
             .iter()
             .map(|circuit| {
                 let digest = self
-                    .generate_and_write_setup_data(circuit.clone(), dry_run)
+                    .generate_and_write_setup_data(circuit.clone(), dry_run, recompute_if_missing)
                     .context(circuit.name())
                     .unwrap();
                 (circuit.name(), digest)
