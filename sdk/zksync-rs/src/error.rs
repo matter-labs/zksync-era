@@ -1,3 +1,25 @@
+// Integration test for zkSync Rust SDK.
+//
+// In order to pass these tests, there must be a running
+// instance of zkSync server and prover:
+//
+// ```bash
+// zk server &!
+// zk dummy-prover run &!
+// zk test integration rust-sdk
+// ```
+//
+// Note: If tests are failing, first check the following two things:
+//
+// 1. If tests are failing with an error "cannot operate after unexpected tx failure",
+//    ensure that dummy prover is enabled.
+// 2. If tests are failing with an error "replacement transaction underpriced",
+//    ensure that tests are ran in one thread. Running the tests with many threads won't
+//    work, since many thread will attempt in sending transactions from one (main) Ethereum
+//    account, which may result in nonce mismatch.
+//    Also, if there will be many tests running at once, and the server will die, it will be
+//    hard to distinguish which test exactly caused this problem.
+
 use zksync_eth_signer::error::SignerError;
 pub use zksync_web3_decl::jsonrpsee::core::ClientError as RpcError;
 
