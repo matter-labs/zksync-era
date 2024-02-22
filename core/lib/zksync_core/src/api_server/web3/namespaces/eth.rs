@@ -198,13 +198,13 @@ impl EthNamespace {
     }
 
     pub async fn get_filter_logs_impl(&self, idx: U256) -> Result<FilterChanges, Web3Error> {
-        // We clone the filter to not hold the filter lock for an extended period of time.
-        let maybe_filter = self
+        let installed_filters = self
             .state
             .installed_filters
-            .lock()
-            .await
-            .get_and_update_stats(idx);
+            .as_ref()
+            .ok_or(Web3Error::NotImplemented)?;
+        // We clone the filter to not hold the filter lock for an extended period of time.
+        let maybe_filter = installed_filters.lock().await.get_and_update_stats(idx);
 
         let Some(TypedFilter::Events(filter, _)) = maybe_filter else {
             return Err(Web3Error::FilterNotFound);
@@ -497,6 +497,11 @@ impl EthNamespace {
 
     #[tracing::instrument(skip(self))]
     pub async fn new_block_filter_impl(&self) -> Result<U256, Web3Error> {
+        let installed_filters = self
+            .state
+            .installed_filters
+            .as_ref()
+            .ok_or(Web3Error::NotImplemented)?;
         let mut storage = self
             .state
             .connection_pool
@@ -511,9 +516,7 @@ impl EthNamespace {
         let next_block_number = last_block_number + 1;
         drop(storage);
 
-        Ok(self
-            .state
-            .installed_filters
+        Ok(installed_filters
             .lock()
             .await
             .add(TypedFilter::Blocks(next_block_number)))
@@ -521,6 +524,11 @@ impl EthNamespace {
 
     #[tracing::instrument(skip(self, filter))]
     pub async fn new_filter_impl(&self, mut filter: Filter) -> Result<U256, Web3Error> {
+        let installed_filters = self
+            .state
+            .installed_filters
+            .as_ref()
+            .ok_or(Web3Error::NotImplemented)?;
         if let Some(topics) = filter.topics.as_ref() {
             if topics.len() > EVENT_TOPIC_NUMBER_LIMIT {
                 return Err(Web3Error::TooManyTopics);
@@ -529,30 +537,35 @@ impl EthNamespace {
 
         self.state.resolve_filter_block_hash(&mut filter).await?;
         let from_block = self.state.get_filter_from_block(&filter).await?;
-        Ok(self
-            .state
-            .installed_filters
+        Ok(installed_filters
             .lock()
             .await
             .add(TypedFilter::Events(filter, from_block)))
     }
 
     #[tracing::instrument(skip(self))]
-    pub async fn new_pending_transaction_filter_impl(&self) -> U256 {
-        self.state
+    pub async fn new_pending_transaction_filter_impl(&self) -> Result<U256, Web3Error> {
+        let installed_filters = self
+            .state
             .installed_filters
+            .as_ref()
+            .ok_or(Web3Error::NotImplemented)?;
+        Ok(installed_filters
             .lock()
             .await
             .add(TypedFilter::PendingTransactions(
                 chrono::Utc::now().naive_utc(),
-            ))
+            )))
     }
 
     #[tracing::instrument(skip(self))]
     pub async fn get_filter_changes_impl(&self, idx: U256) -> Result<FilterChanges, Web3Error> {
-        let mut filter = self
+        let installed_filters = self
             .state
             .installed_filters
+            .as_ref()
+            .ok_or(Web3Error::NotImplemented)?;
+        let mut filter = installed_filters
             .lock()
             .await
             .get_and_update_stats(idx)
@@ -560,16 +573,12 @@ impl EthNamespace {
 
         match self.filter_changes(&mut filter).await {
             Ok(changes) => {
-                self.state
-                    .installed_filters
-                    .lock()
-                    .await
-                    .update(idx, filter);
+                installed_filters.lock().await.update(idx, filter);
                 Ok(changes)
             }
             Err(Web3Error::LogsLimitExceeded(..)) => {
                 // The filter was not being polled for a long time, so we remove it.
-                self.state.installed_filters.lock().await.remove(idx);
+                installed_filters.lock().await.remove(idx);
                 Err(Web3Error::FilterNotFound)
             }
             Err(err) => Err(err),
@@ -577,8 +586,13 @@ impl EthNamespace {
     }
 
     #[tracing::instrument(skip(self))]
-    pub async fn uninstall_filter_impl(&self, idx: U256) -> bool {
-        self.state.installed_filters.lock().await.remove(idx)
+    pub async fn uninstall_filter_impl(&self, idx: U256) -> Result<bool, Web3Error> {
+        let installed_filters = self
+            .state
+            .installed_filters
+            .as_ref()
+            .ok_or(Web3Error::NotImplemented)?;
+        Ok(installed_filters.lock().await.remove(idx))
     }
 
     #[tracing::instrument(skip(self))]

@@ -26,7 +26,7 @@ pub(crate) fn into_jsrpc_error(err: Web3Error) -> ErrorObjectOwned {
         _ => None,
     };
     let code = match err {
-        Web3Error::InternalError(_) => ErrorCode::InternalError.code(),
+        Web3Error::InternalError(_) | Web3Error::NotImplemented => ErrorCode::InternalError.code(),
         Web3Error::NoBlock
         | Web3Error::PrunedBlock(_)
         | Web3Error::PrunedL1Batch(_)
