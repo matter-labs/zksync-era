@@ -240,8 +240,14 @@ async fn init_tasks(
         .context("failed initializing metadata calculator")?;
     healthchecks.push(Box::new(metadata_calculator.tree_health_check()));
 
-    let l1_batch_commit_data_generator = Arc::new(RollupModeL1BatchCommitDataGenerator {});
-
+    let l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator> = match config
+        .l1_batch_commit_data_generator_mode
+    {
+        L1BatchCommitDataGeneratorMode::Rollup => Arc::new(RollupModeL1BatchCommitDataGenerator {}),
+        L1BatchCommitDataGeneratorMode::Validium => {
+            Arc::new(ValidiumModeL1BatchCommitDataGenerator {})
+        }
+    };
     let consistency_checker = ConsistencyChecker::new(
         &config
             .required
