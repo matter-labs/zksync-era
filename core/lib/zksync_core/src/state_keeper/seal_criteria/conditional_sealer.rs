@@ -39,7 +39,7 @@ pub trait ConditionalSealer: 'static + fmt::Debug + Send + Sync {
 ///
 /// The checks are deterministic, i.e., should depend solely on execution metrics and [`StateKeeperConfig`].
 /// Non-deterministic seal criteria are expressed using [`IoSealCriteria`](super::IoSealCriteria).
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct SequencerSealer {
     config: StateKeeperConfig,
     sealers: Vec<Box<dyn SealCriterion>>,
@@ -135,6 +135,7 @@ impl SequencerSealer {
             Box::new(criteria::PubDataBytesCriterion),
             Box::new(criteria::CircuitsCriterion),
             Box::new(criteria::TxEncodingSizeCriterion),
+            Box::new(criteria::GasForBatchTipCriterion),
         ]
     }
 }

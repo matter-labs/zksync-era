@@ -217,10 +217,7 @@ impl CommandReceiver {
         }
 
         let tx_metrics = ExecutionMetricsForCriteria::new(Some(tx), &tx_result);
-
-        if !vm.has_enough_gas_for_batch_tip() {
-            return TxExecutionResult::BootloaderOutOfGasForBlockTip;
-        }
+        let gas_remaining = vm.gas_remaining();
 
         let (bootloader_dry_run_result, bootloader_dry_run_metrics) = self.dryrun_block_tip(vm);
         match &bootloader_dry_run_result.result {
@@ -231,6 +228,7 @@ impl CommandReceiver {
                 bootloader_dry_run_result: Box::new(bootloader_dry_run_result),
                 compressed_bytecodes,
                 call_tracer_result,
+                gas_remaining,
             },
             ExecutionResult::Revert { .. } => {
                 unreachable!(

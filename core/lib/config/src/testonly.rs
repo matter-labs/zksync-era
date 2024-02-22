@@ -182,6 +182,7 @@ impl RandomConfig for configs::api::Web3JsonRpcConfig {
             ws_port: g.gen(),
             ws_url: g.gen(),
             req_entities_limit: g.gen(),
+            filters_disabled: g.gen(),
             filters_limit: g.gen(),
             subscriptions_limit: g.gen(),
             pubsub_polling_interval: g.gen(),
@@ -363,6 +364,11 @@ impl RandomConfig for configs::ContractsConfig {
             fri_recursion_leaf_level_vk_hash: g.gen(),
             prover_at_genesis: g.gen(),
             snark_wrapper_vk_hash: g.gen(),
+            bridgehub_impl_addr: g.gen(),
+            bridgehub_proxy_addr: g.gen(),
+            state_transition_proxy_addr: g.gen(),
+            state_transition_impl_addr: g.gen(),
+            transparent_proxy_admin_addr: g.gen(),
         }
     }
 }

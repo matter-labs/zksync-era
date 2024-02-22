@@ -10,6 +10,7 @@ http_url="http://127.0.0.1:3050"
 ws_port=3051
 ws_url="ws://127.0.0.1:3051"
 req_entities_limit=10000
+filters_disabled=false
 filters_limit=10000
 subscriptions_limit=10000
 # Interval between polling db for pubsub (in ms).

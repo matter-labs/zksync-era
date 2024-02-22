@@ -113,3 +113,63 @@ impl<T: Resource + Clone> ResourceCollection<T> {
         (*handle).clone()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use assert_matches::assert_matches;
+    use futures::FutureExt;
+
+    use super::*;
+
+    #[derive(Debug, Clone, PartialEq)]
+    struct TestResource(Arc<u8>);
+
+    impl Resource for TestResource {
+        fn resource_id() -> ResourceId {
+            ResourceId::new("test_resource")
+        }
+    }
+
+    #[test]
+    fn test_push() {
+        let collection = ResourceCollection::<TestResource>::new();
+        let resource1 = TestResource(Arc::new(1));
+        collection.clone().push(resource1.clone()).unwrap();
+
+        let resource2 = TestResource(Arc::new(2));
+        collection.clone().push(resource2.clone()).unwrap();
+
+        assert_eq!(
+            *collection.resources.lock().unwrap(),
+            vec![resource1, resource2]
+        );
+    }
+
+    #[test]
+    fn test_already_wired() {
+        let mut collection = ResourceCollection::<TestResource>::new();
+        let resource = TestResource(Arc::new(1));
+
+        let rc_clone = collection.clone();
+
+        collection.on_resource_wired();
+
+        assert_matches!(
+            rc_clone.push(resource),
+            Err(ResourceCollectionError::AlreadyWired)
+        );
+    }
+
+    #[test]
+    fn test_resolve() {
+        let mut collection = ResourceCollection::<TestResource>::new();
+        let result = collection.clone().resolve().now_or_never();
+
+        assert!(result.is_none());
+
+        collection.on_resource_wired();
+
+        let resolved = collection.resolve().now_or_never();
+        assert_eq!(resolved.unwrap(), vec![]);
+    }
+}

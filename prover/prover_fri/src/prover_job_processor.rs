@@ -1,8 +1,11 @@
 use std::{collections::HashMap, sync::Arc, time::Instant};
 
 use anyhow::Context as _;
+use circuit_definitions::{circuit_definitions::eip4844::EIP4844Circuit, eip4844_proof_config};
 use tokio::task::JoinHandle;
-use zkevm_test_harness::prover_utils::{prove_base_layer_circuit, prove_recursion_layer_circuit};
+use zkevm_test_harness::prover_utils::{
+    prove_base_layer_circuit, prove_eip4844_circuit, prove_recursion_layer_circuit,
+};
 use zksync_config::configs::{fri_prover_group::FriProverGroupConfig, FriProverConfig};
 use zksync_dal::ConnectionPool;
 use zksync_env_config::FromEnv;
@@ -25,9 +28,7 @@ use zksync_prover_fri_types::{
 use zksync_prover_fri_utils::fetch_next_circuit;
 use zksync_queued_job_processor::{async_trait, JobProcessor};
 use zksync_types::{basic_fri_types::CircuitIdRoundTuple, protocol_version::L1VerifierConfig};
-use zksync_vk_setup_data_server_fri::{
-    get_cpu_setup_data_for_circuit_type, GoldilocksProverSetupData,
-};
+use zksync_vk_setup_data_server_fri::{keystore::Keystore, GoldilocksProverSetupData};
 
 use crate::{
     metrics::{CircuitLabels, Layer, METRICS},
@@ -88,9 +89,10 @@ impl Prover {
                 .clone(),
             SetupLoadMode::FromDisk => {
                 let started_at = Instant::now();
-                let artifact: GoldilocksProverSetupData =
-                    get_cpu_setup_data_for_circuit_type(key.clone())
-                        .context("get_cpu_setup_data_for_circuit_type()")?;
+                let keystore = Keystore::default();
+                let artifact: GoldilocksProverSetupData = keystore
+                    .load_cpu_setup_data_for_circuit_type(key.clone())
+                    .context("get_cpu_setup_data_for_circuit_type()")?;
                 METRICS.gpu_setup_data_load_time[&key.circuit_id.to_string()]
                     .observe(started_at.elapsed());
 
@@ -111,8 +113,47 @@ impl Prover {
             CircuitWrapper::Recursive(recursive_circuit) => {
                 Self::prove_recursive_layer(job.job_id, recursive_circuit, config, setup_data)
             }
+            CircuitWrapper::Eip4844(circuit) => {
+                Self::prove_eip4844(job.job_id, circuit, setup_data)
+            }
         };
         ProverArtifacts::new(job.block_number, proof)
+    }
+
+    fn prove_eip4844(
+        job_id: u32,
+        circuit: EIP4844Circuit<GoldilocksField, ZkSyncDefaultRoundFunction>,
+        artifact: Arc<GoldilocksProverSetupData>,
+    ) -> FriProofWrapper {
+        let worker = Worker::new();
+        let started_at = Instant::now();
+
+        let proof = prove_eip4844_circuit::<NoPow>(
+            circuit.clone(),
+            &worker,
+            eip4844_proof_config(),
+            &artifact.setup_base,
+            &artifact.setup,
+            &artifact.setup_tree,
+            &artifact.vk,
+            &artifact.vars_hint,
+            &artifact.wits_hint,
+            &artifact.finalization_hint,
+        );
+
+        let label = CircuitLabels {
+            circuit_type: ProverServiceDataKey::eip4844().circuit_id,
+            layer: Layer::Base,
+        };
+        METRICS.proof_generation_time[&label].observe(started_at.elapsed());
+
+        verify_proof(
+            &CircuitWrapper::Eip4844(circuit),
+            &proof,
+            &artifact.vk,
+            job_id,
+        );
+        FriProofWrapper::Eip4844(proof)
     }
 
     fn prove_recursive_layer(
@@ -299,9 +340,11 @@ pub fn load_setup_data_cache(config: &FriProverConfig) -> anyhow::Result<SetupLo
                 &config.specialized_group_id,
                 prover_setup_metadata_list
             );
+            let keystore = Keystore::default();
             for prover_setup_metadata in prover_setup_metadata_list {
                 let key = setup_metadata_to_setup_data_key(&prover_setup_metadata);
-                let setup_data = get_cpu_setup_data_for_circuit_type(key.clone())
+                let setup_data = keystore
+                    .load_cpu_setup_data_for_circuit_type(key.clone())
                     .context("get_cpu_setup_data_for_circuit_type()")?;
                 cache.insert(key, Arc::new(setup_data));
             }
