@@ -2,7 +2,7 @@ use std::{
     collections::{BTreeSet, HashMap},
     future::Future,
     sync::Arc,
-    time::{Duration, Instant},
+    time::Duration,
 };
 
 use tokio::sync::{watch, RwLock};
@@ -21,10 +21,7 @@ use zksync_web3_decl::{
 
 use super::{tx_sink::TxSink, SubmitTxError};
 use crate::{
-    api_server::{
-        execution_sandbox::{SubmitTxStage, SANDBOX_METRICS},
-        web3::backend_jsonrpsee::internal_error,
-    },
+    api_server::web3::backend_jsonrpsee::internal_error,
     metrics::{TxStage, APP_METRICS},
 };
 
@@ -225,7 +222,6 @@ impl TxSink for TxProxy {
         tx: L2Tx,
         _execution_metrics: TransactionExecutionMetrics,
     ) -> Result<L2TxSubmissionResult, SubmitTxError> {
-        let stage_started_at = Instant::now();
         // We're running an external node: we have to proxy the transaction to the main node.
         // But before we do that, save the tx to cache in case someone will request it
         // Before it reaches the main node.
@@ -235,7 +231,6 @@ impl TxSink for TxProxy {
         // since we don't want to store txs that might have been replaced or otherwise removed
         // from the mempool.
         self.forget_tx(tx.hash()).await;
-        SANDBOX_METRICS.submit_tx[&SubmitTxStage::TxProxy].observe(stage_started_at.elapsed());
         APP_METRICS.processed_txs[&TxStage::Proxied].inc();
         Ok(L2TxSubmissionResult::Proxied)
     }

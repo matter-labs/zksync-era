@@ -357,7 +357,11 @@ impl TxSender {
                 ))
             }
             L2TxSubmissionResult::Duplicate => Err(SubmitTxError::IncorrectTx(TxDuplication(hash))),
-            L2TxSubmissionResult::Proxied => Ok(submission_res_handle),
+            L2TxSubmissionResult::Proxied => {
+                SANDBOX_METRICS.submit_tx[&SubmitTxStage::TxProxy]
+                    .observe(stage_started_at.elapsed());
+                Ok(submission_res_handle)
+            }
             _ => {
                 SANDBOX_METRICS.submit_tx[&SubmitTxStage::DbInsert]
                     .observe(stage_started_at.elapsed());
