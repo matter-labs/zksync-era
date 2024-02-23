@@ -3,6 +3,7 @@ use std::str::FromStr;
 use anyhow::Context as _;
 use hex::ToHex;
 use once_cell::sync::Lazy;
+use serde::{Deserialize, Serialize};
 use structopt::lazy_static::lazy_static;
 use zkevm_test_harness::witness::recursive_aggregation::{
     compute_leaf_vks_and_params_commitment, compute_node_vk_commitment,
@@ -19,19 +20,12 @@ use zksync_types::{
 use crate::{
     keystore::Keystore,
     utils::{calculate_snark_vk_hash, get_leaf_vk_params},
+    VkCommitments,
 };
 
 lazy_static! {
     // TODO: do not initialize a static const with data read in runtime.
     static ref COMMITMENTS: Lazy<L1VerifierConfig> = Lazy::new(|| { circuit_commitments(&Keystore::default()).unwrap() });
-}
-
-#[derive(Debug)]
-pub struct VkCommitments {
-    pub leaf: String,
-    pub node: String,
-    pub scheduler: String,
-    pub snark_wrapper: String,
 }
 
 fn circuit_commitments(keystore: &Keystore) -> anyhow::Result<L1VerifierConfig> {

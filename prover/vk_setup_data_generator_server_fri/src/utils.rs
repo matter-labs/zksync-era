@@ -135,7 +135,7 @@ mod tests {
             );
 
             let expected =
-                H256::from_str(&keystore.load_key_hashes().unwrap().snark_wrapper_vk_hash).unwrap();
+                H256::from_str(&keystore.load_commitments().unwrap().snark_wrapper).unwrap();
 
             assert_eq!(expected, calculate_snark_vk_hash(&keystore).unwrap());
         }

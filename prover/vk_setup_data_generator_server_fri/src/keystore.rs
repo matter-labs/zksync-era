@@ -23,7 +23,7 @@ use zksync_types::basic_fri_types::AggregationRound;
 
 #[cfg(feature = "gpu")]
 use crate::GoldilocksGpuProverSetupData;
-use crate::{GoldilocksProverSetupData, KeyHashes};
+use crate::{GoldilocksProverSetupData, VkCommitments};
 
 pub enum ProverServiceDataType {
     VerificationKey,
@@ -455,10 +455,13 @@ impl Keystore {
         Ok(())
     }
 
-    pub fn load_key_hashes(&self) -> anyhow::Result<KeyHashes> {
-        Self::load_json_from_file(format!("{}/key_hashes.json", self.get_base_path()))
+    pub fn load_commitments(&self) -> anyhow::Result<VkCommitments> {
+        Self::load_json_from_file(format!("{}/commitments.json", self.get_base_path()))
     }
-    pub fn save_key_hashes(&self, hashes: KeyHashes) -> anyhow::Result<()> {
-        Self::save_json_pretty(format!("{}/key_hashes.json", self.get_base_path()), &hashes)
+    pub fn save_commitments(&self, commitments: &VkCommitments) -> anyhow::Result<()> {
+        Self::save_json_pretty(
+            format!("{}/commitments.json", self.get_base_path()),
+            &commitments,
+        )
     }
 }

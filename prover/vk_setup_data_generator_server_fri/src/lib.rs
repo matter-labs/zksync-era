@@ -109,8 +109,13 @@ pub type GoldilocksGpuProverSetupData = GpuProverSetupData<
     >,
 >;
 
+/// Commitments are small 'hashes' generated over the corresponding data.
+// We use them as version ids, to make sure that jobs are picking up the right tasks.
 #[derive(Debug, Serialize, Deserialize)]
-pub struct KeyHashes {
+pub struct VkCommitments {
+    pub leaf: String,
+    pub node: String,
+    pub scheduler: String,
     // Hash computed over Snark verification key fields.
-    pub snark_wrapper_vk_hash: String,
+    pub snark_wrapper: String,
 }
