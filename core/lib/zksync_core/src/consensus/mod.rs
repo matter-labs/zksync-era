@@ -124,7 +124,7 @@ impl Fetcher {
                                 match ctx
                                     .wait(
                                         self.client
-                                            .fetch_l2_block(*n, /*with_transaction=*/ true),
+                                            .fetch_l2_block(*n, /*`with_transaction=`*/ true),
                                     )
                                     .await?
                                 {

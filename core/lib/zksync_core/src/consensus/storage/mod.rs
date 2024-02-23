@@ -220,7 +220,7 @@ impl BlockStore {
             return Ok(());
         }
         let genesis = validator::Genesis {
-            // ValidatorSet::new() with a single validator should never fail.
+            // `ValidatorSet::new()` with a single validator should never fail.
             validators: validator::ValidatorSet::new([validator_key.clone()]).unwrap(),
             fork: validator::Fork {
                 number: validator::ForkNumber(0),
