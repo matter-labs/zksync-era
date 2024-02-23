@@ -37,6 +37,7 @@ use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
 use zksync_state::PostgresStorageCaches;
 use zksync_storage::RocksDB;
+use zksync_types::l1_batch_commit_data_generator::RollupModeL1BatchCommitDataGenerator;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 use zksync_web3_decl::jsonrpsee::http_client::HttpClient;
 
@@ -229,6 +230,8 @@ async fn init_tasks(
         .context("failed initializing metadata calculator")?;
     app_health.insert_component(metadata_calculator.tree_health_check());
 
+    let l1_batch_commit_data_generator = Arc::new(RollupModeL1BatchCommitDataGenerator {});
+
     let consistency_checker = ConsistencyChecker::new(
         &config
             .required
@@ -239,6 +242,7 @@ async fn init_tasks(
             .build()
             .await
             .context("failed to build connection pool for ConsistencyChecker")?,
+        l1_batch_commit_data_generator,
     );
     app_health.insert_component(consistency_checker.health_check().clone());
     let consistency_checker_handle = tokio::spawn(consistency_checker.run(stop_receiver.clone()));

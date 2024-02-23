@@ -44,6 +44,7 @@ async fn kept_updated() {
             internal_enforced_l1_gas_price: None,
             poll_period: 5,
             max_l1_gas_price: None,
+            l1_gas_per_pubdata_byte: 17,
         },
     )
     .await

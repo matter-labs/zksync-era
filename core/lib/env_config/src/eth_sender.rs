@@ -33,7 +33,7 @@ mod tests {
 
     static MUTEX: EnvMutex = EnvMutex::new();
 
-    fn expected_config() -> ETHSenderConfig {
+    fn rollup_expected_config() -> ETHSenderConfig {
         ETHSenderConfig {
             sender: SenderConfig {
                 aggregated_proof_sizes: vec![1, 5],
@@ -64,14 +64,32 @@ mod tests {
                 internal_enforced_l1_gas_price: None,
                 poll_period: 15,
                 max_l1_gas_price: Some(100000000),
+                l1_gas_per_pubdata_byte: 17,
             },
         }
     }
 
-    #[test]
-    fn from_env() {
+    fn validium_expected_config() -> ETHSenderConfig {
+        let mut validium_config = rollup_expected_config();
+        validium_config.gas_adjuster.l1_gas_per_pubdata_byte = 0;
+        validium_config
+    }
+
+    fn from_env(config: &str, expected_config: ETHSenderConfig) {
         let mut lock = MUTEX.lock();
-        let config = r#"
+        lock.set_env(config);
+
+        let actual = ETHSenderConfig::from_env().unwrap();
+        assert_eq!(actual, expected_config);
+        assert_eq!(
+            actual.sender.private_key().unwrap(),
+            hash("27593fea79697e947890ecbecce7901b0008345e5d7259710d0dd5e500d040be")
+        );
+    }
+
+    #[test]
+    fn rollup_from_env() {
+        let rollup_config = r#"
             ETH_SENDER_SENDER_WAIT_CONFIRMATIONS="1"
             ETH_SENDER_SENDER_TX_POLL_PERIOD="3"
             ETH_SENDER_SENDER_AGGREGATE_TX_POLL_PERIOD="3"
@@ -98,14 +116,42 @@ mod tests {
             ETH_SENDER_SENDER_L1_BATCH_MIN_AGE_BEFORE_EXECUTE_SECONDS="1000"
             ETH_SENDER_SENDER_MAX_ACCEPTABLE_PRIORITY_FEE_IN_GWEI="100000000000"
             ETH_SENDER_SENDER_PROOF_LOADING_MODE="OldProofFromDb"
-        "#;
-        lock.set_env(config);
+            ETH_SENDER_GAS_ADJUSTER_L1_GAS_PER_PUBDATA_BYTE=17
+            "#;
+        from_env(rollup_config, rollup_expected_config())
+    }
 
-        let actual = ETHSenderConfig::from_env().unwrap();
-        assert_eq!(actual, expected_config());
-        assert_eq!(
-            actual.sender.private_key().unwrap(),
-            hash("27593fea79697e947890ecbecce7901b0008345e5d7259710d0dd5e500d040be")
-        );
+    #[test]
+    fn validium_from_env() {
+        let validium_config = r#"
+            ETH_SENDER_SENDER_WAIT_CONFIRMATIONS="1"
+            ETH_SENDER_SENDER_TX_POLL_PERIOD="3"
+            ETH_SENDER_SENDER_AGGREGATE_TX_POLL_PERIOD="3"
+            ETH_SENDER_SENDER_MAX_TXS_IN_FLIGHT="3"
+            ETH_SENDER_SENDER_OPERATOR_PRIVATE_KEY="0x27593fea79697e947890ecbecce7901b0008345e5d7259710d0dd5e500d040be"
+            ETH_SENDER_SENDER_PROOF_SENDING_MODE="SkipEveryProof"
+            ETH_SENDER_GAS_ADJUSTER_DEFAULT_PRIORITY_FEE_PER_GAS="20000000000"
+            ETH_SENDER_GAS_ADJUSTER_MAX_BASE_FEE_SAMPLES="10000"
+            ETH_SENDER_GAS_ADJUSTER_PRICING_FORMULA_PARAMETER_A="1.5"
+            ETH_SENDER_GAS_ADJUSTER_PRICING_FORMULA_PARAMETER_B="1.0005"
+            ETH_SENDER_GAS_ADJUSTER_INTERNAL_L1_PRICING_MULTIPLIER="0.8"
+            ETH_SENDER_GAS_ADJUSTER_POLL_PERIOD="15"
+            ETH_SENDER_GAS_ADJUSTER_MAX_L1_GAS_PRICE="100000000"
+            ETH_SENDER_WAIT_FOR_PROOFS="false"
+            ETH_SENDER_SENDER_AGGREGATED_PROOF_SIZES="1,5"
+            ETH_SENDER_SENDER_MAX_AGGREGATED_BLOCKS_TO_COMMIT="3"
+            ETH_SENDER_SENDER_MAX_AGGREGATED_BLOCKS_TO_EXECUTE="4"
+            ETH_SENDER_SENDER_AGGREGATED_BLOCK_COMMIT_DEADLINE="30"
+            ETH_SENDER_SENDER_AGGREGATED_BLOCK_PROVE_DEADLINE="3000"
+            ETH_SENDER_SENDER_AGGREGATED_BLOCK_EXECUTE_DEADLINE="4000"
+            ETH_SENDER_SENDER_TIMESTAMP_CRITERIA_MAX_ALLOWED_LAG="30"
+            ETH_SENDER_SENDER_MAX_AGGREGATED_TX_GAS="4000000"
+            ETH_SENDER_SENDER_MAX_ETH_TX_DATA_SIZE="120000"
+            ETH_SENDER_SENDER_L1_BATCH_MIN_AGE_BEFORE_EXECUTE_SECONDS="1000"
+            ETH_SENDER_SENDER_MAX_ACCEPTABLE_PRIORITY_FEE_IN_GWEI="100000000000"
+            ETH_SENDER_SENDER_PROOF_LOADING_MODE="OldProofFromDb"
+            ETH_SENDER_GAS_ADJUSTER_L1_GAS_PER_PUBDATA_BYTE=0
+            "#;
+        from_env(validium_config, validium_expected_config());
     }
 }

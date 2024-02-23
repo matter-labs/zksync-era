@@ -10,6 +10,9 @@ mod zksync_functions;
 #[cfg(test)]
 mod tests;
 
+#[cfg(test)]
+mod tests_helpers;
+
 pub use self::{
     aggregator::Aggregator, error::ETHSenderError, eth_tx_aggregator::EthTxAggregator,
     eth_tx_manager::EthTxManager,

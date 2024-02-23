@@ -1,4 +1,9 @@
-use zksync_types::{commitment::L1BatchWithMetadata, ethabi::Token};
+use std::sync::Arc;
+
+use zksync_types::{
+    commitment::L1BatchWithMetadata, ethabi::Token,
+    l1_batch_commit_data_generator::L1BatchCommitDataGenerator,
+};
 
 use crate::{
     i_executor::structures::{CommitBatchInfo, StoredBatchInfo},
@@ -10,6 +15,7 @@ use crate::{
 pub struct CommitBatches {
     pub last_committed_l1_batch: L1BatchWithMetadata,
     pub l1_batches: Vec<L1BatchWithMetadata>,
+    pub l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
 }
 
 impl Tokenize for CommitBatches {
@@ -18,7 +24,10 @@ impl Tokenize for CommitBatches {
         let l1_batches_to_commit = self
             .l1_batches
             .iter()
-            .map(|batch| CommitBatchInfo(batch).into_token())
+            .map(|batch| {
+                CommitBatchInfo::new(batch, self.l1_batch_commit_data_generator.clone())
+                    .into_token()
+            })
             .collect();
 
         vec![stored_batch_info, Token::Array(l1_batches_to_commit)]
