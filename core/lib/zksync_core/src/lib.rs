@@ -640,6 +640,7 @@ pub async fn initialize_components(
         let current_commitment_mode =
             L1BatchCommitDataGeneratorMode::from_tokens(current_commitment_mode_eth_response)?;
 
+        // contracts mode == server mode
         assert_eq!(
             current_commitment_mode,
             state_keeper_config.l1_batch_commit_data_generator_mode,
