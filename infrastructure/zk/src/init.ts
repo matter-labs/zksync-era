@@ -85,7 +85,10 @@ const initHyperchain = async ({ includePaymaster, baseToken }: InitHyperchainOpt
 
 // ########################### Command Actions ###########################
 type InitDevCmdActionOptions = InitSetupOptions;
-export const initDevCmdAction = async ({ skipEnvSetup, skipSubmodulesCheckout }: InitDevCmdActionOptions): Promise<void> => {
+export const initDevCmdAction = async ({
+    skipEnvSetup,
+    skipSubmodulesCheckout
+}: InitDevCmdActionOptions): Promise<void> => {
     await initSetup({ skipEnvSetup, skipSubmodulesCheckout });
     await initDatabase({ skipVerifierDeployment: false });
     await deployTestTokens();
