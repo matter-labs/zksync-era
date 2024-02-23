@@ -69,15 +69,28 @@ impl FriSchedulerDependencyTrackerDal<'_, '_> {
         circuit_id: u8,
         final_prover_job_id: u32,
         l1_batch_number: L1BatchNumber,
+        depth: u16,
     ) {
-        let query = format!(
-            r#"
+        let query = if circuit_id != 255 {
+            format!(
+                r#"
                 UPDATE scheduler_dependency_tracker_fri
                 SET circuit_{}_final_prover_job_id = $1
                 WHERE l1_batch_number = $2
             "#,
-            circuit_id
-        );
+                circuit_id
+            )
+        } else {
+            println!("circuit_id = {circuit_id:?}");
+            format!(
+                r#"
+                    UPDATE scheduler_dependency_tracker_fri
+                    SET circuit_{}_final_prover_job_id_{} = $1
+                    WHERE l1_batch_number = $2
+                "#,
+                circuit_id, depth,
+            )
+        };
         sqlx::query(&query)
             .bind(final_prover_job_id as i64)
             .bind(l1_batch_number.0 as i64)

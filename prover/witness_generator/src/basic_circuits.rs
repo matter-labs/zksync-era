@@ -681,7 +681,7 @@ async fn generate_witness(
                         save_circuit(block_number, circuit, circuit_urls.len(), object_store).await,
                     );
                 }
-                Some((circuit_id, queue, inputs)) = queue_receiver.recv() =>recursion_urls.push(
+                Some((circuit_id, queue, inputs)) = queue_receiver.recv() => recursion_urls.push(
                     save_recursion_queue(block_number, circuit_id, queue, &inputs, object_store)
                         .await,
                 ),
@@ -708,10 +708,26 @@ async fn generate_witness(
 
     let (witnesses, ()) = tokio::join!(make_circuits, save_circuits);
 
-    circuit_urls
-        .push(save_eip_4844_circuit(block_number, eip_4844_circuit_1, 0, object_store).await);
-    circuit_urls
-        .push(save_eip_4844_circuit(block_number, eip_4844_circuit_2, 1, object_store).await);
+    circuit_urls.push(
+        save_eip_4844_circuit(
+            block_number,
+            eip_4844_circuit_1,
+            circuit_urls.len(),
+            object_store,
+            0,
+        )
+        .await,
+    );
+    circuit_urls.push(
+        save_eip_4844_circuit(
+            block_number,
+            eip_4844_circuit_2,
+            circuit_urls.len() + recursion_urls.len(),
+            object_store,
+            1,
+        )
+        .await,
+    );
 
     let (mut scheduler_witness, block_aux_witness) = witnesses.unwrap();
 

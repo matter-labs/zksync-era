@@ -135,6 +135,7 @@ pub async fn save_eip_4844_circuit(
     circuit: EIP4844Circuit<GoldilocksField, ZkSyncDefaultRoundFunction>,
     sequence_number: usize,
     object_store: &dyn ObjectStore,
+    depth: u16,
 ) -> (u8, String) {
     let circuit_id = 255;
     let circuit_key = FriCircuitKey {
@@ -142,7 +143,7 @@ pub async fn save_eip_4844_circuit(
         sequence_number,
         circuit_id,
         aggregation_round: AggregationRound::BasicCircuits,
-        depth: 0,
+        depth,
     };
     let blob_url = object_store
         .put(circuit_key, &CircuitWrapper::Eip4844(circuit))

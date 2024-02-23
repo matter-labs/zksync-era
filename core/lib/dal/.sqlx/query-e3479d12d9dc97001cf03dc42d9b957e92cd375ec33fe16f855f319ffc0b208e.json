@@ -90,7 +90,12 @@
       },
       {
         "ordinal": 17,
-        "name": "circuit_255_final_prover_job_id",
+        "name": "circuit_255_final_prover_job_id_0",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 18,
+        "name": "circuit_255_final_prover_job_id_1",
         "type_info": "Int8"
       }
     ],
@@ -117,7 +122,8 @@
       true,
       false,
       false,
-      false
+      true,
+      true
     ]
   },
   "hash": "e3479d12d9dc97001cf03dc42d9b957e92cd375ec33fe16f855f319ffc0b208e"

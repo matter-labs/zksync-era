@@ -289,6 +289,7 @@ impl FriProverDal<'_, '_> {
                     WHERE
                         status = 'queued'
                         AND protocol_version = ANY ($1)
+                        AND circuit_id = 255
                     ORDER BY
                         aggregation_round DESC,
                         l1_batch_number ASC,
@@ -330,6 +331,7 @@ impl FriProverDal<'_, '_> {
         protocol_versions: &[FriProtocolVersionId],
         picked_by: &str,
     ) -> Option<FriProverJobMetadata> {
+        println!("EMIL -- {circuits_to_pick:?}");
         let circuit_ids: Vec<_> = circuits_to_pick
             .iter()
             .map(|tuple| tuple.circuit_id as i16)
@@ -339,6 +341,7 @@ impl FriProverDal<'_, '_> {
             .iter()
             .map(|tuple| tuple.aggregation_round as i16)
             .collect();
+        println!("{aggregation_rounds:?}");
         sqlx::query!(
             r#"
             UPDATE prover_jobs_fri

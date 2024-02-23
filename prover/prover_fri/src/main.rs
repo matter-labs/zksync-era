@@ -175,7 +175,7 @@ async fn get_prover_tasks(
     circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
     use zksync_vk_setup_data_server_fri::commitment_utils::get_cached_commitments;
-
+    println!("{:?}", prover_config);
     use crate::prover_job_processor::{load_setup_data_cache, Prover};
 
     let vk_commitments = get_cached_commitments();
