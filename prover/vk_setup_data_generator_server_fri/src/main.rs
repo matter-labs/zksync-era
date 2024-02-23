@@ -42,14 +42,12 @@ fn generate_vks(keystore: &Keystore) -> anyhow::Result<()> {
     tracing::info!("Generating verification keys for Base layer.");
     generate_base_layer_vks_and_proofs(&mut in_memory_source)
         .map_err(|err| anyhow::anyhow!("Failed generating base vk's: {err}"))?;
-
-    tracing::info!("Generating 4844 VKs.");
-    generate_eip4844_vks(&mut in_memory_source)
-        .map_err(|err| anyhow::anyhow!("Failed generating 4844 vk's: {err}"))?;
-
     tracing::info!("Generating verification keys for Recursive layer.");
     generate_recursive_layer_vks_and_proofs(&mut in_memory_source)
         .map_err(|err| anyhow::anyhow!("Failed generating recursive vk's: {err}"))?;
+
+    generate_eip4844_vks(&mut in_memory_source)
+        .map_err(|err| anyhow::anyhow!("Failed generating 4844 vk's: {err}"))?;
 
     tracing::info!("Saving keys & hints");
 
@@ -142,7 +140,7 @@ enum Command {
     /// Generates and updates the commitments - used by the verification contracts.
     #[command(name = "update-commitments")]
     UpdateCommitments {
-        #[arg(long)]
+        #[arg(long, default_value = "true")]
         dryrun: bool,
         #[arg(long)]
         path: Option<String>,
