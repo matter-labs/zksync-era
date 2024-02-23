@@ -83,10 +83,12 @@ jobs:
             tar -C ./contracts -zxf l1-contracts.tar.gz
             tar -C ./contracts -zxf l2-contracts.tar.gz
             tar -C ./contracts -zxf system-contracts.tar.gz
+          else
+            echo "BUILD_CONTRACTS=true" >> "$GITHUB_ENV"
           fi
 
       - name: pre-download compiilers
-        if: env.BUILD_CONTRACTS != 'true'
+        if: env.BUILD_CONTRACTS == 'true'
         run: |
           # Download needed versions of vyper compiler
           # Not sanitized due to unconventional path and tags
@@ -122,7 +124,7 @@ jobs:
           ci_run curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
 
       - name: build contracts
-        if: env.BUILD_CONTRACTS != 'true'
+        if: env.BUILD_CONTRACTS == 'true'
         run: |
           ci_run zk run yarn
           ci_run cp etc/tokens/{test,localhost}.json
