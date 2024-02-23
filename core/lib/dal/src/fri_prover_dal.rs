@@ -289,7 +289,6 @@ impl FriProverDal<'_, '_> {
                     WHERE
                         status = 'queued'
                         AND protocol_version = ANY ($1)
-                        AND circuit_id = 255
                     ORDER BY
                         aggregation_round DESC,
                         l1_batch_number ASC,
