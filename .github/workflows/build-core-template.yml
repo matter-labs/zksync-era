@@ -85,7 +85,7 @@ jobs:
           tar -C ./contracts -zxf l2-contracts.tar.gz
           tar -C ./contracts -zxf system-contracts.tar.gz
 
-      - name: pre-download compiilers
+      - name: pre-download compilers
         if: env.BUILD_CONTRACTS == 'true'
         run: |
           # Download needed versions of vyper compiler
