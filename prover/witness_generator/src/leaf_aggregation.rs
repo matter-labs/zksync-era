@@ -30,9 +30,7 @@ use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{
     basic_fri_types::AggregationRound, protocol_version::FriProtocolVersionId, L1BatchNumber,
 };
-use zksync_vk_setup_data_server_fri::{
-    get_base_layer_vk_for_circuit_type, get_recursive_layer_vk_for_circuit_type,
-};
+use zksync_vk_setup_data_server_fri::keystore::Keystore;
 
 use crate::{
     metrics::WITNESS_GENERATOR_METRICS,
@@ -215,11 +213,14 @@ pub async fn prepare_leaf_aggregation_job(
         .observe(started_at.elapsed());
 
     let started_at = Instant::now();
-    let base_vk = get_base_layer_vk_for_circuit_type(metadata.circuit_id)
+    let keystore = Keystore::default();
+    let base_vk = keystore
+        .load_base_layer_verification_key(metadata.circuit_id)
         .context("get_base_layer_vk_for_circuit_type()")?;
     // this is a temp solution to unblock shadow proving.
     // we should have a method that converts basic circuit id to leaf circuit id as they are different.
-    let leaf_vk = get_recursive_layer_vk_for_circuit_type(metadata.circuit_id + 2)
+    let leaf_vk = keystore
+        .load_recursive_layer_verification_key(metadata.circuit_id + 2)
         .context("get_recursive_layer_vk_for_circuit_type()")?;
     let mut base_proofs = vec![];
     for wrapper in proofs {
@@ -227,6 +228,9 @@ pub async fn prepare_leaf_aggregation_job(
             FriProofWrapper::Base(base_proof) => base_proofs.push(base_proof),
             FriProofWrapper::Recursive(_) => {
                 anyhow::bail!("Expected only base proofs for leaf agg {}", metadata.id);
+            }
+            FriProofWrapper::Eip4844(_) => {
+                anyhow::bail!("EIP4844 should be run as a leaf.");
             }
         }
     }

@@ -19,6 +19,7 @@ zksync_object_store = { path = "../../lib/object_store" }
 zksync_core = { path = "../../lib/zksync_core" }
 zksync_storage = { path = "../../lib/storage" }
 zksync_eth_client = { path = "../../lib/eth_client" }
+zksync_contracts = { path = "../../lib/contracts" }
 
 tracing = "0.1"
 thiserror = "1"

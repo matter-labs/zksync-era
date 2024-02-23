@@ -411,6 +411,10 @@ prode
 StorageBatchInfo
 CommitBatchInfo
 IExecutor
+SetChainId
+setChainId
+SetChainIdUpgrade
+state_transition_manager_contract
 
 // Names
 Vyper
@@ -897,3 +901,7 @@ parameterized
 reimplementation
 composability
 md5
+shivini
+balancer
+lookups
+stateful

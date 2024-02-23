@@ -1,8 +1,5 @@
 use sqlx::types::chrono::Utc;
-use zksync_types::{
-    tokens::TokenInfo, Address, MiniblockNumber, ACCOUNT_CODE_STORAGE_ADDRESS,
-    FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH,
-};
+use zksync_types::{tokens::TokenInfo, Address, MiniblockNumber};
 
 use crate::StorageProcessor;
 
@@ -79,34 +76,25 @@ impl TokensDal<'_, '_> {
             .collect())
     }
 
+    /// Removes token records that were deployed after `block_number`.
     pub async fn rollback_tokens(&mut self, block_number: MiniblockNumber) -> sqlx::Result<()> {
+        let all_token_addresses = self.get_all_l2_token_addresses().await?;
+        let token_deployment_data = self
+            .storage
+            .storage_logs_dal()
+            .filter_deployed_contracts(all_token_addresses.into_iter(), None)
+            .await?;
+        let token_addresses_to_be_removed: Vec<_> = token_deployment_data
+            .into_iter()
+            .filter_map(|(address, deployed_at)| (deployed_at > block_number).then_some(address.0))
+            .collect();
         sqlx::query!(
             r#"
             DELETE FROM tokens
             WHERE
-                l2_address IN (
-                    SELECT
-                        SUBSTRING(key, 12, 20)
-                    FROM
-                        storage_logs
-                    WHERE
-                        storage_logs.address = $1
-                        AND miniblock_number > $2
-                        AND NOT EXISTS (
-                            SELECT
-                                1
-                            FROM
-                                storage_logs AS s
-                            WHERE
-                                s.hashed_key = storage_logs.hashed_key
-                                AND (s.miniblock_number, s.operation_number) >= (storage_logs.miniblock_number, storage_logs.operation_number)
-                                AND s.value = $3
-                        )
-                )
+                l2_address = ANY ($1)
             "#,
-            ACCOUNT_CODE_STORAGE_ADDRESS.as_bytes(),
-            block_number.0 as i64,
-            FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH.as_bytes()
+            &token_addresses_to_be_removed as &[_]
         )
         .execute(self.storage.conn())
         .await?;
@@ -117,37 +105,43 @@ impl TokensDal<'_, '_> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
+    use std::{collections::HashSet, slice};
 
-    use zksync_types::tokens::TokenMetadata;
+    use zksync_system_constants::FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH;
+    use zksync_types::{get_code_key, tokens::TokenMetadata, StorageLog, H256};
 
     use super::*;
     use crate::ConnectionPool;
+
+    fn test_token_info() -> TokenInfo {
+        TokenInfo {
+            l1_address: Address::repeat_byte(1),
+            l2_address: Address::repeat_byte(2),
+            metadata: TokenMetadata {
+                name: "Test".to_string(),
+                symbol: "TST".to_string(),
+                decimals: 10,
+            },
+        }
+    }
+
+    fn eth_token_info() -> TokenInfo {
+        TokenInfo {
+            l1_address: Address::repeat_byte(0),
+            l2_address: Address::repeat_byte(0),
+            metadata: TokenMetadata {
+                name: "Ether".to_string(),
+                symbol: "ETH".to_string(),
+                decimals: 18,
+            },
+        }
+    }
 
     #[tokio::test]
     async fn adding_and_getting_tokens() {
         let pool = ConnectionPool::test_pool().await;
         let mut storage = pool.access_storage().await.unwrap();
-        let tokens = [
-            TokenInfo {
-                l1_address: Address::repeat_byte(1),
-                l2_address: Address::repeat_byte(2),
-                metadata: TokenMetadata {
-                    name: "Test".to_string(),
-                    symbol: "TST".to_string(),
-                    decimals: 10,
-                },
-            },
-            TokenInfo {
-                l1_address: Address::repeat_byte(0),
-                l2_address: Address::repeat_byte(0),
-                metadata: TokenMetadata {
-                    name: "Ether".to_string(),
-                    symbol: "ETH".to_string(),
-                    decimals: 18,
-                },
-            },
-        ];
+        let tokens = [test_token_info(), eth_token_info()];
         storage.tokens_dal().add_tokens(&tokens).await.unwrap();
 
         let token_addresses = storage
@@ -162,6 +156,15 @@ mod tests {
                 .map(|token| token.l2_address)
                 .collect::<HashSet<_>>(),
         );
+
+        let all_tokens = storage
+            .tokens_web3_dal()
+            .get_all_tokens(None)
+            .await
+            .unwrap();
+        assert_eq!(all_tokens.len(), 2);
+        assert!(all_tokens.contains(&tokens[0]));
+        assert!(all_tokens.contains(&tokens[1]));
 
         for token in &tokens {
             storage
@@ -179,5 +182,162 @@ mod tests {
         assert_eq!(well_known_tokens.len(), 2);
         assert!(well_known_tokens.contains(&tokens[0]));
         assert!(well_known_tokens.contains(&tokens[1]));
+    }
+
+    #[tokio::test]
+    async fn rolling_back_tokens() {
+        let pool = ConnectionPool::test_pool().await;
+        let mut storage = pool.access_storage().await.unwrap();
+
+        let eth_info = eth_token_info();
+        let eth_deployment_log =
+            StorageLog::new_write_log(get_code_key(&eth_info.l2_address), H256::repeat_byte(1));
+        storage
+            .storage_logs_dal()
+            .insert_storage_logs(
+                MiniblockNumber(0),
+                &[(H256::zero(), vec![eth_deployment_log])],
+            )
+            .await
+            .unwrap();
+        storage
+            .tokens_dal()
+            .add_tokens(slice::from_ref(&eth_info))
+            .await
+            .unwrap();
+
+        let test_info = test_token_info();
+        let test_deployment_log =
+            StorageLog::new_write_log(get_code_key(&test_info.l2_address), H256::repeat_byte(2));
+        storage
+            .storage_logs_dal()
+            .insert_storage_logs(
+                MiniblockNumber(2),
+                &[(H256::zero(), vec![test_deployment_log])],
+            )
+            .await
+            .unwrap();
+        storage
+            .tokens_dal()
+            .add_tokens(slice::from_ref(&test_info))
+            .await
+            .unwrap();
+
+        test_getting_all_tokens(&mut storage).await;
+
+        storage
+            .tokens_dal()
+            .rollback_tokens(MiniblockNumber(2))
+            .await
+            .unwrap();
+        // Should be a no-op.
+        assert_eq!(
+            storage
+                .tokens_dal()
+                .get_all_l2_token_addresses()
+                .await
+                .unwrap(),
+            [eth_info.l2_address, test_info.l2_address]
+        );
+
+        storage
+            .tokens_dal()
+            .rollback_tokens(MiniblockNumber(1))
+            .await
+            .unwrap();
+        // The custom token should be removed; Ether shouldn't.
+        assert_eq!(
+            storage
+                .tokens_dal()
+                .get_all_l2_token_addresses()
+                .await
+                .unwrap(),
+            [eth_info.l2_address]
+        );
+    }
+
+    async fn test_getting_all_tokens(storage: &mut StorageProcessor<'_>) {
+        for at_miniblock in [None, Some(MiniblockNumber(2)), Some(MiniblockNumber(100))] {
+            let all_tokens = storage
+                .tokens_web3_dal()
+                .get_all_tokens(at_miniblock)
+                .await
+                .unwrap();
+            assert_eq!(all_tokens.len(), 2);
+            assert!(all_tokens.contains(&eth_token_info()));
+            assert!(all_tokens.contains(&test_token_info()));
+        }
+
+        for at_miniblock in [MiniblockNumber(0), MiniblockNumber(1)] {
+            let all_tokens = storage
+                .tokens_web3_dal()
+                .get_all_tokens(Some(at_miniblock))
+                .await
+                .unwrap();
+            assert_eq!(all_tokens, [eth_token_info()]);
+        }
+    }
+
+    #[tokio::test]
+    async fn rolling_back_tokens_with_failed_deployment() {
+        let pool = ConnectionPool::test_pool().await;
+        let mut storage = pool.access_storage().await.unwrap();
+
+        let test_info = test_token_info();
+
+        // Emulate failed deployment.
+        let failed_deployment_log = StorageLog::new_write_log(
+            get_code_key(&test_info.l2_address),
+            FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH,
+        );
+        storage
+            .storage_logs_dal()
+            .insert_storage_logs(
+                MiniblockNumber(1),
+                &[(H256::zero(), vec![failed_deployment_log])],
+            )
+            .await
+            .unwrap();
+
+        let test_deployment_log =
+            StorageLog::new_write_log(get_code_key(&test_info.l2_address), H256::repeat_byte(2));
+        storage
+            .storage_logs_dal()
+            .insert_storage_logs(
+                MiniblockNumber(100),
+                &[(H256::zero(), vec![test_deployment_log])],
+            )
+            .await
+            .unwrap();
+        storage
+            .tokens_dal()
+            .add_tokens(slice::from_ref(&test_info))
+            .await
+            .unwrap();
+
+        // Sanity check: before rollback the token must be present.
+        assert_eq!(
+            storage
+                .tokens_dal()
+                .get_all_l2_token_addresses()
+                .await
+                .unwrap(),
+            [test_info.l2_address]
+        );
+
+        storage
+            .tokens_dal()
+            .rollback_tokens(MiniblockNumber(99))
+            .await
+            .unwrap();
+        // Token must be removed despite it's failed deployment being earlier than the last retained miniblock.
+        assert_eq!(
+            storage
+                .tokens_dal()
+                .get_all_l2_token_addresses()
+                .await
+                .unwrap(),
+            []
+        );
     }
 }

@@ -11,7 +11,7 @@ use zksync_types::{
     l2::L2Tx,
     protocol_version::ProtocolUpgradeTx,
     tx::{tx_execution_info::TxExecutionStatus, TransactionExecutionResult},
-    vm_trace::{Call, VmExecutionTrace},
+    vm_trace::Call,
     Address, ExecuteTransactionCommon, L1BatchNumber, L1BlockNumber, MiniblockNumber, PriorityOpId,
     Transaction, H256, PROTOCOL_UPGRADE_TX_TYPE, U256,
 };
@@ -1071,48 +1071,6 @@ impl TransactionsDal<'_, '_> {
             .and_then(|row| row.op_id)
             .map(|value| PriorityOpId((value + 1) as u64))
             .unwrap_or_default()
-        }
-    }
-
-    pub async fn insert_trace(&mut self, hash: H256, trace: VmExecutionTrace) {
-        {
-            sqlx::query!(
-                r#"
-                INSERT INTO
-                    transaction_traces (tx_hash, trace, created_at, updated_at)
-                VALUES
-                    ($1, $2, NOW(), NOW())
-                "#,
-                hash.as_bytes(),
-                serde_json::to_value(trace).unwrap()
-            )
-            .execute(self.storage.conn())
-            .await
-            .unwrap();
-        }
-    }
-
-    pub async fn get_trace(&mut self, hash: H256) -> Option<VmExecutionTrace> {
-        {
-            let trace = sqlx::query!(
-                r#"
-                SELECT
-                    trace
-                FROM
-                    transaction_traces
-                WHERE
-                    tx_hash = $1
-                "#,
-                hash.as_bytes()
-            )
-            .fetch_optional(self.storage.conn())
-            .await
-            .unwrap()
-            .map(|record| record.trace);
-            trace.map(|trace| {
-                serde_json::from_value(trace)
-                    .unwrap_or_else(|_| panic!("invalid trace json in database for {:?}", hash))
-            })
         }
     }
 

@@ -2,15 +2,20 @@
 //! This example defines a `ResourceProvider` that works using the main node env config, and
 //! initializes a single task with a health check server.
 
+use anyhow::Context;
 use zksync_config::{
-    configs::chain::{MempoolConfig, NetworkConfig, OperationsManagerConfig, StateKeeperConfig},
-    ApiConfig, ContractsConfig, DBConfig, ETHClientConfig, GasAdjusterConfig, ObjectStoreConfig,
-    PostgresConfig,
+    configs::{
+        chain::{MempoolConfig, NetworkConfig, OperationsManagerConfig, StateKeeperConfig},
+        ObservabilityConfig,
+    },
+    ApiConfig, ContractsConfig, DBConfig, ETHClientConfig, ETHWatchConfig, GasAdjusterConfig,
+    ObjectStoreConfig, PostgresConfig,
 };
 use zksync_core::metadata_calculator::MetadataCalculatorConfig;
 use zksync_env_config::FromEnv;
 use zksync_node_framework::{
     implementations::layers::{
+        eth_watch::EthWatchLayer,
         fee_input::SequencerFeeInputLayer,
         healtcheck_server::HealthCheckLayer,
         metadata_calculator::MetadataCalculatorLayer,
@@ -98,6 +103,14 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
+    fn add_eth_watch_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(EthWatchLayer::new(
+            ETHWatchConfig::from_env()?,
+            ContractsConfig::from_env()?,
+        ));
+        Ok(self)
+    }
+
     fn add_healthcheck_layer(mut self) -> anyhow::Result<Self> {
         let healthcheck_config = ApiConfig::from_env()?.healthcheck;
         self.node.add_layer(HealthCheckLayer(healthcheck_config));
@@ -110,8 +123,12 @@ impl MainNodeBuilder {
 }
 
 fn main() -> anyhow::Result<()> {
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let log_format = vlog::log_format_from_env();
+    let observability_config =
+        ObservabilityConfig::from_env().context("ObservabilityConfig::from_env()")?;
+    let log_format: vlog::LogFormat = observability_config
+        .log_format
+        .parse()
+        .context("Invalid log format")?;
     let _guard = vlog::ObservabilityBuilder::new()
         .with_log_format(log_format)
         .build();
@@ -123,6 +140,7 @@ fn main() -> anyhow::Result<()> {
         .add_object_store_layer()?
         .add_metadata_calculator_layer()?
         .add_state_keeper_layer()?
+        .add_eth_watch_layer()?
         .add_healthcheck_layer()?
         .build()
         .run()?;
