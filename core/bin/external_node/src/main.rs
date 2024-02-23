@@ -8,7 +8,7 @@ use prometheus_exporter::PrometheusExporterConfig;
 use tokio::{sync::watch, task, time::sleep};
 use zksync_basic_types::{Address, L2ChainId};
 use zksync_concurrency::{ctx, scope};
-use zksync_config::configs::database::MerkleTreeMode;
+use zksync_config::configs::{chain::L1BatchCommitDataGeneratorMode, database::MerkleTreeMode};
 use zksync_core::{
     api_server::{
         execution_sandbox::VmConcurrencyLimiter,
@@ -37,7 +37,10 @@ use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
 use zksync_health_check::{CheckHealth, HealthStatus, ReactiveHealthCheck};
 use zksync_state::PostgresStorageCaches;
 use zksync_storage::RocksDB;
-use zksync_types::l1_batch_commit_data_generator::RollupModeL1BatchCommitDataGenerator;
+use zksync_types::l1_batch_commit_data_generator::{
+    L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
+    ValidiumModeL1BatchCommitDataGenerator,
+};
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 
 use crate::{
@@ -241,6 +244,7 @@ async fn init_tasks(
     healthchecks.push(Box::new(metadata_calculator.tree_health_check()));
 
     let l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator> = match config
+        .optional
         .l1_batch_commit_data_generator_mode
     {
         L1BatchCommitDataGeneratorMode::Rollup => Arc::new(RollupModeL1BatchCommitDataGenerator {}),
