@@ -420,13 +420,14 @@ impl ZksNamespace {
             .context("get_transaction_details")?;
         drop(storage);
 
-        if let Some(proxy) = &self.state.tx_sender.0.proxy {
-            // We're running an external node - we should query the main node directly
-            // in case the transaction was proxied but not yet synced back to us
-            if tx_details.is_none() {
-                // If the transaction is not in the db, query main node for details
-                tx_details = proxy.request_tx_details(hash).await?;
-            }
+        if tx_details.is_none() {
+            tx_details = self
+                .state
+                .tx_sender
+                .0
+                .tx_sink // FIXME: add getter in `state`
+                .lookup_tx_details(hash)
+                .await?;
         }
         Ok(tx_details)
     }
