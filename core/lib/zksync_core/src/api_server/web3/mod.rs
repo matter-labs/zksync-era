@@ -427,11 +427,6 @@ impl FullApiParams {
         );
 
         let mut tasks = vec![tokio::spawn(update_task)];
-        if let Some(tx_proxy) = &self.tx_sender.0.proxy {
-            let task = tx_proxy
-                .run_account_nonce_sweeper(self.updaters_pool.clone(), stop_receiver.clone());
-            tasks.push(tokio::spawn(task));
-        }
         let pub_sub = if matches!(transport, ApiTransport::WebSocket(_))
             && self.namespaces.contains(&Namespace::Pubsub)
         {
