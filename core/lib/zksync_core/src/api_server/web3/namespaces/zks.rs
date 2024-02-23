@@ -17,8 +17,8 @@ use zksync_types::{
     l2_to_l1_log::L2ToL1Log,
     tokens::ETHEREUM_ADDRESS,
     transaction_request::CallRequest,
-    AccountTreeId, L1BatchNumber, MiniblockNumber, StorageKey, Transaction, L1_MESSENGER_ADDRESS,
-    L2_ETH_TOKEN_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
+    AccountTreeId, Bytes, L1BatchNumber, MiniblockNumber, StorageKey, Transaction,
+    L1_MESSENGER_ADDRESS, L2_ETH_TOKEN_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
 };
 use zksync_utils::{address_to_h256, ratio_to_big_decimal_normalized};
 use zksync_web3_decl::{
@@ -645,7 +645,7 @@ impl ZksNamespace {
     pub async fn get_batch_pubdata_impl(
         &self,
         l1_batch_number: L1BatchNumber,
-    ) -> Result<Option<Vec<u8>>, Web3Error> {
+    ) -> Result<Option<Bytes>, Web3Error> {
         const METHOD_NAME: &str = "get_batch_pubdata";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
@@ -656,7 +656,8 @@ impl ZksNamespace {
             .get_l1_batch_metadata(l1_batch_number)
             .await
             .unwrap_or(None);
-        let pubdata = l1_batch_with_metadata.map(|b| L1BatchWithMetadata::construct_pubdata(&b));
+        let pubdata =
+            l1_batch_with_metadata.map(|b| L1BatchWithMetadata::construct_pubdata(&b).into());
 
         method_latency.observe();
         Ok(pubdata)

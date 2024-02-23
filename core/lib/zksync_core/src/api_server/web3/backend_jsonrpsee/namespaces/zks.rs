@@ -9,7 +9,7 @@ use zksync_types::{
     fee::Fee,
     fee_model::FeeParams,
     transaction_request::CallRequest,
-    Address, L1BatchNumber, MiniblockNumber, H256, U256, U64,
+    Address, Bytes, L1BatchNumber, MiniblockNumber, H256, U256, U64,
 };
 use zksync_web3_decl::{
     jsonrpsee::core::{async_trait, RpcResult},
@@ -169,10 +169,7 @@ impl ZksNamespaceServer for ZksNamespace {
             .map_err(into_jsrpc_error)
     }
 
-    async fn get_batch_pubdata(
-        &self,
-        l1_batch_number: L1BatchNumber,
-    ) -> RpcResult<Option<Vec<u8>>> {
+    async fn get_batch_pubdata(&self, l1_batch_number: L1BatchNumber) -> RpcResult<Option<Bytes>> {
         self.get_batch_pubdata_impl(l1_batch_number)
             .await
             .map_err(into_jsrpc_error)
