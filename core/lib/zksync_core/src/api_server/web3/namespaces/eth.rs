@@ -408,9 +408,7 @@ impl EthNamespace {
                 .map_err(|err| anyhow::anyhow!("nonce conversion failed: {err}"))?;
             account_nonce = if let Some(account_nonce) = self
                 .state
-                .tx_sender
-                .0
-                .tx_sink
+                .tx_sink()
                 .lookup_pending_nonce(address, account_nonce_u64 as u32)
                 .await?
             {
@@ -443,7 +441,7 @@ impl EthNamespace {
             .context("get_transaction")?;
 
         if transaction.is_none() {
-            transaction = self.state.tx_sender.0.tx_sink.lookup_tx(id).await?;
+            transaction = self.state.tx_sink().lookup_tx(id).await?;
         }
         Ok(transaction)
     }

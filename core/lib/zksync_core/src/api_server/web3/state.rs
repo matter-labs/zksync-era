@@ -28,7 +28,7 @@ use crate::{
     api_server::{
         execution_sandbox::{BlockArgs, BlockArgsError, BlockStartInfo},
         tree::TreeApiHttpClient,
-        tx_sender::TxSender,
+        tx_sender::{tx_sink::TxSink, TxSender},
     },
     sync_layer::SyncState,
 };
@@ -230,6 +230,10 @@ impl RpcState {
         } else {
             MiniblockNumber(n.as_u32())
         }
+    }
+
+    pub(crate) fn tx_sink(&self) -> &dyn TxSink {
+        self.tx_sender.0.tx_sink.as_ref()
     }
 
     pub(crate) async fn resolve_block(

@@ -421,13 +421,7 @@ impl ZksNamespace {
         drop(storage);
 
         if tx_details.is_none() {
-            tx_details = self
-                .state
-                .tx_sender
-                .0
-                .tx_sink // FIXME: add getter in `state`
-                .lookup_tx_details(hash)
-                .await?;
+            tx_details = self.state.tx_sink().lookup_tx_details(hash).await?;
         }
         Ok(tx_details)
     }
