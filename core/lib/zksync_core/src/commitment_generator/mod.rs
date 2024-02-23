@@ -8,6 +8,10 @@ use tokio::{sync::watch, task::JoinHandle};
 use zksync_commitment_utils::{bootloader_initial_content_commitment, events_queue_commitment};
 use zksync_dal::ConnectionPool;
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
+use zksync_l1_contract_interface::i_executor::{
+    commit::kzg::{KzgInfo, ZK_SYNC_BYTES_PER_BLOB},
+    structures::load_kzg_settings,
+};
 use zksync_types::{
     commitment::{AuxCommitments, CommitmentCommonInput, CommitmentInput, L1BatchCommitment},
     writes::{InitialStorageWrite, RepeatedStorageWrite, StateDiffRecord},
@@ -210,11 +214,32 @@ impl CommitmentGenerator {
             }
             state_diffs.sort_unstable_by_key(|rec| (rec.address, rec.key));
 
+            let kzg_settings = load_kzg_settings();
+
+            let blob_commitments = if protocol_version.is_post_1_4_2() {
+                let blob_commitments = header
+                    .pubdata_input
+                    .expect("pubdata_input must be present for post 1.4.2 batches")
+                    .chunks(ZK_SYNC_BYTES_PER_BLOB)
+                    .map(|blob| {
+                        let kzg_info = KzgInfo::new(&kzg_settings, blob.to_vec());
+                        H256(kzg_info.to_blob_commitment())
+                    })
+                    .collect::<Vec<_>>();
+                [
+                    blob_commitments.get(0).copied().unwrap_or_default(),
+                    blob_commitments.get(1).copied().unwrap_or_default(),
+                ]
+            } else {
+                [H256::zero(), H256::zero()]
+            };
+
             CommitmentInput::PostBoojum {
                 common,
                 system_logs: header.system_logs,
                 state_diffs,
                 aux_commitments,
+                blob_commitments,
             }
         };
 

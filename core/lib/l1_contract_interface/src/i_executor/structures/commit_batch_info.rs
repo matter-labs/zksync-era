@@ -1,3 +1,5 @@
+use once_cell::sync::Lazy;
+use zkevm_test_harness_1_4_1::kzg::KzgSettings;
 use zksync_types::{
     commitment::{pre_boojum_serialize_commitments, serialize_commitments, L1BatchWithMetadata},
     ethabi::Token,
@@ -6,6 +8,16 @@ use zksync_types::{
 };
 
 use crate::Tokenizable;
+
+/// Loads KZG settings from the file system.
+pub fn load_kzg_settings() -> KzgSettings {
+    static KZG_SETTINGS: Lazy<KzgSettings> = Lazy::new(|| {
+        let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
+        let path = std::path::Path::new(&zksync_home).join("trusted_setup.json");
+        KzgSettings::new(path.to_str().unwrap())
+    });
+    KZG_SETTINGS.clone()
+}
 
 /// Encoding for `CommitBatchInfo` from `IExecutor.sol`
 #[derive(Debug)]

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{commitment::SerializeCommitment, Address, H256};
+use crate::{commitment::SerializeCommitment, Address, ProtocolVersionId, H256};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default, Eq)]
 pub struct L2ToL1Log {
@@ -24,14 +24,6 @@ pub struct UserL2ToL1Log(pub L2ToL1Log);
 pub struct SystemL2ToL1Log(pub L2ToL1Log);
 
 impl L2ToL1Log {
-    /// Determines the minimum number of items in the Merkle tree built from L2-to-L1 logs
-    /// for a certain batch.
-    pub const MIN_L2_L1_LOGS_TREE_SIZE: usize = 2048;
-
-    /// Determines the minimum number of items in the Merkle tree built from L2-to-L1 logs
-    /// for a pre-boojum batch.
-    pub const PRE_BOOJUM_MIN_L2_L1_LOGS_TREE_SIZE: usize = 512;
-
     pub fn from_slice(data: &[u8]) -> Self {
         assert_eq!(data.len(), Self::SERIALIZED_SIZE);
         Self {
@@ -41,6 +33,22 @@ impl L2ToL1Log {
             sender: Address::from_slice(&data[4..24]),
             key: H256::from_slice(&data[24..56]),
             value: H256::from_slice(&data[56..88]),
+        }
+    }
+
+    /// Returns the minimum number of items in the Merkle tree built from L2-to-L1 logs
+    /// for a certain protocol version.
+    pub fn min_tree_size(protocol_version: ProtocolVersionId) -> usize {
+        pub const PRE_BOOJUM_MIN_L2_L1_LOGS_TREE_SIZE: usize = 512;
+        pub const VM_1_4_0_MIN_L2_L1_LOGS_TREE_SIZE: usize = 2048;
+        pub const VM_1_4_2_MIN_L2_L1_LOGS_TREE_SIZE: usize = 4096;
+
+        if protocol_version.is_pre_boojum() {
+            PRE_BOOJUM_MIN_L2_L1_LOGS_TREE_SIZE
+        } else if protocol_version.is_1_4_0() || protocol_version.is_1_4_1() {
+            VM_1_4_0_MIN_L2_L1_LOGS_TREE_SIZE
+        } else {
+            VM_1_4_2_MIN_L2_L1_LOGS_TREE_SIZE
         }
     }
 

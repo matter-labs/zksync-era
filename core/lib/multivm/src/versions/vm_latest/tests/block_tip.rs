@@ -10,7 +10,7 @@ use zksync_system_constants::{
 };
 use zksync_types::{
     commitment::SerializeCommitment, get_code_key, l2_to_l1_log::L2ToL1Log,
-    writes::StateDiffRecord, Address, Execute, H256, U256,
+    writes::StateDiffRecord, Address, Execute, ProtocolVersionId, H256, U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256};
 
@@ -209,7 +209,7 @@ fn test_dry_run_upper_bound() {
     // 4. Lots of storage slot updates.
 
     let max_logs = execute_test(L1MessengerTestData {
-        l2_to_l1_logs: L2ToL1Log::MIN_L2_L1_LOGS_TREE_SIZE,
+        l2_to_l1_logs: L2ToL1Log::min_tree_size(ProtocolVersionId::Version20),
         ..Default::default()
     });
 
