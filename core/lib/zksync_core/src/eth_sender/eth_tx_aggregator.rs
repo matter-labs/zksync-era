@@ -467,13 +467,10 @@ impl EthTxAggregator {
         let mut transaction = storage.start_transaction().await.unwrap();
         let op_type = aggregated_op.get_action_type();
         let sender_addr = match op_type {
-            AggregatedActionType::Commit => {
-                self.get_next_nonce(&mut transaction, self.custom_commit_sender_addr)
-                    .await?
-            }
-            _ => self.get_next_nonce(&mut transaction, None).await?,
+            AggregatedActionType::Commit => self.custom_commit_sender_addr,
+            _ => None,
         };
-        let nonce = self.get_next_nonce(&mut transaction, None).await?;
+        let nonce = self.get_next_nonce(&mut transaction, sender_addr).await?;
         let calldata = self.encode_aggregated_op(aggregated_op, contracts_are_pre_shared_bridge);
         let l1_batch_number_range = aggregated_op.l1_batch_range();
 
