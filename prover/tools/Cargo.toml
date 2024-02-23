@@ -14,3 +14,4 @@ zksync_prover_fri_types = {path = "../prover_fri_types"}
 bincode = "1.0"
 colored = "2.0"
 zksync_prover_interface = { path = "../../core/lib/prover_interface" }
+hex = "0.4"

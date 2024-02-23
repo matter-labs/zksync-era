@@ -6,10 +6,6 @@ use tracing::level_filters::LevelFilter;
 use zksync_prover_fri_types::{
     circuit_definitions::{
         boojum::{
-            algebraic_props::{
-                round_function::AbsorptionModeOverwrite, sponge::GoldilocksPoseidon2Sponge,
-            },
-            cs::traits::circuit::Circuit,
             field::goldilocks::{GoldilocksExt2, GoldilocksField},
             gadgets::recursion::recursive_tree_hasher::CircuitGoldilocksPoseidon2Sponge,
         },
@@ -48,8 +44,6 @@ fn pretty_print_size_hint(size_hint: (Option<usize>, Option<usize>)) {
     );
 }
 
-//zksync_prover_fri_types::circuit_definitions::boojum::gadgets::round_function::CircuitSimpleAlgebraicSponge<zksync_prover_fri_types::circuit_definitions::boojum::field::goldilocks::GoldilocksField, 8, 12, 4, zksync_prover_fri_types::circuit_definitions::boojum::implementations::poseidon2::Poseidon2Goldilocks, true>, zksync_prover_fri_types::circuit_definitions::boojum::field::goldilocks::GoldilocksExt2>
-
 fn pretty_print_scheduler_witness(
     witness: &SchedulerCircuitInstanceWitness<
         GoldilocksField,
@@ -58,38 +52,37 @@ fn pretty_print_scheduler_witness(
     >,
 ) {
     println!("Scheduler witness info");
-    println!("Previous block data: ");
+    println!("  Previous block data: ");
     println!(
-        "Enumeration counter: {:?}",
+        "    Enumeration counter: {:?}",
         witness.prev_block_data.per_shard_states[0].enumeration_counter[0]
     );
     println!(
-        "State root: {:?}",
-        // TODO -- change into hex
-        witness.prev_block_data.per_shard_states[0].state_root
+        "    State root: 0x{}",
+        hex::encode(witness.prev_block_data.per_shard_states[0].state_root)
     );
 
-    println!("Block meta parameters");
+    println!("  Block meta parameters");
     println!(
-        "bootloader code hash: {:?}",
+        "    bootloader code hash: {:?}",
         witness.block_meta_parameters.bootloader_code_hash
     );
     println!(
-        "aa code hash: {:?}",
+        "    aa code hash: {:?}",
         witness.block_meta_parameters.default_aa_code_hash
     );
 
     println!(
-        "Previous block meta hash: {:?}",
-        witness.previous_block_meta_hash
+        "  Previous block meta hash: 0x{}",
+        hex::encode(witness.previous_block_meta_hash)
     );
     println!(
-        "Previous block aux hash: {:?}",
-        witness.previous_block_aux_hash
+        "  Previous block aux hash: 0x{}",
+        hex::encode(witness.previous_block_aux_hash)
     );
 
-    println!("EIP 4844 - witnesses: {:?}", witness.eip4844_witnesses);
-    println!("EIP 4844 - proofs: {:?}", witness.eip4844_proofs.len());
+    println!("  EIP 4844 - witnesses: {:?}", witness.eip4844_witnesses);
+    println!("  EIP 4844 - proofs: {:?}", witness.eip4844_proofs.len());
 }
 
 fn pretty_print_circuit_wrapper(circuit: &CircuitWrapper) {
@@ -162,8 +155,15 @@ fn pretty_print_circuit_wrapper(circuit: &CircuitWrapper) {
 }
 
 fn pretty_print_proof(result: &FriProofWrapper) {
+    println!("{}", format!("== FRI proof ==").bold());
     match result {
-        FriProofWrapper::Base(_) => todo!(),
+        FriProofWrapper::Base(proof) => {
+            println!(
+                "Basic proof {} {}",
+                proof.numeric_circuit_type(),
+                proof.short_description()
+            );
+        }
         FriProofWrapper::Recursive(proof) => {
             println!(
                 "Recursive proof {} {}",
@@ -175,28 +175,30 @@ fn pretty_print_proof(result: &FriProofWrapper) {
             println!("Proof config: {:?}", proof.proof_config);
             println!("Proof public inputs: {:?}", proof.public_inputs);
         }
-        FriProofWrapper::Eip4844(_) => todo!(),
+        FriProofWrapper::Eip4844(_) => {
+            println!("4844 blob proof",);
+        }
     }
 }
 
 fn pretty_print_l1_proof(result: &L1BatchProofForL1) {
-    println!("== Snark wrapped L1 proof ==");
+    println!("{}", format!("== Snark wrapped L1 proof ==").bold());
     println!("AUX info:");
     println!(
-        "  L1 msg linear hash: {:?}",
-        result.aggregation_result_coords[0]
+        "  L1 msg linear hash: 0x{}",
+        hex::encode(result.aggregation_result_coords[0])
     );
     println!(
-        "  Rollup_state_diff_for_compression: {:?}",
-        result.aggregation_result_coords[1]
+        "  Rollup_state_diff_for_compression: 0x{}",
+        hex::encode(result.aggregation_result_coords[1])
     );
     println!(
-        "  bootloader_heap_initial_content: {:?}",
-        result.aggregation_result_coords[2]
+        "  bootloader_heap_initial_content: 0x{}",
+        hex::encode(result.aggregation_result_coords[2])
     );
     println!(
-        "  events_queue_state: {:?}",
-        result.aggregation_result_coords[3]
+        "  events_queue_state: 0x{}",
+        hex::encode(result.aggregation_result_coords[3])
     );
 
     println!("Inputs: {:?}", result.scheduler_proof.inputs);
@@ -204,23 +206,36 @@ fn pretty_print_l1_proof(result: &L1BatchProofForL1) {
 }
 
 fn file_info(path: String) {
-    tracing::info!("Reading file {:?}", path);
+    println!(
+        "{}",
+        format!("Reading file {} and guessing the type.", path.bold())
+    );
 
     let bytes = fs::read(path).unwrap();
 
     // Parsing stuff from 'prover_jobs_fri' directory.
+    let maybe_circuit: Option<CircuitWrapper> = bincode::deserialize(&bytes).ok();
+    if let Some(circuit) = maybe_circuit {
+        println!("  Parsing file as CircuitWrapper.");
+        pretty_print_circuit_wrapper(&circuit);
+        return;
+    }
+    println!("  NOT a CircuitWrapper.");
+    let maybe_fri_proof: Option<FriProofWrapper> = bincode::deserialize(&bytes).ok();
+    if let Some(fri_proof) = maybe_fri_proof {
+        println!("  Parsing file as FriProofWrapper.");
+        pretty_print_proof(&fri_proof);
+        return;
+    }
+    println!("  NOT a FriProofWrapper.");
 
-    //let result: CircuitWrapper = bincode::deserialize(&bytes).unwrap();
-    //pretty_print_circuit_wrapper(&result);
-
-    // Now proofs themselves:
-
-    //let result: FriProofWrapper = bincode::deserialize(&bytes).unwrap();
-    //pretty_print_proof(&result)
-
-    // And final wrapped proof
-    let result: L1BatchProofForL1 = bincode::deserialize(&bytes).unwrap();
-    pretty_print_l1_proof(&result);
+    let maybe_snark_proof: Option<L1BatchProofForL1> = bincode::deserialize(&bytes).ok();
+    if let Some(snark_proof) = maybe_snark_proof {
+        println!("  Parsing file as L1BatchProofForL1.");
+        pretty_print_l1_proof(&snark_proof)
+    } else {
+        println!("  NOT a L1BatchProof.");
+    }
 }
 
 fn main() {

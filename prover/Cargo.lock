@@ -5796,6 +5796,7 @@ dependencies = [
  "bincode",
  "clap 4.4.6",
  "colored",
+ "hex",
  "tracing",
  "tracing-subscriber",
  "zksync_prover_fri_types",
