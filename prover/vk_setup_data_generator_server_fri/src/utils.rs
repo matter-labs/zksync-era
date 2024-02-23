@@ -1,8 +1,11 @@
 use anyhow::Context as _;
-use circuit_definitions::circuit_definitions::aux_layer::ZkSyncSnarkWrapperCircuit;
-use circuit_definitions::snark_wrapper::franklin_crypto::bellman::compact_bn256::Fq;
-use circuit_definitions::snark_wrapper::franklin_crypto::bellman::pairing::bn256::Bn256;
-
+use circuit_definitions::{
+    circuit_definitions::aux_layer::ZkSyncSnarkWrapperCircuit,
+    snark_wrapper::franklin_crypto::bellman::{
+        compact_bn256::Fq, pairing::bn256::Bn256,
+        plonk::better_better_cs::setup::VerificationKey as SnarkVK,
+    },
+};
 use sha3::Digest;
 use zkevm_test_harness::{
     franklin_crypto::bellman::{CurveAffine, PrimeField, PrimeFieldRepr},
@@ -16,8 +19,6 @@ use zksync_prover_fri_types::circuit_definitions::{
         scheduler::aux::BaseLayerCircuitType,
     },
 };
-
-use circuit_definitions::snark_wrapper::franklin_crypto::bellman::plonk::better_better_cs::setup::VerificationKey as SnarkVK;
 use zksync_types::H256;
 
 use crate::keystore::Keystore;
@@ -115,9 +116,7 @@ pub fn calculate_snark_vk_hash(keystore: &Keystore) -> anyhow::Result<H256> {
 
 #[cfg(test)]
 mod tests {
-    use std::env;
-    use std::path::PathBuf;
-    use std::str::FromStr;
+    use std::{env, path::PathBuf, str::FromStr};
 
     use super::*;
 
@@ -130,7 +129,6 @@ mod tests {
             let basepath = path_to_input.join(format!("{}", version));
             let keystore = Keystore::new_with_optional_setup_path(
                 basepath.as_os_str().to_str().unwrap().to_string(),
-                //"/ssd_storage/matter-public/zksync-era/prover/vk_setup_data_generator_server_fri/historical_data"
                 None,
             );
 
