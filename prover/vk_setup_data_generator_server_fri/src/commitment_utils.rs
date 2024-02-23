@@ -3,7 +3,6 @@ use std::str::FromStr;
 use anyhow::Context as _;
 use hex::ToHex;
 use once_cell::sync::Lazy;
-use serde::{Deserialize, Serialize};
 use structopt::lazy_static::lazy_static;
 use zkevm_test_harness::witness::recursive_aggregation::{
     compute_leaf_vks_and_params_commitment, compute_node_vk_commitment,
@@ -30,8 +29,6 @@ lazy_static! {
 
 fn circuit_commitments(keystore: &Keystore) -> anyhow::Result<L1VerifierConfig> {
     let commitments = generate_commitments(keystore).context("generate_commitments()")?;
-    let snark_wrapper_vk = std::env::var("CONTRACTS_SNARK_WRAPPER_VK_HASH")
-        .context("SNARK wrapper VK not found in the config")?;
     Ok(L1VerifierConfig {
         params: VerifierParams {
             recursion_node_level_vk_hash: H256::from_str(&commitments.node)
@@ -47,9 +44,7 @@ fn circuit_commitments(keystore: &Keystore) -> anyhow::Result<L1VerifierConfig> 
         // prover jobs / witgen jobs from the DB. The keys are matched with the ones in
         // `prover_fri_protocol_versions` table, which has the SNARK-wrapper verification key.
         // This is OK because if the FRI VK changes, the SNARK-wrapper VK will change as well.
-        // You can actually compute the SNARK-wrapper VK from the FRI VK, but this is not yet
-        // implemented in the `zkevm_test_harness`, so instead we're loading it from the env.
-        recursion_scheduler_level_vk_hash: H256::from_str(&snark_wrapper_vk)
+        recursion_scheduler_level_vk_hash: H256::from_str(&commitments.snark_wrapper)
             .context("invalid SNARK wrapper VK")?,
     })
 }
