@@ -41,6 +41,7 @@ pub trait MultiVMTracer<S: WriteStorage, H: HistoryMode>:
     + IntoVmVirtualBlocksTracer<S, H>
     + IntoVmRefundsEnhancementTracer<S, H>
     + IntoVmBoojumIntegrationTracer<S, H>
+    + IntoVm1_4_1IntegrationTracer<S, H>
     + IntoOldVmTracer
 {
     fn into_tracer_pointer(self) -> MultiVmTracerPointer<S, H>
@@ -52,7 +53,7 @@ pub trait MultiVMTracer<S: WriteStorage, H: HistoryMode>:
 }
 
 pub trait IntoLatestTracer<S: WriteStorage, H: HistoryMode> {
-    fn latest(&self) -> crate::vm_latest::TracerPointer<S, H::Vm1_4_1>;
+    fn latest(&self) -> crate::vm_latest::TracerPointer<S, H::Vm1_4_2>;
 }
 
 pub trait IntoVmVirtualBlocksTracer<S: WriteStorage, H: HistoryMode> {
@@ -73,6 +74,10 @@ pub trait IntoVmBoojumIntegrationTracer<S: WriteStorage, H: HistoryMode> {
     ) -> Box<dyn crate::vm_boojum_integration::VmTracer<S, H::VmBoojumIntegration>>;
 }
 
+pub trait IntoVm1_4_1IntegrationTracer<S: WriteStorage, H: HistoryMode> {
+    fn vm_1_4_1(&self) -> Box<dyn crate::vm_1_4_1::VmTracer<S, H::Vm1_4_1>>;
+}
+
 /// Into tracers for old VM versions.
 /// Even though number of tracers is limited, we still need to have this trait to be able to convert
 /// tracers to old VM tracers.
@@ -89,9 +94,9 @@ impl<S, T, H> IntoLatestTracer<S, H> for T
 where
     S: WriteStorage,
     H: HistoryMode,
-    T: crate::vm_latest::VmTracer<S, H::Vm1_4_1> + Clone + 'static,
+    T: crate::vm_latest::VmTracer<S, H::Vm1_4_2> + Clone + 'static,
 {
-    fn latest(&self) -> crate::vm_latest::TracerPointer<S, H::Vm1_4_1> {
+    fn latest(&self) -> crate::vm_latest::TracerPointer<S, H::Vm1_4_2> {
         Box::new(self.clone())
     }
 }
@@ -138,6 +143,17 @@ where
     }
 }
 
+impl<S, T, H> IntoVm1_4_1IntegrationTracer<S, H> for T
+where
+    S: WriteStorage,
+    H: HistoryMode,
+    T: crate::vm_1_4_1::VmTracer<S, H::Vm1_4_1> + Clone + 'static,
+{
+    fn vm_1_4_1(&self) -> Box<dyn crate::vm_1_4_1::VmTracer<S, H::Vm1_4_1>> {
+        Box::new(self.clone())
+    }
+}
+
 impl<S, H, T> MultiVMTracer<S, H> for T
 where
     S: WriteStorage,
@@ -146,6 +162,7 @@ where
         + IntoVmVirtualBlocksTracer<S, H>
         + IntoVmRefundsEnhancementTracer<S, H>
         + IntoVmBoojumIntegrationTracer<S, H>
+        + IntoVm1_4_1IntegrationTracer<S, H>
         + IntoOldVmTracer,
 {
 }

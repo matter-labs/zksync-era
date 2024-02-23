@@ -25,7 +25,7 @@ use self::{
     metrics::{PollStage, METRICS},
 };
 
-mod client;
+pub mod client;
 mod event_processors;
 mod metrics;
 #[cfg(test)]
@@ -45,6 +45,7 @@ pub struct EthWatch {
     event_processors: Vec<Box<dyn EventProcessor>>,
 
     last_processed_ethereum_block: u64,
+    pool: ConnectionPool,
 }
 
 impl EthWatch {
@@ -52,7 +53,7 @@ impl EthWatch {
         diamond_proxy_address: Address,
         governance_contract: Option<Contract>,
         mut client: Box<dyn EthClient>,
-        pool: &ConnectionPool,
+        pool: ConnectionPool,
         poll_interval: Duration,
     ) -> Self {
         let mut storage = pool.access_storage_tagged("eth_watch").await.unwrap();
@@ -60,6 +61,8 @@ impl EthWatch {
         let state = Self::initialize_state(&*client, &mut storage).await;
 
         tracing::info!("initialized state: {:?}", state);
+
+        drop(storage);
 
         let priority_ops_processor =
             PriorityOpsEventProcessor::new(state.next_expected_priority_id);
@@ -89,6 +92,7 @@ impl EthWatch {
             poll_interval,
             event_processors,
             last_processed_ethereum_block: state.last_processed_ethereum_block,
+            pool,
         }
     }
 
@@ -131,12 +135,9 @@ impl EthWatch {
         }
     }
 
-    pub async fn run(
-        &mut self,
-        pool: ConnectionPool,
-        stop_receiver: watch::Receiver<bool>,
-    ) -> anyhow::Result<()> {
+    pub async fn run(mut self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let mut timer = tokio::time::interval(self.poll_interval);
+        let pool = self.pool.clone();
         loop {
             if *stop_receiver.borrow() {
                 tracing::info!("Stop signal received, eth_watch is shutting down");
@@ -203,16 +204,14 @@ pub async fn start_eth_watch(
         config.confirmations_for_eth_event,
     );
 
-    let mut eth_watch = EthWatch::new(
+    let eth_watch = EthWatch::new(
         diamond_proxy_addr,
         Some(governance.0),
         Box::new(eth_client),
-        &pool,
+        pool,
         config.poll_interval(),
     )
     .await;
 
-    Ok(tokio::spawn(async move {
-        eth_watch.run(pool, stop_receiver).await
-    }))
+    Ok(tokio::spawn(eth_watch.run(stop_receiver)))
 }

@@ -3,6 +3,7 @@ pub mod gpu_prover {
     use std::{collections::HashMap, sync::Arc, time::Instant};
 
     use anyhow::Context as _;
+    use circuit_definitions::eip4844_proof_config;
     use shivini::{gpu_prove_from_external_witness_data, ProverContext};
     use tokio::task::JoinHandle;
     use zksync_config::configs::{fri_prover_group::FriProverGroupConfig, FriProverConfig};
@@ -137,6 +138,10 @@ pub mod gpu_prover {
                     base_layer_proof_config(),
                     recursive_circuit.numeric_circuit_type(),
                 ),
+                CircuitWrapper::Eip4844(_) => (
+                    eip4844_proof_config(),
+                    ProverServiceDataKey::eip4844().circuit_id,
+                ),
             };
 
             let started_at = Instant::now();
@@ -180,6 +185,7 @@ pub mod gpu_prover {
                 CircuitWrapper::Recursive(_) => FriProofWrapper::Recursive(
                     ZkSyncRecursionLayerProof::from_inner(circuit_id, proof),
                 ),
+                CircuitWrapper::Eip4844(_) => FriProofWrapper::Eip4844(proof),
             };
             ProverArtifacts::new(prover_job.block_number, proof_wrapper)
         }

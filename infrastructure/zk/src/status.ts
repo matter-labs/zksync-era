@@ -5,7 +5,8 @@ import { ethers } from 'ethers';
 import { assert } from 'console';
 
 // Postgres connection pool - must be initialized later - as the ENV variables are set later.
-let pool: Pool | null = null;
+let main_pool: Pool | null = null;
+let prover_pool: Pool | null = null;
 
 const GETTER_ABI = [
     'function getTotalBatchesCommitted() view returns (uint256)',
@@ -15,18 +16,20 @@ const GETTER_ABI = [
 
 const VERIFIER_ABI = ['function verificationKeyHash() view returns (bytes32)'];
 
-export async function query(text: string, params?: any[]): Promise<any> {
+export async function query(pool: Pool, text: string, params?: any[]): Promise<any> {
     const res = await pool!.query(text, params);
     return res;
 }
 
-async function queryAndReturnRows(text: string, params?: any[]): Promise<any> {
-    const result = await query(text, params);
+async function queryAndReturnRows(pool: Pool, text: string, params?: any[]): Promise<any> {
+    const result = await query(pool, text, params);
     return result.rows;
 }
 
 async function getProofProgress(l1_batch_number: number) {
-    const result = await query('select * from prover_jobs_fri where l1_batch_number = $1', [l1_batch_number]);
+    const result = await query(prover_pool!, 'select * from prover_jobs_fri where l1_batch_number = $1', [
+        l1_batch_number
+    ]);
 
     let successful = 0;
     let failed = 0;
@@ -50,9 +53,11 @@ async function getProofProgress(l1_batch_number: number) {
         }
     });
 
-    const compression_results = await query('select * from proof_compression_jobs_fri where l1_batch_number = $1', [
-        l1_batch_number
-    ]);
+    const compression_results = await query(
+        prover_pool!,
+        'select * from proof_compression_jobs_fri where l1_batch_number = $1',
+        [l1_batch_number]
+    );
 
     let compression_result_string = '';
     if (compression_results.rowCount == 0) {
@@ -102,7 +107,10 @@ async function compareVerificationKeys() {
         return;
     }
 
-    let protocol_version = await query('select recursion_scheduler_level_vk_hash from prover_fri_protocol_versions');
+    let protocol_version = await query(
+        prover_pool!,
+        'select recursion_scheduler_level_vk_hash from prover_fri_protocol_versions'
+    );
     if (protocol_version.rowCount != 1) {
         console.log(`${redStart}Got ${protocol_version.rowCount} rows with protocol versions, expected 1${resetColor}`);
         return;
@@ -135,6 +143,7 @@ async function compareVerificationParams() {
     }
 
     let protocol_version = await query(
+        prover_pool!,
         'select recursion_node_level_vk_hash, recursion_leaf_level_vk_hash, recursion_circuits_set_vks_hash from prover_fri_protocol_versions'
     );
     if (protocol_version.rowCount != 1) {
@@ -178,14 +187,18 @@ const resetColor = '\x1b[0m';
 export async function statusProver() {
     console.log('==== FRI Prover Status ====');
 
-    pool = new Pool({ connectionString: process.env.DATABASE_URL });
+    main_pool = new Pool({ connectionString: process.env.DATABASE_URL });
+    prover_pool = new Pool({ connectionString: process.env.DATABASE_PROVER_URL });
 
     if (process.env.ETH_SENDER_SENDER_PROOF_LOADING_MODE != 'FriProofFromGcs') {
         console.log(`${redStart}Can only show status for FRI provers.${resetColor}`);
         return;
     }
+
     // Fetch the first and most recent sealed batch numbers
-    const stateKeeperStatus = (await queryAndReturnRows('select min(number), max(number) from l1_batches'))[0];
+    const stateKeeperStatus = (
+        await queryAndReturnRows(main_pool, 'select min(number), max(number) from l1_batches')
+    )[0];
 
     console.log(`State keeper: First batch: ${stateKeeperStatus['min']}, recent batch: ${stateKeeperStatus['max']}`);
     const [blockCommitted, blockVerified] = await getL1ValidatorStatus();
@@ -200,6 +213,7 @@ export async function statusProver() {
             `${redStart}Eth sender is ${ethSenderLag} behind. Last block committed: ${blockCommitted}. Most recent sealed state keeper batch: ${stateKeeperStatus['max']}.${resetColor}`
         );
     }
+
     await compareVerificationKeys();
     await compareVerificationParams();
 
@@ -212,7 +226,7 @@ export async function statusProver() {
         i <= Math.min(nextBlockForVerification + 5, Number(stateKeeperStatus['max']));
         i += 1
     ) {
-        getProofProgress(i);
+        await getProofProgress(i);
     }
 }
 
