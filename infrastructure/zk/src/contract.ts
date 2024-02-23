@@ -3,12 +3,12 @@ import * as utils from './utils';
 import * as env from './env';
 import fs from 'fs';
 
-export async function build() {
+export const build = async (): Promise<void> => {
     await utils.spawn('yarn l1-contracts build');
     await utils.spawn('yarn l2-contracts build');
-}
+};
 
-export async function verifyL1Contracts() {
+export const verifyL1Contracts = async (): Promise<void> => {
     // Spawning a new script is expensive, so if we know that publishing is disabled, it's better to not launch
     // it at all (even though `verify` checks the network as well).
     if (process.env.CHAIN_ETH_NETWORK == 'localhost') {
@@ -16,9 +16,9 @@ export async function verifyL1Contracts() {
         return;
     }
     await utils.spawn('yarn l1-contracts verify');
-}
+};
 
-function updateContractsEnv(initEnv: string, deployLog: String, envVars: Array<string>) {
+const updateContractsEnv = (initEnv: string, deployLog: String, envVars: Array<string>): string => {
     let updatedContracts = '';
     for (const envVar of envVars) {
         const pattern = new RegExp(`${envVar}=.*`, 'g');
@@ -31,18 +31,19 @@ function updateContractsEnv(initEnv: string, deployLog: String, envVars: Array<s
     }
     env.reload();
     return updatedContracts;
-}
+};
 
-export async function initializeGovernance({ privateKey }: { privateKey?: string }) {
+export const initializeGovernance = async (): Promise<void> => {
     await utils.confirmAction();
 
+    const privateKey = process.env.GOVERNANCE_PRIVATE_KEY;
     const args = [privateKey ? `--private-key ${privateKey}` : ''];
 
     const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
     const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/l1-contracts` : `yarn l1-contracts`;
 
     await utils.spawn(`${baseCommandL1} initialize-governance ${args.join(' ')} | tee initializeGovernance.log`);
-}
+};
 
 export async function initializeL1AllowList(args: any[] = []) {
     await utils.confirmAction();
@@ -53,13 +54,13 @@ export async function initializeL1AllowList(args: any[] = []) {
     await utils.spawn(`${baseCommandL1} initialize-allow-list ${args.join(' ')} | tee initializeL1AllowList.log`);
 }
 
-export async function deployWeth(
+export const deployWeth = async (
     command: 'dev' | 'new',
     name?: string,
     symbol?: string,
     decimals?: string,
     args: any = []
-) {
+): Promise<void> => {
     let destinationFile = 'localhost';
     if (args.includes('--envFile')) {
         destinationFile = args[args.indexOf('--envFile') + 1];
@@ -75,9 +76,9 @@ export async function deployWeth(
         deployLog,
         l1DeploymentEnvVars
     );
-}
+};
 
-export async function deployL2(args: any[] = [], includePaymaster?: boolean) {
+export const deployL2 = async (args: any[] = [], includePaymaster?: boolean): Promise<void> => {
     await utils.confirmAction();
 
     const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
@@ -106,18 +107,13 @@ export async function deployL2(args: any[] = [], includePaymaster?: boolean) {
         'CONTRACTS_L2_DEFAULT_UPGRADE_ADDR'
     ];
     updateContractsEnv(`etc/env/l2-inits/${process.env.ZKSYNC_ENV!}.init.env`, l2DeployLog, l2DeploymentEnvVars);
-}
+};
 
 // for testnet and development purposes it is ok to deploy contracts form L1.
-export async function deployL2ThroughL1({
-    privateKey,
-    includePaymaster
-}: {
-    privateKey?: string;
-    includePaymaster: boolean;
-}) {
+export const deployL2ThroughL1 = async ({ includePaymaster }: { includePaymaster: boolean }): Promise<void> => {
     await utils.confirmAction();
 
+    const privateKey = process.env.DEPLOYER_PRIVATE_KEY;
     const args = [privateKey ? `--private-key ${privateKey}` : ''];
 
     const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
@@ -150,11 +146,12 @@ export async function deployL2ThroughL1({
         'CONTRACTS_L2_DEFAULT_UPGRADE_ADDR'
     ];
     updateContractsEnv(`etc/env/l2-inits/${process.env.ZKSYNC_ENV!}.init.env`, l2DeployLog, l2DeploymentEnvVars);
-}
+};
 
-export async function deployL1({ privateKey, onlyVerifier }: { privateKey?: string; onlyVerifier?: boolean }) {
+const _deployL1 = async ({ onlyVerifier }: { onlyVerifier: boolean }): Promise<void> => {
     await utils.confirmAction();
 
+    const privateKey = process.env.DEPLOYER_PRIVATE_KEY;
     const args = [privateKey ? `--private-key ${privateKey}` : '', onlyVerifier ? '--only-verifier' : ''];
 
     // In the localhost setup scenario we don't have the workspace,
@@ -204,9 +201,13 @@ export async function deployL1({ privateKey, onlyVerifier }: { privateKey?: stri
     // Write updated contract addresses and tx hashes to the separate file
     // Currently it's used by loadtest github action to update deployment configmap.
     fs.writeFileSync('deployed_contracts.log', updatedContracts);
-}
+};
 
-export async function wethBridgeFinish(args: any[] = [], includePaymaster?: boolean) {
+export const deployL1 = async (): Promise<void> => {
+    await _deployL1({ onlyVerifier: false });
+};
+
+export const wethBridgeFinish = async (args: any[] = []): Promise<void> => {
     await utils.confirmAction();
 
     const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
@@ -216,9 +217,9 @@ export async function wethBridgeFinish(args: any[] = [], includePaymaster?: bool
     const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/ethereum` : `yarn l1-contracts`;
 
     await utils.spawn(`${baseCommandL1} weth-finish-deployment-on-chain ${args.join(' ')} | tee -a deployL2.log`);
-}
+};
 
-export async function erc20BridgeFinish(args: any[] = [], includePaymaster?: boolean) {
+export const erc20BridgeFinish = async (args: any[] = []): Promise<void> => {
     await utils.confirmAction();
 
     const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
@@ -228,26 +229,25 @@ export async function erc20BridgeFinish(args: any[] = [], includePaymaster?: boo
     const baseCommandL1 = isLocalSetup ? `yarn --cwd /contracts/ethereum` : `yarn l1-contracts`;
 
     await utils.spawn(`${baseCommandL1} erc20-finish-deployment-on-chain ${args.join(' ')} | tee -a deployL2.log`);
-}
+};
 
-export async function redeployL1({ privateKey }: { privateKey?: string }) {
-    await deployL1({ privateKey });
+export const redeployL1 = async (): Promise<void> => {
+    await deployL1();
     await verifyL1Contracts();
-}
+};
 
-export async function registerHyperchain({
-    privateKey,
+export const registerHyperchain = async ({
     baseToken
 }: {
-    privateKey?: string;
-    baseToken: { name?: string; address: string };
-}) {
+    baseToken: { address: string; name?: string };
+}): Promise<void> => {
     await utils.confirmAction();
 
+    const privateKey = process.env.GOVERNOR_PRIVATE_KEY;
     const args = [
         privateKey ? `--private-key ${privateKey}` : '',
         baseToken.name ? `--base-token-name ${baseToken.name}` : '',
-        `--base-token-address ${baseToken.address}`
+        baseToken.address ? `--base-token-address ${baseToken.address}` : ''
     ];
 
     // In the localhost setup scenario we don't have the workspace,
@@ -269,11 +269,11 @@ export async function registerHyperchain({
     // Write updated contract addresses and tx hashes to the separate file
     // Currently it's used by loadtest github action to update deployment configmap.
     fs.writeFileSync('register_hyperchain.log', updatedContracts);
-}
+};
 
-export async function deployVerifier({ privateKey }: { privateKey?: string }) {
-    await deployL1({ privateKey, onlyVerifier: true });
-}
+export const deployVerifier = async (): Promise<void> => {
+    await _deployL1({ onlyVerifier: true });
+};
 
 export const command = new Command('contract').description('contract management');
 

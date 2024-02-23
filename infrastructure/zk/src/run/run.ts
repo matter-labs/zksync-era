@@ -14,16 +14,15 @@ export async function deployERC20AndWeth({
     name,
     symbol,
     decimals,
-    envFile,
-    privateKey
+    envFile
 }: {
     command: 'dev' | 'new';
     name?: string;
     symbol?: string;
     decimals?: string;
     envFile?: string;
-    privateKey?: string;
 }) {
+    const privateKey = process.env.DEPLOYER_PRIVATE_KEY;
     if (command == 'dev') {
         const destinationFile = envFile || 'localhost';
         const args = [privateKey ? `--private-key ${privateKey}` : ''];
@@ -59,8 +58,9 @@ export async function deployERC20AndWeth({
     }
 }
 
-export async function deployWeth({ envFile, privateKey }: { envFile?: string; privateKey?: string }) {
+export async function deployWeth({ envFile }: { envFile?: string }) {
     const destinationFile = envFile || process.env.CHAIN_ETH_NETWORK!;
+    const privateKey = process.env.DEPLOYER_PRIVATE_KEY;
     const args = [privateKey ? `--private-key ${privateKey}` : ''];
     await utils.spawn(`yarn --silent --cwd contracts/l1-contracts deploy-erc20 add-multi '
         [

@@ -2,9 +2,8 @@ import { Command } from 'commander';
 import enquirer from 'enquirer';
 import { BigNumber, ethers, utils } from 'ethers';
 import chalk from 'chalk';
-import * as contract from './contract';
 import { compileConfig, pushConfig } from './config';
-import { announced, init, InitArgs, ADDRESS_ONE, initSetup, initHyper } from './init';
+import * as init from './init';
 import * as server from './server';
 import * as docker from './docker';
 import * as db from './database';
@@ -14,6 +13,7 @@ import fetch from 'node-fetch';
 import { up } from './up';
 import * as Handlebars from 'handlebars';
 import { ProverType, setupProver } from './prover_setup';
+import { announced } from './utils';
 
 const title = chalk.blueBright;
 const warning = chalk.yellowBright;
@@ -51,34 +51,7 @@ let isLocalhost = false;
 async function initHyperchain(envName: string) {
     await announced('Initializing hyperchain creation', setupConfiguration(envName));
 
-    const deployerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
-    const governorPrivateKey = process.env.GOVERNOR_PRIVATE_KEY;
-    const deployL2WrappedBaseToken = Boolean(process.env.DEPLOY_L2_WETH || false);
-    const deployTestTokens = Boolean(process.env.DEPLOY_TEST_TOKENS || false);
-
-    const initArgs: InitArgs = {
-        skipSubmodulesCheckout: false,
-        skipEnvSetup: true,
-        skipSetupCompletely: false,
-        governorPrivateKey,
-        deployerL2ContractInput: {
-            deployerPrivateKey,
-            throughL1: true,
-            includePaymaster: false
-        },
-        testTokens: {
-            deploy: deployTestTokens,
-            deployWeth: false,
-            deployerPrivateKey,
-            envFile: process.env.CHAIN_ETH_NETWORK!
-        },
-        baseToken: {
-            name: 'ETH',
-            address: ADDRESS_ONE
-        }
-    };
-
-    await initHyper(initArgs);
+    await init.initHyperCmdAction({ skipSetupCompletely: false });
 
     // if we used matterlabs/geth network, we need custom ENV file for hyperchain compose parts
     // This breaks `zk status prover` command, but neccessary for working in isolated docker-network
@@ -762,36 +735,10 @@ async function configDemoHyperchain(cmd: Command) {
 
     env.load();
 
-    const deployerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
-    const governorPrivateKey = process.env.GOVERNOR_PRIVATE_KEY;
-    const deployL2WrappedBaseToken = Boolean(process.env.DEPLOY_L2_WETH || false);
-    const deployTestTokens = Boolean(process.env.DEPLOY_TEST_TOKENS || false);
-
-    const initArgs: InitArgs = {
-        skipSubmodulesCheckout: false,
-        skipEnvSetup: cmd.skipEnvSetup,
-        skipSetupCompletely: false,
-        governorPrivateKey,
-        deployerL2ContractInput: {
-            deployerPrivateKey,
-            throughL1: true,
-            includePaymaster: false
-        },
-        testTokens: {
-            deploy: deployTestTokens,
-            deployWeth: false,
-            deployerPrivateKey,
-            envFile: process.env.CHAIN_ETH_NETWORK!
-        },
-        baseToken: {
-            address: ADDRESS_ONE
-        }
-    };
-
     if (!cmd.skipEnvSetup) {
         await up();
     }
-    await init(initArgs);
+    await init.initDevCmdAction({ skipEnvSetup: cmd.skipEnvSetup, skipSubmodulesCheckout: false });
 
     env.mergeInitToEnv();
 
