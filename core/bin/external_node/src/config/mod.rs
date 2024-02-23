@@ -4,6 +4,7 @@ use anyhow::Context;
 use serde::Deserialize;
 use url::Url;
 use zksync_basic_types::{Address, L1ChainId, L2ChainId};
+use zksync_config::{configs::chain::L1BatchCommitDataGeneratorMode, ObjectStoreConfig};
 use zksync_consensus_roles::node;
 use zksync_core::{
     api_server::{
@@ -18,8 +19,6 @@ use zksync_web3_decl::{
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
 };
-
-use zksync_config::{configs::chain::L1BatchCommitDataGeneratorMode, ObjectStoreConfig};
 
 #[cfg(test)]
 mod tests;
