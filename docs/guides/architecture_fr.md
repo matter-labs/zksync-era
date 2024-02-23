@@ -105,4 +105,4 @@ Cette section fournit une carte physique des dossiers & fichiers dans ce dépôt
 - `/keys` : Clés de vérification pour le module `circuit`.
 
 - `/sdk` : Implémentation des bibliothèques clientes pour le réseau zkSync dans différentes langues de programmation.
-  - `/zksync-rs` : Bibliothèque cliente Rust pour zkSync."
+  - `/zksync-rs` : Bibliothèque cliente Rust pour zkSync.
