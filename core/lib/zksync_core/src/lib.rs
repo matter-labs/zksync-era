@@ -638,7 +638,7 @@ pub async fn initialize_components(
         let current_commitment_mode_eth_response = eth_client.call_contract_function(args).await?;
 
         let current_commitment_mode =
-            L1BatchCommitDataGeneratorMode::from_tokens(current_commitment_mode_eth_response);
+            L1BatchCommitDataGeneratorMode::from_tokens(current_commitment_mode_eth_response)?;
 
         assert_eq!(
             current_commitment_mode,
