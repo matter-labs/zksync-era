@@ -88,6 +88,9 @@ impl ConsensusDal<'_, '_> {
         Ok(())
     }
 
+    /// [Main node only] creates a new consensus fork starting at
+    /// the last sealed miniblock. Resets the state of the consensus
+    /// by calling `try_update_genesis()`.
     pub async fn fork(&mut self) -> anyhow::Result<()> {
         let mut txn = self.storage.start_transaction().await?;
         let Some(old) = txn.consensus_dal().genesis().await? else {

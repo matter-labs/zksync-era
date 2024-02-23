@@ -11,7 +11,9 @@ use zksync_types::MiniblockNumber;
 
 pub use self::storage::Store;
 use crate::sync_layer::{
-    fetcher::is_transient, sync_action::ActionQueueSender, MainNodeClient, SyncState,
+    fetcher::{is_transient, FetchedBlock},
+    sync_action::ActionQueueSender,
+    MainNodeClient, SyncState,
 };
 
 pub mod config;
@@ -98,6 +100,23 @@ impl Fetcher {
         Ok(zksync_protobuf::serde::deserialize(&genesis.0).context("deserialize(genesis)")?)
     }
 
+    /// Fetches (with retries) the given block from the main node.
+    async fn fetch_block(&self, ctx: &ctx::Ctx, n: MiniblockNumber) -> ctx::Result<FetchedBlock> {
+        const RETRY_INTERVAL: time::Duration = time::Duration::seconds(5);
+        loop {
+            let res = ctx.wait(self.client.fetch_l2_block(n, true)).await?;
+            match res {
+                Ok(Some(block)) => return Ok(block.try_into()?),
+                Ok(None) => {}
+                Err(err) if is_transient(&err) => {}
+                Err(err) => {
+                    return Err(anyhow::format_err!("client.fetch_l2_block({}): {err}", n).into());
+                }
+            }
+            ctx.sleep(RETRY_INTERVAL).await?;
+        }
+    }
+
     /// Fetches blocks from the main node in range `[cursor.next()..end)`.
     async fn fetch_blocks(
         &self,
@@ -105,7 +124,6 @@ impl Fetcher {
         cursor: &mut storage::Cursor,
         end: validator::BlockNumber,
     ) -> ctx::Result<()> {
-        const RETRY_INTERVAL: time::Duration = time::Duration::seconds(5);
         const MAX_CONCURRENT_REQUESTS: usize = 100;
         let begin = cursor.next();
         scope::run!(ctx, |ctx, s| async {
@@ -114,42 +132,15 @@ impl Fetcher {
                 let send = send;
                 let sub = &mut self.sync_state.subscribe();
                 for n in begin.0..end.0 {
-                    let n = ctx::NoCopy(MiniblockNumber(n.try_into().unwrap()));
-                    sync::wait_for(ctx, sub, |state| state.main_node_block() >= *n).await?;
-                    send.send(
-                        ctx,
-                        s.spawn(async {
-                            let n = n;
-                            loop {
-                                match ctx
-                                    .wait(
-                                        self.client
-                                            .fetch_l2_block(*n, /*`with_transaction=`*/ true),
-                                    )
-                                    .await?
-                                {
-                                    Ok(Some(block)) => return Ok(block),
-                                    Ok(None) => {}
-                                    Err(err) if is_transient(&err) => {}
-                                    Err(err) => {
-                                        return Err(anyhow::format_err!(
-                                            "client.fetch_l2_block({}): {err}",
-                                            *n
-                                        )
-                                        .into())
-                                    }
-                                }
-                                ctx.sleep(RETRY_INTERVAL).await?;
-                            }
-                        }),
-                    )
-                    .await?;
+                    let n = MiniblockNumber(n.try_into().unwrap());
+                    sync::wait_for(ctx, sub, |state| state.main_node_block() >= n).await?;
+                    send.send(ctx, s.spawn(self.fetch_block(ctx, n))).await?;
                 }
                 Ok(())
             });
             while cursor.next() < end {
                 let block = recv.recv(ctx).await?.join(ctx).await?;
-                cursor.advance(block.try_into()?).await?;
+                cursor.advance(block).await?;
             }
             Ok(())
         })
@@ -182,6 +173,11 @@ impl Fetcher {
             // Fetch blocks before the genesis.
             self.fetch_blocks(ctx, &mut cursor, genesis.fork.first_block)
                 .await?;
+
+            // TODO: block until genesis.fork-first_block-1 is stored.
+            // TODO: check for divergence before starting (local head vs remote store, remote head vs local store)
+            // TODO: check for divergence continuously (replace reorg detector)
+            // TODO: restart on genesis change
 
             // Monitor the genesis of the main node.
             // If it changes, it means that a hard fork occurred and we need to reset the consensus state.
