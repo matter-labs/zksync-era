@@ -12,7 +12,7 @@ use zksync_types::{
     fee_model::FeeParams,
     l1::L1Tx,
     l2::L2Tx,
-    l2_to_l1_log::L2ToL1Log,
+    l2_to_l1_log::{min_l2_to_l1_logs_tree_size, L2ToL1Log},
     tokens::ETHEREUM_ADDRESS,
     transaction_request::CallRequest,
     utils::storage_key_for_standard_token_balance,
@@ -337,7 +337,7 @@ impl ZksNamespace {
         let protocol_version = batch
             .protocol_version
             .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
-        let min_tree_size = L2ToL1Log::min_tree_size(protocol_version);
+        let min_tree_size = min_l2_to_l1_logs_tree_size(protocol_version);
 
         let (root, proof) = MiniMerkleTree::new(merkle_tree_leaves, Some(min_tree_size))
             .merkle_root_and_path(l1_log_index);

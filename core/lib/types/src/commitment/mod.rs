@@ -20,7 +20,7 @@ use zksync_utils::u256_to_h256;
 
 use crate::{
     block::{L1BatchHeader, L1BatchTreeData},
-    l2_to_l1_log::{L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log},
+    l2_to_l1_log::{min_l2_to_l1_logs_tree_size, L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log},
     web3::signing::keccak256,
     writes::{
         compress_state_diffs, InitialStorageWrite, RepeatedStorageWrite, StateDiffRecord,
@@ -301,7 +301,7 @@ impl L1BatchAuxiliaryOutput {
                     .map(|chunk| <[u8; UserL2ToL1Log::SERIALIZED_SIZE]>::try_from(chunk).unwrap());
                 let l2_l1_logs_merkle_root = MiniMerkleTree::new(
                     merkle_tree_leaves,
-                    Some(L2ToL1Log::min_tree_size(common_input.protocol_version)),
+                    Some(min_l2_to_l1_logs_tree_size(common_input.protocol_version)),
                 )
                 .merkle_root();
                 let l2_l1_logs_linear_hash = H256::from(keccak256(&l2_l1_logs_compressed));
@@ -332,19 +332,30 @@ impl L1BatchAuxiliaryOutput {
                 aux_commitments,
                 blob_commitments,
             } => {
+                // TODO (PLA-815): Remove `IGNORE_1_4_2_UPGRADE`.
+                let protocol_version = if std::env::var("IGNORE_1_4_2_UPGRADE").is_ok() {
+                    if common_input.protocol_version.is_post_1_4_2() {
+                        ProtocolVersionId::Version20
+                    } else {
+                        common_input.protocol_version
+                    }
+                } else {
+                    common_input.protocol_version
+                };
+
                 let l2_l1_logs_compressed = serialize_commitments(&common_input.l2_to_l1_logs);
                 let merkle_tree_leaves = l2_l1_logs_compressed
                     .chunks(UserL2ToL1Log::SERIALIZED_SIZE)
                     .map(|chunk| <[u8; UserL2ToL1Log::SERIALIZED_SIZE]>::try_from(chunk).unwrap());
                 let l2_l1_logs_merkle_root = MiniMerkleTree::new(
                     merkle_tree_leaves,
-                    Some(L2ToL1Log::min_tree_size(common_input.protocol_version)),
+                    Some(min_l2_to_l1_logs_tree_size(protocol_version)),
                 )
                 .merkle_root();
 
                 let common_output = L1BatchAuxiliaryCommonOutput {
                     l2_l1_logs_merkle_root,
-                    protocol_version: common_input.protocol_version,
+                    protocol_version,
                 };
 
                 let system_logs_compressed = serialize_commitments(&system_logs);

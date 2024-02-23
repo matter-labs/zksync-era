@@ -226,6 +226,9 @@ impl CommitmentGenerator {
                         H256(kzg_info.to_blob_commitment())
                     })
                     .collect::<Vec<_>>();
+
+                // If length of `pubdata_input` is less than or equal to `ZK_SYNC_BYTES_PER_BLOB` (126976)
+                // then only one blob will be used and 32 zero bytes will be used as a commitment for the second blob.
                 [
                     blob_commitments.get(0).copied().unwrap_or_default(),
                     blob_commitments.get(1).copied().unwrap_or_default(),
