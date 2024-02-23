@@ -103,11 +103,6 @@ pub mod sync_layer;
 pub mod temp_config_store;
 mod utils;
 
-/// Returns the selector of the `getPubdataPriceMode()`.
-fn get_pubdata_price_mode_selector() -> Bytes {
-    serde_json::from_str::<Bytes>(r#""0x252e5966""#).unwrap()
-}
-
 /// Inserts the initial information about zkSync tokens into the database.
 pub async fn genesis_init(
     postgres_config: &PostgresConfig,
@@ -641,7 +636,7 @@ pub async fn initialize_components(
             .call(
                 CallRequest::builder()
                     .to((&contracts_config).executor_facet_addr.clone())
-                    .data(get_pubdata_price_mode_selector())
+                    .data(serde_json::from_str::<Bytes>(r#""0x252e5966""#).unwrap()) // The selector of "getPubdataPriceMode()"
                     .build(),
             )
             .await
