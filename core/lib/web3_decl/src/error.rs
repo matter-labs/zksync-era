@@ -41,6 +41,4 @@ pub enum Web3Error {
     InvalidFilterBlockHash,
     #[error("Tree API is not available")]
     TreeApiUnavailable,
-    #[error("Pubdata not found for given batch id")]
-    PubdataNotFound,
 }

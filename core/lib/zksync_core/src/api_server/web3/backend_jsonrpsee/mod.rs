@@ -37,7 +37,6 @@ pub(crate) fn into_jsrpc_error(err: Web3Error) -> ErrorObjectOwned {
             Web3Error::PubSubTimeout => 4,
             Web3Error::RequestTimeout => 5,
             Web3Error::TreeApiUnavailable => 6,
-            Web3Error::PubdataNotFound => 7,
         },
         match err {
             Web3Error::SubmitTransactionError(message, _) => message,
