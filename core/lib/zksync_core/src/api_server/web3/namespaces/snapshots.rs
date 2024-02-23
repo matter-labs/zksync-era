@@ -8,7 +8,7 @@ use zksync_web3_decl::error::Web3Error;
 use crate::api_server::web3::{backend_jsonrpsee::MethodTracer, state::RpcState};
 
 #[derive(Debug, Clone)]
-pub struct SnapshotsNamespace {
+pub(crate) struct SnapshotsNamespace {
     state: RpcState,
 }
 

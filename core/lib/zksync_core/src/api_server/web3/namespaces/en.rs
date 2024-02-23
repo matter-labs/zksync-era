@@ -7,7 +7,7 @@ use crate::api_server::web3::{backend_jsonrpsee::MethodTracer, state::RpcState};
 /// Namespace for External Node unique methods.
 /// Main use case for it is the EN synchronization.
 #[derive(Debug)]
-pub struct EnNamespace {
+pub(crate) struct EnNamespace {
     state: RpcState,
 }
 

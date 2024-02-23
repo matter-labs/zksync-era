@@ -197,16 +197,15 @@ impl SealedMiniblockNumber {
     }
 }
 
-// FIXME: visibility?
 /// Holder for the data required for the API to be functional.
 #[derive(Debug, Clone)]
-pub struct RpcState {
+pub(crate) struct RpcState {
     pub(super) current_method: Arc<MethodTracer>,
-    pub(crate) installed_filters: Option<Arc<Mutex<Filters>>>,
-    pub connection_pool: ConnectionPool,
-    pub tree_api: Option<TreeApiHttpClient>,
-    pub tx_sender: TxSender,
-    pub sync_state: Option<SyncState>,
+    pub(super) installed_filters: Option<Arc<Mutex<Filters>>>,
+    pub(super) connection_pool: ConnectionPool,
+    pub(super) tree_api: Option<TreeApiHttpClient>,
+    pub(super) tx_sender: TxSender,
+    pub(super) sync_state: Option<SyncState>,
     pub(super) api_config: InternalApiConfig,
     /// Number of the first locally available miniblock / L1 batch. May differ from 0 if the node state was recovered
     /// from a snapshot.

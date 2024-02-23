@@ -32,7 +32,7 @@ use crate::api_server::{
 };
 
 #[derive(Debug)]
-pub struct ZksNamespace {
+pub(crate) struct ZksNamespace {
     state: RpcState,
 }
 

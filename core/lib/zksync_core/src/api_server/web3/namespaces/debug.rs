@@ -21,7 +21,7 @@ use crate::api_server::{
 };
 
 #[derive(Debug, Clone)]
-pub struct DebugNamespace {
+pub(crate) struct DebugNamespace {
     batch_fee_input: BatchFeeInput,
     state: RpcState,
     api_contracts: ApiContracts,

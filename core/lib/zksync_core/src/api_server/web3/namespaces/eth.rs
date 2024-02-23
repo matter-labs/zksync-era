@@ -28,7 +28,7 @@ pub const EVENT_TOPIC_NUMBER_LIMIT: usize = 4;
 pub const PROTOCOL_VERSION: &str = "zks/1";
 
 #[derive(Debug)]
-pub struct EthNamespace {
+pub(crate) struct EthNamespace {
     state: RpcState,
 }
 
