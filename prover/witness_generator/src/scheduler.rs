@@ -242,6 +242,7 @@ pub async fn prepare_job(
         .observe(started_at.elapsed());
 
     let mut recursive_proofs = vec![];
+    let mut eip_4844_proofs = vec![];
     for wrapper in proofs {
         match wrapper {
             FriProofWrapper::Base(_) => anyhow::bail!(
@@ -250,8 +251,9 @@ pub async fn prepare_job(
             FriProofWrapper::Recursive(recursive_proof) => {
                 recursive_proofs.push(recursive_proof.into_inner())
             }
-            FriProofWrapper::Eip4844(_) => {
-                anyhow::bail!("EIP 4844 should not be run as a scheduler")
+            FriProofWrapper::Eip4844(proof) => {
+                eip_4844_proofs.push(proof);
+                //anyhow::bail!("EIP 4844 should not be run as a scheduler")
             }
         }
     }
@@ -268,6 +270,9 @@ pub async fn prepare_job(
     scheduler_witness.node_layer_vk_witness = node_vk.clone().into_inner();
 
     scheduler_witness.proof_witnesses = recursive_proofs.into();
+
+    println!("Eip 4844 proofs: {}", eip_4844_proofs.len());
+    scheduler_witness.eip4844_proofs = eip_4844_proofs;
 
     let leaf_vk_commits = get_leaf_vk_params(&keystore).context("get_leaf_vk_params()")?;
     let leaf_layer_params = leaf_vk_commits

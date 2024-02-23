@@ -15,6 +15,7 @@ pub struct ProofGenerationData {
     pub data: PrepareBasicCircuitsJob,
     pub fri_protocol_version_id: FriProtocolVersionId,
     pub l1_verifier_config: L1VerifierConfig,
+    pub blobs_4844: Vec<u8>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

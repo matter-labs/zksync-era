@@ -17,7 +17,10 @@ use multivm::vm_latest::{
 };
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use zkevm_test_harness::{geometry_config::get_geometry_config, toolset::GeometryConfig};
+use zkevm_test_harness::{
+    geometry_config::get_geometry_config, toolset::GeometryConfig,
+    utils::generate_eip4844_circuit_and_witness,
+};
 use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_dal::{fri_witness_generator_dal::FriWitnessJobStatus, ConnectionPool};
 use zksync_object_store::{Bucket, ObjectStore, ObjectStoreFactory, StoredObject};
@@ -50,13 +53,14 @@ use crate::{
     precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider,
     storage_oracle::StorageOracle,
     utils::{
-        expand_bootloader_contents, save_circuit, ClosedFormInputWrapper,
+        expand_bootloader_contents, save_circuit, save_eip_4844_circuit, ClosedFormInputWrapper,
         SchedulerPartialInputWrapper,
     },
 };
 
 pub struct BasicCircuitArtifacts {
     circuit_urls: Vec<(u8, String)>,
+    eip_4844_circuit_urls: Vec<(u16, String)>,
     queue_urls: Vec<(u8, String, usize)>,
     scheduler_witness: SchedulerCircuitInstanceWitness<
         GoldilocksField,
@@ -69,6 +73,7 @@ pub struct BasicCircuitArtifacts {
 #[derive(Debug)]
 struct BlobUrls {
     circuit_ids_and_urls: Vec<(u8, String)>,
+    eip_4844_circuit_urls: Vec<(u16, String)>,
     closed_form_inputs_and_urls: Vec<(u8, String, usize)>,
     scheduler_witness_url: String,
 }
@@ -77,6 +82,7 @@ struct BlobUrls {
 pub struct BasicWitnessGeneratorJob {
     block_number: L1BatchNumber,
     job: PrepareBasicCircuitsJob,
+    blobs_4844: Vec<u8>,
 }
 
 #[derive(Debug)]
@@ -116,7 +122,11 @@ impl BasicWitnessGenerator {
         started_at: Instant,
         config: Arc<FriWitnessGeneratorConfig>,
     ) -> Option<BasicCircuitArtifacts> {
-        let BasicWitnessGeneratorJob { block_number, job } = basic_job;
+        let BasicWitnessGeneratorJob {
+            block_number,
+            job,
+            blobs_4844,
+        } = basic_job;
         let shall_force_process_block = config
             .force_process_block
             .map_or(false, |block| block == block_number.0);
@@ -164,6 +174,7 @@ impl BasicWitnessGenerator {
                 started_at,
                 block_number,
                 job,
+                blobs_4844,
             )
             .await,
         )
@@ -192,13 +203,13 @@ impl JobProcessor for BasicWitnessGenerator {
             )
             .await
         {
-            Some(block_number) => {
+            Some((block_number, blobs_4844)) => {
                 tracing::info!(
                     "Processing FRI basic witness-gen for block {}",
                     block_number
                 );
                 let started_at = Instant::now();
-                let job = get_artifacts(block_number, &*self.object_store).await;
+                let job = get_artifacts(block_number, &*self.object_store, blobs_4844).await;
 
                 WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::BasicCircuits.into()]
                     .observe(started_at.elapsed());
@@ -272,6 +283,7 @@ impl JobProcessor for BasicWitnessGenerator {
                     BlobUrls {
                         circuit_ids_and_urls: artifacts.circuit_urls,
                         closed_form_inputs_and_urls: artifacts.queue_urls,
+                        eip_4844_circuit_urls: artifacts.eip_4844_circuit_urls,
                         scheduler_witness_url,
                     },
                 )
@@ -307,17 +319,20 @@ async fn process_basic_circuits_job(
     started_at: Instant,
     block_number: L1BatchNumber,
     job: PrepareBasicCircuitsJob,
+    blobs_4844: Vec<u8>,
 ) -> BasicCircuitArtifacts {
     let witness_gen_input =
         build_basic_circuits_witness_generator_input(&connection_pool, job, block_number).await;
-    let (circuit_urls, queue_urls, scheduler_witness, aux_output_witness) = generate_witness(
-        block_number,
-        object_store,
-        config,
-        connection_pool,
-        witness_gen_input,
-    )
-    .await;
+    let (circuit_urls, eip_4844_circuit_urls, queue_urls, scheduler_witness, aux_output_witness) =
+        generate_witness(
+            block_number,
+            object_store,
+            config,
+            connection_pool,
+            witness_gen_input,
+            blobs_4844,
+        )
+        .await;
     WITNESS_GENERATOR_METRICS.witness_generation_time[&AggregationRound::BasicCircuits.into()]
         .observe(started_at.elapsed());
     tracing::info!(
@@ -328,6 +343,7 @@ async fn process_basic_circuits_job(
 
     BasicCircuitArtifacts {
         circuit_urls,
+        eip_4844_circuit_urls,
         queue_urls,
         scheduler_witness,
         aux_output_witness,
@@ -356,6 +372,32 @@ async fn update_database(
         )
         .await;
     prover_connection
+        .fri_prover_jobs_dal()
+        .insert_prover_job(
+            block_number,
+            255,
+            blob_urls.eip_4844_circuit_urls[0].0,
+            blob_urls.eip_4844_circuit_urls[0].0 as usize,
+            AggregationRound::BasicCircuits,
+            &blob_urls.eip_4844_circuit_urls[0].1,
+            true,
+            protocol_version_id,
+        )
+        .await;
+    prover_connection
+        .fri_prover_jobs_dal()
+        .insert_prover_job(
+            block_number,
+            255,
+            blob_urls.eip_4844_circuit_urls[1].0,
+            blob_urls.eip_4844_circuit_urls[1].0 as usize,
+            AggregationRound::BasicCircuits,
+            &blob_urls.eip_4844_circuit_urls[1].1,
+            true,
+            protocol_version_id,
+        )
+        .await;
+    prover_connection
         .fri_witness_generator_dal()
         .create_aggregation_jobs(
             block_number,
@@ -374,9 +416,14 @@ async fn update_database(
 async fn get_artifacts(
     block_number: L1BatchNumber,
     object_store: &dyn ObjectStore,
+    blobs_4844: Vec<u8>,
 ) -> BasicWitnessGeneratorJob {
     let job = object_store.get(block_number).await.unwrap();
-    BasicWitnessGeneratorJob { block_number, job }
+    BasicWitnessGeneratorJob {
+        block_number,
+        job,
+        blobs_4844,
+    }
 }
 
 async fn save_scheduler_artifacts(
@@ -477,8 +524,10 @@ async fn generate_witness(
     config: Arc<FriWitnessGeneratorConfig>,
     connection_pool: ConnectionPool,
     input: BasicCircuitWitnessGeneratorInput,
+    blobs_4844: Vec<u8>,
 ) -> (
     Vec<(u8, String)>,
+    Vec<(u16, String)>,
     Vec<(u8, String, usize)>,
     SchedulerCircuitInstanceWitness<
         GoldilocksField,
@@ -661,17 +710,40 @@ async fn generate_witness(
         }
     };
 
+    let bytes_per_blob = 31 * 4096;
+    // assert_eq!(blobs_4844.len(), bytes_per_blob * 2);
+    let (blob_1, blob_2) = blobs_4844.split_at(bytes_per_blob);
+
+    let (eip_4844_circuit_1, eip_4844_witness_1) = generate_eip4844_circuit_and_witness(
+        blob_1.to_vec(),
+        "/home/evl/zksync-era/trusted_setup.json",
+    );
+    let (eip_4844_circuit_2, eip_4844_witness_2) = generate_eip4844_circuit_and_witness(
+        blob_2.to_vec(),
+        "/home/evl/zksync-era/trusted_setup.json",
+    );
+
     let (witnesses, ()) = tokio::join!(make_circuits, save_circuits);
 
-    let (mut scheduler_witness, block_aux_witness) = witnesses.unwrap();
+    let blobs_4844_urls = vec![
+        save_eip_4844_circuit(block_number, eip_4844_circuit_1, 0, object_store, 0).await,
+        save_eip_4844_circuit(block_number, eip_4844_circuit_2, 1, object_store, 1).await,
+    ];
 
+    let (mut scheduler_witness, block_aux_witness) = witnesses.unwrap();
     scheduler_witness.previous_block_meta_hash =
         previous_batch_with_metadata.metadata.meta_parameters_hash.0;
     scheduler_witness.previous_block_aux_hash =
         previous_batch_with_metadata.metadata.aux_data_hash.0;
 
+    scheduler_witness.eip4844_witnesses = Some([
+        eip_4844_witness_1.closed_form_input.observable_output,
+        eip_4844_witness_2.closed_form_input.observable_output,
+    ]);
+
     (
         circuit_urls,
+        blobs_4844_urls,
         recursion_urls,
         scheduler_witness,
         block_aux_witness,

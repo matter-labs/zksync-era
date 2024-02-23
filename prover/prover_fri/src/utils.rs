@@ -118,12 +118,18 @@ pub async fn save_proof(
             .await;
     }
     if job_metadata.is_node_final_proof {
+        let circuit_id = if job_metadata.circuit_id == 255 {
+            255
+        } else {
+            get_base_layer_circuit_id_for_recursive_layer(job_metadata.circuit_id)
+        };
         transaction
             .fri_scheduler_dependency_tracker_dal()
             .set_final_prover_job_id_for_l1_batch(
-                get_base_layer_circuit_id_for_recursive_layer(job_metadata.circuit_id),
+                circuit_id,
                 job_id,
                 job_metadata.block_number,
+                job_metadata.depth,
             )
             .await;
     }

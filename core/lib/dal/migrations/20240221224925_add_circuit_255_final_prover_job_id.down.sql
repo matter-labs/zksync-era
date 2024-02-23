@@ -1,0 +1,4 @@
+ALTER TABLE scheduler_dependency_tracker_fri DROP COLUMN IF EXISTS circuit_255_final_prover_job_id_0;
+ALTER TABLE scheduler_dependency_tracker_fri DROP COLUMN IF EXISTS circuit_255_final_prover_job_id_1;
+ALTER TABLE witness_inputs_fri DROP COLUMN blobs_4844;
+

@@ -123,6 +123,8 @@ impl RequestProcessor {
             data: blob,
             fri_protocol_version_id,
             l1_verifier_config,
+            // FIXME(mmzk) -- here
+            blobs_4844: vec![0; 31 * 4096 * 2],
         };
 
         Ok(Json(ProofGenerationDataResponse::Success(Some(
