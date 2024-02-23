@@ -61,7 +61,7 @@ async function initHyperchain() {
         governorPrivateKeyArgs: ['--private-key', governorPrivateKey],
         deployerL2ContractInput: {
             args: ['--private-key', deployerPrivateKey],
-            includePaymaster: false,
+            includePaymaster: true,
             includeL2WETH: deployL2Weth
         },
         testTokens: {
