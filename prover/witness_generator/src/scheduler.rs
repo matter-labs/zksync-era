@@ -2,6 +2,11 @@ use std::{convert::TryInto, sync::Arc, time::Instant};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
+use circuit_definitions::{
+    circuit_definitions::aux_layer::EIP4844VerificationKey, BASE_LAYER_CAP_SIZE,
+    BASE_LAYER_FRI_LDE_FACTOR, SECURITY_BITS_TARGET,
+};
+use zkevm_test_harness::boojum::cs::implementations::prover::ProofConfig;
 use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_dal::ConnectionPool;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
@@ -46,6 +51,7 @@ pub struct SchedulerWitnessGeneratorJob {
         GoldilocksExt2,
     >,
     node_vk: ZkSyncRecursionLayerVerificationKey,
+    eip_4844_vk: EIP4844VerificationKey,
 }
 
 #[derive(Debug)]
@@ -87,13 +93,21 @@ impl SchedulerWitnessGenerator {
             _marker: std::marker::PhantomData,
         };
 
+        let eip_4844_config = ProofConfig {
+            fri_lde_factor: BASE_LAYER_FRI_LDE_FACTOR,
+            merkle_tree_cap_size: BASE_LAYER_CAP_SIZE,
+            fri_folding_schedule: None,
+            security_level: SECURITY_BITS_TARGET,
+            pow_bits: 0,
+        };
+
         let scheduler_circuit = SchedulerCircuit {
             witness: job.scheduler_witness,
             config,
             transcript_params: (),
-            eip4844_proof_config: None,
-            eip4844_vk: None,
-            eip4844_vk_fixed_parameters: None,
+            eip4844_proof_config: Some(eip_4844_config),
+            eip4844_vk: Some(job.eip_4844_vk.clone()),
+            eip4844_vk_fixed_parameters: Some(job.eip_4844_vk.fixed_parameters),
             _marker: std::marker::PhantomData,
         };
         WITNESS_GENERATOR_METRICS.witness_generation_time[&AggregationRound::Scheduler.into()]
@@ -233,11 +247,11 @@ impl JobProcessor for SchedulerWitnessGenerator {
 
 pub async fn prepare_job(
     l1_batch_number: L1BatchNumber,
-    proof_job_ids: [u32; 13],
+    proof_job_ids: ([u32; 13], [u32; 2]),
     object_store: &dyn ObjectStore,
 ) -> anyhow::Result<SchedulerWitnessGeneratorJob> {
     let started_at = Instant::now();
-    let proofs = load_proofs_for_job_ids(&proof_job_ids, object_store).await;
+    let proofs = load_proofs_for_job_ids(&proof_job_ids.0, object_store).await;
     WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::Scheduler.into()]
         .observe(started_at.elapsed());
 
@@ -245,13 +259,29 @@ pub async fn prepare_job(
     for wrapper in proofs {
         match wrapper {
             FriProofWrapper::Base(_) => anyhow::bail!(
-                "Expected only recursive proofs for scheduler l1 batch {l1_batch_number}"
+                "Expected only recursive proofs for scheduler l1 batch {l1_batch_number}, got Base"
             ),
             FriProofWrapper::Recursive(recursive_proof) => {
                 recursive_proofs.push(recursive_proof.into_inner())
             }
             FriProofWrapper::Eip4844(_) => {
-                anyhow::bail!("EIP 4844 should not be run as a scheduler")
+                anyhow::bail!("Expected only recursive proofs for  scheduler l1 batch {l1_batch_number}, got EIP4844")
+            }
+        }
+    }
+
+    let proofs = load_proofs_for_job_ids(&proof_job_ids.1, object_store).await;
+
+    let mut eip_4844_proofs = vec![];
+    for wrapper in proofs {
+        match wrapper {
+            FriProofWrapper::Base(_) => anyhow::bail!(
+                "Expected only EIP4844 proofs for scheduler l1 batch {l1_batch_number}, got Base"
+            ),
+            FriProofWrapper::Recursive(_) =>
+                anyhow::bail!("Expected only EIP4844 proofs for scheduler l1 batch {l1_batch_number}, got Recursive"),
+            FriProofWrapper::Eip4844(eip_4844_proof) => {
+                eip_4844_proofs.push(eip_4844_proof);
             }
         }
     }
@@ -263,11 +293,15 @@ pub async fn prepare_job(
             ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,
         )
         .context("get_recursive_layer_vk_for_circuit_type()")?;
+    let eip_4844_vk = keystore
+        .load_4844_verification_key()
+        .context("get_eip_4844_vk")?;
     let SchedulerPartialInputWrapper(mut scheduler_witness) =
         object_store.get(l1_batch_number).await.unwrap();
     scheduler_witness.node_layer_vk_witness = node_vk.clone().into_inner();
 
     scheduler_witness.proof_witnesses = recursive_proofs.into();
+    scheduler_witness.eip4844_proofs = eip_4844_proofs.into();
 
     let leaf_vk_commits = get_leaf_vk_params(&keystore).context("get_leaf_vk_params()")?;
     let leaf_layer_params = leaf_vk_commits
@@ -285,5 +319,6 @@ pub async fn prepare_job(
         block_number: l1_batch_number,
         scheduler_witness,
         node_vk,
+        eip_4844_vk,
     })
 }

@@ -102,7 +102,7 @@ impl FriSchedulerDependencyTrackerDal<'_, '_> {
     pub async fn get_final_prover_job_ids_for(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> [u32; 13] {
+    ) -> ([u32; 13], [u32; 2]) {
         sqlx::query!(
             r#"
             SELECT
@@ -120,21 +120,27 @@ impl FriSchedulerDependencyTrackerDal<'_, '_> {
         .into_iter()
         .next()
         .map(|row| {
-            [
-                row.circuit_1_final_prover_job_id.unwrap() as u32,
-                row.circuit_2_final_prover_job_id.unwrap() as u32,
-                row.circuit_3_final_prover_job_id.unwrap() as u32,
-                row.circuit_4_final_prover_job_id.unwrap() as u32,
-                row.circuit_5_final_prover_job_id.unwrap() as u32,
-                row.circuit_6_final_prover_job_id.unwrap() as u32,
-                row.circuit_7_final_prover_job_id.unwrap() as u32,
-                row.circuit_8_final_prover_job_id.unwrap() as u32,
-                row.circuit_9_final_prover_job_id.unwrap() as u32,
-                row.circuit_10_final_prover_job_id.unwrap() as u32,
-                row.circuit_11_final_prover_job_id.unwrap() as u32,
-                row.circuit_12_final_prover_job_id.unwrap() as u32,
-                row.circuit_13_final_prover_job_id.unwrap() as u32,
-            ]
+            (
+                [
+                    row.circuit_1_final_prover_job_id.unwrap() as u32,
+                    row.circuit_2_final_prover_job_id.unwrap() as u32,
+                    row.circuit_3_final_prover_job_id.unwrap() as u32,
+                    row.circuit_4_final_prover_job_id.unwrap() as u32,
+                    row.circuit_5_final_prover_job_id.unwrap() as u32,
+                    row.circuit_6_final_prover_job_id.unwrap() as u32,
+                    row.circuit_7_final_prover_job_id.unwrap() as u32,
+                    row.circuit_8_final_prover_job_id.unwrap() as u32,
+                    row.circuit_9_final_prover_job_id.unwrap() as u32,
+                    row.circuit_10_final_prover_job_id.unwrap() as u32,
+                    row.circuit_11_final_prover_job_id.unwrap() as u32,
+                    row.circuit_12_final_prover_job_id.unwrap() as u32,
+                    row.circuit_13_final_prover_job_id.unwrap() as u32,
+                ],
+                [
+                    row.circuit_255_final_prover_job_id_0.unwrap() as u32,
+                    row.circuit_255_final_prover_job_id_1.unwrap() as u32,
+                ],
+            )
         })
         .unwrap()
     }
