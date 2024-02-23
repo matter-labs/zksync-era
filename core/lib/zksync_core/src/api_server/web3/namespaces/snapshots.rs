@@ -5,7 +5,7 @@ use zksync_types::{
 };
 use zksync_web3_decl::error::Web3Error;
 
-use crate::api_server::web3::state::RpcState;
+use crate::api_server::web3::{backend_jsonrpsee::MethodTracer, state::RpcState};
 
 #[derive(Debug, Clone)]
 pub struct SnapshotsNamespace {
@@ -15,6 +15,10 @@ pub struct SnapshotsNamespace {
 impl SnapshotsNamespace {
     pub fn new(state: RpcState) -> Self {
         Self { state }
+    }
+
+    pub(crate) fn current_method(&self) -> &MethodTracer {
+        &self.state.current_method
     }
 
     pub async fn get_all_snapshots_impl(&self) -> Result<AllSnapshots, Web3Error> {

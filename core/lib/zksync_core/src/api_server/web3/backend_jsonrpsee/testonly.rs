@@ -1,13 +1,10 @@
 //! Test-only extensions for the `jsonrpsee` middleware.
 
-use std::{
-    mem,
-    sync::{Arc, Mutex},
-};
+use std::{mem, sync::Mutex};
 
 use jsonrpsee::{helpers::MethodResponseResult, MethodResponse};
 
-use super::MethodMetadata;
+use super::metadata::MethodMetadata;
 
 #[derive(Debug, Clone)]
 pub(crate) struct RecordedCall {
@@ -15,16 +12,16 @@ pub(crate) struct RecordedCall {
     pub response: MethodResponseResult,
 }
 
-/// Test-only JSON-RPC call tracer recording all calls passing through `MetadataMiddleware`.
-#[derive(Debug, Clone, Default)]
-pub(crate) struct CallTracer(Arc<Mutex<Vec<RecordedCall>>>);
+/// Test-only JSON-RPC recorded of all calls passing through `MetadataMiddleware`.
+#[derive(Debug, Default)]
+pub(crate) struct RecordedMethodCalls(Mutex<Vec<RecordedCall>>);
 
-impl CallTracer {
+impl RecordedMethodCalls {
     /// Observes response to a call.
     pub fn observe_response(&self, metadata: &MethodMetadata, response: &MethodResponse) {
         self.0
             .lock()
-            .expect("call tracer is poisoned")
+            .expect("recorded calls are poisoned")
             .push(RecordedCall {
                 metadata: metadata.clone(),
                 response: response.success_or_error,
@@ -33,6 +30,6 @@ impl CallTracer {
 
     /// Takes all currently recorded calls from this tracer.
     pub fn take(&self) -> Vec<RecordedCall> {
-        mem::take(&mut *self.0.lock().expect("calls tracer is poisoned"))
+        mem::take(&mut *self.0.lock().expect("recorded calls are poisoned"))
     }
 }

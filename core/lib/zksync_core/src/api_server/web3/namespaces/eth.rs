@@ -21,7 +21,7 @@ use zksync_web3_decl::{
 };
 
 use crate::api_server::web3::{
-    backend_jsonrpsee::MethodMetadata, metrics::API_METRICS, state::RpcState, TypedFilter,
+    backend_jsonrpsee::MethodTracer, metrics::API_METRICS, state::RpcState, TypedFilter,
 };
 
 pub const EVENT_TOPIC_NUMBER_LIMIT: usize = 4;
@@ -35,6 +35,10 @@ pub struct EthNamespace {
 impl EthNamespace {
     pub fn new(state: RpcState) -> Self {
         Self { state }
+    }
+
+    pub(crate) fn current_method(&self) -> &MethodTracer {
+        &self.state.current_method
     }
 
     #[tracing::instrument(skip(self))]
@@ -60,9 +64,7 @@ impl EthNamespace {
         block_id: Option<BlockId>,
     ) -> Result<Bytes, Web3Error> {
         let block_id = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
-        MethodMetadata::with(|meta| {
-            meta.block_id = Some(block_id);
-        });
+        self.current_method().set_block_id(block_id);
 
         let mut connection = self
             .state
@@ -73,13 +75,11 @@ impl EthNamespace {
             .state
             .resolve_block_args(&mut connection, block_id)
             .await?;
-        MethodMetadata::with(|meta| {
-            meta.block_diff = Some(
-                self.state
-                    .last_sealed_miniblock
-                    .diff_with_block_args(&block_args),
-            );
-        });
+        self.current_method().set_block_diff(
+            self.state
+                .last_sealed_miniblock
+                .diff_with_block_args(&block_args),
+        );
         drop(connection);
 
         let tx = L2Tx::from_request(request.into(), self.state.api_config.max_tx_size)?;
@@ -151,9 +151,7 @@ impl EthNamespace {
         block_id: Option<BlockId>,
     ) -> Result<U256, Web3Error> {
         let block_id = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
-        MethodMetadata::with(|meta| {
-            meta.block_id = Some(block_id);
-        });
+        self.current_method().set_block_id(block_id);
 
         let mut connection = self
             .state
@@ -177,9 +175,8 @@ impl EthNamespace {
     }
 
     fn set_block_diff(&self, block_number: MiniblockNumber) {
-        MethodMetadata::with(|meta| {
-            meta.block_diff = Some(self.state.last_sealed_miniblock.diff(block_number));
-        });
+        let diff = self.state.last_sealed_miniblock.diff(block_number);
+        self.current_method().set_block_diff(diff);
     }
 
     #[tracing::instrument(skip(self, filter))]
@@ -229,9 +226,7 @@ impl EthNamespace {
         block_id: BlockId,
         full_transactions: bool,
     ) -> Result<Option<Block<TransactionVariant>>, Web3Error> {
-        MethodMetadata::with(|meta| {
-            meta.block_id = Some(block_id);
-        });
+        self.current_method().set_block_id(block_id);
         self.state.start_info.ensure_not_pruned(block_id)?;
 
         let block = self
@@ -259,9 +254,7 @@ impl EthNamespace {
         &self,
         block_id: BlockId,
     ) -> Result<Option<U256>, Web3Error> {
-        MethodMetadata::with(|meta| {
-            meta.block_id = Some(block_id);
-        });
+        self.current_method().set_block_id(block_id);
         self.state.start_info.ensure_not_pruned(block_id)?;
 
         let tx_count = self
@@ -285,9 +278,7 @@ impl EthNamespace {
         &self,
         block_id: BlockId,
     ) -> Result<Vec<TransactionReceipt>, Web3Error> {
-        MethodMetadata::with(|meta| {
-            meta.block_id = Some(block_id);
-        });
+        self.current_method().set_block_id(block_id);
         self.state.start_info.ensure_not_pruned(block_id)?;
 
         let block = self
@@ -334,9 +325,7 @@ impl EthNamespace {
         block_id: Option<BlockId>,
     ) -> Result<Bytes, Web3Error> {
         let block_id = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
-        MethodMetadata::with(|meta| {
-            meta.block_id = Some(block_id);
-        });
+        self.current_method().set_block_id(block_id);
 
         let mut connection = self
             .state
@@ -367,9 +356,7 @@ impl EthNamespace {
         block_id: Option<BlockId>,
     ) -> Result<H256, Web3Error> {
         let block_id = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
-        MethodMetadata::with(|meta| {
-            meta.block_id = Some(block_id);
-        });
+        self.current_method().set_block_id(block_id);
 
         let storage_key = StorageKey::new(AccountTreeId::new(address), u256_to_h256(idx));
         let mut connection = self
@@ -395,9 +382,7 @@ impl EthNamespace {
         block_id: Option<BlockId>,
     ) -> Result<U256, Web3Error> {
         let block_id = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
-        MethodMetadata::with(|meta| {
-            meta.block_id = Some(block_id);
-        });
+        self.current_method().set_block_id(block_id);
 
         let mut connection = self
             .state
@@ -645,9 +630,8 @@ impl EthNamespace {
         newest_block: BlockNumber,
         reward_percentiles: Vec<f32>,
     ) -> Result<FeeHistory, Web3Error> {
-        MethodMetadata::with(|meta| {
-            meta.block_id = Some(BlockId::Number(newest_block));
-        });
+        self.current_method()
+            .set_block_id(BlockId::Number(newest_block));
 
         // Limit `block_count`.
         let block_count = block_count

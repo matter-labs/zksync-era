@@ -108,7 +108,7 @@ pub(crate) async fn spawn_http_server(
     api_config: InternalApiConfig,
     pool: ConnectionPool,
     tx_executor: MockTransactionExecutor,
-    call_tracer: CallTracer,
+    method_tracer: Arc<MethodTracer>,
     stop_receiver: watch::Receiver<bool>,
 ) -> ApiServerHandles {
     spawn_server(
@@ -117,7 +117,7 @@ pub(crate) async fn spawn_http_server(
         pool,
         None,
         tx_executor,
-        call_tracer,
+        method_tracer,
         stop_receiver,
     )
     .await
@@ -136,7 +136,7 @@ async fn spawn_ws_server(
         pool,
         websocket_requests_per_minute_limit,
         MockTransactionExecutor::default(),
-        CallTracer::default(),
+        Arc::default(),
         stop_receiver,
     )
     .await
@@ -148,7 +148,7 @@ async fn spawn_server(
     pool: ConnectionPool,
     websocket_requests_per_minute_limit: Option<NonZeroU32>,
     tx_executor: MockTransactionExecutor,
-    call_tracer: CallTracer,
+    method_tracer: Arc<MethodTracer>,
     stop_receiver: watch::Receiver<bool>,
 ) -> (ApiServerHandles, mpsc::UnboundedReceiver<PubSubEvent>) {
     let (tx_sender, vm_barrier) =
@@ -175,7 +175,7 @@ async fn spawn_server(
         .with_polling_interval(POLL_INTERVAL)
         .with_tx_sender(tx_sender, vm_barrier)
         .with_pub_sub_events(pub_sub_events_sender)
-        .with_call_tracer(call_tracer)
+        .with_method_tracer(method_tracer)
         .enable_api_namespaces(namespaces)
         .build(stop_receiver)
         .await
@@ -194,8 +194,8 @@ trait HttpTest: Send + Sync {
         MockTransactionExecutor::default()
     }
 
-    fn call_tracer(&self) -> CallTracer {
-        CallTracer::default()
+    fn method_tracer(&self) -> Arc<MethodTracer> {
+        Arc::default()
     }
 
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()>;
@@ -284,7 +284,7 @@ async fn test_http_server(test: impl HttpTest) {
         api_config,
         pool.clone(),
         test.transaction_executor(),
-        test.call_tracer(),
+        test.method_tracer(),
         stop_receiver,
     )
     .await;
@@ -951,12 +951,12 @@ async fn getting_all_account_balances() {
 
 #[derive(Debug, Default)]
 struct RpcCallsTracingTest {
-    tracer: CallTracer,
+    tracer: Arc<MethodTracer>,
 }
 
 #[async_trait]
 impl HttpTest for RpcCallsTracingTest {
-    fn call_tracer(&self) -> CallTracer {
+    fn method_tracer(&self) -> Arc<MethodTracer> {
         self.tracer.clone()
     }
 
@@ -964,10 +964,10 @@ impl HttpTest for RpcCallsTracingTest {
         let block_number = client.get_block_number().await?;
         assert_eq!(block_number, U64::from(0));
 
-        let calls = self.tracer.take();
+        let calls = self.tracer.recorded_calls().take();
         assert_eq!(calls.len(), 1);
         assert!(calls[0].response.is_success());
-        assert_eq!(calls[0].metadata.name(), "eth_blockNumber");
+        assert_eq!(calls[0].metadata.name, "eth_blockNumber");
         assert_eq!(calls[0].metadata.block_id, None);
         assert_eq!(calls[0].metadata.block_diff, None);
 
@@ -975,10 +975,10 @@ impl HttpTest for RpcCallsTracingTest {
             .get_block_by_number(api::BlockNumber::Latest, false)
             .await?;
 
-        let calls = self.tracer.take();
+        let calls = self.tracer.recorded_calls().take();
         assert_eq!(calls.len(), 1);
         assert!(calls[0].response.is_success());
-        assert_eq!(calls[0].metadata.name(), "eth_getBlockByNumber");
+        assert_eq!(calls[0].metadata.name, "eth_getBlockByNumber");
         assert_eq!(
             calls[0].metadata.block_id,
             Some(api::BlockId::Number(api::BlockNumber::Latest))
@@ -988,10 +988,10 @@ impl HttpTest for RpcCallsTracingTest {
         let block_number = api::BlockNumber::Number(1.into());
         client.get_block_by_number(block_number, false).await?;
 
-        let calls = self.tracer.take();
+        let calls = self.tracer.recorded_calls().take();
         assert_eq!(calls.len(), 1);
         assert!(calls[0].response.is_success());
-        assert_eq!(calls[0].metadata.name(), "eth_getBlockByNumber");
+        assert_eq!(calls[0].metadata.name, "eth_getBlockByNumber");
         assert_eq!(
             calls[0].metadata.block_id,
             Some(api::BlockId::Number(block_number))
@@ -1004,26 +1004,26 @@ impl HttpTest for RpcCallsTracingTest {
             .await
             .unwrap_err();
 
-        let calls = self.tracer.take();
+        let calls = self.tracer.recorded_calls().take();
         assert_eq!(calls.len(), 1);
         assert_eq!(
             calls[0].response.as_error_code(),
             Some(ErrorCode::MethodNotFound.code())
         );
-        assert!(!calls[0].metadata.has_app_error());
+        assert!(!calls[0].metadata.has_app_error);
 
         client
             .request::<serde_json::Value, _>("eth_getBlockByNumber", jsonrpsee::rpc_params![0])
             .await
             .unwrap_err();
 
-        let calls = self.tracer.take();
+        let calls = self.tracer.recorded_calls().take();
         assert_eq!(calls.len(), 1);
         assert_eq!(
             calls[0].response.as_error_code(),
             Some(ErrorCode::InvalidParams.code())
         );
-        assert!(!calls[0].metadata.has_app_error());
+        assert!(!calls[0].metadata.has_app_error);
 
         // Check app-level error.
         client
@@ -1034,13 +1034,13 @@ impl HttpTest for RpcCallsTracingTest {
             .await
             .unwrap_err();
 
-        let calls = self.tracer.take();
+        let calls = self.tracer.recorded_calls().take();
         assert_eq!(calls.len(), 1);
         assert_eq!(
             calls[0].response.as_error_code(),
             Some(ErrorCode::InvalidParams.code())
         );
-        assert!(calls[0].metadata.has_app_error());
+        assert!(calls[0].metadata.has_app_error);
 
         // Check batch RPC request.
         let mut batch = BatchRequestBuilder::new();
@@ -1051,9 +1051,9 @@ impl HttpTest for RpcCallsTracingTest {
             assert_eq!(response_part.unwrap(), U64::from(0));
         }
 
-        let calls = self.tracer.take();
+        let calls = self.tracer.recorded_calls().take();
         assert_eq!(calls.len(), 2);
-        let call_names: HashSet<_> = calls.iter().map(|call| call.metadata.name()).collect();
+        let call_names: HashSet<_> = calls.iter().map(|call| call.metadata.name).collect();
         assert_eq!(
             call_names,
             HashSet::from(["eth_blockNumber", "zks_L1BatchNumber"])

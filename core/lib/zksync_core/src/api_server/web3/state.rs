@@ -19,13 +19,16 @@ use zksync_types::{
 };
 use zksync_web3_decl::{error::Web3Error, types::Filter};
 
-use super::metrics::{FilterType, FILTER_METRICS};
+use super::{
+    backend_jsonrpsee::MethodTracer,
+    metrics::{FilterType, FILTER_METRICS},
+    TypedFilter,
+};
 use crate::{
     api_server::{
         execution_sandbox::{BlockArgs, BlockArgsError, BlockStartInfo},
         tree::TreeApiHttpClient,
         tx_sender::TxSender,
-        web3::TypedFilter,
     },
     sync_layer::SyncState,
 };
@@ -194,9 +197,11 @@ impl SealedMiniblockNumber {
     }
 }
 
+// FIXME: visibility?
 /// Holder for the data required for the API to be functional.
 #[derive(Debug, Clone)]
 pub struct RpcState {
+    pub(super) current_method: Arc<MethodTracer>,
     pub(crate) installed_filters: Option<Arc<Mutex<Filters>>>,
     pub connection_pool: ConnectionPool,
     pub tree_api: Option<TreeApiHttpClient>,

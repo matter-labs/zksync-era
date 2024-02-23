@@ -17,7 +17,7 @@ use zksync_web3_decl::error::Web3Error;
 use crate::api_server::{
     execution_sandbox::{ApiTracer, TxSharedArgs},
     tx_sender::{ApiContracts, TxSenderConfig},
-    web3::{backend_jsonrpsee::MethodMetadata, state::RpcState},
+    web3::{backend_jsonrpsee::MethodTracer, state::RpcState},
 };
 
 #[derive(Debug, Clone)]
@@ -50,15 +50,17 @@ impl DebugNamespace {
         &self.state.tx_sender.0.sender_config
     }
 
+    pub(crate) fn current_method(&self) -> &MethodTracer {
+        &self.state.current_method
+    }
+
     #[tracing::instrument(skip(self))]
     pub async fn debug_trace_block_impl(
         &self,
         block_id: BlockId,
         options: Option<TracerConfig>,
     ) -> Result<Vec<ResultDebugCall>, Web3Error> {
-        MethodMetadata::with(|meta| {
-            meta.block_id = Some(block_id);
-        });
+        self.current_method().set_block_id(block_id);
 
         let only_top_call = options
             .map(|options| options.tracer_config.only_top_call)
@@ -69,9 +71,8 @@ impl DebugNamespace {
             .access_storage_tagged("api")
             .await?;
         let block_number = self.state.resolve_block(&mut connection, block_id).await?;
-        MethodMetadata::with(|meta| {
-            meta.block_diff = Some(self.state.last_sealed_miniblock.diff(block_number));
-        });
+        self.current_method()
+            .set_block_diff(self.state.last_sealed_miniblock.diff(block_number));
 
         let call_traces = connection
             .blocks_web3_dal()
@@ -127,9 +128,7 @@ impl DebugNamespace {
         options: Option<TracerConfig>,
     ) -> Result<DebugCall, Web3Error> {
         let block_id = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
-        MethodMetadata::with(|meta| {
-            meta.block_id = Some(block_id);
-        });
+        self.current_method().set_block_id(block_id);
 
         let only_top_call = options
             .map(|options| options.tracer_config.only_top_call)
@@ -146,13 +145,11 @@ impl DebugNamespace {
             .await?;
         drop(connection);
 
-        MethodMetadata::with(|meta| {
-            meta.block_diff = Some(
-                self.state
-                    .last_sealed_miniblock
-                    .diff_with_block_args(&block_args),
-            );
-        });
+        self.current_method().set_block_diff(
+            self.state
+                .last_sealed_miniblock
+                .diff_with_block_args(&block_args),
+        );
         let tx = L2Tx::from_request(request.into(), MAX_ENCODED_TX_SIZE)?;
 
         let shared_args = self.shared_args();

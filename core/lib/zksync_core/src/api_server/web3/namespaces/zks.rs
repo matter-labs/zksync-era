@@ -26,16 +26,23 @@ use zksync_web3_decl::{
     types::{Address, Token, H256},
 };
 
-use crate::api_server::{tree::TreeApiClient, web3::RpcState};
+use crate::api_server::{
+    tree::TreeApiClient,
+    web3::{backend_jsonrpsee::MethodTracer, RpcState},
+};
 
 #[derive(Debug)]
 pub struct ZksNamespace {
-    pub state: RpcState,
+    state: RpcState,
 }
 
 impl ZksNamespace {
     pub fn new(state: RpcState) -> Self {
         Self { state }
+    }
+
+    pub(crate) fn current_method(&self) -> &MethodTracer {
+        &self.state.current_method
     }
 
     async fn access_storage(&self) -> Result<StorageProcessor<'_>, Web3Error> {

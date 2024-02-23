@@ -1,13 +1,10 @@
 use std::{
-    cell::RefCell,
     collections::HashSet,
     future::Future,
-    mem,
     num::NonZeroU32,
     pin::Pin,
     sync::Arc,
     task::{Context, Poll},
-    time::Instant,
 };
 
 use governor::{
@@ -20,19 +17,14 @@ use pin_project_lite::pin_project;
 use vise::{
     Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, GaugeGuard, Histogram, Metrics,
 };
-use zksync_types::api;
-use zksync_web3_decl::{
-    error::Web3Error,
-    jsonrpsee::{
-        server::middleware::rpc::{layer::ResponseFuture, RpcServiceT},
-        types::{error::ErrorCode, ErrorObject, Request},
-        MethodResponse,
-    },
+use zksync_web3_decl::jsonrpsee::{
+    server::middleware::rpc::{layer::ResponseFuture, RpcServiceT},
+    types::{error::ErrorCode, ErrorObject, Request},
+    MethodResponse,
 };
 
-#[cfg(test)]
-use super::testonly::CallTracer;
-use crate::api_server::web3::metrics::{MethodLabels, API_METRICS};
+use super::metadata::{MethodCall, MethodTracer};
+use crate::api_server::web3::metrics::API_METRICS;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "transport", rename_all = "snake_case")]
@@ -113,26 +105,20 @@ where
 pub(crate) struct MetadataMiddleware<S> {
     inner: S,
     registered_method_names: Arc<HashSet<&'static str>>,
-    #[cfg(test)]
-    call_tracer: CallTracer,
+    method_tracer: Arc<MethodTracer>,
 }
 
 impl<S> MetadataMiddleware<S> {
-    pub fn new(inner: S, registered_method_names: Arc<HashSet<&'static str>>) -> Self {
+    pub fn new(
+        inner: S,
+        registered_method_names: Arc<HashSet<&'static str>>,
+        method_tracer: Arc<MethodTracer>,
+    ) -> Self {
         Self {
             inner,
             registered_method_names,
-            #[cfg(test)]
-            call_tracer: CallTracer::default(),
+            method_tracer,
         }
-    }
-
-    #[cfg(test)]
-    pub fn with_call_tracer(mut self, call_tracer: Option<CallTracer>) -> Self {
-        if let Some(call_tracer) = call_tracer {
-            self.call_tracer = call_tracer;
-        }
-        self
     }
 }
 
@@ -140,7 +126,7 @@ impl<'a, S> RpcServiceT<'a> for MetadataMiddleware<S>
 where
     S: Send + Sync + RpcServiceT<'a>,
 {
-    type Future = WithMethodMetadata<S::Future>;
+    type Future = WithMethodCall<S::Future>;
 
     fn call(&self, request: Request<'a>) -> Self::Future {
         // "Normalize" the method name by searching it in the set of all registered methods. This extends the lifetime
@@ -151,12 +137,8 @@ where
             .copied()
             .unwrap_or("");
 
-        WithMethodMetadata {
-            metadata: MethodMetadataGuard::new(
-                method_name,
-                #[cfg(test)]
-                self.call_tracer.clone(),
-            ),
+        WithMethodCall {
+            call: self.method_tracer.new_call(method_name),
             inner: self.inner.call(request),
         }
     }
@@ -164,161 +146,27 @@ where
 
 pin_project! {
     #[derive(Debug)]
-    pub(crate) struct WithMethodMetadata<F> {
-        metadata: MethodMetadataGuard,
+    pub(crate) struct WithMethodCall<F> {
+        call: MethodCall,
         #[pin]
         inner: F,
     }
 }
 
-impl<F: Future<Output = MethodResponse>> Future for WithMethodMetadata<F> {
+impl<F: Future<Output = MethodResponse>> Future for WithMethodCall<F> {
     type Output = MethodResponse;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        // Implemented as a drop guard in order to correctly revert the value even if the wrapped future panics.
-        struct Guard<'a> {
-            prev: Option<MethodMetadata>,
-            current: &'a mut MethodMetadata,
-        }
-
-        impl<'a> Guard<'a> {
-            fn new(metadata: &'a mut MethodMetadata) -> Self {
-                let prev = CURRENT_METHOD
-                    .with(|cell| mem::replace(&mut *cell.borrow_mut(), Some(metadata.clone())));
-                Self {
-                    prev,
-                    current: metadata,
-                }
-            }
-        }
-
-        impl Drop for Guard<'_> {
-            fn drop(&mut self) {
-                CURRENT_METHOD.with(|cell| {
-                    *self.current =
-                        mem::replace(&mut *cell.borrow_mut(), self.prev.take()).unwrap();
-                });
-            }
-        }
-
         let projection = self.project();
-        let guard = Guard::new(&mut projection.metadata.inner);
+        let guard = projection.call.set_as_current();
         match projection.inner.poll(cx) {
             Poll::Pending => Poll::Pending,
             Poll::Ready(response) => {
                 drop(guard);
-                projection.metadata.observe_response(&response);
+                projection.call.observe_response(&response);
                 Poll::Ready(response)
             }
         }
-    }
-}
-
-thread_local! {
-    static CURRENT_METHOD: RefCell<Option<MethodMetadata>> = RefCell::new(None);
-}
-
-/// Metadata assigned to a JSON-RPC method call.
-#[derive(Debug, Clone)]
-pub(crate) struct MethodMetadata {
-    name: &'static str,
-    started_at: Instant,
-    /// Block ID requested by the call.
-    pub block_id: Option<api::BlockId>,
-    /// Difference between the latest block number and the requested block ID.
-    pub block_diff: Option<u32>,
-    /// Did this call return an app-level error?
-    has_app_error: bool,
-}
-
-impl MethodMetadata {
-    /// Accesses metadata for the current method. Should not be called recursively.
-    pub fn with(access_fn: impl FnOnce(&mut Self)) {
-        CURRENT_METHOD.with(|cell| {
-            if let Some(metadata) = &mut *cell.borrow_mut() {
-                access_fn(metadata);
-            }
-        });
-    }
-
-    #[cfg(test)]
-    pub fn name(&self) -> &str {
-        self.name
-    }
-
-    #[cfg(test)]
-    pub fn has_app_error(&self) -> bool {
-        self.has_app_error
-    }
-
-    /// Sets an application-level error for this method.
-    pub fn observe_error(&mut self, err: &Web3Error) {
-        API_METRICS.observe_web3_error(self.name, err);
-        self.has_app_error = true;
-    }
-
-    fn observe_response(&self, response: &MethodResponse) {
-        if let Some(error_code) = response.success_or_error.as_error_code() {
-            API_METRICS.observe_protocol_error(self.name, error_code, self.has_app_error);
-        }
-        API_METRICS.observe_latency(&MethodLabels::from(self), self.started_at.elapsed());
-    }
-}
-
-impl From<&MethodMetadata> for MethodLabels {
-    fn from(meta: &MethodMetadata) -> Self {
-        let mut labels = Self::new(meta.name);
-        if let Some(block_id) = meta.block_id {
-            labels = labels.with_block_id(block_id);
-        }
-        if let Some(block_diff) = meta.block_diff {
-            labels = labels.with_block_diff(block_diff);
-        }
-        labels
-    }
-}
-
-#[derive(Debug)]
-struct MethodMetadataGuard {
-    inner: MethodMetadata,
-    is_completed: bool,
-    #[cfg(test)]
-    call_tracer: CallTracer,
-}
-
-impl Drop for MethodMetadataGuard {
-    fn drop(&mut self) {
-        if !self.is_completed {
-            API_METRICS.observe_dropped_call(
-                &MethodLabels::from(&self.inner),
-                self.inner.started_at.elapsed(),
-            );
-        }
-    }
-}
-
-impl MethodMetadataGuard {
-    fn new(name: &'static str, #[cfg(test)] call_tracer: CallTracer) -> Self {
-        let inner = MethodMetadata {
-            name,
-            started_at: Instant::now(),
-            block_id: None,
-            block_diff: None,
-            has_app_error: false,
-        };
-        Self {
-            inner,
-            is_completed: false,
-            #[cfg(test)]
-            call_tracer,
-        }
-    }
-
-    fn observe_response(&mut self, response: &MethodResponse) {
-        self.is_completed = true;
-        self.inner.observe_response(response);
-        #[cfg(test)]
-        self.call_tracer.observe_response(&self.inner, response);
     }
 }
 
@@ -329,28 +177,26 @@ mod tests {
     use jsonrpsee::helpers::MethodResponseResult;
     use rand::{thread_rng, Rng};
     use test_casing::{test_casing, Product};
+    use zksync_types::api;
 
     use super::*;
 
     #[test_casing(4, Product(([false, true], [false, true])))]
     #[tokio::test(flavor = "multi_thread")]
     async fn metadata_middleware_basics(spawn_tasks: bool, sleep: bool) {
-        let calls = CallTracer::default();
+        let method_tracer = Arc::new(MethodTracer::default());
 
         let tasks = (0_u64..100).map(|i| {
-            let calls = calls.clone();
+            let current_method = method_tracer.clone();
             let inner = async move {
-                MethodMetadata::with(|meta| {
-                    assert_eq!(meta.block_id, None);
-                    meta.block_id = Some(api::BlockId::Number(i.into()));
-                });
+                assert_eq!(current_method.meta().unwrap().block_id, None);
+                current_method.set_block_id(api::BlockId::Number(i.into()));
 
                 for diff in 0_u32..10 {
-                    MethodMetadata::with(|meta| {
-                        assert_eq!(meta.block_id, Some(api::BlockId::Number(i.into())));
-                        assert_eq!(meta.block_diff, diff.checked_sub(1));
-                        meta.block_diff = Some(diff);
-                    });
+                    let meta = current_method.meta().unwrap();
+                    assert_eq!(meta.block_id, Some(api::BlockId::Number(i.into())));
+                    assert_eq!(meta.block_diff, diff.checked_sub(1));
+                    current_method.set_block_diff(diff);
 
                     if sleep {
                         let delay = thread_rng().gen_range(1..=5);
@@ -367,8 +213,8 @@ mod tests {
                 }
             };
 
-            WithMethodMetadata {
-                metadata: MethodMetadataGuard::new("test", calls),
+            WithMethodCall {
+                call: method_tracer.new_call("test"),
                 inner,
             }
         });
@@ -382,7 +228,7 @@ mod tests {
             futures::future::join_all(tasks).await;
         }
 
-        let calls = calls.take();
+        let calls = method_tracer.recorded_calls().take();
         assert_eq!(calls.len(), 100);
         for call in &calls {
             assert_eq!(call.metadata.name, "test");

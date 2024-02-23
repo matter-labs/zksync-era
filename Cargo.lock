@@ -8523,6 +8523,7 @@ dependencies = [
  "tempfile",
  "test-casing",
  "thiserror",
+ "thread_local",
  "tokio",
  "tower",
  "tower-http",

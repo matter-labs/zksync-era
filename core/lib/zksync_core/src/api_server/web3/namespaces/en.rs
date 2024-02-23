@@ -2,7 +2,7 @@ use anyhow::Context as _;
 use zksync_types::{api::en::SyncBlock, tokens::TokenInfo, MiniblockNumber};
 use zksync_web3_decl::error::Web3Error;
 
-use crate::api_server::web3::state::RpcState;
+use crate::api_server::web3::{backend_jsonrpsee::MethodTracer, state::RpcState};
 
 /// Namespace for External Node unique methods.
 /// Main use case for it is the EN synchronization.
@@ -14,6 +14,10 @@ pub struct EnNamespace {
 impl EnNamespace {
     pub fn new(state: RpcState) -> Self {
         Self { state }
+    }
+
+    pub(crate) fn current_method(&self) -> &MethodTracer {
+        &self.state.current_method
     }
 
     #[tracing::instrument(skip(self))]

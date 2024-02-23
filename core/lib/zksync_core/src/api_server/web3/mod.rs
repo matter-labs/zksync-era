@@ -24,9 +24,8 @@ use zksync_web3_decl::{
     types::Filter,
 };
 
-#[cfg(test)]
-use self::backend_jsonrpsee::testonly::CallTracer;
 use self::{
+    backend_jsonrpsee::{LimitMiddleware, MetadataMiddleware, MethodTracer},
     metrics::API_METRICS,
     namespaces::{
         DebugNamespace, EnNamespace, EthNamespace, NetNamespace, SnapshotsNamespace, Web3Namespace,
@@ -40,7 +39,6 @@ use crate::{
         execution_sandbox::{BlockStartInfo, VmConcurrencyBarrier},
         tree::TreeApiHttpClient,
         tx_sender::TxSender,
-        web3::backend_jsonrpsee::{LimitMiddleware, MetadataMiddleware},
     },
     sync_layer::SyncState,
     utils::wait_for_l1_batch,
@@ -118,8 +116,6 @@ struct OptionalApiParams {
     websocket_requests_per_minute_limit: Option<NonZeroU32>,
     tree_api_url: Option<String>,
     pub_sub_events_sender: Option<mpsc::UnboundedSender<PubSubEvent>>,
-    #[cfg(test)]
-    call_tracer: Option<CallTracer>,
 }
 
 /// Full API server parameters.
@@ -133,6 +129,7 @@ struct FullApiParams {
     vm_barrier: VmConcurrencyBarrier,
     polling_interval: Duration,
     namespaces: Vec<Namespace>,
+    method_tracer: Arc<MethodTracer>,
     optional: OptionalApiParams,
 }
 
@@ -149,6 +146,7 @@ pub struct ApiBuilder {
     // Optional params that may or may not be set using builder methods. We treat `namespaces`
     // specially because we want to output a warning if they are not set.
     namespaces: Option<Vec<Namespace>>,
+    method_tracer: Arc<MethodTracer>,
     optional: OptionalApiParams,
 }
 
@@ -165,6 +163,7 @@ impl ApiBuilder {
             tx_sender: None,
             vm_barrier: None,
             namespaces: None,
+            method_tracer: Arc::new(MethodTracer::default()),
             optional: OptionalApiParams::default(),
         }
     }
@@ -250,8 +249,8 @@ impl ApiBuilder {
     }
 
     #[cfg(test)]
-    fn with_call_tracer(mut self, call_tracer: CallTracer) -> Self {
-        self.optional.call_tracer = Some(call_tracer);
+    fn with_method_tracer(mut self, method_tracer: Arc<MethodTracer>) -> Self {
+        self.method_tracer = method_tracer;
         self
     }
 
@@ -270,6 +269,7 @@ impl ApiBuilder {
                 );
                 Namespace::DEFAULT.to_vec()
             }),
+            method_tracer: self.method_tracer,
             optional: self.optional,
         })
     }
@@ -302,6 +302,7 @@ impl FullApiParams {
         };
 
         Ok(RpcState {
+            current_method: self.method_tracer,
             installed_filters,
             connection_pool: self.pool,
             tx_sender: self.tx_sender,
@@ -523,16 +524,14 @@ impl FullApiParams {
         let websocket_requests_per_minute_limit = self.optional.websocket_requests_per_minute_limit;
         let subscriptions_limit = self.optional.subscriptions_limit;
         let vm_barrier = self.vm_barrier.clone();
-
-        #[cfg(test)]
-        let call_tracer = self.optional.call_tracer.clone();
+        let method_tracer = self.method_tracer.clone();
 
         let rpc = self
             .build_rpc_module(pub_sub, last_sealed_miniblock)
             .await?;
         let registered_method_names = Arc::new(rpc.method_names().collect::<HashSet<_>>());
         tracing::debug!(
-            "Built RPC module with {} methods: {registered_method_names:?}",
+            "Built RPC module for {transport_str} server with {} methods: {registered_method_names:?}",
             registered_method_names.len()
         );
 
@@ -567,10 +566,7 @@ impl FullApiParams {
         #[allow(clippy::let_and_return)] // simplifies conditional compilation
         let rpc_middleware = RpcServiceBuilder::new()
             .layer_fn(move |svc| {
-                let middleware = MetadataMiddleware::new(svc, registered_method_names.clone());
-                #[cfg(test)]
-                let middleware = middleware.with_call_tracer(call_tracer.clone());
-                middleware
+                MetadataMiddleware::new(svc, registered_method_names.clone(), method_tracer.clone())
             })
             .option_layer((!is_http).then(|| {
                 tower::layer::layer_fn(move |svc| {
