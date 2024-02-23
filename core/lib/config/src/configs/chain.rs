@@ -1,7 +1,15 @@
 use std::{str::FromStr, time::Duration};
 
 use serde::Deserialize;
-use zksync_basic_types::{network::Network, Address, Bytes, L2ChainId};
+use zksync_basic_types::{
+    network::Network,
+    web3::{
+        contract::{tokens::Detokenize, Error as Web3ContractError},
+        error::Error as Web3ApiError,
+        ethabi,
+    },
+    Address, Bytes, L2ChainId,
+};
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct NetworkConfig {
@@ -50,6 +58,19 @@ pub enum L1BatchCommitDataGeneratorMode {
     #[default]
     Rollup,
     Validium,
+}
+
+impl Detokenize for L1BatchCommitDataGeneratorMode {
+    fn from_tokens(tokens: Vec<ethabi::Token>) -> Result<Self, Web3ContractError> {
+        match tokens[0] {
+            ethabi::Token::Bytes(ref bytes) => {
+                Ok(Self::from_eth_response(&Bytes::from(bytes.as_slice())))
+            }
+            _ => Err(Web3ContractError::Api(Web3ApiError::Decoder(
+                "L1BatchCommitDataGeneratorMode::from_tokens".to_string(),
+            ))),
+        }
+    }
 }
 
 // The cases are extracted from the `PubdataPricingMode` enum in the L1 contracts,
