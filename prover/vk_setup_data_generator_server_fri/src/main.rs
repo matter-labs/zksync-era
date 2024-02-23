@@ -26,7 +26,6 @@ use zksync_vk_setup_data_server_fri::{
     commitment_utils::generate_commitments,
     keystore::Keystore,
     setup_data_generator::{CPUSetupDataGenerator, GPUSetupDataGenerator, SetupDataGenerator},
-    utils::calculate_snark_vk_hash,
 };
 
 mod commitment_generator;
