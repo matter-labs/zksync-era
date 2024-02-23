@@ -200,33 +200,33 @@ impl Task for RemainingTask {
 #[test]
 fn test_task_run() {
     // case 1: run the task and check it updates resource successfully before stop signal received.
-    let some_bool_resource = Arc::new(Mutex::new(false));
+    let run_flag_resource = Arc::new(Mutex::new(false));
     let mut zk_stack_service = ZkStackService::new().unwrap();
-    zk_stack_service.add_layer(SuccessfulTaskLayer(some_bool_resource.clone()));
+    zk_stack_service.add_layer(SuccessfulTaskLayer(run_flag_resource.clone()));
 
     assert!(
         zk_stack_service.run().is_ok(),
         "ZkStackService run failed, but it shouldn't"
     );
-    let actual_resource_value = *some_bool_resource.lock().unwrap();
+    let task_was_run = *run_flag_resource.lock().unwrap();
     // task changed resource value to true
-    assert!(actual_resource_value, "Incorrect resource value");
+    assert!(task_was_run, "Incorrect resource value");
 
     // case 2: the idea is to check we are still running remaining tasks after stop signal received.
-    // The flow is that successful_task updates resource to true (as checked in the case 1 above)
-    // and remaining_task updates it back to false.
-    let some_bool_resource = Arc::new(Mutex::new(false));
+    // The flow is that `successful_task` updates resource to true (as checked in the case 1 above)
+    // and `remaining_task` updates it back to false.
+    let run_flag_resource = Arc::new(Mutex::new(false));
     let mut zk_stack_service = ZkStackService::new().unwrap();
     zk_stack_service
-        .add_layer(SuccessfulTaskLayer(some_bool_resource.clone()))
-        .add_layer(RemainingTaskLayer(some_bool_resource.clone()));
+        .add_layer(SuccessfulTaskLayer(run_flag_resource.clone()))
+        .add_layer(RemainingTaskLayer(run_flag_resource.clone()));
 
     assert!(
         zk_stack_service.run().is_ok(),
         "ZkStackService run failed, but it shouldn't"
     );
-    let actual_resource_value = *some_bool_resource.lock().unwrap();
-    // As notes above, successful_task updated resource to true and then remaining_task updated it back
+    let stop_signal_sent = *run_flag_resource.lock().unwrap();
+    // As notes above, `successful_task` updated resource to true and then `remaining_task` updated it back
     // to false after stop signal received.
-    assert!(!actual_resource_value, "Incorrect resource value");
+    assert!(!stop_signal_sent, "Incorrect resource value");
 }
