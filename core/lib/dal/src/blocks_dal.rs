@@ -1092,10 +1092,19 @@ impl BlocksDal<'_, '_> {
     /// This method returns batches that are confirmed on L1. That is, it doesn't wait for the proofs to be generated.
     pub async fn get_ready_for_dummy_proof_l1_batches(
         &mut self,
+        commited_tx_confirmed: bool,
         limit: usize,
     ) -> anyhow::Result<Vec<L1BatchWithMetadata>> {
-        let raw_batches = sqlx::query_as!(
-            StorageL1Batch,
+        let (confirmed_at_not_null, join_on_eth_tx_history) = if commited_tx_confirmed {
+            (
+                "AND confirmed_at IS NOT NULL",
+                "JOIN eth_txs_history ON eth_commit_tx_id = eth_tx_id",
+            )
+        } else {
+            ("", "")
+        };
+
+        let query = format!(
             r#"
             SELECT
                 number,
@@ -1132,20 +1141,27 @@ impl BlocksDal<'_, '_> {
             FROM
                 l1_batches
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
+                {join_on_eth_tx_history}
             WHERE
                 eth_commit_tx_id IS NOT NULL
                 AND eth_prove_tx_id IS NULL
+                {confirmed_at_not_null}
             ORDER BY
                 number
             LIMIT
                 $1
             "#,
-            limit as i32
-        )
-        .instrument("get_ready_for_dummy_proof_l1_batches")
-        .with_arg("limit", &limit)
-        .fetch_all(self.storage)
-        .await?;
+        );
+
+        let mut query = sqlx::query_as(&query);
+
+        query = query.bind(limit as i32);
+
+        let raw_batches: Vec<StorageL1Batch> = query
+            .instrument("get_ready_for_dummy_proof_l1_batches")
+            .with_arg("limit", &limit)
+            .fetch_all(self.storage)
+            .await?;
 
         self.map_l1_batches(raw_batches)
             .await
@@ -1279,7 +1295,7 @@ impl BlocksDal<'_, '_> {
             None => {
                 let (confirmed_at_not_null, join_on_eth_tx_history) = if commited_tx_confirmed {
                     (
-                        "confirmed_at IS NOT NULL",
+                        "AND confirmed_at IS NOT NULL",
                         "JOIN eth_txs_history ON eth_commit_tx_id = eth_tx_id",
                     )
                 } else {

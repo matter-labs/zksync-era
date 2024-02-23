@@ -491,6 +491,11 @@ impl EthTxAggregator {
                 op_type,
                 self.timelock_contract_address,
                 eth_tx_predicted_gas,
+                if op_type == AggregatedActionType::Commit {
+                    self.custom_commit_sender_addr
+                } else {
+                    None
+                },
             )
             .await
             .unwrap();
@@ -517,6 +522,10 @@ impl EthTxAggregator {
             .unwrap_or(0);
         // Between server starts we can execute some txs using operator account or remove some txs from the database
         // At the start we have to consider this fact and get the max nonce.
-        Ok(db_nonce.max(self.base_nonce))
+        Ok(if from_addr.is_none() {
+            db_nonce.max(self.base_nonce)
+        } else {
+            db_nonce
+        })
     }
 }

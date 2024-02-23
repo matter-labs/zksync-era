@@ -151,7 +151,7 @@ impl Aggregator {
             .map(|age| unix_timestamp_ms() - age * 1_000);
         let ready_for_execute_batches = storage
             .blocks_dal()
-            .get_ready_for_execute_l1_batches(limit, false, max_l1_batch_timestamp_millis)
+            .get_ready_for_execute_l1_batches(limit, true, max_l1_batch_timestamp_millis)
             .await
             .unwrap();
         let l1_batches = extract_ready_subrange(
@@ -357,7 +357,7 @@ impl Aggregator {
             ProofSendingMode::SkipEveryProof => {
                 let ready_for_proof_l1_batches = storage
                     .blocks_dal()
-                    .get_ready_for_dummy_proof_l1_batches(limit)
+                    .get_ready_for_dummy_proof_l1_batches(true, limit)
                     .await
                     .unwrap();
                 self.prepare_dummy_proof_operation(

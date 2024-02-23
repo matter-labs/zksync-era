@@ -174,6 +174,7 @@ impl EthSenderDal<'_, '_> {
         tx_type: AggregatedActionType,
         contract_address: Address,
         predicted_gas_cost: u32,
+        from_address: Option<Address>,
     ) -> sqlx::Result<EthTx> {
         let address = format!("{:#x}", contract_address);
         let eth_tx = sqlx::query_as!(
@@ -187,10 +188,11 @@ impl EthSenderDal<'_, '_> {
                     contract_address,
                     predicted_gas_cost,
                     created_at,
-                    updated_at
+                    updated_at,
+                    from_addr
                 )
             VALUES
-                ($1, $2, $3, $4, $5, NOW(), NOW())
+                ($1, $2, $3, $4, $5, NOW(), NOW(), $6)
             RETURNING
                 *
             "#,
@@ -198,7 +200,8 @@ impl EthSenderDal<'_, '_> {
             nonce as i64,
             tx_type.to_string(),
             address,
-            predicted_gas_cost as i64
+            predicted_gas_cost as i64,
+            from_address.map(|a| a.0.to_vec()),
         )
         .fetch_one(self.storage.conn())
         .await?;
@@ -515,8 +518,10 @@ impl EthSenderDal<'_, '_> {
         from_address: Option<Address>,
     ) -> sqlx::Result<Option<u64>> {
         let optional_where_clause = from_address
-            .map(|a| format!("WHERE from_addr = {a:?}"))
-            .unwrap_or_default();
+            .map(|a| format!("WHERE from_addr = decode('{}', 'hex')", hex::encode(a.0)))
+            .unwrap_or("WHERE from_addr IS NULL".to_owned());
+
+        tracing::warn!("where {optional_where_clause}");
 
         let query = format!(
             r#"
@@ -538,7 +543,9 @@ impl EthSenderDal<'_, '_> {
             .await?
             .map(|row| row.get("nonce"));
 
-        Ok(nonce.map(|n| n as u64 + 1))
+        let map = nonce.map(|n| n as u64 + 1);
+        tracing::warn!("nonce for {from_address:?} {map:?}");
+        Ok(map)
     }
 
     pub async fn mark_failed_transaction(&mut self, eth_tx_id: u32) -> sqlx::Result<()> {
