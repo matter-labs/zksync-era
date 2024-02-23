@@ -8,13 +8,13 @@ use zksync_web3_decl::{error::Web3Error, jsonrpsee::MethodResponse};
 
 #[cfg(test)]
 use super::testonly::RecordedMethodCalls;
-use crate::api_server::web3::metrics::{MethodLabels, API_METRICS};
+use crate::api_server::web3::metrics::API_METRICS;
 
 /// Metadata assigned to a JSON-RPC method call.
 #[derive(Debug, Clone)]
 pub(crate) struct MethodMetadata {
     pub name: &'static str,
-    started_at: Instant,
+    pub started_at: Instant,
     /// Block ID requested by the call.
     pub block_id: Option<api::BlockId>,
     /// Difference between the latest block number and the requested block ID.
@@ -32,19 +32,6 @@ impl MethodMetadata {
             block_diff: None,
             has_app_error: false,
         }
-    }
-}
-
-impl From<&MethodMetadata> for MethodLabels {
-    fn from(meta: &MethodMetadata) -> Self {
-        let mut labels = Self::new(meta.name);
-        if let Some(block_id) = meta.block_id {
-            labels = labels.with_block_id(block_id);
-        }
-        if let Some(block_diff) = meta.block_diff {
-            labels = labels.with_block_diff(block_diff);
-        }
-        labels
     }
 }
 
@@ -126,10 +113,7 @@ pub(super) struct MethodCall {
 impl Drop for MethodCall {
     fn drop(&mut self) {
         if !self.is_completed {
-            API_METRICS.observe_dropped_call(
-                &MethodLabels::from(&self.meta),
-                self.meta.started_at.elapsed(),
-            );
+            API_METRICS.observe_dropped_call(&self.meta);
         }
     }
 }
@@ -152,7 +136,7 @@ impl MethodCall {
         if let Some(error_code) = response.success_or_error.as_error_code() {
             API_METRICS.observe_protocol_error(meta.name, error_code, meta.has_app_error);
         }
-        API_METRICS.observe_latency(&MethodLabels::from(meta), meta.started_at.elapsed());
+        API_METRICS.observe_latency(meta);
         #[cfg(test)]
         self.current_method
             .recorder

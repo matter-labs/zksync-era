@@ -8,7 +8,7 @@ use zksync_web3_decl::{
 };
 
 pub(crate) use self::{
-    metadata::MethodTracer,
+    metadata::{MethodMetadata, MethodTracer},
     middleware::{LimitMiddleware, MetadataMiddleware},
 };
 use crate::api_server::tx_sender::SubmitTxError;

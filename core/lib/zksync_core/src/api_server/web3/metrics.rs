@@ -9,7 +9,7 @@ use vise::{
 use zksync_types::api;
 use zksync_web3_decl::error::Web3Error;
 
-use super::{ApiTransport, TypedFilter};
+use super::{backend_jsonrpsee::MethodMetadata, ApiTransport, TypedFilter};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "scheme", rename_all = "UPPERCASE")]
@@ -57,24 +57,15 @@ impl fmt::Display for BlockDiffLabel {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet)]
-pub(super) struct MethodLabels {
+struct MethodLabels {
     method: &'static str,
     block_id: Option<BlockIdLabel>,
     block_diff: Option<BlockDiffLabel>,
 }
 
-impl MethodLabels {
-    pub fn new(method: &'static str) -> Self {
-        Self {
-            method,
-            block_id: None,
-            block_diff: None,
-        }
-    }
-
-    #[must_use]
-    pub fn with_block_id(mut self, block_id: api::BlockId) -> Self {
-        self.block_id = Some(match block_id {
+impl From<&MethodMetadata> for MethodLabels {
+    fn from(meta: &MethodMetadata) -> Self {
+        let block_id = meta.block_id.map(|block_id| match block_id {
             api::BlockId::Hash(_) => BlockIdLabel::Hash,
             api::BlockId::Number(api::BlockNumber::Number(_)) => BlockIdLabel::Number,
             api::BlockId::Number(api::BlockNumber::Committed) => BlockIdLabel::Committed,
@@ -83,22 +74,20 @@ impl MethodLabels {
             api::BlockId::Number(api::BlockNumber::Earliest) => BlockIdLabel::Earliest,
             api::BlockId::Number(api::BlockNumber::Pending) => BlockIdLabel::Pending,
         });
-        self
-    }
-
-    #[must_use]
-    pub fn with_block_diff(mut self, block_diff: u32) -> Self {
-        self.block_diff = Some(match block_diff {
+        let block_diff = meta.block_diff.map(|block_diff| match block_diff {
             0..=2 => BlockDiffLabel::Exact(block_diff),
             3..=9 => BlockDiffLabel::Lt(10),
             10..=99 => BlockDiffLabel::Lt(100),
             100..=999 => BlockDiffLabel::Lt(1_000),
             _ => BlockDiffLabel::Geq(1_000),
         });
-        self
+        Self {
+            method: meta.name,
+            block_id,
+            block_diff,
+        }
     }
 }
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue)]
 #[metrics(rename_all = "snake_case")]
 enum Web3ErrorKind {
@@ -153,6 +142,11 @@ struct Web3ErrorLabels {
     kind: Web3ErrorKind,
 }
 
+/// Roughly exponential buckets for the `web3_call_block_diff` metric. The distribution should be skewed towards lower values.
+const BLOCK_DIFF_BUCKETS: Buckets = Buckets::values(&[
+    0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 10.0, 20.0, 50.0, 100.0, 200.0, 500.0, 1_000.0,
+]);
+
 /// General-purpose API server metrics.
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "api")]
@@ -164,8 +158,8 @@ pub(super) struct ApiMetrics {
     #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds)]
     web3_dropped_call_latency: Family<MethodLabels, Histogram<Duration>>,
     /// Difference between the latest sealed miniblock and the resolved miniblock for a web3 call.
-    #[metrics(buckets = Buckets::LATENCIES, labels = ["method"])]
-    web3_call_block_diff: LabeledFamily<&'static str, Histogram<Duration>>,
+    #[metrics(buckets = BLOCK_DIFF_BUCKETS, labels = ["method"])]
+    web3_call_block_diff: LabeledFamily<&'static str, Histogram<u64>>,
     /// Number of application errors grouped by error kind and method name. Only collected for errors that were successfully routed
     /// to a method (i.e., this method is defined).
     web3_errors: Family<Web3ErrorLabels, Counter>,
@@ -181,12 +175,19 @@ pub(super) struct ApiMetrics {
 }
 
 impl ApiMetrics {
-    pub fn observe_latency(&self, labels: &MethodLabels, latency: Duration) {
-        self.web3_call[labels].observe(latency);
+    /// Observes latency of a finished RPC call.
+    pub fn observe_latency(&self, meta: &MethodMetadata) {
+        let latency = meta.started_at.elapsed();
+        self.web3_call[&MethodLabels::from(meta)].observe(latency);
+        if let Some(block_diff) = meta.block_diff {
+            self.web3_call_block_diff[&meta.name].observe(block_diff.into());
+        }
     }
 
-    pub fn observe_dropped_call(&self, labels: &MethodLabels, latency: Duration) {
-        self.web3_dropped_call_latency[labels].observe(latency);
+    /// Observes latency of a dropped RPC call.
+    pub fn observe_dropped_call(&self, meta: &MethodMetadata) {
+        let latency = meta.started_at.elapsed();
+        self.web3_dropped_call_latency[&MethodLabels::from(meta)].observe(latency);
     }
 
     pub fn observe_protocol_error(&self, method: &'static str, error_code: i32, app_error: bool) {
@@ -206,7 +207,7 @@ impl ApiMetrics {
                 origin,
             } = &labels;
             tracing::info!(
-                "Observed new error code for method `{method}`: {error_code}, origin={origin:?}"
+                "Observed new error code for method `{method}`: {error_code}, origin: {origin:?}"
             );
         }
     }
