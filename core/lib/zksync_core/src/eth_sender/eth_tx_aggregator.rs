@@ -54,6 +54,10 @@ pub struct EthTxAggregator {
     functions: ZkSyncFunctions,
     base_nonce: u64,
     rollup_chain_id: L2ChainId,
+    /// If set to `Some` node is operating in the 4844 mode with two operator
+    /// addresses at play: the main one and the custom address for sending commit
+    /// transactions. The `Some` then contains the address of this custom operator
+    /// address.
     custom_commit_sender_addr: Option<Address>,
 }
 
@@ -466,6 +470,9 @@ impl EthTxAggregator {
     ) -> Result<EthTx, ETHSenderError> {
         let mut transaction = storage.start_transaction().await.unwrap();
         let op_type = aggregated_op.get_action_type();
+        /// We may be using a custom sender for commit transactions, so use this
+        /// var whatever it actually is: a `None` for single-addr operator or `Some`
+        /// for multi-addr operator in 4844 mode.
         let sender_addr = match op_type {
             AggregatedActionType::Commit => self.custom_commit_sender_addr,
             _ => None,
@@ -489,11 +496,7 @@ impl EthTxAggregator {
                 op_type,
                 self.timelock_contract_address,
                 eth_tx_predicted_gas,
-                if op_type == AggregatedActionType::Commit {
-                    self.custom_commit_sender_addr
-                } else {
-                    None
-                },
+                sender_addr,
             )
             .await
             .unwrap();

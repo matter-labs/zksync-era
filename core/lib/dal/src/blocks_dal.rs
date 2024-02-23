@@ -1090,6 +1090,10 @@ impl BlocksDal<'_, '_> {
     }
 
     /// This method returns batches that are confirmed on L1. That is, it doesn't wait for the proofs to be generated.
+    ///
+    /// # Params:
+    /// * `commited_tx_confirmed`: whether to look for ready proofs only for txs for which
+    ///   respective commit transactions have been confirmed by the network.
     pub async fn get_ready_for_dummy_proof_l1_batches(
         &mut self,
         commited_tx_confirmed: bool,
@@ -1422,7 +1426,6 @@ impl BlocksDal<'_, '_> {
             // If we found at least one ready to execute batch then we can simply return all blocks between
             // the expected started point and the max ready to send block because we send them to the L1 sequentially.
             assert!(max_ready_to_send_block >= expected_started_point);
-
             sqlx::query_as!(
                 StorageL1Batch,
                 r#"

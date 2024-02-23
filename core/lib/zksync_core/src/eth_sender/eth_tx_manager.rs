@@ -50,7 +50,10 @@ pub(super) struct L1BlockNumbers {
 /// with higher gas price
 #[derive(Debug)]
 pub struct EthTxManager {
+    /// A gateway through wich the operator normally sends all its transactions.
     ethereum_gateway: Arc<dyn BoundEthInterface>,
+    /// If the operator is in 4844 mode this is sent to `Some` and used to send
+    /// commit transactions.
     ethereum_gateway_blobs: Option<Arc<dyn BoundEthInterface>>,
     config: SenderConfig,
     gas_adjuster: Arc<dyn L1TxParamsProvider>,
@@ -472,6 +475,10 @@ impl EthTxManager {
         base_fee_per_gas: u64,
         priority_fee_per_gas: u64,
     ) -> SignedCallResult {
+        // Chose the signing gateway. Use a custom one in case
+        // the operator is in 4844 mode and the operation at hand is Commit.
+        // then the optional gateway is used to send this transaction from a
+        // custom sender account.
         let signing_gateway = if let Some(blobs_gateway) = self.ethereum_gateway_blobs.as_ref() {
             if tx.tx_type == AggregatedActionType::Commit {
                 blobs_gateway

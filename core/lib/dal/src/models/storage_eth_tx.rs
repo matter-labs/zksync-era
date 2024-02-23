@@ -22,6 +22,8 @@ pub struct StorageEthTx {
     pub updated_at: NaiveDateTime,
     // TODO (SMA-1614): remove the field
     pub sent_at_block: Option<i32>,
+    // If this field is `Some` this means that this transaction was sent by a custom operator
+    // such as blob sender operator.
     pub from_addr: Option<Vec<u8>>,
 }
 

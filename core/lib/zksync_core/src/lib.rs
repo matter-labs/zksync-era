@@ -638,6 +638,7 @@ pub async fn initialize_components(
             Aggregator::new(
                 eth_sender.sender.clone(),
                 store_factory.create_store().await,
+                eth_client_blobs_addr.is_some(),
             ),
             Arc::new(eth_client),
             contracts_config.validator_timelock_addr,
