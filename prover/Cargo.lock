@@ -820,6 +820,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "circuit_definitions"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.2#aa09f683a62e9ceeb457272909625f49f413f9d9"
+dependencies = [
+ "crossbeam 0.8.4",
+ "derivative",
+ "seq-macro",
+ "serde",
+ "snark_wrapper",
+ "zk_evm 1.4.1",
+ "zkevm_circuits 1.4.1",
+]
+
+[[package]]
 name = "circuit_testing"
 version = "0.1.0"
 source = "git+https://github.com/matter-labs/era-circuit_testing.git?branch=main#164c0adac85be39ee44bd9456b2b91cdede5af80"
@@ -6107,7 +6121,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bincode",
- "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1)",
+ "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.2)",
  "clap 4.4.6",
  "itertools 0.10.5",
  "md5",
@@ -6122,7 +6136,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "vlog",
- "zkevm_test_harness 1.4.1",
+ "zkevm_test_harness 1.4.2",
  "zksync_config",
  "zksync_env_config",
  "zksync_prover_fri_types",
@@ -6858,6 +6872,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "zkevm_test_harness"
+version = "1.4.2"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.2#aa09f683a62e9ceeb457272909625f49f413f9d9"
+dependencies = [
+ "bincode",
+ "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.2)",
+ "codegen",
+ "crossbeam 0.8.4",
+ "curl",
+ "derivative",
+ "env_logger 0.11.2",
+ "hex",
+ "lazy_static",
+ "rand 0.4.6",
+ "rayon",
+ "reqwest",
+ "rescue_poseidon 0.4.1 (git+https://github.com/matter-labs/rescue-poseidon.git?branch=poseidon2)",
+ "serde",
+ "serde_json",
+ "smallvec",
+ "snark_wrapper",
+ "structopt",
+ "test-log",
+ "tracing",
+ "walkdir",
+ "zkevm-assembly 1.3.2 (git+https://github.com/matter-labs/era-zkEVM-assembly.git?branch=v1.4.1)",
+]
+
+[[package]]
 name = "zksync_basic_types"
 version = "0.1.0"
 dependencies = [
@@ -7091,7 +7134,7 @@ dependencies = [
  "vk_setup_data_generator_server_fri",
  "vlog",
  "zkevm_test_harness 1.3.3",
- "zkevm_test_harness 1.4.1",
+ "zkevm_test_harness 1.4.2",
  "zksync_config",
  "zksync_dal",
  "zksync_env_config",
@@ -7143,7 +7186,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1)",
+ "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.2)",
  "ctrlc",
  "futures 0.3.30",
  "local-ip-address",
@@ -7157,7 +7200,7 @@ dependencies = [
  "vise",
  "vk_setup_data_generator_server_fri",
  "vlog",
- "zkevm_test_harness 1.4.1",
+ "zkevm_test_harness 1.4.2",
  "zksync_config",
  "zksync_dal",
  "zksync_env_config",
@@ -7198,7 +7241,7 @@ dependencies = [
 name = "zksync_prover_fri_types"
 version = "0.1.0"
 dependencies = [
- "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1)",
+ "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.2)",
  "serde",
  "zksync_object_store",
  "zksync_types",
@@ -7340,7 +7383,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "bincode",
- "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1)",
+ "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.2)",
  "const-decoder",
  "ctrlc",
  "futures 0.3.30",
@@ -7358,7 +7401,7 @@ dependencies = [
  "vk_setup_data_generator_server_fri",
  "vlog",
  "zk_evm 1.4.1",
- "zkevm_test_harness 1.4.1",
+ "zkevm_test_harness 1.4.2",
  "zksync_config",
  "zksync_dal",
  "zksync_env_config",
