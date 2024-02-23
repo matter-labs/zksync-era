@@ -158,11 +158,13 @@ impl ProtoRepr for proto::StateKeeper {
                 .map(|x| x.try_into())
                 .transpose()
                 .context("enum_index_migration_chunk_size")?,
-            l1_batch_commit_data_generator_mode: required(&self.fee_model_version)
-                // TODO: this should depend on the mode (Validium or Rollup), but the tests are not adapted yet for this.
-                .map(|_x| proto::L1BatchCommitDataGeneratorMode::Rollup)
-                .context("l1_batch_commit_data_generator_mode")?
-                .parse(),
+            l1_batch_commit_data_generator_mode: required(
+                &self.l1_batch_commit_data_generator_mode,
+            )
+            // TODO: this should depend on the mode (Validium or Rollup), but the tests are not adapted yet for this.
+            .and_then(|x| Ok(proto::L1BatchCommitDataGeneratorMode::try_from(*x)?))
+            .context("l1_batch_commit_data_generator_mode")?
+            .parse(),
         })
     }
 
@@ -202,7 +204,7 @@ impl ProtoRepr for proto::StateKeeper {
             // TODO: this should depend on the mode (Validium or Rollup), but the tests are not adapted yet for this.
             l1_batch_commit_data_generator_mode: Some(
                 proto::L1BatchCommitDataGeneratorMode::new(
-                    &configs::chain::L1BatchCommitDataGeneratorMode::Rollup,
+                    &this.l1_batch_commit_data_generator_mode,
                 )
                 .into(),
             ),
