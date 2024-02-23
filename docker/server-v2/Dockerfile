@@ -29,5 +29,6 @@ COPY contracts/l2-contracts/artifacts-zk/ /contracts/l2-contracts/artifacts-zk/
 COPY etc/tokens/ /etc/tokens/
 COPY etc/ERC20/ /etc/ERC20/
 COPY etc/multivm_bootloaders/ /etc/multivm_bootloaders/
+COPY trusted_setup.json /
 
 ENTRYPOINT ["zksync_server"]
