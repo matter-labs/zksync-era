@@ -57,23 +57,6 @@ impl<S: WriteStorage> PubdataTracer<S> {
         }
     }
 
-    // Creates the pubdata tracer with constant state diffs.
-    // To be used in tests only.
-    #[cfg(test)]
-    pub(crate) fn new_with_forced_state_diffs(
-        l1_batch_env: L1BatchEnv,
-        execution_mode: VmExecutionMode,
-        forced_state_diffs: Vec<StateDiffRecord>,
-    ) -> Self {
-        Self {
-            l1_batch_env,
-            pubdata_info_requested: false,
-            execution_mode,
-            enforced_state_diffs: Some(forced_state_diffs),
-            _phantom_data: Default::default(),
-        }
-    }
-
     // Packs part of L1 Messenger total pubdata that corresponds to
     // `L2toL1Logs` sent in the block
     fn get_total_user_logs<H: HistoryMode>(
