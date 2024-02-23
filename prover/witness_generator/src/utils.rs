@@ -136,7 +136,7 @@ pub async fn save_eip_4844_circuit(
     sequence_number: usize,
     object_store: &dyn ObjectStore,
     depth: u16,
-) -> (u8, String) {
+) -> (u16, String) {
     let circuit_id = 255;
     let circuit_key = FriCircuitKey {
         block_number,
@@ -149,7 +149,7 @@ pub async fn save_eip_4844_circuit(
         .put(circuit_key, &CircuitWrapper::Eip4844(circuit))
         .await
         .unwrap();
-    (circuit_id, blob_url)
+    (depth, blob_url)
 }
 
 pub async fn save_recursive_layer_prover_input_artifacts(

@@ -60,6 +60,7 @@ use crate::{
 
 pub struct BasicCircuitArtifacts {
     circuit_urls: Vec<(u8, String)>,
+    eip_4844_circuit_urls: Vec<(u16, String)>,
     queue_urls: Vec<(u8, String, usize)>,
     scheduler_witness: SchedulerCircuitInstanceWitness<
         GoldilocksField,
@@ -72,6 +73,7 @@ pub struct BasicCircuitArtifacts {
 #[derive(Debug)]
 struct BlobUrls {
     circuit_ids_and_urls: Vec<(u8, String)>,
+    eip_4844_circuit_urls: Vec<(u16, String)>,
     closed_form_inputs_and_urls: Vec<(u8, String, usize)>,
     scheduler_witness_url: String,
 }
@@ -287,6 +289,7 @@ impl JobProcessor for BasicWitnessGenerator {
                     job_id,
                     BlobUrls {
                         circuit_ids_and_urls: artifacts.circuit_urls,
+                        eip_4844_circuit_urls: artifacts.eip_4844_circuit_urls,
                         closed_form_inputs_and_urls: artifacts.queue_urls,
                         scheduler_witness_url,
                     },
@@ -331,15 +334,16 @@ async fn process_basic_circuits_job(
     );
     let witness_gen_input =
         build_basic_circuits_witness_generator_input(&connection_pool, job, block_number).await;
-    let (circuit_urls, queue_urls, scheduler_witness, aux_output_witness) = generate_witness(
-        block_number,
-        object_store,
-        config,
-        connection_pool,
-        witness_gen_input,
-        blobs_4844,
-    )
-    .await;
+    let (circuit_urls, eip_4844_circuit_urls, queue_urls, scheduler_witness, aux_output_witness) =
+        generate_witness(
+            block_number,
+            object_store,
+            config,
+            connection_pool,
+            witness_gen_input,
+            blobs_4844,
+        )
+        .await;
     WITNESS_GENERATOR_METRICS.witness_generation_time[&AggregationRound::BasicCircuits.into()]
         .observe(started_at.elapsed());
     tracing::info!(
@@ -350,6 +354,7 @@ async fn process_basic_circuits_job(
 
     BasicCircuitArtifacts {
         circuit_urls,
+        eip_4844_circuit_urls,
         queue_urls,
         scheduler_witness,
         aux_output_witness,
@@ -377,6 +382,33 @@ async fn update_database(
             protocol_version_id,
         )
         .await;
+    prover_connection
+        .fri_prover_jobs_dal()
+        .insert_prover_job(
+            block_number,
+            255,
+            blob_urls.eip_4844_circuit_urls[0].0,
+            blob_urls.eip_4844_circuit_urls[0].0 as usize,
+            AggregationRound::BasicCircuits,
+            &blob_urls.eip_4844_circuit_urls[0].1,
+            true,
+            protocol_version_id,
+        )
+        .await;
+    prover_connection
+        .fri_prover_jobs_dal()
+        .insert_prover_job(
+            block_number,
+            255,
+            blob_urls.eip_4844_circuit_urls[1].0,
+            blob_urls.eip_4844_circuit_urls[1].0 as usize,
+            AggregationRound::BasicCircuits,
+            &blob_urls.eip_4844_circuit_urls[1].1,
+            true,
+            protocol_version_id,
+        )
+        .await;
+
     prover_connection
         .fri_witness_generator_dal()
         .create_aggregation_jobs(
@@ -507,6 +539,7 @@ async fn generate_witness(
     blobs_4844: Vec<u8>,
 ) -> (
     Vec<(u8, String)>,
+    Vec<(u16, String)>,
     Vec<(u8, String, usize)>,
     SchedulerCircuitInstanceWitness<
         GoldilocksField,
@@ -708,26 +741,10 @@ async fn generate_witness(
 
     let (witnesses, ()) = tokio::join!(make_circuits, save_circuits);
 
-    circuit_urls.push(
-        save_eip_4844_circuit(
-            block_number,
-            eip_4844_circuit_1,
-            circuit_urls.len(),
-            object_store,
-            0,
-        )
-        .await,
-    );
-    circuit_urls.push(
-        save_eip_4844_circuit(
-            block_number,
-            eip_4844_circuit_2,
-            circuit_urls.len() + recursion_urls.len(),
-            object_store,
-            1,
-        )
-        .await,
-    );
+    let blobs_4844_urls = vec![
+        save_eip_4844_circuit(block_number, eip_4844_circuit_1, 0, object_store, 0).await,
+        save_eip_4844_circuit(block_number, eip_4844_circuit_2, 1, object_store, 1).await,
+    ];
 
     let (mut scheduler_witness, block_aux_witness) = witnesses.unwrap();
 
@@ -742,6 +759,7 @@ async fn generate_witness(
 
     (
         circuit_urls,
+        blobs_4844_urls,
         recursion_urls,
         scheduler_witness,
         block_aux_witness,

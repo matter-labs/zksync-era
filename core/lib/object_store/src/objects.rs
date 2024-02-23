@@ -138,6 +138,7 @@ impl dyn ObjectStore + '_ {
     /// or cannot be deserialized.
     pub async fn get<V: StoredObject>(&self, key: V::Key<'_>) -> Result<V, ObjectStoreError> {
         let key = V::encode_key(key);
+        println!("key = {key:?}");
         let bytes = self.get_raw(V::BUCKET, &key).await?;
         V::deserialize(bytes).map_err(ObjectStoreError::Serialization)
     }
