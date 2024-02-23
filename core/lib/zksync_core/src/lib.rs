@@ -3,6 +3,7 @@
 use std::{net::Ipv4Addr, str::FromStr, sync::Arc, time::Instant};
 
 use anyhow::Context as _;
+use api_server::tx_sender::master_pool_sink::MasterPoolSink;
 use fee_model::{ApiFeeInputProvider, BatchFeeModelInputProvider, MainNodeFeeInputProvider};
 use futures::channel::oneshot;
 use prometheus_exporter::PrometheusExporterConfig;
@@ -1101,9 +1102,13 @@ async fn build_tx_sender(
     storage_caches: PostgresStorageCaches,
 ) -> (TxSender, VmConcurrencyBarrier) {
     let sequencer_sealer = SequencerSealer::new(state_keeper_config.clone());
-    let tx_sender_builder = TxSenderBuilder::new(tx_sender_config.clone(), replica_pool.clone())
-        .with_main_connection_pool(master_pool)
-        .with_sealer(Arc::new(sequencer_sealer));
+    let master_pool_sink = MasterPoolSink::new(master_pool);
+    let tx_sender_builder = TxSenderBuilder::new(
+        tx_sender_config.clone(),
+        replica_pool.clone(),
+        Arc::new(master_pool_sink),
+    )
+    .with_sealer(Arc::new(sequencer_sealer));
 
     let max_concurrency = web3_json_config.vm_concurrency_limit();
     let (vm_concurrency_limiter, vm_barrier) = VmConcurrencyLimiter::new(max_concurrency);
