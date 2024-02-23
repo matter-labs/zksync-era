@@ -44,9 +44,8 @@ use zksync_types::{
     protocol_version::{L1VerifierConfig, VerifierParams},
     system_contracts::get_system_smart_contracts,
     web3::contract::tokens::Detokenize,
-    Bytes, L2ChainId, PackedEthSignature, ProtocolVersionId,
+    L2ChainId, PackedEthSignature, ProtocolVersionId,
 };
-use zksync_web3_decl::types::CallRequest;
 
 use crate::{
     api_server::{
@@ -632,19 +631,14 @@ pub async fn initialize_components(
                 }
             };
 
-        let current_commitment_mode_eth_response = eth_client
-            .call(
-                CallRequest::builder()
-                    .to((&contracts_config).executor_facet_addr.clone())
-                    .data(serde_json::from_str::<Bytes>(r#""0x252e5966""#).unwrap()) // The selector of "getPubdataPriceMode()"
-                    .build(),
-            )
-            .await
-            .context("failed to get the current commitment mode from the Ethereum")?;
-
-        let current_commitment_mode = L1BatchCommitDataGeneratorMode::from_eth_response(
-            &current_commitment_mode_eth_response,
+        let args = CallFunctionArgs::new("getPubdataPriceMode", ()).for_contract(
+            contracts_config.executor_facet_addr,
+            zksync_contracts::executor_contract(),
         );
+        let current_commitment_mode_eth_response = eth_client.call_contract_function(args).await?;
+
+        let current_commitment_mode =
+            L1BatchCommitDataGeneratorMode::from_tokens(current_commitment_mode_eth_response);
 
         assert_eq!(
             current_commitment_mode,
