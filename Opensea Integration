@@ -1,0 +1,36 @@
+[dependencies]
+web3 = "0.18.0"
+tokio = { version = "1", features = ["full"] }
+
+use web3::types::{Address, U256};
+use web3::transports::Http;
+use web3::Web3;
+
+#[tokio::main]
+async fn main() {
+    // Connect to a local Ethereum node
+    let transport = Http::new("http://localhost:8545").unwrap();
+    let web3 = Web3::new(transport);
+
+    // Example contract address and ABI
+    let contract_address: Address = "your_contract_address".parse().unwrap();
+    let contract_abi = include_bytes!("your_contract_abi.json");
+
+    // Instantiate the contract
+    let contract = web3.eth().contract(contract_abi);
+
+    // Example marketplace functionality
+    let seller_address: Address = "seller_address".parse().unwrap();
+    let item_id: U256 = 123.into();
+
+    // Perform a transaction to add an item to the marketplace
+    let tx_hash = contract
+        .send()
+        .add_item(seller_address, item_id)
+        .from(seller_address)
+        .send()
+        .await
+        .unwrap();
+
+    println!("Transaction Hash: {:?}", tx_hash);
+}
