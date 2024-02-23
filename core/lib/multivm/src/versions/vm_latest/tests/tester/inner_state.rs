@@ -110,7 +110,7 @@ impl<S: WriteStorage, H: CommonHistoryMode> Vm<S, H> {
                     .modified_storage_keys()
                     .clone(),
             ),
-            frames_stack: self.state.storage.frames_stack.clone(),
+            frames_stack: self.state.storage.storage_frames_stack.clone(),
             paid_changes: self.state.storage.paid_changes.clone(),
             initial_values: self.state.storage.initial_values.clone(),
             returned_refunds: self.state.storage.returned_refunds.clone(),

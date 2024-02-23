@@ -2013,6 +2013,23 @@
     proper-lockfile "^4.1.2"
     semver "^7.5.1"
 
+"@matterlabs/hardhat-zksync-solc@1.1.2":
+  version "1.1.2"
+  resolved "https://registry.yarnpkg.com/@matterlabs/hardhat-zksync-solc/-/hardhat-zksync-solc-1.1.2.tgz#d5c371acb8b745f018f0559403fe590e8c1dd8b4"
+  integrity sha512-4qyt9T3OevP+IGJqGd6cS/BKwJnne6XfYCq4gES2nnXoyIWOihmuaL9+KDsbvwVI4mBfB4bz84+SP68W5Bxuig==
+  dependencies:
+    "@nomiclabs/hardhat-docker" "^2.0.0"
+    chai "^4.3.6"
+    chalk "4.1.2"
+    debug "^4.3.4"
+    dockerode "^4.0.0"
+    fs-extra "^11.1.1"
+    proper-lockfile "^4.1.2"
+    semver "^7.5.1"
+    sinon "^16.0.0"
+    sinon-chai "^3.7.0"
+    undici "^5.14.0"
+
 "@matterlabs/hardhat-zksync-solc@^0.3.15":
   version "0.3.17"
   resolved "https://registry.yarnpkg.com/@matterlabs/hardhat-zksync-solc/-/hardhat-zksync-solc-0.3.17.tgz#72f199544dc89b268d7bfc06d022a311042752fd"
@@ -2033,23 +2050,6 @@
     fs-extra "^11.1.1"
     proper-lockfile "^4.1.2"
     semver "^7.5.1"
-
-"@matterlabs/hardhat-zksync-solc@^1.0.6":
-  version "1.1.1"
-  resolved "https://registry.yarnpkg.com/@matterlabs/hardhat-zksync-solc/-/hardhat-zksync-solc-1.1.1.tgz#d4a71495a2321baa6ab7536b04dbfe2935f7ad31"
-  integrity sha512-1g7sHp1uUr6quzCK6PWLd0vAvugrXH8ePeUeAyUAjcRAXeDHTKacNHJ1wMLYTfuuXZZ3+jwltwvfuiohRjukzw==
-  dependencies:
-    "@nomiclabs/hardhat-docker" "^2.0.0"
-    chai "^4.3.6"
-    chalk "4.1.2"
-    debug "^4.3.4"
-    dockerode "^4.0.0"
-    fs-extra "^11.1.1"
-    proper-lockfile "^4.1.2"
-    semver "^7.5.1"
-    sinon "^16.0.0"
-    sinon-chai "^3.7.0"
-    undici "^5.14.0"
 
 "@matterlabs/hardhat-zksync-verify@^0.2.0":
   version "0.2.2"
@@ -3167,11 +3167,6 @@
   version "10.17.60"
   resolved "https://registry.yarnpkg.com/@types/node/-/node-10.17.60.tgz#35f3d6213daed95da7f0f73e75bcc6980e90597b"
   integrity sha512-F0KIgDJfy2nA3zMLmWGKxcH2ZVEtCZXHHdOQs2gSaQ27+lNeEfGxzkIw90aXswATX7AZ33tahPbzy6KAfUreVw==
-
-"@types/node@^14.14.5", "@types/node@^14.6.1":
-  version "14.18.63"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-14.18.63.tgz#1788fa8da838dbb5f9ea994b834278205db6ca2b"
-  integrity sha512-fAtCfv4jJg+ExtXhvCkCqUKZ+4ok/JQk01qDKhL5BDDoS3AxKXhV5/MAVUZyQnSEd2GT92fkgZl0pz0Q0AzcIQ==
 
 "@types/node@^17.0.34":
   version "17.0.45"
@@ -11022,6 +11017,7 @@ synckit@^0.8.5:
   version "0.1.0"
   dependencies:
     "@matterlabs/hardhat-zksync-deploy" "^0.6.5"
+    "@matterlabs/hardhat-zksync-solc" "1.1.2"
     "@nomiclabs/hardhat-solpp" "^2.0.1"
     "@types/fs-extra" "^11.0.4"
     commander "^9.4.1"

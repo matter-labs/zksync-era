@@ -64,7 +64,6 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         let timestamp_initial = Timestamp(self.state.local_state.timestamp);
         let cycles_initial = self.state.local_state.monotonic_cycle_counter;
         let gas_remaining_before = self.gas_remaining();
-        let spent_pubdata_counter_before = self.state.local_state.spent_pubdata_counter;
 
         let stop_reason = self.execute_with_default_tracer(&mut tx_tracer);
 
@@ -84,7 +83,6 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             &tx_tracer,
             gas_remaining_before,
             gas_remaining_after,
-            spent_pubdata_counter_before,
             pubdata_published,
             logs.total_log_queries_count,
             circuit_statistic_from_cycles(tx_tracer.circuits_tracer.statistics),

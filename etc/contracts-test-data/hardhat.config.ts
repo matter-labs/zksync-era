@@ -1,10 +1,13 @@
 import '@matterlabs/hardhat-zksync-solc';
 
+export const COMPILER_PATH = `${process.env.ZKSYNC_HOME}/local-compiler/zksolc`;
+
 export default {
     zksolc: {
-        version: '1.3.22',
+        // version: 'prerelease-0640c18-test-zkvm-v1.5.0',
         compilerSource: 'binary',
         settings: {
+            compilerPath: COMPILER_PATH,
             isSystem: true
         }
     },
@@ -14,6 +17,9 @@ export default {
         }
     },
     solidity: {
-        version: '0.8.16'
+        version: '0.8.24',
+        settings: {
+            evmVersion: 'cancun'
+        }
     }
 };

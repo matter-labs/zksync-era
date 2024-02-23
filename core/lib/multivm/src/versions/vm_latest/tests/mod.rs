@@ -6,6 +6,7 @@ mod block_tip;
 mod bytecode_publishing;
 mod call_tracer;
 mod circuits;
+mod code_oracle;
 mod dummy_evm_simulator;
 mod evm_simulator;
 mod gas_limit;

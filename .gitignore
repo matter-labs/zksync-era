@@ -78,3 +78,4 @@ verified_sources
 hyperchain-*.yml
 /etc/hyperchains/prover-keys
 /etc/hyperchains/artifacts
+/local-compiler

@@ -5,6 +5,7 @@ use zk_evm_1_5_0::{
     aux_structures::{
         DecommittmentQuery, MemoryIndex, MemoryLocation, MemoryPage, MemoryQuery, Timestamp,
     },
+    zkevm_opcode_defs::{VersionedHashHeader, VersionedHashNormalizedPreimage},
 };
 use zksync_state::{ReadStorage, StoragePtr};
 use zksync_types::{H256, U256};
@@ -152,6 +153,52 @@ impl<S, const B: bool> OracleWithHistory for DecommitterOracle<B, S, HistoryEnab
     }
 }
 
+// TODO: consider moving this to the zk-evm crate
+enum VersionedCodeHash {
+    ZkEVM(VersionedHashHeader, VersionedHashNormalizedPreimage),
+    EVM(VersionedHashHeader, VersionedHashNormalizedPreimage),
+}
+
+impl VersionedCodeHash {
+    fn from_query(query: &DecommittmentQuery) -> Self {
+        match query.header.0[0] {
+            1 => Self::ZkEVM(query.header, query.normalized_preimage),
+            2 => Self::EVM(query.header, query.normalized_preimage),
+            _ => panic!("Unsupported hash version"),
+        }
+    }
+
+    /// Returns the hash in the format it is stored in the DB.
+    fn to_stored_hash(&self) -> U256 {
+        let (header, preimage) = match self {
+            Self::ZkEVM(header, preimage) => (header, preimage),
+            Self::EVM(header, preimage) => (header, preimage),
+        };
+
+        let mut hash = [0u8; 32];
+        &mut hash[0..4].copy_from_slice(&header.0);
+        &mut hash[4..32].copy_from_slice(&preimage.0);
+
+        // Hash[1] is used in both of the versions to denote whether the bytecode is being constructed.
+        // We ignore this param.
+        hash[1] = 0;
+
+        h256_to_u256(H256(hash))
+    }
+
+    fn get_preimage_length(&self) -> u32 {
+        // In zkEVM the hash[2..3] denotes the length of the preimage in words, while
+        // in EVM the hash[2..3] denotes the length of the preimage in bytes.
+        match self {
+            Self::ZkEVM(header, _) => {
+                let length_in_words = header.0[2] as u32 * 256 + header.0[3] as u32;
+                length_in_words * 32
+            }
+            Self::EVM(header, _) => header.0[2] as u32 * 256 + header.0[3] as u32,
+        }
+    }
+}
+
 impl<S: ReadStorage + Debug, const B: bool, H: HistoryMode> DecommittmentProcessor
     for DecommitterOracle<B, S, H>
 {
@@ -170,35 +217,26 @@ impl<S: ReadStorage + Debug, const B: bool, H: HistoryMode> DecommittmentProcess
     > {
         self.decommitment_requests.push((), partial_query.timestamp);
 
-        // erasing the constructor marker
-        // FIXME: a better code could be used
-        let hash_for_query = {
-            let mut hash = [0u8; 32];
+        let versioned_hash = VersionedCodeHash::from_query(&partial_query);
 
-            &mut hash[0..4].copy_from_slice(&partial_query.header.0);
-            &mut hash[4..32].copy_from_slice(&partial_query.normalized_preimage.0);
-
-            hash[1] = 0;
-
-            h256_to_u256(H256(hash))
-        };
+        let stored_hash = versioned_hash.to_stored_hash();
 
         // First - check if we didn't fetch this bytecode in the past.
         // If we did - we can just return the page that we used before (as the memory is readonly).
         if let Some(memory_page) = self
             .decommitted_code_hashes
             .inner()
-            .get(&hash_for_query)
+            .get(&stored_hash)
             .copied()
         {
             partial_query.is_fresh = false;
             partial_query.memory_page = MemoryPage(memory_page);
-            partial_query.decommitted_length = bytecode_len_in_words(&u256_to_h256(hash_for_query));
+            partial_query.decommitted_length = versioned_hash.get_preimage_length() as u16;
 
             Ok((partial_query, None))
         } else {
             // We are fetching a fresh bytecode that we didn't read before.
-            let values = self.get_bytecode(hash_for_query, partial_query.timestamp);
+            let values = self.get_bytecode(stored_hash, partial_query.timestamp);
             let page_to_use = partial_query.memory_page;
             let timestamp = partial_query.timestamp;
             partial_query.decommitted_length = values.len() as u16;
@@ -218,7 +256,7 @@ impl<S: ReadStorage + Debug, const B: bool, H: HistoryMode> DecommittmentProcess
                 rw_flag: true,
             };
             self.decommitted_code_hashes
-                .insert(hash_for_query, page_to_use.0, timestamp);
+                .insert(stored_hash, page_to_use.0, timestamp);
 
             // Copy the bytecode (that is stored in 'values' Vec) into the memory page.
             if B {

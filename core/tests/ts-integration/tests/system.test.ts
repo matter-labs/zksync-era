@@ -374,17 +374,6 @@ describe('System behavior checks', () => {
         ).toBeRejected('exceeds block gas limit');
     });
 
-    // it('should correctly return data in sekp256r1 precompile', async () => {
-    //     // FIXME: address is not eip7212 compatible
-    //     const PRECOMPILE_ADDRESS = '0x0000000000000000000000000000000000008100';
-
-    //     console.log(await alice.call({
-    //         to: PRECOMPILE_ADDRESS,
-
-    //     }));
-
-    // });
-
     afterAll(async () => {
         await testMaster.deinitialize();
     });

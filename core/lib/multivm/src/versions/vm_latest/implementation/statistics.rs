@@ -21,16 +21,12 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         tracer: &DefaultExecutionTracer<S, H::Vm1_4_1>,
         gas_remaining_before: u32,
         gas_remaining_after: u32,
-        spent_pubdata_counter_before: u32,
         pubdata_published: u32,
         total_log_queries_count: usize,
         circuit_statistic: CircuitStatistic,
     ) -> VmExecutionStatistics {
-        let computational_gas_used = self.calculate_computational_gas_used(
-            tracer,
-            gas_remaining_before,
-            spent_pubdata_counter_before,
-        );
+        let computational_gas_used =
+            self.calculate_computational_gas_used(tracer, gas_remaining_before);
         VmExecutionStatistics {
             contracts_used: self
                 .state

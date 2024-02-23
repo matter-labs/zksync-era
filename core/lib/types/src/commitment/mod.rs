@@ -455,11 +455,13 @@ pub struct L1BatchMetaParameters {
 
 impl L1BatchMetaParameters {
     pub fn to_bytes(&self) -> Vec<u8> {
-        const SERIALIZED_SIZE: usize = 4 + 1 + 32 + 32;
+        const SERIALIZED_SIZE: usize = 4 + 1 + 32 + 32 + 32;
         let mut result = Vec::with_capacity(SERIALIZED_SIZE);
         result.push(self.zkporter_is_available as u8);
         result.extend(self.bootloader_code_hash.as_bytes());
         result.extend(self.default_aa_code_hash.as_bytes());
+        // EVM simulator hash is always zero
+        result.extend([0u8; 32]);
         result
     }
 

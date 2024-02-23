@@ -22,8 +22,10 @@ use crate::{
     vm_m5::storage::Storage,
 };
 
-fn test_pubdata_counter(calldata: Vec<u8>) -> u32 {
-    let bytecode = read_bytecode("etc/contracts-test-data/artifacts-zk/contracts/pubdata-counter/pubdata-counter.sol/PubdataCounter.json");
+fn test_storage(first_tx_calldata: Vec<u8>, second_tx_calldata: Vec<u8>) -> u32 {
+    let bytecode = read_bytecode(
+        "etc/contracts-test-data/artifacts-zk/contracts/storage/storage.sol/StorageTester.json",
+    );
 
     let test_contract_address = Address::random();
 
@@ -37,46 +39,67 @@ fn test_pubdata_counter(calldata: Vec<u8>) -> u32 {
         .with_custom_contracts(vec![(bytecode, test_contract_address, false)])
         .build();
 
-    // We need to do it just to ensure that the tracers will not include stats from the start of the bootloader and will only include those for the transaction itself.
-    vm.deploy_test_contract();
-
     let account = &mut vm.rich_accounts[0];
-    let tx = account.get_l2_tx_for_execute(
+
+    let tx1 = account.get_l2_tx_for_execute(
         Execute {
             contract_address: Some(test_contract_address),
-            calldata,
+            calldata: first_tx_calldata,
             value: 0.into(),
             factory_deps: None,
         },
         None,
     );
 
-    vm.vm.push_transaction(tx);
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let tx2 = account.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(test_contract_address),
+            calldata: second_tx_calldata,
+            value: 0.into(),
+            factory_deps: None,
+        },
+        None,
+    );
 
+    vm.vm.push_transaction(tx1);
+    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    assert!(!result.result.is_failed(), "First tx failed");
+
+    vm.vm.push_transaction(tx2);
+    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    assert!(!result.result.is_failed(), "Second tx failed");
     result.statistics.pubdata_published
+}
+
+fn test_storage_one_tx(second_tx_calldata: Vec<u8>) -> u32 {
+    test_storage(vec![], second_tx_calldata)
 }
 
 #[test]
 fn test_storage_behavior() {
-    let contract = load_contract("etc/contracts-test-data/artifacts-zk/contracts/pubdata-counter/pubdata-counter.sol/PubdataCounter.json");
+    let contract = load_contract(
+        "etc/contracts-test-data/artifacts-zk/contracts/storage/storage.sol/StorageTester.json",
+    );
 
-    let base_pubdata = test_pubdata_counter(vec![]);
-    let simple_test_pubdata = test_pubdata_counter(
+    // In all of the tests below we provide the first tx to ensure that the tracers will not include
+    // the statistics from the start of the bootloader and will only include those for the transaction itself.
+
+    let base_pubdata = test_storage_one_tx(vec![]);
+    let simple_test_pubdata = test_storage_one_tx(
         contract
             .function("simpleWrite")
             .unwrap()
             .encode_input(&[])
             .unwrap(),
     );
-    let resetting_write_pubdata = test_pubdata_counter(
+    let resetting_write_pubdata = test_storage_one_tx(
         contract
             .function("resettingWrite")
             .unwrap()
             .encode_input(&[])
             .unwrap(),
     );
-    let resetting_write_via_revert_pubdata = test_pubdata_counter(
+    let resetting_write_via_revert_pubdata = test_storage_one_tx(
         contract
             .function("resettingWriteViaRevert")
             .unwrap()
@@ -87,4 +110,25 @@ fn test_storage_behavior() {
     assert_eq!(simple_test_pubdata - base_pubdata, 65);
     assert_eq!(resetting_write_pubdata - base_pubdata, 34);
     assert_eq!(resetting_write_via_revert_pubdata - base_pubdata, 34);
+}
+
+#[test]
+fn test_transient_storage_behavior() {
+    let contract = load_contract(
+        "etc/contracts-test-data/artifacts-zk/contracts/storage/storage.sol/StorageTester.json",
+    );
+
+    let first_tstore_test = contract
+        .function("testTransientStore")
+        .unwrap()
+        .encode_input(&[])
+        .unwrap();
+    // Second transaction checks that, as expected, the transient storage is cleared after the first transaction.
+    let second_tstore_test = contract
+        .function("assertTValue")
+        .unwrap()
+        .encode_input(&[Token::Uint(U256::zero())])
+        .unwrap();
+
+    test_storage(first_tstore_test, second_tstore_test);
 }

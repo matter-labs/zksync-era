@@ -3,7 +3,9 @@
 use std::{sync::Arc, time::Instant};
 
 use tokio::sync::Mutex;
-use zkevm_test_harness::prover_utils::{verify_base_layer_proof, verify_recursion_layer_proof};
+use zkevm_test_harness::prover_utils::{
+    verify_base_layer_proof, verify_eip4844_proof, verify_recursion_layer_proof,
+};
 use zksync_dal::StorageProcessor;
 use zksync_object_store::ObjectStore;
 use zksync_prover_fri_types::{
@@ -96,6 +98,7 @@ pub async fn save_proof(
             }
             _ => (recursive_circuit.numeric_circuit_type(), false),
         },
+        FriProofWrapper::Eip4844(_) => (ProverServiceDataKey::eip4844().circuit_id, false),
     };
 
     let blob_save_started_at = Instant::now();
@@ -143,14 +146,16 @@ pub fn verify_proof(
             verify_recursion_layer_proof::<NoPow>(recursive_circuit, proof, vk),
             recursive_circuit.numeric_circuit_type(),
         ),
+        CircuitWrapper::Eip4844(circuit) => (
+            verify_eip4844_proof::<NoPow>(circuit, proof, vk),
+            ProverServiceDataKey::eip4844().circuit_id,
+        ),
     };
 
     METRICS.proof_verification_time[&circuit_id.to_string()].observe(started_at.elapsed());
 
     if !is_valid {
-        let msg = format!(
-            "Failed to verify base layer proof for job-id: {job_id} circuit_type {circuit_id}"
-        );
+        let msg = format!("Failed to verify proof for job-id: {job_id} circuit_type {circuit_id}");
         tracing::error!("{}", msg);
         panic!("{}", msg);
     }

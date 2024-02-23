@@ -25,6 +25,7 @@ use zksync_types::{
     MAX_NEW_FACTORY_DEPS, U256,
 };
 use zksync_utils::h256_to_u256;
+use zksync_web3_decl::jsonrpsee::http_client::HttpClient;
 
 pub(super) use self::{proxy::TxProxy, result::SubmitTxError};
 use crate::{
@@ -164,8 +165,8 @@ impl TxSenderBuilder {
         self
     }
 
-    pub fn with_tx_proxy(mut self, main_node_url: &str) -> Self {
-        self.proxy = Some(TxProxy::new(main_node_url));
+    pub fn with_tx_proxy(mut self, client: HttpClient) -> Self {
+        self.proxy = Some(TxProxy::new(client));
         self
     }
 
@@ -351,7 +352,7 @@ impl TxSender {
             // We're running an external node: we have to proxy the transaction to the main node.
             // But before we do that, save the tx to cache in case someone will request it
             // Before it reaches the main node.
-            proxy.save_tx(tx.hash(), tx.clone()).await;
+            proxy.save_tx(tx.clone()).await;
             proxy.submit_tx(&tx).await?;
             // Now, after we are sure that the tx is on the main node, remove it from cache
             // since we don't want to store txs that might have been replaced or otherwise removed
