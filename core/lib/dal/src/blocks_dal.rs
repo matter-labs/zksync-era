@@ -1338,13 +1338,14 @@ impl BlocksDal<'_, '_> {
                     LIMIT
                         $1
                     "#,
-                    limit as i32
+                    limit as i32,
                 )
                 .instrument("get_ready_for_execute_l1_batches/no_max_timestamp")
                 .with_arg("limit", &limit)
                 .fetch_all(self.storage)
                 .await?
             }
+
             Some(max_l1_batch_timestamp_millis) => {
                 // Do not lose the precision here, otherwise we can skip some L1 batches.
                 // Mostly needed for tests.
@@ -1417,7 +1418,7 @@ impl BlocksDal<'_, '_> {
         .fetch_one(self.storage.conn())
         .await?;
 
-        let vec = if let Some(max_ready_to_send_block) = row.max {
+        Ok(if let Some(max_ready_to_send_block) = row.max {
             // If we found at least one ready to execute batch then we can simply return all blocks between
             // the expected started point and the max ready to send block because we send them to the L1 sequentially.
             assert!(max_ready_to_send_block >= expected_started_point);
@@ -1481,9 +1482,7 @@ impl BlocksDal<'_, '_> {
             .await?
         } else {
             vec![]
-        };
-
-        Ok(vec)
+        })
     }
 
     pub async fn pre_boojum_get_ready_for_commit_l1_batches(
