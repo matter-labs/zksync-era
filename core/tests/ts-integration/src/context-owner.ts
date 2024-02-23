@@ -456,7 +456,7 @@ export async function sendTransfers(
                 gasPrice
             };
 
-            reporter?.debug(`Inititated ETH transfer with nonce: ${tx.nonce}`);
+            reporter?.debug(`Initiated ETH transfer with nonce: ${tx.nonce}`);
             return wallet.sendTransaction(tx).then((tx) => {
                 reporter?.debug(`Sent ETH transfer tx: ${tx.hash}, nonce: ${tx.nonce}`);
                 return tx.wait();
@@ -467,7 +467,7 @@ export async function sendTransfers(
                 nonce: txNonce,
                 gasPrice
             });
-            reporter?.debug(`Inititated ERC20 transfer with nonce: ${txNonce}`);
+            reporter?.debug(`Initiated ERC20 transfer with nonce: ${txNonce}`);
             // @ts-ignore
             return tx.then((tx) => {
                 reporter?.debug(`Sent ERC20 transfer tx: ${tx.hash}, nonce: ${tx.nonce}`);
