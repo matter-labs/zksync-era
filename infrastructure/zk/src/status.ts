@@ -27,7 +27,9 @@ async function queryAndReturnRows(pool: Pool, text: string, params?: any[]): Pro
 }
 
 async function getProofProgress(l1_batch_number: number) {
-    const result = await query(prover_pool!, 'select * from prover_jobs_fri where l1_batch_number = $1', [l1_batch_number]);
+    const result = await query(prover_pool!, 'select * from prover_jobs_fri where l1_batch_number = $1', [
+        l1_batch_number
+    ]);
 
     let successful = 0;
     let failed = 0;
@@ -51,9 +53,11 @@ async function getProofProgress(l1_batch_number: number) {
         }
     });
 
-    const compression_results = await query(prover_pool!, 'select * from proof_compression_jobs_fri where l1_batch_number = $1', [
-        l1_batch_number
-    ]);
+    const compression_results = await query(
+        prover_pool!,
+        'select * from proof_compression_jobs_fri where l1_batch_number = $1',
+        [l1_batch_number]
+    );
 
     let compression_result_string = '';
     if (compression_results.rowCount == 0) {
@@ -103,7 +107,10 @@ async function compareVerificationKeys() {
         return;
     }
 
-    let protocol_version = await query(prover_pool!, 'select recursion_scheduler_level_vk_hash from prover_fri_protocol_versions');
+    let protocol_version = await query(
+        prover_pool!,
+        'select recursion_scheduler_level_vk_hash from prover_fri_protocol_versions'
+    );
     if (protocol_version.rowCount != 1) {
         console.log(`${redStart}Got ${protocol_version.rowCount} rows with protocol versions, expected 1${resetColor}`);
         return;
@@ -135,7 +142,8 @@ async function compareVerificationParams() {
         return;
     }
 
-    let protocol_version = await query(prover_pool!,
+    let protocol_version = await query(
+        prover_pool!,
         'select recursion_node_level_vk_hash, recursion_leaf_level_vk_hash, recursion_circuits_set_vks_hash from prover_fri_protocol_versions'
     );
     if (protocol_version.rowCount != 1) {
@@ -188,7 +196,9 @@ export async function statusProver() {
     }
 
     // Fetch the first and most recent sealed batch numbers
-    const stateKeeperStatus = (await queryAndReturnRows(main_pool, 'select min(number), max(number) from l1_batches'))[0];
+    const stateKeeperStatus = (
+        await queryAndReturnRows(main_pool, 'select min(number), max(number) from l1_batches')
+    )[0];
 
     console.log(`State keeper: First batch: ${stateKeeperStatus['min']}, recent batch: ${stateKeeperStatus['max']}`);
     const [blockCommitted, blockVerified] = await getL1ValidatorStatus();
