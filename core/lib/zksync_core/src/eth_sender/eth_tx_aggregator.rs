@@ -470,9 +470,9 @@ impl EthTxAggregator {
     ) -> Result<EthTx, ETHSenderError> {
         let mut transaction = storage.start_transaction().await.unwrap();
         let op_type = aggregated_op.get_action_type();
-        /// We may be using a custom sender for commit transactions, so use this
-        /// var whatever it actually is: a `None` for single-addr operator or `Some`
-        /// for multi-addr operator in 4844 mode.
+        // We may be using a custom sender for commit transactions, so use this
+        // var whatever it actually is: a `None` for single-addr operator or `Some`
+        // for multi-addr operator in 4844 mode.
         let sender_addr = match op_type {
             AggregatedActionType::Commit => self.custom_commit_sender_addr,
             _ => None,
