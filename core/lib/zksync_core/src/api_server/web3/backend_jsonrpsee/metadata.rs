@@ -76,7 +76,7 @@ impl MethodTracer {
 
     pub(super) fn new_call(self: &Arc<Self>, name: &'static str) -> MethodCall {
         MethodCall {
-            current_method: self.clone(),
+            tracer: self.clone(),
             meta: MethodMetadata::new(name),
             is_completed: false,
         }
@@ -105,7 +105,7 @@ impl MethodTracer {
 
 #[derive(Debug)]
 pub(super) struct MethodCall {
-    current_method: Arc<MethodTracer>,
+    tracer: Arc<MethodTracer>,
     meta: MethodMetadata,
     is_completed: bool,
 }
@@ -121,12 +121,12 @@ impl Drop for MethodCall {
 impl MethodCall {
     pub(super) fn set_as_current(&mut self) -> CurrentMethodGuard<'_> {
         let meta = &mut self.meta;
-        let cell = self.current_method.inner.get_or_default();
+        let cell = self.tracer.inner.get_or_default();
         let prev = mem::replace(&mut *cell.borrow_mut(), Some(meta.clone()));
         CurrentMethodGuard {
             prev,
             current: meta,
-            thread_local: &self.current_method.inner,
+            thread_local: &self.tracer.inner,
         }
     }
 
@@ -138,8 +138,6 @@ impl MethodCall {
         }
         API_METRICS.observe_latency(meta);
         #[cfg(test)]
-        self.current_method
-            .recorder
-            .observe_response(meta, response);
+        self.tracer.recorder.observe_response(meta, response);
     }
 }
