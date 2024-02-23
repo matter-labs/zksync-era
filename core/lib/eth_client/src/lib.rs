@@ -1,13 +1,13 @@
 use std::fmt;
 
 use async_trait::async_trait;
+use serde::Deserialize;
 use zksync_types::{
     web3::{
-        contract::Options,
         ethabi,
         types::{
-            Address, Block, BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt,
-            H160, H256, U256, U64,
+            AccessList, Address, Block, BlockId, BlockNumber, Filter, Log, Transaction,
+            TransactionCondition, TransactionReceipt, H160, H256, U256, U64,
         },
     },
     L1ChainId,
@@ -20,6 +20,54 @@ pub use crate::types::{
 
 pub mod clients;
 mod types;
+
+#[derive(Deserialize)]
+pub struct BlockWithExtraBlobGas<TX> {
+    #[serde(flatten)]
+    pub block: Block<TX>,
+
+    #[serde(default, rename = "excessBlobGas")]
+    pub excess_blob_gas: Option<U256>,
+}
+
+/// Contract Call/Query Options
+#[derive(Default, Debug, Clone, PartialEq)]
+pub struct Options {
+    /// Fixed gas limit
+    pub gas: Option<U256>,
+    /// Fixed gas price
+    pub gas_price: Option<U256>,
+    /// Value to transfer
+    pub value: Option<U256>,
+    /// Fixed transaction nonce
+    pub nonce: Option<U256>,
+    /// A condition to satisfy before including transaction.
+    pub condition: Option<TransactionCondition>,
+    /// Transaction type, Some(1) for AccessList transaction, None for Legacy
+    pub transaction_type: Option<U64>,
+    /// Access list
+    pub access_list: Option<AccessList>,
+    /// Max fee per gas
+    pub max_fee_per_gas: Option<U256>,
+    /// miner bribe
+    pub max_priority_fee_per_gas: Option<U256>,
+    /// Max fee per blob gas
+    pub max_fee_per_blob_gas: Option<U256>,
+    /// Blob versioned hashes
+    pub blob_versioned_hashes: Option<Vec<H256>>,
+}
+
+impl Options {
+    /// Create new default `Options` object with some modifications.
+    pub fn with<F>(func: F) -> Options
+    where
+        F: FnOnce(&mut Options),
+    {
+        let mut options = Options::default();
+        func(&mut options);
+        options
+    }
+}
 
 /// Common Web3 interface, as seen by the core applications.
 /// Encapsulates the raw Web3 interaction, providing a high-level interface.
@@ -66,6 +114,9 @@ pub trait EthInterface: 'static + Sync + Send + fmt::Debug {
 
     /// Returns the current gas price.
     async fn get_gas_price(&self, component: &'static str) -> Result<U256, Error>;
+
+    /// Returns an estimate of current blob gas price.
+    async fn get_blob_gas_price(&self, component: &'static str) -> Result<U256, Error>;
 
     /// Returns the current block number.
     async fn block_number(&self, component: &'static str) -> Result<U64, Error>;

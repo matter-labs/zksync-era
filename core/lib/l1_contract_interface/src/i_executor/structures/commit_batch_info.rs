@@ -1,3 +1,5 @@
+use once_cell::sync::Lazy;
+use zkevm_test_harness_1_4_1::kzg::KzgSettings;
 use zksync_types::{
     commitment::{pre_boojum_serialize_commitments, serialize_commitments, L1BatchWithMetadata},
     ethabi::Token,
@@ -5,7 +7,20 @@ use zksync_types::{
     U256,
 };
 
-use crate::Tokenizable;
+use crate::{
+    i_executor::commit::kzg::{KzgInfo, ZK_SYNC_BYTES_PER_BLOB},
+    Tokenizable,
+};
+
+/// Loads KZG settings from the file system.
+pub fn load_kzg_settings() -> KzgSettings {
+    static KZG_SETTINGS: Lazy<KzgSettings> = Lazy::new(|| {
+        let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
+        let path = std::path::Path::new(&zksync_home).join("trusted_setup.json");
+        KzgSettings::new(path.to_str().unwrap())
+    });
+    KZG_SETTINGS.clone()
+}
 
 /// Encoding for `CommitBatchInfo` from `IExecutor.sol`
 #[derive(Debug)]
@@ -62,6 +77,25 @@ impl<'a> Tokenizable for CommitBatchInfo<'a> {
                 ),
             ])
         } else {
+            let pubdata = self
+                .0
+                .header
+                .pubdata_input
+                .clone()
+                .unwrap_or(self.0.construct_pubdata());
+
+            let kzg_settings = load_kzg_settings();
+
+            let mut pubdata_commitments = pubdata
+                .chunks(ZK_SYNC_BYTES_PER_BLOB)
+                .map(|blob| {
+                    let kzg_info = KzgInfo::new(&kzg_settings, blob.to_vec());
+                    kzg_info.to_pubdata_commitment().to_vec()
+                })
+                .flatten()
+                .collect::<Vec<u8>>();
+            pubdata_commitments.insert(0, 1u8);
+
             Token::Tuple(vec![
                 // `batchNumber`
                 Token::Uint(U256::from(self.0.header.number.0)),
@@ -102,13 +136,7 @@ impl<'a> Tokenizable for CommitBatchInfo<'a> {
                 // `systemLogs`
                 Token::Bytes(serialize_commitments(&self.0.header.system_logs)),
                 // `totalL2ToL1Pubdata`
-                Token::Bytes(
-                    self.0
-                        .header
-                        .pubdata_input
-                        .clone()
-                        .unwrap_or(self.0.construct_pubdata()),
-                ),
+                Token::Bytes(pubdata_commitments),
             ])
         }
     }

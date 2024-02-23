@@ -6,11 +6,11 @@ use assert_matches::assert_matches;
 use test_casing::{test_casing, Product};
 use tokio::sync::mpsc;
 use zksync_dal::StorageProcessor;
-use zksync_eth_client::clients::MockEthereum;
+use zksync_eth_client::{clients::MockEthereum, Options};
 use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata,
-    web3::contract::Options, L2ChainId, ProtocolVersion, ProtocolVersionId, H256,
+    aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata, L2ChainId,
+    ProtocolVersion, ProtocolVersionId, H256,
 };
 
 use super::*;
@@ -329,7 +329,7 @@ async fn normal_checker_function(
             },
         );
         let signed_tx = signed_tx.unwrap();
-        client.send_raw_tx(signed_tx.raw_tx).await.unwrap();
+        client.send_raw_tx(signed_tx.raw_tx(None)).await.unwrap();
         client.execute_tx(signed_tx.hash, true, 1);
 
         commit_tx_hash_by_l1_batch.extend(
@@ -407,7 +407,7 @@ async fn checker_processes_pre_boojum_batches(
             },
         );
         let signed_tx = signed_tx.unwrap();
-        client.send_raw_tx(signed_tx.raw_tx).await.unwrap();
+        client.send_raw_tx(signed_tx.raw_tx(None)).await.unwrap();
         client.execute_tx(signed_tx.hash, true, 1);
 
         commit_tx_hash_by_l1_batch.insert(l1_batch.header.number, signed_tx.hash);
@@ -466,7 +466,7 @@ async fn checker_functions_after_snapshot_recovery(delay_batch_insertion: bool) 
     );
     let signed_tx = signed_tx.unwrap();
     let commit_tx_hash = signed_tx.hash;
-    client.send_raw_tx(signed_tx.raw_tx).await.unwrap();
+    client.send_raw_tx(signed_tx.raw_tx(None)).await.unwrap();
     client.execute_tx(commit_tx_hash, true, 1);
 
     let save_actions = [
@@ -571,7 +571,7 @@ impl IncorrectDataKind {
             },
         );
         let signed_tx = signed_tx.unwrap();
-        client.send_raw_tx(signed_tx.raw_tx).await.unwrap();
+        client.send_raw_tx(signed_tx.raw_tx(None)).await.unwrap();
         client.execute_tx(signed_tx.hash, successful_status, 1);
         signed_tx.hash
     }

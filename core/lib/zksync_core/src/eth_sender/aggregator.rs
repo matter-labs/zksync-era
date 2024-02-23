@@ -22,6 +22,8 @@ use super::{
     },
 };
 
+const MAX_NUMBER_OF_BATCH_COMMITS: usize = 1;
+
 #[derive(Debug)]
 pub struct Aggregator {
     commit_criteria: Vec<Box<dyn L1BatchPublishCriterion>>,
@@ -159,6 +161,7 @@ impl Aggregator {
             &mut self.execute_criteria,
             ready_for_execute_batches,
             last_sealed_l1_batch,
+            AggregatedActionType::Execute,
         )
         .await;
 
@@ -217,6 +220,7 @@ impl Aggregator {
             &mut self.commit_criteria,
             ready_for_commit_l1_batches,
             last_sealed_batch,
+            AggregatedActionType::Commit,
         )
         .await;
 
@@ -318,6 +322,7 @@ impl Aggregator {
             &mut self.proof_criteria,
             ready_for_proof_l1_batches,
             last_sealed_l1_batch,
+            AggregatedActionType::PublishProofOnchain,
         )
         .await?;
 
@@ -402,6 +407,7 @@ async fn extract_ready_subrange(
     publish_criteria: &mut [Box<dyn L1BatchPublishCriterion>],
     unpublished_l1_batches: Vec<L1BatchWithMetadata>,
     last_sealed_l1_batch: L1BatchNumber,
+    operation_type: AggregatedActionType,
 ) -> Option<Vec<L1BatchWithMetadata>> {
     let mut last_l1_batch: Option<L1BatchNumber> = None;
     for criterion in publish_criteria {
@@ -414,12 +420,16 @@ async fn extract_ready_subrange(
     }
 
     let last_l1_batch = last_l1_batch?;
-    Some(
-        unpublished_l1_batches
+    Some(match operation_type {
+        AggregatedActionType::Commit => unpublished_l1_batches
+            .into_iter()
+            .take(MAX_NUMBER_OF_BATCH_COMMITS)
+            .collect(),
+        _ => unpublished_l1_batches
             .into_iter()
             .take_while(|l1_batch| l1_batch.header.number <= last_l1_batch)
             .collect(),
-    )
+    })
 }
 
 pub async fn load_wrapped_fri_proofs_for_range(

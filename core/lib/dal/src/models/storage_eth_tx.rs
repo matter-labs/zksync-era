@@ -22,6 +22,10 @@ pub struct StorageEthTx {
     pub updated_at: NaiveDateTime,
     // TODO (SMA-1614): remove the field
     pub sent_at_block: Option<i32>,
+    // A `EIP_4844_TX_TYPE` transaction blob sidecar.
+    //
+    // Format a `bincode`-encoded `EthTxBlobSidecar` enum.
+    pub blob_sidecar: Option<Vec<u8>>,
 }
 
 #[derive(Debug, Default)]
@@ -54,6 +58,7 @@ pub struct StorageTxHistory {
     pub updated_at: NaiveDateTime,
     pub signed_raw_tx: Option<Vec<u8>>,
     pub sent_at_block: Option<i32>,
+    pub blob_sidecar: Option<Vec<u8>>,
 }
 
 impl From<StorageEthTx> for EthTx {
@@ -67,6 +72,9 @@ impl From<StorageEthTx> for EthTx {
             tx_type: AggregatedActionType::from_str(&tx.tx_type).expect("Wrong agg type"),
             created_at_timestamp: tx.created_at.timestamp() as u64,
             predicted_gas_cost: tx.predicted_gas_cost as u64,
+            blob_sidecar: tx.blob_sidecar.map(|b| {
+                bincode::deserialize(&b).expect("EthTxBlobSidecar is encoded correctly; qed")
+            }),
         }
     }
 }

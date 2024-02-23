@@ -25,6 +25,7 @@ zksync_state = { path = "../state" }
 zksync_contracts = { path = "../contracts" }
 zksync_utils = { path = "../utils" }
 zksync_system_constants = { path = "../constants" }
+zksync_l1_contract_interface = { path = "../l1_contract_interface" }
 
 
 anyhow = "1.0"

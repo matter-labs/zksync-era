@@ -21,7 +21,7 @@ use zkevm_test_harness_1_4_1::{
     },
 };
 
-const ZK_SYNC_BYTES_PER_BLOB: usize = BLOB_CHUNK_SIZE * ELEMENTS_PER_4844_BLOCK;
+pub const ZK_SYNC_BYTES_PER_BLOB: usize = BLOB_CHUNK_SIZE * ELEMENTS_PER_4844_BLOCK;
 const EIP_4844_BYTES_PER_BLOB: usize = 32 * ELEMENTS_PER_4844_BLOCK;
 
 /// Packed pubdata commitments.
@@ -100,6 +100,20 @@ impl KzgInfo {
         res[48..96].copy_from_slice(self.kzg_commitment.as_slice());
         res[96..144].copy_from_slice(self.opening_proof.as_slice());
         res
+    }
+
+    pub fn to_blob_commitment(&self) -> [u8; 32] {
+        let mut commitment = [0u8; 32];
+        let hash = &Keccak256::digest(
+            [
+                self.versioned_hash.to_vec(),
+                self.opening_point[16..].to_vec(),
+                self.opening_value.to_vec(),
+            ]
+            .concat(),
+        );
+        commitment.copy_from_slice(hash);
+        commitment
     }
 
     /// Deserializes `Self::SERIALIZED_SIZE` bytes into `KzgInfo` struct

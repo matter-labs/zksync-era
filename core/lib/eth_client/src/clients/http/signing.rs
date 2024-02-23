@@ -7,7 +7,7 @@ use zksync_eth_signer::{raw_ethereum_tx::TransactionParameters, EthereumSigner, 
 use zksync_types::{
     web3::{
         self,
-        contract::{tokens::Detokenize, Options},
+        contract::tokens::Detokenize,
         ethabi,
         transports::Http,
         types::{
@@ -15,13 +15,13 @@ use zksync_types::{
             H160, H256, U256, U64,
         },
     },
-    L1ChainId, PackedEthSignature, EIP_1559_TX_TYPE,
+    L1ChainId, PackedEthSignature, EIP_4844_TX_TYPE,
 };
 
 use super::{query::QueryClient, Method, LATENCIES};
 use crate::{
     types::{Error, ExecutedTxStatus, FailureInfo, SignedCallResult},
-    BoundEthInterface, CallFunctionArgs, ContractCall, EthInterface, RawTransactionBytes,
+    BoundEthInterface, CallFunctionArgs, ContractCall, EthInterface, Options, RawTransactionBytes,
 };
 
 /// HTTP-based Ethereum client, backed by a private key to sign transactions.
@@ -116,6 +116,10 @@ impl<S: EthereumSigner> EthInterface for SigningClient<S> {
 
     async fn get_gas_price(&self, component: &'static str) -> Result<U256, Error> {
         self.query_client.get_gas_price(component).await
+    }
+
+    async fn get_blob_gas_price(&self, component: &'static str) -> Result<U256, Error> {
+        self.query_client.get_blob_gas_price(component).await
     }
 
     async fn send_raw_tx(&self, tx: RawTransactionBytes) -> Result<H256, Error> {
@@ -226,6 +230,15 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
             None => self.inner.default_priority_fee_per_gas,
         };
 
+        if options.transaction_type == Some(EIP_4844_TX_TYPE.into()) {
+            if options.max_fee_per_blob_gas.is_none() {
+                return Err(Error::Eip4844MissingMaxFeePerBlobGas);
+            }
+            if options.blob_versioned_hashes.is_none() {
+                return Err(Error::Eip4844MissingBlobVersionedHashes);
+            }
+        }
+
         // Fetch current base fee and add `max_priority_fee_per_gas`
         let max_fee_per_gas = match options.max_fee_per_gas {
             Some(max_fee_per_gas) => max_fee_per_gas,
@@ -267,21 +280,24 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
             chain_id: self.inner.chain_id.0,
             max_priority_fee_per_gas,
             gas_price: None,
-            transaction_type: Some(EIP_1559_TX_TYPE.into()),
+            transaction_type: options.transaction_type,
             access_list: None,
             max_fee_per_gas,
+            max_fee_per_blob_gas: options.max_fee_per_blob_gas,
+            blob_versioned_hashes: options.blob_versioned_hashes,
         };
 
         let signed_tx = self.inner.eth_signer.sign_transaction(tx).await?;
         let hash = web3::signing::keccak256(&signed_tx).into();
         latency.observe();
-        Ok(SignedCallResult {
-            raw_tx: RawTransactionBytes(signed_tx),
+
+        Ok(SignedCallResult::new(
+            RawTransactionBytes(signed_tx),
             max_priority_fee_per_gas,
             max_fee_per_gas,
             nonce,
             hash,
-        })
+        ))
     }
 
     async fn allowance_on_account(

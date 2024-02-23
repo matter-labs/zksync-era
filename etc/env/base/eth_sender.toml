@@ -15,7 +15,7 @@ tx_poll_period=1
 # Aggregate txs polling period in seconds.
 aggregate_tx_poll_period=1
 # The maximum amount of simultaneously sent Ethereum transactions.
-max_txs_in_flight=30 # Safe in the local environment, do not repeat on prod (right now it will produce way too many extra calls to web3)
+max_txs_in_flight=1 # Safe in the local environment, do not repeat on prod (right now it will produce way too many extra calls to web3)
 proof_sending_mode="SkipEveryProof"
 
 # Max L2 blocks to commit in one L1 transaction
@@ -36,7 +36,7 @@ aggregated_proof_sizes=[1,4]
 
 # Max gas that can be used to execute aggregated operation
 # for now (should be > 4kk which is max gas for one block commit/verify/execute)
-max_aggregated_tx_gas=4000000
+max_aggregated_tx_gas=8000000
 
 # Max gas that can used to include single block in aggregated operation
 max_single_tx_gas=6000000

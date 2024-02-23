@@ -16,7 +16,11 @@
         "rollup_root_hash": "0xe47f013d1ecd4ce53b6872f6b762670b393815e7ddacdf2b0886af9c7f3a555b",
         "bootloader_code_hash": "0x010007ed0e328b940e241f7666a6303b7ffd4e3fd7e8c154d6e7556befe6cd6d",
         "default_aa_code_hash": "0x0100055b7a8be90522251be8be1a186464d056462973502ac8a0437c85e4d2a9",
-        "protocol_version": "Version17"
+        "protocol_version": "Version17",
+        "blob_commitments": [
+          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        ]
       },
       "initial_writes": [
         {
@@ -85,7 +89,11 @@
     "PreBoojum": {
       "common": {
         "l2_l1_logs_merkle_root": "0xbdd28e4f6c5083d9aeba4e4564d7e25b7fe31a0d87616d4abd1c10395b90b846",
-        "protocol_version": "Version17"
+        "protocol_version": "Version17",
+        "blob_commitments": [
+          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        ]
       },
       "l2_l1_logs_linear_hash": "0x60a685d76f15efaea29085c23e35d8271816e92050fcac23111e555eefe23676",
       "initial_writes_compressed": [

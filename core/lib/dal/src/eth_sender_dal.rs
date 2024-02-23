@@ -7,7 +7,7 @@ use sqlx::{
 };
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    eth_sender::{EthTx, TxHistory, TxHistoryToSend},
+    eth_sender::{EthTx, EthTxBlobSidecar, TxHistory, TxHistoryToSend},
     Address, L1BatchNumber, H256, U256,
 };
 
@@ -174,6 +174,7 @@ impl EthSenderDal<'_, '_> {
         tx_type: AggregatedActionType,
         contract_address: Address,
         predicted_gas_cost: u32,
+        blob_sidecar: Option<EthTxBlobSidecar>,
     ) -> sqlx::Result<EthTx> {
         let address = format!("{:#x}", contract_address);
         let eth_tx = sqlx::query_as!(
@@ -187,10 +188,11 @@ impl EthSenderDal<'_, '_> {
                     contract_address,
                     predicted_gas_cost,
                     created_at,
-                    updated_at
+                    updated_at,
+                    blob_sidecar
                 )
             VALUES
-                ($1, $2, $3, $4, $5, NOW(), NOW())
+                ($1, $2, $3, $4, $5, NOW(), NOW(), $6)
             RETURNING
                 *
             "#,
@@ -198,7 +200,9 @@ impl EthSenderDal<'_, '_> {
             nonce as i64,
             tx_type.to_string(),
             address,
-            predicted_gas_cost as i64
+            predicted_gas_cost as i64,
+            blob_sidecar.map(|sidecar| bincode::serialize(&sidecar)
+                .expect("can always bincode serialize EthTxBlobSidecar; qed")),
         )
         .fetch_one(self.storage.conn())
         .await?;
@@ -241,7 +245,7 @@ impl EthSenderDal<'_, '_> {
             base_fee_per_gas,
             priority_fee_per_gas,
             tx_hash,
-            raw_signed_tx
+            raw_signed_tx,
         )
         .fetch_optional(self.storage.conn())
         .await?
@@ -457,13 +461,15 @@ impl EthSenderDal<'_, '_> {
             StorageTxHistory,
             r#"
             SELECT
-                *
+                eth_txs_history.*,
+                eth_txs.blob_sidecar
             FROM
                 eth_txs_history
+                LEFT JOIN eth_txs ON eth_tx_id = eth_txs.id
             WHERE
                 eth_tx_id = $1
             ORDER BY
-                created_at DESC
+                eth_txs_history.created_at DESC
             "#,
             eth_tx_id as i32
         )
@@ -493,13 +499,15 @@ impl EthSenderDal<'_, '_> {
             StorageTxHistory,
             r#"
             SELECT
-                *
+                eth_txs_history.*,
+                eth_txs.blob_sidecar
             FROM
                 eth_txs_history
+                LEFT JOIN eth_txs ON eth_tx_id = eth_txs.id
             WHERE
                 eth_tx_id = $1
             ORDER BY
-                created_at DESC
+                eth_txs_history.created_at DESC
             LIMIT
                 1
             "#,

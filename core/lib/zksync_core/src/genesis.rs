@@ -114,6 +114,7 @@ pub async fn ensure_genesis_state(
         rollup_last_leaf_index,
         base_system_contracts_hashes,
         *protocol_version,
+        vec![vec![0u8; 32], vec![0u8; 32]],
     );
     let block_commitment = L1BatchCommitment::new(commitment_input);
 

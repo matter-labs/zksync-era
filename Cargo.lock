@@ -3982,6 +3982,7 @@ dependencies = [
  "zkevm_test_harness 1.4.1",
  "zksync_contracts",
  "zksync_eth_signer",
+ "zksync_l1_contract_interface",
  "zksync_state",
  "zksync_system_constants",
  "zksync_test_account",
@@ -8627,7 +8628,10 @@ name = "zksync_eth_client"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "hex",
  "jsonrpc-core",
+ "pretty_assertions",
+ "rlp",
  "serde",
  "static_assertions",
  "thiserror",
@@ -8714,6 +8718,7 @@ version = "0.1.0"
 dependencies = [
  "codegen 0.1.0",
  "hex",
+ "once_cell",
  "serde",
  "serde_json",
  "serde_with",
@@ -8914,6 +8919,7 @@ dependencies = [
  "zksync_consensus_roles",
  "zksync_core",
  "zksync_env_config",
+ "zksync_l1_contract_interface",
  "zksync_storage",
  "zksync_types",
  "zksync_utils",

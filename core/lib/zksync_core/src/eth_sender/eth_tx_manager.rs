@@ -5,16 +5,16 @@ use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::{
-    BoundEthInterface, Error, EthInterface, ExecutedTxStatus, RawTransactionBytes, SignedCallResult,
+    BoundEthInterface, Error, EthInterface, ExecutedTxStatus, Options, RawTransactionBytes,
+    SignedCallResult,
 };
 use zksync_types::{
-    eth_sender::EthTx,
+    eth_sender::{EthTx, EthTxBlobSidecar},
     web3::{
-        contract::Options,
         error::Error as Web3Error,
         types::{BlockId, BlockNumber},
     },
-    L1BlockNumber, Nonce, H256, U256,
+    L1BlockNumber, Nonce, EIP_1559_TX_TYPE, EIP_4844_TX_TYPE, H256, U256,
 };
 use zksync_utils::time::seconds_since_epoch;
 
@@ -197,8 +197,19 @@ impl EthTxManager {
             .used_priority_fee_per_gas
             .observe(priority_fee_per_gas);
 
+        let blob_gas_price = if tx.blob_sidecar.is_some() {
+            Some(
+                self.ethereum_gateway
+                    .get_blob_gas_price("eth_tx_manager")
+                    .await?,
+            )
+        } else {
+            None
+        };
+        tracing::error!("blob gas price {blob_gas_price:?}");
+
         let signed_tx = self
-            .sign_tx(tx, base_fee_per_gas, priority_fee_per_gas)
+            .sign_tx(tx, base_fee_per_gas, priority_fee_per_gas, blob_gas_price)
             .await;
 
         if let Some(tx_history_id) = storage
@@ -208,13 +219,18 @@ impl EthTxManager {
                 base_fee_per_gas,
                 priority_fee_per_gas,
                 signed_tx.hash,
-                signed_tx.raw_tx.as_ref(),
+                signed_tx.raw_tx(tx.blob_sidecar.as_ref()).as_ref(),
             )
             .await
             .unwrap()
         {
             if let Err(error) = self
-                .send_raw_transaction(storage, tx_history_id, signed_tx.raw_tx, current_block)
+                .send_raw_transaction(
+                    storage,
+                    tx_history_id,
+                    signed_tx.raw_tx(tx.blob_sidecar.as_ref()).clone(),
+                    current_block,
+                )
                 .await
             {
                 tracing::warn!(
@@ -403,6 +419,7 @@ impl EthTxManager {
         tx: &EthTx,
         base_fee_per_gas: u64,
         priority_fee_per_gas: u64,
+        blob_gas_price: Option<U256>,
     ) -> SignedCallResult {
         self.ethereum_gateway
             .sign_prepared_tx_for_addr(
@@ -414,6 +431,19 @@ impl EthTxManager {
                     opt.max_fee_per_gas = Some(U256::from(base_fee_per_gas + priority_fee_per_gas));
                     opt.max_priority_fee_per_gas = Some(U256::from(priority_fee_per_gas));
                     opt.nonce = Some(tx.nonce.0.into());
+                    opt.transaction_type = if tx.blob_sidecar.is_some() {
+                        opt.max_fee_per_blob_gas = blob_gas_price;
+                        Some(EIP_4844_TX_TYPE.into())
+                    } else {
+                        Some(EIP_1559_TX_TYPE.into())
+                    };
+                    opt.blob_versioned_hashes = tx.blob_sidecar.as_ref().map(|s| match s {
+                        EthTxBlobSidecar::EthTxBlobSidecarV1(s) => s
+                            .blobs
+                            .iter()
+                            .map(|blob| H256::from_slice(&blob.versioned_hash))
+                            .collect(),
+                    });
                 }),
                 "eth_tx_manager",
             )
