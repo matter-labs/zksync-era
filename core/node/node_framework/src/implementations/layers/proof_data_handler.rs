@@ -1,57 +1,56 @@
-use std::time::Duration;
-
-use zksync_config::{ContractsConfig, ETHWatchConfig};
-use zksync_contracts::governance_contract;
-use zksync_core::eth_watch::{client::EthHttpQueryClient, EthWatch};
+use zksync_config::{configs::ProofDataHandlerConfig, ContractsConfig};
+use zksync_core::proof_data_handler;
 use zksync_dal::ConnectionPool;
-use zksync_types::{ethabi::Contract, Address};
 
 use crate::{
-    implementations::resources::{eth_interface::EthInterfaceResource, pools::MasterPoolResource},
+    implementations::resources::{object_store::ObjectStoreResource, pools::MasterPoolResource},
     service::{ServiceContext, StopReceiver},
     task::Task,
     wiring_layer::{WiringError, WiringLayer},
 };
 
+/// Builder for a proof data handler.
+///
+/// ## Effects
+///
+/// - Resolves `MasterPoolResource`.
+/// - Resolves `ObjectStoreResource`.
+/// - Adds `proof_data_handler` to the node.
 #[derive(Debug)]
 pub struct ProofDataHandlerLayer {
-    eth_watch_config: ETHWatchConfig,
+    proof_data_handler_config: ProofDataHandlerConfig,
     contracts_config: ContractsConfig,
 }
 
 impl ProofDataHandlerLayer {
-    pub fn new(eth_watch_config: ETHWatchConfig, contracts_config: ContractsConfig) -> Self {
+    pub fn new(
+        proof_data_handler_config: ProofDataHandlerConfig,
+        contracts_config: ContractsConfig,
+    ) -> Self {
         Self {
-            eth_watch_config,
+            proof_data_handler_config,
             contracts_config,
         }
     }
 }
 
 #[async_trait::async_trait]
-impl WiringLayer for EthWatchLayer {
+impl WiringLayer for ProofDataHandlerLayer {
     fn layer_name(&self) -> &'static str {
-        "eth_watch_layer"
+        "proof_data_handler_layer"
     }
 
-    async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
+    async fn wire(self: Box<Self>, context: ServiceContext<'_>) -> Result<(), WiringError> {
         let pool_resource = context.get_resource::<MasterPoolResource>().await?;
         let main_pool = pool_resource.get().await.unwrap();
 
-        let client = context.get_resource::<EthInterfaceResource>().await?.0;
+        let object_store = context.get_resource::<ObjectStoreResource>().await.unwrap();
 
-        let eth_client = EthHttpQueryClient::new(
-            client,
-            self.contracts_config.diamond_proxy_addr,
-            Some(self.contracts_config.governance_addr),
-            self.eth_watch_config.confirmations_for_eth_event,
-        );
-        context.add_task(Box::new(EthWatchTask {
-            main_pool,
-            client: eth_client,
-            governance_contract: Some(governance_contract()),
-            diamond_proxy_address: self.contracts_config.diamond_proxy_addr,
-            poll_interval: self.eth_watch_config.poll_interval(),
+        context.add_task(Box::new(ProofDataHandlerTask {
+            proof_data_handler_config: self.proof_data_handler_config,
+            contracts_config: self.contracts_config,
+            blob_store: object_store.0,
+            main_pool: main_pool,
         }));
 
         Ok(())
@@ -59,30 +58,29 @@ impl WiringLayer for EthWatchLayer {
 }
 
 #[derive(Debug)]
-struct EthWatchTask {
+struct ProofDataHandlerTask {
+    proof_data_handler_config: ProofDataHandlerConfig,
+    contracts_config: ContractsConfig,
+    blob_store: Arc<dyn ObjectStore>,
     main_pool: ConnectionPool,
-    client: EthHttpQueryClient,
-    governance_contract: Option<Contract>,
-    diamond_proxy_address: Address,
-    poll_interval: Duration,
 }
 
 #[async_trait::async_trait]
-impl Task for EthWatchTask {
+impl Task for ProofDataHandlerTask {
     fn name(&self) -> &'static str {
-        "eth_watch"
+        "proof_data_handler"
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        let eth_watch = EthWatch::new(
-            self.diamond_proxy_address,
-            self.governance_contract,
-            Box::new(self.client),
+        proof_data_handler::run_server(
+            self.proof_data_handler_config
+                .clone()
+                .context("proof_data_handler_config")?,
+            self.contracts_config.clone().context("contracts_config")?,
+            self.blob_store,
             self.main_pool,
-            self.poll_interval,
+            stop_receiver,
         )
-        .await;
-
-        eth_watch.run(stop_receiver.0).await
+        .await
     }
 }
