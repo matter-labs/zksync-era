@@ -13,7 +13,7 @@ use zksync_core::{
     api_server::{
         execution_sandbox::VmConcurrencyLimiter,
         healthcheck::HealthCheckHandle,
-        tx_sender::{ApiContracts, TxSenderBuilder},
+        tx_sender::{proxy::TxProxy, ApiContracts, TxSenderBuilder},
         web3::{ApiBuilder, Namespace},
     },
     block_reverter::{BlockReverter, BlockReverterFlags, L1ExecutedBatchesRevert},
@@ -275,11 +275,22 @@ async fn init_tasks(
     let fee_params_fetcher_handle =
         tokio::spawn(fee_params_fetcher.clone().run(stop_receiver.clone()));
 
-    let (tx_sender, vm_barrier, cache_update_handle) = {
-        let tx_sender_builder =
-            TxSenderBuilder::new(config.clone().into(), connection_pool.clone())
-                .with_main_connection_pool(connection_pool.clone())
-                .with_tx_proxy(main_node_client);
+    let (tx_sender, vm_barrier, cache_update_handle, proxy_cache_updater_handle) = {
+        let tx_proxy = TxProxy::new(main_node_client);
+        let proxy_cache_updater_pool = singleton_pool_builder
+            .build()
+            .await
+            .context("failed to build a tree_pool")?;
+        let proxy_cache_updater_handle = tokio::spawn(
+            tx_proxy
+                .run_account_nonce_sweeper(proxy_cache_updater_pool.clone(), stop_receiver.clone()),
+        );
+
+        let tx_sender_builder = TxSenderBuilder::new(
+            config.clone().into(),
+            connection_pool.clone(),
+            Arc::new(tx_proxy),
+        );
 
         if config.optional.transactions_per_sec_limit.is_some() {
             tracing::warn!("`transactions_per_sec_limit` option is deprecated and ignored");
@@ -308,7 +319,12 @@ async fn init_tasks(
                 storage_caches,
             )
             .await;
-        (tx_sender, vm_barrier, cache_update_handle)
+        (
+            tx_sender,
+            vm_barrier,
+            cache_update_handle,
+            proxy_cache_updater_handle,
+        )
     };
 
     let http_server_handles =
@@ -359,6 +375,7 @@ async fn init_tasks(
     task_handles.extend(http_server_handles.tasks);
     task_handles.extend(ws_server_handles.tasks);
     task_handles.extend(cache_update_handle);
+    task_handles.push(proxy_cache_updater_handle);
     task_handles.extend([
         sk_handle,
         fee_address_migration_handle,
