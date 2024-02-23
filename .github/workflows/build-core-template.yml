@@ -66,7 +66,8 @@ jobs:
               "https://api.github.com/repos/matter-labs/era-contracts/tags?per_page=100&page=${page}" | jq .)
             if [ $(jq length <<<"$tags") -eq 0 ]; then
               echo "No tag found on all pages."
-              break
+              echo "BUILD_CONTRACTS=true" >> "$GITHUB_ENV"
+              exit 0
             fi
             filtered_tag=$(jq -r --arg commit_sha "$commit_sha" 'map(select(.commit.sha == $commit_sha)) | .[].name' <<<"$tags")
             if [[ ! -z "$filtered_tag" ]]; then
@@ -74,18 +75,15 @@ jobs:
             fi
             ((page++))
           done
-          if [[ ! -z "$filtered_tag" ]]; then
-            echo "BUILD_CONTRACTS=false" >> "$GITHUB_ENV"
-            mkdir -p ./contracts
-            curl -s -LO https://github.com/matter-labs/era-contracts/releases/download/${filtered_tag}/l1-contracts.tar.gz
-            curl -s -LO https://github.com/matter-labs/era-contracts/releases/download/${filtered_tag}/l2-contracts.tar.gz
-            curl -s -LO https://github.com/matter-labs/era-contracts/releases/download/${filtered_tag}/system-contracts.tar.gz
-            tar -C ./contracts -zxf l1-contracts.tar.gz
-            tar -C ./contracts -zxf l2-contracts.tar.gz
-            tar -C ./contracts -zxf system-contracts.tar.gz
-          else
-            echo "BUILD_CONTRACTS=true" >> "$GITHUB_ENV"
-          fi
+          echo "Contracts tag is: ${filtered_tag}"
+          mkdir -p ./contracts
+          curl -s -LO https://github.com/matter-labs/era-contracts/releases/download/${filtered_tag}/l1-contracts.tar.gz
+          curl -s -LO https://github.com/matter-labs/era-contracts/releases/download/${filtered_tag}/l2-contracts.tar.gz
+          curl -s -LO https://github.com/matter-labs/era-contracts/releases/download/${filtered_tag}/system-contracts.tar.gz
+          tar -C ./contracts -zxf l1-contracts.tar.gz
+          tar -C ./contracts -zxf l2-contracts.tar.gz
+          tar -C ./contracts -zxf system-contracts.tar.gz
+          echo "BUILD_CONTRACTS=false" >> "$GITHUB_ENV"
 
       - name: pre-download compiilers
         if: env.BUILD_CONTRACTS == 'true'
