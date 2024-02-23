@@ -1,6 +1,7 @@
 use std::str::FromStr;
 
 use anyhow::Context as _;
+use hex::ToHex;
 use once_cell::sync::Lazy;
 use structopt::lazy_static::lazy_static;
 use zkevm_test_harness::witness::recursive_aggregation::{
@@ -15,7 +16,10 @@ use zksync_types::{
     H256,
 };
 
-use crate::{keystore::Keystore, utils::get_leaf_vk_params};
+use crate::{
+    keystore::Keystore,
+    utils::{calculate_snark_vk_hash, get_leaf_vk_params},
+};
 
 lazy_static! {
     // TODO: do not initialize a static const with data read in runtime.
@@ -27,6 +31,7 @@ pub struct VkCommitments {
     pub leaf: String,
     pub node: String,
     pub scheduler: String,
+    pub snark_wrapper: String,
 }
 
 fn circuit_commitments(keystore: &Keystore) -> anyhow::Result<L1VerifierConfig> {
@@ -91,20 +96,16 @@ pub fn generate_commitments(keystore: &Keystore) -> anyhow::Result<VkCommitments
     let leaf_aggregation_commitment_hex = hex_concatenator(leaf_vk_commitment);
     let node_aggregation_commitment_hex = hex_concatenator(node_vk_commitment);
     let scheduler_commitment_hex = hex_concatenator(scheduler_vk_commitment);
-    tracing::info!(
-        "leaf aggregation commitment {:?}",
-        leaf_aggregation_commitment_hex
-    );
-    tracing::info!(
-        "node aggregation commitment {:?}",
-        node_aggregation_commitment_hex
-    );
-    tracing::info!("scheduler commitment {:?}", scheduler_commitment_hex);
-    Ok(VkCommitments {
+    let snark_vk_hash: String = calculate_snark_vk_hash(keystore)?.encode_hex();
+
+    let result = VkCommitments {
         leaf: leaf_aggregation_commitment_hex,
         node: node_aggregation_commitment_hex,
         scheduler: scheduler_commitment_hex,
-    })
+        snark_wrapper: format!("0x{}", snark_vk_hash),
+    };
+    tracing::info!("Commitments: {:?}", result);
+    Ok(result)
 }
 
 pub fn get_cached_commitments() -> L1VerifierConfig {

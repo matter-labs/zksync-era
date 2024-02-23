@@ -140,7 +140,7 @@ enum Command {
     /// Generates and updates the commitments - used by the verification contracts.
     #[command(name = "update-commitments")]
     UpdateCommitments {
-        #[arg(long, default_value = "true")]
+        #[arg(long)]
         dryrun: bool,
         #[arg(long)]
         path: Option<String>,

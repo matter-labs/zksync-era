@@ -108,3 +108,9 @@ pub type GoldilocksGpuProverSetupData = GpuProverSetupData<
         AbsorptionModeOverwrite,
     >,
 >;
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct KeyHashes {
+    // Hash computed over Snark verification key fields.
+    pub snark_wrapper_vk_hash: String,
+}

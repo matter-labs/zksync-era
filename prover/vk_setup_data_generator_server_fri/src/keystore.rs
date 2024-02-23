@@ -23,7 +23,7 @@ use zksync_types::basic_fri_types::AggregationRound;
 
 #[cfg(feature = "gpu")]
 use crate::GoldilocksGpuProverSetupData;
-use crate::GoldilocksProverSetupData;
+use crate::{GoldilocksProverSetupData, KeyHashes};
 
 pub enum ProverServiceDataType {
     VerificationKey,
@@ -453,5 +453,12 @@ impl Keystore {
             .context("save_eip4844_hint()")?;
 
         Ok(())
+    }
+
+    pub fn load_key_hashes(&self) -> anyhow::Result<KeyHashes> {
+        Self::load_json_from_file(format!("{}/key_hashes.json", self.get_base_path()))
+    }
+    pub fn save_key_hashes(&self, hashes: KeyHashes) -> anyhow::Result<()> {
+        Self::save_json_pretty(format!("{}/key_hashes.json", self.get_base_path()), &hashes)
     }
 }
