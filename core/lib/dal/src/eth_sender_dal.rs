@@ -521,8 +521,6 @@ impl EthSenderDal<'_, '_> {
             .map(|a| format!("WHERE from_addr = decode('{}', 'hex')", hex::encode(a.0)))
             .unwrap_or("WHERE from_addr IS NULL".to_owned());
 
-        tracing::warn!("where {optional_where_clause}");
-
         let query = format!(
             r#"
             SELECT
@@ -543,9 +541,7 @@ impl EthSenderDal<'_, '_> {
             .await?
             .map(|row| row.get("nonce"));
 
-        let map = nonce.map(|n| n as u64 + 1);
-        tracing::warn!("nonce for {from_address:?} {map:?}");
-        Ok(map)
+        Ok(nonce.map(|n| n as u64 + 1))
     }
 
     pub async fn mark_failed_transaction(&mut self, eth_tx_id: u32) -> sqlx::Result<()> {
