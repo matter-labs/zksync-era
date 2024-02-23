@@ -1,14 +1,14 @@
 use std::ops;
 
 use zksync_l1_contract_interface::i_executor::methods::{
-    CommitBatches, ExecuteBatches, ProveBatches,
+    CommitBatchesRollup, ExecuteBatches, ProveBatches,
 };
 use zksync_types::{aggregated_operations::AggregatedActionType, L1BatchNumber, ProtocolVersionId};
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
 pub enum AggregatedOperation {
-    Commit(CommitBatches),
+    Commit(CommitBatchesRollup),
     PublishProofOnchain(ProveBatches),
     Execute(ExecuteBatches),
 }

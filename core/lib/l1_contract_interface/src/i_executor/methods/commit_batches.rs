@@ -6,26 +6,26 @@ use zksync_types::{
 };
 
 use crate::{
-    i_executor::structures::{CommitBatchInfo, StoredBatchInfo},
+    i_executor::structures::{CommitBatchInfoRollup, StoredBatchInfo},
     Tokenizable, Tokenize,
 };
 
 /// Input required to encode `commitBatches` call.
 #[derive(Debug, Clone)]
-pub struct CommitBatches {
+pub struct CommitBatchesRollup {
     pub last_committed_l1_batch: L1BatchWithMetadata,
     pub l1_batches: Vec<L1BatchWithMetadata>,
     pub l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
 }
 
-impl Tokenize for CommitBatches {
+impl Tokenize for CommitBatchesRollup {
     fn into_tokens(self) -> Vec<Token> {
         let stored_batch_info = StoredBatchInfo(&self.last_committed_l1_batch).into_token();
         let l1_batches_to_commit = self
             .l1_batches
             .iter()
             .map(|batch| {
-                CommitBatchInfo::new(batch, self.l1_batch_commit_data_generator.clone())
+                CommitBatchInfoRollup::new(batch, self.l1_batch_commit_data_generator.clone())
                     .into_token()
             })
             .collect();

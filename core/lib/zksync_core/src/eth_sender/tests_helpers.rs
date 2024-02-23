@@ -9,7 +9,7 @@ use zksync_config::{
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::{clients::MockEthereum, EthInterface};
 use zksync_l1_contract_interface::i_executor::methods::{
-    CommitBatches, ExecuteBatches, ProveBatches,
+    CommitBatchesRollup, ExecuteBatches, ProveBatches,
 };
 use zksync_object_store::ObjectStoreFactory;
 use zksync_types::{
@@ -646,7 +646,7 @@ async fn commit_l1_batch(
     confirm: bool,
     l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
 ) -> H256 {
-    let operation = AggregatedOperation::Commit(CommitBatches {
+    let operation = AggregatedOperation::Commit(CommitBatchesRollup {
         last_committed_l1_batch: l1_batch_with_metadata(last_committed_l1_batch),
         l1_batches: vec![l1_batch_with_metadata(l1_batch)],
         l1_batch_commit_data_generator,

@@ -3,7 +3,7 @@ use std::{fmt, sync::Arc};
 use async_trait::async_trait;
 use chrono::Utc;
 use zksync_dal::StorageProcessor;
-use zksync_l1_contract_interface::{i_executor::structures::CommitBatchInfo, Tokenizable};
+use zksync_l1_contract_interface::{i_executor::structures::CommitBatchInfoRollup, Tokenizable};
 use zksync_types::{
     aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata, ethabi,
     l1_batch_commit_data_generator::L1BatchCommitDataGenerator, L1BatchNumber,
@@ -220,7 +220,7 @@ impl L1BatchPublishCriterion for DataSizeCriterion {
         for (index, l1_batch) in consecutive_l1_batches.iter().enumerate() {
             // TODO (PLA-771): Make sure that this estimation is correct.
             let l1_commit_data_size =
-                ethabi::encode(&[ethabi::Token::Array(vec![CommitBatchInfo::new(
+                ethabi::encode(&[ethabi::Token::Array(vec![CommitBatchInfoRollup::new(
                     l1_batch,
                     self.l1_batch_commit_data_generator.clone(),
                 )

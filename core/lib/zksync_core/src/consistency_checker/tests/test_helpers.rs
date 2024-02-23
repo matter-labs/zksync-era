@@ -29,7 +29,7 @@ pub(crate) fn build_commit_tx_input_data_is_correct(
         .unwrap();
         assert_eq!(
             commit_data,
-            CommitBatchInfo::new(batch, l1_batch_commit_data_generator.clone().clone())
+            CommitBatchInfoRollup::new(batch, l1_batch_commit_data_generator.clone().clone())
                 .into_token()
         );
     }

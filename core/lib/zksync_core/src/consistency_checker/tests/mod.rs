@@ -52,7 +52,7 @@ pub(crate) fn build_commit_tx_input_data(
     l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
 ) -> Vec<u8> {
     let commit_tokens = batches.iter().map(|batch| {
-        CommitBatchInfo::new(batch, l1_batch_commit_data_generator.clone()).into_token()
+        CommitBatchInfoRollup::new(batch, l1_batch_commit_data_generator.clone()).into_token()
     });
     let commit_tokens = ethabi::Token::Array(commit_tokens.collect());
 

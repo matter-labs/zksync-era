@@ -12,12 +12,12 @@ use crate::Tokenizable;
 
 /// Encoding for `CommitBatchInfo` from `IExecutor.sol`
 #[derive(Debug)]
-pub struct CommitBatchInfo<'a> {
+pub struct CommitBatchInfoRollup<'a> {
     pub l1_batch_with_metadata: &'a L1BatchWithMetadata,
     pub l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
 }
 
-impl<'a> CommitBatchInfo<'a> {
+impl<'a> CommitBatchInfoRollup<'a> {
     pub fn new(
         l1_batch_with_metadata: &'a L1BatchWithMetadata,
         l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
@@ -29,7 +29,7 @@ impl<'a> CommitBatchInfo<'a> {
     }
 }
 
-impl<'a> Tokenizable for CommitBatchInfo<'a> {
+impl<'a> Tokenizable for CommitBatchInfoRollup<'a> {
     fn from_token(_token: Token) -> Result<Self, Web3ContractError>
     where
         Self: Sized,

@@ -4,7 +4,7 @@ use zksync_config::configs::eth_sender::{ProofLoadingMode, ProofSendingMode, Sen
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::StorageProcessor;
 use zksync_l1_contract_interface::i_executor::methods::{
-    CommitBatches, ExecuteBatches, ProveBatches,
+    CommitBatchesRollup, ExecuteBatches, ProveBatches,
 };
 use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_prover_interface::outputs::L1BatchProofForL1;
@@ -179,7 +179,7 @@ impl Aggregator {
         last_sealed_batch: L1BatchNumber,
         base_system_contracts_hashes: BaseSystemContractsHashes,
         protocol_version_id: ProtocolVersionId,
-    ) -> Option<CommitBatches> {
+    ) -> Option<CommitBatchesRollup> {
         let mut blocks_dal = storage.blocks_dal();
         let last_committed_l1_batch = blocks_dal
             .get_last_committed_to_eth_l1_batch()
@@ -227,7 +227,7 @@ impl Aggregator {
         )
         .await;
 
-        batches.map(|batches| CommitBatches {
+        batches.map(|batches| CommitBatchesRollup {
             last_committed_l1_batch,
             l1_batches: batches,
             l1_batch_commit_data_generator: self.l1_batch_commit_data_generator.clone(),
