@@ -34,7 +34,6 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
     } = initArgs;
 
     await announced(`Initializing in ${validiumMode ? 'Validium mode' : 'Roll-up mode'}`);
-    process.env.VALIDIUM_MODE = validiumMode.toString();
     await announced('Updating mode configuration', updateConfig(validiumMode));
     if (!process.env.CI && !skipEnvSetup) {
         await announced('Pulling images', docker.pull());
@@ -59,7 +58,10 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
     await announced('Deploying L1 verifier', contract.deployVerifier([]));
     await announced('Reloading env', env.reload());
     await announced('Running server genesis setup', server.genesisFromSources());
-    await announced('Deploying L1 contracts', contract.redeployL1(governorPrivateKeyArgs));
+    await announced(
+        'Deploying L1 contracts',
+        contract.redeployL1([...governorPrivateKeyArgs, ...additionalArgumentsForRedeployingL1(validiumMode)])
+    );
     await announced('Initializing validator', contract.initializeValidator(governorPrivateKeyArgs));
     await announced(
         'Deploying L2 contracts',
@@ -79,7 +81,6 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
 // A smaller version of `init` that "resets" the localhost environment, for which `init` was already called before.
 // It does less and runs much faster.
 export async function reinit(validiumMode: boolean) {
-    process.env.VALIDIUM_MODE = validiumMode.toString();
     await announced(`Initializing in ${validiumMode ? 'Validium mode' : 'Roll-up mode'}`);
     await announced('Updating mode configuration', updateConfig(validiumMode));
     await announced('Setting up containers', up());
@@ -93,7 +94,7 @@ export async function reinit(validiumMode: boolean) {
     await announced('Deploying L1 verifier', contract.deployVerifier([]));
     await announced('Reloading env', env.reload());
     await announced('Running server genesis setup', server.genesisFromSources());
-    await announced('Deploying L1 contracts', contract.redeployL1([]));
+    await announced('Deploying L1 contracts', contract.redeployL1(additionalArgumentsForRedeployingL1(validiumMode)));
     await announced('Deploying L2 contracts', contract.deployL2([], true, true));
     await announced('Initializing L2 WETH token', contract.initializeWethToken());
     await announced('Initializing governance', contract.initializeGovernance());
@@ -102,7 +103,6 @@ export async function reinit(validiumMode: boolean) {
 
 // A lightweight version of `init` that sets up local databases, generates genesis and deploys precompiled contracts
 export async function lightweightInit(validiumMode: boolean) {
-    process.env.VALIDIUM_MODE = validiumMode.toString();
     await announced(`Initializing in ${validiumMode ? 'Validium mode' : 'Roll-up mode'}`);
     await announced('Updating mode configuration', updateConfig(validiumMode));
     await announced(`Setting up containers`, up());
@@ -112,7 +112,7 @@ export async function lightweightInit(validiumMode: boolean) {
     await announced('Reloading env', env.reload());
     await announced('Running server genesis setup', server.genesisFromBinary());
     await announced('Deploying localhost ERC20 tokens', run.deployERC20('dev', '', '', '', []));
-    await announced('Deploying L1 contracts', contract.redeployL1([]));
+    await announced('Deploying L1 contracts', contract.redeployL1(additionalArgumentsForRedeployingL1(validiumMode)));
     await announced('Initializing validator', contract.initializeValidator());
     await announced('Deploying L2 contracts', contract.deployL2([], true, false));
     await announced('Initializing governance', contract.initializeGovernance());
@@ -221,9 +221,6 @@ function updateConfig(validiumMode: boolean) {
     updateChainConfig(validiumMode);
     updateEthSenderConfig(validiumMode);
     config.compileConfig();
-    let envFileContent = fs.readFileSync(process.env.ENV_FILE!).toString();
-    envFileContent += `VALIDIUM_MODE=${validiumMode}\n`;
-    fs.writeFileSync(process.env.ENV_FILE!, envFileContent);
 }
 
 async function checkEnv() {
@@ -237,6 +234,10 @@ async function checkEnv() {
     if ('v14.14' >= version) {
         throw new Error('Error, node.js version 14.14.0 or higher is required');
     }
+}
+
+function additionalArgumentsForRedeployingL1(validium: boolean) {
+    return validium ? ['--validium-mode'] : [];
 }
 
 export interface InitArgs {
