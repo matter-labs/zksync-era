@@ -6,13 +6,13 @@ use anyhow::Context as _;
 use multivm::{
     interface::VmExecutionResultAndLogs,
     utils::{adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead},
-    vm_latest::constants::{BLOCK_GAS_LIMIT, MAX_PUBDATA_PER_BLOCK},
+    vm_latest::constants::BLOCK_GAS_LIMIT,
 };
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig};
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, StorageProcessor};
 use zksync_state::PostgresStorageCaches;
-use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
+use zksync_system_constants::{DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE, MAX_PUBDATA_PER_L1_BATCH};
 use zksync_types::{
     fee::{Fee, TransactionExecutionMetrics},
     fee_model::BatchFeeInput,
@@ -727,7 +727,7 @@ impl TxSender {
             )
             .await?;
 
-            if pubdata_for_factory_deps > MAX_PUBDATA_PER_BLOCK {
+            if pubdata_for_factory_deps > MAX_PUBDATA_PER_L1_BATCH {
                 return Err(SubmitTxError::Unexecutable(
                     "exceeds limit for published pubdata".to_string(),
                 ));
