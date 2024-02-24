@@ -66,7 +66,10 @@ batch_overhead_l1_gas=800000
 max_gas_per_batch=200000000
 
 # The maximum amount of pubdata that can be used by the batch. Note that if the calldata is used as pubdata, this variable should not exceed 128kb.
-max_pubdata_per_batch=100000
+max_pubdata_per_batch=110000
+
+# The maximum number of DA slots that can be used, Calldata should only use 1. Blobs can use 1 or 2
+max_number_da_slots=1
 
 # The version of the fee model to use. 
 # - `V1`, the first model that was used in zkSync Era. In this fee model, the pubdata price must be pegged to the L1 gas price.

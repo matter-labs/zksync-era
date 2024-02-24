@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use zksync_basic_types::H256;
 
 /// Configuration for the Ethereum sender crate.
@@ -35,6 +35,7 @@ impl ETHSenderConfig {
                 l1_batch_min_age_before_execute_seconds: None,
                 max_acceptable_priority_fee_in_gwei: 100000000000,
                 proof_loading_mode: ProofLoadingMode::OldProofFromDb,
+                pubdata_sending_mode: Some(PubdataSendingMode::Calldata),
             },
             gas_adjuster: GasAdjusterConfig {
                 default_priority_fee_per_gas: 1000000000,
@@ -61,6 +62,15 @@ pub enum ProofSendingMode {
 pub enum ProofLoadingMode {
     OldProofFromDb,
     FriProofFromGcs,
+}
+
+#[repr(u16)]
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Serialize, Default)]
+pub enum PubdataSendingMode {
+    #[default]
+    Calldata = 0,
+    OneBlob,
+    TwoBlobs,
 }
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -96,6 +106,10 @@ pub struct SenderConfig {
 
     /// The mode in which proofs are loaded, either from DB/GCS for FRI/Old proof.
     pub proof_loading_mode: ProofLoadingMode,
+
+    /// The mode in which we send pubdata, either Calldata, 1 Blob, or 2 Blobs/
+    /// If not specified, Calldata will be used
+    pub pubdata_sending_mode: Option<PubdataSendingMode>,
 }
 
 impl SenderConfig {

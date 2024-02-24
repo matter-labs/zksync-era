@@ -37,7 +37,7 @@ impl CommitBatches {
         vec![stored_batch_info, Token::Array(l1_batches_to_commit)]
     }
 
-    fn into_tokens_calldata(&self, number_of_blobs: usize) -> Vec<Token> {
+    fn into_tokens_calldata(&self) -> Vec<Token> {
         let stored_batch_info = StoredBatchInfo(&self.last_committed_l1_batch).into_token();
         let l1_batches_to_commit = self
             .l1_batches

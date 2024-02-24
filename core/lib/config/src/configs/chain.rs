@@ -100,6 +100,9 @@ pub struct StateKeeperConfig {
     /// The maximum amount of pubdata that can be used by the batch. Note that if the calldata is used as pubdata, this variable should not exceed 128kb.
     pub max_pubdata_per_batch: u64,
 
+    /// The maximum number of DA slots that can be used, Calldata should only use 1. Blobs can use 1 or 2
+    pub max_number_da_slots: u64,
+
     /// The version of the fee model to use.
     pub fee_model_version: FeeModelVersion,
 
@@ -142,6 +145,7 @@ impl StateKeeperConfig {
             batch_overhead_l1_gas: 800_000,
             max_gas_per_batch: 200_000_000,
             max_pubdata_per_batch: 100_000,
+            max_number_da_slots: 1,
             minimal_l2_gas_price: 100000000,
             fee_model_version: FeeModelVersion::V2,
             validation_computational_gas_limit: 300000,

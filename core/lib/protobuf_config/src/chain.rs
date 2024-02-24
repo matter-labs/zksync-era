@@ -140,6 +140,7 @@ impl ProtoRepr for proto::StateKeeper {
                 .map(|x| x.try_into())
                 .transpose()
                 .context("enum_index_migration_chunk_size")?,
+            max_number_da_slots: 1,
         })
     }
 

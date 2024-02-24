@@ -1,7 +1,7 @@
 use std::{convert::TryInto, sync::Arc};
 
 use tokio::sync::watch;
-use zksync_config::configs::eth_sender::SenderConfig;
+use zksync_config::configs::eth_sender::{PubdataSendingMode, SenderConfig};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::{BoundEthInterface, CallFunctionArgs};
