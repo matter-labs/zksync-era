@@ -105,6 +105,7 @@ impl EthSenderTester {
             Aggregator::new(
                 aggregator_config.clone(),
                 store_factory.create_store().await,
+                false,
             ),
             gateway.clone(),
             // zkSync contract address
@@ -591,7 +592,7 @@ async fn correct_order_for_confirmations() -> anyhow::Result<()> {
         .storage()
         .await
         .blocks_dal()
-        .get_ready_for_execute_l1_batches(45, false, None)
+        .get_ready_for_execute_l1_batches(45, None)
         .await
         .unwrap();
     assert_eq!(l1_batches.len(), 1);
@@ -602,7 +603,7 @@ async fn correct_order_for_confirmations() -> anyhow::Result<()> {
         .storage()
         .await
         .blocks_dal()
-        .get_ready_for_execute_l1_batches(45, false, None)
+        .get_ready_for_execute_l1_batches(45, None)
         .await
         .unwrap();
     assert_eq!(l1_batches.len(), 0);
@@ -685,7 +686,7 @@ async fn skipped_l1_batch_at_the_start() -> anyhow::Result<()> {
         .storage()
         .await
         .blocks_dal()
-        .get_ready_for_execute_l1_batches(45, false, Some(unix_timestamp_ms()))
+        .get_ready_for_execute_l1_batches(45, Some(unix_timestamp_ms()))
         .await
         .unwrap();
     assert_eq!(l1_batches.len(), 2);
@@ -695,7 +696,7 @@ async fn skipped_l1_batch_at_the_start() -> anyhow::Result<()> {
         .storage()
         .await
         .blocks_dal()
-        .get_ready_for_execute_l1_batches(45, false, Some(unix_timestamp_ms()))
+        .get_ready_for_execute_l1_batches(45, Some(unix_timestamp_ms()))
         .await
         .unwrap();
     assert_eq!(l1_batches.len(), 2);
@@ -770,7 +771,7 @@ async fn skipped_l1_batch_in_the_middle() -> anyhow::Result<()> {
         .storage()
         .await
         .blocks_dal()
-        .get_ready_for_execute_l1_batches(45, false, None)
+        .get_ready_for_execute_l1_batches(45, None)
         .await
         .unwrap();
     // We should return all L1 batches including the third one
@@ -782,7 +783,7 @@ async fn skipped_l1_batch_in_the_middle() -> anyhow::Result<()> {
         .storage()
         .await
         .blocks_dal()
-        .get_ready_for_execute_l1_batches(45, false, None)
+        .get_ready_for_execute_l1_batches(45, None)
         .await
         .unwrap();
     assert_eq!(l1_batches.len(), 3);
