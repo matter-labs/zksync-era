@@ -9,7 +9,7 @@ use itertools::Itertools;
 use zk_evm_1_4_1::sha2::{self};
 use zk_evm_1_5_0::zkevm_opcode_defs::{BlobSha256Format, VersionedHashLen32};
 use zksync_contracts::{load_contract, read_bytecode, read_evm_bytecode};
-use zksync_state::InMemoryStorage;
+use zksync_state::{InMemoryStorage, StorageView};
 use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_types::{
     get_address_mapping_key, get_code_key, get_deployer_key, get_evm_code_hash_key,
@@ -24,6 +24,7 @@ use zksync_utils::{
 use super::tester::VmTester;
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
+    vm_boojum_integration::tracers::dispatcher,
     vm_latest::{
         tests::{
             tester::{DeployContractsTx, TxType, VmTesterBuilder},
@@ -218,6 +219,50 @@ fn assert_deployed_hash<H: HistoryMode>(
     );
 }
 
+// fn deploy_evm_contrac2<H: HistoryMode>(
+//     dispatcher: TracerDispatcher<StorageView<InMemoryStorage>, HistoryEnabled>,
+//     tester: &mut VmTester<H>,
+//     folder_name: &str,
+//     contract_name: &str,
+// ) -> (Address, Contract) {
+//     let account = &mut tester.rich_accounts[0];
+
+//     let (counter_bytecode, counter_deployed_bytecode) =
+//         read_test_evm_bytecode(folder_name, contract_name);
+//     let abi = load_test_evm_contract(folder_name, contract_name);
+
+//     let sample_evm_code = counter_bytecode;
+//     let expected_deployed_code_hash = H256(keccak256(&counter_deployed_bytecode));
+
+//     let tx = account.get_l2_tx_for_execute(
+//         Execute {
+//             contract_address: None,
+//             calldata: sample_evm_code,
+//             value: U256::zero(),
+//             factory_deps: None,
+//         },
+//         None,
+//     );
+
+//     tester.vm.push_transaction(tx);
+//     let tx_result: crate::vm_latest::VmExecutionResultAndLogs =
+//         tester.vm.inspect(dispatcher.into(), VmExecutionMode::OneTx);
+
+//     assert!(
+//         !tx_result.result.is_failed(),
+//         "Transaction wasn't successful"
+//     );
+
+//     let expected_deployed_address = deployed_address_evm_create(account.address, U256::zero());
+//     assert_deployed_hash(
+//         tester,
+//         expected_deployed_address,
+//         expected_deployed_code_hash,
+//     );
+
+//     (expected_deployed_address, abi)
+// }
+
 fn deploy_evm_contract<H: HistoryMode>(
     tester: &mut VmTester<H>,
     folder_name: &str,
@@ -379,7 +424,8 @@ fn test_evm_basic_create() {
 
     assert_deployed_hash(
         &mut vm,
-        deployed_address_evm_create(factory_address, U256::zero()),
+        // One, because newly deployed EVM contract will have nonce 1
+        deployed_address_evm_create(factory_address, U256::one()),
         expected_deployed_code_hash,
     );
 
