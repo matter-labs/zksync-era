@@ -26,7 +26,7 @@ pub fn load_kzg_settings() -> KzgSettings {
 }
 
 impl CommitBatchInfo<'_> {
-    fn into_token_base(&self) -> Vec<Token> {
+    fn into_token_base(self) -> Vec<Token> {
         if self.0.header.protocol_version.unwrap().is_pre_boojum() {
             vec![
                 Token::Uint(U256::from(self.0.header.number.0)),
