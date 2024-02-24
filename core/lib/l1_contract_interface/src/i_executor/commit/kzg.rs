@@ -6,7 +6,7 @@ use std::convert::TryInto;
 use sha2::Sha256;
 use sha3::{Digest, Keccak256};
 use zkevm_test_harness_1_3_3::ff::{PrimeField, PrimeFieldRepr};
-use zkevm_test_harness_1_4_1::{
+use zkevm_test_harness_1_4_2::{
     kzg::{compute_commitment, compute_proof, compute_proof_poly, KzgSettings},
     zkevm_circuits::{
         boojum::pairing::{
@@ -21,7 +21,7 @@ use zkevm_test_harness_1_4_1::{
     },
 };
 
-const ZK_SYNC_BYTES_PER_BLOB: usize = BLOB_CHUNK_SIZE * ELEMENTS_PER_4844_BLOCK;
+pub const ZK_SYNC_BYTES_PER_BLOB: usize = BLOB_CHUNK_SIZE * ELEMENTS_PER_4844_BLOCK;
 const EIP_4844_BYTES_PER_BLOB: usize = 32 * ELEMENTS_PER_4844_BLOCK;
 
 /// Packed pubdata commitments.
@@ -100,6 +100,20 @@ impl KzgInfo {
         res[48..96].copy_from_slice(self.kzg_commitment.as_slice());
         res[96..144].copy_from_slice(self.opening_proof.as_slice());
         res
+    }
+
+    pub fn to_blob_commitment(&self) -> [u8; 32] {
+        let mut commitment = [0u8; 32];
+        let hash = &Keccak256::digest(
+            [
+                self.versioned_hash.to_vec(),
+                self.opening_point[16..].to_vec(),
+                self.opening_value.to_vec(),
+            ]
+            .concat(),
+        );
+        commitment.copy_from_slice(hash);
+        commitment
     }
 
     /// Deserializes `Self::SERIALIZED_SIZE` bytes into `KzgInfo` struct
@@ -250,7 +264,7 @@ impl KzgInfo {
 mod tests {
     use serde::{Deserialize, Serialize};
     use serde_with::{self, serde_as};
-    use zkevm_test_harness_1_4_1::{
+    use zkevm_test_harness_1_4_2::{
         boojum::pairing::{
             bls12_381::{Fr, FrRepr, G1Affine, G1Compressed},
             EncodedPoint,

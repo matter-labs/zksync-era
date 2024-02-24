@@ -1232,6 +1232,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "circuit_definitions"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.2#aa09f683a62e9ceeb457272909625f49f413f9d9"
+dependencies = [
+ "crossbeam 0.8.2",
+ "derivative",
+ "seq-macro",
+ "serde",
+ "snark_wrapper",
+ "zk_evm 1.4.1",
+ "zkevm_circuits 1.4.1",
+]
+
+[[package]]
 name = "circuit_testing"
 version = "0.1.0"
 source = "git+https://github.com/matter-labs/era-circuit_testing.git?branch=main#164c0adac85be39ee44bd9456b2b91cdede5af80"
@@ -4276,9 +4290,9 @@ dependencies = [
 
 [[package]]
 name = "once_cell"
-version = "1.18.0"
+version = "1.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dd8b5dd2ae5ed71462c540258bedcb51965123ad7e7ccf4b9a8cafaa4a63576d"
+checksum = "3fdb12b2476b595f9358c5161aa467c2438859caa136dec86c26fdd2efe17b92"
 
 [[package]]
 name = "oorandom"
@@ -8213,6 +8227,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "zkevm_test_harness"
+version = "1.4.2"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.2#aa09f683a62e9ceeb457272909625f49f413f9d9"
+dependencies = [
+ "bincode",
+ "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.2)",
+ "codegen 0.2.0",
+ "crossbeam 0.8.2",
+ "curl",
+ "derivative",
+ "env_logger 0.10.0",
+ "hex",
+ "lazy_static",
+ "rand 0.4.6",
+ "rayon",
+ "reqwest",
+ "rescue_poseidon 0.4.1 (git+https://github.com/matter-labs/rescue-poseidon.git?branch=poseidon2)",
+ "serde",
+ "serde_json",
+ "smallvec",
+ "snark_wrapper",
+ "structopt",
+ "test-log",
+ "tracing",
+ "walkdir",
+ "zkevm-assembly 1.3.2 (git+https://github.com/matter-labs/era-zkEVM-assembly.git?branch=v1.4.1)",
+]
+
+[[package]]
 name = "zksync"
 version = "0.4.0"
 dependencies = [
@@ -8714,13 +8757,14 @@ version = "0.1.0"
 dependencies = [
  "codegen 0.1.0",
  "hex",
+ "once_cell",
  "serde",
  "serde_json",
  "serde_with",
  "sha2 0.10.8",
  "sha3 0.10.8",
  "zkevm_test_harness 1.3.3",
- "zkevm_test_harness 1.4.1",
+ "zkevm_test_harness 1.4.2",
  "zksync_prover_interface",
  "zksync_types",
 ]

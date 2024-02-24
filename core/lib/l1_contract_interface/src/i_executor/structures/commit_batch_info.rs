@@ -1,3 +1,5 @@
+use once_cell::sync::Lazy;
+use zkevm_test_harness_1_4_2::kzg::KzgSettings;
 use zksync_types::{
     commitment::{pre_boojum_serialize_commitments, serialize_commitments, L1BatchWithMetadata},
     ethabi::Token,
@@ -5,28 +7,28 @@ use zksync_types::{
     U256,
 };
 
-use crate::Tokenizable;
+use crate::{
+    i_executor::commit::kzg::{KzgInfo, ZK_SYNC_BYTES_PER_BLOB},
+    Tokenizable,
+};
 
 /// Encoding for `CommitBatchInfo` from `IExecutor.sol`
 #[derive(Debug)]
 pub struct CommitBatchInfo<'a>(pub &'a L1BatchWithMetadata);
 
-impl<'a> Tokenizable for CommitBatchInfo<'a> {
-    fn from_token(_token: Token) -> Result<Self, Web3ContractError>
-    where
-        Self: Sized,
-    {
-        // Currently there is no need to decode this struct.
-        // We still want to implement `Tokenizable` trait for it, so that *once* it's needed
-        // the implementation is provided here and not in some other inconsistent way.
-        Err(Web3ContractError::Api(Web3ApiError::Decoder(
-            "Not implemented".to_string(),
-        )))
-    }
+pub fn load_kzg_settings() -> KzgSettings {
+    static KZG_SETTINGS: Lazy<KzgSettings> = Lazy::new(|| {
+        let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
+        let path = std::path::Path::new(&zksync_home).join("trusted_setup.json");
+        KzgSettings::new(path.to_str().unwrap())
+    });
+    KZG_SETTINGS.clone()
+}
 
-    fn into_token(self) -> Token {
+impl CommitBatchInfo<'_> {
+    fn into_token_base(&self) -> Vec<Token> {
         if self.0.header.protocol_version.unwrap().is_pre_boojum() {
-            Token::Tuple(vec![
+            vec![
                 Token::Uint(U256::from(self.0.header.number.0)),
                 Token::Uint(U256::from(self.0.header.timestamp)),
                 Token::Uint(U256::from(self.0.metadata.rollup_last_leaf_index)),
@@ -60,9 +62,9 @@ impl<'a> Tokenizable for CommitBatchInfo<'a> {
                         .map(|bytecode| Token::Bytes(bytecode.to_vec()))
                         .collect(),
                 ),
-            ])
+            ]
         } else {
-            Token::Tuple(vec![
+            vec![
                 // `batchNumber`
                 Token::Uint(U256::from(self.0.header.number.0)),
                 // `timestamp`
@@ -101,6 +103,73 @@ impl<'a> Tokenizable for CommitBatchInfo<'a> {
                 ),
                 // `systemLogs`
                 Token::Bytes(serialize_commitments(&self.0.header.system_logs)),
+            ]
+        }
+    }
+
+    pub fn into_tokens_calldata(&self) -> Token {
+        let mut tokens = self.into_token_base();
+        let mut pubdata = self
+            .0
+            .header
+            .pubdata_input
+            .clone()
+            .unwrap_or(self.0.construct_pubdata());
+
+        let kzg_settings = load_kzg_settings();
+        let mut blob = pubdata.clone();
+        blob.resize(ZK_SYNC_BYTES_PER_BLOB, 0u8);
+        let blob_commitment = KzgInfo::new(&kzg_settings, blob).to_blob_commitment();
+
+        pubdata.extend(blob_commitment);
+
+        pubdata.insert(0, 0);
+        tokens.push(Token::Bytes(pubdata));
+        Token::Tuple(tokens)
+    }
+
+    pub fn into_tokens_blobs(&self, number_of_blobs: usize) -> Token {
+        let mut tokens = self.into_token_base();
+        let kzg_settings = load_kzg_settings();
+        let mut pubdata = self
+            .0
+            .header
+            .pubdata_input
+            .clone()
+            .unwrap_or(self.0.construct_pubdata());
+        pubdata.resize(ZK_SYNC_BYTES_PER_BLOB * number_of_blobs, 0u8);
+
+        let mut pubdata_commitments = pubdata
+            .chunks(ZK_SYNC_BYTES_PER_BLOB)
+            .map(|blob| {
+                let kzg_info = KzgInfo::new(&kzg_settings, blob.to_vec());
+                kzg_info.to_pubdata_commitment().to_vec()
+            })
+            .flatten()
+            .collect::<Vec<u8>>();
+        pubdata_commitments.insert(0, 1u8);
+        tokens.push(Token::Bytes(pubdata_commitments));
+        Token::Tuple(tokens)
+    }
+}
+
+impl<'a> Tokenizable for CommitBatchInfo<'a> {
+    fn from_token(_token: Token) -> Result<Self, Web3ContractError>
+    where
+        Self: Sized,
+    {
+        // Currently there is no need to decode this struct.
+        // We still want to implement `Tokenizable` trait for it, so that *once* it's needed
+        // the implementation is provided here and not in some other inconsistent way.
+        Err(Web3ContractError::Api(Web3ApiError::Decoder(
+            "Not implemented".to_string(),
+        )))
+    }
+
+    fn into_token(self) -> Token {
+        let mut tokens = self.into_token_base();
+        if !self.0.header.protocol_version.unwrap().is_pre_boojum() {
+            tokens.push(
                 // `totalL2ToL1Pubdata`
                 Token::Bytes(
                     self.0
@@ -109,7 +178,9 @@ impl<'a> Tokenizable for CommitBatchInfo<'a> {
                         .clone()
                         .unwrap_or(self.0.construct_pubdata()),
                 ),
-            ])
+            );
         }
+
+        Token::Tuple(tokens)
     }
 }
