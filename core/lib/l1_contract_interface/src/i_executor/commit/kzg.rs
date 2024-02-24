@@ -265,11 +265,15 @@ mod tests {
     use serde::{Deserialize, Serialize};
     use serde_with::{self, serde_as};
     use zkevm_test_harness_1_4_1::{
-        boojum::pairing::{
-            bls12_381::{Fr, FrRepr, G1Affine, G1Compressed},
-            EncodedPoint,
+        boojum::{
+            field::goldilocks::GoldilocksField,
+            pairing::{
+                bls12_381::{Fr, FrRepr, G1Affine, G1Compressed},
+                EncodedPoint,
+            },
         },
-        kzg::{verify_kzg_proof, verify_proof_poly, KzgSettings},
+        kzg::{self, verify_kzg_proof, verify_proof_poly, KzgSettings},
+        utils::generate_eip4844_witness,
         zkevm_circuits::eip_4844::{
             bitreverse, ethereum_4844_data_into_zksync_pubdata, fft,
             zksync_pubdata_into_monomial_form_poly,
@@ -398,15 +402,18 @@ mod tests {
 
     #[test]
     fn bytes_test() {
-        let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
-        let path = std::path::Path::new(&zksync_home).join("etc/kzg_tests/kzg_test_0.json");
+        //let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
+        let zksync_home = "/media/cyfra/large_ssd/4844_setup/zksync-era/";
+        let path = std::path::Path::new(&zksync_home).join("etc/kzg_tests/kzg_test_1.json");
         let contents = std::fs::read_to_string(path).unwrap();
         let kzg_test: KzgTest = serde_json::from_str(&contents).unwrap();
+
+        println!("PUbdata length: {:?}", kzg_test.pubdata.len());
 
         let path = std::path::Path::new(&zksync_home).join("trusted_setup.json");
         let kzg_settings = KzgSettings::new(path.to_str().unwrap());
 
-        let kzg_info = KzgInfo::new(&kzg_settings, kzg_test.pubdata);
+        let kzg_info = KzgInfo::new(&kzg_settings, kzg_test.pubdata.clone());
 
         let encoded_info = kzg_info.to_bytes();
         assert_eq!(KzgInfo::SERIALIZED_SIZE, encoded_info.len());
@@ -414,5 +421,32 @@ mod tests {
         let decoded_kzg_info = KzgInfo::from_slice(&encoded_info);
 
         assert_eq!(kzg_info, decoded_kzg_info);
+
+        println!("Kzg info: {:?}", kzg_info);
+        println!(
+            "blob commitment: {:?}",
+            hex::encode(kzg_info.to_blob_commitment())
+        );
+        println!("versioned hash: {:?}", hex::encode(kzg_info.versioned_hash));
+        println!("opening point: {:?}", hex::encode(kzg_info.opening_point));
+        println!("opening value: {:?}", hex::encode(kzg_info.opening_value));
+        println!("opening proof: {:?}", hex::encode(kzg_info.opening_proof));
+        println!("kzg commitment: {:?}", hex::encode(kzg_info.kzg_commitment));
+
+        let mut data = kzg_test.pubdata.clone();
+        data.resize(4096 * 31, 0);
+
+        let (blob_arr, linear_hash, versioned_hash, output_hash) =
+            generate_eip4844_witness::<GoldilocksField>(data, &path.as_os_str().to_str().unwrap());
+
+        println!("linear_hash {:?}", hex::encode(linear_hash));
+        println!("versioned_hash {:?}", hex::encode(versioned_hash));
+        println!("output_hash {:?}", hex::encode(output_hash));
+
+        println!(
+            "Comparing versioned hashes: {:?} vs {:?}",
+            hex::encode(versioned_hash),
+            hex::encode(kzg_info.versioned_hash)
+        )
     }
 }
