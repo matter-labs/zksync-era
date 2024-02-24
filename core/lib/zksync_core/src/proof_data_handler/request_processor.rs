@@ -118,13 +118,23 @@ impl RequestProcessor {
             }
         };
 
+        let storage_batch = self
+            .pool
+            .access_storage()
+            .await
+            .unwrap()
+            .blocks_dal()
+            .get_storage_l1_batch(l1_batch_number)
+            .await
+            .unwrap()
+            .unwrap();
+
         let proof_gen_data = ProofGenerationData {
             l1_batch_number,
             data: blob,
             fri_protocol_version_id,
             l1_verifier_config,
-            // FIXME(mmzk) -- here
-            blobs_4844: vec![0; 31 * 4096 * 2],
+            blobs_4844: storage_batch.pubdata_input.unwrap(),
         };
 
         Ok(Json(ProofGenerationDataResponse::Success(Some(

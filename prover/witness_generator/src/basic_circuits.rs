@@ -711,16 +711,21 @@ async fn generate_witness(
     };
 
     let bytes_per_blob = 31 * 4096;
+    let mut padded_blobs_4844 = blobs_4844.clone();
+    // HACK HACK - important to resize, otherwise split_at fails.
+    padded_blobs_4844.resize(bytes_per_blob * 2, 0);
     // assert_eq!(blobs_4844.len(), bytes_per_blob * 2);
-    let (blob_1, blob_2) = blobs_4844.split_at(bytes_per_blob);
+    let (blob_1, blob_2) = padded_blobs_4844.split_at(bytes_per_blob);
 
+    // HACK HACK HACK
     let (eip_4844_circuit_1, eip_4844_witness_1) = generate_eip4844_circuit_and_witness(
         blob_1.to_vec(),
-        "/home/evl/zksync-era/trusted_setup.json",
+        "/large_ssd/4844_setup/zksync-era/trusted_setup.json",
     );
+    // BUG - for empty 0s - it doesn't return 0.
     let (eip_4844_circuit_2, eip_4844_witness_2) = generate_eip4844_circuit_and_witness(
         blob_2.to_vec(),
-        "/home/evl/zksync-era/trusted_setup.json",
+        "/large_ssd/4844_setup/zksync-era/trusted_setup.json",
     );
 
     let (witnesses, ()) = tokio::join!(make_circuits, save_circuits);

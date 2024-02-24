@@ -2,6 +2,7 @@ use std::{convert::TryInto, sync::Arc, time::Instant};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
+use circuit_definitions::eip4844_proof_config;
 use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_dal::ConnectionPool;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
@@ -86,14 +87,19 @@ impl SchedulerWitnessGenerator {
             capacity: SCHEDULER_CAPACITY,
             _marker: std::marker::PhantomData,
         };
+        let keystore = Keystore::default();
+        let eip_4844_vk = keystore
+            .load_4844_verification_key()
+            .context("get_eip_4844_vk")
+            .unwrap();
 
         let scheduler_circuit = SchedulerCircuit {
             witness: job.scheduler_witness,
             config,
             transcript_params: (),
-            eip4844_proof_config: None,
-            eip4844_vk: None,
-            eip4844_vk_fixed_parameters: None,
+            eip4844_proof_config: Some(eip4844_proof_config()),
+            eip4844_vk: Some(eip_4844_vk.clone()),
+            eip4844_vk_fixed_parameters: Some(eip_4844_vk.fixed_parameters),
             _marker: std::marker::PhantomData,
         };
         WITNESS_GENERATOR_METRICS.witness_generation_time[&AggregationRound::Scheduler.into()]
@@ -233,16 +239,15 @@ impl JobProcessor for SchedulerWitnessGenerator {
 
 pub async fn prepare_job(
     l1_batch_number: L1BatchNumber,
-    proof_job_ids: [u32; 13],
+    proof_job_ids: ([u32; 13], [u32; 2]),
     object_store: &dyn ObjectStore,
 ) -> anyhow::Result<SchedulerWitnessGeneratorJob> {
     let started_at = Instant::now();
-    let proofs = load_proofs_for_job_ids(&proof_job_ids, object_store).await;
+    let proofs = load_proofs_for_job_ids(&proof_job_ids.0, object_store).await;
     WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::Scheduler.into()]
         .observe(started_at.elapsed());
 
     let mut recursive_proofs = vec![];
-    let mut eip_4844_proofs = vec![];
     for wrapper in proofs {
         match wrapper {
             FriProofWrapper::Base(_) => anyhow::bail!(
@@ -251,9 +256,25 @@ pub async fn prepare_job(
             FriProofWrapper::Recursive(recursive_proof) => {
                 recursive_proofs.push(recursive_proof.into_inner())
             }
+            FriProofWrapper::Eip4844(_) => {
+                anyhow::bail!("EIP 4844 should not be run as a scheduler")
+            }
+        }
+    }
+
+    let proofs = load_proofs_for_job_ids(&proof_job_ids.1, object_store).await;
+
+    let mut eip_4844_proofs = vec![];
+    for wrapper in proofs {
+        match wrapper {
+            FriProofWrapper::Base(_) => anyhow::bail!(
+                "Expected only recursive proofs for scheduler l1 batch {l1_batch_number}"
+            ),
+            FriProofWrapper::Recursive(_) => {
+                anyhow::bail!("Recursive in wrong spot")
+            }
             FriProofWrapper::Eip4844(proof) => {
                 eip_4844_proofs.push(proof);
-                //anyhow::bail!("EIP 4844 should not be run as a scheduler")
             }
         }
     }
@@ -271,8 +292,24 @@ pub async fn prepare_job(
 
     scheduler_witness.proof_witnesses = recursive_proofs.into();
 
+    if let Some(ref mut eip_witness) = scheduler_witness.eip4844_witnesses {
+        println!(
+            "2nd blob linear hash is {}",
+            hex::encode(eip_witness[1].linear_hash)
+        );
+        // HACK HACK HACK -- replacing witness with 0s (for blob full of zeros)
+        // but leaving the proof.
+        if hex::encode(eip_witness[1].linear_hash)
+            == "f6dbf942ccbdd8c156edaf1f93bb083a05b9da07a2379a624770c8cbea687f5c"
+        {
+            println!("2nd blob linear hash is 0 -- replacing with 0s");
+            eip_witness[1].linear_hash = [0u8; 32];
+            eip_witness[1].output_hash = [0u8; 32];
+        }
+    }
+
     println!("Eip 4844 proofs: {}", eip_4844_proofs.len());
-    scheduler_witness.eip4844_proofs = eip_4844_proofs;
+    scheduler_witness.eip4844_proofs = eip_4844_proofs.into();
 
     let leaf_vk_commits = get_leaf_vk_params(&keystore).context("get_leaf_vk_params()")?;
     let leaf_layer_params = leaf_vk_commits
