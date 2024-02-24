@@ -4928,13 +4928,13 @@ dependencies = [
 [[package]]
 name = "shivini"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-shivini.git?branch=v1.4.1#81d5baac09cb790b3e4c8ce681ed4fd0ab2e0234"
+source = "git+https://github.com/matter-labs/era-shivini.git?branch=v1.4.2#5d753d15f4910e1af48b94ef5c3b76e4f322786c"
 dependencies = [
  "bincode",
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "boojum",
  "boojum-cuda",
- "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1)",
+ "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.2)",
  "cudart",
  "cudart-sys",
  "derivative",
@@ -6874,7 +6874,7 @@ dependencies = [
 [[package]]
 name = "zkevm_test_harness"
 version = "1.4.2"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.2#aa09f683a62e9ceeb457272909625f49f413f9d9"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.2#d9da285c2e8a5fedddd2e9c2a893769ebd12a6ed"
 dependencies = [
  "bincode",
  "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.2)",
