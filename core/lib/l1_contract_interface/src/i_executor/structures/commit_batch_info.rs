@@ -141,11 +141,10 @@ impl CommitBatchInfo<'_> {
 
         let mut pubdata_commitments = pubdata
             .chunks(ZK_SYNC_BYTES_PER_BLOB)
-            .map(|blob| {
+            .flat_map(|blob| {
                 let kzg_info = KzgInfo::new(&kzg_settings, blob.to_vec());
                 kzg_info.to_pubdata_commitment().to_vec()
             })
-            .flatten()
             .collect::<Vec<u8>>();
         pubdata_commitments.insert(0, 1u8);
         tokens.push(Token::Bytes(pubdata_commitments));
