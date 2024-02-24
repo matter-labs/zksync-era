@@ -35,6 +35,8 @@ impl FriSchedulerDependencyTrackerDal<'_, '_> {
                         AND circuit_11_final_prover_job_id IS NOT NULL
                         AND circuit_12_final_prover_job_id IS NOT NULL
                         AND circuit_13_final_prover_job_id IS NOT NULL
+                        AND circuit_255_final_prover_job_id IS NOT NULL
+                        AND circuit_255_final_prover_job_id IS NOT NULL
                 )
             RETURNING
                 l1_batch_number;
