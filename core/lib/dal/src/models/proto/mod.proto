@@ -19,9 +19,9 @@ message Payload {
 
 message Transaction {
   oneof common_data {
-    L1TxCommonData L1 = 1;
-    L2TxCommonData L2 = 2;
-    ProtocolUpgradeTxCommonData ProtocolUpgrade = 3;
+    L1TxCommonData l1 = 1;
+    L2TxCommonData l2 = 2;
+    ProtocolUpgradeTxCommonData protocol_upgrade = 3;
   }
   optional Execute execute = 4; // required
   optional uint64 received_timestamp_ms = 5; // required
