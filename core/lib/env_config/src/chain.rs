@@ -87,7 +87,6 @@ mod tests {
             batch_overhead_l1_gas: 800_000,
             max_gas_per_batch: 200_000_000,
             max_pubdata_per_batch: 100_000,
-            max_number_da_slots: 1,
             fee_model_version: FeeModelVersion::V2,
             validation_computational_gas_limit: 10_000_000,
             save_call_traces: false,
@@ -121,7 +120,6 @@ mod tests {
             CHAIN_STATE_KEEPER_BATCH_OVERHEAD_L1_GAS="800000"
             CHAIN_STATE_KEEPER_MAX_GAS_PER_BATCH="200000000"
             CHAIN_STATE_KEEPER_MAX_PUBDATA_PER_BATCH="100000"
-            CHAIN_STATE_KEEPER_MAX_NUMBER_DA_SLOTS=1
             CHAIN_STATE_KEEPER_FEE_MODEL_VERSION="V2"
             CHAIN_STATE_KEEPER_VALIDATION_COMPUTATIONAL_GAS_LIMIT="10000000"
             CHAIN_STATE_KEEPER_SAVE_CALL_TRACES="false"

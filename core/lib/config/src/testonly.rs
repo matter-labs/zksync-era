@@ -271,7 +271,6 @@ impl RandomConfig for configs::chain::StateKeeperConfig {
             batch_overhead_l1_gas: g.gen(),
             max_gas_per_batch: g.gen(),
             max_pubdata_per_batch: g.gen(),
-            max_number_da_slots: 1,
             fee_model_version: g.gen(),
             validation_computational_gas_limit: g.gen(),
             save_call_traces: g.gen(),

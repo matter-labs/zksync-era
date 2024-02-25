@@ -133,8 +133,7 @@ impl SequencerSealer {
             Box::new(criteria::SlotsCriterion),
             Box::new(criteria::GasCriterion),
             Box::new(criteria::PubDataBytesCriterion {
-                max_pubdata_per_da_slot: config.max_pubdata_per_batch,
-                num_da_slots: config.max_number_da_slots,
+                max_pubdata_per_batch: config.max_pubdata_per_batch,
             }),
             Box::new(criteria::CircuitsCriterion),
             Box::new(criteria::TxEncodingSizeCriterion),
