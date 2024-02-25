@@ -42,6 +42,7 @@ pub enum ProtocolVersionId {
     Version19,
     Version20,
     Version21,
+    Version22,
 }
 
 impl ProtocolVersionId {
@@ -78,7 +79,8 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version18 => VmVersion::VmBoojumIntegration,
             ProtocolVersionId::Version19 => VmVersion::VmBoojumIntegration,
             ProtocolVersionId::Version20 => VmVersion::Vm1_4_1,
-            ProtocolVersionId::Version21 => VmVersion::Vm1_4_1,
+            ProtocolVersionId::Version21 => VmVersion::Vm1_4_2,
+            ProtocolVersionId::Version22 => VmVersion::Vm1_4_2,
         }
     }
 
@@ -764,7 +766,8 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version18 => VmVersion::VmBoojumIntegration,
             ProtocolVersionId::Version19 => VmVersion::VmBoojumIntegration,
             ProtocolVersionId::Version20 => VmVersion::Vm1_4_1,
-            ProtocolVersionId::Version21 => VmVersion::Vm1_4_1,
+            ProtocolVersionId::Version21 => VmVersion::Vm1_4_2,
+            ProtocolVersionId::Version22 => VmVersion::Vm1_4_2,
         }
     }
 }

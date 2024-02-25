@@ -164,6 +164,9 @@ trait WsTest: Send + Sync {
 async fn test_ws_server(test: impl WsTest) {
     let pool = ConnectionPool::test_pool().await;
     let network_config = NetworkConfig::for_tests();
+    let contracts_config = ContractsConfig::for_tests();
+    let web3_config = Web3JsonRpcConfig::for_tests();
+    let api_config = InternalApiConfig::new(&network_config, &web3_config, &contracts_config);
     let mut storage = pool.access_storage().await.unwrap();
     test.storage_initialization()
         .prepare_storage(&network_config, &mut storage)
@@ -173,7 +176,7 @@ async fn test_ws_server(test: impl WsTest) {
 
     let (stop_sender, stop_receiver) = watch::channel(false);
     let (mut server_handles, pub_sub_events) = spawn_ws_server(
-        &network_config,
+        api_config,
         pool.clone(),
         stop_receiver,
         test.websocket_requests_per_minute_limit(),
