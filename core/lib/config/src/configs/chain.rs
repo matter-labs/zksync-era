@@ -101,7 +101,7 @@ pub struct StateKeeperConfig {
     pub max_pubdata_per_batch: u64,
 
     /// The maximum number of DA slots that can be used, Calldata should only use 1. Blobs can use 1 or 2
-    pub max_number_da_slots: u64,
+    pub max_number_da_slots: u8,
 
     /// The version of the fee model to use.
     pub fee_model_version: FeeModelVersion,

@@ -12,6 +12,9 @@ use crate::{
     Tokenizable,
 };
 
+const PUBDATA_SOURCE_CALLDATA: u8 = 0;
+const PUBDATA_SOURCE_BLOBS: u8 = 1;
+
 /// Encoding for `CommitBatchInfo` from `IExecutor.sol`
 #[derive(Debug)]
 pub struct CommitBatchInfo<'a>(pub &'a L1BatchWithMetadata);
@@ -20,7 +23,10 @@ pub fn load_kzg_settings() -> KzgSettings {
     static KZG_SETTINGS: Lazy<KzgSettings> = Lazy::new(|| {
         let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
         let path = std::path::Path::new(&zksync_home).join("trusted_setup.json");
-        KzgSettings::new(path.to_str().unwrap())
+        KzgSettings::new(path.to_str().expect(&format!(
+            "kzg setup file trusted_setup.json is not present at expected location; {:?}",
+            path
+        )))
     });
     KZG_SETTINGS.clone()
 }
@@ -119,11 +125,11 @@ impl CommitBatchInfo<'_> {
         let kzg_settings = load_kzg_settings();
         let mut blob = pubdata.clone();
         blob.resize(ZK_SYNC_BYTES_PER_BLOB, 0u8);
-        let blob_commitment = KzgInfo::new(&kzg_settings, blob).to_blob_commitment();
+        let blob_commitment = KzgInfo::new(&kzg_settings, &blob).to_blob_commitment();
 
         pubdata.extend(blob_commitment);
 
-        pubdata.insert(0, 0);
+        pubdata.insert(0, PUBDATA_SOURCE_CALLDATA);
         tokens.push(Token::Bytes(pubdata));
         Token::Tuple(tokens)
     }
@@ -142,11 +148,11 @@ impl CommitBatchInfo<'_> {
         let mut pubdata_commitments = pubdata
             .chunks(ZK_SYNC_BYTES_PER_BLOB)
             .flat_map(|blob| {
-                let kzg_info = KzgInfo::new(&kzg_settings, blob.to_vec());
+                let kzg_info = KzgInfo::new(&kzg_settings, &blob.to_vec());
                 kzg_info.to_pubdata_commitment().to_vec()
             })
             .collect::<Vec<u8>>();
-        pubdata_commitments.insert(0, 1u8);
+        pubdata_commitments.insert(0, PUBDATA_SOURCE_BLOBS);
         tokens.push(Token::Bytes(pubdata_commitments));
         Token::Tuple(tokens)
     }

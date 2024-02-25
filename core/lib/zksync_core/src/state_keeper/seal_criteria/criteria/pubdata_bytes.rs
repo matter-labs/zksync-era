@@ -7,7 +7,7 @@ use crate::state_keeper::seal_criteria::{
 #[derive(Debug)]
 pub struct PubDataBytesCriterion {
     pub max_pubdata_per_da_slot: u64,
-    pub num_da_slots: u64,
+    pub num_da_slots: u8,
 }
 
 impl SealCriterion for PubDataBytesCriterion {
@@ -20,7 +20,8 @@ impl SealCriterion for PubDataBytesCriterion {
         tx_data: &SealData,
         protocol_version: ProtocolVersionId,
     ) -> SealResolution {
-        let max_pubdata_per_l1_batch = (self.max_pubdata_per_da_slot * self.num_da_slots) as usize;
+        let max_pubdata_per_l1_batch =
+            (self.max_pubdata_per_da_slot * (self.num_da_slots as u64)) as usize;
         let reject_bound =
             (max_pubdata_per_l1_batch as f64 * config.reject_tx_at_eth_params_percentage).round();
         let include_and_seal_bound =
@@ -75,8 +76,8 @@ mod tests {
         };
 
         let block_execution_metrics = ExecutionMetrics {
-            l2_l1_long_messages: ((config.max_pubdata_per_batch * config.max_number_da_slots)
-                as f64
+            l2_l1_long_messages: ((config.max_pubdata_per_batch
+                * (config.max_number_da_slots as u64)) as f64
                 * config.close_block_at_eth_params_percentage
                 - 1.0)
                 .round() as usize,

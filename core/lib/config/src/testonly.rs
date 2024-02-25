@@ -488,7 +488,7 @@ impl RandomConfig for configs::eth_sender::SenderConfig {
             l1_batch_min_age_before_execute_seconds: g.gen(),
             max_acceptable_priority_fee_in_gwei: g.gen(),
             proof_loading_mode: g.gen(),
-            pubdata_sending_mode: Some(PubdataSendingMode::Calldata),
+            pubdata_sending_mode: PubdataSendingMode::Calldata,
         }
     }
 }

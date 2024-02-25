@@ -109,7 +109,7 @@ impl ProtoRepr for proto::Sender {
                 .and_then(|x| Ok(proto::ProofLoadingMode::try_from(*x)?))
                 .context("proof_loading_mode")?
                 .parse(),
-            pubdata_sending_mode: Some(PubdataSendingMode::Calldata),
+            pubdata_sending_mode: PubdataSendingMode::Calldata,
         })
     }
 

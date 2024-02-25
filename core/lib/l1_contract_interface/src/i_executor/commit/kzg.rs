@@ -89,7 +89,7 @@ impl KzgInfo {
 
     /// Returns the bytes necessary for pubdata commitment part of batch commitments when blobs are used.
     /// Return format: opening point (16 bytes) || claimed value (32 bytes) || commitment (48 bytes)
-    ///                || opening proof (48 bytes))
+    ///                || opening proof (48 bytes)
     pub fn to_pubdata_commitment(&self) -> [u8; BYTES_PER_PUBDATA_COMMITMENT] {
         let mut res = [0u8; BYTES_PER_PUBDATA_COMMITMENT];
         // The crypto team/batch commitment expects the opening point to be 16 bytes
@@ -102,13 +102,15 @@ impl KzgInfo {
         res
     }
 
+    /// Computes the commitment to the blob needed as part of the batch commitment through the aux output
+    /// Format is: Keccak(versioned hash || opening point || opening value)
     pub fn to_blob_commitment(&self) -> [u8; 32] {
         let mut commitment = [0u8; 32];
         let hash = &Keccak256::digest(
             [
-                self.versioned_hash.to_vec(),
-                self.opening_point[16..].to_vec(),
-                self.opening_value.to_vec(),
+                self.versioned_hash.as_slice(),
+                &self.opening_point[16..],
+                self.opening_value.as_slice(),
             ]
             .concat(),
         );
@@ -197,7 +199,7 @@ impl KzgInfo {
     ///     7. opening point <- keccak(linear hash || versioned hash)[16..]
     ///     8. opening value, opening proof <- `compute_kzg_proof`(4844)
     ///     9. blob proof <- `compute_proof_poly`(blob, 4844 `kzg` commitment)
-    pub fn new(kzg_settings: &KzgSettings, pubdata: Vec<u8>) -> Self {
+    pub fn new(kzg_settings: &KzgSettings, pubdata: &Vec<u8>) -> Self {
         assert!(pubdata.len() <= ZK_SYNC_BYTES_PER_BLOB);
 
         let mut zksync_blob = [0u8; ZK_SYNC_BYTES_PER_BLOB];
@@ -336,7 +338,7 @@ mod tests {
         let path = std::path::Path::new(&zksync_home).join("trusted_setup.json");
         let kzg_settings = KzgSettings::new(path.to_str().unwrap());
 
-        let kzg_info = KzgInfo::new(&kzg_settings, kzg_test.pubdata);
+        let kzg_info = KzgInfo::new(&kzg_settings, &kzg_test.pubdata);
 
         // Verify all the fields were correctly computed
         assert_eq!(
@@ -406,7 +408,7 @@ mod tests {
         let path = std::path::Path::new(&zksync_home).join("trusted_setup.json");
         let kzg_settings = KzgSettings::new(path.to_str().unwrap());
 
-        let kzg_info = KzgInfo::new(&kzg_settings, kzg_test.pubdata);
+        let kzg_info = KzgInfo::new(&kzg_settings, &kzg_test.pubdata);
 
         let encoded_info = kzg_info.to_bytes();
         assert_eq!(KzgInfo::SERIALIZED_SIZE, encoded_info.len());
