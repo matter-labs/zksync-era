@@ -332,16 +332,18 @@ impl L1BatchAuxiliaryOutput {
                 aux_commitments,
                 blob_commitments,
             } => {
-                // TODO (PLA-815): Remove `IGNORE_1_4_2_UPGRADE`.
-                let protocol_version = if std::env::var("IGNORE_1_4_2_UPGRADE").is_ok() {
-                    if common_input.protocol_version.is_post_1_4_2() {
-                        ProtocolVersionId::Version20
+                // TODO (PLA-815): Remove `IGNORE_1_4_2_UPGRADE_FOR_UPGRADE_TEST`.
+                // This is used only in upgrade test, because our system isn't flexible enough right now to support WIP changes to contracts.
+                let protocol_version =
+                    if std::env::var("IGNORE_1_4_2_UPGRADE_FOR_UPGRADE_TEST").is_ok() {
+                        if common_input.protocol_version.is_post_1_4_2() {
+                            ProtocolVersionId::Version20
+                        } else {
+                            common_input.protocol_version
+                        }
                     } else {
                         common_input.protocol_version
-                    }
-                } else {
-                    common_input.protocol_version
-                };
+                    };
 
                 let l2_l1_logs_compressed = serialize_commitments(&common_input.l2_to_l1_logs);
                 let merkle_tree_leaves = l2_l1_logs_compressed
@@ -365,22 +367,30 @@ impl L1BatchAuxiliaryOutput {
                 let state_diffs_hash = H256::from(keccak256(&(state_diffs_packed)));
                 let state_diffs_compressed = compress_state_diffs(state_diffs);
 
-                let blob1_linear_hash = system_logs
-                    .iter()
-                    .find_map(|log| {
+                let blob_linear_hashes = if protocol_version.is_post_1_4_2() {
+                    let blob1_linear_hash = system_logs.iter().find_map(|log| {
                         (log.0.sender == PUBDATA_CHUNK_PUBLISHER_ADDRESS
                             && log.0.key == H256::from_low_u64_be(BLOB1_LINEAR_HASH_KEY as u64))
                         .then_some(log.0.value)
-                    })
-                    .unwrap_or_default();
-                let blob2_linear_hash = system_logs
-                    .iter()
-                    .find_map(|log| {
+                    });
+                    let blob2_linear_hash = system_logs.iter().find_map(|log| {
                         (log.0.sender == PUBDATA_CHUNK_PUBLISHER_ADDRESS
                             && log.0.key == H256::from_low_u64_be(BLOB2_LINEAR_HASH_KEY as u64))
                         .then_some(log.0.value)
-                    })
-                    .unwrap_or_default();
+                    });
+                    match (&blob1_linear_hash, &blob2_linear_hash) {
+                        (Some(_), None) | (None, Some(_)) => {
+                            panic!("Only one blob hash was found in system logs")
+                        }
+                        _ => {}
+                    }
+                    [
+                        blob1_linear_hash.unwrap_or_else(H256::zero),
+                        blob2_linear_hash.unwrap_or_else(H256::zero),
+                    ]
+                } else {
+                    [H256::zero(), H256::zero()]
+                };
 
                 // Sanity checks. System logs are empty for the genesis batch, so we can't do checks for it.
                 if !system_logs.is_empty() {
@@ -415,7 +425,7 @@ impl L1BatchAuxiliaryOutput {
                     state_diffs_compressed,
                     state_diffs_hash,
                     aux_commitments,
-                    blob_linear_hashes: [blob1_linear_hash, blob2_linear_hash],
+                    blob_linear_hashes,
                     blob_commitments,
                 }
             }
