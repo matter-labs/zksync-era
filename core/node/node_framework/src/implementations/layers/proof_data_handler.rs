@@ -53,7 +53,7 @@ impl WiringLayer for ProofDataHandlerLayer {
             proof_data_handler_config: self.proof_data_handler_config,
             contracts_config: self.contracts_config,
             blob_store: object_store.0,
-            main_pool: main_pool,
+            main_pool,
         }));
 
         Ok(())
