@@ -105,8 +105,6 @@ pub enum Error {
     /// EIP4844 transaction lacks `blob_versioned_hashes` field
     #[error("EIP4844 transaction lacks blob_versioned_hashes field")]
     Eip4844MissingBlobVersionedHashes,
-    #[error("Blocks in the network do not contain excessBlobGas field")]
-    ExcessBlobGasMissing,
 }
 
 /// Raw transaction bytes.
