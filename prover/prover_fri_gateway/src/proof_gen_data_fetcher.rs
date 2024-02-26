@@ -7,6 +7,9 @@ use crate::api_data_fetcher::{PeriodicApi, PeriodicApiStruct};
 
 impl PeriodicApiStruct {
     async fn save_proof_gen_data(&self, data: ProofGenerationData) {
+        // As 1.4.2, only 2 blobs at most are supported.
+        assert!(data.eip_4844_blobs.len() <= 2);
+
         let store = &*self.blob_store;
         let blob_url = store
             .put(data.l1_batch_number, &data.data)
@@ -17,14 +20,14 @@ impl PeriodicApiStruct {
             .fri_protocol_versions_dal()
             .save_prover_protocol_version(data.fri_protocol_version_id, data.l1_verifier_config)
             .await;
-        println!("Emil calling DAL = {:?}", data.blobs_4844.len());
+
         connection
             .fri_witness_generator_dal()
             .save_witness_inputs(
                 data.l1_batch_number,
                 &blob_url,
                 data.fri_protocol_version_id,
-                data.blobs_4844,
+                data.eip_4844_blobs.into(),
             )
             .await;
     }
@@ -56,7 +59,6 @@ impl PeriodicApi<ProofGenerationDataRequest> for PeriodicApiStruct {
             }
             ProofGenerationDataResponse::Success(Some(data)) => {
                 tracing::info!("Received proof gen data for: {:?}", data.l1_batch_number);
-                println!("EMIL -- {:?}", data.blobs_4844.len());
                 self.save_proof_gen_data(data).await;
             }
             ProofGenerationDataResponse::Error(err) => {

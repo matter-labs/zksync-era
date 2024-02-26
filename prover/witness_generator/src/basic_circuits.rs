@@ -36,10 +36,13 @@ use zksync_prover_fri_types::{
     },
     get_current_pod_name,
     keys::ClosedFormInputKey,
-    AuxOutputWitnessWrapper,
+    AuxOutputWitnessWrapper, EIP_4844_CIRCUIT_ID,
 };
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
-use zksync_prover_interface::inputs::{BasicCircuitWitnessGeneratorInput, PrepareBasicCircuitsJob};
+use zksync_prover_interface::{
+    api::Eip4844Blobs,
+    inputs::{BasicCircuitWitnessGeneratorInput, PrepareBasicCircuitsJob},
+};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_state::{PostgresStorage, StorageView};
 use zksync_types::{
@@ -60,7 +63,7 @@ use crate::{
 
 pub struct BasicCircuitArtifacts {
     circuit_urls: Vec<(u8, String)>,
-    eip_4844_circuit_urls: Vec<(u16, String)>,
+    eip_4844_circuit_urls: Vec<(usize, String)>,
     queue_urls: Vec<(u8, String, usize)>,
     scheduler_witness: SchedulerCircuitInstanceWitness<
         GoldilocksField,
@@ -73,7 +76,7 @@ pub struct BasicCircuitArtifacts {
 #[derive(Debug)]
 struct BlobUrls {
     circuit_ids_and_urls: Vec<(u8, String)>,
-    eip_4844_circuit_urls: Vec<(u16, String)>,
+    eip_4844_circuit_urls: Vec<(usize, String)>,
     closed_form_inputs_and_urls: Vec<(u8, String, usize)>,
     scheduler_witness_url: String,
 }
@@ -82,7 +85,7 @@ struct BlobUrls {
 pub struct BasicWitnessGeneratorJob {
     block_number: L1BatchNumber,
     job: PrepareBasicCircuitsJob,
-    blobs_4844: Vec<u8>,
+    eip_4844_blobs: Eip4844Blobs,
 }
 
 #[derive(Debug)]
@@ -122,16 +125,11 @@ impl BasicWitnessGenerator {
         started_at: Instant,
         config: Arc<FriWitnessGeneratorConfig>,
     ) -> Option<BasicCircuitArtifacts> {
-        println!(
-            "Emil -- process_job_impl = {:?}",
-            basic_job.blobs_4844.len()
-        );
         let BasicWitnessGeneratorJob {
             block_number,
             job,
-            blobs_4844,
+            eip_4844_blobs,
         } = basic_job;
-        println!("Emil -- process_job_impl = {:?}", blobs_4844.len());
         let shall_force_process_block = config
             .force_process_block
             .map_or(false, |block| block == block_number.0);
@@ -179,7 +177,7 @@ impl BasicWitnessGenerator {
                 started_at,
                 block_number,
                 job,
-                blobs_4844,
+                eip_4844_blobs,
             )
             .await,
         )
@@ -208,14 +206,14 @@ impl JobProcessor for BasicWitnessGenerator {
             )
             .await
         {
-            Some((block_number, blobs_4844)) => {
+            Some((block_number, eip_4844_blobs)) => {
                 tracing::info!(
                     "Processing FRI basic witness-gen for block {}",
                     block_number
                 );
-                println!("EMIL get_next_job = {:?}", blobs_4844.len());
                 let started_at = Instant::now();
-                let job = get_artifacts(block_number, &*self.object_store, blobs_4844).await;
+                let job =
+                    get_artifacts(block_number, &*self.object_store, eip_4844_blobs.into()).await;
 
                 WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::BasicCircuits.into()]
                     .observe(started_at.elapsed());
@@ -242,7 +240,6 @@ impl JobProcessor for BasicWitnessGenerator {
         job: BasicWitnessGeneratorJob,
         started_at: Instant,
     ) -> tokio::task::JoinHandle<anyhow::Result<Option<BasicCircuitArtifacts>>> {
-        println!("Emil -- process_job = {:?}", job.blobs_4844.len());
         let config = Arc::clone(&self.config);
         let object_store = Arc::clone(&self.object_store);
         let connection_pool = self.connection_pool.clone();
@@ -326,12 +323,8 @@ async fn process_basic_circuits_job(
     started_at: Instant,
     block_number: L1BatchNumber,
     job: PrepareBasicCircuitsJob,
-    blobs_4844: Vec<u8>,
+    eip_4844_blobs: Eip4844Blobs,
 ) -> BasicCircuitArtifacts {
-    println!(
-        "Emil -- process_basic_circuits_job = {:?}",
-        blobs_4844.len()
-    );
     let witness_gen_input =
         build_basic_circuits_witness_generator_input(&connection_pool, job, block_number).await;
     let (circuit_urls, eip_4844_circuit_urls, queue_urls, scheduler_witness, aux_output_witness) =
@@ -341,7 +334,7 @@ async fn process_basic_circuits_job(
             config,
             connection_pool,
             witness_gen_input,
-            blobs_4844,
+            eip_4844_blobs,
         )
         .await;
     WITNESS_GENERATOR_METRICS.witness_generation_time[&AggregationRound::BasicCircuits.into()]
@@ -382,33 +375,21 @@ async fn update_database(
             protocol_version_id,
         )
         .await;
-    prover_connection
-        .fri_prover_jobs_dal()
-        .insert_prover_job(
-            block_number,
-            255,
-            blob_urls.eip_4844_circuit_urls[0].0,
-            blob_urls.eip_4844_circuit_urls[0].0 as usize,
-            AggregationRound::BasicCircuits,
-            &blob_urls.eip_4844_circuit_urls[0].1,
-            true,
-            protocol_version_id,
-        )
-        .await;
-    prover_connection
-        .fri_prover_jobs_dal()
-        .insert_prover_job(
-            block_number,
-            255,
-            blob_urls.eip_4844_circuit_urls[1].0,
-            blob_urls.eip_4844_circuit_urls[1].0 as usize,
-            AggregationRound::BasicCircuits,
-            &blob_urls.eip_4844_circuit_urls[1].1,
-            true,
-            protocol_version_id,
-        )
-        .await;
-
+    for index in 0..2 {
+        prover_connection
+            .fri_prover_jobs_dal()
+            .insert_prover_job(
+                block_number,
+                EIP_4844_CIRCUIT_ID,
+                0,
+                blob_urls.eip_4844_circuit_urls[index].0,
+                AggregationRound::BasicCircuits,
+                &blob_urls.eip_4844_circuit_urls[index].1,
+                true,
+                protocol_version_id,
+            )
+            .await;
+    }
     prover_connection
         .fri_witness_generator_dal()
         .create_aggregation_jobs(
@@ -428,13 +409,13 @@ async fn update_database(
 async fn get_artifacts(
     block_number: L1BatchNumber,
     object_store: &dyn ObjectStore,
-    blobs_4844: Vec<u8>,
+    eip_4844_blobs: Eip4844Blobs,
 ) -> BasicWitnessGeneratorJob {
     let job = object_store.get(block_number).await.unwrap();
     BasicWitnessGeneratorJob {
         block_number,
         job,
-        blobs_4844,
+        eip_4844_blobs,
     }
 }
 
@@ -536,10 +517,10 @@ async fn generate_witness(
     config: Arc<FriWitnessGeneratorConfig>,
     connection_pool: ConnectionPool,
     input: BasicCircuitWitnessGeneratorInput,
-    blobs_4844: Vec<u8>,
+    eip_4844_blobs: Eip4844Blobs,
 ) -> (
     Vec<(u8, String)>,
-    Vec<(u16, String)>,
+    Vec<(usize, String)>,
     Vec<(u8, String, usize)>,
     SchedulerCircuitInstanceWitness<
         GoldilocksField,
@@ -548,7 +529,6 @@ async fn generate_witness(
     >,
     BlockAuxilaryOutputWitness<GoldilocksField>,
 ) {
-    println!("Emil -- generate_witness = {:?}", blobs_4844.len());
     let mut connection = connection_pool.access_storage().await.unwrap();
     let header = connection
         .blocks_dal()
@@ -723,28 +703,31 @@ async fn generate_witness(
         }
     };
 
-    let bytes_per_blob = 31 * 4096;
-    println!("Emil -- {bytes_per_blob:?}");
-    println!("Emil -- {:?}", blobs_4844.len());
-    // assert_eq!(blobs_4844.len(), bytes_per_blob * 2);
-    let (blob_1, blob_2) = blobs_4844.split_at(bytes_per_blob);
+    let mut eip_4844_blobs = eip_4844_blobs.blobs;
 
-    println!("Emil -- got here");
-    let (eip_4844_circuit_1, eip_4844_witness_1) = generate_eip4844_circuit_and_witness(
-        blob_1.to_vec(),
-        "/home/evl/zksync-era/trusted_setup.json",
-    );
-    let (eip_4844_circuit_2, eip_4844_witness_2) = generate_eip4844_circuit_and_witness(
-        blob_2.to_vec(),
-        "/home/evl/zksync-era/trusted_setup.json",
-    );
+    let mut eip_4844_circuits = vec![];
+    let mut eip_4844_witnesses = vec![];
+
+    let single_blob = eip_4844_blobs.len() == 1;
+    if single_blob {
+        eip_4844_blobs.push(eip_4844_blobs[0].clone());
+    }
+    for blob in eip_4844_blobs {
+        let (eip_4844_circuit, eip_4844_witness) = generate_eip4844_circuit_and_witness(
+            blob.to_vec(),
+            "/home/evl/zksync_era/trusted_setup.json",
+        );
+        eip_4844_circuits.push(eip_4844_circuit);
+        eip_4844_witnesses.push(eip_4844_witness.closed_form_input.observable_output);
+    }
 
     let (witnesses, ()) = tokio::join!(make_circuits, save_circuits);
 
-    let blobs_4844_urls = vec![
-        save_eip_4844_circuit(block_number, eip_4844_circuit_1, 0, object_store, 0).await,
-        save_eip_4844_circuit(block_number, eip_4844_circuit_2, 1, object_store, 1).await,
-    ];
+    let mut eip_4844_blob_urls = vec![];
+    for (index, circuit) in eip_4844_circuits.into_iter().enumerate() {
+        eip_4844_blob_urls
+            .push(save_eip_4844_circuit(block_number, circuit, index, object_store, 0).await);
+    }
 
     let (mut scheduler_witness, block_aux_witness) = witnesses.unwrap();
 
@@ -752,14 +735,18 @@ async fn generate_witness(
         previous_batch_with_metadata.metadata.meta_parameters_hash.0;
     scheduler_witness.previous_block_aux_hash =
         previous_batch_with_metadata.metadata.aux_data_hash.0;
-    scheduler_witness.eip4844_witnesses = Some([
-        eip_4844_witness_1.closed_form_input.observable_output,
-        eip_4844_witness_2.closed_form_input.observable_output,
-    ]);
+
+    if single_blob {
+        eip_4844_witnesses[1].linear_hash = [0u8; 32];
+        eip_4844_witnesses[1].output_hash = [0u8; 32];
+    }
+
+    scheduler_witness.eip4844_witnesses =
+        Some([eip_4844_witnesses[0].clone(), eip_4844_witnesses[1].clone()]);
 
     (
         circuit_urls,
-        blobs_4844_urls,
+        eip_4844_blob_urls,
         recursion_urls,
         scheduler_witness,
         block_aux_witness,

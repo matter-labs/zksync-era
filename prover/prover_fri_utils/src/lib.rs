@@ -65,7 +65,6 @@ pub async fn fetch_next_circuit(
         depth: prover_job.depth,
     };
     let started_at = Instant::now();
-    println!("circuit_key = {circuit_key:?}");
     let input = blob_store
         .get(circuit_key)
         .await

@@ -20,7 +20,7 @@ use zksync_prover_fri_types::{
         ZkSyncDefaultRoundFunction,
     },
     keys::{AggregationsKey, ClosedFormInputKey, FriCircuitKey},
-    CircuitWrapper, FriProofWrapper,
+    CircuitWrapper, FriProofWrapper, EIP_4844_CIRCUIT_ID,
 };
 use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber, ProtocolVersionId, U256};
 
@@ -136,8 +136,8 @@ pub async fn save_eip_4844_circuit(
     sequence_number: usize,
     object_store: &dyn ObjectStore,
     depth: u16,
-) -> (u16, String) {
-    let circuit_id = 255;
+) -> (usize, String) {
+    let circuit_id = EIP_4844_CIRCUIT_ID;
     let circuit_key = FriCircuitKey {
         block_number,
         sequence_number,
@@ -149,7 +149,7 @@ pub async fn save_eip_4844_circuit(
         .put(circuit_key, &CircuitWrapper::Eip4844(circuit))
         .await
         .unwrap();
-    (depth, blob_url)
+    (sequence_number, blob_url)
 }
 
 pub async fn save_recursive_layer_prover_input_artifacts(

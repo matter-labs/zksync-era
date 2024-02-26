@@ -39,9 +39,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
         block_number: L1BatchNumber,
         object_key: &str,
         protocol_version_id: FriProtocolVersionId,
-        blobs_4844: Vec<u8>,
+        eip_4844_blobs: Vec<u8>,
     ) {
-        println!("Emil saving to db = {:?}", blobs_4844.len());
         sqlx::query!(
             r#"
             INSERT INTO
@@ -49,7 +48,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     l1_batch_number,
                     merkle_tree_paths_blob_url,
                     protocol_version,
-                    blobs_4844,
+                    eip_4844_blobs,
                     status,
                     created_at,
                     updated_at
@@ -61,7 +60,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             block_number.0 as i64,
             object_key,
             protocol_version_id as i32,
-            bincode::serialize(&blobs_4844).expect("Failed to serialize 4844 blobs to bytes"),
+            bincode::serialize(&eip_4844_blobs).expect("Failed to serialize 4844 blobs to bytes"),
         )
         .fetch_optional(self.storage.conn())
         .await
@@ -112,13 +111,9 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .await
         .unwrap()
         .map(|row| {
-            if let Some(b) = &row.blobs_4844 {
-                println!("query 1 -- {:?}", b.len());
-            }
-            println!("query 2 -- {:?}", row.blobs_4844.as_ref().unwrap().len());
             (
                 L1BatchNumber(row.l1_batch_number as u32),
-                bincode::deserialize(&row.blobs_4844.unwrap())
+                bincode::deserialize(&row.eip_4844_blobs.unwrap())
                     .expect("Failed to serialize 4844 blobs to bytes"),
             )
         })

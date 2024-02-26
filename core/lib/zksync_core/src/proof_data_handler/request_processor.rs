@@ -12,7 +12,7 @@ use zksync_config::configs::{
 use zksync_dal::{ConnectionPool, SqlxError};
 use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_prover_interface::api::{
-    ProofGenerationData, ProofGenerationDataRequest, ProofGenerationDataResponse,
+    Eip4844Blobs, ProofGenerationData, ProofGenerationDataRequest, ProofGenerationDataResponse,
     SubmitProofRequest, SubmitProofResponse,
 };
 use zksync_types::{
@@ -118,14 +118,31 @@ impl RequestProcessor {
             }
         };
 
+        let storage_batch = self
+            .pool
+            .access_storage()
+            .await
+            .unwrap()
+            .blocks_dal()
+            .get_storage_l1_batch(l1_batch_number)
+            .await
+            .unwrap()
+            .unwrap();
+
+        let eip_4844_blobs: Eip4844Blobs = storage_batch
+            .pubdata_input
+            .expect(&format!(
+                "expected pubdata, but it is not available for batch {l1_batch_number:?}"
+            ))
+            .into();
+
         let proof_gen_data = ProofGenerationData {
             l1_batch_number,
             data: blob,
             fri_protocol_version_id,
             l1_verifier_config,
-            blobs_4844: vec![0; 31 * 4096 * 2], // hardcoded until we figure out how to get it from db
+            eip_4844_blobs,
         };
-        println!("EMIL -- {:?}", proof_gen_data.blobs_4844.len());
         Ok(Json(ProofGenerationDataResponse::Success(Some(
             proof_gen_data,
         ))))

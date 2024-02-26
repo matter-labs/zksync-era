@@ -27,6 +27,7 @@ use zksync_prover_fri_types::{
     },
     queue::FixedSizeQueue,
     CircuitWrapper, FriProofWrapper, ProverServiceDataKey, WitnessVectorArtifacts,
+    EIP_4844_CIRCUIT_ID,
 };
 use zksync_prover_fri_utils::get_base_layer_circuit_id_for_recursive_layer;
 use zksync_types::{
@@ -118,9 +119,8 @@ pub async fn save_proof(
             .await;
     }
     if job_metadata.is_node_final_proof {
-        println!("injecting into scheduler dependency {:?}", job_metadata);
-        let circuit_id = if job_metadata.circuit_id == 255 {
-            255
+        let circuit_id = if job_metadata.circuit_id == EIP_4844_CIRCUIT_ID {
+            EIP_4844_CIRCUIT_ID
         } else {
             get_base_layer_circuit_id_for_recursive_layer(job_metadata.circuit_id)
         };

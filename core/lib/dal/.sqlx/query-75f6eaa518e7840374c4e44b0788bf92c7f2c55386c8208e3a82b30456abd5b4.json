@@ -65,7 +65,7 @@
       },
       {
         "ordinal": 12,
-        "name": "blobs_4844",
+        "name": "eip_4844_blobs",
         "type_info": "Bytea"
       }
     ],
