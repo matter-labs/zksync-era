@@ -18,13 +18,13 @@ use zksync_types::{
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256};
 
 use super::utils::{get_complex_upgrade_abi, read_complex_upgrade};
-use crate::vm_latest::constants::{
-    MAX_BATCH_TIP_CIRCUIT_STATISTICS, MAX_BATCH_TIP_METRICS_SIZE, MAX_BATCH_TIP_PUBDATA_PUBLISHED,
-};
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
     vm_latest::{
-        constants::BOOTLOADER_BATCH_TIP_OVERHEAD,
+        constants::{
+            BOOTLOADER_BATCH_TIP_OVERHEAD, MAX_BATCH_TIP_CIRCUIT_STATISTICS,
+            MAX_BATCH_TIP_METRICS_SIZE, MAX_BATCH_TIP_PUBDATA_PUBLISHED,
+        },
         tests::tester::{get_empty_storage, InMemoryStorageView, VmTesterBuilder},
         tracers::PubdataTracer,
         HistoryEnabled, TracerDispatcher,
