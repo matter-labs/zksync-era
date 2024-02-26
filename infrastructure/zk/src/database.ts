@@ -121,7 +121,7 @@ export async function generateMigration(dbType: DbType, name: string) {
 
 export async function setupForDal(dalPath: DalPath, dbUrl: string) {
     process.chdir(dalPath);
-    const localDbUrl = 'postgres://postgres@localhost';
+    const localDbUrl = 'postgres://postgres:notsecurepassword@localhost';
     if (dbUrl.startsWith(localDbUrl)) {
         console.log(`Using localhost database -- ${dbUrl}`);
     } else {
