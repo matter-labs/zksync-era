@@ -50,7 +50,7 @@ pub(super) struct L1BlockNumbers {
 /// with higher gas price
 #[derive(Debug)]
 pub struct EthTxManager {
-    /// A gateway through wich the operator normally sends all its transactions.
+    /// A gateway through which the operator normally sends all its transactions.
     ethereum_gateway: Arc<dyn BoundEthInterface>,
     /// If the operator is in 4844 mode this is sent to `Some` and used to send
     /// commit transactions.

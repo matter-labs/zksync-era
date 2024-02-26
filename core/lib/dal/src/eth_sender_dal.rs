@@ -517,7 +517,7 @@ impl EthSenderDal<'_, '_> {
     ///
     /// # Params
     /// * `from_address`: an optional value indicating that nonce must be returned for a custom
-    ///   operator address which is not the "main" one. For example, a seperate custom operator
+    ///   operator address which is not the "main" one. For example, a separate custom operator
     ///   sends the blob transactions. For such a case this should be `Some`. For requesting the
     ///   none of the main operator this parameter should be set to `None`.
     pub async fn get_next_nonce(
