@@ -29,6 +29,7 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
         skipEnvSetup,
         testTokens,
         governorPrivateKeyArgs,
+        deployerPrivateKeyArgs,
         deployerL2ContractInput,
         validiumMode
     } = initArgs;
@@ -55,12 +56,12 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
     if (testTokens.deploy) {
         await announced('Deploying localhost ERC20 tokens', run.deployERC20('dev', '', '', '', testTokens.args));
     }
-    await announced('Deploying L1 verifier', contract.deployVerifier([]));
+    await announced('Deploying L1 verifier', contract.deployVerifier(deployerPrivateKeyArgs));
     await announced('Reloading env', env.reload());
     await announced('Running server genesis setup', server.genesisFromSources());
     await announced(
         'Deploying L1 contracts',
-        contract.redeployL1([...governorPrivateKeyArgs, ...additionalArgumentsForRedeployingL1(validiumMode)])
+        contract.redeployL1([...deployerPrivateKeyArgs, ...additionalArgumentsForRedeployingL1(validiumMode)])
     );
     await announced('Initializing validator', contract.initializeValidator(governorPrivateKeyArgs));
     await announced(
@@ -244,6 +245,7 @@ export interface InitArgs {
     skipSubmodulesCheckout: boolean;
     skipEnvSetup: boolean;
     governorPrivateKeyArgs: any[];
+    deployerPrivateKeyArgs: any[];
     deployerL2ContractInput: {
         args: any[];
         includePaymaster: boolean;
@@ -260,6 +262,7 @@ const DEFAULT_ARGS: InitArgs = {
     skipSubmodulesCheckout: false,
     skipEnvSetup: false,
     governorPrivateKeyArgs: [],
+    deployerPrivateKeyArgs: [],
     deployerL2ContractInput: { args: [], includePaymaster: true, includeL2WETH: true },
     testTokens: { deploy: true, args: [] },
     validiumMode: false
@@ -277,6 +280,7 @@ export const initCommand = new Command('init')
             governorPrivateKeyArgs: [],
             deployerL2ContractInput: { args: [], includePaymaster: true, includeL2WETH: true },
             testTokens: { deploy: true, args: [] },
+            deployerPrivateKeyArgs: [],
             validiumMode: cmd.validiumMode !== undefined ? cmd.validiumMode : false
         };
         await init(initArgs);

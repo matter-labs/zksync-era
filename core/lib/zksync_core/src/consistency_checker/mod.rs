@@ -259,7 +259,7 @@ impl ConsistencyChecker {
             .with_context(|| format!("Commit for tx {commit_tx_hash:?} not found on L1"))?
             .input;
         // TODO (PLA-721): Check receiving contract and selector
-
+        // TODO: Add support for post shared bridge commits
         let commit_function = if local.is_pre_boojum {
             &*PRE_BOOJUM_COMMIT_FUNCTION
         } else {

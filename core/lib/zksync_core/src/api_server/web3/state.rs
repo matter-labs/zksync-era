@@ -81,10 +81,12 @@ pub struct InternalApiConfig {
     pub estimate_gas_scale_factor: f64,
     pub estimate_gas_acceptable_overestimation: u32,
     pub bridge_addresses: api::BridgeAddresses,
+    pub bridgehub_proxy_addr: Option<Address>,
     pub diamond_proxy_addr: Address,
     pub l2_testnet_paymaster_addr: Option<Address>,
     pub req_entities_limit: usize,
     pub fee_history_limit: u64,
+    pub filters_disabled: bool,
 }
 
 impl InternalApiConfig {
@@ -106,10 +108,12 @@ impl InternalApiConfig {
                 l1_weth_bridge: contracts_config.l1_weth_bridge_proxy_addr,
                 l2_weth_bridge: contracts_config.l2_weth_bridge_addr,
             },
+            bridgehub_proxy_addr: contracts_config.bridgehub_proxy_addr,
             diamond_proxy_addr: contracts_config.diamond_proxy_addr,
             l2_testnet_paymaster_addr: contracts_config.l2_testnet_paymaster_addr,
             req_entities_limit: web3_config.req_entities_limit(),
             fee_history_limit: web3_config.fee_history_limit(),
+            filters_disabled: web3_config.filters_disabled,
         }
     }
 }
@@ -192,7 +196,7 @@ impl SealedMiniblockNumber {
 /// Holder for the data required for the API to be functional.
 #[derive(Debug, Clone)]
 pub struct RpcState {
-    pub(crate) installed_filters: Arc<Mutex<Filters>>,
+    pub(crate) installed_filters: Option<Arc<Mutex<Filters>>>,
     pub connection_pool: ConnectionPool,
     pub tree_api: Option<TreeApiHttpClient>,
     pub tx_sender: TxSender,
