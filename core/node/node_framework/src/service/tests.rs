@@ -7,7 +7,7 @@ use crate::service::{
     ServiceContext, StopReceiver, Task, WiringError, WiringLayer, ZkStackService,
 };
 
-// ZkStack Service's `new()` method has to have a check for nested runtime.
+// `ZkStack` Service's `new()` method has to have a check for nested runtime.
 #[test]
 fn test_new_with_nested_runtime() {
     let runtime = Runtime::new().unwrap();
@@ -36,7 +36,7 @@ impl WiringLayer for DefaultLayer {
     }
 }
 
-// ZkStack Service's `add_layer()` method has to add multiple layers into `self.layers`.
+// `ZkStack` Service's `add_layer()` method has to add multiple layers into `self.layers`.
 #[test]
 fn test_add_layer() {
     let mut zk_stack_service = ZkStackService::new().unwrap();
@@ -50,7 +50,7 @@ fn test_add_layer() {
     );
 }
 
-// ZkStack Service's `run()` method has to return error if there is no tasks added.
+// `ZkStack` Service's `run()` method has to return error if there is no tasks added.
 #[test]
 fn test_run_with_no_tasks() {
     let empty_run_result = ZkStackService::new().unwrap().run();
@@ -75,7 +75,7 @@ impl WiringLayer for WireErrorLayer {
     }
 }
 
-// ZkStack Service's `run()` method has to take into account errors on wiring step.
+// `ZkStack` Service's `run()` method has to take into account errors on wiring step.
 #[test]
 fn test_run_with_error_tasks() {
     let mut zk_stack_service = ZkStackService::new().unwrap();
@@ -89,7 +89,7 @@ fn test_run_with_error_tasks() {
     );
 }
 
-// ZkStack Service's `run()` method has to take into account errors on wiring step.
+// `ZkStack` Service's `run()` method has to take into account errors on wiring step.
 #[derive(Debug)]
 struct TaskErrorLayer;
 
@@ -118,7 +118,7 @@ impl Task for ErrorTask {
     }
 }
 
-// ZkStack Service's `run()` method has to take into account errors inside task execution.
+// `ZkStack` Service's `run()` method has to take into account errors inside task execution.
 #[test]
 fn test_run_with_failed_tasks() {
     let mut zk_stack_service: ZkStackService = ZkStackService::new().unwrap();
@@ -152,7 +152,7 @@ impl WiringLayer for TasksLayer {
     }
 }
 
-// ZkStack Service's `run()` method has to run tasks, added to the layer.
+// `ZkStack` Service's `run()` method has to run tasks, added to the layer.
 #[derive(Debug)]
 struct SuccessfulTask(Arc<Mutex<bool>>);
 
@@ -168,7 +168,7 @@ impl Task for SuccessfulTask {
     }
 }
 
-// ZkStack Service's `run()` method has to allow remaining tasks to finish,
+// `ZkStack` Service's `run()` method has to allow remaining tasks to finish,
 // after stop signal was send.
 #[derive(Debug)]
 struct RemainingTask(Arc<Mutex<bool>>);
@@ -186,7 +186,7 @@ impl Task for RemainingTask {
     }
 }
 
-// Check ZkStack Service's `run()` method tasks' expected behavior.
+// Check `ZkStack` Service's `run()` method tasks' expected behavior.
 #[test]
 fn test_task_run() {
     let successful_task_was_run = Arc::new(Mutex::new(false));
