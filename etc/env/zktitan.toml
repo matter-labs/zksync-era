@@ -4,6 +4,7 @@ CREATE2_FACTORY_ADDR="0x8BaCfa1f4CE7f75095127e921F2Cda03786EacD6"
 L1_MULTICALL3_ADDR="0x45Fc42acD099c3e3A1d3e9fD9E5548Be66e97252"
 
 [chain.state_keeper]
+proof_sending_mode="SkipEveryProof"
 # tx number limit
 transaction_slots=1500
 miniblock_commit_deadline_ms=2000
@@ -14,8 +15,8 @@ max_single_tx_gas=4000000
 close_block_at_gas_percentage=0.95
 reject_tx_at_gas_percentage=0.95
 # tx size limit: default 110000(110kb)
-close_block_at_eth_params_percentage=0.45
-reject_tx_at_eth_params_percentage=0.45
+close_block_at_eth_params_percentage=0.95
+reject_tx_at_eth_params_percentage=0.95
 # zkevm circuit limit
 close_block_at_geometry_percentage=0.95
 reject_tx_at_geometry_percentage=0.95

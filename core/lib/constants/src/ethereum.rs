@@ -8,7 +8,7 @@ pub static ETHEREUM_ADDRESS: Address = Address::zero();
 /// The maximum number of pubdata per L1 batch. This limit is due to the fact that the Ethereum
 /// nodes do not accept transactions that have more than 128kb of pubdata.
 /// The 18kb margin is left in case of any impreciseness of the pubdata calculation.
-pub const MAX_PUBDATA_PER_L1_BATCH: u64 = 110000;
+pub const MAX_PUBDATA_PER_L1_BATCH: u64 = 65536;
 
 // TODO: import from `zkevm_opcode_defs` once `VM1.3` is supported
 pub const MAX_L2_TX_GAS_LIMIT: u64 = 80000000;
