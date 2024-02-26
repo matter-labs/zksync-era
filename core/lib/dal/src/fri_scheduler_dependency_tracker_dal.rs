@@ -71,7 +71,7 @@ impl FriSchedulerDependencyTrackerDal<'_, '_> {
         circuit_id: u8,
         final_prover_job_id: u32,
         l1_batch_number: L1BatchNumber,
-        sequence: u16,
+        sequence: usize,
     ) {
         let query = if circuit_id != types::EIP_4844_CIRCUIT_ID {
             format!(
