@@ -11,7 +11,7 @@ use zksync_system_constants::{
 use zksync_types::{
     commitment::SerializeCommitment,
     get_code_key,
-    l2_to_l1_log::{min_l2_to_l1_logs_tree_size, L2ToL1Log},
+    l2_to_l1_log::{l2_to_l1_logs_tree_size, L2ToL1Log},
     writes::StateDiffRecord,
     Address, Execute, ProtocolVersionId, H256, U256,
 };
@@ -212,7 +212,7 @@ fn test_dry_run_upper_bound() {
     // 4. Lots of storage slot updates.
 
     let max_logs = execute_test(L1MessengerTestData {
-        l2_to_l1_logs: min_l2_to_l1_logs_tree_size(ProtocolVersionId::Version20),
+        l2_to_l1_logs: l2_to_l1_logs_tree_size(ProtocolVersionId::Version20),
         ..Default::default()
     });
 

@@ -9,7 +9,7 @@ use zksync_commitment_utils::{bootloader_initial_content_commitment, events_queu
 use zksync_dal::ConnectionPool;
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::i_executor::commit::kzg::{
-    KzgInfo, KzgSettings, ZK_SYNC_BYTES_PER_BLOB,
+    pubdata_to_blob_commitments, KzgSettings,
 };
 use zksync_types::{
     commitment::{AuxCommitments, CommitmentCommonInput, CommitmentInput, L1BatchCommitment},
@@ -26,7 +26,7 @@ const SLEEP_INTERVAL: Duration = Duration::from_millis(100);
 pub struct CommitmentGenerator {
     connection_pool: ConnectionPool,
     health_updater: HealthUpdater,
-    kzg_setting: KzgSettings,
+    kzg_settings: KzgSettings,
 }
 
 impl CommitmentGenerator {
@@ -34,7 +34,7 @@ impl CommitmentGenerator {
         Self {
             connection_pool,
             health_updater: ReactiveHealthCheck::new("commitment_generator").1,
-            kzg_setting: KzgSettings::new(kzg_trusted_setup_path),
+            kzg_settings: KzgSettings::new(kzg_trusted_setup_path),
         }
     }
 
@@ -55,12 +55,14 @@ impl CommitmentGenerator {
             .blocks_dal()
             .get_events_queue(l1_batch_number)
             .await?
-            .context("Events queue is required for post-boojum batch")?;
+            .with_context(|| format!("Events queue is missing for L1 batch #{l1_batch_number}"))?;
         let initial_bootloader_contents = connection
             .blocks_dal()
             .get_initial_bootloader_heap(l1_batch_number)
             .await?
-            .context("Bootloader initial heap is missing")?;
+            .with_context(|| {
+                format!("Bootloader initial heap is missing for L1 batch #{l1_batch_number}")
+            })?;
         drop(connection);
 
         let events_commitment_task: JoinHandle<anyhow::Result<H256>> =
@@ -87,12 +89,15 @@ impl CommitmentGenerator {
                 Ok(bootloader_initial_content_commitment)
             });
 
-        let events_queue_commitment = events_commitment_task
-            .await
-            .context("`events_commitment_task` failed")??;
-        let bootloader_initial_content_commitment = bootloader_memory_commitment_task
-            .await
-            .context("`bootloader_memory_commitment_task` failed")??;
+        let events_queue_commitment = events_commitment_task.await.with_context(|| {
+            format!("`events_commitment_task` failed for L1 batch #{l1_batch_number}")
+        })??;
+        let bootloader_initial_content_commitment =
+            bootloader_memory_commitment_task.await.with_context(|| {
+                format!(
+                    "`bootloader_memory_commitment_task` failed for L1 batch #{l1_batch_number}"
+                )
+            })??;
 
         Ok(AuxCommitments {
             events_queue_commitment,
@@ -112,12 +117,12 @@ impl CommitmentGenerator {
             .blocks_dal()
             .get_l1_batch_header(l1_batch_number)
             .await?
-            .context("header is missing for batch")?;
+            .with_context(|| format!("header is missing for L1 batch #{l1_batch_number}"))?;
         let tree_data = connection
             .blocks_dal()
             .get_l1_batch_tree_data(l1_batch_number)
             .await?
-            .context("tree data is missing for batch")?;
+            .with_context(|| format!("`tree_data` is missing for L1 batch #{l1_batch_number}"))?;
 
         // TODO(PLA-731): ensure that the protocol version is always available.
         let protocol_version = header
@@ -216,22 +221,11 @@ impl CommitmentGenerator {
             state_diffs.sort_unstable_by_key(|rec| (rec.address, rec.key));
 
             let blob_commitments = if protocol_version.is_post_1_4_2() {
-                let blob_commitments = header
-                    .pubdata_input
-                    .expect("pubdata_input must be present for post 1.4.2 batches")
-                    .chunks(ZK_SYNC_BYTES_PER_BLOB)
-                    .map(|blob| {
-                        let kzg_info = KzgInfo::new(&self.kzg_setting, blob.to_vec());
-                        H256(kzg_info.to_blob_commitment())
-                    })
-                    .collect::<Vec<_>>();
+                let pubdata_input = header.pubdata_input.with_context(|| {
+                    format!("`pubdata_input` is missing for L1 batch #{l1_batch_number}")
+                })?;
 
-                // If length of `pubdata_input` is less than or equal to `ZK_SYNC_BYTES_PER_BLOB` (126976)
-                // then only one blob will be used and 32 zero bytes will be used as a commitment for the second blob.
-                [
-                    blob_commitments.get(0).copied().unwrap_or_default(),
-                    blob_commitments.get(1).copied().unwrap_or_default(),
-                ]
+                pubdata_to_blob_commitments(&pubdata_input, &self.kzg_settings)
             } else {
                 [H256::zero(), H256::zero()]
             };

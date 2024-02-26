@@ -55,19 +55,19 @@ impl L2ToL1Log {
     }
 }
 
-/// Returns the minimum number of items in the Merkle tree built from L2-to-L1 logs
+/// Returns the number of items in the Merkle tree built from L2-to-L1 logs
 /// for a certain protocol version.
-pub fn min_l2_to_l1_logs_tree_size(protocol_version: ProtocolVersionId) -> usize {
-    pub const PRE_BOOJUM_MIN_L2_L1_LOGS_TREE_SIZE: usize = 512;
-    pub const VM_1_4_0_MIN_L2_L1_LOGS_TREE_SIZE: usize = 2048;
-    pub const VM_1_4_2_MIN_L2_L1_LOGS_TREE_SIZE: usize = 4096;
+pub fn l2_to_l1_logs_tree_size(protocol_version: ProtocolVersionId) -> usize {
+    pub const PRE_BOOJUM_L2_L1_LOGS_TREE_SIZE: usize = 512;
+    pub const VM_1_4_0_L2_L1_LOGS_TREE_SIZE: usize = 2048;
+    pub const VM_1_4_2_L2_L1_LOGS_TREE_SIZE: usize = 4096;
 
     if protocol_version.is_pre_boojum() {
-        PRE_BOOJUM_MIN_L2_L1_LOGS_TREE_SIZE
+        PRE_BOOJUM_L2_L1_LOGS_TREE_SIZE
     } else if protocol_version.is_1_4_0() || protocol_version.is_1_4_1() {
-        VM_1_4_0_MIN_L2_L1_LOGS_TREE_SIZE
+        VM_1_4_0_L2_L1_LOGS_TREE_SIZE
     } else {
-        VM_1_4_2_MIN_L2_L1_LOGS_TREE_SIZE
+        VM_1_4_2_L2_L1_LOGS_TREE_SIZE
     }
 }
 
