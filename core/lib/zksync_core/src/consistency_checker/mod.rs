@@ -361,14 +361,15 @@ impl ConsistencyChecker {
             }
 
             let mut storage = self.pool.access_storage().await?;
+            let local = LocalL1BatchCommitData::new(&mut storage, batch_number).await?;
+            drop(storage);
             // The batch might be already committed but not yet processed by the external node's tree
             // OR the batch might be processed by the external node's tree but not yet committed.
             // We need both.
-            let Some(local) = LocalL1BatchCommitData::new(&mut storage, batch_number).await? else {
+            let Some(local) = local else {
                 tokio::time::sleep(self.sleep_interval).await;
                 continue;
             };
-            drop(storage);
 
             match self.check_commitments(batch_number, &local).await {
                 Ok(true) => {

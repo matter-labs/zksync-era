@@ -2,7 +2,6 @@ use std::{sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use clap::Parser;
-use futures::{future::FusedFuture, FutureExt as _};
 use metrics::EN_METRICS;
 use prometheus_exporter::PrometheusExporterConfig;
 use tokio::{sync::watch, task, time::sleep};
@@ -170,12 +169,12 @@ async fn init_tasks(
 
     let singleton_pool_builder = ConnectionPool::singleton(&config.postgres.database_url);
 
-    let fetcher_handle = if let Some(cfg) = config.consensus.clone() {
+    if let Some(cfg) = config.consensus.clone() {
         let pool = connection_pool.clone();
         let mut stop_receiver = stop_receiver.clone();
         let sync_state = sync_state.clone();
         let main_node_client = main_node_client.clone();
-        tokio::spawn(async move {
+        task_handles.push(tokio::spawn(async move {
             scope::run!(&ctx::root(), |ctx, s| async {
                 s.spawn_bg(async {
                     let res = consensus::Fetcher {
@@ -193,7 +192,7 @@ async fn init_tasks(
             })
             .await
             .context("consensus actor")
-        })
+        }));
     } else {
         let pool = singleton_pool_builder
             .build()
@@ -209,7 +208,11 @@ async fn init_tasks(
         )
         .await
         .context("failed initializing main node fetcher")?;
-        tokio::spawn(fetcher.run())
+        task_handles.push(tokio::spawn(fetcher.run()));
+
+        let reorg_detector = ReorgDetector::new(main_node_client.clone(), connection_pool.clone());
+        app_health.insert_component(reorg_detector.health_check().clone());
+        task_handles.push(tokio::spawn(reorg_detector.run(stop_receiver.clone())));
     };
 
     let metadata_calculator_config = MetadataCalculatorConfig {
@@ -377,7 +380,6 @@ async fn init_tasks(
     task_handles.extend([
         sk_handle,
         fee_address_migration_handle,
-        fetcher_handle,
         updater_handle,
         tree_handle,
         consistency_checker_handle,
@@ -478,16 +480,34 @@ async fn main() -> anyhow::Result<()> {
     .await
     .context("failed to build a connection_pool")?;
 
-    if opt.revert_pending_l1_batch {
-        tracing::info!("Rolling pending L1 batch back..");
-        let reverter = BlockReverter::new(
-            config.required.state_cache_path,
-            config.required.merkle_tree_path,
-            None,
-            connection_pool.clone(),
-            L1ExecutedBatchesRevert::Allowed,
-        );
+    let main_node_url = config
+        .required
+        .main_node_url()
+        .expect("Main node URL is incorrect");
+    tracing::info!("Main node URL is: {main_node_url}");
+    let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
+        .context("Failed creating JSON-RPC client for main node")?;
+    let mut reorg_detector = ReorgDetector::new(main_node_client.clone(), connection_pool.clone());
+    let reverter = BlockReverter::new(
+        config.required.state_cache_path.clone(),
+        config.required.merkle_tree_path.clone(),
+        None,
+        connection_pool.clone(),
+        L1ExecutedBatchesRevert::Allowed,
+    );
 
+    if let Some(last_correct_l1_batch) = reorg_detector
+        .should_revert()
+        .await
+        .context("should_revert()")?
+    {
+        tracing::info!("Rolling back to l1 batch number {last_correct_l1_batch}");
+        reverter
+            .rollback_db(last_correct_l1_batch, BlockReverterFlags::all())
+            .await;
+        tracing::info!("Rollback successfully completed");
+    } else if opt.revert_pending_l1_batch {
+        tracing::info!("Rolling pending L1 batch back..");
         let mut connection = connection_pool.access_storage().await?;
         let sealed_l1_batch_number = connection
             .blocks_dal()
@@ -503,23 +523,13 @@ async fn main() -> anyhow::Result<()> {
         reverter
             .rollback_db(sealed_l1_batch_number, BlockReverterFlags::all())
             .await;
-        tracing::info!(
-            "Rollback successfully completed, the node has to restart to continue working"
-        );
-        return Ok(());
+        tracing::info!("Rollback successfully completed");
     }
 
     let sigint_receiver = setup_sigint_handler();
     tracing::warn!("The external node is in the alpha phase, and should be used with caution.");
     tracing::info!("Started the external node");
-    let main_node_url = config
-        .required
-        .main_node_url()
-        .expect("Main node URL is incorrect");
-    tracing::info!("Main node URL is: {main_node_url}");
 
-    let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
-        .context("Failed creating JSON-RPC client for main node")?;
     let app_health = Arc::new(AppHealthCheck::default());
     app_health.insert_custom_component(Arc::new(MainNodeHealthCheck::from(
         main_node_client.clone(),
@@ -557,11 +567,6 @@ async fn main() -> anyhow::Result<()> {
     .await
     .context("init_tasks")?;
 
-    let reorg_detector = ReorgDetector::new(main_node_client, connection_pool.clone());
-    app_health.insert_component(reorg_detector.health_check().clone());
-    let mut reorg_detector_handle = tokio::spawn(reorg_detector.run(stop_receiver)).fuse();
-    let mut reorg_detector_result = None;
-
     let particular_crypto_alerts = None;
     let graceful_shutdown = None::<futures::future::Ready<()>>;
     let tasks_allowed_to_finish = false;
@@ -571,48 +576,10 @@ async fn main() -> anyhow::Result<()> {
         _ = sigint_receiver => {
             tracing::info!("Stop signal received, shutting down");
         },
-        result = &mut reorg_detector_handle => {
-            tracing::info!("Reorg detector terminated, shutting down");
-            reorg_detector_result = Some(result);
-        }
     };
 
     // Reaching this point means that either some actor exited unexpectedly or we received a stop signal.
     // Broadcast the stop signal to all actors and exit.
     shutdown_components(stop_sender, healthcheck_handle).await;
-
-    if !reorg_detector_handle.is_terminated() {
-        reorg_detector_result = Some(reorg_detector_handle.await);
-    }
-    let reorg_detector_last_correct_batch = reorg_detector_result.and_then(|result| match result {
-        Ok(Ok(last_correct_batch)) => last_correct_batch,
-        Ok(Err(err)) => {
-            tracing::error!("Reorg detector failed: {err:#}");
-            None
-        }
-        Err(err) => {
-            tracing::error!("Reorg detector panicked: {err}");
-            None
-        }
-    });
-
-    if let Some(last_correct_batch) = reorg_detector_last_correct_batch {
-        tracing::info!("Performing rollback to L1 batch #{last_correct_batch}");
-
-        let reverter = BlockReverter::new(
-            config.required.state_cache_path,
-            config.required.merkle_tree_path,
-            None,
-            connection_pool,
-            L1ExecutedBatchesRevert::Allowed,
-        );
-        reverter
-            .rollback_db(last_correct_batch, BlockReverterFlags::all())
-            .await;
-        tracing::info!(
-            "Rollback successfully completed, the node has to restart to continue working"
-        );
-    }
-
     Ok(())
 }
