@@ -16,7 +16,7 @@ use zksync_types::{
     ethabi::Token,
     l2_to_l1_log::UserL2ToL1Log,
     protocol_version::{L1VerifierConfig, VerifierParams},
-    web3::contract::Error as Web3ContractError,
+    web3::{contract::Error as Web3ContractError, types::BlockNumber},
     Address, L2ChainId, ProtocolVersionId, H256, U256,
 };
 
@@ -53,6 +53,7 @@ pub struct EthTxAggregator {
     pub(super) main_zksync_contract_address: Address,
     functions: ZkSyncFunctions,
     base_nonce: u64,
+    base_nonce_custom_commit_sender: Option<u64>,
     rollup_chain_id: L2ChainId,
     /// If set to `Some` node is operating in the 4844 mode with two operator
     /// addresses at play: the main one and the custom address for sending commit
@@ -79,6 +80,17 @@ impl EthTxAggregator {
             .await
             .unwrap()
             .as_u64();
+
+        let base_nonce_custom_commit_sender = match custom_commit_sender_addr {
+            Some(addr) => Some(
+                eth_client
+                    .nonce_at_for_account(addr, BlockNumber::Pending, "eth_sender")
+                    .await
+                    .unwrap()
+                    .as_u64(),
+            ),
+            None => None,
+        };
         Self {
             config,
             aggregator,
@@ -88,6 +100,7 @@ impl EthTxAggregator {
             main_zksync_contract_address,
             functions,
             base_nonce,
+            base_nonce_custom_commit_sender,
             rollup_chain_id,
             custom_commit_sender_addr,
         }
@@ -526,7 +539,10 @@ impl EthTxAggregator {
         Ok(if from_addr.is_none() {
             db_nonce.max(self.base_nonce)
         } else {
-            db_nonce
+            db_nonce.max(
+                self.base_nonce_custom_commit_sender
+                    .expect("custom base nonce is expected to be initialized; qed"),
+            )
         })
     }
 }

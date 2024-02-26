@@ -1096,10 +1096,10 @@ impl BlocksDal<'_, '_> {
     ///   respective commit transactions have been confirmed by the network.
     pub async fn get_ready_for_dummy_proof_l1_batches(
         &mut self,
-        commited_tx_confirmed: bool,
+        only_commited_batches: bool,
         limit: usize,
     ) -> anyhow::Result<Vec<L1BatchWithMetadata>> {
-        let (confirmed_at_not_null, join_on_eth_tx_history) = if commited_tx_confirmed {
+        let (confirmed_at_not_null, join_on_eth_tx_history) = if only_commited_batches {
             (
                 "AND confirmed_at IS NOT NULL",
                 "JOIN eth_txs_history ON eth_commit_tx_id = eth_tx_id",
