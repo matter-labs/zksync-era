@@ -361,15 +361,15 @@ impl From<StorageTransactionReceipt> for TransactionReceipt {
             l1_batch_tx_index: storage_receipt.l1_batch_tx_index.map(U64::from),
             l1_batch_number: storage_receipt.l1_batch_number.map(U64::from),
             from: H160::from_slice(&storage_receipt.initiator_address),
-            to: storage_receipt
-                .transfer_to
-                .or(storage_receipt.execute_contract_address)
-                .map(|addr| {
-                    serde_json::from_value::<Address>(addr)
-                        .expect("invalid address value in the database")
-                })
-                // For better compatibility with various clients, we never return null.
-                .or_else(|| Some(Address::default())),
+            to: Some(
+                serde_json::from_value::<Address>(
+                    storage_receipt
+                        .transfer_to
+                        .or(storage_receipt.execute_contract_address)
+                        .unwrap(),
+                )
+                .expect("invalid address value in the database"),
+            ),
             cumulative_gas_used: Default::default(), // TODO: Should be actually calculated (SMA-1183).
             gas_used: {
                 let refunded_gas: U256 = storage_receipt.refunded_gas.into();
