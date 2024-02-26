@@ -15,6 +15,7 @@ import { up } from './up';
 
 import * as fs from 'fs';
 import * as constants from './constants';
+import { Console } from 'console';
 
 const entry = chalk.bold.yellow;
 const announce = chalk.yellow;
@@ -22,6 +23,7 @@ const success = chalk.green;
 const timestamp = chalk.grey;
 const CHAIN_CONFIG_PATH = 'etc/env/base/chain.toml';
 const ETH_SENDER_PATH = 'etc/env/base/eth_sender.toml';
+const EXT_NODE_PATH = 'etc/env/ext-node.toml';
 
 export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
     const {
@@ -152,53 +154,78 @@ function updateConfigFile(path: string, modeConstantValues: ConfigLine[]) {
     let lines = content.split('\n');
     let addedContent: string | undefined;
     const lineIndices: Record<string, number> = {};
+    const sectionIndices: Record<string, number> = {};
 
     // Iterate through each line in the file
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
-
         // Check if the line does not start with '#' (comment)
         if (!line.startsWith('#')) {
+            // Using regex to match sections in the line
+            const sectionMatch = line.match(/^\s*\[([^\]]+)\]\s*$/);
+            if (sectionMatch) {
+                const section = sectionMatch[1].trim();
+                sectionIndices[section] = i;
+            }
             // Using regex to match key-value pairs in the line
             const match = line.match(/([^=]+)=(.*)/);
 
             if (match) {
-                // Extract the key and trim any leading/trailing whitespaces
                 const key = match[1].trim();
-                
-                // Store the index of the line where the key is found
                 lineIndices[key] = i;
             }
         }
     }
 
-
-
-    // Iterate through each key-value pair in modeConstantValues
-    modeConstantValues.forEach((configLine) =>{
-        // Get the line index for the current key from the record
+    // Iterate through each config line in modeConstantValues
+    modeConstantValues.forEach((configLine) => {
+        // Get the position of the line in the file
         const lineIndex = lineIndices[configLine.key];
+        // Get the position of the section in the file
+        const sectionIndex = sectionIndices[configLine.section!];
 
-        // Check if [key, value] to append/remove is found in the file 
+        // If config line is already in the file
         if (lineIndex !== undefined) {
-            // If the value to insert is not null, update the line with the new value
+            // Update value
             if (configLine.value !== null) {
                 lines.splice(lineIndex, 1, `${configLine.key}=${configLine.value}`);
             } else {
-                // If the value is null, remove the line and update line indices
+                // Remove line
                 lines.splice(lineIndex, 1);
-                
-                // Update line indices for keys that appear after the removed line
-                for (const [k, index] of Object.entries(lineIndices)) {
-                    if (index > lineIndex) {
+
+                //Update line indices
+                Object.entries(lineIndices)
+                    .filter(([k, index]) => index > lineIndex)
+                    .forEach(([k, index]) => {
                         lineIndices[k] = index - 1;
-                    }
-                }
+                    });
+                Object.entries(sectionIndices)
+                    .filter(([k, index]) => index > lineIndex)
+                    .forEach(([k, index]) => {
+                        sectionIndices[k] = index - 1;
+                    });
             }
         } else {
-            // If it is not found, append the key-value pair to the end of the file content
+            // If config line is not in the file, add it
             if (configLine.value !== null) {
-                addedContent = `${configLine.key}=${configLine.value}\n`;
+                // If is inside a section and new config line, add the line at the start of the section
+                if (sectionIndex !== undefined) {
+                    lines.splice(sectionIndex + 1, 0, `${configLine.key}=${configLine.value}`);
+                    // Update line indices
+                    Object.entries(lineIndices)
+                        .filter(([k, index]) => index > sectionIndex)
+                        .forEach(([k, index]) => {
+                            lineIndices[k] = index + 1;
+                        });
+                    Object.entries(sectionIndices)
+                        .filter(([k, index]) => index > sectionIndex)
+                        .forEach(([k, index]) => {
+                            sectionIndices[k] = index + 1;
+                        });
+                } else {
+                    // If is not inside a section, add the line at the end of the file
+                    addedContent = `${configLine.key}=${configLine.value}\n`;
+                }
             }
         }
     });
@@ -213,48 +240,37 @@ function updateConfigFile(path: string, modeConstantValues: ConfigLine[]) {
 
     // Write the modified content back to the file
     fs.writeFileSync(path, content);
-
 }
 
-
 function updateChainConfig(validiumMode: boolean) {
-
     const modeConstantValues: ConfigLine[] = [
         {
             key: 'compute_overhead_part',
-            value: validiumMode
-                ? constants.VALIDIUM_COMPUTE_OVERHEAD_PART
-                : constants.ROLLUP_COMPUTE_OVERHEAD_PART,
-            section: null,
+            value: validiumMode ? constants.VALIDIUM_COMPUTE_OVERHEAD_PART : constants.ROLLUP_COMPUTE_OVERHEAD_PART,
+            section: null
         },
         {
             key: 'pubdata_overhead_part',
-            value: validiumMode
-                ? constants.VALIDIUM_PUBDATA_OVERHEAD_PART
-                : constants.ROLLUP_PUBDATA_OVERHEAD_PART,
-            section: null,
+            value: validiumMode ? constants.VALIDIUM_PUBDATA_OVERHEAD_PART : constants.ROLLUP_PUBDATA_OVERHEAD_PART,
+            section: null
         },
         {
             key: 'batch_overhead_l1_gas',
-            value: validiumMode
-                ? constants.VALIDIUM_BATCH_OVERHEAD_L1_GAS
-                : constants.ROLLUP_BATCH_OVERHEAD_L1_GAS,
-            section: null,
+            value: validiumMode ? constants.VALIDIUM_BATCH_OVERHEAD_L1_GAS : constants.ROLLUP_BATCH_OVERHEAD_L1_GAS,
+            section: null
         },
         {
             key: 'max_pubdata_per_batch',
-            value: validiumMode
-                ? constants.VALIDIUM_MAX_PUBDATA_PER_BATCH
-                : constants.ROLLUP_MAX_PUBDATA_PER_BATCH,
-            section: null,
+            value: validiumMode ? constants.VALIDIUM_MAX_PUBDATA_PER_BATCH : constants.ROLLUP_MAX_PUBDATA_PER_BATCH,
+            section: null
         },
         {
             key: 'l1_batch_commit_data_generator_mode',
             value: validiumMode
                 ? constants.VALIDIUM_L1_BATCH_COMMIT_DATA_GENERATOR_MODE
                 : constants.ROLLUP_L1_BATCH_COMMIT_DATA_GENERATOR_MODE,
-            section: null,
-        },
+            section: null
+        }
     ];
     updateConfigFile(CHAIN_CONFIG_PATH, modeConstantValues);
 }
@@ -264,11 +280,9 @@ function updateEthSenderConfig(validiumMode: boolean) {
     const modeConstantValues: ConfigLine[] = [
         {
             key: 'l1_gas_per_pubdata_byte',
-            value: validiumMode
-                ? constants.VALIDIUM_L1_GAS_PER_PUBDATA_BYTE
-                : constants.ROLLUP_L1_GAS_PER_PUBDATA_BYTE,
-            section: 'en',
-        },
+            value: validiumMode ? constants.VALIDIUM_L1_GAS_PER_PUBDATA_BYTE : constants.ROLLUP_L1_GAS_PER_PUBDATA_BYTE,
+            section: null
+        }
     ];
     updateConfigFile(ETH_SENDER_PATH, modeConstantValues);
 }
@@ -278,10 +292,10 @@ function updateExtNodeConfig(validiumMode: boolean) {
         {
             key: 'l1_batch_commit_data_generator_mode',
             value: validiumMode ? 'Validium' : null,
-            section: 'en',
-        },
+            section: validiumMode ? 'en' : null
+        }
     ];
-    updateConfigFile('etc/env/ext-node.toml', modeConstantValues);
+    updateConfigFile(EXT_NODE_PATH, modeConstantValues);
 }
 
 function updateConfig(validiumMode: boolean) {
