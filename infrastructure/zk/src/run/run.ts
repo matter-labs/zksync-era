@@ -22,9 +22,9 @@ export async function deployERC20AndWeth({
     decimals?: string;
     envFile?: string;
 }) {
-    const privateKey = process.env.DEPLOYER_PRIVATE_KEY;
     if (command == 'dev') {
         const destinationFile = envFile || 'localhost';
+        const privateKey = process.env.DEPLOYER_PRIVATE_KEY;
         const args = [privateKey ? `--private-key ${privateKey}` : ''];
         await utils.spawn(`yarn --silent --cwd contracts/l1-contracts deploy-erc20 add-multi '
             [
