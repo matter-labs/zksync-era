@@ -329,7 +329,15 @@ pub async fn initialize_components(
             .await
             .context("failed to build replica_connection_pool")?;
 
-    let app_health = Arc::new(AppHealthCheck::default());
+    let health_check_config = configs
+        .health_check_config
+        .clone()
+        .context("health_check_config")?;
+    let app_health = Arc::new(AppHealthCheck::new(
+        health_check_config.slow_time_limit(),
+        health_check_config.hard_time_limit(),
+    ));
+
     let contracts_config = configs
         .contracts_config
         .clone()
@@ -748,13 +756,8 @@ pub async fn initialize_components(
     // Run healthcheck server for all components.
     let db_health_check = ConnectionPoolHealthCheck::new(replica_connection_pool);
     app_health.insert_custom_component(Arc::new(db_health_check));
-
-    let healtcheck_api_config = configs
-        .health_check_config
-        .clone()
-        .context("health_check_config")?;
     let health_check_handle =
-        HealthCheckHandle::spawn_server(healtcheck_api_config.bind_addr(), app_health);
+        HealthCheckHandle::spawn_server(health_check_config.bind_addr(), app_health);
 
     if let Some(task) = gas_adjuster.run_if_initialized(stop_receiver.clone()) {
         task_futures.push(task);

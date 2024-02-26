@@ -522,7 +522,10 @@ async fn main() -> anyhow::Result<()> {
 
     let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
         .context("Failed creating JSON-RPC client for main node")?;
-    let app_health = Arc::new(AppHealthCheck::default());
+    let app_health = Arc::new(AppHealthCheck::new(
+        config.optional.healthcheck_slow_time_limit(),
+        config.optional.healthcheck_hard_time_limit(),
+    ));
     app_health.insert_custom_component(Arc::new(MainNodeHealthCheck::from(
         main_node_client.clone(),
     )));
