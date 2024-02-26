@@ -36,5 +36,5 @@ export const reinitCommand = new Command('reinit').description('').action(printR
 
 reinitCommand
     .command('dev')
-    .description('"reinitializes" network. Runs faster than `init`, but requires `init` to be executed prior')
+    .description('"Reinitializes" network. Runs faster than a full init, but requires `init dev` to be executed prior.')
     .action(reinitDevCmdAction);

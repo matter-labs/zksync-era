@@ -15,6 +15,7 @@ import { announced } from './utils';
 
 export const ADDRESS_ONE = '0x0000000000000000000000000000000000000001';
 
+// Checks if all required tools are installed with the correct versions
 const checkEnv = async (): Promise<void> => {
     const tools = ['node', 'yarn', 'docker', 'cargo'];
     for (const tool of tools) {
@@ -30,11 +31,13 @@ const checkEnv = async (): Promise<void> => {
     }
 };
 
+// Initializes and updates the git submodule
 const submoduleUpdate = async (): Promise<void> => {
     await utils.exec('git submodule init');
     await utils.exec('git submodule update');
 };
 
+// Sets up docker environment and compiles contracts
 type InitSetupOptions = { skipEnvSetup: boolean; skipSubmodulesCheckout: boolean };
 export const initSetup = async ({ skipSubmodulesCheckout, skipEnvSetup }: InitSetupOptions): Promise<void> => {
     if (!process.env.CI && !skipEnvSetup) {
@@ -52,6 +55,7 @@ export const initSetup = async ({ skipSubmodulesCheckout, skipEnvSetup }: InitSe
     await announced('Compile L2 system contracts', compiler.compileAll());
 };
 
+// Sets up the database, deploys the verifier (if set) and runs server genesis
 type InitDatabaseOptions = { skipVerifierDeployment: boolean };
 const initDatabase = async ({ skipVerifierDeployment }: InitDatabaseOptions): Promise<void> => {
     await announced('Drop postgres db', db.drop());
@@ -66,10 +70,12 @@ const initDatabase = async ({ skipVerifierDeployment }: InitDatabaseOptions): Pr
     await announced('Running server genesis setup', server.genesisFromSources());
 };
 
+// Deploys ERC20 and WETH tokens to localhost
 const deployTestTokens = async () => {
     await announced('Deploying localhost ERC20 and Weth tokens', run.deployERC20AndWeth({ command: 'dev' }));
 };
 
+// Deploys and verifies L1 contracts and initializes governance
 const initBridgehubStateTransition = async () => {
     await announced('Deploying L1 contracts', contract.deployL1());
     await announced('Verifying L1 contracts', contract.verifyL1Contracts());
@@ -77,6 +83,7 @@ const initBridgehubStateTransition = async () => {
     await announced('Reloading env', env.reload());
 };
 
+// Registers a hyperchain and deploys L2 contracts through L1
 type InitHyperchainOptions = { includePaymaster: boolean; baseToken: { name: string; address: string } };
 const initHyperchain = async ({ includePaymaster, baseToken }: InitHyperchainOptions): Promise<void> => {
     await announced('Registering Hyperchain', contract.registerHyperchain({ baseToken }));
@@ -130,29 +137,29 @@ const printInitReadme = (): void => {
 
 // ########################### Command Definitions ###########################
 export const initCommand = new Command('init')
-    .description('perform zksync network initialization for development')
+    .description('Initializes a local development environment.')
     .action(printInitReadme);
 
 initCommand
     .command('dev')
     .option('--skip-submodules-checkout')
     .option('--skip-env-setup')
-    .description('perform zksync network initialization for local development')
+    .description('Deploys the shared bridge and registers a hyperchain locally, as quickly as possible.')
     .action(initDevCmdAction);
 
 initCommand
     .command('lightweight')
-    .description('perform lightweight zksync network initialization for development')
+    .description('A lightweight `init` that sets up local databases, generates genesis and deploys contracts.')
     .action(lightweightInitCmdAction);
 
 initCommand
     .command('shared-bridge')
-    .description('')
+    .description('Deploys only the shared bridge and initializes governance. It does not deploy L2 contracts.')
     .option('--skip-submodules-checkout')
     .action(initSharedBridgeCmdAction);
 
 initCommand
     .command('hyper')
-    .description('')
+    .description('Registers a hyperchain and deploys L2 contracts only. It requires an already deployed shared bridge.')
     .option('--skip-setup-completely', 'skip the setup completely, use this if server was started already')
     .action(initHyperCmdAction);
