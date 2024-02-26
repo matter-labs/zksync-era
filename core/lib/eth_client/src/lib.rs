@@ -22,15 +22,6 @@ pub use crate::types::{
 pub mod clients;
 mod types;
 
-#[derive(Deserialize)]
-pub struct BlockWithExtraBlobGas<TX> {
-    #[serde(flatten)]
-    pub block: Block<TX>,
-
-    #[serde(default, rename = "excessBlobGas")]
-    pub excess_blob_gas: Option<U256>,
-}
-
 /// Contract Call/Query Options
 #[derive(Default, Debug, Clone, PartialEq)]
 pub struct Options {
