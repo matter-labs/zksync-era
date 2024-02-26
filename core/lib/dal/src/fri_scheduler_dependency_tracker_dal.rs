@@ -1,6 +1,6 @@
 use zksync_types::L1BatchNumber;
 
-use crate::StorageProcessor;
+use crate::{fri_prover_dal::types, StorageProcessor};
 
 #[derive(Debug)]
 pub struct FriSchedulerDependencyTrackerDal<'a, 'c> {
@@ -71,9 +71,9 @@ impl FriSchedulerDependencyTrackerDal<'_, '_> {
         circuit_id: u8,
         final_prover_job_id: u32,
         l1_batch_number: L1BatchNumber,
-        depth: u16,
+        sequence: u16,
     ) {
-        let query = if circuit_id != 255 {
+        let query = if circuit_id != types::EIP_4844_CIRCUIT_ID {
             format!(
                 r#"
                 UPDATE scheduler_dependency_tracker_fri
@@ -83,14 +83,13 @@ impl FriSchedulerDependencyTrackerDal<'_, '_> {
                 circuit_id
             )
         } else {
-            println!("circuit_id = {circuit_id:?}");
             format!(
                 r#"
                     UPDATE scheduler_dependency_tracker_fri
                     SET circuit_{}_final_prover_job_id_{} = $1
                     WHERE l1_batch_number = $2
                 "#,
-                circuit_id, depth,
+                circuit_id, sequence,
             )
         };
         sqlx::query(&query)

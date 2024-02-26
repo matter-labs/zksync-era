@@ -23,6 +23,10 @@ pub mod types {
     use sqlx::types::chrono::{DateTime, Utc};
     use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
 
+    // This currently lives in zksync_prover_types -- we don't want a dependency between prover types (zkevm_test_harness) and DAL.
+    // This will be gone as part of 1.5.0, when EIP_4844 becomes normal jobs, rather than special cased ones.
+    pub(crate) const EIP_4844_CIRCUIT_ID: u8 = 255;
+
     #[derive(Debug, Clone)]
     pub struct FriProverJobMetadata {
         pub id: u32,
@@ -249,7 +253,7 @@ impl FriProverDal<'_, '_> {
         for (sequence_number, (circuit_id, circuit_blob_url)) in
             circuit_ids_and_urls.iter().enumerate()
         {
-            let is_final = *circuit_id == 255;
+            let is_final = *circuit_id == types::EIP_4844_CIRCUIT_ID;
             self.insert_prover_job(
                 l1_batch_number,
                 *circuit_id,
@@ -330,7 +334,6 @@ impl FriProverDal<'_, '_> {
         protocol_versions: &[FriProtocolVersionId],
         picked_by: &str,
     ) -> Option<FriProverJobMetadata> {
-        println!("EMIL -- {circuits_to_pick:?}");
         let circuit_ids: Vec<_> = circuits_to_pick
             .iter()
             .map(|tuple| tuple.circuit_id as i16)
@@ -340,7 +343,6 @@ impl FriProverDal<'_, '_> {
             .iter()
             .map(|tuple| tuple.aggregation_round as i16)
             .collect();
-        println!("{aggregation_rounds:?}");
         sqlx::query!(
             r#"
             UPDATE prover_jobs_fri

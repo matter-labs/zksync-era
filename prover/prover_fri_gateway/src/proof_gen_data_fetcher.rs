@@ -8,7 +8,7 @@ use crate::api_data_fetcher::{PeriodicApi, PeriodicApiStruct};
 impl PeriodicApiStruct {
     async fn save_proof_gen_data(&self, data: ProofGenerationData) {
         // As 1.4.2, only 2 blobs at most are supported.
-        assert!(data.eip_4844_blobs.len() <= 2);
+        assert!(data.eip_4844_blobs.blobs.len() <= 2);
 
         let store = &*self.blob_store;
         let blob_url = store
@@ -20,7 +20,6 @@ impl PeriodicApiStruct {
             .fri_protocol_versions_dal()
             .save_prover_protocol_version(data.fri_protocol_version_id, data.l1_verifier_config)
             .await;
-
         connection
             .fri_witness_generator_dal()
             .save_witness_inputs(

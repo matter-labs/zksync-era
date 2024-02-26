@@ -130,7 +130,7 @@ pub async fn save_proof(
                 circuit_id,
                 job_id,
                 job_metadata.block_number,
-                job_metadata.depth,
+                job_metadata.sequence_number,
             )
             .await;
     }
