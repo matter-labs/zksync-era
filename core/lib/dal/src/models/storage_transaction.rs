@@ -365,11 +365,10 @@ impl From<StorageTransactionReceipt> for TransactionReceipt {
                 .transfer_to
                 .or(storage_receipt.execute_contract_address)
                 .map(|addr| {
-                    serde_json::from_value::<Address>(addr)
+                    serde_json::from_value::<Option<Address>>(addr)
                         .expect("invalid address value in the database")
                 })
-                // For better compatibility with various clients, we never return null.
-                .or_else(|| Some(Address::default())),
+                .flatten(),
             cumulative_gas_used: Default::default(), // TODO: Should be actually calculated (SMA-1183).
             gas_used: {
                 let refunded_gas: U256 = storage_receipt.refunded_gas.into();

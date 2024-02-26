@@ -194,8 +194,7 @@ describe('EVM equivalence contract', () => {
 
             dumpOpcodeLogs(creatorContract.deployTransaction.hash, alice.provider);
 
-            // FIXME: doublec check, since on EVM the first nonce for contracts is 1.
-            const nonce = 0;
+            const nonce = 1;
 
             const runtimeBytecode = await creatorContract.getCreationRuntimeCode();
 
@@ -340,10 +339,9 @@ describe('EVM equivalence contract', () => {
             await evmToken2.deployTransaction.wait();
 
             const evmUniswapFactoryFactory = getEVMContractFactory(alice, artifacts.uniswapV2Factory);
-            evmUniswapFactory = await evmUniswapFactoryFactory.deploy('0x0000000000000000000000000000000000000000', {
-                gasLimit
-            });
+            evmUniswapFactory = await evmUniswapFactoryFactory.deploy('0x0000000000000000000000000000000000000000');
             await evmUniswapFactory.deployTransaction.wait();
+
             nativeUniswapFactory = await deployContract(
                 alice,
                 contracts.uniswapV2Factory,
@@ -355,6 +353,7 @@ describe('EVM equivalence contract', () => {
                     }
                 }
             );
+
             const evmPairReceipt = await (
                 await evmUniswapFactory.createPair(evmToken1.address, evmToken2.address)
             ).wait();
