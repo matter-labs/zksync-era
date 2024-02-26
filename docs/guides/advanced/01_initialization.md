@@ -37,7 +37,7 @@ And now we're ready to start setting up the system.
 First - postgres database: you'll be able to see something like
 
 ```
-DATABASE_URL = postgres://postgres@localhost/zksync_local
+DATABASE_URL = postgres://postgres:notsecurepassword@localhost/zksync_local
 ```
 
 After which we setup the schema (lots of lines with `Applied XX`).
@@ -45,7 +45,7 @@ After which we setup the schema (lots of lines with `Applied XX`).
 You can try connecting to postgres now, to see what's inside:
 
 ```shell
-psql postgres://postgres@localhost/zksync_local
+psql postgres://postgres:notsecurepassword@localhost/zksync_local
 ```
 
 (and then commands like `\dt` to see the tables, `\d TABLE_NAME` to see the schema, and `select * from XX` to see the

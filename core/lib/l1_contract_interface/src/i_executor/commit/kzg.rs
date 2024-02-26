@@ -6,8 +6,9 @@ use std::convert::TryInto;
 use sha2::Sha256;
 use sha3::{Digest, Keccak256};
 use zkevm_test_harness_1_3_3::ff::{PrimeField, PrimeFieldRepr};
+pub use zkevm_test_harness_1_4_2::kzg::KzgSettings;
 use zkevm_test_harness_1_4_2::{
-    kzg::{compute_commitment, compute_proof, compute_proof_poly, KzgSettings},
+    kzg::{compute_commitment, compute_proof, compute_proof_poly},
     zkevm_circuits::{
         boojum::pairing::{
             bls12_381::{Fr, FrRepr, G1Affine},
@@ -20,6 +21,7 @@ use zkevm_test_harness_1_4_2::{
         },
     },
 };
+use zksync_types::H256;
 
 pub const ZK_SYNC_BYTES_PER_BLOB: usize = BLOB_CHUNK_SIZE * ELEMENTS_PER_4844_BLOCK;
 const EIP_4844_BYTES_PER_BLOB: usize = 32 * ELEMENTS_PER_4844_BLOCK;
@@ -260,6 +262,28 @@ impl KzgInfo {
             blob_proof: commitment_proof,
         }
     }
+}
+
+pub fn pubdata_to_blob_commitments(pubdata_input: &[u8], kzg_settings: &KzgSettings) -> [H256; 2] {
+    assert!(
+        pubdata_input.len() <= 2 * ZK_SYNC_BYTES_PER_BLOB,
+        "Pubdata length exceeds size of 2 blobs"
+    );
+
+    let blob_commitments = pubdata_input
+        .chunks(ZK_SYNC_BYTES_PER_BLOB)
+        .map(|blob| {
+            let kzg_info = KzgInfo::new(kzg_settings, &blob.to_vec());
+            H256(kzg_info.to_blob_commitment())
+        })
+        .collect::<Vec<_>>();
+
+    // If length of `pubdata_input` is less than or equal to `ZK_SYNC_BYTES_PER_BLOB` (126976)
+    // then only one blob will be used and 32 zero bytes will be used as a commitment for the second blob.
+    [
+        blob_commitments.get(0).copied().unwrap_or_default(),
+        blob_commitments.get(1).copied().unwrap_or_default(),
+    ]
 }
 
 #[cfg(test)]
