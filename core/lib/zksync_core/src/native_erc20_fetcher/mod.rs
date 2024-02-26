@@ -41,7 +41,8 @@ impl NativeErc20FetcherSingleton {
         let adjuster = self
             .singleton
             .get_or_init(|| async {
-                let fetcher = NativeErc20Fetcher::new(self.native_erc20_fetcher_config.clone());
+                let fetcher =
+                    NativeErc20Fetcher::new(self.native_erc20_fetcher_config.clone()).await;
                 Ok(Arc::new(fetcher))
             })
             .await;
@@ -66,10 +67,17 @@ pub(crate) struct NativeErc20Fetcher {
 }
 
 impl NativeErc20Fetcher {
-    pub(crate) fn new(config: NativeErc20FetcherConfig) -> Self {
+    pub(crate) async fn new(config: NativeErc20FetcherConfig) -> Self {
+        let conversion_rate = reqwest::get(format!("{}/conversion_rate", config.host))
+            .await
+            .unwrap()
+            .json::<u64>()
+            .await
+            .unwrap();
+
         Self {
             config,
-            latest_to_eth_conversion_rate: AtomicU64::new(0),
+            latest_to_eth_conversion_rate: AtomicU64::new(conversion_rate),
         }
     }
 
