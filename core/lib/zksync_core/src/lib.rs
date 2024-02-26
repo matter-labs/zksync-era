@@ -3,6 +3,7 @@
 use std::{net::Ipv4Addr, str::FromStr, sync::Arc, time::Instant};
 
 use anyhow::Context as _;
+use api_server::tx_sender::master_pool_sink::MasterPoolSink;
 use fee_model::{ApiFeeInputProvider, BatchFeeModelInputProvider, MainNodeFeeInputProvider};
 use futures::channel::oneshot;
 use prometheus_exporter::PrometheusExporterConfig;
@@ -328,7 +329,15 @@ pub async fn initialize_components(
             .await
             .context("failed to build replica_connection_pool")?;
 
-    let app_health = Arc::new(AppHealthCheck::default());
+    let health_check_config = configs
+        .health_check_config
+        .clone()
+        .context("health_check_config")?;
+    let app_health = Arc::new(AppHealthCheck::new(
+        health_check_config.slow_time_limit(),
+        health_check_config.hard_time_limit(),
+    ));
+
     let contracts_config = configs
         .contracts_config
         .clone()
@@ -747,13 +756,8 @@ pub async fn initialize_components(
     // Run healthcheck server for all components.
     let db_health_check = ConnectionPoolHealthCheck::new(replica_connection_pool);
     app_health.insert_custom_component(Arc::new(db_health_check));
-
-    let healtcheck_api_config = configs
-        .health_check_config
-        .clone()
-        .context("health_check_config")?;
     let health_check_handle =
-        HealthCheckHandle::spawn_server(healtcheck_api_config.bind_addr(), app_health);
+        HealthCheckHandle::spawn_server(health_check_config.bind_addr(), app_health);
 
     if let Some(task) = gas_adjuster.run_if_initialized(stop_receiver.clone()) {
         task_futures.push(task);
@@ -1101,9 +1105,13 @@ async fn build_tx_sender(
     storage_caches: PostgresStorageCaches,
 ) -> (TxSender, VmConcurrencyBarrier) {
     let sequencer_sealer = SequencerSealer::new(state_keeper_config.clone());
-    let tx_sender_builder = TxSenderBuilder::new(tx_sender_config.clone(), replica_pool.clone())
-        .with_main_connection_pool(master_pool)
-        .with_sealer(Arc::new(sequencer_sealer));
+    let master_pool_sink = MasterPoolSink::new(master_pool);
+    let tx_sender_builder = TxSenderBuilder::new(
+        tx_sender_config.clone(),
+        replica_pool.clone(),
+        Arc::new(master_pool_sink),
+    )
+    .with_sealer(Arc::new(sequencer_sealer));
 
     let max_concurrency = web3_json_config.vm_concurrency_limit();
     let (vm_concurrency_limiter, vm_barrier) = VmConcurrencyLimiter::new(max_concurrency);
