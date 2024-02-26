@@ -440,7 +440,7 @@ impl BatchTipMetrics {
                 .observe(size_diff as usize);
         } else {
             self.block_writes_metrics_negative_size
-                .observe(size_diff.abs() as usize);
+                .observe(size_diff.unsigned_abs() as usize);
         }
     }
 }
