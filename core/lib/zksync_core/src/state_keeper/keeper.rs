@@ -711,7 +711,7 @@ impl ZkSyncStateKeeper {
                     .apply_and_rollback(logs_to_apply_iter.clone());
 
                 BATCH_TIP_METRICS.observe_writes_metrics(
-                    &updates_manager.storage_writes_deduplicator.writes_metrics(),
+                    &updates_manager.storage_writes_deduplicator.metrics(),
                     &block_writes_metrics,
                 );
 
