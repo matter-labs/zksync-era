@@ -158,26 +158,20 @@ impl Fetcher {
             // Update sync state in the background.
             s.spawn_bg(self.fetch_state_loop(ctx));
 
-            // Initialize genesis.
-            let genesis = self.fetch_genesis(ctx).await.wrap("fetch_genesis()")?;
-            let mut conn = store.access(ctx).await.wrap("access()")?;
-            conn.try_update_genesis(ctx, &genesis)
-                .await
-                .wrap("set_genesis()")?;
-            let mut cursor = conn
+            // Fetch genesis from the main node.
+            let genesis = self.fetch_genesis(ctx).await.wrap("fetch_genesis()")?; 
+            let mut cursor = store.access(ctx).await.wrap("access()")?
                 .new_fetcher_cursor(ctx, actions)
                 .await
                 .wrap("new_fetcher_cursor()")?;
-            drop(conn);
 
-            // Fetch blocks before the genesis.
+            // Fetch blocks before the genesis and save genesis afterwards.
             self.fetch_blocks(ctx, &mut cursor, genesis.fork.first_block)
                 .await?;
-
-            // TODO: block until genesis.fork-first_block-1 is stored.
-            // TODO: check for divergence before starting (local head vs remote store, remote head vs local store)
-            // TODO: check for divergence continuously (replace reorg detector)
-            // TODO: restart on genesis change
+            store.access(ctx).await.wrap("access()")?
+                .try_update_genesis(ctx, &genesis)
+                .await
+                .wrap("try_update_genesis()")?;
 
             // Monitor the genesis of the main node.
             // If it changes, it means that a hard fork occurred and we need to reset the consensus state.

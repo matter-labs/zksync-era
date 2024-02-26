@@ -1,7 +1,7 @@
 use anyhow::Context as _;
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage::ReplicaState;
-use zksync_types::MiniblockNumber;
+use zksync_types::{MiniblockNumber,L1BatchNumber};
 
 pub use crate::models::storage_sync::Payload;
 use crate::StorageProcessor;
@@ -36,6 +36,18 @@ impl ConsensusDal<'_, '_> {
         Ok(Some(zksync_protobuf::serde::deserialize(genesis)?))
     }
 
+    /// Checks that genesis.fork.first_parent matches storage.
+    pub async fn verify_genesis(&mut self) -> anyhow::Result<()> {
+        let mut txn = self.storage.start_transaction().await?;
+        if let Some(first_parent) = &genesis.fork.first_parent {
+            // TODO: first_block.prev().is_some() <=> first_parent.is_some()
+            let number = genesis.fork.first_block.number().prev().context("block 0 cannot have a parent")?;
+            let payload = txn.consensus_dal().payload(number).await?.context("first_parent block is missing")?.encode().hash();
+            anyhow::ensure!(first_parent == validator::BlockHeader { number, parent: None, payload }.hash());
+        }
+        txn.commit().await?;
+    }
+
     /// Attempts to update the genesis.
     /// Fails if the storage contains a newer genesis (higher fork number).
     /// Noop if the new genesis is the same as the current one.
@@ -45,12 +57,12 @@ impl ConsensusDal<'_, '_> {
         if let Some(got) = txn.consensus_dal().genesis().await? {
             // Exit if the genesis didn't change.
             if &got == genesis {
-                return Ok(());
+                return self.verify_genesis().await;
             }
             if got.fork.number >= genesis.fork.number {
                 anyhow::bail!("transition to a past fork is not allowed");
             }
-        }
+        } 
         let genesis =
             zksync_protobuf::serde::serialize(genesis, serde_json::value::Serializer).unwrap();
         let state = zksync_protobuf::serde::serialize(
@@ -84,31 +96,36 @@ impl ConsensusDal<'_, '_> {
         )
         .execute(txn.conn())
         .await?;
+        txn.consensus_dal().verify_genesis().await?;
         txn.commit().await?;
         Ok(())
     }
 
-    /// [Main node only] creates a new consensus fork starting at
-    /// the last sealed miniblock. Resets the state of the consensus
-    /// by calling `try_update_genesis()`.
-    pub async fn fork(&mut self) -> anyhow::Result<()> {
+    /// [Main node only] creates a new consensus fork starting at.
+    pub async fn fork(&mut self) -> anyhow::Result<Option<validator::Genesis>> {
         let mut txn = self.storage.start_transaction().await?;
         let Some(old) = txn.consensus_dal().genesis().await? else {
-            return Ok(());
+            return Ok(None);
         };
-        let last = txn.blocks_dal().get_sealed_miniblock_number().await?;
-        let first_block = validator::BlockNumber(last.map(|n| n.0.into()).unwrap_or(0));
-
-        let new = validator::Genesis {
+        let first_parent = validator::BlockNumber(first_parent.0 as u64);
+        let payload = txn.consensus_dal()
+            .block_payload(first_parent).await?
+            .context("parent block missing")?
+            .encode().hash();
+        let first_parent = validator::BlockHeader {
+            number: first_parent,
+            parent: None,
+            payload,
+        }.hash();
+        txn.consensus_dal().try_update_genesis(validator::Genesis {
             validators: old.validators,
             fork: validator::Fork {
                 number: old.fork.number.next(),
-                first_block,
-                first_parent: None,
+                first_block: first_parent.number.next(),
+                first_parent: Some(first_parent),
             },
-        };
-        txn.consensus_dal().try_update_genesis(&new).await?;
-        txn.commit().await?;
+        });
+        txn.commit().await.context("commit()")?;
         Ok(())
     }
 

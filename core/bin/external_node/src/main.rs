@@ -208,12 +208,12 @@ async fn init_tasks(
         )
         .await
         .context("failed initializing main node fetcher")?;
-        task_handles.push(tokio::spawn(fetcher.run()));
+        task_handles.push(tokio::spawn(fetcher.run())); 
+    }
 
-        let reorg_detector = ReorgDetector::new(main_node_client.clone(), connection_pool.clone());
-        app_health.insert_component(reorg_detector.health_check().clone());
-        task_handles.push(tokio::spawn(reorg_detector.run(stop_receiver.clone())));
-    };
+    let reorg_detector = ReorgDetector::new(main_node_client.clone(), connection_pool.clone());
+    app_health.insert_component(reorg_detector.health_check().clone());
+    task_handles.push(tokio::spawn(reorg_detector.run(stop_receiver.clone())));
 
     let metadata_calculator_config = MetadataCalculatorConfig {
         db_path: config.required.merkle_tree_path.clone(),

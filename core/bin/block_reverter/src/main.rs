@@ -182,6 +182,7 @@ async fn main() -> anyhow::Result<()> {
             if rollback_sk_cache {
                 flags |= BlockReverterFlags::SK_CACHE;
             }
+
             block_reverter
                 .rollback_db(L1BatchNumber(l1_batch_number), flags)
                 .await
