@@ -216,11 +216,25 @@ impl Web3JsonRpcConfig {
 pub struct HealthCheckConfig {
     /// Port to which the REST server is listening.
     pub port: u16,
+    /// Time limit in milliseconds to mark a health check as slow and log the corresponding warning.
+    /// If not specified, the default value in the health check crate will be used.
+    pub slow_time_limit_ms: Option<u64>,
+    /// Time limit in milliseconds to abort a health check and return "not ready" status for the corresponding component.
+    /// If not specified, the default value in the health check crate will be used.
+    pub hard_time_limit_ms: Option<u64>,
 }
 
 impl HealthCheckConfig {
     pub fn bind_addr(&self) -> SocketAddr {
         SocketAddr::new("0.0.0.0".parse().unwrap(), self.port)
+    }
+
+    pub fn slow_time_limit(&self) -> Option<Duration> {
+        self.slow_time_limit_ms.map(Duration::from_millis)
+    }
+
+    pub fn hard_time_limit(&self) -> Option<Duration> {
+        self.hard_time_limit_ms.map(Duration::from_millis)
     }
 }
 
