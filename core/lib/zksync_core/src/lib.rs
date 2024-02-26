@@ -342,7 +342,7 @@ pub async fn initialize_components(
     let (stop_sender, stop_receiver) = watch::channel(false);
     let (cb_sender, cb_receiver) = oneshot::channel();
 
-    let native_erc20_fetcher = if let Some(ref mut fetcher_singleton) = fetcher_component {
+    let native_erc20_fetcher = if let Some(fetcher_singleton) = &mut fetcher_component {
         let fetcher = fetcher_singleton
             .get_or_init()
             .await
