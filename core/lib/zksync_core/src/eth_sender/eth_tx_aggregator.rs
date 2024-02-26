@@ -10,12 +10,13 @@ use zksync_l1_contract_interface::{
     Detokenize, Tokenizable, Tokenize,
 };
 use zksync_types::{
+    aggregated_operations::AggregatedActionType,
     commitment::SerializeCommitment,
     eth_sender::EthTx,
     ethabi::Token,
     l2_to_l1_log::UserL2ToL1Log,
     protocol_version::{L1VerifierConfig, VerifierParams},
-    web3::contract::Error as Web3ContractError,
+    web3::{contract::Error as Web3ContractError, types::BlockNumber},
     Address, L2ChainId, ProtocolVersionId, H256, U256,
 };
 
@@ -52,10 +53,17 @@ pub struct EthTxAggregator {
     pub(super) main_zksync_contract_address: Address,
     functions: ZkSyncFunctions,
     base_nonce: u64,
+    base_nonce_custom_commit_sender: Option<u64>,
     rollup_chain_id: L2ChainId,
+    /// If set to `Some` node is operating in the 4844 mode with two operator
+    /// addresses at play: the main one and the custom address for sending commit
+    /// transactions. The `Some` then contains the address of this custom operator
+    /// address.
+    custom_commit_sender_addr: Option<Address>,
 }
 
 impl EthTxAggregator {
+    #[allow(clippy::too_many_arguments)]
     pub async fn new(
         config: SenderConfig,
         aggregator: Aggregator,
@@ -64,6 +72,7 @@ impl EthTxAggregator {
         l1_multicall3_address: Address,
         main_zksync_contract_address: Address,
         rollup_chain_id: L2ChainId,
+        custom_commit_sender_addr: Option<Address>,
     ) -> Self {
         let functions = ZkSyncFunctions::default();
         let base_nonce = eth_client
@@ -71,6 +80,17 @@ impl EthTxAggregator {
             .await
             .unwrap()
             .as_u64();
+
+        let base_nonce_custom_commit_sender = match custom_commit_sender_addr {
+            Some(addr) => Some(
+                eth_client
+                    .nonce_at_for_account(addr, BlockNumber::Pending, "eth_sender")
+                    .await
+                    .unwrap()
+                    .as_u64(),
+            ),
+            None => None,
+        };
         Self {
             config,
             aggregator,
@@ -80,7 +100,9 @@ impl EthTxAggregator {
             main_zksync_contract_address,
             functions,
             base_nonce,
+            base_nonce_custom_commit_sender,
             rollup_chain_id,
+            custom_commit_sender_addr,
         }
     }
 
@@ -460,10 +482,17 @@ impl EthTxAggregator {
         contracts_are_pre_shared_bridge: bool,
     ) -> Result<EthTx, ETHSenderError> {
         let mut transaction = storage.start_transaction().await.unwrap();
-        let nonce = self.get_next_nonce(&mut transaction).await?;
+        let op_type = aggregated_op.get_action_type();
+        // We may be using a custom sender for commit transactions, so use this
+        // var whatever it actually is: a `None` for single-addr operator or `Some`
+        // for multi-addr operator in 4844 mode.
+        let sender_addr = match op_type {
+            AggregatedActionType::Commit => self.custom_commit_sender_addr,
+            _ => None,
+        };
+        let nonce = self.get_next_nonce(&mut transaction, sender_addr).await?;
         let calldata = self.encode_aggregated_op(aggregated_op, contracts_are_pre_shared_bridge);
         let l1_batch_number_range = aggregated_op.l1_batch_range();
-        let op_type = aggregated_op.get_action_type();
 
         let predicted_gas_for_batches = transaction
             .blocks_dal()
@@ -480,6 +509,7 @@ impl EthTxAggregator {
                 op_type,
                 self.timelock_contract_address,
                 eth_tx_predicted_gas,
+                sender_addr,
             )
             .await
             .unwrap();
@@ -496,15 +526,23 @@ impl EthTxAggregator {
     async fn get_next_nonce(
         &self,
         storage: &mut StorageProcessor<'_>,
+        from_addr: Option<Address>,
     ) -> Result<u64, ETHSenderError> {
         let db_nonce = storage
             .eth_sender_dal()
-            .get_next_nonce()
+            .get_next_nonce(from_addr)
             .await
             .unwrap()
             .unwrap_or(0);
         // Between server starts we can execute some txs using operator account or remove some txs from the database
         // At the start we have to consider this fact and get the max nonce.
-        Ok(db_nonce.max(self.base_nonce))
+        Ok(if from_addr.is_none() {
+            db_nonce.max(self.base_nonce)
+        } else {
+            db_nonce.max(
+                self.base_nonce_custom_commit_sender
+                    .expect("custom base nonce is expected to be initialized; qed"),
+            )
+        })
     }
 }

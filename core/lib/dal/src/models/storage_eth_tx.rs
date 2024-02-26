@@ -22,6 +22,9 @@ pub struct StorageEthTx {
     pub updated_at: NaiveDateTime,
     // TODO (SMA-1614): remove the field
     pub sent_at_block: Option<i32>,
+    // If this field is `Some` this means that this transaction was sent by a custom operator
+    // such as blob sender operator.
+    pub from_addr: Option<Vec<u8>>,
 }
 
 #[derive(Debug, Default)]
@@ -67,6 +70,7 @@ impl From<StorageEthTx> for EthTx {
             tx_type: AggregatedActionType::from_str(&tx.tx_type).expect("Wrong agg type"),
             created_at_timestamp: tx.created_at.timestamp() as u64,
             predicted_gas_cost: tx.predicted_gas_cost as u64,
+            from_addr: tx.from_addr.map(|f| Address::from_slice(&f)),
         }
     }
 }
