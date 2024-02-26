@@ -734,11 +734,13 @@ pub async fn initialize_components(
     }
 
     if components.contains(&Component::CommitmentGenerator) {
+        let kzg_config = configs.kzg_config.clone().context("kzg_config")?;
         let commitment_generator_pool = ConnectionPool::singleton(postgres_config.master_url()?)
             .build()
             .await
             .context("failed to build commitment_generator_pool")?;
-        let commitment_generator = CommitmentGenerator::new(commitment_generator_pool);
+        let commitment_generator =
+            CommitmentGenerator::new(commitment_generator_pool, &kzg_config.trusted_setup_path);
         app_health.insert_component(commitment_generator.health_check());
         task_futures.push(tokio::spawn(
             commitment_generator.run(stop_receiver.clone()),

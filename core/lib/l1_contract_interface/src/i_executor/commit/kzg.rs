@@ -6,8 +6,9 @@ use std::convert::TryInto;
 use sha2::Sha256;
 use sha3::{Digest, Keccak256};
 use zkevm_test_harness_1_3_3::ff::{PrimeField, PrimeFieldRepr};
+pub use zkevm_test_harness_1_4_1::kzg::KzgSettings;
 use zkevm_test_harness_1_4_1::{
-    kzg::{compute_commitment, compute_proof, compute_proof_poly, KzgSettings},
+    kzg::{compute_commitment, compute_proof, compute_proof_poly},
     zkevm_circuits::{
         boojum::pairing::{
             bls12_381::{Fr, FrRepr, G1Affine},

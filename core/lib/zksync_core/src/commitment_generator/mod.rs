@@ -8,9 +8,8 @@ use tokio::{sync::watch, task::JoinHandle};
 use zksync_commitment_utils::{bootloader_initial_content_commitment, events_queue_commitment};
 use zksync_dal::ConnectionPool;
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
-use zksync_l1_contract_interface::i_executor::{
-    commit::kzg::{KzgInfo, ZK_SYNC_BYTES_PER_BLOB},
-    structures::load_kzg_settings,
+use zksync_l1_contract_interface::i_executor::commit::kzg::{
+    KzgInfo, KzgSettings, ZK_SYNC_BYTES_PER_BLOB,
 };
 use zksync_types::{
     commitment::{AuxCommitments, CommitmentCommonInput, CommitmentInput, L1BatchCommitment},
@@ -27,13 +26,15 @@ const SLEEP_INTERVAL: Duration = Duration::from_millis(100);
 pub struct CommitmentGenerator {
     connection_pool: ConnectionPool,
     health_updater: HealthUpdater,
+    kzg_setting: KzgSettings,
 }
 
 impl CommitmentGenerator {
-    pub fn new(connection_pool: ConnectionPool) -> Self {
+    pub fn new(connection_pool: ConnectionPool, kzg_trusted_setup_path: &str) -> Self {
         Self {
             connection_pool,
             health_updater: ReactiveHealthCheck::new("commitment_generator").1,
+            kzg_setting: KzgSettings::new(kzg_trusted_setup_path),
         }
     }
 
@@ -214,15 +215,13 @@ impl CommitmentGenerator {
             }
             state_diffs.sort_unstable_by_key(|rec| (rec.address, rec.key));
 
-            let kzg_settings = load_kzg_settings();
-
             let blob_commitments = if protocol_version.is_post_1_4_2() {
                 let blob_commitments = header
                     .pubdata_input
                     .expect("pubdata_input must be present for post 1.4.2 batches")
                     .chunks(ZK_SYNC_BYTES_PER_BLOB)
                     .map(|blob| {
-                        let kzg_info = KzgInfo::new(&kzg_settings, blob.to_vec());
+                        let kzg_info = KzgInfo::new(&self.kzg_setting, blob.to_vec());
                         H256(kzg_info.to_blob_commitment())
                     })
                     .collect::<Vec<_>>();

@@ -264,7 +264,10 @@ async fn init_tasks(
         .build()
         .await
         .context("failed to build a commitment_generator_pool")?;
-    let commitment_generator = CommitmentGenerator::new(commitment_generator_pool);
+    let commitment_generator = CommitmentGenerator::new(
+        commitment_generator_pool,
+        &config.optional.kzg_trusted_setup_path,
+    );
     app_health.insert_component(commitment_generator.health_check());
     let commitment_generator_handle = tokio::spawn(commitment_generator.run(stop_receiver.clone()));
 
