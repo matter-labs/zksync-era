@@ -5,13 +5,13 @@ use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::{
-    BoundEthInterface, Error, EthInterface, ExecutedTxStatus, RawTransactionBytes, SignedCallResult,
+    BoundEthInterface, Error, EthInterface, ExecutedTxStatus, Options, RawTransactionBytes,
+    SignedCallResult,
 };
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     eth_sender::EthTx,
     web3::{
-        contract::Options,
         error::Error as Web3Error,
         types::{BlockId, BlockNumber},
     },

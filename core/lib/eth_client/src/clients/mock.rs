@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use jsonrpc_core::types::error::Error as RpcError;
 use zksync_types::{
     web3::{
-        contract::{tokens::Tokenize, Options},
+        contract::tokens::Tokenize,
         ethabi,
         types::{Block, BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt, U64},
         Error as Web3Error,
@@ -17,7 +17,7 @@ use zksync_types::{
 
 use crate::{
     types::{Error, ExecutedTxStatus, FailureInfo, SignedCallResult},
-    BoundEthInterface, ContractCall, EthInterface, RawTransactionBytes,
+    BoundEthInterface, ContractCall, EthInterface, Options, RawTransactionBytes,
 };
 
 #[derive(Debug, Clone)]
@@ -187,13 +187,13 @@ impl MockEthereum {
         // Concatenate `raw_tx` plus hash for test purposes
         let mut new_raw_tx = hash.as_bytes().to_vec();
         new_raw_tx.extend(raw_tx);
-        Ok(SignedCallResult {
-            raw_tx: RawTransactionBytes(new_raw_tx),
+        Ok(SignedCallResult::new(
+            RawTransactionBytes(new_raw_tx),
             max_priority_fee_per_gas,
             max_fee_per_gas,
             nonce,
             hash,
-        })
+        ))
     }
 
     pub fn advance_block_number(&self, val: u64) -> u64 {
@@ -448,7 +448,7 @@ mod tests {
                 b"test".to_vec(),
                 Options {
                     nonce: Some(1.into()),
-                    ..Options::default()
+                    ..Default::default()
                 },
             )
             .unwrap();
@@ -456,7 +456,7 @@ mod tests {
         assert!(signed_tx.max_priority_fee_per_gas > 0.into());
         assert!(signed_tx.max_fee_per_gas > 0.into());
 
-        let tx_hash = client.send_raw_tx(signed_tx.raw_tx).await.unwrap();
+        let tx_hash = client.send_raw_tx(signed_tx.raw_tx.clone()).await.unwrap();
         assert_eq!(tx_hash, signed_tx.hash);
 
         client.execute_tx(tx_hash, true, 3);

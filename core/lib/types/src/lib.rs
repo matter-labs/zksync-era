@@ -61,6 +61,9 @@ pub const EIP_712_TX_TYPE: u8 = 0x71;
 /// Denotes the first byte of the `EIP-1559` transaction.
 pub const EIP_1559_TX_TYPE: u8 = 0x02;
 
+/// Denotes the first byte of the `EIP-4844` transaction.
+pub const EIP_4844_TX_TYPE: u8 = 0x03;
+
 /// Denotes the first byte of the `EIP-2930` transaction.
 pub const EIP_2930_TX_TYPE: u8 = 0x01;
 
