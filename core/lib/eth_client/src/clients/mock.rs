@@ -123,7 +123,6 @@ pub struct MockEthereum {
     non_ordering_confirmations: bool,
     multicall_address: Address,
     inner: RwLock<MockEthereumInner>,
-    blob_gas_price: U256,
 }
 
 impl Default for MockEthereum {
@@ -135,7 +134,6 @@ impl Default for MockEthereum {
             non_ordering_confirmations: false,
             multicall_address: Address::default(),
             inner: RwLock::default(),
-            blob_gas_price: 1000.into(),
         }
     }
 }
@@ -271,10 +269,6 @@ impl EthInterface for MockEthereum {
 
     async fn get_gas_price(&self, _: &'static str) -> Result<U256, Error> {
         Ok(self.max_fee_per_gas)
-    }
-
-    async fn get_blob_gas_price(&self, _: &'static str) -> Result<U256, Error> {
-        Ok(self.blob_gas_price)
     }
 
     async fn base_fee_history(

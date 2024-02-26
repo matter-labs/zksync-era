@@ -112,10 +112,6 @@ impl<C: EthInterface + ?Sized> EthInterface for Arc<C> {
     ) -> Result<Option<Block<H256>>, Error> {
         self.as_ref().block(block_id, component).await
     }
-
-    async fn get_blob_gas_price(&self, component: &'static str) -> Result<U256, Error> {
-        self.as_ref().get_blob_gas_price(component).await
-    }
 }
 
 #[async_trait::async_trait]

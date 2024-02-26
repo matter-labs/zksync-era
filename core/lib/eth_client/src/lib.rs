@@ -115,9 +115,6 @@ pub trait EthInterface: 'static + Sync + Send + fmt::Debug {
     /// Returns the current gas price.
     async fn get_gas_price(&self, component: &'static str) -> Result<U256, Error>;
 
-    /// Returns an estimate of current blob gas price.
-    async fn get_blob_gas_price(&self, component: &'static str) -> Result<U256, Error>;
-
     /// Returns the current block number.
     async fn block_number(&self, component: &'static str) -> Result<U64, Error>;
 

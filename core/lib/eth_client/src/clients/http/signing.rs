@@ -151,10 +151,6 @@ impl<S: EthereumSigner> EthInterface for SigningClient<S> {
         self.query_client.get_gas_price(component).await
     }
 
-    async fn get_blob_gas_price(&self, component: &'static str) -> Result<U256, Error> {
-        self.query_client.get_blob_gas_price(component).await
-    }
-
     async fn send_raw_tx(&self, tx: RawTransactionBytes) -> Result<H256, Error> {
         self.query_client.send_raw_tx(tx).await
     }
