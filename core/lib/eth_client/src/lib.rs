@@ -3,6 +3,7 @@ use std::fmt;
 use async_trait::async_trait;
 use serde::Deserialize;
 use zksync_types::{
+    eth_sender::EthTxBlobSidecar,
     web3::{
         ethabi,
         types::{
@@ -55,6 +56,8 @@ pub struct Options {
     pub max_fee_per_blob_gas: Option<U256>,
     /// Blob versioned hashes
     pub blob_versioned_hashes: Option<Vec<H256>>,
+    /// Blob sidecar
+    pub blob_tx_sidecar: Option<EthTxBlobSidecar>,
 }
 
 impl Options {

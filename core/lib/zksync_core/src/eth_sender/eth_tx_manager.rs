@@ -215,18 +215,13 @@ impl EthTxManager {
                 base_fee_per_gas,
                 priority_fee_per_gas,
                 signed_tx.hash,
-                signed_tx.raw_tx(None).as_ref(),
+                signed_tx.raw_tx.as_ref(),
             )
             .await
             .unwrap()
         {
             if let Err(error) = self
-                .send_raw_transaction(
-                    storage,
-                    tx_history_id,
-                    signed_tx.raw_tx(None),
-                    current_block,
-                )
+                .send_raw_transaction(storage, tx_history_id, signed_tx.raw_tx, current_block)
                 .await
             {
                 tracing::warn!(

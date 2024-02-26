@@ -131,7 +131,7 @@ impl AsRef<[u8]> for RawTransactionBytes {
 #[derive(Debug, Clone, PartialEq)]
 pub struct SignedCallResult {
     /// Raw transaction bytes.
-    raw_tx: RawTransactionBytes,
+    pub raw_tx: RawTransactionBytes,
     /// `max_priority_fee_per_gas` field of transaction (EIP1559).
     pub max_priority_fee_per_gas: U256,
     /// `max_fee_per_gas` field of transaction (EIP1559).
@@ -158,25 +158,14 @@ impl SignedCallResult {
             hash,
         }
     }
-
-    pub fn raw_tx(&self, blob_tx_sidecar: Option<&EthTxBlobSidecar>) -> RawTransactionBytes {
-        match blob_tx_sidecar {
-            None => self.raw_tx.clone(),
-            Some(sidecar) => encode_blob_tx_with_sidecar(&self.raw_tx, sidecar),
-        }
-    }
 }
 
 // Encodes the blob transaction and the blob sidecar into the networking
 // format as defined in <https://eips.ethereum.org/EIPS/eip-4844#networking>
-fn encode_blob_tx_with_sidecar(
-    raw_tx: &RawTransactionBytes,
-    sidecar: &EthTxBlobSidecar,
-) -> RawTransactionBytes {
+pub(crate) fn encode_blob_tx_with_sidecar(raw_tx: &[u8], sidecar: &EthTxBlobSidecar) -> Vec<u8> {
     let EthTxBlobSidecar::EthTxBlobSidecarV1(sidecar) = sidecar;
     let blobs_count = sidecar.blobs.len();
 
-    let raw_tx = &raw_tx.0;
     let mut stream_outer = RlpStream::new();
 
     // top-level RLP encoded struct is defined as
@@ -223,7 +212,7 @@ fn encode_blob_tx_with_sidecar(
 
     let tx = [&[EIP_4844_TX_TYPE], stream_outer.as_raw()].concat();
 
-    RawTransactionBytes(tx)
+    tx
 }
 
 /// State of the executed Ethereum transaction.
@@ -345,6 +334,17 @@ mod tests {
         // the above parameters.
         let expected_str = include_str!("testdata/4844_tx_1.txt");
         let expected_str = expected_str.trim();
+        let raw_tx = encode_blob_tx_with_sidecar(
+            &raw_tx,
+            &EthTxBlobSidecar::EthTxBlobSidecarV1(EthTxBlobSidecarV1 {
+                blobs: vec![SidecarBlobV1 {
+                    blob,
+                    commitment,
+                    proof,
+                    versioned_hash,
+                }],
+            }),
+        );
 
         let signed_call_result = SignedCallResult::new(
             RawTransactionBytes(raw_tx),
@@ -354,19 +354,7 @@ mod tests {
             hash,
         );
 
-        let raw_tx_str = hex::encode(
-            signed_call_result.raw_tx(
-                Some(EthTxBlobSidecar::EthTxBlobSidecarV1(EthTxBlobSidecarV1 {
-                    blobs: vec![SidecarBlobV1 {
-                        blob,
-                        commitment,
-                        proof,
-                        versioned_hash,
-                    }],
-                }))
-                .as_ref(),
-            ),
-        );
+        let raw_tx_str = hex::encode(signed_call_result.raw_tx);
 
         let expected_str = expected_str.to_owned();
         pretty_assertions::assert_eq!(raw_tx_str, expected_str);
@@ -450,6 +438,25 @@ mod tests {
         // the above parameters.
         let expected_str = include_str!("testdata/4844_tx_2.txt");
         let expected_str = expected_str.trim();
+        let raw_tx = encode_blob_tx_with_sidecar(
+            &raw_tx,
+            &EthTxBlobSidecar::EthTxBlobSidecarV1(EthTxBlobSidecarV1 {
+                blobs: vec![
+                    SidecarBlobV1 {
+                        blob: blob_1,
+                        commitment: commitment_1,
+                        proof: proof_1,
+                        versioned_hash: versioned_hash_1.to_fixed_bytes().to_vec(),
+                    },
+                    SidecarBlobV1 {
+                        blob: blob_2,
+                        commitment: commitment_2,
+                        proof: proof_2,
+                        versioned_hash: versioned_hash_2.to_fixed_bytes().to_vec(),
+                    },
+                ],
+            }),
+        );
 
         let signed_call_result = SignedCallResult::new(
             RawTransactionBytes(raw_tx),
@@ -459,27 +466,7 @@ mod tests {
             hash,
         );
 
-        let raw_tx_str = hex::encode(
-            signed_call_result.raw_tx(
-                Some(EthTxBlobSidecar::EthTxBlobSidecarV1(EthTxBlobSidecarV1 {
-                    blobs: vec![
-                        SidecarBlobV1 {
-                            blob: blob_1,
-                            commitment: commitment_1,
-                            proof: proof_1,
-                            versioned_hash: versioned_hash_1.to_fixed_bytes().to_vec(),
-                        },
-                        SidecarBlobV1 {
-                            blob: blob_2,
-                            commitment: commitment_2,
-                            proof: proof_2,
-                            versioned_hash: versioned_hash_2.to_fixed_bytes().to_vec(),
-                        },
-                    ],
-                }))
-                .as_ref(),
-            ),
-        );
+        let raw_tx_str = hex::encode(signed_call_result.raw_tx);
 
         let expected_str = expected_str.to_owned();
         pretty_assertions::assert_eq!(raw_tx_str, expected_str);

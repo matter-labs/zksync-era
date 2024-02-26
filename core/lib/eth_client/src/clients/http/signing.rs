@@ -20,7 +20,7 @@ use zksync_types::{
 
 use super::{query::QueryClient, Method, LATENCIES};
 use crate::{
-    types::{Error, ExecutedTxStatus, FailureInfo, SignedCallResult},
+    types::{encode_blob_tx_with_sidecar, Error, ExecutedTxStatus, FailureInfo, SignedCallResult},
     BoundEthInterface, CallFunctionArgs, ContractCall, EthInterface, Options, RawTransactionBytes,
 };
 
@@ -316,9 +316,13 @@ impl<S: EthereumSigner> BoundEthInterface for SigningClient<S> {
             blob_versioned_hashes: options.blob_versioned_hashes,
         };
 
-        let signed_tx = self.inner.eth_signer.sign_transaction(tx).await?;
+        let mut signed_tx = self.inner.eth_signer.sign_transaction(tx).await?;
         let hash = web3::signing::keccak256(&signed_tx).into();
         latency.observe();
+
+        if let Some(sidecar) = options.blob_tx_sidecar {
+            signed_tx = encode_blob_tx_with_sidecar(&signed_tx, &sidecar);
+        }
 
         Ok(SignedCallResult::new(
             RawTransactionBytes(signed_tx),

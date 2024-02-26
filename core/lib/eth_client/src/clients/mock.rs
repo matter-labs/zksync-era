@@ -456,10 +456,7 @@ mod tests {
         assert!(signed_tx.max_priority_fee_per_gas > 0.into());
         assert!(signed_tx.max_fee_per_gas > 0.into());
 
-        let tx_hash = client
-            .send_raw_tx(signed_tx.raw_tx(None).clone())
-            .await
-            .unwrap();
+        let tx_hash = client.send_raw_tx(signed_tx.raw_tx.clone()).await.unwrap();
         assert_eq!(tx_hash, signed_tx.hash);
 
         client.execute_tx(tx_hash, true, 3);
