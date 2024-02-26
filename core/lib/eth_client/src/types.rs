@@ -223,9 +223,7 @@ fn encode_blob_tx_with_sidecar(
 
     let tx = [&[EIP_4844_TX_TYPE], stream_outer.as_raw()].concat();
 
-    //let tx = rlp::encode(&tx);
-
-    RawTransactionBytes(tx /*.to_vec()*/)
+    RawTransactionBytes(tx)
 }
 
 /// State of the executed Ethereum transaction.
