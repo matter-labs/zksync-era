@@ -1,7 +1,6 @@
 use std::fmt;
 
 use async_trait::async_trait;
-use serde::Deserialize;
 use zksync_types::{
     eth_sender::EthTxBlobSidecar,
     web3::{
