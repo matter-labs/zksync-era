@@ -87,12 +87,12 @@ async fn main() -> anyhow::Result<()> {
 
     tracing::info!("Starting proof compressor");
 
-    // let prometheus_config = PrometheusExporterConfig::push(
-    //     config.prometheus_pushgateway_url,
-    //     Duration::from_millis(config.prometheus_push_interval_ms.unwrap_or(100)),
-    // );
+    let prometheus_config = PrometheusExporterConfig::push(
+        config.prometheus_pushgateway_url,
+        Duration::from_millis(config.prometheus_push_interval_ms.unwrap_or(100)),
+    );
     let tasks = vec![
-        // tokio::spawn(prometheus_config.run(stop_receiver.clone())),
+        tokio::spawn(prometheus_config.run(stop_receiver.clone())),
         tokio::spawn(proof_compressor.run(stop_receiver, opt.number_of_iterations)),
     ];
 
