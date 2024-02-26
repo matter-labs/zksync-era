@@ -6,7 +6,7 @@ use anyhow::Context;
 use zksync_config::{
     configs::{
         chain::{MempoolConfig, NetworkConfig, OperationsManagerConfig, StateKeeperConfig},
-        ObservabilityConfig,
+        ObservabilityConfig, ProofDataHandlerConfig,
     },
     ApiConfig, ContractsConfig, DBConfig, ETHClientConfig, ETHWatchConfig, GasAdjusterConfig,
     ObjectStoreConfig, PostgresConfig,
@@ -21,6 +21,7 @@ use zksync_node_framework::{
         metadata_calculator::MetadataCalculatorLayer,
         object_store::ObjectStoreLayer,
         pools_layer::PoolsLayerBuilder,
+        proof_data_handler::ProofDataHandlerLayer,
         query_eth_client::QueryEthClientLayer,
         state_keeper::{
             main_batch_executor::MainBatchExecutorLayer, mempool_io::MempoolIOLayer,
@@ -111,6 +112,14 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
+    fn add_proof_data_handler_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(ProofDataHandlerLayer::new(
+            ProofDataHandlerConfig::from_env()?,
+            ContractsConfig::from_env()?,
+        ));
+        Ok(self)
+    }
+
     fn add_healthcheck_layer(mut self) -> anyhow::Result<Self> {
         let healthcheck_config = ApiConfig::from_env()?.healthcheck;
         self.node.add_layer(HealthCheckLayer(healthcheck_config));
@@ -141,6 +150,7 @@ fn main() -> anyhow::Result<()> {
         .add_metadata_calculator_layer()?
         .add_state_keeper_layer()?
         .add_eth_watch_layer()?
+        .add_proof_data_handler_layer()?
         .add_healthcheck_layer()?
         .build()
         .run()?;
