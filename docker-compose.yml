@@ -112,7 +112,8 @@ services:
         source: ./volumes/postgres
         target: /var/lib/postgresql/data
     environment:
-      - POSTGRES_HOST_AUTH_METHOD=trust
+      # We bind only to 127.0.0.1, so setting insecure password is acceptable here
+      - POSTGRES_PASSWORD=notsecurepassword
 
   # This is specific to runner
   zk:

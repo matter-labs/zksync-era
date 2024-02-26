@@ -20,7 +20,6 @@ jobs:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 2
-          submodules: "recursive"
 
       - name: Get all test, doc and src files that have changed
         id: changed-files-yaml
@@ -47,8 +46,6 @@ jobs:
       prover_fri_gpu_key_id: ${{ steps.extract-prover-fri-setup-key-ids.outputs.gpu_short_commit_sha }}
     steps:
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
-        with:
-          submodules: "recursive"
 
       - name: Generate image tag suffix
         id: generate-tag-suffix
@@ -62,15 +59,10 @@ jobs:
         run: |
           ./prover/extract-setup-data-keys.sh >> $GITHUB_OUTPUT
 
-  build-contracts:
-    name: Build contracts
-    needs: changed_files
-    if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true'
-    uses: ./.github/workflows/build-contracts.yml
 
   build-push-core-images:
     name: Build and push images
-    needs: [setup, build-contracts]
+    needs: [setup, changed_files]
     uses: ./.github/workflows/build-core-template.yml
     if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true'
     with:

@@ -729,12 +729,24 @@ describe('web3 API compatibility tests', () => {
         let latestBlock = await alice.provider.getBlock('latest');
 
         // Check API returns identical logs by block number and block hash.
-        const getLogsByNumber = await alice.provider.getLogs({
-            fromBlock: latestBlock.number,
-            toBlock: latestBlock.number
+        // Logs can have different `l1BatchNumber` field though,
+        // if L1 batch was sealed in between API requests are processed.
+        const getLogsByNumber = (
+            await alice.provider.getLogs({
+                fromBlock: latestBlock.number,
+                toBlock: latestBlock.number
+            })
+        ).map((x) => {
+            x.l1BatchNumber = 0; // Set bogus value.
+            return x;
         });
-        const getLogsByHash = await alice.provider.getLogs({
-            blockHash: latestBlock.hash
+        const getLogsByHash = (
+            await alice.provider.getLogs({
+                blockHash: latestBlock.hash
+            })
+        ).map((x) => {
+            x.l1BatchNumber = 0; // Set bogus value.
+            return x;
         });
         await expect(getLogsByNumber).toEqual(getLogsByHash);
 
