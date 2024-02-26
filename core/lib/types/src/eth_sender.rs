@@ -9,6 +9,9 @@ pub struct EthTx {
     pub tx_type: AggregatedActionType,
     pub created_at_timestamp: u64,
     pub predicted_gas_cost: u64,
+    /// If this field is `Some` then it contains address of a custom operator that has sent
+    /// this transaction. If it is set to `None` this transaction was sent by the main operator.
+    pub from_addr: Option<Address>,
 }
 
 impl std::fmt::Debug for EthTx {
