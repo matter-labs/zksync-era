@@ -18,6 +18,9 @@ use zksync_types::{
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256};
 
 use super::utils::{get_complex_upgrade_abi, read_complex_upgrade};
+use crate::vm_latest::constants::{
+    MAX_BATCH_TIP_CIRCUIT_STATISTICS, MAX_BATCH_TIP_METRICS_SIZE, MAX_BATCH_TIP_PUBDATA_PUBLISHED,
+};
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
     vm_latest::{
@@ -97,7 +100,15 @@ fn populate_mimic_calls(data: L1MessengerTestData) -> Vec<u8> {
         .unwrap()
 }
 
-fn execute_test(test_data: L1MessengerTestData) -> u32 {
+pub struct TestStatistics {
+    pub max_used_gas: u32,
+    pub pubdata_published: u32,
+    pub circuit_statistics: u64,
+    pub execution_metrics_size: u64,
+    pub block_writes_metrics_size: u64,
+}
+
+fn execute_test(test_data: L1MessengerTestData) -> TestStatistics {
     let mut storage = get_empty_storage();
     let complex_upgrade_code = read_complex_upgrade();
 
@@ -168,7 +179,15 @@ fn execute_test(test_data: L1MessengerTestData) -> u32 {
 
     let ergs_after = vm.vm.state.local_state.callstack.current.ergs_remaining;
 
-    ergs_before - ergs_after
+    assert_eq!(ergs_before - ergs_after, result.statistics.gas_used);
+
+    TestStatistics {
+        max_used_gas: ergs_before - ergs_after,
+        pubdata_published: result.statistics.pubdata_published,
+        circuit_statistics: result.statistics.circuit_statistic.total() as u64,
+        execution_metrics_size: result.get_execution_metrics(None).size() as u64,
+        block_writes_metrics_size: 0,
+    }
 }
 
 fn generate_state_diffs(
@@ -211,77 +230,105 @@ fn test_dry_run_upper_bound() {
     // 3. Lots of small bytecodes / one large bytecode.
     // 4. Lots of storage slot updates.
 
-    let max_logs = execute_test(L1MessengerTestData {
+    let mut statistics = Vec::new();
+
+    // max logs
+    statistics.push(execute_test(L1MessengerTestData {
         l2_to_l1_logs: l2_to_l1_logs_tree_size(ProtocolVersionId::Version20),
         ..Default::default()
-    });
+    }));
 
-    let max_messages = execute_test(L1MessengerTestData {
+    // max messages
+    statistics.push(execute_test(L1MessengerTestData {
         // Each L2->L1 message is accompanied by a Log, so the max number of pubdata is bound by it
         messages: vec![vec![0; 0]; MAX_PUBDATA_PER_BLOCK as usize / L2ToL1Log::SERIALIZED_SIZE],
         ..Default::default()
-    });
+    }));
 
-    let long_message = execute_test(L1MessengerTestData {
+    // long message
+    statistics.push(execute_test(L1MessengerTestData {
         // Each L2->L1 message is accompanied by a Log, so the max number of pubdata is bound by it
         messages: vec![vec![0; MAX_PUBDATA_PER_BLOCK as usize]; 1],
         ..Default::default()
-    });
+    }));
 
-    let max_bytecodes = execute_test(L1MessengerTestData {
+    // max bytecodes
+    statistics.push(execute_test(L1MessengerTestData {
         // Each bytecode must be at least 32 bytes long
         bytecodes: vec![vec![0; 32]; MAX_PUBDATA_PER_BLOCK as usize / 32],
         ..Default::default()
-    });
+    }));
 
-    let long_bytecode = execute_test(L1MessengerTestData {
+    // long bytecode
+    statistics.push(execute_test(L1MessengerTestData {
         // We have to add 48 since a valid bytecode must have an odd number of 32 byte words
         bytecodes: vec![vec![0; MAX_PUBDATA_PER_BLOCK as usize + 48]; 1],
         ..Default::default()
-    });
+    }));
 
-    let lots_of_small_repeated_writes = execute_test(L1MessengerTestData {
+    // lots of small repeated writes
+    statistics.push(execute_test(L1MessengerTestData {
         // In theory each state diff can require only 5 bytes to be published (enum index + 4 bytes for the key)
         state_diffs: generate_state_diffs(true, true, MAX_PUBDATA_PER_BLOCK as usize / 5),
         ..Default::default()
-    });
+    }));
 
-    let lots_of_big_repeated_writes = execute_test(L1MessengerTestData {
+    // lots of big repeated writes
+    statistics.push(execute_test(L1MessengerTestData {
         // Each big write will approximately require 32 bytes to encode
         state_diffs: generate_state_diffs(true, false, MAX_PUBDATA_PER_BLOCK as usize / 32),
         ..Default::default()
-    });
+    }));
 
-    let lots_of_small_initial_writes = execute_test(L1MessengerTestData {
+    // lots of small initial writes
+    statistics.push(execute_test(L1MessengerTestData {
         // Each initial write will take at least 32 bytes for derived key + 5 bytes for value
         state_diffs: generate_state_diffs(false, true, MAX_PUBDATA_PER_BLOCK as usize / 37),
         ..Default::default()
-    });
+    }));
 
-    let lots_of_large_initial_writes = execute_test(L1MessengerTestData {
+    // lots of large initial writes
+    statistics.push(execute_test(L1MessengerTestData {
         // Each big write will take at least 32 bytes for derived key + 32 bytes for value
         state_diffs: generate_state_diffs(false, false, MAX_PUBDATA_PER_BLOCK as usize / 64),
         ..Default::default()
-    });
-
-    let max_used_gas = vec![
-        max_logs,
-        max_messages,
-        long_message,
-        max_bytecodes,
-        long_bytecode,
-        lots_of_small_repeated_writes,
-        lots_of_big_repeated_writes,
-        lots_of_small_initial_writes,
-        lots_of_large_initial_writes,
-    ]
-    .into_iter()
-    .max()
-    .unwrap();
+    }));
 
     // We use 2x overhead for the batch tip compared to the worst estimated scenario.
     assert!(
-        max_used_gas * 2 <= BOOTLOADER_BATCH_TIP_OVERHEAD,
+        statistics.iter().map(|s| s.max_used_gas).max().unwrap() * 2
+            <= BOOTLOADER_BATCH_TIP_OVERHEAD,
         "BOOTLOADER_BATCH_TIP_OVERHEAD is too low"
+    );
+
+    assert!(
+        statistics
+            .iter()
+            .map(|s| s.pubdata_published)
+            .max()
+            .unwrap()
+            * 2
+            <= MAX_BATCH_TIP_PUBDATA_PUBLISHED as u32,
+        "MAX_BATCH_TIP_PUBDATA_PUBLISHED is too low"
+    );
+    assert!(
+        statistics
+            .iter()
+            .map(|s| s.circuit_statistics)
+            .max()
+            .unwrap()
+            * 2
+            <= MAX_BATCH_TIP_CIRCUIT_STATISTICS,
+        "MAX_BATCH_TIP_CIRCUIT_STATISTICS is too low"
+    );
+    assert!(
+        statistics
+            .iter()
+            .map(|s| s.execution_metrics_size)
+            .max()
+            .unwrap()
+            * 2
+            <= MAX_BATCH_TIP_METRICS_SIZE,
+        "MAX_BATCH_TIP_METRICS_SIZE is too low"
     );
 }
