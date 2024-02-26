@@ -19,6 +19,7 @@ use crate::{
 };
 
 mod types;
+mod vm_1_4_1;
 mod vm_boojum_integration;
 mod vm_latest;
 mod vm_refunds_enhancement;

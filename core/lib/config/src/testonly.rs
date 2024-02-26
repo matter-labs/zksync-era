@@ -210,7 +210,11 @@ impl RandomConfig for configs::api::Web3JsonRpcConfig {
 
 impl RandomConfig for configs::api::HealthCheckConfig {
     fn sample(g: &mut Gen<impl Rng>) -> Self {
-        Self { port: g.gen() }
+        Self {
+            port: g.gen(),
+            slow_time_limit_ms: g.gen(),
+            hard_time_limit_ms: g.gen(),
+        }
     }
 }
 

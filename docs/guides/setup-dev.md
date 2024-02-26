@@ -88,7 +88,7 @@ If logging out does not resolve the issue, restarting the computer should.
 
 1. Install `Node` (requires version `v18.18.0`). Since our team attempts to always use the latest LTS version of
    `Node.js`, we suggest you to install [nvm](https://github.com/nvm-sh/nvm). It will allow you to update `Node.js`
-   version easily in the future (by running `nvm use` in the root of the repository)
+   version easily in the future (by running `nvm use v18.18.0` in the root of the repository)
 2. Install `yarn` (make sure to get version 1.22.19 - you can change the version by running `yarn set version 1.22.19`).
    Instructions can be found on the [official site](https://classic.yarnpkg.com/en/docs/install/). Check if `yarn` is
    installed by running `yarn -v`. If you face any problems when installing `yarn`, it might be the case that your
