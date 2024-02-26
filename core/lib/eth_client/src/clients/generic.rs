@@ -3,7 +3,6 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use zksync_types::{
     web3::{
-        contract::Options,
         ethabi,
         types::{
             Address, Block, BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt,
@@ -14,7 +13,7 @@ use zksync_types::{
 };
 
 use crate::{
-    BoundEthInterface, ContractCall, Error, EthInterface, ExecutedTxStatus, FailureInfo,
+    BoundEthInterface, ContractCall, Error, EthInterface, ExecutedTxStatus, FailureInfo, Options,
     RawTransactionBytes, SignedCallResult,
 };
 
@@ -112,6 +111,10 @@ impl<C: EthInterface + ?Sized> EthInterface for Arc<C> {
         component: &'static str,
     ) -> Result<Option<Block<H256>>, Error> {
         self.as_ref().block(block_id, component).await
+    }
+
+    async fn get_blob_gas_price(&self, component: &'static str) -> Result<U256, Error> {
+        self.as_ref().get_blob_gas_price(component).await
     }
 }
 

@@ -3,20 +3,22 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use zksync_types::web3::{
     self,
+    api::Namespace,
     contract::Contract,
     ethabi,
+    helpers::CallFuture,
     transports::Http,
     types::{
         Address, Block, BlockId, BlockNumber, Bytes, Filter, Log, Transaction, TransactionId,
         TransactionReceipt, H256, U256, U64,
     },
-    Web3,
+    Transport, Web3,
 };
 
 use crate::{
     clients::http::{Method, COUNTERS, LATENCIES},
     types::{Error, ExecutedTxStatus, FailureInfo, RawTokens},
-    ContractCall, EthInterface, RawTransactionBytes,
+    BlockWithExtraBlobGas, ContractCall, EthInterface, RawTransactionBytes,
 };
 
 /// An "anonymous" Ethereum client that can invoke read-only methods that aren't
@@ -288,4 +290,47 @@ impl EthInterface for QueryClient {
         latency.observe();
         Ok(block)
     }
+
+    async fn get_blob_gas_price(&self, component: &'static str) -> Result<U256, Error> {
+        const MIN_BLOB_GASPRICE: U256 = U256::one();
+        const BLOB_GASPRICE_UPDATE_FRACTION: u64 = 3338477;
+
+        COUNTERS.call[&(Method::BlobGasPrice, component)].inc();
+        let latency = LATENCIES.direct[&Method::BlobGasPrice].start();
+
+        let eth3 = self.web3.eth();
+        let transport = eth3.transport();
+
+        let include_txs = zksync_types::web3::helpers::serialize(&false);
+        let num = zksync_types::web3::helpers::serialize(&BlockNumber::Latest);
+
+        let block: BlockWithExtraBlobGas<H256> =
+            CallFuture::new(transport.execute("eth_getBlockByNumber", vec![num, include_txs]))
+                .await?;
+
+        let excess_blob_gas = block.excess_blob_gas.ok_or(Error::ExcessBlobGasMissing)?;
+
+        let res = fake_exponential(
+            MIN_BLOB_GASPRICE,
+            excess_blob_gas,
+            BLOB_GASPRICE_UPDATE_FRACTION.into(),
+        );
+        latency.observe();
+
+        Ok(res)
+    }
+}
+
+fn fake_exponential(factor: U256, numenator: U256, denominator: U256) -> U256 {
+    let mut i = 1;
+    let mut output = U256::zero();
+    let mut numenator_accum = factor * denominator;
+
+    while numenator_accum > U256::zero() {
+        output += numenator_accum;
+        numenator_accum = (numenator_accum * numenator) / (denominator * i);
+        i += 1;
+    }
+
+    output / denominator
 }

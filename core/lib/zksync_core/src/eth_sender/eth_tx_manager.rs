@@ -5,13 +5,13 @@ use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::{
-    BoundEthInterface, Error, EthInterface, ExecutedTxStatus, RawTransactionBytes, SignedCallResult,
+    BoundEthInterface, Error, EthInterface, ExecutedTxStatus, Options, RawTransactionBytes,
+    SignedCallResult,
 };
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     eth_sender::EthTx,
     web3::{
-        contract::Options,
         error::Error as Web3Error,
         types::{BlockId, BlockNumber},
     },
@@ -215,13 +215,18 @@ impl EthTxManager {
                 base_fee_per_gas,
                 priority_fee_per_gas,
                 signed_tx.hash,
-                signed_tx.raw_tx.as_ref(),
+                signed_tx.raw_tx(None).as_ref(),
             )
             .await
             .unwrap()
         {
             if let Err(error) = self
-                .send_raw_transaction(storage, tx_history_id, signed_tx.raw_tx, current_block)
+                .send_raw_transaction(
+                    storage,
+                    tx_history_id,
+                    signed_tx.raw_tx(None),
+                    current_block,
+                )
                 .await
             {
                 tracing::warn!(

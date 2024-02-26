@@ -7,7 +7,7 @@ use std::{
 
 use serde_json::{Map, Value};
 use zksync_eth_client::{
-    clients::SigningClient, BoundEthInterface, CallFunctionArgs, Error, EthInterface,
+    clients::SigningClient, BoundEthInterface, CallFunctionArgs, Error, EthInterface, Options,
 };
 use zksync_eth_signer::EthereumSigner;
 use zksync_types::{
@@ -15,15 +15,12 @@ use zksync_types::{
     l1::L1Tx,
     network::Network,
     web3::{
-        contract::{
-            tokens::{Detokenize, Tokenize},
-            Options,
-        },
+        contract::tokens::{Detokenize, Tokenize},
         ethabi,
         transports::Http,
         types::{TransactionReceipt, H160, H256, U256},
     },
-    Address, L1ChainId, L1TxCommonData, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
+    Address, L1ChainId, L1TxCommonData, EIP_1559_TX_TYPE, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
 };
 use zksync_web3_decl::namespaces::{EthNamespaceClient, ZksNamespaceClient};
 
@@ -253,7 +250,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
 
         let transaction_hash = self
             .client()
-            .send_raw_tx(signed_tx.raw_tx)
+            .send_raw_tx(signed_tx.raw_tx(None).clone())
             .await
             .map_err(|err| ClientError::NetworkError(err.to_string()))?;
 
@@ -305,7 +302,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
 
         let transaction_hash = self
             .client()
-            .send_raw_tx(signed_tx.raw_tx)
+            .send_raw_tx(signed_tx.raw_tx(None).clone())
             .await
             .map_err(|err| ClientError::NetworkError(err.to_string()))?;
 
@@ -345,7 +342,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
 
         let transaction_hash = self
             .eth_client
-            .send_raw_tx(signed_tx.raw_tx)
+            .send_raw_tx(signed_tx.raw_tx(None).clone())
             .await
             .map_err(|err| ClientError::NetworkError(err.to_string()))?;
 
@@ -418,6 +415,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
                 tx_data,
                 Options::with(|f| {
                     f.gas = Some(U256::from(300000));
+                    f.transaction_type = Some(EIP_1559_TX_TYPE.into());
                     f.value = Some(value);
                     f.gas_price = Some(gas_price)
                 }),
@@ -428,7 +426,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
 
         let tx_hash = self
             .eth_client
-            .send_raw_tx(tx.raw_tx)
+            .send_raw_tx(tx.raw_tx(None).clone())
             .await
             .map_err(|e| ClientError::NetworkError(e.to_string()))?;
 
@@ -550,7 +548,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
                 .await
                 .map_err(|_| ClientError::IncorrectCredentials)?;
             self.eth_client
-                .send_raw_tx(signed_tx.raw_tx)
+                .send_raw_tx(signed_tx.raw_tx(None).clone())
                 .await
                 .map_err(|err| ClientError::NetworkError(err.to_string()))?
         };
