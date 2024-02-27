@@ -87,7 +87,7 @@ impl BlockReverterEthConfig {
 /// - State of the Ethereum contract (if the block was committed)
 #[derive(Debug)]
 pub struct BlockReverter {
-    /// `true` for mainnode storage, `false` for external node.
+    /// `true` for main node storage, `false` for external node.
     /// It affects the interactions with the consensus state.
     /// This distinction will be removed once consensus genesis is moved to the L1 state.
     main_node: bool,
