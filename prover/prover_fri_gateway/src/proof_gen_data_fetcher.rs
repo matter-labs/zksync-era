@@ -7,12 +7,6 @@ use crate::api_data_fetcher::{PeriodicApi, PeriodicApiStruct};
 
 impl PeriodicApiStruct {
     async fn save_proof_gen_data(&self, data: ProofGenerationData) {
-        // There must always be pubdata. Expecting at least 1 blob
-        assert!(!data.eip_4844_blobs.blobs.is_empty());
-
-        // As 1.4.2, only 2 blobs at most are supported.
-        assert!(data.eip_4844_blobs.blobs.len() <= 2);
-
         let store = &*self.blob_store;
         let blob_url = store
             .put(data.l1_batch_number, &data.data)

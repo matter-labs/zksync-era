@@ -703,13 +703,7 @@ async fn generate_witness(
         }
     };
 
-    let mut eip_4844_blobs = eip_4844_blobs.blobs;
-
-    // Batches must always have pubdata. If they don't, there's something wrong.
-    // First assert makes sure BWG crash fast if the assumption is violated.
-    assert!(!eip_4844_blobs.is_empty());
-    // There can be only 2 blobs per batch as part of 1.4.2.
-    assert!(eip_4844_blobs.len() <= 2);
+    let mut eip_4844_blobs = eip_4844_blobs.get_blobs();
 
     let mut eip_4844_circuits = vec![];
     let mut eip_4844_witnesses = vec![];
