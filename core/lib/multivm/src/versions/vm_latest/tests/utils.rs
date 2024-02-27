@@ -1,7 +1,11 @@
 use ethabi::Contract;
 use once_cell::sync::Lazy;
+// FIXME: use 1.5.0 once available
+use zk_evm_1_4_1::sha2;
+use zk_evm_1_5_0::zkevm_opcode_defs::{BlobSha256Format, VersionedHashLen32};
 use zksync_contracts::{
-    load_contract, read_bytecode, read_zbin_bytecode, BaseSystemContracts, SystemContractCode,
+    load_contract, read_bytecode, read_evm_bytecode, read_zbin_bytecode, BaseSystemContracts,
+    SystemContractCode,
 };
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{
@@ -144,4 +148,30 @@ pub(crate) fn get_complex_upgrade_abi() -> Contract {
     load_contract(
         "etc/contracts-test-data/artifacts-zk/contracts/complex-upgrade/complex-upgrade.sol/ComplexUpgrade.json"
     )
+}
+
+pub(crate) fn read_test_evm_bytecode(folder_name: &str, contract_name: &str) -> (Vec<u8>, Vec<u8>) {
+    read_evm_bytecode(format!("etc/evm-contracts-test-data/artifacts/contracts/{folder_name}/{contract_name}.sol/{contract_name}.json"))
+}
+
+pub(crate) fn load_test_evm_contract(folder_name: &str, contract_name: &str) -> Contract {
+    load_contract(format!(
+        "etc/evm-contracts-test-data/artifacts/contracts/{folder_name}/{contract_name}.sol/{contract_name}.json",
+    ))
+}
+
+pub(crate) fn hash_evm_bytecode(bytecode: &[u8]) -> H256 {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    let len = bytecode.len() as u16;
+    hasher.update(bytecode);
+    let result = hasher.finalize();
+
+    let mut output = [0u8; 32];
+    output[..].copy_from_slice(&result.as_slice());
+    output[0] = BlobSha256Format::VERSION_BYTE;
+    output[1] = 0;
+    output[2..4].copy_from_slice(&len.to_be_bytes());
+
+    H256(output)
 }

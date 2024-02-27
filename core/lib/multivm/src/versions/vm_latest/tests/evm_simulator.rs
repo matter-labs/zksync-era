@@ -29,7 +29,8 @@ use crate::{
         tests::{
             tester::{DeployContractsTx, TxType, VmTesterBuilder},
             utils::{
-                get_balance, key_for_evm_hash, read_erc20_contract, read_test_contract,
+                get_balance, hash_evm_bytecode, key_for_evm_hash, load_test_evm_contract,
+                read_erc20_contract, read_test_contract, read_test_evm_bytecode,
                 read_test_evm_simulator, verify_required_storage,
             },
         },
@@ -41,39 +42,13 @@ use crate::{
     HistoryMode,
 };
 
-fn read_test_evm_bytecode(folder_name: &str, contract_name: &str) -> (Vec<u8>, Vec<u8>) {
-    read_evm_bytecode(format!("etc/evm-contracts-test-data/artifacts/contracts/{folder_name}/{contract_name}.sol/{contract_name}.json"))
-}
-
-fn load_test_evm_contract(folder_name: &str, contract_name: &str) -> Contract {
-    load_contract(format!(
-        "etc/evm-contracts-test-data/artifacts/contracts/{folder_name}/{contract_name}.sol/{contract_name}.json",
-    ))
-}
-
-fn hash_evm_bytecode(bytecode: Vec<u8>) -> H256 {
-    use sha2::{Digest, Sha256};
-    let mut hasher = Sha256::new();
-    let len = bytecode.len() as u16;
-    hasher.update(bytecode);
-    let result = hasher.finalize();
-
-    let mut output = [0u8; 32];
-    output[..].copy_from_slice(&result.as_slice());
-    output[0] = BlobSha256Format::VERSION_BYTE;
-    output[1] = 0;
-    output[2..4].copy_from_slice(&len.to_be_bytes());
-
-    H256(output)
-}
-
 fn insert_evm_contract(storage: &mut InMemoryStorage, mut bytecode: Vec<u8>) -> Address {
     // To avoid problems with correct encoding for these tests, we just pad the bytecode to be divisible by 32.
     while bytecode.len() % 32 != 0 {
         bytecode.push(0);
     }
 
-    let blob_hash = hash_evm_bytecode(bytecode.clone());
+    let blob_hash = hash_evm_bytecode(&bytecode);
     assert!(BlobSha256Format::is_valid(&blob_hash.0));
     let evm_hash = H256(keccak256(&bytecode));
 

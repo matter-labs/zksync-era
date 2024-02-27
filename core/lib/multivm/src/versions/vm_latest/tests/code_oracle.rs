@@ -15,8 +15,9 @@ use crate::{
         tests::{
             tester::{get_empty_storage, DeployContractsTx, TxType, VmTesterBuilder},
             utils::{
-                get_balance, load_precompiles_contract, read_precompiles_contract,
-                read_test_contract, verify_required_storage,
+                get_balance, hash_evm_bytecode, load_precompiles_contract,
+                read_precompiles_contract, read_test_contract, read_test_evm_bytecode,
+                verify_required_storage,
             },
         },
         utils::fee::get_batch_base_fee,
@@ -161,6 +162,88 @@ fn test_code_oracle_big_bytecode() {
                 .encode_input(&[
                     Token::FixedBytes(big_zkevm_bytecode_hash.0.to_vec()),
                     Token::FixedBytes(big_zkevm_bytecode_keccak_hash.to_vec()),
+                ])
+                .unwrap(),
+            value: U256::zero(),
+            factory_deps: None,
+        },
+        None,
+    );
+
+    vm.vm.push_transaction(tx1);
+    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    assert!(!result.result.is_failed(), "Transaction wasn't successful");
+}
+
+// The preimages that are used in code oracle must be congruent to 32 modulo 64.
+// In other words, we'll have to encode those the following way:
+// - Pad with length (32 bytes)
+// - The actual content of the bytecode.
+// - Potenital 0 pad to ensure that the length is congruent to 32 modulo 64.
+fn padded_evm_bytecode(bytecode: Vec<u8>) -> Vec<u8> {
+    // The encoding of the length with padded bytecode must be congruent to 32 modulo 64.
+    // In other words, the encoding of the bytecode needs to be divisible by 64.
+
+    let expected_len = 32 + (bytecode.len() + 63) / 64 * 64;
+
+    let mut encoded_bytecode = Vec::with_capacity(expected_len);
+    encoded_bytecode.extend_from_slice(&u256_to_h256(U256::from(bytecode.len())).0);
+    encoded_bytecode.extend_from_slice(&bytecode);
+    encoded_bytecode.extend_from_slice(&vec![0u8; expected_len - encoded_bytecode.len()]);
+
+    encoded_bytecode
+}
+
+#[test]
+fn test_code_oracle_evm() {
+    let precompiles_contract_address = Address::random();
+    let precompile_contract_bytecode = read_precompiles_contract();
+
+    // Filling the zkevm bytecode
+    let sample_evm_bytecode = padded_evm_bytecode(read_test_evm_bytecode("counter", "Counter").0);
+    let sample_evm_bytecode_hash = hash_evm_bytecode(&sample_evm_bytecode);
+    let sample_evm_bytecode_keccak_hash = keccak256(&sample_evm_bytecode);
+    let mut storage = get_empty_storage();
+    storage.set_value(
+        get_known_code_key(&sample_evm_bytecode_hash),
+        u256_to_h256(U256::one()),
+    );
+
+    // In this test, we aim to test whether a simple account interaction (without any fee logic)
+    // will work. The account will try to deploy a simple contract from integration tests.
+    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+        .with_empty_in_memory_storage()
+        .with_execution_mode(TxExecutionMode::VerifyExecute)
+        .with_random_rich_accounts(1)
+        .with_custom_contracts(vec![(
+            precompile_contract_bytecode,
+            precompiles_contract_address,
+            false,
+        )])
+        .with_storage(storage)
+        .build();
+
+    let precompile_contract = load_precompiles_contract();
+    let call_code_oracle_function = precompile_contract.function("callCodeOracle").unwrap();
+
+    vm.vm.state.decommittment_processor.populate(
+        vec![(
+            h256_to_u256(sample_evm_bytecode_hash),
+            bytes_to_be_words(sample_evm_bytecode),
+        )],
+        Timestamp(0),
+    );
+
+    let account = &mut vm.rich_accounts[0];
+
+    // Firstly, let's ensure that the contract works.
+    let tx1 = account.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(precompiles_contract_address),
+            calldata: call_code_oracle_function
+                .encode_input(&[
+                    Token::FixedBytes(sample_evm_bytecode_hash.0.to_vec()),
+                    Token::FixedBytes(sample_evm_bytecode_keccak_hash.to_vec()),
                 ])
                 .unwrap(),
             value: U256::zero(),

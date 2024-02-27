@@ -171,10 +171,6 @@ pub fn read_deployed_bytecode_from_path(artifact_path: PathBuf) -> Vec<u8> {
         .unwrap_or_else(|err| panic!("Can't decode bytecode in {:?}: {}", artifact_path, err))
 }
 
-pub fn read_test_evm_bytecode(relative_path: impl AsRef<Path>) -> (Vec<u8>, Vec<u8>) {
-    read_evm_bytecode("etc/")
-}
-
 pub fn default_erc20_bytecode() -> Vec<u8> {
     read_bytecode("etc/ERC20/artifacts-zk/contracts/ZkSyncERC20.sol/ZkSyncERC20.json")
 }
