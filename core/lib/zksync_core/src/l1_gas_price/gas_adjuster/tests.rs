@@ -1,6 +1,6 @@
 use std::{collections::VecDeque, sync::Arc};
 
-use zksync_config::GasAdjusterConfig;
+use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
 use zksync_eth_client::clients::MockEthereum;
 
 use super::{GasAdjuster, GasStatisticsInner};
@@ -60,6 +60,7 @@ async fn kept_updated() {
             internal_pubdata_pricing_multiplier: 1.0,
             max_blob_base_fee: None,
         },
+        PubdataSendingMode::Calldata,
     )
     .await
     .unwrap();

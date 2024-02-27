@@ -2,13 +2,12 @@
 
 use std::{
     collections::VecDeque,
-    hint::black_box,
     ops::RangeInclusive,
     sync::{Arc, RwLock},
 };
 
 use tokio::sync::watch;
-use zksync_config::GasAdjusterConfig;
+use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
 use zksync_eth_client::{Error, EthInterface};
 use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{U256, U64};
@@ -32,6 +31,7 @@ pub struct GasAdjuster {
     // But it's still possible and code shouldn't panic if that happens. One more argument is that geth uses big int type for blob prices.
     pub(super) blob_base_fee_statistics: GasStatistics<U256>,
     pub(super) config: GasAdjusterConfig,
+    pubdata_sending_mode: PubdataSendingMode,
     eth_client: Arc<dyn EthInterface>,
 }
 
@@ -39,6 +39,7 @@ impl GasAdjuster {
     pub async fn new(
         eth_client: Arc<dyn EthInterface>,
         config: GasAdjusterConfig,
+        pubdata_sending_mode: PubdataSendingMode,
     ) -> Result<Self, Error> {
         // Subtracting 1 from the "latest" block number to prevent errors in case
         // the info about the latest block is not yet present on the node.
@@ -68,8 +69,9 @@ impl GasAdjuster {
                 current_block,
                 &last_block_blob_base_fee,
             ),
-            eth_client,
             config,
+            pubdata_sending_mode,
+            eth_client,
         })
     }
 
@@ -174,30 +176,30 @@ impl GasAdjuster {
     }
 
     pub(crate) fn estimate_effective_pubdata_price(&self) -> u64 {
-        // TODO: remove constant and use setting from config instead.
-        const BLOBS_ARE_USED: bool = false;
+        match self.pubdata_sending_mode {
+            PubdataSendingMode::Blobs => {
+                const BLOB_GAS_PER_BYTE: u64 = 1; // `BYTES_PER_BLOB` = `GAS_PER_BLOB` = 2 ^ 17.
 
-        if black_box(BLOBS_ARE_USED) {
-            const BLOB_GAS_PER_BYTE: u64 = 1; // `BYTES_PER_BLOB` = `GAS_PER_BLOB` = 2 ^ 17.
+                let blob_base_fee_median = self.blob_base_fee_statistics.median();
 
-            let blob_base_fee_median = self.blob_base_fee_statistics.median();
+                // Check if blob base fee overflows `u64` before converting. Can happen only in very extreme cases.
+                if blob_base_fee_median > U256::from(u64::MAX) {
+                    let max_allowed = self.config.max_blob_base_fee();
+                    tracing::error!("Blob base fee is too high: {blob_base_fee_median}, using max allowed: {max_allowed}");
+                    return max_allowed;
+                }
+                METRICS
+                    .median_blob_base_fee
+                    .set(blob_base_fee_median.as_u64());
+                let calculated_price = blob_base_fee_median.as_u64() as f64
+                    * BLOB_GAS_PER_BYTE as f64
+                    * self.config.internal_l1_pricing_multiplier;
 
-            // Check if blob base fee overflows `u64` before converting. Can happen only in very extreme cases.
-            if blob_base_fee_median > U256::from(u64::MAX) {
-                let max_allowed = self.config.max_blob_base_fee();
-                tracing::error!("Blob base fee is too high: {blob_base_fee_median}, using max allowed: {max_allowed}");
-                return max_allowed;
+                self.bound_blob_base_fee(calculated_price)
             }
-            METRICS
-                .median_blob_base_fee
-                .set(blob_base_fee_median.as_u64());
-            let calculated_price = blob_base_fee_median.as_u64() as f64
-                * BLOB_GAS_PER_BYTE as f64
-                * self.config.internal_l1_pricing_multiplier;
-
-            self.bound_blob_base_fee(calculated_price)
-        } else {
-            self.estimate_effective_gas_price() * L1_GAS_PER_PUBDATA_BYTE as u64
+            PubdataSendingMode::Calldata => {
+                self.estimate_effective_gas_price() * L1_GAS_PER_PUBDATA_BYTE as u64
+            }
         }
     }
 

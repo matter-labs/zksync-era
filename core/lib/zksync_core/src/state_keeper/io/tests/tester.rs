@@ -3,7 +3,10 @@
 use std::{slice, sync::Arc, time::Duration};
 
 use multivm::vm_latest::constants::BLOCK_GAS_LIMIT;
-use zksync_config::{configs::chain::StateKeeperConfig, GasAdjusterConfig};
+use zksync_config::{
+    configs::{chain::StateKeeperConfig, eth_sender::PubdataSendingMode},
+    GasAdjusterConfig,
+};
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::ConnectionPool;
 use zksync_eth_client::clients::MockEthereum;
@@ -62,9 +65,13 @@ impl Tester {
             max_blob_base_fee: None,
         };
 
-        GasAdjuster::new(Arc::new(eth_client), gas_adjuster_config)
-            .await
-            .unwrap()
+        GasAdjuster::new(
+            Arc::new(eth_client),
+            gas_adjuster_config,
+            PubdataSendingMode::Calldata,
+        )
+        .await
+        .unwrap()
     }
 
     pub(super) async fn create_batch_fee_input_provider(&self) -> MainNodeFeeInputProvider {
