@@ -18,14 +18,6 @@ use crate::{
 const PUBDATA_SOURCE_CALLDATA: u8 = 0;
 const PUBDATA_SOURCE_BLOBS: u8 = 1;
 
-/// Enum holding the current values used for DA Layers.
-#[repr(u8)]
-#[derive(Debug, Clone, Copy)]
-pub enum PubdataDA {
-    Calldata = 0,
-    Blobs,
-}
-
 /// Encoding for `CommitBatchInfo` from `IExecutor.sol`
 #[derive(Debug)]
 pub struct CommitBatchInfo<'a>(
