@@ -57,7 +57,7 @@ impl Tester {
             internal_enforced_l1_gas_price: None,
             poll_period: 10,
             max_l1_gas_price: None,
-            max_blob_base_fee_samples: 10,
+            num_samples_for_blob_base_fee_estimate: 10,
             internal_pubdata_pricing_multiplier: 1.0,
             max_blob_base_fee: None,
         };

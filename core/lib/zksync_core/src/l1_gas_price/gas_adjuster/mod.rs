@@ -27,6 +27,9 @@ mod tests;
 #[derive(Debug)]
 pub struct GasAdjuster {
     pub(super) base_fee_statistics: GasStatistics<u64>,
+    // Type for blob base fee is chosen to be `U256`.
+    // In practice, it's very unlikely to overflow `u64` (if `blob_base_fee_statistics` = 10 ^ 18, then price for one blob is 2 ^ 17 ETH).
+    // But it's still possible and code shouldn't panic if that happens. One more argument is that geth uses big int type for blob prices.
     pub(super) blob_base_fee_statistics: GasStatistics<U256>,
     pub(super) config: GasAdjusterConfig,
     eth_client: Arc<dyn EthInterface>,
@@ -48,6 +51,9 @@ impl GasAdjuster {
         let base_fee_history = eth_client
             .base_fee_history(current_block, config.max_base_fee_samples, "gas_adjuster")
             .await?;
+
+        // Web3 API doesn't provide a method to fetch blob fees for multiple blocks using single request,
+        // so we request blob base fee only for the latest block.
         let last_block_blob_base_fee =
             Self::get_blob_base_fee_history(&eth_client, current_block..=current_block).await?;
 
@@ -58,7 +64,7 @@ impl GasAdjuster {
                 &base_fee_history,
             ),
             blob_base_fee_statistics: GasStatistics::new(
-                config.max_blob_base_fee_samples,
+                config.num_samples_for_blob_base_fee_estimate,
                 current_block,
                 &last_block_blob_base_fee,
             ),
@@ -104,6 +110,9 @@ impl GasAdjuster {
             )
             .await?;
             if let Some(current_blob_base_fee) = blob_base_fee_history.last() {
+                // Blob base fee overflows `u64` only in very extreme cases.
+                // It doesn't worth to observe exact value with metric because anyway values that can be used
+                // are capped by `self.config.max_blob_base_fee()` of `u64` type.
                 if current_blob_base_fee > &U256::from(u64::MAX) {
                     tracing::error!("Failed to report current_blob_base_fee = {current_blob_base_fee}, it exceeds u64::MAX");
                 } else {
@@ -180,11 +189,16 @@ impl GasAdjuster {
             const BLOB_GAS_PER_BYTE: u64 = 1; // `BYTES_PER_BLOB` = `GAS_PER_BLOB` = 2 ^ 17.
 
             let blob_base_fee_median = self.blob_base_fee_statistics.median();
+
+            // Check if blob base fee overflows `u64` before converting. Can happen only in very extreme cases.
             if blob_base_fee_median > U256::from(u64::MAX) {
                 let max_allowed = self.config.max_blob_base_fee();
                 tracing::error!("Blob base fee is too high: {blob_base_fee_median}, using max allowed: {max_allowed}");
                 return max_allowed;
             }
+            METRICS
+                .median_blob_base_fee
+                .set(blob_base_fee_median.as_u64());
             let calculated_price = blob_base_fee_median.as_u64() as f64
                 * BLOB_GAS_PER_BYTE as f64
                 * self.config.internal_l1_pricing_multiplier;
@@ -195,6 +209,8 @@ impl GasAdjuster {
         }
     }
 
+    /// Returns vector of blob base fees for given block range.
+    /// Note, that data for pre-dencun blocks won't be included in the vector returned.
     async fn get_blob_base_fee_history(
         eth_client: &Arc<dyn EthInterface>,
         block_range: RangeInclusive<usize>,

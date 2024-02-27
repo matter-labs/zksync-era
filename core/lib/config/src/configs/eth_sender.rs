@@ -45,7 +45,7 @@ impl ETHSenderConfig {
                 internal_enforced_l1_gas_price: None,
                 poll_period: 5,
                 max_l1_gas_price: None,
-                max_blob_base_fee_samples: 10,
+                num_samples_for_blob_base_fee_estimate: 10,
                 internal_pubdata_pricing_multiplier: 1.0,
                 max_blob_base_fee: None,
             },
@@ -145,9 +145,9 @@ pub struct GasAdjusterConfig {
     pub poll_period: u64,
     /// Max number of l1 gas price that is allowed to be used.
     pub max_l1_gas_price: Option<u64>,
-    /// Number of blocks collected by GasAdjuster from which blob_base_fee median is taken
-    #[serde(default = "GasAdjusterConfig::default_max_blob_base_fee_samples")]
-    pub max_blob_base_fee_samples: usize,
+    /// Number of blocks collected by GasAdjuster from which `blob_base_fee` median is taken
+    #[serde(default = "GasAdjusterConfig::default_num_samples_for_blob_base_fee_estimate")]
+    pub num_samples_for_blob_base_fee_estimate: usize,
     /// Parameter by which the pubdata fee will be multiplied for internal purposes
     #[serde(default = "GasAdjusterConfig::default_internal_pubdata_pricing_multiplier")]
     pub internal_pubdata_pricing_multiplier: f64,
@@ -169,7 +169,7 @@ impl GasAdjusterConfig {
         self.max_blob_base_fee.unwrap_or(u64::MAX)
     }
 
-    pub const fn default_max_blob_base_fee_samples() -> usize {
+    pub const fn default_num_samples_for_blob_base_fee_estimate() -> usize {
         10
     }
 

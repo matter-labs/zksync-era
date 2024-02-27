@@ -159,9 +159,11 @@ impl ProtoRepr for proto::GasAdjuster {
             internal_enforced_l1_gas_price: self.internal_enforced_l1_gas_price,
             poll_period: *required(&self.poll_period).context("poll_period")?,
             max_l1_gas_price: self.max_l1_gas_price,
-            max_blob_base_fee_samples: required(&self.max_blob_base_fee_samples)
-                .and_then(|x| Ok((*x).try_into()?))
-                .context("max_blob_base_fee_samples")?,
+            num_samples_for_blob_base_fee_estimate: required(
+                &self.num_samples_for_blob_base_fee_estimate,
+            )
+            .and_then(|x| Ok((*x).try_into()?))
+            .context("num_samples_for_blob_base_fee_estimate")?,
             internal_pubdata_pricing_multiplier: *required(
                 &self.internal_pubdata_pricing_multiplier,
             )
@@ -180,7 +182,11 @@ impl ProtoRepr for proto::GasAdjuster {
             internal_enforced_l1_gas_price: this.internal_enforced_l1_gas_price,
             poll_period: Some(this.poll_period),
             max_l1_gas_price: this.max_l1_gas_price,
-            max_blob_base_fee_samples: Some(this.max_blob_base_fee_samples.try_into().unwrap()),
+            num_samples_for_blob_base_fee_estimate: Some(
+                this.num_samples_for_blob_base_fee_estimate
+                    .try_into()
+                    .unwrap(),
+            ),
             internal_pubdata_pricing_multiplier: Some(this.internal_pubdata_pricing_multiplier),
             max_blob_base_fee: this.max_blob_base_fee,
         }

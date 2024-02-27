@@ -48,7 +48,7 @@ message GasAdjuster {
   optional uint64 internal_enforced_l1_gas_price = 6; // optional; wei?
   optional uint64 poll_period = 7; // required; s
   optional uint64 max_l1_gas_price = 8; // optional; wei?
-  optional uint64 max_blob_base_fee_samples = 9; // required;
+  optional uint64 num_samples_for_blob_base_fee_estimate = 9; // required;
   optional double internal_pubdata_pricing_multiplier = 10; // required;
   optional uint64 max_blob_base_fee = 11; // optional; wei
 }
