@@ -81,6 +81,12 @@ fn copy_n_bytes_return_rest<'a>(out: &'a mut [u8], input: &'a [u8], n: usize) ->
     data
 }
 
+/// Right pads pubdata with zeroes to fill up blob space.
+pub fn right_pad_pubdata_to_blobs(pubdata: &mut Vec<u8>) {
+    let num_blobs = pubdata.len().div_ceil(ZK_SYNC_BYTES_PER_BLOB);
+    pubdata.resize(ZK_SYNC_BYTES_PER_BLOB * num_blobs, 0u8);
+}
+
 impl KzgInfo {
     /// Size of `KzgInfo` is equal to size(blob) + size(`kzg_commitment`) + size(bytes32) + size(bytes32)
     /// + size(`kzg_proof`) + size(bytes32) + size(`kzg_proof`)
@@ -198,10 +204,10 @@ impl KzgInfo {
     ///     4. `kzg` polynomial <- `zksync_pubdata_into_monomial_form_poly`(zksync blob)
     ///     5. 4844 `kzg` commitment <- `compute_commitment`(4844 blob)
     ///     6. versioned hash <- hash(4844 `kzg` commitment)
-    ///     7. opening point <- keccak(linear hash || versioned hash)[16..]
+    ///     7. opening point <- keccak(linear hash || versioned hash)`[16..]`
     ///     8. opening value, opening proof <- `compute_kzg_proof`(4844)
     ///     9. blob proof <- `compute_proof_poly`(blob, 4844 `kzg` commitment)
-    pub fn new(kzg_settings: &KzgSettings, pubdata: &Vec<u8>) -> Self {
+    pub fn new(kzg_settings: &KzgSettings, pubdata: &[u8]) -> Self {
         assert!(pubdata.len() <= ZK_SYNC_BYTES_PER_BLOB);
 
         let mut zksync_blob = [0u8; ZK_SYNC_BYTES_PER_BLOB];

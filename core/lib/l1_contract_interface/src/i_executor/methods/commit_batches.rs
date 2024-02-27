@@ -1,6 +1,7 @@
 // TODO: Remove once integrated into batch commit
 #![allow(dead_code)]
 
+use zkevm_test_harness_1_4_2::kzg::KzgSettings;
 use zksync_types::{commitment::L1BatchWithMetadata, ethabi::Token};
 
 use crate::{
@@ -13,6 +14,8 @@ use crate::{
 pub struct CommitBatches {
     pub last_committed_l1_batch: L1BatchWithMetadata,
     pub l1_batches: Vec<L1BatchWithMetadata>,
+    pub pubdata_da: Option<PubdataDA>,
+    pub kzg_settings: KzgSettings,
 }
 
 impl Tokenize for CommitBatches {
@@ -21,31 +24,7 @@ impl Tokenize for CommitBatches {
         let l1_batches_to_commit = self
             .l1_batches
             .iter()
-            .map(|batch| CommitBatchInfo(batch).into_token())
-            .collect();
-
-        vec![stored_batch_info, Token::Array(l1_batches_to_commit)]
-    }
-}
-
-impl CommitBatches {
-    fn into_tokens_blobs(self, number_of_blobs: usize) -> Vec<Token> {
-        let stored_batch_info = StoredBatchInfo(&self.last_committed_l1_batch).into_token();
-        let l1_batches_to_commit = self
-            .l1_batches
-            .iter()
-            .map(|batch| CommitBatchInfo(batch).into_tokens_blobs(number_of_blobs))
-            .collect();
-
-        vec![stored_batch_info, Token::Array(l1_batches_to_commit)]
-    }
-
-    fn into_tokens_calldata(self) -> Vec<Token> {
-        let stored_batch_info = StoredBatchInfo(&self.last_committed_l1_batch).into_token();
-        let l1_batches_to_commit = self
-            .l1_batches
-            .iter()
-            .map(|batch| CommitBatchInfo(batch).into_tokens_calldata())
+            .map(|batch| CommitBatchInfo(batch, self.pubdata_da, &self.kzg_settings).into_token())
             .collect();
 
         vec![stored_batch_info, Token::Array(l1_batches_to_commit)]

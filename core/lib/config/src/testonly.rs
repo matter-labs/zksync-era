@@ -463,10 +463,9 @@ impl RandomConfig for configs::eth_sender::ProofLoadingMode {
 
 impl RandomConfig for configs::eth_sender::PubdataSendingMode {
     fn sample(g: &mut Gen<impl Rng>) -> Self {
-        match g.rng.gen_range(0..3) {
+        match g.rng.gen_range(0..2) {
             0 => Self::Calldata,
-            1 => Self::OneBlob,
-            _ => Self::TwoBlobs,
+            _ => Self::Blobs,
         }
     }
 }

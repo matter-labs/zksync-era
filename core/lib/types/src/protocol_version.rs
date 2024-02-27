@@ -99,6 +99,10 @@ impl ProtocolVersionId {
         true
     }
 
+    pub fn is_pre_4844(&self) -> bool {
+        self < &ProtocolVersionId::Version21
+    }
+
     pub fn is_1_4_0(&self) -> bool {
         self >= &ProtocolVersionId::Version18 && self < &ProtocolVersionId::Version20
     }

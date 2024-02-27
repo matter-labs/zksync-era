@@ -6,6 +6,7 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::{BoundEthInterface, CallFunctionArgs};
 use zksync_l1_contract_interface::{
+    i_executor::commit::kzg::KzgSettings,
     multicall3::{Multicall3Call, Multicall3Result},
     Detokenize, Tokenizable, Tokenize,
 };
@@ -53,6 +54,7 @@ pub struct EthTxAggregator {
     functions: ZkSyncFunctions,
     base_nonce: u64,
     rollup_chain_id: L2ChainId,
+    kzg_settings: KzgSettings,
 }
 
 impl EthTxAggregator {
@@ -64,6 +66,7 @@ impl EthTxAggregator {
         l1_multicall3_address: Address,
         main_zksync_contract_address: Address,
         rollup_chain_id: L2ChainId,
+        kzg_trusted_setup_path: &str,
     ) -> Self {
         let functions = ZkSyncFunctions::default();
         let base_nonce = eth_client
@@ -71,6 +74,7 @@ impl EthTxAggregator {
             .await
             .unwrap()
             .as_u64();
+        let kzg_settings = KzgSettings::new(kzg_trusted_setup_path);
         Self {
             config,
             aggregator,
@@ -81,6 +85,7 @@ impl EthTxAggregator {
             functions,
             base_nonce,
             rollup_chain_id,
+            kzg_settings,
         }
     }
 

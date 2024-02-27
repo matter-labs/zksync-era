@@ -631,6 +631,7 @@ pub async fn initialize_components(
             .await
             .context("failed to build eth_sender_pool")?;
 
+        let kzg_config = configs.kzg_config.clone().context("kzg_config")?;
         let eth_sender = configs
             .eth_sender_config
             .clone()
@@ -652,6 +653,7 @@ pub async fn initialize_components(
                 .as_ref()
                 .context("network_config")?
                 .zksync_network_id,
+            &kzg_config.trusted_setup_path,
         )
         .await;
         task_futures.push(tokio::spawn(

@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use zksync_basic_types::H256;
 
 /// Configuration for the Ethereum sender crate.
@@ -64,12 +64,11 @@ pub enum ProofLoadingMode {
     FriProofFromGcs,
 }
 
-#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Serialize, Default)]
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Default)]
 pub enum PubdataSendingMode {
     #[default]
     Calldata,
-    OneBlob,
-    TwoBlobs,
+    Blobs,
 }
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -106,8 +105,7 @@ pub struct SenderConfig {
     /// The mode in which proofs are loaded, either from DB/GCS for FRI/Old proof.
     pub proof_loading_mode: ProofLoadingMode,
 
-    /// The mode in which we send pubdata, either Calldata, 1 Blob, or 2 Blobs/
-    /// If not specified, Calldata will be used
+    /// The mode in which we send pubdata, either Calldata or Blobs
     pub pubdata_sending_mode: PubdataSendingMode,
 }
 

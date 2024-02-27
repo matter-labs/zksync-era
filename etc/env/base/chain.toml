@@ -66,6 +66,10 @@ batch_overhead_l1_gas=800000
 max_gas_per_batch=200000000
 
 # The maximum amount of pubdata that can be used by the batch. Note that if the calldata is used as pubdata, this variable should not exceed 128kb.
+# This will also determine how many blobs are used, when enabled.
+# If the value is less than 126kb -> Calldata or 1 Blob
+# If the value is > 126 kb and < 252kb then 2 blobs are used.
+# Note, the max at this moment is 252kb
 max_pubdata_per_batch=110000
 
 # The version of the fee model to use. 

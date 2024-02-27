@@ -57,6 +57,8 @@ pub struct L1BatchHeader {
     /// Version of protocol used for the L1 batch.
     pub protocol_version: Option<ProtocolVersionId>,
     pub pubdata_input: Option<Vec<u8>>,
+    /// DA Layer used to store pubdata.
+    pub pubdata_da_layer: Option<PubdataDA>,
 }
 
 /// Holder for the miniblock metadata that is not available from transactions themselves.
