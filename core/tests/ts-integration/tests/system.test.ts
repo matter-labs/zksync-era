@@ -16,6 +16,8 @@ import { serialize, hashBytecode } from 'zksync-web3/build/src/utils';
 import { deployOnAnyLocalAddress, ForceDeployment } from '../src/system';
 import { getTestContract } from '../src/helpers';
 
+const validiumMode = process.env["VALIDIUM_MODE"] == "true";
+
 const contracts = {
     counter: getTestContract('Counter'),
     events: getTestContract('Emitter')
@@ -77,8 +79,10 @@ describe('System behavior checks', () => {
         const smallGasPerPubdata = 10;
         const senderNonce = await alice.getTransactionCount();
 
+        console.log(senderNonce)
+
         // This tx should be accepted by the server, but would never be executed, so we don't wait for the receipt.
-        await alice.sendTransaction({
+        const tx = await alice.sendTransaction({
             to: alice.address,
             customData: {
                 gasPerPubdata: smallGasPerPubdata
@@ -86,12 +90,23 @@ describe('System behavior checks', () => {
         });
 
         // Now send the next tx with the same nonce: it should override the previous one and be executed.
-        await expect(
-            alice.sendTransaction({
-                to: alice.address,
-                nonce: senderNonce
-            })
-        ).toBeAccepted([]);
+        if (validiumMode) {
+            await tx.wait();
+            await expect(
+                alice.sendTransaction({
+                    to: alice.address,
+                    nonce: senderNonce
+                })
+            ).toBeRejected();
+        }
+        else {
+            await expect(
+                alice.sendTransaction({
+                    to: alice.address,
+                    nonce: senderNonce
+                })
+            ).toBeAccepted([]);
+        }
     });
 
     test('Should check that bootloader utils: Legacy tx hash', async () => {
