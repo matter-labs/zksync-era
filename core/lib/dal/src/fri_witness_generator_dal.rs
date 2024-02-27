@@ -69,7 +69,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .unwrap();
     }
 
-    /// Gets the next job to be executed. Returns the batch number and it's corresponding blobs.
+    /// Gets the next job to be executed. Returns the batch number and its corresponding blobs.
     /// The blobs arrive from core via prover gateway, as pubdata, this method loads the blobs.
     pub async fn get_next_basic_circuit_witness_job(
         &mut self,
