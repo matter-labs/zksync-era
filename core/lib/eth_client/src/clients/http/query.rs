@@ -285,7 +285,7 @@ impl EthInterface for QueryClient {
     ) -> Result<Option<Block<H256>>, Error> {
         COUNTERS.call[&(Method::Block, component)].inc();
         let latency = LATENCIES.direct[&Method::Block].start();
-        // Copy of `web3` get_block implementation. It's required to deserialize response as `crate::types::Block`
+        // Copy of `web3::block` implementation. It's required to deserialize response as `crate::types::Block`
         // that has EIP-4844 fields.
         let block = {
             let include_txs = helpers::serialize(&false);
