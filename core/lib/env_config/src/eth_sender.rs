@@ -26,7 +26,9 @@ impl FromEnv for GasAdjusterConfig {
 
 #[cfg(test)]
 mod tests {
-    use zksync_config::configs::eth_sender::{ProofLoadingMode, ProofSendingMode};
+    use zksync_config::configs::eth_sender::{
+        ProofLoadingMode, ProofSendingMode, PubdataSendingMode,
+    };
 
     use super::*;
     use crate::test_utils::{hash, EnvMutex};
@@ -54,6 +56,7 @@ mod tests {
                 l1_batch_min_age_before_execute_seconds: Some(1000),
                 max_acceptable_priority_fee_in_gwei: 100_000_000_000,
                 proof_loading_mode: ProofLoadingMode::OldProofFromDb,
+                pubdata_sending_mode: PubdataSendingMode::Calldata,
             },
             gas_adjuster: GasAdjusterConfig {
                 default_priority_fee_per_gas: 20000000000,
@@ -103,6 +106,7 @@ mod tests {
             ETH_SENDER_SENDER_L1_BATCH_MIN_AGE_BEFORE_EXECUTE_SECONDS="1000"
             ETH_SENDER_SENDER_MAX_ACCEPTABLE_PRIORITY_FEE_IN_GWEI="100000000000"
             ETH_SENDER_SENDER_PROOF_LOADING_MODE="OldProofFromDb"
+            ETH_SENDER_SENDER_PUBDATA_SENDING_MODE="Calldata"
         "#;
         lock.set_env(config);
 
