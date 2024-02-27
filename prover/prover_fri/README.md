@@ -60,7 +60,7 @@ Below steps can be used to prove a block on local machine using CPU prover. This
 Machine specs:
 
 - CPU: At least 8 physical cores
-- RAM: 60GB of RAM (enable swap if your machine has less RAM)
+- RAM: 80GB of RAM (enable swap if your machine has less RAM)
 - Disk: 400GB of free disk
 
 1. Install Rust (correct version from rust-toolchain file should be used automatically if you don't have any local
