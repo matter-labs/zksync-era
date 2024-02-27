@@ -140,6 +140,7 @@ impl JobProcessor for BasicWitnessInputProducer {
 
     async fn process_job(
         &self,
+        _job_id: &Self::JobId,
         job: Self::Job,
         started_at: Instant,
     ) -> JoinHandle<anyhow::Result<Self::JobArtifacts>> {

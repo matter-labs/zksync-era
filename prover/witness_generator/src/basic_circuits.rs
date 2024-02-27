@@ -17,6 +17,7 @@ use multivm::vm_latest::{
 };
 use rand::Rng;
 use serde::{Deserialize, Serialize};
+use tracing::Instrument;
 use zkevm_test_harness::{geometry_config::get_geometry_config, toolset::GeometryConfig};
 use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_dal::{fri_witness_generator_dal::FriWitnessJobStatus, ConnectionPool};
@@ -222,6 +223,7 @@ impl JobProcessor for BasicWitnessGenerator {
     #[allow(clippy::async_yields_async)]
     async fn process_job(
         &self,
+        _job_id: &Self::JobId,
         job: BasicWitnessGeneratorJob,
         started_at: Instant,
     ) -> tokio::task::JoinHandle<anyhow::Result<Option<BasicCircuitArtifacts>>> {
@@ -230,6 +232,7 @@ impl JobProcessor for BasicWitnessGenerator {
         let connection_pool = self.connection_pool.clone();
         let prover_connection_pool = self.prover_connection_pool.clone();
         tokio::spawn(async move {
+            let block_number = job.block_number;
             Ok(Self::process_job_impl(
                 object_store,
                 connection_pool,
@@ -238,6 +241,7 @@ impl JobProcessor for BasicWitnessGenerator {
                 started_at,
                 config,
             )
+            .instrument(tracing::info_span!("basic_circuit", %block_number))
             .await)
         })
     }

@@ -506,6 +506,7 @@ impl JobProcessor for ContractVerifier {
     #[allow(clippy::async_yields_async)]
     async fn process_job(
         &self,
+        _job_id: &Self::JobId,
         job: VerificationRequest,
         started_at: Instant,
     ) -> tokio::task::JoinHandle<anyhow::Result<()>> {

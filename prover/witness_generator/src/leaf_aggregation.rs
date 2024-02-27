@@ -144,10 +144,15 @@ impl JobProcessor for LeafAggregationWitnessGenerator {
     #[allow(clippy::async_yields_async)]
     async fn process_job(
         &self,
+        _job_id: &Self::JobId,
         job: LeafAggregationWitnessGeneratorJob,
         started_at: Instant,
     ) -> tokio::task::JoinHandle<anyhow::Result<LeafAggregationArtifacts>> {
-        tokio::task::spawn_blocking(move || Ok(Self::process_job_sync(job, started_at)))
+        tokio::task::spawn_blocking(move || {
+            let block_number = job.block_number;
+            let _span = tracing::info_span!("leaf_aggregation", %block_number).entered();
+            Ok(Self::process_job_sync(job, started_at))
+        })
     }
 
     async fn save_result(
