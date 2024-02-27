@@ -54,8 +54,8 @@ impl GasAdjuster {
 
         // Web3 API doesn't provide a method to fetch blob fees for multiple blocks using single request,
         // so we request blob base fee only for the latest block.
-        let last_block_blob_base_fee =
-            Self::get_blob_base_fee_history(&eth_client, current_block..=current_block).await?;
+        let (_, last_block_blob_base_fee) =
+            Self::get_base_fees_history(&eth_client, current_block..=current_block).await?;
 
         Ok(Self {
             base_fee_statistics: GasStatistics::new(
@@ -89,26 +89,17 @@ impl GasAdjuster {
         let last_processed_block = self.base_fee_statistics.last_processed_block();
 
         if current_block > last_processed_block {
-            // Report the current price to be gathered by the statistics module.
-            let base_fee_history = self
-                .eth_client
-                .base_fee_history(
-                    current_block,
-                    current_block - last_processed_block,
-                    "gas_adjuster",
-                )
-                .await?;
+            let (base_fee_history, blob_base_fee_history) = Self::get_base_fees_history(
+                &self.eth_client,
+                (last_processed_block + 1)..=current_block,
+            )
+            .await?;
 
             METRICS
                 .current_base_fee_per_gas
                 .set(*base_fee_history.last().unwrap());
             self.base_fee_statistics.add_samples(&base_fee_history);
 
-            let blob_base_fee_history = Self::get_blob_base_fee_history(
-                &self.eth_client,
-                (last_processed_block + 1)..=current_block,
-            )
-            .await?;
             if let Some(current_blob_base_fee) = blob_base_fee_history.last() {
                 // Blob base fee overflows `u64` only in very extreme cases.
                 // It doesn't worth to observe exact value with metric because anyway values that can be used
@@ -210,24 +201,31 @@ impl GasAdjuster {
         }
     }
 
-    /// Returns vector of blob base fees for given block range.
+    /// Returns vector of base fees and blob base fees for given block range.
     /// Note, that data for pre-dencun blocks won't be included in the vector returned.
-    async fn get_blob_base_fee_history(
+    async fn get_base_fees_history(
         eth_client: &Arc<dyn EthInterface>,
         block_range: RangeInclusive<usize>,
-    ) -> Result<Vec<U256>, Error> {
-        let mut history = Vec::new();
+    ) -> Result<(Vec<u64>, Vec<U256>), Error> {
+        let mut base_fee_history = Vec::new();
+        let mut blob_base_fee_history = Vec::new();
         for block_number in block_range {
             let header = eth_client
                 .block(U64::from(block_number).into(), "gas_adjuster")
                 .await?;
+            if let Some(base_fee_per_gas) =
+                header.as_ref().and_then(|header| header.base_fee_per_gas)
+            {
+                base_fee_history.push(base_fee_per_gas.as_u64())
+            }
 
-            if let Some(excess_blob_gas) = header.and_then(|header| header.excess_blob_gas) {
-                history.push(Self::blob_base_fee(excess_blob_gas.as_u64()))
+            if let Some(excess_blob_gas) = header.as_ref().and_then(|header| header.excess_blob_gas)
+            {
+                blob_base_fee_history.push(Self::blob_base_fee(excess_blob_gas.as_u64()))
             }
         }
 
-        Ok(history)
+        Ok((base_fee_history, blob_base_fee_history))
     }
 
     /// Calculates `blob_base_fee` given `excess_blob_gas`.
