@@ -30,7 +30,6 @@ jobs:
     steps:
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
         with:
-          submodules: "recursive"
 
       - name: Generate output with git tag
         id: set
@@ -49,14 +48,9 @@ jobs:
         run: |
           ./prover/extract-setup-data-keys.sh >> $GITHUB_OUTPUT
 
-  build-contracts:
-    name: Build contracts
-    if: contains(github.ref_name, 'core')
-    uses: ./.github/workflows/build-contracts.yml
-
   build-push-core-images:
     name: Build and push image
-    needs: [setup, build-contracts]
+    needs: [setup]
     uses: ./.github/workflows/build-core-template.yml
     if: contains(github.ref_name, 'core')
     secrets:

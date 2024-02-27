@@ -8,10 +8,7 @@ use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthChe
 use zksync_types::{L1BatchNumber, MiniblockNumber, H256};
 use zksync_web3_decl::{
     error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult},
-    jsonrpsee::{
-        core::ClientError as RpcError,
-        http_client::{HttpClient, HttpClientBuilder},
-    },
+    jsonrpsee::{core::ClientError as RpcError, http_client::HttpClient},
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
 };
 
@@ -126,6 +123,8 @@ trait HandleReorgDetectorEvent: fmt::Debug + Send + Sync {
     );
 
     fn report_divergence(&mut self, diverged_l1_batch: L1BatchNumber);
+
+    fn start_shutting_down(&mut self);
 }
 
 /// Default implementation of [`HandleReorgDetectorEvent`] that reports values as metrics.
@@ -166,6 +165,10 @@ impl HandleReorgDetectorEvent for HealthUpdater {
             "diverged_l1_batch": diverged_l1_batch,
         });
         self.update(Health::from(HealthStatus::Affected).with_details(health_details));
+    }
+
+    fn start_shutting_down(&mut self) {
+        self.update(HealthStatus::ShuttingDown.into());
     }
 }
 
@@ -213,10 +216,7 @@ pub struct ReorgDetector {
 impl ReorgDetector {
     const DEFAULT_SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 
-    pub fn new(url: &str, pool: ConnectionPool) -> Self {
-        let client = HttpClientBuilder::default()
-            .build(url)
-            .expect("Failed to create HTTP client");
+    pub fn new(client: HttpClient, pool: ConnectionPool) -> Self {
         let (health_check, health_updater) = ReactiveHealthCheck::new("reorg_detector");
         Self {
             client: Box::new(client),
@@ -419,6 +419,9 @@ impl ReorgDetector {
 
         loop {
             let should_stop = *stop_receiver.borrow();
+            if should_stop {
+                self.event_handler.start_shutting_down();
+            }
 
             // At this point, we are guaranteed to have L1 batches and miniblocks in the storage.
             let mut storage = self.pool.access_storage().await?;

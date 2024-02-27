@@ -283,8 +283,16 @@ impl FullApiParams {
         let start_info = BlockStartInfo::new(&mut storage).await?;
         drop(storage);
 
+        let installed_filters = if self.config.filters_disabled {
+            None
+        } else {
+            Some(Arc::new(Mutex::new(Filters::new(
+                self.optional.filters_limit,
+            ))))
+        };
+
         Ok(RpcState {
-            installed_filters: Arc::new(Mutex::new(Filters::new(self.optional.filters_limit))),
+            installed_filters,
             connection_pool: self.pool,
             tx_sender: self.tx_sender,
             sync_state: self.optional.sync_state,
@@ -349,7 +357,13 @@ impl FullApiParams {
         self,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<ApiServerHandles> {
-        if self.optional.filters_limit.is_none() {
+        if self.config.filters_disabled {
+            if self.optional.filters_limit.is_some() {
+                tracing::warn!(
+                    "Filters limit is not supported when filters are disabled, ignoring"
+                );
+            }
+        } else if self.optional.filters_limit.is_none() {
             tracing::warn!("Filters limit is not set - unlimited filters are allowed");
         }
 
@@ -413,11 +427,6 @@ impl FullApiParams {
         );
 
         let mut tasks = vec![tokio::spawn(update_task)];
-        if let Some(tx_proxy) = &self.tx_sender.0.proxy {
-            let task = tx_proxy
-                .run_account_nonce_sweeper(self.updaters_pool.clone(), stop_receiver.clone());
-            tasks.push(tokio::spawn(task));
-        }
         let pub_sub = if matches!(transport, ApiTransport::WebSocket(_))
             && self.namespaces.contains(&Namespace::Pubsub)
         {
@@ -562,9 +571,15 @@ impl FullApiParams {
         })?;
         tracing::info!("Initialized {transport_str} API on {local_addr:?}");
         local_addr_sender.send(local_addr).ok();
+        health_updater.update(HealthStatus::Ready.into());
 
+        // We want to be able to immediately stop the server task if the server stops on its own for whatever reason.
+        // Hence, we monitor `stop_receiver` on a separate Tokio task.
         let close_handle = server_handle.clone();
         let closing_vm_barrier = vm_barrier.clone();
+        let health_updater = Arc::new(health_updater);
+        // We use `Weak` reference to the health updater in order to not prevent its drop if the server stops on its own.
+        let closing_health_updater = Arc::downgrade(&health_updater);
         tokio::spawn(async move {
             if stop_receiver.changed().await.is_err() {
                 tracing::warn!(
@@ -572,13 +587,15 @@ impl FullApiParams {
                      without sending a signal"
                 );
             }
+            if let Some(health_updater) = closing_health_updater.upgrade() {
+                health_updater.update(HealthStatus::ShuttingDown.into());
+            }
             tracing::info!(
                 "Stop signal received, {transport_str} JSON-RPC server is shutting down"
             );
             closing_vm_barrier.close();
             close_handle.stop().ok();
         });
-        health_updater.update(HealthStatus::Ready.into());
 
         server_handle.stopped().await;
         drop(health_updater);

@@ -6,9 +6,7 @@ use std::{
 use tokio::sync::watch::Receiver;
 use zksync_types::fee_model::FeeParams;
 use zksync_web3_decl::{
-    error::ClientRpcContext,
-    jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
-    namespaces::ZksNamespaceClient,
+    error::ClientRpcContext, jsonrpsee::http_client::HttpClient, namespaces::ZksNamespaceClient,
 };
 
 use crate::fee_model::BatchFeeModelInputProvider;
@@ -28,17 +26,11 @@ pub struct MainNodeFeeParamsFetcher {
 }
 
 impl MainNodeFeeParamsFetcher {
-    pub fn new(main_node_url: &str) -> Self {
+    pub fn new(client: HttpClient) -> Self {
         Self {
-            client: Self::build_client(main_node_url),
+            client,
             main_node_fee_params: RwLock::new(FeeParams::sensible_v1_default()),
         }
-    }
-
-    fn build_client(main_node_url: &str) -> HttpClient {
-        HttpClientBuilder::default()
-            .build(main_node_url)
-            .expect("Unable to create a main node client")
     }
 
     pub async fn run(self: Arc<Self>, stop_receiver: Receiver<bool>) -> anyhow::Result<()> {

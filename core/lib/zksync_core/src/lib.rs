@@ -3,6 +3,7 @@
 use std::{net::Ipv4Addr, str::FromStr, sync::Arc, time::Instant};
 
 use anyhow::Context as _;
+use api_server::tx_sender::master_pool_sink::MasterPoolSink;
 use fee_model::{ApiFeeInputProvider, BatchFeeModelInputProvider, MainNodeFeeInputProvider};
 use futures::channel::oneshot;
 use prometheus_exporter::PrometheusExporterConfig;
@@ -29,9 +30,9 @@ use zksync_contracts::{governance_contract, BaseSystemContracts};
 use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
 use zksync_eth_client::{
     clients::{PKSigningClient, QueryClient},
-    CallFunctionArgs, EthInterface,
+    BoundEthInterface, CallFunctionArgs, EthInterface,
 };
-use zksync_health_check::{CheckHealth, HealthStatus, ReactiveHealthCheck};
+use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_state::PostgresStorageCaches;
@@ -328,7 +329,15 @@ pub async fn initialize_components(
             .await
             .context("failed to build replica_connection_pool")?;
 
-    let mut healthchecks: Vec<Box<dyn CheckHealth>> = Vec::new();
+    let health_check_config = configs
+        .health_check_config
+        .clone()
+        .context("health_check_config")?;
+    let app_health = Arc::new(AppHealthCheck::new(
+        health_check_config.slow_time_limit(),
+        health_check_config.hard_time_limit(),
+    ));
+
     let contracts_config = configs
         .contracts_config
         .clone()
@@ -369,7 +378,7 @@ pub async fn initialize_components(
 
     let (prometheus_health_check, prometheus_health_updater) =
         ReactiveHealthCheck::new("prometheus_exporter");
-    healthchecks.push(Box::new(prometheus_health_check));
+    app_health.insert_component(prometheus_health_check);
     let prometheus_task = prom_config.run(stop_receiver.clone());
     let prometheus_task = tokio::spawn(async move {
         prometheus_health_updater.update(HealthStatus::Ready.into());
@@ -443,7 +452,7 @@ pub async fn initialize_components(
             .context("run_http_api")?;
 
             task_futures.extend(server_handles.tasks);
-            healthchecks.push(Box::new(server_handles.health_check));
+            app_health.insert_component(server_handles.health_check);
             let elapsed = started_at.elapsed();
             APP_METRICS.init_latency[&InitStage::HttpApi].set(elapsed);
             tracing::info!(
@@ -485,7 +494,7 @@ pub async fn initialize_components(
             .context("run_ws_api")?;
 
             task_futures.extend(server_handles.tasks);
-            healthchecks.push(Box::new(server_handles.health_check));
+            app_health.insert_component(server_handles.health_check);
             let elapsed = started_at.elapsed();
             APP_METRICS.init_latency[&InitStage::WsApi].set(elapsed);
             tracing::info!(
@@ -628,11 +637,16 @@ pub async fn initialize_components(
             .context("eth_sender_config")?;
         let eth_client =
             PKSigningClient::from_config(&eth_sender, &contracts_config, &eth_client_config);
+        let eth_client_blobs_addr =
+            PKSigningClient::from_config_blobs(&eth_sender, &contracts_config, &eth_client_config)
+                .map(|k| k.sender_account());
+
         let eth_tx_aggregator_actor = EthTxAggregator::new(
             eth_sender.sender.clone(),
             Aggregator::new(
                 eth_sender.sender.clone(),
                 store_factory.create_store().await,
+                eth_client_blobs_addr.is_some(),
             ),
             Arc::new(eth_client),
             contracts_config.validator_timelock_addr,
@@ -643,6 +657,7 @@ pub async fn initialize_components(
                 .as_ref()
                 .context("network_config")?
                 .zksync_network_id,
+            eth_client_blobs_addr,
         )
         .await;
         task_futures.push(tokio::spawn(
@@ -666,6 +681,8 @@ pub async fn initialize_components(
             .context("eth_sender_config")?;
         let eth_client =
             PKSigningClient::from_config(&eth_sender, &contracts_config, &eth_client_config);
+        let eth_client_blobs =
+            PKSigningClient::from_config_blobs(&eth_sender, &contracts_config, &eth_client_config);
         let eth_tx_manager_actor = EthTxManager::new(
             eth_sender.sender,
             gas_adjuster
@@ -673,6 +690,7 @@ pub async fn initialize_components(
                 .await
                 .context("gas_adjuster.get_or_init()")?,
             Arc::new(eth_client),
+            eth_client_blobs.map(|c| Arc::new(c) as Arc<dyn BoundEthInterface>),
         );
         task_futures.extend([tokio::spawn(
             eth_tx_manager_actor.run(eth_manager_pool, stop_receiver.clone()),
@@ -685,7 +703,7 @@ pub async fn initialize_components(
     add_trees_to_task_futures(
         configs,
         &mut task_futures,
-        &mut healthchecks,
+        &app_health,
         &components,
         &store_factory,
         stop_receiver.clone(),
@@ -733,28 +751,24 @@ pub async fn initialize_components(
     }
 
     if components.contains(&Component::CommitmentGenerator) {
+        let kzg_config = configs.kzg_config.clone().context("kzg_config")?;
         let commitment_generator_pool = ConnectionPool::singleton(postgres_config.master_url()?)
             .build()
             .await
             .context("failed to build commitment_generator_pool")?;
-        let commitment_generator = CommitmentGenerator::new(commitment_generator_pool);
-        healthchecks.push(Box::new(commitment_generator.health_check()));
+        let commitment_generator =
+            CommitmentGenerator::new(commitment_generator_pool, &kzg_config.trusted_setup_path);
+        app_health.insert_component(commitment_generator.health_check());
         task_futures.push(tokio::spawn(
             commitment_generator.run(stop_receiver.clone()),
         ));
     }
 
     // Run healthcheck server for all components.
-    healthchecks.push(Box::new(ConnectionPoolHealthCheck::new(
-        replica_connection_pool,
-    )));
-
-    let healtcheck_api_config = configs
-        .health_check_config
-        .clone()
-        .context("health_check_config")?;
+    let db_health_check = ConnectionPoolHealthCheck::new(replica_connection_pool);
+    app_health.insert_custom_component(Arc::new(db_health_check));
     let health_check_handle =
-        HealthCheckHandle::spawn_server(healtcheck_api_config.bind_addr(), healthchecks);
+        HealthCheckHandle::spawn_server(health_check_config.bind_addr(), app_health);
 
     if let Some(task) = gas_adjuster.run_if_initialized(stop_receiver.clone()) {
         task_futures.push(task);
@@ -838,7 +852,7 @@ async fn add_state_keeper_to_task_futures(
 async fn add_trees_to_task_futures(
     configs: &TempConfigStore,
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
-    healthchecks: &mut Vec<Box<dyn CheckHealth>>,
+    app_health: &AppHealthCheck,
     components: &[Component],
     store_factory: &ObjectStoreFactory,
     stop_receiver: watch::Receiver<bool>,
@@ -873,7 +887,7 @@ async fn add_trees_to_task_futures(
 
     run_tree(
         task_futures,
-        healthchecks,
+        app_health,
         &postgres_config,
         &db_config.merkle_tree,
         api_config,
@@ -888,7 +902,7 @@ async fn add_trees_to_task_futures(
 #[allow(clippy::too_many_arguments)]
 async fn run_tree(
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
-    healthchecks: &mut Vec<Box<dyn CheckHealth>>,
+    app_health: &AppHealthCheck,
     postgres_config: &PostgresConfig,
     merkle_tree_config: &MerkleTreeConfig,
     api_config: Option<&MerkleTreeApiConfig>,
@@ -921,7 +935,7 @@ async fn run_tree(
     }
 
     let tree_health_check = metadata_calculator.tree_health_check();
-    healthchecks.push(Box::new(tree_health_check));
+    app_health.insert_component(tree_health_check);
     let pool = ConnectionPool::singleton(postgres_config.master_url()?)
         .build()
         .await
@@ -1102,9 +1116,13 @@ async fn build_tx_sender(
     storage_caches: PostgresStorageCaches,
 ) -> (TxSender, VmConcurrencyBarrier) {
     let sequencer_sealer = SequencerSealer::new(state_keeper_config.clone());
-    let tx_sender_builder = TxSenderBuilder::new(tx_sender_config.clone(), replica_pool.clone())
-        .with_main_connection_pool(master_pool)
-        .with_sealer(Arc::new(sequencer_sealer));
+    let master_pool_sink = MasterPoolSink::new(master_pool);
+    let tx_sender_builder = TxSenderBuilder::new(
+        tx_sender_config.clone(),
+        replica_pool.clone(),
+        Arc::new(master_pool_sink),
+    )
+    .with_sealer(Arc::new(sequencer_sealer));
 
     let max_concurrency = web3_json_config.vm_concurrency_limit();
     let (vm_concurrency_limiter, vm_barrier) = VmConcurrencyLimiter::new(max_concurrency);

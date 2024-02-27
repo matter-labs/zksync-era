@@ -182,6 +182,7 @@ impl RandomConfig for configs::api::Web3JsonRpcConfig {
             ws_port: g.gen(),
             ws_url: g.gen(),
             req_entities_limit: g.gen(),
+            filters_disabled: g.gen(),
             filters_limit: g.gen(),
             subscriptions_limit: g.gen(),
             pubsub_polling_interval: g.gen(),
@@ -209,7 +210,11 @@ impl RandomConfig for configs::api::Web3JsonRpcConfig {
 
 impl RandomConfig for configs::api::HealthCheckConfig {
     fn sample(g: &mut Gen<impl Rng>) -> Self {
-        Self { port: g.gen() }
+        Self {
+            port: g.gen(),
+            slow_time_limit_ms: g.gen(),
+            hard_time_limit_ms: g.gen(),
+        }
     }
 }
 

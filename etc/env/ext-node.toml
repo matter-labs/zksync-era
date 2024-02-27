@@ -2,12 +2,12 @@
 # All the variables must be provided explicitly.
 # This is on purpose: if EN will accidentally depend on the main node env, it may cause problems.
 
-database_url = "postgres://postgres@localhost/zksync_local_ext_node"
+database_url = "postgres://postgres:notsecurepassword@localhost/zksync_local_ext_node"
 # Optional variable. If set, "zk db setup" will recreate "database_url" db by
 # cloning "template_database_url" db instead of creating an empty db.
 # "template_database_url" is not used by EN itself.
-template_database_url="postgres://postgres@localhost/zksync_local"
-test_database_url = "postgres://postgres@localhost:5433/zksync_local_test_ext_node"
+template_database_url="postgres://postgres:notsecurepassword@localhost/zksync_local"
+test_database_url = "postgres://postgres:notsecurepassword@localhost:5433/zksync_local_test_ext_node"
 database_pool_size = 50
 zksync_action="dont_ask"
 
@@ -64,6 +64,7 @@ zksync_consensus_network=info,\
 zksync_consensus_storage=info,\
 zksync_core=debug,\
 zksync_dal=info,\
+zksync_health_check=debug,\
 zksync_eth_client=info,\
 zksync_storage=info,\
 zksync_merkle_tree=info,\

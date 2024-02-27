@@ -16,7 +16,7 @@ use zksync_types::{
 };
 use zksync_web3_decl::{
     error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult},
-    jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
+    jsonrpsee::http_client::HttpClient,
     namespaces::ZksNamespaceClient,
 };
 
@@ -254,15 +254,8 @@ pub struct BatchStatusUpdater {
 impl BatchStatusUpdater {
     const DEFAULT_SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 
-    pub fn new(main_node_url: &str, pool: ConnectionPool) -> anyhow::Result<Self> {
-        let client = HttpClientBuilder::default()
-            .build(main_node_url)
-            .context("Unable to create a main node client")?;
-        Ok(Self::from_parts(
-            Box::new(client),
-            pool,
-            Self::DEFAULT_SLEEP_INTERVAL,
-        ))
+    pub fn new(client: HttpClient, pool: ConnectionPool) -> Self {
+        Self::from_parts(Box::new(client), pool, Self::DEFAULT_SLEEP_INTERVAL)
     }
 
     fn from_parts(
