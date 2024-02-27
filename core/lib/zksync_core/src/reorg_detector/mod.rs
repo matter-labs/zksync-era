@@ -125,6 +125,8 @@ trait HandleReorgDetectorEvent: fmt::Debug + Send + Sync {
     );
 
     fn report_divergence(&mut self, diverged_l1_batch: L1BatchNumber);
+
+    fn start_shutting_down(&mut self);
 }
 
 /// Default implementation of [`HandleReorgDetectorEvent`] that reports values as metrics.
@@ -165,6 +167,10 @@ impl HandleReorgDetectorEvent for HealthUpdater {
             "diverged_l1_batch": diverged_l1_batch,
         });
         self.update(Health::from(HealthStatus::Affected).with_details(health_details));
+    }
+
+    fn start_shutting_down(&mut self) {
+        self.update(HealthStatus::ShuttingDown.into());
     }
 }
 
@@ -426,6 +432,7 @@ impl ReorgDetector {
                 return Err(HashMatchError::ReorgDetected(last_correct_l1_batch));
             }
             if *stop_receiver.borrow() {
+                self.event_handler.start_shutting_down();
                 tracing::info!("Shutting down reorg detector");
                 return Ok(());
             }

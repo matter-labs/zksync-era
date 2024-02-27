@@ -7,7 +7,7 @@ use std::{
 
 use serde_json::{Map, Value};
 use zksync_eth_client::{
-    clients::SigningClient, BoundEthInterface, CallFunctionArgs, Error, EthInterface,
+    clients::SigningClient, BoundEthInterface, CallFunctionArgs, Error, EthInterface, Options,
 };
 use zksync_eth_signer::EthereumSigner;
 use zksync_types::{
@@ -15,10 +15,7 @@ use zksync_types::{
     l1::L1Tx,
     network::Network,
     web3::{
-        contract::{
-            tokens::{Detokenize, Tokenize},
-            Options,
-        },
+        contract::tokens::{Detokenize, Tokenize},
         ethabi,
         transports::Http,
         types::{TransactionReceipt, H160, H256, U256},

@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use assert_matches::assert_matches;
 use once_cell::sync::Lazy;
+use test_casing::test_casing;
 use zksync_config::{
     configs::eth_sender::{ProofSendingMode, SenderConfig},
     ContractsConfig, ETHSenderConfig, GasAdjusterConfig,
@@ -60,6 +61,7 @@ impl EthSenderTester {
         connection_pool: ConnectionPool,
         history: Vec<u64>,
         non_ordering_confirmations: bool,
+        aggregator_operate_4844_mode: bool,
     ) -> Self {
         let eth_sender_config = ETHSenderConfig::for_tests();
         let contracts_config = ContractsConfig::for_tests();
@@ -105,6 +107,7 @@ impl EthSenderTester {
             Aggregator::new(
                 aggregator_config.clone(),
                 store_factory.create_store().await,
+                aggregator_operate_4844_mode,
             ),
             gateway.clone(),
             // zkSync contract address
@@ -112,6 +115,7 @@ impl EthSenderTester {
             contracts_config.l1_multicall3_addr,
             Address::random(),
             Default::default(),
+            None,
         )
         .await;
 
@@ -119,6 +123,7 @@ impl EthSenderTester {
             eth_sender_config.sender,
             gas_adjuster.clone(),
             gateway.clone(),
+            None,
         );
         Self {
             gateway,
@@ -145,10 +150,17 @@ impl EthSenderTester {
 }
 
 // Tests that we send multiple transactions and confirm them all in one iteration.
+#[test_casing(2, [false, true])]
 #[tokio::test]
-async fn confirm_many() -> anyhow::Result<()> {
+async fn confirm_many(aggregator_operate_4844_mode: bool) -> anyhow::Result<()> {
     let connection_pool = ConnectionPool::test_pool().await;
-    let mut tester = EthSenderTester::new(connection_pool, vec![10; 100], false).await;
+    let mut tester = EthSenderTester::new(
+        connection_pool,
+        vec![10; 100],
+        false,
+        aggregator_operate_4844_mode,
+    )
+    .await;
 
     let mut hashes = vec![];
 
@@ -224,7 +236,8 @@ async fn confirm_many() -> anyhow::Result<()> {
 #[tokio::test]
 async fn resend_each_block() -> anyhow::Result<()> {
     let connection_pool = ConnectionPool::test_pool().await;
-    let mut tester = EthSenderTester::new(connection_pool, vec![7, 6, 5, 5, 5, 2, 1], false).await;
+    let mut tester =
+        EthSenderTester::new(connection_pool, vec![7, 6, 5, 5, 5, 2, 1], false, false).await;
 
     // after this, median should be 6
     tester.gateway.advance_block_number(3);
@@ -335,7 +348,7 @@ async fn resend_each_block() -> anyhow::Result<()> {
 #[tokio::test]
 async fn dont_resend_already_mined() -> anyhow::Result<()> {
     let connection_pool = ConnectionPool::test_pool().await;
-    let mut tester = EthSenderTester::new(connection_pool, vec![100; 100], false).await;
+    let mut tester = EthSenderTester::new(connection_pool, vec![100; 100], false, false).await;
     let tx = tester
         .aggregator
         .save_eth_tx(
@@ -406,7 +419,8 @@ async fn dont_resend_already_mined() -> anyhow::Result<()> {
 #[tokio::test]
 async fn three_scenarios() -> anyhow::Result<()> {
     let connection_pool = ConnectionPool::test_pool().await;
-    let mut tester = EthSenderTester::new(connection_pool.clone(), vec![100; 100], false).await;
+    let mut tester =
+        EthSenderTester::new(connection_pool.clone(), vec![100; 100], false, false).await;
     let mut hashes = vec![];
 
     for _ in 0..3 {
@@ -478,7 +492,8 @@ async fn three_scenarios() -> anyhow::Result<()> {
 #[tokio::test]
 async fn failed_eth_tx() {
     let connection_pool = ConnectionPool::test_pool().await;
-    let mut tester = EthSenderTester::new(connection_pool.clone(), vec![100; 100], false).await;
+    let mut tester =
+        EthSenderTester::new(connection_pool.clone(), vec![100; 100], false, false).await;
 
     let tx = tester
         .aggregator
@@ -549,7 +564,7 @@ fn l1_batch_with_metadata(header: L1BatchHeader) -> L1BatchWithMetadata {
 #[tokio::test]
 async fn correct_order_for_confirmations() -> anyhow::Result<()> {
     let connection_pool = ConnectionPool::test_pool().await;
-    let mut tester = EthSenderTester::new(connection_pool, vec![100; 100], true).await;
+    let mut tester = EthSenderTester::new(connection_pool, vec![100; 100], true, false).await;
     insert_genesis_protocol_version(&tester).await;
     let genesis_l1_batch = insert_l1_batch(&tester, L1BatchNumber(0)).await;
     let first_l1_batch = insert_l1_batch(&tester, L1BatchNumber(1)).await;
@@ -610,7 +625,7 @@ async fn correct_order_for_confirmations() -> anyhow::Result<()> {
 #[tokio::test]
 async fn skipped_l1_batch_at_the_start() -> anyhow::Result<()> {
     let connection_pool = ConnectionPool::test_pool().await;
-    let mut tester = EthSenderTester::new(connection_pool, vec![100; 100], true).await;
+    let mut tester = EthSenderTester::new(connection_pool, vec![100; 100], true, false).await;
     insert_genesis_protocol_version(&tester).await;
     let genesis_l1_batch = insert_l1_batch(&tester, L1BatchNumber(0)).await;
     let first_l1_batch = insert_l1_batch(&tester, L1BatchNumber(1)).await;
@@ -703,7 +718,7 @@ async fn skipped_l1_batch_at_the_start() -> anyhow::Result<()> {
 #[tokio::test]
 async fn skipped_l1_batch_in_the_middle() -> anyhow::Result<()> {
     let connection_pool = ConnectionPool::test_pool().await;
-    let mut tester = EthSenderTester::new(connection_pool, vec![100; 100], true).await;
+    let mut tester = EthSenderTester::new(connection_pool, vec![100; 100], true, false).await;
     insert_genesis_protocol_version(&tester).await;
     let genesis_l1_batch = insert_l1_batch(&tester, L1BatchNumber(0)).await;
     let first_l1_batch = insert_l1_batch(&tester, L1BatchNumber(1)).await;
@@ -790,7 +805,7 @@ async fn skipped_l1_batch_in_the_middle() -> anyhow::Result<()> {
 #[tokio::test]
 async fn test_parse_multicall_data() {
     let connection_pool = ConnectionPool::test_pool().await;
-    let tester = EthSenderTester::new(connection_pool, vec![100; 100], false).await;
+    let tester = EthSenderTester::new(connection_pool, vec![100; 100], false, false).await;
 
     let original_correct_form_data = Token::Array(vec![
         Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![1u8; 32])]),
@@ -870,7 +885,7 @@ async fn test_parse_multicall_data() {
 #[tokio::test]
 async fn get_multicall_data() {
     let connection_pool = ConnectionPool::test_pool().await;
-    let mut tester = EthSenderTester::new(connection_pool, vec![100; 100], false).await;
+    let mut tester = EthSenderTester::new(connection_pool, vec![100; 100], false, false).await;
     let multicall_data = tester.aggregator.get_multicall_data().await;
     assert!(multicall_data.is_ok());
 }

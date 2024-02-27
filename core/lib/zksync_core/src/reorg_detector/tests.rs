@@ -162,6 +162,10 @@ impl HandleReorgDetectorEvent for mpsc::UnboundedSender<(MiniblockNumber, L1Batc
     fn report_divergence(&mut self, _diverged_l1_batch: L1BatchNumber) {
         // Do nothing
     }
+
+    fn start_shutting_down(&mut self) {
+        // Do nothing
+    }
 }
 
 fn create_mock_detector(client: MockMainNodeClient, pool: ConnectionPool) -> ReorgDetector {
