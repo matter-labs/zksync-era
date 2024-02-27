@@ -1,11 +1,11 @@
 use anyhow::Context as _;
-use zksync_config::configs;
-use zksync_protobuf::{
-    repr::{read_required_repr, ProtoRepr},
-    required,
-};
+use zksync_config::configs::{self};
+use zksync_protobuf::required;
 
-use crate::proto;
+use crate::{
+    proto,
+    repr::{read_required_repr, ProtoRepr},
+};
 
 impl proto::ProofSendingMode {
     fn new(x: &configs::eth_sender::ProofSendingMode) -> Self {
@@ -41,6 +41,24 @@ impl proto::ProofLoadingMode {
         match self {
             Self::OldProofFromDb => To::OldProofFromDb,
             Self::FriProofFromGcs => To::FriProofFromGcs,
+        }
+    }
+}
+
+impl proto::PubdataSendingMode {
+    fn new(x: &configs::eth_sender::PubdataSendingMode) -> Self {
+        use configs::eth_sender::PubdataSendingMode as From;
+        match x {
+            From::Calldata => Self::Calldata,
+            From::Blobs => Self::Blobs,
+        }
+    }
+
+    fn parse(&self) -> configs::eth_sender::PubdataSendingMode {
+        use configs::eth_sender::PubdataSendingMode as To;
+        match self {
+            Self::Calldata => To::Calldata,
+            Self::Blobs => To::Blobs,
         }
     }
 }
@@ -109,6 +127,10 @@ impl ProtoRepr for proto::Sender {
                 .and_then(|x| Ok(proto::ProofLoadingMode::try_from(*x)?))
                 .context("proof_loading_mode")?
                 .parse(),
+            pubdata_sending_mode: required(&self.pubdata_sending_mode)
+                .and_then(|x| Ok(proto::PubdataSendingMode::try_from(*x)?))
+                .context("pubdata_sending_mode")?
+                .parse(),
         })
     }
 
@@ -137,6 +159,9 @@ impl ProtoRepr for proto::Sender {
             l1_batch_min_age_before_execute_seconds: this.l1_batch_min_age_before_execute_seconds,
             max_acceptable_priority_fee_in_gwei: Some(this.max_acceptable_priority_fee_in_gwei),
             proof_loading_mode: Some(proto::ProofLoadingMode::new(&this.proof_loading_mode).into()),
+            pubdata_sending_mode: Some(
+                proto::PubdataSendingMode::new(&this.pubdata_sending_mode).into(),
+            ),
         }
     }
 }
