@@ -147,6 +147,14 @@ impl WiringLayer for Web3ServerLayer {
     }
 }
 
+/// Wrapper for the Web3 API.
+/// Internal design note: API infrastructure was already established and consists of a dynamic set of tasks,
+/// and it proven to work well enough. It doesn't seem to be reasonable to refactor it to expose raw futures instead
+/// of tokio tasks, since it'll require a lot of effort. So instead, we spawn all the tasks in this wrapper,
+/// wait for the first one to finish, and then send the rest of the tasks to a special "garbage collector" task
+/// which will wait for remaining tasks to finish.
+/// All of this relies on the fact that the existing internal API tasks are aware of stop receiver: when we'll exit
+/// this task on first API task completion, the rest of the tasks will be stopped as well.
 #[derive(Debug)]
 struct Web3ApiTask {
     transport: Transport,
@@ -165,12 +173,16 @@ impl Task for Web3ApiTask {
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
         let tasks = self.api_builder.build(stop_receiver.0).await?;
+        // Wait for the first task to finish to be able to signal the service.
         let (result, _idx, rem) = futures::future::select_all(tasks.tasks).await;
+        // Send remaining tasks to the garbage collector.
         let _ = self.task_sender.send(rem);
         result?
     }
 }
 
+/// Helper task that waits for a list of task join handles and then awaits them all.
+/// For more details, see [`Web3ApiTask`].
 #[derive(Debug)]
 struct ApiTaskGarbageCollector {
     task_receiver: oneshot::Receiver<Vec<JoinHandle<anyhow::Result<()>>>>,
