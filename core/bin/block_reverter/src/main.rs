@@ -6,6 +6,7 @@ use zksync_config::{
     PostgresConfig,
 };
 use zksync_core::block_reverter::{
+    NodeRole,
     BlockReverter, BlockReverterEthConfig, BlockReverterFlags, L1ExecutedBatchesRevert,
 };
 use zksync_dal::ConnectionPool;
@@ -104,7 +105,7 @@ async fn main() -> anyhow::Result<()> {
     .await
     .context("failed to build a connection pool")?;
     let mut block_reverter = BlockReverter::new(
-        /*`main_node=`*/ true,
+        NodeRole::Main,
         db_config.state_keeper_db_path,
         db_config.merkle_tree.path,
         Some(config),

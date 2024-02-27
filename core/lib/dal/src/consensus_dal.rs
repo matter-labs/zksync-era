@@ -47,12 +47,15 @@ impl ConsensusDal<'_, '_> {
             if &got == genesis {
                 return Ok(());
             }
-            if got.fork.number >= genesis.fork.number {
-                anyhow::bail!("transition to a past fork is not allowed");
-            }
-            if got.fork.first_parent.is_some() {
-                anyhow::bail!("fork with first_parent != None not supported");
-            }
+            anyhow::ensure!(got.fork.number < genesis.fork.number,
+                "transition to a past fork is not allowed: old = {:?}, new = {:?}",
+                got.fork.number,
+                genesis.fork.number,
+            );
+            anyhow::ensure!(
+                got.fork.first_parent.is_none(),
+                "fork with first_parent != None not supported",
+            );
         }
         let genesis =
             zksync_protobuf::serde::serialize(genesis, serde_json::value::Serializer).unwrap();
@@ -289,7 +292,7 @@ mod tests {
             let fork = validator::Fork {
                 number: validator::ForkNumber(n),
                 first_block: rng.gen(),
-                first_parent: Some(rng.gen()),
+                first_parent: None,
             };
             let setup = validator::testonly::Setup::new_with_fork(rng, 3, fork);
             conn.consensus_dal()

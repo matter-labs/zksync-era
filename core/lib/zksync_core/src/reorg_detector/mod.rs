@@ -8,7 +8,7 @@ use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthChe
 use zksync_types::{L1BatchNumber, MiniblockNumber, H256};
 use zksync_web3_decl::{
     error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult},
-    jsonrpsee::{core::ClientError as RpcError, http_client::HttpClient},
+    jsonrpsee::{http_client::HttpClient},
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
 };
 
@@ -21,16 +21,26 @@ use crate::{
 mod tests;
 
 #[derive(Debug, thiserror::Error)]
-pub enum Error {
-    #[error("RPC error calling main node: {0}")]
+pub enum HashMatchError {
+    #[error("RPC error calling main node")]
     Rpc(#[from] EnrichedClientError),
+    #[error("remote hash is missing")]
+    RemoteHashMissing,
+    #[error(transparent)]
+    Internal(#[from] anyhow::Error),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error(transparent)]
+    HashMatch(#[from] HashMatchError),
     #[error(
         "Unrecoverable error: the earliest L1 batch #{0} in the local DB \
         has mismatched hash with the main node. Make sure you're connected to the right network; \
         if you've recovered from a snapshot, re-check snapshot authenticity. \
         Using an earlier snapshot could help."
     )]
-    EarliestHashMismatch(L1BatchNumber),
+    EarliestL1BatchMismatch(L1BatchNumber),
     #[error(
         "Unrecoverable error: the earliest L1 batch #{0} in the local DB \
         is truncated on the main node. Make sure you're connected to the right network; \
@@ -40,28 +50,33 @@ pub enum Error {
     EarliestL1BatchTruncated(L1BatchNumber),
     #[error("reorg detected, restart the node to revert to the last correct L1 batch #{0}.")]
     ReorgDetected(L1BatchNumber),
-    #[error("storage error: {0:#}")]
-    Storage(anyhow::Error),
-    #[error("no remote L1 batch")]
-    NoRemoteL1Batch,
 }
 
-impl Error {
+impl HashMatchError {
     pub fn is_transient(&self) -> bool {
         match self {
-            Self::NoRemoteL1Batch => true,
-            Self::Rpc(err) => matches!(
-                err.as_ref(),
-                RpcError::Transport(_) | RpcError::RequestTimeout
-            ),
-            _ => false,
+            Self::Rpc(err) => err.is_transient(),
+            Self::RemoteHashMissing => true,
+            Self::Internal(_) => false,
         }
     }
 }
 
-impl From<zksync_dal::SqlxError> for Error {
-    fn from(err: zksync_dal::SqlxError) -> Self {
-        Self::Storage(err.into())
+impl Error {
+    pub fn is_transient(&self) -> bool {
+        matches!(self, Self::HashMatch(err) if err.is_transient())
+    } 
+}
+
+impl From<anyhow::Error> for Error {
+    fn from(err:anyhow::Error) -> Self {
+        Self::HashMatch(HashMatchError::Internal(err))
+    }
+}
+
+impl From<EnrichedClientError> for Error {
+    fn from(err:EnrichedClientError) -> Self {
+        Self::HashMatch(HashMatchError::Rpc(err))
     }
 }
 
@@ -226,15 +241,16 @@ impl ReorgDetector {
     /// Returns `Ok(())` if no reorg was detected.
     /// Returns `Err::ReorgDetected()` if a reorg was detected.
     pub async fn check_consistency(&mut self) -> Result<(), Error> {
-        let mut storage = self.pool.access_storage().await.map_err(Error::Storage)?;
+        let mut storage = self.pool.access_storage().await.context("access_storage()")?;
         let Some(local_l1_batch) = storage
             .blocks_dal()
             .get_last_l1_batch_number_with_metadata()
-            .await?
+            .await
+            .context("get_last_l1_batch_number_with_metadata()")?
         else {
             return Ok(());
         };
-        let Some(local_miniblock) = storage.blocks_dal().get_sealed_miniblock_number().await?
+        let Some(local_miniblock) = storage.blocks_dal().get_sealed_miniblock_number().await.context("get_sealed_miniblock_number()")?
         else {
             return Ok(());
         };
@@ -264,13 +280,13 @@ impl ReorgDetector {
         self.event_handler.report_divergence(diverged_l1_batch);
 
         tracing::info!("Searching for the first diverged L1 batch");
-        let mut storage = self.pool.access_storage().await.map_err(Error::Storage)?;
+        let mut storage = self.pool.access_storage().await.context("access_storage()")?;
         let earliest_l1_batch = storage
             .blocks_dal()
             .get_earliest_l1_batch_number_with_metadata()
-            .await?
-            .context("all L1 batches with metadata disappeared")
-            .map_err(Error::Storage)?;
+            .await
+            .context("get_earliest_l1_batch_number_with_metadata()")?
+            .context("all L1 batches with metadata disappeared")?;
         drop(storage);
         let last_correct_l1_batch = self
             .detect_reorg(earliest_l1_batch, diverged_l1_batch)
@@ -282,56 +298,57 @@ impl ReorgDetector {
     /// Compares hashes of the given local miniblock and the same miniblock from main node.
     async fn miniblock_hashes_match(
         &self,
-        miniblock_number: MiniblockNumber,
-    ) -> Result<bool, Error> {
-        let mut storage = self.pool.access_storage().await.map_err(Error::Storage)?;
+        miniblock: MiniblockNumber,
+    ) -> Result<bool, HashMatchError> {
+        let mut storage = self.pool.access_storage().await.context("access_storage()")?;
         let local_hash = storage
             .blocks_dal()
-            .get_miniblock_header(miniblock_number)
-            .await?
+            .get_miniblock_header(miniblock)
+            .await
+            .context("get_miniblock_header()")?
             .with_context(|| {
-                format!("Header does not exist for local miniblock #{miniblock_number}")
-            })
-            .map_err(Error::Storage)?
+                format!("Header does not exist for local miniblock #{miniblock}")
+            })?
             .hash;
         drop(storage);
 
-        let Some(remote_hash) = self.client.miniblock_hash(miniblock_number).await? else {
+        let Some(remote_hash) = self.client.miniblock_hash(miniblock).await? else {
             // Due to reorg, locally we may be ahead of the main node.
             // Lack of the hash on the main node is treated as a hash match,
             // We need to wait for our knowledge of main node to catch up.
-            return Ok(true);
+            tracing::info!("Remote miniblock #{miniblock} is missing");
+            return Err(HashMatchError::RemoteHashMissing);
         };
 
         if remote_hash != local_hash {
             tracing::warn!(
                 "Reorg detected: local hash {local_hash:?} doesn't match the hash from \
-                main node {remote_hash:?} (miniblock #{miniblock_number})"
+                main node {remote_hash:?} (miniblock #{miniblock})"
             );
         }
         Ok(remote_hash == local_hash)
     }
 
     /// Compares root hashes of the latest local batch and of the same batch from the main node.
-    async fn root_hashes_match(&self, l1_batch_number: L1BatchNumber) -> Result<bool, Error> {
-        let mut storage = self.pool.access_storage().await.map_err(Error::Storage)?;
+    async fn root_hashes_match(&self, l1_batch: L1BatchNumber) -> Result<bool, HashMatchError> {
+        let mut storage = self.pool.access_storage().await.context("access_storage()")?;
         let local_hash = storage
             .blocks_dal()
-            .get_l1_batch_state_root(l1_batch_number)
-            .await?
-            .with_context(|| format!("Root hash does not exist for local batch #{l1_batch_number}"))
-            .map_err(Error::Storage)?;
+            .get_l1_batch_state_root(l1_batch)
+            .await
+            .context("get_l1_batch_state_root()")?
+            .with_context(|| format!("Root hash does not exist for local batch #{l1_batch}"))?;
         drop(storage);
 
-        let Some(remote_hash) = self.client.l1_batch_root_hash(l1_batch_number).await? else {
-            tracing::info!("Remote L1 batch #{l1_batch_number} is missing");
-            return Err(Error::NoRemoteL1Batch);
+        let Some(remote_hash) = self.client.l1_batch_root_hash(l1_batch).await? else {
+            tracing::info!("Remote L1 batch #{l1_batch} is missing");
+            return Err(HashMatchError::RemoteHashMissing);
         };
 
         if remote_hash != local_hash {
             tracing::warn!(
                 "Reorg detected: local root hash {local_hash:?} doesn't match the state hash from \
-                main node {remote_hash:?} (L1 batch #{l1_batch_number})"
+                main node {remote_hash:?} (L1 batch #{l1_batch})"
             );
         }
         Ok(remote_hash == local_hash)
@@ -342,7 +359,7 @@ impl ReorgDetector {
         &self,
         known_valid_l1_batch: L1BatchNumber,
         diverged_l1_batch: L1BatchNumber,
-    ) -> Result<L1BatchNumber, Error> {
+    ) -> Result<L1BatchNumber, HashMatchError> {
         // TODO (BFT-176, BFT-181): We have to look through the whole history, since batch status updater may mark
         //   a block as executed even if the state diverges for it.
         binary_search_with(
@@ -350,7 +367,7 @@ impl ReorgDetector {
             diverged_l1_batch.0,
             |number| async move {
                 match self.root_hashes_match(L1BatchNumber(number)).await {
-                    Err(Error::NoRemoteL1Batch) => Ok(true),
+                    Err(HashMatchError::RemoteHashMissing) => Ok(true),
                     res => res,
                 }
             },
@@ -381,18 +398,16 @@ impl ReorgDetector {
         let Some(earliest_l1_batch) =
             wait_for_l1_batch_with_metadata(&self.pool, self.sleep_interval, stop_receiver)
                 .await
-                .map_err(Error::Storage)?
+                .context("wait_for_l1_batch_with_metadata()")?
         else {
             return Ok(()); // Stop signal received
         };
         tracing::debug!("Checking root hash match for earliest L1 batch #{earliest_l1_batch}");
         match self.root_hashes_match(earliest_l1_batch).await {
             Ok(true) => {}
-            Ok(false) => return Err(Error::EarliestHashMismatch(earliest_l1_batch)),
-            Err(Error::NoRemoteL1Batch) => {
-                return Err(Error::EarliestL1BatchTruncated(earliest_l1_batch))
-            }
-            Err(err) => return Err(err),
+            Ok(false) => return Err(Error::EarliestL1BatchMismatch(earliest_l1_batch)),
+            Err(HashMatchError::RemoteHashMissing) => { return Err(Error::EarliestL1BatchTruncated(earliest_l1_batch)) }
+            Err(err) => return Err(err.into()),
         }
         while !*stop_receiver.borrow() {
             self.check_consistency().await?;

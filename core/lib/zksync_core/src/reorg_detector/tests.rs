@@ -13,6 +13,7 @@ use zksync_types::{
     block::{MiniblockHasher, MiniblockHeader},
     L2ChainId, ProtocolVersion,
 };
+use zksync_web3_decl::jsonrpsee::core::ClientError as RpcError;
 
 use super::*;
 use crate::{
@@ -482,7 +483,7 @@ async fn detector_errors_on_earliest_batch_hash_mismatch() {
     let mut detector = create_mock_detector(client, pool.clone());
 
     let err = detector.run_inner(&mut stop_receiver).await.unwrap_err();
-    assert_matches!(err, Error::EarliestHashMismatch(L1BatchNumber(0)));
+    assert_matches!(err, Error::EarliestL1BatchMismatch(L1BatchNumber(0)));
 }
 
 #[tokio::test]
@@ -508,7 +509,7 @@ async fn detector_errors_on_earliest_batch_hash_mismatch_with_snapshot_recovery(
     let mut stop = watch::channel(false).1;
     assert_matches!(
         detector.run_inner(&mut stop).await,
-        Err(Error::EarliestHashMismatch(L1BatchNumber(3)))
+        Err(Error::EarliestL1BatchMismatch(L1BatchNumber(3)))
     );
 }
 

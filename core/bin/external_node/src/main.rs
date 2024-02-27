@@ -15,7 +15,7 @@ use zksync_core::{
         tx_sender::{proxy::TxProxy, ApiContracts, TxSenderBuilder},
         web3::{ApiBuilder, Namespace},
     },
-    block_reverter::{BlockReverter, BlockReverterFlags, L1ExecutedBatchesRevert},
+    block_reverter::{NodeRole, BlockReverter, BlockReverterFlags, L1ExecutedBatchesRevert},
     commitment_generator::CommitmentGenerator,
     consensus,
     consistency_checker::ConsistencyChecker,
@@ -492,7 +492,7 @@ async fn main() -> anyhow::Result<()> {
     let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
         .context("Failed creating JSON-RPC client for main node")?;
     let reverter = BlockReverter::new(
-        /*`main_node=`*/ false,
+        NodeRole::External,
         config.required.state_cache_path.clone(),
         config.required.merkle_tree_path.clone(),
         None,

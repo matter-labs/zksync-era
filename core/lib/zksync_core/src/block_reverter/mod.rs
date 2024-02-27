@@ -72,6 +72,13 @@ impl BlockReverterEthConfig {
     }
 }
 
+/// Role of the node.
+#[derive(Debug,Clone,Copy,PartialEq)]
+pub enum NodeRole {
+    Main,
+    External,
+}
+
 /// This struct is used to perform a rollback of the state.
 /// Rollback is a rare event of manual intervention, when the node operator
 /// decides to revert some of the not yet finalized batches for some reason
@@ -87,10 +94,9 @@ impl BlockReverterEthConfig {
 /// - State of the Ethereum contract (if the block was committed)
 #[derive(Debug)]
 pub struct BlockReverter {
-    /// `true` for main node storage, `false` for external node.
     /// It affects the interactions with the consensus state.
     /// This distinction will be removed once consensus genesis is moved to the L1 state.
-    main_node: bool,
+    node_role: NodeRole,
     state_keeper_cache_path: String,
     merkle_tree_path: String,
     eth_config: Option<BlockReverterEthConfig>,
@@ -100,7 +106,7 @@ pub struct BlockReverter {
 
 impl BlockReverter {
     pub fn new(
-        main_node: bool,
+        node_role: NodeRole,
         state_keeper_cache_path: String,
         merkle_tree_path: String,
         eth_config: Option<BlockReverterEthConfig>,
@@ -108,7 +114,7 @@ impl BlockReverter {
         executed_batches_revert_mode: L1ExecutedBatchesRevert,
     ) -> Self {
         Self {
-            main_node,
+            node_role,
             state_keeper_cache_path,
             merkle_tree_path,
             eth_config,
@@ -230,7 +236,7 @@ impl BlockReverter {
     }
 
     /// Reverts data in the Postgres database.
-    /// If `main_node` is set, a consensus hard-fork is performed.
+    /// If `node_role` is `Main` a consensus hard-fork is performed.
     async fn rollback_postgres(&self, last_l1_batch_to_keep: L1BatchNumber) {
         tracing::info!("rolling back postgres data...");
         let mut storage = self.connection_pool.access_storage().await.unwrap();
@@ -300,7 +306,7 @@ impl BlockReverter {
             .delete_miniblocks(last_miniblock_to_keep)
             .await
             .unwrap();
-        if self.main_node {
+        if self.node_role == NodeRole::Main {
             tracing::info!("performing consensus hard fork");
             transaction.consensus_dal().fork().await.unwrap();
         }
