@@ -186,9 +186,9 @@ async fn normal_reorg_function(snapshot_recovery: bool, with_transient_errors: b
     };
     let last_l1_batch_number = L1BatchNumber(*l1_batch_numbers.end());
     let last_miniblock_number = MiniblockNumber(*l1_batch_numbers.end());
-    let miniblock_and_l1_batch_hashes = l1_batch_numbers
+    let miniblock_and_l1_batch_hashes: Vec<_> = l1_batch_numbers
         .map(|number| {
-            let miniblock_hash: Vec<_> = H256::from_low_u64_be(number.into());
+            let miniblock_hash = H256::from_low_u64_be(number.into());
             client
                 .miniblock_hashes
                 .insert(MiniblockNumber(number), miniblock_hash);
