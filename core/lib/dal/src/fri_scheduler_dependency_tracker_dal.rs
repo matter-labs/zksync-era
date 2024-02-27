@@ -71,7 +71,7 @@ impl FriSchedulerDependencyTrackerDal<'_, '_> {
         circuit_id: u8,
         final_prover_job_id: u32,
         l1_batch_number: L1BatchNumber,
-        sequence: usize,
+        blob_ordering: usize,
     ) {
         let query = if circuit_id != types::EIP_4844_CIRCUIT_ID {
             format!(
@@ -86,10 +86,10 @@ impl FriSchedulerDependencyTrackerDal<'_, '_> {
             format!(
                 r#"
                     UPDATE scheduler_dependency_tracker_fri
-                    SET circuit_{}_final_prover_job_id_{} = $1
+                    SET eip_4844_final_prover_job_id_{} = $1
                     WHERE l1_batch_number = $2
                 "#,
-                circuit_id, sequence,
+                blob_ordering,
             )
         };
         sqlx::query(&query)
