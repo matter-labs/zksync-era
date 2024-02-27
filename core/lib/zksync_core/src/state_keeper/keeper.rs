@@ -713,6 +713,7 @@ impl ZkSyncStateKeeper {
                 BATCH_TIP_METRICS.observe_writes_metrics(
                     &updates_manager.storage_writes_deduplicator.metrics(),
                     &block_writes_metrics,
+                    updates_manager.protocol_version(),
                 );
 
                 let block_writes_l1_gas = gas_count_from_writes(

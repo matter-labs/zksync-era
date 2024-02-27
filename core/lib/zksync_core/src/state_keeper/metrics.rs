@@ -431,9 +431,10 @@ impl BatchTipMetrics {
         &self,
         initial_writes_metrics: &DeduplicatedWritesMetrics,
         applied_writes_metrics: &DeduplicatedWritesMetrics,
+        protocol_version_id: ProtocolVersionId,
     ) {
-        let size_diff = applied_writes_metrics.size(ProtocolVersionId::latest()) as i128
-            - initial_writes_metrics.size(ProtocolVersionId::latest()) as i128;
+        let size_diff = applied_writes_metrics.size(protocol_version_id) as i128
+            - initial_writes_metrics.size(protocol_version_id) as i128;
 
         if size_diff > 0 {
             self.block_writes_metrics_positive_size
