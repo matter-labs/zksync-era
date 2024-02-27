@@ -29,7 +29,9 @@ use zksync_prover_fri_types::{
 };
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{
-    basic_fri_types::AggregationRound, protocol_version::FriProtocolVersionId, L1BatchNumber,
+    basic_fri_types::{AggregationRound, FinalProofIds},
+    protocol_version::FriProtocolVersionId,
+    L1BatchNumber,
 };
 use zksync_vk_setup_data_server_fri::{keystore::Keystore, utils::get_leaf_vk_params};
 
@@ -241,7 +243,7 @@ impl JobProcessor for SchedulerWitnessGenerator {
 
 pub async fn prepare_job(
     l1_batch_number: L1BatchNumber,
-    proof_job_ids: ([u32; 13], [u32; 2]),
+    proof_job_ids: FinalProofIds,
     object_store: &dyn ObjectStore,
 ) -> anyhow::Result<SchedulerWitnessGeneratorJob> {
     let started_at = Instant::now();

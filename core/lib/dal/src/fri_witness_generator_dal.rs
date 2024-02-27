@@ -2,7 +2,9 @@ use std::{collections::HashMap, convert::TryFrom, time::Duration};
 
 use sqlx::Row;
 use zksync_types::{
-    basic_fri_types::AggregationRound, protocol_version::FriProtocolVersionId, L1BatchNumber,
+    basic_fri_types::{AggregationRound, Eip4844Blobs},
+    protocol_version::FriProtocolVersionId,
+    L1BatchNumber,
 };
 
 use crate::{
@@ -39,7 +41,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         block_number: L1BatchNumber,
         object_key: &str,
         protocol_version_id: FriProtocolVersionId,
-        eip_4844_blobs: &[u8],
+        eip_4844_blobs: Eip4844Blobs,
     ) {
         sqlx::query!(
             r#"
@@ -60,7 +62,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
             block_number.0 as i64,
             object_key,
             protocol_version_id as i32,
-            bincode::serialize(eip_4844_blobs).expect("Failed to serialize 4844 blobs to bytes"),
+            bincode::serialize(&Vec::<u8>::from(eip_4844_blobs))
+                .expect("Failed to serialize 4844 blobs to bytes"),
         )
         .fetch_optional(self.storage.conn())
         .await

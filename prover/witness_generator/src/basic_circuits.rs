@@ -127,7 +127,7 @@ impl BasicWitnessGenerator {
         basic_job: BasicWitnessGeneratorJob,
         started_at: Instant,
         config: Arc<FriWitnessGeneratorConfig>,
-        trusted_setup_config: String,
+        trusted_setup_path: String,
     ) -> Option<BasicCircuitArtifacts> {
         let BasicWitnessGeneratorJob {
             block_number,
@@ -182,7 +182,7 @@ impl BasicWitnessGenerator {
                 block_number,
                 job,
                 eip_4844_blobs,
-                &trusted_setup_config,
+                &trusted_setup_path,
             )
             .await,
         )
@@ -249,7 +249,7 @@ impl JobProcessor for BasicWitnessGenerator {
         let object_store = Arc::clone(&self.object_store);
         let connection_pool = self.connection_pool.clone();
         let prover_connection_pool = self.prover_connection_pool.clone();
-        let trusted_setup_config = self.trusted_setup_config.clone();
+        let trusted_setup_path = self.trusted_setup_path.clone();
         tokio::spawn(async move {
             Ok(Self::process_job_impl(
                 object_store,
@@ -258,7 +258,7 @@ impl JobProcessor for BasicWitnessGenerator {
                 job,
                 started_at,
                 config,
-                trusted_setup_config,
+                trusted_setup_path,
             )
             .await)
         })
@@ -331,7 +331,7 @@ async fn process_basic_circuits_job(
     block_number: L1BatchNumber,
     job: PrepareBasicCircuitsJob,
     eip_4844_blobs: Eip4844Blobs,
-    trusted_setup_config: &str,
+    trusted_setup_path: &str,
 ) -> BasicCircuitArtifacts {
     let witness_gen_input =
         build_basic_circuits_witness_generator_input(&connection_pool, job, block_number).await;
@@ -343,7 +343,7 @@ async fn process_basic_circuits_job(
             connection_pool,
             witness_gen_input,
             eip_4844_blobs,
-            trusted_setup_config,
+            trusted_setup_path,
         )
         .await;
     WITNESS_GENERATOR_METRICS.witness_generation_time[&AggregationRound::BasicCircuits.into()]
@@ -721,6 +721,26 @@ async fn generate_witness(
         // See: https://github.com/matter-labs/era-zkevm_circuits/blob/v1.4.2/src/scheduler/mod.rs#L1165
         eip_4844_blobs.push(vec![0; EIP_4844_BLOB_SIZE]);
     }
+
+    let (eip_4844_circuits, eip_4844_witnesses): (
+        Vec<
+            circuit_definitions::circuit_definitions::ZkSyncUniformCircuitInstance<
+                GoldilocksField,
+                circuit_definitions::circuit_definitions::eip4844::EIP4844InstanceSynthesisFunction<
+                    GoldilocksField,
+                    zkevm_test_harness::boojum::implementations::poseidon2::Poseidon2Goldilocks,
+                >,
+            >,
+        >,
+        Vec<
+            zkevm_test_harness::zkevm_circuits::eip_4844::input::EIP4844OutputDataWitness<
+                GoldilocksField,
+            >,
+        >,
+    ) = eip_4844_blobs
+        .iter()
+        .map(|blob| generate_eip4844_circuit_and_witness(blob.to_vec(), trusted_setup_path))
+        .unzip();
 
     let mut eip_4844_circuits = vec![];
     let mut eip_4844_witnesses = vec![];
