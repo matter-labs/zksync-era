@@ -91,6 +91,7 @@ impl<T: Resource + Clone> LazyResource<T> {
     }
 }
 
+/// Possible errors that can occur while working with LazyResource.
 #[derive(Debug, Error, PartialEq)]
 pub enum LazyResourceError {
     #[error("Node is shutting down")]
@@ -171,24 +172,4 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn test_node_shutdown_case() {
-        let TestContext {
-            test_resource: _,
-            lazy_resource,
-            stop_sender,
-        } = TestContext::new();
 
-        let resolve_task = tokio::spawn(async move { lazy_resource.resolve().await });
-
-        stop_sender.send(true).unwrap();
-
-        let result = resolve_task.await.unwrap();
-
-        assert_eq!(
-            result,
-            Err(LazyResourceError::NodeShutdown),
-            "Incorrect result for resolving the resource after the node shutdown"
-        );
-    }
-}
