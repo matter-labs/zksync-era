@@ -15,9 +15,18 @@ const MAX_4844_BLOBS_PER_BLOCK: usize = 2;
 
 pub const EIP_4844_BLOB_SIZE: usize = BLOB_CHUNK_SIZE * ELEMENTS_PER_4844_BLOCK;
 
+/// Wrapper struct over Vec<u8>
 pub type Blob = Vec<u8>;
 
 // TODO: add tests
+
+/// Wrapper struct, containing EIP 4844 blobs and enforcing their invariants.
+/// Current invariants:
+///   - there are between [1, 2] blobs
+///   - all blobs are of the same size [`EIP_4844_BLOB_SIZE`]
+/// Creating a structure violating these constraints will panic.
+///
+/// Note: blobs are padded to fit the correct size.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Eip4844Blobs {
     blobs: Vec<Blob>,
@@ -38,7 +47,7 @@ impl Eip4844Blobs {
         rounded_down_blob_len
     }
 
-    fn check_blob_constraints(blobs_len: usize, rounded_blob_len: usize) {
+    fn enforce_blob_constraints(blobs_len: usize, rounded_blob_len: usize) {
         // Post calculation, rounded_blob_len should always represent full blobs; invariant
         assert!(rounded_blob_len % EIP_4844_BLOB_SIZE == 0);
 
@@ -60,7 +69,7 @@ impl Eip4844Blobs {
 impl From<Vec<u8>> for Eip4844Blobs {
     fn from(mut blobs: Vec<u8>) -> Self {
         let rounded_blob_len = Self::get_rounded_blob_len(blobs.len());
-        Self::check_blob_constraints(blobs.len(), rounded_blob_len);
+        Self::enforce_blob_constraints(blobs.len(), rounded_blob_len);
 
         blobs.resize(rounded_blob_len, 0u8);
         Self {

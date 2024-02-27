@@ -21,6 +21,9 @@ impl CircuitIdRoundTuple {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct Stuff {}
+
 /// Represents the sequential number of the proof aggregation round.
 /// Mostly used to be stored in `aggregation_round` column  in `prover_jobs` table
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]

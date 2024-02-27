@@ -96,6 +96,7 @@ pub struct BasicWitnessGenerator {
     connection_pool: ConnectionPool,
     prover_connection_pool: ConnectionPool,
     protocol_versions: Vec<FriProtocolVersionId>,
+    trusted_setup_path: String,
 }
 
 impl BasicWitnessGenerator {
@@ -106,6 +107,7 @@ impl BasicWitnessGenerator {
         connection_pool: ConnectionPool,
         prover_connection_pool: ConnectionPool,
         protocol_versions: Vec<FriProtocolVersionId>,
+        trusted_setup_path: String,
     ) -> Self {
         Self {
             config: Arc::new(config),
@@ -114,6 +116,7 @@ impl BasicWitnessGenerator {
             connection_pool,
             prover_connection_pool,
             protocol_versions,
+            trusted_setup_path,
         }
     }
 
@@ -124,6 +127,7 @@ impl BasicWitnessGenerator {
         basic_job: BasicWitnessGeneratorJob,
         started_at: Instant,
         config: Arc<FriWitnessGeneratorConfig>,
+        trusted_setup_config: String,
     ) -> Option<BasicCircuitArtifacts> {
         let BasicWitnessGeneratorJob {
             block_number,
@@ -178,6 +182,7 @@ impl BasicWitnessGenerator {
                 block_number,
                 job,
                 eip_4844_blobs,
+                &trusted_setup_config,
             )
             .await,
         )
@@ -244,6 +249,7 @@ impl JobProcessor for BasicWitnessGenerator {
         let object_store = Arc::clone(&self.object_store);
         let connection_pool = self.connection_pool.clone();
         let prover_connection_pool = self.prover_connection_pool.clone();
+        let trusted_setup_config = self.trusted_setup_config.clone();
         tokio::spawn(async move {
             Ok(Self::process_job_impl(
                 object_store,
@@ -252,6 +258,7 @@ impl JobProcessor for BasicWitnessGenerator {
                 job,
                 started_at,
                 config,
+                trusted_setup_config,
             )
             .await)
         })
@@ -324,6 +331,7 @@ async fn process_basic_circuits_job(
     block_number: L1BatchNumber,
     job: PrepareBasicCircuitsJob,
     eip_4844_blobs: Eip4844Blobs,
+    trusted_setup_config: &str,
 ) -> BasicCircuitArtifacts {
     let witness_gen_input =
         build_basic_circuits_witness_generator_input(&connection_pool, job, block_number).await;
@@ -335,6 +343,7 @@ async fn process_basic_circuits_job(
             connection_pool,
             witness_gen_input,
             eip_4844_blobs,
+            trusted_setup_config,
         )
         .await;
     WITNESS_GENERATOR_METRICS.witness_generation_time[&AggregationRound::BasicCircuits.into()]
@@ -518,6 +527,7 @@ async fn generate_witness(
     connection_pool: ConnectionPool,
     input: BasicCircuitWitnessGeneratorInput,
     eip_4844_blobs: Eip4844Blobs,
+    trusted_setup_path: &str,
 ) -> (
     Vec<(u8, String)>,
     Vec<(usize, String)>,
@@ -703,23 +713,21 @@ async fn generate_witness(
         }
     };
 
-    let mut eip_4844_blobs = eip_4844_blobs.get_blobs();
+    let mut eip_4844_blobs = eip_4844_blobs.blobs();
 
     let single_blob = eip_4844_blobs.len() == 1;
     if single_blob {
         // A proof is still expected for the scheduler (it's not going to be used), even though we have a single blob.
         // See: https://github.com/matter-labs/era-zkevm_circuits/blob/v1.4.2/src/scheduler/mod.rs#L1165
-        eip_4844_blobs.push([0; EIP_4844_BLOB_SIZE]);
+        eip_4844_blobs.push(vec![0; EIP_4844_BLOB_SIZE]);
     }
 
     let mut eip_4844_circuits = vec![];
     let mut eip_4844_witnesses = vec![];
 
     for blob in eip_4844_blobs {
-        let (eip_4844_circuit, eip_4844_witness) = generate_eip4844_circuit_and_witness(
-            blob.to_vec(),
-            "/home/evl/zksync_era/trusted_setup.json",
-        );
+        let (eip_4844_circuit, eip_4844_witness) =
+            generate_eip4844_circuit_and_witness(blob.to_vec(), trusted_setup_path);
         eip_4844_circuits.push(eip_4844_circuit);
         eip_4844_witnesses.push(eip_4844_witness.closed_form_input.observable_output);
     }
@@ -727,6 +735,7 @@ async fn generate_witness(
     let (witnesses, ()) = tokio::join!(make_circuits, save_circuits);
 
     let mut eip_4844_blob_urls = vec![];
+    // Note that the sequence number will be reused as telling the ordering between blobs.
     for (index, circuit) in eip_4844_circuits.into_iter().enumerate() {
         eip_4844_blob_urls
             .push(save_eip_4844_circuit(block_number, circuit, index, object_store, 0).await);

@@ -39,7 +39,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         block_number: L1BatchNumber,
         object_key: &str,
         protocol_version_id: FriProtocolVersionId,
-        eip_4844_blobs: Vec<u8>,
+        eip_4844_blobs: &[u8],
     ) {
         sqlx::query!(
             r#"
@@ -60,13 +60,15 @@ impl FriWitnessGeneratorDal<'_, '_> {
             block_number.0 as i64,
             object_key,
             protocol_version_id as i32,
-            bincode::serialize(&eip_4844_blobs).expect("Failed to serialize 4844 blobs to bytes"),
+            bincode::serialize(eip_4844_blobs).expect("Failed to serialize 4844 blobs to bytes"),
         )
         .fetch_optional(self.storage.conn())
         .await
         .unwrap();
     }
 
+    /// Gets the next job to be executed. Returns the L1BatchNumber and it's corresponding raw blobs.
+    /// The blobs arrive from core side, as pubdata.
     pub async fn get_next_basic_circuit_witness_job(
         &mut self,
         last_l1_batch_to_process: u32,

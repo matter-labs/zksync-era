@@ -71,6 +71,9 @@ impl FriSchedulerDependencyTrackerDal<'_, '_> {
         circuit_id: u8,
         final_prover_job_id: u32,
         l1_batch_number: L1BatchNumber,
+        // As of 1.4.2, there exist only 2 blobs. Their order matter.
+        // blob_ordering is used to determine which blob is the first one and which is the second.
+        // This will be changed when 1.5.0 will land and there will be a single node proof for blobs.
         blob_ordering: usize,
     ) {
         let query = if circuit_id != types::EIP_4844_CIRCUIT_ID {
