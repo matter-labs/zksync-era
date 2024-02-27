@@ -44,17 +44,26 @@ async fn kept_updated() {
             internal_enforced_l1_gas_price: None,
             poll_period: 5,
             max_l1_gas_price: None,
+            max_blob_base_fee_samples: 10,
+            internal_pubdata_pricing_multiplier: 1.0,
+            max_blob_base_fee: None,
         },
     )
     .await
     .unwrap();
 
-    assert_eq!(adjuster.statistics.0.read().unwrap().samples.len(), 5);
-    assert_eq!(adjuster.statistics.0.read().unwrap().median(), 6);
+    assert_eq!(
+        adjuster.base_fee_statistics.0.read().unwrap().samples.len(),
+        5
+    );
+    assert_eq!(adjuster.base_fee_statistics.0.read().unwrap().median(), 6);
 
     eth_client.advance_block_number(3);
     adjuster.keep_updated().await.unwrap();
 
-    assert_eq!(adjuster.statistics.0.read().unwrap().samples.len(), 5);
-    assert_eq!(adjuster.statistics.0.read().unwrap().median(), 7);
+    assert_eq!(
+        adjuster.base_fee_statistics.0.read().unwrap().samples.len(),
+        5
+    );
+    assert_eq!(adjuster.base_fee_statistics.0.read().unwrap().median(), 7);
 }

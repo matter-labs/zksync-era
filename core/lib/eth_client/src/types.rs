@@ -1,6 +1,8 @@
 use rlp::RlpStream;
+use serde::{Deserialize, Deserializer, Serialize};
 use zksync_types::{
     eth_sender::EthTxBlobSidecar,
+    ethabi::ethereum_types::H64,
     web3::{
         contract::{
             tokens::{Detokenize, Tokenize},
@@ -9,7 +11,7 @@ use zksync_types::{
         ethabi,
         types::{Address, BlockId, TransactionReceipt, H256, U256},
     },
-    EIP_4844_TX_TYPE,
+    Bytes, EIP_4844_TX_TYPE, H160, H2048, U64,
 };
 
 /// Wrapper for `Vec<ethabi::Token>` that doesn't wrap them in an additional array in `Tokenize` implementation.
@@ -242,6 +244,87 @@ pub struct FailureInfo {
     pub gas_used: Option<U256>,
     /// Gas limit of the transaction.
     pub gas_limit: U256,
+}
+
+/// The block type returned from RPC calls.
+/// This is generic over a `TX` type.
+/// We can't use `Block` from `web3` crate because it doesn't support `excessBlobGas`.
+#[derive(Debug, Default, Clone, PartialEq, Deserialize, Serialize)]
+pub struct Block<TX> {
+    /// Hash of the block
+    pub hash: Option<H256>,
+    /// Hash of the parent
+    #[serde(rename = "parentHash")]
+    pub parent_hash: H256,
+    /// Hash of the uncles
+    #[serde(rename = "sha3Uncles")]
+    #[cfg_attr(feature = "allow-missing-fields", serde(default))]
+    pub uncles_hash: H256,
+    /// Miner/author's address.
+    #[serde(rename = "miner", default, deserialize_with = "null_to_default")]
+    pub author: H160,
+    /// State root hash
+    #[serde(rename = "stateRoot")]
+    pub state_root: H256,
+    /// Transactions root hash
+    #[serde(rename = "transactionsRoot")]
+    pub transactions_root: H256,
+    /// Transactions receipts root hash
+    #[serde(rename = "receiptsRoot")]
+    pub receipts_root: H256,
+    /// Block number. None if pending.
+    pub number: Option<U64>,
+    /// Gas Used
+    #[serde(rename = "gasUsed")]
+    pub gas_used: U256,
+    /// Gas Limit
+    #[serde(rename = "gasLimit")]
+    #[cfg_attr(feature = "allow-missing-fields", serde(default))]
+    pub gas_limit: U256,
+    /// Base fee per unit of gas (if past London)
+    #[serde(rename = "baseFeePerGas", skip_serializing_if = "Option::is_none")]
+    pub base_fee_per_gas: Option<U256>,
+    /// Extra data
+    #[serde(rename = "extraData")]
+    pub extra_data: Bytes,
+    /// Logs bloom
+    #[serde(rename = "logsBloom")]
+    pub logs_bloom: Option<H2048>,
+    /// Timestamp
+    pub timestamp: U256,
+    /// Difficulty
+    #[cfg_attr(feature = "allow-missing-fields", serde(default))]
+    pub difficulty: U256,
+    /// Total difficulty
+    #[serde(rename = "totalDifficulty")]
+    pub total_difficulty: Option<U256>,
+    /// Seal fields
+    #[serde(default, rename = "sealFields")]
+    pub seal_fields: Vec<Bytes>,
+    /// Uncles' hashes
+    #[cfg_attr(feature = "allow-missing-fields", serde(default))]
+    pub uncles: Vec<H256>,
+    /// Transactions
+    pub transactions: Vec<TX>,
+    /// Size in bytes
+    pub size: Option<U256>,
+    /// Mix Hash
+    #[serde(rename = "mixHash")]
+    pub mix_hash: Option<H256>,
+    /// Nonce
+    pub nonce: Option<H64>,
+    /// Excess blob gas
+    #[serde(rename = "excessBlobGas")]
+    pub excess_blob_gas: Option<U64>,
+}
+
+fn null_to_default<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+where
+    T: Default + Deserialize<'de>,
+    D: Deserializer<'de>,
+{
+    let option = Option::deserialize(deserializer)?;
+    Ok(option.unwrap_or_default())
 }
 
 #[cfg(test)]
