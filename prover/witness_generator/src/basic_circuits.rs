@@ -40,7 +40,7 @@ use zksync_prover_fri_types::{
 };
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
 use zksync_prover_interface::{
-    api::{Eip4844Blobs, EIP_4844_BLOB_SIZE},
+    api::{Eip4844Blobs, EIP_4844_BLOB_SIZE, MAX_4844_BLOBS_PER_BLOCK},
     inputs::{BasicCircuitWitnessGeneratorInput, PrepareBasicCircuitsJob},
 };
 use zksync_queued_job_processor::JobProcessor;
@@ -384,7 +384,7 @@ async fn update_database(
             protocol_version_id,
         )
         .await;
-    for index in 0..2 {
+    for index in 0..MAX_4844_BLOBS_PER_BLOCK {
         prover_connection
             .fri_prover_jobs_dal()
             .insert_prover_job(
