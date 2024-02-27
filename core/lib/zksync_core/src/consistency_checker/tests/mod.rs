@@ -72,6 +72,7 @@ fn create_mock_checker(client: MockEthereum, pool: ConnectionPool) -> Consistenc
         l1_data_mismatch_behavior: L1DataMismatchBehavior::Bail,
         pool,
         health_check,
+        kzg_settings: None,
     }
 }
 
