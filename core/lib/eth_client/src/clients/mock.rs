@@ -118,6 +118,7 @@ pub struct MockEthereum {
     max_fee_per_gas: U256,
     max_priority_fee_per_gas: U256,
     base_fee_history: Vec<u64>,
+    excess_blob_gas_history: Vec<u64>,
     /// If true, the mock will not check the ordering nonces of the transactions.
     /// This is useful for testing the cases when the transactions are executed out of order.
     non_ordering_confirmations: bool,
@@ -131,6 +132,7 @@ impl Default for MockEthereum {
             max_fee_per_gas: 100.into(),
             max_priority_fee_per_gas: 10.into(),
             base_fee_history: vec![],
+            excess_blob_gas_history: vec![],
             non_ordering_confirmations: false,
             multicall_address: Address::default(),
             inner: RwLock::default(),
@@ -205,6 +207,13 @@ impl MockEthereum {
     pub fn with_fee_history(self, history: Vec<u64>) -> Self {
         Self {
             base_fee_history: history,
+            ..self
+        }
+    }
+
+    pub fn with_excess_blob_gas_history(self, history: Vec<u64>) -> Self {
+        Self {
+            excess_blob_gas_history: history,
             ..self
         }
     }
@@ -359,10 +368,23 @@ impl EthInterface for MockEthereum {
 
     async fn block(
         &self,
-        _block_id: BlockId,
+        block_id: BlockId,
         _component: &'static str,
     ) -> Result<Option<Block<H256>>, Error> {
-        unimplemented!("Not needed right now")
+        match block_id {
+            BlockId::Number(BlockNumber::Number(number)) => {
+                let block =
+                    self.excess_blob_gas_history
+                        .get(number.as_usize())
+                        .map(|excess_blob_gas| Block {
+                            number: Some(number),
+                            excess_blob_gas: Some((*excess_blob_gas).into()),
+                            ..Default::default()
+                        });
+                Ok(block)
+            }
+            _ => unimplemented!("Not needed right now"),
+        }
     }
 }
 
