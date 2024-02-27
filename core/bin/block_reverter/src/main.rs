@@ -104,6 +104,7 @@ async fn main() -> anyhow::Result<()> {
     .await
     .context("failed to build a connection pool")?;
     let mut block_reverter = BlockReverter::new(
+        /*`main_node=`*/ true,
         db_config.state_keeper_db_path,
         db_config.merkle_tree.path,
         Some(config),

@@ -217,7 +217,7 @@ impl BlockStore {
             .await
             .wrap("start_transaction()")?;
         if txn.genesis(ctx).await.wrap("genesis()")?.is_some() {
-            return txn.verify_genesis(ctx).await;
+            return Ok(());
         }
         let genesis = validator::Genesis {
             // `ValidatorSet::new()` with a single validator should never fail.
@@ -225,7 +225,7 @@ impl BlockStore {
             fork: validator::Fork {
                 number: validator::ForkNumber(0),
                 first_block,
-                first_parent: // TODO:
+                first_parent: None,
             },
         };
         txn.try_update_genesis(ctx, &genesis)

@@ -10,7 +10,6 @@ use zksync_eth_signer::{EthereumSigner, PrivateKeySigner, TransactionParameters}
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_state::RocksdbStorage;
 use zksync_storage::RocksDB;
-use zksync_consensus_roles::validator;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     ethabi::Token,
@@ -88,6 +87,9 @@ impl BlockReverterEthConfig {
 /// - State of the Ethereum contract (if the block was committed)
 #[derive(Debug)]
 pub struct BlockReverter {
+    /// `true` for mainnode storage, `false` for external node.
+    /// It affects the interactions with the consensus state.
+    /// This distinction will be removed once consensus genesis is moved to the L1 state.
     main_node: bool,
     state_keeper_cache_path: String,
     merkle_tree_path: String,
@@ -228,7 +230,7 @@ impl BlockReverter {
     }
 
     /// Reverts data in the Postgres database.
-    /// A side effect of this operation is a consensus hard-fork.
+    /// If `main_node` is set, a consensus hard-fork is performed.
     async fn rollback_postgres(&self, last_l1_batch_to_keep: L1BatchNumber) {
         tracing::info!("rolling back postgres data...");
         let mut storage = self.connection_pool.access_storage().await.unwrap();
@@ -299,11 +301,8 @@ impl BlockReverter {
             .await
             .unwrap();
         if self.main_node {
-            transaction
-                .consensus_dal()
-                .fork()
-                .await
-                .unwrap();
+            tracing::info!("performing consensus hard fork");
+            transaction.consensus_dal().fork().await.unwrap();
         }
         transaction.commit().await.unwrap();
     }

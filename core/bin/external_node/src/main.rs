@@ -208,7 +208,7 @@ async fn init_tasks(
         )
         .await
         .context("failed initializing main node fetcher")?;
-        task_handles.push(tokio::spawn(fetcher.run())); 
+        task_handles.push(tokio::spawn(fetcher.run()));
     }
 
     let reorg_detector = ReorgDetector::new(main_node_client.clone(), connection_pool.clone());
@@ -489,6 +489,7 @@ async fn main() -> anyhow::Result<()> {
         .context("Failed creating JSON-RPC client for main node")?;
     let mut reorg_detector = ReorgDetector::new(main_node_client.clone(), connection_pool.clone());
     let reverter = BlockReverter::new(
+        /*`main_node=`*/ false,
         config.required.state_cache_path.clone(),
         config.required.merkle_tree_path.clone(),
         None,

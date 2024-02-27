@@ -158,20 +158,21 @@ impl Fetcher {
             // Update sync state in the background.
             s.spawn_bg(self.fetch_state_loop(ctx));
 
-            // Fetch genesis from the main node.
-            let genesis = self.fetch_genesis(ctx).await.wrap("fetch_genesis()")?; 
-            let mut cursor = store.access(ctx).await.wrap("access()")?
+            // Initialize genesis.
+            let genesis = self.fetch_genesis(ctx).await.wrap("fetch_genesis()")?;
+            let mut conn = store.access(ctx).await.wrap("access()")?;
+            conn.try_update_genesis(ctx, &genesis)
+                .await
+                .wrap("set_genesis()")?;
+            let mut cursor = conn
                 .new_fetcher_cursor(ctx, actions)
                 .await
                 .wrap("new_fetcher_cursor()")?;
+            drop(conn);
 
-            // Fetch blocks before the genesis and save genesis afterwards.
+            // Fetch blocks before the genesis.
             self.fetch_blocks(ctx, &mut cursor, genesis.fork.first_block)
                 .await?;
-            store.access(ctx).await.wrap("access()")?
-                .try_update_genesis(ctx, &genesis)
-                .await
-                .wrap("try_update_genesis()")?;
 
             // Monitor the genesis of the main node.
             // If it changes, it means that a hard fork occurred and we need to reset the consensus state.
