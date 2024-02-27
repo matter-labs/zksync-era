@@ -66,10 +66,10 @@ batch_overhead_l1_gas=800000
 max_gas_per_batch=200000000
 
 # This will also determine how many blobs are used, when enabled.
-# If the value is less than 126kb -> Calldata or 1 Blob
-# If the value is > 126 kb and < 252kb then 2 blobs are used.
-# Note, the max at this moment is 252kb
-max_pubdata_per_batch=110000
+# If the value is less than 126 kb -> Calldata or 1 Blob
+# If the value is > 126 kb and < 252 kb then 2 blobs are used.
+# Note, the max at this moment is 252 kb
+max_pubdata_per_batch=100000
 
 # The version of the fee model to use. 
 # - `V1`, the first model that was used in zkSync Era. In this fee model, the pubdata price must be pegged to the L1 gas price.
