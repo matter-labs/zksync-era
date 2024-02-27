@@ -11,18 +11,18 @@ mod resource_id;
 mod unique;
 
 /// A trait for anything that can be stored (and retrieved) as a resource.
-/// Typically, the type that implements this trait also should implement `Clone`
-/// since the same resource may be requested by several tasks and thus it would be an additional
-/// bound on most methods that work with [`Resource`].
+/// Typically, the type that implements this trait should also implement `Clone`
+/// since the same resource may be requested by several tasks, necessitating cloning.
 pub trait Resource: 'static + Send + Sync + std::any::Any {
     /// Unique identifier of the resource.
     /// Used to fetch the resource from the provider.
     ///
-    /// It is recommended to name resources in form of `<scope>/<name>`, where `<scope>` is the name of the task
-    /// that will use this resource, or 'common' in case it is used by several tasks, and `<name>` is the name
+    /// It is recommended to name resources in the form of `<scope>/<name>`, where `<scope>` is the name of the task
+    /// that will use this resource, or 'common' if it is used by several tasks, and `<name>` is the name
     /// of the resource itself.
     fn resource_id() -> ResourceId;
 
+    /// Called when the resource is wired.
     fn on_resource_wired(&mut self) {}
 }
 
