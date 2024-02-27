@@ -1,5 +1,5 @@
 use anyhow::Context as _;
-use zksync_config::configs;
+use zksync_config::configs::{self, eth_sender::PubdataSendingMode};
 use zksync_protobuf::required;
 
 use crate::{
@@ -109,6 +109,7 @@ impl ProtoRepr for proto::Sender {
                 .and_then(|x| Ok(proto::ProofLoadingMode::try_from(*x)?))
                 .context("proof_loading_mode")?
                 .parse(),
+            pubdata_sending_mode: PubdataSendingMode::Calldata,
         })
     }
 
