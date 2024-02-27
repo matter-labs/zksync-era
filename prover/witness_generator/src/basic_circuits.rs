@@ -396,7 +396,7 @@ async fn update_database(
             protocol_version_id,
         )
         .await;
-    // Special casing Eip4844 as part of 1.4.2.
+    // Special casing EIP4844 as part of 1.4.2.
     // In the future, this will be included in the above call.
     // For now, there are [`MAX_4844_BLOBS_PER_BLOCK`] proofs, even though there may be less blobs.
     // The proofs are expected as per: https://github.com/matter-labs/era-zkevm_circuits/blob/v1.4.2/src/scheduler/mod.rs#L1165
