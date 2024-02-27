@@ -43,6 +43,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         protocol_version_id: FriProtocolVersionId,
         eip_4844_blobs: Eip4844Blobs,
     ) {
+        let blobs_raw: Vec<u8> = eip_4844_blobs.into();
         sqlx::query!(
             r#"
             INSERT INTO
@@ -62,7 +63,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             block_number.0 as i64,
             object_key,
             protocol_version_id as i32,
-            eip_4844_blobs.into(),
+            blobs_raw,
         )
         .fetch_optional(self.storage.conn())
         .await
@@ -117,7 +118,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .map(|row| {
             (
                 L1BatchNumber(row.l1_batch_number as u32),
-                eip_4844_blobs_raw
+                row.eip_4844_blobs
                     .expect("missing eip 4844 blobs from the database")
                     .into(),
             )
