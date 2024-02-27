@@ -210,14 +210,14 @@ async fn normal_reorg_function(snapshot_recovery: bool, with_transient_errors: b
         });
     }
 
-    let (stop_sender, mut stop_receiver) = watch::channel(false);
+    let (stop_sender, stop_receiver) = watch::channel(false);
     let (block_update_sender, mut block_update_receiver) =
         mpsc::unbounded_channel::<(MiniblockNumber, L1BatchNumber)>();
-    let mut detector = ReorgDetector {
+    let detector = ReorgDetector {
         event_handler: Box::new(block_update_sender),
         ..create_mock_detector(client, pool.clone())
     };
-    let detector_task = tokio::spawn(async move { detector.run_inner(&mut stop_receiver).await });
+    let detector_task = tokio::spawn(detector.run(stop_receiver));
 
     for (number, miniblock_hash, l1_batch_hash) in miniblock_and_l1_batch_hashes {
         store_miniblock(&mut storage, number, miniblock_hash).await;
