@@ -15,6 +15,7 @@ zksync_types = { path = "../../lib/types" }
 zksync_health_check = { path = "../../lib/health_check" }
 zksync_dal = { path = "../../lib/dal" }
 zksync_config = { path = "../../lib/config" }
+zksync_state = { path = "../../lib/state" }
 zksync_object_store = { path = "../../lib/object_store" }
 zksync_core = { path = "../../lib/zksync_core" }
 zksync_storage = { path = "../../lib/storage" }
