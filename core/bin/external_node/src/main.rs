@@ -21,6 +21,7 @@ use zksync_core::{
     consistency_checker::ConsistencyChecker,
     l1_gas_price::MainNodeFeeParamsFetcher,
     metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
+    reorg_detector,
     reorg_detector::ReorgDetector,
     setup_sigint_handler,
     state_keeper::{
@@ -490,7 +491,6 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("Main node URL is: {main_node_url}");
     let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
         .context("Failed creating JSON-RPC client for main node")?;
-    let mut reorg_detector = ReorgDetector::new(main_node_client.clone(), connection_pool.clone());
     let reverter = BlockReverter::new(
         /*`main_node=`*/ false,
         config.required.state_cache_path.clone(),
@@ -500,17 +500,19 @@ async fn main() -> anyhow::Result<()> {
         L1ExecutedBatchesRevert::Allowed,
     );
 
-    if let Some(last_correct_l1_batch) = reorg_detector
-        .should_revert()
-        .await
-        .context("should_revert()")?
-    {
-        tracing::info!("Rolling back to l1 batch number {last_correct_l1_batch}");
-        reverter
-            .rollback_db(last_correct_l1_batch, BlockReverterFlags::all())
-            .await;
-        tracing::info!("Rollback successfully completed");
-    } else if opt.revert_pending_l1_batch {
+    let mut reorg_detector = ReorgDetector::new(main_node_client.clone(), connection_pool.clone());
+    match reorg_detector.check_consistency().await {
+        Ok(()) => {}
+        Err(reorg_detector::Error::ReorgDetected(last_correct_l1_batch)) => {
+            tracing::info!("Rolling back to l1 batch number {last_correct_l1_batch}");
+            reverter
+                .rollback_db(last_correct_l1_batch, BlockReverterFlags::all())
+                .await;
+            tracing::info!("Rollback successfully completed");
+        }
+        Err(err) => return Err(err).context("reorg_detector.check_consistency()"),
+    }
+    if opt.revert_pending_l1_batch {
         tracing::info!("Rolling pending L1 batch back..");
         let mut connection = connection_pool.access_storage().await?;
         let sealed_l1_batch_number = connection

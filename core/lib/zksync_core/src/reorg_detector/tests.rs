@@ -323,7 +323,7 @@ async fn reorg_is_detected_on_batch_hash_mismatch() {
 
     assert_matches!(
         detector_task.await.unwrap(),
-        Err(HashMatchError::ReorgDetected(L1BatchNumber(1)))
+        Err(Error::ReorgDetected(L1BatchNumber(1)))
     );
 }
 
@@ -370,7 +370,7 @@ async fn reorg_is_detected_on_miniblock_hash_mismatch() {
 
     assert_matches!(
         detector_task.await.unwrap(),
-        Err(HashMatchError::ReorgDetected(L1BatchNumber(1)))
+        Err(Error::ReorgDetected(L1BatchNumber(1)))
     );
     // ^ All locally stored L1 batches should be correct.
 }
@@ -468,7 +468,7 @@ async fn reorg_is_detected_on_historic_batch_hash_mismatch(
     }
     assert_matches!(
         detector_task.await.unwrap(),
-        Err(HashMatchError::ReorgDetected(got)) if got.0 == last_correct_batch
+        Err(Error::ReorgDetected(got)) if got.0 == last_correct_batch
     );
 }
 
@@ -506,7 +506,7 @@ async fn detector_errors_on_earliest_batch_hash_mismatch() {
     let mut detector = create_mock_detector(client, pool.clone());
 
     let err = detector.run_inner(&mut stop_receiver).await.unwrap_err();
-    assert_matches!(err, HashMatchError::EarliestHashMismatch(L1BatchNumber(0)));
+    assert_matches!(err, Error::EarliestHashMismatch(L1BatchNumber(0)));
 }
 
 #[tokio::test]
@@ -532,7 +532,7 @@ async fn detector_errors_on_earliest_batch_hash_mismatch_with_snapshot_recovery(
     let mut stop = watch::channel(false).1;
     assert_matches!(
         detector.run_inner(&mut stop).await,
-        Err(HashMatchError::EarliestHashMismatch(L1BatchNumber(3)))
+        Err(Error::EarliestHashMismatch(L1BatchNumber(3)))
     );
 }
 
@@ -576,6 +576,6 @@ async fn reorg_is_detected_without_waiting_for_main_node_to_catch_up() {
     let mut detector = create_mock_detector(client, pool);
     assert_matches!(
         detector.run_inner(&mut stop).await,
-        Err(HashMatchError::ReorgDetected(L1BatchNumber(2)))
+        Err(Error::ReorgDetected(L1BatchNumber(2)))
     );
 }
