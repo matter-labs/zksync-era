@@ -3,7 +3,6 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use zksync_types::{
     web3::{
-        contract::Options,
         ethabi,
         types::{
             Address, Block, BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt,
@@ -14,7 +13,7 @@ use zksync_types::{
 };
 
 use crate::{
-    BoundEthInterface, ContractCall, Error, EthInterface, ExecutedTxStatus, FailureInfo,
+    BoundEthInterface, ContractCall, Error, EthInterface, ExecutedTxStatus, FailureInfo, Options,
     RawTransactionBytes, SignedCallResult,
 };
 

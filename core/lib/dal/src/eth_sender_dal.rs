@@ -174,6 +174,7 @@ impl EthSenderDal<'_, '_> {
         tx_type: AggregatedActionType,
         contract_address: Address,
         predicted_gas_cost: u32,
+        from_address: Option<Address>,
     ) -> sqlx::Result<EthTx> {
         let address = format!("{:#x}", contract_address);
         let eth_tx = sqlx::query_as!(
@@ -187,10 +188,11 @@ impl EthSenderDal<'_, '_> {
                     contract_address,
                     predicted_gas_cost,
                     created_at,
-                    updated_at
+                    updated_at,
+                    from_addr
                 )
             VALUES
-                ($1, $2, $3, $4, $5, NOW(), NOW())
+                ($1, $2, $3, $4, $5, NOW(), NOW(), $6)
             RETURNING
                 *
             "#,
@@ -198,7 +200,8 @@ impl EthSenderDal<'_, '_> {
             nonce as i64,
             tx_type.to_string(),
             address,
-            predicted_gas_cost as i64
+            predicted_gas_cost as i64,
+            from_address.map(|a| a.0.to_vec()),
         )
         .fetch_one(self.storage.conn())
         .await?;
@@ -510,22 +513,42 @@ impl EthSenderDal<'_, '_> {
         Ok(history_item.map(|tx| tx.into()))
     }
 
-    pub async fn get_next_nonce(&mut self) -> sqlx::Result<Option<u64>> {
-        let row = sqlx::query!(
+    /// Returns the next nonce for the operator account
+    ///
+    /// # Params
+    /// * `from_address`: an optional value indicating that nonce must be returned for a custom
+    ///   operator address which is not the "main" one. For example, a separate custom operator
+    ///   sends the blob transactions. For such a case this should be `Some`. For requesting the
+    ///   none of the main operator this parameter should be set to `None`.
+    pub async fn get_next_nonce(
+        &mut self,
+        from_address: Option<Address>,
+    ) -> sqlx::Result<Option<u64>> {
+        let optional_where_clause = from_address
+            .map(|a| format!("WHERE from_addr = decode('{}', 'hex')", hex::encode(a.0)))
+            .unwrap_or("WHERE from_addr IS NULL".to_owned());
+
+        let query = format!(
             r#"
             SELECT
                 nonce
             FROM
                 eth_txs
+            {optional_where_clause}
             ORDER BY
                 id DESC
             LIMIT
                 1
-            "#
-        )
-        .fetch_optional(self.storage.conn())
-        .await?;
-        Ok(row.map(|row| row.nonce as u64 + 1))
+            "#,
+        );
+        let query = sqlx::query(&query);
+
+        let nonce: Option<i64> = query
+            .fetch_optional(self.storage.conn())
+            .await?
+            .map(|row| row.get("nonce"));
+
+        Ok(nonce.map(|n| n as u64 + 1))
     }
 
     pub async fn mark_failed_transaction(&mut self, eth_tx_id: u32) -> sqlx::Result<()> {

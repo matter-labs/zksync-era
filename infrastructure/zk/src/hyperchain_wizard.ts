@@ -51,7 +51,6 @@ async function initHyperchain() {
     const governorPrivateKey = process.env.GOVERNOR_PRIVATE_KEY;
     const deployL2Weth = Boolean(process.env.DEPLOY_L2_WETH || false);
     const deployTestTokens = Boolean(process.env.DEPLOY_TEST_TOKENS || false);
-
     const governorAdrress = ethers.utils.computeAddress(governorPrivateKey!);
     const initArgs: InitArgs = {
         skipSubmodulesCheckout: false,
