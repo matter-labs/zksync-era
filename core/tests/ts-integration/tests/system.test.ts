@@ -80,6 +80,7 @@ describe('System behavior checks', () => {
         const senderNonce = await alice.getTransactionCount();
 
         // This tx should be accepted by the server, but would never be executed, so we don't wait for the receipt.
+        // In rollup mode, this transaction is accepted but never executed. In Validium mode its a valid transaction. 
         const tx = await alice.sendTransaction({
             to: alice.address,
             customData: {
@@ -88,7 +89,10 @@ describe('System behavior checks', () => {
         });
 
         if (validiumMode) {
+            // It is necessary to wait for the transaction to be finalized.
             await tx.wait();
+
+            // When another transaction with the same nonce is made, it should be rejected.
             await expect(
                 alice.sendTransaction({
                     to: alice.address,
@@ -96,7 +100,8 @@ describe('System behavior checks', () => {
                 })
             ).toBeRejected();
         } else {
-            // Now send the next tx with the same nonce: it should override the previous one and be executed.
+            // We don't wait for the transaction recipt because it never executed. 
+            // When another transaction with the same nonce is made, it overwrites the previous transaction and this one should be executed.
             await expect(
                 alice.sendTransaction({
                     to: alice.address,
