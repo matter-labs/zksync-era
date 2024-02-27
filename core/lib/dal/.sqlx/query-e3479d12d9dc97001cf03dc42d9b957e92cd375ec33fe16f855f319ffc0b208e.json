@@ -90,12 +90,12 @@
       },
       {
         "ordinal": 17,
-        "name": "circuit_255_final_prover_job_id_0",
+        "name": "eip_4844_final_prover_job_id_0",
         "type_info": "Int8"
       },
       {
         "ordinal": 18,
-        "name": "circuit_255_final_prover_job_id_1",
+        "name": "eip_4844_final_prover_job_id_1",
         "type_info": "Int8"
       }
     ],

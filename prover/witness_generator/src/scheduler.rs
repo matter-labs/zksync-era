@@ -93,13 +93,7 @@ impl SchedulerWitnessGenerator {
             _marker: std::marker::PhantomData,
         };
 
-        let eip_4844_config = ProofConfig {
-            fri_lde_factor: BASE_LAYER_FRI_LDE_FACTOR,
-            merkle_tree_cap_size: BASE_LAYER_CAP_SIZE,
-            fri_folding_schedule: None,
-            security_level: SECURITY_BITS_TARGET,
-            pow_bits: 0,
-        };
+        let eip_4844_config = eip4844_proof_config();
 
         let scheduler_circuit = SchedulerCircuit {
             witness: job.scheduler_witness,

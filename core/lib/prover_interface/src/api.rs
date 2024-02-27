@@ -39,7 +39,9 @@ impl Eip4844Blobs {
     }
 
     fn check_blob_constraints(blobs_len: usize, rounded_blob_len: usize) {
+        // Post calculation, rounded_blob_len should always represent full blobs; invariant
         assert!(rounded_blob_len % EIP_4844_BLOB_SIZE == 0);
+
         if blobs_len == 0 {
             panic!("cannot create EIP4844Blobs, received empty pubdata");
         }

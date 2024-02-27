@@ -40,7 +40,7 @@ use zksync_prover_fri_types::{
 };
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
 use zksync_prover_interface::{
-    api::Eip4844Blobs,
+    api::{Eip4844Blobs, EIP_4844_BLOB_SIZE},
     inputs::{BasicCircuitWitnessGeneratorInput, PrepareBasicCircuitsJob},
 };
 use zksync_queued_job_processor::JobProcessor;
@@ -705,13 +705,16 @@ async fn generate_witness(
 
     let mut eip_4844_blobs = eip_4844_blobs.get_blobs();
 
+    let single_blob = eip_4844_blobs.len() == 1;
+    if single_blob {
+        // A proof is still expected for the scheduler (it's not going to be used), even though we have a single blob.
+        // See: https://github.com/matter-labs/era-zkevm_circuits/blob/v1.4.2/src/scheduler/mod.rs#L1165
+        eip_4844_blobs.push([0; EIP_4844_BLOB_SIZE]);
+    }
+
     let mut eip_4844_circuits = vec![];
     let mut eip_4844_witnesses = vec![];
 
-    let single_blob = eip_4844_blobs.len() == 1;
-    if single_blob {
-        eip_4844_blobs.push(eip_4844_blobs[0].clone());
-    }
     for blob in eip_4844_blobs {
         let (eip_4844_circuit, eip_4844_witness) = generate_eip4844_circuit_and_witness(
             blob.to_vec(),
