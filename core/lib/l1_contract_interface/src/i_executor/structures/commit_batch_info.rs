@@ -103,8 +103,7 @@ impl<'a> Tokenizable for CommitBatchInfo<'a> {
                     // `totalL2ToL1Pubdata` with pubdata source byte
                     let mut pubdata = vec![PUBDATA_SOURCE_CALLDATA];
                     pubdata.extend_from_slice(
-                        &self
-                            .0
+                        self.0
                             .header
                             .pubdata_input
                             .as_ref()
@@ -114,7 +113,7 @@ impl<'a> Tokenizable for CommitBatchInfo<'a> {
                     let mut blob = pubdata.clone();
                     right_pad_pubdata_to_blobs(&mut blob);
                     let blob_commitment =
-                        KzgInfo::new(&self.2.as_ref().unwrap(), &blob).to_blob_commitment();
+                        KzgInfo::new(self.2.as_ref().unwrap(), &blob).to_blob_commitment();
 
                     pubdata.extend(blob_commitment);
 
@@ -133,7 +132,7 @@ impl<'a> Tokenizable for CommitBatchInfo<'a> {
                     let mut pubdata_commitments = pubdata
                         .chunks(ZK_SYNC_BYTES_PER_BLOB)
                         .flat_map(|blob| {
-                            let kzg_info = KzgInfo::new(&self.2.as_ref().unwrap(), &blob);
+                            let kzg_info = KzgInfo::new(self.2.as_ref().unwrap(), blob);
                             kzg_info.to_pubdata_commitment().to_vec()
                         })
                         .collect::<Vec<u8>>();

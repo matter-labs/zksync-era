@@ -211,7 +211,7 @@ impl KzgInfo {
         assert!(pubdata.len() <= ZK_SYNC_BYTES_PER_BLOB);
 
         let mut zksync_blob = [0u8; ZK_SYNC_BYTES_PER_BLOB];
-        zksync_blob[0..pubdata.len()].copy_from_slice(&pubdata);
+        zksync_blob[0..pubdata.len()].copy_from_slice(pubdata);
 
         let linear_hash: [u8; 32] = Keccak256::digest(zksync_blob).into();
 
@@ -279,7 +279,7 @@ pub fn pubdata_to_blob_commitments(pubdata_input: &[u8], kzg_settings: &KzgSetti
     let blob_commitments = pubdata_input
         .chunks(ZK_SYNC_BYTES_PER_BLOB)
         .map(|blob| {
-            let kzg_info = KzgInfo::new(kzg_settings, &blob.to_vec());
+            let kzg_info = KzgInfo::new(kzg_settings, blob);
             H256(kzg_info.to_blob_commitment())
         })
         .collect::<Vec<_>>();

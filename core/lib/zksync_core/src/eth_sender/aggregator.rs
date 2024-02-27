@@ -61,7 +61,7 @@ impl Aggregator {
                 Box::from(DataSizeCriterion {
                     op: AggregatedActionType::Commit,
                     data_limit: config.max_eth_tx_data_size,
-                    pubdata_da: pubdata_da,
+                    pubdata_da,
                     kzg_settings: kzg_settings.clone(),
                 }),
                 Box::from(TimestampDeadlineCriterion {
