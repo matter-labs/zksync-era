@@ -155,6 +155,8 @@ impl CachedStorage {
         rt_handle: Handle,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<Option<BoxReadStorage<'a>>> {
+        // FIXME: This method can potentially be simplified by using recursion but that requires
+        // `BoxFuture` and `Pin` which IMO makes the types much more unreadable than as is
         match self.state {
             CachedStorageState::NotInitialized => {
                 // Presuming we are behind, (re-)starting catch up process
