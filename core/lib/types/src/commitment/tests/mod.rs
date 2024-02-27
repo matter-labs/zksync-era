@@ -37,6 +37,11 @@ fn pre_boojum() {
 }
 
 #[test]
-fn post_boojum() {
-    run_test("post_boojum_test");
+fn post_boojum_1_4_1() {
+    run_test("post_boojum_1_4_1_test");
+}
+
+#[test]
+fn post_boojum_1_4_2() {
+    run_test("post_boojum_1_4_2_test");
 }

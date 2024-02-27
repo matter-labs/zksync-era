@@ -151,6 +151,14 @@ pub struct OptionalENConfig {
     #[serde(default)]
     pub filters_disabled: bool,
 
+    // Health checks
+    /// Time limit in milliseconds to mark a health check as slow and log the corresponding warning.
+    /// If not specified, the default value in the health check crate will be used.
+    healthcheck_slow_time_limit_ms: Option<u64>,
+    /// Time limit in milliseconds to abort a health check and return "not ready" status for the corresponding component.
+    /// If not specified, the default value in the health check crate will be used.
+    healthcheck_hard_time_limit_ms: Option<u64>,
+
     // Gas estimation config
     /// The factor by which to scale the gasLimit
     #[serde(default = "OptionalENConfig::default_estimate_gas_scale_factor")]
@@ -214,6 +222,9 @@ pub struct OptionalENConfig {
     /// 0 means that sealing is synchronous; this is mostly useful for performance comparison, testing etc.
     #[serde(default = "OptionalENConfig::default_miniblock_seal_queue_capacity")]
     pub miniblock_seal_queue_capacity: usize,
+    /// Path to KZG trusted setup path.
+    #[serde(default = "OptionalENConfig::default_kzg_trusted_setup_path")]
+    pub kzg_trusted_setup_path: String,
 }
 
 impl OptionalENConfig {
@@ -320,6 +331,10 @@ impl OptionalENConfig {
         10
     }
 
+    fn default_kzg_trusted_setup_path() -> String {
+        "./trusted_setup.json".to_owned()
+    }
+
     pub fn polling_interval(&self) -> Duration {
         Duration::from_millis(self.polling_interval)
     }
@@ -376,6 +391,16 @@ impl OptionalENConfig {
 
     pub fn max_response_body_size(&self) -> usize {
         self.max_response_body_size_mb * BYTES_IN_MEGABYTE
+    }
+
+    pub fn healthcheck_slow_time_limit(&self) -> Option<Duration> {
+        self.healthcheck_slow_time_limit_ms
+            .map(Duration::from_millis)
+    }
+
+    pub fn healthcheck_hard_time_limit(&self) -> Option<Duration> {
+        self.healthcheck_hard_time_limit_ms
+            .map(Duration::from_millis)
     }
 }
 

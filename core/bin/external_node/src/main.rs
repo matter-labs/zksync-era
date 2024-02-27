@@ -264,7 +264,10 @@ async fn init_tasks(
         .build()
         .await
         .context("failed to build a commitment_generator_pool")?;
-    let commitment_generator = CommitmentGenerator::new(commitment_generator_pool);
+    let commitment_generator = CommitmentGenerator::new(
+        commitment_generator_pool,
+        &config.optional.kzg_trusted_setup_path,
+    );
     app_health.insert_component(commitment_generator.health_check());
     let commitment_generator_handle = tokio::spawn(commitment_generator.run(stop_receiver.clone()));
 
@@ -522,7 +525,10 @@ async fn main() -> anyhow::Result<()> {
 
     let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
         .context("Failed creating JSON-RPC client for main node")?;
-    let app_health = Arc::new(AppHealthCheck::default());
+    let app_health = Arc::new(AppHealthCheck::new(
+        config.optional.healthcheck_slow_time_limit(),
+        config.optional.healthcheck_hard_time_limit(),
+    ));
     app_health.insert_custom_component(Arc::new(MainNodeHealthCheck::from(
         main_node_client.clone(),
     )));
