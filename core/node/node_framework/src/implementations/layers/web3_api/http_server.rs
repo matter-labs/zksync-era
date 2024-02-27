@@ -1,11 +1,12 @@
 use std::num::NonZeroU32;
 
 use tokio::{sync::oneshot, task::JoinHandle};
-use zksync_core::api_server::web3::{state::InternalApiConfig, ApiBuilder, Namespace};
+use zksync_core::api_server::web3::{state::InternalApiConfig, ApiBuilder, ApiServer, Namespace};
 
 use crate::{
     implementations::resources::{
-        pools::ReplicaPoolResource, sync_state::SyncStateResource, web3_api::TxSenderResource,
+        healthcheck::AppHealthCheckResource, pools::ReplicaPoolResource,
+        sync_state::SyncStateResource, web3_api::TxSenderResource,
     },
     service::{ServiceContext, StopReceiver},
     task::Task,
@@ -22,6 +23,33 @@ pub struct Web3ServerOptionalConfig {
     pub response_body_size_limit: Option<usize>,
     pub websocket_requests_per_minute_limit: Option<NonZeroU32>,
     pub tree_api_url: Option<String>,
+}
+
+impl Web3ServerOptionalConfig {
+    fn apply(self, mut api_builder: ApiBuilder) -> ApiBuilder {
+        if let Some(namespaces) = self.namespaces {
+            api_builder = api_builder.enable_api_namespaces(namespaces);
+        }
+        if let Some(filters_limit) = self.filters_limit {
+            api_builder = api_builder.with_filter_limit(filters_limit);
+        }
+        if let Some(subscriptions_limit) = self.subscriptions_limit {
+            api_builder = api_builder.with_subscriptions_limit(subscriptions_limit);
+        }
+        if let Some(batch_request_size_limit) = self.batch_request_size_limit {
+            api_builder = api_builder.with_batch_request_size_limit(batch_request_size_limit);
+        }
+        if let Some(response_body_size_limit) = self.response_body_size_limit {
+            api_builder = api_builder.with_response_body_size_limit(response_body_size_limit);
+        }
+        if let Some(websocket_requests_per_minute_limit) = self.websocket_requests_per_minute_limit
+        {
+            api_builder = api_builder
+                .with_websocket_requests_per_minute_limit(websocket_requests_per_minute_limit);
+        }
+        api_builder = api_builder.with_tree_api(self.tree_api_url);
+        api_builder
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -83,6 +111,7 @@ impl WiringLayer for Web3ServerLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
+        // Get required resources.
         let replica_resource_pool = context.get_resource::<ReplicaPoolResource>().await?;
         let updaters_pool = replica_resource_pool.get_custom(2).await?;
         let replica_pool = replica_resource_pool.get().await?;
@@ -94,6 +123,8 @@ impl WiringLayer for Web3ServerLayer {
                 return Err(err);
             }
         };
+
+        // Build server.
         let mut api_builder = ApiBuilder::jsonrpsee_backend(self.internal_api_config, replica_pool)
             .with_updaters_pool(updaters_pool)
             .with_tx_sender(tx_sender);
@@ -105,38 +136,22 @@ impl WiringLayer for Web3ServerLayer {
                 api_builder = api_builder.ws(self.port);
             }
         }
-
         if let Some(sync_state) = sync_state {
             api_builder = api_builder.with_sync_state(sync_state);
         }
-        if let Some(namespaces) = self.optional_config.namespaces {
-            api_builder = api_builder.enable_api_namespaces(namespaces);
-        }
-        if let Some(filters_limit) = self.optional_config.filters_limit {
-            api_builder = api_builder.with_filter_limit(filters_limit);
-        }
-        if let Some(subscriptions_limit) = self.optional_config.subscriptions_limit {
-            api_builder = api_builder.with_subscriptions_limit(subscriptions_limit);
-        }
-        if let Some(batch_request_size_limit) = self.optional_config.batch_request_size_limit {
-            api_builder = api_builder.with_batch_request_size_limit(batch_request_size_limit);
-        }
-        if let Some(response_body_size_limit) = self.optional_config.response_body_size_limit {
-            api_builder = api_builder.with_response_body_size_limit(response_body_size_limit);
-        }
-        if let Some(websocket_requests_per_minute_limit) =
-            self.optional_config.websocket_requests_per_minute_limit
-        {
-            api_builder = api_builder
-                .with_websocket_requests_per_minute_limit(websocket_requests_per_minute_limit);
-        }
-        api_builder = api_builder.with_tree_api(self.optional_config.tree_api_url);
+        api_builder = self.optional_config.apply(api_builder);
+        let server = api_builder.build()?;
 
-        // TODO: health check?
+        // Insert healthcheck.
+        let api_health_check = server.health_check();
+        let AppHealthCheckResource(app_health) = context.get_resource_or_default().await;
+        app_health.insert_component(api_health_check);
+
+        // Add tasks.
         let (task_sender, task_receiver) = oneshot::channel();
         let web3_api_task = Web3ApiTask {
             transport: self.transport,
-            api_builder,
+            server,
             task_sender,
         };
         let garbage_collector_task = ApiTaskGarbageCollector { task_receiver };
@@ -158,7 +173,7 @@ impl WiringLayer for Web3ServerLayer {
 #[derive(Debug)]
 struct Web3ApiTask {
     transport: Transport,
-    api_builder: ApiBuilder,
+    server: ApiServer,
     task_sender: oneshot::Sender<Vec<JoinHandle<anyhow::Result<()>>>>,
 }
 
@@ -172,7 +187,7 @@ impl Task for Web3ApiTask {
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        let tasks = self.api_builder.build(stop_receiver.0).await?;
+        let tasks = self.server.run(stop_receiver.0).await?;
         // Wait for the first task to finish to be able to signal the service.
         let (result, _idx, rem) = futures::future::select_all(tasks.tasks).await;
         // Send remaining tasks to the garbage collector.

@@ -168,7 +168,9 @@ async fn spawn_server(
         .with_vm_barrier(vm_barrier)
         .with_pub_sub_events(pub_sub_events_sender)
         .enable_api_namespaces(namespaces)
-        .build(stop_receiver)
+        .build()
+        .expect("Unable to build API server")
+        .run(stop_receiver)
         .await
         .expect("Failed spawning JSON-RPC server");
     (server_handles, pub_sub_events_receiver)

@@ -119,11 +119,14 @@ struct OptionalApiParams {
     pub_sub_events_sender: Option<mpsc::UnboundedSender<PubSubEvent>>,
 }
 
-/// Full API server parameters.
+/// Structure capable of spawning a configured Web3 API server along with all the required
+/// maintenance tasks.
 #[derive(Debug)]
-struct FullApiParams {
+pub struct ApiServer {
     pool: ConnectionPool,
     updaters_pool: ConnectionPool,
+    health_check: ReactiveHealthCheck,
+    health_updater: Arc<HealthUpdater>,
     config: InternalApiConfig,
     transport: ApiTransport,
     tx_sender: TxSender,
@@ -246,13 +249,24 @@ impl ApiBuilder {
         self.optional.pub_sub_events_sender = Some(sender);
         self
     }
+}
 
-    fn into_full_params(self) -> anyhow::Result<FullApiParams> {
-        Ok(FullApiParams {
+impl ApiBuilder {
+    pub fn build(self) -> anyhow::Result<ApiServer> {
+        let transport = self.transport.context("API transport not set")?;
+        let health_check_name = match &transport {
+            ApiTransport::Http(_) => "http_api",
+            ApiTransport::WebSocket(_) => "ws_api",
+        };
+        let (health_check, health_updater) = ReactiveHealthCheck::new(health_check_name);
+
+        Ok(ApiServer {
             pool: self.pool,
+            health_check,
+            health_updater: Arc::new(health_updater),
             updaters_pool: self.updaters_pool,
             config: self.config,
-            transport: self.transport.context("API transport not set")?,
+            transport,
             tx_sender: self.tx_sender.context("Transaction sender not set")?,
             polling_interval: self.polling_interval,
             namespaces: self.namespaces.unwrap_or_else(|| {
@@ -266,16 +280,11 @@ impl ApiBuilder {
     }
 }
 
-impl ApiBuilder {
-    pub async fn build(
-        self,
-        stop_receiver: watch::Receiver<bool>,
-    ) -> anyhow::Result<ApiServerHandles> {
-        self.into_full_params()?.spawn_server(stop_receiver).await
+impl ApiServer {
+    pub fn health_check(&self) -> ReactiveHealthCheck {
+        self.health_check.clone()
     }
-}
 
-impl FullApiParams {
     async fn build_rpc_state(
         self,
         last_sealed_miniblock: SealedMiniblockNumber,
@@ -354,7 +363,7 @@ impl FullApiParams {
         Ok(rpc)
     }
 
-    async fn spawn_server(
+    pub async fn run(
         self,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<ApiServerHandles> {
@@ -415,11 +424,6 @@ impl FullApiParams {
         const SEALED_MINIBLOCK_UPDATE_INTERVAL: Duration = Duration::from_millis(25);
 
         let transport = self.transport;
-        let health_check_name = match transport {
-            ApiTransport::Http(_) => "http_api",
-            ApiTransport::WebSocket(_) => "ws_api",
-        };
-        let (health_check, health_updater) = ReactiveHealthCheck::new(health_check_name);
 
         let (last_sealed_miniblock, update_task) = SealedMiniblockNumber::new(
             self.updaters_pool.clone(),
@@ -446,14 +450,13 @@ impl FullApiParams {
             None
         };
 
-        // Start the server in a separate tokio runtime from a dedicated thread.
+        let health_check = self.health_check.clone();
         let (local_addr_sender, local_addr) = oneshot::channel();
         let server_task = tokio::spawn(self.run_jsonrpsee_server(
             stop_receiver,
             pub_sub,
             last_sealed_miniblock,
             local_addr_sender,
-            health_updater,
         ));
 
         tasks.push(server_task);
@@ -470,7 +473,6 @@ impl FullApiParams {
         pub_sub: Option<EthSubscribe>,
         last_sealed_miniblock: SealedMiniblockNumber,
         local_addr_sender: oneshot::Sender<SocketAddr>,
-        health_updater: HealthUpdater,
     ) -> anyhow::Result<()> {
         let transport = self.transport;
         let (transport_str, is_http, addr) = match transport {
@@ -509,6 +511,7 @@ impl FullApiParams {
         let websocket_requests_per_minute_limit = self.optional.websocket_requests_per_minute_limit;
         let subscriptions_limit = self.optional.subscriptions_limit;
         let vm_barrier = self.optional.vm_barrier.clone();
+        let health_updater = self.health_updater.clone();
 
         let rpc = self
             .build_rpc_module(pub_sub, last_sealed_miniblock)

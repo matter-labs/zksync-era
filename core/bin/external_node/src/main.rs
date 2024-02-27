@@ -340,7 +340,9 @@ async fn init_tasks(
             .with_vm_barrier(vm_barrier.clone())
             .with_sync_state(sync_state.clone())
             .enable_api_namespaces(config.optional.api_namespaces())
-            .build(stop_receiver.clone())
+            .build()
+            .context("failed to build HTTP JSON-RPC server")?
+            .run(stop_receiver.clone())
             .await
             .context("Failed initializing HTTP JSON-RPC server")?;
 
@@ -356,7 +358,9 @@ async fn init_tasks(
             .with_vm_barrier(vm_barrier)
             .with_sync_state(sync_state)
             .enable_api_namespaces(config.optional.api_namespaces())
-            .build(stop_receiver.clone())
+            .build()
+            .context("failed to build WS JSON-RPC server")?
+            .run(stop_receiver.clone())
             .await
             .context("Failed initializing WS JSON-RPC server")?;
 

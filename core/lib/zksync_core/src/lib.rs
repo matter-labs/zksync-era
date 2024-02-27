@@ -1188,7 +1188,11 @@ async fn run_http_api(
             .with_tx_sender(tx_sender)
             .with_vm_barrier(vm_barrier)
             .enable_api_namespaces(namespaces);
-    api_builder.build(stop_receiver).await
+    api_builder
+        .build()
+        .context("failed to build HTTP API server")?
+        .run(stop_receiver)
+        .await
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1241,7 +1245,11 @@ async fn run_ws_api(
             .with_vm_barrier(vm_barrier)
             .enable_api_namespaces(namespaces);
 
-    api_builder.build(stop_receiver.clone()).await
+    api_builder
+        .build()
+        .context("failed to build WS API server")?
+        .run(stop_receiver)
+        .await
 }
 
 async fn circuit_breakers_for_components(
