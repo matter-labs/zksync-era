@@ -8,7 +8,10 @@ use std::{
 use anyhow::Context as _;
 use async_trait::async_trait;
 use circuit_definitions::{
-    circuit_definitions::base_layer::ZkSyncBaseLayerStorage,
+    circuit_definitions::{
+        base_layer::ZkSyncBaseLayerStorage, eip4844::EIP4844InstanceSynthesisFunction,
+        ZkSyncUniformCircuitInstance,
+    },
     encodings::recursion_request::RecursionQueueSimulator,
     zkevm_circuits::fsm_input_output::ClosedFormInputCompactFormWitness,
 };
@@ -20,6 +23,7 @@ use serde::{Deserialize, Serialize};
 use zkevm_test_harness::{
     geometry_config::get_geometry_config, toolset::GeometryConfig,
     utils::generate_eip4844_circuit_and_witness,
+    zkevm_circuits::eip_4844::input::EIP4844OutputDataWitness,
 };
 use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_dal::{fri_witness_generator_dal::FriWitnessJobStatus, ConnectionPool};
@@ -29,6 +33,7 @@ use zksync_prover_fri_types::{
         boojum::{
             field::goldilocks::{GoldilocksExt2, GoldilocksField},
             gadgets::recursion::recursive_tree_hasher::CircuitGoldilocksPoseidon2Sponge,
+            implementations::poseidon2::Poseidon2Goldilocks,
         },
         zkevm_circuits::scheduler::{
             block_header::BlockAuxilaryOutputWitness, input::SchedulerCircuitInstanceWitness,
@@ -39,15 +44,15 @@ use zksync_prover_fri_types::{
     AuxOutputWitnessWrapper, EIP_4844_CIRCUIT_ID,
 };
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
-use zksync_prover_interface::{
-    api::{Eip4844Blobs, EIP_4844_BLOB_SIZE, MAX_4844_BLOBS_PER_BLOCK},
-    inputs::{BasicCircuitWitnessGeneratorInput, PrepareBasicCircuitsJob},
-};
+use zksync_prover_interface::inputs::{BasicCircuitWitnessGeneratorInput, PrepareBasicCircuitsJob};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_state::{PostgresStorage, StorageView};
 use zksync_types::{
-    basic_fri_types::AggregationRound, protocol_version::FriProtocolVersionId, Address,
-    L1BatchNumber, ProtocolVersionId, BOOTLOADER_ADDRESS, H256, U256,
+    basic_fri_types::{
+        AggregationRound, Eip4844Blobs, EIP_4844_BLOB_SIZE, MAX_4844_BLOBS_PER_BLOCK,
+    },
+    protocol_version::FriProtocolVersionId,
+    Address, L1BatchNumber, ProtocolVersionId, BOOTLOADER_ADDRESS, H256, U256,
 };
 use zksync_utils::{bytes_to_chunks, h256_to_u256, u256_to_h256};
 
@@ -60,6 +65,13 @@ use crate::{
         SchedulerPartialInputWrapper,
     },
 };
+
+type Eip4844Circuit = ZkSyncUniformCircuitInstance<
+    GoldilocksField,
+    EIP4844InstanceSynthesisFunction<GoldilocksField, Poseidon2Goldilocks>,
+>;
+
+type Eip4844Witness = EIP4844OutputDataWitness<GoldilocksField>;
 
 pub struct BasicCircuitArtifacts {
     circuit_urls: Vec<(u8, String)>,
@@ -217,8 +229,7 @@ impl JobProcessor for BasicWitnessGenerator {
                     block_number
                 );
                 let started_at = Instant::now();
-                let job =
-                    get_artifacts(block_number, &*self.object_store, eip_4844_blobs.into()).await;
+                let job = get_artifacts(block_number, &*self.object_store, eip_4844_blobs).await;
 
                 WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::BasicCircuits.into()]
                     .observe(started_at.elapsed());
@@ -722,40 +733,21 @@ async fn generate_witness(
         eip_4844_blobs.push(vec![0; EIP_4844_BLOB_SIZE]);
     }
 
-    let (eip_4844_circuits, eip_4844_witnesses): (
-        Vec<
-            circuit_definitions::circuit_definitions::ZkSyncUniformCircuitInstance<
-                GoldilocksField,
-                circuit_definitions::circuit_definitions::eip4844::EIP4844InstanceSynthesisFunction<
-                    GoldilocksField,
-                    zkevm_test_harness::boojum::implementations::poseidon2::Poseidon2Goldilocks,
-                >,
-            >,
-        >,
-        Vec<
-            zkevm_test_harness::zkevm_circuits::eip_4844::input::EIP4844OutputDataWitness<
-                GoldilocksField,
-            >,
-        >,
-    ) = eip_4844_blobs
-        .iter()
-        .map(|blob| generate_eip4844_circuit_and_witness(blob.to_vec(), trusted_setup_path))
-        .unzip();
-
-    let mut eip_4844_circuits = vec![];
-    let mut eip_4844_witnesses = vec![];
-
-    for blob in eip_4844_blobs {
-        let (eip_4844_circuit, eip_4844_witness) =
-            generate_eip4844_circuit_and_witness(blob.to_vec(), trusted_setup_path);
-        eip_4844_circuits.push(eip_4844_circuit);
-        eip_4844_witnesses.push(eip_4844_witness.closed_form_input.observable_output);
-    }
+    let (eip_4844_circuits, mut eip_4844_witnesses): (Vec<Eip4844Circuit>, Vec<Eip4844Witness>) =
+        eip_4844_blobs
+            .clone()
+            .into_iter()
+            .map(|blob| {
+                let (circuit, output_witness) =
+                    generate_eip4844_circuit_and_witness(blob, trusted_setup_path);
+                (circuit, output_witness.closed_form_input.observable_output)
+            })
+            .unzip();
 
     let (witnesses, ()) = tokio::join!(make_circuits, save_circuits);
 
     let mut eip_4844_blob_urls = vec![];
-    // Note that the sequence number will be reused as telling the ordering between blobs.
+    // Note that the sequence number will be reused to determine ordering between blobs.
     for (index, circuit) in eip_4844_circuits.into_iter().enumerate() {
         eip_4844_blob_urls
             .push(save_eip_4844_circuit(block_number, circuit, index, object_store, 0).await);

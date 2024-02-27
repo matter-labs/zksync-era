@@ -3,10 +3,8 @@ use std::{convert::TryInto, sync::Arc, time::Instant};
 use anyhow::Context as _;
 use async_trait::async_trait;
 use circuit_definitions::{
-    circuit_definitions::aux_layer::EIP4844VerificationKey, BASE_LAYER_CAP_SIZE,
-    BASE_LAYER_FRI_LDE_FACTOR, SECURITY_BITS_TARGET,
+    circuit_definitions::aux_layer::EIP4844VerificationKey, eip4844_proof_config,
 };
-use zkevm_test_harness::boojum::cs::implementations::prover::ProofConfig;
 use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_dal::ConnectionPool;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
@@ -247,7 +245,7 @@ pub async fn prepare_job(
     object_store: &dyn ObjectStore,
 ) -> anyhow::Result<SchedulerWitnessGeneratorJob> {
     let started_at = Instant::now();
-    let proofs = load_proofs_for_job_ids(&proof_job_ids.0, object_store).await;
+    let proofs = load_proofs_for_job_ids(&proof_job_ids.node_proof_ids, object_store).await;
     WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::Scheduler.into()]
         .observe(started_at.elapsed());
 
@@ -266,7 +264,7 @@ pub async fn prepare_job(
         }
     }
 
-    let proofs = load_proofs_for_job_ids(&proof_job_ids.1, object_store).await;
+    let proofs = load_proofs_for_job_ids(&proof_job_ids.eip_4844_proof_ids, object_store).await;
 
     let mut eip_4844_proofs = vec![];
     for wrapper in proofs {

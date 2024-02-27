@@ -12,10 +12,11 @@ use zksync_config::configs::{
 use zksync_dal::{ConnectionPool, SqlxError};
 use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_prover_interface::api::{
-    Eip4844Blobs, ProofGenerationData, ProofGenerationDataRequest, ProofGenerationDataResponse,
+    ProofGenerationData, ProofGenerationDataRequest, ProofGenerationDataResponse,
     SubmitProofRequest, SubmitProofResponse,
 };
 use zksync_types::{
+    basic_fri_types::Eip4844Blobs,
     commitment::serialize_commitments,
     protocol_version::{FriProtocolVersionId, L1VerifierConfig},
     web3::signing::keccak256,

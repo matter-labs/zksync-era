@@ -77,7 +77,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         last_l1_batch_to_process: u32,
         protocol_versions: &[FriProtocolVersionId],
         picked_by: &str,
-    ) -> Option<(L1BatchNumber, Vec<u8>)> {
+    ) -> Option<(L1BatchNumber, Eip4844Blobs)> {
         let protocol_versions: Vec<i32> = protocol_versions.iter().map(|&id| id as i32).collect();
         sqlx::query!(
             r#"
@@ -116,10 +116,11 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .await
         .unwrap()
         .map(|row| {
+            let eip_4844_blobs_raw: Vec<u8> = bincode::deserialize(&row.eip_4844_blobs.unwrap())
+                .expect("Failed to serialize 4844 blobs to bytes");
             (
                 L1BatchNumber(row.l1_batch_number as u32),
-                bincode::deserialize(&row.eip_4844_blobs.unwrap())
-                    .expect("Failed to serialize 4844 blobs to bytes"),
+                eip_4844_blobs_raw.into(),
             )
         })
     }
