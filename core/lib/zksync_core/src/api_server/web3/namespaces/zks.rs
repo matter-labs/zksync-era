@@ -9,7 +9,6 @@ use zksync_types::{
         BlockDetails, BridgeAddresses, GetLogsFilter, L1BatchDetails, L2ToL1LogProof, Proof,
         ProtocolVersion, StorageProof, TransactionDetails,
     },
-    commitment::L1BatchWithMetadata,
     fee::Fee,
     fee_model::FeeParams,
     l1::L1Tx,
@@ -651,13 +650,12 @@ impl ZksNamespace {
         let method_latency = API_METRICS.start_call(METHOD_NAME);
         self.state.start_info.ensure_not_pruned(l1_batch_number)?;
         let mut storage = self.access_storage(METHOD_NAME).await?;
-        let l1_batch_with_metadata = storage
+        let pubdata = storage
             .blocks_dal()
             .get_l1_batch_metadata(l1_batch_number)
             .await
-            .unwrap_or(None);
-        let pubdata =
-            l1_batch_with_metadata.map(|b| L1BatchWithMetadata::construct_pubdata(&b).into());
+            .map_err(|err| internal_error(METHOD_NAME, err))?
+            .map(|l1_batch_with_metadata| l1_batch_with_metadata.construct_pubdata().into());
 
         method_latency.observe();
         Ok(pubdata)
