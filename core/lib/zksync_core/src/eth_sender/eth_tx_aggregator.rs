@@ -56,6 +56,7 @@ pub struct EthTxAggregator {
     base_nonce: u64,
     base_nonce_custom_commit_sender: Option<u64>,
     rollup_chain_id: L2ChainId,
+    #[allow(unused)]
     kzg_settings: Option<Arc<KzgSettings>>,
     /// If set to `Some` node is operating in the 4844 mode with two operator
     /// addresses at play: the main one and the custom address for sending commit

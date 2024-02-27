@@ -47,6 +47,7 @@ pub struct StorageL1BatchHeader {
     pub system_logs: Vec<Vec<u8>>,
     pub compressed_state_diffs: Option<Vec<u8>>,
     pub pubdata_input: Option<Vec<u8>>,
+    pub pubdata_da_layer: Option<i32>,
 }
 
 impl From<StorageL1BatchHeader> for L1BatchHeader {
@@ -81,7 +82,9 @@ impl From<StorageL1BatchHeader> for L1BatchHeader {
                 .protocol_version
                 .map(|v| (v as u16).try_into().unwrap()),
             pubdata_input: l1_batch.pubdata_input,
-            pubdata_da_layer: None,
+            pubdata_da_layer: l1_batch
+                .pubdata_da_layer
+                .map(|v| (v as u8).try_into().unwrap()),
         }
     }
 }

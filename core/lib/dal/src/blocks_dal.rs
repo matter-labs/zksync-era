@@ -12,6 +12,7 @@ use zksync_types::{
     block::{BlockGasCount, L1BatchHeader, L1BatchTreeData, MiniblockHeader},
     circuit::CircuitStatistic,
     commitment::{L1BatchCommitmentArtifacts, L1BatchWithMetadata},
+    pubdata_da::PubdataDA,
     zk_evm_types::LogQuery,
     Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256, U256,
 };
@@ -187,7 +188,8 @@ impl BlocksDal<'_, '_> {
                 protocol_version,
                 system_logs,
                 compressed_state_diffs,
-                pubdata_input
+                pubdata_input,
+                pubdata_da_layer
             FROM
                 l1_batches
             WHERE
@@ -280,7 +282,8 @@ impl BlocksDal<'_, '_> {
                 protocol_version,
                 compressed_state_diffs,
                 system_logs,
-                pubdata_input
+                pubdata_input,
+                pubdata_da_layer
             FROM
                 l1_batches
             WHERE
@@ -509,7 +512,8 @@ impl BlocksDal<'_, '_> {
                     pubdata_input,
                     predicted_circuits_by_type,
                     created_at,
-                    updated_at
+                    updated_at,
+                    pubdata_da_layer
                 )
             VALUES
                 (
@@ -534,7 +538,8 @@ impl BlocksDal<'_, '_> {
                     $19,
                     $20,
                     NOW(),
-                    NOW()
+                    NOW(),
+                    $21
                 )
             "#,
             header.number.0 as i64,
@@ -557,6 +562,7 @@ impl BlocksDal<'_, '_> {
             &storage_refunds,
             pubdata_input,
             serde_json::to_value(predicted_circuits_by_type).unwrap(),
+            header.pubdata_da_layer.map(|v| v as i32),
         )
         .execute(transaction.conn())
         .await?;
