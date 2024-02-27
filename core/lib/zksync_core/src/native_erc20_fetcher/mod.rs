@@ -60,10 +60,9 @@ impl NativeErc20FetcherSingleton {
 
 #[derive(Debug)]
 pub(crate) struct NativeErc20Fetcher {
-    // TODO: we probably need to add a http client here
-    // to avoid creating a new one for each request
     pub config: NativeErc20FetcherConfig,
     pub latest_to_eth_conversion_rate: AtomicU64,
+    http_client: reqwest::Client,
 }
 
 impl NativeErc20Fetcher {
@@ -75,20 +74,26 @@ impl NativeErc20Fetcher {
             .await
             .unwrap();
 
+        let http_client = reqwest::Client::new();
+
         Self {
             config,
             latest_to_eth_conversion_rate: AtomicU64::new(conversion_rate),
+            http_client: http_client,
         }
     }
 
     pub(crate) async fn run(&self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         loop {
             if *stop_receiver.borrow() {
-                tracing::info!("Stop signal received, eth_tx_manager is shutting down");
+                tracing::info!("Stop signal received, native_erc20_fetcher is shutting down");
                 break;
             }
 
-            let conversion_rate = reqwest::get(format!("{}/conversion_rate", &self.config.host))
+            let conversion_rate = self
+                .http_client
+                .get(format!("{}/conversion_rate", &self.config.host))
+                .send()
                 .await?
                 .json::<u64>()
                 .await
