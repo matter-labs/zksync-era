@@ -44,6 +44,7 @@ at your option.
 - [Discord](https://join.zksync.dev/)
 - [Mirror](https://zksync.mirror.xyz/)
 - [Youtube](https://www.youtube.com/@zkSync-era)
+- [Telegram](https://t.me/zksync)
 
 ## Disclaimer
 
