@@ -7,8 +7,8 @@ use crate::state_keeper::seal_criteria::{
 #[derive(Debug)]
 pub struct PubDataBytesCriterion {
     /// This value changes based on the DA solution.
-    /// If we use calldata, the limit is 128kb
-    /// If we use blobs then the value can be up to 252kb, up to 126kb will fill 1 blob,
+    /// If we use calldata, the limit is `128kb`
+    /// If we use blobs then the value can be up to `252kb`, up to `126kb` will fill 1 blob,
     /// more than that will switch over to 2 blobs.
     pub max_pubdata_per_batch: u64,
 }
