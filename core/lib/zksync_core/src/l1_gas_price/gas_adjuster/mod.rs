@@ -345,9 +345,11 @@ impl<T: Ord + Copy + Default> GasStatisticsInner<T> {
         self.samples.drain(..extra);
 
         let mut samples: Vec<_> = self.samples.iter().cloned().collect();
-        let (_, &mut median, _) = samples.select_nth_unstable(self.samples.len() / 2);
 
-        self.median_cached = median;
+        if !self.samples.is_empty() {
+            let (_, &mut median, _) = samples.select_nth_unstable(self.samples.len() / 2);
+            self.median_cached = median;
+        }
     }
 }
 
