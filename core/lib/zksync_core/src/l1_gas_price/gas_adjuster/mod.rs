@@ -183,6 +183,7 @@ impl GasAdjuster {
     }
 
     pub(crate) fn estimate_effective_pubdata_price(&self) -> u64 {
+        // TODO: remove constant and use setting from config instead.
         const BLOBS_ARE_USED: bool = false;
 
         if black_box(BLOBS_ARE_USED) {
