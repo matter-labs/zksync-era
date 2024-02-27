@@ -36,7 +36,7 @@ enum CachedStorageState {
         ///
         /// - Returns `Ok(Some(rocksdb))` if the process succeeded and `rocksdb` is caught up
         /// - Returns `Ok(None)` if the process is interrupted
-        /// - Returns `Err(err)` for any propagated Postgres/Rocksdb error
+        /// - Returns `Err(err)` for any propagated Postgres/RocksDB error
         rocksdb_sync_handle: JoinHandle<anyhow::Result<Option<RocksdbStorage>>>,
     },
     /// RocksDB has finished catching up in the near past but is not guaranteed to be in complete
@@ -92,10 +92,10 @@ impl CachedStorage {
     }
 
     /// Returns a [`ReadStorage`] implementation backed by Postgres
-    async fn access_storage_pg<'a>(
+    async fn access_storage_pg(
         rt_handle: Handle,
-        pool: &'a ConnectionPool,
-    ) -> anyhow::Result<BoxReadStorage<'a>> {
+        pool: &ConnectionPool,
+    ) -> anyhow::Result<BoxReadStorage> {
         let mut connection = pool.access_storage().await?;
         let postgres_l1_batch_number = connection
             .blocks_dal()
@@ -110,7 +110,7 @@ impl CachedStorage {
         tracing::debug!(%postgres_l1_batch_number, "Using Postgres-based storage");
         Ok(
             Box::new(PostgresStorage::new_async(rt_handle, connection, block_number, true).await?)
-                as BoxReadStorage<'a>,
+                as BoxReadStorage,
         )
     }
 
@@ -150,11 +150,11 @@ impl CachedStorage {
     /// # Errors
     ///
     /// Propagates RocksDB and Postgres errors.
-    pub async fn access_storage<'a>(
-        &'a mut self,
+    pub async fn access_storage(
+        &mut self,
         rt_handle: Handle,
         stop_receiver: watch::Receiver<bool>,
-    ) -> anyhow::Result<Option<BoxReadStorage<'a>>> {
+    ) -> anyhow::Result<Option<BoxReadStorage>> {
         // FIXME: This method can potentially be simplified by using recursion but that requires
         // `BoxFuture` and `Pin` which IMO makes the types much more unreadable than as is
         match self.state {
