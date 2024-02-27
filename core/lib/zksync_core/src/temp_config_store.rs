@@ -7,7 +7,7 @@ use zksync_config::{
         },
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
-        native_erc20_fetcher::NativeErc20FetcherConfig,
+        native_token_fetcher::NativeTokenFetcherConfig,
         FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig, PrometheusConfig,
         ProofDataHandlerConfig, WitnessGeneratorConfig,
     },
@@ -45,5 +45,5 @@ pub struct TempConfigStore {
     pub eth_watch_config: Option<ETHWatchConfig>,
     pub gas_adjuster_config: Option<GasAdjusterConfig>,
     pub object_store_config: Option<ObjectStoreConfig>,
-    pub native_erc20_fetcher_config: Option<NativeErc20FetcherConfig>,
+    pub native_token_fetcher_config: Option<NativeTokenFetcherConfig>,
 }
