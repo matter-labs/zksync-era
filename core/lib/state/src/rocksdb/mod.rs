@@ -599,7 +599,7 @@ impl RocksdbStorage {
     /// # Panics
     ///
     /// Panics on RocksDB errors.
-    async fn l1_batch_number(&self) -> Option<L1BatchNumber> {
+    pub async fn l1_batch_number(&self) -> Option<L1BatchNumber> {
         let cf = StateKeeperColumnFamily::State;
         let db = self.db.clone();
         let number_bytes =
