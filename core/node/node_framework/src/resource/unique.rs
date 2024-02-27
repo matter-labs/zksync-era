@@ -1,9 +1,9 @@
 use std::sync::{Arc, Mutex};
 
-/// Wrapper for resources that only support one consumer.
+/// Wrapper for resources that are only intended for single consumption.
 ///
-/// Normally, all the resources should support sharing between several tasks,
-/// but there are some cases where a resource should only be consumed by a single task.
+/// Typically, resources are designed for sharing among multiple tasks. However, there are scenarios where
+/// a resource should only be consumed by a single task.
 #[derive(Debug)]
 pub struct Unique<T: 'static + Send> {
     inner: Arc<Mutex<Option<T>>>,
@@ -28,13 +28,13 @@ impl<T: 'static + Send> Unique<T> {
         }
     }
 
-    /// Takes the resource from the container.
+    /// Retrieves and removes the resource from the container.
     pub fn take(&self) -> Option<T> {
         let result = self.inner.lock().unwrap().take();
 
         if result.is_some() {
             tracing::info!(
-                "Resource {} has been taken",
+                "Resource {} has been retrieved and removed",
                 std::any::type_name::<Unique<T>>()
             );
         }
