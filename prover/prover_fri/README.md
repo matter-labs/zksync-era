@@ -135,7 +135,7 @@ installation as a pre-requisite, alongside these machine specs:
 - Disk: 30GB of free disk
 - GPU: NVIDIA GPU with CUDA support and at least 6GB of VRAM, we recommend to use GPUs with at least 16GB VRAM for
   optimal performance. In our GPU picks for datacenters while running on Google Cloud Platform, the L4 takes the top
-  spot in terms of price-to-performance ratio, with the T4 coming in a second.
+  spot in terms of price-to-performance ratio, with the T4 coming in second.
 
 1. Install Rust (correct version from rust-toolchain file should be used automatically if you don't have any local
    overrides)
