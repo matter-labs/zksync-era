@@ -334,6 +334,7 @@ impl JobProcessor for BasicWitnessGenerator {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn process_basic_circuits_job(
     object_store: &dyn ObjectStore,
     config: Arc<FriWitnessGeneratorConfig>,
