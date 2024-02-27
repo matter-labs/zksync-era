@@ -33,7 +33,7 @@ use crate::{
                 computational_gas_price, gas_spent_on_bytecodes_and_long_messages_this_opcode,
                 print_debug_if_needed, VmHook,
             },
-            CircuitsTracer, RefundsTracer, ResultTracer,
+            CircuitsTracer, PrestateTracer, RefundsTracer, ResultTracer,
         },
         types::internals::ZkSyncVmState,
         VmTracer,
@@ -67,6 +67,7 @@ pub(crate) struct DefaultExecutionTracer<S: WriteStorage, H: HistoryMode> {
     // It only takes into account circuits that are generated for actual execution. It doesn't
     // take into account e.g circuits produced by the initial bootloader memory commitment.
     pub(crate) circuits_tracer: CircuitsTracer<S, H>,
+    pub(crate) prestate_tracer: PrestateTracer,
 
     storage: StoragePtr<S>,
     _phantom: PhantomData<H>,
@@ -81,6 +82,7 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
         refund_tracer: Option<RefundsTracer<S>>,
         pubdata_tracer: Option<PubdataTracer<S>>,
     ) -> Self {
+        println!("NEW DefaultExecutionTracer");
         Self {
             tx_has_been_processed: false,
             execution_mode,
@@ -95,6 +97,7 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
             pubdata_tracer,
             ret_from_the_bootloader: None,
             circuits_tracer: CircuitsTracer::new(),
+            prestate_tracer: PrestateTracer::new(),
             storage,
             _phantom: PhantomData,
         }
