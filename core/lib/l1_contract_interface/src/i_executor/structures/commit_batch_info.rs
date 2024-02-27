@@ -142,6 +142,6 @@ impl<'a> Tokenizable for CommitBatchInfo<'a> {
             },
         }
 
-        Token::FixedArray(tokens)
+        Token::Tuple(tokens)
     }
 }
