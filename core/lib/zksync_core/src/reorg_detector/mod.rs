@@ -50,10 +50,10 @@ impl Error {
     pub fn is_transient(&self) -> bool {
         match self {
             Self::NoRemoteL1Batch => true,
-            Self::Rpc(err) => match err.as_ref() {
-                RpcError::Transport(_) | RpcError::RequestTimeout => true,
-                _ => false,
-            },
+            Self::Rpc(err) => matches!(
+                err.as_ref(),
+                RpcError::Transport(_) | RpcError::RequestTimeout
+            ),
             _ => false,
         }
     }
