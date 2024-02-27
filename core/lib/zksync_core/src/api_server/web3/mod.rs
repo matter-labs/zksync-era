@@ -108,6 +108,7 @@ pub struct ApiServerHandles {
 /// Optional part of the API server parameters.
 #[derive(Debug, Default)]
 struct OptionalApiParams {
+    vm_barrier: Option<VmConcurrencyBarrier>,
     sync_state: Option<SyncState>,
     filters_limit: Option<usize>,
     subscriptions_limit: Option<usize>,
@@ -126,7 +127,6 @@ struct FullApiParams {
     config: InternalApiConfig,
     transport: ApiTransport,
     tx_sender: TxSender,
-    vm_barrier: VmConcurrencyBarrier,
     polling_interval: Duration,
     namespaces: Vec<Namespace>,
     optional: OptionalApiParams,
@@ -141,7 +141,6 @@ pub struct ApiBuilder {
     // Mandatory params that must be set using builder methods.
     transport: Option<ApiTransport>,
     tx_sender: Option<TxSender>,
-    vm_barrier: Option<VmConcurrencyBarrier>,
     // Optional params that may or may not be set using builder methods. We treat `namespaces`
     // specially because we want to output a warning if they are not set.
     namespaces: Option<Vec<Namespace>>,
@@ -159,7 +158,6 @@ impl ApiBuilder {
             polling_interval: Self::DEFAULT_POLLING_INTERVAL,
             transport: None,
             tx_sender: None,
-            vm_barrier: None,
             namespaces: None,
             optional: OptionalApiParams::default(),
         }
@@ -184,9 +182,13 @@ impl ApiBuilder {
         self
     }
 
-    pub fn with_tx_sender(mut self, tx_sender: TxSender, vm_barrier: VmConcurrencyBarrier) -> Self {
+    pub fn with_tx_sender(mut self, tx_sender: TxSender) -> Self {
         self.tx_sender = Some(tx_sender);
-        self.vm_barrier = Some(vm_barrier);
+        self
+    }
+
+    pub fn with_vm_barrier(mut self, vm_barrier: VmConcurrencyBarrier) -> Self {
+        self.optional.vm_barrier = Some(vm_barrier);
         self
     }
 
@@ -252,7 +254,6 @@ impl ApiBuilder {
             config: self.config,
             transport: self.transport.context("API transport not set")?,
             tx_sender: self.tx_sender.context("Transaction sender not set")?,
-            vm_barrier: self.vm_barrier.context("VM barrier not set")?,
             polling_interval: self.polling_interval,
             namespaces: self.namespaces.unwrap_or_else(|| {
                 tracing::warn!(
@@ -507,7 +508,7 @@ impl FullApiParams {
             .map_or(u32::MAX, |limit| limit as u32);
         let websocket_requests_per_minute_limit = self.optional.websocket_requests_per_minute_limit;
         let subscriptions_limit = self.optional.subscriptions_limit;
-        let vm_barrier = self.vm_barrier.clone();
+        let vm_barrier = self.optional.vm_barrier.clone();
 
         let rpc = self
             .build_rpc_module(pub_sub, last_sealed_miniblock)
@@ -593,14 +594,18 @@ impl FullApiParams {
             tracing::info!(
                 "Stop signal received, {transport_str} JSON-RPC server is shutting down"
             );
-            closing_vm_barrier.close();
+            if let Some(closing_vm_barrier) = closing_vm_barrier {
+                closing_vm_barrier.close();
+            }
             close_handle.stop().ok();
         });
 
         server_handle.stopped().await;
         drop(health_updater);
         tracing::info!("{transport_str} JSON-RPC server stopped");
-        Self::wait_for_vm(vm_barrier, transport_str).await;
+        if let Some(vm_barrier) = vm_barrier {
+            Self::wait_for_vm(vm_barrier, transport_str).await;
+        }
         Ok(())
     }
 }

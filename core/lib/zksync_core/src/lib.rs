@@ -1185,7 +1185,8 @@ async fn run_http_api(
             .with_tree_api(api_config.web3_json_rpc.tree_api_url())
             .with_batch_request_size_limit(api_config.web3_json_rpc.max_batch_request_size())
             .with_response_body_size_limit(api_config.web3_json_rpc.max_response_body_size())
-            .with_tx_sender(tx_sender, vm_barrier)
+            .with_tx_sender(tx_sender)
+            .with_vm_barrier(vm_barrier)
             .enable_api_namespaces(namespaces);
     api_builder.build(stop_receiver).await
 }
@@ -1236,7 +1237,8 @@ async fn run_ws_api(
             )
             .with_polling_interval(api_config.web3_json_rpc.pubsub_interval())
             .with_tree_api(api_config.web3_json_rpc.tree_api_url())
-            .with_tx_sender(tx_sender, vm_barrier)
+            .with_tx_sender(tx_sender)
+            .with_vm_barrier(vm_barrier)
             .enable_api_namespaces(namespaces);
 
     api_builder.build(stop_receiver.clone()).await
