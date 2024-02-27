@@ -23,7 +23,7 @@ pub mod types {
     use sqlx::types::chrono::{DateTime, Utc};
     use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
 
-    // This currently lives in `zksync_prover_types`` -- we don't want a dependency between prover types (`zkevm_test_harness``) and DAL.
+    // This currently lives in `zksync_prover_types` -- we don't want a dependency between prover types (`zkevm_test_harness`) and DAL.
     // This will be gone as part of 1.5.0, when EIP4844 becomes normal jobs, rather than special cased ones.
     pub(crate) const EIP_4844_CIRCUIT_ID: u8 = 255;
 
