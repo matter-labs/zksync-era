@@ -8,7 +8,7 @@ use tokio::{
 use zksync_config::GasAdjusterConfig;
 use zksync_eth_client::clients::QueryClient;
 
-use crate::{l1_gas_price::GasAdjuster, native_erc20_fetcher::Erc20Fetcher};
+use crate::{l1_gas_price::GasAdjuster, native_token_fetcher::ConversionRateFetcher};
 
 /// Special struct for creating a singleton of `GasAdjuster`.
 /// This is needed only for running the server.
@@ -17,7 +17,7 @@ pub struct GasAdjusterSingleton {
     web3_url: String,
     gas_adjuster_config: GasAdjusterConfig,
     singleton: OnceCell<Result<Arc<GasAdjuster<QueryClient>>, Error>>,
-    erc20_fetcher_dyn: Option<Arc<dyn Erc20Fetcher>>,
+    erc20_fetcher_dyn: Option<Arc<dyn ConversionRateFetcher>>,
 }
 
 #[derive(thiserror::Error, Debug, Clone)]
@@ -34,7 +34,7 @@ impl GasAdjusterSingleton {
     pub fn new(
         web3_url: String,
         gas_adjuster_config: GasAdjusterConfig,
-        erc20_fetcher_dyn: Option<Arc<dyn Erc20Fetcher>>,
+        erc20_fetcher_dyn: Option<Arc<dyn ConversionRateFetcher>>,
     ) -> Self {
         Self {
             web3_url,

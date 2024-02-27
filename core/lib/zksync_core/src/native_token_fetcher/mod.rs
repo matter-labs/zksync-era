@@ -6,7 +6,7 @@ use tokio::{
     sync::{watch, OnceCell},
     task::JoinHandle,
 };
-use zksync_config::configs::native_erc20_fetcher::NativeErc20FetcherConfig;
+use zksync_config::configs::native_token_fetcher::NativeTokenFetcherConfig;
 
 // TODO: this error type is also defined by the gasAdjuster module,
 //       we should consider moving it to a common place
@@ -20,29 +20,31 @@ impl From<anyhow::Error> for Error {
     }
 }
 
-pub trait Erc20Fetcher: 'static + std::fmt::Debug + Send + Sync {
+/// Trait used to query the stack's native token conversion rate. Used to properly
+/// determine gas prices, as they partially depend on L1 gas prices, denominated in `eth`.
+pub trait ConversionRateFetcher: 'static + std::fmt::Debug + Send + Sync {
     fn conversion_rate(&self) -> anyhow::Result<u64>;
 }
 
-pub(crate) struct NativeErc20FetcherSingleton {
-    native_erc20_fetcher_config: NativeErc20FetcherConfig,
-    singleton: OnceCell<Result<Arc<NativeErc20Fetcher>, Error>>,
+pub(crate) struct NativeTokenFetcherSingleton {
+    native_token_fetcher_config: NativeTokenFetcherConfig,
+    singleton: OnceCell<Result<Arc<NativeTokenFetcher>, Error>>,
 }
 
-impl NativeErc20FetcherSingleton {
-    pub fn new(native_erc20_fetcher_config: NativeErc20FetcherConfig) -> Self {
+impl NativeTokenFetcherSingleton {
+    pub fn new(native_token_fetcher_config: NativeTokenFetcherConfig) -> Self {
         Self {
-            native_erc20_fetcher_config,
+            native_token_fetcher_config,
             singleton: OnceCell::new(),
         }
     }
 
-    pub async fn get_or_init(&mut self) -> Result<Arc<NativeErc20Fetcher>, Error> {
+    pub async fn get_or_init(&mut self) -> Result<Arc<NativeTokenFetcher>, Error> {
         let adjuster = self
             .singleton
             .get_or_init(|| async {
                 let fetcher =
-                    NativeErc20Fetcher::new(self.native_erc20_fetcher_config.clone()).await;
+                    NativeTokenFetcher::new(self.native_token_fetcher_config.clone()).await;
                 Ok(Arc::new(fetcher))
             })
             .await;
@@ -58,16 +60,16 @@ impl NativeErc20FetcherSingleton {
     }
 }
 
+/// Struct in charge of periodically querying and caching the native token's conversion rate
+/// to `eth`.
 #[derive(Debug)]
-pub(crate) struct NativeErc20Fetcher {
-    // TODO: we probably need to add a http client here
-    // to avoid creating a new one for each request
-    pub config: NativeErc20FetcherConfig,
+pub(crate) struct NativeTokenFetcher {
+    pub config: NativeTokenFetcherConfig,
     pub latest_to_eth_conversion_rate: AtomicU64,
 }
 
-impl NativeErc20Fetcher {
-    pub(crate) async fn new(config: NativeErc20FetcherConfig) -> Self {
+impl NativeTokenFetcher {
+    pub(crate) async fn new(config: NativeTokenFetcherConfig) -> Self {
         let conversion_rate = reqwest::get(format!("{}/conversion_rate", config.host))
             .await
             .unwrap()
@@ -84,7 +86,7 @@ impl NativeErc20Fetcher {
     pub(crate) async fn run(&self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         loop {
             if *stop_receiver.borrow() {
-                tracing::info!("Stop signal received, eth_tx_manager is shutting down");
+                tracing::info!("Stop signal received, native_token_fetcher is shutting down");
                 break;
             }
 
@@ -105,7 +107,7 @@ impl NativeErc20Fetcher {
 }
 
 #[async_trait]
-impl Erc20Fetcher for NativeErc20Fetcher {
+impl ConversionRateFetcher for NativeTokenFetcher {
     fn conversion_rate(&self) -> anyhow::Result<u64> {
         anyhow::Ok(
             self.latest_to_eth_conversion_rate

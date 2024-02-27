@@ -12,7 +12,7 @@ use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
 
 use self::metrics::METRICS;
 use super::{L1GasPriceProvider, L1TxParamsProvider};
-use crate::{native_erc20_fetcher::Erc20Fetcher, state_keeper::metrics::KEEPER_METRICS};
+use crate::{native_token_fetcher::ConversionRateFetcher, state_keeper::metrics::KEEPER_METRICS};
 
 mod metrics;
 #[cfg(test)]
@@ -25,14 +25,14 @@ pub struct GasAdjuster<E> {
     pub(super) statistics: GasStatistics,
     pub(super) config: GasAdjusterConfig,
     eth_client: E,
-    erc20_fetcher_dyn: Option<Arc<dyn Erc20Fetcher>>,
+    native_token_fetcher_dyn: Option<Arc<dyn ConversionRateFetcher>>,
 }
 
 impl<E: EthInterface> GasAdjuster<E> {
     pub async fn new(
         eth_client: E,
         config: GasAdjusterConfig,
-        erc20_fetcher_dyn: Option<Arc<dyn Erc20Fetcher>>,
+        native_token_fetcher_dyn: Option<Arc<dyn ConversionRateFetcher>>,
     ) -> Result<Self, Error> {
         // Subtracting 1 from the "latest" block number to prevent errors in case
         // the info about the latest block is not yet present on the node.
@@ -49,7 +49,7 @@ impl<E: EthInterface> GasAdjuster<E> {
             statistics: GasStatistics::new(config.max_base_fee_samples, current_block, &history),
             eth_client,
             config,
-            erc20_fetcher_dyn,
+            native_token_fetcher_dyn,
         })
     }
 
@@ -131,7 +131,7 @@ impl<E: EthInterface> L1GasPriceProvider for GasAdjuster<E> {
             (self.config.internal_l1_pricing_multiplier * effective_gas_price as f64) as u64;
 
         // Bound the price if it's too high.
-        let conversion_rate = match self.erc20_fetcher_dyn.as_ref() {
+        let conversion_rate = match self.native_token_fetcher_dyn.as_ref() {
             Some(fetcher) => fetcher.conversion_rate().unwrap_or(1),
             None => 1,
         };

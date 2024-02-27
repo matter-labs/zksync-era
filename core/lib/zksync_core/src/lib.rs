@@ -5,7 +5,6 @@ use std::{net::Ipv4Addr, str::FromStr, sync::Arc, time::Instant};
 use anyhow::Context as _;
 use fee_model::MainNodeFeeInputProvider;
 use futures::channel::oneshot;
-use native_erc20_fetcher::Erc20Fetcher;
 use prometheus_exporter::PrometheusExporterConfig;
 use temp_config_store::TempConfigStore;
 use tokio::{sync::watch, task::JoinHandle};
@@ -49,8 +48,7 @@ use crate::{
         execution_sandbox::{VmConcurrencyBarrier, VmConcurrencyLimiter},
         healthcheck::HealthCheckHandle,
         tx_sender::{ApiContracts, TxSender, TxSenderBuilder, TxSenderConfig},
-        web3,
-        web3::{state::InternalApiConfig, ApiServerHandles, Namespace},
+        web3::{self, state::InternalApiConfig, ApiServerHandles, Namespace},
     },
     basic_witness_input_producer::BasicWitnessInputProducer,
     eth_sender::{Aggregator, EthTxAggregator, EthTxManager},
@@ -70,7 +68,7 @@ use crate::{
     l1_gas_price::{GasAdjusterSingleton, L1GasPriceProvider},
     metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
     metrics::{InitStage, APP_METRICS},
-    native_erc20_fetcher::NativeErc20FetcherSingleton,
+    native_token_fetcher::{ConversionRateFetcher, NativeTokenFetcherSingleton},
     state_keeper::{
         create_state_keeper, MempoolFetcher, MempoolGuard, MiniblockSealer, SequencerSealer,
     },
@@ -90,7 +88,7 @@ pub mod house_keeper;
 pub mod l1_gas_price;
 pub mod metadata_calculator;
 mod metrics;
-pub mod native_erc20_fetcher;
+pub mod native_token_fetcher;
 pub mod proof_data_handler;
 pub mod reorg_detector;
 pub mod state_keeper;
@@ -233,8 +231,8 @@ pub enum Component {
     Housekeeper,
     /// Component for exposing APIs to prover for providing proof generation data and accepting proofs.
     ProofDataHandler,
-    /// Native ERC20 fetcher
-    NativeERC20Fetcher,
+    /// Native Token fetcher
+    NativeTokenFetcher,
 }
 
 #[derive(Debug)]
@@ -269,7 +267,7 @@ impl FromStr for Components {
             "eth_tx_aggregator" => Ok(Components(vec![Component::EthTxAggregator])),
             "eth_tx_manager" => Ok(Components(vec![Component::EthTxManager])),
             "proof_data_handler" => Ok(Components(vec![Component::ProofDataHandler])),
-            "native_erc20_fetcher" => Ok(Components(vec![Component::NativeERC20Fetcher])),
+            "native_token_fetcher" => Ok(Components(vec![Component::NativeTokenFetcher])),
             other => Err(format!("{} is not a valid component name", other)),
         }
     }
@@ -327,12 +325,12 @@ pub async fn initialize_components(
     });
 
     // spawn the native ERC20 fetcher if it is enabled
-    let mut fetcher_component = if components.contains(&Component::NativeERC20Fetcher) {
-        let fetcher = NativeErc20FetcherSingleton::new(
+    let mut fetcher_component = if components.contains(&Component::NativeTokenFetcher) {
+        let fetcher = NativeTokenFetcherSingleton::new(
             configs
-                .native_erc20_fetcher_config
+                .native_token_fetcher_config
                 .clone()
-                .context("native_erc20_fetcher_config")?,
+                .context("native_token_fetcher_config")?,
         );
 
         Some(fetcher)
@@ -342,7 +340,7 @@ pub async fn initialize_components(
     let (stop_sender, stop_receiver) = watch::channel(false);
     let (cb_sender, cb_receiver) = oneshot::channel();
 
-    let native_erc20_fetcher = if let Some(fetcher_singleton) = &mut fetcher_component {
+    let native_token_fetcher = if let Some(fetcher_singleton) = &mut fetcher_component {
         let fetcher = fetcher_singleton
             .get_or_init()
             .await
@@ -352,9 +350,9 @@ pub async fn initialize_components(
         None
     };
 
-    let erc20_fetcher_dyn: Option<Arc<dyn Erc20Fetcher>> = native_erc20_fetcher
+    let erc20_fetcher_dyn: Option<Arc<dyn ConversionRateFetcher>> = native_token_fetcher
         .as_ref()
-        .map(|fetcher| fetcher.clone() as Arc<dyn Erc20Fetcher>);
+        .map(|fetcher| fetcher.clone() as Arc<dyn ConversionRateFetcher>);
 
     let query_client = QueryClient::new(&eth_client_config.web3_url).unwrap();
     let gas_adjuster_config = configs.gas_adjuster_config.context("gas_adjuster_config")?;
