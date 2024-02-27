@@ -1,12 +1,12 @@
 # FRI Prover
 
-## Running cpu prover
+## Running CPU prover
 
-`zk f cargo +nightly-2023-08-21 run --release --bin zksync_prover_fri`
+`zk f cargo run --release --bin zksync_prover_fri`
 
-## Running gpu prover(requires CUDA 12.0+)
+## Running GPU prover(requires CUDA 12.0+)
 
-`zk f cargo +nightly-2023-08-21 run --release --features "gpu" --bin zksync_prover_fri`
+`zk f cargo run --release --features "gpu" --bin zksync_prover_fri`
 
 ## Proving a block using CPU prover locally
 
@@ -63,14 +63,14 @@ Machine specs:
 - RAM: 60GB of RAM (enable swap if your machine has less RAM)
 - Disk: 400GB of free disk
 
-1. Install the correct nightly version using command: `rustup install nightly-2023-07-21`
+1. Install Rust (correct version from rust-toolchain file should be used automatically if you don't have any local overrides)
 2. Initialize DB and run migrations. Go into the root of the repository, then run
 
    ```console
    zk init
    ```
 
-3. Generate the cpu setup data (no need to regenerate if it's already there). This will consume around 300Gb of disk.
+3. Generate the CPU setup data (no need to regenerate if it's already there). This will consume around 300GB of disk.
    For this, move to the `prover` directory, and run
 
    ```console
@@ -134,9 +134,9 @@ installation as a pre-requisite, alongside these machine specs:
 - Disk: 30GB of free disk
 - GPU: NVIDIA GPU with CUDA support and at least 6GB of VRAM, we recommend to use GPUs with at least 16GB VRAM for optimal performance. In our GPU picks for datacenters while running on Google Cloud Platform, the L4 takes the top spot, with the T4 coming in a second.
 
-1. Install the correct nightly version using command: `rustup install nightly-2023-07-21`
+1. Install Rust (correct version from rust-toolchain file should be used automatically if you don't have any local overrides)
 2. Initialize DB and run migrations: `zk init`
-3. Generate the GPU setup data (no need to regenerate if it's already there). This will consume around 300Gb of disk.
+3. Generate the GPU setup data (no need to regenerate if it's already there). This will consume around 20GB of disk.
    For this, move to the `prover` directory, and run
 
    ```console
@@ -240,15 +240,15 @@ finalization hints if the circuit changes. Below steps can be used to perform ci
 4. Run the verification key
    [workflow](https://github.com/matter-labs/zksync-era/actions/workflows/fri-vk-generator.yaml) against the PR to
    generate the verification key and finalization hints for the new circuit.
-5. Only once the above verification key workflow is successful, start the setup-data generation(cpu, gpu setup data
+5. Only once the above verification key workflow is successful, start the setup-data generation(CPU, GPU setup data
    generation can be done in parallel), this step is important, since the setup data requires the new VK, we need to
    wait for it to finish.
-6. Run the cpu setup data generation
+6. Run the CPU setup data generation
    [workflow](https://github.com/matter-labs/zksync-era/actions/workflows/fri-setup-data-generator.yml) against the PR
-   to generate the cpu setup data.
-7. Run the gpu setup data generation
+   to generate the CPU setup data.
+7. Run the GPU setup data generation
    [workflow](https://github.com/matter-labs/zksync-era/actions/workflows/fri-gpu-setup-data-generator.yml) against the
-   PR to generate the gpu setup data.
+   PR to generate the GPU setup data.
 8. Once the setup data generation workflows are successful, update the PR with `setup_keys_id` id in
    [build-docker-from-tag.yml](../../.github/workflows/build-docker-from-tag.yml) and in
    [build-prover-fri-gpu-gar.yml](https://github.com/matter-labs/zksync-era/blob/main/.github/workflows/build-prover-fri-gpu-gar.yml),
