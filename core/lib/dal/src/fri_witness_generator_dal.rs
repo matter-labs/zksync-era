@@ -62,8 +62,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             block_number.0 as i64,
             object_key,
             protocol_version_id as i32,
-            bincode::serialize(&Vec::<u8>::from(eip_4844_blobs))
-                .expect("Failed to serialize 4844 blobs to bytes"),
+            eip_4844_blobs.into(),
         )
         .fetch_optional(self.storage.conn())
         .await
@@ -116,11 +115,11 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .await
         .unwrap()
         .map(|row| {
-            let eip_4844_blobs_raw: Vec<u8> = bincode::deserialize(&row.eip_4844_blobs.unwrap())
-                .expect("Failed to serialize 4844 blobs to bytes");
             (
                 L1BatchNumber(row.l1_batch_number as u32),
-                eip_4844_blobs_raw.into(),
+                eip_4844_blobs_raw
+                    .expect("missing eip 4844 blobs from the database")
+                    .into(),
             )
         })
     }
