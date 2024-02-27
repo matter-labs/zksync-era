@@ -396,6 +396,10 @@ async fn update_database(
             protocol_version_id,
         )
         .await;
+    // Special casing Eip4844 as part of 1.4.2.
+    // In the future, this will be included in the above call.
+    // For now, there are [`MAX_4844_BLOBS_PER_BLOCK`] proofs, even though there may be less blobs.
+    // The proofs are expected as per: https://github.com/matter-labs/era-zkevm_circuits/blob/v1.4.2/src/scheduler/mod.rs#L1165
     for index in 0..MAX_4844_BLOBS_PER_BLOCK {
         prover_connection
             .fri_prover_jobs_dal()
@@ -762,6 +766,8 @@ async fn generate_witness(
         previous_batch_with_metadata.metadata.aux_data_hash.0;
 
     if single_blob {
+        // The second witness has to be zeroed out (corresponding to the second blob), so it's not considered in the proof.
+        // See: https://github.com/matter-labs/era-zkevm_circuits/blob/v1.4.1/src/scheduler/mod.rs#L1149.
         eip_4844_witnesses[1].linear_hash = [0u8; 32];
         eip_4844_witnesses[1].output_hash = [0u8; 32];
     }
