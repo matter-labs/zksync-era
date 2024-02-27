@@ -373,15 +373,21 @@ impl EthInterface for MockEthereum {
     ) -> Result<Option<Block<H256>>, Error> {
         match block_id {
             BlockId::Number(BlockNumber::Number(number)) => {
-                let block =
-                    self.excess_blob_gas_history
-                        .get(number.as_usize())
-                        .map(|excess_blob_gas| Block {
-                            number: Some(number),
-                            excess_blob_gas: Some((*excess_blob_gas).into()),
-                            ..Default::default()
-                        });
-                Ok(block)
+                let excess_blob_gas = self
+                    .excess_blob_gas_history
+                    .get(number.as_usize())
+                    .map(|excess_blob_gas| (*excess_blob_gas).into());
+                let base_fee_per_gas = self
+                    .base_fee_history
+                    .get(number.as_usize())
+                    .map(|base_fee| (*base_fee).into());
+
+                Ok(Some(Block {
+                    number: Some(number),
+                    excess_blob_gas,
+                    base_fee_per_gas,
+                    ..Default::default()
+                }))
             }
             _ => unimplemented!("Not needed right now"),
         }
