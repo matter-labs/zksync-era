@@ -31,7 +31,7 @@ fn fri_l1_verifier_config(contracts_config: &ContractsConfig) -> L1VerifierConfi
     }
 }
 
-pub(crate) async fn run_server(
+pub async fn run_server(
     config: ProofDataHandlerConfig,
     contracts_config: ContractsConfig,
     blob_store: Arc<dyn ObjectStore>,

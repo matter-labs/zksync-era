@@ -97,6 +97,7 @@ impl L1BatchHeader {
         timestamp: u64,
         base_system_contracts_hashes: BaseSystemContractsHashes,
         protocol_version: ProtocolVersionId,
+        pubdata_da_layer: Option<PubdataDA>,
     ) -> L1BatchHeader {
         Self {
             number,
@@ -112,6 +113,7 @@ impl L1BatchHeader {
             system_logs: vec![],
             protocol_version: Some(protocol_version),
             pubdata_input: Some(vec![]),
+            pubdata_da_layer,
         }
     }
 

@@ -30,7 +30,7 @@ use zksync_contracts::{governance_contract, BaseSystemContracts};
 use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
 use zksync_eth_client::{
     clients::{PKSigningClient, QueryClient},
-    CallFunctionArgs, EthInterface,
+    BoundEthInterface, CallFunctionArgs, EthInterface,
 };
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
@@ -638,11 +638,16 @@ pub async fn initialize_components(
             .context("eth_sender_config")?;
         let eth_client =
             PKSigningClient::from_config(&eth_sender, &contracts_config, &eth_client_config);
+        let eth_client_blobs_addr =
+            PKSigningClient::from_config_blobs(&eth_sender, &contracts_config, &eth_client_config)
+                .map(|k| k.sender_account());
+
         let eth_tx_aggregator_actor = EthTxAggregator::new(
             eth_sender.sender.clone(),
             Aggregator::new(
                 eth_sender.sender.clone(),
                 store_factory.create_store().await,
+                eth_client_blobs_addr.is_some(),
             ),
             Arc::new(eth_client),
             contracts_config.validator_timelock_addr,
@@ -654,6 +659,7 @@ pub async fn initialize_components(
                 .context("network_config")?
                 .zksync_network_id,
             &kzg_config.trusted_setup_path,
+            eth_client_blobs_addr,
         )
         .await;
         task_futures.push(tokio::spawn(
@@ -677,6 +683,8 @@ pub async fn initialize_components(
             .context("eth_sender_config")?;
         let eth_client =
             PKSigningClient::from_config(&eth_sender, &contracts_config, &eth_client_config);
+        let eth_client_blobs =
+            PKSigningClient::from_config_blobs(&eth_sender, &contracts_config, &eth_client_config);
         let eth_tx_manager_actor = EthTxManager::new(
             eth_sender.sender,
             gas_adjuster
@@ -684,6 +692,7 @@ pub async fn initialize_components(
                 .await
                 .context("gas_adjuster.get_or_init()")?,
             Arc::new(eth_client),
+            eth_client_blobs.map(|c| Arc::new(c) as Arc<dyn BoundEthInterface>),
         );
         task_futures.extend([tokio::spawn(
             eth_tx_manager_actor.run(eth_manager_pool, stop_receiver.clone()),

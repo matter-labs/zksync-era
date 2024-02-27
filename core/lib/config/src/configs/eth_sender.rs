@@ -126,6 +126,13 @@ impl SenderConfig {
             .ok()
             .map(|pk| pk.parse().unwrap())
     }
+
+    // Don't load blobs private key, if it's not required
+    pub fn private_key_blobs(&self) -> Option<H256> {
+        std::env::var("ETH_SENDER_SENDER_OPERATOR_BLOBS_PRIVATE_KEY")
+            .ok()
+            .map(|pk| pk.parse().unwrap())
+    }
 }
 
 #[derive(Debug, Deserialize, Copy, Clone, PartialEq)]

@@ -29,10 +29,20 @@ pub struct Aggregator {
     execute_criteria: Vec<Box<dyn L1BatchPublishCriterion>>,
     config: SenderConfig,
     blob_store: Arc<dyn ObjectStore>,
+    /// If we are operating in 4844 mode we need to wait for commit transaction
+    /// to get included before sending the respective prove and execute transactions.
+    /// In non-4844 mode of operation we operate with the single address and this
+    /// means no wait is needed: nonces will still provide the correct ordering of
+    /// transactions.
+    operate_4844_mode: bool,
 }
 
 impl Aggregator {
-    pub fn new(config: SenderConfig, blob_store: Arc<dyn ObjectStore>) -> Self {
+    pub fn new(
+        config: SenderConfig,
+        blob_store: Arc<dyn ObjectStore>,
+        operate_4844_mode: bool,
+    ) -> Self {
         Self {
             commit_criteria: vec![
                 Box::from(NumberCriterion {
@@ -88,6 +98,7 @@ impl Aggregator {
             ],
             config,
             blob_store,
+            operate_4844_mode,
         }
     }
 
@@ -231,6 +242,7 @@ impl Aggregator {
         l1_verifier_config: L1VerifierConfig,
         proof_loading_mode: &ProofLoadingMode,
         blob_store: &dyn ObjectStore,
+        is_4844_mode: bool,
     ) -> Option<ProveBatches> {
         let previous_proven_batch_number = storage
             .blocks_dal()
@@ -240,11 +252,22 @@ impl Aggregator {
         let batch_to_prove = previous_proven_batch_number + 1;
 
         // Return `None` if batch is not committed yet.
-        storage
+        let commit_tx_id = storage
             .blocks_dal()
             .get_eth_commit_tx_id(batch_to_prove)
             .await
             .unwrap()?;
+
+        if is_4844_mode
+            && storage
+                .eth_sender_dal()
+                .get_confirmed_tx_hash_by_eth_tx_id(commit_tx_id as u32)
+                .await
+                .unwrap()
+                .is_none()
+        {
+            return None;
+        }
 
         if let Some(version_id) = storage
             .blocks_dal()
@@ -350,6 +373,7 @@ impl Aggregator {
                     l1_verifier_config,
                     &self.config.proof_loading_mode,
                     &*self.blob_store,
+                    self.operate_4844_mode,
                 )
                 .await
             }
@@ -357,7 +381,7 @@ impl Aggregator {
             ProofSendingMode::SkipEveryProof => {
                 let ready_for_proof_l1_batches = storage
                     .blocks_dal()
-                    .get_ready_for_dummy_proof_l1_batches(limit)
+                    .get_ready_for_dummy_proof_l1_batches(self.operate_4844_mode, limit)
                     .await
                     .unwrap();
                 self.prepare_dummy_proof_operation(
@@ -375,6 +399,7 @@ impl Aggregator {
                     l1_verifier_config,
                     &self.config.proof_loading_mode,
                     &*self.blob_store,
+                    self.operate_4844_mode,
                 )
                 .await
                 {

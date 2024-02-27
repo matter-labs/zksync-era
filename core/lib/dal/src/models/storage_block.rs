@@ -81,6 +81,7 @@ impl From<StorageL1BatchHeader> for L1BatchHeader {
                 .protocol_version
                 .map(|v| (v as u16).try_into().unwrap()),
             pubdata_input: l1_batch.pubdata_input,
+            pubdata_da_layer: None,
         }
     }
 }
@@ -184,6 +185,7 @@ impl From<StorageL1Batch> for L1BatchHeader {
                 .protocol_version
                 .map(|v| (v as u16).try_into().unwrap()),
             pubdata_input: l1_batch.pubdata_input,
+            pubdata_da_layer: None,
         }
     }
 }
