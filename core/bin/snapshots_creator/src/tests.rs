@@ -166,7 +166,13 @@ async fn create_l1_batch(
     l1_batch_number: L1BatchNumber,
     logs_for_initial_writes: &[StorageLog],
 ) {
-    let header = L1BatchHeader::new(l1_batch_number, 0, Default::default(), Default::default());
+    let header = L1BatchHeader::new(
+        l1_batch_number,
+        0,
+        Default::default(),
+        Default::default(),
+        None,
+    );
     conn.blocks_dal()
         .insert_mock_l1_batch(&header)
         .await

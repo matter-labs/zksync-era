@@ -2368,6 +2368,7 @@ mod tests {
                 default_aa: H256::repeat_byte(42),
             },
             ProtocolVersionId::latest(),
+            None,
         );
         header.l1_tx_count = 3;
         header.l2_tx_count = 5;
@@ -2420,6 +2421,7 @@ mod tests {
             100,
             BaseSystemContractsHashes::default(),
             ProtocolVersionId::default(),
+            None,
         );
         let mut predicted_gas = BlockGasCount {
             commit: 2,
@@ -2498,6 +2500,7 @@ mod tests {
                     default_aa: H256::repeat_byte(42),
                 },
                 ProtocolVersionId::latest(),
+                None,
             );
             let miniblock = MiniblockHeader {
                 fee_account_address: Address::default(),

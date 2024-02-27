@@ -642,12 +642,16 @@ pub async fn initialize_components(
             PKSigningClient::from_config_blobs(&eth_sender, &contracts_config, &eth_client_config)
                 .map(|k| k.sender_account());
 
+        // TODO: Load file and propagate&kzg_config.trusted_setup_path,
+
         let eth_tx_aggregator_actor = EthTxAggregator::new(
             eth_sender.sender.clone(),
             Aggregator::new(
                 eth_sender.sender.clone(),
                 store_factory.create_store().await,
                 eth_client_blobs_addr.is_some(),
+                None,
+                None,
             ),
             Arc::new(eth_client),
             contracts_config.validator_timelock_addr,
@@ -658,7 +662,7 @@ pub async fn initialize_components(
                 .as_ref()
                 .context("network_config")?
                 .zksync_network_id,
-            &kzg_config.trusted_setup_path,
+            None,
             eth_client_blobs_addr,
         )
         .await;

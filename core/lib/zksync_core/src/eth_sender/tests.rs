@@ -108,6 +108,8 @@ impl EthSenderTester {
                 aggregator_config.clone(),
                 store_factory.create_store().await,
                 aggregator_operate_4844_mode,
+                None,
+                None,
             ),
             gateway.clone(),
             // zkSync contract address
@@ -115,6 +117,7 @@ impl EthSenderTester {
             contracts_config.l1_multicall3_addr,
             Address::random(),
             Default::default(),
+            None,
             None,
         )
         .await;
@@ -966,6 +969,8 @@ async fn commit_l1_batch(
     let operation = AggregatedOperation::Commit(CommitBatches {
         last_committed_l1_batch: l1_batch_with_metadata(last_committed_l1_batch),
         l1_batches: vec![l1_batch_with_metadata(l1_batch)],
+        pubdata_da: None,
+        kzg_settings: None,
     });
     send_operation(tester, operation, confirm).await
 }

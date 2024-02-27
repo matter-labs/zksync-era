@@ -56,7 +56,7 @@ pub struct EthTxAggregator {
     base_nonce: u64,
     base_nonce_custom_commit_sender: Option<u64>,
     rollup_chain_id: L2ChainId,
-    kzg_settings: KzgSettings,
+    kzg_settings: Option<Arc<KzgSettings>>,
     /// If set to `Some` node is operating in the 4844 mode with two operator
     /// addresses at play: the main one and the custom address for sending commit
     /// transactions. The `Some` then contains the address of this custom operator
@@ -74,7 +74,7 @@ impl EthTxAggregator {
         l1_multicall3_address: Address,
         main_zksync_contract_address: Address,
         rollup_chain_id: L2ChainId,
-        kzg_trusted_setup_path: &str,
+        kzg_settings: Option<Arc<KzgSettings>>,
         custom_commit_sender_addr: Option<Address>,
     ) -> Self {
         let functions = ZkSyncFunctions::default();
@@ -83,7 +83,6 @@ impl EthTxAggregator {
             .await
             .unwrap()
             .as_u64();
-        let kzg_settings = KzgSettings::new(kzg_trusted_setup_path);
 
         let base_nonce_custom_commit_sender = match custom_commit_sender_addr {
             Some(addr) => Some(

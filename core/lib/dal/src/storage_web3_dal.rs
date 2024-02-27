@@ -323,6 +323,7 @@ mod tests {
             0,
             Default::default(),
             ProtocolVersionId::latest(),
+            None,
         );
         conn.blocks_dal()
             .insert_mock_l1_batch(&l1_batch_header)
@@ -420,6 +421,7 @@ mod tests {
             100,
             Default::default(),
             ProtocolVersionId::latest(),
+            None,
         );
         conn.blocks_dal()
             .insert_mock_l1_batch(&l1_batch_header)

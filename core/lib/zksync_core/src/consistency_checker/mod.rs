@@ -180,7 +180,12 @@ impl LocalL1BatchCommitData {
 
         Ok(Some(Self {
             is_pre_boojum,
-            l1_commit_data: CommitBatchInfo(&l1_batch).into_token(),
+            l1_commit_data: CommitBatchInfo(
+                &l1_batch,
+                l1_batch.header.pubdata_da_layer,
+                /* TODO: kzg settings */ None,
+            )
+            .into_token(),
             commit_tx_hash,
         }))
     }

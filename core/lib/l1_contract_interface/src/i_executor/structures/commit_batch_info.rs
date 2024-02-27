@@ -1,16 +1,16 @@
+use std::sync::Arc;
+
 use zkevm_test_harness_1_4_2::kzg::KzgSettings;
 use zksync_types::{
     commitment::{serialize_commitments, L1BatchWithMetadata},
     ethabi::Token,
+    pubdata_da::PubdataDA,
     web3::{contract::Error as Web3ContractError, error::Error as Web3ApiError},
     U256,
 };
 
 use crate::{
-    i_executor::{
-        commit::kzg::{right_pad_pubdata_to_blobs, KzgInfo, ZK_SYNC_BYTES_PER_BLOB},
-        methods::PubdataDA,
-    },
+    i_executor::commit::kzg::{right_pad_pubdata_to_blobs, KzgInfo, ZK_SYNC_BYTES_PER_BLOB},
     Tokenizable,
 };
 
@@ -23,7 +23,7 @@ const PUBDATA_SOURCE_BLOBS: u8 = 1;
 pub struct CommitBatchInfo<'a>(
     pub &'a L1BatchWithMetadata,
     pub Option<PubdataDA>,
-    pub &'a KzgSettings,
+    pub Option<Arc<KzgSettings>>,
 );
 
 impl CommitBatchInfo<'_> {
@@ -113,7 +113,8 @@ impl<'a> Tokenizable for CommitBatchInfo<'a> {
 
                     let mut blob = pubdata.clone();
                     right_pad_pubdata_to_blobs(&mut blob);
-                    let blob_commitment = KzgInfo::new(&self.2, &blob).to_blob_commitment();
+                    let blob_commitment =
+                        KzgInfo::new(&self.2.as_ref().unwrap(), &blob).to_blob_commitment();
 
                     pubdata.extend(blob_commitment);
 
@@ -132,7 +133,7 @@ impl<'a> Tokenizable for CommitBatchInfo<'a> {
                     let mut pubdata_commitments = pubdata
                         .chunks(ZK_SYNC_BYTES_PER_BLOB)
                         .flat_map(|blob| {
-                            let kzg_info = KzgInfo::new(self.2, &blob.to_vec());
+                            let kzg_info = KzgInfo::new(&self.2.as_ref().unwrap(), &blob);
                             kzg_info.to_pubdata_commitment().to_vec()
                         })
                         .collect::<Vec<u8>>();
@@ -141,5 +142,7 @@ impl<'a> Tokenizable for CommitBatchInfo<'a> {
                 }
             },
         }
+
+        Token::FixedArray(tokens)
     }
 }

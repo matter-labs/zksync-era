@@ -1,8 +1,10 @@
 // TODO: Remove once integrated into batch commit
 #![allow(dead_code)]
 
+use std::sync::Arc;
+
 use zkevm_test_harness_1_4_2::kzg::KzgSettings;
-use zksync_types::{commitment::L1BatchWithMetadata, ethabi::Token};
+use zksync_types::{commitment::L1BatchWithMetadata, ethabi::Token, pubdata_da::PubdataDA};
 
 use crate::{
     i_executor::structures::{CommitBatchInfo, StoredBatchInfo},
@@ -15,7 +17,7 @@ pub struct CommitBatches {
     pub last_committed_l1_batch: L1BatchWithMetadata,
     pub l1_batches: Vec<L1BatchWithMetadata>,
     pub pubdata_da: Option<PubdataDA>,
-    pub kzg_settings: KzgSettings,
+    pub kzg_settings: Option<Arc<KzgSettings>>,
 }
 
 impl Tokenize for CommitBatches {
@@ -24,7 +26,9 @@ impl Tokenize for CommitBatches {
         let l1_batches_to_commit = self
             .l1_batches
             .iter()
-            .map(|batch| CommitBatchInfo(batch, self.pubdata_da, &self.kzg_settings).into_token())
+            .map(|batch| {
+                CommitBatchInfo(batch, self.pubdata_da, self.kzg_settings.clone()).into_token()
+            })
             .collect();
 
         vec![stored_batch_info, Token::Array(l1_batches_to_commit)]
