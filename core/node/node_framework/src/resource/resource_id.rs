@@ -3,17 +3,18 @@ use std::{
     ops::{Add, AddAssign},
 };
 
-/// A unique identifier of the resource.
-/// Typically, represented as a path-like string, e.g. `common/master_pool`.
+/// A unique identifier for the resource.
+/// Typically represented as a path-like string, e.g., `common/master_pool`.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ResourceId {
     /// Path-like representation of the resource identifier.
-    /// Represented as a `Vec` for ID composability (e.g. collection IDs can be defined as
+    /// Represented as a `Vec` for ID composability (e.g., collection IDs can be defined as
     /// `ResourceId::from("collection") + Resource::resource_id()`).
     id: Vec<&'static str>,
 }
 
 impl ResourceId {
+    /// Creates a new `ResourceId` with the given identifier.
     pub fn new(id: &'static str) -> Self {
         Self { id: vec![id] }
     }
@@ -45,3 +46,4 @@ impl fmt::Display for ResourceId {
         write!(f, "{}", self.id.join("/"))
     }
 }
+
