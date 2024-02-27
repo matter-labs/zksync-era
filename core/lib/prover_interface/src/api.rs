@@ -17,6 +17,7 @@ pub const EIP_4844_BLOB_SIZE: usize = BLOB_CHUNK_SIZE * ELEMENTS_PER_4844_BLOCK;
 
 pub type Blob = Vec<u8>;
 
+// TODO: add tests
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Eip4844Blobs {
     blobs: Vec<Blob>,
@@ -27,11 +28,11 @@ impl Eip4844Blobs {
         self.blobs
     }
 
-    fn get_rounded_blob_len(blobs: Vec<u8>) -> usize {
-        let rounded_down_blob_len = blobs.len() / EIP_4844_BLOB_SIZE * EIP_4844_BLOB_SIZE;
+    fn get_rounded_blob_len(blobs_len: usize) -> usize {
+        let rounded_down_blob_len = blobs_len / EIP_4844_BLOB_SIZE * EIP_4844_BLOB_SIZE;
 
         // if there's remainder, we will need to round it up
-        if blobs.len() != rounded_down_blob_len {
+        if blobs_len != rounded_down_blob_len {
             return rounded_down_blob_len + EIP_4844_BLOB_SIZE;
         }
         rounded_down_blob_len
@@ -56,7 +57,7 @@ impl Eip4844Blobs {
 
 impl From<Vec<u8>> for Eip4844Blobs {
     fn from(mut blobs: Vec<u8>) -> Self {
-        let rounded_blob_len = Self::get_rounded_blob_len(blobs);
+        let rounded_blob_len = Self::get_rounded_blob_len(blobs.len());
         Self::check_blob_constraints(blobs.len(), rounded_blob_len);
 
         blobs.resize(rounded_blob_len, 0u8);
