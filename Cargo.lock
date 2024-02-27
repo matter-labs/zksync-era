@@ -8045,6 +8045,7 @@ dependencies = [
 [[package]]
 name = "zk_evm_abstractions"
 version = "1.5.0"
+source = "git+https://github.com/matter-labs/era-zk_evm_abstractions.git?branch=v1.5.0#7c6b7b8202fb800e2d407abe33d28b2c2672a115"
 dependencies = [
  "anyhow",
  "num_enum",
@@ -8174,7 +8175,7 @@ dependencies = [
 [[package]]
 name = "zkevm_opcode_defs"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zkevm_opcode_defs.git?branch=v1.5.0#31c1f7ec2a5eb82f87956195e5fa9e03571a155d"
+source = "git+https://github.com/matter-labs/era-zkevm_opcode_defs.git?branch=v1.5.0#0eedbb4856c72b4e050ebce7a1f564106f5ee563"
 dependencies = [
  "bitflags 2.4.1",
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",

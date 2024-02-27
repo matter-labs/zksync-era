@@ -460,8 +460,8 @@ impl L1BatchMetaParameters {
         result.push(self.zkporter_is_available as u8);
         result.extend(self.bootloader_code_hash.as_bytes());
         result.extend(self.default_aa_code_hash.as_bytes());
-        // EVM simulator hash is always zero
-        result.extend([0u8; 32]);
+        // EVM simulator hash for now is the same as the default AA hash.
+        result.extend(self.default_aa_code_hash.as_bytes());
         result
     }
 

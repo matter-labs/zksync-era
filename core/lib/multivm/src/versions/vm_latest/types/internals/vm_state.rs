@@ -128,7 +128,10 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
             default_aa_code_hash: h256_to_u256(
                 system_env.base_system_smart_contracts.default_aa.hash,
             ),
-            evm_simulator_code_hash: U256::zero(),
+            // FIXME: for now, the default aa is used as the code hash for the evm simulator
+            evm_simulator_code_hash: h256_to_u256(
+                system_env.base_system_smart_contracts.default_aa.hash,
+            ),
             zkporter_is_available: system_env.zk_porter_available,
         },
     );
