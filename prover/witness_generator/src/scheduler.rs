@@ -3,7 +3,11 @@ use std::{convert::TryInto, sync::Arc, time::Instant};
 use anyhow::Context as _;
 use async_trait::async_trait;
 use circuit_definitions::{
-    circuit_definitions::aux_layer::EIP4844VerificationKey, eip4844_proof_config,
+    circuit_definitions::{
+        aux_layer::EIP4844VerificationKey, base_layer::ZkSyncBaseProof,
+        recursion_layer::ZkSyncRecursionProof,
+    },
+    eip4844_proof_config,
 };
 use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_dal::ConnectionPool;
@@ -249,36 +253,36 @@ pub async fn prepare_job(
     WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::Scheduler.into()]
         .observe(started_at.elapsed());
 
-    let mut recursive_proofs = vec![];
-    for wrapper in proofs {
+    let recursive_proofs: Result<Vec<ZkSyncRecursionProof>, anyhow::Error> = proofs.into_iter().map(|wrapper| {
         match wrapper {
-            FriProofWrapper::Base(_) => anyhow::bail!(
+            FriProofWrapper::Base(_) => Err(anyhow::anyhow!(
                 "Expected only recursive proofs for scheduler l1 batch {l1_batch_number}, got Base"
-            ),
+            )),
             FriProofWrapper::Recursive(recursive_proof) => {
-                recursive_proofs.push(recursive_proof.into_inner())
+                Ok(recursive_proof.into_inner())
             }
             FriProofWrapper::Eip4844(_) => {
-                anyhow::bail!("Expected only recursive proofs for  scheduler l1 batch {l1_batch_number}, got EIP4844")
+                Err(anyhow::anyhow!("Expected only recursive proofs for  scheduler l1 batch {l1_batch_number}, got EIP4844"))
             }
         }
-    }
+    }).collect();
+    let recursive_proofs = recursive_proofs?;
 
     let proofs = load_proofs_for_job_ids(&proof_job_ids.eip_4844_proof_ids, object_store).await;
 
-    let mut eip_4844_proofs = vec![];
-    for wrapper in proofs {
-        match wrapper {
-            FriProofWrapper::Base(_) => anyhow::bail!(
+    let eip_4844_proofs: Result<Vec<ZkSyncBaseProof>, anyhow::Error> = proofs
+        .into_iter()
+        .map(|wrapper| match wrapper {
+            FriProofWrapper::Base(_) => Err(anyhow::anyhow!(
                 "Expected only EIP4844 proofs for scheduler l1 batch {l1_batch_number}, got Base"
-            ),
-            FriProofWrapper::Recursive(_) =>
-                anyhow::bail!("Expected only EIP4844 proofs for scheduler l1 batch {l1_batch_number}, got Recursive"),
-            FriProofWrapper::Eip4844(eip_4844_proof) => {
-                eip_4844_proofs.push(eip_4844_proof);
-            }
-        }
-    }
+            )),
+            FriProofWrapper::Recursive(_) => Err(anyhow::anyhow!(
+            "Expected only EIP4844 proofs for scheduler l1 batch {l1_batch_number}, got Recursive"
+        )),
+            FriProofWrapper::Eip4844(eip_4844_proof) => Ok(eip_4844_proof),
+        })
+        .collect();
+    let eip_4844_proofs = eip_4844_proofs?;
 
     let started_at = Instant::now();
     let keystore = Keystore::default();

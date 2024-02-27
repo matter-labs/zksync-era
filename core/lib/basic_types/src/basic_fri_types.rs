@@ -31,48 +31,27 @@ impl Eip4844Blobs {
     pub fn blobs(self) -> Vec<Blob> {
         self.blobs
     }
-
-    fn get_rounded_blob_len(blobs_len: usize) -> usize {
-        let rounded_down_blob_len = blobs_len / EIP_4844_BLOB_SIZE * EIP_4844_BLOB_SIZE;
-
-        // if there's remainder, we will need to round it up
-        if blobs_len != rounded_down_blob_len {
-            return rounded_down_blob_len + EIP_4844_BLOB_SIZE;
-        }
-        rounded_down_blob_len
-    }
-
-    fn enforce_blob_constraints(blobs_len: usize, rounded_blob_len: usize) {
-        // Post calculation, the blob length should always represent full blobs; invariant
-        assert!(rounded_blob_len % EIP_4844_BLOB_SIZE == 0);
-
-        if blobs_len == 0 {
-            panic!("cannot create EIP4844Blobs, received empty pubdata");
-        }
-
-        let blobs_received = rounded_blob_len / EIP_4844_BLOB_SIZE;
-
-        if blobs_received > MAX_4844_BLOBS_PER_BLOCK {
-            panic!(
-                "EIP4844 supports only {:?} blobs, received {:?} (from {:?} bytes of data)",
-                MAX_4844_BLOBS_PER_BLOCK, blobs_received, blobs_len
-            );
-        }
-    }
 }
 
 impl From<Vec<u8>> for Eip4844Blobs {
-    fn from(mut blobs: Vec<u8>) -> Self {
-        let rounded_blob_len = Self::get_rounded_blob_len(blobs.len());
-        Self::enforce_blob_constraints(blobs.len(), rounded_blob_len);
+    fn from(blobs: Vec<u8>) -> Self {
+        let mut chunks: Vec<Blob> = blobs
+            .chunks(EIP_4844_BLOB_SIZE)
+            .map(|chunk| chunk.into())
+            .collect();
 
-        blobs.resize(rounded_blob_len, 0u8);
-        Self {
-            blobs: blobs
-                .chunks(EIP_4844_BLOB_SIZE)
-                .map(|chunk| chunk.into())
-                .collect(),
+        if let Some(last_chunk) = chunks.last_mut() {
+            last_chunk.resize(EIP_4844_BLOB_SIZE, 0u8);
+        } else {
+            panic!("cannot create Eip4844Blobs, received empty pubdata");
         }
+
+        assert!(
+            chunks.len() <= MAX_4844_BLOBS_PER_BLOCK,
+            "cannot create Eip4844Blobs, received too many blobs"
+        );
+
+        Self { blobs: chunks }
     }
 }
 
