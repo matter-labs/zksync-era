@@ -63,7 +63,8 @@ Machine specs:
 - RAM: 60GB of RAM (enable swap if your machine has less RAM)
 - Disk: 400GB of free disk
 
-1. Install Rust (correct version from rust-toolchain file should be used automatically if you don't have any local overrides)
+1. Install Rust (correct version from rust-toolchain file should be used automatically if you don't have any local
+   overrides)
 2. Initialize DB and run migrations. Go into the root of the repository, then run
 
    ```console
@@ -132,12 +133,15 @@ installation as a pre-requisite, alongside these machine specs:
 - CPU: At least 8 physical cores
 - RAM: 16GB of RAM(if you have lower RAM machine enable swap)
 - Disk: 30GB of free disk
-- GPU: NVIDIA GPU with CUDA support and at least 6GB of VRAM, we recommend to use GPUs with at least 16GB VRAM for optimal performance. In our GPU picks for datacenters while running on Google Cloud Platform, the L4 takes the top spot, with the T4 coming in a second.
+- GPU: NVIDIA GPU with CUDA support and at least 6GB of VRAM, we recommend to use GPUs with at least 16GB VRAM for
+  optimal performance. In our GPU picks for datacenters while running on Google Cloud Platform, the L4 takes the top
+  spot, with the T4 coming in a second.
 
-1. Install Rust (correct version from rust-toolchain file should be used automatically if you don't have any local overrides)
+1. Install Rust (correct version from rust-toolchain file should be used automatically if you don't have any local
+   overrides)
 2. Initialize DB and run migrations: `zk init`
-3. Generate the GPU setup data (no need to regenerate if it's already there). This will consume around 20GB of disk.
-   For this, move to the `prover` directory, and run
+3. Generate the GPU setup data (no need to regenerate if it's already there). This will consume around 20GB of disk. For
+   this, move to the `prover` directory, and run
 
    ```console
    ./setup.sh gpu
