@@ -16,6 +16,7 @@ use zksync_prover_interface::api::{
     SubmitProofRequest, SubmitProofResponse,
 };
 use zksync_types::{
+    basic_fri_types::Eip4844Blobs,
     commitment::serialize_commitments,
     protocol_version::{FriProtocolVersionId, L1VerifierConfig},
     web3::signing::keccak256,
@@ -118,13 +119,31 @@ impl RequestProcessor {
             }
         };
 
+        let storage_batch = self
+            .pool
+            .access_storage()
+            .await
+            .unwrap()
+            .blocks_dal()
+            .get_storage_l1_batch(l1_batch_number)
+            .await
+            .unwrap()
+            .unwrap();
+
+        let eip_4844_blobs: Eip4844Blobs = storage_batch
+            .pubdata_input
+            .expect(&format!(
+                "expected pubdata, but it is not available for batch {l1_batch_number:?}"
+            ))
+            .into();
+
         let proof_gen_data = ProofGenerationData {
             l1_batch_number,
             data: blob,
             fri_protocol_version_id,
             l1_verifier_config,
+            eip_4844_blobs,
         };
-
         Ok(Json(ProofGenerationDataResponse::Success(Some(
             proof_gen_data,
         ))))
