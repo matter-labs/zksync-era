@@ -160,7 +160,7 @@ impl SignedCallResult {
 
 // Encodes the blob transaction and the blob sidecar into the networking
 // format as defined in <https://eips.ethereum.org/EIPS/eip-4844#networking>
-pub(crate) fn encode_blob_tx_with_sidecar(raw_tx: &[u8], sidecar: &EthTxBlobSidecar) -> Vec<u8> {
+pub fn encode_blob_tx_with_sidecar(raw_tx: &[u8], sidecar: &EthTxBlobSidecar) -> Vec<u8> {
     let EthTxBlobSidecar::EthTxBlobSidecarV1(sidecar) = sidecar;
     let blobs_count = sidecar.blobs.len();
 

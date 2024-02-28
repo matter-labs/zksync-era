@@ -5,17 +5,17 @@ use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::{
-    BoundEthInterface, Error, EthInterface, ExecutedTxStatus, Options, RawTransactionBytes,
-    SignedCallResult,
+    encode_blob_tx_with_sidecar, BoundEthInterface, Error, EthInterface, ExecutedTxStatus, Options,
+    RawTransactionBytes, SignedCallResult,
 };
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    eth_sender::EthTx,
+    eth_sender::{EthTx, EthTxBlobSidecar},
     web3::{
         error::Error as Web3Error,
         types::{BlockId, BlockNumber},
     },
-    Address, L1BlockNumber, Nonce, H256, U256,
+    Address, L1BlockNumber, Nonce, EIP_1559_TX_TYPE, EIP_4844_TX_TYPE, H256, U256,
 };
 use zksync_utils::time::seconds_since_epoch;
 
@@ -204,9 +204,21 @@ impl EthTxManager {
             .used_priority_fee_per_gas
             .observe(priority_fee_per_gas);
 
-        let signed_tx = self
-            .sign_tx(tx, base_fee_per_gas, priority_fee_per_gas)
+        let mut signed_tx = self
+            .sign_tx(
+                tx,
+                base_fee_per_gas,
+                priority_fee_per_gas,
+                /* TODO: query adjuster */ None,
+            )
             .await;
+
+        if let Some(blob_sidecar) = &tx.blob_sidecar {
+            signed_tx.raw_tx = RawTransactionBytes::new_unchecked(encode_blob_tx_with_sidecar(
+                signed_tx.raw_tx.as_ref(),
+                blob_sidecar,
+            ));
+        }
 
         if let Some(tx_history_id) = storage
             .eth_sender_dal()
@@ -474,6 +486,7 @@ impl EthTxManager {
         tx: &EthTx,
         base_fee_per_gas: u64,
         priority_fee_per_gas: u64,
+        blob_gas_price: Option<U256>,
     ) -> SignedCallResult {
         // Chose the signing gateway. Use a custom one in case
         // the operator is in 4844 mode and the operation at hand is Commit.
@@ -499,6 +512,19 @@ impl EthTxManager {
                     opt.max_fee_per_gas = Some(U256::from(base_fee_per_gas + priority_fee_per_gas));
                     opt.max_priority_fee_per_gas = Some(U256::from(priority_fee_per_gas));
                     opt.nonce = Some(tx.nonce.0.into());
+                    opt.transaction_type = if tx.blob_sidecar.is_some() {
+                        opt.max_fee_per_blob_gas = blob_gas_price;
+                        Some(EIP_4844_TX_TYPE.into())
+                    } else {
+                        Some(EIP_1559_TX_TYPE.into())
+                    };
+                    opt.blob_versioned_hashes = tx.blob_sidecar.as_ref().map(|s| match s {
+                        EthTxBlobSidecar::EthTxBlobSidecarV1(s) => s
+                            .blobs
+                            .iter()
+                            .map(|blob| H256::from_slice(&blob.versioned_hash))
+                            .collect(),
+                    });
                 }),
                 "eth_tx_manager",
             )
