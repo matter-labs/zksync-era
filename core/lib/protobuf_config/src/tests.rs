@@ -110,8 +110,19 @@ where
 {
     for required_only in [false, true] {
         // Manually set the L1BatchCommitDataGeneratorMode
-        let mut state_keeper = generate_mode(mode);
-        dbg!(state_keeper);
+        let state_keeper = generate_mode(mode);
+
+        // Transform to StateKeeperConfig
+        let state_keeper_config = state_keeper.read().unwrap();
+        dbg!(&state_keeper_config);
+
+        // Check that mode in the StateKeeperConfig matches the tested mode
+        let mode_str = format!("{:#?}", mode);
+        let mode_skc_str = format!(
+            "{:#?}",
+            &state_keeper_config.l1_batch_commit_data_generator_mode
+        );
+        assert_eq!(mode_str, mode_skc_str, "check mode");
 
         let rng = &mut rand::thread_rng();
         let want: P::Type = testonly::Gen {
@@ -120,9 +131,10 @@ where
             decimal_fractions: false,
         }
         .gen();
-        dbg!(want);
+
+        dbg!(&want);
         assert_eq!(1, 2);
-        //let got = decode::<P>(&encode::<P>(&want)).unwrap();
+        let got = decode::<P>(&encode::<P>(&want)).unwrap();
 
         //     let got = decode::<P>(&encode::<P>(&state_keeper)).unwrap();
         //     assert_eq!(&state_keeper, &got, "binary encoding");
@@ -167,6 +179,6 @@ fn generate_mode(mode: &proto::L1BatchCommitDataGeneratorMode) -> proto::StateKe
         virtual_blocks_per_miniblock: Some(756446353),
         upload_witness_inputs_to_gcs: Some(true),
         enum_index_migration_chunk_size: Some(3905631822449257186),
-        l1_batch_commit_data_generator_mode: Some(mode.clone().into()),
+        l1_batch_commit_data_generator_mode: Some((*mode).into()),
     }
 }
