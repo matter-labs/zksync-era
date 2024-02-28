@@ -431,6 +431,10 @@ impl Aggregator {
             }
         }
     }
+
+    pub fn pubdata_da(&self) -> PubdataDA {
+        self.pubdata_da
+    }
 }
 
 async fn extract_ready_subrange(

@@ -17,6 +17,7 @@ use zksync_types::{
     ethabi::Token,
     l2_to_l1_log::UserL2ToL1Log,
     protocol_version::{L1VerifierConfig, VerifierParams},
+    pubdata_da::PubdataDA,
     web3::{contract::Error as Web3ContractError, types::BlockNumber},
     Address, L2ChainId, ProtocolVersionId, H256, U256,
 };
@@ -435,7 +436,9 @@ impl EthTxAggregator {
         let (calldata, sidecar) = match op.clone() {
             AggregatedOperation::Commit(op) => {
                 if contracts_are_pre_shared_bridge {
-                    if let Some(kzg_settings) = &self.kzg_settings {
+                    if let (Some(kzg_settings), PubdataDA::Blobs) =
+                        (&self.kzg_settings, self.aggregator.pubdata_da())
+                    {
                         let calldata = self
                             .functions
                             .pre_shared_bridge_commit
