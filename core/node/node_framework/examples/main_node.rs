@@ -34,9 +34,9 @@ use zksync_node_framework::{
             StateKeeperLayer,
         },
         web3_api::{
-            db_tx_sink::TxSinkLayer,
             server::{Web3ServerLayer, Web3ServerOptionalConfig},
             tx_sender::{PostgresStorageCachesConfig, TxSenderLayer},
+            tx_sink::TxSinkLayer,
         },
     },
     service::ZkStackService,

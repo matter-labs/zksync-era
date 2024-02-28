@@ -19,7 +19,7 @@ pub enum TxSinkLayer {
 #[async_trait::async_trait]
 impl WiringLayer for TxSinkLayer {
     fn layer_name(&self) -> &'static str {
-        "master_pool_tx_sink_layer"
+        "tx_sink_layer"
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
