@@ -8,6 +8,8 @@ use tokio::{
 };
 use zksync_config::configs::native_token_fetcher::NativeTokenFetcherConfig;
 
+const MAX_CONSECUTIVE_NETWORK_ERRORS: u8 = 10;
+
 // TODO: this error type is also defined by the gasAdjuster module,
 //       we should consider moving it to a common place
 #[derive(thiserror::Error, Debug, Clone)]
@@ -75,7 +77,7 @@ impl NativeTokenFetcher {
             .unwrap()
             .json::<u64>()
             .await
-            .unwrap();
+            .unwrap_or(1); // Prevent program from crashing altogether if the first request fails
 
         Self {
             config,
@@ -84,17 +86,40 @@ impl NativeTokenFetcher {
     }
 
     pub(crate) async fn run(&self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        let mut network_consecutive_errors = 0;
         loop {
             if *stop_receiver.borrow() {
                 tracing::info!("Stop signal received, native_token_fetcher is shutting down");
                 break;
             }
 
-            let conversion_rate = reqwest::get(format!("{}/conversion_rate", &self.config.host))
-                .await?
-                .json::<u64>()
-                .await
-                .unwrap();
+            let conversion_rate =
+                match reqwest::get(format!("{}/conversion_rate", &self.config.host))
+                    .await?
+                    .json::<u64>()
+                    .await
+                {
+                    Ok(rate) => {
+                        network_consecutive_errors = 0;
+                        rate
+                    }
+                    Err(err) => {
+                        network_consecutive_errors += 1;
+
+                        tracing::error!(
+                            "Failed to fetch native token conversion rate from the server: {err}"
+                        );
+
+                        if network_consecutive_errors >= MAX_CONSECUTIVE_NETWORK_ERRORS {
+                            vlog::capture_message(&err.to_string(), vlog::AlertLevel::Warning);
+
+                            // reset the error counter to prevent sending multiple sentry errors consecutively
+                            network_consecutive_errors = 0;
+                        }
+
+                        continue;
+                    }
+                };
 
             self.latest_to_eth_conversion_rate
                 .store(conversion_rate, std::sync::atomic::Ordering::Relaxed);
