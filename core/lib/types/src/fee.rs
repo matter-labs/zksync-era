@@ -74,8 +74,14 @@ impl Fee {
         assert!(block_base_fee_per_gas <= self.max_fee_per_gas);
         assert!(self.max_priority_fee_per_gas <= self.max_fee_per_gas);
 
-        // For now, we charge only for base fee.
-        block_base_fee_per_gas
+        // The following calculation is based on the EIP-1559 formula:
+        // https://eips.ethereum.org/EIPS/eip-1559
+        let priority_fee_per_gas = std::cmp::min(
+            self.max_priority_fee_per_gas,
+            self.max_fee_per_gas - block_base_fee_per_gas,
+        );
+
+        block_base_fee_per_gas + priority_fee_per_gas
     }
 }
 
