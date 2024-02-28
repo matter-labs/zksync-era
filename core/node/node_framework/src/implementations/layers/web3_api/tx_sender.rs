@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{fmt, sync::Arc};
 
 use zksync_core::api_server::{
     execution_sandbox::{VmConcurrencyBarrier, VmConcurrencyLimiter},
@@ -56,6 +56,7 @@ impl WiringLayer for TxSenderLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
+        // Get required resources.
         let tx_sink = context.get_resource::<TxSinkResource>().await?.0;
         let pool_resource = context.get_resource::<ReplicaPoolResource>().await?;
         let replica_pool = pool_resource.get().await?;
@@ -66,13 +67,14 @@ impl WiringLayer for TxSenderLayer {
         };
         let fee_input = context.get_resource::<FeeInputResource>().await?.0;
 
+        // Initialize Postgres caches.
         let factory_deps_capacity = self.postgres_storage_caches_config.factory_deps_cache_size;
         let initial_writes_capacity = self
             .postgres_storage_caches_config
             .initial_writes_cache_size;
         let values_capacity = self.postgres_storage_caches_config.latest_values_cache_size;
-        let var_name = PostgresStorageCaches::new(factory_deps_capacity, initial_writes_capacity);
-        let mut storage_caches = var_name;
+        let mut storage_caches =
+            PostgresStorageCaches::new(factory_deps_capacity, initial_writes_capacity);
 
         if values_capacity > 0 {
             let values_cache_task = storage_caches.configure_storage_values_cache(
@@ -85,16 +87,18 @@ impl WiringLayer for TxSenderLayer {
             }));
         }
 
-        let mut tx_sender = TxSenderBuilder::new(self.tx_sender_config, replica_pool, tx_sink);
-        if let Some(sealer) = sealer {
-            tx_sender = tx_sender.with_sealer(sealer);
-        }
+        // Initialize `VmConcurrencyLimiter`.
         let (vm_concurrency_limiter, vm_concurrency_barrier) =
             VmConcurrencyLimiter::new(self.max_vm_concurrency);
         context.add_task(Box::new(VmConcurrencyBarrierTask {
             barrier: vm_concurrency_barrier,
         }));
 
+        // Build `TxSender`.
+        let mut tx_sender = TxSenderBuilder::new(self.tx_sender_config, replica_pool, tx_sink);
+        if let Some(sealer) = sealer {
+            tx_sender = tx_sender.with_sealer(sealer);
+        }
         let tx_sender = tx_sender
             .build(
                 fee_input,
@@ -111,6 +115,13 @@ impl WiringLayer for TxSenderLayer {
 
 struct PostgresStorageCachesTask {
     task: Box<dyn FnOnce() -> anyhow::Result<()> + Send>,
+}
+
+impl fmt::Debug for PostgresStorageCachesTask {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("PostgresStorageCachesTask")
+            .finish_non_exhaustive()
+    }
 }
 
 #[async_trait::async_trait]
