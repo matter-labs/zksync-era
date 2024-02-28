@@ -93,65 +93,6 @@ function loadConfigRecursive(config: object, configPath: string, calledFrom: str
     deepExtend(config, overrides);
 }
 
-// Updates config file by overriding values received as param
-function updateConfigFile(path: string, modeConstantValues: Record<string, number | string | null>) {
-    let content = fs.readFileSync(path, 'utf-8');
-    let lines = content.split('\n');
-    let addedContent: string | undefined;
-    const lineIndices: Record<string, number> = {};
-
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        if (!line.startsWith('#')) {
-            const match = line.match(/([^=]+)=(.*)/);
-            if (match) {
-                const key = match[1].trim();
-                lineIndices[key] = i;
-            }
-        }
-    }
-
-    for (const [key, value] of Object.entries(modeConstantValues)) {
-        const lineIndex = lineIndices[key];
-
-        if (lineIndex !== undefined) {
-            if (value !== null) {
-                lines.splice(lineIndex, 1, `${key}=${value}`);
-            } else {
-                lines.splice(lineIndex, 1);
-                for (const [k, index] of Object.entries(lineIndices)) {
-                    if (index > lineIndex) {
-                        lineIndices[k] = index - 1;
-                    }
-                }
-            }
-        } else {
-            if (value !== null) {
-                addedContent = `${key}=${value}\n`;
-            }
-        }
-    }
-
-    content = lines.join('\n');
-
-    if (addedContent) {
-        content += addedContent;
-    }
-
-    fs.writeFileSync(path, content);
-}
-
-function updateChainConfig(validiumMode: boolean) {
-    const modeConstantValues = config_constants.getChainConfigConstants(validiumMode);
-    updateConfigFile(config_constants.CHAIN_CONFIG_PATH, modeConstantValues);
-}
-
-function updateEthSenderConfig(validiumMode: boolean) {
-    // This constant is used in validium mode and is deleted in rollup mode in order to pass the existing integration tests
-    const modeConstantValues = config_constants.getEthSenderConfigConstants(validiumMode);
-    updateConfigFile(config_constants.ETH_SENDER_PATH, modeConstantValues);
-}
-
 export function printAllConfigs(environment?: string) {
     const config = loadConfig(environment);
     console.log(`${JSON.stringify(config, null, 2)}`);
@@ -170,17 +111,6 @@ export function compileConfig(environment?: string) {
     const outputFileName = `etc/env/${environment}.env`;
     fs.writeFileSync(outputFileName, outputFileContents);
     console.log(`Configs compiled for ${environment}`);
-}
-
-// If running ValidiumMode config files should be updated and recompiled to get the right constant values
-// UpdateConfig should be run on init
-export function updateConfig(validiumMode: boolean) {
-    updateChainConfig(validiumMode);
-    updateEthSenderConfig(validiumMode);
-    compileConfig();
-    let envFileContent = fs.readFileSync(process.env.ENV_FILE!).toString();
-    envFileContent += `VALIDIUM_MODE=${validiumMode}\n`;
-    fs.writeFileSync(process.env.ENV_FILE!, envFileContent);
 }
 
 export const command = new Command('config').description('config management');

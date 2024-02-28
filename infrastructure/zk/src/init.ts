@@ -32,7 +32,6 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
 
     await announced(`Initializing in ${validiumMode ? 'Validium mode' : 'Roll-up mode'}`);
     process.env.VALIDIUM_MODE = validiumMode.toString();
-    await announced('Updating mode configuration', config.updateConfig(validiumMode));
     if (!process.env.CI && !skipEnvSetup) {
         await announced('Pulling images', docker.pull());
         await announced('Checking environment', checkEnv());
@@ -78,7 +77,6 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
 export async function reinit(validiumMode: boolean) {
     process.env.VALIDIUM_MODE = validiumMode.toString();
     await announced(`Initializing in ${validiumMode ? 'Validium mode' : 'Roll-up mode'}`);
-    await announced('Updating mode configuration', config.updateConfig(validiumMode));
     await announced('Setting up containers', up());
     await announced('Compiling JS packages', run.yarn());
     await announced('Compile l2 contracts', compiler.compileAll());
@@ -101,7 +99,6 @@ export async function reinit(validiumMode: boolean) {
 export async function lightweightInit(validiumMode: boolean) {
     process.env.VALIDIUM_MODE = validiumMode.toString();
     await announced(`Initializing in ${validiumMode ? 'Validium mode' : 'Roll-up mode'}`);
-    await announced('Updating mode configuration', config.updateConfig(validiumMode));
     await announced(`Setting up containers`, up());
     await announced('Clean rocksdb', clean('db'));
     await announced('Clean backups', clean('backups'));
