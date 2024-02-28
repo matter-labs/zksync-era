@@ -67,6 +67,11 @@
         "ordinal": 12,
         "name": "from_addr",
         "type_info": "Bytea"
+      },
+      {
+        "ordinal": 13,
+        "name": "blob_sidecar",
+        "type_info": "Bytea"
       }
     ],
     "parameters": {
@@ -85,6 +90,7 @@
       true,
       true,
       false,
+      true,
       true
     ]
   },

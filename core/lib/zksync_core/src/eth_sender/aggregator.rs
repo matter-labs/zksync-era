@@ -3,15 +3,16 @@ use std::sync::Arc;
 use zksync_config::configs::eth_sender::{ProofLoadingMode, ProofSendingMode, SenderConfig};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::StorageProcessor;
-use zksync_l1_contract_interface::i_executor::methods::{
-    CommitBatches, ExecuteBatches, ProveBatches,
+use zksync_l1_contract_interface::i_executor::{
+    commit::kzg::KzgSettings,
+    methods::{CommitBatches, ExecuteBatches, ProveBatches},
 };
 use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_prover_interface::outputs::L1BatchProofForL1;
 use zksync_types::{
     aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata,
-    helpers::unix_timestamp_ms, protocol_version::L1VerifierConfig, L1BatchNumber,
-    ProtocolVersionId,
+    helpers::unix_timestamp_ms, protocol_version::L1VerifierConfig, pubdata_da::PubdataDA,
+    L1BatchNumber, ProtocolVersionId,
 };
 
 use super::{
@@ -35,6 +36,8 @@ pub struct Aggregator {
     /// means no wait is needed: nonces will still provide the correct ordering of
     /// transactions.
     operate_4844_mode: bool,
+    pubdata_da: PubdataDA,
+    kzg_settings: Option<Arc<KzgSettings>>,
 }
 
 impl Aggregator {
@@ -42,6 +45,8 @@ impl Aggregator {
         config: SenderConfig,
         blob_store: Arc<dyn ObjectStore>,
         operate_4844_mode: bool,
+        pubdata_da: PubdataDA,
+        kzg_settings: Option<Arc<KzgSettings>>,
     ) -> Self {
         Self {
             commit_criteria: vec![
@@ -56,6 +61,8 @@ impl Aggregator {
                 Box::from(DataSizeCriterion {
                     op: AggregatedActionType::Commit,
                     data_limit: config.max_eth_tx_data_size,
+                    pubdata_da,
+                    kzg_settings: kzg_settings.clone(),
                 }),
                 Box::from(TimestampDeadlineCriterion {
                     op: AggregatedActionType::Commit,
@@ -99,6 +106,8 @@ impl Aggregator {
             config,
             blob_store,
             operate_4844_mode,
+            pubdata_da,
+            kzg_settings,
         }
     }
 
@@ -234,6 +243,8 @@ impl Aggregator {
         batches.map(|batches| CommitBatches {
             last_committed_l1_batch,
             l1_batches: batches,
+            pubdata_da: self.pubdata_da,
+            kzg_settings: self.kzg_settings.clone(),
         })
     }
 
@@ -419,6 +430,10 @@ impl Aggregator {
                 }
             }
         }
+    }
+
+    pub fn pubdata_da(&self) -> PubdataDA {
+        self.pubdata_da
     }
 }
 
