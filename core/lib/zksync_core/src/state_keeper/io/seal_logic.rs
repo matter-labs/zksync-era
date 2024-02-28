@@ -131,7 +131,6 @@ impl UpdatesManager {
             protocol_version: Some(self.protocol_version()),
             system_logs: finished_batch.final_execution_state.system_logs,
             pubdata_input: finished_batch.pubdata_input,
-            pubdata_da_layer: None, /* TODO: proper DA layer */
         };
 
         let events_queue = finished_batch

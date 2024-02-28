@@ -50,7 +50,6 @@ pub(crate) fn create_l1_batch(number: u32) -> L1BatchHeader {
         number.into(),
         BaseSystemContractsHashes::default(),
         ProtocolVersionId::latest(),
-        None,
     )
 }
 

@@ -128,7 +128,6 @@ fn l1_block_metadata(l1_batch_number: L1BatchNumber, root_hash: H256) -> L1Batch
             0,
             Default::default(),
             ProtocolVersionId::default(),
-            None,
         ),
         metadata: L1BatchMetadata {
             root_hash,

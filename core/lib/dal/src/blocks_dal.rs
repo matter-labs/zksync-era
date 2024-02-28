@@ -187,8 +187,7 @@ impl BlocksDal<'_, '_> {
                 protocol_version,
                 system_logs,
                 compressed_state_diffs,
-                pubdata_input,
-                pubdata_da_layer
+                pubdata_input
             FROM
                 l1_batches
             WHERE
@@ -244,8 +243,7 @@ impl BlocksDal<'_, '_> {
                 compressed_state_diffs,
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
-                pubdata_input,
-                pubdata_da_layer
+                pubdata_input
             FROM
                 l1_batches
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -282,8 +280,7 @@ impl BlocksDal<'_, '_> {
                 protocol_version,
                 compressed_state_diffs,
                 system_logs,
-                pubdata_input,
-                pubdata_da_layer
+                pubdata_input
             FROM
                 l1_batches
             WHERE
@@ -512,8 +509,7 @@ impl BlocksDal<'_, '_> {
                     pubdata_input,
                     predicted_circuits_by_type,
                     created_at,
-                    updated_at,
-                    pubdata_da_layer
+                    updated_at
                 )
             VALUES
                 (
@@ -538,8 +534,7 @@ impl BlocksDal<'_, '_> {
                     $19,
                     $20,
                     NOW(),
-                    NOW(),
-                    $21
+                    NOW()
                 )
             "#,
             header.number.0 as i64,
@@ -562,7 +557,6 @@ impl BlocksDal<'_, '_> {
             &storage_refunds,
             pubdata_input,
             serde_json::to_value(predicted_circuits_by_type).unwrap(),
-            header.pubdata_da_layer.map(|v| v as i32),
         )
         .execute(transaction.conn())
         .await?;
@@ -957,8 +951,7 @@ impl BlocksDal<'_, '_> {
                 system_logs,
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
-                pubdata_input,
-                pubdata_da_layer
+                pubdata_input
             FROM
                 l1_batches
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1148,8 +1141,7 @@ impl BlocksDal<'_, '_> {
                 system_logs,
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
-                pubdata_input,
-                pubdata_da_layer
+                pubdata_input
             FROM
                 l1_batches
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1260,8 +1252,7 @@ impl BlocksDal<'_, '_> {
                 protocol_version,
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
-                pubdata_input,
-                pubdata_da_layer
+                pubdata_input
             FROM
                 (
                     SELECT
@@ -1339,8 +1330,7 @@ impl BlocksDal<'_, '_> {
                         system_logs,
                         events_queue_commitment,
                         bootloader_initial_content_commitment,
-                        pubdata_input,
-                        pubdata_da_layer
+                        pubdata_input
                     FROM
                         l1_batches
                         LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1470,8 +1460,7 @@ impl BlocksDal<'_, '_> {
                     system_logs,
                     events_queue_commitment,
                     bootloader_initial_content_commitment,
-                    pubdata_input,
-                    pubdata_da_layer
+                    pubdata_input
                 FROM
                     l1_batches
                     LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1540,8 +1529,7 @@ impl BlocksDal<'_, '_> {
                 system_logs,
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
-                pubdata_input,
-                pubdata_da_layer
+                pubdata_input
             FROM
                 l1_batches
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1620,8 +1608,7 @@ impl BlocksDal<'_, '_> {
                 system_logs,
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
-                pubdata_input,
-                pubdata_da_layer
+                pubdata_input
             FROM
                 l1_batches
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -2381,7 +2368,6 @@ mod tests {
                 default_aa: H256::repeat_byte(42),
             },
             ProtocolVersionId::latest(),
-            None,
         );
         header.l1_tx_count = 3;
         header.l2_tx_count = 5;
@@ -2434,7 +2420,6 @@ mod tests {
             100,
             BaseSystemContractsHashes::default(),
             ProtocolVersionId::default(),
-            None,
         );
         let mut predicted_gas = BlockGasCount {
             commit: 2,
@@ -2513,7 +2498,6 @@ mod tests {
                     default_aa: H256::repeat_byte(42),
                 },
                 ProtocolVersionId::latest(),
-                None,
             );
             let miniblock = MiniblockHeader {
                 fee_account_address: Address::default(),

@@ -81,12 +81,6 @@ fn copy_n_bytes_return_rest<'a>(out: &'a mut [u8], input: &'a [u8], n: usize) ->
     data
 }
 
-/// Right pads pubdata with zeroes to fill up blob space.
-pub fn right_pad_pubdata_to_blobs(pubdata: &mut Vec<u8>) {
-    let num_blobs = pubdata.len().div_ceil(ZK_SYNC_BYTES_PER_BLOB);
-    pubdata.resize(ZK_SYNC_BYTES_PER_BLOB * num_blobs, 0u8);
-}
-
 impl KzgInfo {
     /// Size of `KzgInfo` is equal to size(blob) + size(`kzg_commitment`) + size(bytes32) + size(bytes32)
     /// + size(`kzg_proof`) + size(bytes32) + size(`kzg_proof`)

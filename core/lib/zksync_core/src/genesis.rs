@@ -311,7 +311,6 @@ pub(crate) async fn create_genesis_l1_batch(
         0,
         base_system_contracts.hashes(),
         protocol_version,
-        None,
     );
 
     let genesis_miniblock_header = MiniblockHeader {

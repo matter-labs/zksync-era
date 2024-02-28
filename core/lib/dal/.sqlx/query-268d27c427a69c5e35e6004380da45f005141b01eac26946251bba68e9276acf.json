@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                number,\n                timestamp,\n                l1_tx_count,\n                l2_tx_count,\n                bloom,\n                priority_ops_onchain_data,\n                hash,\n                commitment,\n                eth_prove_tx_id,\n                eth_commit_tx_id,\n                eth_execute_tx_id,\n                merkle_root_hash,\n                l2_to_l1_logs,\n                l2_to_l1_messages,\n                used_contract_hashes,\n                compressed_initial_writes,\n                compressed_repeated_writes,\n                l2_l1_merkle_root,\n                rollup_last_leaf_index,\n                zkporter_is_available,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                aux_data_hash,\n                pass_through_data_hash,\n                meta_parameters_hash,\n                protocol_version,\n                compressed_state_diffs,\n                system_logs,\n                events_queue_commitment,\n                bootloader_initial_content_commitment,\n                pubdata_input,\n                pubdata_da_layer\n            FROM\n                l1_batches\n                LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number\n            WHERE\n                number = 0\n                OR eth_commit_tx_id IS NOT NULL\n                AND commitment IS NOT NULL\n            ORDER BY\n                number DESC\n            LIMIT\n                1\n            ",
+  "query": "\n            SELECT\n                number,\n                timestamp,\n                l1_tx_count,\n                l2_tx_count,\n                bloom,\n                priority_ops_onchain_data,\n                hash,\n                commitment,\n                eth_prove_tx_id,\n                eth_commit_tx_id,\n                eth_execute_tx_id,\n                merkle_root_hash,\n                l2_to_l1_logs,\n                l2_to_l1_messages,\n                used_contract_hashes,\n                compressed_initial_writes,\n                compressed_repeated_writes,\n                l2_l1_merkle_root,\n                rollup_last_leaf_index,\n                zkporter_is_available,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                aux_data_hash,\n                pass_through_data_hash,\n                meta_parameters_hash,\n                protocol_version,\n                compressed_state_diffs,\n                system_logs,\n                events_queue_commitment,\n                bootloader_initial_content_commitment,\n                pubdata_input\n            FROM\n                l1_batches\n                LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number\n            WHERE\n                number = 0\n                OR eth_commit_tx_id IS NOT NULL\n                AND commitment IS NOT NULL\n            ORDER BY\n                number DESC\n            LIMIT\n                1\n            ",
   "describe": {
     "columns": [
       {
@@ -157,11 +157,6 @@
         "ordinal": 30,
         "name": "pubdata_input",
         "type_info": "Bytea"
-      },
-      {
-        "ordinal": 31,
-        "name": "pubdata_da_layer",
-        "type_info": "Int4"
       }
     ],
     "parameters": {
@@ -198,9 +193,8 @@
       false,
       true,
       true,
-      true,
       true
     ]
   },
-  "hash": "59c39b1dbe4fb52a1a4fc0cc0fad533b64b1bb6c247bf3579d801f39c9c89a70"
+  "hash": "268d27c427a69c5e35e6004380da45f005141b01eac26946251bba68e9276acf"
 }

@@ -10,7 +10,6 @@ use crate::{
     fee_model::BatchFeeInput,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     priority_op_onchain_data::PriorityOpOnchainData,
-    pubdata_da::PubdataDA,
     web3::signing::keccak256,
     AccountTreeId, L1BatchNumber, MiniblockNumber, ProtocolVersionId, Transaction,
 };
@@ -58,8 +57,6 @@ pub struct L1BatchHeader {
     /// Version of protocol used for the L1 batch.
     pub protocol_version: Option<ProtocolVersionId>,
     pub pubdata_input: Option<Vec<u8>>,
-    /// DA Layer used to store pubdata.
-    pub pubdata_da_layer: Option<PubdataDA>,
 }
 
 /// Holder for the miniblock metadata that is not available from transactions themselves.
@@ -97,7 +94,6 @@ impl L1BatchHeader {
         timestamp: u64,
         base_system_contracts_hashes: BaseSystemContractsHashes,
         protocol_version: ProtocolVersionId,
-        pubdata_da_layer: Option<PubdataDA>,
     ) -> L1BatchHeader {
         Self {
             number,
@@ -113,7 +109,6 @@ impl L1BatchHeader {
             system_logs: vec![],
             protocol_version: Some(protocol_version),
             pubdata_input: Some(vec![]),
-            pubdata_da_layer,
         }
     }
 

@@ -846,7 +846,6 @@ mod tests {
             0,
             BaseSystemContractsHashes::default(),
             ProtocolVersionId::default(),
-            None,
         );
         conn.blocks_dal()
             .insert_mock_l1_batch(&header)

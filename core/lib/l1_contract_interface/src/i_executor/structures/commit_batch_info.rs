@@ -10,7 +10,7 @@ use zksync_types::{
 };
 
 use crate::{
-    i_executor::commit::kzg::{right_pad_pubdata_to_blobs, KzgInfo, ZK_SYNC_BYTES_PER_BLOB},
+    i_executor::commit::kzg::{KzgInfo, ZK_SYNC_BYTES_PER_BLOB},
     Tokenizable,
 };
 
@@ -139,34 +139,31 @@ impl<'a> Tokenizable for CommitBatchInfo<'a> {
                 ),
                 Some(pubdata_da) => match pubdata_da {
                     PubdataDA::Calldata => {
-                        // `totalL2ToL1Pubdata` with pubdata source byte
-                        let mut pubdata = vec![PUBDATA_SOURCE_CALLDATA];
-                        pubdata.extend_from_slice(
-                            self.0
-                                .header
-                                .pubdata_input
-                                .as_ref()
-                                .unwrap_or(&self.0.construct_pubdata()),
-                        );
-
-                        let mut blob = pubdata.clone();
-                        right_pad_pubdata_to_blobs(&mut blob);
-                        let blob_commitment =
-                            KzgInfo::new(self.2.as_ref().unwrap(), &blob).to_blob_commitment();
-
-                        pubdata.extend(blob_commitment);
-
-                        tokens.push(Token::Bytes(pubdata));
-                    }
-                    PubdataDA::Blobs => {
-                        // `pubdataCommitments` with pubdata source byte
-                        let mut pubdata = self
+                        let pubdata = self
                             .0
                             .header
                             .pubdata_input
                             .clone()
                             .unwrap_or(self.0.construct_pubdata());
-                        right_pad_pubdata_to_blobs(&mut pubdata);
+
+                        let blob_commitment =
+                            KzgInfo::new(self.2.as_ref().unwrap(), &pubdata).to_blob_commitment();
+
+                        let result = std::iter::once(PUBDATA_SOURCE_CALLDATA)
+                            .chain(pubdata)
+                            .chain(blob_commitment)
+                            .collect();
+
+                        tokens.push(Token::Bytes(result));
+                    }
+                    PubdataDA::Blobs => {
+                        // `pubdataCommitments` with pubdata source byte
+                        let pubdata = self
+                            .0
+                            .header
+                            .pubdata_input
+                            .clone()
+                            .unwrap_or(self.0.construct_pubdata());
 
                         let mut pubdata_commitments = pubdata
                             .chunks(ZK_SYNC_BYTES_PER_BLOB)

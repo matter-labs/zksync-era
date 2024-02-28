@@ -130,7 +130,6 @@ async fn applier_errors_after_genesis() {
         0,
         Default::default(),
         ProtocolVersionId::latest(),
-        None,
     );
     storage
         .blocks_dal()

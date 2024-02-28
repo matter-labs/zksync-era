@@ -193,7 +193,6 @@ mod tests {
                 number.into(),
                 BaseSystemContractsHashes::default(),
                 ProtocolVersionId::latest(),
-                None,
             );
             storage
                 .blocks_dal()

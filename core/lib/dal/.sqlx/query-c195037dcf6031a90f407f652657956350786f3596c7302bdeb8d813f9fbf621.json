@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                number,\n                l1_tx_count,\n                l2_tx_count,\n                timestamp,\n                l2_to_l1_logs,\n                l2_to_l1_messages,\n                bloom,\n                priority_ops_onchain_data,\n                used_contract_hashes,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                protocol_version,\n                system_logs,\n                compressed_state_diffs,\n                pubdata_input,\n                pubdata_da_layer\n            FROM\n                l1_batches\n            WHERE\n                eth_commit_tx_id = $1\n                OR eth_prove_tx_id = $1\n                OR eth_execute_tx_id = $1\n            ",
+  "query": "\n            SELECT\n                number,\n                l1_tx_count,\n                l2_tx_count,\n                timestamp,\n                l2_to_l1_logs,\n                l2_to_l1_messages,\n                bloom,\n                priority_ops_onchain_data,\n                used_contract_hashes,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                protocol_version,\n                system_logs,\n                compressed_state_diffs,\n                pubdata_input\n            FROM\n                l1_batches\n            WHERE\n                eth_commit_tx_id = $1\n                OR eth_prove_tx_id = $1\n                OR eth_execute_tx_id = $1\n            ",
   "describe": {
     "columns": [
       {
@@ -77,11 +77,6 @@
         "ordinal": 14,
         "name": "pubdata_input",
         "type_info": "Bytea"
-      },
-      {
-        "ordinal": 15,
-        "name": "pubdata_da_layer",
-        "type_info": "Int4"
       }
     ],
     "parameters": {
@@ -104,9 +99,8 @@
       true,
       false,
       true,
-      true,
       true
     ]
   },
-  "hash": "8fc7ab2be0b080037906617db23a79357e50f617270e90a39d605f62a966dede"
+  "hash": "c195037dcf6031a90f407f652657956350786f3596c7302bdeb8d813f9fbf621"
 }

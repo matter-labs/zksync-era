@@ -8,10 +8,13 @@ use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::{clients::QueryClient, Error as L1ClientError, EthInterface};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::{
-    i_executor::{commit::kzg::KzgSettings, structures::CommitBatchInfo},
+    i_executor::{
+        commit::kzg::{KzgSettings, ZK_SYNC_BYTES_PER_BLOB},
+        structures::CommitBatchInfo,
+    },
     Tokenizable,
 };
-use zksync_types::{web3::ethabi, L1BatchNumber, H256};
+use zksync_types::{pubdata_da::PubdataDA, web3::ethabi, L1BatchNumber, H256};
 
 use crate::{
     metrics::{CheckerComponent, EN_METRICS},
@@ -126,7 +129,8 @@ enum L1DataMismatchBehavior {
 #[derive(Debug)]
 struct LocalL1BatchCommitData {
     is_pre_boojum: bool,
-    l1_commit_data: ethabi::Token,
+    /// Vector of possible encodings of L1 commit data.
+    l1_commit_data_variants: Vec<ethabi::Token>,
     commit_tx_hash: H256,
 }
 
@@ -182,14 +186,29 @@ impl LocalL1BatchCommitData {
             return Ok(None);
         }
 
+        // Encoding data using `None` or `Some(PubdataDA::Blobs)` never panics.
+        let mut variants = vec![None, Some(PubdataDA::Blobs)];
+        let pubdata_len = l1_batch
+            .header
+            .pubdata_input
+            .as_ref()
+            .unwrap_or(&l1_batch.construct_pubdata())
+            .len();
+        // For `Some(PubdataDA::Calldata)` it's required that the pubdata fits into a single blob.
+        if pubdata_len <= ZK_SYNC_BYTES_PER_BLOB {
+            variants.push(Some(PubdataDA::Calldata));
+        }
+
+        // Iterate over possible `PubdataDA` used for encoding `CommitBatchInfo`.
+        let l1_commit_data_variants = variants
+            .into_iter()
+            .map(|pubdata_da| {
+                CommitBatchInfo(&l1_batch, pubdata_da, kzg_settings.clone()).into_token()
+            })
+            .collect();
         Ok(Some(Self {
             is_pre_boojum,
-            l1_commit_data: CommitBatchInfo(
-                &l1_batch,
-                l1_batch.header.pubdata_da_layer,
-                kzg_settings,
-            )
-            .into_token(),
+            l1_commit_data_variants,
             commit_tx_hash,
         }))
     }
@@ -278,7 +297,8 @@ impl ConsistencyChecker {
                 .with_context(|| {
                     format!("Failed extracting commit data for transaction {commit_tx_hash:?}")
                 })?;
-        Ok(commitment == local.l1_commit_data)
+
+        Ok(local.l1_commit_data_variants.contains(&commitment))
     }
 
     fn extract_commit_data(
