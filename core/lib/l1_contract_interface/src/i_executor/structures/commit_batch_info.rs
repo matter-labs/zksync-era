@@ -184,6 +184,15 @@ impl<'a> Tokenizable for CommitBatchInfo<'a> {
             .header
             .protocol_version
             .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
+        let protocol_version = if std::env::var("IGNORE_1_4_2_UPGRADE_FOR_UPGRADE_TEST").is_ok() {
+            if protocol_version.is_post_1_4_2() {
+                ProtocolVersionId::Version20
+            } else {
+                protocol_version
+            }
+        } else {
+            protocol_version
+        };
 
         if protocol_version.is_pre_boojum() {
             return Token::Tuple(tokens);
