@@ -287,7 +287,7 @@ impl L1TxParamsProvider for GasAdjuster {
         let a = self.config.pricing_formula_parameter_a;
         let b = self.config.pricing_formula_parameter_b;
 
-        // Use the single evaulation at zero of the following:
+        // Use the single evaluation at zero of the following:
         // Currently we use an exponential formula.
         // The alternative is a linear one:
         // `let scale_factor = a + b * time_in_mempool as f64;`

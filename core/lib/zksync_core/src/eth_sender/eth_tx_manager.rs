@@ -121,7 +121,7 @@ impl EthTxManager {
     ) -> Result<EthFee, ETHSenderError> {
         if tx.blob_sidecar.is_some() {
             if time_in_mempool != 0 {
-                // for blob transactions on resending need to double all gas prices
+                // for blob transactions on re-sending need to double all gas prices
                 let previous_sent_tx = storage
                     .eth_sender_dal()
                     .get_last_sent_eth_tx(tx.id)
