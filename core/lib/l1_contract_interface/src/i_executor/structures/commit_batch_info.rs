@@ -176,9 +176,18 @@ impl<'a> Tokenizable for CommitBatchInfo<'a> {
         )))
     }
 
-    fn into_token(self) -> Token {
+    fn into_token(mut self) -> Token {
         let mut tokens = self.base_tokens();
 
+        if self
+            .l1_batch_with_metadata
+            .header
+            .protocol_version
+            .unwrap()
+            .is_pre_1_4_2()
+        {
+            self.pubdata_da = None;
+        }
         if !self
             .l1_batch_with_metadata
             .header

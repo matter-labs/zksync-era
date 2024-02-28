@@ -8,6 +8,7 @@ pub(super) struct GasAdjusterMetrics {
     pub current_base_fee_per_gas: Gauge<u64>,
     pub current_blob_base_fee: Gauge<u64>,
     pub median_base_fee_per_gas: Gauge<u64>,
+    pub median_blob_base_fee_per_gas: Gauge<u64>,
     pub median_blob_base_fee: Gauge<u64>,
 }
 

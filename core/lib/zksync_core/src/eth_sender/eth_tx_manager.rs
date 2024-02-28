@@ -26,6 +26,7 @@ use crate::{l1_gas_price::L1TxParamsProvider, metrics::BlockL1Stage};
 struct EthFee {
     base_fee_per_gas: u64,
     priority_fee_per_gas: u64,
+    blob_base_fee_per_gas: Option<u64>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -119,6 +120,17 @@ impl EthTxManager {
         time_in_mempool: u32,
     ) -> Result<EthFee, ETHSenderError> {
         let base_fee_per_gas = self.gas_adjuster.get_base_fee(time_in_mempool);
+        let blob_base_fee_per_gas = if tx.blob_sidecar.is_some() {
+            if time_in_mempool != 0 {
+                // on resending blob transactions we need to double the previous
+                // price
+                tx.previous_blob_gas_price.map(|v| v * 2)
+            } else {
+                Some(self.gas_adjuster.get_blob_base_fee(time_in_mempool))
+            }
+        } else {
+            None
+        };
 
         let priority_fee_per_gas = if time_in_mempool != 0 {
             METRICS.transaction_resent.inc();
@@ -147,6 +159,7 @@ impl EthTxManager {
 
         Ok(EthFee {
             base_fee_per_gas,
+            blob_base_fee_per_gas,
             priority_fee_per_gas,
         })
     }
@@ -197,6 +210,7 @@ impl EthTxManager {
         let EthFee {
             base_fee_per_gas,
             priority_fee_per_gas,
+            blob_base_fee_per_gas,
         } = self.calculate_fee(storage, tx, time_in_mempool).await?;
 
         METRICS.used_base_fee_per_gas.observe(base_fee_per_gas);
@@ -226,6 +240,7 @@ impl EthTxManager {
                 tx.id,
                 base_fee_per_gas,
                 priority_fee_per_gas,
+                blob_base_fee_per_gas,
                 signed_tx.hash,
                 signed_tx.raw_tx.as_ref(),
             )

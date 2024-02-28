@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                *\n            FROM\n                eth_txs\n            WHERE\n                id > (\n                    SELECT\n                        COALESCE(MAX(eth_tx_id), 0)\n                    FROM\n                        eth_txs_history\n                )\n            ORDER BY\n                id\n            LIMIT\n                $1\n            ",
+  "query": "\n            SELECT\n                eth_txs.*,\n                eth_txs_history.blob_base_fee_per_gas\n            FROM\n                eth_txs\n                LEFT JOIN eth_txs_history ON eth_txs.id = eth_tx_id\n            WHERE\n                eth_txs.id > (\n                    SELECT\n                        COALESCE(MAX(eth_tx_id), 0)\n                    FROM\n                        eth_txs_history\n                )\n            ORDER BY\n                eth_txs.id\n            LIMIT\n                $1\n            ",
   "describe": {
     "columns": [
       {
@@ -72,6 +72,11 @@
         "ordinal": 13,
         "name": "blob_sidecar",
         "type_info": "Bytea"
+      },
+      {
+        "ordinal": 14,
+        "name": "blob_base_fee_per_gas",
+        "type_info": "Int8"
       }
     ],
     "parameters": {
@@ -93,8 +98,9 @@
       true,
       false,
       true,
+      true,
       true
     ]
   },
-  "hash": "5659480e5d79dab3399e35539b240e7eb9f598999c28015a504605f88bf84b33"
+  "hash": "d49e8bb350f064a1c3aa9b47322cd8c6b74e4b2bdbe42bf809dec31ce500a591"
 }

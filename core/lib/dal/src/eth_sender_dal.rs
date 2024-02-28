@@ -13,7 +13,8 @@ use zksync_types::{
 
 use crate::{
     models::storage_eth_tx::{
-        L1BatchEthSenderStats, StorageEthTx, StorageTxHistory, StorageTxHistoryToSend,
+        L1BatchEthSenderStats, StorageEthTx, StorageEthTxNoBlobGas, StorageTxHistory,
+        StorageTxHistoryToSend,
     },
     StorageProcessor,
 };
@@ -29,12 +30,14 @@ impl EthSenderDal<'_, '_> {
             StorageEthTx,
             r#"
             SELECT
-                *
+                eth_txs.*,
+                eth_txs_history.blob_base_fee_per_gas
             FROM
                 eth_txs
+                LEFT JOIN eth_txs_history ON eth_txs.id = eth_tx_id
             WHERE
                 confirmed_eth_tx_history_id IS NULL
-                AND id <= (
+                AND eth_txs.id <= (
                     SELECT
                         COALESCE(MAX(eth_tx_id), 0)
                     FROM
@@ -43,7 +46,7 @@ impl EthSenderDal<'_, '_> {
                         sent_at_block IS NOT NULL
                 )
             ORDER BY
-                id
+                eth_txs.id
             "#
         )
         .fetch_all(self.storage.conn())
@@ -100,11 +103,13 @@ impl EthSenderDal<'_, '_> {
             StorageEthTx,
             r#"
             SELECT
-                *
+                eth_txs.*,
+                eth_txs_history.blob_base_fee_per_gas
             FROM
                 eth_txs
+                LEFT JOIN eth_txs_history ON eth_txs.id = eth_tx_id
             WHERE
-                id = $1
+                eth_txs.id = $1
             "#,
             eth_tx_id as i32
         )
@@ -118,18 +123,20 @@ impl EthSenderDal<'_, '_> {
             StorageEthTx,
             r#"
             SELECT
-                *
+                eth_txs.*,
+                eth_txs_history.blob_base_fee_per_gas
             FROM
                 eth_txs
+                LEFT JOIN eth_txs_history ON eth_txs.id = eth_tx_id
             WHERE
-                id > (
+                eth_txs.id > (
                     SELECT
                         COALESCE(MAX(eth_tx_id), 0)
                     FROM
                         eth_txs_history
                 )
             ORDER BY
-                id
+                eth_txs.id
             LIMIT
                 $1
             "#,
@@ -179,8 +186,8 @@ impl EthSenderDal<'_, '_> {
         blob_sidecar: Option<EthTxBlobSidecar>,
     ) -> sqlx::Result<EthTx> {
         let address = format!("{:#x}", contract_address);
-        let eth_tx = sqlx::query_as!(
-            StorageEthTx,
+        let eth_tx: StorageEthTx = sqlx::query_as!(
+            StorageEthTxNoBlobGas,
             r#"
             INSERT INTO
                 eth_txs (
@@ -209,7 +216,8 @@ impl EthSenderDal<'_, '_> {
                 .expect("can always bincode serialize EthTxBlobSidecar; qed")),
         )
         .fetch_one(self.storage.conn())
-        .await?;
+        .await?
+        .into();
         Ok(eth_tx.into())
     }
 
@@ -218,6 +226,7 @@ impl EthSenderDal<'_, '_> {
         eth_tx_id: u32,
         base_fee_per_gas: u64,
         priority_fee_per_gas: u64,
+        blob_base_fee_per_gas: Option<u64>,
         tx_hash: H256,
         raw_signed_tx: &[u8],
     ) -> anyhow::Result<Option<u32>> {
@@ -237,10 +246,11 @@ impl EthSenderDal<'_, '_> {
                     tx_hash,
                     signed_raw_tx,
                     created_at,
-                    updated_at
+                    updated_at,
+                    blob_base_fee_per_gas
                 )
             VALUES
-                ($1, $2, $3, $4, $5, NOW(), NOW())
+                ($1, $2, $3, $4, $5, NOW(), NOW(), $6)
             ON CONFLICT (tx_hash) DO NOTHING
             RETURNING
                 id
@@ -249,7 +259,8 @@ impl EthSenderDal<'_, '_> {
             base_fee_per_gas,
             priority_fee_per_gas,
             tx_hash,
-            raw_signed_tx
+            raw_signed_tx,
+            blob_base_fee_per_gas.map(|v| v as i64),
         )
         .fetch_optional(self.storage.conn())
         .await?

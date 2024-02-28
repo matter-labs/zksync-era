@@ -60,6 +60,11 @@
       },
       {
         "ordinal": 11,
+        "name": "blob_base_fee_per_gas",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 12,
         "name": "blob_sidecar",
         "type_info": "Bytea"
       }
@@ -77,6 +82,7 @@
       false,
       false,
       false,
+      true,
       true,
       true,
       true,

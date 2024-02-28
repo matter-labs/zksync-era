@@ -7,6 +7,70 @@ use zksync_types::{
     Address, L1BatchNumber, Nonce, H256,
 };
 
+// TODO: this is a hack
+#[derive(Debug, Clone)]
+pub struct StorageEthTxNoBlobGas {
+    pub id: i32,
+    pub nonce: i64,
+    pub contract_address: String,
+    pub raw_tx: Vec<u8>,
+    pub tx_type: String,
+    pub has_failed: bool,
+    pub confirmed_eth_tx_history_id: Option<i32>,
+    pub gas_used: Option<i64>,
+    pub predicted_gas_cost: i64,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+    // TODO (SMA-1614): remove the field
+    pub sent_at_block: Option<i32>,
+    // If this field is `Some` this means that this transaction was sent by a custom operator
+    // such as blob sender operator.
+    pub from_addr: Option<Vec<u8>>,
+    // A `EIP_4844_TX_TYPE` transaction blob sidecar.
+    //
+    // Format a `bincode`-encoded `EthTxBlobSidecar` enum.
+    pub blob_sidecar: Option<Vec<u8>>,
+}
+
+impl From<StorageEthTxNoBlobGas> for StorageEthTx {
+    fn from(value: StorageEthTxNoBlobGas) -> Self {
+        let StorageEthTxNoBlobGas {
+            id,
+            nonce,
+            contract_address,
+            raw_tx,
+            tx_type,
+            has_failed,
+            confirmed_eth_tx_history_id,
+            gas_used,
+            predicted_gas_cost,
+            created_at,
+            updated_at,
+            sent_at_block,
+            from_addr,
+            blob_sidecar,
+        } = value;
+
+        Self {
+            id,
+            nonce,
+            contract_address,
+            raw_tx,
+            tx_type,
+            has_failed,
+            confirmed_eth_tx_history_id,
+            gas_used,
+            predicted_gas_cost,
+            created_at,
+            updated_at,
+            sent_at_block,
+            from_addr,
+            blob_sidecar,
+            blob_base_fee_per_gas: None,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct StorageEthTx {
     pub id: i32,
@@ -29,6 +93,7 @@ pub struct StorageEthTx {
     //
     // Format a `bincode`-encoded `EthTxBlobSidecar` enum.
     pub blob_sidecar: Option<Vec<u8>>,
+    pub blob_base_fee_per_gas: Option<i64>,
 }
 
 #[derive(Debug, Default)]
@@ -65,6 +130,7 @@ pub struct StorageTxHistory {
     //
     // Format a `bincode`-encoded `EthTxBlobSidecar` enum.
     pub blob_sidecar: Option<Vec<u8>>,
+    pub blob_base_fee_per_gas: Option<i64>,
 }
 
 impl From<StorageEthTx> for EthTx {
@@ -82,6 +148,7 @@ impl From<StorageEthTx> for EthTx {
             blob_sidecar: tx.blob_sidecar.map(|b| {
                 bincode::deserialize(&b).expect("EthTxBlobSidecar is encoded correctly; qed")
             }),
+            previous_blob_gas_price: tx.blob_base_fee_per_gas.map(|v| v as u64),
         }
     }
 }
