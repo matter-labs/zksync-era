@@ -5,6 +5,7 @@ use std::{collections::HashMap, slice};
 use assert_matches::assert_matches;
 use test_casing::{test_casing, Product};
 use tokio::sync::mpsc;
+use zksync_config::configs::KzgConfig;
 use zksync_dal::StorageProcessor;
 use zksync_eth_client::{clients::MockEthereum, Options};
 use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
@@ -47,7 +48,7 @@ fn create_pre_boojum_l1_batch_with_metadata(number: u32) -> L1BatchWithMetadata 
 fn build_commit_tx_input_data(batches: &[L1BatchWithMetadata]) -> Vec<u8> {
     let commit_tokens = batches
         .iter()
-        .map(|batch| CommitBatchInfo(batch).into_token());
+        .map(|batch| CommitBatchInfo::new(batch, PubdataDA::Calldata, None).into_token());
     let commit_tokens = ethabi::Token::Array(commit_tokens.collect());
 
     let mut encoded = vec![];
@@ -72,6 +73,9 @@ fn create_mock_checker(client: MockEthereum, pool: ConnectionPool) -> Consistenc
         l1_data_mismatch_behavior: L1DataMismatchBehavior::Bail,
         pool,
         health_check,
+        kzg_settings: Some(Arc::new(KzgSettings::new(
+            &KzgConfig::for_tests().trusted_setup_path,
+        ))),
     }
 }
 
@@ -111,7 +115,10 @@ fn build_commit_tx_input_data_is_correct() {
             batch.header.number,
         )
         .unwrap();
-        assert_eq!(commit_data, CommitBatchInfo(batch).into_token());
+        assert_eq!(
+            commit_data,
+            CommitBatchInfo::new(batch, PubdataDA::Calldata, None).into_token()
+        );
     }
 }
 
