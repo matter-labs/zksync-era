@@ -52,6 +52,7 @@ impl Web3ServerOptionalConfig {
     }
 }
 
+/// Internal-only marker of chosen transport.
 #[derive(Debug, Clone, Copy)]
 enum Transport {
     Http,
@@ -170,12 +171,16 @@ impl WiringLayer for Web3ServerLayer {
 /// which will wait for remaining tasks to finish.
 /// All of this relies on the fact that the existing internal API tasks are aware of stop receiver: when we'll exit
 /// this task on first API task completion, the rest of the tasks will be stopped as well.
+// TODO (QIT-26): Once we switch the codebase to only use the framework, we need to properly refactor the API to only
+// use abstractions provided by this framework and not spawn any tasks on its own.
 #[derive(Debug)]
 struct Web3ApiTask {
     transport: Transport,
     server: ApiServer,
-    task_sender: oneshot::Sender<Vec<JoinHandle<anyhow::Result<()>>>>,
+    task_sender: oneshot::Sender<Vec<ApiJoinHandle>>,
 }
+
+type ApiJoinHandle = JoinHandle<anyhow::Result<()>>;
 
 #[async_trait::async_trait]
 impl Task for Web3ApiTask {
@@ -200,7 +205,7 @@ impl Task for Web3ApiTask {
 /// For more details, see [`Web3ApiTask`].
 #[derive(Debug)]
 struct ApiTaskGarbageCollector {
-    task_receiver: oneshot::Receiver<Vec<JoinHandle<anyhow::Result<()>>>>,
+    task_receiver: oneshot::Receiver<Vec<ApiJoinHandle>>,
 }
 
 #[async_trait::async_trait]

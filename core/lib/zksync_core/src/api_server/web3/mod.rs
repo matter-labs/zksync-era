@@ -450,6 +450,8 @@ impl ApiServer {
             None
         };
 
+        // TODO (QIT-26): We still expose `health_check` in `ApiServerHandles` for the old code. After we switch to the
+        // framework it'll no longer be needed.
         let health_check = self.health_check.clone();
         let (local_addr_sender, local_addr) = oneshot::channel();
         let server_task = tokio::spawn(self.run_jsonrpsee_server(
@@ -583,6 +585,8 @@ impl ApiServer {
         let closing_vm_barrier = vm_barrier.clone();
         let health_updater = Arc::new(health_updater);
         // We use `Weak` reference to the health updater in order to not prevent its drop if the server stops on its own.
+        // TODO (QIT-26): While `Arc<HealthUpdater>` is stored in `self`, we rely on the fact that `self` is consumed and
+        // dropped by `self.build_rpc_module` above, so we should still have just one strong reference.
         let closing_health_updater = Arc::downgrade(&health_updater);
         tokio::spawn(async move {
             if stop_receiver.changed().await.is_err() {

@@ -35,7 +35,7 @@ use zksync_node_framework::{
         },
         web3_api::{
             db_tx_sink::TxSinkLayer,
-            http_server::{Web3ServerLayer, Web3ServerOptionalConfig},
+            server::{Web3ServerLayer, Web3ServerOptionalConfig},
             tx_sender::{PostgresStorageCachesConfig, TxSenderLayer},
         },
     },
