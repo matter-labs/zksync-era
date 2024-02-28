@@ -469,8 +469,7 @@ impl EthSenderDal<'_, '_> {
                 eth_txs.blob_sidecar
             FROM
                 eth_txs_history
-                LEFT JOIN
-                eth_txs ON eth_tx_id = eth_txs.id
+                LEFT JOIN eth_txs ON eth_tx_id = eth_txs.id
             WHERE
                 eth_tx_id = $1
             ORDER BY
