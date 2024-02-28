@@ -342,7 +342,7 @@ pub async fn initialize_components(
     let (stop_sender, stop_receiver) = watch::channel(false);
     let (cb_sender, cb_receiver) = oneshot::channel();
 
-    let native_token_fetcher: Arc<dyn ConversionRateFetcher> =
+    let conversion_rate_fetcher: Arc<dyn ConversionRateFetcher> =
         if let Some(fetcher_singleton) = &mut fetcher_component {
             let fetcher = fetcher_singleton
                 .get_or_init()
@@ -354,14 +354,12 @@ pub async fn initialize_components(
             Arc::new(NoOpConversionRateFetcher::new())
         };
 
-    let erc20_fetcher_dyn: Arc<dyn ConversionRateFetcher> = native_token_fetcher.clone();
-
     let query_client = QueryClient::new(&eth_client_config.web3_url).unwrap();
     let gas_adjuster_config = configs.gas_adjuster_config.context("gas_adjuster_config")?;
     let mut gas_adjuster = GasAdjusterSingleton::new(
         eth_client_config.web3_url.clone(),
         gas_adjuster_config,
-        erc20_fetcher_dyn,
+        conversion_rate_fetcher,
     );
 
     // Prometheus exporter and circuit breaker checker should run for every component configuration.
