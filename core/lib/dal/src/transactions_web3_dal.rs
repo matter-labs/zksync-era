@@ -6,15 +6,18 @@ use zksync_types::{
 
 use crate::{
     instrument::InstrumentExt,
-    models::{
-        storage_block::{bind_block_where_sql_params, web3_block_where_sql},
-        storage_transaction::{
-            extract_web3_transaction, web3_transaction_select_sql, StorageTransaction,
-            StorageTransactionDetails, StorageTransactionReceipt,
-        },
+    models::storage_transaction::{
+        StorageRawTransaction, StorageTransaction, StorageTransactionDetails,
+        StorageTransactionReceipt,
     },
     SqlxError, StorageProcessor,
 };
+
+#[derive(Debug)]
+pub(crate) enum TransactionSelector {
+    Hashes(Vec<H256>),
+    Position(MiniblockNumber, u32),
+}
 
 #[derive(Debug)]
 pub struct TransactionsWeb3Dal<'a, 'c> {
@@ -124,46 +127,88 @@ impl TransactionsWeb3Dal<'_, '_> {
         Ok(receipts)
     }
 
+    pub(crate) async fn get_transactions(
+        &mut self,
+        selector: &TransactionSelector,
+        chain_id: L2ChainId,
+    ) -> sqlx::Result<Vec<api::Transaction>> {
+        if let TransactionSelector::Position(_, idx) = selector {
+            // Since index is untrusted, we check it to prevent potential overflow below.
+            if *idx > i32::MAX as u32 {
+                return Ok(vec![]);
+            }
+        }
+
+        let query = match_query_as!(
+            StorageRawTransaction,
+            [
+                r#"
+                SELECT
+                    transactions.hash AS tx_hash,
+                    transactions.index_in_block AS index_in_block,
+                    transactions.miniblock_number AS block_number,
+                    transactions.nonce AS nonce,
+                    transactions.signature AS signature,
+                    transactions.initiator_address AS initiator_address,
+                    transactions.tx_format AS tx_format,
+                    transactions.value AS value,
+                    transactions.gas_limit AS gas_limit,
+                    transactions.max_fee_per_gas AS max_fee_per_gas,
+                    transactions.max_priority_fee_per_gas AS max_priority_fee_per_gas,
+                    transactions.effective_gas_price AS effective_gas_price,
+                    transactions.l1_batch_number AS l1_batch_number,
+                    transactions.l1_batch_tx_index AS l1_batch_tx_index,
+                    transactions.data->'contractAddress' AS "execute_contract_address",
+                    transactions.data->'calldata' AS "calldata",
+                    miniblocks.hash AS "block_hash"
+                FROM transactions
+                LEFT JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
+                WHERE
+                "#,
+                _ // WHERE condition
+            ],
+            match (selector) {
+                TransactionSelector::Hashes(hashes) => (
+                    "transactions.hash = ANY($1)";
+                    &hashes.iter().map(H256::as_bytes).collect::<Vec<_>>() as &[&[u8]]
+                ),
+                TransactionSelector::Position(block_number, idx) => (
+                    "transactions.miniblock_number = $1 AND transactions.index_in_block = $2";
+                    block_number.0 as i64,
+                    *idx as i32
+                ),
+            }
+        );
+
+        let rows = query.fetch_all(self.storage.conn()).await?;
+        Ok(rows.into_iter().map(|row| row.into_api(chain_id)).collect())
+    }
+
     pub async fn get_transaction(
         &mut self,
         transaction_id: api::TransactionId,
         chain_id: L2ChainId,
     ) -> Result<Option<api::Transaction>, SqlxError> {
-        let where_sql = match transaction_id {
-            api::TransactionId::Hash(_) => "transactions.hash = $1".to_owned(),
-            api::TransactionId::Block(block_id, _) => {
-                format!(
-                    "transactions.index_in_block = $1 AND {}",
-                    web3_block_where_sql(block_id, 2)
-                )
-            }
-        };
-        let query = format!(
-            "SELECT {}
-            FROM transactions
-            LEFT JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
-            WHERE {where_sql}",
-            web3_transaction_select_sql()
-        );
-        let query = sqlx::query(&query);
-
-        let query = match &transaction_id {
-            api::TransactionId::Hash(tx_hash) => query.bind(tx_hash.as_bytes()),
-            api::TransactionId::Block(block_id, tx_index) => {
-                let tx_index = if tx_index.as_u64() > i32::MAX as u64 {
+        // FIXME: move this logic to the caller side.
+        let selector = match transaction_id {
+            api::TransactionId::Hash(hash) => TransactionSelector::Hashes(vec![hash]),
+            api::TransactionId::Block(block_id, idx) => {
+                let Some(block_number) = self
+                    .storage
+                    .blocks_web3_dal()
+                    .resolve_block_id(block_id)
+                    .await?
+                else {
                     return Ok(None);
-                } else {
-                    tx_index.as_u64() as i32
                 };
-                bind_block_where_sql_params(block_id, query.bind(tx_index))
+                let Ok(idx) = idx.try_into() else {
+                    return Ok(None);
+                };
+                TransactionSelector::Position(block_number, idx)
             }
         };
-
-        let tx = query
-            .fetch_optional(self.storage.conn())
-            .await?
-            .map(|row| extract_web3_transaction(row, chain_id));
-        Ok(tx)
+        let txs = self.get_transactions(&selector, chain_id).await?;
+        Ok(txs.into_iter().next())
     }
 
     pub async fn get_transaction_details(
