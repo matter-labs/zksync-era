@@ -72,10 +72,10 @@ docker container ls
 and then we can look at the Geth logs:
 
 ```shell
-docker logs zksync-2-dev-geth-1
+docker logs zksync-era-geth-1
 ```
 
-Where `zksync-2-dev-geth-1` is the container name, that we got from the first command.
+Where `zksync-era-geth-1` is the container name, that we got from the first command.
 
 If everything goes well, you should see that L1 blocks are being produced.
 
@@ -105,7 +105,7 @@ select * from miniblocks;
 Let's finish this article, by taking a look at our L1:
 
 ```shell
-docker container exec -it zksync-2-dev-geth-1  geth attach http://localhost:8545
+docker container exec -it zksync-era-geth-1  geth attach http://localhost:8545
 ```
 
 The command above will start a shell - and you can check that you're a (localnet) crypto trillionaire, by running:
