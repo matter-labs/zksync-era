@@ -2,21 +2,15 @@
 
 #![allow(clippy::redundant_locals)]
 #![allow(clippy::needless_pass_by_ref_mut)]
-use anyhow::Context as _;
-use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
+use zksync_concurrency::{ctx, error::Wrap as _, scope};
 use zksync_consensus_executor as executor;
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage::BlockStore;
-use zksync_types::MiniblockNumber;
 
 pub use self::storage::Store;
-use crate::sync_layer::{
-    fetcher::{FetchedBlock},
-    sync_action::ActionQueueSender,
-    MainNodeClient, SyncState,
-};
+pub use self::fetcher::*;
 
-pub mod rpc;
+mod fetcher;
 pub mod config;
 pub mod proto;
 mod storage;
@@ -61,78 +55,4 @@ impl MainNodeConfig {
     }
 }
 
-pub type FetcherConfig = executor::Config;
 
-/// Consensus fetcher
-#[derive(Debug)]
-pub struct Fetcher {
-    pub config: FetcherConfig,
-    pub rpc: rpc::Fetcher, 
-}
-
-impl Fetcher {
-    /// Task fetching L2 blocks using peer-to-peer gossip network.
-    pub async fn run(
-        self,
-        ctx: &ctx::Ctx,
-        store: Store,
-        actions: ActionQueueSender,
-    ) -> anyhow::Result<()> {
-        let res: ctx::Result<()> = scope::run!(ctx, |ctx, s| async {
-            // Update sync state in the background.
-            s.spawn_bg(self.fetch_state_loop(ctx));
-
-            // Initialize genesis.
-            let genesis = self.fetch_genesis(ctx).await.wrap("fetch_genesis()")?;
-            let mut conn = store.access(ctx).await.wrap("access()")?;
-            conn.try_update_genesis(ctx, &genesis)
-                .await
-                .wrap("set_genesis()")?;
-            let mut cursor = conn
-                .new_fetcher_cursor(ctx, actions)
-                .await
-                .wrap("new_fetcher_cursor()")?;
-            drop(conn);
-
-            // Fetch blocks before the genesis.
-            self.fetch_blocks(ctx, &mut cursor, Some(genesis.fork.first_block))
-                .await?;
-
-            // Monitor the genesis of the main node.
-            // If it changes, it means that a hard fork occurred and we need to reset the consensus state.
-            s.spawn_bg::<()>(async {
-                let old = genesis;
-                loop {
-                    if let Ok(new) = self.fetch_genesis(ctx).await {
-                        if new != old {
-                            return Err(anyhow::format_err!("genesis changed: old {old:?}, new {new:?}").into());
-                        }
-                    }
-                    ctx.sleep(time::Duration::seconds(5)).await?;
-                }
-            });
-
-            // Run consensus component.
-            let mut block_store = store.into_block_store();
-            block_store
-                .set_cursor(cursor)
-                .context("block_store.set_cursor()")?;
-            let (block_store, runner) = BlockStore::new(ctx, Box::new(block_store))
-                .await
-                .wrap("BlockStore::new()")?;
-            s.spawn_bg(async { Ok(runner.run(ctx).await?) });
-            let executor = executor::Executor {
-                config: self.config.clone(),
-                block_store,
-                validator: None,
-            };
-            executor.run(ctx).await?;
-            Ok(())
-        })
-        .await;
-        match res {
-            Ok(()) | Err(ctx::Error::Canceled(_)) => Ok(()),
-            Err(ctx::Error::Internal(err)) => Err(err),
-        }
-    }
-}

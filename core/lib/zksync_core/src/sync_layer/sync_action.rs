@@ -7,10 +7,6 @@ use super::metrics::QUEUE_METRICS;
 pub struct ActionQueueSender(mpsc::Sender<SyncAction>);
 
 impl ActionQueueSender {
-    pub(crate) fn has_action_capacity(&self) -> bool {
-        self.0.capacity() > 0
-    }
-
     /// Pushes a set of actions to the queue.
     ///
     /// Requires that the actions are in the correct order: starts with a new open batch/miniblock,

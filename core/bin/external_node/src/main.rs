@@ -30,7 +30,7 @@ use zksync_core::{
     },
     sync_layer::{
         batch_status_updater::BatchStatusUpdater, external_io::ExternalIO,
-        fetcher::MainNodeFetcher, ActionQueue, MainNodeClient, SyncState,
+        ActionQueue, MainNodeClient, SyncState,
     },
 };
 use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
@@ -170,21 +170,23 @@ async fn init_tasks(
 
     let singleton_pool_builder = ConnectionPool::singleton(&config.postgres.database_url);
 
-    if let Some(cfg) = config.consensus.clone() {
-        let pool = connection_pool.clone();
+    
+    task_handles.push(tokio::spawn({
+        let store = consensus::Store(connection_pool.clone());
         let mut stop_receiver = stop_receiver.clone();
-        let sync_state = sync_state.clone();
-        let main_node_client = main_node_client.clone();
-        task_handles.push(tokio::spawn(async move {
+        let p2p_config = config.consensus.clone();
+        let fetcher = consensus::Fetcher {
+            sync_state: sync_state.clone(),
+            client: Box::new(main_node_client.clone()),
+        };
+        let actions = action_queue_sender;
+        async move {
             scope::run!(&ctx::root(), |ctx, s| async {
                 s.spawn_bg(async {
-                    let res = consensus::Fetcher {
-                        config: cfg,
-                        sync_state,
-                        client: Box::new(main_node_client),
-                    }
-                    .run(ctx, consensus::Store(pool), action_queue_sender)
-                    .await;
+                    let res = match p2p_config {
+                        Some(p2p_config) => fetcher.run_p2p(ctx,store,actions,p2p_config).await,
+                        None => fetcher.run_centralized(ctx,store,actions).await,
+                    };
                     tracing::info!("Consensus actor stopped");
                     res
                 });
@@ -193,24 +195,8 @@ async fn init_tasks(
             })
             .await
             .context("consensus actor")
-        }));
-    } else {
-        let pool = singleton_pool_builder
-            .build()
-            .await
-            .context("failed to build a connection pool for `MainNodeFetcher`")?;
-        let mut storage = pool.access_storage_tagged("sync_layer").await?;
-        let fetcher = MainNodeFetcher::new(
-            &mut storage,
-            Box::new(main_node_client.clone()),
-            action_queue_sender,
-            sync_state.clone(),
-            stop_receiver.clone(),
-        )
-        .await
-        .context("failed initializing main node fetcher")?;
-        task_handles.push(tokio::spawn(fetcher.run()));
-    }
+        }
+    }));
 
     let reorg_detector = ReorgDetector::new(main_node_client.clone(), connection_pool.clone());
     app_health.insert_component(reorg_detector.health_check().clone());

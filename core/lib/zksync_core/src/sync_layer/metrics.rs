@@ -1,4 +1,5 @@
 //! Metrics for the synchronization layer of external node.
+#![allow(dead_code)]
 
 use std::time::Duration;
 

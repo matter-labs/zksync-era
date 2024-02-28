@@ -1,27 +1,18 @@
-use std::time::Duration;
-
 use anyhow::Context as _;
-use tokio::sync::watch;
 use zksync_dal::StorageProcessor;
 use zksync_types::{
     api::en::SyncBlock, block::MiniblockHasher, Address, L1BatchNumber, MiniblockNumber,
     ProtocolVersionId, H256,
 };
-use zksync_web3_decl::{error::EnrichedClientError};
 
 use super::{
-    client::{CachingMainNodeClient, MainNodeClient},
-    metrics::{FetchStage, L1BatchStage, FETCHER_METRICS},
-    sync_action::{ActionQueueSender, SyncAction},
-    SyncState,
+    metrics::{L1BatchStage, FETCHER_METRICS},
+    sync_action::{SyncAction},
 };
 use crate::{
     metrics::{TxStage, APP_METRICS},
     state_keeper::io::common::IoCursor,
 };
-
-const DELAY_INTERVAL: Duration = Duration::from_millis(500);
-const RETRY_DELAY_INTERVAL: Duration = Duration::from_secs(5);
 
 /// Common denominator for blocks fetched by an external node.
 #[derive(Debug)]
@@ -162,23 +153,5 @@ impl IoCursor {
         self.prev_miniblock_hash = local_block_hash;
 
         new_actions
-    }
-}
-
-/// Errors that can be emitted by [`MainNodeFetcher`].
-#[derive(Debug, thiserror::Error)]
-enum FetcherError {
-    #[error("JSON-RPC error communicating with main node: {0}")]
-    Web3(#[from] EnrichedClientError),
-    #[error("internal fetcher error: {0:#}")]
-    Internal(#[from] anyhow::Error),
-}
-
-impl FetcherError {
-    fn is_transient(&self) -> bool {
-        match self {
-            Self::Web3(err) => err.is_transient(),
-            Self::Internal(_) => false,
-        }
     }
 }

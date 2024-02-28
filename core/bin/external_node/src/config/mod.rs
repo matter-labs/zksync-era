@@ -463,7 +463,7 @@ impl PostgresConfig {
     }
 }
 
-pub(crate) fn read_consensus_config() -> anyhow::Result<consensus::FetcherConfig> {
+pub(crate) fn read_consensus_config() -> anyhow::Result<consensus::P2PConfig> {
     let path = std::env::var("EN_CONSENSUS_CONFIG_PATH")
         .context("EN_CONSENSUS_CONFIG_PATH env variable is not set")?;
     let cfg = std::fs::read_to_string(&path).context(path)?;
@@ -497,7 +497,7 @@ pub struct ExternalNodeConfig {
     pub postgres: PostgresConfig,
     pub optional: OptionalENConfig,
     pub remote: RemoteENConfig,
-    pub consensus: Option<consensus::FetcherConfig>,
+    pub consensus: Option<consensus::P2PConfig>,
 }
 
 impl ExternalNodeConfig {
