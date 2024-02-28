@@ -286,7 +286,6 @@ impl RandomConfig for configs::chain::StateKeeperConfig {
             virtual_blocks_per_miniblock: g.gen(),
             upload_witness_inputs_to_gcs: g.gen(),
             enum_index_migration_chunk_size: g.gen(),
-            // TODO: this should depend on the mode (Validium or Rollup), but the tests are not adapted yet for this.
             l1_batch_commit_data_generator_mode: g.gen(),
         }
     }
@@ -497,8 +496,7 @@ impl RandomConfig for configs::eth_sender::GasAdjusterConfig {
             internal_enforced_l1_gas_price: g.gen(),
             poll_period: g.gen(),
             max_l1_gas_price: g.gen(),
-            // TODO: this should depend on the mode (Validium or Rollup), but the tests are not adapted yet for this.
-            l1_gas_per_pubdata_byte: g.gen(),
+            l1_gas_per_pubdata_byte: 17,
         }
     }
 }
