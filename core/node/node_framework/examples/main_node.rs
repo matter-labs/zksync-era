@@ -8,8 +8,8 @@ use zksync_config::{
         chain::{MempoolConfig, NetworkConfig, OperationsManagerConfig, StateKeeperConfig},
         ObservabilityConfig, ProofDataHandlerConfig,
     },
-    ApiConfig, ContractsConfig, DBConfig, ETHClientConfig, ETHWatchConfig, GasAdjusterConfig,
-    ObjectStoreConfig, PostgresConfig,
+    ApiConfig, ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig, ETHWatchConfig,
+    GasAdjusterConfig, ObjectStoreConfig, PostgresConfig,
 };
 use zksync_core::metadata_calculator::MetadataCalculatorConfig;
 use zksync_env_config::FromEnv;
@@ -63,7 +63,12 @@ impl MainNodeBuilder {
     fn add_fee_input_layer(mut self) -> anyhow::Result<Self> {
         let gas_adjuster_config = GasAdjusterConfig::from_env()?;
         let state_keeper_config = StateKeeperConfig::from_env()?;
-        let fee_input_layer = SequencerFeeInputLayer::new(gas_adjuster_config, state_keeper_config);
+        let eth_sender_config = ETHSenderConfig::from_env()?;
+        let fee_input_layer = SequencerFeeInputLayer::new(
+            gas_adjuster_config,
+            state_keeper_config,
+            eth_sender_config.sender.pubdata_sending_mode,
+        );
         self.node.add_layer(fee_input_layer);
         Ok(self)
     }

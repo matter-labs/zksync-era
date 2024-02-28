@@ -506,6 +506,9 @@ impl RandomConfig for configs::eth_sender::GasAdjusterConfig {
             internal_enforced_l1_gas_price: g.gen(),
             poll_period: g.gen(),
             max_l1_gas_price: g.gen(),
+            num_samples_for_blob_base_fee_estimate: g.gen(),
+            internal_pubdata_pricing_multiplier: g.gen(),
+            max_blob_base_fee: g.gen(),
         }
     }
 }
