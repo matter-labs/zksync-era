@@ -96,36 +96,28 @@ impl NativeTokenFetcher {
                 break;
             }
 
-            let conversion_rate =
-                match reqwest::get(format!("{}/conversion_rate", &self.config.host))
-                    .await?
-                    .json::<u64>()
-                    .await
-                {
-                    Ok(rate) => {
+            match reqwest::get(format!("{}/conversion_rate", &self.config.host)).await {
+                Ok(response) => {
+                    let conversion_rate = response.json::<u64>().await?;
+                    self.latest_to_eth_conversion_rate
+                        .store(conversion_rate, std::sync::atomic::Ordering::Relaxed);
+                    network_consecutive_errors = 0;
+                }
+                Err(err) => {
+                    network_consecutive_errors += 1;
+
+                    tracing::error!(
+                        "Failed to fetch native token conversion rate from the server: {err}"
+                    );
+
+                    if network_consecutive_errors >= MAX_CONSECUTIVE_NETWORK_ERRORS {
+                        vlog::capture_message(&err.to_string(), vlog::AlertLevel::Warning);
+
+                        // reset the error counter to prevent sending multiple sentry errors consecutively
                         network_consecutive_errors = 0;
-                        rate
                     }
-                    Err(err) => {
-                        network_consecutive_errors += 1;
-
-                        tracing::error!(
-                            "Failed to fetch native token conversion rate from the server: {err}"
-                        );
-
-                        if network_consecutive_errors >= MAX_CONSECUTIVE_NETWORK_ERRORS {
-                            vlog::capture_message(&err.to_string(), vlog::AlertLevel::Warning);
-
-                            // reset the error counter to prevent sending multiple sentry errors consecutively
-                            network_consecutive_errors = 0;
-                        }
-
-                        continue;
-                    }
-                };
-
-            self.latest_to_eth_conversion_rate
-                .store(conversion_rate, std::sync::atomic::Ordering::Relaxed);
+                }
+            }
 
             tokio::time::sleep(Duration::from_secs(self.config.poll_interval)).await;
         }
