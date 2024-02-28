@@ -14,14 +14,11 @@ import * as server from './server';
 import { up } from './up';
 
 import * as fs from 'fs';
-import * as constants from './constants';
 
 const entry = chalk.bold.yellow;
 const announce = chalk.yellow;
 const success = chalk.green;
 const timestamp = chalk.grey;
-const CHAIN_CONFIG_PATH = 'etc/env/base/chain.toml';
-const ETH_SENDER_PATH = 'etc/env/base/eth_sender.toml';
 
 export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
     const {
@@ -142,93 +139,6 @@ export async function announced(fn: string, promise: Promise<void> | void) {
 export async function submoduleUpdate() {
     await utils.exec('git submodule init');
     await utils.exec('git submodule update');
-}
-
-function updateConfigFile(path: string, modeConstantValues: Record<string, number | string | null>) {
-    let content = fs.readFileSync(path, 'utf-8');
-    let lines = content.split('\n');
-    let addedContent: string | undefined;
-    const lineIndices: Record<string, number> = {};
-
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        if (!line.startsWith('#')) {
-            const match = line.match(/([^=]+)=(.*)/);
-            if (match) {
-                const key = match[1].trim();
-                lineIndices[key] = i;
-            }
-        }
-    }
-
-    for (const [key, value] of Object.entries(modeConstantValues)) {
-        const lineIndex = lineIndices[key];
-
-        if (lineIndex !== undefined) {
-            if (value !== null) {
-                lines.splice(lineIndex, 1, `${key}=${value}`);
-            } else {
-                lines.splice(lineIndex, 1);
-                for (const [k, index] of Object.entries(lineIndices)) {
-                    if (index > lineIndex) {
-                        lineIndices[k] = index - 1;
-                    }
-                }
-            }
-        } else {
-            if (value !== null) {
-                addedContent = `${key}=${value}\n`;
-            }
-        }
-    }
-
-    content = lines.join('\n');
-
-    if (addedContent) {
-        content += addedContent;
-    }
-
-    fs.writeFileSync(path, content);
-}
-function updateChainConfig(deploymentMode: contract.DeploymentMode) {
-    let modeConstantValues: Record<string, number | string | null>;
-    if (deploymentMode == contract.DeploymentMode.Validium) {
-        modeConstantValues = {
-            compute_overhead_part: constants.VALIDIUM_COMPUTE_OVERHEAD_PART,
-            pubdata_overhead_part: constants.VALIDIUM_PUBDATA_OVERHEAD_PART,
-            batch_overhead_l1_gas: constants.VALIDIUM_BATCH_OVERHEAD_L1_GAS,
-            max_pubdata_per_batch: constants.VALIDIUM_MAX_PUBDATA_PER_BATCH,
-            l1_batch_commit_data_generator_mode: constants.VALIDIUM_L1_BATCH_COMMIT_DATA_GENERATOR_MODE
-        };
-    } else if (deploymentMode == contract.DeploymentMode.Rollup) {
-        modeConstantValues = {
-            compute_overhead_part: constants.ROLLUP_COMPUTE_OVERHEAD_PART,
-            pubdata_overhead_part: constants.ROLLUP_PUBDATA_OVERHEAD_PART,
-            batch_overhead_l1_gas: constants.ROLLUP_BATCH_OVERHEAD_L1_GAS,
-            max_pubdata_per_batch: constants.ROLLUP_MAX_PUBDATA_PER_BATCH,
-            l1_batch_commit_data_generator_mode: constants.ROLLUP_L1_BATCH_COMMIT_DATA_GENERATOR_MODE
-        };
-    } else {
-        throw new Error('Invalid deployment mode');
-    }
-    updateConfigFile(CHAIN_CONFIG_PATH, modeConstantValues);
-}
-function updateEthSenderConfig(deploymentMode: contract.DeploymentMode) {
-    // This constant is used in validium mode and is deleted in rollup mode
-    // In order to pass the existing integration tests
-    const modeConstantValues = {
-        l1_gas_per_pubdata_byte:
-            deploymentMode == contract.DeploymentMode.Validium
-                ? constants.VALIDIUM_L1_GAS_PER_PUBDATA_BYTE
-                : constants.ROLLUP_L1_GAS_PER_PUBDATA_BYTE
-    };
-    updateConfigFile(ETH_SENDER_PATH, modeConstantValues);
-}
-
-function updateConfig(deploymentMode: contract.DeploymentMode) {
-    updateChainConfig(deploymentMode);
-    updateEthSenderConfig(deploymentMode);
-    config.compileConfig();
 }
 
 async function checkEnv() {

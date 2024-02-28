@@ -4,7 +4,7 @@ use anyhow::Context;
 use serde::Deserialize;
 use url::Url;
 use zksync_basic_types::{Address, L1ChainId, L2ChainId};
-use zksync_config::ObjectStoreConfig;
+use zksync_config::{configs::chain::L1BatchCommitDataGeneratorMode, ObjectStoreConfig};
 use zksync_consensus_roles::node;
 use zksync_core::{
     api_server::{
@@ -214,6 +214,9 @@ pub struct OptionalENConfig {
     /// 0 means that sealing is synchronous; this is mostly useful for performance comparison, testing etc.
     #[serde(default = "OptionalENConfig::default_miniblock_seal_queue_capacity")]
     pub miniblock_seal_queue_capacity: usize,
+
+    #[serde(default = "OptionalENConfig::default_l1_batch_commit_data_generator_mode")]
+    pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
 }
 
 impl OptionalENConfig {
@@ -318,6 +321,10 @@ impl OptionalENConfig {
 
     const fn default_miniblock_seal_queue_capacity() -> usize {
         10
+    }
+
+    const fn default_l1_batch_commit_data_generator_mode() -> L1BatchCommitDataGeneratorMode {
+        L1BatchCommitDataGeneratorMode::Rollup
     }
 
     pub fn polling_interval(&self) -> Duration {
