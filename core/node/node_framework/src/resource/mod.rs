@@ -9,7 +9,6 @@ mod lazy_resource;
 mod resource_collection;
 mod resource_id;
 mod unique;
-
 /// A trait for anything that can be stored (and retrieved) as a resource.
 /// Typically, the type that implements this trait should also implement `Clone`
 /// since the same resource may be requested by several tasks, necessitating cloning.
