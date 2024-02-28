@@ -6,7 +6,7 @@ use zksync_types::{
     ethabi::Token,
     pubdata_da::PubdataDA,
     web3::{contract::Error as Web3ContractError, error::Error as Web3ApiError},
-    U256,
+    ProtocolVersionId, U256,
 };
 
 use crate::{
@@ -44,7 +44,7 @@ impl<'a> CommitBatchInfo<'a> {
             .l1_batch_with_metadata
             .header
             .protocol_version
-            .unwrap()
+            .unwrap_or_else(|| ProtocolVersionId::last_potentially_undefined())
             .is_pre_boojum()
         {
             vec![
@@ -179,13 +179,17 @@ impl<'a> Tokenizable for CommitBatchInfo<'a> {
     fn into_token(self) -> Token {
         let mut tokens = self.base_tokens();
 
-        if self
+        let protocol_version = self
             .l1_batch_with_metadata
             .header
             .protocol_version
-            .unwrap()
-            .is_pre_1_4_2()
-        {
+            .unwrap_or_else(|| ProtocolVersionId::last_potentially_undefined());
+
+        if protocol_version.is_pre_boojum() {
+            return Token::Tuple(tokens);
+        }
+
+        if protocol_version.is_pre_1_4_2() {
             tokens.push(
                 // `totalL2ToL1Pubdata` without pubdata source byte
                 Token::Bytes(
