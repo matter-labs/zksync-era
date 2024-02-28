@@ -96,17 +96,6 @@ impl ActionQueue {
         action
     }
 
-    #[cfg(test)]
-    pub(super) async fn recv_action(&mut self) -> SyncAction {
-        if let Some(peeked) = self.peeked.take() {
-            return peeked;
-        }
-        self.receiver
-            .recv()
-            .await
-            .expect("actions sender was dropped prematurely")
-    }
-
     /// Returns the first action from the queue without removing it.
     pub(super) fn peek_action(&mut self) -> Option<SyncAction> {
         if let Some(action) = &self.peeked {

@@ -1,5 +1,5 @@
 use anyhow::Context as _;
-use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
+use zksync_concurrency::{ctx, error::Wrap as _, scope, time};
 use zksync_consensus_executor as executor;
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage::BlockStore;
@@ -18,6 +18,7 @@ pub type P2PConfig = executor::Config;
 /// Miniblock fetcher.
 #[derive(Debug)]
 pub struct Fetcher {
+    pub store: Store,
     pub sync_state: SyncState,
     pub client: Box<dyn MainNodeClient>,
 }
@@ -28,7 +29,6 @@ impl Fetcher {
     pub async fn run_p2p(
         self,
         ctx: &ctx::Ctx,
-        store: Store,
         actions: ActionQueueSender,
         p2p: P2PConfig,
     ) -> anyhow::Result<()> {
@@ -38,7 +38,7 @@ impl Fetcher {
 
             // Initialize genesis.
             let genesis = self.fetch_genesis(ctx).await.wrap("fetch_genesis()")?;
-            let mut conn = store.access(ctx).await.wrap("access()")?;
+            let mut conn = self.store.access(ctx).await.wrap("access()")?;
             conn.try_update_genesis(ctx, &genesis)
                 .await
                 .wrap("set_genesis()")?;
@@ -67,7 +67,7 @@ impl Fetcher {
             });
 
             // Run consensus component.
-            let mut block_store = store.into_block_store();
+            let mut block_store = self.store.clone().into_block_store();
             block_store
                 .set_cursor(cursor)
                 .context("block_store.set_cursor()")?;
@@ -92,15 +92,14 @@ impl Fetcher {
 
     /// Task fetching miniblocks using json rpc endpoint of the main node.
     pub async fn run_centralized(
-        &self,
+        self,
         ctx: &ctx::Ctx,
-        store: Store,
         actions: ActionQueueSender,
     ) -> anyhow::Result<()> {
         let res: ctx::Result<()> = scope::run!(ctx, |ctx, s| async {
             // Update sync state in the background.
             s.spawn_bg(self.fetch_state_loop(ctx));
-            let mut cursor = store
+            let mut cursor = self.store
                 .access(ctx).await.wrap("access()")?
                 .new_fetcher_cursor(ctx, actions).await.wrap("new_fetcher_cursor()")?;
             self.fetch_blocks(ctx, &mut cursor, None).await
@@ -171,10 +170,9 @@ impl Fetcher {
             let (send, mut recv) = ctx::channel::bounded(MAX_CONCURRENT_REQUESTS);
             s.spawn(async {
                 let send = send;
-                let sub = &mut self.sync_state.subscribe();
                 while !done(next) {
                     let n = MiniblockNumber(next.0.try_into().unwrap());
-                    sync::wait_for(ctx, sub, |state| state.main_node_block() >= n).await?;
+                    self.sync_state.wait_for_main_node_block(ctx, n).await?;
                     send.send(ctx, s.spawn(self.fetch_block(ctx, n))).await?;
                     next = next.next();
                 }

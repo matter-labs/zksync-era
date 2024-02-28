@@ -1,7 +1,6 @@
 //! High-level sync layer tests.
 
 use std::{
-    collections::{HashMap, VecDeque},
     iter,
     sync::Arc,
     time::{Duration, Instant},
@@ -9,10 +8,6 @@ use std::{
 
 use test_casing::test_casing;
 use tokio::{sync::watch, task::JoinHandle};
-use zksync_config::{
-    configs::{api::Web3JsonRpcConfig, chain::NetworkConfig},
-    ContractsConfig,
-};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::{
@@ -25,14 +20,12 @@ use zksync_types::{
 
 use super::{sync_action::SyncAction, *};
 use crate::{
-    api_server::web3::{state::InternalApiConfig, tests::spawn_http_server},
     consensus::testonly::MockMainNodeClient,
     genesis::{ensure_genesis_state, GenesisParams},
     state_keeper::{
-        io::common::IoCursor, seal_criteria::NoopSealer, tests::TestBatchExecutorBuilder,
+        seal_criteria::NoopSealer, tests::TestBatchExecutorBuilder,
         MiniblockSealer, ZkSyncStateKeeper,
     },
-    sync_layer::{client::CachingMainNodeClient},
     utils::testonly::{create_l1_batch_metadata, create_l2_transaction, prepare_recovery_snapshot},
 };
 

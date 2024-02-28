@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use serde::Serialize;
-use tokio::sync::watch;
 use zksync_health_check::{CheckHealth, Health, HealthStatus};
 use zksync_types::MiniblockNumber;
+use zksync_concurrency::{ctx,sync};
 
 use crate::metrics::EN_METRICS;
 
@@ -15,11 +15,11 @@ use crate::metrics::EN_METRICS;
 ///
 /// This structure operates on miniblocks rather than L1 batches, since this is the default unit used in the web3 API.
 #[derive(Debug, Clone)]
-pub struct SyncState(Arc<watch::Sender<SyncStateInner>>);
+pub struct SyncState(Arc<sync::watch::Sender<SyncStateInner>>);
 
 impl Default for SyncState {
     fn default() -> Self {
-        Self(Arc::new(watch::channel(SyncStateInner::default()).0))
+        Self(Arc::new(sync::watch::channel(SyncStateInner::default()).0))
     }
 }
 
@@ -29,15 +29,22 @@ const SYNC_MINIBLOCK_DELTA: u32 = 10;
 
 impl SyncState {
     pub(crate) fn get_main_node_block(&self) -> MiniblockNumber {
-        self.0.borrow().main_node_block()
+        self.0.borrow().main_node_block.unwrap_or_default()
     }
 
     pub(crate) fn get_local_block(&self) -> MiniblockNumber {
-        self.0.borrow().local_block()
+        self.0.borrow().local_block.unwrap_or_default()
     }
 
-    pub(crate) fn subscribe(&self) -> watch::Receiver<SyncStateInner> {
-        self.0.subscribe()
+    pub(crate) async fn wait_for_main_node_block(&self, ctx: &ctx::Ctx, want: MiniblockNumber) -> ctx::OrCanceled<()> {
+        sync::wait_for(ctx, &mut self.0.subscribe(), |s| matches!(s.main_node_block, Some(got) if got >= want)).await?;
+        Ok(())
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn wait_for_local_block(&self, ctx: &ctx::Ctx, want: MiniblockNumber) -> ctx::OrCanceled<()> {
+        sync::wait_for(ctx, &mut self.0.subscribe(), |s| matches!(s.local_block, Some(got) if got >= want)).await?;
+        Ok(())
     }
 
     pub(crate) fn set_main_node_block(&self, block: MiniblockNumber) {
@@ -55,19 +62,11 @@ impl SyncState {
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct SyncStateInner {
-    main_node_block: Option<MiniblockNumber>,
-    local_block: Option<MiniblockNumber>,
+    pub(crate) main_node_block: Option<MiniblockNumber>,
+    pub(crate) local_block: Option<MiniblockNumber>,
 }
 
 impl SyncStateInner {
-    pub(crate) fn main_node_block(&self) -> MiniblockNumber {
-        self.main_node_block.unwrap_or_default()
-    }
-
-    pub(crate) fn local_block(&self) -> MiniblockNumber {
-        self.local_block.unwrap_or_default()
-    }
-
     fn set_main_node_block(&mut self, block: MiniblockNumber) {
         if let Some(local_block) = self.local_block {
             if block < local_block {

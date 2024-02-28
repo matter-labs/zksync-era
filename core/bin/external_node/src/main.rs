@@ -167,15 +167,12 @@ async fn init_tasks(
         config.remote.l2_chain_id,
     )
     .await?;
-
-    let singleton_pool_builder = ConnectionPool::singleton(&config.postgres.database_url);
-
     
     task_handles.push(tokio::spawn({
-        let store = consensus::Store(connection_pool.clone());
         let mut stop_receiver = stop_receiver.clone();
         let p2p_config = config.consensus.clone();
         let fetcher = consensus::Fetcher {
+            store: consensus::Store(connection_pool.clone()),
             sync_state: sync_state.clone(),
             client: Box::new(main_node_client.clone()),
         };
@@ -184,8 +181,8 @@ async fn init_tasks(
             scope::run!(&ctx::root(), |ctx, s| async {
                 s.spawn_bg(async {
                     let res = match p2p_config {
-                        Some(p2p_config) => fetcher.run_p2p(ctx,store,actions,p2p_config).await,
-                        None => fetcher.run_centralized(ctx,store,actions).await,
+                        Some(p2p_config) => fetcher.run_p2p(ctx,actions,p2p_config).await,
+                        None => fetcher.run_centralized(ctx,actions).await,
                     };
                     tracing::info!("Consensus actor stopped");
                     res
@@ -202,6 +199,8 @@ async fn init_tasks(
     app_health.insert_component(reorg_detector.health_check().clone());
     task_handles.push(tokio::spawn(reorg_detector.run(stop_receiver.clone())));
 
+    let singleton_pool_builder = ConnectionPool::singleton(&config.postgres.database_url);
+    
     let metadata_calculator_config = MetadataCalculatorConfig {
         db_path: config.required.merkle_tree_path.clone(),
         mode: MerkleTreeMode::Lightweight,

@@ -6,12 +6,15 @@ use rand::{
     distributions::{Distribution, Standard},
     Rng,
 };
-use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
+use zksync_config::configs;
+use crate::api_server::web3::state::InternalApiConfig;
+use crate::api_server::web3::tests::spawn_http_server;
+use zksync_concurrency::{ctx, scope, sync, time};
 use zksync_consensus_roles::{node, validator};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::ConnectionPool;
 use zksync_types::{
-    api, block::MiniblockHasher, snapshots::SnapshotRecoveryStatus, Address, L1BatchNumber,
+    api, snapshots::SnapshotRecoveryStatus, Address, L1BatchNumber,
     L2ChainId, MiniblockNumber, ProtocolVersionId, H256,
 };
 use zksync_web3_decl::error::{EnrichedClientError, EnrichedClientResult};
@@ -53,88 +56,8 @@ impl Distribution<Config> for Standard {
     }
 }
 
-#[derive(Debug)]
-pub(super) struct StoreMainNodeClient(pub ConnectionPool);
-
-#[async_trait::async_trait]
-impl MainNodeClient for StoreMainNodeClient {
-    async fn fetch_system_contract_by_hash(
-        &self,
-        _hash: H256,
-    ) -> EnrichedClientResult<Option<Vec<u8>>> {
-        unimplemented!()
-    }
-
-    async fn fetch_genesis_contract_bytecode(
-        &self,
-        _address: Address,
-    ) -> EnrichedClientResult<Option<Vec<u8>>> {
-        unimplemented!()
-    }
-
-    async fn fetch_protocol_version(
-        &self,
-        _protocol_version: ProtocolVersionId,
-    ) -> EnrichedClientResult<Option<api::ProtocolVersion>> {
-        unimplemented!()
-    }
-
-    async fn fetch_genesis_l1_batch_hash(&self) -> EnrichedClientResult<H256> {
-        unimplemented!()
-    }
-
-    async fn fetch_l2_block_number(&self) -> EnrichedClientResult<MiniblockNumber> {
-        Ok(self
-            .0
-            .access_storage()
-            .await
-            .unwrap()
-            .blocks_dal()
-            .get_sealed_miniblock_number()
-            .await
-            .unwrap()
-            .unwrap())
-    }
-
-    async fn fetch_l2_block(
-        &self,
-        number: MiniblockNumber,
-        with_transactions: bool,
-    ) -> EnrichedClientResult<Option<api::en::SyncBlock>> {
-        Ok(self
-            .0
-            .access_storage()
-            .await
-            .unwrap()
-            .sync_dal()
-            .sync_block(number, with_transactions)
-            .await
-            .unwrap())
-    }
-
-    async fn fetch_consensus_genesis(
-        &self,
-    ) -> EnrichedClientResult<Option<api::en::ConsensusGenesis>> {
-        let genesis = self
-            .0
-            .access_storage()
-            .await
-            .unwrap()
-            .consensus_dal()
-            .genesis()
-            .await
-            .unwrap();
-        Ok(genesis.map(|g| {
-            api::en::ConsensusGenesis(
-                zksync_protobuf::serde::serialize(&g, serde_json::value::Serializer).unwrap(),
-            )
-        }))
-    }
-}
-
 #[derive(Debug, Default)]
 pub(crate) struct MockMainNodeClient {
-    prev_miniblock_hash: H256,
     l2_blocks: Vec<api::en::SyncBlock>,
     block_number_offset: u32,
     protocol_versions: HashMap<u16, api::ProtocolVersion>,
@@ -161,65 +84,10 @@ impl MockMainNodeClient {
         };
 
         Self {
-            prev_miniblock_hash: snapshot.miniblock_hash,
             l2_blocks: vec![last_miniblock_in_snapshot_batch],
             block_number_offset: snapshot.miniblock_number.0,
             ..Self::default()
         }
-    }
-
-    /// `miniblock_count` doesn't include a fictive miniblock. Returns hashes of generated transactions.
-    pub fn push_l1_batch(&mut self, miniblock_count: u32) -> Vec<H256> {
-        let l1_batch_number = self
-            .l2_blocks
-            .last()
-            .map_or(L1BatchNumber(0), |block| block.l1_batch_number + 1);
-        let number_offset = self.l2_blocks.len() as u32;
-
-        let mut tx_hashes = vec![];
-        let l2_blocks = (0..=miniblock_count).map(|number| {
-            let is_fictive = number == miniblock_count;
-            let number = number + number_offset;
-            let mut hasher = MiniblockHasher::new(
-                MiniblockNumber(number),
-                number.into(),
-                self.prev_miniblock_hash,
-            );
-
-            let transactions = if is_fictive {
-                vec![]
-            } else {
-                let transaction = create_l2_transaction(10, 100);
-                tx_hashes.push(transaction.hash());
-                hasher.push_tx_hash(transaction.hash());
-                vec![transaction.into()]
-            };
-            let miniblock_hash = hasher.finalize(if number == 0 {
-                ProtocolVersionId::Version0 // The genesis block always uses the legacy hashing mode
-            } else {
-                ProtocolVersionId::latest()
-            });
-            self.prev_miniblock_hash = miniblock_hash;
-
-            api::en::SyncBlock {
-                number: MiniblockNumber(number),
-                l1_batch_number,
-                last_in_batch: is_fictive,
-                timestamp: number.into(),
-                l1_gas_price: 2,
-                l2_fair_gas_price: 3,
-                fair_pubdata_price: Some(24),
-                base_system_contracts_hashes: BaseSystemContractsHashes::default(),
-                operator_address: Address::repeat_byte(2),
-                transactions: Some(transactions),
-                virtual_blocks: Some(!is_fictive as u32),
-                hash: Some(miniblock_hash),
-                protocol_version: ProtocolVersionId::latest(),
-            }
-        });
-
-        self.l2_blocks.extend(l2_blocks);
-        tx_hashes
     }
 
     pub fn insert_protocol_version(&mut self, version: api::ProtocolVersion) {
@@ -300,12 +168,6 @@ impl MainNodeClient for MockMainNodeClient {
     }
 }
 
-impl Store {
-    pub fn client(&self) -> Box<dyn MainNodeClient> {
-        Box::new(StoreMainNodeClient(self.0.clone()))
-    }
-}
-
 /// Fake StateKeeper for tests.
 pub(super) struct StateKeeper {
     // Batch of the `last_block`.
@@ -321,6 +183,8 @@ pub(super) struct StateKeeper {
     pub(super) sync_state: SyncState,
     pub(super) actions_sender: ActionQueueSender,
     pub(super) store: Store,
+    
+    addr: sync::watch::Receiver<Option<std::net::SocketAddr>>,
 }
 
 /// Fake StateKeeper task to be executed in the background.
@@ -328,6 +192,7 @@ pub(super) struct StateKeeperRunner {
     actions_queue: ActionQueue,
     sync_state: SyncState,
     pool: ConnectionPool,
+    addr: sync::watch::Sender<Option<std::net::SocketAddr>>,
 }
 
 impl StateKeeper {
@@ -367,6 +232,7 @@ impl StateKeeper {
             .context("pending_batch_exists()")?;
         let (actions_sender, actions_queue) = ActionQueue::new();
         let sync_state = SyncState::default();
+        let addr = sync::watch::channel(None).0;
         Ok((
             Self {
                 last_batch: last_l1_batch_number + if pending_batch { 1 } else { 0 },
@@ -378,11 +244,13 @@ impl StateKeeper {
                 actions_sender,
                 sync_state: sync_state.clone(),
                 store: Store(pool.clone()),
+                addr: addr.subscribe(),
             },
             StateKeeperRunner {
                 sync_state,
                 actions_queue,
                 pool: pool.clone(),
+                addr,
             },
         ))
     }
@@ -448,30 +316,20 @@ impl StateKeeper {
         }
     }
 
+    pub fn last_miniblock(&self) -> MiniblockNumber {
+        self.last_block
+    }
+
     /// Last block that has been pushed to the `StateKeeper` via `ActionQueue`.
     /// It might NOT be present in storage yet.
     pub fn last_block(&self) -> validator::BlockNumber {
-        validator::BlockNumber(self.last_block.0 as u64)
+        validator::BlockNumber(self.last_block.0.into())
     }
 
-    // Wait for all pushed miniblocks to be produced.
-    pub async fn wait_for_miniblocks(&self, ctx: &ctx::Ctx) -> ctx::Result<()> {
-        const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(100);
-        loop {
-            if self
-                .store
-                .access(ctx)
-                .await
-                .wrap("access()")?
-                .payload(ctx, self.last_block())
-                .await
-                .wrap("storage.payload()")?
-                .is_some()
-            {
-                return Ok(());
-            }
-            ctx.sleep(POLL_INTERVAL).await?;
-        }
+    pub async fn connect(&self, ctx: &ctx::Ctx) -> ctx::Result<Box<dyn MainNodeClient>> {
+        let addr = sync::wait_for(ctx, &mut self.addr.clone(), Option::is_some).await?.clone().unwrap();
+        let client = <dyn MainNodeClient>::json_rpc(&format!("http://{addr}/")).context("json_rpc()")?;
+        Ok(Box::new(client))
     }
 }
 
@@ -513,7 +371,7 @@ impl StateKeeperRunner {
     /// Executes the StateKeeper task.
     pub async fn run(self, ctx: &ctx::Ctx) -> anyhow::Result<()> {
         scope::run!(ctx, |ctx, s| async {
-            let (stop_sender, stop_receiver) = sync::watch::channel(false);
+            let (stop_send, stop_recv) = sync::watch::channel(false);
             let (miniblock_sealer, miniblock_sealer_handle) =
                 MiniblockSealer::new(self.pool.clone(), 5);
 
@@ -532,15 +390,25 @@ impl StateKeeperRunner {
             s.spawn_bg(run_mock_metadata_calculator(ctx, &self.pool));
             s.spawn_bg(
                 ZkSyncStateKeeper::new(
-                    stop_receiver,
+                    stop_recv.clone(),
                     Box::new(io),
                     Box::new(MockBatchExecutor),
                     Arc::new(NoopSealer),
                 )
                 .run(),
             );
+            // Spawn Http server.
+            let cfg = InternalApiConfig::new(
+                &configs::chain::NetworkConfig::for_tests(),
+                &configs::api::Web3JsonRpcConfig::for_tests(),
+                &configs::contracts::ContractsConfig::for_tests(),
+            );
+            let mut server = spawn_http_server(cfg, self.pool.clone(), Default::default(), stop_recv).await;
+            self.addr.send_replace(Some(server.wait_until_ready().await));
+            
             ctx.canceled().await;
-            stop_sender.send_replace(true);
+            stop_send.send_replace(true);
+            server.shutdown().await;
             Ok(())
         })
         .await
