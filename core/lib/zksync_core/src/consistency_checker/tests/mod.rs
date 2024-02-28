@@ -5,6 +5,7 @@ use std::{collections::HashMap, slice};
 use assert_matches::assert_matches;
 use test_casing::{test_casing, Product};
 use tokio::sync::mpsc;
+use zksync_config::configs::KzgConfig;
 use zksync_dal::StorageProcessor;
 use zksync_eth_client::{clients::MockEthereum, Options};
 use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
@@ -72,7 +73,9 @@ fn create_mock_checker(client: MockEthereum, pool: ConnectionPool) -> Consistenc
         l1_data_mismatch_behavior: L1DataMismatchBehavior::Bail,
         pool,
         health_check,
-        kzg_settings: None,
+        kzg_settings: Some(Arc::new(KzgSettings::new(
+            &KzgConfig::for_tests().trusted_setup_path,
+        ))),
     }
 }
 
