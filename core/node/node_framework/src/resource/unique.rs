@@ -1,7 +1,6 @@
 use std::sync::{Arc, Mutex};
 
 /// Wrapper for resources that are only intended for single consumption.
-///
 /// Typically, resources are designed for sharing among multiple tasks. However, there are scenarios where
 /// a resource should only be consumed by a single task.
 #[derive(Debug)]
