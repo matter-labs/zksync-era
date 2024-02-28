@@ -38,6 +38,7 @@ pub mod l2;
 pub mod l2_to_l1_log;
 pub mod priority_op_onchain_data;
 pub mod protocol_version;
+pub mod pubdata_da;
 pub mod snapshots;
 pub mod storage;
 pub mod storage_writes_deduplicator;

@@ -6,6 +6,7 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::{BoundEthInterface, CallFunctionArgs};
 use zksync_l1_contract_interface::{
+    i_executor::commit::kzg::KzgSettings,
     multicall3::{Multicall3Call, Multicall3Result},
     Detokenize, Tokenizable, Tokenize,
 };
@@ -55,6 +56,8 @@ pub struct EthTxAggregator {
     base_nonce: u64,
     base_nonce_custom_commit_sender: Option<u64>,
     rollup_chain_id: L2ChainId,
+    #[allow(unused)]
+    kzg_settings: Option<Arc<KzgSettings>>,
     /// If set to `Some` node is operating in the 4844 mode with two operator
     /// addresses at play: the main one and the custom address for sending commit
     /// transactions. The `Some` then contains the address of this custom operator
@@ -72,6 +75,7 @@ impl EthTxAggregator {
         l1_multicall3_address: Address,
         main_zksync_contract_address: Address,
         rollup_chain_id: L2ChainId,
+        kzg_settings: Option<Arc<KzgSettings>>,
         custom_commit_sender_addr: Option<Address>,
     ) -> Self {
         let functions = ZkSyncFunctions::default();
@@ -102,6 +106,7 @@ impl EthTxAggregator {
             base_nonce,
             base_nonce_custom_commit_sender,
             rollup_chain_id,
+            kzg_settings,
             custom_commit_sender_addr,
         }
     }
