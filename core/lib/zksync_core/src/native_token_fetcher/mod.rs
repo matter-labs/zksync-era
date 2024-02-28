@@ -72,12 +72,15 @@ pub(crate) struct NativeTokenFetcher {
 
 impl NativeTokenFetcher {
     pub(crate) async fn new(config: NativeTokenFetcherConfig) -> Self {
-        let conversion_rate = reqwest::get(format!("{}/conversion_rate", config.host))
-            .await
-            .unwrap()
-            .json::<u64>()
-            .await
-            .unwrap_or(1); // Prevent program from crashing altogether if the first request fails
+        let conversion_rate = match reqwest::get(format!("{}/conversion_rate", config.host)).await {
+            Ok(response) => response.json::<u64>().await.unwrap_or(1), // Prevent program from crashing altogether if the first request fails
+            Err(err) => {
+                tracing::error!(
+                    "Failed to fetch native token conversion rate from the server: {err}"
+                );
+                1
+            }
+        };
 
         Self {
             config,
