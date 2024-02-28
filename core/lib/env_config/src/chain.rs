@@ -207,4 +207,12 @@ mod tests {
         let actual = CircuitBreakerConfig::from_env().unwrap();
         assert_eq!(actual, expected_circuit_breaker_config());
     }
+
+    #[test]
+    fn default_state_keeper_mode() {
+        assert_eq!(
+            StateKeeperConfig::default().l1_batch_commit_data_generator_mode,
+            L1BatchCommitDataGeneratorMode::Rollup
+        );
+    }
 }
