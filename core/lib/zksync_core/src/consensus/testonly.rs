@@ -427,6 +427,7 @@ impl StateKeeperRunner {
             let (stop_sender, stop_receiver) = sync::watch::channel(false);
             let (miniblock_sealer, miniblock_sealer_handle) =
                 MiniblockSealer::new(self.pool.clone(), 5);
+
             let io = ExternalIO::new(
                 miniblock_sealer_handle,
                 self.pool.clone(),

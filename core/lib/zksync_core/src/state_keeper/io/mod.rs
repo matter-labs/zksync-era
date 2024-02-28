@@ -62,35 +62,41 @@ pub struct MiniblockParams {
 /// `StateKeeperIO` provides the interactive layer for the state keeper:
 /// it's used to receive volatile parameters (such as batch parameters), and also it's used to perform
 /// mutable operations on the persistent state (e.g. persist executed batches).
+///
+/// All errors returned from this method are treated as unrecoverable.
 #[async_trait]
 pub trait StateKeeperIO: 'static + Send + IoSealCriteria {
     /// Returns the number of the currently processed L1 batch.
     fn current_l1_batch_number(&self) -> L1BatchNumber;
     /// Returns the number of the currently processed miniblock (aka L2 block).
     fn current_miniblock_number(&self) -> MiniblockNumber;
+
     /// Returns the data on the batch that was not sealed before the server restart.
     /// See `PendingBatchData` doc-comment for details.
-    async fn load_pending_batch(&mut self) -> Option<PendingBatchData>;
+    async fn load_pending_batch(&mut self) -> anyhow::Result<Option<PendingBatchData>>;
+
     /// Blocks for up to `max_wait` until the parameters for the next L1 batch are available.
     /// Returns the data required to initialize the VM for the next batch.
     async fn wait_for_new_batch_params(
         &mut self,
         max_wait: Duration,
-    ) -> Option<(SystemEnv, L1BatchEnv)>;
+    ) -> anyhow::Result<Option<(SystemEnv, L1BatchEnv)>>;
+
     /// Blocks for up to `max_wait` until the parameters for the next miniblock are available.
     async fn wait_for_new_miniblock_params(
         &mut self,
         max_wait: Duration,
-    ) -> Option<MiniblockParams>;
+    ) -> anyhow::Result<Option<MiniblockParams>>;
+
     /// Blocks for up to `max_wait` until the next transaction is available for execution.
     /// Returns `None` if no transaction became available until the timeout.
     async fn wait_for_next_tx(&mut self, max_wait: Duration) -> Option<Transaction>;
     /// Marks the transaction as "not executed", so it can be retrieved from the IO again.
     async fn rollback(&mut self, tx: Transaction);
     /// Marks the transaction as "rejected", e.g. one that is not correct and can't be executed.
-    async fn reject(&mut self, tx: &Transaction, error: &str);
-    /// Marks the miniblock (aka L2 block) as sealed.
-    /// Returns the timestamp for the next miniblock.
+    async fn reject(&mut self, tx: &Transaction, error: &str) -> anyhow::Result<()>;
+
+    /// Marks the miniblock (aka L2 block) as sealed. Returns the timestamp for the next miniblock.
     async fn seal_miniblock(&mut self, updates_manager: &UpdatesManager);
     /// Marks the L1 batch as sealed.
     async fn seal_l1_batch(
@@ -100,11 +106,14 @@ pub trait StateKeeperIO: 'static + Send + IoSealCriteria {
         l1_batch_env: &L1BatchEnv,
         finished_batch: FinishedL1Batch,
     ) -> anyhow::Result<()>;
+
     /// Loads protocol version of the previous l1 batch.
-    async fn load_previous_batch_version_id(&mut self) -> Option<ProtocolVersionId>;
+    async fn load_previous_batch_version_id(&mut self) -> anyhow::Result<ProtocolVersionId>;
     /// Loads protocol upgrade tx for given version.
-    async fn load_upgrade_tx(&mut self, version_id: ProtocolVersionId)
-        -> Option<ProtocolUpgradeTx>;
+    async fn load_upgrade_tx(
+        &mut self,
+        version_id: ProtocolVersionId,
+    ) -> anyhow::Result<Option<ProtocolUpgradeTx>>;
 }
 
 impl fmt::Debug for dyn StateKeeperIO {

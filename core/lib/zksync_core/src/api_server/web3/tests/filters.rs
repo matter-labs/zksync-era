@@ -1,5 +1,8 @@
 //! Tests for filter-related methods in the `eth` namespace.
 
+use std::fmt::Debug;
+
+use jsonrpsee::{core::client::Error, types::error::ErrorCode};
 use zksync_web3_decl::{jsonrpsee::core::ClientError as RpcError, types::FilterChanges};
 
 use super::*;
@@ -262,4 +265,41 @@ impl HttpTest for LogFilterChangesWithBlockBoundariesTest {
 #[tokio::test]
 async fn log_filter_changes_with_block_boundaries() {
     test_http_server(LogFilterChangesWithBlockBoundariesTest).await;
+}
+
+fn assert_not_implemented<T: Debug>(result: Result<T, Error>) {
+    assert_matches!(result, Err(Error::Call(e)) => {
+        assert_eq!(e.code(), ErrorCode::InternalError.code());
+        assert_eq!(e.message(), "Not implemented");
+    });
+}
+
+#[derive(Debug)]
+struct DisableFiltersTest;
+
+#[async_trait]
+impl HttpTest for DisableFiltersTest {
+    async fn test(&self, client: &HttpClient, _pool: &ConnectionPool) -> anyhow::Result<()> {
+        let filter = Filter {
+            from_block: Some(api::BlockNumber::Number(2.into())),
+            ..Filter::default()
+        };
+        assert_not_implemented(client.new_filter(filter).await);
+        assert_not_implemented(client.new_block_filter().await);
+        assert_not_implemented(client.uninstall_filter(1.into()).await);
+        assert_not_implemented(client.new_pending_transaction_filter().await);
+        assert_not_implemented(client.get_filter_logs(1.into()).await);
+        assert_not_implemented(client.get_filter_changes(1.into()).await);
+
+        Ok(())
+    }
+
+    fn filters_disabled(&self) -> bool {
+        true
+    }
+}
+
+#[tokio::test]
+async fn disable_filters() {
+    test_http_server(DisableFiltersTest).await;
 }

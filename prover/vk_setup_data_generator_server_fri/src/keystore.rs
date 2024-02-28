@@ -1,10 +1,14 @@
-use std::{fs, fs::File, io::Read};
+use std::{
+    fs::{self, File},
+    io::Read,
+    path::Path,
+};
 
 use anyhow::Context as _;
 use circuit_definitions::{
     boojum::cs::implementations::setup::FinalizationHintsForProver,
     circuit_definitions::{
-        aux_layer::ZkSyncSnarkWrapperVK,
+        aux_layer::{EIP4844VerificationKey, ZkSyncSnarkWrapperVK},
         base_layer::ZkSyncBaseLayerVerificationKey,
         recursion_layer::{ZkSyncRecursionLayerStorageType, ZkSyncRecursionLayerVerificationKey},
     },
@@ -85,16 +89,7 @@ impl Keystore {
         key: ProverServiceDataKey,
         service_data_type: ProverServiceDataType,
     ) -> String {
-        let name = match key.round {
-            AggregationRound::BasicCircuits => {
-                format!("basic_{}", key.circuit_id)
-            }
-            AggregationRound::LeafAggregation => {
-                format!("leaf_{}", key.circuit_id)
-            }
-            AggregationRound::NodeAggregation => "node".to_string(),
-            AggregationRound::Scheduler => "scheduler".to_string(),
-        };
+        let name = key.name();
         match service_data_type {
             ProverServiceDataType::VerificationKey => {
                 format!("{}/verification_{}_key.json", self.basedir, name)
@@ -163,6 +158,13 @@ impl Keystore {
         ))
     }
 
+    pub fn load_4844_verification_key(&self) -> anyhow::Result<EIP4844VerificationKey> {
+        Self::load_json_from_file(self.get_file_path(
+            ProverServiceDataKey::eip4844(),
+            ProverServiceDataType::VerificationKey,
+        ))
+    }
+
     pub fn save_base_layer_verification_key(
         &self,
         vk: ZkSyncBaseLayerVerificationKey,
@@ -184,6 +186,15 @@ impl Keystore {
             ProverServiceDataType::VerificationKey,
         );
         tracing::info!("saving recursive layer verification key to: {}", filepath);
+        Self::save_json_pretty(filepath, &vk)
+    }
+
+    pub fn save_4844_verification_key(&self, vk: EIP4844VerificationKey) -> anyhow::Result<()> {
+        let filepath = self.get_file_path(
+            ProverServiceDataKey::eip4844(),
+            ProverServiceDataType::VerificationKey,
+        );
+        tracing::info!("saving 4844 verification key to: {}", filepath);
         Self::save_json_pretty(filepath, &vk)
     }
 
@@ -286,6 +297,10 @@ impl Keystore {
         })
     }
 
+    pub fn is_setup_data_present(&self, key: &ProverServiceDataKey) -> bool {
+        Path::new(&self.get_file_path(key.clone(), ProverServiceDataType::SetupData)).exists()
+    }
+
     pub fn save_setup_data_for_circuit_type(
         &self,
         key: ProverServiceDataKey,
@@ -321,10 +336,15 @@ impl Keystore {
                 ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,
             )?)
             .unwrap();
+
+        data_source
+            .set_eip4844_vk(self.load_4844_verification_key()?)
+            .unwrap();
         Ok(data_source)
     }
 
     pub fn save_keys_from_data_source(&self, source: &dyn SetupDataSource) -> anyhow::Result<()> {
+        // Base circuits
         for base_circuit_type in
             (BaseLayerCircuitType::VM as u8)..=(BaseLayerCircuitType::L1MessagesHasher as u8)
         {
@@ -346,6 +366,7 @@ impl Keystore {
             self.save_finalization_hints(key, &hint)
                 .context("save_finalization_hints()")?;
         }
+        // Leaf circuits
         for leaf_circuit_type in (ZkSyncRecursionLayerStorageType::LeafLayerCircuitForMainVM as u8)
             ..=(ZkSyncRecursionLayerStorageType::LeafLayerCircuitForL1MessagesHasher as u8)
         {
@@ -369,6 +390,7 @@ impl Keystore {
             self.save_finalization_hints(key, &hint)
                 .context("save_finalization_hints()")?;
         }
+        // Node
         self.save_recursive_layer_verification_key(
             source
                 .get_recursion_layer_node_vk()
@@ -390,6 +412,7 @@ impl Keystore {
         )
         .context("save_finalization_hints()")?;
 
+        // Scheduler
         self.save_recursive_layer_verification_key(
             source
                 .get_recursion_layer_vk(ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8)
@@ -413,6 +436,21 @@ impl Keystore {
             &scheduler_hint,
         )
         .context("save_finalization_hints()")?;
+
+        // 4844
+        self.save_4844_verification_key(
+            source
+                .get_eip4844_vk()
+                .map_err(|err| anyhow::anyhow!("No vk exist for 4844 circuit: {err}"))?,
+        )
+        .context("save_4844_verification_key()")?;
+
+        let eip4844_hint = source.get_eip4844_finalization_hint().map_err(|err| {
+            anyhow::anyhow!("No finalization hint exist for scheduler layer circuit: {err}")
+        })?;
+
+        self.save_finalization_hints(ProverServiceDataKey::eip4844(), &eip4844_hint)
+            .context("save_eip4844_hint()")?;
 
         Ok(())
     }
