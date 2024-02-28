@@ -83,6 +83,8 @@ pub(crate) struct StateKeeperMetrics {
     pub tx_execution_time: Family<TxExecutionStage, Histogram<Duration>>,
     /// Number of times gas price was reported as too high.
     pub gas_price_too_high: Counter,
+    /// Number of times blob base fee was reported as too high.
+    pub blob_base_fee_too_high: Counter,
 }
 
 #[vise::register]
