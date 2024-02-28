@@ -814,7 +814,7 @@ async function configDemoHyperchain(cmd: Command) {
             args: ['--private-key', deployerPrivateKey, '--envFile', process.env.CHAIN_ETH_NETWORK!]
         },
         deployerPrivateKeyArgs: ['--private-key', deployerPrivateKey],
-        deploymentMode: cmd.validiumMode !== undefined ? DeploymentMode.Rollup : DeploymentMode.Validium
+        deploymentMode: cmd.validiumMode !== undefined ? DeploymentMode.Validium : DeploymentMode.Rollup
     };
 
     if (!cmd.skipEnvSetup) {
@@ -871,7 +871,7 @@ initHyperchainCommand
     .description('Wizard for hyperchain creation/configuration')
     .option('--validium-mode')
     .action(async (cmd: Command) => {
-        let deploymentMode = cmd.validiumMode !== undefined ? DeploymentMode.Rollup : DeploymentMode.Validium;
+        let deploymentMode = cmd.validiumMode !== undefined ? DeploymentMode.Validium : DeploymentMode.Rollup;
         await initHyperchain(deploymentMode);
     });
 initHyperchainCommand

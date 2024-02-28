@@ -285,7 +285,7 @@ export const initCommand = new Command('init')
             testTokens: { deploy: true, args: [] },
             deployerPrivateKeyArgs: [],
             deploymentMode:
-                cmd.validiumMode !== undefined ? contract.DeploymentMode.Rollup : contract.DeploymentMode.Validium
+                cmd.validiumMode !== undefined ? contract.DeploymentMode.Validium : contract.DeploymentMode.Rollup
         };
         await init(initArgs);
     });
@@ -294,7 +294,7 @@ export const reinitCommand = new Command('reinit')
     .option('--validium-mode')
     .action(async (cmd: Command) => {
         let deploymentMode =
-            cmd.validiumMode !== undefined ? contract.DeploymentMode.Rollup : contract.DeploymentMode.Validium;
+            cmd.validiumMode !== undefined ? contract.DeploymentMode.Validium : contract.DeploymentMode.Rollup;
         await reinit(deploymentMode);
     });
 export const lightweightInitCommand = new Command('lightweight-init')
@@ -302,6 +302,6 @@ export const lightweightInitCommand = new Command('lightweight-init')
     .option('--validium-mode')
     .action(async (cmd: Command) => {
         let deploymentMode =
-            cmd.validiumMode !== undefined ? contract.DeploymentMode.Rollup : contract.DeploymentMode.Validium;
+            cmd.validiumMode !== undefined ? contract.DeploymentMode.Validium : contract.DeploymentMode.Rollup;
         await lightweightInit(deploymentMode);
     });
