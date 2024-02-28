@@ -34,7 +34,6 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
     await announced(
         `Initializing in ${deploymentMode == contract.DeploymentMode.Validium ? 'Validium mode' : 'Roll-up mode'}`
     );
-    await announced('Updating mode configuration', updateConfig(deploymentMode));
     if (!process.env.CI && !skipEnvSetup) {
         await announced('Pulling images', docker.pull());
         await announced('Checking environment', checkEnv());
@@ -81,7 +80,6 @@ export async function reinit(deploymentMode: contract.DeploymentMode) {
     await announced(
         `Initializing in ${deploymentMode == contract.DeploymentMode.Validium ? 'Validium mode' : 'Roll-up mode'}`
     );
-    await announced('Updating mode configuration', updateConfig(deploymentMode));
     await announced('Setting up containers', up());
     await announced('Compiling JS packages', run.yarn());
     await announced('Compile l2 contracts', compiler.compileAll());
@@ -105,7 +103,6 @@ export async function lightweightInit(deploymentMode: contract.DeploymentMode) {
     await announced(
         `Initializing in ${deploymentMode == contract.DeploymentMode.Validium ? 'Validium mode' : 'Roll-up mode'}`
     );
-    await announced('Updating mode configuration', updateConfig(deploymentMode));
     await announced(`Setting up containers`, up());
     await announced('Clean rocksdb', clean('db'));
     await announced('Clean backups', clean('backups'));
