@@ -85,25 +85,6 @@ impl Detokenize for L1BatchCommitDataGeneratorMode {
     }
 }
 
-// The cases are extracted from the `PubdataPricingMode` enum in the L1 contracts,
-// And knowing that, in Ethereum, the response is the index of the enum case.
-// If the bytes are "0x0000000000000000000000000000000000000000000000000000000000000000" i want the rollup case,
-// If the bytes are "0x0000000000000000000000000000000000000000000000000000000000000001" i want the validium case,
-// Else, an error.
-impl L1BatchCommitDataGeneratorMode {
-    pub fn from_eth_response(response: &Bytes) -> Self {
-        match &response.0.as_slice() {
-            &[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] => {
-                Self::Rollup
-            }
-            &[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1] => {
-                Self::Validium
-            }
-            _response => panic!("Invalid response: {:?}", _response),
-        }
-    }
-}
-
 #[derive(Debug, Deserialize, Clone, PartialEq, Default)]
 pub struct StateKeeperConfig {
     /// The max number of slots for txs in a block before it should be sealed by the slots sealer.
