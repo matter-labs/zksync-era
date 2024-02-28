@@ -7,7 +7,6 @@ use super::{Resource, ResourceId};
 use crate::service::StopReceiver;
 
 /// A lazy resource represents a resource that isn't available at the time when the tasks start.
-///
 /// Normally it's used to represent the resources that should be provided by one task to another one.
 /// Lazy resources are aware of the node lifecycle, so attempt to resolve the resource won't hang
 /// if the resource is never provided: the resolve future will fail once the stop signal is sent by the node.
