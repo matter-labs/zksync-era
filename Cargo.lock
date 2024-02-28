@@ -8008,6 +8008,7 @@ dependencies = [
 [[package]]
 name = "zk_evm"
 version = "1.5.0"
+source = "git+https://github.com/matter-labs/zk_evm.git?branch=v1.5.0#8bca81f998f9f46ca384277ae8629587a6a0b00a"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -8175,7 +8176,7 @@ dependencies = [
 [[package]]
 name = "zkevm_opcode_defs"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zkevm_opcode_defs.git?branch=v1.5.0#0eedbb4856c72b4e050ebce7a1f564106f5ee563"
+source = "git+https://github.com/matter-labs/era-zkevm_opcode_defs.git?branch=v1.5.0#a9b01a0d4081ec0c8a08dd099f4fb2abc60bb395"
 dependencies = [
  "bitflags 2.4.1",
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
