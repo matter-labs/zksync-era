@@ -1,7 +1,6 @@
 import { Command } from 'commander';
 import * as toml from '@iarna/toml';
 import * as fs from 'fs';
-import * as config_constants from './config_constants';
 import deepExtend from 'deep-extend';
 
 function loadConfigFile(path: string) {
