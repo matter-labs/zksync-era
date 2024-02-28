@@ -4,7 +4,7 @@ use std::{
 };
 
 /// A unique identifier for the resource.
-/// Typically represented as a path-like string, e.g., `common/master_pool`.
+/// Typically represented as a path-like string, e.g. , `common/master_pool`.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ResourceId {
     /// Path-like representation of the resource identifier.
