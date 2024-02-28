@@ -10,7 +10,6 @@ use super::{Resource, ResourceId};
 
 /// Collection of resources that can be extended during the initialization phase, and then resolved once
 /// the wiring is complete.
-///
 /// During component initialization, resource collections can be requested by the components to push new
 /// elements into them. Once the initialization is complete, it is no longer possible to push new elements, and the
 /// collection can be resolved into a vector of resources.
