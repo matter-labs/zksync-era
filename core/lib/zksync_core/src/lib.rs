@@ -364,8 +364,16 @@ pub async fn initialize_components(
 
     let query_client = QueryClient::new(&eth_client_config.web3_url).unwrap();
     let gas_adjuster_config = configs.gas_adjuster_config.context("gas_adjuster_config")?;
-    let mut gas_adjuster =
-        GasAdjusterSingleton::new(eth_client_config.web3_url.clone(), gas_adjuster_config);
+
+    let eth_sender_config = configs
+        .eth_sender_config
+        .clone()
+        .context("eth_sender_config")?;
+    let mut gas_adjuster = GasAdjusterSingleton::new(
+        eth_client_config.web3_url.clone(),
+        gas_adjuster_config,
+        eth_sender_config.sender.pubdata_sending_mode,
+    );
 
     let (stop_sender, stop_receiver) = watch::channel(false);
     let (cb_sender, cb_receiver) = oneshot::channel();
@@ -636,7 +644,6 @@ pub async fn initialize_components(
             .await
             .context("failed to build eth_sender_pool")?;
 
-        let _kzg_config = configs.kzg_config.clone().context("kzg_config")?;
         let eth_sender = configs
             .eth_sender_config
             .clone()
@@ -653,7 +660,7 @@ pub async fn initialize_components(
                 eth_sender.sender.clone(),
                 store_factory.create_store().await,
                 eth_client_blobs_addr.is_some(),
-                Some(eth_sender.sender.pubdata_sending_mode.into()),
+                eth_sender.sender.pubdata_sending_mode.into(),
                 kzg_settings.clone(),
             ),
             Arc::new(eth_client),

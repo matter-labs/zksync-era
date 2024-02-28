@@ -14,8 +14,8 @@ pub enum PubdataDA {
 impl From<PubdataSendingMode> for PubdataDA {
     fn from(value: PubdataSendingMode) -> Self {
         match value {
-            PubdataSendingMode::Calldata => Self::Calldata,
-            PubdataSendingMode::Blobs => Self::Blobs,
+            PubdataSendingMode::Calldata => PubdataDA::Calldata,
+            PubdataSendingMode::Blobs => PubdataDA::Blobs,
         }
     }
 }
