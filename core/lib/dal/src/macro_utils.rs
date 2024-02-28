@@ -82,7 +82,7 @@ macro_rules! match_query_as {
         input: $input:expr,
         query_parts: ($($parts:tt),+),
         acc: ($($acc:tt)*);
-        $p:pat => ($($clause:tt)*)
+        $p:pat => ($($clause:tt)*),
         $($rest:tt)*
     ) => {
         match_query_as!(
