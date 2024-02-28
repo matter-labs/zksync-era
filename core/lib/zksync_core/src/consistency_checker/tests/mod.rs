@@ -48,7 +48,7 @@ fn create_pre_boojum_l1_batch_with_metadata(number: u32) -> L1BatchWithMetadata 
 fn build_commit_tx_input_data(batches: &[L1BatchWithMetadata]) -> Vec<u8> {
     let commit_tokens = batches
         .iter()
-        .map(|batch| CommitBatchInfo::new(batch, None, None).into_token());
+        .map(|batch| CommitBatchInfo::new(batch, PubdataDA::Calldata, None).into_token());
     let commit_tokens = ethabi::Token::Array(commit_tokens.collect());
 
     let mut encoded = vec![];
@@ -117,7 +117,7 @@ fn build_commit_tx_input_data_is_correct() {
         .unwrap();
         assert_eq!(
             commit_data,
-            CommitBatchInfo::new(batch, None, None).into_token()
+            CommitBatchInfo::new(batch, PubdataDA::Calldata, None).into_token()
         );
     }
 }

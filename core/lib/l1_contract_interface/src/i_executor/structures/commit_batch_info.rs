@@ -197,15 +197,16 @@ impl<'a> Tokenizable for CommitBatchInfo<'a> {
                 ),
             );
         } else {
+            let pubdata = self
+                .l1_batch_with_metadata
+                .header
+                .pubdata_input
+                .clone()
+                .unwrap_or(self.l1_batch_with_metadata.construct_pubdata());
             match self.pubdata_da {
                 PubdataDA::Calldata => {
-                    let pubdata = self
-                        .l1_batch_with_metadata
-                        .header
-                        .pubdata_input
-                        .clone()
-                        .unwrap_or(self.l1_batch_with_metadata.construct_pubdata());
-
+                    // We compute and add the blob commitment to the pubdata payload so that we can verify the proof
+                    // even if we are not using blobs.
                     let blob_commitment =
                         KzgInfo::new(self.kzg_settings.as_ref().unwrap(), &pubdata)
                             .to_blob_commitment();
@@ -218,23 +219,19 @@ impl<'a> Tokenizable for CommitBatchInfo<'a> {
                     tokens.push(Token::Bytes(result));
                 }
                 PubdataDA::Blobs => {
-                    // `pubdataCommitments` with pubdata source byte
-                    let pubdata = self
-                        .l1_batch_with_metadata
-                        .header
-                        .pubdata_input
-                        .clone()
-                        .unwrap_or(self.l1_batch_with_metadata.construct_pubdata());
-
-                    let mut pubdata_commitments = pubdata
+                    let pubdata_commitments = pubdata
                         .chunks(ZK_SYNC_BYTES_PER_BLOB)
                         .flat_map(|blob| {
                             let kzg_info = KzgInfo::new(self.kzg_settings.as_ref().unwrap(), blob);
                             kzg_info.to_pubdata_commitment().to_vec()
                         })
                         .collect::<Vec<u8>>();
-                    pubdata_commitments.insert(0, PUBDATA_SOURCE_BLOBS);
-                    tokens.push(Token::Bytes(pubdata_commitments));
+
+                    let result = std::iter::once(PUBDATA_SOURCE_BLOBS)
+                        .chain(pubdata_commitments)
+                        .collect();
+
+                    tokens.push(Token::Bytes(result));
                 }
             }
         }
