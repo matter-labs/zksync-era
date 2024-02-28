@@ -81,8 +81,8 @@ pub(crate) const PRIORITY_TXS_L1_DATA_SLOTS: usize = 2;
 pub const OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_OFFSET: usize =
     PRIORITY_TXS_L1_DATA_OFFSET + PRIORITY_TXS_L1_DATA_SLOTS;
 
-/// One of "worst case" scenarios for the number of state diffs in a batch is when 260kb of pubdata is spent
-/// on repeated writes, that are all zeroed out. In this case, the number of diffs is 260kb / 5 = 52k. This means that they will have
+/// One of "worst case" scenarios for the number of state diffs in a batch is when 260 kb of pubdata is spent
+/// on repeated writes, that are all zeroed out. In this case, the number of diffs is 260 kb / 5 = 52k. This means that they will have
 /// accommodate 14144000 bytes of calldata for the uncompressed state diffs. Adding 260k on top leaves us with
 /// roughly 14404000 bytes needed for calldata. 450125 slots are needed to accommodate this amount of data.
 /// We round up to 451000 slots just in case.
