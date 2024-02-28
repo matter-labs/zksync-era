@@ -150,7 +150,7 @@ interface ConfigLine {
     lineIndex?: number | null;
 }
 
-function updateConfigFile(path: string, updatedConfigLines: ConfigLine[]) {
+function updateConfigFile(path: string, modeConstantValues: ConfigLine[]) {
     let content = fs.readFileSync(path, 'utf-8');
     let lines = content.split('\n');
     let addedContent: string | undefined;
@@ -178,8 +178,8 @@ function updateConfigFile(path: string, updatedConfigLines: ConfigLine[]) {
         }
     }
 
-    // Iterate through each config line in updatedConfigLines
-    updatedConfigLines.forEach((configLine) => {
+    // Iterate through each config line in modeConstantValues
+    modeConstantValues.forEach((configLine) => {
         // Get the position of the line in the file
         const lineIndex = lineIndices[configLine.key];
         // Get the position of the section in the file
@@ -244,7 +244,7 @@ function updateConfigFile(path: string, updatedConfigLines: ConfigLine[]) {
 }
 
 function updateChainConfig(validiumMode: boolean) {
-    const updatedConfigLines: ConfigLine[] = [
+    const modeConstantValues: ConfigLine[] = [
         {
             key: 'compute_overhead_part',
             value: validiumMode ? constants.VALIDIUM_COMPUTE_OVERHEAD_PART : constants.ROLLUP_COMPUTE_OVERHEAD_PART,
@@ -273,30 +273,30 @@ function updateChainConfig(validiumMode: boolean) {
             section: null
         }
     ];
-    updateConfigFile(CHAIN_CONFIG_PATH, updatedConfigLines);
+    updateConfigFile(CHAIN_CONFIG_PATH, modeConstantValues);
 }
 function updateEthSenderConfig(validiumMode: boolean) {
     // This constant is used in validium mode and is deleted in rollup mode
     // In order to pass the existing integration tests
-    const updatedConfigLines: ConfigLine[] = [
+    const modeConstantValues: ConfigLine[] = [
         {
             key: 'l1_gas_per_pubdata_byte',
             value: validiumMode ? constants.VALIDIUM_L1_GAS_PER_PUBDATA_BYTE : constants.ROLLUP_L1_GAS_PER_PUBDATA_BYTE,
             section: null
         }
     ];
-    updateConfigFile(ETH_SENDER_PATH, updatedConfigLines);
+    updateConfigFile(ETH_SENDER_PATH, modeConstantValues);
 }
 
 function updateExtNodeConfig(validiumMode: boolean) {
-    const updatedConfigLines: ConfigLine[] = [
+    const modeConstantValues: ConfigLine[] = [
         {
             key: 'l1_batch_commit_data_generator_mode',
             value: validiumMode ? 'Validium' : null,
             section: validiumMode ? 'en' : null
         }
     ];
-    updateConfigFile(EXT_NODE_PATH, updatedConfigLines);
+    updateConfigFile(EXT_NODE_PATH, modeConstantValues);
 }
 
 function updateConfig(validiumMode: boolean) {
