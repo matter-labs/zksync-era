@@ -224,7 +224,7 @@ impl L1BatchPublishCriterion for DataSizeCriterion {
         for (index, l1_batch) in consecutive_l1_batches.iter().enumerate() {
             // TODO (PLA-771): Make sure that this estimation is correct.
             let l1_commit_data_size =
-                ethabi::encode(&[ethabi::Token::Array(vec![CommitBatchInfo(
+                ethabi::encode(&[ethabi::Token::Array(vec![CommitBatchInfo::new(
                     l1_batch,
                     self.pubdata_da,
                     self.kzg_settings.clone(),

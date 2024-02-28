@@ -24,7 +24,7 @@ impl Tokenize for CommitBatches {
             .l1_batches
             .iter()
             .map(|batch| {
-                CommitBatchInfo(batch, self.pubdata_da, self.kzg_settings.clone()).into_token()
+                CommitBatchInfo::new(batch, self.pubdata_da, self.kzg_settings.clone()).into_token()
             })
             .collect();
 

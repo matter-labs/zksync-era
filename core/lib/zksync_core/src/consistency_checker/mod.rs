@@ -203,7 +203,7 @@ impl LocalL1BatchCommitData {
         let l1_commit_data_variants = variants
             .into_iter()
             .map(|pubdata_da| {
-                CommitBatchInfo(&l1_batch, pubdata_da, kzg_settings.clone()).into_token()
+                CommitBatchInfo::new(&l1_batch, pubdata_da, kzg_settings.clone()).into_token()
             })
             .collect();
         Ok(Some(Self {
