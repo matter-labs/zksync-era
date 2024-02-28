@@ -17,6 +17,7 @@ keys/setup
 !backups/
 !core/
 !prover/
+!validium_mode_example/
 !yarn.lock
 !package.json
 !Cargo.lock

@@ -87,27 +87,36 @@ struct MockMainNodeClient {
 
 #[async_trait]
 impl MainNodeClient for MockMainNodeClient {
-    async fn sealed_miniblock_number(&self) -> Result<MiniblockNumber, RpcError> {
+    async fn sealed_miniblock_number(&self) -> EnrichedClientResult<MiniblockNumber> {
         if let &Some(error_kind) = &*self.error_kind.lock().unwrap() {
-            return Err(error_kind.into());
+            return Err(EnrichedClientError::new(
+                error_kind.into(),
+                "sealed_miniblock_number",
+            ));
         }
         Ok(self
             .latest_miniblock_response
             .expect("unexpected `sealed_miniblock_number` request"))
     }
 
-    async fn sealed_l1_batch_number(&self) -> Result<L1BatchNumber, RpcError> {
+    async fn sealed_l1_batch_number(&self) -> EnrichedClientResult<L1BatchNumber> {
         if let &Some(error_kind) = &*self.error_kind.lock().unwrap() {
-            return Err(error_kind.into());
+            return Err(EnrichedClientError::new(
+                error_kind.into(),
+                "sealed_l1_batch_number",
+            ));
         }
         Ok(self
             .latest_l1_batch_response
             .expect("unexpected `sealed_l1_batch_number` request"))
     }
 
-    async fn miniblock_hash(&self, number: MiniblockNumber) -> Result<Option<H256>, RpcError> {
+    async fn miniblock_hash(&self, number: MiniblockNumber) -> EnrichedClientResult<Option<H256>> {
         if let &Some(error_kind) = &*self.error_kind.lock().unwrap() {
-            return Err(error_kind.into());
+            return Err(
+                EnrichedClientError::new(error_kind.into(), "miniblock_hash")
+                    .with_arg("number", &number),
+            );
         }
 
         if let Some(response) = self.miniblock_hash_responses.get(&number) {
@@ -117,9 +126,15 @@ impl MainNodeClient for MockMainNodeClient {
         }
     }
 
-    async fn l1_batch_root_hash(&self, number: L1BatchNumber) -> Result<Option<H256>, RpcError> {
+    async fn l1_batch_root_hash(
+        &self,
+        number: L1BatchNumber,
+    ) -> EnrichedClientResult<Option<H256>> {
         if let &Some(error_kind) = &*self.error_kind.lock().unwrap() {
-            return Err(error_kind.into());
+            return Err(
+                EnrichedClientError::new(error_kind.into(), "l1_batch_root_hash")
+                    .with_arg("number", &number),
+            );
         }
 
         if let Some(response) = self.l1_batch_root_hash_responses.get(&number) {
@@ -130,7 +145,11 @@ impl MainNodeClient for MockMainNodeClient {
     }
 }
 
-impl UpdateCorrectBlock for mpsc::UnboundedSender<(MiniblockNumber, L1BatchNumber)> {
+impl HandleReorgDetectorEvent for mpsc::UnboundedSender<(MiniblockNumber, L1BatchNumber)> {
+    fn initialize(&mut self) {
+        // Do nothing
+    }
+
     fn update_correct_block(
         &mut self,
         last_correct_miniblock: MiniblockNumber,
@@ -138,6 +157,21 @@ impl UpdateCorrectBlock for mpsc::UnboundedSender<(MiniblockNumber, L1BatchNumbe
     ) {
         self.send((last_correct_miniblock, last_correct_l1_batch))
             .ok();
+    }
+
+    fn report_divergence(&mut self, _diverged_l1_batch: L1BatchNumber) {
+        // Do nothing
+    }
+}
+
+fn create_mock_detector(client: MockMainNodeClient, pool: ConnectionPool) -> ReorgDetector {
+    let (health_check, health_updater) = ReactiveHealthCheck::new("reorg_detector");
+    ReorgDetector {
+        client: Box::new(client),
+        event_handler: Box::new(health_updater),
+        pool,
+        sleep_interval: Duration::from_millis(10),
+        health_check,
     }
 }
 
@@ -200,13 +234,10 @@ async fn normal_reorg_function(snapshot_recovery: bool, with_transient_errors: b
     let (block_update_sender, mut block_update_receiver) =
         mpsc::unbounded_channel::<(MiniblockNumber, L1BatchNumber)>();
     let detector = ReorgDetector {
-        client: Box::new(client),
-        block_updater: Box::new(block_update_sender),
-        pool: pool.clone(),
-        stop_receiver,
-        sleep_interval: Duration::from_millis(10),
+        event_handler: Box::new(block_update_sender),
+        ..create_mock_detector(client, pool.clone())
     };
-    let detector_task = tokio::spawn(detector.run());
+    let detector_task = tokio::spawn(detector.run(stop_receiver));
 
     for (number, miniblock_hash, l1_batch_hash) in miniblock_and_l1_batch_hashes {
         store_miniblock(&mut storage, number, miniblock_hash).await;
@@ -241,15 +272,9 @@ async fn detector_stops_on_fatal_rpc_error() {
     *client.error_kind.lock().unwrap() = Some(RpcErrorKind::Fatal);
 
     let (_stop_sender, stop_receiver) = watch::channel(false);
-    let detector = ReorgDetector {
-        client: Box::new(client),
-        block_updater: Box::new(()),
-        pool: pool.clone(),
-        stop_receiver,
-        sleep_interval: Duration::from_millis(10),
-    };
+    let detector = create_mock_detector(client, pool.clone());
     // Check that the detector stops when a fatal RPC error is encountered.
-    detector.run().await.unwrap_err();
+    detector.run(stop_receiver).await.unwrap_err();
 }
 
 #[tokio::test]
@@ -284,14 +309,8 @@ async fn reorg_is_detected_on_batch_hash_mismatch() {
         .l1_batch_root_hash_responses
         .insert(L1BatchNumber(2), H256::repeat_byte(2));
 
-    let detector = ReorgDetector {
-        client: Box::new(client),
-        block_updater: Box::new(()),
-        pool: pool.clone(),
-        stop_receiver,
-        sleep_interval: Duration::from_millis(10),
-    };
-    let detector_task = tokio::spawn(detector.run());
+    let detector = create_mock_detector(client, pool.clone());
+    let detector_task = tokio::spawn(detector.run(stop_receiver));
 
     store_miniblock(&mut storage, 1, miniblock_hash).await;
     seal_l1_batch(&mut storage, 1, H256::repeat_byte(1)).await;
@@ -336,14 +355,8 @@ async fn reorg_is_detected_on_miniblock_hash_mismatch() {
         .miniblock_hash_responses
         .insert(MiniblockNumber(3), miniblock_hash);
 
-    let detector = ReorgDetector {
-        client: Box::new(client),
-        block_updater: Box::new(()),
-        pool: pool.clone(),
-        stop_receiver,
-        sleep_interval: Duration::from_millis(10),
-    };
-    let detector_task = tokio::spawn(detector.run());
+    let detector = create_mock_detector(client, pool.clone());
+    let detector_task = tokio::spawn(detector.run(stop_receiver));
 
     store_miniblock(&mut storage, 1, miniblock_hash).await;
     seal_l1_batch(&mut storage, 1, H256::repeat_byte(1)).await;
@@ -430,13 +443,10 @@ async fn reorg_is_detected_on_historic_batch_hash_mismatch(
     let (block_update_sender, mut block_update_receiver) =
         mpsc::unbounded_channel::<(MiniblockNumber, L1BatchNumber)>();
     let detector = ReorgDetector {
-        client: Box::new(client),
-        block_updater: Box::new(block_update_sender),
-        pool: pool.clone(),
-        stop_receiver,
-        sleep_interval: Duration::from_millis(10),
+        event_handler: Box::new(block_update_sender),
+        ..create_mock_detector(client, pool.clone())
     };
-    let detector_task = tokio::spawn(detector.run());
+    let detector_task = tokio::spawn(detector.run(stop_receiver));
 
     if matches!(storage_update_strategy, StorageUpdateStrategy::Sequential) {
         let mut last_number = earliest_l1_batch_number;
@@ -468,14 +478,8 @@ async fn stopping_reorg_detector_while_waiting_for_l1_batch() {
     drop(storage);
 
     let (stop_sender, stop_receiver) = watch::channel(false);
-    let detector = ReorgDetector {
-        client: Box::<MockMainNodeClient>::default(),
-        block_updater: Box::new(()),
-        pool,
-        stop_receiver,
-        sleep_interval: Duration::from_millis(10),
-    };
-    let detector_task = tokio::spawn(detector.run());
+    let detector = create_mock_detector(MockMainNodeClient::default(), pool);
+    let detector_task = tokio::spawn(detector.run(stop_receiver));
 
     stop_sender.send_replace(true);
 
@@ -499,16 +503,10 @@ async fn detector_errors_on_earliest_batch_hash_mismatch() {
         .l1_batch_root_hash_responses
         .insert(L1BatchNumber(0), H256::zero());
 
-    let (_stop_sender, stop_receiver) = watch::channel(false);
-    let mut detector = ReorgDetector {
-        client: Box::new(client),
-        block_updater: Box::new(()),
-        pool: pool.clone(),
-        stop_receiver,
-        sleep_interval: Duration::from_millis(10),
-    };
+    let (_stop_sender, mut stop_receiver) = watch::channel(false);
+    let mut detector = create_mock_detector(client, pool.clone());
 
-    let err = detector.run_inner().await.unwrap_err();
+    let err = detector.run_inner(&mut stop_receiver).await.unwrap_err();
     assert_matches!(err, HashMatchError::EarliestHashMismatch(L1BatchNumber(0)));
 }
 
@@ -520,14 +518,8 @@ async fn detector_errors_on_earliest_batch_hash_mismatch_with_snapshot_recovery(
         .l1_batch_root_hash_responses
         .insert(L1BatchNumber(3), H256::zero());
 
-    let (_stop_sender, stop_receiver) = watch::channel(false);
-    let mut detector = ReorgDetector {
-        client: Box::new(client),
-        block_updater: Box::new(()),
-        pool: pool.clone(),
-        stop_receiver,
-        sleep_interval: Duration::from_millis(10),
-    };
+    let (_stop_sender, mut stop_receiver) = watch::channel(false);
+    let mut detector = create_mock_detector(client, pool.clone());
 
     tokio::spawn(async move {
         tokio::time::sleep(Duration::from_millis(20)).await;
@@ -540,7 +532,7 @@ async fn detector_errors_on_earliest_batch_hash_mismatch_with_snapshot_recovery(
         seal_l1_batch(&mut storage, 3, H256::from_low_u64_be(3)).await;
     });
 
-    let err = detector.run_inner().await.unwrap_err();
+    let err = detector.run_inner(&mut stop_receiver).await.unwrap_err();
     assert_matches!(err, HashMatchError::EarliestHashMismatch(L1BatchNumber(3)));
 }
 
@@ -581,14 +573,8 @@ async fn reorg_is_detected_without_waiting_for_main_node_to_catch_up() {
     client.latest_miniblock_response = Some(MiniblockNumber(3));
 
     let (_stop_sender, stop_receiver) = watch::channel(false);
-    let detector = ReorgDetector {
-        client: Box::new(client),
-        block_updater: Box::new(()),
-        pool,
-        stop_receiver,
-        sleep_interval: Duration::from_millis(10),
-    };
-    let detector_task = tokio::spawn(detector.run());
+    let detector = create_mock_detector(client, pool);
+    let detector_task = tokio::spawn(detector.run(stop_receiver));
 
     let task_result = detector_task.await.unwrap();
     let last_correct_l1_batch = task_result.unwrap();

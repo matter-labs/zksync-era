@@ -39,6 +39,7 @@ use crate::{
     fee_model::BatchFeeModelInputProvider,
     metrics::{TxStage, APP_METRICS},
     state_keeper::seal_criteria::{ConditionalSealer, NoopSealer, SealData},
+    utils::pending_protocol_version,
 };
 
 mod proxy;
@@ -375,8 +376,7 @@ impl TxSender {
             .as_ref()
             .unwrap() // Checked above
             .access_storage_tagged("api")
-            .await
-            .unwrap()
+            .await?
             .transactions_dal()
             .insert_transaction_l2(tx, execution_output.metrics)
             .await;
@@ -570,10 +570,9 @@ impl TxSender {
         let balance = self
             .acquire_replica_connection()
             .await?
-            .storage_dal()
-            .get_by_key(&eth_balance_key)
-            .await?
-            .unwrap_or_default();
+            .storage_web3_dal()
+            .get_value(&eth_balance_key)
+            .await?;
         Ok(h256_to_u256(balance))
     }
 
@@ -665,11 +664,9 @@ impl TxSender {
 
         let mut connection = self.acquire_replica_connection().await?;
         let block_args = BlockArgs::pending(&mut connection).await?;
-        let protocol_version = block_args
-            .resolve_block_info(&mut connection)
+        let protocol_version = pending_protocol_version(&mut connection)
             .await
-            .with_context(|| format!("failed resolving block info for {block_args:?}"))?
-            .protocol_version;
+            .context("failed getting pending protocol version")?;
         drop(connection);
 
         let fee_input = {
@@ -710,16 +707,15 @@ impl TxSender {
         let account_code_hash = self
             .acquire_replica_connection()
             .await?
-            .storage_dal()
-            .get_by_key(&hashed_key)
+            .storage_web3_dal()
+            .get_value(&hashed_key)
             .await
             .with_context(|| {
                 format!(
                     "failed getting code hash for account {:?}",
                     tx.initiator_account()
                 )
-            })?
-            .unwrap_or_default();
+            })?;
 
         if !tx.is_l1()
             && account_code_hash == H256::zero()
@@ -919,12 +915,9 @@ impl TxSender {
 
     pub async fn gas_price(&self) -> anyhow::Result<u64> {
         let mut connection = self.acquire_replica_connection().await?;
-        let block_args = BlockArgs::pending(&mut connection).await?;
-        let protocol_version = block_args
-            .resolve_block_info(&mut connection)
+        let protocol_version = pending_protocol_version(&mut connection)
             .await
-            .with_context(|| format!("failed resolving block info for {block_args:?}"))?
-            .protocol_version;
+            .context("failed obtaining pending protocol version")?;
         drop(connection);
 
         let (base_fee, _) = derive_base_fee_and_gas_per_pubdata(

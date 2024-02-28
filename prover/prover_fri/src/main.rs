@@ -208,8 +208,6 @@ async fn get_prover_tasks(
     pool: ConnectionPool,
     circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
-    use std::sync::Arc;
-
     use gpu_prover_job_processor::gpu_prover;
     use socket_listener::gpu_socket_listener;
     use tokio::sync::Mutex;

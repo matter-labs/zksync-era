@@ -45,6 +45,15 @@ config_path="etc/env/en_consensus_config.json"
 # node:public:ed25519:147bb71be895846e1d6f5b1c6a8be53848b82bdafcf66e9dfe6ca65581076a1d
 node_key="node:secret:ed25519:d56de77c738326c305c64c25bffe1cc94ea7c639cf71ca3ff94229df27f167ac"
 
+[en.database]
+long_connection_threshold_ms = 2000
+slow_query_threshold_ms = 100
+
+[en.snapshots.object_store]
+mode="FileBacked"
+file_backed_base_path="artifacts"
+# ^ Intentionally set to coincide with main node's in order to read locally produced snapshots
+
 [rust]
 # `RUST_LOG` environment variable for `env_logger`
 # Here we use TOML multiline strings: newlines will be trimmed.
@@ -64,6 +73,7 @@ zksync_types=info,\
 loadnext=info,\
 vm=info,\
 zksync_external_node=info,\
+zksync_snapshots_applier=debug,\
 """
 
 # `RUST_BACKTRACE` variable

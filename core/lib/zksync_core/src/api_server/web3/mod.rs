@@ -41,6 +41,7 @@ use crate::{
         web3::backend_jsonrpsee::batch_limiter_middleware::LimitMiddleware,
     },
     sync_layer::SyncState,
+    utils::wait_for_l1_batch,
 };
 
 pub mod backend_jsonrpsee;
@@ -98,9 +99,10 @@ impl Namespace {
 /// Handles to the initialized API server.
 #[derive(Debug)]
 pub struct ApiServerHandles {
-    pub local_addr: SocketAddr,
     pub tasks: Vec<JoinHandle<anyhow::Result<()>>>,
     pub health_check: ReactiveHealthCheck,
+    #[allow(unused)] // only used in tests
+    pub(crate) local_addr: future::TryMaybeDone<oneshot::Receiver<SocketAddr>>,
 }
 
 /// Optional part of the API server parameters.
@@ -441,22 +443,11 @@ impl FullApiParams {
             health_updater,
         ));
 
-        let local_addr = match local_addr.await {
-            Ok(addr) => addr,
-            Err(_) => {
-                // If the local address was not transmitted, `server_task` must have failed.
-                let err = server_task
-                    .await
-                    .with_context(|| format!("{health_check_name} server panicked"))?
-                    .unwrap_err();
-                return Err(err);
-            }
-        };
         tasks.push(server_task);
         Ok(ApiServerHandles {
-            local_addr,
             health_check,
             tasks,
+            local_addr: future::try_maybe_done(local_addr),
         })
     }
 
@@ -469,6 +460,29 @@ impl FullApiParams {
         health_updater: HealthUpdater,
     ) -> anyhow::Result<()> {
         let transport = self.transport;
+        let (transport_str, is_http, addr) = match transport {
+            ApiTransport::Http(addr) => ("HTTP", true, addr),
+            ApiTransport::WebSocket(addr) => ("WS", false, addr),
+        };
+        let transport_label = (&transport).into();
+
+        tracing::info!(
+            "Waiting for at least one L1 batch in Postgres to start {transport_str} API server"
+        );
+        // Starting the server before L1 batches are present in Postgres can lead to some invariants the server logic
+        // implicitly assumes not being upheld. The only case when we'll actually wait here is immediately after snapshot recovery.
+        let earliest_l1_batch_number =
+            wait_for_l1_batch(&self.pool, self.polling_interval, &mut stop_receiver)
+                .await
+                .context("error while waiting for L1 batch in Postgres")?;
+
+        if let Some(number) = earliest_l1_batch_number {
+            tracing::info!("Successfully waited for at least one L1 batch in Postgres; the earliest one is #{number}");
+        } else {
+            tracing::info!("Received shutdown signal before {transport_str} API server is started; shutting down");
+            return Ok(());
+        }
+
         let batch_request_config = self
             .optional
             .batch_request_size_limit
@@ -486,12 +500,6 @@ impl FullApiParams {
         let rpc = self
             .build_rpc_module(pub_sub, last_sealed_miniblock)
             .await?;
-
-        let (transport_str, is_http, addr) = match transport {
-            ApiTransport::Http(addr) => ("HTTP", true, addr),
-            ApiTransport::WebSocket(addr) => ("WS", false, addr),
-        };
-        let transport_label = (&transport).into();
 
         // Setup CORS.
         let cors = is_http.then(|| {
@@ -549,6 +557,7 @@ impl FullApiParams {
         let local_addr = local_addr.with_context(|| {
             format!("Failed getting local address for {transport_str} JSON-RPC server")
         })?;
+        tracing::info!("Initialized {transport_str} API on {local_addr:?}");
         local_addr_sender.send(local_addr).ok();
 
         let close_handle = server_handle.clone();

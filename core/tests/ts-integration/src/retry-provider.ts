@@ -1,19 +1,21 @@
 import * as zksync from 'zksync-web3';
 import * as ethers from 'ethers';
 import { Reporter } from './reporter';
+import { TransactionResponse } from 'zksync-web3/src/types';
 
 /**
  * RetryProvider retries every RPC request if it detects a timeout-related issue on the server side.
  */
 export class RetryProvider extends zksync.Provider {
-    private reporter?: Reporter;
+    private readonly reporter: Reporter;
+
     constructor(
         url?: string | ethers.ethers.utils.ConnectionInfo | undefined,
         network?: ethers.ethers.providers.Networkish | undefined,
-        reporter?: Reporter | undefined
+        reporter?: Reporter
     ) {
         super(url, network);
-        this.reporter = reporter;
+        this.reporter = reporter ?? new Reporter();
     }
 
     override async send(method: string, params: any): Promise<any> {
@@ -48,4 +50,22 @@ export class RetryProvider extends zksync.Provider {
             }
         }
     }
+
+    override _wrapTransaction(tx: ethers.Transaction, hash?: string): AugmentedTransactionResponse {
+        const wrapped = super._wrapTransaction(tx, hash);
+        const originalWait = wrapped.wait;
+        wrapped.wait = async (confirmations) => {
+            this.reporter.debug(`Started waiting for transaction ${tx.hash} (from=${tx.from}, nonce=${tx.nonce})`);
+            const receipt = await originalWait(confirmations);
+            this.reporter.debug(
+                `Obtained receipt for transaction ${tx.hash}: blockNumber=${receipt.blockNumber}, status=${receipt.status}`
+            );
+            return receipt;
+        };
+        return { ...wrapped, reporter: this.reporter };
+    }
+}
+
+export interface AugmentedTransactionResponse extends TransactionResponse {
+    readonly reporter?: Reporter;
 }

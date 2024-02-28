@@ -137,8 +137,7 @@ impl HttpTest for TraceBlockTestWithSnapshotRecovery {
     }
 
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
-        let snapshot_miniblock_number =
-            MiniblockNumber(StorageInitialization::SNAPSHOT_RECOVERY_BLOCK);
+        let snapshot_miniblock_number = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK;
         let missing_miniblock_numbers = [
             MiniblockNumber(0),
             snapshot_miniblock_number - 1,
@@ -150,10 +149,10 @@ impl HttpTest for TraceBlockTestWithSnapshotRecovery {
                 .trace_block_by_number(number.0.into(), None)
                 .await
                 .unwrap_err();
-            assert_pruned_block_error(&error, 24);
+            assert_pruned_block_error(&error, snapshot_miniblock_number + 1);
         }
 
-        TraceBlockTest(snapshot_miniblock_number + 1)
+        TraceBlockTest(snapshot_miniblock_number + 2)
             .test(client, pool)
             .await?;
         Ok(())
