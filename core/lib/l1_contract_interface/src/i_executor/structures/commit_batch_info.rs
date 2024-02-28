@@ -44,7 +44,7 @@ impl<'a> CommitBatchInfo<'a> {
             .l1_batch_with_metadata
             .header
             .protocol_version
-            .unwrap_or_else(|| ProtocolVersionId::last_potentially_undefined())
+            .unwrap_or_else(ProtocolVersionId::last_potentially_undefined)
             .is_pre_boojum()
         {
             vec![
@@ -183,7 +183,7 @@ impl<'a> Tokenizable for CommitBatchInfo<'a> {
             .l1_batch_with_metadata
             .header
             .protocol_version
-            .unwrap_or_else(|| ProtocolVersionId::last_potentially_undefined());
+            .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
 
         if protocol_version.is_pre_boojum() {
             return Token::Tuple(tokens);
