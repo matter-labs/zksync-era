@@ -4,7 +4,7 @@ use assert_matches::assert_matches;
 use once_cell::sync::Lazy;
 use test_casing::test_casing;
 use zksync_config::{
-    configs::eth_sender::{ProofSendingMode, SenderConfig},
+    configs::eth_sender::{ProofSendingMode, PubdataSendingMode, SenderConfig},
     ContractsConfig, ETHSenderConfig, GasAdjusterConfig,
 };
 use zksync_dal::{ConnectionPool, StorageProcessor};
@@ -92,6 +92,7 @@ impl EthSenderTester {
                     pricing_formula_parameter_b: 2.0,
                     ..eth_sender_config.gas_adjuster
                 },
+                PubdataSendingMode::Calldata,
             )
             .await
             .unwrap(),
