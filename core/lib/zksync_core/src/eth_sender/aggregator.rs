@@ -36,7 +36,7 @@ pub struct Aggregator {
     /// means no wait is needed: nonces will still provide the correct ordering of
     /// transactions.
     operate_4844_mode: bool,
-    pubdata_da: Option<PubdataDA>,
+    pubdata_da: PubdataDA,
     kzg_settings: Option<Arc<KzgSettings>>,
 }
 
@@ -45,7 +45,7 @@ impl Aggregator {
         config: SenderConfig,
         blob_store: Arc<dyn ObjectStore>,
         operate_4844_mode: bool,
-        pubdata_da: Option<PubdataDA>,
+        pubdata_da: PubdataDA,
         kzg_settings: Option<Arc<KzgSettings>>,
     ) -> Self {
         Self {

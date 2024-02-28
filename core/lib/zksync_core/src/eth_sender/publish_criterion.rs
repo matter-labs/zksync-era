@@ -202,7 +202,7 @@ impl L1BatchPublishCriterion for GasCriterion {
 pub struct DataSizeCriterion {
     pub op: AggregatedActionType,
     pub data_limit: usize,
-    pub pubdata_da: Option<PubdataDA>,
+    pub pubdata_da: PubdataDA,
     pub kzg_settings: Option<Arc<KzgSettings>>,
 }
 

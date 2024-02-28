@@ -13,7 +13,7 @@ use crate::{
 pub struct CommitBatches {
     pub last_committed_l1_batch: L1BatchWithMetadata,
     pub l1_batches: Vec<L1BatchWithMetadata>,
-    pub pubdata_da: Option<PubdataDA>,
+    pub pubdata_da: PubdataDA,
     pub kzg_settings: Option<Arc<KzgSettings>>,
 }
 

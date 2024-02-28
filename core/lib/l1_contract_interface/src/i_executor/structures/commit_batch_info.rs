@@ -22,14 +22,14 @@ const PUBDATA_SOURCE_BLOBS: u8 = 1;
 #[derive(Debug)]
 pub struct CommitBatchInfo<'a> {
     pub l1_batch_with_metadata: &'a L1BatchWithMetadata,
-    pub pubdata_da: Option<PubdataDA>,
+    pub pubdata_da: PubdataDA,
     pub kzg_settings: Option<Arc<KzgSettings>>,
 }
 
 impl<'a> CommitBatchInfo<'a> {
     pub fn new(
         l1_batch_with_metadata: &'a L1BatchWithMetadata,
-        pubdata_da: Option<PubdataDA>,
+        pubdata_da: PubdataDA,
         kzg_settings: Option<Arc<KzgSettings>>,
     ) -> Self {
         Self {
@@ -176,7 +176,7 @@ impl<'a> Tokenizable for CommitBatchInfo<'a> {
         )))
     }
 
-    fn into_token(mut self) -> Token {
+    fn into_token(self) -> Token {
         let mut tokens = self.base_tokens();
 
         if self
@@ -186,67 +186,56 @@ impl<'a> Tokenizable for CommitBatchInfo<'a> {
             .unwrap()
             .is_pre_1_4_2()
         {
-            self.pubdata_da = None;
-        }
-        if !self
-            .l1_batch_with_metadata
-            .header
-            .protocol_version
-            .unwrap()
-            .is_pre_boojum()
-        {
-            match self.pubdata_da {
-                None => tokens.push(
-                    // `totalL2ToL1Pubdata` without pubdata source byte
-                    Token::Bytes(
-                        self.l1_batch_with_metadata
-                            .header
-                            .pubdata_input
-                            .clone()
-                            .unwrap_or(self.l1_batch_with_metadata.construct_pubdata()),
-                    ),
+            tokens.push(
+                // `totalL2ToL1Pubdata` without pubdata source byte
+                Token::Bytes(
+                    self.l1_batch_with_metadata
+                        .header
+                        .pubdata_input
+                        .clone()
+                        .unwrap_or(self.l1_batch_with_metadata.construct_pubdata()),
                 ),
-                Some(pubdata_da) => match pubdata_da {
-                    PubdataDA::Calldata => {
-                        let pubdata = self
-                            .l1_batch_with_metadata
-                            .header
-                            .pubdata_input
-                            .clone()
-                            .unwrap_or(self.l1_batch_with_metadata.construct_pubdata());
+            );
+        } else {
+            match self.pubdata_da {
+                PubdataDA::Calldata => {
+                    let pubdata = self
+                        .l1_batch_with_metadata
+                        .header
+                        .pubdata_input
+                        .clone()
+                        .unwrap_or(self.l1_batch_with_metadata.construct_pubdata());
 
-                        let blob_commitment =
-                            KzgInfo::new(self.kzg_settings.as_ref().unwrap(), &pubdata)
-                                .to_blob_commitment();
+                    let blob_commitment =
+                        KzgInfo::new(self.kzg_settings.as_ref().unwrap(), &pubdata)
+                            .to_blob_commitment();
 
-                        let result = std::iter::once(PUBDATA_SOURCE_CALLDATA)
-                            .chain(pubdata)
-                            .chain(blob_commitment)
-                            .collect();
+                    let result = std::iter::once(PUBDATA_SOURCE_CALLDATA)
+                        .chain(pubdata)
+                        .chain(blob_commitment)
+                        .collect();
 
-                        tokens.push(Token::Bytes(result));
-                    }
-                    PubdataDA::Blobs => {
-                        // `pubdataCommitments` with pubdata source byte
-                        let pubdata = self
-                            .l1_batch_with_metadata
-                            .header
-                            .pubdata_input
-                            .clone()
-                            .unwrap_or(self.l1_batch_with_metadata.construct_pubdata());
+                    tokens.push(Token::Bytes(result));
+                }
+                PubdataDA::Blobs => {
+                    // `pubdataCommitments` with pubdata source byte
+                    let pubdata = self
+                        .l1_batch_with_metadata
+                        .header
+                        .pubdata_input
+                        .clone()
+                        .unwrap_or(self.l1_batch_with_metadata.construct_pubdata());
 
-                        let mut pubdata_commitments = pubdata
-                            .chunks(ZK_SYNC_BYTES_PER_BLOB)
-                            .flat_map(|blob| {
-                                let kzg_info =
-                                    KzgInfo::new(self.kzg_settings.as_ref().unwrap(), blob);
-                                kzg_info.to_pubdata_commitment().to_vec()
-                            })
-                            .collect::<Vec<u8>>();
-                        pubdata_commitments.insert(0, PUBDATA_SOURCE_BLOBS);
-                        tokens.push(Token::Bytes(pubdata_commitments));
-                    }
-                },
+                    let mut pubdata_commitments = pubdata
+                        .chunks(ZK_SYNC_BYTES_PER_BLOB)
+                        .flat_map(|blob| {
+                            let kzg_info = KzgInfo::new(self.kzg_settings.as_ref().unwrap(), blob);
+                            kzg_info.to_pubdata_commitment().to_vec()
+                        })
+                        .collect::<Vec<u8>>();
+                    pubdata_commitments.insert(0, PUBDATA_SOURCE_BLOBS);
+                    tokens.push(Token::Bytes(pubdata_commitments));
+                }
             }
         }
 
