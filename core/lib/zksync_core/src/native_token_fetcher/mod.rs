@@ -26,6 +26,22 @@ pub trait ConversionRateFetcher: 'static + std::fmt::Debug + Send + Sync {
     fn conversion_rate(&self) -> anyhow::Result<u64>;
 }
 
+#[derive(Debug)]
+pub(crate) struct NoOpConversionRateFetcher;
+
+impl NoOpConversionRateFetcher {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+#[async_trait]
+impl ConversionRateFetcher for NoOpConversionRateFetcher {
+    fn conversion_rate(&self) -> anyhow::Result<u64> {
+        Ok(1)
+    }
+}
+
 pub(crate) struct NativeTokenFetcherSingleton {
     native_token_fetcher_config: NativeTokenFetcherConfig,
     singleton: OnceCell<Result<Arc<NativeTokenFetcher>, Error>>,

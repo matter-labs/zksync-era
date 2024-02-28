@@ -68,7 +68,9 @@ use crate::{
     l1_gas_price::{GasAdjusterSingleton, L1GasPriceProvider},
     metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
     metrics::{InitStage, APP_METRICS},
-    native_token_fetcher::{ConversionRateFetcher, NativeTokenFetcherSingleton},
+    native_token_fetcher::{
+        ConversionRateFetcher, NativeTokenFetcherSingleton, NoOpConversionRateFetcher,
+    },
     state_keeper::{
         create_state_keeper, MempoolFetcher, MempoolGuard, MiniblockSealer, SequencerSealer,
     },
@@ -340,19 +342,19 @@ pub async fn initialize_components(
     let (stop_sender, stop_receiver) = watch::channel(false);
     let (cb_sender, cb_receiver) = oneshot::channel();
 
-    let native_token_fetcher = if let Some(fetcher_singleton) = &mut fetcher_component {
-        let fetcher = fetcher_singleton
-            .get_or_init()
-            .await
-            .context("fetcher.get_or_init()")?;
-        Some(fetcher)
-    } else {
-        None
-    };
+    let native_token_fetcher: Arc<dyn ConversionRateFetcher> =
+        if let Some(fetcher_singleton) = &mut fetcher_component {
+            let fetcher = fetcher_singleton
+                .get_or_init()
+                .await
+                .context("fetcher.get_or_init()")?;
+            fetcher
+        } else {
+            // create no-op fetcher if the native token fetcher is not enabled
+            Arc::new(NoOpConversionRateFetcher::new())
+        };
 
-    let erc20_fetcher_dyn: Option<Arc<dyn ConversionRateFetcher>> = native_token_fetcher
-        .as_ref()
-        .map(|fetcher| fetcher.clone() as Arc<dyn ConversionRateFetcher>);
+    let erc20_fetcher_dyn: Arc<dyn ConversionRateFetcher> = native_token_fetcher.clone();
 
     let query_client = QueryClient::new(&eth_client_config.web3_url).unwrap();
     let gas_adjuster_config = configs.gas_adjuster_config.context("gas_adjuster_config")?;
