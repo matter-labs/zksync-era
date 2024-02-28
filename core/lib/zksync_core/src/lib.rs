@@ -653,7 +653,7 @@ pub async fn initialize_components(
                 eth_sender.sender.clone(),
                 store_factory.create_store().await,
                 eth_client_blobs_addr.is_some(),
-                None,
+                Some(eth_sender.sender.pubdata_sending_mode.into()),
                 kzg_settings.clone(),
             ),
             Arc::new(eth_client),
