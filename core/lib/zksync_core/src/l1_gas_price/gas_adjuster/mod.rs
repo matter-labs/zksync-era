@@ -283,14 +283,15 @@ impl L1TxParamsProvider for GasAdjuster {
         new_fee as u64
     }
 
-    fn get_blob_base_fee(&self, time_in_mempool: u32) -> u64 {
+    fn get_blob_base_fee(&self) -> u64 {
         let a = self.config.pricing_formula_parameter_a;
         let b = self.config.pricing_formula_parameter_b;
 
+        // Use the single evaulation at zero of the following:
         // Currently we use an exponential formula.
         // The alternative is a linear one:
         // `let scale_factor = a + b * time_in_mempool as f64;`
-        let scale_factor = a * b.powf(time_in_mempool as f64);
+        let scale_factor = a * b.powf(0.0);
         let median = self.blob_base_fee_statistics.median();
         METRICS.median_blob_base_fee_per_gas.set(median.as_u64());
         let new_fee = median.as_u64() as f64 * scale_factor;

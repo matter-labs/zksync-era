@@ -8763,7 +8763,6 @@ version = "0.1.0"
 dependencies = [
  "codegen 0.1.0",
  "hex",
- "once_cell",
  "serde",
  "serde_json",
  "serde_with",

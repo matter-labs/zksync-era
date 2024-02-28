@@ -51,7 +51,6 @@ pub struct EthTx {
     /// this transaction. If it is set to `None` this transaction was sent by the main operator.
     pub from_addr: Option<Address>,
     pub blob_sidecar: Option<EthTxBlobSidecar>,
-    pub previous_blob_gas_price: Option<u64>,
 }
 
 impl std::fmt::Debug for EthTx {
@@ -74,6 +73,7 @@ pub struct TxHistory {
     pub eth_tx_id: u32,
     pub base_fee_per_gas: u64,
     pub priority_fee_per_gas: u64,
+    pub blob_base_fee_per_gas: Option<u64>,
     pub tx_hash: H256,
     pub signed_raw_tx: Vec<u8>,
     pub sent_at_block: Option<u32>,

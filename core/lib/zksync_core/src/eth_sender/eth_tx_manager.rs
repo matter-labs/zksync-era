@@ -119,18 +119,33 @@ impl EthTxManager {
         tx: &EthTx,
         time_in_mempool: u32,
     ) -> Result<EthFee, ETHSenderError> {
-        let base_fee_per_gas = self.gas_adjuster.get_base_fee(time_in_mempool);
-        let blob_base_fee_per_gas = if tx.blob_sidecar.is_some() {
+        if tx.blob_sidecar.is_some() {
             if time_in_mempool != 0 {
-                // on resending blob transactions we need to double the previous
-                // price
-                tx.previous_blob_gas_price.map(|v| v * 2)
-            } else {
-                Some(self.gas_adjuster.get_blob_base_fee(time_in_mempool))
+                // for blob transactions on resending need to double all gas prices
+                let previous_sent_tx = storage
+                    .eth_sender_dal()
+                    .get_last_sent_eth_tx(tx.id)
+                    .await
+                    .unwrap()
+                    .unwrap();
+                return Ok(EthFee {
+                    base_fee_per_gas: previous_sent_tx.base_fee_per_gas * 2,
+                    priority_fee_per_gas: previous_sent_tx.priority_fee_per_gas * 2,
+                    blob_base_fee_per_gas: previous_sent_tx.blob_base_fee_per_gas.map(|v| v * 2),
+                });
             }
-        } else {
-            None
-        };
+            let base_fee_per_gas = self.gas_adjuster.get_base_fee(0);
+            let priority_fee_per_gas = self.gas_adjuster.get_priority_fee();
+            let blob_base_fee_per_gas = Some(self.gas_adjuster.get_blob_base_fee());
+
+            return Ok(EthFee {
+                base_fee_per_gas,
+                priority_fee_per_gas,
+                blob_base_fee_per_gas,
+            });
+        }
+
+        let base_fee_per_gas = self.gas_adjuster.get_base_fee(time_in_mempool);
 
         let priority_fee_per_gas = if time_in_mempool != 0 {
             METRICS.transaction_resent.inc();
@@ -159,7 +174,7 @@ impl EthTxManager {
 
         Ok(EthFee {
             base_fee_per_gas,
-            blob_base_fee_per_gas,
+            blob_base_fee_per_gas: None,
             priority_fee_per_gas,
         })
     }
