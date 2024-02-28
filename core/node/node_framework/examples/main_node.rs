@@ -34,6 +34,7 @@ use zksync_node_framework::{
             StateKeeperLayer,
         },
         web3_api::{
+            db_tx_sink::TxSinkLayer,
             http_server::{Web3ServerLayer, Web3ServerOptionalConfig},
             tx_sender::{PostgresStorageCachesConfig, TxSenderLayer},
         },
@@ -146,6 +147,8 @@ impl MainNodeBuilder {
             latest_values_cache_size: rpc_config.latest_values_cache_size() as u64,
         };
 
+        // On main node we always use master pool sink.
+        self.node.add_layer(TxSinkLayer::MasterPoolSink);
         self.node.add_layer(TxSenderLayer::new(
             TxSenderConfig::new(
                 &state_keeper_config,

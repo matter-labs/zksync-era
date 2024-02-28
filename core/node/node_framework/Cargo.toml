@@ -21,6 +21,7 @@ zksync_core = { path = "../../lib/zksync_core" }
 zksync_storage = { path = "../../lib/storage" }
 zksync_eth_client = { path = "../../lib/eth_client" }
 zksync_contracts = { path = "../../lib/contracts" }
+zksync_web3_decl = { path = "../../lib/web3_decl" }
 
 tracing = "0.1"
 thiserror = "1"

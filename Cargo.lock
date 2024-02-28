@@ -8799,6 +8799,7 @@ dependencies = [
  "zksync_state",
  "zksync_storage",
  "zksync_types",
+ "zksync_web3_decl",
 ]
 
 [[package]]
