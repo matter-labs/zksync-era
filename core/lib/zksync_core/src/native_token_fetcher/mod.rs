@@ -8,18 +8,6 @@ use tokio::{
 };
 use zksync_config::configs::native_token_fetcher::NativeTokenFetcherConfig;
 
-// TODO: this error type is also defined by the gasAdjuster module,
-//       we should consider moving it to a common place
-#[derive(thiserror::Error, Debug, Clone)]
-#[error(transparent)]
-pub struct Error(Arc<anyhow::Error>);
-
-impl From<anyhow::Error> for Error {
-    fn from(err: anyhow::Error) -> Self {
-        Self(Arc::new(err))
-    }
-}
-
 /// Trait used to query the stack's native token conversion rate. Used to properly
 /// determine gas prices, as they partially depend on L1 gas prices, denominated in `eth`.
 pub trait ConversionRateFetcher: 'static + std::fmt::Debug + Send + Sync {
@@ -28,7 +16,7 @@ pub trait ConversionRateFetcher: 'static + std::fmt::Debug + Send + Sync {
 
 pub(crate) struct NativeTokenFetcherSingleton {
     native_token_fetcher_config: NativeTokenFetcherConfig,
-    singleton: OnceCell<Result<Arc<NativeTokenFetcher>, Error>>,
+    singleton: OnceCell<anyhow::Result<Arc<NativeTokenFetcher>>>,
 }
 
 impl NativeTokenFetcherSingleton {
@@ -39,24 +27,32 @@ impl NativeTokenFetcherSingleton {
         }
     }
 
-    pub async fn get_or_init(&mut self) -> Result<Arc<NativeTokenFetcher>, Error> {
-        let adjuster = self
+    pub async fn get_or_init(&mut self) -> anyhow::Result<Arc<NativeTokenFetcher>> {
+        match self
             .singleton
             .get_or_init(|| async {
                 let fetcher =
                     NativeTokenFetcher::new(self.native_token_fetcher_config.clone()).await;
                 Ok(Arc::new(fetcher))
             })
-            .await;
-        adjuster.clone()
+            .await
+        {
+            Ok(fetcher) => Ok(fetcher.clone()),
+            Err(_e) => Err(anyhow::anyhow!(
+                "Failed to get or initialize NativeTokenFetcher"
+            )),
+        }
     }
 
     pub fn run_if_initialized(
         self,
         stop_signal: watch::Receiver<bool>,
     ) -> Option<JoinHandle<anyhow::Result<()>>> {
-        let fetcher = self.singleton.get()?.clone();
-        Some(tokio::spawn(async move { fetcher?.run(stop_signal).await }))
+        let fetcher = match self.singleton.get()? {
+            Ok(fetcher) => fetcher.clone(),
+            Err(_e) => return None,
+        };
+        Some(tokio::spawn(async move { fetcher.run(stop_signal).await }))
     }
 }
 
