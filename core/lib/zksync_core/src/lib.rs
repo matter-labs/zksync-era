@@ -636,7 +636,6 @@ pub async fn initialize_components(
             .await
             .context("failed to build eth_sender_pool")?;
 
-        let _kzg_config = configs.kzg_config.clone().context("kzg_config")?;
         let eth_sender = configs
             .eth_sender_config
             .clone()

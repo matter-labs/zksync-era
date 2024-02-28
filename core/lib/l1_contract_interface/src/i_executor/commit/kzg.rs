@@ -110,9 +110,9 @@ impl KzgInfo {
         let mut commitment = [0u8; 32];
         let hash = &Keccak256::digest(
             [
-                self.versioned_hash.as_slice(),
+                &self.versioned_hash,
                 &self.opening_point[16..],
-                self.opening_value.as_slice(),
+                &self.opening_value,
             ]
             .concat(),
         );

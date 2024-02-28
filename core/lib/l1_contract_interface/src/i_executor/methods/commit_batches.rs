@@ -1,6 +1,3 @@
-// TODO: Remove once integrated into batch commit
-#![allow(dead_code)]
-
 use std::sync::Arc;
 
 use zkevm_test_harness_1_4_2::kzg::KzgSettings;
