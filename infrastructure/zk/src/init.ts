@@ -291,6 +291,7 @@ export const initCommand = new Command('init')
     });
 export const reinitCommand = new Command('reinit')
     .description('"reinitializes" network. Runs faster than `init`, but requires `init` to be executed prior')
+    .option('--validium-mode')
     .action(async (cmd: Command) => {
         let deploymentMode =
             cmd.validiumMode !== undefined ? contract.DeploymentMode.Rollup : contract.DeploymentMode.Validium;
@@ -298,6 +299,7 @@ export const reinitCommand = new Command('reinit')
     });
 export const lightweightInitCommand = new Command('lightweight-init')
     .description('perform lightweight zksync network initialization for development')
+    .option('--validium-mode')
     .action(async (cmd: Command) => {
         let deploymentMode =
             cmd.validiumMode !== undefined ? contract.DeploymentMode.Rollup : contract.DeploymentMode.Validium;
