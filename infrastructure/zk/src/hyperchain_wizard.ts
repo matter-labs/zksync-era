@@ -13,6 +13,7 @@ import fetch from 'node-fetch';
 import { up } from './up';
 import * as Handlebars from 'handlebars';
 import { ProverType, setupProver } from './prover_setup';
+import { DeploymentMode } from './contract';
 
 const title = chalk.blueBright;
 const warning = chalk.yellowBright;
@@ -67,7 +68,7 @@ async function initHyperchain() {
             args: ['--private-key', deployerPrivateKey, '--envFile', process.env.CHAIN_ETH_NETWORK!]
         },
         deployerPrivateKeyArgs: ['--private-key', deployerPrivateKey, '--owner-address', governorAdrress],
-        validiumMode: false
+        deploymentMode: DeploymentMode.Rollup
     };
 
     await init(initArgs);
@@ -813,7 +814,7 @@ async function configDemoHyperchain(cmd: Command) {
             args: ['--private-key', deployerPrivateKey, '--envFile', process.env.CHAIN_ETH_NETWORK!]
         },
         deployerPrivateKeyArgs: ['--private-key', deployerPrivateKey],
-        validiumMode: false
+        deploymentMode: DeploymentMode.Rollup
     };
 
     if (!cmd.skipEnvSetup) {
