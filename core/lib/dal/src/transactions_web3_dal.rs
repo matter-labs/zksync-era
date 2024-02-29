@@ -7,7 +7,7 @@ use zksync_types::{
 use crate::{
     instrument::InstrumentExt,
     models::storage_transaction::{
-        StorageRawTransaction, StorageTransaction, StorageTransactionDetails,
+        StorageApiTransaction, StorageTransaction, StorageTransactionDetails,
         StorageTransactionReceipt,
     },
     SqlxError, StorageProcessor,
@@ -140,7 +140,7 @@ impl TransactionsWeb3Dal<'_, '_> {
         }
 
         let query = match_query_as!(
-            StorageRawTransaction,
+            StorageApiTransaction,
             [
                 r#"
                 SELECT
