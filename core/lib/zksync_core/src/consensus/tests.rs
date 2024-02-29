@@ -335,7 +335,7 @@ async fn test_centralized_fetcher(from_snapshot: bool) {
         s.spawn_bg(runner.run(ctx).instrument(tracing::info_span!("validator")));
 
         tracing::info!("Produce a batch (to make api server start)");
-        // TODO(gprusak): ensure at least L1 batch in `testonly::StateKeeper::new()` to make it fool proof.
+        // TODO: ensure at least L1 batch in `testonly::StateKeeper::new()` to make it fool proof.
         validator.seal_batch().await;
 
         tracing::info!("Spawn a node.");

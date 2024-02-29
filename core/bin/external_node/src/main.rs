@@ -198,7 +198,15 @@ async fn init_tasks(
 
     let reorg_detector = ReorgDetector::new(main_node_client.clone(), connection_pool.clone());
     app_health.insert_component(reorg_detector.health_check().clone());
-    task_handles.push(tokio::spawn(reorg_detector.run(stop_receiver.clone())));
+    task_handles.push(tokio::spawn({
+        let stop = stop_receiver.clone();
+        async move {
+            reorg_detector
+                .run(stop)
+                .await
+                .context("reorg_detector.run()")
+        }
+    }));
 
     let singleton_pool_builder = ConnectionPool::singleton(&config.postgres.database_url);
 

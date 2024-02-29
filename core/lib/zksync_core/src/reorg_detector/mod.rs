@@ -14,7 +14,7 @@ use zksync_web3_decl::{
 
 use crate::{
     metrics::{CheckerComponent, EN_METRICS},
-    utils::{binary_search_with, wait_for_l1_batch_with_metadata},
+    utils::binary_search_with,
 };
 
 #[cfg(test)]
@@ -287,22 +287,31 @@ impl ReorgDetector {
         let diverged_l1_batch = checked_l1_batch + (root_hashes_match as u32);
         self.event_handler.report_divergence(diverged_l1_batch);
 
-        tracing::info!("Searching for the first diverged L1 batch");
+        // Check that the first L1 batch matches, to make sure that
+        // we are actually tracking the same chain as the main node.
         let mut storage = self
             .pool
             .access_storage()
             .await
             .context("access_storage()")?;
-        let earliest_l1_batch = storage
+        let first_l1_batch = storage
             .blocks_dal()
             .get_earliest_l1_batch_number_with_metadata()
             .await
-            .context("get_earliest_l1_batch_number_with_metadata()")?
-            .context("all L1 batches with metadata disappeared")?;
+            .context("get_earliest_l1_batch_number_with_metadata")?
+            .context("all L1 blocks dissapeared")?;
         drop(storage);
-        let last_correct_l1_batch = self
-            .detect_reorg(earliest_l1_batch, diverged_l1_batch)
-            .await?;
+        match self.root_hashes_match(first_l1_batch).await {
+            Ok(true) => {}
+            Ok(false) => return Err(Error::EarliestL1BatchMismatch(first_l1_batch)),
+            Err(HashMatchError::RemoteHashMissing) => {
+                return Err(Error::EarliestL1BatchTruncated(first_l1_batch))
+            }
+            Err(err) => return Err(err.into()),
+        }
+
+        tracing::info!("Searching for the first diverged L1 batch");
+        let last_correct_l1_batch = self.detect_reorg(first_l1_batch, diverged_l1_batch).await?;
         tracing::info!("Reorg localized: last correct L1 batch is #{last_correct_l1_batch}");
         Err(Error::ReorgDetected(last_correct_l1_batch))
     }
@@ -394,45 +403,21 @@ impl ReorgDetector {
         .map(L1BatchNumber)
     }
 
-    pub async fn run(mut self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+    pub async fn run(mut self, stop_receiver: watch::Receiver<bool>) -> Result<(), Error> {
         self.event_handler.initialize();
         while !*stop_receiver.borrow() {
-            match self.run_inner(&mut stop_receiver).await {
-                Ok(()) => continue,
-                Err(err) if err.is_transient() => {
+            match self.check_consistency().await {
+                Err(err) if !err.is_transient() => return Err(err),
+                Err(err) => {
                     tracing::warn!("Following transient error occurred: {err}");
                     tracing::info!("Trying again after a delay");
-                    tokio::time::sleep(self.sleep_interval).await;
                 }
-                Err(err) => return Err(err.into()),
+                Ok(()) => {}
             }
+            tokio::time::sleep(self.sleep_interval).await;
         }
         self.event_handler.start_shutting_down();
         tracing::info!("Shutting down reorg detector");
-        Ok(())
-    }
-
-    async fn run_inner(&mut self, stop_receiver: &mut watch::Receiver<bool>) -> Result<(), Error> {
-        let Some(earliest_l1_batch) =
-            wait_for_l1_batch_with_metadata(&self.pool, self.sleep_interval, stop_receiver)
-                .await
-                .context("wait_for_l1_batch_with_metadata()")?
-        else {
-            return Ok(()); // Stop signal received
-        };
-        tracing::debug!("Checking root hash match for earliest L1 batch #{earliest_l1_batch}");
-        match self.root_hashes_match(earliest_l1_batch).await {
-            Ok(true) => {}
-            Ok(false) => return Err(Error::EarliestL1BatchMismatch(earliest_l1_batch)),
-            Err(HashMatchError::RemoteHashMissing) => {
-                return Err(Error::EarliestL1BatchTruncated(earliest_l1_batch))
-            }
-            Err(err) => return Err(err.into()),
-        }
-        while !*stop_receiver.borrow() {
-            self.check_consistency().await?;
-            tokio::time::sleep(self.sleep_interval).await;
-        }
         Ok(())
     }
 }
