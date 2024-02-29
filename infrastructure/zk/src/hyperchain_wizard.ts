@@ -13,6 +13,7 @@ import fetch from 'node-fetch';
 import { up } from './up';
 import * as Handlebars from 'handlebars';
 import { ProverType, setupProver } from './prover_setup';
+import { DeploymentMode } from './contract';
 
 const title = chalk.blueBright;
 const warning = chalk.yellowBright;
@@ -44,7 +45,7 @@ export interface BasePromptOptions {
 }
 
 // An init command that allows configuring and spinning up a new hyperchain network.
-async function initHyperchain() {
+async function initHyperchain(deploymentMode: DeploymentMode) {
     await announced('Initializing hyperchain creation', setupConfiguration());
 
     const deployerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
@@ -67,7 +68,7 @@ async function initHyperchain() {
             args: ['--private-key', deployerPrivateKey, '--envFile', process.env.CHAIN_ETH_NETWORK!]
         },
         deployerPrivateKeyArgs: ['--private-key', deployerPrivateKey, '--owner-address', governorAdrress],
-        validiumMode: false
+        deploymentMode
     };
 
     await init(initArgs);
@@ -813,7 +814,7 @@ async function configDemoHyperchain(cmd: Command) {
             args: ['--private-key', deployerPrivateKey, '--envFile', process.env.CHAIN_ETH_NETWORK!]
         },
         deployerPrivateKeyArgs: ['--private-key', deployerPrivateKey],
-        validiumMode: false
+        deploymentMode: cmd.validiumMode !== undefined ? DeploymentMode.Validium : DeploymentMode.Rollup
     };
 
     if (!cmd.skipEnvSetup) {
@@ -868,7 +869,11 @@ export const initHyperchainCommand = new Command('stack')
 initHyperchainCommand
     .command('init')
     .description('Wizard for hyperchain creation/configuration')
-    .action(initHyperchain);
+    .option('--validium-mode')
+    .action(async (cmd: Command) => {
+        let deploymentMode = cmd.validiumMode !== undefined ? DeploymentMode.Validium : DeploymentMode.Rollup;
+        await initHyperchain(deploymentMode);
+    });
 initHyperchainCommand
     .command('docker-setup')
     .option('--custom-docker-org <value>', 'Custom organization name for the docker images')
@@ -882,5 +887,6 @@ initHyperchainCommand
     .command('demo')
     .option('--prover <value>', 'Add a cpu or gpu prover to the hyperchain')
     .option('--skip-env-setup', 'Run env setup automatically (pull docker containers, etc)')
+    .option('--validium-mode')
     .description('Spin up a demo hyperchain with default settings for testing purposes')
     .action(configDemoHyperchain);
