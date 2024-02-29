@@ -295,11 +295,25 @@ impl EthNamespace {
         };
 
         let transactions = if full_transactions {
-            let transactions = storage
+            let mut transactions = storage
                 .transactions_web3_dal()
                 .get_transactions(&block.transactions, self.state.api_config.l2_chain_id)
                 .await
                 .map_err(|err| internal_error(method_name, err))?;
+            if transactions.len() != block.transactions.len() {
+                let err = anyhow::anyhow!(
+                    "storage inconsistency: get_api_block({block_number}) returned {} tx hashes, but get_transactions({:?}) \
+                     returned {} transactions: {transactions:?}",
+                    block.transactions.len(),
+                    block.transactions,
+                    transactions.len()
+                );
+                return Err(internal_error(method_name, err));
+            }
+            // We need to sort `transactions` by their index in block since `get_transactions()` returns
+            // transactions in an arbitrary order.
+            transactions.sort_unstable_by_key(|tx| tx.transaction_index);
+
             transactions
                 .into_iter()
                 .map(TransactionVariant::Full)
