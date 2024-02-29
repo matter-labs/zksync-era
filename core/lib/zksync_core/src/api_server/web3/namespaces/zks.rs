@@ -13,12 +13,12 @@ use zksync_types::{
     fee_model::FeeParams,
     l1::L1Tx,
     l2::L2Tx,
-    l2_to_l1_log::L2ToL1Log,
+    l2_to_l1_log::{l2_to_l1_logs_tree_size, L2ToL1Log},
     tokens::ETHEREUM_ADDRESS,
     transaction_request::CallRequest,
     utils::storage_key_for_standard_token_balance,
-    AccountTreeId, L1BatchNumber, MiniblockNumber, StorageKey, Transaction, L1_MESSENGER_ADDRESS,
-    L2_ETH_TOKEN_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
+    AccountTreeId, L1BatchNumber, MiniblockNumber, ProtocolVersionId, StorageKey, Transaction,
+    L1_MESSENGER_ADDRESS, L2_ETH_TOKEN_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
 };
 use zksync_utils::{address_to_h256, h256_to_u256};
 use zksync_web3_decl::{
@@ -306,17 +306,12 @@ impl ZksNamespace {
 
         let merkle_tree_leaves = all_l1_logs_in_batch.iter().map(L2ToL1Log::to_bytes);
 
-        let min_tree_size = if batch
+        let protocol_version = batch
             .protocol_version
-            .map(|v| v.is_pre_boojum())
-            .unwrap_or(true)
-        {
-            Some(L2ToL1Log::PRE_BOOJUM_MIN_L2_L1_LOGS_TREE_SIZE)
-        } else {
-            Some(L2ToL1Log::MIN_L2_L1_LOGS_TREE_SIZE)
-        };
+            .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
+        let tree_size = l2_to_l1_logs_tree_size(protocol_version);
 
-        let (root, proof) = MiniMerkleTree::new(merkle_tree_leaves, min_tree_size)
+        let (root, proof) = MiniMerkleTree::new(merkle_tree_leaves, Some(tree_size))
             .merkle_root_and_path(l1_log_index);
         Ok(Some(L2ToL1LogProof {
             proof,

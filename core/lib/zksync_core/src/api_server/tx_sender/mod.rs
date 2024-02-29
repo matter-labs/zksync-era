@@ -6,7 +6,7 @@ use anyhow::Context as _;
 use multivm::{
     interface::VmExecutionResultAndLogs,
     utils::{adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead},
-    vm_latest::constants::{BLOCK_GAS_LIMIT, MAX_PUBDATA_PER_BLOCK},
+    vm_latest::constants::BLOCK_GAS_LIMIT,
 };
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig};
 use zksync_contracts::BaseSystemContracts;
@@ -63,6 +63,8 @@ pub struct MultiVMBaseSystemContracts {
     pub(crate) post_allowlist_removal: BaseSystemContracts,
     /// Contracts to be used after the 1.4.1 upgrade
     pub(crate) post_1_4_1: BaseSystemContracts,
+    /// Contracts to be used after the 1.4.2 upgrade
+    pub(crate) post_1_4_2: BaseSystemContracts,
 }
 
 impl MultiVMBaseSystemContracts {
@@ -88,7 +90,8 @@ impl MultiVMBaseSystemContracts {
             | ProtocolVersionId::Version17 => self.post_virtual_blocks_finish_upgrade_fix,
             ProtocolVersionId::Version18 => self.post_boojum,
             ProtocolVersionId::Version19 => self.post_allowlist_removal,
-            ProtocolVersionId::Version20 | ProtocolVersionId::Version21 => self.post_1_4_1,
+            ProtocolVersionId::Version20 => self.post_1_4_1,
+            ProtocolVersionId::Version21 | ProtocolVersionId::Version22 => self.post_1_4_2,
         }
     }
 }
@@ -121,6 +124,7 @@ impl ApiContracts {
                 post_boojum: BaseSystemContracts::estimate_gas_post_boojum(),
                 post_allowlist_removal: BaseSystemContracts::estimate_gas_post_allowlist_removal(),
                 post_1_4_1: BaseSystemContracts::estimate_gas_post_1_4_1(),
+                post_1_4_2: BaseSystemContracts::estimate_gas_post_1_4_2(),
             },
             eth_call: MultiVMBaseSystemContracts {
                 pre_virtual_blocks: BaseSystemContracts::playground_pre_virtual_blocks(),
@@ -130,6 +134,7 @@ impl ApiContracts {
                 post_boojum: BaseSystemContracts::playground_post_boojum(),
                 post_allowlist_removal: BaseSystemContracts::playground_post_allowlist_removal(),
                 post_1_4_1: BaseSystemContracts::playground_post_1_4_1(),
+                post_1_4_2: BaseSystemContracts::playground_post_1_4_2(),
             },
         }
     }
@@ -205,6 +210,7 @@ pub struct TxSenderConfig {
     pub validation_computational_gas_limit: u32,
     pub l1_to_l2_transactions_compatibility_mode: bool,
     pub chain_id: L2ChainId,
+    pub max_pubdata_per_batch: u64,
 }
 
 impl TxSenderConfig {
@@ -224,6 +230,7 @@ impl TxSenderConfig {
             l1_to_l2_transactions_compatibility_mode: web3_json_config
                 .l1_to_l2_transactions_compatibility_mode,
             chain_id,
+            max_pubdata_per_batch: state_keeper_config.max_pubdata_per_batch,
         }
     }
 }
@@ -722,7 +729,7 @@ impl TxSender {
             )
             .await?;
 
-            if pubdata_for_factory_deps > MAX_PUBDATA_PER_BLOCK {
+            if pubdata_for_factory_deps as u64 > self.0.sender_config.max_pubdata_per_batch {
                 return Err(SubmitTxError::Unexecutable(
                     "exceeds limit for published pubdata".to_string(),
                 ));
