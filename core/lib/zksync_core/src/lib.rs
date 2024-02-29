@@ -298,6 +298,39 @@ impl FromStr for Components {
     }
 }
 
+async fn ensure_l1_batch_commit_data_generation_mode(
+    state_keeper_config: &StateKeeperConfig,
+    contracts_config: &ContractsConfig,
+    eth_client: &impl EthInterface,
+) -> anyhow::Result<()> {
+    let selected_l1_batch_commit_data_generator_mode = state_keeper_config
+        .l1_batch_commit_data_generator_mode
+        .clone();
+    match get_pubdata_pricing_mode(&contracts_config, eth_client).await {
+        // Getters contract support getPubdataPricingMode method
+        Ok(l1_contract_pubdata_pricing_mode) => {
+            let l1_contract_batch_commitment_mode =
+                L1BatchCommitDataGeneratorMode::from_tokens(l1_contract_pubdata_pricing_mode)?;
+
+            // contracts mode == server mode
+            anyhow::ensure!(
+                l1_contract_batch_commitment_mode == selected_l1_batch_commit_data_generator_mode,
+                "The selected L1BatchCommitDataGeneratorMode ({:?}) does not match the commitment mode used on L1 contract ({:?})",
+                selected_l1_batch_commit_data_generator_mode,
+                l1_contract_batch_commitment_mode
+            );
+
+            Ok(())
+        }
+        // Getters contract does not support getPubdataPricingMode method
+        Err(EthClientError::Contract(_)) => {
+            tracing::warn!("Getters contract does not support getPubdataPricingMode method");
+            Ok(())
+        }
+        Err(err) => anyhow::bail!(err),
+    }
+}
+
 async fn get_pubdata_pricing_mode(
     contracts_config: &ContractsConfig,
     eth_client: &impl EthInterface,
@@ -649,25 +682,15 @@ pub async fn initialize_components(
             .clone()
             .context("state_keeper_config")?;
 
-        let selected_l1_batch_commit_data_generator_mode = state_keeper_config
-            .l1_batch_commit_data_generator_mode
-            .clone();
-        let l1_contract_pubdata_pricing_mode =
-            get_pubdata_pricing_mode(&contracts_config, &eth_client).await?;
-        let l1_contract_batch_commitment_mode =
-            L1BatchCommitDataGeneratorMode::from_tokens(l1_contract_pubdata_pricing_mode)?;
-
-        // contracts mode == server mode
-        assert_eq!(
-            l1_contract_batch_commitment_mode,
-            selected_l1_batch_commit_data_generator_mode,
-            "The selected L1BatchCommitDataGeneratorMode ({:?}) does not match the commitment mode used on L1 contract ({:?})",
-            selected_l1_batch_commit_data_generator_mode,
-            l1_contract_batch_commitment_mode
-        );
+        ensure_l1_batch_commit_data_generation_mode(
+            &state_keeper_config,
+            &contracts_config,
+            &eth_client,
+        )
+        .await?;
 
         let l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator> =
-            match selected_l1_batch_commit_data_generator_mode {
+            match state_keeper_config.l1_batch_commit_data_generator_mode {
                 L1BatchCommitDataGeneratorMode::Rollup => {
                     Arc::new(RollupModeL1BatchCommitDataGenerator {})
                 }
