@@ -17,14 +17,14 @@ pub struct GasAdjusterSingleton {
     web3_url: String,
     gas_adjuster_config: GasAdjusterConfig,
     singleton: OnceCell<anyhow::Result<Arc<GasAdjuster<QueryClient>>>>,
-    erc20_fetcher_dyn: Option<Arc<dyn ConversionRateFetcher>>,
+    erc20_fetcher_dyn: Arc<dyn ConversionRateFetcher>,
 }
 
 impl GasAdjusterSingleton {
     pub fn new(
         web3_url: String,
         gas_adjuster_config: GasAdjusterConfig,
-        erc20_fetcher_dyn: Option<Arc<dyn ConversionRateFetcher>>,
+        erc20_fetcher_dyn: Arc<dyn ConversionRateFetcher>,
     ) -> Self {
         Self {
             web3_url,
