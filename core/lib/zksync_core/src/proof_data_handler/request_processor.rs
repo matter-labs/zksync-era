@@ -119,6 +119,8 @@ impl RequestProcessor {
                 .expect(&format!("Missing header for {}", l1_batch_number));
 
             let protocol_version = header.protocol_version.unwrap();
+            // TODO: What invariants have to hold such that ProtocolVersion = FriProtocolVersion?
+            let fri_protocol_version = FriProtocolVersionId::from(protocol_version);
             (self
                 .pool
                 .access_storage()
@@ -128,9 +130,8 @@ impl RequestProcessor {
                 .l1_verifier_config_for_version(protocol_version)
                 .await
                 .expect(&format!(
-                    "Missing l1 verifier info for protocol version {}",
-                    protocol_version
-                )), protocol_version)
+                    "Missing l1 verifier info for protocol version {protocol_version:?}",
+                )), fri_protocol_version)
 
             }
             ProtocolVersionLoadingMode::FromEnvVar => {
