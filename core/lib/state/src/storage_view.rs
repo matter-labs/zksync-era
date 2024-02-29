@@ -60,6 +60,11 @@ impl<S> StorageView<S> {
             is_write_initial: self.initial_writes_cache.clone(),
         }
     }
+
+    // Returns the modified storage keys
+    pub fn modified_storage_keys(&self) -> &HashMap<StorageKey, StorageValue> {
+        &self.modified_storage_keys
+    }
 }
 
 impl<S> ReadStorage for Box<S>

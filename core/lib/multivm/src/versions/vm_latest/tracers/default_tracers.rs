@@ -1,3 +1,5 @@
+use once_cell::sync::OnceCell;
+use std::sync::Arc;
 use std::{
     fmt::{Debug, Formatter},
     marker::PhantomData,
@@ -82,7 +84,6 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
         refund_tracer: Option<RefundsTracer<S>>,
         pubdata_tracer: Option<PubdataTracer<S>>,
     ) -> Self {
-        println!("NEW DefaultExecutionTracer");
         Self {
             tx_has_been_processed: false,
             execution_mode,
@@ -97,7 +98,7 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
             pubdata_tracer,
             ret_from_the_bootloader: None,
             circuits_tracer: CircuitsTracer::new(),
-            prestate_tracer: PrestateTracer::new(),
+            prestate_tracer: PrestateTracer::new(false, Arc::new(OnceCell::default())),
             storage,
             _phantom: PhantomData,
         }
