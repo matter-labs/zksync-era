@@ -167,7 +167,7 @@ impl DebugNamespace {
         let tx = L2Tx::from_request(
             request.into(),
             MAX_ENCODED_TX_SIZE,
-            Some(max_gas_per_pubdata_byte.into()),
+            max_gas_per_pubdata_byte.into(),
         )?;
 
         let shared_args = self.shared_args();

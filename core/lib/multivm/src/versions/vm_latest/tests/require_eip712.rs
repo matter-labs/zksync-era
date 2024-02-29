@@ -102,7 +102,7 @@ async fn test_require_eip712() {
     let (tx_request, hash) = TransactionRequest::from_bytes(&aa_tx, L2ChainId::from(270)).unwrap();
 
     let mut l2_tx: L2Tx =
-        L2Tx::from_request(tx_request, 10000, Some(MAX_GAS_PER_PUBDATA_BYTE)).unwrap();
+        L2Tx::from_request(tx_request, 10000, MAX_GAS_PER_PUBDATA_BYTE.into()).unwrap();
     l2_tx.set_input(aa_tx, hash);
     // Pretend that operator is malicious and sets the initiator to the AA account.
     l2_tx.common_data.initiator_address = account_abstraction.address;
@@ -152,7 +152,7 @@ async fn test_require_eip712() {
         TransactionRequest::from_bytes(&encoded_tx, L2ChainId::from(chain_id)).unwrap();
 
     let mut l2_tx =
-        L2Tx::from_request(aa_txn_request, 100000, Some(MAX_GAS_PER_PUBDATA_BYTE)).unwrap();
+        L2Tx::from_request(aa_txn_request, 100000, MAX_GAS_PER_PUBDATA_BYTE.into()).unwrap();
     l2_tx.set_input(encoded_tx, aa_hash);
 
     let transaction: Transaction = l2_tx.try_into().unwrap();

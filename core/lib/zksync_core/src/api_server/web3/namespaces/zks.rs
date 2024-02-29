@@ -90,14 +90,11 @@ impl ZksNamespace {
         let mut tx = L2Tx::from_request(
             request_with_gas_per_pubdata_overridden.into(),
             self.state.api_config.max_tx_size,
-            Some(max_gas_per_pubdata_byte.into()),
+            max_gas_per_pubdata_byte.into(),
         )?;
 
         // When we're estimating fee, we are trying to deduce values related to fee, so we should
         // not consider provided ones.
-        let gas_price = self.state.tx_sender.gas_price().await;
-        let gas_price = gas_price.map_err(|err| internal_error(METHOD_NAME, err))?;
-        tx.common_data.fee.max_fee_per_gas = gas_price.into();
         tx.common_data.fee.max_priority_fee_per_gas = 0u64.into();
         tx.common_data.fee.gas_per_pubdata_limit = max_gas_per_pubdata_byte.into();
 
@@ -127,10 +124,6 @@ impl ZksNamespace {
         let tx: L1Tx = request_with_gas_per_pubdata_overridden
             .try_into()
             .map_err(Web3Error::SerializationError)?;
-
-        // let gas_price = self.state.tx_sender.gas_price().await;
-        // let gas_price = gas_price.map_err(|err| internal_error(METHOD_NAME, err))?;
-        // tx.common_data.max_fee_per_gas = gas_price.into();
 
         let fee = self.estimate_fee(tx.into(), METHOD_NAME).await?;
         method_latency.observe();

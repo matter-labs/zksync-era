@@ -1,12 +1,8 @@
 /**
- * This suite contains tests displaying prices for some of the most common operations under various L1 gas prices.
+ * This suit contains tests for the system behavior under high L1 gas price.
  *
  * IMPORTANT: this test affects the internal state of the server and so
  * it should never be run in parallel with other tests.
- *
- * Locally, for maximal representation the test should be run with batches of size 1.
- * However, we do not want to overload the CI for such purposes and so the job of the CI would be to make
- * sure that the test is maintained does not get broken.
  *
  */
 import * as utils from 'zk/build/utils';
@@ -26,15 +22,9 @@ testHighGasPriceBehavior('Test the system under high gas price', () => {
     let testMaster: TestMaster;
     let alice: zksync.Wallet;
 
-    let tokenDetails: Token;
-    let aliceErc20: zksync.Contract;
-
     beforeAll(() => {
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
-
-        tokenDetails = testMaster.environment().erc20Token;
-        aliceErc20 = new ethers.Contract(tokenDetails.l1Address, zksync.utils.IERC20, alice.ethWallet());
     });
 
     test('Test fees', async () => {
