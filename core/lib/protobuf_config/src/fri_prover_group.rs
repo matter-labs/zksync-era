@@ -3,9 +3,9 @@ use std::collections::HashSet;
 use anyhow::Context as _;
 use zksync_basic_types::basic_fri_types::CircuitIdRoundTuple;
 use zksync_config::configs;
-use zksync_protobuf::required;
+use zksync_protobuf::{repr::ProtoRepr, required};
 
-use crate::{proto, repr::ProtoRepr};
+use crate::proto;
 
 impl ProtoRepr for proto::CircuitIdRoundTuple {
     type Type = CircuitIdRoundTuple;
