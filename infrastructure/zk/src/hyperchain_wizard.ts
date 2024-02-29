@@ -51,7 +51,6 @@ async function initHyperchain() {
     const governorPrivateKey = process.env.GOVERNOR_PRIVATE_KEY;
     const deployL2Weth = Boolean(process.env.DEPLOY_L2_WETH || false);
     const deployTestTokens = Boolean(process.env.DEPLOY_TEST_TOKENS || false);
-
     const governorAdrress = ethers.utils.computeAddress(governorPrivateKey!);
     const initArgs: InitArgs = {
         skipSubmodulesCheckout: false,
@@ -343,6 +342,7 @@ async function setHyperchainMetadata() {
     // TODO: Generate url for data-compressor with selected region or fix env variable for keys location
     // PLA-595
     wrapEnvModify('DATABASE_URL', databaseUrl);
+    wrapEnvModify('DATABASE_PROVER_URL', databaseProverUrl);
     wrapEnvModify('ETH_CLIENT_CHAIN_ID', l1Id.toString());
     wrapEnvModify('ETH_CLIENT_WEB3_URL', l1Rpc);
     wrapEnvModify('CHAIN_ETH_NETWORK', getL1Name(results.l1Chain));

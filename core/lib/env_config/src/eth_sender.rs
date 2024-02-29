@@ -26,7 +26,9 @@ impl FromEnv for GasAdjusterConfig {
 
 #[cfg(test)]
 mod tests {
-    use zksync_config::configs::eth_sender::{ProofLoadingMode, ProofSendingMode};
+    use zksync_config::configs::eth_sender::{
+        ProofLoadingMode, ProofSendingMode, PubdataSendingMode,
+    };
 
     use super::*;
     use crate::test_utils::{hash, EnvMutex};
@@ -54,6 +56,7 @@ mod tests {
                 l1_batch_min_age_before_execute_seconds: Some(1000),
                 max_acceptable_priority_fee_in_gwei: 100_000_000_000,
                 proof_loading_mode: ProofLoadingMode::OldProofFromDb,
+                pubdata_sending_mode: PubdataSendingMode::Calldata,
             },
             gas_adjuster: GasAdjusterConfig {
                 default_priority_fee_per_gas: 20000000000,
@@ -64,6 +67,9 @@ mod tests {
                 internal_enforced_l1_gas_price: None,
                 poll_period: 15,
                 max_l1_gas_price: Some(100000000),
+                num_samples_for_blob_base_fee_estimate: 10,
+                internal_pubdata_pricing_multiplier: 1.0,
+                max_blob_base_fee: None,
             },
         }
     }
@@ -85,6 +91,8 @@ mod tests {
             ETH_SENDER_GAS_ADJUSTER_INTERNAL_L1_PRICING_MULTIPLIER="0.8"
             ETH_SENDER_GAS_ADJUSTER_POLL_PERIOD="15"
             ETH_SENDER_GAS_ADJUSTER_MAX_L1_GAS_PRICE="100000000"
+            ETH_SENDER_GAS_ADJUSTER_MAX_BLOB_BASE_FEE_SAMPLES="10"
+            ETH_SENDER_GAS_ADJUSTER_INTERNAL_PUBDATA_PRICING_MULTIPLIER="1.0"
             ETH_SENDER_WAIT_FOR_PROOFS="false"
             ETH_SENDER_SENDER_AGGREGATED_PROOF_SIZES="1,5"
             ETH_SENDER_SENDER_MAX_AGGREGATED_BLOCKS_TO_COMMIT="3"
@@ -98,6 +106,7 @@ mod tests {
             ETH_SENDER_SENDER_L1_BATCH_MIN_AGE_BEFORE_EXECUTE_SECONDS="1000"
             ETH_SENDER_SENDER_MAX_ACCEPTABLE_PRIORITY_FEE_IN_GWEI="100000000000"
             ETH_SENDER_SENDER_PROOF_LOADING_MODE="OldProofFromDb"
+            ETH_SENDER_SENDER_PUBDATA_SENDING_MODE="Calldata"
         "#;
         lock.set_env(config);
 

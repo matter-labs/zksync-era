@@ -21,7 +21,7 @@ use super::{BatchExecutor, BatchExecutorHandle, Command, TxExecutionResult};
 use crate::{
     metrics::{InteractionType, TxStage, APP_METRICS},
     state_keeper::{
-        metrics::{TxExecutionStage, EXECUTOR_METRICS, KEEPER_METRICS},
+        metrics::{TxExecutionStage, BATCH_TIP_METRICS, EXECUTOR_METRICS, KEEPER_METRICS},
         types::ExecutionMetricsForCriteria,
     },
 };
@@ -271,6 +271,8 @@ impl CommandReceiver {
                 result.block_tip_execution_result.result
             );
         }
+
+        BATCH_TIP_METRICS.observe(&result.block_tip_execution_result);
         result
     }
 

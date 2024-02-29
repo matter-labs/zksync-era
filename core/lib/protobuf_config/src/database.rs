@@ -1,11 +1,11 @@
 use anyhow::Context as _;
 use zksync_config::configs;
-use zksync_protobuf::required;
-
-use crate::{
-    proto,
+use zksync_protobuf::{
     repr::{read_required_repr, ProtoRepr},
+    required,
 };
+
+use crate::proto;
 
 impl proto::MerkleTreeMode {
     fn new(x: &configs::database::MerkleTreeMode) -> Self {
