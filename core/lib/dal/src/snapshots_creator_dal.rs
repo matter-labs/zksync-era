@@ -39,6 +39,32 @@ impl SnapshotsCreatorDal<'_, '_> {
         Ok(count as u64)
     }
 
+    /// Returns the total number of rows in the `storage_logs` table before and at the specified miniblock.
+    ///
+    /// **Warning.** This method is slow (requires a full table scan).
+    pub async fn get_storage_logs_row_count(
+        &mut self,
+        at_miniblock: MiniblockNumber,
+    ) -> sqlx::Result<u64> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                COUNT(*) AS COUNT
+            FROM
+                storage_logs
+            WHERE
+                miniblock_number <= $1
+            "#,
+            at_miniblock.0 as i64
+        )
+        .instrument("get_storage_logs_row_count")
+        .with_arg("miniblock_number", &at_miniblock)
+        .report_latency()
+        .fetch_one(self.storage)
+        .await?;
+        Ok(row.count.unwrap_or(0) as u64)
+    }
+
     pub async fn get_storage_logs_chunk(
         &mut self,
         miniblock_number: MiniblockNumber,
@@ -168,6 +194,12 @@ mod tests {
             .await
             .unwrap();
 
+        let log_row_count = conn
+            .snapshots_creator_dal()
+            .get_storage_logs_row_count(MiniblockNumber(1))
+            .await
+            .unwrap();
+        assert_eq!(log_row_count, logs.len() as u64);
         assert_logs_for_snapshot(&mut conn, MiniblockNumber(1), L1BatchNumber(1), &logs).await;
 
         // Add some inserts / updates in the next miniblock. They should be ignored.
@@ -183,11 +215,10 @@ mod tests {
             value: H256::repeat_byte(23),
             ..log
         });
+        let all_new_logs: Vec<_> = new_logs.chain(updated_logs).collect();
+        let all_new_logs_len = all_new_logs.len();
         conn.storage_logs_dal()
-            .insert_storage_logs(
-                MiniblockNumber(2),
-                &[(H256::zero(), new_logs.chain(updated_logs).collect())],
-            )
+            .insert_storage_logs(MiniblockNumber(2), &[(H256::zero(), all_new_logs)])
             .await
             .unwrap();
         conn.storage_logs_dedup_dal()
@@ -195,6 +226,18 @@ mod tests {
             .await
             .unwrap();
 
+        let log_row_count = conn
+            .snapshots_creator_dal()
+            .get_storage_logs_row_count(MiniblockNumber(1))
+            .await
+            .unwrap();
+        assert_eq!(log_row_count, logs.len() as u64);
+        let log_row_count = conn
+            .snapshots_creator_dal()
+            .get_storage_logs_row_count(MiniblockNumber(2))
+            .await
+            .unwrap();
+        assert_eq!(log_row_count, (logs.len() + all_new_logs_len) as u64);
         assert_logs_for_snapshot(&mut conn, MiniblockNumber(1), L1BatchNumber(1), &logs).await;
     }
 
