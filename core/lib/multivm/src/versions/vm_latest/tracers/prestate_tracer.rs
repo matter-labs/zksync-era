@@ -1,7 +1,13 @@
+use std::{collections::HashMap, fmt, sync::Arc};
+
 use once_cell::sync::OnceCell;
-use std::collections::HashMap;
-use std::fmt;
-use std::sync::Arc;
+use zk_evm_1_4_1::tracing::{BeforeExecutionData, VmLocalStateData};
+use zksync_state::{StoragePtr, WriteStorage};
+use zksync_types::{
+    get_code_key, get_nonce_key, web3::signing::keccak256, AccountTreeId, Address, StorageKey,
+    StorageValue, H256, L2_ETH_TOKEN_ADDRESS, U256,
+};
+use zksync_utils::address_to_h256;
 
 use crate::{
     interface::{dyn_tracers::vm_1_4_1::DynTracer, tracer::TracerExecutionStatus},
@@ -12,13 +18,6 @@ use crate::{
         types::internals::ZkSyncVmState,
     },
 };
-use zk_evm_1_4_1::tracing::{BeforeExecutionData, VmLocalStateData};
-use zksync_state::{StoragePtr, WriteStorage};
-use zksync_types::{
-    get_code_key, get_nonce_key, web3::signing::keccak256, AccountTreeId, Address, StorageKey,
-    StorageValue, H256, L2_ETH_TOKEN_ADDRESS, U256,
-};
-use zksync_utils::address_to_h256;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Account {

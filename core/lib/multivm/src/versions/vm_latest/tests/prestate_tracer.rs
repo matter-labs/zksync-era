@@ -1,16 +1,16 @@
-use once_cell::sync::OnceCell;
 use std::sync::Arc;
 
-use crate::vm_latest::ToTracerPointer;
+use once_cell::sync::OnceCell;
+use zksync_test_account::TxType;
+use zksync_types::H256;
+
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
     vm_latest::{
         constants::BLOCK_GAS_LIMIT, tests::tester::VmTesterBuilder, tracers::PrestateTracer,
-        HistoryEnabled,
+        HistoryEnabled, ToTracerPointer,
     },
 };
-use zksync_test_account::TxType;
-use zksync_types::H256;
 
 #[test]
 fn test_prestate_tracer() {

@@ -1,10 +1,10 @@
-use once_cell::sync::OnceCell;
-use std::sync::Arc;
 use std::{
     fmt::{Debug, Formatter},
     marker::PhantomData,
+    sync::Arc,
 };
 
+use once_cell::sync::OnceCell;
 use zk_evm_1_4_1::{
     aux_structures::Timestamp,
     tracing::{
