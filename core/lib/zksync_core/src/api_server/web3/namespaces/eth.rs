@@ -101,7 +101,7 @@ impl EthNamespace {
         let tx = L2Tx::from_request(
             request.into(),
             self.state.api_config.max_tx_size,
-            Some(max_gas_per_pubdata_byte.into()),
+            max_gas_per_pubdata_byte.into(),
         )?;
 
         let call_result = self.state.tx_sender.eth_call(block_args, tx).await;
@@ -157,7 +157,7 @@ impl EthNamespace {
         let mut tx: L2Tx = L2Tx::from_request(
             request_with_gas_per_pubdata_overridden.into(),
             self.state.api_config.max_tx_size,
-            Some(max_gas_per_pubdata_byte.into()),
+            max_gas_per_pubdata_byte.into(),
         )?;
 
         // The user may not include the proper transaction type during the estimation of
@@ -744,25 +744,17 @@ impl EthNamespace {
             .access_storage_tagged("api")
             .await
             .unwrap();
-        let block_args = BlockArgs::pending(&mut connection).await.map_err(|err| {
-            tracing::debug!("Send raw transaction error: {err}");
-            internal_error(METHOD_NAME, err)
-        })?;
-
-        let pending_block_info = block_args
-            .resolve_block_info(&mut connection)
+        let pending_protocol_version = pending_protocol_version(&mut connection)
             .await
-            .map_err(|err| {
-                tracing::debug!("Send raw transaction error: {err}");
-                internal_error(METHOD_NAME, err)
-            })?;
+            .context("failed getting pending protocol version")
+            .map_err(|err| internal_error(METHOD_NAME, err))?;
 
         let max_gas_per_pubdata_byte =
-            get_max_gas_per_pubdata_byte(pending_block_info.get_protocol_version().into());
+            get_max_gas_per_pubdata_byte(pending_protocol_version.into());
 
         let (mut tx, hash) = self
             .state
-            .parse_transaction_bytes(&tx_bytes.0, Some(max_gas_per_pubdata_byte.into()))?;
+            .parse_transaction_bytes(&tx_bytes.0, max_gas_per_pubdata_byte.into())?;
         tx.set_input(tx_bytes.0, hash);
 
         let submit_result = self.state.tx_sender.submit_tx(tx).await;
