@@ -44,6 +44,19 @@ macro_rules! interpolate_query {
     };
 }
 
+/// Builds a set of statically compiled DB queries based on the provided condition. This allows to avoid copying similar queries
+/// or making them dynamic (i.e., using `sqlx::query()` function etc.).
+///
+/// The macro accepts 3 arguments:
+///
+/// - Output type. Has same semantics as the type in `sqlx::query_as!` macro.
+/// - Query parts, enclosed in `[]` brackets. Each part must be either a string literal, or a `_` placeholder.
+/// - `match` expression. Each variant hand must return a `()`-enclosed comma-separated list of substitutions for the placeholder
+///   query parts (in the order of their appearance in the query parts), then a semicolon `;`, then a list of arguments
+///   for the query (may be empty; has same semantics as arguments for `sqlx::query!`). Each substitution must be a string literal.
+///   The number of arguments may differ across variants (e.g., one of variants may introduce one or more additional args).
+///
+/// See the crate code for examples of usage.
 macro_rules! match_query_as {
     (
         $query_type:ty,
@@ -66,7 +79,7 @@ macro_rules! match_query_as {
         @inner
         query_type: $query_type:ty,
         input: $input:expr,
-        query_parts: ($($_parts:tt),+), // not used; parts are inlined into each clause
+        query_parts: ($($_parts:tt),+), // not used; parts are copied into each clause
         acc: ($($acc:tt)*);
     ) => {
         match_query_as!(

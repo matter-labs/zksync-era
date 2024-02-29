@@ -133,7 +133,7 @@ impl TransactionsWeb3Dal<'_, '_> {
         chain_id: L2ChainId,
     ) -> sqlx::Result<Vec<api::Transaction>> {
         if let TransactionSelector::Position(_, idx) = selector {
-            // Since index is untrusted, we check it to prevent potential overflow below.
+            // Since index is not trusted, we check it to prevent potential overflow below.
             if *idx > i32::MAX as u32 {
                 return Ok(vec![]);
             }
