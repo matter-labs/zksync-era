@@ -18,6 +18,11 @@ enum ProofLoadingMode {
   FRI_PROOF_FROM_GCS = 1;
 }
 
+enum PubdataSendingMode {
+  CALLDATA = 0;
+  BLOBS = 1;
+}
+
 message Sender {
   repeated uint64 aggregated_proof_sizes = 1; // ?
   optional uint64 wait_confirmations = 2; // optional
@@ -37,15 +42,19 @@ message Sender {
   optional uint64 max_acceptable_priority_fee_in_gwei = 16; // required; gwei
   optional ProofLoadingMode proof_loading_mode = 17; // required
   // operator_private_key?
+  optional PubdataSendingMode pubdata_sending_mode = 18; // required
 }
 
 message GasAdjuster {
   optional uint64 default_priority_fee_per_gas = 1; // required; wei?
-  optional uint64 max_base_fee_samples = 2; // required; wei?
+  optional uint64 max_base_fee_samples = 2; // required;
   optional double pricing_formula_parameter_a = 3; // required
   optional double pricing_formula_parameter_b = 4; // required
   optional double internal_l1_pricing_multiplier = 5; // required
   optional uint64 internal_enforced_l1_gas_price = 6; // optional; wei?
   optional uint64 poll_period = 7; // required; s
   optional uint64 max_l1_gas_price = 8; // optional; wei?
+  optional uint64 num_samples_for_blob_base_fee_estimate = 9; // required;
+  optional double internal_pubdata_pricing_multiplier = 10; // required;
+  optional uint64 max_blob_base_fee = 11; // optional; wei
 }
