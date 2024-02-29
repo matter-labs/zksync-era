@@ -490,6 +490,9 @@ async fn detector_errors_on_earliest_batch_hash_mismatch() {
     client
         .l1_batch_root_hashes
         .insert(L1BatchNumber(0), H256::zero());
+    client
+        .miniblock_hashes
+        .insert(MiniblockNumber(0), H256::zero());
 
     let mut detector = create_mock_detector(client, pool.clone());
     assert_matches!(
@@ -505,6 +508,9 @@ async fn detector_errors_on_earliest_batch_hash_mismatch_with_snapshot_recovery(
     client
         .l1_batch_root_hashes
         .insert(L1BatchNumber(3), H256::zero());
+    client
+        .miniblock_hashes
+        .insert(MiniblockNumber(3), H256::zero());
     let detector = create_mock_detector(client, pool.clone());
 
     tokio::spawn(async move {
