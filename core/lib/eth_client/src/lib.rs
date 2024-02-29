@@ -14,8 +14,8 @@ use zksync_types::{
 };
 
 pub use crate::types::{
-    Block, CallFunctionArgs, ContractCall, Error, ExecutedTxStatus, FailureInfo,
-    RawTransactionBytes, SignedCallResult,
+    encode_blob_tx_with_sidecar, Block, CallFunctionArgs, ContractCall, Error, ExecutedTxStatus,
+    FailureInfo, RawTransactionBytes, SignedCallResult,
 };
 
 pub mod clients;

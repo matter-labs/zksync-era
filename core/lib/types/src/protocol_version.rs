@@ -47,11 +47,11 @@ pub enum ProtocolVersionId {
 
 impl ProtocolVersionId {
     pub fn latest() -> Self {
-        Self::Version20
+        Self::Version21
     }
 
     pub fn next() -> Self {
-        Self::Version21
+        Self::Version22
     }
 
     /// Returns VM version to be used by API for this protocol version.
@@ -113,6 +113,10 @@ impl ProtocolVersionId {
 
     pub fn is_post_1_4_2(&self) -> bool {
         self >= &ProtocolVersionId::Version21
+    }
+
+    pub fn is_pre_1_4_2(&self) -> bool {
+        self < &ProtocolVersionId::Version21
     }
 }
 
