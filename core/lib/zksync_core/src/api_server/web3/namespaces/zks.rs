@@ -6,8 +6,8 @@ use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     api::{
-        BlockDetails, BridgeAddresses, GetLogsFilter, L1BatchDetails, L2ToL1LogProof, Proof,
-        ProtocolVersion, StorageProof, TransactionDetails,
+        Attestation, BlockDetails, BridgeAddresses, GetLogsFilter, L1BatchDetails, L2ToL1LogProof,
+        Proof, ProtocolVersion, StorageProof, TransactionDetails,
     },
     fee::Fee,
     fee_model::FeeParams,
@@ -29,6 +29,8 @@ use crate::api_server::{
     tree::TreeApiClient,
     web3::{backend_jsonrpsee::internal_error, metrics::API_METRICS, RpcState},
 };
+
+use secp256k1::PublicKey;
 
 #[derive(Debug)]
 pub struct ZksNamespace {
@@ -639,5 +641,19 @@ impl ZksNamespace {
             address,
             storage_proof,
         })
+    }
+
+    #[tracing::instrument(skip_all)]
+    pub async fn get_tee_attestation_impl(
+        &self,
+        public_key: PublicKey,
+    ) -> Result<Attestation, Web3Error> {
+        const METHOD_NAME: &str = "get_tee_attestation";
+        let mut storage = self.access_storage(METHOD_NAME).await?;
+        storage
+            .tee_web3_dal()
+            .get_attestation(public_key)
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err))
     }
 }

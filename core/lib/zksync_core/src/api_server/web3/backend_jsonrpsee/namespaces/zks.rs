@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use bigdecimal::BigDecimal;
 use zksync_types::{
     api::{
-        BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, Proof, ProtocolVersion,
-        TransactionDetails,
+        Attestation, BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, Proof,
+        ProtocolVersion, TransactionDetails,
     },
     fee::Fee,
     fee_model::FeeParams,
@@ -16,6 +16,8 @@ use zksync_web3_decl::{
     namespaces::zks::ZksNamespaceServer,
     types::Token,
 };
+
+use secp256k1::PublicKey;
 
 use crate::api_server::web3::{backend_jsonrpsee::into_jsrpc_error, ZksNamespace};
 
@@ -165,6 +167,12 @@ impl ZksNamespaceServer for ZksNamespace {
         l1_batch_number: L1BatchNumber,
     ) -> RpcResult<Proof> {
         self.get_proofs_impl(address, keys, l1_batch_number)
+            .await
+            .map_err(into_jsrpc_error)
+    }
+
+    async fn get_tee_attestation(&self, public_key: PublicKey) -> RpcResult<Attestation> {
+        self.get_tee_attestation_impl(public_key)
             .await
             .map_err(into_jsrpc_error)
     }

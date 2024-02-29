@@ -312,6 +312,13 @@ impl TreeUpdater {
             return Ok(()); // Stop signal received
         };
         let mut storage = pool.access_storage_tagged("metadata_calculator").await?;
+        let pubkey = secp256k1::PublicKey::from_secret_key_global(&self.state_root_signing_key);
+        let quote = attest_key(&pubkey).unwrap();
+
+        storage
+            .tee_web3_dal()
+            .set_attestation(&pubkey, &quote)
+            .await?;
 
         // Ensure genesis creation
         let tree = &mut self.tree;

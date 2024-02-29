@@ -4,14 +4,16 @@ use bigdecimal::BigDecimal;
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use zksync_types::{
     api::{
-        BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, Proof, ProtocolVersion,
-        TransactionDetails,
+        Attestation, BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, Proof,
+        ProtocolVersion, TransactionDetails,
     },
     fee::Fee,
     fee_model::FeeParams,
     transaction_request::CallRequest,
     Address, L1BatchNumber, MiniblockNumber, H256, U256, U64,
 };
+
+use secp256k1::PublicKey;
 
 use crate::types::Token;
 
@@ -118,4 +120,7 @@ pub trait ZksNamespace {
         keys: Vec<H256>,
         l1_batch_number: L1BatchNumber,
     ) -> RpcResult<Proof>;
+
+    #[method(name = "getTeeAttestation")]
+    async fn get_tee_attestation(&self, public_key: PublicKey) -> RpcResult<Attestation>;
 }

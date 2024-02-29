@@ -37,7 +37,7 @@ serde_with = { version = "1", features = ["base64"] }
 strum = { version = "0.24", features = ["derive"] }
 thiserror = "1.0"
 num_enum = "0.6"
-hex = "0.4"
+hex = { version = "0.4", features = ["serde"] }
 prost = "0.12.1"
 
 # Crypto stuff
@@ -52,7 +52,6 @@ ethereum_types_old = { package = "ethereum-types", version = "0.12.0" }
 [dev-dependencies]
 secp256k1 = { version = "0.27", features = ["recovery"] }
 tokio = { version = "1", features = ["rt", "macros"] }
-serde_with = { version = "1", features = ["hex"] }
 
 [build-dependencies]
 zksync_protobuf_build = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "5727a3e0b22470bb90092388f9125bcb366df613" }

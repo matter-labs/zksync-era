@@ -19,7 +19,7 @@ use crate::{
     snapshot_recovery_dal::SnapshotRecoveryDal, snapshots_creator_dal::SnapshotsCreatorDal,
     snapshots_dal::SnapshotsDal, storage_dal::StorageDal, storage_logs_dal::StorageLogsDal,
     storage_logs_dedup_dal::StorageLogsDedupDal, storage_web3_dal::StorageWeb3Dal,
-    sync_dal::SyncDal, system_dal::SystemDal, tokens_dal::TokensDal,
+    sync_dal::SyncDal, system_dal::SystemDal, tee_web3_dal::TeeWeb3Dal, tokens_dal::TokensDal,
     tokens_web3_dal::TokensWeb3Dal, transactions_dal::TransactionsDal,
     transactions_web3_dal::TransactionsWeb3Dal,
 };
@@ -58,6 +58,7 @@ pub mod storage_logs_dedup_dal;
 pub mod storage_web3_dal;
 pub mod sync_dal;
 pub mod system_dal;
+pub mod tee_web3_dal;
 pub mod time_utils;
 pub mod tokens_dal;
 pub mod tokens_web3_dal;
@@ -245,5 +246,9 @@ impl<'a> StorageProcessor<'a> {
 
     pub fn snapshot_recovery_dal(&mut self) -> SnapshotRecoveryDal<'_, 'a> {
         SnapshotRecoveryDal { storage: self }
+    }
+
+    pub fn tee_web3_dal(&mut self) -> TeeWeb3Dal<'_, 'a> {
+        TeeWeb3Dal { storage: self }
     }
 }

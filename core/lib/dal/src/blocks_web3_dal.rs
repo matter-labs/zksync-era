@@ -565,7 +565,9 @@ impl BlocksWeb3Dal<'_, '_> {
                     l1_batches.l1_gas_price,
                     l1_batches.l2_fair_gas_price,
                     l1_batches.bootloader_code_hash,
-                    l1_batches.default_aa_code_hash
+                    l1_batches.default_aa_code_hash,
+                    l1_batches.signed_state_root,
+                    l1_batches.state_root_signing_pubkey
                 FROM
                     l1_batches
                     LEFT JOIN eth_txs_history AS commit_tx ON (

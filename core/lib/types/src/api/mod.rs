@@ -14,10 +14,21 @@ use crate::{
     protocol_version::L1VerifierConfig,
     vm_trace::{Call, CallType},
     web3::types::{AccessList, Index, H2048},
-    Address, MiniblockNumber, ProtocolVersionId,
+    Address, MiniblockNumber, PackedEthSignature, ProtocolVersionId,
 };
+use serde_with::base64::Base64;
+use serde_with::serde_as;
 
 pub mod en;
+
+/// Introduce new type to benefit from automatic serializing into hex-string. If this can be achieved w/o introducing a new type, this can be removed again.
+#[serde_as]
+#[derive(Clone, Default, Deserialize, Serialize)]
+pub struct Attestation {
+    // Use base64 encoding since it is more space-efficient than hex and the attestation is quite large (3 KiB).
+    #[serde_as(as = "Base64")]
+    pub attestation: Vec<u8>,
+}
 
 /// Block Number
 #[derive(Copy, Clone, Debug, PartialEq, Display)]
@@ -683,6 +694,9 @@ pub struct BlockDetails {
 #[serde(rename_all = "camelCase")]
 pub struct L1BatchDetails {
     pub number: L1BatchNumber,
+    pub signed_state_root: Option<PackedEthSignature>,
+    #[serde(with = "hex")]
+    pub state_root_signing_pubkey: Vec<u8>,
     #[serde(flatten)]
     pub base: BlockDetailsBase,
 }
