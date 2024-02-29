@@ -44,7 +44,7 @@ impl NativeTokenFetcherSingleton {
             .singleton
             .get_or_init(|| async {
                 let fetcher =
-                    NativeTokenFetcher::new(self.native_token_fetcher_config.clone()).await;
+                    NativeTokenFetcher::new(self.native_token_fetcher_config.clone()).await?;
                 Ok(Arc::new(fetcher))
             })
             .await;
@@ -69,18 +69,16 @@ pub(crate) struct NativeTokenFetcher {
 }
 
 impl NativeTokenFetcher {
-    pub(crate) async fn new(config: NativeTokenFetcherConfig) -> Self {
+    pub(crate) async fn new(config: NativeTokenFetcherConfig) -> anyhow::Result<Self> {
         let conversion_rate = reqwest::get(format!("{}/conversion_rate", config.host))
-            .await
-            .unwrap()
+            .await?
             .json::<u64>()
-            .await
-            .unwrap();
+            .await?;
 
-        Self {
+        Ok(Self {
             config,
             latest_to_eth_conversion_rate: AtomicU64::new(conversion_rate),
-        }
+        })
     }
 
     pub(crate) async fn run(&self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
@@ -93,8 +91,7 @@ impl NativeTokenFetcher {
             let conversion_rate = reqwest::get(format!("{}/conversion_rate", &self.config.host))
                 .await?
                 .json::<u64>()
-                .await
-                .unwrap();
+                .await?;
 
             self.latest_to_eth_conversion_rate
                 .store(conversion_rate, std::sync::atomic::Ordering::Relaxed);
