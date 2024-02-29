@@ -209,12 +209,20 @@ pub struct RpcState {
 }
 
 impl RpcState {
-    pub fn parse_transaction_bytes(&self, bytes: &[u8]) -> Result<(L2Tx, H256), Web3Error> {
+    pub fn parse_transaction_bytes(
+        &self,
+        bytes: &[u8],
+        default_gas_per_pubdata: Option<U256>,
+    ) -> Result<(L2Tx, H256), Web3Error> {
         let chain_id = self.api_config.l2_chain_id;
         let (tx_request, hash) = api::TransactionRequest::from_bytes(bytes, chain_id)?;
 
         Ok((
-            L2Tx::from_request(tx_request, self.api_config.max_tx_size)?,
+            L2Tx::from_request(
+                tx_request,
+                self.api_config.max_tx_size,
+                default_gas_per_pubdata,
+            )?,
             hash,
         ))
     }

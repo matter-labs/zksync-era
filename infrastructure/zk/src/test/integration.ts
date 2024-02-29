@@ -40,6 +40,10 @@ export async function fees() {
     await utils.spawn('yarn ts-integration fee-test');
 }
 
+export async function highL1GasPriceEnvironment() {
+    await utils.spawn('yarn ts-integration high-l1-gas-price-test');
+}
+
 export async function revert(bail: boolean = false) {
     const flag = bail ? ' --bail' : '';
     await utils.spawn('yarn revert-test revert-and-restart-test' + flag);
@@ -69,9 +73,16 @@ command
 
 command
     .command('fees')
-    .description('run server integration tests')
+    .description('run fee projection tests')
     .action(async () => {
         await fees();
+    });
+
+command
+    .command('high-l1-gas-price-environment')
+    .description('run high L1 gas price environment tests')
+    .action(async () => {
+        await highL1GasPriceEnvironment();
     });
 
 command

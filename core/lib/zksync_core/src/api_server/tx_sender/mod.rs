@@ -12,7 +12,6 @@ use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig};
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, StorageProcessor};
 use zksync_state::PostgresStorageCaches;
-use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     fee::{Fee, TransactionExecutionMetrics},
     fee_model::BatchFeeInput,
@@ -651,6 +650,9 @@ impl TxSender {
             adjust_pubdata_price_for_tx(
                 fee_input,
                 tx.gas_per_pubdata_byte_limit(),
+                // We do not have to adjust the params to the gasPrice of the transaction, since
+                // its gas price will be amended later on to suit the `fee_input`
+                None,
                 protocol_version.into(),
             )
         };
@@ -704,9 +706,6 @@ impl TxSender {
             if l2_common_data.signature.is_empty() {
                 l2_common_data.signature = PackedEthSignature::default().serialize_packed().into();
             }
-
-            l2_common_data.fee.gas_per_pubdata_limit =
-                U256::from(DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE);
         }
 
         // Acquire the vm token for the whole duration of the binary search.

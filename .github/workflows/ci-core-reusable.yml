@@ -205,6 +205,9 @@ jobs:
 
       - name: Fee projection tests
         run: ci_run zk test i fees
+  
+      - name: High L1 gas price environment tests
+        run: ci_run zk test i high-l1-gas-price-environment
 
       - name: Run revert test
         run: |

@@ -25,7 +25,7 @@ use zksync_system_constants::{
 use zksync_types::{
     api,
     block::{pack_block_info, unpack_block_info, MiniblockHasher},
-    fee_model::BatchFeeInput,
+    fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput, PubdataIndependentBatchFeeModelInput},
     get_nonce_key,
     utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
     AccountTreeId, L1BatchNumber, MiniblockNumber, Nonce, ProtocolVersionId, StorageKey,
@@ -266,6 +266,8 @@ impl<'a> Sandbox<'a> {
             self.l1_batch_env.fee_input = adjust_pubdata_price_for_tx(
                 self.l1_batch_env.fee_input,
                 tx.gas_per_pubdata_byte_limit(),
+                // We either use the enforced base fee or we allow any base fee
+                self.l1_batch_env.enforced_base_fee.map(U256::from),
                 protocol_version.into(),
             );
         };
@@ -398,13 +400,19 @@ impl StoredL2BlockInfo {
 }
 
 #[derive(Debug)]
-struct ResolvedBlockInfo {
+pub(crate) struct ResolvedBlockInfo {
     state_l2_block_number: MiniblockNumber,
     state_l2_block_hash: H256,
     vm_l1_batch_number: L1BatchNumber,
     l1_batch_timestamp: u64,
     protocol_version: ProtocolVersionId,
     historical_fee_input: Option<BatchFeeInput>,
+}
+
+impl ResolvedBlockInfo {
+    pub(crate) fn get_protocol_version(&self) -> ProtocolVersionId {
+        self.protocol_version
+    }
 }
 
 impl BlockArgs {
@@ -424,7 +432,7 @@ impl BlockArgs {
         )
     }
 
-    async fn resolve_block_info(
+    pub(crate) async fn resolve_block_info(
         &self,
         connection: &mut StorageProcessor<'_>,
     ) -> anyhow::Result<ResolvedBlockInfo> {
