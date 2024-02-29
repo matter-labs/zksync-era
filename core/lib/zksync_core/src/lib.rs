@@ -632,8 +632,8 @@ pub async fn initialize_components(
             };
 
         let args = CallFunctionArgs::new("getPubdataPricingMode", ()).for_contract(
-            contracts_config.executor_facet_addr,
-            zksync_contracts::executor_contract(),
+            contracts_config.diamond_proxy_addr,
+            zksync_contracts::zksync_contract(),
         );
         let current_commitment_mode_eth_response = eth_client.call_contract_function(args).await?;
 
