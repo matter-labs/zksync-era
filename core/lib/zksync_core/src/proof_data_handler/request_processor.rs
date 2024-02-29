@@ -119,7 +119,7 @@ impl RequestProcessor {
                 .expect(&format!("Missing header for {}", l1_batch_number));
 
             let protocol_version = header.protocol_version.unwrap();
-            // TODO: What invariants have to hold such that ProtocolVersion = FriProtocolVersion?
+            // TODO: What invariants have to hold such that protocol version = fri protocol version?
             let fri_protocol_version = FriProtocolVersionId::from(protocol_version);
             (self
                 .pool
