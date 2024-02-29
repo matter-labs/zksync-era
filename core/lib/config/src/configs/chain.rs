@@ -123,7 +123,7 @@ pub struct StateKeeperConfig {
 
     /// Number of keys that is processed by enum_index migration in State Keeper each L1 batch.
     pub enum_index_migration_chunk_size: Option<usize>,
-
+    #[serde(default)]
     pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
 }
 

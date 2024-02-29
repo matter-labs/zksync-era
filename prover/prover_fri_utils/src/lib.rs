@@ -103,6 +103,7 @@ pub fn get_numeric_circuit_id(circuit_wrapper: &CircuitWrapper) -> u8 {
     match circuit_wrapper {
         CircuitWrapper::Base(circuit) => circuit.numeric_circuit_type(),
         CircuitWrapper::Recursive(circuit) => circuit.numeric_circuit_type(),
+        CircuitWrapper::Eip4844(_) => ProverServiceDataKey::eip4844().circuit_id,
     }
 }
 

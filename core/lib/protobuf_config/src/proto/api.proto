@@ -35,6 +35,7 @@ message Web3JsonRpc {
   optional uint64 max_response_body_size_mb = 24; // optional; MB
   optional uint32 websocket_requests_per_minute_limit = 25; // optional
   optional string tree_api_url = 26; // optional
+  optional bool filters_disabled = 27; // optional
 }
 
 message ContractVerificationApi {

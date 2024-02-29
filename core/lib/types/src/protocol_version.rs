@@ -17,9 +17,8 @@ use crate::{
 };
 
 #[repr(u16)]
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, TryFromPrimitive, Serialize, Deserialize,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(TryFromPrimitive, Serialize, Deserialize)]
 pub enum ProtocolVersionId {
     Version0 = 0,
     Version1,
@@ -43,6 +42,7 @@ pub enum ProtocolVersionId {
     Version19,
     Version20,
     Version21,
+    Version22,
 }
 
 impl ProtocolVersionId {
@@ -79,7 +79,8 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version18 => VmVersion::VmBoojumIntegration,
             ProtocolVersionId::Version19 => VmVersion::VmBoojumIntegration,
             ProtocolVersionId::Version20 => VmVersion::Vm1_4_1,
-            ProtocolVersionId::Version21 => VmVersion::Vm1_4_1,
+            ProtocolVersionId::Version21 => VmVersion::Vm1_4_2,
+            ProtocolVersionId::Version22 => VmVersion::Vm1_4_2,
         }
     }
 
@@ -91,6 +92,15 @@ impl ProtocolVersionId {
 
     pub fn is_pre_boojum(&self) -> bool {
         self <= &Self::Version17
+    }
+
+    pub fn is_pre_shared_bridge(&self) -> bool {
+        // TODO: review this when we actually deploy shared bridge
+        true
+    }
+
+    pub fn is_1_4_0(&self) -> bool {
+        self >= &ProtocolVersionId::Version18 && self < &ProtocolVersionId::Version20
     }
 
     pub fn is_post_1_4_1(&self) -> bool {
@@ -119,9 +129,8 @@ impl TryFrom<U256> for ProtocolVersionId {
 }
 
 #[repr(u16)]
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, TryFromPrimitive, Serialize, Deserialize,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(TryFromPrimitive, Serialize, Deserialize)]
 pub enum FriProtocolVersionId {
     Version0 = 0,
     Version1,
@@ -227,6 +236,27 @@ pub struct ProtocolUpgrade {
     pub tx: Option<ProtocolUpgradeTx>,
 }
 
+fn get_transaction_param_type() -> ParamType {
+    ParamType::Tuple(vec![
+        ParamType::Uint(256),                                     // `txType`
+        ParamType::Uint(256),                                     // sender
+        ParamType::Uint(256),                                     // to
+        ParamType::Uint(256),                                     // gasLimit
+        ParamType::Uint(256),                                     // `gasPerPubdataLimit`
+        ParamType::Uint(256),                                     // maxFeePerGas
+        ParamType::Uint(256),                                     // maxPriorityFeePerGas
+        ParamType::Uint(256),                                     // paymaster
+        ParamType::Uint(256),                                     // nonce (serial ID)
+        ParamType::Uint(256),                                     // value
+        ParamType::FixedArray(Box::new(ParamType::Uint(256)), 4), // reserved
+        ParamType::Bytes,                                         // calldata
+        ParamType::Bytes,                                         // signature
+        ParamType::Array(Box::new(ParamType::Uint(256))),         // factory deps
+        ParamType::Bytes,                                         // paymaster input
+        ParamType::Bytes,                                         // `reservedDynamic`
+    ])
+}
+
 impl TryFrom<Log> for ProtocolUpgrade {
     type Error = crate::ethabi::Error;
 
@@ -252,24 +282,7 @@ impl TryFrom<Log> for ProtocolUpgrade {
             _ => unreachable!(),
         };
 
-        let transaction_param_type = ParamType::Tuple(vec![
-            ParamType::Uint(256),                                     // `txType`
-            ParamType::Uint(256),                                     // sender
-            ParamType::Uint(256),                                     // to
-            ParamType::Uint(256),                                     // gasLimit
-            ParamType::Uint(256),                                     // `gasPerPubdataLimit`
-            ParamType::Uint(256),                                     // maxFeePerGas
-            ParamType::Uint(256),                                     // maxPriorityFeePerGas
-            ParamType::Uint(256),                                     // paymaster
-            ParamType::Uint(256),                                     // nonce (serial ID)
-            ParamType::Uint(256),                                     // value
-            ParamType::FixedArray(Box::new(ParamType::Uint(256)), 4), // reserved
-            ParamType::Bytes,                                         // calldata
-            ParamType::Bytes,                                         // signature
-            ParamType::Array(Box::new(ParamType::Uint(256))),         // factory deps
-            ParamType::Bytes,                                         // paymaster input
-            ParamType::Bytes,                                         // `reservedDynamic`
-        ]);
+        let transaction_param_type: ParamType = get_transaction_param_type();
         let verifier_params_type = ParamType::Tuple(vec![
             ParamType::FixedBytes(32),
             ParamType::FixedBytes(32),
@@ -299,119 +312,21 @@ impl TryFrom<Log> for ProtocolUpgrade {
             unreachable!();
         };
 
-        let Token::Tuple(mut transaction) = decoded.remove(0) else {
+        let Token::Tuple(transaction) = decoded.remove(0) else {
             unreachable!()
         };
 
         let factory_deps = decoded.remove(0).into_array().unwrap();
 
-        let tx = {
-            let canonical_tx_hash = H256(keccak256(&encode(&[Token::Tuple(transaction.clone())])));
+        let eth_hash = event
+            .transaction_hash
+            .expect("Event transaction hash is missing");
+        let eth_block = event
+            .block_number
+            .expect("Event block number is missing")
+            .as_u64();
 
-            assert_eq!(transaction.len(), 16);
-
-            let tx_type = transaction.remove(0).into_uint().unwrap();
-            if tx_type == PROTOCOL_UPGRADE_TX_TYPE.into() {
-                // There is an upgrade tx. Decoding it.
-                let sender = transaction.remove(0).into_uint().unwrap();
-                let sender = u256_to_account_address(&sender);
-
-                let contract_address = transaction.remove(0).into_uint().unwrap();
-                let contract_address = u256_to_account_address(&contract_address);
-
-                let gas_limit = transaction.remove(0).into_uint().unwrap();
-
-                let gas_per_pubdata_limit = transaction.remove(0).into_uint().unwrap();
-
-                let max_fee_per_gas = transaction.remove(0).into_uint().unwrap();
-
-                let max_priority_fee_per_gas = transaction.remove(0).into_uint().unwrap();
-                assert_eq!(max_priority_fee_per_gas, U256::zero());
-
-                let paymaster = transaction.remove(0).into_uint().unwrap();
-                let paymaster = u256_to_account_address(&paymaster);
-                assert_eq!(paymaster, Address::zero());
-
-                let upgrade_id = transaction.remove(0).into_uint().unwrap();
-
-                let msg_value = transaction.remove(0).into_uint().unwrap();
-
-                let reserved = transaction
-                    .remove(0)
-                    .into_fixed_array()
-                    .unwrap()
-                    .into_iter()
-                    .map(|token| token.into_uint().unwrap())
-                    .collect::<Vec<_>>();
-                assert_eq!(reserved.len(), 4);
-
-                let to_mint = reserved[0];
-                let refund_recipient = u256_to_account_address(&reserved[1]);
-
-                // All other reserved fields should be zero
-                for item in reserved.iter().skip(2) {
-                    assert_eq!(item, &U256::zero());
-                }
-
-                let calldata = transaction.remove(0).into_bytes().unwrap();
-
-                let signature = transaction.remove(0).into_bytes().unwrap();
-                assert_eq!(signature.len(), 0);
-
-                let _factory_deps_hashes = transaction.remove(0).into_array().unwrap();
-
-                let paymaster_input = transaction.remove(0).into_bytes().unwrap();
-                assert_eq!(paymaster_input.len(), 0);
-
-                // TODO (SMA-1621): check that `reservedDynamic` are constructed correctly.
-                let reserved_dynamic = transaction.remove(0).into_bytes().unwrap();
-                assert_eq!(reserved_dynamic.len(), 0);
-
-                let eth_hash = event
-                    .transaction_hash
-                    .expect("Event transaction hash is missing");
-                let eth_block = event
-                    .block_number
-                    .expect("Event block number is missing")
-                    .as_u64();
-
-                let common_data = ProtocolUpgradeTxCommonData {
-                    canonical_tx_hash,
-                    sender,
-                    upgrade_id: (upgrade_id.as_u32() as u16).try_into().unwrap(),
-                    to_mint,
-                    refund_recipient,
-                    gas_limit,
-                    max_fee_per_gas,
-                    gas_per_pubdata_limit,
-                    eth_hash,
-                    eth_block,
-                };
-
-                let factory_deps = factory_deps
-                    .into_iter()
-                    .map(|t| t.into_bytes().unwrap())
-                    .collect();
-
-                let execute = Execute {
-                    contract_address,
-                    calldata: calldata.to_vec(),
-                    factory_deps: Some(factory_deps),
-                    value: msg_value,
-                };
-
-                Some(ProtocolUpgradeTx {
-                    common_data,
-                    execute,
-                    received_timestamp_ms: unix_timestamp_ms(),
-                })
-            } else if tx_type == U256::zero() {
-                // There is no upgrade tx.
-                None
-            } else {
-                panic!("Unexpected tx type {} when decoding upgrade", tx_type);
-            }
-        };
+        let tx = ProtocolUpgradeTx::decode_tx(transaction, eth_hash, eth_block, factory_deps);
         let bootloader_code_hash = H256::from_slice(&decoded.remove(0).into_fixed_bytes().unwrap());
         let default_account_code_hash =
             H256::from_slice(&decoded.remove(0).into_fixed_bytes().unwrap());
@@ -454,6 +369,147 @@ impl TryFrom<Log> for ProtocolUpgrade {
             verifier_address: (verifier_address != Address::zero()).then_some(verifier_address),
             timestamp: timestamp.as_u64(),
             tx,
+        })
+    }
+}
+
+pub fn decode_set_chain_id_event(
+    event: Log,
+) -> Result<(ProtocolVersionId, ProtocolUpgradeTx), crate::ethabi::Error> {
+    let transaction_param_type: ParamType = get_transaction_param_type();
+
+    let Token::Tuple(transaction) = decode(&[transaction_param_type], &event.data.0)?.remove(0)
+    else {
+        unreachable!()
+    };
+
+    let version_id = event.topics[2].to_low_u64_be();
+
+    let eth_hash = event
+        .transaction_hash
+        .expect("Event transaction hash is missing");
+    let eth_block = event
+        .block_number
+        .expect("Event block number is missing")
+        .as_u64();
+
+    let factory_deps: Vec<Token> = Vec::new();
+
+    let upgrade_tx = ProtocolUpgradeTx::decode_tx(transaction, eth_hash, eth_block, factory_deps)
+        .expect("Upgrade tx is missing");
+    let version_id =
+        ProtocolVersionId::try_from(version_id as u16).expect("Version is not supported");
+
+    Ok((version_id, upgrade_tx))
+}
+
+impl ProtocolUpgradeTx {
+    pub fn decode_tx(
+        mut transaction: Vec<Token>,
+        eth_hash: H256,
+        eth_block: u64,
+        factory_deps: Vec<Token>,
+    ) -> Option<ProtocolUpgradeTx> {
+        let canonical_tx_hash = H256(keccak256(&encode(&[Token::Tuple(transaction.clone())])));
+        assert_eq!(transaction.len(), 16);
+
+        let tx_type = transaction.remove(0).into_uint().unwrap();
+        if tx_type == U256::zero() {
+            // There is no upgrade tx.
+            return None;
+        }
+
+        assert_eq!(
+            tx_type,
+            PROTOCOL_UPGRADE_TX_TYPE.into(),
+            "Unexpected tx type {} when decoding upgrade",
+            tx_type
+        );
+
+        // There is an upgrade tx. Decoding it.
+        let sender = transaction.remove(0).into_uint().unwrap();
+        let sender = u256_to_account_address(&sender);
+
+        let contract_address = transaction.remove(0).into_uint().unwrap();
+        let contract_address = u256_to_account_address(&contract_address);
+
+        let gas_limit = transaction.remove(0).into_uint().unwrap();
+
+        let gas_per_pubdata_limit = transaction.remove(0).into_uint().unwrap();
+
+        let max_fee_per_gas = transaction.remove(0).into_uint().unwrap();
+
+        let max_priority_fee_per_gas = transaction.remove(0).into_uint().unwrap();
+        assert_eq!(max_priority_fee_per_gas, U256::zero());
+
+        let paymaster = transaction.remove(0).into_uint().unwrap();
+        let paymaster = u256_to_account_address(&paymaster);
+        assert_eq!(paymaster, Address::zero());
+
+        let upgrade_id = transaction.remove(0).into_uint().unwrap();
+
+        let msg_value = transaction.remove(0).into_uint().unwrap();
+
+        let reserved = transaction
+            .remove(0)
+            .into_fixed_array()
+            .unwrap()
+            .into_iter()
+            .map(|token| token.into_uint().unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(reserved.len(), 4);
+
+        let to_mint = reserved[0];
+        let refund_recipient = u256_to_account_address(&reserved[1]);
+
+        // All other reserved fields should be zero
+        for item in reserved.iter().skip(2) {
+            assert_eq!(item, &U256::zero());
+        }
+
+        let calldata = transaction.remove(0).into_bytes().unwrap();
+
+        let signature = transaction.remove(0).into_bytes().unwrap();
+        assert_eq!(signature.len(), 0);
+
+        let _factory_deps_hashes = transaction.remove(0).into_array().unwrap();
+
+        let paymaster_input = transaction.remove(0).into_bytes().unwrap();
+        assert_eq!(paymaster_input.len(), 0);
+
+        // TODO (SMA-1621): check that `reservedDynamic` are constructed correctly.
+        let reserved_dynamic = transaction.remove(0).into_bytes().unwrap();
+        assert_eq!(reserved_dynamic.len(), 0);
+
+        let common_data = ProtocolUpgradeTxCommonData {
+            canonical_tx_hash,
+            sender,
+            upgrade_id: (upgrade_id.as_u32() as u16).try_into().unwrap(),
+            to_mint,
+            refund_recipient,
+            gas_limit,
+            max_fee_per_gas,
+            gas_per_pubdata_limit,
+            eth_hash,
+            eth_block,
+        };
+
+        let factory_deps = factory_deps
+            .into_iter()
+            .map(|t| t.into_bytes().unwrap())
+            .collect();
+
+        let execute = Execute {
+            contract_address,
+            calldata: calldata.to_vec(),
+            factory_deps: Some(factory_deps),
+            value: msg_value,
+        };
+
+        Some(ProtocolUpgradeTx {
+            common_data,
+            execute,
+            received_timestamp_ms: unix_timestamp_ms(),
         })
     }
 }
@@ -606,7 +662,7 @@ impl ProtocolVersion {
     }
 }
 
-#[derive(Default, Debug, Clone, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProtocolUpgradeTxCommonData {
     /// Sender of the transaction.
@@ -641,7 +697,7 @@ impl ProtocolUpgradeTxCommonData {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ProtocolUpgradeTx {
     pub execute: Execute,
     pub common_data: ProtocolUpgradeTxCommonData,
@@ -710,7 +766,8 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version18 => VmVersion::VmBoojumIntegration,
             ProtocolVersionId::Version19 => VmVersion::VmBoojumIntegration,
             ProtocolVersionId::Version20 => VmVersion::Vm1_4_1,
-            ProtocolVersionId::Version21 => VmVersion::Vm1_4_1,
+            ProtocolVersionId::Version21 => VmVersion::Vm1_4_2,
+            ProtocolVersionId::Version22 => VmVersion::Vm1_4_2,
         }
     }
 }

@@ -9,7 +9,10 @@ use std::{
 
 use test_casing::test_casing;
 use tokio::{sync::watch, task::JoinHandle};
-use zksync_config::configs::chain::NetworkConfig;
+use zksync_config::{
+    configs::{api::Web3JsonRpcConfig, chain::NetworkConfig},
+    ContractsConfig,
+};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::{
@@ -22,7 +25,7 @@ use zksync_types::{
 
 use super::{sync_action::SyncAction, *};
 use crate::{
-    api_server::web3::tests::spawn_http_server,
+    api_server::web3::{state::InternalApiConfig, tests::spawn_http_server},
     consensus::testonly::MockMainNodeClient,
     genesis::{ensure_genesis_state, GenesisParams},
     state_keeper::{
@@ -71,7 +74,6 @@ impl StateKeeperHandles {
         let sync_state = SyncState::default();
         let (miniblock_sealer, miniblock_sealer_handle) = MiniblockSealer::new(pool.clone(), 5);
         tokio::spawn(miniblock_sealer.run());
-
         let io = ExternalIO::new(
             miniblock_sealer_handle,
             pool,
@@ -678,9 +680,12 @@ async fn fetcher_with_real_server(snapshot_recovery: bool) {
 
     // Start the API server.
     let network_config = NetworkConfig::for_tests();
+    let contracts_config = ContractsConfig::for_tests();
+    let web3_config = Web3JsonRpcConfig::for_tests();
+    let api_config = InternalApiConfig::new(&network_config, &web3_config, &contracts_config);
     let (stop_sender, stop_receiver) = watch::channel(false);
     let mut server_handles = spawn_http_server(
-        &network_config,
+        api_config,
         pool.clone(),
         Default::default(),
         stop_receiver.clone(),

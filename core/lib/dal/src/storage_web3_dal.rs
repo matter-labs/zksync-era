@@ -3,7 +3,7 @@ use std::{collections::HashMap, ops};
 use zksync_types::{
     get_code_key, get_nonce_key,
     utils::{decompose_full_nonce, storage_key_for_standard_token_balance},
-    AccountTreeId, Address, L1BatchNumber, MiniblockNumber, StorageKey,
+    AccountTreeId, Address, L1BatchNumber, MiniblockNumber, Nonce, StorageKey,
     FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H256, U256,
 };
 use zksync_utils::h256_to_u256;
@@ -30,6 +30,30 @@ impl StorageWeb3Dal<'_, '_> {
             .await?;
         let full_nonce = h256_to_u256(nonce_value);
         Ok(decompose_full_nonce(full_nonce).0)
+    }
+
+    /// Returns the current *stored* nonces (i.e., w/o accounting for pending transactions) for the specified accounts.
+    pub async fn get_nonces_for_addresses(
+        &mut self,
+        addresses: &[Address],
+    ) -> sqlx::Result<HashMap<Address, Nonce>> {
+        let nonce_keys: HashMap<_, _> = addresses
+            .iter()
+            .map(|address| (get_nonce_key(address).hashed_key(), *address))
+            .collect();
+
+        let res = self
+            .get_values(&nonce_keys.keys().copied().collect::<Vec<_>>())
+            .await?
+            .into_iter()
+            .filter_map(|(hashed_key, value)| {
+                let address = nonce_keys.get(&hashed_key)?;
+                let full_nonce = h256_to_u256(value);
+                let (nonce, _) = decompose_full_nonce(full_nonce);
+                Some((*address, Nonce(nonce.as_u32())))
+            })
+            .collect();
+        Ok(res)
     }
 
     pub async fn standard_token_historical_balance(
