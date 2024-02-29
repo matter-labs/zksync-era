@@ -26,6 +26,22 @@ pub trait ConversionRateFetcher: 'static + std::fmt::Debug + Send + Sync {
     fn conversion_rate(&self) -> anyhow::Result<u64>;
 }
 
+#[derive(Debug)]
+pub(crate) struct NoOpConversionRateFetcher;
+
+impl NoOpConversionRateFetcher {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+#[async_trait]
+impl ConversionRateFetcher for NoOpConversionRateFetcher {
+    fn conversion_rate(&self) -> anyhow::Result<u64> {
+        Ok(1)
+    }
+}
+
 pub(crate) struct NativeTokenFetcherSingleton {
     native_token_fetcher_config: NativeTokenFetcherConfig,
     singleton: OnceCell<Result<Arc<NativeTokenFetcher>, Error>>,
@@ -66,6 +82,7 @@ impl NativeTokenFetcherSingleton {
 pub(crate) struct NativeTokenFetcher {
     pub config: NativeTokenFetcherConfig,
     pub latest_to_eth_conversion_rate: AtomicU64,
+    http_client: reqwest::Client,
 }
 
 impl NativeTokenFetcher {
@@ -75,9 +92,12 @@ impl NativeTokenFetcher {
             .json::<u64>()
             .await?;
 
+        let http_client = reqwest::Client::new();
+
         Ok(Self {
             config,
             latest_to_eth_conversion_rate: AtomicU64::new(conversion_rate),
+            http_client: http_client,
         })
     }
 
@@ -88,7 +108,10 @@ impl NativeTokenFetcher {
                 break;
             }
 
-            let conversion_rate = reqwest::get(format!("{}/conversion_rate", &self.config.host))
+            let conversion_rate = self
+                .http_client
+                .get(format!("{}/conversion_rate", &self.config.host))
+                .send()
                 .await?
                 .json::<u64>()
                 .await?;
