@@ -17,7 +17,7 @@ use zksync_node_framework::{
     implementations::layers::{
         eth_watch::EthWatchLayer,
         fee_input::SequencerFeeInputLayer,
-        healtcheck_server::HealthCheckLayer,
+        healtcheck_server::{HealthCheckLayer, HealthCheckTask},
         metadata_calculator::MetadataCalculatorLayer,
         object_store::ObjectStoreLayer,
         pools_layer::PoolsLayerBuilder,
@@ -29,6 +29,7 @@ use zksync_node_framework::{
         },
     },
     service::ZkStackService,
+    task::Task,
 };
 
 struct MainNodeBuilder {
@@ -162,7 +163,7 @@ fn main() -> anyhow::Result<()> {
             Box::pin(async move {
                 // We want to make sure that the healthcheck server is the very first
                 // thing that starts.
-                pre_run.launch_task("healthcheck_server")?;
+                pre_run.launch_task(HealthCheckTask::name())?;
 
                 // ...imagine that there is some setup work here -- ensuring genesis state, running some migration,
                 // loading some data, etc..
