@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+use serde_with::{base64::Base64, serde_as};
 use strum::Display;
 use zksync_basic_types::{
     web3::types::{Bytes, H160, H256, H64, U256, U64},
@@ -16,8 +17,6 @@ use crate::{
     web3::types::{AccessList, Index, H2048},
     Address, MiniblockNumber, PackedEthSignature, ProtocolVersionId,
 };
-use serde_with::base64::Base64;
-use serde_with::serde_as;
 
 pub mod en;
 

@@ -1,6 +1,7 @@
 use std::{collections::HashMap, convert::TryInto};
 
 use bigdecimal::{BigDecimal, Zero};
+use secp256k1::PublicKey;
 use zksync_dal::StorageProcessor;
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
@@ -29,8 +30,6 @@ use crate::api_server::{
     tree::TreeApiClient,
     web3::{backend_jsonrpsee::internal_error, metrics::API_METRICS, RpcState},
 };
-
-use secp256k1::PublicKey;
 
 #[derive(Debug)]
 pub struct ZksNamespace {

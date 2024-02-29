@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use bigdecimal::BigDecimal;
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
+use secp256k1::PublicKey;
 use zksync_types::{
     api::{
         Attestation, BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, Proof,
@@ -12,8 +13,6 @@ use zksync_types::{
     transaction_request::CallRequest,
     Address, L1BatchNumber, MiniblockNumber, H256, U256, U64,
 };
-
-use secp256k1::PublicKey;
 
 use crate::types::Token;
 

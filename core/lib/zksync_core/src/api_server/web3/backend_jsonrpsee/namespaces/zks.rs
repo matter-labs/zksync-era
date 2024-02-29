@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use bigdecimal::BigDecimal;
+use secp256k1::PublicKey;
 use zksync_types::{
     api::{
         Attestation, BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, Proof,
@@ -16,8 +17,6 @@ use zksync_web3_decl::{
     namespaces::zks::ZksNamespaceServer,
     types::Token,
 };
-
-use secp256k1::PublicKey;
 
 use crate::api_server::web3::{backend_jsonrpsee::into_jsrpc_error, ZksNamespace};
 

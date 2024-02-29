@@ -7,12 +7,14 @@ use std::{
     time::Duration,
 };
 
+use secp256k1;
 use tokio::sync::watch;
 use zksync_config::configs::{
     chain::OperationsManagerConfig,
     database::{MerkleTreeConfig, MerkleTreeMode},
 };
 use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_eth_signer::{EthereumSigner, PrivateKeySigner};
 use zksync_health_check::{HealthUpdater, ReactiveHealthCheck};
 use zksync_merkle_tree::domain::TreeMetadata;
 use zksync_object_store::ObjectStore;
@@ -29,8 +31,6 @@ use self::{
     updater::TreeUpdater,
 };
 use crate::gas_tracker::commit_gas_count_for_l1_batch;
-use secp256k1;
-use zksync_eth_signer::{EthereumSigner, PrivateKeySigner};
 
 mod helpers;
 mod metrics;

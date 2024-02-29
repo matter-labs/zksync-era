@@ -5,6 +5,7 @@ use std::{fs, ops, sync::Arc, time::Instant};
 use anyhow::Context as _;
 use futures::{future, FutureExt};
 use secp256k1::{PublicKey, SecretKey};
+use teepot::{quote, sgx};
 use tokio::sync::watch;
 use zksync_commitment_utils::{bootloader_initial_content_commitment, events_queue_commitment};
 use zksync_config::configs::database::MerkleTreeMode;
@@ -22,7 +23,6 @@ use super::{
     MetadataCalculator,
 };
 use crate::utils::wait_for_l1_batch;
-use teepot::{quote, sgx};
 
 #[derive(Debug)]
 pub(super) struct TreeUpdater {
