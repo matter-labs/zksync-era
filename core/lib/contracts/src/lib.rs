@@ -39,8 +39,6 @@ const LOADNEXT_CONTRACT_FILE: &str =
     "etc/contracts-test-data/artifacts-zk/contracts/loadnext/loadnext_contract.sol/LoadnextContract.json";
 const LOADNEXT_SIMPLE_CONTRACT_FILE: &str =
     "etc/contracts-test-data/artifacts-zk/contracts/loadnext/loadnext_contract.sol/Foo.json";
-const EXECUTOR_CONTRACT_FILE: &str =
-    "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/zksync/facets/Executor.sol/ExecutorFacet.json";
 
 fn read_file_to_json_value(path: impl AsRef<Path>) -> serde_json::Value {
     let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
@@ -91,10 +89,6 @@ pub fn l2_bridge_contract() -> Contract {
 
 pub fn verifier_contract() -> Contract {
     load_contract(VERIFIER_CONTRACT_FILE)
-}
-
-pub fn executor_contract() -> Contract {
-    load_contract(EXECUTOR_CONTRACT_FILE)
 }
 
 #[derive(Debug, Clone)]
