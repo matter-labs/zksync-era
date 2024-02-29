@@ -45,10 +45,13 @@ fn create_pre_boojum_l1_batch_with_metadata(number: u32) -> L1BatchWithMetadata 
     l1_batch
 }
 
-fn build_commit_tx_input_data(batches: &[L1BatchWithMetadata]) -> Vec<u8> {
-    let commit_tokens = batches
-        .iter()
-        .map(|batch| CommitBatchInfo::new(batch, PubdataDA::Calldata, None).into_token());
+fn build_commit_tx_input_data(
+    batches: &[L1BatchWithMetadata],
+    kzg_settings: Arc<KzgSettings>,
+) -> Vec<u8> {
+    let commit_tokens = batches.iter().map(|batch| {
+        CommitBatchInfo::new(batch, PubdataDA::Calldata, Some(kzg_settings.clone())).into_token()
+    });
     let commit_tokens = ethabi::Token::Array(commit_tokens.collect());
 
     let mut encoded = vec![];
@@ -106,7 +109,8 @@ fn build_commit_tx_input_data_is_correct() {
         create_l1_batch_with_metadata(2),
     ];
 
-    let commit_tx_input_data = build_commit_tx_input_data(&batches);
+    let kzg_settings = Arc::new(KzgSettings::new(&KzgConfig::for_tests().trusted_setup_path));
+    let commit_tx_input_data = build_commit_tx_input_data(&batches, kzg_settings.clone());
 
     for batch in &batches {
         let commit_data = ConsistencyChecker::extract_commit_data(
@@ -117,7 +121,8 @@ fn build_commit_tx_input_data_is_correct() {
         .unwrap();
         assert_eq!(
             commit_data,
-            CommitBatchInfo::new(batch, PubdataDA::Calldata, None).into_token()
+            CommitBatchInfo::new(batch, PubdataDA::Calldata, Some(kzg_settings.clone()))
+                .into_token()
         );
     }
 }
@@ -325,9 +330,10 @@ async fn normal_checker_function(
     let l1_batches: Vec<_> = (1..=10).map(create_l1_batch_with_metadata).collect();
     let mut commit_tx_hash_by_l1_batch = HashMap::with_capacity(l1_batches.len());
     let client = MockEthereum::default();
+    let kzg_settings = Arc::new(KzgSettings::new(&KzgConfig::for_tests().trusted_setup_path));
 
     for (i, l1_batches) in l1_batches.chunks(batches_per_transaction).enumerate() {
-        let input_data = build_commit_tx_input_data(l1_batches);
+        let input_data = build_commit_tx_input_data(l1_batches, kzg_settings.clone());
         let signed_tx = client.sign_prepared_tx(
             input_data.clone(),
             Options {
@@ -403,9 +409,11 @@ async fn checker_processes_pre_boojum_batches(
         .collect();
     let mut commit_tx_hash_by_l1_batch = HashMap::with_capacity(l1_batches.len());
     let client = MockEthereum::default();
+    let kzg_settings = Arc::new(KzgSettings::new(&KzgConfig::for_tests().trusted_setup_path));
 
     for (i, l1_batch) in l1_batches.iter().enumerate() {
-        let input_data = build_commit_tx_input_data(slice::from_ref(l1_batch));
+        let input_data =
+            build_commit_tx_input_data(slice::from_ref(l1_batch), kzg_settings.clone());
         let signed_tx = client.sign_prepared_tx(
             input_data.clone(),
             Options {
@@ -461,8 +469,9 @@ async fn checker_functions_after_snapshot_recovery(delay_batch_insertion: bool) 
         .await;
 
     let l1_batch = create_l1_batch_with_metadata(99);
+    let kzg_settings = Arc::new(KzgSettings::new(&KzgConfig::for_tests().trusted_setup_path));
 
-    let commit_tx_input_data = build_commit_tx_input_data(slice::from_ref(&l1_batch));
+    let commit_tx_input_data = build_commit_tx_input_data(slice::from_ref(&l1_batch), kzg_settings);
     let client = MockEthereum::default();
     let signed_tx = client.sign_prepared_tx(
         commit_tx_input_data.clone(),
@@ -537,12 +546,14 @@ impl IncorrectDataKind {
     ];
 
     async fn apply(self, client: &MockEthereum, l1_batch: &L1BatchWithMetadata) -> H256 {
+        let kzg_settings = Arc::new(KzgSettings::new(&KzgConfig::for_tests().trusted_setup_path));
         let (commit_tx_input_data, successful_status) = match self {
             Self::MissingStatus => {
                 return H256::zero(); // Do not execute the transaction
             }
             Self::MismatchedStatus => {
-                let commit_tx_input_data = build_commit_tx_input_data(slice::from_ref(l1_batch));
+                let commit_tx_input_data =
+                    build_commit_tx_input_data(slice::from_ref(l1_batch), kzg_settings);
                 (commit_tx_input_data, false)
             }
             Self::BogusCommitDataFormat => {
@@ -554,18 +565,21 @@ impl IncorrectDataKind {
             Self::MismatchedCommitDataTimestamp => {
                 let mut l1_batch = create_l1_batch_with_metadata(1);
                 l1_batch.header.timestamp += 1;
-                let bogus_tx_input_data = build_commit_tx_input_data(slice::from_ref(&l1_batch));
+                let bogus_tx_input_data =
+                    build_commit_tx_input_data(slice::from_ref(&l1_batch), kzg_settings);
                 (bogus_tx_input_data, true)
             }
             Self::CommitDataForAnotherBatch => {
                 let l1_batch = create_l1_batch_with_metadata(100);
-                let bogus_tx_input_data = build_commit_tx_input_data(slice::from_ref(&l1_batch));
+                let bogus_tx_input_data =
+                    build_commit_tx_input_data(slice::from_ref(&l1_batch), kzg_settings);
                 (bogus_tx_input_data, true)
             }
             Self::CommitDataForPreBoojum => {
                 let mut l1_batch = create_l1_batch_with_metadata(1);
                 l1_batch.header.protocol_version = Some(ProtocolVersionId::Version0);
-                let bogus_tx_input_data = build_commit_tx_input_data(slice::from_ref(&l1_batch));
+                let bogus_tx_input_data =
+                    build_commit_tx_input_data(slice::from_ref(&l1_batch), kzg_settings);
                 (bogus_tx_input_data, true)
             }
         };
