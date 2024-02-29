@@ -1,6 +1,6 @@
 //! Utilities for testing the consensus module.
 use std::{collections::HashMap, sync::Arc};
-
+use zksync_web3_decl::jsonrpsee::http_client::HttpClient;
 use anyhow::Context as _;
 use rand::{
     distributions::{Distribution, Standard},
@@ -9,7 +9,7 @@ use rand::{
 use zksync_config::configs;
 use crate::api_server::web3::state::InternalApiConfig;
 use crate::api_server::web3::tests::spawn_http_server;
-use zksync_concurrency::{ctx, scope, sync, time};
+use zksync_concurrency::{ctx, error::Wrap as _, scope, sync};
 use zksync_consensus_roles::{node, validator};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::ConnectionPool;
@@ -20,16 +20,17 @@ use zksync_types::{
 use zksync_web3_decl::error::{EnrichedClientError, EnrichedClientResult};
 
 use crate::{
-    consensus::{config::Config, Store},
+    consensus::{config::Config, Fetcher, Store, P2PConfig},
     genesis::{ensure_genesis_state, GenesisParams},
     state_keeper::{
         seal_criteria::NoopSealer, tests::MockBatchExecutor, MiniblockSealer, ZkSyncStateKeeper,
+        io::common::IoCursor,
     },
     sync_layer::{
         sync_action::{ActionQueue, ActionQueueSender, SyncAction},
         ExternalIO, MainNodeClient, SyncState,
     },
-    utils::testonly::{create_l1_batch_metadata, create_l2_transaction},
+    utils::testonly::{prepare_recovery_snapshot, create_l1_batch_metadata, create_l2_transaction},
 };
 
 fn make_addr<R: Rng + ?Sized>(rng: &mut R) -> std::net::SocketAddr {
@@ -180,76 +181,63 @@ pub(super) struct StateKeeper {
     fee_per_gas: u64,
     gas_per_pubdata: u64,
 
-    pub(super) sync_state: SyncState,
-    pub(super) actions_sender: ActionQueueSender,
-    pub(super) store: Store,
-    
+    sync_state: SyncState,
+    actions_sender: ActionQueueSender,
     addr: sync::watch::Receiver<Option<std::net::SocketAddr>>,
+    store: Store,
 }
 
 /// Fake StateKeeper task to be executed in the background.
 pub(super) struct StateKeeperRunner {
     actions_queue: ActionQueue,
     sync_state: SyncState,
-    pool: ConnectionPool,
+    store: Store,
     addr: sync::watch::Sender<Option<std::net::SocketAddr>>,
+}
+
+/// Constructs a new db initialized with genesis state or a snapshot.
+pub(super) async fn new_store(from_snapshot: bool) -> Store {
+    let pool = ConnectionPool::test_pool().await;
+    {
+        let mut storage = pool.access_storage().await.unwrap();
+        if from_snapshot {
+            prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await;
+        } else {
+            ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock()).await.unwrap();
+        }
+    }
+    Store(pool)
 }
 
 impl StateKeeper {
     /// Constructs and initializes a new `StateKeeper`.
     /// Caller has to run `StateKeeperRunner.run()` task in the background.
-    pub async fn new(pool: ConnectionPool) -> anyhow::Result<(Self, StateKeeperRunner)> {
-        // ensure genesis
-        let mut storage = pool.access_storage().await.context("access_storage()")?;
-        if storage
-            .blocks_dal()
-            .is_genesis_needed()
-            .await
-            .context("is_genesis_needed()")?
-        {
-            ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
-                .await
-                .context("ensure_genesis_state()")?;
-        }
-
-        let last_l1_batch_number = storage
-            .blocks_dal()
-            .get_sealed_l1_batch_number()
-            .await
-            .context("get_sealed_l1_batch_number()")?
-            .context("no L1 batches in storage")?;
-        let last_miniblock_header = storage
-            .blocks_dal()
-            .get_last_sealed_miniblock_header()
-            .await
-            .context("get_last_sealed_miniblock_header()")?
-            .context("no miniblocks in storage")?;
-
-        let pending_batch = storage
-            .blocks_dal()
-            .pending_batch_exists()
-            .await
+    pub async fn new(ctx: &ctx::Ctx, store: Store) -> ctx::Result<(Self, StateKeeperRunner)> {
+        let mut conn = store.access(ctx).await.wrap("access()")?;
+        let cursor = ctx.wait(IoCursor::for_fetcher(&mut conn.0)).await?.context("IoCursor::new()")?;
+        let pending_batch = ctx.wait(conn.0.blocks_dal().pending_batch_exists())
+            .await?
             .context("pending_batch_exists()")?;
         let (actions_sender, actions_queue) = ActionQueue::new();
         let sync_state = SyncState::default();
         let addr = sync::watch::channel(None).0;
         Ok((
             Self {
-                last_batch: last_l1_batch_number + if pending_batch { 1 } else { 0 },
-                last_block: last_miniblock_header.number,
-                last_timestamp: last_miniblock_header.timestamp,
+                last_batch: cursor.l1_batch,
+                last_block: cursor.next_miniblock-1,
+                last_timestamp: cursor.prev_miniblock_timestamp,
                 batch_sealed: !pending_batch,
                 fee_per_gas: 10,
                 gas_per_pubdata: 100,
                 actions_sender,
                 sync_state: sync_state.clone(),
-                store: Store(pool.clone()),
                 addr: addr.subscribe(),
+                store: store.clone(),
             },
             StateKeeperRunner {
                 sync_state,
                 actions_queue,
-                pool: pool.clone(),
+                store: store.clone(),
                 addr,
             },
         ))
@@ -316,53 +304,53 @@ impl StateKeeper {
         }
     }
 
-    pub fn last_miniblock(&self) -> MiniblockNumber {
-        self.last_block
-    }
-
     /// Last block that has been pushed to the `StateKeeper` via `ActionQueue`.
     /// It might NOT be present in storage yet.
     pub fn last_block(&self) -> validator::BlockNumber {
         validator::BlockNumber(self.last_block.0.into())
     }
 
-    pub async fn connect(&self, ctx: &ctx::Ctx) -> ctx::Result<Box<dyn MainNodeClient>> {
+    /// Connects to the jsonrpc endpoint exposed by the state keeper.
+    pub async fn connect(&self, ctx: &ctx::Ctx) -> ctx::Result<HttpClient> {
         let addr = sync::wait_for(ctx, &mut self.addr.clone(), Option::is_some).await?.clone().unwrap();
-        let client = <dyn MainNodeClient>::json_rpc(&format!("http://{addr}/")).context("json_rpc()")?;
-        Ok(Box::new(client))
+        Ok(<dyn MainNodeClient>::json_rpc(&format!("http://{addr}/")).context("json_rpc()")?)
+    }
+
+    /// Runs the centralized fetcher.
+    pub async fn run_centralized_fetcher(self, ctx: &ctx::Ctx, client: HttpClient) -> anyhow::Result<()> {
+        Fetcher {
+            store: self.store,
+            client: Box::new(client),
+            sync_state: self.sync_state,
+        }.run_centralized(ctx, self.actions_sender).await
+    }
+
+    /// Runs the P2P fetcher.
+    pub async fn run_p2p_fetcher(self, ctx: &ctx::Ctx, client: HttpClient, cfg: P2PConfig) -> anyhow::Result<()> {
+        Fetcher {
+            store: self.store,
+            client: Box::new(client),
+            sync_state: self.sync_state,
+        }.run_p2p(ctx, self.actions_sender, cfg).await
     }
 }
 
-/// Waits for L1 batches to be sealed and then populates them with mock metadata.
-async fn run_mock_metadata_calculator(ctx: &ctx::Ctx, pool: &ConnectionPool) -> anyhow::Result<()> {
-    const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(100);
-    let mut n = {
-        let mut storage = pool.access_storage().await.context("access_storage()")?;
-        storage
-            .blocks_dal()
-            .get_last_l1_batch_number_with_metadata()
-            .await
-            .context("get_last_l1_batch_number_with_metadata()")?
-            .context("no L1 batches in Postgres")?
+async fn calculate_mock_metadata(ctx: &ctx::Ctx, store: &Store) -> ctx::Result<()> {
+    let mut conn = store.access(ctx).await.wrap("access()")?;    
+    let Some(last) = ctx.wait(conn.0.blocks_dal().get_sealed_l1_batch_number()).await?.context("get_sealed_l1_batch_number()")? else { return Ok(()) };
+    let prev = ctx.wait(conn.0.blocks_dal().get_last_l1_batch_number_with_metadata()).await?.context("get_last_l1_batch_number_with_metadata()")?;
+    let mut first = match prev {
+        Some(prev) => prev + 1,
+        None => ctx.wait(conn.0.blocks_dal().get_earliest_l1_batch_number()).await?.context("get_earliest_l1_batch_number()")?.context("batches disappeared")?,
     };
-    while let Ok(()) = ctx.sleep(POLL_INTERVAL).await {
-        let mut storage = pool.access_storage().await.context("access_storage()")?;
-        let last = storage
+    while first <= last {
+        let metadata = create_l1_batch_metadata(first.0);
+        ctx.wait(conn.0
             .blocks_dal()
-            .get_sealed_l1_batch_number()
-            .await
-            .context("get_sealed_l1_batch_number()")?
-            .context("no L1 batches in Postgres")?;
-
-        while n < last {
-            n += 1;
-            let metadata = create_l1_batch_metadata(n.0);
-            storage
-                .blocks_dal()
-                .save_l1_batch_tree_data(n, &metadata.tree_data())
-                .await
-                .context("save_l1_batch_tree_data()")?;
-        }
+            .save_l1_batch_tree_data(first, &metadata.tree_data()))
+            .await?
+            .context("save_l1_batch_tree_data()")?;
+        first += 1;
     }
     Ok(())
 }
@@ -370,14 +358,14 @@ async fn run_mock_metadata_calculator(ctx: &ctx::Ctx, pool: &ConnectionPool) -> 
 impl StateKeeperRunner {
     /// Executes the StateKeeper task.
     pub async fn run(self, ctx: &ctx::Ctx) -> anyhow::Result<()> {
-        scope::run!(ctx, |ctx, s| async {
+        let res = scope::run!(ctx, |ctx, s| async {
             let (stop_send, stop_recv) = sync::watch::channel(false);
             let (miniblock_sealer, miniblock_sealer_handle) =
-                MiniblockSealer::new(self.pool.clone(), 5);
+                MiniblockSealer::new(self.store.0.clone(), 5);
 
             let io = ExternalIO::new(
                 miniblock_sealer_handle,
-                self.pool.clone(),
+                self.store.0.clone(),
                 self.actions_queue,
                 self.sync_state,
                 Box::<MockMainNodeClient>::default(),
@@ -386,31 +374,51 @@ impl StateKeeperRunner {
                 L2ChainId::default(),
             )
             .await?;
-            s.spawn_bg(miniblock_sealer.run());
-            s.spawn_bg(run_mock_metadata_calculator(ctx, &self.pool));
-            s.spawn_bg(
-                ZkSyncStateKeeper::new(
-                    stop_recv.clone(),
-                    Box::new(io),
-                    Box::new(MockBatchExecutor),
-                    Arc::new(NoopSealer),
-                )
-                .run(),
-            );
-            // Spawn Http server.
-            let cfg = InternalApiConfig::new(
-                &configs::chain::NetworkConfig::for_tests(),
-                &configs::api::Web3JsonRpcConfig::for_tests(),
-                &configs::contracts::ContractsConfig::for_tests(),
-            );
-            let mut server = spawn_http_server(cfg, self.pool.clone(), Default::default(), stop_recv).await;
-            self.addr.send_replace(Some(server.wait_until_ready().await));
-            
+            s.spawn_bg(async { Ok(miniblock_sealer.run().await.context("miniblock_sealer.run()")?) });
+            s.spawn_bg::<()>(async {
+                loop {
+                    calculate_mock_metadata(ctx,&self.store).await?;
+                    // Sleep real time.
+                    ctx.wait(tokio::time::sleep(tokio::time::Duration::from_millis(100))).await?;
+                }
+            });
+            s.spawn_bg({
+                let stop_recv = stop_recv.clone();
+                async {
+                    ZkSyncStateKeeper::new(
+                        stop_recv,
+                        Box::new(io),
+                        Box::new(MockBatchExecutor),
+                        Arc::new(NoopSealer),
+                    )
+                    .run().await.context("ZkSyncStateKeeper::run()")?;
+                    Ok(())
+                }
+            });
+            s.spawn_bg(async {
+                // Spawn Http server.
+                let cfg = InternalApiConfig::new(
+                    &configs::chain::NetworkConfig::for_tests(),
+                    &configs::api::Web3JsonRpcConfig::for_tests(),
+                    &configs::contracts::ContractsConfig::for_tests(),
+                );
+                let mut server = spawn_http_server(cfg, self.store.0.clone(), Default::default(), stop_recv).await;
+                if let Ok(addr) = ctx.wait(server.wait_until_ready()).await {
+                    self.addr.send_replace(Some(addr));
+                    tracing::info!("API server ready!");
+                }
+                ctx.canceled().await;
+                server.shutdown().await;
+                Ok(())
+            });
             ctx.canceled().await;
             stop_send.send_replace(true);
-            server.shutdown().await;
             Ok(())
         })
-        .await
+        .await;
+        match res {
+            Ok(()) | Err(ctx::Error::Canceled(_)) => Ok(()),
+            Err(ctx::Error::Internal(err)) => Err(err),
+        }
     }
 }

@@ -41,12 +41,6 @@ impl SyncState {
         Ok(())
     }
 
-    #[cfg(test)]
-    pub(crate) async fn wait_for_local_block(&self, ctx: &ctx::Ctx, want: MiniblockNumber) -> ctx::OrCanceled<()> {
-        sync::wait_for(ctx, &mut self.0.subscribe(), |s| matches!(s.local_block, Some(got) if got >= want)).await?;
-        Ok(())
-    }
-
     pub(crate) fn set_main_node_block(&self, block: MiniblockNumber) {
         self.0.send_modify(|inner| inner.set_main_node_block(block));
     }
