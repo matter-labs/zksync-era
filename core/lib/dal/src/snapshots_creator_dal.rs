@@ -134,3 +134,158 @@ impl SnapshotsCreatorDal<'_, '_> {
             .collect())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use zksync_types::StorageLog;
+
+    use super::*;
+    use crate::ConnectionPool;
+
+    #[tokio::test]
+    async fn getting_storage_log_chunks_basics() {
+        let pool = ConnectionPool::test_pool().await;
+        let mut conn = pool.access_storage().await.unwrap();
+
+        let logs = (0..100).map(|i| {
+            let key = StorageKey::new(
+                AccountTreeId::new(Address::random()),
+                H256::from_low_u64_be(i),
+            );
+            StorageLog::new_write_log(key, H256::repeat_byte(1))
+        });
+        let mut logs: Vec<_> = logs.collect();
+        logs.sort_unstable_by_key(|log| log.key.hashed_key());
+
+        conn.storage_logs_dal()
+            .insert_storage_logs(MiniblockNumber(1), &[(H256::zero(), logs.clone())])
+            .await
+            .unwrap();
+        let mut written_keys: Vec<_> = logs.iter().map(|log| log.key).collect();
+        written_keys.sort_unstable();
+        conn.storage_logs_dedup_dal()
+            .insert_initial_writes(L1BatchNumber(1), &written_keys)
+            .await
+            .unwrap();
+
+        assert_logs_for_snapshot(&mut conn, MiniblockNumber(1), L1BatchNumber(1), &logs).await;
+
+        // Add some inserts / updates in the next miniblock. They should be ignored.
+        let new_logs = (100..150).map(|i| {
+            let key = StorageKey::new(
+                AccountTreeId::new(Address::random()),
+                H256::from_low_u64_be(i),
+            );
+            StorageLog::new_write_log(key, H256::repeat_byte(1))
+        });
+        let new_written_keys: Vec<_> = new_logs.clone().map(|log| log.key).collect();
+        let updated_logs = logs.iter().step_by(3).map(|&log| StorageLog {
+            value: H256::repeat_byte(23),
+            ..log
+        });
+        conn.storage_logs_dal()
+            .insert_storage_logs(
+                MiniblockNumber(2),
+                &[(H256::zero(), new_logs.chain(updated_logs).collect())],
+            )
+            .await
+            .unwrap();
+        conn.storage_logs_dedup_dal()
+            .insert_initial_writes(L1BatchNumber(2), &new_written_keys)
+            .await
+            .unwrap();
+
+        assert_logs_for_snapshot(&mut conn, MiniblockNumber(1), L1BatchNumber(1), &logs).await;
+    }
+
+    async fn assert_logs_for_snapshot(
+        conn: &mut StorageProcessor<'_>,
+        miniblock_number: MiniblockNumber,
+        l1_batch_number: L1BatchNumber,
+        expected_logs: &[StorageLog],
+    ) {
+        let all_logs = conn
+            .snapshots_creator_dal()
+            .get_storage_logs_chunk(
+                miniblock_number,
+                l1_batch_number,
+                H256::zero()..=H256::repeat_byte(0xff),
+            )
+            .await
+            .unwrap();
+        assert_eq!(all_logs.len(), expected_logs.len());
+        for (log, expected_log) in all_logs.iter().zip(expected_logs) {
+            assert_eq!(log.key, expected_log.key);
+            assert_eq!(log.value, expected_log.value);
+            assert_eq!(log.l1_batch_number_of_initial_write, l1_batch_number);
+        }
+
+        for chunk_size in [2, 5, expected_logs.len() / 3] {
+            for chunk in expected_logs.chunks(chunk_size) {
+                let range = chunk[0].key.hashed_key()..=chunk.last().unwrap().key.hashed_key();
+                let logs = conn
+                    .snapshots_creator_dal()
+                    .get_storage_logs_chunk(miniblock_number, l1_batch_number, range)
+                    .await
+                    .unwrap();
+                assert_eq!(logs.len(), chunk.len());
+                for (log, expected_log) in logs.iter().zip(chunk) {
+                    assert_eq!(log.key, expected_log.key);
+                    assert_eq!(log.value, expected_log.value);
+                }
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn phantom_writes_are_filtered_out() {
+        let pool = ConnectionPool::test_pool().await;
+        let mut conn = pool.access_storage().await.unwrap();
+
+        let key = StorageKey::new(AccountTreeId::default(), H256::repeat_byte(1));
+        let phantom_writes = vec![
+            StorageLog::new_write_log(key, H256::repeat_byte(1)),
+            StorageLog::new_write_log(key, H256::zero()),
+        ];
+        conn.storage_logs_dal()
+            .insert_storage_logs(MiniblockNumber(1), &[(H256::zero(), phantom_writes)])
+            .await
+            .unwrap();
+        // initial writes are intentionally not inserted.
+
+        let real_write = StorageLog::new_write_log(key, H256::repeat_byte(2));
+        conn.storage_logs_dal()
+            .insert_storage_logs(MiniblockNumber(2), &[(H256::zero(), vec![real_write])])
+            .await
+            .unwrap();
+        conn.storage_logs_dedup_dal()
+            .insert_initial_writes(L1BatchNumber(2), &[key])
+            .await
+            .unwrap();
+
+        let logs = conn
+            .snapshots_creator_dal()
+            .get_storage_logs_chunk(
+                MiniblockNumber(1),
+                L1BatchNumber(1),
+                H256::zero()..=H256::repeat_byte(0xff),
+            )
+            .await
+            .unwrap();
+        assert_eq!(logs, []);
+
+        let logs = conn
+            .snapshots_creator_dal()
+            .get_storage_logs_chunk(
+                MiniblockNumber(2),
+                L1BatchNumber(2),
+                H256::zero()..=H256::repeat_byte(0xff),
+            )
+            .await
+            .unwrap();
+        assert_eq!(logs.len(), 1);
+        assert_eq!(logs[0].key, key);
+        assert_eq!(logs[0].value, real_write.value);
+        assert_eq!(logs[0].l1_batch_number_of_initial_write, L1BatchNumber(2));
+    }
+}
