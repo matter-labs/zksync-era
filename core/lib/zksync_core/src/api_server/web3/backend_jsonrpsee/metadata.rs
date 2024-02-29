@@ -52,6 +52,10 @@ impl Drop for CurrentMethodGuard<'_> {
     }
 }
 
+/// Tracer of JSON-RPC methods. Can be used to access metadata for the currently handled method call.
+// We organize the tracer as a thread-local variable with current method metadata, which is set while the method handler
+// is being polled. We use the drop guard pattern to handle corner cases like the handler panicking.
+// Method handlers are wrapped using RPC-level middleware in `jsonrpsee`.
 #[derive(Debug, Default)]
 pub(crate) struct MethodTracer {
     inner: ThreadLocal<CurrentMethodInner>,
@@ -60,6 +64,9 @@ pub(crate) struct MethodTracer {
 }
 
 impl MethodTracer {
+    /// Sets the block ID for the current JSON-RPC method call. It will be used as a metric label for method latency etc.
+    ///
+    /// This should be called inside JSON-RPC method handlers; otherwise, this method is a no-op.
     pub fn set_block_id(&self, block_id: api::BlockId) {
         let cell = self.inner.get_or_default();
         if let Some(metadata) = &mut *cell.borrow_mut() {
@@ -67,6 +74,10 @@ impl MethodTracer {
         }
     }
 
+    /// Sets the difference between the latest sealed miniblock and the requested miniblock for the current JSON-RPC method call.
+    /// It will be used as a metric label for method latency etc.
+    ///
+    /// This should be called inside JSON-RPC method handlers; otherwise, this method is a no-op.
     pub fn set_block_diff(&self, block_diff: u32) {
         let cell = self.inner.get_or_default();
         if let Some(metadata) = &mut *cell.borrow_mut() {

@@ -101,6 +101,11 @@ where
     }
 }
 
+/// RPC-level middleware that adds [`MethodCall`] metadata to method logic. Method handlers can then access this metadata
+/// using [`MethodTracer`], which is a part of `RpcState`. When the handler completes or is dropped, the results are reported
+/// as metrics.
+///
+/// As an example, a method handler can set the requested block ID, which would then be used in relevant metric labels.
 #[derive(Debug)]
 pub(crate) struct MetadataMiddleware<S> {
     inner: S,

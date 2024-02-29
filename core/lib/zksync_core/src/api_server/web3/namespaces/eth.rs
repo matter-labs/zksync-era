@@ -576,7 +576,7 @@ impl EthNamespace {
 
         let submit_result = self.state.tx_sender.submit_tx(tx).await;
         submit_result.map(|_| hash).map_err(|err| {
-            tracing::debug!("Send raw transaction error: {err}"); // FIXME: do we want to track `SubmitTxError`s in other methods?
+            tracing::debug!("Send raw transaction error: {err}");
             API_METRICS.submit_tx_error[&err.prom_error_code()].inc();
             err.into()
         })
