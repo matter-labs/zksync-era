@@ -1098,74 +1098,75 @@ impl BlocksDal<'_, '_> {
         only_commited_batches: bool,
         limit: usize,
     ) -> anyhow::Result<Vec<L1BatchWithMetadata>> {
-        let (confirmed_at_not_null, join_on_eth_tx_history) = if only_commited_batches {
-            (
-                "AND confirmed_at IS NOT NULL",
-                "JOIN eth_txs_history ON eth_commit_tx_id = eth_tx_id",
-            )
-        } else {
-            ("", "")
-        };
-
-        let query = format!(
-            r#"
-            SELECT
-                number,
-                timestamp,
-                l1_tx_count,
-                l2_tx_count,
-                bloom,
-                priority_ops_onchain_data,
-                hash,
-                commitment,
-                eth_prove_tx_id,
-                eth_commit_tx_id,
-                eth_execute_tx_id,
-                merkle_root_hash,
-                l2_to_l1_logs,
-                l2_to_l1_messages,
-                used_contract_hashes,
-                compressed_initial_writes,
-                compressed_repeated_writes,
-                l2_l1_merkle_root,
-                rollup_last_leaf_index,
-                zkporter_is_available,
-                bootloader_code_hash,
-                default_aa_code_hash,
-                aux_data_hash,
-                pass_through_data_hash,
-                meta_parameters_hash,
-                protocol_version,
-                compressed_state_diffs,
-                system_logs,
-                events_queue_commitment,
-                bootloader_initial_content_commitment,
-                pubdata_input
-            FROM
-                l1_batches
-                LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
-                {join_on_eth_tx_history}
-            WHERE
-                eth_commit_tx_id IS NOT NULL
-                AND eth_prove_tx_id IS NULL
-                {confirmed_at_not_null}
-            ORDER BY
-                number
-            LIMIT
-                $1
-            "#,
+        let query = match_query_as!(
+            StorageL1Batch,
+            [
+                r#"
+                SELECT
+                    number,
+                    timestamp,
+                    l1_tx_count,
+                    l2_tx_count,
+                    bloom,
+                    priority_ops_onchain_data,
+                    hash,
+                    commitment,
+                    eth_prove_tx_id,
+                    eth_commit_tx_id,
+                    eth_execute_tx_id,
+                    merkle_root_hash,
+                    l2_to_l1_logs,
+                    l2_to_l1_messages,
+                    used_contract_hashes,
+                    compressed_initial_writes,
+                    compressed_repeated_writes,
+                    l2_l1_merkle_root,
+                    rollup_last_leaf_index,
+                    zkporter_is_available,
+                    bootloader_code_hash,
+                    default_aa_code_hash,
+                    aux_data_hash,
+                    pass_through_data_hash,
+                    meta_parameters_hash,
+                    protocol_version,
+                    compressed_state_diffs,
+                    system_logs,
+                    events_queue_commitment,
+                    bootloader_initial_content_commitment,
+                    pubdata_input
+                FROM
+                    l1_batches
+                    LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
+                "#,
+                _, // additional JOIN clause
+                r#"
+                WHERE
+                    eth_commit_tx_id IS NOT NULL
+                    AND eth_prove_tx_id IS NULL
+                "#,
+                _, // additional WHERE condition
+                r#"
+                ORDER BY
+                    number
+                LIMIT
+                    $1
+                "#
+            ],
+            match (only_commited_batches) {
+                true => (
+                    "JOIN eth_txs_history ON eth_commit_tx_id = eth_tx_id",
+                    "AND confirmed_at IS NOT NULL";
+                    limit as i32
+                ),
+                false => ("", ""; limit as i32),
+            }
         );
 
-        let mut query = sqlx::query_as(&query);
-
-        query = query.bind(limit as i32);
-
-        let raw_batches: Vec<StorageL1Batch> = query
+        let raw_batches = query
             .instrument("get_ready_for_dummy_proof_l1_batches")
             .with_arg("limit", &limit)
             .fetch_all(self.storage)
             .await?;
-
         self.map_l1_batches(raw_batches)
             .await
             .context("map_l1_batches()")
