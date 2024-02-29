@@ -26,17 +26,12 @@ pub struct BlocksWeb3Dal<'a, 'c> {
 }
 
 impl BlocksWeb3Dal<'_, '_> {
-    pub async fn get_block_by_web3_block_id(
+    pub async fn get_block(
         &mut self,
-        block_id: api::BlockId,
+        block_number: MiniblockNumber,
         include_full_transactions: bool,
         chain_id: L2ChainId,
     ) -> sqlx::Result<Option<api::Block<api::TransactionVariant>>> {
-        // FIXME: move resolution to the caller side
-        let Some(block_number) = self.resolve_block_id(block_id).await? else {
-            return Ok(None);
-        };
-
         let rows = sqlx::query!(
             r#"
             SELECT
@@ -128,26 +123,20 @@ impl BlocksWeb3Dal<'_, '_> {
 
     pub async fn get_block_tx_count(
         &mut self,
-        block_id: api::BlockId,
-    ) -> sqlx::Result<Option<(MiniblockNumber, U256)>> {
-        let Some(miniblock_number) = self.resolve_block_id(block_id).await? else {
-            return Ok(None);
-        };
-
-        let Some(Some(tx_count)) = sqlx::query_scalar!(
+        block_number: MiniblockNumber,
+    ) -> sqlx::Result<Option<u64>> {
+        let tx_count = sqlx::query_scalar!(
             r#"
             SELECT l1_tx_count + l2_tx_count AS tx_count FROM miniblocks
             WHERE number = $1
             "#,
-            miniblock_number.0 as i64
+            block_number.0 as i64
         )
         .fetch_optional(self.storage.conn())
         .await?
-        else {
-            return Ok(None);
-        };
+        .flatten();
 
-        Ok(Some((miniblock_number, tx_count.into())))
+        Ok(tx_count.map(|count| count as u64))
     }
 
     /// Returns hashes of blocks with numbers starting from `from_block` and the number of the last block.
@@ -718,43 +707,32 @@ mod tests {
 
         let block_hash = MiniblockHasher::new(MiniblockNumber(0), 0, H256::zero())
             .finalize(ProtocolVersionId::latest());
-        let block_ids = [
-            api::BlockId::Number(api::BlockNumber::Earliest),
-            api::BlockId::Number(api::BlockNumber::Latest),
-            api::BlockId::Number(api::BlockNumber::Number(0.into())),
-            api::BlockId::Hash(block_hash),
-        ];
-        for block_id in block_ids {
-            let block = conn
-                .blocks_web3_dal()
-                .get_block_by_web3_block_id(block_id, false, L2ChainId::from(270))
-                .await;
-            let block = block.unwrap().unwrap();
-            assert!(block.transactions.is_empty());
-            assert_eq!(block.number, U64::zero());
-            assert_eq!(block.hash, block_hash);
+        let block = conn
+            .blocks_web3_dal()
+            .get_block(MiniblockNumber(0), false, L2ChainId::from(270))
+            .await;
+        let block = block.unwrap().unwrap();
+        assert!(block.transactions.is_empty());
+        assert_eq!(block.number, U64::zero());
+        assert_eq!(block.hash, block_hash);
 
-            let tx_count = conn.blocks_web3_dal().get_block_tx_count(block_id).await;
-            assert_eq!(tx_count.unwrap(), Some((MiniblockNumber(0), 8.into())));
-        }
+        let tx_count = conn
+            .blocks_web3_dal()
+            .get_block_tx_count(MiniblockNumber(0))
+            .await;
+        assert_eq!(tx_count.unwrap(), Some(8));
 
-        let non_existing_block_hash = MiniblockHasher::new(MiniblockNumber(1), 1, H256::zero())
-            .finalize(ProtocolVersionId::latest());
-        let non_existing_block_ids = [
-            api::BlockId::Number(api::BlockNumber::Pending),
-            api::BlockId::Number(api::BlockNumber::Number(1.into())),
-            api::BlockId::Hash(non_existing_block_hash),
-        ];
-        for block_id in non_existing_block_ids {
-            let block = conn
-                .blocks_web3_dal()
-                .get_block_by_web3_block_id(block_id, false, L2ChainId::from(270))
-                .await;
-            assert!(block.unwrap().is_none());
+        let block = conn
+            .blocks_web3_dal()
+            .get_block(MiniblockNumber(1), false, L2ChainId::from(270))
+            .await;
+        assert!(block.unwrap().is_none());
 
-            let tx_count = conn.blocks_web3_dal().get_block_tx_count(block_id).await;
-            assert_eq!(tx_count.unwrap(), None);
-        }
+        let tx_count = conn
+            .blocks_web3_dal()
+            .get_block_tx_count(MiniblockNumber(1))
+            .await;
+        assert_eq!(tx_count.unwrap(), None);
     }
 
     #[tokio::test]

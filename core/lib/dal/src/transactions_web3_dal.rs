@@ -31,6 +31,7 @@ impl TransactionsWeb3Dal<'_, '_> {
         &mut self,
         hashes: &[H256],
     ) -> Result<Vec<TransactionReceipt>, SqlxError> {
+        let hash_bytes: Vec<_> = hashes.iter().map(H256::as_bytes).collect();
         let mut receipts: Vec<TransactionReceipt> = sqlx::query_as!(
             StorageTransactionReceipt,
             r#"
@@ -74,10 +75,7 @@ impl TransactionsWeb3Dal<'_, '_> {
             "#,
             ACCOUNT_CODE_STORAGE_ADDRESS.as_bytes(),
             FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH.as_bytes(),
-            &hashes
-                .iter()
-                .map(|h| h.as_bytes().to_vec())
-                .collect::<Vec<_>>()[..]
+            &hash_bytes as &[&[u8]]
         )
         .fetch_all(self.storage.conn())
         .await?
