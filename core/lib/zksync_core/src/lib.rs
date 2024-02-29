@@ -33,6 +33,7 @@ use zksync_eth_client::{
     BoundEthInterface, CallFunctionArgs, EthInterface,
 };
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
+use zksync_l1_contract_interface::i_executor::commit::kzg::KzgSettings;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_state::PostgresStorageCaches;
@@ -363,8 +364,16 @@ pub async fn initialize_components(
 
     let query_client = QueryClient::new(&eth_client_config.web3_url).unwrap();
     let gas_adjuster_config = configs.gas_adjuster_config.context("gas_adjuster_config")?;
-    let mut gas_adjuster =
-        GasAdjusterSingleton::new(eth_client_config.web3_url.clone(), gas_adjuster_config);
+
+    let eth_sender_config = configs
+        .eth_sender_config
+        .clone()
+        .context("eth_sender_config")?;
+    let mut gas_adjuster = GasAdjusterSingleton::new(
+        eth_client_config.web3_url.clone(),
+        gas_adjuster_config,
+        eth_sender_config.sender.pubdata_sending_mode,
+    );
 
     let (stop_sender, stop_receiver) = watch::channel(false);
     let (cb_sender, cb_receiver) = oneshot::channel();
@@ -623,6 +632,10 @@ pub async fn initialize_components(
         tracing::info!("initialized ETH-Watcher in {elapsed:?}");
     }
 
+    let kzg_settings = configs
+        .kzg_config
+        .as_ref()
+        .map(|k| Arc::new(KzgSettings::new(&k.trusted_setup_path)));
     if components.contains(&Component::EthTxAggregator) {
         let started_at = Instant::now();
         tracing::info!("initializing ETH-TxAggregator");
@@ -647,6 +660,8 @@ pub async fn initialize_components(
                 eth_sender.sender.clone(),
                 store_factory.create_store().await,
                 eth_client_blobs_addr.is_some(),
+                eth_sender.sender.pubdata_sending_mode.into(),
+                kzg_settings.clone(),
             ),
             Arc::new(eth_client),
             contracts_config.validator_timelock_addr,
@@ -657,6 +672,7 @@ pub async fn initialize_components(
                 .as_ref()
                 .context("network_config")?
                 .zksync_network_id,
+            kzg_settings.clone(),
             eth_client_blobs_addr,
         )
         .await;

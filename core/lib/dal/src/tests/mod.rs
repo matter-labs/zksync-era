@@ -8,6 +8,7 @@ use zksync_types::{
     helpers::unix_timestamp_ms,
     l1::{L1Tx, OpProcessingType, PriorityQueueType},
     l2::L2Tx,
+    protocol_version::{ProtocolUpgradeTx, ProtocolUpgradeTxCommonData},
     snapshots::SnapshotRecoveryStatus,
     tx::{tx_execution_info::TxExecutionStatus, ExecutionMetrics, TransactionExecutionResult},
     Address, Execute, L1BatchNumber, L1BlockNumber, L1TxCommonData, L2ChainId, MiniblockNumber,
@@ -71,7 +72,7 @@ pub(crate) fn mock_l2_transaction() -> L2Tx {
     l2_tx
 }
 
-fn mock_l1_execute() -> L1Tx {
+pub(crate) fn mock_l1_execute() -> L1Tx {
     let serial_id = 1;
     let priority_op_data = L1TxCommonData {
         sender: H160::random(),
@@ -99,6 +100,35 @@ fn mock_l1_execute() -> L1Tx {
     };
 
     L1Tx {
+        common_data: priority_op_data,
+        execute,
+        received_timestamp_ms: 0,
+    }
+}
+
+pub(crate) fn mock_protocol_upgrade_transaction() -> ProtocolUpgradeTx {
+    let serial_id = 1;
+    let priority_op_data = ProtocolUpgradeTxCommonData {
+        sender: H160::random(),
+        upgrade_id: Default::default(),
+        canonical_tx_hash: H256::from_low_u64_be(serial_id),
+        gas_limit: U256::from(100_100),
+        max_fee_per_gas: U256::from(1u32),
+        gas_per_pubdata_limit: 100.into(),
+        eth_hash: H256::random(),
+        to_mint: U256::zero(),
+        refund_recipient: Address::random(),
+        eth_block: 1,
+    };
+
+    let execute = Execute {
+        contract_address: H160::random(),
+        value: Default::default(),
+        calldata: vec![],
+        factory_deps: None,
+    };
+
+    ProtocolUpgradeTx {
         common_data: priority_op_data,
         execute,
         received_timestamp_ms: 0,

@@ -253,8 +253,8 @@ pub fn get_max_gas_per_pubdata_byte(version: VmVersion) -> u64 {
         VmVersion::VmBoojumIntegration => {
             crate::vm_boojum_integration::constants::MAX_GAS_PER_PUBDATA_BYTE
         }
-        VmVersion::Vm1_4_1 => crate::vm_latest::constants::MAX_GAS_PER_PUBDATA_BYTE,
-        VmVersion::Vm1_4_2 => crate::vm_1_4_1::constants::MAX_GAS_PER_PUBDATA_BYTE,
+        VmVersion::Vm1_4_1 => crate::vm_1_4_1::constants::MAX_GAS_PER_PUBDATA_BYTE,
+        VmVersion::Vm1_4_2 => crate::vm_latest::constants::MAX_GAS_PER_PUBDATA_BYTE,
     }
 }
 

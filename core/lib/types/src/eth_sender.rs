@@ -12,6 +12,12 @@ pub enum EthTxBlobSidecar {
     EthTxBlobSidecarV1(EthTxBlobSidecarV1),
 }
 
+impl From<EthTxBlobSidecarV1> for EthTxBlobSidecar {
+    fn from(value: EthTxBlobSidecarV1) -> Self {
+        Self::EthTxBlobSidecarV1(value)
+    }
+}
+
 /// All sidecar data for a single blob for the EIP4844 transaction.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct SidecarBlobV1 {
@@ -44,6 +50,7 @@ pub struct EthTx {
     /// If this field is `Some` then it contains address of a custom operator that has sent
     /// this transaction. If it is set to `None` this transaction was sent by the main operator.
     pub from_addr: Option<Address>,
+    pub blob_sidecar: Option<EthTxBlobSidecar>,
 }
 
 impl std::fmt::Debug for EthTx {
@@ -66,6 +73,7 @@ pub struct TxHistory {
     pub eth_tx_id: u32,
     pub base_fee_per_gas: u64,
     pub priority_fee_per_gas: u64,
+    pub blob_base_fee_per_gas: Option<u64>,
     pub tx_hash: H256,
     pub signed_raw_tx: Vec<u8>,
     pub sent_at_block: Option<u32>,

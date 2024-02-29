@@ -5,7 +5,7 @@
 #![warn(clippy::all, clippy::pedantic)]
 #![allow(clippy::must_use_candidate, clippy::similar_names)]
 
-use std::{iter, str::FromStr};
+use std::iter;
 
 use once_cell::sync::Lazy;
 
@@ -94,8 +94,8 @@ where
     /// Will panic if the constant below is invalid.
     pub fn merkle_root(self) -> H256 {
         if self.hashes.is_empty() {
-            H256::from_str("fef7bd9f889811e59e4076a0174087135f080177302763019adaf531257e3a87")
-                .unwrap()
+            let depth = tree_depth_by_size(self.binary_tree_size);
+            self.hasher.empty_subtree_hash(depth)
         } else {
             self.compute_merkle_root_and_path(0, None)
         }
