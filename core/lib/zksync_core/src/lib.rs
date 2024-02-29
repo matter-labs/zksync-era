@@ -644,7 +644,7 @@ pub async fn initialize_components(
         assert_eq!(
             current_commitment_mode,
             state_keeper_config.l1_batch_commit_data_generator_mode,
-            "The selected L1BatchCommitDataGeneratorMode ({:?}) does not match the existing commitment mode ({:?})",
+            "The selected L1BatchCommitDataGeneratorMode ({:?}) does not match the commitment mode used on L1 contract ({:?})",
             state_keeper_config.l1_batch_commit_data_generator_mode,
             current_commitment_mode
         );
