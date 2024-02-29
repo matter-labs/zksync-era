@@ -125,7 +125,6 @@ struct OptionalApiParams {
 pub struct ApiServer {
     pool: ConnectionPool,
     updaters_pool: ConnectionPool,
-    health_check: ReactiveHealthCheck,
     health_updater: Arc<HealthUpdater>,
     config: InternalApiConfig,
     transport: ApiTransport,
@@ -258,11 +257,10 @@ impl ApiBuilder {
             ApiTransport::Http(_) => "http_api",
             ApiTransport::WebSocket(_) => "ws_api",
         };
-        let (health_check, health_updater) = ReactiveHealthCheck::new(health_check_name);
+        let (_health_check, health_updater) = ReactiveHealthCheck::new(health_check_name);
 
         Ok(ApiServer {
             pool: self.pool,
-            health_check,
             health_updater: Arc::new(health_updater),
             updaters_pool: self.updaters_pool,
             config: self.config,
@@ -282,7 +280,7 @@ impl ApiBuilder {
 
 impl ApiServer {
     pub fn health_check(&self) -> ReactiveHealthCheck {
-        self.health_check.clone()
+        self.health_updater.subscribe()
     }
 
     async fn build_rpc_state(
@@ -452,7 +450,7 @@ impl ApiServer {
 
         // TODO (QIT-26): We still expose `health_check` in `ApiServerHandles` for the old code. After we switch to the
         // framework it'll no longer be needed.
-        let health_check = self.health_check.clone();
+        let health_check = self.health_updater.subscribe();
         let (local_addr_sender, local_addr) = oneshot::channel();
         let server_task = tokio::spawn(self.run_jsonrpsee_server(
             stop_receiver,
@@ -583,7 +581,6 @@ impl ApiServer {
         // Hence, we monitor `stop_receiver` on a separate Tokio task.
         let close_handle = server_handle.clone();
         let closing_vm_barrier = vm_barrier.clone();
-        let health_updater = Arc::new(health_updater);
         // We use `Weak` reference to the health updater in order to not prevent its drop if the server stops on its own.
         // TODO (QIT-26): While `Arc<HealthUpdater>` is stored in `self`, we rely on the fact that `self` is consumed and
         // dropped by `self.build_rpc_module` above, so we should still have just one strong reference.

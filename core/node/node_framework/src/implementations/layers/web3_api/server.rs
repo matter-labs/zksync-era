@@ -59,19 +59,12 @@ enum Transport {
     Ws,
 }
 
+#[derive(Debug)]
 pub struct Web3ServerLayer {
     transport: Transport,
     port: u16,
     internal_api_config: InternalApiConfig,
     optional_config: Web3ServerOptionalConfig,
-}
-
-impl std::fmt::Debug for Web3ServerLayer {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Web3ServerLayer")
-            .field("internal_api_config", &self.internal_api_config)
-            .finish()
-    }
 }
 
 impl Web3ServerLayer {
