@@ -29,6 +29,8 @@ use self::{
     updater::TreeUpdater,
 };
 use crate::gas_tracker::commit_gas_count_for_l1_batch;
+use secp256k1;
+use zksync_eth_signer::{EthereumSigner, PrivateKeySigner};
 
 mod helpers;
 mod metrics;
@@ -155,7 +157,15 @@ impl MetadataCalculator {
         };
         self.tree_reader.send_replace(Some(tree.reader()));
 
-        let updater = TreeUpdater::new(tree, self.max_l1_batches_per_iter, self.object_store);
+        let (secret_key, _public_key) = secp256k1::generate_keypair(&mut rand::rngs::OsRng);
+
+        let updater = TreeUpdater::new(
+            tree,
+            self.max_l1_batches_per_iter,
+            self.object_store,
+            secret_key,
+        );
+
         updater
             .loop_updating_tree(self.delayer, &pool, stop_receiver, self.health_updater)
             .await
@@ -185,11 +195,12 @@ impl MetadataCalculator {
         estimate_latency.observe();
     }
 
-    fn build_l1_batch_metadata(
+    async fn build_l1_batch_metadata(
         tree_metadata: TreeMetadata,
         header: &L1BatchHeader,
         events_queue_commitment: Option<H256>,
         bootloader_initial_content_commitment: Option<H256>,
+        state_root_signing_key: &secp256k1::SecretKey,
     ) -> L1BatchMetadata {
         // The commitment generation pre-boojum is the same for all the version, so in case the version is not present, we just supply the
         // last pre-boojum version.
@@ -222,6 +233,14 @@ impl MetadataCalculator {
         } else {
             commitment.system_logs_compressed().to_vec()
         };
+
+        let signer =
+            PrivateKeySigner::new(H256::from_slice(&state_root_signing_key.secret_bytes()));
+        let sig = signer
+            .sign_message(merkle_root_hash.as_bytes())
+            .await
+            .unwrap();
+
         let metadata = L1BatchMetadata {
             root_hash: merkle_root_hash,
             rollup_last_leaf_index: tree_metadata.rollup_last_leaf_index,
@@ -238,6 +257,12 @@ impl MetadataCalculator {
             state_diffs_compressed: commitment.state_diffs_compressed().to_vec(),
             events_queue_commitment,
             bootloader_initial_content_commitment,
+            state_root_signature: Some(Vec::from(sig.serialize_packed())),
+            state_root_signing_pubkey: Some(
+                secp256k1::PublicKey::from_secret_key_global(state_root_signing_key)
+                    .serialize()
+                    .into(),
+            ),
         };
 
         tracing::trace!("L1 batch metadata: {metadata:?}");

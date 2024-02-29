@@ -85,6 +85,9 @@ actix-web = "4.0.0-beta.8"
 
 tracing = "0.1.26"
 
+secp256k1 = { version = "0.27", features = ["global-context", "recovery", "rand"] }
+teepot = { git = "ssh://git@github.com/matter-labs/teepot.git" , rev = "b2fdafec95ea748fae20ffe2fa5f4f2882d68d41" }
+
 [dev-dependencies]
 zksync_test_account = { path = "../test_account" }
 

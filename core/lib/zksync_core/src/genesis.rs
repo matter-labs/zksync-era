@@ -389,6 +389,8 @@ pub(crate) async fn save_genesis_l1_batch_metadata(
         events_queue_commitment: None,
         bootloader_initial_content_commitment: None,
         state_diffs_compressed: vec![],
+        state_root_signature: None,
+        state_root_signing_pubkey: None,
     };
     storage
         .blocks_dal()

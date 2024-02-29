@@ -85,6 +85,8 @@ pub struct L1BatchMetadata {
     /// commitment to the transactions in the batch.
     pub bootloader_initial_content_commitment: Option<H256>,
     pub state_diffs_compressed: Vec<u8>,
+    pub state_root_signature: Option<Vec<u8>>,
+    pub state_root_signing_pubkey: Option<Vec<u8>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

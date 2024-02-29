@@ -50,6 +50,7 @@ hex = "0.4"
 once_cell = "1.7"
 strum = { version = "0.24", features = ["derive"] }
 tracing = "0.1"
+secp256k1 = { version = "0.27", features = ["serde"] }
 
 [dev-dependencies]
 assert_matches = "1.5.0"

@@ -231,7 +231,9 @@ impl BlocksDal<'_, '_> {
                 compressed_state_diffs,
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
-                pubdata_input
+                pubdata_input,
+                signed_state_root,
+                state_root_signing_pubkey
             FROM
                 l1_batches
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -806,6 +808,8 @@ impl BlocksDal<'_, '_> {
                 pass_through_data_hash = $10,
                 meta_parameters_hash = $11,
                 compressed_state_diffs = $12,
+                signed_state_root = $14,
+                state_root_signing_pubkey = $15,
                 updated_at = NOW()
             WHERE
                 number = $13
@@ -824,6 +828,8 @@ impl BlocksDal<'_, '_> {
             metadata.meta_parameters_hash.as_bytes(),
             metadata.state_diffs_compressed,
             number.0 as i64,
+            metadata.state_root_signature,
+            metadata.state_root_signing_pubkey
         )
         .instrument("save_blocks_metadata")
         .with_arg("number", &number)
@@ -972,7 +978,9 @@ impl BlocksDal<'_, '_> {
                 system_logs,
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
-                pubdata_input
+                pubdata_input,
+                signed_state_root,
+                state_root_signing_pubkey
             FROM
                 l1_batches
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1158,7 +1166,9 @@ impl BlocksDal<'_, '_> {
                 system_logs,
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
-                pubdata_input
+                pubdata_input,
+                signed_state_root,
+                state_root_signing_pubkey
             FROM
                 l1_batches
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1271,7 +1281,9 @@ impl BlocksDal<'_, '_> {
                 protocol_version,
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
-                pubdata_input
+                pubdata_input,
+                signed_state_root,
+                state_root_signing_pubkey
             FROM
                 (
                     SELECT
@@ -1358,7 +1370,9 @@ impl BlocksDal<'_, '_> {
                         system_logs,
                         events_queue_commitment,
                         bootloader_initial_content_commitment,
-                        pubdata_input
+                        pubdata_input,
+                        signed_state_root,
+                        state_root_signing_pubkey
                     FROM
                         l1_batches
                         LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1497,7 +1511,9 @@ impl BlocksDal<'_, '_> {
                     system_logs,
                     events_queue_commitment,
                     bootloader_initial_content_commitment,
-                    pubdata_input
+                    pubdata_input,
+                    signed_state_root,
+                    state_root_signing_pubkey
                 FROM
                     l1_batches
                     LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1575,7 +1591,9 @@ impl BlocksDal<'_, '_> {
                 system_logs,
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
-                pubdata_input
+                pubdata_input,
+                signed_state_root,
+                state_root_signing_pubkey
             FROM
                 l1_batches
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1663,7 +1681,9 @@ impl BlocksDal<'_, '_> {
                 system_logs,
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
-                pubdata_input
+                pubdata_input,
+                signed_state_root,
+                state_root_signing_pubkey
             FROM
                 l1_batches
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number

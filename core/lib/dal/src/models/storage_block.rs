@@ -14,7 +14,7 @@ use zksync_types::{
     commitment::{L1BatchMetaParameters, L1BatchMetadata},
     fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput, PubdataIndependentBatchFeeModelInput},
     l2_to_l1_log::{L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log},
-    Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H2048, H256,
+    Address, L1BatchNumber, MiniblockNumber, PackedEthSignature, ProtocolVersionId, H2048, H256,
 };
 
 #[derive(Debug, Error)]
@@ -173,6 +173,8 @@ pub struct StorageL1Batch {
     pub events_queue_commitment: Option<Vec<u8>>,
     pub bootloader_initial_content_commitment: Option<Vec<u8>>,
     pub pubdata_input: Option<Vec<u8>>,
+    pub signed_state_root: Option<Vec<u8>>,
+    pub state_root_signing_pubkey: Option<Vec<u8>>,
 }
 
 impl From<StorageL1Batch> for L1BatchHeader {
@@ -288,6 +290,8 @@ impl TryInto<L1BatchMetadata> for StorageL1Batch {
             bootloader_initial_content_commitment: self
                 .bootloader_initial_content_commitment
                 .map(|v| H256::from_slice(&v)),
+            state_root_signature: self.signed_state_root,
+            state_root_signing_pubkey: self.state_root_signing_pubkey,
         })
     }
 }
@@ -453,6 +457,8 @@ pub struct StorageL1BatchDetails {
     pub l2_fair_gas_price: i64,
     pub bootloader_code_hash: Option<Vec<u8>>,
     pub default_aa_code_hash: Option<Vec<u8>>,
+    pub signed_state_root: Option<Vec<u8>>,
+    pub state_root_signing_pubkey: Option<Vec<u8>>,
 }
 
 impl From<StorageL1BatchDetails> for api::L1BatchDetails {
@@ -500,6 +506,11 @@ impl From<StorageL1BatchDetails> for api::L1BatchDetails {
         api::L1BatchDetails {
             base,
             number: L1BatchNumber(details.number as u32),
+            signed_state_root: details.signed_state_root.map(|bytes| {
+                PackedEthSignature::deserialize_packed(&bytes)
+                    .expect("Invalid serialized signature.")
+            }),
+            state_root_signing_pubkey: details.state_root_signing_pubkey.unwrap_or(Vec::new()),
         }
     }
 }

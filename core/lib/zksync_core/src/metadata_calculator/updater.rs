@@ -1,9 +1,10 @@
 //! Tree updater trait and its implementations.
 
-use std::{ops, sync::Arc, time::Instant};
+use std::{fs, ops, sync::Arc, time::Instant};
 
 use anyhow::Context as _;
 use futures::{future, FutureExt};
+use secp256k1::{PublicKey, SecretKey};
 use tokio::sync::watch;
 use zksync_commitment_utils::{bootloader_initial_content_commitment, events_queue_commitment};
 use zksync_config::configs::database::MerkleTreeMode;
@@ -21,12 +22,39 @@ use super::{
     MetadataCalculator,
 };
 use crate::utils::wait_for_l1_batch;
+use teepot::{quote, sgx};
 
 #[derive(Debug)]
 pub(super) struct TreeUpdater {
     tree: AsyncTree,
     max_l1_batches_per_iter: usize,
     object_store: Option<Arc<dyn ObjectStore>>,
+    state_root_signing_key: SecretKey,
+}
+
+/// Runtime check if executing under SGX.
+fn is_sgx() -> bool {
+    let path = "/dev/attestation/user_report_data";
+
+    if let Ok(metadata) = fs::metadata(path) {
+        // The file exists if metadata retrieval is successful
+        metadata.is_file()
+    } else {
+        // An error occurred, indicating that the file doesn't exist or couldn't be accessed
+        false
+    }
+}
+
+fn attest_key(pubkey: &PublicKey) -> Result<Vec<u8>, quote::GetQuoteError> {
+    let mut report_data: [u8; 64] = [0; 64];
+
+    report_data[..33].copy_from_slice(&pubkey.serialize());
+
+    if is_sgx() {
+        sgx::sgx_gramine_get_quote(&report_data).map(|x| x.to_vec())
+    } else {
+        Ok(Vec::new())
+    }
 }
 
 impl TreeUpdater {
@@ -34,11 +62,13 @@ impl TreeUpdater {
         tree: AsyncTree,
         max_l1_batches_per_iter: usize,
         object_store: Option<Arc<dyn ObjectStore>>,
+        signing_key: SecretKey,
     ) -> Self {
         Self {
             tree,
             max_l1_batches_per_iter,
             object_store,
+            state_root_signing_key: signing_key,
         }
     }
 
@@ -138,7 +168,9 @@ impl TreeUpdater {
                 &header,
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
-            );
+                &self.state_root_signing_key,
+            )
+            .await;
             build_metadata_latency.observe();
 
             let reestimate_gas_cost_latency =
