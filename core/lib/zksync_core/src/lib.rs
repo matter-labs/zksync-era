@@ -44,10 +44,7 @@ use zksync_types::{
     },
     protocol_version::{L1VerifierConfig, VerifierParams},
     system_contracts::get_system_smart_contracts,
-    web3::{
-        contract::{tokens::Detokenize, Error as Web3ContractError},
-        ethabi,
-    },
+    web3::{contract::tokens::Detokenize, ethabi},
     L2ChainId, PackedEthSignature, ProtocolVersionId,
 };
 
