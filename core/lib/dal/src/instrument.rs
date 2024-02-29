@@ -142,10 +142,10 @@ impl<'a> InstrumentedData<'a> {
                 let connection_tags = StorageProcessorTags::display(connection_tags);
                 if slow_query_reporting_enabled {
                     tracing::warn!(
-                    "Query {name}{args} called at {file}:{line} [{connection_tags}] is executing for more than {slow_query_threshold:?}",
-                    file = location.file(),
-                    line = location.line()
-                );
+                        "Query {name}{args} called at {file}:{line} [{connection_tags}] is executing for more than {slow_query_threshold:?}",
+                        file = location.file(),
+                        line = location.line()
+                    );
                     REQUEST_METRICS.request_slow[&name].inc();
                     is_slow = true;
                 }
@@ -201,7 +201,7 @@ impl<'a, Q> Instrumented<'a, Q> {
         self
     }
 
-    pub fn disable_slow_query_reporting(mut self) -> Self {
+    pub fn expect_slow_query(mut self) -> Self {
         self.data.slow_query_reporting_enabled = false;
         self
     }
