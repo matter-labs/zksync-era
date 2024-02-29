@@ -312,14 +312,15 @@ jobs:
           ci_run sleep 2
           ci_run zk env
           ENABLE_CONSENSUS=${{ matrix.consensus }} PASSED_ENV_VARS=ENABLE_CONSENSUS ci_run zk test i revert
-          # Check that the rollback was performed on the EN
-          ci_run sleep 20
-          ci_run grep -q 'Rollback successfully completed' ext-node.log
-          # Restart the EN
+          # Restart the main node.
           ci_run zk server --components=$SERVER_COMPONENTS &>>server.log &
+          # Wait for the EN to detect divergence and terminate.
           ci_run sleep 30
+          # Restart the EN.
           ZKSYNC_ENV=ext-node-docker ci_run zk external-node $EXT_NODE_FLAGS &>>ext-node.log &
           ci_run sleep 30
+          # Check that the rollback was performed on the EN
+          ci_run grep -q 'Rollback successfully completed' ext-node.log
 
       - name: Run upgrade test
         run: |

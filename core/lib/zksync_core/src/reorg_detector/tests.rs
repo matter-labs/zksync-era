@@ -97,12 +97,20 @@ impl MockMainNodeClient {
 impl MainNodeClient for MockMainNodeClient {
     async fn sealed_miniblock_number(&self) -> EnrichedClientResult<MiniblockNumber> {
         self.check_error("sealed_miniblock_number")?;
-        Ok(*self.miniblock_hashes.last_key_value().unwrap().0)
+        Ok(self
+            .miniblock_hashes
+            .last_key_value()
+            .map(|x| *x.0)
+            .unwrap_or_default())
     }
 
     async fn sealed_l1_batch_number(&self) -> EnrichedClientResult<L1BatchNumber> {
         self.check_error("sealed_l1_batch_number")?;
-        Ok(*self.l1_batch_root_hashes.last_key_value().unwrap().0)
+        Ok(self
+            .l1_batch_root_hashes
+            .last_key_value()
+            .map(|x| *x.0)
+            .unwrap_or_default())
     }
 
     async fn miniblock_hash(&self, number: MiniblockNumber) -> EnrichedClientResult<Option<H256>> {
