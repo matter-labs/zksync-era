@@ -234,9 +234,11 @@ impl EthTxManager {
             .observe(priority_fee_per_gas);
 
         let blob_gas_price = if tx.blob_sidecar.is_some() {
-            Some(U256::from_big_endian(
-                &blob_base_fee_per_gas.unwrap_or(1u64).to_be_bytes(),
-            ))
+            Some(
+                blob_base_fee_per_gas
+                    .expect("always ready to query blob gas price for blob transactions; qed")
+                    .into(),
+            )
         } else {
             None
         };
