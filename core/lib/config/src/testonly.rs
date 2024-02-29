@@ -260,6 +260,7 @@ impl RandomConfig for configs::chain::StateKeeperConfig {
             block_commit_deadline_ms: g.gen(),
             miniblock_commit_deadline_ms: g.gen(),
             miniblock_seal_queue_capacity: g.gen(),
+            miniblock_max_payload_size: g.gen(),
             max_single_tx_gas: g.gen(),
             max_allowed_l2_tx_gas_limit: g.gen(),
             reject_tx_at_geometry_percentage: g.gen(),
