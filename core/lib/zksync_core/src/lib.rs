@@ -30,7 +30,7 @@ use zksync_contracts::{governance_contract, BaseSystemContracts};
 use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
 use zksync_eth_client::{
     clients::{PKSigningClient, QueryClient},
-    CallFunctionArgs, EthInterface,
+    CallFunctionArgs, Error as EthClientError, EthInterface,
 };
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
@@ -44,7 +44,10 @@ use zksync_types::{
     },
     protocol_version::{L1VerifierConfig, VerifierParams},
     system_contracts::get_system_smart_contracts,
-    web3::contract::tokens::Detokenize,
+    web3::{
+        contract::{tokens::Detokenize, Error as Web3ContractError},
+        ethabi,
+    },
     L2ChainId, PackedEthSignature, ProtocolVersionId,
 };
 
@@ -296,6 +299,17 @@ impl FromStr for Components {
             other => Err(format!("{} is not a valid component name", other)),
         }
     }
+}
+
+async fn get_pubdata_pricing_mode(
+    contracts_config: &ContractsConfig,
+    eth_client: &impl EthInterface,
+) -> Result<Vec<ethabi::Token>, EthClientError> {
+    let args = CallFunctionArgs::new("getPubdataPricingMode", ()).for_contract(
+        contracts_config.diamond_proxy_addr,
+        zksync_contracts::zksync_contract(),
+    );
+    eth_client.call_contract_function(args).await
 }
 
 pub async fn initialize_components(
@@ -637,8 +651,26 @@ pub async fn initialize_components(
             .state_keeper_config
             .clone()
             .context("state_keeper_config")?;
+
+        let selected_l1_batch_commit_data_generator_mode = state_keeper_config
+            .l1_batch_commit_data_generator_mode
+            .clone();
+        let l1_contract_pubdata_pricing_mode =
+            get_pubdata_pricing_mode(&contracts_config, &eth_client).await?;
+        let l1_contract_batch_commitment_mode =
+            L1BatchCommitDataGeneratorMode::from_tokens(l1_contract_pubdata_pricing_mode)?;
+
+        // contracts mode == server mode
+        assert_eq!(
+            l1_contract_batch_commitment_mode,
+            selected_l1_batch_commit_data_generator_mode,
+            "The selected L1BatchCommitDataGeneratorMode ({:?}) does not match the commitment mode used on L1 contract ({:?})",
+            selected_l1_batch_commit_data_generator_mode,
+            l1_contract_batch_commitment_mode
+        );
+
         let l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator> =
-            match state_keeper_config.l1_batch_commit_data_generator_mode {
+            match selected_l1_batch_commit_data_generator_mode {
                 L1BatchCommitDataGeneratorMode::Rollup => {
                     Arc::new(RollupModeL1BatchCommitDataGenerator {})
                 }
@@ -646,24 +678,6 @@ pub async fn initialize_components(
                     Arc::new(ValidiumModeL1BatchCommitDataGenerator {})
                 }
             };
-
-        let args = CallFunctionArgs::new("getPubdataPricingMode", ()).for_contract(
-            contracts_config.diamond_proxy_addr,
-            zksync_contracts::zksync_contract(),
-        );
-        let current_commitment_mode_eth_response = eth_client.call_contract_function(args).await?;
-
-        let current_commitment_mode =
-            L1BatchCommitDataGeneratorMode::from_tokens(current_commitment_mode_eth_response)?;
-
-        // contracts mode == server mode
-        assert_eq!(
-            current_commitment_mode,
-            state_keeper_config.l1_batch_commit_data_generator_mode,
-            "The selected L1BatchCommitDataGeneratorMode ({:?}) does not match the commitment mode used on L1 contract ({:?})",
-            state_keeper_config.l1_batch_commit_data_generator_mode,
-            current_commitment_mode
-        );
 
         let eth_tx_aggregator_actor = EthTxAggregator::new(
             eth_sender.sender.clone(),
