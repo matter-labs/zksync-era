@@ -145,7 +145,8 @@ mod tests {
 
         assert_eq!(
             lazy_resource.clone().provide(test_resource.clone()).await,
-            Err(LazyResourceError::ResourceAlreadyProvided)
+            Err(LazyResourceError::ResourceAlreadyProvided),
+            "Incorrect result for providing same resource twice"
         );
     }
 
@@ -165,7 +166,8 @@ mod tests {
 
         assert_eq!(
             lazy_resource.clone().resolve().await,
-            Ok(test_resource.clone())
+            Ok(test_resource.clone()),
+            "Incorrect result for resolving the resource before node shutdown"
         );
     }
 
@@ -183,6 +185,10 @@ mod tests {
 
         let result = resolve_task.await.unwrap();
 
-        assert_eq!(result, Err(LazyResourceError::NodeShutdown));
+        assert_eq!(
+            result,
+            Err(LazyResourceError::NodeShutdown),
+            "Incorrect result for resolving the resource after the node shutdown"
+        );
     }
 }

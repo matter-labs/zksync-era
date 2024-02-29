@@ -35,6 +35,7 @@ use zksync_core::{
 };
 use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
+use zksync_l1_contract_interface::i_executor::commit::kzg::KzgSettings;
 use zksync_state::PostgresStorageCaches;
 use zksync_storage::RocksDB;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
@@ -229,6 +230,9 @@ async fn init_tasks(
         .context("failed initializing metadata calculator")?;
     app_health.insert_component(metadata_calculator.tree_health_check());
 
+    let kzg_settings = Some(Arc::new(KzgSettings::new(
+        &config.optional.kzg_trusted_setup_path,
+    )));
     let consistency_checker = ConsistencyChecker::new(
         &config
             .required
@@ -239,6 +243,7 @@ async fn init_tasks(
             .build()
             .await
             .context("failed to build connection pool for ConsistencyChecker")?,
+        kzg_settings,
     );
     app_health.insert_component(consistency_checker.health_check().clone());
     let consistency_checker_handle = tokio::spawn(consistency_checker.run(stop_receiver.clone()));
@@ -264,7 +269,10 @@ async fn init_tasks(
         .build()
         .await
         .context("failed to build a commitment_generator_pool")?;
-    let commitment_generator = CommitmentGenerator::new(commitment_generator_pool);
+    let commitment_generator = CommitmentGenerator::new(
+        commitment_generator_pool,
+        &config.optional.kzg_trusted_setup_path,
+    );
     app_health.insert_component(commitment_generator.health_check());
     let commitment_generator_handle = tokio::spawn(commitment_generator.run(stop_receiver.clone()));
 
@@ -522,7 +530,10 @@ async fn main() -> anyhow::Result<()> {
 
     let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
         .context("Failed creating JSON-RPC client for main node")?;
-    let app_health = Arc::new(AppHealthCheck::default());
+    let app_health = Arc::new(AppHealthCheck::new(
+        config.optional.healthcheck_slow_time_limit(),
+        config.optional.healthcheck_hard_time_limit(),
+    ));
     app_health.insert_custom_component(Arc::new(MainNodeHealthCheck::from(
         main_node_client.clone(),
     )));
