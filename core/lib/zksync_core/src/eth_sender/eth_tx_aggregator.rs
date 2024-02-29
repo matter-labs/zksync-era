@@ -22,6 +22,7 @@ use zksync_types::{
 use super::aggregated_operations::AggregatedOperation;
 use crate::{
     eth_sender::{
+        l1_batch_commit_data_generator::L1BatchCommitDataGenerator,
         metrics::{PubdataKind, METRICS},
         zksync_functions::ZkSyncFunctions,
         Aggregator, ETHSenderError,
@@ -53,6 +54,7 @@ pub struct EthTxAggregator {
     functions: ZkSyncFunctions,
     base_nonce: u64,
     rollup_chain_id: L2ChainId,
+    l1_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
 }
 
 impl EthTxAggregator {
@@ -64,6 +66,7 @@ impl EthTxAggregator {
         l1_multicall3_address: Address,
         main_zksync_contract_address: Address,
         rollup_chain_id: L2ChainId,
+        l1_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
     ) -> Self {
         let functions = ZkSyncFunctions::default();
         let base_nonce = eth_client
@@ -81,6 +84,7 @@ impl EthTxAggregator {
             functions,
             base_nonce,
             rollup_chain_id,
+            l1_commit_data_generator,
         }
     }
 
@@ -367,8 +371,8 @@ impl EthTxAggregator {
             aggregated_op.get_action_caption()
         );
 
-        if let AggregatedOperation::Commit(commit_op) = &aggregated_op {
-            for batch in &commit_op.l1_batches {
+        if let AggregatedOperation::Commit(_, l1_batches) = &aggregated_op {
+            for batch in l1_batches {
                 METRICS.pubdata_size[&PubdataKind::StateDiffs]
                     .observe(batch.metadata.state_diffs_compressed.len());
                 METRICS.pubdata_size[&PubdataKind::UserL2ToL1Logs]
@@ -402,14 +406,17 @@ impl EthTxAggregator {
         let mut args = vec![Token::Uint(self.rollup_chain_id.as_u64().into())];
 
         match op.clone() {
-            AggregatedOperation::Commit(op) => {
+            AggregatedOperation::Commit(last_committed_l1_batch, l1_batches) => {
+                let commit_data = self
+                            .l1_commit_data_generator
+                            .l1_commit_data(&last_committed_l1_batch, &l1_batches);
                 if contracts_are_pre_shared_bridge {
                     self.functions
                         .pre_shared_bridge_commit
-                        .encode_input(&op.into_tokens())
+                        .encode_input(&commit_data.into_tokens())
                         .expect("Failed to encode commit transaction data")
                 } else {
-                    args.extend(op.into_tokens());
+                    args.extend_from_slice(&commit_data);
                     self.functions
                         .post_shared_bridge_commit
                         .as_ref()

@@ -10,12 +10,13 @@ use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_prover_interface::outputs::L1BatchProofForL1;
 use zksync_types::{
     aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata,
-    helpers::unix_timestamp_ms, l1_batch_commit_data_generator::L1BatchCommitDataGenerator,
-    protocol_version::L1VerifierConfig, L1BatchNumber, ProtocolVersionId,
+    helpers::unix_timestamp_ms, protocol_version::L1VerifierConfig, L1BatchNumber,
+    ProtocolVersionId,
 };
 
 use super::{
     aggregated_operations::AggregatedOperation,
+    l1_batch_commit_data_generator::L1BatchCommitDataGenerator,
     publish_criterion::{
         DataSizeCriterion, GasCriterion, L1BatchPublishCriterion, NumberCriterion,
         TimestampDeadlineCriterion,
@@ -29,7 +30,6 @@ pub struct Aggregator {
     execute_criteria: Vec<Box<dyn L1BatchPublishCriterion>>,
     config: SenderConfig,
     blob_store: Arc<dyn ObjectStore>,
-    l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
 }
 
 impl Aggregator {
@@ -94,7 +94,6 @@ impl Aggregator {
             ],
             config,
             blob_store,
-            l1_batch_commit_data_generator,
         }
     }
 
@@ -142,7 +141,12 @@ impl Aggregator {
                 protocol_version_id,
             )
             .await
-            .map(AggregatedOperation::Commit)
+            .map(|op| {
+                AggregatedOperation::Commit(
+                    op.last_committed_l1_batch.clone(),
+                    op.l1_batches.to_vec(),
+                )
+            })
         }
     }
 
@@ -230,7 +234,6 @@ impl Aggregator {
         batches.map(|batches| CommitBatchesRollup {
             last_committed_l1_batch,
             l1_batches: batches,
-            l1_batch_commit_data_generator: self.l1_batch_commit_data_generator.clone(),
         })
     }
 
