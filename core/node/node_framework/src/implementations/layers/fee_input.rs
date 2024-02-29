@@ -70,7 +70,7 @@ struct GasAdjusterTask {
 
 #[async_trait::async_trait]
 impl Task for GasAdjusterTask {
-    fn name(&self) -> &'static str {
+    fn name() -> &'static str {
         "gas_adjuster"
     }
 

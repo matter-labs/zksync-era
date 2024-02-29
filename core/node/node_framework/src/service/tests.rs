@@ -3,8 +3,9 @@ use std::sync::{Arc, Mutex};
 use anyhow::anyhow;
 use tokio::runtime::Runtime;
 
-use crate::service::{
-    ServiceContext, StopReceiver, Task, WiringError, WiringLayer, ZkStackService,
+use crate::{
+    service::{ServiceContext, StopReceiver, WiringError, WiringLayer, ZkStackService},
+    task::Task,
 };
 
 // `ZkStack` Service's `new()` method has to have a check for nested runtime.
@@ -110,7 +111,7 @@ struct ErrorTask;
 
 #[async_trait::async_trait]
 impl Task for ErrorTask {
-    fn name(&self) -> &'static str {
+    fn name() -> &'static str {
         "error_task"
     }
     async fn run(self: Box<Self>, _stop_receiver: StopReceiver) -> anyhow::Result<()> {
@@ -158,7 +159,7 @@ struct SuccessfulTask(Arc<Mutex<bool>>);
 
 #[async_trait::async_trait]
 impl Task for SuccessfulTask {
-    fn name(&self) -> &'static str {
+    fn name() -> &'static str {
         "successful_task"
     }
     async fn run(self: Box<Self>, _stop_receiver: StopReceiver) -> anyhow::Result<()> {
@@ -175,7 +176,7 @@ struct RemainingTask(Arc<Mutex<bool>>);
 
 #[async_trait::async_trait]
 impl Task for RemainingTask {
-    fn name(&self) -> &'static str {
+    fn name() -> &'static str {
         "remaining_task"
     }
     async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {

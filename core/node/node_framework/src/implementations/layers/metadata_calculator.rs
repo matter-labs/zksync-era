@@ -63,7 +63,7 @@ impl WiringLayer for MetadataCalculatorLayer {
 
 #[async_trait::async_trait]
 impl Task for MetadataCalculatorTask {
-    fn name(&self) -> &'static str {
+    fn name() -> &'static str {
         "metadata_calculator"
     }
 

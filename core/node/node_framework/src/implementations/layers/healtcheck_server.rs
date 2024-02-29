@@ -52,7 +52,7 @@ pub struct HealthCheckTask {
 
 #[async_trait::async_trait]
 impl Task for HealthCheckTask {
-    fn name(&self) -> &'static str {
+    fn name() -> &'static str {
         "healthcheck_server"
     }
 

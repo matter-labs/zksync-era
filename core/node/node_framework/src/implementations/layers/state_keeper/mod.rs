@@ -65,7 +65,7 @@ struct StateKeeperTask {
 
 #[async_trait::async_trait]
 impl Task for StateKeeperTask {
-    fn name(&self) -> &'static str {
+    fn name() -> &'static str {
         "state_keeper"
     }
 

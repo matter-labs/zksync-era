@@ -48,7 +48,7 @@ impl WiringLayer for PrometheusExporterLayer {
 
 #[async_trait::async_trait]
 impl Task for PrometheusExporterTask {
-    fn name(&self) -> &'static str {
+    fn name() -> &'static str {
         "prometheus_exporter"
     }
 

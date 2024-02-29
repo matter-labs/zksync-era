@@ -70,7 +70,7 @@ struct ProofDataHandlerTask {
 
 #[async_trait::async_trait]
 impl Task for ProofDataHandlerTask {
-    fn name(&self) -> &'static str {
+    fn name() -> &'static str {
         "proof_data_handler"
     }
 

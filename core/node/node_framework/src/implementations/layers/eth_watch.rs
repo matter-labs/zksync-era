@@ -69,7 +69,7 @@ struct EthWatchTask {
 
 #[async_trait::async_trait]
 impl Task for EthWatchTask {
-    fn name(&self) -> &'static str {
+    fn name() -> &'static str {
         "eth_watch"
     }
 

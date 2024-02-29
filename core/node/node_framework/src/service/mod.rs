@@ -7,7 +7,7 @@ use self::pre_run::PreRun;
 pub use self::{context::ServiceContext, stop_receiver::StopReceiver};
 use crate::{
     resource::{ResourceId, StoredResource},
-    task::Task,
+    task::StoredTask,
     wiring_layer::{WiringError, WiringLayer},
 };
 
@@ -41,7 +41,7 @@ pub struct ZkStackService {
     /// List of wiring layers.
     layers: Vec<Box<dyn WiringLayer>>,
     /// Tasks added to the service.
-    tasks: Vec<Box<dyn Task>>,
+    tasks: Vec<Box<dyn StoredTask>>,
 
     setup_hook: Option<SetupHook>,
 

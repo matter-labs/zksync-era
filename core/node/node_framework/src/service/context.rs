@@ -34,8 +34,8 @@ impl<'a> ServiceContext<'a> {
 
     /// Adds a task to the service.
     /// Added tasks will be launched after the wiring process will be finished.
-    pub fn add_task(&mut self, task: Box<dyn Task>) -> &mut Self {
-        tracing::info!("Layer {} has added a new task: {}", self.layer, task.name());
+    pub fn add_task<T: Task>(&mut self, task: Box<T>) -> &mut Self {
+        tracing::info!("Layer {} has added a new task: {}", self.layer, T::name());
         self.service.tasks.push(task);
         self
     }

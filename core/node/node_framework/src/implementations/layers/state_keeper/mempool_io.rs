@@ -132,7 +132,7 @@ struct MiniblockSealerTask(MiniblockSealer);
 
 #[async_trait::async_trait]
 impl Task for MiniblockSealerTask {
-    fn name(&self) -> &'static str {
+    fn name() -> &'static str {
         "state_keeper/miniblock_sealer"
     }
 
@@ -147,7 +147,7 @@ struct MempoolFetcherTask(MempoolFetcher);
 
 #[async_trait::async_trait]
 impl Task for MempoolFetcherTask {
-    fn name(&self) -> &'static str {
+    fn name() -> &'static str {
         "state_keeper/mempool_fetcher"
     }
 
