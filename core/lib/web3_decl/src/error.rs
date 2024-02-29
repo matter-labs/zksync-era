@@ -197,6 +197,7 @@ where
     F: Future<Output = Result<T, ClientError>>,
 {
     fn rpc_context(self, method: &'static str) -> ClientCallWrapper<Self> {
+        tracing::warn!("Rpc call to {method}");
         ClientCallWrapper {
             inner: self,
             method,

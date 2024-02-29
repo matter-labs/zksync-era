@@ -9109,6 +9109,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror",
+ "tracing",
  "zksync_types",
 ]
 
