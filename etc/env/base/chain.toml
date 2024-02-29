@@ -63,7 +63,7 @@ pubdata_overhead_part=1.0
 batch_overhead_l1_gas=800000
 
 # The maximum amount of gas that can be used by the batch. This value is derived from the circuits limitation per batch.
-max_gas_per_batch=100000000
+max_gas_per_batch=200000000
 
 # This will also determine how many blobs are used, when enabled.
 # If the value is less than 126 kb -> Calldata or 1 Blob
