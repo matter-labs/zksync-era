@@ -66,6 +66,7 @@ impl NativeTokenFetcherSingleton {
 pub(crate) struct NativeTokenFetcher {
     pub config: NativeTokenFetcherConfig,
     pub latest_to_eth_conversion_rate: AtomicU64,
+    http_client: reqwest::Client,
 }
 
 impl NativeTokenFetcher {
@@ -77,9 +78,12 @@ impl NativeTokenFetcher {
             .await
             .unwrap();
 
+        let http_client = reqwest::Client::new();
+
         Self {
             config,
             latest_to_eth_conversion_rate: AtomicU64::new(conversion_rate),
+            http_client: http_client,
         }
     }
 
@@ -90,7 +94,10 @@ impl NativeTokenFetcher {
                 break;
             }
 
-            let conversion_rate = reqwest::get(format!("{}/conversion_rate", &self.config.host))
+            let conversion_rate = self
+                .http_client
+                .get(format!("{}/conversion_rate", &self.config.host))
+                .send()
                 .await?
                 .json::<u64>()
                 .await
