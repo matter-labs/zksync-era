@@ -386,6 +386,7 @@ impl EthSenderDal<'_, '_> {
         tx_hash: H256,
         confirmed_at: DateTime<Utc>,
     ) -> anyhow::Result<()> {
+        tracing::info!("insert_bogus_confirmed_eth_tx called: {l1_batch}, {tx_hash}, {tx_hash}, {confirmed_at}");
         let mut transaction = self
             .storage
             .start_transaction()
