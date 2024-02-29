@@ -277,16 +277,13 @@ impl EthNamespace {
             .access_storage_tagged("api")
             .await
             .map_err(|err| internal_error(method_name, err))?;
-        let block_number_result = self
+        let Some(block_number) = self
             .state
-            .resolve_block(&mut storage, block_id, method_name)
-            .await;
-        let block_number = match block_number_result {
-            Ok(number) => number,
-            Err(Web3Error::NoBlock) => return Ok(None), // for compatibility with Ethereum Web3 semantics
-            Err(err) => return Err(err),
+            .resolve_block_unchecked(&mut storage, block_id, method_name)
+            .await?
+        else {
+            return Ok(None);
         };
-
         let block = storage
             .blocks_web3_dal()
             .get_block(
@@ -321,23 +318,24 @@ impl EthNamespace {
             .access_storage_tagged("api")
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?;
-        let block_number_result = self
+        let Some(block_number) = self
             .state
-            .resolve_block(&mut storage, block_id, METHOD_NAME)
-            .await;
-        let block_number = match block_number_result {
-            Ok(number) => number,
-            Err(Web3Error::NoBlock) => return Ok(None), // for compatibility with Ethereum Web3 semantics
-            Err(err) => return Err(err),
+            .resolve_block_unchecked(&mut storage, block_id, METHOD_NAME)
+            .await?
+        else {
+            return Ok(None);
         };
-
         let tx_count = storage
             .blocks_web3_dal()
             .get_block_tx_count(block_number)
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?;
 
-        self.report_latency_with_block_id(method_latency, block_number);
+        if tx_count.is_some() {
+            self.report_latency_with_block_id(method_latency, block_number);
+        } else {
+            method_latency.observe_without_diff();
+        }
         Ok(tx_count.map(Into::into))
     }
 
@@ -345,7 +343,7 @@ impl EthNamespace {
     pub async fn get_block_receipts_impl(
         &self,
         block_id: BlockId,
-    ) -> Result<Vec<TransactionReceipt>, Web3Error> {
+    ) -> Result<Option<Vec<TransactionReceipt>>, Web3Error> {
         const METHOD_NAME: &str = "get_block_receipts";
 
         let method_latency = API_METRICS.start_block_call(METHOD_NAME, block_id);
@@ -356,26 +354,32 @@ impl EthNamespace {
             .access_storage_tagged("api")
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?;
-        let block_number = self
+        let Some(block_number) = self
             .state
-            .resolve_block(&mut storage, block_id, METHOD_NAME)
-            .await?;
-        let block = storage
+            .resolve_block_unchecked(&mut storage, block_id, METHOD_NAME)
+            .await?
+        else {
+            method_latency.observe_without_diff();
+            return Ok(None);
+        };
+        let Some(block) = storage
             .blocks_web3_dal()
             .get_block(block_number, false, self.state.api_config.l2_chain_id)
             .await
-            .map_err(|err| internal_error(METHOD_NAME, err))?;
+            .map_err(|err| internal_error(METHOD_NAME, err))?
+        else {
+            method_latency.observe_without_diff();
+            return Ok(None);
+        };
 
-        let transactions: &[TransactionVariant] =
-            block.as_ref().map_or(&[], |block| &block.transactions);
-        let hashes: Vec<_> = transactions
+        let hashes: Vec<_> = block
+            .transactions
             .iter()
             .map(|tx| match tx {
                 TransactionVariant::Full(tx) => tx.hash,
                 TransactionVariant::Hash(hash) => *hash,
             })
             .collect();
-
         let mut receipts = storage
             .transactions_web3_dal()
             .get_transaction_receipts(&hashes)
@@ -384,7 +388,7 @@ impl EthNamespace {
         receipts.sort_unstable_by_key(|receipt| receipt.transaction_index);
 
         self.report_latency_with_block_id(method_latency, block_number);
-        Ok(receipts)
+        Ok(Some(receipts))
     }
 
     #[tracing::instrument(skip(self))]
