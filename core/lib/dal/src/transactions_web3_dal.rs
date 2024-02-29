@@ -182,37 +182,38 @@ impl TransactionsWeb3Dal<'_, '_> {
         Ok(rows.into_iter().map(|row| row.into_api(chain_id)).collect())
     }
 
-    pub async fn get_transaction(
+    pub async fn get_transaction_by_hash(
         &mut self,
-        transaction_id: api::TransactionId,
+        hash: H256,
         chain_id: L2ChainId,
-    ) -> Result<Option<api::Transaction>, SqlxError> {
-        // FIXME: move this logic to the caller side.
-        let selector = match transaction_id {
-            api::TransactionId::Hash(hash) => TransactionSelector::Hashes(vec![hash]),
-            api::TransactionId::Block(block_id, idx) => {
-                let Some(block_number) = self
-                    .storage
-                    .blocks_web3_dal()
-                    .resolve_block_id(block_id)
-                    .await?
-                else {
-                    return Ok(None);
-                };
-                let Ok(idx) = idx.try_into() else {
-                    return Ok(None);
-                };
-                TransactionSelector::Position(block_number, idx)
-            }
-        };
-        let txs = self.get_transactions(&selector, chain_id).await?;
-        Ok(txs.into_iter().next())
+    ) -> sqlx::Result<Option<api::Transaction>> {
+        Ok(self
+            .get_transactions(&TransactionSelector::Hashes(vec![hash]), chain_id)
+            .await?
+            .into_iter()
+            .next())
+    }
+
+    pub async fn get_transaction_by_position(
+        &mut self,
+        block_number: MiniblockNumber,
+        index_in_block: u32,
+        chain_id: L2ChainId,
+    ) -> sqlx::Result<Option<api::Transaction>> {
+        Ok(self
+            .get_transactions(
+                &TransactionSelector::Position(block_number, index_in_block),
+                chain_id,
+            )
+            .await?
+            .into_iter()
+            .next())
     }
 
     pub async fn get_transaction_details(
         &mut self,
         hash: H256,
-    ) -> Result<Option<api::TransactionDetails>, SqlxError> {
+    ) -> sqlx::Result<Option<api::TransactionDetails>> {
         {
             let storage_tx_details: Option<StorageTransactionDetails> = sqlx::query_as!(
                 StorageTransactionDetails,
@@ -378,10 +379,7 @@ impl TransactionsWeb3Dal<'_, '_> {
 mod tests {
     use std::collections::HashMap;
 
-    use zksync_types::{
-        block::MiniblockHasher, fee::TransactionExecutionMetrics, l2::L2Tx, Nonce, ProtocolVersion,
-        ProtocolVersionId,
-    };
+    use zksync_types::{fee::TransactionExecutionMetrics, l2::L2Tx, Nonce, ProtocolVersion};
 
     use super::*;
     use crate::{
@@ -432,56 +430,43 @@ mod tests {
         let tx_hash = tx.hash();
         prepare_transactions(&mut conn, vec![tx]).await;
 
-        let block_hash = MiniblockHasher::new(MiniblockNumber(1), 0, H256::zero())
-            .finalize(ProtocolVersionId::latest());
-        let block_ids = [
-            api::BlockId::Number(api::BlockNumber::Latest),
-            api::BlockId::Number(api::BlockNumber::Number(1.into())),
-            api::BlockId::Hash(block_hash),
-        ];
-        let transaction_ids = block_ids
-            .iter()
-            .map(|&block_id| api::TransactionId::Block(block_id, 0.into()))
-            .chain([api::TransactionId::Hash(tx_hash)]);
+        let web3_tx = conn
+            .transactions_web3_dal()
+            .get_transaction_by_position(MiniblockNumber(1), 0, L2ChainId::from(270))
+            .await;
+        let web3_tx = web3_tx.unwrap().unwrap();
+        assert_eq!(web3_tx.hash, tx_hash);
+        assert_eq!(web3_tx.block_number, Some(1.into()));
+        assert_eq!(web3_tx.transaction_index, Some(0.into()));
 
-        for transaction_id in transaction_ids {
+        let web3_tx = conn
+            .transactions_web3_dal()
+            .get_transaction_by_hash(tx_hash, L2ChainId::from(270))
+            .await;
+        let web3_tx = web3_tx.unwrap().unwrap();
+        assert_eq!(web3_tx.hash, tx_hash);
+        assert_eq!(web3_tx.block_number, Some(1.into()));
+        assert_eq!(web3_tx.transaction_index, Some(0.into()));
+
+        for block_number in [0, 2, 100] {
             let web3_tx = conn
                 .transactions_web3_dal()
-                .get_transaction(transaction_id, L2ChainId::from(270))
-                .await;
-            let web3_tx = web3_tx.unwrap().unwrap();
-            assert_eq!(web3_tx.hash, tx_hash);
-            assert_eq!(web3_tx.block_number, Some(1.into()));
-            assert_eq!(web3_tx.transaction_index, Some(0.into()));
-        }
-
-        let transactions_with_bogus_index = block_ids
-            .iter()
-            .map(|&block_id| api::TransactionId::Block(block_id, 1.into()));
-        for transaction_id in transactions_with_bogus_index {
-            let web3_tx = conn
-                .transactions_web3_dal()
-                .get_transaction(transaction_id, L2ChainId::from(270))
+                .get_transaction_by_position(MiniblockNumber(block_number), 0, L2ChainId::from(270))
                 .await;
             assert!(web3_tx.unwrap().is_none());
         }
-
-        let bogus_block_ids = [
-            api::BlockId::Number(api::BlockNumber::Earliest),
-            api::BlockId::Number(api::BlockNumber::Pending),
-            api::BlockId::Number(api::BlockNumber::Number(42.into())),
-            api::BlockId::Hash(H256::zero()),
-        ];
-        let transactions_with_bogus_block = bogus_block_ids
-            .iter()
-            .map(|&block_id| api::TransactionId::Block(block_id, 0.into()));
-        for transaction_id in transactions_with_bogus_block {
+        for index in [1, 2, 100] {
             let web3_tx = conn
                 .transactions_web3_dal()
-                .get_transaction(transaction_id, L2ChainId::from(270))
+                .get_transaction_by_position(MiniblockNumber(1), index, L2ChainId::from(270))
                 .await;
             assert!(web3_tx.unwrap().is_none());
         }
+        let web3_tx = conn
+            .transactions_web3_dal()
+            .get_transaction_by_hash(H256::zero(), L2ChainId::from(270))
+            .await;
+        assert!(web3_tx.unwrap().is_none());
     }
 
     #[tokio::test]

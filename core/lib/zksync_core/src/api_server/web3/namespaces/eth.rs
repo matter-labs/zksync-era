@@ -529,16 +529,40 @@ impl EthNamespace {
         const METHOD_NAME: &str = "get_transaction";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-        let mut transaction = self
+        let mut storage = self
             .state
             .connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap()
-            .transactions_web3_dal()
-            .get_transaction(id, self.state.api_config.l2_chain_id)
-            .await
-            .map_err(|err| internal_error(METHOD_NAME, err));
+            .map_err(|err| internal_error(METHOD_NAME, err))?;
+        let chain_id = self.state.api_config.l2_chain_id;
+        let mut transaction = match id {
+            TransactionId::Hash(hash) => storage
+                .transactions_web3_dal()
+                .get_transaction_by_hash(hash, chain_id)
+                .await
+                .map_err(|err| internal_error(METHOD_NAME, err)),
+
+            TransactionId::Block(block_id, idx) => {
+                let Ok(idx) = u32::try_from(idx) else {
+                    return Ok(None); // index overflow means no transaction
+                };
+                let Some(block_number) = self
+                    .state
+                    .resolve_block_unchecked(&mut storage, block_id, METHOD_NAME)
+                    .await
+                    .map_err(|err| internal_error(METHOD_NAME, err))?
+                else {
+                    return Ok(None);
+                };
+
+                storage
+                    .transactions_web3_dal()
+                    .get_transaction_by_position(block_number, idx, chain_id)
+                    .await
+                    .map_err(|err| internal_error(METHOD_NAME, err))
+            }
+        };
 
         if let Ok(None) = transaction {
             transaction = self
