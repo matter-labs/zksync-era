@@ -595,3 +595,10 @@ impl EthTxAggregator {
         })
     }
 }
+
+#[cfg(test)]
+impl EthTxAggregator {
+    pub fn kzg_settings(&self) -> Arc<KzgSettings> {
+        self.kzg_settings.as_ref().unwrap().clone()
+    }
+}
