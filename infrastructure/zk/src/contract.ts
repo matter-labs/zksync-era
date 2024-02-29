@@ -153,6 +153,17 @@ export async function deployVerifier(args: any[]) {
     await deployL1([...args, '--only-verifier']);
 }
 
+async function deployPubdataGenerator() {
+    await utils.confirmAction();
+
+    const baseCommand = process.env.ZKSYNC_LOCAL_SETUP ? `yarn --cwd /contracts/l2-contracts` : `yarn l2-contracts`;
+    await utils.spawn(`${baseCommand} deploy-pubdata-generator | tee deployPubdataGenerator.log`);
+
+    const deployLog = fs.readFileSync('deployPubdataGenerator.log').toString();
+    const envVars = ['CONTRACTS_L2_PUBDATA_GENERATOR_ADDR'];
+    updateContractsEnv(deployLog, envVars);
+}
+
 export const command = new Command('contract').description('contract management');
 
 command
@@ -164,3 +175,4 @@ command.command('deploy [deploy-opts...]').allowUnknownOption(true).description(
 command.command('build').description('build contracts').action(build);
 command.command('initialize-validator').description('initialize validator').action(initializeValidator);
 command.command('verify').description('verify L1 contracts').action(verifyL1Contracts);
+command.command('deploy-pubdata-generator').action(deployPubdataGenerator);
