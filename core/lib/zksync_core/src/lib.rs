@@ -631,7 +631,7 @@ pub async fn initialize_components(
                 }
             };
 
-        let args = CallFunctionArgs::new("getPubdataPriceMode", ()).for_contract(
+        let args = CallFunctionArgs::new("getPubdataPricingMode", ()).for_contract(
             contracts_config.executor_facet_addr,
             zksync_contracts::executor_contract(),
         );
