@@ -87,12 +87,15 @@ pub(crate) struct NativeTokenFetcher {
 
 impl NativeTokenFetcher {
     pub(crate) async fn new(config: NativeTokenFetcherConfig) -> Self {
-        let conversion_rate = reqwest::get(format!("{}/conversion_rate", config.host))
-            .await
-            .unwrap()
-            .json::<u64>()
-            .await
-            .unwrap();
+        let conversion_rate = reqwest::get(format!(
+            "{}/conversion_rate/{}",
+            config.host, config.token_address
+        ))
+        .await
+        .unwrap()
+        .json::<u64>()
+        .await
+        .unwrap();
 
         let http_client = reqwest::Client::new();
 
@@ -112,7 +115,10 @@ impl NativeTokenFetcher {
 
             let conversion_rate = self
                 .http_client
-                .get(format!("{}/conversion_rate", &self.config.host))
+                .get(format!(
+                    "{}/conversion_rate/{}",
+                    &self.config.host, &self.config.token_address
+                ))
                 .send()
                 .await?
                 .json::<u64>()

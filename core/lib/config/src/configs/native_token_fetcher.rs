@@ -4,4 +4,5 @@ use serde::Deserialize;
 pub struct NativeTokenFetcherConfig {
     pub poll_interval: u64,
     pub host: String,
+    pub token_address: String,
 }
