@@ -3,12 +3,11 @@ use std::{collections::HashMap, fmt};
 use futures::{future::Fuse, FutureExt};
 use tokio::task::JoinHandle;
 
+use super::TaskRepr;
 use crate::{
     resource::{Resource, ResourceId, StoredResource},
     service::context::downcast_clone,
 };
-
-use super::TaskRepr;
 
 /// The service state available right before the service is started.
 /// This means that all the resources and tasks are already added, but no tasks are running yet.
