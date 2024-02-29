@@ -147,6 +147,8 @@ const BLOCK_DIFF_BUCKETS: Buckets = Buckets::values(&[
     0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 10.0, 20.0, 50.0, 100.0, 200.0, 500.0, 1_000.0,
 ]);
 
+const RESPONSE_SIZE_BUCKETS: Buckets = Buckets::exponential(1.0..=1_048_576.0, 4.0);
+
 /// General-purpose API server metrics.
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "api")]
@@ -160,6 +162,10 @@ pub(super) struct ApiMetrics {
     /// Difference between the latest sealed miniblock and the resolved miniblock for a web3 call.
     #[metrics(buckets = BLOCK_DIFF_BUCKETS, labels = ["method"])]
     web3_call_block_diff: LabeledFamily<&'static str, Histogram<u64>>,
+    /// Serialized response size in bytes. Only recorded for successful responses.
+    #[metrics(buckets = RESPONSE_SIZE_BUCKETS, labels = ["method"], unit = Unit::Bytes)]
+    web3_call_response_size: LabeledFamily<&'static str, Histogram<usize>>,
+
     /// Number of application errors grouped by error kind and method name. Only collected for errors that were successfully routed
     /// to a method (i.e., this method is defined).
     web3_errors: Family<Web3ErrorLabels, Counter>,
@@ -168,6 +174,7 @@ pub(super) struct ApiMetrics {
     /// Number of transaction submission errors for a specific submission error reason.
     #[metrics(labels = ["reason"])]
     pub submit_tx_error: LabeledFamily<&'static str, Counter>,
+
     #[metrics(buckets = Buckets::exponential(1.0..=128.0, 2.0))]
     pub web3_in_flight_requests: Family<ApiTransportLabel, Histogram<usize>>,
     /// Number of currently open WebSocket sessions.
@@ -188,6 +195,11 @@ impl ApiMetrics {
     pub fn observe_dropped_call(&self, meta: &MethodMetadata) {
         let latency = meta.started_at.elapsed();
         self.web3_dropped_call_latency[&MethodLabels::from(meta)].observe(latency);
+    }
+
+    /// Observes serialized size of a response.
+    pub fn observe_response_size(&self, method: &'static str, size: usize) {
+        self.web3_call_response_size[&method].observe(size);
     }
 
     pub fn observe_protocol_error(&self, method: &'static str, error_code: i32, app_error: bool) {
