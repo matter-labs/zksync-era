@@ -5,12 +5,15 @@ use circuit_definitions::{
     aux_definitions::witness_oracle::VmWitnessOracle,
     boojum::{cs::implementations::witness::WitnessVec, field::goldilocks::GoldilocksField},
     circuit_definitions::{
-        base_layer::{ZkSyncBaseLayerCircuit, ZkSyncBaseLayerProof},
+        base_layer::{ZkSyncBaseLayerCircuit, ZkSyncBaseLayerProof, ZkSyncBaseProof},
+        eip4844::EIP4844Circuit,
         recursion_layer::{
             ZkSyncRecursionLayerProof, ZkSyncRecursionLayerStorageType, ZkSyncRecursiveLayerCircuit,
         },
     },
-    zkevm_circuits::scheduler::block_header::BlockAuxilaryOutputWitness,
+    zkevm_circuits::scheduler::{
+        aux::BaseLayerCircuitType, block_header::BlockAuxilaryOutputWitness,
+    },
     ZkSyncDefaultRoundFunction,
 };
 use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject};
@@ -32,6 +35,7 @@ pub enum CircuitWrapper {
         >,
     ),
     Recursive(ZkSyncRecursiveLayerCircuit),
+    Eip4844(EIP4844Circuit<GoldilocksField, ZkSyncDefaultRoundFunction>),
 }
 
 impl StoredObject for CircuitWrapper {
@@ -56,6 +60,7 @@ impl StoredObject for CircuitWrapper {
 pub enum FriProofWrapper {
     Base(ZkSyncBaseLayerProof),
     Recursive(ZkSyncRecursionLayerProof),
+    Eip4844(ZkSyncBaseProof),
 }
 
 impl StoredObject for FriProofWrapper {
@@ -138,12 +143,72 @@ impl ProverServiceDataKey {
             round: get_round_for_recursive_circuit_type(circuit_id),
         }
     }
+    pub fn new_basic(circuit_id: u8) -> Self {
+        Self {
+            circuit_id,
+            round: AggregationRound::BasicCircuits,
+        }
+    }
+
+    pub fn all_boojum() -> Vec<ProverServiceDataKey> {
+        let mut results = vec![];
+        for numeric_circuit in
+            BaseLayerCircuitType::VM as u8..=BaseLayerCircuitType::L1MessagesHasher as u8
+        {
+            results.push(ProverServiceDataKey::new_basic(numeric_circuit))
+        }
+        for numeric_circuit in ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8
+            ..=ZkSyncRecursionLayerStorageType::LeafLayerCircuitForL1MessagesHasher as u8
+        {
+            results.push(ProverServiceDataKey::new_recursive(numeric_circuit))
+        }
+        results.push(ProverServiceDataKey::eip4844());
+        // Don't include snark, as it uses the old proving system.
+
+        results
+    }
 
     /// Data key for snark wrapper.
     pub fn snark() -> Self {
         Self {
             circuit_id: 1,
             round: AggregationRound::Scheduler,
+        }
+    }
+
+    const EIP_4844_CIRCUIT_ID: u8 = 255;
+
+    /// Key for 4844 circuit.
+    // Currently this is a special 'aux' style circuit (as we have just one),
+    // But from VM 1.5.0 it will change into a 'basic' circuit.
+    pub fn eip4844() -> Self {
+        Self {
+            circuit_id: Self::EIP_4844_CIRCUIT_ID,
+            round: AggregationRound::BasicCircuits,
+        }
+    }
+    pub fn is_eip4844(&self) -> bool {
+        self.circuit_id == Self::EIP_4844_CIRCUIT_ID
+            && self.round == AggregationRound::BasicCircuits
+    }
+
+    pub fn is_base_layer(&self) -> bool {
+        self.round == AggregationRound::BasicCircuits && !self.is_eip4844()
+    }
+
+    pub fn name(&self) -> String {
+        if self.is_eip4844() {
+            return "eip4844".to_string();
+        }
+        match self.round {
+            AggregationRound::BasicCircuits => {
+                format!("basic_{}", self.circuit_id)
+            }
+            AggregationRound::LeafAggregation => {
+                format!("leaf_{}", self.circuit_id)
+            }
+            AggregationRound::NodeAggregation => "node".to_string(),
+            AggregationRound::Scheduler => "scheduler".to_string(),
         }
     }
 }
