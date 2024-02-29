@@ -4,7 +4,7 @@ use zksync_types::{
     l2_to_l1_log::L2ToL1Log,
     vm_trace::Call,
     web3::types::{BlockHeader, U64},
-    Bytes, L1BatchNumber, L2ChainId, MiniblockNumber, H160, H2048, H256, U256,
+    Bytes, L1BatchNumber, MiniblockNumber, H160, H2048, H256, U256,
 };
 use zksync_utils::bigdecimal_to_u256;
 
@@ -14,7 +14,6 @@ use crate::{
         storage_block::{ResolvedL1BatchForMiniblock, StorageBlockDetails, StorageL1BatchDetails},
         storage_transaction::CallTrace,
     },
-    transactions_web3_dal::TransactionSelector,
     StorageProcessor,
 };
 
@@ -26,12 +25,10 @@ pub struct BlocksWeb3Dal<'a, 'c> {
 }
 
 impl BlocksWeb3Dal<'_, '_> {
-    pub async fn get_block(
+    pub async fn get_api_block(
         &mut self,
         block_number: MiniblockNumber,
-        include_full_transactions: bool,
-        chain_id: L2ChainId,
-    ) -> sqlx::Result<Option<api::Block<api::TransactionVariant>>> {
+    ) -> sqlx::Result<Option<api::Block<H256>>> {
         let rows = sqlx::query!(
             r#"
             SELECT
@@ -86,39 +83,12 @@ impl BlocksWeb3Dal<'_, '_> {
                 block.gas_used += bigdecimal_to_u256(gas_limit) - U256::from(refunded_gas as u64);
             }
             if let Some(tx_hash) = &row.tx_hash {
-                block
-                    .transactions
-                    .push(api::TransactionVariant::Hash(H256::from_slice(tx_hash)));
+                block.transactions.push(H256::from_slice(tx_hash));
             }
             Some(block)
         });
 
-        let Some(mut block) = block else {
-            return Ok(None);
-        };
-
-        if include_full_transactions {
-            let tx_hashes = block.transactions.iter().map(|tx| match tx {
-                api::TransactionVariant::Hash(hash) => *hash,
-                api::TransactionVariant::Full(_) => unreachable!(),
-            });
-            let tx_selector = TransactionSelector::Hashes(tx_hashes.collect());
-
-            let mut transactions = self
-                .storage
-                .transactions_web3_dal()
-                .get_transactions(&tx_selector, chain_id)
-                .await?;
-            assert_eq!(transactions.len(), block.transactions.len()); // sanity check
-            transactions.sort_unstable_by_key(|tx| tx.transaction_index);
-
-            block.transactions = transactions
-                .into_iter()
-                .map(api::TransactionVariant::Full)
-                .collect();
-        }
-
-        Ok(Some(block))
+        Ok(block)
     }
 
     pub async fn get_block_tx_count(
@@ -709,7 +679,7 @@ mod tests {
             .finalize(ProtocolVersionId::latest());
         let block = conn
             .blocks_web3_dal()
-            .get_block(MiniblockNumber(0), false, L2ChainId::from(270))
+            .get_api_block(MiniblockNumber(0))
             .await;
         let block = block.unwrap().unwrap();
         assert!(block.transactions.is_empty());
@@ -724,7 +694,7 @@ mod tests {
 
         let block = conn
             .blocks_web3_dal()
-            .get_block(MiniblockNumber(1), false, L2ChainId::from(270))
+            .get_api_block(MiniblockNumber(1))
             .await;
         assert!(block.unwrap().is_none());
 

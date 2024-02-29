@@ -284,23 +284,38 @@ impl EthNamespace {
         else {
             return Ok(None);
         };
-        let block = storage
+        let Some(block) = storage
             .blocks_web3_dal()
-            .get_block(
-                block_number,
-                full_transactions,
-                self.state.api_config.l2_chain_id,
-            )
+            .get_api_block(block_number)
             .await
-            .map_err(|err| internal_error(method_name, err));
-
-        if let Ok(Some(block)) = &block {
-            let block_number = MiniblockNumber(block.number.as_u32());
-            self.report_latency_with_block_id(method_latency, block_number);
-        } else {
+            .map_err(|err| internal_error(method_name, err))?
+        else {
             method_latency.observe_without_diff();
-        }
-        block
+            return Ok(None);
+        };
+
+        let transactions = if full_transactions {
+            let transactions = storage
+                .transactions_web3_dal()
+                .get_transactions(&block.transactions, self.state.api_config.l2_chain_id)
+                .await
+                .map_err(|err| internal_error(method_name, err))?;
+            transactions
+                .into_iter()
+                .map(TransactionVariant::Full)
+                .collect()
+        } else {
+            block
+                .transactions
+                .iter()
+                .copied()
+                .map(TransactionVariant::Hash)
+                .collect()
+        };
+
+        let block_number = MiniblockNumber(block.number.as_u32());
+        self.report_latency_with_block_id(method_latency, block_number);
+        Ok(Some(block.with_transactions(transactions)))
     }
 
     #[tracing::instrument(skip(self))]
@@ -364,7 +379,7 @@ impl EthNamespace {
         };
         let Some(block) = storage
             .blocks_web3_dal()
-            .get_block(block_number, false, self.state.api_config.l2_chain_id)
+            .get_api_block(block_number)
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?
         else {
@@ -372,17 +387,9 @@ impl EthNamespace {
             return Ok(None);
         };
 
-        let hashes: Vec<_> = block
-            .transactions
-            .iter()
-            .map(|tx| match tx {
-                TransactionVariant::Full(tx) => tx.hash,
-                TransactionVariant::Hash(hash) => *hash,
-            })
-            .collect();
         let mut receipts = storage
             .transactions_web3_dal()
-            .get_transaction_receipts(&hashes)
+            .get_transaction_receipts(&block.transactions)
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?;
         receipts.sort_unstable_by_key(|receipt| receipt.transaction_index);

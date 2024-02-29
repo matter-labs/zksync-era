@@ -13,9 +13,9 @@ use crate::{
     SqlxError, StorageProcessor,
 };
 
-#[derive(Debug)]
-pub(crate) enum TransactionSelector {
-    Hashes(Vec<H256>),
+#[derive(Debug, Clone, Copy)]
+enum TransactionSelector<'a> {
+    Hashes(&'a [H256]),
     Position(MiniblockNumber, u32),
 }
 
@@ -125,14 +125,25 @@ impl TransactionsWeb3Dal<'_, '_> {
         Ok(receipts)
     }
 
-    pub(crate) async fn get_transactions(
+    /// Obtains transactions with the specified hashes. Transactions are returned in no particular order; if some hashes
+    /// don't correspond to transactions, the output will contain less elements than `hashes`.
+    pub async fn get_transactions(
         &mut self,
-        selector: &TransactionSelector,
+        hashes: &[H256],
+        chain_id: L2ChainId,
+    ) -> sqlx::Result<Vec<api::Transaction>> {
+        self.get_transactions_inner(TransactionSelector::Hashes(hashes), chain_id)
+            .await
+    }
+
+    async fn get_transactions_inner(
+        &mut self,
+        selector: TransactionSelector<'_>,
         chain_id: L2ChainId,
     ) -> sqlx::Result<Vec<api::Transaction>> {
         if let TransactionSelector::Position(_, idx) = selector {
             // Since index is not trusted, we check it to prevent potential overflow below.
-            if *idx > i32::MAX as u32 {
+            if idx > i32::MAX as u32 {
                 return Ok(vec![]);
             }
         }
@@ -173,7 +184,7 @@ impl TransactionsWeb3Dal<'_, '_> {
                 TransactionSelector::Position(block_number, idx) => (
                     "transactions.miniblock_number = $1 AND transactions.index_in_block = $2";
                     block_number.0 as i64,
-                    *idx as i32
+                    idx as i32
                 ),
             }
         );
@@ -188,7 +199,7 @@ impl TransactionsWeb3Dal<'_, '_> {
         chain_id: L2ChainId,
     ) -> sqlx::Result<Option<api::Transaction>> {
         Ok(self
-            .get_transactions(&TransactionSelector::Hashes(vec![hash]), chain_id)
+            .get_transactions_inner(TransactionSelector::Hashes(&[hash]), chain_id)
             .await?
             .into_iter()
             .next())
@@ -201,8 +212,8 @@ impl TransactionsWeb3Dal<'_, '_> {
         chain_id: L2ChainId,
     ) -> sqlx::Result<Option<api::Transaction>> {
         Ok(self
-            .get_transactions(
-                &TransactionSelector::Position(block_number, index_in_block),
+            .get_transactions_inner(
+                TransactionSelector::Position(block_number, index_in_block),
                 chain_id,
             )
             .await?
