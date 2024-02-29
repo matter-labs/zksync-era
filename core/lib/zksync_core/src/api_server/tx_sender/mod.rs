@@ -6,7 +6,7 @@ use anyhow::Context as _;
 use multivm::{
     interface::VmExecutionResultAndLogs,
     utils::{adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead},
-    vm_latest::constants::{BLOCK_GAS_LIMIT, MAX_PUBDATA_PER_BLOCK},
+    vm_latest::constants::BLOCK_GAS_LIMIT,
 };
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig};
 use zksync_contracts::BaseSystemContracts;
@@ -209,6 +209,7 @@ pub struct TxSenderConfig {
     pub validation_computational_gas_limit: u32,
     pub l1_to_l2_transactions_compatibility_mode: bool,
     pub chain_id: L2ChainId,
+    pub max_pubdata_per_batch: u64,
 }
 
 impl TxSenderConfig {
@@ -228,6 +229,7 @@ impl TxSenderConfig {
             l1_to_l2_transactions_compatibility_mode: web3_json_config
                 .l1_to_l2_transactions_compatibility_mode,
             chain_id,
+            max_pubdata_per_batch: state_keeper_config.max_pubdata_per_batch,
         }
     }
 }
@@ -726,7 +728,7 @@ impl TxSender {
             )
             .await?;
 
-            if pubdata_for_factory_deps > MAX_PUBDATA_PER_BLOCK {
+            if pubdata_for_factory_deps as u64 > self.0.sender_config.max_pubdata_per_batch {
                 return Err(SubmitTxError::Unexecutable(
                     "exceeds limit for published pubdata".to_string(),
                 ));
