@@ -223,16 +223,11 @@ async fn recovering_tokens() {
             key: get_code_key(&token.l2_address),
             value: H256::random(),
             l1_batch_number_of_initial_write: expected_status.l1_batch_number,
-            enumeration_index: dbg!(storage_logs.len() as u64 + 1),
+            enumeration_index: storage_logs.len() as u64 + 1,
         });
     }
     let (object_store, mut client) = prepare_clients(&expected_status, &storage_logs).await;
     client.tokens_response = tokens.clone();
-
-    dbg!(storage_logs
-        .iter()
-        .map(|log| log.enumeration_index)
-        .collect::<Vec<_>>());
 
     SnapshotsApplierConfig::for_tests()
         .run(&pool, &client, &object_store)
