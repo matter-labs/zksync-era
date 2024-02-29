@@ -42,9 +42,3 @@ contract ReentrantRecipient {
         x = 1;
     }
 }
-
-// contract GasTestingRecipient {
-//     receive() external payable {
-        
-//     }
-// }
