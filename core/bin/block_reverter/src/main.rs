@@ -6,8 +6,7 @@ use zksync_config::{
     PostgresConfig,
 };
 use zksync_core::block_reverter::{
-    NodeRole,
-    BlockReverter, BlockReverterEthConfig, BlockReverterFlags, L1ExecutedBatchesRevert,
+    BlockReverter, BlockReverterEthConfig, BlockReverterFlags, L1ExecutedBatchesRevert, NodeRole,
 };
 use zksync_dal::ConnectionPool;
 use zksync_env_config::FromEnv;

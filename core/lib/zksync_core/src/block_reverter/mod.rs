@@ -73,7 +73,7 @@ impl BlockReverterEthConfig {
 }
 
 /// Role of the node.
-#[derive(Debug,Clone,Copy,PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum NodeRole {
     Main,
     External,

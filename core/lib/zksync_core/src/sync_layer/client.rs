@@ -1,6 +1,6 @@
 //! Client abstractions for syncing between the external node and the main node.
 
-use std::{fmt};
+use std::fmt;
 
 use async_trait::async_trait;
 use zksync_system_constants::ACCOUNT_CODE_STORAGE_ADDRESS;

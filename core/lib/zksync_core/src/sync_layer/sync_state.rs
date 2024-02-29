@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use serde::Serialize;
+use zksync_concurrency::{ctx, sync};
 use zksync_health_check::{CheckHealth, Health, HealthStatus};
 use zksync_types::MiniblockNumber;
-use zksync_concurrency::{ctx,sync};
 
 use crate::metrics::EN_METRICS;
 
@@ -36,8 +36,17 @@ impl SyncState {
         self.0.borrow().local_block.unwrap_or_default()
     }
 
-    pub(crate) async fn wait_for_main_node_block(&self, ctx: &ctx::Ctx, want: MiniblockNumber) -> ctx::OrCanceled<()> {
-        sync::wait_for(ctx, &mut self.0.subscribe(), |s| matches!(s.main_node_block, Some(got) if got >= want)).await?;
+    pub(crate) async fn wait_for_main_node_block(
+        &self,
+        ctx: &ctx::Ctx,
+        want: MiniblockNumber,
+    ) -> ctx::OrCanceled<()> {
+        sync::wait_for(
+            ctx,
+            &mut self.0.subscribe(),
+            |s| matches!(s.main_node_block, Some(got) if got >= want),
+        )
+        .await?;
         Ok(())
     }
 

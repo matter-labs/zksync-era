@@ -47,7 +47,8 @@ impl ConsensusDal<'_, '_> {
             if &got == genesis {
                 return Ok(());
             }
-            anyhow::ensure!(got.fork.number < genesis.fork.number,
+            anyhow::ensure!(
+                got.fork.number < genesis.fork.number,
                 "transition to a past fork is not allowed: old = {:?}, new = {:?}",
                 got.fork.number,
                 genesis.fork.number,

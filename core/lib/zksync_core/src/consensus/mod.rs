@@ -7,11 +7,10 @@ use zksync_consensus_executor as executor;
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage::BlockStore;
 
-pub use self::storage::Store;
-pub use self::fetcher::*;
+pub use self::{fetcher::*, storage::Store};
 
-mod fetcher;
 pub mod config;
+mod fetcher;
 pub mod proto;
 mod storage;
 #[cfg(test)]
@@ -54,5 +53,3 @@ impl MainNodeConfig {
         .await
     }
 }
-
-

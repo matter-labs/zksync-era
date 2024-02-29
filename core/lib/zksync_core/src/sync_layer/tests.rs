@@ -23,8 +23,8 @@ use crate::{
     consensus::testonly::MockMainNodeClient,
     genesis::{ensure_genesis_state, GenesisParams},
     state_keeper::{
-        seal_criteria::NoopSealer, tests::TestBatchExecutorBuilder,
-        MiniblockSealer, ZkSyncStateKeeper,
+        seal_criteria::NoopSealer, tests::TestBatchExecutorBuilder, MiniblockSealer,
+        ZkSyncStateKeeper,
     },
     utils::testonly::{create_l1_batch_metadata, create_l2_transaction, prepare_recovery_snapshot},
 };
@@ -582,5 +582,3 @@ async fn external_io_with_multiple_l1_batches() {
     assert_eq!(fictive_miniblock.timestamp, 2);
     assert_eq!(fictive_miniblock.l2_tx_count, 0);
 }
-
-

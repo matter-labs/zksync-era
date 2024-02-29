@@ -15,7 +15,7 @@ use zksync_core::{
         tx_sender::{proxy::TxProxy, ApiContracts, TxSenderBuilder},
         web3::{ApiBuilder, Namespace},
     },
-    block_reverter::{NodeRole, BlockReverter, BlockReverterFlags, L1ExecutedBatchesRevert},
+    block_reverter::{BlockReverter, BlockReverterFlags, L1ExecutedBatchesRevert, NodeRole},
     commitment_generator::CommitmentGenerator,
     consensus,
     consistency_checker::ConsistencyChecker,
@@ -29,8 +29,8 @@ use zksync_core::{
         MiniblockSealerHandle, ZkSyncStateKeeper,
     },
     sync_layer::{
-        batch_status_updater::BatchStatusUpdater, external_io::ExternalIO,
-        ActionQueue, MainNodeClient, SyncState,
+        batch_status_updater::BatchStatusUpdater, external_io::ExternalIO, ActionQueue,
+        MainNodeClient, SyncState,
     },
 };
 use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
@@ -167,7 +167,7 @@ async fn init_tasks(
         config.remote.l2_chain_id,
     )
     .await?;
-    
+
     task_handles.push(tokio::spawn({
         let mut stop_receiver = stop_receiver.clone();
         let p2p_config = config.consensus.clone();
@@ -181,8 +181,8 @@ async fn init_tasks(
             scope::run!(&ctx::root(), |ctx, s| async {
                 s.spawn_bg(async {
                     let res = match p2p_config {
-                        Some(p2p_config) => fetcher.run_p2p(ctx,actions,p2p_config).await,
-                        None => fetcher.run_centralized(ctx,actions).await,
+                        Some(p2p_config) => fetcher.run_p2p(ctx, actions, p2p_config).await,
+                        None => fetcher.run_centralized(ctx, actions).await,
                     };
                     tracing::info!("Consensus actor stopped");
                     res
@@ -200,7 +200,7 @@ async fn init_tasks(
     task_handles.push(tokio::spawn(reorg_detector.run(stop_receiver.clone())));
 
     let singleton_pool_builder = ConnectionPool::singleton(&config.postgres.database_url);
-    
+
     let metadata_calculator_config = MetadataCalculatorConfig {
         db_path: config.required.merkle_tree_path.clone(),
         mode: MerkleTreeMode::Lightweight,

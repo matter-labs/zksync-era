@@ -4,13 +4,12 @@ use zksync_consensus_executor as executor;
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage::BlockStore;
 use zksync_types::MiniblockNumber;
-use crate::consensus::Store;
-use crate::consensus::storage;
 
-use crate::sync_layer::{
-    fetcher::{FetchedBlock},
-    sync_action::ActionQueueSender,
-    MainNodeClient, SyncState,
+use crate::{
+    consensus::{storage, Store},
+    sync_layer::{
+        fetcher::FetchedBlock, sync_action::ActionQueueSender, MainNodeClient, SyncState,
+    },
 };
 
 pub type P2PConfig = executor::Config;
@@ -25,7 +24,7 @@ pub struct Fetcher {
 
 impl Fetcher {
     /// Task fetching L2 blocks using peer-to-peer gossip network.
-    /// NOTE: it still uses main node json rpc in some cases for now.
+    /// NOTE: it still uses main node json RPC in some cases for now.
     pub async fn run_p2p(
         self,
         ctx: &ctx::Ctx,
@@ -59,7 +58,10 @@ impl Fetcher {
                 loop {
                     if let Ok(new) = self.fetch_genesis(ctx).await {
                         if new != old {
-                            return Err(anyhow::format_err!("genesis changed: old {old:?}, new {new:?}").into());
+                            return Err(anyhow::format_err!(
+                                "genesis changed: old {old:?}, new {new:?}"
+                            )
+                            .into());
                         }
                     }
                     ctx.sleep(time::Duration::seconds(5)).await?;
@@ -90,7 +92,7 @@ impl Fetcher {
         }
     }
 
-    /// Task fetching miniblocks using json rpc endpoint of the main node.
+    /// Task fetching miniblocks using json RPC endpoint of the main node.
     pub async fn run_centralized(
         self,
         ctx: &ctx::Ctx,
@@ -99,11 +101,17 @@ impl Fetcher {
         let res: ctx::Result<()> = scope::run!(ctx, |ctx, s| async {
             // Update sync state in the background.
             s.spawn_bg(self.fetch_state_loop(ctx));
-            let mut cursor = self.store
-                .access(ctx).await.wrap("access()")?
-                .new_fetcher_cursor(ctx, actions).await.wrap("new_fetcher_cursor()")?;
+            let mut cursor = self
+                .store
+                .access(ctx)
+                .await
+                .wrap("access()")?
+                .new_fetcher_cursor(ctx, actions)
+                .await
+                .wrap("new_fetcher_cursor()")?;
             self.fetch_blocks(ctx, &mut cursor, None).await
-        }).await;
+        })
+        .await;
         match res {
             Ok(()) | Err(ctx::Error::Canceled(_)) => Ok(()),
             Err(ctx::Error::Internal(err)) => Err(err),
@@ -187,5 +195,3 @@ impl Fetcher {
         .await
     }
 }
-
-

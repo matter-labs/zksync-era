@@ -93,7 +93,10 @@ impl EnrichedClientError {
 
     /// Whether the error should be considered transient.
     pub fn is_transient(&self) -> bool {
-        matches!(self.as_ref(), ClientError::Transport(_) | ClientError::RequestTimeout)
+        matches!(
+            self.as_ref(),
+            ClientError::Transport(_) | ClientError::RequestTimeout
+        )
     }
 }
 

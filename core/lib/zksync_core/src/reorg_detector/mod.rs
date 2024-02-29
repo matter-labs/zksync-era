@@ -8,7 +8,7 @@ use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthChe
 use zksync_types::{L1BatchNumber, MiniblockNumber, H256};
 use zksync_web3_decl::{
     error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult},
-    jsonrpsee::{http_client::HttpClient},
+    jsonrpsee::http_client::HttpClient,
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
 };
 
@@ -65,17 +65,17 @@ impl HashMatchError {
 impl Error {
     pub fn is_transient(&self) -> bool {
         matches!(self, Self::HashMatch(err) if err.is_transient())
-    } 
+    }
 }
 
 impl From<anyhow::Error> for Error {
-    fn from(err:anyhow::Error) -> Self {
+    fn from(err: anyhow::Error) -> Self {
         Self::HashMatch(HashMatchError::Internal(err))
     }
 }
 
 impl From<EnrichedClientError> for Error {
-    fn from(err:EnrichedClientError) -> Self {
+    fn from(err: EnrichedClientError) -> Self {
         Self::HashMatch(HashMatchError::Rpc(err))
     }
 }
@@ -241,7 +241,11 @@ impl ReorgDetector {
     /// Returns `Ok(())` if no reorg was detected.
     /// Returns `Err::ReorgDetected()` if a reorg was detected.
     pub async fn check_consistency(&mut self) -> Result<(), Error> {
-        let mut storage = self.pool.access_storage().await.context("access_storage()")?;
+        let mut storage = self
+            .pool
+            .access_storage()
+            .await
+            .context("access_storage()")?;
         let Some(local_l1_batch) = storage
             .blocks_dal()
             .get_last_l1_batch_number_with_metadata()
@@ -250,7 +254,11 @@ impl ReorgDetector {
         else {
             return Ok(());
         };
-        let Some(local_miniblock) = storage.blocks_dal().get_sealed_miniblock_number().await.context("get_sealed_miniblock_number()")?
+        let Some(local_miniblock) = storage
+            .blocks_dal()
+            .get_sealed_miniblock_number()
+            .await
+            .context("get_sealed_miniblock_number()")?
         else {
             return Ok(());
         };
@@ -280,7 +288,11 @@ impl ReorgDetector {
         self.event_handler.report_divergence(diverged_l1_batch);
 
         tracing::info!("Searching for the first diverged L1 batch");
-        let mut storage = self.pool.access_storage().await.context("access_storage()")?;
+        let mut storage = self
+            .pool
+            .access_storage()
+            .await
+            .context("access_storage()")?;
         let earliest_l1_batch = storage
             .blocks_dal()
             .get_earliest_l1_batch_number_with_metadata()
@@ -300,15 +312,17 @@ impl ReorgDetector {
         &self,
         miniblock: MiniblockNumber,
     ) -> Result<bool, HashMatchError> {
-        let mut storage = self.pool.access_storage().await.context("access_storage()")?;
+        let mut storage = self
+            .pool
+            .access_storage()
+            .await
+            .context("access_storage()")?;
         let local_hash = storage
             .blocks_dal()
             .get_miniblock_header(miniblock)
             .await
             .context("get_miniblock_header()")?
-            .with_context(|| {
-                format!("Header does not exist for local miniblock #{miniblock}")
-            })?
+            .with_context(|| format!("Header does not exist for local miniblock #{miniblock}"))?
             .hash;
         drop(storage);
 
@@ -331,7 +345,11 @@ impl ReorgDetector {
 
     /// Compares root hashes of the latest local batch and of the same batch from the main node.
     async fn root_hashes_match(&self, l1_batch: L1BatchNumber) -> Result<bool, HashMatchError> {
-        let mut storage = self.pool.access_storage().await.context("access_storage()")?;
+        let mut storage = self
+            .pool
+            .access_storage()
+            .await
+            .context("access_storage()")?;
         let local_hash = storage
             .blocks_dal()
             .get_l1_batch_state_root(l1_batch)
@@ -406,7 +424,9 @@ impl ReorgDetector {
         match self.root_hashes_match(earliest_l1_batch).await {
             Ok(true) => {}
             Ok(false) => return Err(Error::EarliestL1BatchMismatch(earliest_l1_batch)),
-            Err(HashMatchError::RemoteHashMissing) => { return Err(Error::EarliestL1BatchTruncated(earliest_l1_batch)) }
+            Err(HashMatchError::RemoteHashMissing) => {
+                return Err(Error::EarliestL1BatchTruncated(earliest_l1_batch))
+            }
             Err(err) => return Err(err.into()),
         }
         while !*stop_receiver.borrow() {

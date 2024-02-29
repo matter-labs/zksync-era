@@ -7,7 +7,7 @@ use zksync_types::{
 
 use super::{
     metrics::{L1BatchStage, FETCHER_METRICS},
-    sync_action::{SyncAction},
+    sync_action::SyncAction,
 };
 use crate::{
     metrics::{TxStage, APP_METRICS},
