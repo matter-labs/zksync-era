@@ -321,10 +321,10 @@ impl StateKeeper {
 
     /// Connects to the json RPC endpoint exposed by the state keeper.
     pub async fn connect(&self, ctx: &ctx::Ctx) -> ctx::Result<HttpClient> {
-        let addr = sync::wait_for(ctx, &mut self.addr.clone(), Option::is_some)
-            .await?
-            .clone()
-            .unwrap();
+        let addr: std::net::SocketAddr =
+            sync::wait_for(ctx, &mut self.addr.clone(), Option::is_some)
+                .await?
+                .unwrap();
         Ok(<dyn MainNodeClient>::json_rpc(&format!("http://{addr}/")).context("json_rpc()")?)
     }
 
