@@ -222,12 +222,15 @@ impl L1BatchPublishCriterion for DataSizeCriterion {
 
         for (index, l1_batch) in consecutive_l1_batches.iter().enumerate() {
             // TODO (PLA-771): Make sure that this estimation is correct.
-            let l1_commit_data_size =
-                ethabi::encode(&[ethabi::Token::Array(vec![CommitBatchInfoRollup::new(
-                    l1_batch,
-                )
-                .into_token()])])
-                .len();
+            // NOTE: any element will do for `StoredBlockInfo`. We subtract the size later for
+            // correctness, to avoid double accounting.
+            let l1_commit_data_size = ethabi::encode(&[ethabi::Token::Array(
+                self.l1_batch_commit_data_generator
+                    .l1_commit_data(l1_batch, std::slice::from_ref(l1_batch)),
+            )])
+            .len()
+                - STORED_BLOCK_INFO_SIZE;
+
             if data_size_left < l1_commit_data_size {
                 if index == 0 {
                     panic!(
