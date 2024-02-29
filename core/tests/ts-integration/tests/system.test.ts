@@ -88,26 +88,21 @@ describe('System behavior checks', () => {
             }
         });
 
+        let sameNonce_tx = await alice.populateTransaction({
+            to: alice.address,
+            nonce: senderNonce
+        })
+
         if (validiumMode) {
             // It is necessary to wait for the transaction to be finalized.
             await tx.wait();
 
             // When another transaction with the same nonce is made, it should be rejected.
-            await expect(
-                alice.sendTransaction({
-                    to: alice.address,
-                    nonce: senderNonce
-                })
-            ).toBeRejected();
+            await expect(alice.sendTransaction(sameNonce_tx)).toBeRejected();
         } else {
             // We don't wait for the transaction recipt because it never executed. 
             // When another transaction with the same nonce is made, it overwrites the previous transaction and this one should be executed.
-            await expect(
-                alice.sendTransaction({
-                    to: alice.address,
-                    nonce: senderNonce
-                })
-            ).toBeAccepted([]);
+            await expect(alice.sendTransaction(sameNonce_tx)).toBeAccepted([]);
         }
     });
 
