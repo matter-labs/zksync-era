@@ -8,7 +8,7 @@ use crate::{
     task::Task,
 };
 
-// `ZkStack` Service's `new()` method has to have a check for nested runtime.
+/// `ZkStackService::new` method has to have a check for nested runtime.
 #[test]
 fn test_new_with_nested_runtime() {
     let runtime = Runtime::new().unwrap();
@@ -23,23 +23,23 @@ fn test_new_with_nested_runtime() {
     );
 }
 
-#[derive(Debug)]
-struct DefaultLayer;
-
-#[async_trait::async_trait]
-impl WiringLayer for DefaultLayer {
-    fn layer_name(&self) -> &'static str {
-        "default_layer"
-    }
-
-    async fn wire(self: Box<Self>, mut _node: ServiceContext<'_>) -> Result<(), WiringError> {
-        Ok(())
-    }
-}
-
-// `ZkStack` Service's `add_layer()` method has to add multiple layers into `self.layers`.
+/// `ZkStackService::add_layer` method has to add multiple layers into `self.layers`.
 #[test]
 fn test_add_layer() {
+    #[derive(Debug)]
+    struct DefaultLayer;
+
+    #[async_trait::async_trait]
+    impl WiringLayer for DefaultLayer {
+        fn layer_name(&self) -> &'static str {
+            "default_layer"
+        }
+
+        async fn wire(self: Box<Self>, mut _node: ServiceContext<'_>) -> Result<(), WiringError> {
+            Ok(())
+        }
+    }
+
     let mut zk_stack_service = ZkStackService::new().unwrap();
     zk_stack_service
         .add_layer(DefaultLayer)
@@ -51,7 +51,7 @@ fn test_add_layer() {
     );
 }
 
-// `ZkStack` Service's `run()` method has to return error if there is no tasks added.
+/// `ZkStackService::run` method has to return error if there is no tasks added.
 #[test]
 fn test_run_with_no_tasks() {
     let empty_run_result = ZkStackService::new().unwrap().run();
@@ -62,23 +62,23 @@ fn test_run_with_no_tasks() {
     );
 }
 
-#[derive(Debug)]
-struct WireErrorLayer;
-
-#[async_trait::async_trait]
-impl WiringLayer for WireErrorLayer {
-    fn layer_name(&self) -> &'static str {
-        "wire_error_layer"
-    }
-
-    async fn wire(self: Box<Self>, _node: ServiceContext<'_>) -> Result<(), WiringError> {
-        Err(WiringError::Internal(anyhow!("wiring error")))
-    }
-}
-
-// `ZkStack` Service's `run()` method has to take into account errors on wiring step.
+/// `ZkStackService::run` method has to take into account errors on wiring step.
 #[test]
 fn test_run_with_error_tasks() {
+    #[derive(Debug)]
+    struct WireErrorLayer;
+
+    #[async_trait::async_trait]
+    impl WiringLayer for WireErrorLayer {
+        fn layer_name(&self) -> &'static str {
+            "wire_error_layer"
+        }
+
+        async fn wire(self: Box<Self>, _node: ServiceContext<'_>) -> Result<(), WiringError> {
+            Err(WiringError::Internal(anyhow!("wiring error")))
+        }
+    }
+
     let mut zk_stack_service = ZkStackService::new().unwrap();
     let error_layer = WireErrorLayer;
     zk_stack_service.add_layer(error_layer);
@@ -90,38 +90,37 @@ fn test_run_with_error_tasks() {
     );
 }
 
-// `ZkStack` Service's `run()` method has to take into account errors on wiring step.
-#[derive(Debug)]
-struct TaskErrorLayer;
-
-#[async_trait::async_trait]
-impl WiringLayer for TaskErrorLayer {
-    fn layer_name(&self) -> &'static str {
-        "task_error_layer"
-    }
-
-    async fn wire(self: Box<Self>, mut node: ServiceContext<'_>) -> Result<(), WiringError> {
-        node.add_task(Box::new(ErrorTask));
-        Ok(())
-    }
-}
-
-#[derive(Debug)]
-struct ErrorTask;
-
-#[async_trait::async_trait]
-impl Task for ErrorTask {
-    fn name() -> &'static str {
-        "error_task"
-    }
-    async fn run(self: Box<Self>, _stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        anyhow::bail!("error task")
-    }
-}
-
-// `ZkStack` Service's `run()` method has to take into account errors inside task execution.
+/// `ZkStackService::run` method has to take into account errors inside task execution.
 #[test]
 fn test_run_with_failed_tasks() {
+    #[derive(Debug)]
+    struct TaskErrorLayer;
+
+    #[async_trait::async_trait]
+    impl WiringLayer for TaskErrorLayer {
+        fn layer_name(&self) -> &'static str {
+            "task_error_layer"
+        }
+
+        async fn wire(self: Box<Self>, mut node: ServiceContext<'_>) -> Result<(), WiringError> {
+            node.add_task(Box::new(ErrorTask));
+            Ok(())
+        }
+    }
+
+    #[derive(Debug)]
+    struct ErrorTask;
+
+    #[async_trait::async_trait]
+    impl Task for ErrorTask {
+        fn name() -> &'static str {
+            "error_task"
+        }
+        async fn run(self: Box<Self>, _stop_receiver: StopReceiver) -> anyhow::Result<()> {
+            anyhow::bail!("error task")
+        }
+    }
+
     let mut zk_stack_service: ZkStackService = ZkStackService::new().unwrap();
     zk_stack_service.add_layer(TaskErrorLayer);
     let result = zk_stack_service.run();
@@ -132,64 +131,64 @@ fn test_run_with_failed_tasks() {
     );
 }
 
-#[derive(Debug)]
-struct TasksLayer {
-    successful_task_was_run: Arc<Mutex<bool>>,
-    remaining_task_was_run: Arc<Mutex<bool>>,
-}
-
-#[async_trait::async_trait]
-impl WiringLayer for TasksLayer {
-    fn layer_name(&self) -> &'static str {
-        "tasks_layer"
-    }
-
-    async fn wire(self: Box<Self>, mut node: ServiceContext<'_>) -> Result<(), WiringError> {
-        node.add_task(Box::new(SuccessfulTask(
-            self.successful_task_was_run.clone(),
-        )))
-        .add_task(Box::new(RemainingTask(self.remaining_task_was_run.clone())));
-        Ok(())
-    }
-}
-
-// `ZkStack` Service's `run()` method has to run tasks, added to the layer.
-#[derive(Debug)]
-struct SuccessfulTask(Arc<Mutex<bool>>);
-
-#[async_trait::async_trait]
-impl Task for SuccessfulTask {
-    fn name() -> &'static str {
-        "successful_task"
-    }
-    async fn run(self: Box<Self>, _stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        let mut guard = self.0.lock().unwrap();
-        *guard = true;
-        Ok(())
-    }
-}
-
-// `ZkStack` Service's `run()` method has to allow remaining tasks to finish,
-// after stop signal was send.
-#[derive(Debug)]
-struct RemainingTask(Arc<Mutex<bool>>);
-
-#[async_trait::async_trait]
-impl Task for RemainingTask {
-    fn name() -> &'static str {
-        "remaining_task"
-    }
-    async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        stop_receiver.0.changed().await?;
-        let mut guard = self.0.lock().unwrap();
-        *guard = true;
-        Ok(())
-    }
-}
-
-// Check `ZkStack` Service's `run()` method tasks' expected behavior.
+/// Check `ZkStackService::run` method tasks' expected behavior.
 #[test]
 fn test_task_run() {
+    #[derive(Debug)]
+    struct TasksLayer {
+        successful_task_was_run: Arc<Mutex<bool>>,
+        remaining_task_was_run: Arc<Mutex<bool>>,
+    }
+
+    #[async_trait::async_trait]
+    impl WiringLayer for TasksLayer {
+        fn layer_name(&self) -> &'static str {
+            "tasks_layer"
+        }
+
+        async fn wire(self: Box<Self>, mut node: ServiceContext<'_>) -> Result<(), WiringError> {
+            node.add_task(Box::new(SuccessfulTask(
+                self.successful_task_was_run.clone(),
+            )))
+            .add_task(Box::new(RemainingTask(self.remaining_task_was_run.clone())));
+            Ok(())
+        }
+    }
+
+    /// `ZkStackService::run` method has to run tasks, added to the layer.
+    #[derive(Debug)]
+    struct SuccessfulTask(Arc<Mutex<bool>>);
+
+    #[async_trait::async_trait]
+    impl Task for SuccessfulTask {
+        fn name() -> &'static str {
+            "successful_task"
+        }
+        async fn run(self: Box<Self>, _stop_receiver: StopReceiver) -> anyhow::Result<()> {
+            let mut guard = self.0.lock().unwrap();
+            *guard = true;
+            Ok(())
+        }
+    }
+
+    /// `ZkStackService::run` method has to allow remaining tasks to finish,
+    /// after stop signal was send.
+    #[derive(Debug)]
+    struct RemainingTask(Arc<Mutex<bool>>);
+
+    #[async_trait::async_trait]
+    impl Task for RemainingTask {
+        fn name() -> &'static str {
+            "remaining_task"
+        }
+        async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
+            stop_receiver.0.changed().await?;
+            let mut guard = self.0.lock().unwrap();
+            *guard = true;
+            Ok(())
+        }
+    }
+
     let successful_task_was_run = Arc::new(Mutex::new(false));
     let remaining_task_was_run = Arc::new(Mutex::new(false));
 
