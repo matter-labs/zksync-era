@@ -37,6 +37,7 @@ Cargo.lock
 !/etc/env/docker.toml
 !/etc/env/ext-node.toml
 !/etc/env/ext-node-docker.toml
+!/etc/env/ext-node-validium.toml
 !/etc/env/consensus_config.json
 !/etc/env/en_consensus_config.json
 /etc/tokens/localhost.json
