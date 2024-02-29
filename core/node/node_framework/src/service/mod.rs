@@ -98,12 +98,12 @@ impl ZkStackService {
     ///
     /// The node will block on the hook execution if its provided, so if it's a long-running operation,
     /// it is advised to start the supplementary tasks, such as healthcheck server, in the hook itself.
-    pub fn with_setup<F>(mut self, setup: F) -> Self
+    pub fn run_with_setup<F>(mut self, setup: F) -> anyhow::Result<()>
     where
         F: FnOnce(&mut PreRun) -> BoxFuture<anyhow::Result<()>> + Send + 'static,
     {
         self.setup_hook = Some(Box::new(setup));
-        self
+        self.run()
     }
 
     /// Runs the system.

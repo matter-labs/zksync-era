@@ -1,9 +1,13 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
-use anyhow::anyhow;
-use tokio::runtime::Runtime;
+use anyhow::{anyhow, Context};
+use tokio::{runtime::Runtime, sync::watch};
 
 use crate::{
+    resource::Resource,
     service::{ServiceContext, StopReceiver, WiringError, WiringLayer, ZkStackService},
     task::Task,
 };
@@ -40,10 +44,24 @@ fn test_add_layer() {
         }
     }
 
+    #[derive(Debug)]
+    struct AnotherLayer;
+
+    #[async_trait::async_trait]
+    impl WiringLayer for AnotherLayer {
+        fn layer_name(&self) -> &'static str {
+            "another_layer"
+        }
+
+        async fn wire(self: Box<Self>, mut _node: ServiceContext<'_>) -> Result<(), WiringError> {
+            Ok(())
+        }
+    }
+
     let mut zk_stack_service = ZkStackService::new().unwrap();
     zk_stack_service
         .add_layer(DefaultLayer)
-        .add_layer(DefaultLayer);
+        .add_layer(AnotherLayer);
     let actual_layers_len = zk_stack_service.layers.len();
     assert_eq!(
         2, actual_layers_len,
@@ -208,4 +226,119 @@ fn test_task_run() {
 
     let res2 = *remaining_task_was_run.lock().unwrap();
     assert!(res2, "Incorrect resource value");
+}
+
+/// Checks that setup hook is invoked and the service lifecycle can be altered through it.
+#[test]
+fn test_setup_hook() -> anyhow::Result<()> {
+    #[derive(Debug)]
+    struct SetupHookLayer {
+        early_sender: watch::Sender<bool>,
+        late_sender: watch::Sender<bool>,
+    }
+
+    #[async_trait::async_trait]
+    impl WiringLayer for SetupHookLayer {
+        fn layer_name(&self) -> &'static str {
+            "setup_hook_layer"
+        }
+
+        async fn wire(self: Box<Self>, mut node: ServiceContext<'_>) -> Result<(), WiringError> {
+            node.add_task(Box::new(EarlyTask {
+                launched: self.early_sender,
+            }));
+            node.add_task(Box::new(LateTask {
+                launched: self.late_sender,
+            }));
+            node.insert_resource(SampleResource)?;
+            Ok(())
+        }
+    }
+
+    #[derive(Debug)]
+    struct EarlyTask {
+        launched: watch::Sender<bool>,
+    }
+
+    #[async_trait::async_trait]
+    impl Task for EarlyTask {
+        fn name() -> &'static str {
+            "early_task"
+        }
+        async fn run(self: Box<Self>, _stop_receiver: StopReceiver) -> anyhow::Result<()> {
+            self.launched.send(true)?;
+            Ok(())
+        }
+    }
+
+    #[derive(Debug)]
+    struct LateTask {
+        launched: watch::Sender<bool>,
+    }
+
+    #[async_trait::async_trait]
+    impl Task for LateTask {
+        fn name() -> &'static str {
+            "late_task"
+        }
+        async fn run(self: Box<Self>, _stop_receiver: StopReceiver) -> anyhow::Result<()> {
+            self.launched.send(true)?;
+            Ok(())
+        }
+    }
+
+    #[derive(Debug, Clone)]
+    struct SampleResource;
+
+    impl Resource for SampleResource {
+        fn resource_id() -> crate::resource::ResourceId {
+            "sample_resource".into()
+        }
+    }
+
+    let (early_sender, mut early_receiver) = watch::channel(false);
+    let (late_sender, late_receiver) = watch::channel(false);
+    let layer = SetupHookLayer {
+        early_sender,
+        late_sender,
+    };
+
+    let mut zk_stack_service = ZkStackService::new().unwrap();
+    zk_stack_service.add_layer(layer);
+
+    {
+        let late_receiver = late_receiver.clone();
+        zk_stack_service.run_with_setup(move |service| {
+            Box::pin(async move {
+                anyhow::ensure!(
+                    !*early_receiver.borrow(),
+                    "Early task was launched before setup hook"
+                );
+                anyhow::ensure!(
+                    !*late_receiver.borrow(),
+                    "Early task was launched before setup hook"
+                );
+
+                // Launch early task.
+                service.launch_task(EarlyTask::name())?;
+                tokio::time::timeout(Duration::from_millis(200), early_receiver.changed())
+                    .await??;
+                anyhow::ensure!(
+                    *early_receiver.borrow(),
+                    "Early task wasn't launched during setup hook"
+                );
+
+                // Make sure that resources can be accessed.
+                let _ = service
+                    .get_resource::<SampleResource>()
+                    .context("Unable to get sample resource")?;
+
+                Ok(())
+            })
+        })?;
+    }
+
+    anyhow::ensure!(*late_receiver.borrow(), "Late task wasn't launched");
+
+    Ok(())
 }
