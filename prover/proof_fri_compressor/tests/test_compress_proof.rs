@@ -1,13 +1,11 @@
+use std::env;
 use zksync_config::configs::{object_store::ObjectStoreMode, FriProverConfig, ObjectStoreConfig};
 use zksync_dal::fri_proof_compressor_dal::FriProofCompressorDal;
 use zksync_object_store::{bincode, ObjectStoreFactory};
 use zksync_proof_fri_compressor::compressor::ProofCompressor;
 use zksync_prover_fri_types::FriProofWrapper;
 
-
-async fn prover_and_assert_compressor_layer(
-    expected_proof_id: u32
-) -> anyhow::Result<()> {
+async fn prover_and_assert_compressor_layer(expected_proof_id: u32) -> anyhow::Result<()> {
     let compression_mode: u8 = 1;
     let verify_wrapper_proof: bool = true;
 
@@ -25,26 +23,24 @@ async fn prover_and_assert_compressor_layer(
         .await
         .expect("missing expected proof");
     let schedule_proof = match wrapper_proof {
-        FriProofWrapper::Base(_) => anyhow::bail!("Must be a scheduler proof not base layer"),
         FriProofWrapper::Recursive(proof) => proof,
-        _ => {}
+        _ => anyhow::bail!("Must be a scheduler proof not base layer"),
     };
 
-    let snark_proof = ProofCompressor::compress_proof(schedule_proof, compression_mode, verify_wrapper_proof);
+    let snark_proof =
+        ProofCompressor::compress_proof(schedule_proof, compression_mode, verify_wrapper_proof);
 
     assert!(snark_proof.is_ok());
     Ok(())
 }
 
-
 #[tokio::test]
-async fn test_base_layer_sha256_proof_gen() {
+async fn test_compressor_layer_proof_gen() {
     let key = "FRI_PROVER_SETUP_DATA_PATH";
     if std::env::var(key).is_err() {
         std::env::set_var(key, "../vk_setup_data_generator_server_fri/data");
-    }
+        std::env::set_var("CRS_FILE", "../../keys/setup/setup_2^26.key");
+    };
 
-    prover_and_assert_compressor_layer(107)
-        .await
-        .unwrap();
+    prover_and_assert_compressor_layer(107).await.unwrap();
 }
