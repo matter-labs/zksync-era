@@ -42,8 +42,12 @@ impl SnapshotsCreatorDal<'_, '_> {
     pub async fn get_storage_logs_chunk(
         &mut self,
         miniblock_number: MiniblockNumber,
+        l1_batch_number: L1BatchNumber,
         hashed_keys_range: std::ops::RangeInclusive<H256>,
     ) -> sqlx::Result<Vec<SnapshotStorageLog>> {
+        // We need to filter the returned logs by `l1_batch_number` in order to not return "phantom writes", i.e.,
+        // logs that have deduplicated writes (e.g., a write to a non-zero value and back to zero in the same L1 batch)
+        // which are actually written to in future L1 batches.
         let storage_logs = sqlx::query!(
             r#"
             SELECT
@@ -62,8 +66,8 @@ impl SnapshotsCreatorDal<'_, '_> {
                         storage_logs
                     WHERE
                         miniblock_number <= $1
-                        AND hashed_key >= $2
-                        AND hashed_key < $3
+                        AND hashed_key >= $3
+                        AND hashed_key <= $4
                     GROUP BY
                         hashed_key
                     ORDER BY
@@ -72,11 +76,14 @@ impl SnapshotsCreatorDal<'_, '_> {
                 INNER JOIN storage_logs ON keys.hashed_key = storage_logs.hashed_key
                 AND storage_logs.miniblock_number = keys.op[1]
                 AND storage_logs.operation_number = keys.op[2]
-                INNER JOIN initial_writes ON keys.hashed_key = initial_writes.hashed_key;
+                INNER JOIN initial_writes ON keys.hashed_key = initial_writes.hashed_key
+            WHERE
+                initial_writes.l1_batch_number <= $2
             "#,
             miniblock_number.0 as i64,
-            hashed_keys_range.start().0.as_slice(),
-            hashed_keys_range.end().0.as_slice(),
+            l1_batch_number.0 as i64,
+            hashed_keys_range.start().as_bytes(),
+            hashed_keys_range.end().as_bytes()
         )
         .instrument("get_storage_logs_chunk")
         .with_arg("miniblock_number", &miniblock_number)
