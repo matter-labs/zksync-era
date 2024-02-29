@@ -158,6 +158,18 @@ fn main() -> anyhow::Result<()> {
         .add_proof_data_handler_layer()?
         .add_healthcheck_layer()?
         .build()
+        .with_setup(|pre_run| {
+            Box::pin(async move {
+                // We want to make sure that the healthcheck server is the very first
+                // thing that starts.
+                pre_run.launch_task("healthcheck_server")?;
+
+                // ...imagine that there is some setup work here -- ensuring genesis state, running some migration,
+                // loading some data, etc..
+
+                Ok(())
+            })
+        })
         .run()?;
 
     Ok(())

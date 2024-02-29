@@ -45,7 +45,7 @@ impl WiringLayer for HealthCheckLayer {
 }
 
 #[derive(Debug)]
-struct HealthCheckTask {
+pub struct HealthCheckTask {
     config: HealthCheckConfig,
     app_health_check: Arc<AppHealthCheck>,
 }

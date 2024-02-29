@@ -48,20 +48,6 @@ impl<'a> ServiceContext<'a> {
     ///
     /// Panics if the resource with the specified name exists, but is not of the requested type.
     pub async fn get_resource<T: Resource + Clone>(&mut self) -> Result<T, WiringError> {
-        #[allow(clippy::borrowed_box)]
-        let downcast_clone = |resource: &Box<dyn StoredResource>| {
-            resource
-                .downcast_ref::<T>()
-                .unwrap_or_else(|| {
-                    panic!(
-                        "Resource {} is not of type {}",
-                        T::resource_id(),
-                        std::any::type_name::<T>()
-                    )
-                })
-                .clone()
-        };
-
         let name = T::resource_id();
         // Check whether the resource is already available.
         if let Some(resource) = self.service.resources.get(&name) {
@@ -129,4 +115,18 @@ impl<'a> ServiceContext<'a> {
         );
         Ok(())
     }
+}
+
+#[allow(clippy::borrowed_box)]
+pub(super) fn downcast_clone<T: Resource + Clone>(resource: &Box<dyn StoredResource>) -> T {
+    resource
+        .downcast_ref::<T>()
+        .unwrap_or_else(|| {
+            panic!(
+                "Resource {} is not of type {}",
+                T::resource_id(),
+                std::any::type_name::<T>()
+            )
+        })
+        .clone()
 }

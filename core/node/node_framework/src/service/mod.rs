@@ -3,6 +3,7 @@ use std::{collections::HashMap, fmt};
 use futures::{future::BoxFuture, FutureExt};
 use tokio::{runtime::Runtime, sync::watch};
 
+use self::pre_run::PreRun;
 pub use self::{context::ServiceContext, stop_receiver::StopReceiver};
 use crate::{
     resource::{ResourceId, StoredResource},
@@ -11,9 +12,12 @@ use crate::{
 };
 
 mod context;
+mod pre_run;
 mod stop_receiver;
 #[cfg(test)]
 mod tests;
+
+pub type SetupHook = Box<dyn FnOnce(&mut PreRun) -> BoxFuture<anyhow::Result<()>> + Send>;
 
 /// "Manager" class for a set of tasks. Collects all the resources and tasks,
 /// then runs tasks until completion.
@@ -25,6 +29,7 @@ mod tests;
 ///   - invokes a `wire` method on each added wiring layer. If any of the layers fails,
 ///     the service will return an error. If no layers have added a task, the service will
 ///     also return an error.
+///   - invokes a setup hook if it was provided.
 ///   - waits for any of the tasks to finish.
 ///   - sends stop signal to all the tasks.
 ///   - waits for the remaining tasks to finish.
@@ -37,6 +42,8 @@ pub struct ZkStackService {
     layers: Vec<Box<dyn WiringLayer>>,
     /// Tasks added to the service.
     tasks: Vec<Box<dyn Task>>,
+
+    setup_hook: Option<SetupHook>,
 
     /// Sender used to stop the tasks.
     stop_sender: watch::Sender<bool>,
@@ -67,6 +74,7 @@ impl ZkStackService {
             resources: HashMap::default(),
             layers: Vec::new(),
             tasks: Vec::new(),
+            setup_hook: None,
             stop_sender,
             runtime,
         };
@@ -79,6 +87,22 @@ impl ZkStackService {
     /// `wire` method of every layer in the order they were added.
     pub fn add_layer<T: WiringLayer>(&mut self, layer: T) -> &mut Self {
         self.layers.push(Box::new(layer));
+        self
+    }
+
+    /// Setups a hook that will be called before the service starts running the tasks.
+    ///
+    /// This hook will be invoked after all the wiring layers have been processed and all the tasks
+    /// have been added to the service, but before any of the tasks are started. During the setup, the
+    /// hook can launch any added tasks and access resources through the [`PreRun`] object.
+    ///
+    /// The node will block on the hook execution if its provided, so if it's a long-running operation,
+    /// it is adviced to start the supplementary tasks, such as healtcheck server, in the hook itself.
+    pub fn with_setup<F>(mut self, setup: F) -> Self
+    where
+        F: FnOnce(&mut PreRun) -> BoxFuture<anyhow::Result<()>> + Send + 'static,
+    {
+        self.setup_hook = Some(Box::new(setup));
         self
     }
 
@@ -132,17 +156,30 @@ impl ZkStackService {
             resource.stored_resource_wired();
         }
 
+        let mut pre_run = pre_run::PreRun {
+            rt_handle: self.runtime.handle().clone(),
+            resources: self.resources,
+            unstarted_tasks: tasks,
+            join_handles: Vec::new(),
+        };
+
+        if let Some(pre_run_hook) = self.setup_hook.take() {
+            let future = pre_run_hook(&mut pre_run);
+            self.runtime.block_on(future)?;
+        }
+
         // Prepare tasks for running.
         let rt_handle = self.runtime.handle().clone();
-        let join_handles: Vec<_> = tasks
-            .iter_mut()
-            .map(|task| {
-                let task = task.task.take().expect(
-                    "Tasks are created by the node and must be Some prior to calling this method",
-                );
-                rt_handle.spawn(task).fuse()
-            })
-            .collect();
+        let mut join_handles: Vec<_> = pre_run.join_handles;
+        let mut tasks = pre_run.unstarted_tasks;
+
+        for task in &mut tasks {
+            let Some(task) = task.task.take() else {
+                // The task was started during the pre-run.
+                continue;
+            };
+            join_handles.push(rt_handle.spawn(task).fuse());
+        }
 
         // Run the tasks until one of them exits.
         // TODO (QIT-24): wrap every task into a timeout to prevent hanging.
