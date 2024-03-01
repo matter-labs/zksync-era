@@ -1,10 +1,7 @@
 use std::{
     fmt::{Debug, Formatter},
     marker::PhantomData,
-    sync::Arc,
 };
-
-use once_cell::sync::OnceCell;
 use zk_evm_1_4_1::{
     aux_structures::Timestamp,
     tracing::{
@@ -35,7 +32,7 @@ use crate::{
                 computational_gas_price, gas_spent_on_bytecodes_and_long_messages_this_opcode,
                 print_debug_if_needed, VmHook,
             },
-            CircuitsTracer, PrestateTracer, RefundsTracer, ResultTracer,
+            CircuitsTracer, RefundsTracer, ResultTracer,
         },
         types::internals::ZkSyncVmState,
         VmTracer,

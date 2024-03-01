@@ -61,7 +61,7 @@ pub(crate) struct PrestateTracer {
 }
 
 impl PrestateTracer {
-    pub(crate) fn new(diff_mode: bool, result: Arc<OnceCell<(State, State)>>) -> Self {
+    pub fn new(diff_mode: bool, result: Arc<OnceCell<(State, State)>>) -> Self {
         Self {
             pre: Default::default(),
             post: Default::default(),
@@ -143,7 +143,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for PrestateTracer {
             let diff = modified_storage_keys
                 .clone()
                 .keys()
-                .map(|k| *k)
+                .copied()
                 .collect::<Vec<_>>();
 
             let res = diff
@@ -182,7 +182,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for PrestateTracer {
         } else {
             let read_keys = &state.storage.read_keys;
             let map = read_keys.inner().clone();
-            let storage_keys_read = map.keys().map(|k| *k).collect::<Vec<_>>();
+            let storage_keys_read = map.keys().copied().collect::<Vec<_>>();
             let res = storage_keys_read
                 .iter()
                 .map(|k| {
@@ -217,7 +217,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for PrestateTracer {
                 .collect::<State>();
             self.post = res;
         }
-        process_result(&mut self.result, self.pre.clone(), self.post.clone());
+        process_result(&self.result, self.pre.clone(), self.post.clone());
     }
 }
 
