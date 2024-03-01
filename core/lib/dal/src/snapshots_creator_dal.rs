@@ -33,6 +33,7 @@ impl SnapshotsCreatorDal<'_, '_> {
         )
         .instrument("get_storage_logs_count")
         .report_latency()
+        .expect_slow_query()
         .fetch_one(self.storage)
         .await?
         .index;
@@ -60,6 +61,7 @@ impl SnapshotsCreatorDal<'_, '_> {
         .instrument("get_storage_logs_row_count")
         .with_arg("miniblock_number", &at_miniblock)
         .report_latency()
+        .expect_slow_query()
         .fetch_one(self.storage)
         .await?;
         Ok(row.count.unwrap_or(0) as u64)
@@ -116,6 +118,7 @@ impl SnapshotsCreatorDal<'_, '_> {
         .with_arg("min_hashed_key", &hashed_keys_range.start())
         .with_arg("max_hashed_key", &hashed_keys_range.end())
         .report_latency()
+        .expect_slow_query()
         .fetch_all(self.storage)
         .await?
         .iter()
@@ -151,6 +154,7 @@ impl SnapshotsCreatorDal<'_, '_> {
         )
         .instrument("get_all_factory_deps")
         .report_latency()
+        .expect_slow_query()
         .fetch_all(self.storage)
         .await?;
 
