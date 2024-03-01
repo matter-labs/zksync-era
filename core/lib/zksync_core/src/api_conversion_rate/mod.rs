@@ -1,5 +1,4 @@
-use axum::extract::Json;
-use axum::{extract, routing::get, Router};
+use axum::{extract, extract::Json, routing::get, Router};
 use rand::Rng;
 use tokio::sync::watch;
 use zksync_config::configs::native_token_fetcher::NativeTokenFetcherConfig;

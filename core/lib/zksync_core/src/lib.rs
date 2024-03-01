@@ -344,8 +344,7 @@ pub async fn initialize_components(
             api_conversion_rate::run_server(stop_receiver, &native_token_fetcher_config).await;
         });
 
-        use std::thread;
-        use std::time::Duration;
+        use std::{thread, time::Duration};
         thread::sleep(Duration::from_secs(2));
     };
 
