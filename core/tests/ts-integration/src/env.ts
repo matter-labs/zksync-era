@@ -16,7 +16,7 @@ export async function waitForServer() {
     const reporter = new Reporter();
     // Server startup may take a lot of time on the staging.
     const attemptIntervalMs = 1000;
-    const maxAttempts = 2 * 60; // 20 minutes
+    const maxAttempts = 20 * 60; // 20 minutes
 
     const l2NodeUrl = ensureVariable(
         process.env.ZKSYNC_WEB3_API_URL || process.env.API_WEB3_JSON_RPC_HTTP_URL,
