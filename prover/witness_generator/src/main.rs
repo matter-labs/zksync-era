@@ -8,7 +8,9 @@ use prometheus_exporter::PrometheusExporterConfig;
 use structopt::StructOpt;
 use tokio::sync::watch;
 use zksync_config::{
-    configs::{FriWitnessGeneratorConfig, ObservabilityConfig, PostgresConfig, PrometheusConfig},
+    configs::{
+        FriWitnessGeneratorConfig, KzgConfig, ObservabilityConfig, PostgresConfig, PrometheusConfig,
+    },
     ObjectStoreConfig,
 };
 use zksync_dal::ConnectionPool;
@@ -182,6 +184,7 @@ async fn main() -> anyhow::Result<()> {
                         .await,
                     ),
                 };
+                let kzg_config = KzgConfig::from_env().context("KzgConfig::from_env()")?;
                 let generator = BasicWitnessGenerator::new(
                     config.clone(),
                     &store_factory,
@@ -189,6 +192,7 @@ async fn main() -> anyhow::Result<()> {
                     connection_pool.clone(),
                     prover_connection_pool.clone(),
                     protocol_versions.clone(),
+                    kzg_config.trusted_setup_path,
                 )
                 .await;
                 generator.run(stop_receiver.clone(), opt.batch_size)
