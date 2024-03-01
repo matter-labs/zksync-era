@@ -91,7 +91,8 @@ impl NativeTokenFetcher {
             .send()
             .await?
             .json::<u64>()
-            .await?;
+            .await
+            .context("Unable to parse the response of the native token conversion rate server")?;
 
         Ok(Self {
             config,
