@@ -83,7 +83,7 @@ describe('Block reverting test', function () {
 
         // Run server in background.
 
-        utils.background(`zk server --components ${components}`, [null, logs, logs]);
+        utils.background(`ZKSYNC_ENV=docker zk server --components ${components}`, [null, logs, logs]);
         // Server may need some time to recompile if it's a cold run, so wait for it.
         let iter = 0;
         while (iter < 30 && !mainContract) {
