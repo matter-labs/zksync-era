@@ -1,6 +1,5 @@
 pub(crate) use circuits_tracer::CircuitsTracer;
 pub(crate) use default_tracers::DefaultExecutionTracer;
-pub(crate) use prestate_tracer::PrestateTracer;
 pub(crate) use pubdata_tracer::PubdataTracer;
 pub(crate) use refunds::RefundsTracer;
 pub(crate) use result_tracer::ResultTracer;
