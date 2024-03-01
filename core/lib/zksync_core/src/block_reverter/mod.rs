@@ -293,6 +293,12 @@ impl BlockReverter {
             .delete_miniblocks(last_miniblock_to_keep)
             .await
             .unwrap();
+        tracing::info!("rolling back eth_txs...");
+        transaction
+            .eth_sender_dal()
+            .delete_eth_txs(last_l1_batch_to_keep)
+            .await
+            .unwrap();
 
         transaction.commit().await.unwrap();
     }
