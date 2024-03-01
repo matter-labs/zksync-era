@@ -1,6 +1,7 @@
 use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
+use hex::ToHex;
 use metrics::atomics::AtomicU64;
 use tokio::{
     sync::{watch, OnceCell},
@@ -88,8 +89,9 @@ pub(crate) struct NativeTokenFetcher {
 impl NativeTokenFetcher {
     pub(crate) async fn new(config: NativeTokenFetcherConfig) -> Self {
         let conversion_rate = reqwest::get(format!(
-            "{}/conversion_rate/{}",
-            config.host, config.token_address
+            "{}/conversion_rate/0x{}",
+            config.host,
+            config.token_address.encode_hex::<String>()
         ))
         .await
         .unwrap()
@@ -116,8 +118,9 @@ impl NativeTokenFetcher {
             let conversion_rate = self
                 .http_client
                 .get(format!(
-                    "{}/conversion_rate/{}",
-                    &self.config.host, &self.config.token_address
+                    "{}/conversion_rate/0x{}",
+                    &self.config.host,
+                    &self.config.token_address.encode_hex::<String>()
                 ))
                 .send()
                 .await?
