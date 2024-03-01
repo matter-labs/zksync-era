@@ -251,5 +251,5 @@ async function setInternalL1GasPrice(provider: zksync.Provider, newPrice?: strin
     }
 
     // We still need to wait a bit more to ensure that the server is fully operational.
-    await utils.sleep(10);
+    await utils.sleep(20);
 }
