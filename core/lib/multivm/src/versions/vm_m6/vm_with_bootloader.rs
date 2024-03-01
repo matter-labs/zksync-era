@@ -19,8 +19,7 @@ use zksync_types::{
 use zksync_utils::{
     address_to_u256,
     bytecode::{compress_bytecode, hash_bytecode, CompressedBytecodeInfo},
-    bytes_to_be_words, h256_to_u256,
-    misc::ceil_div,
+    bytes_to_be_words, ceil_div_u256, h256_to_u256,
 };
 
 use crate::{
@@ -56,11 +55,11 @@ pub struct BlockContext {
     pub block_timestamp: u64,
     pub operator_address: Address,
     pub l1_gas_price: U256,
-    pub fair_l2_gas_price: u64,
+    pub fair_l2_gas_price: U256,
 }
 
 impl BlockContext {
-    pub fn block_gas_price_per_pubdata(&self) -> u64 {
+    pub fn block_gas_price_per_pubdata(&self) -> U256 {
         derive_base_fee_and_gas_per_pubdata(L1PeggedBatchFeeModelInput {
             l1_gas_price: self.l1_gas_price,
             fair_l2_gas_price: self.fair_l2_gas_price,
@@ -74,24 +73,24 @@ impl BlockContext {
 #[derive(Debug, Copy, Clone)]
 pub struct DerivedBlockContext {
     pub context: BlockContext,
-    pub base_fee: u64,
+    pub base_fee: U256,
 }
 
-pub(crate) fn eth_price_per_pubdata_byte(l1_gas_price: U256) -> u64 {
+pub(crate) fn eth_price_per_pubdata_byte(l1_gas_price: U256) -> U256 {
     // This value will typically be a lot less than u64
     // unless the gas price on L1 goes beyond tens of millions of gwei
-    l1_gas_price.as_u64() * (L1_GAS_PER_PUBDATA_BYTE as u64) // TODO: this might overflow
+    l1_gas_price * L1_GAS_PER_PUBDATA_BYTE
 }
 
-pub(crate) fn base_fee_to_gas_per_pubdata(l1_gas_price: U256, base_fee: u64) -> u64 {
+pub(crate) fn base_fee_to_gas_per_pubdata(l1_gas_price: U256, base_fee: U256) -> U256 {
     let eth_price_per_pubdata_byte = eth_price_per_pubdata_byte(l1_gas_price);
 
-    ceil_div(eth_price_per_pubdata_byte, base_fee)
+    ceil_div_u256(eth_price_per_pubdata_byte, base_fee)
 }
 
 pub(crate) fn derive_base_fee_and_gas_per_pubdata(
     fee_input: L1PeggedBatchFeeModelInput,
-) -> (u64, u64) {
+) -> (U256, U256) {
     let L1PeggedBatchFeeModelInput {
         l1_gas_price,
         fair_l2_gas_price,
@@ -103,7 +102,10 @@ pub(crate) fn derive_base_fee_and_gas_per_pubdata(
     // publish enough public data while compensating us for it.
     let base_fee = std::cmp::max(
         fair_l2_gas_price,
-        ceil_div(eth_price_per_pubdata_byte, MAX_GAS_PER_PUBDATA_BYTE),
+        ceil_div_u256(
+            eth_price_per_pubdata_byte,
+            U256::from(MAX_GAS_PER_PUBDATA_BYTE),
+        ),
     );
 
     (
@@ -112,7 +114,7 @@ pub(crate) fn derive_base_fee_and_gas_per_pubdata(
     )
 }
 
-pub(crate) fn get_batch_base_fee(l1_batch_env: &L1BatchEnv) -> u64 {
+pub(crate) fn get_batch_base_fee(l1_batch_env: &L1BatchEnv) -> U256 {
     if let Some(base_fee) = l1_batch_env.enforced_base_fee {
         return base_fee;
     }
@@ -478,7 +480,7 @@ fn get_bootloader_memory_v1(
             execution_mode,
             already_included_txs_size,
             predefined_refunds[tx_index_in_block],
-            block_gas_price_per_pubdata as u32,
+            block_gas_price_per_pubdata.as_u32(),
             previous_compressed,
             compressed_bytecodes,
         );
@@ -523,7 +525,7 @@ fn get_bootloader_memory_v2(
             execution_mode,
             already_included_txs_size,
             predefined_refunds[tx_index_in_block],
-            block_gas_price_per_pubdata as u32,
+            block_gas_price_per_pubdata.as_u32(),
             previous_compressed,
             compressed_bytecodes,
         );
@@ -546,7 +548,7 @@ pub fn push_transaction_to_bootloader_memory<S: Storage, H: HistoryMode>(
 ) {
     let tx: TransactionData = tx.clone().into();
     let block_gas_per_pubdata_byte = vm.block_context.context.block_gas_price_per_pubdata();
-    let overhead = tx.overhead_gas(block_gas_per_pubdata_byte as u32);
+    let overhead = tx.overhead_gas(block_gas_per_pubdata_byte.as_u32());
     push_raw_transaction_to_bootloader_memory(
         vm,
         tx,
@@ -631,7 +633,7 @@ fn push_raw_transaction_to_bootloader_memory_v1<S: Storage, H: HistoryMode>(
         .populate(codes_for_decommiter, timestamp);
 
     let block_gas_price_per_pubdata = vm.block_context.context.block_gas_price_per_pubdata();
-    let trusted_ergs_limit = tx.trusted_gas_limit(block_gas_price_per_pubdata as u32);
+    let trusted_ergs_limit = tx.trusted_gas_limit(block_gas_price_per_pubdata.as_u32());
     let encoded_tx = tx.into_tokens();
     let encoded_tx_size = encoded_tx.len();
 
@@ -716,7 +718,7 @@ fn push_raw_transaction_to_bootloader_memory_v2<S: Storage, H: HistoryMode>(
         .populate(codes_for_decommiter, timestamp);
 
     let block_gas_price_per_pubdata = vm.block_context.context.block_gas_price_per_pubdata();
-    let trusted_ergs_limit = tx.trusted_gas_limit(block_gas_price_per_pubdata as u32);
+    let trusted_ergs_limit = tx.trusted_gas_limit(block_gas_price_per_pubdata.as_u32());
     let encoded_tx = tx.into_tokens();
     let encoded_tx_size = encoded_tx.len();
 

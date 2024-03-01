@@ -21,11 +21,11 @@ impl BatchFeeInput {
     pub fn sensible_l1_pegged_default() -> Self {
         Self::L1Pegged(L1PeggedBatchFeeModelInput {
             l1_gas_price: U256::from(1_000_000_000),
-            fair_l2_gas_price: 100_000_000,
+            fair_l2_gas_price: U256::from(100_000_000),
         })
     }
 
-    pub fn l1_pegged(l1_gas_price: U256, fair_l2_gas_price: u64) -> Self {
+    pub fn l1_pegged(l1_gas_price: U256, fair_l2_gas_price: U256) -> Self {
         Self::L1Pegged(L1PeggedBatchFeeModelInput {
             l1_gas_price,
             fair_l2_gas_price,
@@ -37,7 +37,7 @@ impl Default for BatchFeeInput {
     fn default() -> Self {
         Self::L1Pegged(L1PeggedBatchFeeModelInput {
             l1_gas_price: U256::zero(),
-            fair_l2_gas_price: 0,
+            fair_l2_gas_price: U256::zero(),
         })
     }
 }
@@ -50,18 +50,16 @@ impl BatchFeeInput {
         }
     }
 
-    pub fn fair_pubdata_price(&self) -> u64 {
+    pub fn fair_pubdata_price(&self) -> U256 {
         match self {
-            BatchFeeInput::L1Pegged(input) => {
-                (input.l1_gas_price * L1_GAS_PER_PUBDATA_BYTE).as_u64()
-            } // TODO: We might need to return as U256 to prevent overflow
+            BatchFeeInput::L1Pegged(input) => input.l1_gas_price * L1_GAS_PER_PUBDATA_BYTE,
             BatchFeeInput::PubdataIndependent(input) => input.fair_pubdata_price,
         }
     }
 
-    pub fn fair_l2_gas_price(&self) -> u64 {
+    pub fn fair_l2_gas_price(&self) -> U256 {
         match self {
-            BatchFeeInput::L1Pegged(input) => input.fair_l2_gas_price,
+            BatchFeeInput::L1Pegged(input) => U256::from(input.fair_l2_gas_price),
             BatchFeeInput::PubdataIndependent(input) => input.fair_l2_gas_price,
         }
     }
@@ -77,8 +75,8 @@ impl BatchFeeInput {
         match self {
             BatchFeeInput::PubdataIndependent(input) => input,
             BatchFeeInput::L1Pegged(input) => PubdataIndependentBatchFeeModelInput {
-                fair_l2_gas_price: input.fair_l2_gas_price,
-                fair_pubdata_price: input.l1_gas_price.as_u64() * L1_GAS_PER_PUBDATA_BYTE as u64,
+                fair_l2_gas_price: U256::from(input.fair_l2_gas_price),
+                fair_pubdata_price: input.l1_gas_price * L1_GAS_PER_PUBDATA_BYTE,
                 l1_gas_price: input.l1_gas_price,
             },
         }
@@ -86,15 +84,17 @@ impl BatchFeeInput {
 
     pub fn for_protocol_version(
         protocol_version: ProtocolVersionId,
-        fair_l2_gas_price: u64,
-        fair_pubdata_price: Option<u64>,
+        fair_l2_gas_price: U256,
+        fair_pubdata_price: Option<U256>,
         l1_gas_price: U256,
     ) -> Self {
         if protocol_version.is_post_1_4_1() {
             Self::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
-                fair_l2_gas_price,
-                fair_pubdata_price: fair_pubdata_price
-                    .expect("Pubdata price must be provided for protocol version 1.4.1"),
+                fair_l2_gas_price: fair_l2_gas_price,
+                fair_pubdata_price: U256::from(
+                    fair_pubdata_price
+                        .expect("Pubdata price must be provided for protocol version 1.4.1"),
+                ),
                 l1_gas_price,
             })
         } else {
@@ -110,7 +110,7 @@ impl BatchFeeInput {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct L1PeggedBatchFeeModelInput {
     /// Fair L2 gas price to provide
-    pub fair_l2_gas_price: u64,
+    pub fair_l2_gas_price: U256,
     /// The L1 gas price to provide to the VM.
     pub l1_gas_price: U256,
 }
@@ -119,9 +119,9 @@ pub struct L1PeggedBatchFeeModelInput {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PubdataIndependentBatchFeeModelInput {
     /// Fair L2 gas price to provide
-    pub fair_l2_gas_price: u64,
+    pub fair_l2_gas_price: U256,
     /// Fair pubdata price to provide.
-    pub fair_pubdata_price: u64,
+    pub fair_pubdata_price: U256,
     /// The L1 gas price to provide to the VM. Even if some of the VM versions may not use this value, it is still maintained for backward compatibility.
     pub l1_gas_price: U256,
 }

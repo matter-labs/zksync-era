@@ -111,7 +111,7 @@ impl StateKeeperIO for MempoolIO {
         self.filter = L2TxFilter {
             fee_input: l1_batch_env.fee_input,
             fee_per_gas: base_fee,
-            gas_per_pubdata: gas_per_pubdata as u32,
+            gas_per_pubdata: gas_per_pubdata.as_u32(),
         };
 
         Some(PendingBatchData {

@@ -3,6 +3,7 @@ use multivm::{
     utils::get_batch_base_fee,
 };
 use zksync_contracts::BaseSystemContractsHashes;
+use zksync_types::U256;
 use zksync_types::{
     block::BlockGasCount, fee_model::BatchFeeInput,
     storage_writes_deduplicator::StorageWritesDeduplicator,
@@ -27,7 +28,7 @@ pub mod miniblock_updates;
 pub struct UpdatesManager {
     batch_timestamp: u64,
     batch_fee_input: BatchFeeInput,
-    base_fee_per_gas: u64,
+    base_fee_per_gas: U256,
     base_system_contract_hashes: BaseSystemContractsHashes,
     protocol_version: ProtocolVersionId,
     pub l1_batch: L1BatchUpdates,
@@ -71,7 +72,7 @@ impl UpdatesManager {
         self.batch_fee_input.l1_gas_price()
     }
 
-    pub(crate) fn fair_l2_gas_price(&self) -> u64 {
+    pub(crate) fn fair_l2_gas_price(&self) -> U256 {
         self.batch_fee_input.fair_l2_gas_price()
     }
 
@@ -173,7 +174,7 @@ pub(crate) struct MiniblockSealCommand {
     pub miniblock: MiniblockUpdates,
     pub first_tx_index: usize,
     pub fee_input: BatchFeeInput,
-    pub base_fee_per_gas: u64,
+    pub base_fee_per_gas: U256,
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
     pub protocol_version: Option<ProtocolVersionId>,
     pub l2_shared_bridge_addr: Address,

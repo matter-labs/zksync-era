@@ -3,14 +3,14 @@ use zksync_types::{
     fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
     U256,
 };
-use zksync_utils::ceil_div;
+use zksync_utils::ceil_div_u256;
 
 use crate::vm_latest::{constants::MAX_GAS_PER_PUBDATA_BYTE, L1BatchEnv};
 
 /// Calculates the base fee and gas per pubdata for the given L1 gas price.
 pub(crate) fn derive_base_fee_and_gas_per_pubdata(
     fee_input: PubdataIndependentBatchFeeModelInput,
-) -> (u64, u64) {
+) -> (U256, U256) {
     let PubdataIndependentBatchFeeModelInput {
         fair_l2_gas_price,
         fair_pubdata_price,
@@ -21,15 +21,15 @@ pub(crate) fn derive_base_fee_and_gas_per_pubdata(
     // publish enough public data while compensating us for it.
     let base_fee = std::cmp::max(
         fair_l2_gas_price,
-        ceil_div(fair_pubdata_price, MAX_GAS_PER_PUBDATA_BYTE),
+        ceil_div_u256(fair_pubdata_price, U256::from(MAX_GAS_PER_PUBDATA_BYTE)),
     );
 
-    let gas_per_pubdata = ceil_div(fair_pubdata_price, base_fee);
+    let gas_per_pubdata = ceil_div_u256(fair_pubdata_price, base_fee);
 
     (base_fee, gas_per_pubdata)
 }
 
-pub(crate) fn get_batch_base_fee(l1_batch_env: &L1BatchEnv) -> u64 {
+pub(crate) fn get_batch_base_fee(l1_batch_env: &L1BatchEnv) -> U256 {
     if let Some(base_fee) = l1_batch_env.enforced_base_fee {
         return base_fee;
     }
@@ -62,7 +62,7 @@ pub(crate) fn adjust_pubdata_price_for_tx(
             let new_fair_pubdata_price = U256::from(fee_input.fair_l2_gas_price)
                 * (tx_gas_per_pubdata_limit - U256::from(1u32));
 
-            fee_input.fair_pubdata_price = new_fair_pubdata_price.as_u64();
+            fee_input.fair_pubdata_price = new_fair_pubdata_price;
         }
     }
 

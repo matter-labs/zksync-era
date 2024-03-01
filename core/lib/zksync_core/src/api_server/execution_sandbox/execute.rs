@@ -22,7 +22,7 @@ pub(crate) struct TxExecutionArgs {
     pub execution_mode: TxExecutionMode,
     pub enforced_nonce: Option<Nonce>,
     pub added_balance: U256,
-    pub enforced_base_fee: Option<u64>,
+    pub enforced_base_fee: Option<U256>,
     pub missed_storage_invocation_limit: usize,
 }
 
@@ -32,7 +32,7 @@ impl TxExecutionArgs {
             execution_mode: TxExecutionMode::VerifyExecute,
             enforced_nonce: Some(tx.nonce()),
             added_balance: U256::zero(),
-            enforced_base_fee: Some(tx.common_data.fee.max_fee_per_gas.as_u64()),
+            enforced_base_fee: Some(tx.common_data.fee.max_fee_per_gas),
             missed_storage_invocation_limit: usize::MAX,
         }
     }
@@ -46,7 +46,7 @@ impl TxExecutionArgs {
             execution_mode: TxExecutionMode::EthCall,
             enforced_nonce: None,
             added_balance: U256::zero(),
-            enforced_base_fee: Some(enforced_base_fee),
+            enforced_base_fee: Some(U256::from(enforced_base_fee)),
             missed_storage_invocation_limit,
         }
     }
@@ -54,7 +54,7 @@ impl TxExecutionArgs {
     pub fn for_gas_estimate(
         vm_execution_cache_misses_limit: Option<usize>,
         tx: &Transaction,
-        base_fee: u64,
+        base_fee: U256,
     ) -> Self {
         let missed_storage_invocation_limit = vm_execution_cache_misses_limit.unwrap_or(usize::MAX);
         // For L2 transactions we need to explicitly put enough balance into the account of the users

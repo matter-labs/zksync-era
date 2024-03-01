@@ -474,7 +474,7 @@ impl BlocksDal<'_, '_> {
         // Serialization should always succeed.
         let used_contract_hashes = serde_json::to_value(&header.used_contract_hashes)
             .expect("failed to serialize used_contract_hashes to JSON value");
-        let base_fee_per_gas = BigDecimal::from_u64(header.base_fee_per_gas)
+        let base_fee_per_gas = BigDecimal::from_u64(header.base_fee_per_gas.as_u64()) // TODO: this might overflow
             .context("block.base_fee_per_gas should fit in u64")?;
         let storage_refunds: Vec<_> = storage_refunds.iter().map(|n| *n as i64).collect();
 
@@ -559,7 +559,7 @@ impl BlocksDal<'_, '_> {
             used_contract_hashes,
             base_fee_per_gas,
             (header.l1_gas_price).as_u64() as i64,
-            header.l2_fair_gas_price as i64,
+            (header.l2_fair_gas_price).as_u64() as i64, // TODO: this might overflow
             header.base_system_contracts_hashes.bootloader.as_bytes(),
             header.base_system_contracts_hashes.default_aa.as_bytes(),
             header.protocol_version.map(|v| v as i32),
@@ -592,7 +592,7 @@ impl BlocksDal<'_, '_> {
         &mut self,
         miniblock_header: &MiniblockHeader,
     ) -> anyhow::Result<()> {
-        let base_fee_per_gas = BigDecimal::from_u64(miniblock_header.base_fee_per_gas)
+        let base_fee_per_gas = BigDecimal::from_u64(miniblock_header.base_fee_per_gas.as_u64()) // TODO: this might overflow
             .context("base_fee_per_gas should fit in u64")?;
 
         sqlx::query!(
@@ -626,7 +626,10 @@ impl BlocksDal<'_, '_> {
             miniblock_header.l2_tx_count as i32,
             base_fee_per_gas,
             miniblock_header.batch_fee_input.l1_gas_price() as i64,
-            miniblock_header.batch_fee_input.fair_l2_gas_price() as i64,
+            miniblock_header
+                .batch_fee_input
+                .fair_l2_gas_price()
+                .as_u64() as i64, // TODO: this might overflow
             miniblock_header.gas_per_pubdata_limit as i64,
             miniblock_header
                 .base_system_contracts_hashes
@@ -638,7 +641,10 @@ impl BlocksDal<'_, '_> {
                 .as_bytes(),
             miniblock_header.protocol_version.map(|v| v as i32),
             miniblock_header.virtual_blocks as i64,
-            miniblock_header.batch_fee_input.fair_pubdata_price() as i64,
+            miniblock_header
+                .batch_fee_input
+                .fair_pubdata_price()
+                .as_u64() as i64, // TODO: this might overflow
         )
         .execute(self.storage.conn())
         .await?;

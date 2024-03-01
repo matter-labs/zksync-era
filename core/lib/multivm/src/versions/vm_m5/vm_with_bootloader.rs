@@ -17,7 +17,7 @@ use zksync_types::{
     Address, Transaction, BOOTLOADER_ADDRESS, L1_GAS_PER_PUBDATA_BYTE, MAX_NEW_FACTORY_DEPS, U256,
 };
 use zksync_utils::{
-    address_to_u256, bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, misc::ceil_div,
+    address_to_u256, bytecode::hash_bytecode, bytes_to_be_words, ceil_div_u256, h256_to_u256,
 };
 
 use crate::{
@@ -53,7 +53,7 @@ pub struct BlockContext {
     pub block_timestamp: u64,
     pub operator_address: Address,
     pub l1_gas_price: U256,
-    pub fair_l2_gas_price: u64,
+    pub fair_l2_gas_price: U256,
 }
 
 /// Besides the raw values from the `BlockContext`, contains the values that are to be derived
@@ -61,24 +61,24 @@ pub struct BlockContext {
 #[derive(Debug, Copy, Clone)]
 pub struct DerivedBlockContext {
     pub context: BlockContext,
-    pub base_fee: u64,
+    pub base_fee: U256,
 }
 
-pub(crate) fn eth_price_per_pubdata_byte(l1_gas_price: U256) -> u64 {
+pub(crate) fn eth_price_per_pubdata_byte(l1_gas_price: U256) -> U256 {
     // This value will typically be a lot less than u64
     // unless the gas price on L1 goes beyond tens of millions of gwei
-    l1_gas_price.as_u64() * (L1_GAS_PER_PUBDATA_BYTE as u64) // TODO: check if this is correct
+    l1_gas_price * L1_GAS_PER_PUBDATA_BYTE
 }
 
-pub(crate) fn base_fee_to_gas_per_pubdata(l1_gas_price: U256, base_fee: u64) -> u64 {
+pub(crate) fn base_fee_to_gas_per_pubdata(l1_gas_price: U256, base_fee: U256) -> U256 {
     let eth_price_per_pubdata_byte = eth_price_per_pubdata_byte(l1_gas_price);
 
-    ceil_div(eth_price_per_pubdata_byte, base_fee)
+    ceil_div_u256(eth_price_per_pubdata_byte, base_fee)
 }
 
 pub(crate) fn derive_base_fee_and_gas_per_pubdata(
     fee_input: L1PeggedBatchFeeModelInput,
-) -> (u64, u64) {
+) -> (U256, U256) {
     let L1PeggedBatchFeeModelInput {
         l1_gas_price,
         fair_l2_gas_price,
@@ -90,7 +90,10 @@ pub(crate) fn derive_base_fee_and_gas_per_pubdata(
     // publish enough public data while compensating us for it.
     let base_fee = std::cmp::max(
         fair_l2_gas_price,
-        ceil_div(eth_price_per_pubdata_byte, MAX_GAS_PER_PUBDATA_BYTE),
+        ceil_div_u256(
+            U256::from(eth_price_per_pubdata_byte),
+            U256::from(MAX_GAS_PER_PUBDATA_BYTE),
+        ),
     );
 
     (
@@ -99,7 +102,7 @@ pub(crate) fn derive_base_fee_and_gas_per_pubdata(
     )
 }
 
-pub(crate) fn get_batch_base_fee(l1_batch_env: &L1BatchEnv) -> u64 {
+pub(crate) fn get_batch_base_fee(l1_batch_env: &L1BatchEnv) -> U256 {
     if let Some(base_fee) = l1_batch_env.enforced_base_fee {
         return base_fee;
     }

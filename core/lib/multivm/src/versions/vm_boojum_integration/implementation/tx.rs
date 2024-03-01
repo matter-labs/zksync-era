@@ -39,7 +39,8 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             .decommittment_processor
             .populate(codes_for_decommiter, timestamp);
 
-        let trusted_ergs_limit = tx.trusted_ergs_limit(get_batch_gas_per_pubdata(&self.batch_env));
+        let trusted_ergs_limit =
+            tx.trusted_ergs_limit(get_batch_gas_per_pubdata(&self.batch_env).as_u64()); // TODO: this might overflow
 
         let memory = self.bootloader_state.push_tx(
             tx,
@@ -62,7 +63,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     ) {
         let tx: TransactionData = tx.into();
         let block_gas_per_pubdata_byte = get_batch_gas_per_pubdata(&self.batch_env);
-        let overhead = tx.overhead_gas(block_gas_per_pubdata_byte as u32);
+        let overhead = tx.overhead_gas(block_gas_per_pubdata_byte.as_u64() as u32); // TODO: this might overflow
         self.push_raw_transaction(tx, overhead, 0, with_compression);
     }
 }

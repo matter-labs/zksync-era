@@ -600,7 +600,7 @@ impl TxSender {
         gas_price_per_pubdata: u32,
         fee_model_params: BatchFeeInput,
         block_args: BlockArgs,
-        base_fee: u64,
+        base_fee: U256,
         vm_version: VmVersion,
     ) -> (VmExecutionResultAndLogs, TransactionExecutionMetrics) {
         let gas_limit_with_overhead = tx_gas_limit
@@ -780,7 +780,7 @@ impl TxSender {
                     "exceeds limit for published pubdata".to_string(),
                 ));
             }
-            pubdata_for_factory_deps * (gas_per_pubdata_byte as u32)
+            pubdata_for_factory_deps * gas_per_pubdata_byte.as_u32()
         };
 
         // We are using binary search to find the minimal values of gas_limit under which
@@ -811,7 +811,7 @@ impl TxSender {
                     vm_permit.clone(),
                     tx.clone(),
                     try_gas_limit,
-                    gas_per_pubdata_byte as u32,
+                    gas_per_pubdata_byte.as_u32(),
                     fee_input,
                     block_args,
                     base_fee,
@@ -850,7 +850,7 @@ impl TxSender {
                 vm_permit,
                 tx.clone(),
                 suggested_gas_limit,
-                gas_per_pubdata_byte as u32,
+                gas_per_pubdata_byte.as_u32(),
                 fee_input,
                 block_args,
                 base_fee,
@@ -870,7 +870,7 @@ impl TxSender {
         {
             derive_pessimistic_overhead(
                 suggested_gas_limit,
-                gas_per_pubdata_byte as u32,
+                gas_per_pubdata_byte.as_u32(),
                 tx.encoding_len(),
                 tx.tx_format() as u8,
                 protocol_version.into(),
@@ -878,7 +878,7 @@ impl TxSender {
         } else {
             derive_overhead(
                 suggested_gas_limit,
-                gas_per_pubdata_byte as u32,
+                gas_per_pubdata_byte.as_u32(),
                 tx.encoding_len(),
                 tx.tx_format() as u8,
                 protocol_version.into(),
@@ -928,7 +928,7 @@ impl TxSender {
             .into_api_call_result()
     }
 
-    pub async fn gas_price(&self) -> u64 {
+    pub async fn gas_price(&self) -> U256 {
         let mut connection = self
             .0
             .replica_connection_pool

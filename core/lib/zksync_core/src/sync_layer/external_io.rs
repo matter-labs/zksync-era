@@ -343,8 +343,8 @@ impl StateKeeperIO for ExternalIO {
                         previous_l1_batch_hash,
                         BatchFeeInput::for_protocol_version(
                             protocol_version,
-                            l2_fair_gas_price,
-                            fair_pubdata_price,
+                            U256::from(l2_fair_gas_price),
+                            Some(U256::from(fair_pubdata_price.unwrap())), // TODO: this might overflow
                             l1_gas_price,
                         ),
                         miniblock_number,

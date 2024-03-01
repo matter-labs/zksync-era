@@ -133,7 +133,7 @@ pub struct L2TxFilter {
     /// Batch fee model input. It typically includes things like L1 gas price, L2 fair fee, etc.
     pub fee_input: BatchFeeInput,
     /// Effective fee price for the transaction. The price of 1 gas in wei.
-    pub fee_per_gas: u64,
+    pub fee_per_gas: U256,
     /// Effective pubdata price in gas for transaction. The number of gas per 1 pubdata byte.
     pub gas_per_pubdata: u32,
 }
@@ -145,7 +145,7 @@ mod tests {
     /// Checks the filter logic.
     #[test]
     fn filter() {
-        fn filter(fee_per_gas: u64, gas_per_pubdata: u32) -> L2TxFilter {
+        fn filter(fee_per_gas: U256, gas_per_pubdata: u32) -> L2TxFilter {
             L2TxFilter {
                 fee_input: BatchFeeInput::sensible_l1_pegged_default(),
                 fee_per_gas,
@@ -168,31 +168,31 @@ mod tests {
             },
         };
 
-        let noop_filter = filter(0, 0);
+        let noop_filter = filter(U256::zero(), 0);
         assert!(
             score.matches_filter(&noop_filter),
             "Noop filter should always match"
         );
 
-        let max_gas_filter = filter(MAX_FEE_PER_GAS, 0);
+        let max_gas_filter = filter(U256::from(MAX_FEE_PER_GAS), 0);
         assert!(
             score.matches_filter(&max_gas_filter),
             "Correct max gas should be accepted"
         );
 
-        let pubdata_filter = filter(0, GAS_PER_PUBDATA_LIMIT);
+        let pubdata_filter = filter(U256::zero(), GAS_PER_PUBDATA_LIMIT);
         assert!(
             score.matches_filter(&pubdata_filter),
             "Correct pubdata price should be accepted"
         );
 
-        let decline_gas_filter = filter(MAX_FEE_PER_GAS + 1, 0);
+        let decline_gas_filter = filter(U256::from(MAX_FEE_PER_GAS + 1), 0);
         assert!(
             !score.matches_filter(&decline_gas_filter),
             "Incorrect max gas should be rejected"
         );
 
-        let decline_pubdata_filter = filter(0, GAS_PER_PUBDATA_LIMIT + 1);
+        let decline_pubdata_filter = filter(U256::zero(), GAS_PER_PUBDATA_LIMIT + 1);
         assert!(
             !score.matches_filter(&decline_pubdata_filter),
             "Incorrect pubdata price should be rejected"

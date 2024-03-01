@@ -1,4 +1,4 @@
-use zksync_types::{fee_model::BatchFeeInput, Address, L1BatchNumber, H256};
+use zksync_types::{fee_model::BatchFeeInput, Address, L1BatchNumber, H256, U256};
 
 use super::L2BlockEnv;
 
@@ -13,6 +13,6 @@ pub struct L1BatchEnv {
     /// The fee input into the batch. It contains information such as L1 gas price, L2 fair gas price, etc.
     pub fee_input: BatchFeeInput,
     pub fee_account: Address,
-    pub enforced_base_fee: Option<u64>,
+    pub enforced_base_fee: Option<U256>,
     pub first_l2_block: L2BlockEnv,
 }

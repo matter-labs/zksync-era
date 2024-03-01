@@ -56,11 +56,11 @@ pub struct L1BatchHeader {
     /// Hashes of contracts used this block
     pub used_contract_hashes: Vec<U256>,
     /// The EIP1559 base_fee used in this block.
-    pub base_fee_per_gas: u64,
+    pub base_fee_per_gas: U256,
     /// The assumed L1 gas price within the block.
     pub l1_gas_price: U256,
     /// The L2 gas price that the operator agrees on.
-    pub l2_fair_gas_price: u64,
+    pub l2_fair_gas_price: U256,
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
     /// System logs are those emitted as part of the Vm execution.
     pub system_logs: Vec<SystemL2ToL1Log>,
@@ -77,7 +77,7 @@ pub struct MiniblockHeader {
     pub hash: H256,
     pub l1_tx_count: u16,
     pub l2_tx_count: u16,
-    pub base_fee_per_gas: u64, // Min wei per gas that txs in this miniblock need to have.
+    pub base_fee_per_gas: U256, // Min wei per gas that txs in this miniblock need to have.
 
     pub batch_fee_input: BatchFeeInput,
     pub gas_per_pubdata_limit: u64,
@@ -117,9 +117,9 @@ impl L1BatchHeader {
             l2_to_l1_messages: vec![],
             bloom: H2048::default(),
             used_contract_hashes: vec![],
-            base_fee_per_gas: 0,
+            base_fee_per_gas: U256::zero(),
             l1_gas_price: U256::zero(),
-            l2_fair_gas_price: 0,
+            l2_fair_gas_price: U256::zero(),
             base_system_contracts_hashes,
             system_logs: vec![],
             protocol_version: Some(protocol_version),

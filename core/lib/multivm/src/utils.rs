@@ -6,7 +6,7 @@ use crate::vm_latest::L1BatchEnv;
 pub fn derive_base_fee_and_gas_per_pubdata(
     batch_fee_input: BatchFeeInput,
     vm_version: VmVersion,
-) -> (u64, u64) {
+) -> (U256, U256) {
     match vm_version {
         VmVersion::M5WithRefunds | VmVersion::M5WithoutRefunds => {
             crate::vm_m5::vm_with_bootloader::derive_base_fee_and_gas_per_pubdata(
@@ -46,7 +46,7 @@ pub fn derive_base_fee_and_gas_per_pubdata(
     }
 }
 
-pub fn get_batch_base_fee(l1_batch_env: &L1BatchEnv, vm_version: VmVersion) -> u64 {
+pub fn get_batch_base_fee(l1_batch_env: &L1BatchEnv, vm_version: VmVersion) -> U256 {
     match vm_version {
         VmVersion::M5WithRefunds | VmVersion::M5WithoutRefunds => {
             crate::vm_m5::vm_with_bootloader::get_batch_base_fee(l1_batch_env)

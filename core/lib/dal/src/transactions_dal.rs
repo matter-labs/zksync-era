@@ -887,7 +887,7 @@ impl TransactionsDal<'_, '_> {
         stashed_accounts: Vec<Address>,
         purged_accounts: Vec<Address>,
         gas_per_pubdata: u32,
-        fee_per_gas: u64,
+        fee_per_gas: U256,
         limit: usize,
     ) -> (Vec<Transaction>, HashMap<Address, Nonce>) {
         {
@@ -970,7 +970,7 @@ impl TransactionsDal<'_, '_> {
                     transactions.*
                 "#,
                 limit as i32,
-                BigDecimal::from(fee_per_gas),
+                BigDecimal::from(fee_per_gas.as_u64()), // TODO: this might overflow
                 BigDecimal::from(gas_per_pubdata),
                 PROTOCOL_UPGRADE_TX_TYPE as i32,
             )
