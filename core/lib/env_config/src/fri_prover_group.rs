@@ -68,7 +68,7 @@ impl FromEnv for FriProverGroupConfig {
             group_11: groups.remove("group_11").unwrap_or_default(),
             group_12: groups.remove("group_12").unwrap_or_default(),
         };
-        config.validate();
+        config.validate()?;
         Ok(config)
     }
 }
