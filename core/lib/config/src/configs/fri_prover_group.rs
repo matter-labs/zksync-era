@@ -77,7 +77,7 @@ impl FriProverGroupConfig {
     }
     /// check all_circuit ids present exactly once
     /// and For each aggregation round, check that the circuit ids are in the correct range.
-    /// For example, in aggregation round 0, the circuit ids should be 1 to 13 + 255 (EIP4844).
+    /// For example, in aggregation round 0, the circuit ids should be 1 to 13 and 255 (EIP4844).
     /// In aggregation round 1, the circuit ids should be 3 to 15.
     /// In aggregation round 2, the circuit ids should be 2.
     /// In aggregation round 3, the circuit ids should be 1.
@@ -98,6 +98,7 @@ impl FriProverGroupConfig {
             &self.group_11,
             &self.group_12,
         ];
+
         for group in groups {
             for circuit_round in group {
                 rounds[circuit_round.aggregation_round as usize].push(circuit_round.clone());
