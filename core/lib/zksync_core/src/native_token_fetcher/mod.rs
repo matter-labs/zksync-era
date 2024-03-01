@@ -1,6 +1,7 @@
 use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
+use hex::ToHex;
 use metrics::atomics::AtomicU64;
 use tokio::{
     sync::{watch, OnceCell},
