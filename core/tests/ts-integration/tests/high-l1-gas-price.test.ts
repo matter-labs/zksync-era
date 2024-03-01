@@ -105,10 +105,10 @@ async function setInternalL1GasPrice(provider: zksync.Provider, newPrice?: strin
         }
     }
 
-    // We still need to wait a bit more to ensure that the server is fully operational.
-    await utils.sleep(5);
-
     if (!mainContract) {
         throw new Error('Server did not start');
     }
+
+    // We still need to wait a bit more to ensure that the server is fully operational.
+    await utils.sleep(10);
 }
