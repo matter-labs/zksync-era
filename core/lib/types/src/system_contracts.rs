@@ -69,7 +69,7 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 20] = [
     ),
     (
         "",
-        "L2EthToken",
+        "L2BaseToken",
         L2_ETH_TOKEN_ADDRESS,
         ContractLanguage::Sol,
     ),

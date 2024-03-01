@@ -36,7 +36,7 @@ use crate::{
 
 const IERC20_INTERFACE: &str = include_str!("../abi/IERC20.json");
 const STATE_TRANSITION_CHAIN_INTERFACE: &str = include_str!("../abi/IZkSyncStateTransition.json");
-const L1_DEFAULT_BRIDGE_INTERFACE: &str = include_str!("../abi/IL1Bridge.json");
+const L1_DEFAULT_BRIDGE_INTERFACE: &str = include_str!("../abi/IL1SharedBridge.json");
 const RAW_ERC20_DEPOSIT_GAS_LIMIT: &str = include_str!("DepositERC20GasLimit.json");
 
 // The `gasPerPubdata` to be used in L1->L2 requests. It may be almost any number, but here we 800
@@ -182,7 +182,8 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         l1_token_address: Address,
         bridge: Option<Address>,
     ) -> Result<Address, ClientError> {
-        let bridge = bridge.unwrap_or(self.default_bridges.l1_erc20_default_bridge);
+        // kl todo. This should be moved to the shared bridge, which does not have l2_token_address on L1. Use L2 contracts instead.
+        let bridge = bridge.unwrap_or(self.default_bridges.l1_erc20_bridge);
         let args = CallFunctionArgs::new("l2TokenAddress", l1_token_address)
             .for_contract(bridge, self.l1_bridge_abi.clone());
         let res = self
@@ -200,7 +201,8 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         erc20_approve_threshold: U256,
         bridge: Option<Address>,
     ) -> Result<bool, ClientError> {
-        let bridge = bridge.unwrap_or(self.default_bridges.l1_erc20_default_bridge);
+        // kl todo. This should be moved to the shared bridge,
+        let bridge = bridge.unwrap_or(self.default_bridges.l1_erc20_bridge);
         let current_allowance = self
             .client()
             .allowance_on_account(token_address, bridge, self.erc20_abi.clone())
@@ -227,7 +229,8 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         max_erc20_approve_amount: U256,
         bridge: Option<Address>,
     ) -> Result<H256, ClientError> {
-        let bridge = bridge.unwrap_or(self.default_bridges.l1_erc20_default_bridge);
+        // kl todo. This should be moved to the shared bridge,
+        let bridge = bridge.unwrap_or(self.default_bridges.l1_erc20_bridge);
         let contract_function = self
             .erc20_abi
             .function("approve")
@@ -527,8 +530,8 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             )
             .await?
         } else {
-            let bridge_address =
-                bridge_address.unwrap_or(self.default_bridges.l1_erc20_default_bridge);
+            // kl todo. This should be moved to the shared bridge, and the requestL2Transaction method
+            let bridge_address = bridge_address.unwrap_or(self.default_bridges.l1_erc20_bridge);
             let contract_function = self
                 .l1_bridge_abi
                 .function("deposit")

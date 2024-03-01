@@ -159,7 +159,7 @@ export class TestContextOwner {
         const chainId = process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!;
 
         const bridgehub = await this.mainSyncWallet.getBridgehubContract();
-        const erc20Bridge = await bridgehub.baseTokenBridge(chainId);
+        const erc20Bridge = await bridgehub.sharedBridge();
         const baseToken = await bridgehub.baseToken(chainId);
 
         const erc20Token = this.env.erc20Token.l1Address;
@@ -275,7 +275,7 @@ export class TestContextOwner {
             const gasPrice = await scaledGasPrice(this.mainEthersWallet);
 
             // Define values for handling ERC20 transfers/deposits.
-            const baseMintAmount = l2erc20DepositAmount.mul(2);
+            const baseMintAmount = l2erc20DepositAmount.mul(1000);
             // Mint ERC20.
             const l1Erc20ABI = ['function mint(address to, uint256 amount)'];
             const l1Erc20Contract = new ethers.Contract(baseTokenAddress, l1Erc20ABI, this.mainEthersWallet);
@@ -285,7 +285,7 @@ export class TestContextOwner {
                     gasPrice
                 })
                 .then((tx: any) => {
-                    this.reporter.debug(`Sent ERC20 mint transaction. Hash: ${tx.hash}, nonce ${tx.nonce}`);
+                    this.reporter.debug(`Sent ERC20 mint transaction. Hash: ${tx.hash}, tx nonce ${tx.nonce}`);
                     return tx.wait();
                 });
             l1TxPromises.push(baseMintPromise);
@@ -314,7 +314,7 @@ export class TestContextOwner {
                 })
                 .then((tx) => {
                     // Note: there is an `approve` tx, not listed here.
-                    this.reporter.debug(`Sent ERC20 deposit transaction. Hash: ${tx.hash}, nonce: ${tx.nonce}`);
+                    this.reporter.debug(`Sent ERC20 deposit transaction. Hash: ${tx.hash}, tx nonce: ${tx.nonce}`);
                     return tx.wait();
                 });
             nonce = nonce + 1 + (ethIsBaseToken ? 0 : 1) + (baseIsTransferred ? 0 : 1);
@@ -374,12 +374,17 @@ export class TestContextOwner {
                     tx.wait();
                 });
             nonce = nonce + 1 + (ethIsBaseToken ? 0 : 1);
+            this.reporter.debug(
+                `Nonce changed by ${1 + (ethIsBaseToken ? 0 : 1)} for ETH deposit, new nonce: ${nonce}`
+            );
+
             // Add this promise to the list of L1 tx promises.
-            l1TxPromises.push(depositHandle);
+            // l1TxPromises.push(depositHandle);
+            await depositHandle;
         }
         // Define values for handling ERC20 transfers/deposits.
         const erc20Token = this.env.erc20Token.l1Address;
-        const erc20MintAmount = l2erc20DepositAmount.mul(2);
+        const erc20MintAmount = l2erc20DepositAmount.mul(100);
         // Mint ERC20.
         const baseIsTransferred = false; // we are not transferring the base
         const l1Erc20ABI = ['function mint(address to, uint256 amount)'];
@@ -393,7 +398,8 @@ export class TestContextOwner {
                 this.reporter.debug(`Sent ERC20 mint transaction. Hash: ${tx.hash}, nonce ${tx.nonce}`);
                 return tx.wait();
             });
-
+        this.reporter.debug(`Nonce changed by 1 for ERC20 mint, new nonce: ${nonce}`);
+        await erc20MintPromise;
         // Deposit ERC20.
         const erc20DepositPromise = this.mainSyncWallet
             .deposit({
@@ -420,7 +426,9 @@ export class TestContextOwner {
                 return tx.wait();
             });
         nonce = nonce + 1 + (ethIsBaseToken ? 0 : 1) + (baseIsTransferred ? 0 : 1);
-
+        this.reporter.debug(
+            `Nonce changed by ${1 + (ethIsBaseToken ? 0 : 1) + (baseIsTransferred ? 0 : 1)} for ERC20 deposit, ${nonce}`
+        );
         // Send ETH on L1.
         const ethTransfers = await sendTransfers(
             zksync.utils.ETH_ADDRESS,
@@ -444,9 +452,8 @@ export class TestContextOwner {
             this.reporter
         );
 
-        l1TxPromises.push(...ethTransfers);
-        l1TxPromises.push(erc20MintPromise);
         l1TxPromises.push(erc20DepositPromise);
+        l1TxPromises.push(...ethTransfers);
         l1TxPromises.push(...erc20Transfers);
 
         this.reporter.debug(`Sent ${l1TxPromises.length} initial transactions on L1`);

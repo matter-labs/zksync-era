@@ -140,8 +140,8 @@ be able to leverage them when available).
               _chainId,
               bridgehead,
               _deployBridgeProxyFee,
-              l2WethBridgeProxyBytecodeHash,
-              l2WethBridgeProxyConstructorData,
+              l2SharedBridgeProxyBytecodeHash,
+              l2SharedBridgeProxyConstructorData,
               // No factory deps are needed for L2 bridge proxy, because it is already passed in the previous step
               new bytes[](0)
           );
