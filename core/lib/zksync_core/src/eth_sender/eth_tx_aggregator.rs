@@ -16,9 +16,13 @@ use zksync_types::{
     ethabi::Token,
     l2_to_l1_log::UserL2ToL1Log,
     protocol_version::{L1VerifierConfig, VerifierParams},
-    web3::contract::tokens::{Detokenize, Tokenizable},
+    // web3::contract::tokens::{Detokenize, Tokenizable},
     web3::{contract::Error as Web3ContractError, types::BlockNumber},
-    Address, L2ChainId, ProtocolVersionId, H256, U256,
+    Address,
+    L2ChainId,
+    ProtocolVersionId,
+    H256,
+    U256,
 };
 
 use super::aggregated_operations::AggregatedOperation;
@@ -72,7 +76,6 @@ impl EthTxAggregator {
         timelock_contract_address: Address,
         l1_multicall3_address: Address,
         state_transition_chain_contract: Address,
-        base_nonce: u64,
         rollup_chain_id: L2ChainId,
         custom_commit_sender_addr: Option<Address>,
     ) -> Self {

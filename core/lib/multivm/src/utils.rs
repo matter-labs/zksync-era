@@ -71,7 +71,7 @@ pub fn get_batch_base_fee(l1_batch_env: &L1BatchEnv, vm_version: VmVersion) -> u
             crate::vm_boojum_integration::utils::fee::get_batch_base_fee(l1_batch_env)
         }
         VmVersion::Vm1_4_1 => crate::vm_1_4_1::utils::fee::get_batch_base_fee(l1_batch_env),
-        VmVersion::Vm1_4_2 | VmVerson::Local => {
+        VmVersion::Vm1_4_2 | VmVersion::Local => {
             crate::vm_latest::utils::fee::get_batch_base_fee(l1_batch_env)
         }
     }

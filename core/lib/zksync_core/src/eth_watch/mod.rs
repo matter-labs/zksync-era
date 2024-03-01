@@ -20,8 +20,7 @@ use self::{
     client::{Error, EthClient, EthHttpQueryClient, RETRY_LIMIT},
     event_processors::{
         governance_upgrades::GovernanceUpgradesEventProcessor,
-        priority_ops::PriorityOpsEventProcessor, set_chain_id::SetChainIDEventProcessor,
-        upgrades::UpgradesEventProcessor, EventProcessor,
+        priority_ops::PriorityOpsEventProcessor, upgrades::UpgradesEventProcessor, EventProcessor,
     },
     metrics::{PollStage, METRICS},
 };
@@ -68,11 +67,9 @@ impl EthWatch {
         let priority_ops_processor =
             PriorityOpsEventProcessor::new(state.next_expected_priority_id);
         let upgrades_processor = UpgradesEventProcessor::new(state.last_seen_version_id);
-        let set_chain_id_processor = SetChainIDEventProcessor::new(diamond_proxy_address);
         let mut event_processors: Vec<Box<dyn EventProcessor>> = vec![
             Box::new(priority_ops_processor),
             Box::new(upgrades_processor),
-            Box::new(set_chain_id_processor),
         ];
 
         if let Some(governance_contract) = governance_contract {
@@ -203,7 +200,6 @@ pub async fn start_eth_watch(
     let eth_client = EthHttpQueryClient::new(
         eth_gateway,
         state_transition_chain_contract_addr,
-        state_transition_manager_contract_addr,
         Some(governance.1),
         config.confirmations_for_eth_event,
     );

@@ -291,7 +291,8 @@ export const initHyperCommand = new Command('init-hyper')
                 name: cmd.baseTokenName,
                 // we use zero here to show that it is unspecified. If it were ether it would be one.
                 address: cmd.baseTokenAddress ? cmd.baseTokenAddress : ethers.constants.AddressZero
-            }
+            },
+            deployerPrivateKeyArgs: [],
         };
         if (!cmd.skipSetupCompletely) {
             await initSetup(initArgs);
@@ -333,7 +334,8 @@ export const reinitHyperCommand = new Command('reinit-hyper')
                 name: cmd.baseTokenName,
                 // we use zero here to show that it is unspecified. If it is ether it is one.
                 address: cmd.baseTokenAddress ? cmd.baseTokenAddress : ethers.constants.AddressZero
-            }
+            },
+            deployerPrivateKeyArgs: [],
         };
         await initHyper(initArgs);
     });
@@ -371,7 +373,8 @@ export const initSharedBridgeCommand = new Command('init-shared-bridge')
                 name: cmd.baseTokenName,
                 // we use zero here to show that it is unspecified. If it is ether would be one.
                 address: cmd.baseTokenAddress ? cmd.baseTokenAddress : ethers.constants.AddressZero
-            }
+            },
+            deployerPrivateKeyArgs: [],
         };
         await initSetup(initArgs);
         // we have to initiate the db here, as we need to create the genesis block to initialize the L1 contracts
@@ -407,7 +410,8 @@ export const deployL2ContractsCommand = new Command('deploy-l2-contracts')
                 name: cmd.baseTokenName,
                 // we use zero here to show that it is unspecified. If it is ether would be one.
                 address: cmd.baseTokenAddress ? cmd.baseTokenAddress : ethers.constants.AddressZero
-            }
+            },
+            deployerPrivateKeyArgs: [],
         };
 
         await deployL2Contracts(initArgs);

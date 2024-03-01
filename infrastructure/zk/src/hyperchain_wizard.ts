@@ -44,6 +44,9 @@ export interface BasePromptOptions {
     skip?: ((state: object) => boolean | Promise<boolean>) | boolean;
 }
 
+// PLA:681
+let isLocalhost = false;
+
 // An init command that allows configuring and spinning up a new hyperchain network.
 async function initHyperchain(envName: string) {
     await announced('Initializing hyperchain creation', setupConfiguration(envName));

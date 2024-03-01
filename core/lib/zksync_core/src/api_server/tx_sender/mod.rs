@@ -131,7 +131,7 @@ impl ApiContracts {
                 post_1_4_1: BaseSystemContracts::estimate_gas_post_1_4_1(),
                 post_1_4_2: BaseSystemContracts::estimate_gas_post_1_4_2(),
                 // kl todo delete local vm verion
-                local: BaseSystemContracts::estimate_gas(),
+                local: BaseSystemContracts::estimate_gas_post_1_4_2(),
             },
             eth_call: MultiVMBaseSystemContracts {
                 pre_virtual_blocks: BaseSystemContracts::playground_pre_virtual_blocks(),
@@ -143,7 +143,7 @@ impl ApiContracts {
                 post_1_4_1: BaseSystemContracts::playground_post_1_4_1(),
                 post_1_4_2: BaseSystemContracts::playground_post_1_4_2(),
                 // kl todo delete local vm verion
-                local: BaseSystemContracts::playground(),
+                local: BaseSystemContracts::playground_post_1_4_2(),
             },
         }
     }

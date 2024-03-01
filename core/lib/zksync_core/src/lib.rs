@@ -654,7 +654,6 @@ pub async fn initialize_components(
             contracts_config.validator_timelock_addr,
             contracts_config.l1_multicall3_addr,
             state_transition_chain_contract,
-            nonce.as_u64(),
             configs
                 .network_config
                 .as_ref()
