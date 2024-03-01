@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fs::File,
     io::{BufRead, BufReader},
 };
@@ -19,32 +19,61 @@ fn main() {
     let opcodes_before = get_name_to_opcodes(&opcodes_before);
     let opcodes_after = get_name_to_opcodes(&opcodes_after);
 
+    let perf_changes = iai_before
+        .keys()
+        .collect::<HashSet<_>>()
+        .intersection(&iai_after.keys().collect())
+        .flat_map(|&name| {
+            let diff = percent_difference(iai_before[name], iai_after[name]);
+            if diff > 2. {
+                Some((name, format!("{:+.1}%", diff)))
+            } else {
+                None
+            }
+        })
+        .collect::<HashMap<_, _>>();
+    let duration_changes = opcodes_before
+        .keys()
+        .collect::<HashSet<_>>()
+        .intersection(&opcodes_after.keys().collect())
+        .flat_map(|&name| {
+            let opcodes_abs_diff = (opcodes_after[name] as i64) - (opcodes_before[name] as i64);
+
+            if opcodes_abs_diff != 0 {
+                Some((
+                    name,
+                    format!(
+                        "{:+} ({:+.1}%)",
+                        opcodes_abs_diff,
+                        percent_difference(opcodes_before[name], opcodes_after[name])
+                    ),
+                ))
+            } else {
+                None
+            }
+        })
+        .collect::<HashMap<_, _>>();
+
     let mut nonzero_diff = false;
 
-    for (name, cycles) in iai_before {
-        if let Some(&cycles2) = iai_after.get(&name) {
-            let cycles_diff = percent_difference(cycles, cycles2);
-
-            let opcodes0 = opcodes_before.get(&name).cloned().unwrap_or_default();
-            let opcodes1 = opcodes_after.get(&name).cloned().unwrap_or_default();
-            let opcodes_abs_diff = (opcodes1 as i64) - (opcodes0 as i64);
-
-            if cycles_diff.abs() > 2. || opcodes_abs_diff != 0 {
-                // write the header before writing the first line of diff
-                if !nonzero_diff {
-                    println!("Benchmark name | change in estimated runtime | change in number of opcodes executed \n--- | --- | ---");
-                    nonzero_diff = true;
-                }
-
-                println!(
-                    "{} | {:+.1}% | {:+} ({:+.1}%)",
-                    name,
-                    cycles_diff * 100.0,
-                    opcodes_abs_diff,
-                    percent_difference(opcodes0, opcodes1)
-                );
-            }
+    for name in perf_changes
+        .keys()
+        .collect::<HashSet<_>>()
+        .union(&duration_changes.keys().collect())
+    {
+        // write the header before writing the first line of diff
+        if !nonzero_diff {
+            println!("Benchmark name | change in estimated runtime | change in number of opcodes executed \n--- | --- | ---");
+            nonzero_diff = true;
         }
+
+        let n_a = "N/A".to_string();
+        println!(
+            "{} | {} | {}",
+            name,
+            perf_changes.get(**name).unwrap_or(&n_a),
+            duration_changes.get(**name).unwrap_or(&n_a),
+        );
     }
 
     if nonzero_diff {
