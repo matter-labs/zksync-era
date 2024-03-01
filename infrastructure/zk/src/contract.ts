@@ -91,6 +91,7 @@ export async function deployL2(args: any[] = [], includePaymaster?: boolean, inc
     const l2DeployLog = fs.readFileSync('deployL2.log').toString();
     const l2DeploymentEnvVars = [
         'CONTRACTS_L2_ERC20_BRIDGE_ADDR',
+        'CONTRACTS_L2_ERC20_BRIDGE_IMPL_ADDR',
         'CONTRACTS_L2_TESTNET_PAYMASTER_ADDR',
         'CONTRACTS_L2_WETH_TOKEN_IMPL_ADDR',
         'CONTRACTS_L2_WETH_TOKEN_PROXY_ADDR',
