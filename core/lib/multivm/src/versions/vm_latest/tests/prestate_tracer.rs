@@ -44,7 +44,6 @@ fn test_prestate_tracer() {
         .take()
         .unwrap_or_default();
 
-    // example entry: Account { balance: Some(0), code: Some(452314304036466592745508808605782986981496399793947607959918347501386473656), nonce: Some(0), storage: Some({0x0000000000000000000000000000000000000000000000000000000000000000: 0x0000000000000000000000000000000000000000000000000000000000000007}) }
     assert!(prestate_result.1.contains_key(&contract_address));
 }
 
@@ -82,7 +81,6 @@ fn test_prestate_tracer_diff_mode() {
 
     assert!(prestate_result.0.len() > 0);
     assert!(prestate_result.1.len() > 0);
-    // example entry: Account { balance: Some(0), code: Some(452314304036466592745508808605782986981496399793947607959918347501386473656), nonce: Some(0), storage: Some({0x0000000000000000000000000000000000000000000000000000000000000000: 0x0000000000000000000000000000000000000000000000000000000000000007}) }
     let contract_address_account = prestate_result.0.get(&contract_address).unwrap().clone();
     let binding = contract_address_account.storage.unwrap();
     let contract_storage_value_pre_tx = binding.get(&H256::zero()).unwrap();

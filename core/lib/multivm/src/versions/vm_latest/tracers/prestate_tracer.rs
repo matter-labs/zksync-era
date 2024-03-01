@@ -234,7 +234,7 @@ fn get_storage_if_present(
     account: &AccountTreeId,
     modified_storage_keys: &HashMap<StorageKey, StorageValue>,
 ) -> HashMap<H256, H256> {
-    //check if there is a StorageKey struct with an account field that matches the account and return the key as the key and the StorageValue as the value
+    //check if there is a Storage Key struct with an account field that matches the account and return the key as the key and the Storage Value as the value
     modified_storage_keys
         .iter()
         .filter(|(k, _)| k.account() == account)
