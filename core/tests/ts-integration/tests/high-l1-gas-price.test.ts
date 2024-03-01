@@ -13,7 +13,7 @@ import * as zksync from 'zksync-web3';
 import { ethers } from 'ethers';
 import { Token } from '../src/types';
 
-const logs = fs.createWriteStream('fees.log', { flags: 'a' });
+const logs = fs.createWriteStream('high-gas-price.log', { flags: 'a' });
 
 // Unless `RUN_FEE_TEST` is provided, skip the test suit
 const testHighGasPriceBehavior = process.env.HIGH_L1_GAS_PRICE_TEST ? describe : describe.skip;

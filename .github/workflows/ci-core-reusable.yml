@@ -242,6 +242,14 @@ jobs:
         if: always()
         run: ci_run cat core/tests/revert-test/revert.log || true
 
+      - name: Show fees.log logs
+        if: always()
+        run: ci_run cat core/tests/ts-integration/fees.log || true
+
+      - name: Show fees.log logs
+        if: always()
+        run: ci_run cat core/tests/ts-integration/high-gas-price.log || true
+
       - name: Show upgrade.log logs
         if: always()
         run: ci_run cat core/tests/upgrade-test/upgrade.log || true
