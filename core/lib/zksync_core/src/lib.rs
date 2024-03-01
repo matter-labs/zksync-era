@@ -76,6 +76,7 @@ use crate::{
     },
 };
 
+pub mod api_conversion_rate;
 pub mod api_server;
 pub mod basic_witness_input_producer;
 pub mod block_reverter;
@@ -235,6 +236,8 @@ pub enum Component {
     ProofDataHandler,
     /// Native Token fetcher
     NativeTokenFetcher,
+    /// Conversion rate API, for local development.
+    ConversionRateApi,
 }
 
 #[derive(Debug)]
@@ -270,6 +273,7 @@ impl FromStr for Components {
             "eth_tx_manager" => Ok(Components(vec![Component::EthTxManager])),
             "proof_data_handler" => Ok(Components(vec![Component::ProofDataHandler])),
             "native_token_fetcher" => Ok(Components(vec![Component::NativeTokenFetcher])),
+            "conversion_rate_api" => Ok(Components(vec![Component::ConversionRateApi])),
             other => Err(format!("{} is not a valid component name", other)),
         }
     }
@@ -326,6 +330,25 @@ pub async fn initialize_components(
         panic!("Circuit breaker triggered: {}", err);
     });
 
+    // spawn the conversion rate API if it is enabled
+    if components.contains(&Component::ConversionRateApi) {
+        let (_stop_sender, stop_receiver) = watch::channel(false);
+
+        let native_token_fetcher_config = configs
+            .native_token_fetcher_config
+            .clone()
+            .context("native_token_fetcher_config")
+            .unwrap(); // Assuming unwrap is safe here, handle the error appropriately
+
+        tokio::spawn(async move {
+            api_conversion_rate::run_server(stop_receiver, &native_token_fetcher_config).await;
+        });
+
+        use std::thread;
+        use std::time::Duration;
+        thread::sleep(Duration::from_secs(2));
+    };
+
     // spawn the native ERC20 fetcher if it is enabled
     let mut fetcher_component = if components.contains(&Component::NativeTokenFetcher) {
         let fetcher = NativeTokenFetcherSingleton::new(
@@ -339,6 +362,7 @@ pub async fn initialize_components(
     } else {
         None
     };
+
     let (stop_sender, stop_receiver) = watch::channel(false);
     let (cb_sender, cb_receiver) = oneshot::channel();
 

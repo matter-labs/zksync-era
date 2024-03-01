@@ -6,6 +6,7 @@ use tokio::{
     sync::{watch, OnceCell},
     task::JoinHandle,
 };
+use tracing::field::debug;
 use zksync_config::configs::native_token_fetcher::NativeTokenFetcherConfig;
 
 // TODO: this error type is also defined by the gasAdjuster module,
@@ -87,12 +88,22 @@ pub(crate) struct NativeTokenFetcher {
 
 impl NativeTokenFetcher {
     pub(crate) async fn new(config: NativeTokenFetcherConfig) -> Self {
-        let conversion_rate = reqwest::get(format!("{}/conversion_rate", config.host))
-            .await
-            .unwrap()
-            .json::<u64>()
-            .await
-            .unwrap();
+        let conversion_rate = reqwest::get(format!(
+            "{}/conversion_rate/0x{}",
+            config.host,
+            config.token_address.encode_hex::<String>()
+        ))
+        .await
+        .unwrap();
+
+        dbg!(&conversion_rate);
+        dbg!(format!(
+            "{}/conversion_rate/0x{}",
+            config.host,
+            config.token_address.encode_hex::<String>()
+        ));
+
+        let conversion_rate = conversion_rate.json::<u64>().await.unwrap();
 
         let http_client = reqwest::Client::new();
 
