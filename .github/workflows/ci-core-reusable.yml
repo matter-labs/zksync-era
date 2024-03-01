@@ -311,7 +311,7 @@ jobs:
           ci_run pkill zksync_server || true
           ci_run sleep 2
           ci_run zk env
-          ENABLE_CONSENSUS=${{ matrix.consensus }} PASSED_ENV_VARS=ENABLE_CONSENSUS ci_run zk test i revert
+          ENABLE_CONSENSUS=${{ matrix.consensus }} PASSED_ENV_VARS=ENABLE_CONSENSUS ci_run zk test i revert-en
           # Restart the main node.
           ci_run zk server --components=$SERVER_COMPONENTS &>>server.log &
           # Wait for the EN to detect divergence and terminate.
