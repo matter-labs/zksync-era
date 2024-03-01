@@ -86,7 +86,7 @@ pub fn adjust_pubdata_price_for_tx(
         tx_gas_per_pubdata_limit.min(get_max_gas_per_pubdata_byte(vm_version).into());
 
     let (current_base_fee, current_gas_per_pubdata) =
-        derive_base_fee_and_gas_per_pubdata(batch_fee_input.clone(), vm_version);
+        derive_base_fee_and_gas_per_pubdata(batch_fee_input, vm_version);
 
     if U256::from(current_gas_per_pubdata) <= desired_gas_per_pubdata
         && U256::from(current_base_fee) <= max_base_fee
@@ -107,9 +107,8 @@ pub fn adjust_pubdata_price_for_tx(
             // `gasPerPubdata = ceil(17 * l1gasprice / fair_l2_gas_price)`
             // `gasPerPubdata <= 17 * l1gasprice / fair_l2_gas_price + 1`
             // `fair_l2_gas_price(gasPerPubdata - 1) / 17 <= l1gasprice`
-            let new_l1_gas_price = U256::from(fair_l2_gas_price)
-                * (desired_gas_per_pubdata - U256::from(1u32))
-                / U256::from(17);
+            let new_l1_gas_price =
+                fair_l2_gas_price * (desired_gas_per_pubdata - U256::from(1u32)) / U256::from(17);
 
             BatchFeeInput::L1Pegged(L1PeggedBatchFeeModelInput {
                 l1_gas_price: new_l1_gas_price.as_u64(),
@@ -128,7 +127,7 @@ pub fn adjust_pubdata_price_for_tx(
             // `gasPerPubdata <= fair_pubdata_price / fair_l2_gas_price + 1`
             // `fair_l2_gas_price(gasPerPubdata - 1) <= fair_pubdata_price`
             let new_fair_pubdata_price =
-                U256::from(fair_l2_gas_price) * (desired_gas_per_pubdata - U256::from(1u32));
+                fair_l2_gas_price * (desired_gas_per_pubdata - U256::from(1u32));
 
             BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
                 fair_pubdata_price: new_fair_pubdata_price.as_u64(),
