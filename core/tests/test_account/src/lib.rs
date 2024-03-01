@@ -3,7 +3,10 @@ use zksync_contracts::{
     deployer_contract, load_contract, test_contracts::LoadnextContractExecutionParams,
 };
 use zksync_eth_signer::{raw_ethereum_tx::TransactionParameters, EthereumSigner, PrivateKeySigner};
-use zksync_system_constants::{CONTRACT_DEPLOYER_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE};
+use zksync_system_constants::{
+    CONTRACT_DEPLOYER_ADDRESS, DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE,
+    REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
+};
 use zksync_types::{
     api,
     fee::Fee,
@@ -16,7 +19,6 @@ use zksync_types::{
 use zksync_utils::bytecode::hash_bytecode;
 
 pub const L1_TEST_GAS_PER_PUBDATA_BYTE: u32 = 800;
-const DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE: u64 = 50_000;
 const BASE_FEE: u64 = 2_000_000_000;
 
 #[derive(Debug, Clone)]
