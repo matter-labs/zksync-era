@@ -63,7 +63,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     ) {
         let tx: TransactionData = tx.into();
         let block_gas_per_pubdata_byte = get_batch_gas_per_pubdata(&self.batch_env);
-        let overhead = tx.overhead_gas(block_gas_per_pubdata_byte.as_u64() as u32); // TODO: this might overflow
+        let overhead = tx.overhead_gas(block_gas_per_pubdata_byte.as_u32());
         self.push_raw_transaction(tx, overhead, 0, with_compression);
     }
 }

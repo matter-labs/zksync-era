@@ -625,7 +625,7 @@ impl BlocksDal<'_, '_> {
             miniblock_header.l1_tx_count as i32,
             miniblock_header.l2_tx_count as i32,
             base_fee_per_gas,
-            miniblock_header.batch_fee_input.l1_gas_price() as i64,
+            miniblock_header.batch_fee_input.l1_gas_price().as_u64() as i64, // TODO: this might overflow
             miniblock_header
                 .batch_fee_input
                 .fair_l2_gas_price()

@@ -59,15 +59,15 @@ impl BatchFeeInput {
 
     pub fn fair_l2_gas_price(&self) -> U256 {
         match self {
-            BatchFeeInput::L1Pegged(input) => U256::from(input.fair_l2_gas_price),
+            BatchFeeInput::L1Pegged(input) => input.fair_l2_gas_price,
             BatchFeeInput::PubdataIndependent(input) => input.fair_l2_gas_price,
         }
     }
 
-    pub fn l1_gas_price(&self) -> u64 {
+    pub fn l1_gas_price(&self) -> U256 {
         match self {
-            BatchFeeInput::L1Pegged(input) => input.l1_gas_price.as_u64(), // TODO: We might need to return as U256 to prevent overflow
-            BatchFeeInput::PubdataIndependent(input) => input.l1_gas_price.as_u64(), // TODO: We might need to return as U256 to prevent overflow
+            BatchFeeInput::L1Pegged(input) => input.l1_gas_price,
+            BatchFeeInput::PubdataIndependent(input) => input.l1_gas_price,
         }
     }
 
@@ -75,7 +75,7 @@ impl BatchFeeInput {
         match self {
             BatchFeeInput::PubdataIndependent(input) => input,
             BatchFeeInput::L1Pegged(input) => PubdataIndependentBatchFeeModelInput {
-                fair_l2_gas_price: U256::from(input.fair_l2_gas_price),
+                fair_l2_gas_price: input.fair_l2_gas_price,
                 fair_pubdata_price: input.l1_gas_price * L1_GAS_PER_PUBDATA_BYTE,
                 l1_gas_price: input.l1_gas_price,
             },
@@ -91,10 +91,8 @@ impl BatchFeeInput {
         if protocol_version.is_post_1_4_1() {
             Self::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
                 fair_l2_gas_price: fair_l2_gas_price,
-                fair_pubdata_price: U256::from(
-                    fair_pubdata_price
-                        .expect("Pubdata price must be provided for protocol version 1.4.1"),
-                ),
+                fair_pubdata_price: fair_pubdata_price
+                    .expect("Pubdata price must be provided for protocol version 1.4.1"),
                 l1_gas_price,
             })
         } else {

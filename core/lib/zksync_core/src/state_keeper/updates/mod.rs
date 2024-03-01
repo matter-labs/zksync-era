@@ -3,12 +3,11 @@ use multivm::{
     utils::get_batch_base_fee,
 };
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_types::U256;
 use zksync_types::{
     block::BlockGasCount, fee_model::BatchFeeInput,
     storage_writes_deduplicator::StorageWritesDeduplicator,
     tx::tx_execution_info::ExecutionMetrics, vm_trace::Call, Address, L1BatchNumber,
-    MiniblockNumber, ProtocolVersionId, Transaction,
+    MiniblockNumber, ProtocolVersionId, Transaction, U256,
 };
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
@@ -68,7 +67,7 @@ impl UpdatesManager {
         self.base_system_contract_hashes
     }
 
-    pub(crate) fn l1_gas_price(&self) -> u64 {
+    pub(crate) fn l1_gas_price(&self) -> U256 {
         self.batch_fee_input.l1_gas_price()
     }
 

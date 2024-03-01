@@ -76,7 +76,7 @@ pub fn adjust_pubdata_price_for_tx(
     tx_gas_per_pubdata_limit: U256,
     vm_version: VmVersion,
 ) -> BatchFeeInput {
-    if U256::from(derive_base_fee_and_gas_per_pubdata(batch_fee_input, vm_version).1)
+    if derive_base_fee_and_gas_per_pubdata(batch_fee_input, vm_version).1
         <= tx_gas_per_pubdata_limit
     {
         return batch_fee_input;

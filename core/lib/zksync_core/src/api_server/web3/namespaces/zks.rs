@@ -561,7 +561,7 @@ impl ZksNamespace {
             .l1_gas_price();
 
         method_latency.observe();
-        gas_price.into()
+        gas_price.as_u64().into() // TODO: this might overflow
     }
 
     #[tracing::instrument(skip(self))]

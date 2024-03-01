@@ -139,7 +139,7 @@ impl UpdatesManager {
             bloom: Default::default(),
             used_contract_hashes: finished_batch.final_execution_state.used_contract_hashes,
             base_fee_per_gas: get_batch_base_fee(l1_batch_env, self.protocol_version().into()),
-            l1_gas_price: U256::from(self.l1_gas_price()),
+            l1_gas_price: self.l1_gas_price(),
             l2_fair_gas_price: self.fair_l2_gas_price(),
             base_system_contracts_hashes: self.base_system_contract_hashes(),
             protocol_version: Some(self.protocol_version()),
