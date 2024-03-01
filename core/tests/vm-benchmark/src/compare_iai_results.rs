@@ -23,10 +23,13 @@ fn main() {
 
     for (name, cycles) in iai_before {
         if let Some(&cycles2) = iai_after.get(&name) {
-            let cycles_diff = ((cycles2 as f64) - (cycles as f64)) / (cycles as f64);
-            let opcodes_diff = opcodes_after.get(&name).cloned().unwrap_or_default()
-                - opcodes_before.get(&name).cloned().unwrap_or_default();
-            if cycles_diff.abs() > 0.02 {
+            let cycles_diff = percent_difference(cycles, cycles2);
+
+            let opcodes0 = opcodes_before.get(&name).cloned().unwrap_or_default();
+            let opcodes1 = opcodes_after.get(&name).cloned().unwrap_or_default();
+            let opcodes_abs_diff = (opcodes1 as i64) - (opcodes0 as i64);
+
+            if cycles_diff.abs() > 2. || opcodes_abs_diff != 0 {
                 // write the header before writing the first line of diff
                 if !nonzero_diff {
                     println!("Benchmark name | change in estimated runtime | change in number of opcodes executed \n--- | --- | ---");
@@ -34,10 +37,11 @@ fn main() {
                 }
 
                 println!(
-                    "{} | {:+.1}% | {:+}",
+                    "{} | {:+.1}% | {:+} ({:+.1}%)",
                     name,
                     cycles_diff * 100.0,
-                    opcodes_diff
+                    opcodes_abs_diff,
+                    percent_difference(opcodes0, opcodes1)
                 );
             }
         }
@@ -46,6 +50,10 @@ fn main() {
     if nonzero_diff {
         println!("\n Changes in number of opcodes executed indicate that the gas price of the benchmark has changed, which causes it run out of gas at a different time. Or that it is behaving completely differently.");
     }
+}
+
+fn percent_difference(a: u64, b: u64) -> f64 {
+    ((b as f64) - (a as f64)) / (a as f64) * 100.0
 }
 
 fn get_name_to_cycles(filename: &str) -> HashMap<String, u64> {
