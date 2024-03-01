@@ -94,7 +94,7 @@ impl SnapshotCreator {
             METRICS.storage_logs_processing_duration[&StorageChunkStage::LoadFromPostgres].start();
         let logs = conn
             .snapshots_creator_dal()
-            .get_storage_logs_chunk(miniblock_number, hashed_keys_range)
+            .get_storage_logs_chunk(miniblock_number, l1_batch_number, hashed_keys_range)
             .await
             .context("Error fetching storage logs count")?;
         drop(conn);
