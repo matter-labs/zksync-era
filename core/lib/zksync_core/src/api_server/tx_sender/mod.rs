@@ -652,7 +652,7 @@ impl TxSender {
             adjust_pubdata_price_for_tx(
                 fee_input,
                 tx.gas_per_pubdata_byte_limit(),
-                // We do not have to adjust the params to the gasPrice of the transaction, since
+                // We do not have to adjust the params to the `gasPrice` of the transaction, since
                 // its gas price will be amended later on to suit the `fee_input`
                 None,
                 protocol_version.into(),
