@@ -9,7 +9,7 @@ use vm_benchmark::parse_iai::parse_iai;
 fn main() {
     let [iai_before, iai_after, opcodes_before, opcodes_after] = std::env::args()
         .skip(1)
-        .take(2)
+        .take(4)
         .collect::<Vec<_>>()
         .try_into()
         .expect("expected four arguments");
