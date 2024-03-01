@@ -309,8 +309,10 @@ async function setHyperchainMetadata() {
             `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`
         );
         databaseProverUrl = 'postgres://postgres:notsecurepassword@127.0.0.1:5432/prover_local';
-        env.modify('DATABASE_PROVER_URL', databaseProverUrl,
-           `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`
+        env.modify(
+            'DATABASE_PROVER_URL',
+            databaseProverUrl,
+            `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`
         );
 
         const richWalletsRaw = await fetch(

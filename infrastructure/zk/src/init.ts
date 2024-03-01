@@ -41,8 +41,8 @@ export async function initSetup(initArgs: InitArgs = DEFAULT_ARGS) {
 export async function initSetupDatabase(initArgs: InitArgs = DEFAULT_ARGS, skipVerifierDeployment: boolean = false) {
     const { deployerL2ContractInput } = initArgs;
 
-    await announced('Drop postgres db', db.drop({server: true, prover: true}));
-    await announced('Setup postgres db', db.setup({server: true, prover: true}));
+    await announced('Drop postgres db', db.drop({ server: true, prover: true }));
+    await announced('Setup postgres db', db.setup({ server: true, prover: true }));
     await announced('Clean rocksdb', clean(`db/${process.env.ZKSYNC_ENV!}`));
     await announced('Clean backups', clean(`backups/${process.env.ZKSYNC_ENV!}`));
     if (!skipVerifierDeployment) {
@@ -199,7 +199,7 @@ const DEFAULT_ARGS: InitArgs = {
     deployerL2ContractInput: { args: [], throughL1: true, includePaymaster: true },
     testTokens: { deploy: true, deployWeth: true, args: [] },
     baseToken: { name: 'ETH', address: ADDRESS_ONE },
-    deployerPrivateKeyArgs: [],
+    deployerPrivateKeyArgs: []
 };
 
 export const initCommand = new Command('init')
@@ -292,7 +292,7 @@ export const initHyperCommand = new Command('init-hyper')
                 // we use zero here to show that it is unspecified. If it were ether it would be one.
                 address: cmd.baseTokenAddress ? cmd.baseTokenAddress : ethers.constants.AddressZero
             },
-            deployerPrivateKeyArgs: [],
+            deployerPrivateKeyArgs: []
         };
         if (!cmd.skipSetupCompletely) {
             await initSetup(initArgs);
@@ -335,7 +335,7 @@ export const reinitHyperCommand = new Command('reinit-hyper')
                 // we use zero here to show that it is unspecified. If it is ether it is one.
                 address: cmd.baseTokenAddress ? cmd.baseTokenAddress : ethers.constants.AddressZero
             },
-            deployerPrivateKeyArgs: [],
+            deployerPrivateKeyArgs: []
         };
         await initHyper(initArgs);
     });
@@ -374,7 +374,7 @@ export const initSharedBridgeCommand = new Command('init-shared-bridge')
                 // we use zero here to show that it is unspecified. If it is ether would be one.
                 address: cmd.baseTokenAddress ? cmd.baseTokenAddress : ethers.constants.AddressZero
             },
-            deployerPrivateKeyArgs: [],
+            deployerPrivateKeyArgs: []
         };
         await initSetup(initArgs);
         // we have to initiate the db here, as we need to create the genesis block to initialize the L1 contracts
@@ -411,7 +411,7 @@ export const deployL2ContractsCommand = new Command('deploy-l2-contracts')
                 // we use zero here to show that it is unspecified. If it is ether would be one.
                 address: cmd.baseTokenAddress ? cmd.baseTokenAddress : ethers.constants.AddressZero
             },
-            deployerPrivateKeyArgs: [],
+            deployerPrivateKeyArgs: []
         };
 
         await deployL2Contracts(initArgs);
