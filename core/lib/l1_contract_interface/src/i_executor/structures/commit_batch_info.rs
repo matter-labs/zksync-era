@@ -77,7 +77,17 @@ impl<'a> Tokenizable for CommitBatchInfoValidium<'a> {
     }
 
     fn into_token(self) -> Token {
-        Token::Tuple(validium_mode_l1_commit_data(self.l1_batch_with_metadata))
+        if self
+            .l1_batch_with_metadata
+            .header
+            .protocol_version
+            .unwrap()
+            .is_pre_boojum()
+        {
+            pre_boojum_into_token(self.l1_batch_with_metadata)
+        } else {
+            Token::Tuple(validium_mode_l1_commit_data(self.l1_batch_with_metadata))
+        }
     }
 }
 
@@ -152,7 +162,7 @@ fn encode_l1_commit(l1_batch_with_metadata: &L1BatchWithMetadata, pubdata: Token
 }
 
 fn validium_mode_l1_commit_data(l1_batch_with_metadata: &L1BatchWithMetadata) -> Vec<Token> {
-    encode_l1_commit(l1_batch_with_metadata, Token::Bytes([0].to_vec()))
+    encode_l1_commit(l1_batch_with_metadata, Token::Bytes(vec![]))
 }
 
 fn rollup_mode_l1_commit_data(l1_batch_with_metadata: &L1BatchWithMetadata) -> Vec<Token> {

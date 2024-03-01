@@ -408,8 +408,8 @@ impl EthTxAggregator {
         match op.clone() {
             AggregatedOperation::Commit(last_committed_l1_batch, l1_batches) => {
                 let commit_data = self
-                            .l1_commit_data_generator
-                            .l1_commit_data(&last_committed_l1_batch, &l1_batches);
+                    .l1_commit_data_generator
+                    .l1_commit_data(&last_committed_l1_batch, &l1_batches);
                 if contracts_are_pre_shared_bridge {
                     self.functions
                         .pre_shared_bridge_commit

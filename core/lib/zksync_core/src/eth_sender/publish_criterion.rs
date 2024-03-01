@@ -3,7 +3,6 @@ use std::{fmt, sync::Arc};
 use async_trait::async_trait;
 use chrono::Utc;
 use zksync_dal::StorageProcessor;
-use zksync_l1_contract_interface::{i_executor::structures::CommitBatchInfoRollup, Tokenizable};
 use zksync_types::{
     aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata, ethabi,
     L1BatchNumber,
