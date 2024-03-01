@@ -1,24 +1,30 @@
 //! Utilities for testing the consensus module.
+use std::{collections::HashMap, sync::Arc};
+
 use anyhow::Context as _;
-use rand::Rng;
+use rand::{
+    distributions::{Distribution, Standard},
+    Rng,
+};
 use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
-use zksync_consensus_roles::validator;
-use zksync_contracts::{BaseSystemContractsHashes, SystemContractCode};
+use zksync_consensus_roles::{node, validator};
+use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::ConnectionPool;
 use zksync_types::{
-    api, block::MiniblockHasher, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
-    ProtocolVersionId, H256,
+    api, block::MiniblockHasher, snapshots::SnapshotRecoveryStatus, Address, L1BatchNumber,
+    L2ChainId, MiniblockNumber, ProtocolVersionId, H256,
 };
+use zksync_web3_decl::error::{EnrichedClientError, EnrichedClientResult};
 
 use crate::{
     consensus::{
+        config::Config,
         storage::{BlockStore, CtxStorage},
         Store,
     },
     genesis::{ensure_genesis_state, GenesisParams},
     state_keeper::{
-        seal_criteria::NoopSealer, tests::MockBatchExecutorBuilder, MiniblockSealer,
-        ZkSyncStateKeeper,
+        seal_criteria::NoopSealer, tests::MockBatchExecutor, MiniblockSealer, ZkSyncStateKeeper,
     },
     sync_layer::{
         sync_action::{ActionQueue, ActionQueueSender, SyncAction},
@@ -27,13 +33,66 @@ use crate::{
     utils::testonly::{create_l1_batch_metadata, create_l2_transaction},
 };
 
+fn make_addr<R: Rng + ?Sized>(rng: &mut R) -> std::net::SocketAddr {
+    std::net::SocketAddr::new(std::net::IpAddr::from(rng.gen::<[u8; 16]>()), rng.gen())
+}
+
+fn make_node_key<R: Rng + ?Sized>(rng: &mut R) -> node::PublicKey {
+    rng.gen::<node::SecretKey>().public()
+}
+
+impl Distribution<Config> for Standard {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Config {
+        Config {
+            server_addr: make_addr(rng),
+            public_addr: make_addr(rng),
+            validators: rng.gen(),
+            max_payload_size: usize::MAX,
+            gossip_dynamic_inbound_limit: rng.gen(),
+            gossip_static_inbound: (0..3).map(|_| make_node_key(rng)).collect(),
+            gossip_static_outbound: (0..5)
+                .map(|_| (make_node_key(rng), make_addr(rng)))
+                .collect(),
+        }
+    }
+}
+
 #[derive(Debug, Default)]
 pub(crate) struct MockMainNodeClient {
     prev_miniblock_hash: H256,
     l2_blocks: Vec<api::en::SyncBlock>,
+    block_number_offset: u32,
+    protocol_versions: HashMap<u16, api::ProtocolVersion>,
+    system_contracts: HashMap<H256, Vec<u8>>,
 }
 
 impl MockMainNodeClient {
+    pub fn for_snapshot_recovery(snapshot: &SnapshotRecoveryStatus) -> Self {
+        // This block may be requested during node initialization
+        let last_miniblock_in_snapshot_batch = api::en::SyncBlock {
+            number: snapshot.miniblock_number,
+            l1_batch_number: snapshot.l1_batch_number,
+            last_in_batch: true,
+            timestamp: snapshot.miniblock_timestamp,
+            l1_gas_price: 2,
+            l2_fair_gas_price: 3,
+            fair_pubdata_price: Some(24),
+            base_system_contracts_hashes: BaseSystemContractsHashes::default(),
+            operator_address: Address::repeat_byte(2),
+            transactions: Some(vec![]),
+            virtual_blocks: Some(0),
+            hash: Some(snapshot.miniblock_hash),
+            protocol_version: ProtocolVersionId::latest(),
+        };
+
+        Self {
+            prev_miniblock_hash: snapshot.miniblock_hash,
+            l2_blocks: vec![last_miniblock_in_snapshot_batch],
+            block_number_offset: snapshot.miniblock_number.0,
+            ..Self::default()
+        }
+    }
+
     /// `miniblock_count` doesn't include a fictive miniblock. Returns hashes of generated transactions.
     pub fn push_l1_batch(&mut self, miniblock_count: u32) -> Vec<H256> {
         let l1_batch_number = self
@@ -87,40 +146,58 @@ impl MockMainNodeClient {
         self.l2_blocks.extend(l2_blocks);
         tx_hashes
     }
+
+    pub fn insert_protocol_version(&mut self, version: api::ProtocolVersion) {
+        self.system_contracts
+            .insert(version.base_system_contracts.bootloader, vec![]);
+        self.system_contracts
+            .insert(version.base_system_contracts.default_aa, vec![]);
+        self.protocol_versions.insert(version.version_id, version);
+    }
 }
 
 #[async_trait::async_trait]
 impl MainNodeClient for MockMainNodeClient {
     async fn fetch_system_contract_by_hash(
         &self,
-        _hash: H256,
-    ) -> anyhow::Result<SystemContractCode> {
-        anyhow::bail!("Not implemented");
+        hash: H256,
+    ) -> EnrichedClientResult<Option<Vec<u8>>> {
+        Ok(self.system_contracts.get(&hash).cloned())
     }
 
     async fn fetch_genesis_contract_bytecode(
         &self,
         _address: Address,
-    ) -> anyhow::Result<Option<Vec<u8>>> {
-        anyhow::bail!("Not implemented");
+    ) -> EnrichedClientResult<Option<Vec<u8>>> {
+        Err(EnrichedClientError::custom(
+            "not implemented",
+            "fetch_genesis_contract_bytecode",
+        ))
     }
 
     async fn fetch_protocol_version(
         &self,
-        _protocol_version: ProtocolVersionId,
-    ) -> anyhow::Result<api::ProtocolVersion> {
-        anyhow::bail!("Not implemented");
+        protocol_version: ProtocolVersionId,
+    ) -> EnrichedClientResult<Option<api::ProtocolVersion>> {
+        let protocol_version = protocol_version as u16;
+        Ok(self.protocol_versions.get(&protocol_version).cloned())
     }
 
-    async fn fetch_genesis_l1_batch_hash(&self) -> anyhow::Result<H256> {
-        anyhow::bail!("Not implemented");
+    async fn fetch_genesis_l1_batch_hash(&self) -> EnrichedClientResult<H256> {
+        Err(EnrichedClientError::custom(
+            "not implemented",
+            "fetch_genesis_l1_batch_hash",
+        ))
     }
 
-    async fn fetch_l2_block_number(&self) -> anyhow::Result<MiniblockNumber> {
+    async fn fetch_l2_block_number(&self) -> EnrichedClientResult<MiniblockNumber> {
         if let Some(number) = self.l2_blocks.len().checked_sub(1) {
             Ok(MiniblockNumber(number as u32))
         } else {
-            anyhow::bail!("Not implemented");
+            Err(EnrichedClientError::custom(
+                "not implemented",
+                "fetch_l2_block_number",
+            ))
         }
     }
 
@@ -128,8 +205,11 @@ impl MainNodeClient for MockMainNodeClient {
         &self,
         number: MiniblockNumber,
         with_transactions: bool,
-    ) -> anyhow::Result<Option<api::en::SyncBlock>> {
-        let Some(mut block) = self.l2_blocks.get(number.0 as usize).cloned() else {
+    ) -> EnrichedClientResult<Option<api::en::SyncBlock>> {
+        let Some(block_index) = number.0.checked_sub(self.block_number_offset) else {
+            return Ok(None);
+        };
+        let Some(mut block) = self.l2_blocks.get(block_index as usize).cloned() else {
             return Ok(None);
         };
         if !with_transactions {
@@ -149,8 +229,7 @@ pub(super) struct StateKeeper {
     batch_sealed: bool,
 
     fee_per_gas: u64,
-    gas_per_pubdata: u32,
-    operator_address: Address,
+    gas_per_pubdata: u64,
 
     pub(super) actions_sender: ActionQueueSender,
     pub(super) pool: ConnectionPool,
@@ -159,17 +238,13 @@ pub(super) struct StateKeeper {
 /// Fake StateKeeper task to be executed in the background.
 pub(super) struct StateKeeperRunner {
     actions_queue: ActionQueue,
-    operator_address: Address,
     pool: ConnectionPool,
 }
 
 impl StateKeeper {
     /// Constructs and initializes a new `StateKeeper`.
     /// Caller has to run `StateKeeperRunner.run()` task in the background.
-    pub async fn new(
-        pool: ConnectionPool,
-        operator_address: Address,
-    ) -> anyhow::Result<(Self, StateKeeperRunner)> {
+    pub async fn new(pool: ConnectionPool) -> anyhow::Result<(Self, StateKeeperRunner)> {
         // ensure genesis
         let mut storage = pool.access_storage().await.context("access_storage()")?;
         if storage
@@ -178,9 +253,7 @@ impl StateKeeper {
             .await
             .context("is_genesis_needed()")?
         {
-            let mut params = GenesisParams::mock();
-            params.first_validator = operator_address;
-            ensure_genesis_state(&mut storage, L2ChainId::default(), &params)
+            ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
                 .await
                 .context("ensure_genesis_state()")?;
         }
@@ -212,12 +285,10 @@ impl StateKeeper {
                 batch_sealed: !pending_batch,
                 fee_per_gas: 10,
                 gas_per_pubdata: 100,
-                operator_address,
                 actions_sender,
                 pool: pool.clone(),
             },
             StateKeeperRunner {
-                operator_address,
                 actions_queue,
                 pool: pool.clone(),
             },
@@ -236,7 +307,7 @@ impl StateKeeper {
                 l1_gas_price: 2,
                 l2_fair_gas_price: 3,
                 fair_pubdata_price: Some(24),
-                operator_address: self.operator_address,
+                operator_address: GenesisParams::mock().first_validator,
                 protocol_version: ProtocolVersionId::latest(),
                 first_miniblock_info: (self.last_block, 1),
             }
@@ -293,7 +364,7 @@ impl StateKeeper {
 
     /// Creates a new `BlockStore` for the underlying `ConnectionPool`.
     pub fn store(&self) -> BlockStore {
-        Store::new(self.pool.clone(), self.operator_address).into_block_store()
+        Store::new(self.pool.clone()).into_block_store()
     }
 
     // Wait for all pushed miniblocks to be produced.
@@ -303,7 +374,7 @@ impl StateKeeper {
         loop {
             let mut storage = CtxStorage::access(ctx, &self.pool).await.wrap("access()")?;
             if storage
-                .payload(ctx, self.last_block(), self.operator_address)
+                .payload(ctx, self.last_block())
                 .await
                 .wrap("storage.payload()")?
                 .is_some()
@@ -341,9 +412,9 @@ async fn run_mock_metadata_calculator(ctx: &ctx::Ctx, pool: &ConnectionPool) -> 
             let metadata = create_l1_batch_metadata(n.0);
             storage
                 .blocks_dal()
-                .save_l1_batch_metadata(n, &metadata, H256::zero(), false)
+                .save_l1_batch_tree_data(n, &metadata.tree_data())
                 .await
-                .context("save_l1_batch_metadata()")?;
+                .context("save_l1_batch_tree_data()")?;
         }
     }
     Ok(())
@@ -356,25 +427,26 @@ impl StateKeeperRunner {
             let (stop_sender, stop_receiver) = sync::watch::channel(false);
             let (miniblock_sealer, miniblock_sealer_handle) =
                 MiniblockSealer::new(self.pool.clone(), 5);
+
             let io = ExternalIO::new(
                 miniblock_sealer_handle,
                 self.pool.clone(),
                 self.actions_queue,
-                SyncState::new(),
+                SyncState::default(),
                 Box::<MockMainNodeClient>::default(),
-                self.operator_address,
+                Address::repeat_byte(11),
                 u32::MAX,
                 L2ChainId::default(),
             )
-            .await;
+            .await?;
             s.spawn_bg(miniblock_sealer.run());
             s.spawn_bg(run_mock_metadata_calculator(ctx, &self.pool));
             s.spawn_bg(
                 ZkSyncStateKeeper::new(
                     stop_receiver,
                     Box::new(io),
-                    Box::new(MockBatchExecutorBuilder),
-                    Box::new(NoopSealer),
+                    Box::new(MockBatchExecutor),
+                    Arc::new(NoopSealer),
                 )
                 .run(),
             );

@@ -7,15 +7,28 @@ use zksync_dal::StorageProcessor;
 use zksync_types::{aggregated_operations::AggregatedActionType, eth_sender::EthTx};
 use zksync_utils::time::seconds_since_epoch;
 
-use crate::metrics::{BlockL1Stage, BlockStage, APP_METRICS};
+use crate::{
+    eth_sender::eth_tx_manager::L1BlockNumbers,
+    metrics::{BlockL1Stage, BlockStage, APP_METRICS},
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet, EncodeLabelValue)]
 #[metrics(label = "kind", rename_all = "snake_case")]
 #[allow(clippy::enum_variant_names)]
 pub(super) enum PubdataKind {
-    L2ToL1MessagesCompressed,
-    InitialWritesCompressed,
-    RepeatedWritesCompressed,
+    UserL2ToL1Logs,
+    StateDiffs,
+    LongL2ToL1Messages,
+    RawPublishedBytecodes,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet, EncodeLabelValue)]
+#[metrics(label = "block_number_variant", rename_all = "snake_case")]
+#[allow(clippy::enum_variant_names)]
+pub(super) enum BlockNumberVariant {
+    Latest,
+    Finalized,
+    Safe,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet, EncodeLabelValue)]
@@ -64,7 +77,7 @@ pub(super) struct EthSenderMetrics {
     #[metrics(buckets = Buckets::LATENCIES)]
     metrics_latency: Histogram<Duration>,
     /// Size of data published on L1 for an L1 batch.
-    #[metrics(buckets = Buckets::exponential(16.0..=4_096.0, 2.0))]
+    #[metrics(buckets = Buckets::exponential(1024.0..=131_072.0, 2.0))]
     pub pubdata_size: Family<PubdataKind, Histogram<usize>>,
     /// Size of the L1 batch range for a certain Ethereum sender operation.
     #[metrics(buckets = Buckets::linear(1.0..=10.0, 1.0))]
@@ -76,20 +89,28 @@ pub(super) struct EthSenderMetrics {
     #[metrics(buckets = FEE_BUCKETS)]
     pub used_priority_fee_per_gas: Histogram<u64>,
     /// Last L1 block observed by the Ethereum sender.
-    pub last_known_l1_block: Gauge<u64>,
+    pub last_known_l1_block: Family<BlockNumberVariant, Gauge<usize>>,
     /// Number of in-flight txs produced by the Ethereum sender.
     pub number_of_inflight_txs: Gauge<usize>,
     #[metrics(buckets = GAS_BUCKETS)]
     pub l1_gas_used: Family<ActionTypeLabel, Histogram<f64>>,
     #[metrics(buckets = Buckets::LATENCIES)]
     pub l1_tx_mined_latency: Family<ActionTypeLabel, Histogram<Duration>>,
-    #[metrics(buckets = &[1.0, 2.0, 3.0, 5.0, 7.0, 10.0, 20.0, 30.0, 50.0])]
+    #[metrics(buckets = & [1.0, 2.0, 3.0, 5.0, 7.0, 10.0, 20.0, 30.0, 50.0])]
     pub l1_blocks_waited_in_mempool: Family<ActionTypeLabel, Histogram<u64>>,
     /// Number of L1 batches aggregated for publishing with a specific reason.
     pub block_aggregation_reason: Family<AggregationReasonLabels, Counter>,
 }
 
 impl EthSenderMetrics {
+    pub fn track_block_numbers(&self, l1_block_numbers: &L1BlockNumbers) {
+        self.last_known_l1_block[&BlockNumberVariant::Latest]
+            .set(l1_block_numbers.latest.0 as usize);
+        self.last_known_l1_block[&BlockNumberVariant::Finalized]
+            .set(l1_block_numbers.finalized.0 as usize);
+        self.last_known_l1_block[&BlockNumberVariant::Safe].set(l1_block_numbers.safe.0 as usize);
+    }
+
     pub async fn track_eth_tx_metrics(
         &self,
         connection: &mut StorageProcessor<'_>,

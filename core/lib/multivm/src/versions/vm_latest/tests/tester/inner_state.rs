@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use zk_evm_1_4_1::{aux_structures::Timestamp, vm_state::VmLocalState};
 use zksync_state::WriteStorage;
-use zksync_types::{StorageKey, StorageLogQuery, StorageValue, U256};
+use zksync_types::{StorageKey, StorageValue, U256};
 
 use crate::{
     vm_latest::{
@@ -10,6 +10,7 @@ use crate::{
             event_sink::InMemoryEventSink,
             history_recorder::{AppDataFrameManagerWithHistory, HistoryRecorder},
         },
+        utils::logs::StorageLogQuery,
         HistoryEnabled, HistoryMode, SimpleMemory, Vm,
     },
     HistoryMode as CommonHistoryMode,
@@ -78,7 +79,7 @@ pub(crate) struct VmInstanceInnerState<H: HistoryMode> {
 
 impl<S: WriteStorage, H: CommonHistoryMode> Vm<S, H> {
     // Dump inner state of the VM.
-    pub(crate) fn dump_inner_state(&self) -> VmInstanceInnerState<H::Vm1_4_1> {
+    pub(crate) fn dump_inner_state(&self) -> VmInstanceInnerState<H::Vm1_4_2> {
         let event_sink = self.state.event_sink.clone();
         let precompile_processor_state = PrecompileProcessorTestInnerState {
             timestamp_history: self.state.precompiles_processor.timestamp_history.clone(),

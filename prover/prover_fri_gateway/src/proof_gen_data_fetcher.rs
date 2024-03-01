@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use zksync_types::prover_server_api::{
+use zksync_prover_interface::api::{
     ProofGenerationData, ProofGenerationDataRequest, ProofGenerationDataResponse,
 };
 

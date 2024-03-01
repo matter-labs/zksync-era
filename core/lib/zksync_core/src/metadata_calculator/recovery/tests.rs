@@ -10,10 +10,9 @@ use zksync_config::configs::{
     chain::OperationsManagerConfig,
     database::{MerkleTreeConfig, MerkleTreeMode},
 };
-use zksync_health_check::{CheckHealth, ReactiveHealthCheck};
+use zksync_health_check::{CheckHealth, HealthStatus, ReactiveHealthCheck};
 use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
-use zksync_types::{L1BatchNumber, L2ChainId, StorageLog};
-use zksync_utils::h256_to_u256;
+use zksync_types::{L1BatchNumber, L2ChainId, ProtocolVersionId, StorageLog};
 
 use super::*;
 use crate::{
@@ -28,45 +27,6 @@ use crate::{
     },
     utils::testonly::prepare_recovery_snapshot,
 };
-
-#[test]
-fn calculating_hashed_key_ranges_with_single_chunk() {
-    let mut ranges = AsyncTreeRecovery::hashed_key_ranges(1);
-    let full_range = ranges.next().unwrap();
-    assert_eq!(full_range, H256::zero()..=H256([0xff; 32]));
-}
-
-#[test]
-fn calculating_hashed_key_ranges_for_256_chunks() {
-    let ranges = AsyncTreeRecovery::hashed_key_ranges(256);
-    let mut start = H256::zero();
-    let mut end = H256([0xff; 32]);
-
-    for (i, range) in ranges.enumerate() {
-        let i = u8::try_from(i).unwrap();
-        start.0[0] = i;
-        end.0[0] = i;
-        assert_eq!(range, start..=end);
-    }
-}
-
-#[test_casing(5, [3, 7, 23, 100, 255])]
-fn calculating_hashed_key_ranges_for_arbitrary_chunks(chunk_count: usize) {
-    let ranges: Vec<_> = AsyncTreeRecovery::hashed_key_ranges(chunk_count).collect();
-    assert_eq!(ranges.len(), chunk_count);
-
-    for window in ranges.windows(2) {
-        let [prev_range, range] = window else {
-            unreachable!();
-        };
-        assert_eq!(
-            h256_to_u256(*range.start()),
-            h256_to_u256(*prev_range.end()) + 1
-        );
-    }
-    assert_eq!(*ranges.first().unwrap().start(), H256::zero());
-    assert_eq!(*ranges.last().unwrap().end(), H256([0xff; 32]));
-}
 
 #[test]
 fn calculating_chunk_count() {
@@ -92,7 +52,8 @@ async fn create_tree_recovery(path: PathBuf, l1_batch: L1BatchNumber) -> AsyncTr
         Duration::ZERO, // writes should never be stalled in tests
         500,
     )
-    .await;
+    .await
+    .unwrap();
     AsyncTreeRecovery::new(db, l1_batch.0.into(), MerkleTreeMode::Full)
 }
 
@@ -145,7 +106,8 @@ async fn prepare_recovery_snapshot_with_genesis(
     let genesis_logs = storage
         .storage_logs_dal()
         .get_touched_slots_for_l1_batch(L1BatchNumber(0))
-        .await;
+        .await
+        .unwrap();
     let genesis_logs = genesis_logs
         .into_iter()
         .map(|(key, value)| StorageLog::new_write_log(key, value));
@@ -159,33 +121,35 @@ async fn prepare_recovery_snapshot_with_genesis(
 
     SnapshotRecoveryStatus {
         l1_batch_number: L1BatchNumber(1),
+        l1_batch_timestamp: 1,
         l1_batch_root_hash,
         miniblock_number: MiniblockNumber(1),
-        miniblock_root_hash: H256::zero(), // not used
-        last_finished_chunk_id: Some(0),
-        total_chunk_count: 1,
+        miniblock_timestamp: 1,
+        miniblock_hash: H256::zero(), // not used
+        protocol_version: ProtocolVersionId::latest(),
+        storage_logs_chunks_processed: vec![],
     }
 }
 
 #[derive(Debug)]
 struct TestEventListener {
-    expected_recovered_chunks: usize,
-    stop_threshold: usize,
-    processed_chunk_count: AtomicUsize,
+    expected_recovered_chunks: u64,
+    stop_threshold: u64,
+    processed_chunk_count: AtomicU64,
     stop_sender: watch::Sender<bool>,
 }
 
 impl TestEventListener {
-    fn new(stop_threshold: usize, stop_sender: watch::Sender<bool>) -> Self {
+    fn new(stop_threshold: u64, stop_sender: watch::Sender<bool>) -> Self {
         Self {
             expected_recovered_chunks: 0,
             stop_threshold,
-            processed_chunk_count: AtomicUsize::new(0),
+            processed_chunk_count: AtomicU64::new(0),
             stop_sender,
         }
     }
 
-    fn expect_recovered_chunks(mut self, count: usize) -> Self {
+    fn expect_recovered_chunks(mut self, count: u64) -> Self {
         self.expected_recovered_chunks = count;
         self
     }
@@ -193,7 +157,7 @@ impl TestEventListener {
 
 #[async_trait]
 impl HandleRecoveryEvent for TestEventListener {
-    fn recovery_started(&mut self, _chunk_count: usize, recovered_chunk_count: usize) {
+    fn recovery_started(&mut self, _chunk_count: u64, recovered_chunk_count: u64) {
         assert_eq!(recovered_chunk_count, self.expected_recovered_chunks);
     }
 
@@ -207,7 +171,7 @@ impl HandleRecoveryEvent for TestEventListener {
 
 #[test_casing(3, [5, 7, 8])]
 #[tokio::test]
-async fn recovery_fault_tolerance(chunk_count: usize) {
+async fn recovery_fault_tolerance(chunk_count: u64) {
     let pool = ConnectionPool::test_pool().await;
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
     let snapshot_recovery = prepare_recovery_snapshot_with_genesis(&pool, &temp_dir).await;
@@ -251,9 +215,7 @@ async fn recovery_fault_tolerance(chunk_count: usize) {
     let recovery_options = RecoveryOptions {
         chunk_count,
         concurrency_limit: 1,
-        events: Box::new(
-            TestEventListener::new(usize::MAX, stop_sender).expect_recovered_chunks(3),
-        ),
+        events: Box::new(TestEventListener::new(u64::MAX, stop_sender).expect_recovered_chunks(3)),
     };
     let tree = tree
         .recover(snapshot, recovery_options, &pool, &stop_receiver)
@@ -280,7 +242,13 @@ async fn entire_recovery_workflow(case: RecoveryWorkflowCase) {
     // Emulate the recovered view of Postgres. Unlike with previous tests, we don't perform genesis.
     let snapshot_logs = gen_storage_logs(100..300, 1).pop().unwrap();
     let mut storage = pool.access_storage().await.unwrap();
-    let snapshot_recovery = prepare_recovery_snapshot(&mut storage, 23, &snapshot_logs).await;
+    let snapshot_recovery = prepare_recovery_snapshot(
+        &mut storage,
+        L1BatchNumber(23),
+        MiniblockNumber(42),
+        &snapshot_logs,
+    )
+    .await;
 
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
     let merkle_tree_config = MerkleTreeConfig {
@@ -291,7 +259,9 @@ async fn entire_recovery_workflow(case: RecoveryWorkflowCase) {
         &merkle_tree_config,
         &OperationsManagerConfig { delay_interval: 50 },
     );
-    let mut calculator = MetadataCalculator::new(calculator_config, None).await;
+    let mut calculator = MetadataCalculator::new(calculator_config, None)
+        .await
+        .unwrap();
     let (delay_sx, mut delay_rx) = mpsc::unbounded_channel();
     calculator.delayer.delay_notifier = delay_sx;
 

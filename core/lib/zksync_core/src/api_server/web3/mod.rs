@@ -41,6 +41,7 @@ use crate::{
         web3::backend_jsonrpsee::batch_limiter_middleware::LimitMiddleware,
     },
     sync_layer::SyncState,
+    utils::wait_for_l1_batch,
 };
 
 pub mod backend_jsonrpsee;
@@ -98,9 +99,10 @@ impl Namespace {
 /// Handles to the initialized API server.
 #[derive(Debug)]
 pub struct ApiServerHandles {
-    pub local_addr: SocketAddr,
     pub tasks: Vec<JoinHandle<anyhow::Result<()>>>,
     pub health_check: ReactiveHealthCheck,
+    #[allow(unused)] // only used in tests
+    pub(crate) local_addr: future::TryMaybeDone<oneshot::Receiver<SocketAddr>>,
 }
 
 /// Optional part of the API server parameters.
@@ -120,7 +122,7 @@ struct OptionalApiParams {
 #[derive(Debug)]
 struct FullApiParams {
     pool: ConnectionPool,
-    last_miniblock_pool: ConnectionPool,
+    updaters_pool: ConnectionPool,
     config: InternalApiConfig,
     transport: ApiTransport,
     tx_sender: TxSender,
@@ -133,7 +135,7 @@ struct FullApiParams {
 #[derive(Debug)]
 pub struct ApiBuilder {
     pool: ConnectionPool,
-    last_miniblock_pool: ConnectionPool,
+    updaters_pool: ConnectionPool,
     config: InternalApiConfig,
     polling_interval: Duration,
     // Mandatory params that must be set using builder methods.
@@ -151,7 +153,7 @@ impl ApiBuilder {
 
     pub fn jsonrpsee_backend(config: InternalApiConfig, pool: ConnectionPool) -> Self {
         Self {
-            last_miniblock_pool: pool.clone(),
+            updaters_pool: pool.clone(),
             pool,
             config,
             polling_interval: Self::DEFAULT_POLLING_INTERVAL,
@@ -173,11 +175,12 @@ impl ApiBuilder {
         self
     }
 
-    /// Configures a dedicated DB pool to be used for updating the latest miniblock information
+    /// Configures a dedicated DB pool to be used for updating different information,
+    /// such as last mined block number or account nonces. This pool is used to execute
     /// in a background task. If not called, the main pool will be used. If the API server is under high load,
     /// it may make sense to supply a single-connection pool to reduce pool contention with the API methods.
-    pub fn with_last_miniblock_pool(mut self, pool: ConnectionPool) -> Self {
-        self.last_miniblock_pool = pool;
+    pub fn with_updaters_pool(mut self, pool: ConnectionPool) -> Self {
+        self.updaters_pool = pool;
         self
     }
 
@@ -245,7 +248,7 @@ impl ApiBuilder {
     fn into_full_params(self) -> anyhow::Result<FullApiParams> {
         Ok(FullApiParams {
             pool: self.pool,
-            last_miniblock_pool: self.last_miniblock_pool,
+            updaters_pool: self.updaters_pool,
             config: self.config,
             transport: self.transport.context("API transport not set")?,
             tx_sender: self.tx_sender.context("Transaction sender not set")?,
@@ -276,15 +279,20 @@ impl FullApiParams {
         self,
         last_sealed_miniblock: SealedMiniblockNumber,
     ) -> anyhow::Result<RpcState> {
-        let mut storage = self
-            .last_miniblock_pool
-            .access_storage_tagged("api")
-            .await?;
+        let mut storage = self.updaters_pool.access_storage_tagged("api").await?;
         let start_info = BlockStartInfo::new(&mut storage).await?;
         drop(storage);
 
+        let installed_filters = if self.config.filters_disabled {
+            None
+        } else {
+            Some(Arc::new(Mutex::new(Filters::new(
+                self.optional.filters_limit,
+            ))))
+        };
+
         Ok(RpcState {
-            installed_filters: Arc::new(Mutex::new(Filters::new(self.optional.filters_limit))),
+            installed_filters,
             connection_pool: self.pool,
             tx_sender: self.tx_sender,
             sync_state: self.optional.sync_state,
@@ -349,7 +357,13 @@ impl FullApiParams {
         self,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<ApiServerHandles> {
-        if self.optional.filters_limit.is_none() {
+        if self.config.filters_disabled {
+            if self.optional.filters_limit.is_some() {
+                tracing::warn!(
+                    "Filters limit is not supported when filters are disabled, ignoring"
+                );
+            }
+        } else if self.optional.filters_limit.is_none() {
             tracing::warn!("Filters limit is not set - unlimited filters are allowed");
         }
 
@@ -407,12 +421,12 @@ impl FullApiParams {
         let (health_check, health_updater) = ReactiveHealthCheck::new(health_check_name);
 
         let (last_sealed_miniblock, update_task) = SealedMiniblockNumber::new(
-            self.last_miniblock_pool.clone(),
+            self.updaters_pool.clone(),
             SEALED_MINIBLOCK_UPDATE_INTERVAL,
             stop_receiver.clone(),
         );
-        let mut tasks = vec![tokio::spawn(update_task)];
 
+        let mut tasks = vec![tokio::spawn(update_task)];
         let pub_sub = if matches!(transport, ApiTransport::WebSocket(_))
             && self.namespaces.contains(&Namespace::Pubsub)
         {
@@ -441,22 +455,11 @@ impl FullApiParams {
             health_updater,
         ));
 
-        let local_addr = match local_addr.await {
-            Ok(addr) => addr,
-            Err(_) => {
-                // If the local address was not transmitted, `server_task` must have failed.
-                let err = server_task
-                    .await
-                    .with_context(|| format!("{health_check_name} server panicked"))?
-                    .unwrap_err();
-                return Err(err);
-            }
-        };
         tasks.push(server_task);
         Ok(ApiServerHandles {
-            local_addr,
             health_check,
             tasks,
+            local_addr: future::try_maybe_done(local_addr),
         })
     }
 
@@ -469,6 +472,29 @@ impl FullApiParams {
         health_updater: HealthUpdater,
     ) -> anyhow::Result<()> {
         let transport = self.transport;
+        let (transport_str, is_http, addr) = match transport {
+            ApiTransport::Http(addr) => ("HTTP", true, addr),
+            ApiTransport::WebSocket(addr) => ("WS", false, addr),
+        };
+        let transport_label = (&transport).into();
+
+        tracing::info!(
+            "Waiting for at least one L1 batch in Postgres to start {transport_str} API server"
+        );
+        // Starting the server before L1 batches are present in Postgres can lead to some invariants the server logic
+        // implicitly assumes not being upheld. The only case when we'll actually wait here is immediately after snapshot recovery.
+        let earliest_l1_batch_number =
+            wait_for_l1_batch(&self.pool, self.polling_interval, &mut stop_receiver)
+                .await
+                .context("error while waiting for L1 batch in Postgres")?;
+
+        if let Some(number) = earliest_l1_batch_number {
+            tracing::info!("Successfully waited for at least one L1 batch in Postgres; the earliest one is #{number}");
+        } else {
+            tracing::info!("Received shutdown signal before {transport_str} API server is started; shutting down");
+            return Ok(());
+        }
+
         let batch_request_config = self
             .optional
             .batch_request_size_limit
@@ -486,12 +512,6 @@ impl FullApiParams {
         let rpc = self
             .build_rpc_module(pub_sub, last_sealed_miniblock)
             .await?;
-
-        let (transport_str, is_http, addr) = match transport {
-            ApiTransport::Http(addr) => ("HTTP", true, addr),
-            ApiTransport::WebSocket(addr) => ("WS", false, addr),
-        };
-        let transport_label = (&transport).into();
 
         // Setup CORS.
         let cors = is_http.then(|| {
@@ -549,10 +569,17 @@ impl FullApiParams {
         let local_addr = local_addr.with_context(|| {
             format!("Failed getting local address for {transport_str} JSON-RPC server")
         })?;
+        tracing::info!("Initialized {transport_str} API on {local_addr:?}");
         local_addr_sender.send(local_addr).ok();
+        health_updater.update(HealthStatus::Ready.into());
 
+        // We want to be able to immediately stop the server task if the server stops on its own for whatever reason.
+        // Hence, we monitor `stop_receiver` on a separate Tokio task.
         let close_handle = server_handle.clone();
         let closing_vm_barrier = vm_barrier.clone();
+        let health_updater = Arc::new(health_updater);
+        // We use `Weak` reference to the health updater in order to not prevent its drop if the server stops on its own.
+        let closing_health_updater = Arc::downgrade(&health_updater);
         tokio::spawn(async move {
             if stop_receiver.changed().await.is_err() {
                 tracing::warn!(
@@ -560,13 +587,15 @@ impl FullApiParams {
                      without sending a signal"
                 );
             }
+            if let Some(health_updater) = closing_health_updater.upgrade() {
+                health_updater.update(HealthStatus::ShuttingDown.into());
+            }
             tracing::info!(
                 "Stop signal received, {transport_str} JSON-RPC server is shutting down"
             );
             closing_vm_barrier.close();
             close_handle.stop().ok();
         });
-        health_updater.update(HealthStatus::Ready.into());
 
         server_handle.stopped().await;
         drop(health_updater);

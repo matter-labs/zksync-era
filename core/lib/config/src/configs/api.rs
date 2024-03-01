@@ -32,6 +32,15 @@ pub struct Web3JsonRpcConfig {
     pub ws_url: String,
     /// Max possible limit of entities to be requested once.
     pub req_entities_limit: Option<u32>,
+    /// Whether to support methods installing filters and querying filter changes.
+    ///
+    /// When to set this value to `true`:
+    /// Filters are local to the specific node they were created at. Meaning if
+    /// there are multiple nodes behind a load balancer the client cannot reliably
+    /// query the previously created filter as the request might get routed to a
+    /// different node.
+    #[serde(default)]
+    pub filters_disabled: bool,
     /// Max possible limit of filters to be in the state at once.
     pub filters_limit: Option<u32>,
     /// Max possible limit of subscriptions to be in the state at once.
@@ -100,6 +109,7 @@ impl Web3JsonRpcConfig {
             ws_port: 3051,
             ws_url: "ws://localhost:3051".into(),
             req_entities_limit: Some(10000),
+            filters_disabled: false,
             filters_limit: Some(10000),
             subscriptions_limit: Some(10000),
             pubsub_polling_interval: Some(200),
@@ -206,11 +216,25 @@ impl Web3JsonRpcConfig {
 pub struct HealthCheckConfig {
     /// Port to which the REST server is listening.
     pub port: u16,
+    /// Time limit in milliseconds to mark a health check as slow and log the corresponding warning.
+    /// If not specified, the default value in the health check crate will be used.
+    pub slow_time_limit_ms: Option<u64>,
+    /// Time limit in milliseconds to abort a health check and return "not ready" status for the corresponding component.
+    /// If not specified, the default value in the health check crate will be used.
+    pub hard_time_limit_ms: Option<u64>,
 }
 
 impl HealthCheckConfig {
     pub fn bind_addr(&self) -> SocketAddr {
         SocketAddr::new("0.0.0.0".parse().unwrap(), self.port)
+    }
+
+    pub fn slow_time_limit(&self) -> Option<Duration> {
+        self.slow_time_limit_ms.map(Duration::from_millis)
+    }
+
+    pub fn hard_time_limit(&self) -> Option<Duration> {
+        self.hard_time_limit_ms.map(Duration::from_millis)
     }
 }
 

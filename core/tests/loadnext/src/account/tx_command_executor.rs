@@ -20,7 +20,9 @@ use zksync_types::{
 use crate::{
     account::{AccountLifespan, ExecutionType},
     command::{IncorrectnessModifier, TxCommand, TxType},
-    constants::{ETH_CONFIRMATION_TIMEOUT, ETH_POLLING_INTERVAL},
+    constants::{
+        ETH_CONFIRMATION_TIMEOUT, ETH_POLLING_INTERVAL, MIN_ALLOWANCE_FOR_PAYMASTER_ESTIMATE,
+    },
     corrupted_tx::Corrupted,
     report::ReportLabel,
     utils::format_gwei,
@@ -228,6 +230,7 @@ impl AccountLifespan {
             .estimate_fee(Some(get_approval_based_paymaster_input_for_estimation(
                 self.paymaster_address,
                 self.main_l2_token,
+                MIN_ALLOWANCE_FOR_PAYMASTER_ESTIMATE.into(),
             )))
             .await?;
         builder = builder.fee(fee.clone());
@@ -276,6 +279,7 @@ impl AccountLifespan {
             .estimate_fee(Some(get_approval_based_paymaster_input_for_estimation(
                 self.paymaster_address,
                 self.main_l2_token,
+                MIN_ALLOWANCE_FOR_PAYMASTER_ESTIMATE.into(),
             )))
             .await?;
         builder = builder.fee(fee.clone());
@@ -403,6 +407,7 @@ impl AccountLifespan {
             .estimate_fee(Some(get_approval_based_paymaster_input_for_estimation(
                 self.paymaster_address,
                 self.main_l2_token,
+                MIN_ALLOWANCE_FOR_PAYMASTER_ESTIMATE.into(),
             )))
             .await?;
         tracing::trace!(

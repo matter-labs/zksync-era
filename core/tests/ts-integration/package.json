@@ -10,8 +10,7 @@
         "api-test": "zk f jest -- api/web3.test.ts api/debug.test.ts",
         "contract-verification-test": "zk f jest -- api/contract-verification.test.ts",
         "build": "hardhat compile",
-        "build-yul": "hardhat run scripts/compile-yul.ts",
-        "snapshots-creator-test": "zk f jest -- api/snapshots-creator.test.ts"
+        "build-yul": "hardhat run scripts/compile-yul.ts"
     },
     "devDependencies": {
         "@matterlabs/hardhat-zksync-deploy":  "^0.6.5",
@@ -19,7 +18,7 @@
         "@matterlabs/hardhat-zksync-vyper": "^1.0.0",
         "@nomiclabs/hardhat-vyper": "^3.0.5",
         "@types/jest": "^29.0.3",
-        "@types/node": "^14.14.5",
+        "@types/node": "^18.19.15",
         "@types/node-fetch": "^2.5.7",
         "chalk": "^4.0.0",
         "ethereumjs-abi": "^0.6.8",

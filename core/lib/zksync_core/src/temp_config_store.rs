@@ -7,12 +7,14 @@ use zksync_config::{
         },
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
-        FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig, PrometheusConfig,
-        ProofDataHandlerConfig, WitnessGeneratorConfig,
+        FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig, KzgConfig,
+        PrometheusConfig, ProofDataHandlerConfig, WitnessGeneratorConfig,
     },
     ApiConfig, ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig, ETHWatchConfig,
     GasAdjusterConfig, ObjectStoreConfig, PostgresConfig,
 };
+
+use crate::consensus;
 
 // TODO (QIT-22): This structure is going to be removed when components will be responsible for their own configs.
 /// A temporary config store allowing to pass deserialized configs from `zksync_server` to `zksync_core`.
@@ -44,4 +46,6 @@ pub struct TempConfigStore {
     pub eth_watch_config: Option<ETHWatchConfig>,
     pub gas_adjuster_config: Option<GasAdjusterConfig>,
     pub object_store_config: Option<ObjectStoreConfig>,
+    pub kzg_config: Option<KzgConfig>,
+    pub consensus_config: Option<consensus::MainNodeConfig>,
 }

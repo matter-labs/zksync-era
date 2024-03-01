@@ -214,7 +214,7 @@ async fn test_normal_operation_l1_txs() {
         Address::default(),
         None,
         Box::new(client.clone()),
-        &connection_pool,
+        connection_pool.clone(),
         std::time::Duration::from_nanos(1),
     )
     .await;
@@ -262,7 +262,7 @@ async fn test_normal_operation_upgrades() {
         Address::default(),
         None,
         Box::new(client.clone()),
-        &connection_pool,
+        connection_pool.clone(),
         std::time::Duration::from_nanos(1),
     )
     .await;
@@ -323,7 +323,7 @@ async fn test_gap_in_upgrades() {
         Address::default(),
         None,
         Box::new(client.clone()),
-        &connection_pool,
+        connection_pool.clone(),
         std::time::Duration::from_nanos(1),
     )
     .await;
@@ -362,7 +362,7 @@ async fn test_normal_operation_governance_upgrades() {
         Address::default(),
         Some(governance_contract()),
         Box::new(client.clone()),
-        &connection_pool,
+        connection_pool.clone(),
         std::time::Duration::from_nanos(1),
     )
     .await;
@@ -424,7 +424,7 @@ async fn test_gap_in_single_batch() {
         Address::default(),
         None,
         Box::new(client.clone()),
-        &connection_pool,
+        connection_pool.clone(),
         std::time::Duration::from_nanos(1),
     )
     .await;
@@ -454,7 +454,7 @@ async fn test_gap_between_batches() {
         Address::default(),
         None,
         Box::new(client.clone()),
-        &connection_pool,
+        connection_pool.clone(),
         std::time::Duration::from_nanos(1),
     )
     .await;
@@ -489,7 +489,7 @@ async fn test_overlapping_batches() {
         Address::default(),
         None,
         Box::new(client.clone()),
-        &connection_pool,
+        connection_pool.clone(),
         std::time::Duration::from_nanos(1),
     )
     .await;
@@ -528,12 +528,12 @@ async fn test_overlapping_batches() {
 }
 
 async fn get_all_db_txs(storage: &mut StorageProcessor<'_>) -> Vec<Transaction> {
-    storage.transactions_dal().reset_mempool().await;
+    storage.transactions_dal().reset_mempool().await.unwrap();
     storage
         .transactions_dal()
-        .sync_mempool(vec![], vec![], 0, 0, 1000)
+        .sync_mempool(&[], &[], 0, 0, 1000)
         .await
-        .0
+        .unwrap()
 }
 
 fn tx_into_log(tx: L1Tx) -> Log {

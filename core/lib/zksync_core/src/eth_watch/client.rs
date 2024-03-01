@@ -1,10 +1,10 @@
-use std::fmt;
+use std::{fmt, sync::Arc};
 
 use zksync_contracts::verifier_contract;
 use zksync_eth_client::{CallFunctionArgs, Error as EthClientError, EthInterface};
+use zksync_l1_contract_interface::pre_boojum_verifier::old_l1_vk_commitment;
 use zksync_types::{
     ethabi::{Contract, Token},
-    vk_transform::l1_vk_commitment,
     web3::{
         self,
         contract::tokens::Detokenize,
@@ -56,10 +56,9 @@ const TOO_MANY_RESULTS_ALCHEMY: &str = "response size exceeded";
 
 #[derive(Debug)]
 pub struct EthHttpQueryClient {
-    client: Box<dyn EthInterface>,
+    client: Arc<dyn EthInterface>,
     topics: Vec<H256>,
     state_transition_chain_contract_addr: Address,
-    state_transition_manager_contract_addr: Address,
     /// Address of the `Governance` contract. It's optional because it is present only for post-boojum chains.
     /// If address is some then client will listen to events coming from it.
     governance_address: Option<Address>,
@@ -69,9 +68,8 @@ pub struct EthHttpQueryClient {
 
 impl EthHttpQueryClient {
     pub fn new(
-        client: Box<dyn EthInterface>,
+        client: Arc<dyn EthInterface>,
         state_transition_chain_contract_addr: Address,
-        state_transition_manager_contract_addr: Address,
         governance_address: Option<Address>,
         confirmations_for_eth_event: Option<u64>,
     ) -> Self {
@@ -84,7 +82,6 @@ impl EthHttpQueryClient {
             client,
             topics: Vec::new(),
             state_transition_chain_contract_addr,
-            state_transition_manager_contract_addr,
             governance_address,
             verifier_contract_abi: verifier_contract(),
             confirmations_for_eth_event,
@@ -101,7 +98,6 @@ impl EthHttpQueryClient {
             .address(
                 [
                     Some(self.state_transition_chain_contract_addr),
-                    Some(self.state_transition_manager_contract_addr),
                     self.governance_address,
                 ]
                 .iter()
@@ -142,7 +138,7 @@ impl EthClient for EthHttpQueryClient {
             let args = CallFunctionArgs::new("get_verification_key", ())
                 .for_contract(verifier_address, self.verifier_contract_abi.clone());
             let vk = self.client.call_contract_function(args).await?;
-            Ok(l1_vk_commitment(Token::from_tokens(vk)?))
+            Ok(old_l1_vk_commitment(Token::from_tokens(vk)?))
         }
     }
 

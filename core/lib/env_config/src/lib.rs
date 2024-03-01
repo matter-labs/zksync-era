@@ -17,7 +17,9 @@ mod fri_prover_group;
 mod fri_witness_generator;
 mod fri_witness_vector_generator;
 mod house_keeper;
+mod kzg;
 pub mod object_store;
+mod observability;
 mod proof_data_handler;
 mod snapshots_creator;
 mod utils;
@@ -32,7 +34,7 @@ pub trait FromEnv: Sized {
 
 /// Convenience function that loads the structure from the environment variable given the prefix.
 /// Panics if the config cannot be loaded from the environment variables.
-pub(crate) fn envy_load<T: DeserializeOwned>(name: &str, prefix: &str) -> anyhow::Result<T> {
+pub fn envy_load<T: DeserializeOwned>(name: &str, prefix: &str) -> anyhow::Result<T> {
     envy::prefixed(prefix)
         .from_env()
         .with_context(|| format!("Cannot load config <{name}>"))

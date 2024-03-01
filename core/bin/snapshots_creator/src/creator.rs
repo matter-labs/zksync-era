@@ -9,19 +9,15 @@ use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_object_store::ObjectStore;
 use zksync_types::{
     snapshots::{
-        SnapshotFactoryDependencies, SnapshotMetadata, SnapshotStorageLogsChunk,
-        SnapshotStorageLogsStorageKey,
+        uniform_hashed_keys_chunk, SnapshotFactoryDependencies, SnapshotFactoryDependency,
+        SnapshotMetadata, SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey,
     },
     L1BatchNumber, MiniblockNumber,
 };
-use zksync_utils::ceil_div;
 
+use crate::metrics::{FactoryDepsStage, StorageChunkStage, METRICS};
 #[cfg(test)]
 use crate::tests::HandleEvent;
-use crate::{
-    chunking::get_chunk_hashed_keys_range,
-    metrics::{FactoryDepsStage, StorageChunkStage, METRICS},
-};
 
 /// Encapsulates progress of creating a particular storage snapshot.
 #[derive(Debug)]
@@ -91,7 +87,7 @@ impl SnapshotCreator {
             return Ok(());
         }
 
-        let hashed_keys_range = get_chunk_hashed_keys_range(chunk_id, chunk_count);
+        let hashed_keys_range = uniform_hashed_keys_chunk(chunk_id, chunk_count);
         let mut conn = self.connect_to_replica().await?;
 
         let latency =
@@ -166,6 +162,12 @@ impl SnapshotCreator {
         tracing::info!("Saving factory deps to GCS...");
         let latency =
             METRICS.factory_deps_processing_duration[&FactoryDepsStage::SaveToGcs].start();
+        let factory_deps = factory_deps
+            .into_iter()
+            .map(|(_, bytecode)| SnapshotFactoryDependency {
+                bytecode: bytecode.into(),
+            })
+            .collect();
         let factory_deps = SnapshotFactoryDependencies { factory_deps };
         let filename = self
             .blob_store
@@ -216,8 +218,9 @@ impl SnapshotCreator {
             .await?;
         let chunk_size = config.storage_logs_chunk_size;
         // We force the minimum number of chunks to avoid situations where only one chunk is created in tests.
-        let chunk_count =
-            ceil_div(distinct_storage_logs_keys_count, chunk_size).max(min_chunk_count);
+        let chunk_count = distinct_storage_logs_keys_count
+            .div_ceil(chunk_size)
+            .max(min_chunk_count);
 
         tracing::info!(
             "Selected storage logs chunking for L1 batch {l1_batch_number}: \
@@ -263,6 +266,10 @@ impl SnapshotCreator {
         config: SnapshotsCreatorConfig,
         min_chunk_count: u64,
     ) -> anyhow::Result<()> {
+        tracing::info!(
+            "Starting snapshot creator with object store {:?} and config {config:?}",
+            self.blob_store
+        );
         let latency = METRICS.snapshot_generation_duration.start();
 
         let Some(progress) = self
