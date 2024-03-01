@@ -45,6 +45,12 @@ impl fmt::Debug for ConnectionPoolBuilder {
 }
 
 impl ConnectionPoolBuilder {
+    /// Overrides the maximum number of connections that can be allocated by the pool.
+    pub fn set_max_size(&mut self, max_size: u32) -> &mut Self {
+        self.max_size = max_size;
+        self
+    }
+
     /// Sets the acquire timeout for a single connection attempt. There are multiple attempts (currently 3)
     /// before `access_storage*` methods return an error. If not specified, the acquire timeout will not be set.
     pub fn set_acquire_timeout(&mut self, timeout: Option<Duration>) -> &mut Self {
@@ -92,15 +98,6 @@ impl ConnectionPoolBuilder {
             max_size: self.max_size,
             traced_connections: None,
         })
-    }
-
-    /// Builds a connection pool that has a single connection.
-    pub async fn build_singleton(&self) -> anyhow::Result<ConnectionPool> {
-        let singleton_builder = Self {
-            max_size: 1,
-            ..self.clone()
-        };
-        singleton_builder.build().await
     }
 }
 
