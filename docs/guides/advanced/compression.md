@@ -15,31 +15,52 @@ that the compression is correct before sending to L1.
 
 ## Example
 
-Original bytecode
+Original bytecode:
+
+```
+0x000000000000000A000000000000000D000000000000000A000000000000000C000000000000000B000000000000000A000000000000000D000000000000000A000000000000000D000000000000000A000000000000000B000000000000000B
+```
+
+Split to 8-byte chunks:
 
 ```
 000000000000000A 000000000000000D 000000000000000A 000000000000000C
-000000000000000B 000000000000000B 000000000000000D 000000000000000A
+000000000000000B 000000000000000A 000000000000000D 000000000000000A
+000000000000000D 000000000000000A 000000000000000B 000000000000000B
 ```
 
 Dictionary would be:
 
 ```
-0 -> 0xA (count: 3)
-1 -> 0xD (count: 2, first seen: 1)
-2 -> 0xB (count: 2, first seen: 4)
+0 -> 0xA (count: 5)
+1 -> 0xD (count: 3, first seen: 1)
+2 -> 0xB (count: 3, first seen: 4)
 3 -> 0xC (count: 1)
 ```
 
-Note that '1' maps to '0xD', as it occurs twice, and first occurrence is earlier than first occurrence of 0xB, that also
-occurs twice.
+Note that `1` maps to `0xD`, as it occurs three times, and first occurrence is earlier than first occurrence of `0xB`,
+that also occurs three times.
 
 Compressed bytecode:
 
 ```
-0008 0000 000000000000000A 000000000000000D 000000000000000B 000000000000000C
+0x0004000000000000000A000000000000000D000000000000000B000000000000000C000000010000000300020000000100000001000000020002
+```
 
-0000 0001 0000 0003 0002 0002 0001 0000
+Split into three parts:
+
+1. `length_of_dict` is stored in the first 2 bytes
+2. dictionary entries are stored in the next `8 * length_of_dict` bytes
+3. 2-byte indices are stored in the rest of the bytes
+
+```
+0004
+
+000000000000000A 000000000000000D 000000000000000B 000000000000000C
+
+0000 0001 0000 0003
+0002 0000 0001 0000
+0001 0000 0002 0002
 ```
 
 ## Server Side Operator
