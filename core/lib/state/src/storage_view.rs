@@ -61,7 +61,7 @@ impl<S> StorageView<S> {
         }
     }
 
-    // Returns the modified storage keys
+    /// Returns the modified storage keys
     pub fn modified_storage_keys(&self) -> &HashMap<StorageKey, StorageValue> {
         &self.modified_storage_keys
     }

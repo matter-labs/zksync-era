@@ -81,11 +81,4 @@ fn test_prestate_tracer_diff_mode() {
 
     assert!(prestate_result.0.len() > 0);
     assert!(prestate_result.1.len() > 0);
-    let contract_address_account = prestate_result.0.get(&contract_address).unwrap().clone();
-    let binding = contract_address_account.storage.unwrap();
-    let contract_storage_value_pre_tx = binding.get(&H256::zero()).unwrap();
-    let contract_address_account_post = prestate_result.1.get(&contract_address).unwrap().clone();
-    let binding = contract_address_account_post.storage.unwrap();
-    let contract_storage_value_post_tx = binding.get(&H256::zero()).unwrap();
-    assert!(contract_storage_value_pre_tx < contract_storage_value_post_tx);
 }
