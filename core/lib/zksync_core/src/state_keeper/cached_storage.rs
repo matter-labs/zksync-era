@@ -97,21 +97,38 @@ impl CachedStorage {
         pool: &ConnectionPool,
     ) -> anyhow::Result<BoxReadStorage> {
         let mut connection = pool.access_storage().await?;
-        let postgres_l1_batch_number = connection
-            .blocks_dal()
-            .get_sealed_l1_batch_number()
-            .await?
-            .unwrap_or_default();
-        let block_number = connection
-            .blocks_dal()
-            .get_sealed_miniblock_number()
-            .await?
-            .unwrap_or_default();
-        tracing::debug!(%postgres_l1_batch_number, "Using Postgres-based storage");
-        Ok(
-            Box::new(PostgresStorage::new_async(rt_handle, connection, block_number, true).await?)
-                as BoxReadStorage,
-        )
+
+        // Check whether we performed snapshot recovery
+        let snapshot_recovery = connection
+            .snapshot_recovery_dal()
+            .get_applied_snapshot_status()
+            .await
+            .context("failed getting snapshot recovery info")?;
+        let (miniblock_number, l1_batch_number) = if let Some(snapshot_recovery) = snapshot_recovery
+        {
+            (
+                snapshot_recovery.miniblock_number,
+                snapshot_recovery.l1_batch_number,
+            )
+        } else {
+            (
+                connection
+                    .blocks_dal()
+                    .get_sealed_miniblock_number()
+                    .await?
+                    .unwrap_or_default(),
+                connection
+                    .blocks_dal()
+                    .get_sealed_l1_batch_number()
+                    .await?
+                    .unwrap_or_default(),
+            )
+        };
+
+        tracing::debug!(%l1_batch_number, %miniblock_number, "Using Postgres-based storage");
+        Ok(Box::new(
+            PostgresStorage::new_async(rt_handle, connection, miniblock_number, true).await?,
+        ) as BoxReadStorage)
     }
 
     /// Catches up RocksDB synchronously (i.e. assumes the gap is small) and
