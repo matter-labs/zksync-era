@@ -33,7 +33,6 @@ pub struct CommitBatchesValidium {
 }
 
 impl Tokenize for CommitBatchesValidium {
-    // FIXME: use Validium
     fn into_tokens(self) -> Vec<Token> {
         let stored_batch_info = StoredBatchInfo(&self.last_committed_l1_batch).into_token();
         let l1_batches_to_commit = self
