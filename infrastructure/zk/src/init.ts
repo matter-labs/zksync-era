@@ -131,17 +131,8 @@ export const initHyperCmdAction = async ({ skipSetupCompletely }: InitHyperCmdAc
     await initHyperchain({ includePaymaster: true, baseToken: { name: 'ETH', address: ADDRESS_ONE } });
 };
 
-const printInitReadme = (): void => {
-    console.log();
-};
-
 // ########################### Command Definitions ###########################
 export const initCommand = new Command('init')
-    .description('Initializes a local development environment.')
-    .action(printInitReadme);
-
-initCommand
-    .command('dev')
     .option('--skip-submodules-checkout')
     .option('--skip-env-setup')
     .description('Deploys the shared bridge and registers a hyperchain locally, as quickly as possible.')

@@ -28,13 +28,6 @@ const reinitDevCmdAction = async (): Promise<void> => {
     await announced('Initializing governance', contract.initializeGovernance());
 };
 
-const printReinitReadme = (): void => {
-    console.log();
-};
-
-export const reinitCommand = new Command('reinit').description('').action(printReinitReadme);
-
-reinitCommand
-    .command('dev')
+export const reinitCommand = new Command('reinit')
     .description('"Reinitializes" network. Runs faster than a full init, but requires `init dev` to be executed prior.')
     .action(reinitDevCmdAction);
