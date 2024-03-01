@@ -57,7 +57,7 @@ pub struct BlockContext {
     pub block_number: u32,
     pub block_timestamp: u64,
     pub operator_address: Address,
-    pub l1_gas_price: u64,
+    pub l1_gas_price: U256,
     pub fair_l2_gas_price: u64,
 }
 
@@ -79,13 +79,13 @@ pub struct DerivedBlockContext {
     pub base_fee: u64,
 }
 
-pub(crate) fn eth_price_per_pubdata_byte(l1_gas_price: u64) -> u64 {
+pub(crate) fn eth_price_per_pubdata_byte(l1_gas_price: U256) -> u64 {
     // This value will typically be a lot less than u64
     // unless the gas price on L1 goes beyond tens of millions of gwei
-    l1_gas_price * (L1_GAS_PER_PUBDATA_BYTE as u64)
+    l1_gas_price.as_u64() * (L1_GAS_PER_PUBDATA_BYTE as u64) // TODO: this might overflow
 }
 
-pub fn base_fee_to_gas_per_pubdata(l1_gas_price: u64, base_fee: u64) -> u64 {
+pub fn base_fee_to_gas_per_pubdata(l1_gas_price: U256, base_fee: u64) -> u64 {
     let eth_price_per_pubdata_byte = eth_price_per_pubdata_byte(l1_gas_price);
 
     ceil_div(eth_price_per_pubdata_byte, base_fee)

@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 use zk_evm::ethereum_types::Address;
-use zksync_basic_types::{L1BatchNumber, MiniblockNumber, H256};
+use zksync_basic_types::{L1BatchNumber, MiniblockNumber, H256, U256};
 use zksync_contracts::BaseSystemContractsHashes;
 
 use crate::ProtocolVersionId;
@@ -25,7 +25,7 @@ pub struct SyncBlock {
     /// L2 block timestamp.
     pub timestamp: u64,
     /// L1 gas price used as VM parameter for the L1 batch corresponding to this L2 block.
-    pub l1_gas_price: u64,
+    pub l1_gas_price: U256,
     /// L2 gas price used as VM parameter for the L1 batch corresponding to this L2 block.
     pub l2_fair_gas_price: u64,
     /// The pubdata price used as VM parameter for the L1 batch corresponding to this L2 block.

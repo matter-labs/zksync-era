@@ -242,8 +242,8 @@ pub fn create_test_block_params() -> (BlockContext, BlockProperties) {
     let context = BlockContext {
         block_number: 1u32,
         block_timestamp: 1000,
-        l1_gas_price: 50_000_000_000,   // 50 gwei
-        fair_l2_gas_price: 250_000_000, // 0.25 gwei
+        l1_gas_price: U256::from("50000000000"), // 50 gwei // TODO: try to avoid using `unwrap` here
+        fair_l2_gas_price: 250_000_000,          // 0.25 gwei
         operator_address: H160::zero(),
     };
 

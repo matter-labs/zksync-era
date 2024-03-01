@@ -53,7 +53,7 @@ pub(crate) fn adjust_pubdata_price_for_tx(
                 * (tx_gas_per_pubdata_limit - U256::from(1u32))
                 / U256::from(17);
 
-            fee_input.l1_gas_price = new_l1_gas_price.as_u64();
+            fee_input.l1_gas_price = new_l1_gas_price;
         }
         BatchFeeInput::PubdataIndependent(fee_input) => {
             // `gasPerPubdata = ceil(fair_pubdata_price / fair_l2_gas_price)`

@@ -58,7 +58,7 @@ pub struct L1BatchHeader {
     /// The EIP1559 base_fee used in this block.
     pub base_fee_per_gas: u64,
     /// The assumed L1 gas price within the block.
-    pub l1_gas_price: u64,
+    pub l1_gas_price: U256,
     /// The L2 gas price that the operator agrees on.
     pub l2_fair_gas_price: u64,
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
@@ -118,7 +118,7 @@ impl L1BatchHeader {
             bloom: H2048::default(),
             used_contract_hashes: vec![],
             base_fee_per_gas: 0,
-            l1_gas_price: 0,
+            l1_gas_price: U256::zero(),
             l2_fair_gas_price: 0,
             base_system_contracts_hashes,
             system_logs: vec![],

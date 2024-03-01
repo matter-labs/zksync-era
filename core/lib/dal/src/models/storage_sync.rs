@@ -4,6 +4,7 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_protobuf::{required, ProtoFmt};
 use zksync_types::{
     api::en, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, Transaction, H160, H256,
+    U256,
 };
 
 #[derive(Debug, Clone, sqlx::FromRow)]
@@ -38,7 +39,7 @@ pub(crate) struct SyncBlock {
     pub l1_batch_number: L1BatchNumber,
     pub last_in_batch: bool,
     pub timestamp: u64,
-    pub l1_gas_price: u64,
+    pub l1_gas_price: U256,
     pub l2_fair_gas_price: u64,
     pub fair_pubdata_price: Option<u64>,
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
@@ -151,7 +152,7 @@ pub struct Payload {
     pub hash: H256,
     pub l1_batch_number: L1BatchNumber,
     pub timestamp: u64,
-    pub l1_gas_price: u64,
+    pub l1_gas_price: U256,
     pub l2_fair_gas_price: u64,
     pub fair_pubdata_price: Option<u64>,
     pub virtual_blocks: u32,
@@ -184,7 +185,7 @@ impl ProtoFmt for Payload {
                 *required(&message.l1_batch_number).context("l1_batch_number")?,
             ),
             timestamp: *required(&message.timestamp).context("timestamp")?,
-            l1_gas_price: *required(&message.l1_gas_price).context("l1_gas_price")?,
+            l1_gas_price: U256::from(*required(&message.l1_gas_price).context("l1_gas_price")?),
             l2_fair_gas_price: *required(&message.l2_fair_gas_price)
                 .context("l2_fair_gas_price")?,
             fair_pubdata_price: message.fair_pubdata_price,
@@ -203,7 +204,7 @@ impl ProtoFmt for Payload {
             hash: Some(self.hash.as_bytes().into()),
             l1_batch_number: Some(self.l1_batch_number.0),
             timestamp: Some(self.timestamp),
-            l1_gas_price: Some(self.l1_gas_price),
+            l1_gas_price: Some(self.l1_gas_price.as_u64()), // TODO: This may overflow
             l2_fair_gas_price: Some(self.l2_fair_gas_price),
             fair_pubdata_price: self.fair_pubdata_price,
             virtual_blocks: Some(self.virtual_blocks),

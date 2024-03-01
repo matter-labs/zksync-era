@@ -558,7 +558,7 @@ impl BlocksDal<'_, '_> {
             initial_bootloader_contents,
             used_contract_hashes,
             base_fee_per_gas,
-            header.l1_gas_price as i64,
+            (header.l1_gas_price).as_u64() as i64,
             header.l2_fair_gas_price as i64,
             header.base_system_contracts_hashes.bootloader.as_bytes(),
             header.base_system_contracts_hashes.default_aa.as_bytes(),

@@ -16,7 +16,7 @@ use zksync_types::{
     tokens::{TokenInfo, TokenMetadata, ETHEREUM_ADDRESS},
     zkevm_test_harness::witness::sort_storage_access::sort_storage_access_queries,
     AccountTreeId, Address, L1BatchNumber, L2ChainId, LogQuery, MiniblockNumber, ProtocolVersionId,
-    StorageKey, StorageLog, StorageLogKind, Timestamp, H256,
+    StorageKey, StorageLog, StorageLogKind, Timestamp, H256, U256,
 };
 use zksync_utils::{be_words_to_bytes, bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
 
@@ -297,7 +297,7 @@ pub(crate) async fn create_genesis_l1_batch(
         l2_tx_count: 0,
         base_fee_per_gas: 0,
         gas_per_pubdata_limit: get_max_gas_per_pubdata_byte(protocol_version.into()),
-        batch_fee_input: BatchFeeInput::l1_pegged(0, 0),
+        batch_fee_input: BatchFeeInput::l1_pegged(U256::zero(), 0),
         base_system_contracts_hashes: base_system_contracts.hashes(),
         protocol_version: Some(protocol_version),
         virtual_blocks: 0,

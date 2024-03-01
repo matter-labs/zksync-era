@@ -1,5 +1,5 @@
 //! Utility functions for vm
-use zksync_types::fee_model::L1PeggedBatchFeeModelInput;
+use zksync_types::{fee_model::L1PeggedBatchFeeModelInput, U256};
 use zksync_utils::ceil_div;
 
 use crate::{
@@ -10,9 +10,8 @@ use crate::{
 };
 
 /// Calculates the amount of gas required to publish one byte of pubdata
-pub fn base_fee_to_gas_per_pubdata(l1_gas_price: u64, base_fee: u64) -> u64 {
+pub fn base_fee_to_gas_per_pubdata(l1_gas_price: U256, base_fee: u64) -> u64 {
     let eth_price_per_pubdata_byte = eth_price_per_pubdata_byte(l1_gas_price);
-
     ceil_div(eth_price_per_pubdata_byte, base_fee)
 }
 

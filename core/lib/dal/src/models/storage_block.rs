@@ -14,7 +14,7 @@ use zksync_types::{
     commitment::{L1BatchMetaParameters, L1BatchMetadata},
     fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput, PubdataIndependentBatchFeeModelInput},
     l2_to_l1_log::{L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log},
-    Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H2048, H256,
+    Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H2048, H256, U256,
 };
 
 #[derive(Debug, Error)]
@@ -87,7 +87,7 @@ impl From<StorageL1BatchHeader> for L1BatchHeader {
                 l1_batch.bootloader_code_hash,
                 l1_batch.default_aa_code_hash,
             ),
-            l1_gas_price: l1_batch.l1_gas_price as u64,
+            l1_gas_price: U256::from(l1_batch.l1_gas_price),
             l2_fair_gas_price: l1_batch.l2_fair_gas_price as u64,
             system_logs: system_logs.into_iter().map(SystemL2ToL1Log).collect(),
             protocol_version: l1_batch
@@ -208,7 +208,7 @@ impl From<StorageL1Batch> for L1BatchHeader {
                 l1_batch.bootloader_code_hash,
                 l1_batch.default_aa_code_hash,
             ),
-            l1_gas_price: l1_batch.l1_gas_price as u64,
+            l1_gas_price: U256::from(l1_batch.l1_gas_price),
             l2_fair_gas_price: l1_batch.l2_fair_gas_price as u64,
             system_logs: system_logs.into_iter().map(SystemL2ToL1Log).collect(),
             protocol_version: l1_batch
@@ -414,7 +414,7 @@ impl StorageBlockDetails {
             executed_at: self
                 .executed_at
                 .map(|executed_at| DateTime::<Utc>::from_naive_utc_and_offset(executed_at, Utc)),
-            l1_gas_price: self.l1_gas_price as u64,
+            l1_gas_price: U256::from(self.l1_gas_price),
             l2_fair_gas_price: self.l2_fair_gas_price as u64,
             base_system_contracts_hashes: convert_base_system_contracts_hashes(
                 self.bootloader_code_hash,
@@ -490,7 +490,7 @@ impl From<StorageL1BatchDetails> for api::L1BatchDetails {
             executed_at: details
                 .executed_at
                 .map(|executed_at| DateTime::<Utc>::from_naive_utc_and_offset(executed_at, Utc)),
-            l1_gas_price: details.l1_gas_price as u64,
+            l1_gas_price: U256::from(details.l1_gas_price),
             l2_fair_gas_price: details.l2_fair_gas_price as u64,
             base_system_contracts_hashes: convert_base_system_contracts_hashes(
                 details.bootloader_code_hash,
@@ -543,13 +543,13 @@ impl From<StorageMiniblockHeader> for MiniblockHeader {
                         .expect("No fair pubdata price for 1.4.1 miniblock")
                         as u64,
                     fair_l2_gas_price: row.l2_fair_gas_price as u64,
-                    l1_gas_price: row.l1_gas_price as u64,
+                    l1_gas_price: U256::from(row.l1_gas_price),
                 })
             })
             .unwrap_or_else(|| {
                 BatchFeeInput::L1Pegged(L1PeggedBatchFeeModelInput {
                     fair_l2_gas_price: row.l2_fair_gas_price as u64,
-                    l1_gas_price: row.l1_gas_price as u64,
+                    l1_gas_price: U256::from(row.l1_gas_price),
                 })
             });
 

@@ -60,12 +60,12 @@ impl BatchFeeModelInputProvider for MainNodeFeeInputProvider {
         match self.config {
             FeeModelConfig::V1(config) => FeeParams::V1(FeeParamsV1 {
                 config,
-                l1_gas_price: self.provider.estimate_effective_gas_price(),
+                l1_gas_price: U256::from(self.provider.estimate_effective_gas_price()),
             }),
             FeeModelConfig::V2(config) => FeeParams::V2(FeeParamsV2 {
                 config,
-                l1_gas_price: self.provider.estimate_effective_gas_price(),
-                l1_pubdata_price: self.provider.estimate_effective_pubdata_price(),
+                l1_gas_price: U256::from(self.provider.estimate_effective_gas_price()),
+                l1_pubdata_price: U256::from(self.provider.estimate_effective_pubdata_price()),
             }),
         }
     }
@@ -83,11 +83,12 @@ fn compute_batch_fee_model_input_v1(
     params: FeeParamsV1,
     l1_gas_price_scale_factor: f64,
 ) -> L1PeggedBatchFeeModelInput {
-    let l1_gas_price = (params.l1_gas_price as f64 * l1_gas_price_scale_factor) as u64;
+    let l1_gas_price =
+        U256::from((params.l1_gas_price.as_u64() as f64 * l1_gas_price_scale_factor) as u64); // TODO: this might overflow
 
     L1PeggedBatchFeeModelInput {
         l1_gas_price,
-        fair_l2_gas_price: params.config.minimal_l2_gas_price,
+        fair_l2_gas_price: params.config.minimal_l2_gas_price.as_u64(), // TODO: this might overflow
     }
 }
 
@@ -114,8 +115,9 @@ fn compute_batch_fee_model_input_v2(
     } = config;
 
     // Firstly, we scale the gas price and pubdata price in case it is needed.
-    let l1_gas_price = (l1_gas_price as f64 * l1_gas_price_scale_factor) as u64;
-    let l1_pubdata_price = (l1_pubdata_price as f64 * l1_pubdata_price_scale_factor) as u64;
+    let l1_gas_price = (l1_gas_price.as_u64() as f64 * l1_gas_price_scale_factor) as u64; // TODO: this might overflow
+    let l1_pubdata_price =
+        (l1_pubdata_price.as_u64() as f64 * l1_pubdata_price_scale_factor) as u64; // TODO: this might overflow
 
     // While the final results of the calculations are not expected to have any overflows, the intermediate computations
     // might, so we use U256 for them.
@@ -152,8 +154,8 @@ fn compute_batch_fee_model_input_v2(
     };
 
     PubdataIndependentBatchFeeModelInput {
-        l1_gas_price,
-        fair_l2_gas_price,
+        l1_gas_price: U256::from(l1_gas_price),
+        fair_l2_gas_price: fair_l2_gas_price.as_u64(), // TODO: this might overflow
         fair_pubdata_price,
     }
 }
@@ -165,10 +167,10 @@ mod tests {
     // To test that overflow never happens, we'll use giant L1 gas price, i.e.
     // almost realistic very large value of 100k gwei. Since it is so large, we'll also
     // use it for the L1 pubdata price.
-    const GIANT_L1_GAS_PRICE: u64 = 100_000_000_000_000;
+    const GIANT_L1_GAS_PRICE: U256 = U256::from("100000000000000");
 
     // As a small small L2 gas price we'll use the value of 1 wei.
-    const SMALL_L1_GAS_PRICE: u64 = 1;
+    const SMALL_L1_GAS_PRICE: U256 = U256::one();
 
     #[test]
     fn test_compute_batch_fee_model_input_v2_giant_numbers() {

@@ -122,9 +122,9 @@ impl<S> RefundsTracer<S> {
         let bootloader_eth_price_per_pubdata_byte =
             U256::from(effective_gas_price) * U256::from(current_ergs_per_pubdata_byte);
 
-        let fair_eth_price_per_pubdata_byte = U256::from(eth_price_per_pubdata_byte(
+        let fair_eth_price_per_pubdata_byte = U256::from(eth_price_per_pubdata_byte(U256::from(
             self.l1_batch.fee_input.l1_gas_price(),
-        ));
+        )));
 
         // For now, L1 originated transactions are allowed to pay less than fair fee per pubdata,
         // so we should take it into account.

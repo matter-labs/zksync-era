@@ -1,5 +1,5 @@
 use tokio::sync::mpsc;
-use zksync_types::{Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, Transaction};
+use zksync_types::{Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, Transaction, U256};
 
 use super::metrics::QUEUE_METRICS;
 
@@ -127,7 +127,7 @@ pub(crate) enum SyncAction {
     OpenBatch {
         number: L1BatchNumber,
         timestamp: u64,
-        l1_gas_price: u64,
+        l1_gas_price: U256,
         l2_fair_gas_price: u64,
         fair_pubdata_price: Option<u64>,
         operator_address: Address,
