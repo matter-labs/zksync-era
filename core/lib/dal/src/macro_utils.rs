@@ -19,26 +19,46 @@ macro_rules! writeln_str {
     }};
 }
 
+/// Interpolates the provided DB query consisting of several or comma-separated parts, each of parts being a string literal
+/// or `_`. `_` parts are substituted with the provided variables in the order of appearance.
+///
+/// We use tail recursion and accumulate (possibly substituted) parts in an accumulator. This is because `query_as!` would not
+/// work otherwise; its input must be fully expanded.
 macro_rules! interpolate_query {
-    ($query_type:ty; $acc:expr; $($args:expr,)*; (_,) => $var:literal,) => {
+    // Terminal clause: we have a final substitution.
+    (query_type: $query_type:ty; acc: $acc:expr; args: $($args:expr,)*; (_,) => $var:literal,) => {
         sqlx::query_as!($query_type, $acc + $var, $($args,)*)
     };
-    ($query_type:ty; $acc:expr; $($args:expr,)*; ($part:literal,) =>) => {
+    // Terminal clause: we have a final query part.
+    (query_type: $query_type:ty; acc: $acc:expr; args: $($args:expr,)*; ($part:literal,) =>) => {
         sqlx::query_as!($query_type, $acc + $part, $($args,)*)
     };
-    ($query_type:ty; $acc:expr; $($args:expr,)*; (_, $($other_parts:tt,)+) => $var:literal, $($other_vars:literal,)*) => {
+
+    // We have a non-terminal substitution. Substitute it with a `var`, add to the accumulator and recurse.
+    (
+        query_type: $query_type:ty;
+        acc: $acc:expr;
+        args: $($args:expr,)*;
+        (_, $($other_parts:tt,)+) => $var:literal, $($other_vars:literal,)*
+    ) => {
         interpolate_query!(
-            $query_type;
-            $acc + $var;
-            $($args,)*;
+            query_type: $query_type;
+            acc: $acc + $var;
+            args: $($args,)*;
             ($($other_parts,)+) => $($other_vars,)*
         )
     };
-    ($query_type:ty; $acc:expr; $($args:expr,)*; ($part:tt, $($other_parts:tt,)+) => $($vars:literal,)*) => {
+    // We have a non-terminal query part. Add it to the accumulator and recurse.
+    (
+        query_type: $query_type:ty;
+        acc: $acc:expr;
+        args: $($args:expr,)*;
+        ($part:tt, $($other_parts:tt,)+) => $($vars:literal,)*
+    ) => {
         interpolate_query!(
-            $query_type;
-            $acc + $part;
-            $($args,)*;
+            query_type: $query_type;
+            acc: $acc + $part;
+            args: $($args,)*;
             ($($other_parts,)+) => $($vars,)*
         )
     };
@@ -65,6 +85,7 @@ macro_rules! match_query_as {
             $($variants:tt)*
         }
     ) => {
+        // We parse `variants` recursively and add parsed parts to an accumulator.
         match_query_as!(
             @inner
             query_type: $query_type,
@@ -75,11 +96,17 @@ macro_rules! match_query_as {
         )
     };
 
+    // Terminal clause: we've parsed all match variants. Now we need to expand into a `match` expression.
     (
         @inner
         query_type: $query_type:ty,
         input: $input:expr,
-        query_parts: ($($_parts:tt),+), // not used; parts are copied into each clause
+        // We surround token trees (`:tt` [designator]) by `()` so that they are delimited. We need token trees in the first place
+        // because it's one of the few forms of designators than can be matched against specific tokens or parsed further (e.g.,
+        // as `expr`essions, `pat`terns etc.) during query expansion.
+        //
+        // [designator]: https://doc.rust-lang.org/rust-by-example/macros/designators.html
+        query_parts: ($($_parts:tt),+), // not used; parts are copied into each variant expansion
         acc: ($($acc:tt)*);
     ) => {
         match_query_as!(
@@ -89,6 +116,9 @@ macro_rules! match_query_as {
             acc: ($($acc)*)
         )
     };
+    // Non-terminal clause: we have at least one variant left. We add the variant to the accumulator copying parts
+    // into it. Copying is necessary because Rust macros are not able to nest expansions of independently repeated vars
+    // (i.e., query parts and variants in this case).
     (
         @inner
         query_type: $query_type:ty,
@@ -107,6 +137,8 @@ macro_rules! match_query_as {
             $($rest)*
         )
     };
+    // Expansion routine: match all variants, each with copied query parts, and expand them as a `match` expression
+    // with the corresponding variants.
     (
         @expand
         query_type: $query_type:ty,
@@ -118,10 +150,12 @@ macro_rules! match_query_as {
       match ($input) {
             $(
             $p => {
+                // We need to specify `query` type (specifically, the 2nd type param in `Map`) so that all `match` variants
+                // return the same type.
                 let query: sqlx::query::Map<_, fn(_) -> _, _> = interpolate_query!(
-                    $query_type;
-                    "";
-                    $($args,)*;
+                    query_type: $query_type;
+                    acc: "";
+                    args: $($args,)*;
                     ($($parts,)+) => $($substitutions,)+
                 );
                 query

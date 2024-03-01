@@ -137,6 +137,8 @@ merkle
 eth
 Ethereum
 deployer
+designator
+designators
 RPC
 tx
 txs
@@ -162,6 +164,7 @@ zkEVM
 src
 utils
 ptr
+recurse
 RefCell
 Rc
 StorageView
