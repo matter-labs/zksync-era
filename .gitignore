@@ -37,6 +37,7 @@ Cargo.lock
 !/etc/env/ext-node-docker.toml
 !/etc/env/zkmoon.toml
 !/etc/env/zktitan.toml
+!/etc/env/zknova.toml
 /etc/tokens/localhost.json
 /etc/zksolc-bin/*
 /etc/zkvyper-bin/*
