@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use once_cell::sync::OnceCell;
 use zksync_test_account::TxType;
-use zksync_types::H256;
 
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
@@ -68,7 +67,6 @@ fn test_prestate_tracer_diff_mode() {
         TxType::L2,
     );
     vm.vm.push_transaction(tx1);
-    let contract_address = vm.test_contract.unwrap();
     let prestate_tracer_result = Arc::new(OnceCell::default());
     let prestate_tracer = PrestateTracer::new(true, prestate_tracer_result.clone());
     let tracer_ptr = prestate_tracer.into_tracer_pointer();
@@ -79,6 +77,6 @@ fn test_prestate_tracer_diff_mode() {
         .take()
         .unwrap_or_default();
 
-    assert!(prestate_result.0.len() > 0);
-    assert!(prestate_result.1.len() > 0);
+    assert!(!prestate_result.0.is_empty());
+    assert!(!prestate_result.1.is_empty());
 }

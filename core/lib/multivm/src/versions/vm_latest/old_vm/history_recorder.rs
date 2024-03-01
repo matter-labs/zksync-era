@@ -726,7 +726,7 @@ impl<S: WriteStorage> StorageWrapper<S> {
             .borrow()
             .modified_storage_keys()
             .iter()
-            .map(|(k, v)| (k.clone(), v.clone()))
+            .map(|(k, v)| (*k, *v))
             .collect()
     }
 }

@@ -65,9 +65,7 @@ impl PrestateTracer {
         Self {
             pre: Default::default(),
             post: Default::default(),
-            config: PrestateTracerConfig {
-                diff_mode: diff_mode,
-            },
+            config: PrestateTracerConfig { diff_mode },
             result,
         }
     }
@@ -144,8 +142,8 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for PrestateTracer {
         if self.config.diff_mode {
             let diff = modified_storage_keys
                 .clone()
-                .iter()
-                .map(|(k, _)| k.clone())
+                .keys()
+                .map(|k| *k)
                 .collect::<Vec<_>>();
 
             let res = diff
@@ -184,7 +182,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for PrestateTracer {
         } else {
             let read_keys = &state.storage.read_keys;
             let map = read_keys.inner().clone();
-            let storage_keys_read = map.iter().map(|(k, _)| k.clone()).collect::<Vec<_>>();
+            let storage_keys_read = map.keys().map(|k| *k).collect::<Vec<_>>();
             let res = storage_keys_read
                 .iter()
                 .map(|k| {
@@ -238,11 +236,11 @@ fn get_storage_if_present(
     modified_storage_keys
         .iter()
         .filter(|(k, _)| k.account() == account)
-        .map(|(k, v)| (k.key().clone(), v.clone()))
+        .map(|(k, v)| (*k.key(), *v))
         .collect()
 }
 
-fn process_result(result: &mut Arc<OnceCell<(State, State)>>, mut pre: State, post: State) {
+fn process_result(result: &Arc<OnceCell<(State, State)>>, mut pre: State, post: State) {
     pre.retain(|k, v| {
         if let Some(post_v) = post.get(k) {
             if v != post_v {
