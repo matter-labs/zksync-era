@@ -5,7 +5,7 @@ use zksync_basic_types::{
     network::Network,
     web3::{
         contract::{tokens::Detokenize, Error as Web3ContractError},
-        ethabi,
+        ethabi, Error as Web3ApiError,
     },
     Address, L2ChainId, U256,
 };
@@ -66,7 +66,12 @@ pub enum L1BatchCommitDataGeneratorMode {
 // Other values are incorrect.
 impl Detokenize for L1BatchCommitDataGeneratorMode {
     fn from_tokens(tokens: Vec<ethabi::Token>) -> Result<Self, Web3ContractError> {
-        let error = Err(Web3ContractError::Abi(ethabi::Error::InvalidData));
+        fn error(tokens: &[ethabi::Token]) -> Web3ContractError {
+            Web3ContractError::Api(Web3ApiError::Decoder(format!(
+                "L1BatchCommitDataGeneratorMode::from_tokens: {tokens:?}"
+            )))
+        }
+
         match tokens.as_slice() {
             [ethabi::Token::Uint(enum_value)] => {
                 if enum_value == &U256::zero() {
@@ -74,10 +79,10 @@ impl Detokenize for L1BatchCommitDataGeneratorMode {
                 } else if enum_value == &U256::one() {
                     Ok(L1BatchCommitDataGeneratorMode::Validium)
                 } else {
-                    error
+                    Err(error(&tokens))
                 }
             }
-            _ => error,
+            _ => Err(error(&tokens)),
         }
     }
 }

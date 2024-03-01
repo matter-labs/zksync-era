@@ -310,7 +310,10 @@ async fn ensure_l1_batch_commit_data_generation_mode(
         // Getters contract support getPubdataPricingMode method
         Ok(l1_contract_pubdata_pricing_mode) => {
             let l1_contract_batch_commitment_mode =
-                L1BatchCommitDataGeneratorMode::from_tokens(l1_contract_pubdata_pricing_mode)?;
+                L1BatchCommitDataGeneratorMode::from_tokens(l1_contract_pubdata_pricing_mode)
+                    .context(
+                        "Unable to parse L1BatchCommitDataGeneratorMode received from L1 contract",
+                    )?;
 
             // contracts mode == server mode
             anyhow::ensure!(
