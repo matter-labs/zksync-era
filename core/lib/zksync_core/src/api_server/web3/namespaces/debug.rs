@@ -1,10 +1,6 @@
 use std::sync::Arc;
 
-use anyhow::Context;
-use multivm::{
-    interface::ExecutionResult, utils::get_max_gas_per_pubdata_byte,
-    vm_latest::constants::BLOCK_GAS_LIMIT,
-};
+use multivm::{interface::ExecutionResult, vm_latest::constants::BLOCK_GAS_LIMIT};
 use once_cell::sync::OnceCell;
 use zksync_system_constants::MAX_ENCODED_TX_SIZE;
 use zksync_types::{
@@ -152,23 +148,9 @@ impl DebugNamespace {
             .state
             .resolve_block_args(&mut connection, block_id, METHOD_NAME)
             .await?;
-
-        // TODO(X): the same method is called the execution of the call.
-        // We should remove the double work.
-        let resolved_block_info = block_args
-            .resolve_block_info(&mut connection)
-            .await
-            .with_context(|| format!("cannot resolve block numbers for {block_args:?}"))
-            .map_err(|err| internal_error(METHOD_NAME, err))?;
-        let max_gas_per_pubdata_byte =
-            get_max_gas_per_pubdata_byte(resolved_block_info.get_protocol_version().into());
         drop(connection);
 
-        let tx = L2Tx::from_request(
-            request.into(),
-            MAX_ENCODED_TX_SIZE,
-            max_gas_per_pubdata_byte.into(),
-        )?;
+        let tx = L2Tx::from_request(request.into(), MAX_ENCODED_TX_SIZE)?;
 
         let shared_args = self.shared_args();
         let vm_permit = self

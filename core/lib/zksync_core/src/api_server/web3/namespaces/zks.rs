@@ -1,9 +1,8 @@
 use std::{collections::HashMap, convert::TryInto};
 
-use anyhow::Context;
-use multivm::utils::get_max_gas_per_pubdata_byte;
 use zksync_dal::StorageProcessor;
 use zksync_mini_merkle_tree::MiniMerkleTree;
+use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     api::{
         BlockDetails, BridgeAddresses, GetLogsFilter, L1BatchDetails, L2ToL1LogProof, Proof,
@@ -26,12 +25,9 @@ use zksync_web3_decl::{
     types::{Address, Token, H256},
 };
 
-use crate::{
-    api_server::{
-        tree::TreeApiClient,
-        web3::{backend_jsonrpsee::internal_error, metrics::API_METRICS, RpcState},
-    },
-    utils::pending_protocol_version,
+use crate::api_server::{
+    tree::TreeApiClient,
+    web3::{backend_jsonrpsee::internal_error, metrics::API_METRICS, RpcState},
 };
 
 #[derive(Debug)]
@@ -66,37 +62,19 @@ impl ZksNamespace {
             .set_nonce_for_call_request(&mut request_with_gas_per_pubdata_overridden)
             .await?;
 
-        let mut connection = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await
-            .map_err(|err| internal_error(METHOD_NAME, err))?;
-        let protocol_version = pending_protocol_version(&mut connection)
-            .await
-            .context("failed getting pending protocol version")
-            .map_err(|err| internal_error(METHOD_NAME, err))?;
-        let max_gas_per_pubdata_byte = get_max_gas_per_pubdata_byte(protocol_version.into());
-        drop(connection);
-
-        // Generally, `0` as gas per pubdata is not a valid value.
-        // However for gas estimation we allow such value and treat it as the maximally allowed one.
         if let Some(ref mut eip712_meta) = request_with_gas_per_pubdata_overridden.eip712_meta {
-            if eip712_meta.gas_per_pubdata == U256::zero() {
-                eip712_meta.gas_per_pubdata = max_gas_per_pubdata_byte.into();
-            }
+            eip712_meta.gas_per_pubdata = U256::from(DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE);
         }
 
         let mut tx = L2Tx::from_request(
             request_with_gas_per_pubdata_overridden.into(),
             self.state.api_config.max_tx_size,
-            max_gas_per_pubdata_byte.into(),
         )?;
 
         // When we're estimating fee, we are trying to deduce values related to fee, so we should
         // not consider provided ones.
         tx.common_data.fee.max_priority_fee_per_gas = 0u64.into();
-        tx.common_data.fee.gas_per_pubdata_limit = max_gas_per_pubdata_byte.into();
+        tx.common_data.fee.gas_per_pubdata_limit = U256::from(DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE);
 
         let fee = self.estimate_fee(tx.into(), METHOD_NAME).await?;
         method_latency.observe();
@@ -111,10 +89,9 @@ impl ZksNamespace {
         const METHOD_NAME: &str = "estimate_gas_l1_to_l2";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-
-        // Generally, `0` as gas per pubdata is not a valid value.
-        // However for gas estimation we allow such value and treat it as the maximally allowed one.
         let mut request_with_gas_per_pubdata_overridden = request;
+        // When we're estimating fee, we are trying to deduce values related to fee, so we should
+        // not consider provided ones.
         if let Some(ref mut eip712_meta) = request_with_gas_per_pubdata_overridden.eip712_meta {
             if eip712_meta.gas_per_pubdata == U256::zero() {
                 eip712_meta.gas_per_pubdata = REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE.into();

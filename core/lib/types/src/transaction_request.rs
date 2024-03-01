@@ -4,7 +4,7 @@ use rlp::{DecoderError, Rlp, RlpStream};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use zksync_basic_types::H256;
-use zksync_system_constants::{MAX_ENCODED_TX_SIZE, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE};
+use zksync_system_constants::{DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE, MAX_ENCODED_TX_SIZE};
 use zksync_utils::{
     bytecode::{hash_bytecode, validate_bytecode, InvalidBytecodeError},
     concat_and_hash, u256_to_h256,
@@ -734,10 +734,7 @@ impl TransactionRequest {
         Ok(address)
     }
 
-    fn get_fee_data_checked(
-        &self,
-        default_gas_per_pubdata: U256,
-    ) -> Result<Fee, SerializationTransactionError> {
+    fn get_fee_data_checked(&self) -> Result<Fee, SerializationTransactionError> {
         if self.gas_price > u64::MAX.into() {
             return Err(SerializationTransactionError::TooHighGas(
                 "max fee per gas higher than 2^64-1".to_string(),
@@ -754,7 +751,8 @@ impl TransactionRequest {
             }
             meta.gas_per_pubdata
         } else {
-            default_gas_per_pubdata
+            // For transactions that don't support corresponding field, a maximal default value is chosen.
+            DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE.into()
         };
 
         let max_priority_fee_per_gas = self.max_priority_fee_per_gas.unwrap_or(self.gas_price);
@@ -785,9 +783,8 @@ impl L2Tx {
     pub fn from_request(
         value: TransactionRequest,
         max_tx_size: usize,
-        default_gas_per_pubdata: U256,
     ) -> Result<Self, SerializationTransactionError> {
-        let fee = value.get_fee_data_checked(default_gas_per_pubdata)?;
+        let fee = value.get_fee_data_checked()?;
         let nonce = value.get_nonce_checked()?;
 
         let raw_signature = value.get_signature().unwrap_or_default();
@@ -893,12 +890,7 @@ impl TryFrom<CallRequest> for L1Tx {
     type Error = SerializationTransactionError;
     fn try_from(tx: CallRequest) -> Result<Self, Self::Error> {
         // L1 transactions have no limitations on the transaction size.
-        // The L1 transactions are expected to have the proper gas per pubdata.
-        let tx: L2Tx = L2Tx::from_request(
-            tx.into(),
-            MAX_ENCODED_TX_SIZE,
-            REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE.into(),
-        )?;
+        let tx: L2Tx = L2Tx::from_request(tx.into(), MAX_ENCODED_TX_SIZE)?;
 
         // Note, that while the user has theoretically provided the fee for ETH on L1,
         // the payment to the operator as well as refunds happen on L2 and so all the ETH
@@ -969,8 +961,6 @@ mod tests {
         transports::test::TestTransport,
         types::{TransactionParameters, H256, U256},
     };
-
-    const TEST_DEFAULT_GAS_PER_PUBDATA: u64 = 50_000;
 
     #[tokio::test]
     async fn decode_real_tx() {
@@ -1336,7 +1326,7 @@ mod tests {
             ..Default::default()
         };
         let execute_tx1: Result<L2Tx, SerializationTransactionError> =
-            L2Tx::from_request(tx1, usize::MAX, TEST_DEFAULT_GAS_PER_PUBDATA.into());
+            L2Tx::from_request(tx1, usize::MAX);
         assert!(execute_tx1.is_ok());
 
         let tx2 = TransactionRequest {
@@ -1347,7 +1337,7 @@ mod tests {
             ..Default::default()
         };
         let execute_tx2: Result<L2Tx, SerializationTransactionError> =
-            L2Tx::from_request(tx2, usize::MAX, TEST_DEFAULT_GAS_PER_PUBDATA.into());
+            L2Tx::from_request(tx2, usize::MAX);
         assert_eq!(
             execute_tx2.unwrap_err(),
             SerializationTransactionError::TooBigNonce
@@ -1364,7 +1354,7 @@ mod tests {
             ..Default::default()
         };
         let execute_tx1: Result<L2Tx, SerializationTransactionError> =
-            L2Tx::from_request(tx1, usize::MAX, TEST_DEFAULT_GAS_PER_PUBDATA.into());
+            L2Tx::from_request(tx1, usize::MAX);
         assert_eq!(
             execute_tx1.unwrap_err(),
             SerializationTransactionError::TooHighGas(
@@ -1380,7 +1370,7 @@ mod tests {
             ..Default::default()
         };
         let execute_tx2: Result<L2Tx, SerializationTransactionError> =
-            L2Tx::from_request(tx2, usize::MAX, TEST_DEFAULT_GAS_PER_PUBDATA.into());
+            L2Tx::from_request(tx2, usize::MAX);
         assert_eq!(
             execute_tx2.unwrap_err(),
             SerializationTransactionError::TooHighGas(
@@ -1400,7 +1390,7 @@ mod tests {
         };
 
         let execute_tx3: Result<L2Tx, SerializationTransactionError> =
-            L2Tx::from_request(tx3, usize::MAX, TEST_DEFAULT_GAS_PER_PUBDATA.into());
+            L2Tx::from_request(tx3, usize::MAX);
         assert_eq!(
             execute_tx3.unwrap_err(),
             SerializationTransactionError::TooHighGas(
@@ -1457,11 +1447,7 @@ mod tests {
         let request =
             TransactionRequest::from_bytes(data.as_slice(), L2ChainId::from(270)).unwrap();
         assert!(matches!(
-            L2Tx::from_request(
-                request.0,
-                random_tx_max_size,
-                TEST_DEFAULT_GAS_PER_PUBDATA.into()
-            ),
+            L2Tx::from_request(request.0, random_tx_max_size),
             Err(SerializationTransactionError::OversizedData(_, _))
         ))
     }
@@ -1486,11 +1472,8 @@ mod tests {
             eip712_meta: None,
         };
 
-        let try_to_l2_tx: Result<L2Tx, SerializationTransactionError> = L2Tx::from_request(
-            call_request.into(),
-            random_tx_max_size,
-            TEST_DEFAULT_GAS_PER_PUBDATA.into(),
-        );
+        let try_to_l2_tx: Result<L2Tx, SerializationTransactionError> =
+            L2Tx::from_request(call_request.into(), random_tx_max_size);
 
         assert!(matches!(
             try_to_l2_tx,
@@ -1515,23 +1498,15 @@ mod tests {
             access_list: None,
             eip712_meta: None,
         };
-        let l2_tx = L2Tx::from_request(
-            call_request_with_nonce.clone().into(),
-            MAX_ENCODED_TX_SIZE,
-            TEST_DEFAULT_GAS_PER_PUBDATA.into(),
-        )
-        .unwrap();
+        let l2_tx = L2Tx::from_request(call_request_with_nonce.clone().into(), MAX_ENCODED_TX_SIZE)
+            .unwrap();
         assert_eq!(l2_tx.nonce(), Nonce(123u32));
 
         let mut call_request_without_nonce = call_request_with_nonce;
         call_request_without_nonce.nonce = None;
 
-        let l2_tx = L2Tx::from_request(
-            call_request_without_nonce.into(),
-            MAX_ENCODED_TX_SIZE,
-            TEST_DEFAULT_GAS_PER_PUBDATA.into(),
-        )
-        .unwrap();
+        let l2_tx =
+            L2Tx::from_request(call_request_without_nonce.into(), MAX_ENCODED_TX_SIZE).unwrap();
         assert_eq!(l2_tx.nonce(), Nonce(0u32));
     }
 

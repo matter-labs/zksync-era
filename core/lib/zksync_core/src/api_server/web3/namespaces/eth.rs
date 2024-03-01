@@ -1,5 +1,4 @@
-use anyhow::Context;
-use multivm::utils::get_max_gas_per_pubdata_byte;
+use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     api::{
         BlockId, BlockNumber, GetLogsFilter, Transaction, TransactionId, TransactionReceipt,
@@ -20,17 +19,11 @@ use zksync_web3_decl::{
     types::{Address, Block, Filter, FilterChanges, Log, U64},
 };
 
-use crate::{
-    api_server::{
-        execution_sandbox::BlockArgs,
-        web3::{
-            backend_jsonrpsee::internal_error,
-            metrics::{BlockCallObserver, API_METRICS},
-            state::RpcState,
-            TypedFilter,
-        },
-    },
-    utils::pending_protocol_version,
+use crate::api_server::web3::{
+    backend_jsonrpsee::internal_error,
+    metrics::{BlockCallObserver, API_METRICS},
+    state::RpcState,
+    TypedFilter,
 };
 
 pub const EVENT_TOPIC_NUMBER_LIMIT: usize = 4;
@@ -89,20 +82,9 @@ impl EthNamespace {
             .resolve_block_args(&mut connection, block_id, METHOD_NAME)
             .await?;
 
-        let resolved_block_info = block_args
-            .resolve_block_info(&mut connection)
-            .await
-            .map_err(|err| internal_error(METHOD_NAME, err))?;
-        let max_gas_per_pubdata_byte =
-            get_max_gas_per_pubdata_byte(resolved_block_info.get_protocol_version().into());
-
         drop(connection);
 
-        let tx = L2Tx::from_request(
-            request.into(),
-            self.state.api_config.max_tx_size,
-            max_gas_per_pubdata_byte.into(),
-        )?;
+        let tx = L2Tx::from_request(request.into(), self.state.api_config.max_tx_size)?;
 
         let call_result = self.state.tx_sender.eth_call(block_args, tx).await;
         let res_bytes = call_result.map_err(|err| err.into_web3_error(METHOD_NAME))?;
@@ -129,35 +111,19 @@ impl EthNamespace {
             .set_nonce_for_call_request(&mut request_with_gas_per_pubdata_overridden)
             .await?;
 
+        if let Some(eip712_meta) = &mut request_with_gas_per_pubdata_overridden.eip712_meta {
+            if eip712_meta.gas_per_pubdata == U256::zero() {
+                eip712_meta.gas_per_pubdata = DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE.into();
+            }
+        }
+
         let is_eip712 = request_with_gas_per_pubdata_overridden
             .eip712_meta
             .is_some();
 
-        let mut connection = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await
-            .map_err(|err| internal_error(METHOD_NAME, err))?;
-        let protocol_version = pending_protocol_version(&mut connection)
-            .await
-            .context("failed getting pending protocol version")
-            .map_err(|err| internal_error(METHOD_NAME, err))?;
-        let max_gas_per_pubdata_byte = get_max_gas_per_pubdata_byte(protocol_version.into());
-        drop(connection);
-
-        // Generally, `0` as gas per pubdata is not a valid value.
-        // However for gas estimation we allow such value and treat it as the maximally allowed one.
-        if let Some(eip712_meta) = &mut request_with_gas_per_pubdata_overridden.eip712_meta {
-            if eip712_meta.gas_per_pubdata == U256::zero() {
-                eip712_meta.gas_per_pubdata = max_gas_per_pubdata_byte.into();
-            }
-        }
-
         let mut tx: L2Tx = L2Tx::from_request(
             request_with_gas_per_pubdata_overridden.into(),
             self.state.api_config.max_tx_size,
-            max_gas_per_pubdata_byte.into(),
         )?;
 
         // The user may not include the proper transaction type during the estimation of
@@ -737,24 +703,7 @@ impl EthNamespace {
         const METHOD_NAME: &str = "send_raw_transaction";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
-
-        let mut connection = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await
-            .unwrap();
-        let pending_protocol_version = pending_protocol_version(&mut connection)
-            .await
-            .context("failed getting pending protocol version")
-            .map_err(|err| internal_error(METHOD_NAME, err))?;
-
-        let max_gas_per_pubdata_byte =
-            get_max_gas_per_pubdata_byte(pending_protocol_version.into());
-
-        let (mut tx, hash) = self
-            .state
-            .parse_transaction_bytes(&tx_bytes.0, max_gas_per_pubdata_byte.into())?;
+        let (mut tx, hash) = self.state.parse_transaction_bytes(&tx_bytes.0)?;
         tx.set_input(tx_bytes.0, hash);
 
         let submit_result = self.state.tx_sender.submit_tx(tx).await;
