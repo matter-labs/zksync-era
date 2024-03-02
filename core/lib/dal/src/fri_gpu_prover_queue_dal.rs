@@ -3,12 +3,12 @@ use std::time::Duration;
 use crate::{
     fri_prover_dal::types::{GpuProverInstanceStatus, SocketAddress},
     time_utils::pg_interval_from_duration,
-    StorageProcessor,
+    ServerProcessor,
 };
 
 #[derive(Debug)]
 pub struct FriGpuProverQueueDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut ServerProcessor<'c>,
 }
 
 impl FriGpuProverQueueDal<'_, '_> {

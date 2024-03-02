@@ -7,12 +7,12 @@ use zksync_types::L1BatchNumber;
 use crate::{
     fri_prover_dal::types::{JobCountStatistics, StuckJobs},
     time_utils::{duration_to_naive_time, pg_interval_from_duration},
-    StorageProcessor,
+    ServerProcessor,
 };
 
 #[derive(Debug)]
 pub struct FriProofCompressorDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut ServerProcessor<'c>,
 }
 
 #[derive(Debug, EnumString, Display)]

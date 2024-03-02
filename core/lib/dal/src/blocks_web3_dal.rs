@@ -19,14 +19,14 @@ use crate::{
         },
         storage_transaction::{extract_web3_transaction, web3_transaction_select_sql, CallTrace},
     },
-    StorageProcessor,
+    ServerProcessor,
 };
 
 const BLOCK_GAS_LIMIT: u32 = u32::MAX;
 
 #[derive(Debug)]
 pub struct BlocksWeb3Dal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut ServerProcessor<'c>,
 }
 
 impl BlocksWeb3Dal<'_, '_> {

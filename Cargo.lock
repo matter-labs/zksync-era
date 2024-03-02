@@ -392,9 +392,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.75"
+version = "1.0.80"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a4668cab20f66d8d020e1fbc0ebe47217433c1b6c8f2040faf858554e394ace6"
+checksum = "5ad32ce52e4161730f7098c077cd2ed6229b5804ccf99e5366be1ab72a98b4e1"
 
 [[package]]
 name = "arr_macro"
@@ -8603,12 +8603,40 @@ dependencies = [
  "zksync_consensus_roles",
  "zksync_consensus_storage",
  "zksync_contracts",
+ "zksync_db_connection",
+ "zksync_db_storage_processor",
  "zksync_health_check",
  "zksync_protobuf",
  "zksync_protobuf_build",
  "zksync_system_constants",
  "zksync_types",
  "zksync_utils",
+]
+
+[[package]]
+name = "zksync_db_connection"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "assert_matches",
+ "rand 0.8.5",
+ "sqlx",
+ "tokio",
+ "tracing",
+ "url",
+ "vise",
+ "zksync_db_storage_processor",
+]
+
+[[package]]
+name = "zksync_db_storage_processor"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "sqlx",
+ "tokio",
+ "tracing",
+ "vise",
 ]
 
 [[package]]

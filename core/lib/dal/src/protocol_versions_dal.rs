@@ -7,14 +7,13 @@ use zksync_types::{
     Address, ProtocolVersionId, H256,
 };
 
-use crate::{
-    models::storage_protocol_version::{protocol_version_from_storage, StorageProtocolVersion},
-    StorageProcessor,
+use crate::models::storage_protocol_version::{
+    protocol_version_from_storage, StorageProtocolVersion,
 };
 
 #[derive(Debug)]
 pub struct ProtocolVersionsDal<'a, 'c> {
-    pub storage: &'a mut StorageProcessor<'c>,
+    pub storage: &'a mut ServerProcessor<'c>,
 }
 
 impl ProtocolVersionsDal<'_, '_> {

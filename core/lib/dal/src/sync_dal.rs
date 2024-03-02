@@ -4,13 +4,13 @@ use crate::{
     instrument::InstrumentExt,
     metrics::MethodLatency,
     models::storage_sync::{StorageSyncBlock, SyncBlock},
-    StorageProcessor,
+    ServerProcessor,
 };
 
 /// DAL subset dedicated to the EN synchronization.
 #[derive(Debug)]
 pub struct SyncDal<'a, 'c> {
-    pub storage: &'a mut StorageProcessor<'c>,
+    pub storage: &'a mut ServerProcessor<'c>,
 }
 
 impl SyncDal<'_, '_> {

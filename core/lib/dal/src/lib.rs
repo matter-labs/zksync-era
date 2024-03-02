@@ -1,8 +1,13 @@
 //! Data access layer (DAL) for zkSync Era.
 
-pub use sqlx::{types::BigDecimal, Error as SqlxError};
+use std::time::Instant;
 
-pub use crate::connection::{ConnectionPool, StorageProcessor};
+use sqlx::{pool::PoolConnection, PgConnection, Postgres};
+pub use sqlx::{types::BigDecimal, Error as SqlxError};
+pub use zksync_db_connection::ConnectionPool;
+pub use zksync_db_storage_processor::StorageProcessor;
+use zksync_db_storage_processor::{StorageKind, StorageProcessorTags, TracedConnections};
+
 use crate::{
     basic_witness_input_producer_dal::BasicWitnessInputProducerDal, blocks_dal::BlocksDal,
     blocks_web3_dal::BlocksWeb3Dal, consensus_dal::ConsensusDal,
@@ -28,7 +33,6 @@ mod macro_utils;
 pub mod basic_witness_input_producer_dal;
 pub mod blocks_dal;
 pub mod blocks_web3_dal;
-pub mod connection;
 pub mod consensus_dal;
 pub mod contract_verification_dal;
 pub mod eth_sender_dal;
@@ -66,7 +70,38 @@ pub mod transactions_web3_dal;
 #[cfg(test)]
 mod tests;
 
-impl<'a> StorageProcessor<'a> {
+pub struct Server(());
+
+pub struct ServerProcessor<'a>(StorageProcessor<'a>);
+
+impl StorageKind for Server {
+    type Processor<'a> = ServerProcessor<'a>;
+}
+
+impl ServerProcessor {
+    pub async fn start_transaction(&mut self) -> sqlx::Result<ServerProcessor<'_>> {
+        self.0.start_transaction()
+    }
+
+    /// Checks if the `StorageProcessor` is currently within database transaction.
+    pub fn in_transaction(&self) -> bool {
+        self.0.in_transaction()
+    }
+
+    pub async fn commit(self) -> sqlx::Result<()> {
+        self.0.commit()
+    }
+
+    pub(crate) fn conn(&mut self) -> &mut PgConnection {
+        self.0.conn_and_tags().0
+    }
+
+    pub fn conn_and_tags(&mut self) -> (&mut PgConnection, Option<&StorageProcessorTags>) {
+        self.0.conn_and_tags()
+    }
+}
+
+impl<'a> ServerProcessor<'a> {
     pub fn transactions_dal(&mut self) -> TransactionsDal<'_, 'a> {
         TransactionsDal { storage: self }
     }

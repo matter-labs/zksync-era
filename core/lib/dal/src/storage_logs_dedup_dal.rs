@@ -8,11 +8,11 @@ use zksync_types::{
 use zksync_utils::u256_to_h256;
 
 pub use crate::models::storage_log::DbInitialWrite;
-use crate::StorageProcessor;
+use crate::ServerProcessor;
 
 #[derive(Debug)]
 pub struct StorageLogsDedupDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut ServerProcessor<'c>,
 }
 
 impl StorageLogsDedupDal<'_, '_> {

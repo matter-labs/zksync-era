@@ -1,10 +1,10 @@
 use zksync_types::L1BatchNumber;
 
-use crate::StorageProcessor;
+use crate::ServerProcessor;
 
 #[derive(Debug)]
 pub struct FriSchedulerDependencyTrackerDal<'a, 'c> {
-    pub storage: &'a mut StorageProcessor<'c>,
+    pub storage: &'a mut ServerProcessor<'c>,
 }
 
 impl FriSchedulerDependencyTrackerDal<'_, '_> {

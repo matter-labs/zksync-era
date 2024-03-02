@@ -13,12 +13,12 @@ use crate::{
             StorageTransactionDetails, StorageTransactionReceipt,
         },
     },
-    SqlxError, StorageProcessor,
+    ServerProcessor, SqlxError,
 };
 
 #[derive(Debug)]
 pub struct TransactionsWeb3Dal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut ServerProcessor<'c>,
 }
 
 impl TransactionsWeb3Dal<'_, '_> {

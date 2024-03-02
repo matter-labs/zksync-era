@@ -13,6 +13,8 @@ members = [
     # Node services
     "core/node/node_framework",
     # Libraries
+    "core/lib/db_connection",
+    "core/lib/db_storage_processor",
     "core/lib/zksync_core",
     "core/lib/basic_types",
     "core/lib/config",

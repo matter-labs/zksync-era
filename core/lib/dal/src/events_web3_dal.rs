@@ -5,12 +5,12 @@ use zksync_types::{
 };
 
 use crate::{
-    instrument::InstrumentExt, models::storage_event::StorageWeb3Log, SqlxError, StorageProcessor,
+    instrument::InstrumentExt, models::storage_event::StorageWeb3Log, ServerProcessor, SqlxError,
 };
 
 #[derive(Debug)]
 pub struct EventsWeb3Dal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut ServerProcessor<'c>,
 }
 
 impl EventsWeb3Dal<'_, '_> {

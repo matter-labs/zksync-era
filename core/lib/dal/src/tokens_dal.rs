@@ -1,11 +1,11 @@
 use sqlx::types::chrono::Utc;
 use zksync_types::{tokens::TokenInfo, Address, MiniblockNumber};
 
-use crate::StorageProcessor;
+use crate::ServerProcessor;
 
 #[derive(Debug)]
 pub struct TokensDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut ServerProcessor<'c>,
 }
 
 impl TokensDal<'_, '_> {

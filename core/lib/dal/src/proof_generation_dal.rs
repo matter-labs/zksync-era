@@ -3,11 +3,11 @@ use std::time::Duration;
 use strum::{Display, EnumString};
 use zksync_types::L1BatchNumber;
 
-use crate::{time_utils::pg_interval_from_duration, SqlxError, StorageProcessor};
+use crate::{time_utils::pg_interval_from_duration, ServerProcessor, SqlxError};
 
 #[derive(Debug)]
 pub struct ProofGenerationDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut ServerProcessor<'c>,
 }
 
 #[derive(Debug, EnumString, Display)]
