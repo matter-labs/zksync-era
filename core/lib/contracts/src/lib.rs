@@ -39,10 +39,10 @@ const MULTICALL3_CONTRACT_FILE: &str =
     "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/dev-contracts/Multicall3.sol/Multicall3.json";
 const VERIFIER_CONTRACT_FILE: &str =
     "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/state-transition/Verifier.sol/Verifier.json";
-// const IERC20_CONTRACT_FILE: &str =
-//     "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/common/interfaces/IERC20.sol/IERC20.json";
-// const FAIL_ON_RECEIVE_CONTRACT_FILE: &str =
-//     "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/zksync/dev-contracts/FailOnReceive.sol/FailOnReceive.json";
+const IERC20_CONTRACT_FILE: &str =
+    "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/common/interfaces/IERC20.sol/IERC20.json";
+const FAIL_ON_RECEIVE_CONTRACT_FILE: &str =
+    "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/zksync/dev-contracts/FailOnReceive.sol/FailOnReceive.json";
 const L2_BRIDGE_CONTRACT_FILE: &str =
     "contracts/l2-contracts/artifacts-zk/contracts-preprocessed/bridge/interfaces/IL2Bridge.sol/IL2Bridge.json";
 const LOADNEXT_CONTRACT_FILE: &str =
