@@ -215,7 +215,8 @@ export class TestContextOwner {
         this.reporter.message(`Operator address is ${this.mainEthersWallet.address}`);
 
         const requiredL2ETHAmount = L2_ETH_PER_ACCOUNT.mul(accountsAmount);
-        const actualL2ETHAmount = await this.mainSyncWallet.getBalance();
+        // kl todo, for non eth based chains, we need to check different 
+        const actualL2ETHAmount =  await this.mainSyncWallet.getBalance() ;
         this.reporter.message(`Operator balance on L2 is ${ethers.utils.formatEther(actualL2ETHAmount)} ETH`);
 
         // We may have enough funds in L2. If that's the case, no need to deposit more than required.
@@ -427,7 +428,7 @@ export class TestContextOwner {
             });
         nonce = nonce + 1 + (ethIsBaseToken ? 0 : 1) + (baseIsTransferred ? 0 : 1);
         this.reporter.debug(
-            `Nonce changed by ${1 + (ethIsBaseToken ? 0 : 1) + (baseIsTransferred ? 0 : 1)} for ERC20 deposit, ${nonce}`
+            `Nonce changed by ${1 + (ethIsBaseToken ? 0 : 1) + (baseIsTransferred ? 0 : 1)} for ERC20 deposit, new nonce: ${nonce}`
         );
         // Send ETH on L1.
         const ethTransfers = await sendTransfers(
