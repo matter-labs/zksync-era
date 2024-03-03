@@ -1,14 +1,9 @@
 version: '3.2'
-networks:
-  zksync-era_zkstack:
-    external: true
 volumes:
   artifacts:
 services:
   zkstack-core:
     container_name: zkstack-core
-    networks:
-      - zksync-era_zkstack
     image: {{orgName}}/server-v2:latest
     command: ["--components", "tree,eth,state_keeper,housekeeper,proof_data_handler"]
     healthcheck:
@@ -22,23 +17,21 @@ services:
       ZKSYNC_HOME: /
     ports: # assumes default ports in .env
       #- "3312:3312" # prometheus metrics # we need a separate metrics port for each component
-      - "3320:3320" # proof_data_handler api
+      - "127.0.0.1:3320:3320" # proof_data_handler api
     volumes:
       - artifacts:{{artifactsPath}}
 
   zkstack-apis:
-    networks:
-      - zksync-era_zkstack
     image: {{orgName}}/server-v2:latest
     command: ["--components", "http_api,ws_api"]
     env_file:
       - {{envFilePath}}
     environment:
       ZKSYNC_HOME: /
-      FRI_PROVER_GATEWAY_API_URL: http://zkstack-core:3320
+      FRI_PROVER_GATEWAY_API_URL: http://127.0.0.1:3320
     ports: # assumes default ports in .env
-      - "3071:3071" # health
-      - "3312:3312" # prometheus metrics # we need a separate metrics port for each component
+      - "127.0.0.1:3071:3071" # health
+      #- "3312:3312" # prometheus metrics # we need a separate metrics port for each component
       - "3050:3050" # http_api
       - "3051:3051" # ws_api
 
@@ -49,8 +42,6 @@ services:
   # TODOS:
   # - (PRO-47): Figure out how to properly set metrics ports for each service in env
   zkstack-prover-fri-gateway:
-    networks:
-      - zksync-era_zkstack
     image: matterlabs/prover-fri-gateway:latest
     depends_on:
       zkstack-core:
@@ -58,15 +49,13 @@ services:
     env_file:
       - {{envFilePath}}
     environment:
-      FRI_PROVER_GATEWAY_API_URL: http://zkstack-core:3320
+      FRI_PROVER_GATEWAY_API_URL: http://127.0.0.1:3320
     # ports: # assumes default ports in .env
     #   - "3312:3312" # prometheus metrics
     volumes:
       - artifacts:{{artifactsPath}}
       - {{proverSetupArtifacts}}:{{proverSetupArtifacts}}
   zkstack-witness-generator-basic-circuits:
-    networks:
-      - zksync-era_zkstack
     image: matterlabs/witness-generator:latest
     command: ["--round", "basic_circuits"]
     env_file:
@@ -78,8 +67,6 @@ services:
       - {{proverSetupArtifacts}}:{{proverSetupArtifacts}}
 
   zkstack-witness-generator-leaf-aggregation:
-    networks:
-      - zksync-era_zkstack
     image: matterlabs/witness-generator:latest
     command: ["--round", "leaf_aggregation"]
     env_file:
@@ -91,8 +78,6 @@ services:
       - {{proverSetupArtifacts}}:{{proverSetupArtifacts}}
 
   zkstack-witness-generator-node-aggregation:
-    networks:
-      - zksync-era_zkstack
     image: matterlabs/witness-generator:latest
     command: ["--round", "node_aggregation"]
     env_file:
@@ -104,8 +89,6 @@ services:
       - {{proverSetupArtifacts}}:{{proverSetupArtifacts}}
 
   zkstack-witness-generator-scheduler:
-    networks:
-      - zksync-era_zkstack
     image: matterlabs/witness-generator:latest
     command: ["--round", "scheduler"]
     env_file:
@@ -117,8 +100,6 @@ services:
       - {{proverSetupArtifacts}}:{{proverSetupArtifacts}}
 
   zkstack-proof-fri-compressor:
-    networks:
-      - zksync-era_zkstack
     image: matterlabs/proof-fri-compressor:latest
     env_file:
       - {{envFilePath}}
@@ -128,8 +109,6 @@ services:
       - artifacts:{{artifactsPath}}
       - {{proverSetupArtifacts}}:{{proverSetupArtifacts}}
   witness-vector-generator:
-    networks:
-      - zksync-era_zkstack
     image: matterlabs/witness-vector-generator:latest
     restart: always
     env_file:
@@ -145,8 +124,6 @@ services:
   {{/if}}
   {{#ifAnd hasProver hasCPUProver}}
   zkstack-prover-cpu-fri:
-    networks:
-      - zksync-era_zkstack
     image: matterlabs/prover-fri:latest
     env_file:
       - {{envFilePath}}
@@ -157,8 +134,6 @@ services:
   {{/ifAnd}}
   {{#ifAnd hasProver hasGPUProver}}
   zkstack-prover-gpu-fri:
-    networks:
-      - zksync-era_zkstack
     {{#if needBuildProver}}
     build: # Needed for anything that is not NVIDIA CUDA_ARCH 89
       dockerfile: ./docker/prover-gpu-fri/Dockerfile
