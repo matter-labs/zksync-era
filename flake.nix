@@ -27,7 +27,7 @@
 
         # for RocksDB and other Rust bindgen libraries
         LIBCLANG_PATH = lib.makeLibraryPath [ libclang.lib ];
-        BINDGEN_EXTRA_CLANG_ARGS = ''-I"${libclang.lib}/lib/clang/${builtins.elemAt (builtins.splitVersion libclang.version) 0}/include"'';
+        BINDGEN_EXTRA_CLANG_ARGS = ''-I"${libclang.lib}/lib/clang/${builtins.elemAt (builtins.splitVersion libclang.version) 0}/include";
 
         shellHook = ''
           export ZKSYNC_HOME=$PWD
