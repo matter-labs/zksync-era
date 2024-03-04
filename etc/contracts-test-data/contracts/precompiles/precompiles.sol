@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.0;
 
-address constant CODE_ORACLE_ADDR = 0x0000000000000000000000000000000000008011;
+address constant CODE_ORACLE_ADDR = 0x0000000000000000000000000000000000008012;
 
 contract Precompiles {
     function doKeccak(uint256 iters) public pure returns (uint256) {

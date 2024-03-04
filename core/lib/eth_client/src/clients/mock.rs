@@ -7,9 +7,9 @@ use async_trait::async_trait;
 use jsonrpc_core::types::error::Error as RpcError;
 use zksync_types::{
     web3::{
-        contract::{tokens::Tokenize, Options},
+        contract::tokens::Tokenize,
         ethabi,
-        types::{Block, BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt, U64},
+        types::{BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt, U64},
         Error as Web3Error,
     },
     Address, L1ChainId, ProtocolVersionId, H160, H256, U256,
@@ -17,7 +17,7 @@ use zksync_types::{
 
 use crate::{
     types::{Error, ExecutedTxStatus, FailureInfo, SignedCallResult},
-    BoundEthInterface, ContractCall, EthInterface, RawTransactionBytes,
+    Block, BoundEthInterface, ContractCall, EthInterface, Options, RawTransactionBytes,
 };
 
 #[derive(Debug, Clone)]
@@ -118,6 +118,7 @@ pub struct MockEthereum {
     max_fee_per_gas: U256,
     max_priority_fee_per_gas: U256,
     base_fee_history: Vec<u64>,
+    excess_blob_gas_history: Vec<u64>,
     /// If true, the mock will not check the ordering nonces of the transactions.
     /// This is useful for testing the cases when the transactions are executed out of order.
     non_ordering_confirmations: bool,
@@ -131,6 +132,7 @@ impl Default for MockEthereum {
             max_fee_per_gas: 100.into(),
             max_priority_fee_per_gas: 10.into(),
             base_fee_history: vec![],
+            excess_blob_gas_history: vec![],
             non_ordering_confirmations: false,
             multicall_address: Address::default(),
             inner: RwLock::default(),
@@ -187,13 +189,13 @@ impl MockEthereum {
         // Concatenate `raw_tx` plus hash for test purposes
         let mut new_raw_tx = hash.as_bytes().to_vec();
         new_raw_tx.extend(raw_tx);
-        Ok(SignedCallResult {
-            raw_tx: RawTransactionBytes(new_raw_tx),
+        Ok(SignedCallResult::new(
+            RawTransactionBytes(new_raw_tx),
             max_priority_fee_per_gas,
             max_fee_per_gas,
             nonce,
             hash,
-        })
+        ))
     }
 
     pub fn advance_block_number(&self, val: u64) -> u64 {
@@ -205,6 +207,13 @@ impl MockEthereum {
     pub fn with_fee_history(self, history: Vec<u64>) -> Self {
         Self {
             base_fee_history: history,
+            ..self
+        }
+    }
+
+    pub fn with_excess_blob_gas_history(self, history: Vec<u64>) -> Self {
+        Self {
+            excess_blob_gas_history: history,
             ..self
         }
     }
@@ -359,10 +368,29 @@ impl EthInterface for MockEthereum {
 
     async fn block(
         &self,
-        _block_id: BlockId,
+        block_id: BlockId,
         _component: &'static str,
     ) -> Result<Option<Block<H256>>, Error> {
-        unimplemented!("Not needed right now")
+        match block_id {
+            BlockId::Number(BlockNumber::Number(number)) => {
+                let excess_blob_gas = self
+                    .excess_blob_gas_history
+                    .get(number.as_usize())
+                    .map(|excess_blob_gas| (*excess_blob_gas).into());
+                let base_fee_per_gas = self
+                    .base_fee_history
+                    .get(number.as_usize())
+                    .map(|base_fee| (*base_fee).into());
+
+                Ok(Some(Block {
+                    number: Some(number),
+                    excess_blob_gas,
+                    base_fee_per_gas,
+                    ..Default::default()
+                }))
+            }
+            _ => unimplemented!("Not needed right now"),
+        }
     }
 }
 
@@ -448,7 +476,7 @@ mod tests {
                 b"test".to_vec(),
                 Options {
                     nonce: Some(1.into()),
-                    ..Options::default()
+                    ..Default::default()
                 },
             )
             .unwrap();
@@ -456,7 +484,7 @@ mod tests {
         assert!(signed_tx.max_priority_fee_per_gas > 0.into());
         assert!(signed_tx.max_fee_per_gas > 0.into());
 
-        let tx_hash = client.send_raw_tx(signed_tx.raw_tx).await.unwrap();
+        let tx_hash = client.send_raw_tx(signed_tx.raw_tx.clone()).await.unwrap();
         assert_eq!(tx_hash, signed_tx.hash);
 
         client.execute_tx(tx_hash, true, 3);

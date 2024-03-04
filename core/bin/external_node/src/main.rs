@@ -13,7 +13,7 @@ use zksync_core::{
     api_server::{
         execution_sandbox::VmConcurrencyLimiter,
         healthcheck::HealthCheckHandle,
-        tx_sender::{ApiContracts, TxSenderBuilder},
+        tx_sender::{proxy::TxProxy, ApiContracts, TxSenderBuilder},
         web3::{ApiBuilder, Namespace},
     },
     block_reverter::{BlockReverter, BlockReverterFlags, L1ExecutedBatchesRevert},
@@ -35,6 +35,7 @@ use zksync_core::{
 };
 use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
+use zksync_l1_contract_interface::i_executor::commit::kzg::KzgSettings;
 use zksync_state::PostgresStorageCaches;
 use zksync_storage::RocksDB;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
@@ -229,6 +230,9 @@ async fn init_tasks(
         .context("failed initializing metadata calculator")?;
     app_health.insert_component(metadata_calculator.tree_health_check());
 
+    let kzg_settings = Some(Arc::new(KzgSettings::new(
+        &config.optional.kzg_trusted_setup_path,
+    )));
     let consistency_checker = ConsistencyChecker::new(
         &config
             .required
@@ -239,6 +243,7 @@ async fn init_tasks(
             .build()
             .await
             .context("failed to build connection pool for ConsistencyChecker")?,
+        kzg_settings,
     );
     app_health.insert_component(consistency_checker.health_check().clone());
     let consistency_checker_handle = tokio::spawn(consistency_checker.run(stop_receiver.clone()));
@@ -264,7 +269,10 @@ async fn init_tasks(
         .build()
         .await
         .context("failed to build a commitment_generator_pool")?;
-    let commitment_generator = CommitmentGenerator::new(commitment_generator_pool);
+    let commitment_generator = CommitmentGenerator::new(
+        commitment_generator_pool,
+        &config.optional.kzg_trusted_setup_path,
+    );
     app_health.insert_component(commitment_generator.health_check());
     let commitment_generator_handle = tokio::spawn(commitment_generator.run(stop_receiver.clone()));
 
@@ -275,11 +283,22 @@ async fn init_tasks(
     let fee_params_fetcher_handle =
         tokio::spawn(fee_params_fetcher.clone().run(stop_receiver.clone()));
 
-    let (tx_sender, vm_barrier, cache_update_handle) = {
-        let tx_sender_builder =
-            TxSenderBuilder::new(config.clone().into(), connection_pool.clone())
-                .with_main_connection_pool(connection_pool.clone())
-                .with_tx_proxy(main_node_client);
+    let (tx_sender, vm_barrier, cache_update_handle, proxy_cache_updater_handle) = {
+        let tx_proxy = TxProxy::new(main_node_client);
+        let proxy_cache_updater_pool = singleton_pool_builder
+            .build()
+            .await
+            .context("failed to build a tree_pool")?;
+        let proxy_cache_updater_handle = tokio::spawn(
+            tx_proxy
+                .run_account_nonce_sweeper(proxy_cache_updater_pool.clone(), stop_receiver.clone()),
+        );
+
+        let tx_sender_builder = TxSenderBuilder::new(
+            config.clone().into(),
+            connection_pool.clone(),
+            Arc::new(tx_proxy),
+        );
 
         if config.optional.transactions_per_sec_limit.is_some() {
             tracing::warn!("`transactions_per_sec_limit` option is deprecated and ignored");
@@ -308,7 +327,12 @@ async fn init_tasks(
                 storage_caches,
             )
             .await;
-        (tx_sender, vm_barrier, cache_update_handle)
+        (
+            tx_sender,
+            vm_barrier,
+            cache_update_handle,
+            proxy_cache_updater_handle,
+        )
     };
 
     let http_server_handles =
@@ -317,10 +341,13 @@ async fn init_tasks(
             .with_filter_limit(config.optional.filters_limit)
             .with_batch_request_size_limit(config.optional.max_batch_request_size)
             .with_response_body_size_limit(config.optional.max_response_body_size())
-            .with_tx_sender(tx_sender.clone(), vm_barrier.clone())
+            .with_tx_sender(tx_sender.clone())
+            .with_vm_barrier(vm_barrier.clone())
             .with_sync_state(sync_state.clone())
             .enable_api_namespaces(config.optional.api_namespaces())
-            .build(stop_receiver.clone())
+            .build()
+            .context("failed to build HTTP JSON-RPC server")?
+            .run(stop_receiver.clone())
             .await
             .context("Failed initializing HTTP JSON-RPC server")?;
 
@@ -332,10 +359,13 @@ async fn init_tasks(
             .with_batch_request_size_limit(config.optional.max_batch_request_size)
             .with_response_body_size_limit(config.optional.max_response_body_size())
             .with_polling_interval(config.optional.polling_interval())
-            .with_tx_sender(tx_sender, vm_barrier)
+            .with_tx_sender(tx_sender)
+            .with_vm_barrier(vm_barrier)
             .with_sync_state(sync_state)
             .enable_api_namespaces(config.optional.api_namespaces())
-            .build(stop_receiver.clone())
+            .build()
+            .context("failed to build WS JSON-RPC server")?
+            .run(stop_receiver.clone())
             .await
             .context("Failed initializing WS JSON-RPC server")?;
 
@@ -359,6 +389,7 @@ async fn init_tasks(
     task_handles.extend(http_server_handles.tasks);
     task_handles.extend(ws_server_handles.tasks);
     task_handles.extend(cache_update_handle);
+    task_handles.push(proxy_cache_updater_handle);
     task_handles.extend([
         sk_handle,
         fee_address_migration_handle,
@@ -505,7 +536,10 @@ async fn main() -> anyhow::Result<()> {
 
     let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
         .context("Failed creating JSON-RPC client for main node")?;
-    let app_health = Arc::new(AppHealthCheck::default());
+    let app_health = Arc::new(AppHealthCheck::new(
+        config.optional.healthcheck_slow_time_limit(),
+        config.optional.healthcheck_hard_time_limit(),
+    ));
     app_health.insert_custom_component(Arc::new(MainNodeHealthCheck::from(
         main_node_client.clone(),
     )));

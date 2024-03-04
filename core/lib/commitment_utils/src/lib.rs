@@ -24,7 +24,7 @@ pub fn events_queue_commitment(
                     .collect(),
             ),
         )),
-        VmVersion::Vm1_4_1 => Some(H256(
+        VmVersion::Vm1_4_1 | VmVersion::Vm1_4_2 => Some(H256(
             zkevm_test_harness_1_4_1::witness::utils::events_queue_commitment_fixed(
                 &events_queue
                     .iter()
@@ -55,7 +55,7 @@ pub fn bootloader_initial_content_commitment(
                 &full_bootloader_memory,
             ),
         )),
-        VmVersion::Vm1_4_1 => Some(H256(
+        VmVersion::Vm1_4_1 | VmVersion::Vm1_4_2 => Some(H256(
             zkevm_test_harness_1_4_1::witness::utils::initial_heap_content_commitment_fixed(
                 &full_bootloader_memory,
             ),

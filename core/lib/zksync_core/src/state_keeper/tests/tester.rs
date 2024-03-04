@@ -643,21 +643,21 @@ impl StateKeeperIO for TestIO {
         self.miniblock_number
     }
 
-    async fn load_pending_batch(&mut self) -> Option<PendingBatchData> {
-        self.scenario.pending_batch.take()
+    async fn load_pending_batch(&mut self) -> anyhow::Result<Option<PendingBatchData>> {
+        Ok(self.scenario.pending_batch.take())
     }
 
     async fn wait_for_new_batch_params(
         &mut self,
         _max_wait: Duration,
-    ) -> Option<(SystemEnv, L1BatchEnv)> {
+    ) -> anyhow::Result<Option<(SystemEnv, L1BatchEnv)>> {
         let first_miniblock_info = L2BlockEnv {
             number: self.miniblock_number.0,
             timestamp: self.timestamp,
             prev_block_hash: H256::zero(),
             max_virtual_blocks_to_create: 1,
         };
-        Some((
+        Ok(Some((
             SystemEnv {
                 zk_porter_available: false,
                 version: self.protocol_version,
@@ -676,18 +676,18 @@ impl StateKeeperIO for TestIO {
                 enforced_base_fee: None,
                 first_l2_block: first_miniblock_info,
             },
-        ))
+        )))
     }
 
     async fn wait_for_new_miniblock_params(
         &mut self,
         _max_wait: Duration,
-    ) -> Option<MiniblockParams> {
-        Some(MiniblockParams {
+    ) -> anyhow::Result<Option<MiniblockParams>> {
+        Ok(Some(MiniblockParams {
             timestamp: self.timestamp,
             // 1 is just a constant used for tests.
             virtual_blocks: 1,
-        })
+        }))
     }
 
     async fn wait_for_next_tx(&mut self, max_wait: Duration) -> Option<Transaction> {
@@ -721,7 +721,7 @@ impl StateKeeperIO for TestIO {
         self.skipping_txs = false;
     }
 
-    async fn reject(&mut self, tx: &Transaction, error: &str) {
+    async fn reject(&mut self, tx: &Transaction, error: &str) -> anyhow::Result<()> {
         let action = self.pop_next_item("reject");
         let ScenarioItem::Reject(_, expected_tx, expected_err) = action else {
             panic!("Unexpected action: {:?}", action);
@@ -736,6 +736,7 @@ impl StateKeeperIO for TestIO {
             );
         }
         self.skipping_txs = false;
+        Ok(())
     }
 
     async fn seal_miniblock(&mut self, updates_manager: &UpdatesManager) {
@@ -778,15 +779,15 @@ impl StateKeeperIO for TestIO {
         Ok(())
     }
 
-    async fn load_previous_batch_version_id(&mut self) -> Option<ProtocolVersionId> {
-        Some(self.previous_batch_protocol_version)
+    async fn load_previous_batch_version_id(&mut self) -> anyhow::Result<ProtocolVersionId> {
+        Ok(self.previous_batch_protocol_version)
     }
 
     async fn load_upgrade_tx(
         &mut self,
         version_id: ProtocolVersionId,
-    ) -> Option<ProtocolUpgradeTx> {
-        self.protocol_upgrade_txs.get(&version_id).cloned()
+    ) -> anyhow::Result<Option<ProtocolUpgradeTx>> {
+        Ok(self.protocol_upgrade_txs.get(&version_id).cloned())
     }
 }
 

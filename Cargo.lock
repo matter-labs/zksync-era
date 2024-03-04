@@ -906,8 +906,8 @@ dependencies = [
 
 [[package]]
 name = "boojum"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-boojum.git?branch=main#93b5e0f0dbff0a9b606d9025e207c8405c141bd9"
+version = "0.2.0"
+source = "git+https://github.com/matter-labs/era-boojum.git?branch=main#30300f043c9afaeeb35d0f7bd3cc0acaf69ccde4"
 dependencies = [
  "arrayvec 0.7.4",
  "bincode",
@@ -1206,7 +1206,7 @@ dependencies = [
 [[package]]
 name = "circuit_definitions"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.0#de2ecad62ac8c12777e576dca20311ad8ec770d1"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.0#aff36380e6a740f7286c9c522e1416b8d38327ce"
 dependencies = [
  "crossbeam 0.8.2",
  "derivative",
@@ -1220,7 +1220,21 @@ dependencies = [
 [[package]]
 name = "circuit_definitions"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1#d4e9215d4fe8f4d311e1c01a9b561e4d04cb426b"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1#4c6b8996f3f2bfef96ce193a5819b2e31a180830"
+dependencies = [
+ "crossbeam 0.8.2",
+ "derivative",
+ "seq-macro",
+ "serde",
+ "snark_wrapper",
+ "zk_evm 1.4.1",
+ "zkevm_circuits 1.4.1",
+]
+
+[[package]]
+name = "circuit_definitions"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.2#aa09f683a62e9ceeb457272909625f49f413f9d9"
 dependencies = [
  "crossbeam 0.8.2",
  "derivative",
@@ -1710,7 +1724,7 @@ dependencies = [
 [[package]]
 name = "cs_derive"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-boojum.git?branch=main#93b5e0f0dbff0a9b606d9025e207c8405c141bd9"
+source = "git+https://github.com/matter-labs/era-boojum.git?branch=main#30300f043c9afaeeb35d0f7bd3cc0acaf69ccde4"
 dependencies = [
  "proc-macro-error",
  "proc-macro2 1.0.69",
@@ -3982,6 +3996,7 @@ dependencies = [
  "zkevm_test_harness 1.3.3",
  "zkevm_test_harness 1.4.0",
  "zkevm_test_harness 1.4.1",
+ "zkevm_test_harness 1.4.2",
  "zksync_contracts",
  "zksync_eth_signer",
  "zksync_state",
@@ -4278,9 +4293,9 @@ dependencies = [
 
 [[package]]
 name = "once_cell"
-version = "1.18.0"
+version = "1.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dd8b5dd2ae5ed71462c540258bedcb51965123ad7e7ccf4b9a8cafaa4a63576d"
+checksum = "3fdb12b2476b595f9358c5161aa467c2438859caa136dec86c26fdd2efe17b92"
 
 [[package]]
 name = "oorandom"
@@ -5291,7 +5306,7 @@ dependencies = [
 [[package]]
 name = "rescue_poseidon"
 version = "0.4.1"
-source = "git+https://github.com/matter-labs/rescue-poseidon.git?branch=poseidon2#2e5e8afb152adc326fcf776a71ad3735fa7f3186"
+source = "git+https://github.com/matter-labs/rescue-poseidon.git?branch=poseidon2#126937ef0e7a281f1ff9f512ac41a746a691a342"
 dependencies = [
  "addchain",
  "arrayvec 0.7.4",
@@ -5299,6 +5314,7 @@ dependencies = [
  "byteorder",
  "derivative",
  "franklin-crypto 0.0.5 (git+https://github.com/matter-labs/franklin-crypto?branch=snark_wrapper)",
+ "lazy_static",
  "log",
  "num-bigint 0.3.3",
  "num-integer",
@@ -5308,6 +5324,7 @@ dependencies = [
  "serde",
  "sha3 0.9.1",
  "smallvec",
+ "typemap_rev",
 ]
 
 [[package]]
@@ -6173,7 +6190,7 @@ dependencies = [
 [[package]]
 name = "snark_wrapper"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/snark-wrapper.git?branch=main#42661a9ff9d00853441589679c101f71e3785f55"
+source = "git+https://github.com/matter-labs/snark-wrapper.git?branch=main#76959cadabeec344b9fa1458728400d60340e496"
 dependencies = [
  "derivative",
  "rand 0.4.6",
@@ -7193,6 +7210,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3528ecfd12c466c6f163363caf2d02a71161dd5e1cc6ae7b34207ea2d42d81ed"
 
 [[package]]
+name = "typemap_rev"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "74b08b0c1257381af16a5c3605254d529d3e7e109f3c62befc5d168968192998"
+
+[[package]]
 name = "typenum"
 version = "1.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8096,7 +8119,7 @@ dependencies = [
 [[package]]
 name = "zkevm_circuits"
 version = "1.4.0"
-source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=main#4fba537ccecc238e2da9c80844dc8c185e42466f"
+source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=main#fb3e2574b5c890342518fc930c145443f039a105"
 dependencies = [
  "arrayvec 0.7.4",
  "bincode",
@@ -8107,6 +8130,7 @@ dependencies = [
  "itertools 0.10.5",
  "rand 0.4.6",
  "rand 0.8.5",
+ "seq-macro",
  "serde",
  "serde_json",
  "smallvec",
@@ -8116,7 +8140,7 @@ dependencies = [
 [[package]]
 name = "zkevm_circuits"
 version = "1.4.1"
-source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=v1.4.1#873fe0fcf0bb8df6be0ae1938ce8469d6bf63ebd"
+source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=v1.4.1#3a973afb3cf2b50b7138c1af61cc6ac3d7d0189f"
 dependencies = [
  "arrayvec 0.7.4",
  "bincode",
@@ -8176,7 +8200,7 @@ dependencies = [
 [[package]]
 name = "zkevm_opcode_defs"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/era-zkevm_opcode_defs.git?branch=v1.5.0#1a04ba7a4e369f6a3bb073acd217950f4f144a84"
+source = "git+https://github.com/matter-labs/era-zkevm_opcode_defs.git?branch=v1.5.0#31dc076e1c60aed8d23c8f121b6f7e913d663d65"
 dependencies = [
  "bitflags 2.4.1",
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -8219,7 +8243,7 @@ dependencies = [
 [[package]]
 name = "zkevm_test_harness"
 version = "1.4.0"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.0#de2ecad62ac8c12777e576dca20311ad8ec770d1"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.0#aff36380e6a740f7286c9c522e1416b8d38327ce"
 dependencies = [
  "bincode",
  "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.0)",
@@ -8242,10 +8266,39 @@ dependencies = [
 [[package]]
 name = "zkevm_test_harness"
 version = "1.4.1"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1#d4e9215d4fe8f4d311e1c01a9b561e4d04cb426b"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1#4c6b8996f3f2bfef96ce193a5819b2e31a180830"
 dependencies = [
  "bincode",
  "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1)",
+ "codegen 0.2.0",
+ "crossbeam 0.8.2",
+ "curl",
+ "derivative",
+ "env_logger 0.10.0",
+ "hex",
+ "lazy_static",
+ "rand 0.4.6",
+ "rayon",
+ "reqwest",
+ "rescue_poseidon 0.4.1 (git+https://github.com/matter-labs/rescue-poseidon.git?branch=poseidon2)",
+ "serde",
+ "serde_json",
+ "smallvec",
+ "snark_wrapper",
+ "structopt",
+ "test-log",
+ "tracing",
+ "walkdir",
+ "zkevm-assembly 1.3.2 (git+https://github.com/matter-labs/era-zkEVM-assembly.git?branch=v1.4.1)",
+]
+
+[[package]]
+name = "zkevm_test_harness"
+version = "1.4.2"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.2#aa09f683a62e9ceeb457272909625f49f413f9d9"
+dependencies = [
+ "bincode",
+ "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.2)",
  "codegen 0.2.0",
  "crossbeam 0.8.2",
  "curl",
@@ -8331,7 +8384,7 @@ dependencies = [
 [[package]]
 name = "zksync_concurrency"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=5b3d383d7a65b0fbe2a771fecf4313f5083be9ae#5b3d383d7a65b0fbe2a771fecf4313f5083be9ae"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=97d139969476a004c50f8b4a31ece748e5bee14e#97d139969476a004c50f8b4a31ece748e5bee14e"
 dependencies = [
  "anyhow",
  "once_cell",
@@ -8359,7 +8412,7 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_bft"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=5b3d383d7a65b0fbe2a771fecf4313f5083be9ae#5b3d383d7a65b0fbe2a771fecf4313f5083be9ae"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=97d139969476a004c50f8b4a31ece748e5bee14e#97d139969476a004c50f8b4a31ece748e5bee14e"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8380,7 +8433,7 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_crypto"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=5b3d383d7a65b0fbe2a771fecf4313f5083be9ae#5b3d383d7a65b0fbe2a771fecf4313f5083be9ae"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=97d139969476a004c50f8b4a31ece748e5bee14e#97d139969476a004c50f8b4a31ece748e5bee14e"
 dependencies = [
  "anyhow",
  "blst",
@@ -8398,7 +8451,7 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_executor"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=5b3d383d7a65b0fbe2a771fecf4313f5083be9ae#5b3d383d7a65b0fbe2a771fecf4313f5083be9ae"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=97d139969476a004c50f8b4a31ece748e5bee14e#97d139969476a004c50f8b4a31ece748e5bee14e"
 dependencies = [
  "anyhow",
  "rand 0.8.5",
@@ -8418,7 +8471,7 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_network"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=5b3d383d7a65b0fbe2a771fecf4313f5083be9ae#5b3d383d7a65b0fbe2a771fecf4313f5083be9ae"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=97d139969476a004c50f8b4a31ece748e5bee14e#97d139969476a004c50f8b4a31ece748e5bee14e"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8443,7 +8496,7 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_roles"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=5b3d383d7a65b0fbe2a771fecf4313f5083be9ae#5b3d383d7a65b0fbe2a771fecf4313f5083be9ae"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=97d139969476a004c50f8b4a31ece748e5bee14e#97d139969476a004c50f8b4a31ece748e5bee14e"
 dependencies = [
  "anyhow",
  "bit-vec",
@@ -8463,7 +8516,7 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_storage"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=5b3d383d7a65b0fbe2a771fecf4313f5083be9ae#5b3d383d7a65b0fbe2a771fecf4313f5083be9ae"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=97d139969476a004c50f8b4a31ece748e5bee14e#97d139969476a004c50f8b4a31ece748e5bee14e"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8481,7 +8534,7 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_sync_blocks"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=5b3d383d7a65b0fbe2a771fecf4313f5083be9ae#5b3d383d7a65b0fbe2a771fecf4313f5083be9ae"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=97d139969476a004c50f8b4a31ece748e5bee14e#97d139969476a004c50f8b4a31ece748e5bee14e"
 dependencies = [
  "anyhow",
  "thiserror",
@@ -8496,7 +8549,7 @@ dependencies = [
 [[package]]
 name = "zksync_consensus_utils"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=5b3d383d7a65b0fbe2a771fecf4313f5083be9ae#5b3d383d7a65b0fbe2a771fecf4313f5083be9ae"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=97d139969476a004c50f8b4a31ece748e5bee14e#97d139969476a004c50f8b4a31ece748e5bee14e"
 dependencies = [
  "thiserror",
  "zksync_concurrency",
@@ -8683,8 +8736,12 @@ name = "zksync_eth_client"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "hex",
  "jsonrpc-core",
+ "pretty_assertions",
+ "rlp",
  "serde",
+ "serde_json",
  "static_assertions",
  "thiserror",
  "tokio",
@@ -8742,6 +8799,7 @@ dependencies = [
  "zksync_core",
  "zksync_dal",
  "zksync_health_check",
+ "zksync_l1_contract_interface",
  "zksync_object_store",
  "zksync_snapshots_applier",
  "zksync_state",
@@ -8762,6 +8820,7 @@ dependencies = [
  "serde_json",
  "tokio",
  "tracing",
+ "vise",
 ]
 
 [[package]]
@@ -8776,7 +8835,7 @@ dependencies = [
  "sha2 0.10.8",
  "sha3 0.10.8",
  "zkevm_test_harness 1.3.3",
- "zkevm_test_harness 1.4.1",
+ "zkevm_test_harness 1.4.2",
  "zksync_prover_interface",
  "zksync_types",
 ]
@@ -8841,14 +8900,17 @@ dependencies = [
  "tracing",
  "vlog",
  "zksync_config",
+ "zksync_contracts",
  "zksync_core",
  "zksync_dal",
  "zksync_env_config",
  "zksync_eth_client",
  "zksync_health_check",
  "zksync_object_store",
+ "zksync_state",
  "zksync_storage",
  "zksync_types",
+ "zksync_web3_decl",
 ]
 
 [[package]]
@@ -8876,7 +8938,7 @@ dependencies = [
 [[package]]
 name = "zksync_protobuf"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=5b3d383d7a65b0fbe2a771fecf4313f5083be9ae#5b3d383d7a65b0fbe2a771fecf4313f5083be9ae"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=97d139969476a004c50f8b4a31ece748e5bee14e#97d139969476a004c50f8b4a31ece748e5bee14e"
 dependencies = [
  "anyhow",
  "bit-vec",
@@ -8894,7 +8956,7 @@ dependencies = [
 [[package]]
 name = "zksync_protobuf_build"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-consensus.git?rev=5b3d383d7a65b0fbe2a771fecf4313f5083be9ae#5b3d383d7a65b0fbe2a771fecf4313f5083be9ae"
+source = "git+https://github.com/matter-labs/era-consensus.git?rev=97d139969476a004c50f8b4a31ece748e5bee14e#97d139969476a004c50f8b4a31ece748e5bee14e"
 dependencies = [
  "anyhow",
  "heck 0.4.1",

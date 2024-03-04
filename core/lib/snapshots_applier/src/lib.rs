@@ -281,12 +281,28 @@ impl<'a> SnapshotsApplier<'a> {
                 return Err(SnapshotsApplierError::Fatal(err));
             }
 
+            let recovery_status =
+                SnapshotsApplier::create_fresh_recovery_status(main_node_client).await?;
+
+            let storage_logs_count = storage
+                .snapshots_creator_dal()
+                .get_storage_logs_row_count(recovery_status.miniblock_number)
+                .await
+                .map_err(|err| {
+                    SnapshotsApplierError::db(err, "cannot get storage_logs row count")
+                })?;
+            if storage_logs_count > 0 {
+                let err = anyhow::anyhow!(
+                    "storage_logs table has {storage_logs_count} rows at or before the snapshot miniblock #{}; \
+                     snapshot recovery is unsafe",
+                    recovery_status.miniblock_number
+                );
+                return Err(SnapshotsApplierError::Fatal(err));
+            }
+
             let latency = latency.observe();
             tracing::info!("Initialized fresh snapshots applier in {latency:?}");
-            Ok((
-                SnapshotsApplier::create_fresh_recovery_status(main_node_client).await?,
-                true,
-            ))
+            Ok((recovery_status, true))
         }
     }
 
@@ -514,6 +530,7 @@ impl<'a> SnapshotsApplier<'a> {
                 SnapshotsApplierError::object_store(err, context)
             })?;
         let storage_logs = &storage_snapshot_chunk.storage_logs;
+        self.validate_storage_logs_chunk(storage_logs)?;
         let latency = latency.observe();
         tracing::info!(
             "Loaded {} storage logs from GCS for chunk {chunk_id} in {latency:?}",
@@ -558,6 +575,24 @@ impl<'a> SnapshotsApplier<'a> {
         Ok(())
     }
 
+    /// Performs basic sanity check for a storage logs chunk.
+    fn validate_storage_logs_chunk(
+        &self,
+        storage_logs: &[SnapshotStorageLog],
+    ) -> anyhow::Result<()> {
+        for log in storage_logs {
+            anyhow::ensure!(
+                log.enumeration_index > 0,
+                "invalid storage log with zero enumeration_index: {log:?}"
+            );
+            anyhow::ensure!(
+                log.l1_batch_number_of_initial_write <= self.applied_snapshot_status.l1_batch_number,
+                "invalid storage log with `l1_batch_number_of_initial_write` from the future: {log:?}"
+            );
+        }
+        Ok(())
+    }
+
     async fn recover_storage_logs(&self) -> Result<(), SnapshotsApplierError> {
         let semaphore = Semaphore::new(self.connection_pool.max_size() as usize);
         let tasks = self
@@ -570,6 +605,35 @@ impl<'a> SnapshotsApplier<'a> {
                 self.recover_storage_logs_single_chunk(&semaphore, chunk_id as u64)
             });
         futures::future::try_join_all(tasks).await?;
+
+        let mut storage = self
+            .connection_pool
+            .access_storage_tagged("snapshots_applier")
+            .await?;
+        // This DB query is slow, but this is fine for verification purposes.
+        let total_log_count = storage
+            .snapshots_creator_dal()
+            .get_storage_logs_row_count(self.applied_snapshot_status.miniblock_number)
+            .await
+            .map_err(|err| SnapshotsApplierError::db(err, "cannot get storage_logs row count"))?;
+        tracing::info!(
+            "Recovered {total_log_count} storage logs in total; checking overall consistency..."
+        );
+
+        let number_of_logs_by_enum_indices = storage
+            .snapshots_creator_dal()
+            .get_distinct_storage_logs_keys_count(self.applied_snapshot_status.l1_batch_number)
+            .await
+            .map_err(|err| {
+                SnapshotsApplierError::db(err, "cannot get storage log count by initial writes")
+            })?;
+        if number_of_logs_by_enum_indices != total_log_count {
+            let err = anyhow::anyhow!(
+                "mismatch between the expected number of storage logs by enumeration indices ({number_of_logs_by_enum_indices}) \
+                 and the actual number of logs in the snapshot ({total_log_count}); the snapshot may be corrupted"
+            );
+            return Err(SnapshotsApplierError::Fatal(err));
+        }
 
         Ok(())
     }

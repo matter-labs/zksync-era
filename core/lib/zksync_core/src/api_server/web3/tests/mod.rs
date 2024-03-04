@@ -100,14 +100,14 @@ impl ApiServerHandles {
 }
 
 pub(crate) async fn spawn_http_server(
-    network_config: &NetworkConfig,
+    api_config: InternalApiConfig,
     pool: ConnectionPool,
     tx_executor: MockTransactionExecutor,
     stop_receiver: watch::Receiver<bool>,
 ) -> ApiServerHandles {
     spawn_server(
         ApiTransportLabel::Http,
-        network_config,
+        api_config,
         pool,
         None,
         tx_executor,
@@ -118,14 +118,14 @@ pub(crate) async fn spawn_http_server(
 }
 
 async fn spawn_ws_server(
-    network_config: &NetworkConfig,
+    api_config: InternalApiConfig,
     pool: ConnectionPool,
     stop_receiver: watch::Receiver<bool>,
     websocket_requests_per_minute_limit: Option<NonZeroU32>,
 ) -> (ApiServerHandles, mpsc::UnboundedReceiver<PubSubEvent>) {
     spawn_server(
         ApiTransportLabel::Ws,
-        network_config,
+        api_config,
         pool,
         websocket_requests_per_minute_limit,
         MockTransactionExecutor::default(),
@@ -136,15 +136,12 @@ async fn spawn_ws_server(
 
 async fn spawn_server(
     transport: ApiTransportLabel,
-    network_config: &NetworkConfig,
+    api_config: InternalApiConfig,
     pool: ConnectionPool,
     websocket_requests_per_minute_limit: Option<NonZeroU32>,
     tx_executor: MockTransactionExecutor,
     stop_receiver: watch::Receiver<bool>,
 ) -> (ApiServerHandles, mpsc::UnboundedReceiver<PubSubEvent>) {
-    let contracts_config = ContractsConfig::for_tests();
-    let web3_config = Web3JsonRpcConfig::for_tests();
-    let api_config = InternalApiConfig::new(network_config, &web3_config, &contracts_config);
     let (tx_sender, vm_barrier) =
         create_test_tx_sender(pool.clone(), api_config.l2_chain_id, tx_executor.into()).await;
     let (pub_sub_events_sender, pub_sub_events_receiver) = mpsc::unbounded_channel();
@@ -167,10 +164,13 @@ async fn spawn_server(
     };
     let server_handles = server_builder
         .with_polling_interval(POLL_INTERVAL)
-        .with_tx_sender(tx_sender, vm_barrier)
+        .with_tx_sender(tx_sender)
+        .with_vm_barrier(vm_barrier)
         .with_pub_sub_events(pub_sub_events_sender)
         .enable_api_namespaces(namespaces)
-        .build(stop_receiver)
+        .build()
+        .expect("Unable to build API server")
+        .run(stop_receiver)
         .await
         .expect("Failed spawning JSON-RPC server");
     (server_handles, pub_sub_events_receiver)
@@ -188,6 +188,11 @@ trait HttpTest: Send + Sync {
     }
 
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()>;
+
+    /// Overrides the `filters_disabled` configuration parameter for HTTP server startup
+    fn filters_disabled(&self) -> bool {
+        false
+    }
 }
 
 /// Storage initialization strategy.
@@ -260,8 +265,12 @@ async fn test_http_server(test: impl HttpTest) {
     drop(storage);
 
     let (stop_sender, stop_receiver) = watch::channel(false);
+    let contracts_config = ContractsConfig::for_tests();
+    let web3_config = Web3JsonRpcConfig::for_tests();
+    let mut api_config = InternalApiConfig::new(&network_config, &web3_config, &contracts_config);
+    api_config.filters_disabled = test.filters_disabled();
     let mut server_handles = spawn_http_server(
-        &network_config,
+        api_config,
         pool.clone(),
         test.transaction_executor(),
         stop_receiver,

@@ -79,7 +79,7 @@ async fn test_filter_with_pending_batch() {
     // Before the mempool knows there is a pending batch, the filter is still set to the default values.
     assert_eq!(mempool.filter(), &L2TxFilter::default());
 
-    mempool.load_pending_batch().await;
+    mempool.load_pending_batch().await.unwrap();
     let (want_base_fee, want_gas_per_pubdata) =
         derive_base_fee_and_gas_per_pubdata(fee_input, ProtocolVersionId::latest().into());
     let want_filter = L2TxFilter {
@@ -161,11 +161,12 @@ async fn test_timestamps_are_distinct(
     .await;
     tester.insert_tx(&mut guard, tx_filter.fee_per_gas, tx_filter.gas_per_pubdata);
 
-    let batch_params = mempool
+    let (_, l1_batch_env) = mempool
         .wait_for_new_batch_params(Duration::from_secs(10))
         .await
+        .unwrap()
         .expect("No batch params in the test mempool");
-    assert!(batch_params.1.timestamp > prev_miniblock_timestamp);
+    assert!(l1_batch_env.timestamp > prev_miniblock_timestamp);
 }
 
 #[tokio::test]
@@ -451,7 +452,7 @@ async fn miniblock_processing_after_snapshot_recovery() {
         mempool.current_l1_batch_number(),
         snapshot_recovery.l1_batch_number + 1
     );
-    assert!(mempool.load_pending_batch().await.is_none());
+    assert!(mempool.load_pending_batch().await.unwrap().is_none());
 
     // Insert a transaction into the mempool in order to open a new batch.
     let tx_filter = l2_tx_filter(
@@ -472,7 +473,8 @@ async fn miniblock_processing_after_snapshot_recovery() {
     let (system_env, l1_batch_env) = mempool
         .wait_for_new_batch_params(Duration::from_secs(10))
         .await
-        .unwrap();
+        .unwrap()
+        .expect("no batch params generated");
     assert_eq!(l1_batch_env.number, snapshot_recovery.l1_batch_number + 1);
     assert_eq!(
         l1_batch_env.previous_batch_hash,
@@ -541,7 +543,11 @@ async fn miniblock_processing_after_snapshot_recovery() {
         snapshot_recovery.l1_batch_number + 1
     );
 
-    let pending_batch = mempool.load_pending_batch().await.unwrap();
+    let pending_batch = mempool
+        .load_pending_batch()
+        .await
+        .unwrap()
+        .expect("no pending batch");
     assert_eq!(
         pending_batch.l1_batch_env.number,
         snapshot_recovery.l1_batch_number + 1
@@ -665,6 +671,7 @@ async fn different_timestamp_for_miniblocks_in_same_batch() {
     let miniblock_params = mempool
         .wait_for_new_miniblock_params(Duration::from_secs(10))
         .await
-        .unwrap();
+        .unwrap()
+        .expect("no new miniblock params");
     assert!(miniblock_params.timestamp > current_timestamp);
 }
