@@ -1,4 +1,4 @@
-use std::{fmt, sync::Arc, time::Duration};
+use std::{fmt, time::Duration};
 
 use anyhow::Context as _;
 use serde::Serialize;
@@ -8,10 +8,7 @@ use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::{clients::QueryClient, Error as L1ClientError, EthInterface};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::{
-    i_executor::{
-        commit::kzg::{KzgSettings, ZK_SYNC_BYTES_PER_BLOB},
-        structures::CommitBatchInfo,
-    },
+    i_executor::{commit::kzg::ZK_SYNC_BYTES_PER_BLOB, structures::CommitBatchInfo},
     Tokenizable,
 };
 use zksync_types::{pubdata_da::PubdataDA, web3::ethabi, L1BatchNumber, H256};
@@ -140,7 +137,6 @@ impl LocalL1BatchCommitData {
     async fn new(
         storage: &mut StorageProcessor<'_>,
         batch_number: L1BatchNumber,
-        kzg_settings: Option<Arc<KzgSettings>>,
     ) -> anyhow::Result<Option<Self>> {
         let Some(storage_l1_batch) = storage
             .blocks_dal()
@@ -202,9 +198,7 @@ impl LocalL1BatchCommitData {
         // Iterate over possible `PubdataDA` used for encoding `CommitBatchInfo`.
         let l1_commit_data_variants = variants
             .into_iter()
-            .map(|pubdata_da| {
-                CommitBatchInfo::new(&l1_batch, pubdata_da, kzg_settings.clone()).into_token()
-            })
+            .map(|pubdata_da| CommitBatchInfo::new(&l1_batch, pubdata_da).into_token())
             .collect();
         Ok(Some(Self {
             is_pre_boojum,
@@ -226,18 +220,12 @@ pub struct ConsistencyChecker {
     l1_data_mismatch_behavior: L1DataMismatchBehavior,
     pool: ConnectionPool,
     health_check: ReactiveHealthCheck,
-    kzg_settings: Option<Arc<KzgSettings>>,
 }
 
 impl ConsistencyChecker {
     const DEFAULT_SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 
-    pub fn new(
-        web3_url: &str,
-        max_batches_to_recheck: u32,
-        pool: ConnectionPool,
-        kzg_settings: Option<Arc<KzgSettings>>,
-    ) -> Self {
+    pub fn new(web3_url: &str, max_batches_to_recheck: u32, pool: ConnectionPool) -> Self {
         let web3 = QueryClient::new(web3_url).unwrap();
         let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
         Self {
@@ -249,7 +237,6 @@ impl ConsistencyChecker {
             l1_data_mismatch_behavior: L1DataMismatchBehavior::Log,
             pool,
             health_check,
-            kzg_settings,
         }
     }
 
@@ -400,10 +387,7 @@ impl ConsistencyChecker {
             // The batch might be already committed but not yet processed by the external node's tree
             // OR the batch might be processed by the external node's tree but not yet committed.
             // We need both.
-            let Some(local) =
-                LocalL1BatchCommitData::new(&mut storage, batch_number, self.kzg_settings.clone())
-                    .await?
-            else {
+            let Some(local) = LocalL1BatchCommitData::new(&mut storage, batch_number).await? else {
                 tokio::time::sleep(self.sleep_interval).await;
                 continue;
             };

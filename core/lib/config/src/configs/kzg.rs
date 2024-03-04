@@ -2,6 +2,7 @@ use std::path::Path;
 
 use serde::Deserialize;
 
+// FIXME: remove
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct KzgConfig {
     /// Path to KZG trusted setup file.

@@ -1,6 +1,3 @@
-use std::sync::Arc;
-
-use zkevm_test_harness_1_4_2::kzg::KzgSettings;
 use zksync_types::{
     commitment::{pre_boojum_serialize_commitments, serialize_commitments, L1BatchWithMetadata},
     ethabi::Token,
@@ -23,19 +20,13 @@ const PUBDATA_SOURCE_BLOBS: u8 = 1;
 pub struct CommitBatchInfo<'a> {
     pub l1_batch_with_metadata: &'a L1BatchWithMetadata,
     pub pubdata_da: PubdataDA,
-    pub kzg_settings: Option<Arc<KzgSettings>>,
 }
 
 impl<'a> CommitBatchInfo<'a> {
-    pub fn new(
-        l1_batch_with_metadata: &'a L1BatchWithMetadata,
-        pubdata_da: PubdataDA,
-        kzg_settings: Option<Arc<KzgSettings>>,
-    ) -> Self {
+    pub fn new(l1_batch_with_metadata: &'a L1BatchWithMetadata, pubdata_da: PubdataDA) -> Self {
         Self {
             l1_batch_with_metadata,
             pubdata_da,
-            kzg_settings,
         }
     }
 
@@ -211,9 +202,7 @@ impl<'a> Tokenizable for CommitBatchInfo<'a> {
                 PubdataDA::Calldata => {
                     // We compute and add the blob commitment to the pubdata payload so that we can verify the proof
                     // even if we are not using blobs.
-                    let blob_commitment =
-                        KzgInfo::new(self.kzg_settings.as_ref().unwrap(), &pubdata)
-                            .to_blob_commitment();
+                    let blob_commitment = KzgInfo::new(&pubdata).to_blob_commitment();
 
                     let result = std::iter::once(PUBDATA_SOURCE_CALLDATA)
                         .chain(pubdata)
@@ -226,7 +215,7 @@ impl<'a> Tokenizable for CommitBatchInfo<'a> {
                     let pubdata_commitments = pubdata
                         .chunks(ZK_SYNC_BYTES_PER_BLOB)
                         .flat_map(|blob| {
-                            let kzg_info = KzgInfo::new(self.kzg_settings.as_ref().unwrap(), blob);
+                            let kzg_info = KzgInfo::new(blob);
                             kzg_info.to_pubdata_commitment().to_vec()
                         })
                         .collect::<Vec<u8>>();
