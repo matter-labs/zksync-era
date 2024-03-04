@@ -311,7 +311,7 @@ mod tests {
 
         let expected_sql =
             "(miniblock_number >= 10) AND (miniblock_number <= 400) AND (topic2 = $1)";
-        let expected_arg_index = 4;
+        let expected_arg_index = 2;
 
         let (actual_sql, actual_arg_index) = events_web3_dal.build_get_logs_where_clause(&filter);
 
