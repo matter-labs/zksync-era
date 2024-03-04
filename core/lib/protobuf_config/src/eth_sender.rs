@@ -1,5 +1,5 @@
 use anyhow::Context as _;
-use zksync_config::configs::{self};
+use zksync_config::configs::{self, eth_sender::PubdataSendingMode};
 use zksync_protobuf::{read_required_repr, required, ProtoRepr};
 
 use crate::proto;
@@ -124,10 +124,12 @@ impl ProtoRepr for proto::Sender {
                 .and_then(|x| Ok(proto::ProofLoadingMode::try_from(*x)?))
                 .context("proof_loading_mode")?
                 .parse(),
-            pubdata_sending_mode: required(&self.pubdata_sending_mode)
-                .and_then(|x| Ok(proto::PubdataSendingMode::try_from(*x)?))
-                .context("pubdata_sending_mode")?
-                .parse(),
+            pubdata_sending_mode: Some(
+                required(&self.pubdata_sending_mode)
+                    .and_then(|x| Ok(proto::PubdataSendingMode::try_from(*x)?))
+                    .context("pubdata_sending_mode")?
+                    .parse(),
+            ),
         })
     }
 
@@ -157,7 +159,12 @@ impl ProtoRepr for proto::Sender {
             max_acceptable_priority_fee_in_gwei: Some(this.max_acceptable_priority_fee_in_gwei),
             proof_loading_mode: Some(proto::ProofLoadingMode::new(&this.proof_loading_mode).into()),
             pubdata_sending_mode: Some(
-                proto::PubdataSendingMode::new(&this.pubdata_sending_mode).into(),
+                proto::PubdataSendingMode::new(
+                    &this
+                        .pubdata_sending_mode
+                        .unwrap_or(PubdataSendingMode::Calldata),
+                )
+                .into(),
             ),
         }
     }

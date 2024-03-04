@@ -23,6 +23,7 @@ use zksync_config::{
         },
         contracts::ProverAtGenesis,
         database::{MerkleTreeConfig, MerkleTreeMode},
+        eth_sender::PubdataSendingMode,
     },
     ApiConfig, ContractsConfig, DBConfig, ETHSenderConfig, PostgresConfig,
 };
@@ -372,7 +373,10 @@ pub async fn initialize_components(
     let mut gas_adjuster = GasAdjusterSingleton::new(
         eth_client_config.web3_url.clone(),
         gas_adjuster_config,
-        eth_sender_config.sender.pubdata_sending_mode,
+        eth_sender_config
+            .sender
+            .pubdata_sending_mode
+            .unwrap_or(PubdataSendingMode::Calldata),
     );
 
     let (stop_sender, stop_receiver) = watch::channel(false);
@@ -660,7 +664,11 @@ pub async fn initialize_components(
                 eth_sender.sender.clone(),
                 store_factory.create_store().await,
                 eth_client_blobs_addr.is_some(),
-                eth_sender.sender.pubdata_sending_mode.into(),
+                eth_sender
+                    .sender
+                    .pubdata_sending_mode
+                    .unwrap_or(PubdataSendingMode::Calldata)
+                    .into(),
                 kzg_settings.clone(),
             ),
             Arc::new(eth_client),
