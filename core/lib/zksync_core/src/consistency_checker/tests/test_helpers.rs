@@ -7,7 +7,9 @@ use zksync_types::{web3::contract::Options, L2ChainId, ProtocolVersion};
 use super::*;
 use crate::genesis::{ensure_genesis_state, GenesisParams};
 
-pub(crate) fn build_commit_tx_input_data_is_correct() {
+pub(crate) fn build_commit_tx_input_data_is_correct(
+    l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
+) {
     let contract = zksync_contracts::zksync_contract();
     let commit_function = contract.function("commitBatches").unwrap();
     let batches = vec![
@@ -15,7 +17,8 @@ pub(crate) fn build_commit_tx_input_data_is_correct() {
         create_l1_batch_with_metadata(2),
     ];
 
-    let commit_tx_input_data = build_commit_tx_input_data(&batches);
+    let commit_tx_input_data =
+        build_commit_tx_input_data(&batches, l1_batch_commit_data_generator.clone());
 
     for batch in &batches {
         let commit_data = ConsistencyChecker::extract_commit_data(
@@ -24,13 +27,17 @@ pub(crate) fn build_commit_tx_input_data_is_correct() {
             batch.header.number,
         )
         .unwrap();
-        assert_eq!(commit_data, CommitBatchInfoRollup::new(batch).into_token());
+        assert_eq!(
+            commit_data,
+            l1_batch_commit_data_generator.l1_commit_batch(batch),
+        );
     }
 }
 
 pub(crate) async fn normal_checker_function(
     batches_per_transaction: usize,
     (mapper_name, save_actions_mapper): (&'static str, SaveActionMapper),
+    l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
 ) {
     println!("Using save_actions_mapper={mapper_name}");
 
@@ -45,7 +52,8 @@ pub(crate) async fn normal_checker_function(
     let client = MockEthereum::default();
 
     for (i, l1_batches) in l1_batches.chunks(batches_per_transaction).enumerate() {
-        let input_data = build_commit_tx_input_data(l1_batches);
+        let input_data =
+            build_commit_tx_input_data(l1_batches, l1_batch_commit_data_generator.clone());
         let signed_tx = client.sign_prepared_tx(
             input_data.clone(),
             Options {
@@ -67,7 +75,7 @@ pub(crate) async fn normal_checker_function(
     let (l1_batch_updates_sender, mut l1_batch_updates_receiver) = mpsc::unbounded_channel();
     let checker = ConsistencyChecker {
         event_handler: Box::new(l1_batch_updates_sender),
-        ..create_mock_checker(client, pool.clone())
+        ..create_mock_checker(client, pool.clone(), l1_batch_commit_data_generator)
     };
 
     let (stop_sender, stop_receiver) = watch::channel(false);
@@ -96,6 +104,7 @@ pub(crate) async fn normal_checker_function(
 
 pub(crate) async fn checker_processes_pre_boojum_batches(
     (mapper_name, save_actions_mapper): (&'static str, SaveActionMapper),
+    l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
 ) {
     println!("Using save_actions_mapper={mapper_name}");
 
@@ -121,7 +130,10 @@ pub(crate) async fn checker_processes_pre_boojum_batches(
     let client = MockEthereum::default();
 
     for (i, l1_batch) in l1_batches.iter().enumerate() {
-        let input_data = build_commit_tx_input_data(slice::from_ref(l1_batch));
+        let input_data = build_commit_tx_input_data(
+            slice::from_ref(l1_batch),
+            l1_batch_commit_data_generator.clone(),
+        );
         let signed_tx = client.sign_prepared_tx(
             input_data.clone(),
             Options {
@@ -139,7 +151,7 @@ pub(crate) async fn checker_processes_pre_boojum_batches(
     let (l1_batch_updates_sender, mut l1_batch_updates_receiver) = mpsc::unbounded_channel();
     let checker = ConsistencyChecker {
         event_handler: Box::new(l1_batch_updates_sender),
-        ..create_mock_checker(client, pool.clone())
+        ..create_mock_checker(client, pool.clone(), l1_batch_commit_data_generator)
     };
 
     let (stop_sender, stop_receiver) = watch::channel(false);
@@ -166,7 +178,10 @@ pub(crate) async fn checker_processes_pre_boojum_batches(
     checker_task.await.unwrap().unwrap();
 }
 
-pub async fn checker_functions_after_snapshot_recovery(delay_batch_insertion: bool) {
+pub async fn checker_functions_after_snapshot_recovery(
+    delay_batch_insertion: bool,
+    l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
+) {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
     storage
@@ -176,7 +191,10 @@ pub async fn checker_functions_after_snapshot_recovery(delay_batch_insertion: bo
 
     let l1_batch = create_l1_batch_with_metadata(99);
 
-    let commit_tx_input_data = build_commit_tx_input_data(slice::from_ref(&l1_batch));
+    let commit_tx_input_data = build_commit_tx_input_data(
+        slice::from_ref(&l1_batch),
+        l1_batch_commit_data_generator.clone(),
+    );
     let client = MockEthereum::default();
     let signed_tx = client.sign_prepared_tx(
         commit_tx_input_data.clone(),
@@ -208,7 +226,7 @@ pub async fn checker_functions_after_snapshot_recovery(delay_batch_insertion: bo
     let (l1_batch_updates_sender, mut l1_batch_updates_receiver) = mpsc::unbounded_channel();
     let checker = ConsistencyChecker {
         event_handler: Box::new(l1_batch_updates_sender),
-        ..create_mock_checker(client, pool.clone())
+        ..create_mock_checker(client, pool.clone(), l1_batch_commit_data_generator)
     };
     let (stop_sender, stop_receiver) = watch::channel(false);
     let checker_task = tokio::spawn(checker.run(stop_receiver));
@@ -233,6 +251,7 @@ pub async fn checker_functions_after_snapshot_recovery(delay_batch_insertion: bo
 pub(crate) async fn checker_detects_incorrect_tx_data(
     kind: IncorrectDataKind,
     snapshot_recovery: bool,
+    l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
 ) {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
@@ -249,7 +268,9 @@ pub(crate) async fn checker_detects_incorrect_tx_data(
 
     let l1_batch = create_l1_batch_with_metadata(if snapshot_recovery { 99 } else { 1 });
     let client = MockEthereum::default();
-    let commit_tx_hash = kind.apply(&client, &l1_batch).await;
+    let commit_tx_hash = kind
+        .apply(&client, &l1_batch, l1_batch_commit_data_generator.clone())
+        .await;
     let commit_tx_hash_by_l1_batch = HashMap::from([(l1_batch.header.number, commit_tx_hash)]);
 
     let save_actions = [
@@ -264,7 +285,7 @@ pub(crate) async fn checker_detects_incorrect_tx_data(
     }
     drop(storage);
 
-    let checker = create_mock_checker(client, pool);
+    let checker = create_mock_checker(client, pool, l1_batch_commit_data_generator);
     let (_stop_sender, stop_receiver) = watch::channel(false);
     // The checker must stop with an error.
     tokio::time::timeout(Duration::from_secs(30), checker.run(stop_receiver))

@@ -8,7 +8,7 @@ use prometheus_exporter::PrometheusExporterConfig;
 use tokio::{sync::watch, task, time::sleep};
 use zksync_basic_types::{Address, L2ChainId};
 use zksync_concurrency::{ctx, scope};
-use zksync_config::configs::database::MerkleTreeMode;
+use zksync_config::configs::{chain::L1BatchCommitDataGeneratorMode, database::MerkleTreeMode};
 use zksync_core::{
     api_server::{
         execution_sandbox::VmConcurrencyLimiter,
@@ -20,6 +20,10 @@ use zksync_core::{
     commitment_generator::CommitmentGenerator,
     consensus,
     consistency_checker::ConsistencyChecker,
+    eth_sender::l1_batch_commit_data_generator::{
+        L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
+        ValidiumModeL1BatchCommitDataGenerator,
+    },
     l1_gas_price::MainNodeFeeParamsFetcher,
     metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
     reorg_detector::ReorgDetector,
@@ -229,6 +233,15 @@ async fn init_tasks(
         .context("failed initializing metadata calculator")?;
     app_health.insert_component(metadata_calculator.tree_health_check());
 
+    let l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator> = match config
+        .optional
+        .l1_batch_commit_data_generator_mode
+    {
+        L1BatchCommitDataGeneratorMode::Rollup => Arc::new(RollupModeL1BatchCommitDataGenerator {}),
+        L1BatchCommitDataGeneratorMode::Validium => {
+            Arc::new(ValidiumModeL1BatchCommitDataGenerator {})
+        }
+    };
     let consistency_checker = ConsistencyChecker::new(
         &config
             .required
@@ -239,6 +252,7 @@ async fn init_tasks(
             .build()
             .await
             .context("failed to build connection pool for ConsistencyChecker")?,
+        l1_batch_commit_data_generator,
     );
     app_health.insert_component(consistency_checker.health_check().clone());
     let consistency_checker_handle = tokio::spawn(consistency_checker.run(stop_receiver.clone()));

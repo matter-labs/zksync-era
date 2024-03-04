@@ -1,4 +1,4 @@
-use std::{fmt, time::Duration};
+use std::{fmt, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use serde::Serialize;
@@ -7,10 +7,10 @@ use zksync_contracts::PRE_BOOJUM_COMMIT_FUNCTION;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::{clients::QueryClient, Error as L1ClientError, EthInterface};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
-use zksync_l1_contract_interface::{i_executor::structures::CommitBatchInfoRollup, Tokenizable};
 use zksync_types::{web3::ethabi, L1BatchNumber, H256};
 
 use crate::{
+    eth_sender::l1_batch_commit_data_generator::L1BatchCommitDataGenerator,
     metrics::{CheckerComponent, EN_METRICS},
     utils::wait_for_l1_batch_with_metadata,
 };
@@ -133,6 +133,7 @@ impl LocalL1BatchCommitData {
     async fn new(
         storage: &mut StorageProcessor<'_>,
         batch_number: L1BatchNumber,
+        l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
     ) -> anyhow::Result<Option<Self>> {
         let Some(storage_l1_batch) = storage
             .blocks_dal()
@@ -180,7 +181,7 @@ impl LocalL1BatchCommitData {
 
         Ok(Some(Self {
             is_pre_boojum,
-            l1_commit_data: CommitBatchInfoRollup::new(&l1_batch).into_token(),
+            l1_commit_data: l1_batch_commit_data_generator.l1_commit_batch(&l1_batch),
             commit_tx_hash,
         }))
     }
@@ -197,13 +198,19 @@ pub struct ConsistencyChecker {
     event_handler: Box<dyn HandleConsistencyCheckerEvent>,
     l1_data_mismatch_behavior: L1DataMismatchBehavior,
     pool: ConnectionPool,
+    l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
     health_check: ReactiveHealthCheck,
 }
 
 impl ConsistencyChecker {
     const DEFAULT_SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 
-    pub fn new(web3_url: &str, max_batches_to_recheck: u32, pool: ConnectionPool) -> Self {
+    pub fn new(
+        web3_url: &str,
+        max_batches_to_recheck: u32,
+        pool: ConnectionPool,
+        l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
+    ) -> Self {
         let web3 = QueryClient::new(web3_url).unwrap();
         let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
         Self {
@@ -215,6 +222,7 @@ impl ConsistencyChecker {
             l1_data_mismatch_behavior: L1DataMismatchBehavior::Log,
             pool,
             health_check,
+            l1_batch_commit_data_generator,
         }
     }
     /// Returns health check associated with this checker.
@@ -363,7 +371,13 @@ impl ConsistencyChecker {
             // The batch might be already committed but not yet processed by the external node's tree
             // OR the batch might be processed by the external node's tree but not yet committed.
             // We need both.
-            let Some(local) = LocalL1BatchCommitData::new(&mut storage, batch_number).await? else {
+            let Some(local) = LocalL1BatchCommitData::new(
+                &mut storage,
+                batch_number,
+                self.l1_batch_commit_data_generator.clone(),
+            )
+            .await?
+            else {
                 tokio::time::sleep(self.sleep_interval).await;
                 continue;
             };
