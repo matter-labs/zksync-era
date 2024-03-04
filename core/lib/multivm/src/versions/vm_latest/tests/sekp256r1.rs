@@ -2,7 +2,7 @@ use std::convert::TryInto;
 
 use zk_evm_1_4_1::k256::elliptic_curve::sec1::FromEncodedPoint;
 use zk_evm_1_5_0::zkevm_opcode_defs::p256;
-use zksync_system_constants::{L2_ETH_TOKEN_ADDRESS, SEKP_256_R1_PRECOMPILE_ADDRESS};
+use zksync_system_constants::{L2_ETH_TOKEN_ADDRESS, P256VERIFY_PRECOMPILE_ADDRESS};
 use zksync_types::{
     get_code_key, get_known_code_key, get_nonce_key,
     system_contracts::{DEPLOYMENT_NONCE_INCREMENT, TX_NONCE_INCREMENT},
@@ -63,7 +63,7 @@ fn test_sekp256r1() {
 
     let tx = account.get_l2_tx_for_execute(
         Execute {
-            contract_address: SEKP_256_R1_PRECOMPILE_ADDRESS,
+            contract_address: P256VERIFY_PRECOMPILE_ADDRESS,
             calldata: vec![digest, encoded_r, encoded_s, x, y].concat(),
             value: U256::zero(),
             factory_deps: None,

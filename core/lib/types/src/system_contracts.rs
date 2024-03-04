@@ -5,7 +5,7 @@ use zksync_basic_types::{AccountTreeId, Address, U256};
 use zksync_contracts::{read_sys_contract_bytecode, ContractLanguage, SystemContractsRepo};
 use zksync_system_constants::{
     BOOTLOADER_UTILITIES_ADDRESS, CODE_ORACLE_ADDRESS, COMPRESSOR_ADDRESS, EVENT_WRITER_ADDRESS,
-    SEKP_256_R1_PRECOMPILE_ADDRESS,
+    P256VERIFY_PRECOMPILE_ADDRESS,
 };
 
 use crate::{
@@ -106,8 +106,8 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 22] = [
     ),
     (
         "precompiles/",
-        "Sekp256r1",
-        SEKP_256_R1_PRECOMPILE_ADDRESS,
+        "P256Verify",
+        P256VERIFY_PRECOMPILE_ADDRESS,
         ContractLanguage::Yul,
     ),
     (
