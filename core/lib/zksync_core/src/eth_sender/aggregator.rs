@@ -3,9 +3,7 @@ use std::sync::Arc;
 use zksync_config::configs::eth_sender::{ProofLoadingMode, ProofSendingMode, SenderConfig};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::StorageProcessor;
-use zksync_l1_contract_interface::i_executor::methods::{
-    CommitBatchesRollup, ExecuteBatches, ProveBatches,
-};
+use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
 use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_prover_interface::outputs::L1BatchProofForL1;
 use zksync_types::{
@@ -141,12 +139,6 @@ impl Aggregator {
                 protocol_version_id,
             )
             .await
-            .map(|op| {
-                AggregatedOperation::Commit(
-                    op.last_committed_l1_batch.clone(),
-                    op.l1_batches.to_vec(),
-                )
-            })
         }
     }
 
@@ -183,7 +175,7 @@ impl Aggregator {
         last_sealed_batch: L1BatchNumber,
         base_system_contracts_hashes: BaseSystemContractsHashes,
         protocol_version_id: ProtocolVersionId,
-    ) -> Option<CommitBatchesRollup> {
+    ) -> Option<AggregatedOperation> {
         let mut blocks_dal = storage.blocks_dal();
         let last_committed_l1_batch = blocks_dal
             .get_last_committed_to_eth_l1_batch()
@@ -231,10 +223,7 @@ impl Aggregator {
         )
         .await;
 
-        batches.map(|batches| CommitBatchesRollup {
-            last_committed_l1_batch,
-            l1_batches: batches,
-        })
+        batches.map(|batches| AggregatedOperation::Commit(last_committed_l1_batch, batches))
     }
 
     async fn load_real_proof_operation(
