@@ -1866,6 +1866,24 @@ impl BlocksDal<'_, '_> {
         Ok(())
     }
 
+    async fn delete_logs_inner(
+        &mut self,
+        last_miniblock_to_keep: Option<MiniblockNumber>,
+    ) -> sqlx::Result<()> {
+        let block_number = last_miniblock_to_keep.map_or(-1, |number| number.0 as i64);
+        sqlx::query!(
+            r#"
+            DELETE FROM storage_logs
+            WHERE
+                miniblock_number > $1
+            "#,
+            block_number
+        )
+        .execute(self.storage.conn())
+        .await?;
+        Ok(())
+    }
+
     /// Returns sum of predicted gas costs on the given L1 batch range.
     /// Panics if the sum doesn't fit into `u32`.
     pub async fn get_l1_batches_predicted_gas(
@@ -2337,6 +2355,7 @@ impl BlocksDal<'_, '_> {
         self.delete_initial_writes_inner(None)
             .await
             .context("delete_initial_writes_inner()")?;
+        self.delete_logs_inner(None).await.context("no")?;
         Ok(())
     }
 }
