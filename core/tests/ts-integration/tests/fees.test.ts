@@ -249,4 +249,6 @@ async function setInternalL1GasPrice(provider: zksync.Provider, newPrice?: strin
     if (!mainContract) {
         throw new Error('Server did not start');
     }
+
+    await utils.sleep(10);
 }
