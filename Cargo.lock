@@ -8557,6 +8557,7 @@ dependencies = [
  "metrics",
  "multivm",
  "once_cell",
+ "pin-project-lite",
  "prometheus_exporter",
  "prost",
  "rand 0.8.5",
@@ -8566,6 +8567,7 @@ dependencies = [
  "tempfile",
  "test-casing",
  "thiserror",
+ "thread_local",
  "tokio",
  "tower",
  "tower-http",
@@ -8842,8 +8844,10 @@ dependencies = [
  "zksync_eth_client",
  "zksync_health_check",
  "zksync_object_store",
+ "zksync_state",
  "zksync_storage",
  "zksync_types",
+ "zksync_web3_decl",
 ]
 
 [[package]]
@@ -9100,9 +9104,7 @@ dependencies = [
 name = "zksync_web3_decl"
 version = "0.1.0"
 dependencies = [
- "bigdecimal",
- "chrono",
- "itertools 0.10.5",
+ "anyhow",
  "jsonrpsee",
  "pin-project-lite",
  "rlp",

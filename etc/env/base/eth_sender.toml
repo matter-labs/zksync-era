@@ -5,6 +5,8 @@
 [eth_sender.sender]
 # operator_private_key is defined in the `private.toml`
 # operator_commit_eth_addr is defined in the `private.toml`
+# operator_blobs_private_key is defined in the `private.toml`
+# operator_blobs_eth_addr is defined in the `private.toml`
 
 # Amount of confirmations required to consider L1 transaction committed.
 wait_confirmations=1
@@ -46,7 +48,7 @@ max_acceptable_priority_fee_in_gwei=100000000000
 
 proof_loading_mode="OldProofFromDb"
 
-pubdata_sending_mode="Calldata"
+pubdata_sending_mode="Blobs"
 
 [eth_sender.gas_adjuster]
 # Priority fee to be used by GasAdjuster (in wei).
