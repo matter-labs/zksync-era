@@ -2,13 +2,13 @@ use std::convert::TryInto;
 
 use sha2::Sha256;
 use sha3::{Digest, Keccak256};
-use zkevm_test_harness_1_3_3::ff::{PrimeField, PrimeFieldRepr};
 pub use zkevm_test_harness_1_4_2::kzg::KzgSettings;
 use zkevm_test_harness_1_4_2::{
     kzg::{compute_commitment, compute_proof, compute_proof_poly},
     zkevm_circuits::{
         boojum::pairing::{
             bls12_381::{Fr, FrRepr, G1Affine},
+            ff::{PrimeField, PrimeFieldRepr},
             CurveAffine,
         },
         eip_4844::{
@@ -20,10 +20,11 @@ use zkevm_test_harness_1_4_2::{
 };
 use zksync_types::H256;
 
-use super::trusted_setup::KZG_SETTINGS;
+use self::trusted_setup::KZG_SETTINGS;
 
 #[cfg(test)]
 mod tests;
+mod trusted_setup;
 
 pub const ZK_SYNC_BYTES_PER_BLOB: usize = BLOB_CHUNK_SIZE * ELEMENTS_PER_4844_BLOCK;
 const EIP_4844_BYTES_PER_BLOB: usize = 32 * ELEMENTS_PER_4844_BLOCK;
