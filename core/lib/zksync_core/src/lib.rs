@@ -720,7 +720,7 @@ pub async fn initialize_components(
                 .as_ref()
                 .context("network_config")?
                 .zksync_network_id,
-            l1_batch_commit_data_generator.clone(),
+            l1_batch_commit_data_generator,
         )
         .await;
         task_futures.push(tokio::spawn(

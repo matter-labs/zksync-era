@@ -49,7 +49,7 @@ impl Aggregator {
                 Box::from(DataSizeCriterion {
                     op: AggregatedActionType::Commit,
                     data_limit: config.max_eth_tx_data_size,
-                    l1_batch_commit_data_generator: l1_batch_commit_data_generator.clone(),
+                    l1_batch_commit_data_generator,
                 }),
                 Box::from(TimestampDeadlineCriterion {
                     op: AggregatedActionType::Commit,

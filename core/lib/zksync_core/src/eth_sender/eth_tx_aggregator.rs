@@ -58,6 +58,7 @@ pub struct EthTxAggregator {
 }
 
 impl EthTxAggregator {
+    #[allow(clippy::too-many-arguments)]
     pub async fn new(
         config: SenderConfig,
         aggregator: Aggregator,
