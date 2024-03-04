@@ -21,6 +21,7 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
     const {
         skipSubmodulesCheckout,
         skipEnvSetup,
+        runObservability: runObservability,
         testTokens,
         governorPrivateKeyArgs,
         deployerPrivateKeyArgs,
@@ -31,7 +32,10 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
         await announced('Pulling images', docker.pull());
         await announced('Checking environment', checkEnv());
         await announced('Checking git hooks', env.gitHooks());
-        await announced('Setting up containers', up());
+        if (runObservability) {
+            await announced('Setting up observability', setupObservability());
+        }
+        await announced('Setting up containers', up(runObservability));
     }
     if (!skipSubmodulesCheckout) {
         await announced('Checkout system-contracts submodule', submoduleUpdate());
@@ -124,6 +128,16 @@ export async function submoduleUpdate() {
     await utils.exec('git submodule update');
 }
 
+// clone dockprom and zksync-era dashboards
+export async function setupObservability() {
+    await utils.spawn(
+        `rm -rf ./target/dockprom && git clone git@github.com:stefanprodan/dockprom.git ./target/dockprom \ 
+            && rm -rf ./target/era-observability && git clone git@github.com:matter-labs/era-observability.git ./target/era-observability \
+            && cp ./target/era-observability/* ./target/dockprom/grafana/provisioning/dashboards
+        `
+    );
+}
+
 async function checkEnv() {
     const tools = ['node', 'yarn', 'docker', 'cargo'];
     for (const tool of tools) {
@@ -140,6 +154,7 @@ async function checkEnv() {
 export interface InitArgs {
     skipSubmodulesCheckout: boolean;
     skipEnvSetup: boolean;
+    runObservability: boolean;
     governorPrivateKeyArgs: any[];
     deployerPrivateKeyArgs: any[];
     deployerL2ContractInput: {
@@ -156,6 +171,7 @@ export interface InitArgs {
 const DEFAULT_ARGS: InitArgs = {
     skipSubmodulesCheckout: false,
     skipEnvSetup: false,
+    runObservability: false,
     governorPrivateKeyArgs: [],
     deployerPrivateKeyArgs: [],
     deployerL2ContractInput: { args: [], includePaymaster: true, includeL2WETH: true },
@@ -165,11 +181,13 @@ const DEFAULT_ARGS: InitArgs = {
 export const initCommand = new Command('init')
     .option('--skip-submodules-checkout')
     .option('--skip-env-setup')
+    .option('--run-observability')
     .description('perform zksync network initialization for development')
     .action(async (cmd: Command) => {
         const initArgs: InitArgs = {
             skipSubmodulesCheckout: cmd.skipSubmodulesCheckout,
             skipEnvSetup: cmd.skipEnvSetup,
+            runObservability: cmd.runObservability,
             governorPrivateKeyArgs: [],
             deployerL2ContractInput: { args: [], includePaymaster: true, includeL2WETH: true },
             testTokens: { deploy: true, args: [] },

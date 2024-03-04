@@ -30,15 +30,15 @@ function createVolumes() {
     );
 }
 
-export async function up(composeFile?: string) {
+export async function up(runObservability?: boolean) {
     await down();
     // There is some race on the filesystem, so backoff here
     await utils.sleep(1);
     createVolumes();
-    if (composeFile) {
-        await utils.spawn(`docker compose -f ${composeFile} up -d geth postgres`);
-    } else {
-        await utils.spawn('docker compose up -d');
+
+    await utils.spawn('docker compose up -d');
+    if (runObservability) {
+        await utils.spawn(`docker compose -f ./target/dockprom/docker-compose.yml up -d`);
     }
 }
 
