@@ -763,7 +763,11 @@ async function configDemoHyperchain(cmd: Command) {
     if (!cmd.skipEnvSetup) {
         await up();
     }
-    await init.initDevCmdAction({ skipEnvSetup: cmd.skipEnvSetup, skipSubmodulesCheckout: false });
+    await init.initDevCmdAction({
+        skipEnvSetup: cmd.skipEnvSetup,
+        skipSubmodulesCheckout: false,
+        testTokenOptions: { envFile: process.env.CHAIN_ETH_NETWORK! }
+    });
 
     env.mergeInitToEnv();
 

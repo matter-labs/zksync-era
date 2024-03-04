@@ -71,8 +71,9 @@ const initDatabase = async ({ skipVerifierDeployment }: InitDatabaseOptions): Pr
 };
 
 // Deploys ERC20 and WETH tokens to localhost
-const deployTestTokens = async () => {
-    await announced('Deploying localhost ERC20 and Weth tokens', run.deployERC20AndWeth({ command: 'dev' }));
+type DeployTestTokensOptions = { envFile?: string };
+const deployTestTokens = async ({ envFile }: DeployTestTokensOptions) => {
+    await announced('Deploying localhost ERC20 and Weth tokens', run.deployERC20AndWeth({ command: 'dev', envFile }));
 };
 
 // Deploys and verifies L1 contracts and initializes governance
@@ -91,14 +92,15 @@ const initHyperchain = async ({ includePaymaster, baseToken }: InitHyperchainOpt
 };
 
 // ########################### Command Actions ###########################
-type InitDevCmdActionOptions = InitSetupOptions;
+type InitDevCmdActionOptions = InitSetupOptions & { testTokenOptions: DeployTestTokensOptions };
 export const initDevCmdAction = async ({
     skipEnvSetup,
-    skipSubmodulesCheckout
+    skipSubmodulesCheckout,
+    testTokenOptions
 }: InitDevCmdActionOptions): Promise<void> => {
     await initSetup({ skipEnvSetup, skipSubmodulesCheckout });
     await initDatabase({ skipVerifierDeployment: false });
-    await deployTestTokens();
+    await deployTestTokens(testTokenOptions);
     await initBridgehubStateTransition();
     await initHyperchain({ includePaymaster: true, baseToken: { name: 'ETH', address: ADDRESS_ONE } });
 };
