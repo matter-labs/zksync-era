@@ -28,7 +28,6 @@ mod tests;
 ///   - waits for any of the tasks to finish.
 ///   - sends stop signal to all the tasks.
 ///   - waits for the remaining tasks to finish.
-///   - calls `after_node_shutdown` hook for every task that has provided it.
 ///   - returns the result of the task that has finished.
 pub struct ZkStackService {
     /// Cache of resources that have been requested at least by one task.
@@ -114,12 +113,10 @@ impl ZkStackService {
         let mut tasks = Vec::new();
         for task in std::mem::take(&mut self.tasks) {
             let name = task.name().to_string();
-            let after_node_shutdown = task.after_node_shutdown();
             let task_future = Box::pin(task.run(self.stop_receiver()));
             let task_repr = TaskRepr {
                 name,
                 task: Some(task_future),
-                after_node_shutdown,
             };
             tasks.push(task_repr);
         }
@@ -170,15 +167,6 @@ impl ZkStackService {
         self.stop_sender.send(true).ok();
         self.runtime.block_on(futures::future::join_all(remaining));
 
-        // Call after_node_shutdown hooks.
-        let local_set = tokio::task::LocalSet::new();
-        let join_handles = tasks.iter_mut().filter_map(|task| {
-            task.after_node_shutdown
-                .take()
-                .map(|task| local_set.spawn_local(task))
-        });
-        local_set.block_on(&self.runtime, futures::future::join_all(join_handles));
-
         if failure {
             anyhow::bail!("Task {task_name} failed");
         } else {
@@ -194,7 +182,6 @@ impl ZkStackService {
 struct TaskRepr {
     name: String,
     task: Option<BoxFuture<'static, anyhow::Result<()>>>,
-    after_node_shutdown: Option<BoxFuture<'static, ()>>,
 }
 
 impl fmt::Debug for TaskRepr {
