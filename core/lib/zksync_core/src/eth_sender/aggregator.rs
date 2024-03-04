@@ -253,6 +253,50 @@ impl Aggregator {
         })
     }
 
+    async fn load_dummy_proof_operations(
+        storage: &mut StorageProcessor<'_>,
+        limit: usize,
+        is_4844_mode: bool,
+    ) -> Vec<L1BatchWithMetadata> {
+        let mut ready_for_proof_l1_batches = storage
+            .blocks_dal()
+            .get_ready_for_dummy_proof_l1_batches(limit)
+            .await
+            .unwrap();
+
+        // need to find first batch with an unconfirmed commit transaction
+        // and discard it and all the following ones.
+        if is_4844_mode {
+            let mut committed_batches = vec![];
+
+            for batch in ready_for_proof_l1_batches.into_iter() {
+                let Some(commit_tx_id) = storage
+                    .blocks_dal()
+                    .get_eth_commit_tx_id(batch.header.number)
+                    .await
+                    .unwrap()
+                else {
+                    break;
+                };
+
+                if storage
+                    .eth_sender_dal()
+                    .get_confirmed_tx_hash_by_eth_tx_id(commit_tx_id as u32)
+                    .await
+                    .unwrap()
+                    .is_none()
+                {
+                    break;
+                }
+                committed_batches.push(batch);
+            }
+
+            ready_for_proof_l1_batches = committed_batches;
+        }
+
+        ready_for_proof_l1_batches
+    }
+
     async fn load_real_proof_operation(
         storage: &mut StorageProcessor<'_>,
         l1_verifier_config: L1VerifierConfig,
@@ -395,11 +439,8 @@ impl Aggregator {
             }
 
             ProofSendingMode::SkipEveryProof => {
-                let ready_for_proof_l1_batches = storage
-                    .blocks_dal()
-                    .get_ready_for_dummy_proof_l1_batches(self.operate_4844_mode, limit)
-                    .await
-                    .unwrap();
+                let ready_for_proof_l1_batches =
+                    Self::load_dummy_proof_operations(storage, limit, self.operate_4844_mode).await;
                 self.prepare_dummy_proof_operation(
                     storage,
                     ready_for_proof_l1_batches,

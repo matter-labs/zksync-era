@@ -3,7 +3,7 @@ use std::sync::Arc;
 use zkevm_test_harness_1_4_2::kzg::KzgSettings;
 use zksync_types::{
     commitment::L1BatchWithMetadata, ethabi::Token,
-    l1_batch_commit_data_generator::L1BatchCommitDataGenerator,
+    l1_batch_commit_data_generator::L1BatchCommitDataGenerator, pubdata_da::PubdataDA,
 };
 
 use crate::{

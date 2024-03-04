@@ -412,8 +412,8 @@ impl IncorrectDataKind {
                 l1_batch.header.timestamp += 1;
                 let bogus_tx_input_data = build_commit_tx_input_data(
                     slice::from_ref(&l1_batch),
-                    l1_batch_commit_data_generator,
                     kzg_settings,
+                    l1_batch_commit_data_generator,
                 );
                 (bogus_tx_input_data, true)
             }
@@ -431,8 +431,8 @@ impl IncorrectDataKind {
                 l1_batch.header.protocol_version = Some(ProtocolVersionId::Version0);
                 let bogus_tx_input_data = build_commit_tx_input_data(
                     slice::from_ref(&l1_batch),
-                    l1_batch_commit_data_generator,
                     kzg_settings,
+                    l1_batch_commit_data_generator,
                 );
                 (bogus_tx_input_data, true)
             }

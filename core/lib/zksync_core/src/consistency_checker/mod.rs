@@ -8,7 +8,10 @@ use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::{clients::QueryClient, Error as L1ClientError, EthInterface};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::{
-    i_executor::{commit::kzg::KzgSettings, structures::CommitBatchInfo},
+    i_executor::{
+        commit::kzg::{KzgSettings, ZK_SYNC_BYTES_PER_BLOB},
+        structures::CommitBatchInfo,
+    },
     Tokenizable,
 };
 use zksync_types::{
@@ -187,9 +190,18 @@ impl LocalL1BatchCommitData {
             return Ok(None);
         }
 
-        // Encoding data using `PubdataDA::Blobs` or `PubdataDA::Blobs` never panics because we check
-        // protocol version in `CommitBatchInfo`.
-        let variants = vec![PubdataDA::Calldata, PubdataDA::Blobs];
+        // Encoding data using `PubdataDA::Blobs` never panics.
+        let mut variants = vec![PubdataDA::Blobs];
+        // For `PubdataDA::Calldata` it's required that the pubdata fits into a single blob.
+        let pubdata_len = l1_batch
+            .header
+            .pubdata_input
+            .as_ref()
+            .unwrap_or(&l1_batch.construct_pubdata())
+            .len();
+        if pubdata_len <= ZK_SYNC_BYTES_PER_BLOB {
+            variants.push(PubdataDA::Calldata);
+        }
 
         // Iterate over possible `PubdataDA` used for encoding `CommitBatchInfo`.
         let l1_commit_data_variants = variants
@@ -198,8 +210,8 @@ impl LocalL1BatchCommitData {
                 CommitBatchInfo::new(
                     &l1_batch,
                     pubdata_da,
-                    l1_batch_commit_data_generator,
                     kzg_settings.clone(),
+                    l1_batch_commit_data_generator,
                 )
                 .into_token()
             })
