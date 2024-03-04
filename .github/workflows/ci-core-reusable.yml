@@ -122,6 +122,7 @@ jobs:
     strategy:
       matrix:
         consensus: [false, true]
+        mode: ["Rollup", "Validium"]
     env:
       SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,basic_witness_input_producer,commitment_generator${{ matrix.consensus && ',consensus' || '' }}"
 
@@ -147,7 +148,7 @@ jobs:
           wget https://github.com/ethereum/solc-bin/raw/gh-pages/linux-amd64/solc-linux-amd64-v0.8.23%2Bcommit.f704f362
           mv solc-linux-amd64-v0.8.23+commit.f704f362 $(pwd)/etc/solc-bin/0.8.23/solc
           chmod +x $(pwd)/etc/solc-bin/0.8.23/solc
-          
+
           mkdir -p $(pwd)/etc/solc-bin/zkVM-0.8.23-1.0.0
           wget https://github.com/matter-labs/era-solidity/releases/download/0.8.23-1.0.0/solc-linux-amd64-0.8.23-1.0.0 -O $(pwd)/etc/solc-bin/zkVM-0.8.23-1.0.0/solc
           chmod +x $(pwd)/etc/solc-bin/zkVM-0.8.23-1.0.0/solc
@@ -178,8 +179,13 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/sdk/binaryen
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
-          ci_run zk
-          ci_run zk init
+            ci_run zk
+          if [[ "${{ matrix.mode }}" == "Rollup" ]]; then
+            ci_run zk init
+          elif [[ "${{ matrix.mode }}" == "Validium" ]]; then
+            ci_run zk env dev_validium
+            ci_run zk init --validium-mode
+          fi
 
 
       # `sleep 5` because we need to wait until server started properly
@@ -293,7 +299,7 @@ jobs:
         run: |
           ci_run zk server --components=$SERVER_COMPONENTS &>server.log &
           ci_run sleep 30
-      
+
       - name: Run external node
         run: |
           ci_run zk env ext-node-docker
