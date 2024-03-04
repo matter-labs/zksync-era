@@ -118,7 +118,7 @@ jobs:
           ci_run sccache --show-stats
           ci_run cat /tmp/sccache_log.txt
   integration:
-    name: Integration (consensus=${{ matrix.consensus }})
+    name: Integration (consensus=${{ matrix.consensus }}, mode=${{ matrix.mode }})
     strategy:
       matrix:
         consensus: [false, true]
@@ -256,7 +256,7 @@ jobs:
           ci_run cat /tmp/sccache_log.txt
 
   external-node:
-    name: External node (consensus=${{ matrix.consensus }})
+    name: External node (consensus=${{ matrix.consensus }}, mode=${{ matrix.mode }})
     strategy:
       matrix:
         consensus: [false, true]
