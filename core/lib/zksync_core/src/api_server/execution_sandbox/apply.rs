@@ -266,6 +266,7 @@ impl<'a> Sandbox<'a> {
             self.l1_batch_env.fee_input = adjust_pubdata_price_for_tx(
                 self.l1_batch_env.fee_input,
                 tx.gas_per_pubdata_byte_limit(),
+                self.l1_batch_env.enforced_base_fee.map(U256::from),
                 protocol_version.into(),
             );
         };

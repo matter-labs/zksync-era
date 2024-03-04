@@ -54,6 +54,16 @@ impl TryFrom<SyncBlock> for FetchedBlock {
     type Error = anyhow::Error;
 
     fn try_from(block: SyncBlock) -> anyhow::Result<Self> {
+        let Some(transactions) = block.transactions else {
+            return Err(anyhow::anyhow!("Transactions are always requested"));
+        };
+
+        if transactions.is_empty() && !block.last_in_batch {
+            return Err(anyhow::anyhow!(
+                "Only last miniblock of the batch can be empty"
+            ));
+        }
+
         Ok(Self {
             number: block.number,
             l1_batch_number: block.l1_batch_number,
@@ -66,9 +76,7 @@ impl TryFrom<SyncBlock> for FetchedBlock {
             fair_pubdata_price: block.fair_pubdata_price,
             virtual_blocks: block.virtual_blocks.unwrap_or(0),
             operator_address: block.operator_address,
-            transactions: block
-                .transactions
-                .context("Transactions are always requested")?,
+            transactions,
         })
     }
 }
