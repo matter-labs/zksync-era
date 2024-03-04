@@ -5,7 +5,7 @@ use serde::Serialize;
 use tokio::sync::watch;
 use zksync_contracts::PRE_BOOJUM_COMMIT_FUNCTION;
 use zksync_dal::{ConnectionPool, StorageProcessor};
-use zksync_eth_client::{clients::QueryClient, Error as L1ClientError, EthInterface};
+use zksync_eth_client::{Error as L1ClientError, EthInterface};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::{i_executor::structures::CommitBatchInfo, Tokenizable};
 use zksync_types::{
@@ -209,18 +209,17 @@ impl ConsistencyChecker {
     const DEFAULT_SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 
     pub fn new(
-        web3_url: &str,
+        l1_client: impl EthInterface,
         max_batches_to_recheck: u32,
         pool: ConnectionPool,
         l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
     ) -> Self {
-        let web3 = QueryClient::new(web3_url).unwrap();
         let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
         Self {
             contract: zksync_contracts::zksync_contract(),
             max_batches_to_recheck,
             sleep_interval: Self::DEFAULT_SLEEP_INTERVAL,
-            l1_client: Box::new(web3),
+            l1_client: Box::new(l1_client),
             event_handler: Box::new(health_updater),
             l1_data_mismatch_behavior: L1DataMismatchBehavior::Log,
             pool,
