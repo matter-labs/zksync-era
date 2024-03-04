@@ -1,3 +1,4 @@
+use sqlx::query::Query;
 use sqlx::{postgres::PgArguments, query::QueryAs, Postgres, Row};
 use zksync_types::{
     api::{GetLogsFilter, Log},
@@ -37,13 +38,17 @@ impl EventsWeb3Dal<'_, '_> {
 
             let mut query = sqlx::query(&query);
 
-            if !filter.addresses.is_empty() {
-                let addresses: Vec<_> = filter.addresses.iter().map(Address::as_bytes).collect();
-                query = query.bind(addresses);
-            }
+            // Bind address params - noop if there are no addresses
+            query = Self::bind_params_for_optional_filter_query(
+                query,
+                filter.addresses.iter().map(Address::as_bytes).collect(),
+            );
             for (_, topics) in &filter.topics {
-                let topics: Vec<_> = topics.iter().map(H256::as_bytes).collect();
-                query = query.bind(topics);
+                // Bind topic params - noop if there are no topics
+                query = Self::bind_params_for_optional_filter_query(
+                    query,
+                    topics.iter().map(H256::as_bytes).collect(),
+                );
             }
             query = query.bind(offset as i32);
             let log = query
@@ -91,13 +96,13 @@ impl EventsWeb3Dal<'_, '_> {
             let mut query = sqlx::query_as(&query);
 
             // Bind address params - noop if there are no addresses
-            query = Self::bind_params_for_optional_filter(
+            query = Self::bind_params_for_optional_filter_query_as(
                 query,
                 filter.addresses.iter().map(Address::as_bytes).collect(),
             );
             for (_, topics) in &filter.topics {
                 // Bind topic params - noop if there are no topics
-                query = Self::bind_params_for_optional_filter(
+                query = Self::bind_params_for_optional_filter_query_as(
                     query,
                     topics.iter().map(H256::as_bytes).collect(),
                 );
@@ -163,10 +168,22 @@ impl EventsWeb3Dal<'_, '_> {
     // Noop if there are no values.
     // Assumes `=$1` syntax for single value and `=ANY($1)` for multiple values.
     // See the method above for details.
-    fn bind_params_for_optional_filter<'q, O>(
+    fn bind_params_for_optional_filter_query_as<'q, O>(
         query: QueryAs<'q, Postgres, O, PgArguments>,
         values: Vec<&'q [u8]>,
     ) -> QueryAs<'q, Postgres, O, PgArguments> {
+        match values.len() {
+            0 => query,
+            1 => query.bind(values[0]),
+            _ => query.bind(values),
+        }
+    }
+
+    // Same as `bind_params_for_optional_filter_query_as` but for `Query` instead of `QueryAs`.
+    fn bind_params_for_optional_filter_query<'q>(
+        query: Query<'q, Postgres, PgArguments>,
+        values: Vec<&'q [u8]>,
+    ) -> Query<'q, Postgres, PgArguments> {
         match values.len() {
             0 => query,
             1 => query.bind(values[0]),
