@@ -615,4 +615,46 @@ impl EthSenderDal<'_, '_> {
         .await?;
         Ok(())
     }
+
+    pub async fn delete_eth_txs(&mut self, last_batch_to_keep: L1BatchNumber) -> sqlx::Result<()> {
+        sqlx::query!(
+            r#"
+            DELETE FROM eth_txs
+            WHERE
+                id IN (
+                    (
+                        SELECT
+                            eth_commit_tx_id
+                        FROM
+                            l1_batches
+                        WHERE
+                            number > $1
+                    )
+                    UNION
+                    (
+                        SELECT
+                            eth_prove_tx_id
+                        FROM
+                            l1_batches
+                        WHERE
+                            number > $1
+                    )
+                    UNION
+                    (
+                        SELECT
+                            eth_execute_tx_id
+                        FROM
+                            l1_batches
+                        WHERE
+                            number > $1
+                    )
+                )
+            "#,
+            last_batch_to_keep.0 as i64
+        )
+        .execute(self.storage.conn())
+        .await?;
+
+        Ok(())
+    }
 }
