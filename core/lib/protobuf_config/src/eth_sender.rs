@@ -1,11 +1,8 @@
 use anyhow::Context as _;
 use zksync_config::configs::{self};
-use zksync_protobuf::required;
+use zksync_protobuf::{read_required_repr, required, ProtoRepr};
 
-use crate::{
-    proto,
-    repr::{read_required_repr, ProtoRepr},
-};
+use crate::proto;
 
 impl proto::ProofSendingMode {
     fn new(x: &configs::eth_sender::ProofSendingMode) -> Self {
