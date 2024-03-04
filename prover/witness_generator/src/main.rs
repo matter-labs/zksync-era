@@ -182,15 +182,6 @@ async fn main() -> anyhow::Result<()> {
                         .await,
                     ),
                 };
-                let trusted_setup_path =
-                    std::env::var("KZG_TRUSTED_SETUP_PATH").or_else(|err| match err {
-                        std::env::VarError::NotPresent => Ok("./trusted_setup.json".to_owned()),
-                        std::env::VarError::NotUnicode(_) => {
-                            let err = anyhow::Error::new(err)
-                                .context("`KZG_TRUSTED_SETUP_PATH` env variable is invalid");
-                            Err(err)
-                        }
-                    })?;
                 let generator = BasicWitnessGenerator::new(
                     config.clone(),
                     &store_factory,
@@ -198,7 +189,6 @@ async fn main() -> anyhow::Result<()> {
                     connection_pool.clone(),
                     prover_connection_pool.clone(),
                     protocol_versions.clone(),
-                    trusted_setup_path,
                 )
                 .await;
                 generator.run(stop_receiver.clone(), opt.batch_size)
