@@ -114,7 +114,7 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for Prestate
                             )),
                             storage: Some(get_storage_if_present(
                                 k.account(),
-                                &initial_storage_ref.modified_storage_keys(),
+                                initial_storage_ref.modified_storage_keys(),
                             )),
                         },
                     )
@@ -152,35 +152,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for PrestateTracer {
 
             let res = diff
                 .iter()
-                .map(|k| {
-                    (
-                        *(k.account().address()),
-                        Account {
-                            balance: Some(
-                                state
-                                    .storage
-                                    .storage
-                                    .read_from_storage(&get_balance_key(k.account())),
-                            ),
-                            code: Some(
-                                state
-                                    .storage
-                                    .storage
-                                    .read_from_storage(&get_code_key(k.account().address())),
-                            ),
-                            nonce: Some(
-                                state
-                                    .storage
-                                    .storage
-                                    .read_from_storage(&get_nonce_key(k.account().address())),
-                            ),
-                            storage: Some(get_storage_if_present(
-                                k.account(),
-                                &modified_storage_keys,
-                            )),
-                        },
-                    )
-                })
+                .map(|k| get_account_data(k, state, &modified_storage_keys))
                 .collect::<State>();
             self.post = res;
         } else {
@@ -233,7 +205,7 @@ fn get_account_data<
     H: vm_latest::old_vm::history_recorder::HistoryMode,
 >(
     account_key: &StorageKey,
-    state: &mut ZkSyncVmState<S, H>,
+    state: &ZkSyncVmState<S, H>,
     storage: &HashMap<StorageKey, StorageValue>,
 ) -> (Address, Account) {
     let address = *(account_key.account().address());
