@@ -705,7 +705,7 @@ impl<H: HistoryMode> HistoryRecorder<MemoryWrapper, H> {
 
 #[derive(Debug)]
 pub struct StorageWrapper<S> {
-    pub storage_ptr: StoragePtr<S>,
+    storage_ptr: StoragePtr<S>,
 }
 
 impl<S: WriteStorage> StorageWrapper<S> {

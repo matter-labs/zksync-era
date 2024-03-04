@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt, sync::Arc};
+use std::{collections::HashMap, fmt, rc::Rc, sync::Arc};
 
 use once_cell::sync::OnceCell;
 use zk_evm_1_4_1::tracing::{BeforeExecutionData, VmLocalStateData};
@@ -7,11 +7,12 @@ use zksync_types::{
     get_code_key, get_nonce_key, web3::signing::keccak256, AccountTreeId, Address, StorageKey,
     StorageValue, H256, L2_ETH_TOKEN_ADDRESS, U256,
 };
-use zksync_utils::address_to_h256;
+use zksync_utils::{address_to_h256, h256_to_u256};
 
 use crate::{
     interface::{dyn_tracers::vm_1_4_1::DynTracer, tracer::TracerExecutionStatus},
     vm_latest::{
+        self,
         bootloader_state::BootloaderState,
         old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},
         tracers::traits::VmTracer,
@@ -77,53 +78,55 @@ pub struct PrestateTracerConfig {
     diff_mode: bool,
 }
 
-impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for PrestateTracer {
+impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for PrestateTracer {
     fn before_execution(
         &mut self,
         _state: VmLocalStateData<'_>,
         _data: BeforeExecutionData,
         _memory: &SimpleMemory<H>,
-        _storage: StoragePtr<S>,
+        storage: StoragePtr<S>,
     ) {
+        if self.config.diff_mode && self.pre.is_empty() {
+            let cloned_storage = Rc::clone(&storage);
+            let mut initial_storage_ref = cloned_storage.as_ref().borrow_mut();
+            let keys = initial_storage_ref
+                .modified_storage_keys()
+                .keys()
+                .cloned()
+                .collect::<Vec<_>>();
+
+            let res = keys
+                .iter()
+                .map(|k| {
+                    (
+                        *(k.account().address()),
+                        Account {
+                            balance: Some(h256_to_u256(
+                                initial_storage_ref.read_value(&get_balance_key(k.account())),
+                            )),
+                            code: Some(h256_to_u256(
+                                initial_storage_ref
+                                    .read_value(&get_code_key(k.account().address())),
+                            )),
+                            nonce: Some(h256_to_u256(
+                                initial_storage_ref
+                                    .read_value(&get_nonce_key(k.account().address())),
+                            )),
+                            storage: Some(get_storage_if_present(
+                                k.account(),
+                                &initial_storage_ref.modified_storage_keys(),
+                            )),
+                        },
+                    )
+                })
+                .collect::<State>();
+            self.pre = res;
+        }
     }
 }
 
 impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for PrestateTracer {
-    fn initialize_tracer(&mut self, state: &mut ZkSyncVmState<S, H>) {
-        let initial_storage = state.storage.storage.inner().get_modified_storage_keys();
-        let keys = initial_storage.keys().cloned().collect::<Vec<_>>();
-
-        let res = keys
-            .iter()
-            .map(|k| {
-                (
-                    *(k.account().address()),
-                    Account {
-                        balance: Some(
-                            state
-                                .storage
-                                .storage
-                                .read_from_storage(&get_balance_key(k.account())),
-                        ),
-                        code: Some(
-                            state
-                                .storage
-                                .storage
-                                .read_from_storage(&get_code_key(k.account().address())),
-                        ),
-                        nonce: Some(
-                            state
-                                .storage
-                                .storage
-                                .read_from_storage(&get_nonce_key(k.account().address())),
-                        ),
-                        storage: Some(get_storage_if_present(k.account(), &initial_storage)),
-                    },
-                )
-            })
-            .collect::<State>();
-        self.pre = res;
-    }
+    fn initialize_tracer(&mut self, _state: &mut ZkSyncVmState<S, H>) {}
 
     fn finish_cycle(
         &mut self,
@@ -186,35 +189,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for PrestateTracer {
             let storage_keys_read = map.keys().copied().collect::<Vec<_>>();
             let res = storage_keys_read
                 .iter()
-                .map(|k| {
-                    (
-                        *(k.account().address()),
-                        Account {
-                            balance: Some(
-                                state
-                                    .storage
-                                    .storage
-                                    .read_from_storage(&get_balance_key(k.account())),
-                            ),
-                            code: Some(
-                                state
-                                    .storage
-                                    .storage
-                                    .read_from_storage(&get_code_key(k.account().address())),
-                            ),
-                            nonce: Some(
-                                state
-                                    .storage
-                                    .storage
-                                    .read_from_storage(&get_nonce_key(k.account().address())),
-                            ),
-                            storage: Some(get_storage_if_present(
-                                k.account(),
-                                &modified_storage_keys,
-                            )),
-                        },
-                    )
-                })
+                .map(|k| get_account_data(k, state, &modified_storage_keys))
                 .collect::<State>();
             self.post = res;
         }
@@ -251,4 +226,38 @@ fn process_result(result: &Arc<OnceCell<(State, State)>>, mut pre: State, post: 
         false
     });
     result.set((pre, post)).unwrap();
+}
+
+fn get_account_data<
+    S: zksync_state::WriteStorage,
+    H: vm_latest::old_vm::history_recorder::HistoryMode,
+>(
+    account_key: &StorageKey,
+    state: &mut ZkSyncVmState<S, H>,
+    storage: &HashMap<StorageKey, StorageValue>,
+) -> (Address, Account) {
+    let address = *(account_key.account().address());
+    let balance = state
+        .storage
+        .storage
+        .read_from_storage(&get_balance_key(account_key.account()));
+    let code = state
+        .storage
+        .storage
+        .read_from_storage(&get_code_key(account_key.account().address()));
+    let nonce = state
+        .storage
+        .storage
+        .read_from_storage(&get_nonce_key(account_key.account().address()));
+    let storage = get_storage_if_present(account_key.account(), storage);
+
+    (
+        address,
+        Account {
+            balance: Some(balance),
+            code: Some(code),
+            nonce: Some(nonce),
+            storage: Some(storage),
+        },
+    )
 }
