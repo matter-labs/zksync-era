@@ -233,13 +233,18 @@ impl EthTxManager {
             .used_priority_fee_per_gas
             .observe(priority_fee_per_gas);
 
-        let mut signed_tx = self
-            .sign_tx(
-                tx,
-                base_fee_per_gas,
-                priority_fee_per_gas,
-                /* TODO: query adjuster */ None,
+        let blob_gas_price = if tx.blob_sidecar.is_some() {
+            Some(
+                blob_base_fee_per_gas
+                    .expect("always ready to query blob gas price for blob transactions; qed")
+                    .into(),
             )
+        } else {
+            None
+        };
+
+        let mut signed_tx = self
+            .sign_tx(tx, base_fee_per_gas, priority_fee_per_gas, blob_gas_price)
             .await;
 
         if let Some(blob_sidecar) = &tx.blob_sidecar {
