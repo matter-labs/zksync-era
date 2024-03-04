@@ -2,6 +2,7 @@ use std::{
     collections::HashMap,
     convert::{Into, TryInto},
     ops,
+    str::FromStr,
 };
 
 use anyhow::Context as _;
@@ -474,8 +475,7 @@ impl BlocksDal<'_, '_> {
         // Serialization should always succeed.
         let used_contract_hashes = serde_json::to_value(&header.used_contract_hashes)
             .expect("failed to serialize used_contract_hashes to JSON value");
-        let base_fee_per_gas = BigDecimal::from_u64(header.base_fee_per_gas.as_u64()) // TODO: this might overflow
-            .context("block.base_fee_per_gas should fit in u64")?;
+        let base_fee_per_gas = BigDecimal::from_str(&header.base_fee_per_gas.to_string())?;
         let storage_refunds: Vec<_> = storage_refunds.iter().map(|n| *n as i64).collect();
 
         let mut transaction = self.storage.start_transaction().await?;

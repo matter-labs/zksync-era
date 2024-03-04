@@ -97,7 +97,7 @@ mod tests {
     use zksync_types::{
         block::{BlockGasCount, L1BatchHeader},
         fee::TransactionExecutionMetrics,
-        L1BatchNumber, ProtocolVersion, ProtocolVersionId, Transaction,
+        L1BatchNumber, ProtocolVersion, ProtocolVersionId, Transaction, U256,
     };
 
     use super::*;
@@ -184,7 +184,7 @@ mod tests {
             miniblock_header.batch_fee_input.l1_gas_price()
         );
         assert_eq!(
-            block.l2_fair_gas_price,
+            U256::from(block.l2_fair_gas_price),
             miniblock_header.batch_fee_input.fair_l2_gas_price()
         );
         assert_eq!(block.operator_address, operator_address);

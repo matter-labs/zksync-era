@@ -37,8 +37,8 @@ pub(crate) fn create_miniblock_header(number: u32) -> MiniblockHeader {
         l1_tx_count: 0,
         l2_tx_count: 0,
         gas_per_pubdata_limit: 100,
-        base_fee_per_gas: 100,
-        batch_fee_input: BatchFeeInput::l1_pegged(100, 100),
+        base_fee_per_gas: U256::from(100),
+        batch_fee_input: BatchFeeInput::l1_pegged(U256::from(100), U256::from(100)),
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(protocol_version),
         virtual_blocks: 1,
@@ -206,7 +206,7 @@ async fn remove_stuck_txs() {
     // Get all txs
     transactions_dal.reset_mempool().await;
     let txs = transactions_dal
-        .sync_mempool(vec![], vec![], 0, 0, 1000)
+        .sync_mempool(vec![], vec![], 0, U256::zero(), 1000)
         .await
         .0;
     assert_eq!(txs.len(), 4);
@@ -229,7 +229,7 @@ async fn remove_stuck_txs() {
     // Get all txs
     transactions_dal.reset_mempool().await;
     let txs = transactions_dal
-        .sync_mempool(vec![], vec![], 0, 0, 1000)
+        .sync_mempool(vec![], vec![], 0, U256::zero(), 1000)
         .await
         .0;
     assert_eq!(txs.len(), 3);
@@ -241,7 +241,7 @@ async fn remove_stuck_txs() {
     assert_eq!(removed_txs, 1);
     transactions_dal.reset_mempool().await;
     let txs = transactions_dal
-        .sync_mempool(vec![], vec![], 0, 0, 1000)
+        .sync_mempool(vec![], vec![], 0, U256::zero(), 1000)
         .await
         .0;
     assert_eq!(txs.len(), 2);
