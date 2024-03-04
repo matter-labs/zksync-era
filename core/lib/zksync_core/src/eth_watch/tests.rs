@@ -113,10 +113,6 @@ impl FakeEthClient {
 
 #[async_trait::async_trait]
 impl EthClient for FakeEthClient {
-    async fn get_block(&self, _hash: H256) -> Result<Option<Block<H256>>, Error> {
-        unimplemented!()
-    }
-
     async fn get_events(
         &self,
         from: BlockNumber,

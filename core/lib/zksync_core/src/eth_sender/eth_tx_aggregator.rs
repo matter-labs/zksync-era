@@ -16,13 +16,8 @@ use zksync_types::{
     ethabi::Token,
     l2_to_l1_log::UserL2ToL1Log,
     protocol_version::{L1VerifierConfig, VerifierParams},
-    // web3::contract::tokens::{Detokenize, Tokenizable},
     web3::{contract::Error as Web3ContractError, types::BlockNumber},
-    Address,
-    L2ChainId,
-    ProtocolVersionId,
-    H256,
-    U256,
+    Address, L2ChainId, ProtocolVersionId, H256, U256,
 };
 
 use super::aggregated_operations::AggregatedOperation;
