@@ -17,8 +17,12 @@ pub(crate) fn build_commit_tx_input_data_is_correct(
         create_l1_batch_with_metadata(2),
     ];
 
-    let commit_tx_input_data =
-        build_commit_tx_input_data(&batches, l1_batch_commit_data_generator.clone());
+    let kzg_settings = Arc::new(KzgSettings::new(&KzgConfig::for_tests().trusted_setup_path));
+    let commit_tx_input_data = build_commit_tx_input_data(
+        &batches,
+        kzg_settings.clone(),
+        l1_batch_commit_data_generator,
+    );
 
     for batch in &batches {
         let commit_data = ConsistencyChecker::extract_commit_data(
@@ -29,8 +33,13 @@ pub(crate) fn build_commit_tx_input_data_is_correct(
         .unwrap();
         assert_eq!(
             commit_data,
-            CommitBatchInfo::new(batch, l1_batch_commit_data_generator.clone().clone())
-                .into_token()
+            CommitBatchInfo::new(
+                batch,
+                PubdataDA::Calldata,
+                Some(kzg_settings.clone()),
+                l1_batch_commit_data_generator.clone()
+            )
+            .into_token()
         );
     }
 }
@@ -51,10 +60,14 @@ pub(crate) async fn normal_checker_function(
     let l1_batches: Vec<_> = (1..=10).map(create_l1_batch_with_metadata).collect();
     let mut commit_tx_hash_by_l1_batch = HashMap::with_capacity(l1_batches.len());
     let client = MockEthereum::default();
+    let kzg_settings = Arc::new(KzgSettings::new(&KzgConfig::for_tests().trusted_setup_path));
 
     for (i, l1_batches) in l1_batches.chunks(batches_per_transaction).enumerate() {
-        let input_data =
-            build_commit_tx_input_data(l1_batches, l1_batch_commit_data_generator.clone());
+        let input_data = build_commit_tx_input_data(
+            l1_batches,
+            kzg_settings.clone(),
+            l1_batch_commit_data_generator,
+        );
         let signed_tx = client.sign_prepared_tx(
             input_data.clone(),
             Options {
@@ -129,11 +142,13 @@ pub(crate) async fn checker_processes_pre_boojum_batches(
         .collect();
     let mut commit_tx_hash_by_l1_batch = HashMap::with_capacity(l1_batches.len());
     let client = MockEthereum::default();
+    let kzg_settings = Arc::new(KzgSettings::new(&KzgConfig::for_tests().trusted_setup_path));
 
     for (i, l1_batch) in l1_batches.iter().enumerate() {
         let input_data = build_commit_tx_input_data(
             slice::from_ref(l1_batch),
-            l1_batch_commit_data_generator.clone(),
+            kzg_settings.clone(),
+            l1_batch_commit_data_generator,
         );
         let signed_tx = client.sign_prepared_tx(
             input_data.clone(),
@@ -191,10 +206,12 @@ pub async fn checker_functions_after_snapshot_recovery(
         .await;
 
     let l1_batch = create_l1_batch_with_metadata(99);
+    let kzg_settings = Arc::new(KzgSettings::new(&KzgConfig::for_tests().trusted_setup_path));
 
     let commit_tx_input_data = build_commit_tx_input_data(
         slice::from_ref(&l1_batch),
-        l1_batch_commit_data_generator.clone(),
+        kzg_settings,
+        l1_batch_commit_data_generator,
     );
     let client = MockEthereum::default();
     let signed_tx = client.sign_prepared_tx(

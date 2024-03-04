@@ -7,9 +7,13 @@ use zksync_contracts::PRE_BOOJUM_COMMIT_FUNCTION;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::{clients::QueryClient, Error as L1ClientError, EthInterface};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
-use zksync_l1_contract_interface::{i_executor::structures::CommitBatchInfo, Tokenizable};
+use zksync_l1_contract_interface::{
+    i_executor::{commit::kzg::KzgSettings, structures::CommitBatchInfo},
+    Tokenizable,
+};
 use zksync_types::{
-    l1_batch_commit_data_generator::L1BatchCommitDataGenerator, web3::ethabi, L1BatchNumber, H256,
+    l1_batch_commit_data_generator::L1BatchCommitDataGenerator, pubdata_da::PubdataDA,
+    web3::ethabi, L1BatchNumber, H256,
 };
 
 use crate::{
@@ -125,7 +129,8 @@ enum L1DataMismatchBehavior {
 #[derive(Debug)]
 struct LocalL1BatchCommitData {
     is_pre_boojum: bool,
-    l1_commit_data: ethabi::Token,
+    /// Vector of possible encodings of L1 commit data.
+    l1_commit_data_variants: Vec<ethabi::Token>,
     commit_tx_hash: H256,
 }
 
@@ -135,6 +140,7 @@ impl LocalL1BatchCommitData {
     async fn new(
         storage: &mut StorageProcessor<'_>,
         batch_number: L1BatchNumber,
+        kzg_settings: Option<Arc<KzgSettings>>,
         l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
     ) -> anyhow::Result<Option<Self>> {
         let Some(storage_l1_batch) = storage
@@ -181,10 +187,26 @@ impl LocalL1BatchCommitData {
             return Ok(None);
         }
 
+        // Encoding data using `PubdataDA::Blobs` or `PubdataDA::Blobs` never panics because we check
+        // protocol version in `CommitBatchInfo`.
+        let variants = vec![PubdataDA::Calldata, PubdataDA::Blobs];
+
+        // Iterate over possible `PubdataDA` used for encoding `CommitBatchInfo`.
+        let l1_commit_data_variants = variants
+            .into_iter()
+            .map(|pubdata_da| {
+                CommitBatchInfo::new(
+                    &l1_batch,
+                    pubdata_da,
+                    l1_batch_commit_data_generator,
+                    kzg_settings.clone(),
+                )
+                .into_token()
+            })
+            .collect();
         Ok(Some(Self {
             is_pre_boojum,
-            l1_commit_data: CommitBatchInfo::new(&l1_batch, l1_batch_commit_data_generator)
-                .into_token(),
+            l1_commit_data_variants,
             commit_tx_hash,
         }))
     }
@@ -203,6 +225,7 @@ pub struct ConsistencyChecker {
     pool: ConnectionPool,
     l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
     health_check: ReactiveHealthCheck,
+    kzg_settings: Option<Arc<KzgSettings>>,
 }
 
 impl ConsistencyChecker {
@@ -212,6 +235,7 @@ impl ConsistencyChecker {
         web3_url: &str,
         max_batches_to_recheck: u32,
         pool: ConnectionPool,
+        kzg_settings: Option<Arc<KzgSettings>>,
         l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
     ) -> Self {
         let web3 = QueryClient::new(web3_url).unwrap();
@@ -225,6 +249,7 @@ impl ConsistencyChecker {
             l1_data_mismatch_behavior: L1DataMismatchBehavior::Log,
             pool,
             health_check,
+            kzg_settings,
             l1_batch_commit_data_generator,
         }
     }
@@ -272,7 +297,8 @@ impl ConsistencyChecker {
                 .with_context(|| {
                     format!("Failed extracting commit data for transaction {commit_tx_hash:?}")
                 })?;
-        Ok(commitment == local.l1_commit_data)
+
+        Ok(local.l1_commit_data_variants.contains(&commitment))
     }
 
     fn extract_commit_data(
@@ -377,6 +403,7 @@ impl ConsistencyChecker {
             let Some(local) = LocalL1BatchCommitData::new(
                 &mut storage,
                 batch_number,
+                self.kzg_settings.clone(),
                 self.l1_batch_commit_data_generator.clone(),
             )
             .await?

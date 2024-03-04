@@ -61,6 +61,7 @@ impl EthSenderTester {
         connection_pool: ConnectionPool,
         history: Vec<u64>,
         non_ordering_confirmations: bool,
+        aggregator_operate_4844_mode: bool,
         l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
     ) -> Self {
         let eth_sender_config = ETHSenderConfig::for_tests();
@@ -92,12 +93,14 @@ impl EthSenderTester {
                     pricing_formula_parameter_b: 2.0,
                     ..eth_sender_config.gas_adjuster
                 },
+                PubdataSendingMode::Calldata,
             )
             .await
             .unwrap(),
         );
         let store_factory = ObjectStoreFactory::mock();
 
+        let kzg_settings = Arc::new(KzgSettings::new(&KzgConfig::for_tests().trusted_setup_path));
         let aggregator = EthTxAggregator::new(
             SenderConfig {
                 proof_sending_mode: ProofSendingMode::SkipEveryProof,
@@ -107,6 +110,9 @@ impl EthSenderTester {
             Aggregator::new(
                 aggregator_config.clone(),
                 store_factory.create_store().await,
+                aggregator_operate_4844_mode,
+                PubdataDA::Calldata,
+                Some(kzg_settings.clone()),
                 l1_batch_commit_data_generator,
             ),
             gateway.clone(),
@@ -115,6 +121,8 @@ impl EthSenderTester {
             contracts_config.l1_multicall3_addr,
             Address::random(),
             Default::default(),
+            Some(kzg_settings),
+            None,
         )
         .await;
 
@@ -122,6 +130,7 @@ impl EthSenderTester {
             eth_sender_config.sender,
             gas_adjuster.clone(),
             gateway.clone(),
+            None,
         );
         Self {
             gateway,
@@ -178,7 +187,10 @@ fn default_l1_batch_metadata() -> L1BatchMetadata {
     }
 }
 
-pub(crate) async fn confirm_many(tester: &mut EthSenderTester) -> anyhow::Result<()> {
+pub(crate) async fn confirm_many(
+    tester: &mut EthSenderTester,
+    aggregator_operate_4844_mode: bool,
+) -> anyhow::Result<()> {
     let mut hashes = vec![];
 
     for _ in 0..5 {
@@ -550,7 +562,7 @@ async fn send_operation(
         .save_eth_tx(
             &mut tester.conn.access_storage().await.unwrap(),
             &aggregated_operation,
-            false,
+            true,
         )
         .await
         .unwrap();
@@ -644,11 +656,14 @@ async fn commit_l1_batch(
     last_committed_l1_batch: L1BatchHeader,
     l1_batch: L1BatchHeader,
     confirm: bool,
+    kzg_settings: Arc<KzgSettings>,
     l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
 ) -> H256 {
     let operation = AggregatedOperation::Commit(CommitBatches {
         last_committed_l1_batch: l1_batch_with_metadata(last_committed_l1_batch),
         l1_batches: vec![l1_batch_with_metadata(l1_batch)],
+        pubdata_da: PubdataDA::Calldata,
+        kzg_settings: Some(kzg_settings),
         l1_batch_commit_data_generator,
     });
     send_operation(tester, operation, confirm).await
@@ -663,11 +678,14 @@ pub(crate) async fn correct_order_for_confirmations(
     let first_l1_batch = insert_l1_batch(tester, L1BatchNumber(1)).await;
     let second_l1_batch = insert_l1_batch(tester, L1BatchNumber(2)).await;
 
+    let kzg_settings = tester.aggregator.kzg_settings();
+
     commit_l1_batch(
         tester,
         genesis_l1_batch.clone(),
         first_l1_batch.clone(),
         true,
+        kzg_settings.clone(),
         l1_batch_commit_data_generator.clone(),
     )
     .await;
@@ -684,6 +702,7 @@ pub(crate) async fn correct_order_for_confirmations(
         first_l1_batch.clone(),
         second_l1_batch.clone(),
         true,
+        kzg_settings.clone(),
         l1_batch_commit_data_generator.clone(),
     )
     .await;
@@ -725,12 +744,14 @@ pub(crate) async fn skipped_l1_batch_at_the_start(
     let genesis_l1_batch = insert_l1_batch(tester, L1BatchNumber(0)).await;
     let first_l1_batch = insert_l1_batch(tester, L1BatchNumber(1)).await;
     let second_l1_batch = insert_l1_batch(tester, L1BatchNumber(2)).await;
+    let kzg_settings = tester.aggregator.kzg_settings();
 
     commit_l1_batch(
         tester,
         genesis_l1_batch.clone(),
         first_l1_batch.clone(),
         true,
+        kzg_settings.clone(),
         l1_batch_commit_data_generator.clone(),
     )
     .await;
@@ -747,6 +768,7 @@ pub(crate) async fn skipped_l1_batch_at_the_start(
         first_l1_batch.clone(),
         second_l1_batch.clone(),
         true,
+        kzg_settings.clone(),
         l1_batch_commit_data_generator.clone(),
     )
     .await;
@@ -767,6 +789,7 @@ pub(crate) async fn skipped_l1_batch_at_the_start(
         second_l1_batch.clone(),
         third_l1_batch.clone(),
         false,
+        kzg_settings.clone(),
         l1_batch_commit_data_generator.clone(),
     )
     .await;
@@ -783,6 +806,7 @@ pub(crate) async fn skipped_l1_batch_at_the_start(
         third_l1_batch.clone(),
         fourth_l1_batch.clone(),
         true,
+        kzg_settings.clone(),
         l1_batch_commit_data_generator.clone(),
     )
     .await;
@@ -822,11 +846,13 @@ pub(crate) async fn skipped_l1_batch_in_the_middle(
     let genesis_l1_batch = insert_l1_batch(tester, L1BatchNumber(0)).await;
     let first_l1_batch = insert_l1_batch(tester, L1BatchNumber(1)).await;
     let second_l1_batch = insert_l1_batch(tester, L1BatchNumber(2)).await;
+    let kzg_settings = tester.aggregator.kzg_settings();
     commit_l1_batch(
         tester,
         genesis_l1_batch.clone(),
         first_l1_batch.clone(),
         true,
+        kzg_settings.clone(),
         l1_batch_commit_data_generator.clone(),
     )
     .await;
@@ -837,6 +863,7 @@ pub(crate) async fn skipped_l1_batch_in_the_middle(
         first_l1_batch.clone(),
         second_l1_batch.clone(),
         true,
+        kzg_settings.clone(),
         l1_batch_commit_data_generator.clone(),
     )
     .await;
@@ -856,6 +883,7 @@ pub(crate) async fn skipped_l1_batch_in_the_middle(
         second_l1_batch.clone(),
         third_l1_batch.clone(),
         false,
+        kzg_settings.clone(),
         l1_batch_commit_data_generator.clone(),
     )
     .await;
@@ -872,6 +900,7 @@ pub(crate) async fn skipped_l1_batch_in_the_middle(
         third_l1_batch.clone(),
         fourth_l1_batch.clone(),
         true,
+        kzg_settings,
         l1_batch_commit_data_generator.clone(),
     )
     .await;

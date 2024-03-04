@@ -8,12 +8,14 @@ use zksync_types::l1_batch_commit_data_generator::{
 use super::tests_helpers::{self, EthSenderTester};
 
 // Tests that we send multiple transactions and confirm them all in one iteration.
+#[test_casing(2, [false, true])]
 #[tokio::test]
-async fn confirm_many() -> anyhow::Result<()> {
+async fn confirm_many(aggregator_operate_4844_mode: bool) -> anyhow::Result<()> {
     let mut rollup_tester = EthSenderTester::new(
         ConnectionPool::test_pool().await,
         vec![10; 100],
         false,
+        aggregator_operate_4844_mode,
         Arc::new(RollupModeL1BatchCommitDataGenerator {}),
     )
     .await;
@@ -22,12 +24,13 @@ async fn confirm_many() -> anyhow::Result<()> {
         ConnectionPool::test_pool().await,
         vec![10; 100],
         false,
+        aggregator_operate_4844_mode,
         Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
     )
     .await;
 
-    tests_helpers::confirm_many(&mut rollup_tester).await?;
-    tests_helpers::confirm_many(&mut validium_tester).await
+    tests_helpers::confirm_many(&mut rollup_tester, aggregator_operate_4844_mode).await?;
+    tests_helpers::confirm_many(&mut validium_tester, aggregator_operate_4844_mode).await
 }
 
 // Tests that we resend first un-mined transaction every block with an increased gas price.
@@ -37,12 +40,14 @@ async fn resend_each_block() -> anyhow::Result<()> {
         ConnectionPool::test_pool().await,
         vec![7, 6, 5, 5, 5, 2, 1],
         false,
+        false,
         Arc::new(RollupModeL1BatchCommitDataGenerator {}),
     )
     .await;
     let mut validium_tester = EthSenderTester::new(
         ConnectionPool::test_pool().await,
         vec![7, 6, 5, 5, 5, 2, 1],
+        false,
         false,
         Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
     )
@@ -60,12 +65,14 @@ async fn dont_resend_already_mined() -> anyhow::Result<()> {
         ConnectionPool::test_pool().await,
         vec![100; 100],
         false,
+        false,
         Arc::new(RollupModeL1BatchCommitDataGenerator {}),
     )
     .await;
     let mut validium_tester = EthSenderTester::new(
         ConnectionPool::test_pool().await,
         vec![100; 100],
+        false,
         false,
         Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
     )
@@ -81,12 +88,14 @@ async fn three_scenarios() -> anyhow::Result<()> {
         ConnectionPool::test_pool().await,
         vec![100; 100],
         false,
+        false,
         Arc::new(RollupModeL1BatchCommitDataGenerator {}),
     )
     .await;
     let mut validium_tester = EthSenderTester::new(
         ConnectionPool::test_pool().await,
         vec![100; 100],
+        false,
         false,
         Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
     )
@@ -103,12 +112,14 @@ async fn failed_eth_tx() {
         ConnectionPool::test_pool().await,
         vec![100; 100],
         false,
+        false,
         Arc::new(RollupModeL1BatchCommitDataGenerator {}),
     )
     .await;
     let mut validium_tester = EthSenderTester::new(
         ConnectionPool::test_pool().await,
         vec![100; 100],
+        false,
         false,
         Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
     )
@@ -123,6 +134,7 @@ async fn correct_order_for_confirmations() -> anyhow::Result<()> {
     let mut rollup_tester = EthSenderTester::new(
         ConnectionPool::test_pool().await,
         vec![100; 100],
+        true,
         false,
         Arc::new(RollupModeL1BatchCommitDataGenerator {}),
     )
@@ -130,6 +142,7 @@ async fn correct_order_for_confirmations() -> anyhow::Result<()> {
     let mut validium_tester = EthSenderTester::new(
         ConnectionPool::test_pool().await,
         vec![100; 100],
+        true,
         false,
         Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
     )
@@ -153,6 +166,7 @@ async fn skipped_l1_batch_at_the_start() -> anyhow::Result<()> {
         ConnectionPool::test_pool().await,
         vec![100; 100],
         true,
+        false,
         Arc::new(RollupModeL1BatchCommitDataGenerator {}).clone(),
     )
     .await;
@@ -161,6 +175,7 @@ async fn skipped_l1_batch_at_the_start() -> anyhow::Result<()> {
         ConnectionPool::test_pool().await,
         vec![100; 100],
         true,
+        false,
         Arc::new(ValidiumModeL1BatchCommitDataGenerator {}).clone(),
     )
     .await;
@@ -183,6 +198,7 @@ async fn skipped_l1_batch_in_the_middle() -> anyhow::Result<()> {
         ConnectionPool::test_pool().await,
         vec![100; 100],
         true,
+        false,
         Arc::new(RollupModeL1BatchCommitDataGenerator {}).clone(),
     )
     .await;
@@ -191,6 +207,7 @@ async fn skipped_l1_batch_in_the_middle() -> anyhow::Result<()> {
         ConnectionPool::test_pool().await,
         vec![100; 100],
         true,
+        false,
         Arc::new(ValidiumModeL1BatchCommitDataGenerator {}).clone(),
     )
     .await;
@@ -213,12 +230,14 @@ async fn test_parse_multicall_data() {
         ConnectionPool::test_pool().await,
         vec![100; 100],
         false,
+        false,
         Arc::new(RollupModeL1BatchCommitDataGenerator {}),
     )
     .await;
     let validium_tester = EthSenderTester::new(
         ConnectionPool::test_pool().await,
         vec![100; 100],
+        false,
         false,
         Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
     )
@@ -234,12 +253,14 @@ async fn get_multicall_data() {
         ConnectionPool::test_pool().await,
         vec![100; 100],
         false,
+        false,
         Arc::new(RollupModeL1BatchCommitDataGenerator {}),
     )
     .await;
     let mut validium_tester = EthSenderTester::new(
         ConnectionPool::test_pool().await,
         vec![100; 100],
+        false,
         false,
         Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
     )

@@ -3,10 +3,14 @@ use std::{fmt, sync::Arc};
 use async_trait::async_trait;
 use chrono::Utc;
 use zksync_dal::StorageProcessor;
-use zksync_l1_contract_interface::{i_executor::structures::CommitBatchInfo, Tokenizable};
+use zksync_l1_contract_interface::{
+    i_executor::{commit::kzg::KzgSettings, structures::CommitBatchInfo},
+    Tokenizable,
+};
 use zksync_types::{
     aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata, ethabi,
-    l1_batch_commit_data_generator::L1BatchCommitDataGenerator, L1BatchNumber,
+    l1_batch_commit_data_generator::L1BatchCommitDataGenerator, pubdata_da::PubdataDA,
+    L1BatchNumber,
 };
 
 use super::metrics::METRICS;
@@ -199,6 +203,8 @@ impl L1BatchPublishCriterion for GasCriterion {
 pub struct DataSizeCriterion {
     pub op: AggregatedActionType,
     pub data_limit: usize,
+    pub pubdata_da: PubdataDA,
+    pub kzg_settings: Option<Arc<KzgSettings>>,
     pub l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
 }
 
@@ -222,6 +228,8 @@ impl L1BatchPublishCriterion for DataSizeCriterion {
             let l1_commit_data_size =
                 ethabi::encode(&[ethabi::Token::Array(vec![CommitBatchInfo::new(
                     l1_batch,
+                    self.pubdata_da,
+                    self.kzg_settings.clone(),
                     self.l1_batch_commit_data_generator.clone(),
                 )
                 .into_token()])])

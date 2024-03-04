@@ -6,8 +6,9 @@ use std::{collections::HashMap, slice};
 use assert_matches::assert_matches;
 use test_casing::{test_casing, Product};
 use tokio::sync::mpsc;
+use zksync_config::configs::KzgConfig;
 use zksync_dal::StorageProcessor;
-use zksync_eth_client::clients::MockEthereum;
+use zksync_eth_client::{clients::MockEthereum, Options};
 use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
@@ -15,8 +16,7 @@ use zksync_types::{
     l1_batch_commit_data_generator::{
         RollupModeL1BatchCommitDataGenerator, ValidiumModeL1BatchCommitDataGenerator,
     },
-    web3::contract::Options,
-    ProtocolVersionId, H256,
+    L2ChainId, ProtocolVersion, ProtocolVersionId, H256,
 };
 
 use super::*;
@@ -47,12 +47,19 @@ pub(crate) fn create_pre_boojum_l1_batch_with_metadata(number: u32) -> L1BatchWi
     l1_batch
 }
 
-pub(crate) fn build_commit_tx_input_data(
+fn build_commit_tx_input_data(
     batches: &[L1BatchWithMetadata],
+    kzg_settings: Arc<KzgSettings>,
     l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
 ) -> Vec<u8> {
     let commit_tokens = batches.iter().map(|batch| {
-        CommitBatchInfo::new(batch, l1_batch_commit_data_generator.clone()).into_token()
+        CommitBatchInfo::new(
+            batch,
+            PubdataDA::Calldata,
+            Some(kzg_settings.clone()),
+            l1_batch_commit_data_generator.clone(),
+        )
+        .into_token()
     });
     let commit_tokens = ethabi::Token::Array(commit_tokens.collect());
 
@@ -83,6 +90,9 @@ pub(crate) fn create_mock_checker(
         pool,
         l1_batch_commit_data_generator,
         health_check,
+        kzg_settings: Some(Arc::new(KzgSettings::new(
+            &KzgConfig::for_tests().trusted_setup_path,
+        ))),
     }
 }
 
@@ -378,6 +388,7 @@ impl IncorrectDataKind {
         l1_batch: &L1BatchWithMetadata,
         l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
     ) -> H256 {
+        let kzg_settings = Arc::new(KzgSettings::new(&KzgConfig::for_tests().trusted_setup_path));
         let (commit_tx_input_data, successful_status) = match self {
             Self::MissingStatus => {
                 return H256::zero(); // Do not execute the transaction
@@ -386,6 +397,7 @@ impl IncorrectDataKind {
                 let commit_tx_input_data = build_commit_tx_input_data(
                     slice::from_ref(l1_batch),
                     l1_batch_commit_data_generator,
+                    kzg_settings,
                 );
                 (commit_tx_input_data, false)
             }
@@ -401,6 +413,7 @@ impl IncorrectDataKind {
                 let bogus_tx_input_data = build_commit_tx_input_data(
                     slice::from_ref(&l1_batch),
                     l1_batch_commit_data_generator,
+                    kzg_settings,
                 );
                 (bogus_tx_input_data, true)
             }
@@ -409,6 +422,7 @@ impl IncorrectDataKind {
                 let bogus_tx_input_data = build_commit_tx_input_data(
                     slice::from_ref(&l1_batch),
                     l1_batch_commit_data_generator,
+                    kzg_settings,
                 );
                 (bogus_tx_input_data, true)
             }
@@ -418,6 +432,7 @@ impl IncorrectDataKind {
                 let bogus_tx_input_data = build_commit_tx_input_data(
                     slice::from_ref(&l1_batch),
                     l1_batch_commit_data_generator,
+                    kzg_settings,
                 );
                 (bogus_tx_input_data, true)
             }

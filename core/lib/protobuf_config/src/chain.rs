@@ -1,9 +1,9 @@
 use anyhow::Context as _;
 use zksync_basic_types::network::Network;
 use zksync_config::configs;
-use zksync_protobuf::required;
+use zksync_protobuf::{repr::ProtoRepr, required};
 
-use crate::{parse_h160, proto, repr::ProtoRepr};
+use crate::{parse_h160, proto};
 
 impl proto::Network {
     fn new(n: &Network) -> Self {

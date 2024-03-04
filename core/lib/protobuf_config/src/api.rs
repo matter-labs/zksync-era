@@ -1,11 +1,11 @@
 use anyhow::Context as _;
 use zksync_config::configs::{api, ApiConfig};
-use zksync_protobuf::required;
-
-use crate::{
-    parse_h256, proto,
+use zksync_protobuf::{
     repr::{read_required_repr, ProtoRepr},
+    required,
 };
+
+use crate::{parse_h256, proto};
 
 impl ProtoRepr for proto::Api {
     type Type = ApiConfig;
@@ -193,16 +193,22 @@ impl ProtoRepr for proto::ContractVerificationApi {
 
 impl ProtoRepr for proto::HealthCheck {
     type Type = api::HealthCheckConfig;
+
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {
             port: required(&self.port)
-                .and_then(|p| Ok((*p).try_into()?))
+                .and_then(|&port| Ok(port.try_into()?))
                 .context("port")?,
+            slow_time_limit_ms: self.slow_time_limit_ms,
+            hard_time_limit_ms: self.hard_time_limit_ms,
         })
     }
+
     fn build(this: &Self::Type) -> Self {
         Self {
             port: Some(this.port.into()),
+            slow_time_limit_ms: this.slow_time_limit_ms,
+            hard_time_limit_ms: this.hard_time_limit_ms,
         }
     }
 }

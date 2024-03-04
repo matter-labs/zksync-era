@@ -13,7 +13,7 @@ use zksync_core::{
     },
     consensus,
 };
-use zksync_types::api::BridgeAddresses;
+use zksync_types::{api::BridgeAddresses, fee_model::FeeParams};
 use zksync_web3_decl::{
     error::ClientRpcContext,
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
@@ -38,6 +38,7 @@ pub struct RemoteENConfig {
     pub l2_testnet_paymaster_addr: Option<Address>,
     pub l2_chain_id: L2ChainId,
     pub l1_chain_id: L1ChainId,
+    pub max_pubdata_per_batch: u64,
 }
 
 impl RemoteENConfig {
@@ -62,6 +63,19 @@ impl RemoteENConfig {
         let l1_chain_id = client.l1_chain_id().rpc_context("l1_chain_id").await?;
         let l1_chain_id = L1ChainId(l1_chain_id.as_u64());
 
+        let fee_params = client
+            .get_fee_params()
+            .rpc_context("get_fee_params")
+            .await?;
+        let max_pubdata_per_batch = match fee_params {
+            FeeParams::V1(_) => {
+                const MAX_V1_PUBDATA_PER_BATCH: u64 = 100_000;
+
+                MAX_V1_PUBDATA_PER_BATCH
+            }
+            FeeParams::V2(params) => params.config.max_pubdata_per_batch,
+        };
+
         Ok(Self {
             bridgehub_proxy_addr,
             diamond_proxy_addr,
@@ -72,6 +86,7 @@ impl RemoteENConfig {
             l2_weth_bridge_addr: bridges.l2_weth_bridge,
             l2_chain_id,
             l1_chain_id,
+            max_pubdata_per_batch,
         })
     }
 }
@@ -151,6 +166,14 @@ pub struct OptionalENConfig {
     #[serde(default)]
     pub filters_disabled: bool,
 
+    // Health checks
+    /// Time limit in milliseconds to mark a health check as slow and log the corresponding warning.
+    /// If not specified, the default value in the health check crate will be used.
+    healthcheck_slow_time_limit_ms: Option<u64>,
+    /// Time limit in milliseconds to abort a health check and return "not ready" status for the corresponding component.
+    /// If not specified, the default value in the health check crate will be used.
+    healthcheck_hard_time_limit_ms: Option<u64>,
+
     // Gas estimation config
     /// The factor by which to scale the gasLimit
     #[serde(default = "OptionalENConfig::default_estimate_gas_scale_factor")]
@@ -214,6 +237,10 @@ pub struct OptionalENConfig {
     /// 0 means that sealing is synchronous; this is mostly useful for performance comparison, testing etc.
     #[serde(default = "OptionalENConfig::default_miniblock_seal_queue_capacity")]
     pub miniblock_seal_queue_capacity: usize,
+
+    /// Path to KZG trusted setup path.
+    #[serde(default = "OptionalENConfig::default_kzg_trusted_setup_path")]
+    pub kzg_trusted_setup_path: String,
 
     #[serde(default = "OptionalENConfig::default_l1_batch_commit_data_generator_mode")]
     pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
@@ -323,6 +350,10 @@ impl OptionalENConfig {
         10
     }
 
+    fn default_kzg_trusted_setup_path() -> String {
+        "./trusted_setup.json".to_owned()
+    }
+
     const fn default_l1_batch_commit_data_generator_mode() -> L1BatchCommitDataGeneratorMode {
         L1BatchCommitDataGeneratorMode::Rollup
     }
@@ -383,6 +414,16 @@ impl OptionalENConfig {
 
     pub fn max_response_body_size(&self) -> usize {
         self.max_response_body_size_mb * BYTES_IN_MEGABYTE
+    }
+
+    pub fn healthcheck_slow_time_limit(&self) -> Option<Duration> {
+        self.healthcheck_slow_time_limit_ms
+            .map(Duration::from_millis)
+    }
+
+    pub fn healthcheck_hard_time_limit(&self) -> Option<Duration> {
+        self.healthcheck_hard_time_limit_ms
+            .map(Duration::from_millis)
     }
 }
 
@@ -607,6 +648,7 @@ impl From<ExternalNodeConfig> for TxSenderConfig {
             l1_to_l2_transactions_compatibility_mode: config
                 .optional
                 .l1_to_l2_transactions_compatibility_mode,
+            max_pubdata_per_batch: config.remote.max_pubdata_per_batch,
         }
     }
 }
