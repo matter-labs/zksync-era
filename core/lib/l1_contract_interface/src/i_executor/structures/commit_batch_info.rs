@@ -152,6 +152,14 @@ impl<'a> CommitBatchInfo<'a> {
             ]
         }
     }
+
+    fn pubdata_input(&self) -> Vec<u8> {
+        self.l1_batch_with_metadata
+            .header
+            .pubdata_input
+            .clone()
+            .unwrap_or_else(|| self.l1_batch_with_metadata.construct_pubdata())
+    }
 }
 
 impl<'a> Tokenizable for CommitBatchInfo<'a> {
@@ -183,21 +191,10 @@ impl<'a> Tokenizable for CommitBatchInfo<'a> {
         if protocol_version.is_pre_1_4_2() {
             tokens.push(
                 // `totalL2ToL1Pubdata` without pubdata source byte
-                Token::Bytes(
-                    self.l1_batch_with_metadata
-                        .header
-                        .pubdata_input
-                        .clone()
-                        .unwrap_or(self.l1_batch_with_metadata.construct_pubdata()),
-                ),
+                Token::Bytes(self.pubdata_input()),
             );
         } else {
-            let pubdata = self
-                .l1_batch_with_metadata
-                .header
-                .pubdata_input
-                .clone()
-                .unwrap_or(self.l1_batch_with_metadata.construct_pubdata());
+            let pubdata = self.pubdata_input();
             match self.pubdata_da {
                 PubdataDA::Calldata => {
                     // We compute and add the blob commitment to the pubdata payload so that we can verify the proof
@@ -212,14 +209,11 @@ impl<'a> Tokenizable for CommitBatchInfo<'a> {
                     tokens.push(Token::Bytes(result));
                 }
                 PubdataDA::Blobs => {
-                    let pubdata_commitments = pubdata
-                        .chunks(ZK_SYNC_BYTES_PER_BLOB)
-                        .flat_map(|blob| {
+                    let pubdata_commitments =
+                        pubdata.chunks(ZK_SYNC_BYTES_PER_BLOB).flat_map(|blob| {
                             let kzg_info = KzgInfo::new(blob);
-                            kzg_info.to_pubdata_commitment().to_vec()
-                        })
-                        .collect::<Vec<u8>>();
-
+                            kzg_info.to_pubdata_commitment()
+                        });
                     let result = std::iter::once(PUBDATA_SOURCE_BLOBS)
                         .chain(pubdata_commitments)
                         .collect();
