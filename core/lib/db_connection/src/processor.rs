@@ -143,8 +143,31 @@ pub struct StorageProcessor<'a> {
     inner: StorageProcessorInner<'a>,
 }
 
-impl<'a> StorageProcessor<'a> {
-    pub async fn start_transaction(&mut self) -> sqlx::Result<StorageProcessor<'_>> {
+// todo: rename
+pub trait StorageInteraction {
+    async fn start_transaction(&mut self) -> sqlx::Result<StorageProcessor<'_>>;
+
+    /// Checks if the `StorageProcessor` is currently within database transaction.
+    fn in_transaction(&self) -> bool;
+
+    async fn commit(self) -> sqlx::Result<()>;
+
+    /// Creates a `StorageProcessor` using a pool of connections.
+    /// This method borrows one of the connections from the pool, and releases it
+    /// after `drop`.
+    fn from_pool(
+        connection: PoolConnection<Postgres>,
+        tags: Option<StorageProcessorTags>,
+        traced_connections: Option<&'a TracedConnections>,
+    ) -> Self;
+
+    fn conn(&mut self) -> &mut PgConnection;
+
+    fn conn_and_tags(&mut self) -> (&mut PgConnection, Option<&StorageProcessorTags>);
+}
+
+impl<'a> StorageInteraction for StorageProcessor<'a> {
+    async fn start_transaction(&mut self) -> sqlx::Result<StorageProcessor<'_>> {
         let (conn, tags) = self.conn_and_tags();
         let inner = StorageProcessorInner::Transaction {
             transaction: conn.begin().await?,
@@ -154,11 +177,11 @@ impl<'a> StorageProcessor<'a> {
     }
 
     /// Checks if the `StorageProcessor` is currently within database transaction.
-    pub fn in_transaction(&self) -> bool {
+    fn in_transaction(&self) -> bool {
         matches!(self.inner, StorageProcessorInner::Transaction { .. })
     }
 
-    pub async fn commit(self) -> sqlx::Result<()> {
+    async fn commit(self) -> sqlx::Result<()> {
         if let StorageProcessorInner::Transaction {
             transaction: postgres,
             ..
@@ -173,7 +196,7 @@ impl<'a> StorageProcessor<'a> {
     /// Creates a `StorageProcessor` using a pool of connections.
     /// This method borrows one of the connections from the pool, and releases it
     /// after `drop`.
-    pub fn from_pool(
+    fn from_pool(
         connection: PoolConnection<Postgres>,
         tags: Option<StorageProcessorTags>,
         traced_connections: Option<&'a TracedConnections>,
@@ -191,11 +214,11 @@ impl<'a> StorageProcessor<'a> {
         Self { inner }
     }
 
-    pub fn conn(&mut self) -> &mut PgConnection {
+    fn conn(&mut self) -> &mut PgConnection {
         self.conn_and_tags().0
     }
 
-    pub fn conn_and_tags(&mut self) -> (&mut PgConnection, Option<&StorageProcessorTags>) {
+    fn conn_and_tags(&mut self) -> (&mut PgConnection, Option<&StorageProcessorTags>) {
         match &mut self.inner {
             StorageProcessorInner::Pooled(pooled) => (&mut pooled.connection, pooled.tags.as_ref()),
             StorageProcessorInner::Transaction { transaction, tags } => (transaction, *tags),
@@ -204,49 +227,49 @@ impl<'a> StorageProcessor<'a> {
 }
 
 pub trait StorageKind {
-    type Processor<'a>: 'a + Send + From<StorageProcessor<'a>>;
+    type Processor<'a>: 'a + Send + From<StorageProcessor<'a>> + StorageInteraction;
 }
-//
-// #[cfg(test)]
-// mod tests {
-//     use crate::ConnectionPool;
-//
-//     #[tokio::test]
-//     async fn processor_tags_propagate_to_transactions() {
-//         let pool = ConnectionPool::constrained_test_pool(1).await;
-//         let mut connection = pool.access_storage_tagged("test").await.unwrap();
-//         assert!(!connection.in_transaction());
-//         let original_tags = *connection.conn_and_tags().1.unwrap();
-//         assert_eq!(original_tags.requester, "test");
-//
-//         let mut transaction = connection.start_transaction().await.unwrap();
-//         let transaction_tags = *transaction.conn_and_tags().1.unwrap();
-//         assert_eq!(transaction_tags, original_tags);
-//     }
-//
-//     #[tokio::test]
-//     async fn tracing_connections() {
-//         let pool = ConnectionPool::constrained_test_pool(1).await;
-//         let connection = pool.access_storage_tagged("test").await.unwrap();
-//         let traced = pool.traced_connections.as_deref().unwrap();
-//         {
-//             let traced = traced.connections.lock().unwrap();
-//             assert_eq!(traced.len(), 1);
-//             let tags = traced.values().next().unwrap().tags.unwrap();
-//             assert_eq!(tags.requester, "test");
-//             assert!(tags.location.file().contains("processor.rs"), "{tags:?}");
-//         }
-//         drop(connection);
-//
-//         {
-//             let traced = traced.connections.lock().unwrap();
-//             assert!(traced.is_empty());
-//         }
-//
-//         let _connection = pool.access_storage_tagged("test").await.unwrap();
-//         let err = format!("{:?}", pool.access_storage().await.unwrap_err());
-//         // Matching strings in error messages is an anti-pattern, but we really want to test DevEx here.
-//         assert!(err.contains("Active connections"), "{err}");
-//         assert!(err.contains("requested by `test`"), "{err}");
-//     }
-// }
+
+#[cfg(test)]
+mod tests {
+    use crate::ConnectionPool;
+
+    #[tokio::test]
+    async fn processor_tags_propagate_to_transactions() {
+        let pool = ConnectionPool::constrained_test_pool(1).await;
+        let mut connection = pool.access_storage_tagged("test").await.unwrap();
+        assert!(!connection.in_transaction());
+        let original_tags = *connection.conn_and_tags().1.unwrap();
+        assert_eq!(original_tags.requester, "test");
+
+        let mut transaction = connection.start_transaction().await.unwrap();
+        let transaction_tags = *transaction.conn_and_tags().1.unwrap();
+        assert_eq!(transaction_tags, original_tags);
+    }
+
+    #[tokio::test]
+    async fn tracing_connections() {
+        let pool = ConnectionPool::constrained_test_pool(1).await;
+        let connection = pool.access_storage_tagged("test").await.unwrap();
+        let traced = pool.traced_connections.as_deref().unwrap();
+        {
+            let traced = traced.connections.lock().unwrap();
+            assert_eq!(traced.len(), 1);
+            let tags = traced.values().next().unwrap().tags.unwrap();
+            assert_eq!(tags.requester, "test");
+            assert!(tags.location.file().contains("processor.rs"), "{tags:?}");
+        }
+        drop(connection);
+
+        {
+            let traced = traced.connections.lock().unwrap();
+            assert!(traced.is_empty());
+        }
+
+        let _connection = pool.access_storage_tagged("test").await.unwrap();
+        let err = format!("{:?}", pool.access_storage().await.unwrap_err());
+        // Matching strings in error messages is an anti-pattern, but we really want to test DevEx here.
+        assert!(err.contains("Active connections"), "{err}");
+        assert!(err.contains("requested by `test`"), "{err}");
+    }
+}

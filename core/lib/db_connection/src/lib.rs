@@ -10,12 +10,15 @@ use std::{
     time::Duration,
 };
 
-use crate::processor::{StorageKind, StorageProcessor, StorageProcessorTags, TracedConnections};
 use anyhow::Context as _;
 use rand::Rng;
 use sqlx::{
     pool::PoolConnection,
     postgres::{PgConnectOptions, PgPool, PgPoolOptions, Postgres},
+};
+
+use crate::processor::{
+    StorageInteraction, StorageKind, StorageProcessor, StorageProcessorTags, TracedConnections,
 };
 
 pub mod processor;
@@ -309,7 +312,7 @@ impl<SK: StorageKind> ConnectionPool<SK> {
         self.max_size
     }
 
-    pub async fn access_storage(&self) -> anyhow::Result<SK> {
+    pub async fn access_storage(&self) -> anyhow::Result<SK::Processor<'_>> {
         self.access_storage_inner(None).await
     }
 
@@ -323,7 +326,7 @@ impl<SK: StorageKind> ConnectionPool<SK> {
     pub fn access_storage_tagged(
         &self,
         requester: &'static str,
-    ) -> impl Future<Output = anyhow::Result<SK>> + '_ {
+    ) -> impl Future<Output = anyhow::Result<SK::Processor<'_>>> + '_ {
         let location = Location::caller();
         async move {
             let tags = StorageProcessorTags {
@@ -334,7 +337,10 @@ impl<SK: StorageKind> ConnectionPool<SK> {
         }
     }
 
-    async fn access_storage_inner(&self, tags: Option<StorageProcessorTags>) -> anyhow::Result<SK> {
+    async fn access_storage_inner(
+        &self,
+        tags: Option<StorageProcessorTags>,
+    ) -> anyhow::Result<SK::Processor<'_>> {
         // let acquire_latency = CONNECTION_METRICS.acquire.start();
         let conn = self
             .acquire_connection_retried(tags.as_ref())

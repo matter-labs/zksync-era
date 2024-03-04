@@ -4,7 +4,9 @@ use std::time::Instant;
 
 use sqlx::{pool::PoolConnection, PgConnection, Postgres};
 pub use sqlx::{types::BigDecimal, Error as SqlxError};
-use zksync_db_connection::processor::{StorageKind, StorageProcessor, StorageProcessorTags};
+use zksync_db_connection::processor::{
+    StorageInteraction, StorageKind, StorageProcessor, StorageProcessorTags, TracedConnections,
+};
 pub use zksync_db_connection::ConnectionPool;
 
 use crate::{
@@ -77,25 +79,37 @@ impl StorageKind for Server {
     type Processor<'a> = ServerProcessor<'a>;
 }
 
-impl ServerProcessor {
-    pub async fn start_transaction(&mut self) -> sqlx::Result<ServerProcessor<'_>> {
+impl<'a> StorageInteraction for ServerProcessor<'a> {
+    async fn start_transaction(&mut self) -> sqlx::Result<ServerProcessor<'_>> {
         self.0.start_transaction()
     }
 
     /// Checks if the `StorageProcessor` is currently within database transaction.
-    pub fn in_transaction(&self) -> bool {
+    fn in_transaction(&self) -> bool {
         self.0.in_transaction()
     }
 
-    pub async fn commit(self) -> sqlx::Result<()> {
+    async fn commit(self) -> sqlx::Result<()> {
         self.0.commit()
     }
 
-    pub(crate) fn conn(&mut self) -> &mut PgConnection {
+    fn from_pool(
+        connection: PoolConnection<Postgres>,
+        tags: Option<StorageProcessorTags>,
+        traced_connections: Option<&'a TracedConnections>,
+    ) -> Self {
+        Self(StorageProcessor::from_pool(
+            connection,
+            tags,
+            traced_connections,
+        ))
+    }
+
+    fn conn(&mut self) -> &mut PgConnection {
         self.0.conn_and_tags().0
     }
 
-    pub fn conn_and_tags(&mut self) -> (&mut PgConnection, Option<&StorageProcessorTags>) {
+    fn conn_and_tags(&mut self) -> (&mut PgConnection, Option<&StorageProcessorTags>) {
         self.0.conn_and_tags()
     }
 }
