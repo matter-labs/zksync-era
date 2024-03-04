@@ -8,7 +8,6 @@ use tokio::{
     sync::{watch, OnceCell},
     task::JoinHandle,
 };
-use tracing::field::debug;
 use zksync_config::configs::native_token_fetcher::NativeTokenFetcherConfig;
 
 /// Trait used to query the stack's native token conversion rate. Used to properly

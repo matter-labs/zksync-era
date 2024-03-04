@@ -6,7 +6,7 @@ use zksync_config::configs::native_token_fetcher::NativeTokenFetcherConfig;
 pub(crate) async fn run_server(
     mut stop_receiver: watch::Receiver<bool>,
     server_configs: &NativeTokenFetcherConfig,
-) {
+) -> anyhow::Result<()> {
     let app = Router::new().route("/conversion_rate/:token_address", get(get_conversion_rate));
 
     let bind_address = if server_configs.host.starts_with("http://") {
@@ -26,6 +26,7 @@ pub(crate) async fn run_server(
         .await
         .expect("Conversion rate server failed");
     tracing::info!("Conversion rate server shut down");
+    Ok(())
 }
 
 // basic handler that responds with a static string

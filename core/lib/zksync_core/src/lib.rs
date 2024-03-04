@@ -330,6 +330,8 @@ pub async fn initialize_components(
         panic!("Circuit breaker triggered: {}", err);
     });
 
+    let mut task_futures: Vec<JoinHandle<anyhow::Result<()>>> = Vec::new();
+
     // spawn the conversion rate API if it is enabled
     if components.contains(&Component::ConversionRateApi) {
         let (_stop_sender, stop_receiver) = watch::channel(false);
@@ -337,15 +339,12 @@ pub async fn initialize_components(
         let native_token_fetcher_config = configs
             .native_token_fetcher_config
             .clone()
-            .context("native_token_fetcher_config")
-            .unwrap(); // Assuming unwrap is safe here, handle the error appropriately
+            .context("native_token_fetcher_config")?;
 
-        tokio::spawn(async move {
-            api_conversion_rate::run_server(stop_receiver, &native_token_fetcher_config).await;
+        let conversion_rate_task = tokio::spawn(async move {
+            api_conversion_rate::run_server(stop_receiver, &native_token_fetcher_config).await
         });
-
-        use std::{thread, time::Duration};
-        thread::sleep(Duration::from_secs(2));
+        task_futures.push(conversion_rate_task);
     };
 
     // spawn the native ERC20 fetcher if it is enabled
@@ -403,10 +402,10 @@ pub async fn initialize_components(
         res
     });
 
-    let mut task_futures: Vec<JoinHandle<anyhow::Result<()>>> = vec![
+    task_futures.extend(vec![
         prometheus_task,
         tokio::spawn(circuit_breaker_checker.run(cb_sender, stop_receiver.clone())),
-    ];
+    ]);
 
     if components.contains(&Component::WsApi)
         || components.contains(&Component::HttpApi)
