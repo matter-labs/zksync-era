@@ -413,7 +413,7 @@ impl EthTxAggregator {
                 if contracts_are_pre_shared_bridge {
                     self.functions
                         .pre_shared_bridge_commit
-                        .encode_input(&commit_data.into_tokens())
+                        .encode_input(&commit_data)
                         .expect("Failed to encode commit transaction data")
                 } else {
                     args.extend_from_slice(&commit_data);
