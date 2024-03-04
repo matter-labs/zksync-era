@@ -32,8 +32,10 @@ use zksync_core::{
         batch_status_updater::BatchStatusUpdater, external_io::ExternalIO,
         fetcher::MainNodeFetcher, ActionQueue, MainNodeClient, SyncState,
     },
+    utils::ensure_l1_batch_commit_data_generation_mode,
 };
 use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
+use zksync_eth_client::clients::QueryClient;
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
 use zksync_state::PostgresStorageCaches;
 use zksync_storage::RocksDB;
@@ -233,6 +235,19 @@ async fn init_tasks(
         .context("failed initializing metadata calculator")?;
     app_health.insert_component(metadata_calculator.tree_health_check());
 
+    let eth_client_url = config
+        .required
+        .eth_client_url()
+        .context("L1 client URL is incorrect")?;
+    let eth_client = QueryClient::new(&eth_client_url).unwrap();
+
+    ensure_l1_batch_commit_data_generation_mode(
+        config.optional.l1_batch_commit_data_generator_mode,
+        config.remote.diamond_proxy_addr,
+        &eth_client,
+    )
+    .await?;
+
     let l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator> = match config
         .optional
         .l1_batch_commit_data_generator_mode
@@ -243,10 +258,7 @@ async fn init_tasks(
         }
     };
     let consistency_checker = ConsistencyChecker::new(
-        &config
-            .required
-            .eth_client_url()
-            .context("L1 client URL is incorrect")?,
+        eth_client,
         10, // TODO (BFT-97): Make it a part of a proper EN config
         singleton_pool_builder
             .build()
