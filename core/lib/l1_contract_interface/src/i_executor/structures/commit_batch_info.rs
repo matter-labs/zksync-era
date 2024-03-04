@@ -1,5 +1,8 @@
+use std::borrow::Cow;
+
 use zksync_types::{
     commitment::{pre_boojum_serialize_commitments, serialize_commitments, L1BatchWithMetadata},
+    ethabi,
     ethabi::Token,
     pubdata_da::PubdataDA,
     web3::{contract::Error as Web3ContractError, error::Error as Web3ApiError},
@@ -159,6 +162,55 @@ impl<'a> CommitBatchInfo<'a> {
             .pubdata_input
             .clone()
             .unwrap_or_else(|| self.l1_batch_with_metadata.construct_pubdata())
+    }
+}
+
+impl CommitBatchInfo<'static> {
+    /// Determines which DA source was used in the `reference` commitment. It's assumed that the commitment was created
+    /// using `CommitBatchInfo::into_token()`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `reference` is malformed.
+    pub fn detect_da(
+        protocol_version: ProtocolVersionId,
+        reference: &Token,
+    ) -> Result<PubdataDA, Web3ContractError> {
+        fn parse_error(message: impl Into<Cow<'static, str>>) -> Web3ContractError {
+            Web3ContractError::Abi(ethabi::Error::Other(message.into()))
+        }
+
+        if protocol_version.is_pre_1_4_2() {
+            return Ok(PubdataDA::Calldata);
+        }
+
+        let reference = match reference {
+            Token::Tuple(tuple) => tuple,
+            _ => {
+                return Err(parse_error(format!(
+                    "reference has unexpected shape; expected a tuple, got {reference:?}"
+                )))
+            }
+        };
+        let Some(last_reference_token) = reference.last() else {
+            return Err(parse_error("reference commitment data is empty"));
+        };
+
+        let last_reference_token = match last_reference_token {
+            Token::Bytes(bytes) => bytes,
+            _ => return Err(parse_error(format!(
+                "last reference token has unexpected shape; expected bytes, got {last_reference_token:?}"
+            ))),
+        };
+        match last_reference_token.first() {
+            Some(&byte) if byte == PUBDATA_SOURCE_CALLDATA => Ok(PubdataDA::Calldata),
+            Some(&byte) if byte == PUBDATA_SOURCE_BLOBS => Ok(PubdataDA::Blobs),
+            Some(&byte) => Err(parse_error(format!(
+                "unexpected first byte of the last reference token; expected one of [{PUBDATA_SOURCE_CALLDATA}, {PUBDATA_SOURCE_BLOBS}], \
+                 got {byte}"
+            ))),
+            None => Err(parse_error("last reference token is empty")),
+        }
     }
 }
 
