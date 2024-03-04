@@ -1,9 +1,18 @@
+// Test of the behaviour of the external node when L1 batches get reverted.
+//
+// NOTE:
+// main_contract.getTotalBlocksCommitted actually checks the number of batches committed.
+// main_contract.getTotalBlocksExecuted actually checks the number of batches executed.
+// TODO: Migrate from zksync-web3 to zksync-ethers.
 import * as utils from 'zk/build/utils';
 import { Tester } from './tester';
 import * as zkweb3 from 'zksync-web3';
 import { BigNumber, Contract, ethers } from 'ethers';
-import { expect } from 'chai';
+import { expect, assert } from 'chai';
 import fs from 'fs';
+import * as child_process from 'child_process';
+import * as util from 'util';
+import * as dotenv from 'dotenv';
 
 // Parses output of "print-suggested-values" command of the revert block tool.
 function parseSuggestedValues(suggestedValuesString: string) {
@@ -28,212 +37,293 @@ function parseSuggestedValues(suggestedValuesString: string) {
     return { lastL1BatchNumber, nonce, priorityFee };
 }
 
-async function killServerAndWaitForShutdown(tester: Tester) {
-    await utils.exec('pkill -9 zksync_server');
-    // Wait until it's really stopped.
-    let iter = 0;
-    while (iter < 30) {
+function spawn(cmd: string, args: string[], options: child_process.SpawnOptions): child_process.ChildProcess {
+    return child_process.spawn(cmd, args, options);
+}
+
+function run(cmd: string, args: string[], options: child_process.SpawnOptions): child_process.SpawnSyncReturns<Buffer> {
+    let res = child_process.spawnSync(cmd, args, options);
+    expect(res.error).to.be.undefined;
+    return res;
+}
+
+// Fetches env vars for the given environment (like 'dev', 'ext-node').
+// TODO: it would be better to import zk tool code directly.
+function fetchEnv(zksync_env: string): any {
+    let env = { ...process.env };
+    env.ZKSYNC_ENV = zksync_env;
+    let res = run('zk', ['f', 'env'], { cwd: process.env.ZKSYNC_HOME, env: env });
+    return dotenv.parse(res.stdout);
+}
+
+function runBlockReverter(args: string[]): string {
+    let env = fetchEnv('dev');
+    env.RUST_LOG = 'off';
+    let res = run('cargo', ['run', '--bin', 'block_reverter', '--release', '--'].concat(args), {
+        cwd: env.ZKSYNC_HOME,
+        env: env
+    });
+    return res.stdout.toString();
+}
+
+class MainNode {
+    constructor(public tester: Tester, private proc: child_process.ChildProcess) {}
+
+    // Terminates all main node processes running.
+    public static async terminate_all() {
         try {
-            await tester.syncWallet.provider.getBlockNumber();
-            await utils.sleep(5);
-            iter += 1;
-        } catch (_) {
-            // When exception happens, we assume that server died.
-            return;
+            await utils.exec('killall -INT zksync_server --wait');
+        } catch (err) {
+            console.log(`ignored error: ${err}`);
         }
     }
-    // It's going to panic anyway, since the server is a singleton entity, so better to exit early.
-    throw new Error("Server didn't stop after a kill request");
-}
 
-function ignoreError(_err: any, context?: string) {
-    const message = context ? `Error ignored (context: ${context}).` : 'Error ignored.';
-    console.info(message);
-}
-
-const depositAmount = ethers.utils.parseEther('0.001');
-
-describe('Block reverting test', function () {
-    let tester: Tester;
-    let alice: zkweb3.Wallet;
-    let mainContract: Contract;
-    let blocksCommittedBeforeRevert: number;
-    let logs: fs.WriteStream;
-
-    let enable_consensus = process.env.ENABLE_CONSENSUS == 'true';
-    let components = 'api,tree,eth,state_keeper,commitment_generator';
-    if (enable_consensus) {
-        components += ',consensus';
-    }
-
-    before('create test wallet', async () => {
-        tester = await Tester.init(process.env.CHAIN_ETH_NETWORK || 'localhost');
-        alice = tester.emptyWallet();
-        logs = fs.createWriteStream('revert.log', { flags: 'a' });
-    });
-
-    step('run server and execute some transactions', async () => {
-        // Make sure server isn't running.
-        await killServerAndWaitForShutdown(tester).catch(ignoreError);
-
-        // Set 1000 seconds deadline for `ExecuteBlocks` operation.
-        process.env.ETH_SENDER_SENDER_AGGREGATED_BLOCK_EXECUTE_DEADLINE = '1000';
+    public static async spawn(logs: fs.WriteStream, enable_execute: boolean): Promise<MainNode> {
+        let env = fetchEnv('dev');
+        env.ETH_SENDER_SENDER_AGGREGATED_BLOCK_EXECUTE_DEADLINE = enable_execute ? '1' : '10000';
         // Set full mode for the Merkle tree as it is required to get blocks committed.
-        process.env.DATABASE_MERKLE_TREE_MODE = 'full';
+        env.DATABASE_MERKLE_TREE_MODE = 'full';
 
-        // Run server in background.
-
-        utils.background(`ZKSYNC_ENV=docker zk server --components ${components}`, [null, logs, logs]);
-        // Server may need some time to recompile if it's a cold run, so wait for it.
-        let iter = 0;
-        while (iter < 30 && !mainContract) {
+        let enable_consensus = process.env.ENABLE_CONSENSUS == 'true';
+        let components = 'api,tree,eth,state_keeper,commitment_generator';
+        if (enable_consensus) {
+            components += ',consensus';
+        }
+        let proc = spawn(
+            //'cargo',['run','--bin','zksync_server','--release','--','--components',components],
+            './target/release/zksync_server',
+            ['--components', components],
+            { cwd: env.ZKSYNC_HOME, stdio: [null, logs, logs], env: env }
+        );
+        // Wait until the main node starts responding.
+        let tester: Tester = await Tester.init(env.ETH_CLIENT_WEB3_URL, env.API_WEB3_JSON_RPC_HTTP_URL);
+        while (true) {
             try {
-                mainContract = await tester.syncWallet.getMainContract();
+                await tester.syncWallet.provider.getBlockNumber();
+                break;
             } catch (err) {
-                ignoreError(err, 'waiting for server HTTP JSON-RPC to start');
-                await utils.sleep(5);
-                iter += 1;
+                if (proc.exitCode != null) {
+                    assert.fail(`server failed to start, exitCode = ${proc.exitCode}`);
+                }
+                console.log('waiting for api endpoint');
+                await utils.sleep(1);
             }
         }
-        if (!mainContract) {
-            throw new Error('Server did not start');
-        }
+        return new MainNode(tester, proc);
+    }
 
-        // Seal 2 L1 batches.
-        // One is not enough to test the reversion of sk cache because
-        // it gets updated with some batch logs only at the start of the next batch.
-        const initialL1BatchNumber = await tester.web3Provider.getL1BatchNumber();
-
-        const firstDepositHandle = await tester.syncWallet.deposit({
-            token: zkweb3.utils.ETH_ADDRESS,
-            amount: depositAmount,
-            to: alice.address
-        });
-        await firstDepositHandle.wait();
-        while ((await tester.web3Provider.getL1BatchNumber()) <= initialL1BatchNumber) {
+    public async terminate(): Promise<void> {
+        this.proc.kill('SIGINT');
+        while (this.proc.exitCode == null) {
             await utils.sleep(1);
         }
+        expect(this.proc.exitCode).to.equal(0);
+    }
+}
 
-        const secondDepositHandle = await tester.syncWallet.deposit({
-            token: zkweb3.utils.ETH_ADDRESS,
-            amount: depositAmount,
-            to: alice.address
-        });
-        await secondDepositHandle.wait();
-        while ((await tester.web3Provider.getL1BatchNumber()) <= initialL1BatchNumber + 1) {
-            await utils.sleep(1);
+class ExtNode {
+    constructor(public tester: Tester, private proc: child_process.ChildProcess) {}
+
+    // Terminates all main node processes running.
+    public static async terminate_all() {
+        try {
+            await utils.exec('killall -INT zksync_external_node --wait');
+        } catch (err) {
+            console.log(`ignored error: ${err}`);
         }
+    }
 
-        const balance = await alice.getBalance();
-        expect(balance.eq(depositAmount.mul(2)), 'Incorrect balance after deposits').to.be.true;
-
-        // Check L1 committed and executed blocks.
-        let blocksCommitted = await mainContract.getTotalBlocksCommitted();
-        let blocksExecuted = await mainContract.getTotalBlocksExecuted();
-        let tryCount = 0;
-        while (blocksCommitted.eq(blocksExecuted) && tryCount < 10) {
-            blocksCommitted = await mainContract.getTotalBlocksCommitted();
-            blocksExecuted = await mainContract.getTotalBlocksExecuted();
-            tryCount += 1;
-            await utils.sleep(1);
+    public static async spawn(logs: fs.WriteStream): Promise<ExtNode> {
+        let env = fetchEnv('ext-node');
+        let args = [];
+        if (process.env.ENABLE_CONSENSUS == 'true') {
+            args.push('--enable-consensus');
         }
-        expect(blocksCommitted.gt(blocksExecuted), 'There is no committed but not executed block').to.be.true;
-        blocksCommittedBeforeRevert = blocksCommitted;
-
-        // Stop server.
-        await killServerAndWaitForShutdown(tester);
-    });
-
-    step('revert blocks', async () => {
-        const executedProcess = await utils.exec(
-            'cd $ZKSYNC_HOME && ' +
-                'RUST_LOG=off cargo run --bin block_reverter --release -- print-suggested-values --json'
-            // ^ Switch off logs to not pollute the output JSON
+        let proc = spawn(
+            //'cargo',['run','--bin','zksync_external_node','--release','--'].concat(args),
+            './target/release/zksync_external_node',
+            args,
+            { cwd: env.ZKSYNC_HOME, stdio: [null, logs, logs], env: env }
         );
-        const suggestedValuesOutput = executedProcess.stdout;
-        const { lastL1BatchNumber, nonce, priorityFee } = parseSuggestedValues(suggestedValuesOutput);
-        expect(lastL1BatchNumber < blocksCommittedBeforeRevert, 'There should be at least one block for revert').to.be
-            .true;
+        // Wait until the node starts responding.
+        let tester: Tester = await Tester.init(env.EN_ETH_CLIENT_URL, `http://localhost:${env.EN_HTTP_PORT}`);
+        while (true) {
+            try {
+                await tester.syncWallet.provider.getBlockNumber();
+                break;
+            } catch (err) {
+                if (proc.exitCode != null) {
+                    assert.fail(`node failed to start, exitCode = ${proc.exitCode}`);
+                }
+                console.log('waiting for api endpoint');
+                await utils.sleep(1);
+            }
+        }
+        return new ExtNode(tester, proc);
+    }
+
+    public async terminate(): Promise<void> {
+        this.proc.kill('SIGINT');
+        while (this.proc.exitCode == null) {
+            await utils.sleep(1);
+        }
+        expect(this.proc.exitCode).to.equal(0);
+    }
+}
+
+describe('Block reverting test', function () {
+    const depositAmount: BigNumber = ethers.utils.parseEther('0.001');
+    let main_logs: fs.WriteStream = fs.createWriteStream('/tmp/revert_main.log', { flags: 'a' });
+    let ext_logs: fs.WriteStream = fs.createWriteStream('/tmp/revert_ext.log', { flags: 'a' });
+
+    step('run', async () => {
+        console.log('Make sure that nodes are not running');
+        await ExtNode.terminate_all();
+        await MainNode.terminate_all();
+
+        console.log('Start main node');
+        let main_node = await MainNode.spawn(main_logs, true);
+        console.log('Start ext node');
+        let ext_node = await ExtNode.spawn(ext_logs);
+        let main_contract = await main_node.tester.syncWallet.getMainContract();
+        let alice: zkweb3.Wallet = ext_node.tester.emptyWallet();
 
         console.log(
-            `Reverting with parameters: last unreverted L1 batch number: ${lastL1BatchNumber}, nonce: ${nonce}, priorityFee: ${priorityFee}`
+            'Finalize an L1 transaction to ensure at least 1 executed L1 batch and that all transactions are processed'
         );
+        let h: zkweb3.types.PriorityOpResponse = await ext_node.tester.syncWallet.deposit({
+            token: zkweb3.utils.ETH_ADDRESS,
+            amount: depositAmount,
+            to: alice.address
+        });
+        await h.waitFinalize();
+        const alice1 = await alice.getBalance();
 
-        console.log('Sending ETH transaction..');
-        await utils.spawn(
-            `cd $ZKSYNC_HOME && cargo run --bin block_reverter --release -- send-eth-transaction --l1-batch-number ${lastL1BatchNumber} --nonce ${nonce} --priority-fee-per-gas ${priorityFee}`
-        );
+        console.log('Restart the main node with L1 batch execution disabled.');
+        await main_node.terminate();
+        main_node = await MainNode.spawn(main_logs, false);
 
-        console.log('Rolling back DB..');
-        await utils.spawn(
-            `cd $ZKSYNC_HOME && cargo run --bin block_reverter --release -- rollback-db --l1-batch-number ${lastL1BatchNumber} --rollback-postgres --rollback-tree --rollback-sk-cache`
-        );
+        console.log('Commit at least 2 L1 batches which are not executed');
+        let last_executed: BigNumber = await main_contract.getTotalBlocksExecuted();
+        // One is not enough to test the reversion of sk cache because
+        // it gets updated with some batch logs only at the start of the next batch.
+        // getTotalBlocksExecuted() actually checks the number of executed L1 batches.
+        for (let i = 0; i < 2; i++) {
+            let h: zkweb3.types.PriorityOpResponse = await ext_node.tester.syncWallet.deposit({
+                token: zkweb3.utils.ETH_ADDRESS,
+                amount: depositAmount,
+                to: alice.address
+            });
+            await h.waitL1Commit();
+        }
+        while (true) {
+            let last_committed: BigNumber = await main_contract.getTotalBlocksCommitted();
+            if (last_committed.sub(last_executed).gte(2)) {
+                console.log(`last_executed = ${last_executed}, last_committed = ${last_committed}`);
+                break;
+            }
+            await utils.sleep(1);
+        }
+        //assert((await tester.web3Provider.getL1BatchDetails(last_executed+1)).status=='sealed');
+        const alice2 = await alice.getBalance();
+        console.log('Terminate the main node');
+        await ext_node.terminate();
 
-        let blocksCommitted = await mainContract.getTotalBlocksCommitted();
-        expect(blocksCommitted.eq(lastL1BatchNumber), 'Revert on contract was unsuccessful').to.be.true;
-    });
+        console.log('Ask block_reverter to suggest to which L1 batch we should revert');
+        let revert_env = { ...process.env };
+        revert_env.RUST_LOG = 'off';
+        const values_json = runBlockReverter(['print-suggested-values', '--json']);
+        console.log(`values = ${values_json}`);
+        let values = parseSuggestedValues(values_json);
+        assert(last_executed == values.lastL1BatchNumber);
 
-    step('execute transaction after revert', async () => {
-        // Set 1 second deadline for `ExecuteBlocks` operation.
-        process.env.ETH_SENDER_SENDER_AGGREGATED_BLOCK_EXECUTE_DEADLINE = '1';
+        console.log('Send reverting transaction to L1');
+        runBlockReverter([
+            'send-eth-transaction',
+            '--l1-batch-number',
+            values.lastL1BatchNumber,
+            '--nonce',
+            values.nonce,
+            '--priority-fee-per-gas',
+            values.priorityFee
+        ]);
 
-        // Run server.
-        utils.background(`zk server --components ${components}`, [null, logs, logs]);
-        await utils.sleep(10);
+        console.log('Check that batches are reverted on L1');
+        let last_committed2 = await main_contract.getTotalBlocksCommitted();
+        console.log(`last_committed = ${last_committed2}, want ${last_executed}`);
+        assert(last_committed2.eq(last_executed));
 
-        const balanceBefore = await alice.getBalance();
-        expect(balanceBefore.eq(depositAmount.mul(2)), 'Incorrect balance after revert').to.be.true;
+        console.log('Rollback db');
+        runBlockReverter([
+            'rollback-db',
+            '--l1-batch-number',
+            values.lastL1BatchNumber,
+            '--rollback-postgres',
+            '--rollback-tree',
+            '--rollback-sk-cache'
+        ]);
 
-        // Execute a transaction
-        const depositHandle = await tester.syncWallet.deposit({
+        console.log('Start main node.');
+        main_node = await MainNode.spawn(main_logs, true);
+
+        console.log('Wait for the external node to detect reorg and terminate');
+        // TODO
+
+        console.log('Restart external node and wait for it to revert.');
+        // TODO
+
+        console.log("Verify that alice's balance has been reverted.");
+        // Note that we have a race condition here, between reexecution of the reverted transactions
+        // and fetching the balance.
+        const alice3 = await alice.getBalance();
+        console.log(`Alice's balance is ${alice3}, want ${alice1}`);
+        assert(alice3.eq(alice1));
+
+        console.log('Execute an L1 transaction');
+        const depositHandle = await ext_node.tester.syncWallet.deposit({
             token: zkweb3.utils.ETH_ADDRESS,
             amount: depositAmount,
             to: alice.address
         });
         const l1TxResponse = await alice._providerL1().getTransaction(depositHandle.hash);
-        // ethers doesn't work well with block reversions, so wait for the receipt before calling `.waitFinalize()`.
+        // TODO: it would be nice to know WHY it "doesn't work well with block reversions" and what it actually means.
+        console.log(
+            "ethers doesn't work well with block reversions, so wait for the receipt before calling `.waitFinalize()`."
+        );
         const l2Tx = await alice._providerL2().getL2TransactionFromPriorityOp(l1TxResponse);
         let receipt = null;
-        do {
-            receipt = await tester.syncWallet.provider.getTransactionReceipt(l2Tx.hash);
+        while (true) {
+            receipt = await ext_node.tester.syncWallet.provider.getTransactionReceipt(l2Tx.hash);
+            if (receipt != null) {
+                break;
+            }
             await utils.sleep(1);
-        } while (receipt == null);
-
+        }
         await depositHandle.waitFinalize();
         expect(receipt.status).to.be.eql(1);
 
-        const balanceAfter = await alice.getBalance();
-        expect(balanceAfter.eq(BigNumber.from(depositAmount).mul(3)), 'Incorrect balance after another deposit').to.be
-            .true;
-    });
+        // The reverted transactions are expected to be reexecuted before the next transaction is applied.
+        // Hence we compare the state against the alice2, rather than against alice3.
+        const alice4want = alice2.add(BigNumber.from(depositAmount));
+        const alice4 = await alice.getBalance();
+        console.log(`Alice's balance is ${alice4}, want ${alice4want}`);
+        assert(alice4.eq(alice4want));
 
-    step('execute transactions after simple restart', async () => {
-        // Execute an L2 transaction
-        await checkedRandomTransfer(alice, BigNumber.from(1));
-
-        // Stop server.
-        await killServerAndWaitForShutdown(tester);
-
-        // Run again.
-        utils.background(`zk server --components=${components}`, [null, logs, logs]);
-        await utils.sleep(10);
-
-        // Trying to send a transaction from the same address again
+        console.log('Execute an L2 transaction');
         await checkedRandomTransfer(alice, BigNumber.from(1));
     });
 
-    after('Try killing server', async () => {
-        await utils.exec('pkill zksync_server').catch(ignoreError);
+    after('Terminate nodes', async () => {
+        await MainNode.terminate_all();
+        await ExtNode.terminate_all();
     });
 });
 
+// Transfers amount from sender to a random wallet in an L2 transaction.
 async function checkedRandomTransfer(sender: zkweb3.Wallet, amount: BigNumber) {
     const senderBalanceBefore = await sender.getBalance();
     const receiver = zkweb3.Wallet.createRandom().connect(sender.provider);
-    const transferHandle = await sender.sendTransaction({
-        to: receiver.address,
-        value: amount
-    });
+    const transferHandle = await sender.sendTransaction({ to: receiver.address, value: amount });
 
     // ethers doesn't work well with block reversions, so we poll for the receipt manually.
     let txReceipt = null;

@@ -67,7 +67,7 @@ describe('Block reverting test', function () {
     }
 
     before('create test wallet', async () => {
-        tester = await Tester.init(process.env.CHAIN_ETH_NETWORK || 'localhost');
+        tester = await Tester.init(process.env.ETH_CLIENT_WEB3_URL, process.env.API_WEB3_JSON_RPC_HTTP_URL);
         alice = tester.emptyWallet();
         logs = fs.createWriteStream('revert.log', { flags: 'a' });
     });
