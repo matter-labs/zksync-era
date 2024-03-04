@@ -68,6 +68,7 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
     } else {
         // This is the scenario of either the first L2 block ever or
         // the first block after the upgrade for support of L2 blocks.
+        tracing::info!("Could not locate the last L2 block, presuming this is the first one");
         L2Block {
             number: l1_batch_env.first_l2_block.number.saturating_sub(1),
             timestamp: 0,
