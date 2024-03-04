@@ -115,7 +115,7 @@ impl ZkStackService {
         for task in std::mem::take(&mut self.tasks) {
             let name = task.name().to_string();
             let after_node_shutdown = task.after_node_shutdown();
-            let task_future = Box::pin(task.run(self.stop_receiver()));
+            let task_future = Box::pin(task.run_with_timeout(self.stop_receiver()));
             let task_repr = TaskRepr {
                 name,
                 task: Some(task_future),

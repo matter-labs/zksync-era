@@ -1,6 +1,8 @@
 //! Tasks define the "runnable" concept of the node, e.g. something that can be launched and runs until the node
 //! is stopped.
 
+use std::time::Duration;
+
 use futures::future::BoxFuture;
 
 use crate::service::StopReceiver;
@@ -36,5 +38,23 @@ pub trait Task: 'static + Send {
     /// following this rule may cause the tasks that properly implement this hook to malfunction.
     fn after_node_shutdown(&self) -> Option<BoxFuture<'static, ()>> {
         None
+    }
+
+    // todo: add comments
+    fn timeout(&self) -> Duration {
+        Duration::default()
+    }
+
+    // todo: add comments
+    async fn run_with_timeout(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        let name = self.name();
+        let timeout = self.timeout();
+        tokio::time::timeout(timeout, self.run(stop_receiver))
+            .await
+            .expect(&format!(
+                "Timeout {} secs waiting for task {} to complete",
+                timeout.as_secs(),
+                name
+            ))
     }
 }
