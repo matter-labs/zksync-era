@@ -2,6 +2,7 @@ use std::{cmp::min, sync::Arc, time::Duration};
 
 use anyhow::Context;
 use async_trait::async_trait;
+use hex::ToHex;
 use metrics::atomics::AtomicU64;
 use tokio::{
     sync::{watch, OnceCell},
@@ -87,7 +88,11 @@ impl NativeTokenFetcher {
         let http_client = reqwest::Client::new();
 
         let conversion_rate = http_client
-            .get(format!("{}/conversion_rate", config.host))
+            .get(format!(
+                "{}/conversion_rate/0x{}",
+                config.host,
+                config.token_address.encode_hex::<String>()
+            ))
             .send()
             .await?
             .json::<u64>()
@@ -111,7 +116,11 @@ impl NativeTokenFetcher {
 
             match self
                 .http_client
-                .get(format!("{}/conversion_rate", &self.config.host))
+                .get(format!(
+                    "{}/conversion_rate/0x{}",
+                    &self.config.host,
+                    &self.config.token_address.encode_hex::<String>()
+                ))
                 .send()
                 .await
             {
