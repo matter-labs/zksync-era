@@ -171,7 +171,8 @@ async fn init_tasks(
 
     let singleton_pool_builder = ConnectionPool::singleton(&config.postgres.database_url);
 
-    let fetcher_handle = if let Some(cfg) = config.consensus.clone() {
+    let fetcher_handle = if let Some(cfg) = config.consensus.as_ref() {
+        let cfg = cfg.fetcher(&config::Secrets)?;
         let pool = connection_pool.clone();
         let mut stop_receiver = stop_receiver.clone();
         let sync_state = sync_state.clone();

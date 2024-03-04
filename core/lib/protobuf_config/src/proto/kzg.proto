@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package zksync.config;
+package zksync.config.kzg;
 
 message Kzg {
   optional string trusted_setup_path = 1; // required; fs path

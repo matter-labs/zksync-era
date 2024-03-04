@@ -5,7 +5,7 @@ use serde::Deserialize;
 use url::Url;
 use zksync_basic_types::{Address, L1ChainId, L2ChainId};
 use zksync_config::ObjectStoreConfig;
-use zksync_consensus_roles::node;
+use zksync_consensus_roles::{node, validator};
 use zksync_core::{
     api_server::{
         tx_sender::TxSenderConfig,
@@ -478,16 +478,22 @@ impl PostgresConfig {
     }
 }
 
-pub(crate) fn read_consensus_config() -> anyhow::Result<consensus::FetcherConfig> {
+pub(crate) struct Secrets;
+
+impl consensus::config::Secrets for Secrets {
+    fn validator_key(&self) -> anyhow::Result<validator::SecretKey> {
+        anyhow::bail!("not available");
+    }
+    fn node_key(&self) -> anyhow::Result<node::SecretKey> {
+        consensus::config::read_secret("EN_CONSENSUS_NODE_KEY")
+    }
+}
+
+pub(crate) fn read_consensus_config() -> anyhow::Result<consensus::config::Config> {
     let path = std::env::var("EN_CONSENSUS_CONFIG_PATH")
         .context("EN_CONSENSUS_CONFIG_PATH env variable is not set")?;
     let cfg = std::fs::read_to_string(&path).context(path)?;
-    let cfg: consensus::config::Config =
-        consensus::config::decode_json(&cfg).context("failed decoding JSON")?;
-    let node_key: node::SecretKey = consensus::config::read_secret("EN_CONSENSUS_NODE_KEY")?;
-    Ok(consensus::FetcherConfig {
-        executor: cfg.executor_config(node_key),
-    })
+    Ok(consensus::config::decode_json(&cfg).context("failed decoding JSON")?)
 }
 
 /// Configuration for snapshot recovery. Loaded optionally, only if the corresponding command-line argument
@@ -514,7 +520,7 @@ pub struct ExternalNodeConfig {
     pub postgres: PostgresConfig,
     pub optional: OptionalENConfig,
     pub remote: RemoteENConfig,
-    pub consensus: Option<consensus::FetcherConfig>,
+    pub consensus: Option<consensus::config::Config>,
 }
 
 impl ExternalNodeConfig {

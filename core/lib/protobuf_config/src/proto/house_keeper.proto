@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package zksync.config;
+package zksync.config.house_keeper;
 
 message HouseKeeper {
   optional uint64 l1_batch_metrics_reporting_interval_ms = 1; // required; ms

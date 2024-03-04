@@ -298,6 +298,7 @@ impl FromStr for Components {
 pub async fn initialize_components(
     configs: &TempConfigStore,
     components: Vec<Component>,
+    secrets: &dyn consensus::config::Secrets,
 ) -> anyhow::Result<(
     Vec<JoinHandle<anyhow::Result<()>>>,
     watch::Sender<bool>,
@@ -571,8 +572,9 @@ pub async fn initialize_components(
     if components.contains(&Component::Consensus) {
         let cfg = configs
             .consensus_config
-            .clone()
-            .context("consensus component's config is missing")?;
+            .as_ref()
+            .context("consensus component's config is missing")?
+            .main_node(secrets)?;
         let started_at = Instant::now();
         tracing::info!("initializing Consensus");
         let pool = connection_pool.clone();

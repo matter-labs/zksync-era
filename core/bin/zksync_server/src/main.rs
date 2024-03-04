@@ -50,6 +50,9 @@ struct Cli {
         default_value = "api,tree,eth,state_keeper,housekeeper,basic_witness_input_producer,commitment_generator"
     )]
     components: ComponentsToRun,
+    /// Path to the yaml config. If set, it will be used instead of env vars.
+    #[arg(long)]
+    config_path: Option<std::path::PathBuf>,
 }
 
 #[derive(Debug, Clone)]
@@ -99,40 +102,42 @@ async fn main() -> anyhow::Result<()> {
     // Right now, we are trying to deserialize all the configs that may be needed by `zksync_core`.
     // "May" is the key word here, since some configs are only used by certain component configuration,
     // hence we are using `Option`s.
-    let mut configs: TempConfigStore = TempConfigStore {
-        postgres_config: PostgresConfig::from_env().ok(),
-        health_check_config: HealthCheckConfig::from_env().ok(),
-        merkle_tree_api_config: MerkleTreeApiConfig::from_env().ok(),
-        web3_json_rpc_config: Web3JsonRpcConfig::from_env().ok(),
-        circuit_breaker_config: CircuitBreakerConfig::from_env().ok(),
-        mempool_config: MempoolConfig::from_env().ok(),
-        network_config: NetworkConfig::from_env().ok(),
-        operations_manager_config: OperationsManagerConfig::from_env().ok(),
-        state_keeper_config: StateKeeperConfig::from_env().ok(),
-        house_keeper_config: HouseKeeperConfig::from_env().ok(),
-        fri_proof_compressor_config: FriProofCompressorConfig::from_env().ok(),
-        fri_prover_config: Some(FriProverConfig::from_env().context("fri_prover_config")?),
-        fri_prover_group_config: FriProverGroupConfig::from_env().ok(),
-        fri_witness_generator_config: FriWitnessGeneratorConfig::from_env().ok(),
-        prometheus_config: PrometheusConfig::from_env().ok(),
-        proof_data_handler_config: ProofDataHandlerConfig::from_env().ok(),
-        witness_generator_config: WitnessGeneratorConfig::from_env().ok(),
-        api_config: ApiConfig::from_env().ok(),
-        contracts_config: ContractsConfig::from_env().ok(),
-        db_config: DBConfig::from_env().ok(),
-        eth_client_config: ETHClientConfig::from_env().ok(),
-        eth_sender_config: ETHSenderConfig::from_env().ok(),
-        eth_watch_config: ETHWatchConfig::from_env().ok(),
-        gas_adjuster_config: GasAdjusterConfig::from_env().ok(),
-        object_store_config: ObjectStoreConfig::from_env().ok(),
-        kzg_config: KzgConfig::from_env().ok(),
-        consensus_config: None,
+    let configs = match opt.config_path {
+        Some(path) => {
+            let yaml =
+                std::fs::read_to_string(&path).with_context(|| path.display().to_string())?;
+            TempConfigStore::decode_yaml(&yaml).context("failed decoding YAML config")?
+        }
+        None => TempConfigStore {
+            postgres_config: PostgresConfig::from_env().ok(),
+            health_check_config: HealthCheckConfig::from_env().ok(),
+            merkle_tree_api_config: MerkleTreeApiConfig::from_env().ok(),
+            web3_json_rpc_config: Web3JsonRpcConfig::from_env().ok(),
+            circuit_breaker_config: CircuitBreakerConfig::from_env().ok(),
+            mempool_config: MempoolConfig::from_env().ok(),
+            network_config: NetworkConfig::from_env().ok(),
+            operations_manager_config: OperationsManagerConfig::from_env().ok(),
+            state_keeper_config: StateKeeperConfig::from_env().ok(),
+            house_keeper_config: HouseKeeperConfig::from_env().ok(),
+            fri_proof_compressor_config: FriProofCompressorConfig::from_env().ok(),
+            fri_prover_config: Some(FriProverConfig::from_env().context("fri_prover_config")?),
+            fri_prover_group_config: FriProverGroupConfig::from_env().ok(),
+            fri_witness_generator_config: FriWitnessGeneratorConfig::from_env().ok(),
+            prometheus_config: PrometheusConfig::from_env().ok(),
+            proof_data_handler_config: ProofDataHandlerConfig::from_env().ok(),
+            witness_generator_config: WitnessGeneratorConfig::from_env().ok(),
+            api_config: ApiConfig::from_env().ok(),
+            contracts_config: ContractsConfig::from_env().ok(),
+            db_config: DBConfig::from_env().ok(),
+            eth_client_config: ETHClientConfig::from_env().ok(),
+            eth_sender_config: ETHSenderConfig::from_env().ok(),
+            eth_watch_config: ETHWatchConfig::from_env().ok(),
+            gas_adjuster_config: GasAdjusterConfig::from_env().ok(),
+            object_store_config: ObjectStoreConfig::from_env().ok(),
+            kzg_config: KzgConfig::from_env().ok(),
+            consensus_config: config::read_consensus_config().context("read_consensus_config()")?,
+        },
     };
-
-    if opt.components.0.contains(&Component::Consensus) {
-        configs.consensus_config =
-            Some(config::read_consensus_config().context("read_consensus_config()")?);
-    }
 
     let postgres_config = configs.postgres_config.clone().context("PostgresConfig")?;
 
@@ -164,7 +169,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Run core actors.
     let (core_task_handles, stop_sender, cb_receiver, health_check_handle) =
-        initialize_components(&configs, components)
+        initialize_components(&configs, components, &config::Secrets)
             .await
             .context("Unable to start Core actors")?;
 

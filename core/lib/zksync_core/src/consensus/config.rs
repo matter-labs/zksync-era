@@ -7,7 +7,7 @@ use zksync_consensus_executor as executor;
 use zksync_consensus_roles::{node, validator};
 use zksync_protobuf::{required, ProtoFmt};
 
-use crate::consensus::proto;
+use crate::consensus::{proto, FetcherConfig, MainNodeConfig};
 
 /// Decodes a proto message from json for arbitrary `ProtoFmt`.
 pub fn decode_json<T: ProtoFmt>(json: &str) -> anyhow::Result<T> {
@@ -20,10 +20,10 @@ pub fn decode_json<T: ProtoFmt>(json: &str) -> anyhow::Result<T> {
 /// Decodes a secret of type T from an env var with name `var_name`.
 /// It makes sure that the error message doesn't contain the secret.
 pub fn read_secret<T: TextFmt>(var_name: &str) -> anyhow::Result<T> {
-    let raw = std::env::var(var_name).map_err(|_| anyhow::anyhow!("{var_name} not set"))?;
+    let raw = std::env::var(var_name).map_err(|_| anyhow::format_err!("{var_name} not set"))?;
     Text::new(&raw)
         .decode()
-        .map_err(|_| anyhow::anyhow!("{var_name} has invalid format"))
+        .map_err(|_| anyhow::format_err!("{var_name} has invalid format"))
 }
 
 /// Config (shared between main node and external node).
@@ -52,8 +52,27 @@ pub struct Config {
     pub gossip_static_outbound: BTreeMap<node::PublicKey, std::net::SocketAddr>,
 }
 
+pub trait Secrets {
+    fn validator_key(&self) -> anyhow::Result<validator::SecretKey>;
+    fn node_key(&self) -> anyhow::Result<node::SecretKey>;
+}
+
 impl Config {
-    pub fn executor_config(&self, node_key: node::SecretKey) -> executor::Config {
+    pub fn main_node(&self, secrets: &dyn Secrets) -> anyhow::Result<MainNodeConfig> {
+        Ok(MainNodeConfig {
+            executor: self.executor_config(secrets.node_key().context("secrets.node_key()")?),
+            validator: self
+                .validator_config(secrets.validator_key().context("secrets.validator_key()")?),
+        })
+    }
+
+    pub fn fetcher(&self, secrets: &dyn Secrets) -> anyhow::Result<FetcherConfig> {
+        Ok(FetcherConfig {
+            executor: self.executor_config(secrets.node_key().context("secrets.node_key()")?),
+        })
+    }
+
+    fn executor_config(&self, node_key: node::SecretKey) -> executor::Config {
         executor::Config {
             server_addr: self.server_addr,
             validators: self.validators.clone(),
@@ -65,10 +84,7 @@ impl Config {
         }
     }
 
-    pub fn validator_config(
-        &self,
-        validator_key: validator::SecretKey,
-    ) -> executor::ValidatorConfig {
+    fn validator_config(&self, validator_key: validator::SecretKey) -> executor::ValidatorConfig {
         executor::ValidatorConfig {
             public_addr: self.public_addr,
             key: validator_key,
