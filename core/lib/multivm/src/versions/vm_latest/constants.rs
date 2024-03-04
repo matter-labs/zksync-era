@@ -19,16 +19,9 @@ pub(crate) const BOOTLOADER_BATCH_TIP_OVERHEAD: u32 = 170_000_000;
 pub(crate) const USED_BOOTLOADER_MEMORY_BYTES: usize = 30_000_000;
 pub(crate) const USED_BOOTLOADER_MEMORY_WORDS: usize = USED_BOOTLOADER_MEMORY_BYTES / 32;
 
-// This the number of pubdata such that it should be always possible to publish
-// from a single transaction. Note, that these pubdata bytes include only bytes that are
-// to be published inside the body of transaction (i.e. excluding of factory deps).
-pub(crate) const GUARANTEED_PUBDATA_PER_L1_BATCH: u64 = 2500;
-
-// The users should always be able to provide `MAX_GAS_PER_PUBDATA_BYTE` gas per pubdata in their
-// transactions so that they are able to send at least `GUARANTEED_PUBDATA_PER_L1_BATCH` bytes per
-// transaction.
-pub(crate) const MAX_GAS_PER_PUBDATA_BYTE: u64 =
-    MAX_L2_TX_GAS_LIMIT / GUARANTEED_PUBDATA_PER_L1_BATCH;
+/// We want `MAX_GAS_PER_PUBDATA_BYTE` multiplied by the u32::MAX (i.e. the maximal possible value of the pubdata counter)
+/// to be a safe integer with a good enough margin.
+pub(crate) const MAX_GAS_PER_PUBDATA_BYTE: u64 = 1 << 20;
 
 // The maximal number of transactions in a single batch.
 // In this version of the VM the limit has been increased from `1024` to to `10000`.
