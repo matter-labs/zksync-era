@@ -4,9 +4,8 @@ use std::time::Instant;
 
 use sqlx::{pool::PoolConnection, PgConnection, Postgres};
 pub use sqlx::{types::BigDecimal, Error as SqlxError};
+use zksync_db_connection::processor::{StorageKind, StorageProcessor, StorageProcessorTags};
 pub use zksync_db_connection::ConnectionPool;
-pub use zksync_db_storage_processor::StorageProcessor;
-use zksync_db_storage_processor::{StorageKind, StorageProcessorTags, TracedConnections};
 
 use crate::{
     basic_witness_input_producer_dal::BasicWitnessInputProducerDal, blocks_dal::BlocksDal,

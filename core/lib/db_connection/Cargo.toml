@@ -26,7 +26,6 @@ sqlx = { version = "0.7.3", default-features = false, features = [
 vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1" }
 tokio = { version = "1", features = ["full"] }
 anyhow = "1.0"
-storage_processor = { package = "zksync_db_storage_processor", path = "../db_storage_processor" }
 url = "2"
 rand = "0.8"
 tracing = "0.1"
