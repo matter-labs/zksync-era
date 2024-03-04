@@ -127,10 +127,11 @@ async function create_genesis(cmd: string) {
     );
 }
 
-export async function genesisFromSources() {
+export async function genesisFromSources(options?: { setChainId: boolean }) {
+    const args = [options?.setChainId ? '--set-chain-id' : ''];
     // we fix chainId as we need all chains to have the same chainId at genesis
     await create_genesis(
-        'CHAIN_ETH_ZKSYNC_NETWORK_ID=270 cargo run --bin zksync_server --release -- --genesis --set-chain-id'
+        'CHAIN_ETH_ZKSYNC_NETWORK_ID=270 cargo run --bin zksync_server --release -- --genesis ' + args.join(' ')
     );
 }
 

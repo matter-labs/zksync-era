@@ -66,18 +66,20 @@ const initDatabase = async ({ skipVerifierDeployment }: InitDatabaseOptions): Pr
     if (!skipVerifierDeployment) {
         await announced('Deploying L1 verifier', contract.deployVerifier());
     }
-
-    await announced('Running server genesis setup', server.genesisFromSources());
 };
 
 // Deploys ERC20 and WETH tokens to localhost
 type DeployTestTokensOptions = { envFile?: string };
-const deployTestTokens = async ({ envFile }: DeployTestTokensOptions) => {
-    await announced('Deploying localhost ERC20 and Weth tokens', run.deployERC20AndWeth({ command: 'dev', envFile }));
+const deployTestTokens = async (options?: DeployTestTokensOptions) => {
+    await announced(
+        'Deploying localhost ERC20 and Weth tokens',
+        run.deployERC20AndWeth({ command: 'dev', envFile: options?.envFile })
+    );
 };
 
 // Deploys and verifies L1 contracts and initializes governance
 const initBridgehubStateTransition = async () => {
+    await announced('Running server genesis setup', server.genesisFromSources({ setChainId: false }));
     await announced('Deploying L1 contracts', contract.deployL1());
     await announced('Verifying L1 contracts', contract.verifyL1Contracts());
     await announced('Initializing governance', contract.initializeGovernance());
@@ -87,6 +89,7 @@ const initBridgehubStateTransition = async () => {
 // Registers a hyperchain and deploys L2 contracts through L1
 type InitHyperchainOptions = { includePaymaster: boolean; baseToken: { name: string; address: string } };
 const initHyperchain = async ({ includePaymaster, baseToken }: InitHyperchainOptions): Promise<void> => {
+    await announced('Running server genesis setup', server.genesisFromSources({ setChainId: true }));
     await announced('Registering Hyperchain', contract.registerHyperchain({ baseToken }));
     await announced('Deploying L2 contracts', contract.deployL2ThroughL1({ includePaymaster }));
 };
