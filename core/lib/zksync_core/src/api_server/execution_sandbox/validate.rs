@@ -1,9 +1,10 @@
 use std::collections::HashSet;
 
+use anyhow::Context as _;
 use multivm::{
     interface::{ExecutionResult, VmExecutionMode, VmInterface},
     tracers::{
-        validator::{ValidationError, ValidationTracer, ValidationTracerParams},
+        validator::{self, ValidationTracer, ValidationTracerParams},
         StorageInvocations,
     },
     vm_latest::HistoryDisabled,
@@ -19,6 +20,16 @@ use super::{
     BlockArgs, TxExecutionArgs, TxSharedArgs, VmPermit,
 };
 
+/// Validation error used by the sandbox. Besides validation errors returned by VM, it also includes an internal error
+/// variant (e.g., for DB-related errors).
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum ValidationError {
+    #[error("VM validation error: {0}")]
+    Vm(validator::ValidationError),
+    #[error("Internal error")]
+    Internal(#[from] anyhow::Error),
+}
+
 impl TransactionExecutor {
     pub(crate) async fn validate_tx_in_sandbox(
         &self,
@@ -31,13 +42,18 @@ impl TransactionExecutor {
     ) -> Result<(), ValidationError> {
         #[cfg(test)]
         if let Self::Mock(mock) = self {
-            return mock.validate_tx(&tx);
+            return mock.validate_tx(tx, &block_args);
         }
 
         let stage_latency = SANDBOX_METRICS.sandbox[&SandboxStage::ValidateInSandbox].start();
-        let mut connection = connection_pool.access_storage_tagged("api").await.unwrap();
+        let mut connection = connection_pool
+            .access_storage_tagged("api")
+            .await
+            .context("failed acquiring DB connection")?;
         let validation_params =
-            get_validation_params(&mut connection, &tx, computational_gas_limit).await;
+            get_validation_params(&mut connection, &tx, computational_gas_limit)
+                .await
+                .context("failed getting validation params")?;
         drop(connection);
 
         let execution_args = TxExecutionArgs::for_validation(&tx);
@@ -72,9 +88,11 @@ impl TransactionExecutor {
                     );
 
                     let result = match (result.result, validation_result.get()) {
-                        (_, Some(err)) => Err(ValidationError::ViolatedRule(err.clone())),
+                        (_, Some(err)) => {
+                            Err(validator::ValidationError::ViolatedRule(err.clone()))
+                        }
                         (ExecutionResult::Halt { reason }, _) => {
-                            Err(ValidationError::FailedTx(reason))
+                            Err(validator::ValidationError::FailedTx(reason))
                         }
                         (_, None) => Ok(()),
                     };
@@ -88,28 +106,32 @@ impl TransactionExecutor {
             result
         })
         .await
-        .unwrap();
+        .context("transaction validation panicked")??;
 
         stage_latency.observe();
-        validation_result
+        validation_result.map_err(ValidationError::Vm)
     }
 }
 
-// Some slots can be marked as "trusted". That is needed for slots which can not be
-// trusted to change between validation and execution in general case, but
-// sometimes we can safely rely on them to not change often.
+/// Some slots can be marked as "trusted". That is needed for slots which can not be
+/// trusted to change between validation and execution in general case, but
+/// sometimes we can safely rely on them to not change often.
 async fn get_validation_params(
     connection: &mut StorageProcessor<'_>,
     tx: &L2Tx,
     computational_gas_limit: u32,
-) -> ValidationTracerParams {
+) -> anyhow::Result<ValidationTracerParams> {
     let method_latency = EXECUTION_METRICS.get_validation_params.start();
     let user_address = tx.common_data.initiator_address;
     let paymaster_address = tx.common_data.paymaster_params.paymaster;
 
     // This method assumes that the number of tokens is relatively low. When it grows
     // we may need to introduce some kind of caching.
-    let all_tokens = connection.tokens_dal().get_all_l2_token_addresses().await;
+    let all_tokens = connection
+        .tokens_dal()
+        .get_all_l2_token_addresses()
+        .await
+        .context("failed getting addresses of L2 tokens")?;
     EXECUTION_METRICS.tokens_amount.set(all_tokens.len());
 
     let span = tracing::debug_span!("compute_trusted_slots_for_validation").entered();
@@ -133,12 +155,12 @@ async fn get_validation_params(
     span.exit();
 
     method_latency.observe();
-    ValidationTracerParams {
+    Ok(ValidationTracerParams {
         user_address,
         paymaster_address,
         trusted_slots,
         trusted_addresses,
         trusted_address_slots,
         computational_gas_limit,
-    }
+    })
 }

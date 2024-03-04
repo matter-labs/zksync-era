@@ -1,9 +1,23 @@
-use std::env;
+use std::{env, error, str::FromStr};
 
 use anyhow::Context as _;
 use zksync_config::{DBConfig, PostgresConfig};
 
 use crate::{envy_load, FromEnv};
+
+fn parse_optional_var<T>(name: &str) -> anyhow::Result<Option<T>>
+where
+    T: FromStr,
+    T::Err: 'static + error::Error + Send + Sync,
+{
+    env::var(name)
+        .ok()
+        .map(|val| {
+            val.parse()
+                .with_context(|| format!("failed to parse env variable {name}"))
+        })
+        .transpose()
+}
 
 impl FromEnv for DBConfig {
     fn from_env() -> anyhow::Result<Self> {
@@ -23,24 +37,22 @@ impl FromEnv for PostgresConfig {
         let prover_url = env::var("DATABASE_PROVER_URL")
             .ok()
             .or_else(|| master_url.clone());
-        let max_connections = env::var("DATABASE_POOL_SIZE")
-            .ok()
-            .map(|val| val.parse().context("failed to parse DATABASE_POOL_SIZE"))
-            .transpose()?;
-        let statement_timeout_sec = env::var("DATABASE_STATEMENT_TIMEOUT_SEC")
-            .ok()
-            .map(|val| {
-                val.parse()
-                    .context("failed to parse DATABASE_STATEMENT_TIMEOUT_SEC")
-            })
-            .transpose()?;
+        let max_connections = parse_optional_var("DATABASE_POOL_SIZE")?;
+        let acquire_timeout_sec = parse_optional_var("DATABASE_ACQUIRE_TIMEOUT_SEC")?;
+        let statement_timeout_sec = parse_optional_var("DATABASE_STATEMENT_TIMEOUT_SEC")?;
+        let long_connection_threshold_ms =
+            parse_optional_var("DATABASE_LONG_CONNECTION_THRESHOLD_MS")?;
+        let slow_query_threshold_ms = parse_optional_var("DATABASE_SLOW_QUERY_THRESHOLD_MS")?;
 
         Ok(Self {
             master_url,
             replica_url,
             prover_url,
             max_connections,
+            acquire_timeout_sec,
             statement_timeout_sec,
+            long_connection_threshold_ms,
+            slow_query_threshold_ms,
         })
     }
 }
@@ -127,21 +139,36 @@ mod tests {
     fn postgres_from_env() {
         let mut lock = MUTEX.lock();
         let config = r#"
-            DATABASE_URL=postgres://postgres@localhost/zksync_local
+            DATABASE_URL=postgres://postgres:notsecurepassword@localhost/zksync_local
             DATABASE_POOL_SIZE=50
+            DATABASE_ACQUIRE_TIMEOUT_SEC=15
             DATABASE_STATEMENT_TIMEOUT_SEC=300
+            DATABASE_LONG_CONNECTION_THRESHOLD_MS=3000
+            DATABASE_SLOW_QUERY_THRESHOLD_MS=150
         "#;
         lock.set_env(config);
 
         let postgres_config = PostgresConfig::from_env().unwrap();
         assert_eq!(
             postgres_config.master_url().unwrap(),
-            "postgres://postgres@localhost/zksync_local"
+            "postgres://postgres:notsecurepassword@localhost/zksync_local"
         );
         assert_eq!(postgres_config.max_connections().unwrap(), 50);
         assert_eq!(
             postgres_config.statement_timeout(),
             Some(Duration::from_secs(300))
+        );
+        assert_eq!(
+            postgres_config.acquire_timeout(),
+            Some(Duration::from_secs(15))
+        );
+        assert_eq!(
+            postgres_config.long_connection_threshold(),
+            Some(Duration::from_secs(3))
+        );
+        assert_eq!(
+            postgres_config.slow_query_threshold(),
+            Some(Duration::from_millis(150))
         );
     }
 }

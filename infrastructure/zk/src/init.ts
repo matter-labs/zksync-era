@@ -8,7 +8,7 @@ import * as contract from './contract';
 import * as db from './database';
 import * as docker from './docker';
 import * as env from './env';
-import * as run from './run/run';
+import * as run from './run';
 import * as server from './server';
 import { up } from './up';
 import { announced } from './utils';
@@ -58,8 +58,8 @@ export const initSetup = async ({ skipSubmodulesCheckout, skipEnvSetup }: InitSe
 // Sets up the database, deploys the verifier (if set) and runs server genesis
 type InitDatabaseOptions = { skipVerifierDeployment: boolean };
 const initDatabase = async ({ skipVerifierDeployment }: InitDatabaseOptions): Promise<void> => {
-    await announced('Drop postgres db', db.drop());
-    await announced('Setup postgres db', db.setup());
+    await announced('Drop postgres db', db.drop({ server: true, prover: true }));
+    await announced('Setup postgres db', db.setup({ server: true, prover: true }));
     await announced('Clean rocksdb', clean(`db/${process.env.ZKSYNC_ENV!}`));
     await announced('Clean backups', clean(`backups/${process.env.ZKSYNC_ENV!}`));
 

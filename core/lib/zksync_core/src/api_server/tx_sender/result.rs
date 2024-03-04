@@ -1,12 +1,11 @@
-use multivm::{
-    interface::{ExecutionResult, VmExecutionResultAndLogs},
-    tracers::validator::ValidationError,
-};
+use multivm::interface::{ExecutionResult, VmExecutionResultAndLogs};
 use thiserror::Error;
 use zksync_types::{l2::error::TxCheckError, U256};
+use zksync_web3_decl::error::EnrichedClientError;
 
-use crate::api_server::execution_sandbox::SandboxExecutionError;
+use crate::api_server::execution_sandbox::{SandboxExecutionError, ValidationError};
 
+/// Errors that con occur submitting a transaction or estimating gas for its execution.
 #[derive(Debug, Error)]
 pub enum SubmitTxError {
     #[error("nonce too high. allowed nonce range: {0} - {1}, actual: {2}")]
@@ -68,9 +67,12 @@ pub enum SubmitTxError {
     IntrinsicGas,
     /// Error returned from main node
     #[error("{0}")]
-    ProxyError(#[from] zksync_web3_decl::jsonrpsee::core::ClientError),
+    ProxyError(#[from] EnrichedClientError),
     #[error("not enough gas to publish compressed bytecodes")]
     FailedToPublishCompressedBytecodes,
+    /// Catch-all internal error (e.g., database error) that should not be exposed to the caller.
+    #[error("internal error")]
+    Internal(#[from] anyhow::Error),
 }
 
 impl SubmitTxError {
@@ -102,6 +104,7 @@ impl SubmitTxError {
             Self::IntrinsicGas => "intrinsic-gas",
             Self::ProxyError(_) => "proxy-error",
             Self::FailedToPublishCompressedBytecodes => "failed-to-publish-compressed-bytecodes",
+            Self::Internal(_) => "internal",
         }
     }
 
@@ -145,7 +148,10 @@ impl From<SandboxExecutionError> for SubmitTxError {
 
 impl From<ValidationError> for SubmitTxError {
     fn from(err: ValidationError) -> Self {
-        Self::ValidationFailed(err.to_string())
+        match err {
+            ValidationError::Internal(err) => Self::Internal(err),
+            ValidationError::Vm(err) => Self::ValidationFailed(err.to_string()),
+        }
     }
 }
 

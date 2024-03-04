@@ -1,14 +1,14 @@
-use std::{collections::HashSet, net::SocketAddr, sync::Arc, time::Duration};
+use std::{net::SocketAddr, sync::Arc, time::Duration};
 
 use axum::{extract::State, http::StatusCode, routing::get, Json, Router};
 use tokio::sync::watch;
-use zksync_health_check::{AppHealth, CheckHealth};
+use zksync_health_check::{AppHealth, AppHealthCheck};
 
-type SharedHealthchecks = Arc<[Box<dyn CheckHealth>]>;
-
-async fn check_health(health_checks: State<SharedHealthchecks>) -> (StatusCode, Json<AppHealth>) {
-    let response = AppHealth::new(&health_checks).await;
-    let response_code = if response.is_ready() {
+async fn check_health(
+    app_health_check: State<Arc<AppHealthCheck>>,
+) -> (StatusCode, Json<AppHealth>) {
+    let response = app_health_check.check_health().await;
+    let response_code = if response.is_healthy() {
         StatusCode::OK
     } else {
         StatusCode::SERVICE_UNAVAILABLE
@@ -18,27 +18,16 @@ async fn check_health(health_checks: State<SharedHealthchecks>) -> (StatusCode, 
 
 async fn run_server(
     bind_address: &SocketAddr,
-    health_checks: Vec<Box<dyn CheckHealth>>,
+    app_health_check: Arc<AppHealthCheck>,
     mut stop_receiver: watch::Receiver<bool>,
 ) {
-    let mut health_check_names = HashSet::with_capacity(health_checks.len());
-    for check in &health_checks {
-        let health_check_name = check.name();
-        if !health_check_names.insert(health_check_name) {
-            tracing::warn!(
-                "Health check with name `{health_check_name}` is defined multiple times; only the last mention \
-                 will be present in `/health` endpoint output"
-            );
-        }
-    }
     tracing::debug!(
-        "Starting healthcheck server with checks {health_check_names:?} on {bind_address}"
+        "Starting healthcheck server with checks {app_health_check:?} on {bind_address}"
     );
 
-    let health_checks = SharedHealthchecks::from(health_checks);
     let app = Router::new()
         .route("/health", get(check_health))
-        .with_state(health_checks);
+        .with_state(app_health_check);
 
     axum::Server::bind(bind_address)
         .serve(app.into_make_service())
@@ -60,10 +49,10 @@ pub struct HealthCheckHandle {
 }
 
 impl HealthCheckHandle {
-    pub fn spawn_server(addr: SocketAddr, healthchecks: Vec<Box<dyn CheckHealth>>) -> Self {
+    pub fn spawn_server(addr: SocketAddr, app_health_check: Arc<AppHealthCheck>) -> Self {
         let (stop_sender, stop_receiver) = watch::channel(false);
         let server = tokio::spawn(async move {
-            run_server(&addr, healthchecks, stop_receiver).await;
+            run_server(&addr, app_health_check, stop_receiver).await;
         });
 
         Self {

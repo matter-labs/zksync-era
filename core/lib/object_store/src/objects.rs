@@ -7,23 +7,10 @@ use flate2::{read::GzDecoder, write::GzEncoder, Compression};
 use prost::Message;
 use zksync_protobuf::{decode, ProtoFmt};
 use zksync_types::{
-    aggregated_operations::L1BatchProofForL1,
-    proofs::{AggregationRound, PrepareBasicCircuitsJob},
     snapshots::{
         SnapshotFactoryDependencies, SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey,
     },
     storage::witness_block_state::WitnessBlockState,
-    zkevm_test_harness::{
-        abstract_zksync_circuit::concrete_circuits::ZkSyncCircuit,
-        bellman::bn256::Bn256,
-        encodings::{recursion_request::RecursionRequest, QueueSimulator},
-        witness::{
-            full_block_artifact::{BlockBasicCircuits, BlockBasicCircuitsPublicInputs},
-            oracle::VmWitnessOracle,
-        },
-        LeafAggregationOutputDataWitness, NodeAggregationOutputDataWitness,
-        SchedulerCircuitInstanceWitness,
-    },
     L1BatchNumber,
 };
 
@@ -137,145 +124,6 @@ impl StoredObject for WitnessBlockState {
 
     fn encode_key(key: Self::Key<'_>) -> String {
         format!("witness_block_state_for_l1_batch_{key}.bin")
-    }
-
-    serialize_using_bincode!();
-}
-
-impl StoredObject for PrepareBasicCircuitsJob {
-    const BUCKET: Bucket = Bucket::WitnessInput;
-    type Key<'a> = L1BatchNumber;
-
-    fn encode_key(key: Self::Key<'_>) -> String {
-        format!("merkel_tree_paths_{key}.bin")
-    }
-
-    serialize_using_bincode!();
-}
-
-impl StoredObject for BlockBasicCircuits<Bn256> {
-    const BUCKET: Bucket = Bucket::LeafAggregationWitnessJobs;
-    type Key<'a> = L1BatchNumber;
-
-    fn encode_key(key: Self::Key<'_>) -> String {
-        format!("basic_circuits_{key}.bin")
-    }
-
-    serialize_using_bincode!();
-}
-
-impl StoredObject for BlockBasicCircuitsPublicInputs<Bn256> {
-    const BUCKET: Bucket = Bucket::LeafAggregationWitnessJobs;
-    type Key<'a> = L1BatchNumber;
-
-    fn encode_key(key: Self::Key<'_>) -> String {
-        format!("basic_circuits_inputs_{key}.bin")
-    }
-
-    serialize_using_bincode!();
-}
-
-impl StoredObject for SchedulerCircuitInstanceWitness<Bn256> {
-    const BUCKET: Bucket = Bucket::SchedulerWitnessJobs;
-    type Key<'a> = L1BatchNumber;
-
-    fn encode_key(key: Self::Key<'_>) -> String {
-        format!("scheduler_witness_{key}.bin")
-    }
-
-    serialize_using_bincode!();
-}
-
-impl StoredObject for NodeAggregationOutputDataWitness<Bn256> {
-    const BUCKET: Bucket = Bucket::SchedulerWitnessJobs;
-    type Key<'a> = L1BatchNumber;
-
-    fn encode_key(key: Self::Key<'_>) -> String {
-        format!("final_node_aggregations_{key}.bin")
-    }
-
-    serialize_using_bincode!();
-}
-
-impl StoredObject for Vec<LeafAggregationOutputDataWitness<Bn256>> {
-    const BUCKET: Bucket = Bucket::NodeAggregationWitnessJobs;
-    type Key<'a> = L1BatchNumber;
-
-    fn encode_key(key: Self::Key<'_>) -> String {
-        format!("aggregation_outputs_{key}.bin")
-    }
-
-    serialize_using_bincode!();
-}
-
-impl StoredObject for Vec<QueueSimulator<Bn256, RecursionRequest<Bn256>, 2, 2>> {
-    const BUCKET: Bucket = Bucket::NodeAggregationWitnessJobs;
-    type Key<'a> = L1BatchNumber;
-
-    fn encode_key(key: Self::Key<'_>) -> String {
-        format!("leaf_layer_subqueues_{key}.bin")
-    }
-
-    serialize_using_bincode!();
-}
-
-/// Storage key for a [AggregationWrapper`].
-#[derive(Debug, Clone, Copy)]
-pub struct AggregationsKey {
-    pub block_number: L1BatchNumber,
-    pub circuit_id: u8,
-    pub depth: u16,
-}
-
-/// Storage key for a [ClosedFormInputWrapper`].
-#[derive(Debug, Clone, Copy)]
-pub struct ClosedFormInputKey {
-    pub block_number: L1BatchNumber,
-    pub circuit_id: u8,
-}
-
-/// Storage key for a [`CircuitWrapper`].
-#[derive(Debug, Clone, Copy)]
-pub struct FriCircuitKey {
-    pub block_number: L1BatchNumber,
-    pub sequence_number: usize,
-    pub circuit_id: u8,
-    pub aggregation_round: AggregationRound,
-    pub depth: u16,
-}
-
-/// Storage key for a [`ZkSyncCircuit`].
-#[derive(Debug, Clone, Copy)]
-pub struct CircuitKey<'a> {
-    pub block_number: L1BatchNumber,
-    pub sequence_number: usize,
-    pub circuit_type: &'a str,
-    pub aggregation_round: AggregationRound,
-}
-
-impl StoredObject for ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>> {
-    const BUCKET: Bucket = Bucket::ProverJobs;
-    type Key<'a> = CircuitKey<'a>;
-
-    fn encode_key(key: Self::Key<'_>) -> String {
-        let CircuitKey {
-            block_number,
-            sequence_number,
-            circuit_type,
-            aggregation_round,
-        } = key;
-        format!("{block_number}_{sequence_number}_{circuit_type}_{aggregation_round:?}.bin")
-    }
-
-    serialize_using_bincode!();
-}
-
-impl StoredObject for L1BatchProofForL1 {
-    const BUCKET: Bucket = Bucket::ProofsFri;
-    type Key<'a> = L1BatchNumber;
-
-    fn encode_key(key: Self::Key<'_>) -> String {
-        format!("l1_batch_proof_{key}.bin")
     }
 
     serialize_using_bincode!();

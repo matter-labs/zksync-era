@@ -31,6 +31,27 @@ pub(crate) enum TxExecutionStage {
     DryRunRollback,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
+#[metrics(label = "tx_execution_type", rename_all = "snake_case")]
+pub(crate) enum TxExecutionType {
+    L1,
+    L2,
+}
+
+impl TxExecutionType {
+    pub fn from_is_l1(is_l1: bool) -> TxExecutionType {
+        match is_l1 {
+            true => TxExecutionType::L1,
+            false => TxExecutionType::L2,
+        }
+    }
+}
+
+const INCLUSION_DELAY_BUCKETS: Buckets = Buckets::values(&[
+    0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9,
+    2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 20.0, 30.0, 60.0, 120.0, 240.0,
+]);
+
 /// General-purpose state keeper metrics.
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "server_state_keeper")]
@@ -52,6 +73,9 @@ pub(crate) struct StateKeeperMetrics {
     /// Time spent waiting for the header of a previous miniblock.
     #[metrics(buckets = Buckets::LATENCIES)]
     pub load_previous_miniblock_header: Histogram<Duration>,
+    /// The time it takes for transactions to be included in a block. Representative of the time user must wait before their transaction is confirmed.
+    #[metrics(buckets = INCLUSION_DELAY_BUCKETS)]
+    pub transaction_inclusion_delay: Family<TxExecutionType, Histogram<Duration>>,
     /// Time spent by the state keeper on transaction execution.
     #[metrics(buckets = Buckets::LATENCIES)]
     pub tx_execution_time: Family<TxExecutionStage, Histogram<Duration>>,
@@ -241,7 +265,6 @@ pub(super) enum MiniblockSealStage {
     InsertStorageLogs,
     ApplyStorageLogs,
     InsertFactoryDeps,
-    ExtractContractsDeployed,
     ExtractAddedTokens,
     InsertTokens,
     ExtractEvents,
@@ -249,6 +272,7 @@ pub(super) enum MiniblockSealStage {
     ExtractL2ToL1Logs,
     InsertL2ToL1Logs,
     CommitMiniblock,
+    ReportTxMetrics,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet)]

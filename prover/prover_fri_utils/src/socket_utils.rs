@@ -4,25 +4,23 @@ use std::{
     time::{Duration, Instant},
 };
 
-use zksync_types::proofs::SocketAddress;
-
 pub fn send_assembly(
     job_id: u32,
     mut serialized: &[u8],
-    address: &SocketAddress,
+    socket_address: &SocketAddr,
 ) -> Result<(Duration, u64), String> {
     tracing::trace!(
         "Sending assembly to {}:{}, job id {{{job_id}}}",
-        address.host,
-        address.port
+        socket_address.ip(),
+        socket_address.port()
     );
 
-    let socket_address = SocketAddr::new(address.host, address.port);
     let started_at = Instant::now();
     let mut error_messages = vec![];
 
+    // 10 attempts, each waiting for 6 seconds => 1 minute wait time at most
     for _ in 0..10 {
-        match TcpStream::connect(socket_address) {
+        match TcpStream::connect_timeout(socket_address, Duration::from_secs(6)) {
             Ok(mut stream) => {
                 return send(&mut serialized, &mut stream)
                     .map(|result| (started_at.elapsed(), result))

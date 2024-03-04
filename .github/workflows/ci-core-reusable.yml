@@ -118,8 +118,14 @@ jobs:
           ci_run sccache --show-stats
           ci_run cat /tmp/sccache_log.txt
   integration:
-    runs-on: [matterlabs-ci-runner]
+    name: Integration (consensus=${{ matrix.consensus }})
+    strategy:
+      matrix:
+        consensus: [false, true]
+    env:
+      SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,basic_witness_input_producer,commitment_generator${{ matrix.consensus && ',consensus' || '' }}"
 
+    runs-on: [matterlabs-ci-runner]
     steps:
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
         with:
@@ -179,7 +185,7 @@ jobs:
       # `sleep 5` because we need to wait until server started properly
       - name: Run server
         run: |
-          ci_run zk server &>server.log &
+          ci_run zk server --components=$SERVER_COMPONENTS &>server.log &
           ci_run sleep 5
 
       - name: Run contract verifier
@@ -190,6 +196,13 @@ jobs:
       - name: Server integration tests
         run: ci_run zk test i server
 
+      - name: Snapshot recovery test
+        if: ${{ ! matrix.consensus }}
+        # We use `yarn` directly because the test launches `zk` commands in both server and EN envs.
+        # An empty topmost environment helps avoid a mess when redefining env vars shared between both envs
+        # (e.g., DATABASE_URL).
+        run: ci_run yarn snapshot-recovery-test snapshot-recovery-test
+
       - name: Fee projection tests
         run: ci_run zk test i fees
 
@@ -197,7 +210,7 @@ jobs:
         run: |
           ci_run pkill zksync_server || true
           ci_run sleep 2
-          ci_run zk test i revert
+          ENABLE_CONSENSUS=${{ matrix.consensus }} PASSED_ENV_VARS=ENABLE_CONSENSUS ci_run zk test i revert
 
         # This test should be the last one as soon as it
         # finished bootloader will be different
@@ -215,6 +228,13 @@ jobs:
         if: always()
         run: ci_run cat contract_verifier.log || true
 
+      - name: Show snapshot-creator.log logs
+        if: always()
+        run: ci_run cat core/tests/snapshot-recovery-test/snapshot-creator.log || true
+      - name: Show snapshot-recovery.log logs
+        if: always()
+        run: ci_run cat core/tests/snapshot-recovery-test/snapshot-recovery.log || true
+
       - name: Show revert.log logs
         if: always()
         run: ci_run cat core/tests/revert-test/revert.log || true
@@ -230,7 +250,15 @@ jobs:
           ci_run cat /tmp/sccache_log.txt
 
   external-node:
+    name: External node (consensus=${{ matrix.consensus }})
+    strategy:
+      matrix:
+        consensus: [false, true]
     runs-on: [matterlabs-ci-runner]
+
+    env:
+      SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,basic_witness_input_producer,commitment_generator${{ matrix.consensus && ',consensus' || '' }}"
+      EXT_NODE_FLAGS: "${{ matrix.consensus && '-- --enable-consensus' || '' }}"
 
     steps:
       - name: Checkout code # Checks out the repository under $GITHUB_WORKSPACE, so the job can access it.
@@ -245,34 +273,6 @@ jobs:
           echo IN_DOCKER=1 >> .env
           echo RUN_CONTRACT_VERIFICATION_TEST=true >> .env
           echo ZKSYNC_DEBUG_LOGS=true >> .env
-
-      - name: Download zksolc/solc and zkvyper/vyper
-        run: |
-          sudo apt update && sudo apt install wget -y
-
-          mkdir -p $(pwd)/etc/solc-bin/0.8.23
-          wget https://github.com/ethereum/solc-bin/raw/gh-pages/linux-amd64/solc-linux-amd64-v0.8.23%2Bcommit.f704f362
-          mv solc-linux-amd64-v0.8.23+commit.f704f362 $(pwd)/etc/solc-bin/0.8.23/solc
-          chmod +x $(pwd)/etc/solc-bin/0.8.23/solc
-          
-          mkdir -p $(pwd)/etc/solc-bin/zkVM-0.8.23-1.0.0
-          wget https://github.com/matter-labs/era-solidity/releases/download/0.8.23-1.0.0/solc-linux-amd64-0.8.23-1.0.0 -O $(pwd)/etc/solc-bin/zkVM-0.8.23-1.0.0/solc
-          chmod +x $(pwd)/etc/solc-bin/zkVM-0.8.23-1.0.0/solc
-
-          mkdir -p $(pwd)/etc/zksolc-bin/v1.3.21
-          wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-v1.3.21
-          mv zksolc-linux-amd64-musl-v1.3.21 $(pwd)/etc/zksolc-bin/v1.3.21/zksolc
-          chmod +x $(pwd)/etc/zksolc-bin/v1.3.21/zksolc
-
-          mkdir -p $(pwd)/etc/vyper-bin/0.3.10
-          wget -O vyper0.3.10 https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10%2Bcommit.91361694.linux
-          mv vyper0.3.10 $(pwd)/etc/vyper-bin/0.3.10/vyper
-          chmod +x $(pwd)/etc/vyper-bin/0.3.10/vyper
-
-          mkdir -p $(pwd)/etc/zkvyper-bin/v1.3.11
-          wget https://github.com/matter-labs/zkvyper-bin/raw/main/linux-amd64/zkvyper-linux-amd64-musl-v1.3.11
-          mv zkvyper-linux-amd64-musl-v1.3.11 $(pwd)/etc/zkvyper-bin/v1.3.11/zkvyper
-          chmod +x $(pwd)/etc/zkvyper-bin/v1.3.11/zkvyper
 
       - name: Start services
         run: |
@@ -291,22 +291,18 @@ jobs:
       # `sleep 30` because we need to wait until server started properly
       - name: Run server
         run: |
-          ci_run zk server &>server.log &
+          ci_run zk server --components=$SERVER_COMPONENTS &>server.log &
           ci_run sleep 30
-
+      
       - name: Run external node
         run: |
           ci_run zk env ext-node-docker
           ci_run zk db setup
-          ci_run zk external-node &>ext-node.log &
+          ci_run zk external-node $EXT_NODE_FLAGS &>ext-node.log &
           ci_run sleep 30
 
-      # TODO(PLA-653): Restore bridge tests for EN.
       - name: Integration tests
-        run: ci_run zk test i server --testPathIgnorePatterns 'contract-verification|custom-erc20-bridge|snapshots-creator'
-
-      - name: Run Cross EN Checker
-        run: ci_run zk run cross-en-checker
+        run: ci_run zk test i server --testPathIgnorePatterns 'contract-verification|snapshots-creator'
 
       - name: Run revert test
         run: |
@@ -315,14 +311,14 @@ jobs:
           ci_run pkill zksync_server || true
           ci_run sleep 2
           ci_run zk env
-          ci_run zk test i revert
+          ENABLE_CONSENSUS=${{ matrix.consensus }} PASSED_ENV_VARS=ENABLE_CONSENSUS ci_run zk test i revert
           # Check that the rollback was performed on the EN
           ci_run sleep 20
           ci_run grep -q 'Rollback successfully completed' ext-node.log
           # Restart the EN
-          ci_run zk server &>>server.log &
+          ci_run zk server --components=$SERVER_COMPONENTS &>>server.log &
           ci_run sleep 30
-          ZKSYNC_ENV=ext-node-docker ci_run zk external-node &>>ext-node.log &
+          ZKSYNC_ENV=ext-node-docker ci_run zk external-node $EXT_NODE_FLAGS &>>ext-node.log &
           ci_run sleep 30
 
       - name: Run upgrade test

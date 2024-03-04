@@ -4,9 +4,10 @@ use std::ops;
 
 use zksync_dal::StorageProcessor;
 use zksync_types::{
-    block::{BlockGasCount, L1BatchHeader, MiniblockHeader},
-    AccountTreeId, Address, L1BatchNumber, MiniblockNumber, ProtocolVersion, StorageKey,
-    StorageLog, H256,
+    block::{L1BatchHeader, MiniblockHeader},
+    snapshots::SnapshotRecoveryStatus,
+    AccountTreeId, Address, L1BatchNumber, MiniblockNumber, ProtocolVersion, ProtocolVersionId,
+    StorageKey, StorageLog, H256,
 };
 
 pub(crate) async fn prepare_postgres(conn: &mut StorageProcessor<'_>) {
@@ -23,13 +24,18 @@ pub(crate) async fn prepare_postgres(conn: &mut StorageProcessor<'_>) {
 
     conn.storage_logs_dal()
         .rollback_storage_logs(MiniblockNumber(0))
-        .await;
+        .await
+        .unwrap();
     conn.blocks_dal()
         .delete_miniblocks(MiniblockNumber(0))
         .await
         .unwrap();
     conn.blocks_dal()
         .delete_l1_batches(L1BatchNumber(0))
+        .await
+        .unwrap();
+    conn.blocks_dal()
+        .delete_initial_writes(L1BatchNumber(0))
         .await
         .unwrap();
 }
@@ -72,6 +78,7 @@ pub(crate) async fn create_miniblock(
         hash: H256::from_low_u64_be(u64::from(miniblock_number.0)),
         l1_tx_count: 0,
         l2_tx_count: 0,
+        fee_account_address: Address::default(),
         base_fee_per_gas: 0,
         batch_fee_input: Default::default(),
         gas_per_pubdata_limit: 0,
@@ -86,7 +93,8 @@ pub(crate) async fn create_miniblock(
         .unwrap();
     conn.storage_logs_dal()
         .insert_storage_logs(miniblock_number, &[(H256::zero(), block_logs)])
-        .await;
+        .await
+        .unwrap();
 }
 
 #[allow(clippy::default_trait_access)]
@@ -96,16 +104,9 @@ pub(crate) async fn create_l1_batch(
     l1_batch_number: L1BatchNumber,
     logs_for_initial_writes: &[StorageLog],
 ) {
-    let mut header = L1BatchHeader::new(
-        l1_batch_number,
-        0,
-        Address::default(),
-        Default::default(),
-        Default::default(),
-    );
-    header.is_finished = true;
+    let header = L1BatchHeader::new(l1_batch_number, 0, Default::default(), Default::default());
     conn.blocks_dal()
-        .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[], 0)
+        .insert_mock_l1_batch(&header)
         .await
         .unwrap();
     conn.blocks_dal()
@@ -117,5 +118,45 @@ pub(crate) async fn create_l1_batch(
     written_keys.sort_unstable();
     conn.storage_logs_dedup_dal()
         .insert_initial_writes(l1_batch_number, &written_keys)
+        .await
+        .unwrap();
+}
+
+pub(crate) async fn prepare_postgres_for_snapshot_recovery(
+    conn: &mut StorageProcessor<'_>,
+) -> (SnapshotRecoveryStatus, Vec<StorageLog>) {
+    conn.protocol_versions_dal()
+        .save_protocol_version_with_tx(ProtocolVersion::default())
         .await;
+
+    let snapshot_recovery = SnapshotRecoveryStatus {
+        l1_batch_number: L1BatchNumber(23),
+        l1_batch_timestamp: 23,
+        l1_batch_root_hash: H256::zero(), // not used
+        miniblock_number: MiniblockNumber(42),
+        miniblock_timestamp: 42,
+        miniblock_hash: H256::zero(), // not used
+        protocol_version: ProtocolVersionId::latest(),
+        storage_logs_chunks_processed: vec![true; 100],
+    };
+    conn.snapshot_recovery_dal()
+        .insert_initial_recovery_status(&snapshot_recovery)
+        .await
+        .unwrap();
+
+    let snapshot_storage_logs = gen_storage_logs(100..200);
+    conn.storage_logs_dal()
+        .insert_storage_logs(
+            snapshot_recovery.miniblock_number,
+            &[(H256::zero(), snapshot_storage_logs.clone())],
+        )
+        .await
+        .unwrap();
+    let mut written_keys: Vec<_> = snapshot_storage_logs.iter().map(|log| log.key).collect();
+    written_keys.sort_unstable();
+    conn.storage_logs_dedup_dal()
+        .insert_initial_writes(snapshot_recovery.l1_batch_number, &written_keys)
+        .await
+        .unwrap();
+    (snapshot_recovery, snapshot_storage_logs)
 }

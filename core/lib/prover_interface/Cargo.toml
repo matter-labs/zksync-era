@@ -1,0 +1,26 @@
+[package]
+name = "zksync_prover_interface"
+version = "0.1.0"
+edition = "2018"
+authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
+homepage = "https://zksync.io/"
+repository = "https://github.com/matter-labs/zksync-era"
+license = "MIT OR Apache-2.0"
+keywords = ["blockchain", "zksync"]
+categories = ["cryptography"]
+readme = "README.md"
+
+[dependencies]
+zksync_types = { path = "../types" }
+zksync_object_store = { path = "../object_store" }
+
+zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.3.3" }
+
+serde = "1.0.90"
+strum = { version = "0.24", features = ["derive"] }
+serde_with = { version = "1", features = ["base64"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+[dev-dependencies]
+tokio = { version = "1.21.2", features = ["full"] }
+bincode = "1"

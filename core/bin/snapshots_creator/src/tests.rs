@@ -13,7 +13,7 @@ use rand::{thread_rng, Rng};
 use zksync_dal::StorageProcessor;
 use zksync_object_store::ObjectStore;
 use zksync_types::{
-    block::{BlockGasCount, L1BatchHeader, MiniblockHeader},
+    block::{L1BatchHeader, MiniblockHeader},
     snapshots::{
         SnapshotFactoryDependencies, SnapshotFactoryDependency, SnapshotStorageLog,
         SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey,
@@ -142,6 +142,7 @@ async fn create_miniblock(
         hash: H256::from_low_u64_be(u64::from(miniblock_number.0)),
         l1_tx_count: 0,
         l2_tx_count: 0,
+        fee_account_address: Address::repeat_byte(1),
         base_fee_per_gas: 0,
         gas_per_pubdata_limit: 0,
         batch_fee_input: Default::default(),
@@ -156,7 +157,8 @@ async fn create_miniblock(
         .unwrap();
     conn.storage_logs_dal()
         .insert_storage_logs(miniblock_number, &[(H256::zero(), block_logs)])
-        .await;
+        .await
+        .unwrap();
 }
 
 async fn create_l1_batch(
@@ -164,16 +166,9 @@ async fn create_l1_batch(
     l1_batch_number: L1BatchNumber,
     logs_for_initial_writes: &[StorageLog],
 ) {
-    let mut header = L1BatchHeader::new(
-        l1_batch_number,
-        0,
-        Address::default(),
-        Default::default(),
-        Default::default(),
-    );
-    header.is_finished = true;
+    let header = L1BatchHeader::new(l1_batch_number, 0, Default::default(), Default::default());
     conn.blocks_dal()
-        .insert_l1_batch(&header, &[], BlockGasCount::default(), &[], &[], 0)
+        .insert_mock_l1_batch(&header)
         .await
         .unwrap();
     conn.blocks_dal()
@@ -185,7 +180,8 @@ async fn create_l1_batch(
     written_keys.sort_unstable();
     conn.storage_logs_dedup_dal()
         .insert_initial_writes(l1_batch_number, &written_keys)
-        .await;
+        .await
+        .unwrap();
 }
 
 async fn prepare_postgres(
@@ -203,9 +199,10 @@ async fn prepare_postgres(
         create_miniblock(conn, MiniblockNumber(block_number), logs.clone()).await;
 
         let factory_deps = gen_factory_deps(rng, 10);
-        conn.storage_dal()
+        conn.factory_deps_dal()
             .insert_factory_deps(MiniblockNumber(block_number), &factory_deps)
-            .await;
+            .await
+            .unwrap();
 
         // Since we generate `logs` randomly, all of them are written the first time.
         create_l1_batch(conn, L1BatchNumber(block_number), &logs).await;
@@ -223,7 +220,8 @@ async fn prepare_postgres(
             let expected_l1_batches_and_indices = conn
                 .storage_logs_dal()
                 .get_l1_batches_and_indices_for_initial_writes(&hashed_keys)
-                .await;
+                .await
+                .unwrap();
 
             let logs = logs.into_iter().map(|log| {
                 let (l1_batch_number_of_initial_write, enumeration_index) =

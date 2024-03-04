@@ -28,18 +28,13 @@ pub enum StorageL1BatchConvertError {
 pub struct StorageL1BatchHeader {
     pub number: i64,
     pub timestamp: i64,
-    pub is_finished: bool,
     pub l1_tx_count: i32,
     pub l2_tx_count: i32,
-    pub fee_account_address: Vec<u8>,
     pub l2_to_l1_logs: Vec<Vec<u8>>,
     pub l2_to_l1_messages: Vec<Vec<u8>>,
     pub bloom: Vec<u8>,
     pub priority_ops_onchain_data: Vec<Vec<u8>>,
     pub used_contract_hashes: serde_json::Value,
-    pub base_fee_per_gas: BigDecimal,
-    pub l1_gas_price: i64,
-    pub l2_fair_gas_price: i64,
     pub bootloader_code_hash: Option<Vec<u8>>,
     pub default_aa_code_hash: Option<Vec<u8>>,
     pub protocol_version: Option<i32>,
@@ -67,9 +62,7 @@ impl From<StorageL1BatchHeader> for L1BatchHeader {
 
         L1BatchHeader {
             number: L1BatchNumber(l1_batch.number as u32),
-            is_finished: l1_batch.is_finished,
             timestamp: l1_batch.timestamp as u64,
-            fee_account_address: Address::from_slice(&l1_batch.fee_account_address),
             priority_ops_onchain_data,
             l1_tx_count: l1_batch.l1_tx_count as u16,
             l2_tx_count: l1_batch.l2_tx_count as u16,
@@ -79,16 +72,10 @@ impl From<StorageL1BatchHeader> for L1BatchHeader {
             bloom: H2048::from_slice(&l1_batch.bloom),
             used_contract_hashes: serde_json::from_value(l1_batch.used_contract_hashes)
                 .expect("invalid value for used_contract_hashes in the DB"),
-            base_fee_per_gas: l1_batch
-                .base_fee_per_gas
-                .to_u64()
-                .expect("base_fee_per_gas should fit in u64"),
             base_system_contracts_hashes: convert_base_system_contracts_hashes(
                 l1_batch.bootloader_code_hash,
                 l1_batch.default_aa_code_hash,
             ),
-            l1_gas_price: l1_batch.l1_gas_price as u64,
-            l2_fair_gas_price: l1_batch.l2_fair_gas_price as u64,
             system_logs: system_logs.into_iter().map(SystemL2ToL1Log).collect(),
             protocol_version: l1_batch
                 .protocol_version
@@ -126,15 +113,12 @@ fn convert_base_system_contracts_hashes(
 pub struct StorageL1Batch {
     pub number: i64,
     pub timestamp: i64,
-    pub is_finished: bool,
     pub l1_tx_count: i32,
     pub l2_tx_count: i32,
-    pub fee_account_address: Vec<u8>,
     pub bloom: Vec<u8>,
     pub l2_to_l1_logs: Vec<Vec<u8>>,
     pub priority_ops_onchain_data: Vec<Vec<u8>>,
 
-    pub parent_hash: Option<Vec<u8>>,
     pub hash: Option<Vec<u8>>,
     pub merkle_root_hash: Option<Vec<u8>>,
     pub commitment: Option<Vec<u8>>,
@@ -148,22 +132,15 @@ pub struct StorageL1Batch {
     pub default_aa_code_hash: Option<Vec<u8>>,
 
     pub l2_to_l1_messages: Vec<Vec<u8>>,
-    pub l2_l1_compressed_messages: Option<Vec<u8>>,
     pub l2_l1_merkle_root: Option<Vec<u8>>,
     pub compressed_initial_writes: Option<Vec<u8>>,
     pub compressed_repeated_writes: Option<Vec<u8>>,
-    pub compressed_write_logs: Option<Vec<u8>>,
-    pub compressed_contracts: Option<Vec<u8>>,
 
     pub eth_prove_tx_id: Option<i32>,
     pub eth_commit_tx_id: Option<i32>,
     pub eth_execute_tx_id: Option<i32>,
 
     pub used_contract_hashes: serde_json::Value,
-
-    pub base_fee_per_gas: BigDecimal,
-    pub l1_gas_price: i64,
-    pub l2_fair_gas_price: i64,
 
     pub system_logs: Vec<Vec<u8>>,
     pub compressed_state_diffs: Option<Vec<u8>>,
@@ -188,9 +165,7 @@ impl From<StorageL1Batch> for L1BatchHeader {
 
         L1BatchHeader {
             number: L1BatchNumber(l1_batch.number as u32),
-            is_finished: l1_batch.is_finished,
             timestamp: l1_batch.timestamp as u64,
-            fee_account_address: Address::from_slice(&l1_batch.fee_account_address),
             priority_ops_onchain_data,
             l1_tx_count: l1_batch.l1_tx_count as u16,
             l2_tx_count: l1_batch.l2_tx_count as u16,
@@ -200,16 +175,10 @@ impl From<StorageL1Batch> for L1BatchHeader {
             bloom: H2048::from_slice(&l1_batch.bloom),
             used_contract_hashes: serde_json::from_value(l1_batch.used_contract_hashes)
                 .expect("invalid value for used_contract_hashes in the DB"),
-            base_fee_per_gas: l1_batch
-                .base_fee_per_gas
-                .to_u64()
-                .expect("base_fee_per_gas should fit in u64"),
             base_system_contracts_hashes: convert_base_system_contracts_hashes(
                 l1_batch.bootloader_code_hash,
                 l1_batch.default_aa_code_hash,
             ),
-            l1_gas_price: l1_batch.l1_gas_price as u64,
-            l2_fair_gas_price: l1_batch.l2_fair_gas_price as u64,
             system_logs: system_logs.into_iter().map(SystemL2ToL1Log).collect(),
             protocol_version: l1_batch
                 .protocol_version
@@ -234,15 +203,8 @@ impl TryInto<L1BatchMetadata> for StorageL1Batch {
                     .merkle_root_hash
                     .ok_or(StorageL1BatchConvertError::Incomplete)?,
             ),
-            initial_writes_compressed: self
-                .compressed_initial_writes
-                .ok_or(StorageL1BatchConvertError::Incomplete)?,
-            repeated_writes_compressed: self
-                .compressed_repeated_writes
-                .ok_or(StorageL1BatchConvertError::Incomplete)?,
-            l2_l1_messages_compressed: self
-                .l2_l1_compressed_messages
-                .ok_or(StorageL1BatchConvertError::Incomplete)?,
+            initial_writes_compressed: self.compressed_initial_writes,
+            repeated_writes_compressed: self.compressed_repeated_writes,
             l2_l1_merkle_root: H256::from_slice(
                 &self
                     .l2_l1_merkle_root
@@ -375,61 +337,58 @@ pub struct StorageBlockDetails {
     pub l2_fair_gas_price: i64,
     pub bootloader_code_hash: Option<Vec<u8>>,
     pub default_aa_code_hash: Option<Vec<u8>>,
-    pub fee_account_address: Option<Vec<u8>>, // May be None if the block is not yet sealed
+    pub fee_account_address: Vec<u8>,
     pub protocol_version: Option<i32>,
 }
 
-impl StorageBlockDetails {
-    pub(crate) fn into_block_details(self, current_operator_address: Address) -> api::BlockDetails {
-        let status = if self.number == 0 || self.execute_tx_hash.is_some() {
+impl From<StorageBlockDetails> for api::BlockDetails {
+    fn from(details: StorageBlockDetails) -> Self {
+        let status = if details.number == 0 || details.execute_tx_hash.is_some() {
             api::BlockStatus::Verified
         } else {
             api::BlockStatus::Sealed
         };
 
         let base = api::BlockDetailsBase {
-            timestamp: self.timestamp as u64,
-            l1_tx_count: self.l1_tx_count as usize,
-            l2_tx_count: self.l2_tx_count as usize,
+            timestamp: details.timestamp as u64,
+            l1_tx_count: details.l1_tx_count as usize,
+            l2_tx_count: details.l2_tx_count as usize,
             status,
-            root_hash: self.root_hash.as_deref().map(H256::from_slice),
-            commit_tx_hash: self
+            root_hash: details.root_hash.as_deref().map(H256::from_slice),
+            commit_tx_hash: details
                 .commit_tx_hash
                 .as_deref()
                 .map(|hash| H256::from_str(hash).expect("Incorrect commit_tx hash")),
-            committed_at: self
+            committed_at: details
                 .committed_at
                 .map(|committed_at| DateTime::from_naive_utc_and_offset(committed_at, Utc)),
-            prove_tx_hash: self
+            prove_tx_hash: details
                 .prove_tx_hash
                 .as_deref()
                 .map(|hash| H256::from_str(hash).expect("Incorrect prove_tx hash")),
-            proven_at: self
+            proven_at: details
                 .proven_at
                 .map(|proven_at| DateTime::<Utc>::from_naive_utc_and_offset(proven_at, Utc)),
-            execute_tx_hash: self
+            execute_tx_hash: details
                 .execute_tx_hash
                 .as_deref()
                 .map(|hash| H256::from_str(hash).expect("Incorrect execute_tx hash")),
-            executed_at: self
+            executed_at: details
                 .executed_at
                 .map(|executed_at| DateTime::<Utc>::from_naive_utc_and_offset(executed_at, Utc)),
-            l1_gas_price: self.l1_gas_price as u64,
-            l2_fair_gas_price: self.l2_fair_gas_price as u64,
+            l1_gas_price: details.l1_gas_price as u64,
+            l2_fair_gas_price: details.l2_fair_gas_price as u64,
             base_system_contracts_hashes: convert_base_system_contracts_hashes(
-                self.bootloader_code_hash,
-                self.default_aa_code_hash,
+                details.bootloader_code_hash,
+                details.default_aa_code_hash,
             ),
         };
         api::BlockDetails {
             base,
-            number: MiniblockNumber(self.number as u32),
-            l1_batch_number: L1BatchNumber(self.l1_batch_number as u32),
-            operator_address: self
-                .fee_account_address
-                .map(|fee_account_address| Address::from_slice(&fee_account_address))
-                .unwrap_or(current_operator_address),
-            protocol_version: self
+            number: MiniblockNumber(details.number as u32),
+            l1_batch_number: L1BatchNumber(details.l1_batch_number as u32),
+            operator_address: Address::from_slice(&details.fee_account_address),
+            protocol_version: details
                 .protocol_version
                 .map(|v| (v as u16).try_into().unwrap()),
         }
@@ -510,6 +469,7 @@ pub struct StorageMiniblockHeader {
     pub hash: Vec<u8>,
     pub l1_tx_count: i32,
     pub l2_tx_count: i32,
+    pub fee_account_address: Vec<u8>,
     pub base_fee_per_gas: BigDecimal,
     pub l1_gas_price: i64,
     // L1 gas price assumed in the corresponding batch
@@ -559,6 +519,7 @@ impl From<StorageMiniblockHeader> for MiniblockHeader {
             hash: H256::from_slice(&row.hash),
             l1_tx_count: row.l1_tx_count as u16,
             l2_tx_count: row.l2_tx_count as u16,
+            fee_account_address: Address::from_slice(&row.fee_account_address),
             base_fee_per_gas: row.base_fee_per_gas.to_u64().unwrap(),
             batch_fee_input: fee_input,
             base_system_contracts_hashes: convert_base_system_contracts_hashes(

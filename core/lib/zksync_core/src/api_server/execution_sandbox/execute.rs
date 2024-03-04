@@ -1,5 +1,6 @@
 //! Implementation of "executing" methods, e.g. `eth_call`.
 
+use anyhow::Context as _;
 use multivm::{
     interface::{TxExecutionMode, VmExecutionResultAndLogs, VmInterface},
     tracers::StorageInvocations,
@@ -75,6 +76,16 @@ impl TxExecutionArgs {
     }
 }
 
+#[derive(Debug, Clone)]
+pub(crate) struct TransactionExecutionOutput {
+    /// Output of the VM.
+    pub vm: VmExecutionResultAndLogs,
+    /// Execution metrics.
+    pub metrics: TransactionExecutionMetrics,
+    /// Were published bytecodes OK?
+    pub are_published_bytecodes_ok: bool,
+}
+
 /// Executor of transactions.
 #[derive(Debug)]
 pub(crate) enum TransactionExecutor {
@@ -101,10 +112,10 @@ impl TransactionExecutor {
         tx: Transaction,
         block_args: BlockArgs,
         custom_tracers: Vec<ApiTracer>,
-    ) -> (VmExecutionResultAndLogs, TransactionExecutionMetrics, bool) {
+    ) -> anyhow::Result<TransactionExecutionOutput> {
         #[cfg(test)]
         if let Self::Mock(mock_executor) = self {
-            return mock_executor.execute_tx(&tx);
+            return mock_executor.execute_tx(&tx, &block_args);
         }
 
         let total_factory_deps = tx
@@ -142,15 +153,15 @@ impl TransactionExecutor {
             result
         })
         .await
-        .unwrap();
+        .context("transaction execution panicked")??;
 
-        let tx_execution_metrics =
+        let metrics =
             vm_metrics::collect_tx_execution_metrics(total_factory_deps, &execution_result);
-        (
-            execution_result,
-            tx_execution_metrics,
-            published_bytecodes.is_ok(),
-        )
+        Ok(TransactionExecutionOutput {
+            vm: execution_result,
+            metrics,
+            are_published_bytecodes_ok: published_bytecodes.is_ok(),
+        })
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -163,7 +174,7 @@ impl TransactionExecutor {
         block_args: BlockArgs,
         vm_execution_cache_misses_limit: Option<usize>,
         custom_tracers: Vec<ApiTracer>,
-    ) -> VmExecutionResultAndLogs {
+    ) -> anyhow::Result<VmExecutionResultAndLogs> {
         let enforced_base_fee = tx.common_data.fee.max_fee_per_gas.as_u64();
         let execution_args =
             TxExecutionArgs::for_eth_call(enforced_base_fee, vm_execution_cache_misses_limit);
@@ -176,7 +187,7 @@ impl TransactionExecutor {
         // limiting the amount of gas the call can use.
         // We can't use `BLOCK_ERGS_LIMIT` here since the VM itself has some overhead.
         tx.common_data.fee.gas_limit = ETH_CALL_GAS_LIMIT.into();
-        let (vm_result, ..) = self
+        let output = self
             .execute_tx_in_sandbox(
                 vm_permit,
                 shared_args,
@@ -187,8 +198,7 @@ impl TransactionExecutor {
                 block_args,
                 custom_tracers,
             )
-            .await;
-
-        vm_result
+            .await?;
+        Ok(output.vm)
     }
 }

@@ -1,9 +1,32 @@
 use zksync_types::{
-    tokens::{TokenInfo, TokenMetadata, TokenPrice},
-    Address,
+    tokens::{TokenInfo, TokenMetadata},
+    Address, MiniblockNumber,
 };
 
-use crate::{models::storage_token::StorageTokenPrice, SqlxError, StorageProcessor};
+use crate::StorageProcessor;
+
+#[derive(Debug)]
+struct StorageTokenInfo {
+    l1_address: Vec<u8>,
+    l2_address: Vec<u8>,
+    name: String,
+    symbol: String,
+    decimals: i32,
+}
+
+impl From<StorageTokenInfo> for TokenInfo {
+    fn from(row: StorageTokenInfo) -> Self {
+        Self {
+            l1_address: Address::from_slice(&row.l1_address),
+            l2_address: Address::from_slice(&row.l2_address),
+            metadata: TokenMetadata {
+                name: row.name,
+                symbol: row.symbol,
+                decimals: row.decimals as u8,
+            },
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct TokensWeb3Dal<'a, 'c> {
@@ -11,64 +34,67 @@ pub struct TokensWeb3Dal<'a, 'c> {
 }
 
 impl TokensWeb3Dal<'_, '_> {
-    pub async fn get_well_known_tokens(&mut self) -> Result<Vec<TokenInfo>, SqlxError> {
-        {
-            let records = sqlx::query!(
-                r#"
-                SELECT
-                    l1_address,
-                    l2_address,
-                    NAME,
-                    symbol,
-                    decimals
-                FROM
-                    tokens
-                WHERE
-                    well_known = TRUE
-                ORDER BY
-                    symbol
-                "#
-            )
-            .fetch_all(self.storage.conn())
-            .await?;
-            let result: Vec<TokenInfo> = records
-                .into_iter()
-                .map(|record| TokenInfo {
-                    l1_address: Address::from_slice(&record.l1_address),
-                    l2_address: Address::from_slice(&record.l2_address),
-                    metadata: TokenMetadata {
-                        name: record.name,
-                        symbol: record.symbol,
-                        decimals: record.decimals as u8,
-                    },
-                })
-                .collect();
-            Ok(result)
-        }
+    /// Returns information about well-known tokens.
+    pub async fn get_well_known_tokens(&mut self) -> sqlx::Result<Vec<TokenInfo>> {
+        let records = sqlx::query_as!(
+            StorageTokenInfo,
+            r#"
+            SELECT
+                l1_address,
+                l2_address,
+                NAME,
+                symbol,
+                decimals
+            FROM
+                tokens
+            WHERE
+                well_known = TRUE
+            ORDER BY
+                symbol
+            "#
+        )
+        .fetch_all(self.storage.conn())
+        .await?;
+
+        Ok(records.into_iter().map(Into::into).collect())
     }
 
-    pub async fn get_token_price(
+    /// Returns information about all tokens.
+    pub async fn get_all_tokens(
         &mut self,
-        l2_address: &Address,
-    ) -> Result<Option<TokenPrice>, SqlxError> {
-        {
-            let storage_price = sqlx::query_as!(
-                StorageTokenPrice,
-                r#"
-                SELECT
-                    usd_price,
-                    usd_price_updated_at
-                FROM
-                    tokens
-                WHERE
-                    l2_address = $1
-                "#,
-                l2_address.as_bytes(),
-            )
-            .fetch_optional(self.storage.conn())
+        at_miniblock: Option<MiniblockNumber>,
+    ) -> sqlx::Result<Vec<TokenInfo>> {
+        let records = sqlx::query_as!(
+            StorageTokenInfo,
+            r#"
+            SELECT
+                l1_address,
+                l2_address,
+                NAME,
+                symbol,
+                decimals
+            FROM
+                tokens
+            ORDER BY
+                symbol
+            "#
+        )
+        .fetch_all(self.storage.conn())
+        .await?;
+
+        let mut all_tokens: Vec<_> = records.into_iter().map(TokenInfo::from).collect();
+        let Some(at_miniblock) = at_miniblock else {
+            return Ok(all_tokens); // No additional filtering is required
+        };
+
+        let token_addresses = all_tokens.iter().map(|token| token.l2_address);
+        let filtered_addresses = self
+            .storage
+            .storage_logs_dal()
+            .filter_deployed_contracts(token_addresses, Some(at_miniblock))
             .await?;
 
-            Ok(storage_price.and_then(Into::into))
-        }
+        all_tokens.retain(|token| filtered_addresses.contains_key(&token.l2_address));
+        Ok(all_tokens)
     }
 }

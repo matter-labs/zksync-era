@@ -115,6 +115,16 @@ export function modify(variable: string, value: string, initEnv: string, withRel
     }
 }
 
+export function removeFromInit(variable: string) {
+    const initEnv = 'etc/env/.init.env';
+    if (!fs.existsSync(initEnv)) {
+        return;
+    }
+
+    utils.replaceInFile(initEnv, `${variable}=.*`, '');
+    reload();
+}
+
 // merges .init.env with current env file so all configs are in the same place
 export function mergeInitToEnv() {
     const environment = process.env.ZKSYNC_ENV!;
