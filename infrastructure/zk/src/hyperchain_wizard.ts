@@ -51,7 +51,7 @@ let isLocalhost = false;
 async function initHyperchain(envName: string) {
     await announced('Initializing hyperchain creation', setupConfiguration(envName));
 
-    await init.initHyperCmdAction({ skipSetupCompletely: false });
+    await init.initHyperCmdAction({ skipSetupCompletely: false, bumpChainId: true });
 
     // if we used matterlabs/geth network, we need custom ENV file for hyperchain compose parts
     // This breaks `zk status prover` command, but neccessary for working in isolated docker-network
