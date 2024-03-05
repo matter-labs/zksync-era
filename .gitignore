@@ -10,7 +10,7 @@
 node_modules
 *.log
 target
-a.out 
+a.out
 .gitconfig
 cobertura.xml
 tags
@@ -34,6 +34,7 @@ Cargo.lock
 !/etc/env/base
 !/etc/env/dev.toml
 !/etc/env/dev_validium.toml
+!/etc/env/dev_validium_docker.toml
 !/etc/env/docker.toml
 !/etc/env/ext-node.toml
 !/etc/env/ext-node-docker.toml

@@ -179,7 +179,8 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk
-          ci_run zk init
+          ci_run zk env dev_validium_docker
+          ci_run zk init --validium-mode
 
 
       # `sleep 5` because we need to wait until server started properly
