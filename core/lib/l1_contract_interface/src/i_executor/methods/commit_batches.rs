@@ -5,7 +5,7 @@ use crate::{
     Tokenizable, Tokenize,
 };
 
-/// Input required to encode `commitBatches` call.
+/// Input required to encode `commitBatches` call for a contract running in rollup mode.
 #[derive(Debug, Clone)]
 pub struct CommitBatchesRollup {
     pub last_committed_l1_batch: L1BatchWithMetadata,
@@ -25,7 +25,7 @@ impl Tokenize for CommitBatchesRollup {
     }
 }
 
-/// Input required to encode `commitBatches` call.
+/// Input required to encode `commitBatches` call for a contract running in validium mode.
 #[derive(Debug, Clone)]
 pub struct CommitBatchesValidium {
     pub last_committed_l1_batch: L1BatchWithMetadata,

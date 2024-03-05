@@ -7,7 +7,7 @@ use zksync_types::{
 
 use crate::Tokenizable;
 
-/// Encoding for `CommitBatchInfo` from `IExecutor.sol`
+/// Encoding for `CommitBatchInfo` from `IExecutor.sol` for a contract running in rollup mode.
 #[derive(Debug)]
 pub struct CommitBatchInfoRollup<'a> {
     pub l1_batch_with_metadata: &'a L1BatchWithMetadata,
@@ -49,7 +49,7 @@ impl<'a> Tokenizable for CommitBatchInfoRollup<'a> {
     }
 }
 
-/// Encoding for `CommitBatchInfo` from `IExecutor.sol`
+/// Encoding for `CommitBatchInfo` from `IExecutor.sol` for a contract running in validium mode.
 #[derive(Debug)]
 pub struct CommitBatchInfoValidium<'a> {
     pub l1_batch_with_metadata: &'a L1BatchWithMetadata,
