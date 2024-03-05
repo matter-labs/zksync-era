@@ -118,10 +118,12 @@ jobs:
           ci_run sccache --show-stats
           ci_run cat /tmp/sccache_log.txt
   integration:
-    name: Integration (consensus=${{ matrix.consensus }})
+    name: Integration (consensus=${{ matrix.consensus }}, deployment_mode=${{ matrix.mode }})
     strategy:
       matrix:
         consensus: [false, true]
+        mode: ["Rollup", "Validium"]
+
     env:
       SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,basic_witness_input_producer,commitment_generator${{ matrix.consensus && ',consensus' || '' }}"
 
@@ -179,9 +181,13 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk
-          ci_run zk env dev_validium_docker
-          ci_run zk config compile dev_validium_docker
-          ci_run zk init --validium-mode
+          if [[ "${{ matrix.mode }}" == "Rollup" ]]; then
+            ci_run zk init
+          elif [[ "${{ matrix.mode }}" == "Validium" ]]; then
+            ci_run zk env dev_validium_docker
+            ci_run zk config compile dev_validium_docker
+            ci_run zk init --validium-mode
+          fi
 
 
       # `sleep 5` because we need to wait until server started properly
@@ -252,7 +258,7 @@ jobs:
           ci_run cat /tmp/sccache_log.txt
 
   external-node:
-    name: External node (consensus=${{ matrix.consensus }}, mode=${{ matrix.mode }})
+    name: External node (consensus=${{ matrix.consensus }}, deployment_mode=${{ matrix.mode }})
     strategy:
       matrix:
         consensus: [false, true]
@@ -292,7 +298,8 @@ jobs:
           if [[ "${{ matrix.mode }}" == "Rollup" ]]; then
             ci_run zk init
           elif [[ "${{ matrix.mode }}" == "Validium" ]]; then
-            ci_run zk env dev_validium
+            ci_run zk env dev_validium_docker
+            ci_run zk config compile dev_validium_docker
             ci_run zk init --validium-mode
           fi
 
