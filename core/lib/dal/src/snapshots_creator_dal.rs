@@ -1,6 +1,6 @@
 use zksync_types::{
-    snapshots::{SnapshotFactoryDependency, SnapshotStorageLog},
-    AccountTreeId, Address, L1BatchNumber, MiniblockNumber, StorageKey, H256,
+    snapshots::SnapshotStorageLog, AccountTreeId, Address, L1BatchNumber, MiniblockNumber,
+    StorageKey, H256,
 };
 
 use crate::{instrument::InstrumentExt, StorageProcessor};
@@ -33,7 +33,7 @@ impl SnapshotsCreatorDal<'_, '_> {
         )
         .instrument("get_storage_logs_count")
         .report_latency()
-        .fetch_one(self.storage.conn())
+        .fetch_one(self.storage)
         .await?
         .index;
         Ok(count as u64)
@@ -83,7 +83,7 @@ impl SnapshotsCreatorDal<'_, '_> {
         .with_arg("min_hashed_key", &hashed_keys_range.start())
         .with_arg("max_hashed_key", &hashed_keys_range.end())
         .report_latency()
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage)
         .await?
         .iter()
         .map(|row| SnapshotStorageLog {
@@ -99,13 +99,15 @@ impl SnapshotsCreatorDal<'_, '_> {
         Ok(storage_logs)
     }
 
+    /// Returns all factory dependencies up to and including the specified `miniblock_number`.
     pub async fn get_all_factory_deps(
         &mut self,
         miniblock_number: MiniblockNumber,
-    ) -> sqlx::Result<Vec<SnapshotFactoryDependency>> {
+    ) -> sqlx::Result<Vec<(H256, Vec<u8>)>> {
         let rows = sqlx::query!(
             r#"
             SELECT
+                bytecode_hash,
                 bytecode
             FROM
                 factory_deps
@@ -116,14 +118,12 @@ impl SnapshotsCreatorDal<'_, '_> {
         )
         .instrument("get_all_factory_deps")
         .report_latency()
-        .fetch_all(self.storage.conn())
+        .fetch_all(self.storage)
         .await?;
 
         Ok(rows
             .into_iter()
-            .map(|row| SnapshotFactoryDependency {
-                bytecode: row.bytecode.into(),
-            })
+            .map(|row| (H256::from_slice(&row.bytecode_hash), row.bytecode))
             .collect())
     }
 }

@@ -17,7 +17,7 @@ import {
     deployL2ContractsCommand
 } from './init';
 import { initHyperchainCommand } from './hyperchain_wizard';
-import { command as run } from './run/run';
+import { command as run } from './run';
 import { command as test } from './test/test';
 import { command as docker } from './docker';
 import { command as fmt } from './fmt';

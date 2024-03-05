@@ -36,11 +36,12 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
                 .get_decommitted_bytecodes_after_timestamp(timestamp_initial),
             cycles_used: self.state.local_state.monotonic_cycle_counter - cycles_initial,
             gas_used: gas_remaining_before - gas_remaining_after,
+            gas_remaining: gas_remaining_after,
             computational_gas_used,
             total_log_queries: total_log_queries_count,
             // This field will be populated by the `RefundTracer`
             pubdata_published: 0,
-            estimated_circuits_used: 0.0,
+            circuit_statistic: Default::default(),
         }
     }
 

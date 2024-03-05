@@ -38,7 +38,8 @@ impl DebugNamespace {
                 .get_batch_fee_input_scaled(
                     state.api_config.estimate_gas_scale_factor,
                     state.api_config.estimate_gas_scale_factor,
-                ),
+                )
+                .await,
             state,
             api_contracts,
         }
@@ -72,7 +73,7 @@ impl DebugNamespace {
             .await?;
         let call_traces = connection
             .blocks_web3_dal()
-            .get_trace_for_miniblock(block_number) // FIXME: is some ordering among transactions expected?
+            .get_traces_for_miniblock(block_number)
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?;
         let call_trace = call_traces
@@ -108,7 +109,11 @@ impl DebugNamespace {
             .access_storage_tagged("api")
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?;
-        let call_trace = connection.transactions_dal().get_call_trace(tx_hash).await;
+        let call_trace = connection
+            .transactions_dal()
+            .get_call_trace(tx_hash)
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err))?;
         Ok(call_trace.map(|call_trace| {
             let mut result: DebugCall = call_trace.into();
             if only_top_call {
@@ -175,7 +180,8 @@ impl DebugNamespace {
                 self.sender_config().vm_execution_cache_misses_limit,
                 custom_tracers,
             )
-            .await;
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err))?;
 
         let (output, revert_reason) = match result.result {
             ExecutionResult::Success { output, .. } => (output, None),

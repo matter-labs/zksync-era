@@ -5,16 +5,17 @@ use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::{
-    BoundEthInterface, Error, ExecutedTxStatus, RawTransactionBytes, SignedCallResult,
+    BoundEthInterface, Error, EthInterface, ExecutedTxStatus, Options, RawTransactionBytes,
+    SignedCallResult,
 };
 use zksync_types::{
+    aggregated_operations::AggregatedActionType,
     eth_sender::EthTx,
     web3::{
-        contract::Options,
         error::Error as Web3Error,
         types::{BlockId, BlockNumber},
     },
-    L1BlockNumber, Nonce, H256, U256,
+    Address, L1BlockNumber, Nonce, H256, U256,
 };
 use zksync_utils::time::seconds_since_epoch;
 
@@ -37,6 +38,7 @@ struct OperatorNonce {
 
 #[derive(Debug, Clone, Copy)]
 pub(super) struct L1BlockNumbers {
+    pub safe: L1BlockNumber,
     pub finalized: L1BlockNumber,
     pub latest: L1BlockNumber,
 }
@@ -48,7 +50,11 @@ pub(super) struct L1BlockNumbers {
 /// with higher gas price
 #[derive(Debug)]
 pub struct EthTxManager {
+    /// A gateway through which the operator normally sends all its transactions.
     ethereum_gateway: Arc<dyn BoundEthInterface>,
+    /// If the operator is in 4844 mode this is sent to `Some` and used to send
+    /// commit transactions.
+    ethereum_gateway_blobs: Option<Arc<dyn BoundEthInterface>>,
     config: SenderConfig,
     gas_adjuster: Arc<dyn L1TxParamsProvider>,
 }
@@ -58,9 +64,11 @@ impl EthTxManager {
         config: SenderConfig,
         gas_adjuster: Arc<dyn L1TxParamsProvider>,
         ethereum_gateway: Arc<dyn BoundEthInterface>,
+        ethereum_gateway_blobs: Option<Arc<dyn BoundEthInterface>>,
     ) -> Self {
         Self {
             ethereum_gateway,
+            ethereum_gateway_blobs,
             config,
             gas_adjuster,
         }
@@ -275,23 +283,60 @@ impl EthTxManager {
         Ok(OperatorNonce { finalized, latest })
     }
 
+    async fn get_blobs_operator_nonce(
+        &self,
+        block_numbers: L1BlockNumbers,
+    ) -> Result<Option<OperatorNonce>, ETHSenderError> {
+        match &self.ethereum_gateway_blobs {
+            None => Ok(None),
+            Some(gateway) => {
+                let finalized = gateway
+                    .nonce_at(block_numbers.finalized.0.into(), "eth_tx_manager")
+                    .await?
+                    .as_u32()
+                    .into();
+
+                let latest = gateway
+                    .nonce_at(block_numbers.latest.0.into(), "eth_tx_manager")
+                    .await?
+                    .as_u32()
+                    .into();
+                Ok(Some(OperatorNonce { finalized, latest }))
+            }
+        }
+    }
+
     async fn get_l1_block_numbers(&self) -> Result<L1BlockNumbers, ETHSenderError> {
-        let finalized = if let Some(confirmations) = self.config.wait_confirmations {
+        let (finalized, safe) = if let Some(confirmations) = self.config.wait_confirmations {
             let latest_block_number = self
                 .ethereum_gateway
                 .block_number("eth_tx_manager")
                 .await?
                 .as_u64();
-            (latest_block_number.saturating_sub(confirmations) as u32).into()
+
+            let finalized = (latest_block_number.saturating_sub(confirmations) as u32).into();
+            (finalized, finalized)
         } else {
-            self.ethereum_gateway
+            let finalized = self
+                .ethereum_gateway
                 .block(BlockId::Number(BlockNumber::Finalized), "eth_tx_manager")
                 .await?
                 .expect("Finalized block must be present on L1")
                 .number
                 .expect("Finalized block must contain number")
                 .as_u32()
-                .into()
+                .into();
+
+            let safe = self
+                .ethereum_gateway
+                .block(BlockId::Number(BlockNumber::Safe), "eth_tx_manager")
+                .await?
+                .expect("Safe block must be present on L1")
+                .number
+                .expect("Safe block must contain number")
+                .as_u32()
+                .into();
+            (finalized, safe)
         };
 
         let latest = self
@@ -300,7 +345,12 @@ impl EthTxManager {
             .await?
             .as_u32()
             .into();
-        Ok(L1BlockNumbers { finalized, latest })
+
+        Ok(L1BlockNumbers {
+            finalized,
+            latest,
+            safe,
+        })
     }
 
     // Monitors the in-flight transactions, marks mined ones as confirmed,
@@ -310,10 +360,46 @@ impl EthTxManager {
         storage: &mut StorageProcessor<'_>,
         l1_block_numbers: L1BlockNumbers,
     ) -> Result<Option<(EthTx, u32)>, ETHSenderError> {
-        METRICS
-            .last_known_l1_block
-            .set(l1_block_numbers.latest.0.into());
+        METRICS.track_block_numbers(&l1_block_numbers);
         let operator_nonce = self.get_operator_nonce(l1_block_numbers).await?;
+        let blobs_operator_nonce = self.get_blobs_operator_nonce(l1_block_numbers).await?;
+        let blobs_operator_address = self
+            .ethereum_gateway_blobs
+            .as_ref()
+            .map(|s| s.sender_account());
+
+        if let Some(res) = self
+            .monitor_inflight_transactions_inner(storage, l1_block_numbers, operator_nonce, None)
+            .await?
+        {
+            return Ok(Some(res));
+        };
+
+        if let Some(blobs_operator_nonce) = blobs_operator_nonce {
+            // need to check if both nonce and address are `Some`
+            if blobs_operator_address.is_none() {
+                panic!("blobs_operator_address has to be set its nonce is known; qed");
+            }
+            Ok(self
+                .monitor_inflight_transactions_inner(
+                    storage,
+                    l1_block_numbers,
+                    blobs_operator_nonce,
+                    blobs_operator_address,
+                )
+                .await?)
+        } else {
+            Ok(None)
+        }
+    }
+
+    async fn monitor_inflight_transactions_inner(
+        &mut self,
+        storage: &mut StorageProcessor<'_>,
+        l1_block_numbers: L1BlockNumbers,
+        operator_nonce: OperatorNonce,
+        operator_address: Option<Address>,
+    ) -> Result<Option<(EthTx, u32)>, ETHSenderError> {
         let inflight_txs = storage.eth_sender_dal().get_inflight_txs().await.unwrap();
         METRICS.number_of_inflight_txs.set(inflight_txs.len());
 
@@ -330,6 +416,9 @@ impl EthTxManager {
         // Not confirmed transactions, ordered by nonce
         for tx in inflight_txs {
             tracing::trace!("Checking tx id: {}", tx.id,);
+            if tx.from_addr != operator_address {
+                continue;
+            }
 
             // If the `operator_nonce.latest` <= `tx.nonce`, this means
             // that `tx` is not mined and we should resend it.
@@ -386,7 +475,21 @@ impl EthTxManager {
         base_fee_per_gas: u64,
         priority_fee_per_gas: u64,
     ) -> SignedCallResult {
-        self.ethereum_gateway
+        // Chose the signing gateway. Use a custom one in case
+        // the operator is in 4844 mode and the operation at hand is Commit.
+        // then the optional gateway is used to send this transaction from a
+        // custom sender account.
+        let signing_gateway = if let Some(blobs_gateway) = self.ethereum_gateway_blobs.as_ref() {
+            if tx.tx_type == AggregatedActionType::Commit {
+                blobs_gateway
+            } else {
+                &self.ethereum_gateway
+            }
+        } else {
+            &self.ethereum_gateway
+        };
+
+        signing_gateway
             .sign_prepared_tx_for_addr(
                 tx.raw_tx.clone(),
                 tx.contract_address,

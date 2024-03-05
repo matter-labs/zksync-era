@@ -55,7 +55,7 @@ async function initHyperchain(envName: string) {
     const governorPrivateKey = process.env.GOVERNOR_PRIVATE_KEY;
     const deployL2WrappedBaseToken = Boolean(process.env.DEPLOY_L2_WETH || false);
     const deployTestTokens = Boolean(process.env.DEPLOY_TEST_TOKENS || false);
-
+    const governorAdrress = ethers.utils.computeAddress(governorPrivateKey!);
     const initArgs: InitArgs = {
         skipSubmodulesCheckout: false,
         skipEnvSetup: true,
@@ -73,7 +73,8 @@ async function initHyperchain(envName: string) {
         baseToken: {
             name: 'ETH',
             address: ADDRESS_ONE
-        }
+        },
+        deployerPrivateKeyArgs: ['--private-key', deployerPrivateKey, '--owner-address', governorAdrress]
     };
 
     await initHyper(initArgs);
@@ -140,6 +141,7 @@ async function setHyperchainMetadata() {
         BaseNetwork.GOERLI,
         BaseNetwork.MAINNET
     ];
+
     const GENERATE_KEYS = 'Generate keys';
     const INSERT_KEYS = 'Insert keys';
     const questions: BasePromptOptions[] = [
@@ -168,7 +170,13 @@ async function setHyperchainMetadata() {
     // kl todo add random chainId generation here if user does not want to pick chainId.
 
     let deployer, governor, ethOperator, feeReceiver: ethers.Wallet | undefined;
-    let feeReceiverAddress, l1Rpc, l1Id, databaseUrl;
+    let feeReceiverAddress, l1Rpc, l1Id, databaseUrl, databaseProverUrl;
+
+    if (results.l1Chain !== BaseNetwork.LOCALHOST || results.l1Chain !== BaseNetwork.LOCALHOST_CUSTOM) {
+        // If it's not a localhost chain, we need to remove the CONTRACTS_CREATE2_FACTORY_ADDR from the .env file and use default value.
+        // Otherwise it's a chance that we will reuse create2 factory from the localhost chain.
+        env.removeFromInit('CONTRACTS_CREATE2_FACTORY_ADDR');
+    }
 
     if (results.l1Chain !== BaseNetwork.LOCALHOST) {
         const connectionsQuestions: BasePromptOptions[] = [
@@ -193,10 +201,19 @@ async function setHyperchainMetadata() {
 
         connectionsQuestions.push({
             message:
-                'What is the connection URL for your Postgress 14 database (format is postgres://<user>:<pass>@<hostname>:<port>/<database>)?',
+                'What is the connection URL for your Postgress 14 main database (format is postgres://<user>:<pass>@<hostname>:<port>/<database>)?',
             name: 'dbUrl',
             type: 'input',
-            initial: 'postgres://postgres@localhost/zksync_local',
+            initial: 'postgres://postgres:notsecurepassword@127.0.0.1:5432/zksync_local',
+            required: true
+        });
+
+        connectionsQuestions.push({
+            message:
+                'What is the connection URL for your Postgress 14 prover database (format is postgres://<user>:<pass>@<hostname>:<port>/<database>)?',
+            name: 'dbProverUrl',
+            type: 'input',
+            initial: 'postgres://postgres:notsecurepassword@127.0.0.1:5432/prover_local',
             required: true
         });
 
@@ -212,6 +229,7 @@ async function setHyperchainMetadata() {
 
         l1Rpc = connectionsResults.l1Rpc;
         databaseUrl = connectionsResults.dbUrl;
+        databaseProverUrl = connectionsResults.dbProverUrl;
 
         if (results.l1Chain === BaseNetwork.LOCALHOST_CUSTOM) {
             l1Id = connectionsResults.l1NetworkId;
@@ -226,6 +244,7 @@ async function setHyperchainMetadata() {
             feeReceiver = ethers.Wallet.createRandom();
             feeReceiverAddress = feeReceiver.address;
         } else {
+            console.log(warning('The private keys for these wallets must be different from each other!\n'));
             const keyQuestions: BasePromptOptions[] = [
                 {
                     message: 'Private key of the L1 Deployer (the one that deploys the contracts)',
@@ -281,14 +300,18 @@ async function setHyperchainMetadata() {
             feeReceiverAddress = keyResults.feeReceiver;
         }
     } else {
-        // PLA:681
-        isLocalhost = true;
-        l1Rpc = 'http://localhost:8545';
+        l1Rpc = 'http://127.0.0.1:8545';
         l1Id = 9;
         databaseUrl = 'postgres://postgres:notsecurepassword@localhost:5432/zksync_local';
         env.modify(
             'DATABASE_URL',
             databaseUrl,
+            `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`
+        );
+        databaseProverUrl = 'postgres://postgres:notsecurepassword@127.0.0.1:5432/prover_local';
+        env.modify(
+            'DATABASE_PROVER_URL',
+            databaseProverUrl,
             `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`
         );
 
@@ -305,7 +328,7 @@ async function setHyperchainMetadata() {
         feeReceiverAddress = richWallets[3].address;
 
         await up('docker-compose-zkstack-common.yml');
-        await announced('Ensuring databases are up', db.wait());
+        await announced('Ensuring databases are up', db.wait({ server: true, prover: false }));
     }
 
     // testTokens and weth will be done for the shared bridge.
@@ -597,6 +620,9 @@ type L1Token = {
 
 export function getTokens(network: string): L1Token[] {
     const configPath = `${process.env.ZKSYNC_HOME}/etc/tokens/${network}.json`;
+    if (!fs.existsSync(configPath)) {
+        return [];
+    }
     try {
         return JSON.parse(
             fs.readFileSync(configPath, {
@@ -763,7 +789,8 @@ async function configDemoHyperchain(cmd: Command) {
     const deployerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
     const governorPrivateKey = process.env.GOVERNOR_PRIVATE_KEY;
     const deployL2WrappedBaseToken = Boolean(process.env.DEPLOY_L2_WETH || false);
-    const deployTestTokens = Boolean(process.env.DEPLOY_TEST_TOKENS || false);
+    const deployL2Weth = Boolean(process.env.DEPLOY_L2_WETH || false);
+    const deployTestTokens = Boolean(process.env.DEPLOY_TEST_TOKENS || true);
 
     const initArgs: InitArgs = {
         skipSubmodulesCheckout: false,
@@ -781,7 +808,8 @@ async function configDemoHyperchain(cmd: Command) {
         },
         baseToken: {
             address: ADDRESS_ONE
-        }
+        },
+        deployerPrivateKeyArgs: ['--private-key', deployerPrivateKey]
     };
 
     if (!cmd.skipEnvSetup) {

@@ -9,12 +9,16 @@ use zksync_web3_decl::{
     jsonrpsee::types::{error::ErrorCode, ErrorObjectOwned},
 };
 
-use crate::api_server::web3::metrics::API_METRICS;
+use crate::api_server::{tx_sender::SubmitTxError, web3::metrics::API_METRICS};
 
 pub mod batch_limiter_middleware;
 pub mod namespaces;
 
-pub fn into_jsrpc_error(err: Web3Error) -> ErrorObjectOwned {
+pub(crate) fn into_jsrpc_error(err: Web3Error) -> ErrorObjectOwned {
+    let data = match &err {
+        Web3Error::SubmitTransactionError(_, data) => Some(format!("0x{}", hex::encode(data))),
+        _ => None,
+    };
     ErrorObjectOwned::owned(
         match err {
             Web3Error::InternalError | Web3Error::NotImplemented => ErrorCode::InternalError.code(),
@@ -35,17 +39,30 @@ pub fn into_jsrpc_error(err: Web3Error) -> ErrorObjectOwned {
             Web3Error::TreeApiUnavailable => 6,
         },
         match err {
-            Web3Error::SubmitTransactionError(ref message, _) => message.clone(),
+            Web3Error::SubmitTransactionError(message, _) => message,
             _ => err.to_string(),
         },
-        match err {
-            Web3Error::SubmitTransactionError(_, data) => Some(format!("0x{}", hex::encode(data))),
-            _ => None,
-        },
+        data,
     )
 }
 
-pub fn internal_error(method_name: &'static str, error: impl fmt::Display) -> Web3Error {
+impl SubmitTxError {
+    /// Maps this error into [`Web3Error`]. If this is an internal error, error details are logged, but are not returned
+    /// to the client.
+    pub(crate) fn into_web3_error(self, method_name: &'static str) -> Web3Error {
+        match self {
+            Self::Internal(err) => internal_error(method_name, err),
+            Self::ProxyError(ref err) => {
+                // Strip internal error details that should not be exposed to the caller.
+                tracing::warn!("Error proxying call to main node in method {method_name}: {err}");
+                Web3Error::SubmitTransactionError(err.as_ref().to_string(), self.data())
+            }
+            _ => Web3Error::SubmitTransactionError(self.to_string(), self.data()),
+        }
+    }
+}
+
+pub(crate) fn internal_error(method_name: &'static str, error: impl fmt::Display) -> Web3Error {
     tracing::error!("Internal error in method {method_name}: {error}");
     API_METRICS.web3_internal_errors[&method_name].inc();
     Web3Error::InternalError

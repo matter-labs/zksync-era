@@ -30,6 +30,18 @@ impl BatchFeeInput {
             fair_l2_gas_price,
         })
     }
+
+    pub fn pubdata_independent(
+        l1_gas_price: u64,
+        fair_l2_gas_price: u64,
+        fair_pubdata_price: u64,
+    ) -> Self {
+        Self::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
+            l1_gas_price,
+            fair_l2_gas_price,
+            fair_pubdata_price,
+        })
+    }
 }
 
 impl Default for BatchFeeInput {
@@ -99,6 +111,27 @@ impl BatchFeeInput {
                 fair_l2_gas_price,
                 l1_gas_price,
             })
+        }
+    }
+
+    pub fn stricter(self, other: BatchFeeInput) -> Self {
+        match (self, other) {
+            (BatchFeeInput::L1Pegged(first), BatchFeeInput::L1Pegged(second)) => Self::l1_pegged(
+                first.l1_gas_price.max(second.l1_gas_price),
+                first.fair_l2_gas_price.max(second.fair_l2_gas_price),
+            ),
+            input @ (_, _) => {
+                let (first, second) = (
+                    input.0.into_pubdata_independent(),
+                    input.1.into_pubdata_independent(),
+                );
+
+                Self::pubdata_independent(
+                    first.l1_gas_price.max(second.l1_gas_price),
+                    first.fair_l2_gas_price.max(second.fair_l2_gas_price),
+                    first.fair_pubdata_price.max(second.fair_pubdata_price),
+                )
+            }
         }
     }
 }

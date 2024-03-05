@@ -227,6 +227,7 @@ pub(super) fn collect_tx_execution_metrics(
         initial_storage_writes: writes_metrics.initial_storage_writes,
         repeated_storage_writes: writes_metrics.repeated_storage_writes,
         gas_used: result.statistics.gas_used as usize,
+        gas_remaining: result.statistics.gas_remaining,
         event_topics,
         published_bytecode_bytes,
         l2_l1_long_messages,
@@ -240,6 +241,6 @@ pub(super) fn collect_tx_execution_metrics(
         computational_gas_used: result.statistics.computational_gas_used,
         total_updated_values_size: writes_metrics.total_updated_values_size,
         pubdata_published: result.statistics.pubdata_published,
-        estimated_circuits_used: result.statistics.estimated_circuits_used,
+        circuit_statistic: result.statistics.circuit_statistic,
     }
 }

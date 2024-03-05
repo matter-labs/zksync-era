@@ -5,17 +5,17 @@ use zksync_web3_decl::namespaces::DebugNamespaceClient;
 
 use super::*;
 
-fn execute_l2_transaction_with_traces() -> TransactionExecutionResult {
+fn execute_l2_transaction_with_traces(index_in_block: u8) -> TransactionExecutionResult {
     let first_call_trace = Call {
-        from: Address::repeat_byte(1),
-        to: Address::repeat_byte(2),
+        from: Address::repeat_byte(index_in_block),
+        to: Address::repeat_byte(index_in_block + 1),
         gas: 100,
         gas_used: 42,
         ..Call::default()
     };
     let second_call_trace = Call {
-        from: Address::repeat_byte(0xff),
-        to: Address::repeat_byte(0xab),
+        from: Address::repeat_byte(0xff - index_in_block),
+        to: Address::repeat_byte(0xab - index_in_block),
         value: 123.into(),
         gas: 58,
         gas_used: 10,
@@ -35,7 +35,7 @@ struct TraceBlockTest(MiniblockNumber);
 #[async_trait]
 impl HttpTest for TraceBlockTest {
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
-        let tx_results = [execute_l2_transaction_with_traces()];
+        let tx_results = [0, 1, 2].map(execute_l2_transaction_with_traces);
         let mut storage = pool.access_storage().await?;
         let new_miniblock = store_miniblock(&mut storage, self.0, &tx_results).await?;
         drop(storage);
@@ -45,11 +45,6 @@ impl HttpTest for TraceBlockTest {
             api::BlockId::Number(api::BlockNumber::Latest),
             api::BlockId::Hash(new_miniblock.hash),
         ];
-        let expected_calls: Vec<_> = tx_results[0]
-            .call_traces
-            .iter()
-            .map(|call| api::DebugCall::from(call.clone()))
-            .collect();
 
         for block_id in block_ids {
             let block_traces = match block_id {
@@ -57,12 +52,19 @@ impl HttpTest for TraceBlockTest {
                 api::BlockId::Hash(hash) => client.trace_block_by_hash(hash, None).await?,
             };
 
-            assert_eq!(block_traces.len(), 1); // equals to the number of transactions in the block
-            let api::ResultDebugCall { result } = &block_traces[0];
-            assert_eq!(result.from, Address::zero());
-            assert_eq!(result.to, BOOTLOADER_ADDRESS);
-            assert_eq!(result.gas, tx_results[0].transaction.gas_limit());
-            assert_eq!(result.calls, expected_calls);
+            assert_eq!(block_traces.len(), tx_results.len()); // equals to the number of transactions in the block
+            for (trace, tx_result) in block_traces.iter().zip(&tx_results) {
+                let api::ResultDebugCall { result } = trace;
+                assert_eq!(result.from, Address::zero());
+                assert_eq!(result.to, BOOTLOADER_ADDRESS);
+                assert_eq!(result.gas, tx_result.transaction.gas_limit());
+                let expected_calls: Vec<_> = tx_result
+                    .call_traces
+                    .iter()
+                    .map(|call| api::DebugCall::from(call.clone()))
+                    .collect();
+                assert_eq!(result.calls, expected_calls);
+            }
         }
 
         let missing_block_number = api::BlockNumber::from(*self.0 + 100);
@@ -96,7 +98,7 @@ struct TraceTransactionTest;
 #[async_trait]
 impl HttpTest for TraceTransactionTest {
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
-        let tx_results = [execute_l2_transaction_with_traces()];
+        let tx_results = [execute_l2_transaction_with_traces(0)];
         let mut storage = pool.access_storage().await?;
         store_miniblock(&mut storage, MiniblockNumber(1), &tx_results).await?;
         drop(storage);
@@ -135,8 +137,7 @@ impl HttpTest for TraceBlockTestWithSnapshotRecovery {
     }
 
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
-        let snapshot_miniblock_number =
-            MiniblockNumber(StorageInitialization::SNAPSHOT_RECOVERY_BLOCK);
+        let snapshot_miniblock_number = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK;
         let missing_miniblock_numbers = [
             MiniblockNumber(0),
             snapshot_miniblock_number - 1,
@@ -148,10 +149,10 @@ impl HttpTest for TraceBlockTestWithSnapshotRecovery {
                 .trace_block_by_number(number.0.into(), None)
                 .await
                 .unwrap_err();
-            assert_pruned_block_error(&error, 24);
+            assert_pruned_block_error(&error, snapshot_miniblock_number + 1);
         }
 
-        TraceBlockTest(snapshot_miniblock_number + 1)
+        TraceBlockTest(snapshot_miniblock_number + 2)
             .test(client, pool)
             .await?;
         Ok(())

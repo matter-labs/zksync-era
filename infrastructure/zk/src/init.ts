@@ -10,7 +10,7 @@ import * as contract from './contract';
 import * as db from './database';
 import * as docker from './docker';
 import * as env from './env';
-import * as run from './run/run';
+import * as run from './run';
 import * as server from './server';
 import { up } from './up';
 
@@ -41,8 +41,8 @@ export async function initSetup(initArgs: InitArgs = DEFAULT_ARGS) {
 export async function initSetupDatabase(initArgs: InitArgs = DEFAULT_ARGS, skipVerifierDeployment: boolean = false) {
     const { deployerL2ContractInput } = initArgs;
 
-    await announced('Drop postgres db', db.drop());
-    await announced('Setup postgres db', db.setup());
+    await announced('Drop postgres db', db.drop({ server: true, prover: true }));
+    await announced('Setup postgres db', db.setup({ server: true, prover: true }));
     await announced('Clean rocksdb', clean(`db/${process.env.ZKSYNC_ENV!}`));
     await announced('Clean backups', clean(`backups/${process.env.ZKSYNC_ENV!}`));
     if (!skipVerifierDeployment) {
@@ -107,8 +107,8 @@ export async function reinit() {
     await announced('Setting up containers', up());
     await announced('Compiling JS packages', run.yarn());
     await announced('Compile l2 contracts', compiler.compileAll());
-    await announced('Drop postgres db', db.drop());
-    await announced('Setup postgres db', db.setup());
+    await announced('Drop postgres db', db.drop({ server: true, prover: true }));
+    await announced('Setup postgres db', db.setup({ server: true, prover: true }));
     await announced('Clean rocksdb', clean(`db/${process.env.ZKSYNC_ENV!}`));
     await announced('Clean backups', clean(`backups/${process.env.ZKSYNC_ENV!}`));
     await announced('Building contracts', contract.build());
@@ -175,6 +175,7 @@ export interface InitArgs {
     skipSubmodulesCheckout: boolean;
     skipEnvSetup: boolean;
     governorPrivateKeyArgs: any[];
+    deployerPrivateKeyArgs: any[];
     deployerL2ContractInput: {
         args: any[];
         throughL1: boolean;
@@ -197,7 +198,8 @@ const DEFAULT_ARGS: InitArgs = {
     governorPrivateKeyArgs: [],
     deployerL2ContractInput: { args: [], throughL1: true, includePaymaster: true },
     testTokens: { deploy: true, deployWeth: true, args: [] },
-    baseToken: { name: 'ETH', address: ADDRESS_ONE }
+    baseToken: { name: 'ETH', address: ADDRESS_ONE },
+    deployerPrivateKeyArgs: []
 };
 
 export const initCommand = new Command('init')
@@ -232,7 +234,8 @@ export const initCommand = new Command('init')
             baseToken: {
                 name: cmd.baseTokenName,
                 address: cmd.baseTokenAddress ? cmd.baseTokenAddress : ethers.constants.AddressZero
-            }
+            },
+            deployerPrivateKeyArgs: []
         };
         await init(initArgs);
     });
@@ -288,7 +291,8 @@ export const initHyperCommand = new Command('init-hyper')
                 name: cmd.baseTokenName,
                 // we use zero here to show that it is unspecified. If it were ether it would be one.
                 address: cmd.baseTokenAddress ? cmd.baseTokenAddress : ethers.constants.AddressZero
-            }
+            },
+            deployerPrivateKeyArgs: []
         };
         if (!cmd.skipSetupCompletely) {
             await initSetup(initArgs);
@@ -330,7 +334,8 @@ export const reinitHyperCommand = new Command('reinit-hyper')
                 name: cmd.baseTokenName,
                 // we use zero here to show that it is unspecified. If it is ether it is one.
                 address: cmd.baseTokenAddress ? cmd.baseTokenAddress : ethers.constants.AddressZero
-            }
+            },
+            deployerPrivateKeyArgs: []
         };
         await initHyper(initArgs);
     });
@@ -368,7 +373,8 @@ export const initSharedBridgeCommand = new Command('init-shared-bridge')
                 name: cmd.baseTokenName,
                 // we use zero here to show that it is unspecified. If it is ether would be one.
                 address: cmd.baseTokenAddress ? cmd.baseTokenAddress : ethers.constants.AddressZero
-            }
+            },
+            deployerPrivateKeyArgs: []
         };
         await initSetup(initArgs);
         // we have to initiate the db here, as we need to create the genesis block to initialize the L1 contracts
@@ -404,7 +410,8 @@ export const deployL2ContractsCommand = new Command('deploy-l2-contracts')
                 name: cmd.baseTokenName,
                 // we use zero here to show that it is unspecified. If it is ether would be one.
                 address: cmd.baseTokenAddress ? cmd.baseTokenAddress : ethers.constants.AddressZero
-            }
+            },
+            deployerPrivateKeyArgs: []
         };
 
         await deployL2Contracts(initArgs);

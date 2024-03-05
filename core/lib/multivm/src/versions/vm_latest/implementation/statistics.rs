@@ -1,6 +1,6 @@
 use zk_evm_1_4_1::aux_structures::Timestamp;
 use zksync_state::WriteStorage;
-use zksync_types::U256;
+use zksync_types::{circuit::CircuitStatistic, U256};
 
 use crate::{
     interface::{VmExecutionStatistics, VmMemoryMetrics},
@@ -18,13 +18,13 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         &self,
         timestamp_initial: Timestamp,
         cycles_initial: u32,
-        tracer: &DefaultExecutionTracer<S, H::Vm1_4_1>,
+        tracer: &DefaultExecutionTracer<S, H::Vm1_4_2>,
         gas_remaining_before: u32,
         gas_remaining_after: u32,
         spent_pubdata_counter_before: u32,
         pubdata_published: u32,
         total_log_queries_count: usize,
-        estimated_circuits_used: f32,
+        circuit_statistic: CircuitStatistic,
     ) -> VmExecutionStatistics {
         let computational_gas_used = self.calculate_computational_gas_used(
             tracer,
@@ -38,10 +38,11 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
                 .get_decommitted_bytecodes_after_timestamp(timestamp_initial),
             cycles_used: self.state.local_state.monotonic_cycle_counter - cycles_initial,
             gas_used: gas_remaining_before - gas_remaining_after,
+            gas_remaining: gas_remaining_after,
             computational_gas_used,
             total_log_queries: total_log_queries_count,
             pubdata_published,
-            estimated_circuits_used,
+            circuit_statistic,
         }
     }
 

@@ -1,0 +1,22 @@
+[package]
+name = "zksync_test_account"
+version = "0.1.0"
+edition = "2018"
+authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
+homepage = "https://zksync.io/"
+repository = "https://github.com/matter-labs/zksync-era"
+license = "MIT OR Apache-2.0"
+keywords = ["blockchain", "zksync"]
+categories = ["cryptography"]
+readme = "README.md"
+publish = false
+
+[dependencies]
+zksync_types = { path = "../../lib/types" }
+zksync_system_constants = { path = "../../lib/constants" }
+zksync_utils = { path = "../../lib/utils" }
+zksync_eth_signer = { path = "../../lib/eth_signer" }
+zksync_contracts = { path = "../../lib/contracts" }
+
+hex = "0.4"
+ethabi = "18.0.0"

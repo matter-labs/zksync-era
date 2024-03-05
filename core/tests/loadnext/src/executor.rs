@@ -7,10 +7,10 @@ use zksync::{
     utils::{
         get_approval_based_paymaster_input, get_approval_based_paymaster_input_for_estimation,
     },
-    web3::{contract::Options, types::TransactionReceipt},
+    web3::types::TransactionReceipt,
     EthNamespaceClient, EthereumProvider, ZksNamespaceClient,
 };
-use zksync_eth_client::{BoundEthInterface, EthInterface};
+use zksync_eth_client::{BoundEthInterface, EthInterface, Options};
 use zksync_eth_signer::PrivateKeySigner;
 use zksync_system_constants::MAX_L1_TRANSACTION_GAS_LIMIT;
 use zksync_types::{
@@ -442,6 +442,7 @@ impl Executor {
             let paymaster_params = get_approval_based_paymaster_input_for_estimation(
                 paymaster_address,
                 self.l2_main_token,
+                MIN_ALLOWANCE_FOR_PAYMASTER_ESTIMATE.into(),
             );
 
             let fee = builder.estimate_fee(Some(paymaster_params)).await?;

@@ -137,6 +137,9 @@ type L1Token = {
 
 function getTokens(network: string): L1Token[] {
     const configPath = `${process.env.ZKSYNC_HOME}/etc/tokens/${network}.json`;
+    if (!fs.existsSync(configPath)) {
+        return [];
+    }
     return JSON.parse(
         fs.readFileSync(configPath, {
             encoding: 'utf-8'

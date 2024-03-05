@@ -15,15 +15,7 @@ pub enum ProverAtGenesis {
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct ContractsConfig {
     pub governance_addr: Address,
-
-    pub bridgehub_proxy_addr: Address,
-    pub bridgehub_impl_addr: Address,
-
     pub verifier_addr: Address,
-
-    pub state_transition_proxy_addr: Address,
-    pub state_transition_impl_addr: Address,
-
     pub executor_facet_addr: Address,
     pub admin_facet_addr: Address,
     pub mailbox_facet_addr: Address,
@@ -31,7 +23,6 @@ pub struct ContractsConfig {
     pub diamond_init_addr: Address,
     pub diamond_upgrade_init_addr: Address,
     pub diamond_proxy_addr: Address,
-    pub transparent_proxy_admin_addr: Address,
     pub validator_timelock_addr: Address,
     pub genesis_tx_hash: H256,
     pub l1_erc20_bridge_proxy_addr: Address,
@@ -51,6 +42,12 @@ pub struct ContractsConfig {
     pub prover_at_genesis: ProverAtGenesis,
     pub snark_wrapper_vk_hash: H256,
     pub base_token_addr: Address,
+    // These contracts will be used after shared bridge integration.
+    pub bridgehub_proxy_addr: Option<Address>,
+    pub bridgehub_impl_addr: Option<Address>,
+    pub state_transition_proxy_addr: Option<Address>,
+    pub state_transition_impl_addr: Option<Address>,
+    pub transparent_proxy_admin_addr: Option<Address>,
 }
 
 impl ContractsConfig {
@@ -60,19 +57,15 @@ impl ContractsConfig {
     /// Same goes for hashes.
     pub fn for_tests() -> Self {
         Self {
-            bridgehub_proxy_addr: Address::repeat_byte(0x01),
-            bridgehub_impl_addr: Address::repeat_byte(0x01),
-            state_transition_proxy_addr: Address::repeat_byte(0x01),
-            state_transition_impl_addr: Address::repeat_byte(0x01),
             mailbox_facet_addr: Address::repeat_byte(0x01),
             executor_facet_addr: Address::repeat_byte(0x02),
             admin_facet_addr: Address::repeat_byte(0x03),
+            transparent_proxy_admin_addr: Some(Address::repeat_byte(0x04)),
             getters_facet_addr: Address::repeat_byte(0x05),
             verifier_addr: Address::repeat_byte(0x06),
             diamond_init_addr: Address::repeat_byte(0x07),
             diamond_upgrade_init_addr: Address::repeat_byte(0x08),
             diamond_proxy_addr: Address::repeat_byte(0x09),
-            transparent_proxy_admin_addr: Address::repeat_byte(0x09),
             validator_timelock_addr: Address::repeat_byte(0x0a),
             genesis_tx_hash: H256::repeat_byte(0x01),
             l1_erc20_bridge_proxy_addr: Address::repeat_byte(0x0b),
@@ -94,6 +87,10 @@ impl ContractsConfig {
             snark_wrapper_vk_hash: H256::repeat_byte(0x09),
             base_token_addr: Address::from_str("0x0000000000000000000000000000000000000001")
                 .unwrap(),
+            bridgehub_proxy_addr: Some(Address::repeat_byte(0x14)),
+            bridgehub_impl_addr: Some(Address::repeat_byte(0x15)),
+            state_transition_proxy_addr: Some(Address::repeat_byte(0x16)),
+            state_transition_impl_addr: Some(Address::repeat_byte(0x17)),
         }
     }
 }
