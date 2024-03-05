@@ -808,7 +808,7 @@ dependencies = [
 [[package]]
 name = "circuit_definitions"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1#ce188bd36b9ea0d99a8cdb4da9beb91cd3f721c4"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1#9a3e322268f0d06d09a419fc05d06c7139ceb847"
 dependencies = [
  "crossbeam 0.8.4",
  "derivative",
@@ -4914,7 +4914,7 @@ dependencies = [
 [[package]]
 name = "shivini"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-shivini.git?branch=v1.4.1#f4bf41f45a1c5bb3a9e487114bc314d68d4e1aaf"
+source = "git+https://github.com/matter-labs/era-shivini.git?branch=v1.4.1#81d5baac09cb790b3e4c8ce681ed4fd0ab2e0234"
 dependencies = [
  "bincode",
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -6721,7 +6721,7 @@ dependencies = [
 [[package]]
 name = "zkevm_circuits"
 version = "1.4.1"
-source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=v1.4.1#873fe0fcf0bb8df6be0ae1938ce8469d6bf63ebd"
+source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=v1.4.1#3a973afb3cf2b50b7138c1af61cc6ac3d7d0189f"
 dependencies = [
  "arrayvec 0.7.4",
  "bincode",
@@ -6831,7 +6831,7 @@ dependencies = [
 [[package]]
 name = "zkevm_test_harness"
 version = "1.4.1"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1#ce188bd36b9ea0d99a8cdb4da9beb91cd3f721c4"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1#9a3e322268f0d06d09a419fc05d06c7139ceb847"
 dependencies = [
  "bincode",
  "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1)",

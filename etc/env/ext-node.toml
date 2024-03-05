@@ -64,6 +64,7 @@ zksync_consensus_network=info,\
 zksync_consensus_storage=info,\
 zksync_core=debug,\
 zksync_dal=info,\
+zksync_health_check=debug,\
 zksync_eth_client=info,\
 zksync_storage=info,\
 zksync_merkle_tree=info,\

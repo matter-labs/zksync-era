@@ -1,5 +1,6 @@
 use std::convert::TryInto;
 
+use anyhow::Context as _;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
 use zksync_types::{
     protocol_version::{L1VerifierConfig, ProtocolUpgradeTx, ProtocolVersion, VerifierParams},
@@ -65,7 +66,7 @@ impl ProtocolVersionsDal<'_, '_> {
             base_system_contracts_hashes.bootloader.as_bytes(),
             base_system_contracts_hashes.default_aa.as_bytes(),
             verifier_address.as_bytes(),
-            tx_hash.map(|tx_hash| tx_hash.0.to_vec()),
+            tx_hash.as_ref().map(H256::as_bytes),
         )
         .execute(self.storage.conn())
         .await
@@ -98,10 +99,51 @@ impl ProtocolVersionsDal<'_, '_> {
         db_transaction.commit().await.unwrap();
     }
 
+    async fn save_genesis_upgrade_tx_hash(&mut self, id: ProtocolVersionId, tx_hash: Option<H256>) {
+        sqlx::query!(
+            r#"
+            UPDATE protocol_versions
+            SET
+                upgrade_tx_hash = $1
+            WHERE
+                id = $2
+            "#,
+            tx_hash.as_ref().map(H256::as_bytes),
+            id as i32,
+        )
+        .execute(self.storage.conn())
+        .await
+        .unwrap();
+    }
+
+    /// Attaches a transaction used to set ChainId to the genesis protocol version.
+    /// Also inserts that transaction into the database.
+    pub async fn save_genesis_upgrade_with_tx(
+        &mut self,
+        id: ProtocolVersionId,
+        tx: ProtocolUpgradeTx,
+    ) {
+        let tx_hash = Some(tx.common_data.hash());
+
+        let mut db_transaction = self.storage.start_transaction().await.unwrap();
+
+        db_transaction
+            .transactions_dal()
+            .insert_system_transaction(tx)
+            .await;
+
+        db_transaction
+            .protocol_versions_dal()
+            .save_genesis_upgrade_tx_hash(id, tx_hash)
+            .await;
+
+        db_transaction.commit().await.unwrap();
+    }
+
     pub async fn base_system_contracts_by_timestamp(
         &mut self,
         current_timestamp: u64,
-    ) -> (BaseSystemContracts, ProtocolVersionId) {
+    ) -> anyhow::Result<(BaseSystemContracts, ProtocolVersionId)> {
         let row = sqlx::query!(
             r#"
             SELECT
@@ -121,7 +163,11 @@ impl ProtocolVersionsDal<'_, '_> {
         )
         .fetch_one(self.storage.conn())
         .await
-        .unwrap();
+        .context("cannot fetch system contract hashes")?;
+
+        let protocol_version = (row.id as u16)
+            .try_into()
+            .context("bogus protocol version ID")?;
         let contracts = self
             .storage
             .factory_deps_dal()
@@ -129,14 +175,14 @@ impl ProtocolVersionsDal<'_, '_> {
                 H256::from_slice(&row.bootloader_code_hash),
                 H256::from_slice(&row.default_account_code_hash),
             )
-            .await;
-        (contracts, (row.id as u16).try_into().unwrap())
+            .await?;
+        Ok((contracts, protocol_version))
     }
 
     pub async fn load_base_system_contracts_by_version_id(
         &mut self,
         version_id: u16,
-    ) -> Option<BaseSystemContracts> {
+    ) -> anyhow::Result<Option<BaseSystemContracts>> {
         let row = sqlx::query!(
             r#"
             SELECT
@@ -151,20 +197,21 @@ impl ProtocolVersionsDal<'_, '_> {
         )
         .fetch_optional(self.storage.conn())
         .await
-        .unwrap();
-        if let Some(row) = row {
-            Some(
-                self.storage
-                    .factory_deps_dal()
-                    .get_base_system_contracts(
-                        H256::from_slice(&row.bootloader_code_hash),
-                        H256::from_slice(&row.default_account_code_hash),
-                    )
-                    .await,
-            )
+        .context("cannot fetch system contract hashes")?;
+
+        Ok(if let Some(row) = row {
+            let contracts = self
+                .storage
+                .factory_deps_dal()
+                .get_base_system_contracts(
+                    H256::from_slice(&row.bootloader_code_hash),
+                    H256::from_slice(&row.default_account_code_hash),
+                )
+                .await?;
+            Some(contracts)
         } else {
             None
-        }
+        })
     }
 
     pub async fn load_previous_version(

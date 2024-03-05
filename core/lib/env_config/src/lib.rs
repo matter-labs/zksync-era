@@ -18,6 +18,7 @@ mod fri_witness_generator;
 mod fri_witness_vector_generator;
 mod house_keeper;
 pub mod object_store;
+mod observability;
 mod proof_data_handler;
 mod snapshots_creator;
 mod utils;
