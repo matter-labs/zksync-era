@@ -1,11 +1,13 @@
 use std::{convert::TryFrom, str::FromStr};
 
 use sqlx::types::chrono::{DateTime, NaiveDateTime, NaiveTime, Utc};
-use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
-
-use zksync_types::prover::{
-    JobPosition, WitnessJobInfo, WitnessJobStatus, WitnessJobStatusFailed,
-    WitnessJobStatusSuccessful,
+use zksync_types::{
+    basic_fri_types::AggregationRound,
+    prover::{
+        JobPosition, WitnessJobInfo, WitnessJobStatus, WitnessJobStatusFailed,
+        WitnessJobStatusSuccessful,
+    },
+    L1BatchNumber,
 };
 
 #[derive(sqlx::FromRow)]

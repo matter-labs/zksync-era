@@ -1,8 +1,7 @@
 #![feature(arc_unwrap_or_clone)]
 //! Data access layer (DAL) for zkSync Era.
 
-use sqlx::pool::PoolConnection;
-use sqlx::Postgres;
+use sqlx::{pool::PoolConnection, Postgres};
 pub use sqlx::{types::BigDecimal, Error as SqlxError};
 use zksync_db_connection::{
     StorageProcessor, StorageProcessorInner, StorageProcessorTags, TracedConnections,

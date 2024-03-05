@@ -3,17 +3,18 @@ use std::{collections::HashMap, convert::TryFrom, time::Duration};
 use sqlx::Row;
 use zksync_db_connection::StorageProcessor;
 use zksync_types::{
-    basic_fri_types::AggregationRound, protocol_version::FriProtocolVersionId, L1BatchNumber,
+    basic_fri_types::AggregationRound,
+    protocol_version::FriProtocolVersionId,
+    prover::{
+        JobCountStatistics, LeafAggregationJobMetadata, NodeAggregationJobMetadata, StuckJobs,
+    },
+    L1BatchNumber,
 };
 
 use crate::{
     //metrics::MethodLatency,
     duration_to_naive_time,
     pg_interval_from_duration,
-};
-
-use zksync_types::prover::{
-    JobCountStatistics, LeafAggregationJobMetadata, NodeAggregationJobMetadata, StuckJobs,
 };
 
 #[derive(Debug)]

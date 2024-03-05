@@ -2,8 +2,9 @@
 
 use std::{net::IpAddr, ops::Add};
 
-use crate::{basic_fri_types::AggregationRound, L1BatchNumber};
 use sqlx::types::chrono::{DateTime, Utc};
+
+use crate::{basic_fri_types::AggregationRound, L1BatchNumber};
 
 #[derive(Debug, Clone)]
 pub struct FriProverJobMetadata {

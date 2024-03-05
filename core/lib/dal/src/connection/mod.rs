@@ -9,8 +9,6 @@ use std::{
     time::Duration,
 };
 
-use crate::metrics::CONNECTION_METRICS;
-use crate::StorageProcessorWrapper;
 use anyhow::Context as _;
 use rand::Rng;
 use sqlx::{
@@ -20,6 +18,8 @@ use sqlx::{
 };
 pub(crate) use zksync_db_connection::StorageProcessor;
 use zksync_db_connection::{StorageProcessorTags, TracedConnections};
+
+use crate::{metrics::CONNECTION_METRICS, StorageProcessorWrapper};
 
 /// Builder for [`ConnectionPool`]s.
 #[derive(Clone)]

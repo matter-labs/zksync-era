@@ -4,11 +4,11 @@ use zksync_db_connection::StorageProcessor;
 use zksync_types::{
     basic_fri_types::{AggregationRound, CircuitIdRoundTuple},
     protocol_version::FriProtocolVersionId,
+    prover::{FriProverJobMetadata, JobCountStatistics, StuckJobs},
     L1BatchNumber,
 };
 
 use crate::{duration_to_naive_time, pg_interval_from_duration};
-use zksync_types::prover::{FriProverJobMetadata, JobCountStatistics, StuckJobs};
 
 // TODO (PLA-775): Should not be an embedded submodule in a concrete DAL file.
 
