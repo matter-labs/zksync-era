@@ -1,5 +1,9 @@
 use zksync_types::{
-    commitment::{pre_boojum_serialize_commitments, serialize_commitments, L1BatchWithMetadata},
+    block::L1BatchHeader,
+    commitment::{
+        pre_boojum_serialize_commitments, serialize_commitments, L1BatchMetadata,
+        L1BatchWithMetadata,
+    },
     ethabi::Token,
     web3::{contract::Error as Web3ContractError, error::Error as Web3ApiError},
     U256,
@@ -44,7 +48,11 @@ impl<'a> Tokenizable for CommitBatchInfoRollup<'a> {
         {
             pre_boojum_into_token(self.l1_batch_with_metadata)
         } else {
-            Token::Tuple(rollup_mode_l1_commit_data(self.l1_batch_with_metadata))
+            Token::Tuple(encode_l1_commit(
+                &self.l1_batch_with_metadata.header,
+                &self.l1_batch_with_metadata.metadata,
+                Some(&self.l1_batch_with_metadata),
+            ))
         }
     }
 }
@@ -86,7 +94,11 @@ impl<'a> Tokenizable for CommitBatchInfoValidium<'a> {
         {
             pre_boojum_into_token(self.l1_batch_with_metadata)
         } else {
-            Token::Tuple(validium_mode_l1_commit_data(self.l1_batch_with_metadata))
+            Token::Tuple(encode_l1_commit(
+                &self.l1_batch_with_metadata.header,
+                &self.l1_batch_with_metadata.metadata,
+                None,
+            ))
         }
     }
 }
@@ -122,9 +134,11 @@ fn pre_boojum_into_token(l1_batch_commit_with_metadata: &L1BatchWithMetadata) ->
     ])
 }
 
-fn encode_l1_commit(l1_batch_with_metadata: &L1BatchWithMetadata, pubdata: Token) -> Vec<Token> {
-    let header = &l1_batch_with_metadata.header;
-    let metadata = &l1_batch_with_metadata.metadata;
+fn encode_l1_commit(
+    header: &L1BatchHeader,
+    metadata: &L1BatchMetadata,
+    pubdata_input: Option<&L1BatchWithMetadata>,
+) -> Vec<Token> {
     let commit_data = vec![
         // `batchNumber`
         Token::Uint(U256::from(header.number.0)),
@@ -156,20 +170,11 @@ fn encode_l1_commit(l1_batch_with_metadata: &L1BatchWithMetadata, pubdata: Token
         ),
         // `systemLogs`
         Token::Bytes(serialize_commitments(&header.system_logs)),
-        pubdata,
+        Token::Bytes(
+            pubdata_input
+                .map(L1BatchWithMetadata::construct_pubdata)
+                .unwrap_or_default(),
+        ),
     ];
     commit_data
-}
-
-fn validium_mode_l1_commit_data(l1_batch_with_metadata: &L1BatchWithMetadata) -> Vec<Token> {
-    encode_l1_commit(l1_batch_with_metadata, Token::Bytes(vec![]))
-}
-
-fn rollup_mode_l1_commit_data(l1_batch_with_metadata: &L1BatchWithMetadata) -> Vec<Token> {
-    encode_l1_commit(
-        l1_batch_with_metadata,
-        Token::Bytes(L1BatchWithMetadata::construct_pubdata(
-            l1_batch_with_metadata,
-        )),
-    )
 }
