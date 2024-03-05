@@ -10,7 +10,7 @@ use std::{
 };
 
 use rand::{thread_rng, Rng};
-use zksync_dal::StorageProcessor;
+use zksync_dal::StorageProcessorWrapper;
 use zksync_object_store::ObjectStore;
 use zksync_types::{
     block::{L1BatchHeader, MiniblockHeader},
@@ -132,7 +132,7 @@ struct ExpectedOutputs {
 }
 
 async fn create_miniblock(
-    conn: &mut StorageProcessor<'_>,
+    conn: &mut StorageProcessorWrapper<'_>,
     miniblock_number: MiniblockNumber,
     block_logs: Vec<StorageLog>,
 ) {
@@ -162,7 +162,7 @@ async fn create_miniblock(
 }
 
 async fn create_l1_batch(
-    conn: &mut StorageProcessor<'_>,
+    conn: &mut StorageProcessorWrapper<'_>,
     l1_batch_number: L1BatchNumber,
     logs_for_initial_writes: &[StorageLog],
 ) {
@@ -186,7 +186,7 @@ async fn create_l1_batch(
 
 async fn prepare_postgres(
     rng: &mut impl Rng,
-    conn: &mut StorageProcessor<'_>,
+    conn: &mut StorageProcessorWrapper<'_>,
     block_count: u32,
 ) -> ExpectedOutputs {
     conn.protocol_versions_dal()

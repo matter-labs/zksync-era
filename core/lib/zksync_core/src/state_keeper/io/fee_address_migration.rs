@@ -6,12 +6,12 @@ use std::time::{Duration, Instant};
 
 use anyhow::Context as _;
 use tokio::sync::watch;
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::{ConnectionPool, StorageProcessorWrapper};
 use zksync_types::MiniblockNumber;
 
 /// Runs the migration for pending miniblocks.
 pub(crate) async fn migrate_pending_miniblocks(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut StorageProcessorWrapper<'_>,
 ) -> anyhow::Result<()> {
     let started_at = Instant::now();
     tracing::info!("Started migrating `fee_account_address` for pending miniblocks");
@@ -153,7 +153,7 @@ async fn migrate_miniblocks_inner(
 
 #[allow(deprecated)]
 async fn is_fee_address_migrated(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut StorageProcessorWrapper<'_>,
     miniblock: MiniblockNumber,
 ) -> anyhow::Result<bool> {
     storage
@@ -175,7 +175,7 @@ mod tests {
     use super::*;
     use crate::utils::testonly::create_miniblock;
 
-    async fn prepare_storage(storage: &mut StorageProcessor<'_>) {
+    async fn prepare_storage(storage: &mut StorageProcessorWrapper<'_>) {
         storage
             .protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
@@ -216,7 +216,7 @@ mod tests {
         }
     }
 
-    async fn assert_migration(storage: &mut StorageProcessor<'_>) {
+    async fn assert_migration(storage: &mut StorageProcessorWrapper<'_>) {
         for number in 0..5 {
             assert!(is_fee_address_migrated(storage, MiniblockNumber(number))
                 .await

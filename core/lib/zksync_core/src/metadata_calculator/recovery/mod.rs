@@ -34,7 +34,7 @@ use anyhow::Context as _;
 use async_trait::async_trait;
 use futures::future;
 use tokio::sync::{watch, Mutex, Semaphore};
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::{ConnectionPool, StorageProcessorWrapper};
 use zksync_health_check::HealthUpdater;
 use zksync_merkle_tree::TreeEntry;
 use zksync_types::{
@@ -268,7 +268,7 @@ impl AsyncTreeRecovery {
     /// Filters out `key_chunks` for which recovery was successfully performed.
     async fn filter_chunks(
         &mut self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut StorageProcessorWrapper<'_>,
         snapshot_miniblock: MiniblockNumber,
         key_chunks: &[ops::RangeInclusive<H256>],
     ) -> anyhow::Result<Vec<ops::RangeInclusive<H256>>> {

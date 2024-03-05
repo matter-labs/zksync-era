@@ -16,8 +16,8 @@ use crate::{
     sync_layer::{fetcher::FetchedBlock, sync_action::ActionQueueSender},
 };
 
-/// Context-aware `zksync_dal::StorageProcessor` wrapper.
-pub(super) struct CtxStorage<'a>(zksync_dal::StorageProcessor<'a>);
+/// Context-aware `zksync_dal::StorageProcessorWrapper` wrapper.
+pub(super) struct CtxStorage<'a>(zksync_dal::StorageProcessorWrapper<'a>);
 
 impl<'a> CtxStorage<'a> {
     /// Wrapper for `access_storage_tagged()`.

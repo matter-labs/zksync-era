@@ -10,7 +10,7 @@ use zksync_config::{
     },
     ContractsConfig, ETHSenderConfig, GasAdjusterConfig,
 };
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::{ConnectionPool, StorageProcessorWrapper};
 use zksync_eth_client::{clients::MockEthereum, EthInterface};
 use zksync_l1_contract_interface::i_executor::{
     commit::kzg::KzgSettings,
@@ -144,7 +144,7 @@ impl EthSenderTester {
         }
     }
 
-    async fn storage(&self) -> StorageProcessor<'_> {
+    async fn storage(&self) -> StorageProcessorWrapper<'_> {
         self.conn.access_storage().await.unwrap()
     }
 

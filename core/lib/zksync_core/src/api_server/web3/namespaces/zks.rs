@@ -1,6 +1,6 @@
 use std::{collections::HashMap, convert::TryInto};
 
-use zksync_dal::StorageProcessor;
+use zksync_dal::StorageProcessorWrapper;
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
@@ -43,7 +43,7 @@ impl ZksNamespace {
     async fn access_storage(
         &self,
         method_name: &'static str,
-    ) -> Result<StorageProcessor<'_>, Web3Error> {
+    ) -> Result<StorageProcessorWrapper<'_>, Web3Error> {
         self.state
             .connection_pool
             .access_storage_tagged("api")
@@ -303,7 +303,7 @@ impl ZksNamespace {
     async fn get_l2_to_l1_log_proof_inner(
         &self,
         method_name: &'static str,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut StorageProcessorWrapper<'_>,
         l1_batch_number: L1BatchNumber,
         index_in_filtered_logs: usize,
         log_filter: impl Fn(&L2ToL1Log) -> bool,

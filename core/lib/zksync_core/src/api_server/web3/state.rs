@@ -11,7 +11,7 @@ use lru::LruCache;
 use tokio::sync::{watch, Mutex};
 use vise::GaugeGuard;
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::NetworkConfig, ContractsConfig};
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::{ConnectionPool, StorageProcessorWrapper};
 use zksync_types::{
     api, l2::L2Tx, transaction_request::CallRequest, Address, L1BatchNumber, L1ChainId, L2ChainId,
     MiniblockNumber, H256, U256, U64,
@@ -229,7 +229,7 @@ impl RpcState {
 
     pub(crate) async fn resolve_block(
         &self,
-        connection: &mut StorageProcessor<'_>,
+        connection: &mut StorageProcessorWrapper<'_>,
         block: api::BlockId,
         method_name: &'static str,
     ) -> Result<MiniblockNumber, Web3Error> {
@@ -242,7 +242,7 @@ impl RpcState {
 
     pub(crate) async fn resolve_block_args(
         &self,
-        connection: &mut StorageProcessor<'_>,
+        connection: &mut StorageProcessorWrapper<'_>,
         block: api::BlockId,
         method_name: &'static str,
     ) -> Result<BlockArgs, Web3Error> {

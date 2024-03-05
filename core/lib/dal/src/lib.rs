@@ -64,7 +64,25 @@ pub mod transactions_web3_dal;
 #[cfg(test)]
 mod tests;
 
+#[derive(Debug)]
 pub struct StorageProcessorWrapper<'a>(pub StorageProcessor<'a>);
+
+impl<'a> StorageProcessorWrapper<'a> {
+    pub fn in_transaction(&self) -> bool {
+        self.0.in_transaction()
+    }
+
+    pub async fn start_transaction(&mut self) -> sqlx::Result<StorageProcessorWrapper<'_>> {
+        self.0
+            .start_transaction()
+            .await
+            .map(|res| StorageProcessorWrapper(res))
+    }
+
+    pub async fn commit(self) -> sqlx::Result<()> {
+        self.0.commit().await
+    }
+}
 
 impl<'a> StorageProcessorWrapper<'a> {
     pub fn transactions_dal(&mut self) -> TransactionsDal<'_, 'a> {
