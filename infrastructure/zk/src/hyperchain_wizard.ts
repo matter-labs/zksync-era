@@ -288,7 +288,7 @@ async function setHyperchainMetadata() {
         feeReceiver = undefined;
         feeReceiverAddress = richWallets[3].address;
 
-        await up('docker-compose-zkstack-common.yml');
+        await up();
         await announced('Ensuring databases are up', db.wait({ server: true, prover: false }));
     }
 

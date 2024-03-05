@@ -25,7 +25,6 @@ COPY etc/tokens/ /etc/tokens/
 COPY etc/ERC20/ /etc/ERC20/
 COPY etc/multivm_bootloaders/ /etc/multivm_bootloaders/
 COPY core/lib/dal/migrations/ /migrations
-COPY trusted_setup.json /
 
 RUN chmod +x /usr/bin/entrypoint.sh
 
