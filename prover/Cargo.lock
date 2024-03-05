@@ -7365,6 +7365,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with",
+ "sqlx",
  "strum",
  "thiserror",
  "zksync_basic_types",

@@ -5,11 +5,9 @@ use strum::{Display, EnumString};
 use zksync_db_connection::StorageProcessor;
 use zksync_types::L1BatchNumber;
 
-use crate::{
-    duration_to_naive_time,
-    fri_prover_dal::types::{JobCountStatistics, StuckJobs},
-    pg_interval_from_duration,
-};
+use crate::{duration_to_naive_time, pg_interval_from_duration};
+
+use zksync_types::prover::{JobCountStatistics, StuckJobs};
 
 #[derive(Debug)]
 pub struct FriProofCompressorDal<'a, 'c> {

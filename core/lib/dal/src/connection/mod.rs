@@ -9,6 +9,8 @@ use std::{
     time::Duration,
 };
 
+use crate::metrics::CONNECTION_METRICS;
+use crate::StorageProcessorWrapper;
 use anyhow::Context as _;
 use rand::Rng;
 use sqlx::{
@@ -16,11 +18,8 @@ use sqlx::{
     postgres::{PgConnectOptions, PgPool, PgPoolOptions, Postgres},
     Executor,
 };
+pub(crate) use zksync_db_connection::StorageProcessor;
 use zksync_db_connection::{StorageProcessorTags, TracedConnections};
-
-use crate::metrics::CONNECTION_METRICS;
-
-pub(crate) struct StorageProcessorWrapper<'a>(pub zksync_db_connection::StorageProcessor<'a>);
 
 /// Builder for [`ConnectionPool`]s.
 #[derive(Clone)]
@@ -351,10 +350,7 @@ impl ConnectionPool {
         if let Some(tags) = &tags {
             CONNECTION_METRICS.acquire_tagged[&tags.requester].observe(elapsed);
         }
-        Ok(
-            StorageProcessorWrapper::from_pool(conn, tags, self.traced_connections.as_deref())
-                .into(),
-        )
+        Ok(StorageProcessor::from_pool(conn, tags, self.traced_connections.as_deref()).into())
     }
 
     async fn acquire_connection_retried(

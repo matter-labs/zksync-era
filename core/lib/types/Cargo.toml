@@ -32,6 +32,8 @@ num_enum = "0.6"
 hex = "0.4"
 prost = "0.12.1"
 
+sqlx = "0.7.3"
+
 # Crypto stuff
 secp256k1 = { version = "0.27", features = ["recovery", "global-context"] }
 blake2 = "0.10"

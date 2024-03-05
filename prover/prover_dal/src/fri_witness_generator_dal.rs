@@ -9,10 +9,11 @@ use zksync_types::{
 use crate::{
     //metrics::MethodLatency,
     duration_to_naive_time,
-    fri_prover_dal::types::{
-        JobCountStatistics, LeafAggregationJobMetadata, NodeAggregationJobMetadata, StuckJobs,
-    },
     pg_interval_from_duration,
+};
+
+use zksync_types::prover::{
+    JobCountStatistics, LeafAggregationJobMetadata, NodeAggregationJobMetadata, StuckJobs,
 };
 
 #[derive(Debug)]

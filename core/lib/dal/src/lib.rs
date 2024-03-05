@@ -1,8 +1,12 @@
 #![feature(arc_unwrap_or_clone)]
 //! Data access layer (DAL) for zkSync Era.
 
+use sqlx::pool::PoolConnection;
+use sqlx::Postgres;
 pub use sqlx::{types::BigDecimal, Error as SqlxError};
-use zksync_db_connection::StorageProcessorInner;
+use zksync_db_connection::{
+    StorageProcessor, StorageProcessorInner, StorageProcessorTags, TracedConnections,
+};
 use zksync_prover_dal::{
     fri_gpu_prover_queue_dal::FriGpuProverQueueDal,
     fri_proof_compressor_dal::FriProofCompressorDal,
@@ -14,11 +18,10 @@ use zksync_prover_dal::{
 pub use crate::connection::ConnectionPool;
 use crate::{
     basic_witness_input_producer_dal::BasicWitnessInputProducerDal, blocks_dal::BlocksDal,
-    blocks_web3_dal::BlocksWeb3Dal, connection::StorageProcessorWrapper,
-    consensus_dal::ConsensusDal, contract_verification_dal::ContractVerificationDal,
-    eth_sender_dal::EthSenderDal, events_dal::EventsDal, events_web3_dal::EventsWeb3Dal,
-    factory_deps_dal::FactoryDepsDal, proof_generation_dal::ProofGenerationDal,
-    protocol_versions_dal::ProtocolVersionsDal,
+    blocks_web3_dal::BlocksWeb3Dal, consensus_dal::ConsensusDal,
+    contract_verification_dal::ContractVerificationDal, eth_sender_dal::EthSenderDal,
+    events_dal::EventsDal, events_web3_dal::EventsWeb3Dal, factory_deps_dal::FactoryDepsDal,
+    proof_generation_dal::ProofGenerationDal, protocol_versions_dal::ProtocolVersionsDal,
     protocol_versions_web3_dal::ProtocolVersionsWeb3Dal,
     snapshot_recovery_dal::SnapshotRecoveryDal, snapshots_creator_dal::SnapshotsCreatorDal,
     snapshots_dal::SnapshotsDal, storage_logs_dal::StorageLogsDal,
@@ -64,6 +67,8 @@ pub mod transactions_web3_dal;
 
 #[cfg(test)]
 mod tests;
+
+pub(crate) struct StorageProcessorWrapper<'a>(pub StorageProcessor<'a>);
 
 impl<'a> StorageProcessorWrapper<'a> {
     pub fn transactions_dal(&mut self) -> TransactionsDal<'_, 'a> {
