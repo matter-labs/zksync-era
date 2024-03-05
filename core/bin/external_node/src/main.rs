@@ -487,6 +487,39 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("Main node URL is: {main_node_url}");
     let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
         .context("Failed creating JSON-RPC client for main node")?;
+
+    let sigint_receiver = setup_sigint_handler();
+    tracing::warn!("The external node is in the alpha phase, and should be used with caution.");
+    tracing::info!("Started the external node");
+
+    let app_health = Arc::new(AppHealthCheck::new(
+        config.optional.healthcheck_slow_time_limit(),
+        config.optional.healthcheck_hard_time_limit(),
+    ));
+    app_health.insert_custom_component(Arc::new(MainNodeHealthCheck::from(
+        main_node_client.clone(),
+    )));
+    app_health.insert_custom_component(Arc::new(ConnectionPoolHealthCheck::new(
+        connection_pool.clone(),
+    )));
+
+    // Start the health check server early into the node lifecycle so that its health can be monitored from the very start.
+    let healthcheck_handle = HealthCheckHandle::spawn_server(
+        ([0, 0, 0, 0], config.required.healthcheck_port).into(),
+        app_health.clone(),
+    );
+
+    // Make sure that the node storage is initialized either via genesis or snapshot recovery.
+    ensure_storage_initialized(
+        &connection_pool,
+        &main_node_client,
+        &app_health,
+        config.remote.l2_chain_id,
+        opt.enable_snapshots_recovery,
+    )
+    .await?;
+
+    // Revert the storage if needed.
     let reverter = BlockReverter::new(
         NodeRole::External,
         config.required.state_cache_path.clone(),
@@ -528,37 +561,6 @@ async fn main() -> anyhow::Result<()> {
         tracing::info!("Rollback successfully completed");
     }
 
-    let sigint_receiver = setup_sigint_handler();
-    tracing::warn!("The external node is in the alpha phase, and should be used with caution.");
-    tracing::info!("Started the external node");
-
-    let app_health = Arc::new(AppHealthCheck::new(
-        config.optional.healthcheck_slow_time_limit(),
-        config.optional.healthcheck_hard_time_limit(),
-    ));
-    app_health.insert_custom_component(Arc::new(MainNodeHealthCheck::from(
-        main_node_client.clone(),
-    )));
-    app_health.insert_custom_component(Arc::new(ConnectionPoolHealthCheck::new(
-        connection_pool.clone(),
-    )));
-
-    // Start the health check server early into the node lifecycle so that its health can be monitored from the very start.
-    let healthcheck_handle = HealthCheckHandle::spawn_server(
-        ([0, 0, 0, 0], config.required.healthcheck_port).into(),
-        app_health.clone(),
-    );
-
-    // Make sure that the node storage is initialized either via genesis or snapshot recovery.
-    ensure_storage_initialized(
-        &connection_pool,
-        &main_node_client,
-        &app_health,
-        config.remote.l2_chain_id,
-        opt.enable_snapshots_recovery,
-    )
-    .await?;
-
     let (stop_sender, stop_receiver) = watch::channel(false);
     let mut task_handles = vec![];
     init_tasks(
@@ -586,5 +588,6 @@ async fn main() -> anyhow::Result<()> {
     // Reaching this point means that either some actor exited unexpectedly or we received a stop signal.
     // Broadcast the stop signal to all actors and exit.
     shutdown_components(stop_sender, healthcheck_handle).await;
+    tracing::info!("Stopped");
     Ok(())
 }

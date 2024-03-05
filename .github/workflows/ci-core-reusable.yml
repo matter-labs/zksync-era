@@ -306,21 +306,11 @@ jobs:
 
       - name: Run revert test
         run: |
-          ci_run zk env
-          ci_run zk env docker
-          ci_run pkill zksync_server || true
-          ci_run sleep 2
-          ci_run zk env
           ENABLE_CONSENSUS=${{ matrix.consensus }} PASSED_ENV_VARS=ENABLE_CONSENSUS ci_run zk test i revert-en
-          # Restart the main node.
-          ci_run zk server --components=$SERVER_COMPONENTS &>>server.log &
-          # Wait for the EN to detect divergence and terminate.
+          # test terminates the nodes, so we restart them.
+          ci_run zk server --components=$SERVER_COMPONENTS &>server.log &
+          ci_run zk external-node $EXT_NODE_FLAGS &>ext-node.log &
           ci_run sleep 30
-          # Restart the EN.
-          ZKSYNC_ENV=ext-node-docker ci_run zk external-node $EXT_NODE_FLAGS &>>ext-node.log &
-          ci_run sleep 30
-          # Check that the rollback was performed on the EN
-          ci_run grep -q 'Rollback successfully completed' ext-node.log
 
       - name: Run upgrade test
         run: |
@@ -339,9 +329,13 @@ jobs:
         if: always()
         run: ci_run cat ext-node.log || true
 
-      - name: Show revert.log logs
+      - name: Show revert_main.log logs
         if: always()
-        run: ci_run cat core/tests/revert-test/revert.log || true
+        run: ci_run cat core/tests/revert-test/revert_main.log || true
+
+      - name: Show revert_ext.log logs
+        if: always()
+        run: ci_run cat core/tests/revert-test/revert_ext.log || true
 
       - name: Show upgrade.log logs
         if: always()

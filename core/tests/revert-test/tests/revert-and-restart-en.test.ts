@@ -47,22 +47,32 @@ function run(cmd: string, args: string[], options: child_process.SpawnOptions): 
     return res;
 }
 
+function compileBinaries() {
+    run(
+        'cargo',
+        ['build', '--release', '--bin', 'zksync_external_node', '--bin', 'zksync_server', '--bin', 'block_reverter'],
+        { cwd: process.env.ZKSYNC_HOME }
+    );
+}
+
 // Fetches env vars for the given environment (like 'dev', 'ext-node').
 // TODO: it would be better to import zk tool code directly.
 function fetchEnv(zksync_env: string): any {
-    let env = { ...process.env };
-    env.ZKSYNC_ENV = zksync_env;
-    let res = run('zk', ['f', 'env'], { cwd: process.env.ZKSYNC_HOME, env: env });
-    return dotenv.parse(res.stdout);
+    let res = run('./bin/zk', ['f', 'env'], {
+        cwd: process.env.ZKSYNC_HOME,
+        env: {
+            ZKSYNC_ENV: zksync_env,
+            ZKSYNC_HOME: process.env.ZKSYNC_HOME
+        }
+    });
+    return { ...process.env, ...dotenv.parse(res.stdout) };
 }
 
 function runBlockReverter(args: string[]): string {
-    let env = fetchEnv('dev');
+    let env = fetchEnv('docker');
     env.RUST_LOG = 'off';
-    let res = run('cargo', ['run', '--bin', 'block_reverter', '--release', '--'].concat(args), {
-        cwd: env.ZKSYNC_HOME,
-        env: env
-    });
+    let res = run('./target/release/block_reverter', args, { cwd: env.ZKSYNC_HOME, env: env });
+    console.log(res.stderr.toString());
     return res.stdout.toString();
 }
 
@@ -78,23 +88,27 @@ class MainNode {
         }
     }
 
-    public static async spawn(logs: fs.WriteStream, enable_execute: boolean): Promise<MainNode> {
-        let env = fetchEnv('dev');
+    // Spawns a main node.
+    // if enable_consensus is set, consensus component will be started in the main node.
+    // if enable_execute is NOT set, main node will NOT send L1 transactions to execute L1 batches.
+    public static async spawn(enable_consensus: boolean, enable_execute: boolean): Promise<MainNode> {
+        let logs: fs.WriteStream = fs.createWriteStream('revert_main.log', { flags: 'a' });
+
+        let env = fetchEnv('docker');
         env.ETH_SENDER_SENDER_AGGREGATED_BLOCK_EXECUTE_DEADLINE = enable_execute ? '1' : '10000';
         // Set full mode for the Merkle tree as it is required to get blocks committed.
         env.DATABASE_MERKLE_TREE_MODE = 'full';
+        console.log(`DATABASE_URL = ${env.DATABASE_URL}`);
 
-        let enable_consensus = process.env.ENABLE_CONSENSUS == 'true';
         let components = 'api,tree,eth,state_keeper,commitment_generator';
         if (enable_consensus) {
             components += ',consensus';
         }
-        let proc = spawn(
-            //'cargo',['run','--bin','zksync_server','--release','--','--components',components],
-            './target/release/zksync_server',
-            ['--components', components],
-            { cwd: env.ZKSYNC_HOME, stdio: [null, logs, logs], env: env }
-        );
+        let proc = spawn('./target/release/zksync_server', ['--components', components], {
+            cwd: env.ZKSYNC_HOME,
+            stdio: [null, logs, logs],
+            env: env
+        });
         // Wait until the main node starts responding.
         let tester: Tester = await Tester.init(env.ETH_CLIENT_WEB3_URL, env.API_WEB3_JSON_RPC_HTTP_URL);
         while (true) {
@@ -112,6 +126,7 @@ class MainNode {
         return new MainNode(tester, proc);
     }
 
+    // Sends SIGINT to the main node process and waits for it to exit.
     public async terminate(): Promise<void> {
         this.proc.kill('SIGINT');
         while (this.proc.exitCode == null) {
@@ -133,18 +148,22 @@ class ExtNode {
         }
     }
 
-    public static async spawn(logs: fs.WriteStream): Promise<ExtNode> {
-        let env = fetchEnv('ext-node');
+    // Spawns an external node.
+    // If enable_consensus is set, the node will use consensus P2P network to fetch blocks.
+    public static async spawn(enable_consensus: boolean): Promise<ExtNode> {
+        let logs: fs.WriteStream = fs.createWriteStream('revert_ext.log', { flags: 'a' });
+
+        let env = fetchEnv('ext-node-docker');
+        console.log(`DATABASE_URL = ${env.DATABASE_URL}`);
         let args = [];
-        if (process.env.ENABLE_CONSENSUS == 'true') {
+        if (enable_consensus) {
             args.push('--enable-consensus');
         }
-        let proc = spawn(
-            //'cargo',['run','--bin','zksync_external_node','--release','--'].concat(args),
-            './target/release/zksync_external_node',
-            args,
-            { cwd: env.ZKSYNC_HOME, stdio: [null, logs, logs], env: env }
-        );
+        let proc = spawn('./target/release/zksync_external_node', args, {
+            cwd: env.ZKSYNC_HOME,
+            stdio: [null, logs, logs],
+            env: env
+        });
         // Wait until the node starts responding.
         let tester: Tester = await Tester.init(env.EN_ETH_CLIENT_URL, `http://localhost:${env.EN_HTTP_PORT}`);
         while (true) {
@@ -162,19 +181,25 @@ class ExtNode {
         return new ExtNode(tester, proc);
     }
 
+    // Sends SIGINT to the node process and waits for it to exit.
     public async terminate(): Promise<void> {
         this.proc.kill('SIGINT');
+        expect(await this.wait_for_exit()).to.equal(0);
+    }
+
+    // Waits for the node process to exit.
+    public async wait_for_exit(): Promise<number> {
         while (this.proc.exitCode == null) {
             await utils.sleep(1);
         }
-        expect(this.proc.exitCode).to.equal(0);
+        return this.proc.exitCode;
     }
 }
 
 describe('Block reverting test', function () {
+    compileBinaries();
+    let enable_consensus = process.env.ENABLE_CONSENSUS == 'true';
     const depositAmount: BigNumber = ethers.utils.parseEther('0.001');
-    let main_logs: fs.WriteStream = fs.createWriteStream('/tmp/revert_main.log', { flags: 'a' });
-    let ext_logs: fs.WriteStream = fs.createWriteStream('/tmp/revert_ext.log', { flags: 'a' });
 
     step('run', async () => {
         console.log('Make sure that nodes are not running');
@@ -182,9 +207,9 @@ describe('Block reverting test', function () {
         await MainNode.terminate_all();
 
         console.log('Start main node');
-        let main_node = await MainNode.spawn(main_logs, true);
+        let main_node = await MainNode.spawn(enable_consensus, true);
         console.log('Start ext node');
-        let ext_node = await ExtNode.spawn(ext_logs);
+        let ext_node = await ExtNode.spawn(enable_consensus);
         let main_contract = await main_node.tester.syncWallet.getMainContract();
         let alice: zkweb3.Wallet = ext_node.tester.emptyWallet();
 
@@ -201,13 +226,12 @@ describe('Block reverting test', function () {
 
         console.log('Restart the main node with L1 batch execution disabled.');
         await main_node.terminate();
-        main_node = await MainNode.spawn(main_logs, false);
+        main_node = await MainNode.spawn(enable_consensus, false);
 
         console.log('Commit at least 2 L1 batches which are not executed');
         let last_executed: BigNumber = await main_contract.getTotalBlocksExecuted();
         // One is not enough to test the reversion of sk cache because
         // it gets updated with some batch logs only at the start of the next batch.
-        // getTotalBlocksExecuted() actually checks the number of executed L1 batches.
         for (let i = 0; i < 2; i++) {
             let h: zkweb3.types.PriorityOpResponse = await ext_node.tester.syncWallet.deposit({
                 token: zkweb3.utils.ETH_ADDRESS,
@@ -218,16 +242,15 @@ describe('Block reverting test', function () {
         }
         while (true) {
             let last_committed: BigNumber = await main_contract.getTotalBlocksCommitted();
+            console.log(`last_executed = ${last_executed}, last_committed = ${last_committed}`);
             if (last_committed.sub(last_executed).gte(2)) {
-                console.log(`last_executed = ${last_executed}, last_committed = ${last_committed}`);
                 break;
             }
             await utils.sleep(1);
         }
-        //assert((await tester.web3Provider.getL1BatchDetails(last_executed+1)).status=='sealed');
         const alice2 = await alice.getBalance();
         console.log('Terminate the main node');
-        await ext_node.terminate();
+        await main_node.terminate();
 
         console.log('Ask block_reverter to suggest to which L1 batch we should revert');
         let revert_env = { ...process.env };
@@ -264,20 +287,13 @@ describe('Block reverting test', function () {
         ]);
 
         console.log('Start main node.');
-        main_node = await MainNode.spawn(main_logs, true);
+        main_node = await MainNode.spawn(enable_consensus, true);
 
         console.log('Wait for the external node to detect reorg and terminate');
-        // TODO
+        await ext_node.wait_for_exit();
 
         console.log('Restart external node and wait for it to revert.');
-        // TODO
-
-        console.log("Verify that alice's balance has been reverted.");
-        // Note that we have a race condition here, between reexecution of the reverted transactions
-        // and fetching the balance.
-        const alice3 = await alice.getBalance();
-        console.log(`Alice's balance is ${alice3}, want ${alice1}`);
-        assert(alice3.eq(alice1));
+        ext_node = await ExtNode.spawn(enable_consensus);
 
         console.log('Execute an L1 transaction');
         const depositHandle = await ext_node.tester.syncWallet.deposit({
