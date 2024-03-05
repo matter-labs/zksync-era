@@ -629,7 +629,7 @@ impl ZksNamespace {
     }
 
     #[tracing::instrument(skip_all)]
-    pub async fn get_base_token_l1_address_impl(&self) -> Result<Address, Web3Error> {
+    pub fn get_base_token_l1_address_impl(&self) -> Result<Address, Web3Error> {
         Ok(self.state.api_config.base_token_address)
     }
 }
