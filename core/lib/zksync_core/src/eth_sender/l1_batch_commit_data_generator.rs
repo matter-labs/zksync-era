@@ -34,7 +34,7 @@ where
 pub struct RollupModeL1BatchCommitDataGenerator;
 
 /// [`ValidiumModeL1BatchCommitDataGenerator`] implements [`L1BatchCommitDataGenerator`] for
-/// contracts operating in rollup mode. It differs from [`RollupModeL1BatchCommitDataGenerator`]
+/// contracts operating in validium mode. It differs from [`RollupModeL1BatchCommitDataGenerator`]
 /// in that it does not include the pubdata in the produced message.
 #[derive(Debug, Clone)]
 pub struct ValidiumModeL1BatchCommitDataGenerator;
