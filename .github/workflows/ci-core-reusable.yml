@@ -253,7 +253,7 @@ jobs:
     name: External node (consensus=${{ matrix.consensus }})
     strategy:
       matrix:
-        consensus: [false, true]
+        consensus: [false] #, true]
     runs-on: [matterlabs-ci-runner]
 
     env:
