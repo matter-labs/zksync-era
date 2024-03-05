@@ -8,16 +8,13 @@ use zksync_types::{
     Address, L1BatchNumber, H256, U256,
 };
 
-use crate::{
-    models::storage_eth_tx::{
-        L1BatchEthSenderStats, StorageEthTx, StorageTxHistory, StorageTxHistoryToSend,
-    },
-    RawStorageProcessor,
+use crate::models::storage_eth_tx::{
+    L1BatchEthSenderStats, StorageEthTx, StorageTxHistory, StorageTxHistoryToSend,
 };
 
 #[derive(Debug)]
 pub struct EthSenderDal<'a, 'c> {
-    pub(crate) storage: &'a mut RawStorageProcessor<'c>,
+    pub(crate) storage: &'a mut zksync_db_connection::StorageProcessor<'c>,
 }
 
 impl EthSenderDal<'_, '_> {

@@ -1,6 +1,6 @@
 use std::{collections::HashMap, convert::TryFrom, time::Duration};
 
-use zksync_db_connection::RawStorageProcessor;
+use zksync_db_connection::StorageProcessor;
 use zksync_types::{
     basic_fri_types::{AggregationRound, CircuitIdRoundTuple},
     protocol_version::FriProtocolVersionId,
@@ -14,7 +14,7 @@ use crate::{duration_to_naive_time, pg_interval_from_duration};
 
 #[derive(Debug)]
 pub struct FriProverDal<'a, 'c> {
-    pub storage: &'a mut RawStorageProcessor<'c>,
+    pub storage: &'a mut StorageProcessor<'c>,
 }
 
 impl FriProverDal<'_, '_> {

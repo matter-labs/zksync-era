@@ -1,9 +1,9 @@
-use zksync_db_connection::RawStorageProcessor;
+use zksync_db_connection::StorageProcessor;
 use zksync_types::L1BatchNumber;
 
 #[derive(Debug)]
 pub struct FriSchedulerDependencyTrackerDal<'a, 'c> {
-    pub storage: &'a mut RawStorageProcessor<'c>,
+    pub storage: &'a mut StorageProcessor<'c>,
 }
 
 impl FriSchedulerDependencyTrackerDal<'_, '_> {

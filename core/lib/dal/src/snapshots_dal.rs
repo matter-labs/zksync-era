@@ -3,7 +3,7 @@ use zksync_types::{
     L1BatchNumber,
 };
 
-use crate::{instrument::InstrumentExt, RawStorageProcessor};
+use crate::instrument::InstrumentExt;
 
 #[derive(Debug, sqlx::FromRow)]
 struct StorageSnapshotMetadata {
@@ -28,7 +28,7 @@ impl From<StorageSnapshotMetadata> for SnapshotMetadata {
 
 #[derive(Debug)]
 pub struct SnapshotsDal<'a, 'c> {
-    pub(crate) storage: &'a mut RawStorageProcessor<'c>,
+    pub(crate) storage: &'a mut zksync_db_connection::StorageProcessor<'c>,
 }
 
 impl SnapshotsDal<'_, '_> {

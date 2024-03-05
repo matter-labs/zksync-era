@@ -15,14 +15,13 @@ use crate::{
         storage_block::{ResolvedL1BatchForMiniblock, StorageBlockDetails, StorageL1BatchDetails},
         storage_transaction::CallTrace,
     },
-    RawStorageProcessor,
 };
 
 const BLOCK_GAS_LIMIT: u32 = u32::MAX;
 
 #[derive(Debug)]
 pub struct BlocksWeb3Dal<'a, 'c> {
-    pub(crate) storage: &'a mut RawStorageProcessor<'c>,
+    pub(crate) storage: &'a mut zksync_db_connection::StorageProcessor<'c>,
 }
 
 impl BlocksWeb3Dal<'_, '_> {

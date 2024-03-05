@@ -3,11 +3,9 @@ use std::collections::HashMap;
 use itertools::Itertools;
 use zksync_types::{StorageKey, StorageLog, StorageValue, H256};
 
-use crate::RawStorageProcessor;
-
 #[derive(Debug)]
 pub struct StorageDal<'a, 'c> {
-    pub(crate) storage: &'a mut RawStorageProcessor<'c>,
+    pub(crate) storage: &'a mut zksync_db_connection::StorageProcessor<'c>,
 }
 
 #[deprecated(note = "Soft-removed in favor of `storage_logs`; don't use")]

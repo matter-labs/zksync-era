@@ -39,7 +39,7 @@ impl fmt::Display for StorageProcessorTags {
 }
 
 pub struct TracedConnectionInfo {
-    tags: Option<StorageProcessorTags>,
+    pub tags: Option<StorageProcessorTags>,
     created_at: Instant,
 }
 
@@ -55,7 +55,7 @@ impl fmt::Debug for TracedConnectionInfo {
 /// Traced active connections for a connection pool.
 #[derive(Default)]
 pub struct TracedConnections {
-    connections: Mutex<HashMap<usize, TracedConnectionInfo>>,
+    pub connections: Mutex<HashMap<usize, TracedConnectionInfo>>,
     next_id: AtomicUsize,
 }
 
@@ -141,18 +141,18 @@ pub enum StorageProcessorInner<'a> {
 /// It holds down the connection (either direct or pooled) to the database
 /// and provide methods to obtain different storage schema.
 #[derive(Debug)]
-pub struct RawStorageProcessor<'a> {
+pub struct StorageProcessor<'a> {
     inner: StorageProcessorInner<'a>,
 }
 
-impl<'a> RawStorageProcessor<'a> {
-    pub async fn start_transaction(&mut self) -> sqlx::Result<RawStorageProcessor<'_>> {
+impl<'a> StorageProcessor<'a> {
+    pub async fn start_transaction(&mut self) -> sqlx::Result<StorageProcessor<'_>> {
         let (conn, tags) = self.conn_and_tags();
         let inner = StorageProcessorInner::Transaction {
             transaction: conn.begin().await?,
             tags,
         };
-        Ok(RawStorageProcessor { inner })
+        Ok(StorageProcessor { inner })
     }
 
     /// Checks if the `StorageProcessor` is currently within database transaction.

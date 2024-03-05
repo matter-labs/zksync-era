@@ -4,14 +4,11 @@ use zksync_types::{
     Address, MiniblockNumber, H256,
 };
 
-use crate::{
-    instrument::InstrumentExt, models::storage_event::StorageWeb3Log, RawStorageProcessor,
-    SqlxError,
-};
+use crate::{instrument::InstrumentExt, models::storage_event::StorageWeb3Log, SqlxError};
 
 #[derive(Debug)]
 pub struct EventsWeb3Dal<'a, 'c> {
-    pub(crate) storage: &'a mut RawStorageProcessor<'c>,
+    pub(crate) storage: &'a mut zksync_db_connection::StorageProcessor<'c>,
 }
 
 impl EventsWeb3Dal<'_, '_> {

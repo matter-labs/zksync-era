@@ -7,11 +7,11 @@ use zksync_types::{
 };
 
 pub use crate::models::storage_log::{DbStorageLog, StorageRecoveryLogEntry};
-use crate::{blocks_dal::BlocksDal, instrument::InstrumentExt, RawStorageProcessor};
+use crate::{blocks_dal::BlocksDal, instrument::InstrumentExt};
 
 #[derive(Debug)]
 pub struct StorageLogsDal<'a, 'c> {
-    pub(crate) storage: &'a mut RawStorageProcessor<'c>,
+    pub(crate) storage: &'a mut zksync_db_connection::StorageProcessor<'c>,
 }
 
 impl StorageLogsDal<'_, '_> {

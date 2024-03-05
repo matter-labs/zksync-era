@@ -13,7 +13,7 @@ use zksync_types::{
 use crate::{
     blocks_dal::BlocksDal,
     models::storage_event::{StorageL2ToL1Log, StorageWeb3Log},
-    RawStorageProcessor, SqlxError,
+    SqlxError,
 };
 
 /// Wrapper around an optional event topic allowing to hex-format it for `COPY` instructions.
@@ -32,7 +32,7 @@ impl fmt::LowerHex for EventTopic<'_> {
 
 #[derive(Debug)]
 pub struct EventsDal<'a, 'c> {
-    pub(crate) storage: &'a mut RawStorageProcessor<'c>,
+    pub(crate) storage: &'a mut zksync_db_connection::StorageProcessor<'c>,
 }
 
 impl EventsDal<'_, '_> {

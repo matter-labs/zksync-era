@@ -3,11 +3,11 @@ use zksync_types::{
     StorageKey, H256,
 };
 
-use crate::{instrument::InstrumentExt, RawStorageProcessor};
+use crate::instrument::InstrumentExt;
 
 #[derive(Debug)]
 pub struct SnapshotsCreatorDal<'a, 'c> {
-    pub(crate) storage: &'a mut RawStorageProcessor<'c>,
+    pub(crate) storage: &'a mut zksync_db_connection::StorageProcessor<'c>,
 }
 
 impl SnapshotsCreatorDal<'_, '_> {

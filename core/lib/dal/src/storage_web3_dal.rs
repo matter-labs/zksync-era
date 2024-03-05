@@ -10,12 +10,12 @@ use zksync_utils::h256_to_u256;
 
 use crate::{
     instrument::InstrumentExt, models::storage_block::ResolvedL1BatchForMiniblock,
-    storage_logs_dal::StorageLogsDal, RawStorageProcessor, SqlxError,
+    storage_logs_dal::StorageLogsDal, SqlxError,
 };
 
 #[derive(Debug)]
 pub struct StorageWeb3Dal<'a, 'c> {
-    pub(crate) storage: &'a mut RawStorageProcessor<'c>,
+    pub(crate) storage: &'a mut zksync_db_connection::StorageProcessor<'c>,
 }
 
 impl StorageWeb3Dal<'_, '_> {

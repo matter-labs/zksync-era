@@ -16,7 +16,6 @@ use sqlx::{
     postgres::{PgConnectOptions, PgPool, PgPoolOptions, Postgres},
     Executor,
 };
-pub(crate) use zksync_db_connection::RawStorageProcessor;
 use zksync_db_connection::{StorageProcessorTags, TracedConnections};
 
 use crate::{metrics::CONNECTION_METRICS, StorageProcessor};
@@ -350,7 +349,7 @@ impl ConnectionPool {
         if let Some(tags) = &tags {
             CONNECTION_METRICS.acquire_tagged[&tags.requester].observe(elapsed);
         }
-        Ok(StorageProcessor(RawStorageProcessor::from_pool(
+        Ok(StorageProcessor(StorageProcessor::from_pool(
             conn,
             tags,
             self.traced_connections.as_deref(),
@@ -441,5 +440,44 @@ mod tests {
             err,
             sqlx::Error::Database(db_err) if db_err.message().contains("statement timeout")
         );
+    }
+
+    #[tokio::test]
+    async fn processor_tags_propagate_to_transactions() {
+        let pool = ConnectionPool::constrained_test_pool(1).await;
+        let mut connection = pool.access_storage_tagged("test").await.unwrap();
+        assert!(!connection.in_transaction());
+        let original_tags = *connection.conn_and_tags().1.unwrap();
+        assert_eq!(original_tags.requester, "test");
+
+        let mut transaction = connection.start_transaction().await.unwrap();
+        let transaction_tags = *transaction.conn_and_tags().1.unwrap();
+        assert_eq!(transaction_tags, original_tags);
+    }
+
+    #[tokio::test]
+    async fn tracing_connections() {
+        let pool = ConnectionPool::constrained_test_pool(1).await;
+        let connection = pool.access_storage_tagged("test").await.unwrap();
+        let traced = pool.traced_connections.as_deref().unwrap();
+        {
+            let traced = traced.connections.lock().unwrap();
+            assert_eq!(traced.len(), 1);
+            let tags = traced.values().next().unwrap().tags.unwrap();
+            assert_eq!(tags.requester, "test");
+            assert!(tags.location.file().contains("processor.rs"), "{tags:?}");
+        }
+        drop(connection);
+
+        {
+            let traced = traced.connections.lock().unwrap();
+            assert!(traced.is_empty());
+        }
+
+        let _connection = pool.access_storage_tagged("test").await.unwrap();
+        let err = format!("{:?}", pool.access_storage().await.unwrap_err());
+        // Matching strings in error messages is an anti-pattern, but we really want to test DevEx here.
+        assert!(err.contains("Active connections"), "{err}");
+        assert!(err.contains("requested by `test`"), "{err}");
     }
 }
