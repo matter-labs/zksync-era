@@ -51,6 +51,8 @@ jobs:
           
       - name: Step 2 - Run zk init
         run: |
+          echo "::add-path::${{env.zk}}"
+          echo "Updated PATH: $PATH"
           zk
           zk init
 
