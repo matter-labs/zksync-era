@@ -25,14 +25,14 @@ pub struct GasAdjuster<E> {
     pub(super) statistics: GasStatistics,
     pub(super) config: GasAdjusterConfig,
     eth_client: E,
-    native_token_fetcher_dyn: Option<Arc<dyn ConversionRateFetcher>>,
+    native_token_fetcher: Arc<dyn ConversionRateFetcher>,
 }
 
 impl<E: EthInterface> GasAdjuster<E> {
     pub async fn new(
         eth_client: E,
         config: GasAdjusterConfig,
-        native_token_fetcher_dyn: Option<Arc<dyn ConversionRateFetcher>>,
+        native_token_fetcher: Arc<dyn ConversionRateFetcher>,
     ) -> Result<Self, Error> {
         // Subtracting 1 from the "latest" block number to prevent errors in case
         // the info about the latest block is not yet present on the node.
@@ -49,7 +49,7 @@ impl<E: EthInterface> GasAdjuster<E> {
             statistics: GasStatistics::new(config.max_base_fee_samples, current_block, &history),
             eth_client,
             config,
-            native_token_fetcher_dyn,
+            native_token_fetcher,
         })
     }
 
@@ -111,13 +111,11 @@ impl<E: EthInterface> GasAdjuster<E> {
                 tracing::warn!("Cannot add the base fee to gas statistics: {}", err);
             }
 
-            if let Some(native_erc20_fetcher) = &self.native_token_fetcher_dyn {
-                if let Err(err) = native_erc20_fetcher.update().await {
-                    tracing::warn!(
-                        "Error when trying to fetch the native erc20 conversion rate: {}",
-                        err
-                    );
-                }
+            if let Err(err) = self.native_token_fetcher.update().await {
+                tracing::warn!(
+                    "Error when trying to fetch the native erc20 conversion rate: {}",
+                    err
+                );
             }
 
             tokio::time::sleep(self.config.poll_period()).await;
@@ -139,11 +137,7 @@ impl<E: EthInterface> L1GasPriceProvider for GasAdjuster<E> {
         let calculated_price =
             (self.config.internal_l1_pricing_multiplier * effective_gas_price as f64) as u64;
 
-        // Bound the price if it's too high.
-        let conversion_rate = match self.native_token_fetcher_dyn.as_ref() {
-            Some(fetcher) => fetcher.conversion_rate().unwrap_or(1),
-            None => 1,
-        };
+        let conversion_rate = self.native_token_fetcher.conversion_rate().unwrap_or(1);
 
         self.bound_gas_price(calculated_price) * conversion_rate
     }

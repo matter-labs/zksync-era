@@ -68,7 +68,7 @@ use crate::{
     l1_gas_price::{GasAdjusterSingleton, L1GasPriceProvider},
     metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
     metrics::{InitStage, APP_METRICS},
-    native_token_fetcher::{ConversionRateFetcher, NativeTokenFetcher},
+    native_token_fetcher::{ConversionRateFetcher, NativeTokenFetcher, NoOpConversionRateFetcher},
     state_keeper::{
         create_state_keeper, MempoolFetcher, MempoolGuard, MiniblockSealer, SequencerSealer,
     },
@@ -327,17 +327,17 @@ pub async fn initialize_components(
     let (cb_sender, cb_receiver) = oneshot::channel();
 
     let native_token_fetcher = if components.contains(&Component::NativeTokenFetcher) {
-        Some(Arc::new(
+        Arc::new(
             NativeTokenFetcher::new(
                 configs
                     .native_token_fetcher_config
                     .clone()
                     .context("native_token_fetcher_config")?,
             )
-            .await,
-        ) as Arc<dyn ConversionRateFetcher>)
+            .await?,
+        ) as Arc<dyn ConversionRateFetcher>
     } else {
-        None
+        Arc::new(NoOpConversionRateFetcher::new())
     };
 
     let query_client = QueryClient::new(&eth_client_config.web3_url).unwrap();
