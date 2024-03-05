@@ -54,10 +54,14 @@ fn deserialize_l1_batch_number(bytes: &[u8]) -> u32 {
     u32::from_le_bytes(bytes)
 }
 
+/// RocksDB column families used by the state keeper.
 #[derive(Debug, Clone, Copy)]
-enum StateKeeperColumnFamily {
+pub enum StateKeeperColumnFamily {
+    /// Column family containing tree state information.
     State,
+    /// Column family containing contract contents.
     Contracts,
+    /// Column family containing bytecodes for new contracts that a certain contract may deploy.
     FactoryDeps,
 }
 
@@ -125,7 +129,8 @@ impl From<anyhow::Error> for RocksdbSyncError {
 /// [`ReadStorage`] implementation backed by RocksDB.
 #[derive(Debug)]
 pub struct RocksdbStorage {
-    db: RocksDB<StateKeeperColumnFamily>,
+    /// Underlying RocksDB instance
+    pub db: RocksDB<StateKeeperColumnFamily>,
     pending_patch: InMemoryStorage,
     enum_index_migration_chunk_size: usize,
     /// Test-only listeners to events produced by the storage.
@@ -208,16 +213,32 @@ impl RocksdbStorage {
     /// # Errors
     ///
     /// Propagates RocksDB I/O errors.
-    pub async fn builder(path: &Path) -> anyhow::Result<RocksbStorageBuilder> {
+    pub async fn open_builder(path: &Path) -> anyhow::Result<RocksbStorageBuilder> {
         Self::new(path.to_path_buf())
             .await
             .map(RocksbStorageBuilder)
     }
 
+    /// Creates a new storage builder with the provided RocksDB instance.
+    ///
+    /// # Errors
+    ///
+    /// Propagates RocksDB I/O errors.
+    pub async fn builder(
+        db: RocksDB<StateKeeperColumnFamily>,
+    ) -> anyhow::Result<RocksbStorageBuilder> {
+        Self::new_rocksdb(db).await.map(RocksbStorageBuilder)
+    }
+
     async fn new(path: PathBuf) -> anyhow::Result<Self> {
+        Self::new_rocksdb(RocksDB::new(&path).context("failed initializing state keeper RocksDB")?)
+            .await
+    }
+
+    async fn new_rocksdb(db: RocksDB<StateKeeperColumnFamily>) -> anyhow::Result<Self> {
         tokio::task::spawn_blocking(move || {
             Ok(Self {
-                db: RocksDB::new(&path).context("failed initializing state keeper RocksDB")?,
+                db,
                 pending_patch: InMemoryStorage::default(),
                 enum_index_migration_chunk_size: 100,
                 #[cfg(test)]

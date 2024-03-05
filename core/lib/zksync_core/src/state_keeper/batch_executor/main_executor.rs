@@ -13,7 +13,7 @@ use multivm::{
 use once_cell::sync::OnceCell;
 use tokio::{
     runtime::Handle,
-    sync::{mpsc, watch, RwLock},
+    sync::{mpsc, watch},
 };
 use zksync_dal::ConnectionPool;
 use zksync_state::{ReadStorage, StorageView, WriteStorage};
@@ -38,7 +38,7 @@ pub struct MainBatchExecutor {
     max_allowed_tx_gas_limit: U256,
     upload_witness_inputs_to_gcs: bool,
     optional_bytecode_compression: bool,
-    cached_storage: Arc<RwLock<CachedStorage>>,
+    cached_storage: CachedStorage,
 }
 
 impl MainBatchExecutor {
@@ -56,11 +56,11 @@ impl MainBatchExecutor {
             max_allowed_tx_gas_limit,
             upload_witness_inputs_to_gcs,
             optional_bytecode_compression,
-            cached_storage: Arc::new(RwLock::new(CachedStorage::new(
+            cached_storage: CachedStorage::new(
                 pool,
                 state_keeper_db_path,
                 enum_index_migration_chunk_size,
-            ))),
+            ),
         }
     }
 }
@@ -88,10 +88,9 @@ impl BatchExecutor for MainBatchExecutor {
         let stop_receiver = stop_receiver.clone();
         let handle = tokio::task::spawn_blocking(move || {
             let rt_handle = Handle::current();
-            let mut cached_storage = rt_handle.block_on(cached_storage.write());
-            if let Some(storage) = rt_handle
-                .block_on(cached_storage.access_storage(rt_handle.clone(), stop_receiver))
-                .unwrap()
+            let factory = cached_storage.factory();
+            if let Some(storage) =
+                rt_handle.block_on(factory.access_storage(rt_handle.clone(), &stop_receiver))
             {
                 executor.run(
                     storage,

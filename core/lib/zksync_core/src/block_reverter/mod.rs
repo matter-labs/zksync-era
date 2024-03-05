@@ -207,7 +207,7 @@ impl BlockReverter {
     /// Reverts blocks in the state keeper cache.
     async fn rollback_state_keeper_cache(&self, last_l1_batch_to_keep: L1BatchNumber) {
         tracing::info!("opening DB with state keeper cache...");
-        let sk_cache = RocksdbStorage::builder(self.state_keeper_cache_path.as_ref())
+        let sk_cache = RocksdbStorage::open_builder(self.state_keeper_cache_path.as_ref())
             .await
             .expect("Failed initializing state keeper cache");
 
