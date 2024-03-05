@@ -173,7 +173,12 @@ export function pushConfig(environment?: string, diff?: string) {
 export function bumpChainId() {
     // note we bump in the .toml file directly
     const configFile = `etc/env/config/${process.env.ZKSYNC_ENV!}.toml`;
-    env.modify('CHAIN_ETH_ZKSYNC_NETWORK_ID', (parseInt(process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!) + 1).toString(), configFile, true);
+    env.modify(
+        'CHAIN_ETH_ZKSYNC_NETWORK_ID',
+        (parseInt(process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!) + 1).toString(),
+        configFile,
+        true
+    );
 }
 
 export const command = new Command('config').description('config management');

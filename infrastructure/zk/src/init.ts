@@ -128,8 +128,16 @@ const initSharedBridgeCmdAction = async (options: InitSharedBridgeCmdActionOptio
     await initBridgehubStateTransition();
 };
 
-type InitHyperCmdActionOptions = { skipSetupCompletely: boolean, bumpChainId: boolean, baseTokenName: string, baseTokenAddress: string};
-export const initHyperCmdAction = async ({ skipSetupCompletely, bumpChainId }: InitHyperCmdActionOptions): Promise<void> => {
+type InitHyperCmdActionOptions = {
+    skipSetupCompletely: boolean;
+    bumpChainId: boolean;
+    baseTokenName: string;
+    baseTokenAddress: string;
+};
+export const initHyperCmdAction = async ({
+    skipSetupCompletely,
+    bumpChainId
+}: InitHyperCmdActionOptions): Promise<void> => {
     if (bumpChainId) {
         await config.bumpChainId();
     }
