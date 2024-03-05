@@ -23,7 +23,7 @@ where
     ) -> Vec<Token>;
 
     /// [`l1_commit_batch`] is used mostly for size calculations for sealing criteria and for
-    /// consistency checks. Instead of preparing a full commit, it tokenizes an individual batch.
+    /// consistency checks. Instead of preparing a full commit, it will tokenize an individual batch.
     fn l1_commit_batch(&self, l1_batch: &L1BatchWithMetadata) -> Token;
 }
 
