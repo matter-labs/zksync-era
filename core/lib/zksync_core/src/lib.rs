@@ -30,7 +30,7 @@ use zksync_contracts::{governance_contract, BaseSystemContracts};
 use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
 use zksync_eth_client::{
     clients::{PKSigningClient, QueryClient},
-    CallFunctionArgs, Error as EthClientError, EthInterface,
+    CallFunctionArgs, EthInterface,
 };
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
@@ -44,7 +44,7 @@ use zksync_types::{
     },
     protocol_version::{L1VerifierConfig, VerifierParams},
     system_contracts::get_system_smart_contracts,
-    web3::{contract::tokens::Detokenize, ethabi},
+    web3::contract::tokens::Detokenize,
     L2ChainId, PackedEthSignature, ProtocolVersionId,
 };
 
@@ -54,8 +54,7 @@ use crate::{
         execution_sandbox::{VmConcurrencyBarrier, VmConcurrencyLimiter},
         healthcheck::HealthCheckHandle,
         tx_sender::{ApiContracts, TxSender, TxSenderBuilder, TxSenderConfig},
-        web3,
-        web3::{state::InternalApiConfig, ApiServerHandles, Namespace},
+        web3::{self, state::InternalApiConfig, ApiServerHandles, Namespace},
     },
     basic_witness_input_producer::BasicWitnessInputProducer,
     commitment_generator::CommitmentGenerator,
@@ -79,6 +78,7 @@ use crate::{
     state_keeper::{
         create_state_keeper, MempoolFetcher, MempoolGuard, MiniblockSealer, SequencerSealer,
     },
+    utils::ensure_l1_batch_commit_data_generation_mode,
 };
 
 pub mod api_server;
@@ -101,7 +101,7 @@ pub mod reorg_detector;
 pub mod state_keeper;
 pub mod sync_layer;
 pub mod temp_config_store;
-mod utils;
+pub mod utils;
 
 /// Inserts the initial information about zkSync tokens into the database.
 pub async fn genesis_init(
@@ -296,52 +296,6 @@ impl FromStr for Components {
             other => Err(format!("{} is not a valid component name", other)),
         }
     }
-}
-
-async fn ensure_l1_batch_commit_data_generation_mode(
-    state_keeper_config: &StateKeeperConfig,
-    contracts_config: &ContractsConfig,
-    eth_client: &impl EthInterface,
-) -> anyhow::Result<()> {
-    let selected_l1_batch_commit_data_generator_mode =
-        state_keeper_config.l1_batch_commit_data_generator_mode;
-    match get_pubdata_pricing_mode(contracts_config, eth_client).await {
-        // Getters contract support getPubdataPricingMode method
-        Ok(l1_contract_pubdata_pricing_mode) => {
-            let l1_contract_batch_commitment_mode =
-                L1BatchCommitDataGeneratorMode::from_tokens(l1_contract_pubdata_pricing_mode)
-                    .context(
-                        "Unable to parse L1BatchCommitDataGeneratorMode received from L1 contract",
-                    )?;
-
-            // contracts mode == server mode
-            anyhow::ensure!(
-                l1_contract_batch_commitment_mode == selected_l1_batch_commit_data_generator_mode,
-                "The selected L1BatchCommitDataGeneratorMode ({:?}) does not match the commitment mode used on L1 contract ({:?})",
-                selected_l1_batch_commit_data_generator_mode,
-                l1_contract_batch_commitment_mode
-            );
-
-            Ok(())
-        }
-        // Getters contract does not support getPubdataPricingMode method
-        Err(EthClientError::Contract(_)) => {
-            tracing::warn!("Getters contract does not support getPubdataPricingMode method");
-            Ok(())
-        }
-        Err(err) => anyhow::bail!(err),
-    }
-}
-
-async fn get_pubdata_pricing_mode(
-    contracts_config: &ContractsConfig,
-    eth_client: &impl EthInterface,
-) -> Result<Vec<ethabi::Token>, EthClientError> {
-    let args = CallFunctionArgs::new("getPubdataPricingMode", ()).for_contract(
-        contracts_config.diamond_proxy_addr,
-        zksync_contracts::zksync_contract(),
-    );
-    eth_client.call_contract_function(args).await
 }
 
 pub async fn initialize_components(
@@ -685,8 +639,8 @@ pub async fn initialize_components(
             .context("state_keeper_config")?;
 
         ensure_l1_batch_commit_data_generation_mode(
-            &state_keeper_config,
-            &contracts_config,
+            state_keeper_config.l1_batch_commit_data_generator_mode,
+            contracts_config.diamond_init_addr,
             &eth_client,
         )
         .await?;
