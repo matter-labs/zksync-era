@@ -79,8 +79,7 @@ async function dropForDal(dalPath: DalPath, dbUrl: string) {
 
 export async function drop(opts: DbOpts) {
     await utils.confirmAction();
-    console.log('Start droping...');
-    console.log(`opts = ${opts}`);
+    console.log(`opts.prover = ${opts.prover}, opts.server = ${opts.server}`);
     let dals = getDals(opts);
     for (const [dalPath, dbUrl] of dals.entries()) {
         console.log(`dbPath = ${dalPath}, dbUrl = ${dbUrl}`);
