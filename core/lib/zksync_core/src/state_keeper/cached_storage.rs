@@ -55,18 +55,13 @@ impl CachedStorageFactory {
                 snapshot_recovery.l1_batch_number,
             )
         } else {
-            (
-                connection
-                    .blocks_dal()
-                    .get_sealed_miniblock_number()
-                    .await?
-                    .unwrap_or_default(),
-                connection
-                    .blocks_dal()
-                    .get_sealed_l1_batch_number()
-                    .await?
-                    .unwrap_or_default(),
-            )
+            let mut dal = connection.blocks_dal();
+            let l1_batch_number = dal.get_sealed_l1_batch_number().await?.unwrap_or_default();
+            let (_, miniblock_number) = dal
+                .get_miniblock_range_of_l1_batch(l1_batch_number)
+                .await?
+                .unwrap_or_default();
+            (miniblock_number, l1_batch_number)
         };
 
         tracing::debug!(%l1_batch_number, %miniblock_number, "Using Postgres-based storage");
