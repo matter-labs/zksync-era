@@ -50,6 +50,8 @@ jobs:
           
       - name: Step 2 - Run zk init
         run: |
+          ls ${{ env.ZKSYNC_HOME }}
+          ls ${{ env.ZKSYNC_HOME }}/bin
           echo "${{ env.ZKSYNC_HOME }}/bin" >> $GITHUB_PATH
           zk
           zk init
