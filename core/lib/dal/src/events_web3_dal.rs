@@ -1,5 +1,8 @@
-use sqlx::query::Query;
-use sqlx::{postgres::PgArguments, query::QueryAs, Postgres, Row};
+use sqlx::{
+    postgres::PgArguments,
+    query::{Query, QueryAs},
+    Postgres, Row,
+};
 use zksync_types::{
     api::{GetLogsFilter, Log},
     Address, MiniblockNumber, H256,
