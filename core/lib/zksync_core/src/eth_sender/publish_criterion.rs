@@ -1,12 +1,9 @@
-use std::{fmt, sync::Arc};
+use std::fmt;
 
 use async_trait::async_trait;
 use chrono::Utc;
 use zksync_dal::StorageProcessor;
-use zksync_l1_contract_interface::{
-    i_executor::{commit::kzg::KzgSettings, structures::CommitBatchInfo},
-    Tokenizable,
-};
+use zksync_l1_contract_interface::{i_executor::structures::CommitBatchInfo, Tokenizable};
 use zksync_types::{
     aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata, ethabi,
     pubdata_da::PubdataDA, L1BatchNumber,
@@ -203,7 +200,6 @@ pub struct DataSizeCriterion {
     pub op: AggregatedActionType,
     pub data_limit: usize,
     pub pubdata_da: PubdataDA,
-    pub kzg_settings: Option<Arc<KzgSettings>>,
 }
 
 #[async_trait]
@@ -227,7 +223,6 @@ impl L1BatchPublishCriterion for DataSizeCriterion {
                 ethabi::encode(&[ethabi::Token::Array(vec![CommitBatchInfo::new(
                     l1_batch,
                     self.pubdata_da,
-                    self.kzg_settings.clone(),
                 )
                 .into_token()])])
                 .len();
