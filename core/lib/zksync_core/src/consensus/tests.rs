@@ -1,14 +1,17 @@
 use std::ops::Range;
 
 use anyhow::Context as _;
+use rand::Rng;
 use tracing::Instrument as _;
 use zksync_concurrency::{ctx, scope};
+use zksync_config::testonly::{Gen, RandomConfig};
 use zksync_consensus_executor::testonly::{connect_full_node, ValidatorNode};
+use zksync_consensus_roles::node;
 use zksync_consensus_storage as storage;
 use zksync_consensus_storage::PersistentBlockStore as _;
 use zksync_consensus_utils::no_copy::NoCopy;
 use zksync_dal::{connection::TestTemplate, ConnectionPool};
-use zksync_protobuf::testonly::test_encode_random;
+use zksync_protobuf_config::testonly::{encode_decode, FmtConv};
 
 use super::*;
 use crate::consensus::storage::CtxStorage;
@@ -317,9 +320,41 @@ async fn test_fetcher_backfill_certs() {
     .unwrap();
 }
 
+/*fn make_node_key<R: Rng>(rng: &mut R) -> node::PublicKey {
+    rng.gen::<node::SecretKey>().public()
+}*/
+
+impl RandomConfig for config::Config {
+    fn sample(g: &mut Gen<impl Rng>) -> Self {
+        struct K(node::SecretKey);
+        impl RandomConfig for K {
+            fn sample(g: &mut Gen<impl Rng>) -> Self {
+                Self(g.rng.gen())
+            }
+        }
+        Self {
+            server_addr: g.gen(),
+            public_addr: g.gen(),
+            validators: g.rng.gen(),
+            max_payload_size: g.gen(),
+            gossip_dynamic_inbound_limit: g.gen(),
+            gossip_static_inbound: g
+                .gen::<Vec<K>>()
+                .into_iter()
+                .map(|x| x.0.public())
+                .collect(),
+            gossip_static_outbound: g
+                .gen::<Vec<K>>()
+                .into_iter()
+                .map(|x| (x.0.public(), g.gen()))
+                .collect(),
+        }
+    }
+}
+
 #[test]
 fn test_schema_encoding() {
     let ctx = ctx::test_root(&ctx::RealClock);
     let rng = &mut ctx.rng();
-    test_encode_random::<config::Config>(rng);
+    encode_decode::<FmtConv<config::Config>>(rng);
 }

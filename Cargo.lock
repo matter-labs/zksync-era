@@ -8936,6 +8936,7 @@ dependencies = [
  "prost",
  "rand 0.8.5",
  "serde_json",
+ "serde_yaml",
  "zksync_basic_types",
  "zksync_config",
  "zksync_protobuf",
