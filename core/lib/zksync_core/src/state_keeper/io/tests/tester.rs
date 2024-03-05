@@ -30,7 +30,7 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub(super) struct Tester {
+pub struct Tester {
     base_system_contracts: BaseSystemContracts,
     current_timestamp: u64,
     pubdata_pricing: Arc<dyn PubdataPricing>,
