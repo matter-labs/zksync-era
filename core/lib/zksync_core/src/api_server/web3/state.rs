@@ -260,7 +260,7 @@ impl RpcState {
     /// non-existing blocks.
     pub(crate) async fn resolve_block_unchecked(
         &self,
-        connection: &mut StorageProcessor<'_>,
+        connection: &mut StorageProcessorWrapper<'_>,
         block: api::BlockId,
     ) -> Result<Option<MiniblockNumber>, Web3Error> {
         self.start_info.ensure_not_pruned(block)?;
