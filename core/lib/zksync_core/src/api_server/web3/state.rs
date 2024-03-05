@@ -236,6 +236,7 @@ impl RpcState {
         self.tx_sender.0.tx_sink.as_ref()
     }
 
+    /// Resolves the specified block ID to a block number, which is guaranteed to be present in the node storage.
     pub(crate) async fn resolve_block(
         &self,
         connection: &mut StorageProcessor<'_>,
@@ -248,6 +249,32 @@ impl RpcState {
             .await
             .context("resolve_block_id")?
             .ok_or(Web3Error::NoBlock)
+    }
+
+    /// Resolves the specified block ID to a block number, which is **not** guaranteed to be present in the node storage.
+    /// Returns `None` if the block is known to not be present in the storage (e.g., it's a "finalized" block ID and no blocks
+    /// were finalized yet).
+    ///
+    /// This method is more efficient than [`Self::resolve_block()`] (it doesn't query the storage if block ID maps to a known
+    /// block number), but is more difficult to reason about. You should use it only if the block number consumer correctly handles
+    /// non-existing blocks.
+    pub(crate) async fn resolve_block_unchecked(
+        &self,
+        connection: &mut StorageProcessor<'_>,
+        block: api::BlockId,
+    ) -> Result<Option<MiniblockNumber>, Web3Error> {
+        self.start_info.ensure_not_pruned(block)?;
+        match block {
+            api::BlockId::Number(api::BlockNumber::Number(number)) => {
+                Ok(u32::try_from(number).ok().map(MiniblockNumber))
+            }
+            api::BlockId::Number(api::BlockNumber::Earliest) => Ok(Some(MiniblockNumber(0))),
+            _ => Ok(connection
+                .blocks_web3_dal()
+                .resolve_block_id(block)
+                .await
+                .context("resolve_block_id")?),
+        }
     }
 
     pub(crate) async fn resolve_block_args(
