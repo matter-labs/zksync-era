@@ -1,3 +1,11 @@
+database_url = "postgres://postgres@postgres/zksync_local"
+database_prover_url = "postgres://postgres@postgres/prover_local"
+test_database_url = "postgres://postgres@host:5433/zksync_local_test"
+test_database_prover_url="postgres://postgres@host:5433/prover_local_test"
+
+# for loadtest
+l1_rpc_address = "http://geth:8545"
+
 [chain.state_keeper]
 compute_overhead_part=1.0
 pubdata_overhead_part=0.0
@@ -10,14 +18,6 @@ miniblock_iteration_interval = 50
 # This override will be removed soon but it is needed for now.
 [eth_sender.gas_adjuster]
 l1_gas_per_pubdata_byte=0
-
-database_url = "postgres://postgres@postgres/zksync_local"
-database_prover_url = "postgres://postgres@postgres/prover_local"
-test_database_url = "postgres://postgres@host:5433/zksync_local_test"
-test_database_prover_url="postgres://postgres@host:5433/prover_local_test"
-
-# for loadtest
-l1_rpc_address = "http://geth:8545"
 
 [eth_client]
 web3_url = "http://geth:8545"
