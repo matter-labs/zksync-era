@@ -1,5 +1,12 @@
 # Changelog
 
+## [12.0.1](https://github.com/matter-labs/zksync-era/compare/prover-v12.0.0...prover-v12.0.1) (2024-03-05)
+
+
+### Performance Improvements
+
+* remove CSReferenceAssembly structure instantiation in GPU prover ([#1100](https://github.com/matter-labs/zksync-era/issues/1100)) ([5c405ba](https://github.com/matter-labs/zksync-era/commit/5c405ba00dd41e579f0ea575ea723f4dd3aa0e63))
+
 ## [12.0.0](https://github.com/matter-labs/zksync-era/compare/prover-v11.0.0...prover-v12.0.0) (2024-03-04)
 
 
