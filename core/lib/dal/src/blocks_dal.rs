@@ -1850,18 +1850,11 @@ impl BlocksDal<'_, '_> {
         Ok(())
     }
 
-    async fn delete_logs_inner(
-        &mut self,
-        last_miniblock_to_keep: Option<MiniblockNumber>,
-    ) -> sqlx::Result<()> {
-        let block_number = last_miniblock_to_keep.map_or(-1, |number| number.0 as i64);
+    async fn delete_logs_inner(&mut self) -> sqlx::Result<()> {
         sqlx::query!(
             r#"
             DELETE FROM storage_logs
-            WHERE
-                miniblock_number > $1
             "#,
-            block_number
         )
         .execute(self.storage.conn())
         .await?;
@@ -2339,7 +2332,7 @@ impl BlocksDal<'_, '_> {
         self.delete_initial_writes_inner(None)
             .await
             .context("delete_initial_writes_inner()")?;
-        self.delete_logs_inner(None).await.context("no")?;
+        self.delete_logs_inner().await.context("no")?;
         Ok(())
     }
 }
