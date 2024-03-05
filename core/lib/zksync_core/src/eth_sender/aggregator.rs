@@ -3,9 +3,8 @@ use std::sync::Arc;
 use zksync_config::configs::eth_sender::{ProofLoadingMode, ProofSendingMode, SenderConfig};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::StorageProcessor;
-use zksync_l1_contract_interface::i_executor::{
-    commit::kzg::KzgSettings,
-    methods::{CommitBatches, ExecuteBatches, ProveBatches},
+use zksync_l1_contract_interface::i_executor::methods::{
+    CommitBatches, ExecuteBatches, ProveBatches,
 };
 use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_prover_interface::outputs::L1BatchProofForL1;
@@ -37,7 +36,6 @@ pub struct Aggregator {
     /// transactions.
     operate_4844_mode: bool,
     pubdata_da: PubdataDA,
-    kzg_settings: Option<Arc<KzgSettings>>,
 }
 
 impl Aggregator {
@@ -46,7 +44,6 @@ impl Aggregator {
         blob_store: Arc<dyn ObjectStore>,
         operate_4844_mode: bool,
         pubdata_da: PubdataDA,
-        kzg_settings: Option<Arc<KzgSettings>>,
     ) -> Self {
         Self {
             commit_criteria: vec![
@@ -62,7 +59,6 @@ impl Aggregator {
                     op: AggregatedActionType::Commit,
                     data_limit: config.max_eth_tx_data_size,
                     pubdata_da,
-                    kzg_settings: kzg_settings.clone(),
                 }),
                 Box::from(TimestampDeadlineCriterion {
                     op: AggregatedActionType::Commit,
@@ -107,7 +103,6 @@ impl Aggregator {
             blob_store,
             operate_4844_mode,
             pubdata_da,
-            kzg_settings,
         }
     }
 
@@ -244,7 +239,6 @@ impl Aggregator {
             last_committed_l1_batch,
             l1_batches: batches,
             pubdata_da: self.pubdata_da,
-            kzg_settings: self.kzg_settings.clone(),
         })
     }
 
