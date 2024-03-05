@@ -1,19 +1,14 @@
 use std::borrow::BorrowMut;
 
 use ethabi::Token;
-use zk_evm_1_4_1::{
-    aux_structures::Timestamp, zkevm_opcode_defs::system_params::MAX_PUBDATA_PER_BLOCK,
-};
+use zk_evm_1_4_1::aux_structures::Timestamp;
 use zksync_contracts::load_sys_contract;
 use zksync_system_constants::{
     CONTRACT_FORCE_DEPLOYER_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS,
 };
 use zksync_types::{
-    commitment::SerializeCommitment,
-    get_code_key,
-    l2_to_l1_log::{l2_to_l1_logs_tree_size, L2ToL1Log},
-    writes::StateDiffRecord,
-    Address, Execute, ProtocolVersionId, H256, U256,
+    commitment::SerializeCommitment, get_code_key, l2_to_l1_log::L2ToL1Log,
+    writes::StateDiffRecord, Address, Execute, H256, U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256};
 
@@ -23,7 +18,7 @@ use crate::{
     vm_latest::{
         constants::{
             BOOTLOADER_BATCH_TIP_OVERHEAD, MAX_BATCH_TIP_CIRCUIT_STATISTICS,
-            MAX_BATCH_TIP_METRICS_SIZE,
+            MAX_BATCH_TIP_METRICS_SIZE, MAX_VM_PUBDATA_PER_BATCH,
         },
         tests::tester::{get_empty_storage, InMemoryStorageView, VmTesterBuilder},
         tracers::PubdataTracer,
@@ -158,7 +153,11 @@ fn execute_test(test_data: L1MessengerTestData) -> TestStatistics {
 
     vm.vm.push_transaction(tx);
     let result = vm.vm.execute(VmExecutionMode::OneTx);
-    assert!(!result.result.is_failed(), "Transaction wasn't successful");
+    assert!(
+        !result.result.is_failed(),
+        "Transaction wasn't successful for input: {:?}",
+        test_data
+    );
 
     // Now we count how much ergs were spent at the end of the batch
     // It is assumed that the top level frame is the bootloader
@@ -169,7 +168,7 @@ fn execute_test(test_data: L1MessengerTestData) -> TestStatistics {
     let pubdata_tracer = PubdataTracer::<InMemoryStorageView>::new_with_forced_state_diffs(
         vm.vm.batch_env.clone(),
         VmExecutionMode::Batch,
-        test_data.state_diffs,
+        test_data.state_diffs.clone(),
     );
 
     let result = vm.vm.inspect_inner(
@@ -178,7 +177,11 @@ fn execute_test(test_data: L1MessengerTestData) -> TestStatistics {
         Some(pubdata_tracer),
     );
 
-    assert!(!result.result.is_failed(), "Batch wasn't successful");
+    assert!(
+        !result.result.is_failed(),
+        "Batch wasn't successful for input: {:?}",
+        test_data
+    );
 
     let ergs_after = vm.vm.state.local_state.callstack.current.ergs_remaining;
 
@@ -222,8 +225,31 @@ fn generate_state_diffs(
         .collect()
 }
 
+// A valid zkEVM bytecode has odd number of 32 byte words
+fn get_valid_bytecode_length(length: usize) -> usize {
+    // Firstly ensure that the length is divisible by 32
+    let length_padded_to_32 = if length % 32 == 0 {
+        length
+    } else {
+        length + 32 - (length % 32)
+    };
+
+    // Then we ensure that the number returned by division by 32 is odd
+    if length_padded_to_32 % 64 == 0 {
+        length_padded_to_32 + 32
+    } else {
+        length_padded_to_32
+    }
+}
+
 #[test]
 fn test_dry_run_upper_bound() {
+    // Some of the pubdata is consumed by constant fields (such as length of messages, number of logs, etc.).
+    // While this leaves some room for error, at the end of the test we require that the `BOOTLOADER_BATCH_TIP_OVERHEAD`
+    // is sufficient with a very large margin, so it is okay to ignore 1% of possible pubdata.
+    const MAX_EFFECTIVE_PUBDATA_PER_BATCH: usize =
+        (MAX_VM_PUBDATA_PER_BATCH as f64 * 0.99) as usize;
+
     // We are re-using the `ComplexUpgrade` contract as it already has the `mimicCall` functionality.
     // To get the upper bound, we'll try to do the following:
     // 1. Max number of logs.
@@ -236,7 +262,7 @@ fn test_dry_run_upper_bound() {
     // max logs
     statistics.push(StatisticsTagged {
         statistics: execute_test(L1MessengerTestData {
-            l2_to_l1_logs: l2_to_l1_logs_tree_size(ProtocolVersionId::Version20),
+            l2_to_l1_logs: MAX_EFFECTIVE_PUBDATA_PER_BATCH / L2ToL1Log::SERIALIZED_SIZE,
             ..Default::default()
         }),
         tag: "max_logs".to_string(),
@@ -245,8 +271,12 @@ fn test_dry_run_upper_bound() {
     // max messages
     statistics.push(StatisticsTagged {
         statistics: execute_test(L1MessengerTestData {
-            // Each L2->L1 message is accompanied by a Log, so the max number of pubdata is bound by it
-            messages: vec![vec![0; 0]; MAX_PUBDATA_PER_BLOCK as usize / L2ToL1Log::SERIALIZED_SIZE],
+            // Each L2->L1 message is accompanied by a Log + its length, which is a 4 byte number,
+            // so the max number of pubdata is bound by it
+            messages: vec![
+                vec![0; 0];
+                MAX_EFFECTIVE_PUBDATA_PER_BATCH / (L2ToL1Log::SERIALIZED_SIZE + 4)
+            ],
             ..Default::default()
         }),
         tag: "max_messages".to_string(),
@@ -256,7 +286,7 @@ fn test_dry_run_upper_bound() {
     statistics.push(StatisticsTagged {
         statistics: execute_test(L1MessengerTestData {
             // Each L2->L1 message is accompanied by a Log, so the max number of pubdata is bound by it
-            messages: vec![vec![0; MAX_PUBDATA_PER_BLOCK as usize]; 1],
+            messages: vec![vec![0; MAX_EFFECTIVE_PUBDATA_PER_BATCH]; 1],
             ..Default::default()
         }),
         tag: "long_message".to_string(),
@@ -265,8 +295,9 @@ fn test_dry_run_upper_bound() {
     // max bytecodes
     statistics.push(StatisticsTagged {
         statistics: execute_test(L1MessengerTestData {
-            // Each bytecode must be at least 32 bytes long
-            bytecodes: vec![vec![0; 32]; MAX_PUBDATA_PER_BLOCK as usize / 32],
+            // Each bytecode must be at least 32 bytes long.
+            // Each uncompressed bytecode is accompanied by its length, which is a 4 byte number
+            bytecodes: vec![vec![0; 32]; MAX_EFFECTIVE_PUBDATA_PER_BATCH / (32 + 4)],
             ..Default::default()
         }),
         tag: "max_bytecodes".to_string(),
@@ -275,8 +306,7 @@ fn test_dry_run_upper_bound() {
     // long bytecode
     statistics.push(StatisticsTagged {
         statistics: execute_test(L1MessengerTestData {
-            // We have to add 48 since a valid bytecode must have an odd number of 32 byte words
-            bytecodes: vec![vec![0; MAX_PUBDATA_PER_BLOCK as usize + 48]; 1],
+            bytecodes: vec![vec![0; get_valid_bytecode_length(MAX_EFFECTIVE_PUBDATA_PER_BATCH)]; 1],
             ..Default::default()
         }),
         tag: "long_bytecode".to_string(),
@@ -286,7 +316,7 @@ fn test_dry_run_upper_bound() {
     statistics.push(StatisticsTagged {
         statistics: execute_test(L1MessengerTestData {
             // In theory each state diff can require only 5 bytes to be published (enum index + 4 bytes for the key)
-            state_diffs: generate_state_diffs(true, true, MAX_PUBDATA_PER_BLOCK as usize / 5),
+            state_diffs: generate_state_diffs(true, true, MAX_EFFECTIVE_PUBDATA_PER_BATCH / 5),
             ..Default::default()
         }),
         tag: "small_repeated_writes".to_string(),
@@ -295,8 +325,8 @@ fn test_dry_run_upper_bound() {
     // lots of big repeated writes
     statistics.push(StatisticsTagged {
         statistics: execute_test(L1MessengerTestData {
-            // Each big write will approximately require 32 bytes to encode
-            state_diffs: generate_state_diffs(true, false, MAX_PUBDATA_PER_BLOCK as usize / 32),
+            // Each big repeated write will approximately require 4 bytes for key + 1 byte for encoding type + 32 bytes for value
+            state_diffs: generate_state_diffs(true, false, MAX_EFFECTIVE_PUBDATA_PER_BATCH / 37),
             ..Default::default()
         }),
         tag: "big_repeated_writes".to_string(),
@@ -305,8 +335,8 @@ fn test_dry_run_upper_bound() {
     // lots of small initial writes
     statistics.push(StatisticsTagged {
         statistics: execute_test(L1MessengerTestData {
-            // Each initial write will take at least 32 bytes for derived key + 5 bytes for value
-            state_diffs: generate_state_diffs(false, true, MAX_PUBDATA_PER_BLOCK as usize / 37),
+            // Each small initial write will take at least 32 bytes for derived key + 1 bytes encoding zeroing out
+            state_diffs: generate_state_diffs(false, true, MAX_EFFECTIVE_PUBDATA_PER_BATCH / 33),
             ..Default::default()
         }),
         tag: "small_initial_writes".to_string(),
@@ -315,8 +345,8 @@ fn test_dry_run_upper_bound() {
     // lots of large initial writes
     statistics.push(StatisticsTagged {
         statistics: execute_test(L1MessengerTestData {
-            // Each big write will take at least 32 bytes for derived key + 32 bytes for value
-            state_diffs: generate_state_diffs(false, false, MAX_PUBDATA_PER_BLOCK as usize / 64),
+            // Each big write will take at least 32 bytes for derived key + 1 byte for encoding type + 32 bytes for value
+            state_diffs: generate_state_diffs(false, false, MAX_EFFECTIVE_PUBDATA_PER_BATCH / 65),
             ..Default::default()
         }),
         tag: "big_initial_writes".to_string(),

@@ -47,11 +47,11 @@ pub enum ProtocolVersionId {
 
 impl ProtocolVersionId {
     pub fn latest() -> Self {
-        Self::Version20
+        Self::Version21
     }
 
     pub fn next() -> Self {
-        Self::Version21
+        Self::Version22
     }
 
     /// Returns VM version to be used by API for this protocol version.
@@ -114,6 +114,10 @@ impl ProtocolVersionId {
     pub fn is_post_1_4_2(&self) -> bool {
         self >= &ProtocolVersionId::Version21
     }
+
+    pub fn is_pre_1_4_2(&self) -> bool {
+        self < &ProtocolVersionId::Version21
+    }
 }
 
 impl Default for ProtocolVersionId {
@@ -136,6 +140,7 @@ impl TryFrom<U256> for ProtocolVersionId {
     }
 }
 
+// TODO: Do we even need this? I reckon we could merge this with `ProtocolVersionId`.
 #[repr(u16)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[derive(TryFromPrimitive, Serialize, Deserialize)]
@@ -143,21 +148,71 @@ pub enum FriProtocolVersionId {
     Version0 = 0,
     Version1,
     Version2,
+    Version3,
+    Version4,
+    Version5,
+    Version6,
+    Version7,
+    Version8,
+    Version9,
+    Version10,
+    Version11,
+    Version12,
+    Version13,
+    Version14,
+    Version15,
+    Version16,
+    Version17,
+    Version18,
+    Version19,
+    Version20,
+    Version21,
+    Version22,
 }
 
 impl FriProtocolVersionId {
     pub fn latest() -> Self {
-        Self::Version1
+        Self::Version21
     }
 
     pub fn next() -> Self {
-        Self::Version2
+        Self::Version22
     }
 }
 
 impl Default for FriProtocolVersionId {
     fn default() -> Self {
         Self::latest()
+    }
+}
+
+impl From<ProtocolVersionId> for FriProtocolVersionId {
+    fn from(protocol_version: ProtocolVersionId) -> Self {
+        match protocol_version {
+            ProtocolVersionId::Version0 => FriProtocolVersionId::Version0,
+            ProtocolVersionId::Version1 => FriProtocolVersionId::Version1,
+            ProtocolVersionId::Version2 => FriProtocolVersionId::Version2,
+            ProtocolVersionId::Version3 => FriProtocolVersionId::Version3,
+            ProtocolVersionId::Version4 => FriProtocolVersionId::Version4,
+            ProtocolVersionId::Version5 => FriProtocolVersionId::Version5,
+            ProtocolVersionId::Version6 => FriProtocolVersionId::Version6,
+            ProtocolVersionId::Version7 => FriProtocolVersionId::Version7,
+            ProtocolVersionId::Version8 => FriProtocolVersionId::Version8,
+            ProtocolVersionId::Version9 => FriProtocolVersionId::Version9,
+            ProtocolVersionId::Version10 => FriProtocolVersionId::Version10,
+            ProtocolVersionId::Version11 => FriProtocolVersionId::Version11,
+            ProtocolVersionId::Version12 => FriProtocolVersionId::Version12,
+            ProtocolVersionId::Version13 => FriProtocolVersionId::Version13,
+            ProtocolVersionId::Version14 => FriProtocolVersionId::Version14,
+            ProtocolVersionId::Version15 => FriProtocolVersionId::Version15,
+            ProtocolVersionId::Version16 => FriProtocolVersionId::Version16,
+            ProtocolVersionId::Version17 => FriProtocolVersionId::Version17,
+            ProtocolVersionId::Version18 => FriProtocolVersionId::Version18,
+            ProtocolVersionId::Version19 => FriProtocolVersionId::Version19,
+            ProtocolVersionId::Version20 => FriProtocolVersionId::Version20,
+            ProtocolVersionId::Version21 => FriProtocolVersionId::Version21,
+            ProtocolVersionId::Version22 => FriProtocolVersionId::Version22,
+        }
     }
 }
 

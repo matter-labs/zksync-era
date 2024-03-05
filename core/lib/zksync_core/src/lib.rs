@@ -363,8 +363,16 @@ pub async fn initialize_components(
 
     let query_client = QueryClient::new(&eth_client_config.web3_url).unwrap();
     let gas_adjuster_config = configs.gas_adjuster_config.context("gas_adjuster_config")?;
-    let mut gas_adjuster =
-        GasAdjusterSingleton::new(eth_client_config.web3_url.clone(), gas_adjuster_config);
+
+    let eth_sender_config = configs
+        .eth_sender_config
+        .clone()
+        .context("eth_sender_config")?;
+    let mut gas_adjuster = GasAdjusterSingleton::new(
+        eth_client_config.web3_url.clone(),
+        gas_adjuster_config,
+        eth_sender_config.sender.pubdata_sending_mode,
+    );
 
     let (stop_sender, stop_receiver) = watch::channel(false);
     let (cb_sender, cb_receiver) = oneshot::channel();
@@ -647,6 +655,7 @@ pub async fn initialize_components(
                 eth_sender.sender.clone(),
                 store_factory.create_store().await,
                 eth_client_blobs_addr.is_some(),
+                eth_sender.sender.pubdata_sending_mode.into(),
             ),
             Arc::new(eth_client),
             contracts_config.validator_timelock_addr,
@@ -751,13 +760,11 @@ pub async fn initialize_components(
     }
 
     if components.contains(&Component::CommitmentGenerator) {
-        let kzg_config = configs.kzg_config.clone().context("kzg_config")?;
         let commitment_generator_pool = ConnectionPool::singleton(postgres_config.master_url()?)
             .build()
             .await
             .context("failed to build commitment_generator_pool")?;
-        let commitment_generator =
-            CommitmentGenerator::new(commitment_generator_pool, &kzg_config.trusted_setup_path);
+        let commitment_generator = CommitmentGenerator::new(commitment_generator_pool);
         app_health.insert_component(commitment_generator.health_check());
         task_futures.push(tokio::spawn(
             commitment_generator.run(stop_receiver.clone()),
@@ -1185,9 +1192,14 @@ async fn run_http_api(
             .with_tree_api(api_config.web3_json_rpc.tree_api_url())
             .with_batch_request_size_limit(api_config.web3_json_rpc.max_batch_request_size())
             .with_response_body_size_limit(api_config.web3_json_rpc.max_response_body_size())
-            .with_tx_sender(tx_sender, vm_barrier)
+            .with_tx_sender(tx_sender)
+            .with_vm_barrier(vm_barrier)
             .enable_api_namespaces(namespaces);
-    api_builder.build(stop_receiver).await
+    api_builder
+        .build()
+        .context("failed to build HTTP API server")?
+        .run(stop_receiver)
+        .await
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1236,10 +1248,15 @@ async fn run_ws_api(
             )
             .with_polling_interval(api_config.web3_json_rpc.pubsub_interval())
             .with_tree_api(api_config.web3_json_rpc.tree_api_url())
-            .with_tx_sender(tx_sender, vm_barrier)
+            .with_tx_sender(tx_sender)
+            .with_vm_barrier(vm_barrier)
             .enable_api_namespaces(namespaces);
 
-    api_builder.build(stop_receiver.clone()).await
+    api_builder
+        .build()
+        .context("failed to build WS API server")?
+        .run(stop_receiver)
+        .await
 }
 
 async fn circuit_breakers_for_components(

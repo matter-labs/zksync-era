@@ -8,9 +8,7 @@ use tokio::{sync::watch, task::JoinHandle};
 use zksync_commitment_utils::{bootloader_initial_content_commitment, events_queue_commitment};
 use zksync_dal::ConnectionPool;
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
-use zksync_l1_contract_interface::i_executor::commit::kzg::{
-    pubdata_to_blob_commitments, KzgSettings,
-};
+use zksync_l1_contract_interface::i_executor::commit::kzg::pubdata_to_blob_commitments;
 use zksync_types::{
     commitment::{AuxCommitments, CommitmentCommonInput, CommitmentInput, L1BatchCommitment},
     writes::{InitialStorageWrite, RepeatedStorageWrite, StateDiffRecord},
@@ -26,15 +24,13 @@ const SLEEP_INTERVAL: Duration = Duration::from_millis(100);
 pub struct CommitmentGenerator {
     connection_pool: ConnectionPool,
     health_updater: HealthUpdater,
-    kzg_settings: KzgSettings,
 }
 
 impl CommitmentGenerator {
-    pub fn new(connection_pool: ConnectionPool, kzg_trusted_setup_path: &str) -> Self {
+    pub fn new(connection_pool: ConnectionPool) -> Self {
         Self {
             connection_pool,
             health_updater: ReactiveHealthCheck::new("commitment_generator").1,
-            kzg_settings: KzgSettings::new(kzg_trusted_setup_path),
         }
     }
 
@@ -225,7 +221,7 @@ impl CommitmentGenerator {
                     format!("`pubdata_input` is missing for L1 batch #{l1_batch_number}")
                 })?;
 
-                pubdata_to_blob_commitments(&pubdata_input, &self.kzg_settings)
+                pubdata_to_blob_commitments(&pubdata_input)
             } else {
                 [H256::zero(), H256::zero()]
             };

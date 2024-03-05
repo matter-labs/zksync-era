@@ -6,7 +6,7 @@ use zksync_dal::StorageProcessor;
 use zksync_l1_contract_interface::{i_executor::structures::CommitBatchInfo, Tokenizable};
 use zksync_types::{
     aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata, ethabi,
-    L1BatchNumber,
+    pubdata_da::PubdataDA, L1BatchNumber,
 };
 
 use super::metrics::METRICS;
@@ -199,6 +199,7 @@ impl L1BatchPublishCriterion for GasCriterion {
 pub struct DataSizeCriterion {
     pub op: AggregatedActionType,
     pub data_limit: usize,
+    pub pubdata_da: PubdataDA,
 }
 
 #[async_trait]
@@ -218,10 +219,13 @@ impl L1BatchPublishCriterion for DataSizeCriterion {
 
         for (index, l1_batch) in consecutive_l1_batches.iter().enumerate() {
             // TODO (PLA-771): Make sure that this estimation is correct.
-            let l1_commit_data_size = ethabi::encode(&[ethabi::Token::Array(vec![
-                CommitBatchInfo(l1_batch).into_token(),
-            ])])
-            .len();
+            let l1_commit_data_size =
+                ethabi::encode(&[ethabi::Token::Array(vec![CommitBatchInfo::new(
+                    l1_batch,
+                    self.pubdata_da,
+                )
+                .into_token()])])
+                .len();
             if data_size_left < l1_commit_data_size {
                 if index == 0 {
                     panic!(

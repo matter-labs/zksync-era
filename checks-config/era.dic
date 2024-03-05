@@ -42,6 +42,7 @@ U256
 20%
 *%
 90%
+1%
 f64
 k
 M
@@ -59,6 +60,8 @@ kb
 24k
 500k
 50k
+52k
+260k
 120kb
 18kb
 12GB
@@ -80,6 +83,8 @@ L2s
 L1
 json
 l1
+G1
+G2
 SystemConfig
 TODO
 se
@@ -137,6 +142,8 @@ merkle
 eth
 Ethereum
 deployer
+designator
+designators
 RPC
 tx
 txs
@@ -162,6 +169,7 @@ zkEVM
 src
 utils
 ptr
+recurse
 RefCell
 Rc
 StorageView
@@ -198,7 +206,7 @@ Serde
 tokenize
 EOAs
 zeroized
-value
+cardinality
 
 // zkSync-related words
 matterlabs

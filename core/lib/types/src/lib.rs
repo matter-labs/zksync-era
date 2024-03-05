@@ -7,23 +7,21 @@
 
 use std::{fmt, fmt::Debug};
 
-use fee::encoding_len;
-use serde::{Deserialize, Serialize};
-
-pub use crate::{Nonce, H256, U256, U64};
-
-pub type SerialId = u64;
-
 pub use event::{VmEvent, VmEventGroupKey};
+use fee::encoding_len;
 pub use l1::L1TxCommonData;
 pub use l2::L2TxCommonData;
 pub use protocol_version::{ProtocolUpgrade, ProtocolVersion, ProtocolVersionId};
+use serde::{Deserialize, Serialize};
 pub use storage::*;
 pub use tx::{primitives::*, Execute};
 pub use vm_version::VmVersion;
 pub use zksync_basic_types::*;
 
 use crate::{l2::TransactionType, protocol_version::ProtocolUpgradeTxCommonData};
+pub use crate::{Nonce, H256, U256, U64};
+
+pub type SerialId = u64;
 
 pub mod aggregated_operations;
 pub mod block;
@@ -38,6 +36,7 @@ pub mod l2;
 pub mod l2_to_l1_log;
 pub mod priority_op_onchain_data;
 pub mod protocol_version;
+pub mod pubdata_da;
 pub mod snapshots;
 pub mod storage;
 pub mod storage_writes_deduplicator;
@@ -60,6 +59,9 @@ pub const EIP_712_TX_TYPE: u8 = 0x71;
 
 /// Denotes the first byte of the `EIP-1559` transaction.
 pub const EIP_1559_TX_TYPE: u8 = 0x02;
+
+/// Denotes the first byte of the `EIP-4844` transaction.
+pub const EIP_4844_TX_TYPE: u8 = 0x03;
 
 /// Denotes the first byte of the `EIP-2930` transaction.
 pub const EIP_2930_TX_TYPE: u8 = 0x01;
@@ -216,7 +218,7 @@ pub struct InputData {
     pub data: Vec<u8>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ExecuteTransactionCommon {
     L1(L1TxCommonData),
     L2(L2TxCommonData),
