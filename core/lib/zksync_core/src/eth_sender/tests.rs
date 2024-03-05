@@ -5,6 +5,8 @@ use zksync_types::l1_batch_commit_data_generator::{
     RollupModeL1BatchCommitDataGenerator, ValidiumModeL1BatchCommitDataGenerator,
 };
 
+use crate::l1_gas_price::{RollupPubdataPricing, ValidiumPubdataPricing};
+
 use super::tests_helpers::{self, EthSenderTester};
 
 // Tests that we send multiple transactions and confirm them all in one iteration.
@@ -15,6 +17,7 @@ async fn confirm_many() -> anyhow::Result<()> {
         vec![10; 100],
         false,
         Arc::new(RollupModeL1BatchCommitDataGenerator {}),
+        Arc::new(RollupPubdataPricing {}),
     )
     .await;
 
@@ -23,6 +26,7 @@ async fn confirm_many() -> anyhow::Result<()> {
         vec![10; 100],
         false,
         Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
+        Arc::new(ValidiumPubdataPricing {}),
     )
     .await;
 
@@ -38,6 +42,7 @@ async fn resend_each_block() -> anyhow::Result<()> {
         vec![7, 6, 5, 5, 5, 2, 1],
         false,
         Arc::new(RollupModeL1BatchCommitDataGenerator {}),
+        Arc::new(RollupPubdataPricing {}),
     )
     .await;
     let mut validium_tester = EthSenderTester::new(
@@ -45,6 +50,7 @@ async fn resend_each_block() -> anyhow::Result<()> {
         vec![7, 6, 5, 5, 5, 2, 1],
         false,
         Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
+        Arc::new(ValidiumPubdataPricing {}),
     )
     .await;
 
@@ -61,6 +67,7 @@ async fn dont_resend_already_mined() -> anyhow::Result<()> {
         vec![100; 100],
         false,
         Arc::new(RollupModeL1BatchCommitDataGenerator {}),
+        Arc::new(RollupPubdataPricing {}),
     )
     .await;
     let mut validium_tester = EthSenderTester::new(
@@ -68,6 +75,7 @@ async fn dont_resend_already_mined() -> anyhow::Result<()> {
         vec![100; 100],
         false,
         Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
+        Arc::new(ValidiumPubdataPricing {}),
     )
     .await;
 
@@ -82,6 +90,7 @@ async fn three_scenarios() -> anyhow::Result<()> {
         vec![100; 100],
         false,
         Arc::new(RollupModeL1BatchCommitDataGenerator {}),
+        Arc::new(RollupPubdataPricing {}),
     )
     .await;
     let mut validium_tester = EthSenderTester::new(
@@ -89,6 +98,7 @@ async fn three_scenarios() -> anyhow::Result<()> {
         vec![100; 100],
         false,
         Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
+        Arc::new(ValidiumPubdataPricing {}),
     )
     .await;
 
@@ -104,6 +114,7 @@ async fn failed_eth_tx() {
         vec![100; 100],
         false,
         Arc::new(RollupModeL1BatchCommitDataGenerator {}),
+        Arc::new(RollupPubdataPricing {}),
     )
     .await;
     let mut validium_tester = EthSenderTester::new(
@@ -111,6 +122,7 @@ async fn failed_eth_tx() {
         vec![100; 100],
         false,
         Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
+        Arc::new(ValidiumPubdataPricing {}),
     )
     .await;
 
@@ -125,6 +137,7 @@ async fn correct_order_for_confirmations() -> anyhow::Result<()> {
         vec![100; 100],
         false,
         Arc::new(RollupModeL1BatchCommitDataGenerator {}),
+        Arc::new(RollupPubdataPricing {}),
     )
     .await;
     let mut validium_tester = EthSenderTester::new(
@@ -132,6 +145,7 @@ async fn correct_order_for_confirmations() -> anyhow::Result<()> {
         vec![100; 100],
         false,
         Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
+        Arc::new(ValidiumPubdataPricing {}),
     )
     .await;
 
@@ -154,6 +168,7 @@ async fn skipped_l1_batch_at_the_start() -> anyhow::Result<()> {
         vec![100; 100],
         true,
         Arc::new(RollupModeL1BatchCommitDataGenerator {}).clone(),
+        Arc::new(RollupPubdataPricing {}),
     )
     .await;
 
@@ -162,6 +177,7 @@ async fn skipped_l1_batch_at_the_start() -> anyhow::Result<()> {
         vec![100; 100],
         true,
         Arc::new(ValidiumModeL1BatchCommitDataGenerator {}).clone(),
+        Arc::new(ValidiumPubdataPricing {}),
     )
     .await;
 
@@ -184,6 +200,7 @@ async fn skipped_l1_batch_in_the_middle() -> anyhow::Result<()> {
         vec![100; 100],
         true,
         Arc::new(RollupModeL1BatchCommitDataGenerator {}).clone(),
+        Arc::new(RollupPubdataPricing {}),
     )
     .await;
 
@@ -192,6 +209,7 @@ async fn skipped_l1_batch_in_the_middle() -> anyhow::Result<()> {
         vec![100; 100],
         true,
         Arc::new(ValidiumModeL1BatchCommitDataGenerator {}).clone(),
+        Arc::new(ValidiumPubdataPricing {}),
     )
     .await;
 
@@ -214,6 +232,7 @@ async fn test_parse_multicall_data() {
         vec![100; 100],
         false,
         Arc::new(RollupModeL1BatchCommitDataGenerator {}),
+        Arc::new(RollupPubdataPricing {}),
     )
     .await;
     let validium_tester = EthSenderTester::new(
@@ -221,6 +240,7 @@ async fn test_parse_multicall_data() {
         vec![100; 100],
         false,
         Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
+        Arc::new(ValidiumPubdataPricing {}),
     )
     .await;
 
@@ -235,6 +255,7 @@ async fn get_multicall_data() {
         vec![100; 100],
         false,
         Arc::new(RollupModeL1BatchCommitDataGenerator {}),
+        Arc::new(RollupPubdataPricing {}),
     )
     .await;
     let mut validium_tester = EthSenderTester::new(
@@ -242,6 +263,7 @@ async fn get_multicall_data() {
         vec![100; 100],
         false,
         Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
+        Arc::new(ValidiumPubdataPricing {}),
     )
     .await;
 

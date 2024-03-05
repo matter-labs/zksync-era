@@ -33,7 +33,11 @@ impl From<anyhow::Error> for Error {
 }
 
 impl GasAdjusterSingleton {
-    pub fn new(web3_url: String, gas_adjuster_config: GasAdjusterConfig, pubdata_pricing: Arc<dyn PubdataPricing>) -> Self {
+    pub fn new(
+        web3_url: String,
+        gas_adjuster_config: GasAdjusterConfig,
+        pubdata_pricing: Arc<dyn PubdataPricing>,
+    ) -> Self {
         Self {
             web3_url,
             gas_adjuster_config,
@@ -48,10 +52,13 @@ impl GasAdjusterSingleton {
             .get_or_init(|| async {
                 let query_client =
                     QueryClient::new(&self.web3_url).context("QueryClient::new()")?;
-                let adjuster =
-                    GasAdjuster::new(Arc::new(query_client.clone()), self.gas_adjuster_config, self.pubdata_pricing.clone())
-                        .await
-                        .context("GasAdjuster::new()")?;
+                let adjuster = GasAdjuster::new(
+                    Arc::new(query_client.clone()),
+                    self.gas_adjuster_config,
+                    self.pubdata_pricing.clone(),
+                )
+                .await
+                .context("GasAdjuster::new()")?;
                 Ok(Arc::new(adjuster))
             })
             .await;

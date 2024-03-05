@@ -22,7 +22,7 @@ use zksync_types::{
 use crate::{
     fee_model::MainNodeFeeInputProvider,
     genesis::create_genesis_l1_batch,
-    l1_gas_price::GasAdjuster,
+    l1_gas_price::{GasAdjuster, PubdataPricing},
     state_keeper::{io::MiniblockSealer, MempoolGuard, MempoolIO},
     utils::testonly::{
         create_l1_batch, create_l2_transaction, create_miniblock, execute_l2_transaction,
@@ -33,14 +33,16 @@ use crate::{
 pub(super) struct Tester {
     base_system_contracts: BaseSystemContracts,
     current_timestamp: u64,
+    pubdata_pricing: Arc<dyn PubdataPricing>,
 }
 
 impl Tester {
-    pub(super) fn new() -> Self {
+    pub(super) fn new(pubdata_pricing: Arc<dyn PubdataPricing>) -> Self {
         let base_system_contracts = BaseSystemContracts::load_from_disk();
         Self {
             base_system_contracts,
             current_timestamp: 0,
+            pubdata_pricing,
         }
     }
 
@@ -57,12 +59,15 @@ impl Tester {
             internal_enforced_l1_gas_price: None,
             poll_period: 10,
             max_l1_gas_price: None,
-            l1_gas_per_pubdata_byte: 17,
         };
 
-        GasAdjuster::new(Arc::new(eth_client), gas_adjuster_config)
-            .await
-            .unwrap()
+        GasAdjuster::new(
+            Arc::new(eth_client),
+            gas_adjuster_config,
+            self.pubdata_pricing.clone(),
+        )
+        .await
+        .unwrap()
     }
 
     pub(super) async fn create_batch_fee_input_provider(&self) -> MainNodeFeeInputProvider {

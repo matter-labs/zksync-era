@@ -27,7 +27,7 @@ use crate::{
         aggregated_operations::AggregatedOperation, eth_tx_manager::L1BlockNumbers, Aggregator,
         ETHSenderError, EthTxAggregator, EthTxManager,
     },
-    l1_gas_price::GasAdjuster,
+    l1_gas_price::{GasAdjuster, PubdataPricing},
     utils::testonly::{create_l1_batch, l1_batch_metadata_to_commitment_artifacts},
 };
 
@@ -62,6 +62,7 @@ impl EthSenderTester {
         history: Vec<u64>,
         non_ordering_confirmations: bool,
         l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
+        pubdata_pricing: Arc<dyn PubdataPricing>,
     ) -> Self {
         let eth_sender_config = ETHSenderConfig::for_tests();
         let contracts_config = ContractsConfig::for_tests();
@@ -92,6 +93,7 @@ impl EthSenderTester {
                     pricing_formula_parameter_b: 2.0,
                     ..eth_sender_config.gas_adjuster
                 },
+                pubdata_pricing,
             )
             .await
             .unwrap(),

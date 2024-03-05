@@ -18,7 +18,7 @@ mod metrics;
 #[cfg(test)]
 mod tests;
 
-pub trait PubdataPricing 
+pub trait PubdataPricing
 where
     Self: std::fmt::Debug + Sync + Send,
 {
@@ -49,7 +49,7 @@ impl PubdataPricing for ValidiumPubdataPricing {
 
 impl PubdataPricing for RollupPubdataPricing {
     fn pubdata_byte_gas(&self) -> u64 {
-       L1_GAS_PER_PUBDATA_BYTE.into()
+        L1_GAS_PER_PUBDATA_BYTE.into()
     }
 }
 
