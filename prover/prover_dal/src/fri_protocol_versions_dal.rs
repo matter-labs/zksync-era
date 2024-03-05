@@ -1,11 +1,11 @@
 use std::convert::TryFrom;
 
-use zksync_db_connection::StorageProcessor;
+use zksync_db_connection::RawStorageProcessor;
 use zksync_types::protocol_version::{FriProtocolVersionId, L1VerifierConfig};
 
 #[derive(Debug)]
 pub struct FriProtocolVersionsDal<'a, 'c> {
-    pub storage: &'a mut StorageProcessor<'c>,
+    pub storage: &'a mut RawStorageProcessor<'c>,
 }
 
 impl FriProtocolVersionsDal<'_, '_> {

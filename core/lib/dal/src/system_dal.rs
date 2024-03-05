@@ -1,9 +1,9 @@
 use sqlx::Row;
 
-use crate::StorageProcessor;
+use crate::RawStorageProcessor;
 
 pub struct SystemDal<'a, 'c> {
-    pub storage: &'a mut StorageProcessor<'c>,
+    pub storage: &'a mut RawStorageProcessor<'c>,
 }
 
 impl SystemDal<'_, '_> {

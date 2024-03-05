@@ -1,6 +1,6 @@
 use std::{convert::TryFrom, time::Instant};
 
-use zksync_dal::StorageProcessorWrapper;
+use zksync_dal::StorageProcessor;
 use zksync_types::{
     ethabi::Contract, protocol_version::GovernanceOperation, web3::types::Log, Address,
     ProtocolUpgrade, ProtocolVersionId, H256,
@@ -41,7 +41,7 @@ impl GovernanceUpgradesEventProcessor {
 impl EventProcessor for GovernanceUpgradesEventProcessor {
     async fn process_events(
         &mut self,
-        storage: &mut StorageProcessorWrapper<'_>,
+        storage: &mut StorageProcessor<'_>,
         client: &dyn EthClient,
         events: Vec<Log>,
     ) -> Result<(), Error> {

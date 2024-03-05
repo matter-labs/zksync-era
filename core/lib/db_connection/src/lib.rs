@@ -141,18 +141,18 @@ pub enum StorageProcessorInner<'a> {
 /// It holds down the connection (either direct or pooled) to the database
 /// and provide methods to obtain different storage schema.
 #[derive(Debug)]
-pub struct StorageProcessor<'a> {
+pub struct RawStorageProcessor<'a> {
     inner: StorageProcessorInner<'a>,
 }
 
-impl<'a> StorageProcessor<'a> {
-    pub async fn start_transaction(&mut self) -> sqlx::Result<StorageProcessor<'_>> {
+impl<'a> RawStorageProcessor<'a> {
+    pub async fn start_transaction(&mut self) -> sqlx::Result<RawStorageProcessor<'_>> {
         let (conn, tags) = self.conn_and_tags();
         let inner = StorageProcessorInner::Transaction {
             transaction: conn.begin().await?,
             tags,
         };
-        Ok(StorageProcessor { inner })
+        Ok(RawStorageProcessor { inner })
     }
 
     /// Checks if the `StorageProcessor` is currently within database transaction.

@@ -12,7 +12,7 @@ use lru::LruCache;
 use tokio::sync::{watch, Mutex};
 use vise::GaugeGuard;
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::NetworkConfig, ContractsConfig};
-use zksync_dal::{ConnectionPool, StorageProcessorWrapper};
+use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::{
     api, l2::L2Tx, transaction_request::CallRequest, Address, L1BatchNumber, L1ChainId, L2ChainId,
     MiniblockNumber, H256, U256, U64,
@@ -239,7 +239,7 @@ impl RpcState {
     /// Resolves the specified block ID to a block number, which is guaranteed to be present in the node storage.
     pub(crate) async fn resolve_block(
         &self,
-        connection: &mut StorageProcessorWrapper<'_>,
+        connection: &mut StorageProcessor<'_>,
         block: api::BlockId,
     ) -> Result<MiniblockNumber, Web3Error> {
         self.start_info.ensure_not_pruned(block)?;
@@ -260,7 +260,7 @@ impl RpcState {
     /// non-existing blocks.
     pub(crate) async fn resolve_block_unchecked(
         &self,
-        connection: &mut StorageProcessorWrapper<'_>,
+        connection: &mut StorageProcessor<'_>,
         block: api::BlockId,
     ) -> Result<Option<MiniblockNumber>, Web3Error> {
         self.start_info.ensure_not_pruned(block)?;
@@ -279,7 +279,7 @@ impl RpcState {
 
     pub(crate) async fn resolve_block_args(
         &self,
-        connection: &mut StorageProcessorWrapper<'_>,
+        connection: &mut StorageProcessor<'_>,
         block: api::BlockId,
     ) -> Result<BlockArgs, Web3Error> {
         BlockArgs::new(connection, block, self.start_info)

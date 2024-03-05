@@ -6,12 +6,12 @@ use zksync_types::L1BatchNumber;
 use crate::{
     instrument::InstrumentExt,
     time_utils::{duration_to_naive_time, pg_interval_from_duration},
-    StorageProcessor,
+    RawStorageProcessor,
 };
 
 #[derive(Debug)]
 pub struct BasicWitnessInputProducerDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut RawStorageProcessor<'c>,
 }
 
 /// The amount of attempts to process a job before giving up.

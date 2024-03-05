@@ -7,7 +7,7 @@ use zksync_config::{
     configs::eth_sender::{ProofSendingMode, PubdataSendingMode, SenderConfig},
     ContractsConfig, ETHSenderConfig, GasAdjusterConfig,
 };
-use zksync_dal::{ConnectionPool, StorageProcessorWrapper};
+use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::{clients::MockEthereum, EthInterface};
 use zksync_l1_contract_interface::i_executor::methods::{
     CommitBatches, ExecuteBatches, ProveBatches,
@@ -137,7 +137,7 @@ impl EthSenderTester {
         }
     }
 
-    async fn storage(&self) -> StorageProcessorWrapper<'_> {
+    async fn storage(&self) -> StorageProcessor<'_> {
         self.conn.access_storage().await.unwrap()
     }
 

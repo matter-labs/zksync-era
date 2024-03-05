@@ -76,10 +76,7 @@ async fn rocksdb_storage_basics() {
     }
 }
 
-async fn sync_test_storage(
-    dir: &TempDir,
-    conn: &mut StorageProcessorWrapper<'_>,
-) -> RocksdbStorage {
+async fn sync_test_storage(dir: &TempDir, conn: &mut StorageProcessor<'_>) -> RocksdbStorage {
     let (_stop_sender, stop_receiver) = watch::channel(false);
     RocksdbStorage::builder(dir.path())
         .await
@@ -159,7 +156,7 @@ async fn rocksdb_storage_syncing_fault_tolerance() {
 }
 
 async fn insert_factory_deps(
-    conn: &mut StorageProcessorWrapper<'_>,
+    conn: &mut StorageProcessor<'_>,
     miniblock_number: MiniblockNumber,
     indices: impl Iterator<Item = u8>,
 ) {

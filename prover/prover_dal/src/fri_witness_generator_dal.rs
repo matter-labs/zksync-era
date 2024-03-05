@@ -1,7 +1,7 @@
 use std::{collections::HashMap, convert::TryFrom, time::Duration};
 
 use sqlx::Row;
-use zksync_db_connection::StorageProcessor;
+use zksync_db_connection::RawStorageProcessor;
 use zksync_types::{
     basic_fri_types::AggregationRound,
     protocol_version::FriProtocolVersionId,
@@ -19,7 +19,7 @@ use crate::{
 
 #[derive(Debug)]
 pub struct FriWitnessGeneratorDal<'a, 'c> {
-    pub storage: &'a mut StorageProcessor<'c>,
+    pub storage: &'a mut RawStorageProcessor<'c>,
 }
 
 #[derive(Debug, strum::Display, strum::EnumString, strum::AsRefStr)]

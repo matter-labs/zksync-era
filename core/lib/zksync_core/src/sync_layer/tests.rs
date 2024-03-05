@@ -14,7 +14,7 @@ use zksync_config::{
     ContractsConfig,
 };
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_dal::{ConnectionPool, StorageProcessorWrapper};
+use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::{
     api,
     block::MiniblockHasher,
@@ -132,7 +132,7 @@ impl StateKeeperHandles {
     }
 }
 
-async fn ensure_genesis(storage: &mut StorageProcessorWrapper<'_>) {
+async fn ensure_genesis(storage: &mut StorageProcessor<'_>) {
     if storage.blocks_dal().is_genesis_needed().await.unwrap() {
         ensure_genesis_state(storage, L2ChainId::default(), &GenesisParams::mock())
             .await
