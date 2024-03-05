@@ -4924,8 +4924,8 @@ dependencies = [
 
 [[package]]
 name = "shivini"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-shivini.git?branch=v1.4.2#5d753d15f4910e1af48b94ef5c3b76e4f322786c"
+version = "0.2.0"
+source = "git+https://github.com/matter-labs/era-shivini.git?branch=v1.4.2#d006620f1afe34d2f6e22b463606901ed75e48b9"
 dependencies = [
  "bincode",
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -7410,14 +7410,14 @@ dependencies = [
  "const-decoder",
  "ctrlc",
  "futures 0.3.30",
- "hex",
  "jemallocator",
  "multivm",
+ "once_cell",
  "prometheus_exporter",
  "rand 0.8.5",
  "serde",
- "serde_json",
  "structopt",
+ "tempfile",
  "tokio",
  "tracing",
  "vise",

@@ -14,11 +14,7 @@ use zksync_prover_fri_types::{
             algebraic_props::{
                 round_function::AbsorptionModeOverwrite, sponge::GoldilocksPoseidon2Sponge,
             },
-            config::ProvingCSConfig,
-            cs::implementations::{
-                pow::NoPow, proof::Proof, reference_cs::CSReferenceAssembly,
-                verifier::VerificationKey,
-            },
+            cs::implementations::{pow::NoPow, proof::Proof, verifier::VerificationKey},
             field::goldilocks::{GoldilocksExt2, GoldilocksField},
         },
         circuit_definitions::recursion_layer::{
@@ -42,8 +38,6 @@ pub type H = GoldilocksPoseidon2Sponge<AbsorptionModeOverwrite>;
 pub type Ext = GoldilocksExt2;
 
 #[cfg(feature = "gpu")]
-pub type ProvingAssembly = CSReferenceAssembly<F, F, ProvingCSConfig>;
-#[cfg(feature = "gpu")]
 pub type SharedWitnessVectorQueue = Arc<Mutex<FixedSizeQueue<GpuProverJob>>>;
 
 pub struct ProverArtifacts {
@@ -63,7 +57,6 @@ impl ProverArtifacts {
 #[cfg(feature = "gpu")]
 pub struct GpuProverJob {
     pub witness_vector_artifacts: WitnessVectorArtifacts,
-    pub assembly: ProvingAssembly,
 }
 
 pub async fn save_proof(
