@@ -80,7 +80,7 @@ async function initHyperchain(runObservability: boolean) {
     await announced('Start server', startServer());
 }
 
-async function setupConfiguration(runObservability?: boolean) {
+async function setupConfiguration(runObservability: boolean) {
     const CONFIGURE = 'Configure new chain';
     const USE_EXISTING = 'Use existing configuration';
     const questions: BasePromptOptions[] = [
@@ -104,7 +104,7 @@ async function setupConfiguration(runObservability?: boolean) {
     }
 }
 
-async function setHyperchainMetadata(runObservability?: boolean) {
+async function setHyperchainMetadata(runObservability: boolean) {
     const BASE_NETWORKS = [
         BaseNetwork.LOCALHOST,
         BaseNetwork.LOCALHOST_CUSTOM,
@@ -817,7 +817,7 @@ async function configDemoHyperchain(cmd: Command) {
     };
 
     if (!cmd.skipEnvSetup) {
-        await up();
+        await up(initArgs.runObservability);
     }
     await init(initArgs);
 

@@ -73,8 +73,8 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
 
 // A smaller version of `init` that "resets" the localhost environment, for which `init` was already called before.
 // It does less and runs much faster.
-export async function reinit() {
-    await announced('Setting up containers', up());
+export async function reinit(runObservability: boolean) {
+    await announced('Setting up containers', up(runObservability));
     await announced('Compiling JS packages', run.yarn());
     await announced('Compile l2 contracts', compiler.compileAll());
     await announced('Drop postgres db', db.drop({ server: true, prover: true }));
@@ -204,7 +204,11 @@ export const initCommand = new Command('init')
     });
 export const reinitCommand = new Command('reinit')
     .description('"reinitializes" network. Runs faster than `init`, but requires `init` to be executed prior')
-    .action(reinit);
+    .option("--run-observability")
+    .action(
+        async (cmd) => {
+            await reinit(cmd.runObservability);
+        });
 export const lightweightInitCommand = new Command('lightweight-init')
     .description('perform lightweight zksync network initialization for development')
     .action(lightweightInit);
