@@ -8,6 +8,7 @@ import * as contract from './contract';
 import * as db from './database';
 import * as docker from './docker';
 import * as env from './env';
+import * as config from './config';
 import * as run from './run';
 import * as server from './server';
 import { up } from './up';
@@ -89,8 +90,8 @@ const initBridgehubStateTransition = async () => {
 // Registers a hyperchain and deploys L2 contracts through L1
 type InitHyperchainOptions = { includePaymaster: boolean; baseToken: { name: string; address: string } };
 const initHyperchain = async ({ includePaymaster, baseToken }: InitHyperchainOptions): Promise<void> => {
-    await announced('Running server genesis setup', server.genesisFromSources({ setChainId: true }));
     await announced('Registering Hyperchain', contract.registerHyperchain({ baseToken }));
+    await announced('Running server genesis setup', server.genesisFromSources({ setChainId: true }));
     await announced('Deploying L2 contracts', contract.deployL2ThroughL1({ includePaymaster }));
 };
 
@@ -127,8 +128,11 @@ const initSharedBridgeCmdAction = async (options: InitSharedBridgeCmdActionOptio
     await initBridgehubStateTransition();
 };
 
-type InitHyperCmdActionOptions = { skipSetupCompletely: boolean };
-export const initHyperCmdAction = async ({ skipSetupCompletely }: InitHyperCmdActionOptions): Promise<void> => {
+type InitHyperCmdActionOptions = { skipSetupCompletely: boolean, bumpChainId: boolean, baseTokenName: string, baseTokenAddress: string};
+export const initHyperCmdAction = async ({ skipSetupCompletely, bumpChainId }: InitHyperCmdActionOptions): Promise<void> => {
+    if (bumpChainId) {
+        await config.bumpChainId();
+    }
     if (!skipSetupCompletely) {
         await initSetup({ skipEnvSetup: false, skipSubmodulesCheckout: false });
     }
@@ -140,6 +144,8 @@ export const initHyperCmdAction = async ({ skipSetupCompletely }: InitHyperCmdAc
 export const initCommand = new Command('init')
     .option('--skip-submodules-checkout')
     .option('--skip-env-setup')
+    .option('--base-token-name <base-token-name>', 'base token name')
+    .option('--base-token-address <base-token-address>', 'base token address')
     .description('Deploys the shared bridge and registers a hyperchain locally, as quickly as possible.')
     .action(initDevCmdAction);
 
@@ -158,4 +164,7 @@ initCommand
     .command('hyper')
     .description('Registers a hyperchain and deploys L2 contracts only. It requires an already deployed shared bridge.')
     .option('--skip-setup-completely', 'skip the setup completely, use this if server was started already')
+    .option('--bump-chain-id', 'bump chain id to not conflict with previously deployed hyperchain')
+    .option('--base-token-name <base-token-name>', 'base token name')
+    .option('--base-token-address <base-token-address>', 'base token address')
     .action(initHyperCmdAction);
