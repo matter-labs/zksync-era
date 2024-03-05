@@ -19,7 +19,7 @@ impl From<anyhow::Error> for Error {
 
 /// Trait used to query the stack's native token conversion rate. Used to properly
 /// determine gas prices, as they partially depend on L1 gas prices, denominated in `eth`.
-#[async_trait::async_trait]
+#[async_trait]
 pub trait ConversionRateFetcher: 'static + std::fmt::Debug + Send + Sync {
     fn conversion_rate(&self) -> anyhow::Result<u64>;
     async fn update(&self) -> anyhow::Result<()>;

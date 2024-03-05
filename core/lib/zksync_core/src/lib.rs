@@ -327,12 +327,15 @@ pub async fn initialize_components(
     let (cb_sender, cb_receiver) = oneshot::channel();
 
     let native_token_fetcher = if components.contains(&Component::NativeTokenFetcher) {
-        Some(Arc::new(NativeTokenFetcher::new(
-            configs
-                .native_token_fetcher_config
-                .clone()
-                .context("native_token_fetcher_config")?,
-        )))
+        Some(Arc::new(
+            NativeTokenFetcher::new(
+                configs
+                    .native_token_fetcher_config
+                    .clone()
+                    .context("native_token_fetcher_config")?,
+            )
+            .await,
+        ) as Arc<dyn ConversionRateFetcher>)
     } else {
         None
     };
