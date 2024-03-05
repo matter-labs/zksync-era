@@ -239,7 +239,9 @@ async fn init_tasks(
             .build()
             .await
             .context("failed to build connection pool for ConsistencyChecker")?,
-    );
+    )
+    .with_validator_timelock_addr(config.optional.contracts_validator_timelock_addr);
+
     app_health.insert_component(consistency_checker.health_check().clone());
     let consistency_checker_handle = tokio::spawn(consistency_checker.run(stop_receiver.clone()));
 

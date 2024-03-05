@@ -237,6 +237,11 @@ pub struct OptionalENConfig {
     /// 0 means that sealing is synchronous; this is mostly useful for performance comparison, testing etc.
     #[serde(default = "OptionalENConfig::default_miniblock_seal_queue_capacity")]
     pub miniblock_seal_queue_capacity: usize,
+    /// Address of the L1 validator contract used by the consistency checker to match with the recipient of
+    /// L1 batch commit transactions. If not set, the receipient will not be verified.
+    // This is intentionally not a part of `RemoteENConfig` because fetching this info from the main node would defeat
+    // its purpose; the consistency checker assumes that the main node may provide false information.
+    pub contracts_validator_timelock_addr: Option<Address>,
 }
 
 impl OptionalENConfig {

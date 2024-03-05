@@ -5,7 +5,9 @@ use serde::Serialize;
 use tokio::sync::watch;
 use zksync_contracts::PRE_BOOJUM_COMMIT_FUNCTION;
 use zksync_dal::{ConnectionPool, StorageProcessor};
-use zksync_eth_client::{clients::QueryClient, Error as L1ClientError, EthInterface};
+use zksync_eth_client::{
+    clients::QueryClient, CallFunctionArgs, Error as L1ClientError, EthInterface,
+};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::{
     i_executor::{commit::kzg::ZK_SYNC_BYTES_PER_BLOB, structures::CommitBatchInfo},
@@ -383,8 +385,49 @@ impl ConsistencyChecker {
             .await?)
     }
 
+    async fn sanity_check_validator_timelock_addr(&self) -> Result<(), CheckError> {
+        let Some(address) = self.validator_timelock_addr else {
+            return Ok(());
+        };
+        tracing::debug!("Performing sanity checks for validator timelock contract {address:?}");
+
+        let call =
+            CallFunctionArgs::new("getName", ()).for_contract(address, self.contract.clone());
+        let response = self.l1_client.call_contract_function(call).await?;
+        // Response should be a single token with the contract name.
+        match response.as_slice() {
+            [ethabi::Token::String(name)] => {
+                tracing::info!("Obtained validator timelock contract {address:?} name: {name}");
+                Ok(())
+            }
+            _ => {
+                let err = anyhow::anyhow!(
+                    "unexpected `getName` response from validator timelock contract {address:?}: {response:?}"
+                );
+                Err(err.into())
+            }
+        }
+    }
+
     pub async fn run(mut self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        tracing::info!(
+            "Starting consistency checker with validator timelock contract: {:?}, sleep interval: {:?}, \
+             max historic L1 batches to check: {}",
+            self.validator_timelock_addr,
+            self.sleep_interval,
+            self.max_batches_to_recheck
+        );
         self.event_handler.initialize();
+
+        while let Err(err) = self.sanity_check_validator_timelock_addr().await {
+            match err {
+                CheckError::Web3(err) => {
+                    tracing::warn!("Error accessing L1; will retry after a delay: {err}");
+                    tokio::time::sleep(self.sleep_interval).await;
+                }
+                CheckError::Internal(err) => return Err(err),
+            }
+        }
 
         // It doesn't make sense to start the checker until we have at least one L1 batch with metadata.
         let earliest_l1_batch_number =
