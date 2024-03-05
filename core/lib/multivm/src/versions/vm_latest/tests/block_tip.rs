@@ -17,8 +17,9 @@ use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
     vm_latest::{
         constants::{
-            BOOTLOADER_BATCH_TIP_OVERHEAD, MAX_BATCH_TIP_CIRCUIT_STATISTICS,
-            MAX_BATCH_TIP_METRICS_SIZE, MAX_VM_PUBDATA_PER_BATCH,
+            BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD,
+            BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD, BOOTLOADER_BATCH_TIP_OVERHEAD,
+            MAX_VM_PUBDATA_PER_BATCH,
         },
         tests::tester::{get_empty_storage, InMemoryStorageView, VmTesterBuilder},
         tracers::PubdataTracer,
@@ -372,7 +373,7 @@ fn test_dry_run_upper_bound() {
         .max()
         .unwrap();
     assert!(
-        circuit_statistics.0 * 2 <= MAX_BATCH_TIP_CIRCUIT_STATISTICS,
+        circuit_statistics.0 * 2 <= BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD,
         "MAX_BATCH_TIP_CIRCUIT_STATISTICS is too low for {} with result {}",
         circuit_statistics.1,
         circuit_statistics.0
@@ -384,7 +385,7 @@ fn test_dry_run_upper_bound() {
         .max()
         .unwrap();
     assert!(
-        execution_metrics_size.0 * 2 <= MAX_BATCH_TIP_METRICS_SIZE,
+        execution_metrics_size.0 * 2 <= BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD,
         "MAX_BATCH_TIP_METRICS_SIZE is too low for {} with result {}",
         execution_metrics_size.1,
         execution_metrics_size.0
