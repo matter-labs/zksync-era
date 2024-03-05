@@ -30,14 +30,19 @@ const reinitDevCmdAction = async (): Promise<void> => {
     await announced('Initializing governance', contract.initializeGovernance());
 };
 
-const reinitHyperCmdAction = async (): Promise<void> => {
+type ReinitHyperCmdActionOptions = { baseTokenName?: string };
+const reinitHyperCmdAction = async ({ baseTokenName }: ReinitHyperCmdActionOptions): Promise<void> => {
     await config.bumpChainId();
     await initDatabase({ skipVerifierDeployment: true });
-    await initHyperchain({ includePaymaster: true, baseToken: { name: 'ETH', address: ADDRESS_ONE } });
+    await initHyperchain({ includePaymaster: true, baseTokenName });
 };
 
 export const reinitCommand = new Command('reinit')
     .description('"Reinitializes" network. Runs faster than a full init, but requires `init dev` to be executed prior.')
     .action(reinitDevCmdAction);
 
-reinitCommand.command('hyper').description(' ').action(reinitHyperCmdAction);
+reinitCommand
+    .command('hyper')
+    .description('')
+    .option('--base-token-name <base-token-name>', 'base token name')
+    .action(reinitHyperCmdAction);

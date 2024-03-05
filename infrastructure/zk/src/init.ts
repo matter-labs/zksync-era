@@ -88,25 +88,26 @@ const initBridgehubStateTransition = async () => {
 };
 
 // Registers a hyperchain and deploys L2 contracts through L1
-type InitHyperchainOptions = { includePaymaster: boolean; baseToken: { name: string; address: string } };
-export const initHyperchain = async ({ includePaymaster, baseToken }: InitHyperchainOptions): Promise<void> => {
-    await announced('Registering Hyperchain', contract.registerHyperchain({ baseToken }));
+type InitHyperchainOptions = { includePaymaster: boolean; baseTokenName?: string };
+export const initHyperchain = async ({ includePaymaster, baseTokenName }: InitHyperchainOptions): Promise<void> => {
+    await announced('Registering Hyperchain', contract.registerHyperchain({ baseTokenName }));
     await announced('Running server genesis setup', server.genesisFromSources({ setChainId: true }));
     await announced('Deploying L2 contracts', contract.deployL2ThroughL1({ includePaymaster }));
 };
 
 // ########################### Command Actions ###########################
-type InitDevCmdActionOptions = InitSetupOptions & { testTokenOptions: DeployTestTokensOptions };
+type InitDevCmdActionOptions = InitSetupOptions & { testTokenOptions: DeployTestTokensOptions; baseTokenName?: string };
 export const initDevCmdAction = async ({
     skipEnvSetup,
     skipSubmodulesCheckout,
-    testTokenOptions
+    testTokenOptions,
+    baseTokenName
 }: InitDevCmdActionOptions): Promise<void> => {
     await initSetup({ skipEnvSetup, skipSubmodulesCheckout });
     await initDatabase({ skipVerifierDeployment: false });
     await deployTestTokens(testTokenOptions);
     await initBridgehubStateTransition();
-    await initHyperchain({ includePaymaster: true, baseToken: { name: 'ETH', address: ADDRESS_ONE } });
+    await initHyperchain({ includePaymaster: true, baseTokenName });
 };
 
 const lightweightInitCmdAction = async (): Promise<void> => {
@@ -132,11 +133,11 @@ type InitHyperCmdActionOptions = {
     skipSetupCompletely: boolean;
     bumpChainId: boolean;
     baseTokenName?: string;
-    baseTokenAddress?: string;
 };
 export const initHyperCmdAction = async ({
     skipSetupCompletely,
-    bumpChainId
+    bumpChainId,
+    baseTokenName
 }: InitHyperCmdActionOptions): Promise<void> => {
     if (bumpChainId) {
         await config.bumpChainId();
@@ -145,7 +146,7 @@ export const initHyperCmdAction = async ({
         await initSetup({ skipEnvSetup: false, skipSubmodulesCheckout: false });
     }
     await initDatabase({ skipVerifierDeployment: true });
-    await initHyperchain({ includePaymaster: true, baseToken: { name: 'ETH', address: ADDRESS_ONE } });
+    await initHyperchain({ includePaymaster: true, baseTokenName });
 };
 
 // ########################### Command Definitions ###########################
@@ -153,7 +154,6 @@ export const initCommand = new Command('init')
     .option('--skip-submodules-checkout')
     .option('--skip-env-setup')
     .option('--base-token-name <base-token-name>', 'base token name')
-    .option('--base-token-address <base-token-address>', 'base token address')
     .description('Deploys the shared bridge and registers a hyperchain locally, as quickly as possible.')
     .action(initDevCmdAction);
 
@@ -174,5 +174,4 @@ initCommand
     .option('--skip-setup-completely', 'skip the setup completely, use this if server was started already')
     .option('--bump-chain-id', 'bump chain id to not conflict with previously deployed hyperchain')
     .option('--base-token-name <base-token-name>', 'base token name')
-    .option('--base-token-address <base-token-address>', 'base token address')
     .action(initHyperCmdAction);

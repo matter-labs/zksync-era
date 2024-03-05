@@ -236,18 +236,13 @@ export const redeployL1 = async (): Promise<void> => {
     await verifyL1Contracts();
 };
 
-export const registerHyperchain = async ({
-    baseToken
-}: {
-    baseToken: { address: string; name?: string };
-}): Promise<void> => {
+export const registerHyperchain = async ({ baseTokenName }: { baseTokenName?: string }): Promise<void> => {
     await utils.confirmAction();
 
     const privateKey = process.env.GOVERNOR_PRIVATE_KEY;
     const args = [
         privateKey ? `--private-key ${privateKey}` : '',
-        baseToken.name ? `--base-token-name ${baseToken.name}` : '',
-        baseToken.address ? `--base-token-address ${baseToken.address}` : ''
+        baseTokenName ? `--base-token-name ${baseTokenName}` : ''
     ];
 
     // In the localhost setup scenario we don't have the workspace,
