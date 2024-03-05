@@ -48,8 +48,8 @@ jobs:
           yarn set version 1.22.19
           echo "Install SQL tools"
           cargo install sqlx-cli --version 0.7.3
-          # echo "Stop default postgres (as we'll use the docker one)"
-          # sudo systemctl stop postgres.service
+          echo "Stop default postgres (as we'll use the docker one)"
+          sudo pg_ctl stop
           
       - name: Step 2 - Run zk init
         run: |
