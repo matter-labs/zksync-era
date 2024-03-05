@@ -542,6 +542,7 @@ async fn main() -> anyhow::Result<()> {
         opt.enable_snapshots_recovery,
     )
     .await?;
+    let sigint_receiver = setup_sigint_handler();
 
     // Revert the storage if needed.
     let reverter = BlockReverter::new(
