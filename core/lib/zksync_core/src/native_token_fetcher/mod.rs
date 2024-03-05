@@ -2,10 +2,7 @@ use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use metrics::atomics::AtomicU64;
-use tokio::{
-    sync::{watch, OnceCell},
-    task::JoinHandle,
-};
+use tokio::sync::watch;
 use zksync_config::configs::native_token_fetcher::NativeTokenFetcherConfig;
 
 // TODO: this error type is also defined by the gasAdjuster module,
@@ -22,42 +19,10 @@ impl From<anyhow::Error> for Error {
 
 /// Trait used to query the stack's native token conversion rate. Used to properly
 /// determine gas prices, as they partially depend on L1 gas prices, denominated in `eth`.
+#[async_trait::async_trait]
 pub trait ConversionRateFetcher: 'static + std::fmt::Debug + Send + Sync {
     fn conversion_rate(&self) -> anyhow::Result<u64>;
-}
-
-pub(crate) struct NativeTokenFetcherSingleton {
-    native_token_fetcher_config: NativeTokenFetcherConfig,
-    singleton: OnceCell<Result<Arc<NativeTokenFetcher>, Error>>,
-}
-
-impl NativeTokenFetcherSingleton {
-    pub fn new(native_token_fetcher_config: NativeTokenFetcherConfig) -> Self {
-        Self {
-            native_token_fetcher_config,
-            singleton: OnceCell::new(),
-        }
-    }
-
-    pub async fn get_or_init(&mut self) -> Result<Arc<NativeTokenFetcher>, Error> {
-        let adjuster = self
-            .singleton
-            .get_or_init(|| async {
-                let fetcher =
-                    NativeTokenFetcher::new(self.native_token_fetcher_config.clone()).await;
-                Ok(Arc::new(fetcher))
-            })
-            .await;
-        adjuster.clone()
-    }
-
-    pub fn run_if_initialized(
-        self,
-        stop_signal: watch::Receiver<bool>,
-    ) -> Option<JoinHandle<anyhow::Result<()>>> {
-        let fetcher = self.singleton.get()?.clone();
-        Some(tokio::spawn(async move { fetcher?.run(stop_signal).await }))
-    }
+    async fn update(&self) -> anyhow::Result<()>;
 }
 
 /// Struct in charge of periodically querying and caching the native token's conversion rate
@@ -113,5 +78,18 @@ impl ConversionRateFetcher for NativeTokenFetcher {
             self.latest_to_eth_conversion_rate
                 .load(std::sync::atomic::Ordering::Relaxed),
         )
+    }
+
+    async fn update(&self) -> anyhow::Result<()> {
+        let conversion_rate = reqwest::get(format!("{}/conversion_rate", &self.config.host))
+            .await?
+            .json::<u64>()
+            .await
+            .unwrap();
+
+        self.latest_to_eth_conversion_rate
+            .store(conversion_rate, std::sync::atomic::Ordering::Relaxed);
+
+        Ok(())
     }
 }

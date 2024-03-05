@@ -111,6 +111,15 @@ impl<E: EthInterface> GasAdjuster<E> {
                 tracing::warn!("Cannot add the base fee to gas statistics: {}", err);
             }
 
+            if let Some(native_erc20_fetcher) = &self.native_token_fetcher_dyn {
+                if let Err(err) = native_erc20_fetcher.update().await {
+                    tracing::warn!(
+                        "Error when trying to fetch the native erc20 conversion rate: {}",
+                        err
+                    );
+                }
+            }
+
             tokio::time::sleep(self.config.poll_period()).await;
         }
         Ok(())
