@@ -79,12 +79,7 @@ impl From<StorageL1BatchHeader> for L1BatchHeader {
             bloom: H2048::from_slice(&l1_batch.bloom),
             used_contract_hashes: serde_json::from_value(l1_batch.used_contract_hashes)
                 .expect("invalid value for used_contract_hashes in the DB"),
-            base_fee_per_gas: U256::from(
-                l1_batch
-                    .base_fee_per_gas
-                    .to_u64()
-                    .expect("base_fee_per_gas should fit in u64"),
-            ),
+            base_fee_per_gas: U256::from_str(&l1_batch.base_fee_per_gas.to_string()).unwrap(),
             base_system_contracts_hashes: convert_base_system_contracts_hashes(
                 l1_batch.bootloader_code_hash,
                 l1_batch.default_aa_code_hash,
@@ -564,7 +559,7 @@ impl From<StorageMiniblockHeader> for MiniblockHeader {
             hash: H256::from_slice(&row.hash),
             l1_tx_count: row.l1_tx_count as u16,
             l2_tx_count: row.l2_tx_count as u16,
-            base_fee_per_gas: U256::from(row.base_fee_per_gas.to_u64().unwrap()),
+            base_fee_per_gas: U256::from_str(&row.base_fee_per_gas.to_string()).unwrap(),
             batch_fee_input: fee_input,
             base_system_contracts_hashes: convert_base_system_contracts_hashes(
                 row.bootloader_code_hash,
