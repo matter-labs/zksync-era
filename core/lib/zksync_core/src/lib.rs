@@ -303,10 +303,9 @@ async fn ensure_l1_batch_commit_data_generation_mode(
     contracts_config: &ContractsConfig,
     eth_client: &impl EthInterface,
 ) -> anyhow::Result<()> {
-    let selected_l1_batch_commit_data_generator_mode = state_keeper_config
-        .l1_batch_commit_data_generator_mode
-        .clone();
-    match get_pubdata_pricing_mode(&contracts_config, eth_client).await {
+    let selected_l1_batch_commit_data_generator_mode =
+        state_keeper_config.l1_batch_commit_data_generator_mode;
+    match get_pubdata_pricing_mode(contracts_config, eth_client).await {
         // Getters contract support getPubdataPricingMode method
         Ok(l1_contract_pubdata_pricing_mode) => {
             let l1_contract_batch_commitment_mode =
