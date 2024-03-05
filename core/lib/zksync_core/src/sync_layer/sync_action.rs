@@ -1,5 +1,8 @@
 use tokio::sync::mpsc;
-use zksync_types::{Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, Transaction};
+use zksync_types::{
+    helpers::unix_timestamp_ms, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId,
+    Transaction,
+};
 
 use super::metrics::QUEUE_METRICS;
 
@@ -154,7 +157,11 @@ pub(crate) enum SyncAction {
 }
 
 impl From<Transaction> for SyncAction {
-    fn from(tx: Transaction) -> Self {
+    fn from(mut tx: Transaction) -> Self {
+        // Override the "received at" timestamp for the transaction so that they are causally ordered (i.e., transactions
+        // with an earlier timestamp are persisted earlier). Without this property, code relying on causal ordering may work incorrectly;
+        // e.g., `pendingTransactions` subscriptions notifier can skip transactions.
+        tx.received_timestamp_ms = unix_timestamp_ms();
         Self::Tx(Box::new(tx))
     }
 }

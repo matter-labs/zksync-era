@@ -273,12 +273,7 @@ impl MiniblockSealCommand {
 
     async fn insert_transactions(&self, transaction: &mut StorageProcessor<'_>) {
         for tx_result in &self.miniblock.executed_transactions {
-            let mut tx = tx_result.transaction.clone();
-            // Override the "received at" timestamp for the transaction so that they are causally ordered (i.e., transactions
-            // with an earlier timestamp are persisted earlier). Without this property, code relying on causal ordering may work incorrectly;
-            // e.g., `pendingTransactions` subscriptions notifier can skip transactions.
-            tx.received_timestamp_ms = unix_timestamp_ms();
-
+            let tx = tx_result.transaction.clone();
             match &tx.common_data {
                 ExecuteTransactionCommon::L1(_) => {
                     // `unwrap` is safe due to the check above

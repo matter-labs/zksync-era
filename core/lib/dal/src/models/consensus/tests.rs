@@ -34,7 +34,7 @@ pub struct ComparableTransaction {
     common_data: ExecuteTransactionCommon,
     execute: Execute,
     raw_bytes: Option<Bytes>,
-    // `received_timestamp_ms` is intentionally not included because it's localz
+    // `received_timestamp_ms` is intentionally not included because it's local
 }
 
 impl From<Transaction> for ComparableTransaction {
