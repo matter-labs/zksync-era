@@ -8,6 +8,7 @@ use std::{
 use tokio::sync::watch;
 use zksync_config::GasAdjusterConfig;
 use zksync_eth_client::{Error, EthInterface};
+use zksync_types::{l1, L1_GAS_PER_PUBDATA_BYTE};
 
 use self::metrics::METRICS;
 use super::L1TxParamsProvider;
@@ -17,6 +18,14 @@ mod metrics;
 #[cfg(test)]
 mod tests;
 
+pub trait PubdataPricing 
+where
+    Self: std::fmt::Debug + Sync + Send,
+{
+    /// Returns the amount of L1 gas to publish a single byte of pub data.
+    fn pubdata_byte_gas(&self) -> u64;
+}
+
 /// This component keeps track of the median base_fee from the last `max_base_fee_samples` blocks.
 /// It is used to adjust the base_fee of transactions sent to L1.
 #[derive(Debug)]
@@ -24,12 +33,31 @@ pub struct GasAdjuster {
     pub(super) statistics: GasStatistics,
     pub(super) config: GasAdjusterConfig,
     eth_client: Arc<dyn EthInterface>,
+    pubdata_pricing: Arc<dyn PubdataPricing>,
+}
+
+#[derive(Debug)]
+pub struct ValidiumPubdataPricing;
+#[derive(Debug)]
+pub struct RollupPubdataPricing;
+
+impl PubdataPricing for ValidiumPubdataPricing {
+    fn pubdata_byte_gas(&self) -> u64 {
+        0
+    }
+}
+
+impl PubdataPricing for RollupPubdataPricing {
+    fn pubdata_byte_gas(&self) -> u64 {
+       L1_GAS_PER_PUBDATA_BYTE.into()
+    }
 }
 
 impl GasAdjuster {
     pub async fn new(
         eth_client: Arc<dyn EthInterface>,
         config: GasAdjusterConfig,
+        pubdata_pricing: Arc<dyn PubdataPricing>,
     ) -> Result<Self, Error> {
         // Subtracting 1 from the "latest" block number to prevent errors in case
         // the info about the latest block is not yet present on the node.
@@ -46,6 +74,7 @@ impl GasAdjuster {
             statistics: GasStatistics::new(config.max_base_fee_samples, current_block, &history),
             eth_client,
             config,
+            pubdata_pricing,
         })
     }
 
@@ -130,7 +159,7 @@ impl GasAdjuster {
 
     pub(crate) fn estimate_effective_pubdata_price(&self) -> u64 {
         // For now, pubdata is only sent via calldata, so its price is pegged to the L1 gas price.
-        self.estimate_effective_gas_price() * self.config.l1_gas_per_pubdata_byte
+        self.estimate_effective_gas_price() * self.pubdata_pricing.pubdata_byte_gas()
     }
 }
 
