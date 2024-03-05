@@ -185,6 +185,7 @@ jobs:
             ci_run zk init
           elif [[ "${{ matrix.mode }}" == "Validium" ]]; then
             ci_run zk env dev_validium
+            ci_run zk config compile dev_validium --diff 0
             ci_run zk init --validium-mode
           fi
 
