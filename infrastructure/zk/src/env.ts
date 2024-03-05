@@ -135,7 +135,12 @@ export function mergeInitToEnv() {
     }
     let output = '';
     for (const envVar in env) {
-        output += `${envVar}=${env[envVar]}\n`;
+        let envVal = env[envVar];
+        // wrap the value into double quotes if it has spaces in it
+        if (envVal.indexOf(' ') >= 0) {
+            envVal = '"' + envVal + '"';
+        }
+        output += `${envVar}=${envVal}\n`;
     }
     fs.writeFileSync(`etc/env/target/${environment}.env`, output);
 }

@@ -385,6 +385,7 @@ async function setHyperchainMetadata() {
     // TODO: Generate url for data-compressor with selected region or fix env variable for keys location
     // PLA-595
     env.modify('DATABASE_URL', databaseUrl, process.env.ENV_FILE!);
+    env.modify('DATABASE_PROVER_URL', databaseProverUrl, process.env.ENV_FILE!);
     env.modify('ETH_CLIENT_CHAIN_ID', l1Id.toString(), `etc/env/l1-inits/${results.l1Chain}.init.env`);
     env.modify(
         'ETH_CLIENT_WEB3_URL',

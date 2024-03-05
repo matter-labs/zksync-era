@@ -179,7 +179,12 @@ export async function deployL1(args: any[]) {
         'CONTRACTS_L1_SHARED_BRIDGE_IMPL_ADDR',
         'CONTRACTS_L1_ERC20_BRIDGE_PROXY_ADDR',
         'CONTRACTS_L1_ERC20_BRIDGE_IMPL_ADDR',
-        'CONTRACTS_L1_MULTICALL3_ADDR'
+        'CONTRACTS_L1_MULTICALL3_ADDR',
+        'CONTRACTS_L1_WETH_BRIDGE_IMPL_ADDR',
+        'CONTRACTS_L1_WETH_BRIDGE_PROXY_ADDR',
+        'CONTRACTS_L1_ALLOW_LIST_ADDR',
+        'CONTRACTS_L1_MULTICALL3_ADDR',
+        'CONTRACTS_BLOB_VERSIONED_HASH_RETRIEVER_ADDR'
     ];
 
     console.log('Writing to', `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`);

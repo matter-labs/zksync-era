@@ -6,13 +6,12 @@ use anyhow::Context as _;
 use multivm::{
     interface::VmExecutionResultAndLogs,
     utils::{adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead},
-    vm_latest::constants::{BLOCK_GAS_LIMIT, MAX_PUBDATA_PER_BLOCK},
+    vm_latest::constants::BLOCK_GAS_LIMIT,
 };
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig};
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, StorageProcessor};
 use zksync_state::PostgresStorageCaches;
-use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     fee::{Fee, TransactionExecutionMetrics},
     fee_model::BatchFeeInput,
@@ -219,6 +218,7 @@ pub struct TxSenderConfig {
     pub validation_computational_gas_limit: u32,
     pub l1_to_l2_transactions_compatibility_mode: bool,
     pub chain_id: L2ChainId,
+    pub max_pubdata_per_batch: u64,
 }
 
 impl TxSenderConfig {
@@ -238,6 +238,7 @@ impl TxSenderConfig {
             l1_to_l2_transactions_compatibility_mode: web3_json_config
                 .l1_to_l2_transactions_compatibility_mode,
             chain_id,
+            max_pubdata_per_batch: state_keeper_config.max_pubdata_per_batch,
         }
     }
 }
@@ -660,6 +661,9 @@ impl TxSender {
             adjust_pubdata_price_for_tx(
                 fee_input,
                 tx.gas_per_pubdata_byte_limit(),
+                // We do not have to adjust the params to the `gasPrice` of the transaction, since
+                // its gas price will be amended later on to suit the `fee_input`
+                None,
                 protocol_version.into(),
             )
         };
@@ -713,9 +717,6 @@ impl TxSender {
             if l2_common_data.signature.is_empty() {
                 l2_common_data.signature = PackedEthSignature::default().serialize_packed().into();
             }
-
-            l2_common_data.fee.gas_per_pubdata_limit =
-                U256::from(DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE);
         }
 
         // Acquire the vm token for the whole duration of the binary search.
@@ -736,7 +737,7 @@ impl TxSender {
             )
             .await?;
 
-            if pubdata_for_factory_deps > MAX_PUBDATA_PER_BLOCK {
+            if pubdata_for_factory_deps as u64 > self.0.sender_config.max_pubdata_per_batch {
                 return Err(SubmitTxError::Unexecutable(
                     "exceeds limit for published pubdata".to_string(),
                 ));
