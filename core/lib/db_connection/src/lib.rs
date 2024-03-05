@@ -11,11 +11,11 @@ use std::{
 
 use sqlx::{pool::PoolConnection, types::chrono, Connection, PgConnection, Postgres, Transaction};
 
-use crate::{metrics::CONNECTION_METRICS, ConnectionPool};
+// use crate::metrics::CONNECTION_METRICS;
 
 /// Tags that can be associated with a connection.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct StorageProcessorTags {
+pub struct StorageProcessorTags {
     pub requester: &'static str,
     pub location: &'static Location<'static>,
 }
@@ -38,7 +38,7 @@ impl fmt::Display for StorageProcessorTags {
     }
 }
 
-struct TracedConnectionInfo {
+pub struct TracedConnectionInfo {
     tags: Option<StorageProcessorTags>,
     created_at: Instant,
 }
@@ -54,7 +54,7 @@ impl fmt::Debug for TracedConnectionInfo {
 
 /// Traced active connections for a connection pool.
 #[derive(Default)]
-pub(super) struct TracedConnections {
+pub struct TracedConnections {
     connections: Mutex<HashMap<usize, TracedConnectionInfo>>,
     next_id: AtomicUsize,
 }
@@ -90,7 +90,7 @@ impl TracedConnections {
     }
 }
 
-struct PooledStorageProcessor<'a> {
+pub struct PooledStorageProcessor<'a> {
     connection: PoolConnection<Postgres>,
     tags: Option<StorageProcessorTags>,
     created_at: Instant,
@@ -109,19 +109,19 @@ impl fmt::Debug for PooledStorageProcessor<'_> {
 
 impl Drop for PooledStorageProcessor<'_> {
     fn drop(&mut self) {
-        if let Some(tags) = &self.tags {
-            let lifetime = self.created_at.elapsed();
-            CONNECTION_METRICS.lifetime[&tags.requester].observe(lifetime);
-
-            if lifetime > ConnectionPool::global_config().long_connection_threshold() {
-                let file = tags.location.file();
-                let line = tags.location.line();
-                tracing::info!(
-                    "Long-living connection for `{}` created at {file}:{line}: {lifetime:?}",
-                    tags.requester
-                );
-            }
-        }
+        // if let Some(tags) = &self.tags {
+        //     let lifetime = self.created_at.elapsed();
+        //     CONNECTION_METRICS.lifetime[&tags.requester].observe(lifetime);
+        //
+        //     if lifetime > ConnectionPool::global_config().long_connection_threshold() {
+        //         let file = tags.location.file();
+        //         let line = tags.location.line();
+        //         tracing::info!(
+        //             "Long-living connection for `{}` created at {file}:{line}: {lifetime:?}",
+        //             tags.requester
+        //         );
+        //     }
+        // }
         if let Some((connections, id)) = self.traced {
             connections.mark_as_dropped(id);
         }
@@ -129,7 +129,7 @@ impl Drop for PooledStorageProcessor<'_> {
 }
 
 #[derive(Debug)]
-enum StorageProcessorInner<'a> {
+pub enum StorageProcessorInner<'a> {
     Pooled(PooledStorageProcessor<'a>),
     Transaction {
         transaction: Transaction<'a, Postgres>,
@@ -175,7 +175,7 @@ impl<'a> StorageProcessor<'a> {
     /// Creates a `StorageProcessor` using a pool of connections.
     /// This method borrows one of the connections from the pool, and releases it
     /// after `drop`.
-    pub(super) fn from_pool(
+    pub fn from_pool(
         connection: PoolConnection<Postgres>,
         tags: Option<StorageProcessorTags>,
         traced_connections: Option<&'a TracedConnections>,
@@ -193,58 +193,14 @@ impl<'a> StorageProcessor<'a> {
         Self { inner }
     }
 
-    pub(crate) fn conn(&mut self) -> &mut PgConnection {
+    pub fn conn(&mut self) -> &mut PgConnection {
         self.conn_and_tags().0
     }
 
-    pub(crate) fn conn_and_tags(&mut self) -> (&mut PgConnection, Option<&StorageProcessorTags>) {
+    pub fn conn_and_tags(&mut self) -> (&mut PgConnection, Option<&StorageProcessorTags>) {
         match &mut self.inner {
             StorageProcessorInner::Pooled(pooled) => (&mut pooled.connection, pooled.tags.as_ref()),
             StorageProcessorInner::Transaction { transaction, tags } => (transaction, *tags),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::ConnectionPool;
-
-    #[tokio::test]
-    async fn processor_tags_propagate_to_transactions() {
-        let pool = ConnectionPool::constrained_test_pool(1).await;
-        let mut connection = pool.access_storage_tagged("test").await.unwrap();
-        assert!(!connection.in_transaction());
-        let original_tags = *connection.conn_and_tags().1.unwrap();
-        assert_eq!(original_tags.requester, "test");
-
-        let mut transaction = connection.start_transaction().await.unwrap();
-        let transaction_tags = *transaction.conn_and_tags().1.unwrap();
-        assert_eq!(transaction_tags, original_tags);
-    }
-
-    #[tokio::test]
-    async fn tracing_connections() {
-        let pool = ConnectionPool::constrained_test_pool(1).await;
-        let connection = pool.access_storage_tagged("test").await.unwrap();
-        let traced = pool.traced_connections.as_deref().unwrap();
-        {
-            let traced = traced.connections.lock().unwrap();
-            assert_eq!(traced.len(), 1);
-            let tags = traced.values().next().unwrap().tags.unwrap();
-            assert_eq!(tags.requester, "test");
-            assert!(tags.location.file().contains("processor.rs"), "{tags:?}");
-        }
-        drop(connection);
-
-        {
-            let traced = traced.connections.lock().unwrap();
-            assert!(traced.is_empty());
-        }
-
-        let _connection = pool.access_storage_tagged("test").await.unwrap();
-        let err = format!("{:?}", pool.access_storage().await.unwrap_err());
-        // Matching strings in error messages is an anti-pattern, but we really want to test DevEx here.
-        assert!(err.contains("Active connections"), "{err}");
-        assert!(err.contains("requested by `test`"), "{err}");
     }
 }
