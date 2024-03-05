@@ -47,7 +47,6 @@ export async function up(runObservability: boolean, composeFile?: string) {
     }
 }
 
-
 export const command = new Command('up')
     .description('start development containers')
     .option('--docker-file <dockerFile>', 'path to a custom docker file')

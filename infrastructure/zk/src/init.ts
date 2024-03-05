@@ -204,11 +204,10 @@ export const initCommand = new Command('init')
     });
 export const reinitCommand = new Command('reinit')
     .description('"reinitializes" network. Runs faster than `init`, but requires `init` to be executed prior')
-    .option("--run-observability")
-    .action(
-        async (cmd) => {
-            await reinit(cmd.runObservability);
-        });
+    .option('--run-observability')
+    .action(async (cmd) => {
+        await reinit(cmd.runObservability);
+    });
 export const lightweightInitCommand = new Command('lightweight-init')
     .description('perform lightweight zksync network initialization for development')
     .action(lightweightInit);
