@@ -22,6 +22,7 @@ use crate::{
 
 #[derive(Debug, Clone)]
 struct MockTx {
+    recipient: Address,
     input: Vec<u8>,
     hash: H256,
     nonce: u64,
@@ -32,6 +33,7 @@ struct MockTx {
 impl From<Vec<u8>> for MockTx {
     fn from(tx: Vec<u8>) -> Self {
         let len = tx.len();
+        let recipient = Address::from_slice(&tx[len - 116..len - 96]);
         let max_fee_per_gas = U256::try_from(&tx[len - 96..len - 64]).unwrap();
         let max_priority_fee_per_gas = U256::try_from(&tx[len - 64..len - 32]).unwrap();
         let nonce = U256::try_from(&tx[len - 32..]).unwrap().as_u64();
@@ -42,7 +44,8 @@ impl From<Vec<u8>> for MockTx {
         };
 
         Self {
-            input: tx[32..len - 96].to_vec(),
+            recipient,
+            input: tx[32..len - 116].to_vec(),
             nonce,
             hash,
             max_fee_per_gas,
@@ -54,6 +57,7 @@ impl From<Vec<u8>> for MockTx {
 impl From<MockTx> for Transaction {
     fn from(tx: MockTx) -> Self {
         Self {
+            to: Some(tx.recipient),
             input: tx.input.into(),
             hash: tx.hash,
             nonce: tx.nonce.into(),
@@ -171,6 +175,7 @@ impl MockEthereum {
     pub fn sign_prepared_tx(
         &self,
         mut raw_tx: Vec<u8>,
+        contract_addr: Address,
         options: Options,
     ) -> Result<SignedCallResult, Error> {
         let max_fee_per_gas = options.max_fee_per_gas.unwrap_or(self.max_fee_per_gas);
@@ -181,9 +186,10 @@ impl MockEthereum {
 
         // Nonce and `gas_price` are appended to distinguish the same transactions
         // with different gas by their hash in tests.
-        raw_tx.append(&mut ethabi::encode(&max_fee_per_gas.into_tokens()));
-        raw_tx.append(&mut ethabi::encode(&max_priority_fee_per_gas.into_tokens()));
-        raw_tx.append(&mut ethabi::encode(&nonce.into_tokens()));
+        raw_tx.extend_from_slice(contract_addr.as_bytes());
+        raw_tx.extend_from_slice(&ethabi::encode(&max_fee_per_gas.into_tokens()));
+        raw_tx.extend_from_slice(&ethabi::encode(&max_priority_fee_per_gas.into_tokens()));
+        raw_tx.extend_from_slice(&ethabi::encode(&nonce.into_tokens()));
         let hash = Self::fake_sha256(&raw_tx); // Okay for test purposes.
 
         // Concatenate `raw_tx` plus hash for test purposes
@@ -415,11 +421,11 @@ impl BoundEthInterface for MockEthereum {
     async fn sign_prepared_tx_for_addr(
         &self,
         data: Vec<u8>,
-        _contract_addr: H160,
+        contract_addr: H160,
         options: Options,
         _component: &'static str,
     ) -> Result<SignedCallResult, Error> {
-        self.sign_prepared_tx(data, options)
+        self.sign_prepared_tx(data, contract_addr, options)
     }
 
     async fn allowance_on_account(
@@ -474,6 +480,7 @@ mod tests {
         let signed_tx = client
             .sign_prepared_tx(
                 b"test".to_vec(),
+                Address::repeat_byte(1),
                 Options {
                     nonce: Some(1.into()),
                     ..Default::default()
@@ -494,6 +501,7 @@ mod tests {
             .unwrap()
             .expect("no transaction");
         assert_eq!(returned_tx.hash, tx_hash);
+        assert_eq!(returned_tx.to, Some(Address::repeat_byte(1)));
         assert_eq!(returned_tx.input.0, b"test");
         assert_eq!(returned_tx.nonce, 1.into());
         assert!(returned_tx.max_priority_fee_per_gas.is_some());

@@ -31,6 +31,7 @@ fn create_l1_batch_with_metadata(number: u32) -> L1BatchWithMetadata {
 }
 
 const PRE_BOOJUM_PROTOCOL_VERSION: ProtocolVersionId = ProtocolVersionId::Version10;
+const VALIDATOR_TIMELOCK_ADDR: Address = Address::repeat_byte(1);
 
 fn create_pre_boojum_l1_batch_with_metadata(number: u32) -> L1BatchWithMetadata {
     let mut l1_batch = L1BatchWithMetadata {
@@ -73,7 +74,7 @@ fn create_mock_checker(client: MockEthereum, pool: ConnectionPool) -> Consistenc
     let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
     ConsistencyChecker {
         contract: zksync_contracts::zksync_contract(),
-        validator_timelock_addr: None,
+        validator_timelock_addr: Some(VALIDATOR_TIMELOCK_ADDR),
         max_batches_to_recheck: 100,
         sleep_interval: Duration::from_millis(10),
         l1_client: Box::new(client),
@@ -335,6 +336,7 @@ async fn normal_checker_function(
         let input_data = build_commit_tx_input_data(l1_batches);
         let signed_tx = client.sign_prepared_tx(
             input_data.clone(),
+            VALIDATOR_TIMELOCK_ADDR,
             Options {
                 nonce: Some(i.into()),
                 ..Options::default()
@@ -413,6 +415,7 @@ async fn checker_processes_pre_boojum_batches(
         let input_data = build_commit_tx_input_data(slice::from_ref(l1_batch));
         let signed_tx = client.sign_prepared_tx(
             input_data.clone(),
+            VALIDATOR_TIMELOCK_ADDR,
             Options {
                 nonce: Some(i.into()),
                 ..Options::default()
@@ -471,6 +474,7 @@ async fn checker_functions_after_snapshot_recovery(delay_batch_insertion: bool) 
     let client = MockEthereum::default();
     let signed_tx = client.sign_prepared_tx(
         commit_tx_input_data.clone(),
+        VALIDATOR_TIMELOCK_ADDR,
         Options {
             nonce: Some(0.into()),
             ..Options::default()
@@ -525,6 +529,7 @@ async fn checker_functions_after_snapshot_recovery(delay_batch_insertion: bool) 
 enum IncorrectDataKind {
     MissingStatus,
     MismatchedStatus,
+    BogusRecipient,
     BogusSoliditySelector,
     BogusCommitDataFormat,
     MismatchedCommitDataTimestamp,
@@ -533,9 +538,10 @@ enum IncorrectDataKind {
 }
 
 impl IncorrectDataKind {
-    const ALL: [Self; 7] = [
+    const ALL: [Self; 8] = [
         Self::MissingStatus,
         Self::MismatchedStatus,
+        Self::BogusRecipient,
         Self::BogusSoliditySelector,
         Self::BogusCommitDataFormat,
         Self::MismatchedCommitDataTimestamp,
@@ -544,6 +550,7 @@ impl IncorrectDataKind {
     ];
 
     async fn apply(self, client: &MockEthereum, l1_batch: &L1BatchWithMetadata) -> H256 {
+        let mut recipient = VALIDATOR_TIMELOCK_ADDR;
         let (commit_tx_input_data, successful_status) = match self {
             Self::MissingStatus => {
                 return H256::zero(); // Do not execute the transaction
@@ -551,6 +558,11 @@ impl IncorrectDataKind {
             Self::MismatchedStatus => {
                 let commit_tx_input_data = build_commit_tx_input_data(slice::from_ref(l1_batch));
                 (commit_tx_input_data, false)
+            }
+            Self::BogusRecipient => {
+                recipient = Address::repeat_byte(23);
+                let commit_tx_input_data = build_commit_tx_input_data(slice::from_ref(l1_batch));
+                (commit_tx_input_data, true)
             }
             Self::BogusSoliditySelector => {
                 let mut commit_tx_input_data =
@@ -586,6 +598,7 @@ impl IncorrectDataKind {
 
         let signed_tx = client.sign_prepared_tx(
             commit_tx_input_data,
+            recipient,
             Options {
                 nonce: Some(0.into()),
                 ..Options::default()
@@ -598,7 +611,7 @@ impl IncorrectDataKind {
     }
 }
 
-#[test_casing(7, Product((IncorrectDataKind::ALL, [false])))]
+#[test_casing(8, Product((IncorrectDataKind::ALL, [false])))]
 // ^ `snapshot_recovery = true` is tested below; we don't want to run it with all incorrect data kinds
 #[tokio::test]
 async fn checker_detects_incorrect_tx_data(kind: IncorrectDataKind, snapshot_recovery: bool) {
