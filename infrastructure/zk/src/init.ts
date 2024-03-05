@@ -58,7 +58,7 @@ export const initSetup = async ({ skipSubmodulesCheckout, skipEnvSetup }: InitSe
 
 // Sets up the database, deploys the verifier (if set) and runs server genesis
 type InitDatabaseOptions = { skipVerifierDeployment: boolean };
-const initDatabase = async ({ skipVerifierDeployment }: InitDatabaseOptions): Promise<void> => {
+export const initDatabase = async ({ skipVerifierDeployment }: InitDatabaseOptions): Promise<void> => {
     await announced('Drop postgres db', db.drop({ server: true, prover: true }));
     await announced('Setup postgres db', db.setup({ server: true, prover: true }));
     await announced('Clean rocksdb', clean(`db/${process.env.ZKSYNC_ENV!}`));
@@ -89,7 +89,7 @@ const initBridgehubStateTransition = async () => {
 
 // Registers a hyperchain and deploys L2 contracts through L1
 type InitHyperchainOptions = { includePaymaster: boolean; baseToken: { name: string; address: string } };
-const initHyperchain = async ({ includePaymaster, baseToken }: InitHyperchainOptions): Promise<void> => {
+export const initHyperchain = async ({ includePaymaster, baseToken }: InitHyperchainOptions): Promise<void> => {
     await announced('Registering Hyperchain', contract.registerHyperchain({ baseToken }));
     await announced('Running server genesis setup', server.genesisFromSources({ setChainId: true }));
     await announced('Deploying L2 contracts', contract.deployL2ThroughL1({ includePaymaster }));
@@ -131,8 +131,8 @@ const initSharedBridgeCmdAction = async (options: InitSharedBridgeCmdActionOptio
 type InitHyperCmdActionOptions = {
     skipSetupCompletely: boolean;
     bumpChainId: boolean;
-    baseTokenName: string;
-    baseTokenAddress: string;
+    baseTokenName?: string;
+    baseTokenAddress?: string;
 };
 export const initHyperCmdAction = async ({
     skipSetupCompletely,
