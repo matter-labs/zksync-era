@@ -5,9 +5,8 @@ use zksync_types::l1_batch_commit_data_generator::{
     RollupModeL1BatchCommitDataGenerator, ValidiumModeL1BatchCommitDataGenerator,
 };
 
-use crate::l1_gas_price::{RollupPubdataPricing, ValidiumPubdataPricing};
-
 use super::tests_helpers::{self, EthSenderTester};
+use crate::l1_gas_price::{RollupPubdataPricing, ValidiumPubdataPricing};
 
 // Tests that we send multiple transactions and confirm them all in one iteration.
 #[tokio::test]

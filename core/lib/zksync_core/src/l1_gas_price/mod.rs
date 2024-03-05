@@ -2,8 +2,7 @@
 
 use std::fmt;
 
-pub use gas_adjuster::GasAdjuster;
-pub use gas_adjuster::{PubdataPricing, RollupPubdataPricing, ValidiumPubdataPricing};
+pub use gas_adjuster::{GasAdjuster, PubdataPricing, RollupPubdataPricing, ValidiumPubdataPricing};
 pub use main_node_fetcher::MainNodeFeeParamsFetcher;
 pub use singleton::GasAdjusterSingleton;
 

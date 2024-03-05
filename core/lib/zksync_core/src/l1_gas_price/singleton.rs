@@ -8,9 +8,8 @@ use tokio::{
 use zksync_config::GasAdjusterConfig;
 use zksync_eth_client::clients::QueryClient;
 
-use crate::l1_gas_price::GasAdjuster;
-
 use super::gas_adjuster::PubdataPricing;
+use crate::l1_gas_price::GasAdjuster;
 
 /// Special struct for creating a singleton of `GasAdjuster`.
 /// This is needed only for running the server.

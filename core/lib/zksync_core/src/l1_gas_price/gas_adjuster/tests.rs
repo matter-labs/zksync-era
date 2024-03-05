@@ -3,9 +3,8 @@ use std::{collections::VecDeque, sync::Arc};
 use zksync_config::GasAdjusterConfig;
 use zksync_eth_client::clients::MockEthereum;
 
-use crate::l1_gas_price::{RollupPubdataPricing, ValidiumPubdataPricing};
-
 use super::{GasAdjuster, GasStatisticsInner, PubdataPricing};
+use crate::l1_gas_price::{RollupPubdataPricing, ValidiumPubdataPricing};
 
 /// Check that we compute the median correctly
 #[test]
