@@ -178,6 +178,7 @@ async fn get_pubdata_pricing_mode(
     eth_client.call_contract_function(args).await
 }
 
+#[must_use]
 pub async fn ensure_l1_batch_commit_data_generation_mode(
     selected_l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
     diamond_proxy_address: Address,
