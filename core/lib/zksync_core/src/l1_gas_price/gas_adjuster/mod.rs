@@ -8,23 +8,14 @@ use std::{
 use tokio::sync::watch;
 use zksync_config::GasAdjusterConfig;
 use zksync_eth_client::{Error, EthInterface};
-use zksync_types::{l1, L1_GAS_PER_PUBDATA_BYTE};
 
 use self::metrics::METRICS;
-use super::L1TxParamsProvider;
+use super::{L1TxParamsProvider, PubdataPricing};
 use crate::state_keeper::metrics::KEEPER_METRICS;
 
 mod metrics;
 #[cfg(test)]
 mod tests;
-
-pub trait PubdataPricing
-where
-    Self: std::fmt::Debug + Sync + Send,
-{
-    /// Returns the amount of L1 gas to publish a single byte of pub data.
-    fn pubdata_byte_gas(&self) -> u64;
-}
 
 /// This component keeps track of the median base_fee from the last `max_base_fee_samples` blocks.
 /// It is used to adjust the base_fee of transactions sent to L1.
@@ -34,23 +25,6 @@ pub struct GasAdjuster {
     pub(super) config: GasAdjusterConfig,
     eth_client: Arc<dyn EthInterface>,
     pubdata_pricing: Arc<dyn PubdataPricing>,
-}
-
-#[derive(Debug)]
-pub struct ValidiumPubdataPricing;
-#[derive(Debug)]
-pub struct RollupPubdataPricing;
-
-impl PubdataPricing for ValidiumPubdataPricing {
-    fn pubdata_byte_gas(&self) -> u64 {
-        0
-    }
-}
-
-impl PubdataPricing for RollupPubdataPricing {
-    fn pubdata_byte_gas(&self) -> u64 {
-        L1_GAS_PER_PUBDATA_BYTE.into()
-    }
 }
 
 impl GasAdjuster {
