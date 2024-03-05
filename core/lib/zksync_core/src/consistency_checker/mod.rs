@@ -7,12 +7,10 @@ use zksync_contracts::PRE_BOOJUM_COMMIT_FUNCTION;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::{Error as L1ClientError, EthInterface};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
-use zksync_l1_contract_interface::{i_executor::structures::CommitBatchInfo, Tokenizable};
-use zksync_types::{
-    l1_batch_commit_data_generator::L1BatchCommitDataGenerator, web3::ethabi, L1BatchNumber, H256,
-};
+use zksync_types::{web3::ethabi, L1BatchNumber, H256};
 
 use crate::{
+    eth_sender::l1_batch_commit_data_generator::L1BatchCommitDataGenerator,
     metrics::{CheckerComponent, EN_METRICS},
     utils::wait_for_l1_batch_with_metadata,
 };
@@ -183,8 +181,7 @@ impl LocalL1BatchCommitData {
 
         Ok(Some(Self {
             is_pre_boojum,
-            l1_commit_data: CommitBatchInfo::new(&l1_batch, l1_batch_commit_data_generator)
-                .into_token(),
+            l1_commit_data: l1_batch_commit_data_generator.l1_commit_batch(&l1_batch),
             commit_tx_hash,
         }))
     }
