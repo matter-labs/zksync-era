@@ -28,13 +28,14 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
         deployerL2ContractInput
     } = initArgs;
 
+    if (runObservability) {
+        await announced('Pulling observability repos', setupObservability());
+    }
+
     if (!process.env.CI && !skipEnvSetup) {
         await announced('Pulling images', docker.pull());
-        await announced('Checking environment', checkEnv());
+        await announced('Checking environment', checkEnv(runObservability));
         await announced('Checking git hooks', env.gitHooks());
-        if (runObservability) {
-            await announced('Setting up observability', setupObservability());
-        }
         await announced('Setting up containers', up(runObservability));
     }
     if (!skipSubmodulesCheckout) {
@@ -145,8 +146,12 @@ export async function setupObservability() {
     );
 }
 
-async function checkEnv() {
+async function checkEnv(runObservability: boolean) {
     const tools = ['node', 'yarn', 'docker', 'cargo'];
+    if (runObservability) {
+        tools.push('yq');
+    }
+
     for (const tool of tools) {
         await utils.exec(`which ${tool}`);
     }
