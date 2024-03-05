@@ -9,8 +9,14 @@ use std::{
 use anyhow::Context as _;
 use async_trait::async_trait;
 use tokio::sync::watch;
+use zksync_config::configs::chain::L1BatchCommitDataGeneratorMode;
 use zksync_dal::{ConnectionPool, StorageProcessor};
-use zksync_types::{L1BatchNumber, ProtocolVersionId};
+use zksync_eth_client::{CallFunctionArgs, Error as EthClientError, EthInterface};
+use zksync_l1_contract_interface::Detokenize;
+use zksync_types::{
+    ethabi::{self, Address},
+    L1BatchNumber, ProtocolVersionId,
+};
 
 #[cfg(test)]
 pub(crate) mod testonly;
@@ -161,6 +167,48 @@ pub(crate) async fn pending_protocol_version(
         .context("failed getting snapshot recovery status")?
         .context("storage contains neither miniblocks, nor snapshot recovery info")?;
     Ok(snapshot_recovery.protocol_version)
+}
+
+async fn get_pubdata_pricing_mode(
+    diamond_proxy_address: Address,
+    eth_client: &impl EthInterface,
+) -> Result<Vec<ethabi::Token>, EthClientError> {
+    let args = CallFunctionArgs::new("getPubdataPricingMode", ())
+        .for_contract(diamond_proxy_address, zksync_contracts::zksync_contract());
+    eth_client.call_contract_function(args).await
+}
+
+pub async fn ensure_l1_batch_commit_data_generation_mode(
+    selected_l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
+    diamond_proxy_address: Address,
+    eth_client: &impl EthInterface,
+) -> anyhow::Result<()> {
+    match get_pubdata_pricing_mode(diamond_proxy_address, eth_client).await {
+        // Getters contract support getPubdataPricingMode method
+        Ok(l1_contract_pubdata_pricing_mode) => {
+            let l1_contract_batch_commitment_mode =
+                L1BatchCommitDataGeneratorMode::from_tokens(l1_contract_pubdata_pricing_mode)
+                    .context(
+                        "Unable to parse L1BatchCommitDataGeneratorMode received from L1 contract",
+                    )?;
+
+            // contracts mode == server mode
+            anyhow::ensure!(
+                l1_contract_batch_commitment_mode == selected_l1_batch_commit_data_generator_mode,
+                "The selected L1BatchCommitDataGeneratorMode ({:?}) does not match the commitment mode used on L1 contract ({:?})",
+                selected_l1_batch_commit_data_generator_mode,
+                l1_contract_batch_commitment_mode
+            );
+
+            Ok(())
+        }
+        // Getters contract does not support getPubdataPricingMode method
+        Err(EthClientError::Contract(_)) => {
+            tracing::warn!("Getters contract does not support getPubdataPricingMode method");
+            Ok(())
+        }
+        Err(err) => anyhow::bail!(err),
+    }
 }
 
 #[cfg(test)]
