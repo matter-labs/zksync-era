@@ -12,7 +12,7 @@ use zksync_l1_contract_interface::{
     Tokenizable,
 };
 use zksync_types::{
-    commitment::L1BatchWithMetadata, pubdata_da::PubdataDA, web3::ethabi, L1BatchNumber,
+    commitment::L1BatchWithMetadata, pubdata_da::PubdataDA, web3::ethabi, Address, L1BatchNumber,
     ProtocolVersionId, H256,
 };
 
@@ -226,6 +226,8 @@ impl LocalL1BatchCommitData {
 pub struct ConsistencyChecker {
     /// ABI of the zkSync contract
     contract: ethabi::Contract,
+    /// Address of the zkSync contract on L1
+    validator_timelock_addr: Option<Address>,
     /// How many past batches to check when starting
     max_batches_to_recheck: u32,
     sleep_interval: Duration,
@@ -244,6 +246,7 @@ impl ConsistencyChecker {
         let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
         Self {
             contract: zksync_contracts::zksync_contract(),
+            validator_timelock_addr: None,
             max_batches_to_recheck,
             sleep_interval: Self::DEFAULT_SLEEP_INTERVAL,
             l1_client: Box::new(web3),
@@ -252,6 +255,11 @@ impl ConsistencyChecker {
             pool,
             health_check,
         }
+    }
+
+    pub fn with_validator_timelock_addr(mut self, address: Option<Address>) -> Self {
+        self.validator_timelock_addr = address;
+        self
     }
 
     /// Returns health check associated with this checker.
@@ -277,14 +285,23 @@ impl ConsistencyChecker {
             return Err(err.into());
         }
 
-        // We can't get tx calldata from db because it can be fake.
-        let commit_tx_input_data = self
+        // We can't get tx calldata from the DB because it can be fake.
+        let commit_tx = self
             .l1_client
             .get_tx(commit_tx_hash, "consistency_checker")
             .await?
-            .with_context(|| format!("Commit for tx {commit_tx_hash:?} not found on L1"))?
-            .input;
-        // TODO (PLA-721): Check receiving contract and selector
+            .with_context(|| format!("Commit for tx {commit_tx_hash:?} not found on L1"))?;
+        if let Some(validator_timelock_addr) = self.validator_timelock_addr {
+            if commit_tx.to != Some(validator_timelock_addr) {
+                let err = anyhow::anyhow!(
+                    "Expected recipient for commit tx {commit_tx_hash:?} to be validator timelock contract {validator_timelock_addr:?}, \
+                     but it is {:?}",
+                    commit_tx.to
+                );
+                return Err(err.into());
+            }
+        }
+
         // TODO: Add support for post shared bridge commits
         let commit_function = if local.is_pre_boojum() {
             &*PRE_BOOJUM_COMMIT_FUNCTION
@@ -293,8 +310,9 @@ impl ConsistencyChecker {
                 .function("commitBatches")
                 .context("L1 contract does not have `commitBatches` function")?
         };
+
         let commitment =
-            Self::extract_commit_data(&commit_tx_input_data.0, commit_function, batch_number)
+            Self::extract_commit_data(&commit_tx.input.0, commit_function, batch_number)
                 .with_context(|| {
                     format!("Failed extracting commit data for transaction {commit_tx_hash:?}")
                 })?;
@@ -306,9 +324,16 @@ impl ConsistencyChecker {
         commit_function: &ethabi::Function,
         batch_number: L1BatchNumber,
     ) -> anyhow::Result<ethabi::Token> {
+        let expected_solidity_selector = commit_function.short_signature();
+        let actual_solidity_selector = &commit_tx_input_data[..4];
+        anyhow::ensure!(
+            expected_solidity_selector == actual_solidity_selector,
+            "unexpected Solidity function selector: expected {expected_solidity_selector:?}, got {actual_solidity_selector:?}"
+        );
+
         let mut commit_input_tokens = commit_function
             .decode_input(&commit_tx_input_data[4..])
-            .with_context(|| format!("Failed decoding calldata for L1 commit function"))?;
+            .context("Failed decoding calldata for L1 commit function")?;
         let mut commitments = commit_input_tokens
             .pop()
             .context("Unexpected signature for L1 commit function")?
@@ -319,7 +344,7 @@ impl ConsistencyChecker {
         // the one that corresponds to the batch we're checking.
         let first_batch_commitment = commitments
             .first()
-            .with_context(|| format!("L1 batch commitment is empty"))?;
+            .context("L1 batch commitment is empty")?;
         let ethabi::Token::Tuple(first_batch_commitment) = first_batch_commitment else {
             anyhow::bail!("Unexpected signature for L1 commit function");
         };
@@ -342,8 +367,8 @@ impl ConsistencyChecker {
         commitment.with_context(|| {
             let actual_range = first_batch_number..(first_batch_number + commitments.len());
             format!(
-                "Malformed commitment data; it should prove L1 batch #{batch_number}, \
-                 but it actually proves batches #{actual_range:?}"
+                "Malformed commitment data; it should commit to L1 batch #{batch_number}, \
+                 but it actually commits to batches #{actual_range:?}"
             )
         })
     }

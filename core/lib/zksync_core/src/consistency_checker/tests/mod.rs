@@ -50,9 +50,17 @@ fn build_commit_tx_input_data(batches: &[L1BatchWithMetadata]) -> Vec<u8> {
         .map(|batch| CommitBatchInfo::new(batch, PubdataDA::Calldata).into_token());
     let commit_tokens = ethabi::Token::Array(commit_tokens.collect());
 
+    let is_pre_boojum = batches[0].header.protocol_version.unwrap().is_pre_boojum();
+    let contract;
+    let commit_function = if is_pre_boojum {
+        &*PRE_BOOJUM_COMMIT_FUNCTION
+    } else {
+        contract = zksync_contracts::zksync_contract();
+        contract.function("commitBatches").unwrap()
+    };
+
     let mut encoded = vec![];
-    // Fake Solidity function selector (not checked for now)
-    encoded.extend_from_slice(b"fake");
+    encoded.extend_from_slice(&commit_function.short_signature());
     // Mock an additional argument used in real `commitBlocks` / `commitBatches`. In real transactions,
     // it's taken from the L1 batch previous to `batches[0]`, but since this argument is not checked,
     // it's OK to use `batches[0]`.
@@ -65,6 +73,7 @@ fn create_mock_checker(client: MockEthereum, pool: ConnectionPool) -> Consistenc
     let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
     ConsistencyChecker {
         contract: zksync_contracts::zksync_contract(),
+        validator_timelock_addr: None,
         max_batches_to_recheck: 100,
         sleep_interval: Duration::from_millis(10),
         l1_client: Box::new(client),
@@ -516,6 +525,7 @@ async fn checker_functions_after_snapshot_recovery(delay_batch_insertion: bool) 
 enum IncorrectDataKind {
     MissingStatus,
     MismatchedStatus,
+    BogusSoliditySelector,
     BogusCommitDataFormat,
     MismatchedCommitDataTimestamp,
     CommitDataForAnotherBatch,
@@ -523,9 +533,10 @@ enum IncorrectDataKind {
 }
 
 impl IncorrectDataKind {
-    const ALL: [Self; 6] = [
+    const ALL: [Self; 7] = [
         Self::MissingStatus,
         Self::MismatchedStatus,
+        Self::BogusSoliditySelector,
         Self::BogusCommitDataFormat,
         Self::MismatchedCommitDataTimestamp,
         Self::CommitDataForAnotherBatch,
@@ -541,8 +552,15 @@ impl IncorrectDataKind {
                 let commit_tx_input_data = build_commit_tx_input_data(slice::from_ref(l1_batch));
                 (commit_tx_input_data, false)
             }
+            Self::BogusSoliditySelector => {
+                let mut commit_tx_input_data =
+                    build_commit_tx_input_data(slice::from_ref(l1_batch));
+                commit_tx_input_data[..4].copy_from_slice(b"test");
+                (commit_tx_input_data, true)
+            }
             Self::BogusCommitDataFormat => {
-                let mut bogus_tx_input_data = b"test".to_vec(); // Preserve the function selector
+                let commit_tx_input_data = build_commit_tx_input_data(slice::from_ref(l1_batch));
+                let mut bogus_tx_input_data = commit_tx_input_data[..4].to_vec(); // Preserve the function selector
                 bogus_tx_input_data
                     .extend_from_slice(&ethabi::encode(&[ethabi::Token::Bool(true)]));
                 (bogus_tx_input_data, true)
@@ -580,7 +598,7 @@ impl IncorrectDataKind {
     }
 }
 
-#[test_casing(6, Product((IncorrectDataKind::ALL, [false])))]
+#[test_casing(7, Product((IncorrectDataKind::ALL, [false])))]
 // ^ `snapshot_recovery = true` is tested below; we don't want to run it with all incorrect data kinds
 #[tokio::test]
 async fn checker_detects_incorrect_tx_data(kind: IncorrectDataKind, snapshot_recovery: bool) {
