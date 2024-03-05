@@ -179,7 +179,6 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk
-          ci_run zk clean --all
           ci_run zk env dev_validium
           ci_run zk init --validium-mode
 
