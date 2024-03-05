@@ -29,7 +29,9 @@ jobs:
           override: true
       
       - name: Docker version
-        run: docker --version
+        run: |
+          echo "${{ env.ZKSYNC_HOME }}/bin" >> $GITHUB_PATH
+          docker --version
 
       - name: Step 1 - Make the preparation
         run: |
@@ -51,7 +53,6 @@ jobs:
           
       - name: Step 2 - Run zk init
         run: |
-          echo "${{ env.ZKSYNC_HOME }}/bin" >> $GITHUB_PATH
           echo "Updated PATH: $PATH"
           zk
           zk init
