@@ -9,22 +9,22 @@ use tokio::{
     task::JoinHandle,
 };
 use zksync_config::configs::{
-    fri_prover_group::FriProverGroupConfig, FriProverConfig, PostgresConfig,
+    fri_prover_group::FriProverGroupConfig, object_store::ObjectStoreMode, FriProverConfig,
+    PostgresConfig,
 };
-use zksync_config::configs::object_store::ObjectStoreMode;
 use zksync_dal::ConnectionPool;
 use zksync_env_config::{
     object_store::{ProverObjectStoreConfig, PublicObjectStoreConfig},
     FromEnv,
 };
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
-use zksync_prover_fri_utils::{get_all_circuit_id_round_tuples_for};
+use zksync_prover_fri_utils::get_all_circuit_id_round_tuples_for;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{
     basic_fri_types::CircuitIdRoundTuple,
+    ethabi::ParamType::String,
     proofs::{GpuProverInstanceStatus, SocketAddress},
 };
-use zksync_types::ethabi::ParamType::String;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 
 mod gpu_prover_job_processor;

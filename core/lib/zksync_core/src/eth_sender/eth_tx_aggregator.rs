@@ -6,7 +6,7 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::{BoundEthInterface, CallFunctionArgs};
 use zksync_types::{
-    aggregated_operations::AggregatedOperation,
+    aggregated_operations::{AggregatedOperation, L1BatchExecuteOperation},
     contracts::{Multicall3Call, Multicall3Result},
     eth_sender::EthTx,
     ethabi::{Contract, Token},
@@ -18,7 +18,6 @@ use zksync_types::{
     },
     Address, ProtocolVersionId, H256, U256,
 };
-use zksync_types::aggregated_operations::L1BatchExecuteOperation;
 
 use crate::{
     eth_sender::{
@@ -377,14 +376,26 @@ impl EthTxAggregator {
         let is_batches_synced = &*self.functions.is_batches_synced.name;
 
         let params = op.get_eth_tx_args().pop().unwrap();
-        tracing::info!("is_batches_synced: {:?}", hex::encode(self.functions.is_batches_synced.encode_input(&op.get_eth_tx_args()).unwrap()));
+        tracing::info!(
+            "is_batches_synced: {:?}",
+            hex::encode(
+                self.functions
+                    .is_batches_synced
+                    .encode_input(&op.get_eth_tx_args())
+                    .unwrap()
+            )
+        );
 
-        let args = CallFunctionArgs::new(is_batches_synced, params)
-            .for_contract(self.main_zksync_contract_address, self.functions.zksync_contract.clone());
-        let res_tokens = self.eth_client.call_contract_function(args)
+        let args = CallFunctionArgs::new(is_batches_synced, params).for_contract(
+            self.main_zksync_contract_address,
+            self.functions.zksync_contract.clone(),
+        );
+        let res_tokens = self
+            .eth_client
+            .call_contract_function(args)
             .await
             .map_err(|e| Error::InvalidOutputType(e.to_string()))?;
-        Ok(bool::from_tokens(res_tokens)?)
+        bool::from_tokens(res_tokens)
     }
 
     async fn report_eth_tx_saving(
