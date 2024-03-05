@@ -1,7 +1,7 @@
 use zksync_types::{
     api::{
-        Block, BlockId, BlockIdVariant, BlockNumber, Log, Transaction, TransactionId,
-        TransactionReceipt, TransactionVariant,
+        Block, BlockId, BlockIdVariant, BlockNumber, Log, StateOverride, Transaction,
+        TransactionId, TransactionReceipt, TransactionVariant,
     },
     transaction_request::CallRequest,
     web3::types::{FeeHistory, Index, SyncState},
@@ -31,8 +31,13 @@ impl EthNamespaceServer for EthNamespace {
             .map_err(into_jsrpc_error)
     }
 
-    async fn estimate_gas(&self, req: CallRequest, block: Option<BlockNumber>) -> RpcResult<U256> {
-        self.estimate_gas_impl(req, block)
+    async fn estimate_gas(
+        &self,
+        req: CallRequest,
+        block: Option<BlockNumber>,
+        state_override: Option<StateOverride>,
+    ) -> RpcResult<U256> {
+        self.estimate_gas_impl(req, block, state_override)
             .await
             .map_err(into_jsrpc_error)
     }

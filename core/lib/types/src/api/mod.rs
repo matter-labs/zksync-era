@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use chrono::{DateTime, Utc};
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use strum::Display;
@@ -701,4 +703,18 @@ pub struct StorageProof {
 pub struct Proof {
     pub address: Address,
     pub storage_proof: Vec<StorageProof>,
+}
+
+/// Collection of overridden accounts, useful for `eth_estimateGas`.
+pub type StateOverride = HashMap<Address, OverrideAccount>;
+
+/// Account override for `eth_estimateGas`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OverrideAccount {
+    pub balance: Option<U256>,
+    pub nonce: Option<U256>,
+    pub code: Option<Bytes>,
+    pub state: Option<HashMap<H256, H256>>,
+    pub state_diff: Option<HashMap<H256, H256>>,
 }

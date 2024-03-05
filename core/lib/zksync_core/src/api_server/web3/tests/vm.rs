@@ -4,7 +4,10 @@ use std::sync::atomic::{AtomicU32, Ordering};
 
 use multivm::interface::{ExecutionResult, VmRevertReason};
 use zksync_types::{
-    get_intrinsic_constants, transaction_request::CallRequest, L2ChainId, PackedEthSignature, U256,
+    api::{OverrideAccount, StateOverride},
+    get_intrinsic_constants,
+    transaction_request::CallRequest,
+    L2ChainId, PackedEthSignature, U256,
 };
 use zksync_utils::u256_to_h256;
 use zksync_web3_decl::namespaces::DebugNamespaceClient;
@@ -436,7 +439,7 @@ impl HttpTest for EstimateGasTest {
         for threshold in [10_000, 50_000, 100_000, 1_000_000] {
             self.gas_limit_threshold.store(threshold, Ordering::Relaxed);
             let output = client
-                .estimate_gas(l2_transaction.clone().into(), None)
+                .estimate_gas(l2_transaction.clone().into(), None, None)
                 .await?;
             assert!(
                 output >= U256::from(threshold),
@@ -461,10 +464,15 @@ impl HttpTest for EstimateGasTest {
         let mut call_request = CallRequest::from(l2_transaction);
         call_request.from = Some(SendRawTransactionTest::private_key_and_address().1);
         call_request.value = Some(1_000_000.into());
-        client.estimate_gas(call_request.clone(), None).await?;
+        client
+            .estimate_gas(call_request.clone(), None, None)
+            .await?;
 
         call_request.value = Some(U256::max_value());
-        let error = client.estimate_gas(call_request, None).await.unwrap_err();
+        let error = client
+            .estimate_gas(call_request, None, None)
+            .await
+            .unwrap_err();
         if let ClientError::Call(error) = error {
             let error_msg = error.message();
             assert!(
@@ -486,4 +494,105 @@ async fn estimate_gas_basics() {
 #[tokio::test]
 async fn estimate_gas_after_snapshot_recovery() {
     test_http_server(EstimateGasTest::new(true)).await;
+}
+
+#[derive(Debug)]
+struct EstimateGasWithStateOverrideTest {
+    gas_limit_threshold: Arc<AtomicU32>,
+    snapshot_recovery: bool,
+}
+
+impl EstimateGasWithStateOverrideTest {
+    fn new(snapshot_recovery: bool) -> Self {
+        Self {
+            gas_limit_threshold: Arc::default(),
+            snapshot_recovery,
+        }
+    }
+}
+
+#[async_trait]
+impl HttpTest for EstimateGasWithStateOverrideTest {
+    fn storage_initialization(&self) -> StorageInitialization {
+        let snapshot_recovery = self.snapshot_recovery;
+        SendRawTransactionTest { snapshot_recovery }.storage_initialization()
+    }
+
+    fn transaction_executor(&self) -> MockTransactionExecutor {
+        let mut tx_executor = MockTransactionExecutor::default();
+        let pending_block_number = if self.snapshot_recovery {
+            StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 2
+        } else {
+            MiniblockNumber(1)
+        };
+        let gas_limit_threshold = self.gas_limit_threshold.clone();
+        tx_executor.set_call_responses(move |tx, block_args| {
+            assert_eq!(tx.execute.calldata(), [] as [u8; 0]);
+            assert_eq!(tx.nonce(), Some(Nonce(0)));
+            assert_eq!(block_args.resolved_block_number(), pending_block_number);
+
+            let gas_limit_threshold = gas_limit_threshold.load(Ordering::SeqCst);
+            if tx.gas_limit() >= U256::from(gas_limit_threshold) {
+                ExecutionResult::Success { output: vec![] }
+            } else {
+                ExecutionResult::Revert {
+                    output: VmRevertReason::VmError,
+                }
+            }
+        });
+        tx_executor
+    }
+
+    async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
+        // Transaction with balance override
+        let l2_transaction = create_l2_transaction(10, 100);
+        let mut call_request = CallRequest::from(l2_transaction);
+        call_request.from = Some(Address::random());
+        call_request.value = Some(1_000_000.into());
+
+        let mut state_override = StateOverride::new();
+        state_override.insert(
+            call_request.from.clone().unwrap(),
+            OverrideAccount {
+                balance: Some(U256::max_value()),
+                nonce: None,
+                code: None,
+                state: None,
+                state_diff: None,
+            },
+        );
+
+        client
+            .estimate_gas(call_request.clone(), None, Some(state_override))
+            .await?;
+
+        // Transaction that should fail without balance override
+        let l2_transaction = create_l2_transaction(10, 100);
+        let mut call_request = CallRequest::from(l2_transaction);
+        call_request.from = Some(Address::random());
+        call_request.value = Some(1_000_000.into());
+
+        let error = client
+            .estimate_gas(call_request.clone(), None, None)
+            .await
+            .unwrap_err();
+        if let ClientError::Call(error) = error {
+            let error_msg = error.message();
+            assert!(
+                error_msg
+                    .to_lowercase()
+                    .contains("insufficient balance for transfer"),
+                "{error_msg}"
+            );
+        } else {
+            panic!("Unexpected error: {error:?}");
+        }
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn estimate_gas_with_state_override() {
+    test_http_server(EstimateGasWithStateOverrideTest::new(false)).await;
 }

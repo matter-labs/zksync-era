@@ -3,7 +3,7 @@ use jsonrpsee::{
     proc_macros::rpc,
 };
 use zksync_types::{
-    api::{BlockId, BlockIdVariant, BlockNumber, Transaction, TransactionVariant},
+    api::{BlockId, BlockIdVariant, BlockNumber, StateOverride, Transaction, TransactionVariant},
     transaction_request::CallRequest,
     Address, H256,
 };
@@ -36,7 +36,12 @@ pub trait EthNamespace {
     async fn call(&self, req: CallRequest, block: Option<BlockIdVariant>) -> RpcResult<Bytes>;
 
     #[method(name = "estimateGas")]
-    async fn estimate_gas(&self, req: CallRequest, _block: Option<BlockNumber>) -> RpcResult<U256>;
+    async fn estimate_gas(
+        &self,
+        req: CallRequest,
+        _block: Option<BlockNumber>,
+        state_override: Option<StateOverride>,
+    ) -> RpcResult<U256>;
 
     #[method(name = "gasPrice")]
     async fn gas_price(&self) -> RpcResult<U256>;

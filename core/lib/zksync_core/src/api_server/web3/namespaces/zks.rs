@@ -118,7 +118,7 @@ impl ZksNamespace {
 
         self.state
             .tx_sender
-            .get_txs_fee_in_wei(tx, scale_factor, acceptable_overestimation)
+            .get_txs_fee_in_wei(tx, scale_factor, acceptable_overestimation, None)
             .await
             .map_err(|err| err.into_web3_error(method_name))
     }
