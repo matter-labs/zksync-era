@@ -209,7 +209,7 @@ impl ConsistencyChecker {
     const DEFAULT_SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 
     pub fn new(
-        l1_client: impl EthInterface,
+        l1_client: Box<dyn EthInterface>,
         max_batches_to_recheck: u32,
         pool: ConnectionPool,
         l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
@@ -219,7 +219,7 @@ impl ConsistencyChecker {
             contract: zksync_contracts::zksync_contract(),
             max_batches_to_recheck,
             sleep_interval: Self::DEFAULT_SLEEP_INTERVAL,
-            l1_client: Box::new(l1_client),
+            l1_client,
             event_handler: Box::new(health_updater),
             l1_data_mismatch_behavior: L1DataMismatchBehavior::Log,
             pool,
