@@ -8,18 +8,22 @@ use prometheus_exporter::PrometheusExporterConfig;
 use tokio::{sync::watch, task, time::sleep};
 use zksync_basic_types::{Address, L2ChainId};
 use zksync_concurrency::{ctx, scope};
-use zksync_config::configs::database::MerkleTreeMode;
+use zksync_config::configs::{chain::L1BatchCommitDataGeneratorMode, database::MerkleTreeMode};
 use zksync_core::{
     api_server::{
         execution_sandbox::VmConcurrencyLimiter,
         healthcheck::HealthCheckHandle,
-        tx_sender::{ApiContracts, TxSenderBuilder},
+        tx_sender::{proxy::TxProxy, ApiContracts, TxSenderBuilder},
         web3::{ApiBuilder, Namespace},
     },
     block_reverter::{BlockReverter, BlockReverterFlags, L1ExecutedBatchesRevert},
     commitment_generator::CommitmentGenerator,
     consensus,
     consistency_checker::ConsistencyChecker,
+    eth_sender::l1_batch_commit_data_generator::{
+        L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
+        ValidiumModeL1BatchCommitDataGenerator,
+    },
     l1_gas_price::MainNodeFeeParamsFetcher,
     metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
     reorg_detector::ReorgDetector,
@@ -32,16 +36,20 @@ use zksync_core::{
         batch_status_updater::BatchStatusUpdater, external_io::ExternalIO,
         fetcher::MainNodeFetcher, ActionQueue, MainNodeClient, SyncState,
     },
+    utils::ensure_l1_batch_commit_data_generation_mode,
 };
 use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
-use zksync_health_check::{CheckHealth, HealthStatus, ReactiveHealthCheck};
+use zksync_eth_client::clients::QueryClient;
+use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
 use zksync_state::PostgresStorageCaches;
 use zksync_storage::RocksDB;
-use zksync_types::l1_batch_commit_data_generator::RollupModeL1BatchCommitDataGenerator;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
+use zksync_web3_decl::jsonrpsee::http_client::HttpClient;
 
 use crate::{
-    config::ExternalNodeConfig, helpers::MainNodeHealthCheck, init::ensure_storage_initialized,
+    config::{observability::observability_config_from_env, ExternalNodeConfig},
+    helpers::MainNodeHealthCheck,
+    init::ensure_storage_initialized,
 };
 
 mod config;
@@ -110,11 +118,11 @@ async fn build_state_keeper(
 async fn init_tasks(
     config: &ExternalNodeConfig,
     connection_pool: ConnectionPool,
+    main_node_client: HttpClient,
+    task_handles: &mut Vec<task::JoinHandle<anyhow::Result<()>>>,
+    app_health: &AppHealthCheck,
     stop_receiver: watch::Receiver<bool>,
-) -> anyhow::Result<(
-    Vec<task::JoinHandle<anyhow::Result<()>>>,
-    Vec<Box<dyn CheckHealth>>,
-)> {
+) -> anyhow::Result<()> {
     let release_manifest: serde_json::Value = serde_json::from_str(RELEASE_MANIFEST)
         .expect("release manifest is a valid json document; qed");
     let release_manifest_version = release_manifest["core"].as_str().expect(
@@ -123,19 +131,13 @@ async fn init_tasks(
 
     let version = semver::Version::parse(release_manifest_version)
         .expect("version in manifest is a correct semver format; qed");
-    let main_node_url = config
-        .required
-        .main_node_url()
-        .expect("Main node URL is incorrect");
-    let mut healthchecks: Vec<Box<dyn CheckHealth>> = Vec::new();
     // Create components.
-    let fee_params_fetcher = Arc::new(MainNodeFeeParamsFetcher::new(&main_node_url));
+    let fee_params_fetcher = Arc::new(MainNodeFeeParamsFetcher::new(main_node_client.clone()));
 
     let sync_state = SyncState::default();
-    healthchecks.push(Box::new(sync_state.clone()));
+    app_health.insert_custom_component(Arc::new(sync_state.clone()));
     let (action_queue_sender, action_queue) = ActionQueue::new();
 
-    let mut task_handles = vec![];
     let (miniblock_sealer, miniblock_sealer_handle) = MiniblockSealer::new(
         connection_pool.clone(),
         config.optional.miniblock_seal_queue_capacity,
@@ -172,22 +174,15 @@ async fn init_tasks(
     )
     .await?;
 
-    let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
-        .context("Failed creating JSON-RPC client for main node")?;
-    healthchecks.push(Box::new(MainNodeHealthCheck::from(
-        main_node_client.clone(),
-    )));
     let singleton_pool_builder = ConnectionPool::singleton(&config.postgres.database_url);
 
     let fetcher_handle = if let Some(cfg) = config.consensus.clone() {
         let pool = connection_pool.clone();
         let mut stop_receiver = stop_receiver.clone();
         let sync_state = sync_state.clone();
+        let main_node_client = main_node_client.clone();
 
-        #[allow(clippy::redundant_locals)]
         tokio::spawn(async move {
-            let sync_state = sync_state;
-            let main_node_client = main_node_client;
             scope::run!(&ctx::root(), |ctx, s| async {
                 s.spawn_bg(async {
                     let res = cfg.run(ctx, pool, action_queue_sender).await;
@@ -215,7 +210,7 @@ async fn init_tasks(
         let mut storage = pool.access_storage_tagged("sync_layer").await?;
         let fetcher = MainNodeFetcher::new(
             &mut storage,
-            Box::new(main_node_client),
+            Box::new(main_node_client.clone()),
             action_queue_sender,
             sync_state.clone(),
             stop_receiver.clone(),
@@ -227,7 +222,7 @@ async fn init_tasks(
 
     let metadata_calculator_config = MetadataCalculatorConfig {
         db_path: config.required.merkle_tree_path.clone(),
-        mode: MerkleTreeMode::Full,
+        mode: MerkleTreeMode::Lightweight,
         delay_interval: config.optional.metadata_calculator_delay(),
         max_l1_batches_per_iter: config.optional.max_l1_batches_per_tree_iter,
         multi_get_chunk_size: config.optional.merkle_tree_multi_get_chunk_size,
@@ -238,15 +233,32 @@ async fn init_tasks(
     let metadata_calculator = MetadataCalculator::new(metadata_calculator_config, None)
         .await
         .context("failed initializing metadata calculator")?;
-    healthchecks.push(Box::new(metadata_calculator.tree_health_check()));
+    app_health.insert_component(metadata_calculator.tree_health_check());
 
-    let l1_batch_commit_data_generator = Arc::new(RollupModeL1BatchCommitDataGenerator {});
+    let eth_client_url = config
+        .required
+        .eth_client_url()
+        .context("L1 client URL is incorrect")?;
+    let eth_client = QueryClient::new(&eth_client_url).unwrap();
 
+    ensure_l1_batch_commit_data_generation_mode(
+        config.optional.l1_batch_commit_data_generator_mode,
+        config.remote.diamond_proxy_addr,
+        &eth_client,
+    )
+    .await?;
+
+    let l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator> = match config
+        .optional
+        .l1_batch_commit_data_generator_mode
+    {
+        L1BatchCommitDataGeneratorMode::Rollup => Arc::new(RollupModeL1BatchCommitDataGenerator {}),
+        L1BatchCommitDataGeneratorMode::Validium => {
+            Arc::new(ValidiumModeL1BatchCommitDataGenerator {})
+        }
+    };
     let consistency_checker = ConsistencyChecker::new(
-        &config
-            .required
-            .eth_client_url()
-            .context("L1 client URL is incorrect")?,
+        Box::new(eth_client),
         10, // TODO (BFT-97): Make it a part of a proper EN config
         singleton_pool_builder
             .build()
@@ -254,18 +266,17 @@ async fn init_tasks(
             .context("failed to build connection pool for ConsistencyChecker")?,
         l1_batch_commit_data_generator,
     );
-    healthchecks.push(Box::new(consistency_checker.health_check().clone()));
+    app_health.insert_component(consistency_checker.health_check().clone());
     let consistency_checker_handle = tokio::spawn(consistency_checker.run(stop_receiver.clone()));
 
     let batch_status_updater = BatchStatusUpdater::new(
-        &main_node_url,
+        main_node_client.clone(),
         singleton_pool_builder
             .build()
             .await
             .context("failed to build a connection pool for BatchStatusUpdater")?,
-    )
-    .context("failed initializing batch status updater")?;
-    healthchecks.push(Box::new(batch_status_updater.health_check()));
+    );
+    app_health.insert_component(batch_status_updater.health_check());
 
     // Run the components.
     let tree_stop_receiver = stop_receiver.clone();
@@ -280,7 +291,7 @@ async fn init_tasks(
         .await
         .context("failed to build a commitment_generator_pool")?;
     let commitment_generator = CommitmentGenerator::new(commitment_generator_pool);
-    healthchecks.push(Box::new(commitment_generator.health_check()));
+    app_health.insert_component(commitment_generator.health_check());
     let commitment_generator_handle = tokio::spawn(commitment_generator.run(stop_receiver.clone()));
 
     let updater_handle = task::spawn(batch_status_updater.run(stop_receiver.clone()));
@@ -290,11 +301,22 @@ async fn init_tasks(
     let fee_params_fetcher_handle =
         tokio::spawn(fee_params_fetcher.clone().run(stop_receiver.clone()));
 
-    let (tx_sender, vm_barrier, cache_update_handle) = {
-        let tx_sender_builder =
-            TxSenderBuilder::new(config.clone().into(), connection_pool.clone())
-                .with_main_connection_pool(connection_pool.clone())
-                .with_tx_proxy(&main_node_url);
+    let (tx_sender, vm_barrier, cache_update_handle, proxy_cache_updater_handle) = {
+        let tx_proxy = TxProxy::new(main_node_client);
+        let proxy_cache_updater_pool = singleton_pool_builder
+            .build()
+            .await
+            .context("failed to build a tree_pool")?;
+        let proxy_cache_updater_handle = tokio::spawn(
+            tx_proxy
+                .run_account_nonce_sweeper(proxy_cache_updater_pool.clone(), stop_receiver.clone()),
+        );
+
+        let tx_sender_builder = TxSenderBuilder::new(
+            config.clone().into(),
+            connection_pool.clone(),
+            Arc::new(tx_proxy),
+        );
 
         if config.optional.transactions_per_sec_limit.is_some() {
             tracing::warn!("`transactions_per_sec_limit` option is deprecated and ignored");
@@ -323,7 +345,12 @@ async fn init_tasks(
                 storage_caches,
             )
             .await;
-        (tx_sender, vm_barrier, cache_update_handle)
+        (
+            tx_sender,
+            vm_barrier,
+            cache_update_handle,
+            proxy_cache_updater_handle,
+        )
     };
 
     let http_server_handles =
@@ -354,14 +381,13 @@ async fn init_tasks(
             .await
             .context("Failed initializing WS JSON-RPC server")?;
 
-    healthchecks.push(Box::new(ws_server_handles.health_check));
-    healthchecks.push(Box::new(http_server_handles.health_check));
-    healthchecks.push(Box::new(ConnectionPoolHealthCheck::new(connection_pool)));
+    app_health.insert_component(ws_server_handles.health_check);
+    app_health.insert_component(http_server_handles.health_check);
 
     if let Some(port) = config.optional.prometheus_port {
         let (prometheus_health_check, prometheus_health_updater) =
             ReactiveHealthCheck::new("prometheus_exporter");
-        healthchecks.push(Box::new(prometheus_health_check));
+        app_health.insert_component(prometheus_health_check);
         task_handles.push(tokio::spawn(async move {
             prometheus_health_updater.update(HealthStatus::Ready.into());
             let result = PrometheusExporterConfig::pull(port)
@@ -375,6 +401,7 @@ async fn init_tasks(
     task_handles.extend(http_server_handles.tasks);
     task_handles.extend(ws_server_handles.tasks);
     task_handles.extend(cache_update_handle);
+    task_handles.push(proxy_cache_updater_handle);
     task_handles.extend([
         sk_handle,
         fee_address_migration_handle,
@@ -386,7 +413,7 @@ async fn init_tasks(
         commitment_generator_handle,
     ]);
 
-    Ok((task_handles, healthchecks))
+    Ok(())
 }
 
 async fn shutdown_components(
@@ -427,24 +454,24 @@ async fn main() -> anyhow::Result<()> {
     // Initial setup.
     let opt = Cli::parse();
 
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let log_format = vlog::log_format_from_env();
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let sentry_url = vlog::sentry_url_from_env();
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let environment = vlog::environment_from_env();
+    let observability_config =
+        observability_config_from_env().context("ObservabilityConfig::from_env()")?;
+    let log_format: vlog::LogFormat = observability_config
+        .log_format
+        .parse()
+        .context("Invalid log format")?;
 
     let mut builder = vlog::ObservabilityBuilder::new().with_log_format(log_format);
-    if let Some(sentry_url) = &sentry_url {
+    if let Some(sentry_url) = &observability_config.sentry_url {
         builder = builder
             .with_sentry_url(sentry_url)
             .expect("Invalid Sentry URL")
-            .with_sentry_environment(environment);
+            .with_sentry_environment(observability_config.sentry_environment);
     }
     let _guard = builder.build();
 
     // Report whether sentry is running after the logging subsystem was initialized.
-    if let Some(sentry_url) = sentry_url {
+    if let Some(sentry_url) = observability_config.sentry_url {
         tracing::info!("Sentry configured with URL: {sentry_url}");
     } else {
         tracing::info!("No sentry URL was provided");
@@ -463,13 +490,6 @@ async fn main() -> anyhow::Result<()> {
         config.consensus =
             Some(config::read_consensus_config().context("read_consensus_config()")?);
     }
-
-    let main_node_url = config
-        .required
-        .main_node_url()
-        .context("Main node URL is incorrect")?;
-    let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
-        .context("Failed creating JSON-RPC client for main node")?;
 
     if let Some(threshold) = config.optional.slow_query_threshold() {
         ConnectionPool::global_config().set_slow_query_threshold(threshold)?;
@@ -520,29 +540,53 @@ async fn main() -> anyhow::Result<()> {
     let sigint_receiver = setup_sigint_handler();
     tracing::warn!("The external node is in the alpha phase, and should be used with caution.");
     tracing::info!("Started the external node");
-    tracing::info!("Main node URL is: {}", main_node_url);
+    let main_node_url = config
+        .required
+        .main_node_url()
+        .expect("Main node URL is incorrect");
+    tracing::info!("Main node URL is: {main_node_url}");
+
+    let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
+        .context("Failed creating JSON-RPC client for main node")?;
+    let app_health = Arc::new(AppHealthCheck::default());
+    app_health.insert_custom_component(Arc::new(MainNodeHealthCheck::from(
+        main_node_client.clone(),
+    )));
+    app_health.insert_custom_component(Arc::new(ConnectionPoolHealthCheck::new(
+        connection_pool.clone(),
+    )));
+
+    // Start the health check server early into the node lifecycle so that its health can be monitored from the very start.
+    let healthcheck_handle = HealthCheckHandle::spawn_server(
+        ([0, 0, 0, 0], config.required.healthcheck_port).into(),
+        app_health.clone(),
+    );
 
     // Make sure that the node storage is initialized either via genesis or snapshot recovery.
     ensure_storage_initialized(
         &connection_pool,
         &main_node_client,
+        &app_health,
         config.remote.l2_chain_id,
         opt.enable_snapshots_recovery,
     )
     .await?;
 
     let (stop_sender, stop_receiver) = watch::channel(false);
-    let (task_handles, mut healthchecks) =
-        init_tasks(&config, connection_pool.clone(), stop_receiver.clone())
-            .await
-            .context("init_tasks")?;
+    let mut task_handles = vec![];
+    init_tasks(
+        &config,
+        connection_pool.clone(),
+        main_node_client.clone(),
+        &mut task_handles,
+        &app_health,
+        stop_receiver.clone(),
+    )
+    .await
+    .context("init_tasks")?;
 
-    let reorg_detector = ReorgDetector::new(&main_node_url, connection_pool.clone());
-    healthchecks.push(Box::new(reorg_detector.health_check().clone()));
-    let healthcheck_handle = HealthCheckHandle::spawn_server(
-        ([0, 0, 0, 0], config.required.healthcheck_port).into(),
-        healthchecks,
-    );
+    let reorg_detector = ReorgDetector::new(main_node_client, connection_pool.clone());
+    app_health.insert_component(reorg_detector.health_check().clone());
     let mut reorg_detector_handle = tokio::spawn(reorg_detector.run(stop_receiver)).fuse();
     let mut reorg_detector_result = None;
 

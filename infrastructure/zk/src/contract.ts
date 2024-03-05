@@ -143,13 +143,30 @@ export async function deployL1(args: any[]) {
     fs.writeFileSync('deployed_contracts.log', updatedContracts);
 }
 
-export async function redeployL1(args: any[]) {
-    await deployL1(args);
+export enum DeploymentMode {
+    Rollup = 0,
+    Validium = 1
+}
+
+export async function redeployL1(args: any[], deploymentMode: DeploymentMode) {
+    if (deploymentMode == DeploymentMode.Validium) {
+        await deployL1([...args, '--validium-mode']);
+    } else if (deploymentMode == DeploymentMode.Rollup) {
+        await deployL1(args);
+    } else {
+        throw new Error('Invalid deployment mode');
+    }
     await verifyL1Contracts();
 }
 
-export async function deployVerifier(args: any[]) {
-    await deployL1([...args, '--only-verifier']);
+export async function deployVerifier(args: any[], deploymentMode: DeploymentMode) {
+    if (deploymentMode == DeploymentMode.Validium) {
+        await deployL1([...args, '--only-verifier', '--validium-mode']);
+    } else if (deploymentMode == DeploymentMode.Rollup) {
+        await deployL1([...args, '--only-verifier']);
+    } else {
+        throw new Error('Invalid deployment mode');
+    }
 }
 
 export const command = new Command('contract').description('contract management');

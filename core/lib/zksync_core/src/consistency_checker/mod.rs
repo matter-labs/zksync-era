@@ -5,14 +5,12 @@ use serde::Serialize;
 use tokio::sync::watch;
 use zksync_contracts::PRE_BOOJUM_COMMIT_FUNCTION;
 use zksync_dal::{ConnectionPool, StorageProcessor};
-use zksync_eth_client::{clients::QueryClient, Error as L1ClientError, EthInterface};
+use zksync_eth_client::{Error as L1ClientError, EthInterface};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
-use zksync_l1_contract_interface::{i_executor::structures::CommitBatchInfo, Tokenizable};
-use zksync_types::{
-    l1_batch_commit_data_generator::L1BatchCommitDataGenerator, web3::ethabi, L1BatchNumber, H256,
-};
+use zksync_types::{web3::ethabi, L1BatchNumber, H256};
 
 use crate::{
+    eth_sender::l1_batch_commit_data_generator::L1BatchCommitDataGenerator,
     metrics::{CheckerComponent, EN_METRICS},
     utils::wait_for_l1_batch_with_metadata,
 };
@@ -183,8 +181,7 @@ impl LocalL1BatchCommitData {
 
         Ok(Some(Self {
             is_pre_boojum,
-            l1_commit_data: CommitBatchInfo::new(&l1_batch, l1_batch_commit_data_generator)
-                .into_token(),
+            l1_commit_data: l1_batch_commit_data_generator.l1_commit_batch(&l1_batch),
             commit_tx_hash,
         }))
     }
@@ -209,18 +206,17 @@ impl ConsistencyChecker {
     const DEFAULT_SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 
     pub fn new(
-        web3_url: &str,
+        l1_client: Box<dyn EthInterface>,
         max_batches_to_recheck: u32,
         pool: ConnectionPool,
         l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
     ) -> Self {
-        let web3 = QueryClient::new(web3_url).unwrap();
         let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
         Self {
             contract: zksync_contracts::zksync_contract(),
             max_batches_to_recheck,
             sleep_interval: Self::DEFAULT_SLEEP_INTERVAL,
-            l1_client: Box::new(web3),
+            l1_client,
             event_handler: Box::new(health_updater),
             l1_data_mismatch_behavior: L1DataMismatchBehavior::Log,
             pool,
@@ -259,7 +255,7 @@ impl ConsistencyChecker {
             .with_context(|| format!("Commit for tx {commit_tx_hash:?} not found on L1"))?
             .input;
         // TODO (PLA-721): Check receiving contract and selector
-
+        // TODO: Add support for post shared bridge commits
         let commit_function = if local.is_pre_boojum {
             &*PRE_BOOJUM_COMMIT_FUNCTION
         } else {

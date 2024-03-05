@@ -4,7 +4,7 @@ use anyhow::Context;
 use serde::Deserialize;
 use url::Url;
 use zksync_basic_types::{Address, L1ChainId, L2ChainId};
-use zksync_config::ObjectStoreConfig;
+use zksync_config::{configs::chain::L1BatchCommitDataGeneratorMode, ObjectStoreConfig};
 use zksync_consensus_roles::node;
 use zksync_core::{
     api_server::{
@@ -20,6 +20,7 @@ use zksync_web3_decl::{
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
 };
 
+pub(crate) mod observability;
 #[cfg(test)]
 mod tests;
 
@@ -28,6 +29,7 @@ const BYTES_IN_MEGABYTE: usize = 1_024 * 1_024;
 /// This part of the external node config is fetched directly from the main node.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct RemoteENConfig {
+    pub bridgehub_proxy_addr: Option<Address>,
     pub diamond_proxy_addr: Address,
     pub l1_erc20_bridge_proxy_addr: Address,
     pub l2_erc20_bridge_addr: Address,
@@ -48,6 +50,8 @@ impl RemoteENConfig {
             .get_testnet_paymaster()
             .rpc_context("get_testnet_paymaster")
             .await?;
+        // In case EN is connected to the old server version without `get_bridgehub_contract` method.
+        let bridgehub_proxy_addr = client.get_bridgehub_contract().await.ok().flatten();
         let diamond_proxy_addr = client
             .get_main_contract()
             .rpc_context("get_main_contract")
@@ -59,6 +63,7 @@ impl RemoteENConfig {
         let l1_chain_id = L1ChainId(l1_chain_id.as_u64());
 
         Ok(Self {
+            bridgehub_proxy_addr,
             diamond_proxy_addr,
             l2_testnet_paymaster_addr,
             l1_erc20_bridge_proxy_addr: bridges.l1_erc20_default_bridge,
@@ -136,6 +141,15 @@ pub struct OptionalENConfig {
     latest_values_cache_size_mb: usize,
     /// Enabled JSON RPC API namespaces.
     api_namespaces: Option<Vec<Namespace>>,
+    /// Whether to support methods installing filters and querying filter changes.
+    ///
+    /// When to set this value to `true`:
+    /// Filters are local to the specific node they were created at. Meaning if
+    /// there are multiple nodes behind a load balancer the client cannot reliably
+    /// query the previously created filter as the request might get routed to a
+    /// different node.
+    #[serde(default)]
+    pub filters_disabled: bool,
 
     // Gas estimation config
     /// The factor by which to scale the gasLimit
@@ -200,6 +214,9 @@ pub struct OptionalENConfig {
     /// 0 means that sealing is synchronous; this is mostly useful for performance comparison, testing etc.
     #[serde(default = "OptionalENConfig::default_miniblock_seal_queue_capacity")]
     pub miniblock_seal_queue_capacity: usize,
+
+    #[serde(default = "OptionalENConfig::default_l1_batch_commit_data_generator_mode")]
+    pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
 }
 
 impl OptionalENConfig {
@@ -304,6 +321,10 @@ impl OptionalENConfig {
 
     const fn default_miniblock_seal_queue_capacity() -> usize {
         10
+    }
+
+    const fn default_l1_batch_commit_data_generator_mode() -> L1BatchCommitDataGeneratorMode {
+        L1BatchCommitDataGeneratorMode::Rollup
     }
 
     pub fn polling_interval(&self) -> Duration {
@@ -557,10 +578,12 @@ impl From<ExternalNodeConfig> for InternalApiConfig {
                 l1_weth_bridge: config.remote.l1_weth_bridge_proxy_addr,
                 l2_weth_bridge: config.remote.l2_weth_bridge_addr,
             },
+            bridgehub_proxy_addr: config.remote.bridgehub_proxy_addr,
             diamond_proxy_addr: config.remote.diamond_proxy_addr,
             l2_testnet_paymaster_addr: config.remote.l2_testnet_paymaster_addr,
             req_entities_limit: config.optional.req_entities_limit,
             fee_history_limit: config.optional.fee_history_limit,
+            filters_disabled: config.optional.filters_disabled,
         }
     }
 }

@@ -8,16 +8,13 @@ use zksync_config::{
 };
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::{clients::MockEthereum, EthInterface};
-use zksync_l1_contract_interface::i_executor::methods::{
-    CommitBatches, ExecuteBatches, ProveBatches,
-};
+use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_types::{
     block::L1BatchHeader,
     commitment::{L1BatchMetaParameters, L1BatchMetadata, L1BatchWithMetadata},
     ethabi::Token,
     helpers::unix_timestamp_ms,
-    l1_batch_commit_data_generator::L1BatchCommitDataGenerator,
     web3::contract::Error,
     Address, L1BatchNumber, L1BlockNumber, ProtocolVersionId, H256,
 };
@@ -29,6 +26,7 @@ use crate::{
     },
     l1_gas_price::GasAdjuster,
     utils::testonly::{create_l1_batch, l1_batch_metadata_to_commitment_artifacts},
+    L1BatchCommitDataGenerator,
 };
 
 // Alias to conveniently call static methods of `ETHSender`.
@@ -107,15 +105,17 @@ impl EthSenderTester {
             Aggregator::new(
                 aggregator_config.clone(),
                 store_factory.create_store().await,
-                l1_batch_commit_data_generator,
+                l1_batch_commit_data_generator.clone(),
             ),
             gateway.clone(),
             // zkSync contract address
             Address::random(),
             contracts_config.l1_multicall3_addr,
             Address::random(),
-            0,
-        );
+            Default::default(),
+            l1_batch_commit_data_generator.clone(),
+        )
+        .await;
 
         let manager = EthTxManager::new(
             eth_sender_config.sender,
@@ -643,19 +643,16 @@ async fn commit_l1_batch(
     last_committed_l1_batch: L1BatchHeader,
     l1_batch: L1BatchHeader,
     confirm: bool,
-    l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
 ) -> H256 {
-    let operation = AggregatedOperation::Commit(CommitBatches {
-        last_committed_l1_batch: l1_batch_with_metadata(last_committed_l1_batch),
-        l1_batches: vec![l1_batch_with_metadata(l1_batch)],
-        l1_batch_commit_data_generator,
-    });
+    let operation = AggregatedOperation::Commit(
+        l1_batch_with_metadata(last_committed_l1_batch),
+        vec![l1_batch_with_metadata(l1_batch)],
+    );
     send_operation(tester, operation, confirm).await
 }
 
 pub(crate) async fn correct_order_for_confirmations(
     tester: &mut EthSenderTester,
-    l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
 ) -> anyhow::Result<()> {
     insert_genesis_protocol_version(tester).await;
     let genesis_l1_batch = insert_l1_batch(tester, L1BatchNumber(0)).await;
@@ -667,7 +664,6 @@ pub(crate) async fn correct_order_for_confirmations(
         genesis_l1_batch.clone(),
         first_l1_batch.clone(),
         true,
-        l1_batch_commit_data_generator.clone(),
     )
     .await;
     prove_l1_batch(
@@ -683,7 +679,6 @@ pub(crate) async fn correct_order_for_confirmations(
         first_l1_batch.clone(),
         second_l1_batch.clone(),
         true,
-        l1_batch_commit_data_generator.clone(),
     )
     .await;
     prove_l1_batch(
@@ -718,7 +713,6 @@ pub(crate) async fn correct_order_for_confirmations(
 
 pub(crate) async fn skipped_l1_batch_at_the_start(
     tester: &mut EthSenderTester,
-    l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
 ) -> anyhow::Result<()> {
     insert_genesis_protocol_version(tester).await;
     let genesis_l1_batch = insert_l1_batch(tester, L1BatchNumber(0)).await;
@@ -730,7 +724,6 @@ pub(crate) async fn skipped_l1_batch_at_the_start(
         genesis_l1_batch.clone(),
         first_l1_batch.clone(),
         true,
-        l1_batch_commit_data_generator.clone(),
     )
     .await;
     prove_l1_batch(
@@ -746,7 +739,6 @@ pub(crate) async fn skipped_l1_batch_at_the_start(
         first_l1_batch.clone(),
         second_l1_batch.clone(),
         true,
-        l1_batch_commit_data_generator.clone(),
     )
     .await;
     prove_l1_batch(
@@ -766,7 +758,6 @@ pub(crate) async fn skipped_l1_batch_at_the_start(
         second_l1_batch.clone(),
         third_l1_batch.clone(),
         false,
-        l1_batch_commit_data_generator.clone(),
     )
     .await;
 
@@ -782,7 +773,6 @@ pub(crate) async fn skipped_l1_batch_at_the_start(
         third_l1_batch.clone(),
         fourth_l1_batch.clone(),
         true,
-        l1_batch_commit_data_generator.clone(),
     )
     .await;
     prove_l1_batch(
@@ -815,7 +805,6 @@ pub(crate) async fn skipped_l1_batch_at_the_start(
 
 pub(crate) async fn skipped_l1_batch_in_the_middle(
     tester: &mut EthSenderTester,
-    l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
 ) -> anyhow::Result<()> {
     insert_genesis_protocol_version(tester).await;
     let genesis_l1_batch = insert_l1_batch(tester, L1BatchNumber(0)).await;
@@ -826,7 +815,6 @@ pub(crate) async fn skipped_l1_batch_in_the_middle(
         genesis_l1_batch.clone(),
         first_l1_batch.clone(),
         true,
-        l1_batch_commit_data_generator.clone(),
     )
     .await;
     prove_l1_batch(tester, genesis_l1_batch, first_l1_batch.clone(), true).await;
@@ -836,7 +824,6 @@ pub(crate) async fn skipped_l1_batch_in_the_middle(
         first_l1_batch.clone(),
         second_l1_batch.clone(),
         true,
-        l1_batch_commit_data_generator.clone(),
     )
     .await;
     prove_l1_batch(
@@ -855,7 +842,6 @@ pub(crate) async fn skipped_l1_batch_in_the_middle(
         second_l1_batch.clone(),
         third_l1_batch.clone(),
         false,
-        l1_batch_commit_data_generator.clone(),
     )
     .await;
 
@@ -871,7 +857,6 @@ pub(crate) async fn skipped_l1_batch_in_the_middle(
         third_l1_batch.clone(),
         fourth_l1_batch.clone(),
         true,
-        l1_batch_commit_data_generator.clone(),
     )
     .await;
     prove_l1_batch(

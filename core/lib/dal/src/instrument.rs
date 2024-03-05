@@ -1,4 +1,15 @@
 //! DAL query instrumentation.
+//!
+//! Query instrumentation allows to:
+//!
+//! - Report query latency as a metric
+//! - Report slow and failing queries as metrics
+//! - Log slow and failing queries together with their arguments, which makes it easier to debug.
+//!
+//! The entry point for instrumentation is the [`InstrumentExt`] trait. After it is imported into the scope,
+//! its `instrument()` method can be placed on the output of `query*` functions or macros. You can then call
+//! [`Instrumented`] methods on the returned struct, e.g. to [report query latency](Instrumented::report_latency())
+//! and/or [to add logged args](Instrumented::with_arg()) for a query.
 
 use std::{fmt, future::Future, panic::Location};
 
