@@ -201,7 +201,7 @@ Serde
 tokenize
 EOAs
 zeroized
-value
+cardinality
 
 // zkSync-related words
 matterlabs

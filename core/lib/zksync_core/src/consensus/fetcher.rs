@@ -171,7 +171,7 @@ impl Fetcher {
         cursor: &mut storage::Cursor,
         end: Option<validator::BlockNumber>,
     ) -> ctx::Result<()> {
-        const MAX_CONCURRENT_REQUESTS: usize = 100;
+        const MAX_CONCURRENT_REQUESTS: usize = 30;
         let done = |next| matches!(end, Some(end) if next>=end);
         let mut next = cursor.next();
         scope::run!(ctx, |ctx, s| async {

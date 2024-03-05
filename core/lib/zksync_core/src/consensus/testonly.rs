@@ -450,9 +450,14 @@ impl StateKeeperRunner {
                     &configs::api::Web3JsonRpcConfig::for_tests(),
                     &configs::contracts::ContractsConfig::for_tests(),
                 );
-                let mut server =
-                    spawn_http_server(cfg, self.store.0.clone(), Default::default(), stop_recv)
-                        .await;
+                let mut server = spawn_http_server(
+                    cfg,
+                    self.store.0.clone(),
+                    Default::default(),
+                    Arc::default(),
+                    stop_recv,
+                )
+                .await;
                 if let Ok(addr) = ctx.wait(server.wait_until_ready()).await {
                     self.addr.send_replace(Some(addr));
                     tracing::info!("API server ready!");

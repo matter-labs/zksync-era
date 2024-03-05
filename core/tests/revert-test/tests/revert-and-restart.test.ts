@@ -131,7 +131,7 @@ describe('Block reverting test', function () {
         let blocksCommitted = await mainContract.getTotalBlocksCommitted();
         let blocksExecuted = await mainContract.getTotalBlocksExecuted();
         let tryCount = 0;
-        while (blocksCommitted.eq(blocksExecuted) && tryCount < 10) {
+        while (blocksCommitted.eq(blocksExecuted) && tryCount < 100) {
             blocksCommitted = await mainContract.getTotalBlocksCommitted();
             blocksExecuted = await mainContract.getTotalBlocksExecuted();
             tryCount += 1;

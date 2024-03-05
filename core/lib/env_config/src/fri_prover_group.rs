@@ -68,7 +68,7 @@ impl FromEnv for FriProverGroupConfig {
             group_11: groups.remove("group_11").unwrap_or_default(),
             group_12: groups.remove("group_12").unwrap_or_default(),
         };
-        config.validate();
+        config.validate()?;
         Ok(config)
     }
 }
@@ -105,6 +105,7 @@ mod tests {
                 CircuitIdRoundTuple::new(11, 0),
                 CircuitIdRoundTuple::new(12, 0),
                 CircuitIdRoundTuple::new(13, 0),
+                CircuitIdRoundTuple::new(255, 0),
             ]
             .into_iter()
             .collect::<HashSet<_>>(),
@@ -172,6 +173,10 @@ mod tests {
             (
                 "FRI_PROVER_GROUP_GROUP_4_2",
                 CircuitIdRoundTuple::new(13, 0),
+            ),
+            (
+                "FRI_PROVER_GROUP_GROUP_4_3",
+                CircuitIdRoundTuple::new(255, 0),
             ),
             ("FRI_PROVER_GROUP_GROUP_5_0", CircuitIdRoundTuple::new(5, 0)),
             ("FRI_PROVER_GROUP_GROUP_6_0", CircuitIdRoundTuple::new(3, 1)),
@@ -284,6 +289,16 @@ mod tests {
         assert_eq!(
             Some(4),
             fri_prover_group_config.get_group_id_for_circuit_id_and_aggregation_round(12, 0)
+        );
+
+        assert_eq!(
+            Some(4),
+            fri_prover_group_config.get_group_id_for_circuit_id_and_aggregation_round(13, 0)
+        );
+
+        assert_eq!(
+            Some(4),
+            fri_prover_group_config.get_group_id_for_circuit_id_and_aggregation_round(255, 0)
         );
 
         assert_eq!(
