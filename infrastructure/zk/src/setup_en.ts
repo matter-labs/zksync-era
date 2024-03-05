@@ -1,11 +1,11 @@
-import {Command} from 'commander';
-import {prompt} from 'enquirer';
+import { Command } from 'commander';
+import { prompt } from 'enquirer';
 import chalk from 'chalk';
-import {compileConfig} from './config';
+import { compileConfig } from './config';
 import fs from 'fs';
 import path from 'path';
-import {set as setEnv} from './env';
-import {setup as setupDb} from './database';
+import { set as setEnv } from './env';
+import { setup as setupDb } from './database';
 import * as utils from './utils';
 
 enum Environment {
@@ -19,8 +19,8 @@ async function selectEnvironment(): Promise<Environment> {
         name: 'environment',
         message: 'Select the environment:',
         choices: [
-            {name: Environment.Testnet, message: 'Testnet (Sepolia)'},
-            {name: Environment.Mainnet, message: 'Mainnet'}
+            { name: Environment.Testnet, message: 'Testnet (Sepolia)' },
+            { name: Environment.Mainnet, message: 'Mainnet' }
         ]
     };
 
@@ -30,7 +30,7 @@ async function selectEnvironment(): Promise<Environment> {
 
 async function changeConfigKey(env: string, key: string, newValue: string | number) {
     const filePath = path.join(path.join(process.env.ZKSYNC_HOME as string, `etc/env/${env}.toml`));
-    const contents = await fs.promises.readFile(filePath, {encoding: 'utf-8'});
+    const contents = await fs.promises.readFile(filePath, { encoding: 'utf-8' });
 
     const modifiedContents = contents
         .split('\n')
@@ -80,7 +80,7 @@ async function runEnIfAskedTo() {
 
 async function commentOutConfigKey(env: string, key: string) {
     const filePath = path.join(path.join(process.env.ZKSYNC_HOME as string, `etc/env/${env}.toml`));
-    const contents = await fs.promises.readFile(filePath, {encoding: 'utf-8'});
+    const contents = await fs.promises.readFile(filePath, { encoding: 'utf-8' });
     const modifiedContents = contents
         .split('\n')
         .map((line) => (line.startsWith(`${key} =`) || line.startsWith(`${key}=`) ? `#${line}` : line))
@@ -124,7 +124,7 @@ async function configExternalNode() {
     }
     await compileConfig('ext-node');
     console.log(`Setting up postgres (${cmd('zk db setup')})`);
-    await setupDb({prover: false, server: true});
+    await setupDb({ prover: false, server: true });
 
     console.log(
         `${success('Everything done!')} You can now run your external node using ${cmd(
