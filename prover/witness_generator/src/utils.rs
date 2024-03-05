@@ -1,8 +1,11 @@
+use std::io::{BufWriter, Write as _};
+
 use circuit_definitions::{
     aux_definitions::witness_oracle::VmWitnessOracle,
     circuit_definitions::{base_layer::ZkSyncBaseLayerCircuit, eip4844::EIP4844Circuit},
 };
 use multivm::utils::get_used_bootloader_memory_bytes;
+use once_cell::sync::Lazy;
 use zkevm_test_harness::boojum::field::goldilocks::GoldilocksField;
 use zksync_object_store::{serialize_using_bincode, Bucket, ObjectStore, StoredObject};
 use zksync_prover_fri_types::{
@@ -23,6 +26,15 @@ use zksync_prover_fri_types::{
     CircuitWrapper, FriProofWrapper, EIP_4844_CIRCUIT_ID,
 };
 use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber, ProtocolVersionId, U256};
+
+// Creates a temporary file with the serialized KZG setup usable by `zkevm_test_harness` functions.
+pub(crate) static KZG_TRUSTED_SETUP_FILE: Lazy<tempfile::NamedTempFile> = Lazy::new(|| {
+    let mut file = tempfile::NamedTempFile::new().expect("cannot create file for KZG setup");
+    BufWriter::new(file.as_file_mut())
+        .write_all(include_bytes!("trusted_setup.json"))
+        .expect("failed writing KZG trusted setup to temporary file");
+    file
+});
 
 pub fn expand_bootloader_contents(
     packed: &[(usize, U256)],

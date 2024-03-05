@@ -11,8 +11,8 @@ use zksync_config::{
         },
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
-        FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig, KzgConfig,
-        ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig, WitnessGeneratorConfig,
+        FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig, ObservabilityConfig,
+        PrometheusConfig, ProofDataHandlerConfig, WitnessGeneratorConfig,
     },
     ApiConfig, ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig, ETHWatchConfig,
     GasAdjusterConfig, ObjectStoreConfig, PostgresConfig,
@@ -125,7 +125,6 @@ async fn main() -> anyhow::Result<()> {
         eth_watch_config: ETHWatchConfig::from_env().ok(),
         gas_adjuster_config: GasAdjusterConfig::from_env().ok(),
         object_store_config: ObjectStoreConfig::from_env().ok(),
-        kzg_config: KzgConfig::from_env().ok(),
         consensus_config: None,
     };
 
