@@ -180,6 +180,7 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk
+          ci_run zk clean --all
           if [[ "${{ matrix.mode }}" == "Rollup" ]]; then
             ci_run zk init
           elif [[ "${{ matrix.mode }}" == "Validium" ]]; then
