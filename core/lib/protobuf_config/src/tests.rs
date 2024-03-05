@@ -41,6 +41,5 @@ fn test_encoding() {
     encode_decode::<ReprConv<proto::proof_data_handler::ProofDataHandler>>(rng);
     encode_decode::<ReprConv<proto::snapshot_creator::SnapshotsCreator>>(rng);
     encode_decode::<ReprConv<proto::witness_generator::WitnessGenerator>>(rng);
-    encode_decode::<ReprConv<proto::kzg::Kzg>>(rng);
     encode_decode::<ReprConv<proto::observability::Observability>>(rng);
 }

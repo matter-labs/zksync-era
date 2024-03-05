@@ -8,8 +8,8 @@ use zksync_config::{
         },
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
-        FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig, KzgConfig,
-        PrometheusConfig, ProofDataHandlerConfig, WitnessGeneratorConfig,
+        FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig, PrometheusConfig,
+        ProofDataHandlerConfig, WitnessGeneratorConfig,
     },
     ApiConfig, ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig, ETHWatchConfig,
     GasAdjusterConfig, ObjectStoreConfig, PostgresConfig,
@@ -71,7 +71,6 @@ pub struct TempConfigStore {
     pub eth_watch_config: Option<ETHWatchConfig>,
     pub gas_adjuster_config: Option<GasAdjusterConfig>,
     pub object_store_config: Option<ObjectStoreConfig>,
-    pub kzg_config: Option<KzgConfig>,
     pub consensus_config: Option<consensus::Config>,
 }
 
@@ -112,7 +111,6 @@ impl ProtoFmt for TempConfigStore {
             eth_watch_config: read_optional_repr(&r.eth_watch).context("eth_watch")?,
             gas_adjuster_config: read_optional_repr(&r.gas_adjuster).context("gas_adjuster")?,
             object_store_config: read_optional_repr(&r.object_store).context("object_store")?,
-            kzg_config: read_optional_repr(&r.kzg).context("kzg")?,
             consensus_config: read_optional(&r.consensus).context("consensus")?,
         })
     }
@@ -156,7 +154,6 @@ impl ProtoFmt for TempConfigStore {
             eth_watch: self.eth_watch_config.as_ref().map(ProtoRepr::build),
             gas_adjuster: self.gas_adjuster_config.as_ref().map(ProtoRepr::build),
             object_store: self.object_store_config.as_ref().map(ProtoRepr::build),
-            kzg: self.kzg_config.as_ref().map(ProtoRepr::build),
             consensus: self.consensus_config.as_ref().map(ProtoFmt::build),
         }
     }

@@ -745,14 +745,6 @@ impl RandomConfig for configs::WitnessGeneratorConfig {
     }
 }
 
-impl RandomConfig for configs::KzgConfig {
-    fn sample(g: &mut Gen<impl Rng>) -> Self {
-        Self {
-            trusted_setup_path: g.gen(),
-        }
-    }
-}
-
 impl RandomConfig for configs::ObservabilityConfig {
     fn sample(g: &mut Gen<impl Rng>) -> Self {
         Self {

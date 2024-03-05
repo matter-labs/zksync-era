@@ -32,7 +32,6 @@ impl testonly::RandomConfig for TempConfigStore {
             eth_watch_config: g.gen(),
             gas_adjuster_config: g.gen(),
             object_store_config: g.gen(),
-            kzg_config: g.gen(),
             consensus_config: g.gen(),
         }
     }

@@ -18,7 +18,6 @@ import "zksync/config/fri_prover.proto";
 import "zksync/config/fri_witness_generator.proto";
 import "zksync/config/fri_witness_vector_generator.proto";
 import "zksync/config/house_keeper.proto";
-import "zksync/config/kzg.proto";
 import "zksync/config/object_store.proto";
 import "zksync/config/observability.proto";
 import "zksync/config/proof_data_handler.proto";
@@ -53,8 +52,7 @@ message TempConfigStore {
   optional config.eth_watch.ETHWatch eth_watch = 23;
   optional config.eth_sender.GasAdjuster gas_adjuster = 24;
   optional config.object_store.ObjectStore object_store = 25;
-  optional config.kzg.Kzg kzg = 26;
-  optional consensus.Config consensus = 27;
+  optional consensus.Config consensus = 26;
 }
 
 message Secrets {

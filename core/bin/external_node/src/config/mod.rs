@@ -237,9 +237,6 @@ pub struct OptionalENConfig {
     /// 0 means that sealing is synchronous; this is mostly useful for performance comparison, testing etc.
     #[serde(default = "OptionalENConfig::default_miniblock_seal_queue_capacity")]
     pub miniblock_seal_queue_capacity: usize,
-    /// Path to KZG trusted setup path.
-    #[serde(default = "OptionalENConfig::default_kzg_trusted_setup_path")]
-    pub kzg_trusted_setup_path: String,
 }
 
 impl OptionalENConfig {
@@ -344,10 +341,6 @@ impl OptionalENConfig {
 
     const fn default_miniblock_seal_queue_capacity() -> usize {
         10
-    }
-
-    fn default_kzg_trusted_setup_path() -> String {
-        "./trusted_setup.json".to_owned()
     }
 
     pub fn polling_interval(&self) -> Duration {
