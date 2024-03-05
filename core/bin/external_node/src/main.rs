@@ -6,7 +6,7 @@ use metrics::EN_METRICS;
 use prometheus_exporter::PrometheusExporterConfig;
 use tokio::{sync::watch, task, time::sleep};
 use zksync_basic_types::{Address, L2ChainId};
-use zksync_concurrency::{ctx, scope};
+use zksync_concurrency::{ctx, limiter, scope, time};
 use zksync_config::configs::database::MerkleTreeMode;
 use zksync_core::{
     api_server::{
@@ -169,16 +169,24 @@ async fn init_tasks(
     .await?;
 
     task_handles.push(tokio::spawn({
+        let ctx = ctx::root();
         let mut stop_receiver = stop_receiver.clone();
         let p2p_config = config.consensus.clone();
         let fetcher = consensus::Fetcher {
             store: consensus::Store(connection_pool.clone()),
             sync_state: sync_state.clone(),
             client: Box::new(main_node_client.clone()),
+            limiter: limiter::Limiter::new(
+                &ctx,
+                limiter::Rate {
+                    burst: 10,
+                    refresh: time::Duration::milliseconds(30),
+                },
+            ),
         };
         let actions = action_queue_sender;
         async move {
-            scope::run!(&ctx::root(), |ctx, s| async {
+            scope::run!(&ctx, |ctx, s| async {
                 s.spawn_bg(async {
                     let res = match p2p_config {
                         Some(p2p_config) => fetcher.run_p2p(ctx, actions, p2p_config).await,
@@ -530,6 +538,11 @@ async fn main() -> anyhow::Result<()> {
     );
 
     let mut reorg_detector = ReorgDetector::new(main_node_client.clone(), connection_pool.clone());
+    // We're checking for the reorg in the beginning because we expect
+    // that if reorg is detected during the node lifecycle,
+    // the node will exit the same way as it does with any other critical error,
+    // and would restart. Then, on the 2nd launch reorg would be detected here,
+    // then processed and the node will be able to operate normally afterwards.
     match reorg_detector.check_consistency().await {
         Ok(()) => {}
         Err(reorg_detector::Error::ReorgDetected(last_correct_l1_batch)) => {

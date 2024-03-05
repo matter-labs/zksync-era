@@ -1,5 +1,5 @@
 use anyhow::Context as _;
-use zksync_concurrency::{ctx, error::Wrap as _, scope, time};
+use zksync_concurrency::{ctx, error::Wrap as _, limiter, scope, time};
 use zksync_consensus_executor as executor;
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage::BlockStore;
@@ -15,11 +15,12 @@ use crate::{
 pub type P2PConfig = executor::Config;
 
 /// Miniblock fetcher.
-#[derive(Debug)]
 pub struct Fetcher {
     pub store: Store,
     pub sync_state: SyncState,
     pub client: Box<dyn MainNodeClient>,
+    /// Rate limiter for `client.fetch_l2_block` requests.
+    pub limiter: limiter::Limiter,
 }
 
 impl Fetcher {
@@ -151,6 +152,7 @@ impl Fetcher {
     async fn fetch_block(&self, ctx: &ctx::Ctx, n: MiniblockNumber) -> ctx::Result<FetchedBlock> {
         const RETRY_INTERVAL: time::Duration = time::Duration::seconds(5);
         loop {
+            self.limiter.acquire(ctx, 1).await?;
             let res = ctx.wait(self.client.fetch_l2_block(n, true)).await?;
             match res {
                 Ok(Some(block)) => return Ok(block.try_into()?),
@@ -172,13 +174,12 @@ impl Fetcher {
         end: Option<validator::BlockNumber>,
     ) -> ctx::Result<()> {
         const MAX_CONCURRENT_REQUESTS: usize = 30;
-        let done = |next| matches!(end, Some(end) if next>=end);
         let mut next = cursor.next();
         scope::run!(ctx, |ctx, s| async {
             let (send, mut recv) = ctx::channel::bounded(MAX_CONCURRENT_REQUESTS);
             s.spawn(async {
                 let send = send;
-                while !done(next) {
+                while end.map_or(true, |end| next < end) {
                     let n = MiniblockNumber(next.0.try_into().unwrap());
                     self.sync_state.wait_for_main_node_block(ctx, n).await?;
                     send.send(ctx, s.spawn(self.fetch_block(ctx, n))).await?;
@@ -186,7 +187,7 @@ impl Fetcher {
                 }
                 Ok(())
             });
-            while !done(cursor.next()) {
+            while end.map_or(true, |end| cursor.next() < end) {
                 let block = recv.recv(ctx).await?.join(ctx).await?;
                 cursor.advance(block).await?;
             }

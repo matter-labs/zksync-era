@@ -103,8 +103,12 @@ impl ConsensusDal<'_, '_> {
         let Some(old) = txn.consensus_dal().genesis().await? else {
             return Ok(());
         };
-        let last = txn.blocks_dal().get_sealed_miniblock_number().await?;
-        let first_block = validator::BlockNumber(last.map(|n| n.0.into()).unwrap_or(0));
+        let last = txn
+            .blocks_dal()
+            .get_sealed_miniblock_number()
+            .await?
+            .context("forking without any blocks in storage is not supported yet")?;
+        let first_block = validator::BlockNumber(last.0.into());
 
         let new = validator::Genesis {
             validators: old.validators,

@@ -6,7 +6,7 @@ use rand::{
     distributions::{Distribution, Standard},
     Rng,
 };
-use zksync_concurrency::{ctx, error::Wrap as _, scope, sync};
+use zksync_concurrency::{ctx, error::Wrap as _, limiter, scope, sync, time};
 use zksync_config::configs;
 use zksync_consensus_roles::{node, validator};
 use zksync_contracts::BaseSystemContractsHashes;
@@ -214,6 +214,17 @@ pub(super) async fn new_store(from_snapshot: bool) -> Store {
     Store(pool)
 }
 
+// Limiter with infinite refresh rate.
+fn unbounded_limiter(ctx: &ctx::Ctx) -> limiter::Limiter {
+    limiter::Limiter::new(
+        ctx,
+        limiter::Rate {
+            burst: 1,
+            refresh: time::Duration::ZERO,
+        },
+    )
+}
+
 impl StateKeeper {
     /// Constructs and initializes a new `StateKeeper`.
     /// Caller has to run `StateKeeperRunner.run()` task in the background.
@@ -338,6 +349,7 @@ impl StateKeeper {
             store: self.store,
             client: Box::new(client),
             sync_state: self.sync_state,
+            limiter: unbounded_limiter(ctx),
         }
         .run_centralized(ctx, self.actions_sender)
         .await
@@ -354,6 +366,7 @@ impl StateKeeper {
             store: self.store,
             client: Box::new(client),
             sync_state: self.sync_state,
+            limiter: unbounded_limiter(ctx),
         }
         .run_p2p(ctx, self.actions_sender, cfg)
         .await

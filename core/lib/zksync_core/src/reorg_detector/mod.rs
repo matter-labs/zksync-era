@@ -299,13 +299,13 @@ impl ReorgDetector {
             .get_earliest_l1_batch_number_with_metadata()
             .await
             .context("get_earliest_l1_batch_number_with_metadata")?
-            .context("all L1 blocks dissapeared")?;
+            .context("all L1 batches dissapeared")?;
         drop(storage);
         match self.root_hashes_match(first_l1_batch).await {
             Ok(true) => {}
             Ok(false) => return Err(Error::EarliestL1BatchMismatch(first_l1_batch)),
             Err(HashMatchError::RemoteHashMissing) => {
-                return Err(Error::EarliestL1BatchTruncated(first_l1_batch))
+                return Err(Error::EarliestL1BatchTruncated(first_l1_batch));
             }
             Err(err) => return Err(err.into()),
         }
@@ -407,11 +407,11 @@ impl ReorgDetector {
         self.event_handler.initialize();
         while !*stop_receiver.borrow() {
             match self.check_consistency().await {
-                Err(err) if !err.is_transient() => return Err(err),
-                Err(err) => {
+                Err(err) if err.is_transient() => {
                     tracing::warn!("Following transient error occurred: {err}");
                     tracing::info!("Trying again after a delay");
                 }
+                Err(err) => return Err(err),
                 Ok(()) => {}
             }
             tokio::time::sleep(self.sleep_interval).await;

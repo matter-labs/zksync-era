@@ -4,8 +4,6 @@ import * as zkweb3 from 'zksync-web3';
 import * as fs from 'fs';
 import * as path from 'path';
 
-type Network = string;
-
 export class Tester {
     public runningFee: Map<zkweb3.types.Address, ethers.BigNumber>;
     constructor(
