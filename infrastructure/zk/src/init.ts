@@ -133,7 +133,7 @@ export async function setupObservability() {
     await utils.spawn(
         `rm -rf ./target/dockprom && git clone git@github.com:stefanprodan/dockprom.git ./target/dockprom \ 
             && rm -rf ./target/era-observability && git clone git@github.com:matter-labs/era-observability.git ./target/era-observability \
-            && cp ./target/era-observability/* ./target/dockprom/grafana/provisioning/dashboards
+            && cp ./target/era-observability/dashboards/* ./target/dockprom/grafana/provisioning/dashboards
         `
     );
 }
