@@ -2,17 +2,18 @@ use std::{collections::HashMap, str::FromStr, time::Duration};
 
 use sqlx::Row;
 use strum::{Display, EnumString};
+use zksync_db_connection::StorageProcessor;
 use zksync_types::L1BatchNumber;
 
 use crate::{
+    duration_to_naive_time,
     fri_prover_dal::types::{JobCountStatistics, StuckJobs},
-    time_utils::{duration_to_naive_time, pg_interval_from_duration},
-    StorageProcessor,
+    pg_interval_from_duration,
 };
 
 #[derive(Debug)]
 pub struct FriProofCompressorDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub storage: &'a mut StorageProcessor<'c>,
 }
 
 #[derive(Debug, EnumString, Display)]

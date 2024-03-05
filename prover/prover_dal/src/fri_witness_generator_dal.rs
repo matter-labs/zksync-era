@@ -1,24 +1,23 @@
 use std::{collections::HashMap, convert::TryFrom, time::Duration};
 
 use sqlx::Row;
+use zksync_db_connection::StorageProcessor;
 use zksync_types::{
-    basic_fri_types::{AggregationRound, Eip4844Blobs},
-    protocol_version::FriProtocolVersionId,
-    L1BatchNumber,
+    basic_fri_types::AggregationRound, protocol_version::FriProtocolVersionId, L1BatchNumber,
 };
 
 use crate::{
+    //metrics::MethodLatency,
+    duration_to_naive_time,
     fri_prover_dal::types::{
         JobCountStatistics, LeafAggregationJobMetadata, NodeAggregationJobMetadata, StuckJobs,
     },
-    metrics::MethodLatency,
-    time_utils::{duration_to_naive_time, pg_interval_from_duration},
-    StorageProcessor,
+    pg_interval_from_duration,
 };
 
 #[derive(Debug)]
 pub struct FriWitnessGeneratorDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub storage: &'a mut StorageProcessor<'c>,
 }
 
 #[derive(Debug, strum::Display, strum::EnumString, strum::AsRefStr)]
@@ -41,9 +40,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         block_number: L1BatchNumber,
         object_key: &str,
         protocol_version_id: FriProtocolVersionId,
-        eip_4844_blobs: Eip4844Blobs,
     ) {
-        let blobs_raw: Vec<u8> = eip_4844_blobs.into();
         sqlx::query!(
             r#"
             INSERT INTO
@@ -51,33 +48,29 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     l1_batch_number,
                     merkle_tree_paths_blob_url,
                     protocol_version,
-                    eip_4844_blobs,
                     status,
                     created_at,
                     updated_at
                 )
             VALUES
-                ($1, $2, $3, $4, 'queued', NOW(), NOW())
+                ($1, $2, $3, 'queued', NOW(), NOW())
             ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
             block_number.0 as i64,
             object_key,
             protocol_version_id as i32,
-            blobs_raw,
         )
         .fetch_optional(self.storage.conn())
         .await
         .unwrap();
     }
 
-    /// Gets the next job to be executed. Returns the batch number and its corresponding blobs.
-    /// The blobs arrive from core via prover gateway, as pubdata, this method loads the blobs.
     pub async fn get_next_basic_circuit_witness_job(
         &mut self,
         last_l1_batch_to_process: u32,
         protocol_versions: &[FriProtocolVersionId],
         picked_by: &str,
-    ) -> Option<(L1BatchNumber, Eip4844Blobs)> {
+    ) -> Option<L1BatchNumber> {
         let protocol_versions: Vec<i32> = protocol_versions.iter().map(|&id| id as i32).collect();
         sqlx::query!(
             r#"
@@ -115,14 +108,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .fetch_optional(self.storage.conn())
         .await
         .unwrap()
-        .map(|row| {
-            (
-                L1BatchNumber(row.l1_batch_number as u32),
-                row.eip_4844_blobs
-                    .expect("missing eip 4844 blobs from the database")
-                    .into(),
-            )
-        })
+        .map(|row| L1BatchNumber(row.l1_batch_number as u32))
     }
 
     pub async fn get_basic_circuit_witness_job_attempts(
@@ -306,7 +292,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         protocol_version_id: FriProtocolVersionId,
     ) {
         {
-            let latency = MethodLatency::new("create_aggregation_jobs_fri");
+            // let latency = MethodLatency::new("create_aggregation_jobs_fri");
             for (circuit_id, closed_form_inputs_url, number_of_basic_circuits) in
                 closed_form_inputs_and_urls
             {
@@ -394,7 +380,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             .await
             .unwrap();
 
-            drop(latency);
+            // drop(latency);
         }
     }
 

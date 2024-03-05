@@ -19,11 +19,9 @@ use sqlx::{
     FromRow, IntoArguments, Postgres,
 };
 use tokio::time::Instant;
+use zksync_db_connection::StorageProcessorTags;
 
-use crate::{
-    connection::{ConnectionPool, StorageProcessor, StorageProcessorTags},
-    metrics::REQUEST_METRICS,
-};
+use crate::{connection::ConnectionPool, metrics::REQUEST_METRICS};
 
 type ThreadSafeDebug<'a> = dyn fmt::Debug + Send + Sync + 'a;
 

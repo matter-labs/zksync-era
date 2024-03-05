@@ -1,5 +1,6 @@
 use std::{collections::HashMap, convert::TryFrom, time::Duration};
 
+use zksync_db_connection::StorageProcessor;
 use zksync_types::{
     basic_fri_types::{AggregationRound, CircuitIdRoundTuple},
     protocol_version::FriProtocolVersionId,
@@ -7,12 +8,7 @@ use zksync_types::{
 };
 
 use self::types::{FriProverJobMetadata, JobCountStatistics, StuckJobs};
-use crate::{
-    instrument::InstrumentExt,
-    metrics::MethodLatency,
-    time_utils::{duration_to_naive_time, pg_interval_from_duration},
-    StorageProcessor,
-};
+use crate::{duration_to_naive_time, pg_interval_from_duration};
 
 // TODO (PLA-775): Should not be an embedded submodule in a concrete DAL file.
 pub mod types {
@@ -22,10 +18,6 @@ pub mod types {
 
     use sqlx::types::chrono::{DateTime, Utc};
     use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
-
-    // This currently lives in `zksync_prover_types` -- we don't want a dependency between prover types (`zkevm_test_harness`) and DAL.
-    // This will be gone as part of 1.5.0, when EIP4844 becomes normal jobs, rather than special cased ones.
-    pub(crate) const EIP_4844_CIRCUIT_ID: u8 = 255;
 
     #[derive(Debug, Clone)]
     pub struct FriProverJobMetadata {
@@ -237,7 +229,7 @@ pub mod types {
 
 #[derive(Debug)]
 pub struct FriProverDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub storage: &'a mut StorageProcessor<'c>,
 }
 
 impl FriProverDal<'_, '_> {
@@ -249,14 +241,10 @@ impl FriProverDal<'_, '_> {
         depth: u16,
         protocol_version_id: FriProtocolVersionId,
     ) {
-        let latency = MethodLatency::new("save_fri_prover_jobs");
+        //let latency = MethodLatency::new("save_fri_prover_jobs");
         for (sequence_number, (circuit_id, circuit_blob_url)) in
             circuit_ids_and_urls.iter().enumerate()
         {
-            // EIP 4844 are special cased.
-            // There exist only 2 blobs that are calculated at basic layer and injected straight into scheduler proof (as of 1.4.2).
-            // As part of 1.5.0, these will be treated as regular circuits, having basic, leaf, node and finally being attached as regular node proofs to the scheduler.
-            let is_node_final_proof = *circuit_id == types::EIP_4844_CIRCUIT_ID;
             self.insert_prover_job(
                 l1_batch_number,
                 *circuit_id,
@@ -264,12 +252,12 @@ impl FriProverDal<'_, '_> {
                 sequence_number,
                 aggregation_round,
                 circuit_blob_url,
-                is_node_final_proof,
+                false,
                 protocol_version_id,
             )
             .await;
         }
-        drop(latency);
+        // drop(latency);
     }
 
     pub async fn get_next_job(
@@ -488,10 +476,10 @@ impl FriProverDal<'_, '_> {
             blob_url,
             id as i64,
         )
-        .instrument("save_fri_proof")
-        .report_latency()
-        .with_arg("id", &id)
-        .fetch_optional(self.storage)
+        // .instrument("save_fri_proof")
+        // .report_latency()
+        // .with_arg("id", &id)
+        .fetch_optional(self.storage.conn())
         .await
         .unwrap()
         .map(|row| FriProverJobMetadata {

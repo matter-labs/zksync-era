@@ -1,14 +1,15 @@
 use std::time::Duration;
 
+use zksync_db_connection::StorageProcessor;
+
 use crate::{
     fri_prover_dal::types::{GpuProverInstanceStatus, SocketAddress},
-    time_utils::pg_interval_from_duration,
-    StorageProcessor,
+    pg_interval_from_duration,
 };
 
 #[derive(Debug)]
 pub struct FriGpuProverQueueDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub storage: &'a mut StorageProcessor<'c>,
 }
 
 impl FriGpuProverQueueDal<'_, '_> {

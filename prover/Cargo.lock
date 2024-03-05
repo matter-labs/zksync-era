@@ -3950,10 +3950,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "prover_dal"
-version = "0.1.0"
-
-[[package]]
 name = "ptr_meta"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7054,12 +7050,23 @@ dependencies = [
  "zksync_consensus_roles",
  "zksync_consensus_storage",
  "zksync_contracts",
+ "zksync_db_connection",
  "zksync_health_check",
  "zksync_protobuf",
  "zksync_protobuf_build",
+ "zksync_prover_dal",
  "zksync_system_constants",
  "zksync_types",
  "zksync_utils",
+]
+
+[[package]]
+name = "zksync_db_connection"
+version = "0.1.0"
+dependencies = [
+ "sqlx",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -7180,6 +7187,19 @@ dependencies = [
  "protox",
  "quote 1.0.35",
  "syn 2.0.48",
+]
+
+[[package]]
+name = "zksync_prover_dal"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "sqlx",
+ "strum",
+ "tokio",
+ "tracing",
+ "zksync_db_connection",
+ "zksync_types",
 ]
 
 [[package]]

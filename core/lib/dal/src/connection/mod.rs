@@ -14,14 +14,13 @@ use rand::Rng;
 use sqlx::{
     pool::PoolConnection,
     postgres::{PgConnectOptions, PgPool, PgPoolOptions, Postgres},
+    Executor,
 };
+use zksync_db_connection::{StorageProcessorTags, TracedConnections};
 
-pub use self::processor::StorageProcessor;
-pub(crate) use self::processor::StorageProcessorTags;
-use self::processor::TracedConnections;
 use crate::metrics::CONNECTION_METRICS;
 
-mod processor;
+pub(crate) struct StorageProcessorWrapper<'a>(pub zksync_db_connection::StorageProcessor<'a>);
 
 /// Builder for [`ConnectionPool`]s.
 #[derive(Clone)]
@@ -144,7 +143,6 @@ impl TestTemplate {
     /// Closes the connection pool, disallows connecting to the underlying db,
     /// so that the db can be used as a template.
     pub async fn freeze(pool: ConnectionPool) -> anyhow::Result<Self> {
-        use sqlx::Executor as _;
         let mut conn = pool.acquire_connection_retried(None).await?;
         conn.execute(
             "UPDATE pg_database SET datallowconn = false WHERE datname = current_database()",
@@ -315,7 +313,7 @@ impl ConnectionPool {
     ///
     /// This method is intended to be used in crucial contexts, where the
     /// database access is must-have (e.g. block committer).
-    pub async fn access_storage(&self) -> anyhow::Result<StorageProcessor<'_>> {
+    pub async fn access_storage(&self) -> anyhow::Result<StorageProcessorWrapper<'_>> {
         self.access_storage_inner(None).await
     }
 
@@ -329,7 +327,7 @@ impl ConnectionPool {
     pub fn access_storage_tagged(
         &self,
         requester: &'static str,
-    ) -> impl Future<Output = anyhow::Result<StorageProcessor<'_>>> + '_ {
+    ) -> impl Future<Output = anyhow::Result<StorageProcessorWrapper<'_>>> + '_ {
         let location = Location::caller();
         async move {
             let tags = StorageProcessorTags {
@@ -343,7 +341,7 @@ impl ConnectionPool {
     async fn access_storage_inner(
         &self,
         tags: Option<StorageProcessorTags>,
-    ) -> anyhow::Result<StorageProcessor<'_>> {
+    ) -> anyhow::Result<StorageProcessorWrapper<'_>> {
         let acquire_latency = CONNECTION_METRICS.acquire.start();
         let conn = self
             .acquire_connection_retried(tags.as_ref())
@@ -353,11 +351,10 @@ impl ConnectionPool {
         if let Some(tags) = &tags {
             CONNECTION_METRICS.acquire_tagged[&tags.requester].observe(elapsed);
         }
-        Ok(StorageProcessor::from_pool(
-            conn,
-            tags,
-            self.traced_connections.as_deref(),
-        ))
+        Ok(
+            StorageProcessorWrapper::from_pool(conn, tags, self.traced_connections.as_deref())
+                .into(),
+        )
     }
 
     async fn acquire_connection_retried(
