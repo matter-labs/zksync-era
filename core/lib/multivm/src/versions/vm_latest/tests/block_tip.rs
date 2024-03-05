@@ -362,9 +362,10 @@ fn test_dry_run_upper_bound() {
         .unwrap();
     assert!(
         max_used_gas.0 * 2 <= BOOTLOADER_BATCH_TIP_OVERHEAD,
-        "BOOTLOADER_BATCH_TIP_OVERHEAD is too low for {} with result {}",
+        "BOOTLOADER_BATCH_TIP_OVERHEAD is too low for {} with result {}, BOOTLOADER_BATCH_TIP_OVERHEAD = {}",
         max_used_gas.1,
-        max_used_gas.0
+        max_used_gas.0,
+        BOOTLOADER_BATCH_TIP_OVERHEAD
     );
 
     let circuit_statistics = statistics
@@ -374,9 +375,10 @@ fn test_dry_run_upper_bound() {
         .unwrap();
     assert!(
         circuit_statistics.0 * 2 <= BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD,
-        "MAX_BATCH_TIP_CIRCUIT_STATISTICS is too low for {} with result {}",
+        "BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD is too low for {} with result {}, BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD = {}",
         circuit_statistics.1,
-        circuit_statistics.0
+        circuit_statistics.0,
+        BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD
     );
 
     let execution_metrics_size = statistics
@@ -386,8 +388,9 @@ fn test_dry_run_upper_bound() {
         .unwrap();
     assert!(
         execution_metrics_size.0 * 2 <= BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD,
-        "MAX_BATCH_TIP_METRICS_SIZE is too low for {} with result {}",
+        "BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD is too low for {} with result {}, BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD = {}",
         execution_metrics_size.1,
-        execution_metrics_size.0
+        execution_metrics_size.0,
+        BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD
     );
 }
