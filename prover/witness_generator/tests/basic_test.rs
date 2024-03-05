@@ -9,7 +9,10 @@ use zksync_prover_fri_types::{
     CircuitWrapper,
 };
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
-use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
+use zksync_types::{
+    basic_fri_types::{AggregationRound, FinalProofIds},
+    L1BatchNumber,
+};
 use zksync_witness_generator::{
     leaf_aggregation::{prepare_leaf_aggregation_job, LeafAggregationWitnessGenerator},
     node_aggregation,
@@ -130,10 +133,13 @@ async fn test_scheduler_witness_gen() {
         .get(key)
         .await
         .expect("expected scheduler circuit missing");
-    let proof_job_ids = [
-        5639969, 5627082, 5627084, 5627083, 5627086, 5627085, 5631320, 5627090, 5627091, 5627092,
-        5627093, 5627094, 5629097,
-    ];
+    let proof_job_ids = FinalProofIds {
+        node_proof_ids: [
+            5639969, 5627082, 5627084, 5627083, 5627086, 5627085, 5631320, 5627090, 5627091,
+            5627092, 5627093, 5627094, 5629097,
+        ],
+        eip_4844_proof_ids: [0, 1],
+    };
 
     let job = scheduler::prepare_job(block_number, proof_job_ids, &*object_store)
         .await
