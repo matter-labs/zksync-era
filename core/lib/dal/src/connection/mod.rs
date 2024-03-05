@@ -350,7 +350,11 @@ impl ConnectionPool {
         if let Some(tags) = &tags {
             CONNECTION_METRICS.acquire_tagged[&tags.requester].observe(elapsed);
         }
-        Ok(StorageProcessor::from_pool(conn, tags, self.traced_connections.as_deref()).into())
+        Ok(StorageProcessorWrapper(StorageProcessor::from_pool(
+            conn,
+            tags,
+            self.traced_connections.as_deref(),
+        )))
     }
 
     async fn acquire_connection_retried(
@@ -430,7 +434,7 @@ mod tests {
         let mut storage = pool.access_storage().await.unwrap();
         let err = sqlx::query("SELECT pg_sleep(2)")
             .map(drop)
-            .fetch_optional(storage.conn())
+            .fetch_optional(storage.0.conn())
             .await
             .unwrap_err();
         assert_matches!(

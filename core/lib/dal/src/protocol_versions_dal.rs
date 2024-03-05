@@ -8,7 +8,9 @@ use zksync_types::{
 };
 
 use crate::{
+    factory_deps_dal::FactoryDepsDal,
     models::storage_protocol_version::{protocol_version_from_storage, StorageProtocolVersion},
+    transactions_dal::TransactionsDal,
     StorageProcessor,
 };
 
@@ -78,23 +80,25 @@ impl ProtocolVersionsDal<'_, '_> {
 
         let mut db_transaction = self.storage.start_transaction().await.unwrap();
         if let Some(tx) = version.tx {
-            db_transaction
-                .transactions_dal()
-                .insert_system_transaction(tx)
-                .await;
+            TransactionsDal {
+                storage: &mut db_transaction,
+            }
+            .insert_system_transaction(tx)
+            .await;
         }
 
-        db_transaction
-            .protocol_versions_dal()
-            .save_protocol_version(
-                version.id,
-                version.timestamp,
-                version.l1_verifier_config,
-                version.base_system_contracts_hashes,
-                version.verifier_address,
-                tx_hash,
-            )
-            .await;
+        ProtocolVersionsDal {
+            storage: &mut db_transaction,
+        }
+        .save_protocol_version(
+            version.id,
+            version.timestamp,
+            version.l1_verifier_config,
+            version.base_system_contracts_hashes,
+            version.verifier_address,
+            tx_hash,
+        )
+        .await;
 
         db_transaction.commit().await.unwrap();
     }
@@ -127,15 +131,17 @@ impl ProtocolVersionsDal<'_, '_> {
 
         let mut db_transaction = self.storage.start_transaction().await.unwrap();
 
-        db_transaction
-            .transactions_dal()
-            .insert_system_transaction(tx)
-            .await;
+        TransactionsDal {
+            storage: &mut db_transaction,
+        }
+        .insert_system_transaction(tx)
+        .await;
 
-        db_transaction
-            .protocol_versions_dal()
-            .save_genesis_upgrade_tx_hash(id, tx_hash)
-            .await;
+        ProtocolVersionsDal {
+            storage: &mut db_transaction,
+        }
+        .save_genesis_upgrade_tx_hash(id, tx_hash)
+        .await;
 
         db_transaction.commit().await.unwrap();
     }
@@ -168,14 +174,14 @@ impl ProtocolVersionsDal<'_, '_> {
         let protocol_version = (row.id as u16)
             .try_into()
             .context("bogus protocol version ID")?;
-        let contracts = self
-            .storage
-            .factory_deps_dal()
-            .get_base_system_contracts(
-                H256::from_slice(&row.bootloader_code_hash),
-                H256::from_slice(&row.default_account_code_hash),
-            )
-            .await?;
+        let contracts = FactoryDepsDal {
+            storage: self.storage,
+        }
+        .get_base_system_contracts(
+            H256::from_slice(&row.bootloader_code_hash),
+            H256::from_slice(&row.default_account_code_hash),
+        )
+        .await?;
         Ok((contracts, protocol_version))
     }
 
@@ -200,14 +206,14 @@ impl ProtocolVersionsDal<'_, '_> {
         .context("cannot fetch system contract hashes")?;
 
         Ok(if let Some(row) = row {
-            let contracts = self
-                .storage
-                .factory_deps_dal()
-                .get_base_system_contracts(
-                    H256::from_slice(&row.bootloader_code_hash),
-                    H256::from_slice(&row.default_account_code_hash),
-                )
-                .await?;
+            let contracts = FactoryDepsDal {
+                storage: self.storage,
+            }
+            .get_base_system_contracts(
+                H256::from_slice(&row.bootloader_code_hash),
+                H256::from_slice(&row.default_account_code_hash),
+            )
+            .await?;
             Some(contracts)
         } else {
             None
@@ -377,18 +383,19 @@ impl ProtocolVersionsDal<'_, '_> {
         .unwrap()?;
         if let Some(hash) = row.upgrade_tx_hash {
             Some(
-                self.storage
-                    .transactions_dal()
-                    .get_tx_by_hash(H256::from_slice(&hash))
-                    .await
-                    .unwrap_or_else(|| {
-                        panic!(
-                            "Missing upgrade tx for protocol version {}",
-                            protocol_version_id as u16
-                        );
-                    })
-                    .try_into()
-                    .unwrap(),
+                TransactionsDal {
+                    storage: self.storage,
+                }
+                .get_tx_by_hash(H256::from_slice(&hash))
+                .await
+                .unwrap_or_else(|| {
+                    panic!(
+                        "Missing upgrade tx for protocol version {}",
+                        protocol_version_id as u16
+                    );
+                })
+                .try_into()
+                .unwrap(),
             )
         } else {
             None

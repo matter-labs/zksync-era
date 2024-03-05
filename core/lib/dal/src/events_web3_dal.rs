@@ -202,7 +202,9 @@ mod tests {
     async fn test_build_get_logs_where_clause() {
         let connection_pool = ConnectionPool::test_pool().await;
         let storage = &mut connection_pool.access_storage().await.unwrap();
-        let events_web3_dal = EventsWeb3Dal { storage };
+        let events_web3_dal = EventsWeb3Dal {
+            storage: &mut storage.0,
+        };
         let filter = GetLogsFilter {
             from_block: MiniblockNumber(100),
             to_block: MiniblockNumber(200),

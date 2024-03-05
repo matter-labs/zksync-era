@@ -11,6 +11,7 @@ use zksync_types::{
 use zksync_utils::bigdecimal_to_u256;
 
 use crate::{
+    blocks_dal::BlocksDal,
     instrument::InstrumentExt,
     models::{
         storage_block::{
@@ -573,10 +574,11 @@ impl BlocksWeb3Dal<'_, '_> {
 
         // FIXME (PLA-728): remove after 2nd phase of `fee_account_address` migration
         #[allow(deprecated)]
-        self.storage
-            .blocks_dal()
-            .maybe_load_fee_address(&mut details.operator_address, details.number)
-            .await?;
+        BlocksDal {
+            storage: self.storage,
+        }
+        .maybe_load_fee_address(&mut details.operator_address, details.number)
+        .await?;
         Ok(Some(details))
     }
 

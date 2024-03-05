@@ -166,7 +166,9 @@ pub(crate) fn create_snapshot_recovery() -> SnapshotRecoveryStatus {
 async fn workflow_with_submit_tx_equal_hashes() {
     let connection_pool = ConnectionPool::test_pool().await;
     let storage = &mut connection_pool.access_storage().await.unwrap();
-    let mut transactions_dal = TransactionsDal { storage };
+    let mut transactions_dal = TransactionsDal {
+        storage: &mut storage.0,
+    };
 
     let tx = mock_l2_transaction();
     let result = transactions_dal
@@ -186,7 +188,9 @@ async fn workflow_with_submit_tx_equal_hashes() {
 async fn workflow_with_submit_tx_diff_hashes() {
     let connection_pool = ConnectionPool::test_pool().await;
     let storage = &mut connection_pool.access_storage().await.unwrap();
-    let mut transactions_dal = TransactionsDal { storage };
+    let mut transactions_dal = TransactionsDal {
+        storage: &mut storage.0,
+    };
 
     let tx = mock_l2_transaction();
 
@@ -213,7 +217,9 @@ async fn workflow_with_submit_tx_diff_hashes() {
 async fn remove_stuck_txs() {
     let connection_pool = ConnectionPool::test_pool().await;
     let storage = &mut connection_pool.access_storage().await.unwrap();
-    let mut protocol_versions_dal = ProtocolVersionsDal { storage };
+    let mut protocol_versions_dal = ProtocolVersionsDal {
+        storage: &mut storage.0,
+    };
     protocol_versions_dal
         .save_protocol_version_with_tx(Default::default())
         .await;

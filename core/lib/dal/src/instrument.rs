@@ -19,7 +19,7 @@ use sqlx::{
     FromRow, IntoArguments, Postgres,
 };
 use tokio::time::Instant;
-use zksync_db_connection::StorageProcessorTags;
+use zksync_db_connection::{StorageProcessor, StorageProcessorTags};
 
 use crate::{connection::ConnectionPool, metrics::REQUEST_METRICS};
 
@@ -290,7 +290,7 @@ mod tests {
             .instrument("erroneous")
             .with_arg("miniblock", &MiniblockNumber(1))
             .with_arg("hash", &H256::zero())
-            .fetch_optional(&mut conn)
+            .fetch_optional(&mut conn.0)
             .await
             .unwrap_err();
     }
@@ -306,7 +306,7 @@ mod tests {
             .instrument("slow")
             .with_arg("miniblock", &MiniblockNumber(1))
             .with_arg("hash", &H256::zero())
-            .fetch_optional(&mut conn)
+            .fetch_optional(&mut conn.0)
             .await
             .unwrap();
     }

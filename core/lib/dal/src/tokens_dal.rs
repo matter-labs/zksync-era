@@ -1,7 +1,7 @@
 use sqlx::types::chrono::Utc;
 use zksync_types::{tokens::TokenInfo, Address, MiniblockNumber};
 
-use crate::StorageProcessor;
+use crate::{storage_logs_dal::StorageLogsDal, StorageProcessor};
 
 #[derive(Debug)]
 pub struct TokensDal<'a, 'c> {
@@ -79,11 +79,11 @@ impl TokensDal<'_, '_> {
     /// Removes token records that were deployed after `block_number`.
     pub async fn rollback_tokens(&mut self, block_number: MiniblockNumber) -> sqlx::Result<()> {
         let all_token_addresses = self.get_all_l2_token_addresses().await?;
-        let token_deployment_data = self
-            .storage
-            .storage_logs_dal()
-            .filter_deployed_contracts(all_token_addresses.into_iter(), None)
-            .await?;
+        let token_deployment_data = StorageLogsDal {
+            storage: self.storage,
+        }
+        .filter_deployed_contracts(all_token_addresses.into_iter(), None)
+        .await?;
         let token_addresses_to_be_removed: Vec<_> = token_deployment_data
             .into_iter()
             .filter_map(|(address, deployed_at)| (deployed_at > block_number).then_some(address.0))
@@ -111,7 +111,7 @@ mod tests {
     use zksync_types::{get_code_key, tokens::TokenMetadata, StorageLog, H256};
 
     use super::*;
-    use crate::ConnectionPool;
+    use crate::{tokens_web3_dal::TokensWeb3Dal, ConnectionPool};
 
     fn test_token_info() -> TokenInfo {
         TokenInfo {
@@ -223,7 +223,7 @@ mod tests {
             .await
             .unwrap();
 
-        test_getting_all_tokens(&mut storage).await;
+        test_getting_all_tokens(&mut storage.0).await;
 
         storage
             .tokens_dal()
@@ -258,8 +258,7 @@ mod tests {
 
     async fn test_getting_all_tokens(storage: &mut StorageProcessor<'_>) {
         for at_miniblock in [None, Some(MiniblockNumber(2)), Some(MiniblockNumber(100))] {
-            let all_tokens = storage
-                .tokens_web3_dal()
+            let all_tokens = TokensWeb3Dal { storage }
                 .get_all_tokens(at_miniblock)
                 .await
                 .unwrap();
@@ -269,8 +268,7 @@ mod tests {
         }
 
         for at_miniblock in [MiniblockNumber(0), MiniblockNumber(1)] {
-            let all_tokens = storage
-                .tokens_web3_dal()
+            let all_tokens = TokensWeb3Dal { storage }
                 .get_all_tokens(Some(at_miniblock))
                 .await
                 .unwrap();

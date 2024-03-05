@@ -1,11 +1,8 @@
 #![feature(arc_unwrap_or_clone)]
 //! Data access layer (DAL) for zkSync Era.
 
-use sqlx::{pool::PoolConnection, Postgres};
 pub use sqlx::{types::BigDecimal, Error as SqlxError};
-use zksync_db_connection::{
-    StorageProcessor, StorageProcessorInner, StorageProcessorTags, TracedConnections,
-};
+use zksync_db_connection::StorageProcessor;
 use zksync_prover_dal::{
     fri_gpu_prover_queue_dal::FriGpuProverQueueDal,
     fri_proof_compressor_dal::FriProofCompressorDal,
@@ -67,7 +64,7 @@ pub mod transactions_web3_dal;
 #[cfg(test)]
 mod tests;
 
-pub(crate) struct StorageProcessorWrapper<'a>(pub StorageProcessor<'a>);
+pub struct StorageProcessorWrapper<'a>(pub StorageProcessor<'a>);
 
 impl<'a> StorageProcessorWrapper<'a> {
     pub fn transactions_dal(&mut self) -> TransactionsDal<'_, 'a> {
@@ -214,7 +211,7 @@ impl<'a> StorageProcessorWrapper<'a> {
 
     pub fn proof_generation_dal(&mut self) -> ProofGenerationDal<'_, 'a> {
         ProofGenerationDal {
-            storage: &mut self.0.into(),
+            storage: &mut self.0,
         }
     }
 

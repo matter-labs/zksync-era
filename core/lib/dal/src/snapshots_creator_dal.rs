@@ -170,7 +170,7 @@ mod tests {
     use zksync_types::StorageLog;
 
     use super::*;
-    use crate::ConnectionPool;
+    use crate::{ConnectionPool, StorageProcessorWrapper};
 
     #[tokio::test]
     async fn getting_storage_log_chunks_basics() {
@@ -246,7 +246,7 @@ mod tests {
     }
 
     async fn assert_logs_for_snapshot(
-        conn: &mut StorageProcessor<'_>,
+        conn: &mut StorageProcessorWrapper<'_>,
         miniblock_number: MiniblockNumber,
         l1_batch_number: L1BatchNumber,
         expected_logs: &[StorageLog],

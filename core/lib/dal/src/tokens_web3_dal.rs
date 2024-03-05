@@ -3,7 +3,7 @@ use zksync_types::{
     Address, MiniblockNumber,
 };
 
-use crate::StorageProcessor;
+use crate::{storage_logs_dal::StorageLogsDal, StorageProcessor};
 
 #[derive(Debug)]
 struct StorageTokenInfo {
@@ -88,11 +88,11 @@ impl TokensWeb3Dal<'_, '_> {
         };
 
         let token_addresses = all_tokens.iter().map(|token| token.l2_address);
-        let filtered_addresses = self
-            .storage
-            .storage_logs_dal()
-            .filter_deployed_contracts(token_addresses, Some(at_miniblock))
-            .await?;
+        let filtered_addresses = StorageLogsDal {
+            storage: self.storage,
+        }
+        .filter_deployed_contracts(token_addresses, Some(at_miniblock))
+        .await?;
 
         all_tokens.retain(|token| filtered_addresses.contains_key(&token.l2_address));
         Ok(all_tokens)

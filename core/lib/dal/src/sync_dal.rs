@@ -1,9 +1,11 @@
 use zksync_types::{api::en, MiniblockNumber};
 
 use crate::{
+    blocks_dal::BlocksDal,
     instrument::InstrumentExt,
     metrics::MethodLatency,
     models::storage_sync::{StorageSyncBlock, SyncBlock},
+    transactions_web3_dal::TransactionsWeb3Dal,
     StorageProcessor,
 };
 
@@ -74,10 +76,11 @@ impl SyncDal<'_, '_> {
         let mut block = SyncBlock::try_from(block)?;
         // FIXME (PLA-728): remove after 2nd phase of `fee_account_address` migration
         #[allow(deprecated)]
-        self.storage
-            .blocks_dal()
-            .maybe_load_fee_address(&mut block.fee_account_address, block.number)
-            .await?;
+        BlocksDal {
+            storage: self.storage,
+        }
+        .maybe_load_fee_address(&mut block.fee_account_address, block.number)
+        .await?;
         Ok(Some(block))
     }
 
@@ -91,11 +94,11 @@ impl SyncDal<'_, '_> {
             return Ok(None);
         };
         let transactions = if include_transactions {
-            let transactions = self
-                .storage
-                .transactions_web3_dal()
-                .get_raw_miniblock_transactions(block_number)
-                .await?;
+            let transactions = TransactionsWeb3Dal {
+                storage: self.storage,
+            }
+            .get_raw_miniblock_transactions(block_number)
+            .await?;
             Some(transactions)
         } else {
             None

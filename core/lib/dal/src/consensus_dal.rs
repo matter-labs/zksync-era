@@ -4,7 +4,7 @@ use zksync_consensus_storage::ReplicaState;
 use zksync_types::MiniblockNumber;
 
 pub use crate::models::consensus::Payload;
-use crate::StorageProcessor;
+use crate::{sync_dal::SyncDal, transactions_web3_dal::TransactionsWeb3Dal, StorageProcessor};
 
 /// Storage access methods for `zksync_core::consensus` module.
 #[derive(Debug)]
@@ -136,19 +136,19 @@ impl ConsensusDal<'_, '_> {
         block_number: validator::BlockNumber,
     ) -> anyhow::Result<Option<Payload>> {
         let block_number = MiniblockNumber(block_number.0.try_into()?);
-        let Some(block) = self
-            .storage
-            .sync_dal()
-            .sync_block_inner(block_number)
-            .await?
+        let Some(block) = SyncDal {
+            storage: self.storage,
+        }
+        .sync_block_inner(block_number)
+        .await?
         else {
             return Ok(None);
         };
-        let transactions = self
-            .storage
-            .transactions_web3_dal()
-            .get_raw_miniblock_transactions(block_number)
-            .await?;
+        let transactions = TransactionsWeb3Dal {
+            storage: self.storage,
+        }
+        .get_raw_miniblock_transactions(block_number)
+        .await?;
         Ok(Some(block.into_payload(transactions)))
     }
 
@@ -164,7 +164,12 @@ impl ConsensusDal<'_, '_> {
     pub async fn insert_certificate(&mut self, cert: &validator::CommitQC) -> anyhow::Result<()> {
         let header = &cert.message.proposal;
         let mut txn = self.storage.start_transaction().await?;
-        if let Some(last) = txn.consensus_dal().last_certificate().await? {
+
+        let certificate = ConsensusDal { storage: &mut txn }
+            .last_certificate()
+            .await?;
+
+        if let Some(last) = certificate {
             let last = &last.message.proposal;
             anyhow::ensure!(
                 last.number.next() == header.number,
@@ -177,8 +182,7 @@ impl ConsensusDal<'_, '_> {
                 "inserting first block with non-zero parent hash"
             );
         }
-        let want_payload = txn
-            .consensus_dal()
+        let want_payload = ConsensusDal { storage: &mut txn }
             .block_payload(cert.message.proposal.number)
             .await?
             .context("corresponding miniblock is missing")?;

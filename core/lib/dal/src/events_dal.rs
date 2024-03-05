@@ -11,6 +11,7 @@ use zksync_types::{
 };
 
 use crate::{
+    blocks_dal::BlocksDal,
     models::storage_event::{StorageL2ToL1Log, StorageWeb3Log},
     SqlxError, StorageProcessor,
 };
@@ -241,11 +242,11 @@ impl EventsDal<'_, '_> {
         &mut self,
         l1_batch_number: L1BatchNumber,
     ) -> Result<Vec<H256>, SqlxError> {
-        let Some((from_miniblock, to_miniblock)) = self
-            .storage
-            .blocks_dal()
-            .get_miniblock_range_of_l1_batch(l1_batch_number)
-            .await?
+        let Some((from_miniblock, to_miniblock)) = BlocksDal {
+            storage: self.storage,
+        }
+        .get_miniblock_range_of_l1_batch(l1_batch_number)
+        .await?
         else {
             return Ok(Vec::new());
         };

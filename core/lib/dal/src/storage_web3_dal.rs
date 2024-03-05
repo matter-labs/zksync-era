@@ -9,8 +9,8 @@ use zksync_types::{
 use zksync_utils::h256_to_u256;
 
 use crate::{
-    instrument::InstrumentExt, models::storage_block::ResolvedL1BatchForMiniblock, SqlxError,
-    StorageProcessor,
+    instrument::InstrumentExt, models::storage_block::ResolvedL1BatchForMiniblock,
+    storage_logs_dal::StorageLogsDal, SqlxError, StorageProcessor,
 };
 
 #[derive(Debug)]
@@ -78,11 +78,11 @@ impl StorageWeb3Dal<'_, '_> {
     /// Gets the current values for the specified `hashed_keys`. The returned map has requested hashed keys as keys
     /// and current storage values as values.
     pub async fn get_values(&mut self, hashed_keys: &[H256]) -> sqlx::Result<HashMap<H256, H256>> {
-        let storage_map = self
-            .storage
-            .storage_logs_dal()
-            .get_storage_values(hashed_keys, MiniblockNumber(u32::MAX))
-            .await?;
+        let storage_map = StorageLogsDal {
+            storage: self.storage,
+        }
+        .get_storage_values(hashed_keys, MiniblockNumber(u32::MAX))
+        .await?;
         Ok(storage_map
             .into_iter()
             .map(|(key, value)| (key, value.unwrap_or_default()))

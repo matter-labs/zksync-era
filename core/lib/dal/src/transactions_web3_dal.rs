@@ -5,6 +5,7 @@ use zksync_types::{
 };
 
 use crate::{
+    events_dal::EventsDal,
     instrument::InstrumentExt,
     models::{
         storage_block::{bind_block_where_sql_params, web3_block_where_sql},
@@ -82,17 +83,17 @@ impl TransactionsWeb3Dal<'_, '_> {
         .map(Into::into)
         .collect();
 
-        let mut logs = self
-            .storage
-            .events_dal()
-            .get_logs_by_tx_hashes(hashes)
-            .await?;
+        let mut logs = EventsDal {
+            storage: self.storage,
+        }
+        .get_logs_by_tx_hashes(hashes)
+        .await?;
 
-        let mut l2_to_l1_logs = self
-            .storage
-            .events_dal()
-            .get_l2_to_l1_logs_by_hashes(hashes)
-            .await?;
+        let mut l2_to_l1_logs = EventsDal {
+            storage: self.storage,
+        }
+        .get_l2_to_l1_logs_by_hashes(hashes)
+        .await?;
 
         for receipt in &mut receipts {
             let logs_for_tx = logs.remove(&receipt.transaction_hash);
@@ -343,10 +344,10 @@ mod tests {
     use super::*;
     use crate::{
         tests::{create_miniblock_header, mock_execution_result, mock_l2_transaction},
-        ConnectionPool,
+        ConnectionPool, StorageProcessorWrapper,
     };
 
-    async fn prepare_transactions(conn: &mut StorageProcessor<'_>, txs: Vec<L2Tx>) {
+    async fn prepare_transactions(conn: &mut StorageProcessorWrapper<'_>, txs: Vec<L2Tx>) {
         conn.blocks_dal()
             .delete_miniblocks(MiniblockNumber(0))
             .await

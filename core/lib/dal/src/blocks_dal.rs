@@ -18,6 +18,7 @@ use zksync_types::{
 };
 
 use crate::{
+    events_dal::EventsDal,
     instrument::InstrumentExt,
     models::storage_block::{StorageL1Batch, StorageL1BatchHeader, StorageMiniblockHeader},
 };
@@ -1734,11 +1735,11 @@ impl BlocksDal<'_, '_> {
         let Ok(metadata) = storage_batch.try_into() else {
             return Ok(None);
         };
-        let raw_published_bytecode_hashes = self
-            .storage
-            .events_dal()
-            .get_l1_batch_raw_published_bytecode_hashes(header.number)
-            .await?;
+        let raw_published_bytecode_hashes = EventsDal {
+            storage: self.storage,
+        }
+        .get_l1_batch_raw_published_bytecode_hashes(header.number)
+        .await?;
 
         Ok(Some(L1BatchWithMetadata::new(
             header,

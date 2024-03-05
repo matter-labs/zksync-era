@@ -7,7 +7,7 @@ use zksync_types::{
 };
 
 pub use crate::models::storage_log::{DbStorageLog, StorageRecoveryLogEntry};
-use crate::{instrument::InstrumentExt, StorageProcessor};
+use crate::{blocks_dal::BlocksDal, instrument::InstrumentExt, StorageProcessor};
 
 #[derive(Debug)]
 pub struct StorageLogsDal<'a, 'c> {
@@ -404,11 +404,11 @@ impl StorageLogsDal<'_, '_> {
         &mut self,
         l1_batch_number: L1BatchNumber,
     ) -> sqlx::Result<HashMap<H256, Option<(H256, u64)>>> {
-        let miniblock_range = self
-            .storage
-            .blocks_dal()
-            .get_miniblock_range_of_l1_batch(l1_batch_number)
-            .await?;
+        let miniblock_range = BlocksDal {
+            storage: self.storage,
+        }
+        .get_miniblock_range_of_l1_batch(l1_batch_number)
+        .await?;
         let Some((_, last_miniblock)) = miniblock_range else {
             return Ok(HashMap::new());
         };
@@ -535,12 +535,12 @@ impl StorageLogsDal<'_, '_> {
         hashed_keys: &[H256],
         next_l1_batch: L1BatchNumber,
     ) -> sqlx::Result<HashMap<H256, Option<H256>>> {
-        let (miniblock_number, _) = self
-            .storage
-            .blocks_dal()
-            .get_miniblock_range_of_l1_batch(next_l1_batch)
-            .await?
-            .unwrap();
+        let (miniblock_number, _) = BlocksDal {
+            storage: self.storage,
+        }
+        .get_miniblock_range_of_l1_batch(next_l1_batch)
+        .await?
+        .unwrap();
 
         if miniblock_number == MiniblockNumber(0) {
             Ok(hashed_keys.iter().copied().map(|key| (key, None)).collect())
@@ -838,9 +838,13 @@ mod tests {
     use zksync_types::{block::L1BatchHeader, ProtocolVersion, ProtocolVersionId};
 
     use super::*;
-    use crate::{tests::create_miniblock_header, ConnectionPool};
+    use crate::{tests::create_miniblock_header, ConnectionPool, StorageProcessorWrapper};
 
-    async fn insert_miniblock(conn: &mut StorageProcessor<'_>, number: u32, logs: Vec<StorageLog>) {
+    async fn insert_miniblock(
+        conn: &mut StorageProcessorWrapper<'_>,
+        number: u32,
+        logs: Vec<StorageLog>,
+    ) {
         let header = L1BatchHeader::new(
             L1BatchNumber(number),
             0,
@@ -916,7 +920,7 @@ mod tests {
     }
 
     async fn test_rollback(
-        conn: &mut StorageProcessor<'_>,
+        conn: &mut StorageProcessorWrapper<'_>,
         key: StorageKey,
         second_key: StorageKey,
     ) {
@@ -1144,7 +1148,7 @@ mod tests {
         }
     }
 
-    async fn prepare_tree_entries(conn: &mut StorageProcessor<'_>, count: u8) -> Vec<H256> {
+    async fn prepare_tree_entries(conn: &mut StorageProcessorWrapper<'_>, count: u8) -> Vec<H256> {
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
