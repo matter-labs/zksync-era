@@ -6,7 +6,6 @@ use std::{
 
 use anyhow::Context as _;
 use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive};
-use sqlx::Row;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     block::{BlockGasCount, L1BatchHeader, L1BatchTreeData, MiniblockHeader},
@@ -1857,21 +1856,29 @@ impl BlocksDal<'_, '_> {
         number_range: ops::RangeInclusive<L1BatchNumber>,
         op_type: AggregatedActionType,
     ) -> anyhow::Result<u32> {
-        let column_name = match op_type {
-            AggregatedActionType::Commit => "predicted_commit_gas_cost",
-            AggregatedActionType::PublishProofOnchain => "predicted_prove_gas_cost",
-            AggregatedActionType::Execute => "predicted_execute_gas_cost",
-        };
-        let sql_query_str = format!(
-            "SELECT COALESCE(SUM({column_name}), 0) AS sum FROM l1_batches \
-             WHERE number BETWEEN $1 AND $2"
+        #[derive(Debug)]
+        struct SumRow {
+            sum: BigDecimal,
+        }
+
+        let start = number_range.start().0 as i64;
+        let end = number_range.end().0 as i64;
+        let query = match_query_as!(
+            SumRow,
+            [
+                "SELECT COALESCE(SUM(", _, r#"), 0) AS "sum!" FROM l1_batches WHERE number BETWEEN $1 AND $2"#
+            ],
+            match (op_type) {
+                AggregatedActionType::Commit => ("predicted_commit_gas_cost"; start, end),
+                AggregatedActionType::PublishProofOnchain => ("predicted_prove_gas_cost"; start, end),
+                AggregatedActionType::Execute => ("predicted_execute_gas_cost"; start, end),
+            }
         );
-        sqlx::query(&sql_query_str)
-            .bind(number_range.start().0 as i64)
-            .bind(number_range.end().0 as i64)
+
+        query
             .fetch_one(self.storage.conn())
             .await?
-            .get::<BigDecimal, &str>("sum")
+            .sum
             .to_u32()
             .context("Sum of predicted gas costs should fit into u32")
     }

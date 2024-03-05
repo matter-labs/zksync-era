@@ -3,10 +3,6 @@ pub mod gpu_socket_listener {
     use std::{net::SocketAddr, time::Instant};
 
     use anyhow::Context as _;
-    use shivini::synthesis_utils::{
-        init_base_layer_cs_for_repeated_proving, init_eip4844_cs_for_repeated_proving,
-        init_recursive_layer_cs_for_repeated_proving,
-    };
     use tokio::{
         io::copy,
         net::{TcpListener, TcpStream},
@@ -17,13 +13,11 @@ pub mod gpu_socket_listener {
         ConnectionPool,
     };
     use zksync_object_store::bincode;
-    use zksync_prover_fri_types::{CircuitWrapper, ProverServiceDataKey, WitnessVectorArtifacts};
-    use zksync_types::basic_fri_types::AggregationRound;
-    use zksync_vk_setup_data_server_fri::keystore::Keystore;
+    use zksync_prover_fri_types::WitnessVectorArtifacts;
 
     use crate::{
         metrics::METRICS,
-        utils::{GpuProverJob, ProvingAssembly, SharedWitnessVectorQueue},
+        utils::{GpuProverJob, SharedWitnessVectorQueue},
     };
 
     pub(crate) struct SocketListener {
@@ -127,16 +121,9 @@ pub mod gpu_socket_listener {
                 "Deserialized witness vector after {:?}",
                 started_at.elapsed()
             );
-            let assembly = generate_assembly_for_repeated_proving(
-                witness_vector.prover_job.circuit_wrapper.clone(),
-                witness_vector.prover_job.job_id,
-                witness_vector.prover_job.setup_data_key.circuit_id,
-            )
-            .context("generate_assembly_for_repeated_proving()")?;
             tracing::info!("Generated assembly after {:?}", started_at.elapsed());
             let gpu_prover_job = GpuProverJob {
                 witness_vector_artifacts: witness_vector,
-                assembly,
             };
             // acquiring lock from queue and updating db must be done atomically otherwise it results in `TOCTTOU`
             // Time-of-Check to Time-of-Use
@@ -169,50 +156,5 @@ pub mod gpu_socket_listener {
             );
             Ok(())
         }
-    }
-
-    pub fn generate_assembly_for_repeated_proving(
-        circuit_wrapper: CircuitWrapper,
-        job_id: u32,
-        circuit_id: u8,
-    ) -> anyhow::Result<ProvingAssembly> {
-        let started_at = Instant::now();
-        let keystore = Keystore::default();
-        let cs = match circuit_wrapper {
-            CircuitWrapper::Base(base_circuit) => {
-                let key = ProverServiceDataKey::new(
-                    base_circuit.numeric_circuit_type(),
-                    AggregationRound::BasicCircuits,
-                );
-                let finalization_hint = keystore
-                    .load_finalization_hints(key)
-                    .context("get_finalization_hints()")?;
-                init_base_layer_cs_for_repeated_proving(base_circuit, &finalization_hint)
-            }
-            CircuitWrapper::Recursive(recursive_circuit) => {
-                let key =
-                    ProverServiceDataKey::new_recursive(recursive_circuit.numeric_circuit_type());
-                let finalization_hint = keystore
-                    .load_finalization_hints(key)
-                    .context("get_finalization_hints()")?;
-                init_recursive_layer_cs_for_repeated_proving(recursive_circuit, &finalization_hint)
-            }
-            CircuitWrapper::Eip4844(circuit) => {
-                let key = ProverServiceDataKey::eip4844();
-                let finalization_hint = keystore
-                    .load_finalization_hints(key)
-                    .context("get_finalization_hints()")?;
-                init_eip4844_cs_for_repeated_proving(circuit, &finalization_hint)
-            }
-        };
-        tracing::info!(
-            "Successfully generated assembly without witness vector for job: {}, took: {:?}",
-            job_id,
-            started_at.elapsed()
-        );
-
-        METRICS.gpu_assembly_generation_time[&circuit_id.to_string()].observe(started_at.elapsed());
-
-        Ok(cs)
     }
 }
