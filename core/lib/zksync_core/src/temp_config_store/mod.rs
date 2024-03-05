@@ -16,6 +16,8 @@ use zksync_config::{
 };
 use zksync_protobuf::{read_optional, repr::ProtoRepr, ProtoFmt};
 
+use crate::proto;
+
 fn read_optional_repr<P: ProtoRepr>(field: &Option<P>) -> anyhow::Result<Option<P::Type>> {
     field.as_ref().map(|x| x.read()).transpose()
 }
@@ -24,6 +26,20 @@ use crate::consensus;
 
 #[cfg(test)]
 mod tests;
+
+/// Decodes a proto message from json for arbitrary `ProtoFmt`.
+pub fn decode_json<T: ProtoFmt>(json: &str) -> anyhow::Result<T> {
+    let mut d = serde_json::Deserializer::from_str(json);
+    let p: T = zksync_protobuf::serde::deserialize(&mut d)?;
+    d.end()?;
+    Ok(p)
+}
+
+pub fn decode_yaml<T: ProtoFmt>(yaml: &str) -> anyhow::Result<T> {
+    let d = serde_yaml::Deserializer::from_str(yaml);
+    let this: T = zksync_protobuf::serde::deserialize(d)?;
+    Ok(this)
+}
 
 // TODO (QIT-22): This structure is going to be removed when components will be responsible for their own configs.
 /// A temporary config store allowing to pass deserialized configs from `zksync_server` to `zksync_core`.
@@ -56,19 +72,11 @@ pub struct TempConfigStore {
     pub gas_adjuster_config: Option<GasAdjusterConfig>,
     pub object_store_config: Option<ObjectStoreConfig>,
     pub kzg_config: Option<KzgConfig>,
-    pub consensus_config: Option<consensus::config::Config>,
-}
-
-impl TempConfigStore {
-    pub fn decode_yaml(yaml: &str) -> anyhow::Result<Self> {
-        let d = serde_yaml::Deserializer::from_str(yaml);
-        let this: Self = zksync_protobuf::serde::deserialize(d)?;
-        Ok(this)
-    }
+    pub consensus_config: Option<consensus::Config>,
 }
 
 impl ProtoFmt for TempConfigStore {
-    type Proto = consensus::proto::TempConfigStore;
+    type Proto = proto::TempConfigStore;
     fn read(r: &Self::Proto) -> anyhow::Result<Self> {
         Ok(Self {
             postgres_config: read_optional_repr(&r.postgres).context("postgres")?,
@@ -150,6 +158,26 @@ impl ProtoFmt for TempConfigStore {
             object_store: self.object_store_config.as_ref().map(ProtoRepr::build),
             kzg: self.kzg_config.as_ref().map(ProtoRepr::build),
             consensus: self.consensus_config.as_ref().map(ProtoFmt::build),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct Secrets {
+    pub consensus: Option<consensus::Secrets>,
+}
+
+impl ProtoFmt for Secrets {
+    type Proto = proto::Secrets;
+    fn read(r: &Self::Proto) -> anyhow::Result<Self> {
+        Ok(Self {
+            consensus: read_optional(&r.consensus).context("consensus")?,
+        })
+    }
+
+    fn build(&self) -> Self::Proto {
+        Self::Proto {
+            consensus: self.consensus.as_ref().map(|x| x.build()),
         }
     }
 }

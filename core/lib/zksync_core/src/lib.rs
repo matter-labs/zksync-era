@@ -7,7 +7,7 @@ use api_server::tx_sender::master_pool_sink::MasterPoolSink;
 use fee_model::{ApiFeeInputProvider, BatchFeeModelInputProvider, MainNodeFeeInputProvider};
 use futures::channel::oneshot;
 use prometheus_exporter::PrometheusExporterConfig;
-use temp_config_store::TempConfigStore;
+use temp_config_store::{Secrets, TempConfigStore};
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_circuit_breaker::{
     l1_txs::FailedL1TransactionChecker, replication_lag::ReplicationLagChecker, CircuitBreaker,
@@ -94,6 +94,7 @@ pub mod l1_gas_price;
 pub mod metadata_calculator;
 mod metrics;
 pub mod proof_data_handler;
+pub mod proto;
 pub mod reorg_detector;
 pub mod state_keeper;
 pub mod sync_layer;
@@ -298,7 +299,7 @@ impl FromStr for Components {
 pub async fn initialize_components(
     configs: &TempConfigStore,
     components: Vec<Component>,
-    secrets: &dyn consensus::config::Secrets,
+    secrets: &Secrets,
 ) -> anyhow::Result<(
     Vec<JoinHandle<anyhow::Result<()>>>,
     watch::Sender<bool>,
@@ -574,7 +575,12 @@ pub async fn initialize_components(
             .consensus_config
             .as_ref()
             .context("consensus component's config is missing")?
-            .main_node(secrets)?;
+            .main_node(
+                secrets
+                    .consensus
+                    .as_ref()
+                    .context("consensus secrets are missing")?,
+            )?;
         let started_at = Instant::now();
         tracing::info!("initializing Consensus");
         let pool = connection_pool.clone();

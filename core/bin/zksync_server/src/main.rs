@@ -19,7 +19,8 @@ use zksync_config::{
 };
 use zksync_core::{
     genesis_init, initialize_components, is_genesis_needed, setup_sigint_handler,
-    temp_config_store::TempConfigStore, Component, Components,
+    temp_config_store::{decode_yaml, Secrets, TempConfigStore},
+    Component, Components,
 };
 use zksync_env_config::FromEnv;
 use zksync_storage::RocksDB;
@@ -53,6 +54,9 @@ struct Cli {
     /// Path to the yaml config. If set, it will be used instead of env vars.
     #[arg(long)]
     config_path: Option<std::path::PathBuf>,
+    /// Path to the yaml with secrets. If set, it will be used instead of env vars.
+    #[arg(long)]
+    secrets_path: Option<std::path::PathBuf>,
 }
 
 #[derive(Debug, Clone)]
@@ -102,11 +106,11 @@ async fn main() -> anyhow::Result<()> {
     // Right now, we are trying to deserialize all the configs that may be needed by `zksync_core`.
     // "May" is the key word here, since some configs are only used by certain component configuration,
     // hence we are using `Option`s.
-    let configs = match opt.config_path {
+    let configs: TempConfigStore = match opt.config_path {
         Some(path) => {
             let yaml =
                 std::fs::read_to_string(&path).with_context(|| path.display().to_string())?;
-            TempConfigStore::decode_yaml(&yaml).context("failed decoding YAML config")?
+            decode_yaml(&yaml).context("failed decoding YAML config")?
         }
         None => TempConfigStore {
             postgres_config: PostgresConfig::from_env().ok(),
@@ -136,6 +140,16 @@ async fn main() -> anyhow::Result<()> {
             object_store_config: ObjectStoreConfig::from_env().ok(),
             kzg_config: KzgConfig::from_env().ok(),
             consensus_config: config::read_consensus_config().context("read_consensus_config()")?,
+        },
+    };
+    let secrets: Secrets = match opt.secrets_path {
+        Some(path) => {
+            let yaml =
+                std::fs::read_to_string(&path).with_context(|| path.display().to_string())?;
+            decode_yaml(&yaml).context("failed decoding YAML config")?
+        }
+        None => Secrets {
+            consensus: config::read_consensus_secrets().context("read_consensus_secrets()")?,
         },
     };
 
@@ -169,7 +183,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Run core actors.
     let (core_task_handles, stop_sender, cb_receiver, health_check_handle) =
-        initialize_components(&configs, components, &config::Secrets)
+        initialize_components(&configs, components, &secrets)
             .await
             .context("Unable to start Core actors")?;
 

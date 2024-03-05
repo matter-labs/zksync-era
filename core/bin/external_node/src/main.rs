@@ -172,7 +172,10 @@ async fn init_tasks(
     let singleton_pool_builder = ConnectionPool::singleton(&config.postgres.database_url);
 
     let fetcher_handle = if let Some(cfg) = config.consensus.as_ref() {
-        let cfg = cfg.fetcher(&config::Secrets)?;
+        let secrets = config::read_consensus_secrets()
+            .context("read_consensus_secrets()")?
+            .context("consensus secrets missing")?;
+        let cfg = cfg.fetcher(&secrets)?;
         let pool = connection_pool.clone();
         let mut stop_receiver = stop_receiver.clone();
         let sync_state = sync_state.clone();
@@ -466,7 +469,7 @@ async fn main() -> anyhow::Result<()> {
         tracing::info!("No sentry URL was provided");
     }
 
-    let mut config = ExternalNodeConfig::collect()
+    let config = ExternalNodeConfig::collect()
         .await
         .context("Failed to load external node config")?;
     if opt.enable_consensus {
@@ -476,8 +479,6 @@ async fn main() -> anyhow::Result<()> {
             !opt.enable_snapshots_recovery,
             "Consensus logic does not support snapshot recovery yet"
         );
-        config.consensus =
-            Some(config::read_consensus_config().context("read_consensus_config()")?);
     }
 
     if let Some(threshold) = config.optional.slow_query_threshold() {

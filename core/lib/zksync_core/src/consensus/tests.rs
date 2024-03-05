@@ -1,7 +1,10 @@
 use std::ops::Range;
 
 use anyhow::Context as _;
-use rand::Rng;
+use rand::{
+    distributions::{Distribution, Standard},
+    Rng,
+};
 use tracing::Instrument as _;
 use zksync_concurrency::{ctx, scope};
 use zksync_config::testonly::{Gen, RandomConfig};
@@ -320,18 +323,19 @@ async fn test_fetcher_backfill_certs() {
     .unwrap();
 }
 
-/*fn make_node_key<R: Rng>(rng: &mut R) -> node::PublicKey {
-    rng.gen::<node::SecretKey>().public()
-}*/
+struct Random<T>(T);
 
-impl RandomConfig for config::Config {
+impl<T> RandomConfig for Random<T>
+where
+    Standard: Distribution<T>,
+{
     fn sample(g: &mut Gen<impl Rng>) -> Self {
-        struct K(node::SecretKey);
-        impl RandomConfig for K {
-            fn sample(g: &mut Gen<impl Rng>) -> Self {
-                Self(g.rng.gen())
-            }
-        }
+        Self(g.rng.gen())
+    }
+}
+
+impl RandomConfig for Config {
+    fn sample(g: &mut Gen<impl Rng>) -> Self {
         Self {
             server_addr: g.gen(),
             public_addr: g.gen(),
@@ -339,15 +343,24 @@ impl RandomConfig for config::Config {
             max_payload_size: g.gen(),
             gossip_dynamic_inbound_limit: g.gen(),
             gossip_static_inbound: g
-                .gen::<Vec<K>>()
+                .gen::<Vec<Random<node::SecretKey>>>()
                 .into_iter()
                 .map(|x| x.0.public())
                 .collect(),
             gossip_static_outbound: g
-                .gen::<Vec<K>>()
+                .gen::<Vec<Random<node::SecretKey>>>()
                 .into_iter()
                 .map(|x| (x.0.public(), g.gen()))
                 .collect(),
+        }
+    }
+}
+
+impl RandomConfig for Secrets {
+    fn sample(g: &mut Gen<impl Rng>) -> Self {
+        Self {
+            validator_key: g.gen::<Option<Random<validator::SecretKey>>>().map(|x| x.0),
+            node_key: g.gen::<Option<Random<node::SecretKey>>>().map(|x| x.0),
         }
     }
 }

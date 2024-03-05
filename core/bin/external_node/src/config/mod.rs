@@ -5,13 +5,13 @@ use serde::Deserialize;
 use url::Url;
 use zksync_basic_types::{Address, L1ChainId, L2ChainId};
 use zksync_config::ObjectStoreConfig;
-use zksync_consensus_roles::{node, validator};
 use zksync_core::{
     api_server::{
         tx_sender::TxSenderConfig,
         web3::{state::InternalApiConfig, Namespace},
     },
     consensus,
+    temp_config_store::decode_json,
 };
 use zksync_types::{api::BridgeAddresses, fee_model::FeeParams};
 use zksync_web3_decl::{
@@ -478,22 +478,20 @@ impl PostgresConfig {
     }
 }
 
-pub(crate) struct Secrets;
-
-impl consensus::config::Secrets for Secrets {
-    fn validator_key(&self) -> anyhow::Result<validator::SecretKey> {
-        anyhow::bail!("not available");
-    }
-    fn node_key(&self) -> anyhow::Result<node::SecretKey> {
-        consensus::config::read_secret("EN_CONSENSUS_NODE_KEY")
-    }
+pub(crate) fn read_consensus_secrets() -> anyhow::Result<Option<consensus::Secrets>> {
+    let Ok(path) = std::env::var("EN_CONSENSUS_SECRETS_PATH") else {
+        return Ok(None);
+    };
+    let cfg = std::fs::read_to_string(&path).context(path)?;
+    Ok(Some(decode_json(&cfg).context("failed decoding JSON")?))
 }
 
-pub(crate) fn read_consensus_config() -> anyhow::Result<consensus::config::Config> {
-    let path = std::env::var("EN_CONSENSUS_CONFIG_PATH")
-        .context("EN_CONSENSUS_CONFIG_PATH env variable is not set")?;
+pub(crate) fn read_consensus_config() -> anyhow::Result<Option<consensus::Config>> {
+    let Ok(path) = std::env::var("EN_CONSENSUS_CONFIG_PATH") else {
+        return Ok(None);
+    };
     let cfg = std::fs::read_to_string(&path).context(path)?;
-    Ok(consensus::config::decode_json(&cfg).context("failed decoding JSON")?)
+    Ok(Some(decode_json(&cfg).context("failed decoding JSON")?))
 }
 
 /// Configuration for snapshot recovery. Loaded optionally, only if the corresponding command-line argument
@@ -520,7 +518,7 @@ pub struct ExternalNodeConfig {
     pub postgres: PostgresConfig,
     pub optional: OptionalENConfig,
     pub remote: RemoteENConfig,
-    pub consensus: Option<consensus::config::Config>,
+    pub consensus: Option<consensus::Config>,
 }
 
 impl ExternalNodeConfig {
@@ -585,7 +583,7 @@ impl ExternalNodeConfig {
             postgres,
             required,
             optional,
-            consensus: None,
+            consensus: read_consensus_config().context("read_consensus_config()")?,
         })
     }
 }

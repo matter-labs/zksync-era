@@ -14,33 +14,18 @@
 // NodePublicKey - public key of the node (gossip network participant) of the form "node:public:<signature scheme>:<hex encoded key material>"
 //   Currently only ed25519 signature scheme is supported for nodes.
 //   example: "node:public:ed25519:d36607699a0a3fbe3de16947928cf299484219ff62ca20f387795b0859dbe501"
+//
+// ValidatorSecretKey - secret key of the validator (consensus participant) of the form "validator:secret:<signature scheme>:<hex encoded key material>"
+//   Currently only bn254 signature scheme is supported for validators.
+//   example: "validator:secret:bn254:1aaa9c2c5a4f0f75b79127a7207348e33df55869d79622eccf65c91c98861257"
+//
+// NodeSecretKey - secret key of the node (gossip network participant) of the form "node:secret:<signature scheme>:<hex encoded key material>"
+//   Currently only ed25519 signature scheme is supported for nodes.
+//   example: "node:secret:ed25519:4f761350f4b038f8052d17f0a02e18782be66f16d407e7a073c925d52dcc8f02"
+
 syntax = "proto3";
 
 package zksync.core.consensus;
-
-import "zksync/config/alerts.proto";
-import "zksync/config/api.proto";
-import "zksync/config/chain.proto";
-import "zksync/config/contracts.proto";
-import "zksync/config/contract_verifier.proto";
-import "zksync/config/database.proto";
-import "zksync/config/eth_client.proto";
-import "zksync/config/eth_sender.proto";
-import "zksync/config/eth_watch.proto";
-import "zksync/config/fri_proof_compressor.proto";
-import "zksync/config/fri_prover_gateway.proto";
-import "zksync/config/fri_prover_group.proto";
-import "zksync/config/fri_prover.proto";
-import "zksync/config/fri_witness_generator.proto";
-import "zksync/config/fri_witness_vector_generator.proto";
-import "zksync/config/house_keeper.proto";
-import "zksync/config/kzg.proto";
-import "zksync/config/object_store.proto";
-import "zksync/config/observability.proto";
-import "zksync/config/proof_data_handler.proto";
-import "zksync/config/snapshots_creator.proto";
-import "zksync/config/utils.proto";
-import "zksync/config/witness_generator.proto";
 
 // (public key, ip address) of a gossip network node. 
 message NodeAddr {
@@ -48,7 +33,7 @@ message NodeAddr {
   optional string addr = 2; // required; IpAddr
 }
 
-message ConsensusConfig {
+message Config {
   // IP:port to listen on, for incoming TCP connections.
   // Use `0.0.0.0:<port>` to listen on all network interfaces (i.e. on all IPs exposed by this VM).
   optional string server_addr = 1; // required; IpAddr
@@ -76,32 +61,9 @@ message ConsensusConfig {
   repeated NodeAddr gossip_static_outbound = 7;
 }
 
-message TempConfigStore {
-  optional config.database.Postgres postgres = 1;
-  optional config.api.HealthCheck health_check = 2;
-  optional config.api.MerkleTreeApi merkle_tree_api = 3;
-  optional config.api.Web3JsonRpc web3_json_rpc = 4;
-  optional config.chain.CircuitBreaker circuit_breaker = 5;
-  optional config.chain.Mempool mempool = 6;
-  optional config.chain.EthNetwork network = 7;
-  optional config.chain.OperationsManager operations_manager = 8;
-  optional config.chain.StateKeeper state_keeper = 9;
-  optional config.house_keeper.HouseKeeper house_keeper = 10;
-  optional config.fri_proof_compressor.FriProofCompressor fri_proof_compressor = 11;
-  optional config.fri_prover.FriProver fri_prover = 12;
-  optional config.fri_prover_group.FriProverGroup fri_prover_group = 13;
-  optional config.fri_witness_generator.FriWitnessGenerator fri_witness_generator = 14;
-  optional config.utils.Prometheus prometheus = 15;
-  optional config.proof_data_handler.ProofDataHandler proof_data_handler = 16;
-  optional config.witness_generator.WitnessGenerator witness_generator = 17;
-  optional config.api.Api api = 18;
-  optional config.contracts.Contracts contracts = 19;
-  optional config.database.DB db = 20;
-  optional config.eth_client.ETHClient eth_client = 21;
-  optional config.eth_sender.ETHSender eth_sender = 22;
-  optional config.eth_watch.ETHWatch eth_watch = 23;
-  optional config.eth_sender.GasAdjuster gas_adjuster = 24;
-  optional config.object_store.ObjectStore object_store = 25;
-  optional config.kzg.Kzg kzg = 26;
-  optional ConsensusConfig consensus = 27;
+message Secrets {
+  optional string validator_key = 1; // required for validator nodes; ValidatorSecretKey
+  optional string node_key = 2; // required for any node; NodeSecretKey
 }
+
+
