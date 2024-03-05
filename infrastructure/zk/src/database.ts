@@ -73,12 +73,16 @@ export async function resetTest(opts: DbOpts) {
 
 async function dropForDal(dalPath: DalPath, dbUrl: string) {
     console.log(`Dropping DB for dal ${dalPath}...`);
+    console.log(`DB URL = ${dbUrl}`);
     await utils.spawn(`cargo sqlx database drop -y --database-url ${dbUrl}`);
 }
 
 export async function drop(opts: DbOpts) {
     await utils.confirmAction();
     let dals = getDals(opts);
+    for (const [dalPath, dbUrl] of dals.entries()) {
+        console.log(`dbPath = ${dalPath}, dbUrl = ${dbUrl}`);
+    }
     for (const [dalPath, dbUrl] of dals.entries()) {
         await dropForDal(dalPath, dbUrl);
     }
