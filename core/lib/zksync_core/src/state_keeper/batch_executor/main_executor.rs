@@ -24,7 +24,7 @@ use super::{BatchExecutor, BatchExecutorHandle, Command, TxExecutionResult};
 use crate::{
     metrics::{InteractionType, TxStage, APP_METRICS},
     state_keeper::{
-        cached_storage::CachedStorage,
+        cached_storage::{AsyncRocksdbCache, CachedStorage, ReadStorageFactory},
         metrics::{TxExecutionStage, BATCH_TIP_METRICS, EXECUTOR_METRICS, KEEPER_METRICS},
         types::ExecutionMetricsForCriteria,
     },
@@ -38,7 +38,7 @@ pub struct MainBatchExecutor {
     max_allowed_tx_gas_limit: U256,
     upload_witness_inputs_to_gcs: bool,
     optional_bytecode_compression: bool,
-    cached_storage: CachedStorage,
+    cached_storage: CachedStorage<AsyncRocksdbCache>,
 }
 
 impl MainBatchExecutor {
@@ -56,7 +56,7 @@ impl MainBatchExecutor {
             max_allowed_tx_gas_limit,
             upload_witness_inputs_to_gcs,
             optional_bytecode_compression,
-            cached_storage: CachedStorage::new(
+            cached_storage: CachedStorage::async_rocksdb_cache(
                 pool,
                 state_keeper_db_path,
                 enum_index_migration_chunk_size,

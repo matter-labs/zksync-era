@@ -4,6 +4,7 @@ use std::{
 };
 
 use anyhow::Context;
+use async_trait::async_trait;
 use tokio::{runtime::Handle, sync::watch};
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_state::{PostgresStorage, ReadStorage, RocksdbStorage, StateKeeperColumnFamily};
@@ -18,17 +19,30 @@ type BoxReadStorage<'a> = Box<dyn ReadStorage + Send + 'a>;
 /// This struct's main design purpose is to be able to produce [`ReadStorage`] implementation with
 /// as little blocking operations as possible to ensure liveliness.
 #[derive(Debug, Clone)]
-pub struct CachedStorage {
-    inner: Arc<Mutex<CachedStorageFactory>>,
+pub struct CachedStorage<T: ReadStorageFactory> {
+    inner: Arc<Mutex<T>>,
+}
+
+#[async_trait]
+pub trait ReadStorageFactory {
+    type ReadStorageImpl<'a>: ReadStorage
+    where
+        Self: 'a;
+
+    async fn access_storage<'a>(
+        &'a self,
+        rt_handle: Handle,
+        stop_receiver: &watch::Receiver<bool>,
+    ) -> Option<Self::ReadStorageImpl<'a>>;
 }
 
 #[derive(Debug, Clone)]
-pub enum CachedStorageFactory {
+pub enum AsyncRocksdbCache {
     Postgres(ConnectionPool),
     Rocksdb(RocksDB<StateKeeperColumnFamily>, ConnectionPool),
 }
 
-impl CachedStorageFactory {
+impl AsyncRocksdbCache {
     /// Returns a [`ReadStorage`] implementation backed by Postgres
     async fn access_storage_pg(
         rt_handle: Handle,
@@ -88,16 +102,16 @@ impl CachedStorageFactory {
         Ok(rocksdb.map(|rocksdb| Box::new(rocksdb) as BoxReadStorage<'a>))
     }
 
-    pub async fn access_storage<'a>(
+    pub async fn access_storage_inner<'a>(
         &'a self,
         rt_handle: Handle,
         stop_receiver: &watch::Receiver<bool>,
     ) -> Option<BoxReadStorage<'a>> {
         match self {
-            CachedStorageFactory::Postgres(pool) => {
+            AsyncRocksdbCache::Postgres(pool) => {
                 Some(Self::access_storage_pg(rt_handle, pool).await.expect(""))
             }
-            CachedStorageFactory::Rocksdb(rocksdb, pool) => {
+            AsyncRocksdbCache::Rocksdb(rocksdb, pool) => {
                 let mut conn = pool
                     .access_storage_tagged("state_keeper")
                     .await
@@ -110,13 +124,38 @@ impl CachedStorageFactory {
     }
 }
 
-impl CachedStorage {
-    pub fn new(
+#[async_trait]
+impl ReadStorageFactory for AsyncRocksdbCache {
+    type ReadStorageImpl<'a> = BoxReadStorage<'a>;
+
+    async fn access_storage<'a>(
+        &'a self,
+        rt_handle: Handle,
+        stop_receiver: &watch::Receiver<bool>,
+    ) -> Option<Self::ReadStorageImpl<'a>> {
+        self.access_storage_inner(rt_handle, stop_receiver).await
+    }
+}
+
+impl<T: ReadStorageFactory + Clone> CachedStorage<T> {
+    pub fn new(inner: Arc<Mutex<T>>) -> CachedStorage<T> {
+        Self { inner }
+    }
+
+    pub fn factory(&self) -> T {
+        // it's important that we don't hold the lock for long;
+        // that's why `CachedStorageFactory` implements `Clone`
+        self.inner.lock().expect("poisoned").clone()
+    }
+}
+
+impl CachedStorage<AsyncRocksdbCache> {
+    pub fn async_rocksdb_cache(
         pool: ConnectionPool,
         state_keeper_db_path: String,
         enum_index_migration_chunk_size: usize,
-    ) -> CachedStorage {
-        let inner = Arc::new(Mutex::new(CachedStorageFactory::Postgres(pool.clone())));
+    ) -> Self {
+        let inner = Arc::new(Mutex::new(AsyncRocksdbCache::Postgres(pool.clone())));
         let factory = inner.clone();
         tokio::task::spawn(async move {
             tracing::debug!("Catching up RocksDB asynchronously");
@@ -133,17 +172,11 @@ impl CachedStorage {
             drop(storage);
             if let Some(rocksdb) = rocksdb {
                 let mut factory_guard = factory.lock().expect("");
-                *factory_guard = CachedStorageFactory::Rocksdb(rocksdb.db, pool)
+                *factory_guard = AsyncRocksdbCache::Rocksdb(rocksdb.db, pool)
             } else {
                 tracing::warn!("Interrupted");
             }
         });
-        CachedStorage { inner }
-    }
-
-    pub fn factory(&self) -> CachedStorageFactory {
-        // it's important that we don't hold the lock for long;
-        // that's why `CachedStorageFactory` implements `Clone`
-        self.inner.lock().expect("poisoned").clone()
+        Self::new(inner)
     }
 }
