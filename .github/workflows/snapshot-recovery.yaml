@@ -87,7 +87,6 @@ jobs:
 
       - name: Loadtest configuration
         run: |
-          echo EXPECTED_TX_COUNT="1000" >> .env
           echo FAIL_FAST=true >> .env
           echo ACCOUNTS_AMOUNT=40 >> .env
           echo DURATION_SEC=30 >> .env
@@ -99,11 +98,11 @@ jobs:
           ci_run sleep 5
 
       - name: Perform loadtest
-        run: ci_run zk run loadtest
+        run: EXPECTED_TX_COUNT=1000 ci_run zk run loadtest
 
-      - name: Show server.log logs
-        if: always()
-        run: ci_run cat server.log || true
+      # - name: Show server.log logs
+      #   if: always()
+      #   run: ci_run cat server.log || true
              
 
       # zk run loadtest > loadtest.log 2>loadtest_error.log
