@@ -1,12 +1,7 @@
 use std::{convert::TryInto, str::FromStr};
 
 use bigdecimal::Zero;
-use serde::{Deserialize, Serialize};
-use sqlx::{
-    postgres::PgRow,
-    types::chrono::{DateTime, NaiveDateTime, Utc},
-    Error, FromRow, Row,
-};
+use sqlx::types::chrono::{DateTime, NaiveDateTime, Utc};
 use zksync_types::{
     api,
     api::{TransactionDetails, TransactionReceipt, TransactionStatus},
@@ -399,88 +394,6 @@ impl From<StorageTransactionReceipt> for TransactionReceipt {
     }
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct StorageApiTransaction {
-    #[serde(flatten)]
-    pub inner_api_transaction: api::Transaction,
-}
-
-impl From<StorageApiTransaction> for api::Transaction {
-    fn from(tx: StorageApiTransaction) -> Self {
-        tx.inner_api_transaction
-    }
-}
-
-impl<'r> FromRow<'r, PgRow> for StorageApiTransaction {
-    fn from_row(db_row: &'r PgRow) -> Result<Self, Error> {
-        let row_signature: Option<Vec<u8>> = db_row.get("signature");
-        let signature = row_signature
-            .and_then(|signature| PackedEthSignature::deserialize_packed(&signature).ok());
-
-        Ok(StorageApiTransaction {
-            inner_api_transaction: api::Transaction {
-                hash: H256::from_slice(db_row.get("tx_hash")),
-                nonce: U256::from(db_row.try_get::<i64, &str>("nonce").ok().unwrap_or(0)),
-                block_hash: db_row.try_get("block_hash").ok().map(H256::from_slice),
-                block_number: db_row
-                    .try_get::<i64, &str>("block_number")
-                    .ok()
-                    .map(U64::from),
-                transaction_index: db_row
-                    .try_get::<i32, &str>("index_in_block")
-                    .ok()
-                    .map(U64::from),
-                from: Some(H160::from_slice(db_row.get("initiator_address"))),
-                to: Some(
-                    serde_json::from_value::<Address>(db_row.get("execute_contract_address"))
-                        .expect("incorrect address value in the database"),
-                ),
-                value: bigdecimal_to_u256(db_row.get::<BigDecimal, &str>("value")),
-                // `gas_price`, `max_fee_per_gas`, `max_priority_fee_per_gas` will be zero for the priority transactions.
-                // For common L2 transactions `gas_price` is equal to `effective_gas_price` if the transaction is included
-                // in some block, or `max_fee_per_gas` otherwise.
-                gas_price: Some(bigdecimal_to_u256(
-                    db_row
-                        .try_get::<BigDecimal, &str>("effective_gas_price")
-                        .or_else(|_| db_row.try_get::<BigDecimal, &str>("max_fee_per_gas"))
-                        .unwrap_or_else(|_| BigDecimal::zero()),
-                )),
-                max_fee_per_gas: Some(bigdecimal_to_u256(
-                    db_row
-                        .try_get::<BigDecimal, &str>("max_fee_per_gas")
-                        .unwrap_or_else(|_| BigDecimal::zero()),
-                )),
-                max_priority_fee_per_gas: Some(bigdecimal_to_u256(
-                    db_row
-                        .try_get::<BigDecimal, &str>("max_priority_fee_per_gas")
-                        .unwrap_or_else(|_| BigDecimal::zero()),
-                )),
-                gas: bigdecimal_to_u256(db_row.get::<BigDecimal, &str>("gas_limit")),
-                input: serde_json::from_value(db_row.get::<serde_json::Value, &str>("calldata"))
-                    .expect("Incorrect calldata value in the database"),
-                raw: None,
-                v: signature.as_ref().map(|s| U64::from(s.v())),
-                r: signature.as_ref().map(|s| U256::from(s.r())),
-                s: signature.as_ref().map(|s| U256::from(s.s())),
-                transaction_type: db_row
-                    .try_get::<Option<i32>, &str>("tx_format")
-                    .unwrap_or_default()
-                    .map(U64::from),
-                access_list: None,
-                chain_id: U256::zero(),
-                l1_batch_number: db_row
-                    .try_get::<i64, &str>("l1_batch_number_tx")
-                    .ok()
-                    .map(U64::from),
-                l1_batch_tx_index: db_row
-                    .try_get::<i32, &str>("l1_batch_tx_index")
-                    .ok()
-                    .map(U64::from),
-            },
-        })
-    }
-}
-
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct StorageTransactionDetails {
     pub is_priority: bool,
@@ -556,38 +469,72 @@ impl From<StorageTransactionDetails> for TransactionDetails {
     }
 }
 
-pub fn web3_transaction_select_sql() -> &'static str {
-    r#"
-         transactions.hash as tx_hash,
-         transactions.index_in_block as index_in_block,
-         transactions.miniblock_number as block_number,
-         transactions.nonce as nonce,
-         transactions.signature as signature,
-         transactions.initiator_address as initiator_address,
-         transactions.tx_format as tx_format,
-         transactions.value as value,
-         transactions.gas_limit as gas_limit,
-         transactions.max_fee_per_gas as max_fee_per_gas,
-         transactions.max_priority_fee_per_gas as max_priority_fee_per_gas,
-         transactions.effective_gas_price as effective_gas_price,
-         transactions.l1_batch_number as l1_batch_number_tx,
-         transactions.l1_batch_tx_index as l1_batch_tx_index,
-         transactions.data->'contractAddress' as "execute_contract_address",
-         transactions.data->'calldata' as "calldata",
-         miniblocks.hash as "block_hash"
-    "#
+#[derive(Debug)]
+pub(crate) struct StorageApiTransaction {
+    pub tx_hash: Vec<u8>,
+    pub index_in_block: Option<i32>,
+    pub block_number: Option<i64>,
+    pub nonce: Option<i64>,
+    pub signature: Option<Vec<u8>>,
+    pub initiator_address: Vec<u8>,
+    pub tx_format: Option<i32>,
+    pub value: BigDecimal,
+    pub gas_limit: Option<BigDecimal>,
+    pub max_fee_per_gas: Option<BigDecimal>,
+    pub max_priority_fee_per_gas: Option<BigDecimal>,
+    pub effective_gas_price: Option<BigDecimal>,
+    pub l1_batch_number: Option<i64>,
+    pub l1_batch_tx_index: Option<i32>,
+    pub execute_contract_address: serde_json::Value,
+    pub calldata: serde_json::Value,
+    pub block_hash: Option<Vec<u8>>,
 }
 
-pub fn extract_web3_transaction(db_row: PgRow, chain_id: L2ChainId) -> api::Transaction {
-    let mut storage_api_tx = StorageApiTransaction::from_row(&db_row).unwrap();
-    storage_api_tx.inner_api_transaction.chain_id = U256::from(chain_id.as_u64());
-    if storage_api_tx.inner_api_transaction.transaction_type == Some(U64::from(0)) {
-        storage_api_tx.inner_api_transaction.v = storage_api_tx
-            .inner_api_transaction
-            .v
-            .map(|v| v + 35 + chain_id.as_u64() * 2);
+impl StorageApiTransaction {
+    pub fn into_api(self, chain_id: L2ChainId) -> api::Transaction {
+        let signature = self
+            .signature
+            .and_then(|signature| PackedEthSignature::deserialize_packed(&signature).ok());
+
+        let mut tx = api::Transaction {
+            hash: H256::from_slice(&self.tx_hash),
+            nonce: U256::from(self.nonce.unwrap_or(0) as u64),
+            block_hash: self.block_hash.map(|hash| H256::from_slice(&hash)),
+            block_number: self.block_number.map(|number| U64::from(number as u64)),
+            transaction_index: self.index_in_block.map(|idx| U64::from(idx as u64)),
+            from: Some(Address::from_slice(&self.initiator_address)),
+            to: Some(serde_json::from_value(self.execute_contract_address).unwrap()),
+            value: bigdecimal_to_u256(self.value),
+            gas_price: Some(bigdecimal_to_u256(
+                self.effective_gas_price
+                    .or_else(|| self.max_fee_per_gas.clone())
+                    .unwrap_or_else(BigDecimal::zero),
+            )),
+            gas: bigdecimal_to_u256(self.gas_limit.unwrap_or_else(BigDecimal::zero)),
+            input: serde_json::from_value(self.calldata).expect("incorrect calldata in Postgres"),
+            v: signature.as_ref().map(|s| U64::from(s.v())),
+            r: signature.as_ref().map(|s| U256::from(s.r())),
+            s: signature.as_ref().map(|s| U256::from(s.s())),
+            raw: None,
+            transaction_type: self.tx_format.map(|format| U64::from(format as u32)),
+            access_list: None,
+            max_fee_per_gas: Some(bigdecimal_to_u256(
+                self.max_fee_per_gas.unwrap_or_else(BigDecimal::zero),
+            )),
+            max_priority_fee_per_gas: Some(bigdecimal_to_u256(
+                self.max_priority_fee_per_gas
+                    .unwrap_or_else(BigDecimal::zero),
+            )),
+            chain_id: U256::from(chain_id.as_u64()),
+            l1_batch_number: self.l1_batch_number.map(|number| U64::from(number as u64)),
+            l1_batch_tx_index: self.l1_batch_tx_index.map(|idx| U64::from(idx as u64)),
+        };
+
+        if tx.transaction_type == Some(U64::from(0)) {
+            tx.v = tx.v.map(|v| v + 35 + chain_id.as_u64() * 2);
+        }
+        tx
     }
-    storage_api_tx.into()
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]

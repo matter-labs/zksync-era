@@ -3,8 +3,9 @@ pub mod gpu_prover {
     use std::{collections::HashMap, sync::Arc, time::Instant};
 
     use anyhow::Context as _;
-    use circuit_definitions::eip4844_proof_config;
-    use shivini::{gpu_prove_from_external_witness_data, ProverContext};
+    use shivini::{
+        gpu_proof_config::GpuProofConfig, gpu_prove_from_external_witness_data, ProverContext,
+    };
     use tokio::task::JoinHandle;
     use zksync_config::configs::{fri_prover_group::FriProverGroupConfig, FriProverConfig};
     use zksync_dal::{fri_prover_dal::types::SocketAddress, ConnectionPool};
@@ -23,6 +24,7 @@ pub mod gpu_prover {
             circuit_definitions::{
                 base_layer::ZkSyncBaseLayerProof, recursion_layer::ZkSyncRecursionLayerProof,
             },
+            eip4844_proof_config, recursion_layer_proof_config,
         },
         CircuitWrapper, FriProofWrapper, ProverServiceDataKey, WitnessVectorArtifacts,
     };
@@ -121,7 +123,6 @@ pub mod gpu_prover {
         ) -> ProverArtifacts {
             let worker = Worker::new();
             let GpuProverJob {
-                assembly,
                 witness_vector_artifacts,
             } = job;
             let WitnessVectorArtifacts {
@@ -129,16 +130,19 @@ pub mod gpu_prover {
                 prover_job,
             } = witness_vector_artifacts;
 
-            let (proof_config, circuit_id) = match &prover_job.circuit_wrapper {
-                CircuitWrapper::Base(base_circuit) => (
+            let (gpu_proof_config, proof_config, circuit_id) = match &prover_job.circuit_wrapper {
+                CircuitWrapper::Base(circuit) => (
+                    GpuProofConfig::from_base_layer_circuit(circuit),
                     base_layer_proof_config(),
-                    base_circuit.numeric_circuit_type(),
+                    circuit.numeric_circuit_type(),
                 ),
-                CircuitWrapper::Recursive(recursive_circuit) => (
-                    base_layer_proof_config(),
-                    recursive_circuit.numeric_circuit_type(),
+                CircuitWrapper::Recursive(circuit) => (
+                    GpuProofConfig::from_recursive_layer_circuit(circuit),
+                    recursion_layer_proof_config(),
+                    circuit.numeric_circuit_type(),
                 ),
-                CircuitWrapper::Eip4844(_) => (
+                CircuitWrapper::Eip4844(circuit) => (
+                    GpuProofConfig::from_eip4844_circuit(circuit),
                     eip4844_proof_config(),
                     ProverServiceDataKey::eip4844().circuit_id,
                 ),
@@ -146,13 +150,12 @@ pub mod gpu_prover {
 
             let started_at = Instant::now();
             let proof = gpu_prove_from_external_witness_data::<
-                _,
                 DefaultTranscript,
                 DefaultTreeHasher,
                 NoPow,
                 _,
             >(
-                &assembly,
+                &gpu_proof_config,
                 &witness_vector,
                 proof_config,
                 &setup_data.setup,

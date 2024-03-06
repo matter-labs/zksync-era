@@ -62,7 +62,7 @@ use crate::{
     storage_oracle::StorageOracle,
     utils::{
         expand_bootloader_contents, save_circuit, save_eip_4844_circuit, ClosedFormInputWrapper,
-        SchedulerPartialInputWrapper,
+        SchedulerPartialInputWrapper, KZG_TRUSTED_SETUP_FILE,
     },
 };
 
@@ -108,7 +108,6 @@ pub struct BasicWitnessGenerator {
     connection_pool: ConnectionPool,
     prover_connection_pool: ConnectionPool,
     protocol_versions: Vec<FriProtocolVersionId>,
-    trusted_setup_path: String,
 }
 
 impl BasicWitnessGenerator {
@@ -119,7 +118,6 @@ impl BasicWitnessGenerator {
         connection_pool: ConnectionPool,
         prover_connection_pool: ConnectionPool,
         protocol_versions: Vec<FriProtocolVersionId>,
-        trusted_setup_path: String,
     ) -> Self {
         Self {
             config: Arc::new(config),
@@ -128,7 +126,6 @@ impl BasicWitnessGenerator {
             connection_pool,
             prover_connection_pool,
             protocol_versions,
-            trusted_setup_path,
         }
     }
 
@@ -139,7 +136,6 @@ impl BasicWitnessGenerator {
         basic_job: BasicWitnessGeneratorJob,
         started_at: Instant,
         config: Arc<FriWitnessGeneratorConfig>,
-        trusted_setup_path: String,
     ) -> Option<BasicCircuitArtifacts> {
         let BasicWitnessGeneratorJob {
             block_number,
@@ -194,7 +190,6 @@ impl BasicWitnessGenerator {
                 block_number,
                 job,
                 eip_4844_blobs,
-                &trusted_setup_path,
             )
             .await,
         )
@@ -260,7 +255,6 @@ impl JobProcessor for BasicWitnessGenerator {
         let object_store = Arc::clone(&self.object_store);
         let connection_pool = self.connection_pool.clone();
         let prover_connection_pool = self.prover_connection_pool.clone();
-        let trusted_setup_path = self.trusted_setup_path.clone();
         tokio::spawn(async move {
             Ok(Self::process_job_impl(
                 object_store,
@@ -269,7 +263,6 @@ impl JobProcessor for BasicWitnessGenerator {
                 job,
                 started_at,
                 config,
-                trusted_setup_path,
             )
             .await)
         })
@@ -343,7 +336,6 @@ async fn process_basic_circuits_job(
     block_number: L1BatchNumber,
     job: PrepareBasicCircuitsJob,
     eip_4844_blobs: Eip4844Blobs,
-    trusted_setup_path: &str,
 ) -> BasicCircuitArtifacts {
     let witness_gen_input =
         build_basic_circuits_witness_generator_input(&connection_pool, job, block_number).await;
@@ -355,7 +347,6 @@ async fn process_basic_circuits_job(
             connection_pool,
             witness_gen_input,
             eip_4844_blobs,
-            trusted_setup_path,
         )
         .await;
     WITNESS_GENERATOR_METRICS.witness_generation_time[&AggregationRound::BasicCircuits.into()]
@@ -543,7 +534,6 @@ async fn generate_witness(
     connection_pool: ConnectionPool,
     input: BasicCircuitWitnessGeneratorInput,
     eip_4844_blobs: Eip4844Blobs,
-    trusted_setup_path: &str,
 ) -> (
     Vec<(u8, String)>,
     Vec<(usize, String)>,
@@ -738,6 +728,10 @@ async fn generate_witness(
         eip_4844_blobs.push(vec![0; EIP_4844_BLOB_SIZE]);
     }
 
+    let trusted_setup_path = KZG_TRUSTED_SETUP_FILE
+        .path()
+        .to_str()
+        .expect("Path to KZG trusted setup is not a UTF-8 string");
     let (eip_4844_circuits, mut eip_4844_witnesses): (Vec<Eip4844Circuit>, Vec<Eip4844Witness>) =
         eip_4844_blobs
             .clone()
