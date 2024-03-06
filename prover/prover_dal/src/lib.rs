@@ -7,8 +7,7 @@ pub mod fri_witness_generator_dal;
 
 use std::time::Duration;
 
-use sqlx::postgres::types::PgInterval;
-use sqlx::types::chrono::NaiveTime;
+use sqlx::{postgres::types::PgInterval, types::chrono::NaiveTime};
 
 pub const fn pg_interval_from_duration(processing_timeout: Duration) -> PgInterval {
     PgInterval {

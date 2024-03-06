@@ -289,7 +289,9 @@ mod tests {
     async fn test_build_get_logs_with_multiple_topics_where_clause() {
         let connection_pool = ConnectionPool::test_pool().await;
         let storage = &mut connection_pool.access_storage().await.unwrap();
-        let events_web3_dal = EventsWeb3Dal { storage };
+        let events_web3_dal = EventsWeb3Dal {
+            storage: &mut storage.0,
+        };
         let filter = GetLogsFilter {
             from_block: MiniblockNumber(10),
             to_block: MiniblockNumber(400),
@@ -323,7 +325,9 @@ mod tests {
     async fn test_build_get_logs_with_no_address_where_clause() {
         let connection_pool = ConnectionPool::test_pool().await;
         let storage = &mut connection_pool.access_storage().await.unwrap();
-        let events_web3_dal = EventsWeb3Dal { storage };
+        let events_web3_dal = EventsWeb3Dal {
+            storage: &mut storage.0,
+        };
         let filter = GetLogsFilter {
             from_block: MiniblockNumber(10),
             to_block: MiniblockNumber(400),

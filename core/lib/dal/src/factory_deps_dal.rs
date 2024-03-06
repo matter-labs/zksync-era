@@ -1,10 +1,11 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::StorageProcessor;
 use anyhow::Context as _;
 use zksync_contracts::{BaseSystemContracts, SystemContractCode};
 use zksync_types::{MiniblockNumber, H256, U256};
 use zksync_utils::{bytes_to_be_words, bytes_to_chunks};
+
+use crate::StorageProcessor;
 
 /// DAL methods related to factory dependencies.
 #[derive(Debug)]

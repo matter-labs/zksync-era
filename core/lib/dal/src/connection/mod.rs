@@ -18,8 +18,7 @@ use sqlx::{
 };
 use zksync_db_connection::{StorageProcessorTags, TracedConnections};
 
-use crate::StorageProcessor;
-use crate::{metrics::CONNECTION_METRICS, ConnectionOperator};
+use crate::{metrics::CONNECTION_METRICS, ConnectionOperator, StorageProcessor};
 
 /// Builder for [`ConnectionPool`]s.
 #[derive(Clone)]
