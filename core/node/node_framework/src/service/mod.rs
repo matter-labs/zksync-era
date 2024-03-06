@@ -169,22 +169,23 @@ impl ZkStackService {
 
         let remaining_tasks_with_timeout: Vec<_> = remaining
             .into_iter()
-            .map(|task|
-                rt_handle.spawn(async move {
-                    if tokio::time::timeout(TASK_SHUTDOWN_TIMEOUT, task).await.is_err()
-                    {
-                        tracing::warn!(
-                            "One of the tasks didn't finish in {TASK_SHUTDOWN_TIMEOUT:?} and was dropped"
-                        );
-                    }
-                })
-            ).collect();
+            .map(|task| async { tokio::time::timeout(TASK_SHUTDOWN_TIMEOUT, task).await })
+            .collect();
 
         // Send stop signal to remaining tasks and wait for them to finish.
         // Given that we are shutting down, we do not really care about returned values.
         self.stop_sender.send(true).ok();
-        self.runtime
+        let execution_results = self
+            .runtime
             .block_on(futures::future::join_all(remaining_tasks_with_timeout));
+        let execution_timeouts_count = execution_results.iter().filter(|&r| r.is_err()).count();
+        if execution_timeouts_count > 0 {
+            tracing::warn!(
+                "{execution_timeouts_count} tasks didn't finish in {TASK_SHUTDOWN_TIMEOUT:?} and was dropped"
+            );
+        } else {
+            tracing::info!("Remaining tasks finished without reaching timeouts");
+        }
 
         // Call after_node_shutdown hooks.
         let local_set = tokio::task::LocalSet::new();
