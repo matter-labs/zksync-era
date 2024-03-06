@@ -560,7 +560,6 @@ pub async fn initialize_components(
     }
 
     let state_transition_chain_contract = contracts_config.diamond_proxy_addr;
-    let state_transition_manager_contract = contracts_config.state_transition_proxy_addr;
     if components.contains(&Component::Consensus) {
         let cfg = configs
             .consensus_config
@@ -593,8 +592,6 @@ pub async fn initialize_components(
         APP_METRICS.init_latency[&InitStage::Consensus].set(elapsed);
         tracing::info!("initialized Consensus in {elapsed:?}");
     }
-
-    let main_zksync_contract_address = contracts_config.diamond_proxy_addr;
 
     if components.contains(&Component::EthWatcher) {
         let started_at = Instant::now();

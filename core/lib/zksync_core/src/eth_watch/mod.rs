@@ -204,7 +204,7 @@ pub async fn start_eth_watch(
         config.confirmations_for_eth_event,
     );
 
-    let mut eth_watch = EthWatch::new(
+    let eth_watch = EthWatch::new(
         state_transition_chain_contract_addr,
         Some(governance.0),
         Box::new(eth_client),

@@ -151,8 +151,13 @@ export function pushConfig(environment?: string, diff?: string) {
         false
     );
 
-    env.modify('DATABASE_URL', `postgres://postgres@localhost/${environment}`, l2InitFile, false);
-    env.modify('TEST_DATABASE_URL', `postgres://postgres@localhost/${environment}_test`, l2InitFile, false);
+    env.modify('DATABASE_URL', `postgres://postgres:notsecurepassword@localhost/${environment}`, l2InitFile, false);
+    env.modify(
+        'TEST_DATABASE_URL',
+        `postgres://postgres:notsecurepassword@localhost/${environment}_test`,
+        l2InitFile,
+        false
+    );
 
     env.modify('DATABASE_STATE_KEEPER_DB_PATH', `./db/${environment}/state_keeper`, l2InitFile, false);
     env.modify('DATABASE_MERKLE_TREE_PATH', `./db/${environment}/tree`, l2InitFile, false);
