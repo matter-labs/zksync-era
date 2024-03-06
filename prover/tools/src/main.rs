@@ -155,7 +155,7 @@ fn pretty_print_circuit_wrapper(circuit: &CircuitWrapper) {
 }
 
 fn pretty_print_proof(result: &FriProofWrapper) {
-    println!("{}", format!("== FRI proof ==").bold());
+    println!("{}", "== FRI proof ==".to_string().bold());
     match result {
         FriProofWrapper::Base(proof) => {
             println!(
@@ -182,7 +182,7 @@ fn pretty_print_proof(result: &FriProofWrapper) {
 }
 
 fn pretty_print_l1_proof(result: &L1BatchProofForL1) {
-    println!("{}", format!("== Snark wrapped L1 proof ==").bold());
+    println!("{}", "== Snark wrapped L1 proof ==".to_string().bold());
     println!("AUX info:");
     println!(
         "  L1 msg linear hash: 0x{}",
@@ -206,10 +206,7 @@ fn pretty_print_l1_proof(result: &L1BatchProofForL1) {
 }
 
 fn file_info(path: String) {
-    println!(
-        "{}",
-        format!("Reading file {} and guessing the type.", path.bold())
-    );
+    println!("Reading file {} and guessing the type.", path.bold());
 
     let bytes = fs::read(path).unwrap();
 

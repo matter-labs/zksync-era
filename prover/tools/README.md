@@ -1,15 +1,13 @@
 # Tool to better understand and debug provers
 
-
 For now, it has only one command 'file-info'
-
 
 ```
 cargo run --release  file-info /ksync-era/prover/artifacts/proofs_fri/l1_batch_proof_1.bin
 ```
 
-
 Example outputs:
+
 ```
 L1 proof
 AUX info:
@@ -20,14 +18,13 @@ AUX info:
 Inputs: [Fr(0x00000000775db828700e0ebbe0384f8a017598a271dfb6c96ebb2baf22a7a572)]
 ```
 
-
 ```
  == Circuit ==
 Type: basic. Id: 1 (Scheduler)
 Geometry: CSGeometry { num_columns_under_copy_permutation: 130, num_witness_columns: 0, num_constant_columns: 4, max_allowed_constraint_degree: 8 }
 Circuit size: trace length: Some(1048576) something??: Some(100663296)
 Scheduler witness info
-Previous block data: 
+Previous block data:
 Enumeration counter: 25
 State root: [107, 233, 138, 154, 21, 134, 189, 220, 183, 250, 117, 243, 103, 124, 71, 221, 160, 136, 249, 25, 197, 109, 8, 75, 26, 12, 81, 109, 36, 56, 30, 17]
 Block meta parameters
