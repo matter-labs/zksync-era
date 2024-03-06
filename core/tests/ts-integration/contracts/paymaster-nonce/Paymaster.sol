@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
+
 pragma solidity ^0.8.0;
 
 import {IPaymaster, ExecutionResult, PAYMASTER_VALIDATION_SUCCESS_MAGIC} from "../custom-account/interfaces/IPaymaster.sol";
 import {IPaymasterFlow} from "../custom-account/interfaces/IPaymasterFlow.sol";
 import {TransactionHelper, Transaction} from "../custom-account/TransactionHelper.sol";
-
 import "../custom-account/Constants.sol";
 
 contract Paymaster is IPaymaster {
@@ -32,9 +32,8 @@ contract Paymaster is IPaymaster {
             _transaction.paymasterInput.length >= 4,
             "The standard paymaster input must be at least 4 bytes long"
         );
-        
-        uint256 txNonce = _transaction.nonce;
 
+        uint256 txNonce = _transaction.nonce;
         if (txNonce == 0) {
             revert("Nonce is zerooo");
         }
@@ -58,7 +57,12 @@ contract Paymaster is IPaymaster {
         ExecutionResult _txResult,
         uint256 _maxRefundedGas
     ) external payable override {
-        // Refunds are not supported yet.
+        // Refund any remaining gas to the sender's account
+        if (_txResult.actualGasUsed < _transaction.gasLimit) {
+            uint256 refundAmount = (_transaction.gasLimit - _txResult.actualGasUsed) * _transaction.maxFeePerGas;
+            (bool success, ) = payable(msg.sender).call{value: refundAmount}("");
+            require(success, "Failed to refund remaining gas");
+        }
     }
 
     receive() external payable {}
