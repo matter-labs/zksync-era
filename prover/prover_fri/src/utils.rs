@@ -14,11 +14,7 @@ use zksync_prover_fri_types::{
             algebraic_props::{
                 round_function::AbsorptionModeOverwrite, sponge::GoldilocksPoseidon2Sponge,
             },
-            config::ProvingCSConfig,
-            cs::implementations::{
-                pow::NoPow, proof::Proof, reference_cs::CSReferenceAssembly,
-                verifier::VerificationKey,
-            },
+            cs::implementations::{pow::NoPow, proof::Proof, verifier::VerificationKey},
             field::goldilocks::{GoldilocksExt2, GoldilocksField},
         },
         circuit_definitions::recursion_layer::{
@@ -27,6 +23,7 @@ use zksync_prover_fri_types::{
     },
     queue::FixedSizeQueue,
     CircuitWrapper, FriProofWrapper, ProverServiceDataKey, WitnessVectorArtifacts,
+    EIP_4844_CIRCUIT_ID,
 };
 use zksync_prover_fri_utils::get_base_layer_circuit_id_for_recursive_layer;
 use zksync_types::{
@@ -40,8 +37,6 @@ pub type F = GoldilocksField;
 pub type H = GoldilocksPoseidon2Sponge<AbsorptionModeOverwrite>;
 pub type Ext = GoldilocksExt2;
 
-#[cfg(feature = "gpu")]
-pub type ProvingAssembly = CSReferenceAssembly<F, F, ProvingCSConfig>;
 #[cfg(feature = "gpu")]
 pub type SharedWitnessVectorQueue = Arc<Mutex<FixedSizeQueue<GpuProverJob>>>;
 
@@ -62,7 +57,6 @@ impl ProverArtifacts {
 #[cfg(feature = "gpu")]
 pub struct GpuProverJob {
     pub witness_vector_artifacts: WitnessVectorArtifacts,
-    pub assembly: ProvingAssembly,
 }
 
 pub async fn save_proof(
@@ -118,12 +112,18 @@ pub async fn save_proof(
             .await;
     }
     if job_metadata.is_node_final_proof {
+        let circuit_id = if job_metadata.circuit_id == EIP_4844_CIRCUIT_ID {
+            EIP_4844_CIRCUIT_ID
+        } else {
+            get_base_layer_circuit_id_for_recursive_layer(job_metadata.circuit_id)
+        };
         transaction
             .fri_scheduler_dependency_tracker_dal()
             .set_final_prover_job_id_for_l1_batch(
-                get_base_layer_circuit_id_for_recursive_layer(job_metadata.circuit_id),
+                circuit_id,
                 job_id,
                 job_metadata.block_number,
+                job_metadata.sequence_number,
             )
             .await;
     }

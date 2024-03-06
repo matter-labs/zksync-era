@@ -123,6 +123,8 @@ trait HandleReorgDetectorEvent: fmt::Debug + Send + Sync {
     );
 
     fn report_divergence(&mut self, diverged_l1_batch: L1BatchNumber);
+
+    fn start_shutting_down(&mut self);
 }
 
 /// Default implementation of [`HandleReorgDetectorEvent`] that reports values as metrics.
@@ -163,6 +165,10 @@ impl HandleReorgDetectorEvent for HealthUpdater {
             "diverged_l1_batch": diverged_l1_batch,
         });
         self.update(Health::from(HealthStatus::Affected).with_details(health_details));
+    }
+
+    fn start_shutting_down(&mut self) {
+        self.update(HealthStatus::ShuttingDown.into());
     }
 }
 
@@ -413,6 +419,9 @@ impl ReorgDetector {
 
         loop {
             let should_stop = *stop_receiver.borrow();
+            if should_stop {
+                self.event_handler.start_shutting_down();
+            }
 
             // At this point, we are guaranteed to have L1 batches and miniblocks in the storage.
             let mut storage = self.pool.access_storage().await?;

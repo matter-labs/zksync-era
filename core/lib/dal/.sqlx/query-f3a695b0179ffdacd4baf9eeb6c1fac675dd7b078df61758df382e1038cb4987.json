@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT number AS number, true AS \"confirmed!\" FROM l1_batches INNER JOIN eth_txs_history ON l1_batches.eth_prove_tx_id = eth_txs_history.eth_tx_id WHERE eth_txs_history.confirmed_at IS NOT NULL ORDER BY number DESC LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "confirmed!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      null
+    ]
+  },
+  "hash": "f3a695b0179ffdacd4baf9eeb6c1fac675dd7b078df61758df382e1038cb4987"
+}

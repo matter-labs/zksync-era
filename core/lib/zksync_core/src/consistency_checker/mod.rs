@@ -7,8 +7,14 @@ use zksync_contracts::PRE_BOOJUM_COMMIT_FUNCTION;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::{clients::QueryClient, Error as L1ClientError, EthInterface};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
-use zksync_l1_contract_interface::{i_executor::structures::CommitBatchInfo, Tokenizable};
-use zksync_types::{web3::ethabi, L1BatchNumber, H256};
+use zksync_l1_contract_interface::{
+    i_executor::{commit::kzg::ZK_SYNC_BYTES_PER_BLOB, structures::CommitBatchInfo},
+    Tokenizable,
+};
+use zksync_types::{
+    commitment::L1BatchWithMetadata, pubdata_da::PubdataDA, web3::ethabi, L1BatchNumber,
+    ProtocolVersionId, H256,
+};
 
 use crate::{
     metrics::{CheckerComponent, EN_METRICS},
@@ -122,8 +128,7 @@ enum L1DataMismatchBehavior {
 /// L1 commit data loaded from Postgres.
 #[derive(Debug)]
 struct LocalL1BatchCommitData {
-    is_pre_boojum: bool,
-    l1_commit_data: ethabi::Token,
+    l1_batch: L1BatchWithMetadata,
     commit_tx_hash: H256,
 }
 
@@ -161,28 +166,59 @@ impl LocalL1BatchCommitData {
             return Ok(None);
         };
 
-        let is_pre_boojum = l1_batch
-            .header
-            .protocol_version
-            .map_or(true, |version| version.is_pre_boojum());
-        let metadata = &l1_batch.metadata;
+        let this = Self {
+            l1_batch,
+            commit_tx_hash,
+        };
+        let metadata = &this.l1_batch.metadata;
 
         // For Boojum batches, `bootloader_initial_content_commitment` and `events_queue_commitment`
-        // are (temporarily) only computed by the metadata calculator if it runs with the full tree.
+        // are computed by the commitment generator.
         // I.e., for these batches, we may have partial metadata in Postgres, which would not be sufficient
         // to compute local L1 commitment.
-        if !is_pre_boojum
+        if !this.is_pre_boojum()
             && (metadata.bootloader_initial_content_commitment.is_none()
                 || metadata.events_queue_commitment.is_none())
         {
             return Ok(None);
         }
 
-        Ok(Some(Self {
-            is_pre_boojum,
-            l1_commit_data: CommitBatchInfo(&l1_batch).into_token(),
-            commit_tx_hash,
-        }))
+        Ok(Some(this))
+    }
+
+    fn is_pre_boojum(&self) -> bool {
+        self.l1_batch
+            .header
+            .protocol_version
+            .map_or(true, |version| version.is_pre_boojum())
+    }
+
+    fn verify_commitment(&self, reference: &ethabi::Token) -> anyhow::Result<bool> {
+        let protocol_version = self
+            .l1_batch
+            .header
+            .protocol_version
+            .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
+        let da = CommitBatchInfo::detect_da(protocol_version, reference)
+            .context("cannot detect DA source from reference commitment token")?;
+
+        // For `PubdataDA::Calldata`, it's required that the pubdata fits into a single blob.
+        if matches!(da, PubdataDA::Calldata) {
+            let pubdata_len = self
+                .l1_batch
+                .header
+                .pubdata_input
+                .as_ref()
+                .map_or_else(|| self.l1_batch.construct_pubdata().len(), Vec::len);
+            anyhow::ensure!(
+                pubdata_len <= ZK_SYNC_BYTES_PER_BLOB,
+                "pubdata size is too large when using calldata DA source: expected <={ZK_SYNC_BYTES_PER_BLOB} bytes, \
+                 got {pubdata_len} bytes"
+            );
+        }
+
+        let local_token = CommitBatchInfo::new(&self.l1_batch, da).into_token();
+        Ok(local_token == *reference)
     }
 }
 
@@ -250,7 +286,7 @@ impl ConsistencyChecker {
             .input;
         // TODO (PLA-721): Check receiving contract and selector
         // TODO: Add support for post shared bridge commits
-        let commit_function = if local.is_pre_boojum {
+        let commit_function = if local.is_pre_boojum() {
             &*PRE_BOOJUM_COMMIT_FUNCTION
         } else {
             self.contract
@@ -262,7 +298,7 @@ impl ConsistencyChecker {
                 .with_context(|| {
                     format!("Failed extracting commit data for transaction {commit_tx_hash:?}")
                 })?;
-        Ok(commitment == local.l1_commit_data)
+        Ok(local.verify_commitment(&commitment)?)
     }
 
     fn extract_commit_data(

@@ -121,7 +121,7 @@ export async function generateMigration(dbType: DbType, name: string) {
 
 export async function setupForDal(dalPath: DalPath, dbUrl: string) {
     process.chdir(dalPath);
-    const localDbUrl = 'postgres://postgres@localhost';
+    const localDbUrl = 'postgres://postgres:notsecurepassword@localhost';
     if (dbUrl.startsWith(localDbUrl)) {
         console.log(`Using localhost database -- ${dbUrl}`);
     } else {
@@ -149,6 +149,10 @@ export async function setup(opts: DbOpts) {
         await utils.spawn('cargo sqlx database create');
         await utils.spawn(
             `pg_dump ${process.env.TEMPLATE_DATABASE_URL} -F c | pg_restore -d ${process.env.DATABASE_URL}`
+        );
+        // Remove `unconfirmed` rows from `eth_txs_history` table.
+        await utils.spawn(
+            `psql ${process.env.DATABASE_URL} -c "DELETE FROM eth_txs_history WHERE confirmed_at IS NULL"`
         );
 
         process.chdir(process.env.ZKSYNC_HOME as string);

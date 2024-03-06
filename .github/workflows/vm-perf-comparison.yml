@@ -28,7 +28,7 @@ jobs:
         run: echo "sha=$(git merge-base HEAD FETCH_HEAD)" >> $GITHUB_OUTPUT
 
       - name: checkout divergence point
-        run: git checkout ${{ steps.merge_base.outputs.sha }}
+        run: git checkout ${{ steps.merge_base.outputs.sha }} --recurse-submodules
 
       - name: setup-env
         run: |

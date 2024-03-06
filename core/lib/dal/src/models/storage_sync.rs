@@ -1,9 +1,12 @@
 use anyhow::Context as _;
-use zksync_consensus_roles::validator;
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_protobuf::{required, ProtoFmt};
 use zksync_types::{
-    api::en, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, Transaction, H160, H256,
+    api::en, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, Transaction, H256,
+};
+
+use crate::{
+    consensus_dal::Payload,
+    models::{parse_h160, parse_h256},
 };
 
 #[derive(Debug, Clone, sqlx::FromRow)]
@@ -23,14 +26,6 @@ pub(crate) struct StorageSyncBlock {
     pub protocol_version: i32,
     pub virtual_blocks: i64,
     pub hash: Vec<u8>,
-}
-
-fn parse_h256(bytes: &[u8]) -> anyhow::Result<H256> {
-    Ok(<[u8; 32]>::try_from(bytes).context("invalid size")?.into())
-}
-
-fn parse_h160(bytes: &[u8]) -> anyhow::Result<H160> {
-    Ok(<[u8; 20]>::try_from(bytes).context("invalid size")?.into())
 }
 
 pub(crate) struct SyncBlock {
@@ -130,93 +125,5 @@ impl SyncBlock {
             transactions,
             last_in_batch: self.last_in_batch,
         }
-    }
-}
-
-/// L2 block (= miniblock) payload.
-#[derive(Debug, PartialEq)]
-pub struct Payload {
-    pub protocol_version: ProtocolVersionId,
-    pub hash: H256,
-    pub l1_batch_number: L1BatchNumber,
-    pub timestamp: u64,
-    pub l1_gas_price: u64,
-    pub l2_fair_gas_price: u64,
-    pub fair_pubdata_price: Option<u64>,
-    pub virtual_blocks: u32,
-    pub operator_address: Address,
-    pub transactions: Vec<Transaction>,
-    pub last_in_batch: bool,
-}
-
-impl ProtoFmt for Payload {
-    type Proto = super::proto::Payload;
-
-    fn read(message: &Self::Proto) -> anyhow::Result<Self> {
-        let mut transactions = Vec::with_capacity(message.transactions.len());
-        for (i, tx) in message.transactions.iter().enumerate() {
-            transactions.push(
-                required(&tx.json)
-                    .and_then(|json_str| Ok(serde_json::from_str(json_str)?))
-                    .with_context(|| format!("transaction[{i}]"))?,
-            );
-        }
-
-        Ok(Self {
-            protocol_version: required(&message.protocol_version)
-                .and_then(|x| Ok(ProtocolVersionId::try_from(u16::try_from(*x)?)?))
-                .context("protocol_version")?,
-            hash: required(&message.hash)
-                .and_then(|h| parse_h256(h))
-                .context("hash")?,
-            l1_batch_number: L1BatchNumber(
-                *required(&message.l1_batch_number).context("l1_batch_number")?,
-            ),
-            timestamp: *required(&message.timestamp).context("timestamp")?,
-            l1_gas_price: *required(&message.l1_gas_price).context("l1_gas_price")?,
-            l2_fair_gas_price: *required(&message.l2_fair_gas_price)
-                .context("l2_fair_gas_price")?,
-            fair_pubdata_price: message.fair_pubdata_price,
-            virtual_blocks: *required(&message.virtual_blocks).context("virtual_blocks")?,
-            operator_address: required(&message.operator_address)
-                .and_then(|a| parse_h160(a))
-                .context("operator_address")?,
-            transactions,
-            last_in_batch: *required(&message.last_in_batch).context("last_in_batch")?,
-        })
-    }
-
-    fn build(&self) -> Self::Proto {
-        Self::Proto {
-            protocol_version: Some((self.protocol_version as u16).into()),
-            hash: Some(self.hash.as_bytes().into()),
-            l1_batch_number: Some(self.l1_batch_number.0),
-            timestamp: Some(self.timestamp),
-            l1_gas_price: Some(self.l1_gas_price),
-            l2_fair_gas_price: Some(self.l2_fair_gas_price),
-            fair_pubdata_price: self.fair_pubdata_price,
-            virtual_blocks: Some(self.virtual_blocks),
-            operator_address: Some(self.operator_address.as_bytes().into()),
-            // Transactions are stored in execution order, therefore order is deterministic.
-            transactions: self
-                .transactions
-                .iter()
-                .map(|t| super::proto::Transaction {
-                    // TODO: There is no guarantee that json encoding here will be deterministic.
-                    json: Some(serde_json::to_string(t).unwrap()),
-                })
-                .collect(),
-            last_in_batch: Some(self.last_in_batch),
-        }
-    }
-}
-
-impl Payload {
-    pub fn decode(payload: &validator::Payload) -> anyhow::Result<Self> {
-        zksync_protobuf::decode(&payload.0)
-    }
-
-    pub fn encode(&self) -> validator::Payload {
-        validator::Payload(zksync_protobuf::encode(self))
     }
 }
