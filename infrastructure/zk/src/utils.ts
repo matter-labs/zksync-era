@@ -40,6 +40,7 @@ export function exec(command: string) {
 // but pipes data to parent's stdout/stderr
 export function spawn(command: string) {
     command = command.replace(/\n/g, ' ');
+    console.log(`spawn(${JSON.stringify(command)})`);
     const child = _spawn(command, { stdio: 'inherit', shell: true });
     return new Promise((resolve, reject) => {
         child.on('error', reject);

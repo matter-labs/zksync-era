@@ -2,13 +2,10 @@
 use std::{collections::HashMap, sync::Arc};
 
 use anyhow::Context as _;
-use rand::{
-    distributions::{Distribution, Standard},
-    Rng,
-};
+use rand::Rng;
 use zksync_concurrency::{ctx, error::Wrap as _, limiter, scope, sync, time};
 use zksync_config::configs;
-use zksync_consensus_roles::{node, validator};
+use zksync_consensus_roles::validator;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::ConnectionPool;
 use zksync_types::{
@@ -22,7 +19,7 @@ use zksync_web3_decl::{
 
 use crate::{
     api_server::web3::{state::InternalApiConfig, tests::spawn_http_server},
-    consensus::{config::Config, Fetcher, P2PConfig, Store},
+    consensus::{fetcher::P2PConfig, Fetcher, Store},
     genesis::{ensure_genesis_state, GenesisParams},
     state_keeper::{
         io::common::IoCursor, seal_criteria::NoopSealer, tests::MockBatchExecutor, MiniblockSealer,
@@ -34,30 +31,6 @@ use crate::{
     },
     utils::testonly::{create_l1_batch_metadata, create_l2_transaction, prepare_recovery_snapshot},
 };
-
-fn make_addr<R: Rng + ?Sized>(rng: &mut R) -> std::net::SocketAddr {
-    std::net::SocketAddr::new(std::net::IpAddr::from(rng.gen::<[u8; 16]>()), rng.gen())
-}
-
-fn make_node_key<R: Rng + ?Sized>(rng: &mut R) -> node::PublicKey {
-    rng.gen::<node::SecretKey>().public()
-}
-
-impl Distribution<Config> for Standard {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Config {
-        Config {
-            server_addr: make_addr(rng),
-            public_addr: make_addr(rng),
-            validators: rng.gen(),
-            max_payload_size: usize::MAX,
-            gossip_dynamic_inbound_limit: rng.gen(),
-            gossip_static_inbound: (0..3).map(|_| make_node_key(rng)).collect(),
-            gossip_static_outbound: (0..5)
-                .map(|_| (make_node_key(rng), make_addr(rng)))
-                .collect(),
-        }
-    }
-}
 
 #[derive(Debug, Default)]
 pub(crate) struct MockMainNodeClient {

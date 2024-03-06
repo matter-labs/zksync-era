@@ -170,8 +170,8 @@ async fn init_tasks(
 
     task_handles.push(tokio::spawn({
         let ctx = ctx::root();
+        let cfg = config.consensus.clone();
         let mut stop_receiver = stop_receiver.clone();
-        let p2p_config = config.consensus.clone();
         let fetcher = consensus::Fetcher {
             store: consensus::Store(connection_pool.clone()),
             sync_state: sync_state.clone(),
@@ -188,8 +188,13 @@ async fn init_tasks(
         async move {
             scope::run!(&ctx, |ctx, s| async {
                 s.spawn_bg(async {
-                    let res = match p2p_config {
-                        Some(p2p_config) => fetcher.run_p2p(ctx, actions, p2p_config).await,
+                    let res = match cfg {
+                        Some(cfg) => {
+                            let secrets = config::read_consensus_secrets()
+                                .context("config::read_consensus_secrets()")?
+                                .context("consensus secrets missing")?;
+                            fetcher.run_p2p(ctx, actions, cfg.p2p(&secrets)?).await
+                        }
                         None => fetcher.run_centralized(ctx, actions).await,
                     };
                     tracing::info!("Consensus actor stopped");
@@ -469,8 +474,8 @@ async fn main() -> anyhow::Result<()> {
             !opt.enable_snapshots_recovery,
             "Consensus logic does not support snapshot recovery yet"
         );
-        config.consensus =
-            Some(config::read_consensus_config().context("read_consensus_config()")?);
+    } else {
+        config.consensus = None;
     }
 
     if let Some(threshold) = config.optional.slow_query_threshold() {
