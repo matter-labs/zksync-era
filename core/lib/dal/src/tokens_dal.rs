@@ -1,11 +1,11 @@
 use sqlx::types::chrono::Utc;
 use zksync_types::{tokens::TokenInfo, Address, MiniblockNumber};
 
-use crate::storage_logs_dal::StorageLogsDal;
+use crate::{storage_logs_dal::StorageLogsDal, StorageProcessor};
 
 #[derive(Debug)]
 pub struct TokensDal<'a, 'c> {
-    pub(crate) storage: &'a mut zksync_db_connection::StorageProcessor<'c>,
+    pub(crate) storage: &'a mut StorageProcessor<'c>,
 }
 
 impl TokensDal<'_, '_> {
@@ -107,9 +107,9 @@ impl TokensDal<'_, '_> {
 mod tests {
     use std::{collections::HashSet, slice};
 
-    use zksync_db_connection::StorageProcessor;
     use zksync_system_constants::FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH;
     use zksync_types::{get_code_key, tokens::TokenMetadata, StorageLog, H256};
+    use StorageProcessor;
 
     use super::*;
     use crate::{tokens_web3_dal::TokensWeb3Dal, ConnectionPool};

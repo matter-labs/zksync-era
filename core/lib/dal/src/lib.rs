@@ -2,6 +2,7 @@
 //! Data access layer (DAL) for zkSync Era.
 
 pub use sqlx::{types::BigDecimal, Error as SqlxError};
+pub use zksync_db_connection::StorageProcessor;
 use zksync_prover_dal::{
     fri_gpu_prover_queue_dal::FriGpuProverQueueDal,
     fri_proof_compressor_dal::FriProofCompressorDal,
@@ -64,7 +65,7 @@ pub mod transactions_web3_dal;
 mod tests;
 
 #[derive(Debug)]
-pub struct ConnectionOperator<'a>(pub zksync_db_connection::StorageProcessor<'a>);
+pub struct ConnectionOperator<'a>(pub StorageProcessor<'a>);
 
 impl<'a> ConnectionOperator<'a> {
     pub fn in_transaction(&self) -> bool {

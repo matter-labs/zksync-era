@@ -18,6 +18,7 @@ use sqlx::{
 };
 use zksync_db_connection::{StorageProcessorTags, TracedConnections};
 
+use crate::StorageProcessor;
 use crate::{metrics::CONNECTION_METRICS, ConnectionOperator};
 
 /// Builder for [`ConnectionPool`]s.
@@ -349,13 +350,11 @@ impl ConnectionPool {
         if let Some(tags) = &tags {
             CONNECTION_METRICS.acquire_tagged[&tags.requester].observe(elapsed);
         }
-        Ok(ConnectionOperator(
-            zksync_db_connection::StorageProcessor::from_pool(
-                conn,
-                tags,
-                self.traced_connections.as_deref(),
-            ),
-        ))
+        Ok(ConnectionOperator(StorageProcessor::from_pool(
+            conn,
+            tags,
+            self.traced_connections.as_deref(),
+        )))
     }
 
     async fn acquire_connection_retried(

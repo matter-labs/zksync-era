@@ -6,7 +6,6 @@ use std::{
 
 use anyhow::Context as _;
 use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive};
-use zksync_db_connection::StorageProcessor;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     block::{BlockGasCount, L1BatchHeader, L1BatchTreeData, MiniblockHeader},
@@ -20,6 +19,7 @@ use crate::{
     events_dal::EventsDal,
     instrument::InstrumentExt,
     models::storage_block::{StorageL1Batch, StorageL1BatchHeader, StorageMiniblockHeader},
+    StorageProcessor,
 };
 
 #[derive(Debug)]

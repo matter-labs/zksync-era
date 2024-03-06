@@ -11,7 +11,7 @@ use crate::{
         StorageApiTransaction, StorageTransaction, StorageTransactionDetails,
         StorageTransactionReceipt,
     },
-    SqlxError,
+    SqlxError, StorageProcessor,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -22,7 +22,7 @@ enum TransactionSelector<'a> {
 
 #[derive(Debug)]
 pub struct TransactionsWeb3Dal<'a, 'c> {
-    pub(crate) storage: &'a mut zksync_db_connection::StorageProcessor<'c>,
+    pub(crate) storage: &'a mut StorageProcessor<'c>,
 }
 
 impl TransactionsWeb3Dal<'_, '_> {

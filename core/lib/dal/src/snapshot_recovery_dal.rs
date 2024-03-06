@@ -2,9 +2,11 @@ use zksync_types::{
     snapshots::SnapshotRecoveryStatus, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256,
 };
 
+use crate::StorageProcessor;
+
 #[derive(Debug)]
 pub struct SnapshotRecoveryDal<'a, 'c> {
-    pub(crate) storage: &'a mut zksync_db_connection::StorageProcessor<'c>,
+    pub(crate) storage: &'a mut StorageProcessor<'c>,
 }
 
 impl SnapshotRecoveryDal<'_, '_> {

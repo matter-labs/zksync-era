@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
+use crate::StorageProcessor;
 use anyhow::Context as _;
 use zksync_contracts::{BaseSystemContracts, SystemContractCode};
 use zksync_types::{MiniblockNumber, H256, U256};
@@ -8,7 +9,7 @@ use zksync_utils::{bytes_to_be_words, bytes_to_chunks};
 /// DAL methods related to factory dependencies.
 #[derive(Debug)]
 pub struct FactoryDepsDal<'a, 'c> {
-    pub(crate) storage: &'a mut zksync_db_connection::StorageProcessor<'c>,
+    pub(crate) storage: &'a mut StorageProcessor<'c>,
 }
 
 impl FactoryDepsDal<'_, '_> {

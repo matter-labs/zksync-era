@@ -1,7 +1,9 @@
 use sqlx::Row;
 
+use crate::StorageProcessor;
+
 pub struct SystemDal<'a, 'c> {
-    pub storage: &'a mut zksync_db_connection::StorageProcessor<'c>,
+    pub storage: &'a mut StorageProcessor<'c>,
 }
 
 impl SystemDal<'_, '_> {

@@ -6,12 +6,13 @@ use crate::{
     metrics::MethodLatency,
     models::storage_sync::{StorageSyncBlock, SyncBlock},
     transactions_web3_dal::TransactionsWeb3Dal,
+    StorageProcessor,
 };
 
 /// DAL subset dedicated to the EN synchronization.
 #[derive(Debug)]
 pub struct SyncDal<'a, 'c> {
-    pub storage: &'a mut zksync_db_connection::StorageProcessor<'c>,
+    pub storage: &'a mut StorageProcessor<'c>,
 }
 
 impl SyncDal<'_, '_> {
