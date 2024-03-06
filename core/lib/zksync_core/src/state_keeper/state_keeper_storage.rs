@@ -165,9 +165,11 @@ impl AsyncRocksdbCache {
         stop_receiver: &watch::Receiver<bool>,
     ) -> Option<PgOrRocksdbStorage<'a>> {
         match self {
-            AsyncRocksdbCache::Postgres(pool) => {
-                Some(Self::access_storage_pg(rt_handle, pool).await.expect(""))
-            }
+            AsyncRocksdbCache::Postgres(pool) => Some(
+                Self::access_storage_pg(rt_handle, pool)
+                    .await
+                    .expect("Failed accessing Postgres storage"),
+            ),
             AsyncRocksdbCache::Rocksdb(rocksdb, pool) => {
                 let mut conn = pool
                     .access_storage_tagged("state_keeper")
@@ -175,7 +177,7 @@ impl AsyncRocksdbCache {
                     .expect("Failed getting a Postgres connection");
                 Self::access_storage_rocksdb(&mut conn, rocksdb.clone(), stop_receiver)
                     .await
-                    .expect("")
+                    .expect("Failed accessing RocksDB storage")
             }
         }
     }
@@ -219,15 +221,18 @@ impl StateKeeperStorage<AsyncRocksdbCache> {
                 .await
                 .expect("Failed initializing RocksDB storage");
             rocksdb_builder.enable_enum_index_migration(enum_index_migration_chunk_size);
-            let mut storage = pool.access_storage().await.expect("");
+            let mut storage = pool
+                .access_storage()
+                .await
+                .expect("Failed accessing Postgres storage");
             let (_, stop_receiver) = watch::channel(false);
             let rocksdb = rocksdb_builder
                 .synchronize(&mut storage, &stop_receiver)
                 .await
-                .expect("");
+                .expect("Failed to catch up RocksDB to Postgres");
             drop(storage);
             if let Some(rocksdb) = rocksdb {
-                let mut factory_guard = factory.lock().expect("");
+                let mut factory_guard = factory.lock().expect("poisoned");
                 *factory_guard = AsyncRocksdbCache::Rocksdb(rocksdb.db, pool)
             } else {
                 tracing::warn!("Interrupted");
