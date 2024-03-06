@@ -7255,6 +7255,7 @@ dependencies = [
  "zksync_dal",
  "zksync_env_config",
  "zksync_object_store",
+ "zksync_prover_dal",
  "zksync_prover_interface",
  "zksync_types",
  "zksync_utils",

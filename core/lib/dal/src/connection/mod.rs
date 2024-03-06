@@ -465,7 +465,10 @@ mod tests {
             assert_eq!(traced.len(), 1);
             let tags = traced.values().next().unwrap().tags.unwrap();
             assert_eq!(tags.requester, "test");
-            assert!(tags.location.file().contains("processor.rs"), "{tags:?}");
+            assert!(
+                tags.location.file().contains("connection/mod.rs"),
+                "{tags:?}"
+            );
         }
         drop(connection);
 
