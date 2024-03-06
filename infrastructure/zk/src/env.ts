@@ -68,9 +68,12 @@ function loadInit(zksyncEnv: string) {
     if (fs.existsSync('etc/env/.init.env')) {
         const initEnv = dotenv.parse(fs.readFileSync('etc/env/.init.env'));
         for (const envVar in initEnv) {
-            // We want to name env vars used by external nodes idiomatically, hence the added `EN_` prefix.
-            const targetVar = zksyncEnv.startsWith('ext-node') ? `EN_${envVar}` : envVar;
-            process.env[targetVar] = initEnv[envVar];
+            process.env[envVar] = initEnv[envVar];
+            if (zksyncEnv.startsWith('ext-node')) {
+                // We want to name env vars used by external nodes idiomatically, hence the added `EN_` prefix.
+                // The original names are still used in some integration tests, so we expose the original var as well.
+                process.env[`EN_${envVar}`] = initEnv[envVar];
+            }
         }
     }
 }
