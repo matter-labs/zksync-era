@@ -16,11 +16,16 @@ contract CustomPaymaster is IPaymaster {
     mapping(uint256 => bool) public calledContext;
     uint256 public wasAnytime = 0;
 
-    bytes32 lastTxHash = 0;
+    bytes32 public lastTxHash = 0;
+    bytes public validSignature;
 
-    function validateSignature(bytes memory _signature) internal pure {
-        // For the purpose of this test, any signature of length 46 is fine.
-        require(_signature.length == 46);
+    constructor(bytes memory _validSignature) {
+        validSignature = _validSignature;
+    }
+
+    function validateSignature(bytes memory _signature) internal view {
+        require(_signature.length == validSignature.length, "Invalid signature length");
+        require(keccak256(_signature) == keccak256(validSignature), "Invalid signature");
     }
 
     function validateAndPayForPaymasterTransaction(bytes32 _txHash, bytes32, Transaction calldata _transaction) override external payable returns (bytes4 magic, bytes memory context) {
