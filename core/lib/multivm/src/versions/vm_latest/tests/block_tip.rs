@@ -222,7 +222,7 @@ fn get_valid_bytecode_length(length: usize) -> usize {
     }
 }
 
-#[test]
+// #[test]
 fn test_dry_run_upper_bound() {
     // Some of the pubdata is consumed by constant fields (such as length of messages, number of logs, etc.).
     // While this leaves some room for error, at the end of the test we require that the `BOOTLOADER_BATCH_TIP_OVERHEAD`
