@@ -107,7 +107,8 @@ jobs:
       # zk run loadtest > loadtest.log 2>loadtest_error.log
       - name: Step - Create a snapshot
         run: |
-          ci_run zk env dev
+          ci_run zk env docker
+          ci_run zk f sh -c 'echo $DATABASE_URL'
           ci_run zk run snapshots-creator
 
       - name: EN configuration
