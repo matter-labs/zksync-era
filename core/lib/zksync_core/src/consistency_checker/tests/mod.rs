@@ -6,11 +6,11 @@ use assert_matches::assert_matches;
 use test_casing::{test_casing, Product};
 use tokio::sync::mpsc;
 use zksync_dal::StorageProcessor;
-use zksync_eth_client::clients::MockEthereum;
+use zksync_eth_client::{clients::MockEthereum, Options};
 use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata,
-    web3::contract::Options, L2ChainId, ProtocolVersion, ProtocolVersionId, H256,
+    aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata, L2ChainId,
+    ProtocolVersion, ProtocolVersionId, H256,
 };
 
 use super::*;
@@ -47,7 +47,7 @@ fn create_pre_boojum_l1_batch_with_metadata(number: u32) -> L1BatchWithMetadata 
 fn build_commit_tx_input_data(batches: &[L1BatchWithMetadata]) -> Vec<u8> {
     let commit_tokens = batches
         .iter()
-        .map(|batch| CommitBatchInfo(batch).into_token());
+        .map(|batch| CommitBatchInfo::new(batch, PubdataDA::Calldata).into_token());
     let commit_tokens = ethabi::Token::Array(commit_tokens.collect());
 
     let mut encoded = vec![];
@@ -111,7 +111,10 @@ fn build_commit_tx_input_data_is_correct() {
             batch.header.number,
         )
         .unwrap();
-        assert_eq!(commit_data, CommitBatchInfo(batch).into_token());
+        assert_eq!(
+            commit_data,
+            CommitBatchInfo::new(batch, PubdataDA::Calldata).into_token()
+        );
     }
 }
 

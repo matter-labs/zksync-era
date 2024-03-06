@@ -3,7 +3,7 @@ use zksync_consensus_roles::validator;
 use zksync_consensus_storage::ReplicaState;
 use zksync_types::MiniblockNumber;
 
-pub use crate::models::storage_sync::Payload;
+pub use crate::models::consensus::Payload;
 use crate::StorageProcessor;
 
 /// Storage access methods for `zksync_core::consensus` module.

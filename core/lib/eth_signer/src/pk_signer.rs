@@ -33,14 +33,6 @@ impl EthereumSigner for PrivateKeySigner {
             .map_err(|_| SignerError::DefineAddress)
     }
 
-    /// The sign method calculates an Ethereum specific signature with:
-    /// sign(keccak256("\x19Ethereum Signed Message:\n" + len(message) + message))).
-    async fn sign_message(&self, message: &[u8]) -> Result<PackedEthSignature, SignerError> {
-        let signature = PackedEthSignature::sign(&self.private_key, message)
-            .map_err(|err| SignerError::SigningFailed(err.to_string()))?;
-        Ok(signature)
-    }
-
     /// Signs typed struct using Ethereum private key by EIP-712 signature standard.
     /// Result of this function is the equivalent of RPC calling `eth_signTypedData`.
     async fn sign_typed_data<S: EIP712TypedStructure + Sync>(
@@ -77,6 +69,8 @@ impl EthereumSigner for PrivateKeySigner {
             transaction_type: raw_tx.transaction_type,
             access_list: raw_tx.access_list.unwrap_or_default(),
             max_priority_fee_per_gas,
+            max_fee_per_blob_gas: raw_tx.max_fee_per_blob_gas,
+            blob_versioned_hashes: raw_tx.blob_versioned_hashes,
         };
 
         let signed = tx.sign(&key, raw_tx.chain_id);
@@ -107,6 +101,8 @@ mod test {
             chain_id: 270,
             transaction_type: Some(U64::from(1u32)),
             access_list: None,
+            blob_versioned_hashes: None,
+            max_fee_per_blob_gas: None,
         };
         let raw_tx = signer
             .sign_transaction(raw_transaction.clone())

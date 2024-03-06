@@ -6,15 +6,18 @@ use zksync_types::{
 
 use crate::{
     instrument::InstrumentExt,
-    models::{
-        storage_block::{bind_block_where_sql_params, web3_block_where_sql},
-        storage_transaction::{
-            extract_web3_transaction, web3_transaction_select_sql, StorageTransaction,
-            StorageTransactionDetails, StorageTransactionReceipt,
-        },
+    models::storage_transaction::{
+        StorageApiTransaction, StorageTransaction, StorageTransactionDetails,
+        StorageTransactionReceipt,
     },
     SqlxError, StorageProcessor,
 };
+
+#[derive(Debug, Clone, Copy)]
+enum TransactionSelector<'a> {
+    Hashes(&'a [H256]),
+    Position(MiniblockNumber, u32),
+}
 
 #[derive(Debug)]
 pub struct TransactionsWeb3Dal<'a, 'c> {
@@ -28,6 +31,7 @@ impl TransactionsWeb3Dal<'_, '_> {
         &mut self,
         hashes: &[H256],
     ) -> Result<Vec<TransactionReceipt>, SqlxError> {
+        let hash_bytes: Vec<_> = hashes.iter().map(H256::as_bytes).collect();
         let mut receipts: Vec<TransactionReceipt> = sqlx::query_as!(
             StorageTransactionReceipt,
             r#"
@@ -71,10 +75,7 @@ impl TransactionsWeb3Dal<'_, '_> {
             "#,
             ACCOUNT_CODE_STORAGE_ADDRESS.as_bytes(),
             FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH.as_bytes(),
-            &hashes
-                .iter()
-                .map(|h| h.as_bytes().to_vec())
-                .collect::<Vec<_>>()[..]
+            &hash_bytes as &[&[u8]]
         )
         .fetch_all(self.storage.conn())
         .await?
@@ -124,52 +125,106 @@ impl TransactionsWeb3Dal<'_, '_> {
         Ok(receipts)
     }
 
-    pub async fn get_transaction(
+    /// Obtains transactions with the specified hashes. Transactions are returned in no particular order; if some hashes
+    /// don't correspond to transactions, the output will contain less elements than `hashes`.
+    pub async fn get_transactions(
         &mut self,
-        transaction_id: api::TransactionId,
+        hashes: &[H256],
         chain_id: L2ChainId,
-    ) -> Result<Option<api::Transaction>, SqlxError> {
-        let where_sql = match transaction_id {
-            api::TransactionId::Hash(_) => "transactions.hash = $1".to_owned(),
-            api::TransactionId::Block(block_id, _) => {
-                format!(
-                    "transactions.index_in_block = $1 AND {}",
-                    web3_block_where_sql(block_id, 2)
-                )
+    ) -> sqlx::Result<Vec<api::Transaction>> {
+        self.get_transactions_inner(TransactionSelector::Hashes(hashes), chain_id)
+            .await
+    }
+
+    async fn get_transactions_inner(
+        &mut self,
+        selector: TransactionSelector<'_>,
+        chain_id: L2ChainId,
+    ) -> sqlx::Result<Vec<api::Transaction>> {
+        if let TransactionSelector::Position(_, idx) = selector {
+            // Since index is not trusted, we check it to prevent potential overflow below.
+            if idx > i32::MAX as u32 {
+                return Ok(vec![]);
             }
-        };
-        let query = format!(
-            "SELECT {}
-            FROM transactions
-            LEFT JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
-            WHERE {where_sql}",
-            web3_transaction_select_sql()
+        }
+
+        let query = match_query_as!(
+            StorageApiTransaction,
+            [
+                r#"
+                SELECT
+                    transactions.hash AS tx_hash,
+                    transactions.index_in_block AS index_in_block,
+                    transactions.miniblock_number AS block_number,
+                    transactions.nonce AS nonce,
+                    transactions.signature AS signature,
+                    transactions.initiator_address AS initiator_address,
+                    transactions.tx_format AS tx_format,
+                    transactions.value AS value,
+                    transactions.gas_limit AS gas_limit,
+                    transactions.max_fee_per_gas AS max_fee_per_gas,
+                    transactions.max_priority_fee_per_gas AS max_priority_fee_per_gas,
+                    transactions.effective_gas_price AS effective_gas_price,
+                    transactions.l1_batch_number AS l1_batch_number,
+                    transactions.l1_batch_tx_index AS l1_batch_tx_index,
+                    transactions.data->'contractAddress' AS "execute_contract_address",
+                    transactions.data->'calldata' AS "calldata",
+                    miniblocks.hash AS "block_hash"
+                FROM transactions
+                LEFT JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
+                WHERE
+                "#,
+                _ // WHERE condition
+            ],
+            match (selector) {
+                TransactionSelector::Hashes(hashes) => (
+                    "transactions.hash = ANY($1)";
+                    &hashes.iter().map(H256::as_bytes).collect::<Vec<_>>() as &[&[u8]]
+                ),
+                TransactionSelector::Position(block_number, idx) => (
+                    "transactions.miniblock_number = $1 AND transactions.index_in_block = $2";
+                    block_number.0 as i64,
+                    idx as i32
+                ),
+            }
         );
-        let query = sqlx::query(&query);
 
-        let query = match &transaction_id {
-            api::TransactionId::Hash(tx_hash) => query.bind(tx_hash.as_bytes()),
-            api::TransactionId::Block(block_id, tx_index) => {
-                let tx_index = if tx_index.as_u64() > i32::MAX as u64 {
-                    return Ok(None);
-                } else {
-                    tx_index.as_u64() as i32
-                };
-                bind_block_where_sql_params(block_id, query.bind(tx_index))
-            }
-        };
+        let rows = query.fetch_all(self.storage.conn()).await?;
+        Ok(rows.into_iter().map(|row| row.into_api(chain_id)).collect())
+    }
 
-        let tx = query
-            .fetch_optional(self.storage.conn())
+    pub async fn get_transaction_by_hash(
+        &mut self,
+        hash: H256,
+        chain_id: L2ChainId,
+    ) -> sqlx::Result<Option<api::Transaction>> {
+        Ok(self
+            .get_transactions_inner(TransactionSelector::Hashes(&[hash]), chain_id)
             .await?
-            .map(|row| extract_web3_transaction(row, chain_id));
-        Ok(tx)
+            .into_iter()
+            .next())
+    }
+
+    pub async fn get_transaction_by_position(
+        &mut self,
+        block_number: MiniblockNumber,
+        index_in_block: u32,
+        chain_id: L2ChainId,
+    ) -> sqlx::Result<Option<api::Transaction>> {
+        Ok(self
+            .get_transactions_inner(
+                TransactionSelector::Position(block_number, index_in_block),
+                chain_id,
+            )
+            .await?
+            .into_iter()
+            .next())
     }
 
     pub async fn get_transaction_details(
         &mut self,
         hash: H256,
-    ) -> Result<Option<api::TransactionDetails>, SqlxError> {
+    ) -> sqlx::Result<Option<api::TransactionDetails>> {
         {
             let storage_tx_details: Option<StorageTransactionDetails> = sqlx::query_as!(
                 StorageTransactionDetails,
@@ -335,10 +390,7 @@ impl TransactionsWeb3Dal<'_, '_> {
 mod tests {
     use std::collections::HashMap;
 
-    use zksync_types::{
-        block::MiniblockHasher, fee::TransactionExecutionMetrics, l2::L2Tx, Nonce, ProtocolVersion,
-        ProtocolVersionId,
-    };
+    use zksync_types::{fee::TransactionExecutionMetrics, l2::L2Tx, Nonce, ProtocolVersion};
 
     use super::*;
     use crate::{
@@ -389,56 +441,43 @@ mod tests {
         let tx_hash = tx.hash();
         prepare_transactions(&mut conn, vec![tx]).await;
 
-        let block_hash = MiniblockHasher::new(MiniblockNumber(1), 0, H256::zero())
-            .finalize(ProtocolVersionId::latest());
-        let block_ids = [
-            api::BlockId::Number(api::BlockNumber::Latest),
-            api::BlockId::Number(api::BlockNumber::Number(1.into())),
-            api::BlockId::Hash(block_hash),
-        ];
-        let transaction_ids = block_ids
-            .iter()
-            .map(|&block_id| api::TransactionId::Block(block_id, 0.into()))
-            .chain([api::TransactionId::Hash(tx_hash)]);
+        let web3_tx = conn
+            .transactions_web3_dal()
+            .get_transaction_by_position(MiniblockNumber(1), 0, L2ChainId::from(270))
+            .await;
+        let web3_tx = web3_tx.unwrap().unwrap();
+        assert_eq!(web3_tx.hash, tx_hash);
+        assert_eq!(web3_tx.block_number, Some(1.into()));
+        assert_eq!(web3_tx.transaction_index, Some(0.into()));
 
-        for transaction_id in transaction_ids {
+        let web3_tx = conn
+            .transactions_web3_dal()
+            .get_transaction_by_hash(tx_hash, L2ChainId::from(270))
+            .await;
+        let web3_tx = web3_tx.unwrap().unwrap();
+        assert_eq!(web3_tx.hash, tx_hash);
+        assert_eq!(web3_tx.block_number, Some(1.into()));
+        assert_eq!(web3_tx.transaction_index, Some(0.into()));
+
+        for block_number in [0, 2, 100] {
             let web3_tx = conn
                 .transactions_web3_dal()
-                .get_transaction(transaction_id, L2ChainId::from(270))
-                .await;
-            let web3_tx = web3_tx.unwrap().unwrap();
-            assert_eq!(web3_tx.hash, tx_hash);
-            assert_eq!(web3_tx.block_number, Some(1.into()));
-            assert_eq!(web3_tx.transaction_index, Some(0.into()));
-        }
-
-        let transactions_with_bogus_index = block_ids
-            .iter()
-            .map(|&block_id| api::TransactionId::Block(block_id, 1.into()));
-        for transaction_id in transactions_with_bogus_index {
-            let web3_tx = conn
-                .transactions_web3_dal()
-                .get_transaction(transaction_id, L2ChainId::from(270))
+                .get_transaction_by_position(MiniblockNumber(block_number), 0, L2ChainId::from(270))
                 .await;
             assert!(web3_tx.unwrap().is_none());
         }
-
-        let bogus_block_ids = [
-            api::BlockId::Number(api::BlockNumber::Earliest),
-            api::BlockId::Number(api::BlockNumber::Pending),
-            api::BlockId::Number(api::BlockNumber::Number(42.into())),
-            api::BlockId::Hash(H256::zero()),
-        ];
-        let transactions_with_bogus_block = bogus_block_ids
-            .iter()
-            .map(|&block_id| api::TransactionId::Block(block_id, 0.into()));
-        for transaction_id in transactions_with_bogus_block {
+        for index in [1, 2, 100] {
             let web3_tx = conn
                 .transactions_web3_dal()
-                .get_transaction(transaction_id, L2ChainId::from(270))
+                .get_transaction_by_position(MiniblockNumber(1), index, L2ChainId::from(270))
                 .await;
             assert!(web3_tx.unwrap().is_none());
         }
+        let web3_tx = conn
+            .transactions_web3_dal()
+            .get_transaction_by_hash(H256::zero(), L2ChainId::from(270))
+            .await;
+        assert!(web3_tx.unwrap().is_none());
     }
 
     #[tokio::test]

@@ -12,6 +12,8 @@ use crate::{
 
 mod context;
 mod stop_receiver;
+#[cfg(test)]
+mod tests;
 
 /// "Manager" class for a set of tasks. Collects all the resources and tasks,
 /// then runs tasks until completion.
@@ -44,7 +46,7 @@ pub struct ZkStackService {
 
 impl fmt::Debug for ZkStackService {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ZkSyncNode").finish_non_exhaustive()
+        f.debug_struct("ZkStackService").finish_non_exhaustive()
     }
 }
 
@@ -52,7 +54,7 @@ impl ZkStackService {
     pub fn new() -> anyhow::Result<Self> {
         if tokio::runtime::Handle::try_current().is_ok() {
             anyhow::bail!(
-                "Detected a Tokio Runtime. ZkSyncNode manages its own runtime and does not support nested runtimes"
+                "Detected a Tokio Runtime. ZkStackService manages its own runtime and does not support nested runtimes"
             );
         }
         let runtime = tokio::runtime::Builder::new_multi_thread()

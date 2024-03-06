@@ -1,1 +1,1 @@
-mod kzg;
+pub mod kzg;
