@@ -38,6 +38,22 @@ launch:
 zk up
 ```
 
+### Run observability stack
+
+If you want to run [Dockprom](https://github.com/stefanprodan/dockprom/) stack (Prometheus, Grafana) alongside other
+containers - add `--run-observability` parameter during initialisation.
+
+```
+zk init --run-observability
+```
+
+That will also provision Grafana with
+[era-observability](https://github.com/matter-labs/era-observability/tree/main/dashboards) dashboards. You can then
+access it at `http://127.0.0.1:3000/` under credentials `admin/admin`.
+
+> If you don't see any data displayed on the Grafana dashboards - try setting the timeframe to "Last 30 minutes". You
+> will also have to have `jq` installed on your system.
+
 ## (Re)deploy db and contracts
 
 ```
