@@ -2,26 +2,14 @@ name: Check JSON RPC for External Node Snapshot Recovery
 on:
   pull_request:
 
-# env:
-#   ZKSYNC_HOME: ${{ github.workspace }}
-#   zk: ${{ github.workspace }}/bin
 
 jobs:
   prepare_env:
     runs-on: [matterlabs-ci-runner]
-    # services:
-    #   postgres:
-    #     image: postgres:14
-    #     ports:
-    #       - 5432:5432
-    #   docker:
-    #     image: docker:latest
     env:
-      CARGO_TARGET_DIR: ${{ github.workspace }}/cargo
       SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,commitment_generator"
-    steps:
-      
 
+    steps:
       - uses: actions/checkout@v4
         with:
           submodules: "recursive"
@@ -37,18 +25,6 @@ jobs:
           echo FAIL_FAST=true >> .env
           echo DATABASE_MERKLE_TREE_MODE=lightweight >> .env
           cat .env
-      # - uses: actions/setup-node@v4
-      #   with:
-      #     node-version: 18
-      # - uses: actions-rs/toolchain@v1
-      #   with:
-      #     toolchain: stable
-      #     override: true
-      
-      # - name: Docker version
-      #   run: |
-      #     echo "${{ env.ZKSYNC_HOME }}/bin" >> $GITHUB_PATH
-      #     docker --version
 
       - name: Start services
         run: |
@@ -62,59 +38,21 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk
-      # ci_run zk init
-
-      # - name: Step 1 - Make the preparation
-      #   run: |
-      #     echo "install NVM"
-      #     curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
-      #     NVM_DIR="$HOME/.nvm"
-      #     echo "$HOME/.nvm" >> $GITHUB_PATH
-      #     echo "Install apt stuff"
-      #     sudo apt-get install -y build-essential pkg-config cmake clang lldb lld libssl-dev
-      #     echo "change usermode for Docker"
-      #     sudo usermod -aG docker $(whoami)          
-      #     echo "Install yarn 1.22.19"
-      #     npm install -g yarn
-      #     yarn set version 1.22.19
-      #     echo "Install SQL tools"
-      #     cargo install sqlx-cli --version 0.7.3
-      #     echo "Stop default postgres (as we'll use the docker one)"
-      #     sudo ps -aux | grep postgres
-      #     sudo pkill -f postgres
-          
-      # - name: Step 2 - Run zk init
-      #   run: |
-      #     echo "Updated PATH: $PATH"
-      #     zk
-      #     zk init
-
+          ci_run zk init
+ 
       - name: Run main node
         run: |
           ci_run zk server --components=$SERVER_COMPONENTS &>server.log &
           ci_run sleep 5
       
-      # - name: Perform loadtest
-      #   run: ci_run zk run loadtest
-      #   timeout-minutes: 2
-      
-      # - name: Show server.log logs
-      #   if: always()
-      #   run: ci_run cat server.log || true
+      - name: Perform loadtest
+        run: ci_run zk run loadtest
              
-
-      # zk run loadtest > loadtest.log 2>loadtest_error.log
       - name: Step - Create a snapshot
         if: always()
         run: |
           ci_run zk env docker
-          ci_run zk f sh -c 'echo $DATABASE_URL'
           ci_run zk run snapshots-creator
-
-      # - name: EN configuration
-      #   if: always()
-      #   run: |
-      #     echo ZKSYNC_ENV=ext-node >> .env
 
       - name: Step - Run external node
         if: always()
