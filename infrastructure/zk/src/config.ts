@@ -190,7 +190,7 @@ export function pushConfig(environment?: string, diff?: string) {
 // used to increase chainId for easy deployment of next hyperchain on shared bridge
 export function bumpChainId() {
     // note we bump in the .toml file directly
-    const configFile = `etc/env/config/${process.env.ZKSYNC_ENV!}.toml`;
+    const configFile = `etc/env/configs/${process.env.ZKSYNC_ENV!}.toml`;
     env.modify(
         'CHAIN_ETH_ZKSYNC_NETWORK_ID',
         (parseInt(process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!) + 1).toString(),
