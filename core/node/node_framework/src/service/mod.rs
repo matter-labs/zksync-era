@@ -5,8 +5,9 @@ use tokio::{runtime::Runtime, sync::watch};
 
 pub use self::{context::ServiceContext, stop_receiver::StopReceiver};
 use crate::{
+    precondition::Precondition,
     resource::{ResourceId, StoredResource},
-    task::Task,
+    task::{Task, UnconstrainedTask},
     wiring_layer::{WiringError, WiringLayer},
 };
 
@@ -34,8 +35,12 @@ pub struct ZkStackService {
     resources: HashMap<ResourceId, Box<dyn StoredResource>>,
     /// List of wiring layers.
     layers: Vec<Box<dyn WiringLayer>>,
+    /// Preconditions added to the service.
+    preconditions: Vec<Box<dyn Precondition>>,
     /// Tasks added to the service.
     tasks: Vec<Box<dyn Task>>,
+    /// Unconstrained tasks added to the service.
+    unconstrained_tasks: Vec<Box<dyn UnconstrainedTask>>,
 
     /// Sender used to stop the tasks.
     stop_sender: watch::Sender<bool>,
@@ -65,7 +70,9 @@ impl ZkStackService {
         let self_ = Self {
             resources: HashMap::default(),
             layers: Vec::new(),
+            preconditions: Vec::new(),
             tasks: Vec::new(),
+            unconstrained_tasks: Vec::new(),
             stop_sender,
             runtime,
         };
@@ -110,10 +117,24 @@ impl ZkStackService {
             anyhow::bail!("One or more task weren't able to start");
         }
 
+        let (preconditions_sender, preconditions_receiver) = watch::channel(false);
         let mut tasks = Vec::new();
+        // Add all the unconstrained tasks.
+        for task in std::mem::take(&mut self.unconstrained_tasks) {
+            let name = task.name().to_string();
+            let task_future = Box::pin(task.run_unconstrained(self.stop_receiver()));
+            let task_repr = TaskRepr {
+                name,
+                task: Some(task_future),
+            };
+            tasks.push(task_repr);
+        }
+        // Add all the "normal" tasks.
         for task in std::mem::take(&mut self.tasks) {
             let name = task.name().to_string();
-            let task_future = Box::pin(task.run(self.stop_receiver()));
+            let task_future = Box::pin(
+                task.run_with_preconditions(self.stop_receiver(), preconditions_receiver.clone()),
+            );
             let task_repr = TaskRepr {
                 name,
                 task: Some(task_future),
@@ -123,6 +144,17 @@ impl ZkStackService {
         if tasks.is_empty() {
             anyhow::bail!("No tasks to run");
         }
+        // Finally, the preconditions are handles the same way the tasks are handled.
+        for precondition in std::mem::take(&mut self.preconditions) {
+            let name = precondition.name().to_string();
+            let task_future = Box::pin(precondition.check());
+            let task_repr = TaskRepr {
+                name,
+                task: Some(task_future),
+            };
+            tasks.push(task_repr);
+        }
+        // TODO: how to signal that preconditions are checked?
 
         // Wiring is now complete.
         for resource in self.resources.values_mut() {
