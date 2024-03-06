@@ -49,9 +49,11 @@ export const initSetup = async ({ skipSubmodulesCheckout, skipEnvSetup }: InitSe
         await announced('Checkout submodules', submoduleUpdate());
     }
 
-    await announced('Compiling JS packages', run.yarn());
-    await announced('Building L1 L2 contracts', contract.build());
-    await announced('Compile L2 system contracts', compiler.compileAll());
+    await Promise.all([
+        announced('Compiling JS packages', run.yarn()),
+        announced('Building L1 L2 contracts', contract.build()),
+        announced('Compile L2 system contracts', compiler.compileAll())
+    ]);
 };
 
 // Sets up the database, deploys the verifier (if set) and runs server genesis
