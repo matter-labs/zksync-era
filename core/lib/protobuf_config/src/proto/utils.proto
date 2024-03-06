@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package zksync.config;
+package zksync.config.utils;
 
 message Prometheus {
   optional uint32 listener_port = 1; // required

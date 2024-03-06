@@ -2,7 +2,7 @@ use anyhow::Context as _;
 use zksync_config::configs;
 use zksync_protobuf::{repr::ProtoRepr, required};
 
-use crate::proto;
+use crate::proto::eth_client as proto;
 
 impl ProtoRepr for proto::EthClient {
     type Type = configs::ETHClientConfig;
