@@ -105,7 +105,6 @@ fn pretty_print_circuit_wrapper(circuit: &CircuitWrapper) {
                 ZkSyncBaseLayerCircuit::KeccakRoundFunction(_) => todo!(),
                 ZkSyncBaseLayerCircuit::Sha256RoundFunction(_) => todo!(),
                 ZkSyncBaseLayerCircuit::ECRecover(circuit) => {
-                    //circuit.debug_witness()
                     println!("Expected public input: {:?}", circuit.expected_public_input);
                     println!("Max ECRecovers per circuit: {:?}", circuit.config);
                 }
@@ -210,7 +209,7 @@ fn file_info(path: String) {
 
     let bytes = fs::read(path).unwrap();
 
-    // Parsing stuff from 'prover_jobs_fri' directory.
+    // Parsing stuff from `prover_jobs_fri` directory.
     let maybe_circuit: Option<CircuitWrapper> = bincode::deserialize(&bytes).ok();
     if let Some(circuit) = maybe_circuit {
         println!("  Parsing file as CircuitWrapper.");
