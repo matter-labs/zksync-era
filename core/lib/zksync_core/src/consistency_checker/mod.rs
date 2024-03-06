@@ -14,16 +14,16 @@ use zksync_l1_contract_interface::{
     Tokenizable,
 };
 use zksync_types::{
-    commitment::L1BatchWithMetadata, pubdata_da::PubdataDA, web3::ethabi, Address, L1BatchNumber,
-    ProtocolVersionId, H256,
+    commitment::L1BatchWithMetadata,
+    pubdata_da::PubdataDA,
+    web3::{self, ethabi},
+    Address, L1BatchNumber, ProtocolVersionId, H256,
 };
 
 use crate::{
     metrics::{CheckerComponent, EN_METRICS},
     utils::wait_for_l1_batch_with_metadata,
 };
-
-// FIXME: be more intelligent about which errors are retryable
 
 #[cfg(test)]
 mod tests;
@@ -32,13 +32,22 @@ mod tests;
 enum CheckError {
     #[error("Web3 error communicating with L1")]
     Web3(#[from] L1ClientError),
-    #[error("Internal error")]
-    Internal(#[from] anyhow::Error),
+    /// Error that is caused by the main node providing incorrect information etc.
+    #[error("failed validating commit transaction")]
+    Validation(anyhow::Error),
+    /// Error that is caused by violating invariants internal to *this* node (e.g., not having expected data in Postgres).
+    #[error("internal error")]
+    Internal(anyhow::Error),
 }
 
-impl From<zksync_dal::SqlxError> for CheckError {
-    fn from(err: zksync_dal::SqlxError) -> Self {
-        Self::Internal(err.into())
+impl CheckError {
+    fn is_transient(&self) -> bool {
+        matches!(
+            self,
+            Self::Web3(L1ClientError::EthereumGateway(
+                web3::Error::Unreachable | web3::Error::Transport(_) | web3::Error::Io(_)
+            ))
+        )
     }
 }
 
@@ -50,7 +59,7 @@ trait HandleConsistencyCheckerEvent: fmt::Debug + Send + Sync {
 
     fn update_checked_batch(&mut self, last_checked_batch: L1BatchNumber);
 
-    fn report_inconsistent_batch(&mut self, number: L1BatchNumber);
+    fn report_inconsistent_batch(&mut self, number: L1BatchNumber, err: &anyhow::Error);
 }
 
 /// Health details reported by [`ConsistencyChecker`].
@@ -111,8 +120,8 @@ impl HandleConsistencyCheckerEvent for ConsistencyCheckerHealthUpdater {
         self.inner.update(self.current_details.health());
     }
 
-    fn report_inconsistent_batch(&mut self, number: L1BatchNumber) {
-        tracing::warn!("L1 batch #{number} is inconsistent with L1");
+    fn report_inconsistent_batch(&mut self, number: L1BatchNumber, err: &anyhow::Error) {
+        tracing::warn!("L1 batch #{number} is inconsistent with L1: {err:?}");
         self.current_details.inconsistent_batches.push(number);
         self.inner.update(self.current_details.health());
     }
@@ -197,7 +206,8 @@ impl LocalL1BatchCommitData {
             .map_or(true, |version| version.is_pre_boojum())
     }
 
-    fn verify_commitment(&self, reference: &ethabi::Token) -> anyhow::Result<bool> {
+    /// All returned errors are validation errors.
+    fn verify_commitment(&self, reference: &ethabi::Token) -> anyhow::Result<()> {
         let protocol_version = self
             .l1_batch
             .header
@@ -222,7 +232,12 @@ impl LocalL1BatchCommitData {
         }
 
         let local_token = CommitBatchInfo::new(&self.l1_batch, da).into_token();
-        Ok(local_token == *reference)
+        anyhow::ensure!(
+            local_token == *reference,
+            "Locally reproduced commitment differs from the reference obtained from L1; \
+             local: {local_token:?}, reference: {reference:?}"
+        );
+        Ok(())
     }
 }
 
@@ -245,10 +260,14 @@ pub struct ConsistencyChecker {
 impl ConsistencyChecker {
     const DEFAULT_SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 
-    pub fn new(web3_url: &str, max_batches_to_recheck: u32, pool: ConnectionPool) -> Self {
-        let web3 = QueryClient::new(web3_url).unwrap();
+    pub fn new(
+        web3_url: &str,
+        max_batches_to_recheck: u32,
+        pool: ConnectionPool,
+    ) -> anyhow::Result<Self> {
+        let web3 = QueryClient::new(web3_url).context("cannot create L1 Web3 client")?;
         let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
-        Self {
+        Ok(Self {
             contract: zksync_contracts::zksync_contract(),
             validator_timelock_addr: None,
             max_batches_to_recheck,
@@ -258,7 +277,7 @@ impl ConsistencyChecker {
             l1_data_mismatch_behavior: L1DataMismatchBehavior::Log,
             pool,
             health_check,
-        }
+        })
     }
 
     pub fn with_validator_timelock_addr(mut self, address: Option<Address>) -> Self {
@@ -275,7 +294,7 @@ impl ConsistencyChecker {
         &self,
         batch_number: L1BatchNumber,
         local: &LocalL1BatchCommitData,
-    ) -> Result<bool, CheckError> {
+    ) -> Result<(), CheckError> {
         let commit_tx_hash = local.commit_tx_hash;
         tracing::info!("Checking commit tx {commit_tx_hash} for L1 batch #{batch_number}");
 
@@ -283,10 +302,11 @@ impl ConsistencyChecker {
             .l1_client
             .get_tx_status(commit_tx_hash, "consistency_checker")
             .await?
-            .with_context(|| format!("Receipt for tx {commit_tx_hash:?} not found on L1"))?;
+            .with_context(|| format!("receipt for tx {commit_tx_hash:?} not found on L1"))
+            .map_err(CheckError::Validation)?;
         if !commit_tx_status.success {
-            let err = anyhow::anyhow!("Main node gave us a failed commit tx");
-            return Err(err.into());
+            let err = anyhow::anyhow!("main node gave us a failed commit tx {commit_tx_hash:?}");
+            return Err(CheckError::Validation(err));
         }
 
         // We can't get tx calldata from the DB because it can be fake.
@@ -294,7 +314,8 @@ impl ConsistencyChecker {
             .l1_client
             .get_tx(commit_tx_hash, "consistency_checker")
             .await?
-            .with_context(|| format!("Commit for tx {commit_tx_hash:?} not found on L1"))?;
+            .with_context(|| format!("commit transaction {commit_tx_hash:?} not found on L1"))
+            .map_err(CheckError::Internal)?; // we've got a transaction receipt previously, thus an internal error
         if let Some(validator_timelock_addr) = self.validator_timelock_addr {
             if commit_tx.to != Some(validator_timelock_addr) {
                 let err = anyhow::anyhow!(
@@ -302,7 +323,7 @@ impl ConsistencyChecker {
                      but it is {:?}",
                     commit_tx.to
                 );
-                return Err(err.into());
+                return Err(CheckError::Validation(err));
             }
         }
 
@@ -312,17 +333,22 @@ impl ConsistencyChecker {
         } else {
             self.contract
                 .function("commitBatches")
-                .context("L1 contract does not have `commitBatches` function")?
+                .context("L1 contract does not have `commitBatches` function")
+                .map_err(CheckError::Internal)?
         };
 
         let commitment =
             Self::extract_commit_data(&commit_tx.input.0, commit_function, batch_number)
                 .with_context(|| {
-                    format!("Failed extracting commit data for transaction {commit_tx_hash:?}")
-                })?;
-        Ok(local.verify_commitment(&commitment)?)
+                    format!("failed extracting commit data for transaction {commit_tx_hash:?}")
+                })
+                .map_err(CheckError::Validation)?;
+        local
+            .verify_commitment(&commitment)
+            .map_err(CheckError::Validation)
     }
 
+    /// All returned errors are validation errors.
     fn extract_commit_data(
         commit_tx_input_data: &[u8],
         commit_function: &ethabi::Function,
@@ -406,7 +432,7 @@ impl ConsistencyChecker {
                 let err = anyhow::anyhow!(
                     "unexpected `getName` response from validator timelock contract {address:?}: {response:?}"
                 );
-                Err(err.into())
+                Err(CheckError::Internal(err))
             }
         }
     }
@@ -422,12 +448,11 @@ impl ConsistencyChecker {
         self.event_handler.initialize();
 
         while let Err(err) = self.sanity_check_validator_timelock_addr().await {
-            match err {
-                CheckError::Web3(err) => {
-                    tracing::warn!("Error accessing L1; will retry after a delay: {err}");
-                    tokio::time::sleep(self.sleep_interval).await;
-                }
-                CheckError::Internal(err) => return Err(err),
+            if err.is_transient() {
+                tracing::warn!("Transient error checking validator timelock contract; will retry after a delay: {err}");
+                tokio::time::sleep(self.sleep_interval).await;
+            } else {
+                return Err(err.into());
             }
         }
 
@@ -477,30 +502,33 @@ impl ConsistencyChecker {
             drop(storage);
 
             match self.check_commitments(batch_number, &local).await {
-                Ok(true) => {
+                Ok(()) => {
                     self.event_handler.update_checked_batch(batch_number);
                     batch_number += 1;
                 }
-                Ok(false) => {
-                    self.event_handler.report_inconsistent_batch(batch_number);
+                Err(CheckError::Validation(err)) => {
+                    self.event_handler
+                        .report_inconsistent_batch(batch_number, &err);
                     match &self.l1_data_mismatch_behavior {
                         #[cfg(test)]
                         L1DataMismatchBehavior::Bail => {
-                            anyhow::bail!("L1 batch #{batch_number} is inconsistent with L1");
+                            let context =
+                                format!("L1 batch #{batch_number} is inconsistent with L1");
+                            return Err(err.context(context));
                         }
                         L1DataMismatchBehavior::Log => {
                             batch_number += 1; // We don't want to infinitely loop failing the check on the same batch
                         }
                     }
                 }
-                Err(CheckError::Web3(err)) => {
-                    tracing::warn!("Error accessing L1; will retry after a delay: {err}");
+                Err(err) if err.is_transient() => {
+                    tracing::warn!("Transient error while verifying L1 batch #{batch_number}; will retry after a delay: {err}");
                     tokio::time::sleep(self.sleep_interval).await;
                 }
-                Err(CheckError::Internal(err)) => {
+                Err(other_err) => {
                     let context =
-                        format!("Failed verifying consistency of L1 batch #{batch_number}");
-                    return Err(err.context(context));
+                        format!("failed verifying consistency of L1 batch #{batch_number}");
+                    return Err(anyhow::Error::from(other_err).context(context));
                 }
             }
         }

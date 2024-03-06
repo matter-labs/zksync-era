@@ -240,6 +240,7 @@ async fn init_tasks(
             .await
             .context("failed to build connection pool for ConsistencyChecker")?,
     )
+    .context("cannot initialize consistency checker")?
     .with_validator_timelock_addr(config.optional.contracts_validator_timelock_addr);
 
     app_health.insert_component(consistency_checker.health_check().clone());
