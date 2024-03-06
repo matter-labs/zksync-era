@@ -11,7 +11,7 @@ use zksync_core::{
         web3::{state::InternalApiConfig, Namespace},
     },
     consensus,
-    temp_config_store::decode_json,
+    temp_config_store::decode_yaml,
 };
 use zksync_types::{api::BridgeAddresses, fee_model::FeeParams};
 use zksync_web3_decl::{
@@ -476,7 +476,7 @@ pub(crate) fn read_consensus_secrets() -> anyhow::Result<Option<consensus::Secre
         return Ok(None);
     };
     let cfg = std::fs::read_to_string(&path).context(path)?;
-    Ok(Some(decode_json(&cfg).context("failed decoding JSON")?))
+    Ok(Some(decode_yaml(&cfg).context("failed decoding YAML")?))
 }
 
 pub(crate) fn read_consensus_config() -> anyhow::Result<Option<consensus::Config>> {
@@ -484,7 +484,7 @@ pub(crate) fn read_consensus_config() -> anyhow::Result<Option<consensus::Config
         return Ok(None);
     };
     let cfg = std::fs::read_to_string(&path).context(path)?;
-    Ok(Some(decode_json(&cfg).context("failed decoding JSON")?))
+    Ok(Some(decode_yaml(&cfg).context("failed decoding YAML")?))
 }
 
 /// Configuration for snapshot recovery. Loaded optionally, only if the corresponding command-line argument
