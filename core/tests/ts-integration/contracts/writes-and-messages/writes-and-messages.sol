@@ -11,12 +11,21 @@ contract WritesAndMessages {
     IL2Messenger constant L2_MESSENGER = IL2Messenger(address(0x8008));
     mapping(uint256 => uint256) public s;
 
+    uint256 constant LOOP_LIMIT = 1000; // Adjust this value based on your gas limit and requirements
+
     function writes(uint from, uint iterations, uint value) public {
         unchecked {
-            for (uint i = 0; i < iterations; i++) {
-                assembly {
-                    sstore(add(from, i), value)
+            uint256 remaining = iterations;
+            uint256 start = from;
+            while (remaining > 0) {
+                uint256 batchSize = remaining > LOOP_LIMIT ? LOOP_LIMIT : remaining;
+                for (uint256 i = 0; i < batchSize; i++) {
+                    assembly {
+                        sstore(add(start, i), value)
+                    }
                 }
+                remaining -= batchSize;
+                start += batchSize;
             }
         }
     }
