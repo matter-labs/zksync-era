@@ -11,13 +11,14 @@ use zksync_dal::ConnectionPool;
 use self::storage::Store;
 use crate::sync_layer::{sync_action::ActionQueueSender, MainNodeClient, SyncState};
 
-pub mod config;
-pub mod proto;
+mod config;
 mod storage;
 #[cfg(test)]
 pub(crate) mod testonly;
 #[cfg(test)]
 mod tests;
+
+pub use config::{Config, Secrets};
 
 /// Main node consensus config.
 #[derive(Debug, Clone)]
