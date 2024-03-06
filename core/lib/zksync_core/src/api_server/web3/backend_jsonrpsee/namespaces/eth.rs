@@ -1,14 +1,17 @@
 use zksync_types::{
     api::{
         Block, BlockId, BlockIdVariant, BlockNumber, Log, StateOverride, Transaction,
-        TransactionId, TransactionReceipt, TransactionVariant,
+        TransactionId, TransactionReceipt, TransactionVariant, ValidatedStateOverride,
     },
     transaction_request::CallRequest,
     web3::types::{FeeHistory, Index, SyncState},
     Address, Bytes, H256, U256, U64,
 };
 use zksync_web3_decl::{
-    jsonrpsee::core::{async_trait, RpcResult},
+    jsonrpsee::{
+        core::{async_trait, RpcResult},
+        types::error::{ErrorObjectOwned, INVALID_PARAMS_CODE},
+    },
     namespaces::eth::EthNamespaceServer,
     types::{Filter, FilterChanges},
 };
@@ -39,7 +42,19 @@ impl EthNamespaceServer for EthNamespace {
         block: Option<BlockNumber>,
         state_override: Option<StateOverride>,
     ) -> RpcResult<U256> {
-        self.estimate_gas_impl(req, block, state_override)
+        let validated_state_override = state_override
+            .map(|state_override| {
+                ValidatedStateOverride::try_from(state_override).map_err(|err| {
+                    ErrorObjectOwned::owned(
+                        INVALID_PARAMS_CODE,
+                        format!("Invalid state override: {}", err),
+                        None::<()>,
+                    )
+                })
+            })
+            .map_or(Ok(None), |res| res.map(Some))?;
+
+        self.estimate_gas_impl(req, block, validated_state_override)
             .await
             .map_err(|err| self.current_method().map_err(err))
     }

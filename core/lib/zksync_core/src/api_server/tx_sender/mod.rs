@@ -1,9 +1,8 @@
 //! Helper module to submit transactions into the zkSync Network.
 
-use std::{cmp, collections::HashMap, sync::Arc, time::Instant};
+use std::{cmp, sync::Arc, time::Instant};
 
 use anyhow::Context as _;
-use itertools::Itertools;
 use multivm::{
     interface::VmExecutionResultAndLogs,
     utils::{adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead},
@@ -14,18 +13,18 @@ use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, StorageProcessor};
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{
-    api::StateOverride,
+    api::ValidatedStateOverride,
     fee::{Fee, TransactionExecutionMetrics},
     fee_model::BatchFeeInput,
-    get_code_key, get_intrinsic_constants, get_nonce_key,
+    get_code_key, get_intrinsic_constants,
     l1::is_l1_tx_type,
     l2::{error::TxCheckError::TxDuplication, L2Tx},
-    utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
+    utils::storage_key_for_eth_balance,
     AccountTreeId, Address, ExecuteTransactionCommon, L2ChainId, MiniblockNumber, Nonce,
-    PackedEthSignature, ProtocolVersionId, StorageKey, StorageLog, Transaction, VmVersion, H160,
-    H256, MAX_L2_TX_GAS_LIMIT, MAX_NEW_FACTORY_DEPS, U256,
+    PackedEthSignature, ProtocolVersionId, Transaction, VmVersion, H160, H256, MAX_L2_TX_GAS_LIMIT,
+    MAX_NEW_FACTORY_DEPS, U256,
 };
-use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
+use zksync_utils::h256_to_u256;
 
 pub(super) use self::result::SubmitTxError;
 use self::tx_sink::TxSink;
@@ -304,6 +303,7 @@ impl TxSender {
                 self.0.replica_connection_pool.clone(),
                 tx.clone().into(),
                 block_args,
+                None,
                 vec![],
             )
             .await?;
@@ -561,6 +561,7 @@ impl TxSender {
         block_args: BlockArgs,
         base_fee: u64,
         vm_version: VmVersion,
+        state_override: Option<ValidatedStateOverride>,
     ) -> anyhow::Result<(VmExecutionResultAndLogs, TransactionExecutionMetrics)> {
         let gas_limit_with_overhead = tx_gas_limit
             + derive_overhead(
@@ -606,6 +607,7 @@ impl TxSender {
                 self.0.replica_connection_pool.clone(),
                 tx.clone(),
                 block_args,
+                state_override,
                 vec![],
             )
             .await?;
@@ -631,7 +633,7 @@ impl TxSender {
         mut tx: Transaction,
         estimated_fee_scale_factor: f64,
         acceptable_overestimation: u32,
-        state_override: Option<StateOverride>,
+        state_override: Option<ValidatedStateOverride>,
     ) -> Result<Fee, SubmitTxError> {
         let estimation_started_at = Instant::now();
 
@@ -693,151 +695,25 @@ impl TxSender {
                 )
             })?;
 
-        if let Some(overrides) = &state_override {
-            for (account, overrides) in overrides {
-                if overrides.state.is_some() && overrides.state_diff.is_some() {
-                    return Err(SubmitTxError::Unexecutable(
-                        "state and stateDiff are mutually exclusive".to_string(),
-                    ));
-                }
+        if !tx.is_l1() && account_code_hash == H256::zero() {
+            let balance = match state_override
+                .as_ref()
+                .and_then(|overrides| overrides.get(&tx.initiator_account()))
+                .and_then(|account| account.balance)
+            {
+                Some(balance) => balance.to_owned(),
+                None => self.get_balance(&tx.initiator_account()).await?,
+            };
 
-                if let Some(balance) = overrides.balance {
-                    let balance_key = storage_key_for_eth_balance(account);
-                    let log = StorageLog::new_write_log(balance_key, u256_to_h256(balance));
-                    self.acquire_replica_connection()
-                        .await?
-                        .storage_logs_dal()
-                        .append_storage_logs(
-                            block_args.resolved_block_number(),
-                            &[(H256::zero(), vec![log])],
-                        )
-                        .await
-                        .map_err(|err| SubmitTxError::Internal(err.into()))?;
-                }
-
-                if let Some(nonce) = overrides.nonce {
-                    let nonce_key = get_nonce_key(account);
-                    let mut connection = self.acquire_replica_connection().await?;
-
-                    let full_nonce = connection
-                        .storage_web3_dal()
-                        .get_value(&nonce_key)
-                        .await
-                        .map_err(|err| SubmitTxError::Internal(err.into()))?;
-                    let (_, deployment_nonce) = decompose_full_nonce(h256_to_u256(full_nonce));
-                    let new_full_nonce = nonces_to_full_nonce(nonce, deployment_nonce);
-
-                    let log = StorageLog::new_write_log(nonce_key, u256_to_h256(new_full_nonce));
-                    connection
-                        .storage_logs_dal()
-                        .append_storage_logs(
-                            block_args.resolved_block_number(),
-                            &[(H256::zero(), vec![log])],
-                        )
-                        .await
-                        .map_err(|err| SubmitTxError::Internal(err.into()))?;
-                }
-
-                if let Some(code) = &overrides.code {
-                    let code_key = get_code_key(account);
-                    let code_hash = hash_bytecode(&code.0);
-
-                    let mut connection = self.acquire_replica_connection().await?;
-
-                    let log = StorageLog::new_write_log(code_key, code_hash);
-                    connection
-                        .storage_logs_dal()
-                        .append_storage_logs(
-                            block_args.resolved_block_number(),
-                            &[(H256::zero(), vec![log])],
-                        )
-                        .await
-                        .map_err(|err| SubmitTxError::Internal(err.into()))?;
-                    connection
-                        .factory_deps_dal()
-                        .insert_factory_deps(
-                            block_args.resolved_block_number(),
-                            &HashMap::from_iter(vec![(code_hash, code.0.clone())]),
-                        )
-                        .await
-                        .map_err(|err| SubmitTxError::Internal(err.into()))?;
-                }
-
-                if let Some(state) = &overrides.state {
-                    let mut connection = self.acquire_replica_connection().await?;
-
-                    // First find storage keys to clear
-                    let keys_to_clear = connection
-                        .storage_logs_dal()
-                        .dump_all_storage_logs_for_tests()
-                        .await
-                        .iter()
-                        .filter(|log| &log.address == account)
-                        .map(|log| log.key)
-                        .unique()
-                        .collect::<Vec<_>>();
-
-                    // Now clear keys and add new values
-                    let mut logs: Vec<StorageLog> = keys_to_clear
-                        .iter()
-                        .map(|key| {
-                            StorageLog::new_write_log(
-                                StorageKey::new(AccountTreeId::new(*account), *key),
-                                H256::zero(),
-                            )
-                        })
-                        .collect();
-                    logs.extend(state.iter().map(|(key, value)| {
-                        StorageLog::new_write_log(
-                            StorageKey::new(AccountTreeId::new(*account), *key),
-                            *value,
-                        )
-                    }));
-
-                    connection
-                        .storage_logs_dal()
-                        .append_storage_logs(
-                            block_args.resolved_block_number(),
-                            &[(H256::zero(), logs)],
-                        )
-                        .await
-                        .map_err(|err| SubmitTxError::Internal(err.into()))?;
-                }
-
-                if let Some(state_diff) = &overrides.state_diff {
-                    let logs = state_diff
-                        .iter()
-                        .map(|(key, value)| {
-                            StorageLog::new_write_log(
-                                StorageKey::new(AccountTreeId::new(*account), *key),
-                                *value,
-                            )
-                        })
-                        .collect();
-                    self.acquire_replica_connection()
-                        .await?
-                        .storage_logs_dal()
-                        .append_storage_logs(
-                            block_args.resolved_block_number(),
-                            &[(H256::zero(), logs)],
-                        )
-                        .await
-                        .map_err(|err| SubmitTxError::Internal(err.into()))?;
-                }
+            if tx.execute.value > balance {
+                tracing::info!(
+                    "fee estimation failed on validation step.
+                    account: {} does not have enough funds for for transferring tx.value: {}.",
+                    &tx.initiator_account(),
+                    tx.execute.value
+                );
+                return Err(SubmitTxError::InsufficientFundsForTransfer);
             }
-        }
-
-        if !tx.is_l1()
-            && account_code_hash == H256::zero()
-            && tx.execute.value > self.get_balance(&tx.initiator_account()).await?
-        {
-            tracing::info!(
-                "fee estimation failed on validation step.
-                account: {} does not have enough funds for for transferring tx.value: {}.",
-                &tx.initiator_account(),
-                tx.execute.value
-            );
-            return Err(SubmitTxError::InsufficientFundsForTransfer);
         }
 
         // For L2 transactions we need a properly formatted signature
@@ -906,6 +782,7 @@ impl TxSender {
                     block_args,
                     base_fee,
                     protocol_version.into(),
+                    state_override.clone(),
                 )
                 .await
                 .context("estimate_gas step failed")?;
@@ -946,6 +823,7 @@ impl TxSender {
                 block_args,
                 base_fee,
                 protocol_version.into(),
+                state_override,
             )
             .await
             .context("final estimate_gas step failed")?;

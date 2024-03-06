@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, convert::TryFrom, ops::Deref};
 
 use chrono::{DateTime, Utc};
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
@@ -737,7 +737,8 @@ pub struct Proof {
 }
 
 /// Collection of overridden accounts, useful for `eth_estimateGas`.
-pub type StateOverride = HashMap<Address, OverrideAccount>;
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StateOverride(pub HashMap<Address, OverrideAccount>);
 
 /// Account override for `eth_estimateGas`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -748,4 +749,62 @@ pub struct OverrideAccount {
     pub code: Option<Bytes>,
     pub state: Option<HashMap<H256, H256>>,
     pub state_diff: Option<HashMap<H256, H256>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ValidatedStateOverride(HashMap<Address, ValidatedOverrideAccount>);
+
+impl ValidatedStateOverride {
+    pub fn get(&self, address: &Address) -> Option<&ValidatedOverrideAccount> {
+        self.0.get(address)
+    }
+}
+
+impl Deref for ValidatedStateOverride {
+    type Target = HashMap<Address, ValidatedOverrideAccount>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl TryFrom<StateOverride> for ValidatedStateOverride {
+    type Error = String;
+
+    fn try_from(value: StateOverride) -> Result<Self, Self::Error> {
+        let mut validated = HashMap::new();
+        for (address, account) in value.0 {
+            let validated_account = ValidatedOverrideAccount {
+                balance: account.balance,
+                nonce: account.nonce,
+                code: account.code,
+                state: match (account.state, account.state_diff) {
+                    (Some(state), None) => Some(OverrideState::State(state)),
+                    (None, Some(state_diff)) => Some(OverrideState::StateDiff(state_diff)),
+                    (Some(_), Some(_)) => {
+                        return Err(format!(
+                            "Account {address} has overriden state and state_diff"
+                        ))
+                    }
+                    (None, None) => None,
+                },
+            };
+            validated.insert(address, validated_account);
+        }
+        Ok(ValidatedStateOverride(validated))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ValidatedOverrideAccount {
+    pub balance: Option<U256>,
+    pub nonce: Option<U256>,
+    pub code: Option<Bytes>,
+    pub state: Option<OverrideState>,
+}
+
+#[derive(Debug, Clone)]
+pub enum OverrideState {
+    State(HashMap<H256, H256>),
+    StateDiff(HashMap<H256, H256>),
 }

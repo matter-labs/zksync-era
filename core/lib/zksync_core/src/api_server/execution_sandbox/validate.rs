@@ -69,6 +69,7 @@ impl TransactionExecutor {
                 &connection_pool,
                 tx,
                 block_args,
+                None,
                 |vm, tx| {
                     let stage_latency = SANDBOX_METRICS.sandbox[&SandboxStage::Validation].start();
                     let span = tracing::debug_span!("validation").entered();

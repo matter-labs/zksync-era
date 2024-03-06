@@ -10,8 +10,8 @@ use multivm::{
 use tracing::{span, Level};
 use zksync_dal::ConnectionPool;
 use zksync_types::{
-    fee::TransactionExecutionMetrics, l2::L2Tx, ExecuteTransactionCommon, Nonce,
-    PackedEthSignature, Transaction, U256,
+    api::ValidatedStateOverride, fee::TransactionExecutionMetrics, l2::L2Tx,
+    ExecuteTransactionCommon, Nonce, PackedEthSignature, Transaction, U256,
 };
 
 #[cfg(test)]
@@ -111,6 +111,7 @@ impl TransactionExecutor {
         connection_pool: ConnectionPool,
         tx: Transaction,
         block_args: BlockArgs,
+        state_override: Option<ValidatedStateOverride>,
         custom_tracers: Vec<ApiTracer>,
     ) -> anyhow::Result<TransactionExecutionOutput> {
         #[cfg(test)]
@@ -134,6 +135,7 @@ impl TransactionExecutor {
                 &connection_pool,
                 tx,
                 block_args,
+                state_override,
                 |vm, tx| {
                     let storage_invocation_tracer =
                         StorageInvocations::new(execution_args.missed_storage_invocation_limit);
@@ -196,6 +198,7 @@ impl TransactionExecutor {
                 connection_pool,
                 tx.into(),
                 block_args,
+                None,
                 custom_tracers,
             )
             .await?;

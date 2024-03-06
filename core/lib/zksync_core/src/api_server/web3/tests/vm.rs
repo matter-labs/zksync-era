@@ -543,16 +543,16 @@ impl HttpTest for EstimateGasWithStateOverrideTest {
         tx_executor
     }
 
-    async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
+    async fn test(&self, client: &HttpClient, _pool: &ConnectionPool) -> anyhow::Result<()> {
         // Transaction with balance override
         let l2_transaction = create_l2_transaction(10, 100);
         let mut call_request = CallRequest::from(l2_transaction);
         call_request.from = Some(Address::random());
         call_request.value = Some(1_000_000.into());
 
-        let mut state_override = StateOverride::new();
-        state_override.insert(
-            call_request.from.clone().unwrap(),
+        let mut state_override_map = HashMap::new();
+        state_override_map.insert(
+            call_request.from.unwrap(),
             OverrideAccount {
                 balance: Some(U256::max_value()),
                 nonce: None,
@@ -561,6 +561,7 @@ impl HttpTest for EstimateGasWithStateOverrideTest {
                 state_diff: None,
             },
         );
+        let state_override = StateOverride(state_override_map);
 
         client
             .estimate_gas(call_request.clone(), None, Some(state_override))
@@ -576,6 +577,7 @@ impl HttpTest for EstimateGasWithStateOverrideTest {
             .estimate_gas(call_request.clone(), None, None)
             .await
             .unwrap_err();
+
         if let ClientError::Call(error) = error {
             let error_msg = error.message();
             assert!(

@@ -23,7 +23,7 @@ use zksync_system_constants::{
     SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION, ZKPORTER_IS_AVAILABLE,
 };
 use zksync_types::{
-    api,
+    api::{self, ValidatedStateOverride},
     block::{pack_block_info, unpack_block_info, MiniblockHasher},
     fee_model::BatchFeeInput,
     get_nonce_key,
@@ -294,6 +294,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
     connection_pool: &ConnectionPool,
     tx: Transaction,
     block_args: BlockArgs,
+    state_override: Option<ValidatedStateOverride>,
     apply: impl FnOnce(
         &mut VmInstance<StorageView<PostgresStorage<'_>>, HistoryDisabled>,
         Transaction,
@@ -328,6 +329,29 @@ pub(super) fn apply_vm_in_sandbox<T>(
         tx.initiator_account(),
         tx.nonce().unwrap_or(Nonce(0))
     );
+
+    // Apply state override
+    if let Some(state_override) = state_override {
+        let mut storage_view = storage_view.as_ref().borrow_mut();
+
+        for (address, overrides) in state_override.iter() {
+            if let Some(balance) = overrides.balance {
+                let balance_key = storage_key_for_eth_balance(&address);
+                storage_view.set_value(balance_key, u256_to_h256(balance));
+            }
+
+            if let Some(nonce) = overrides.nonce {
+                let nonce_key = get_nonce_key(&address);
+
+                let full_nonce = storage_view.read_value(&nonce_key);
+                let (_, deployment_nonce) = decompose_full_nonce(h256_to_u256(full_nonce));
+                let new_full_nonce = nonces_to_full_nonce(nonce, deployment_nonce);
+
+                storage_view.set_value(nonce_key, u256_to_h256(new_full_nonce));
+            }
+        }
+    }
+
     let execution_latency = SANDBOX_METRICS.sandbox[&SandboxStage::Execution].start();
     let result = apply(&mut vm, tx);
     let vm_execution_took = execution_latency.observe();
