@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use anyhow::Context;
 use multivm::interface::{L1BatchEnv, SystemEnv};
-use zksync_dal::StorageProcessor;
+use zksync_dal::ConnectionOperator;
 use zksync_types::{L1BatchNumber, MiniblockNumber, H256};
 
 use super::PendingBatchData;
@@ -30,7 +30,7 @@ pub(crate) struct IoCursor {
 
 impl IoCursor {
     /// Loads the cursor from Postgres.
-    pub async fn new(storage: &mut StorageProcessor<'_>) -> anyhow::Result<Self> {
+    pub async fn new(storage: &mut ConnectionOperator<'_>) -> anyhow::Result<Self> {
         let last_sealed_l1_batch_number = storage
             .blocks_dal()
             .get_sealed_l1_batch_number()
@@ -88,7 +88,7 @@ impl IoCursor {
 ///
 /// Propagates DB errors. Also returns an error if environment doesn't correspond to a pending L1 batch.
 pub(crate) async fn load_pending_batch(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut ConnectionOperator<'_>,
     system_env: SystemEnv,
     l1_batch_env: L1BatchEnv,
 ) -> anyhow::Result<PendingBatchData> {

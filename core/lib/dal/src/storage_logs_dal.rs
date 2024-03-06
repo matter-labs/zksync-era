@@ -838,9 +838,13 @@ mod tests {
     use zksync_types::{block::L1BatchHeader, ProtocolVersion, ProtocolVersionId};
 
     use super::*;
-    use crate::{tests::create_miniblock_header, ConnectionPool, StorageProcessor};
+    use crate::{tests::create_miniblock_header, ConnectionOperator, ConnectionPool};
 
-    async fn insert_miniblock(conn: &mut StorageProcessor<'_>, number: u32, logs: Vec<StorageLog>) {
+    async fn insert_miniblock(
+        conn: &mut ConnectionOperator<'_>,
+        number: u32,
+        logs: Vec<StorageLog>,
+    ) {
         let header = L1BatchHeader::new(
             L1BatchNumber(number),
             0,
@@ -916,7 +920,7 @@ mod tests {
     }
 
     async fn test_rollback(
-        conn: &mut StorageProcessor<'_>,
+        conn: &mut ConnectionOperator<'_>,
         key: StorageKey,
         second_key: StorageKey,
     ) {
@@ -1144,7 +1148,7 @@ mod tests {
         }
     }
 
-    async fn prepare_tree_entries(conn: &mut StorageProcessor<'_>, count: u8) -> Vec<H256> {
+    async fn prepare_tree_entries(conn: &mut ConnectionOperator<'_>, count: u8) -> Vec<H256> {
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;

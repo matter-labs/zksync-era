@@ -16,7 +16,7 @@ use multivm::{
     VmInstance,
 };
 use tokio::runtime::Handle;
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::{ConnectionOperator, ConnectionPool};
 use zksync_state::{PostgresStorage, ReadStorage, StoragePtr, StorageView, WriteStorage};
 use zksync_system_constants::{
     SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
@@ -51,7 +51,7 @@ struct Sandbox<'a> {
 
 impl<'a> Sandbox<'a> {
     async fn new(
-        mut connection: StorageProcessor<'a>,
+        mut connection: ConnectionOperator<'a>,
         shared_args: TxSharedArgs,
         execution_args: &'a TxExecutionArgs,
         block_args: BlockArgs,
@@ -108,7 +108,7 @@ impl<'a> Sandbox<'a> {
     }
 
     async fn load_l2_block_info(
-        connection: &mut StorageProcessor<'_>,
+        connection: &mut ConnectionOperator<'_>,
         is_pending_block: bool,
         resolved_block_info: &ResolvedBlockInfo,
     ) -> anyhow::Result<(L2BlockEnv, Option<StoredL2BlockInfo>)> {
@@ -353,7 +353,7 @@ struct StoredL2BlockInfo {
 impl StoredL2BlockInfo {
     /// If `miniblock_hash` is `None`, it needs to be fetched from the storage.
     async fn new(
-        connection: &mut StorageProcessor<'_>,
+        connection: &mut ConnectionOperator<'_>,
         miniblock_number: MiniblockNumber,
         miniblock_hash: Option<H256>,
     ) -> anyhow::Result<Self> {
@@ -427,7 +427,7 @@ impl BlockArgs {
 
     async fn resolve_block_info(
         &self,
-        connection: &mut StorageProcessor<'_>,
+        connection: &mut ConnectionOperator<'_>,
     ) -> anyhow::Result<ResolvedBlockInfo> {
         let (state_l2_block_number, vm_l1_batch_number, l1_batch_timestamp);
 

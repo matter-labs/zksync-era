@@ -15,7 +15,7 @@ use crate::{
     utils::testonly::{create_l1_batch, create_miniblock, prepare_recovery_snapshot},
 };
 
-async fn seal_l1_batch(storage: &mut StorageProcessor<'_>, number: L1BatchNumber) {
+async fn seal_l1_batch(storage: &mut ConnectionOperator<'_>, number: L1BatchNumber) {
     let mut storage = storage.start_transaction().await.unwrap();
     // Insert a mock miniblock so that `get_block_details()` will return values.
     let miniblock = create_miniblock(number.0);
@@ -104,7 +104,7 @@ impl L1BatchStagesMap {
         }
     }
 
-    async fn assert_storage(&self, storage: &mut StorageProcessor<'_>) {
+    async fn assert_storage(&self, storage: &mut ConnectionOperator<'_>) {
         for (number, stage) in self.iter() {
             let local_details = storage
                 .blocks_web3_dal()

@@ -17,7 +17,7 @@ use crate::{
 };
 
 /// Context-aware `zksync_dal::StorageProcessorWrapper` wrapper.
-pub(super) struct CtxStorage<'a>(zksync_dal::StorageProcessor<'a>);
+pub(super) struct CtxStorage<'a>(zksync_dal::ConnectionOperator<'a>);
 
 impl<'a> CtxStorage<'a> {
     /// Wrapper for `access_storage_tagged()`.

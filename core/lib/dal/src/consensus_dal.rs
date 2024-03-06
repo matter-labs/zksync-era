@@ -4,7 +4,7 @@ use zksync_consensus_storage::ReplicaState;
 use zksync_types::MiniblockNumber;
 
 pub use crate::models::consensus::Payload;
-use crate::{sync_dal::SyncDal, transactions_web3_dal::TransactionsWeb3Dal, StorageProcessor};
+use crate::{sync_dal::SyncDal, transactions_web3_dal::TransactionsWeb3Dal};
 
 /// Storage access methods for `zksync_core::consensus` module.
 #[derive(Debug)]

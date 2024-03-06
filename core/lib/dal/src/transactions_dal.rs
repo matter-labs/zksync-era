@@ -21,7 +21,6 @@ use crate::{
     instrument::InstrumentExt,
     models::storage_transaction::{CallTrace, StorageTransaction},
     time_utils::pg_interval_from_duration,
-    StorageProcessor,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]

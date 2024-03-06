@@ -64,18 +64,18 @@ pub mod transactions_web3_dal;
 mod tests;
 
 #[derive(Debug)]
-pub struct StorageProcessor<'a>(pub zksync_db_connection::StorageProcessor<'a>);
+pub struct ConnectionOperator<'a>(pub zksync_db_connection::StorageProcessor<'a>);
 
-impl<'a> StorageProcessor<'a> {
+impl<'a> ConnectionOperator<'a> {
     pub fn in_transaction(&self) -> bool {
         self.0.in_transaction()
     }
 
-    pub async fn start_transaction(&mut self) -> sqlx::Result<StorageProcessor<'_>> {
+    pub async fn start_transaction(&mut self) -> sqlx::Result<ConnectionOperator<'_>> {
         self.0
             .start_transaction()
             .await
-            .map(|res| StorageProcessor(res))
+            .map(|res| ConnectionOperator(res))
     }
 
     pub async fn commit(self) -> sqlx::Result<()> {
@@ -83,7 +83,7 @@ impl<'a> StorageProcessor<'a> {
     }
 }
 
-impl<'a> StorageProcessor<'a> {
+impl<'a> ConnectionOperator<'a> {
     pub fn transactions_dal(&mut self) -> TransactionsDal<'_, 'a> {
         TransactionsDal {
             storage: &mut self.0,
