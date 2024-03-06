@@ -38,11 +38,11 @@ const reinitHyperCmdAction = async ({ baseTokenName }: ReinitHyperCmdActionOptio
 };
 
 export const reinitCommand = new Command('reinit')
-    .description('"Reinitializes" network. Runs faster than a full init, but requires `init dev` to be executed prior.')
+    .description('"Reinitializes" network. Runs faster than a full init, but requires `init` to be executed prior.')
     .action(reinitDevCmdAction);
 
 reinitCommand
     .command('hyper')
-    .description('')
+    .description('Bumps chain id and reinitializes hyperchain. Requires `init` to be executed prior.')
     .option('--base-token-name <base-token-name>', 'base token name')
     .action(reinitHyperCmdAction);
