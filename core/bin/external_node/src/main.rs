@@ -461,7 +461,7 @@ async fn main() -> anyhow::Result<()> {
         tracing::info!("No sentry URL was provided");
     }
 
-    let config = ExternalNodeConfig::collect()
+    let mut config = ExternalNodeConfig::collect()
         .await
         .context("Failed to load external node config")?;
     if opt.enable_consensus {
@@ -471,6 +471,8 @@ async fn main() -> anyhow::Result<()> {
             !opt.enable_snapshots_recovery,
             "Consensus logic does not support snapshot recovery yet"
         );
+    } else {
+        config.consensus = None;
     }
 
     if let Some(threshold) = config.optional.slow_query_threshold() {
