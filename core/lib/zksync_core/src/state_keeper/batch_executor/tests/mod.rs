@@ -1,12 +1,17 @@
 use assert_matches::assert_matches;
-use test_casing::test_casing;
+use test_casing::{cases, test_casing, TestCases};
 use zksync_dal::ConnectionPool;
 use zksync_test_account::Account;
-use zksync_types::{get_nonce_key, utils::storage_key_for_eth_balance, PriorityOpId};
+use zksync_types::{
+    get_nonce_key, snapshots::SnapshotRecoveryStatus, utils::storage_key_for_eth_balance,
+    PriorityOpId,
+};
 
 use self::tester::{AccountLoadNextExecutable, StorageSnapshot, TestConfig, Tester};
-use super::TxExecutionResult;
+use super::{BatchExecutorHandle, TxExecutionResult};
+use crate::state_keeper::StateKeeperStorage;
 
+mod read_storage_factory;
 mod tester;
 
 /// Ensures that the transaction was executed successfully.
@@ -29,15 +34,86 @@ fn assert_reverted(execution_result: &TxExecutionResult) {
     }
 }
 
-/// Checks that we can successfully execute a single L2 tx in batch executor.
+#[derive(Debug, Clone)]
+enum StorageType {
+    AsyncRocksdbCache,
+    Rocksdb,
+    Postgres,
+}
+
+impl StorageType {
+    const ALL: [Self; 3] = [Self::AsyncRocksdbCache, Self::Rocksdb, Self::Postgres];
+
+    async fn create_batch_executor(&self, tester: &Tester) -> BatchExecutorHandle {
+        let (l1_batch_env, system_env) = tester.default_batch_params();
+        match self {
+            StorageType::AsyncRocksdbCache => tester.create_batch_executor().await,
+            StorageType::Rocksdb => {
+                tester
+                    .create_batch_executor_inner(
+                        StateKeeperStorage::rocksdb(
+                            tester.pool(),
+                            tester.state_keeper_db_path(),
+                            tester.enum_index_migration_chunk_size(),
+                        ),
+                        l1_batch_env,
+                        system_env,
+                    )
+                    .await
+            }
+            StorageType::Postgres => {
+                tester
+                    .create_batch_executor_inner(
+                        StateKeeperStorage::postgres(tester.pool()),
+                        l1_batch_env,
+                        system_env,
+                    )
+                    .await
+            }
+        }
+    }
+
+    async fn recover_batch_executor(
+        &self,
+        tester: &Tester,
+        snapshot: &SnapshotRecoveryStatus,
+    ) -> BatchExecutorHandle {
+        match self {
+            StorageType::AsyncRocksdbCache => tester.recover_batch_executor(snapshot).await,
+            StorageType::Rocksdb => {
+                tester
+                    .recover_batch_executor_inner(
+                        StateKeeperStorage::rocksdb(
+                            tester.pool(),
+                            tester.state_keeper_db_path(),
+                            tester.enum_index_migration_chunk_size(),
+                        ),
+                        snapshot,
+                    )
+                    .await
+            }
+            StorageType::Postgres => {
+                tester
+                    .recover_batch_executor_inner(
+                        StateKeeperStorage::postgres(tester.pool()),
+                        snapshot,
+                    )
+                    .await
+            }
+        }
+    }
+}
+
+/// Checks that we can successfully execute a single L2 tx in batch executor on all storage types.
+#[test_casing(3, StorageType::ALL)]
 #[tokio::test]
-async fn execute_l2_tx() {
-    let connection_pool = ConnectionPool::constrained_test_pool(1).await;
+async fn execute_l2_tx(storage_type: StorageType) {
+    let connection_pool: ConnectionPool = ConnectionPool::constrained_test_pool(1).await;
     let mut alice = Account::random();
     let tester = Tester::new(connection_pool);
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
-    let executor = tester.create_batch_executor().await;
+    let executor = storage_type.create_batch_executor(&tester).await;
 
     let res = executor.execute_tx(alice.execute()).await;
     assert_executed(&res);
@@ -69,11 +145,22 @@ impl SnapshotRecoveryMutation {
     }
 }
 
+const EXECUTE_L2_TX_AFTER_SNAPSHOT_RECOVERY_CASES: TestCases<(
+    Option<SnapshotRecoveryMutation>,
+    StorageType,
+)> = cases!(itertools::iproduct!(
+    SnapshotRecoveryMutation::ALL,
+    StorageType::ALL
+));
+
 /// Tests that we can continue executing account transactions after emulating snapshot recovery.
 /// Test cases with a set `mutation` ensure that the VM executor correctly detects missing data (e.g., dropped account nonce).
-#[test_casing(3, SnapshotRecoveryMutation::ALL)]
+#[test_casing(9, EXECUTE_L2_TX_AFTER_SNAPSHOT_RECOVERY_CASES)]
 #[tokio::test]
-async fn execute_l2_tx_after_snapshot_recovery(mutation: Option<SnapshotRecoveryMutation>) {
+async fn execute_l2_tx_after_snapshot_recovery(
+    mutation: Option<SnapshotRecoveryMutation>,
+    storage_type: StorageType,
+) {
     let mut alice = Account::random();
     let connection_pool = ConnectionPool::constrained_test_pool(1).await;
 
@@ -86,7 +173,9 @@ async fn execute_l2_tx_after_snapshot_recovery(mutation: Option<SnapshotRecovery
     let snapshot = storage_snapshot.recover(&connection_pool).await;
 
     let tester = Tester::new(connection_pool);
-    let executor = tester.recover_batch_executor(&snapshot).await;
+    let executor = storage_type
+        .recover_batch_executor(&tester, &snapshot)
+        .await;
     let res = executor.execute_tx(alice.execute()).await;
     if mutation.is_none() {
         assert_executed(&res);
@@ -420,4 +509,40 @@ async fn bootloader_tip_out_of_gas() {
 
     let res = second_executor.execute_tx(alice.execute()).await;
     assert_matches!(res, TxExecutionResult::BootloaderOutOfGasForTx);
+}
+
+#[tokio::test]
+async fn catchup_rocksdb_cache() {
+    let connection_pool = ConnectionPool::constrained_test_pool(2).await;
+    let mut alice = Account::random();
+
+    let tester = Tester::new(connection_pool);
+
+    tester.genesis().await;
+    tester.fund(&[alice.address()]).await;
+
+    // Execute a bunch of transactions to populate Postgres-based storage (note that RocksDB stays empty)
+    let executor = StorageType::Postgres.create_batch_executor(&tester).await;
+    for _ in 0..10 {
+        let res = executor.execute_tx(alice.execute()).await;
+        assert_executed(&res);
+    }
+
+    // Execute one more tx on PG
+    let tx = alice.execute();
+    let res = executor.execute_tx(tx.clone()).await;
+    assert_executed(&res);
+    executor.finish_batch().await;
+
+    // Async RocksDB cache should be aware of the tx and should reject it
+    let executor = StorageType::AsyncRocksdbCache
+        .create_batch_executor(&tester)
+        .await;
+    let res = executor.execute_tx(tx.clone()).await;
+    assert_rejected(&res);
+
+    // Sync RocksDB storage should be aware of the tx and should reject it
+    let executor = StorageType::Rocksdb.create_batch_executor(&tester).await;
+    let res = executor.execute_tx(tx).await;
+    assert_rejected(&res);
 }

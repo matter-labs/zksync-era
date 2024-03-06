@@ -24,7 +24,7 @@ pub struct StateKeeperStorage<T: ReadStorageFactory> {
 
 /// Factory that can produce a [`ReadStorage`] implementation on demand.
 #[async_trait]
-pub trait ReadStorageFactory {
+pub trait ReadStorageFactory: Clone + Debug + Send + Sync {
     type ReadStorageImpl<'a>: ReadStorage
     where
         Self: 'a;
@@ -196,7 +196,7 @@ impl ReadStorageFactory for AsyncRocksdbCache {
     }
 }
 
-impl<T: ReadStorageFactory + Clone> StateKeeperStorage<T> {
+impl<T: ReadStorageFactory> StateKeeperStorage<T> {
     pub fn new(inner: Arc<Mutex<T>>) -> StateKeeperStorage<T> {
         Self { inner }
     }

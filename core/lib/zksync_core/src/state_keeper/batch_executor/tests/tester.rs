@@ -1,7 +1,7 @@
 //! Testing harness for the batch executor.
 //! Contains helper functionality to initialize test context and perform tests without too much boilerplate.
 
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Debug};
 
 use multivm::{
     interface::{L1BatchEnv, L2BlockEnv, SystemEnv},
@@ -27,6 +27,7 @@ use crate::{
     genesis::create_genesis_l1_batch,
     state_keeper::{
         batch_executor::{BatchExecutorHandle, TxExecutionResult},
+        state_keeper_storage::ReadStorageFactory,
         tests::{default_l1_batch_env, default_system_env, BASE_SYSTEM_CONTRACTS},
         BatchExecutor, MainBatchExecutor, StateKeeperStorage,
     },
@@ -92,23 +93,23 @@ impl Tester {
     /// Creates a batch executor instance.
     /// This function intentionally uses sensible defaults to not introduce boilerplate.
     pub(super) async fn create_batch_executor(&self) -> BatchExecutorHandle {
-        // Not really important for the batch executor - it operates over a single batch.
-        let (l1_batch_env, system_env) = self.batch_params(L1BatchNumber(1), 100);
-        self.create_batch_executor_inner(l1_batch_env, system_env)
+        let (l1_batch_env, system_env) = self.default_batch_params();
+        let state_keeper_storage = StateKeeperStorage::async_rocksdb_cache(
+            self.pool(),
+            self.state_keeper_db_path(),
+            self.enum_index_migration_chunk_size(),
+        );
+        self.create_batch_executor_inner(state_keeper_storage, l1_batch_env, system_env)
             .await
     }
 
-    async fn create_batch_executor_inner(
+    pub(super) async fn create_batch_executor_inner<T: ReadStorageFactory + 'static>(
         &self,
+        state_keeper_storage: StateKeeperStorage<T>,
         l1_batch_env: L1BatchEnv,
         system_env: SystemEnv,
     ) -> BatchExecutorHandle {
-        let state_keeper_storage = StateKeeperStorage::async_rocksdb_cache(
-            self.pool.clone(),
-            self.db_dir.path().to_str().unwrap().to_owned(),
-            100,
-        );
-        let mut builder = MainBatchExecutor::new(
+        let mut batch_executor = MainBatchExecutor::new(
             state_keeper_storage,
             self.config.max_allowed_tx_gas_limit.into(),
             self.config.save_call_traces,
@@ -116,7 +117,7 @@ impl Tester {
             false,
         );
         let (_stop_sender, stop_receiver) = watch::channel(false);
-        builder
+        batch_executor
             .init_batch(l1_batch_env, system_env, &stop_receiver)
             .await
             .expect("Batch executor was interrupted")
@@ -124,6 +125,20 @@ impl Tester {
 
     pub(super) async fn recover_batch_executor(
         &self,
+        snapshot: &SnapshotRecoveryStatus,
+    ) -> BatchExecutorHandle {
+        let state_keeper_storage = StateKeeperStorage::async_rocksdb_cache(
+            self.pool(),
+            self.state_keeper_db_path(),
+            self.enum_index_migration_chunk_size(),
+        );
+        self.recover_batch_executor_inner(state_keeper_storage, snapshot)
+            .await
+    }
+
+    pub(super) async fn recover_batch_executor_inner<T: ReadStorageFactory + 'static>(
+        &self,
+        state_keeper_storage: StateKeeperStorage<T>,
         snapshot: &SnapshotRecoveryStatus,
     ) -> BatchExecutorHandle {
         let current_timestamp = snapshot.miniblock_timestamp + 1;
@@ -137,8 +152,13 @@ impl Tester {
             max_virtual_blocks_to_create: 1,
         };
 
-        self.create_batch_executor_inner(l1_batch_env, system_env)
+        self.create_batch_executor_inner(state_keeper_storage, l1_batch_env, system_env)
             .await
+    }
+
+    pub(super) fn default_batch_params(&self) -> (L1BatchEnv, SystemEnv) {
+        // Not really important for the batch executor - it operates over a single batch.
+        self.batch_params(L1BatchNumber(1), 100)
     }
 
     /// Creates test batch params that can be fed into the VM.
@@ -218,6 +238,18 @@ impl Tester {
                     .unwrap();
             }
         }
+    }
+
+    pub(super) fn pool(&self) -> ConnectionPool {
+        self.pool.clone()
+    }
+
+    pub(super) fn state_keeper_db_path(&self) -> String {
+        self.db_dir.path().to_str().unwrap().to_owned()
+    }
+
+    pub(super) fn enum_index_migration_chunk_size(&self) -> usize {
+        100
     }
 }
 

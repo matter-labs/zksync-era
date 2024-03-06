@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
 use multivm::{
@@ -59,7 +59,7 @@ impl<T: ReadStorageFactory> MainBatchExecutor<T> {
 }
 
 #[async_trait]
-impl BatchExecutor for MainBatchExecutor {
+impl<T: ReadStorageFactory + 'static> BatchExecutor for MainBatchExecutor<T> {
     async fn init_batch(
         &mut self,
         l1_batch_params: L1BatchEnv,
