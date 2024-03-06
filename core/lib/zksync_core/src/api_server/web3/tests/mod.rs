@@ -843,36 +843,40 @@ impl HttpTest for TransactionReceiptsTest {
 
         let tx1 = create_l2_transaction(10, 200);
         let tx2 = create_l2_transaction(10, 200);
-
         let tx_results = vec![
             execute_l2_transaction(tx1.clone()),
             execute_l2_transaction(tx2.clone()),
         ];
-
         store_miniblock(&mut storage, miniblock_number, &tx_results).await?;
 
         let mut expected_receipts = Vec::new();
-
         for tx in &tx_results {
             expected_receipts.push(
                 client
                     .get_transaction_receipt(tx.hash)
                     .await?
-                    .expect("Receipt found"),
+                    .context("no receipt")?,
             );
         }
-
         for (tx_result, receipt) in tx_results.iter().zip(&expected_receipts) {
             assert_eq!(tx_result.hash, receipt.transaction_hash);
         }
 
         let receipts = client
             .get_block_receipts(api::BlockId::Number(miniblock_number.0.into()))
-            .await?;
+            .await?
+            .context("no receipts")?;
         assert_eq!(receipts.len(), 2);
         for (receipt, expected_receipt) in receipts.iter().zip(&expected_receipts) {
             assert_eq!(receipt, expected_receipt);
         }
+
+        // Check receipts for a missing block.
+        let receipts = client
+            .get_block_receipts(api::BlockId::Number(100.into()))
+            .await?;
+        assert!(receipts.is_none());
+
         Ok(())
     }
 }
