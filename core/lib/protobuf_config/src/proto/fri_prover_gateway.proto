@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package zksync.config;
+package zksync.config.fri_prover_gateway;
 
 message FriProverGateway {
   optional string api_url = 1; // required
