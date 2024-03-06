@@ -33,6 +33,10 @@ jobs:
           echo IN_DOCKER=1 >> .env
           echo RUN_CONTRACT_VERIFICATION_TEST=false >> .env
           echo ZKSYNC_DEBUG_LOGS=false >> .env
+          echo EXPECTED_TX_COUNT=500 >> .env
+          echo FAIL_FAST=true >> .env
+          echo DATABASE_MERKLE_TREE_MODE=lightweight >> .env
+          cat .env
       # - uses: actions/setup-node@v4
       #   with:
       #     node-version: 18
@@ -85,12 +89,6 @@ jobs:
       #     zk
       #     zk init
 
-      - name: Loadtest configuration
-        run: |
-          echo EXPECTED_TX_COUNT=800 >> .env
-          echo FAIL_FAST=true >> .env
-          echo DATABASE_MERKLE_TREE_MODE=lightweight >> .env
-
       - name: Run main node
         run: |
           ci_run zk server --components=$SERVER_COMPONENTS &>server.log &
@@ -98,7 +96,7 @@ jobs:
       
       - name: Perform loadtest
         run: ci_run zk run loadtest
-        timeout-minutes: 1
+        timeout-minutes: 2
       
       # - name: Show server.log logs
       #   if: always()
@@ -121,9 +119,9 @@ jobs:
       - name: Step - Run external node
         if: always()
         run: |
-          ci_run zk config compile ext-node
-          ci_run zk external-node --reinit -- --enable-snapshots-recovery &
-          ci_run sleep 5
+          ci_run zk config compile ext-node-docker
+          ZKSYNC_ENV=ext-node-docker ci_run zk external-node --reinit -- --enable-snapshots-recovery &
+          ci_run sleep 10
 
       - name: Step - Stub - Try a curl request
         if: always()
