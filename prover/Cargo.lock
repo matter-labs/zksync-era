@@ -6676,7 +6676,7 @@ dependencies = [
 [[package]]
 name = "zk_evm"
 version = "1.5.0"
-source = "git+https://github.com/matter-labs/zk_evm.git?branch=v1.5.0#5c2cd72ad49aa74271fb4dc01545e554aeaeb3dc"
+source = "git+https://github.com/matter-labs/era-zk_evm.git?branch=v1.5.0#912fbab463f6f010f824eb66844fe8c8ff240765"
 dependencies = [
  "anyhow",
  "lazy_static",
