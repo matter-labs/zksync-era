@@ -64,11 +64,13 @@ export function set(env: string, print: boolean = false) {
 }
 
 // override env with variables from init log
-function loadInit() {
+function loadInit(zksyncEnv: string) {
     if (fs.existsSync('etc/env/.init.env')) {
         const initEnv = dotenv.parse(fs.readFileSync('etc/env/.init.env'));
         for (const envVar in initEnv) {
-            process.env[envVar] = initEnv[envVar];
+            // We want to name env vars used by external nodes idiomatically, hence the added `EN_` prefix.
+            const targetVar = zksyncEnv.startsWith('ext-node') ? `EN_${envVar}` : envVar;
+            process.env[targetVar] = initEnv[envVar];
         }
     }
 }
@@ -90,7 +92,7 @@ export function reload() {
     for (const envVar in env) {
         process.env[envVar] = env[envVar];
     }
-    loadInit();
+    loadInit(get());
 }
 
 // loads environment variables
@@ -102,7 +104,7 @@ export function load() {
         config.compileConfig();
     }
     dotenv.config({ path: envFile });
-    loadInit();
+    loadInit(zksyncEnv);
 
     // This suppresses the warning that looks like: "Warning: Accessing non-existent property 'INVALID_ALT_NUMBER'...".
     // This warning is spawned from the `antlr4`, which is a dep of old `solidity-parser` library.

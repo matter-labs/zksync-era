@@ -23,6 +23,8 @@ use crate::{
     utils::wait_for_l1_batch_with_metadata,
 };
 
+// FIXME: be more intelligent about which errors are retryable
+
 #[cfg(test)]
 mod tests;
 
@@ -397,7 +399,7 @@ impl ConsistencyChecker {
         // Response should be a single token with the contract name.
         match response.as_slice() {
             [ethabi::Token::String(name)] => {
-                tracing::info!("Obtained validator timelock contract {address:?} name: {name}");
+                tracing::info!("Checked timelock contract {address:?} (name: {name})");
                 Ok(())
             }
             _ => {
