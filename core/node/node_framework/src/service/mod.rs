@@ -181,7 +181,7 @@ impl ZkStackService {
         let execution_timeouts_count = execution_results.iter().filter(|&r| r.is_err()).count();
         if execution_timeouts_count > 0 {
             tracing::warn!(
-                "{execution_timeouts_count} tasks didn't finish in {TASK_SHUTDOWN_TIMEOUT:?} and was dropped"
+                "{execution_timeouts_count} tasks didn't finish in {TASK_SHUTDOWN_TIMEOUT:?} and were dropped"
             );
         } else {
             tracing::info!("Remaining tasks finished without reaching timeouts");
