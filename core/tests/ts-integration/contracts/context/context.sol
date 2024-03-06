@@ -35,8 +35,8 @@ contract Context {
         return block.basefee;
     }
 
-    function requireMsgValue(uint256 _requiredValue) external payable {
-        require(msg.value == _requiredValue);
+    function requireMsgValue(uint256 _requiredValue, uint256 _tolerance) external payable {
+        require(msg.value >= _requiredValue - _tolerance && msg.value <= _requiredValue + _tolerance, "msg.value is out of range");
     }
 
     uint256 public valueOnCreate;
