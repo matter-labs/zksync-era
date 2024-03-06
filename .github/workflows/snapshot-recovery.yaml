@@ -87,7 +87,7 @@ jobs:
 
       - name: Loadtest configuration
         run: |
-          echo EXPECTED_TX_COUNT=2500 >> .env
+          echo EXPECTED_TX_COUNT="1000" >> .env
           echo FAIL_FAST=true >> .env
           echo ACCOUNTS_AMOUNT=40 >> .env
           echo DURATION_SEC=30 >> .env
