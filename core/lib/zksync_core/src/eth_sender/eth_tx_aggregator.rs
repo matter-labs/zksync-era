@@ -72,6 +72,7 @@ struct TxData {
 impl EthTxAggregator {
     #[allow(clippy::too_many_arguments)]
     pub async fn new(
+        pool: ConnectionPool,
         config: SenderConfig,
         aggregator: Aggregator,
         eth_client: Arc<dyn BoundEthInterface>,
@@ -113,11 +114,7 @@ impl EthTxAggregator {
         }
     }
 
-    pub async fn run(
-        mut self,
-        pool: ConnectionPool,
-        stop_receiver: watch::Receiver<bool>,
-    ) -> anyhow::Result<()> {
+    pub async fn run(mut self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         loop {
             let mut storage = pool.access_storage_tagged("eth_sender").await.unwrap();
 

@@ -62,6 +62,7 @@ pub struct EthTxManager {
 
 impl EthTxManager {
     pub fn new(
+        pool: ConnectionPool,
         config: SenderConfig,
         gas_adjuster: Arc<dyn L1TxParamsProvider>,
         ethereum_gateway: Arc<dyn BoundEthInterface>,
@@ -711,11 +712,7 @@ impl EthTxManager {
         METRICS.l1_blocks_waited_in_mempool[&tx_type_label].observe(waited_blocks.into());
     }
 
-    pub async fn run(
-        mut self,
-        pool: ConnectionPool,
-        stop_receiver: watch::Receiver<bool>,
-    ) -> anyhow::Result<()> {
+    pub async fn run(mut self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         {
             let l1_block_numbers = self
                 .get_l1_block_numbers()
