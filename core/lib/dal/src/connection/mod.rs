@@ -349,11 +349,13 @@ impl ConnectionPool {
         if let Some(tags) = &tags {
             CONNECTION_METRICS.acquire_tagged[&tags.requester].observe(elapsed);
         }
-        Ok(StorageProcessor(StorageProcessor::from_pool(
-            conn,
-            tags,
-            self.traced_connections.as_deref(),
-        )))
+        Ok(StorageProcessor(
+            zksync_db_connection::StorageProcessor::from_pool(
+                conn,
+                tags,
+                self.traced_connections.as_deref(),
+            ),
+        ))
     }
 
     async fn acquire_connection_retried(
@@ -447,11 +449,11 @@ mod tests {
         let pool = ConnectionPool::constrained_test_pool(1).await;
         let mut connection = pool.access_storage_tagged("test").await.unwrap();
         assert!(!connection.in_transaction());
-        let original_tags = *connection.conn_and_tags().1.unwrap();
+        let original_tags = *connection.0.conn_and_tags().1.unwrap();
         assert_eq!(original_tags.requester, "test");
 
         let mut transaction = connection.start_transaction().await.unwrap();
-        let transaction_tags = *transaction.conn_and_tags().1.unwrap();
+        let transaction_tags = *transaction.0.conn_and_tags().1.unwrap();
         assert_eq!(transaction_tags, original_tags);
     }
 
