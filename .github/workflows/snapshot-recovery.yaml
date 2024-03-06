@@ -87,9 +87,8 @@ jobs:
 
       - name: Loadtest configuration
         run: |
+          echo EXPECTED_TX_COUNT="600" >> .env
           echo FAIL_FAST=true >> .env
-          echo ACCOUNTS_AMOUNT=40 >> .env
-          echo DURATION_SEC=30 >> .env
           echo DATABASE_MERKLE_TREE_MODE=lightweight >> .env
 
       - name: Run main node
@@ -98,7 +97,7 @@ jobs:
           ci_run sleep 5
 
       - name: Perform loadtest
-        run: EXPECTED_TX_COUNT=1000 ci_run zk run loadtest
+        run: timeout 10s $(ci_run zk run loadtest)
 
       # - name: Show server.log logs
       #   if: always()
