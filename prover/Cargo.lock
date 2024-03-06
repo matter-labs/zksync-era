@@ -6120,6 +6120,7 @@ dependencies = [
  "bincode",
  "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.2)",
  "clap 4.4.6",
+ "hex",
  "itertools 0.10.5",
  "md5",
  "once_cell",
@@ -6127,6 +6128,7 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
+ "sha3 0.10.8",
  "shivini",
  "structopt",
  "toml_edit 0.14.4",
@@ -7193,7 +7195,6 @@ dependencies = [
 name = "zksync_prover_dal"
 version = "0.1.0"
 dependencies = [
- "chrono",
  "sqlx",
  "strum",
  "tokio",
