@@ -8,13 +8,13 @@ use zksync_config::{
 use zksync_dal::ConnectionPool;
 use zksync_object_store::ObjectStore;
 
-pub use self::state_keeper_storage::StateKeeperStorage;
 pub use self::{
     batch_executor::{main_executor::MainBatchExecutor, BatchExecutor},
     io::{mempool::MempoolIO, MiniblockSealer, MiniblockSealerHandle, StateKeeperIO},
     keeper::ZkSyncStateKeeper,
     mempool_actor::MempoolFetcher,
     seal_criteria::SequencerSealer,
+    state_keeper_storage::StateKeeperStorage,
     types::MempoolGuard,
 };
 use crate::fee_model::BatchFeeModelInputProvider;
