@@ -74,7 +74,9 @@ contract SystemContext {
     /// @dev Just like the blockhash in the EVM, it returns bytes32(0), when
     /// when queried about hashes that are older than 256 blocks ago.
     function getBlockHashEVM(uint256 _block) external view returns (bytes32 hash) {
-        if (block.number < _block || block.number - _block > 256) {
+        if (block.number - _block > 256) {
+            revert("Block too old to retrieve hash");
+        } else if (block.number < _block) {
             hash = bytes32(0);
         } else {
             hash = blockHash[_block];
