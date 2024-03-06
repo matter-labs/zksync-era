@@ -120,6 +120,7 @@ jobs:
   integration:
     name: Integration (consensus=${{ matrix.consensus }})
     strategy:
+      fail-fast: false
       matrix:
         consensus: [false, true]
     env:
@@ -252,6 +253,7 @@ jobs:
   external-node:
     name: External node (consensus=${{ matrix.consensus }})
     strategy:
+      fail-fast: false
       matrix:
         consensus: [false, true]
     runs-on: [matterlabs-ci-runner]
