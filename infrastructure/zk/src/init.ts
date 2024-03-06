@@ -133,8 +133,8 @@ export async function submoduleUpdate() {
 export async function setupObservability() {
     // clone dockprom, era-observability repos and export era dashboards to dockprom
     await utils.spawn(
-        `rm -rf ./target/dockprom && git clone git@github.com:stefanprodan/dockprom.git ./target/dockprom \
-            && rm -rf ./target/era-observability && git clone git@github.com:matter-labs/era-observability.git ./target/era-observability \
+        `rm -rf ./target/dockprom && git clone https://github.com/stefanprodan/dockprom.git ./target/dockprom \
+            && rm -rf ./target/era-observability && git clone https://github.com/matter-labs/era-observability ./target/era-observability \
             && cp ./target/era-observability/dashboards/* ./target/dockprom/grafana/provisioning/dashboards
         `
     );
