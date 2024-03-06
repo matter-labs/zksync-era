@@ -7,7 +7,7 @@ use zksync_contracts::{BaseSystemContractsHashes, SystemContractCode};
 use zksync_dal::ConnectionPool;
 use zksync_types::{
     api, block::MiniblockHasher, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
-    ProtocolVersionId, H256,
+    ProtocolVersionId, H256, U256,
 };
 
 use crate::{
@@ -72,9 +72,9 @@ impl MockMainNodeClient {
                 l1_batch_number,
                 last_in_batch: is_fictive,
                 timestamp: number.into(),
-                l1_gas_price: 2,
-                l2_fair_gas_price: 3,
-                fair_pubdata_price: Some(24),
+                l1_gas_price: U256::from(2),
+                l2_fair_gas_price: U256::from(3),
+                fair_pubdata_price: Some(U256::from(24)),
                 base_system_contracts_hashes: BaseSystemContractsHashes::default(),
                 operator_address: Address::repeat_byte(2),
                 transactions: Some(transactions),
@@ -233,9 +233,9 @@ impl StateKeeper {
             SyncAction::OpenBatch {
                 number: self.last_batch,
                 timestamp: self.last_timestamp,
-                l1_gas_price: 2,
-                l2_fair_gas_price: 3,
-                fair_pubdata_price: Some(24),
+                l1_gas_price: U256::from(2),
+                l2_fair_gas_price: U256::from(3),
+                fair_pubdata_price: Some(U256::from(24)),
                 operator_address: self.operator_address,
                 protocol_version: ProtocolVersionId::latest(),
                 first_miniblock_info: (self.last_block, 1),

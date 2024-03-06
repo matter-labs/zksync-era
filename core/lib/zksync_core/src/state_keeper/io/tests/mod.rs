@@ -64,9 +64,9 @@ async fn test_filter_with_pending_batch() {
     // The gas values are randomly chosen but so affect filter values calculation.
 
     let fee_input = BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
-        l1_gas_price: 100,
-        fair_l2_gas_price: 1000,
-        fair_pubdata_price: 500,
+        l1_gas_price: U256::from(100),
+        fair_l2_gas_price: U256::from(1000),
+        fair_pubdata_price: U256::from(500),
     });
 
     tester
@@ -241,9 +241,9 @@ async fn processing_storage_logs_when_sealing_miniblock() {
         miniblock,
         first_tx_index: 0,
         fee_input: BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
-            l1_gas_price: 100,
-            fair_l2_gas_price: 100,
-            fair_pubdata_price: 100,
+            l1_gas_price: U256::from(100),
+            fair_l2_gas_price: U256::from(100),
+            fair_pubdata_price: U256::from(100),
         }),
         base_fee_per_gas: 10,
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
@@ -320,11 +320,11 @@ async fn processing_events_when_sealing_miniblock() {
         miniblock,
         first_tx_index: 0,
         fee_input: BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
-            l1_gas_price: 100,
-            fair_l2_gas_price: 100,
-            fair_pubdata_price: 100,
+            l1_gas_price: U256::from(100),
+            fair_l2_gas_price: U256::from(100),
+            fair_pubdata_price: U256::from(100),
         }),
-        base_fee_per_gas: 10,
+        base_fee_per_gas: U256::from(10),
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
         l2_shared_bridge_addr: Address::default(),

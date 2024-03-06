@@ -80,9 +80,9 @@ pub(super) fn default_l1_batch_env(
             max_virtual_blocks_to_create: 1,
         },
         fee_input: BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
-            fair_l2_gas_price: 1,
-            fair_pubdata_price: 1,
-            l1_gas_price: 1,
+            fair_l2_gas_price: U256::from(1),
+            fair_pubdata_price: U256::from(1),
+            l1_gas_price: U256::from(1),
         }),
     }
 }

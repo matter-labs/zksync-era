@@ -129,7 +129,7 @@ pub(crate) enum SyncAction {
         timestamp: u64,
         l1_gas_price: U256,
         l2_fair_gas_price: U256,
-        fair_pubdata_price: Option<u64>,
+        fair_pubdata_price: Option<U256>,
         operator_address: Address,
         protocol_version: ProtocolVersionId,
         // Miniblock number and virtual blocks count.
@@ -171,7 +171,7 @@ mod tests {
             timestamp: 1,
             l1_gas_price: U256::from(1),
             l2_fair_gas_price: U256::from(1),
-            fair_pubdata_price: Some(1),
+            fair_pubdata_price: Some(U256::from(1)),
             operator_address: Default::default(),
             protocol_version: ProtocolVersionId::latest(),
             first_miniblock_info: (1.into(), 1),

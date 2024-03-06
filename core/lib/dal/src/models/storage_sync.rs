@@ -41,7 +41,7 @@ pub(crate) struct SyncBlock {
     pub timestamp: u64,
     pub l1_gas_price: U256,
     pub l2_fair_gas_price: U256,
-    pub fair_pubdata_price: Option<u64>,
+    pub fair_pubdata_price: Option<U256>,
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
     pub fee_account_address: Option<Address>,
     pub virtual_blocks: u32,
@@ -154,7 +154,7 @@ pub struct Payload {
     pub timestamp: u64,
     pub l1_gas_price: U256,
     pub l2_fair_gas_price: U256,
-    pub fair_pubdata_price: Option<u64>,
+    pub fair_pubdata_price: Option<U256>,
     pub virtual_blocks: u32,
     pub operator_address: Address,
     pub transactions: Vec<Transaction>,
@@ -189,7 +189,7 @@ impl ProtoFmt for Payload {
             l2_fair_gas_price: U256::from(
                 *required(&message.l2_fair_gas_price).context("l2_fair_gas_price")?,
             ),
-            fair_pubdata_price: message.fair_pubdata_price,
+            fair_pubdata_price: message.fair_pubdata_price.map(|x| U256::from(x)),
             virtual_blocks: *required(&message.virtual_blocks).context("virtual_blocks")?,
             operator_address: required(&message.operator_address)
                 .and_then(|a| parse_h160(a))
@@ -207,7 +207,7 @@ impl ProtoFmt for Payload {
             timestamp: Some(self.timestamp),
             l1_gas_price: Some(self.l1_gas_price.as_u64()), // TODO: This may overflow
             l2_fair_gas_price: Some(self.l2_fair_gas_price.as_u64()), // TODO: This may overflow
-            fair_pubdata_price: self.fair_pubdata_price,
+            fair_pubdata_price: self.fair_pubdata_price.map(|x| x.as_u64()), // TODO: This may overflow
             virtual_blocks: Some(self.virtual_blocks),
             operator_address: Some(self.operator_address.as_bytes().into()),
             // Transactions are stored in execution order, therefore order is deterministic.
