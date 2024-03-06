@@ -62,6 +62,7 @@ pub struct EthTxAggregator {
     /// transactions. The `Some` then contains the address of this custom operator
     /// address.
     custom_commit_sender_addr: Option<Address>,
+    pool: ConnectionPool,
 }
 
 struct TxData {
@@ -111,12 +112,13 @@ impl EthTxAggregator {
             base_nonce_custom_commit_sender,
             rollup_chain_id,
             custom_commit_sender_addr,
+            pool,
         }
     }
 
     pub async fn run(mut self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         loop {
-            let mut storage = pool.access_storage_tagged("eth_sender").await.unwrap();
+            let mut storage = self.pool.access_storage_tagged("eth_sender").await.unwrap();
 
             if *stop_receiver.borrow() {
                 tracing::info!("Stop signal received, eth_tx_aggregator is shutting down");

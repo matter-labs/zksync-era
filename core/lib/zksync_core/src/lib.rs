@@ -650,6 +650,7 @@ pub async fn initialize_components(
                 .map(|k| k.sender_account());
 
         let eth_tx_aggregator_actor = EthTxAggregator::new(
+            eth_sender_pool,
             eth_sender.sender.clone(),
             Aggregator::new(
                 eth_sender.sender.clone(),
@@ -670,7 +671,7 @@ pub async fn initialize_components(
         )
         .await;
         task_futures.push(tokio::spawn(
-            eth_tx_aggregator_actor.run(eth_sender_pool, stop_receiver.clone()),
+            eth_tx_aggregator_actor.run(stop_receiver.clone()),
         ));
         let elapsed = started_at.elapsed();
         APP_METRICS.init_latency[&InitStage::EthTxAggregator].set(elapsed);

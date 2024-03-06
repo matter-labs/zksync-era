@@ -1,12 +1,16 @@
 use std::sync::Arc;
 
-use zksync_config::configs::eth_sender::SenderConfig;
+use zksync_config::configs::{
+    chain::NetworkConfig,
+    eth_sender::{ETHSenderConfig, SenderConfig},
+    ContractsConfig, ETHClientConfig, PostgresConfig,
+};
 use zksync_core::{
     eth_sender::{Aggregator, EthTxAggregator, EthTxManager},
     l1_gas_price::L1TxParamsProvider,
 };
 use zksync_dal::ConnectionPool;
-use zksync_eth_client::BoundEthInterface;
+use zksync_eth_client::{clients::PKSigningClient, BoundEthInterface};
 
 use crate::{
     implementations::resources::{eth_interface::EthInterfaceResource, pools::MasterPoolResource},
@@ -19,12 +23,21 @@ use crate::{
 #[derive(Debug)]
 pub struct EthSenderLayer {
     postgres_config: PostgresConfig,
-    eth_sender_config: EthSenderConfig,
+    eth_sender_config: ETHSenderConfig,
+    contracts_config: ContractsConfig,
+    eth_client_config: ETHClientConfig,
+    network_config: NetworkConfig,
 }
 
 impl EthSenderLayer {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            postgres_config: todo!(),
+            eth_sender_config: todo!(),
+            contracts_config: todo!(),
+            eth_client_config: todo!(),
+            network_config: todo!(),
+        }
     }
 }
 
@@ -35,51 +48,59 @@ impl WiringLayer for EthSenderLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        let eth_client =
-            PKSigningClient::from_config(&eth_sender, &contracts_config, &eth_client_config);
-        let eth_client_blobs_addr =
-            PKSigningClient::from_config_blobs(&eth_sender, &contracts_config, &eth_client_config)
-                .map(|k| k.sender_account());
+        let pool_resource = context.get_resource::<MasterPoolResource>().await?;
+        let pool = pool_resource.get().await.unwrap();
 
-        let eth_tx_aggregator_actor = EthTxAggregator::new(
-            eth_sender.sender.clone(),
-            Aggregator::new(
-                eth_sender.sender.clone(),
-                store_factory.create_store().await,
-                eth_client_blobs_addr.is_some(),
-                eth_sender.sender.pubdata_sending_mode.into(),
-            ),
-            Arc::new(eth_client),
-            contracts_config.validator_timelock_addr,
-            contracts_config.l1_multicall3_addr,
-            main_zksync_contract_address,
-            configs
-                .network_config
-                .as_ref()
-                .context("network_config")?
-                .zksync_network_id,
-            eth_client_blobs_addr,
+        let eth_client = context.get_resource::<EthInterfaceResource>().await?;
+
+        let object_store = context.get_resource::<ObjectStoreResource>().await?;
+
+        let eth_client = PKSigningClient::from_config(
+            &self.eth_sender_config,
+            &self.contracts_config,
+            &self.eth_client_config,
+        );
+        let eth_client_blobs_addr = PKSigningClient::from_config_blobs(
+            &self.eth_sender_config,
+            &self.contracts_config,
+            &self.eth_client_config,
         )
-        .await;
-        task_futures.push(tokio::spawn(
-            eth_tx_aggregator_actor.run(eth_sender_pool, stop_receiver.clone()),
-        ));
-        let elapsed = started_at.elapsed();
-        APP_METRICS.init_latency[&InitStage::EthTxAggregator].set(elapsed);
-        tracing::info!("initialized ETH-TxAggregator in {elapsed:?}");
+        .map(|k| k.sender_account());
 
-        let eth_manager_pool = ConnectionPool::singleton(postgres_config.master_url()?)
-            .build()
-            .await
-            .context("failed to build eth_manager_pool")?;
-        let eth_sender = configs
-            .eth_sender_config
-            .clone()
-            .context("eth_sender_config")?;
-        let eth_client =
-            PKSigningClient::from_config(&eth_sender, &contracts_config, &eth_client_config);
-        let eth_client_blobs =
-            PKSigningClient::from_config_blobs(&eth_sender, &contracts_config, &eth_client_config);
+        let aggregator = Aggregator::new(
+            self.eth_sender_config.sender.clone(),
+            object_store.0,
+            eth_client_blobs_addr.is_some(),
+            self.eth_sender_config.sender.pubdata_sending_mode.into(),
+        );
+
+        let eth_client = context.get_resource::<EthInterfaceResource>().await?.0;
+
+        context
+            .add_task(Box::new(EthTxAggregatorTask {
+                pool: pool.clone(),
+                config: self.eth_sender_config,
+                aggregator,
+                eth_client,
+                timelock_contract_address: self.contracts_config.validator_timelock_addr,
+                l1_multicall3_address: self.contracts_config.l1_multicall3_addr,
+                main_zksync_contract_address: contracts_config.diamond_proxy_addr,
+                rollup_chain_id: self
+                    .network_config
+                    .as_ref()
+                    .context("network_config")?
+                    .zksync_network_id,
+                custom_commit_sender_addr: eth_client_blobs_addr,
+            }))
+            .add_task(Box::new(EthTxManagerTask {
+                pool,
+                config: self.eth_sender_config,
+                gas_adjuster: todo!(),
+                ethereum_gateway: todo!(),
+                ethereum_gateway_blobs: todo!(),
+            }));
+
+        Ok(())
     }
 }
 
