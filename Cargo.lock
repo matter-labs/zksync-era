@@ -6705,7 +6705,7 @@ dependencies = [
  "once_cell",
  "serde",
  "serde_json",
- "zkevm_test_harness 1.3.3",
+ "zkevm_opcode_defs 1.4.1",
  "zksync_contracts",
  "zksync_state",
  "zksync_types",

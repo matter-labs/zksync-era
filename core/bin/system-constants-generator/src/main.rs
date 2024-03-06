@@ -6,7 +6,7 @@ use multivm::{
     vm_latest::constants::MAX_VM_PUBDATA_PER_BATCH,
 };
 use serde::{Deserialize, Serialize};
-use zkevm_test_harness_1_3_3::zk_evm::zkevm_opcode_defs::{
+use zkevm_opcode_defs::{
     circuit_prices::{
         ECRECOVER_CIRCUIT_COST_IN_ERGS, KECCAK256_CIRCUIT_COST_IN_ERGS, SHA256_CIRCUIT_COST_IN_ERGS,
     },
