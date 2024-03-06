@@ -71,8 +71,8 @@ impl BenchmarkingVm {
                 number: L1BatchNumber(1),
                 timestamp,
                 fee_input: BatchFeeInput::l1_pegged(
-                    50_000_000_000, // 50 gwei
-                    250_000_000,    // 0.25 gwei
+                    U256::from("50000000000"), // 50 gwei
+                    U256::from(250_000_000),   // 0.25 gwei
                 ),
                 fee_account: Address::random(),
                 enforced_base_fee: None,

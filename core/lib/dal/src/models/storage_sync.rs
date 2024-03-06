@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use anyhow::Context as _;
 use zksync_consensus_roles::validator;
 use zksync_contracts::BaseSystemContractsHashes;
@@ -174,6 +176,16 @@ impl ProtoFmt for Payload {
             );
         }
 
+        let l1_gas_price = match message.l1_gas_price.as_ref() {
+            Some(price) => U256::from_str(price)?,
+            None => U256::zero(),
+        };
+
+        let l2_fair_gas_price = match message.l2_fair_gas_price.as_ref() {
+            Some(price) => U256::from_str(price)?,
+            None => U256::zero(),
+        };
+
         Ok(Self {
             protocol_version: required(&message.protocol_version)
                 .and_then(|x| Ok(ProtocolVersionId::try_from(u16::try_from(*x)?)?))
@@ -185,11 +197,13 @@ impl ProtoFmt for Payload {
                 *required(&message.l1_batch_number).context("l1_batch_number")?,
             ),
             timestamp: *required(&message.timestamp).context("timestamp")?,
-            l1_gas_price: U256::from(*required(&message.l1_gas_price).context("l1_gas_price")?),
-            l2_fair_gas_price: U256::from(
-                *required(&message.l2_fair_gas_price).context("l2_fair_gas_price")?,
-            ),
-            fair_pubdata_price: message.fair_pubdata_price.map(|x| U256::from(x)),
+            l1_gas_price,
+            l2_fair_gas_price,
+            fair_pubdata_price: message
+                .fair_pubdata_price
+                .as_ref()
+                .map(|price| U256::from_str(price))
+                .transpose()?,
             virtual_blocks: *required(&message.virtual_blocks).context("virtual_blocks")?,
             operator_address: required(&message.operator_address)
                 .and_then(|a| parse_h160(a))
@@ -205,9 +219,9 @@ impl ProtoFmt for Payload {
             hash: Some(self.hash.as_bytes().into()),
             l1_batch_number: Some(self.l1_batch_number.0),
             timestamp: Some(self.timestamp),
-            l1_gas_price: Some(self.l1_gas_price.as_u64()), // TODO: This may overflow
-            l2_fair_gas_price: Some(self.l2_fair_gas_price.as_u64()), // TODO: This may overflow
-            fair_pubdata_price: self.fair_pubdata_price.map(|x| x.as_u64()), // TODO: This may overflow
+            l1_gas_price: Some(self.l1_gas_price.to_string()),
+            l2_fair_gas_price: Some(self.l2_fair_gas_price.to_string()),
+            fair_pubdata_price: self.fair_pubdata_price.map(|x| x.to_string()),
             virtual_blocks: Some(self.virtual_blocks),
             operator_address: Some(self.operator_address.as_bytes().into()),
             // Transactions are stored in execution order, therefore order is deterministic.

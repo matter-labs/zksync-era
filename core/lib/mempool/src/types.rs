@@ -98,7 +98,7 @@ pub struct MempoolScore {
 impl MempoolScore {
     /// Checks whether transaction matches requirements provided by state keeper.
     pub fn matches_filter(&self, filter: &L2TxFilter) -> bool {
-        self.fee_data.max_fee_per_gas >= U256::from(filter.fee_per_gas)
+        self.fee_data.max_fee_per_gas >= filter.fee_per_gas
             && self.fee_data.gas_per_pubdata_limit >= U256::from(filter.gas_per_pubdata)
     }
 }

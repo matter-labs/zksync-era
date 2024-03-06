@@ -90,7 +90,7 @@ impl BatchFeeInput {
     ) -> Self {
         if protocol_version.is_post_1_4_1() {
             Self::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
-                fair_l2_gas_price: fair_l2_gas_price,
+                fair_l2_gas_price,
                 fair_pubdata_price: fair_pubdata_price
                     .expect("Pubdata price must be provided for protocol version 1.4.1"),
                 l1_gas_price,
