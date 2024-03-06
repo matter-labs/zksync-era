@@ -663,7 +663,7 @@ pub struct BlockDetailsBase {
     pub execute_tx_hash: Option<H256>,
     pub executed_at: Option<DateTime<Utc>>,
     pub l1_gas_price: U256,
-    pub l2_fair_gas_price: u64,
+    pub l2_fair_gas_price: U256,
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
 }
 

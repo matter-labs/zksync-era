@@ -414,7 +414,7 @@ impl StorageBlockDetails {
                 .executed_at
                 .map(|executed_at| DateTime::<Utc>::from_naive_utc_and_offset(executed_at, Utc)),
             l1_gas_price: U256::from(self.l1_gas_price),
-            l2_fair_gas_price: self.l2_fair_gas_price as u64,
+            l2_fair_gas_price: U256::from(self.l2_fair_gas_price),
             base_system_contracts_hashes: convert_base_system_contracts_hashes(
                 self.bootloader_code_hash,
                 self.default_aa_code_hash,
@@ -490,7 +490,7 @@ impl From<StorageL1BatchDetails> for api::L1BatchDetails {
                 .executed_at
                 .map(|executed_at| DateTime::<Utc>::from_naive_utc_and_offset(executed_at, Utc)),
             l1_gas_price: U256::from(details.l1_gas_price),
-            l2_fair_gas_price: details.l2_fair_gas_price as u64,
+            l2_fair_gas_price: U256::from(details.l2_fair_gas_price),
             base_system_contracts_hashes: convert_base_system_contracts_hashes(
                 details.bootloader_code_hash,
                 details.default_aa_code_hash,

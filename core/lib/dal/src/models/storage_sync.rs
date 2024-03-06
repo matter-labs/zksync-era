@@ -40,7 +40,7 @@ pub(crate) struct SyncBlock {
     pub last_in_batch: bool,
     pub timestamp: u64,
     pub l1_gas_price: U256,
-    pub l2_fair_gas_price: u64,
+    pub l2_fair_gas_price: U256,
     pub fair_pubdata_price: Option<u64>,
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
     pub fee_account_address: Option<Address>,
@@ -153,7 +153,7 @@ pub struct Payload {
     pub l1_batch_number: L1BatchNumber,
     pub timestamp: u64,
     pub l1_gas_price: U256,
-    pub l2_fair_gas_price: u64,
+    pub l2_fair_gas_price: U256,
     pub fair_pubdata_price: Option<u64>,
     pub virtual_blocks: u32,
     pub operator_address: Address,
@@ -186,8 +186,9 @@ impl ProtoFmt for Payload {
             ),
             timestamp: *required(&message.timestamp).context("timestamp")?,
             l1_gas_price: U256::from(*required(&message.l1_gas_price).context("l1_gas_price")?),
-            l2_fair_gas_price: *required(&message.l2_fair_gas_price)
-                .context("l2_fair_gas_price")?,
+            l2_fair_gas_price: U256::from(
+                *required(&message.l2_fair_gas_price).context("l2_fair_gas_price")?,
+            ),
             fair_pubdata_price: message.fair_pubdata_price,
             virtual_blocks: *required(&message.virtual_blocks).context("virtual_blocks")?,
             operator_address: required(&message.operator_address)
@@ -205,7 +206,7 @@ impl ProtoFmt for Payload {
             l1_batch_number: Some(self.l1_batch_number.0),
             timestamp: Some(self.timestamp),
             l1_gas_price: Some(self.l1_gas_price.as_u64()), // TODO: This may overflow
-            l2_fair_gas_price: Some(self.l2_fair_gas_price),
+            l2_fair_gas_price: Some(self.l2_fair_gas_price.as_u64()), // TODO: This may overflow
             fair_pubdata_price: self.fair_pubdata_price,
             virtual_blocks: Some(self.virtual_blocks),
             operator_address: Some(self.operator_address.as_bytes().into()),

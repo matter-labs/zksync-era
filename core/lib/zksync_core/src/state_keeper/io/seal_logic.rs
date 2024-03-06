@@ -28,7 +28,7 @@ use zksync_types::{
     zkevm_test_harness::witness::sort_storage_access::sort_storage_access_queries,
     AccountTreeId, Address, ExecuteTransactionCommon, L1BatchNumber, L1BlockNumber, LogQuery,
     MiniblockNumber, ProtocolVersionId, StorageKey, StorageLog, StorageLogQuery, StorageValue,
-    Transaction, VmEvent, CURRENT_VIRTUAL_BLOCK_INFO_POSITION, H256, SYSTEM_CONTEXT_ADDRESS, U256,
+    Transaction, VmEvent, CURRENT_VIRTUAL_BLOCK_INFO_POSITION, H256, SYSTEM_CONTEXT_ADDRESS,
 };
 // TODO (SMA-1206): use seconds instead of milliseconds.
 use zksync_utils::{h256_to_u256, time::millis_since_epoch, u256_to_h256};

@@ -30,7 +30,7 @@ pub(crate) struct FetchedBlock {
     pub timestamp: u64,
     pub reference_hash: Option<H256>,
     pub l1_gas_price: U256,
-    pub l2_fair_gas_price: u64,
+    pub l2_fair_gas_price: U256,
     pub fair_pubdata_price: Option<u64>,
     pub virtual_blocks: u32,
     pub operator_address: Address,

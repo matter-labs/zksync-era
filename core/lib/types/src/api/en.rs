@@ -27,7 +27,7 @@ pub struct SyncBlock {
     /// L1 gas price used as VM parameter for the L1 batch corresponding to this L2 block.
     pub l1_gas_price: U256,
     /// L2 gas price used as VM parameter for the L1 batch corresponding to this L2 block.
-    pub l2_fair_gas_price: u64,
+    pub l2_fair_gas_price: U256,
     /// The pubdata price used as VM parameter for the L1 batch corresponding to this L2 block.
     pub fair_pubdata_price: Option<u64>,
     /// Hashes of the base system contracts used in for the L1 batch corresponding to this L2 block.
