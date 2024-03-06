@@ -121,8 +121,7 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for Prestate
                 })
                 .collect::<State>();
 
-            //Fill the pre-state during execution but keeping only first appearence of the value.
-            // self.pre = res;
+            //Fill the pre-state during execution but keeping only first value for each key
             let filtered_res = res
                 .into_iter()
                 .filter(|(k, _)| !self.pre.contains_key(k))

@@ -74,7 +74,7 @@ fn test_prestate_tracer_diff_mode() {
     let deployed_address = deployed_address_create(vm.deployer.as_ref().unwrap().address, nonce);
     vm.test_contract = Some(deployed_address);
 
-    // Deploy a second copy of the contract to see its appearance in the prestate
+    // Deploy a second copy of the contract to see its appearance in the pre-state
     let tx2 = vm
         .deployer
         .as_mut()
@@ -122,7 +122,7 @@ fn test_prestate_tracer_diff_mode() {
         .take()
         .unwrap_or_default();
 
-    //assert that the prestate contains both deployed contracts with balance zero
+    //assert that the pre-state contains both deployed contracts with balance zero
     assert!(prestate_result.0.contains_key(&deployed_address));
     assert!(prestate_result.0.contains_key(&deployed_address2));
     assert_eq!(
@@ -134,7 +134,7 @@ fn test_prestate_tracer_diff_mode() {
         Some(U256::zero())
     );
 
-    //assert that the poststate contains both deployed contracts with the correct balance
+    //assert that the post-state contains both deployed contracts with the correct balance
     assert!(prestate_result.1.contains_key(&deployed_address));
     assert!(prestate_result.1.contains_key(&deployed_address2));
     assert_eq!(
