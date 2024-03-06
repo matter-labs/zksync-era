@@ -85,6 +85,15 @@ fn create_mock_checker(client: MockEthereum, pool: ConnectionPool) -> Consistenc
     }
 }
 
+fn create_mock_ethereum() -> MockEthereum {
+    MockEthereum::default().with_call_handler(|call| {
+        assert_eq!(call.contract_address(), VALIDATOR_TIMELOCK_ADDR);
+        assert_eq!(call.function_name(), "getName");
+        assert_eq!(call.args(), []);
+        ethabi::Token::String("ValidatorTimelock".to_owned())
+    })
+}
+
 impl HandleConsistencyCheckerEvent for mpsc::UnboundedSender<L1BatchNumber> {
     fn initialize(&mut self) {
         // Do nothing
@@ -98,7 +107,7 @@ impl HandleConsistencyCheckerEvent for mpsc::UnboundedSender<L1BatchNumber> {
         self.send(last_checked_batch).ok();
     }
 
-    fn report_inconsistent_batch(&mut self, _number: L1BatchNumber) {
+    fn report_inconsistent_batch(&mut self, _number: L1BatchNumber, _err: &anyhow::Error) {
         // Do nothing
     }
 }
@@ -330,7 +339,7 @@ async fn normal_checker_function(
 
     let l1_batches: Vec<_> = (1..=10).map(create_l1_batch_with_metadata).collect();
     let mut commit_tx_hash_by_l1_batch = HashMap::with_capacity(l1_batches.len());
-    let client = MockEthereum::default();
+    let client = create_mock_ethereum();
 
     for (i, l1_batches) in l1_batches.chunks(batches_per_transaction).enumerate() {
         let input_data = build_commit_tx_input_data(l1_batches);
@@ -409,7 +418,7 @@ async fn checker_processes_pre_boojum_batches(
         .chain((6..=10).map(create_l1_batch_with_metadata))
         .collect();
     let mut commit_tx_hash_by_l1_batch = HashMap::with_capacity(l1_batches.len());
-    let client = MockEthereum::default();
+    let client = create_mock_ethereum();
 
     for (i, l1_batch) in l1_batches.iter().enumerate() {
         let input_data = build_commit_tx_input_data(slice::from_ref(l1_batch));
@@ -471,7 +480,7 @@ async fn checker_functions_after_snapshot_recovery(delay_batch_insertion: bool) 
     let l1_batch = create_l1_batch_with_metadata(99);
 
     let commit_tx_input_data = build_commit_tx_input_data(slice::from_ref(&l1_batch));
-    let client = MockEthereum::default();
+    let client = create_mock_ethereum();
     let signed_tx = client.sign_prepared_tx(
         commit_tx_input_data.clone(),
         VALIDATOR_TIMELOCK_ADDR,
@@ -629,7 +638,7 @@ async fn checker_detects_incorrect_tx_data(kind: IncorrectDataKind, snapshot_rec
     }
 
     let l1_batch = create_l1_batch_with_metadata(if snapshot_recovery { 99 } else { 1 });
-    let client = MockEthereum::default();
+    let client = create_mock_ethereum();
     let commit_tx_hash = kind.apply(&client, &l1_batch).await;
     let commit_tx_hash_by_l1_batch = HashMap::from([(l1_batch.header.number, commit_tx_hash)]);
 

@@ -452,7 +452,8 @@ impl ConsistencyChecker {
                 tracing::warn!("Transient error checking validator timelock contract; will retry after a delay: {err}");
                 tokio::time::sleep(self.sleep_interval).await;
             } else {
-                return Err(err.into());
+                return Err(anyhow::Error::from(err)
+                    .context("failed sanity-checking validator timelock contract"));
             }
         }
 
