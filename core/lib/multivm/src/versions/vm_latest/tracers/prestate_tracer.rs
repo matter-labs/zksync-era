@@ -86,7 +86,7 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for Prestate
         _memory: &SimpleMemory<H>,
         storage: StoragePtr<S>,
     ) {
-        if self.config.diff_mode && self.pre.is_empty() {
+        if self.config.diff_mode {
             let cloned_storage = Rc::clone(&storage);
             let mut initial_storage_ref = cloned_storage.as_ref().borrow_mut();
             let keys = initial_storage_ref
@@ -120,7 +120,14 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for Prestate
                     )
                 })
                 .collect::<State>();
-            self.pre = res;
+
+            //Fill the pre-state during execution but keeping only first appearence of the value.
+            // self.pre = res;
+            let filtered_res = res
+                .into_iter()
+                .filter(|(k, _)| !self.pre.contains_key(k))
+                .collect::<State>();
+            self.pre.extend(filtered_res);
         }
     }
 }
@@ -144,13 +151,11 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for PrestateTracer {
     ) {
         let modified_storage_keys = state.storage.storage.inner().get_modified_storage_keys();
         if self.config.diff_mode {
-            let diff = modified_storage_keys
+            let res = modified_storage_keys
                 .clone()
                 .keys()
                 .copied()
-                .collect::<Vec<_>>();
-
-            let res = diff
+                .collect::<Vec<_>>()
                 .iter()
                 .map(|k| get_account_data(k, state, &modified_storage_keys))
                 .collect::<State>();
@@ -158,8 +163,10 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for PrestateTracer {
         } else {
             let read_keys = &state.storage.read_keys;
             let map = read_keys.inner().clone();
-            let storage_keys_read = map.keys().copied().collect::<Vec<_>>();
-            let res = storage_keys_read
+            let res = map
+                .keys()
+                .copied()
+                .collect::<Vec<_>>()
                 .iter()
                 .map(|k| get_account_data(k, state, &modified_storage_keys))
                 .collect::<State>();
