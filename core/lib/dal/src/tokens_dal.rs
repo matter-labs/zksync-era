@@ -106,8 +106,8 @@ impl TokensDal<'_, '_> {
 #[cfg(test)]
 mod tests {
     use std::{collections::HashSet, slice};
-    use zksync_db_connection::StorageProcessor;
 
+    use zksync_db_connection::StorageProcessor;
     use zksync_system_constants::FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH;
     use zksync_types::{get_code_key, tokens::TokenMetadata, StorageLog, H256};
 
