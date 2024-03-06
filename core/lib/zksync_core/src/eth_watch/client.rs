@@ -44,8 +44,6 @@ pub trait EthClient: 'static + fmt::Debug + Send + Sync {
     async fn finalized_block_number(&self) -> Result<u64, Error>;
     /// Returns scheduler verification key hash by verifier address.
     async fn scheduler_vk_hash(&self, verifier_address: Address) -> Result<H256, Error>;
-    /// Gets block info by block hash.
-    async fn get_block(&self, block_hash: H256) -> Result<Option<Block<H256>>, Error>;
     /// Sets list of topics to return events for.
     fn set_topics(&mut self, topics: Vec<H256>);
 }
@@ -116,13 +114,6 @@ impl EthHttpQueryClient {
 
 #[async_trait::async_trait]
 impl EthClient for EthHttpQueryClient {
-    async fn get_block(&self, block_hash: H256) -> Result<Option<Block<H256>>, Error> {
-        self.client
-            .block(BlockId::Hash(block_hash), "watch")
-            .await
-            .map_err(Into::into)
-    }
-
     async fn scheduler_vk_hash(&self, verifier_address: Address) -> Result<H256, Error> {
         // This is here for backward compatibility with the old verifier:
         // Legacy verifier returns the full verification key;
