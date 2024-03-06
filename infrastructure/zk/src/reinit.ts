@@ -9,7 +9,7 @@ import * as run from './run';
 import * as server from './server';
 import { up } from './up';
 import { announced } from './utils';
-import { ADDRESS_ONE, initDatabase, initHyperchain } from './init';
+import { initDatabase, initHyperchain } from './init';
 import * as config from './config';
 
 const reinitDevCmdAction = async (): Promise<void> => {

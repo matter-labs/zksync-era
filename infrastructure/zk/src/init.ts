@@ -14,8 +14,6 @@ import * as server from './server';
 import { up } from './up';
 import { announced } from './utils';
 
-export const ADDRESS_ONE = '0x0000000000000000000000000000000000000001';
-
 // Checks if all required tools are installed with the correct versions
 const checkEnv = async (): Promise<void> => {
     const tools = ['node', 'yarn', 'docker', 'cargo'];
