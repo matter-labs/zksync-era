@@ -122,7 +122,7 @@ impl Prover {
 
     fn prove_eip4844(
         job_id: u32,
-        circuit: EIP4844Circuit<GoldilocksField, ZkSyncDefaultRoundFunction>,
+        circuit: EIP4844Circuit,
         artifact: Arc<GoldilocksProverSetupData>,
     ) -> FriProofWrapper {
         let worker = Worker::new();
@@ -195,11 +195,7 @@ impl Prover {
 
     fn prove_base_layer(
         job_id: u32,
-        circuit: ZkSyncBaseLayerCircuit<
-            GoldilocksField,
-            VmWitnessOracle<GoldilocksField>,
-            ZkSyncDefaultRoundFunction,
-        >,
+        circuit: ZkSyncBaseLayerCircuit,
         _config: Arc<FriProverConfig>,
         artifact: Arc<GoldilocksProverSetupData>,
     ) -> FriProofWrapper {

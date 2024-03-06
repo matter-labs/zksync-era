@@ -33,7 +33,6 @@ use zksync_prover_fri_types::{
         boojum::{
             field::goldilocks::{GoldilocksExt2, GoldilocksField},
             gadgets::recursion::recursive_tree_hasher::CircuitGoldilocksPoseidon2Sponge,
-            implementations::poseidon2::Poseidon2Goldilocks,
         },
         zkevm_circuits::scheduler::{
             block_header::BlockAuxilaryOutputWitness, input::SchedulerCircuitInstanceWitness,
@@ -66,10 +65,8 @@ use crate::{
     },
 };
 
-type Eip4844Circuit = ZkSyncUniformCircuitInstance<
-    GoldilocksField,
-    EIP4844InstanceSynthesisFunction<GoldilocksField, Poseidon2Goldilocks>,
->;
+type Eip4844Circuit =
+    ZkSyncUniformCircuitInstance<GoldilocksField, EIP4844InstanceSynthesisFunction>;
 
 type Eip4844Witness = EIP4844OutputDataWitness<GoldilocksField>;
 
