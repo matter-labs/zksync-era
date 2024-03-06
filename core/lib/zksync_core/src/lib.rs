@@ -331,16 +331,16 @@ pub async fn initialize_components(
     });
 
     let mut task_futures: Vec<JoinHandle<anyhow::Result<()>>> = Vec::new();
+    let (stop_sender, stop_receiver) = watch::channel(false);
 
     // spawn the conversion rate API if it is enabled
     if components.contains(&Component::ConversionRateApi) {
-        let (_stop_sender, stop_receiver) = watch::channel(false);
-
         let native_token_fetcher_config = configs
             .native_token_fetcher_config
             .clone()
             .context("native_token_fetcher_config")?;
 
+        let stop_receiver = stop_receiver.clone();
         let conversion_rate_task = tokio::spawn(async move {
             api_conversion_rate::run_server(stop_receiver, &native_token_fetcher_config).await
         });
@@ -361,7 +361,6 @@ pub async fn initialize_components(
         None
     };
 
-    let (stop_sender, stop_receiver) = watch::channel(false);
     let (cb_sender, cb_receiver) = oneshot::channel();
 
     let conversion_rate_fetcher: Arc<dyn ConversionRateFetcher> =
