@@ -42,7 +42,6 @@ U256
 20%
 *%
 90%
-1%
 f64
 k
 M
@@ -60,8 +59,6 @@ kb
 24k
 500k
 50k
-52k
-260k
 120kb
 18kb
 12GB
@@ -201,7 +198,7 @@ Serde
 tokenize
 EOAs
 zeroized
-cardinality
+value
 
 // zkSync-related words
 matterlabs

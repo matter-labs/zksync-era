@@ -35,7 +35,6 @@ impl ETHSenderConfig {
                 l1_batch_min_age_before_execute_seconds: None,
                 max_acceptable_priority_fee_in_gwei: 100000000000,
                 proof_loading_mode: ProofLoadingMode::OldProofFromDb,
-                pubdata_sending_mode: PubdataSendingMode::Calldata,
             },
             gas_adjuster: GasAdjusterConfig {
                 default_priority_fee_per_gas: 1000000000,
@@ -46,9 +45,6 @@ impl ETHSenderConfig {
                 internal_enforced_l1_gas_price: None,
                 poll_period: 5,
                 max_l1_gas_price: None,
-                num_samples_for_blob_base_fee_estimate: 10,
-                internal_pubdata_pricing_multiplier: 1.0,
-                max_blob_base_fee: None,
             },
         }
     }
@@ -65,13 +61,6 @@ pub enum ProofSendingMode {
 pub enum ProofLoadingMode {
     OldProofFromDb,
     FriProofFromGcs,
-}
-
-#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Default)]
-pub enum PubdataSendingMode {
-    #[default]
-    Calldata,
-    Blobs,
 }
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -107,9 +96,6 @@ pub struct SenderConfig {
 
     /// The mode in which proofs are loaded, either from DB/GCS for FRI/Old proof.
     pub proof_loading_mode: ProofLoadingMode,
-
-    /// The mode in which we send pubdata, either Calldata or Blobs
-    pub pubdata_sending_mode: PubdataSendingMode,
 }
 
 impl SenderConfig {
@@ -154,16 +140,8 @@ pub struct GasAdjusterConfig {
     pub internal_enforced_l1_gas_price: Option<u64>,
     /// Node polling period in seconds
     pub poll_period: u64,
-    /// Max number of l1 gas price that is allowed to be used.
+    /// Max number of l1 gas price that is allowed to be used in state keeper.
     pub max_l1_gas_price: Option<u64>,
-    /// Number of blocks collected by GasAdjuster from which `blob_base_fee` median is taken
-    #[serde(default = "GasAdjusterConfig::default_num_samples_for_blob_base_fee_estimate")]
-    pub num_samples_for_blob_base_fee_estimate: usize,
-    /// Parameter by which the pubdata fee will be multiplied for internal purposes
-    #[serde(default = "GasAdjusterConfig::default_internal_pubdata_pricing_multiplier")]
-    pub internal_pubdata_pricing_multiplier: f64,
-    /// Max blob base fee that is allowed to be used.
-    pub max_blob_base_fee: Option<u64>,
 }
 
 impl GasAdjusterConfig {
@@ -174,17 +152,5 @@ impl GasAdjusterConfig {
 
     pub fn max_l1_gas_price(&self) -> u64 {
         self.max_l1_gas_price.unwrap_or(u64::MAX)
-    }
-
-    pub fn max_blob_base_fee(&self) -> u64 {
-        self.max_blob_base_fee.unwrap_or(u64::MAX)
-    }
-
-    pub const fn default_num_samples_for_blob_base_fee_estimate() -> usize {
-        10
-    }
-
-    pub const fn default_internal_pubdata_pricing_multiplier() -> f64 {
-        1.0
     }
 }

@@ -11,8 +11,8 @@ use zksync_types::{
         ethabi,
         transports::Http,
         types::{
-            Address, BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt, H160,
-            H256, U256, U64,
+            Address, Block, BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt,
+            H160, H256, U256, U64,
         },
     },
     L1ChainId, PackedEthSignature, EIP_4844_TX_TYPE,
@@ -21,8 +21,7 @@ use zksync_types::{
 use super::{query::QueryClient, Method, LATENCIES};
 use crate::{
     types::{encode_blob_tx_with_sidecar, Error, ExecutedTxStatus, FailureInfo, SignedCallResult},
-    Block, BoundEthInterface, CallFunctionArgs, ContractCall, EthInterface, Options,
-    RawTransactionBytes,
+    BoundEthInterface, CallFunctionArgs, ContractCall, EthInterface, Options, RawTransactionBytes,
 };
 
 /// HTTP-based Ethereum client, backed by a private key to sign transactions.

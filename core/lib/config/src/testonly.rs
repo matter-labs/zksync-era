@@ -5,7 +5,7 @@ use zksync_basic_types::{
     basic_fri_types::CircuitIdRoundTuple, network::Network, Address, L2ChainId, H256,
 };
 
-use crate::configs::{self, eth_sender::PubdataSendingMode};
+use crate::configs;
 
 /// Generator of random configs.
 pub struct Gen<'a, R: Rng> {
@@ -460,15 +460,6 @@ impl RandomConfig for configs::eth_sender::ProofLoadingMode {
     }
 }
 
-impl RandomConfig for configs::eth_sender::PubdataSendingMode {
-    fn sample(g: &mut Gen<impl Rng>) -> Self {
-        match g.rng.gen_range(0..2) {
-            0 => Self::Calldata,
-            _ => Self::Blobs,
-        }
-    }
-}
-
 impl RandomConfig for configs::eth_sender::SenderConfig {
     fn sample(g: &mut Gen<impl Rng>) -> Self {
         Self {
@@ -489,7 +480,6 @@ impl RandomConfig for configs::eth_sender::SenderConfig {
             l1_batch_min_age_before_execute_seconds: g.gen(),
             max_acceptable_priority_fee_in_gwei: g.gen(),
             proof_loading_mode: g.gen(),
-            pubdata_sending_mode: PubdataSendingMode::Calldata,
         }
     }
 }
@@ -505,9 +495,6 @@ impl RandomConfig for configs::eth_sender::GasAdjusterConfig {
             internal_enforced_l1_gas_price: g.gen(),
             poll_period: g.gen(),
             max_l1_gas_price: g.gen(),
-            num_samples_for_blob_base_fee_estimate: g.gen(),
-            internal_pubdata_pricing_multiplier: g.gen(),
-            max_blob_base_fee: g.gen(),
         }
     }
 }

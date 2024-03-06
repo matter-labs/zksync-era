@@ -4,7 +4,7 @@ use zksync_web3_decl::{
     namespaces::en::EnNamespaceServer,
 };
 
-use crate::api_server::web3::namespaces::EnNamespace;
+use crate::api_server::web3::{backend_jsonrpsee::into_jsrpc_error, namespaces::EnNamespace};
 
 #[async_trait]
 impl EnNamespaceServer for EnNamespace {
@@ -15,7 +15,7 @@ impl EnNamespaceServer for EnNamespace {
     ) -> RpcResult<Option<SyncBlock>> {
         self.sync_l2_block_impl(block_number, include_transactions)
             .await
-            .map_err(|err| self.current_method().map_err(err))
+            .map_err(into_jsrpc_error)
     }
 
     async fn sync_tokens(
@@ -24,6 +24,6 @@ impl EnNamespaceServer for EnNamespace {
     ) -> RpcResult<Vec<TokenInfo>> {
         self.sync_tokens_impl(block_number)
             .await
-            .map_err(|err| self.current_method().map_err(err))
+            .map_err(into_jsrpc_error)
     }
 }

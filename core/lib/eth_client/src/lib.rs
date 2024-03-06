@@ -6,7 +6,7 @@ use zksync_types::{
     web3::{
         ethabi,
         types::{
-            AccessList, Address, BlockId, BlockNumber, Filter, Log, Transaction,
+            AccessList, Address, Block, BlockId, BlockNumber, Filter, Log, Transaction,
             TransactionCondition, TransactionReceipt, H160, H256, U256, U64,
         },
     },
@@ -14,8 +14,8 @@ use zksync_types::{
 };
 
 pub use crate::types::{
-    encode_blob_tx_with_sidecar, Block, CallFunctionArgs, ContractCall, Error, ExecutedTxStatus,
-    FailureInfo, RawTransactionBytes, SignedCallResult,
+    CallFunctionArgs, ContractCall, Error, ExecutedTxStatus, FailureInfo, RawTransactionBytes,
+    SignedCallResult,
 };
 
 pub mod clients;

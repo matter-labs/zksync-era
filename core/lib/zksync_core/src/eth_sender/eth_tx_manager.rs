@@ -5,17 +5,17 @@ use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::{
-    encode_blob_tx_with_sidecar, BoundEthInterface, Error, EthInterface, ExecutedTxStatus, Options,
-    RawTransactionBytes, SignedCallResult,
+    BoundEthInterface, Error, EthInterface, ExecutedTxStatus, Options, RawTransactionBytes,
+    SignedCallResult,
 };
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    eth_sender::{EthTx, EthTxBlobSidecar},
+    eth_sender::EthTx,
     web3::{
         error::Error as Web3Error,
         types::{BlockId, BlockNumber},
     },
-    Address, L1BlockNumber, Nonce, EIP_1559_TX_TYPE, EIP_4844_TX_TYPE, H256, U256,
+    Address, L1BlockNumber, Nonce, H256, U256,
 };
 use zksync_utils::time::seconds_since_epoch;
 
@@ -26,7 +26,6 @@ use crate::{l1_gas_price::L1TxParamsProvider, metrics::BlockL1Stage};
 struct EthFee {
     base_fee_per_gas: u64,
     priority_fee_per_gas: u64,
-    blob_base_fee_per_gas: Option<u64>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -119,32 +118,6 @@ impl EthTxManager {
         tx: &EthTx,
         time_in_mempool: u32,
     ) -> Result<EthFee, ETHSenderError> {
-        if tx.blob_sidecar.is_some() {
-            if time_in_mempool != 0 {
-                // for blob transactions on re-sending need to double all gas prices
-                let previous_sent_tx = storage
-                    .eth_sender_dal()
-                    .get_last_sent_eth_tx(tx.id)
-                    .await
-                    .unwrap()
-                    .unwrap();
-                return Ok(EthFee {
-                    base_fee_per_gas: previous_sent_tx.base_fee_per_gas * 2,
-                    priority_fee_per_gas: previous_sent_tx.priority_fee_per_gas * 2,
-                    blob_base_fee_per_gas: previous_sent_tx.blob_base_fee_per_gas.map(|v| v * 2),
-                });
-            }
-            let base_fee_per_gas = self.gas_adjuster.get_base_fee(0);
-            let priority_fee_per_gas = self.gas_adjuster.get_priority_fee();
-            let blob_base_fee_per_gas = Some(self.gas_adjuster.get_blob_base_fee());
-
-            return Ok(EthFee {
-                base_fee_per_gas,
-                priority_fee_per_gas,
-                blob_base_fee_per_gas,
-            });
-        }
-
         let base_fee_per_gas = self.gas_adjuster.get_base_fee(time_in_mempool);
 
         let priority_fee_per_gas = if time_in_mempool != 0 {
@@ -174,7 +147,6 @@ impl EthTxManager {
 
         Ok(EthFee {
             base_fee_per_gas,
-            blob_base_fee_per_gas: None,
             priority_fee_per_gas,
         })
     }
@@ -225,7 +197,6 @@ impl EthTxManager {
         let EthFee {
             base_fee_per_gas,
             priority_fee_per_gas,
-            blob_base_fee_per_gas,
         } = self.calculate_fee(storage, tx, time_in_mempool).await?;
 
         METRICS.used_base_fee_per_gas.observe(base_fee_per_gas);
@@ -233,26 +204,9 @@ impl EthTxManager {
             .used_priority_fee_per_gas
             .observe(priority_fee_per_gas);
 
-        let blob_gas_price = if tx.blob_sidecar.is_some() {
-            Some(
-                blob_base_fee_per_gas
-                    .expect("always ready to query blob gas price for blob transactions; qed")
-                    .into(),
-            )
-        } else {
-            None
-        };
-
-        let mut signed_tx = self
-            .sign_tx(tx, base_fee_per_gas, priority_fee_per_gas, blob_gas_price)
+        let signed_tx = self
+            .sign_tx(tx, base_fee_per_gas, priority_fee_per_gas)
             .await;
-
-        if let Some(blob_sidecar) = &tx.blob_sidecar {
-            signed_tx.raw_tx = RawTransactionBytes::new_unchecked(encode_blob_tx_with_sidecar(
-                signed_tx.raw_tx.as_ref(),
-                blob_sidecar,
-            ));
-        }
 
         if let Some(tx_history_id) = storage
             .eth_sender_dal()
@@ -260,7 +214,6 @@ impl EthTxManager {
                 tx.id,
                 base_fee_per_gas,
                 priority_fee_per_gas,
-                blob_base_fee_per_gas,
                 signed_tx.hash,
                 signed_tx.raw_tx.as_ref(),
             )
@@ -521,7 +474,6 @@ impl EthTxManager {
         tx: &EthTx,
         base_fee_per_gas: u64,
         priority_fee_per_gas: u64,
-        blob_gas_price: Option<U256>,
     ) -> SignedCallResult {
         // Chose the signing gateway. Use a custom one in case
         // the operator is in 4844 mode and the operation at hand is Commit.
@@ -547,19 +499,6 @@ impl EthTxManager {
                     opt.max_fee_per_gas = Some(U256::from(base_fee_per_gas + priority_fee_per_gas));
                     opt.max_priority_fee_per_gas = Some(U256::from(priority_fee_per_gas));
                     opt.nonce = Some(tx.nonce.0.into());
-                    opt.transaction_type = if tx.blob_sidecar.is_some() {
-                        opt.max_fee_per_blob_gas = blob_gas_price;
-                        Some(EIP_4844_TX_TYPE.into())
-                    } else {
-                        Some(EIP_1559_TX_TYPE.into())
-                    };
-                    opt.blob_versioned_hashes = tx.blob_sidecar.as_ref().map(|s| match s {
-                        EthTxBlobSidecar::EthTxBlobSidecarV1(s) => s
-                            .blobs
-                            .iter()
-                            .map(|blob| H256::from_slice(&blob.versioned_hash))
-                            .collect(),
-                    });
                 }),
                 "eth_tx_manager",
             )

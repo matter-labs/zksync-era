@@ -62,11 +62,6 @@
         "ordinal": 11,
         "name": "picked_by",
         "type_info": "Text"
-      },
-      {
-        "ordinal": 12,
-        "name": "eip_4844_blobs",
-        "type_info": "Bytea"
       }
     ],
     "parameters": {
@@ -84,7 +79,6 @@
       true,
       false,
       false,
-      true,
       true,
       true,
       true,

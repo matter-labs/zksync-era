@@ -20,7 +20,10 @@ use zksync_web3_decl::{
 };
 
 use super::{tx_sink::TxSink, SubmitTxError};
-use crate::metrics::{TxStage, APP_METRICS};
+use crate::{
+    api_server::web3::backend_jsonrpsee::internal_error,
+    metrics::{TxStage, APP_METRICS},
+};
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct TxCache {
@@ -234,6 +237,7 @@ impl TxSink for TxProxy {
 
     async fn lookup_pending_nonce(
         &self,
+        _method_name: &'static str,
         account_address: Address,
         last_known_nonce: u32,
     ) -> Result<Option<Nonce>, Web3Error> {
@@ -247,7 +251,11 @@ impl TxSink for TxProxy {
         ))
     }
 
-    async fn lookup_tx(&self, id: TransactionId) -> Result<Option<Transaction>, Web3Error> {
+    async fn lookup_tx(
+        &self,
+        method_name: &'static str,
+        id: TransactionId,
+    ) -> Result<Option<Transaction>, Web3Error> {
         if let TransactionId::Hash(hash) = id {
             // If the transaction is not in the db, check the cache
             if let Some(tx) = self.find_tx(hash).await {
@@ -255,10 +263,18 @@ impl TxSink for TxProxy {
             }
         }
         // If the transaction is not in the cache, query main node
-        Ok(self.request_tx(id).await?)
+        self.request_tx(id)
+            .await
+            .map_err(|err| internal_error(method_name, err))
     }
 
-    async fn lookup_tx_details(&self, hash: H256) -> Result<Option<TransactionDetails>, Web3Error> {
-        Ok(self.request_tx_details(hash).await?)
+    async fn lookup_tx_details(
+        &self,
+        method_name: &'static str,
+        hash: H256,
+    ) -> Result<Option<TransactionDetails>, Web3Error> {
+        self.request_tx_details(hash)
+            .await
+            .map_err(|err| internal_error(method_name, err))
     }
 }

@@ -332,19 +332,32 @@ impl L1BatchAuxiliaryOutput {
                 aux_commitments,
                 blob_commitments,
             } => {
+                // TODO (PLA-815): Remove `IGNORE_1_4_2_UPGRADE_FOR_UPGRADE_TEST`.
+                // This is used only in upgrade test, because our system isn't flexible enough right now to support WIP changes to contracts.
+                let protocol_version =
+                    if std::env::var("IGNORE_1_4_2_UPGRADE_FOR_UPGRADE_TEST").is_ok() {
+                        if common_input.protocol_version.is_post_1_4_2() {
+                            ProtocolVersionId::Version20
+                        } else {
+                            common_input.protocol_version
+                        }
+                    } else {
+                        common_input.protocol_version
+                    };
+
                 let l2_l1_logs_compressed = serialize_commitments(&common_input.l2_to_l1_logs);
                 let merkle_tree_leaves = l2_l1_logs_compressed
                     .chunks(UserL2ToL1Log::SERIALIZED_SIZE)
                     .map(|chunk| <[u8; UserL2ToL1Log::SERIALIZED_SIZE]>::try_from(chunk).unwrap());
                 let l2_l1_logs_merkle_root = MiniMerkleTree::new(
                     merkle_tree_leaves,
-                    Some(l2_to_l1_logs_tree_size(common_input.protocol_version)),
+                    Some(l2_to_l1_logs_tree_size(protocol_version)),
                 )
                 .merkle_root();
 
                 let common_output = L1BatchAuxiliaryCommonOutput {
                     l2_l1_logs_merkle_root,
-                    protocol_version: common_input.protocol_version,
+                    protocol_version,
                 };
 
                 let system_logs_compressed = serialize_commitments(&system_logs);
@@ -354,7 +367,7 @@ impl L1BatchAuxiliaryOutput {
                 let state_diffs_hash = H256::from(keccak256(&(state_diffs_packed)));
                 let state_diffs_compressed = compress_state_diffs(state_diffs);
 
-                let blob_linear_hashes = if common_input.protocol_version.is_post_1_4_2() {
+                let blob_linear_hashes = if protocol_version.is_post_1_4_2() {
                     let blob1_linear_hash = system_logs.iter().find_map(|log| {
                         (log.0.sender == PUBDATA_CHUNK_PUBLISHER_ADDRESS
                             && log.0.key == H256::from_low_u64_be(BLOB1_LINEAR_HASH_KEY as u64))

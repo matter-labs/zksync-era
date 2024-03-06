@@ -1,6 +1,6 @@
 use circuit_definitions::{
     aux_definitions::witness_oracle::VmWitnessOracle,
-    circuit_definitions::{base_layer::ZkSyncBaseLayerCircuit, eip4844::EIP4844Circuit},
+    circuit_definitions::base_layer::ZkSyncBaseLayerCircuit,
 };
 use multivm::utils::get_used_bootloader_memory_bytes;
 use zkevm_test_harness::boojum::field::goldilocks::GoldilocksField;
@@ -20,7 +20,7 @@ use zksync_prover_fri_types::{
         ZkSyncDefaultRoundFunction,
     },
     keys::{AggregationsKey, ClosedFormInputKey, FriCircuitKey},
-    CircuitWrapper, FriProofWrapper, EIP_4844_CIRCUIT_ID,
+    CircuitWrapper, FriProofWrapper,
 };
 use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber, ProtocolVersionId, U256};
 
@@ -128,28 +128,6 @@ pub async fn save_circuit(
         .await
         .unwrap();
     (circuit_id, blob_url)
-}
-
-pub async fn save_eip_4844_circuit(
-    block_number: L1BatchNumber,
-    circuit: EIP4844Circuit<GoldilocksField, ZkSyncDefaultRoundFunction>,
-    sequence_number: usize,
-    object_store: &dyn ObjectStore,
-    depth: u16,
-) -> (usize, String) {
-    let circuit_id = EIP_4844_CIRCUIT_ID;
-    let circuit_key = FriCircuitKey {
-        block_number,
-        sequence_number,
-        circuit_id,
-        aggregation_round: AggregationRound::BasicCircuits,
-        depth,
-    };
-    let blob_url = object_store
-        .put(circuit_key, &CircuitWrapper::Eip4844(circuit))
-        .await
-        .unwrap();
-    (sequence_number, blob_url)
 }
 
 pub async fn save_recursive_layer_prover_input_artifacts(

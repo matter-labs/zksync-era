@@ -7,7 +7,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-use anyhow::Context as _;
 use lru::LruCache;
 use tokio::sync::{watch, Mutex};
 use vise::GaugeGuard;
@@ -19,16 +18,13 @@ use zksync_types::{
 };
 use zksync_web3_decl::{error::Web3Error, types::Filter};
 
-use super::{
-    backend_jsonrpsee::MethodTracer,
-    metrics::{FilterType, FILTER_METRICS},
-    TypedFilter,
-};
+use super::metrics::{FilterType, FILTER_METRICS};
 use crate::{
     api_server::{
         execution_sandbox::{BlockArgs, BlockArgsError, BlockStartInfo},
         tree::TreeApiHttpClient,
-        tx_sender::{tx_sink::TxSink, TxSender},
+        tx_sender::TxSender,
+        web3::{backend_jsonrpsee::internal_error, TypedFilter},
     },
     sync_layer::SyncState,
 };
@@ -198,13 +194,12 @@ impl SealedMiniblockNumber {
 
 /// Holder for the data required for the API to be functional.
 #[derive(Debug, Clone)]
-pub(crate) struct RpcState {
-    pub(super) current_method: Arc<MethodTracer>,
-    pub(super) installed_filters: Option<Arc<Mutex<Filters>>>,
-    pub(super) connection_pool: ConnectionPool,
-    pub(super) tree_api: Option<TreeApiHttpClient>,
-    pub(super) tx_sender: TxSender,
-    pub(super) sync_state: Option<SyncState>,
+pub struct RpcState {
+    pub(crate) installed_filters: Option<Arc<Mutex<Filters>>>,
+    pub connection_pool: ConnectionPool,
+    pub tree_api: Option<TreeApiHttpClient>,
+    pub tx_sender: TxSender,
+    pub sync_state: Option<SyncState>,
     pub(super) api_config: InternalApiConfig,
     /// Number of the first locally available miniblock / L1 batch. May differ from 0 if the node state was recovered
     /// from a snapshot.
@@ -231,21 +226,16 @@ impl RpcState {
         }
     }
 
-    pub(crate) fn tx_sink(&self) -> &dyn TxSink {
-        self.tx_sender.0.tx_sink.as_ref()
-    }
-
     pub(crate) async fn resolve_block(
         &self,
         connection: &mut StorageProcessor<'_>,
         block: api::BlockId,
+        method_name: &'static str,
     ) -> Result<MiniblockNumber, Web3Error> {
         self.start_info.ensure_not_pruned(block)?;
-        connection
-            .blocks_web3_dal()
-            .resolve_block_id(block)
-            .await
-            .context("resolve_block_id")?
+        let result = connection.blocks_web3_dal().resolve_block_id(block).await;
+        result
+            .map_err(|err| internal_error(method_name, err))?
             .ok_or(Web3Error::NoBlock)
     }
 
@@ -253,13 +243,14 @@ impl RpcState {
         &self,
         connection: &mut StorageProcessor<'_>,
         block: api::BlockId,
+        method_name: &'static str,
     ) -> Result<BlockArgs, Web3Error> {
         BlockArgs::new(connection, block, self.start_info)
             .await
             .map_err(|err| match err {
                 BlockArgsError::Pruned(number) => Web3Error::PrunedBlock(number),
                 BlockArgsError::Missing => Web3Error::NoBlock,
-                BlockArgsError::Database(err) => Web3Error::InternalError(err),
+                BlockArgsError::Database(err) => internal_error(method_name, err),
             })
     }
 
@@ -267,14 +258,23 @@ impl RpcState {
         &self,
         block_number: Option<api::BlockNumber>,
     ) -> Result<MiniblockNumber, Web3Error> {
+        const METHOD_NAME: &str = "resolve_filter_block_number";
+
         if let Some(api::BlockNumber::Number(number)) = block_number {
             return Ok(Self::u64_to_block_number(number));
         }
 
         let block_number = block_number.unwrap_or(api::BlockNumber::Latest);
         let block_id = api::BlockId::Number(block_number);
-        let mut conn = self.connection_pool.access_storage_tagged("api").await?;
-        Ok(self.resolve_block(&mut conn, block_id).await.unwrap())
+        let mut conn = self
+            .connection_pool
+            .access_storage_tagged("api")
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err))?;
+        Ok(self
+            .resolve_block(&mut conn, block_id, METHOD_NAME)
+            .await
+            .unwrap())
         // ^ `unwrap()` is safe: `resolve_block_id(api::BlockId::Number(_))` can only return `None`
         // if called with an explicit number, and we've handled this case earlier.
     }
@@ -295,11 +295,12 @@ impl RpcState {
                 let block_number = self
                     .connection_pool
                     .access_storage_tagged("api")
-                    .await?
+                    .await
+                    .unwrap()
                     .blocks_web3_dal()
                     .resolve_block_id(api::BlockId::Hash(block_hash))
                     .await
-                    .context("resolve_block_id")?
+                    .map_err(|err| internal_error("resolve_filter_block_hash", err))?
                     .ok_or(Web3Error::NoBlock)?;
 
                 filter.from_block = Some(api::BlockNumber::Number(block_number.0.into()));
@@ -317,15 +318,18 @@ impl RpcState {
         &self,
         filter: &Filter,
     ) -> Result<MiniblockNumber, Web3Error> {
+        const METHOD_NAME: &str = "get_filter_from_block";
+
         let pending_block = self
             .connection_pool
             .access_storage_tagged("api")
-            .await?
+            .await
+            .unwrap()
             .blocks_web3_dal()
             .resolve_block_id(api::BlockId::Number(api::BlockNumber::Pending))
             .await
-            .context("resolve_block_id")?
-            .context("Pending block number shouldn't be None")?;
+            .map_err(|err| internal_error(METHOD_NAME, err))?
+            .expect("Pending block number shouldn't be None");
         let block_number = match filter.from_block {
             Some(api::BlockNumber::Number(number)) => {
                 let block_number = Self::u64_to_block_number(number);
@@ -340,20 +344,28 @@ impl RpcState {
         &self,
         call_request: &mut CallRequest,
     ) -> Result<(), Web3Error> {
+        const METHOD_NAME: &str = "set_nonce_for_call_request";
+
         if call_request.nonce.is_some() {
             return Ok(());
         }
-        let mut connection = self.connection_pool.access_storage_tagged("api").await?;
+        let mut connection = self
+            .connection_pool
+            .access_storage_tagged("api")
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err))?;
 
         let latest_block_id = api::BlockId::Number(api::BlockNumber::Latest);
-        let latest_block_number = self.resolve_block(&mut connection, latest_block_id).await?;
+        let latest_block_number = self
+            .resolve_block(&mut connection, latest_block_id, METHOD_NAME)
+            .await?;
 
         let from = call_request.from.unwrap_or_default();
         let address_historical_nonce = connection
             .storage_web3_dal()
             .get_address_historical_nonce(from, latest_block_number)
             .await
-            .context("get_address_historical_nonce")?;
+            .map_err(|err| internal_error(METHOD_NAME, err))?;
         call_request.nonce = Some(address_historical_nonce);
         Ok(())
     }

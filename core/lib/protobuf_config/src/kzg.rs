@@ -1,8 +1,8 @@
 use anyhow::Context as _;
 use zksync_config::configs;
-use zksync_protobuf::{required, ProtoRepr};
+use zksync_protobuf::required;
 
-use crate::proto;
+use crate::{proto, repr::ProtoRepr};
 
 impl ProtoRepr for proto::Kzg {
     type Type = configs::KzgConfig;

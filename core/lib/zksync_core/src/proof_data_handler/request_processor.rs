@@ -16,7 +16,6 @@ use zksync_prover_interface::api::{
     SubmitProofRequest, SubmitProofResponse,
 };
 use zksync_types::{
-    basic_fri_types::Eip4844Blobs,
     commitment::serialize_commitments,
     protocol_version::{FriProtocolVersionId, L1VerifierConfig},
     web3::signing::keccak256,
@@ -105,70 +104,27 @@ impl RequestProcessor {
             .await
             .map_err(RequestProcessorError::ObjectStore)?;
 
-        let (l1_verifier_config, fri_protocol_version_id) = match self.config.protocol_version_loading_mode {
+        let fri_protocol_version_id =
+            FriProtocolVersionId::try_from(self.config.fri_protocol_version_id)
+                .expect("Invalid FRI protocol version id");
+
+        let l1_verifier_config= match self.config.protocol_version_loading_mode {
             ProtocolVersionLoadingMode::FromDb => {
-
-                let header = self
-                .pool
-                .access_storage()
-                .await
-                .unwrap()
-                .blocks_dal()
-                .get_l1_batch_header(l1_batch_number)
-                .await
-                .unwrap()
-                .expect(&format!("Missing header for {}", l1_batch_number));
-
-            let protocol_version = header.protocol_version.unwrap();
-            // TODO: What invariants have to hold such that protocol version = fri protocol version?
-            let fri_protocol_version = FriProtocolVersionId::from(protocol_version);
-            (self
-                .pool
-                .access_storage()
-                .await
-                .unwrap()
-                .protocol_versions_dal()
-                .l1_verifier_config_for_version(protocol_version)
-                .await
-                .expect(&format!(
-                    "Missing l1 verifier info for protocol version {protocol_version:?}",
-                )), fri_protocol_version)
-
+                panic!("Loading protocol version from db is not implemented yet")
             }
             ProtocolVersionLoadingMode::FromEnvVar => {
-                (self.l1_verifier_config
-                    .expect("l1_verifier_config must be set while running ProtocolVersionLoadingMode::FromEnvVar mode"),
-                    FriProtocolVersionId::try_from(self.config.fri_protocol_version_id)
-                .expect("Invalid FRI protocol version id"))
-
+                self.l1_verifier_config
+                    .expect("l1_verifier_config must be set while running ProtocolVersionLoadingMode::FromEnvVar mode")
             }
         };
-
-        let storage_batch = self
-            .pool
-            .access_storage()
-            .await
-            .unwrap()
-            .blocks_dal()
-            .get_storage_l1_batch(l1_batch_number)
-            .await
-            .unwrap()
-            .unwrap();
-
-        let eip_4844_blobs: Eip4844Blobs = storage_batch
-            .pubdata_input
-            .expect(&format!(
-                "expected pubdata, but it is not available for batch {l1_batch_number:?}"
-            ))
-            .into();
 
         let proof_gen_data = ProofGenerationData {
             l1_batch_number,
             data: blob,
             fri_protocol_version_id,
             l1_verifier_config,
-            eip_4844_blobs,
         };
+
         Ok(Json(ProofGenerationDataResponse::Success(Some(
             proof_gen_data,
         ))))

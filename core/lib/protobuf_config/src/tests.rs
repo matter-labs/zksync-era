@@ -1,9 +1,8 @@
 use pretty_assertions::assert_eq;
 use rand::Rng;
 use zksync_config::testonly;
-use zksync_protobuf::repr::ProtoRepr;
 
-use crate::proto;
+use crate::{proto, repr::ProtoRepr};
 
 fn encode<P: ProtoRepr>(msg: &P::Type) -> Vec<u8> {
     let msg = P::build(msg);

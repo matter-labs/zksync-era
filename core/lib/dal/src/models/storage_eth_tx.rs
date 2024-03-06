@@ -25,10 +25,6 @@ pub struct StorageEthTx {
     // If this field is `Some` this means that this transaction was sent by a custom operator
     // such as blob sender operator.
     pub from_addr: Option<Vec<u8>>,
-    // A `EIP_4844_TX_TYPE` transaction blob sidecar.
-    //
-    // Format a `bincode`-encoded `EthTxBlobSidecar` enum.
-    pub blob_sidecar: Option<Vec<u8>>,
 }
 
 #[derive(Debug, Default)]
@@ -61,11 +57,6 @@ pub struct StorageTxHistory {
     pub updated_at: NaiveDateTime,
     pub signed_raw_tx: Option<Vec<u8>>,
     pub sent_at_block: Option<i32>,
-    // A `EIP_4844_TX_TYPE` transaction blob sidecar.
-    //
-    // Format a `bincode`-encoded `EthTxBlobSidecar` enum.
-    pub blob_sidecar: Option<Vec<u8>>,
-    pub blob_base_fee_per_gas: Option<i64>,
 }
 
 impl From<StorageEthTx> for EthTx {
@@ -80,9 +71,6 @@ impl From<StorageEthTx> for EthTx {
             created_at_timestamp: tx.created_at.timestamp() as u64,
             predicted_gas_cost: tx.predicted_gas_cost as u64,
             from_addr: tx.from_addr.map(|f| Address::from_slice(&f)),
-            blob_sidecar: tx.blob_sidecar.map(|b| {
-                bincode::deserialize(&b).expect("EthTxBlobSidecar is encoded correctly; qed")
-            }),
         }
     }
 }
@@ -94,7 +82,6 @@ impl From<StorageTxHistory> for TxHistory {
             eth_tx_id: history.eth_tx_id as u32,
             base_fee_per_gas: history.base_fee_per_gas as u64,
             priority_fee_per_gas: history.priority_fee_per_gas as u64,
-            blob_base_fee_per_gas: history.blob_base_fee_per_gas.map(|v| v as u64),
             tx_hash: H256::from_str(&history.tx_hash).expect("Incorrect hash"),
             signed_raw_tx: history
                 .signed_raw_tx

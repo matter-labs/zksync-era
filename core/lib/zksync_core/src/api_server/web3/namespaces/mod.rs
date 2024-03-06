@@ -9,7 +9,7 @@ mod snapshots;
 mod web3;
 mod zks;
 
-pub(super) use self::{
+pub use self::{
     debug::DebugNamespace, en::EnNamespace, eth::EthNamespace, net::NetNamespace,
     snapshots::SnapshotsNamespace, web3::Web3Namespace, zks::ZksNamespace,
 };

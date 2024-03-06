@@ -20,7 +20,7 @@ codegen = { git = "https://github.com/matter-labs/solidity_plonk_verifier.git", 
 zkevm_test_harness_1_3_3 = { package = "zkevm_test_harness", git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.3.3" }
 
 # Used to calculate the kzg commitment and proofs
-zkevm_test_harness_1_4_2 = { package = "zkevm_test_harness", git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.2" }
+zkevm_test_harness_1_4_1 = { package = "zkevm_test_harness", git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.1" }
 sha2 = "0.10.8"
 sha3 = "0.10.8"
 

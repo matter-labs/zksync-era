@@ -1,8 +1,8 @@
 use anyhow::Context as _;
 use zksync_config::configs;
-use zksync_protobuf::{repr::ProtoRepr, required};
+use zksync_protobuf::required;
 
-use crate::{parse_h160, parse_h256, proto};
+use crate::{parse_h160, parse_h256, proto, repr::ProtoRepr};
 
 impl proto::ProverAtGenesis {
     fn new(x: &configs::contracts::ProverAtGenesis) -> Self {

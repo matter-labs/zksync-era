@@ -44,15 +44,11 @@ impl MasterPoolResource {
     }
 
     pub async fn get_singleton(&self) -> anyhow::Result<ConnectionPool> {
-        self.get_custom(1).await
-    }
-
-    pub async fn get_custom(&self, size: u32) -> anyhow::Result<ConnectionPool> {
-        let result = self.builder.clone().set_max_size(size).build().await;
+        let result = self.builder.build_singleton().await;
 
         if result.is_ok() {
-            let old_count = self.connections_count.fetch_add(size, Ordering::Relaxed);
-            let total_connections = old_count + size;
+            self.connections_count.fetch_add(1, Ordering::Relaxed);
+            let total_connections = self.connections_count.load(Ordering::Relaxed);
             tracing::info!(
                 "Created a new master pool. Master pool total connections count: {total_connections}"
             );
@@ -91,7 +87,7 @@ impl ReplicaPoolResource {
                 .fetch_add(self.builder.max_size(), Ordering::Relaxed);
             let total_connections = self.connections_count.load(Ordering::Relaxed);
             tracing::info!(
-                "Created a new replica pool. Replica pool total connections count: {total_connections}"
+                "Created a new replica pool. Master pool total connections count: {total_connections}"
             );
         }
 
@@ -99,15 +95,11 @@ impl ReplicaPoolResource {
     }
 
     pub async fn get_singleton(&self) -> anyhow::Result<ConnectionPool> {
-        self.get_custom(1).await
-    }
-
-    pub async fn get_custom(&self, size: u32) -> anyhow::Result<ConnectionPool> {
-        let result = self.builder.clone().set_max_size(size).build().await;
+        let result = self.builder.build_singleton().await;
 
         if result.is_ok() {
-            let old_count = self.connections_count.fetch_add(size, Ordering::Relaxed);
-            let total_connections = old_count + size;
+            self.connections_count.fetch_add(1, Ordering::Relaxed);
+            let total_connections = self.connections_count.load(Ordering::Relaxed);
             tracing::info!(
                 "Created a new replica pool. Master pool total connections count: {total_connections}"
             );
@@ -154,17 +146,13 @@ impl ProverPoolResource {
     }
 
     pub async fn get_singleton(&self) -> anyhow::Result<ConnectionPool> {
-        self.get_custom(1).await
-    }
-
-    pub async fn get_custom(&self, size: u32) -> anyhow::Result<ConnectionPool> {
-        let result = self.builder.clone().set_max_size(size).build().await;
+        let result = self.builder.build_singleton().await;
 
         if result.is_ok() {
-            let old_count = self.connections_count.fetch_add(size, Ordering::Relaxed);
-            let total_connections = old_count + size;
+            self.connections_count.fetch_add(1, Ordering::Relaxed);
+            let total_connections = self.connections_count.load(Ordering::Relaxed);
             tracing::info!(
-                "Created a new prover pool. Prover pool total connections count: {total_connections}"
+                "Created a new prover pool. Master pool total connections count: {total_connections}"
             );
         }
 

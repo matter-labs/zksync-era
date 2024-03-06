@@ -222,7 +222,7 @@ async fn recovering_tokens() {
         storage_logs.push(SnapshotStorageLog {
             key: get_code_key(&token.l2_address),
             value: H256::random(),
-            l1_batch_number_of_initial_write: expected_status.l1_batch_number,
+            l1_batch_number_of_initial_write: L1BatchNumber(1),
             enumeration_index: storage_logs.len() as u64 + 1,
         });
     }

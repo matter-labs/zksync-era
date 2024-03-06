@@ -3,7 +3,6 @@
 
 use serde::{Deserialize, Serialize};
 use zksync_types::{
-    basic_fri_types::Eip4844Blobs,
     protocol_version::{FriProtocolVersionId, L1VerifierConfig},
     L1BatchNumber,
 };
@@ -16,7 +15,6 @@ pub struct ProofGenerationData {
     pub data: PrepareBasicCircuitsJob,
     pub fri_protocol_version_id: FriProtocolVersionId,
     pub l1_verifier_config: L1VerifierConfig,
-    pub eip_4844_blobs: Eip4844Blobs,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

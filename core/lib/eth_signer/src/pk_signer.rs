@@ -33,6 +33,14 @@ impl EthereumSigner for PrivateKeySigner {
             .map_err(|_| SignerError::DefineAddress)
     }
 
+    /// The sign method calculates an Ethereum specific signature with:
+    /// sign(keccak256("\x19Ethereum Signed Message:\n" + len(message) + message))).
+    async fn sign_message(&self, message: &[u8]) -> Result<PackedEthSignature, SignerError> {
+        let signature = PackedEthSignature::sign(&self.private_key, message)
+            .map_err(|err| SignerError::SigningFailed(err.to_string()))?;
+        Ok(signature)
+    }
+
     /// Signs typed struct using Ethereum private key by EIP-712 signature standard.
     /// Result of this function is the equivalent of RPC calling `eth_signTypedData`.
     async fn sign_typed_data<S: EIP712TypedStructure + Sync>(

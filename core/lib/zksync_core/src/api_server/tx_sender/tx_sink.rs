@@ -34,6 +34,7 @@ pub trait TxSink: std::fmt::Debug + Send + Sync + 'static {
     /// By default, returns `Ok(None)`.
     async fn lookup_pending_nonce(
         &self,
+        _method_name: &'static str,
         _account_address: Address,
         _last_known_nonce: u32,
     ) -> Result<Option<Nonce>, Web3Error> {
@@ -42,7 +43,11 @@ pub trait TxSink: std::fmt::Debug + Send + Sync + 'static {
 
     /// Attempts to look up the transaction by its API ID in the sink-specific storage.
     /// By default, returns `Ok(None)`.
-    async fn lookup_tx(&self, _id: TransactionId) -> Result<Option<Transaction>, Web3Error> {
+    async fn lookup_tx(
+        &self,
+        _method_name: &'static str,
+        _id: TransactionId,
+    ) -> Result<Option<Transaction>, Web3Error> {
         Ok(None)
     }
 
@@ -50,6 +55,7 @@ pub trait TxSink: std::fmt::Debug + Send + Sync + 'static {
     /// By default, returns `Ok(None)`.
     async fn lookup_tx_details(
         &self,
+        _method_name: &'static str,
         _hash: H256,
     ) -> Result<Option<TransactionDetails>, Web3Error> {
         Ok(None)

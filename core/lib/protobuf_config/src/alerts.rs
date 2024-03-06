@@ -1,7 +1,6 @@
 use zksync_config::configs::AlertsConfig;
-use zksync_protobuf::repr::ProtoRepr;
 
-use crate::proto;
+use crate::{proto, repr::ProtoRepr};
 
 impl ProtoRepr for proto::Alerts {
     type Type = AlertsConfig;

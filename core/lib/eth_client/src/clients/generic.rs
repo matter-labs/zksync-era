@@ -5,16 +5,16 @@ use zksync_types::{
     web3::{
         ethabi,
         types::{
-            Address, BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt, H160,
-            H256, U256, U64,
+            Address, Block, BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt,
+            H160, H256, U256, U64,
         },
     },
     L1ChainId,
 };
 
 use crate::{
-    Block, BoundEthInterface, ContractCall, Error, EthInterface, ExecutedTxStatus, FailureInfo,
-    Options, RawTransactionBytes, SignedCallResult,
+    BoundEthInterface, ContractCall, Error, EthInterface, ExecutedTxStatus, FailureInfo, Options,
+    RawTransactionBytes, SignedCallResult,
 };
 
 #[async_trait]

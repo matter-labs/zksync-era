@@ -150,10 +150,6 @@ export async function setup(opts: DbOpts) {
         await utils.spawn(
             `pg_dump ${process.env.TEMPLATE_DATABASE_URL} -F c | pg_restore -d ${process.env.DATABASE_URL}`
         );
-        // Remove `unconfirmed` rows from `eth_txs_history` table.
-        await utils.spawn(
-            `psql ${process.env.DATABASE_URL} -c "DELETE FROM eth_txs_history WHERE confirmed_at IS NULL"`
-        );
 
         process.chdir(process.env.ZKSYNC_HOME as string);
 

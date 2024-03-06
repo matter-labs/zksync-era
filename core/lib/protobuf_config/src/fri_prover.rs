@@ -1,8 +1,8 @@
 use anyhow::Context as _;
 use zksync_config::configs;
-use zksync_protobuf::{repr::ProtoRepr, required};
+use zksync_protobuf::required;
 
-use crate::proto;
+use crate::{proto, repr::ProtoRepr};
 
 impl proto::SetupLoadMode {
     fn new(x: &configs::fri_prover::SetupLoadMode) -> Self {

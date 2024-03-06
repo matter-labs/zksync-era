@@ -4,20 +4,19 @@ use async_trait::async_trait;
 use zksync_types::web3::{
     self,
     contract::Contract,
-    ethabi, helpers,
-    helpers::CallFuture,
+    ethabi,
     transports::Http,
     types::{
-        Address, BlockId, BlockNumber, Bytes, Filter, Log, Transaction, TransactionId,
+        Address, Block, BlockId, BlockNumber, Bytes, Filter, Log, Transaction, TransactionId,
         TransactionReceipt, H256, U256, U64,
     },
-    Transport, Web3,
+    Web3,
 };
 
 use crate::{
     clients::http::{Method, COUNTERS, LATENCIES},
     types::{Error, ExecutedTxStatus, FailureInfo, RawTokens},
-    Block, ContractCall, EthInterface, RawTransactionBytes,
+    ContractCall, EthInterface, RawTransactionBytes,
 };
 
 /// An "anonymous" Ethereum client that can invoke read-only methods that aren't
@@ -285,28 +284,7 @@ impl EthInterface for QueryClient {
     ) -> Result<Option<Block<H256>>, Error> {
         COUNTERS.call[&(Method::Block, component)].inc();
         let latency = LATENCIES.direct[&Method::Block].start();
-        // Copy of `web3::block` implementation. It's required to deserialize response as `crate::types::Block`
-        // that has EIP-4844 fields.
-        let block = {
-            let include_txs = helpers::serialize(&false);
-
-            let result = match block_id {
-                BlockId::Hash(hash) => {
-                    let hash = helpers::serialize(&hash);
-                    self.web3
-                        .transport()
-                        .execute("eth_getBlockByHash", vec![hash, include_txs])
-                }
-                BlockId::Number(num) => {
-                    let num = helpers::serialize(&num);
-                    self.web3
-                        .transport()
-                        .execute("eth_getBlockByNumber", vec![num, include_txs])
-                }
-            };
-
-            CallFuture::new(result).await?
-        };
+        let block = self.web3.eth().block(block_id).await?;
         latency.observe();
         Ok(block)
     }
