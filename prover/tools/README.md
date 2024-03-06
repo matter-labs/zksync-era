@@ -3,7 +3,7 @@
 For now, it has only one command 'file-info'
 
 ```
-cargo run --release  file-info /ksync-era/prover/artifacts/proofs_fri/l1_batch_proof_1.bin
+cargo run --release  file-info /zksync-era/prover/artifacts/proofs_fri/l1_batch_proof_1.bin
 ```
 
 Example outputs:
