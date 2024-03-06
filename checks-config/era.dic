@@ -83,6 +83,8 @@ L2s
 L1
 json
 l1
+G1
+G2
 SystemConfig
 TODO
 se
@@ -141,6 +143,8 @@ merkle
 eth
 Ethereum
 deployer
+designator
+designators
 RPC
 tx
 txs
@@ -166,6 +170,7 @@ zkEVM
 src
 utils
 ptr
+recurse
 RefCell
 Rc
 StorageView
@@ -202,7 +207,7 @@ Serde
 tokenize
 EOAs
 zeroized
-value
+cardinality
 
 // zkSync-related words
 matterlabs

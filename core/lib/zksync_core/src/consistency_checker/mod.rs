@@ -1,4 +1,4 @@
-use std::{fmt, sync::Arc, time::Duration};
+use std::{fmt, time::Duration};
 
 use anyhow::Context as _;
 use serde::Serialize;
@@ -8,13 +8,13 @@ use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::{clients::QueryClient, Error as L1ClientError, EthInterface};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::{
-    i_executor::{
-        commit::kzg::{KzgSettings, ZK_SYNC_BYTES_PER_BLOB},
-        structures::CommitBatchInfo,
-    },
+    i_executor::{commit::kzg::ZK_SYNC_BYTES_PER_BLOB, structures::CommitBatchInfo},
     Tokenizable,
 };
-use zksync_types::{pubdata_da::PubdataDA, web3::ethabi, L1BatchNumber, H256};
+use zksync_types::{
+    commitment::L1BatchWithMetadata, pubdata_da::PubdataDA, web3::ethabi, L1BatchNumber,
+    ProtocolVersionId, H256,
+};
 
 use crate::{
     metrics::{CheckerComponent, EN_METRICS},
@@ -128,9 +128,7 @@ enum L1DataMismatchBehavior {
 /// L1 commit data loaded from Postgres.
 #[derive(Debug)]
 struct LocalL1BatchCommitData {
-    is_pre_boojum: bool,
-    /// Vector of possible encodings of L1 commit data.
-    l1_commit_data_variants: Vec<ethabi::Token>,
+    l1_batch: L1BatchWithMetadata,
     commit_tx_hash: H256,
 }
 
@@ -140,7 +138,6 @@ impl LocalL1BatchCommitData {
     async fn new(
         storage: &mut StorageProcessor<'_>,
         batch_number: L1BatchNumber,
-        kzg_settings: Option<Arc<KzgSettings>>,
     ) -> anyhow::Result<Option<Self>> {
         let Some(storage_l1_batch) = storage
             .blocks_dal()
@@ -169,48 +166,59 @@ impl LocalL1BatchCommitData {
             return Ok(None);
         };
 
-        let is_pre_boojum = l1_batch
-            .header
-            .protocol_version
-            .map_or(true, |version| version.is_pre_boojum());
-        let metadata = &l1_batch.metadata;
+        let this = Self {
+            l1_batch,
+            commit_tx_hash,
+        };
+        let metadata = &this.l1_batch.metadata;
 
         // For Boojum batches, `bootloader_initial_content_commitment` and `events_queue_commitment`
-        // are (temporarily) only computed by the metadata calculator if it runs with the full tree.
+        // are computed by the commitment generator.
         // I.e., for these batches, we may have partial metadata in Postgres, which would not be sufficient
         // to compute local L1 commitment.
-        if !is_pre_boojum
+        if !this.is_pre_boojum()
             && (metadata.bootloader_initial_content_commitment.is_none()
                 || metadata.events_queue_commitment.is_none())
         {
             return Ok(None);
         }
 
-        // Encoding data using `PubdataDA::Blobs` never panics.
-        let mut variants = vec![PubdataDA::Blobs];
-        // For `PubdataDA::Calldata` it's required that the pubdata fits into a single blob.
-        let pubdata_len = l1_batch
+        Ok(Some(this))
+    }
+
+    fn is_pre_boojum(&self) -> bool {
+        self.l1_batch
             .header
-            .pubdata_input
-            .as_ref()
-            .unwrap_or(&l1_batch.construct_pubdata())
-            .len();
-        if pubdata_len <= ZK_SYNC_BYTES_PER_BLOB {
-            variants.push(PubdataDA::Calldata);
+            .protocol_version
+            .map_or(true, |version| version.is_pre_boojum())
+    }
+
+    fn verify_commitment(&self, reference: &ethabi::Token) -> anyhow::Result<bool> {
+        let protocol_version = self
+            .l1_batch
+            .header
+            .protocol_version
+            .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
+        let da = CommitBatchInfo::detect_da(protocol_version, reference)
+            .context("cannot detect DA source from reference commitment token")?;
+
+        // For `PubdataDA::Calldata`, it's required that the pubdata fits into a single blob.
+        if matches!(da, PubdataDA::Calldata) {
+            let pubdata_len = self
+                .l1_batch
+                .header
+                .pubdata_input
+                .as_ref()
+                .map_or_else(|| self.l1_batch.construct_pubdata().len(), Vec::len);
+            anyhow::ensure!(
+                pubdata_len <= ZK_SYNC_BYTES_PER_BLOB,
+                "pubdata size is too large when using calldata DA source: expected <={ZK_SYNC_BYTES_PER_BLOB} bytes, \
+                 got {pubdata_len} bytes"
+            );
         }
 
-        // Iterate over possible `PubdataDA` used for encoding `CommitBatchInfo`.
-        let l1_commit_data_variants = variants
-            .into_iter()
-            .map(|pubdata_da| {
-                CommitBatchInfo::new(&l1_batch, pubdata_da, kzg_settings.clone()).into_token()
-            })
-            .collect();
-        Ok(Some(Self {
-            is_pre_boojum,
-            l1_commit_data_variants,
-            commit_tx_hash,
-        }))
+        let local_token = CommitBatchInfo::new(&self.l1_batch, da).into_token();
+        Ok(local_token == *reference)
     }
 }
 
@@ -226,18 +234,12 @@ pub struct ConsistencyChecker {
     l1_data_mismatch_behavior: L1DataMismatchBehavior,
     pool: ConnectionPool,
     health_check: ReactiveHealthCheck,
-    kzg_settings: Option<Arc<KzgSettings>>,
 }
 
 impl ConsistencyChecker {
     const DEFAULT_SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 
-    pub fn new(
-        web3_url: &str,
-        max_batches_to_recheck: u32,
-        pool: ConnectionPool,
-        kzg_settings: Option<Arc<KzgSettings>>,
-    ) -> Self {
+    pub fn new(web3_url: &str, max_batches_to_recheck: u32, pool: ConnectionPool) -> Self {
         let web3 = QueryClient::new(web3_url).unwrap();
         let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
         Self {
@@ -249,7 +251,6 @@ impl ConsistencyChecker {
             l1_data_mismatch_behavior: L1DataMismatchBehavior::Log,
             pool,
             health_check,
-            kzg_settings,
         }
     }
 
@@ -285,7 +286,7 @@ impl ConsistencyChecker {
             .input;
         // TODO (PLA-721): Check receiving contract and selector
         // TODO: Add support for post shared bridge commits
-        let commit_function = if local.is_pre_boojum {
+        let commit_function = if local.is_pre_boojum() {
             &*PRE_BOOJUM_COMMIT_FUNCTION
         } else {
             self.contract
@@ -297,8 +298,7 @@ impl ConsistencyChecker {
                 .with_context(|| {
                     format!("Failed extracting commit data for transaction {commit_tx_hash:?}")
                 })?;
-
-        Ok(local.l1_commit_data_variants.contains(&commitment))
+        Ok(local.verify_commitment(&commitment)?)
     }
 
     fn extract_commit_data(
@@ -400,10 +400,7 @@ impl ConsistencyChecker {
             // The batch might be already committed but not yet processed by the external node's tree
             // OR the batch might be processed by the external node's tree but not yet committed.
             // We need both.
-            let Some(local) =
-                LocalL1BatchCommitData::new(&mut storage, batch_number, self.kzg_settings.clone())
-                    .await?
-            else {
+            let Some(local) = LocalL1BatchCommitData::new(&mut storage, batch_number).await? else {
                 tokio::time::sleep(self.sleep_interval).await;
                 continue;
             };
