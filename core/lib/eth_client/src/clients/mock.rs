@@ -1,5 +1,6 @@
 use std::{
     collections::{BTreeMap, HashMap},
+    fmt,
     sync::RwLock,
 };
 
@@ -12,7 +13,7 @@ use zksync_types::{
         types::{BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt, U64},
         Error as Web3Error,
     },
-    Address, L1ChainId, ProtocolVersionId, H160, H256, U256,
+    Address, L1ChainId, H160, H256, U256,
 };
 
 use crate::{
@@ -117,7 +118,6 @@ impl MockEthereumInner {
 }
 
 /// Mock Ethereum client is capable of recording all the incoming requests for the further analysis.
-#[derive(Debug)]
 pub struct MockEthereum {
     max_fee_per_gas: U256,
     max_priority_fee_per_gas: U256,
@@ -126,8 +126,25 @@ pub struct MockEthereum {
     /// If true, the mock will not check the ordering nonces of the transactions.
     /// This is useful for testing the cases when the transactions are executed out of order.
     non_ordering_confirmations: bool,
-    multicall_address: Address,
     inner: RwLock<MockEthereumInner>,
+    call_handler: Box<dyn Fn(&ContractCall) -> ethabi::Token + Send + Sync>,
+}
+
+impl fmt::Debug for MockEthereum {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("MockEthereum")
+            .field("max_fee_per_gas", &self.max_fee_per_gas)
+            .field("max_priority_fee_per_gas", &self.max_priority_fee_per_gas)
+            .field("base_fee_history", &self.base_fee_history)
+            .field("excess_blob_gas_history", &self.excess_blob_gas_history)
+            .field(
+                "non_ordering_confirmations",
+                &self.non_ordering_confirmations,
+            )
+            .field("inner", &self.inner)
+            .finish_non_exhaustive()
+    }
 }
 
 impl Default for MockEthereum {
@@ -138,8 +155,10 @@ impl Default for MockEthereum {
             base_fee_history: vec![],
             excess_blob_gas_history: vec![],
             non_ordering_confirmations: false,
-            multicall_address: Address::default(),
             inner: RwLock::default(),
+            call_handler: Box::new(|call| {
+                panic!("Unexpected eth_call: {call:?}");
+            }),
         }
     }
 }
@@ -231,9 +250,12 @@ impl MockEthereum {
         }
     }
 
-    pub fn with_multicall_address(self, address: Address) -> Self {
+    pub fn with_call_handler<F>(self, call_handler: F) -> Self
+    where
+        F: 'static + Send + Sync + Fn(&ContractCall) -> ethabi::Token,
+    {
         Self {
-            multicall_address: address,
+            call_handler: Box::new(call_handler),
             ..self
         }
     }
@@ -318,26 +340,8 @@ impl EthInterface for MockEthereum {
         &self,
         call: ContractCall,
     ) -> Result<Vec<ethabi::Token>, Error> {
-        use ethabi::Token;
-
-        if call.contract_address == self.multicall_address {
-            let token = Token::Array(vec![
-                Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![1u8; 32])]),
-                Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![2u8; 32])]),
-                Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![3u8; 96])]),
-                Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![4u8; 32])]),
-                Token::Tuple(vec![
-                    Token::Bool(true),
-                    Token::Bytes(
-                        H256::from_low_u64_be(ProtocolVersionId::default() as u64)
-                            .0
-                            .to_vec(),
-                    ),
-                ]),
-            ]);
-            return Ok(vec![token]);
-        }
-        Ok(vec![])
+        let response = (self.call_handler)(&call);
+        Ok(vec![response])
     }
 
     async fn get_tx(
