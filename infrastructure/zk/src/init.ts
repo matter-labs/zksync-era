@@ -107,6 +107,7 @@ export const initDevCmdAction = async ({
     await initDatabase({ skipVerifierDeployment: false });
     await deployTestTokens(testTokenOptions);
     await initBridgehubStateTransition();
+    await initDatabase({ skipVerifierDeployment: true });
     await initHyperchain({ includePaymaster: true, baseTokenName });
 };
 
