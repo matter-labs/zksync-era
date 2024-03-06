@@ -8,6 +8,7 @@ use zksync_config::{
 use zksync_dal::ConnectionPool;
 use zksync_object_store::ObjectStore;
 
+pub use self::state_keeper_storage::StateKeeperStorage;
 pub use self::{
     batch_executor::{main_executor::MainBatchExecutor, BatchExecutor},
     io::{mempool::MempoolIO, MiniblockSealer, MiniblockSealerHandle, StateKeeperIO},
@@ -45,13 +46,16 @@ pub(crate) async fn create_state_keeper(
     object_store: Arc<dyn ObjectStore>,
     stop_receiver: watch::Receiver<bool>,
 ) -> ZkSyncStateKeeper {
-    let batch_executor_base = MainBatchExecutor::new(
-        db_config.state_keeper_db_path.clone(),
+    let state_keeper_storage = StateKeeperStorage::async_rocksdb_cache(
         pool.clone(),
+        db_config.state_keeper_db_path.clone(),
+        state_keeper_config.enum_index_migration_chunk_size(),
+    );
+    let batch_executor_base = MainBatchExecutor::new(
+        state_keeper_storage,
         state_keeper_config.max_allowed_l2_tx_gas_limit.into(),
         state_keeper_config.save_call_traces,
         state_keeper_config.upload_witness_inputs_to_gcs,
-        state_keeper_config.enum_index_migration_chunk_size(),
         false,
     );
 

@@ -15,7 +15,6 @@ use tokio::{
     runtime::Handle,
     sync::{mpsc, watch},
 };
-use zksync_dal::ConnectionPool;
 use zksync_state::{ReadStorage, StorageView, WriteStorage};
 use zksync_types::{vm_trace::Call, Transaction, U256};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
@@ -33,34 +32,28 @@ use crate::{
 /// The default implementation of [`BatchExecutor`].
 /// Creates a "real" batch executor which maintains the VM (as opposed to the test builder which doesn't use the VM).
 #[derive(Debug, Clone)]
-pub struct MainBatchExecutor {
+pub struct MainBatchExecutor<T: ReadStorageFactory = AsyncRocksdbCache> {
+    storage: StateKeeperStorage<T>,
     save_call_traces: bool,
     max_allowed_tx_gas_limit: U256,
     upload_witness_inputs_to_gcs: bool,
     optional_bytecode_compression: bool,
-    cached_storage: StateKeeperStorage<AsyncRocksdbCache>,
 }
 
-impl MainBatchExecutor {
+impl<T: ReadStorageFactory> MainBatchExecutor<T> {
     pub fn new(
-        state_keeper_db_path: String,
-        pool: ConnectionPool,
+        storage: StateKeeperStorage<T>,
         max_allowed_tx_gas_limit: U256,
         save_call_traces: bool,
         upload_witness_inputs_to_gcs: bool,
-        enum_index_migration_chunk_size: usize,
         optional_bytecode_compression: bool,
     ) -> Self {
         Self {
+            storage,
             save_call_traces,
             max_allowed_tx_gas_limit,
             upload_witness_inputs_to_gcs,
             optional_bytecode_compression,
-            cached_storage: StateKeeperStorage::async_rocksdb_cache(
-                pool,
-                state_keeper_db_path,
-                enum_index_migration_chunk_size,
-            ),
         }
     }
 }
@@ -84,11 +77,10 @@ impl BatchExecutor for MainBatchExecutor {
         };
         let upload_witness_inputs_to_gcs = self.upload_witness_inputs_to_gcs;
 
-        let cached_storage = self.cached_storage.clone();
+        let factory = self.storage.factory();
         let stop_receiver = stop_receiver.clone();
         let handle = tokio::task::spawn_blocking(move || {
             let rt_handle = Handle::current();
-            let factory = cached_storage.factory();
             if let Some(storage) =
                 rt_handle.block_on(factory.access_storage(rt_handle.clone(), &stop_receiver))
             {

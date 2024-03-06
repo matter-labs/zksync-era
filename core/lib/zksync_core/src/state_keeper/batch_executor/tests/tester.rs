@@ -28,7 +28,7 @@ use crate::{
     state_keeper::{
         batch_executor::{BatchExecutorHandle, TxExecutionResult},
         tests::{default_l1_batch_env, default_system_env, BASE_SYSTEM_CONTRACTS},
-        BatchExecutor, MainBatchExecutor,
+        BatchExecutor, MainBatchExecutor, StateKeeperStorage,
     },
     utils::testonly::prepare_recovery_snapshot,
 };
@@ -103,13 +103,16 @@ impl Tester {
         l1_batch_env: L1BatchEnv,
         system_env: SystemEnv,
     ) -> BatchExecutorHandle {
-        let mut builder = MainBatchExecutor::new(
-            self.db_dir.path().to_str().unwrap().to_owned(),
+        let state_keeper_storage = StateKeeperStorage::async_rocksdb_cache(
             self.pool.clone(),
+            self.db_dir.path().to_str().unwrap().to_owned(),
+            100,
+        );
+        let mut builder = MainBatchExecutor::new(
+            state_keeper_storage,
             self.config.max_allowed_tx_gas_limit.into(),
             self.config.save_call_traces,
             self.config.upload_witness_inputs_to_gcs,
-            100,
             false,
         );
         let (_stop_sender, stop_receiver) = watch::channel(false);
