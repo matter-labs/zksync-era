@@ -38,7 +38,7 @@ const submoduleUpdate = async (): Promise<void> => {
 
 // Sets up docker environment and compiles contracts
 type InitSetupOptions = { skipEnvSetup: boolean; skipSubmodulesCheckout: boolean };
-export const initSetup = async ({ skipSubmodulesCheckout, skipEnvSetup }: InitSetupOptions): Promise<void> => {
+const initSetup = async ({ skipSubmodulesCheckout, skipEnvSetup }: InitSetupOptions): Promise<void> => {
     if (!process.env.CI && !skipEnvSetup) {
         await announced('Pulling images', docker.pull());
         await announced('Checking environment', checkEnv());
@@ -58,7 +58,7 @@ export const initSetup = async ({ skipSubmodulesCheckout, skipEnvSetup }: InitSe
 
 // Sets up the database, deploys the verifier (if set) and runs server genesis
 type InitDatabaseOptions = { skipVerifierDeployment: boolean };
-export const initDatabase = async ({ skipVerifierDeployment }: InitDatabaseOptions): Promise<void> => {
+const initDatabase = async ({ skipVerifierDeployment }: InitDatabaseOptions): Promise<void> => {
     await announced('Drop postgres db', db.drop({ server: true, prover: true }));
     await announced('Setup postgres db', db.setup({ server: true, prover: true }));
     await announced('Clean rocksdb', clean(`db/${process.env.ZKSYNC_ENV!}`));
@@ -89,23 +89,30 @@ const initBridgehubStateTransition = async () => {
 
 // Registers a hyperchain and deploys L2 contracts through L1
 type InitHyperchainOptions = { includePaymaster: boolean; baseTokenName?: string };
-export const initHyperchain = async ({ includePaymaster, baseTokenName }: InitHyperchainOptions): Promise<void> => {
+const initHyperchain = async ({ includePaymaster, baseTokenName }: InitHyperchainOptions): Promise<void> => {
     await announced('Registering Hyperchain', contract.registerHyperchain({ baseTokenName }));
     await announced('Running server genesis setup', server.genesisFromSources({ setChainId: true }));
     await announced('Deploying L2 contracts', contract.deployL2ThroughL1({ includePaymaster }));
 };
 
 // ########################### Command Actions ###########################
-type InitDevCmdActionOptions = InitSetupOptions & { testTokenOptions: DeployTestTokensOptions; baseTokenName?: string };
+type InitDevCmdActionOptions = InitSetupOptions & {
+    skipTestTokenDeployment?: boolean;
+    testTokenOptions?: DeployTestTokensOptions;
+    baseTokenName?: string;
+};
 export const initDevCmdAction = async ({
     skipEnvSetup,
     skipSubmodulesCheckout,
+    skipTestTokenDeployment,
     testTokenOptions,
     baseTokenName
 }: InitDevCmdActionOptions): Promise<void> => {
     await initSetup({ skipEnvSetup, skipSubmodulesCheckout });
     await initDatabase({ skipVerifierDeployment: false });
-    await deployTestTokens(testTokenOptions);
+    if (!skipTestTokenDeployment) {
+        await deployTestTokens(testTokenOptions);
+    }
     await initBridgehubStateTransition();
     await initDatabase({ skipVerifierDeployment: true });
     await initHyperchain({ includePaymaster: true, baseTokenName });

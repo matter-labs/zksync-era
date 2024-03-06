@@ -1,40 +1,21 @@
-import { Command, description } from 'commander';
+import { Command } from 'commander';
 
-import { clean } from './clean';
-import * as compiler from './compiler';
-import * as contract from './contract';
-import * as db from './database';
-import * as env from './env';
-import * as run from './run';
-import * as server from './server';
 import { up } from './up';
 import { announced } from './utils';
-import { initDatabase, initHyperchain } from './init';
-import * as config from './config';
+import { initDevCmdAction, initHyperCmdAction } from './init';
 
 const reinitDevCmdAction = async (): Promise<void> => {
     await announced('Setting up containers', up());
-    await announced('Compiling JS packages', run.yarn());
-    await announced('Compile l2 contracts', compiler.compileAll());
-    await announced('Drop postgres db', db.drop({ server: true, prover: true }));
-    await announced('Setup postgres db', db.setup({ server: true, prover: true }));
-    await announced('Clean rocksdb', clean(`db/${process.env.ZKSYNC_ENV!}`));
-    await announced('Clean backups', clean(`backups/${process.env.ZKSYNC_ENV!}`));
-    await announced('Building contracts', contract.build());
-    //note no ERC20 tokens are deployed here
-    await announced('Deploying L1 verifier', contract.deployVerifier());
-    await announced('Reloading env', env.reload());
-    await announced('Running server genesis setup', server.genesisFromSources());
-    await announced('Deploying L1 contracts', contract.redeployL1());
-    await announced('Deploying L2 contracts', contract.deployL2ThroughL1({ includePaymaster: true }));
-    await announced('Initializing governance', contract.initializeGovernance());
+    // skipEnvSetup and skipSubmodulesCheckout, because we only want to compile
+    // no ERC20 token deployment, because they are already deployed
+    await initDevCmdAction({ skipEnvSetup: true, skipSubmodulesCheckout: true, skipTestTokenDeployment: true });
 };
 
 type ReinitHyperCmdActionOptions = { baseTokenName?: string };
 const reinitHyperCmdAction = async ({ baseTokenName }: ReinitHyperCmdActionOptions): Promise<void> => {
-    await config.bumpChainId();
-    await initDatabase({ skipVerifierDeployment: true });
-    await initHyperchain({ includePaymaster: true, baseTokenName });
+    // skipSetupCompletely, because we only want to compile
+    // bumpChainId, because we want to reinitialize hyperchain with a new chain id
+    await initHyperCmdAction({ skipSetupCompletely: true, bumpChainId: true, baseTokenName });
 };
 
 export const reinitCommand = new Command('reinit')
