@@ -17,18 +17,12 @@ type BoxReadStorage<'a> = Box<dyn ReadStorage + Send + 'a>;
 ///
 /// This struct's main design purpose is to be able to produce [`ReadStorage`] implementation with
 /// as little blocking operations as possible to ensure liveliness.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct CachedStorage {
     inner: Arc<Mutex<CachedStorageFactory>>,
 }
 
-impl Debug for CachedStorage {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CachedStorage").finish()
-    }
-}
-
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum CachedStorageFactory {
     Postgres(ConnectionPool),
     Rocksdb(RocksDB<StateKeeperColumnFamily>, ConnectionPool),
