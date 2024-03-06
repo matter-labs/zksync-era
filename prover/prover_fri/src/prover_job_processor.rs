@@ -12,16 +12,13 @@ use zksync_env_config::FromEnv;
 use zksync_object_store::ObjectStore;
 use zksync_prover_fri_types::{
     circuit_definitions::{
-        aux_definitions::witness_oracle::VmWitnessOracle,
         base_layer_proof_config,
-        boojum::{
-            cs::implementations::pow::NoPow, field::goldilocks::GoldilocksField, worker::Worker,
-        },
+        boojum::{cs::implementations::pow::NoPow, worker::Worker},
         circuit_definitions::{
             base_layer::{ZkSyncBaseLayerCircuit, ZkSyncBaseLayerProof},
             recursion_layer::{ZkSyncRecursionLayerProof, ZkSyncRecursiveLayerCircuit},
         },
-        recursion_layer_proof_config, ZkSyncDefaultRoundFunction,
+        recursion_layer_proof_config,
     },
     CircuitWrapper, FriProofWrapper, ProverJob, ProverServiceDataKey,
 };
