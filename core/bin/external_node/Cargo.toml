@@ -19,6 +19,7 @@ zksync_utils = { path = "../../lib/utils" }
 zksync_state = { path = "../../lib/state" }
 zksync_basic_types = { path = "../../lib/basic_types" }
 zksync_contracts = { path = "../../lib/contracts" }
+zksync_l1_contract_interface = { path = "../../lib/l1_contract_interface" }
 zksync_concurrency = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "97d139969476a004c50f8b4a31ece748e5bee14e" }
 zksync_consensus_roles = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "97d139969476a004c50f8b4a31ece748e5bee14e" }
 zksync_snapshots_applier = { path = "../../lib/snapshots_applier" }

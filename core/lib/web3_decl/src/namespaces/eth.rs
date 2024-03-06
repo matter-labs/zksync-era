@@ -87,7 +87,10 @@ pub trait EthNamespace {
     ) -> RpcResult<Option<U256>>;
 
     #[method(name = "getBlockReceipts")]
-    async fn get_block_receipts(&self, block_id: BlockId) -> RpcResult<Vec<TransactionReceipt>>;
+    async fn get_block_receipts(
+        &self,
+        block_id: BlockId,
+    ) -> RpcResult<Option<Vec<TransactionReceipt>>>;
 
     #[method(name = "getBlockTransactionCountByHash")]
     async fn get_block_transaction_count_by_hash(

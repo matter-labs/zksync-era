@@ -1,17 +1,14 @@
-// TODO: Remove once integrated into batch commitment
-#![allow(dead_code)]
-
 use std::convert::TryInto;
 
 use sha2::Sha256;
 use sha3::{Digest, Keccak256};
-use zkevm_test_harness_1_3_3::ff::{PrimeField, PrimeFieldRepr};
-pub use zkevm_test_harness_1_4_1::kzg::KzgSettings;
-use zkevm_test_harness_1_4_1::{
+pub use zkevm_test_harness_1_4_2::kzg::KzgSettings;
+use zkevm_test_harness_1_4_2::{
     kzg::{compute_commitment, compute_proof, compute_proof_poly},
     zkevm_circuits::{
         boojum::pairing::{
             bls12_381::{Fr, FrRepr, G1Affine},
+            ff::{PrimeField, PrimeFieldRepr},
             CurveAffine,
         },
         eip_4844::{
@@ -23,7 +20,13 @@ use zkevm_test_harness_1_4_1::{
 };
 use zksync_types::H256;
 
-const ZK_SYNC_BYTES_PER_BLOB: usize = BLOB_CHUNK_SIZE * ELEMENTS_PER_4844_BLOCK;
+use self::trusted_setup::KZG_SETTINGS;
+
+#[cfg(test)]
+mod tests;
+mod trusted_setup;
+
+pub const ZK_SYNC_BYTES_PER_BLOB: usize = BLOB_CHUNK_SIZE * ELEMENTS_PER_4844_BLOCK;
 const EIP_4844_BYTES_PER_BLOB: usize = 32 * ELEMENTS_PER_4844_BLOCK;
 
 /// Packed pubdata commitments.
@@ -91,7 +94,7 @@ impl KzgInfo {
 
     /// Returns the bytes necessary for pubdata commitment part of batch commitments when blobs are used.
     /// Return format: opening point (16 bytes) || claimed value (32 bytes) || commitment (48 bytes)
-    ///                || opening proof (48 bytes))
+    ///                || opening proof (48 bytes)
     pub fn to_pubdata_commitment(&self) -> [u8; BYTES_PER_PUBDATA_COMMITMENT] {
         let mut res = [0u8; BYTES_PER_PUBDATA_COMMITMENT];
         // The crypto team/batch commitment expects the opening point to be 16 bytes
@@ -104,13 +107,15 @@ impl KzgInfo {
         res
     }
 
+    /// Computes the commitment to the blob needed as part of the batch commitment through the aux output
+    /// Format is: Keccak(versioned hash || opening point || opening value)
     pub fn to_blob_commitment(&self) -> [u8; 32] {
         let mut commitment = [0u8; 32];
         let hash = &Keccak256::digest(
             [
-                self.versioned_hash.to_vec(),
-                self.opening_point[16..].to_vec(),
-                self.opening_value.to_vec(),
+                &self.versioned_hash,
+                &self.opening_point[16..],
+                &self.opening_value,
             ]
             .concat(),
         );
@@ -196,14 +201,14 @@ impl KzgInfo {
     ///     4. `kzg` polynomial <- `zksync_pubdata_into_monomial_form_poly`(zksync blob)
     ///     5. 4844 `kzg` commitment <- `compute_commitment`(4844 blob)
     ///     6. versioned hash <- hash(4844 `kzg` commitment)
-    ///     7. opening point <- keccak(linear hash || versioned hash)[16..]
+    ///     7. opening point <- keccak(linear hash || versioned hash)`[16..]`
     ///     8. opening value, opening proof <- `compute_kzg_proof`(4844)
     ///     9. blob proof <- `compute_proof_poly`(blob, 4844 `kzg` commitment)
-    pub fn new(kzg_settings: &KzgSettings, pubdata: Vec<u8>) -> Self {
+    pub fn new(pubdata: &[u8]) -> Self {
         assert!(pubdata.len() <= ZK_SYNC_BYTES_PER_BLOB);
 
         let mut zksync_blob = [0u8; ZK_SYNC_BYTES_PER_BLOB];
-        zksync_blob[0..pubdata.len()].copy_from_slice(&pubdata);
+        zksync_blob[0..pubdata.len()].copy_from_slice(pubdata);
 
         let linear_hash: [u8; 32] = Keccak256::digest(zksync_blob).into();
 
@@ -212,7 +217,7 @@ impl KzgInfo {
         fft(&mut poly);
         bitreverse(&mut poly);
 
-        let kzg_commitment = compute_commitment(kzg_settings, &poly);
+        let kzg_commitment = compute_commitment(&KZG_SETTINGS, &poly);
         let versioned_hash = commitment_to_versioned_hash(kzg_commitment);
         let opening_point = compute_opening_point(linear_hash, versioned_hash);
         let opening_point_repr = Fr::from_repr(FrRepr([
@@ -224,9 +229,9 @@ impl KzgInfo {
         .expect("should have a valid field element from 16 bytes");
 
         let (opening_proof, opening_value) =
-            compute_proof(kzg_settings, &poly, &opening_point_repr);
+            compute_proof(&KZG_SETTINGS, &poly, &opening_point_repr);
 
-        let blob_proof = compute_proof_poly(kzg_settings, &poly, &kzg_commitment);
+        let blob_proof = compute_proof_poly(&KZG_SETTINGS, &poly, &kzg_commitment);
 
         let blob_bytes = zksync_pubdata_into_ethereum_4844_data(&zksync_blob);
         let mut blob = [0u8; EIP_4844_BYTES_PER_BLOB];
@@ -262,7 +267,7 @@ impl KzgInfo {
     }
 }
 
-pub fn pubdata_to_blob_commitments(pubdata_input: &[u8], kzg_settings: &KzgSettings) -> [H256; 2] {
+pub fn pubdata_to_blob_commitments(pubdata_input: &[u8]) -> [H256; 2] {
     assert!(
         pubdata_input.len() <= 2 * ZK_SYNC_BYTES_PER_BLOB,
         "Pubdata length exceeds size of 2 blobs"
@@ -271,7 +276,7 @@ pub fn pubdata_to_blob_commitments(pubdata_input: &[u8], kzg_settings: &KzgSetti
     let blob_commitments = pubdata_input
         .chunks(ZK_SYNC_BYTES_PER_BLOB)
         .map(|blob| {
-            let kzg_info = KzgInfo::new(kzg_settings, blob.to_vec());
+            let kzg_info = KzgInfo::new(blob);
             H256(kzg_info.to_blob_commitment())
         })
         .collect::<Vec<_>>();
@@ -282,161 +287,4 @@ pub fn pubdata_to_blob_commitments(pubdata_input: &[u8], kzg_settings: &KzgSetti
         blob_commitments.get(0).copied().unwrap_or_default(),
         blob_commitments.get(1).copied().unwrap_or_default(),
     ]
-}
-
-#[cfg(test)]
-mod tests {
-    use serde::{Deserialize, Serialize};
-    use serde_with::{self, serde_as};
-    use zkevm_test_harness_1_4_1::{
-        boojum::pairing::{
-            bls12_381::{Fr, FrRepr, G1Affine, G1Compressed},
-            EncodedPoint,
-        },
-        kzg::{verify_kzg_proof, verify_proof_poly, KzgSettings},
-        zkevm_circuits::eip_4844::{
-            bitreverse, ethereum_4844_data_into_zksync_pubdata, fft,
-            zksync_pubdata_into_monomial_form_poly,
-        },
-    };
-
-    use super::{KzgInfo, PrimeField};
-
-    #[serde_as]
-    #[derive(Debug, Serialize, Deserialize)]
-    struct ExpectedOutputs {
-        #[serde_as(as = "serde_with::hex::Hex")]
-        versioned_hash: Vec<u8>,
-        #[serde_as(as = "serde_with::hex::Hex")]
-        kzg_commitment: Vec<u8>,
-        #[serde_as(as = "serde_with::hex::Hex")]
-        opening_point: Vec<u8>,
-        #[serde_as(as = "serde_with::hex::Hex")]
-        opening_value: Vec<u8>,
-        #[serde_as(as = "serde_with::hex::Hex")]
-        opening_proof: Vec<u8>,
-        #[serde_as(as = "serde_with::hex::Hex")]
-        blob_proof: Vec<u8>,
-        #[serde_as(as = "serde_with::hex::Hex")]
-        pubdata_commitment: Vec<u8>,
-    }
-
-    #[serde_as]
-    #[derive(Debug, Serialize, Deserialize)]
-    struct KzgTest {
-        #[serde_as(as = "serde_with::hex::Hex")]
-        pubdata: Vec<u8>,
-        expected_outputs: ExpectedOutputs,
-    }
-
-    /// Copy of function from https://github.com/matter-labs/era-zkevm_test_harness/blob/99956050a7705e26e0e5aa0729348896a27846c7/src/kzg/mod.rs#L339
-    fn u8_repr_to_fr(bytes: &[u8]) -> Fr {
-        assert_eq!(bytes.len(), 32);
-        let mut ret = [0u64; 4];
-
-        for (i, chunk) in bytes.chunks(8).enumerate() {
-            let mut repr = [0u8; 8];
-            repr.copy_from_slice(chunk);
-            ret[3 - i] = u64::from_be_bytes(repr);
-        }
-
-        Fr::from_repr(FrRepr(ret)).unwrap()
-    }
-
-    fn bytes_to_g1(data: &[u8]) -> G1Affine {
-        let mut compressed = G1Compressed::empty();
-        let v = compressed.as_mut();
-        v.copy_from_slice(data);
-        compressed.into_affine().unwrap()
-    }
-
-    #[test]
-    fn kzg_test() {
-        let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
-        let path = std::path::Path::new(&zksync_home).join("etc/kzg_tests/kzg_test_0.json");
-        let contents = std::fs::read_to_string(path).unwrap();
-        let kzg_test: KzgTest = serde_json::from_str(&contents).unwrap();
-
-        let path = std::path::Path::new(&zksync_home).join("trusted_setup.json");
-        let kzg_settings = KzgSettings::new(path.to_str().unwrap());
-
-        let kzg_info = KzgInfo::new(&kzg_settings, kzg_test.pubdata);
-
-        // Verify all the fields were correctly computed
-        assert_eq!(
-            hex::encode(kzg_info.kzg_commitment),
-            hex::encode(kzg_test.expected_outputs.kzg_commitment)
-        );
-        assert_eq!(
-            hex::encode(kzg_info.opening_point),
-            hex::encode(kzg_test.expected_outputs.opening_point)
-        );
-        assert_eq!(
-            hex::encode(kzg_info.opening_value),
-            hex::encode(kzg_test.expected_outputs.opening_value)
-        );
-        assert_eq!(
-            hex::encode(kzg_info.opening_proof),
-            hex::encode(kzg_test.expected_outputs.opening_proof)
-        );
-        assert_eq!(
-            hex::encode(kzg_info.versioned_hash),
-            hex::encode(kzg_test.expected_outputs.versioned_hash)
-        );
-        assert_eq!(
-            hex::encode(kzg_info.blob_proof),
-            hex::encode(kzg_test.expected_outputs.blob_proof)
-        );
-
-        // Verify data we need for blob commitment on L1 returns the correct data
-        assert_eq!(
-            hex::encode(kzg_info.to_pubdata_commitment()),
-            hex::encode(kzg_test.expected_outputs.pubdata_commitment)
-        );
-
-        // Verify that the blob, commitment, and proofs are all valid
-        let blob = ethereum_4844_data_into_zksync_pubdata(&kzg_info.blob);
-        let mut poly = zksync_pubdata_into_monomial_form_poly(&blob);
-        fft(&mut poly);
-        bitreverse(&mut poly);
-
-        let commitment = bytes_to_g1(&kzg_info.kzg_commitment);
-        let blob_proof = bytes_to_g1(&kzg_info.blob_proof);
-
-        let valid_blob_proof = verify_proof_poly(&kzg_settings, &poly, &commitment, &blob_proof);
-        assert!(valid_blob_proof);
-
-        let opening_point = u8_repr_to_fr(&kzg_info.opening_point);
-        let opening_value = u8_repr_to_fr(&kzg_info.opening_value);
-        let opening_proof = bytes_to_g1(&kzg_info.opening_proof);
-
-        let valid_opening_proof = verify_kzg_proof(
-            &kzg_settings,
-            &commitment,
-            &opening_point,
-            &opening_value,
-            &opening_proof,
-        );
-        assert!(valid_opening_proof);
-    }
-
-    #[test]
-    fn bytes_test() {
-        let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
-        let path = std::path::Path::new(&zksync_home).join("etc/kzg_tests/kzg_test_0.json");
-        let contents = std::fs::read_to_string(path).unwrap();
-        let kzg_test: KzgTest = serde_json::from_str(&contents).unwrap();
-
-        let path = std::path::Path::new(&zksync_home).join("trusted_setup.json");
-        let kzg_settings = KzgSettings::new(path.to_str().unwrap());
-
-        let kzg_info = KzgInfo::new(&kzg_settings, kzg_test.pubdata);
-
-        let encoded_info = kzg_info.to_bytes();
-        assert_eq!(KzgInfo::SERIALIZED_SIZE, encoded_info.len());
-
-        let decoded_kzg_info = KzgInfo::from_slice(&encoded_info);
-
-        assert_eq!(kzg_info, decoded_kzg_info);
-    }
 }

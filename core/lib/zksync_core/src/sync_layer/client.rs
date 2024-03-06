@@ -17,7 +17,8 @@ use zksync_web3_decl::{
 use super::metrics::{CachedMethod, FETCHER_METRICS};
 
 /// Maximum number of concurrent requests to the main node.
-const MAX_CONCURRENT_REQUESTS: usize = 100;
+/// It can' be very high to not trigger rate limiting.
+const MAX_CONCURRENT_REQUESTS: usize = 30;
 
 /// Client abstracting connection to the main node.
 #[async_trait]

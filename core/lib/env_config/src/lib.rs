@@ -17,7 +17,6 @@ mod fri_prover_group;
 mod fri_witness_generator;
 mod fri_witness_vector_generator;
 mod house_keeper;
-mod kzg;
 pub mod object_store;
 mod observability;
 mod proof_data_handler;
