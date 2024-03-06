@@ -20,11 +20,14 @@ contract NonceHolderTest is IAccount {
     // bytes4(keccak256("isValidSignature(bytes32,bytes)")
     bytes4 constant EIP1271_SUCCESS_RETURN_VALUE = 0x1626ba7e;
 
-    function validateTransaction(bytes32, bytes32, Transaction calldata _transaction) external payable override returns (bytes4 magic) {
+    function validateTransaction(bytes32 _suggestedSignedHash, bytes32 _suggestedDigest, Transaction calldata _transaction) external payable override returns (bytes4 magic) {
+        // Validate the signature
+        require(isValidSignature(_suggestedSignedHash, _transaction.signature), "Invalid signature");
+
+        _validateTransaction(_transaction);
+
         // By default we consider the transaction as successful
         magic = ACCOUNT_VALIDATION_SUCCESS_MAGIC;
-                
-        _validateTransaction(_transaction);
     }
 
     function _validateTransaction(Transaction calldata _transaction) internal {
