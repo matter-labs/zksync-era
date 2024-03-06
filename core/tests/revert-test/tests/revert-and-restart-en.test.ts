@@ -7,11 +7,10 @@
 import * as utils from 'zk/build/utils';
 import { Tester } from './tester';
 import * as zkweb3 from 'zksync-web3';
-import { BigNumber, Contract, ethers } from 'ethers';
+import { BigNumber, ethers } from 'ethers';
 import { expect, assert } from 'chai';
 import fs from 'fs';
 import * as child_process from 'child_process';
-import * as util from 'util';
 import * as dotenv from 'dotenv';
 
 const main_env: string = 'docker';
@@ -230,7 +229,6 @@ describe('Block reverting test', function () {
             to: alice.address
         });
         await h.waitFinalize();
-        const alice1 = await alice.getBalance();
 
         console.log('Restart the main node with L1 batch execution disabled.');
         await main_node.terminate();
