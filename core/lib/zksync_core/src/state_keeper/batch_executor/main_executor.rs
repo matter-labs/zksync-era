@@ -24,8 +24,8 @@ use super::{BatchExecutor, BatchExecutorHandle, Command, TxExecutionResult};
 use crate::{
     metrics::{InteractionType, TxStage, APP_METRICS},
     state_keeper::{
-        cached_storage::{AsyncRocksdbCache, ReadStorageFactory, StateKeeperStorage},
         metrics::{TxExecutionStage, BATCH_TIP_METRICS, EXECUTOR_METRICS, KEEPER_METRICS},
+        state_keeper_storage::{AsyncRocksdbCache, ReadStorageFactory, StateKeeperStorage},
         types::ExecutionMetricsForCriteria,
     },
 };

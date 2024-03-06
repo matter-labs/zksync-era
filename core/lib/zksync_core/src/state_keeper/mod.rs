@@ -19,13 +19,13 @@ pub use self::{
 use crate::fee_model::BatchFeeModelInputProvider;
 
 mod batch_executor;
-mod cached_storage;
 pub(crate) mod extractors;
 pub(crate) mod io;
 mod keeper;
 mod mempool_actor;
 pub(crate) mod metrics;
 pub mod seal_criteria;
+mod state_keeper_storage;
 #[cfg(test)]
 pub(crate) mod tests;
 pub(crate) mod types;
