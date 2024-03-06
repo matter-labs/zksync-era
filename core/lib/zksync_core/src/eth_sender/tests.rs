@@ -1,11 +1,9 @@
 use std::sync::Arc;
 
 use zksync_dal::ConnectionPool;
-use zksync_types::l1_batch_commit_data_generator::{
-    RollupModeL1BatchCommitDataGenerator, ValidiumModeL1BatchCommitDataGenerator,
-};
 
 use super::tests_helpers::{self, EthSenderTester};
+use crate::{RollupModeL1BatchCommitDataGenerator, ValidiumModeL1BatchCommitDataGenerator};
 
 // Tests that we send multiple transactions and confirm them all in one iteration.
 #[tokio::test]
@@ -135,16 +133,8 @@ async fn correct_order_for_confirmations() -> anyhow::Result<()> {
     )
     .await;
 
-    tests_helpers::correct_order_for_confirmations(
-        &mut rollup_tester,
-        Arc::new(RollupModeL1BatchCommitDataGenerator {}),
-    )
-    .await?;
-    tests_helpers::correct_order_for_confirmations(
-        &mut validium_tester,
-        Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
-    )
-    .await
+    tests_helpers::correct_order_for_confirmations(&mut rollup_tester).await?;
+    tests_helpers::correct_order_for_confirmations(&mut validium_tester).await
 }
 
 #[tokio::test]
@@ -165,16 +155,8 @@ async fn skipped_l1_batch_at_the_start() -> anyhow::Result<()> {
     )
     .await;
 
-    tests_helpers::skipped_l1_batch_at_the_start(
-        &mut rollup_tester,
-        Arc::new(RollupModeL1BatchCommitDataGenerator {}),
-    )
-    .await?;
-    tests_helpers::skipped_l1_batch_at_the_start(
-        &mut validium_tester,
-        Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
-    )
-    .await
+    tests_helpers::skipped_l1_batch_at_the_start(&mut rollup_tester).await?;
+    tests_helpers::skipped_l1_batch_at_the_start(&mut validium_tester).await
 }
 
 #[tokio::test]
@@ -195,16 +177,8 @@ async fn skipped_l1_batch_in_the_middle() -> anyhow::Result<()> {
     )
     .await;
 
-    tests_helpers::skipped_l1_batch_in_the_middle(
-        &mut rollup_tester,
-        Arc::new(RollupModeL1BatchCommitDataGenerator {}),
-    )
-    .await?;
-    tests_helpers::skipped_l1_batch_in_the_middle(
-        &mut validium_tester,
-        Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
-    )
-    .await
+    tests_helpers::skipped_l1_batch_in_the_middle(&mut rollup_tester).await?;
+    tests_helpers::skipped_l1_batch_in_the_middle(&mut validium_tester).await
 }
 
 #[tokio::test]

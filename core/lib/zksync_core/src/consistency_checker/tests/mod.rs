@@ -8,20 +8,19 @@ use test_casing::{test_casing, Product};
 use tokio::sync::mpsc;
 use zksync_dal::StorageProcessor;
 use zksync_eth_client::clients::MockEthereum;
-use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType,
-    commitment::L1BatchWithMetadata,
-    l1_batch_commit_data_generator::{
-        RollupModeL1BatchCommitDataGenerator, ValidiumModeL1BatchCommitDataGenerator,
-    },
-    web3::contract::Options,
-    ProtocolVersionId, H256,
+    aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata,
+    web3::contract::Options, ProtocolVersionId, H256,
 };
 
 use super::*;
-use crate::utils::testonly::{
-    create_l1_batch, create_l1_batch_metadata, l1_batch_metadata_to_commitment_artifacts,
+use crate::{
+    eth_sender::l1_batch_commit_data_generator::{
+        RollupModeL1BatchCommitDataGenerator, ValidiumModeL1BatchCommitDataGenerator,
+    },
+    utils::testonly::{
+        create_l1_batch, create_l1_batch_metadata, l1_batch_metadata_to_commitment_artifacts,
+    },
 };
 
 /// **NB.** For tests to run correctly, the returned value must be deterministic (i.e., depend only on `number`).
@@ -51,19 +50,15 @@ pub(crate) fn build_commit_tx_input_data(
     batches: &[L1BatchWithMetadata],
     l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
 ) -> Vec<u8> {
-    let commit_tokens = batches.iter().map(|batch| {
-        CommitBatchInfo::new(batch, l1_batch_commit_data_generator.clone()).into_token()
-    });
-    let commit_tokens = ethabi::Token::Array(commit_tokens.collect());
-
     let mut encoded = vec![];
     // Fake Solidity function selector (not checked for now)
     encoded.extend_from_slice(b"fake");
     // Mock an additional argument used in real `commitBlocks` / `commitBatches`. In real transactions,
     // it's taken from the L1 batch previous to `batches[0]`, but since this argument is not checked,
     // it's OK to use `batches[0]`.
-    let prev_header_tokens = StoredBatchInfo(&batches[0]).into_token();
-    encoded.extend_from_slice(&ethabi::encode(&[prev_header_tokens, commit_tokens]));
+    encoded.extend_from_slice(&ethabi::encode(
+        &l1_batch_commit_data_generator.l1_commit_batches(&batches[0], batches),
+    ));
     encoded
 }
 

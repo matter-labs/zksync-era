@@ -20,6 +20,10 @@ use zksync_core::{
     commitment_generator::CommitmentGenerator,
     consensus,
     consistency_checker::ConsistencyChecker,
+    eth_sender::l1_batch_commit_data_generator::{
+        L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
+        ValidiumModeL1BatchCommitDataGenerator,
+    },
     l1_gas_price::MainNodeFeeParamsFetcher,
     metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
     reorg_detector::ReorgDetector,
@@ -32,15 +36,13 @@ use zksync_core::{
         batch_status_updater::BatchStatusUpdater, external_io::ExternalIO,
         fetcher::MainNodeFetcher, ActionQueue, MainNodeClient, SyncState,
     },
+    utils::ensure_l1_batch_commit_data_generation_mode,
 };
 use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
+use zksync_eth_client::clients::QueryClient;
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
 use zksync_state::PostgresStorageCaches;
 use zksync_storage::RocksDB;
-use zksync_types::l1_batch_commit_data_generator::{
-    L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
-    ValidiumModeL1BatchCommitDataGenerator,
-};
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 use zksync_web3_decl::jsonrpsee::http_client::HttpClient;
 
@@ -233,6 +235,19 @@ async fn init_tasks(
         .context("failed initializing metadata calculator")?;
     app_health.insert_component(metadata_calculator.tree_health_check());
 
+    let eth_client_url = config
+        .required
+        .eth_client_url()
+        .context("L1 client URL is incorrect")?;
+    let eth_client = QueryClient::new(&eth_client_url).unwrap();
+
+    ensure_l1_batch_commit_data_generation_mode(
+        config.optional.l1_batch_commit_data_generator_mode,
+        config.remote.diamond_proxy_addr,
+        &eth_client,
+    )
+    .await?;
+
     let l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator> = match config
         .optional
         .l1_batch_commit_data_generator_mode
@@ -243,10 +258,7 @@ async fn init_tasks(
         }
     };
     let consistency_checker = ConsistencyChecker::new(
-        &config
-            .required
-            .eth_client_url()
-            .context("L1 client URL is incorrect")?,
+        Box::new(eth_client),
         10, // TODO (BFT-97): Make it a part of a proper EN config
         singleton_pool_builder
             .build()
