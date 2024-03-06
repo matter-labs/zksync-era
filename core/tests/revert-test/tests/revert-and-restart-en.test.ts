@@ -52,7 +52,7 @@ function run(cmd: string, args: string[], options: child_process.SpawnOptions): 
 }
 
 function compileBinaries() {
-    console.log("compiling binaries");
+    console.log('compiling binaries');
     run(
         'cargo',
         ['build', '--release', '--bin', 'zksync_external_node', '--bin', 'zksync_server', '--bin', 'block_reverter'],
