@@ -444,7 +444,7 @@ impl TxSender {
             );
             return Err(SubmitTxError::GasLimitIsTooBig);
         }
-        if tx.common_data.fee.max_fee_per_gas < fee_input.fair_l2_gas_price().into() {
+        if tx.common_data.fee.max_fee_per_gas < fee_input.fair_l2_gas_price() {
             tracing::info!(
                 "Submitted Tx is Unexecutable {:?} because of MaxFeePerGasTooLow {}",
                 tx.hash(),
@@ -708,14 +708,14 @@ impl TxSender {
             derive_base_fee_and_gas_per_pubdata(fee_input, protocol_version.into());
         match &mut tx.common_data {
             ExecuteTransactionCommon::L2(common_data) => {
-                common_data.fee.max_fee_per_gas = base_fee.into();
-                common_data.fee.max_priority_fee_per_gas = base_fee.into();
+                common_data.fee.max_fee_per_gas = base_fee;
+                common_data.fee.max_priority_fee_per_gas = base_fee;
             }
             ExecuteTransactionCommon::L1(common_data) => {
-                common_data.max_fee_per_gas = base_fee.into();
+                common_data.max_fee_per_gas = base_fee;
             }
             ExecuteTransactionCommon::ProtocolUpgrade(common_data) => {
-                common_data.max_fee_per_gas = base_fee.into();
+                common_data.max_fee_per_gas = base_fee;
             }
         }
 
@@ -897,10 +897,10 @@ impl TxSender {
             };
 
         Ok(Fee {
-            max_fee_per_gas: base_fee.into(),
+            max_fee_per_gas: base_fee,
             max_priority_fee_per_gas: 0u32.into(),
             gas_limit: full_gas_limit.into(),
-            gas_per_pubdata_limit: gas_per_pubdata_byte.into(),
+            gas_per_pubdata_limit: gas_per_pubdata_byte,
         })
     }
 

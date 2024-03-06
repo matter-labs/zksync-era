@@ -370,7 +370,7 @@ impl MiniblockSealCommand {
             .mark_txs_as_executed_in_miniblock(
                 miniblock_number,
                 &self.miniblock.executed_transactions,
-                self.base_fee_per_gas.into(),
+                self.base_fee_per_gas,
             )
             .await;
         progress.observe(self.miniblock.executed_transactions.len());

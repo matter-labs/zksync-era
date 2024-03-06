@@ -95,7 +95,7 @@ impl NativeTokenFetcher {
         Self {
             config,
             latest_to_eth_conversion_rate: AtomicU64::new(conversion_rate),
-            http_client: http_client,
+            http_client,
         }
     }
 
