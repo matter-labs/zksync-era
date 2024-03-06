@@ -1,5 +1,5 @@
 use anyhow::Context as _;
-use zksync_core::{consensus, temp_config_store::decode_json};
+use zksync_core::{consensus, temp_config_store::decode_yaml};
 
 pub(crate) fn read_consensus_secrets() -> anyhow::Result<Option<consensus::Secrets>> {
     // Read public config.
@@ -7,7 +7,7 @@ pub(crate) fn read_consensus_secrets() -> anyhow::Result<Option<consensus::Secre
         return Ok(None);
     };
     let secrets = std::fs::read_to_string(&path).context(path)?;
-    Ok(Some(decode_json(&secrets).context("failed decoding JSON")?))
+    Ok(Some(decode_yaml(&secrets).context("failed decoding YAML")?))
 }
 
 pub(crate) fn read_consensus_config() -> anyhow::Result<Option<consensus::Config>> {
@@ -16,5 +16,5 @@ pub(crate) fn read_consensus_config() -> anyhow::Result<Option<consensus::Config
         return Ok(None);
     };
     let cfg = std::fs::read_to_string(&path).context(path)?;
-    Ok(Some(decode_json(&cfg).context("failed decoding JSON")?))
+    Ok(Some(decode_yaml(&cfg).context("failed decoding YAML")?))
 }

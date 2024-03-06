@@ -24,8 +24,7 @@ where
     C: From<P::Type> + PartialEq + Debug,
 {
     let got = decode::<P>(&encode::<P>(&msg)).unwrap();
-    let (got, msg): (C, C) = (msg.into(), got.into());
-    assert_eq!(&msg, &got, "binary encoding");
+    assert_eq!(&C::From(msg), &C::From(got), "binary encoding");
 }
 
 /// Derivative of `Transaction` to facilitate equality comparisons.

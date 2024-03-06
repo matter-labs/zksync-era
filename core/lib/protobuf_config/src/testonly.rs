@@ -14,27 +14,27 @@ pub trait ProtoConv {
     fn build(this: &Self::Type) -> Self::Proto;
 }
 
-fn encode<X: ProtoConv>(msg: &X::Type) -> Vec<u8> {
+pub fn encode<X: ProtoConv>(msg: &X::Type) -> Vec<u8> {
     let msg = X::build(msg);
     zksync_protobuf::canonical_raw(&msg.encode_to_vec(), &msg.descriptor()).unwrap()
 }
 
-fn decode<X: ProtoConv>(bytes: &[u8]) -> anyhow::Result<X::Type> {
+pub fn decode<X: ProtoConv>(bytes: &[u8]) -> anyhow::Result<X::Type> {
     X::read(&X::Proto::decode(bytes)?)
 }
 
-fn encode_json<X: ProtoConv>(msg: &X::Type) -> String {
+pub fn encode_json<X: ProtoConv>(msg: &X::Type) -> String {
     let mut s = serde_json::Serializer::pretty(vec![]);
     zksync_protobuf::serde::serialize_proto(&X::build(msg), &mut s).unwrap();
     String::from_utf8(s.into_inner()).unwrap()
 }
 
-fn decode_json<X: ProtoConv>(json: &str) -> anyhow::Result<X::Type> {
+pub fn decode_json<X: ProtoConv>(json: &str) -> anyhow::Result<X::Type> {
     let mut d = serde_json::Deserializer::from_str(json);
     X::read(&zksync_protobuf::serde::deserialize_proto(&mut d)?)
 }
 
-fn encode_yaml<X: ProtoConv>(msg: &X::Type) -> String {
+pub fn encode_yaml<X: ProtoConv>(msg: &X::Type) -> String {
     let mut s = serde_yaml::Serializer::new(vec![]);
     zksync_protobuf::serde::serialize_proto(&X::build(msg), &mut s).unwrap();
     String::from_utf8(s.into_inner().unwrap()).unwrap()
