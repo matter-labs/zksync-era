@@ -221,19 +221,12 @@ pub(crate) struct TxSharedArgs {
 
 impl TxSharedArgs {
     #[cfg(test)]
-    pub fn mock(base_system_contracts: MultiVMBaseSystemContracts, pool: ConnectionPool) -> Self {
-        let mut caches = PostgresStorageCaches::new(1, 1);
-        tokio::task::spawn_blocking(caches.configure_storage_values_cache(
-            1,
-            pool,
-            Handle::current(),
-        ));
-
+    pub fn mock(base_system_contracts: MultiVMBaseSystemContracts) -> Self {
         Self {
             operator_account: AccountTreeId::default(),
             fee_input: BatchFeeInput::l1_pegged(55, 555),
             base_system_contracts,
-            caches,
+            caches: PostgresStorageCaches::new(1, 1),
             validation_computational_gas_limit: u32::MAX,
             chain_id: L2ChainId::default(),
         }

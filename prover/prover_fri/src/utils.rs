@@ -146,8 +146,8 @@ pub fn verify_proof(
             verify_recursion_layer_proof::<NoPow>(recursive_circuit, proof, vk),
             recursive_circuit.numeric_circuit_type(),
         ),
-        CircuitWrapper::Eip4844(circuit) => (
-            verify_eip4844_proof::<NoPow>(circuit, proof, vk),
+        CircuitWrapper::Eip4844(_) => (
+            verify_eip4844_proof::<NoPow>(proof, vk),
             ProverServiceDataKey::eip4844().circuit_id,
         ),
     };

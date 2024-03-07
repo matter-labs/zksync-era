@@ -548,6 +548,14 @@ async fn main() -> anyhow::Result<()> {
         ([0, 0, 0, 0], config.required.healthcheck_port).into(),
         app_health.clone(),
     );
+    // Start scraping Postgres metrics before store initialization as well.
+    let metrics_pool = connection_pool.clone();
+    let mut task_handles = vec![tokio::spawn(async move {
+        metrics_pool
+            .run_postgres_metrics_scraping(Duration::from_secs(60))
+            .await;
+        Ok(())
+    })];
 
     // Make sure that the node storage is initialized either via genesis or snapshot recovery.
     ensure_storage_initialized(
@@ -560,7 +568,6 @@ async fn main() -> anyhow::Result<()> {
     .await?;
 
     let (stop_sender, stop_receiver) = watch::channel(false);
-    let mut task_handles = vec![];
     init_tasks(
         &config,
         connection_pool.clone(),
