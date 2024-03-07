@@ -170,7 +170,11 @@ async fn init_tasks(
 
     let singleton_pool_builder = ConnectionPool::singleton(&config.postgres.database_url);
 
-    let fetcher_handle = if let Some(cfg) = config.consensus.clone() {
+    let fetcher_handle = if let Some(cfg) = config.consensus.as_ref() {
+        let secrets = config::read_consensus_secrets()
+            .context("read_consensus_secrets()")?
+            .context("consensus secrets missing")?;
+        let cfg = cfg.fetcher(&secrets)?;
         let pool = connection_pool.clone();
         let mut stop_receiver = stop_receiver.clone();
         let sync_state = sync_state.clone();
@@ -264,10 +268,7 @@ async fn init_tasks(
         .build()
         .await
         .context("failed to build a commitment_generator_pool")?;
-    let commitment_generator = CommitmentGenerator::new(
-        commitment_generator_pool,
-        &config.optional.kzg_trusted_setup_path,
-    );
+    let commitment_generator = CommitmentGenerator::new(commitment_generator_pool);
     app_health.insert_component(commitment_generator.health_check());
     let commitment_generator_handle = tokio::spawn(commitment_generator.run(stop_receiver.clone()));
 
@@ -336,10 +337,13 @@ async fn init_tasks(
             .with_filter_limit(config.optional.filters_limit)
             .with_batch_request_size_limit(config.optional.max_batch_request_size)
             .with_response_body_size_limit(config.optional.max_response_body_size())
-            .with_tx_sender(tx_sender.clone(), vm_barrier.clone())
+            .with_tx_sender(tx_sender.clone())
+            .with_vm_barrier(vm_barrier.clone())
             .with_sync_state(sync_state.clone())
             .enable_api_namespaces(config.optional.api_namespaces())
-            .build(stop_receiver.clone())
+            .build()
+            .context("failed to build HTTP JSON-RPC server")?
+            .run(stop_receiver.clone())
             .await
             .context("Failed initializing HTTP JSON-RPC server")?;
 
@@ -351,10 +355,13 @@ async fn init_tasks(
             .with_batch_request_size_limit(config.optional.max_batch_request_size)
             .with_response_body_size_limit(config.optional.max_response_body_size())
             .with_polling_interval(config.optional.polling_interval())
-            .with_tx_sender(tx_sender, vm_barrier)
+            .with_tx_sender(tx_sender)
+            .with_vm_barrier(vm_barrier)
             .with_sync_state(sync_state)
             .enable_api_namespaces(config.optional.api_namespaces())
-            .build(stop_receiver.clone())
+            .build()
+            .context("failed to build WS JSON-RPC server")?
+            .run(stop_receiver.clone())
             .await
             .context("Failed initializing WS JSON-RPC server")?;
 
@@ -464,8 +471,8 @@ async fn main() -> anyhow::Result<()> {
             !opt.enable_snapshots_recovery,
             "Consensus logic does not support snapshot recovery yet"
         );
-        config.consensus =
-            Some(config::read_consensus_config().context("read_consensus_config()")?);
+    } else {
+        config.consensus = None;
     }
 
     if let Some(threshold) = config.optional.slow_query_threshold() {

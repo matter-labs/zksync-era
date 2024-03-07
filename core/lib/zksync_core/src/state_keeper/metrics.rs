@@ -5,11 +5,13 @@ use std::{
     time::Duration,
 };
 
+use multivm::interface::VmExecutionResultAndLogs;
 use vise::{
     Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LatencyObserver,
     Metrics,
 };
 use zksync_mempool::MempoolStore;
+use zksync_types::{tx::tx_execution_info::DeduplicatedWritesMetrics, ProtocolVersionId};
 
 use super::seal_criteria::SealResolution;
 use crate::metrics::InteractionType;
@@ -81,6 +83,8 @@ pub(crate) struct StateKeeperMetrics {
     pub tx_execution_time: Family<TxExecutionStage, Histogram<Duration>>,
     /// Number of times gas price was reported as too high.
     pub gas_price_too_high: Counter,
+    /// Number of times blob base fee was reported as too high.
+    pub blob_base_fee_too_high: Counter,
 }
 
 #[vise::register]
@@ -395,3 +399,54 @@ pub(super) struct ExecutorMetrics {
 
 #[vise::register]
 pub(super) static EXECUTOR_METRICS: vise::Global<ExecutorMetrics> = vise::Global::new();
+
+#[derive(Debug, Metrics)]
+#[metrics(prefix = "batch_tip")]
+pub(crate) struct BatchTipMetrics {
+    #[metrics(buckets = Buckets::exponential(60000.0..=80000000.0, 2.0))]
+    gas_used: Histogram<usize>,
+    #[metrics(buckets = Buckets::exponential(1.0..=60000.0, 2.0))]
+    pubdata_published: Histogram<usize>,
+    #[metrics(buckets = Buckets::exponential(1.0..=4096.0, 2.0))]
+    circuit_statistic: Histogram<usize>,
+    #[metrics(buckets = Buckets::exponential(1.0..=4096.0, 2.0))]
+    execution_metrics_size: Histogram<usize>,
+    #[metrics(buckets = Buckets::exponential(1.0..=60000.0, 2.0))]
+    block_writes_metrics_positive_size: Histogram<usize>,
+    #[metrics(buckets = Buckets::exponential(1.0..=60000.0, 2.0))]
+    block_writes_metrics_negative_size: Histogram<usize>,
+}
+
+impl BatchTipMetrics {
+    pub fn observe(&self, execution_result: &VmExecutionResultAndLogs) {
+        self.gas_used
+            .observe(execution_result.statistics.gas_used as usize);
+        self.pubdata_published
+            .observe(execution_result.statistics.pubdata_published as usize);
+        self.circuit_statistic
+            .observe(execution_result.statistics.circuit_statistic.total());
+        self.execution_metrics_size
+            .observe(execution_result.get_execution_metrics(None).size());
+    }
+
+    pub fn observe_writes_metrics(
+        &self,
+        initial_writes_metrics: &DeduplicatedWritesMetrics,
+        applied_writes_metrics: &DeduplicatedWritesMetrics,
+        protocol_version_id: ProtocolVersionId,
+    ) {
+        let size_diff = applied_writes_metrics.size(protocol_version_id) as i128
+            - initial_writes_metrics.size(protocol_version_id) as i128;
+
+        if size_diff > 0 {
+            self.block_writes_metrics_positive_size
+                .observe(size_diff as usize);
+        } else {
+            self.block_writes_metrics_negative_size
+                .observe(size_diff.unsigned_abs() as usize);
+        }
+    }
+}
+
+#[vise::register]
+pub(crate) static BATCH_TIP_METRICS: vise::Global<BatchTipMetrics> = vise::Global::new();
