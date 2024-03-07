@@ -131,8 +131,8 @@ export async function announced(fn: string, promise: Promise<void> | void) {
 }
 
 export async function submoduleUpdate() {
-    await utils.exec('git submodule init');
-    await utils.exec('git submodule update');
+    await utils.exec('git submodule sync');
+    await utils.exec('git submodule update --init --remote');
 }
 
 async function checkEnv() {
