@@ -5,7 +5,7 @@ use zksync_protobuf::{
     required,
 };
 
-use crate::proto;
+use crate::proto::database as proto;
 
 impl proto::MerkleTreeMode {
     fn new(x: &configs::database::MerkleTreeMode) -> Self {

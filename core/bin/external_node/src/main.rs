@@ -170,7 +170,11 @@ async fn init_tasks(
 
     let singleton_pool_builder = ConnectionPool::singleton(&config.postgres.database_url);
 
-    let fetcher_handle = if let Some(cfg) = config.consensus.clone() {
+    let fetcher_handle = if let Some(cfg) = config.consensus.as_ref() {
+        let secrets = config::read_consensus_secrets()
+            .context("read_consensus_secrets()")?
+            .context("consensus secrets missing")?;
+        let cfg = cfg.fetcher(&secrets)?;
         let pool = connection_pool.clone();
         let mut stop_receiver = stop_receiver.clone();
         let sync_state = sync_state.clone();
@@ -467,8 +471,8 @@ async fn main() -> anyhow::Result<()> {
             !opt.enable_snapshots_recovery,
             "Consensus logic does not support snapshot recovery yet"
         );
-        config.consensus =
-            Some(config::read_consensus_config().context("read_consensus_config()")?);
+    } else {
+        config.consensus = None;
     }
 
     if let Some(threshold) = config.optional.slow_query_threshold() {
@@ -544,6 +548,14 @@ async fn main() -> anyhow::Result<()> {
         ([0, 0, 0, 0], config.required.healthcheck_port).into(),
         app_health.clone(),
     );
+    // Start scraping Postgres metrics before store initialization as well.
+    let metrics_pool = connection_pool.clone();
+    let mut task_handles = vec![tokio::spawn(async move {
+        metrics_pool
+            .run_postgres_metrics_scraping(Duration::from_secs(60))
+            .await;
+        Ok(())
+    })];
 
     // Make sure that the node storage is initialized either via genesis or snapshot recovery.
     ensure_storage_initialized(
@@ -556,7 +568,6 @@ async fn main() -> anyhow::Result<()> {
     .await?;
 
     let (stop_sender, stop_receiver) = watch::channel(false);
-    let mut task_handles = vec![];
     init_tasks(
         &config,
         connection_pool.clone(),

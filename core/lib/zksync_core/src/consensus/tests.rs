@@ -1,14 +1,20 @@
 use std::ops::Range;
 
 use anyhow::Context as _;
+use rand::{
+    distributions::{Distribution, Standard},
+    Rng,
+};
 use tracing::Instrument as _;
 use zksync_concurrency::{ctx, scope};
+use zksync_config::testonly::{Gen, RandomConfig};
 use zksync_consensus_executor::testonly::{connect_full_node, ValidatorNode};
+use zksync_consensus_roles::node;
 use zksync_consensus_storage as storage;
 use zksync_consensus_storage::PersistentBlockStore as _;
 use zksync_consensus_utils::no_copy::NoCopy;
 use zksync_dal::{connection::TestTemplate, ConnectionPool};
-use zksync_protobuf::testonly::test_encode_random;
+use zksync_protobuf_config::testonly::{encode_decode, FmtConv};
 
 use super::*;
 use crate::consensus::storage::CtxStorage;
@@ -317,9 +323,51 @@ async fn test_fetcher_backfill_certs() {
     .unwrap();
 }
 
+struct Random<T>(T);
+
+impl<T> RandomConfig for Random<T>
+where
+    Standard: Distribution<T>,
+{
+    fn sample(g: &mut Gen<impl Rng>) -> Self {
+        Self(g.rng.gen())
+    }
+}
+
+impl RandomConfig for Config {
+    fn sample(g: &mut Gen<impl Rng>) -> Self {
+        Self {
+            server_addr: g.gen(),
+            public_addr: g.gen(),
+            validators: g.rng.gen(),
+            max_payload_size: g.gen(),
+            gossip_dynamic_inbound_limit: g.gen(),
+            gossip_static_inbound: g
+                .gen::<Vec<Random<node::SecretKey>>>()
+                .into_iter()
+                .map(|x| x.0.public())
+                .collect(),
+            gossip_static_outbound: g
+                .gen::<Vec<Random<node::SecretKey>>>()
+                .into_iter()
+                .map(|x| (x.0.public(), g.gen()))
+                .collect(),
+        }
+    }
+}
+
+impl RandomConfig for Secrets {
+    fn sample(g: &mut Gen<impl Rng>) -> Self {
+        Self {
+            validator_key: g.gen::<Option<Random<validator::SecretKey>>>().map(|x| x.0),
+            node_key: g.gen::<Option<Random<node::SecretKey>>>().map(|x| x.0),
+        }
+    }
+}
+
 #[test]
 fn test_schema_encoding() {
     let ctx = ctx::test_root(&ctx::RealClock);
     let rng = &mut ctx.rng();
-    test_encode_random::<config::Config>(rng);
+    encode_decode::<FmtConv<config::Config>>(rng);
 }

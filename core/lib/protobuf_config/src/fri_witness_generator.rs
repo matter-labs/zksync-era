@@ -2,7 +2,7 @@ use anyhow::Context as _;
 use zksync_config::configs;
 use zksync_protobuf::{repr::ProtoRepr, required};
 
-use crate::proto;
+use crate::proto::fri_witness_generator as proto;
 
 impl ProtoRepr for proto::FriWitnessGenerator {
     type Type = configs::FriWitnessGeneratorConfig;

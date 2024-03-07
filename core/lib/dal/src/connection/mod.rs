@@ -19,7 +19,7 @@ use sqlx::{
 pub use self::processor::StorageProcessor;
 pub(crate) use self::processor::StorageProcessorTags;
 use self::processor::TracedConnections;
-use crate::metrics::CONNECTION_METRICS;
+use crate::metrics::{PostgresMetrics, CONNECTION_METRICS};
 
 mod processor;
 
@@ -305,6 +305,12 @@ impl ConnectionPool {
     /// idle ones).
     pub fn max_size(&self) -> u32 {
         self.max_size
+    }
+
+    /// Uses this pool to report Postgres-wide metrics (e.g., table sizes). Should be called sparingly to not spam
+    /// identical metrics from multiple places. The returned future runs indefinitely and should be spawned as a Tokio task.
+    pub async fn run_postgres_metrics_scraping(self, scrape_interval: Duration) {
+        PostgresMetrics::run_scraping(self, scrape_interval).await;
     }
 
     /// Creates a `StorageProcessor` entity over a recoverable connection.
