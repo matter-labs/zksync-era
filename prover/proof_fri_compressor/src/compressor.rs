@@ -2,7 +2,7 @@ use std::{sync::Arc, time::Instant};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use circuit_sequencer_api_1_3_3::proof::FinalProof;
+use circuit_sequencer_api::proof::FinalProof;
 use tokio::task::JoinHandle;
 use zkevm_test_harness::proof_wrapper_utils::{wrap_proof, WrapperConfig};
 use zkevm_test_harness_1_3_3::{
