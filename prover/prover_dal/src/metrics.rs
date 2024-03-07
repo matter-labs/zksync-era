@@ -4,7 +4,7 @@ use vise::{Buckets, Histogram, LabeledFamily, LatencyObserver, Metrics};
 
 /// Request-related DB metrics.
 #[derive(Debug, Metrics)]
-#[metrics(prefix = "sql")]
+#[metrics(prefix = "prover_sql")]
 pub(crate) struct RequestMetrics {
     /// Latency of a DB request.
     #[metrics(buckets = Buckets::LATENCIES, labels = ["method"])]

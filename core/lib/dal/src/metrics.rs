@@ -76,7 +76,7 @@ const POOL_SIZE_BUCKETS: Buckets = Buckets::linear(0.0..=100.0, 10.0);
 
 /// Connection-related metrics.
 #[derive(Debug, Metrics)]
-#[metrics(prefix = "sql_connection")]
+#[metrics(prefix = "dal_sql_connection")]
 pub(crate) struct ConnectionMetrics {
     /// Latency of acquiring a DB connection.
     #[metrics(buckets = Buckets::LATENCIES)]
