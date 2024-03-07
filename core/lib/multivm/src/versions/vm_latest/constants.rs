@@ -13,7 +13,7 @@ pub(crate) const BOOTLOADER_BATCH_TIP_OVERHEAD: u32 = 80_000_000;
 /// While the maximal possible size is a lot higher, we restrict ourselves to a certain limit to reduce
 /// the requirements on RAM.
 /// In this version of the VM the used bootloader memory bytes has increased from `2^24`` to `24_000_000`.
-pub(crate) const USED_BOOTLOADER_MEMORY_BYTES: usize = 24_000_000;
+pub(crate) const USED_BOOTLOADER_MEMORY_BYTES: usize = 30_000_000;
 pub(crate) const USED_BOOTLOADER_MEMORY_WORDS: usize = USED_BOOTLOADER_MEMORY_BYTES / 32;
 
 // This the number of pubdata such that it should be always possible to publish
