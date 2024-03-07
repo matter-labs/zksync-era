@@ -8,7 +8,7 @@ use anyhow::Context as _;
 use async_trait::async_trait;
 use tokio::{task::JoinHandle, time::sleep};
 use zksync_config::configs::FriWitnessVectorGeneratorConfig;
-use zksync_dal::{fri_prover_dal::types::GpuProverInstanceStatus, ConnectionPool};
+use zksync_dal::ConnectionPool;
 use zksync_object_store::ObjectStore;
 use zksync_prover_fri_types::{
     circuit_definitions::{
@@ -25,6 +25,7 @@ use zksync_prover_fri_utils::{
     fetch_next_circuit, get_numeric_circuit_id, socket_utils::send_assembly,
 };
 use zksync_queued_job_processor::JobProcessor;
+use zksync_types::prover::GpuProverInstanceStatus;
 use zksync_types::{basic_fri_types::CircuitIdRoundTuple, protocol_version::L1VerifierConfig};
 use zksync_vk_setup_data_server_fri::keystore::Keystore;
 

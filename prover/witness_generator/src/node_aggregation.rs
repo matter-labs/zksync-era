@@ -6,7 +6,7 @@ use zkevm_test_harness::witness::recursive_aggregation::{
     compute_node_vk_commitment, create_node_witnesses,
 };
 use zksync_config::configs::FriWitnessGeneratorConfig;
-use zksync_dal::{fri_prover_dal::types::NodeAggregationJobMetadata, ConnectionPool};
+use zksync_dal::ConnectionPool;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_prover_fri_types::{
     circuit_definitions::{
@@ -23,6 +23,7 @@ use zksync_prover_fri_types::{
     FriProofWrapper,
 };
 use zksync_queued_job_processor::JobProcessor;
+use zksync_types::prover::NodeAggregationJobMetadata;
 use zksync_types::{
     basic_fri_types::AggregationRound, protocol_version::FriProtocolVersionId, L1BatchNumber,
 };

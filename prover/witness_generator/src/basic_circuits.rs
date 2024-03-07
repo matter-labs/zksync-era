@@ -26,8 +26,9 @@ use zkevm_test_harness::{
     zkevm_circuits::eip_4844::input::EIP4844OutputDataWitness,
 };
 use zksync_config::configs::FriWitnessGeneratorConfig;
-use zksync_dal::{fri_witness_generator_dal::FriWitnessJobStatus, ConnectionPool};
+use zksync_dal::ConnectionPool;
 use zksync_object_store::{Bucket, ObjectStore, ObjectStoreFactory, StoredObject};
+use zksync_prover_dal::fri_witness_generator_dal::FriWitnessJobStatus;
 use zksync_prover_fri_types::{
     circuit_definitions::{
         boojum::{

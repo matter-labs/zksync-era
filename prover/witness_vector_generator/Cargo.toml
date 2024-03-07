@@ -10,6 +10,7 @@ vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev
 
 zksync_types = { path = "../../core/lib/types" }
 zksync_dal = { path = "../../core/lib/dal" }
+zksync_prover_dal = { path = "../prover_dal" }
 zksync_config = { path = "../../core/lib/config" }
 zksync_env_config = { path = "../../core/lib/env_config" }
 zksync_object_store = { path = "../../core/lib/object_store" }
