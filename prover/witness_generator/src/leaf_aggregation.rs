@@ -27,9 +27,9 @@ use zksync_prover_fri_types::{
 };
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
 use zksync_queued_job_processor::JobProcessor;
-use zksync_types::prover::LeafAggregationJobMetadata;
 use zksync_types::{
-    basic_fri_types::AggregationRound, protocol_version::FriProtocolVersionId, L1BatchNumber,
+    basic_fri_types::AggregationRound, protocol_version::FriProtocolVersionId,
+    prover::LeafAggregationJobMetadata, L1BatchNumber,
 };
 use zksync_vk_setup_data_server_fri::keystore::Keystore;
 

@@ -23,9 +23,9 @@ use zksync_prover_fri_types::{
     FriProofWrapper,
 };
 use zksync_queued_job_processor::JobProcessor;
-use zksync_types::prover::NodeAggregationJobMetadata;
 use zksync_types::{
-    basic_fri_types::AggregationRound, protocol_version::FriProtocolVersionId, L1BatchNumber,
+    basic_fri_types::AggregationRound, protocol_version::FriProtocolVersionId,
+    prover::NodeAggregationJobMetadata, L1BatchNumber,
 };
 use zksync_vk_setup_data_server_fri::{keystore::Keystore, utils::get_leaf_vk_params};
 

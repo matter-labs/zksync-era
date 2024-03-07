@@ -1,6 +1,5 @@
 use zksync_db_connection::StorageProcessor;
-use zksync_types::basic_fri_types::FinalProofIds;
-use zksync_types::L1BatchNumber;
+use zksync_types::{basic_fri_types::FinalProofIds, L1BatchNumber};
 
 #[derive(Debug)]
 pub struct FriSchedulerDependencyTrackerDal<'a, 'c> {

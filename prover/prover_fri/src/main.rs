@@ -19,8 +19,10 @@ use zksync_env_config::{
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_prover_fri_utils::{get_all_circuit_id_round_tuples_for, region_fetcher::get_zone};
 use zksync_queued_job_processor::JobProcessor;
-use zksync_types::basic_fri_types::CircuitIdRoundTuple;
-use zksync_types::prover::{GpuProverInstanceStatus, SocketAddress};
+use zksync_types::{
+    basic_fri_types::CircuitIdRoundTuple,
+    prover::{GpuProverInstanceStatus, SocketAddress},
+};
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 
 mod gpu_prover_job_processor;

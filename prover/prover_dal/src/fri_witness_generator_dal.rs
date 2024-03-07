@@ -2,9 +2,8 @@ use std::{collections::HashMap, convert::TryFrom, time::Duration};
 
 use sqlx::Row;
 use zksync_db_connection::StorageProcessor;
-use zksync_types::basic_fri_types::Eip4844Blobs;
 use zksync_types::{
-    basic_fri_types::AggregationRound,
+    basic_fri_types::{AggregationRound, Eip4844Blobs},
     protocol_version::FriProtocolVersionId,
     prover::{
         JobCountStatistics, LeafAggregationJobMetadata, NodeAggregationJobMetadata, StuckJobs,

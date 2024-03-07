@@ -25,8 +25,10 @@ use zksync_prover_fri_utils::{
     fetch_next_circuit, get_numeric_circuit_id, socket_utils::send_assembly,
 };
 use zksync_queued_job_processor::JobProcessor;
-use zksync_types::prover::GpuProverInstanceStatus;
-use zksync_types::{basic_fri_types::CircuitIdRoundTuple, protocol_version::L1VerifierConfig};
+use zksync_types::{
+    basic_fri_types::CircuitIdRoundTuple, protocol_version::L1VerifierConfig,
+    prover::GpuProverInstanceStatus,
+};
 use zksync_vk_setup_data_server_fri::keystore::Keystore;
 
 use crate::metrics::METRICS;

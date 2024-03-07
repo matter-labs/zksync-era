@@ -8,9 +8,9 @@ use zksync_prover_fri_types::{
     CircuitWrapper,
 };
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
-use zksync_types::prover::{LeafAggregationJobMetadata, NodeAggregationJobMetadata};
 use zksync_types::{
     basic_fri_types::{AggregationRound, FinalProofIds},
+    prover::{LeafAggregationJobMetadata, NodeAggregationJobMetadata},
     L1BatchNumber,
 };
 use zksync_witness_generator::{
