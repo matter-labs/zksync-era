@@ -228,7 +228,7 @@ pub(super) fn execute_internal_transfer_test() -> u32 {
         chain_id: L2ChainId::default(),
     };
 
-    let eth_token_sys_contract = load_sys_contract("L2EthToken");
+    let eth_token_sys_contract = load_sys_contract("L2BaseToken");
     let transfer_from_to = &eth_token_sys_contract
         .functions
         .get("transferFromTo")

@@ -1,4 +1,4 @@
-import * as zksync from 'zksync-web3';
+import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { Reporter } from './reporter';
 import { TransactionResponse } from 'zksync-web3/src/types';

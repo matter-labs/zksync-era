@@ -2,7 +2,7 @@
  * Base interface for custom transaction matcher modifiers.
  */
 
-import * as zksync from 'zksync-web3';
+import * as zksync from 'zksync-ethers';
 
 /**
  * Base class for custom transaction matcher modifiers.

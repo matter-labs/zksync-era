@@ -6,7 +6,7 @@ import { TestMaster } from '../src/index';
 import { Token } from '../src/types';
 import { shouldChangeTokenBalances, shouldOnlyTakeFee } from '../src/modifiers/balance-checker';
 
-import * as zksync from 'zksync-web3';
+import * as zksync from 'zksync-ethers';
 import { BigNumber, utils as etherUtils } from 'ethers';
 import * as ethers from 'ethers';
 import { scaledGasPrice, waitUntilBlockFinalized } from '../src/helpers';
@@ -18,11 +18,13 @@ describe('ERC20 contract checks', () => {
     let bob: zksync.Wallet;
     let tokenDetails: Token;
     let aliceErc20: zksync.Contract;
+    let chainId: ethers.BigNumberish;
 
     beforeAll(async () => {
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
         bob = testMaster.newEmptyAccount();
+        chainId = process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!;
 
         tokenDetails = testMaster.environment().erc20Token;
         aliceErc20 = new zksync.Contract(tokenDetails.l2Address, zksync.utils.IERC20, alice);

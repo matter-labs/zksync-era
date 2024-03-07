@@ -1,7 +1,7 @@
 use std::{collections::HashMap, convert::TryInto, sync::Arc};
 
 use tokio::sync::RwLock;
-use zksync_contracts::{governance_contract, zksync_contract};
+use zksync_contracts::{governance_contract, state_transition_chain_contract};
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::{
     ethabi::{encode, Hash, Token},
@@ -569,7 +569,7 @@ fn tx_into_log(tx: L1Tx) -> Log {
 
     Log {
         address: Address::repeat_byte(0x1),
-        topics: vec![zksync_contract()
+        topics: vec![state_transition_chain_contract()
             .event("NewPriorityRequest")
             .expect("NewPriorityRequest event is missing in abi")
             .signature()],
@@ -605,7 +605,7 @@ fn upgrade_into_diamond_proxy_log(upgrade: ProtocolUpgrade, eth_block: u64) -> L
 
 fn upgrade_into_governor_log(upgrade: ProtocolUpgrade, eth_block: u64) -> Log {
     let diamond_cut = upgrade_into_diamond_cut(upgrade);
-    let execute_upgrade_selector = zksync_contract()
+    let execute_upgrade_selector = state_transition_chain_contract()
         .function("executeUpgrade")
         .unwrap()
         .short_signature();

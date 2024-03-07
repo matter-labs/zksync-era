@@ -62,7 +62,7 @@ pub(crate) async fn create_state_keeper(
         pool,
         &state_keeper_config,
         mempool_config.delay_interval(),
-        contracts_config.l2_erc20_bridge_addr,
+        contracts_config.l2_shared_bridge_addr,
         state_keeper_config.validation_computational_gas_limit,
         network_config.zksync_network_id,
     )

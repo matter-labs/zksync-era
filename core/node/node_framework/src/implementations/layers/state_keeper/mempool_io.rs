@@ -112,7 +112,7 @@ impl WiringLayer for MempoolIOLayer {
             mempool_db_pool,
             &self.state_keeper_config,
             self.mempool_config.delay_interval(),
-            self.contracts_config.l2_erc20_bridge_addr,
+            self.contracts_config.l2_shared_bridge_addr,
             self.state_keeper_config.validation_computational_gas_limit,
             self.network_config.zksync_network_id,
         )

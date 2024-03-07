@@ -32,8 +32,8 @@ use crate::{
 };
 
 const IERC20_INTERFACE: &str = include_str!("../abi/IERC20.json");
-const ZKSYNC_INTERFACE: &str = include_str!("../abi/IZkSync.json");
-const L1_DEFAULT_BRIDGE_INTERFACE: &str = include_str!("../abi/IL1Bridge.json");
+const STATE_TRANSITION_CHAIN_INTERFACE: &str = include_str!("../abi/IZkSyncStateTransition.json");
+const L1_DEFAULT_BRIDGE_INTERFACE: &str = include_str!("../abi/IL1SharedBridge.json");
 const RAW_ERC20_DEPOSIT_GAS_LIMIT: &str = include_str!("DepositERC20GasLimit.json");
 
 // The `gasPerPubdata` to be used in L1->L2 requests. It may be almost any number, but here we 800
@@ -41,8 +41,8 @@ const RAW_ERC20_DEPOSIT_GAS_LIMIT: &str = include_str!("DepositERC20GasLimit.jso
 const L1_TO_L2_GAS_PER_PUBDATA: u32 = 800;
 
 /// Returns `ethabi::Contract` object for zkSync smart contract.
-pub fn zksync_contract() -> ethabi::Contract {
-    load_contract(ZKSYNC_INTERFACE)
+pub fn state_transition_chain_contract() -> ethabi::Contract {
+    load_contract(STATE_TRANSITION_CHAIN_INTERFACE)
 }
 
 /// Returns `ethabi::Contract` object for ERC-20 smart contract interface.
@@ -102,7 +102,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
 
         let eth_client = SigningClient::new(
             transport,
-            zksync_contract(),
+            state_transition_chain_contract(),
             eth_addr,
             eth_signer,
             contract_address,
@@ -179,7 +179,8 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         l1_token_address: Address,
         bridge: Option<Address>,
     ) -> Result<Address, ClientError> {
-        let bridge = bridge.unwrap_or(self.default_bridges.l1_erc20_default_bridge);
+        // kl todo. This should be moved to the shared bridge, which does not have l2_token_address on L1. Use L2 contracts instead.
+        let bridge = bridge.unwrap_or(self.default_bridges.l1_erc20_bridge);
         let args = CallFunctionArgs::new("l2TokenAddress", l1_token_address)
             .for_contract(bridge, self.l1_bridge_abi.clone());
         let res = self
@@ -197,7 +198,8 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         erc20_approve_threshold: U256,
         bridge: Option<Address>,
     ) -> Result<bool, ClientError> {
-        let bridge = bridge.unwrap_or(self.default_bridges.l1_erc20_default_bridge);
+        // kl todo. This should be moved to the shared bridge,
+        let bridge = bridge.unwrap_or(self.default_bridges.l1_erc20_bridge);
         let current_allowance = self
             .client()
             .allowance_on_account(token_address, bridge, self.erc20_abi.clone())
@@ -224,7 +226,8 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         max_erc20_approve_amount: U256,
         bridge: Option<Address>,
     ) -> Result<H256, ClientError> {
-        let bridge = bridge.unwrap_or(self.default_bridges.l1_erc20_default_bridge);
+        // kl todo. This should be moved to the shared bridge,
+        let bridge = bridge.unwrap_or(self.default_bridges.l1_erc20_bridge);
         let contract_function = self
             .erc20_abi
             .function("approve")
@@ -524,8 +527,8 @@ impl<S: EthereumSigner> EthereumProvider<S> {
             )
             .await?
         } else {
-            let bridge_address =
-                bridge_address.unwrap_or(self.default_bridges.l1_erc20_default_bridge);
+            // kl todo. This should be moved to the shared bridge, and the requestL2Transaction method
+            let bridge_address = bridge_address.unwrap_or(self.default_bridges.l1_erc20_bridge);
             let contract_function = self
                 .l1_bridge_abi
                 .function("deposit")

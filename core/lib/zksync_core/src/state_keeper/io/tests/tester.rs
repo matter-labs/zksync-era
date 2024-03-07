@@ -115,7 +115,7 @@ impl Tester {
             ..StateKeeperConfig::default()
         };
         let object_store = ObjectStoreFactory::mock().create_store().await;
-        let l2_erc20_bridge_addr = Address::repeat_byte(0x5a); // Isn't relevant.
+        let l2_shared_bridge_addr = Address::repeat_byte(0x5a); // Isn't relevant.
         let io = MempoolIO::new(
             mempool.clone(),
             object_store,
@@ -124,7 +124,7 @@ impl Tester {
             pool,
             &config,
             Duration::from_secs(1),
-            l2_erc20_bridge_addr,
+            l2_shared_bridge_addr,
             BLOCK_GAS_LIMIT,
             L2ChainId::from(270),
         )

@@ -55,7 +55,7 @@ pub struct ExternalIO {
     main_node_client: Box<dyn MainNodeClient>,
 
     /// Required to extract newly added tokens.
-    l2_erc20_bridge_addr: Address,
+    l2_shared_bridge_addr: Address,
     // TODO it's required for system env, probably we have to get rid of getting system env
     validation_computational_gas_limit: u32,
     chain_id: L2ChainId,
@@ -69,7 +69,7 @@ impl ExternalIO {
         actions: ActionQueue,
         sync_state: SyncState,
         main_node_client: Box<dyn MainNodeClient>,
-        l2_erc20_bridge_addr: Address,
+        l2_shared_bridge_addr: Address,
         validation_computational_gas_limit: u32,
         chain_id: L2ChainId,
     ) -> anyhow::Result<Self> {
@@ -103,7 +103,7 @@ impl ExternalIO {
             actions,
             sync_state,
             main_node_client,
-            l2_erc20_bridge_addr,
+            l2_shared_bridge_addr,
             validation_computational_gas_limit,
             chain_id,
         })
@@ -502,7 +502,7 @@ impl StateKeeperIO for ExternalIO {
         let command = updates_manager.seal_miniblock_command(
             self.current_l1_batch_number,
             self.current_miniblock_number,
-            self.l2_erc20_bridge_addr,
+            self.l2_shared_bridge_addr,
             true,
         );
         self.miniblock_sealer_handle.submit(command).await;
@@ -538,7 +538,7 @@ impl StateKeeperIO for ExternalIO {
                 self.current_miniblock_number,
                 l1_batch_env,
                 finished_batch,
-                self.l2_erc20_bridge_addr,
+                self.l2_shared_bridge_addr,
             )
             .await;
         drop(storage);

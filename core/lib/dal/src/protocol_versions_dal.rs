@@ -124,7 +124,6 @@ impl ProtocolVersionsDal<'_, '_> {
         tx: ProtocolUpgradeTx,
     ) {
         let tx_hash = Some(tx.common_data.hash());
-
         let mut db_transaction = self.storage.start_transaction().await.unwrap();
 
         db_transaction

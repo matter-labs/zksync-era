@@ -1,6 +1,6 @@
 use std::convert::TryFrom;
 
-use zksync_contracts::zksync_contract;
+use zksync_contracts::state_transition_chain_contract;
 use zksync_dal::StorageProcessor;
 use zksync_types::{l1::L1Tx, web3::types::Log, PriorityOpId, H256};
 
@@ -24,7 +24,7 @@ impl PriorityOpsEventProcessor {
     pub fn new(next_expected_priority_id: PriorityOpId) -> Self {
         Self {
             next_expected_priority_id,
-            new_priority_request_signature: zksync_contract()
+            new_priority_request_signature: state_transition_chain_contract()
                 .event("NewPriorityRequest")
                 .expect("NewPriorityRequest event is missing in abi")
                 .signature(),

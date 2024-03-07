@@ -25,14 +25,24 @@ pub enum ContractLanguage {
     Yul,
 }
 
+const BRIDGEHUB_CONTRACT_FILE: &str =
+    "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/bridgehub/IBridgehub.sol/IBridgehub.json";
+const STATE_TRANSITION_CONTRACT_FILE: &str =
+    "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/state-transition/IStateTransitionManager.sol/IStateTransitionManager.json";
+const STATE_TRANSITION_CHAIN_CONTRACT_FILE: &str =
+    "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/state-transition/chain-interfaces/IZkSyncStateTransition.sol/IZkSyncStateTransition.json";
+const DIAMOND_INIT_CONTRACT_FILE: &str =
+    "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/state-transition/chain-interfaces/IDiamondInit.sol/IDiamondInit.json";
 const GOVERNANCE_CONTRACT_FILE: &str =
     "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/governance/IGovernance.sol/IGovernance.json";
-const ZKSYNC_CONTRACT_FILE: &str =
-    "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/zksync/interfaces/IZkSync.sol/IZkSync.json";
 const MULTICALL3_CONTRACT_FILE: &str =
     "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/dev-contracts/Multicall3.sol/Multicall3.json";
 const VERIFIER_CONTRACT_FILE: &str =
-    "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/zksync/Verifier.sol/Verifier.json";
+    "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/state-transition/Verifier.sol/Verifier.json";
+const IERC20_CONTRACT_FILE: &str =
+    "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/common/interfaces/IERC20.sol/IERC20.json";
+const FAIL_ON_RECEIVE_CONTRACT_FILE: &str =
+    "contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/zksync/dev-contracts/FailOnReceive.sol/FailOnReceive.json";
 const L2_BRIDGE_CONTRACT_FILE: &str =
     "contracts/l2-contracts/artifacts-zk/contracts-preprocessed/bridge/interfaces/IL2Bridge.sol/IL2Bridge.json";
 const LOADNEXT_CONTRACT_FILE: &str =
@@ -71,12 +81,31 @@ pub fn load_sys_contract(contract_name: &str) -> Contract {
     ))
 }
 
+pub fn read_contract_abi(path: impl AsRef<Path>) -> String {
+    read_file_to_json_value(path)["abi"]
+        .as_str()
+        .expect("Failed to parse abi")
+        .to_string()
+}
+
+pub fn bridgehub_contract() -> Contract {
+    load_contract(BRIDGEHUB_CONTRACT_FILE)
+}
+
 pub fn governance_contract() -> Contract {
     load_contract_if_present(GOVERNANCE_CONTRACT_FILE).expect("Governance contract not found")
 }
 
-pub fn zksync_contract() -> Contract {
-    load_contract(ZKSYNC_CONTRACT_FILE)
+pub fn state_transition_manager_contract() -> Contract {
+    load_contract(STATE_TRANSITION_CONTRACT_FILE)
+}
+
+pub fn state_transition_chain_contract() -> Contract {
+    load_contract(STATE_TRANSITION_CHAIN_CONTRACT_FILE)
+}
+
+pub fn diamond_init_contract() -> Contract {
+    load_contract(DIAMOND_INIT_CONTRACT_FILE)
 }
 
 pub fn multicall_contract() -> Contract {
@@ -124,6 +153,14 @@ pub fn deployer_contract() -> Contract {
 
 pub fn l1_messenger_contract() -> Contract {
     load_sys_contract("L1Messenger")
+}
+
+pub fn eth_contract() -> Contract {
+    load_sys_contract("L2BaseToken")
+}
+
+pub fn known_codes_contract() -> Contract {
+    load_sys_contract("KnownCodesStorage")
 }
 
 /// Reads bytecode from the path RELATIVE to the ZKSYNC_HOME environment variable.

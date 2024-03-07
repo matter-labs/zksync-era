@@ -103,10 +103,9 @@ impl InternalApiConfig {
             estimate_gas_acceptable_overestimation: web3_config
                 .estimate_gas_acceptable_overestimation,
             bridge_addresses: api::BridgeAddresses {
-                l1_erc20_default_bridge: contracts_config.l1_erc20_bridge_proxy_addr,
-                l2_erc20_default_bridge: contracts_config.l2_erc20_bridge_addr,
-                l1_weth_bridge: contracts_config.l1_weth_bridge_proxy_addr,
-                l2_weth_bridge: contracts_config.l2_weth_bridge_addr,
+                l1_erc20_bridge: contracts_config.l1_erc20_bridge_proxy_addr,
+                l1_shared_default_bridge: contracts_config.l1_shared_bridge_proxy_addr,
+                l2_shared_default_bridge: contracts_config.l2_shared_bridge_addr,
             },
             bridgehub_proxy_addr: contracts_config.bridgehub_proxy_addr,
             diamond_proxy_addr: contracts_config.diamond_proxy_addr,

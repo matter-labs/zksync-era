@@ -1,15 +1,15 @@
 import { BigNumber, BytesLike, ethers } from 'ethers';
-import { Provider, utils } from 'zksync-web3';
+import { Provider, utils } from 'zksync-ethers';
 
 const L1_CONTRACTS_FOLDER = `${process.env.ZKSYNC_HOME}/contracts/l1-contracts/artifacts/cache/solpp-generated-contracts`;
 const DIAMOND_UPGRADE_INIT_ABI = new ethers.utils.Interface(
-    require(`${L1_CONTRACTS_FOLDER}/zksync/upgrade-initializers/DiamondUpgradeInit1.sol/DiamondUpgradeInit1.json`).abi
+    require(`${L1_CONTRACTS_FOLDER}/state-transition/upgrade-initializers/DiamondUpgradeInit1.sol/DiamondUpgradeInit1.json`).abi
 );
 const GOVERNANCE_ABI = new ethers.utils.Interface(
     require(`${L1_CONTRACTS_FOLDER}/governance/Governance.sol/Governance.json`).abi
 );
 const ADMIN_FACET_ABI = new ethers.utils.Interface(
-    require(`${L1_CONTRACTS_FOLDER}/zksync/facets/Admin.sol/AdminFacet.json`).abi
+    require(`${L1_CONTRACTS_FOLDER}/state-transition/chain-deps/facets/Admin.sol/AdminFacet.json`).abi
 );
 
 export interface ForceDeployment {
@@ -60,10 +60,10 @@ export async function deployOnAnyLocalAddress(
 
     const govWallet = ethers.Wallet.fromMnemonic(govMnemonic, "m/44'/60'/0'/0/1").connect(ethProvider);
 
-    const zkSyncContract = await l2Provider.getMainContractAddress();
+    const stateTransitionContract = await l2Provider.getMainContractAddress();
 
-    const zkSync = new ethers.Contract(zkSyncContract, utils.ZKSYNC_MAIN_ABI, govWallet);
-    const governanceContractAddr = await zkSync.getGovernor();
+    const stateTransition = new ethers.Contract(stateTransitionContract, utils.ZKSYNC_MAIN_ABI, govWallet);
+    const governanceContractAddr = await stateTransition.getAdmin();
 
     // Encode data for the upgrade call
     const encodedParams = utils.CONTRACT_DEPLOYER.encodeFunctionData('forceDeployOnAddresses', [deployments]);
@@ -81,7 +81,7 @@ export async function deployOnAnyLocalAddress(
     const diamondProxyUpgradeCalldata = ADMIN_FACET_ABI.encodeFunctionData('executeUpgrade', [upgradeParam]);
 
     const call = {
-        target: zkSyncContract,
+        target: stateTransitionContract,
         value: 0,
         data: diamondProxyUpgradeCalldata
     };
@@ -118,7 +118,7 @@ export async function deployOnAnyLocalAddress(
         })
     ).wait();
 
-    const txHash = utils.getL2HashFromPriorityOp(receipt, zkSyncContract);
+    const txHash = utils.getL2HashFromPriorityOp(receipt, stateTransitionContract);
 
     return await l2Provider.waitForTransaction(txHash);
 }

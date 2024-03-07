@@ -2,12 +2,13 @@ import { Command } from 'commander';
 import enquirer from 'enquirer';
 import { BigNumber, ethers, utils } from 'ethers';
 import chalk from 'chalk';
-import { announced, init, InitArgs } from './init';
+import * as contract from './contract';
+import { compileConfig, pushConfig } from './config';
+import { announced, init, InitArgs, ADDRESS_ONE, initSetup, initHyper } from './init';
 import * as server from './server';
 import * as docker from './docker';
 import * as db from './database';
 import * as env from './env';
-import { compileConfig } from './config';
 import * as fs from 'fs';
 import fetch from 'node-fetch';
 import { up } from './up';
@@ -43,13 +44,16 @@ export interface BasePromptOptions {
     skip?: ((state: object) => boolean | Promise<boolean>) | boolean;
 }
 
+// PLA:681
+let isLocalhost = false;
+
 // An init command that allows configuring and spinning up a new hyperchain network.
-async function initHyperchain() {
-    await announced('Initializing hyperchain creation', setupConfiguration());
+async function initHyperchain(envName: string) {
+    await announced('Initializing hyperchain creation', setupConfiguration(envName));
 
     const deployerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
     const governorPrivateKey = process.env.GOVERNOR_PRIVATE_KEY;
-    const deployL2Weth = Boolean(process.env.DEPLOY_L2_WETH || false);
+    const deployL2WrappedBaseToken = Boolean(process.env.DEPLOY_L2_WETH || false);
     const deployTestTokens = Boolean(process.env.DEPLOY_TEST_TOKENS || false);
     const governorAdrress = ethers.utils.computeAddress(governorPrivateKey!);
     const initArgs: InitArgs = {
@@ -58,17 +62,39 @@ async function initHyperchain() {
         governorPrivateKeyArgs: ['--private-key', governorPrivateKey],
         deployerL2ContractInput: {
             args: ['--private-key', deployerPrivateKey],
-            includePaymaster: false,
-            includeL2WETH: deployL2Weth
+            throughL1: true,
+            includePaymaster: false
         },
         testTokens: {
             deploy: deployTestTokens,
+            deployWeth: false,
             args: ['--private-key', deployerPrivateKey, '--envFile', process.env.CHAIN_ETH_NETWORK!]
+        },
+        baseToken: {
+            name: 'ETH',
+            address: ADDRESS_ONE
         },
         deployerPrivateKeyArgs: ['--private-key', deployerPrivateKey, '--owner-address', governorAdrress]
     };
 
-    await init(initArgs);
+    await initHyper(initArgs);
+
+    // if we used matterlabs/geth network, we need custom ENV file for hyperchain compose parts
+    // This breaks `zk status prover` command, but neccessary for working in isolated docker-network
+    // TODO: Think about better implementation
+    // PLA:681
+    if (isLocalhost) {
+        env.modify(
+            'ETH_CLIENT_WEB3_URL',
+            'http://geth:8545',
+            `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`
+        );
+        env.modify(
+            'DATABASE_URL',
+            'postgres://postgres:notsecurepassword@postgres:5432/zksync_local',
+            `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`
+        );
+    }
 
     env.mergeInitToEnv();
 
@@ -79,26 +105,30 @@ async function initHyperchain() {
     await announced('Start server', startServer());
 }
 
-async function setupConfiguration() {
-    const CONFIGURE = 'Configure new chain';
-    const USE_EXISTING = 'Use existing configuration';
-    const questions: BasePromptOptions[] = [
-        {
-            message: 'Do you want to configure a new chain or use an existing configuration?',
-            name: 'config',
-            type: 'select',
-            choices: [CONFIGURE, USE_EXISTING]
+async function setupConfiguration(envName: string) {
+    if (!envName) {
+        const CONFIGURE = 'Configure new chain';
+        const USE_EXISTING = 'Use existing configuration';
+        const questions: BasePromptOptions[] = [
+            {
+                message: 'Do you want to configure a new chain or use an existing configuration?',
+                name: 'config',
+                type: 'select',
+                choices: [CONFIGURE, USE_EXISTING]
+            }
+        ];
+
+        const results: any = await enquirer.prompt(questions);
+
+        if (results.config === CONFIGURE) {
+            await announced('Setting hyperchain configuration', setHyperchainMetadata());
+            await announced('Validating information and balances to deploy hyperchain', checkReadinessToDeploy());
+        } else {
+            const envName = await selectHyperchainConfiguration();
+
+            env.set(envName);
         }
-    ];
-
-    const results: any = await enquirer.prompt(questions);
-
-    if (results.config === CONFIGURE) {
-        await announced('Setting hyperchain configuration', setHyperchainMetadata());
-        await announced('Validating information and balances to deploy hyperchain', checkReadinessToDeploy());
     } else {
-        const envName = await selectHyperchainConfiguration();
-
         env.set(envName);
     }
 }
@@ -137,6 +167,7 @@ async function setHyperchainMetadata() {
     ];
 
     const results: any = await enquirer.prompt(questions);
+    // kl todo add random chainId generation here if user does not want to pick chainId.
 
     let deployer, governor, ethOperator, feeReceiver: ethers.Wallet | undefined;
     let feeReceiverAddress, l1Rpc, l1Id, databaseUrl, databaseProverUrl;
@@ -271,10 +302,18 @@ async function setHyperchainMetadata() {
     } else {
         l1Rpc = 'http://127.0.0.1:8545';
         l1Id = 9;
-        databaseUrl = 'postgres://postgres:notsecurepassword@127.0.0.1:5432/zksync_local';
-        wrapEnvModify('DATABASE_URL', databaseUrl);
+        databaseUrl = 'postgres://postgres:notsecurepassword@localhost:5432/zksync_local';
+        env.modify(
+            'DATABASE_URL',
+            databaseUrl,
+            `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`
+        );
         databaseProverUrl = 'postgres://postgres:notsecurepassword@127.0.0.1:5432/prover_local';
-        wrapEnvModify('DATABASE_PROVER_URL', databaseProverUrl);
+        env.modify(
+            'DATABASE_PROVER_URL',
+            databaseProverUrl,
+            `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`
+        );
 
         const richWalletsRaw = await fetch(
             'https://raw.githubusercontent.com/matter-labs/local-setup/main/rich-wallets.json'
@@ -292,8 +331,8 @@ async function setHyperchainMetadata() {
         await announced('Ensuring databases are up', db.wait({ server: true, prover: false }));
     }
 
-    await initializeTestERC20s();
-    await initializeWethTokenForHyperchain();
+    // testTokens and weth will be done for the shared bridge.
+    // await initializeTestERC20s();
 
     console.log('\n');
 
@@ -331,39 +370,52 @@ async function setHyperchainMetadata() {
 
             const etherscanResults: any = await enquirer.prompt(etherscanQuestions);
 
-            wrapEnvModify('MISC_ETHERSCAN_API_KEY', etherscanResults.etherscanKey);
+            env.modify(
+                'MISC_ETHERSCAN_API_KEY',
+                etherscanResults.etherscanKey,
+                `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`
+            );
         }
     }
 
     const environment = getEnv(results.chainName);
 
-    await compileConfig(environment);
+    compileConfig(environment);
     env.set(environment);
     // TODO: Generate url for data-compressor with selected region or fix env variable for keys location
     // PLA-595
-    wrapEnvModify('DATABASE_URL', databaseUrl);
-    wrapEnvModify('DATABASE_PROVER_URL', databaseProverUrl);
-    wrapEnvModify('ETH_CLIENT_CHAIN_ID', l1Id.toString());
-    wrapEnvModify('ETH_CLIENT_WEB3_URL', l1Rpc);
-    wrapEnvModify('CHAIN_ETH_NETWORK', getL1Name(results.l1Chain));
-    wrapEnvModify('CHAIN_ETH_ZKSYNC_NETWORK', results.chainName);
-    wrapEnvModify('CHAIN_ETH_ZKSYNC_NETWORK_ID', results.chainId);
-    wrapEnvModify('ETH_SENDER_SENDER_OPERATOR_PRIVATE_KEY', ethOperator.privateKey);
-    wrapEnvModify('ETH_SENDER_SENDER_OPERATOR_COMMIT_ETH_ADDR', ethOperator.address);
-    wrapEnvModify('DEPLOYER_PRIVATE_KEY', deployer.privateKey);
-    wrapEnvModify('GOVERNOR_PRIVATE_KEY', governor.privateKey);
-    wrapEnvModify('GOVERNOR_ADDRESS', governor.address);
-    wrapEnvModify('CHAIN_STATE_KEEPER_FEE_ACCOUNT_ADDR', feeReceiverAddress);
-    wrapEnvModify('ETH_SENDER_SENDER_PROOF_SENDING_MODE', 'SkipEveryProof');
+    env.modify('DATABASE_URL', databaseUrl, process.env.ENV_FILE!);
+    env.modify('ETH_CLIENT_CHAIN_ID', l1Id.toString(), `etc/env/l1-inits/${results.l1Chain}.init.env`);
+    env.modify(
+        'ETH_CLIENT_WEB3_URL',
+        l1Rpc,
+        `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`
+    );
+    env.modify(
+        'CHAIN_ETH_NETWORK',
+        getL1Name(results.l1Chain),
+        `etc/env/l1-inits/${process.env.L1_ENV_NAME ? process.env.L1_ENV_NAME : '.init'}.env`
+    );
+    env.modify('CHAIN_ETH_ZKSYNC_NETWORK', results.chainName, process.env.ENV_FILE!);
+    env.modify('CHAIN_ETH_ZKSYNC_NETWORK_ID', results.chainId, process.env.ENV_FILE!);
+    env.modify('ETH_SENDER_SENDER_OPERATOR_PRIVATE_KEY', ethOperator.privateKey, process.env.ENV_FILE!);
+    env.modify('ETH_SENDER_SENDER_OPERATOR_COMMIT_ETH_ADDR', ethOperator.address, process.env.ENV_FILE!);
+    env.modify('DEPLOYER_PRIVATE_KEY', deployer.privateKey, process.env.ENV_FILE!);
+    env.modify('GOVERNOR_PRIVATE_KEY', governor.privateKey, process.env.ENV_FILE!);
+    env.modify('GOVERNOR_ADDRESS', governor.address, process.env.ENV_FILE!);
+    env.modify('CHAIN_STATE_KEEPER_FEE_ACCOUNT_ADDR', feeReceiverAddress, process.env.ENV_FILE!);
+    env.modify('ETH_SENDER_SENDER_PROOF_SENDING_MODE', 'SkipEveryProof', process.env.ENV_FILE!);
 
     if (feeReceiver) {
-        wrapEnvModify('FEE_RECEIVER_PRIVATE_KEY', feeReceiver.privateKey);
+        env.modify('FEE_RECEIVER_PRIVATE_KEY', feeReceiver.privateKey, process.env.ENV_FILE!);
     }
 
-    // For now force delay to 20 seconds to ensure batch execution doesn't not happen in same block as batch proving.
-    // This bug will be fixed on the smart contract soon.
-    wrapEnvModify('CONTRACTS_VALIDATOR_TIMELOCK_EXECUTION_DELAY', '0');
-    wrapEnvModify('ETH_SENDER_SENDER_L1_BATCH_MIN_AGE_BEFORE_EXECUTE_SECONDS', '20');
+    // For now force delay to 20 seconds to ensure batch execution doesn't not happen in same block as batch proving
+    // This bug will be fixed on the smart contract soon
+    env.modify('CONTRACTS_VALIDATOR_TIMELOCK_EXECUTION_DELAY', '0', process.env.ENV_FILE!);
+    env.modify('ETH_SENDER_SENDER_L1_BATCH_MIN_AGE_BEFORE_EXECUTE_SECONDS', '20', process.env.ENV_FILE!);
+    const diff = env.getAvailableEnvsFromFiles().size;
+    pushConfig(undefined, diff.toString());
 
     env.load();
 }
@@ -387,7 +439,7 @@ async function setupHyperchainProver() {
 
     switch (proverType) {
         case ProverTypeOption.NONE:
-            wrapEnvModify('ETH_SENDER_SENDER_PROOF_SENDING_MODE', 'SkipEveryProof');
+            env.modify('ETH_SENDER_SENDER_PROOF_SENDING_MODE', 'SkipEveryProof', process.env.ENV_FILE!);
             env.mergeInitToEnv();
             break;
         default:
@@ -401,85 +453,31 @@ function printAddressInfo(name: string, address: string) {
     console.log('');
 }
 
-async function initializeTestERC20s() {
-    // TODO: For now selecting NO breaks server-core deployment, should be always YES or create empty-mock file for v2-core
-    // PLA-595
-    const questions: BasePromptOptions[] = [
-        {
-            message:
-                'Do you want to deploy some test ERC20s to your hyperchain? NB: Temporary broken, always select YES',
-            name: 'deployERC20s',
-            type: 'confirm'
-        }
-    ];
+// async function initializeTestERC20s() {
+//     // TODO: For now selecting NO breaks server-core deployment, should be always YES or create empty-mock file for v2-core
+//     // PLA-595
+//     const questions: BasePromptOptions[] = [
+//         {
+//             message:
+//                 'Do you want to deploy some test ERC20s to your hyperchain? NB: Temporary broken, always select YES',
+//             name: 'deployERC20s',
+//             type: 'confirm'
+//         }
+//     ];
 
-    const results: any = await enquirer.prompt(questions);
+//     const results: any = await enquirer.prompt(questions);
 
-    if (results.deployERC20s) {
-        wrapEnvModify('DEPLOY_TEST_TOKENS', 'true');
-        console.log(
-            warning(
-                `The addresses for the generated test ECR20 tokens will be available at the /etc/tokens/${getEnv(
-                    process.env.CHAIN_ETH_NETWORK!
-                )}.json file.`
-            )
-        );
-    }
-}
-
-async function initializeWethTokenForHyperchain() {
-    const questions: BasePromptOptions[] = [
-        {
-            message: 'Do you want to deploy Wrapped ETH to your hyperchain?',
-            name: 'deployWeth',
-            type: 'confirm'
-        }
-    ];
-
-    const results: any = await enquirer.prompt(questions);
-
-    if (results.deployWeth) {
-        wrapEnvModify('DEPLOY_L2_WETH', 'true');
-
-        if (!process.env.DEPLOY_TEST_TOKENS) {
-            // Only try to fetch this info if no test tokens will be deployed, otherwise WETH address will be defined later.
-            const tokens = getTokens(process.env.CHAIN_ETH_NETWORK!);
-
-            let baseWethToken = tokens.find((token: { symbol: string }) => token.symbol == 'WETH')?.address;
-
-            if (!baseWethToken) {
-                const wethQuestions = [
-                    {
-                        message: 'What is the address of the Wrapped ETH on the base chain?',
-                        name: 'l1Weth',
-                        type: 'input',
-                        required: true
-                    }
-                ];
-
-                const wethResults: any = await enquirer.prompt(wethQuestions);
-
-                baseWethToken = wethResults.l1Weth;
-
-                if (fs.existsSync(`/etc/tokens/${getEnv(process.env.ZKSYNC_ENV!)}.json`)) {
-                    tokens.push({
-                        name: 'Wrapped Ether',
-                        symbol: 'WETH',
-                        decimals: 18,
-                        address: baseWethToken!
-                    });
-                    fs.writeFileSync(
-                        `/etc/tokens/${getEnv(process.env.ZKSYNC_ENV!)}.json`,
-                        JSON.stringify(tokens, null, 4)
-                    );
-                }
-            }
-
-            wrapEnvModify('CONTRACTS_L1_WETH_TOKEN_ADDR', baseWethToken!);
-        }
-    }
-}
-
+//     if (results.deployERC20s) {
+//         env.modify('DEPLOY_TEST_TOKENS', 'true', 'etc/env/l1-inits/.init.env');
+//         console.log(
+//             warning(
+//                 `The addresses for the generated test ECR20 tokens will be available at the /etc/tokens/${getEnv(
+//                     process.env.CHAIN_ETH_NETWORK!
+//                 )}.json file.`
+//             )
+//         );
+//     }
+// }
 async function startServer() {
     const YES_DEFAULT = 'Yes (default components)';
     const YES_CUSTOM = 'Yes (custom components)';
@@ -519,12 +517,7 @@ async function startServer() {
     await server.server(false, false, components.join(','));
 }
 
-// The current env.modify requires to write down the variable name twice. This wraps it so the caller only writes the name and the value.
-export function wrapEnvModify(variable: string, assignedVariable: string) {
-    env.modify(variable, `${variable}=${assignedVariable}`);
-}
-
-// Make sure all env information is available and wallets are funded.
+// Make sure all env information is available and wallets are funded
 async function checkReadinessToDeploy() {
     const provider = new ethers.providers.JsonRpcProvider(process.env.ETH_CLIENT_WEB3_URL!);
 
@@ -773,10 +766,10 @@ async function configDemoHyperchain(cmd: Command) {
     await compileConfig('demo');
     env.set('demo');
 
-    wrapEnvModify('CHAIN_ETH_ZKSYNC_NETWORK', 'Zeek hyperchain');
-    wrapEnvModify('CHAIN_ETH_ZKSYNC_NETWORK_ID', '1337');
-    wrapEnvModify('ETH_SENDER_SENDER_PROOF_SENDING_MODE', 'SkipEveryProof');
-    wrapEnvModify('ETH_SENDER_SENDER_L1_BATCH_MIN_AGE_BEFORE_EXECUTE_SECONDS', '20');
+    env.modify('CHAIN_ETH_ZKSYNC_NETWORK', 'Zeek hyperchain', process.env.ENV_FILE!);
+    env.modify('CHAIN_ETH_ZKSYNC_NETWORK_ID', '1337', process.env.ENV_FILE!);
+    env.modify('ETH_SENDER_SENDER_PROOF_SENDING_MODE', 'SkipEveryProof', process.env.ENV_FILE!);
+    env.modify('ETH_SENDER_SENDER_L1_BATCH_MIN_AGE_BEFORE_EXECUTE_SECONDS', '20', process.env.ENV_FILE!);
 
     const richWalletsRaw = await fetch(
         'https://raw.githubusercontent.com/matter-labs/local-setup/main/rich-wallets.json'
@@ -787,14 +780,15 @@ async function configDemoHyperchain(cmd: Command) {
     const deployer = new ethers.Wallet(richWallets[0].privateKey);
     const governor = new ethers.Wallet(richWallets[1].privateKey);
 
-    wrapEnvModify('DEPLOYER_PRIVATE_KEY', deployer.privateKey);
-    wrapEnvModify('GOVERNOR_PRIVATE_KEY', governor.privateKey);
-    wrapEnvModify('GOVERNOR_ADDRESS', governor.address);
+    env.modify('DEPLOYER_PRIVATE_KEY', deployer.privateKey, process.env.ENV_FILE!);
+    env.modify('GOVERNOR_PRIVATE_KEY', governor.privateKey, process.env.ENV_FILE!);
+    env.modify('GOVERNOR_ADDRESS', governor.address, process.env.ENV_FILE!);
 
     env.load();
 
     const deployerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
     const governorPrivateKey = process.env.GOVERNOR_PRIVATE_KEY;
+    const deployL2WrappedBaseToken = Boolean(process.env.DEPLOY_L2_WETH || false);
     const deployL2Weth = Boolean(process.env.DEPLOY_L2_WETH || false);
     const deployTestTokens = Boolean(process.env.DEPLOY_TEST_TOKENS || true);
 
@@ -804,12 +798,16 @@ async function configDemoHyperchain(cmd: Command) {
         governorPrivateKeyArgs: ['--private-key', governorPrivateKey],
         deployerL2ContractInput: {
             args: ['--private-key', deployerPrivateKey],
-            includePaymaster: false,
-            includeL2WETH: deployL2Weth
+            throughL1: true,
+            includePaymaster: false
         },
         testTokens: {
             deploy: deployTestTokens,
+            deployWeth: false,
             args: ['--private-key', deployerPrivateKey, '--envFile', process.env.CHAIN_ETH_NETWORK!]
+        },
+        baseToken: {
+            address: ADDRESS_ONE
         },
         deployerPrivateKeyArgs: ['--private-key', deployerPrivateKey]
     };
@@ -865,8 +863,11 @@ export const initHyperchainCommand = new Command('stack')
 
 initHyperchainCommand
     .command('init')
+    .option('--env-name <env-name>', 'chain name to use for initialization')
     .description('Wizard for hyperchain creation/configuration')
-    .action(initHyperchain);
+    .action(async (cmd: Command) => {
+        initHyperchain(cmd.envName);
+    });
 initHyperchainCommand
     .command('docker-setup')
     .option('--custom-docker-org <value>', 'Custom organization name for the docker images')

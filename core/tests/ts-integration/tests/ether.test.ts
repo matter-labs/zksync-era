@@ -6,8 +6,8 @@ import { TestMaster } from '../src/index';
 import { shouldChangeETHBalances, shouldOnlyTakeFee } from '../src/modifiers/balance-checker';
 import { checkReceipt } from '../src/modifiers/receipt-check';
 
-import * as zksync from 'zksync-web3';
-import { BigNumber, Overrides } from 'ethers';
+import * as zksync from 'zksync-ethers';
+import { BigNumber, BigNumberish, Overrides } from 'ethers';
 import { scaledGasPrice } from '../src/helpers';
 
 const ETH_ADDRESS = zksync.utils.ETH_ADDRESS;
@@ -16,11 +16,13 @@ describe('ETH token checks', () => {
     let testMaster: TestMaster;
     let alice: zksync.Wallet;
     let bob: zksync.Wallet;
+    let chainId: BigNumberish;
 
     beforeAll(() => {
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
         bob = testMaster.newEmptyAccount();
+        chainId = process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!;
     });
 
     test('Can perform a deposit', async () => {

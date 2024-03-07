@@ -70,7 +70,7 @@ impl UpdatesManager {
         &self,
         l1_batch_number: L1BatchNumber,
         miniblock_number: MiniblockNumber,
-        l2_erc20_bridge_addr: Address,
+        l2_shared_bridge_addr: Address,
         pre_insert_txs: bool,
     ) -> MiniblockSealCommand {
         MiniblockSealCommand {
@@ -83,7 +83,7 @@ impl UpdatesManager {
             base_fee_per_gas: self.base_fee_per_gas,
             base_system_contracts_hashes: self.base_system_contract_hashes,
             protocol_version: Some(self.protocol_version),
-            l2_erc20_bridge_addr,
+            l2_shared_bridge_addr,
             pre_insert_txs,
         }
     }
@@ -169,7 +169,7 @@ pub(crate) struct MiniblockSealCommand {
     pub base_fee_per_gas: u64,
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
     pub protocol_version: Option<ProtocolVersionId>,
-    pub l2_erc20_bridge_addr: Address,
+    pub l2_shared_bridge_addr: Address,
     /// Whether transactions should be pre-inserted to DB.
     /// Should be set to `true` for EN's IO as EN doesn't store transactions in DB
     /// before they are included into miniblocks.

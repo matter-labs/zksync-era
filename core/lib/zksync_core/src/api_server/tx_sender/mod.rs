@@ -64,6 +64,9 @@ pub struct MultiVMBaseSystemContracts {
     pub(crate) post_1_4_1: BaseSystemContracts,
     /// Contracts to be used after the 1.4.2 upgrade
     pub(crate) post_1_4_2: BaseSystemContracts,
+    // kl todo delete local vm verion
+    /// Contracts to be used for local requests.
+    pub(crate) local: BaseSystemContracts,
 }
 
 impl MultiVMBaseSystemContracts {
@@ -91,6 +94,8 @@ impl MultiVMBaseSystemContracts {
             ProtocolVersionId::Version19 => self.post_allowlist_removal,
             ProtocolVersionId::Version20 => self.post_1_4_1,
             ProtocolVersionId::Version21 | ProtocolVersionId::Version22 => self.post_1_4_2,
+            // kl todo delete local vm verion
+            ProtocolVersionId::Local => self.local,
         }
     }
 }
@@ -124,6 +129,8 @@ impl ApiContracts {
                 post_allowlist_removal: BaseSystemContracts::estimate_gas_post_allowlist_removal(),
                 post_1_4_1: BaseSystemContracts::estimate_gas_post_1_4_1(),
                 post_1_4_2: BaseSystemContracts::estimate_gas_post_1_4_2(),
+                // kl todo delete local vm verion
+                local: BaseSystemContracts::estimate_gas_post_1_4_2(),
             },
             eth_call: MultiVMBaseSystemContracts {
                 pre_virtual_blocks: BaseSystemContracts::playground_pre_virtual_blocks(),
@@ -134,6 +141,8 @@ impl ApiContracts {
                 post_allowlist_removal: BaseSystemContracts::playground_post_allowlist_removal(),
                 post_1_4_1: BaseSystemContracts::playground_post_1_4_1(),
                 post_1_4_2: BaseSystemContracts::playground_post_1_4_2(),
+                // kl todo delete local vm verion
+                local: BaseSystemContracts::playground_post_1_4_2(),
             },
         }
     }

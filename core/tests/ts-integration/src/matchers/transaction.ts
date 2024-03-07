@@ -1,6 +1,6 @@
 import { TestMessage } from './matcher-helpers';
 import { MatcherModifier } from '../modifiers';
-import * as zksync from 'zksync-web3';
+import * as zksync from 'zksync-ethers';
 import { AugmentedTransactionResponse } from '../retry-provider';
 
 // This file contains implementation of matchers for zkSync/ethereum transaction.

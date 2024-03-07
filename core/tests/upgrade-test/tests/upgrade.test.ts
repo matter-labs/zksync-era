@@ -82,7 +82,7 @@ describe('Upgrade test', function () {
         if (!mainContract) {
             throw new Error('Server did not start');
         }
-        const governanceContractAddr = await mainContract.getGovernor();
+        const governanceContractAddr = await mainContract.getAdmin();
         governanceContract = new zkweb3.Contract(governanceContractAddr, GOVERNANCE_ABI, tester.syncWallet);
         let blocksCommitted = await mainContract.getTotalBlocksCommitted();
 
@@ -370,7 +370,7 @@ async function prepareUpgradeCalldata(
     }
 
     const zkSyncContract = await l2Provider.getMainContractAddress();
-    const zkSync = new ethers.Contract(zkSyncContract, zkweb3.utils.ZKSYNC_MAIN_ABI, govWallet);
+    const zkSync = new ethers.Contract(zkSyncContract, zkweb3.utils.BRIDGEHUB_ABI, govWallet);
 
     const newProtocolVersion = params.newProtocolVersion ?? (await zkSync.getProtocolVersion()).add(1);
     params.l2ProtocolUpgradeTx.nonce ??= newProtocolVersion;

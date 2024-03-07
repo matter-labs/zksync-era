@@ -6,23 +6,26 @@ import { TestMaster } from '../src/index';
 import { Token } from '../src/types';
 import { spawn as _spawn } from 'child_process';
 
-import * as zksync from 'zksync-web3';
+import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { scaledGasPrice } from '../src/helpers';
 import { L1ERC20BridgeFactory, TransparentUpgradeableProxyFactory } from 'l1-contracts/typechain';
 import { sleep } from 'zk/build/utils';
+import { BigNumberish } from 'ethers';
 
 describe('Tests for the custom bridge behavior', () => {
     let testMaster: TestMaster;
     let alice: zksync.Wallet;
     let bob: zksync.Wallet;
     let tokenDetails: Token;
+    let chainId: BigNumberish;
 
     beforeAll(() => {
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
         bob = testMaster.newEmptyAccount();
         tokenDetails = testMaster.environment().erc20Token;
+        chainId = process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!;
     });
 
     test('Should deploy custom bridge', async () => {
@@ -35,12 +38,11 @@ describe('Tests for the custom bridge behavior', () => {
             value: balance.div(2)
         });
         await transferTx.wait();
-
         // load the l1bridge contract
         let l1bridgeFactory = new L1ERC20BridgeFactory(alice._signerL1());
         const gasPrice = await scaledGasPrice(alice);
 
-        let l1Bridge = await l1bridgeFactory.deploy(process.env.CONTRACTS_DIAMOND_PROXY_ADDR!);
+        let l1Bridge = await l1bridgeFactory.deploy(process.env.CONTRACTS_BRIDGEHUB_PROXY_ADDR!, 0);
         await l1Bridge.deployTransaction.wait(2);
         let l1BridgeProxyFactory = new TransparentUpgradeableProxyFactory(alice._signerL1());
         let l1BridgeProxy = await l1BridgeProxyFactory.deploy(l1Bridge.address, bob.address, '0x');
@@ -52,8 +54,12 @@ describe('Tests for the custom bridge behavior', () => {
             ? `yarn --cwd /contracts/l1-contracts`
             : `cd $ZKSYNC_HOME && yarn l1-contracts`;
         let args = `--private-key ${alice.privateKey} --erc20-bridge ${l1BridgeProxy.address}`;
-        let command = `${baseCommandL1} initialize-bridges ${args}`;
+        let command = `${baseCommandL1} initialize-erc20-bridge ${args}`;
         await spawn(command);
+        await sleep(2);
+        let command2 = `${baseCommandL1} erc20-deploy-on-chain ${args}`;
+        await spawn(command2);
+        await sleep(2);
 
         let l1bridge2 = new L1ERC20BridgeFactory(alice._signerL1()).attach(l1BridgeProxy.address);
 

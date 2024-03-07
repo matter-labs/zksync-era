@@ -159,7 +159,6 @@ impl ZkSyncStateKeeper {
 
         let protocol_version = system_env.version;
         let mut updates_manager = UpdatesManager::new(&l1_batch_env, &system_env);
-
         let mut protocol_upgrade_tx: Option<ProtocolUpgradeTx> = self
             .load_protocol_upgrade_tx(&pending_miniblocks, protocol_version, l1_batch_env.number)
             .await?;

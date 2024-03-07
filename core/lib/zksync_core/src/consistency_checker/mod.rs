@@ -239,9 +239,10 @@ impl ConsistencyChecker {
         kzg_settings: Option<Arc<KzgSettings>>,
     ) -> Self {
         let web3 = QueryClient::new(web3_url).unwrap();
+        let contract = zksync_contracts::state_transition_chain_contract();
         let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
         Self {
-            contract: zksync_contracts::zksync_contract(),
+            contract,
             max_batches_to_recheck,
             sleep_interval: Self::DEFAULT_SLEEP_INTERVAL,
             l1_client: Box::new(web3),
