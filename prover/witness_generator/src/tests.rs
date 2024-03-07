@@ -1,7 +1,7 @@
 use std::iter;
 
 use const_decoder::Decoder::Hex;
-use multivm::zkevm_test_harness_latest::kzg::KzgSettings;
+use zkevm_test_harness::kzg::KzgSettings;
 use zkevm_test_harness::witness::tree::{BinarySparseStorageTree, ZkSyncStorageLeaf};
 use zksync_prover_interface::inputs::{PrepareBasicCircuitsJob, StorageLogMetadata};
 use zksync_types::U256;
