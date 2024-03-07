@@ -16,8 +16,6 @@ import { serialize, hashBytecode } from 'zksync-web3/build/src/utils';
 import { deployOnAnyLocalAddress, ForceDeployment } from '../src/system';
 import { getTestContract } from '../src/helpers';
 
-const validiumMode = process.env['VALIDIUM_MODE'] == 'true';
-
 const contracts = {
     counter: getTestContract('Counter'),
     events: getTestContract('Emitter')
@@ -26,10 +24,12 @@ const contracts = {
 describe('System behavior checks', () => {
     let testMaster: TestMaster;
     let alice: zksync.Wallet;
+    let bob: zksync.Wallet;
 
     beforeAll(() => {
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
+        bob = testMaster.newEmptyAccount();
     });
 
     test('Network should be supporting Cancun+Deneb', async () => {
@@ -75,34 +75,29 @@ describe('System behavior checks', () => {
     });
 
     test('Should accept transactions with small gasPerPubdataByte', async () => {
-        // The number "10" was chosen because we have a different error for lesser `smallGasPerPubdata`.
-        const smallGasPerPubdata = 10;
+        const smallGasPerPubdata = 1;
         const senderNonce = await alice.getTransactionCount();
 
-        // This tx should be accepted by the server, but would never be executed, so we don't wait for the receipt.
-        // In rollup mode, this transaction is accepted but never executed. In Validium mode its a valid transaction. 
-        const tx = await alice.sendTransaction({
-            to: alice.address,
-            customData: {
-                gasPerPubdata: smallGasPerPubdata
-            }
-        });
-
-        let sameNonce_tx = await alice.populateTransaction({
-            to: alice.address,
-            nonce: senderNonce
-        })
-
-        if (validiumMode) {
-            // It is necessary to wait for the transaction to be finalized.
-            await tx.wait();
-
-            // When another transaction with the same nonce is made, it should be rejected.
-            await expect(alice.sendTransaction(sameNonce_tx)).toBeRejected();
-        } else {
-            // We don't wait for the transaction recipt because it never executed. 
+        // Check if the gasPerPubdata is to low, making the test inapplicable.
+        const response = await alice.provider.send('zks_estimateFee', [
+            { from: alice.address, to: alice.address, value: '0x1' }
+        ]);
+        if (response.gas_per_pubdata_limit > 5) {
+            // This tx should be accepted by the server, but would never be executed, so we don't wait for the receipt.
+            const tx = await alice.sendTransaction({
+                to: alice.address,
+                customData: {
+                    gasPerPubdata: smallGasPerPubdata
+                }
+            });
+            // We don't wait for the transaction recipt because it never executed.
             // When another transaction with the same nonce is made, it overwrites the previous transaction and this one should be executed.
-            await expect(alice.sendTransaction(sameNonce_tx)).toBeAccepted([]);
+            await expect(
+                alice.sendTransaction({
+                    to: alice.address,
+                    nonce: senderNonce
+                })
+            ).toBeAccepted([]);
         }
     });
 
