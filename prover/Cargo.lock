@@ -794,8 +794,9 @@ dependencies = [
 [[package]]
 name = "circuit_definitions"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.2#b91defc8bccff6275db2416323a096dcb74a4dff"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.2#012dcc678990c695f97e5dd1f136dfa8fe376c16"
 dependencies = [
+ "circuit_encodings 0.1.42",
  "crossbeam 0.8.4",
  "derivative",
  "seq-macro",
@@ -2782,6 +2783,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ecc2af9a1119c51f12a14607e783cb977bde58bc069ff0c3da1095e635d70654"
 dependencies = [
  "cpufeatures",
+]
+
+[[package]]
+name = "kzg"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.2#012dcc678990c695f97e5dd1f136dfa8fe376c16"
+dependencies = [
+ "boojum",
+ "derivative",
+ "rayon",
+ "serde",
+ "serde_json",
+ "zkevm_circuits 1.4.1",
 ]
 
 [[package]]
@@ -6753,8 +6767,8 @@ dependencies = [
 
 [[package]]
 name = "zkevm-assembly"
-version = "1.3.2"
-source = "git+https://github.com/matter-labs/era-zkEVM-assembly.git?branch=v1.4.1#e381e5cc22c0c7ed95b50a73a402e7693c3e0824"
+version = "1.4.1"
+source = "git+https://github.com/matter-labs/era-zkEVM-assembly.git?branch=v1.4.1#e59d5da67f18f8829c3cfaebb967265d73c168ed"
 dependencies = [
  "env_logger 0.9.3",
  "hex",
@@ -6862,7 +6876,7 @@ dependencies = [
  "codegen",
  "crossbeam 0.8.4",
  "derivative",
- "env_logger 0.9.3",
+ "env_logger 0.11.2",
  "hex",
  "num-bigint 0.4.4",
  "num-integer",
@@ -6876,22 +6890,24 @@ dependencies = [
  "test-log",
  "tracing",
  "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?branch=v1.3.3)",
- "zkevm-assembly 1.3.2 (git+https://github.com/matter-labs/era-zkEVM-assembly.git?branch=v1.3.2)",
+ "zkevm-assembly 1.3.2",
 ]
 
 [[package]]
 name = "zkevm_test_harness"
 version = "1.4.2"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.2#b91defc8bccff6275db2416323a096dcb74a4dff"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.2#012dcc678990c695f97e5dd1f136dfa8fe376c16"
 dependencies = [
  "bincode",
  "circuit_definitions",
+ "circuit_sequencer_api 0.1.42",
  "codegen",
  "crossbeam 0.8.4",
  "curl",
  "derivative",
  "env_logger 0.11.2",
  "hex",
+ "kzg",
  "lazy_static",
  "rand 0.4.6",
  "rayon",
@@ -6905,7 +6921,7 @@ dependencies = [
  "test-log",
  "tracing",
  "walkdir",
- "zkevm-assembly 1.3.2 (git+https://github.com/matter-labs/era-zkEVM-assembly.git?branch=v1.4.1)",
+ "zkevm-assembly 1.4.1",
 ]
 
 [[package]]
@@ -7130,7 +7146,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "bincode",
- "circuit_sequencer_api 0.1.0",
+ "circuit_sequencer_api 0.1.42",
  "ctrlc",
  "futures 0.3.30",
  "prometheus_exporter",
@@ -7280,7 +7296,7 @@ name = "zksync_prover_interface"
 version = "0.1.0"
 dependencies = [
  "chrono",
- "circuit_sequencer_api 0.1.0",
+ "circuit_sequencer_api 0.1.42",
  "serde",
  "serde_with",
  "strum",
