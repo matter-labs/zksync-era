@@ -558,7 +558,6 @@ impl HttpTest for EstimateGasWithStateOverrideTest {
                 nonce: None,
                 code: None,
                 state: None,
-                state_diff: None,
             },
         );
         let state_override = StateOverride(state_override_map);

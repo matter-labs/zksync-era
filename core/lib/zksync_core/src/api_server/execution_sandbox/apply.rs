@@ -23,7 +23,7 @@ use zksync_system_constants::{
     SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION, ZKPORTER_IS_AVAILABLE,
 };
 use zksync_types::{
-    api::{self, ValidatedStateOverride},
+    api::{self, StateOverride},
     block::{pack_block_info, unpack_block_info, MiniblockHasher},
     fee_model::BatchFeeInput,
     get_nonce_key,
@@ -294,7 +294,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
     connection_pool: &ConnectionPool,
     tx: Transaction,
     block_args: BlockArgs,
-    state_override: Option<ValidatedStateOverride>,
+    state_override: Option<StateOverride>,
     apply: impl FnOnce(
         &mut VmInstance<StorageView<PostgresStorage<'_>>, HistoryDisabled>,
         Transaction,

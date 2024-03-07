@@ -13,7 +13,7 @@ use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, StorageProcessor};
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{
-    api::ValidatedStateOverride,
+    api::StateOverride,
     fee::{Fee, TransactionExecutionMetrics},
     fee_model::BatchFeeInput,
     get_code_key, get_intrinsic_constants,
@@ -561,7 +561,7 @@ impl TxSender {
         block_args: BlockArgs,
         base_fee: u64,
         vm_version: VmVersion,
-        state_override: Option<ValidatedStateOverride>,
+        state_override: Option<StateOverride>,
     ) -> anyhow::Result<(VmExecutionResultAndLogs, TransactionExecutionMetrics)> {
         let gas_limit_with_overhead = tx_gas_limit
             + derive_overhead(
@@ -633,7 +633,7 @@ impl TxSender {
         mut tx: Transaction,
         estimated_fee_scale_factor: f64,
         acceptable_overestimation: u32,
-        state_override: Option<ValidatedStateOverride>,
+        state_override: Option<StateOverride>,
     ) -> Result<Fee, SubmitTxError> {
         let estimation_started_at = Instant::now();
 

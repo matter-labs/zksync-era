@@ -1,4 +1,4 @@
-use std::{collections::HashMap, convert::TryFrom, ops::Deref};
+use std::{collections::HashMap, ops::Deref};
 
 use chrono::{DateTime, Utc};
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
@@ -747,64 +747,51 @@ pub struct OverrideAccount {
     pub balance: Option<U256>,
     pub nonce: Option<U256>,
     pub code: Option<Bytes>,
-    pub state: Option<HashMap<H256, H256>>,
-    pub state_diff: Option<HashMap<H256, H256>>,
+    #[serde(flatten, deserialize_with = "state_deserializer")]
+    pub state: Option<OverrideState>,
 }
 
-#[derive(Debug, Clone)]
-pub struct ValidatedStateOverride(HashMap<Address, ValidatedOverrideAccount>);
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum OverrideState {
+    State(HashMap<H256, H256>),
+    StateDiff(HashMap<H256, H256>),
+}
 
-impl ValidatedStateOverride {
-    pub fn get(&self, address: &Address) -> Option<&ValidatedOverrideAccount> {
+fn state_deserializer<'de, D>(deserializer: D) -> Result<Option<OverrideState>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let val = serde_json::Value::deserialize(deserializer)?;
+    let state: Option<HashMap<H256, H256>> = match val.get("state") {
+        Some(val) => serde_json::from_value(val.clone()).map_err(serde::de::Error::custom)?,
+        None => None,
+    };
+    let state_diff: Option<HashMap<H256, H256>> = match val.get("stateDiff") {
+        Some(val) => serde_json::from_value(val.clone()).map_err(serde::de::Error::custom)?,
+        None => None,
+    };
+
+    match (state, state_diff) {
+        (Some(state), None) => Ok(Some(OverrideState::State(state))),
+        (None, Some(state_diff)) => Ok(Some(OverrideState::StateDiff(state_diff))),
+        (None, None) => Ok(None),
+        _ => Err(serde::de::Error::custom(
+            "Both 'state' and 'stateDiff' cannot be set simultaneously",
+        )),
+    }
+}
+
+impl StateOverride {
+    pub fn get(&self, address: &Address) -> Option<&OverrideAccount> {
         self.0.get(address)
     }
 }
 
-impl Deref for ValidatedStateOverride {
-    type Target = HashMap<Address, ValidatedOverrideAccount>;
+impl Deref for StateOverride {
+    type Target = HashMap<Address, OverrideAccount>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
-}
-
-impl TryFrom<StateOverride> for ValidatedStateOverride {
-    type Error = String;
-
-    fn try_from(value: StateOverride) -> Result<Self, Self::Error> {
-        let mut validated = HashMap::new();
-        for (address, account) in value.0 {
-            let validated_account = ValidatedOverrideAccount {
-                balance: account.balance,
-                nonce: account.nonce,
-                code: account.code,
-                state: match (account.state, account.state_diff) {
-                    (Some(state), None) => Some(OverrideState::State(state)),
-                    (None, Some(state_diff)) => Some(OverrideState::StateDiff(state_diff)),
-                    (Some(_), Some(_)) => {
-                        return Err(format!(
-                            "Account {address} has overriden state and state_diff"
-                        ))
-                    }
-                    (None, None) => None,
-                },
-            };
-            validated.insert(address, validated_account);
-        }
-        Ok(ValidatedStateOverride(validated))
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct ValidatedOverrideAccount {
-    pub balance: Option<U256>,
-    pub nonce: Option<U256>,
-    pub code: Option<Bytes>,
-    pub state: Option<OverrideState>,
-}
-
-#[derive(Debug, Clone)]
-pub enum OverrideState {
-    State(HashMap<H256, H256>),
-    StateDiff(HashMap<H256, H256>),
 }
