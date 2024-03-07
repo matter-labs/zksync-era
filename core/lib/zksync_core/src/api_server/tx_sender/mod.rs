@@ -6,7 +6,7 @@ use anyhow::Context as _;
 use multivm::{
     interface::VmExecutionResultAndLogs,
     utils::{adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead},
-    vm_latest::constants::{BLOCK_GAS_LIMIT, MAX_PUBDATA_PER_BLOCK},
+    vm_latest::constants::BLOCK_GAS_LIMIT,
 };
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig};
 use zksync_contracts::BaseSystemContracts;
@@ -762,11 +762,11 @@ impl TxSender {
             )
             .await?;
 
-            if pubdata_for_factory_deps > MAX_PUBDATA_PER_BLOCK {
-                return Err(SubmitTxError::Unexecutable(
-                    "exceeds limit for published pubdata".to_string(),
-                ));
-            }
+            // if pubdata_for_factory_deps > MAX_PUBDATA_PER_BLOCK {
+            //     return Err(SubmitTxError::Unexecutable(
+            //         "exceeds limit for published pubdata".to_string(),
+            //     ));
+            // }
             pubdata_for_factory_deps * (gas_per_pubdata_byte as u32)
         };
 
