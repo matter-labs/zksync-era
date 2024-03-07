@@ -1,4 +1,3 @@
-#![feature(arc_unwrap_or_clone)]
 //! Data access layer (DAL) for zkSync Era.
 
 pub use sqlx::{types::BigDecimal, Error as SqlxError};
@@ -73,10 +72,7 @@ impl<'a> ConnectionOperator<'a> {
     }
 
     pub async fn start_transaction(&mut self) -> sqlx::Result<ConnectionOperator<'_>> {
-        self.0
-            .start_transaction()
-            .await
-            .map(|res| ConnectionOperator(res))
+        self.0.start_transaction().await.map(ConnectionOperator)
     }
 
     pub async fn commit(self) -> sqlx::Result<()> {

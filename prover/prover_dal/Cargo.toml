@@ -29,6 +29,5 @@ sqlx = { version = "0.7.3", default-features = false, features = [
     "ipnetwork",
 ] }
 
-
 zksync_db_connection = { path = "../../core/lib/db_connection" }
 zksync_types = { path = "../../core/lib/types" }
