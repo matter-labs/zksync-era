@@ -1,7 +1,10 @@
-use std::{collections::HashMap, fmt, time::Duration};
+use std::{collections::HashMap, fmt, sync::Arc, time::Duration};
 
 use futures::{future::BoxFuture, FutureExt};
-use tokio::{runtime::Runtime, sync::watch};
+use tokio::{
+    runtime::Runtime,
+    sync::{watch, Barrier},
+};
 
 pub use self::{context::ServiceContext, stop_receiver::StopReceiver};
 use crate::{
@@ -120,8 +123,11 @@ impl ZkStackService {
             anyhow::bail!("One or more task weren't able to start");
         }
 
-        let (preconditions_sender, preconditions_receiver) = watch::channel(false);
+        // Barrier that will only be lifted once all the preconditions are met.
+        // It will be awaited by the tasks before they start running and by the preconditions once they are fulfilled.
+        let task_barrier = Arc::new(Barrier::new(self.tasks.len() + self.preconditions.len()));
         let mut tasks = Vec::new();
+        let mut preconditions = Vec::new();
         // Add all the unconstrained tasks.
         for task in std::mem::take(&mut self.unconstrained_tasks) {
             let name = task.name().to_string();
@@ -135,9 +141,8 @@ impl ZkStackService {
         // Add all the "normal" tasks.
         for task in std::mem::take(&mut self.tasks) {
             let name = task.name().to_string();
-            let task_future = Box::pin(
-                task.run_with_preconditions(self.stop_receiver(), preconditions_receiver.clone()),
-            );
+            let task_future =
+                Box::pin(task.run_with_barrier(self.stop_receiver(), task_barrier.clone()));
             let task_repr = TaskRepr {
                 name,
                 task: Some(task_future),
@@ -150,12 +155,15 @@ impl ZkStackService {
         // Finally, the preconditions are handles the same way the tasks are handled.
         for precondition in std::mem::take(&mut self.preconditions) {
             let name = precondition.name().to_string();
-            let task_future = Box::pin(precondition.check());
+            let task_future = Box::pin(
+                precondition.check_with_barrier(self.stop_receiver(), task_barrier.clone()),
+            );
+            // Internally we use the same representation for tasks and preconditions.
             let task_repr = TaskRepr {
                 name,
                 task: Some(task_future),
             };
-            tasks.push(task_repr);
+            preconditions.push(task_repr);
         }
         // TODO: how to signal that preconditions are checked?
 

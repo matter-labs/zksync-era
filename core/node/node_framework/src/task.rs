@@ -1,7 +1,9 @@
 //! Tasks define the "runnable" concept of the node, e.g. something that can be launched and runs until the node
 //! is stopped.
 
-use tokio::sync::watch;
+use std::sync::Arc;
+
+use tokio::sync::Barrier;
 
 use crate::service::StopReceiver;
 
@@ -29,14 +31,22 @@ pub trait Task: 'static + Send {
 }
 
 impl dyn Task {
-    /// First awaits for the precondition to be met and then runs the task.
-    pub(super) async fn run_with_preconditions(
+    /// An internal helper method that guards running the task with a tokio Barrier.
+    /// Used to make sure that the task is not started until all the preconditions are met.
+    pub(super) async fn run_with_barrier(
         self: Box<Self>,
-        stop_receiver: StopReceiver,
-        mut preconditions_receiver: watch::Receiver<bool>,
+        mut stop_receiver: StopReceiver,
+        preconditions_barrier: Arc<Barrier>,
     ) -> anyhow::Result<()> {
-        preconditions_receiver.changed().await?;
-        self.run(stop_receiver).await
+        // Wait either for barrier to be lifted or for the stop signal to be received.
+        tokio::select! {
+            _ = preconditions_barrier.wait() => {
+                self.run(stop_receiver).await
+            }
+            _ = stop_receiver.0.changed() => {
+                Ok(())
+            }
+        }
     }
 }
 
