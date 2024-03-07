@@ -4,12 +4,18 @@ use anyhow::Context as _;
 use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_dal::{ConnectionPool, StorageProcessor};
-use zksync_eth_client::{BoundEthInterface, Error, EthInterface, ExecutedTxStatus, RawTransactionBytes, SignedCallResult};
-use zksync_types::{eth_sender::EthTx, web3::{
-    contract::Options,
-    error::Error as Web3Error,
-    types::{BlockId, BlockNumber},
-}, L1BlockNumber, Nonce, H256, U256, L1ChainId};
+use zksync_eth_client::{
+    BoundEthInterface, Error, EthInterface, ExecutedTxStatus, RawTransactionBytes, SignedCallResult,
+};
+use zksync_types::{
+    eth_sender::EthTx,
+    web3::{
+        contract::Options,
+        error::Error as Web3Error,
+        types::{BlockId, BlockNumber},
+    },
+    L1BlockNumber, L1ChainId, Nonce, H256, U256,
+};
 use zksync_utils::time::seconds_since_epoch;
 
 use super::{metrics::METRICS, ETHSenderError};
@@ -181,9 +187,10 @@ impl EthTxManager {
         current_block: L1BlockNumber,
     ) -> Result<H256, ETHSenderError> {
         const LINEA_TEST_CHAIN_ID: L1ChainId = L1ChainId::from(59140);
-        const LINEA_MAINNET_CHAIN_ID: L1ChainId = L1ChainId::from(59144) ;
+        const LINEA_MAINNET_CHAIN_ID: L1ChainId = L1ChainId::from(59144);
         let current_gate_way_chain_id = self.ethereum_gateway.chain_id();
-        let (base_fee_per_gas, priority_fee_per_gas) = if current_gate_way_chain_id == LINEA_TEST_CHAIN_ID
+        let (base_fee_per_gas, priority_fee_per_gas) = if current_gate_way_chain_id
+            == LINEA_TEST_CHAIN_ID
             || current_gate_way_chain_id == LINEA_MAINNET_CHAIN_ID
         {
             let call_request = zksync_types::web3::types::CallRequest::builder()
@@ -191,8 +198,14 @@ impl EthTxManager {
                 .to(tx.contract_address)
                 .data(tx.raw_tx.clone().into())
                 .build();
-            let fee = self.ethereum_gateway.linea_estimate_gas(call_request).await?;
-            (fee.base_fee_per_gas.to_low_u64_be(), fee.priority_fee_per_gas.to_low_u64_be())
+            let fee = self
+                .ethereum_gateway
+                .linea_estimate_gas(call_request)
+                .await?;
+            (
+                fee.base_fee_per_gas.to_low_u64_be(),
+                fee.priority_fee_per_gas.to_low_u64_be(),
+            )
         } else {
             let fee = self.calculate_fee(storage, tx, time_in_mempool).await?;
             (fee.base_fee_per_gas, fee.priority_fee_per_gas)

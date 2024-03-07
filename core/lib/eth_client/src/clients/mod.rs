@@ -6,6 +6,7 @@ mod mock;
 
 use serde::{Deserialize, Serialize};
 use zksync_types::H256;
+
 pub use self::{
     http::{PKSigningClient, QueryClient, SigningClient},
     mock::MockEthereum,

@@ -6,15 +6,14 @@ use zksync_types::{
         contract::Options,
         ethabi,
         types::{
-            Address, Block, BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt,
-            H160, H256, U256, U64,
+            Address, Block, BlockId, BlockNumber, CallRequest, Filter, Log, Transaction,
+            TransactionReceipt, H160, H256, U256, U64,
         },
     },
     L1ChainId,
 };
-use zksync_types::web3::types::CallRequest;
-use crate::clients::LineaEstimateGas;
 
+use crate::clients::LineaEstimateGas;
 pub use crate::types::{
     CallFunctionArgs, ContractCall, Error, ExecutedTxStatus, FailureInfo, RawTransactionBytes,
     SignedCallResult,

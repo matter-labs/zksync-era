@@ -11,20 +11,19 @@ use zksync_types::{
         ethabi,
         transports::Http,
         types::{
-            Address, Block, BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt,
-            H160, H256, U256, U64,
+            Address, Block, BlockId, BlockNumber, CallRequest, Filter, Log, Transaction,
+            TransactionReceipt, H160, H256, U256, U64,
         },
     },
     L1ChainId, PackedEthSignature, EIP_1559_TX_TYPE,
 };
-use zksync_types::web3::types::CallRequest;
 
 use super::{query::QueryClient, Method, LATENCIES};
 use crate::{
+    clients::LineaEstimateGas,
     types::{Error, ExecutedTxStatus, FailureInfo, SignedCallResult},
     BoundEthInterface, CallFunctionArgs, ContractCall, EthInterface, RawTransactionBytes,
 };
-use crate::clients::LineaEstimateGas;
 
 /// HTTP-based Ethereum client, backed by a private key to sign transactions.
 pub type PKSigningClient = SigningClient<PrivateKeySigner>;

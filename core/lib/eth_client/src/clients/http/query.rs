@@ -1,19 +1,27 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use zksync_types::web3::{self, contract::Contract, ethabi, helpers, Transport, transports::Http, types::{
-    Address, Block, BlockId, BlockNumber, Bytes, Filter, Log, Transaction, TransactionId,
-    TransactionReceipt, H256, U256, U64,
-}, Web3};
-use zksync_types::web3::helpers::CallFuture;
-use zksync_types::web3::types::CallRequest;
+use zksync_types::web3::{
+    self,
+    contract::Contract,
+    ethabi, helpers,
+    helpers::CallFuture,
+    transports::Http,
+    types::{
+        Address, Block, BlockId, BlockNumber, Bytes, CallRequest, Filter, Log, Transaction,
+        TransactionId, TransactionReceipt, H256, U256, U64,
+    },
+    Transport, Web3,
+};
 
 use crate::{
-    clients::http::{Method, COUNTERS, LATENCIES},
+    clients::{
+        http::{Method, COUNTERS, LATENCIES},
+        LineaEstimateGas,
+    },
     types::{Error, ExecutedTxStatus, FailureInfo, RawTokens},
     ContractCall, EthInterface, RawTransactionBytes,
 };
-use crate::clients::LineaEstimateGas;
 
 /// An "anonymous" Ethereum client that can invoke read-only methods that aren't
 /// tied to a particular account.
@@ -289,7 +297,12 @@ impl EthInterface for QueryClient {
         let latency = LATENCIES.direct[&Method::EstimateGas].start();
         let req = helpers::serialize(&req);
 
-        let res = CallFuture::new(self.web3.transport().execute("linea_estimateGas", vec![req])).await?;
+        let res = CallFuture::new(
+            self.web3
+                .transport()
+                .execute("linea_estimateGas", vec![req]),
+        )
+        .await?;
         latency.observe();
         Ok(res)
     }

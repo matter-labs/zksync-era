@@ -9,18 +9,20 @@ use zksync_types::{
     web3::{
         contract::{tokens::Tokenize, Options},
         ethabi,
-        types::{Block, BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt, U64},
+        types::{
+            Block, BlockId, BlockNumber, CallRequest, Filter, Log, Transaction, TransactionReceipt,
+            U64,
+        },
         Error as Web3Error,
     },
     Address, L1ChainId, ProtocolVersionId, H160, H256, U256,
 };
-use zksync_types::web3::types::CallRequest;
 
 use crate::{
+    clients::LineaEstimateGas,
     types::{Error, ExecutedTxStatus, FailureInfo, SignedCallResult},
     BoundEthInterface, ContractCall, EthInterface, RawTransactionBytes,
 };
-use crate::clients::LineaEstimateGas;
 
 #[derive(Debug, Clone)]
 struct MockTx {
