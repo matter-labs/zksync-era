@@ -1,3 +1,6 @@
+mod metrics;
+
+use std::time::Duration;
 use std::{
     collections::HashMap,
     fmt,
@@ -11,7 +14,7 @@ use std::{
 
 use sqlx::{pool::PoolConnection, types::chrono, Connection, PgConnection, Postgres, Transaction};
 
-// use crate::metrics::CONNECTION_METRICS;
+use crate::metrics::CONNECTION_METRICS;
 
 /// Tags that can be associated with a connection.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -109,19 +112,20 @@ impl fmt::Debug for PooledStorageProcessor<'_> {
 
 impl Drop for PooledStorageProcessor<'_> {
     fn drop(&mut self) {
-        // if let Some(tags) = &self.tags {
-        //     let lifetime = self.created_at.elapsed();
-        //     CONNECTION_METRICS.lifetime[&tags.requester].observe(lifetime);
-        //
-        //     if lifetime > ConnectionPool::global_config().long_connection_threshold() {
-        //         let file = tags.location.file();
-        //         let line = tags.location.line();
-        //         tracing::info!(
-        //             "Long-living connection for `{}` created at {file}:{line}: {lifetime:?}",
-        //             tags.requester
-        //         );
-        //     }
-        // }
+        if let Some(tags) = &self.tags {
+            let lifetime = self.created_at.elapsed();
+            CONNECTION_METRICS.lifetime[&tags.requester].observe(lifetime);
+
+            // TODO: value is hardcoded for now, but should be in sync with ConnectionPool::global_config()
+            if lifetime > Duration::from_millis(5_000) {
+                let file = tags.location.file();
+                let line = tags.location.line();
+                tracing::info!(
+                    "Long-living connection for `{}` created at {file}:{line}: {lifetime:?}",
+                    tags.requester
+                );
+            }
+        }
         if let Some((connections, id)) = self.traced {
             connections.mark_as_dropped(id);
         }

@@ -11,11 +11,7 @@ use zksync_types::{
     L1BatchNumber,
 };
 
-use crate::{
-    //metrics::MethodLatency,
-    duration_to_naive_time,
-    pg_interval_from_duration,
-};
+use crate::{duration_to_naive_time, metrics::MethodLatency, pg_interval_from_duration};
 
 #[derive(Debug)]
 pub struct FriWitnessGeneratorDal<'a, 'c> {
@@ -307,7 +303,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         protocol_version_id: FriProtocolVersionId,
     ) {
         {
-            //let latency = MethodLatency::new("create_aggregation_jobs_fri");
+            let latency = MethodLatency::new("create_aggregation_jobs_fri");
             for (circuit_id, closed_form_inputs_url, number_of_basic_circuits) in
                 closed_form_inputs_and_urls
             {
@@ -395,7 +391,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 .await
                 .unwrap();
 
-            //drop(latency);
+            drop(latency);
         }
     }
 

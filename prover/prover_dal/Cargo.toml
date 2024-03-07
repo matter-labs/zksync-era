@@ -9,6 +9,7 @@ edition = "2021"
 tracing = "0.1.40"
 tokio = "1.36.0"
 strum = { version = "0.24", features = ["derive"] }
+vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1" }
 
 sqlx = { version = "0.7.3", default-features = false, features = [
     "runtime-tokio",

@@ -198,6 +198,8 @@ impl GlobalConnectionPoolConfig {
         }
     }
 
+    // TODO: to be removed after storage processor will be in sync with this var
+    #[allow(dead_code)]
     pub(crate) fn long_connection_threshold(&self) -> Duration {
         Duration::from_millis(self.long_connection_threshold_ms.load(Ordering::Relaxed))
     }

@@ -8753,6 +8753,7 @@ dependencies = [
  "sqlx",
  "tokio",
  "tracing",
+ "vise",
 ]
 
 [[package]]
@@ -9030,6 +9031,7 @@ dependencies = [
  "strum",
  "tokio",
  "tracing",
+ "vise",
  "zksync_db_connection",
  "zksync_types",
 ]
