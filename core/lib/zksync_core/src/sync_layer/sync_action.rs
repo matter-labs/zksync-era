@@ -143,6 +143,8 @@ pub(crate) enum SyncAction {
         timestamp: u64,
         virtual_blocks: u32,
     },
+    /// **Important.** Please only use [`Self::transaction()`] to convert transactions to this variant;
+    /// it sets a correct "received at" timestamp for the transaction.
     Tx(Box<Transaction>),
     /// We need an explicit action for the miniblock sealing, since we fetch the whole miniblocks and already know
     /// that they are sealed, but at the same time the next miniblock may not exist yet.
@@ -156,8 +158,8 @@ pub(crate) enum SyncAction {
     },
 }
 
-impl From<Transaction> for SyncAction {
-    fn from(mut tx: Transaction) -> Self {
+impl SyncAction {
+    pub(crate) fn transaction(mut tx: Transaction) -> Self {
         // Override the "received at" timestamp for the transaction so that they are causally ordered (i.e., transactions
         // with an earlier timestamp are persisted earlier). Without this property, code relying on causal ordering may work incorrectly;
         // e.g., `pendingTransactions` subscriptions notifier can skip transactions.
@@ -206,7 +208,7 @@ mod tests {
         );
         tx.set_input(H256::default().0.to_vec(), H256::default());
 
-        SyncAction::Tx(Box::new(tx.into()))
+        SyncAction::transaction(tx.into())
     }
 
     fn seal_miniblock() -> SyncAction {

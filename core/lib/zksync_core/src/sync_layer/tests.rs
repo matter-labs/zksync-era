@@ -186,7 +186,7 @@ async fn external_io_basics(snapshot_recovery: bool) {
     );
     let tx = create_l2_transaction(10, 100);
     let tx_hash = tx.hash();
-    let tx = SyncAction::Tx(Box::new(tx.into()));
+    let tx = SyncAction::transaction(tx.into());
     let actions = vec![open_l1_batch, tx, SyncAction::SealMiniblock];
 
     let (actions_sender, action_queue) = ActionQueue::new();
@@ -266,7 +266,7 @@ async fn external_io_works_without_local_protocol_version(snapshot_recovery: boo
     };
 
     let tx = create_l2_transaction(10, 100);
-    let tx = SyncAction::Tx(Box::new(tx.into()));
+    let tx = SyncAction::transaction(tx.into());
     let actions = vec![open_l1_batch, tx, SyncAction::SealMiniblock];
 
     let (actions_sender, action_queue) = ActionQueue::new();
@@ -340,7 +340,7 @@ pub(super) async fn run_state_keeper_with_multiple_miniblocks(
     );
     let txs = (0..5).map(|_| {
         let tx = create_l2_transaction(10, 100);
-        SyncAction::Tx(Box::new(tx.into()))
+        SyncAction::transaction(tx.into())
     });
     let first_miniblock_actions: Vec<_> = iter::once(open_l1_batch)
         .chain(txs)
@@ -354,7 +354,7 @@ pub(super) async fn run_state_keeper_with_multiple_miniblocks(
     };
     let more_txs = (0..3).map(|_| {
         let tx = create_l2_transaction(10, 100);
-        SyncAction::Tx(Box::new(tx.into()))
+        SyncAction::transaction(tx.into())
     });
     let second_miniblock_actions: Vec<_> = iter::once(open_miniblock)
         .chain(more_txs)
@@ -426,7 +426,7 @@ async fn test_external_io_recovery(
 ) {
     let new_tx = create_l2_transaction(10, 100);
     tx_hashes.push(new_tx.hash());
-    let new_tx = SyncAction::Tx(Box::new(new_tx.into()));
+    let new_tx = SyncAction::transaction(new_tx.into());
 
     let (actions_sender, action_queue) = ActionQueue::new();
     let client = if snapshot.l1_batch_number > L1BatchNumber(0) {
@@ -510,7 +510,7 @@ pub(super) async fn run_state_keeper_with_multiple_l1_batches(
     );
     let first_tx = create_l2_transaction(10, 100);
     let first_tx_hash = first_tx.hash();
-    let first_tx = SyncAction::Tx(Box::new(first_tx.into()));
+    let first_tx = SyncAction::transaction(first_tx.into());
     let first_l1_batch_actions = vec![l1_batch, first_tx, SyncAction::SealMiniblock];
 
     let fictive_miniblock = SyncAction::Miniblock {
@@ -528,7 +528,7 @@ pub(super) async fn run_state_keeper_with_multiple_l1_batches(
     );
     let second_tx = create_l2_transaction(10, 100);
     let second_tx_hash = second_tx.hash();
-    let second_tx = SyncAction::Tx(Box::new(second_tx.into()));
+    let second_tx = SyncAction::transaction(second_tx.into());
     let second_l1_batch_actions = vec![l1_batch, second_tx, SyncAction::SealMiniblock];
 
     let (actions_sender, action_queue) = ActionQueue::new();

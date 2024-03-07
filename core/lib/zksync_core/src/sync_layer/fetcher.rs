@@ -154,7 +154,7 @@ impl IoCursor {
 
         APP_METRICS.processed_txs[&TxStage::added_to_mempool()]
             .inc_by(block.transactions.len() as u64);
-        new_actions.extend(block.transactions.into_iter().map(SyncAction::from));
+        new_actions.extend(block.transactions.into_iter().map(SyncAction::transaction));
 
         // Last miniblock of the batch is a "fictive" miniblock and would be replicated locally.
         // We don't need to seal it explicitly, so we only put the seal miniblock command if it's not the last miniblock.
