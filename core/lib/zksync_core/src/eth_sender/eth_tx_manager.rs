@@ -203,8 +203,8 @@ impl EthTxManager {
                 .linea_estimate_gas(call_request)
                 .await?;
             (
-                fee.base_fee_per_gas.to_low_u64_be(),
-                fee.priority_fee_per_gas.to_low_u64_be(),
+                fee.base_fee_per_gas.as_u64(),
+                fee.priority_fee_per_gas.as_u64(),
             )
         } else {
             let fee = self.calculate_fee(storage, tx, time_in_mempool).await?;
