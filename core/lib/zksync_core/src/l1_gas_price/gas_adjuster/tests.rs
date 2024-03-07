@@ -28,7 +28,7 @@ fn samples_queue() {
 }
 
 /// Check that we properly fetch base fees as block are mined
-async fn _keep_updated(pubdata_pricin: Arc<dyn PubdataPricing>) {
+async fn _kept_updated(pubdata_pricin: Arc<dyn PubdataPricing>) {
     let eth_client =
         Arc::new(MockEthereum::default().with_fee_history(vec![0, 4, 6, 8, 7, 5, 5, 8, 10, 9]));
     eth_client.advance_block_number(5);
@@ -65,6 +65,6 @@ async fn kept_updated() {
     let rollup_pubdata_pricing = Arc::new(RollupPubdataPricing {});
     let validium_pubdata_pricing = Arc::new(ValidiumPubdataPricing {});
 
-    _keep_updated(rollup_pubdata_pricing);
-    _keep_updated(validium_pubdata_pricing);
+    _kept_updated(rollup_pubdata_pricing).await;
+    _kept_updated(validium_pubdata_pricing).await;
 }
