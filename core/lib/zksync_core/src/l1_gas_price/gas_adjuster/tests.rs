@@ -4,6 +4,7 @@ use zksync_config::GasAdjusterConfig;
 use zksync_eth_client::clients::MockEthereum;
 
 use super::{GasAdjuster, GasStatisticsInner};
+use crate::native_token_fetcher::NoOpConversionRateFetcher;
 
 /// Check that we compute the median correctly
 #[test]
@@ -33,6 +34,7 @@ async fn kept_updated() {
         Arc::new(MockEthereum::default().with_fee_history(vec![0, 4, 6, 8, 7, 5, 5, 8, 10, 9]));
     eth_client.advance_block_number(5);
 
+    let no_op_conversion_rate_fetcher = Arc::new(NoOpConversionRateFetcher::new());
     let adjuster = GasAdjuster::new(
         Arc::clone(&eth_client),
         GasAdjusterConfig {
@@ -45,6 +47,7 @@ async fn kept_updated() {
             poll_period: 5,
             max_l1_gas_price: None,
         },
+        no_op_conversion_rate_fetcher,
     )
     .await
     .unwrap();

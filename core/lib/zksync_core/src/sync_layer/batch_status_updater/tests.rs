@@ -6,7 +6,7 @@ use chrono::TimeZone;
 use test_casing::{test_casing, Product};
 use tokio::sync::{watch, Mutex};
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_types::{block::BlockGasCount, Address, L2ChainId, ProtocolVersionId};
+use zksync_types::{block::BlockGasCount, Address, L2ChainId, ProtocolVersionId, U256};
 
 use super::*;
 use crate::{
@@ -160,8 +160,8 @@ fn mock_block_details(number: u32, stage: L1BatchStage) -> api::BlockDetails {
             execute_tx_hash: (stage >= L1BatchStage::Executed).then(|| H256::repeat_byte(3)),
             executed_at: (stage >= L1BatchStage::Executed)
                 .then(|| Utc.timestamp_opt(300, 0).unwrap()),
-            l1_gas_price: 1,
-            l2_fair_gas_price: 2,
+            l1_gas_price: U256::from(1),
+            l2_fair_gas_price: U256::from(2),
             base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         },
         operator_address: Address::zero(),

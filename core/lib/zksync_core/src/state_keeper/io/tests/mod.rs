@@ -56,7 +56,12 @@ async fn test_filter_with_pending_batch() {
     // These gas values are random and don't matter for filter calculation as there will be a
     // pending batch the filter will be based off of.
     tester
-        .insert_miniblock(&connection_pool, 1, 5, BatchFeeInput::l1_pegged(55, 555))
+        .insert_miniblock(
+            &connection_pool,
+            1,
+            5,
+            BatchFeeInput::l1_pegged(U256::from(55), U256::from(555)),
+        )
         .await;
     tester.insert_sealed_batch(&connection_pool, 1).await;
 
@@ -83,7 +88,7 @@ async fn test_filter_with_pending_batch() {
     let want_filter = L2TxFilter {
         fee_input,
         fee_per_gas: want_base_fee,
-        gas_per_pubdata: want_gas_per_pubdata as u32,
+        gas_per_pubdata: want_gas_per_pubdata.as_u32(),
     };
     assert_eq!(mempool.filter(), &want_filter);
 }
@@ -98,7 +103,12 @@ async fn test_filter_with_no_pending_batch() {
     // Insert a sealed batch so there will be a `prev_l1_batch_state_root`.
     // These gas values are random and don't matter for filter calculation.
     tester
-        .insert_miniblock(&connection_pool, 1, 5, BatchFeeInput::l1_pegged(55, 555))
+        .insert_miniblock(
+            &connection_pool,
+            1,
+            5,
+            BatchFeeInput::l1_pegged(U256::from(55), U256::from(555)),
+        )
         .await;
     tester.insert_sealed_batch(&connection_pool, 1).await;
 
@@ -115,7 +125,7 @@ async fn test_filter_with_no_pending_batch() {
     // Insert a transaction that matches the expected filter.
     tester.insert_tx(
         &mut guard,
-        want_filter.fee_per_gas,
+        want_filter.fee_per_gas.as_u64(),
         want_filter.gas_per_pubdata,
     );
 
@@ -138,7 +148,12 @@ async fn test_timestamps_are_distinct(
 
     tester.set_timestamp(prev_miniblock_timestamp);
     tester
-        .insert_miniblock(&connection_pool, 1, 5, BatchFeeInput::l1_pegged(55, 555))
+        .insert_miniblock(
+            &connection_pool,
+            1,
+            5,
+            BatchFeeInput::l1_pegged(U256::from(55), U256::from(555)),
+        )
         .await;
     if delay_prev_miniblock_compared_to_batch {
         tester.set_timestamp(prev_miniblock_timestamp - 1);
@@ -151,7 +166,11 @@ async fn test_timestamps_are_distinct(
         &tester.create_batch_fee_input_provider().await,
         ProtocolVersionId::latest().into(),
     );
-    tester.insert_tx(&mut guard, tx_filter.fee_per_gas, tx_filter.gas_per_pubdata);
+    tester.insert_tx(
+        &mut guard,
+        tx_filter.fee_per_gas.as_u64(),
+        tx_filter.gas_per_pubdata,
+    );
 
     let batch_params = mempool
         .wait_for_new_batch_params(Duration::from_secs(10))
@@ -245,7 +264,7 @@ async fn processing_storage_logs_when_sealing_miniblock() {
             fair_l2_gas_price: U256::from(100),
             fair_pubdata_price: U256::from(100),
         }),
-        base_fee_per_gas: 10,
+        base_fee_per_gas: U256::from(10),
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
         l2_shared_bridge_addr: Address::default(),

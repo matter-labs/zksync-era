@@ -167,6 +167,7 @@ impl ProtoFmt for Payload {
     type Proto = super::proto::Payload;
 
     fn read(message: &Self::Proto) -> anyhow::Result<Self> {
+        tracing::info!("Reading proto payload");
         let mut transactions = Vec::with_capacity(message.transactions.len());
         for (i, tx) in message.transactions.iter().enumerate() {
             transactions.push(
@@ -214,6 +215,7 @@ impl ProtoFmt for Payload {
     }
 
     fn build(&self) -> Self::Proto {
+        tracing::info!("Building proto payload");
         Self::Proto {
             protocol_version: Some((self.protocol_version as u16).into()),
             hash: Some(self.hash.as_bytes().into()),

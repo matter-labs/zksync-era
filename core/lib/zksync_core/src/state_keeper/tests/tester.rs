@@ -201,7 +201,6 @@ impl TestScenario {
             Box::new(io),
             Box::new(batch_executor_base),
             Box::new(sealer),
-            Box::new(None),
         );
         let sk_thread = tokio::spawn(sk.run());
 

@@ -26,6 +26,7 @@ use crate::{
         eth_tx_manager::L1BlockNumbers, Aggregator, ETHSenderError, EthTxAggregator, EthTxManager,
     },
     l1_gas_price::GasAdjuster,
+    native_token_fetcher::NoOpConversionRateFetcher,
     utils::testonly::create_l1_batch,
 };
 
@@ -80,6 +81,7 @@ impl EthSenderTester {
         );
         gateway.advance_block_number(Self::WAIT_CONFIRMATIONS);
 
+        let no_op_conversion_rate_fetcher = Arc::new(NoOpConversionRateFetcher::new());
         let gas_adjuster = Arc::new(
             GasAdjuster::new(
                 gateway.clone(),
@@ -89,6 +91,7 @@ impl EthSenderTester {
                     pricing_formula_parameter_b: 2.0,
                     ..eth_sender_config.gas_adjuster
                 },
+                no_op_conversion_rate_fetcher,
             )
             .await
             .unwrap(),

@@ -13,13 +13,14 @@ use zksync_types::{
     fee_model::{BatchFeeInput, FeeModelConfig, FeeModelConfigV1},
     protocol_version::L1VerifierConfig,
     system_contracts::get_system_smart_contracts,
-    Address, L2ChainId, PriorityOpId, ProtocolVersionId, H256,
+    Address, L2ChainId, PriorityOpId, ProtocolVersionId, H256, U256,
 };
 
 use crate::{
     fee_model::MainNodeFeeInputProvider,
     genesis::create_genesis_l1_batch,
     l1_gas_price::GasAdjuster,
+    native_token_fetcher::NoOpConversionRateFetcher,
     state_keeper::{io::MiniblockSealer, tests::create_transaction, MempoolGuard, MempoolIO},
     utils::testonly::{create_l1_batch, create_miniblock},
 };
@@ -54,9 +55,14 @@ impl Tester {
             max_l1_gas_price: None,
         };
 
-        GasAdjuster::new(eth_client, gas_adjuster_config)
-            .await
-            .unwrap()
+        let no_op_conversion_rate_fetcher = Arc::new(NoOpConversionRateFetcher::new());
+        GasAdjuster::new(
+            eth_client,
+            gas_adjuster_config,
+            no_op_conversion_rate_fetcher,
+        )
+        .await
+        .unwrap()
     }
 
     pub(super) async fn create_batch_fee_input_provider(&self) -> MainNodeFeeInputProvider {
@@ -64,7 +70,7 @@ impl Tester {
         MainNodeFeeInputProvider::new(
             gas_adjuster,
             FeeModelConfig::V1(FeeModelConfigV1 {
-                minimal_l2_gas_price: self.minimal_l2_gas_price(),
+                minimal_l2_gas_price: U256::from(self.minimal_l2_gas_price()),
             }),
         )
     }
@@ -83,7 +89,7 @@ impl Tester {
         let batch_fee_input_provider = MainNodeFeeInputProvider::new(
             gas_adjuster,
             FeeModelConfig::V1(FeeModelConfigV1 {
-                minimal_l2_gas_price: self.minimal_l2_gas_price(),
+                minimal_l2_gas_price: U256::from(self.minimal_l2_gas_price()),
             }),
         );
 
@@ -93,7 +99,7 @@ impl Tester {
         tokio::spawn(miniblock_sealer.run());
 
         let config = StateKeeperConfig {
-            minimal_l2_gas_price: self.minimal_l2_gas_price(),
+            minimal_l2_gas_price: U256::from(self.minimal_l2_gas_price()),
             virtual_blocks_interval: 1,
             virtual_blocks_per_miniblock: 1,
             ..StateKeeperConfig::default()
@@ -150,7 +156,7 @@ impl Tester {
             .blocks_dal()
             .insert_miniblock(&MiniblockHeader {
                 timestamp: self.current_timestamp,
-                base_fee_per_gas,
+                base_fee_per_gas: U256::from(base_fee_per_gas),
                 batch_fee_input: fee_input,
                 base_system_contracts_hashes: self.base_system_contracts.hashes(),
                 ..create_miniblock(number)

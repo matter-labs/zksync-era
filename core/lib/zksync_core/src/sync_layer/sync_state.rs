@@ -39,6 +39,8 @@ impl SyncState {
     pub(super) fn set_main_node_block(&self, block: MiniblockNumber) {
         let mut inner = self.inner.write().unwrap();
         if let Some(local_block) = inner.local_block {
+            tracing::info!("current local block: {}", local_block.0);
+            tracing::info!("current main node block: {}", block.0);
             if block.0 < local_block.0 {
                 // Probably it's fine -- will be checked by the re-org detector.
                 tracing::warn!(

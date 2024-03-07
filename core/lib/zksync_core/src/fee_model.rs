@@ -169,7 +169,7 @@ mod tests {
     // To test that overflow never happens, we'll use giant L1 gas price, i.e.
     // almost realistic very large value of 100k gwei. Since it is so large, we'll also
     // use it for the L1 pubdata price.
-    const GIANT_L1_GAS_PRICE: U256 = U256::from("100000000000000");
+    const GIANT_L1_GAS_PRICE: U256 = U256::max_value();
 
     // As a small small L2 gas price we'll use the value of 1 wei.
     const SMALL_L1_GAS_PRICE: U256 = U256::one();
@@ -200,8 +200,14 @@ mod tests {
         let input = compute_batch_fee_model_input_v2(params, 3.0, 3.0);
 
         assert_eq!(input.l1_gas_price, GIANT_L1_GAS_PRICE * 3);
-        assert_eq!(input.fair_l2_gas_price, U256::from(130_000_000_000_000));
-        assert_eq!(input.fair_pubdata_price, U256::from(15_300_000_000_000_000));
+        assert_eq!(
+            input.fair_l2_gas_price,
+            U256::from_dec_str("130000000000000").unwrap()
+        );
+        assert_eq!(
+            input.fair_pubdata_price,
+            U256::from_dec_str("15300000000000000").unwrap()
+        );
     }
 
     #[test]
@@ -233,7 +239,7 @@ mod tests {
     fn test_compute_batch_fee_model_input_v2_only_pubdata_overhead() {
         // Here we use sensible config, but when only pubdata is used to close the batch
         let config = FeeModelConfigV2 {
-            minimal_l2_gas_price: U256::from(100_000_000_000),
+            minimal_l2_gas_price: U256::from_dec_str("100000000000").unwrap(),
             compute_overhead_part: 0.0,
             pubdata_overhead_part: 1.0,
             batch_overhead_l1_gas: 700_000,
@@ -250,16 +256,22 @@ mod tests {
         let input = compute_batch_fee_model_input_v2(params, 1.0, 1.0);
         assert_eq!(input.l1_gas_price, GIANT_L1_GAS_PRICE);
         // The fair L2 gas price is identical to the minimal one.
-        assert_eq!(input.fair_l2_gas_price, U256::from(100_000_000_000));
+        assert_eq!(
+            input.fair_l2_gas_price,
+            U256::from_dec_str("100000000000").unwrap()
+        );
         // The fair pubdata price is the minimal one plus the overhead.
-        assert_eq!(input.fair_pubdata_price, U256::from(800_000_000_000_000));
+        assert_eq!(
+            input.fair_pubdata_price,
+            U256::from_dec_str("800000000000000").unwrap()
+        );
     }
 
     #[test]
     fn test_compute_batch_fee_model_input_v2_only_compute_overhead() {
         // Here we use sensible config, but when only compute is used to close the batch
         let config = FeeModelConfigV2 {
-            minimal_l2_gas_price: U256::from(100_000_000_000),
+            minimal_l2_gas_price: U256::from_dec_str("100000000000").unwrap(),
             compute_overhead_part: 1.0,
             pubdata_overhead_part: 0.0,
             batch_overhead_l1_gas: 700_000,
@@ -276,7 +288,10 @@ mod tests {
         let input = compute_batch_fee_model_input_v2(params, 1.0, 1.0);
         assert_eq!(input.l1_gas_price, GIANT_L1_GAS_PRICE);
         // The fair L2 gas price is identical to the minimal one, plus the overhead
-        assert_eq!(input.fair_l2_gas_price, U256::from(240_000_000_000));
+        assert_eq!(
+            input.fair_l2_gas_price,
+            U256::from_dec_str("240000000000").unwrap()
+        );
         // The fair pubdata price is equal to the original one.
         assert_eq!(input.fair_pubdata_price, GIANT_L1_GAS_PRICE);
     }
@@ -285,7 +300,7 @@ mod tests {
     fn test_compute_batch_fee_model_input_v2_param_tweaking() {
         // In this test we generally checking that each param behaves as expected
         let base_config = FeeModelConfigV2 {
-            minimal_l2_gas_price: U256::from(100_000_000_000),
+            minimal_l2_gas_price: U256::from_dec_str("100000000000").unwrap(),
             compute_overhead_part: 0.5,
             pubdata_overhead_part: 0.5,
             batch_overhead_l1_gas: 700_000,
