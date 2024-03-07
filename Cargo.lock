@@ -8616,7 +8616,7 @@ version = "0.1.0"
 dependencies = [
  "bincode",
  "chrono",
- "circuit_sequencer_api 0.1.42",
+ "circuit_sequencer_api 0.1.0",
  "serde",
  "serde_with",
  "strum",
