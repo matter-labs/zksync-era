@@ -13,7 +13,7 @@ We also [compress](./compression.md) all the data that we send to L1, to reduce 
 By posting all the data to L1, we can [reconstruct](./reconstruction.md) the state of the chain from the data on L1.
 This is a key security property of the rollup.
 
-The the chain chooses not to post this data, they become a validium. This makes transactions there much cheaper, but
+The chain chooses not to post this data, they become a validium. This makes transactions there much cheaper, but
 less secure. Because we use state diffs to post data, we can combine the rollup and validium features, by separating
 storage slots that need to post data from the ones that don't. This construction combines the benefits of rollups and
 validiums, and it is called a [zkPorter](./validium_zk_porter.md).

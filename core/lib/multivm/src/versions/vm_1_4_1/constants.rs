@@ -28,7 +28,7 @@ pub(crate) const MAX_GAS_PER_PUBDATA_BYTE: u64 =
     MAX_L2_TX_GAS_LIMIT / GUARANTEED_PUBDATA_PER_L1_BATCH;
 
 // The maximal number of transactions in a single batch.
-// In this version of the VM the limit has been increased from `1024` to to `10000`.
+// In this version of the VM the limit has been increased from `1024` to `10000`.
 pub(crate) const MAX_TXS_IN_BATCH: usize = 10000;
 
 /// Max cycles for a single transaction.
