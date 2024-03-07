@@ -1,3 +1,5 @@
+//! Runs all benchmarks and prints out the number of zkEVM opcodes each one executed.
+
 use vm_benchmark_harness::{cut_to_allowed_bytecode_size, get_deploy_tx, BenchmarkingVm};
 
 fn main() {
