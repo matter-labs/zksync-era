@@ -1,11 +1,11 @@
 //! Tests for KZG commitments.
 
-use serde::{Deserialize, Serialize};
-use zkevm_test_harness_1_4_2::{
+use kzg::{
     boojum::pairing::{bls12_381::G1Compressed, EncodedPoint},
-    kzg::{verify_kzg_proof, verify_proof_poly},
     zkevm_circuits::eip_4844::ethereum_4844_data_into_zksync_pubdata,
+    {verify_kzg_proof, verify_proof_poly},
 };
+use serde::{Deserialize, Serialize};
 
 use super::*;
 

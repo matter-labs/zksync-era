@@ -828,6 +828,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "circuit_encodings"
+version = "0.1.42"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=mmzk_v.1.4.2_improve#81caeaef0e3332d29200bf8e92a93eb2dc7c9a07"
+dependencies = [
+ "derivative",
+ "serde",
+ "zk_evm 1.4.1",
+ "zkevm_circuits 1.4.1",
+]
+
+[[package]]
 name = "circuit_sequencer_api"
 version = "0.1.0"
 source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.3.3#aba8f2a32767b79838aca7d7d00d9d23144df32f"
@@ -859,6 +870,19 @@ source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=m
 dependencies = [
  "bellman_ce 0.3.2 (git+https://github.com/matter-labs/bellman?branch=dev)",
  "circuit_encodings 0.1.41",
+ "derivative",
+ "rayon",
+ "serde",
+ "zk_evm 1.4.1",
+]
+
+[[package]]
+name = "circuit_sequencer_api"
+version = "0.1.42"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=mmzk_v.1.4.2_improve#81caeaef0e3332d29200bf8e92a93eb2dc7c9a07"
+dependencies = [
+ "bellman_ce 0.3.2 (git+https://github.com/matter-labs/bellman?branch=dev)",
+ "circuit_encodings 0.1.42",
  "derivative",
  "rayon",
  "serde",
@@ -3130,6 +3154,7 @@ dependencies = [
  "circuit_sequencer_api 0.1.0",
  "circuit_sequencer_api 0.1.40",
  "circuit_sequencer_api 0.1.41",
+ "circuit_sequencer_api 0.1.42",
  "hex",
  "itertools 0.10.5",
  "once_cell",
@@ -3140,7 +3165,6 @@ dependencies = [
  "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc2)",
  "zk_evm 1.4.0",
  "zk_evm 1.4.1",
- "zkevm_test_harness 1.4.2",
  "zksync_contracts",
  "zksync_state",
  "zksync_system_constants",
