@@ -293,14 +293,14 @@ jobs:
       # `sleep 30` because we need to wait until server started properly
       - name: Run server
         run: |
-          ci_run zk server --components=$SERVER_COMPONENTS &>server.log &
+          ci_run zk server --components=$SERVER_COMPONENTS &>>server.log &
           ci_run sleep 30
       
       - name: Run external node
         run: |
           ci_run zk env ext-node-docker
           ci_run zk db setup
-          ci_run zk external-node $EXT_NODE_FLAGS &>ext-node.log &
+          ci_run zk external-node $EXT_NODE_FLAGS &>>ext-node.log &
           ci_run sleep 30
 
       - name: Integration tests
