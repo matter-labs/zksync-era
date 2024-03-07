@@ -18,6 +18,8 @@ use zksync_types::{L1BatchNumber, H256, U256};
 use self::metrics::{MerkleTreeApiMethod, API_METRICS};
 use crate::metadata_calculator::{AsyncTreeReader, MerkleTreeInfo};
 
+// FIXME: healthcheck for HTTP client; lazy client
+
 mod metrics;
 #[cfg(test)]
 mod tests;
@@ -34,7 +36,7 @@ struct TreeProofsResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct TreeEntryWithProof {
+pub struct TreeEntryWithProof {
     #[serde(default, skip_serializing_if = "H256::is_zero")]
     pub value: H256,
     #[serde(default, skip_serializing_if = "TreeEntryWithProof::is_zero")]
@@ -86,7 +88,7 @@ impl IntoResponse for TreeApiError {
 
 /// Client accessing Merkle tree API.
 #[async_trait]
-pub(crate) trait TreeApiClient {
+pub trait TreeApiClient: 'static + Send + Sync + fmt::Debug {
     /// Obtains general information about the tree.
     async fn get_info(&self) -> anyhow::Result<MerkleTreeInfo>;
 

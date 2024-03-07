@@ -26,10 +26,7 @@ use zksync_web3_decl::{
     types::{Address, Token, H256},
 };
 
-use crate::api_server::{
-    tree::TreeApiClient,
-    web3::{backend_jsonrpsee::MethodTracer, RpcState},
-};
+use crate::api_server::web3::{backend_jsonrpsee::MethodTracer, RpcState};
 
 #[derive(Debug)]
 pub(crate) struct ZksNamespace {
@@ -505,14 +502,15 @@ impl ZksNamespace {
             .iter()
             .map(|key| StorageKey::new(AccountTreeId::new(address), *key).hashed_key_u256())
             .collect();
-        let proofs = self
+        let tree_api = self
             .state
             .tree_api
-            .as_ref()
-            .ok_or(Web3Error::TreeApiUnavailable)?
+            .as_deref()
+            .ok_or(Web3Error::TreeApiUnavailable)?;
+        let proofs = tree_api
             .get_proofs(l1_batch_number, hashed_keys)
             .await
-            .context("get_proofs")?;
+            .context("get_proofs")?; // FIXME: reconsider error handling
 
         let storage_proof = proofs
             .into_iter()

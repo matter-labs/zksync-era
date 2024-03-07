@@ -54,9 +54,9 @@ use crate::{
         contract_verification,
         execution_sandbox::{VmConcurrencyBarrier, VmConcurrencyLimiter},
         healthcheck::HealthCheckHandle,
+        tree::TreeApiHttpClient,
         tx_sender::{ApiContracts, TxSender, TxSenderBuilder, TxSenderConfig},
-        web3,
-        web3::{state::InternalApiConfig, ApiServerHandles, Namespace},
+        web3::{self, state::InternalApiConfig, ApiServerHandles, Namespace},
     },
     basic_witness_input_producer::BasicWitnessInputProducer,
     commitment_generator::CommitmentGenerator,
@@ -1206,17 +1206,21 @@ async fn run_http_api(
         .await
         .context("failed to build last_miniblock_pool")?;
 
-    let api_builder =
+    let mut api_builder =
         web3::ApiBuilder::jsonrpsee_backend(internal_api.clone(), replica_connection_pool)
             .http(api_config.web3_json_rpc.http_port)
             .with_updaters_pool(updaters_pool)
             .with_filter_limit(api_config.web3_json_rpc.filters_limit())
-            .with_tree_api(api_config.web3_json_rpc.tree_api_url())
             .with_batch_request_size_limit(api_config.web3_json_rpc.max_batch_request_size())
             .with_response_body_size_limit(api_config.web3_json_rpc.max_response_body_size())
             .with_tx_sender(tx_sender)
             .with_vm_barrier(vm_barrier)
             .enable_api_namespaces(namespaces);
+    if let Some(tree_api_url) = api_config.web3_json_rpc.tree_api_url() {
+        let tree_api = TreeApiHttpClient::new(tree_api_url);
+        api_builder = api_builder.with_tree_api(Arc::new(tree_api));
+    }
+
     api_builder
         .build()
         .context("failed to build HTTP API server")?
@@ -1255,7 +1259,7 @@ async fn run_ws_api(
     let mut namespaces = Namespace::DEFAULT.to_vec();
     namespaces.push(Namespace::Snapshots);
 
-    let api_builder =
+    let mut api_builder =
         web3::ApiBuilder::jsonrpsee_backend(internal_api.clone(), replica_connection_pool)
             .ws(api_config.web3_json_rpc.ws_port)
             .with_updaters_pool(last_miniblock_pool)
@@ -1269,10 +1273,13 @@ async fn run_ws_api(
                     .websocket_requests_per_minute_limit(),
             )
             .with_polling_interval(api_config.web3_json_rpc.pubsub_interval())
-            .with_tree_api(api_config.web3_json_rpc.tree_api_url())
             .with_tx_sender(tx_sender)
             .with_vm_barrier(vm_barrier)
             .enable_api_namespaces(namespaces);
+    if let Some(tree_api_url) = api_config.web3_json_rpc.tree_api_url() {
+        let tree_api = TreeApiHttpClient::new(tree_api_url);
+        api_builder = api_builder.with_tree_api(Arc::new(tree_api));
+    }
 
     api_builder
         .build()

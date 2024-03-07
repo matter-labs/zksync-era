@@ -26,7 +26,7 @@ use super::metrics::{LoadChangesStage, TreeUpdateStage, METRICS};
 
 /// General information about the Merkle tree.
 #[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct MerkleTreeInfo {
+pub struct MerkleTreeInfo {
     pub mode: MerkleTreeMode,
     pub root_hash: H256,
     pub next_l1_batch_number: L1BatchNumber,
