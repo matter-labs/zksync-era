@@ -794,20 +794,6 @@ dependencies = [
 [[package]]
 name = "circuit_definitions"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.0#aff36380e6a740f7286c9c522e1416b8d38327ce"
-dependencies = [
- "crossbeam 0.8.4",
- "derivative",
- "seq-macro",
- "serde",
- "snark_wrapper",
- "zk_evm 1.4.0",
- "zkevm_circuits 1.4.0",
-]
-
-[[package]]
-name = "circuit_definitions"
-version = "0.1.0"
 source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1#4c6b8996f3f2bfef96ce193a5819b2e31a180830"
 dependencies = [
  "crossbeam 0.8.4",
@@ -834,6 +820,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "circuit_encodings"
+version = "0.1.40"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=mmzk_v1.4.0_improve#fd229d101e5bf1dd0467ed7846bc158b49a40135"
+dependencies = [
+ "derivative",
+ "serde",
+ "zk_evm 1.4.0",
+ "zkevm_circuits 1.4.0",
+]
+
+[[package]]
 name = "circuit_sequencer_api"
 version = "0.1.0"
 source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.3.3#aba8f2a32767b79838aca7d7d00d9d23144df32f"
@@ -843,6 +840,19 @@ dependencies = [
  "rayon",
  "serde",
  "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?branch=v1.3.3)",
+]
+
+[[package]]
+name = "circuit_sequencer_api"
+version = "0.1.40"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=mmzk_v1.4.0_improve#fd229d101e5bf1dd0467ed7846bc158b49a40135"
+dependencies = [
+ "bellman_ce 0.3.2 (git+https://github.com/matter-labs/bellman?branch=dev)",
+ "circuit_encodings",
+ "derivative",
+ "rayon",
+ "serde",
+ "zk_evm 1.4.0",
 ]
 
 [[package]]
@@ -3107,7 +3117,8 @@ name = "multivm"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "circuit_sequencer_api",
+ "circuit_sequencer_api 0.1.0",
+ "circuit_sequencer_api 0.1.40",
  "hex",
  "itertools 0.10.5",
  "once_cell",
@@ -3118,7 +3129,6 @@ dependencies = [
  "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc2)",
  "zk_evm 1.4.0",
  "zk_evm 1.4.1",
- "zkevm_test_harness 1.4.0",
  "zkevm_test_harness 1.4.1",
  "zkevm_test_harness 1.4.2",
  "zksync_contracts",
@@ -6729,7 +6739,7 @@ dependencies = [
 [[package]]
 name = "zkevm_circuits"
 version = "1.4.0"
-source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=main#fb3e2574b5c890342518fc930c145443f039a105"
+source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=v1.4.0#fb3e2574b5c890342518fc930c145443f039a105"
 dependencies = [
  "arrayvec 0.7.4",
  "bincode",
@@ -6813,7 +6823,7 @@ version = "1.3.3"
 source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.3.3#aba8f2a32767b79838aca7d7d00d9d23144df32f"
 dependencies = [
  "bincode",
- "circuit_sequencer_api",
+ "circuit_sequencer_api 0.1.0",
  "circuit_testing",
  "codegen",
  "crossbeam 0.8.4",
@@ -6832,29 +6842,6 @@ dependencies = [
  "test-log",
  "tracing",
  "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?branch=v1.3.3)",
- "zkevm-assembly 1.3.2 (git+https://github.com/matter-labs/era-zkEVM-assembly.git?branch=v1.3.2)",
-]
-
-[[package]]
-name = "zkevm_test_harness"
-version = "1.4.0"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.0#aff36380e6a740f7286c9c522e1416b8d38327ce"
-dependencies = [
- "bincode",
- "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.0)",
- "codegen",
- "crossbeam 0.8.4",
- "derivative",
- "env_logger 0.11.2",
- "hex",
- "rand 0.4.6",
- "rayon",
- "serde",
- "serde_json",
- "smallvec",
- "structopt",
- "test-log",
- "tracing",
  "zkevm-assembly 1.3.2 (git+https://github.com/matter-labs/era-zkEVM-assembly.git?branch=v1.3.2)",
 ]
 
@@ -7138,7 +7125,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "bincode",
- "circuit_sequencer_api",
+ "circuit_sequencer_api 0.1.0",
  "ctrlc",
  "futures 0.3.30",
  "prometheus_exporter",
@@ -7288,7 +7275,7 @@ name = "zksync_prover_interface"
 version = "0.1.0"
 dependencies = [
  "chrono",
- "circuit_sequencer_api",
+ "circuit_sequencer_api 0.1.0",
  "serde",
  "serde_with",
  "strum",

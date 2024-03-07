@@ -17,7 +17,7 @@ pub fn events_queue_commitment(
 ) -> Option<H256> {
     match VmVersion::from(protocol_version) {
         VmVersion::VmBoojumIntegration => Some(H256(
-            zkevm_test_harness_1_4_0::witness::utils::events_queue_commitment_fixed(
+            circuit_sequencer_api_1_4_0::commitments::events_queue_commitment_fixed(
                 &events_queue
                     .iter()
                     .map(|x| to_log_query_1_3_3(*x))
@@ -51,7 +51,7 @@ pub fn bootloader_initial_content_commitment(
 
     match VmVersion::from(protocol_version) {
         VmVersion::VmBoojumIntegration => Some(H256(
-            zkevm_test_harness_1_4_0::witness::utils::initial_heap_content_commitment_fixed(
+            circuit_sequencer_api_1_4_0::commitments::initial_heap_content_commitment_fixed(
                 &full_bootloader_memory,
             ),
         )),
