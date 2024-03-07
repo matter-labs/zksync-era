@@ -87,7 +87,7 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for Prestate
         storage: StoragePtr<S>,
     ) {
         if self.config.diff_mode {
-            let cloned_storage = Rc::clone(&storage);
+            let cloned_storage = &storage.clone();
             let mut initial_storage_ref = cloned_storage.as_ref().borrow_mut();
             let keys = initial_storage_ref
                 .modified_storage_keys()
@@ -97,6 +97,7 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for Prestate
 
             let res = keys
                 .iter()
+                .filter(|k| !self.pre.contains_key(k.account().address()))
                 .map(|k| {
                     (
                         *(k.account().address()),
@@ -121,27 +122,12 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for Prestate
                 })
                 .collect::<State>();
 
-            //Fill the pre-state during execution but keeping only first value for each key
-            let filtered_res = res
-                .into_iter()
-                .filter(|(k, _)| !self.pre.contains_key(k))
-                .collect::<State>();
-            self.pre.extend(filtered_res);
+            self.pre.extend(res);
         }
     }
 }
 
 impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for PrestateTracer {
-    fn initialize_tracer(&mut self, _state: &mut ZkSyncVmState<S, H>) {}
-
-    fn finish_cycle(
-        &mut self,
-        _state: &mut ZkSyncVmState<S, H>,
-        _bootloader_state: &mut BootloaderState,
-    ) -> TracerExecutionStatus {
-        TracerExecutionStatus::Continue
-    }
-
     fn after_vm_execution(
         &mut self,
         state: &mut ZkSyncVmState<S, H>,
@@ -150,7 +136,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for PrestateTracer {
     ) {
         let modified_storage_keys = state.storage.storage.inner().get_modified_storage_keys();
         if self.config.diff_mode {
-            let res = modified_storage_keys
+            self.post = modified_storage_keys
                 .clone()
                 .keys()
                 .copied()
@@ -158,7 +144,6 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for PrestateTracer {
                 .iter()
                 .map(|k| get_account_data(k, state, &modified_storage_keys))
                 .collect::<State>();
-            self.post = res;
         } else {
             let read_keys = &state.storage.read_keys;
             let map = read_keys.inner().clone();
