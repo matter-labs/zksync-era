@@ -4,17 +4,21 @@ use async_trait::async_trait;
 use zksync_types::web3::{
     self,
     contract::Contract,
-    ethabi,
+    ethabi, helpers,
+    helpers::CallFuture,
     transports::Http,
     types::{
-        Address, Block, BlockId, BlockNumber, Bytes, Filter, Log, Transaction, TransactionId,
-        TransactionReceipt, H256, U256, U64,
+        Address, Block, BlockId, BlockNumber, Bytes, CallRequest, Filter, Log, Transaction,
+        TransactionId, TransactionReceipt, H256, U256, U64,
     },
-    Web3,
+    Transport, Web3,
 };
 
 use crate::{
-    clients::http::{Method, COUNTERS, LATENCIES},
+    clients::{
+        http::{Method, COUNTERS, LATENCIES},
+        LineaEstimateGas,
+    },
     types::{Error, ExecutedTxStatus, FailureInfo, RawTokens},
     ContractCall, EthInterface, RawTransactionBytes,
 };
@@ -287,5 +291,19 @@ impl EthInterface for QueryClient {
         let block = self.web3.eth().block(block_id).await?;
         latency.observe();
         Ok(block)
+    }
+
+    async fn linea_estimate_gas(&self, req: CallRequest) -> Result<LineaEstimateGas, Error> {
+        let latency = LATENCIES.direct[&Method::EstimateGas].start();
+        let req = helpers::serialize(&req);
+
+        let res = CallFuture::new(
+            self.web3
+                .transport()
+                .execute("linea_estimateGas", vec![req]),
+        )
+        .await?;
+        latency.observe();
+        Ok(res)
     }
 }

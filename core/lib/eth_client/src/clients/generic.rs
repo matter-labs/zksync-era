@@ -6,16 +6,16 @@ use zksync_types::{
         contract::Options,
         ethabi,
         types::{
-            Address, Block, BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt,
-            H160, H256, U256, U64,
+            Address, Block, BlockId, BlockNumber, CallRequest, Filter, Log, Transaction,
+            TransactionReceipt, H160, H256, U256, U64,
         },
     },
     L1ChainId,
 };
 
 use crate::{
-    BoundEthInterface, ContractCall, Error, EthInterface, ExecutedTxStatus, FailureInfo,
-    RawTransactionBytes, SignedCallResult,
+    clients::LineaEstimateGas, BoundEthInterface, ContractCall, Error, EthInterface,
+    ExecutedTxStatus, FailureInfo, RawTransactionBytes, SignedCallResult,
 };
 
 #[async_trait]
@@ -61,6 +61,10 @@ impl<C: EthInterface + ?Sized> EthInterface for Arc<C> {
 
     async fn send_raw_tx(&self, tx: RawTransactionBytes) -> Result<H256, Error> {
         self.as_ref().send_raw_tx(tx).await
+    }
+
+    async fn linea_estimate_gas(&self, req: CallRequest) -> Result<LineaEstimateGas, Error> {
+        self.as_ref().linea_estimate_gas(req).await
     }
 
     async fn get_tx_status(

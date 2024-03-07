@@ -11,8 +11,8 @@ use zksync_types::{
         ethabi,
         transports::Http,
         types::{
-            Address, Block, BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt,
-            H160, H256, U256, U64,
+            Address, Block, BlockId, BlockNumber, CallRequest, Filter, Log, Transaction,
+            TransactionReceipt, H160, H256, U256, U64,
         },
     },
     L1ChainId, PackedEthSignature, EIP_1559_TX_TYPE,
@@ -20,6 +20,7 @@ use zksync_types::{
 
 use super::{query::QueryClient, Method, LATENCIES};
 use crate::{
+    clients::LineaEstimateGas,
     types::{Error, ExecutedTxStatus, FailureInfo, SignedCallResult},
     BoundEthInterface, CallFunctionArgs, ContractCall, EthInterface, RawTransactionBytes,
 };
@@ -191,6 +192,10 @@ impl<S: EthereumSigner> EthInterface for SigningClient<S> {
         component: &'static str,
     ) -> Result<Option<Block<H256>>, Error> {
         self.query_client.block(block_id, component).await
+    }
+
+    async fn linea_estimate_gas(&self, req: CallRequest) -> Result<LineaEstimateGas, Error> {
+        self.query_client.linea_estimate_gas(req).await
     }
 }
 

@@ -9,13 +9,17 @@ use zksync_types::{
     web3::{
         contract::{tokens::Tokenize, Options},
         ethabi,
-        types::{Block, BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt, U64},
+        types::{
+            Block, BlockId, BlockNumber, CallRequest, Filter, Log, Transaction, TransactionReceipt,
+            U64,
+        },
         Error as Web3Error,
     },
     Address, L1ChainId, ProtocolVersionId, H160, H256, U256,
 };
 
 use crate::{
+    clients::LineaEstimateGas,
     types::{Error, ExecutedTxStatus, FailureInfo, SignedCallResult},
     BoundEthInterface, ContractCall, EthInterface, RawTransactionBytes,
 };
@@ -362,6 +366,10 @@ impl EthInterface for MockEthereum {
         _block_id: BlockId,
         _component: &'static str,
     ) -> Result<Option<Block<H256>>, Error> {
+        unimplemented!("Not needed right now")
+    }
+
+    async fn linea_estimate_gas(&self, _req: CallRequest) -> Result<LineaEstimateGas, Error> {
         unimplemented!("Not needed right now")
     }
 }

@@ -518,5 +518,5 @@ not charge for it.
 - On-Chain L2 Revenue
   - L2 Transaction Fee
     - This fee is what the user pays to complete a transaction on zkEVM. It is calculated as
-      `gasLimit x baseFeePerGas - refundedGas x baseFeePerGas`, or more simply, `gasUsed x baseFeePerGas`.
+      `gasLimit x base_fee_per_gas - refundedGas x base_fee_per_gas`, or more simply, `gasUsed x base_fee_per_gas`.
 - Profit = L2 Revenue - L1 Costs - Off Chain Infrastructure Costs
