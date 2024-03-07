@@ -25,25 +25,19 @@ export async function waitForServer() {
     const l2Provider = new zksync.Provider(l2NodeUrl);
 
     reporter.startAction('Connecting to server');
-    let ready = false;
     for (let i = 0; i < maxAttempts; ++i) {
         try {
             await l2Provider.getNetwork(); // Will throw if the server is not ready yet.
-            ready = true;
             reporter.finishAction();
+            // TODO (PLA-842): [workaround] sleep for 10s.
+            await zksync.utils.sleep(10 * 1000);
             return;
         } catch (e) {
             reporter.message(`Attempt #${i + 1} to check the server readiness failed`);
             await zksync.utils.sleep(attemptIntervalMs);
         }
     }
-
-    if (!ready) {
-        throw new Error('Failed to wait for the server to start');
-    }
-
-    // TODO (PLA-842): [workaround] sleep for 10s.
-    await zksync.utils.sleep(10 * 1000);
+    throw new Error('Failed to wait for the server to start');
 }
 
 /**
