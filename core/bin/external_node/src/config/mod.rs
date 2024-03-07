@@ -1,4 +1,4 @@
-use std::{env, str::FromStr, time::Duration};
+use std::{env, time::Duration};
 
 use anyhow::Context;
 use serde::Deserialize;
