@@ -13,32 +13,29 @@ import fs from 'fs';
 import * as child_process from 'child_process';
 import * as dotenv from 'dotenv';
 
-const mainEnv: string = 'docker';
-const extEnv: string = 'ext-node-docker';
+const mainEnv: string = process.env.IN_DOCKER ? 'docker' : 'dev';
+const extEnv: string = process.env.IN_DOCKER ? 'ext-node-docker' : 'ext-node';
 const mainLogsPath: string = 'revert_main.log';
 const extLogsPath: string = 'revert_ext.log';
 
+interface SuggestedValues {
+    lastExecutedL1BatchNumber: BigNumber;
+    nonce: number;
+    priorityFee: number;
+}
+
 // Parses output of "print-suggested-values" command of the revert block tool.
-function parseSuggestedValues(suggestedValuesString: string) {
-    const json = JSON.parse(suggestedValuesString);
-    if (!json || typeof json !== 'object') {
-        throw new TypeError('suggested values are not an object');
-    }
-
-    const lastL1BatchNumber = json.lastExecuted_l1_batch_number;
-    if (!Number.isInteger(lastL1BatchNumber)) {
-        throw new TypeError('suggested `lastL1BatchNumber` is not an integer');
-    }
-    const nonce = json.nonce;
-    if (!Number.isInteger(nonce)) {
-        throw new TypeError('suggested `nonce` is not an integer');
-    }
-    const priorityFee = json.priority_fee;
-    if (!Number.isInteger(priorityFee)) {
-        throw new TypeError('suggested `priorityFee` is not an integer');
-    }
-
-    return { lastL1BatchNumber, nonce, priorityFee };
+function parseSuggestedValues(jsonString: string): SuggestedValues {
+    const json = JSON.parse(jsonString);
+    assert(json && typeof json === 'object');
+    assert(Number.isInteger(json.last_executed_l1_batch_number));
+    assert(Number.isInteger(json.nonce));
+    assert(Number.isInteger(json.priority_fee));
+    return {
+        lastExecutedL1BatchNumber: BigNumber.from(json.last_executed_l1_batch_number),
+        nonce: json.nonce,
+        priorityFee: json.priority_fee
+    };
 }
 
 function spawn(cmd: string, args: string[], options: child_process.SpawnOptions): child_process.ChildProcess {
@@ -202,8 +199,12 @@ class ExtNode {
 }
 
 describe('Block reverting test', function () {
-    compileBinaries();
+    if (process.env.SKIP_COMPILATION !== 'true') {
+        compileBinaries();
+    }
+    console.log(`mainLogsPath = ${fs.realpathSync(mainLogsPath)}`);
     const mainLogs: fs.WriteStream = fs.createWriteStream(mainLogsPath, { flags: 'a' });
+    console.log(`extLogsPath = ${fs.realpathSync(extLogsPath)}`);
     const extLogs: fs.WriteStream = fs.createWriteStream(extLogsPath, { flags: 'a' });
     const enableConsensus = process.env.ENABLE_CONSENSUS === 'true';
     console.log(`enableConsensus = ${enableConsensus}`);
@@ -263,17 +264,17 @@ describe('Block reverting test', function () {
         const values_json = runBlockReverter(['print-suggested-values', '--json']);
         console.log(`values = ${values_json}`);
         const values = parseSuggestedValues(values_json);
-        assert(lastExecuted === values.lastL1BatchNumber);
+        assert(lastExecuted.eq(values.lastExecutedL1BatchNumber));
 
         console.log('Send reverting transaction to L1');
         runBlockReverter([
             'send-eth-transaction',
             '--l1-batch-number',
-            values.lastL1BatchNumber,
+            values.lastExecutedL1BatchNumber.toString(),
             '--nonce',
-            values.nonce,
+            values.nonce.toString(),
             '--priority-fee-per-gas',
-            values.priorityFee
+            values.priorityFee.toString()
         ]);
 
         console.log('Check that batches are reverted on L1');
@@ -285,7 +286,7 @@ describe('Block reverting test', function () {
         runBlockReverter([
             'rollback-db',
             '--l1-batch-number',
-            values.lastL1BatchNumber,
+            values.lastExecutedL1BatchNumber.toString(),
             '--rollback-postgres',
             '--rollback-tree',
             '--rollback-sk-cache'

@@ -150,6 +150,7 @@ impl Fetcher {
 
     /// Fetches (with retries) the given block from the main node.
     async fn fetch_block(&self, ctx: &ctx::Ctx, n: MiniblockNumber) -> ctx::Result<FetchedBlock> {
+        // TODO: consider removing sleep in favor to just relying on the rate limiter.
         const RETRY_INTERVAL: time::Duration = time::Duration::seconds(5);
         loop {
             self.limiter.acquire(ctx, 1).await?;
