@@ -202,9 +202,8 @@ describe('Block reverting test', function () {
     if (process.env.SKIP_COMPILATION !== 'true') {
         compileBinaries();
     }
-    console.log(`mainLogsPath = ${fs.realpathSync(mainLogsPath)}`);
+    console.log(`PWD = ${process.env.PWD}`);
     const mainLogs: fs.WriteStream = fs.createWriteStream(mainLogsPath, { flags: 'a' });
-    console.log(`extLogsPath = ${fs.realpathSync(extLogsPath)}`);
     const extLogs: fs.WriteStream = fs.createWriteStream(extLogsPath, { flags: 'a' });
     const enableConsensus = process.env.ENABLE_CONSENSUS === 'true';
     console.log(`enableConsensus = ${enableConsensus}`);

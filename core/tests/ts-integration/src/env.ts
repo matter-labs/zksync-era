@@ -41,6 +41,9 @@ export async function waitForServer() {
     if (!ready) {
         throw new Error('Failed to wait for the server to start');
     }
+
+    // TODO (PLA-842): [workaround] sleep for 10s.
+    await zksync.utils.sleep(10 * 1000);
 }
 
 /**
