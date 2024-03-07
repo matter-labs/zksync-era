@@ -24,7 +24,6 @@ impl ETHSenderConfig {
                 aggregate_tx_poll_period: 1,
                 max_txs_in_flight: 30,
                 proof_sending_mode: ProofSendingMode::SkipEveryProof,
-                l1_is_linea: false,
                 max_aggregated_tx_gas: 4000000,
                 max_eth_tx_data_size: 6000000,
                 max_aggregated_blocks_to_commit: 10,
@@ -78,8 +77,6 @@ pub struct SenderConfig {
     pub max_txs_in_flight: u64,
     /// The mode in which proofs are sent.
     pub proof_sending_mode: ProofSendingMode,
-
-    pub l1_is_linea: bool,
 
     pub max_aggregated_tx_gas: u32,
     pub max_eth_tx_data_size: usize,
