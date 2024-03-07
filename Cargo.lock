@@ -1206,20 +1206,6 @@ dependencies = [
 [[package]]
 name = "circuit_definitions"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1#4c6b8996f3f2bfef96ce193a5819b2e31a180830"
-dependencies = [
- "crossbeam 0.8.2",
- "derivative",
- "seq-macro",
- "serde",
- "snark_wrapper",
- "zk_evm 1.4.1",
- "zkevm_circuits 1.4.1",
-]
-
-[[package]]
-name = "circuit_definitions"
-version = "0.1.0"
 source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.2#b91defc8bccff6275db2416323a096dcb74a4dff"
 dependencies = [
  "crossbeam 0.8.2",
@@ -1243,6 +1229,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "circuit_encodings"
+version = "0.1.41"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=mmzk_v1.4.1_improve#e1dc963fcc551135d8b5d8f2bd0aaf265e858676"
+dependencies = [
+ "derivative",
+ "serde",
+ "zk_evm 1.4.1",
+ "zkevm_circuits 1.4.1",
+]
+
+[[package]]
 name = "circuit_sequencer_api"
 version = "0.1.0"
 source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.3.3#aba8f2a32767b79838aca7d7d00d9d23144df32f"
@@ -1260,11 +1257,24 @@ version = "0.1.40"
 source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=mmzk_v1.4.0_improve#fd229d101e5bf1dd0467ed7846bc158b49a40135"
 dependencies = [
  "bellman_ce 0.3.2 (git+https://github.com/matter-labs/bellman?branch=dev)",
- "circuit_encodings",
+ "circuit_encodings 0.1.40",
  "derivative",
  "rayon",
  "serde",
  "zk_evm 1.4.0",
+]
+
+[[package]]
+name = "circuit_sequencer_api"
+version = "0.1.41"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=mmzk_v1.4.1_improve#e1dc963fcc551135d8b5d8f2bd0aaf265e858676"
+dependencies = [
+ "bellman_ce 0.3.2 (git+https://github.com/matter-labs/bellman?branch=dev)",
+ "circuit_encodings 0.1.41",
+ "derivative",
+ "rayon",
+ "serde",
+ "zk_evm 1.4.1",
 ]
 
 [[package]]
@@ -3983,6 +3993,7 @@ dependencies = [
  "anyhow",
  "circuit_sequencer_api 0.1.0",
  "circuit_sequencer_api 0.1.40",
+ "circuit_sequencer_api 0.1.41",
  "ethabi",
  "hex",
  "itertools 0.10.5",
@@ -3995,8 +4006,7 @@ dependencies = [
  "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc2)",
  "zk_evm 1.4.0",
  "zk_evm 1.4.1",
- "zkevm_test_harness 1.4.1",
- "zkevm_test_harness 1.4.2",
+ "zkevm_test_harness",
  "zksync_contracts",
  "zksync_eth_signer",
  "zksync_state",
@@ -8127,40 +8137,11 @@ dependencies = [
 
 [[package]]
 name = "zkevm_test_harness"
-version = "1.4.1"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1#4c6b8996f3f2bfef96ce193a5819b2e31a180830"
-dependencies = [
- "bincode",
- "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.1)",
- "codegen 0.2.0",
- "crossbeam 0.8.2",
- "curl",
- "derivative",
- "env_logger 0.10.0",
- "hex",
- "lazy_static",
- "rand 0.4.6",
- "rayon",
- "reqwest",
- "rescue_poseidon 0.4.1 (git+https://github.com/matter-labs/rescue-poseidon.git?branch=poseidon2)",
- "serde",
- "serde_json",
- "smallvec",
- "snark_wrapper",
- "structopt",
- "test-log",
- "tracing",
- "walkdir",
- "zkevm-assembly",
-]
-
-[[package]]
-name = "zkevm_test_harness"
 version = "1.4.2"
 source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.2#b91defc8bccff6275db2416323a096dcb74a4dff"
 dependencies = [
  "bincode",
- "circuit_definitions 0.1.0 (git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.4.2)",
+ "circuit_definitions",
  "codegen 0.2.0",
  "crossbeam 0.8.2",
  "curl",
@@ -8235,10 +8216,10 @@ name = "zksync_commitment_utils"
 version = "0.1.0"
 dependencies = [
  "circuit_sequencer_api 0.1.40",
+ "circuit_sequencer_api 0.1.41",
  "multivm",
  "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc2)",
  "zk_evm 1.4.1",
- "zkevm_test_harness 1.4.1",
  "zksync_types",
  "zksync_utils",
 ]
@@ -8702,7 +8683,7 @@ dependencies = [
  "serde_with",
  "sha2 0.10.8",
  "sha3 0.10.8",
- "zkevm_test_harness 1.4.2",
+ "zkevm_test_harness",
  "zksync_prover_interface",
  "zksync_types",
 ]
