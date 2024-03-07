@@ -4,18 +4,12 @@ use anyhow::Context as _;
 use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_dal::{ConnectionPool, StorageProcessor};
-use zksync_eth_client::{
-    BoundEthInterface, Error, ExecutedTxStatus, RawTransactionBytes, SignedCallResult,
-};
-use zksync_types::{
-    eth_sender::EthTx,
-    web3::{
-        contract::Options,
-        error::Error as Web3Error,
-        types::{BlockId, BlockNumber},
-    },
-    L1BlockNumber, Nonce, H256, U256,
-};
+use zksync_eth_client::{BoundEthInterface, Error, EthInterface, ExecutedTxStatus, RawTransactionBytes, SignedCallResult};
+use zksync_types::{eth_sender::EthTx, web3::{
+    contract::Options,
+    error::Error as Web3Error,
+    types::{BlockId, BlockNumber},
+}, L1BlockNumber, Nonce, H256, U256};
 use zksync_utils::time::seconds_since_epoch;
 
 use super::{metrics::METRICS, ETHSenderError};
@@ -186,10 +180,18 @@ impl EthTxManager {
         time_in_mempool: u32,
         current_block: L1BlockNumber,
     ) -> Result<H256, ETHSenderError> {
-        let EthFee {
-            base_fee_per_gas,
-            priority_fee_per_gas,
-        } = self.calculate_fee(storage, tx, time_in_mempool).await?;
+        let (base_fee_per_gas, priority_fee_per_gas) = if self.config.l1_is_linea {
+            let fee = self.calculate_fee(storage, tx, time_in_mempool).await?;
+            (fee.base_fee_per_gas, fee.priority_fee_per_gas)
+        } else {
+            let call_request = zksync_types::web3::types::CallRequest::builder()
+                .from(self.ethereum_gateway.sender_account())
+                .to(tx.contract_address)
+                .data(tx.raw_tx.clone().into())
+                .build();
+            let fee = self.ethereum_gateway.linea_estimate_gas(call_request).await?;
+            (fee.base_fee_per_gas.to_low_u64_be(), fee.priority_fee_per_gas.to_low_u64_be())
+        };
 
         METRICS.used_base_fee_per_gas.observe(base_fee_per_gas);
         METRICS

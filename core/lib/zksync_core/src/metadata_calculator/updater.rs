@@ -113,14 +113,14 @@ impl TreeUpdater {
                     None // Don't need to load the next L1 batch after the last one we're processing.
                 }
             };
-            let ((header, metadata, object_key), next_l1_batch_data) =
+            let ((header, tree_metadata, object_key), next_l1_batch_data) =
                 future::join(process_l1_batch_task, load_next_l1_batch_task).await;
 
             let check_consistency_latency = METRICS.start_stage(TreeUpdateStage::CheckConsistency);
             Self::check_initial_writes_consistency(
                 storage,
                 header.number,
-                &metadata.initial_writes,
+                &tree_metadata.initial_writes,
             )
             .await;
             check_consistency_latency.observe();
@@ -134,7 +134,7 @@ impl TreeUpdater {
 
             let build_metadata_latency = METRICS.start_stage(TreeUpdateStage::BuildMetadata);
             let metadata = MetadataCalculator::build_l1_batch_metadata(
-                metadata,
+                tree_metadata,
                 &header,
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
@@ -348,10 +348,11 @@ impl TreeUpdater {
                 tracing::info!("Stop signal received, metadata_calculator is shutting down");
                 break;
             }
-            let storage = pool.access_storage_tagged("metadata_calculator").await?;
 
             let snapshot = *next_l1_batch_to_seal;
+            let storage = pool.access_storage_tagged("metadata_calculator").await?;
             self.step(storage, &mut next_l1_batch_to_seal).await;
+
             let delay = if snapshot == *next_l1_batch_to_seal {
                 tracing::trace!(
                     "Metadata calculator (next L1 batch: #{next_l1_batch_to_seal}) \

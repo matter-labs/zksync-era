@@ -12,11 +12,13 @@ use zksync_types::{
     },
     L1ChainId,
 };
+use zksync_types::web3::types::CallRequest;
 
 use crate::{
     BoundEthInterface, ContractCall, Error, EthInterface, ExecutedTxStatus, FailureInfo,
     RawTransactionBytes, SignedCallResult,
 };
+use crate::clients::LineaEstimateGas;
 
 #[async_trait]
 impl<C: EthInterface + ?Sized> EthInterface for Arc<C> {
@@ -61,6 +63,10 @@ impl<C: EthInterface + ?Sized> EthInterface for Arc<C> {
 
     async fn send_raw_tx(&self, tx: RawTransactionBytes) -> Result<H256, Error> {
         self.as_ref().send_raw_tx(tx).await
+    }
+
+    async fn linea_estimate_gas(&self, req: CallRequest) -> Result<LineaEstimateGas, Error> {
+        self.as_ref().linea_estimate_gas(req).await
     }
 
     async fn get_tx_status(

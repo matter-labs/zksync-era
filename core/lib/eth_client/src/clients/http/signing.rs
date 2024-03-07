@@ -17,12 +17,14 @@ use zksync_types::{
     },
     L1ChainId, PackedEthSignature, EIP_1559_TX_TYPE,
 };
+use zksync_types::web3::types::CallRequest;
 
 use super::{query::QueryClient, Method, LATENCIES};
 use crate::{
     types::{Error, ExecutedTxStatus, FailureInfo, SignedCallResult},
     BoundEthInterface, CallFunctionArgs, ContractCall, EthInterface, RawTransactionBytes,
 };
+use crate::clients::LineaEstimateGas;
 
 /// HTTP-based Ethereum client, backed by a private key to sign transactions.
 pub type PKSigningClient = SigningClient<PrivateKeySigner>;
@@ -191,6 +193,10 @@ impl<S: EthereumSigner> EthInterface for SigningClient<S> {
         component: &'static str,
     ) -> Result<Option<Block<H256>>, Error> {
         self.query_client.block(block_id, component).await
+    }
+
+    async fn linea_estimate_gas(&self, req: CallRequest) -> Result<LineaEstimateGas, Error> {
+        self.query_client.linea_estimate_gas(req).await
     }
 }
 

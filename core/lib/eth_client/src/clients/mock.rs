@@ -14,11 +14,13 @@ use zksync_types::{
     },
     Address, L1ChainId, ProtocolVersionId, H160, H256, U256,
 };
+use zksync_types::web3::types::CallRequest;
 
 use crate::{
     types::{Error, ExecutedTxStatus, FailureInfo, SignedCallResult},
     BoundEthInterface, ContractCall, EthInterface, RawTransactionBytes,
 };
+use crate::clients::LineaEstimateGas;
 
 #[derive(Debug, Clone)]
 struct MockTx {
@@ -362,6 +364,10 @@ impl EthInterface for MockEthereum {
         _block_id: BlockId,
         _component: &'static str,
     ) -> Result<Option<Block<H256>>, Error> {
+        unimplemented!("Not needed right now")
+    }
+
+    async fn linea_estimate_gas(&self, _req: CallRequest) -> Result<LineaEstimateGas, Error> {
         unimplemented!("Not needed right now")
     }
 }
