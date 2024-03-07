@@ -834,6 +834,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "circuit_sequencer_api"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.3.3#aba8f2a32767b79838aca7d7d00d9d23144df32f"
+dependencies = [
+ "bellman_ce 0.3.2 (git+https://github.com/matter-labs/bellman?branch=dev)",
+ "derivative",
+ "rayon",
+ "serde",
+ "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?branch=v1.3.3)",
+]
+
+[[package]]
 name = "circuit_testing"
 version = "0.1.0"
 source = "git+https://github.com/matter-labs/era-circuit_testing.git?branch=main#164c0adac85be39ee44bd9456b2b91cdede5af80"
@@ -3095,6 +3107,7 @@ name = "multivm"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "circuit_sequencer_api",
  "hex",
  "itertools 0.10.5",
  "once_cell",
@@ -3105,7 +3118,6 @@ dependencies = [
  "zk_evm 1.3.3 (git+https://github.com/matter-labs/era-zk_evm.git?tag=v1.3.3-rc2)",
  "zk_evm 1.4.0",
  "zk_evm 1.4.1",
- "zkevm_test_harness 1.3.3",
  "zkevm_test_harness 1.4.0",
  "zkevm_test_harness 1.4.1",
  "zkevm_test_harness 1.4.2",
@@ -6798,14 +6810,15 @@ dependencies = [
 [[package]]
 name = "zkevm_test_harness"
 version = "1.3.3"
-source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.3.3#d52b56d6ba8196c8a3c74c4933654469e6f27a5a"
+source = "git+https://github.com/matter-labs/era-zkevm_test_harness.git?branch=v1.3.3#aba8f2a32767b79838aca7d7d00d9d23144df32f"
 dependencies = [
  "bincode",
+ "circuit_sequencer_api",
  "circuit_testing",
  "codegen",
  "crossbeam 0.8.4",
  "derivative",
- "env_logger 0.11.2",
+ "env_logger 0.9.3",
  "hex",
  "num-bigint 0.4.4",
  "num-integer",
@@ -7125,6 +7138,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "bincode",
+ "circuit_sequencer_api",
  "ctrlc",
  "futures 0.3.30",
  "prometheus_exporter",
@@ -7274,10 +7288,10 @@ name = "zksync_prover_interface"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "circuit_sequencer_api",
  "serde",
  "serde_with",
  "strum",
- "zkevm_test_harness 1.3.3",
  "zksync_object_store",
  "zksync_types",
 ]
