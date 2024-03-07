@@ -12,6 +12,11 @@ use crate::vm_latest::old_vm::utils::heap_page_from_base;
 /// The amount of ergs to be reserved at the end of the batch to ensure that it has enough ergs to verify compression, etc.
 pub(crate) const BOOTLOADER_BATCH_TIP_OVERHEAD: u32 = 170_000_000;
 
+#[allow(dead_code)]
+pub(crate) const BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD: u64 = 5000;
+#[allow(dead_code)]
+pub(crate) const BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD: u64 = 1500;
+
 /// The size of the bootloader memory in bytes which is used by the protocol.
 /// While the maximal possible size is a lot higher, we restrict ourselves to a certain limit to reduce
 /// the requirements on RAM.
