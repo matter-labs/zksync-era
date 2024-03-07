@@ -482,9 +482,6 @@ impl EthTxAggregator {
         contracts_are_pre_shared_bridge: bool,
     ) -> Result<EthTx, ETHSenderError> {
         let mut transaction = storage.start_transaction().await.unwrap();
-        let nonce = self.get_next_nonce(&mut transaction, None).await?;
-        let calldata = self.encode_aggregated_op(aggregated_op, contracts_are_pre_shared_bridge);
-        let l1_batch_number_range = aggregated_op.l1_batch_range();
         let op_type = aggregated_op.get_action_type();
         // We may be using a custom sender for commit transactions, so use this
         // var whatever it actually is: a `None` for single-addr operator or `Some`

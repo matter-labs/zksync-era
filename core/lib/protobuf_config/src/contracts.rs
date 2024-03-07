@@ -65,21 +65,12 @@ impl ProtoRepr for proto::Contracts {
             l1_erc20_bridge_impl_addr: required(&self.l1_erc20_bridge_impl_addr)
                 .and_then(|x| parse_h160(x))
                 .context("l1_erc20_bridge_impl_addr")?,
-            l2_erc20_bridge_addr: required(&self.l2_erc20_bridge_addr)
+            l2_shared_bridge_addr: required(&self.l2_shared_bridge_addr)
                 .and_then(|x| parse_h160(x))
-                .context("l2_erc20_bridge_addr")?,
-            l1_weth_bridge_proxy_addr: self
-                .l1_weth_bridge_proxy_addr
-                .as_ref()
-                .map(|x| parse_h160(x))
-                .transpose()
-                .context("l1_weth_bridge_proxy_addr")?,
-            l2_weth_bridge_addr: self
-                .l2_weth_bridge_addr
-                .as_ref()
-                .map(|x| parse_h160(x))
-                .transpose()
-                .context("l2_weth_bridge_addr")?,
+                .context("l2_shared_bridge_addr")?,
+            l1_shared_bridge_proxy_addr: required(&self.l1_shared_bridge_proxy_addr)
+                .and_then(|x| parse_h160(x))
+                .context("l1_shared_bridge_proxy_addr")?,
             l1_allow_list_addr: required(&self.l1_allow_list_addr)
                 .and_then(|x| parse_h160(x))
                 .context("l1_allow_list_addr")?,
@@ -170,15 +161,8 @@ impl ProtoRepr for proto::Contracts {
             genesis_tx_hash: Some(this.genesis_tx_hash.as_bytes().into()),
             l1_erc20_bridge_proxy_addr: Some(this.l1_erc20_bridge_proxy_addr.as_bytes().into()),
             l1_erc20_bridge_impl_addr: Some(this.l1_erc20_bridge_impl_addr.as_bytes().into()),
-            l2_erc20_bridge_addr: Some(this.l2_erc20_bridge_addr.as_bytes().into()),
-            l1_weth_bridge_proxy_addr: this
-                .l1_weth_bridge_proxy_addr
-                .as_ref()
-                .map(|x| x.as_bytes().into()),
-            l2_weth_bridge_addr: this
-                .l2_weth_bridge_addr
-                .as_ref()
-                .map(|x| x.as_bytes().into()),
+            l1_shared_bridge_proxy_addr: Some(this.l1_shared_bridge_proxy_addr.as_bytes().into()),
+            l2_shared_bridge_addr: Some(this.l2_shared_bridge_addr.as_bytes().into()),
             l1_allow_list_addr: Some(this.l1_allow_list_addr.as_bytes().into()),
             l2_testnet_paymaster_addr: this
                 .l2_testnet_paymaster_addr

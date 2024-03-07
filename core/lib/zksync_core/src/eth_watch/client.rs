@@ -8,7 +8,7 @@ use zksync_types::{
     web3::{
         self,
         contract::tokens::Detokenize,
-        types::{Block, BlockId, BlockNumber, FilterBuilder, Log},
+        types::{BlockId, BlockNumber, FilterBuilder, Log},
     },
     Address, H256,
 };
