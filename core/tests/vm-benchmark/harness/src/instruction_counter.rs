@@ -11,6 +11,7 @@ pub struct InstructionCounter {
     output: Rc<RefCell<usize>>,
 }
 
+/// A tracer that counts the number of instructions executed by the VM.
 impl InstructionCounter {
     pub fn new(output: Rc<RefCell<usize>>) -> Self {
         Self { count: 0, output }
