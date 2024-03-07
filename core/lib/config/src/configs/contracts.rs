@@ -10,7 +10,6 @@ pub enum ProverAtGenesis {
     Fri,
     Old,
 }
-
 /// Data about deployed contracts.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct ContractsConfig {
@@ -41,6 +40,7 @@ pub struct ContractsConfig {
     pub fri_recursion_leaf_level_vk_hash: H256,
     pub prover_at_genesis: ProverAtGenesis,
     pub snark_wrapper_vk_hash: H256,
+    #[serde(default = "Address::zero")]
     pub base_token_addr: Address,
     // These contracts will be used after shared bridge integration.
     pub bridgehub_proxy_addr: Option<Address>,

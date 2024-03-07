@@ -72,8 +72,7 @@ mod tests {
             snark_wrapper_vk_hash: hash(
                 "0x4be443afd605a782b6e56d199df2460a025c81b3dea144e135bece83612563f2",
             ),
-            base_token_addr: Address::from_str("0x0000000000000000000000000000000000000001")
-                .unwrap(),
+            base_token_addr: addr("0x0000000000000000000000000000000000000000"),
         }
     }
 

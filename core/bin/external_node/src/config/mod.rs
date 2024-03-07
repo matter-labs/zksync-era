@@ -58,7 +58,9 @@ impl RemoteENConfig {
             .await?;
         let base_token_addr = match client.get_base_token_l1_address().await {
             Err(ClientError::Call(err)) if ErrorCode::MethodNotFound.code() == err.code() => {
-                Address::from_str("0x0000000000000000000000000000000000000001")?
+                // This is the fallback case for when the EN tries to interact
+                // with a node that does not implement the zks_baseTokenL1Address endpoint.
+                Address::zero()
             }
             response => response.context("Failed to fetch base token address")?,
         };
