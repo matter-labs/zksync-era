@@ -11,12 +11,12 @@ use crate::{
     factory_deps_dal::FactoryDepsDal,
     models::storage_protocol_version::{protocol_version_from_storage, StorageProtocolVersion},
     transactions_dal::TransactionsDal,
-    StorageProcessor,
+    BasicStorageProcessor,
 };
 
 #[derive(Debug)]
 pub struct ProtocolVersionsDal<'a, 'c> {
-    pub storage: &'a mut StorageProcessor<'c>,
+    pub storage: &'a mut BasicStorageProcessor<'c>,
 }
 
 impl ProtocolVersionsDal<'_, '_> {

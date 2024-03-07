@@ -9,7 +9,7 @@ use serde::Serialize;
 #[cfg(test)]
 use tokio::sync::mpsc;
 use tokio::sync::watch;
-use zksync_dal::{ConnectionOperator, ConnectionPool};
+use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_types::{
     aggregated_operations::AggregatedActionType, api, L1BatchNumber, MiniblockNumber, H256,
@@ -126,7 +126,7 @@ struct UpdaterCursor {
 }
 
 impl UpdaterCursor {
-    async fn new(storage: &mut ConnectionOperator<'_>) -> anyhow::Result<Self> {
+    async fn new(storage: &mut StorageProcessor<'_>) -> anyhow::Result<Self> {
         let first_l1_batch_number = projected_first_l1_batch(storage).await?;
         // Use the snapshot L1 batch, or the genesis batch if we are not using a snapshot. Technically, the snapshot L1 batch
         // is not necessarily proven / executed yet, but since it and earlier batches are not stored, it serves

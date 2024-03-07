@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use anyhow::Context as _;
 use tokio::sync::watch;
-use zksync_dal::ConnectionOperator;
+use zksync_dal::StorageProcessor;
 use zksync_types::{
     api::en::SyncBlock, block::MiniblockHasher, Address, L1BatchNumber, MiniblockNumber,
     ProtocolVersionId, H256,
@@ -83,7 +83,7 @@ impl TryFrom<SyncBlock> for FetchedBlock {
 
 impl IoCursor {
     /// Loads this cursor from storage and modifies it to account for the pending L1 batch if necessary.
-    pub(crate) async fn for_fetcher(storage: &mut ConnectionOperator<'_>) -> anyhow::Result<Self> {
+    pub(crate) async fn for_fetcher(storage: &mut StorageProcessor<'_>) -> anyhow::Result<Self> {
         let mut this = Self::new(storage).await?;
         // It's important to know whether we have opened a new batch already or just sealed the previous one.
         // Depending on it, we must either insert `OpenBatch` item into the queue, or not.
@@ -209,7 +209,7 @@ pub struct MainNodeFetcher {
 
 impl MainNodeFetcher {
     pub async fn new(
-        storage: &mut ConnectionOperator<'_>,
+        storage: &mut StorageProcessor<'_>,
         client: Box<dyn MainNodeClient>,
         actions: ActionQueueSender,
         sync_state: SyncState,

@@ -6,7 +6,7 @@ use multivm::utils::derive_base_fee_and_gas_per_pubdata;
 use tokio::sync::mpsc;
 use tokio::sync::watch;
 use zksync_config::configs::chain::MempoolConfig;
-use zksync_dal::{ConnectionOperator, ConnectionPool};
+use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_mempool::L2TxFilter;
 #[cfg(test)]
 use zksync_types::H256;
@@ -131,7 +131,7 @@ impl MempoolFetcher {
 
 /// Loads nonces for all distinct `transactions` initiators from the storage.
 async fn get_transaction_nonces(
-    storage: &mut ConnectionOperator<'_>,
+    storage: &mut StorageProcessor<'_>,
     transactions: &[Transaction],
 ) -> anyhow::Result<HashMap<Address, Nonce>> {
     let (nonce_keys, address_by_nonce_key): (Vec<_>, HashMap<_, _>) = transactions

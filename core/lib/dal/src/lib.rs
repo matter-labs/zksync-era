@@ -1,7 +1,7 @@
 //! Data access layer (DAL) for zkSync Era.
 
 pub use sqlx::{types::BigDecimal, Error as SqlxError};
-pub use zksync_db_connection::StorageProcessor;
+pub use zksync_db_connection::BasicStorageProcessor;
 use zksync_prover_dal::{
     fri_gpu_prover_queue_dal::FriGpuProverQueueDal,
     fri_proof_compressor_dal::FriProofCompressorDal,
@@ -64,15 +64,15 @@ pub mod transactions_web3_dal;
 mod tests;
 
 #[derive(Debug)]
-pub struct ConnectionOperator<'a>(pub StorageProcessor<'a>);
+pub struct StorageProcessor<'a>(pub BasicStorageProcessor<'a>);
 
-impl<'a> ConnectionOperator<'a> {
+impl<'a> StorageProcessor<'a> {
     pub fn in_transaction(&self) -> bool {
         self.0.in_transaction()
     }
 
-    pub async fn start_transaction(&mut self) -> sqlx::Result<ConnectionOperator<'_>> {
-        self.0.start_transaction().await.map(ConnectionOperator)
+    pub async fn start_transaction(&mut self) -> sqlx::Result<StorageProcessor<'_>> {
+        self.0.start_transaction().await.map(StorageProcessor)
     }
 
     pub async fn commit(self) -> sqlx::Result<()> {
@@ -80,7 +80,7 @@ impl<'a> ConnectionOperator<'a> {
     }
 }
 
-impl<'a> ConnectionOperator<'a> {
+impl<'a> StorageProcessor<'a> {
     pub fn transactions_dal(&mut self) -> TransactionsDal<'_, 'a> {
         TransactionsDal {
             storage: &mut self.0,

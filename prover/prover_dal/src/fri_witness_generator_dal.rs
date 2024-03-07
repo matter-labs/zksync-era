@@ -1,7 +1,7 @@
 use std::{collections::HashMap, convert::TryFrom, time::Duration};
 
 use sqlx::Row;
-use zksync_db_connection::StorageProcessor;
+use zksync_db_connection::BasicStorageProcessor;
 use zksync_types::{
     basic_fri_types::{AggregationRound, Eip4844Blobs},
     protocol_version::FriProtocolVersionId,
@@ -15,7 +15,7 @@ use crate::{duration_to_naive_time, metrics::MethodLatency, pg_interval_from_dur
 
 #[derive(Debug)]
 pub struct FriWitnessGeneratorDal<'a, 'c> {
-    pub storage: &'a mut StorageProcessor<'c>,
+    pub storage: &'a mut BasicStorageProcessor<'c>,
 }
 
 #[derive(Debug, strum::Display, strum::EnumString, strum::AsRefStr)]

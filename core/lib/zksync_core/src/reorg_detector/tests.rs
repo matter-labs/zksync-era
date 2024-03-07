@@ -8,7 +8,7 @@ use std::{
 use assert_matches::assert_matches;
 use test_casing::{test_casing, Product};
 use tokio::sync::mpsc;
-use zksync_dal::ConnectionOperator;
+use zksync_dal::StorageProcessor;
 use zksync_types::{
     block::{MiniblockHasher, MiniblockHeader},
     L2ChainId, ProtocolVersion,
@@ -20,7 +20,7 @@ use crate::{
     utils::testonly::{create_l1_batch, create_miniblock},
 };
 
-async fn store_miniblock(storage: &mut ConnectionOperator<'_>, number: u32, hash: H256) {
+async fn store_miniblock(storage: &mut StorageProcessor<'_>, number: u32, hash: H256) {
     let header = MiniblockHeader {
         hash,
         ..create_miniblock(number)
@@ -32,7 +32,7 @@ async fn store_miniblock(storage: &mut ConnectionOperator<'_>, number: u32, hash
         .unwrap();
 }
 
-async fn seal_l1_batch(storage: &mut ConnectionOperator<'_>, number: u32, hash: H256) {
+async fn seal_l1_batch(storage: &mut StorageProcessor<'_>, number: u32, hash: H256) {
     let header = create_l1_batch(number);
     storage
         .blocks_dal()

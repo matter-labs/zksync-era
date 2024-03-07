@@ -2,7 +2,7 @@ use std::{collections::HashMap, convert::TryInto, sync::Arc};
 
 use tokio::sync::RwLock;
 use zksync_contracts::{governance_contract, zksync_contract};
-use zksync_dal::{ConnectionOperator, ConnectionPool};
+use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::{
     ethabi::{encode, Hash, Token},
     l1::{L1Tx, OpProcessingType, PriorityQueueType},
@@ -523,7 +523,7 @@ async fn test_overlapping_batches() {
     assert_eq!(tx.common_data.serial_id.0, 4);
 }
 
-async fn get_all_db_txs(storage: &mut ConnectionOperator<'_>) -> Vec<Transaction> {
+async fn get_all_db_txs(storage: &mut StorageProcessor<'_>) -> Vec<Transaction> {
     storage.transactions_dal().reset_mempool().await.unwrap();
     storage
         .transactions_dal()

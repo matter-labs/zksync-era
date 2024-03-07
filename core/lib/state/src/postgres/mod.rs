@@ -5,7 +5,7 @@ use std::{
 
 use anyhow::Context as _;
 use tokio::{runtime::Handle, sync::mpsc};
-use zksync_dal::{ConnectionOperator, ConnectionPool};
+use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::{L1BatchNumber, MiniblockNumber, StorageKey, StorageValue, H256};
 
 use self::metrics::{Method, ValuesUpdateStage, CACHE_METRICS, STORAGE_METRICS};
@@ -146,7 +146,7 @@ impl ValuesCache {
         from_miniblock: MiniblockNumber,
         to_miniblock: MiniblockNumber,
         rt_handle: &Handle,
-        connection: &mut ConnectionOperator<'_>,
+        connection: &mut StorageProcessor<'_>,
     ) {
         const MAX_MINIBLOCKS_LAG: u32 = 5;
 
@@ -331,7 +331,7 @@ impl PostgresStorageCaches {
 #[derive(Debug)]
 pub struct PostgresStorage<'a> {
     rt_handle: Handle,
-    connection: ConnectionOperator<'a>,
+    connection: StorageProcessor<'a>,
     miniblock_number: MiniblockNumber,
     l1_batch_number_for_miniblock: L1BatchNumber,
     pending_l1_batch_number: L1BatchNumber,
@@ -347,7 +347,7 @@ impl<'a> PostgresStorage<'a> {
     /// Panics on Postgres errors.
     pub fn new(
         rt_handle: Handle,
-        connection: ConnectionOperator<'a>,
+        connection: StorageProcessor<'a>,
         block_number: MiniblockNumber,
         consider_new_l1_batch: bool,
     ) -> Self {
@@ -369,7 +369,7 @@ impl<'a> PostgresStorage<'a> {
     /// Propagates Postgres errors.
     pub async fn new_async(
         rt_handle: Handle,
-        mut connection: ConnectionOperator<'a>,
+        mut connection: StorageProcessor<'a>,
         block_number: MiniblockNumber,
         consider_new_l1_batch: bool,
     ) -> anyhow::Result<PostgresStorage<'a>> {

@@ -15,7 +15,7 @@ use zksync_config::configs::{
     chain::{NetworkConfig, StateKeeperConfig},
     ContractsConfig,
 };
-use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionOperator, ConnectionPool};
+use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, StorageProcessor};
 use zksync_health_check::CheckHealth;
 use zksync_types::{
     api,
@@ -233,7 +233,7 @@ impl StorageInitialization {
     async fn prepare_storage(
         &self,
         network_config: &NetworkConfig,
-        storage: &mut ConnectionOperator<'_>,
+        storage: &mut StorageProcessor<'_>,
     ) -> anyhow::Result<()> {
         match self {
             Self::Genesis => {
@@ -340,7 +340,7 @@ fn execute_l2_transaction(transaction: L2Tx) -> TransactionExecutionResult {
 
 /// Stores miniblock #1 with a single transaction and returns the miniblock header + transaction hash.
 async fn store_miniblock(
-    storage: &mut ConnectionOperator<'_>,
+    storage: &mut StorageProcessor<'_>,
     number: MiniblockNumber,
     transaction_results: &[TransactionExecutionResult],
 ) -> anyhow::Result<MiniblockHeader> {
@@ -366,7 +366,7 @@ async fn store_miniblock(
 }
 
 async fn seal_l1_batch(
-    storage: &mut ConnectionOperator<'_>,
+    storage: &mut StorageProcessor<'_>,
     number: L1BatchNumber,
 ) -> anyhow::Result<()> {
     let header = create_l1_batch(number.0);
@@ -391,7 +391,7 @@ async fn seal_l1_batch(
 }
 
 async fn store_events(
-    storage: &mut ConnectionOperator<'_>,
+    storage: &mut StorageProcessor<'_>,
     miniblock_number: u32,
     start_idx: u32,
 ) -> anyhow::Result<(IncludedTxLocation, Vec<VmEvent>)> {

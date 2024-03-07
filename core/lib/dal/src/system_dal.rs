@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use sqlx::Row;
 
-use crate::{instrument::InstrumentExt, StorageProcessor};
+use crate::{instrument::InstrumentExt, BasicStorageProcessor};
 
 #[derive(Debug)]
 pub(crate) struct TableSize {
@@ -13,7 +13,7 @@ pub(crate) struct TableSize {
 }
 
 pub struct SystemDal<'a, 'c> {
-    pub storage: &'a mut StorageProcessor<'c>,
+    pub storage: &'a mut BasicStorageProcessor<'c>,
 }
 
 impl SystemDal<'_, '_> {

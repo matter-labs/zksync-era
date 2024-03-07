@@ -1,9 +1,9 @@
-use zksync_db_connection::StorageProcessor;
+use zksync_db_connection::BasicStorageProcessor;
 use zksync_types::{basic_fri_types::FinalProofIds, L1BatchNumber};
 
 #[derive(Debug)]
 pub struct FriSchedulerDependencyTrackerDal<'a, 'c> {
-    pub storage: &'a mut StorageProcessor<'c>,
+    pub storage: &'a mut BasicStorageProcessor<'c>,
 }
 
 impl FriSchedulerDependencyTrackerDal<'_, '_> {

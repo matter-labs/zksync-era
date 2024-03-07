@@ -20,7 +20,7 @@ use zksync_db_connection::{StorageProcessorTags, TracedConnections};
 
 use crate::{
     metrics::{PostgresMetrics, CONNECTION_METRICS},
-    ConnectionOperator, StorageProcessor,
+    BasicStorageProcessor, StorageProcessor,
 };
 
 /// Builder for [`ConnectionPool`]s.
@@ -322,7 +322,7 @@ impl ConnectionPool {
     ///
     /// This method is intended to be used in crucial contexts, where the
     /// database access is must-have (e.g. block committer).
-    pub async fn access_storage(&self) -> anyhow::Result<ConnectionOperator<'_>> {
+    pub async fn access_storage(&self) -> anyhow::Result<StorageProcessor<'_>> {
         self.access_storage_inner(None).await
     }
 
@@ -336,7 +336,7 @@ impl ConnectionPool {
     pub fn access_storage_tagged(
         &self,
         requester: &'static str,
-    ) -> impl Future<Output = anyhow::Result<ConnectionOperator<'_>>> + '_ {
+    ) -> impl Future<Output = anyhow::Result<StorageProcessor<'_>>> + '_ {
         let location = Location::caller();
         async move {
             let tags = StorageProcessorTags {
@@ -350,7 +350,7 @@ impl ConnectionPool {
     async fn access_storage_inner(
         &self,
         tags: Option<StorageProcessorTags>,
-    ) -> anyhow::Result<ConnectionOperator<'_>> {
+    ) -> anyhow::Result<StorageProcessor<'_>> {
         let acquire_latency = CONNECTION_METRICS.acquire.start();
         let conn = self
             .acquire_connection_retried(tags.as_ref())
@@ -360,7 +360,7 @@ impl ConnectionPool {
         if let Some(tags) = &tags {
             CONNECTION_METRICS.acquire_tagged[&tags.requester].observe(elapsed);
         }
-        Ok(ConnectionOperator(StorageProcessor::from_pool(
+        Ok(StorageProcessor(BasicStorageProcessor::from_pool(
             conn,
             tags,
             self.traced_connections.as_deref(),

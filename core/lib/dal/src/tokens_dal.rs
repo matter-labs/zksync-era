@@ -1,11 +1,11 @@
 use sqlx::types::chrono::Utc;
 use zksync_types::{tokens::TokenInfo, Address, MiniblockNumber};
 
-use crate::{storage_logs_dal::StorageLogsDal, StorageProcessor};
+use crate::{storage_logs_dal::StorageLogsDal, BasicStorageProcessor};
 
 #[derive(Debug)]
 pub struct TokensDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut BasicStorageProcessor<'c>,
 }
 
 impl TokensDal<'_, '_> {
@@ -109,7 +109,7 @@ mod tests {
 
     use zksync_system_constants::FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH;
     use zksync_types::{get_code_key, tokens::TokenMetadata, StorageLog, H256};
-    use StorageProcessor;
+    use BasicStorageProcessor;
 
     use super::*;
     use crate::{tokens_web3_dal::TokensWeb3Dal, ConnectionPool};
@@ -257,7 +257,7 @@ mod tests {
         );
     }
 
-    async fn test_getting_all_tokens(storage: &mut StorageProcessor<'_>) {
+    async fn test_getting_all_tokens(storage: &mut BasicStorageProcessor<'_>) {
         for at_miniblock in [None, Some(MiniblockNumber(2)), Some(MiniblockNumber(100))] {
             let all_tokens = TokensWeb3Dal { storage }
                 .get_all_tokens(at_miniblock)

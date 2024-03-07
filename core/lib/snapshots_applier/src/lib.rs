@@ -6,7 +6,7 @@ use anyhow::Context as _;
 use async_trait::async_trait;
 use serde::Serialize;
 use tokio::sync::Semaphore;
-use zksync_dal::{ConnectionOperator, ConnectionPool, SqlxError};
+use zksync_dal::{ConnectionPool, SqlxError, StorageProcessor};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_types::{
@@ -246,7 +246,7 @@ struct SnapshotsApplier<'a> {
 impl<'a> SnapshotsApplier<'a> {
     /// Recovers [`SnapshotRecoveryStatus`] from the storage and the main node.
     async fn prepare_applied_snapshot_status(
-        storage: &mut ConnectionOperator<'_>,
+        storage: &mut StorageProcessor<'_>,
         main_node_client: &dyn SnapshotsApplierMainNodeClient,
     ) -> Result<(SnapshotRecoveryStatus, bool), SnapshotsApplierError> {
         let latency =
@@ -428,7 +428,7 @@ impl<'a> SnapshotsApplier<'a> {
 
     async fn recover_factory_deps(
         &mut self,
-        storage: &mut ConnectionOperator<'_>,
+        storage: &mut StorageProcessor<'_>,
     ) -> Result<(), SnapshotsApplierError> {
         let latency = METRICS.initial_stage_duration[&InitialStage::ApplyFactoryDeps].start();
 
@@ -472,7 +472,7 @@ impl<'a> SnapshotsApplier<'a> {
         &self,
         chunk_id: u64,
         storage_logs: &[SnapshotStorageLog],
-        storage: &mut ConnectionOperator<'_>,
+        storage: &mut StorageProcessor<'_>,
     ) -> Result<(), SnapshotsApplierError> {
         storage
             .storage_logs_dedup_dal()
@@ -490,7 +490,7 @@ impl<'a> SnapshotsApplier<'a> {
         &self,
         chunk_id: u64,
         storage_logs: &[SnapshotStorageLog],
-        storage: &mut ConnectionOperator<'_>,
+        storage: &mut StorageProcessor<'_>,
     ) -> Result<(), SnapshotsApplierError> {
         storage
             .storage_logs_dal()

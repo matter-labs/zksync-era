@@ -236,7 +236,7 @@ async fn getting_first_miniblock_in_batch_with_genesis() {
 
 async fn assert_first_miniblock_numbers(
     provider: &L1BatchParamsProvider,
-    storage: &mut ConnectionOperator<'_>,
+    storage: &mut StorageProcessor<'_>,
     batches_and_miniblocks: &HashMap<L1BatchNumber, Result<Option<MiniblockNumber>, ()>>,
 ) {
     for (&batch, &expected_miniblock) in batches_and_miniblocks {
@@ -354,7 +354,7 @@ async fn loading_pending_batch_with_genesis() {
 }
 
 async fn store_pending_miniblocks(
-    storage: &mut ConnectionOperator<'_>,
+    storage: &mut StorageProcessor<'_>,
     numbers: ops::RangeInclusive<u32>,
     contract_hashes: BaseSystemContractsHashes,
 ) {

@@ -3,11 +3,11 @@ use zksync_types::{
     StorageKey, H256,
 };
 
-use crate::{instrument::InstrumentExt, StorageProcessor};
+use crate::{instrument::InstrumentExt, BasicStorageProcessor};
 
 #[derive(Debug)]
 pub struct SnapshotsCreatorDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut BasicStorageProcessor<'c>,
 }
 
 impl SnapshotsCreatorDal<'_, '_> {
@@ -170,7 +170,7 @@ mod tests {
     use zksync_types::StorageLog;
 
     use super::*;
-    use crate::{ConnectionOperator, ConnectionPool};
+    use crate::{ConnectionPool, StorageProcessor};
 
     #[tokio::test]
     async fn getting_storage_log_chunks_basics() {
@@ -246,7 +246,7 @@ mod tests {
     }
 
     async fn assert_logs_for_snapshot(
-        conn: &mut ConnectionOperator<'_>,
+        conn: &mut StorageProcessor<'_>,
         miniblock_number: MiniblockNumber,
         l1_batch_number: L1BatchNumber,
         expected_logs: &[StorageLog],
