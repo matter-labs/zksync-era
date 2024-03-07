@@ -7130,7 +7130,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "bincode",
- "circuit_sequencer_api 0.1.0",
+ "circuit_sequencer_api 0.1.42",
  "ctrlc",
  "futures 0.3.30",
  "prometheus_exporter",
