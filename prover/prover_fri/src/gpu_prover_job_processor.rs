@@ -8,7 +8,7 @@ pub mod gpu_prover {
     };
     use tokio::task::JoinHandle;
     use zksync_config::configs::{fri_prover_group::FriProverGroupConfig, FriProverConfig};
-    use zksync_dal::{fri_prover_dal::types::SocketAddress, ConnectionPool};
+    use zksync_dal::ConnectionPool;
     use zksync_env_config::FromEnv;
     use zksync_object_store::ObjectStore;
     use zksync_prover_fri_types::{
@@ -29,7 +29,7 @@ pub mod gpu_prover {
         CircuitWrapper, FriProofWrapper, ProverServiceDataKey, WitnessVectorArtifacts,
     };
     use zksync_queued_job_processor::{async_trait, JobProcessor};
-    use zksync_types::basic_fri_types::CircuitIdRoundTuple;
+    use zksync_types::{basic_fri_types::CircuitIdRoundTuple, prover::SocketAddress};
     use zksync_vk_setup_data_server_fri::{keystore::Keystore, GoldilocksGpuProverSetupData};
 
     use crate::{

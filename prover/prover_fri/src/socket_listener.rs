@@ -8,12 +8,10 @@ pub mod gpu_socket_listener {
         net::{TcpListener, TcpStream},
         sync::watch,
     };
-    use zksync_dal::{
-        fri_prover_dal::types::{GpuProverInstanceStatus, SocketAddress},
-        ConnectionPool,
-    };
+    use zksync_dal::ConnectionPool;
     use zksync_object_store::bincode;
     use zksync_prover_fri_types::WitnessVectorArtifacts;
+    use zksync_types::prover::{GpuProverInstanceStatus, SocketAddress};
 
     use crate::{
         metrics::METRICS,

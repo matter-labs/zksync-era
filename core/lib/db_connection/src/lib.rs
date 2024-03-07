@@ -1,6 +1,5 @@
 mod metrics;
 
-use std::time::Duration;
 use std::{
     collections::HashMap,
     fmt,
@@ -9,7 +8,7 @@ use std::{
         atomic::{AtomicUsize, Ordering},
         Mutex,
     },
-    time::{Instant, SystemTime},
+    time::{Duration, Instant, SystemTime},
 };
 
 use sqlx::{pool::PoolConnection, types::chrono, Connection, PgConnection, Postgres, Transaction};
