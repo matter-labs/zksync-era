@@ -9,8 +9,8 @@ pub static ETHEREUM_ADDRESS: Address = Address::zero();
 /// nodes do not accept transactions that have more than 128kb of pubdata.
 /// The 18kb margin is left in case of any impreciseness of the pubdata calculation.
 /// To linea, the maximum number of pubdata per L1 batch is 59KB.
-/// We left 10KB margin for the future.
-pub const MAX_PUBDATA_PER_L1_BATCH: u64 = 50000;
+/// We also left 18KB margin for the future.
+pub const MAX_PUBDATA_PER_L1_BATCH: u64 = 41000;
 
 // TODO: import from `zkevm_opcode_defs` once `VM1.3` is supported
 pub const MAX_L2_TX_GAS_LIMIT: u64 = 80000000;
