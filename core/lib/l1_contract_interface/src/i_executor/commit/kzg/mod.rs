@@ -2,6 +2,7 @@ use std::convert::TryInto;
 
 pub use kzg::KzgSettings;
 use kzg::{
+    compute_commitment, compute_proof, compute_proof_poly,
     zkevm_circuits::{
         boojum::pairing::{
             bls12_381::{Fr, FrRepr, G1Affine},
@@ -14,7 +15,6 @@ use kzg::{
             zksync_pubdata_into_ethereum_4844_data, zksync_pubdata_into_monomial_form_poly,
         },
     },
-    {compute_commitment, compute_proof, compute_proof_poly},
 };
 use sha2::Sha256;
 use sha3::{Digest, Keccak256};

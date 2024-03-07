@@ -2,8 +2,8 @@
 
 use kzg::{
     boojum::pairing::{bls12_381::G1Compressed, EncodedPoint},
+    verify_kzg_proof, verify_proof_poly,
     zkevm_circuits::eip_4844::ethereum_4844_data_into_zksync_pubdata,
-    {verify_kzg_proof, verify_proof_poly},
 };
 use serde::{Deserialize, Serialize};
 
