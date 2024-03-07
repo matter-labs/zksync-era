@@ -738,7 +738,7 @@ pub struct Proof {
 
 /// Collection of overridden accounts, useful for `eth_estimateGas`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StateOverride(pub HashMap<Address, OverrideAccount>);
+pub struct StateOverride(HashMap<Address, OverrideAccount>);
 
 /// Account override for `eth_estimateGas`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
