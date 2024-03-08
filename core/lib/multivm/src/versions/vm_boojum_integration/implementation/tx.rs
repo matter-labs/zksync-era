@@ -39,8 +39,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             .decommittment_processor
             .populate(codes_for_decommiter, timestamp);
 
-        let trusted_ergs_limit =
-            tx.trusted_ergs_limit(get_batch_gas_per_pubdata(&self.batch_env).as_u64()); // TODO: this might overflow
+        let trusted_ergs_limit = tx.trusted_ergs_limit(get_batch_gas_per_pubdata(&self.batch_env));
 
         let memory = self.bootloader_state.push_tx(
             tx,

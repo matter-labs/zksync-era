@@ -38,8 +38,10 @@ pub struct StorageL1BatchHeader {
     pub priority_ops_onchain_data: Vec<Vec<u8>>,
     pub used_contract_hashes: serde_json::Value,
     pub base_fee_per_gas: BigDecimal,
-    pub l1_gas_price: i64,
-    pub l2_fair_gas_price: i64,
+    #[sqlx(rename = "l1_gas_price_u256")]
+    pub l1_gas_price: BigDecimal,
+    #[sqlx(rename = "l2_fair_gas_price_u256")]
+    pub l2_fair_gas_price: BigDecimal,
     pub bootloader_code_hash: Option<Vec<u8>>,
     pub default_aa_code_hash: Option<Vec<u8>>,
     pub protocol_version: Option<i32>,
@@ -84,8 +86,8 @@ impl From<StorageL1BatchHeader> for L1BatchHeader {
                 l1_batch.bootloader_code_hash,
                 l1_batch.default_aa_code_hash,
             ),
-            l1_gas_price: U256::from(l1_batch.l1_gas_price),
-            l2_fair_gas_price: U256::from(l1_batch.l2_fair_gas_price),
+            l1_gas_price: U256::from_str(&l1_batch.l1_gas_price.to_string()).unwrap(),
+            l2_fair_gas_price: U256::from_str(&l1_batch.l2_fair_gas_price.to_string()).unwrap(),
             system_logs: system_logs.into_iter().map(SystemL2ToL1Log).collect(),
             protocol_version: l1_batch
                 .protocol_version
@@ -159,8 +161,10 @@ pub struct StorageL1Batch {
     pub used_contract_hashes: serde_json::Value,
 
     pub base_fee_per_gas: BigDecimal,
-    pub l1_gas_price: i64,
-    pub l2_fair_gas_price: i64,
+    #[sqlx(rename = "l1_gas_price_u256")]
+    pub l1_gas_price: BigDecimal,
+    #[sqlx(rename = "l2_fair_gas_price_u256")]
+    pub l2_fair_gas_price: BigDecimal,
 
     pub system_logs: Vec<Vec<u8>>,
     pub compressed_state_diffs: Option<Vec<u8>>,
@@ -207,8 +211,8 @@ impl From<StorageL1Batch> for L1BatchHeader {
                 l1_batch.bootloader_code_hash,
                 l1_batch.default_aa_code_hash,
             ),
-            l1_gas_price: U256::from(l1_batch.l1_gas_price),
-            l2_fair_gas_price: U256::from(l1_batch.l2_fair_gas_price),
+            l1_gas_price: U256::from_str(&l1_batch.l1_gas_price.to_string()).unwrap(),
+            l2_fair_gas_price: U256::from_str(&l1_batch.l2_fair_gas_price.to_string()).unwrap(),
             system_logs: system_logs.into_iter().map(SystemL2ToL1Log).collect(),
             protocol_version: l1_batch
                 .protocol_version
@@ -503,6 +507,7 @@ impl From<StorageL1BatchDetails> for api::L1BatchDetails {
     }
 }
 
+#[derive(sqlx::FromRow)]
 pub struct StorageMiniblockHeader {
     pub number: i64,
     pub timestamp: i64,
@@ -510,15 +515,18 @@ pub struct StorageMiniblockHeader {
     pub l1_tx_count: i32,
     pub l2_tx_count: i32,
     pub base_fee_per_gas: BigDecimal,
-    pub l1_gas_price: i64,
+    #[sqlx(rename = "l1_gas_price_u256")]
+    pub l1_gas_price: BigDecimal,
     // L1 gas price assumed in the corresponding batch
-    pub l2_fair_gas_price: i64,
+    #[sqlx(rename = "l2_fair_gas_price_u256")]
+    pub l2_fair_gas_price: BigDecimal,
     // L2 gas price assumed in the corresponding batch
     pub bootloader_code_hash: Option<Vec<u8>>,
     pub default_aa_code_hash: Option<Vec<u8>>,
     pub protocol_version: Option<i32>,
 
-    pub fair_pubdata_price: Option<i64>,
+    #[sqlx(rename = "fair_pubdata_price_u256")]
+    pub fair_pubdata_price: Option<BigDecimal>,
 
     pub gas_per_pubdata_limit: i64,
 
@@ -537,19 +545,20 @@ impl From<StorageMiniblockHeader> for MiniblockHeader {
             .filter(|version: &ProtocolVersionId| version.is_post_1_4_1())
             .map(|_| {
                 BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
-                    fair_pubdata_price: U256::from(
-                        row.fair_pubdata_price
+                    fair_pubdata_price: U256::from_str(
+                        &row.fair_pubdata_price
                             .expect("No fair pubdata price for 1.4.1 miniblock")
-                            as u64,
-                    ),
-                    fair_l2_gas_price: U256::from(row.l2_fair_gas_price as u64),
-                    l1_gas_price: U256::from(row.l1_gas_price),
+                            .to_string(),
+                    )
+                    .unwrap(),
+                    fair_l2_gas_price: U256::from_str(&row.l2_fair_gas_price.to_string()).unwrap(),
+                    l1_gas_price: U256::from_str(&row.l1_gas_price.to_string()).unwrap(),
                 })
             })
             .unwrap_or_else(|| {
                 BatchFeeInput::L1Pegged(L1PeggedBatchFeeModelInput {
-                    fair_l2_gas_price: U256::from(row.l2_fair_gas_price as u64),
-                    l1_gas_price: U256::from(row.l1_gas_price),
+                    fair_l2_gas_price: U256::from_str(&row.l2_fair_gas_price.to_string()).unwrap(),
+                    l1_gas_price: U256::from_str(&row.l1_gas_price.to_string()).unwrap(),
                 })
             });
 

@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt, time::Duration};
+use std::{collections::HashMap, fmt, str::FromStr, time::Duration};
 
 use anyhow::Context;
 use bigdecimal::BigDecimal;
@@ -970,7 +970,7 @@ impl TransactionsDal<'_, '_> {
                     transactions.*
                 "#,
                 limit as i32,
-                BigDecimal::from(fee_per_gas.as_u64()), // TODO: this might overflow
+                BigDecimal::from_str(&fee_per_gas.to_string()).unwrap(),
                 BigDecimal::from(gas_per_pubdata),
                 PROTOCOL_UPGRADE_TX_TYPE as i32,
             )
