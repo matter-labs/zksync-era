@@ -308,7 +308,7 @@ impl ConsistencyChecker {
     ) -> anyhow::Result<ethabi::Token> {
         let mut commit_input_tokens = commit_function
             .decode_input(&commit_tx_input_data[4..])
-            .with_context(|| format!("Failed decoding calldata for L1 commit function"))?;
+            .context("Failed decoding calldata for L1 commit function")?;
         let mut commitments = commit_input_tokens
             .pop()
             .context("Unexpected signature for L1 commit function")?
@@ -319,7 +319,7 @@ impl ConsistencyChecker {
         // the one that corresponds to the batch we're checking.
         let first_batch_commitment = commitments
             .first()
-            .with_context(|| format!("L1 batch commitment is empty"))?;
+            .context("L1 batch commitment is empty")?;
         let ethabi::Token::Tuple(first_batch_commitment) = first_batch_commitment else {
             anyhow::bail!("Unexpected signature for L1 commit function");
         };

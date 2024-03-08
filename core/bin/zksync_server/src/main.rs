@@ -78,6 +78,7 @@ impl FromStr for ComponentsToRun {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let opt = Cli::parse();
+    let sigint_receiver = setup_sigint_handler();
 
     let observability_config =
         ObservabilityConfig::from_env().context("ObservabilityConfig::from_env()")?;
@@ -187,7 +188,6 @@ async fn main() -> anyhow::Result<()> {
             .context("Unable to start Core actors")?;
 
     tracing::info!("Running {} core task handlers", core_task_handles.len());
-    let sigint_receiver = setup_sigint_handler();
 
     let particular_crypto_alerts = None::<Vec<String>>;
     let graceful_shutdown = None::<futures::future::Ready<()>>;

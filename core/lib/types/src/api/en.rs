@@ -44,3 +44,6 @@ pub struct SyncBlock {
     /// Version of the protocol used for this block.
     pub protocol_version: ProtocolVersionId,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConsensusGenesis(pub serde_json::Value);

@@ -7,10 +7,6 @@ use super::{fetcher::FetchedTransaction, metrics::QUEUE_METRICS};
 pub struct ActionQueueSender(mpsc::Sender<SyncAction>);
 
 impl ActionQueueSender {
-    pub(crate) fn has_action_capacity(&self) -> bool {
-        self.0.capacity() > 0
-    }
-
     /// Pushes a set of actions to the queue.
     ///
     /// Requires that the actions are in the correct order: starts with a new open batch/miniblock,
@@ -98,17 +94,6 @@ impl ActionQueue {
             QUEUE_METRICS.action_queue_size.dec_by(1);
         }
         action
-    }
-
-    #[cfg(test)]
-    pub(super) async fn recv_action(&mut self) -> SyncAction {
-        if let Some(peeked) = self.peeked.take() {
-            return peeked;
-        }
-        self.receiver
-            .recv()
-            .await
-            .expect("actions sender was dropped prematurely")
     }
 
     /// Returns the first action from the queue without removing it.
