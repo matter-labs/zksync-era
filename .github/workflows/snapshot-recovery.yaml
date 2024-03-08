@@ -18,6 +18,8 @@ jobs:
         run: |
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
+          echo ZKSYNC_ENV=ext-node >> $GITHUB_PATH
+          echo ZKSYNC_ENV=ext-node >> .env
           echo IN_DOCKER=1 >> .env
           echo EXPECTED_TX_COUNT="1600" >> .env
           echo FAIL_FAST=true >> .env
@@ -55,8 +57,8 @@ jobs:
       - name: Step - Run external node
         if: always()
         run: |
-          ci_run zk config compile ext-node-docker
-          ci_run zk external-node --reinit -- --enable-snapshots-recovery &
+          ci_run zk config compile ext-node
+          ZKSYNC_ENV=ext-node ci_run zk external-node --reinit -- --enable-snapshots-recovery &
           ci_run sleep 10
 
       - name: Step - Stub - Try a curl request
