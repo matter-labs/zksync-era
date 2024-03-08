@@ -121,11 +121,7 @@ impl CommandReceiver {
         system_env: SystemEnv,
         upload_witness_inputs_to_gcs: bool,
     ) {
-        tracing::info!(
-            first_l2_block = ?l1_batch_params.first_l2_block,
-            l1_batch_number = ?l1_batch_params.number,
-            "Starting executing batch",
-        );
+        tracing::info!("Starting executing batch #{:?}", &l1_batch_params.number);
 
         let storage_view = StorageView::new(secondary_storage).to_rc_ptr();
 

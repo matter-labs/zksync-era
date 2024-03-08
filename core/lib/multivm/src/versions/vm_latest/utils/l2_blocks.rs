@@ -62,7 +62,6 @@ pub fn load_last_l2_block<S: ReadStorage>(storage: StoragePtr<S>) -> Option<L2Bl
     let mut storage_ptr = storage.borrow_mut();
     let current_l2_block_info = storage_ptr.read_value(&current_l2_block_info_key);
     let (block_number, block_timestamp) = unpack_block_info(h256_to_u256(current_l2_block_info));
-    tracing::info!(block_number, block_timestamp, "Loaded last L2 block");
     let block_number = block_number as u32;
     if block_number == 0 {
         // The block does not exist yet

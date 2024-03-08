@@ -382,7 +382,6 @@ impl<'a> PostgresStorage<'a> {
             .with_context(|| {
                 format!("failed resolving L1 batch number for miniblock #{block_number}")
             })?;
-        tracing::info!(?resolved, "Resolved L1 batch for Postgres storage");
         Ok(Self {
             rt_handle,
             connection,
