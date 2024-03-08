@@ -1,5 +1,6 @@
 use std::sync::{Arc, Mutex};
 
+use anyhow::Context;
 use async_trait::async_trait;
 use tokio::{runtime::Handle, sync::watch};
 use zksync_dal::ConnectionPool;
@@ -22,36 +23,33 @@ impl ReadStorageFactory for PostgresFactory {
         &'a self,
         rt_handle: Handle,
         _stop_receiver: &watch::Receiver<bool>,
-    ) -> Option<Self::ReadStorageImpl<'a>> {
-        let mut connection = self.pool.access_storage().await.unwrap();
+    ) -> anyhow::Result<Option<Self::ReadStorageImpl<'a>>> {
+        let mut connection = self
+            .pool
+            .access_storage()
+            .await
+            .context("Failed accessing Postgres storage")?;
 
         let snapshot_recovery = connection
             .snapshot_recovery_dal()
             .get_applied_snapshot_status()
             .await
-            .unwrap();
+            .context("failed getting snapshot recovery info")?;
         let miniblock_number = if let Some(snapshot_recovery) = snapshot_recovery {
             snapshot_recovery.miniblock_number
         } else {
             let mut dal = connection.blocks_dal();
-            let l1_batch_number = dal
-                .get_sealed_l1_batch_number()
-                .await
-                .unwrap()
-                .unwrap_or_default();
+            let l1_batch_number = dal.get_sealed_l1_batch_number().await?.unwrap_or_default();
             let (_, miniblock_number) = dal
                 .get_miniblock_range_of_l1_batch(l1_batch_number)
-                .await
-                .unwrap()
+                .await?
                 .unwrap_or_default();
             miniblock_number
         };
 
-        Some(
-            PostgresStorage::new_async(rt_handle, connection, miniblock_number, true)
-                .await
-                .unwrap(),
-        )
+        Ok(Some(
+            PostgresStorage::new_async(rt_handle, connection, miniblock_number, true).await?,
+        ))
     }
 }
 
@@ -76,22 +74,22 @@ impl ReadStorageFactory for RocksdbFactory {
         &'a self,
         _rt_handle: Handle,
         stop_receiver: &watch::Receiver<bool>,
-    ) -> Option<Self::ReadStorageImpl<'a>> {
+    ) -> anyhow::Result<Option<Self::ReadStorageImpl<'a>>> {
         let mut builder: RocksdbStorageBuilder =
             open_state_keeper_rocksdb(self.state_keeper_db_path.clone().into())
                 .await
-                .expect("Failed initializing state keeper storage")
+                .context("Failed opening state keeper RocksDB")?
                 .into();
         builder.enable_enum_index_migration(self.enum_index_migration_chunk_size);
         let mut conn = self
             .pool
             .access_storage_tagged("state_keeper")
             .await
-            .unwrap();
+            .context("Failed getting a connection to Postgres")?;
         builder
             .synchronize(&mut conn, stop_receiver)
             .await
-            .expect("Failed synchronizing secondary state keeper storage")
+            .context("Failed synchronizing state keeper's RocksDB to Postgres")
     }
 }
 

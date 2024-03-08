@@ -81,8 +81,9 @@ impl<T: ReadStorageFactory> BatchExecutor for MainBatchExecutor<T> {
         let stop_receiver = stop_receiver.clone();
         let handle = tokio::task::spawn_blocking(move || {
             let rt_handle = Handle::current();
-            if let Some(storage) =
-                rt_handle.block_on(factory.access_storage(rt_handle.clone(), &stop_receiver))
+            if let Some(storage) = rt_handle
+                .block_on(factory.access_storage(rt_handle.clone(), &stop_receiver))
+                .expect("failed getting access to state keeper storage")
             {
                 executor.run(
                     storage,

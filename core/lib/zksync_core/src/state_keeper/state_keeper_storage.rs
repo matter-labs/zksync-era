@@ -36,7 +36,7 @@ pub trait ReadStorageFactory: Clone + Debug + Send + Sync + 'static {
         &'a self,
         rt_handle: Handle,
         stop_receiver: &watch::Receiver<bool>,
-    ) -> Option<Self::ReadStorageImpl<'a>>;
+    ) -> anyhow::Result<Option<Self::ReadStorageImpl<'a>>>;
 }
 
 /// A [`ReadStorage`] implementation that uses either [`PostgresStorage`] or [`RocksdbStorage`]
@@ -164,21 +164,21 @@ impl AsyncRocksdbCache {
         &'a self,
         rt_handle: Handle,
         stop_receiver: &watch::Receiver<bool>,
-    ) -> Option<PgOrRocksdbStorage<'a>> {
+    ) -> anyhow::Result<Option<PgOrRocksdbStorage<'a>>> {
         match self {
-            AsyncRocksdbCache::Postgres(pool) => Some(
+            AsyncRocksdbCache::Postgres(pool) => Ok(Some(
                 Self::access_storage_pg(rt_handle, pool)
                     .await
-                    .expect("Failed accessing Postgres storage"),
-            ),
+                    .context("Failed accessing Postgres storage")?,
+            )),
             AsyncRocksdbCache::Rocksdb(rocksdb, pool) => {
                 let mut conn = pool
                     .access_storage_tagged("state_keeper")
                     .await
-                    .expect("Failed getting a Postgres connection");
+                    .context("Failed getting a Postgres connection")?;
                 Self::access_storage_rocksdb(&mut conn, rocksdb.clone(), stop_receiver)
                     .await
-                    .expect("Failed accessing RocksDB storage")
+                    .context("Failed accessing RocksDB storage")
             }
         }
     }
@@ -192,7 +192,7 @@ impl ReadStorageFactory for AsyncRocksdbCache {
         &'a self,
         rt_handle: Handle,
         stop_receiver: &watch::Receiver<bool>,
-    ) -> Option<Self::ReadStorageImpl<'a>> {
+    ) -> anyhow::Result<Option<Self::ReadStorageImpl<'a>>> {
         self.access_storage_inner(rt_handle, stop_receiver).await
     }
 }
