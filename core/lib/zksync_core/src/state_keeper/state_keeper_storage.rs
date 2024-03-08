@@ -27,7 +27,7 @@ pub struct StateKeeperStorage<T: ReadStorageFactory> {
 
 /// Factory that can produce a [`ReadStorage`] implementation on demand.
 #[async_trait]
-pub trait ReadStorageFactory: Clone + Debug + Send + Sync {
+pub trait ReadStorageFactory: Clone + Debug + Send + Sync + 'static {
     type ReadStorageImpl<'a>: ReadStorage
     where
         Self: 'a;

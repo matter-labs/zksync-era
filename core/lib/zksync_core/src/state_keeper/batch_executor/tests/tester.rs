@@ -103,7 +103,7 @@ impl Tester {
             .await
     }
 
-    pub(super) async fn create_batch_executor_inner<T: ReadStorageFactory + 'static>(
+    pub(super) async fn create_batch_executor_inner<T: ReadStorageFactory>(
         &self,
         state_keeper_storage: StateKeeperStorage<T>,
         l1_batch_env: L1BatchEnv,
@@ -136,7 +136,7 @@ impl Tester {
             .await
     }
 
-    pub(super) async fn recover_batch_executor_inner<T: ReadStorageFactory + 'static>(
+    pub(super) async fn recover_batch_executor_inner<T: ReadStorageFactory>(
         &self,
         state_keeper_storage: StateKeeperStorage<T>,
         snapshot: &SnapshotRecoveryStatus,

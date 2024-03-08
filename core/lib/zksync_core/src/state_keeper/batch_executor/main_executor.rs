@@ -59,7 +59,7 @@ impl<T: ReadStorageFactory> MainBatchExecutor<T> {
 }
 
 #[async_trait]
-impl<T: ReadStorageFactory + 'static> BatchExecutor for MainBatchExecutor<T> {
+impl<T: ReadStorageFactory> BatchExecutor for MainBatchExecutor<T> {
     async fn init_batch(
         &mut self,
         l1_batch_params: L1BatchEnv,
