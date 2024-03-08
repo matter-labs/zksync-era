@@ -167,7 +167,6 @@ impl ProtoFmt for Payload {
     type Proto = super::proto::Payload;
 
     fn read(message: &Self::Proto) -> anyhow::Result<Self> {
-        tracing::info!("Reading proto payload");
         let mut transactions = Vec::with_capacity(message.transactions.len());
         for (i, tx) in message.transactions.iter().enumerate() {
             transactions.push(
@@ -215,7 +214,6 @@ impl ProtoFmt for Payload {
     }
 
     fn build(&self) -> Self::Proto {
-        tracing::info!("Building proto payload");
         Self::Proto {
             protocol_version: Some((self.protocol_version as u16).into()),
             hash: Some(self.hash.as_bytes().into()),
@@ -247,5 +245,31 @@ impl Payload {
 
     pub fn encode(&self) -> validator::Payload {
         validator::Payload(zksync_protobuf::encode(self))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_payload_proto_build_read() {
+        let payload = Payload {
+            protocol_version: ProtocolVersionId::default(),
+            hash: H256::zero(),
+            l1_batch_number: L1BatchNumber(0),
+            timestamp: 0,
+            l1_gas_price: U256::zero(),
+            l2_fair_gas_price: U256::zero(),
+            fair_pubdata_price: None,
+            virtual_blocks: 0,
+            operator_address: Address::zero(),
+            transactions: vec![],
+            last_in_batch: false,
+        };
+
+        let proto = payload.build();
+        let decoded = Payload::read(&proto).unwrap();
+        assert_eq!(payload, decoded);
     }
 }
