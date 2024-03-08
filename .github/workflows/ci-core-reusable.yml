@@ -120,6 +120,8 @@ jobs:
   integration:
     name: Integration (consensus=${{ matrix.consensus }})
     strategy:
+      # In matrix jobs, fail-fast is true by default.
+      # To be consistent with the rest of the workflow we disable it explicitly.
       fail-fast: false
       matrix:
         consensus: [false, true]
