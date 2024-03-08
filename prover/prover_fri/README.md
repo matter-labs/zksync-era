@@ -89,7 +89,7 @@ Machine specs:
 
    to produce blocks to be proven
 
-5. Run prover gateway to fetch blocks to be proven from server:
+5. Move again into the `prover` directory and run prover gateway to fetch blocks to be proven from server:
 
    ```console
    zk f cargo run --release --bin zksync_prover_fri_gateway
