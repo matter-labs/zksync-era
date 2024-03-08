@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ops};
+use std::collections::HashMap;
 
 use zksync_types::{
     get_code_key, get_nonce_key,
@@ -96,9 +96,6 @@ impl StorageWeb3Dal<'_, '_> {
         key: &StorageKey,
         block_number: MiniblockNumber,
     ) -> sqlx::Result<H256> {
-        // We need to proper distinguish if the value is zero or None
-        // for the VM to correctly determine initial writes.
-        // So, we accept that the value is None if it's zero and it wasn't initially written at the moment.
         let hashed_key = key.hashed_key();
 
         sqlx::query!(
@@ -202,71 +199,44 @@ impl StorageWeb3Dal<'_, '_> {
         Ok(l1_batch_number)
     }
 
-    /// Returns distinct hashed storage keys that were modified in the specified miniblock range.
-    pub async fn modified_keys_in_miniblocks(
-        &mut self,
-        miniblock_numbers: ops::RangeInclusive<MiniblockNumber>,
-    ) -> Vec<H256> {
-        sqlx::query!(
-            r#"
-            SELECT DISTINCT
-                hashed_key
-            FROM
-                storage_logs
-            WHERE
-                miniblock_number BETWEEN $1 AND $2
-            "#,
-            miniblock_numbers.start().0 as i64,
-            miniblock_numbers.end().0 as i64
-        )
-        .fetch_all(self.storage.conn())
-        .await
-        .unwrap()
-        .into_iter()
-        .map(|row| H256::from_slice(&row.hashed_key))
-        .collect()
-    }
-
     /// This method doesn't check if block with number equals to `block_number`
     /// is present in the database. For such blocks `None` will be returned.
     pub async fn get_contract_code_unchecked(
         &mut self,
         address: Address,
         block_number: MiniblockNumber,
-    ) -> Result<Option<Vec<u8>>, SqlxError> {
+    ) -> sqlx::Result<Option<Vec<u8>>> {
         let hashed_key = get_code_key(&address).hashed_key();
-        {
-            sqlx::query!(
-                r#"
-                SELECT
-                    bytecode
-                FROM
-                    (
-                        SELECT
-                            *
-                        FROM
-                            storage_logs
-                        WHERE
-                            storage_logs.hashed_key = $1
-                            AND storage_logs.miniblock_number <= $2
-                        ORDER BY
-                            storage_logs.miniblock_number DESC,
-                            storage_logs.operation_number DESC
-                        LIMIT
-                            1
-                    ) t
-                    JOIN factory_deps ON value = factory_deps.bytecode_hash
-                WHERE
-                    value != $3
-                "#,
-                hashed_key.as_bytes(),
-                block_number.0 as i64,
-                FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH.as_bytes(),
-            )
-            .fetch_optional(self.storage.conn())
-            .await
-            .map(|option_row| option_row.map(|row| row.bytecode))
-        }
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                bytecode
+            FROM
+                (
+                    SELECT
+                        *
+                    FROM
+                        storage_logs
+                    WHERE
+                        storage_logs.hashed_key = $1
+                        AND storage_logs.miniblock_number <= $2
+                    ORDER BY
+                        storage_logs.miniblock_number DESC,
+                        storage_logs.operation_number DESC
+                    LIMIT
+                        1
+                ) t
+                JOIN factory_deps ON value = factory_deps.bytecode_hash
+            WHERE
+                value != $3
+            "#,
+            hashed_key.as_bytes(),
+            block_number.0 as i64,
+            FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH.as_bytes(),
+        )
+        .fetch_optional(self.storage.conn())
+        .await?;
+        Ok(row.map(|row| row.bytecode))
     }
 
     /// This method doesn't check if block with number equals to `block_number`
@@ -275,25 +245,24 @@ impl StorageWeb3Dal<'_, '_> {
         &mut self,
         hash: H256,
         block_number: MiniblockNumber,
-    ) -> Result<Option<Vec<u8>>, SqlxError> {
-        {
-            sqlx::query!(
-                r#"
-                SELECT
-                    bytecode
-                FROM
-                    factory_deps
-                WHERE
-                    bytecode_hash = $1
-                    AND miniblock_number <= $2
-                "#,
-                hash.as_bytes(),
-                block_number.0 as i64
-            )
-            .fetch_optional(self.storage.conn())
-            .await
-            .map(|option_row| option_row.map(|row| row.bytecode))
-        }
+    ) -> sqlx::Result<Option<Vec<u8>>> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                bytecode
+            FROM
+                factory_deps
+            WHERE
+                bytecode_hash = $1
+                AND miniblock_number <= $2
+            "#,
+            hash.as_bytes(),
+            block_number.0 as i64
+        )
+        .fetch_optional(self.storage.conn())
+        .await?;
+
+        Ok(row.map(|row| row.bytecode))
     }
 }
 

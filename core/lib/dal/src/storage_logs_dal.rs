@@ -142,7 +142,7 @@ impl StorageLogsDal<'_, '_> {
     ) -> sqlx::Result<()> {
         let stage_start = Instant::now();
         let modified_keys = self
-            .modified_keys_since_miniblock(last_miniblock_to_keep)
+            .modified_keys_in_miniblocks(last_miniblock_to_keep.next()..=MiniblockNumber(u32::MAX))
             .await?;
         tracing::info!(
             "Loaded {} keys changed after miniblock #{last_miniblock_to_keep} in {:?}",
@@ -221,32 +221,30 @@ impl StorageLogsDal<'_, '_> {
         Ok(())
     }
 
-    /// Returns all storage keys that were modified after the specified miniblock.
-    async fn modified_keys_since_miniblock(
+    /// Returns distinct hashed storage keys that were modified in the specified miniblock range.
+    pub async fn modified_keys_in_miniblocks(
         &mut self,
-        miniblock_number: MiniblockNumber,
+        miniblock_numbers: ops::RangeInclusive<MiniblockNumber>,
     ) -> sqlx::Result<Vec<H256>> {
-        Ok(sqlx::query!(
+        let rows = sqlx::query!(
             r#"
             SELECT DISTINCT
-                ON (hashed_key) hashed_key
+                hashed_key
             FROM
-                (
-                    SELECT
-                        *
-                    FROM
-                        storage_logs
-                    WHERE
-                        miniblock_number > $1
-                ) inn
+                storage_logs
+            WHERE
+                miniblock_number BETWEEN $1 AND $2
             "#,
-            miniblock_number.0 as i64
+            i64::from(miniblock_numbers.start().0),
+            i64::from(miniblock_numbers.end().0)
         )
         .fetch_all(self.storage.conn())
-        .await?
-        .into_iter()
-        .map(|row| H256::from_slice(&row.hashed_key))
-        .collect())
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| H256::from_slice(&row.hashed_key))
+            .collect())
     }
 
     /// Removes all storage logs with a miniblock number strictly greater than the specified `block_number`.
@@ -260,7 +258,7 @@ impl StorageLogsDal<'_, '_> {
             WHERE
                 miniblock_number > $1
             "#,
-            block_number.0 as i64
+            block_number.0 as i64 // FIXME: use i64::from
         )
         .execute(self.storage.conn())
         .await?;
@@ -414,7 +412,9 @@ impl StorageLogsDal<'_, '_> {
         };
 
         let stage_start = Instant::now();
-        let mut modified_keys = self.modified_keys_since_miniblock(last_miniblock).await?;
+        let mut modified_keys = self
+            .modified_keys_in_miniblocks(last_miniblock.next()..=MiniblockNumber(u32::MAX))
+            .await?;
         let modified_keys_count = modified_keys.len();
         tracing::info!(
             "Fetched {modified_keys_count} keys changed after miniblock #{last_miniblock} in {:?}",
