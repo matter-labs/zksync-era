@@ -8,6 +8,7 @@ import { Reporter } from './reporter';
 /**
  * Attempts to connect to server.
  * This function returns once connection can be established, or throws an exception in case of timeout.
+ * It also waits for L2 ERC20 bridge to be deployed.
  *
  * This function is expected to be called *before* loading an environment via `loadTestEnvironment`,
  * because the latter expects server to be running and may throw otherwise.
@@ -29,6 +30,12 @@ export async function waitForServer() {
     for (let i = 0; i < maxAttempts; ++i) {
         try {
             await l2Provider.getNetwork(); // Will throw if the server is not ready yet.
+            const bridgeAddress = (await l2Provider.getDefaultBridgeAddresses()).erc20L2;
+            const code = await l2Provider.getCode(bridgeAddress);
+            if (code == '0x') {
+                throw Error('L2 ERC20 bridge is not deployed yet, server is not ready');
+            }
+
             ready = true;
             reporter.finishAction();
             return;

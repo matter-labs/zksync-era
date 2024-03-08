@@ -229,24 +229,62 @@ impl EthNamespace {
         self.current_method().set_block_id(block_id);
         self.state.start_info.ensure_not_pruned(block_id)?;
 
-        let block = self
+        let mut storage = self
             .state
             .connection_pool
             .access_storage_tagged("api")
+            .await?;
+        let Some(block_number) = self
+            .state
+            .resolve_block_unchecked(&mut storage, block_id)
             .await?
+        else {
+            return Ok(None);
+        };
+        let Some(block) = storage
             .blocks_web3_dal()
-            .get_block_by_web3_block_id(
-                block_id,
-                full_transactions,
-                self.state.api_config.l2_chain_id,
-            )
+            .get_api_block(block_number)
             .await
-            .context("get_block_by_web3_block_id")?;
-        if let Some(block) = &block {
-            let block_number = MiniblockNumber(block.number.as_u32());
-            self.set_block_diff(block_number);
-        }
-        Ok(block)
+            .with_context(|| format!("get_api_block({block_number})"))?
+        else {
+            return Ok(None);
+        };
+        self.set_block_diff(block_number);
+
+        let transactions = if full_transactions {
+            let mut transactions = storage
+                .transactions_web3_dal()
+                .get_transactions(&block.transactions, self.state.api_config.l2_chain_id)
+                .await
+                .context("get_transactions")?;
+            if transactions.len() != block.transactions.len() {
+                let err = anyhow::anyhow!(
+                    "storage inconsistency: get_api_block({block_number}) returned {} tx hashes, but get_transactions({:?}) \
+                     returned {} transactions: {transactions:?}",
+                    block.transactions.len(),
+                    block.transactions,
+                    transactions.len()
+                );
+                return Err(err.into());
+            }
+            // We need to sort `transactions` by their index in block since `get_transactions()` returns
+            // transactions in an arbitrary order.
+            transactions.sort_unstable_by_key(|tx| tx.transaction_index);
+
+            transactions
+                .into_iter()
+                .map(TransactionVariant::Full)
+                .collect()
+        } else {
+            block
+                .transactions
+                .iter()
+                .copied()
+                .map(TransactionVariant::Hash)
+                .collect()
+        };
+
+        Ok(Some(block.with_transactions(transactions)))
     }
 
     #[tracing::instrument(skip(self))]
@@ -257,65 +295,67 @@ impl EthNamespace {
         self.current_method().set_block_id(block_id);
         self.state.start_info.ensure_not_pruned(block_id)?;
 
-        let tx_count = self
+        let mut storage = self
             .state
             .connection_pool
             .access_storage_tagged("api")
+            .await?;
+        let Some(block_number) = self
+            .state
+            .resolve_block_unchecked(&mut storage, block_id)
             .await?
+        else {
+            return Ok(None);
+        };
+        let tx_count = storage
             .blocks_web3_dal()
-            .get_block_tx_count(block_id)
+            .get_block_tx_count(block_number)
             .await
-            .context("get_block_tx_count")?;
+            .with_context(|| format!("get_block_tx_count({block_number})"))?;
 
-        if let Some((block_number, _)) = &tx_count {
-            self.set_block_diff(*block_number);
+        if tx_count.is_some() {
+            self.set_block_diff(block_number); // only report block diff for existing miniblocks
         }
-        Ok(tx_count.map(|(_, count)| count))
+        Ok(tx_count.map(Into::into))
     }
 
     #[tracing::instrument(skip(self))]
     pub async fn get_block_receipts_impl(
         &self,
         block_id: BlockId,
-    ) -> Result<Vec<TransactionReceipt>, Web3Error> {
+    ) -> Result<Option<Vec<TransactionReceipt>>, Web3Error> {
         self.current_method().set_block_id(block_id);
         self.state.start_info.ensure_not_pruned(block_id)?;
 
-        let block = self
+        let mut storage = self
             .state
             .connection_pool
             .access_storage_tagged("api")
+            .await?;
+        let Some(block_number) = self
+            .state
+            .resolve_block_unchecked(&mut storage, block_id)
             .await?
+        else {
+            return Ok(None);
+        };
+        let Some(block) = storage
             .blocks_web3_dal()
-            .get_block_by_web3_block_id(block_id, false, self.state.api_config.l2_chain_id)
+            .get_api_block(block_number)
             .await
-            .context("get_block_by_web3_block_id")?;
-        if let Some(block) = &block {
-            self.set_block_diff(block.number.as_u32().into());
-        }
+            .with_context(|| format!("get_api_block({block_number})"))?
+        else {
+            return Ok(None);
+        };
+        self.set_block_diff(block_number); // only report block diff for existing miniblocks
 
-        let transactions: &[TransactionVariant] =
-            block.as_ref().map_or(&[], |block| &block.transactions);
-        let hashes: Vec<_> = transactions
-            .iter()
-            .map(|tx| match tx {
-                TransactionVariant::Full(tx) => tx.hash,
-                TransactionVariant::Hash(hash) => *hash,
-            })
-            .collect();
-
-        let mut receipts = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await?
+        let mut receipts = storage
             .transactions_web3_dal()
-            .get_transaction_receipts(&hashes)
+            .get_transaction_receipts(&block.transactions)
             .await
-            .context("get_transaction_receipts")?;
-
+            .with_context(|| format!("get_transaction_receipts({block_number})"))?;
         receipts.sort_unstable_by_key(|receipt| receipt.transaction_index);
-        Ok(receipts)
+        Ok(Some(receipts))
     }
 
     #[tracing::instrument(skip(self))]
@@ -430,15 +470,40 @@ impl EthNamespace {
         &self,
         id: TransactionId,
     ) -> Result<Option<Transaction>, Web3Error> {
-        let mut transaction = self
+        let mut storage = self
             .state
             .connection_pool
             .access_storage_tagged("api")
-            .await?
-            .transactions_web3_dal()
-            .get_transaction(id, self.state.api_config.l2_chain_id)
-            .await
-            .context("get_transaction")?;
+            .await?;
+        let chain_id = self.state.api_config.l2_chain_id;
+        let mut transaction = match id {
+            TransactionId::Hash(hash) => storage
+                .transactions_web3_dal()
+                .get_transaction_by_hash(hash, chain_id)
+                .await
+                .with_context(|| format!("get_transaction_by_hash({hash:?})"))?,
+
+            TransactionId::Block(block_id, idx) => {
+                let Ok(idx) = u32::try_from(idx) else {
+                    return Ok(None); // index overflow means no transaction
+                };
+                let Some(block_number) = self
+                    .state
+                    .resolve_block_unchecked(&mut storage, block_id)
+                    .await?
+                else {
+                    return Ok(None);
+                };
+
+                storage
+                    .transactions_web3_dal()
+                    .get_transaction_by_position(block_number, idx, chain_id)
+                    .await
+                    .with_context(|| {
+                        format!("get_transaction_by_position({block_number}, {idx})")
+                    })?
+            }
+        };
 
         if transaction.is_none() {
             transaction = self.state.tx_sink().lookup_tx(id).await?;

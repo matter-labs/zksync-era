@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use circuit_sequencer_api_1_3_3::INITIAL_MONOTONIC_CYCLE_COUNTER;
 use zk_evm_1_3_1::{
     abstractions::{MAX_HEAP_PAGE_SIZE_IN_WORDS, MAX_MEMORY_BYTES},
     aux_structures::{MemoryPage, Timestamp},
@@ -10,7 +11,6 @@ use zk_evm_1_3_1::{
         BOOTLOADER_CALLDATA_PAGE, STARTING_BASE_PAGE, STARTING_TIMESTAMP,
     },
 };
-use zkevm_test_harness_1_3_3::INITIAL_MONOTONIC_CYCLE_COUNTER;
 use zksync_contracts::BaseSystemContracts;
 use zksync_system_constants::MAX_L2_TX_GAS_LIMIT;
 use zksync_types::{

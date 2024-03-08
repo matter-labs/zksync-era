@@ -1,11 +1,7 @@
 use std::{convert::TryInto, str::FromStr};
 
 use bigdecimal::{BigDecimal, ToPrimitive};
-use sqlx::{
-    postgres::{PgArguments, Postgres},
-    query::Query,
-    types::chrono::{DateTime, NaiveDateTime, Utc},
-};
+use sqlx::types::chrono::{DateTime, NaiveDateTime, Utc};
 use thiserror::Error;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_types::{
@@ -251,69 +247,6 @@ impl TryInto<L1BatchMetadata> for StorageL1Batch {
                 .bootloader_initial_content_commitment
                 .map(|v| H256::from_slice(&v)),
         })
-    }
-}
-
-/// Returns block_number SQL statement
-pub fn web3_block_number_to_sql(block_number: api::BlockNumber) -> String {
-    match block_number {
-        api::BlockNumber::Number(number) => number.to_string(),
-        api::BlockNumber::Earliest => 0.to_string(),
-        api::BlockNumber::Pending => "
-            (SELECT COALESCE(
-                (SELECT (MAX(number) + 1) AS number FROM miniblocks),
-                (SELECT (MAX(miniblock_number) + 1) AS number FROM snapshot_recovery),
-                0
-            ) AS number)
-        "
-        .to_string(),
-        api::BlockNumber::Latest | api::BlockNumber::Committed => {
-            "(SELECT MAX(number) AS number FROM miniblocks)".to_string()
-        }
-        api::BlockNumber::Finalized => "
-            (SELECT COALESCE(
-                (
-                    SELECT MAX(number) FROM miniblocks
-                    WHERE l1_batch_number = (
-                        SELECT MAX(number) FROM l1_batches
-                        JOIN eth_txs ON
-                            l1_batches.eth_execute_tx_id = eth_txs.id
-                        WHERE
-                            eth_txs.confirmed_eth_tx_history_id IS NOT NULL
-                    )
-                ),
-                0
-            ) AS number)
-        "
-        .to_string(),
-    }
-}
-
-pub fn web3_block_where_sql(block_id: api::BlockId, arg_index: u8) -> String {
-    match block_id {
-        api::BlockId::Hash(_) => format!("miniblocks.hash = ${arg_index}"),
-        api::BlockId::Number(api::BlockNumber::Number(_)) => {
-            format!("miniblocks.number = ${arg_index}")
-        }
-        api::BlockId::Number(number) => {
-            let block_sql = web3_block_number_to_sql(number);
-            format!("miniblocks.number = {}", block_sql)
-        }
-    }
-}
-
-pub fn bind_block_where_sql_params<'q>(
-    block_id: &'q api::BlockId,
-    query: Query<'q, Postgres, PgArguments>,
-) -> Query<'q, Postgres, PgArguments> {
-    match block_id {
-        // these `block_id` types result in `$1` in the query string, which we have to `bind`
-        api::BlockId::Hash(block_hash) => query.bind(block_hash.as_bytes()),
-        api::BlockId::Number(api::BlockNumber::Number(number)) => {
-            query.bind(number.as_u64() as i64)
-        }
-        // others don't introduce `$1`, so we don't have to `bind` anything
-        _ => query,
     }
 }
 
