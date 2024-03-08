@@ -140,14 +140,13 @@ impl ValuesCache {
         }
     }
 
-    #[allow(clippy::cast_precision_loss)] // acceptable for metrics
     fn update(
         &self,
         from_miniblock: MiniblockNumber,
         to_miniblock: MiniblockNumber,
         rt_handle: &Handle,
         connection: &mut StorageProcessor<'_>,
-    ) {
+    ) -> anyhow::Result<()> {
         const MAX_MINIBLOCKS_LAG: u32 = 5;
 
         tracing::debug!(
@@ -161,8 +160,16 @@ impl ValuesCache {
                 "Storage values cache is too far behind (current miniblock is {from_miniblock}; \
                  requested update to {to_miniblock}); resetting the cache"
             );
-            let mut lock = self.0.write().expect("values cache is poisoned");
-            assert_eq!(lock.valid_for, from_miniblock);
+            let mut lock = self
+                .0
+                .write()
+                .map_err(|_| anyhow::anyhow!("values cache is poisoned"))?;
+            anyhow::ensure!(
+                lock.valid_for == from_miniblock,
+                "sanity check failed: values cache was expected to be valid for miniblock #{from_miniblock}, but it's actually \
+                 valid for miniblock #{}",
+                lock.valid_for
+            );
             lock.valid_for = to_miniblock;
             lock.values.clear();
 
@@ -170,11 +177,15 @@ impl ValuesCache {
         } else {
             let update_latency = CACHE_METRICS.values_update[&ValuesUpdateStage::LoadKeys].start();
             let miniblocks = (from_miniblock + 1)..=to_miniblock;
-            let modified_keys = rt_handle.block_on(
-                connection
-                    .storage_web3_dal()
-                    .modified_keys_in_miniblocks(miniblocks.clone()),
-            );
+            let modified_keys = rt_handle
+                .block_on(
+                    connection
+                        .storage_logs_dal()
+                        .modified_keys_in_miniblocks(miniblocks.clone()),
+                )
+                .with_context(|| {
+                    format!("failed loading modified keys for miniblocks {miniblocks:?}")
+                })?;
 
             let elapsed = update_latency.observe();
             CACHE_METRICS
@@ -188,11 +199,19 @@ impl ValuesCache {
 
             let update_latency =
                 CACHE_METRICS.values_update[&ValuesUpdateStage::RemoveStaleKeys].start();
-            let mut lock = self.0.write().expect("values cache is poisoned");
+            let mut lock = self
+                .0
+                .write()
+                .map_err(|_| anyhow::anyhow!("values cache is poisoned"))?;
             // The code below holding onto the write `lock` is the only code that can theoretically poison the `RwLock`
             // (other than emptying the cache above). Thus, it's kept as simple and tight as possible.
             // E.g., we load data from Postgres beforehand.
-            assert_eq!(lock.valid_for, from_miniblock);
+            anyhow::ensure!(
+                lock.valid_for == from_miniblock,
+                "sanity check failed: values cache was expected to be valid for miniblock #{from_miniblock}, but it's actually \
+                 valid for miniblock #{}",
+                lock.valid_for
+            );
             lock.valid_for = to_miniblock;
             for modified_key in &modified_keys {
                 lock.values.remove(modified_key);
@@ -201,9 +220,11 @@ impl ValuesCache {
             drop(lock);
             update_latency.observe();
         }
+
         CACHE_METRICS
             .values_valid_for_miniblock
             .set(u64::from(to_miniblock.0));
+        Ok(())
     }
 }
 
@@ -298,9 +319,13 @@ impl PostgresStorageCaches {
                     continue;
                 }
                 let mut connection = rt_handle
-                    .block_on(connection_pool.access_storage_tagged("values_cache_updater"))
-                    .unwrap();
-                values_cache.update(current_miniblock, to_miniblock, &rt_handle, &mut connection);
+                    .block_on(connection_pool.access_storage_tagged("values_cache_updater"))?;
+                values_cache.update(
+                    current_miniblock,
+                    to_miniblock,
+                    &rt_handle,
+                    &mut connection,
+                )?;
                 current_miniblock = to_miniblock;
             }
             Ok(())
