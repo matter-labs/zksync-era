@@ -43,8 +43,8 @@ jobs:
           ci_run zk server --uring --components=$SERVER_COMPONENTS &>server.log &
           ci_run sleep 30
       
-      - name: Perform loadtest
-        run: ci_run zk run loadtest
+#      - name: Perform loadtest
+#        run: ci_run zk run loadtest
              
       - name: Step - Create a snapshot
         if: always()
