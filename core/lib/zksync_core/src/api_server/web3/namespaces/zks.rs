@@ -516,7 +516,6 @@ impl ZksNamespace {
             Err(TreeApiError::NotReady) => return Err(Web3Error::TreeApiUnavailable),
             Err(TreeApiError::NoVersion(err)) => {
                 return if err.missing_version > err.version_count {
-                    // FIXME: should we distinguish the case when the tree is catching up?
                     Ok(None)
                 } else {
                     Err(Web3Error::InternalError(anyhow::anyhow!(
