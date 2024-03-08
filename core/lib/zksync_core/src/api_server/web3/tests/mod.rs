@@ -164,10 +164,13 @@ async fn spawn_server(
     };
     let server_handles = server_builder
         .with_polling_interval(POLL_INTERVAL)
-        .with_tx_sender(tx_sender, vm_barrier)
+        .with_tx_sender(tx_sender)
+        .with_vm_barrier(vm_barrier)
         .with_pub_sub_events(pub_sub_events_sender)
         .enable_api_namespaces(namespaces)
-        .build(stop_receiver)
+        .build()
+        .expect("Unable to build API server")
+        .run(stop_receiver)
         .await
         .expect("Failed spawning JSON-RPC server");
     (server_handles, pub_sub_events_receiver)
