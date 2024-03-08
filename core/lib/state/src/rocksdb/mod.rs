@@ -129,8 +129,7 @@ impl From<anyhow::Error> for RocksdbSyncError {
 /// [`ReadStorage`] implementation backed by RocksDB.
 #[derive(Debug)]
 pub struct RocksdbStorage {
-    /// Underlying RocksDB instance
-    pub db: RocksDB<StateKeeperColumnFamily>,
+    db: RocksDB<StateKeeperColumnFamily>,
     pending_patch: InMemoryStorage,
     enum_index_migration_chunk_size: usize,
     /// Test-only listeners to events produced by the storage.
@@ -658,6 +657,12 @@ impl RocksdbStorage {
             Some(cursor) => Some(H256::from_slice(&cursor)),
             None => Some(H256::zero()),
         }
+    }
+}
+
+impl From<RocksdbStorage> for RocksDB<StateKeeperColumnFamily> {
+    fn from(value: RocksdbStorage) -> Self {
+        value.db
     }
 }
 

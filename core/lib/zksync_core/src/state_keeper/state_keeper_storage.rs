@@ -233,7 +233,7 @@ impl StateKeeperStorage<AsyncRocksdbCache> {
             drop(storage);
             if let Some(rocksdb) = rocksdb {
                 let mut factory_guard = factory.lock().expect("poisoned");
-                *factory_guard = AsyncRocksdbCache::Rocksdb(rocksdb.db, pool)
+                *factory_guard = AsyncRocksdbCache::Rocksdb(rocksdb.into(), pool)
             } else {
                 tracing::warn!("Interrupted");
             }
