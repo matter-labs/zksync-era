@@ -23,6 +23,7 @@ impl PeriodicApiStruct {
                 data.l1_batch_number,
                 &blob_url,
                 data.fri_protocol_version_id,
+                data.eip_4844_blobs,
             )
             .await;
     }

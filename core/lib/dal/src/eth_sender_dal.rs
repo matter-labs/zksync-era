@@ -1,13 +1,10 @@
 use std::{convert::TryFrom, str::FromStr};
 
 use anyhow::Context as _;
-use sqlx::{
-    types::chrono::{DateTime, Utc},
-    Row,
-};
+use sqlx::types::chrono::{DateTime, Utc};
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    eth_sender::{EthTx, TxHistory, TxHistoryToSend},
+    eth_sender::{EthTx, EthTxBlobSidecar, TxHistory, TxHistoryToSend},
     Address, L1BatchNumber, H256, U256,
 };
 
@@ -52,43 +49,53 @@ impl EthSenderDal<'_, '_> {
     }
 
     pub async fn get_eth_l1_batches(&mut self) -> sqlx::Result<L1BatchEthSenderStats> {
+        struct EthTxRow {
+            number: i64,
+            confirmed: bool,
+        }
+
+        const TX_TYPES: &[AggregatedActionType] = &[
+            AggregatedActionType::Commit,
+            AggregatedActionType::PublishProofOnchain,
+            AggregatedActionType::Execute,
+        ];
+
         let mut stats = L1BatchEthSenderStats::default();
-        for tx_type in ["execute_tx", "commit_tx", "prove_tx"] {
-            let mut records = sqlx::query(&format!(
-                "SELECT number as number, true as confirmed FROM l1_batches \
-                 INNER JOIN eth_txs_history ON (l1_batches.eth_{}_id = eth_txs_history.eth_tx_id) \
-                 WHERE eth_txs_history.confirmed_at IS NOT NULL \
-                 ORDER BY number DESC \
-                 LIMIT 1",
-                tx_type
-            ))
-            .fetch_all(self.storage.conn())
-            .await?;
+        for &tx_type in TX_TYPES {
+            let mut tx_rows = vec![];
+            for confirmed in [true, false] {
+                let query = match_query_as!(
+                    EthTxRow,
+                    [
+                        "SELECT number AS number, ", _, " AS \"confirmed!\" FROM l1_batches ",
+                        "INNER JOIN eth_txs_history ON l1_batches.", _, " = eth_txs_history.eth_tx_id ",
+                        _, // WHERE clause
+                        " ORDER BY number DESC LIMIT 1"
+                    ],
+                    match ((confirmed, tx_type)) {
+                        (false, AggregatedActionType::Commit) => ("false", "eth_commit_tx_id", "";),
+                        (true, AggregatedActionType::Commit) => (
+                            "true", "eth_commit_tx_id", "WHERE eth_txs_history.confirmed_at IS NOT NULL";
+                        ),
+                        (false, AggregatedActionType::PublishProofOnchain) => ("false", "eth_prove_tx_id", "";),
+                        (true, AggregatedActionType::PublishProofOnchain) => (
+                            "true", "eth_prove_tx_id", "WHERE eth_txs_history.confirmed_at IS NOT NULL";
+                        ),
+                        (false, AggregatedActionType::Execute) => ("false", "eth_execute_tx_id", "";),
+                        (true, AggregatedActionType::Execute) => (
+                            "true", "eth_execute_tx_id", "WHERE eth_txs_history.confirmed_at IS NOT NULL";
+                        ),
+                    }
+                );
+                tx_rows.extend(query.fetch_all(self.storage.conn()).await?);
+            }
 
-            records.extend(
-                sqlx::query(&format!(
-                    "SELECT number as number, false as confirmed FROM l1_batches \
-                     INNER JOIN eth_txs_history ON (l1_batches.eth_{}_id = eth_txs_history.eth_tx_id) \
-                     ORDER BY number DESC \
-                     LIMIT 1",
-                    tx_type
-                ))
-                .fetch_all(self.storage.conn())
-                .await?,
-            );
-
-            for record in records {
-                let batch_number = L1BatchNumber(record.get::<i64, &str>("number") as u32);
-                let aggregation_action = match tx_type {
-                    "execute_tx" => AggregatedActionType::Execute,
-                    "commit_tx" => AggregatedActionType::Commit,
-                    "prove_tx" => AggregatedActionType::PublishProofOnchain,
-                    _ => unreachable!(),
-                };
-                if record.get::<bool, &str>("confirmed") {
-                    stats.mined.push((aggregation_action, batch_number));
+            for row in tx_rows {
+                let batch_number = L1BatchNumber(row.number as u32);
+                if row.confirmed {
+                    stats.mined.push((tx_type, batch_number));
                 } else {
-                    stats.saved.push((aggregation_action, batch_number));
+                    stats.saved.push((tx_type, batch_number));
                 }
             }
         }
@@ -167,6 +174,7 @@ impl EthSenderDal<'_, '_> {
         Ok(txs.into_iter().map(|tx| tx.into()).collect())
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn save_eth_tx(
         &mut self,
         nonce: u64,
@@ -175,6 +183,7 @@ impl EthSenderDal<'_, '_> {
         contract_address: Address,
         predicted_gas_cost: u32,
         from_address: Option<Address>,
+        blob_sidecar: Option<EthTxBlobSidecar>,
     ) -> sqlx::Result<EthTx> {
         let address = format!("{:#x}", contract_address);
         let eth_tx = sqlx::query_as!(
@@ -189,10 +198,11 @@ impl EthSenderDal<'_, '_> {
                     predicted_gas_cost,
                     created_at,
                     updated_at,
-                    from_addr
+                    from_addr,
+                    blob_sidecar
                 )
             VALUES
-                ($1, $2, $3, $4, $5, NOW(), NOW(), $6)
+                ($1, $2, $3, $4, $5, NOW(), NOW(), $6, $7)
             RETURNING
                 *
             "#,
@@ -202,6 +212,8 @@ impl EthSenderDal<'_, '_> {
             address,
             predicted_gas_cost as i64,
             from_address.map(|a| a.0.to_vec()),
+            blob_sidecar.map(|sidecar| bincode::serialize(&sidecar)
+                .expect("can always bincode serialize EthTxBlobSidecar; qed")),
         )
         .fetch_one(self.storage.conn())
         .await?;
@@ -213,6 +225,7 @@ impl EthSenderDal<'_, '_> {
         eth_tx_id: u32,
         base_fee_per_gas: u64,
         priority_fee_per_gas: u64,
+        blob_base_fee_per_gas: Option<u64>,
         tx_hash: H256,
         raw_signed_tx: &[u8],
     ) -> anyhow::Result<Option<u32>> {
@@ -232,10 +245,11 @@ impl EthSenderDal<'_, '_> {
                     tx_hash,
                     signed_raw_tx,
                     created_at,
-                    updated_at
+                    updated_at,
+                    blob_base_fee_per_gas
                 )
             VALUES
-                ($1, $2, $3, $4, $5, NOW(), NOW())
+                ($1, $2, $3, $4, $5, NOW(), NOW(), $6)
             ON CONFLICT (tx_hash) DO NOTHING
             RETURNING
                 id
@@ -244,7 +258,8 @@ impl EthSenderDal<'_, '_> {
             base_fee_per_gas,
             priority_fee_per_gas,
             tx_hash,
-            raw_signed_tx
+            raw_signed_tx,
+            blob_base_fee_per_gas.map(|v| v as i64),
         )
         .fetch_optional(self.storage.conn())
         .await?
@@ -460,13 +475,15 @@ impl EthSenderDal<'_, '_> {
             StorageTxHistory,
             r#"
             SELECT
-                *
+                eth_txs_history.*,
+                eth_txs.blob_sidecar
             FROM
                 eth_txs_history
+                LEFT JOIN eth_txs ON eth_tx_id = eth_txs.id
             WHERE
                 eth_tx_id = $1
             ORDER BY
-                created_at DESC
+                eth_txs_history.created_at DESC
             "#,
             eth_tx_id as i32
         )
@@ -496,13 +513,15 @@ impl EthSenderDal<'_, '_> {
             StorageTxHistory,
             r#"
             SELECT
-                *
+                eth_txs_history.*,
+                eth_txs.blob_sidecar
             FROM
                 eth_txs_history
+                LEFT JOIN eth_txs ON eth_tx_id = eth_txs.id
             WHERE
                 eth_tx_id = $1
             ORDER BY
-                created_at DESC
+                eth_txs_history.created_at DESC
             LIMIT
                 1
             "#,
@@ -524,31 +543,28 @@ impl EthSenderDal<'_, '_> {
         &mut self,
         from_address: Option<Address>,
     ) -> sqlx::Result<Option<u64>> {
-        let optional_where_clause = from_address
-            .map(|a| format!("WHERE from_addr = decode('{}', 'hex')", hex::encode(a.0)))
-            .unwrap_or("WHERE from_addr IS NULL".to_owned());
+        struct NonceRow {
+            nonce: i64,
+        }
 
-        let query = format!(
-            r#"
-            SELECT
-                nonce
-            FROM
-                eth_txs
-            {optional_where_clause}
-            ORDER BY
-                id DESC
-            LIMIT
-                1
-            "#,
+        let query = match_query_as!(
+            NonceRow,
+            [
+                "SELECT nonce FROM eth_txs WHERE ",
+                _, // WHERE condition
+                " ORDER BY id DESC LIMIT 1"
+            ],
+            match (from_address) {
+                Some(address) => ("from_addr = $1::bytea"; address.as_bytes()),
+                None => ("from_addr IS NULL";),
+            }
         );
-        let query = sqlx::query(&query);
 
-        let nonce: Option<i64> = query
+        let nonce = query
             .fetch_optional(self.storage.conn())
             .await?
-            .map(|row| row.get("nonce"));
-
-        Ok(nonce.map(|n| n as u64 + 1))
+            .map(|row| row.nonce as u64);
+        Ok(nonce.map(|n| n + 1))
     }
 
     pub async fn mark_failed_transaction(&mut self, eth_tx_id: u32) -> sqlx::Result<()> {
@@ -601,6 +617,48 @@ impl EthSenderDal<'_, '_> {
         )
         .execute(self.storage.conn())
         .await?;
+        Ok(())
+    }
+
+    pub async fn delete_eth_txs(&mut self, last_batch_to_keep: L1BatchNumber) -> sqlx::Result<()> {
+        sqlx::query!(
+            r#"
+            DELETE FROM eth_txs
+            WHERE
+                id IN (
+                    (
+                        SELECT
+                            eth_commit_tx_id
+                        FROM
+                            l1_batches
+                        WHERE
+                            number > $1
+                    )
+                    UNION
+                    (
+                        SELECT
+                            eth_prove_tx_id
+                        FROM
+                            l1_batches
+                        WHERE
+                            number > $1
+                    )
+                    UNION
+                    (
+                        SELECT
+                            eth_execute_tx_id
+                        FROM
+                            l1_batches
+                        WHERE
+                            number > $1
+                    )
+                )
+            "#,
+            last_batch_to_keep.0 as i64
+        )
+        .execute(self.storage.conn())
+        .await?;
+
         Ok(())
     }
 }

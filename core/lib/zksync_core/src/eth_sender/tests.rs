@@ -4,7 +4,7 @@ use assert_matches::assert_matches;
 use once_cell::sync::Lazy;
 use test_casing::test_casing;
 use zksync_config::{
-    configs::eth_sender::{ProofSendingMode, SenderConfig},
+    configs::eth_sender::{ProofSendingMode, PubdataSendingMode, SenderConfig},
     ContractsConfig, ETHSenderConfig, GasAdjusterConfig,
 };
 use zksync_dal::{ConnectionPool, StorageProcessor};
@@ -18,6 +18,7 @@ use zksync_types::{
     commitment::{L1BatchMetaParameters, L1BatchMetadata, L1BatchWithMetadata},
     ethabi::Token,
     helpers::unix_timestamp_ms,
+    pubdata_da::PubdataDA,
     web3::contract::Error,
     Address, L1BatchNumber, L1BlockNumber, ProtocolVersionId, H256,
 };
@@ -92,6 +93,7 @@ impl EthSenderTester {
                     pricing_formula_parameter_b: 2.0,
                     ..eth_sender_config.gas_adjuster
                 },
+                PubdataSendingMode::Calldata,
             )
             .await
             .unwrap(),
@@ -108,6 +110,7 @@ impl EthSenderTester {
                 aggregator_config.clone(),
                 store_factory.create_store().await,
                 aggregator_operate_4844_mode,
+                PubdataDA::Calldata,
             ),
             gateway.clone(),
             // zkSync contract address
@@ -966,6 +969,7 @@ async fn commit_l1_batch(
     let operation = AggregatedOperation::Commit(CommitBatches {
         last_committed_l1_batch: l1_batch_with_metadata(last_committed_l1_batch),
         l1_batches: vec![l1_batch_with_metadata(l1_batch)],
+        pubdata_da: PubdataDA::Calldata,
     });
     send_operation(tester, operation, confirm).await
 }

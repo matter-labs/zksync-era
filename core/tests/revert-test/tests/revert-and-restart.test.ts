@@ -67,7 +67,10 @@ describe('Block reverting test', function () {
     }
 
     before('create test wallet', async () => {
-        tester = await Tester.init(process.env.CHAIN_ETH_NETWORK || 'localhost');
+        tester = await Tester.init(
+            process.env.ETH_CLIENT_WEB3_URL as string,
+            process.env.API_WEB3_JSON_RPC_HTTP_URL as string
+        );
         alice = tester.emptyWallet();
         logs = fs.createWriteStream('revert.log', { flags: 'a' });
     });
@@ -131,7 +134,7 @@ describe('Block reverting test', function () {
         let blocksCommitted = await mainContract.getTotalBlocksCommitted();
         let blocksExecuted = await mainContract.getTotalBlocksExecuted();
         let tryCount = 0;
-        while (blocksCommitted.eq(blocksExecuted) && tryCount < 10) {
+        while (blocksCommitted.eq(blocksExecuted) && tryCount < 100) {
             blocksCommitted = await mainContract.getTotalBlocksCommitted();
             blocksExecuted = await mainContract.getTotalBlocksExecuted();
             tryCount += 1;

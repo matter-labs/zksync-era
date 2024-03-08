@@ -5,15 +5,15 @@ use serde::Deserialize;
 use url::Url;
 use zksync_basic_types::{Address, L1ChainId, L2ChainId};
 use zksync_config::ObjectStoreConfig;
-use zksync_consensus_roles::node;
 use zksync_core::{
     api_server::{
         tx_sender::TxSenderConfig,
         web3::{state::InternalApiConfig, Namespace},
     },
     consensus,
+    temp_config_store::decode_yaml,
 };
-use zksync_types::api::BridgeAddresses;
+use zksync_types::{api::BridgeAddresses, fee_model::FeeParams};
 use zksync_web3_decl::{
     error::ClientRpcContext,
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
@@ -38,6 +38,7 @@ pub struct RemoteENConfig {
     pub l2_testnet_paymaster_addr: Option<Address>,
     pub l2_chain_id: L2ChainId,
     pub l1_chain_id: L1ChainId,
+    pub max_pubdata_per_batch: u64,
 }
 
 impl RemoteENConfig {
@@ -62,6 +63,19 @@ impl RemoteENConfig {
         let l1_chain_id = client.l1_chain_id().rpc_context("l1_chain_id").await?;
         let l1_chain_id = L1ChainId(l1_chain_id.as_u64());
 
+        let fee_params = client
+            .get_fee_params()
+            .rpc_context("get_fee_params")
+            .await?;
+        let max_pubdata_per_batch = match fee_params {
+            FeeParams::V1(_) => {
+                const MAX_V1_PUBDATA_PER_BATCH: u64 = 100_000;
+
+                MAX_V1_PUBDATA_PER_BATCH
+            }
+            FeeParams::V2(params) => params.config.max_pubdata_per_batch,
+        };
+
         Ok(Self {
             bridgehub_proxy_addr,
             diamond_proxy_addr,
@@ -72,6 +86,7 @@ impl RemoteENConfig {
             l2_weth_bridge_addr: bridges.l2_weth_bridge,
             l2_chain_id,
             l1_chain_id,
+            max_pubdata_per_batch,
         })
     }
 }
@@ -222,9 +237,6 @@ pub struct OptionalENConfig {
     /// 0 means that sealing is synchronous; this is mostly useful for performance comparison, testing etc.
     #[serde(default = "OptionalENConfig::default_miniblock_seal_queue_capacity")]
     pub miniblock_seal_queue_capacity: usize,
-    /// Path to KZG trusted setup path.
-    #[serde(default = "OptionalENConfig::default_kzg_trusted_setup_path")]
-    pub kzg_trusted_setup_path: String,
 }
 
 impl OptionalENConfig {
@@ -329,10 +341,6 @@ impl OptionalENConfig {
 
     const fn default_miniblock_seal_queue_capacity() -> usize {
         10
-    }
-
-    fn default_kzg_trusted_setup_path() -> String {
-        "./trusted_setup.json".to_owned()
     }
 
     pub fn polling_interval(&self) -> Duration {
@@ -463,16 +471,20 @@ impl PostgresConfig {
     }
 }
 
-pub(crate) fn read_consensus_config() -> anyhow::Result<consensus::FetcherConfig> {
-    let path = std::env::var("EN_CONSENSUS_CONFIG_PATH")
-        .context("EN_CONSENSUS_CONFIG_PATH env variable is not set")?;
+pub(crate) fn read_consensus_secrets() -> anyhow::Result<Option<consensus::Secrets>> {
+    let Ok(path) = std::env::var("EN_CONSENSUS_SECRETS_PATH") else {
+        return Ok(None);
+    };
     let cfg = std::fs::read_to_string(&path).context(path)?;
-    let cfg: consensus::config::Config =
-        consensus::config::decode_json(&cfg).context("failed decoding JSON")?;
-    let node_key: node::SecretKey = consensus::config::read_secret("EN_CONSENSUS_NODE_KEY")?;
-    Ok(consensus::FetcherConfig {
-        executor: cfg.executor_config(node_key),
-    })
+    Ok(Some(decode_yaml(&cfg).context("failed decoding YAML")?))
+}
+
+pub(crate) fn read_consensus_config() -> anyhow::Result<Option<consensus::Config>> {
+    let Ok(path) = std::env::var("EN_CONSENSUS_CONFIG_PATH") else {
+        return Ok(None);
+    };
+    let cfg = std::fs::read_to_string(&path).context(path)?;
+    Ok(Some(decode_yaml(&cfg).context("failed decoding YAML")?))
 }
 
 /// Configuration for snapshot recovery. Loaded optionally, only if the corresponding command-line argument
@@ -499,7 +511,7 @@ pub struct ExternalNodeConfig {
     pub postgres: PostgresConfig,
     pub optional: OptionalENConfig,
     pub remote: RemoteENConfig,
-    pub consensus: Option<consensus::FetcherConfig>,
+    pub consensus: Option<consensus::Config>,
 }
 
 impl ExternalNodeConfig {
@@ -564,7 +576,7 @@ impl ExternalNodeConfig {
             postgres,
             required,
             optional,
-            consensus: None,
+            consensus: read_consensus_config().context("read_consensus_config()")?,
         })
     }
 }
@@ -625,6 +637,7 @@ impl From<ExternalNodeConfig> for TxSenderConfig {
             l1_to_l2_transactions_compatibility_mode: config
                 .optional
                 .l1_to_l2_transactions_compatibility_mode,
+            max_pubdata_per_batch: config.remote.max_pubdata_per_batch,
         }
     }
 }

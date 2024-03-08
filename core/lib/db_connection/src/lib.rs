@@ -17,6 +17,10 @@ use sqlx::{
     postgres::{PgConnectOptions, PgPool, PgPoolOptions, Postgres},
 };
 
+pub use self::processor::StorageProcessor;
+pub(crate) use self::processor::StorageProcessorTags;
+use self::processor::TracedConnections;
+use crate::metrics::{PostgresMetrics, CONNECTION_METRICS};
 use crate::processor::{
     StorageInteraction, StorageKind, StorageProcessor, StorageProcessorTags, TracedConnections,
 };
@@ -45,6 +49,12 @@ impl fmt::Debug for ConnectionPoolBuilder {
 }
 
 impl ConnectionPoolBuilder {
+    /// Overrides the maximum number of connections that can be allocated by the pool.
+    pub fn set_max_size(&mut self, max_size: u32) -> &mut Self {
+        self.max_size = max_size;
+        self
+    }
+
     /// Sets the acquire timeout for a single connection attempt. There are multiple attempts (currently 3)
     /// before `access_storage*` methods return an error. If not specified, the acquire timeout will not be set.
     pub fn set_acquire_timeout(&mut self, timeout: Option<Duration>) -> &mut Self {
@@ -96,7 +106,7 @@ impl ConnectionPoolBuilder {
     }
 
     /// Builds a connection pool that has a single connection.
-    pub async fn build_singleton<DB: StorageKind>(&self) -> anyhow::Result<ConnectionPool<DB>> {
+    pub async fn build_singleton(&self) -> anyhow::Result<ConnectionPool> {
         let singleton_builder = Self {
             max_size: 1,
             ..self.clone()
@@ -121,7 +131,7 @@ impl TestTemplate {
 
     async fn connect_to(db_url: &url::Url) -> sqlx::Result<sqlx::PgConnection> {
         use sqlx::Connection as _;
-        let mut attempts = 10;
+        let mut attempts = 20;
         loop {
             match sqlx::PgConnection::connect(db_url.as_ref()).await {
                 Ok(conn) => return Ok(conn),
@@ -132,7 +142,7 @@ impl TestTemplate {
                     }
                 }
             }
-            tokio::time::sleep(Duration::from_millis(100)).await;
+            tokio::time::sleep(Duration::from_millis(200)).await;
         }
     }
 
@@ -253,7 +263,7 @@ impl<SK: StorageKind> fmt::Debug for ConnectionPool<SK> {
 }
 
 impl<SK: StorageKind> ConnectionPool<SK> {
-    const TEST_ACQUIRE_TIMEOUT: Duration = Duration::from_secs(1);
+    const TEST_ACQUIRE_TIMEOUT: Duration = Duration::from_secs(10);
 
     /// Returns a reference to the global configuration parameters applied for all DB pools. For consistency, these parameters
     /// should be changed early in the app life cycle.
@@ -312,7 +322,15 @@ impl<SK: StorageKind> ConnectionPool<SK> {
         self.max_size
     }
 
-    pub async fn access_storage(&self) -> anyhow::Result<SK::Processor<'_>> {
+    /// Creates a `StorageProcessor` entity over a recoverable connection.
+    /// Upon a database outage connection will block the thread until
+    /// it will be able to recover the connection (or, if connection cannot
+    /// be restored after several retries, this will be considered as
+    /// irrecoverable database error and result in panic).
+    ///
+    /// This method is intended to be used in crucial contexts, where the
+    /// database access is must-have (e.g. block committer).
+    pub async fn access_storage(&self) -> anyhow::Result<StorageProcessor<'_>> {
         self.access_storage_inner(None).await
     }
 

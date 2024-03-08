@@ -1,8 +1,8 @@
 use anyhow::Context as _;
 use zksync_config::configs;
-use zksync_protobuf::required;
+use zksync_protobuf::{repr::ProtoRepr, required};
 
-use crate::{proto, repr::ProtoRepr};
+use crate::proto::house_keeper as proto;
 
 impl ProtoRepr for proto::HouseKeeper {
     type Type = configs::house_keeper::HouseKeeperConfig;
