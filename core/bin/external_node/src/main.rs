@@ -551,11 +551,10 @@ async fn main() -> anyhow::Result<()> {
     );
 
     let mut reorg_detector = ReorgDetector::new(main_node_client.clone(), connection_pool.clone());
-    // We're checking for the reorg in the beginning because we expect
-    // that if reorg is detected during the node lifecycle,
-    // the node will exit the same way as it does with any other critical error,
-    // and would restart. Then, on the 2nd launch reorg would be detected here,
-    // then processed and the node will be able to operate normally afterwards.
+    // We're checking for the reorg in the beginning because we expect that if reorg is detected during
+    // the node lifecycle, the node will exit the same way as it does with any other critical error,
+    // and would restart. Then, on the 2nd launch reorg would be detected here, then processed and the node
+    // will be able to operate normally afterwards.
     match reorg_detector.check_consistency().await {
         Ok(()) => {}
         Err(reorg_detector::Error::ReorgDetected(last_correct_l1_batch)) => {

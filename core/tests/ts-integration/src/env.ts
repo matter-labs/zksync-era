@@ -29,7 +29,7 @@ export async function waitForServer() {
         try {
             await l2Provider.getNetwork(); // Will throw if the server is not ready yet.
             reporter.finishAction();
-            // TODO (PLA-842): [workaround] sleep for 10s.
+            reporter.warn('TODO (PLA-842): Connected to server, waiting 10 seconds for it to warm up');
             await zksync.utils.sleep(10 * 1000);
             return;
         } catch (e) {
