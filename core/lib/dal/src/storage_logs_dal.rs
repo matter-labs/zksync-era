@@ -628,19 +628,31 @@ impl StorageLogsDal<'_, '_> {
             .collect()
     }
 
-    /// Counts the total number of storage logs in the specified miniblock.
-    // FIXME: remove in favor of get_storage_logs_row_count()?
-    pub async fn count_miniblock_storage_logs(
+    /// Returns the total number of rows in the `storage_logs` table before and at the specified miniblock.
+    ///
+    /// **Warning.** This method is slow (requires a full table scan).
+    pub async fn get_storage_logs_row_count(
         &mut self,
-        miniblock_number: MiniblockNumber,
+        at_miniblock: MiniblockNumber,
     ) -> sqlx::Result<u64> {
-        let count = sqlx::query_scalar!(
-            "SELECT COUNT(*) FROM storage_logs WHERE miniblock_number = $1",
-            miniblock_number.0 as i32
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                COUNT(*) AS COUNT
+            FROM
+                storage_logs
+            WHERE
+                miniblock_number <= $1
+            "#,
+            at_miniblock.0 as i64
         )
-        .fetch_one(self.storage.conn())
+        .instrument("get_storage_logs_row_count")
+        .with_arg("miniblock_number", &at_miniblock)
+        .report_latency()
+        .expect_slow_query()
+        .fetch_one(self.storage)
         .await?;
-        Ok(count.unwrap_or(0) as u64)
+        Ok(row.count.unwrap_or(0) as u64)
     }
 
     /// Gets a starting tree entry for each of the supplied `key_ranges` for the specified
