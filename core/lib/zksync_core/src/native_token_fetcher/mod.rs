@@ -1,4 +1,7 @@
-use std::{cmp::min, sync::atomic::AtomicU8};
+use std::{
+    cmp::min,
+    sync::atomic::{AtomicBool, AtomicU8},
+};
 
 use anyhow::Context;
 use async_trait::async_trait;
@@ -109,6 +112,7 @@ impl ConversionRateFetcher for NativeTokenFetcher {
 #[derive(Debug)]
 struct ErrorReporter {
     current_try: AtomicU8,
+    alert_spawned: AtomicBool,
 }
 
 impl ErrorReporter {
@@ -117,24 +121,32 @@ impl ErrorReporter {
     fn new() -> Self {
         Self {
             current_try: AtomicU8::new(0),
+            alert_spawned: AtomicBool::new(false),
         }
     }
 
     fn reset(&self) {
         self.current_try
             .store(0, std::sync::atomic::Ordering::Relaxed);
+        self.alert_spawned
+            .store(false, std::sync::atomic::Ordering::Relaxed);
     }
 
     fn process(&self, err: anyhow::Error) {
         let current_try = self.current_try.load(std::sync::atomic::Ordering::Relaxed);
-        let new_value = current_try + 1;
+        let new_value = min(current_try + 1, Self::MAX_CONSECUTIVE_NETWORK_ERRORS);
         self.current_try
             .store(new_value, std::sync::atomic::Ordering::Relaxed);
 
         tracing::error!("Failed to fetch native token conversion rate from the server: {err}");
 
-        if new_value == Self::MAX_CONSECUTIVE_NETWORK_ERRORS {
+        let alert_spawned = self
+            .alert_spawned
+            .load(std::sync::atomic::Ordering::Relaxed);
+        if new_value >= Self::MAX_CONSECUTIVE_NETWORK_ERRORS && !alert_spawned {
             vlog::capture_message(&err.to_string(), vlog::AlertLevel::Warning);
+            self.alert_spawned
+                .store(true, std::sync::atomic::Ordering::Relaxed);
         }
     }
 }
