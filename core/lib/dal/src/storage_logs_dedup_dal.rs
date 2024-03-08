@@ -110,7 +110,7 @@ impl StorageLogsDedupDal<'_, '_> {
             "#,
             &hashed_keys,
             &indices,
-            l1_batch_number.0 as i64,
+            i64::from(l1_batch_number.0)
         )
         .execute(self.storage.conn())
         .await?;
@@ -132,7 +132,7 @@ impl StorageLogsDedupDal<'_, '_> {
             WHERE
                 l1_batch_number = $1
             "#,
-            l1_batch_number.0 as i64
+            i64::from(l1_batch_number.0)
         )
         .fetch_all(self.storage.conn())
         .await
@@ -147,6 +147,7 @@ impl StorageLogsDedupDal<'_, '_> {
         .collect()
     }
 
+    // FIXME: propagate errors
     pub async fn max_enumeration_index(&mut self) -> Option<u64> {
         sqlx::query!(
             r#"
@@ -179,7 +180,7 @@ impl StorageLogsDedupDal<'_, '_> {
             ORDER BY
                 INDEX
             "#,
-            l1_batch_number.0 as i64
+            i64::from(l1_batch_number.0)
         )
         .fetch_all(self.storage.conn())
         .await

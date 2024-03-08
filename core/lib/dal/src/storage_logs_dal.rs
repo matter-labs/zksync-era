@@ -122,7 +122,7 @@ impl StorageLogsDal<'_, '_> {
             WHERE
                 miniblock_number = $1
             "#,
-            block_number.0 as i64
+            i64::from(block_number.0)
         )
         .fetch_one(self.storage.conn())
         .await?
@@ -258,7 +258,7 @@ impl StorageLogsDal<'_, '_> {
             WHERE
                 miniblock_number > $1
             "#,
-            block_number.0 as i64 // FIXME: use i64::from
+            i64::from(block_number.0)
         )
         .execute(self.storage.conn())
         .await?;
@@ -381,7 +381,7 @@ impl StorageLogsDal<'_, '_> {
                 miniblock_number,
                 operation_number
             "#,
-            l1_batch_number.0 as i64
+            i64::from(l1_batch_number.0)
         )
         .fetch_all(self.storage.conn())
         .await?;
@@ -580,7 +580,7 @@ impl StorageLogsDal<'_, '_> {
                 UNNEST($1::bytea[]) AS u (hashed_key)
             "#,
             &hashed_keys as &[&[u8]],
-            miniblock_number.0 as i64
+            i64::from(miniblock_number.0)
         )
         .fetch_all(self.storage.conn())
         .await?;
@@ -644,7 +644,7 @@ impl StorageLogsDal<'_, '_> {
             WHERE
                 miniblock_number <= $1
             "#,
-            at_miniblock.0 as i64
+            i64::from(at_miniblock.0)
         )
         .instrument("get_storage_logs_row_count")
         .with_arg("miniblock_number", &at_miniblock)
@@ -696,7 +696,7 @@ impl StorageLogsDal<'_, '_> {
                 sl
                 LEFT OUTER JOIN initial_writes ON initial_writes.hashed_key = sl.kv[1]
             "#,
-            miniblock_number.0 as i64,
+            i64::from(miniblock_number.0),
             &start_keys as &[&[u8]],
             &end_keys as &[&[u8]],
         )
@@ -736,7 +736,7 @@ impl StorageLogsDal<'_, '_> {
             ORDER BY
                 storage_logs.hashed_key
             "#,
-            miniblock_number.0 as i64,
+            i64::from(miniblock_number.0),
             key_range.start().as_bytes(),
             key_range.end().as_bytes()
         )

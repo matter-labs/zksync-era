@@ -114,7 +114,7 @@ impl StorageWeb3Dal<'_, '_> {
                 1
             "#,
             hashed_key.as_bytes(),
-            block_number.0 as i64
+            i64::from(block_number.0)
         )
         .instrument("get_historical_value_unchecked")
         .report_latency()
@@ -162,7 +162,7 @@ impl StorageWeb3Dal<'_, '_> {
                     0
                 ) AS "pending_batch!"
             "#,
-            miniblock_number.0 as i64
+            i64::from(miniblock_number.0)
         )
         .fetch_one(self.storage.conn())
         .await?;
@@ -231,7 +231,7 @@ impl StorageWeb3Dal<'_, '_> {
                 value != $3
             "#,
             hashed_key.as_bytes(),
-            block_number.0 as i64,
+            i64::from(block_number.0),
             FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH.as_bytes(),
         )
         .fetch_optional(self.storage.conn())
@@ -257,7 +257,7 @@ impl StorageWeb3Dal<'_, '_> {
                 AND miniblock_number <= $2
             "#,
             hash.as_bytes(),
-            block_number.0 as i64
+            i64::from(block_number.0)
         )
         .fetch_optional(self.storage.conn())
         .await?;

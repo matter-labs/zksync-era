@@ -81,8 +81,8 @@ impl SnapshotsCreatorDal<'_, '_> {
             WHERE
                 initial_writes.l1_batch_number <= $2
             "#,
-            miniblock_number.0 as i64,
-            l1_batch_number.0 as i64,
+            i64::from(miniblock_number.0),
+            i64::from(l1_batch_number.0),
             hashed_keys_range.start().as_bytes(),
             hashed_keys_range.end().as_bytes()
         )
@@ -123,7 +123,7 @@ impl SnapshotsCreatorDal<'_, '_> {
             WHERE
                 miniblock_number <= $1
             "#,
-            miniblock_number.0 as i64,
+            i64::from(miniblock_number.0),
         )
         .instrument("get_all_factory_deps")
         .report_latency()

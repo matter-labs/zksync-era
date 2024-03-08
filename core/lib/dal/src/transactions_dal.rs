@@ -289,7 +289,7 @@ impl TransactionsDal<'_, '_> {
                 u256_to_big_decimal(tx.common_data.fee.gas_per_pubdata_limit);
             let tx_format = tx.common_data.transaction_type as i32;
             let signature = tx.common_data.signature;
-            let nonce = tx.common_data.nonce.0 as i64;
+            let nonce = i64::from(tx.common_data.nonce.0);
             let input_data = tx.common_data.input.expect("Data is mandatory").data;
             let value = u256_to_big_decimal(tx.execute.value);
             let paymaster = tx.common_data.paymaster_params.paymaster.0.as_ref();
@@ -479,7 +479,7 @@ impl TransactionsDal<'_, '_> {
                 "#,
                 &l1_batch_tx_indexes,
                 &hashes as &[&[u8]],
-                block_number.0 as i64
+                i64::from(block_number.0)
             )
             .execute(self.storage.conn())
             .await
@@ -855,7 +855,7 @@ impl TransactionsDal<'_, '_> {
                 RETURNING
                     hash
                 "#,
-                miniblock_number.0 as i64
+                i64::from(miniblock_number.0)
             )
             .fetch_all(self.storage.conn())
             .await
@@ -1122,7 +1122,7 @@ impl TransactionsDal<'_, '_> {
                 miniblock_number,
                 index_in_block
             "#,
-            l1_batch_number.0 as i64,
+            i64::from(l1_batch_number.0)
         )
         .fetch_all(self.storage.conn())
         .await?;
@@ -1164,8 +1164,8 @@ impl TransactionsDal<'_, '_> {
             ORDER BY
                 number
             "#,
-            from_miniblock.0 as i64,
-            to_miniblock.0 as i64,
+            i64::from(from_miniblock.0),
+            i64::from(to_miniblock.0)
         )
         .fetch_all(self.storage.conn())
         .await?;
@@ -1187,8 +1187,8 @@ impl TransactionsDal<'_, '_> {
             ORDER BY
                 number
             "#,
-            from_miniblock.0 as i64 - 1,
-            to_miniblock.0 as i64 - 1,
+            i64::from(from_miniblock.0) - 1,
+            i64::from(to_miniblock.0) - 1,
         )
         .fetch_all(self.storage.conn())
         .await?;
@@ -1263,7 +1263,7 @@ impl TransactionsDal<'_, '_> {
                     miniblock_number,
                     index_in_block
                 "#,
-                l1_batch_number.0 as i64
+                i64::from(l1_batch_number.0)
             )
             .fetch_all(self.storage.conn())
             .await

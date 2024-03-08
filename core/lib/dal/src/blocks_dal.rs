@@ -249,7 +249,7 @@ impl BlocksDal<'_, '_> {
             WHERE
                 number = $1
             "#,
-            number.0 as i64
+            i64::from(number.0)
         )
         .instrument("get_storage_l1_batch")
         .with_arg("number", &number)
@@ -285,7 +285,7 @@ impl BlocksDal<'_, '_> {
             WHERE
                 number = $1
             "#,
-            number.0 as i64
+            i64::from(number.0)
         )
         .instrument("get_l1_batch_header")
         .with_arg("number", &number)
@@ -308,7 +308,7 @@ impl BlocksDal<'_, '_> {
             WHERE
                 number = $1
             "#,
-            number.0 as i64
+            i64::from(number.0)
         )
         .instrument("get_initial_bootloader_heap")
         .report_latency()
@@ -337,7 +337,7 @@ impl BlocksDal<'_, '_> {
             WHERE
                 number = $1
             "#,
-            number.0 as i64
+            i64::from(number.0)
         )
         .instrument("get_storage_refunds")
         .report_latency()
@@ -368,7 +368,7 @@ impl BlocksDal<'_, '_> {
             WHERE
                 l1_batch_number = $1
             "#,
-            number.0 as i64
+            i64::from(number.0)
         )
         .instrument("get_events_queue")
         .report_latency()
@@ -402,8 +402,8 @@ impl BlocksDal<'_, '_> {
                         number BETWEEN $2 AND $3
                     "#,
                     eth_tx_id as i32,
-                    number_range.start().0 as i64,
-                    number_range.end().0 as i64
+                    i64::from(number_range.start().0),
+                    i64::from(number_range.end().0)
                 )
                 .execute(self.storage.conn())
                 .await?;
@@ -419,8 +419,8 @@ impl BlocksDal<'_, '_> {
                         number BETWEEN $2 AND $3
                     "#,
                     eth_tx_id as i32,
-                    number_range.start().0 as i64,
-                    number_range.end().0 as i64
+                    i64::from(number_range.start().0),
+                    i64::from(number_range.end().0)
                 )
                 .execute(self.storage.conn())
                 .await?;
@@ -436,8 +436,8 @@ impl BlocksDal<'_, '_> {
                         number BETWEEN $2 AND $3
                     "#,
                     eth_tx_id as i32,
-                    number_range.start().0 as i64,
-                    number_range.end().0 as i64
+                    i64::from(number_range.start().0),
+                    i64::from(number_range.end().0)
                 )
                 .execute(self.storage.conn())
                 .await?;
@@ -536,7 +536,7 @@ impl BlocksDal<'_, '_> {
                     NOW()
                 )
             "#,
-            header.number.0 as i64,
+            i64::from(header.number.0),
             header.l1_tx_count as i32,
             header.l2_tx_count as i32,
             header.timestamp as i64,
@@ -544,9 +544,9 @@ impl BlocksDal<'_, '_> {
             &header.l2_to_l1_messages,
             header.bloom.as_bytes(),
             &priority_onchain_data,
-            predicted_block_gas.commit as i64,
-            predicted_block_gas.prove as i64,
-            predicted_block_gas.execute as i64,
+            i64::from(predicted_block_gas.commit),
+            i64::from(predicted_block_gas.prove),
+            i64::from(predicted_block_gas.execute),
             initial_bootloader_contents,
             used_contract_hashes,
             header.base_system_contracts_hashes.bootloader.as_bytes(),
@@ -567,7 +567,7 @@ impl BlocksDal<'_, '_> {
             VALUES
                 ($1, $2)
             "#,
-            header.number.0 as i64,
+            i64::from(header.number.0),
             events_queue
         )
         .execute(transaction.conn())
@@ -609,11 +609,11 @@ impl BlocksDal<'_, '_> {
             VALUES
                 ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), NOW())
             "#,
-            miniblock_header.number.0 as i64,
+            i64::from(miniblock_header.number.0),
             miniblock_header.timestamp as i64,
             miniblock_header.hash.as_bytes(),
-            miniblock_header.l1_tx_count as i32,
-            miniblock_header.l2_tx_count as i32,
+            i32::from(miniblock_header.l1_tx_count),
+            i32::from(miniblock_header.l2_tx_count),
             miniblock_header.fee_account_address.as_bytes(),
             base_fee_per_gas,
             miniblock_header.batch_fee_input.l1_gas_price() as i64,
@@ -628,7 +628,7 @@ impl BlocksDal<'_, '_> {
                 .default_aa
                 .as_bytes(),
             miniblock_header.protocol_version.map(|v| v as i32),
-            miniblock_header.virtual_blocks as i64,
+            i64::from(miniblock_header.virtual_blocks),
             miniblock_header.batch_fee_input.fair_pubdata_price() as i64,
         )
         .execute(self.storage.conn())
@@ -709,7 +709,7 @@ impl BlocksDal<'_, '_> {
             WHERE
                 number = $1
             "#,
-            miniblock_number.0 as i64,
+            i64::from(miniblock_number.0),
         )
         .fetch_optional(self.storage.conn())
         .await?;
@@ -764,7 +764,7 @@ impl BlocksDal<'_, '_> {
             "#,
             tree_data.hash.as_bytes(),
             tree_data.rollup_last_leaf_index as i64,
-            number.0 as i64,
+            i64::from(number.0),
         )
         .instrument("save_batch_tree_data")
         .with_arg("number", &number)
@@ -786,7 +786,7 @@ impl BlocksDal<'_, '_> {
                     number = $1
                     AND hash = $2
                 "#,
-                number.0 as i64,
+                i64::from(number.0),
                 tree_data.hash.as_bytes(),
             )
             .instrument("get_matching_batch_hash")
@@ -847,7 +847,7 @@ impl BlocksDal<'_, '_> {
             commitment_artifacts.compressed_state_diffs,
             commitment_artifacts.compressed_initial_writes,
             commitment_artifacts.compressed_repeated_writes,
-            number.0 as i64,
+            i64::from(number.0),
         )
         .instrument("save_l1_batch_commitment_artifacts")
         .with_arg("number", &number)
@@ -870,7 +870,7 @@ impl BlocksDal<'_, '_> {
                     number = $1
                     AND commitment = $2
                 "#,
-                number.0 as i64,
+                i64::from(number.0),
                 commitment_artifacts.commitment_hash.commitment.as_bytes(),
             )
             .instrument("get_matching_batch_commitment")
@@ -897,7 +897,7 @@ impl BlocksDal<'_, '_> {
                 ($1, $2, $3)
             ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
-            number.0 as i64,
+            i64::from(number.0),
             commitment_artifacts.aux_commitments.map(|a| a.events_queue_commitment.0.to_vec()),
             commitment_artifacts.aux_commitments
                 .map(|a| a.bootloader_initial_content_commitment.0.to_vec()),
@@ -1032,7 +1032,7 @@ impl BlocksDal<'_, '_> {
             WHERE
                 number = $1
             "#,
-            l1_batch_number.0 as i64
+            i64::from(l1_batch_number.0)
         )
         .fetch_optional(self.storage.conn())
         .await?;
@@ -1183,7 +1183,7 @@ impl BlocksDal<'_, '_> {
             WHERE
                 number = $1
             "#,
-            l1_batch_number.0 as i64
+            i64::from(l1_batch_number.0)
         )
         .execute(self.storage.conn())
         .await?;
@@ -1644,7 +1644,7 @@ impl BlocksDal<'_, '_> {
             WHERE
                 number = $1
             "#,
-            number.0 as i64
+            i64::from(number.0)
         )
         .fetch_optional(self.storage.conn())
         .await?
@@ -1666,7 +1666,7 @@ impl BlocksDal<'_, '_> {
             WHERE
                 number = $1
             "#,
-            number.0 as i64
+            i64::from(number.0)
         )
         .fetch_optional(self.storage.conn())
         .await?
@@ -1709,7 +1709,7 @@ impl BlocksDal<'_, '_> {
             WHERE
                 number = $1
             "#,
-            number.0 as i64
+            i64::from(number.0)
         )
         .fetch_optional(self.storage.conn())
         .await?;
@@ -1762,7 +1762,7 @@ impl BlocksDal<'_, '_> {
             WHERE
                 miniblocks.l1_batch_number = $1
             "#,
-            l1_batch_number.0 as i64
+            i64::from(l1_batch_number.0)
         )
         .fetch_all(self.storage.conn())
         .await?
@@ -1783,7 +1783,7 @@ impl BlocksDal<'_, '_> {
         &mut self,
         last_batch_to_keep: Option<L1BatchNumber>,
     ) -> sqlx::Result<()> {
-        let block_number = last_batch_to_keep.map_or(-1, |number| number.0 as i64);
+        let block_number = last_batch_to_keep.map_or(-1, |number| i64::from(number.0));
         sqlx::query!(
             r#"
             DELETE FROM initial_writes
@@ -1808,7 +1808,7 @@ impl BlocksDal<'_, '_> {
         &mut self,
         last_batch_to_keep: Option<L1BatchNumber>,
     ) -> sqlx::Result<()> {
-        let block_number = last_batch_to_keep.map_or(-1, |number| number.0 as i64);
+        let block_number = last_batch_to_keep.map_or(-1, |number| i64::from(number.0));
         sqlx::query!(
             r#"
             DELETE FROM l1_batches
@@ -1835,7 +1835,7 @@ impl BlocksDal<'_, '_> {
         &mut self,
         last_miniblock_to_keep: Option<MiniblockNumber>,
     ) -> sqlx::Result<()> {
-        let block_number = last_miniblock_to_keep.map_or(-1, |number| number.0 as i64);
+        let block_number = last_miniblock_to_keep.map_or(-1, |number| i64::from(number.0));
         sqlx::query!(
             r#"
             DELETE FROM miniblocks
@@ -1861,8 +1861,8 @@ impl BlocksDal<'_, '_> {
             sum: BigDecimal,
         }
 
-        let start = number_range.start().0 as i64;
-        let end = number_range.end().0 as i64;
+        let start = i64::from(number_range.start().0);
+        let end = i64::from(number_range.end().0);
         let query = match_query_as!(
             SumRow,
             [
@@ -1897,7 +1897,7 @@ impl BlocksDal<'_, '_> {
             WHERE
                 l1_batch_number = $1
             "#,
-            l1_batch_number.0 as i64
+            i64::from(l1_batch_number.0)
         )
         .fetch_one(self.storage.conn())
         .await?;
@@ -2000,7 +2000,7 @@ impl BlocksDal<'_, '_> {
             WHERE
                 number = $1
             "#,
-            l1_batch_number.0 as i64
+            i64::from(l1_batch_number.0)
         )
         .fetch_optional(self.storage.conn())
         .await?
@@ -2026,7 +2026,7 @@ impl BlocksDal<'_, '_> {
             WHERE
                 number = $1
             "#,
-            miniblock_number.0 as i64
+            i64::from(miniblock_number.0)
         )
         .fetch_optional(self.storage.conn())
         .await?
@@ -2052,7 +2052,7 @@ impl BlocksDal<'_, '_> {
             WHERE
                 number = $1
             "#,
-            miniblock_number.0 as i64,
+            i64::from(miniblock_number.0)
         )
         .fetch_optional(self.storage.conn())
         .await?
@@ -2249,8 +2249,8 @@ impl BlocksDal<'_, '_> {
                 AND miniblocks.number BETWEEN $1 AND $2
                 AND miniblocks.fee_account_address = '\x0000000000000000000000000000000000000000'::bytea
             "#,
-            numbers.start().0 as i64,
-            numbers.end().0 as i64
+            i64::from(numbers.start().0),
+            i64::from(numbers.end().0)
         )
         .execute(self.storage.conn())
         .await?;
@@ -2273,7 +2273,7 @@ impl BlocksDal<'_, '_> {
                 number = $2
             "#,
             fee_account_address.as_bytes(),
-            l1_batch.0 as i64
+            i64::from(l1_batch.0)
         )
         .execute(self.storage.conn())
         .await?;
@@ -2298,7 +2298,7 @@ impl BlocksDal<'_, '_> {
                 number = $2
             "#,
             hash.as_bytes(),
-            batch_num.0 as i64
+            i64::from(batch_num.0)
         )
         .execute(self.storage.conn())
         .await?;

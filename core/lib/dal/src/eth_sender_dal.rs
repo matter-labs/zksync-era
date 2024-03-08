@@ -654,7 +654,7 @@ impl EthSenderDal<'_, '_> {
                     )
                 )
             "#,
-            last_batch_to_keep.0 as i64
+            i64::from(last_batch_to_keep.0)
         )
         .execute(self.storage.conn())
         .await?;
