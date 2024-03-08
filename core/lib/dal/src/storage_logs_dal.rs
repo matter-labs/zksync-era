@@ -1,6 +1,6 @@
 use std::{collections::HashMap, ops, time::Instant};
 
-use sqlx::{types::chrono::Utc, Row};
+use sqlx::types::chrono::Utc;
 use zksync_types::{
     get_code_key, snapshots::SnapshotStorageLog, AccountTreeId, Address, L1BatchNumber,
     MiniblockNumber, StorageKey, StorageLog, FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H160, H256,
@@ -628,16 +628,8 @@ impl StorageLogsDal<'_, '_> {
             .collect()
     }
 
-    pub async fn get_miniblock_storage_logs(
-        &mut self,
-        miniblock_number: MiniblockNumber,
-    ) -> Vec<(H256, H256, u32)> {
-        self.get_miniblock_storage_logs_from_table(miniblock_number, "storage_logs")
-            .await
-    }
-
-    /// Counts the total number of storage logs in the specified miniblock,
-    // TODO(PLA-596): add storage log count to snapshot metadata instead?
+    /// Counts the total number of storage logs in the specified miniblock.
+    // FIXME: remove in favor of get_storage_logs_row_count()?
     pub async fn count_miniblock_storage_logs(
         &mut self,
         miniblock_number: MiniblockNumber,
@@ -745,90 +737,6 @@ impl StorageLogsDal<'_, '_> {
             leaf_index: row.index as u64,
         });
         Ok(rows.collect())
-    }
-
-    pub async fn retain_storage_logs(
-        &mut self,
-        miniblock_number: MiniblockNumber,
-        operation_numbers: &[i32],
-    ) {
-        sqlx::query!(
-            r#"
-            DELETE FROM storage_logs
-            WHERE
-                miniblock_number = $1
-                AND operation_number != ALL ($2)
-            "#,
-            miniblock_number.0 as i64,
-            &operation_numbers
-        )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
-    }
-
-    /// Loads (hashed_key, value, operation_number) tuples for given miniblock_number.
-    /// Uses provided DB table.
-    /// Shouldn't be used in production.
-    pub async fn get_miniblock_storage_logs_from_table(
-        &mut self,
-        miniblock_number: MiniblockNumber,
-        table_name: &str,
-    ) -> Vec<(H256, H256, u32)> {
-        sqlx::query(&format!(
-            "SELECT hashed_key, value, operation_number FROM {table_name} \
-            WHERE miniblock_number = $1 \
-            ORDER BY operation_number"
-        ))
-        .bind(miniblock_number.0 as i64)
-        .fetch_all(self.storage.conn())
-        .await
-        .unwrap()
-        .into_iter()
-        .map(|row| {
-            let hashed_key = H256::from_slice(row.get("hashed_key"));
-            let value = H256::from_slice(row.get("value"));
-            let operation_number: u32 = row.get::<i32, &str>("operation_number") as u32;
-            (hashed_key, value, operation_number)
-        })
-        .collect()
-    }
-
-    /// Loads value for given hashed_key at given miniblock_number.
-    /// Uses provided DB table.
-    /// Shouldn't be used in production.
-    pub async fn get_storage_value_from_table(
-        &mut self,
-        hashed_key: H256,
-        miniblock_number: MiniblockNumber,
-        table_name: &str,
-    ) -> H256 {
-        let query_str = format!(
-            "SELECT value FROM {table_name} \
-                WHERE hashed_key = $1 AND miniblock_number <= $2 \
-                ORDER BY miniblock_number DESC, operation_number DESC LIMIT 1",
-        );
-        sqlx::query(&query_str)
-            .bind(hashed_key.as_bytes())
-            .bind(miniblock_number.0 as i64)
-            .fetch_optional(self.storage.conn())
-            .await
-            .unwrap()
-            .map(|row| H256::from_slice(row.get("value")))
-            .unwrap_or_else(H256::zero)
-    }
-
-    /// Vacuums `storage_logs` table.
-    /// Shouldn't be used in production.
-    pub async fn vacuum_storage_logs(&mut self) {
-        sqlx::query!(
-            r#"
-            VACUUM storage_logs
-            "#
-        )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
     }
 }
 
