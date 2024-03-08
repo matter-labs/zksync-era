@@ -117,5 +117,5 @@ pub trait ZksNamespace {
         address: Address,
         keys: Vec<H256>,
         l1_batch_number: L1BatchNumber,
-    ) -> RpcResult<Proof>;
+    ) -> RpcResult<Option<Proof>>;
 }

@@ -2,6 +2,7 @@
 
 use std::{
     collections::BTreeMap,
+    future,
     future::Future,
     path::{Path, PathBuf},
     time::Duration,
@@ -11,6 +12,7 @@ use anyhow::Context as _;
 use serde::{Deserialize, Serialize};
 #[cfg(test)]
 use tokio::sync::mpsc;
+use tokio::sync::watch;
 use zksync_config::configs::database::MerkleTreeMode;
 use zksync_dal::StorageProcessor;
 use zksync_health_check::{Health, HealthStatus};
@@ -227,6 +229,30 @@ impl AsyncTreeReader {
         tokio::task::spawn_blocking(move || self.inner.entries_with_proofs(l1_batch_number, &keys))
             .await
             .unwrap()
+    }
+}
+
+/// Lazily initialized [`AsyncTreeReader`].
+#[derive(Debug)]
+pub struct LazyAsyncTreeReader(pub(super) watch::Receiver<Option<AsyncTreeReader>>);
+
+impl LazyAsyncTreeReader {
+    /// Returns a reader if it is initialized.
+    pub(crate) fn read(&self) -> Option<AsyncTreeReader> {
+        self.0.borrow().clone()
+    }
+
+    /// Waits until the tree is initialized and returns a reader for it.
+    pub(crate) async fn wait(mut self) -> AsyncTreeReader {
+        loop {
+            if let Some(reader) = self.0.borrow().clone() {
+                break reader;
+            }
+            if self.0.changed().await.is_err() {
+                tracing::info!("Tree dropped without getting ready; not resolving tree reader");
+                future::pending::<()>().await;
+            }
+        }
     }
 }
 

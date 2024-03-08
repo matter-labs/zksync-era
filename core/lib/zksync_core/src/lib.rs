@@ -948,6 +948,7 @@ async fn run_tree(
         let stop_receiver = stop_receiver.clone();
         task_futures.push(tokio::spawn(async move {
             tree_reader
+                .wait()
                 .await
                 .run_api_server(address, stop_receiver)
                 .await
