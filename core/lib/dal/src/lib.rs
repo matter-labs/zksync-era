@@ -4,10 +4,10 @@ use std::time::Instant;
 
 use sqlx::{pool::PoolConnection, PgConnection, Postgres};
 pub use sqlx::{types::BigDecimal, Error as SqlxError};
+pub use zksync_db_connection::connection::ConnectionPool;
 use zksync_db_connection::processor::{
     StorageInteraction, StorageKind, StorageProcessor, StorageProcessorTags, TracedConnections,
 };
-pub use zksync_db_connection::ConnectionPool;
 
 use crate::{
     basic_witness_input_producer_dal::BasicWitnessInputProducerDal, blocks_dal::BlocksDal,
@@ -36,7 +36,6 @@ pub mod events_dal;
 pub mod events_web3_dal;
 pub mod factory_deps_dal;
 pub mod healthcheck;
-mod instrument;
 mod metrics;
 mod models;
 pub mod proof_generation_dal;
@@ -182,38 +181,12 @@ impl<'a> ServerProcessor<'a> {
         ProtocolVersionsWeb3Dal { storage: self }
     }
 
-    pub fn fri_witness_generator_dal(&mut self) -> FriWitnessGeneratorDal<'_, 'a> {
-        FriWitnessGeneratorDal { storage: self }
-    }
-
-    pub fn fri_prover_jobs_dal(&mut self) -> FriProverDal<'_, 'a> {
-        FriProverDal { storage: self }
-    }
-
     pub fn sync_dal(&mut self) -> SyncDal<'_, 'a> {
         SyncDal { storage: self }
     }
 
-    pub fn fri_scheduler_dependency_tracker_dal(
-        &mut self,
-    ) -> FriSchedulerDependencyTrackerDal<'_, 'a> {
-        FriSchedulerDependencyTrackerDal { storage: self }
-    }
-
     pub fn proof_generation_dal(&mut self) -> ProofGenerationDal<'_, 'a> {
         ProofGenerationDal { storage: self }
-    }
-
-    pub fn fri_gpu_prover_queue_dal(&mut self) -> FriGpuProverQueueDal<'_, 'a> {
-        FriGpuProverQueueDal { storage: self }
-    }
-
-    pub fn fri_protocol_versions_dal(&mut self) -> FriProtocolVersionsDal<'_, 'a> {
-        FriProtocolVersionsDal { storage: self }
-    }
-
-    pub fn fri_proof_compressor_dal(&mut self) -> FriProofCompressorDal<'_, 'a> {
-        FriProofCompressorDal { storage: self }
     }
 
     pub fn system_dal(&mut self) -> SystemDal<'_, 'a> {

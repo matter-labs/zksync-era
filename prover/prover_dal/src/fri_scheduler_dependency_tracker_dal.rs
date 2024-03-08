@@ -1,10 +1,10 @@
 use zksync_types::{basic_fri_types::FinalProofIds, L1BatchNumber};
 
-use crate::{fri_prover_dal::types, ServerProcessor};
+use crate::{fri_prover_dal::types, ProverProcessor};
 
 #[derive(Debug)]
 pub struct FriSchedulerDependencyTrackerDal<'a, 'c> {
-    pub storage: &'a mut ServerProcessor<'c>,
+    pub storage: &'a mut ProverProcessor<'c>,
 }
 
 impl FriSchedulerDependencyTrackerDal<'_, '_> {

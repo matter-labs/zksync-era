@@ -158,7 +158,7 @@ pub trait StorageInteraction {
     fn from_pool(
         connection: PoolConnection<Postgres>,
         tags: Option<StorageProcessorTags>,
-        traced_connections: Option<&'a TracedConnections>,
+        traced_connections: Option<&TracedConnections>,
     ) -> Self;
 
     fn conn(&mut self) -> &mut PgConnection;
@@ -232,7 +232,7 @@ pub trait StorageKind {
 
 #[cfg(test)]
 mod tests {
-    use crate::ConnectionPool;
+    use crate::connection::ConnectionPool;
 
     #[tokio::test]
     async fn processor_tags_propagate_to_transactions() {

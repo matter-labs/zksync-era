@@ -13,12 +13,12 @@ use crate::{
     },
     metrics::MethodLatency,
     time_utils::{duration_to_naive_time, pg_interval_from_duration},
-    ServerProcessor,
+    ProverProcessor,
 };
 
 #[derive(Debug)]
 pub struct FriWitnessGeneratorDal<'a, 'c> {
-    pub(crate) storage: &'a mut ServerProcessor<'c>,
+    pub(crate) storage: &'a mut ProverProcessor<'c>,
 }
 
 #[derive(Debug, strum::Display, strum::EnumString, strum::AsRefStr)]
