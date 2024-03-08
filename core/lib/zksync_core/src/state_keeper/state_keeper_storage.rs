@@ -12,6 +12,7 @@ use zksync_state::{
     StateKeeperColumnFamily,
 };
 use zksync_storage::RocksDB;
+use zksync_types::{L1BatchNumber, MiniblockNumber};
 
 /// Encapsulates a storage that can produce a [`ReadStorageFactory`] on demand.
 ///
@@ -101,34 +102,49 @@ pub enum AsyncRocksdbCache {
 }
 
 impl AsyncRocksdbCache {
+    /// Load latest sealed miniblock from the latest sealed L1 batch (ignores sealed miniblocks
+    /// from unsealed batches).
+    async fn load_latest_sealed_miniblock(
+        connection: &mut StorageProcessor<'_>,
+    ) -> anyhow::Result<Option<(MiniblockNumber, L1BatchNumber)>> {
+        let mut dal = connection.blocks_dal();
+        let Some(l1_batch_number) = dal.get_sealed_l1_batch_number().await? else {
+            return Ok(None);
+        };
+        let Some((_, miniblock_number)) =
+            dal.get_miniblock_range_of_l1_batch(l1_batch_number).await?
+        else {
+            return Ok(None);
+        };
+        Ok(Some((miniblock_number, l1_batch_number)))
+    }
+
     /// Returns a [`ReadStorage`] implementation backed by Postgres
     async fn access_storage_pg(
         rt_handle: Handle,
         pool: &ConnectionPool,
-    ) -> anyhow::Result<PgOrRocksdbStorage> {
+    ) -> anyhow::Result<PgOrRocksdbStorage<'_>> {
         let mut connection = pool.access_storage().await?;
 
-        // Check whether we performed snapshot recovery
-        let snapshot_recovery = connection
-            .snapshot_recovery_dal()
-            .get_applied_snapshot_status()
-            .await
-            .context("failed getting snapshot recovery info")?;
-        let (miniblock_number, l1_batch_number) = if let Some(snapshot_recovery) = snapshot_recovery
-        {
-            (
-                snapshot_recovery.miniblock_number,
-                snapshot_recovery.l1_batch_number,
-            )
-        } else {
-            let mut dal = connection.blocks_dal();
-            let l1_batch_number = dal.get_sealed_l1_batch_number().await?.unwrap_or_default();
-            let (_, miniblock_number) = dal
-                .get_miniblock_range_of_l1_batch(l1_batch_number)
-                .await?
-                .unwrap_or_default();
-            (miniblock_number, l1_batch_number)
-        };
+        let (miniblock_number, l1_batch_number) =
+            match Self::load_latest_sealed_miniblock(&mut connection).await? {
+                Some((miniblock_number, l1_batch_number)) => (miniblock_number, l1_batch_number),
+                None => {
+                    tracing::info!("Could not find latest sealed miniblock, loading from snapshot");
+                    let snapshot_recovery = connection
+                        .snapshot_recovery_dal()
+                        .get_applied_snapshot_status()
+                        .await
+                        .context("failed getting snapshot recovery info")?
+                        .ok_or_else(|| {
+                            anyhow::anyhow!("Could not find snapshot, no state available")
+                        })?;
+                    (
+                        snapshot_recovery.miniblock_number,
+                        snapshot_recovery.l1_batch_number,
+                    )
+                }
+            };
 
         tracing::debug!(%l1_batch_number, %miniblock_number, "Using Postgres-based storage");
         Ok(
@@ -151,13 +167,13 @@ impl AsyncRocksdbCache {
             .synchronize(conn, stop_receiver)
             .await
             .context("Failed to catch up state keeper RocksDB storage to Postgres")?;
-        if let Some(rocksdb) = &rocksdb {
-            let rocksdb_l1_batch_number = rocksdb.l1_batch_number().await.unwrap_or_default();
-            tracing::debug!(%rocksdb_l1_batch_number, "Using RocksDB-based storage");
-        } else {
-            tracing::warn!("Interrupted")
-        }
-        Ok(rocksdb.map(|rocksdb| rocksdb.into()))
+        let Some(rocksdb) = rocksdb else {
+            tracing::info!("Synchronizing RocksDB interrupted");
+            return Ok(None);
+        };
+        let rocksdb_l1_batch_number = rocksdb.l1_batch_number().await.unwrap_or_default();
+        tracing::debug!(%rocksdb_l1_batch_number, "Using RocksDB-based storage");
+        Ok(Some(rocksdb.into()))
     }
 
     async fn access_storage_inner<'a>(
