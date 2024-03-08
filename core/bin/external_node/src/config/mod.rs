@@ -13,10 +13,14 @@ use zksync_core::{
     },
     consensus,
 };
-use zksync_types::api::BridgeAddresses;
+use zksync_types::{api::BridgeAddresses, ETHEREUM_ADDRESS};
 use zksync_web3_decl::{
     error::ClientRpcContext,
-    jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
+    jsonrpsee::{
+        core::ClientError,
+        http_client::{HttpClient, HttpClientBuilder},
+        types::error::ErrorCode,
+    },
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
 };
 
@@ -60,7 +64,7 @@ impl RemoteENConfig {
             Err(ClientError::Call(err)) if ErrorCode::MethodNotFound.code() == err.code() => {
                 // This is the fallback case for when the EN tries to interact
                 // with a node that does not implement the zks_baseTokenL1Address endpoint.
-                Address::zero()
+                ETHEREUM_ADDRESS
             }
             response => response.context("Failed to fetch base token address")?,
         };
