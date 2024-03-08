@@ -51,42 +51,42 @@ pub enum PgOrRocksdbStorage<'a> {
 impl ReadStorage for PgOrRocksdbStorage<'_> {
     fn read_value(&mut self, key: &zksync_types::StorageKey) -> zksync_types::StorageValue {
         match self {
-            PgOrRocksdbStorage::Postgres(postgres) => postgres.read_value(key),
-            PgOrRocksdbStorage::RocksdbStorage(rocksdb) => rocksdb.read_value(key),
+            Self::Postgres(postgres) => postgres.read_value(key),
+            Self::RocksdbStorage(rocksdb) => rocksdb.read_value(key),
         }
     }
 
     fn is_write_initial(&mut self, key: &zksync_types::StorageKey) -> bool {
         match self {
-            PgOrRocksdbStorage::Postgres(postgres) => postgres.is_write_initial(key),
-            PgOrRocksdbStorage::RocksdbStorage(rocksdb) => rocksdb.is_write_initial(key),
+            Self::Postgres(postgres) => postgres.is_write_initial(key),
+            Self::RocksdbStorage(rocksdb) => rocksdb.is_write_initial(key),
         }
     }
 
     fn load_factory_dep(&mut self, hash: zksync_types::H256) -> Option<Vec<u8>> {
         match self {
-            PgOrRocksdbStorage::Postgres(postgres) => postgres.load_factory_dep(hash),
-            PgOrRocksdbStorage::RocksdbStorage(rocksdb) => rocksdb.load_factory_dep(hash),
+            Self::Postgres(postgres) => postgres.load_factory_dep(hash),
+            Self::RocksdbStorage(rocksdb) => rocksdb.load_factory_dep(hash),
         }
     }
 
     fn get_enumeration_index(&mut self, key: &zksync_types::StorageKey) -> Option<u64> {
         match self {
-            PgOrRocksdbStorage::Postgres(postgres) => postgres.get_enumeration_index(key),
-            PgOrRocksdbStorage::RocksdbStorage(rocksdb) => rocksdb.get_enumeration_index(key),
+            Self::Postgres(postgres) => postgres.get_enumeration_index(key),
+            Self::RocksdbStorage(rocksdb) => rocksdb.get_enumeration_index(key),
         }
     }
 }
 
 impl<'a> From<PostgresStorage<'a>> for PgOrRocksdbStorage<'a> {
     fn from(value: PostgresStorage<'a>) -> Self {
-        PgOrRocksdbStorage::Postgres(value)
+        Self::Postgres(value)
     }
 }
 
 impl<'a> From<RocksdbStorage> for PgOrRocksdbStorage<'a> {
     fn from(value: RocksdbStorage) -> Self {
-        PgOrRocksdbStorage::RocksdbStorage(value)
+        Self::RocksdbStorage(value)
     }
 }
 
