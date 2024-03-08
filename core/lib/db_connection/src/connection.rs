@@ -20,7 +20,8 @@ use sqlx::{
 use crate::{
     metrics::{PostgresMetrics, CONNECTION_METRICS},
     processor::{
-        StorageInteraction, StorageKind, StorageProcessor, StorageProcessorTags, TracedConnections,
+        BasicStorageProcessor, StorageKind, StorageProcessor, StorageProcessorTags,
+        TracedConnections,
     },
 };
 
@@ -273,14 +274,14 @@ impl<SK: StorageKind> ConnectionPool<SK> {
     ///
     /// Test pools trace their active connections. If acquiring a connection fails (e.g., with a timeout),
     /// the returned error will contain information on all active connections.
-    pub async fn test_pool<SK>() -> ConnectionPool<SK> {
+    pub async fn test_pool() -> ConnectionPool<SK> {
         const DEFAULT_CONNECTIONS: u32 = 50; // Expected to be enough for any unit test.
         Self::constrained_test_pool(DEFAULT_CONNECTIONS).await
     }
 
     /// Same as [`Self::test_pool()`], but with a configurable number of connections. This is useful to test
     /// behavior of components that rely on singleton / constrained pools in production.
-    pub async fn constrained_test_pool<SK>(connections: u32) -> ConnectionPool<SK> {
+    pub async fn constrained_test_pool(connections: u32) -> ConnectionPool<SK> {
         assert!(connections > 0, "Number of connections must be positive");
         let mut builder = TestTemplate::empty()
             .expect("failed creating test template")

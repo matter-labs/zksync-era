@@ -5,7 +5,7 @@ use std::{ops, sync::Arc, time::Instant};
 use anyhow::Context as _;
 use futures::{future, FutureExt};
 use tokio::sync::watch;
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::{BasicStorageProcessor, ConnectionPool};
 use zksync_health_check::HealthUpdater;
 use zksync_merkle_tree::domain::TreeMetadata;
 use zksync_object_store::ObjectStore;
@@ -86,7 +86,7 @@ impl TreeUpdater {
     /// is slow for whatever reason.
     async fn process_multiple_batches(
         &mut self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut BasicStorageProcessor<'_>,
         l1_batch_numbers: ops::RangeInclusive<u32>,
     ) -> L1BatchNumber {
         let start = Instant::now();
@@ -167,7 +167,7 @@ impl TreeUpdater {
 
     async fn step(
         &mut self,
-        mut storage: StorageProcessor<'_>,
+        mut storage: BasicStorageProcessor<'_>,
         next_l1_batch_to_seal: &mut L1BatchNumber,
     ) {
         let Some(last_sealed_l1_batch) = storage
@@ -312,7 +312,7 @@ impl TreeUpdater {
     }
 
     async fn check_initial_writes_consistency(
-        connection: &mut StorageProcessor<'_>,
+        connection: &mut BasicStorageProcessor<'_>,
         l1_batch_number: L1BatchNumber,
         tree_initial_writes: &[InitialStorageWrite],
     ) {

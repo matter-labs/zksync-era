@@ -1,12 +1,10 @@
 //! Data access layer (DAL) for zkSync Era.
 
-use std::time::Instant;
-
 use sqlx::{pool::PoolConnection, PgConnection, Postgres};
 pub use sqlx::{types::BigDecimal, Error as SqlxError};
 pub use zksync_db_connection::connection::ConnectionPool;
 use zksync_db_connection::processor::{
-    StorageInteraction, StorageKind, StorageProcessor, StorageProcessorTags, TracedConnections,
+    BasicStorageProcessor, StorageKind, StorageProcessor, StorageProcessorTags, TracedConnections,
 };
 
 use crate::{
@@ -33,7 +31,6 @@ pub mod eth_sender_dal;
 pub mod events_dal;
 pub mod events_web3_dal;
 pub mod factory_deps_dal;
-mod metrics;
 mod models;
 pub mod proof_generation_dal;
 pub mod protocol_versions_dal;
@@ -58,13 +55,13 @@ mod tests;
 
 pub struct Server(());
 
-pub struct ServerProcessor<'a>(StorageProcessor<'a>);
+pub struct ServerProcessor<'a>(BasicStorageProcessor<'a>);
 
 impl StorageKind for Server {
     type Processor<'a> = ServerProcessor<'a>;
 }
 
-impl<'a> StorageInteraction for ServerProcessor<'a> {
+impl<'a> StorageProcessor for ServerProcessor<'a> {
     async fn start_transaction(&mut self) -> sqlx::Result<ServerProcessor<'_>> {
         self.0.start_transaction()
     }
@@ -83,7 +80,7 @@ impl<'a> StorageInteraction for ServerProcessor<'a> {
         tags: Option<StorageProcessorTags>,
         traced_connections: Option<&'a TracedConnections>,
     ) -> Self {
-        Self(StorageProcessor::from_pool(
+        Self(BasicStorageProcessor::from_pool(
             connection,
             tags,
             traced_connections,

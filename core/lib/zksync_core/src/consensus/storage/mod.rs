@@ -17,7 +17,7 @@ use crate::{
 };
 
 /// Context-aware `zksync_dal::StorageProcessor` wrapper.
-pub(super) struct Connection<'a>(pub(super) zksync_dal::StorageProcessor<'a>);
+pub(super) struct Connection<'a>(pub(super) zksync_dal::BasicStorageProcessor<'a>);
 
 impl<'a> Connection<'a> {
     /// Wrapper for `start_transaction()`.

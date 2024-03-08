@@ -1,5 +1,5 @@
 use zksync_db_connection::{
-    instrument::InstrumentExt, match_query_as, processor::StorageInteraction,
+    instrument::InstrumentExt, match_query_as, processor::StorageProcessor,
 };
 use zksync_system_constants::EMPTY_UNCLES_HASH;
 use zksync_types::{

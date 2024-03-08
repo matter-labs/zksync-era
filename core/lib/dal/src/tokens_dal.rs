@@ -1,5 +1,5 @@
 use sqlx::types::chrono::Utc;
-use zksync_db_connection::processor::StorageInteraction;
+use zksync_db_connection::processor::StorageProcessor;
 use zksync_types::{tokens::TokenInfo, Address, MiniblockNumber};
 
 use crate::ServerProcessor;

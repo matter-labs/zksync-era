@@ -4024,7 +4024,9 @@ name = "prover_dal"
 version = "0.1.0"
 dependencies = [
  "sqlx",
+ "strum",
  "zksync_db_connection",
+ "zksync_types",
 ]
 
 [[package]]
@@ -7095,12 +7097,15 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "rand 0.8.5",
+ "serde",
+ "serde_json",
  "sqlx",
  "tokio",
  "tracing",
  "url",
  "vise",
  "zksync_health_check",
+ "zksync_types",
 ]
 
 [[package]]

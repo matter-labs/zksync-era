@@ -21,8 +21,9 @@ use sqlx::{
 use tokio::time::Instant;
 
 use crate::{
-    connection::{ConnectionPool, StorageProcessor, StorageProcessorTags},
+    connection::ConnectionPool,
     metrics::REQUEST_METRICS,
+    processor::{StorageProcessor, StorageProcessorTags},
 };
 
 type ThreadSafeDebug<'a> = dyn fmt::Debug + Send + Sync + 'a;
@@ -219,15 +220,18 @@ where
     A: 'q + IntoArguments<'q, Postgres>,
 {
     /// Executes an SQL statement using this query.
-    pub async fn execute(self, storage: &mut StorageProcessor<'_>) -> sqlx::Result<PgQueryResult> {
+    pub async fn execute<SP: StorageProcessor>(
+        self,
+        storage: &mut SP,
+    ) -> sqlx::Result<PgQueryResult> {
         let (conn, tags) = storage.conn_and_tags();
         self.data.fetch(tags, self.query.execute(conn)).await
     }
 
     /// Fetches an optional row using this query.
-    pub async fn fetch_optional(
+    pub async fn fetch_optional<SP: StorageProcessor>(
         self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut SP,
     ) -> Result<Option<PgRow>, sqlx::Error> {
         let (conn, tags) = storage.conn_and_tags();
         self.data.fetch(tags, self.query.fetch_optional(conn)).await
@@ -240,7 +244,7 @@ where
     O: Send + Unpin + for<'r> FromRow<'r, PgRow>,
 {
     /// Fetches all rows using this query and collects them into a `Vec`.
-    pub async fn fetch_all(self, storage: &mut StorageProcessor<'_>) -> sqlx::Result<Vec<O>> {
+    pub async fn fetch_all<SP: StorageProcessor>(self, storage: &mut SP) -> sqlx::Result<Vec<O>> {
         let (conn, tags) = storage.conn_and_tags();
         self.data.fetch(tags, self.query.fetch_all(conn)).await
     }
@@ -253,22 +257,22 @@ where
     A: 'q + Send + IntoArguments<'q, Postgres>,
 {
     /// Fetches an optional row using this query.
-    pub async fn fetch_optional(
+    pub async fn fetch_optional<SP: StorageProcessor>(
         self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut SP,
     ) -> sqlx::Result<Option<O>> {
         let (conn, tags) = storage.conn_and_tags();
         self.data.fetch(tags, self.query.fetch_optional(conn)).await
     }
 
     /// Fetches a single row using this query.
-    pub async fn fetch_one(self, storage: &mut StorageProcessor<'_>) -> sqlx::Result<O> {
+    pub async fn fetch_one<SP: StorageProcessor>(self, storage: &mut SP) -> sqlx::Result<O> {
         let (conn, tags) = storage.conn_and_tags();
         self.data.fetch(tags, self.query.fetch_one(conn)).await
     }
 
     /// Fetches all rows using this query and collects them into a `Vec`.
-    pub async fn fetch_all(self, storage: &mut StorageProcessor<'_>) -> sqlx::Result<Vec<O>> {
+    pub async fn fetch_all<SP: StorageProcessor>(self, storage: &mut SP) -> sqlx::Result<Vec<O>> {
         let (conn, tags) = storage.conn_and_tags();
         self.data.fetch(tags, self.query.fetch_all(conn)).await
     }
@@ -279,7 +283,7 @@ mod tests {
     use zksync_types::{MiniblockNumber, H256};
 
     use super::*;
-    use crate::ConnectionPool;
+    use crate::connection::ConnectionPool;
 
     #[tokio::test]
     async fn instrumenting_erroneous_query() {

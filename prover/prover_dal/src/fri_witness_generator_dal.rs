@@ -1,6 +1,7 @@
 use std::{collections::HashMap, convert::TryFrom, time::Duration};
 
 use sqlx::Row;
+use zksync_db_connection::processor::StorageProcessor;
 use zksync_types::{
     basic_fri_types::{AggregationRound, Eip4844Blobs},
     protocol_version::FriProtocolVersionId,

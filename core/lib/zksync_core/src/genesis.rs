@@ -9,7 +9,7 @@ use multivm::{
     zk_evm_latest::aux_structures::{LogQuery as MultiVmLogQuery, Timestamp as MultiVMTimestamp},
 };
 use zksync_contracts::{BaseSystemContracts, SET_CHAIN_ID_EVENT};
-use zksync_dal::StorageProcessor;
+use zksync_dal::BasicStorageProcessor;
 use zksync_eth_client::{clients::QueryClient, EthInterface};
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_system_constants::PRIORITY_EXPIRATION;
@@ -59,7 +59,7 @@ impl GenesisParams {
 }
 
 pub async fn ensure_genesis_state(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut BasicStorageProcessor<'_>,
     zksync_chain_id: L2ChainId,
     genesis_params: &GenesisParams,
 ) -> anyhow::Result<H256> {
@@ -157,7 +157,7 @@ pub async fn ensure_genesis_state(
 // The code of the bootloader should not be deployed anywhere anywhere in the kernel space (i.e. addresses below 2^16)
 // because in this case we will have to worry about protecting it.
 async fn insert_base_system_contracts_to_factory_deps(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut BasicStorageProcessor<'_>,
     contracts: &BaseSystemContracts,
 ) -> anyhow::Result<()> {
     let factory_deps = [&contracts.bootloader, &contracts.default_aa]
@@ -173,7 +173,7 @@ async fn insert_base_system_contracts_to_factory_deps(
 }
 
 async fn insert_system_contracts(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut BasicStorageProcessor<'_>,
     contracts: &[DeployedContract],
     chain_id: L2ChainId,
 ) -> anyhow::Result<()> {
@@ -288,7 +288,7 @@ async fn insert_system_contracts(
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn create_genesis_l1_batch(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut BasicStorageProcessor<'_>,
     first_validator_address: Address,
     chain_id: L2ChainId,
     protocol_version: ProtocolVersionId,
@@ -367,7 +367,7 @@ pub(crate) async fn create_genesis_l1_batch(
     Ok(())
 }
 
-async fn add_eth_token(transaction: &mut StorageProcessor<'_>) -> anyhow::Result<()> {
+async fn add_eth_token(transaction: &mut BasicStorageProcessor<'_>) -> anyhow::Result<()> {
     assert!(transaction.in_transaction()); // sanity check
     let eth_token = TokenInfo {
         l1_address: ETHEREUM_ADDRESS,
@@ -393,7 +393,7 @@ async fn add_eth_token(transaction: &mut StorageProcessor<'_>) -> anyhow::Result
 }
 
 async fn save_genesis_l1_batch_metadata(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut BasicStorageProcessor<'_>,
     commitment: L1BatchCommitment,
     genesis_root_hash: H256,
     rollup_last_leaf_index: u64,
@@ -428,7 +428,7 @@ pub(crate) async fn save_set_chain_id_tx(
     eth_client_url: &str,
     diamond_proxy_address: Address,
     state_transition_manager_address: Address,
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut BasicStorageProcessor<'_>,
 ) -> anyhow::Result<()> {
     let eth_client = QueryClient::new(eth_client_url)?;
     let to = eth_client.block_number("fetch_chain_id_tx").await?.as_u64();

@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tokio::sync::watch;
 use zksync_config::configs::database::MerkleTreeMode;
-use zksync_dal::StorageProcessor;
+use zksync_dal::BasicStorageProcessor;
 use zksync_health_check::{Health, HealthStatus};
 use zksync_merkle_tree::{
     domain::{TreeMetadata, ZkSyncTree, ZkSyncTreeReader},
@@ -398,7 +398,7 @@ pub(crate) struct L1BatchWithLogs {
 
 impl L1BatchWithLogs {
     pub async fn new(
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut BasicStorageProcessor<'_>,
         l1_batch_number: L1BatchNumber,
     ) -> Option<Self> {
         tracing::debug!("Loading storage logs data for L1 batch #{l1_batch_number}");

@@ -1,9 +1,49 @@
-use std::time::Duration;
+use std::{thread, time::Duration};
 
+use anyhow::Context as _;
 use vise::{
     Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LabeledFamily,
-    Metrics,
+    LatencyObserver, Metrics, Unit,
 };
+
+use crate::{connection::ConnectionPool, processor::StorageKind};
+
+/// Request-related DB metrics.
+#[derive(Debug, Metrics)]
+#[metrics(prefix = "sql")]
+pub(crate) struct RequestMetrics {
+    /// Latency of a DB request.
+    #[metrics(buckets = Buckets::LATENCIES, labels = ["method"])]
+    pub request: LabeledFamily<&'static str, Histogram<Duration>>,
+    /// Counter of slow DB requests.
+    #[metrics(labels = ["method"])]
+    pub request_slow: LabeledFamily<&'static str, Counter>,
+    /// Counter of errored DB requests.
+    #[metrics(labels = ["method"])]
+    pub request_error: LabeledFamily<&'static str, Counter>,
+}
+#[vise::register]
+pub(crate) static REQUEST_METRICS: vise::Global<RequestMetrics> = vise::Global::new();
+/// Reporter of latency for DAL methods consisting of multiple DB queries. If there's a single query,
+/// use `.instrument().report_latency()` on it instead.
+///
+/// Should be created at the start of the relevant method and dropped when the latency needs to be reported.
+#[derive(Debug)]
+pub(crate) struct MethodLatency(Option<LatencyObserver<'static>>);
+impl MethodLatency {
+    pub fn new(name: &'static str) -> Self {
+        Self(Some(REQUEST_METRICS.request[&name].start()))
+    }
+}
+impl Drop for MethodLatency {
+    fn drop(&mut self) {
+        if !thread::panicking() {
+            let observer = self.0.take().unwrap();
+            // `unwrap()` is safe; the observer is only taken out on drop
+            observer.observe();
+        }
+    }
+}
 
 /// Kind of a connection error.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
@@ -75,7 +115,10 @@ pub(crate) struct PostgresMetrics {
 static POSTGRES_METRICS: vise::Global<PostgresMetrics> = vise::Global::new();
 
 impl PostgresMetrics {
-    pub(crate) async fn run_scraping(pool: ConnectionPool, scrape_interval: Duration) {
+    pub(crate) async fn run_scraping<SK: StorageKind>(
+        pool: ConnectionPool<SK>,
+        scrape_interval: Duration,
+    ) {
         let scrape_timeout = Duration::from_secs(1).min(scrape_interval / 2);
         loop {
             match tokio::time::timeout(scrape_timeout, Self::scrape(&pool)).await {
@@ -91,7 +134,7 @@ impl PostgresMetrics {
         }
     }
 
-    async fn scrape(pool: &ConnectionPool) -> anyhow::Result<()> {
+    async fn scrape<SK: StorageKind>(pool: &ConnectionPool<SK>) -> anyhow::Result<()> {
         let mut storage = pool
             .access_storage_tagged("postgres_metrics")
             .await

@@ -2,7 +2,7 @@ use std::convert::TryInto;
 
 use anyhow::Context as _;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
-use zksync_db_connection::processor::StorageInteraction;
+use zksync_db_connection::processor::StorageProcessor;
 use zksync_types::{
     protocol_version::{L1VerifierConfig, ProtocolUpgradeTx, ProtocolVersion, VerifierParams},
     Address, ProtocolVersionId, H256,

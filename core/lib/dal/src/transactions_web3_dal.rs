@@ -1,6 +1,6 @@
 use sqlx::types::chrono::NaiveDateTime;
 use zksync_db_connection::{
-    instrument::InstrumentExt, match_query_as, processor::StorageInteraction,
+    instrument::InstrumentExt, match_query_as, processor::StorageProcessor,
 };
 use zksync_types::{
     api, api::TransactionReceipt, Address, L2ChainId, MiniblockNumber, Transaction,

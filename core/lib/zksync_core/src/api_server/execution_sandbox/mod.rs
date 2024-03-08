@@ -2,7 +2,7 @@ use std::{sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use tokio::runtime::Handle;
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::{BasicStorageProcessor, ConnectionPool};
 use zksync_state::{PostgresStorage, PostgresStorageCaches, ReadStorage, StorageView};
 use zksync_system_constants::PUBLISH_BYTECODE_OVERHEAD;
 use zksync_types::{
@@ -149,7 +149,7 @@ impl VmConcurrencyLimiter {
 }
 
 async fn get_pending_state(
-    connection: &mut StorageProcessor<'_>,
+    connection: &mut BasicStorageProcessor<'_>,
 ) -> anyhow::Result<(api::BlockId, MiniblockNumber)> {
     let block_id = api::BlockId::Number(api::BlockNumber::Pending);
     let resolved_block_number = connection
@@ -243,7 +243,7 @@ pub(crate) struct BlockStartInfo {
 }
 
 impl BlockStartInfo {
-    pub async fn new(storage: &mut StorageProcessor<'_>) -> anyhow::Result<Self> {
+    pub async fn new(storage: &mut BasicStorageProcessor<'_>) -> anyhow::Result<Self> {
         let snapshot_recovery = storage
             .snapshot_recovery_dal()
             .get_applied_snapshot_status()
@@ -296,7 +296,9 @@ pub(crate) struct BlockArgs {
 }
 
 impl BlockArgs {
-    pub(crate) async fn pending(connection: &mut StorageProcessor<'_>) -> anyhow::Result<Self> {
+    pub(crate) async fn pending(
+        connection: &mut BasicStorageProcessor<'_>,
+    ) -> anyhow::Result<Self> {
         let (block_id, resolved_block_number) = get_pending_state(connection).await?;
         Ok(Self {
             block_id,
@@ -307,7 +309,7 @@ impl BlockArgs {
 
     /// Loads block information from DB.
     pub async fn new(
-        connection: &mut StorageProcessor<'_>,
+        connection: &mut BasicStorageProcessor<'_>,
         block_id: api::BlockId,
         start_info: BlockStartInfo,
     ) -> Result<Self, BlockArgsError> {

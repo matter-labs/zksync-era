@@ -1,6 +1,6 @@
 use sqlx::{pool::PoolConnection, PgConnection, Postgres};
 use zksync_db_connection::processor::{
-    StorageInteraction, StorageKind, StorageProcessor, StorageProcessorTags, TracedConnections,
+    BasicStorageProcessor, StorageKind, StorageProcessor, StorageProcessorTags, TracedConnections,
 };
 
 use crate::{
@@ -20,13 +20,13 @@ pub mod fri_witness_generator_dal;
 
 pub struct Prover(());
 
-pub struct ProverProcessor<'a>(StorageProcessor<'a>);
+pub struct ProverProcessor<'a>(BasicStorageProcessor<'a>);
 
 impl StorageKind for Prover {
     type Processor<'a> = ProverProcessor<'a>;
 }
 
-impl<'a> StorageInteraction for ProverProcessor<'a> {
+impl<'a> StorageProcessor for ProverProcessor<'a> {
     async fn start_transaction(&mut self) -> sqlx::Result<ProverProcessor<'_>> {
         self.0.start_transaction()
     }
@@ -45,7 +45,7 @@ impl<'a> StorageInteraction for ProverProcessor<'a> {
         tags: Option<StorageProcessorTags>,
         traced_connections: Option<&TracedConnections>,
     ) -> Self {
-        Self(StorageProcessor::from_pool(
+        Self(BasicStorageProcessor::from_pool(
             connection,
             tags,
             traced_connections,

@@ -7,7 +7,7 @@ use std::{
 use anyhow::Context as _;
 use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive};
 use zksync_db_connection::{
-    instrument::InstrumentExt, match_query_as, processor::StorageInteraction,
+    instrument::InstrumentExt, match_query_as, processor::StorageProcessor,
 };
 use zksync_types::{
     aggregated_operations::AggregatedActionType,

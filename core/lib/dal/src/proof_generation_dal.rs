@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use strum::{Display, EnumString};
-use zksync_db_connection::processor::StorageInteraction;
+use zksync_db_connection::processor::StorageProcessor;
 use zksync_types::L1BatchNumber;
 
 use crate::{time_utils::pg_interval_from_duration, ServerProcessor, SqlxError};

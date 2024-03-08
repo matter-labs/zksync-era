@@ -1,3 +1,4 @@
+use zksync_db_connection::processor::StorageProcessor;
 use zksync_types::{basic_fri_types::FinalProofIds, L1BatchNumber};
 
 use crate::{fri_prover_dal::types, ProverProcessor};

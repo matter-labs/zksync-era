@@ -10,6 +10,9 @@ use std::{
 };
 
 use sqlx::{pool::PoolConnection, types::chrono, Connection, PgConnection, Postgres, Transaction};
+use zksync_health_check::async_trait;
+
+use crate::{connection::ConnectionPool, metrics::CONNECTION_METRICS};
 
 /// Tags that can be associated with a connection.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -107,19 +110,19 @@ impl fmt::Debug for PooledStorageProcessor<'_> {
 
 impl Drop for PooledStorageProcessor<'_> {
     fn drop(&mut self) {
-        // if let Some(tags) = &self.tags {
-        //     let lifetime = self.created_at.elapsed();
-        //     CONNECTION_METRICS.lifetime[&tags.requester].observe(lifetime);
-        //
-        //     if lifetime > ConnectionPool::global_config().long_connection_threshold() {
-        //         let file = tags.location.file();
-        //         let line = tags.location.line();
-        //         tracing::info!(
-        //             "Long-living connection for `{}` created at {file}:{line}: {lifetime:?}",
-        //             tags.requester
-        //         );
-        //     }
-        // }
+        if let Some(tags) = &self.tags {
+            let lifetime = self.created_at.elapsed();
+            CONNECTION_METRICS.lifetime[&tags.requester].observe(lifetime);
+
+            if lifetime > ConnectionPool::global_config().long_connection_threshold() {
+                let file = tags.location.file();
+                let line = tags.location.line();
+                tracing::info!(
+                    "Long-living connection for `{}` created at {file}:{line}: {lifetime:?}",
+                    tags.requester
+                );
+            }
+        }
         if let Some((connections, id)) = self.traced {
             connections.mark_as_dropped(id);
         }
@@ -139,13 +142,13 @@ enum StorageProcessorInner<'a> {
 /// It holds down the connection (either direct or pooled) to the database
 /// and provide methods to obtain different storage schema.
 #[derive(Debug)]
-pub struct StorageProcessor<'a> {
+pub struct BasicStorageProcessor<'a> {
     inner: StorageProcessorInner<'a>,
 }
 
-// todo: rename
-pub trait StorageInteraction {
-    async fn start_transaction(&mut self) -> sqlx::Result<StorageProcessor<'_>>;
+#[async_trait]
+pub trait StorageProcessor {
+    async fn start_transaction(&mut self) -> sqlx::Result<BasicStorageProcessor<'_>>;
 
     /// Checks if the `StorageProcessor` is currently within database transaction.
     fn in_transaction(&self) -> bool;
@@ -166,14 +169,14 @@ pub trait StorageInteraction {
     fn conn_and_tags(&mut self) -> (&mut PgConnection, Option<&StorageProcessorTags>);
 }
 
-impl<'a> StorageInteraction for StorageProcessor<'a> {
-    async fn start_transaction(&mut self) -> sqlx::Result<StorageProcessor<'_>> {
+impl<'a> StorageProcessor for BasicStorageProcessor<'a> {
+    async fn start_transaction(&mut self) -> sqlx::Result<BasicStorageProcessor<'_>> {
         let (conn, tags) = self.conn_and_tags();
         let inner = StorageProcessorInner::Transaction {
             transaction: conn.begin().await?,
             tags,
         };
-        Ok(StorageProcessor { inner })
+        Ok(BasicStorageProcessor { inner })
     }
 
     /// Checks if the `StorageProcessor` is currently within database transaction.
@@ -227,7 +230,7 @@ impl<'a> StorageInteraction for StorageProcessor<'a> {
 }
 
 pub trait StorageKind {
-    type Processor<'a>: 'a + Send + From<StorageProcessor<'a>> + StorageInteraction;
+    type Processor<'a>: 'a + Send + From<BasicStorageProcessor<'a>> + StorageProcessor;
 }
 
 #[cfg(test)]
