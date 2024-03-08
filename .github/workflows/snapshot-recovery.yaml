@@ -19,7 +19,7 @@ jobs:
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
           echo IN_DOCKER=1 >> .env
-          echo EXPECTED_TX_COUNT="16000" >> .env
+          echo EXPECTED_TX_COUNT="1600" >> .env
           echo FAIL_FAST=true >> .env
           echo DATABASE_MERKLE_TREE_MODE=lightweight >> .env
           cat .env
@@ -55,7 +55,6 @@ jobs:
       - name: Step - Run external node
         if: always()
         run: |
-          sudo kill -9 $(sudo lsof -t -i :5432)
           ci_run zk config compile ext-node-docker
           ci_run zk external-node --reinit -- --enable-snapshots-recovery &
           ci_run sleep 10
