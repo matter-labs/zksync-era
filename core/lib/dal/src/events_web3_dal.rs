@@ -3,14 +3,13 @@ use sqlx::{
     query::{Query, QueryAs},
     Postgres, Row,
 };
+use zksync_db_connection::instrument::InstrumentExt;
 use zksync_types::{
     api::{GetLogsFilter, Log},
     Address, MiniblockNumber, H256,
 };
 
-use crate::{
-    instrument::InstrumentExt, models::storage_event::StorageWeb3Log, ServerProcessor, SqlxError,
-};
+use crate::{models::storage_event::StorageWeb3Log, ServerProcessor, SqlxError};
 
 #[derive(Debug)]
 pub struct EventsWeb3Dal<'a, 'c> {

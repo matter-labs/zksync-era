@@ -327,7 +327,7 @@ impl<SK: StorageKind> ConnectionPool<SK> {
     ///
     /// This method is intended to be used in crucial contexts, where the
     /// database access is must-have (e.g. block committer).
-    pub async fn access_storage(&self) -> anyhow::Result<StorageProcessor<'_>> {
+    pub async fn access_storage(&self) -> anyhow::Result<SK::Processor<'_>> {
         self.access_storage_inner(None).await
     }
 

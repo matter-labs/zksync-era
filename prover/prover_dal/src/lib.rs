@@ -1,3 +1,4 @@
+use sqlx::{pool::PoolConnection, PgConnection, Postgres};
 use zksync_db_connection::processor::{
     StorageInteraction, StorageKind, StorageProcessor, StorageProcessorTags, TracedConnections,
 };

@@ -1,5 +1,6 @@
 use std::{collections::HashMap, convert::TryFrom, time::Duration};
 
+use zksync_db_connection::instrument::InstrumentExt;
 use zksync_types::{
     basic_fri_types::{AggregationRound, CircuitIdRoundTuple},
     protocol_version::FriProtocolVersionId,
@@ -8,7 +9,6 @@ use zksync_types::{
 
 use self::types::{FriProverJobMetadata, JobCountStatistics, StuckJobs};
 use crate::{
-    instrument::InstrumentExt,
     metrics::MethodLatency,
     time_utils::{duration_to_naive_time, pg_interval_from_duration},
     ProverProcessor,

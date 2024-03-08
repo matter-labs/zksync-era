@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use zksync_contracts::BaseSystemContractsHashes;
+use zksync_db_connection::connection::ConnectionPool;
 use zksync_types::{
     block::{MiniblockHasher, MiniblockHeader},
     fee::{Fee, TransactionExecutionMetrics},
@@ -17,10 +18,10 @@ use zksync_types::{
 
 use crate::{
     blocks_dal::BlocksDal,
-    connection::ConnectionPool,
     protocol_versions_dal::ProtocolVersionsDal,
     transactions_dal::{L2TxSubmissionResult, TransactionsDal},
     transactions_web3_dal::TransactionsWeb3Dal,
+    Server,
 };
 
 const DEFAULT_GAS_PER_PUBDATA: u32 = 100;

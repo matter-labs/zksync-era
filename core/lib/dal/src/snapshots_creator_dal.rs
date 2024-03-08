@@ -1,3 +1,4 @@
+use zksync_db_connection::instrument::InstrumentExt;
 use zksync_types::{
     snapshots::SnapshotStorageLog, AccountTreeId, Address, L1BatchNumber, MiniblockNumber,
     StorageKey, H256,

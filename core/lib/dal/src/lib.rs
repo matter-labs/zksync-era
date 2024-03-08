@@ -24,8 +24,6 @@ use crate::{
     transactions_web3_dal::TransactionsWeb3Dal,
 };
 
-#[macro_use]
-mod macro_utils;
 pub mod basic_witness_input_producer_dal;
 pub mod blocks_dal;
 pub mod blocks_web3_dal;
@@ -35,7 +33,6 @@ pub mod eth_sender_dal;
 pub mod events_dal;
 pub mod events_web3_dal;
 pub mod factory_deps_dal;
-pub mod healthcheck;
 mod metrics;
 mod models;
 pub mod proof_generation_dal;

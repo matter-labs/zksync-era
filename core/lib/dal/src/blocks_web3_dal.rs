@@ -1,3 +1,6 @@
+use zksync_db_connection::{
+    instrument::InstrumentExt, match_query_as, processor::StorageInteraction,
+};
 use zksync_system_constants::EMPTY_UNCLES_HASH;
 use zksync_types::{
     api,
@@ -9,7 +12,6 @@ use zksync_types::{
 use zksync_utils::bigdecimal_to_u256;
 
 use crate::{
-    instrument::InstrumentExt,
     models::{
         storage_block::{ResolvedL1BatchForMiniblock, StorageBlockDetails, StorageL1BatchDetails},
         storage_transaction::CallTrace,

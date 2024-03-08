@@ -1,13 +1,14 @@
 use std::{collections::HashMap, ops, time::Instant};
 
 use sqlx::{types::chrono::Utc, Row};
+use zksync_db_connection::{instrument::InstrumentExt, processor::StorageInteraction};
 use zksync_types::{
     get_code_key, snapshots::SnapshotStorageLog, AccountTreeId, Address, L1BatchNumber,
     MiniblockNumber, StorageKey, StorageLog, FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H160, H256,
 };
 
 pub use crate::models::storage_log::{DbStorageLog, StorageRecoveryLogEntry};
-use crate::{instrument::InstrumentExt, ServerProcessor};
+use crate::ServerProcessor;
 
 #[derive(Debug)]
 pub struct StorageLogsDal<'a, 'c> {

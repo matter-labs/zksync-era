@@ -1,5 +1,6 @@
 use std::{collections::HashMap, ops};
 
+use zksync_db_connection::{instrument::InstrumentExt, processor::StorageInteraction};
 use zksync_types::{
     get_code_key, get_nonce_key,
     utils::{decompose_full_nonce, storage_key_for_standard_token_balance},
@@ -8,10 +9,7 @@ use zksync_types::{
 };
 use zksync_utils::h256_to_u256;
 
-use crate::{
-    instrument::InstrumentExt, models::storage_block::ResolvedL1BatchForMiniblock, ServerProcessor,
-    SqlxError,
-};
+use crate::{models::storage_block::ResolvedL1BatchForMiniblock, ServerProcessor, SqlxError};
 
 #[derive(Debug)]
 pub struct StorageWeb3Dal<'a, 'c> {

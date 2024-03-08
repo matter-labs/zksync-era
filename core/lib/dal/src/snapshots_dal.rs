@@ -1,9 +1,10 @@
+use zksync_db_connection::{instrument::InstrumentExt, processor::StorageInteraction};
 use zksync_types::{
     snapshots::{AllSnapshots, SnapshotMetadata},
     L1BatchNumber,
 };
 
-use crate::{instrument::InstrumentExt, ServerProcessor};
+use crate::ServerProcessor;
 
 #[derive(Debug, sqlx::FromRow)]
 struct StorageSnapshotMetadata {

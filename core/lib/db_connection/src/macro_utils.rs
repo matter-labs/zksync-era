@@ -77,6 +77,7 @@ macro_rules! interpolate_query {
 ///   The number of arguments may differ across variants (e.g., one of variants may introduce one or more additional args).
 ///
 /// See the crate code for examples of usage.
+#[macro_export]
 macro_rules! match_query_as {
     (
         $query_type:ty,

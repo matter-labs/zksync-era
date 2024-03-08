@@ -1,3 +1,4 @@
+use zksync_db_connection::processor::StorageInteraction;
 use zksync_types::{
     tokens::{TokenInfo, TokenMetadata},
     Address, MiniblockNumber,

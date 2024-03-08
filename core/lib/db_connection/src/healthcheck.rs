@@ -1,7 +1,7 @@
 use serde::Serialize;
 use zksync_health_check::{async_trait, CheckHealth, Health, HealthStatus};
 
-use crate::ConnectionPool;
+use crate::connection::ConnectionPool;
 
 #[derive(Debug, Serialize)]
 struct ConnectionPoolHealthDetails {

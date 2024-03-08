@@ -1,10 +1,10 @@
 use std::time::{Duration, Instant};
 
 use sqlx::postgres::types::PgInterval;
+use zksync_db_connection::instrument::InstrumentExt;
 use zksync_types::L1BatchNumber;
 
 use crate::{
-    instrument::InstrumentExt,
     time_utils::{duration_to_naive_time, pg_interval_from_duration},
     ServerProcessor,
 };

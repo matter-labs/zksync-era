@@ -1,7 +1,7 @@
+use zksync_db_connection::instrument::InstrumentExt;
 use zksync_types::{api::en, MiniblockNumber};
 
 use crate::{
-    instrument::InstrumentExt,
     metrics::MethodLatency,
     models::storage_sync::{StorageSyncBlock, SyncBlock},
     ServerProcessor,

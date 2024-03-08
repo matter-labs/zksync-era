@@ -4,6 +4,7 @@ use anyhow::Context as _;
 use bigdecimal::BigDecimal;
 use itertools::Itertools;
 use sqlx::{error, types::chrono::NaiveDateTime};
+use zksync_db_connection::{instrument::InstrumentExt, processor::StorageInteraction};
 use zksync_types::{
     block::MiniblockExecutionData,
     fee::TransactionExecutionMetrics,
@@ -18,7 +19,6 @@ use zksync_types::{
 use zksync_utils::u256_to_big_decimal;
 
 use crate::{
-    instrument::InstrumentExt,
     models::storage_transaction::{CallTrace, StorageTransaction},
     time_utils::pg_interval_from_duration,
     ServerProcessor,

@@ -1,11 +1,13 @@
 use sqlx::types::chrono::NaiveDateTime;
+use zksync_db_connection::{
+    instrument::InstrumentExt, match_query_as, processor::StorageInteraction,
+};
 use zksync_types::{
     api, api::TransactionReceipt, Address, L2ChainId, MiniblockNumber, Transaction,
     ACCOUNT_CODE_STORAGE_ADDRESS, FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H256, U256,
 };
 
 use crate::{
-    instrument::InstrumentExt,
     models::storage_transaction::{
         StorageApiTransaction, StorageTransaction, StorageTransactionDetails,
         StorageTransactionReceipt,

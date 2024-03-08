@@ -1,6 +1,7 @@
 pub mod connection;
+pub mod healthcheck;
 pub mod instrument;
 mod metrics;
 pub mod processor;
-
-pub(crate) use self::processor::StorageProcessorTags;
+#[macro_use]
+pub mod macro_utils;

@@ -7082,7 +7082,6 @@ dependencies = [
  "zksync_consensus_storage",
  "zksync_contracts",
  "zksync_db_connection",
- "zksync_health_check",
  "zksync_protobuf",
  "zksync_protobuf_build",
  "zksync_system_constants",
@@ -7101,6 +7100,7 @@ dependencies = [
  "tracing",
  "url",
  "vise",
+ "zksync_health_check",
 ]
 
 [[package]]
