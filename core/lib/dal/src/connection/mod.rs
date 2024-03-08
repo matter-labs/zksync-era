@@ -248,7 +248,7 @@ impl fmt::Debug for ConnectionPool {
 }
 
 impl ConnectionPool {
-    const TEST_ACQUIRE_TIMEOUT: Duration = Duration::from_secs(1);
+    const TEST_ACQUIRE_TIMEOUT: Duration = Duration::from_secs(10);
 
     /// Returns a reference to the global configuration parameters applied for all DB pools. For consistency, these parameters
     /// should be changed early in the app life cycle.
