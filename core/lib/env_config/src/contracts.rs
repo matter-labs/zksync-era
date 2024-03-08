@@ -10,9 +10,6 @@ impl FromEnv for ContractsConfig {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-
-    use zksync_basic_types::Address;
     use zksync_config::configs::contracts::ProverAtGenesis;
 
     use super::*;
