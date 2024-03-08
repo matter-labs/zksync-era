@@ -1,5 +1,4 @@
 use zksync_config::ContractsConfig;
-
 use crate::{envy_load, FromEnv};
 
 impl FromEnv for ContractsConfig {
@@ -11,7 +10,7 @@ impl FromEnv for ContractsConfig {
 #[cfg(test)]
 mod tests {
     use zksync_config::configs::contracts::ProverAtGenesis;
-
+    use zksync_system_constants::ETHEREUM_SHARED_BRIDGE_ADDRESS;
     use super::*;
     use crate::test_utils::{addr, hash, EnvMutex};
 
@@ -69,7 +68,7 @@ mod tests {
             snark_wrapper_vk_hash: hash(
                 "0x4be443afd605a782b6e56d199df2460a025c81b3dea144e135bece83612563f2",
             ),
-            base_token_addr: addr("0x0000000000000000000000000000000000000000"),
+            base_token_addr: Some(ETHEREUM_SHARED_BRIDGE_ADDRESS),
         }
     }
 

@@ -2,7 +2,7 @@ use std::{collections::HashMap, convert::TryInto};
 
 use zksync_dal::StorageProcessor;
 use zksync_mini_merkle_tree::MiniMerkleTree;
-use zksync_system_constants::{DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE, ETHEREUM_SHARED_BRIDGE_ADDRESS};
+use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     api::{
         BlockDetails, BridgeAddresses, GetLogsFilter, L1BatchDetails, L2ToL1LogProof, Proof,
@@ -630,10 +630,9 @@ impl ZksNamespace {
 
     #[tracing::instrument(skip_all)]
     pub fn get_base_token_l1_address_impl(&self) -> Result<Address, Web3Error> {
-        let base_token_addr = self.state.api_config.base_token_address;
-        if base_token_addr == ETHEREUM_SHARED_BRIDGE_ADDRESS {
-            return Ok(ETHEREUM_ADDRESS);
-        }
-        return Ok(base_token_addr);
+        self.state
+            .api_config
+            .base_token_address
+            .ok_or(Web3Error::NotImplemented)
     }
 }

@@ -121,6 +121,7 @@ pub const MINT_AND_BURN_ADDRESS: H160 = H160::zero();
 // The `storage_log.value` database value for a contract that was deployed in a failed transaction.
 pub const FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH: H256 = H256::zero();
 
+// When the base token is ethereum, this is the value used for the contract bridge address.
 pub const ETHEREUM_SHARED_BRIDGE_ADDRESS: Address = H160([
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x01,
