@@ -18,12 +18,7 @@ jobs:
         run: |
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
-          echo ZKSYNC_ENV=ext-node >> $GITHUB_PATH
-          echo ZKSYNC_ENV=ext-node >> .env
           echo IN_DOCKER=1 >> .env
-          echo EXPECTED_TX_COUNT="1600" >> .env
-          echo FAIL_FAST=true >> .env
-          echo DATABASE_MERKLE_TREE_MODE=lightweight >> .env
           cat .env
 
       - name: Start services
@@ -44,15 +39,29 @@ jobs:
         run: |
           ci_run zk server --uring --components=$SERVER_COMPONENTS &>server.log &
           ci_run sleep 30
-      
-#      - name: Perform loadtest
-#        run: ci_run zk run loadtest
+
+      - name: Setup environment
+        run: |
+          echo EXPECTED_TX_COUNT="1000" >> .env
+          echo EXPECTED_TX_COUNT="1000" >> $GITHUB_PATH
+          echo FAIL_FAST=true >> .env
+          echo DATABASE_MERKLE_TREE_MODE=lightweight >> .env
+          cat .env
+
+      - name: Perform loadtest
+        run: |
+          EXPECTED_TX_COUNT=1000 ACCOUNTS_AMOUNT=40 DURATION_SEC=30 FAIL_FAST=true ci_run zk run loadtest
              
-#      - name: Step - Create a snapshot
-#        if: always()
-#        run: |
-#          ci_run zk env docker
-#          ci_run zk run snapshots-creator
+      - name: Step - Create a snapshot
+        if: always()
+        run: |
+          ci_run zk env docker
+          ci_run zk run snapshots-creator
+
+      - name: Setup environment
+        run: |
+          echo ZKSYNC_ENV=ext-node >> .env
+          echo ZKSYNC_ENV=ext-node >> $GITHUB_PATH
 
       - name: Step - Run external node
         if: always()
