@@ -2,6 +2,7 @@ import { exec as _exec, spawn as _spawn } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';
 import readline from 'readline';
+import chalk from 'chalk';
 
 export type { ChildProcess } from 'child_process';
 
@@ -147,3 +148,25 @@ export async function readZkSyncAbi() {
 
     return abi;
 }
+
+const entry = chalk.bold.yellow;
+const announce = chalk.yellow;
+const success = chalk.green;
+const timestamp = chalk.grey;
+
+// Wrapper that writes an announcement and completion notes for each executed task.
+export const announced = async (fn: string, promise: Promise<void> | void) => {
+    const announceLine = `${entry('>')} ${announce(fn)}`;
+    const separator = '-'.repeat(fn.length + 2); // 2 is the length of "> ".
+    console.log(`\n` + separator); // So it's easier to see each individual step in the console.
+    console.log(announceLine);
+
+    const start = new Date().getTime();
+    // The actual execution part
+    await promise;
+
+    const time = new Date().getTime() - start;
+    const successLine = `${success('✔')} ${fn} done`;
+    const timestampLine = timestamp(`(${time}ms)`);
+    console.log(`${successLine} ${timestampLine}`);
+};

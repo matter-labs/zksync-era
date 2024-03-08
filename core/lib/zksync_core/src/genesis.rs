@@ -432,7 +432,7 @@ pub(crate) async fn save_set_chain_id_tx(
 ) -> anyhow::Result<()> {
     let eth_client = QueryClient::new(eth_client_url)?;
     let to = eth_client.block_number("fetch_chain_id_tx").await?.as_u64();
-    let from = to - PRIORITY_EXPIRATION;
+    let from = to.saturating_sub(PRIORITY_EXPIRATION);
     let filter = FilterBuilder::default()
         .address(vec![state_transition_manager_address])
         .topics(

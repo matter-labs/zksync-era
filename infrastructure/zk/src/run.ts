@@ -6,19 +6,23 @@ import * as path from 'path';
 import { getTokens } from './hyperchain_wizard';
 import * as env from './env';
 
-export async function deployERC20AndWeth(
-    command: 'dev' | 'new',
-    name?: string,
-    symbol?: string,
-    decimals?: string,
-    args: any = []
-) {
+export async function deployERC20AndWeth({
+    command,
+    name,
+    symbol,
+    decimals,
+    envFile
+}: {
+    command: 'dev' | 'new';
+    name?: string;
+    symbol?: string;
+    decimals?: string;
+    envFile?: string;
+}) {
     if (command == 'dev') {
-        let destinationFile = 'localhost';
-        if (args.includes('--envFile')) {
-            destinationFile = args[args.indexOf('--envFile') + 1];
-            args.splice(args.indexOf('--envFile'), 2);
-        }
+        const destinationFile = envFile || 'localhost';
+        const privateKey = process.env.DEPLOYER_PRIVATE_KEY;
+        const args = [privateKey ? `--private-key ${privateKey}` : ''];
         await utils.spawn(`yarn --silent --cwd contracts/l1-contracts deploy-erc20 add-multi '
             [
                 { "name": "DAI",  "symbol": "DAI",  "decimals": 18 },
@@ -51,12 +55,10 @@ export async function deployERC20AndWeth(
     }
 }
 
-export async function deployWeth(args: any = []) {
-    let destinationFile = process.env.CHAIN_ETH_NETWORK!;
-    if (args.includes('--envFile')) {
-        destinationFile = args[args.indexOf('--envFile') + 1];
-        args.splice(args.indexOf('--envFile'), 2);
-    }
+export async function deployWeth({ envFile }: { envFile?: string }) {
+    const destinationFile = envFile || process.env.CHAIN_ETH_NETWORK!;
+    const privateKey = process.env.DEPLOYER_PRIVATE_KEY;
+    const args = [privateKey ? `--private-key ${privateKey}` : ''];
     await utils.spawn(`yarn --silent --cwd contracts/l1-contracts deploy-erc20 add-multi '
         [
             { "name": "Wrapped Ether", "symbol": "WETH", "decimals": 18, "implementation": "WETH9"}
@@ -185,7 +187,7 @@ command
         if (command != 'dev' && command != 'new') {
             throw new Error('only "dev" and "new" subcommands are allowed');
         }
-        await deployERC20AndWeth(command, name, symbol, decimals);
+        await deployERC20AndWeth({ command, name, symbol, decimals });
     });
 
 command
