@@ -24,12 +24,10 @@ const contracts = {
 describe('System behavior checks', () => {
     let testMaster: TestMaster;
     let alice: zksync.Wallet;
-    let bob: zksync.Wallet;
 
     beforeAll(() => {
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
-        bob = testMaster.newEmptyAccount();
     });
 
     test('Network should be supporting Cancun+Deneb', async () => {
