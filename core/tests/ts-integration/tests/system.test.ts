@@ -78,11 +78,13 @@ describe('System behavior checks', () => {
         const smallGasPerPubdata = 1;
         const senderNonce = await alice.getTransactionCount();
 
-        // Check if the gasPerPubdata is to low, making the test inapplicable.
+        // A safe low value to determine whether we can run this test.
+        // It's higher than `smallGasPerPubdata` to not make the test flaky.
+        const gasPerPubdataThreshold = 5;
         const response = await alice.provider.send('zks_estimateFee', [
             { from: alice.address, to: alice.address, value: '0x1' }
         ]);
-        if (response.gas_per_pubdata_limit > 5) {
+        if (response.gas_per_pubdata_limit > gasPerPubdataThreshold) {
             // This tx should be accepted by the server, but would never be executed, so we don't wait for the receipt.
             const tx = await alice.sendTransaction({
                 to: alice.address,
