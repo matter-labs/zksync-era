@@ -9,9 +9,12 @@ use zksync_dal::ConnectionPool;
 use zksync_types::{MiniblockNumber, StorageLog};
 
 use super::*;
-use crate::test_utils::{
-    create_l1_batch, create_miniblock, gen_storage_logs, prepare_postgres,
-    prepare_postgres_for_snapshot_recovery,
+use crate::{
+    open_state_keeper_rocksdb,
+    test_utils::{
+        create_l1_batch, create_miniblock, gen_storage_logs, prepare_postgres,
+        prepare_postgres_for_snapshot_recovery,
+    },
 };
 
 pub(super) struct RocksdbStorageEventListener {
@@ -41,7 +44,8 @@ impl Default for RocksdbStorageEventListener {
 #[tokio::test]
 async fn rocksdb_storage_basics() {
     let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
-    let mut storage = RocksdbStorage::new(dir.path().to_path_buf()).await.unwrap();
+    let mut storage =
+        RocksdbStorage::new(open_state_keeper_rocksdb(dir.path().into()).await.unwrap());
     let mut storage_logs: HashMap<_, _> = gen_storage_logs(0..20)
         .into_iter()
         .map(|log| (log.key, log.value))
@@ -78,9 +82,11 @@ async fn rocksdb_storage_basics() {
 
 async fn sync_test_storage(dir: &TempDir, conn: &mut StorageProcessor<'_>) -> RocksdbStorage {
     let (_stop_sender, stop_receiver) = watch::channel(false);
-    RocksdbStorage::open_builder(dir.path())
+    let builder: RocksdbStorageBuilder = open_state_keeper_rocksdb(dir.path().into())
         .await
         .expect("Failed initializing RocksDB")
+        .into();
+    builder
         .synchronize(conn, &stop_receiver)
         .await
         .unwrap()
@@ -119,9 +125,10 @@ async fn rocksdb_storage_syncing_fault_tolerance() {
 
     let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
     let (stop_sender, stop_receiver) = watch::channel(false);
-    let mut storage = RocksdbStorage::open_builder(dir.path())
+    let mut storage: RocksdbStorageBuilder = open_state_keeper_rocksdb(dir.path().into())
         .await
-        .expect("Failed initializing RocksDB");
+        .expect("Failed initializing RocksDB")
+        .into();
     let mut expected_l1_batch_number = L1BatchNumber(0);
     storage.0.listener.on_l1_batch_synced = Box::new(move |number| {
         assert_eq!(number, expected_l1_batch_number);
@@ -137,9 +144,10 @@ async fn rocksdb_storage_syncing_fault_tolerance() {
     assert!(storage.is_none());
 
     // Resume storage syncing and check that it completes.
-    let storage = RocksdbStorage::open_builder(dir.path())
+    let storage: RocksdbStorageBuilder = open_state_keeper_rocksdb(dir.path().into())
         .await
-        .expect("Failed initializing RocksDB");
+        .expect("Failed initializing RocksDB")
+        .into();
     assert_eq!(storage.l1_batch_number().await, Some(L1BatchNumber(3)));
 
     let (_stop_sender, stop_receiver) = watch::channel(false);
@@ -332,7 +340,8 @@ async fn low_level_snapshot_recovery(log_chunk_size: u64) {
         prepare_postgres_for_snapshot_recovery(&mut conn).await;
 
     let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
-    let mut storage = RocksdbStorage::new(dir.path().to_path_buf()).await.unwrap();
+    let mut storage =
+        RocksdbStorage::new(open_state_keeper_rocksdb(dir.path().into()).await.unwrap());
     let (_stop_sender, stop_receiver) = watch::channel(false);
     let next_l1_batch = storage
         .ensure_ready(&mut conn, log_chunk_size, &stop_receiver)
@@ -458,7 +467,8 @@ async fn recovery_fault_tolerance() {
     let log_chunk_size = storage_logs.len() as u64 / 5;
 
     let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
-    let mut storage = RocksdbStorage::new(dir.path().to_path_buf()).await.unwrap();
+    let mut storage =
+        RocksdbStorage::new(open_state_keeper_rocksdb(dir.path().into()).await.unwrap());
     let (stop_sender, stop_receiver) = watch::channel(false);
     let mut synced_chunk_count = 0_u64;
     storage.listener.on_logs_chunk_recovered = Box::new(move |chunk_id| {
@@ -478,7 +488,8 @@ async fn recovery_fault_tolerance() {
 
     // Resume recovery and check that no chunks are recovered twice.
     let (_stop_sender, stop_receiver) = watch::channel(false);
-    let mut storage = RocksdbStorage::new(dir.path().to_path_buf()).await.unwrap();
+    let mut storage =
+        RocksdbStorage::new(open_state_keeper_rocksdb(dir.path().into()).await.unwrap());
     storage.listener.on_logs_chunk_recovered = Box::new(|chunk_id| {
         assert!(chunk_id >= 2);
     });

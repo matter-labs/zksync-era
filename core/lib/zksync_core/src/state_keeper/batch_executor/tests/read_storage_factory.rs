@@ -3,7 +3,9 @@ use std::sync::{Arc, Mutex};
 use async_trait::async_trait;
 use tokio::{runtime::Handle, sync::watch};
 use zksync_dal::ConnectionPool;
-use zksync_state::{PostgresStorage, RocksdbStorage};
+use zksync_state::{
+    open_state_keeper_rocksdb, PostgresStorage, RocksdbStorage, RocksdbStorageBuilder,
+};
 
 use crate::state_keeper::{state_keeper_storage::ReadStorageFactory, StateKeeperStorage};
 
@@ -75,17 +77,18 @@ impl ReadStorageFactory for RocksdbFactory {
         _rt_handle: Handle,
         stop_receiver: &watch::Receiver<bool>,
     ) -> Option<Self::ReadStorageImpl<'a>> {
-        let mut secondary_storage =
-            RocksdbStorage::open_builder(self.state_keeper_db_path.as_ref())
+        let mut builder: RocksdbStorageBuilder =
+            open_state_keeper_rocksdb(self.state_keeper_db_path.clone().into())
                 .await
-                .expect("Failed initializing state keeper storage");
-        secondary_storage.enable_enum_index_migration(self.enum_index_migration_chunk_size);
+                .expect("Failed initializing state keeper storage")
+                .into();
+        builder.enable_enum_index_migration(self.enum_index_migration_chunk_size);
         let mut conn = self
             .pool
             .access_storage_tagged("state_keeper")
             .await
             .unwrap();
-        secondary_storage
+        builder
             .synchronize(&mut conn, stop_receiver)
             .await
             .expect("Failed synchronizing secondary state keeper storage")

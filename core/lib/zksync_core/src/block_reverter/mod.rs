@@ -8,7 +8,7 @@ use zksync_contracts::zksync_contract;
 use zksync_dal::ConnectionPool;
 use zksync_eth_signer::{EthereumSigner, PrivateKeySigner, TransactionParameters};
 use zksync_merkle_tree::domain::ZkSyncTree;
-use zksync_state::RocksdbStorage;
+use zksync_state::{open_state_keeper_rocksdb, RocksdbStorageBuilder};
 use zksync_storage::RocksDB;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
@@ -207,9 +207,11 @@ impl BlockReverter {
     /// Reverts blocks in the state keeper cache.
     async fn rollback_state_keeper_cache(&self, last_l1_batch_to_keep: L1BatchNumber) {
         tracing::info!("opening DB with state keeper cache...");
-        let sk_cache = RocksdbStorage::open_builder(self.state_keeper_cache_path.as_ref())
-            .await
-            .expect("Failed initializing state keeper cache");
+        let sk_cache: RocksdbStorageBuilder =
+            open_state_keeper_rocksdb(self.state_keeper_cache_path.clone().into())
+                .await
+                .expect("Failed initializing state keeper")
+                .into();
 
         if sk_cache.l1_batch_number().await > Some(last_l1_batch_to_keep + 1) {
             let mut storage = self.connection_pool.access_storage().await.unwrap();

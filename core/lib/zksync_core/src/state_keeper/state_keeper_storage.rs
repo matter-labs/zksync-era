@@ -7,7 +7,10 @@ use anyhow::Context;
 use async_trait::async_trait;
 use tokio::{runtime::Handle, sync::watch};
 use zksync_dal::{ConnectionPool, StorageProcessor};
-use zksync_state::{PostgresStorage, ReadStorage, RocksdbStorage, StateKeeperColumnFamily};
+use zksync_state::{
+    open_state_keeper_rocksdb, PostgresStorage, ReadStorage, RocksdbStorage, RocksdbStorageBuilder,
+    StateKeeperColumnFamily,
+};
 use zksync_storage::RocksDB;
 
 /// Encapsulates a storage that can produce a [`ReadStorageFactory`] on demand.
@@ -143,9 +146,7 @@ impl AsyncRocksdbCache {
         stop_receiver: &watch::Receiver<bool>,
     ) -> anyhow::Result<Option<PgOrRocksdbStorage<'a>>> {
         tracing::debug!("Catching up RocksDB synchronously");
-        let rocksdb_builder = RocksdbStorage::builder(rocksdb)
-            .await
-            .context("Failed initializing RocksDB storage")?;
+        let rocksdb_builder: RocksdbStorageBuilder = rocksdb.into();
         let rocksdb = rocksdb_builder
             .synchronize(conn, stop_receiver)
             .await
@@ -217,9 +218,11 @@ impl StateKeeperStorage<AsyncRocksdbCache> {
         let factory = inner.clone();
         tokio::task::spawn(async move {
             tracing::debug!("Catching up RocksDB asynchronously");
-            let mut rocksdb_builder = RocksdbStorage::open_builder(state_keeper_db_path.as_ref())
-                .await
-                .expect("Failed initializing RocksDB storage");
+            let mut rocksdb_builder: RocksdbStorageBuilder =
+                open_state_keeper_rocksdb(state_keeper_db_path.into())
+                    .await
+                    .expect("Failed initializing RocksDB storage")
+                    .into();
             rocksdb_builder.enable_enum_index_migration(enum_index_migration_chunk_size);
             let mut storage = pool
                 .access_storage()

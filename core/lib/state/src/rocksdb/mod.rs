@@ -19,13 +19,7 @@
 //! | Contracts    | address (20 bytes)              | `Vec<u8>`                       | Contract contents                         |
 //! | Factory deps | hash (32 bytes)                 | `Vec<u8>`                       | Bytecodes for new contracts that a certain contract may deploy. |
 
-use std::{
-    collections::HashMap,
-    convert::TryInto,
-    mem,
-    path::{Path, PathBuf},
-    time::Instant,
-};
+use std::{collections::HashMap, convert::TryInto, mem, time::Instant};
 
 use anyhow::Context as _;
 use itertools::{Either, Itertools};
@@ -140,9 +134,9 @@ pub struct RocksdbStorage {
 /// Builder of [`RocksdbStorage`]. The storage data is inaccessible until the storage is [`Self::synchronize()`]d
 /// with Postgres.
 #[derive(Debug)]
-pub struct RocksbStorageBuilder(RocksdbStorage);
+pub struct RocksdbStorageBuilder(RocksdbStorage);
 
-impl RocksbStorageBuilder {
+impl RocksdbStorageBuilder {
     /// Enables enum indices migration.
     pub fn enable_enum_index_migration(&mut self, chunk_size: usize) {
         self.0.enum_index_migration_chunk_size = chunk_size;
@@ -194,6 +188,12 @@ impl RocksbStorageBuilder {
     }
 }
 
+impl From<RocksDB<StateKeeperColumnFamily>> for RocksdbStorageBuilder {
+    fn from(value: RocksDB<StateKeeperColumnFamily>) -> Self {
+        RocksdbStorageBuilder(RocksdbStorage::new(value))
+    }
+}
+
 impl RocksdbStorage {
     const L1_BATCH_NUMBER_KEY: &'static [u8] = b"block_number";
     const ENUM_INDEX_MIGRATION_CURSOR: &'static [u8] = b"enum_index_migration_cursor";
@@ -203,49 +203,18 @@ impl RocksdbStorage {
     /// (i.e., not changed after a node restart).
     const DESIRED_LOG_CHUNK_SIZE: u64 = 200_000;
 
+    fn new(db: RocksDB<StateKeeperColumnFamily>) -> Self {
+        RocksdbStorage {
+            db,
+            pending_patch: InMemoryStorage::default(),
+            enum_index_migration_chunk_size: 100,
+            #[cfg(test)]
+            listener: RocksdbStorageEventListener::default(),
+        }
+    }
+
     fn is_special_key(key: &[u8]) -> bool {
         key == Self::L1_BATCH_NUMBER_KEY || key == Self::ENUM_INDEX_MIGRATION_CURSOR
-    }
-
-    /// Creates a new storage builder with the provided RocksDB `path`.
-    ///
-    /// # Errors
-    ///
-    /// Propagates RocksDB I/O errors.
-    pub async fn open_builder(path: &Path) -> anyhow::Result<RocksbStorageBuilder> {
-        Self::new(path.to_path_buf())
-            .await
-            .map(RocksbStorageBuilder)
-    }
-
-    /// Creates a new storage builder with the provided RocksDB instance.
-    ///
-    /// # Errors
-    ///
-    /// Propagates RocksDB I/O errors.
-    pub async fn builder(
-        db: RocksDB<StateKeeperColumnFamily>,
-    ) -> anyhow::Result<RocksbStorageBuilder> {
-        Self::new_rocksdb(db).await.map(RocksbStorageBuilder)
-    }
-
-    async fn new(path: PathBuf) -> anyhow::Result<Self> {
-        Self::new_rocksdb(RocksDB::new(&path).context("failed initializing state keeper RocksDB")?)
-            .await
-    }
-
-    async fn new_rocksdb(db: RocksDB<StateKeeperColumnFamily>) -> anyhow::Result<Self> {
-        tokio::task::spawn_blocking(move || {
-            Ok(Self {
-                db,
-                pending_patch: InMemoryStorage::default(),
-                enum_index_migration_chunk_size: 100,
-                #[cfg(test)]
-                listener: RocksdbStorageEventListener::default(),
-            })
-        })
-        .await
-        .context("panicked initializing state keeper RocksDB")?
     }
 
     async fn update_from_postgres(

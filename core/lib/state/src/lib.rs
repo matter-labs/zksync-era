@@ -25,14 +25,16 @@ mod shadow_storage;
 mod storage_view;
 #[cfg(test)]
 mod test_utils;
+mod utils;
 mod witness;
 
 pub use self::{
     in_memory::{InMemoryStorage, IN_MEMORY_STORAGE_DEFAULT_NETWORK_ID},
     postgres::{PostgresStorage, PostgresStorageCaches},
-    rocksdb::{RocksbStorageBuilder, RocksdbStorage, StateKeeperColumnFamily},
+    rocksdb::{RocksdbStorage, RocksdbStorageBuilder, StateKeeperColumnFamily},
     shadow_storage::ShadowStorage,
     storage_view::{StorageView, StorageViewMetrics},
+    utils::open_state_keeper_rocksdb,
     witness::WitnessStorage,
 };
 
