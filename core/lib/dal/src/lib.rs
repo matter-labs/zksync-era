@@ -14,12 +14,7 @@ use crate::{
     blocks_web3_dal::BlocksWeb3Dal, consensus_dal::ConsensusDal,
     contract_verification_dal::ContractVerificationDal, eth_sender_dal::EthSenderDal,
     events_dal::EventsDal, events_web3_dal::EventsWeb3Dal, factory_deps_dal::FactoryDepsDal,
-    fri_gpu_prover_queue_dal::FriGpuProverQueueDal,
-    fri_proof_compressor_dal::FriProofCompressorDal,
-    fri_protocol_versions_dal::FriProtocolVersionsDal, fri_prover_dal::FriProverDal,
-    fri_scheduler_dependency_tracker_dal::FriSchedulerDependencyTrackerDal,
-    fri_witness_generator_dal::FriWitnessGeneratorDal, proof_generation_dal::ProofGenerationDal,
-    protocol_versions_dal::ProtocolVersionsDal,
+    proof_generation_dal::ProofGenerationDal, protocol_versions_dal::ProtocolVersionsDal,
     protocol_versions_web3_dal::ProtocolVersionsWeb3Dal,
     snapshot_recovery_dal::SnapshotRecoveryDal, snapshots_creator_dal::SnapshotsCreatorDal,
     snapshots_dal::SnapshotsDal, storage_logs_dal::StorageLogsDal,
@@ -40,12 +35,6 @@ pub mod eth_sender_dal;
 pub mod events_dal;
 pub mod events_web3_dal;
 pub mod factory_deps_dal;
-pub mod fri_gpu_prover_queue_dal;
-pub mod fri_proof_compressor_dal;
-pub mod fri_protocol_versions_dal;
-pub mod fri_prover_dal;
-pub mod fri_scheduler_dependency_tracker_dal;
-pub mod fri_witness_generator_dal;
 pub mod healthcheck;
 mod instrument;
 mod metrics;
