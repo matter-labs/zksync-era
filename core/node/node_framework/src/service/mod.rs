@@ -3,7 +3,7 @@ use std::{collections::HashMap, fmt, sync::Arc, time::Duration};
 use futures::{future::BoxFuture, FutureExt};
 use tokio::{
     runtime::Runtime,
-    sync::{watch, Barrier},
+    sync::{oneshot, watch, Barrier},
 };
 
 pub use self::{context::ServiceContext, stop_receiver::StopReceiver};
@@ -152,25 +152,58 @@ impl ZkStackService {
         if tasks.is_empty() {
             anyhow::bail!("No tasks to run");
         }
-        // Finally, the preconditions are handles the same way the tasks are handled.
+        // Finally, the preconditions are just futures.
         for precondition in std::mem::take(&mut self.preconditions) {
             let name = precondition.name().to_string();
             let task_future = Box::pin(
                 precondition.check_with_barrier(self.stop_receiver(), task_barrier.clone()),
             );
             // Internally we use the same representation for tasks and preconditions.
-            let task_repr = TaskRepr {
-                name,
-                task: Some(task_future),
-            };
-            preconditions.push(task_repr);
+            preconditions.push(task_future);
         }
-        // TODO: how to signal that preconditions are checked?
 
         // Wiring is now complete.
         for resource in self.resources.values_mut() {
             resource.stored_resource_wired();
         }
+
+        // Launch precondition checkers. Generally, if all of them succeed, we don't need to do anything.
+        // If any of them fails, the node have to shut down.
+        // So we run them in a detached task with an oneshot channel to report the error, if it occurs,
+        // and we'll use this channel in the same way that we use to check if any of the task exits.
+        // The difference is that preconditions, unlike tasks, are allowed to exit without causing the node
+        // to shut down.
+        let (precondition_fail_sender, precondition_fail_receiver) = oneshot::channel();
+        self.runtime.spawn(async move {
+            if let Err(err) = futures::future::try_join_all(preconditions).await {
+                precondition_fail_sender.send(err).ok();
+            }
+        });
+        // Now we can create a system task that is cancellation-aware and will only exit on either
+        // precondition failure or stop signal.
+        let mut stop_receiver = self.stop_receiver();
+        let precondition_system_task = Box::pin(async move {
+            tokio::select! {
+                err = precondition_fail_receiver => {
+                    match err {
+                        Ok(err) => Err(err),
+                        Err(_) => {
+                            // All preconditions successfully resolved and corresponding sender was dropped.
+                            // Simply wait for the stop signal.
+                            stop_receiver.0.changed().await.ok();
+                            Ok(())
+                        }
+                    }
+                }
+                _ = stop_receiver.0.changed() => {
+                    Ok(())
+                }
+            }
+        });
+        tasks.push(TaskRepr {
+            name: "system/preconditions_checker".to_string(),
+            task: Some(precondition_system_task),
+        });
 
         // Prepare tasks for running.
         let rt_handle = self.runtime.handle().clone();
