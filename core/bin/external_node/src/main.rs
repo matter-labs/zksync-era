@@ -266,6 +266,7 @@ async fn init_tasks(
         .build()
         .await
         .context("failed to build a tree_pool")?;
+    let tree_reader = Arc::new(metadata_calculator.tree_reader());
     let tree_handle = task::spawn(metadata_calculator.run(tree_pool, tree_stop_receiver));
 
     let commitment_generator_pool = singleton_pool_builder
@@ -344,6 +345,7 @@ async fn init_tasks(
             .with_tx_sender(tx_sender.clone())
             .with_vm_barrier(vm_barrier.clone())
             .with_sync_state(sync_state.clone())
+            .with_tree_api(tree_reader.clone())
             .enable_api_namespaces(config.optional.api_namespaces())
             .build()
             .context("failed to build HTTP JSON-RPC server")?
@@ -362,6 +364,7 @@ async fn init_tasks(
             .with_tx_sender(tx_sender)
             .with_vm_barrier(vm_barrier)
             .with_sync_state(sync_state)
+            .with_tree_api(tree_reader)
             .enable_api_namespaces(config.optional.api_namespaces())
             .build()
             .context("failed to build WS JSON-RPC server")?
