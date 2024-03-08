@@ -96,7 +96,7 @@ Machine specs:
    zk f cargo run --release --bin zksync_prover_fri_gateway
    ```
 
-7. Run 4 witness generators to generate witness for each round:
+6. Run 4 witness generators to generate witness for each round:
 
    ```console
    API_PROMETHEUS_LISTENER_PORT=3116 zk f cargo run --release --bin zksync_witness_generator -- --round=basic_circuits
@@ -114,13 +114,13 @@ Machine specs:
    Note that this will automatically open the three ports after the one specified in environmental variable, in this
    case 3117, 3118 and 3119.
 
-8. Run prover to perform actual proving:
+7. Run prover to perform actual proving:
 
    ```console
    zk f cargo run --release --bin zksync_prover_fri
    ```
 
-9. Finally, run proof compressor to compress the proof to be sent on L1:
+8. Finally, run proof compressor to compress the proof to be sent on L1:
 
    ```console
    zk f cargo run --release --bin zksync_proof_fri_compressor
