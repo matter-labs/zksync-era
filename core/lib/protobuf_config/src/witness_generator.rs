@@ -2,7 +2,7 @@ use anyhow::Context as _;
 use zksync_config::configs;
 use zksync_protobuf::{repr::ProtoRepr, required};
 
-use crate::proto;
+use crate::proto::witness_generator as proto;
 
 impl proto::BasicWitnessGeneratorDataSource {
     fn new(x: &configs::witness_generator::BasicWitnessGeneratorDataSource) -> Self {

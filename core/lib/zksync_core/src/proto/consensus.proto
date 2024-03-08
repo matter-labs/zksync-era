@@ -14,6 +14,15 @@
 // NodePublicKey - public key of the node (gossip network participant) of the form "node:public:<signature scheme>:<hex encoded key material>"
 //   Currently only ed25519 signature scheme is supported for nodes.
 //   example: "node:public:ed25519:d36607699a0a3fbe3de16947928cf299484219ff62ca20f387795b0859dbe501"
+//
+// ValidatorSecretKey - secret key of the validator (consensus participant) of the form "validator:secret:<signature scheme>:<hex encoded key material>"
+//   Currently only bn254 signature scheme is supported for validators.
+//   example: "validator:secret:bn254:1aaa9c2c5a4f0f75b79127a7207348e33df55869d79622eccf65c91c98861257"
+//
+// NodeSecretKey - secret key of the node (gossip network participant) of the form "node:secret:<signature scheme>:<hex encoded key material>"
+//   Currently only ed25519 signature scheme is supported for nodes.
+//   example: "node:secret:ed25519:4f761350f4b038f8052d17f0a02e18782be66f16d407e7a073c925d52dcc8f02"
+
 syntax = "proto3";
 
 package zksync.core.consensus;
@@ -24,7 +33,7 @@ message NodeAddr {
   optional string addr = 2; // required; IpAddr
 }
 
-message ConsensusConfig {
+message Config {
   // IP:port to listen on, for incoming TCP connections.
   // Use `0.0.0.0:<port>` to listen on all network interfaces (i.e. on all IPs exposed by this VM).
   optional string server_addr = 1; // required; IpAddr
@@ -51,3 +60,10 @@ message ConsensusConfig {
   // establish and maintain.
   repeated NodeAddr gossip_static_outbound = 7;
 }
+
+message Secrets {
+  optional string validator_key = 1; // required for validator nodes; ValidatorSecretKey
+  optional string node_key = 2; // required for any node; NodeSecretKey
+}
+
+

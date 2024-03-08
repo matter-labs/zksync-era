@@ -37,7 +37,7 @@ use self::{
 use crate::{
     api_server::{
         execution_sandbox::{BlockStartInfo, VmConcurrencyBarrier},
-        tree::TreeApiHttpClient,
+        tree::TreeApiClient,
         tx_sender::TxSender,
     },
     sync_layer::SyncState,
@@ -115,7 +115,7 @@ struct OptionalApiParams {
     batch_request_size_limit: Option<usize>,
     response_body_size_limit: Option<usize>,
     websocket_requests_per_minute_limit: Option<NonZeroU32>,
-    tree_api_url: Option<String>,
+    tree_api: Option<Arc<dyn TreeApiClient>>,
     pub_sub_events_sender: Option<mpsc::UnboundedSender<PubSubEvent>>,
 }
 
@@ -241,8 +241,9 @@ impl ApiBuilder {
         self
     }
 
-    pub fn with_tree_api(mut self, tree_api_url: Option<String>) -> Self {
-        self.optional.tree_api_url = tree_api_url;
+    pub fn with_tree_api(mut self, tree_api: Arc<dyn TreeApiClient>) -> Self {
+        tracing::info!("Using tree API client: {tree_api:?}");
+        self.optional.tree_api = Some(tree_api);
         self
     }
 
@@ -318,10 +319,7 @@ impl ApiServer {
             api_config: self.config,
             start_info,
             last_sealed_miniblock,
-            tree_api: self
-                .optional
-                .tree_api_url
-                .map(|url| TreeApiHttpClient::new(url.as_str())),
+            tree_api: self.optional.tree_api,
         })
     }
 

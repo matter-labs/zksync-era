@@ -36,6 +36,7 @@ use zksync_node_framework::{
         },
         web3_api::{
             server::{Web3ServerLayer, Web3ServerOptionalConfig},
+            tree_api_client::TreeApiClientLayer,
             tx_sender::{PostgresStorageCachesConfig, TxSenderLayer},
             tx_sink::TxSinkLayer,
         },
@@ -168,6 +169,13 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
+    fn add_tree_api_client_layer(mut self) -> anyhow::Result<Self> {
+        let rpc_config = ApiConfig::from_env()?.web3_json_rpc;
+        self.node
+            .add_layer(TreeApiClientLayer::http(rpc_config.tree_api_url));
+        Ok(self)
+    }
+
     fn add_http_web3_api_layer(mut self) -> anyhow::Result<Self> {
         let rpc_config = ApiConfig::from_env()?.web3_json_rpc;
         let contracts_config = ContractsConfig::from_env()?;
@@ -187,7 +195,6 @@ impl MainNodeBuilder {
             subscriptions_limit: Some(rpc_config.subscriptions_limit()),
             batch_request_size_limit: Some(rpc_config.max_batch_request_size()),
             response_body_size_limit: Some(rpc_config.max_response_body_size()),
-            tree_api_url: rpc_config.tree_api_url(),
             ..Default::default()
         };
         self.node.add_layer(Web3ServerLayer::http(
@@ -221,7 +228,6 @@ impl MainNodeBuilder {
             websocket_requests_per_minute_limit: Some(
                 rpc_config.websocket_requests_per_minute_limit(),
             ),
-            tree_api_url: rpc_config.tree_api_url(),
         };
         self.node.add_layer(Web3ServerLayer::ws(
             rpc_config.ws_port,
@@ -276,6 +282,7 @@ fn main() -> anyhow::Result<()> {
         .add_proof_data_handler_layer()?
         .add_healthcheck_layer()?
         .add_tx_sender_layer()?
+        .add_tree_api_client_layer()?
         .add_http_web3_api_layer()?
         .add_ws_web3_api_layer()?
         .build()
