@@ -229,6 +229,21 @@ async fn init_tasks(
         .context("failed initializing metadata calculator")?;
     app_health.insert_component(metadata_calculator.tree_health_check());
 
+    let remote_diamond_proxy_addr = config.remote.diamond_proxy_addr;
+    let diamond_proxy_addr = if let Some(addr) = config.optional.contracts_diamond_proxy_addr {
+        anyhow::ensure!(
+            addr == remote_diamond_proxy_addr,
+            "Diamond proxy address {addr:?} specified in config doesn't match one returned by main node \
+             ({remote_diamond_proxy_addr:?})"
+        );
+        addr
+    } else {
+        tracing::info!(
+            "Diamond proxy address is not specified in config; will use address returned by main node: {remote_diamond_proxy_addr:?}"
+        );
+        remote_diamond_proxy_addr
+    };
+
     let consistency_checker = ConsistencyChecker::new(
         &config
             .required
@@ -241,7 +256,7 @@ async fn init_tasks(
             .context("failed to build connection pool for ConsistencyChecker")?,
     )
     .context("cannot initialize consistency checker")?
-    .with_validator_timelock_addr(config.optional.contracts_validator_timelock_addr);
+    .with_diamond_proxy_addr(diamond_proxy_addr);
 
     app_health.insert_component(consistency_checker.health_check().clone());
     let consistency_checker_handle = tokio::spawn(consistency_checker.run(stop_receiver.clone()));

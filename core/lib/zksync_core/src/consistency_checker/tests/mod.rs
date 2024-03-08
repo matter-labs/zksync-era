@@ -31,7 +31,7 @@ fn create_l1_batch_with_metadata(number: u32) -> L1BatchWithMetadata {
 }
 
 const PRE_BOOJUM_PROTOCOL_VERSION: ProtocolVersionId = ProtocolVersionId::Version10;
-const VALIDATOR_TIMELOCK_ADDR: Address = Address::repeat_byte(1);
+const DIAMOND_PROXY_ADDR: Address = Address::repeat_byte(1);
 
 fn create_pre_boojum_l1_batch_with_metadata(number: u32) -> L1BatchWithMetadata {
     let mut l1_batch = L1BatchWithMetadata {
@@ -74,7 +74,7 @@ fn create_mock_checker(client: MockEthereum, pool: ConnectionPool) -> Consistenc
     let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
     ConsistencyChecker {
         contract: zksync_contracts::zksync_contract(),
-        validator_timelock_addr: Some(VALIDATOR_TIMELOCK_ADDR),
+        diamond_proxy_addr: Some(DIAMOND_PROXY_ADDR),
         max_batches_to_recheck: 100,
         sleep_interval: Duration::from_millis(10),
         l1_client: Box::new(client),
@@ -87,7 +87,7 @@ fn create_mock_checker(client: MockEthereum, pool: ConnectionPool) -> Consistenc
 
 fn create_mock_ethereum() -> MockEthereum {
     MockEthereum::default().with_call_handler(|call| {
-        assert_eq!(call.contract_address(), VALIDATOR_TIMELOCK_ADDR);
+        assert_eq!(call.contract_address(), DIAMOND_PROXY_ADDR);
         assert_eq!(call.function_name(), "getName");
         assert_eq!(call.args(), []);
         ethabi::Token::String("ValidatorTimelock".to_owned())
@@ -345,7 +345,7 @@ async fn normal_checker_function(
         let input_data = build_commit_tx_input_data(l1_batches);
         let signed_tx = client.sign_prepared_tx(
             input_data.clone(),
-            VALIDATOR_TIMELOCK_ADDR,
+            DIAMOND_PROXY_ADDR,
             Options {
                 nonce: Some(i.into()),
                 ..Options::default()
@@ -424,7 +424,7 @@ async fn checker_processes_pre_boojum_batches(
         let input_data = build_commit_tx_input_data(slice::from_ref(l1_batch));
         let signed_tx = client.sign_prepared_tx(
             input_data.clone(),
-            VALIDATOR_TIMELOCK_ADDR,
+            DIAMOND_PROXY_ADDR,
             Options {
                 nonce: Some(i.into()),
                 ..Options::default()
@@ -483,7 +483,7 @@ async fn checker_functions_after_snapshot_recovery(delay_batch_insertion: bool) 
     let client = create_mock_ethereum();
     let signed_tx = client.sign_prepared_tx(
         commit_tx_input_data.clone(),
-        VALIDATOR_TIMELOCK_ADDR,
+        DIAMOND_PROXY_ADDR,
         Options {
             nonce: Some(0.into()),
             ..Options::default()
@@ -559,7 +559,7 @@ impl IncorrectDataKind {
     ];
 
     async fn apply(self, client: &MockEthereum, l1_batch: &L1BatchWithMetadata) -> H256 {
-        let mut recipient = VALIDATOR_TIMELOCK_ADDR;
+        let mut recipient = DIAMOND_PROXY_ADDR;
         let (commit_tx_input_data, successful_status) = match self {
             Self::MissingStatus => {
                 return H256::zero(); // Do not execute the transaction

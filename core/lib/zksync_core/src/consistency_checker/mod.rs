@@ -1,4 +1,4 @@
-use std::{fmt, time::Duration};
+use std::{collections::HashSet, fmt, time::Duration};
 
 use anyhow::Context as _;
 use serde::Serialize;
@@ -17,7 +17,7 @@ use zksync_types::{
     commitment::L1BatchWithMetadata,
     pubdata_da::PubdataDA,
     web3::{self, ethabi},
-    Address, L1BatchNumber, ProtocolVersionId, H256,
+    Address, L1BatchNumber, ProtocolVersionId, H256, U256,
 };
 
 use crate::{
@@ -245,8 +245,8 @@ impl LocalL1BatchCommitData {
 pub struct ConsistencyChecker {
     /// ABI of the zkSync contract
     contract: ethabi::Contract,
-    /// Address of the zkSync contract on L1
-    validator_timelock_addr: Option<Address>,
+    /// Address of the zkSync diamond proxy on L1
+    diamond_proxy_addr: Option<Address>,
     /// How many past batches to check when starting
     max_batches_to_recheck: u32,
     sleep_interval: Duration,
@@ -269,7 +269,7 @@ impl ConsistencyChecker {
         let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
         Ok(Self {
             contract: zksync_contracts::zksync_contract(),
-            validator_timelock_addr: None,
+            diamond_proxy_addr: None,
             max_batches_to_recheck,
             sleep_interval: Self::DEFAULT_SLEEP_INTERVAL,
             l1_client: Box::new(web3),
@@ -280,8 +280,8 @@ impl ConsistencyChecker {
         })
     }
 
-    pub fn with_validator_timelock_addr(mut self, address: Option<Address>) -> Self {
-        self.validator_timelock_addr = address;
+    pub fn with_diamond_proxy_addr(mut self, address: Address) -> Self {
+        self.diamond_proxy_addr = Some(address);
         self
     }
 
@@ -316,12 +316,42 @@ impl ConsistencyChecker {
             .await?
             .with_context(|| format!("commit transaction {commit_tx_hash:?} not found on L1"))
             .map_err(CheckError::Internal)?; // we've got a transaction receipt previously, thus an internal error
-        if let Some(validator_timelock_addr) = self.validator_timelock_addr {
-            if commit_tx.to != Some(validator_timelock_addr) {
+
+        if let Some(diamond_proxy_addr) = self.diamond_proxy_addr {
+            let event = self
+                .contract
+                .event("BlockCommit")
+                .context("`BlockCommit` event not found for zkSync L1 contract")
+                .map_err(CheckError::Internal)?;
+
+            let committed_batch_numbers_by_logs =
+                commit_tx_status.receipt.logs.into_iter().filter_map(|log| {
+                    if log.address != diamond_proxy_addr {
+                        return None;
+                    }
+                    let parsed_log = event
+                        .parse_log_whole(ethabi::RawLog {
+                            topics: log.topics,
+                            data: log.data.0,
+                        })
+                        .ok()?;
+
+                    parsed_log.params.into_iter().find_map(|param| {
+                        (param.name == "batchNumber")
+                            .then_some(param.value)
+                            .and_then(ethabi::Token::into_uint)
+                    })
+                });
+            let committed_batch_numbers_by_logs: HashSet<_> =
+                committed_batch_numbers_by_logs.collect();
+            tracing::debug!(
+                "Commit transaction {commit_tx_hash:?} has `BlockCommit` event logs with the following batch numbers: \
+                 {committed_batch_numbers_by_logs:?}"
+            );
+
+            if !committed_batch_numbers_by_logs.contains(&U256::from(batch_number.0)) {
                 let err = anyhow::anyhow!(
-                    "Expected recipient for commit tx {commit_tx_hash:?} to be validator timelock contract {validator_timelock_addr:?}, \
-                     but it is {:?}",
-                    commit_tx.to
+                    "Commit transaction {commit_tx_hash:?} does not contain `BlockCommit` event log with batchNumber={batch_number}"
                 );
                 return Err(CheckError::Validation(err));
             }
@@ -413,24 +443,24 @@ impl ConsistencyChecker {
             .await?)
     }
 
-    async fn sanity_check_validator_timelock_addr(&self) -> Result<(), CheckError> {
-        let Some(address) = self.validator_timelock_addr else {
+    async fn sanity_check_diamond_proxy_addr(&self) -> Result<(), CheckError> {
+        let Some(address) = self.diamond_proxy_addr else {
             return Ok(());
         };
-        tracing::debug!("Performing sanity checks for validator timelock contract {address:?}");
+        tracing::debug!("Performing sanity checks for diamond proxy contract {address:?}");
 
-        let call =
-            CallFunctionArgs::new("getName", ()).for_contract(address, self.contract.clone());
+        let call = CallFunctionArgs::new("getProtocolVersion", ())
+            .for_contract(address, self.contract.clone());
         let response = self.l1_client.call_contract_function(call).await?;
         // Response should be a single token with the contract name.
         match response.as_slice() {
-            [ethabi::Token::String(name)] => {
-                tracing::info!("Checked timelock contract {address:?} (name: {name})");
+            [ethabi::Token::Uint(version)] => {
+                tracing::info!("Checked diamond proxy {address:?} (protocol version: {version})");
                 Ok(())
             }
             _ => {
                 let err = anyhow::anyhow!(
-                    "unexpected `getName` response from validator timelock contract {address:?}: {response:?}"
+                    "unexpected `getProtocolVersion` response from contract {address:?}: {response:?}"
                 );
                 Err(CheckError::Internal(err))
             }
@@ -439,21 +469,21 @@ impl ConsistencyChecker {
 
     pub async fn run(mut self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         tracing::info!(
-            "Starting consistency checker with validator timelock contract: {:?}, sleep interval: {:?}, \
+            "Starting consistency checker with diamond proxy contract: {:?}, sleep interval: {:?}, \
              max historic L1 batches to check: {}",
-            self.validator_timelock_addr,
+            self.diamond_proxy_addr,
             self.sleep_interval,
             self.max_batches_to_recheck
         );
         self.event_handler.initialize();
 
-        while let Err(err) = self.sanity_check_validator_timelock_addr().await {
+        while let Err(err) = self.sanity_check_diamond_proxy_addr().await {
             if err.is_transient() {
-                tracing::warn!("Transient error checking validator timelock contract; will retry after a delay: {err}");
+                tracing::warn!("Transient error checking diamond proxy contract; will retry after a delay: {err}");
                 tokio::time::sleep(self.sleep_interval).await;
             } else {
                 return Err(anyhow::Error::from(err)
-                    .context("failed sanity-checking validator timelock contract"));
+                    .context("failed sanity-checking diamond proxy contract"));
             }
         }
 
