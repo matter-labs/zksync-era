@@ -218,6 +218,8 @@ impl From<ProtocolVersionId> for FriProtocolVersionId {
             ProtocolVersionId::Version20 => FriProtocolVersionId::Version20,
             ProtocolVersionId::Version21 => FriProtocolVersionId::Version21,
             ProtocolVersionId::Version22 => FriProtocolVersionId::Version22,
+            // todo delete local vm version
+            ProtocolVersionId::Local => FriProtocolVersionId::Version22,
         }
     }
 }
