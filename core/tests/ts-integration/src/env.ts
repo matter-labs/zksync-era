@@ -26,7 +26,6 @@ export async function waitForServer() {
     const l2Provider = new zksync.Provider(l2NodeUrl);
 
     reporter.startAction('Connecting to server');
-    let ready = false;
     for (let i = 0; i < maxAttempts; ++i) {
         try {
             await l2Provider.getNetwork(); // Will throw if the server is not ready yet.
@@ -35,8 +34,6 @@ export async function waitForServer() {
             if (code == '0x') {
                 throw Error('L2 ERC20 bridge is not deployed yet, server is not ready');
             }
-
-            ready = true;
             reporter.finishAction();
             return;
         } catch (e) {
@@ -44,10 +41,7 @@ export async function waitForServer() {
             await zksync.utils.sleep(attemptIntervalMs);
         }
     }
-
-    if (!ready) {
-        throw new Error('Failed to wait for the server to start');
-    }
+    throw new Error('Failed to wait for the server to start');
 }
 
 /**
