@@ -12,13 +12,12 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use tokio::sync::watch;
+use zksync_health_check::{CheckHealth, Health, HealthStatus};
 use zksync_merkle_tree::NoVersionError;
 use zksync_types::{L1BatchNumber, H256, U256};
 
 use self::metrics::{MerkleTreeApiMethod, API_METRICS};
 use crate::metadata_calculator::{AsyncTreeReader, LazyAsyncTreeReader, MerkleTreeInfo};
-
-// FIXME: healthcheck for HTTP client
 
 mod metrics;
 #[cfg(test)]
@@ -190,6 +189,23 @@ impl TreeApiHttpClient {
             inner: reqwest::Client::new(),
             info_url: url_base.to_owned(),
             proofs_url: format!("{url_base}/proofs"),
+        }
+    }
+}
+
+#[async_trait]
+impl CheckHealth for TreeApiHttpClient {
+    fn name(&self) -> &'static str {
+        "tree_api_http_client"
+    }
+
+    async fn check_health(&self) -> Health {
+        match self.get_info().await {
+            Ok(info) => Health::from(HealthStatus::Ready).with_details(info),
+            Err(TreeApiError::NotReady) => HealthStatus::Affected.into(),
+            Err(err) => Health::from(HealthStatus::NotReady).with_details(serde_json::json!({
+                "error": err.to_string(),
+            })),
         }
     }
 }

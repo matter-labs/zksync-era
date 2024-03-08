@@ -3,7 +3,9 @@ use std::sync::Arc;
 use zksync_core::api_server::tree::TreeApiHttpClient;
 
 use crate::{
-    implementations::resources::web3_api::TreeApiClientResource,
+    implementations::resources::{
+        healthcheck::AppHealthCheckResource, web3_api::TreeApiClientResource,
+    },
     service::ServiceContext,
     wiring_layer::{WiringError, WiringLayer},
 };
@@ -27,8 +29,10 @@ impl WiringLayer for TreeApiClientLayer {
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         if let Some(url) = &self.url {
-            let client = TreeApiHttpClient::new(url);
-            context.insert_resource(TreeApiClientResource(Arc::new(client)))?;
+            let client = Arc::new(TreeApiHttpClient::new(url));
+            let AppHealthCheckResource(app_health) = context.get_resource_or_default().await;
+            app_health.insert_custom_component(client.clone());
+            context.insert_resource(TreeApiClientResource(client))?;
         }
         Ok(())
     }

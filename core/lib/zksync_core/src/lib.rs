@@ -56,7 +56,7 @@ use crate::{
         healthcheck::HealthCheckHandle,
         tree::TreeApiHttpClient,
         tx_sender::{ApiContracts, TxSender, TxSenderBuilder, TxSenderConfig},
-        web3::{self, state::InternalApiConfig, ApiServerHandles, Namespace},
+        web3::{self, state::InternalApiConfig, Namespace},
     },
     basic_witness_input_producer::BasicWitnessInputProducer,
     commitment_generator::CommitmentGenerator,
@@ -450,7 +450,9 @@ pub async fn initialize_components(
                 bounded_gas_adjuster,
                 FeeModelConfig::from_state_keeper_config(&state_keeper_config),
             ));
-            let server_handles = run_http_api(
+            run_http_api(
+                &mut task_futures,
+                &app_health,
                 &postgres_config,
                 &tx_sender_config,
                 &state_keeper_config,
@@ -466,8 +468,6 @@ pub async fn initialize_components(
             .await
             .context("run_http_api")?;
 
-            task_futures.extend(server_handles.tasks);
-            app_health.insert_component(server_handles.health_check);
             let elapsed = started_at.elapsed();
             APP_METRICS.init_latency[&InitStage::HttpApi].set(elapsed);
             tracing::info!(
@@ -493,7 +493,9 @@ pub async fn initialize_components(
                 bounded_gas_adjuster,
                 FeeModelConfig::from_state_keeper_config(&state_keeper_config),
             ));
-            let server_handles = run_ws_api(
+            run_ws_api(
+                &mut task_futures,
+                &app_health,
                 &postgres_config,
                 &tx_sender_config,
                 &state_keeper_config,
@@ -508,8 +510,6 @@ pub async fn initialize_components(
             .await
             .context("run_ws_api")?;
 
-            task_futures.extend(server_handles.tasks);
-            app_health.insert_component(server_handles.health_check);
             let elapsed = started_at.elapsed();
             APP_METRICS.init_latency[&InitStage::WsApi].set(elapsed);
             tracing::info!(
@@ -1173,6 +1173,8 @@ async fn build_tx_sender(
 
 #[allow(clippy::too_many_arguments)]
 async fn run_http_api(
+    task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
+    app_health: &AppHealthCheck,
     postgres_config: &PostgresConfig,
     tx_sender_config: &TxSenderConfig,
     state_keeper_config: &StateKeeperConfig,
@@ -1184,7 +1186,7 @@ async fn run_http_api(
     batch_fee_model_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     with_debug_namespace: bool,
     storage_caches: PostgresStorageCaches,
-) -> anyhow::Result<ApiServerHandles> {
+) -> anyhow::Result<()> {
     let (tx_sender, vm_barrier) = build_tx_sender(
         tx_sender_config,
         &api_config.web3_json_rpc,
@@ -1218,19 +1220,25 @@ async fn run_http_api(
             .with_vm_barrier(vm_barrier)
             .enable_api_namespaces(namespaces);
     if let Some(tree_api_url) = api_config.web3_json_rpc.tree_api_url() {
-        let tree_api = TreeApiHttpClient::new(tree_api_url);
-        api_builder = api_builder.with_tree_api(Arc::new(tree_api));
+        let tree_api = Arc::new(TreeApiHttpClient::new(tree_api_url));
+        api_builder = api_builder.with_tree_api(tree_api.clone());
+        app_health.insert_custom_component(tree_api);
     }
 
-    api_builder
+    let server_handles = api_builder
         .build()
         .context("failed to build HTTP API server")?
         .run(stop_receiver)
-        .await
+        .await?;
+    task_futures.extend(server_handles.tasks);
+    app_health.insert_component(server_handles.health_check);
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
 async fn run_ws_api(
+    task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
+    app_health: &AppHealthCheck,
     postgres_config: &PostgresConfig,
     tx_sender_config: &TxSenderConfig,
     state_keeper_config: &StateKeeperConfig,
@@ -1241,7 +1249,7 @@ async fn run_ws_api(
     replica_connection_pool: ConnectionPool,
     stop_receiver: watch::Receiver<bool>,
     storage_caches: PostgresStorageCaches,
-) -> anyhow::Result<ApiServerHandles> {
+) -> anyhow::Result<()> {
     let (tx_sender, vm_barrier) = build_tx_sender(
         tx_sender_config,
         &api_config.web3_json_rpc,
@@ -1278,15 +1286,19 @@ async fn run_ws_api(
             .with_vm_barrier(vm_barrier)
             .enable_api_namespaces(namespaces);
     if let Some(tree_api_url) = api_config.web3_json_rpc.tree_api_url() {
-        let tree_api = TreeApiHttpClient::new(tree_api_url);
-        api_builder = api_builder.with_tree_api(Arc::new(tree_api));
+        let tree_api = Arc::new(TreeApiHttpClient::new(tree_api_url));
+        api_builder = api_builder.with_tree_api(tree_api.clone());
+        app_health.insert_custom_component(tree_api);
     }
 
-    api_builder
+    let server_handles = api_builder
         .build()
         .context("failed to build WS API server")?
         .run(stop_receiver)
-        .await
+        .await?;
+    task_futures.extend(server_handles.tasks);
+    app_health.insert_component(server_handles.health_check);
+    Ok(())
 }
 
 async fn circuit_breakers_for_components(

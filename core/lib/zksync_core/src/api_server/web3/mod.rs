@@ -242,6 +242,7 @@ impl ApiBuilder {
     }
 
     pub fn with_tree_api(mut self, tree_api: Arc<dyn TreeApiClient>) -> Self {
+        tracing::info!("Using tree API client: {tree_api:?}");
         self.optional.tree_api = Some(tree_api);
         self
     }
