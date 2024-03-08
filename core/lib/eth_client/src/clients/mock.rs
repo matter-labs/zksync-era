@@ -1,7 +1,7 @@
 use std::{
     collections::{BTreeMap, HashMap},
     fmt,
-    sync::RwLock,
+    sync::{RwLock, RwLockWriteGuard},
 };
 
 use async_trait::async_trait;
@@ -117,6 +117,20 @@ impl MockEthereumInner {
     }
 }
 
+#[derive(Debug)]
+pub struct MockExecutedTxHandle<'a> {
+    inner: RwLockWriteGuard<'a, MockEthereumInner>,
+    tx_hash: H256,
+}
+
+impl MockExecutedTxHandle<'_> {
+    pub fn with_logs(&mut self, logs: Vec<Log>) -> &mut Self {
+        let status = self.inner.tx_statuses.get_mut(&self.tx_hash).unwrap();
+        status.receipt.logs = logs;
+        self
+    }
+}
+
 /// Mock Ethereum client is capable of recording all the incoming requests for the further analysis.
 pub struct MockEthereum {
     max_fee_per_gas: U256,
@@ -182,13 +196,20 @@ impl MockEthereum {
 
     /// Increments the blocks by a provided `confirmations` and marks the sent transaction
     /// as a success.
-    pub fn execute_tx(&self, tx_hash: H256, success: bool, confirmations: u64) {
-        self.inner.write().unwrap().execute_tx(
+    pub fn execute_tx(
+        &self,
+        tx_hash: H256,
+        success: bool,
+        confirmations: u64,
+    ) -> MockExecutedTxHandle<'_> {
+        let mut inner = self.inner.write().unwrap();
+        inner.execute_tx(
             tx_hash,
             success,
             confirmations,
             self.non_ordering_confirmations,
         );
+        MockExecutedTxHandle { inner, tx_hash }
     }
 
     pub fn sign_prepared_tx(
