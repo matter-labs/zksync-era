@@ -46,11 +46,11 @@ jobs:
 #      - name: Perform loadtest
 #        run: ci_run zk run loadtest
              
-      - name: Step - Create a snapshot
-        if: always()
-        run: |
-          ci_run zk env docker
-          ci_run zk run snapshots-creator
+#      - name: Step - Create a snapshot
+#        if: always()
+#        run: |
+#          ci_run zk env docker
+#          ci_run zk run snapshots-creator
 
       - name: Step - Run external node
         if: always()
