@@ -1,7 +1,8 @@
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use serde::Serialize;
+use zksync_concurrency::{ctx, sync};
 use zksync_health_check::{CheckHealth, Health, HealthStatus};
 use zksync_types::MiniblockNumber;
 
@@ -13,9 +14,13 @@ use crate::metrics::EN_METRICS;
 /// and `ExternalIO` (on latest sealed miniblock).
 ///
 /// This structure operates on miniblocks rather than L1 batches, since this is the default unit used in the web3 API.
-#[derive(Debug, Default, Clone)]
-pub struct SyncState {
-    inner: Arc<RwLock<SyncStateInner>>,
+#[derive(Debug, Clone)]
+pub struct SyncState(Arc<sync::watch::Sender<SyncStateInner>>);
+
+impl Default for SyncState {
+    fn default() -> Self {
+        Self(Arc::new(sync::watch::channel(SyncStateInner::default()).0))
+    }
 }
 
 /// A threshold constant intended to keep the sync status less flaky.
@@ -24,52 +29,69 @@ const SYNC_MINIBLOCK_DELTA: u32 = 10;
 
 impl SyncState {
     pub(crate) fn get_main_node_block(&self) -> MiniblockNumber {
-        self.inner
-            .read()
-            .unwrap()
-            .main_node_block
-            .unwrap_or_default()
+        self.0.borrow().main_node_block.unwrap_or_default()
     }
 
     pub(crate) fn get_local_block(&self) -> MiniblockNumber {
-        self.inner.read().unwrap().local_block.unwrap_or_default()
+        self.0.borrow().local_block.unwrap_or_default()
+    }
+
+    pub(crate) async fn wait_for_main_node_block(
+        &self,
+        ctx: &ctx::Ctx,
+        want: MiniblockNumber,
+    ) -> ctx::OrCanceled<()> {
+        sync::wait_for(
+            ctx,
+            &mut self.0.subscribe(),
+            |s| matches!(s.main_node_block, Some(got) if got >= want),
+        )
+        .await?;
+        Ok(())
     }
 
     pub(crate) fn set_main_node_block(&self, block: MiniblockNumber) {
-        let mut inner = self.inner.write().unwrap();
-        if let Some(local_block) = inner.local_block {
-            if block.0 < local_block.0 {
-                // Probably it's fine -- will be checked by the re-org detector.
-                tracing::warn!(
-                    "main_node_block({}) is less than local_block({})",
-                    block,
-                    local_block
-                );
-            }
-        }
-        inner.main_node_block = Some(block);
-        inner.update_sync_metric();
+        self.0.send_modify(|inner| inner.set_main_node_block(block));
     }
 
     pub(super) fn set_local_block(&self, block: MiniblockNumber) {
-        let mut inner = self.inner.write().unwrap();
-        if let Some(main_node_block) = inner.main_node_block {
-            if block.0 > main_node_block.0 {
-                // Probably it's fine -- will be checked by the re-org detector.
-                tracing::warn!(
-                    "local_block({}) is greater than main_node_block({})",
-                    block,
-                    main_node_block
-                );
-            }
-        }
-        inner.local_block = Some(block);
-        inner.update_sync_metric();
+        self.0.send_modify(|inner| inner.set_local_block(block));
     }
 
     pub(crate) fn is_synced(&self) -> bool {
-        let inner = self.inner.read().unwrap();
-        inner.is_synced().0
+        self.0.borrow().is_synced().0
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+pub(crate) struct SyncStateInner {
+    pub(crate) main_node_block: Option<MiniblockNumber>,
+    pub(crate) local_block: Option<MiniblockNumber>,
+}
+
+impl SyncStateInner {
+    fn set_main_node_block(&mut self, block: MiniblockNumber) {
+        if let Some(local_block) = self.local_block {
+            if block < local_block {
+                // Probably it's fine -- will be checked by the re-org detector.
+                tracing::warn!("main_node_block({block}) is less than local_block({local_block})");
+            }
+        }
+        self.main_node_block = Some(block);
+        self.update_sync_metric();
+    }
+
+    fn set_local_block(&mut self, block: MiniblockNumber) {
+        if let Some(main_node_block) = self.main_node_block {
+            if block > main_node_block {
+                // Probably it's fine -- will be checked by the re-org detector.
+                tracing::warn!(
+                    "local_block({block}) is greater than main_node_block({main_node_block})"
+                );
+            }
+        }
+        self.local_block = Some(block);
+        self.update_sync_metric();
     }
 }
 
@@ -80,16 +102,9 @@ impl CheckHealth for SyncState {
     }
 
     async fn check_health(&self) -> Health {
-        Health::from(&*self.inner.read().unwrap())
+        Health::from(&*self.0.borrow())
     }
 }
-
-#[derive(Debug, Default)]
-struct SyncStateInner {
-    main_node_block: Option<MiniblockNumber>,
-    local_block: Option<MiniblockNumber>,
-}
-
 impl SyncStateInner {
     fn is_synced(&self) -> (bool, Option<u32>) {
         if let (Some(main_node_block), Some(local_block)) = (self.main_node_block, self.local_block)

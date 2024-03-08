@@ -27,7 +27,7 @@ use zksync_web3_decl::{
 };
 
 use crate::api_server::{
-    tree::TreeApiClient,
+    tree::TreeApiError,
     web3::{backend_jsonrpsee::MethodTracer, RpcState},
 };
 
@@ -499,20 +499,32 @@ impl ZksNamespace {
         address: Address,
         keys: Vec<H256>,
         l1_batch_number: L1BatchNumber,
-    ) -> Result<Proof, Web3Error> {
+    ) -> Result<Option<Proof>, Web3Error> {
         self.state.start_info.ensure_not_pruned(l1_batch_number)?;
         let hashed_keys = keys
             .iter()
             .map(|key| StorageKey::new(AccountTreeId::new(address), *key).hashed_key_u256())
             .collect();
-        let proofs = self
+        let tree_api = self
             .state
             .tree_api
-            .as_ref()
-            .ok_or(Web3Error::TreeApiUnavailable)?
-            .get_proofs(l1_batch_number, hashed_keys)
-            .await
-            .context("get_proofs")?;
+            .as_deref()
+            .ok_or(Web3Error::TreeApiUnavailable)?;
+        let proofs_result = tree_api.get_proofs(l1_batch_number, hashed_keys).await;
+        let proofs = match proofs_result {
+            Ok(proofs) => proofs,
+            Err(TreeApiError::NotReady) => return Err(Web3Error::TreeApiUnavailable),
+            Err(TreeApiError::NoVersion(err)) => {
+                return if err.missing_version > err.version_count {
+                    Ok(None)
+                } else {
+                    Err(Web3Error::InternalError(anyhow::anyhow!(
+                        "L1 batch #{l1_batch_number} is pruned in Merkle tree, but not in Postgres"
+                    )))
+                };
+            }
+            Err(TreeApiError::Internal(err)) => return Err(Web3Error::InternalError(err)),
+        };
 
         let storage_proof = proofs
             .into_iter()
@@ -525,9 +537,9 @@ impl ZksNamespace {
             })
             .collect();
 
-        Ok(Proof {
+        Ok(Some(Proof {
             address,
             storage_proof,
-        })
+        }))
     }
 }

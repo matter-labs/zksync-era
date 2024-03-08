@@ -1,9 +1,7 @@
 use std::{convert::TryInto, iter};
 
-use once_cell::sync::Lazy;
-use zkevm_test_harness_1_4_2::{
+use kzg::{
     boojum::pairing::{bls12_381::G2Compressed, EncodedPoint},
-    kzg::KzgSettings,
     zkevm_circuits::{
         boojum::pairing::{
             bls12_381::{Fr, FrRepr, G1Compressed},
@@ -12,7 +10,9 @@ use zkevm_test_harness_1_4_2::{
         },
         eip_4844::input::ELEMENTS_PER_4844_BLOCK,
     },
+    KzgSettings,
 };
+use once_cell::sync::Lazy;
 
 const FIRST_ROOT_OF_UNITY: FrRepr = FrRepr([
     0xe206da11a5d36306,
