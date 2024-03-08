@@ -100,7 +100,7 @@ impl ApiServerHandles {
         };
         tokio::time::timeout(TEST_TIMEOUT, stop_server)
             .await
-            .expect(format!("panicking at {}", chrono::Utc::now()).as_str());
+            .unwrap_or_else(|_| panic!("panicking at {}", chrono::Utc::now()));
     }
 }
 
