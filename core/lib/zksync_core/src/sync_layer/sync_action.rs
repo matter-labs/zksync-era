@@ -140,8 +140,6 @@ pub(crate) enum SyncAction {
         timestamp: u64,
         virtual_blocks: u32,
     },
-    /// **Important.** Please only use [`Self::transaction()`] to convert transactions to this variant;
-    /// it sets a correct "received at" timestamp for the transaction.
     Tx(Box<FetchedTransaction>),
     /// We need an explicit action for the miniblock sealing, since we fetch the whole miniblocks and already know
     /// that they are sealed, but at the same time the next miniblock may not exist yet.
