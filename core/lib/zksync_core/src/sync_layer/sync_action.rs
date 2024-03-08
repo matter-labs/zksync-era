@@ -1,10 +1,7 @@
 use tokio::sync::mpsc;
-use zksync_types::{
-    helpers::unix_timestamp_ms, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId,
-    Transaction,
-};
+use zksync_types::{Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId};
 
-use super::metrics::QUEUE_METRICS;
+use super::{fetcher::FetchedTransaction, metrics::QUEUE_METRICS};
 
 #[derive(Debug)]
 pub struct ActionQueueSender(mpsc::Sender<SyncAction>);
@@ -145,7 +142,7 @@ pub(crate) enum SyncAction {
     },
     /// **Important.** Please only use [`Self::transaction()`] to convert transactions to this variant;
     /// it sets a correct "received at" timestamp for the transaction.
-    Tx(Box<Transaction>),
+    Tx(Box<FetchedTransaction>),
     /// We need an explicit action for the miniblock sealing, since we fetch the whole miniblocks and already know
     /// that they are sealed, but at the same time the next miniblock may not exist yet.
     /// By having a dedicated action for that we prevent a situation where the miniblock is kept open on the EN until
@@ -158,12 +155,8 @@ pub(crate) enum SyncAction {
     },
 }
 
-impl SyncAction {
-    pub(crate) fn transaction(mut tx: Transaction) -> Self {
-        // Override the "received at" timestamp for the transaction so that they are causally ordered (i.e., transactions
-        // with an earlier timestamp are persisted earlier). Without this property, code relying on causal ordering may work incorrectly;
-        // e.g., `pendingTransactions` subscriptions notifier can skip transactions.
-        tx.received_timestamp_ms = unix_timestamp_ms();
+impl From<FetchedTransaction> for SyncAction {
+    fn from(tx: FetchedTransaction) -> Self {
         Self::Tx(Box::new(tx))
     }
 }
@@ -208,7 +201,7 @@ mod tests {
         );
         tx.set_input(H256::default().0.to_vec(), H256::default());
 
-        SyncAction::transaction(tx.into())
+        FetchedTransaction::new(tx.into()).into()
     }
 
     fn seal_miniblock() -> SyncAction {

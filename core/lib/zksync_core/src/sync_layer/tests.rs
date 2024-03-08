@@ -32,7 +32,10 @@ use crate::{
         io::common::IoCursor, seal_criteria::NoopSealer, tests::TestBatchExecutorBuilder,
         MiniblockSealer, ZkSyncStateKeeper,
     },
-    sync_layer::{client::CachingMainNodeClient, fetcher::MainNodeFetcher},
+    sync_layer::{
+        client::CachingMainNodeClient,
+        fetcher::{FetchedTransaction, MainNodeFetcher},
+    },
     utils::testonly::{create_l1_batch_metadata, create_l2_transaction, prepare_recovery_snapshot},
 };
 
@@ -186,8 +189,8 @@ async fn external_io_basics(snapshot_recovery: bool) {
     );
     let tx = create_l2_transaction(10, 100);
     let tx_hash = tx.hash();
-    let tx = SyncAction::transaction(tx.into());
-    let actions = vec![open_l1_batch, tx, SyncAction::SealMiniblock];
+    let tx = FetchedTransaction::new(tx.into());
+    let actions = vec![open_l1_batch, tx.into(), SyncAction::SealMiniblock];
 
     let (actions_sender, action_queue) = ActionQueue::new();
     let client = MockMainNodeClient::default();
@@ -266,8 +269,8 @@ async fn external_io_works_without_local_protocol_version(snapshot_recovery: boo
     };
 
     let tx = create_l2_transaction(10, 100);
-    let tx = SyncAction::transaction(tx.into());
-    let actions = vec![open_l1_batch, tx, SyncAction::SealMiniblock];
+    let tx = FetchedTransaction::new(tx.into());
+    let actions = vec![open_l1_batch, tx.into(), SyncAction::SealMiniblock];
 
     let (actions_sender, action_queue) = ActionQueue::new();
     let mut client = MockMainNodeClient::default();
@@ -340,7 +343,7 @@ pub(super) async fn run_state_keeper_with_multiple_miniblocks(
     );
     let txs = (0..5).map(|_| {
         let tx = create_l2_transaction(10, 100);
-        SyncAction::transaction(tx.into())
+        FetchedTransaction::new(tx.into()).into()
     });
     let first_miniblock_actions: Vec<_> = iter::once(open_l1_batch)
         .chain(txs)
@@ -354,7 +357,7 @@ pub(super) async fn run_state_keeper_with_multiple_miniblocks(
     };
     let more_txs = (0..3).map(|_| {
         let tx = create_l2_transaction(10, 100);
-        SyncAction::transaction(tx.into())
+        FetchedTransaction::new(tx.into()).into()
     });
     let second_miniblock_actions: Vec<_> = iter::once(open_miniblock)
         .chain(more_txs)
@@ -426,7 +429,7 @@ async fn test_external_io_recovery(
 ) {
     let new_tx = create_l2_transaction(10, 100);
     tx_hashes.push(new_tx.hash());
-    let new_tx = SyncAction::transaction(new_tx.into());
+    let new_tx = FetchedTransaction::new(new_tx.into());
 
     let (actions_sender, action_queue) = ActionQueue::new();
     let client = if snapshot.l1_batch_number > L1BatchNumber(0) {
@@ -449,7 +452,7 @@ async fn test_external_io_recovery(
         timestamp: snapshot.miniblock_timestamp + 3,
         virtual_blocks: 1,
     };
-    let actions = vec![open_miniblock, new_tx, SyncAction::SealMiniblock];
+    let actions = vec![open_miniblock, new_tx.into(), SyncAction::SealMiniblock];
     actions_sender.push_actions(actions).await;
     state_keeper
         .wait(|state| state.get_local_block() == snapshot.miniblock_number + 3)
@@ -510,8 +513,8 @@ pub(super) async fn run_state_keeper_with_multiple_l1_batches(
     );
     let first_tx = create_l2_transaction(10, 100);
     let first_tx_hash = first_tx.hash();
-    let first_tx = SyncAction::transaction(first_tx.into());
-    let first_l1_batch_actions = vec![l1_batch, first_tx, SyncAction::SealMiniblock];
+    let first_tx = FetchedTransaction::new(first_tx.into());
+    let first_l1_batch_actions = vec![l1_batch, first_tx.into(), SyncAction::SealMiniblock];
 
     let fictive_miniblock = SyncAction::Miniblock {
         number: snapshot.miniblock_number + 2,
@@ -528,8 +531,8 @@ pub(super) async fn run_state_keeper_with_multiple_l1_batches(
     );
     let second_tx = create_l2_transaction(10, 100);
     let second_tx_hash = second_tx.hash();
-    let second_tx = SyncAction::transaction(second_tx.into());
-    let second_l1_batch_actions = vec![l1_batch, second_tx, SyncAction::SealMiniblock];
+    let second_tx = FetchedTransaction::new(second_tx.into());
+    let second_l1_batch_actions = vec![l1_batch, second_tx.into(), SyncAction::SealMiniblock];
 
     let (actions_sender, action_queue) = ActionQueue::new();
     let state_keeper = StateKeeperHandles::new(

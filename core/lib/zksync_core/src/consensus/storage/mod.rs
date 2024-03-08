@@ -13,7 +13,10 @@ mod testonly;
 
 use crate::{
     state_keeper::io::common::IoCursor,
-    sync_layer::{fetcher::FetchedBlock, sync_action::ActionQueueSender},
+    sync_layer::{
+        fetcher::{FetchedBlock, FetchedTransaction},
+        sync_action::ActionQueueSender,
+    },
 };
 
 /// Context-aware `zksync_dal::StorageProcessor` wrapper.
@@ -172,7 +175,11 @@ impl Cursor {
             fair_pubdata_price: payload.fair_pubdata_price,
             virtual_blocks: payload.virtual_blocks,
             operator_address: payload.operator_address,
-            transactions: payload.transactions,
+            transactions: payload
+                .transactions
+                .into_iter()
+                .map(FetchedTransaction::new)
+                .collect(),
         };
         self.actions.push_actions(self.inner.advance(block)).await;
         Ok(())
