@@ -72,16 +72,16 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
-    fn add_fee_input_layer(mut self) -> anyhow::Result<Self> {
+    fn add_sequencer_l1_layer(mut self) -> anyhow::Result<Self> {
         let gas_adjuster_config = GasAdjusterConfig::from_env()?;
         let state_keeper_config = StateKeeperConfig::from_env()?;
         let eth_sender_config = ETHSenderConfig::from_env()?;
-        let fee_input_layer = SequencerL1GasLayer::new(
+        let sequencer_l1_layer = SequencerL1GasLayer::new(
             gas_adjuster_config,
             state_keeper_config,
             eth_sender_config.sender.pubdata_sending_mode,
         );
-        self.node.add_layer(fee_input_layer);
+        self.node.add_layer(sequencer_l1_layer);
         Ok(self)
     }
 
@@ -265,7 +265,7 @@ fn main() -> anyhow::Result<()> {
     MainNodeBuilder::new()
         .add_pools_layer()?
         .add_query_eth_client_layer()?
-        .add_fee_input_layer()?
+        .add_sequencer_l1_layer()?
         .add_object_store_layer()?
         .add_metadata_calculator_layer()?
         .add_state_keeper_layer()?

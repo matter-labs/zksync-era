@@ -54,6 +54,7 @@ impl WiringLayer for EthSenderLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
+        // Get resources
         let pool_resource = context.get_resource::<MasterPoolResource>().await?;
         let pool = pool_resource.get().await.unwrap();
 
@@ -63,12 +64,12 @@ impl WiringLayer for EthSenderLayer {
         let object_store_resource = context.get_resource::<ObjectStoreResource>().await?;
         let object_store = object_store_resource.0;
 
+        // Create and add tasks
         let eth_client_blobs = PKSigningClient::from_config_blobs(
             &self.eth_sender_config,
             &self.contracts_config,
             &self.eth_client_config,
         );
-
         let eth_client_blobs_addr = eth_client_blobs.clone().map(|k| k.sender_account());
 
         let aggregator = Aggregator::new(
@@ -78,9 +79,11 @@ impl WiringLayer for EthSenderLayer {
             self.eth_sender_config.sender.pubdata_sending_mode.into(),
         );
 
+        let config = self.eth_sender_config.sender;
+
         context.add_task(Box::new(EthTxAggregatorTask {
             pool: pool.clone(),
-            config: self.eth_sender_config.sender.clone(),
+            config: config.clone(),
             aggregator,
             eth_client: eth_client.clone(),
             timelock_contract_address: self.contracts_config.validator_timelock_addr,
@@ -90,13 +93,13 @@ impl WiringLayer for EthSenderLayer {
             custom_commit_sender_addr: eth_client_blobs_addr,
         }));
 
-        let gas_adjuster = context.get_resource::<L1TxParamsResource>().await?;
+        let gas_adjuster = context.get_resource::<L1TxParamsResource>().await?.0;
 
         context.add_task(Box::new(EthTxManagerTask {
             pool,
-            config: self.eth_sender_config.sender,
-            gas_adjuster: gas_adjuster.0,
-            ethereum_gateway: eth_client.clone(),
+            config,
+            gas_adjuster,
+            ethereum_gateway: eth_client,
             ethereum_gateway_blobs: eth_client_blobs
                 .map(|c| Arc::new(c) as Arc<dyn BoundEthInterface>),
         }));
