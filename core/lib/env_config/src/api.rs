@@ -63,6 +63,7 @@ mod tests {
                 ws_port: 3051,
                 ws_url: "ws://127.0.0.1:3051".into(),
                 req_entities_limit: Some(10000),
+                filters_disabled: false,
                 filters_limit: Some(10000),
                 subscriptions_limit: Some(10000),
                 pubsub_polling_interval: Some(200),
@@ -111,6 +112,7 @@ mod tests {
             API_WEB3_JSON_RPC_WS_PORT="3051"
             API_WEB3_JSON_RPC_WS_URL="ws://127.0.0.1:3051"
             API_WEB3_JSON_RPC_REQ_ENTITIES_LIMIT=10000
+            API_WEB3_JSON_RPC_FILTERS_DISABLED=false
             API_WEB3_JSON_RPC_FILTERS_LIMIT=10000
             API_WEB3_JSON_RPC_SUBSCRIPTIONS_LIMIT=10000
             API_WEB3_JSON_RPC_PUBSUB_POLLING_INTERVAL=200

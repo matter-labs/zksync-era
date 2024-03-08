@@ -56,6 +56,7 @@ impl WiringLayer for StateKeeperLayer {
     }
 }
 
+#[derive(Debug)]
 struct StateKeeperTask {
     io: Box<dyn StateKeeperIO>,
     batch_executor_base: Box<dyn BatchExecutor>,

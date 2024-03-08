@@ -8,14 +8,20 @@ use clap::{Parser, Subcommand};
 use commitment_generator::read_and_update_contract_toml;
 use tracing::level_filters::LevelFilter;
 use zkevm_test_harness::{
-    compute_setups::{generate_base_layer_vks_and_proofs, generate_recursive_layer_vks_and_proofs},
+    compute_setups::{
+        generate_base_layer_vks_and_proofs, generate_eip4844_vks,
+        generate_recursive_layer_vks_and_proofs,
+    },
     data_source::{in_memory_data_source::InMemoryDataSource, SetupDataSource},
     proof_wrapper_utils::{
         check_trusted_setup_file_existace, get_wrapper_setup_and_vk_from_scheduler_vk,
         WrapperConfig,
     },
 };
-use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerStorageType;
+use zksync_prover_fri_types::{
+    circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerStorageType,
+    ProverServiceDataKey,
+};
 use zksync_vk_setup_data_server_fri::{
     keystore::Keystore,
     setup_data_generator::{CPUSetupDataGenerator, GPUSetupDataGenerator, SetupDataGenerator},
@@ -39,6 +45,10 @@ fn generate_vks(keystore: &Keystore) -> anyhow::Result<()> {
     tracing::info!("Generating verification keys for Recursive layer.");
     generate_recursive_layer_vks_and_proofs(&mut in_memory_source)
         .map_err(|err| anyhow::anyhow!("Failed generating recursive vk's: {err}"))?;
+
+    generate_eip4844_vks(&mut in_memory_source)
+        .map_err(|err| anyhow::anyhow!("Failed generating 4844 vk's: {err}"))?;
+
     tracing::info!("Saving keys & hints");
 
     keystore.save_keys_from_data_source(&in_memory_source)?;
@@ -78,6 +88,8 @@ enum CircuitSelector {
     Recursive,
     /// Select circuits from basic group.
     Basic,
+    /// EIP 4844 circuit
+    Eip4844,
 }
 
 #[derive(Debug, Parser)]
@@ -91,6 +103,11 @@ struct GeneratorOptions {
     /// If true, then setup keys are not written and only md5 sum is printed.
     #[arg(long, default_value = "false")]
     dry_run: bool,
+
+    /// If true, then generate the setup key, only if it is missing.
+    // Warning: this doesn't check the correctness of the existing file.
+    #[arg(long, default_value = "false")]
+    recompute_if_missing: bool,
 
     #[arg(long)]
     path: Option<String>,
@@ -156,39 +173,31 @@ fn generate_setup_keys(
     generator: &dyn SetupDataGenerator,
     options: &GeneratorOptions,
 ) -> anyhow::Result<()> {
-    match options.circuits_type {
+    let circuit_type = match options.circuits_type {
         CircuitSelector::All => {
-            let digests = generator.generate_all(options.dry_run)?;
+            let digests = generator.generate_all(options.dry_run, options.recompute_if_missing)?;
             tracing::info!("Setup keys md5(s):");
-            print_stats(digests)
+            print_stats(digests)?;
+            return Ok(());
         }
-        CircuitSelector::Recursive => {
-            let digest = generator
-                .generate_and_write_setup_data(
-                    false,
-                    options
-                        .numeric_circuit
-                        .expect("--numeric-circuit must be provided"),
-                    options.dry_run,
-                )
-                .context("generate_setup_data()")?;
-            tracing::info!("digest: {:?}", digest);
-            Ok(())
-        }
-        CircuitSelector::Basic => {
-            let digest = generator
-                .generate_and_write_setup_data(
-                    true,
-                    options
-                        .numeric_circuit
-                        .expect("--numeric-circuit must be provided"),
-                    options.dry_run,
-                )
-                .context("generate_setup_data()")?;
-            tracing::info!("digest: {:?}", digest);
-            Ok(())
-        }
-    }
+        CircuitSelector::Recursive => ProverServiceDataKey::new_recursive(
+            options
+                .numeric_circuit
+                .expect("--numeric-circuit must be provided"),
+        ),
+        CircuitSelector::Basic => ProverServiceDataKey::new_basic(
+            options
+                .numeric_circuit
+                .expect("--numeric-circuit must be provided"),
+        ),
+        CircuitSelector::Eip4844 => ProverServiceDataKey::eip4844(),
+    };
+
+    let digest = generator
+        .generate_and_write_setup_data(circuit_type, options.dry_run, options.recompute_if_missing)
+        .context("generate_setup_data()")?;
+    tracing::info!("digest: {:?}", digest);
+    Ok(())
 }
 
 fn main() -> anyhow::Result<()> {
