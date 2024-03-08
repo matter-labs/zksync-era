@@ -243,7 +243,9 @@ impl MainNodeBuilder {
             contracts_config,
             eth_client_config,
             network_config,
-        ))
+        ));
+
+        Ok(self)
     }
 
     fn build(self) -> ZkStackService {
