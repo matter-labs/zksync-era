@@ -48,7 +48,7 @@ pub enum PgOrRocksdbStorage<'a> {
     RocksdbStorage(RocksdbStorage),
 }
 
-impl<'a> ReadStorage for PgOrRocksdbStorage<'a> {
+impl ReadStorage for PgOrRocksdbStorage<'_> {
     fn read_value(&mut self, key: &zksync_types::StorageKey) -> zksync_types::StorageValue {
         match self {
             PgOrRocksdbStorage::Postgres(postgres) => postgres.read_value(key),
