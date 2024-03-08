@@ -101,6 +101,7 @@ impl EthSenderTester {
         let store_factory = ObjectStoreFactory::mock();
 
         let aggregator = EthTxAggregator::new(
+            connection_pool.clone(),
             SenderConfig {
                 proof_sending_mode: ProofSendingMode::SkipEveryProof,
                 ..eth_sender_config.sender.clone()
@@ -123,6 +124,7 @@ impl EthSenderTester {
         .await;
 
         let manager = EthTxManager::new(
+            connection_pool.clone(),
             eth_sender_config.sender,
             gas_adjuster.clone(),
             gateway.clone(),

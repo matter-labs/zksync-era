@@ -21,9 +21,10 @@ use zksync_core::{
 use zksync_env_config::FromEnv;
 use zksync_node_framework::{
     implementations::layers::{
+        eth_sender::EthSenderLayer,
         eth_watch::EthWatchLayer,
-        fee_input::SequencerFeeInputLayer,
         healtcheck_server::HealthCheckLayer,
+        l1_gas::SequencerL1GasLayer,
         metadata_calculator::MetadataCalculatorLayer,
         object_store::ObjectStoreLayer,
         pools_layer::PoolsLayerBuilder,
@@ -75,7 +76,7 @@ impl MainNodeBuilder {
         let gas_adjuster_config = GasAdjusterConfig::from_env()?;
         let state_keeper_config = StateKeeperConfig::from_env()?;
         let eth_sender_config = ETHSenderConfig::from_env()?;
-        let fee_input_layer = SequencerFeeInputLayer::new(
+        let fee_input_layer = SequencerL1GasLayer::new(
             gas_adjuster_config,
             state_keeper_config,
             eth_sender_config.sender.pubdata_sending_mode,
@@ -231,6 +232,20 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
+    fn add_eth_sender_layer(mut self) -> anyhow::Result<Self> {
+        let eth_sender_config = ETHSenderConfig::from_env()?;
+        let contracts_config = ContractsConfig::from_env()?;
+        let eth_client_config = ETHClientConfig::from_env()?;
+        let network_config = NetworkConfig::from_env()?;
+
+        self.node.add_layer(EthSenderLayer::new(
+            eth_sender_config,
+            contracts_config,
+            eth_client_config,
+            network_config,
+        ))
+    }
+
     fn build(self) -> ZkStackService {
         self.node
     }
@@ -255,6 +270,7 @@ fn main() -> anyhow::Result<()> {
         .add_metadata_calculator_layer()?
         .add_state_keeper_layer()?
         .add_eth_watch_layer()?
+        .add_eth_sender_layer()?
         .add_proof_data_handler_layer()?
         .add_healthcheck_layer()?
         .add_tx_sender_layer()?

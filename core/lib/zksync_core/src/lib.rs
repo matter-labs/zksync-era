@@ -694,6 +694,7 @@ pub async fn initialize_components(
         let eth_client_blobs =
             PKSigningClient::from_config_blobs(&eth_sender, &contracts_config, &eth_client_config);
         let eth_tx_manager_actor = EthTxManager::new(
+            eth_manager_pool,
             eth_sender.sender,
             gas_adjuster
                 .get_or_init()
@@ -703,7 +704,7 @@ pub async fn initialize_components(
             eth_client_blobs.map(|c| Arc::new(c) as Arc<dyn BoundEthInterface>),
         );
         task_futures.extend([tokio::spawn(
-            eth_tx_manager_actor.run(eth_manager_pool, stop_receiver.clone()),
+            eth_tx_manager_actor.run(stop_receiver.clone()),
         )]);
         let elapsed = started_at.elapsed();
         APP_METRICS.init_latency[&InitStage::EthTxManager].set(elapsed);

@@ -58,6 +58,7 @@ pub struct EthTxManager {
     ethereum_gateway_blobs: Option<Arc<dyn BoundEthInterface>>,
     config: SenderConfig,
     gas_adjuster: Arc<dyn L1TxParamsProvider>,
+    pool: ConnectionPool,
 }
 
 impl EthTxManager {
@@ -73,6 +74,7 @@ impl EthTxManager {
             ethereum_gateway_blobs,
             config,
             gas_adjuster,
+            pool,
         }
     }
 
@@ -713,6 +715,7 @@ impl EthTxManager {
     }
 
     pub async fn run(mut self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        let pool = self.pool.clone();
         {
             let l1_block_numbers = self
                 .get_l1_block_numbers()
