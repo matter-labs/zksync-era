@@ -1,12 +1,10 @@
-use std::{
-    cmp::min,
-    sync::atomic::{AtomicBool, AtomicU8},
-};
+use std::{cmp::min, sync::Arc};
 
 use anyhow::Context;
 use async_trait::async_trait;
 use hex::ToHex;
 use metrics::atomics::AtomicU64;
+use tokio::sync::Mutex;
 use zksync_config::configs::native_token_fetcher::NativeTokenFetcherConfig;
 
 /// Trait used to query the stack's native token conversion rate. Used to properly
@@ -44,7 +42,7 @@ pub(crate) struct NativeTokenFetcher {
     pub config: NativeTokenFetcherConfig,
     pub latest_to_eth_conversion_rate: AtomicU64,
     http_client: reqwest::Client,
-    error_reporter: ErrorReporter,
+    error_reporter: Arc<Mutex<ErrorReporter>>,
 }
 
 impl NativeTokenFetcher {
@@ -63,7 +61,7 @@ impl NativeTokenFetcher {
             .await
             .context("Unable to parse the response of the native token conversion rate server")?;
 
-        let error_reporter = ErrorReporter::new();
+        let error_reporter = Arc::new(Mutex::new(ErrorReporter::new()));
 
         Ok(Self {
             config,
@@ -100,9 +98,13 @@ impl ConversionRateFetcher for NativeTokenFetcher {
                 )?;
                 self.latest_to_eth_conversion_rate
                     .store(conversion_rate, std::sync::atomic::Ordering::Relaxed);
-                self.error_reporter.reset();
+                self.error_reporter.lock().await.reset();
             }
-            Err(err) => self.error_reporter.process(anyhow::anyhow!(err)),
+            Err(err) => self
+                .error_reporter
+                .lock()
+                .await
+                .process(anyhow::anyhow!(err)),
         }
 
         Ok(())
@@ -111,8 +113,8 @@ impl ConversionRateFetcher for NativeTokenFetcher {
 
 #[derive(Debug)]
 struct ErrorReporter {
-    current_try: AtomicU8,
-    alert_spawned: AtomicBool,
+    current_try: u8,
+    alert_spawned: bool,
 }
 
 impl ErrorReporter {
@@ -120,33 +122,24 @@ impl ErrorReporter {
 
     fn new() -> Self {
         Self {
-            current_try: AtomicU8::new(0),
-            alert_spawned: AtomicBool::new(false),
+            current_try: 0,
+            alert_spawned: false,
         }
     }
 
-    fn reset(&self) {
-        self.current_try
-            .store(0, std::sync::atomic::Ordering::Relaxed);
-        self.alert_spawned
-            .store(false, std::sync::atomic::Ordering::Relaxed);
+    fn reset(&mut self) {
+        self.current_try = 0;
+        self.alert_spawned = false;
     }
 
-    fn process(&self, err: anyhow::Error) {
-        let current_try = self.current_try.load(std::sync::atomic::Ordering::Relaxed);
-        let new_value = min(current_try + 1, Self::MAX_CONSECUTIVE_NETWORK_ERRORS);
-        self.current_try
-            .store(new_value, std::sync::atomic::Ordering::Relaxed);
+    fn process(&mut self, err: anyhow::Error) {
+        self.current_try = min(self.current_try + 1, Self::MAX_CONSECUTIVE_NETWORK_ERRORS);
 
         tracing::error!("Failed to fetch native token conversion rate from the server: {err}");
 
-        let alert_spawned = self
-            .alert_spawned
-            .load(std::sync::atomic::Ordering::Relaxed);
-        if new_value >= Self::MAX_CONSECUTIVE_NETWORK_ERRORS && !alert_spawned {
+        if self.current_try >= Self::MAX_CONSECUTIVE_NETWORK_ERRORS && !self.alert_spawned {
             vlog::capture_message(&err.to_string(), vlog::AlertLevel::Warning);
-            self.alert_spawned
-                .store(true, std::sync::atomic::Ordering::Relaxed);
+            self.alert_spawned = true;
         }
     }
 }
