@@ -25,9 +25,8 @@ flowchart LR
     C --- C3["Node Aggregation"]
     C --- C4["Scheduler"]
     C --> B
-    B --> D["Vector Generator"]
-    D --> E["Prover"]
-    E --> |Proven Block| B
+    B --> D["Vector Generator/Prover"]
+    D --> |Proven Block| B
     B --> G["Compressor"]
     G --> |Compressed block| B
 ```
