@@ -10,9 +10,9 @@ These are the main components to this process:
 - Prover
 - Compressor
 
-All of them will be sharing information through a SQL database and GCS bucket. The general idea is that the sequencer will produce
-blocks and the gateway will place them into the database to be proven. Then, the rest of the components will pull jobs
-from the database and do their part of the pipeline, loading intermediary artifacts from GCS.
+All of them will be sharing information through a SQL database and GCS bucket. The general idea is that the sequencer
+will produce blocks and the gateway will place them into the database to be proven. Then, the rest of the components
+will pull jobs from the database and do their part of the pipeline, loading intermediary artifacts from GCS.
 
 ```mermaid
 flowchart LR
@@ -35,8 +35,9 @@ flowchart LR
 ## Prerequisites
 
 Make sure these dependencies are installed and available on your machine:
-[Installing dependencies](../../docs/guides/setup-dev.md). Make sure you go through all steps, including setting environment variables for `zk`.
-Same work is done at the bottom of this doc, if you want a TL;DR; for running GPU provers on GCP.
+[Installing dependencies](../../docs/guides/setup-dev.md). Make sure you go through all steps, including setting
+environment variables for `zk`. Same work is done at the bottom of this doc, if you want a TL;DR; for running GPU
+provers on GCP.
 
 ## Proving a block using GPU prover locally
 
@@ -59,8 +60,9 @@ installation as a pre-requisite, alongside these machine specs:
 
    Note that it will produce a first l1 batch that can be proven (should be batch 0).
 
-3. Generate the GPU setup data (no need to regenerate if it's already there). This will consume around 20GB of disk. You need to be in the `prover/` directory
-   (for all commands from here onwards, you need to be in the `prover/` directory) and run:
+3. Generate the GPU setup data (no need to regenerate if it's already there). This will consume around 20GB of disk. You
+   need to be in the `prover/` directory (for all commands from here onwards, you need to be in the `prover/` directory)
+   and run:
 
    ```console
    ./setup.sh gpu
@@ -87,7 +89,8 @@ installation as a pre-requisite, alongside these machine specs:
    API_PROMETHEUS_LISTENER_PORT=3116 zk f cargo run --release --bin zksync_witness_generator -- --all_rounds
    ```
 
-   Note that this will automatically open four ports: 3116 (the starting port), 3117, 3118 and 3119 for subsequent provers.
+   Note that this will automatically open four ports: 3116 (the starting port), 3117, 3118 and 3119 for subsequent
+   provers.
 
 6. Run witness vector generators to feed jobs to GPU prover:
 
@@ -95,7 +98,8 @@ installation as a pre-requisite, alongside these machine specs:
    FRI_WITNESS_VECTOR_GENERATOR_PROMETHEUS_LISTENER_PORT=3420 zk f cargo run --release --bin zksync_witness_vector_generator
    ```
 
-   Note that you may run multiple of them (as 1 prover roughly can be fed by 10 vector generators). Make sure to use a different port!
+   Note that you may run multiple of them (as 1 prover roughly can be fed by 10 vector generators). Make sure to use a
+   different port!
 
 7. Run prover to perform actual proving: `zk f cargo run --features "gpu" --release --bin zksync_prover_fri`
 
@@ -104,9 +108,9 @@ installation as a pre-requisite, alongside these machine specs:
 
 ## Block proving with CPU
 
-We don't recommend using this method, as at the moment none are ran in production and may be broken.
-There will be investment in the future, but for the time being, please use GPU provers.
-That said, instructions are left below for brave adventurers.
+We don't recommend using this method, as at the moment none are ran in production and may be broken. There will be
+investment in the future, but for the time being, please use GPU provers. That said, instructions are left below for
+brave adventurers.
 
 Below steps can be used to prove a block on local machine using CPU prover. This is useful for debugging and testing
 Machine specs:
@@ -150,8 +154,6 @@ Machine specs:
 
 6. Run 4 witness generators to generate witness for each round:
 
-
-
 7. Run prover to perform actual proving:
 
    ```console
@@ -163,7 +165,6 @@ Machine specs:
    ```console
    zk f cargo run --release --bin zksync_proof_fri_compressor
    ```
-
 
 ## Checking the status of the prover
 
