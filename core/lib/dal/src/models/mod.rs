@@ -11,7 +11,8 @@ pub mod storage_sync;
 pub mod storage_transaction;
 pub mod storage_verification_request;
 pub mod storage_witness_job_info;
-pub mod tests;
+#[cfg(test)]
+mod tests;
 
 use anyhow::Context;
 use zksync_types::{H160, H256};
