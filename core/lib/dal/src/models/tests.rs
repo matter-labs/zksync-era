@@ -56,7 +56,7 @@ fn empty_tx() -> StorageTransaction {
 }
 
 fn default_execute() -> Execute {
-    return Execute {
+    Execute {
         contract_address: H160::random(),
         value: U256::from(10i32),
         calldata: hex::decode(
@@ -65,7 +65,7 @@ fn default_execute() -> Execute {
         )
         .unwrap(),
         factory_deps: None,
-    };
+    }
 }
 
 /// Used for storage transaction to protocol upgrade transaction tests
