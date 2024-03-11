@@ -359,6 +359,7 @@ impl EthTxAggregator {
             .await
         {
             if if let AggregatedOperation::Execute(ref op) = agg_op {
+                tracing::info!("Query batches syncing status: {:?}", op.l1_batch_range());
                 self.is_batches_synced(op).await?
             } else {
                 true
