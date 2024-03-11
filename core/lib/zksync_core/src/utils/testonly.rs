@@ -330,6 +330,13 @@ pub(crate) async fn recover(
         .insert_initial_recovery_status(&snapshot_recovery)
         .await
         .unwrap();
+
+    storage
+        .pruning_dal()
+        .soft_prune_batches_range(l1_batch.number, miniblock_number)
+        .await
+        .unwrap();
+
     storage.commit().await.unwrap();
     snapshot_recovery
 }

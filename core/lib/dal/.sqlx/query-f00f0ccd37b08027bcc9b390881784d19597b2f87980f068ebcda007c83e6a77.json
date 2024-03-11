@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            DELETE FROM l2_to_l1_logs\n            WHERE\n                miniblock_number <= $1\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f00f0ccd37b08027bcc9b390881784d19597b2f87980f068ebcda007c83e6a77"
+}

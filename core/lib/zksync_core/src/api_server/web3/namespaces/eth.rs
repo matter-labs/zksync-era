@@ -216,9 +216,14 @@ impl EthNamespace {
         full_transactions: bool,
     ) -> Result<Option<Block<TransactionVariant>>, Web3Error> {
         self.current_method().set_block_id(block_id);
-        self.state.start_info.ensure_not_pruned(block_id)?;
+        let mut storage = self.state.connection_pool.connection_tagged("api").await?;
 
-        let mut storage = self.state.acquire_connection().await?;
+
+        self.state
+            .start_info
+            .ensure_not_pruned(block_id, &mut storage)
+            .await?;
+
         let Some(block_number) = self
             .state
             .resolve_block_unchecked(&mut storage, block_id)
@@ -278,9 +283,13 @@ impl EthNamespace {
         block_id: BlockId,
     ) -> Result<Option<U256>, Web3Error> {
         self.current_method().set_block_id(block_id);
-        self.state.start_info.ensure_not_pruned(block_id)?;
+        let mut storage = self.state.connection_pool.connection_tagged("api").await?;
 
-        let mut storage = self.state.acquire_connection().await?;
+        self.state
+            .start_info
+            .ensure_not_pruned(block_id, &mut storage)
+            .await?;
+
         let Some(block_number) = self
             .state
             .resolve_block_unchecked(&mut storage, block_id)
@@ -306,9 +315,13 @@ impl EthNamespace {
         block_id: BlockId,
     ) -> Result<Option<Vec<TransactionReceipt>>, Web3Error> {
         self.current_method().set_block_id(block_id);
-        self.state.start_info.ensure_not_pruned(block_id)?;
+        let mut storage = self.state.connection_pool.connection_tagged("api").await?;
 
-        let mut storage = self.state.acquire_connection().await?;
+        self.state
+            .start_info
+            .ensure_not_pruned(block_id, &mut storage)
+            .await?;
+
         let Some(block_number) = self
             .state
             .resolve_block_unchecked(&mut storage, block_id)

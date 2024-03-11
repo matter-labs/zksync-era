@@ -535,8 +535,8 @@ impl TxSender {
             Some(number) => number,
             None => {
                 // We don't have miniblocks in the storage yet. Use the snapshot miniblock number instead.
-                let start = BlockStartInfo::new(&mut storage).await?;
-                MiniblockNumber(start.first_miniblock.saturating_sub(1))
+                let start = BlockStartInfo::new().await?;
+                MiniblockNumber(start.first_miniblock(&mut storage).await?.saturating_sub(1))
             }
         };
 

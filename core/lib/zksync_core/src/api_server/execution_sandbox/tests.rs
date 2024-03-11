@@ -32,9 +32,15 @@ async fn creating_block_args() {
     assert_eq!(pending_block_args.resolved_block_number, MiniblockNumber(2));
     assert_eq!(pending_block_args.l1_batch_timestamp_s, None);
 
-    let start_info = BlockStartInfo::new(&mut storage).await.unwrap();
-    assert_eq!(start_info.first_miniblock, MiniblockNumber(0));
-    assert_eq!(start_info.first_l1_batch, L1BatchNumber(0));
+    let start_info = BlockStartInfo::new().await.unwrap();
+    assert_eq!(
+        start_info.first_miniblock(&mut storage).await.unwrap(),
+        MiniblockNumber(0)
+    );
+    assert_eq!(
+        start_info.first_l1_batch(&mut storage).await.unwrap(),
+        L1BatchNumber(0)
+    );
 
     let latest_block = api::BlockId::Number(api::BlockNumber::Latest);
     let latest_block_args = BlockArgs::new(&mut storage, latest_block, start_info)
@@ -83,13 +89,13 @@ async fn creating_block_args_after_snapshot_recovery() {
     );
     assert_eq!(pending_block_args.l1_batch_timestamp_s, None);
 
-    let start_info = BlockStartInfo::new(&mut storage).await.unwrap();
+    let start_info = BlockStartInfo::new().await.unwrap();
     assert_eq!(
-        start_info.first_miniblock,
+        start_info.first_miniblock(&mut storage).await.unwrap(),
         snapshot_recovery.miniblock_number + 1
     );
     assert_eq!(
-        start_info.first_l1_batch,
+        start_info.first_l1_batch(&mut storage).await.unwrap(),
         snapshot_recovery.l1_batch_number + 1
     );
 
@@ -167,7 +173,7 @@ async fn instantiating_vm() {
 
     let block_args = BlockArgs::pending(&mut storage).await.unwrap();
     test_instantiating_vm(pool.clone(), block_args).await;
-    let start_info = BlockStartInfo::new(&mut storage).await.unwrap();
+    let start_info = BlockStartInfo::new().await.unwrap();
     let block_args = BlockArgs::new(&mut storage, api::BlockId::Number(0.into()), start_info)
         .await
         .unwrap();

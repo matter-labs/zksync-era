@@ -39,6 +39,7 @@ mod models;
 pub mod proof_generation_dal;
 pub mod protocol_versions_dal;
 pub mod protocol_versions_web3_dal;
+pub mod pruning_dal;
 pub mod snapshot_recovery_dal;
 pub mod snapshots_creator_dal;
 pub mod snapshots_dal;
@@ -229,5 +230,9 @@ impl<'a> CoreDal<'a> for Connection<'a, Core> {
 
     fn snapshot_recovery_dal(&mut self) -> SnapshotRecoveryDal<'_, 'a> {
         SnapshotRecoveryDal { storage: self }
+    }
+
+    pub fn pruning_dal(&mut self) -> PruningDal<'_, 'a> {
+        PruningDal { storage: self }
     }
 }

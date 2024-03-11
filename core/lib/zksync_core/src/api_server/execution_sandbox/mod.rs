@@ -189,41 +189,64 @@ impl TxSharedArgs {
 
 /// Information about first L1 batch / miniblock in the node storage.
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct BlockStartInfo {
-    /// Number of the first locally available miniblock.
-    pub first_miniblock: MiniblockNumber,
-    /// Number of the first locally available L1 batch.
-    pub first_l1_batch: L1BatchNumber,
-}
+pub(crate) struct BlockStartInfo {}
 
 impl BlockStartInfo {
-    pub async fn new(storage: &mut Connection<'_, Core>) -> anyhow::Result<Self> {
-        let snapshot_recovery = storage
-            .snapshot_recovery_dal()
-            .get_applied_snapshot_status()
-            .await?;
-        let snapshot_recovery = snapshot_recovery.as_ref();
-        Ok(Self {
-            first_miniblock: snapshot_recovery
-                .map_or(MiniblockNumber(0), |recovery| recovery.miniblock_number + 1),
-            first_l1_batch: snapshot_recovery
-                .map_or(L1BatchNumber(0), |recovery| recovery.l1_batch_number + 1),
-        })
+    pub async fn new() -> anyhow::Result<Self> {
+        Ok(Self {})
+    }
+
+    pub async fn first_miniblock(
+        &self,
+        storage: &mut StorageProcessor<'_>,
+    ) -> anyhow::Result<MiniblockNumber> {
+        let last_block = storage
+            .pruning_dal()
+            .get_pruning_info()
+            .await?
+            .last_soft_pruned_miniblock;
+        if let Some(MiniblockNumber(last_block)) = last_block {
+            return Ok(MiniblockNumber(last_block + 1));
+        }
+        Ok(MiniblockNumber(0))
+    }
+
+    pub async fn first_l1_batch(
+        &self,
+        storage: &mut Connection<'_, Core>,
+    ) -> anyhow::Result<L1BatchNumber> {
+        let last_batch = storage
+            .pruning_dal()
+            .get_pruning_info()
+            .await?
+            .last_soft_pruned_l1_batch;
+        if let Some(L1BatchNumber(last_block)) = last_batch {
+            return Ok(L1BatchNumber(last_block + 1));
+        }
+        Ok(L1BatchNumber(0))
     }
 
     /// Checks whether a block with the specified ID is pruned and returns an error if it is.
     /// The `Err` variant wraps the first non-pruned miniblock.
-    pub fn ensure_not_pruned_block(&self, block: api::BlockId) -> Result<(), MiniblockNumber> {
+    pub async fn ensure_not_pruned_block(
+        &self,
+        block: api::BlockId,
+        storage: &mut StorageProcessor<'_>,
+    ) -> Result<(), BlockArgsError> {
+        let first_miniblock = self
+            .first_miniblock(storage)
+            .await
+            .map_err(BlockArgsError::Database)?;
         match block {
             api::BlockId::Number(api::BlockNumber::Number(number))
-                if number < self.first_miniblock.0.into() =>
+                if number < first_miniblock.0.into() =>
             {
-                Err(self.first_miniblock)
+                Err(BlockArgsError::Pruned(first_miniblock))
             }
             api::BlockId::Number(api::BlockNumber::Earliest)
-                if self.first_miniblock > MiniblockNumber(0) =>
+                if first_miniblock > MiniblockNumber(0) =>
             {
-                Err(self.first_miniblock)
+                Err(BlockArgsError::Pruned(first_miniblock))
             }
             _ => Ok(()),
         }
@@ -268,8 +291,8 @@ impl BlockArgs {
         // (i.e., it does not refer to a pruned block). If called for a pruned block, the returned value
         // (specifically, `l1_batch_timestamp_s`) will be nonsensical.
         start_info
-            .ensure_not_pruned_block(block_id)
-            .map_err(BlockArgsError::Pruned)?;
+            .ensure_not_pruned_block(block_id, connection)
+            .await?;
 
         if block_id == api::BlockId::Number(api::BlockNumber::Pending) {
             return Ok(BlockArgs::pending(connection).await?);

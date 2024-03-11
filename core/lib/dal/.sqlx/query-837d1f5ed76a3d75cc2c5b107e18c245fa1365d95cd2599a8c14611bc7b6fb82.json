@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                last_hard_pruned_l1_batch\n            FROM\n                pruning_info\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "last_hard_pruned_l1_batch",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "837d1f5ed76a3d75cc2c5b107e18c245fa1365d95cd2599a8c14611bc7b6fb82"
+}
