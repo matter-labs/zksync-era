@@ -65,4 +65,3 @@ impl PrestateTracer {
 pub struct PrestateTracerConfig {
     diff_mode: bool,
 }
-
