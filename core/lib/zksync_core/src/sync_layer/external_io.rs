@@ -467,7 +467,7 @@ impl StateKeeperIO for ExternalIO {
                     let SyncAction::Tx(tx) = actions.pop_action().unwrap() else {
                         unreachable!()
                     };
-                    return Some(*tx);
+                    return Some(Transaction::from(*tx));
                 }
                 _ => {
                     tokio::time::sleep(POLL_INTERVAL).await;
@@ -506,9 +506,6 @@ impl StateKeeperIO for ExternalIO {
             true,
         );
         self.miniblock_sealer_handle.submit(command).await;
-
-        self.sync_state
-            .set_local_block(self.current_miniblock_number);
         tracing::info!("Miniblock {} is sealed", self.current_miniblock_number);
         self.update_miniblock_fields(&updates_manager.miniblock);
     }
