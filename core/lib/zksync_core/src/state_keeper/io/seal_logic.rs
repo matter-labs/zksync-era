@@ -199,7 +199,8 @@ impl UpdatesManager {
         let non_initial_writes = transaction
             .storage_logs_dedup_dal()
             .filter_written_slots(&deduplicated_writes_hashed_keys)
-            .await;
+            .await
+            .expect("cannot filter out previously written VM storage slots");
         progress.observe(deduplicated_writes.len());
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::InsertInitialWrites);

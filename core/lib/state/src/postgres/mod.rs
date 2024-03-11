@@ -544,11 +544,9 @@ impl ReadStorage for PostgresStorage<'_> {
 
     fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
         let mut dal = self.connection.storage_logs_dedup_dal();
-
         let value = self
             .rt_handle
-            .block_on(dal.get_enumeration_index_for_key(*key));
-
-        value
+            .block_on(dal.get_enumeration_index_for_key(key.hashed_key()));
+        value.expect("failed getting enumeration index for key")
     }
 }
