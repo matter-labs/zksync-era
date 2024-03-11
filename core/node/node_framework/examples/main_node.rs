@@ -77,12 +77,12 @@ impl MainNodeBuilder {
         let gas_adjuster_config = GasAdjusterConfig::from_env()?;
         let state_keeper_config = StateKeeperConfig::from_env()?;
         let eth_sender_config = ETHSenderConfig::from_env()?;
-        let sequencer_l1_layer = SequencerL1GasLayer::new(
+        let sequencer_l1_gas_layer = SequencerL1GasLayer::new(
             gas_adjuster_config,
             state_keeper_config,
             eth_sender_config.sender.pubdata_sending_mode,
         );
-        self.node.add_layer(sequencer_l1_layer);
+        self.node.add_layer(sequencer_l1_gas_layer);
         Ok(self)
     }
 
