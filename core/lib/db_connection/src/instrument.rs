@@ -144,7 +144,7 @@ impl<'a> InstrumentedData<'a> {
         let output = match output {
             Ok(output) => output,
             Err(_) => {
-                let connection_tags = StorageProcessorTags::display(connection_tags);
+                // let connection_tags = StorageProcessorTags::display(connection_tags);
                 if slow_query_reporting_enabled {
                     // todo: uncomment
                     // tracing::warn!(

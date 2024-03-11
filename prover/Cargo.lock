@@ -4023,6 +4023,7 @@ dependencies = [
 name = "prover_dal"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "sqlx",
  "strum",
  "zksync_db_connection",

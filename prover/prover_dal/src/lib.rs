@@ -1,8 +1,12 @@
-use sqlx::{pool::PoolConnection, PgConnection, Postgres};
-pub use zksync_db_connection::connection::ConnectionPool;
+use sqlx::PgConnection;
+
 use zksync_db_connection::processor::{
-    BasicStorageProcessor, StorageKind, StorageProcessorTags, TracedConnections,
+    async_trait, BasicStorageProcessor, StorageKind, StorageProcessor, StorageProcessorTags,
 };
+
+use std::time::Duration;
+
+use sqlx::{postgres::types::PgInterval, types::chrono::NaiveTime};
 
 use crate::{
     fri_gpu_prover_queue_dal::FriGpuProverQueueDal,
@@ -11,6 +15,8 @@ use crate::{
     fri_scheduler_dependency_tracker_dal::FriSchedulerDependencyTrackerDal,
     fri_witness_generator_dal::FriWitnessGeneratorDal,
 };
+
+pub use zksync_db_connection::connection::ConnectionPool;
 
 pub mod fri_gpu_prover_queue_dal;
 pub mod fri_proof_compressor_dal;
@@ -21,15 +27,25 @@ pub mod fri_witness_generator_dal;
 
 pub struct Prover(());
 
+#[derive(Debug)]
 pub struct ProverProcessor<'a>(BasicStorageProcessor<'a>);
+
+impl<'a> From<BasicStorageProcessor<'a>> for ProverProcessor<'a> {
+    fn from(storage: BasicStorageProcessor<'a>) -> Self {
+        Self(storage)
+    }
+}
 
 impl StorageKind for Prover {
     type Processor<'a> = ProverProcessor<'a>;
 }
 
-impl<'a> BasicStorageProcessor for ProverProcessor<'a> {
+#[async_trait]
+impl StorageProcessor for ProverProcessor<'_> {
+    type Processor<'a> = ProverProcessor<'a> where Self: 'a;
+
     async fn start_transaction(&mut self) -> sqlx::Result<ProverProcessor<'_>> {
-        self.0.start_transaction()
+        self.0.start_transaction().await.map(ProverProcessor::from)
     }
 
     /// Checks if the `StorageProcessor` is currently within database transaction.
@@ -38,19 +54,7 @@ impl<'a> BasicStorageProcessor for ProverProcessor<'a> {
     }
 
     async fn commit(self) -> sqlx::Result<()> {
-        self.0.commit()
-    }
-
-    fn from_pool(
-        connection: PoolConnection<Postgres>,
-        tags: Option<StorageProcessorTags>,
-        traced_connections: Option<&TracedConnections>,
-    ) -> Self {
-        Self(BasicStorageProcessor::from_pool(
-            connection,
-            tags,
-            traced_connections,
-        ))
+        self.0.commit().await
     }
 
     fn conn(&mut self) -> &mut PgConnection {
@@ -87,5 +91,22 @@ impl<'a> ProverProcessor<'a> {
 
     pub fn fri_proof_compressor_dal(&mut self) -> FriProofCompressorDal<'_, 'a> {
         FriProofCompressorDal { storage: self }
+    }
+}
+pub fn duration_to_naive_time(duration: Duration) -> NaiveTime {
+    let total_seconds = duration.as_secs() as u32;
+    NaiveTime::from_hms_opt(
+        total_seconds / 3600,
+        (total_seconds / 60) % 60,
+        total_seconds % 60,
+    )
+    .unwrap()
+}
+
+pub const fn pg_interval_from_duration(processing_timeout: Duration) -> PgInterval {
+    PgInterval {
+        months: 0,
+        days: 0,
+        microseconds: processing_timeout.as_micros() as i64,
     }
 }
