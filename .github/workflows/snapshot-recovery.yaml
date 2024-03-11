@@ -24,7 +24,7 @@ jobs:
       - name: Start services
         run: |
           ci_localnet_up
-        # ci_run sccache --start-server
+          ci_run sccache --start-server
 
       - name: Run zk init
         run: |
@@ -37,36 +37,37 @@ jobs:
  
       - name: Run main node
         run: |
-          ci_run zk server --components=$SERVER_COMPONENTS &>server.log &
-          ci_run sleep 30
+          IN_DOCKER=1 ci_run zk server --components=$SERVER_COMPONENTS &>server.log &
+          IN_DOCKER=1 ci_run sleep 5
 
       - name: Setup environment
         run: |
-          echo EXPECTED_TX_COUNT="500" >> .env
-          echo FAIL_FAST=true >> .env
-          echo IN_DOCKER=1 >> .env
-          echo DATABASE_MERKLE_TREE_MODE=lightweight >> .env
-          cat .env
+          rm -rf .env
+      #     echo EXPECTED_TX_COUNT="500" >> .env
+      #     echo FAIL_FAST=true >> .env
+      #     echo IN_DOCKER=1 >> .env
+      #     echo DATABASE_MERKLE_TREE_MODE=lightweight >> .env
+      #     cat .env
 
       - name: Perform loadtest
         run: |
-          EXPECTED_TX_COUNT=501 ACCOUNTS_AMOUNT=40 DURATION_SEC=30 FAIL_FAST=true ci_run zk run loadtest
+          EXPECTED_TX_COUNT=501 ACCOUNTS_AMOUNT=40 DURATION_SEC=30 FAIL_FAST=true IN_DOCKER=1 ci_run zk run loadtest
              
       - name: Step - Create a snapshot
         if: always()
         run: |
-          ci_run zk env docker
-          ci_run zk run snapshots-creator
+          IN_DOCKER=1 ci_run zk env docker
+          IN_DOCKER=1 ci_run zk run snapshots-creator
 
-      - name: Setup environment
-        run: |
-          echo ZKSYNC_ENV=ext-node >> .env
+      # - name: Setup environment
+      #   run: |
+      #     echo ZKSYNC_ENV=ext-node >> .env
 
       - name: Step - Run external node
         if: always()
         run: |
-          ci_run zk config compile ext-node
-          ZKSYNC_ENV=ext-node ci_run zk external-node --reinit -- --enable-snapshots-recovery &
+          IN_DOCKER=1 ci_run zk config compile ext-node
+          ZKSYNC_ENV=ext-node IN_DOCKER=1 ci_run zk external-node --reinit -- --enable-snapshots-recovery &
           ci_run sleep 10
 
       - name: Step - Stub - Try a curl request
