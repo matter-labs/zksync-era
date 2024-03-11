@@ -237,7 +237,7 @@ pub enum Component {
     /// Native Token fetcher
     NativeTokenFetcher,
     /// Conversion rate API, for local development.
-    ConversionRateApi,
+    DevConversionRateApi,
 }
 
 #[derive(Debug)]
@@ -273,7 +273,7 @@ impl FromStr for Components {
             "eth_tx_manager" => Ok(Components(vec![Component::EthTxManager])),
             "proof_data_handler" => Ok(Components(vec![Component::ProofDataHandler])),
             "native_token_fetcher" => Ok(Components(vec![Component::NativeTokenFetcher])),
-            "conversion_rate_api" => Ok(Components(vec![Component::ConversionRateApi])),
+            "conversion_rate_api" => Ok(Components(vec![Component::DevConversionRateApi])),
             other => Err(format!("{} is not a valid component name", other)),
         }
     }
@@ -334,7 +334,7 @@ pub async fn initialize_components(
     let (stop_sender, stop_receiver) = watch::channel(false);
 
     // spawn the conversion rate API if it is enabled
-    if components.contains(&Component::ConversionRateApi) {
+    if components.contains(&Component::DevConversionRateApi) {
         let native_token_fetcher_config = configs
             .native_token_fetcher_config
             .clone()

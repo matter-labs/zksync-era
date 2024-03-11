@@ -1,5 +1,4 @@
 use axum::{extract, extract::Json, routing::get, Router};
-use rand::Rng;
 use tokio::sync::watch;
 use zksync_config::configs::native_token_fetcher::NativeTokenFetcherConfig;
 
@@ -32,7 +31,5 @@ pub(crate) async fn run_server(
 // basic handler that responds with a static string
 async fn get_conversion_rate(extract::Path(_token_address): extract::Path<String>) -> Json<u64> {
     tracing::info!("Received request for conversion rate");
-    let mut rng = rand::thread_rng();
-    let random_number: u64 = rng.gen_range(1..=100);
-    Json(random_number)
+    Json(42)
 }
