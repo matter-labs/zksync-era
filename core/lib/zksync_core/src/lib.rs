@@ -79,6 +79,7 @@ pub mod basic_witness_input_producer;
 pub mod block_reverter;
 pub mod consensus;
 pub mod consistency_checker;
+pub mod dev_api_conversion_rate;
 pub mod eth_sender;
 pub mod eth_watch;
 mod fee_model;
@@ -233,6 +234,8 @@ pub enum Component {
     ProofDataHandler,
     /// Native Token fetcher
     NativeTokenFetcher,
+    /// Conversion rate API, for local development.
+    DevConversionRateApi,
 }
 
 #[derive(Debug)]
@@ -268,6 +271,7 @@ impl FromStr for Components {
             "eth_tx_manager" => Ok(Components(vec![Component::EthTxManager])),
             "proof_data_handler" => Ok(Components(vec![Component::ProofDataHandler])),
             "native_token_fetcher" => Ok(Components(vec![Component::NativeTokenFetcher])),
+            "dev_conversion_rate_api" => Ok(Components(vec![Component::DevConversionRateApi])),
             other => Err(format!("{} is not a valid component name", other)),
         }
     }
@@ -323,7 +327,24 @@ pub async fn initialize_components(
     circuit_breaker_checker.check().await.unwrap_or_else(|err| {
         panic!("Circuit breaker triggered: {}", err);
     });
+
+    let mut task_futures: Vec<JoinHandle<anyhow::Result<()>>> = Vec::new();
     let (stop_sender, stop_receiver) = watch::channel(false);
+
+    // spawn the conversion rate API if it is enabled
+    if components.contains(&Component::DevConversionRateApi) {
+        let native_token_fetcher_config = configs
+            .native_token_fetcher_config
+            .clone()
+            .context("native_token_fetcher_config")?;
+
+        let stop_receiver = stop_receiver.clone();
+        let conversion_rate_task = tokio::spawn(async move {
+            dev_api_conversion_rate::run_server(stop_receiver, &native_token_fetcher_config).await
+        });
+        task_futures.push(conversion_rate_task);
+    };
+
     let (cb_sender, cb_receiver) = oneshot::channel();
 
     let native_token_fetcher = if components.contains(&Component::NativeTokenFetcher) {
@@ -366,10 +387,10 @@ pub async fn initialize_components(
         res
     });
 
-    let mut task_futures: Vec<JoinHandle<anyhow::Result<()>>> = vec![
+    task_futures.extend(vec![
         prometheus_task,
         tokio::spawn(circuit_breaker_checker.run(cb_sender, stop_receiver.clone())),
-    ];
+    ]);
 
     if components.contains(&Component::WsApi)
         || components.contains(&Component::HttpApi)
