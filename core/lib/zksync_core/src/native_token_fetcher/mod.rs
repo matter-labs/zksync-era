@@ -157,7 +157,11 @@ impl NativeTokenFetcher {
 #[async_trait]
 impl ConversionRateFetcher for NativeTokenFetcher {
     fn conversion_rate(&self) -> anyhow::Result<BigDecimal> {
-        anyhow::Ok(BigDecimal::from(1))
+        let lock = match self.latest_to_eth_conversion_rate.lock() {
+            Ok(lock) => lock,
+            Err(err) => return Err(anyhow::anyhow!("Failed to lock the mutex: {err}")),
+        }; // TODO: Does a poisoned Mutex justify a panic?
+        Ok(lock.clone())
     }
 }
 
