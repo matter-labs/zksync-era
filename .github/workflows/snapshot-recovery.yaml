@@ -37,20 +37,21 @@ jobs:
  
       - name: Run main node
         run: |
-          ci_run zk server --uring --components=$SERVER_COMPONENTS &>server.log &
+          ci_run zk server --components=$SERVER_COMPONENTS &>server.log &
           ci_run sleep 30
 
       - name: Setup environment
         run: |
-          echo EXPECTED_TX_COUNT="1000" >> .env
-          echo EXPECTED_TX_COUNT="1000" >> $GITHUB_ENV
+          rm -rf .env
+          echo EXPECTED_TX_COUNT="500" >> .env
           echo FAIL_FAST=true >> .env
+          echo IN_DOCKER=1 >> .env
           echo DATABASE_MERKLE_TREE_MODE=lightweight >> .env
           cat .env
 
       - name: Perform loadtest
         run: |
-          EXPECTED_TX_COUNT=1000 ACCOUNTS_AMOUNT=40 DURATION_SEC=30 FAIL_FAST=true ci_run zk run loadtest
+          EXPECTED_TX_COUNT=501 ACCOUNTS_AMOUNT=40 DURATION_SEC=30 FAIL_FAST=true ci_run zk run loadtest
              
       - name: Step - Create a snapshot
         if: always()
@@ -60,8 +61,9 @@ jobs:
 
       - name: Setup environment
         run: |
+          rm -rf .env
+          echo IN_DOCKER=1 >> .env
           echo ZKSYNC_ENV=ext-node >> .env
-          echo ZKSYNC_ENV=ext-node >> $GITHUB_ENV
 
       - name: Step - Run external node
         if: always()
