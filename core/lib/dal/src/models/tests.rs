@@ -68,7 +68,7 @@ fn default_execute() -> Execute {
     };
 }
 
-/// Creates a transaction for StorageTransaction -> ProtocolUpgrade tests
+/// Used for storage transaction to protocol upgrade transaction tests
 fn protocol_upgrade_storage_tx() -> StorageTransaction {
     StorageTransaction {
         hash: H256::random().as_bytes().to_vec(),
@@ -87,7 +87,7 @@ fn protocol_upgrade_storage_tx() -> StorageTransaction {
     }
 }
 
-/// Creates a transaction for StorageTransaction -> L1Transaction tests
+/// Used for storage transaction to l1 transaction tests
 fn l1_storage_tx() -> StorageTransaction {
     StorageTransaction {
         gas_limit: Some(BigDecimal::from(999)),
@@ -108,7 +108,7 @@ fn l1_storage_tx() -> StorageTransaction {
     }
 }
 
-/// Creates a transaction for StorageTransaction -> L2Transaction tests
+/// Used for storage transaction to l2 transaction tests
 fn l2_storage_tx(tx_format: i32) -> StorageTransaction {
     StorageTransaction {
         hash: H256::random().as_bytes().to_vec(),
@@ -282,7 +282,7 @@ fn storage_tx_to_protocol_upgrade_tx_with_defaults() {
     }
 }
 
-/// Tests StorageTransaction -> L2Transaction logic with different transaction types
+/// Tests storage transaction to l2 transaction logic with different transaction types
 fn storage_tx_to_l2_tx(i_tx_format: i32, o_tx_format: i32) {
     let stx = l2_storage_tx(i_tx_format);
     let tx = Transaction::from(stx.clone());
