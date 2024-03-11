@@ -76,12 +76,12 @@ use crate::{
     },
 };
 
-pub mod api_conversion_rate;
 pub mod api_server;
 pub mod basic_witness_input_producer;
 pub mod block_reverter;
 pub mod consensus;
 pub mod consistency_checker;
+pub mod dev_api_conversion_rate;
 pub mod eth_sender;
 pub mod eth_watch;
 mod fee_model;
@@ -273,7 +273,7 @@ impl FromStr for Components {
             "eth_tx_manager" => Ok(Components(vec![Component::EthTxManager])),
             "proof_data_handler" => Ok(Components(vec![Component::ProofDataHandler])),
             "native_token_fetcher" => Ok(Components(vec![Component::NativeTokenFetcher])),
-            "conversion_rate_api" => Ok(Components(vec![Component::DevConversionRateApi])),
+            "dev_conversion_rate_api" => Ok(Components(vec![Component::DevConversionRateApi])),
             other => Err(format!("{} is not a valid component name", other)),
         }
     }
@@ -342,7 +342,7 @@ pub async fn initialize_components(
 
         let stop_receiver = stop_receiver.clone();
         let conversion_rate_task = tokio::spawn(async move {
-            api_conversion_rate::run_server(stop_receiver, &native_token_fetcher_config).await
+            dev_api_conversion_rate::run_server(stop_receiver, &native_token_fetcher_config).await
         });
         task_futures.push(conversion_rate_task);
     };
