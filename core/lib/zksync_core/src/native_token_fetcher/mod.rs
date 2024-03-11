@@ -128,6 +128,7 @@ impl NativeTokenFetcher {
                     let conversion_rate = response.json::<u64>().await.context(
                         "Unable to parse the response of the native token conversion rate server",
                     )?;
+                    tracing::info!("Fetched native token conversion rate: {}", conversion_rate);
                     self.latest_to_eth_conversion_rate
                         .store(conversion_rate, std::sync::atomic::Ordering::Relaxed);
                     error_reporter.reset();
