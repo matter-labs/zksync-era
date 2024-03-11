@@ -1,5 +1,6 @@
 use std::{collections::HashMap, fmt, sync::Arc, time::Duration};
 
+use anyhow::Context;
 use futures::{future::BoxFuture, FutureExt};
 use tokio::{
     runtime::Runtime,
@@ -126,28 +127,30 @@ impl ZkStackService {
         // Barrier that will only be lifted once all the preconditions are met.
         // It will be awaited by the tasks before they start running and by the preconditions once they are fulfilled.
         let task_barrier = Arc::new(Barrier::new(self.tasks.len() + self.preconditions.len()));
-        let mut tasks = Vec::new();
+        let mut tasks: Vec<BoxFuture<'static, anyhow::Result<()>>> = Vec::new();
         let mut preconditions = Vec::new();
         // Add all the unconstrained tasks.
         for task in std::mem::take(&mut self.unconstrained_tasks) {
             let name = task.name().to_string();
-            let task_future = Box::pin(task.run_unconstrained(self.stop_receiver()));
-            let task_repr = TaskRepr {
-                name,
-                task: Some(task_future),
-            };
-            tasks.push(task_repr);
+            let stop_receiver = self.stop_receiver();
+            let task_future = Box::pin(async move {
+                task.run_unconstrained(stop_receiver)
+                    .await
+                    .with_context(|| format!("Task {name} failed"))
+            });
+            tasks.push(task_future);
         }
         // Add all the "normal" tasks.
         for task in std::mem::take(&mut self.tasks) {
             let name = task.name().to_string();
-            let task_future =
-                Box::pin(task.run_with_barrier(self.stop_receiver(), task_barrier.clone()));
-            let task_repr = TaskRepr {
-                name,
-                task: Some(task_future),
-            };
-            tasks.push(task_repr);
+            let stop_receiver = self.stop_receiver();
+            let task_barrier = task_barrier.clone();
+            let task_future = Box::pin(async move {
+                task.run_with_barrier(stop_receiver, task_barrier)
+                    .await
+                    .with_context(|| format!("Task {name} failed"))
+            });
+            tasks.push(task_future);
         }
         if tasks.is_empty() {
             anyhow::bail!("No tasks to run");
@@ -155,9 +158,14 @@ impl ZkStackService {
         // Finally, the preconditions are just futures.
         for precondition in std::mem::take(&mut self.preconditions) {
             let name = precondition.name().to_string();
-            let task_future = Box::pin(
-                precondition.check_with_barrier(self.stop_receiver(), task_barrier.clone()),
-            );
+            let stop_receiver = self.stop_receiver();
+            let task_barrier = task_barrier.clone();
+            let task_future = Box::pin(async move {
+                precondition
+                    .check_with_barrier(stop_receiver, task_barrier)
+                    .await
+                    .with_context(|| format!("Precondition {name} failed"))
+            });
             // Internally we use the same representation for tasks and preconditions.
             preconditions.push(task_future);
         }
@@ -175,6 +183,19 @@ impl ZkStackService {
         // to shut down.
         let (precondition_fail_sender, precondition_fail_receiver) = oneshot::channel();
         self.runtime.spawn(async move {
+            let preconditions = preconditions.into_iter().map(|fut| async move {
+                // Spawn each precondition as a separate task.
+                // This way we can handle the cases when a precondition task panics and propagate the message
+                // to the service.
+                // This is important since this task is detached: we do not store a handle for it and never await it explicitly.
+                let handle = tokio::runtime::Handle::current();
+                match handle.spawn(fut).await {
+                    Ok(Ok(())) => Ok(()),
+                    Ok(Err(err)) => Err(err),
+                    Err(_panic_err) => Err(anyhow::anyhow!("Precondition panicked")), // TODO: Extract message
+                }
+            });
+
             if let Err(err) = futures::future::try_join_all(preconditions).await {
                 precondition_fail_sender.send(err).ok();
             }
@@ -183,56 +204,40 @@ impl ZkStackService {
         // precondition failure or stop signal.
         let mut stop_receiver = self.stop_receiver();
         let precondition_system_task = Box::pin(async move {
-            tokio::select! {
-                err = precondition_fail_receiver => {
-                    match err {
-                        Ok(err) => Err(err),
-                        Err(_) => {
-                            // All preconditions successfully resolved and corresponding sender was dropped.
-                            // Simply wait for the stop signal.
-                            stop_receiver.0.changed().await.ok();
-                            Ok(())
-                        }
-                    }
-                }
-                _ = stop_receiver.0.changed() => {
+            match precondition_fail_receiver.await {
+                Ok(err) => Err(err),
+                Err(_) => {
+                    // All preconditions successfully resolved and corresponding sender was dropped.
+                    // Simply wait for the stop signal.
+                    stop_receiver.0.changed().await.ok();
                     Ok(())
                 }
             }
+            // Note that we don't have to `select` on the stop signal explicitly:
+            // Each prerequisite is given a stop signal, and if everyone respects it, this future
+            // will still resolve once the stop signal is received.
         });
-        tasks.push(TaskRepr {
-            name: "system/preconditions_checker".to_string(),
-            task: Some(precondition_system_task),
-        });
+        tasks.push(precondition_system_task);
 
         // Prepare tasks for running.
         let rt_handle = self.runtime.handle().clone();
         let join_handles: Vec<_> = tasks
-            .iter_mut()
-            .map(|task| {
-                let task = task.task.take().expect(
-                    "Tasks are created by the node and must be Some prior to calling this method",
-                );
-                rt_handle.spawn(task).fuse()
-            })
+            .into_iter()
+            .map(|task| rt_handle.spawn(task).fuse())
             .collect();
 
         // Run the tasks until one of them exits.
-        let (resolved, resolved_idx, remaining) = self
+        let (resolved, _, remaining) = self
             .runtime
             .block_on(futures::future::select_all(join_handles));
-        let resolved_task_name = tasks[resolved_idx].name.clone();
         let failure = match resolved {
-            Ok(Ok(())) => {
-                tracing::info!("Task {resolved_task_name} completed");
-                false
-            }
+            Ok(Ok(())) => false,
             Ok(Err(err)) => {
-                tracing::error!("Task {resolved_task_name} exited with an error: {err}");
+                tracing::error!("One of the tasks exited with an error: {err}"); // TODO
                 true
             }
-            Err(_) => {
-                tracing::error!("Task {resolved_task_name} panicked");
+            Err(_panic_msg) => {
+                // tracing::error!("Task {resolved_task_name} panicked");  TODO
                 true
             }
         };
@@ -258,7 +263,9 @@ impl ZkStackService {
         }
 
         if failure {
-            anyhow::bail!("Task {resolved_task_name} failed");
+            // anyhow::bail!("Task {resolved_task_name} failed");
+            // TODO
+            anyhow::bail!("Task failed");
         } else {
             Ok(())
         }
@@ -266,18 +273,5 @@ impl ZkStackService {
 
     pub(crate) fn stop_receiver(&self) -> StopReceiver {
         StopReceiver(self.stop_sender.subscribe())
-    }
-}
-
-struct TaskRepr {
-    name: String,
-    task: Option<BoxFuture<'static, anyhow::Result<()>>>,
-}
-
-impl fmt::Debug for TaskRepr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("TaskRepr")
-            .field("name", &self.name)
-            .finish_non_exhaustive()
     }
 }
