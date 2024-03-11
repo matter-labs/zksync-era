@@ -74,7 +74,7 @@ impl Network {
             3 => Self::Ropsten,
             4 => Self::Rinkeby,
             5 => Self::Goerli,
-            9 => Self::Localhost,
+            1337 => Self::Localhost,
             11155111 => Self::Sepolia,
             _ => Self::Unknown,
         }
@@ -87,7 +87,7 @@ impl Network {
             Self::Ropsten => L1ChainId(3),
             Self::Rinkeby => L1ChainId(4),
             Self::Goerli => L1ChainId(5),
-            Self::Localhost => L1ChainId(9),
+            Self::Localhost => L1ChainId(1337),
             Self::Sepolia => L1ChainId(11155111),
             Self::Unknown => panic!("Unknown chain ID"),
             Self::Test => panic!("Test chain ID"),
