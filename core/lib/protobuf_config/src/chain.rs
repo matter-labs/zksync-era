@@ -3,7 +3,7 @@ use zksync_basic_types::network::Network;
 use zksync_config::configs;
 use zksync_protobuf::{repr::ProtoRepr, required};
 
-use crate::{parse_h160, proto};
+use crate::{parse_h160, proto::chain as proto};
 
 impl proto::Network {
     fn new(n: &Network) -> Self {
