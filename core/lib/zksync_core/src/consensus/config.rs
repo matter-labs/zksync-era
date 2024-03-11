@@ -8,7 +8,7 @@ use zksync_consensus_roles::{node, validator};
 use zksync_protobuf::{required, ProtoFmt};
 
 use crate::{
-    consensus::{FetcherConfig, MainNodeConfig},
+    consensus::{fetcher::P2PConfig, MainNodeConfig},
     proto::consensus as proto,
 };
 
@@ -49,37 +49,26 @@ impl Config {
     pub fn main_node(&self, secrets: &Secrets) -> anyhow::Result<MainNodeConfig> {
         Ok(MainNodeConfig {
             executor: self.executor_config(secrets.node_key.clone().context("missing node_key")?),
-            validator: self.validator_config(
-                secrets
-                    .validator_key
-                    .clone()
-                    .context("missing validator_key")?,
-            ),
+            validator_key: secrets
+                .validator_key
+                .clone()
+                .context("missing validator_key")?,
         })
     }
 
-    pub fn fetcher(&self, secrets: &Secrets) -> anyhow::Result<FetcherConfig> {
-        Ok(FetcherConfig {
-            executor: self.executor_config(secrets.node_key.clone().context("missing node_key")?),
-        })
+    pub fn p2p(&self, secrets: &Secrets) -> anyhow::Result<P2PConfig> {
+        Ok(self.executor_config(secrets.node_key.clone().context("missing node_key")?))
     }
 
     fn executor_config(&self, node_key: node::SecretKey) -> executor::Config {
         executor::Config {
             server_addr: self.server_addr,
-            validators: self.validators.clone(),
+            public_addr: self.public_addr,
             max_payload_size: self.max_payload_size,
             node_key,
             gossip_dynamic_inbound_limit: self.gossip_dynamic_inbound_limit,
             gossip_static_inbound: self.gossip_static_inbound.clone().into_iter().collect(),
             gossip_static_outbound: self.gossip_static_outbound.clone().into_iter().collect(),
-        }
-    }
-
-    fn validator_config(&self, validator_key: validator::SecretKey) -> executor::ValidatorConfig {
-        executor::ValidatorConfig {
-            public_addr: self.public_addr,
-            key: validator_key,
         }
     }
 }
