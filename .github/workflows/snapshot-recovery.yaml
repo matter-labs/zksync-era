@@ -43,7 +43,7 @@ jobs:
       - name: Setup environment
         run: |
           echo EXPECTED_TX_COUNT="1000" >> .env
-          echo EXPECTED_TX_COUNT="1000" >> $GITHUB_PATH
+          echo EXPECTED_TX_COUNT="1000" >> $GITHUB_ENV
           echo FAIL_FAST=true >> .env
           echo DATABASE_MERKLE_TREE_MODE=lightweight >> .env
           cat .env
@@ -61,7 +61,7 @@ jobs:
       - name: Setup environment
         run: |
           echo ZKSYNC_ENV=ext-node >> .env
-          echo ZKSYNC_ENV=ext-node >> $GITHUB_PATH
+          echo ZKSYNC_ENV=ext-node >> $GITHUB_ENV
 
       - name: Step - Run external node
         if: always()
