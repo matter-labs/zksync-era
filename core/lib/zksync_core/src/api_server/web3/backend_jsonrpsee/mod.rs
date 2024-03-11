@@ -14,7 +14,7 @@ use crate::api_server::{tx_sender::SubmitTxError, web3::metrics::API_METRICS};
 pub mod batch_limiter_middleware;
 pub mod namespaces;
 
-pub(crate) fn into_jsrpc_error(err: Web3Error) -> ErrorObjectOwned {
+pub fn into_jsrpc_error(err: Web3Error) -> ErrorObjectOwned {
     let data = match &err {
         Web3Error::SubmitTransactionError(_, data) => Some(format!("0x{}", hex::encode(data))),
         _ => None,

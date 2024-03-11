@@ -9,13 +9,13 @@ use zksync_consensus_roles::node;
 use zksync_core::{
     api_server::{
         tx_sender::TxSenderConfig,
-        web3::{state::InternalApiConfig, Namespace},
+        web3::{backend_jsonrpsee::into_jsrpc_error, state::InternalApiConfig, Namespace},
     },
     consensus,
 };
 use zksync_types::{api::BridgeAddresses, ETHEREUM_ADDRESS};
 use zksync_web3_decl::{
-    error::ClientRpcContext,
+    error::{ClientRpcContext, Web3Error},
     jsonrpsee::{
         core::ClientError,
         http_client::{HttpClient, HttpClientBuilder},
@@ -23,7 +23,6 @@ use zksync_web3_decl::{
     },
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
 };
-
 pub(crate) mod observability;
 #[cfg(test)]
 mod tests;
@@ -61,7 +60,13 @@ impl RemoteENConfig {
             .rpc_context("get_main_contract")
             .await?;
         let base_token_addr = match client.get_base_token_l1_address().await {
-            Err(ClientError::Call(err)) if ErrorCode::MethodNotFound.code() == err.code() => {
+            Err(ClientError::Call(err))
+                if [
+                    ErrorCode::MethodNotFound.code(),
+                    into_jsrpc_error(Web3Error::NotImplemented).code(),
+                ]
+                .contains(&(err.code())) =>
+            {
                 // This is the fallback case for when the EN tries to interact
                 // with a node that does not implement the zks_baseTokenL1Address endpoint.
                 ETHEREUM_ADDRESS
@@ -612,7 +617,7 @@ impl From<ExternalNodeConfig> for InternalApiConfig {
             l2_testnet_paymaster_addr: config.remote.l2_testnet_paymaster_addr,
             req_entities_limit: config.optional.req_entities_limit,
             fee_history_limit: config.optional.fee_history_limit,
-            base_token_address: config.remote.base_token_addr,
+            base_token_address: Some(config.remote.base_token_addr),
             filters_disabled: config.optional.filters_disabled,
         }
     }
