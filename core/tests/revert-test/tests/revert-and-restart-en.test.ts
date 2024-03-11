@@ -253,7 +253,7 @@ describe('Block reverting test', function () {
             if (lastCommitted.sub(lastExecuted).gte(2)) {
                 break;
             }
-            await utils.sleep(1);
+            await utils.sleep(0.3);
         }
         const alice2 = await alice.getBalance();
         console.log('Terminate the main node');
