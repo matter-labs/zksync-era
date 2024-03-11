@@ -1,10 +1,10 @@
 //! Data access layer (DAL) for zkSync Era.
 
-use sqlx::{pool::PoolConnection, PgConnection, Postgres};
+use sqlx::PgConnection;
 pub use sqlx::{types::BigDecimal, Error as SqlxError};
 pub use zksync_db_connection::connection::ConnectionPool;
 use zksync_db_connection::processor::{
-    BasicStorageProcessor, StorageKind, StorageProcessor, StorageProcessorTags, TracedConnections,
+    async_trait, BasicStorageProcessor, StorageKind, StorageProcessor, StorageProcessorTags,
 };
 
 use crate::{
@@ -82,7 +82,7 @@ impl<'a> StorageProcessor for ServerProcessor<'a> {
     }
 
     async fn commit(self) -> sqlx::Result<()> {
-        self.0.commit()
+        self.0.commit().await
     }
 
     fn conn(&mut self) -> &mut PgConnection {

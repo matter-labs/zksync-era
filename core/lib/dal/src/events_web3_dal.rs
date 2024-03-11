@@ -3,10 +3,7 @@ use sqlx::{
     query::{Query, QueryAs},
     Postgres, Row,
 };
-use zksync_db_connection::{
-    instrument::InstrumentExt,
-    processor::{BasicStorageProcessor, StorageProcessor},
-};
+use zksync_db_connection::{instrument::InstrumentExt, processor::StorageProcessor};
 use zksync_types::{
     api::{GetLogsFilter, Log},
     Address, MiniblockNumber, H256,

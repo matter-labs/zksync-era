@@ -2,10 +2,12 @@ use zksync_db_connection::instrument::InstrumentExt;
 use zksync_types::{api::en, MiniblockNumber};
 
 use crate::{
-    metrics::MethodLatency,
     models::storage_sync::{StorageSyncBlock, SyncBlock},
     ServerProcessor,
 };
+
+// todo: uncomment
+// use crate::metrics::MethodLatency,
 
 /// DAL subset dedicated to the EN synchronization.
 #[derive(Debug)]
@@ -86,7 +88,8 @@ impl SyncDal<'_, '_> {
         block_number: MiniblockNumber,
         include_transactions: bool,
     ) -> anyhow::Result<Option<en::SyncBlock>> {
-        let _latency = MethodLatency::new("sync_dal_sync_block");
+        // todo: uncomment
+        //let _latency = MethodLatency::new("sync_dal_sync_block");
         let Some(block) = self.sync_block_inner(block_number).await? else {
             return Ok(None);
         };
@@ -118,12 +121,12 @@ mod tests {
             create_miniblock_header, create_snapshot_recovery, mock_execution_result,
             mock_l2_transaction,
         },
-        ConnectionPool,
+        ConnectionPool, Server,
     };
 
     #[tokio::test]
     async fn sync_block_basics() {
-        let pool = ConnectionPool::test_pool().await;
+        let pool = ConnectionPool::<Server>::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
 
         // Simulate genesis.
@@ -239,7 +242,7 @@ mod tests {
 
     #[tokio::test]
     async fn sync_block_after_snapshot_recovery() {
-        let pool = ConnectionPool::test_pool().await;
+        let pool = ConnectionPool::<Server>::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
 
         // Simulate snapshot recovery.

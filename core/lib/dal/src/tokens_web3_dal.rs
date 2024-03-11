@@ -1,4 +1,4 @@
-use zksync_db_connection::processor::{BasicStorageProcessor, StorageProcessor};
+use zksync_db_connection::processor::StorageProcessor;
 use zksync_types::{
     tokens::{TokenInfo, TokenMetadata},
     Address, MiniblockNumber,

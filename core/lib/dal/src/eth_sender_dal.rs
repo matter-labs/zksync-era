@@ -2,10 +2,7 @@ use std::{convert::TryFrom, str::FromStr};
 
 use anyhow::Context as _;
 use sqlx::types::chrono::{DateTime, Utc};
-use zksync_db_connection::{
-    match_query_as,
-    processor::{BasicStorageProcessor, StorageProcessor},
-};
+use zksync_db_connection::{interpolate_query, match_query_as, processor::StorageProcessor};
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     eth_sender::{EthTx, EthTxBlobSidecar, TxHistory, TxHistoryToSend},

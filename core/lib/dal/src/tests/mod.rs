@@ -165,7 +165,7 @@ pub(crate) fn create_snapshot_recovery() -> SnapshotRecoveryStatus {
 
 #[tokio::test]
 async fn workflow_with_submit_tx_equal_hashes() {
-    let connection_pool = ConnectionPool::test_pool().await;
+    let connection_pool = ConnectionPool::<Server>::test_pool().await;
     let storage = &mut connection_pool.access_storage().await.unwrap();
     let mut transactions_dal = TransactionsDal { storage };
 
@@ -185,7 +185,7 @@ async fn workflow_with_submit_tx_equal_hashes() {
 
 #[tokio::test]
 async fn workflow_with_submit_tx_diff_hashes() {
-    let connection_pool = ConnectionPool::test_pool().await;
+    let connection_pool = ConnectionPool::<Server>::test_pool().await;
     let storage = &mut connection_pool.access_storage().await.unwrap();
     let mut transactions_dal = TransactionsDal { storage };
 
@@ -212,7 +212,7 @@ async fn workflow_with_submit_tx_diff_hashes() {
 
 #[tokio::test]
 async fn remove_stuck_txs() {
-    let connection_pool = ConnectionPool::test_pool().await;
+    let connection_pool = ConnectionPool::<Server>::test_pool().await;
     let storage = &mut connection_pool.access_storage().await.unwrap();
     let mut protocol_versions_dal = ProtocolVersionsDal { storage };
     protocol_versions_dal

@@ -4,10 +4,7 @@ use anyhow::Context as _;
 use bigdecimal::BigDecimal;
 use itertools::Itertools;
 use sqlx::{error, types::chrono::NaiveDateTime};
-use zksync_db_connection::{
-    instrument::InstrumentExt,
-    processor::{BasicStorageProcessor, StorageProcessor},
-};
+use zksync_db_connection::{instrument::InstrumentExt, processor::StorageProcessor};
 use zksync_types::{
     block::MiniblockExecutionData,
     fee::TransactionExecutionMetrics,
@@ -1336,12 +1333,12 @@ mod tests {
     use super::*;
     use crate::{
         tests::{create_miniblock_header, mock_execution_result, mock_l2_transaction},
-        ConnectionPool,
+        ConnectionPool, Server,
     };
 
     #[tokio::test]
     async fn getting_call_trace_for_transaction() {
-        let connection_pool = ConnectionPool::test_pool().await;
+        let connection_pool = ConnectionPool::<Server>::test_pool().await;
         let mut conn = connection_pool.access_storage().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())

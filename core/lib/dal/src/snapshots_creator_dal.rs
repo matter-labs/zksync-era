@@ -171,11 +171,11 @@ mod tests {
     use zksync_types::StorageLog;
 
     use super::*;
-    use crate::ConnectionPool;
+    use crate::{ConnectionPool, Server};
 
     #[tokio::test]
     async fn getting_storage_log_chunks_basics() {
-        let pool = ConnectionPool::test_pool().await;
+        let pool = ConnectionPool::<Server>::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
 
         let logs = (0..100).map(|i| {
@@ -287,7 +287,7 @@ mod tests {
 
     #[tokio::test]
     async fn phantom_writes_are_filtered_out() {
-        let pool = ConnectionPool::test_pool().await;
+        let pool = ConnectionPool::<Server>::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
 
         let key = StorageKey::new(AccountTreeId::default(), H256::repeat_byte(1));

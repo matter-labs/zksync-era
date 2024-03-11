@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use sqlx::types::chrono::Utc;
-use zksync_db_connection::processor::{BasicStorageProcessor, StorageProcessor};
+use zksync_db_connection::processor::StorageProcessor;
 use zksync_types::{
     snapshots::SnapshotStorageLog, zk_evm_types::LogQuery, AccountTreeId, Address, L1BatchNumber,
     StorageKey, H256,

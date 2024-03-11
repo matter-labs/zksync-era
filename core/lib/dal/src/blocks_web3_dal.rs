@@ -1,7 +1,5 @@
 use zksync_db_connection::{
-    instrument::InstrumentExt,
-    match_query_as,
-    processor::{BasicStorageProcessor, StorageProcessor},
+    instrument::InstrumentExt, interpolate_query, match_query_as, processor::StorageProcessor,
 };
 use zksync_system_constants::EMPTY_UNCLES_HASH;
 use zksync_types::{
@@ -658,12 +656,12 @@ mod tests {
             create_miniblock_header, create_snapshot_recovery, mock_execution_result,
             mock_l2_transaction,
         },
-        ConnectionPool,
+        ConnectionPool, Server,
     };
 
     #[tokio::test]
     async fn getting_web3_block_and_tx_count() {
-        let connection_pool = ConnectionPool::test_pool().await;
+        let connection_pool = ConnectionPool::<Server>::test_pool().await;
         let mut conn = connection_pool.access_storage().await.unwrap();
         conn.blocks_dal()
             .delete_miniblocks(MiniblockNumber(0))
@@ -711,7 +709,7 @@ mod tests {
 
     #[tokio::test]
     async fn resolving_earliest_block_id() {
-        let connection_pool = ConnectionPool::test_pool().await;
+        let connection_pool = ConnectionPool::<Server>::test_pool().await;
         let mut conn = connection_pool.access_storage().await.unwrap();
 
         let miniblock_number = conn
@@ -737,7 +735,7 @@ mod tests {
 
     #[tokio::test]
     async fn resolving_latest_block_id() {
-        let connection_pool = ConnectionPool::test_pool().await;
+        let connection_pool = ConnectionPool::<Server>::test_pool().await;
         let mut conn = connection_pool.access_storage().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
@@ -803,7 +801,7 @@ mod tests {
 
     #[tokio::test]
     async fn resolving_pending_block_id_for_snapshot_recovery() {
-        let connection_pool = ConnectionPool::test_pool().await;
+        let connection_pool = ConnectionPool::<Server>::test_pool().await;
         let mut conn = connection_pool.access_storage().await.unwrap();
         let snapshot_recovery = create_snapshot_recovery();
         conn.snapshot_recovery_dal()
@@ -821,7 +819,7 @@ mod tests {
 
     #[tokio::test]
     async fn resolving_block_by_hash() {
-        let connection_pool = ConnectionPool::test_pool().await;
+        let connection_pool = ConnectionPool::<Server>::test_pool().await;
         let mut conn = connection_pool.access_storage().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
@@ -850,7 +848,7 @@ mod tests {
 
     #[tokio::test]
     async fn getting_traces_for_block() {
-        let connection_pool = ConnectionPool::test_pool().await;
+        let connection_pool = ConnectionPool::<Server>::test_pool().await;
         let mut conn = connection_pool.access_storage().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())

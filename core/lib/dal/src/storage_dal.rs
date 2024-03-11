@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use itertools::Itertools;
-use zksync_db_connection::processor::{BasicStorageProcessor, StorageProcessor};
+use zksync_db_connection::processor::StorageProcessor;
 use zksync_types::{StorageKey, StorageLog, StorageValue, H256};
 
 use crate::ServerProcessor;
@@ -99,12 +99,12 @@ mod tests {
     use zksync_types::{AccountTreeId, Address};
 
     use super::*;
-    use crate::ConnectionPool;
+    use crate::{ConnectionPool, Server};
 
     #[allow(deprecated)]
     #[tokio::test]
     async fn applying_storage_logs() {
-        let pool = ConnectionPool::test_pool().await;
+        let pool = ConnectionPool::<Server>::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
 
         let account = AccountTreeId::new(Address::repeat_byte(1));

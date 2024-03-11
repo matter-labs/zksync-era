@@ -21,7 +21,6 @@ use sqlx::{
 use tokio::time::Instant;
 
 use crate::{
-    connection::ConnectionPool,
     metrics::REQUEST_METRICS,
     processor::{StorageProcessor, StorageProcessorTags},
 };

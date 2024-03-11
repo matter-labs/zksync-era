@@ -5,7 +5,7 @@ use std::sync::Arc;
 use anyhow::Context as _;
 use tokio::sync::Semaphore;
 use zksync_config::SnapshotsCreatorConfig;
-use zksync_dal::{BasicStorageProcessor, ConnectionPool, Server, ServerProcessor};
+use zksync_dal::{ConnectionPool, Server, ServerProcessor};
 use zksync_object_store::ObjectStore;
 use zksync_types::{
     snapshots::{

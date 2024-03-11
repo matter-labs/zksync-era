@@ -1,9 +1,6 @@
 use std::{collections::HashMap, ops};
 
-use zksync_db_connection::{
-    instrument::InstrumentExt,
-    processor::{BasicStorageProcessor, StorageProcessor},
-};
+use zksync_db_connection::{instrument::InstrumentExt, processor::StorageProcessor};
 use zksync_types::{
     get_code_key, get_nonce_key,
     utils::{decompose_full_nonce, storage_key_for_standard_token_balance},
@@ -305,12 +302,12 @@ mod tests {
     use super::*;
     use crate::{
         tests::{create_miniblock_header, create_snapshot_recovery},
-        ConnectionPool,
+        ConnectionPool, Server,
     };
 
     #[tokio::test]
     async fn resolving_l1_batch_number_of_miniblock() {
-        let pool = ConnectionPool::test_pool().await;
+        let pool = ConnectionPool::<Server>::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
@@ -377,7 +374,7 @@ mod tests {
 
     #[tokio::test]
     async fn resolving_l1_batch_number_of_miniblock_with_snapshot_recovery() {
-        let pool = ConnectionPool::test_pool().await;
+        let pool = ConnectionPool::<Server>::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())

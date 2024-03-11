@@ -5,7 +5,7 @@ use std::{
 
 use anyhow::Context as _;
 use sqlx::postgres::types::PgInterval;
-use zksync_db_connection::processor::{BasicStorageProcessor, StorageProcessor};
+use zksync_db_connection::processor::StorageProcessor;
 use zksync_types::{
     contract_verification_api::{
         DeployContractCalldata, VerificationIncomingRequest, VerificationInfo, VerificationRequest,

@@ -7,9 +7,7 @@ use std::{
 use anyhow::Context as _;
 use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive};
 use zksync_db_connection::{
-    instrument::InstrumentExt,
-    match_query_as,
-    processor::{BasicStorageProcessor, StorageProcessor},
+    instrument::InstrumentExt, interpolate_query, match_query_as, processor::StorageProcessor,
 };
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
@@ -2345,11 +2343,11 @@ mod tests {
     };
 
     use super::*;
-    use crate::{tests::create_miniblock_header, ConnectionPool};
+    use crate::{tests::create_miniblock_header, ConnectionPool, Server};
 
     #[tokio::test]
     async fn loading_l1_batch_header() {
-        let pool = ConnectionPool::test_pool().await;
+        let pool = ConnectionPool::<Server>::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
@@ -2405,7 +2403,7 @@ mod tests {
 
     #[tokio::test]
     async fn getting_predicted_gas() {
-        let pool = ConnectionPool::test_pool().await;
+        let pool = ConnectionPool::<Server>::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
@@ -2466,7 +2464,7 @@ mod tests {
     #[allow(deprecated)] // that's the whole point
     #[tokio::test]
     async fn checking_fee_account_address_in_l1_batches() {
-        let pool = ConnectionPool::test_pool().await;
+        let pool = ConnectionPool::<Server>::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
         assert!(conn
             .blocks_dal()
@@ -2478,7 +2476,7 @@ mod tests {
     #[allow(deprecated)] // that's the whole point
     #[tokio::test]
     async fn ensuring_fee_account_address_for_miniblocks() {
-        let pool = ConnectionPool::test_pool().await;
+        let pool = ConnectionPool::<Server>::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
