@@ -1,7 +1,8 @@
 use crate::{
+    precondition::Precondition,
     resource::{Resource, StoredResource},
     service::ZkStackService,
-    task::Task,
+    task::{Task, UnconstrainedTask},
     wiring_layer::WiringError,
 };
 
@@ -33,10 +34,34 @@ impl<'a> ServiceContext<'a> {
     }
 
     /// Adds a task to the service.
-    /// Added tasks will be launched after the wiring process will be finished.
+    /// Added tasks will be launched after the wiring process will be finished and all the preconditions
+    /// are met.
     pub fn add_task(&mut self, task: Box<dyn Task>) -> &mut Self {
         tracing::info!("Layer {} has added a new task: {}", self.layer, task.name());
         self.service.tasks.push(task);
+        self
+    }
+
+    /// Adds an unconstrained task to the service.
+    /// Unconstrained tasks will be launched immediately after the wiring process is finished.
+    pub fn add_unconstrained_task(&mut self, task: Box<dyn UnconstrainedTask>) -> &mut Self {
+        tracing::info!(
+            "Layer {} has added a new unconstrained task: {}",
+            self.layer,
+            task.name()
+        );
+        self.service.unconstrained_tasks.push(task);
+        self
+    }
+
+    /// Adds a precondition to the service.
+    pub fn add_precondition(&mut self, precondition: Box<dyn Precondition>) -> &mut Self {
+        tracing::info!(
+            "Layer {} has added a new precondition: {}",
+            self.layer,
+            precondition.name()
+        );
+        self.service.preconditions.push(precondition);
         self
     }
 
