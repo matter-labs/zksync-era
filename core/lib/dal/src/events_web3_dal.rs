@@ -244,7 +244,7 @@ impl EventsWeb3Dal<'_, '_> {
                     miniblock_number ASC,
                     event_index_in_block ASC
                 "#,
-                from_block.0 as i64
+                i64::from(from_block.0)
             )
             .fetch_all(self.storage.conn())
             .await?;

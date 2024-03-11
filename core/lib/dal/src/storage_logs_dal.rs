@@ -331,7 +331,7 @@ impl StorageLogsDal<'_, '_> {
                 operation_number DESC
             "#,
             &bytecode_hashed_keys as &[_],
-            max_miniblock_number as i64
+            i64::from(max_miniblock_number)
         )
         .fetch_all(self.storage.conn())
         .await?;
@@ -991,7 +991,8 @@ mod tests {
             let non_initial = conn
                 .storage_logs_dedup_dal()
                 .filter_written_slots(&all_keys)
-                .await;
+                .await
+                .unwrap();
             // Pretend that dedup logic eliminates all writes with zero values.
             let initial_keys: Vec<_> = logs
                 .iter()

@@ -480,7 +480,7 @@ impl BlocksDal<'_, '_> {
         // Serialization should always succeed.
         let used_contract_hashes = serde_json::to_value(&header.used_contract_hashes)
             .expect("failed to serialize used_contract_hashes to JSON value");
-        let storage_refunds: Vec<_> = storage_refunds.iter().map(|n| *n as i64).collect();
+        let storage_refunds: Vec<_> = storage_refunds.iter().copied().map(i64::from).collect();
 
         let mut transaction = self.storage.start_transaction().await?;
         sqlx::query!(
@@ -537,8 +537,8 @@ impl BlocksDal<'_, '_> {
                 )
             "#,
             i64::from(header.number.0),
-            header.l1_tx_count as i32,
-            header.l2_tx_count as i32,
+            i32::from(header.l1_tx_count),
+            i32::from(header.l2_tx_count),
             header.timestamp as i64,
             &l2_to_l1_logs,
             &header.l2_to_l1_messages,
