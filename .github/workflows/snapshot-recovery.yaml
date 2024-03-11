@@ -43,8 +43,6 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk
-          ci_run zk config compile ext-node
-          ci_run zk external-node
           ci_run zk init
  
       - name: Run main node
