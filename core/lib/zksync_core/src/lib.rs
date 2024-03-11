@@ -68,9 +68,7 @@ use crate::{
     l1_gas_price::{GasAdjusterSingleton, L1GasPriceProvider},
     metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
     metrics::{InitStage, APP_METRICS},
-    native_token_fetcher::{
-        ConversionRateFetcher, NativeTokenFetcherSingleton, NoOpConversionRateFetcher,
-    },
+    native_token_fetcher::{ConversionRateFetcher, NativeTokenFetcher, NoOpConversionRateFetcher},
     state_keeper::{
         create_state_keeper, MempoolFetcher, MempoolGuard, MiniblockSealer, SequencerSealer,
     },
@@ -347,40 +345,28 @@ pub async fn initialize_components(
         task_futures.push(conversion_rate_task);
     };
 
-    // spawn the native ERC20 fetcher if it is enabled
-    let mut fetcher_component = if components.contains(&Component::NativeTokenFetcher) {
-        let fetcher = NativeTokenFetcherSingleton::new(
-            configs
-                .native_token_fetcher_config
-                .clone()
-                .context("native_token_fetcher_config")?,
-        );
-
-        Some(fetcher)
-    } else {
-        None
-    };
-
     let (cb_sender, cb_receiver) = oneshot::channel();
 
-    let conversion_rate_fetcher: Arc<dyn ConversionRateFetcher> =
-        if let Some(fetcher_singleton) = &mut fetcher_component {
-            let fetcher = fetcher_singleton
-                .get_or_init()
-                .await
-                .context("fetcher.get_or_init()")?;
-            fetcher
-        } else {
-            // create no-op fetcher if the native token fetcher is not enabled
-            Arc::new(NoOpConversionRateFetcher::new())
-        };
+    let native_token_fetcher = if components.contains(&Component::NativeTokenFetcher) {
+        Arc::new(
+            NativeTokenFetcher::new(
+                configs
+                    .native_token_fetcher_config
+                    .clone()
+                    .context("native_token_fetcher_config")?,
+            )
+            .await?,
+        ) as Arc<dyn ConversionRateFetcher>
+    } else {
+        Arc::new(NoOpConversionRateFetcher::new())
+    };
 
     let query_client = QueryClient::new(&eth_client_config.web3_url).unwrap();
     let gas_adjuster_config = configs.gas_adjuster_config.context("gas_adjuster_config")?;
     let mut gas_adjuster = GasAdjusterSingleton::new(
         eth_client_config.web3_url.clone(),
         gas_adjuster_config,
-        conversion_rate_fetcher,
+        native_token_fetcher,
     );
 
     // Prometheus exporter and circuit breaker checker should run for every component configuration.
@@ -727,14 +713,6 @@ pub async fn initialize_components(
     if let Some(task) = gas_adjuster.run_if_initialized(stop_receiver.clone()) {
         task_futures.push(task);
     }
-
-    // check if the native ERC20 fetcher is enabled and run it if it is
-    fetcher_component
-        .and_then(|c| c.run_if_initialized(stop_receiver.clone()))
-        .into_iter()
-        .for_each(|handle| {
-            task_futures.push(handle);
-        });
 
     Ok((task_futures, stop_sender, cb_receiver, health_check_handle))
 }
