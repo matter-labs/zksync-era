@@ -24,7 +24,7 @@ jobs:
       - name: Start services
         run: |
           ci_localnet_up
-          ci_run sccache --start-server
+        # ci_run sccache --start-server
 
       - name: Run zk init
         run: |
@@ -33,7 +33,7 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk
-          ci_run zk init
+        # ci_run zk init
  
       - name: Run main node
         run: |
@@ -42,13 +42,11 @@ jobs:
 
       - name: Setup environment
         run: |
-          cat $ZKSYNC_HOME/etc/env/dev.env
-          echo EXPECTED_TX_COUNT="500" >> $ZKSYNC_HOME/etc/env/dev.env
-          echo FAIL_FAST=true >> $ZKSYNC_HOME/etc/env/dev.env
-          echo IN_DOCKER=1 >> $ZKSYNC_HOME/etc/env/dev.env
-          echo DATABASE_MERKLE_TREE_MODE=lightweight >> $ZKSYNC_HOME/etc/env/dev.env
+          echo EXPECTED_TX_COUNT="500" >> .env
+          echo FAIL_FAST=true >> .env
+          echo IN_DOCKER=1 >> .env
+          echo DATABASE_MERKLE_TREE_MODE=lightweight >> .env
           cat .env
-          cat $ZKSYNC_HOME/etc/env/dev.env
 
       - name: Perform loadtest
         run: |
@@ -62,7 +60,7 @@ jobs:
 
       - name: Setup environment
         run: |
-          echo ZKSYNC_ENV=ext-node >> $ZKSYNC_HOME/etc/env/dev.env
+          echo ZKSYNC_ENV=ext-node >> .env
 
       - name: Step - Run external node
         if: always()
