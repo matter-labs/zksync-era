@@ -6,6 +6,8 @@ Tool for generating different type of circuit related keys:
 - setup keys (for CPU and GPU)
 - commitments
 
+For commands below, please make sure to run from the `prover/` directory.
+
 ## Verification keys
 
 The current set of verification keys is committed under 'data/' directory. If you want to refresh it (for example after
