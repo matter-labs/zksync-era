@@ -73,7 +73,7 @@ installation as a pre-requisite, alongside these machine specs:
    zk f cargo run --release --bin zksync_prover_fri_gateway
    ```
 
-5. Run 4 witness generators to generate witness for each round :
+5. Run 4 witness generators to generate witness for each round:
 
    ```console
    API_PROMETHEUS_LISTENER_PORT=3116 zk f cargo run --release --bin zksync_witness_generator -- --round=basic_circuits
