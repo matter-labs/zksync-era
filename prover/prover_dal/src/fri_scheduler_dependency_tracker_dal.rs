@@ -1,6 +1,7 @@
 use zksync_db_connection::processor::StorageProcessor;
-use zksync_types::prover_dal::EIP_4844_CIRCUIT_ID;
-use zksync_types::{basic_fri_types::FinalProofIds, L1BatchNumber};
+use zksync_types::{
+    basic_fri_types::FinalProofIds, prover_dal::EIP_4844_CIRCUIT_ID, L1BatchNumber,
+};
 
 use crate::ProverProcessor;
 

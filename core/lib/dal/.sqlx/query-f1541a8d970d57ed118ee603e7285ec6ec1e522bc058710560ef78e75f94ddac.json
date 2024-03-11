@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                        SELECT\n                            miniblock_hash\n                        FROM\n                            snapshot_recovery\n                        WHERE\n                            miniblock_number = $1\n                        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "miniblock_hash",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "f1541a8d970d57ed118ee603e7285ec6ec1e522bc058710560ef78e75f94ddac"
+}

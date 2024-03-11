@@ -9,11 +9,11 @@ use std::{
     time::{Instant, SystemTime},
 };
 
-use crate::{connection::ConnectionPool, metrics::CONNECTION_METRICS};
 use sqlx::{pool::PoolConnection, types::chrono, Connection, PgConnection, Postgres, Transaction};
-
 // todo: for some reason I can't import this from crate directly
 pub use zksync_health_check::async_trait;
+
+use crate::{connection::ConnectionPool, metrics::CONNECTION_METRICS};
 
 /// Tags that can be associated with a connection.
 #[derive(Debug, Clone, Copy, PartialEq)]

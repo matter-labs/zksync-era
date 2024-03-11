@@ -1,12 +1,10 @@
-use sqlx::PgConnection;
+use std::time::Duration;
 
+use sqlx::{postgres::types::PgInterval, types::chrono::NaiveTime, PgConnection};
+pub use zksync_db_connection::connection::ConnectionPool;
 use zksync_db_connection::processor::{
     async_trait, BasicStorageProcessor, StorageKind, StorageProcessor, StorageProcessorTags,
 };
-
-use std::time::Duration;
-
-use sqlx::{postgres::types::PgInterval, types::chrono::NaiveTime};
 
 use crate::{
     fri_gpu_prover_queue_dal::FriGpuProverQueueDal,
@@ -15,8 +13,6 @@ use crate::{
     fri_scheduler_dependency_tracker_dal::FriSchedulerDependencyTrackerDal,
     fri_witness_generator_dal::FriWitnessGeneratorDal,
 };
-
-pub use zksync_db_connection::connection::ConnectionPool;
 
 pub mod fri_gpu_prover_queue_dal;
 pub mod fri_proof_compressor_dal;

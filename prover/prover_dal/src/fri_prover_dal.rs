@@ -1,14 +1,10 @@
-use std::time::Duration;
-use std::{collections::HashMap, convert::TryFrom};
+use std::{collections::HashMap, convert::TryFrom, time::Duration};
 
-use zksync_db_connection::instrument::InstrumentExt;
-use zksync_db_connection::processor::StorageProcessor;
-use zksync_types::prover_dal::{
-    FriProverJobMetadata, JobCountStatistics, StuckJobs, EIP_4844_CIRCUIT_ID,
-};
+use zksync_db_connection::{instrument::InstrumentExt, processor::StorageProcessor};
 use zksync_types::{
     basic_fri_types::{AggregationRound, CircuitIdRoundTuple},
     protocol_version::FriProtocolVersionId,
+    prover_dal::{FriProverJobMetadata, JobCountStatistics, StuckJobs, EIP_4844_CIRCUIT_ID},
     L1BatchNumber,
 };
 

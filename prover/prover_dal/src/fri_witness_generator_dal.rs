@@ -2,12 +2,12 @@ use std::{collections::HashMap, convert::TryFrom, time::Duration};
 
 use sqlx::Row;
 use zksync_db_connection::processor::StorageProcessor;
-use zksync_types::prover_dal::{
-    JobCountStatistics, LeafAggregationJobMetadata, NodeAggregationJobMetadata, StuckJobs,
-};
 use zksync_types::{
     basic_fri_types::{AggregationRound, Eip4844Blobs},
     protocol_version::FriProtocolVersionId,
+    prover_dal::{
+        JobCountStatistics, LeafAggregationJobMetadata, NodeAggregationJobMetadata, StuckJobs,
+    },
     L1BatchNumber,
 };
 
