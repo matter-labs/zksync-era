@@ -32,7 +32,7 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
         await announced('Checking environment', checkEnv());
         await announced('Checking git hooks', env.gitHooks());
         await announced('Create volumes', createVolumes());
-        // await announced('Setting up containers', up());
+        await announced('Setting up containers', up());
     }
     if (!skipSubmodulesCheckout) {
         await announced('Checkout system-contracts submodule', submoduleUpdate());
