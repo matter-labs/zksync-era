@@ -125,18 +125,21 @@ impl HttpTest for TraceBlockFlatTest {
                 // Second flatcall (fist nested call) do not have nested calls
                 assert_eq!(block_traces[1].subtraces, 0);
                 assert_eq!(block_traces[1].traceaddress, [0, 0]);
-                // for (trace, tx_result) in block_traces.iter().zip(&tx_results) {
-                //     let api::ResultDebugCall { result } = trace;
-                //     assert_eq!(result.from, Address::zero());
-                //     assert_eq!(result.to, BOOTLOADER_ADDRESS);
-                //     assert_eq!(result.gas, tx_result.transaction.gas_limit());
-                //     let expected_calls: Vec<_> = tx_result
-                //         .call_traces
-                //         .iter()
-                //         .map(|call| api::DebugCall::from(call.clone()))
-                //         .collect();
-                //     assert_eq!(result.calls, expected_calls);
-                // }
+
+                let top_level_call_indexes = [0, 3, 6];
+                let top_level_traces = top_level_call_indexes
+                    .iter()
+                    .map(|&i| block_traces[i].clone());
+
+                for (top_level_trace, tx_result) in top_level_traces.zip(&tx_results) {
+                    assert_eq!(top_level_trace.action.from, Address::zero());
+                    assert_eq!(top_level_trace.action.to, BOOTLOADER_ADDRESS);
+                    assert_eq!(
+                        top_level_trace.action.gas,
+                        tx_result.transaction.gas_limit()
+                    );
+                }
+                // TODO: test inner calls
             }
         }
 
