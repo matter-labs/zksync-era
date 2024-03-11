@@ -1,17 +1,10 @@
 use std::sync::Arc;
 
 use zksync_config::configs::{
-    chain::NetworkConfig,
-    eth_sender::{ETHSenderConfig, SenderConfig},
-    ContractsConfig, ETHClientConfig,
+    chain::NetworkConfig, eth_sender::ETHSenderConfig, ContractsConfig, ETHClientConfig,
 };
-use zksync_core::{
-    eth_sender::{Aggregator, EthTxAggregator, EthTxManager},
-    l1_gas_price::L1TxParamsProvider,
-};
-use zksync_dal::ConnectionPool;
+use zksync_core::eth_sender::{Aggregator, EthTxAggregator, EthTxManager};
 use zksync_eth_client::{clients::PKSigningClient, BoundEthInterface};
-use zksync_types::{Address, L2ChainId};
 
 use crate::{
     implementations::resources::{
@@ -58,11 +51,9 @@ impl WiringLayer for EthSenderLayer {
         let pool_resource = context.get_resource::<MasterPoolResource>().await?;
         let pool = pool_resource.get().await.unwrap();
 
-        let eth_client_resource = context.get_resource::<BoundEthInterfaceResource>().await?;
-        let eth_client = eth_client_resource.0;
+        let eth_client = context.get_resource::<BoundEthInterfaceResource>().await?.0;
 
-        let object_store_resource = context.get_resource::<ObjectStoreResource>().await?;
-        let object_store = object_store_resource.0;
+        let object_store = context.get_resource::<ObjectStoreResource>().await?.0;
 
         // Create and add tasks
         let eth_client_blobs = PKSigningClient::from_config_blobs(
@@ -81,27 +72,35 @@ impl WiringLayer for EthSenderLayer {
 
         let config = self.eth_sender_config.sender;
 
-        context.add_task(Box::new(EthTxAggregatorTask {
-            pool: pool.clone(),
-            config: config.clone(),
+        let eth_tx_aggregator_actor = EthTxAggregator::new(
+            pool.clone(),
+            config.clone(),
             aggregator,
-            eth_client: eth_client.clone(),
-            timelock_contract_address: self.contracts_config.validator_timelock_addr,
-            l1_multicall3_address: self.contracts_config.l1_multicall3_addr,
-            main_zksync_contract_address: self.contracts_config.diamond_proxy_addr,
-            rollup_chain_id: self.network_config.zksync_network_id,
-            custom_commit_sender_addr: eth_client_blobs_addr,
+            eth_client.clone(),
+            self.contracts_config.validator_timelock_addr,
+            self.contracts_config.l1_multicall3_addr,
+            self.contracts_config.diamond_proxy_addr,
+            self.network_config.zksync_network_id,
+            eth_client_blobs_addr,
+        )
+        .await;
+
+        context.add_task(Box::new(EthTxAggregatorTask {
+            eth_tx_aggregator_actor,
         }));
 
         let gas_adjuster = context.get_resource::<L1TxParamsResource>().await?.0;
 
-        context.add_task(Box::new(EthTxManagerTask {
+        let eth_tx_manager_actor = EthTxManager::new(
             pool,
             config,
             gas_adjuster,
-            ethereum_gateway: eth_client,
-            ethereum_gateway_blobs: eth_client_blobs
-                .map(|c| Arc::new(c) as Arc<dyn BoundEthInterface>),
+            eth_client,
+            eth_client_blobs.map(|c| Arc::new(c) as Arc<dyn BoundEthInterface>),
+        );
+
+        context.add_task(Box::new(EthTxManagerTask {
+            eth_tx_manager_actor,
         }));
 
         Ok(())
@@ -110,15 +109,7 @@ impl WiringLayer for EthSenderLayer {
 
 #[derive(Debug)]
 struct EthTxAggregatorTask {
-    pool: ConnectionPool,
-    config: SenderConfig,
-    aggregator: Aggregator,
-    eth_client: Arc<dyn BoundEthInterface>,
-    timelock_contract_address: Address,
-    l1_multicall3_address: Address,
-    main_zksync_contract_address: Address,
-    rollup_chain_id: L2ChainId,
-    custom_commit_sender_addr: Option<Address>,
+    eth_tx_aggregator_actor: EthTxAggregator,
 }
 
 #[async_trait::async_trait]
@@ -128,30 +119,13 @@ impl Task for EthTxAggregatorTask {
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        let eth_tx_aggregator_actor = EthTxAggregator::new(
-            self.pool,
-            self.config,
-            self.aggregator,
-            self.eth_client,
-            self.timelock_contract_address,
-            self.l1_multicall3_address,
-            self.main_zksync_contract_address,
-            self.rollup_chain_id,
-            self.custom_commit_sender_addr,
-        )
-        .await;
-
-        eth_tx_aggregator_actor.run(stop_receiver.0).await
+        self.eth_tx_aggregator_actor.run(stop_receiver.0).await
     }
 }
 
 #[derive(Debug)]
 struct EthTxManagerTask {
-    pool: ConnectionPool,
-    config: SenderConfig,
-    gas_adjuster: Arc<dyn L1TxParamsProvider>,
-    ethereum_gateway: Arc<dyn BoundEthInterface>,
-    ethereum_gateway_blobs: Option<Arc<dyn BoundEthInterface>>,
+    eth_tx_manager_actor: EthTxManager,
 }
 
 #[async_trait::async_trait]
@@ -161,14 +135,6 @@ impl Task for EthTxManagerTask {
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        let eth_tx_manager_actor = EthTxManager::new(
-            self.pool,
-            self.config,
-            self.gas_adjuster,
-            self.ethereum_gateway,
-            self.ethereum_gateway_blobs,
-        );
-
-        eth_tx_manager_actor.run(stop_receiver.0).await
+        self.eth_tx_manager_actor.run(stop_receiver.0).await
     }
 }
