@@ -93,6 +93,79 @@ async fn tracing_block() {
 }
 
 #[derive(Debug)]
+struct TraceBlockFlatTest(MiniblockNumber);
+
+#[async_trait]
+impl HttpTest for TraceBlockFlatTest {
+    async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
+        let tx_results = [0, 1, 2].map(execute_l2_transaction_with_traces);
+        let mut storage = pool.access_storage().await?;
+        let _new_miniblock = store_miniblock(&mut storage, self.0, &tx_results).await?;
+        drop(storage);
+
+        let block_ids = [
+            api::BlockId::Number((*self.0).into()),
+            api::BlockId::Number(api::BlockNumber::Latest),
+        ];
+
+        for block_id in block_ids {
+            if let api::BlockId::Number(number) = block_id {
+                let block_traces = client.trace_block_by_number_flat(number, None).await?;
+
+                // A transaction with 2 nested calls will convert into 3 Flattened calls.
+                // Also in this test, all tx have the same # of nested calls
+                assert_eq!(
+                    block_traces.len(),
+                    tx_results.len() * (tx_results[0].call_traces.len() + 1)
+                );
+
+                // First tx has 2 nested calls, thus 2 subtraces
+                assert_eq!(block_traces[0].subtraces, 2);
+                assert_eq!(block_traces[0].traceaddress, [0]);
+                // Second flatcall (fist nested call) do not have nested calls
+                assert_eq!(block_traces[1].subtraces, 0);
+                assert_eq!(block_traces[1].traceaddress, [0, 0]);
+                // for (trace, tx_result) in block_traces.iter().zip(&tx_results) {
+                //     let api::ResultDebugCall { result } = trace;
+                //     assert_eq!(result.from, Address::zero());
+                //     assert_eq!(result.to, BOOTLOADER_ADDRESS);
+                //     assert_eq!(result.gas, tx_result.transaction.gas_limit());
+                //     let expected_calls: Vec<_> = tx_result
+                //         .call_traces
+                //         .iter()
+                //         .map(|call| api::DebugCall::from(call.clone()))
+                //         .collect();
+                //     assert_eq!(result.calls, expected_calls);
+                // }
+            }
+        }
+
+        let missing_block_number = api::BlockNumber::from(*self.0 + 100);
+        let error = client
+            .trace_block_by_number_flat(missing_block_number, None)
+            .await
+            .unwrap_err();
+        if let ClientError::Call(error) = error {
+            assert_eq!(error.code(), ErrorCode::InvalidParams.code());
+            assert!(
+                error.message().contains("Block") && error.message().contains("doesn't exist"),
+                "{error:?}"
+            );
+            assert!(error.data().is_none(), "{error:?}");
+        } else {
+            panic!("Unexpected error: {error:?}");
+        }
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn tracing_block_flat() {
+    test_http_server(TraceBlockFlatTest(MiniblockNumber(1))).await;
+}
+
+#[derive(Debug)]
 struct TraceTransactionTest;
 
 #[async_trait]

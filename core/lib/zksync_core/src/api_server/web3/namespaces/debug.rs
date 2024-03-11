@@ -5,7 +5,10 @@ use multivm::{interface::ExecutionResult, vm_latest::constants::BLOCK_GAS_LIMIT}
 use once_cell::sync::OnceCell;
 use zksync_system_constants::MAX_ENCODED_TX_SIZE;
 use zksync_types::{
-    api::{BlockId, BlockNumber, DebugCall, ResultDebugCall, TracerConfig},
+    api::{
+        flatten_debug_calls, BlockId, BlockNumber, DebugCall, DebugCallFlat, ResultDebugCall,
+        TracerConfig,
+    },
     fee_model::BatchFeeInput,
     l2::L2Tx,
     transaction_request::CallRequest,
@@ -79,7 +82,7 @@ impl DebugNamespace {
             .get_traces_for_miniblock(block_number)
             .await
             .context("get_traces_for_miniblock")?;
-        let call_trace = call_traces
+        let call_trace: Vec<ResultDebugCall> = call_traces
             .into_iter()
             .map(|call_trace| {
                 let mut result: DebugCall = call_trace.into();
@@ -90,6 +93,18 @@ impl DebugNamespace {
             })
             .collect();
         Ok(call_trace)
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub async fn debug_trace_block_flat_impl(
+        &self,
+        block_id: BlockId,
+        options: Option<TracerConfig>,
+    ) -> Result<Vec<DebugCallFlat>, Web3Error> {
+        let call_trace = self.debug_trace_block_impl(block_id, options).await?;
+        let call_trace_flat = flatten_debug_calls(call_trace);
+        println!("{:?}", call_trace_flat);
+        Ok(call_trace_flat)
     }
 
     #[tracing::instrument(skip(self))]
