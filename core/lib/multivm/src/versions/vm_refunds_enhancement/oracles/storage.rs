@@ -12,15 +12,18 @@ use zksync_types::{
 };
 use zksync_utils::u256_to_h256;
 
-use crate::vm_refunds_enhancement::{
-    old_vm::{
-        history_recorder::{
-            AppDataFrameManagerWithHistory, HashMapHistoryEvent, HistoryEnabled, HistoryMode,
-            HistoryRecorder, StorageWrapper, VectorHistoryEvent, WithHistory,
+use crate::{
+    glue::GlueInto,
+    vm_refunds_enhancement::{
+        old_vm::{
+            history_recorder::{
+                AppDataFrameManagerWithHistory, HashMapHistoryEvent, HistoryEnabled, HistoryMode,
+                HistoryRecorder, StorageWrapper, VectorHistoryEvent, WithHistory,
+            },
+            oracles::OracleWithHistory,
         },
-        oracles::OracleWithHistory,
+        utils::logs::StorageLogQuery,
     },
-    utils::logs::StorageLogQuery,
 };
 
 // While the storage does not support different shards, it was decided to write the
@@ -57,6 +60,9 @@ pub struct StorageOracle<S: WriteStorage, H: HistoryMode> {
 
     // Storage refunds that oracle has returned in `estimate_refunds_for_write`.
     pub(crate) returned_refunds: HistoryRecorder<Vec<u32>, H>,
+
+    // Keeps track of storage keys that were ever read.
+    pub(crate) read_keys: HistoryRecorder<HashMap<StorageKey, ()>, HistoryEnabled>,
 }
 
 impl<S: WriteStorage> OracleWithHistory for StorageOracle<S, HistoryEnabled> {
@@ -67,6 +73,7 @@ impl<S: WriteStorage> OracleWithHistory for StorageOracle<S, HistoryEnabled> {
         self.paid_changes.rollback_to_timestamp(timestamp);
         self.initial_values.rollback_to_timestamp(timestamp);
         self.returned_refunds.rollback_to_timestamp(timestamp);
+        self.read_keys.rollback_to_timestamp(timestamp);
     }
 }
 
@@ -79,6 +86,7 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
             paid_changes: Default::default(),
             initial_values: Default::default(),
             returned_refunds: Default::default(),
+            read_keys: Default::default(),
         }
     }
 
@@ -89,6 +97,7 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
         self.paid_changes.delete_history();
         self.initial_values.delete_history();
         self.returned_refunds.delete_history();
+        self.read_keys.delete_history();
     }
 
     fn is_storage_key_free(&self, key: &StorageKey) -> bool {
@@ -96,15 +105,27 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
             || *key == storage_key_for_eth_balance(&BOOTLOADER_ADDRESS)
     }
 
+    fn set_initial_value(&mut self, storage_key: &StorageKey, value: U256, timestamp: Timestamp) {
+        if !self.initial_values.inner().contains_key(storage_key) {
+            self.initial_values.insert(*storage_key, value, timestamp);
+        }
+    }
+
     pub fn read_value(&mut self, mut query: LogQuery) -> LogQuery {
         let key = triplet_to_storage_key(query.shard_id, query.address, query.key);
+
+        if !self.read_keys.inner().contains_key(&key) {
+            self.read_keys.insert(key, (), query.timestamp);
+        }
         let current_value = self.storage.read_from_storage(&key);
 
         query.read_value = current_value;
 
+        self.set_initial_value(&key, current_value, query.timestamp);
+
         self.frames_stack.push_forward(
             Box::new(StorageLogQuery {
-                log_query: query,
+                log_query: query.glue_into(),
                 log_type: StorageLogQueryType::Read,
             }),
             query.timestamp,

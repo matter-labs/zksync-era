@@ -46,6 +46,7 @@ pub struct StorageOracle<S: WriteStorage, H: HistoryMode> {
     // to cover this slot.
     // `paid_changes` history is necessary
     pub(crate) paid_changes: HistoryRecorder<HashMap<StorageKey, u32>, HistoryEnabled>,
+    pub(crate) read_keys: HistoryRecorder<HashMap<StorageKey, ()>, HistoryEnabled>,
 }
 
 impl<S: WriteStorage> OracleWithHistory for StorageOracle<S, HistoryEnabled> {

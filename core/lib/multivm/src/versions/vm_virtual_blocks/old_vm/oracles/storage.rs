@@ -13,12 +13,15 @@ use zksync_types::{
 use zksync_utils::u256_to_h256;
 
 use super::OracleWithHistory;
-use crate::vm_virtual_blocks::{
-    old_vm::history_recorder::{
-        AppDataFrameManagerWithHistory, HashMapHistoryEvent, HistoryEnabled, HistoryMode,
-        HistoryRecorder, StorageWrapper, WithHistory,
+use crate::{
+    glue::GlueInto,
+    vm_virtual_blocks::{
+        old_vm::history_recorder::{
+            AppDataFrameManagerWithHistory, HashMapHistoryEvent, HistoryEnabled, HistoryMode,
+            HistoryRecorder, StorageWrapper, WithHistory,
+        },
+        utils::logs::StorageLogQuery,
     },
-    utils::logs::StorageLogQuery,
 };
 
 // While the storage does not support different shards, it was decided to write the
@@ -45,6 +48,12 @@ pub struct StorageOracle<S: WriteStorage, H: HistoryMode> {
     // to cover this slot.
     // `paid_changes` history is necessary
     pub(crate) paid_changes: HistoryRecorder<HashMap<StorageKey, u32>, HistoryEnabled>,
+    // The map that contains all the first values read from storage for each slot.
+    // While formally it does not have to be capable of rolling back, we still do it to avoid memory bloat
+    // for unused slots.
+    pub(crate) initial_values: HistoryRecorder<HashMap<StorageKey, U256>, H>,
+    // Keeps track of storage keys that were ever read.
+    pub(crate) read_keys: HistoryRecorder<HashMap<StorageKey, ()>, HistoryEnabled>,
 }
 
 impl<S: WriteStorage> OracleWithHistory for StorageOracle<S, HistoryEnabled> {
@@ -52,6 +61,8 @@ impl<S: WriteStorage> OracleWithHistory for StorageOracle<S, HistoryEnabled> {
         self.frames_stack.rollback_to_timestamp(timestamp);
         self.storage.rollback_to_timestamp(timestamp);
         self.paid_changes.rollback_to_timestamp(timestamp);
+        self.read_keys.rollback_to_timestamp(timestamp);
+        self.initial_values.rollback_to_timestamp(timestamp);
     }
 }
 
@@ -61,6 +72,8 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
             storage: HistoryRecorder::from_inner(StorageWrapper::new(storage)),
             frames_stack: Default::default(),
             paid_changes: Default::default(),
+            read_keys: Default::default(),
+            initial_values: Default::default(),
         }
     }
 
@@ -68,6 +81,8 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
         self.frames_stack.delete_history();
         self.storage.delete_history();
         self.paid_changes.delete_history();
+        self.read_keys.delete_history();
+        self.initial_values.delete_history();
     }
 
     fn is_storage_key_free(&self, key: &StorageKey) -> bool {
@@ -75,15 +90,27 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
             || *key == storage_key_for_eth_balance(&BOOTLOADER_ADDRESS)
     }
 
+    fn set_initial_value(&mut self, storage_key: &StorageKey, value: U256, timestamp: Timestamp) {
+        if !self.initial_values.inner().contains_key(storage_key) {
+            self.initial_values.insert(*storage_key, value, timestamp);
+        }
+    }
+
     pub fn read_value(&mut self, mut query: LogQuery) -> LogQuery {
         let key = triplet_to_storage_key(query.shard_id, query.address, query.key);
+
+        if !self.read_keys.inner().contains_key(&key) {
+            self.read_keys.insert(key, (), query.timestamp);
+        }
         let current_value = self.storage.read_from_storage(&key);
 
         query.read_value = current_value;
 
+        self.set_initial_value(&key, current_value, query.timestamp);
+
         self.frames_stack.push_forward(
             Box::new(StorageLogQuery {
-                log_query: query,
+                log_query: query.glue_into(),
                 log_type: StorageLogQueryType::Read,
             }),
             query.timestamp,

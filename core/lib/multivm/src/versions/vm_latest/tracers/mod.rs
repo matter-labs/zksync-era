@@ -6,7 +6,6 @@ pub(crate) use result_tracer::ResultTracer;
 
 pub(crate) mod circuits_tracer;
 pub(crate) mod default_tracers;
-pub(crate) mod prestate_tracer;
 pub(crate) mod pubdata_tracer;
 pub(crate) mod refunds;
 pub(crate) mod result_tracer;

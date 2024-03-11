@@ -6,6 +6,7 @@ use zksync_types::{utils::deployed_address_create, Execute, U256};
 
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
+    tracers::PrestateTracer,
     vm_latest::{
         constants::BLOCK_GAS_LIMIT,
         tests::{tester::VmTesterBuilder, utils::read_simple_transfer_contract},
@@ -37,10 +38,7 @@ fn test_prestate_tracer() {
 
     let contract_address = vm.test_contract.unwrap();
     let prestate_tracer_result = Arc::new(OnceCell::default());
-    let prestate_tracer = crate::vm_latest::tracers::prestate_tracer::PrestateTracer::new(
-        false,
-        prestate_tracer_result.clone(),
-    );
+    let prestate_tracer = PrestateTracer::new(false, prestate_tracer_result.clone());
     let tracer_ptr = prestate_tracer.into_tracer_pointer();
     vm.vm.inspect(tracer_ptr.into(), VmExecutionMode::Batch);
 
@@ -109,10 +107,7 @@ fn test_prestate_tracer_diff_mode() {
     vm.vm
         .push_transaction(account.get_l2_tx_for_execute(tx1, None));
     let prestate_tracer_result = Arc::new(OnceCell::default());
-    let prestate_tracer = crate::vm_latest::tracers::prestate_tracer::PrestateTracer::new(
-        true,
-        prestate_tracer_result.clone(),
-    );
+    let prestate_tracer = PrestateTracer::new(true, prestate_tracer_result.clone());
     let tracer_ptr = prestate_tracer.into_tracer_pointer();
     vm.vm
         .inspect(tracer_ptr.into(), VmExecutionMode::Bootloader);

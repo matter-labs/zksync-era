@@ -1,82 +1,22 @@
-use std::{collections::HashMap, fmt, rc::Rc, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
 use once_cell::sync::OnceCell;
-use zk_evm_1_4_1::tracing::{BeforeExecutionData, VmLocalStateData};
+use zk_evm_1_3_3::tracing::{BeforeExecutionData, VmLocalStateData};
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{
     get_code_key, get_nonce_key, web3::signing::keccak256, AccountTreeId, Address, StorageKey,
-    StorageValue, H256, L2_ETH_TOKEN_ADDRESS, U256,
+    StorageValue, H256, L2_ETH_TOKEN_ADDRESS,
 };
 use zksync_utils::{address_to_h256, h256_to_u256};
 
+use super::{Account, PrestateTracer, State};
 use crate::{
-    interface::{dyn_tracers::vm_1_4_1::DynTracer, tracer::TracerExecutionStatus},
-    vm_latest::{
-        self,
-        bootloader_state::BootloaderState,
-        old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},
-        tracers::traits::VmTracer,
-        types::internals::ZkSyncVmState,
+    interface::dyn_tracers::vm_1_3_3::DynTracer,
+    vm_virtual_blocks::{
+        BootloaderState, ExecutionEndTracer, ExecutionProcessing, HistoryMode, SimpleMemory,
+        ZkSyncVmState,
     },
 };
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Account {
-    pub balance: Option<U256>,
-    pub code: Option<U256>,
-    pub nonce: Option<U256>,
-    pub storage: Option<HashMap<H256, H256>>,
-}
-
-impl fmt::Display for Account {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "{{")?;
-        if let Some(balance) = self.balance {
-            writeln!(f, "  balance: \"0x{:x}\",", balance)?;
-        }
-        if let Some(code) = &self.code {
-            writeln!(f, "  code: \"{}\",", code)?;
-        }
-        if let Some(nonce) = self.nonce {
-            writeln!(f, "  nonce: {},", nonce)?;
-        }
-        if let Some(storage) = &self.storage {
-            writeln!(f, "  storage: {{")?;
-            for (key, value) in storage.iter() {
-                writeln!(f, "    {}: \"{}\",", key, value)?;
-            }
-            writeln!(f, "  }}")?;
-        }
-        writeln!(f, "}}")
-    }
-}
-
-type State = HashMap<Address, Account>;
-
-#[derive(Debug, Clone)]
-pub(crate) struct PrestateTracer {
-    pub pre: State,
-    pub post: State,
-    pub config: PrestateTracerConfig,
-    pub result: Arc<OnceCell<(State, State)>>,
-}
-
-impl PrestateTracer {
-    #[allow(dead_code)]
-    pub fn new(diff_mode: bool, result: Arc<OnceCell<(State, State)>>) -> Self {
-        Self {
-            pre: Default::default(),
-            post: Default::default(),
-            config: PrestateTracerConfig { diff_mode },
-            result,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct PrestateTracerConfig {
-    diff_mode: bool,
-}
 
 impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for PrestateTracer {
     fn before_execution(
@@ -127,7 +67,9 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for Prestate
     }
 }
 
-impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for PrestateTracer {
+impl<H: HistoryMode> ExecutionEndTracer<H> for PrestateTracer {}
+
+impl<S: WriteStorage, H: HistoryMode> ExecutionProcessing<S, H> for PrestateTracer {
     fn after_vm_execution(
         &mut self,
         state: &mut ZkSyncVmState<S, H>,
@@ -191,10 +133,7 @@ fn process_result(result: &Arc<OnceCell<(State, State)>>, mut pre: State, post: 
     result.set((pre, post)).unwrap();
 }
 
-fn get_account_data<
-    S: zksync_state::WriteStorage,
-    H: vm_latest::old_vm::history_recorder::HistoryMode,
->(
+fn get_account_data<S: zksync_state::WriteStorage, H: HistoryMode>(
     account_key: &StorageKey,
     state: &ZkSyncVmState<S, H>,
     storage: &HashMap<StorageKey, StorageValue>,
