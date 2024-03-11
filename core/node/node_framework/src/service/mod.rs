@@ -174,6 +174,7 @@ impl ZkStackService {
         for resource in self.resources.values_mut() {
             resource.stored_resource_wired();
         }
+        tracing::info!("Wiring complete");
 
         // Launch precondition checkers. Generally, if all of them succeed, we don't need to do anything.
         // If any of them fails, the node have to shut down.
@@ -237,7 +238,7 @@ impl ZkStackService {
                 true
             }
             Err(_panic_msg) => {
-                // tracing::error!("Task {resolved_task_name} panicked");  TODO
+                tracing::error!("One of the tasks panicked"); // TODO
                 true
             }
         };
