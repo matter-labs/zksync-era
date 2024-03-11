@@ -44,18 +44,18 @@ export interface BasePromptOptions {
 }
 
 // An init command that allows configuring and spinning up a new hyperchain network.
-async function initHyperchain() {
-    await announced('Initializing hyperchain creation', setupConfiguration());
+async function initHyperchain(runObservability: boolean) {
+    await announced('Initializing hyperchain creation', setupConfiguration(runObservability));
 
     const deployerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
     const governorPrivateKey = process.env.GOVERNOR_PRIVATE_KEY;
     const deployL2Weth = Boolean(process.env.DEPLOY_L2_WETH || false);
     const deployTestTokens = Boolean(process.env.DEPLOY_TEST_TOKENS || false);
-
     const governorAdrress = ethers.utils.computeAddress(governorPrivateKey!);
     const initArgs: InitArgs = {
         skipSubmodulesCheckout: false,
         skipEnvSetup: true,
+        runObservability: runObservability,
         governorPrivateKeyArgs: ['--private-key', governorPrivateKey],
         deployerL2ContractInput: {
             args: ['--private-key', deployerPrivateKey],
@@ -80,7 +80,7 @@ async function initHyperchain() {
     await announced('Start server', startServer());
 }
 
-async function setupConfiguration() {
+async function setupConfiguration(runObservability: boolean) {
     const CONFIGURE = 'Configure new chain';
     const USE_EXISTING = 'Use existing configuration';
     const questions: BasePromptOptions[] = [
@@ -95,7 +95,7 @@ async function setupConfiguration() {
     const results: any = await enquirer.prompt(questions);
 
     if (results.config === CONFIGURE) {
-        await announced('Setting hyperchain configuration', setHyperchainMetadata());
+        await announced('Setting hyperchain configuration', setHyperchainMetadata(runObservability));
         await announced('Validating information and balances to deploy hyperchain', checkReadinessToDeploy());
     } else {
         const envName = await selectHyperchainConfiguration();
@@ -104,7 +104,7 @@ async function setupConfiguration() {
     }
 }
 
-async function setHyperchainMetadata() {
+async function setHyperchainMetadata(runObservability: boolean) {
     const BASE_NETWORKS = [
         BaseNetwork.LOCALHOST,
         BaseNetwork.LOCALHOST_CUSTOM,
@@ -289,7 +289,7 @@ async function setHyperchainMetadata() {
         feeReceiver = undefined;
         feeReceiverAddress = richWallets[3].address;
 
-        await up('docker-compose-zkstack-common.yml');
+        await up(runObservability);
         await announced('Ensuring databases are up', db.wait({ server: true, prover: false }));
     }
 
@@ -343,6 +343,7 @@ async function setHyperchainMetadata() {
     // TODO: Generate url for data-compressor with selected region or fix env variable for keys location
     // PLA-595
     wrapEnvModify('DATABASE_URL', databaseUrl);
+    wrapEnvModify('DATABASE_PROVER_URL', databaseProverUrl);
     wrapEnvModify('ETH_CLIENT_CHAIN_ID', l1Id.toString());
     wrapEnvModify('ETH_CLIENT_WEB3_URL', l1Rpc);
     wrapEnvModify('CHAIN_ETH_NETWORK', getL1Name(results.l1Chain));
@@ -801,6 +802,7 @@ async function configDemoHyperchain(cmd: Command) {
     const initArgs: InitArgs = {
         skipSubmodulesCheckout: false,
         skipEnvSetup: cmd.skipEnvSetup,
+        runObservability: false,
         governorPrivateKeyArgs: ['--private-key', governorPrivateKey],
         deployerL2ContractInput: {
             args: ['--private-key', deployerPrivateKey],
@@ -815,7 +817,7 @@ async function configDemoHyperchain(cmd: Command) {
     };
 
     if (!cmd.skipEnvSetup) {
-        await up();
+        await up(initArgs.runObservability);
     }
     await init(initArgs);
 
@@ -865,8 +867,11 @@ export const initHyperchainCommand = new Command('stack')
 
 initHyperchainCommand
     .command('init')
+    .option('--run-observability')
     .description('Wizard for hyperchain creation/configuration')
-    .action(initHyperchain);
+    .action(async (cmd: Command) => {
+        await initHyperchain(cmd.runObservability);
+    });
 initHyperchainCommand
     .command('docker-setup')
     .option('--custom-docker-org <value>', 'Custom organization name for the docker images')

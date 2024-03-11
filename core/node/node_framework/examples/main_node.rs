@@ -6,12 +6,18 @@ use anyhow::Context;
 use zksync_config::{
     configs::{
         chain::{MempoolConfig, NetworkConfig, OperationsManagerConfig, StateKeeperConfig},
-        ObservabilityConfig,
+        ObservabilityConfig, ProofDataHandlerConfig,
     },
-    ApiConfig, ContractsConfig, DBConfig, ETHClientConfig, ETHWatchConfig, GasAdjusterConfig,
-    ObjectStoreConfig, PostgresConfig,
+    ApiConfig, ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig, ETHWatchConfig,
+    GasAdjusterConfig, ObjectStoreConfig, PostgresConfig,
 };
-use zksync_core::metadata_calculator::MetadataCalculatorConfig;
+use zksync_core::{
+    api_server::{
+        tx_sender::{ApiContracts, TxSenderConfig},
+        web3::{state::InternalApiConfig, Namespace},
+    },
+    metadata_calculator::MetadataCalculatorConfig,
+};
 use zksync_env_config::FromEnv;
 use zksync_node_framework::{
     implementations::layers::{
@@ -21,10 +27,17 @@ use zksync_node_framework::{
         metadata_calculator::MetadataCalculatorLayer,
         object_store::ObjectStoreLayer,
         pools_layer::PoolsLayerBuilder,
+        proof_data_handler::ProofDataHandlerLayer,
         query_eth_client::QueryEthClientLayer,
         state_keeper::{
             main_batch_executor::MainBatchExecutorLayer, mempool_io::MempoolIOLayer,
             StateKeeperLayer,
+        },
+        web3_api::{
+            server::{Web3ServerLayer, Web3ServerOptionalConfig},
+            tree_api_client::TreeApiClientLayer,
+            tx_sender::{PostgresStorageCachesConfig, TxSenderLayer},
+            tx_sink::TxSinkLayer,
         },
     },
     service::ZkStackService,
@@ -62,7 +75,12 @@ impl MainNodeBuilder {
     fn add_fee_input_layer(mut self) -> anyhow::Result<Self> {
         let gas_adjuster_config = GasAdjusterConfig::from_env()?;
         let state_keeper_config = StateKeeperConfig::from_env()?;
-        let fee_input_layer = SequencerFeeInputLayer::new(gas_adjuster_config, state_keeper_config);
+        let eth_sender_config = ETHSenderConfig::from_env()?;
+        let fee_input_layer = SequencerFeeInputLayer::new(
+            gas_adjuster_config,
+            state_keeper_config,
+            eth_sender_config.sender.pubdata_sending_mode,
+        );
         self.node.add_layer(fee_input_layer);
         Ok(self)
     }
@@ -111,9 +129,111 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
+    fn add_proof_data_handler_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(ProofDataHandlerLayer::new(
+            ProofDataHandlerConfig::from_env()?,
+            ContractsConfig::from_env()?,
+        ));
+        Ok(self)
+    }
+
     fn add_healthcheck_layer(mut self) -> anyhow::Result<Self> {
         let healthcheck_config = ApiConfig::from_env()?.healthcheck;
         self.node.add_layer(HealthCheckLayer(healthcheck_config));
+        Ok(self)
+    }
+
+    fn add_tx_sender_layer(mut self) -> anyhow::Result<Self> {
+        let state_keeper_config = StateKeeperConfig::from_env()?;
+        let rpc_config = ApiConfig::from_env()?.web3_json_rpc;
+        let network_config = NetworkConfig::from_env()?;
+        let postgres_storage_caches_config = PostgresStorageCachesConfig {
+            factory_deps_cache_size: rpc_config.factory_deps_cache_size() as u64,
+            initial_writes_cache_size: rpc_config.initial_writes_cache_size() as u64,
+            latest_values_cache_size: rpc_config.latest_values_cache_size() as u64,
+        };
+
+        // On main node we always use master pool sink.
+        self.node.add_layer(TxSinkLayer::MasterPoolSink);
+        self.node.add_layer(TxSenderLayer::new(
+            TxSenderConfig::new(
+                &state_keeper_config,
+                &rpc_config,
+                network_config.zksync_network_id,
+            ),
+            postgres_storage_caches_config,
+            rpc_config.vm_concurrency_limit(),
+            ApiContracts::load_from_disk(), // TODO (BFT-138): Allow to dynamically reload API contracts
+        ));
+        Ok(self)
+    }
+
+    fn add_tree_api_client_layer(mut self) -> anyhow::Result<Self> {
+        let rpc_config = ApiConfig::from_env()?.web3_json_rpc;
+        self.node
+            .add_layer(TreeApiClientLayer::http(rpc_config.tree_api_url));
+        Ok(self)
+    }
+
+    fn add_http_web3_api_layer(mut self) -> anyhow::Result<Self> {
+        let rpc_config = ApiConfig::from_env()?.web3_json_rpc;
+        let contracts_config = ContractsConfig::from_env()?;
+        let network_config = NetworkConfig::from_env()?;
+        let state_keeper_config = StateKeeperConfig::from_env()?;
+        let with_debug_namespace = state_keeper_config.save_call_traces;
+
+        let mut namespaces = Namespace::DEFAULT.to_vec();
+        if with_debug_namespace {
+            namespaces.push(Namespace::Debug)
+        }
+        namespaces.push(Namespace::Snapshots);
+
+        let optional_config = Web3ServerOptionalConfig {
+            namespaces: Some(namespaces),
+            filters_limit: Some(rpc_config.filters_limit()),
+            subscriptions_limit: Some(rpc_config.subscriptions_limit()),
+            batch_request_size_limit: Some(rpc_config.max_batch_request_size()),
+            response_body_size_limit: Some(rpc_config.max_response_body_size()),
+            ..Default::default()
+        };
+        self.node.add_layer(Web3ServerLayer::http(
+            rpc_config.http_port,
+            InternalApiConfig::new(&network_config, &rpc_config, &contracts_config),
+            optional_config,
+        ));
+
+        Ok(self)
+    }
+
+    fn add_ws_web3_api_layer(mut self) -> anyhow::Result<Self> {
+        let rpc_config = ApiConfig::from_env()?.web3_json_rpc;
+        let contracts_config = ContractsConfig::from_env()?;
+        let network_config = NetworkConfig::from_env()?;
+        let state_keeper_config = StateKeeperConfig::from_env()?;
+        let with_debug_namespace = state_keeper_config.save_call_traces;
+
+        let mut namespaces = Namespace::DEFAULT.to_vec();
+        if with_debug_namespace {
+            namespaces.push(Namespace::Debug)
+        }
+        namespaces.push(Namespace::Snapshots);
+
+        let optional_config = Web3ServerOptionalConfig {
+            namespaces: Some(namespaces),
+            filters_limit: Some(rpc_config.filters_limit()),
+            subscriptions_limit: Some(rpc_config.subscriptions_limit()),
+            batch_request_size_limit: Some(rpc_config.max_batch_request_size()),
+            response_body_size_limit: Some(rpc_config.max_response_body_size()),
+            websocket_requests_per_minute_limit: Some(
+                rpc_config.websocket_requests_per_minute_limit(),
+            ),
+        };
+        self.node.add_layer(Web3ServerLayer::ws(
+            rpc_config.ws_port,
+            InternalApiConfig::new(&network_config, &rpc_config, &contracts_config),
+            optional_config,
+        ));
+
         Ok(self)
     }
 
@@ -141,7 +261,12 @@ fn main() -> anyhow::Result<()> {
         .add_metadata_calculator_layer()?
         .add_state_keeper_layer()?
         .add_eth_watch_layer()?
+        .add_proof_data_handler_layer()?
         .add_healthcheck_layer()?
+        .add_tx_sender_layer()?
+        .add_tree_api_client_layer()?
+        .add_http_web3_api_layer()?
+        .add_ws_web3_api_layer()?
         .build()
         .run()?;
 

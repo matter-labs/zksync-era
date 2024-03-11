@@ -72,6 +72,13 @@ impl BlockReverterEthConfig {
     }
 }
 
+/// Role of the node.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum NodeRole {
+    Main,
+    External,
+}
+
 /// This struct is used to perform a rollback of the state.
 /// Rollback is a rare event of manual intervention, when the node operator
 /// decides to revert some of the not yet finalized batches for some reason
@@ -87,6 +94,9 @@ impl BlockReverterEthConfig {
 /// - State of the Ethereum contract (if the block was committed)
 #[derive(Debug)]
 pub struct BlockReverter {
+    /// It affects the interactions with the consensus state.
+    /// This distinction will be removed once consensus genesis is moved to the L1 state.
+    node_role: NodeRole,
     state_keeper_cache_path: String,
     merkle_tree_path: String,
     eth_config: Option<BlockReverterEthConfig>,
@@ -96,6 +106,7 @@ pub struct BlockReverter {
 
 impl BlockReverter {
     pub fn new(
+        node_role: NodeRole,
         state_keeper_cache_path: String,
         merkle_tree_path: String,
         eth_config: Option<BlockReverterEthConfig>,
@@ -103,6 +114,7 @@ impl BlockReverter {
         executed_batches_revert_mode: L1ExecutedBatchesRevert,
     ) -> Self {
         Self {
+            node_role,
             state_keeper_cache_path,
             merkle_tree_path,
             eth_config,
@@ -224,6 +236,7 @@ impl BlockReverter {
     }
 
     /// Reverts data in the Postgres database.
+    /// If `node_role` is `Main` a consensus hard-fork is performed.
     async fn rollback_postgres(&self, last_l1_batch_to_keep: L1BatchNumber) {
         tracing::info!("rolling back postgres data...");
         let mut storage = self.connection_pool.access_storage().await.unwrap();
@@ -261,8 +274,8 @@ impl BlockReverter {
         transaction
             .factory_deps_dal()
             .rollback_factory_deps(last_miniblock_to_keep)
-            .await;
-
+            .await
+            .expect("Failed rolling back factory dependencies");
         tracing::info!("rolling back storage...");
         #[allow(deprecated)]
         transaction
@@ -270,11 +283,16 @@ impl BlockReverter {
             .rollback_storage(last_miniblock_to_keep)
             .await
             .expect("failed rolling back storage");
-
         tracing::info!("rolling back storage logs...");
         transaction
             .storage_logs_dal()
             .rollback_storage_logs(last_miniblock_to_keep)
+            .await
+            .unwrap();
+        tracing::info!("rolling back eth_txs...");
+        transaction
+            .eth_sender_dal()
+            .delete_eth_txs(last_l1_batch_to_keep)
             .await
             .unwrap();
         tracing::info!("rolling back l1 batches...");
@@ -294,7 +312,10 @@ impl BlockReverter {
             .delete_miniblocks(last_miniblock_to_keep)
             .await
             .unwrap();
-
+        if self.node_role == NodeRole::Main {
+            tracing::info!("performing consensus hard fork");
+            transaction.consensus_dal().fork().await.unwrap();
+        }
         transaction.commit().await.unwrap();
     }
 

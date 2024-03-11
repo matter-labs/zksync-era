@@ -1,11 +1,17 @@
-use zksync_types::{ProtocolVersionId, MAX_PUBDATA_PER_L1_BATCH};
+use zksync_types::ProtocolVersionId;
 
 use crate::state_keeper::seal_criteria::{
     SealCriterion, SealData, SealResolution, StateKeeperConfig,
 };
 
 #[derive(Debug)]
-pub struct PubDataBytesCriterion;
+pub struct PubDataBytesCriterion {
+    /// This value changes based on the DA solution.
+    /// If we use calldata, the limit is `128kb`
+    /// If we use blobs then the value can be up to `252kb`, up to `126kb` will fill 1 blob,
+    /// more than that will switch over to 2 blobs.
+    pub max_pubdata_per_batch: u64,
+}
 
 impl SealCriterion for PubDataBytesCriterion {
     fn should_seal(
@@ -17,7 +23,7 @@ impl SealCriterion for PubDataBytesCriterion {
         tx_data: &SealData,
         protocol_version: ProtocolVersionId,
     ) -> SealResolution {
-        let max_pubdata_per_l1_batch = MAX_PUBDATA_PER_L1_BATCH as usize;
+        let max_pubdata_per_l1_batch = self.max_pubdata_per_batch as usize;
         let reject_bound =
             (max_pubdata_per_l1_batch as f64 * config.reject_tx_at_eth_params_percentage).round();
         let include_and_seal_bound =
@@ -62,13 +68,16 @@ mod tests {
         let config = StateKeeperConfig {
             reject_tx_at_eth_params_percentage: 0.95,
             close_block_at_eth_params_percentage: 0.95,
+            max_pubdata_per_batch: 100000,
             ..Default::default()
         };
 
-        let criterion = PubDataBytesCriterion;
+        let criterion = PubDataBytesCriterion {
+            max_pubdata_per_batch: 100000,
+        };
 
         let block_execution_metrics = ExecutionMetrics {
-            l2_l1_long_messages: (MAX_PUBDATA_PER_L1_BATCH as f64
+            l2_l1_long_messages: (config.max_pubdata_per_batch as f64
                 * config.close_block_at_eth_params_percentage
                 - 1.0)
                 .round() as usize,
@@ -89,7 +98,7 @@ mod tests {
         assert_eq!(empty_block_resolution, SealResolution::NoSeal);
 
         let block_execution_metrics = ExecutionMetrics {
-            l2_l1_long_messages: (MAX_PUBDATA_PER_L1_BATCH as f64
+            l2_l1_long_messages: (config.max_pubdata_per_batch as f64
                 * config.close_block_at_eth_params_percentage
                 + 1f64)
                 .round() as usize,
@@ -110,7 +119,7 @@ mod tests {
         assert_eq!(full_block_resolution, SealResolution::IncludeAndSeal);
 
         let block_execution_metrics = ExecutionMetrics {
-            l2_l1_long_messages: MAX_PUBDATA_PER_L1_BATCH as usize + 1,
+            l2_l1_long_messages: config.max_pubdata_per_batch as usize + 1,
             ..ExecutionMetrics::default()
         };
         let full_block_resolution = criterion.should_seal(
