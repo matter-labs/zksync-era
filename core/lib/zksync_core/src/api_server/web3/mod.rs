@@ -1,4 +1,4 @@
-use std::{net::SocketAddr, num::NonZeroU32, sync::Arc, time::Duration};
+use std::{collections::HashSet, net::SocketAddr, num::NonZeroU32, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use chrono::NaiveDateTime;
@@ -25,6 +25,7 @@ use zksync_web3_decl::{
 };
 
 use self::{
+    backend_jsonrpsee::{LimitMiddleware, MetadataMiddleware, MethodTracer},
     metrics::API_METRICS,
     namespaces::{
         DebugNamespace, EnNamespace, EthNamespace, NetNamespace, SnapshotsNamespace, Web3Namespace,
@@ -36,9 +37,8 @@ use self::{
 use crate::{
     api_server::{
         execution_sandbox::{BlockStartInfo, VmConcurrencyBarrier},
-        tree::TreeApiHttpClient,
+        tree::TreeApiClient,
         tx_sender::TxSender,
-        web3::backend_jsonrpsee::batch_limiter_middleware::LimitMiddleware,
     },
     sync_layer::SyncState,
     utils::wait_for_l1_batch,
@@ -115,7 +115,7 @@ struct OptionalApiParams {
     batch_request_size_limit: Option<usize>,
     response_body_size_limit: Option<usize>,
     websocket_requests_per_minute_limit: Option<NonZeroU32>,
-    tree_api_url: Option<String>,
+    tree_api: Option<Arc<dyn TreeApiClient>>,
     pub_sub_events_sender: Option<mpsc::UnboundedSender<PubSubEvent>>,
 }
 
@@ -131,6 +131,7 @@ pub struct ApiServer {
     tx_sender: TxSender,
     polling_interval: Duration,
     namespaces: Vec<Namespace>,
+    method_tracer: Arc<MethodTracer>,
     optional: OptionalApiParams,
 }
 
@@ -146,6 +147,7 @@ pub struct ApiBuilder {
     // Optional params that may or may not be set using builder methods. We treat `namespaces`
     // specially because we want to output a warning if they are not set.
     namespaces: Option<Vec<Namespace>>,
+    method_tracer: Arc<MethodTracer>,
     optional: OptionalApiParams,
 }
 
@@ -161,6 +163,7 @@ impl ApiBuilder {
             transport: None,
             tx_sender: None,
             namespaces: None,
+            method_tracer: Arc::new(MethodTracer::default()),
             optional: OptionalApiParams::default(),
         }
     }
@@ -238,14 +241,21 @@ impl ApiBuilder {
         self
     }
 
-    pub fn with_tree_api(mut self, tree_api_url: Option<String>) -> Self {
-        self.optional.tree_api_url = tree_api_url;
+    pub fn with_tree_api(mut self, tree_api: Arc<dyn TreeApiClient>) -> Self {
+        tracing::info!("Using tree API client: {tree_api:?}");
+        self.optional.tree_api = Some(tree_api);
         self
     }
 
     #[cfg(test)]
     fn with_pub_sub_events(mut self, sender: mpsc::UnboundedSender<PubSubEvent>) -> Self {
         self.optional.pub_sub_events_sender = Some(sender);
+        self
+    }
+
+    #[cfg(test)]
+    fn with_method_tracer(mut self, method_tracer: Arc<MethodTracer>) -> Self {
+        self.method_tracer = method_tracer;
         self
     }
 }
@@ -273,6 +283,7 @@ impl ApiBuilder {
                 );
                 Namespace::DEFAULT.to_vec()
             }),
+            method_tracer: self.method_tracer,
             optional: self.optional,
         })
     }
@@ -300,6 +311,7 @@ impl ApiServer {
         };
 
         Ok(RpcState {
+            current_method: self.method_tracer,
             installed_filters,
             connection_pool: self.pool,
             tx_sender: self.tx_sender,
@@ -307,10 +319,7 @@ impl ApiServer {
             api_config: self.config,
             start_info,
             last_sealed_miniblock,
-            tree_api: self
-                .optional
-                .tree_api_url
-                .map(|url| TreeApiHttpClient::new(url.as_str())),
+            tree_api: self.optional.tree_api,
         })
     }
 
@@ -512,10 +521,16 @@ impl ApiServer {
         let subscriptions_limit = self.optional.subscriptions_limit;
         let vm_barrier = self.optional.vm_barrier.clone();
         let health_updater = self.health_updater.clone();
+        let method_tracer = self.method_tracer.clone();
 
         let rpc = self
             .build_rpc_module(pub_sub, last_sealed_miniblock)
             .await?;
+        let registered_method_names = Arc::new(rpc.method_names().collect::<HashSet<_>>());
+        tracing::debug!(
+            "Built RPC module for {transport_str} server with {} methods: {registered_method_names:?}",
+            registered_method_names.len()
+        );
 
         // Setup CORS.
         let cors = is_http.then(|| {
@@ -544,11 +559,24 @@ impl ApiServer {
             .then_some(subscriptions_limit)
             .flatten()
             .unwrap_or(5_000);
+
+        #[allow(clippy::let_and_return)] // simplifies conditional compilation
+        let rpc_middleware = RpcServiceBuilder::new()
+            .layer_fn(move |svc| {
+                MetadataMiddleware::new(svc, registered_method_names.clone(), method_tracer.clone())
+            })
+            .option_layer((!is_http).then(|| {
+                tower::layer::layer_fn(move |svc| {
+                    LimitMiddleware::new(svc, websocket_requests_per_minute_limit)
+                })
+            }));
+
         let server_builder = ServerBuilder::default()
             .max_connections(max_connections as u32)
             .set_http_middleware(middleware)
             .max_response_body_size(response_body_size_limit)
-            .set_batch_request_config(batch_request_config);
+            .set_batch_request_config(batch_request_config)
+            .set_rpc_middleware(rpc_middleware);
 
         let (local_addr, server_handle) = if is_http {
             // HTTP-specific settings
@@ -559,11 +587,8 @@ impl ApiServer {
                 .context("Failed building HTTP JSON-RPC server")?;
             (server.local_addr(), server.start(rpc))
         } else {
-            // WS specific settings
+            // WS-specific settings
             let server = server_builder
-                .set_rpc_middleware(RpcServiceBuilder::new().layer_fn(move |a| {
-                    LimitMiddleware::new(a, websocket_requests_per_minute_limit)
-                }))
                 .set_id_provider(EthSubscriptionIdProvider)
                 .build(addr)
                 .await

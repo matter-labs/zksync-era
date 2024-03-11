@@ -1,81 +1,79 @@
-use std::ops::Range;
-
 use anyhow::Context as _;
+use rand::{
+    distributions::{Distribution, Standard},
+    Rng,
+};
+use test_casing::test_casing;
 use tracing::Instrument as _;
 use zksync_concurrency::{ctx, scope};
-use zksync_consensus_executor::testonly::{connect_full_node, ValidatorNode};
+use zksync_config::testonly::{Gen, RandomConfig};
+use zksync_consensus_executor as executor;
+use zksync_consensus_network as network;
+use zksync_consensus_network::testonly::{new_configs, new_fullnode};
+use zksync_consensus_roles::{node, validator::testonly::Setup};
 use zksync_consensus_storage as storage;
 use zksync_consensus_storage::PersistentBlockStore as _;
-use zksync_consensus_utils::no_copy::NoCopy;
-use zksync_dal::{connection::TestTemplate, ConnectionPool};
-use zksync_protobuf::testonly::test_encode_random;
+use zksync_protobuf_config::testonly::{encode_decode, FmtConv};
 
 use super::*;
-use crate::consensus::storage::CtxStorage;
-
-async fn make_blocks(
-    ctx: &ctx::Ctx,
-    pool: &ConnectionPool,
-    mut range: Range<validator::BlockNumber>,
-) -> ctx::Result<Vec<validator::FinalBlock>> {
-    let rng = &mut ctx.rng();
-    let mut storage = CtxStorage::access(ctx, pool).await.wrap("access()")?;
-    let mut blocks: Vec<validator::FinalBlock> = vec![];
-    while !range.is_empty() {
-        let payload = storage
-            .payload(ctx, range.start)
-            .await
-            .wrap(range.start)?
-            .context("payload not found")?
-            .encode();
-        let header = match blocks.last().as_ref() {
-            Some(parent) => validator::BlockHeader::new(parent.header(), payload.hash()),
-            None => validator::BlockHeader::genesis(payload.hash(), range.start),
-        };
-        blocks.push(validator::FinalBlock {
-            payload,
-            justification: validator::testonly::make_justification(
-                rng,
-                &header,
-                validator::ProtocolVersion::EARLIEST,
-            ),
-        });
-        range.start = range.start.next();
-    }
-    Ok(blocks)
-}
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_validator_block_store() {
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::RealClock);
     let rng = &mut ctx.rng();
-    let pool = ConnectionPool::test_pool().await;
+    let store = testonly::new_store(false).await;
 
     // Fill storage with unsigned miniblocks.
     // Fetch a suffix of blocks that we will generate (fake) certs for.
     let want = scope::run!(ctx, |ctx, s| async {
         // Start state keeper.
-        let (mut sk, runner) = testonly::StateKeeper::new(pool.clone()).await?;
+        let (mut sk, runner) = testonly::StateKeeper::new(ctx, store.clone()).await?;
         s.spawn_bg(runner.run(ctx));
         sk.push_random_blocks(rng, 10).await;
-        sk.wait_for_miniblocks(ctx).await?;
-        let range = Range {
-            start: validator::BlockNumber(4),
-            end: sk.last_block(),
+        store.wait_for_block(ctx, sk.last_block()).await?;
+        let fork = validator::Fork {
+            number: validator::ForkNumber(rng.gen()),
+            first_block: validator::BlockNumber(4),
+            first_parent: None,
         };
-        make_blocks(ctx, &sk.pool, range)
+        let mut setup = Setup::new_with_fork(rng, 3, fork.clone());
+        let mut conn = store.access(ctx).await.wrap("access()")?;
+        conn.try_update_genesis(ctx, &setup.genesis)
             .await
-            .context("make_blocks")
+            .wrap("try_update_genesis()")?;
+        for i in fork.first_block.0..sk.last_block().next().0 {
+            let i = validator::BlockNumber(i);
+            let payload = conn
+                .payload(ctx, i)
+                .await
+                .wrap(i)?
+                .with_context(|| format!("payload for {i:?} not found"))?
+                .encode();
+            setup.push_block(payload);
+        }
+        Ok(setup.blocks.clone())
     })
     .await
     .unwrap();
 
     // Insert blocks one by one and check the storage state.
     for (i, block) in want.iter().enumerate() {
-        let store = Store::new(pool.clone()).into_block_store();
+        let store = store.clone().into_block_store();
         store.store_next_block(ctx, block).await.unwrap();
         assert_eq!(want[..i + 1], storage::testonly::dump(ctx, &store).await);
+    }
+}
+
+fn executor_config(cfg: &network::Config) -> executor::Config {
+    executor::Config {
+        server_addr: *cfg.server_addr,
+        public_addr: cfg.public_addr,
+        max_payload_size: usize::MAX,
+        node_key: cfg.gossip.key.clone(),
+        gossip_dynamic_inbound_limit: cfg.gossip.dynamic_inbound_limit,
+        gossip_static_inbound: cfg.gossip.static_inbound.clone(),
+        gossip_static_outbound: cfg.gossip.static_outbound.clone(),
     }
 }
 
@@ -87,21 +85,21 @@ async fn test_validator() {
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(10.));
     let rng = &mut ctx.rng();
+    let setup = Setup::new(rng, 1);
+    let cfgs = new_configs(rng, &setup, 0);
 
     scope::run!(ctx, |ctx, s| async {
         // Start state keeper.
-        let pool = ConnectionPool::test_pool().await;
-        let (mut sk, runner) = testonly::StateKeeper::new(pool).await?;
+        let store = testonly::new_store(false).await;
+        let (mut sk, runner) = testonly::StateKeeper::new(ctx, store.clone()).await?;
         s.spawn_bg(runner.run(ctx));
 
         // Populate storage with a bunch of blocks.
         sk.push_random_blocks(rng, 5).await;
-        sk.wait_for_miniblocks(ctx)
+        store
+            .wait_for_block(ctx, sk.last_block())
             .await
             .context("sk.wait_for_miniblocks(<1st phase>)")?;
-
-        let cfg = ValidatorNode::new(&mut ctx.rng());
-        let validators = cfg.node.validators.clone();
 
         // Restart consensus actor a couple times, making it process a bunch of blocks each time.
         for iteration in 0..3 {
@@ -109,18 +107,18 @@ async fn test_validator() {
                 // Start consensus actor (in the first iteration it will select a genesis block and
                 // store a cert for it).
                 let cfg = MainNodeConfig {
-                    executor: cfg.node.clone(),
-                    validator: cfg.validator.clone(),
+                    executor: executor_config(&cfgs[0]),
+                    validator_key: setup.keys[0].clone(),
                 };
-                s.spawn_bg(cfg.run(ctx, sk.pool.clone()));
-                sk.store()
+                s.spawn_bg(cfg.run(ctx, store.clone()));
+                store
                     .wait_for_certificate(ctx, sk.last_block())
                     .await
                     .context("wait_for_certificate(<1st phase>)")?;
 
                 // Generate couple more blocks and wait for consensus to catch up.
                 sk.push_random_blocks(rng, 3).await;
-                sk.store()
+                store
                     .wait_for_certificate(ctx, sk.last_block())
                     .await
                     .context("wait_for_certificate(<2nd phase>)")?;
@@ -128,16 +126,16 @@ async fn test_validator() {
                 // Synchronously produce blocks one by one, and wait for consensus.
                 for _ in 0..2 {
                     sk.push_random_blocks(rng, 1).await;
-                    sk.store()
+                    store
                         .wait_for_certificate(ctx, sk.last_block())
                         .await
                         .context("wait_for_certificate(<3rd phase>)")?;
                 }
 
-                sk.store()
-                    .wait_for_blocks_and_verify(ctx, &validators, sk.last_block())
+                store
+                    .wait_for_certificates_and_verify(ctx, sk.last_block())
                     .await
-                    .context("wait_for_blocks_and_verify()")?;
+                    .context("wait_for_certificates_and_verify()")?;
                 Ok(())
             })
             .await
@@ -149,56 +147,34 @@ async fn test_validator() {
     .unwrap();
 }
 
-// Test running a validator node and a couple of full nodes (aka fetchers).
+// Test running a validator node and a couple of full nodes.
 // Validator is producing signed blocks and fetchers are expected to fetch
 // them directly or indirectly.
 #[tokio::test(flavor = "multi_thread")]
-async fn test_fetcher() {
-    const FETCHERS: usize = 2;
+async fn test_full_nodes() {
+    const NODES: usize = 2;
 
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(10.));
     let rng = &mut ctx.rng();
+    let setup = Setup::new(rng, 1);
+    let validator_cfgs = new_configs(rng, &setup, 0);
 
     // topology:
-    // validator <-> fetcher <-> fetcher <-> ...
-    let cfg = ValidatorNode::new(rng);
-    let validators = cfg.node.validators.clone();
-    let mut cfg = MainNodeConfig {
-        executor: cfg.node,
-        validator: cfg.validator,
-    };
-    let mut fetcher_cfgs = vec![connect_full_node(rng, &mut cfg.executor)];
-    while fetcher_cfgs.len() < FETCHERS {
-        let cfg = connect_full_node(rng, fetcher_cfgs.last_mut().unwrap());
-        fetcher_cfgs.push(cfg);
+    // validator <-> node <-> node <-> ...
+    let mut node_cfgs = vec![];
+    for _ in 0..NODES {
+        node_cfgs.push(new_fullnode(
+            rng,
+            node_cfgs.last().unwrap_or(&validator_cfgs[0]),
+        ));
     }
-    let fetcher_cfgs: Vec<_> = fetcher_cfgs
-        .into_iter()
-        .map(|executor| FetcherConfig { executor })
-        .collect();
-
-    // Create an initial database snapshot, which contains a cert for genesis block.
-    let pool = scope::run!(ctx, |ctx, s| async {
-        let pool = ConnectionPool::test_pool().await;
-        let (mut sk, runner) = testonly::StateKeeper::new(pool).await?;
-        s.spawn_bg(runner.run(ctx));
-        s.spawn_bg(cfg.clone().run(ctx, sk.pool.clone()));
-        sk.push_random_blocks(rng, 5).await;
-        sk.store()
-            .wait_for_certificate(ctx, sk.last_block())
-            .await?;
-        Ok(sk.pool)
-    })
-    .await
-    .unwrap();
-    let template = TestTemplate::freeze(pool).await.unwrap();
 
     // Run validator and fetchers in parallel.
     scope::run!(ctx, |ctx, s| async {
-        // Run validator.
-        let pool = template.create_db(4).await?.build().await?;
-        let (mut validator, runner) = testonly::StateKeeper::new(pool).await?;
+        let validator_store = testonly::new_store(false).await;
+        let (mut validator, runner) =
+            testonly::StateKeeper::new(ctx, validator_store.clone()).await?;
         s.spawn_bg(async {
             runner
                 .run(ctx)
@@ -206,38 +182,54 @@ async fn test_fetcher() {
                 .await
                 .context("validator")
         });
-        s.spawn_bg(cfg.run(ctx, validator.pool.clone()));
+        // Generate a couple of blocks, before initializing consensus genesis.
+        validator.push_random_blocks(rng, 5).await;
+        validator_store
+            .wait_for_block(ctx, validator.last_block())
+            .await
+            .unwrap();
 
-        // Run fetchers.
-        let mut fetchers = vec![];
-        for (i, cfg) in fetcher_cfgs.into_iter().enumerate() {
-            let i = NoCopy::from(i);
-            let pool = template.create_db(4).await?.build().await?;
-            let (fetcher, runner) = testonly::StateKeeper::new(pool).await?;
-            fetchers.push(fetcher.store());
+        // Run validator.
+        let cfg = MainNodeConfig {
+            executor: executor_config(&validator_cfgs[0]),
+            validator_key: setup.keys[0].clone(),
+        };
+        s.spawn_bg(cfg.run(ctx, validator_store.clone()));
+
+        // Run nodes.
+        let mut node_stores = vec![];
+        for (i, cfg) in node_cfgs.iter().enumerate() {
+            let i = ctx::NoCopy(i);
+            let store = testonly::new_store(false).await;
+            let (node, runner) = testonly::StateKeeper::new(ctx, store.clone()).await?;
+            node_stores.push(store.clone());
             s.spawn_bg(async {
                 let i = i;
                 runner
                     .run(ctx)
-                    .instrument(tracing::info_span!("fetcher", i = *i))
+                    .instrument(tracing::info_span!("node", i = *i))
                     .await
-                    .with_context(|| format!("fetcher{}", *i))
+                    .with_context(|| format!("node{}", *i))
             });
-            s.spawn_bg(cfg.run(ctx, fetcher.pool, fetcher.actions_sender));
+            s.spawn_bg(node.run_p2p_fetcher(
+                ctx,
+                validator.connect(ctx).await?,
+                executor_config(cfg),
+            ));
         }
 
         // Make validator produce blocks and wait for fetchers to get them.
+        // Note that block from before and after genesis have to be fetched.
         validator.push_random_blocks(rng, 5).await;
         let want_last = validator.last_block();
-        let want = validator
-            .store()
-            .wait_for_blocks_and_verify(ctx, &validators, want_last)
+        let want = validator_store
+            .wait_for_certificates_and_verify(ctx, want_last)
             .await?;
-        for fetcher in &fetchers {
+        for store in &node_stores {
             assert_eq!(
                 want,
-                fetcher
-                    .wait_for_blocks_and_verify(ctx, &validators, want_last)
+                store
+                    .wait_for_certificates_and_verify(ctx, want_last)
                     .await?
             );
         }
@@ -249,77 +241,166 @@ async fn test_fetcher() {
 
 // Test fetcher back filling missing certs.
 #[tokio::test(flavor = "multi_thread")]
-async fn test_fetcher_backfill_certs() {
+async fn test_p2p_fetcher_backfill_certs() {
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(10.));
     let rng = &mut ctx.rng();
+    let setup = Setup::new(rng, 1);
+    let validator_cfg = new_configs(rng, &setup, 0)[0].clone();
+    let node_cfg = executor_config(&new_fullnode(rng, &validator_cfg));
 
-    let cfg = ValidatorNode::new(rng);
-    let mut cfg = MainNodeConfig {
-        executor: cfg.node,
-        validator: cfg.validator,
-    };
-    let fetcher_cfg = FetcherConfig {
-        executor: connect_full_node(rng, &mut cfg.executor),
-    };
-
-    // Create an initial database snapshot, which contains some blocks: some with certs, some
-    // without.
-    let pool = scope::run!(ctx, |ctx, s| async {
-        let pool = ConnectionPool::test_pool().await;
-        let (mut sk, runner) = testonly::StateKeeper::new(pool).await?;
+    scope::run!(ctx, |ctx, s| async {
+        tracing::info!("Spawn validator.");
+        let validator_store = testonly::new_store(false).await;
+        let (mut validator, runner) =
+            testonly::StateKeeper::new(ctx, validator_store.clone()).await?;
         s.spawn_bg(runner.run(ctx));
+        s.spawn_bg(
+            MainNodeConfig {
+                executor: executor_config(&validator_cfg),
+                validator_key: setup.keys[0].clone(),
+            }
+            .run(ctx, validator_store.clone()),
+        );
+        let client = validator.connect(ctx).await?;
 
-        // Some blocks with certs.
+        let node_store = testonly::new_store(false).await;
+
+        tracing::info!("Run p2p fetcher.");
         scope::run!(ctx, |ctx, s| async {
-            s.spawn_bg(cfg.clone().run(ctx, sk.pool.clone()));
-            sk.push_random_blocks(rng, 5).await;
-            sk.store()
-                .wait_for_certificate(ctx, sk.last_block())
+            let (node, runner) = testonly::StateKeeper::new(ctx, node_store.clone()).await?;
+            s.spawn_bg(runner.run(ctx));
+            s.spawn_bg(node.run_p2p_fetcher(ctx, client.clone(), node_cfg.clone()));
+            validator.push_random_blocks(rng, 3).await;
+            node_store
+                .wait_for_certificate(ctx, validator.last_block())
                 .await?;
             Ok(())
         })
-        .await?;
+        .await
+        .unwrap();
 
-        // Some blocks without certs.
-        sk.push_random_blocks(rng, 5).await;
-        sk.wait_for_miniblocks(ctx).await?;
-        Ok(sk.pool)
-    })
-    .await
-    .unwrap();
-    let template = TestTemplate::freeze(pool).await.unwrap();
+        tracing::info!("Run centralized fetcher.");
+        scope::run!(ctx, |ctx, s| async {
+            let (node, runner) = testonly::StateKeeper::new(ctx, node_store.clone()).await?;
+            s.spawn_bg(runner.run(ctx));
+            s.spawn_bg(node.run_centralized_fetcher(ctx, client.clone()));
+            validator.push_random_blocks(rng, 3).await;
+            node_store
+                .wait_for_block(ctx, validator.last_block())
+                .await?;
+            Ok(())
+        })
+        .await
+        .unwrap();
 
-    // Run validator and fetchers in parallel.
-    scope::run!(ctx, |ctx, s| async {
-        // Run validator.
-        let pool = template.create_db(4).await?.build().await?;
-        let (mut validator, runner) = testonly::StateKeeper::new(pool).await?;
-        s.spawn_bg(runner.run(ctx));
-        s.spawn_bg(cfg.run(ctx, validator.pool.clone()));
-
-        // Run fetcher.
-        let pool = template.create_db(4).await?.build().await?;
-        let (fetcher, runner) = testonly::StateKeeper::new(pool).await?;
-        let fetcher_store = fetcher.store();
-        s.spawn_bg(runner.run(ctx));
-        s.spawn_bg(fetcher_cfg.run(ctx, fetcher.pool, fetcher.actions_sender));
-
-        // Make validator produce new blocks and
-        // wait for the fetcher to get both the missing certs and the new blocks.
-        validator.push_random_blocks(rng, 5).await;
-        fetcher_store
-            .wait_for_certificate(ctx, validator.last_block())
-            .await?;
+        tracing::info!("Run p2p fetcher again.");
+        scope::run!(ctx, |ctx, s| async {
+            let (node, runner) = testonly::StateKeeper::new(ctx, node_store.clone()).await?;
+            s.spawn_bg(runner.run(ctx));
+            s.spawn_bg(node.run_p2p_fetcher(ctx, client.clone(), node_cfg.clone()));
+            validator.push_random_blocks(rng, 3).await;
+            let want = validator_store
+                .wait_for_certificates_and_verify(ctx, validator.last_block())
+                .await?;
+            let got = node_store
+                .wait_for_certificates_and_verify(ctx, validator.last_block())
+                .await?;
+            assert_eq!(want, got);
+            Ok(())
+        })
+        .await
+        .unwrap();
         Ok(())
     })
     .await
     .unwrap();
 }
 
+#[test_casing(2, [false, true])]
+#[tokio::test]
+async fn test_centralized_fetcher(from_snapshot: bool) {
+    zksync_concurrency::testonly::abort_on_panic();
+    let ctx = &ctx::test_root(&ctx::RealClock);
+    let rng = &mut ctx.rng();
+
+    scope::run!(ctx, |ctx, s| async {
+        tracing::info!("Spawn a validator.");
+        let validator_store = testonly::new_store(from_snapshot).await;
+        let (mut validator, runner) =
+            testonly::StateKeeper::new(ctx, validator_store.clone()).await?;
+        s.spawn_bg(runner.run(ctx).instrument(tracing::info_span!("validator")));
+
+        tracing::info!("Produce a batch (to make api server start)");
+        // TODO: ensure at least L1 batch in `testonly::StateKeeper::new()` to make it fool proof.
+        validator.seal_batch().await;
+
+        tracing::info!("Spawn a node.");
+        let node_store = testonly::new_store(from_snapshot).await;
+        let (node, runner) = testonly::StateKeeper::new(ctx, node_store.clone()).await?;
+        s.spawn_bg(runner.run(ctx).instrument(tracing::info_span!("fetcher")));
+        s.spawn_bg(node.run_centralized_fetcher(ctx, validator.connect(ctx).await?));
+
+        tracing::info!("Produce some blocks and wait for node to fetch them");
+        validator.push_random_blocks(rng, 10).await;
+        let want = validator_store
+            .wait_for_block(ctx, validator.last_block())
+            .await?;
+        let got = node_store
+            .wait_for_block(ctx, validator.last_block())
+            .await?;
+        assert_eq!(want, got);
+        Ok(())
+    })
+    .await
+    .unwrap();
+}
+
+struct Random<T>(T);
+
+impl<T> RandomConfig for Random<T>
+where
+    Standard: Distribution<T>,
+{
+    fn sample(g: &mut Gen<impl Rng>) -> Self {
+        Self(g.rng.gen())
+    }
+}
+
+impl RandomConfig for Config {
+    fn sample(g: &mut Gen<impl Rng>) -> Self {
+        Self {
+            server_addr: g.gen(),
+            public_addr: g.gen(),
+            validators: g.rng.gen(),
+            max_payload_size: g.gen(),
+            gossip_dynamic_inbound_limit: g.gen(),
+            gossip_static_inbound: g
+                .gen::<Vec<Random<node::SecretKey>>>()
+                .into_iter()
+                .map(|x| x.0.public())
+                .collect(),
+            gossip_static_outbound: g
+                .gen::<Vec<Random<node::SecretKey>>>()
+                .into_iter()
+                .map(|x| (x.0.public(), g.gen()))
+                .collect(),
+        }
+    }
+}
+
+impl RandomConfig for Secrets {
+    fn sample(g: &mut Gen<impl Rng>) -> Self {
+        Self {
+            validator_key: g.gen::<Option<Random<validator::SecretKey>>>().map(|x| x.0),
+            node_key: g.gen::<Option<Random<node::SecretKey>>>().map(|x| x.0),
+        }
+    }
+}
+
 #[test]
 fn test_schema_encoding() {
     let ctx = ctx::test_root(&ctx::RealClock);
     let rng = &mut ctx.rng();
-    test_encode_random::<config::Config>(rng);
+    encode_decode::<FmtConv<config::Config>>(rng);
 }
