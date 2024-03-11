@@ -3,7 +3,7 @@
 use std::path::Path;
 
 use rayon::prelude::*;
-use zksync_storage::{db::NamedColumnFamily, rocksdb, rocksdb::DBPinnableSlice, RocksDB};
+use zksync_storage::{db::{NamedColumnFamily, RocksDBOptions}, rocksdb, rocksdb::DBPinnableSlice, RocksDB};
 
 use crate::{
     errors::{DeserializeError, ErrorContext},
