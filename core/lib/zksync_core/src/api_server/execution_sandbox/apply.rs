@@ -16,7 +16,7 @@ use multivm::{
     VmInstance,
 };
 use tokio::runtime::Handle;
-use zksync_dal::{BasicStorageProcessor, ConnectionPool};
+use zksync_dal::{BasicStorageProcessor, ConnectionPool, Server};
 use zksync_state::{PostgresStorage, ReadStorage, StoragePtr, StorageView, WriteStorage};
 use zksync_system_constants::{
     SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
@@ -291,7 +291,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
     // current L1 prices for gas or pubdata.
     adjust_pubdata_price: bool,
     execution_args: &TxExecutionArgs,
-    connection_pool: &ConnectionPool,
+    connection_pool: &ConnectionPool<Server>,
     tx: Transaction,
     block_args: BlockArgs,
     apply: impl FnOnce(

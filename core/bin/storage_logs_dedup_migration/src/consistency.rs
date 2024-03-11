@@ -1,6 +1,6 @@
 use clap::Parser;
 use zksync_config::PostgresConfig;
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Server};
 use zksync_env_config::FromEnv;
 use zksync_types::MiniblockNumber;
 
@@ -25,7 +25,7 @@ struct Cli {
 async fn main() {
     let config = PostgresConfig::from_env().unwrap();
     let opt = Cli::parse();
-    let pool = ConnectionPool::singleton(config.replica_url().unwrap())
+    let pool = ConnectionPool::<Server>::singleton(config.replica_url().unwrap())
         .build()
         .await
         .unwrap();

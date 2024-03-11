@@ -2,7 +2,7 @@ use std::{sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use tokio::runtime::Handle;
-use zksync_dal::{BasicStorageProcessor, ConnectionPool};
+use zksync_dal::{BasicStorageProcessor, ConnectionPool, Server};
 use zksync_state::{PostgresStorage, PostgresStorageCaches, ReadStorage, StorageView};
 use zksync_system_constants::PUBLISH_BYTECODE_OVERHEAD;
 use zksync_types::{
@@ -164,7 +164,7 @@ async fn get_pending_state(
 /// Returns the number of the pubdata that the transaction will spend on factory deps.
 pub(super) async fn get_pubdata_for_factory_deps(
     _vm_permit: &VmPermit,
-    connection_pool: &ConnectionPool,
+    connection_pool: &ConnectionPool<Server>,
     factory_deps: &[Vec<u8>],
     storage_caches: PostgresStorageCaches,
 ) -> anyhow::Result<u32> {

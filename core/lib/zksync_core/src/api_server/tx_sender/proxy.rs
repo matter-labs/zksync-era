@@ -6,7 +6,7 @@ use std::{
 };
 
 use tokio::sync::{watch, RwLock};
-use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool};
+use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, Server};
 use zksync_types::{
     api::{BlockId, Transaction, TransactionDetails, TransactionId},
     fee::TransactionExecutionMetrics,
@@ -64,7 +64,7 @@ impl TxCache {
 
     async fn run_updates(
         self,
-        pool: ConnectionPool,
+        pool: ConnectionPool<Server>,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
         const UPDATE_INTERVAL: Duration = Duration::from_secs(1);
@@ -204,7 +204,7 @@ impl TxProxy {
 
     pub fn run_account_nonce_sweeper(
         &self,
-        pool: ConnectionPool,
+        pool: ConnectionPool<Server>,
         stop_receiver: watch::Receiver<bool>,
     ) -> impl Future<Output = anyhow::Result<()>> {
         let tx_cache = self.tx_cache.clone();

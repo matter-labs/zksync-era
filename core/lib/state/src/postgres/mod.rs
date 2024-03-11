@@ -5,7 +5,7 @@ use std::{
 
 use anyhow::Context as _;
 use tokio::{runtime::Handle, sync::mpsc};
-use zksync_dal::{BasicStorageProcessor, ConnectionPool, ServerProcessor};
+use zksync_dal::{ConnectionPool, Server, ServerProcessor};
 use zksync_types::{L1BatchNumber, MiniblockNumber, StorageKey, StorageValue, H256};
 
 use self::metrics::{Method, ValuesUpdateStage, CACHE_METRICS, STORAGE_METRICS};
@@ -271,7 +271,7 @@ impl PostgresStorageCaches {
     pub fn configure_storage_values_cache(
         &mut self,
         capacity: u64,
-        connection_pool: ConnectionPool,
+        connection_pool: ConnectionPool<Server>,
         rt_handle: Handle,
     ) -> impl FnOnce() -> anyhow::Result<()> + Send {
         assert!(

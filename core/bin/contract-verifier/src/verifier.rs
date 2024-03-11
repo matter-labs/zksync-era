@@ -12,7 +12,7 @@ use lazy_static::lazy_static;
 use regex::Regex;
 use tokio::time;
 use zksync_config::ContractVerifierConfig;
-use zksync_dal::{ConnectionPool, ServerProcessor};
+use zksync_dal::{ConnectionPool, Server, ServerProcessor};
 use zksync_env_config::FromEnv;
 use zksync_queued_job_processor::{async_trait, JobProcessor};
 use zksync_types::{
@@ -42,11 +42,11 @@ enum ConstructorArgs {
 #[derive(Debug)]
 pub struct ContractVerifier {
     config: ContractVerifierConfig,
-    connection_pool: ConnectionPool,
+    connection_pool: ConnectionPool<Server>,
 }
 
 impl ContractVerifier {
-    pub fn new(config: ContractVerifierConfig, connection_pool: ConnectionPool) -> Self {
+    pub fn new(config: ContractVerifierConfig, connection_pool: ConnectionPool<Server>) -> Self {
         Self {
             config,
             connection_pool,

@@ -220,7 +220,7 @@ async fn init_tasks(
         }
     }));
 
-    let singleton_pool_builder = ConnectionPool::singleton(&config.postgres.database_url);
+    let singleton_pool_builder = ConnectionPool::<Server>::singleton(&config.postgres.database_url);
 
     let metadata_calculator_config = MetadataCalculatorConfig {
         db_path: config.required.merkle_tree_path.clone(),
@@ -488,7 +488,7 @@ async fn main() -> anyhow::Result<()> {
         ConnectionPool::global_config().set_long_connection_threshold(threshold)?;
     }
 
-    let connection_pool = ConnectionPool::builder(
+    let connection_pool = ConnectionPool::<Server>::builder(
         &config.postgres.database_url,
         config.postgres.max_connections,
     )

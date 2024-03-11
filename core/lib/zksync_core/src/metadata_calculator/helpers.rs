@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tokio::sync::watch;
 use zksync_config::configs::database::MerkleTreeMode;
-use zksync_dal::BasicStorageProcessor;
+use zksync_dal::ServerProcessor;
 use zksync_health_check::{Health, HealthStatus};
 use zksync_merkle_tree::{
     domain::{TreeMetadata, ZkSyncTree, ZkSyncTreeReader},
@@ -398,7 +398,7 @@ pub(crate) struct L1BatchWithLogs {
 
 impl L1BatchWithLogs {
     pub async fn new(
-        storage: &mut BasicStorageProcessor<'_>,
+        storage: &mut ServerProcessor<'_>,
         l1_batch_number: L1BatchNumber,
     ) -> Option<Self> {
         tracing::debug!("Loading storage logs data for L1 batch #{l1_batch_number}");
@@ -490,7 +490,7 @@ mod tests {
     impl L1BatchWithLogs {
         /// Old, slower method of loading storage logs. We want to test its equivalence to the new implementation.
         async fn slow(
-            storage: &mut StorageProcessor<'_>,
+            storage: &mut ServerProcessor<'_>,
             l1_batch_number: L1BatchNumber,
         ) -> Option<Self> {
             let header = storage
@@ -620,7 +620,7 @@ mod tests {
     }
 
     async fn assert_log_equivalence(
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut ServerProcessor<'_>,
         tree: &mut AsyncTree,
         l1_batch_number: L1BatchNumber,
     ) {

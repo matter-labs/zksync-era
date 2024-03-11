@@ -61,7 +61,7 @@ impl HandleEvent for TestEventListener {
 }
 
 impl SnapshotCreator {
-    fn for_tests(blob_store: Arc<dyn ObjectStore>, pool: ConnectionPool) -> Self {
+    fn for_tests(blob_store: Arc<dyn ObjectStore>, pool: ConnectionPool<Server>) -> Self {
         Self {
             blob_store,
             master_pool: pool.clone(),
@@ -241,7 +241,7 @@ async fn prepare_postgres(
 
 #[tokio::test]
 async fn persisting_snapshot_metadata() {
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::<Server>::test_pool().await;
     let mut rng = thread_rng();
     let object_store_factory = ObjectStoreFactory::mock();
     let object_store = object_store_factory.create_store().await;
@@ -290,7 +290,7 @@ async fn persisting_snapshot_metadata() {
 
 #[tokio::test]
 async fn persisting_snapshot_factory_deps() {
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::<Server>::test_pool().await;
     let mut rng = thread_rng();
     let object_store_factory = ObjectStoreFactory::mock();
     let object_store = object_store_factory.create_store().await;
@@ -312,7 +312,7 @@ async fn persisting_snapshot_factory_deps() {
 
 #[tokio::test]
 async fn persisting_snapshot_logs() {
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::<Server>::test_pool().await;
     let mut rng = thread_rng();
     let object_store_factory = ObjectStoreFactory::mock();
     let object_store = object_store_factory.create_store().await;
@@ -348,7 +348,7 @@ async fn assert_storage_logs(
 
 #[tokio::test]
 async fn recovery_workflow() {
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::<Server>::test_pool().await;
     let mut rng = thread_rng();
     let object_store_factory = ObjectStoreFactory::mock();
     let object_store = object_store_factory.create_store().await;
@@ -414,7 +414,7 @@ async fn recovery_workflow() {
 
 #[tokio::test]
 async fn recovery_workflow_with_varying_chunk_size() {
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::<Server>::test_pool().await;
     let mut rng = thread_rng();
     let object_store_factory = ObjectStoreFactory::mock();
     let object_store = object_store_factory.create_store().await;

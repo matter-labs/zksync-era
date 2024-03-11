@@ -2,7 +2,7 @@ use std::collections::hash_map::{Entry, HashMap};
 
 use clap::Parser;
 use zksync_config::PostgresConfig;
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Server};
 use zksync_env_config::FromEnv;
 use zksync_types::{MiniblockNumber, H256};
 
@@ -47,7 +47,7 @@ impl StateCache {
 async fn main() {
     let config = PostgresConfig::from_env().unwrap();
     let opt = Cli::parse();
-    let pool = ConnectionPool::singleton(config.master_url().unwrap())
+    let pool = ConnectionPool::<Server>::singleton(config.master_url().unwrap())
         .build()
         .await
         .unwrap();

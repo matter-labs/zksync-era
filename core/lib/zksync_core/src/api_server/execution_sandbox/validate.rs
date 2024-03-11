@@ -10,7 +10,7 @@ use multivm::{
     vm_latest::HistoryDisabled,
     MultiVMTracer,
 };
-use zksync_dal::{BasicStorageProcessor, ConnectionPool};
+use zksync_dal::{BasicStorageProcessor, ConnectionPool, Server};
 use zksync_types::{l2::L2Tx, Transaction, TRUSTED_ADDRESS_SLOTS, TRUSTED_TOKEN_SLOTS};
 
 use super::{
@@ -33,7 +33,7 @@ pub(crate) enum ValidationError {
 impl TransactionExecutor {
     pub(crate) async fn validate_tx_in_sandbox(
         &self,
-        connection_pool: ConnectionPool,
+        connection_pool: ConnectionPool<Server>,
         vm_permit: VmPermit,
         tx: L2Tx,
         shared_args: TxSharedArgs,
