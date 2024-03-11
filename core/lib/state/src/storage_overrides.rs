@@ -45,10 +45,14 @@ impl<S: ReadStorage + fmt::Debug> StorageOverrides<S> {
 
 impl<S: ReadStorage + fmt::Debug> ReadStorage for StorageOverrides<S> {
     fn read_value(&mut self, key: &StorageKey) -> StorageValue {
+        // If the account is overrided, return the overrided value if any or zero.
+        // Otherwise, return the value from the underlying storage.
         self.overrided_account_state
             .get(key.account())
-            .and_then(|f| f.get(key.key()))
-            .cloned()
+            .and_then(|state| match state.get(key.key()) {
+                Some(v) => Some(v.clone()),
+                None => Some(H256::zero()),
+            })
             .unwrap_or_else(|| self.storage_view.read_value(key))
     }
 
