@@ -9,10 +9,6 @@
         "release-type": "simple",
         "component": "core"
       },
-      "sdk/zksync-rs": {
-        "release-type": "rust",
-        "component": "zksync-rs"
-      },
       "prover": {
         "release-type": "simple",
         "component": "prover"

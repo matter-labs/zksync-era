@@ -104,7 +104,7 @@ export function modify(variable: string, value: string, initEnv: string, withRel
 
     let source = fs.readFileSync(initEnv).toString();
     if (source.includes(variable)) {
-        utils.replaceInFile(initEnv, `${variable}=.*`, assignedVariable.trim());
+        utils.replaceInFile(initEnv, `${variable}.*`, assignedVariable.trim());
     } else {
         source += `\n${assignedVariable}`;
         fs.writeFileSync(initEnv, source);

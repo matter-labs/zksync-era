@@ -1,6 +1,6 @@
-use zksync_types::L1BatchNumber;
+use zksync_types::{basic_fri_types::FinalProofIds, L1BatchNumber};
 
-use crate::StorageProcessor;
+use crate::{fri_prover_dal::types, StorageProcessor};
 
 #[derive(Debug)]
 pub struct FriSchedulerDependencyTrackerDal<'a, 'c> {
@@ -35,6 +35,8 @@ impl FriSchedulerDependencyTrackerDal<'_, '_> {
                         AND circuit_11_final_prover_job_id IS NOT NULL
                         AND circuit_12_final_prover_job_id IS NOT NULL
                         AND circuit_13_final_prover_job_id IS NOT NULL
+                        AND eip_4844_final_prover_job_id_0 IS NOT NULL
+                        AND eip_4844_final_prover_job_id_0 IS NOT NULL
                 )
             RETURNING
                 l1_batch_number;
@@ -69,15 +71,30 @@ impl FriSchedulerDependencyTrackerDal<'_, '_> {
         circuit_id: u8,
         final_prover_job_id: u32,
         l1_batch_number: L1BatchNumber,
+        // As of 1.4.2, there exist only 2 blobs. Their order matter.
+        // `blob_ordering` is used to determine which blob is the first one and which is the second.
+        // This will be changed when 1.5.0 will land and there will be a single node proof for blobs.
+        blob_ordering: usize,
     ) {
-        let query = format!(
-            r#"
+        let query = if circuit_id != types::EIP_4844_CIRCUIT_ID {
+            format!(
+                r#"
                 UPDATE scheduler_dependency_tracker_fri
                 SET circuit_{}_final_prover_job_id = $1
                 WHERE l1_batch_number = $2
             "#,
-            circuit_id
-        );
+                circuit_id
+            )
+        } else {
+            format!(
+                r#"
+                    UPDATE scheduler_dependency_tracker_fri
+                    SET eip_4844_final_prover_job_id_{} = $1
+                    WHERE l1_batch_number = $2
+                "#,
+                blob_ordering,
+            )
+        };
         sqlx::query(&query)
             .bind(final_prover_job_id as i64)
             .bind(l1_batch_number.0 as i64)
@@ -89,7 +106,7 @@ impl FriSchedulerDependencyTrackerDal<'_, '_> {
     pub async fn get_final_prover_job_ids_for(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> [u32; 13] {
+    ) -> FinalProofIds {
         sqlx::query!(
             r#"
             SELECT
@@ -106,8 +123,8 @@ impl FriSchedulerDependencyTrackerDal<'_, '_> {
         .unwrap()
         .into_iter()
         .next()
-        .map(|row| {
-            [
+        .map(|row| FinalProofIds {
+            node_proof_ids: [
                 row.circuit_1_final_prover_job_id.unwrap() as u32,
                 row.circuit_2_final_prover_job_id.unwrap() as u32,
                 row.circuit_3_final_prover_job_id.unwrap() as u32,
@@ -121,7 +138,11 @@ impl FriSchedulerDependencyTrackerDal<'_, '_> {
                 row.circuit_11_final_prover_job_id.unwrap() as u32,
                 row.circuit_12_final_prover_job_id.unwrap() as u32,
                 row.circuit_13_final_prover_job_id.unwrap() as u32,
-            ]
+            ],
+            eip_4844_proof_ids: [
+                row.eip_4844_final_prover_job_id_0.unwrap() as u32,
+                row.eip_4844_final_prover_job_id_1.unwrap() as u32,
+            ],
         })
         .unwrap()
     }

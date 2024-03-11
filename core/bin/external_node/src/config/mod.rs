@@ -13,7 +13,7 @@ use zksync_core::{
     },
     consensus,
 };
-use zksync_types::{api::BridgeAddresses, ETHEREUM_ADDRESS};
+use zksync_types::{api::BridgeAddresses, fee_model::FeeParams, ETHEREUM_ADDRESS};
 use zksync_web3_decl::{
     error::{ClientRpcContext, Web3Error},
     jsonrpsee::{
@@ -41,6 +41,7 @@ pub struct RemoteENConfig {
     pub l2_chain_id: L2ChainId,
     pub l1_chain_id: L1ChainId,
     pub base_token_addr: Address,
+    pub max_pubdata_per_batch: u64,
 }
 
 impl RemoteENConfig {
@@ -79,6 +80,19 @@ impl RemoteENConfig {
         let l1_chain_id = client.l1_chain_id().rpc_context("l1_chain_id").await?;
         let l1_chain_id = L1ChainId(l1_chain_id.as_u64());
 
+        let fee_params = client
+            .get_fee_params()
+            .rpc_context("get_fee_params")
+            .await?;
+        let max_pubdata_per_batch = match fee_params {
+            FeeParams::V1(_) => {
+                const MAX_V1_PUBDATA_PER_BATCH: u64 = 100_000;
+
+                MAX_V1_PUBDATA_PER_BATCH
+            }
+            FeeParams::V2(params) => params.config.max_pubdata_per_batch,
+        };
+
         Ok(Self {
             bridgehub_proxy_addr,
             diamond_proxy_addr,
@@ -89,6 +103,7 @@ impl RemoteENConfig {
             l2_chain_id,
             l1_chain_id,
             base_token_addr,
+            max_pubdata_per_batch,
         })
     }
 }
@@ -642,6 +657,7 @@ impl From<ExternalNodeConfig> for TxSenderConfig {
             l1_to_l2_transactions_compatibility_mode: config
                 .optional
                 .l1_to_l2_transactions_compatibility_mode,
+            max_pubdata_per_batch: config.remote.max_pubdata_per_batch,
         }
     }
 }

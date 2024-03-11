@@ -65,9 +65,8 @@ describe('Upgrade test', function () {
         // Must be > 1s, because bootloader requires l1 batch timestamps to be incremental.
         process.env.CHAIN_STATE_KEEPER_BLOCK_COMMIT_DEADLINE_MS = '2000';
         // Run server in background.
-        // TODO (PLA-815): Remove `IGNORE_1_4_2_UPGRADE_FOR_UPGRADE_TEST=true`
         utils.background(
-            'cd $ZKSYNC_HOME && IGNORE_1_4_2_UPGRADE_FOR_UPGRADE_TEST=true cargo run --bin zksync_server --release -- --components=api,tree,eth,state_keeper,commitment_generator',
+            'cd $ZKSYNC_HOME && cargo run --bin zksync_server --release -- --components=api,tree,eth,state_keeper,commitment_generator',
             [null, logs, logs]
         );
         // Server may need some time to recompile if it's a cold run, so wait for it.
@@ -257,9 +256,8 @@ describe('Upgrade test', function () {
         await utils.sleep(10);
 
         // Run again.
-        // TODO (PLA-815): Remove `IGNORE_1_4_2_UPGRADE_FOR_UPGRADE_TEST=true`
         utils.background(
-            'cd $ZKSYNC_HOME && IGNORE_1_4_2_UPGRADE_FOR_UPGRADE_TEST=true cargo run --bin zksync_server --release -- --components=api,tree,eth,state_keeper,commitment_generator &> upgrade.log',
+            'cd $ZKSYNC_HOME && cargo run --bin zksync_server --release -- --components=api,tree,eth,state_keeper,commitment_generator &> upgrade.log',
             [null, logs, logs]
         );
         await utils.sleep(10);
