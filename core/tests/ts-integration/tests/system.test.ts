@@ -73,25 +73,32 @@ describe('System behavior checks', () => {
     });
 
     test('Should accept transactions with small gasPerPubdataByte', async () => {
-        // The number "10" was chosen because we have a different error for lesser `smallGasPerPubdata`.
-        const smallGasPerPubdata = 10;
+        const smallGasPerPubdata = 1;
         const senderNonce = await alice.getTransactionCount();
 
-        // This tx should be accepted by the server, but would never be executed, so we don't wait for the receipt.
-        await alice.sendTransaction({
-            to: alice.address,
-            customData: {
-                gasPerPubdata: smallGasPerPubdata
-            }
-        });
-
-        // Now send the next tx with the same nonce: it should override the previous one and be executed.
-        await expect(
-            alice.sendTransaction({
+        // A safe low value to determine whether we can run this test.
+        // It's higher than `smallGasPerPubdata` to not make the test flaky.
+        const gasPerPubdataThreshold = 5;
+        const response = await alice.provider.send('zks_estimateFee', [
+            { from: alice.address, to: alice.address, value: '0x1' }
+        ]);
+        if (response.gas_per_pubdata_limit > gasPerPubdataThreshold) {
+            // This tx should be accepted by the server, but would never be executed, so we don't wait for the receipt.
+            const tx = await alice.sendTransaction({
                 to: alice.address,
-                nonce: senderNonce
-            })
-        ).toBeAccepted([]);
+                customData: {
+                    gasPerPubdata: smallGasPerPubdata
+                }
+            });
+            // We don't wait for the transaction recipt because it never executed.
+            // When another transaction with the same nonce is made, it overwrites the previous transaction and this one should be executed.
+            await expect(
+                alice.sendTransaction({
+                    to: alice.address,
+                    nonce: senderNonce
+                })
+            ).toBeAccepted([]);
+        }
     });
 
     test('Should check that bootloader utils: Legacy tx hash', async () => {
