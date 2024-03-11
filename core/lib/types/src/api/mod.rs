@@ -783,6 +783,10 @@ where
 }
 
 impl StateOverride {
+    pub fn new(state: HashMap<Address, OverrideAccount>) -> Self {
+        Self(state)
+    }
+
     pub fn get(&self, address: &Address) -> Option<&OverrideAccount> {
         self.0.get(address)
     }

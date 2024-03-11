@@ -3,11 +3,14 @@
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use multivm::interface::{ExecutionResult, VmRevertReason};
+use rlp::RlpStream;
+use zksync_contracts::read_bytecode;
+use zksync_test_account::{Account, TxType};
 use zksync_types::{
-    api::{OverrideAccount, StateOverride},
+    api::{OverrideAccount, StateOverride, TransactionRequest},
     get_intrinsic_constants,
     transaction_request::CallRequest,
-    L2ChainId, PackedEthSignature, U256,
+    Bytes, L2ChainId, PackedEthSignature, U256,
 };
 use zksync_utils::u256_to_h256;
 use zksync_web3_decl::namespaces::DebugNamespaceClient;
@@ -560,7 +563,7 @@ impl HttpTest for EstimateGasWithStateOverrideTest {
                 state: None,
             },
         );
-        let state_override = StateOverride(state_override_map);
+        let state_override = StateOverride::new(state_override_map);
 
         client
             .estimate_gas(call_request.clone(), None, Some(state_override))
@@ -588,6 +591,43 @@ impl HttpTest for EstimateGasWithStateOverrideTest {
         } else {
             panic!("Unexpected error: {error:?}");
         }
+
+        // Test code hash override
+        let mut account = Account::random();
+        let chain_id = client.chain_id().await.unwrap();
+
+        // deploy erc20 smart contract
+        let erc20_contract = read_bytecode(
+            "etc/contracts-test-data/artifacts-zk/contracts/erc20/erc20.sol/Erc20.json",
+        );
+
+        let deploy_tx = account.get_deploy_tx(&erc20_contract, None, TxType::L2);
+        let tx = deploy_tx.tx;
+
+        let l2_tx = L2Tx::try_from(tx.clone()).unwrap();
+
+        let mut rlp_stream = RlpStream::new();
+        let tx_request = TransactionRequest::from(l2_tx.clone());
+        tx_request.rlp(
+            &mut rlp_stream,
+            chain_id.as_u64(),
+            Some(&tx_request.get_packed_signature()?),
+        );
+
+        let mut raw_tx = Bytes(rlp_stream.as_raw().to_vec());
+
+        // append transaction type at beginning
+        raw_tx.0.insert(0, tx.tx_format() as u8);
+
+        client.send_raw_transaction(raw_tx).await?;
+
+        // FIX:
+        //  - Deploying erc20 contract fails with "Insufficient funds"
+        // TODO:
+        //  - Try to call increment function
+        //  - Call should fail as contract is erc20
+        //  - Change codehash to counter contract
+        //  - Increment function now correctly works
 
         Ok(())
     }

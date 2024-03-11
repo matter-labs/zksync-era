@@ -17,28 +17,32 @@ use multivm::{
 };
 use tokio::runtime::Handle;
 use zksync_dal::{ConnectionPool, StorageProcessor};
-use zksync_state::{PostgresStorage, ReadStorage, StoragePtr, StorageView, WriteStorage};
+use zksync_state::{
+    PostgresStorage, ReadStorage, StorageOverrides, StoragePtr, StorageView, WriteStorage,
+};
 use zksync_system_constants::{
     SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
     SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION, ZKPORTER_IS_AVAILABLE,
 };
 use zksync_types::{
-    api::{self, StateOverride},
+    api::{self, OverrideState, StateOverride},
     block::{pack_block_info, unpack_block_info, MiniblockHasher},
     fee_model::BatchFeeInput,
-    get_nonce_key,
+    get_code_key, get_nonce_key,
     utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
     AccountTreeId, L1BatchNumber, MiniblockNumber, Nonce, ProtocolVersionId, StorageKey,
     Transaction, H256, U256,
 };
-use zksync_utils::{h256_to_u256, time::seconds_since_epoch, u256_to_h256};
+use zksync_utils::{
+    bytecode::hash_bytecode, h256_to_u256, time::seconds_since_epoch, u256_to_h256,
+};
 
 use super::{
     vm_metrics::{self, SandboxStage, SANDBOX_METRICS},
     BlockArgs, TxExecutionArgs, TxSharedArgs, VmPermit,
 };
 
-type BoxedVm<'a> = Box<VmInstance<StorageView<PostgresStorage<'a>>, HistoryDisabled>>;
+type BoxedVm<'a> = Box<VmInstance<StorageOverrides<PostgresStorage<'a>>, HistoryDisabled>>;
 
 #[derive(Debug)]
 struct Sandbox<'a> {
@@ -259,7 +263,10 @@ impl<'a> Sandbox<'a> {
         mut self,
         tx: &Transaction,
         adjust_pubdata_price: bool,
-    ) -> (BoxedVm<'a>, StoragePtr<StorageView<PostgresStorage<'a>>>) {
+    ) -> (
+        BoxedVm<'a>,
+        StoragePtr<StorageOverrides<PostgresStorage<'a>>>,
+    ) {
         self.setup_storage_view(tx);
         let protocol_version = self.system_env.version;
         if adjust_pubdata_price {
@@ -271,14 +278,14 @@ impl<'a> Sandbox<'a> {
             );
         };
 
-        let storage_view = self.storage_view.to_rc_ptr();
+        let storage_overrides = StorageOverrides::new(self.storage_view).to_rc_ptr();
         let vm = Box::new(VmInstance::new_with_specific_version(
             self.l1_batch_env,
             self.system_env,
-            storage_view.clone(),
+            storage_overrides.clone(),
             protocol_version.into_api_vm_version(),
         ));
-        (vm, storage_view)
+        (vm, storage_overrides)
     }
 }
 
@@ -296,7 +303,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
     block_args: BlockArgs,
     state_override: Option<StateOverride>,
     apply: impl FnOnce(
-        &mut VmInstance<StorageView<PostgresStorage<'_>>, HistoryDisabled>,
+        &mut VmInstance<StorageOverrides<PostgresStorage<'_>>, HistoryDisabled>,
         Transaction,
     ) -> T,
 ) -> anyhow::Result<T> {
@@ -332,24 +339,8 @@ pub(super) fn apply_vm_in_sandbox<T>(
 
     // Apply state override
     if let Some(state_override) = state_override {
-        let mut storage_view = storage_view.as_ref().borrow_mut();
-
-        for (address, overrides) in state_override.iter() {
-            if let Some(balance) = overrides.balance {
-                let balance_key = storage_key_for_eth_balance(&address);
-                storage_view.set_value(balance_key, u256_to_h256(balance));
-            }
-
-            if let Some(nonce) = overrides.nonce {
-                let nonce_key = get_nonce_key(&address);
-
-                let full_nonce = storage_view.read_value(&nonce_key);
-                let (_, deployment_nonce) = decompose_full_nonce(h256_to_u256(full_nonce));
-                let new_full_nonce = nonces_to_full_nonce(nonce, deployment_nonce);
-
-                storage_view.set_value(nonce_key, u256_to_h256(new_full_nonce));
-            }
-        }
+        let mut storage_override = storage_view.as_ref().borrow_mut();
+        apply_state_override(&state_override, &mut storage_override);
     }
 
     let execution_latency = SANDBOX_METRICS.sandbox[&SandboxStage::Execution].start();
@@ -519,5 +510,51 @@ impl BlockArgs {
             protocol_version,
             historical_fee_input,
         })
+    }
+}
+
+fn apply_state_override<S: ReadStorage>(
+    state_override: &StateOverride,
+    storage_override: &mut StorageOverrides<S>,
+) {
+    for (account, overrides) in state_override.iter() {
+        if let Some(balance) = overrides.balance {
+            let balance_key = storage_key_for_eth_balance(&account);
+            storage_override.set_value(balance_key, u256_to_h256(balance));
+        }
+
+        if let Some(nonce) = overrides.nonce {
+            let nonce_key = get_nonce_key(&account);
+
+            let full_nonce = storage_override.read_value(&nonce_key);
+            let (_, deployment_nonce) = decompose_full_nonce(h256_to_u256(full_nonce));
+            let new_full_nonce = nonces_to_full_nonce(nonce, deployment_nonce);
+
+            storage_override.set_value(nonce_key, u256_to_h256(new_full_nonce));
+        }
+
+        if let Some(code) = &overrides.code {
+            let code_key = get_code_key(account);
+            let code_hash = hash_bytecode(&code.0);
+
+            storage_override.set_value(code_key, code_hash);
+            storage_override.store_factory_dep(code_hash, code.0.clone());
+        }
+
+        match &overrides.state {
+            Some(OverrideState::State(state)) => {
+                storage_override
+                    .override_account_state(AccountTreeId::new(account.clone()), state.clone());
+            }
+            Some(OverrideState::StateDiff(state_diff)) => {
+                for (key, value) in state_diff.iter() {
+                    storage_override.set_value(
+                        StorageKey::new(AccountTreeId::new(account.clone()), key.clone()),
+                        value.clone(),
+                    );
+                }
+            }
+            None => {}
+        }
     }
 }
