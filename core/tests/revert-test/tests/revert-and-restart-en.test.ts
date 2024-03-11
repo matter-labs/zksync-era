@@ -239,14 +239,28 @@ describe('Block reverting test', function () {
         const lastExecuted: BigNumber = await main_contract.getTotalBlocksExecuted();
         // One is not enough to test the reversion of sk cache because
         // it gets updated with some batch logs only at the start of the next batch.
-        for (let i = 0; i < 2; i++) {
-            const h: zkweb3.types.PriorityOpResponse = await extNode.tester.syncWallet.deposit({
-                token: zkweb3.utils.ETH_ADDRESS,
-                amount: depositAmount,
-                to: alice.address
-            });
-            await h.waitL1Commit();
+        const initialL1BatchNumber = (await main_contract.getTotalBlocksCommitted()).toNumber();
+        const firstDepositHandle = await extNode.tester.syncWallet.deposit({
+            token: zkweb3.utils.ETH_ADDRESS,
+            amount: depositAmount,
+            to: alice.address
+        });
+
+        await firstDepositHandle.wait();
+        while ((await extNode.tester.web3Provider.getL1BatchNumber()) <= initialL1BatchNumber) {
+            await utils.sleep(0.1);
         }
+
+        const secondDepositHandle = await extNode.tester.syncWallet.deposit({
+            token: zkweb3.utils.ETH_ADDRESS,
+            amount: depositAmount,
+            to: alice.address
+        });
+        await secondDepositHandle.wait();
+        while ((await extNode.tester.web3Provider.getL1BatchNumber()) <= initialL1BatchNumber + 1) {
+            await utils.sleep(0.3);
+        }
+
         while (true) {
             const lastCommitted: BigNumber = await main_contract.getTotalBlocksCommitted();
             console.log(`lastExecuted = ${lastExecuted}, lastCommitted = ${lastCommitted}`);
