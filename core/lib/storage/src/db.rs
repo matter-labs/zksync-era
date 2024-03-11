@@ -274,6 +274,8 @@ pub struct RocksDBOptions {
     /// Timeout to wait for the database to run compaction on stalled writes during startup or
     /// when the corresponding RocksDB error is encountered.
     pub stalled_writes_retries: StalledWritesRetries,
+    /// Number of open files that can be used by the DB. Default is -1, for no limit.
+    pub max_open_files: i32,
 }
 
 impl Default for RocksDBOptions {
@@ -282,6 +284,7 @@ impl Default for RocksDBOptions {
             block_cache_capacity: None,
             large_memtable_capacity: None,
             stalled_writes_retries: StalledWritesRetries::new(Duration::from_secs(10)),
+            max_open_files: -1,
         }
     }
 }
@@ -304,7 +307,8 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
 
     pub fn with_options(path: &Path, options: RocksDBOptions) -> Result<Self, rocksdb::Error> {
         let caches = RocksDBCaches::new(options.block_cache_capacity);
-        let db_options = Self::rocksdb_options(None, None);
+        let mut db_options = Self::rocksdb_options(None, None);
+        db_options.set_max_open_files(options.max_open_files);
         let existing_cfs = DB::list_cf(&db_options, path).unwrap_or_else(|err| {
             tracing::warn!(
                 "Failed getting column families for RocksDB `{}` at `{}`, assuming CFs are empty; {err}",
