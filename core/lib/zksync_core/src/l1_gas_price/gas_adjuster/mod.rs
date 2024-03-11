@@ -131,6 +131,7 @@ impl<E: EthInterface> L1GasPriceProvider for GasAdjuster<E> {
             (self.config.internal_l1_pricing_multiplier * effective_gas_price as f64) as u64;
 
         // TODO: How do we get the conversion rate as u64, coming from a BigDecimal?
+        // Rounding or truncating should not be a problem, as gas estimation is not extrictly precise.
         // let conversion_rate = self
         //     .native_token_fetcher_dyn
         //     .conversion_rate()
