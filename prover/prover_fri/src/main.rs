@@ -4,16 +4,16 @@ use std::{future::Future, sync::Arc};
 use anyhow::Context as _;
 use local_ip_address::local_ip;
 use prometheus_exporter::PrometheusExporterConfig;
+use prover_dal::{
+    fri_prover_dal::types::{GpuProverInstanceStatus, SocketAddress},
+    ConnectionPool, Prover,
+};
 use tokio::{
     sync::{oneshot, watch::Receiver},
     task::JoinHandle,
 };
 use zksync_config::configs::{
     fri_prover_group::FriProverGroupConfig, FriProverConfig, ObservabilityConfig, PostgresConfig,
-};
-use zksync_dal::{
-    fri_prover_dal::types::{GpuProverInstanceStatus, SocketAddress},
-    ConnectionPool,
 };
 use zksync_env_config::{
     object_store::{ProverObjectStoreConfig, PublicObjectStoreConfig},
@@ -171,7 +171,7 @@ async fn get_prover_tasks(
     stop_receiver: Receiver<bool>,
     store_factory: ObjectStoreFactory,
     public_blob_store: Option<Arc<dyn ObjectStore>>,
-    pool: ConnectionPool,
+    pool: ConnectionPool<Prover>,
     circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
     use zksync_vk_setup_data_server_fri::commitment_utils::get_cached_commitments;
@@ -205,7 +205,7 @@ async fn get_prover_tasks(
     stop_receiver: Receiver<bool>,
     store_factory: ObjectStoreFactory,
     public_blob_store: Option<Arc<dyn ObjectStore>>,
-    pool: ConnectionPool,
+    pool: ConnectionPool<Prover>,
     circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
     use gpu_prover_job_processor::gpu_prover;

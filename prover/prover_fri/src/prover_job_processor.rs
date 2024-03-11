@@ -2,12 +2,12 @@ use std::{collections::HashMap, sync::Arc, time::Instant};
 
 use anyhow::Context as _;
 use circuit_definitions::{circuit_definitions::eip4844::EIP4844Circuit, eip4844_proof_config};
+use prover_dal::ConnectionPool;
 use tokio::task::JoinHandle;
 use zkevm_test_harness::prover_utils::{
     prove_base_layer_circuit, prove_eip4844_circuit, prove_recursion_layer_circuit,
 };
 use zksync_config::configs::{fri_prover_group::FriProverGroupConfig, FriProverConfig};
-use zksync_dal::ConnectionPool;
 use zksync_env_config::FromEnv;
 use zksync_object_store::ObjectStore;
 use zksync_prover_fri_types::{
@@ -44,7 +44,7 @@ pub struct Prover {
     blob_store: Arc<dyn ObjectStore>,
     public_blob_store: Option<Arc<dyn ObjectStore>>,
     config: Arc<FriProverConfig>,
-    prover_connection_pool: ConnectionPool,
+    prover_connection_pool: ConnectionPool<prover_dal::Prover>,
     setup_load_mode: SetupLoadMode,
     // Only pick jobs for the configured circuit id and aggregation rounds.
     // Empty means all jobs are picked.
@@ -58,7 +58,7 @@ impl Prover {
         blob_store: Arc<dyn ObjectStore>,
         public_blob_store: Option<Arc<dyn ObjectStore>>,
         config: FriProverConfig,
-        prover_connection_pool: ConnectionPool,
+        prover_connection_pool: ConnectionPool<prover_dal::Prover>,
         setup_load_mode: SetupLoadMode,
         circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
         vk_commitments: L1VerifierConfig,

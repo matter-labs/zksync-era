@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use sqlx::Row;
-use zksync_db_connection::instrument::InstrumentExt;
+use zksync_db_connection::{instrument::InstrumentExt, processor::StorageProcessor};
 
 #[derive(Debug)]
 pub(crate) struct TableSize {

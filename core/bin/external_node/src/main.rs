@@ -33,7 +33,7 @@ use zksync_core::{
         MainNodeClient, SyncState,
     },
 };
-use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
+use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool, Server};
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
 use zksync_state::PostgresStorageCaches;
 use zksync_storage::RocksDB;
@@ -59,7 +59,7 @@ async fn build_state_keeper(
     action_queue: ActionQueue,
     state_keeper_db_path: String,
     config: &ExternalNodeConfig,
-    connection_pool: ConnectionPool,
+    connection_pool: ConnectionPool<Server>,
     sync_state: SyncState,
     l2_erc20_bridge_addr: Address,
     miniblock_sealer_handle: MiniblockSealerHandle,
@@ -111,7 +111,7 @@ async fn build_state_keeper(
 
 async fn init_tasks(
     config: &ExternalNodeConfig,
-    connection_pool: ConnectionPool,
+    connection_pool: ConnectionPool<Server>,
     main_node_client: HttpClient,
     task_handles: &mut Vec<task::JoinHandle<anyhow::Result<()>>>,
     app_health: &AppHealthCheck,

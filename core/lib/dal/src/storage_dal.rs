@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use itertools::Itertools;
-use zksync_db_connection::processor::StorageProcessor;
+use zksync_db_connection::processor::{BasicStorageProcessor, StorageProcessor};
 use zksync_types::{StorageKey, StorageLog, StorageValue, H256};
 
 use crate::ServerProcessor;

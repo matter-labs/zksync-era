@@ -1,4 +1,7 @@
-use zksync_db_connection::{instrument::InstrumentExt, processor::StorageProcessor};
+use zksync_db_connection::{
+    instrument::InstrumentExt,
+    processor::{BasicStorageProcessor, StorageProcessor},
+};
 use zksync_types::{
     snapshots::{AllSnapshots, SnapshotMetadata},
     L1BatchNumber,

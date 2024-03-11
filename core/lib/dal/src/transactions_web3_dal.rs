@@ -1,6 +1,8 @@
 use sqlx::types::chrono::NaiveDateTime;
 use zksync_db_connection::{
-    instrument::InstrumentExt, match_query_as, processor::StorageProcessor,
+    instrument::InstrumentExt,
+    match_query_as,
+    processor::{BasicStorageProcessor, StorageProcessor},
 };
 use zksync_types::{
     api, api::TransactionReceipt, Address, L2ChainId, MiniblockNumber, Transaction,
@@ -400,7 +402,7 @@ mod tests {
         ConnectionPool,
     };
 
-    async fn prepare_transactions(conn: &mut StorageProcessor<'_>, txs: Vec<L2Tx>) {
+    async fn prepare_transactions(conn: &mut BasicStorageProcessor<'_>, txs: Vec<L2Tx>) {
         conn.blocks_dal()
             .delete_miniblocks(MiniblockNumber(0))
             .await

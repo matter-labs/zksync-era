@@ -1,7 +1,10 @@
 use std::{collections::HashMap, fmt};
 
 use sqlx::types::chrono::Utc;
-use zksync_db_connection::processor::StorageProcessor;
+use zksync_db_connection::{
+    processor::{BasicStorageProcessor, StorageProcessor},
+    write_str, writeln_str,
+};
 use zksync_system_constants::L1_MESSENGER_ADDRESS;
 use zksync_types::{
     api,

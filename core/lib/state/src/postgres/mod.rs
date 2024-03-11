@@ -5,7 +5,7 @@ use std::{
 
 use anyhow::Context as _;
 use tokio::{runtime::Handle, sync::mpsc};
-use zksync_dal::{BasicStorageProcessor, ConnectionPool};
+use zksync_dal::{BasicStorageProcessor, ConnectionPool, ServerProcessor};
 use zksync_types::{L1BatchNumber, MiniblockNumber, StorageKey, StorageValue, H256};
 
 use self::metrics::{Method, ValuesUpdateStage, CACHE_METRICS, STORAGE_METRICS};
@@ -347,7 +347,7 @@ impl<'a> PostgresStorage<'a> {
     /// Panics on Postgres errors.
     pub fn new(
         rt_handle: Handle,
-        connection: BasicStorageProcessor<'a>,
+        connection: ServerProcessor<'a>,
         block_number: MiniblockNumber,
         consider_new_l1_batch: bool,
     ) -> Self {

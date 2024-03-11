@@ -5,7 +5,7 @@ use std::sync::Arc;
 use anyhow::Context as _;
 use tokio::sync::Semaphore;
 use zksync_config::SnapshotsCreatorConfig;
-use zksync_dal::{BasicStorageProcessor, ConnectionPool};
+use zksync_dal::{BasicStorageProcessor, ConnectionPool, Server, ServerProcessor};
 use zksync_object_store::ObjectStore;
 use zksync_types::{
     snapshots::{
@@ -60,14 +60,14 @@ impl SnapshotProgress {
 #[derive(Debug)]
 pub(crate) struct SnapshotCreator {
     pub blob_store: Arc<dyn ObjectStore>,
-    pub master_pool: ConnectionPool,
-    pub replica_pool: ConnectionPool,
+    pub master_pool: ConnectionPool<Server>,
+    pub replica_pool: ConnectionPool<Server>,
     #[cfg(test)]
     pub event_listener: Box<dyn HandleEvent>,
 }
 
 impl SnapshotCreator {
-    async fn connect_to_replica(&self) -> anyhow::Result<BasicStorageProcessor<'_>> {
+    async fn connect_to_replica(&self) -> anyhow::Result<ServerProcessor<'_>> {
         self.replica_pool
             .access_storage_tagged("snapshots_creator")
             .await
@@ -192,7 +192,7 @@ impl SnapshotCreator {
         config: &SnapshotsCreatorConfig,
         min_chunk_count: u64,
         latest_snapshot: Option<&SnapshotMetadata>,
-        conn: &mut BasicStorageProcessor<'_>,
+        conn: &mut ServerProcessor<'_>,
     ) -> anyhow::Result<Option<SnapshotProgress>> {
         // We subtract 1 so that after restore, EN node has at least one L1 batch to fetch
         let sealed_l1_batch_number = conn.blocks_dal().get_sealed_l1_batch_number().await?;

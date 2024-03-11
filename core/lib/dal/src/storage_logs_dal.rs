@@ -1,7 +1,11 @@
 use std::{collections::HashMap, ops, time::Instant};
 
 use sqlx::{types::chrono::Utc, Row};
-use zksync_db_connection::{instrument::InstrumentExt, processor::StorageProcessor};
+use zksync_db_connection::{
+    instrument::InstrumentExt,
+    processor::{BasicStorageProcessor, StorageProcessor},
+    write_str, writeln_str,
+};
 use zksync_types::{
     get_code_key, snapshots::SnapshotStorageLog, AccountTreeId, Address, L1BatchNumber,
     MiniblockNumber, StorageKey, StorageLog, FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H160, H256,
@@ -841,7 +845,11 @@ mod tests {
     use super::*;
     use crate::{tests::create_miniblock_header, ConnectionPool};
 
-    async fn insert_miniblock(conn: &mut StorageProcessor<'_>, number: u32, logs: Vec<StorageLog>) {
+    async fn insert_miniblock(
+        conn: &mut BasicStorageProcessor<'_>,
+        number: u32,
+        logs: Vec<StorageLog>,
+    ) {
         let header = L1BatchHeader::new(
             L1BatchNumber(number),
             0,
@@ -917,7 +925,7 @@ mod tests {
     }
 
     async fn test_rollback(
-        conn: &mut StorageProcessor<'_>,
+        conn: &mut BasicStorageProcessor<'_>,
         key: StorageKey,
         second_key: StorageKey,
     ) {
@@ -1145,7 +1153,7 @@ mod tests {
         }
     }
 
-    async fn prepare_tree_entries(conn: &mut StorageProcessor<'_>, count: u8) -> Vec<H256> {
+    async fn prepare_tree_entries(conn: &mut BasicStorageProcessor<'_>, count: u8) -> Vec<H256> {
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;

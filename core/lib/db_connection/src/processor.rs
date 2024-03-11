@@ -110,19 +110,20 @@ impl fmt::Debug for PooledStorageProcessor<'_> {
 
 impl Drop for PooledStorageProcessor<'_> {
     fn drop(&mut self) {
-        if let Some(tags) = &self.tags {
-            let lifetime = self.created_at.elapsed();
-            CONNECTION_METRICS.lifetime[&tags.requester].observe(lifetime);
-
-            if lifetime > ConnectionPool::global_config().long_connection_threshold() {
-                let file = tags.location.file();
-                let line = tags.location.line();
-                tracing::info!(
-                    "Long-living connection for `{}` created at {file}:{line}: {lifetime:?}",
-                    tags.requester
-                );
-            }
-        }
+        // todo: uncomment
+        // if let Some(tags) = &self.tags {
+        //     let lifetime = self.created_at.elapsed();
+        //     CONNECTION_METRICS.lifetime[&tags.requester].observe(lifetime);
+        //
+        //     if lifetime > ConnectionPool::<_>::global_config().long_connection_threshold() {
+        //         let file = tags.location.file();
+        //         let line = tags.location.line();
+        //         tracing::info!(
+        //             "Long-living connection for `{}` created at {file}:{line}: {lifetime:?}",
+        //             tags.requester
+        //         );
+        //     }
+        // }
         if let Some((connections, id)) = self.traced {
             connections.mark_as_dropped(id);
         }
@@ -146,30 +147,50 @@ pub struct BasicStorageProcessor<'a> {
     inner: StorageProcessorInner<'a>,
 }
 
-#[async_trait]
-pub trait StorageProcessor {
-    async fn start_transaction(&mut self) -> sqlx::Result<BasicStorageProcessor<'_>>;
-
-    /// Checks if the `StorageProcessor` is currently within database transaction.
-    fn in_transaction(&self) -> bool;
-
-    async fn commit(self) -> sqlx::Result<()>;
-
+impl<'a> BasicStorageProcessor<'a> {
     /// Creates a `StorageProcessor` using a pool of connections.
     /// This method borrows one of the connections from the pool, and releases it
     /// after `drop`.
-    fn from_pool(
+    pub(crate) fn from_pool(
         connection: PoolConnection<Postgres>,
         tags: Option<StorageProcessorTags>,
-        traced_connections: Option<&TracedConnections>,
-    ) -> Self;
+        traced_connections: Option<&'a TracedConnections>,
+    ) -> Self {
+        let created_at = Instant::now();
+        let inner = StorageProcessorInner::Pooled(PooledStorageProcessor {
+            connection,
+            tags,
+            created_at,
+            traced: traced_connections.map(|connections| {
+                let id = connections.acquire(tags, created_at);
+                (connections, id)
+            }),
+        });
+        Self { inner }
+    }
+}
+
+#[async_trait]
+pub trait StorageProcessor {
+    type Processor<'a>
+    where
+        Self: 'a;
+
+    async fn start_transaction(&mut self) -> sqlx::Result<Self::Processor<'_>>;
+
+    fn in_transaction(&self) -> bool;
+
+    async fn commit(self) -> sqlx::Result<()>;
 
     fn conn(&mut self) -> &mut PgConnection;
 
     fn conn_and_tags(&mut self) -> (&mut PgConnection, Option<&StorageProcessorTags>);
 }
 
+#[async_trait]
 impl<'a> StorageProcessor for BasicStorageProcessor<'a> {
+    type Processor<'b> = BasicStorageProcessor<'b> where Self: 'b;
+
     async fn start_transaction(&mut self) -> sqlx::Result<BasicStorageProcessor<'_>> {
         let (conn, tags) = self.conn_and_tags();
         let inner = StorageProcessorInner::Transaction {
@@ -194,27 +215,6 @@ impl<'a> StorageProcessor for BasicStorageProcessor<'a> {
         } else {
             panic!("StorageProcessor::commit can only be invoked after calling StorageProcessor::begin_transaction");
         }
-    }
-
-    /// Creates a `StorageProcessor` using a pool of connections.
-    /// This method borrows one of the connections from the pool, and releases it
-    /// after `drop`.
-    fn from_pool(
-        connection: PoolConnection<Postgres>,
-        tags: Option<StorageProcessorTags>,
-        traced_connections: Option<&'a TracedConnections>,
-    ) -> Self {
-        let created_at = Instant::now();
-        let inner = StorageProcessorInner::Pooled(PooledStorageProcessor {
-            connection,
-            tags,
-            created_at,
-            traced: traced_connections.map(|connections| {
-                let id = connections.acquire(tags, created_at);
-                (connections, id)
-            }),
-        });
-        Self { inner }
     }
 
     fn conn(&mut self) -> &mut PgConnection {

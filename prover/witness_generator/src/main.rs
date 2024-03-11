@@ -5,13 +5,13 @@ use std::time::Instant;
 use anyhow::{anyhow, Context as _};
 use futures::{channel::mpsc, executor::block_on, SinkExt};
 use prometheus_exporter::PrometheusExporterConfig;
+use prover_dal::ConnectionPool;
 use structopt::StructOpt;
 use tokio::sync::watch;
 use zksync_config::{
     configs::{FriWitnessGeneratorConfig, ObservabilityConfig, PostgresConfig, PrometheusConfig},
     ObjectStoreConfig,
 };
-use zksync_dal::ConnectionPool;
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_queued_job_processor::JobProcessor;

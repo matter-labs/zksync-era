@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use anyhow::Context as _;
 use zksync_contracts::{BaseSystemContracts, SystemContractCode};
-use zksync_db_connection::processor::StorageProcessor;
+use zksync_db_connection::processor::{BasicStorageProcessor, StorageProcessor};
 use zksync_types::{MiniblockNumber, H256, U256};
 use zksync_utils::{bytes_to_be_words, bytes_to_chunks};
 

@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use zksync_db_connection::processor::StorageProcessor;
+use zksync_db_connection::processor::BasicStorageProcessor;
 
 use crate::{
     fri_prover_dal::types::{GpuProverInstanceStatus, SocketAddress},

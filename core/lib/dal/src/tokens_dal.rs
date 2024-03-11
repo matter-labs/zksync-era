@@ -1,5 +1,8 @@
 use sqlx::types::chrono::Utc;
-use zksync_db_connection::processor::StorageProcessor;
+use zksync_db_connection::{
+    processor::{BasicStorageProcessor, StorageProcessor},
+    write_str, writeln_str,
+};
 use zksync_types::{tokens::TokenInfo, Address, MiniblockNumber};
 
 use crate::ServerProcessor;
@@ -257,7 +260,7 @@ mod tests {
         );
     }
 
-    async fn test_getting_all_tokens(storage: &mut StorageProcessor<'_>) {
+    async fn test_getting_all_tokens(storage: &mut BasicStorageProcessor<'_>) {
         for at_miniblock in [None, Some(MiniblockNumber(2)), Some(MiniblockNumber(100))] {
             let all_tokens = storage
                 .tokens_web3_dal()

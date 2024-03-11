@@ -4,7 +4,7 @@ use zksync_types::{
     StorageKey, H256,
 };
 
-use crate::{instrument::InstrumentExt, ServerProcessor};
+use crate::ServerProcessor;
 
 #[derive(Debug)]
 pub struct SnapshotsCreatorDal<'a, 'c> {
@@ -247,7 +247,7 @@ mod tests {
     }
 
     async fn assert_logs_for_snapshot(
-        conn: &mut StorageProcessor<'_>,
+        conn: &mut ServerProcessor<'_>,
         miniblock_number: MiniblockNumber,
         l1_batch_number: L1BatchNumber,
         expected_logs: &[StorageLog],

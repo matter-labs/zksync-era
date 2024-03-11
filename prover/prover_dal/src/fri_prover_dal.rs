@@ -1,6 +1,6 @@
 use std::{collections::HashMap, convert::TryFrom, time::Duration};
 
-use zksync_db_connection::{instrument::InstrumentExt, processor::StorageProcessor};
+use zksync_db_connection::{instrument::InstrumentExt, processor::BasicStorageProcessor};
 use zksync_types::{
     basic_fri_types::{AggregationRound, CircuitIdRoundTuple},
     protocol_version::FriProtocolVersionId,

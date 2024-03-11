@@ -1,6 +1,9 @@
 use std::{collections::HashMap, ops};
 
-use zksync_db_connection::{instrument::InstrumentExt, processor::StorageProcessor};
+use zksync_db_connection::{
+    instrument::InstrumentExt,
+    processor::{BasicStorageProcessor, StorageProcessor},
+};
 use zksync_types::{
     get_code_key, get_nonce_key,
     utils::{decompose_full_nonce, storage_key_for_standard_token_balance},

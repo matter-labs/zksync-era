@@ -1,6 +1,6 @@
 use std::convert::TryFrom;
 
-use zksync_db_connection::processor::StorageProcessor;
+use zksync_db_connection::processor::BasicStorageProcessor;
 use zksync_types::protocol_version::{FriProtocolVersionId, L1VerifierConfig};
 
 use crate::ProverProcessor;

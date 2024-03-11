@@ -4,7 +4,10 @@ use anyhow::Context as _;
 use bigdecimal::BigDecimal;
 use itertools::Itertools;
 use sqlx::{error, types::chrono::NaiveDateTime};
-use zksync_db_connection::{instrument::InstrumentExt, processor::StorageProcessor};
+use zksync_db_connection::{
+    instrument::InstrumentExt,
+    processor::{BasicStorageProcessor, StorageProcessor},
+};
 use zksync_types::{
     block::MiniblockExecutionData,
     fee::TransactionExecutionMetrics,

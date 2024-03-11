@@ -7453,6 +7453,7 @@ dependencies = [
  "zk_evm 1.4.1",
  "zkevm_test_harness 1.4.2",
  "zksync_config",
+ "zksync_dal",
  "zksync_env_config",
  "zksync_object_store",
  "zksync_prover_fri_types",

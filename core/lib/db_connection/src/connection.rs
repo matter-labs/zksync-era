@@ -19,22 +19,20 @@ use sqlx::{
 
 use crate::{
     metrics::{PostgresMetrics, CONNECTION_METRICS},
-    processor::{
-        BasicStorageProcessor, StorageKind, StorageProcessor, StorageProcessorTags,
-        TracedConnections,
-    },
+    processor::{BasicStorageProcessor, StorageKind, StorageProcessorTags, TracedConnections},
 };
 
 /// Builder for [`ConnectionPool`]s.
 #[derive(Clone)]
-pub struct ConnectionPoolBuilder {
+pub struct ConnectionPoolBuilder<SK: StorageKind> {
     database_url: String,
     max_size: u32,
     acquire_timeout: Duration,
     statement_timeout: Option<Duration>,
+    _marker: PhantomData<SK>,
 }
 
-impl fmt::Debug for ConnectionPoolBuilder {
+impl<SK: StorageKind> fmt::Debug for ConnectionPoolBuilder<SK> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         // Database URL is potentially sensitive, thus we omit it.
         formatter
@@ -46,7 +44,7 @@ impl fmt::Debug for ConnectionPoolBuilder {
     }
 }
 
-impl ConnectionPoolBuilder {
+impl<SK: StorageKind> ConnectionPoolBuilder<SK> {
     /// Overrides the maximum number of connections that can be allocated by the pool.
     pub fn set_max_size(&mut self, max_size: u32) -> &mut Self {
         self.max_size = max_size;
@@ -77,7 +75,7 @@ impl ConnectionPoolBuilder {
     }
 
     /// Builds a connection pool from this builder.
-    pub async fn build<DB: StorageKind>(&self) -> anyhow::Result<ConnectionPool<DB>> {
+    pub async fn build(&self) -> anyhow::Result<ConnectionPool<SK>> {
         let options = PgPoolOptions::new()
             .max_connections(self.max_size)
             .acquire_timeout(self.acquire_timeout);
@@ -104,10 +102,13 @@ impl ConnectionPoolBuilder {
     }
 
     /// Builds a connection pool that has a single connection.
-    pub async fn build_singleton<SK: StorageKind>(&self) -> anyhow::Result<ConnectionPool<SK>> {
+    pub async fn build_singleton(&self) -> anyhow::Result<ConnectionPool<SK>> {
         let singleton_builder = Self {
+            database_url: self.database_url.clone(),
             max_size: 1,
-            ..self.clone()
+            acquire_timeout: self.acquire_timeout.clone(),
+            statement_timeout: self.statement_timeout.clone(),
+            _marker: self._marker.clone(),
         };
         singleton_builder.build().await
     }
@@ -155,7 +156,7 @@ impl TestTemplate {
 
     /// Closes the connection pool, disallows connecting to the underlying db,
     /// so that the db can be used as a template.
-    pub async fn freeze<DB: StorageKind>(pool: ConnectionPool<DB>) -> anyhow::Result<Self> {
+    pub async fn freeze<SK: StorageKind>(pool: ConnectionPool<SK>) -> anyhow::Result<Self> {
         use sqlx::Executor as _;
         let mut conn = pool.acquire_connection_retried(None).await?;
         conn.execute(
@@ -176,7 +177,10 @@ impl TestTemplate {
     /// whenever you write to the DBs, therefore making it as fast as an in-memory Postgres instance.
     /// The database is not cleaned up automatically, but rather the whole Postgres
     /// container is recreated whenever you call "zk test rust".
-    pub async fn create_db(&self, connections: u32) -> anyhow::Result<ConnectionPoolBuilder> {
+    pub async fn create_db<SK: StorageKind>(
+        &self,
+        connections: u32,
+    ) -> anyhow::Result<ConnectionPoolBuilder<SK>> {
         use sqlx::Executor as _;
 
         let mut conn = Self::connect_to(&self.url(""))
@@ -188,7 +192,7 @@ impl TestTemplate {
             .await
             .context("CREATE DATABASE")?;
 
-        Ok(ConnectionPool::builder(
+        Ok(ConnectionPool::<SK>::builder(
             self.url(&db_new).as_ref(),
             connections,
         ))
@@ -298,18 +302,19 @@ impl<SK: StorageKind> ConnectionPool<SK> {
     }
 
     /// Initializes a builder for connection pools.
-    pub fn builder(database_url: &str, max_pool_size: u32) -> ConnectionPoolBuilder {
+    pub fn builder(database_url: &str, max_pool_size: u32) -> ConnectionPoolBuilder<SK> {
         ConnectionPoolBuilder {
             database_url: database_url.to_string(),
             max_size: max_pool_size,
             acquire_timeout: Duration::from_secs(30), // Default value used by `sqlx`
             statement_timeout: None,
+            _marker: Default::default(),
         }
     }
 
     /// Initializes a builder for connection pools with a single connection. This is equivalent
     /// to calling `Self::builder(db_url, 1)`.
-    pub fn singleton(database_url: &str) -> ConnectionPoolBuilder {
+    pub fn singleton(database_url: &str) -> ConnectionPoolBuilder<SK> {
         Self::builder(database_url, 1)
     }
 
@@ -318,6 +323,12 @@ impl<SK: StorageKind> ConnectionPool<SK> {
     /// idle ones).
     pub fn max_size(&self) -> u32 {
         self.max_size
+    }
+
+    /// Uses this pool to report Postgres-wide metrics (e.g., table sizes). Should be called sparingly to not spam
+    /// identical metrics from multiple places. The returned future runs indefinitely and should be spawned as a Tokio task.
+    pub async fn run_postgres_metrics_scraping(self, scrape_interval: Duration) {
+        PostgresMetrics::run_scraping(self, scrape_interval).await;
     }
 
     /// Creates a `StorageProcessor` entity over a recoverable connection.
@@ -367,11 +378,11 @@ impl<SK: StorageKind> ConnectionPool<SK> {
             CONNECTION_METRICS.acquire_tagged[&tags.requester].observe(elapsed);
         }
 
-        Ok(SK::Processor::from_pool(
+        Ok(SK::Processor::from(BasicStorageProcessor::from_pool(
             conn,
             tags,
             self.traced_connections.as_deref(),
-        ))
+        )))
     }
 
     async fn acquire_connection_retried(

@@ -55,15 +55,25 @@ mod tests;
 
 pub struct Server(());
 
+#[derive(Debug)]
 pub struct ServerProcessor<'a>(BasicStorageProcessor<'a>);
+
+impl<'a> From<BasicStorageProcessor<'a>> for ServerProcessor<'a> {
+    fn from(processor: BasicStorageProcessor<'a>) -> Self {
+        Self(processor)
+    }
+}
 
 impl StorageKind for Server {
     type Processor<'a> = ServerProcessor<'a>;
 }
 
+#[async_trait]
 impl<'a> StorageProcessor for ServerProcessor<'a> {
+    type Processor<'b> = ServerProcessor<'b> where Self: 'b;
+
     async fn start_transaction(&mut self) -> sqlx::Result<ServerProcessor<'_>> {
-        self.0.start_transaction()
+        self.0.start_transaction().await.map(ServerProcessor::from)
     }
 
     /// Checks if the `StorageProcessor` is currently within database transaction.
@@ -73,18 +83,6 @@ impl<'a> StorageProcessor for ServerProcessor<'a> {
 
     async fn commit(self) -> sqlx::Result<()> {
         self.0.commit()
-    }
-
-    fn from_pool(
-        connection: PoolConnection<Postgres>,
-        tags: Option<StorageProcessorTags>,
-        traced_connections: Option<&'a TracedConnections>,
-    ) -> Self {
-        Self(BasicStorageProcessor::from_pool(
-            connection,
-            tags,
-            traced_connections,
-        ))
     }
 
     fn conn(&mut self) -> &mut PgConnection {

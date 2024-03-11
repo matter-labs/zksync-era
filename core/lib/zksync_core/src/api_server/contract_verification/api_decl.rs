@@ -1,5 +1,5 @@
 use actix_web::web;
-use zksync_dal::connection::ConnectionPool;
+use zksync_dal::{connection::ConnectionPool, ConnectionPool};
 
 #[derive(Debug, Clone)]
 pub struct RestApi {

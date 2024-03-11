@@ -6,7 +6,7 @@ use anyhow::Context as _;
 use async_trait::async_trait;
 use serde::Serialize;
 use tokio::sync::Semaphore;
-use zksync_dal::{BasicStorageProcessor, ConnectionPool, SqlxError};
+use zksync_dal::{BasicStorageProcessor, ConnectionPool, Server, SqlxError};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_types::{
@@ -186,7 +186,7 @@ impl SnapshotsApplierConfig {
     /// - Storage contains at least one L1 batch
     pub async fn run(
         self,
-        connection_pool: &ConnectionPool,
+        connection_pool: &ConnectionPool<Server>,
         main_node_client: &dyn SnapshotsApplierMainNodeClient,
         blob_store: &dyn ObjectStore,
     ) -> anyhow::Result<()> {
@@ -234,7 +234,7 @@ impl SnapshotsApplierConfig {
 /// Applying application-level storage snapshots to the Postgres storage.
 #[derive(Debug)]
 struct SnapshotsApplier<'a> {
-    connection_pool: &'a ConnectionPool,
+    connection_pool: &'a ConnectionPool<Server>,
     main_node_client: &'a dyn SnapshotsApplierMainNodeClient,
     blob_store: &'a dyn ObjectStore,
     applied_snapshot_status: SnapshotRecoveryStatus,
@@ -307,7 +307,7 @@ impl<'a> SnapshotsApplier<'a> {
     }
 
     async fn load_snapshot(
-        connection_pool: &'a ConnectionPool,
+        connection_pool: &'a ConnectionPool<Server>,
         main_node_client: &'a dyn SnapshotsApplierMainNodeClient,
         blob_store: &'a dyn ObjectStore,
         health_updater: &'a HealthUpdater,

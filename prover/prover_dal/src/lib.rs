@@ -1,6 +1,7 @@
 use sqlx::{pool::PoolConnection, PgConnection, Postgres};
+pub use zksync_db_connection::connection::ConnectionPool;
 use zksync_db_connection::processor::{
-    BasicStorageProcessor, StorageKind, StorageProcessor, StorageProcessorTags, TracedConnections,
+    BasicStorageProcessor, StorageKind, StorageProcessorTags, TracedConnections,
 };
 
 use crate::{
@@ -26,7 +27,7 @@ impl StorageKind for Prover {
     type Processor<'a> = ProverProcessor<'a>;
 }
 
-impl<'a> StorageProcessor for ProverProcessor<'a> {
+impl<'a> BasicStorageProcessor for ProverProcessor<'a> {
     async fn start_transaction(&mut self) -> sqlx::Result<ProverProcessor<'_>> {
         self.0.start_transaction()
     }

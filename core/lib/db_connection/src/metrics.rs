@@ -134,22 +134,23 @@ impl PostgresMetrics {
         }
     }
 
-    async fn scrape<SK: StorageKind>(pool: &ConnectionPool<SK>) -> anyhow::Result<()> {
-        let mut storage = pool
-            .access_storage_tagged("postgres_metrics")
-            .await
-            .context("cannot acquire Postgres connection")?;
-        let table_sizes = storage
-            .system_dal()
-            .get_table_sizes()
-            .await
-            .context("failed getting table sizes")?;
-        for (table_name, sizes) in table_sizes {
-            POSTGRES_METRICS.table_data_size[&table_name].set(sizes.table_size);
-            POSTGRES_METRICS.table_indexes_size[&table_name].set(sizes.indexes_size);
-            POSTGRES_METRICS.table_relation_size[&table_name].set(sizes.relation_size);
-            POSTGRES_METRICS.table_total_size[&table_name].set(sizes.total_size);
-        }
+    // todo: i believe it shouldn't access dal here
+    async fn scrape<SK: StorageKind>(_pool: &ConnectionPool<SK>) -> anyhow::Result<()> {
+        // let mut storage = pool
+        //     .access_storage_tagged("postgres_metrics")
+        //     .await
+        //     .context("cannot acquire Postgres connection")?;
+        // let table_sizes = storage
+        //     .system_dal()
+        //     .get_table_sizes()
+        //     .await
+        //     .context("failed getting table sizes")?;
+        // for (table_name, sizes) in table_sizes {
+        //     POSTGRES_METRICS.table_data_size[&table_name].set(sizes.table_size);
+        //     POSTGRES_METRICS.table_indexes_size[&table_name].set(sizes.indexes_size);
+        //     POSTGRES_METRICS.table_relation_size[&table_name].set(sizes.relation_size);
+        //     POSTGRES_METRICS.table_total_size[&table_name].set(sizes.total_size);
+        // }
         Ok(())
     }
 }

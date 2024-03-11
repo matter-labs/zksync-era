@@ -1,7 +1,7 @@
 use anyhow::Context as _;
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage::ReplicaState;
-use zksync_db_connection::processor::StorageProcessor;
+use zksync_db_connection::processor::{BasicStorageProcessor, StorageProcessor};
 use zksync_types::MiniblockNumber;
 
 pub use crate::models::consensus::Payload;

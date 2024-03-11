@@ -2,10 +2,10 @@ use std::{env, time::Duration};
 
 use anyhow::Context as _;
 use prometheus_exporter::PrometheusExporterConfig;
+use prover_dal::ConnectionPool;
 use structopt::StructOpt;
 use tokio::sync::{oneshot, watch};
 use zksync_config::configs::{FriProofCompressorConfig, ObservabilityConfig, PostgresConfig};
-use zksync_dal::ConnectionPool;
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_queued_job_processor::JobProcessor;

@@ -3,6 +3,7 @@ use std::{sync::Arc, time::Instant};
 use anyhow::Context as _;
 use async_trait::async_trait;
 use circuit_sequencer_api::proof::FinalProof;
+use prover_dal::{ConnectionPool, Prover};
 use tokio::task::JoinHandle;
 use zkevm_test_harness::proof_wrapper_utils::{wrap_proof, WrapperConfig};
 use zkevm_test_harness_1_3_3::{
@@ -15,7 +16,6 @@ use zkevm_test_harness_1_3_3::{
     },
     witness::oracle::VmWitnessOracle,
 };
-use zksync_dal::ConnectionPool;
 use zksync_object_store::ObjectStore;
 use zksync_prover_fri_types::{
     circuit_definitions::{
@@ -36,7 +36,7 @@ use crate::metrics::METRICS;
 
 pub struct ProofCompressor {
     blob_store: Arc<dyn ObjectStore>,
-    pool: ConnectionPool,
+    pool: ConnectionPool<Prover>,
     compression_mode: u8,
     verify_wrapper_proof: bool,
     max_attempts: u32,
@@ -45,7 +45,7 @@ pub struct ProofCompressor {
 impl ProofCompressor {
     pub fn new(
         blob_store: Arc<dyn ObjectStore>,
-        pool: ConnectionPool,
+        pool: ConnectionPool<Prover>,
         compression_mode: u8,
         verify_wrapper_proof: bool,
         max_attempts: u32,
