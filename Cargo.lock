@@ -659,7 +659,7 @@ dependencies = [
  "blake2s_simd",
  "byteorder",
  "cfg-if 1.0.0",
- "crossbeam 0.7.3",
+ "crossbeam",
  "futures 0.3.28",
  "hex",
  "lazy_static",
@@ -881,7 +881,7 @@ dependencies = [
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "const_format",
  "convert_case",
- "crossbeam 0.8.2",
+ "crossbeam",
  "crypto-bigint 0.5.3",
  "cs_derive",
  "derivative",
@@ -1544,20 +1544,6 @@ dependencies = [
  "crossbeam-epoch 0.8.2",
  "crossbeam-queue 0.2.3",
  "crossbeam-utils 0.7.2",
-]
-
-[[package]]
-name = "crossbeam"
-version = "0.8.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2801af0d36612ae591caa9568261fddce32ce6e08a7275ea334a06a4ad021a2c"
-dependencies = [
- "cfg-if 1.0.0",
- "crossbeam-channel 0.5.8",
- "crossbeam-deque 0.8.3",
- "crossbeam-epoch 0.9.15",
- "crossbeam-queue 0.3.8",
- "crossbeam-utils 0.8.16",
 ]
 
 [[package]]
@@ -7883,7 +7869,7 @@ dependencies = [
 [[package]]
 name = "zkevm_circuits"
 version = "1.4.1"
-source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=v1.4.1#3a973afb3cf2b50b7138c1af61cc6ac3d7d0189f"
+source = "git+https://github.com/matter-labs/era-zkevm_circuits.git?branch=v1.4.1#8bf24543ffc5bafab34182388394e887ecb37d17"
 dependencies = [
  "arrayvec 0.7.4",
  "bincode",
