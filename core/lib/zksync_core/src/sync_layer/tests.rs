@@ -514,8 +514,7 @@ pub(super) async fn run_state_keeper_with_multiple_l1_batches(
         timestamp: snapshot.miniblock_timestamp + 2,
         virtual_blocks: 0,
     };
-    let seal_l1_batch = SyncAction::SealBatch { virtual_blocks: 0 };
-    let fictive_miniblock_actions = vec![fictive_miniblock, seal_l1_batch];
+    let fictive_miniblock_actions = vec![fictive_miniblock, SyncAction::SealBatch];
 
     let l1_batch = open_l1_batch(
         snapshot.l1_batch_number.0 + 2,

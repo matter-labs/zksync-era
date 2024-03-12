@@ -47,7 +47,7 @@ impl ActionQueueSender {
                         return Err(format!("Unexpected Tx: {:?}", actions));
                     }
                 }
-                SyncAction::SealMiniblock | SyncAction::SealBatch { .. } => {
+                SyncAction::SealMiniblock | SyncAction::SealBatch => {
                     if !opened || miniblock_sealed {
                         return Err(format!("Unexpected SealMiniblock/SealBatch: {:?}", actions));
                     }
@@ -132,11 +132,7 @@ pub(crate) enum SyncAction {
     /// the next one is sealed on the main node.
     SealMiniblock,
     /// Similarly to `SealMiniblock` we must be able to seal the batch even if there is no next miniblock yet.
-    SealBatch {
-        /// Virtual blocks count for the fictive miniblock.
-        #[allow(dead_code)] // FIXME: remove
-        virtual_blocks: u32,
-    },
+    SealBatch,
 }
 
 impl From<Transaction> for SyncAction {
@@ -193,7 +189,7 @@ mod tests {
     }
 
     fn seal_batch() -> SyncAction {
-        SyncAction::SealBatch { virtual_blocks: 1 }
+        SyncAction::SealBatch
     }
 
     #[test]

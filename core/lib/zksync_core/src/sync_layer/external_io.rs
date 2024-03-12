@@ -215,10 +215,7 @@ impl ExternalIO {
 
 impl IoSealCriteria for ExternalIO {
     fn should_seal_l1_batch_unconditionally(&mut self, _manager: &UpdatesManager) -> bool {
-        if !matches!(
-            self.actions.peek_action(),
-            Some(SyncAction::SealBatch { .. })
-        ) {
+        if !matches!(self.actions.peek_action(), Some(SyncAction::SealBatch)) {
             return false;
         }
         self.actions.pop_action();

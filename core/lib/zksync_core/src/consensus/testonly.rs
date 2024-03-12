@@ -280,7 +280,7 @@ impl StateKeeper {
     pub async fn seal_batch(&mut self) {
         // Each batch ends with an empty block (aka fictive block).
         let mut actions = vec![self.open_block()];
-        actions.push(SyncAction::SealBatch { virtual_blocks: 0 });
+        actions.push(SyncAction::SealBatch);
         self.actions_sender.push_actions(actions).await;
         self.batch_sealed = true;
     }

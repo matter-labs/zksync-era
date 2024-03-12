@@ -150,10 +150,7 @@ impl IoCursor {
         // Last miniblock of the batch is a "fictive" miniblock and would be replicated locally.
         // We don't need to seal it explicitly, so we only put the seal miniblock command if it's not the last miniblock.
         if block.last_in_batch {
-            new_actions.push(SyncAction::SealBatch {
-                // `block.virtual_blocks` can be `None` only for old VM versions where it's not used, so it's fine to provide any number.
-                virtual_blocks: block.virtual_blocks,
-            });
+            new_actions.push(SyncAction::SealBatch);
         } else {
             new_actions.push(SyncAction::SealMiniblock);
         }
