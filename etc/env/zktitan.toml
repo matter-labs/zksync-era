@@ -33,3 +33,5 @@ max_eth_tx_data_size=59000
 tx_poll_period=60
 aggregate_tx_poll_period=60
 proof_loading_mode="FriProofFromGcs"
+# Max L2 blocks to execute in one L1 transaction
+max_aggregated_blocks_to_execute=1
