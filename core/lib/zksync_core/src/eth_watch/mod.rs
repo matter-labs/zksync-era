@@ -8,7 +8,7 @@ use std::{sync::Arc, time::Duration};
 
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::ETHWatchConfig;
-use zksync_dal::{BasicStorageProcessor, ConnectionPool};
+use zksync_dal::{ConnectionPool, Server, ServerProcessor};
 use zksync_eth_client::EthInterface;
 use zksync_system_constants::PRIORITY_EXPIRATION;
 use zksync_types::{
@@ -45,7 +45,7 @@ pub struct EthWatch {
     event_processors: Vec<Box<dyn EventProcessor>>,
 
     last_processed_ethereum_block: u64,
-    pool: ConnectionPool,
+    pool: ConnectionPool<Server>,
 }
 
 impl EthWatch {
@@ -53,7 +53,7 @@ impl EthWatch {
         diamond_proxy_address: Address,
         governance_contract: Option<Contract>,
         mut client: Box<dyn EthClient>,
-        pool: ConnectionPool,
+        pool: ConnectionPool<Server>,
         poll_interval: Duration,
     ) -> Self {
         let mut storage = pool.access_storage_tagged("eth_watch").await.unwrap();
@@ -98,7 +98,7 @@ impl EthWatch {
 
     async fn initialize_state(
         client: &dyn EthClient,
-        storage: &mut BasicStorageProcessor<'_>,
+        storage: &mut ServerProcessor<'_>,
     ) -> EthWatchState {
         let next_expected_priority_id: PriorityOpId = storage
             .transactions_dal()
@@ -162,10 +162,7 @@ impl EthWatch {
     }
 
     #[tracing::instrument(skip(self, storage))]
-    async fn loop_iteration(
-        &mut self,
-        storage: &mut BasicStorageProcessor<'_>,
-    ) -> Result<(), Error> {
+    async fn loop_iteration(&mut self, storage: &mut ServerProcessor<'_>) -> Result<(), Error> {
         let stage_latency = METRICS.poll_eth_node[&PollStage::Request].start();
         let to_block = self.client.finalized_block_number().await?;
         if to_block <= self.last_processed_ethereum_block {
@@ -194,7 +191,7 @@ impl EthWatch {
 
 pub async fn start_eth_watch(
     config: ETHWatchConfig,
-    pool: ConnectionPool,
+    pool: ConnectionPool<Server>,
     eth_gateway: Arc<dyn EthInterface>,
     diamond_proxy_addr: Address,
     governance: (Contract, Address),

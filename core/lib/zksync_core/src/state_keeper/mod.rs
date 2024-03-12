@@ -5,7 +5,7 @@ use zksync_config::{
     configs::chain::{MempoolConfig, NetworkConfig, StateKeeperConfig},
     ContractsConfig, DBConfig,
 };
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Server};
 use zksync_object_store::ObjectStore;
 
 pub use self::{
@@ -37,7 +37,7 @@ pub(crate) async fn create_state_keeper(
     db_config: &DBConfig,
     network_config: &NetworkConfig,
     mempool_config: &MempoolConfig,
-    pool: ConnectionPool,
+    pool: ConnectionPool<Server>,
     mempool: MempoolGuard,
     batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     miniblock_sealer_handle: MiniblockSealerHandle,

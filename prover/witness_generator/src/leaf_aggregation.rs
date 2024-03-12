@@ -2,11 +2,12 @@ use std::{sync::Arc, time::Instant};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
+use prover_dal::Prover;
 use zkevm_test_harness::witness::recursive_aggregation::{
     compute_leaf_params, create_leaf_witnesses,
 };
 use zksync_config::configs::FriWitnessGeneratorConfig;
-use zksync_dal::{fri_prover_dal::types::LeafAggregationJobMetadata, ConnectionPool};
+use zksync_dal::ConnectionPool;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_prover_fri_types::{
     circuit_definitions::{
@@ -28,7 +29,8 @@ use zksync_prover_fri_types::{
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{
-    basic_fri_types::AggregationRound, protocol_version::FriProtocolVersionId, L1BatchNumber,
+    basic_fri_types::AggregationRound, protocol_version::FriProtocolVersionId,
+    prover_dal::LeafAggregationJobMetadata, L1BatchNumber,
 };
 use zksync_vk_setup_data_server_fri::keystore::Keystore;
 
@@ -71,7 +73,7 @@ pub struct LeafAggregationWitnessGeneratorJob {
 pub struct LeafAggregationWitnessGenerator {
     config: FriWitnessGeneratorConfig,
     object_store: Arc<dyn ObjectStore>,
-    prover_connection_pool: ConnectionPool,
+    prover_connection_pool: ConnectionPool<Prover>,
     protocol_versions: Vec<FriProtocolVersionId>,
 }
 
@@ -79,7 +81,7 @@ impl LeafAggregationWitnessGenerator {
     pub async fn new(
         config: FriWitnessGeneratorConfig,
         store_factory: &ObjectStoreFactory,
-        prover_connection_pool: ConnectionPool,
+        prover_connection_pool: ConnectionPool<Prover>,
         protocol_versions: Vec<FriProtocolVersionId>,
     ) -> Self {
         Self {
@@ -281,7 +283,7 @@ pub fn process_leaf_aggregation_job(
 }
 
 async fn update_database(
-    prover_connection_pool: &ConnectionPool,
+    prover_connection_pool: &ConnectionPool<Prover>,
     started_at: Instant,
     block_number: L1BatchNumber,
     job_id: u32,

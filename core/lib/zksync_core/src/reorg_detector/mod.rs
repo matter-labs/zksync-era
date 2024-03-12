@@ -3,7 +3,7 @@ use std::{fmt, time::Duration};
 use anyhow::Context as _;
 use async_trait::async_trait;
 use tokio::sync::watch;
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Server};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_types::{L1BatchNumber, MiniblockNumber, H256};
 use zksync_web3_decl::{
@@ -215,7 +215,7 @@ impl HandleReorgDetectorEvent for HealthUpdater {
 pub struct ReorgDetector {
     client: Box<dyn MainNodeClient>,
     event_handler: Box<dyn HandleReorgDetectorEvent>,
-    pool: ConnectionPool,
+    pool: ConnectionPool<Server>,
     sleep_interval: Duration,
     health_check: ReactiveHealthCheck,
 }
@@ -223,7 +223,7 @@ pub struct ReorgDetector {
 impl ReorgDetector {
     const DEFAULT_SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 
-    pub fn new(client: HttpClient, pool: ConnectionPool) -> Self {
+    pub fn new(client: HttpClient, pool: ConnectionPool<Server>) -> Self {
         let (health_check, health_updater) = ReactiveHealthCheck::new("reorg_detector");
         Self {
             client: Box::new(client),

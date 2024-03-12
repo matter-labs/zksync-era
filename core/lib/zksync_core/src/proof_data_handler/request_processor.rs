@@ -9,7 +9,7 @@ use axum::{
 use zksync_config::configs::{
     proof_data_handler::ProtocolVersionLoadingMode, ProofDataHandlerConfig,
 };
-use zksync_dal::{ConnectionPool, SqlxError};
+use zksync_dal::{ConnectionPool, Server, SqlxError};
 use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_prover_interface::api::{
     ProofGenerationData, ProofGenerationDataRequest, ProofGenerationDataResponse,
@@ -27,7 +27,7 @@ use zksync_utils::u256_to_h256;
 #[derive(Clone)]
 pub(crate) struct RequestProcessor {
     blob_store: Arc<dyn ObjectStore>,
-    pool: ConnectionPool,
+    pool: ConnectionPool<Server>,
     config: ProofDataHandlerConfig,
     l1_verifier_config: Option<L1VerifierConfig>,
 }
@@ -67,7 +67,7 @@ impl IntoResponse for RequestProcessorError {
 impl RequestProcessor {
     pub(crate) fn new(
         blob_store: Arc<dyn ObjectStore>,
-        pool: ConnectionPool,
+        pool: ConnectionPool<Server>,
         config: ProofDataHandlerConfig,
         l1_verifier_config: Option<L1VerifierConfig>,
     ) -> Self {

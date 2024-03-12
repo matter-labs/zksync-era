@@ -11,7 +11,7 @@ use tempfile::TempDir;
 use tokio::sync::watch;
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::{get_loadnext_contract, test_contracts::LoadnextContractExecutionParams};
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Server};
 use zksync_test_account::{Account, DeployContractsTx, TxType};
 use zksync_types::{
     block::MiniblockHasher, ethabi::Token, fee::Fee, snapshots::SnapshotRecoveryStatus,
@@ -67,16 +67,16 @@ impl TestConfig {
 pub(super) struct Tester {
     fee_account: Address,
     db_dir: TempDir,
-    pool: ConnectionPool,
+    pool: ConnectionPool<Server>,
     config: TestConfig,
 }
 
 impl Tester {
-    pub(super) fn new(pool: ConnectionPool) -> Self {
+    pub(super) fn new(pool: ConnectionPool<Server>) -> Self {
         Self::with_config(pool, TestConfig::new())
     }
 
-    pub(super) fn with_config(pool: ConnectionPool, config: TestConfig) -> Self {
+    pub(super) fn with_config(pool: ConnectionPool<Server>, config: TestConfig) -> Self {
         Self {
             fee_account: Address::repeat_byte(0x01),
             db_dir: TempDir::new().unwrap(),
@@ -376,7 +376,7 @@ pub(super) struct StorageSnapshot {
 impl StorageSnapshot {
     /// Generates a new snapshot by executing the specified number of transactions, each in a separate miniblock.
     pub async fn new(
-        connection_pool: &ConnectionPool,
+        connection_pool: &ConnectionPool<Server>,
         alice: &mut Account,
         transaction_count: u32,
     ) -> Self {
@@ -469,7 +469,7 @@ impl StorageSnapshot {
     }
 
     /// Recovers storage from this snapshot.
-    pub async fn recover(self, connection_pool: &ConnectionPool) -> SnapshotRecoveryStatus {
+    pub async fn recover(self, connection_pool: &ConnectionPool<Server>) -> SnapshotRecoveryStatus {
         let snapshot_logs: Vec<_> = self
             .storage_logs
             .into_iter()

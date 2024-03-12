@@ -12,7 +12,7 @@ use lru::LruCache;
 use tokio::sync::{watch, Mutex};
 use vise::GaugeGuard;
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::NetworkConfig, ContractsConfig};
-use zksync_dal::{BasicStorageProcessor, ConnectionPool};
+use zksync_dal::{BasicStorageProcessor, ConnectionPool, Server};
 use zksync_types::{
     api, l2::L2Tx, transaction_request::CallRequest, Address, L1BatchNumber, L1ChainId, L2ChainId,
     MiniblockNumber, H256, U256, U64,
@@ -134,7 +134,7 @@ impl SealedMiniblockNumber {
     /// Creates a handle to the last sealed miniblock number together with a task that will update
     /// it on a schedule.
     pub fn new(
-        connection_pool: ConnectionPool,
+        connection_pool: ConnectionPool<Server>,
         update_interval: Duration,
         stop_receiver: watch::Receiver<bool>,
     ) -> (Self, impl Future<Output = anyhow::Result<()>>) {
@@ -202,7 +202,7 @@ impl SealedMiniblockNumber {
 pub(crate) struct RpcState {
     pub(super) current_method: Arc<MethodTracer>,
     pub(super) installed_filters: Option<Arc<Mutex<Filters>>>,
-    pub(super) connection_pool: ConnectionPool,
+    pub(super) connection_pool: ConnectionPool<Server>,
     pub(super) tree_api: Option<Arc<dyn TreeApiClient>>,
     pub(super) tx_sender: TxSender,
     pub(super) sync_state: Option<SyncState>,

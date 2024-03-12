@@ -1,5 +1,6 @@
 use anyhow::Context as _;
 use prometheus_exporter::PrometheusExporterConfig;
+use prover_dal::Prover;
 use reqwest::Client;
 use tokio::sync::{oneshot, watch};
 use zksync_config::configs::{FriProverGatewayConfig, ObservabilityConfig, PostgresConfig};
@@ -37,7 +38,7 @@ async fn main() -> anyhow::Result<()> {
     let config =
         FriProverGatewayConfig::from_env().context("FriProverGatewayConfig::from_env()")?;
     let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
-    let pool = ConnectionPool::builder(
+    let pool = ConnectionPool::<Prover>::builder(
         postgres_config.prover_url()?,
         postgres_config.max_connections()?,
     )

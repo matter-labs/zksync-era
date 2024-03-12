@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use multivm::utils::get_max_gas_per_pubdata_byte;
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_dal::BasicStorageProcessor;
+use zksync_dal::{BasicStorageProcessor, ServerProcessor};
 use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
 use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
 use zksync_types::{
@@ -150,7 +150,7 @@ pub(crate) fn execute_l2_transaction(transaction: L2Tx) -> TransactionExecutionR
 
 /// Prepares a recovery snapshot without performing genesis.
 pub(crate) async fn prepare_recovery_snapshot(
-    storage: &mut BasicStorageProcessor<'_>,
+    storage: &mut ServerProcessor<'_>,
     l1_batch_number: L1BatchNumber,
     miniblock_number: MiniblockNumber,
     snapshot_logs: &[StorageLog],

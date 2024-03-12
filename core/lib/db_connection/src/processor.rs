@@ -236,11 +236,11 @@ pub trait StorageKind {
 
 #[cfg(test)]
 mod tests {
-    use crate::connection::ConnectionPool;
+    use crate::{connection::ConnectionPool, processor::StorageProcessor, test_utils::Test};
 
     #[tokio::test]
     async fn processor_tags_propagate_to_transactions() {
-        let pool = ConnectionPool::constrained_test_pool(1).await;
+        let pool = ConnectionPool::<Test>::constrained_test_pool(1).await;
         let mut connection = pool.access_storage_tagged("test").await.unwrap();
         assert!(!connection.in_transaction());
         let original_tags = *connection.conn_and_tags().1.unwrap();
@@ -253,7 +253,7 @@ mod tests {
 
     #[tokio::test]
     async fn tracing_connections() {
-        let pool = ConnectionPool::constrained_test_pool(1).await;
+        let pool = ConnectionPool::<Test>::constrained_test_pool(1).await;
         let connection = pool.access_storage_tagged("test").await.unwrap();
         let traced = pool.traced_connections.as_deref().unwrap();
         {

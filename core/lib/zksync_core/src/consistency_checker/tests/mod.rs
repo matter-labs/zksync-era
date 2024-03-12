@@ -61,7 +61,7 @@ fn build_commit_tx_input_data(batches: &[L1BatchWithMetadata]) -> Vec<u8> {
     encoded
 }
 
-fn create_mock_checker(client: MockEthereum, pool: ConnectionPool) -> ConsistencyChecker {
+fn create_mock_checker(client: MockEthereum, pool: ConnectionPool<Server>) -> ConsistencyChecker {
     let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
     ConsistencyChecker {
         contract: zksync_contracts::zksync_contract(),
@@ -312,7 +312,7 @@ async fn normal_checker_function(
 ) {
     println!("Using save_actions_mapper={mapper_name}");
 
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::<Server>::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
     ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
         .await
@@ -379,7 +379,7 @@ async fn checker_processes_pre_boojum_batches(
 ) {
     println!("Using save_actions_mapper={mapper_name}");
 
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::<Server>::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
     let genesis_params = GenesisParams {
         protocol_version: PRE_BOOJUM_PROTOCOL_VERSION,
@@ -449,7 +449,7 @@ async fn checker_processes_pre_boojum_batches(
 #[test_casing(2, [false, true])]
 #[tokio::test]
 async fn checker_functions_after_snapshot_recovery(delay_batch_insertion: bool) {
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::<Server>::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
     storage
         .protocol_versions_dal()
@@ -584,7 +584,7 @@ impl IncorrectDataKind {
 // ^ `snapshot_recovery = true` is tested below; we don't want to run it with all incorrect data kinds
 #[tokio::test]
 async fn checker_detects_incorrect_tx_data(kind: IncorrectDataKind, snapshot_recovery: bool) {
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::<Server>::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
     if snapshot_recovery {
         storage

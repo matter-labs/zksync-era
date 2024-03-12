@@ -443,17 +443,18 @@ mod tests {
     use assert_matches::assert_matches;
 
     use super::*;
+    use crate::{processor::StorageProcessor, test_utils::Test};
 
     #[tokio::test]
     async fn setting_statement_timeout() {
         let db_url = TestTemplate::empty()
             .unwrap()
-            .create_db(1)
+            .create_db::<Test>(1)
             .await
             .unwrap()
             .database_url;
 
-        let pool = ConnectionPool::singleton(&db_url)
+        let pool = ConnectionPool::<Test>::singleton(&db_url)
             .set_statement_timeout(Some(Duration::from_secs(1)))
             .build()
             .await

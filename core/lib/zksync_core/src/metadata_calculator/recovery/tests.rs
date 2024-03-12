@@ -59,7 +59,7 @@ async fn create_tree_recovery(path: PathBuf, l1_batch: L1BatchNumber) -> AsyncTr
 
 #[tokio::test]
 async fn basic_recovery_workflow() {
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::<Server>::test_pool().await;
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
     let snapshot_recovery = prepare_recovery_snapshot_with_genesis(&pool, &temp_dir).await;
     let snapshot = SnapshotParameters::new(&pool, &snapshot_recovery)
@@ -93,7 +93,7 @@ async fn basic_recovery_workflow() {
 }
 
 async fn prepare_recovery_snapshot_with_genesis(
-    pool: &ConnectionPool,
+    pool: &ConnectionPool<Server>,
     temp_dir: &TempDir,
 ) -> SnapshotRecoveryStatus {
     let mut storage = pool.access_storage().await.unwrap();
@@ -172,7 +172,7 @@ impl HandleRecoveryEvent for TestEventListener {
 #[test_casing(3, [5, 7, 8])]
 #[tokio::test]
 async fn recovery_fault_tolerance(chunk_count: u64) {
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::<Server>::test_pool().await;
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
     let snapshot_recovery = prepare_recovery_snapshot_with_genesis(&pool, &temp_dir).await;
 
@@ -238,7 +238,7 @@ impl RecoveryWorkflowCase {
 #[test_casing(2, RecoveryWorkflowCase::ALL)]
 #[tokio::test]
 async fn entire_recovery_workflow(case: RecoveryWorkflowCase) {
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::<Server>::test_pool().await;
     // Emulate the recovered view of Postgres. Unlike with previous tests, we don't perform genesis.
     let snapshot_logs = gen_storage_logs(100..300, 1).pop().unwrap();
     let mut storage = pool.access_storage().await.unwrap();

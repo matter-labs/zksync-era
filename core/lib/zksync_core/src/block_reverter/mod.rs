@@ -5,7 +5,7 @@ use serde::Serialize;
 use tokio::time::sleep;
 use zksync_config::{ContractsConfig, ETHSenderConfig};
 use zksync_contracts::zksync_contract;
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Server};
 use zksync_eth_signer::{EthereumSigner, PrivateKeySigner, TransactionParameters};
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_state::RocksdbStorage;
@@ -100,7 +100,7 @@ pub struct BlockReverter {
     state_keeper_cache_path: String,
     merkle_tree_path: String,
     eth_config: Option<BlockReverterEthConfig>,
-    connection_pool: ConnectionPool,
+    connection_pool: ConnectionPool<Server>,
     executed_batches_revert_mode: L1ExecutedBatchesRevert,
 }
 
@@ -110,7 +110,7 @@ impl BlockReverter {
         state_keeper_cache_path: String,
         merkle_tree_path: String,
         eth_config: Option<BlockReverterEthConfig>,
-        connection_pool: ConnectionPool,
+        connection_pool: ConnectionPool<Server>,
         executed_batches_revert_mode: L1ExecutedBatchesRevert,
     ) -> Self {
         Self {

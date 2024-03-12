@@ -9,7 +9,7 @@ use std::{
 use anyhow::Context as _;
 use async_trait::async_trait;
 use tokio::sync::watch;
-use zksync_dal::{BasicStorageProcessor, ConnectionPool};
+use zksync_dal::{ConnectionPool, Server, ServerProcessor};
 use zksync_types::{L1BatchNumber, ProtocolVersionId};
 
 #[cfg(test)]
@@ -58,7 +58,7 @@ pub(crate) async fn binary_search_with<P: BinarySearchPredicate>(
 ///
 /// Returns the number of the *earliest* L1 batch, or `None` if the stop signal is received.
 pub(crate) async fn wait_for_l1_batch(
-    pool: &ConnectionPool,
+    pool: &ConnectionPool<Server>,
     poll_interval: Duration,
     stop_receiver: &mut watch::Receiver<bool>,
 ) -> anyhow::Result<Option<L1BatchNumber>> {
@@ -89,7 +89,7 @@ pub(crate) async fn wait_for_l1_batch(
 ///
 /// Returns the number of the *earliest* L1 batch with metadata, or `None` if the stop signal is received.
 pub(crate) async fn wait_for_l1_batch_with_metadata(
-    pool: &ConnectionPool,
+    pool: &ConnectionPool<Server>,
     poll_interval: Duration,
     stop_receiver: &mut watch::Receiver<bool>,
 ) -> anyhow::Result<Option<L1BatchNumber>> {
@@ -120,7 +120,7 @@ pub(crate) async fn wait_for_l1_batch_with_metadata(
 /// Returns the projected number of the first locally available L1 batch. The L1 batch is **not**
 /// guaranteed to be present in the storage!
 pub(crate) async fn projected_first_l1_batch(
-    storage: &mut BasicStorageProcessor<'_>,
+    storage: &mut ServerProcessor<'_>,
 ) -> anyhow::Result<L1BatchNumber> {
     let snapshot_recovery = storage
         .snapshot_recovery_dal()
@@ -133,7 +133,7 @@ pub(crate) async fn projected_first_l1_batch(
 /// Obtains a protocol version projected to be applied for the next miniblock. This is either the version used by the last
 /// sealed miniblock, or (if there are no miniblocks), one referenced in the snapshot recovery record.
 pub(crate) async fn pending_protocol_version(
-    storage: &mut BasicStorageProcessor<'_>,
+    storage: &mut ServerProcessor<'_>,
 ) -> anyhow::Result<ProtocolVersionId> {
     static WARNED_ABOUT_NO_VERSION: AtomicBool = AtomicBool::new(false);
 
@@ -181,7 +181,7 @@ mod tests {
 
     #[tokio::test]
     async fn waiting_for_l1_batch_success() {
-        let pool = ConnectionPool::test_pool().await;
+        let pool = ConnectionPool::<Server>::test_pool().await;
         let (_stop_sender, mut stop_receiver) = watch::channel(false);
 
         let pool_copy = pool.clone();
@@ -201,7 +201,7 @@ mod tests {
 
     #[tokio::test]
     async fn waiting_for_l1_batch_cancellation() {
-        let pool = ConnectionPool::test_pool().await;
+        let pool = ConnectionPool::<Server>::test_pool().await;
         let (stop_sender, mut stop_receiver) = watch::channel(false);
 
         tokio::spawn(async move {

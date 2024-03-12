@@ -4,7 +4,7 @@ use anyhow::Context as _;
 use serde::Serialize;
 use tokio::sync::watch;
 use zksync_contracts::PRE_BOOJUM_COMMIT_FUNCTION;
-use zksync_dal::{BasicStorageProcessor, ConnectionPool};
+use zksync_dal::{BasicStorageProcessor, ConnectionPool, Server};
 use zksync_eth_client::{clients::QueryClient, Error as L1ClientError, EthInterface};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::{
@@ -232,14 +232,14 @@ pub struct ConsistencyChecker {
     l1_client: Box<dyn EthInterface>,
     event_handler: Box<dyn HandleConsistencyCheckerEvent>,
     l1_data_mismatch_behavior: L1DataMismatchBehavior,
-    pool: ConnectionPool,
+    pool: ConnectionPool<Server>,
     health_check: ReactiveHealthCheck,
 }
 
 impl ConsistencyChecker {
     const DEFAULT_SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 
-    pub fn new(web3_url: &str, max_batches_to_recheck: u32, pool: ConnectionPool) -> Self {
+    pub fn new(web3_url: &str, max_batches_to_recheck: u32, pool: ConnectionPool<Server>) -> Self {
         let web3 = QueryClient::new(web3_url).unwrap();
         let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
         Self {

@@ -15,7 +15,7 @@ use zksync_config::configs::{
     chain::{NetworkConfig, StateKeeperConfig},
     ContractsConfig,
 };
-use zksync_dal::{transactions_dal::L2TxSubmissionResult, BasicStorageProcessor, ConnectionPool};
+use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, ServerProcessor};
 use zksync_health_check::CheckHealth;
 use zksync_types::{
     api,
@@ -106,7 +106,7 @@ impl ApiServerHandles {
 
 pub(crate) async fn spawn_http_server(
     api_config: InternalApiConfig,
-    pool: ConnectionPool,
+    pool: ConnectionPool<Server>,
     tx_executor: MockTransactionExecutor,
     method_tracer: Arc<MethodTracer>,
     stop_receiver: watch::Receiver<bool>,
@@ -126,7 +126,7 @@ pub(crate) async fn spawn_http_server(
 
 async fn spawn_ws_server(
     api_config: InternalApiConfig,
-    pool: ConnectionPool,
+    pool: ConnectionPool<Server>,
     stop_receiver: watch::Receiver<bool>,
     websocket_requests_per_minute_limit: Option<NonZeroU32>,
 ) -> (ApiServerHandles, mpsc::UnboundedReceiver<PubSubEvent>) {
@@ -145,7 +145,7 @@ async fn spawn_ws_server(
 async fn spawn_server(
     transport: ApiTransportLabel,
     api_config: InternalApiConfig,
-    pool: ConnectionPool,
+    pool: ConnectionPool<Server>,
     websocket_requests_per_minute_limit: Option<NonZeroU32>,
     tx_executor: MockTransactionExecutor,
     method_tracer: Arc<MethodTracer>,
@@ -201,7 +201,7 @@ trait HttpTest: Send + Sync {
         Arc::default()
     }
 
-    async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()>;
+    async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Server>) -> anyhow::Result<()>;
 
     /// Overrides the `filters_disabled` configuration parameter for HTTP server startup
     fn filters_disabled(&self) -> bool {
@@ -233,7 +233,7 @@ impl StorageInitialization {
     async fn prepare_storage(
         &self,
         network_config: &NetworkConfig,
-        storage: &mut BasicStorageProcessor<'_>,
+        storage: &mut ServerProcessor<'_>,
     ) -> anyhow::Result<()> {
         match self {
             Self::Genesis => {
@@ -269,7 +269,7 @@ impl StorageInitialization {
 }
 
 async fn test_http_server(test: impl HttpTest) {
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::<Server>::test_pool().await;
     let network_config = NetworkConfig::for_tests();
     let mut storage = pool.access_storage().await.unwrap();
     test.storage_initialization()
@@ -340,7 +340,7 @@ fn execute_l2_transaction(transaction: L2Tx) -> TransactionExecutionResult {
 
 /// Stores miniblock #1 with a single transaction and returns the miniblock header + transaction hash.
 async fn store_miniblock(
-    storage: &mut BasicStorageProcessor<'_>,
+    storage: &mut ServerProcessor<'_>,
     number: MiniblockNumber,
     transaction_results: &[TransactionExecutionResult],
 ) -> anyhow::Result<MiniblockHeader> {
@@ -366,7 +366,7 @@ async fn store_miniblock(
 }
 
 async fn seal_l1_batch(
-    storage: &mut BasicStorageProcessor<'_>,
+    storage: &mut ServerProcessor<'_>,
     number: L1BatchNumber,
 ) -> anyhow::Result<()> {
     let header = create_l1_batch(number.0);
@@ -391,7 +391,7 @@ async fn seal_l1_batch(
 }
 
 async fn store_events(
-    storage: &mut BasicStorageProcessor<'_>,
+    storage: &mut ServerProcessor<'_>,
     miniblock_number: u32,
     start_idx: u32,
 ) -> anyhow::Result<(IncludedTxLocation, Vec<VmEvent>)> {
@@ -451,7 +451,11 @@ struct HttpServerBasicsTest;
 
 #[async_trait]
 impl HttpTest for HttpServerBasicsTest {
-    async fn test(&self, client: &HttpClient, _pool: &ConnectionPool) -> anyhow::Result<()> {
+    async fn test(
+        &self,
+        client: &HttpClient,
+        _pool: &ConnectionPool<Server>,
+    ) -> anyhow::Result<()> {
         let block_number = client.get_block_number().await?;
         assert_eq!(block_number, U64::from(0));
 
@@ -481,7 +485,11 @@ impl HttpTest for BlockMethodsWithSnapshotRecovery {
         StorageInitialization::empty_recovery()
     }
 
-    async fn test(&self, client: &HttpClient, _pool: &ConnectionPool) -> anyhow::Result<()> {
+    async fn test(
+        &self,
+        client: &HttpClient,
+        _pool: &ConnectionPool<Server>,
+    ) -> anyhow::Result<()> {
         let block = client.get_block_by_number(1_000.into(), false).await?;
         assert!(block.is_none());
 
@@ -554,7 +562,11 @@ impl HttpTest for L1BatchMethodsWithSnapshotRecovery {
         StorageInitialization::empty_recovery()
     }
 
-    async fn test(&self, client: &HttpClient, _pool: &ConnectionPool) -> anyhow::Result<()> {
+    async fn test(
+        &self,
+        client: &HttpClient,
+        _pool: &ConnectionPool<Server>,
+    ) -> anyhow::Result<()> {
         let miniblock_number = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
         let l1_batch_number = StorageInitialization::SNAPSHOT_RECOVERY_BATCH + 1;
         assert_eq!(
@@ -645,7 +657,11 @@ impl HttpTest for StorageAccessWithSnapshotRecovery {
         StorageInitialization::Recovery { logs, factory_deps }
     }
 
-    async fn test(&self, client: &HttpClient, _pool: &ConnectionPool) -> anyhow::Result<()> {
+    async fn test(
+        &self,
+        client: &HttpClient,
+        _pool: &ConnectionPool<Server>,
+    ) -> anyhow::Result<()> {
         let address = Address::repeat_byte(1);
         let first_local_miniblock = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
         for number in [0, 1, first_local_miniblock.0 - 1] {
@@ -686,7 +702,7 @@ struct TransactionCountTest;
 
 #[async_trait]
 impl HttpTest for TransactionCountTest {
-    async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
+    async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Server>) -> anyhow::Result<()> {
         let test_address = Address::repeat_byte(11);
         let mut storage = pool.access_storage().await?;
         let mut miniblock_number = MiniblockNumber(0);
@@ -783,7 +799,7 @@ impl HttpTest for TransactionCountAfterSnapshotRecoveryTest {
         }
     }
 
-    async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
+    async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Server>) -> anyhow::Result<()> {
         let test_address = Address::repeat_byte(11);
         let pending_count = client.get_transaction_count(test_address, None).await?;
         assert_eq!(pending_count, 3.into());
@@ -837,7 +853,7 @@ struct TransactionReceiptsTest;
 
 #[async_trait]
 impl HttpTest for TransactionReceiptsTest {
-    async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
+    async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Server>) -> anyhow::Result<()> {
         let mut storage = pool.access_storage().await?;
         let miniblock_number = MiniblockNumber(1);
 
@@ -895,7 +911,7 @@ impl AllAccountBalancesTest {
 
 #[async_trait]
 impl HttpTest for AllAccountBalancesTest {
-    async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
+    async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Server>) -> anyhow::Result<()> {
         let balances = client.get_all_account_balances(Self::ADDRESS).await?;
         assert_eq!(balances, HashMap::new());
 
@@ -967,7 +983,11 @@ impl HttpTest for RpcCallsTracingTest {
         self.tracer.clone()
     }
 
-    async fn test(&self, client: &HttpClient, _pool: &ConnectionPool) -> anyhow::Result<()> {
+    async fn test(
+        &self,
+        client: &HttpClient,
+        _pool: &ConnectionPool<Server>,
+    ) -> anyhow::Result<()> {
         let block_number = client.get_block_number().await?;
         assert_eq!(block_number, U64::from(0));
 

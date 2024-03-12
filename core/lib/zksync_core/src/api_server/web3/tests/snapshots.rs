@@ -27,7 +27,7 @@ impl SnapshotBasicsTest {
 
 #[async_trait]
 impl HttpTest for SnapshotBasicsTest {
-    async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
+    async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Server>) -> anyhow::Result<()> {
         let mut storage = pool.access_storage().await.unwrap();
         store_miniblock(
             &mut storage,

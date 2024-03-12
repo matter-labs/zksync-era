@@ -5,7 +5,7 @@ use zksync_concurrency::{ctx, error::Wrap as _, sync, time};
 use zksync_consensus_bft::PayloadManager;
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage::{PersistentBlockStore, ReplicaState, ReplicaStore};
-use zksync_dal::{consensus_dal::Payload, ConnectionPool};
+use zksync_dal::{consensus_dal::Payload, ConnectionPool, Server};
 use zksync_types::MiniblockNumber;
 
 #[cfg(test)]
@@ -168,7 +168,7 @@ impl Cursor {
 
 /// Wrapper of `ConnectionPool` implementing `ReplicaStore` and `PayloadManager`.
 #[derive(Clone, Debug)]
-pub struct Store(pub ConnectionPool);
+pub struct Store(pub ConnectionPool<Server>);
 
 /// Wrapper of `ConnectionPool` implementing `PersistentBlockStore`.
 #[derive(Debug)]
