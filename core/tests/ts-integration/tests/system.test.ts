@@ -84,13 +84,13 @@ describe('System behavior checks', () => {
         ]);
         if (response.gas_per_pubdata_limit > gasPerPubdataThreshold) {
             // This tx should be accepted by the server, but would never be executed, so we don't wait for the receipt.
-            const tx = await alice.sendTransaction({
+            await alice.sendTransaction({
                 to: alice.address,
                 customData: {
                     gasPerPubdata: smallGasPerPubdata
                 }
             });
-            // We don't wait for the transaction recipt because it never executed.
+            // We don't wait for the transaction receipt because it never executed.
             // When another transaction with the same nonce is made, it overwrites the previous transaction and this one should be executed.
             await expect(
                 alice.sendTransaction({
