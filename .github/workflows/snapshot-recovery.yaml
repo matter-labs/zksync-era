@@ -67,11 +67,12 @@ jobs:
       - name: Step - Run external node
         if: always()
         run: |
-          ci_run zk config compile ext-node
+          ci_run zk env ext-node-docker
+          ci_run zk db setup
           ci_run zk external-node --reinit -- --enable-snapshots-recovery &
           ci_run sleep 10
 
       - name: Step - Stub - Try a curl request
         if: always()
         run: |
-          curl -X POST -H "Content-Type: application/json" --data '{"jsonrpc": "2.0", "id": 1, "method": "zks_getBlockDetails", "params": [ 1 ]}'  "http://localhost:3060"
+          curl -X POST -H "Content-Type: application/json" --data '{"jsonrpc": "2.0", "id": 1, "method": "zks_getBlockDetails", "params": [ 1 ]}'  "http://0.0.0.0:3060"
