@@ -2,7 +2,6 @@ use std::env;
 
 pub use circuit_definitions;
 use circuit_definitions::{
-    aux_definitions::witness_oracle::VmWitnessOracle,
     boojum::{cs::implementations::witness::WitnessVec, field::goldilocks::GoldilocksField},
     circuit_definitions::{
         base_layer::{ZkSyncBaseLayerCircuit, ZkSyncBaseLayerProof, ZkSyncBaseProof},
@@ -14,7 +13,6 @@ use circuit_definitions::{
     zkevm_circuits::scheduler::{
         aux::BaseLayerCircuitType, block_header::BlockAuxilaryOutputWitness,
     },
-    ZkSyncDefaultRoundFunction,
 };
 use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject};
 use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
@@ -29,15 +27,9 @@ pub const EIP_4844_CIRCUIT_ID: u8 = 255;
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
 #[allow(clippy::large_enum_variant)]
 pub enum CircuitWrapper {
-    Base(
-        ZkSyncBaseLayerCircuit<
-            GoldilocksField,
-            VmWitnessOracle<GoldilocksField>,
-            ZkSyncDefaultRoundFunction,
-        >,
-    ),
+    Base(ZkSyncBaseLayerCircuit),
     Recursive(ZkSyncRecursiveLayerCircuit),
-    Eip4844(EIP4844Circuit<GoldilocksField, ZkSyncDefaultRoundFunction>),
+    Eip4844(EIP4844Circuit),
 }
 
 impl StoredObject for CircuitWrapper {

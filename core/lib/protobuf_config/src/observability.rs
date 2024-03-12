@@ -2,7 +2,7 @@ use anyhow::Context as _;
 use zksync_config::configs;
 use zksync_protobuf::{required, ProtoRepr};
 
-use crate::proto;
+use crate::proto::observability as proto;
 
 impl ProtoRepr for proto::Observability {
     type Type = configs::ObservabilityConfig;

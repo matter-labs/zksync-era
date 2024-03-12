@@ -1,4 +1,4 @@
-use zkevm_test_harness_1_4_2::{geometry_config::get_geometry_config, toolset::GeometryConfig};
+use circuit_sequencer_api_1_4_2::{geometry_config::get_geometry_config, toolset::GeometryConfig};
 use zksync_types::circuit::{CircuitCycleStatistic, CircuitStatistic};
 
 // "Rich addressing" opcodes are opcodes that can write their return value/read the input onto the stack

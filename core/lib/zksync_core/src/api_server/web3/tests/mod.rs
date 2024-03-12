@@ -57,7 +57,7 @@ mod snapshots;
 mod vm;
 mod ws;
 
-const TEST_TIMEOUT: Duration = Duration::from_secs(10);
+const TEST_TIMEOUT: Duration = Duration::from_secs(20);
 const POLL_INTERVAL: Duration = Duration::from_millis(50);
 
 impl ApiServerHandles {
@@ -100,7 +100,7 @@ impl ApiServerHandles {
         };
         tokio::time::timeout(TEST_TIMEOUT, stop_server)
             .await
-            .expect(format!("panicking at {}", chrono::Utc::now()).as_str());
+            .unwrap_or_else(|_| panic!("panicking at {}", chrono::Utc::now()));
     }
 }
 

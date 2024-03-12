@@ -27,7 +27,7 @@ use super::{
 use crate::{
     api_server::{
         execution_sandbox::{BlockArgs, BlockArgsError, BlockStartInfo},
-        tree::TreeApiHttpClient,
+        tree::TreeApiClient,
         tx_sender::{tx_sink::TxSink, TxSender},
     },
     sync_layer::SyncState,
@@ -203,7 +203,7 @@ pub(crate) struct RpcState {
     pub(super) current_method: Arc<MethodTracer>,
     pub(super) installed_filters: Option<Arc<Mutex<Filters>>>,
     pub(super) connection_pool: ConnectionPool,
-    pub(super) tree_api: Option<TreeApiHttpClient>,
+    pub(super) tree_api: Option<Arc<dyn TreeApiClient>>,
     pub(super) tx_sender: TxSender,
     pub(super) sync_state: Option<SyncState>,
     pub(super) api_config: InternalApiConfig,
