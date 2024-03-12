@@ -1,7 +1,12 @@
 use std::{collections::HashMap, fmt, sync::Arc};
 
 use once_cell::sync::OnceCell;
-use zksync_types::{Address, H256, U256};
+use zksync_state::{StoragePtr, WriteStorage};
+use zksync_types::{
+    get_code_key, get_nonce_key, web3::signing::keccak256, AccountTreeId, Address, StorageKey,
+    StorageValue, H160, H256, L2_ETH_TOKEN_ADDRESS, U256,
+};
+use zksync_utils::{address_to_h256, h256_to_u256};
 
 pub mod vm_1_4_1;
 pub mod vm_latest;
@@ -64,4 +69,63 @@ impl PrestateTracer {
 #[derive(Debug, Clone)]
 pub struct PrestateTracerConfig {
     diff_mode: bool,
+}
+
+pub fn process_modified_storage_keys<S>(
+    prestate: State,
+    storage: &StoragePtr<S>,
+) -> HashMap<H160, Account>
+where
+    S: WriteStorage,
+{
+    let cloned_storage = &storage.clone();
+    let mut initial_storage_ref = cloned_storage.as_ref().borrow_mut();
+
+    initial_storage_ref
+        .modified_storage_keys()
+        .keys()
+        .cloned()
+        .collect::<Vec<_>>()
+        .iter()
+        .filter(|k| !prestate.contains_key(k.account().address()))
+        .map(|k| {
+            (
+                *(k.account().address()),
+                Account {
+                    balance: Some(h256_to_u256(
+                        initial_storage_ref.read_value(&get_balance_key(k.account())),
+                    )),
+                    code: Some(h256_to_u256(
+                        initial_storage_ref.read_value(&get_code_key(k.account().address())),
+                    )),
+                    nonce: Some(h256_to_u256(
+                        initial_storage_ref.read_value(&get_nonce_key(k.account().address())),
+                    )),
+                    storage: Some(get_storage_if_present(
+                        k.account(),
+                        initial_storage_ref.modified_storage_keys(),
+                    )),
+                },
+            )
+        })
+        .collect::<State>()
+}
+
+fn get_balance_key(account: &AccountTreeId) -> StorageKey {
+    let address_h256 = address_to_h256(account.address());
+    let bytes = [address_h256.as_bytes(), &[0; 32]].concat();
+    let balance_key: H256 = keccak256(&bytes).into();
+    StorageKey::new(AccountTreeId::new(L2_ETH_TOKEN_ADDRESS), balance_key)
+}
+
+fn get_storage_if_present(
+    account: &AccountTreeId,
+    modified_storage_keys: &HashMap<StorageKey, StorageValue>,
+) -> HashMap<H256, H256> {
+    //check if there is a Storage Key struct with an account field that matches the account and return the key as the key and the Storage Value as the value
+    modified_storage_keys
+        .iter()
+        .filter(|(k, _)| k.account() == account)
+        .map(|(k, v)| (*k.key(), *v))
+        .collect()
 }

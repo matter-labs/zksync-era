@@ -7,9 +7,9 @@ use zksync_types::{
     get_code_key, get_nonce_key, web3::signing::keccak256, AccountTreeId, Address, StorageKey,
     StorageValue, H256, L2_ETH_TOKEN_ADDRESS,
 };
-use zksync_utils::{address_to_h256, h256_to_u256};
+use zksync_utils::address_to_h256;
 
-use super::{Account, PrestateTracer, State};
+use super::{process_modified_storage_keys, Account, PrestateTracer, State};
 use crate::{
     interface::dyn_tracers::vm_1_4_1::DynTracer,
     vm_latest::{BootloaderState, HistoryMode, SimpleMemory, VmTracer, ZkSyncVmState},
@@ -24,42 +24,8 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for Prestate
         storage: StoragePtr<S>,
     ) {
         if self.config.diff_mode {
-            let cloned_storage = &storage.clone();
-            let mut initial_storage_ref = cloned_storage.as_ref().borrow_mut();
-            let keys = initial_storage_ref
-                .modified_storage_keys()
-                .keys()
-                .cloned()
-                .collect::<Vec<_>>();
-
-            let res = keys
-                .iter()
-                .filter(|k| !self.pre.contains_key(k.account().address()))
-                .map(|k| {
-                    (
-                        *(k.account().address()),
-                        Account {
-                            balance: Some(h256_to_u256(
-                                initial_storage_ref.read_value(&get_balance_key(k.account())),
-                            )),
-                            code: Some(h256_to_u256(
-                                initial_storage_ref
-                                    .read_value(&get_code_key(k.account().address())),
-                            )),
-                            nonce: Some(h256_to_u256(
-                                initial_storage_ref
-                                    .read_value(&get_nonce_key(k.account().address())),
-                            )),
-                            storage: Some(get_storage_if_present(
-                                k.account(),
-                                initial_storage_ref.modified_storage_keys(),
-                            )),
-                        },
-                    )
-                })
-                .collect::<State>();
-
-            self.pre.extend(res);
+            self.pre
+                .extend(process_modified_storage_keys(self.pre.clone(), &storage));
         }
     }
 }
