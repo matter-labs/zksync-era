@@ -1,6 +1,12 @@
 use std::{cell::RefCell, collections::HashMap, fmt, rc::Rc};
 
-use zksync_types::{AccountTreeId, StorageKey, StorageValue, H256};
+use zksync_types::{
+    api::{OverrideState, StateOverride},
+    get_code_key, get_nonce_key,
+    utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
+    AccountTreeId, StorageKey, StorageValue, H256,
+};
+use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
 
 use crate::{ReadStorage, StorageView, StorageViewMetrics, WriteStorage};
 
@@ -10,6 +16,50 @@ pub struct StorageOverrides<S> {
     storage_view: StorageView<S>,
     overrided_factory_deps: HashMap<H256, Vec<u8>>,
     overrided_account_state: HashMap<AccountTreeId, HashMap<H256, H256>>,
+}
+impl<S: ReadStorage + fmt::Debug> StorageOverrides<S> {
+    /// Applies the state override to the storage.
+    pub fn apply_state_override(&mut self, state_override: StateOverride) {
+        for (account, overrides) in state_override.iter() {
+            if let Some(balance) = overrides.balance {
+                let balance_key = storage_key_for_eth_balance(&account);
+                self.set_value(balance_key, u256_to_h256(balance));
+            }
+
+            if let Some(nonce) = overrides.nonce {
+                let nonce_key = get_nonce_key(&account);
+
+                let full_nonce = self.read_value(&nonce_key);
+                let (_, deployment_nonce) = decompose_full_nonce(h256_to_u256(full_nonce));
+                let new_full_nonce = nonces_to_full_nonce(nonce, deployment_nonce);
+
+                self.set_value(nonce_key, u256_to_h256(new_full_nonce));
+            }
+
+            if let Some(code) = &overrides.code {
+                let code_key = get_code_key(account);
+                let code_hash = hash_bytecode(&code.0);
+
+                self.set_value(code_key, code_hash);
+                self.store_factory_dep(code_hash, code.0.clone());
+            }
+
+            match &overrides.state {
+                Some(OverrideState::State(state)) => {
+                    self.override_account_state(AccountTreeId::new(account.clone()), state.clone());
+                }
+                Some(OverrideState::StateDiff(state_diff)) => {
+                    for (key, value) in state_diff.iter() {
+                        self.set_value(
+                            StorageKey::new(AccountTreeId::new(account.clone()), key.clone()),
+                            value.clone(),
+                        );
+                    }
+                }
+                None => {}
+            }
+        }
+    }
 }
 
 impl<S: ReadStorage + fmt::Debug> StorageOverrides<S> {
@@ -40,6 +90,12 @@ impl<S: ReadStorage + fmt::Debug> StorageOverrides<S> {
     /// Make a Rc RefCell ptr to the storage
     pub fn to_rc_ptr(self) -> Rc<RefCell<Self>> {
         Rc::new(RefCell::new(self))
+    }
+}
+
+impl<S: ReadStorage + fmt::Debug> Into<Rc<RefCell<Self>>> for StorageOverrides<S> {
+    fn into(self) -> Rc<RefCell<Self>> {
+        self.to_rc_ptr()
     }
 }
 
