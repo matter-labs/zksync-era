@@ -3,7 +3,6 @@
 
 use std::time::{Duration, Instant};
 
-use chrono::Utc;
 use itertools::Itertools;
 use multivm::{
     interface::{FinishedL1Batch, L1BatchEnv},
@@ -13,6 +12,7 @@ use zksync_dal::StorageProcessor;
 use zksync_types::{
     block::{unpack_block_info, L1BatchHeader, MiniblockHeader},
     event::{extract_added_tokens, extract_long_l2_to_l1_messages},
+    helpers::unix_timestamp_ms,
     l1::L1Tx,
     l2::L2Tx,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
@@ -27,8 +27,7 @@ use zksync_types::{
     MiniblockNumber, ProtocolVersionId, StorageKey, StorageLog, StorageLogQuery, Transaction,
     VmEvent, CURRENT_VIRTUAL_BLOCK_INFO_POSITION, H256, SYSTEM_CONTEXT_ADDRESS,
 };
-// TODO (SMA-1206): use seconds instead of milliseconds.
-use zksync_utils::{h256_to_u256, time::millis_since_epoch, u256_to_h256};
+use zksync_utils::{h256_to_u256, u256_to_h256};
 
 use crate::{
     metrics::{BlockStage, MiniblockStage, APP_METRICS},
@@ -243,7 +242,7 @@ impl UpdatesManager {
         &self,
         started_at: Instant,
         current_l1_batch_number: L1BatchNumber,
-        block_timestamp: u64,
+        batch_timestamp: u64,
         writes_metrics: &DeduplicatedWritesMetrics,
     ) {
         L1_BATCH_METRICS
@@ -257,7 +256,7 @@ impl UpdatesManager {
             .observe(self.l1_batch.executed_transactions.len());
 
         let l1_batch_latency =
-            ((millis_since_epoch() - block_timestamp as u128 * 1_000) as f64) / 1_000.0;
+            unix_timestamp_ms().saturating_sub(batch_timestamp * 1_000) as f64 / 1_000.0;
         APP_METRICS.block_latency[&BlockStage::Sealed]
             .observe(Duration::from_secs_f64(l1_batch_latency));
 
@@ -270,6 +269,40 @@ impl UpdatesManager {
 impl MiniblockSealCommand {
     pub async fn seal(&self, storage: &mut StorageProcessor<'_>) {
         self.seal_inner(storage, false).await;
+    }
+
+    async fn insert_transactions(&self, transaction: &mut StorageProcessor<'_>) {
+        for tx_result in &self.miniblock.executed_transactions {
+            let tx = tx_result.transaction.clone();
+            match &tx.common_data {
+                ExecuteTransactionCommon::L1(_) => {
+                    // `unwrap` is safe due to the check above
+                    let l1_tx = L1Tx::try_from(tx).unwrap();
+                    let l1_block_number = L1BlockNumber(l1_tx.common_data.eth_block as u32);
+                    transaction
+                        .transactions_dal()
+                        .insert_transaction_l1(l1_tx, l1_block_number)
+                        .await;
+                }
+                ExecuteTransactionCommon::L2(_) => {
+                    // `unwrap` is safe due to the check above
+                    let l2_tx = L2Tx::try_from(tx).unwrap();
+                    // Using `Default` for execution metrics should be OK here, since this data is not used on the EN.
+                    transaction
+                        .transactions_dal()
+                        .insert_transaction_l2(l2_tx, Default::default())
+                        .await;
+                }
+                ExecuteTransactionCommon::ProtocolUpgrade(_) => {
+                    // `unwrap` is safe due to the check above
+                    let protocol_system_upgrade_tx = ProtocolUpgradeTx::try_from(tx).unwrap();
+                    transaction
+                        .transactions_dal()
+                        .insert_system_transaction(protocol_system_upgrade_tx)
+                        .await;
+                }
+            }
+        }
     }
 
     /// Seals a miniblock with the given number.
@@ -287,30 +320,7 @@ impl MiniblockSealCommand {
         let mut transaction = storage.start_transaction().await.unwrap();
         if self.pre_insert_txs {
             let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::PreInsertTxs, is_fictive);
-            for tx in &self.miniblock.executed_transactions {
-                if let Ok(l1_tx) = L1Tx::try_from(tx.transaction.clone()) {
-                    let l1_block_number = L1BlockNumber(l1_tx.common_data.eth_block as u32);
-                    transaction
-                        .transactions_dal()
-                        .insert_transaction_l1(l1_tx, l1_block_number)
-                        .await;
-                } else if let Ok(l2_tx) = L2Tx::try_from(tx.transaction.clone()) {
-                    // Using `Default` for execution metrics should be OK here, since this data is not used on the EN.
-                    transaction
-                        .transactions_dal()
-                        .insert_transaction_l2(l2_tx, Default::default())
-                        .await;
-                } else if let Ok(protocol_system_upgrade_tx) =
-                    ProtocolUpgradeTx::try_from(tx.transaction.clone())
-                {
-                    transaction
-                        .transactions_dal()
-                        .insert_system_transaction(protocol_system_upgrade_tx)
-                        .await;
-                } else {
-                    unreachable!("Transaction {:?} is neither L1 nor L2", tx.transaction);
-                }
-            }
+            self.insert_transactions(&mut transaction).await;
             progress.observe(Some(self.miniblock.executed_transactions.len()));
         }
 
@@ -469,22 +479,7 @@ impl MiniblockSealCommand {
         progress.observe(None);
 
         let progress = MINIBLOCK_METRICS.start(MiniblockSealStage::ReportTxMetrics, is_fictive);
-        self.miniblock.executed_transactions.iter().for_each(|tx| {
-            let inclusion_delay = Duration::from_millis(
-                Utc::now().timestamp_millis() as u64 - tx.transaction.received_timestamp_ms,
-            );
-            if inclusion_delay > Duration::from_secs(600) {
-                tracing::info!(
-                    tx_hash = hex::encode(tx.hash),
-                    inclusion_delay_ms = inclusion_delay.as_millis(),
-                    received_timestamp_ms = tx.transaction.received_timestamp_ms,
-                    "Transaction spent >10m in mempool before being included in a miniblock"
-                )
-            }
-            KEEPER_METRICS.transaction_inclusion_delay
-                [&TxExecutionType::from_is_l1(tx.transaction.is_l1())]
-                .observe(inclusion_delay)
-        });
+        self.report_transaction_metrics();
         progress.observe(Some(self.miniblock.executed_transactions.len()));
 
         self.report_miniblock_metrics(started_at, current_l2_virtual_block_number);
@@ -607,6 +602,37 @@ impl MiniblockSealCommand {
         })
     }
 
+    fn report_transaction_metrics(&self) {
+        const SLOW_INCLUSION_DELAY: Duration = Duration::from_secs(600);
+
+        if self.pre_insert_txs {
+            // This I/O logic is running on the EN. The reported metrics / logs would be meaningless:
+            //
+            // - If `received_timestamp_ms` are copied from the main node, they can be far in the past (especially during the initial EN sync).
+            //   We would falsely classify a lot of transactions as slow.
+            // - If `received_timestamp_ms` are overridden with the current timestamp as when persisting transactions,
+            //   the observed transaction latencies would always be extremely close to zero.
+            return;
+        }
+
+        for tx in &self.miniblock.executed_transactions {
+            let inclusion_delay =
+                unix_timestamp_ms().saturating_sub(tx.transaction.received_timestamp_ms);
+            let inclusion_delay = Duration::from_millis(inclusion_delay);
+            if inclusion_delay > SLOW_INCLUSION_DELAY {
+                tracing::info!(
+                    tx_hash = hex::encode(tx.hash),
+                    inclusion_delay_ms = inclusion_delay.as_millis(),
+                    received_timestamp_ms = tx.transaction.received_timestamp_ms,
+                    "Transaction spent >{SLOW_INCLUSION_DELAY:?} in mempool before being included in a miniblock"
+                );
+            }
+            KEEPER_METRICS.transaction_inclusion_delay
+                [&TxExecutionType::from_is_l1(tx.transaction.is_l1())]
+                .observe(inclusion_delay)
+        }
+    }
+
     fn report_miniblock_metrics(&self, started_at: Instant, latest_virtual_block_number: u64) {
         let miniblock_number = self.miniblock_number;
 
@@ -616,7 +642,7 @@ impl MiniblockSealCommand {
         MINIBLOCK_METRICS.sealed_time.observe(started_at.elapsed());
 
         let miniblock_latency =
-            ((millis_since_epoch() - self.miniblock.timestamp as u128 * 1_000) as f64) / 1_000.0;
+            unix_timestamp_ms().saturating_sub(self.miniblock.timestamp * 1_000) as f64 / 1_000.0;
         let stage = &MiniblockStage::Sealed;
         APP_METRICS.miniblock_latency[stage].observe(Duration::from_secs_f64(miniblock_latency));
         APP_METRICS.miniblock_number[stage].set(miniblock_number.0.into());
