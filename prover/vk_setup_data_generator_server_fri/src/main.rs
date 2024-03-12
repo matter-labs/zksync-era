@@ -23,6 +23,7 @@ use zksync_prover_fri_types::{
     ProverServiceDataKey,
 };
 use zksync_vk_setup_data_server_fri::{
+    commitment_utils::generate_commitments,
     keystore::Keystore,
     setup_data_generator::{CPUSetupDataGenerator, GPUSetupDataGenerator, SetupDataGenerator},
 };
@@ -42,12 +43,15 @@ fn generate_vks(keystore: &Keystore) -> anyhow::Result<()> {
     tracing::info!("Generating verification keys for Base layer.");
     generate_base_layer_vks_and_proofs(&mut in_memory_source)
         .map_err(|err| anyhow::anyhow!("Failed generating base vk's: {err}"))?;
+
+    // This must happen before we start generating recursive layer.
+    tracing::info!("Generating 4844 base layer.");
+    generate_eip4844_vks(&mut in_memory_source)
+        .map_err(|err| anyhow::anyhow!("Failed generating 4844 vk's: {err}"))?;
+
     tracing::info!("Generating verification keys for Recursive layer.");
     generate_recursive_layer_vks_and_proofs(&mut in_memory_source)
         .map_err(|err| anyhow::anyhow!("Failed generating recursive vk's: {err}"))?;
-
-    generate_eip4844_vks(&mut in_memory_source)
-        .map_err(|err| anyhow::anyhow!("Failed generating 4844 vk's: {err}"))?;
 
     tracing::info!("Saving keys & hints");
 
@@ -65,7 +69,10 @@ fn generate_vks(keystore: &Keystore) -> anyhow::Result<()> {
     let (_, vk) = get_wrapper_setup_and_vk_from_scheduler_vk(scheduler_vk, config);
     keystore
         .save_snark_verification_key(vk)
-        .context("save_snark_vk")
+        .context("save_snark_vk")?;
+
+    // Let's also update the commitments file.
+    keystore.save_commitments(&generate_commitments(keystore)?)
 }
 
 #[derive(Debug, Parser)]
@@ -140,7 +147,7 @@ enum Command {
     /// Generates and updates the commitments - used by the verification contracts.
     #[command(name = "update-commitments")]
     UpdateCommitments {
-        #[arg(long, default_value = "true")]
+        #[arg(long)]
         dryrun: bool,
         #[arg(long)]
         path: Option<String>,

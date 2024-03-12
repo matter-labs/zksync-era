@@ -77,8 +77,6 @@ impl WitnessVectorGenerator {
             }
             CircuitWrapper::Eip4844(circuit) => synthesis::<
                 _,
-                _,
-                _,
                 StCircuitResolver<GoldilocksField, <ProvingCSConfig as CSConfig>::ResolverConfig>,
             >(circuit, &finalization_hints),
         };

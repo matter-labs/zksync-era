@@ -181,7 +181,7 @@ async fn test_instantiating_vm(pool: ConnectionPool, block_args: BlockArgs) {
     tokio::task::spawn_blocking(move || {
         apply_vm_in_sandbox(
             vm_permit,
-            TxSharedArgs::mock(ApiContracts::load_from_disk().estimate_gas, pool.clone()),
+            TxSharedArgs::mock(ApiContracts::load_from_disk().estimate_gas),
             true,
             &TxExecutionArgs::for_gas_estimate(None, &transaction, 123),
             &pool,

@@ -2,7 +2,7 @@ use anyhow::Context as _;
 use zksync_config::configs::PrometheusConfig;
 use zksync_protobuf::{repr::ProtoRepr, required};
 
-use crate::proto;
+use crate::proto::utils as proto;
 
 impl ProtoRepr for proto::Prometheus {
     type Type = PrometheusConfig;
