@@ -647,7 +647,7 @@ pub struct CallResult {
 pub fn flatten_debug_calls(calls: Vec<ResultDebugCall>) -> Vec<DebugCallFlat> {
     let mut flattened_calls = Vec::new();
     for (index, result_debug_call) in calls.into_iter().enumerate() {
-        let mut trace_address = vec![index]; // Initialize the trace_address with the index of the top-level call
+        let mut trace_address = vec![index]; // Initialize the trace addressees with the index of the top-level call
         flatten_call_recursive(
             &result_debug_call.result,
             &mut flattened_calls,
@@ -684,9 +684,9 @@ fn flatten_call_recursive(
 
     // Process nested calls
     for (index, nested_call) in call.calls.iter().enumerate() {
-        trace_address.push(index); // Update trace_address for the nested call
+        trace_address.push(index); // Update trace addressees for the nested call
         flatten_call_recursive(nested_call, flattened_calls, trace_address);
-        trace_address.pop(); // Reset trace_address after processing the nested call (prevent to keep filling the vector)
+        trace_address.pop(); // Reset trace addressees after processing the nested call (prevent to keep filling the vector)
     }
 }
 

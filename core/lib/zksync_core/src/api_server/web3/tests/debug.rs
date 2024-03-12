@@ -119,10 +119,10 @@ impl HttpTest for TraceBlockFlatTest {
                     tx_results.len() * (tx_results[0].call_traces.len() + 1)
                 );
 
-                // First tx has 2 nested calls, thus 2 subtraces
+                // First tx has 2 nested calls, thus 2 sub-traces
                 assert_eq!(block_traces[0].subtraces, 2);
                 assert_eq!(block_traces[0].traceaddress, [0]);
-                // Second flatcall (fist nested call) do not have nested calls
+                // Second flat-call (fist nested call) do not have nested calls
                 assert_eq!(block_traces[1].subtraces, 0);
                 assert_eq!(block_traces[1].traceaddress, [0, 0]);
 
