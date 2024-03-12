@@ -15,6 +15,10 @@ SELECT CASE
            ELSE (SELECT l1_batch_number FROM snapshot_recovery) END,
        CASE
            WHEN (SELECT COUNT(*) FROM snapshot_recovery) = 0 THEN NULL
+           ELSE (SELECT miniblock_number FROM snapshot_recovery) END,
+       CASE
+           WHEN (SELECT COUNT(*) FROM snapshot_recovery) = 0 THEN NULL
            ELSE (SELECT l1_batch_number FROM snapshot_recovery) END,
-       NULL,
-       NULL
+       CASE
+           WHEN (SELECT COUNT(*) FROM snapshot_recovery) = 0 THEN NULL
+           ELSE (SELECT miniblock_number FROM snapshot_recovery) END

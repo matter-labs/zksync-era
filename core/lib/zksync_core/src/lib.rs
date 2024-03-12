@@ -101,6 +101,7 @@ pub mod block_reverter;
 pub mod commitment_generator;
 pub mod consensus;
 pub mod consistency_checker;
+pub mod db_pruner;
 pub mod eth_sender;
 pub mod fee_model;
 pub mod gas_tracker;

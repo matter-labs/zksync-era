@@ -83,15 +83,14 @@ impl PruningDal<'_, '_> {
         )
         .instrument("soft_prune_batches_range")
         .with_arg("last_l1_batch_to_prune", &last_l1_batch_to_prune)
-        .with_arg("last_miniblock_to_prune", &last_l1_batch_to_prune)
+        .with_arg("last_miniblock_to_prune", &last_miniblock_to_prune)
         .report_latency()
         .execute(self.storage)
         .await?;
         Ok(())
     }
 
-    #[allow(unused)]
-    async fn hard_prune_batches_range(
+    pub async fn hard_prune_batches_range(
         &mut self,
         last_l1_batch_to_prune: L1BatchNumber,
         last_miniblock_to_prune: MiniblockNumber,
@@ -112,6 +111,28 @@ impl PruningDal<'_, '_> {
         .report_latency()
         .fetch_one(self.storage)
         .await?;
+
+        // this condition happens after snapshots recovery
+        if row.first_miniblock_to_prune.is_none() {
+            sqlx::query!(
+                r#"
+                UPDATE pruning_info
+                SET
+                    last_hard_pruned_l1_batch = $1,
+                    last_hard_pruned_miniblock = $2
+                "#,
+                last_l1_batch_to_prune.0 as i64,
+                last_miniblock_to_prune.0 as i64,
+            )
+            .instrument("hard_prune_batches_range#update_pruning_info")
+            .with_arg("last_l1_batch_to_prune", &last_l1_batch_to_prune)
+            .with_arg("last_miniblock_to_prune", &last_miniblock_to_prune)
+            .report_latency()
+            .execute(self.storage)
+            .await?;
+
+            return Ok(());
+        }
 
         let first_miniblock_to_prune =
             MiniblockNumber(row.first_miniblock_to_prune.unwrap() as u32);
@@ -235,12 +256,15 @@ impl PruningDal<'_, '_> {
             r#"
             UPDATE pruning_info
             SET
-                last_hard_pruned_l1_batch = $1
+                last_hard_pruned_l1_batch = $1,
+                last_hard_pruned_miniblock = $2
             "#,
             last_l1_batch_to_prune.0 as i64,
+            last_miniblock_to_prune.0 as i64,
         )
         .instrument("hard_prune_batches_range#update_pruning_info")
         .with_arg("last_l1_batch_to_prune", &last_l1_batch_to_prune)
+        .with_arg("last_miniblock_to_prune", &last_miniblock_to_prune)
         .report_latency()
         .execute(self.storage)
         .await?;
@@ -482,8 +506,8 @@ mod tests {
             .unwrap();
         assert_eq!(
             PruningInfo {
-                last_soft_pruned_miniblock: Some(MiniblockNumber(5)),
-                last_soft_pruned_l1_batch: Some(L1BatchNumber(11)),
+                last_soft_pruned_miniblock: Some(MiniblockNumber(11)),
+                last_soft_pruned_l1_batch: Some(L1BatchNumber(5)),
                 last_hard_pruned_miniblock: None,
                 last_hard_pruned_l1_batch: None
             },

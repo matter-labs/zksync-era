@@ -293,6 +293,10 @@ pub(crate) struct OptionalENConfig {
 
     #[serde(default = "OptionalENConfig::default_l1_batch_commit_data_generator_mode")]
     pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
+    //
+    // pub pruning_chunk_size: u64,
+    //
+    // pub min_block_age_to_prune_hours: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]

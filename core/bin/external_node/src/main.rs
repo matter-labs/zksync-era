@@ -24,6 +24,13 @@ use zksync_core::{
     commitment_generator::CommitmentGenerator,
     consensus,
     consistency_checker::ConsistencyChecker,
+    db_pruner::{
+        prune_conditions::{
+            L1BatchOlderThanPruneCondition, NextL1BatchHasMetadataCondition,
+            NextL1BatchWasExecutedCondition,
+        },
+        DbPruner, DbPrunerConfig,
+    },
     eth_sender::l1_batch_commit_data_generator::{
         L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
         ValidiumModeL1BatchCommitDataGenerator,
@@ -254,6 +261,29 @@ async fn run_core(
             .context("consensus actor")
         }
     }));
+
+    let db_pruner = DbPruner::new(
+        DbPrunerConfig {
+            soft_and_hard_pruning_time_delta: Duration::from_secs(60),
+            pruned_chunk_size: 3,
+            next_iterations_delay: Duration::from_secs(5),
+        },
+        vec![
+            Arc::new(NextL1BatchHasMetadataCondition {
+                conn: connection_pool.clone(),
+            }),
+            Arc::new(NextL1BatchWasExecutedCondition {
+                conn: connection_pool.clone(),
+            }),
+            Arc::new(L1BatchOlderThanPruneCondition {
+                minimal_age: Duration::from_secs(3600),
+                conn: connection_pool.clone(),
+            }),
+        ],
+    )?;
+    task_handles.push(tokio::spawn(
+        db_pruner.run_in_loop(connection_pool.clone(), stop_receiver.clone()),
+    ));
 
     let reorg_detector = ReorgDetector::new(main_node_client.clone(), connection_pool.clone());
     app_health.insert_component(reorg_detector.health_check().clone());
