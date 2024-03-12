@@ -162,7 +162,7 @@ pub trait HandleStateKeeperOutput: 'static + Send + fmt::Debug {
     /// Handles an L1 batch produced by the state keeper.
     async fn handle_l1_batch(
         &mut self,
-        witness_block_state: Option<WitnessBlockState>,
+        witness_block_state: Option<&WitnessBlockState>,
         updates_manager: UpdatesManager,
         l1_batch_env: &L1BatchEnv,
         finished_batch: FinishedL1Batch,

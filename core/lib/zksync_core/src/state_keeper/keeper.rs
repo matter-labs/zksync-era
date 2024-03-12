@@ -203,7 +203,7 @@ impl ZkSyncStateKeeper {
             next_cursor.l1_batch += 1;
             self.persistence
                 .handle_l1_batch(
-                    witness_block_state,
+                    witness_block_state.as_ref(),
                     updates_manager,
                     &l1_batch_env,
                     finished_batch,

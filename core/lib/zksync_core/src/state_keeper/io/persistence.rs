@@ -159,7 +159,7 @@ impl HandleStateKeeperOutput for StateKeeperPersistence {
 
     async fn handle_l1_batch(
         &mut self,
-        witness_block_state: Option<WitnessBlockState>,
+        witness_block_state: Option<&WitnessBlockState>,
         updates_manager: UpdatesManager,
         l1_batch_env: &L1BatchEnv,
         finished_batch: FinishedL1Batch,
@@ -174,15 +174,12 @@ impl HandleStateKeeperOutput for StateKeeperPersistence {
         // We cannot start sealing an L1 batch until we've sealed all miniblocks included in it.
         self.wait_for_all_commands().await;
 
-        if let Some(witness_witness_block_state) = witness_block_state {
+        if let Some(witness_block_state) = witness_block_state {
             let store = self
                 .object_store
                 .as_deref()
                 .context("object store not set when saving `WitnessBlockState`")?;
-            match store
-                .put(l1_batch_env.number, &witness_witness_block_state)
-                .await
-            {
+            match store.put(l1_batch_env.number, witness_block_state).await {
                 Ok(path) => {
                     tracing::debug!("Successfully uploaded witness block start state to Object Store to path = '{path}'");
                 }

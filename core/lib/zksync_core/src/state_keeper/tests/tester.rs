@@ -598,7 +598,7 @@ impl HandleStateKeeperOutput for TestPersistence {
 
     async fn handle_l1_batch(
         &mut self,
-        _witness_block_state: Option<WitnessBlockState>,
+        _witness_block_state: Option<&WitnessBlockState>,
         updates_manager: UpdatesManager,
         l1_batch_env: &L1BatchEnv,
         finished_batch: FinishedL1Batch,
