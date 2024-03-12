@@ -78,6 +78,11 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk
 
+      - name: download CPU setup keys
+        if: matrix.component == 'prover-fri'
+        run: |
+          gsutil -m rsync -r gs://matterlabs-setup-data-us/c1c96d5 docker/prover-fri
+
       # We need the CRS only for the fri compressor.
       - name: download CRS
         if: matrix.component == 'proof-fri-compressor'
