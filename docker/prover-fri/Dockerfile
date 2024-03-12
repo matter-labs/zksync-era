@@ -15,5 +15,5 @@ COPY prover/vk_setup_data_generator_server_fri/data/ /prover/vk_setup_data_gener
 
 COPY --from=builder /usr/src/zksync/target/release/zksync_prover_fri /usr/bin/
 RUN mkdir -p /usr/src/setup-data
-COPY --from=builder /usr/src/zksync/docker/prover-fri/*.bin /usr/src/setup-data/
+COPY setup_keys/*.bin /usr/src/setup-data/
 ENTRYPOINT ["zksync_prover_fri"]
