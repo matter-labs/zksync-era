@@ -4,16 +4,13 @@
 use std::collections::HashMap;
 
 use anyhow::Context as _;
-use circuit_definitions::{
-    circuit_definitions::recursion_layer::ZkSyncRecursionLayerStorageType,
-    zkevm_circuits::scheduler::aux::BaseLayerCircuitType,
-};
 use zkevm_test_harness::{
-    compute_setups::{generate_circuit_setup_data, CircuitSetupData},
+    compute_setups::{
+        generate_circuit_setup_data, generate_circuit_setup_data_4844, CircuitSetupData,
+    },
     data_source::SetupDataSource,
 };
 use zksync_prover_fri_types::ProverServiceDataKey;
-use zksync_types::basic_fri_types::AggregationRound;
 #[cfg(feature = "gpu")]
 use {
     crate::GpuProverSetupData, shivini::cs::setup::GpuSetup, shivini::ProverContext,
@@ -26,40 +23,51 @@ use crate::{keystore::Keystore, GoldilocksProverSetupData};
 /// It also does a final sanity check to make sure that verification keys didn't change.
 pub fn generate_setup_data_common(
     keystore: &Keystore,
-    is_base_layer: bool,
-    circuit_type: u8,
+    circuit: ProverServiceDataKey,
 ) -> anyhow::Result<CircuitSetupData> {
     let mut data_source = keystore.load_keys_to_data_source()?;
-    let circuit_setup_data =
-        generate_circuit_setup_data(is_base_layer, circuit_type, &mut data_source).unwrap();
+    let circuit_setup_data = if circuit.is_eip4844() {
+        generate_circuit_setup_data_4844().unwrap()
+    } else {
+        generate_circuit_setup_data(
+            circuit.is_base_layer(),
+            circuit.circuit_id,
+            &mut data_source,
+        )
+        .unwrap()
+    };
 
-    let (finalization, vk) = if is_base_layer {
+    let (finalization, vk) = if circuit.is_eip4844() {
+        (None, data_source.get_eip4844_vk().unwrap())
+    } else if circuit.is_base_layer() {
         (
-            keystore.load_finalization_hints(ProverServiceDataKey::new(
-                circuit_type,
-                AggregationRound::BasicCircuits,
-            ))?,
+            Some(keystore.load_finalization_hints(circuit.clone())?),
             data_source
-                .get_base_layer_vk(circuit_type)
+                .get_base_layer_vk(circuit.circuit_id)
                 .unwrap()
                 .into_inner(),
         )
     } else {
         (
-            keystore.load_finalization_hints(ProverServiceDataKey::new_recursive(circuit_type))?,
+            Some(keystore.load_finalization_hints(circuit.clone())?),
             data_source
-                .get_recursion_layer_vk(circuit_type)
+                .get_recursion_layer_vk(circuit.circuit_id)
                 .unwrap()
                 .into_inner(),
         )
     };
 
     // Sanity check to make sure that generated setup data is matching.
-    if finalization != circuit_setup_data.finalization_hint {
-        anyhow::bail!("finalization hint mismatch for circuit: {circuit_type}");
+    if let Some(finalization) = finalization {
+        if finalization != circuit_setup_data.finalization_hint {
+            anyhow::bail!(
+                "finalization hint mismatch for circuit: {:?}",
+                circuit.name()
+            );
+        }
     }
     if vk != circuit_setup_data.vk {
-        anyhow::bail!("vk mismatch for circuit: {circuit_type}");
+        anyhow::bail!("vk mismatch for circuit: {:?}", circuit.name());
     }
     Ok(circuit_setup_data)
 }
@@ -67,11 +75,7 @@ pub fn generate_setup_data_common(
 /// Trait to cover GPU and CPU setup data generation.
 pub trait SetupDataGenerator {
     /// Generates the setup keys.
-    fn generate_setup_data(
-        &self,
-        is_base_layer: bool,
-        numeric_circuit: u8,
-    ) -> anyhow::Result<Vec<u8>>;
+    fn generate_setup_data(&self, circuit: ProverServiceDataKey) -> anyhow::Result<Vec<u8>>;
 
     fn keystore(&self) -> &Keystore;
 
@@ -79,23 +83,23 @@ pub trait SetupDataGenerator {
     /// Returns the md5 check sum of the stored file.
     fn generate_and_write_setup_data(
         &self,
-        is_base_layer: bool,
-        numeric_circuit: u8,
+        circuit: ProverServiceDataKey,
         dry_run: bool,
+        recompute_if_missing: bool,
     ) -> anyhow::Result<String> {
-        let serialized = self.generate_setup_data(is_base_layer, numeric_circuit)?;
+        if recompute_if_missing && self.keystore().is_setup_data_present(&circuit) {
+            tracing::info!(
+                "Skipping setup computation for {:?} as file is already present.",
+                circuit.name(),
+            );
+            return Ok("Skipped".to_string());
+        }
+        let serialized = self.generate_setup_data(circuit.clone())?;
         let digest = md5::compute(&serialized);
 
         if !dry_run {
             self.keystore()
-                .save_setup_data_for_circuit_type(
-                    if is_base_layer {
-                        ProverServiceDataKey::new(numeric_circuit, AggregationRound::BasicCircuits)
-                    } else {
-                        ProverServiceDataKey::new_recursive(numeric_circuit)
-                    },
-                    &serialized,
-                )
+                .save_setup_data_for_circuit_type(circuit, &serialized)
                 .context("save_setup_data()")?;
         } else {
             tracing::warn!("Dry run - not writing the key");
@@ -103,27 +107,22 @@ pub trait SetupDataGenerator {
         Ok(format!("{:?}", digest))
     }
 
-    fn generate_all(&self, dry_run: bool) -> anyhow::Result<HashMap<String, String>> {
-        let mut result = HashMap::new();
-
-        for numeric_circuit in
-            BaseLayerCircuitType::VM as u8..=BaseLayerCircuitType::L1MessagesHasher as u8
-        {
-            let digest = self
-                .generate_and_write_setup_data(true, numeric_circuit, dry_run)
-                .context(format!("base layer, circuit {:?}", numeric_circuit))?;
-            result.insert(format!("base_{}", numeric_circuit), digest);
-        }
-
-        for numeric_circuit in ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8
-            ..=ZkSyncRecursionLayerStorageType::LeafLayerCircuitForL1MessagesHasher as u8
-        {
-            let digest = self
-                .generate_and_write_setup_data(false, numeric_circuit, dry_run)
-                .context(format!("recursive layer, circuit {:?}", numeric_circuit))?;
-            result.insert(format!("recursive_{}", numeric_circuit), digest);
-        }
-        Ok(result)
+    /// Generate all setup keys for boojum circuits.
+    fn generate_all(
+        &self,
+        dry_run: bool,
+        recompute_if_missing: bool,
+    ) -> anyhow::Result<HashMap<String, String>> {
+        Ok(ProverServiceDataKey::all_boojum()
+            .iter()
+            .map(|circuit| {
+                let digest = self
+                    .generate_and_write_setup_data(circuit.clone(), dry_run, recompute_if_missing)
+                    .context(circuit.name())
+                    .unwrap();
+                (circuit.name(), digest)
+            })
+            .collect())
     }
 }
 
@@ -132,13 +131,8 @@ pub struct CPUSetupDataGenerator {
 }
 
 impl SetupDataGenerator for CPUSetupDataGenerator {
-    fn generate_setup_data(
-        &self,
-        is_base_layer: bool,
-        numeric_circuit: u8,
-    ) -> anyhow::Result<Vec<u8>> {
-        let circuit_setup_data =
-            generate_setup_data_common(&self.keystore, is_base_layer, numeric_circuit)?;
+    fn generate_setup_data(&self, circuit: ProverServiceDataKey) -> anyhow::Result<Vec<u8>> {
+        let circuit_setup_data = generate_setup_data_common(&self.keystore, circuit)?;
 
         let prover_setup_data: GoldilocksProverSetupData = circuit_setup_data.into();
 
@@ -155,22 +149,17 @@ pub struct GPUSetupDataGenerator {
 }
 
 impl SetupDataGenerator for GPUSetupDataGenerator {
-    fn generate_setup_data(
-        &self,
-        is_base_layer: bool,
-        numeric_circuit: u8,
-    ) -> anyhow::Result<Vec<u8>> {
+    fn generate_setup_data(&self, circuit: ProverServiceDataKey) -> anyhow::Result<Vec<u8>> {
         #[cfg(not(feature = "gpu"))]
         {
-            let _ = (is_base_layer, numeric_circuit);
+            let _ = circuit;
             anyhow::bail!("Must compile with --gpu feature to use this option.");
         }
         #[cfg(feature = "gpu")]
         {
             let _context =
                 ProverContext::create().context("failed initializing gpu prover context")?;
-            let circuit_setup_data =
-                generate_setup_data_common(&self.keystore, is_base_layer, numeric_circuit)?;
+            let circuit_setup_data = generate_setup_data_common(&self.keystore, circuit)?;
 
             let worker = Worker::new();
             let gpu_setup_data = GpuSetup::from_setup_and_hints(

@@ -13,6 +13,7 @@ import fetch from 'node-fetch';
 import { up } from './up';
 import * as Handlebars from 'handlebars';
 import { ProverType, setupProver } from './prover_setup';
+import { DeploymentMode } from './contract';
 
 const title = chalk.blueBright;
 const warning = chalk.yellowBright;
@@ -44,7 +45,7 @@ export interface BasePromptOptions {
 }
 
 // An init command that allows configuring and spinning up a new hyperchain network.
-async function initHyperchain() {
+async function initHyperchain(deploymentMode: DeploymentMode) {
     await announced('Initializing hyperchain creation', setupConfiguration());
 
     const deployerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
@@ -52,6 +53,7 @@ async function initHyperchain() {
     const deployL2Weth = Boolean(process.env.DEPLOY_L2_WETH || false);
     const deployTestTokens = Boolean(process.env.DEPLOY_TEST_TOKENS || false);
 
+    const governorAdrress = ethers.utils.computeAddress(governorPrivateKey!);
     const initArgs: InitArgs = {
         skipSubmodulesCheckout: false,
         skipEnvSetup: true,
@@ -65,7 +67,8 @@ async function initHyperchain() {
             deploy: deployTestTokens,
             args: ['--private-key', deployerPrivateKey, '--envFile', process.env.CHAIN_ETH_NETWORK!]
         },
-        validiumMode: false
+        deployerPrivateKeyArgs: ['--private-key', deployerPrivateKey, '--owner-address', governorAdrress],
+        deploymentMode
     };
 
     await init(initArgs);
@@ -111,6 +114,7 @@ async function setHyperchainMetadata() {
         BaseNetwork.GOERLI,
         BaseNetwork.MAINNET
     ];
+
     const GENERATE_KEYS = 'Generate keys';
     const INSERT_KEYS = 'Insert keys';
     const questions: BasePromptOptions[] = [
@@ -138,7 +142,13 @@ async function setHyperchainMetadata() {
     const results: any = await enquirer.prompt(questions);
 
     let deployer, governor, ethOperator, feeReceiver: ethers.Wallet | undefined;
-    let feeReceiverAddress, l1Rpc, l1Id, databaseUrl;
+    let feeReceiverAddress, l1Rpc, l1Id, databaseUrl, databaseProverUrl;
+
+    if (results.l1Chain !== BaseNetwork.LOCALHOST || results.l1Chain !== BaseNetwork.LOCALHOST_CUSTOM) {
+        // If it's not a localhost chain, we need to remove the CONTRACTS_CREATE2_FACTORY_ADDR from the .env file and use default value.
+        // Otherwise it's a chance that we will reuse create2 factory from the localhost chain.
+        env.removeFromInit('CONTRACTS_CREATE2_FACTORY_ADDR');
+    }
 
     if (results.l1Chain !== BaseNetwork.LOCALHOST) {
         const connectionsQuestions: BasePromptOptions[] = [
@@ -163,10 +173,19 @@ async function setHyperchainMetadata() {
 
         connectionsQuestions.push({
             message:
-                'What is the connection URL for your Postgress 14 database (format is postgres://<user>:<pass>@<hostname>:<port>/<database>)?',
+                'What is the connection URL for your Postgress 14 main database (format is postgres://<user>:<pass>@<hostname>:<port>/<database>)?',
             name: 'dbUrl',
             type: 'input',
-            initial: 'postgres://postgres@localhost/zksync_local',
+            initial: 'postgres://postgres:notsecurepassword@127.0.0.1:5432/zksync_local',
+            required: true
+        });
+
+        connectionsQuestions.push({
+            message:
+                'What is the connection URL for your Postgress 14 prover database (format is postgres://<user>:<pass>@<hostname>:<port>/<database>)?',
+            name: 'dbProverUrl',
+            type: 'input',
+            initial: 'postgres://postgres:notsecurepassword@127.0.0.1:5432/prover_local',
             required: true
         });
 
@@ -182,6 +201,7 @@ async function setHyperchainMetadata() {
 
         l1Rpc = connectionsResults.l1Rpc;
         databaseUrl = connectionsResults.dbUrl;
+        databaseProverUrl = connectionsResults.dbProverUrl;
 
         if (results.l1Chain === BaseNetwork.LOCALHOST_CUSTOM) {
             l1Id = connectionsResults.l1NetworkId;
@@ -196,6 +216,7 @@ async function setHyperchainMetadata() {
             feeReceiver = ethers.Wallet.createRandom();
             feeReceiverAddress = feeReceiver.address;
         } else {
+            console.log(warning('The private keys for these wallets must be different from each other!\n'));
             const keyQuestions: BasePromptOptions[] = [
                 {
                     message: 'Private key of the L1 Deployer (the one that deploys the contracts)',
@@ -251,10 +272,12 @@ async function setHyperchainMetadata() {
             feeReceiverAddress = keyResults.feeReceiver;
         }
     } else {
-        l1Rpc = 'http://localhost:8545';
+        l1Rpc = 'http://127.0.0.1:8545';
         l1Id = 9;
-        databaseUrl = 'postgres://postgres:notsecurepassword@localhost:5432/zksync_local';
+        databaseUrl = 'postgres://postgres:notsecurepassword@127.0.0.1:5432/zksync_local';
         wrapEnvModify('DATABASE_URL', databaseUrl);
+        databaseProverUrl = 'postgres://postgres:notsecurepassword@127.0.0.1:5432/prover_local';
+        wrapEnvModify('DATABASE_PROVER_URL', databaseProverUrl);
 
         const richWalletsRaw = await fetch(
             'https://raw.githubusercontent.com/matter-labs/local-setup/main/rich-wallets.json'
@@ -790,7 +813,8 @@ async function configDemoHyperchain(cmd: Command) {
             deploy: deployTestTokens,
             args: ['--private-key', deployerPrivateKey, '--envFile', process.env.CHAIN_ETH_NETWORK!]
         },
-        validiumMode: false
+        deployerPrivateKeyArgs: ['--private-key', deployerPrivateKey],
+        deploymentMode: cmd.validiumMode !== undefined ? DeploymentMode.Validium : DeploymentMode.Rollup
     };
 
     if (!cmd.skipEnvSetup) {
@@ -845,7 +869,11 @@ export const initHyperchainCommand = new Command('stack')
 initHyperchainCommand
     .command('init')
     .description('Wizard for hyperchain creation/configuration')
-    .action(initHyperchain);
+    .option('--validium-mode')
+    .action(async (cmd: Command) => {
+        let deploymentMode = cmd.validiumMode !== undefined ? DeploymentMode.Validium : DeploymentMode.Rollup;
+        await initHyperchain(deploymentMode);
+    });
 initHyperchainCommand
     .command('docker-setup')
     .option('--custom-docker-org <value>', 'Custom organization name for the docker images')
@@ -859,5 +887,6 @@ initHyperchainCommand
     .command('demo')
     .option('--prover <value>', 'Add a cpu or gpu prover to the hyperchain')
     .option('--skip-env-setup', 'Run env setup automatically (pull docker containers, etc)')
+    .option('--validium-mode')
     .description('Spin up a demo hyperchain with default settings for testing purposes')
     .action(configDemoHyperchain);

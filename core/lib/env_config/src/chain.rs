@@ -129,6 +129,8 @@ mod tests {
             CHAIN_STATE_KEEPER_SAVE_CALL_TRACES="false"
             CHAIN_STATE_KEEPER_UPLOAD_WITNESS_INPUTS_TO_GCS="false"
             CHAIN_STATE_KEEPER_ENUM_INDEX_MIGRATION_CHUNK_SIZE="2000"
+            CHAIN_STATE_KEEPER_VIRTUAL_BLOCKS_PER_MINIBLOCK="1"
+            CHAIN_STATE_KEEPER_VIRTUAL_BLOCKS_INTERVAL="1"
             CHAIN_STATE_KEEPER_L1_BATCH_COMMIT_DATA_GENERATOR_MODE="{l1_batch_commit_data_generator_mode}"
         "#
         )
@@ -204,5 +206,13 @@ mod tests {
 
         let actual = CircuitBreakerConfig::from_env().unwrap();
         assert_eq!(actual, expected_circuit_breaker_config());
+    }
+
+    #[test]
+    fn default_state_keeper_mode() {
+        assert_eq!(
+            StateKeeperConfig::default().l1_batch_commit_data_generator_mode,
+            L1BatchCommitDataGeneratorMode::Rollup
+        );
     }
 }

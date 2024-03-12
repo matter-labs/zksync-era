@@ -1,7 +1,14 @@
 use std::{str::FromStr, time::Duration};
 
 use serde::Deserialize;
-use zksync_basic_types::{network::Network, Address, L2ChainId};
+use zksync_basic_types::{
+    network::Network,
+    web3::{
+        contract::{tokens::Detokenize, Error as Web3ContractError},
+        ethabi, Error as Web3ApiError,
+    },
+    Address, L2ChainId, U256,
+};
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct NetworkConfig {
@@ -50,6 +57,34 @@ pub enum L1BatchCommitDataGeneratorMode {
     #[default]
     Rollup,
     Validium,
+}
+
+// The cases are extracted from the `PubdataPricingMode` enum in the L1 contracts,
+// And knowing that, in Ethereum, the response is the index of the enum case.
+// 0 corresponds to Rollup case,
+// 1 corresponds to Validium case,
+// Other values are incorrect.
+impl Detokenize for L1BatchCommitDataGeneratorMode {
+    fn from_tokens(tokens: Vec<ethabi::Token>) -> Result<Self, Web3ContractError> {
+        fn error(tokens: &[ethabi::Token]) -> Web3ContractError {
+            Web3ContractError::Api(Web3ApiError::Decoder(format!(
+                "L1BatchCommitDataGeneratorMode::from_tokens: {tokens:?}"
+            )))
+        }
+
+        match tokens.as_slice() {
+            [ethabi::Token::Uint(enum_value)] => {
+                if enum_value == &U256::zero() {
+                    Ok(L1BatchCommitDataGeneratorMode::Rollup)
+                } else if enum_value == &U256::one() {
+                    Ok(L1BatchCommitDataGeneratorMode::Validium)
+                } else {
+                    Err(error(&tokens))
+                }
+            }
+            _ => Err(error(&tokens)),
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Clone, PartialEq, Default)]
@@ -123,7 +158,7 @@ pub struct StateKeeperConfig {
 
     /// Number of keys that is processed by enum_index migration in State Keeper each L1 batch.
     pub enum_index_migration_chunk_size: Option<usize>,
-
+    #[serde(default)]
     pub l1_batch_commit_data_generator_mode: L1BatchCommitDataGeneratorMode,
 }
 

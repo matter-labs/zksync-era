@@ -12,7 +12,10 @@
 use anyhow::Context as _;
 use prometheus_exporter::PrometheusExporterConfig;
 use tokio::{sync::watch, task::JoinHandle};
-use zksync_config::{configs::PrometheusConfig, PostgresConfig, SnapshotsCreatorConfig};
+use zksync_config::{
+    configs::{ObservabilityConfig, PrometheusConfig},
+    PostgresConfig, SnapshotsCreatorConfig,
+};
 use zksync_dal::ConnectionPool;
 use zksync_env_config::{object_store::SnapshotsObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
@@ -50,23 +53,23 @@ const MIN_CHUNK_COUNT: u64 = 10;
 async fn main() -> anyhow::Result<()> {
     let (stop_sender, stop_receiver) = watch::channel(false);
 
-    tracing::info!("Starting snapshots creator");
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let log_format = vlog::log_format_from_env();
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let sentry_url = vlog::sentry_url_from_env();
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let environment = vlog::environment_from_env();
+    let observability_config =
+        ObservabilityConfig::from_env().context("ObservabilityConfig::from_env()")?;
+    let log_format: vlog::LogFormat = observability_config
+        .log_format
+        .parse()
+        .context("Invalid log format")?;
 
     let prometheus_exporter_task = maybe_enable_prometheus_metrics(stop_receiver).await?;
     let mut builder = vlog::ObservabilityBuilder::new().with_log_format(log_format);
-    if let Some(sentry_url) = sentry_url {
+    if let Some(sentry_url) = observability_config.sentry_url {
         builder = builder
             .with_sentry_url(&sentry_url)
             .context("Invalid Sentry URL")?
-            .with_sentry_environment(environment);
+            .with_sentry_environment(observability_config.sentry_environment);
     }
     let _guard = builder.build();
+    tracing::info!("Starting snapshots creator");
 
     let object_store_config =
         SnapshotsObjectStoreConfig::from_env().context("SnapshotsObjectStoreConfig::from_env()")?;

@@ -11,7 +11,7 @@ use std::{
 
 use ethabi::{
     ethereum_types::{H256, U256},
-    Contract, Function,
+    Contract, Event, Function,
 };
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
@@ -312,6 +312,13 @@ impl BaseSystemContracts {
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
 
+    pub fn playground_post_1_4_2() -> Self {
+        let bootloader_bytecode = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_1_4_2/playground_batch.yul/playground_batch.yul.zbin",
+        );
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
+    }
+
     pub fn estimate_gas_pre_virtual_blocks() -> Self {
         let bootloader_bytecode = read_zbin_bytecode(
             "etc/multivm_bootloaders/vm_1_3_2/fee_estimate.yul/fee_estimate.yul.zbin",
@@ -350,6 +357,13 @@ impl BaseSystemContracts {
     pub fn estimate_gas_post_1_4_1() -> Self {
         let bootloader_bytecode = read_zbin_bytecode(
             "etc/multivm_bootloaders/vm_1_4_1/fee_estimate.yul/fee_estimate.yul.zbin",
+        );
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
+    }
+
+    pub fn estimate_gas_post_1_4_2() -> Self {
+        let bootloader_bytecode = read_zbin_bytecode(
+            "etc/multivm_bootloaders/vm_1_4_2/fee_estimate.yul/fee_estimate.yul.zbin",
         );
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
@@ -489,358 +503,94 @@ pub static PRE_BOOJUM_COMMIT_FUNCTION: Lazy<Function> = Lazy::new(|| {
     serde_json::from_str(abi).unwrap()
 });
 
-pub static PRE_BOOJUM_PROVE_FUNCTION: Lazy<Function> = Lazy::new(|| {
-    let abi = r#"
-    {
-      "inputs": [
-        {
-          "components": [
-            {
-              "internalType": "uint64",
-              "name": "blockNumber",
-              "type": "uint64"
-            },
-            {
-              "internalType": "bytes32",
-              "name": "blockHash",
-              "type": "bytes32"
-            },
-            {
-              "internalType": "uint64",
-              "name": "indexRepeatedStorageChanges",
-              "type": "uint64"
-            },
-            {
-              "internalType": "uint256",
-              "name": "numberOfLayer1Txs",
-              "type": "uint256"
-            },
-            {
-              "internalType": "bytes32",
-              "name": "priorityOperationsHash",
-              "type": "bytes32"
-            },
-            {
-              "internalType": "bytes32",
-              "name": "l2LogsTreeRoot",
-              "type": "bytes32"
-            },
-            {
-              "internalType": "uint256",
-              "name": "timestamp",
-              "type": "uint256"
-            },
-            {
-              "internalType": "bytes32",
-              "name": "commitment",
-              "type": "bytes32"
-            }
-          ],
-          "internalType": "struct IExecutor.StoredBlockInfo",
-          "name": "_prevBlock",
-          "type": "tuple"
-        },
-        {
-          "components": [
-            {
-              "internalType": "uint64",
-              "name": "blockNumber",
-              "type": "uint64"
-            },
-            {
-              "internalType": "bytes32",
-              "name": "blockHash",
-              "type": "bytes32"
-            },
-            {
-              "internalType": "uint64",
-              "name": "indexRepeatedStorageChanges",
-              "type": "uint64"
-            },
-            {
-              "internalType": "uint256",
-              "name": "numberOfLayer1Txs",
-              "type": "uint256"
-            },
-            {
-              "internalType": "bytes32",
-              "name": "priorityOperationsHash",
-              "type": "bytes32"
-            },
-            {
-              "internalType": "bytes32",
-              "name": "l2LogsTreeRoot",
-              "type": "bytes32"
-            },
-            {
-              "internalType": "uint256",
-              "name": "timestamp",
-              "type": "uint256"
-            },
-            {
-              "internalType": "bytes32",
-              "name": "commitment",
-              "type": "bytes32"
-            }
-          ],
-          "internalType": "struct IExecutor.StoredBlockInfo[]",
-          "name": "_committedBlocks",
-          "type": "tuple[]"
-        },
-        {
-          "components": [
-            {
-              "internalType": "uint256[]",
-              "name": "recursiveAggregationInput",
-              "type": "uint256[]"
-            },
-            {
-              "internalType": "uint256[]",
-              "name": "serializedProof",
-              "type": "uint256[]"
-            }
-          ],
-          "internalType": "struct IExecutor.ProofInput",
-          "name": "_proof",
-          "type": "tuple"
-        }
-      ],
-      "name": "proveBlocks",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    }"#;
-    serde_json::from_str(abi).unwrap()
-});
-
-pub static PRE_BOOJUM_EXECUTE_FUNCTION: Lazy<Function> = Lazy::new(|| {
-    let abi = r#"
-    {
-      "inputs": [
-        {
-          "components": [
-            {
-              "internalType": "uint64",
-              "name": "blockNumber",
-              "type": "uint64"
-            },
-            {
-              "internalType": "bytes32",
-              "name": "blockHash",
-              "type": "bytes32"
-            },
-            {
-              "internalType": "uint64",
-              "name": "indexRepeatedStorageChanges",
-              "type": "uint64"
-            },
-            {
-              "internalType": "uint256",
-              "name": "numberOfLayer1Txs",
-              "type": "uint256"
-            },
-            {
-              "internalType": "bytes32",
-              "name": "priorityOperationsHash",
-              "type": "bytes32"
-            },
-            {
-              "internalType": "bytes32",
-              "name": "l2LogsTreeRoot",
-              "type": "bytes32"
-            },
-            {
-              "internalType": "uint256",
-              "name": "timestamp",
-              "type": "uint256"
-            },
-            {
-              "internalType": "bytes32",
-              "name": "commitment",
-              "type": "bytes32"
-            }
-          ],
-          "internalType": "struct IExecutor.StoredBlockInfo[]",
-          "name": "_blocksData",
-          "type": "tuple[]"
-        }
-      ],
-      "name": "executeBlocks",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    }"#;
-    serde_json::from_str(abi).unwrap()
-});
-
-pub static PRE_BOOJUM_GET_VK_FUNCTION: Lazy<Function> = Lazy::new(|| {
+pub static SET_CHAIN_ID_EVENT: Lazy<Event> = Lazy::new(|| {
     let abi = r#"{
-      "inputs": [],
-      "name": "get_verification_key",
-      "outputs": [
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "name": "_stateTransitionChain",
+          "type": "address"
+        },
         {
           "components": [
             {
-              "internalType": "uint256",
-              "name": "domain_size",
+              "name": "txType",
               "type": "uint256"
             },
             {
-              "internalType": "uint256",
-              "name": "num_inputs",
+              "name": "from",
               "type": "uint256"
             },
             {
-              "components": [
-                {
-                  "internalType": "uint256",
-                  "name": "value",
-                  "type": "uint256"
-                }
-              ],
-              "internalType": "struct PairingsBn254.Fr",
-              "name": "omega",
-              "type": "tuple"
+              "name": "to",
+              "type": "uint256"
             },
             {
-              "components": [
-                {
-                  "internalType": "uint256",
-                  "name": "X",
-                  "type": "uint256"
-                },
-                {
-                  "internalType": "uint256",
-                  "name": "Y",
-                  "type": "uint256"
-                }
-              ],
-              "internalType": "struct PairingsBn254.G1Point[2]",
-              "name": "gate_selectors_commitments",
-              "type": "tuple[2]"
+              "name": "gasLimit",
+              "type": "uint256"
             },
             {
-              "components": [
-                {
-                  "internalType": "uint256",
-                  "name": "X",
-                  "type": "uint256"
-                },
-                {
-                  "internalType": "uint256",
-                  "name": "Y",
-                  "type": "uint256"
-                }
-              ],
-              "internalType": "struct PairingsBn254.G1Point[8]",
-              "name": "gate_setup_commitments",
-              "type": "tuple[8]"
+              "name": "gasPerPubdataByteLimit",
+              "type": "uint256"
             },
             {
-              "components": [
-                {
-                  "internalType": "uint256",
-                  "name": "X",
-                  "type": "uint256"
-                },
-                {
-                  "internalType": "uint256",
-                  "name": "Y",
-                  "type": "uint256"
-                }
-              ],
-              "internalType": "struct PairingsBn254.G1Point[4]",
-              "name": "permutation_commitments",
-              "type": "tuple[4]"
+              "name": "maxFeePerGas",
+              "type": "uint256"
             },
             {
-              "components": [
-                {
-                  "internalType": "uint256",
-                  "name": "X",
-                  "type": "uint256"
-                },
-                {
-                  "internalType": "uint256",
-                  "name": "Y",
-                  "type": "uint256"
-                }
-              ],
-              "internalType": "struct PairingsBn254.G1Point",
-              "name": "lookup_selector_commitment",
-              "type": "tuple"
+              "name": "maxPriorityFeePerGas",
+              "type": "uint256"
             },
             {
-              "components": [
-                {
-                  "internalType": "uint256",
-                  "name": "X",
-                  "type": "uint256"
-                },
-                {
-                  "internalType": "uint256",
-                  "name": "Y",
-                  "type": "uint256"
-                }
-              ],
-              "internalType": "struct PairingsBn254.G1Point[4]",
-              "name": "lookup_tables_commitments",
-              "type": "tuple[4]"
+              "name": "paymaster",
+              "type": "uint256"
             },
             {
-              "components": [
-                {
-                  "internalType": "uint256",
-                  "name": "X",
-                  "type": "uint256"
-                },
-                {
-                  "internalType": "uint256",
-                  "name": "Y",
-                  "type": "uint256"
-                }
-              ],
-              "internalType": "struct PairingsBn254.G1Point",
-              "name": "lookup_table_type_commitment",
-              "type": "tuple"
+              "name": "nonce",
+              "type": "uint256"
             },
             {
-              "components": [
-                {
-                  "internalType": "uint256",
-                  "name": "value",
-                  "type": "uint256"
-                }
-              ],
-              "internalType": "struct PairingsBn254.Fr[3]",
-              "name": "non_residues",
-              "type": "tuple[3]"
+              "name": "value",
+              "type": "uint256"
             },
             {
-              "components": [
-                {
-                  "internalType": "uint256[2]",
-                  "name": "X",
-                  "type": "uint256[2]"
-                },
-                {
-                  "internalType": "uint256[2]",
-                  "name": "Y",
-                  "type": "uint256[2]"
-                }
-              ],
-              "internalType": "struct PairingsBn254.G2Point[2]",
-              "name": "g2_elements",
-              "type": "tuple[2]"
+              "name": "reserved",
+              "type": "uint256[4]"
+            },
+            {
+              "name": "data",
+              "type": "bytes"
+            },
+            {
+              "name": "signature",
+              "type": "bytes"
+            },
+            {
+              "name": "factoryDeps",
+              "type": "uint256[]"
+            },
+            {
+              "name": "paymasterInput",
+              "type": "bytes"
+            },
+            {
+              "name": "reservedDynamic",
+              "type": "bytes"
             }
           ],
-          "internalType": "struct VerificationKey",
-          "name": "vk",
+          "indexed": false,
+          "name": "_l2Transaction",
           "type": "tuple"
+        },
+        {
+          "indexed": true,
+          "name": "_protocolVersion",
+          "type": "uint256"
         }
       ],
-      "stateMutability": "pure",
-      "type": "function"
+      "name": "SetChainIdUpgrade",
+      "type": "event"
     }"#;
     serde_json::from_str(abi).unwrap()
 });
