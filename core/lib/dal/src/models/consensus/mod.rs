@@ -277,8 +277,7 @@ impl ProtoRepr for proto::Transaction {
                     false => Some(execute.factory_deps.clone()),
                 },
             },
-            received_timestamp_ms: *required(&self.received_timestamp_ms)
-                .context("received_timestamp_ms")?,
+            received_timestamp_ms: 0, // This timestamp is local to the node
             raw_bytes: self.raw_bytes.as_ref().map(|x| x.clone().into()),
         })
     }
@@ -365,7 +364,6 @@ impl ProtoRepr for proto::Transaction {
         Self {
             common_data: Some(common_data),
             execute: Some(execute),
-            received_timestamp_ms: Some(this.received_timestamp_ms),
             raw_bytes: this.raw_bytes.as_ref().map(|inner| inner.0.clone()),
         }
     }
