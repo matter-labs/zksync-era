@@ -311,7 +311,7 @@ mod tests {
         let transaction = TransactionData {
             tx_type: 113,
             from: Address::random(),
-            to: Address::random(),
+            to: Some(Address::random()),
             gas_limit: U256::from(1u32),
             pubdata_price_limit: U256::from(1u32),
             max_fee_per_gas: U256::from(1u32),
