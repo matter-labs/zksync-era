@@ -6,6 +6,7 @@ use chrono::TimeZone;
 use test_casing::{test_casing, Product};
 use tokio::sync::{watch, Mutex};
 use zksync_contracts::BaseSystemContractsHashes;
+use zksync_dal::StorageProcessor;
 use zksync_types::{Address, L2ChainId, ProtocolVersionId};
 
 use super::*;
@@ -15,7 +16,7 @@ use crate::{
     utils::testonly::{create_l1_batch, create_miniblock, prepare_recovery_snapshot},
 };
 
-async fn seal_l1_batch(storage: &mut StorageProcessor<'_>, number: L1BatchNumber) {
+async fn seal_l1_batch(storage: &mut ServerProcessor<'_>, number: L1BatchNumber) {
     let mut storage = storage.start_transaction().await.unwrap();
     // Insert a mock miniblock so that `get_block_details()` will return values.
     let miniblock = create_miniblock(number.0);
@@ -104,7 +105,7 @@ impl L1BatchStagesMap {
         }
     }
 
-    async fn assert_storage(&self, storage: &mut StorageProcessor<'_>) {
+    async fn assert_storage(&self, storage: &mut ServerProcessor<'_>) {
         for (number, stage) in self.iter() {
             let local_details = storage
                 .blocks_web3_dal()
@@ -213,7 +214,6 @@ fn mock_change(number: L1BatchNumber) -> BatchStatusChange {
 
 fn mock_updater(
     client: MockMainNodeClient,
-    pool: ConnectionPool<Server>,
     pool: ConnectionPool<Server>,
 ) -> (BatchStatusUpdater, mpsc::UnboundedReceiver<StatusChanges>) {
     let (changes_sender, changes_receiver) = mpsc::unbounded_channel();

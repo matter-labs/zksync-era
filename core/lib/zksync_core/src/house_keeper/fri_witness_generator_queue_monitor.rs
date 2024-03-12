@@ -1,8 +1,10 @@
 use std::collections::HashMap;
 
 use async_trait::async_trait;
-use zksync_dal::{fri_prover_dal::types::JobCountStatistics, ConnectionPool};
+use prover_dal::Prover;
+use zksync_dal::ConnectionPool;
 use zksync_types::basic_fri_types::AggregationRound;
+use zksync_types::prover_dal::JobCountStatistics;
 
 use crate::house_keeper::periodic_job::PeriodicJob;
 
@@ -11,11 +13,11 @@ const FRI_WITNESS_GENERATOR_SERVICE_NAME: &str = "fri_witness_generator";
 #[derive(Debug)]
 pub struct FriWitnessGeneratorStatsReporter {
     reporting_interval_ms: u64,
-    pool: ConnectionPool,
+    pool: ConnectionPool<Prover>,
 }
 
 impl FriWitnessGeneratorStatsReporter {
-    pub fn new(pool: ConnectionPool, reporting_interval_ms: u64) -> Self {
+    pub fn new(pool: ConnectionPool<Prover>, reporting_interval_ms: u64) -> Self {
         Self {
             reporting_interval_ms,
             pool,

@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use multivm::utils::get_max_gas_per_pubdata_byte;
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_dal::ServerProcessor;
+use zksync_dal::{ServerProcessor, StorageProcessor};
 use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
 use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
 use zksync_types::{

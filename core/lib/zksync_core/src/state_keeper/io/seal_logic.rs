@@ -8,7 +8,7 @@ use multivm::{
     interface::{FinishedL1Batch, L1BatchEnv},
     utils::get_max_gas_per_pubdata_byte,
 };
-use zksync_dal::ServerProcessor;
+use zksync_dal::{ServerProcessor, StorageProcessor};
 use zksync_types::{
     block::{unpack_block_info, L1BatchHeader, MiniblockHeader},
     event::{extract_added_tokens, extract_long_l2_to_l1_messages},
@@ -271,7 +271,7 @@ impl MiniblockSealCommand {
         self.seal_inner(storage, false).await;
     }
 
-    async fn insert_transactions(&self, transaction: &mut StorageProcessor<'_>) {
+    async fn insert_transactions(&self, transaction: &mut ServerProcessor<'_>) {
         for tx_result in &self.miniblock.executed_transactions {
             let tx = tx_result.transaction.clone();
             match &tx.common_data {

@@ -10,7 +10,7 @@ use zksync_config::configs::{
     chain::OperationsManagerConfig,
     database::{MerkleTreeConfig, MerkleTreeMode},
 };
-use zksync_dal::{ConnectionPool, Server, ServerProcessor};
+use zksync_dal::{ConnectionPool, Server, ServerProcessor, StorageProcessor};
 use zksync_health_check::{CheckHealth, HealthStatus};
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};

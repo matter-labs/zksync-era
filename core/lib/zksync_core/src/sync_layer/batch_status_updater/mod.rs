@@ -9,7 +9,7 @@ use serde::Serialize;
 #[cfg(test)]
 use tokio::sync::mpsc;
 use tokio::sync::watch;
-use zksync_dal::{ConnectionPool, Server, ServerProcessor};
+use zksync_dal::{ConnectionPool, Server, ServerProcessor, StorageProcessor};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_types::{
     aggregated_operations::AggregatedActionType, api, L1BatchNumber, MiniblockNumber, H256,

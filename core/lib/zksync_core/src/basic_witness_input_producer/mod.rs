@@ -5,7 +5,9 @@ use async_trait::async_trait;
 use multivm::interface::{L2BlockEnv, VmInterface};
 use tokio::{runtime::Handle, task::JoinHandle};
 use vm_utils::{create_vm, execute_tx};
-use zksync_dal::{basic_witness_input_producer_dal::JOB_MAX_ATTEMPT, ConnectionPool, Server};
+use zksync_dal::{
+    basic_witness_input_producer_dal::JOB_MAX_ATTEMPT, ConnectionPool, Server, StorageProcessor,
+};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{witness_block_state::WitnessBlockState, L1BatchNumber, L2ChainId};

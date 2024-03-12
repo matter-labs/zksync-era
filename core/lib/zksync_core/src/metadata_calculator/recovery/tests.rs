@@ -10,6 +10,7 @@ use zksync_config::configs::{
     chain::OperationsManagerConfig,
     database::{MerkleTreeConfig, MerkleTreeMode},
 };
+use zksync_dal::StorageProcessor;
 use zksync_health_check::{CheckHealth, HealthStatus, ReactiveHealthCheck};
 use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
 use zksync_types::{L1BatchNumber, L2ChainId, ProtocolVersionId, StorageLog};

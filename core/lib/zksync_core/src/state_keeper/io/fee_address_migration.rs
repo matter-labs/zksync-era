@@ -175,7 +175,7 @@ mod tests {
     use super::*;
     use crate::utils::testonly::create_miniblock;
 
-    async fn prepare_storage(storage: &mut StorageProcessor<'_>) {
+    async fn prepare_storage(storage: &mut ServerProcessor<'_>) {
         storage
             .protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
@@ -216,7 +216,7 @@ mod tests {
         }
     }
 
-    async fn assert_migration(storage: &mut StorageProcessor<'_>) {
+    async fn assert_migration(storage: &mut ServerProcessor<'_>) {
         for number in 0..5 {
             assert!(is_fee_address_migrated(storage, MiniblockNumber(number))
                 .await

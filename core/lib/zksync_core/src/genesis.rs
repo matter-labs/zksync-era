@@ -9,7 +9,7 @@ use multivm::{
     zk_evm_latest::aux_structures::{LogQuery as MultiVmLogQuery, Timestamp as MultiVMTimestamp},
 };
 use zksync_contracts::{BaseSystemContracts, SET_CHAIN_ID_EVENT};
-use zksync_dal::ServerProcessor;
+use zksync_dal::{ServerProcessor, StorageProcessor};
 use zksync_eth_client::{clients::QueryClient, EthInterface};
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_system_constants::PRIORITY_EXPIRATION;

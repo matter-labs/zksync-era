@@ -1,6 +1,6 @@
 use anyhow::Context as _;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SystemContractCode};
-use zksync_dal::ServerProcessor;
+use zksync_dal::{ServerProcessor, StorageProcessor};
 use zksync_types::{
     block::DeployedContract, protocol_version::L1VerifierConfig,
     system_contracts::get_system_smart_contracts, AccountTreeId, Address, L1BatchNumber, L2ChainId,

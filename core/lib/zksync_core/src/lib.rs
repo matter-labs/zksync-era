@@ -12,6 +12,7 @@ use api_server::tx_sender::master_pool_sink::MasterPoolSink;
 use fee_model::{ApiFeeInputProvider, BatchFeeModelInputProvider, MainNodeFeeInputProvider};
 use futures::channel::oneshot;
 use prometheus_exporter::PrometheusExporterConfig;
+use prover_dal::Prover;
 use temp_config_store::{Secrets, TempConfigStore};
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_circuit_breaker::{
@@ -1029,7 +1030,7 @@ async fn add_house_keeper_to_task_futures(
         connection_pool.clone(),
     );
 
-    let prover_connection_pool = ConnectionPool::<Server>::builder(
+    let prover_connection_pool = ConnectionPool::<Prover>::builder(
         postgres_config.prover_url()?,
         postgres_config.max_connections()?,
     )

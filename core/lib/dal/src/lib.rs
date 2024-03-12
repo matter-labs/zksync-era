@@ -2,11 +2,10 @@
 
 use sqlx::PgConnection;
 pub use sqlx::{types::BigDecimal, Error as SqlxError};
-pub use zksync_db_connection::connection::ConnectionPool;
-pub use zksync_db_connection::processor::StorageProcessor;
 use zksync_db_connection::processor::{
     async_trait, BasicStorageProcessor, StorageKind, StorageProcessorTags,
 };
+pub use zksync_db_connection::{connection::ConnectionPool, processor::StorageProcessor};
 
 use crate::{
     basic_witness_input_producer_dal::BasicWitnessInputProducerDal, blocks_dal::BlocksDal,
