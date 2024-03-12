@@ -1,9 +1,9 @@
-use std::ops;
+use std::{collections::HashMap, ops};
 
 use zksync_types::{
     get_code_key, get_nonce_key,
     utils::{decompose_full_nonce, storage_key_for_standard_token_balance},
-    AccountTreeId, Address, L1BatchNumber, MiniblockNumber, StorageKey,
+    AccountTreeId, Address, L1BatchNumber, MiniblockNumber, Nonce, StorageKey,
     FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H256, U256,
 };
 use zksync_utils::h256_to_u256;
@@ -23,7 +23,7 @@ impl StorageWeb3Dal<'_, '_> {
         &mut self,
         address: Address,
         block_number: MiniblockNumber,
-    ) -> Result<U256, SqlxError> {
+    ) -> sqlx::Result<U256> {
         let nonce_key = get_nonce_key(&address);
         let nonce_value = self
             .get_historical_value_unchecked(&nonce_key, block_number)
@@ -32,17 +32,61 @@ impl StorageWeb3Dal<'_, '_> {
         Ok(decompose_full_nonce(full_nonce).0)
     }
 
+    /// Returns the current *stored* nonces (i.e., w/o accounting for pending transactions) for the specified accounts.
+    pub async fn get_nonces_for_addresses(
+        &mut self,
+        addresses: &[Address],
+    ) -> sqlx::Result<HashMap<Address, Nonce>> {
+        let nonce_keys: HashMap<_, _> = addresses
+            .iter()
+            .map(|address| (get_nonce_key(address).hashed_key(), *address))
+            .collect();
+
+        let res = self
+            .get_values(&nonce_keys.keys().copied().collect::<Vec<_>>())
+            .await?
+            .into_iter()
+            .filter_map(|(hashed_key, value)| {
+                let address = nonce_keys.get(&hashed_key)?;
+                let full_nonce = h256_to_u256(value);
+                let (nonce, _) = decompose_full_nonce(full_nonce);
+                Some((*address, Nonce(nonce.as_u32())))
+            })
+            .collect();
+        Ok(res)
+    }
+
     pub async fn standard_token_historical_balance(
         &mut self,
         token_id: AccountTreeId,
         account_id: AccountTreeId,
         block_number: MiniblockNumber,
-    ) -> Result<U256, SqlxError> {
+    ) -> sqlx::Result<U256> {
         let key = storage_key_for_standard_token_balance(token_id, account_id.address());
         let balance = self
             .get_historical_value_unchecked(&key, block_number)
             .await?;
         Ok(h256_to_u256(balance))
+    }
+
+    /// Gets the current value for the specified `key`.
+    pub async fn get_value(&mut self, key: &StorageKey) -> sqlx::Result<H256> {
+        self.get_historical_value_unchecked(key, MiniblockNumber(u32::MAX))
+            .await
+    }
+
+    /// Gets the current values for the specified `hashed_keys`. The returned map has requested hashed keys as keys
+    /// and current storage values as values.
+    pub async fn get_values(&mut self, hashed_keys: &[H256]) -> sqlx::Result<HashMap<H256, H256>> {
+        let storage_map = self
+            .storage
+            .storage_logs_dal()
+            .get_storage_values(hashed_keys, MiniblockNumber(u32::MAX))
+            .await?;
+        Ok(storage_map
+            .into_iter()
+            .map(|(key, value)| (key, value.unwrap_or_default()))
+            .collect())
     }
 
     /// This method does not check if a block with this number exists in the database.
@@ -51,42 +95,40 @@ impl StorageWeb3Dal<'_, '_> {
         &mut self,
         key: &StorageKey,
         block_number: MiniblockNumber,
-    ) -> Result<H256, SqlxError> {
-        {
-            // We need to proper distinguish if the value is zero or None
-            // for the VM to correctly determine initial writes.
-            // So, we accept that the value is None if it's zero and it wasn't initially written at the moment.
-            let hashed_key = key.hashed_key();
+    ) -> sqlx::Result<H256> {
+        // We need to proper distinguish if the value is zero or None
+        // for the VM to correctly determine initial writes.
+        // So, we accept that the value is None if it's zero and it wasn't initially written at the moment.
+        let hashed_key = key.hashed_key();
 
-            sqlx::query!(
-                r#"
-                SELECT
-                    value
-                FROM
-                    storage_logs
-                WHERE
-                    storage_logs.hashed_key = $1
-                    AND storage_logs.miniblock_number <= $2
-                ORDER BY
-                    storage_logs.miniblock_number DESC,
-                    storage_logs.operation_number DESC
-                LIMIT
-                    1
-                "#,
-                hashed_key.as_bytes(),
-                block_number.0 as i64
-            )
-            .instrument("get_historical_value_unchecked")
-            .report_latency()
-            .with_arg("key", &hashed_key)
-            .fetch_optional(self.storage.conn())
-            .await
-            .map(|option_row| {
-                option_row
-                    .map(|row| H256::from_slice(&row.value))
-                    .unwrap_or_else(H256::zero)
-            })
-        }
+        sqlx::query!(
+            r#"
+            SELECT
+                value
+            FROM
+                storage_logs
+            WHERE
+                storage_logs.hashed_key = $1
+                AND storage_logs.miniblock_number <= $2
+            ORDER BY
+                storage_logs.miniblock_number DESC,
+                storage_logs.operation_number DESC
+            LIMIT
+                1
+            "#,
+            hashed_key.as_bytes(),
+            block_number.0 as i64
+        )
+        .instrument("get_historical_value_unchecked")
+        .report_latency()
+        .with_arg("key", &hashed_key)
+        .fetch_optional(self.storage)
+        .await
+        .map(|option_row| {
+            option_row
+                .map(|row| H256::from_slice(&row.value))
+                .unwrap_or_else(H256::zero)
+        })
     }
 
     /// Provides information about the L1 batch that the specified miniblock is a part of.
@@ -153,7 +195,7 @@ impl StorageWeb3Dal<'_, '_> {
         .instrument("get_l1_batch_number_for_initial_write")
         .report_latency()
         .with_arg("key", &hashed_key)
-        .fetch_optional(self.storage.conn())
+        .fetch_optional(self.storage)
         .await?;
 
         let l1_batch_number = row.map(|record| L1BatchNumber(record.l1_batch_number as u32));
@@ -257,14 +299,13 @@ impl StorageWeb3Dal<'_, '_> {
 
 #[cfg(test)]
 mod tests {
-    use zksync_types::{
-        block::{BlockGasCount, L1BatchHeader},
-        snapshots::SnapshotRecoveryStatus,
-        ProtocolVersion, ProtocolVersionId,
-    };
+    use zksync_types::{block::L1BatchHeader, ProtocolVersion, ProtocolVersionId};
 
     use super::*;
-    use crate::{tests::create_miniblock_header, ConnectionPool};
+    use crate::{
+        tests::{create_miniblock_header, create_snapshot_recovery},
+        ConnectionPool,
+    };
 
     #[tokio::test]
     async fn resolving_l1_batch_number_of_miniblock() {
@@ -280,12 +321,11 @@ mod tests {
         let l1_batch_header = L1BatchHeader::new(
             L1BatchNumber(0),
             0,
-            Address::repeat_byte(0x42),
             Default::default(),
             ProtocolVersionId::latest(),
         );
         conn.blocks_dal()
-            .insert_l1_batch(&l1_batch_header, &[], BlockGasCount::default(), &[], &[], 0)
+            .insert_mock_l1_batch(&l1_batch_header)
             .await
             .unwrap();
         conn.blocks_dal()
@@ -341,16 +381,9 @@ mod tests {
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
-        let snapshot_recovery = SnapshotRecoveryStatus {
-            l1_batch_number: L1BatchNumber(23),
-            l1_batch_root_hash: H256::zero(),
-            miniblock_number: MiniblockNumber(42),
-            miniblock_root_hash: H256::zero(),
-            last_finished_chunk_id: None,
-            total_chunk_count: 100,
-        };
+        let snapshot_recovery = create_snapshot_recovery();
         conn.snapshot_recovery_dal()
-            .set_applied_snapshot_status(&snapshot_recovery)
+            .insert_initial_recovery_status(&snapshot_recovery)
             .await
             .unwrap();
 
@@ -385,12 +418,11 @@ mod tests {
         let l1_batch_header = L1BatchHeader::new(
             snapshot_recovery.l1_batch_number + 1,
             100,
-            Address::repeat_byte(0x42),
             Default::default(),
             ProtocolVersionId::latest(),
         );
         conn.blocks_dal()
-            .insert_l1_batch(&l1_batch_header, &[], BlockGasCount::default(), &[], &[], 0)
+            .insert_mock_l1_batch(&l1_batch_header)
             .await
             .unwrap();
         conn.blocks_dal()

@@ -10,7 +10,7 @@ pub(crate) mod pubdata_tracer;
 pub(crate) mod refunds;
 pub(crate) mod result_tracer;
 
-mod circuits_capacity;
+pub(crate) mod circuits_capacity;
 pub mod dispatcher;
 pub(crate) mod traits;
 pub(crate) mod utils;

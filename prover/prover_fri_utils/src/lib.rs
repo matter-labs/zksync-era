@@ -1,7 +1,7 @@
 use std::time::Instant;
 
 use zksync_dal::StorageProcessor;
-use zksync_object_store::{FriCircuitKey, ObjectStore};
+use zksync_object_store::ObjectStore;
 use zksync_prover_fri_types::{
     circuit_definitions::{
         circuit_definitions::recursion_layer::{
@@ -9,10 +9,12 @@ use zksync_prover_fri_types::{
         },
         zkevm_circuits::scheduler::aux::BaseLayerCircuitType,
     },
-    get_current_pod_name, CircuitWrapper, ProverJob, ProverServiceDataKey,
+    get_current_pod_name,
+    keys::FriCircuitKey,
+    CircuitWrapper, ProverJob, ProverServiceDataKey,
 };
 use zksync_types::{
-    basic_fri_types::CircuitIdRoundTuple, proofs::AggregationRound,
+    basic_fri_types::{AggregationRound, CircuitIdRoundTuple},
     protocol_version::L1VerifierConfig,
 };
 
@@ -101,6 +103,7 @@ pub fn get_numeric_circuit_id(circuit_wrapper: &CircuitWrapper) -> u8 {
     match circuit_wrapper {
         CircuitWrapper::Base(circuit) => circuit.numeric_circuit_type(),
         CircuitWrapper::Recursive(circuit) => circuit.numeric_circuit_type(),
+        CircuitWrapper::Eip4844(_) => ProverServiceDataKey::eip4844().circuit_id,
     }
 }
 

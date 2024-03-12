@@ -12,8 +12,8 @@ use zksync_config::{
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
         native_token_fetcher::NativeTokenFetcherConfig,
-        FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig, PrometheusConfig,
-        ProofDataHandlerConfig, WitnessGeneratorConfig,
+        FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig, KzgConfig,
+        ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig, WitnessGeneratorConfig,
     },
     ApiConfig, ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig, ETHWatchConfig,
     GasAdjusterConfig, ObjectStoreConfig, PostgresConfig,
@@ -26,6 +26,8 @@ use zksync_env_config::FromEnv;
 use zksync_storage::RocksDB;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 
+mod config;
+
 #[cfg(not(target_env = "msvc"))]
 #[global_allocator]
 static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
@@ -36,13 +38,17 @@ struct Cli {
     /// Generate genesis block for the first contract deployment using temporary DB.
     #[arg(long)]
     genesis: bool,
+    /// Wait for the `setChainId` event during genesis.
+    /// If `--genesis` is not set, this flag is ignored.
+    #[arg(long)]
+    set_chain_id: bool,
     /// Rebuild tree.
     #[arg(long)]
     rebuild_tree: bool,
     /// Comma-separated list of components to launch.
     #[arg(
         long,
-        default_value = "api,tree,eth,state_keeper,housekeeper,basic_witness_input_producer"
+        default_value = "api,tree,eth,state_keeper,housekeeper,basic_witness_input_producer,commitment_generator"
     )]
     components: ComponentsToRun,
 }
@@ -67,24 +73,24 @@ impl FromStr for ComponentsToRun {
 async fn main() -> anyhow::Result<()> {
     let opt = Cli::parse();
 
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let log_format = vlog::log_format_from_env();
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let sentry_url = vlog::sentry_url_from_env();
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let environment = vlog::environment_from_env();
+    let observability_config =
+        ObservabilityConfig::from_env().context("ObservabilityConfig::from_env()")?;
+    let log_format: vlog::LogFormat = observability_config
+        .log_format
+        .parse()
+        .context("Invalid log format")?;
 
     let mut builder = vlog::ObservabilityBuilder::new().with_log_format(log_format);
-    if let Some(sentry_url) = &sentry_url {
+    if let Some(sentry_url) = &observability_config.sentry_url {
         builder = builder
             .with_sentry_url(sentry_url)
             .expect("Invalid Sentry URL")
-            .with_sentry_environment(environment);
+            .with_sentry_environment(observability_config.sentry_environment);
     }
     let _guard = builder.build();
 
     // Report whether sentry is running after the logging subsystem was initialized.
-    if let Some(sentry_url) = sentry_url {
+    if let Some(sentry_url) = observability_config.sentry_url {
         tracing::info!("Sentry configured with URL: {sentry_url}");
     } else {
         tracing::info!("No sentry URL was provided");
@@ -94,7 +100,7 @@ async fn main() -> anyhow::Result<()> {
     // Right now, we are trying to deserialize all the configs that may be needed by `zksync_core`.
     // "May" is the key word here, since some configs are only used by certain component configuration,
     // hence we are using `Option`s.
-    let configs: TempConfigStore = TempConfigStore {
+    let mut configs: TempConfigStore = TempConfigStore {
         postgres_config: PostgresConfig::from_env().ok(),
         health_check_config: HealthCheckConfig::from_env().ok(),
         merkle_tree_api_config: MerkleTreeApiConfig::from_env().ok(),
@@ -106,7 +112,7 @@ async fn main() -> anyhow::Result<()> {
         state_keeper_config: StateKeeperConfig::from_env().ok(),
         house_keeper_config: HouseKeeperConfig::from_env().ok(),
         fri_proof_compressor_config: FriProofCompressorConfig::from_env().ok(),
-        fri_prover_config: FriProverConfig::from_env().ok(),
+        fri_prover_config: Some(FriProverConfig::from_env().context("fri_prover_config")?),
         fri_prover_group_config: FriProverGroupConfig::from_env().ok(),
         fri_witness_generator_config: FriWitnessGeneratorConfig::from_env().ok(),
         prometheus_config: PrometheusConfig::from_env().ok(),
@@ -121,7 +127,14 @@ async fn main() -> anyhow::Result<()> {
         gas_adjuster_config: GasAdjusterConfig::from_env().ok(),
         object_store_config: ObjectStoreConfig::from_env().ok(),
         native_token_fetcher_config: NativeTokenFetcherConfig::from_env().ok(),
+        kzg_config: KzgConfig::from_env().ok(),
+        consensus_config: None,
     };
+
+    if opt.components.0.contains(&Component::Consensus) {
+        configs.consensus_config =
+            Some(config::read_consensus_config().context("read_consensus_config()")?);
+    }
 
     let postgres_config = configs.postgres_config.clone().context("PostgresConfig")?;
 
@@ -136,6 +149,7 @@ async fn main() -> anyhow::Result<()> {
             &network,
             &contracts,
             &eth_client.web3_url,
+            opt.set_chain_id,
         )
         .await
         .context("genesis_init")?;

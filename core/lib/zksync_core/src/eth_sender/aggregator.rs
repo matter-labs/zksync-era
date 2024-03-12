@@ -3,21 +3,24 @@ use std::sync::Arc;
 use zksync_config::configs::eth_sender::{ProofLoadingMode, ProofSendingMode, SenderConfig};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::StorageProcessor;
+use zksync_l1_contract_interface::i_executor::{
+    commit::kzg::KzgSettings,
+    methods::{CommitBatches, ExecuteBatches, ProveBatches},
+};
 use zksync_object_store::{ObjectStore, ObjectStoreError};
+use zksync_prover_interface::outputs::L1BatchProofForL1;
 use zksync_types::{
-    aggregated_operations::{
-        AggregatedActionType, AggregatedOperation, L1BatchCommitOperation, L1BatchExecuteOperation,
-        L1BatchProofForL1, L1BatchProofOperation,
-    },
-    commitment::L1BatchWithMetadata,
-    helpers::unix_timestamp_ms,
-    protocol_version::L1VerifierConfig,
+    aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata,
+    helpers::unix_timestamp_ms, protocol_version::L1VerifierConfig, pubdata_da::PubdataDA,
     L1BatchNumber, ProtocolVersionId,
 };
 
-use super::publish_criterion::{
-    DataSizeCriterion, GasCriterion, L1BatchPublishCriterion, NumberCriterion,
-    TimestampDeadlineCriterion,
+use super::{
+    aggregated_operations::AggregatedOperation,
+    publish_criterion::{
+        DataSizeCriterion, GasCriterion, L1BatchPublishCriterion, NumberCriterion,
+        TimestampDeadlineCriterion,
+    },
 };
 
 #[derive(Debug)]
@@ -27,10 +30,24 @@ pub struct Aggregator {
     execute_criteria: Vec<Box<dyn L1BatchPublishCriterion>>,
     config: SenderConfig,
     blob_store: Arc<dyn ObjectStore>,
+    /// If we are operating in 4844 mode we need to wait for commit transaction
+    /// to get included before sending the respective prove and execute transactions.
+    /// In non-4844 mode of operation we operate with the single address and this
+    /// means no wait is needed: nonces will still provide the correct ordering of
+    /// transactions.
+    operate_4844_mode: bool,
+    pubdata_da: PubdataDA,
+    kzg_settings: Option<Arc<KzgSettings>>,
 }
 
 impl Aggregator {
-    pub fn new(config: SenderConfig, blob_store: Arc<dyn ObjectStore>) -> Self {
+    pub fn new(
+        config: SenderConfig,
+        blob_store: Arc<dyn ObjectStore>,
+        operate_4844_mode: bool,
+        pubdata_da: PubdataDA,
+        kzg_settings: Option<Arc<KzgSettings>>,
+    ) -> Self {
         Self {
             commit_criteria: vec![
                 Box::from(NumberCriterion {
@@ -44,6 +61,8 @@ impl Aggregator {
                 Box::from(DataSizeCriterion {
                     op: AggregatedActionType::Commit,
                     data_limit: config.max_eth_tx_data_size,
+                    pubdata_da,
+                    kzg_settings: kzg_settings.clone(),
                 }),
                 Box::from(TimestampDeadlineCriterion {
                     op: AggregatedActionType::Commit,
@@ -86,6 +105,9 @@ impl Aggregator {
             ],
             config,
             blob_store,
+            operate_4844_mode,
+            pubdata_da,
+            kzg_settings,
         }
     }
 
@@ -142,7 +164,7 @@ impl Aggregator {
         storage: &mut StorageProcessor<'_>,
         limit: usize,
         last_sealed_l1_batch: L1BatchNumber,
-    ) -> Option<L1BatchExecuteOperation> {
+    ) -> Option<ExecuteBatches> {
         let max_l1_batch_timestamp_millis = self
             .config
             .l1_batch_min_age_before_execute_seconds
@@ -160,7 +182,7 @@ impl Aggregator {
         )
         .await;
 
-        l1_batches.map(|l1_batches| L1BatchExecuteOperation { l1_batches })
+        l1_batches.map(|l1_batches| ExecuteBatches { l1_batches })
     }
 
     async fn get_commit_operation(
@@ -170,7 +192,7 @@ impl Aggregator {
         last_sealed_batch: L1BatchNumber,
         base_system_contracts_hashes: BaseSystemContractsHashes,
         protocol_version_id: ProtocolVersionId,
-    ) -> Option<L1BatchCommitOperation> {
+    ) -> Option<CommitBatches> {
         let mut blocks_dal = storage.blocks_dal();
         let last_committed_l1_batch = blocks_dal
             .get_last_committed_to_eth_l1_batch()
@@ -218,9 +240,11 @@ impl Aggregator {
         )
         .await;
 
-        batches.map(|batches| L1BatchCommitOperation {
+        batches.map(|batches| CommitBatches {
             last_committed_l1_batch,
             l1_batches: batches,
+            pubdata_da: self.pubdata_da,
+            kzg_settings: self.kzg_settings.clone(),
         })
     }
 
@@ -229,7 +253,8 @@ impl Aggregator {
         l1_verifier_config: L1VerifierConfig,
         proof_loading_mode: &ProofLoadingMode,
         blob_store: &dyn ObjectStore,
-    ) -> Option<L1BatchProofOperation> {
+        is_4844_mode: bool,
+    ) -> Option<ProveBatches> {
         let previous_proven_batch_number = storage
             .blocks_dal()
             .get_last_l1_batch_with_prove_tx()
@@ -238,11 +263,22 @@ impl Aggregator {
         let batch_to_prove = previous_proven_batch_number + 1;
 
         // Return `None` if batch is not committed yet.
-        storage
+        let commit_tx_id = storage
             .blocks_dal()
             .get_eth_commit_tx_id(batch_to_prove)
             .await
             .unwrap()?;
+
+        if is_4844_mode
+            && storage
+                .eth_sender_dal()
+                .get_confirmed_tx_hash_by_eth_tx_id(commit_tx_id as u32)
+                .await
+                .unwrap()
+                .is_none()
+        {
+            return None;
+        }
 
         if let Some(version_id) = storage
             .blocks_dal()
@@ -297,7 +333,7 @@ impl Aggregator {
                 );
             });
 
-        Some(L1BatchProofOperation {
+        Some(ProveBatches {
             prev_l1_batch: previous_proven_batch_metadata,
             l1_batches: vec![metadata_for_batch_being_proved],
             proofs,
@@ -310,7 +346,7 @@ impl Aggregator {
         storage: &mut StorageProcessor<'_>,
         ready_for_proof_l1_batches: Vec<L1BatchWithMetadata>,
         last_sealed_l1_batch: L1BatchNumber,
-    ) -> Option<L1BatchProofOperation> {
+    ) -> Option<ProveBatches> {
         let batches = extract_ready_subrange(
             storage,
             &mut self.proof_criteria,
@@ -326,7 +362,7 @@ impl Aggregator {
             .await
             .unwrap()?;
 
-        Some(L1BatchProofOperation {
+        Some(ProveBatches {
             prev_l1_batch: prev_batch,
             l1_batches: batches,
             proofs: vec![],
@@ -340,7 +376,7 @@ impl Aggregator {
         limit: usize,
         last_sealed_l1_batch: L1BatchNumber,
         l1_verifier_config: L1VerifierConfig,
-    ) -> Option<L1BatchProofOperation> {
+    ) -> Option<ProveBatches> {
         match self.config.proof_sending_mode {
             ProofSendingMode::OnlyRealProofs => {
                 Self::load_real_proof_operation(
@@ -348,6 +384,7 @@ impl Aggregator {
                     l1_verifier_config,
                     &self.config.proof_loading_mode,
                     &*self.blob_store,
+                    self.operate_4844_mode,
                 )
                 .await
             }
@@ -355,7 +392,7 @@ impl Aggregator {
             ProofSendingMode::SkipEveryProof => {
                 let ready_for_proof_l1_batches = storage
                     .blocks_dal()
-                    .get_ready_for_dummy_proof_l1_batches(limit)
+                    .get_ready_for_dummy_proof_l1_batches(self.operate_4844_mode, limit)
                     .await
                     .unwrap();
                 self.prepare_dummy_proof_operation(
@@ -373,6 +410,7 @@ impl Aggregator {
                     l1_verifier_config,
                     &self.config.proof_loading_mode,
                     &*self.blob_store,
+                    self.operate_4844_mode,
                 )
                 .await
                 {
@@ -392,6 +430,10 @@ impl Aggregator {
                 }
             }
         }
+    }
+
+    pub fn pubdata_da(&self) -> PubdataDA {
+        self.pubdata_da
     }
 }
 

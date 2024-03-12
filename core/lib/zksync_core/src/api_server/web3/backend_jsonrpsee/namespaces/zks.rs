@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use bigdecimal::BigDecimal;
 use zksync_types::{
     api::{
         BlockDetails, BridgeAddresses, L1BatchDetails, L2ToL1LogProof, Proof, ProtocolVersion,
@@ -31,7 +30,7 @@ impl ZksNamespaceServer for ZksNamespace {
             .map_err(into_jsrpc_error)
     }
 
-    async fn get_bridgehub_contract(&self) -> RpcResult<Address> {
+    async fn get_bridgehub_contract(&self) -> RpcResult<Option<Address>> {
         Ok(self.get_bridgehub_contract_impl())
     }
 
@@ -53,12 +52,6 @@ impl ZksNamespaceServer for ZksNamespace {
 
     async fn get_confirmed_tokens(&self, from: u32, limit: u8) -> RpcResult<Vec<Token>> {
         self.get_confirmed_tokens_impl(from, limit)
-            .await
-            .map_err(into_jsrpc_error)
-    }
-
-    async fn get_token_price(&self, token_address: Address) -> RpcResult<BigDecimal> {
-        self.get_token_price_impl(token_address)
             .await
             .map_err(into_jsrpc_error)
     }
@@ -146,7 +139,7 @@ impl ZksNamespaceServer for ZksNamespace {
     }
 
     async fn get_l1_gas_price(&self) -> RpcResult<U64> {
-        Ok(self.get_l1_gas_price_impl())
+        Ok(self.get_l1_gas_price_impl().await)
     }
 
     async fn get_fee_params(&self) -> RpcResult<FeeParams> {

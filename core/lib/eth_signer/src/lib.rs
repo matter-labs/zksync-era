@@ -15,7 +15,6 @@ pub mod raw_ethereum_tx;
 
 #[async_trait]
 pub trait EthereumSigner: 'static + Send + Sync + Clone {
-    async fn sign_message(&self, message: &[u8]) -> Result<PackedEthSignature, SignerError>;
     async fn sign_typed_data<S: EIP712TypedStructure + Sync>(
         &self,
         domain: &Eip712Domain,

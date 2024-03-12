@@ -1,21 +1,10 @@
 # Will work locally only after prior contracts build
 # syntax=docker/dockerfile:experimental
-FROM debian:bookworm-slim as builder
+FROM matterlabs/zksync-build-base:latest as builder
 
 WORKDIR /usr/src/zksync
+
 COPY . .
-
-RUN apt-get update && apt-get install -y curl clang openssl libssl-dev gcc g++ \
-    pkg-config build-essential libclang-dev linux-libc-dev liburing-dev && \
-    rm -rf /var/lib/apt/lists/*
-
-ENV RUSTUP_HOME=/usr/local/rustup \
-    CARGO_HOME=/usr/local/cargo \
-    PATH=/usr/local/cargo/bin:$PATH
-
-RUN curl https://sh.rustup.rs -sSf | bash -s -- -y && \
-    rustup install nightly-2023-08-21 && \
-    rustup default nightly-2023-08-21
 
 RUN cargo build --release --features=rocksdb/io-uring
 
@@ -40,5 +29,6 @@ COPY contracts/l2-contracts/artifacts-zk/ /contracts/l2-contracts/artifacts-zk/
 COPY etc/tokens/ /etc/tokens/
 COPY etc/ERC20/ /etc/ERC20/
 COPY etc/multivm_bootloaders/ /etc/multivm_bootloaders/
+COPY trusted_setup.json /
 
 ENTRYPOINT ["zksync_server"]

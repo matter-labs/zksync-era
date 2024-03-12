@@ -8,14 +8,16 @@ use prometheus_exporter::PrometheusExporterConfig;
 use structopt::StructOpt;
 use tokio::sync::watch;
 use zksync_config::{
-    configs::{FriWitnessGeneratorConfig, PostgresConfig, PrometheusConfig},
+    configs::{
+        FriWitnessGeneratorConfig, KzgConfig, ObservabilityConfig, PostgresConfig, PrometheusConfig,
+    },
     ObjectStoreConfig,
 };
 use zksync_dal::ConnectionPool;
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_queued_job_processor::JobProcessor;
-use zksync_types::{proofs::AggregationRound, web3::futures::StreamExt};
+use zksync_types::{basic_fri_types::AggregationRound, web3::futures::StreamExt};
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 use zksync_vk_setup_data_server_fri::commitment_utils::get_cached_commitments;
 
@@ -33,6 +35,13 @@ mod precalculated_merkle_paths_provider;
 mod scheduler;
 mod storage_oracle;
 mod utils;
+
+#[cfg(not(target_env = "msvc"))]
+use jemallocator::Jemalloc;
+
+#[cfg(not(target_env = "msvc"))]
+#[global_allocator]
+static GLOBAL: Jemalloc = Jemalloc;
 
 #[derive(Debug, StructOpt)]
 #[structopt(
@@ -55,24 +64,24 @@ struct Opt {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let log_format = vlog::log_format_from_env();
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let sentry_url = vlog::sentry_url_from_env();
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let environment = vlog::environment_from_env();
+    let observability_config =
+        ObservabilityConfig::from_env().context("ObservabilityConfig::from_env()")?;
+    let log_format: vlog::LogFormat = observability_config
+        .log_format
+        .parse()
+        .context("Invalid log format")?;
 
     let mut builder = vlog::ObservabilityBuilder::new().with_log_format(log_format);
-    if let Some(sentry_url) = &sentry_url {
+    if let Some(sentry_url) = &observability_config.sentry_url {
         builder = builder
             .with_sentry_url(sentry_url)
-            .context("Invalid Sentry URL")?
-            .with_sentry_environment(environment);
+            .expect("Invalid Sentry URL")
+            .with_sentry_environment(observability_config.sentry_environment);
     }
     let _guard = builder.build();
 
     // Report whether sentry is running after the logging subsystem was initialized.
-    if let Some(sentry_url) = sentry_url {
+    if let Some(sentry_url) = observability_config.sentry_url {
         tracing::info!("Sentry configured with URL: {sentry_url}",);
     } else {
         tracing::info!("No sentry URL was provided");
@@ -175,6 +184,7 @@ async fn main() -> anyhow::Result<()> {
                         .await,
                     ),
                 };
+                let kzg_config = KzgConfig::from_env().context("KzgConfig::from_env()")?;
                 let generator = BasicWitnessGenerator::new(
                     config.clone(),
                     &store_factory,
@@ -182,6 +192,7 @@ async fn main() -> anyhow::Result<()> {
                     connection_pool.clone(),
                     prover_connection_pool.clone(),
                     protocol_versions.clone(),
+                    kzg_config.trusted_setup_path,
                 )
                 .await;
                 generator.run(stop_receiver.clone(), opt.batch_size)

@@ -9,9 +9,9 @@ use zksync_config::{
 };
 use zksync_dal::ConnectionPool;
 use zksync_object_store::ObjectStore;
+use zksync_prover_interface::api::{ProofGenerationDataRequest, SubmitProofRequest};
 use zksync_types::{
     protocol_version::{L1VerifierConfig, VerifierParams},
-    prover_server_api::{ProofGenerationDataRequest, SubmitProofRequest},
     H256,
 };
 
@@ -31,7 +31,7 @@ fn fri_l1_verifier_config(contracts_config: &ContractsConfig) -> L1VerifierConfi
     }
 }
 
-pub(crate) async fn run_server(
+pub async fn run_server(
     config: ProofDataHandlerConfig,
     contracts_config: ContractsConfig,
     blob_store: Arc<dyn ObjectStore>,

@@ -1,9 +1,9 @@
 use anyhow::Context as _;
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage::ReplicaState;
-use zksync_types::{Address, MiniblockNumber};
+use zksync_types::MiniblockNumber;
 
-pub use crate::models::storage_sync::Payload;
+pub use crate::models::consensus::Payload;
 use crate::StorageProcessor;
 
 /// Storage access methods for `zksync_core::consensus` module.
@@ -134,7 +134,6 @@ impl ConsensusDal<'_, '_> {
     pub async fn block_payload(
         &mut self,
         block_number: validator::BlockNumber,
-        operator_address: Address,
     ) -> anyhow::Result<Option<Payload>> {
         let block_number = MiniblockNumber(block_number.0.try_into()?);
         let Some(block) = self
@@ -150,7 +149,7 @@ impl ConsensusDal<'_, '_> {
             .transactions_web3_dal()
             .get_raw_miniblock_transactions(block_number)
             .await?;
-        Ok(Some(block.into_payload(operator_address, transactions)))
+        Ok(Some(block.into_payload(transactions)))
     }
 
     /// Inserts a certificate for the miniblock `cert.header().number`.
@@ -162,11 +161,7 @@ impl ConsensusDal<'_, '_> {
     /// which will help us to detect bugs in the consensus implementation
     /// while it is "fresh". If it turns out to take too long,
     /// we can remove the verification checks later.
-    pub async fn insert_certificate(
-        &mut self,
-        cert: &validator::CommitQC,
-        operator_address: Address,
-    ) -> anyhow::Result<()> {
+    pub async fn insert_certificate(&mut self, cert: &validator::CommitQC) -> anyhow::Result<()> {
         let header = &cert.message.proposal;
         let mut txn = self.storage.start_transaction().await?;
         if let Some(last) = txn.consensus_dal().last_certificate().await? {
@@ -184,7 +179,7 @@ impl ConsensusDal<'_, '_> {
         }
         let want_payload = txn
             .consensus_dal()
-            .block_payload(cert.message.proposal.number, operator_address)
+            .block_payload(cert.message.proposal.number)
             .await?
             .context("corresponding miniblock is missing")?;
         anyhow::ensure!(

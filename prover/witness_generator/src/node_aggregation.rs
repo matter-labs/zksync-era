@@ -6,8 +6,8 @@ use zkevm_test_harness::witness::recursive_aggregation::{
     compute_node_vk_commitment, create_node_witnesses,
 };
 use zksync_config::configs::FriWitnessGeneratorConfig;
-use zksync_dal::ConnectionPool;
-use zksync_object_store::{AggregationsKey, ObjectStore, ObjectStoreFactory};
+use zksync_dal::{fri_prover_dal::types::NodeAggregationJobMetadata, ConnectionPool};
+use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_prover_fri_types::{
     circuit_definitions::{
         boojum::field::goldilocks::GoldilocksField,
@@ -18,17 +18,15 @@ use zksync_prover_fri_types::{
         encodings::recursion_request::RecursionQueueSimulator,
         zkevm_circuits::recursion::leaf_layer::input::RecursionLeafParametersWitness,
     },
-    get_current_pod_name, FriProofWrapper,
+    get_current_pod_name,
+    keys::AggregationsKey,
+    FriProofWrapper,
 };
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{
-    proofs::{AggregationRound, NodeAggregationJobMetadata},
-    protocol_version::FriProtocolVersionId,
-    L1BatchNumber,
+    basic_fri_types::AggregationRound, protocol_version::FriProtocolVersionId, L1BatchNumber,
 };
-use zksync_vk_setup_data_server_fri::{
-    get_recursive_layer_vk_for_circuit_type, utils::get_leaf_vk_params,
-};
+use zksync_vk_setup_data_server_fri::{keystore::Keystore, utils::get_leaf_vk_params};
 
 use crate::{
     metrics::WITNESS_GENERATOR_METRICS,
@@ -241,12 +239,15 @@ pub async fn prepare_job(
         .observe(started_at.elapsed());
 
     let started_at = Instant::now();
-    let leaf_vk = get_recursive_layer_vk_for_circuit_type(metadata.circuit_id)
+    let keystore = Keystore::default();
+    let leaf_vk = keystore
+        .load_recursive_layer_verification_key(metadata.circuit_id)
         .context("get_recursive_layer_vk_for_circuit_type")?;
-    let node_vk = get_recursive_layer_vk_for_circuit_type(
-        ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,
-    )
-    .context("get_recursive_layer_vk_for_circuit_type()")?;
+    let node_vk = keystore
+        .load_recursive_layer_verification_key(
+            ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,
+        )
+        .context("get_recursive_layer_vk_for_circuit_type()")?;
 
     let mut recursive_proofs = vec![];
     for wrapper in proofs {
@@ -258,6 +259,7 @@ pub async fn prepare_job(
                 );
             }
             FriProofWrapper::Recursive(recursive_proof) => recursive_proofs.push(recursive_proof),
+            FriProofWrapper::Eip4844(_) => anyhow::bail!("EIP 4844 should not be run as a node."),
         }
     }
 
@@ -272,7 +274,7 @@ pub async fn prepare_job(
         proofs: recursive_proofs,
         leaf_vk,
         node_vk,
-        all_leafs_layer_params: get_leaf_vk_params().context("get_leaf_vk_params()")?,
+        all_leafs_layer_params: get_leaf_vk_params(&keystore).context("get_leaf_vk_params()")?,
     })
 }
 

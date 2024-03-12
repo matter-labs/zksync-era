@@ -73,12 +73,13 @@ impl ContractVerificationDal<'_, '_> {
                     optimizer_mode,
                     constructor_arguments,
                     is_system,
+                    force_evmla,
                     status,
                     created_at,
                     updated_at
                 )
             VALUES
-                ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'queued', NOW(), NOW())
+                ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'queued', NOW(), NOW())
             RETURNING
                 id
             "#,
@@ -92,6 +93,7 @@ impl ContractVerificationDal<'_, '_> {
             query.optimizer_mode,
             query.constructor_arguments.0,
             query.is_system,
+            query.force_evmla,
         )
         .fetch_one(self.storage.conn())
         .await
@@ -149,7 +151,8 @@ impl ContractVerificationDal<'_, '_> {
                 optimization_used,
                 optimizer_mode,
                 constructor_arguments,
-                is_system
+                is_system,
+                force_evmla
             "#,
             &processing_timeout
         )
@@ -469,7 +472,8 @@ impl ContractVerificationDal<'_, '_> {
                 optimization_used,
                 optimizer_mode,
                 constructor_arguments,
-                is_system
+                is_system,
+                force_evmla
             FROM
                 contract_verification_requests
             WHERE

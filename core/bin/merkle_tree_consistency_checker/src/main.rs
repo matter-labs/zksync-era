@@ -2,7 +2,7 @@ use std::{path::Path, time::Instant};
 
 use anyhow::Context as _;
 use clap::Parser;
-use zksync_config::DBConfig;
+use zksync_config::{configs::ObservabilityConfig, DBConfig};
 use zksync_env_config::FromEnv;
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_storage::RocksDB;
@@ -27,7 +27,7 @@ impl Cli {
         let db_path = &config.merkle_tree.path;
         tracing::info!("Verifying consistency of Merkle tree at {db_path}");
         let start = Instant::now();
-        let db = RocksDB::new(Path::new(db_path));
+        let db = RocksDB::new(Path::new(db_path)).unwrap();
         let tree = ZkSyncTree::new_lightweight(db.into());
 
         let l1_batch_number = if let Some(number) = self.l1_batch {
@@ -48,19 +48,18 @@ impl Cli {
 }
 
 fn main() -> anyhow::Result<()> {
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let log_format = vlog::log_format_from_env();
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let sentry_url = vlog::sentry_url_from_env();
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let environment = vlog::environment_from_env();
-
+    let observability_config =
+        ObservabilityConfig::from_env().context("ObservabilityConfig::from_env()")?;
+    let log_format: vlog::LogFormat = observability_config
+        .log_format
+        .parse()
+        .context("Invalid log format")?;
     let mut builder = vlog::ObservabilityBuilder::new().with_log_format(log_format);
-    if let Some(sentry_url) = sentry_url {
+    if let Some(sentry_url) = observability_config.sentry_url {
         builder = builder
             .with_sentry_url(&sentry_url)
             .context("Invalid Sentry URL")?
-            .with_sentry_environment(environment);
+            .with_sentry_environment(observability_config.sentry_environment);
     }
     let _guard = builder.build();
 

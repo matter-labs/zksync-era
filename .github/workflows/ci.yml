@@ -49,7 +49,6 @@ jobs:
               - 'core/**'
               - '!core/CHANGELOG.md'
               - 'docker/contract-verifier/**'
-              - 'docker/cross-external-nodes-checker/**'
               - 'docker/external-node/**'
               - 'docker/server/**'
               - '.github/workflows/build-core-template.yml'
@@ -59,6 +58,7 @@ jobs:
               - 'Cargo.lock'
               - '!**/*.md'
               - '!**/*.MD'
+              - 'docker-compose.yml'
             docs:
               - '**/*.md'
               - '**/*.MD'
@@ -96,15 +96,16 @@ jobs:
     name: CI for Docs
     uses: ./.github/workflows/ci-docs-reusable.yml
 
-  build-contracts:
-    name: Build contracts
+  # What needs to be ran for both core and prover
+  ci-for-common:
     needs: changed_files
-    if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
-    uses: ./.github/workflows/build-contracts.yml
+    if: ${{ (needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
+    name: CI for Common Components (prover or core)
+    uses: ./.github/workflows/ci-common-reusable.yml
 
   build-core-images:
     name: Build core images
-    needs: build-contracts
+    needs: changed_files
     if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
     uses: ./.github/workflows/build-core-template.yml
     with:
@@ -132,7 +133,7 @@ jobs:
     name: Github Status Check
     runs-on: ubuntu-latest
     if: always() && !cancelled()
-    needs: [ci-for-core-lint, ci-for-core, ci-for-prover, ci-for-docs, build-contracts, build-core-images, build-prover-images]
+    needs: [ci-for-core-lint, ci-for-core, ci-for-prover, ci-for-docs, build-core-images, build-prover-images]
     steps:
       - name: Status
         run: |

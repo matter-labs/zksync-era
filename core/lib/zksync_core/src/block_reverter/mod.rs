@@ -189,7 +189,7 @@ impl BlockReverter {
         path: &Path,
         storage_root_hash: H256,
     ) {
-        let db = RocksDB::new(path);
+        let db = RocksDB::new(path).expect("Failed initializing RocksDB for Merkle tree");
         let mut tree = ZkSyncTree::new_lightweight(db.into());
 
         if tree.next_l1_batch_number() <= last_l1_batch_to_keep {
@@ -207,14 +207,19 @@ impl BlockReverter {
     /// Reverts blocks in the state keeper cache.
     async fn rollback_state_keeper_cache(&self, last_l1_batch_to_keep: L1BatchNumber) {
         tracing::info!("opening DB with state keeper cache...");
-        let mut sk_cache = RocksdbStorage::new(self.state_keeper_cache_path.as_ref());
+        let sk_cache = RocksdbStorage::builder(self.state_keeper_cache_path.as_ref())
+            .await
+            .expect("Failed initializing state keeper cache");
 
-        if sk_cache.l1_batch_number() > last_l1_batch_to_keep + 1 {
+        if sk_cache.l1_batch_number().await > Some(last_l1_batch_to_keep + 1) {
             let mut storage = self.connection_pool.access_storage().await.unwrap();
-            tracing::info!("rolling back state keeper cache...");
-            sk_cache.rollback(&mut storage, last_l1_batch_to_keep).await;
+            tracing::info!("Rolling back state keeper cache...");
+            sk_cache
+                .rollback(&mut storage, last_l1_batch_to_keep)
+                .await
+                .expect("Failed rolling back state keeper cache");
         } else {
-            tracing::info!("nothing to revert in state keeper cache");
+            tracing::info!("Nothing to revert in state keeper cache");
         }
     }
 
@@ -250,26 +255,42 @@ impl BlockReverter {
         transaction
             .tokens_dal()
             .rollback_tokens(last_miniblock_to_keep)
-            .await;
+            .await
+            .expect("failed rolling back created tokens");
         tracing::info!("rolling back factory deps....");
         transaction
-            .storage_dal()
+            .factory_deps_dal()
             .rollback_factory_deps(last_miniblock_to_keep)
-            .await;
+            .await
+            .expect("Failed rolling back factory dependencies");
         tracing::info!("rolling back storage...");
+        #[allow(deprecated)]
         transaction
             .storage_logs_dal()
             .rollback_storage(last_miniblock_to_keep)
-            .await;
+            .await
+            .expect("failed rolling back storage");
         tracing::info!("rolling back storage logs...");
         transaction
             .storage_logs_dal()
             .rollback_storage_logs(last_miniblock_to_keep)
-            .await;
+            .await
+            .unwrap();
+        tracing::info!("rolling back eth_txs...");
+        transaction
+            .eth_sender_dal()
+            .delete_eth_txs(last_l1_batch_to_keep)
+            .await
+            .unwrap();
         tracing::info!("rolling back l1 batches...");
         transaction
             .blocks_dal()
             .delete_l1_batches(last_l1_batch_to_keep)
+            .await
+            .unwrap();
+        transaction
+            .blocks_dal()
+            .delete_initial_writes(last_l1_batch_to_keep)
             .await
             .unwrap();
         tracing::info!("rolling back miniblocks...");

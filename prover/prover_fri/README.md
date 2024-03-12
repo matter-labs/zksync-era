@@ -1,12 +1,12 @@
 # FRI Prover
 
-## running cpu prover
+## Running CPU prover
 
-`zk f cargo +nightly-2023-08-21 run --release --bin zksync_prover_fri`
+`zk f cargo run --release --bin zksync_prover_fri`
 
-## running gpu prover(requires CUDA 12.0+)
+## Running GPU prover(requires CUDA 12.0+)
 
-`zk f cargo +nightly-2023-08-21 run --release --features "gpu" --bin zksync_prover_fri`
+`zk f cargo run --release --features "gpu" --bin zksync_prover_fri`
 
 ## Proving a block using CPU prover locally
 
@@ -47,7 +47,7 @@ Make sure these dependencies are installed and available on your machine:
 [Installing dependencies](../../docs/guides/setup-dev.md) Once that is done, before starting, make sure you go into the
 root of the repository, then run
 
-```
+```console
 export ZKSYNC_HOME=$(pwd)
 ```
 
@@ -60,20 +60,21 @@ Below steps can be used to prove a block on local machine using CPU prover. This
 Machine specs:
 
 - CPU: At least 8 physical cores
-- RAM: 60GB of RAM (if you have lower RAM machine enable swap)
+- RAM: 80GB of RAM (enable swap if your machine has less RAM)
 - Disk: 400GB of free disk
 
-1. Install the correct nightly version using command: `rustup install nightly-2023-07-21`
+1. Install Rust (correct version from rust-toolchain file should be used automatically if you don't have any local
+   overrides)
 2. Initialize DB and run migrations. Go into the root of the repository, then run
 
-   ```
+   ```console
    zk init
    ```
 
-3. Generate the cpu setup data (no need to regenerate if it's already there). This will consume around 300Gb of disk.
+3. Generate the CPU setup data (no need to regenerate if it's already there). This will consume around 300GB of disk.
    For this, move to the `prover` directory, and run
 
-   ```
+   ```console
    ./setup.sh
    ```
 
@@ -82,7 +83,7 @@ Machine specs:
 
 4. Run the sequencer/operator. In the root of the repository:
 
-   ```
+   ```console
    zk server --components=api,eth,tree,state_keeper,housekeeper,proof_data_handler
    ```
 
@@ -90,13 +91,13 @@ Machine specs:
 
 5. Run prover gateway to fetch blocks to be proven from server:
 
-   ```
+   ```console
    zk f cargo run --release --bin zksync_prover_fri_gateway
    ```
 
 6. Run 4 witness generators to generate witness for each round:
 
-   ```
+   ```console
    API_PROMETHEUS_LISTENER_PORT=3116 zk f cargo run --release --bin zksync_witness_generator -- --round=basic_circuits
    API_PROMETHEUS_LISTENER_PORT=3117 zk f cargo run --release --bin zksync_witness_generator -- --round=leaf_aggregation
    API_PROMETHEUS_LISTENER_PORT=3118 zk f cargo run --release --bin zksync_witness_generator -- --round=node_aggregation
@@ -105,7 +106,7 @@ Machine specs:
 
    These 4 steps can be reduced to a single command
 
-   ```
+   ```console
    API_PROMETHEUS_LISTENER_PORT=3116 zk f cargo run --release --bin zksync_witness_generator -- --all_rounds
    ```
 
@@ -114,38 +115,41 @@ Machine specs:
 
 7. Run prover to perform actual proving:
 
-   ```
+   ```console
    zk f cargo run --release --bin zksync_prover_fri
    ```
 
 8. Finally, run proof compressor to compress the proof to be sent on L1:
 
-   ```
+   ```console
    zk f cargo run --release --bin zksync_proof_fri_compressor
    ```
 
 ## Proving a block using GPU prover locally
 
-Below steps can be used to prove a block on local machine using GPU prover. Running a GPU prover requires a Cuda 12.0
+Below steps can be used to prove a block on local machine using GPU prover. Running a GPU prover requires a CUDA 12.x
 installation as a pre-requisite, alongside these machine specs:
 
 - CPU: At least 8 physical cores
 - RAM: 16GB of RAM(if you have lower RAM machine enable swap)
 - Disk: 30GB of free disk
-- GPU: 1x Nvidia L4/T4 with 16GB of GPU RAM
+- GPU: NVIDIA GPU with CUDA support and at least 6GB of VRAM, we recommend to use GPUs with at least 16GB VRAM for
+  optimal performance. In our GPU picks for datacenters while running on Google Cloud Platform, the L4 takes the top
+  spot in terms of price-to-performance ratio, with the T4 coming in second.
 
-1. Install the correct nightly version using command: `rustup install nightly-2023-07-21`
+1. Install Rust (correct version from rust-toolchain file should be used automatically if you don't have any local
+   overrides)
 2. Initialize DB and run migrations: `zk init`
-3. Generate the GPU setup data (no need to regenerate if it's already there). This will consume around 300Gb of disk.
-   For this, move to the `prover` directory, and run
+3. Generate the GPU setup data (no need to regenerate if it's already there). This will consume around 20GB of disk. For
+   this, move to the `prover` directory, and run
 
-   ```
+   ```console
    ./setup.sh gpu
    ```
 
 4. Run the sequencer/operator. In the root of the repository:
 
-   ```
+   ```console
    zk server --components=api,eth,tree,state_keeper,housekeeper,proof_data_handler
    ```
 
@@ -153,13 +157,13 @@ installation as a pre-requisite, alongside these machine specs:
 
 5. Run prover gateway to fetch blocks to be proven from server:
 
-   ```
+   ```console
    zk f cargo run --release --bin zksync_prover_fri_gateway
    ```
 
 6. Run 4 witness generators to generate witness for each round:
 
-   ```
+   ```console
    API_PROMETHEUS_LISTENER_PORT=3116 zk f cargo run --release --bin zksync_witness_generator -- --round=basic_circuits
    API_PROMETHEUS_LISTENER_PORT=3117 zk f cargo run --release --bin zksync_witness_generator -- --round=leaf_aggregation
    API_PROMETHEUS_LISTENER_PORT=3118 zk f cargo run --release --bin zksync_witness_generator -- --round=node_aggregation
@@ -170,7 +174,7 @@ installation as a pre-requisite, alongside these machine specs:
 
 8. Run 5 witness vector generators to feed jobs to GPU prover:
 
-   ```
+   ```console
    FRI_WITNESS_VECTOR_GENERATOR_PROMETHEUS_LISTENER_PORT=3416 zk f cargo run --release --bin zksync_witness_vector_generator
    FRI_WITNESS_VECTOR_GENERATOR_PROMETHEUS_LISTENER_PORT=3417 zk f cargo run --release --bin zksync_witness_vector_generator
    FRI_WITNESS_VECTOR_GENERATOR_PROMETHEUS_LISTENER_PORT=3418 zk f cargo run --release --bin zksync_witness_vector_generator
@@ -186,7 +190,7 @@ installation as a pre-requisite, alongside these machine specs:
 Once everything is running (either with the CPU or GPU prover), the server should have at least three blocks, and you
 can see the first one by running
 
-```
+```console
 curl -X POST -H 'content-type: application/json' localhost:3050 -d '{"jsonrpc": "2.0", "id": 1, "method": "zks_getBlockDetails", "params": [0]}'
 ```
 
@@ -197,14 +201,14 @@ generating the witness, then passing it to the prover, then to the compressor to
 
 You can follow the status of this pipeline by running
 
-```
+```console
 zk status prover
 ```
 
 This might take a while (around an hour and a half on my machine using the CPU prover), you can check on it once in a
 while. A successful flow should output something like
 
-```
+```console
 ==== FRI Prover status ====
 State keeper: First batch: 0, recent batch: 1
 L1 state: block verified: 1, block committed: 1
@@ -220,7 +224,7 @@ Proof progress for 1 : 111 successful, 0 failed, 0 in progress, 0 queued.  Compr
 
 The most important thing here is the following line
 
-```
+```console
 L1 state: block verified: 1, block committed: 1
 ```
 
@@ -240,16 +244,16 @@ finalization hints if the circuit changes. Below steps can be used to perform ci
 4. Run the verification key
    [workflow](https://github.com/matter-labs/zksync-era/actions/workflows/fri-vk-generator.yaml) against the PR to
    generate the verification key and finalization hints for the new circuit.
-5. Only once the above verification key workflow is successful, start the setup-data generation(cpu, gpu setup data
+5. Only once the above verification key workflow is successful, start the setup-data generation(CPU, GPU setup data
    generation can be done in parallel), this step is important, since the setup data requires the new VK, we need to
    wait for it to finish.
-6. Run the cpu setup data generation
+6. Run the CPU setup data generation
    [workflow](https://github.com/matter-labs/zksync-era/actions/workflows/fri-setup-data-generator.yml) against the PR
-   to generate the cpu setup data.
-7. Run the gpu setup data generation
+   to generate the CPU setup data.
+7. Run the GPU setup data generation
    [workflow](https://github.com/matter-labs/zksync-era/actions/workflows/fri-gpu-setup-data-generator.yml) against the
-   PR to generate the gpu setup data.
+   PR to generate the GPU setup data.
 8. Once the setup data generation workflows are successful, update the PR with `setup_keys_id` id in
    [build-docker-from-tag.yml](../../.github/workflows/build-docker-from-tag.yml) and in
-   [fri-gpu-prover-integration-test.yml](https://github.com/matter-labs/zksync-2-dev/blob/main/.github/workflows/fri-gpu-prover-integration-test.yml),
+   [build-prover-fri-gpu-gar.yml](https://github.com/matter-labs/zksync-era/blob/main/.github/workflows/build-prover-fri-gpu-gar.yml),
    make sure to only do it from `FRI prover` not old.

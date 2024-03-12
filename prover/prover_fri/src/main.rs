@@ -9,9 +9,12 @@ use tokio::{
     task::JoinHandle,
 };
 use zksync_config::configs::{
-    fri_prover_group::FriProverGroupConfig, FriProverConfig, PostgresConfig,
+    fri_prover_group::FriProverGroupConfig, FriProverConfig, ObservabilityConfig, PostgresConfig,
 };
-use zksync_dal::ConnectionPool;
+use zksync_dal::{
+    fri_prover_dal::types::{GpuProverInstanceStatus, SocketAddress},
+    ConnectionPool,
+};
 use zksync_env_config::{
     object_store::{ProverObjectStoreConfig, PublicObjectStoreConfig},
     FromEnv,
@@ -19,10 +22,7 @@ use zksync_env_config::{
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_prover_fri_utils::{get_all_circuit_id_round_tuples_for, region_fetcher::get_zone};
 use zksync_queued_job_processor::JobProcessor;
-use zksync_types::{
-    basic_fri_types::CircuitIdRoundTuple,
-    proofs::{GpuProverInstanceStatus, SocketAddress},
-};
+use zksync_types::basic_fri_types::CircuitIdRoundTuple;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 
 mod gpu_prover_job_processor;
@@ -55,24 +55,24 @@ async fn graceful_shutdown(port: u16) -> anyhow::Result<impl Future<Output = ()>
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let log_format = vlog::log_format_from_env();
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let sentry_url = vlog::sentry_url_from_env();
-    #[allow(deprecated)] // TODO (QIT-21): Use centralized configuration approach.
-    let environment = vlog::environment_from_env();
+    let observability_config =
+        ObservabilityConfig::from_env().context("ObservabilityConfig::from_env()")?;
+    let log_format: vlog::LogFormat = observability_config
+        .log_format
+        .parse()
+        .context("Invalid log format")?;
 
     let mut builder = vlog::ObservabilityBuilder::new().with_log_format(log_format);
-    if let Some(sentry_url) = &sentry_url {
+    if let Some(sentry_url) = &observability_config.sentry_url {
         builder = builder
             .with_sentry_url(sentry_url)
-            .context("Invalid Sentry URL")?
-            .with_sentry_environment(environment);
+            .expect("Invalid Sentry URL")
+            .with_sentry_environment(observability_config.sentry_environment);
     }
     let _guard = builder.build();
 
     // Report whether sentry is running after the logging subsystem was initialized.
-    if let Some(sentry_url) = sentry_url {
+    if let Some(sentry_url) = observability_config.sentry_url {
         tracing::info!("Sentry configured with URL: {sentry_url}",);
     } else {
         tracing::info!("No sentry URL was provided");
@@ -208,8 +208,6 @@ async fn get_prover_tasks(
     pool: ConnectionPool,
     circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
-    use std::sync::Arc;
-
     use gpu_prover_job_processor::gpu_prover;
     use socket_listener::gpu_socket_listener;
     use tokio::sync::Mutex;

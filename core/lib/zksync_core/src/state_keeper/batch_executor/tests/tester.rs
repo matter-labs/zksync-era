@@ -1,30 +1,36 @@
 //! Testing harness for the batch executor.
 //! Contains helper functionality to initialize test context and perform tests without too much boilerplate.
 
+use std::collections::HashMap;
+
 use multivm::{
-    interface::{L1BatchEnv, SystemEnv},
+    interface::{L1BatchEnv, L2BlockEnv, SystemEnv},
     vm_latest::constants::INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
 };
 use tempfile::TempDir;
+use tokio::sync::watch;
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::{get_loadnext_contract, test_contracts::LoadnextContractExecutionParams};
 use zksync_dal::ConnectionPool;
-use zksync_state::RocksdbStorage;
 use zksync_test_account::{Account, DeployContractsTx, TxType};
 use zksync_types::{
-    ethabi::Token, fee::Fee, system_contracts::get_system_smart_contracts,
-    utils::storage_key_for_standard_token_balance, AccountTreeId, Address, Execute, L1BatchNumber,
-    L2ChainId, MiniblockNumber, PriorityOpId, ProtocolVersionId, StorageLog, Transaction, H256,
-    L2_ETH_TOKEN_ADDRESS, SYSTEM_CONTEXT_MINIMAL_BASE_FEE, U256,
+    block::MiniblockHasher, ethabi::Token, fee::Fee, snapshots::SnapshotRecoveryStatus,
+    storage_writes_deduplicator::StorageWritesDeduplicator,
+    system_contracts::get_system_smart_contracts, utils::storage_key_for_standard_token_balance,
+    AccountTreeId, Address, Execute, L1BatchNumber, L2ChainId, MiniblockNumber, PriorityOpId,
+    ProtocolVersionId, StorageKey, StorageLog, Transaction, H256, L2_ETH_TOKEN_ADDRESS,
+    SYSTEM_CONTEXT_MINIMAL_BASE_FEE, U256,
 };
 use zksync_utils::u256_to_h256;
 
 use crate::{
     genesis::create_genesis_l1_batch,
     state_keeper::{
-        batch_executor::BatchExecutorHandle,
+        batch_executor::{BatchExecutorHandle, TxExecutionResult},
         tests::{default_l1_batch_env, default_system_env, BASE_SYSTEM_CONTRACTS},
+        BatchExecutor, MainBatchExecutor,
     },
+    utils::testonly::prepare_recovery_snapshot,
 };
 
 const DEFAULT_GAS_PER_PUBDATA: u32 = 10000;
@@ -87,33 +93,49 @@ impl Tester {
     /// This function intentionally uses sensible defaults to not introduce boilerplate.
     pub(super) async fn create_batch_executor(&self) -> BatchExecutorHandle {
         // Not really important for the batch executor - it operates over a single batch.
-        let (l1_batch, system_env) = self.batch_params(
-            L1BatchNumber(1),
-            100,
-            self.config.validation_computational_gas_limit,
-        );
-
-        let mut secondary_storage = RocksdbStorage::new(self.db_dir.path());
-        let mut conn = self
-            .pool
-            .access_storage_tagged("state_keeper")
+        let (l1_batch_env, system_env) = self.batch_params(L1BatchNumber(1), 100);
+        self.create_batch_executor_inner(l1_batch_env, system_env)
             .await
-            .unwrap();
+    }
 
-        secondary_storage.update_from_postgres(&mut conn).await;
-        drop(conn);
-
-        // We don't use the builder because it would require us to clone the `ConnectionPool`, which is forbidden
-        // for the test pool (see the doc-comment on `TestPool` for details).
-        BatchExecutorHandle::new(
-            self.config.save_call_traces,
+    async fn create_batch_executor_inner(
+        &self,
+        l1_batch_env: L1BatchEnv,
+        system_env: SystemEnv,
+    ) -> BatchExecutorHandle {
+        let mut builder = MainBatchExecutor::new(
+            self.db_dir.path().to_str().unwrap().to_owned(),
+            self.pool.clone(),
             self.config.max_allowed_tx_gas_limit.into(),
-            secondary_storage,
-            l1_batch,
-            system_env,
+            self.config.save_call_traces,
             self.config.upload_witness_inputs_to_gcs,
+            100,
             false,
-        )
+        );
+        let (_stop_sender, stop_receiver) = watch::channel(false);
+        builder
+            .init_batch(l1_batch_env, system_env, &stop_receiver)
+            .await
+            .expect("Batch executor was interrupted")
+    }
+
+    pub(super) async fn recover_batch_executor(
+        &self,
+        snapshot: &SnapshotRecoveryStatus,
+    ) -> BatchExecutorHandle {
+        let current_timestamp = snapshot.miniblock_timestamp + 1;
+        let (mut l1_batch_env, system_env) =
+            self.batch_params(snapshot.l1_batch_number + 1, current_timestamp);
+        l1_batch_env.previous_batch_hash = Some(snapshot.l1_batch_root_hash);
+        l1_batch_env.first_l2_block = L2BlockEnv {
+            number: snapshot.miniblock_number.0 + 1,
+            timestamp: current_timestamp,
+            prev_block_hash: snapshot.miniblock_hash,
+            max_virtual_blocks_to_create: 1,
+        };
+
+        self.create_batch_executor_inner(l1_batch_env, system_env)
+            .await
     }
 
     /// Creates test batch params that can be fed into the VM.
@@ -121,14 +143,13 @@ impl Tester {
         &self,
         l1_batch_number: L1BatchNumber,
         timestamp: u64,
-        validation_computational_gas_limit: u32,
     ) -> (L1BatchEnv, SystemEnv) {
         let mut system_params = default_system_env();
         if let Some(vm_gas_limit) = self.config.vm_gas_limit {
             system_params.gas_limit = vm_gas_limit;
         }
         system_params.default_validation_computational_gas_limit =
-            validation_computational_gas_limit;
+            self.config.validation_computational_gas_limit;
         let mut batch_params = default_l1_batch_env(l1_batch_number.0, timestamp, self.fee_account);
         batch_params.previous_batch_hash = Some(H256::zero()); // Not important in this context.
         (batch_params, system_params)
@@ -152,7 +173,8 @@ impl Tester {
                 Default::default(),
                 Default::default(),
             )
-            .await;
+            .await
+            .unwrap();
         }
     }
 
@@ -178,11 +200,8 @@ impl Tester {
             storage
                 .storage_logs_dal()
                 .append_storage_logs(MiniblockNumber(0), &[(H256::zero(), vec![storage_log])])
-                .await;
-            storage
-                .storage_dal()
-                .apply_storage_logs(&[(H256::zero(), vec![storage_log])])
-                .await;
+                .await
+                .unwrap();
             if storage
                 .storage_logs_dedup_dal()
                 .filter_written_slots(&[storage_log.key.hashed_key()])
@@ -193,6 +212,7 @@ impl Tester {
                     .storage_logs_dedup_dal()
                     .insert_initial_writes(L1BatchNumber(0), &[storage_log.key])
                     .await
+                    .unwrap();
             }
         }
     }
@@ -336,11 +356,142 @@ fn fee(gas_limit: u32) -> Fee {
 
 pub fn mock_loadnext_gas_burn_calldata(gas: u32) -> Vec<u8> {
     let loadnext_contract = get_loadnext_contract();
-
     let contract_function = loadnext_contract.contract.function("burnGas").unwrap();
-
     let params = vec![Token::Uint(U256::from(gas))];
     contract_function
         .encode_input(&params)
         .expect("failed to encode parameters")
+}
+
+/// Concise representation of a storage snapshot for testing recovery.
+#[derive(Debug)]
+pub(super) struct StorageSnapshot {
+    pub miniblock_number: MiniblockNumber,
+    pub miniblock_hash: H256,
+    pub miniblock_timestamp: u64,
+    pub storage_logs: HashMap<StorageKey, H256>,
+    pub factory_deps: HashMap<H256, Vec<u8>>,
+}
+
+impl StorageSnapshot {
+    /// Generates a new snapshot by executing the specified number of transactions, each in a separate miniblock.
+    pub async fn new(
+        connection_pool: &ConnectionPool,
+        alice: &mut Account,
+        transaction_count: u32,
+    ) -> Self {
+        let tester = Tester::new(connection_pool.clone());
+        tester.genesis().await;
+        tester.fund(&[alice.address()]).await;
+
+        let mut storage = connection_pool.access_storage().await.unwrap();
+        let all_logs = storage
+            .snapshots_creator_dal()
+            .get_storage_logs_chunk(
+                MiniblockNumber(0),
+                L1BatchNumber(0),
+                H256::zero()..=H256::repeat_byte(0xff),
+            )
+            .await
+            .unwrap();
+        let factory_deps = storage
+            .snapshots_creator_dal()
+            .get_all_factory_deps(MiniblockNumber(0))
+            .await
+            .unwrap();
+        let mut all_logs: HashMap<_, _> = all_logs
+            .into_iter()
+            .map(|log| (log.key, log.value))
+            .collect();
+        drop(storage);
+
+        let executor = tester.create_batch_executor().await;
+        let mut l2_block_env = L2BlockEnv {
+            number: 1,
+            prev_block_hash: MiniblockHasher::legacy_hash(MiniblockNumber(0)),
+            timestamp: 100,
+            max_virtual_blocks_to_create: 1,
+        };
+        let mut storage_writes_deduplicator = StorageWritesDeduplicator::new();
+
+        for _ in 0..transaction_count {
+            let tx = alice.execute();
+            let tx_hash = tx.hash(); // probably incorrect
+            let res = executor.execute_tx(tx).await;
+            if let TxExecutionResult::Success { tx_result, .. } = res {
+                let storage_logs = &tx_result.logs.storage_logs;
+                storage_writes_deduplicator
+                    .apply(storage_logs.iter().filter(|log| log.log_query.rw_flag));
+            } else {
+                panic!("Unexpected tx execution result: {res:?}");
+            };
+
+            let mut hasher = MiniblockHasher::new(
+                MiniblockNumber(l2_block_env.number),
+                l2_block_env.timestamp,
+                l2_block_env.prev_block_hash,
+            );
+            hasher.push_tx_hash(tx_hash);
+
+            l2_block_env.number += 1;
+            l2_block_env.timestamp += 1;
+            l2_block_env.prev_block_hash = hasher.finalize(ProtocolVersionId::latest());
+            executor.start_next_miniblock(l2_block_env).await;
+        }
+
+        let (finished_batch, _) = executor.finish_batch().await;
+        let storage_logs = &finished_batch.block_tip_execution_result.logs.storage_logs;
+        storage_writes_deduplicator.apply(storage_logs.iter().filter(|log| log.log_query.rw_flag));
+        let modified_entries = storage_writes_deduplicator.into_modified_key_values();
+        all_logs.extend(
+            modified_entries
+                .into_iter()
+                .map(|(key, slot)| (key, u256_to_h256(slot.value))),
+        );
+
+        // Compute the hash of the last (fictive) miniblock in the batch.
+        let miniblock_hash = MiniblockHasher::new(
+            MiniblockNumber(l2_block_env.number),
+            l2_block_env.timestamp,
+            l2_block_env.prev_block_hash,
+        )
+        .finalize(ProtocolVersionId::latest());
+
+        let mut storage = connection_pool.access_storage().await.unwrap();
+        storage.blocks_dal().delete_genesis().await.unwrap();
+        Self {
+            miniblock_number: MiniblockNumber(l2_block_env.number),
+            miniblock_timestamp: l2_block_env.timestamp,
+            miniblock_hash,
+            storage_logs: all_logs,
+            factory_deps: factory_deps.into_iter().collect(),
+        }
+    }
+
+    /// Recovers storage from this snapshot.
+    pub async fn recover(self, connection_pool: &ConnectionPool) -> SnapshotRecoveryStatus {
+        let snapshot_logs: Vec<_> = self
+            .storage_logs
+            .into_iter()
+            .map(|(key, value)| StorageLog::new_write_log(key, value))
+            .collect();
+        let mut storage = connection_pool.access_storage().await.unwrap();
+        let mut snapshot = prepare_recovery_snapshot(
+            &mut storage,
+            L1BatchNumber(1),
+            self.miniblock_number,
+            &snapshot_logs,
+        )
+        .await;
+
+        snapshot.miniblock_hash = self.miniblock_hash;
+        snapshot.miniblock_timestamp = self.miniblock_timestamp;
+
+        storage
+            .factory_deps_dal()
+            .insert_factory_deps(snapshot.miniblock_number, &self.factory_deps)
+            .await
+            .unwrap();
+        snapshot
+    }
 }

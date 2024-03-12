@@ -15,6 +15,7 @@ vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev
 
 zksync_dal = { path = "../../core/lib/dal" }
 zksync_config = { path = "../../core/lib/config" }
+zksync_prover_interface = { path = "../../core/lib/prover_interface" }
 zksync_env_config = { path = "../../core/lib/env_config" }
 zksync_system_constants = { path = "../../core/lib/constants" }
 prometheus_exporter = { path = "../../core/lib/prometheus_exporter" }
@@ -29,15 +30,15 @@ vk_setup_data_generator_server_fri = { path = "../vk_setup_data_generator_server
 zksync_prover_fri_types = { path = "../prover_fri_types" }
 zksync_prover_fri_utils = { path = "../prover_fri_utils" }
 
-zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.1" }
-circuit_definitions = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.1", features = [
+zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.2" }
+circuit_definitions = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.2", features = [
     "log_tracing",
 ] }
 zk_evm = { git = "https://github.com/matter-labs/era-zk_evm.git", branch = "v1.4.1" }
 
 anyhow = "1.0"
 tracing = "0.1"
-tokio = { version = "1", features = ["time"] }
+tokio = { version = "1", features = ["time", "macros"] }
 futures = { version = "0.3", features = ["compat"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -48,3 +49,6 @@ hex = "0.4"
 structopt = "0.3.26"
 ctrlc = { version = "3.1", features = ["termination"] }
 const-decoder = "0.3.0"
+
+[target.'cfg(not(target_env = "msvc"))'.dependencies]
+jemallocator = "0.5"

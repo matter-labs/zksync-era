@@ -5,36 +5,31 @@ edition = "2021"
 
 
 [[bin]]
-name = "zksync_vk_generator_fri"
+name = "key_generator"
 path = "src/main.rs"
-
-[[bin]]
-name = "zksync_setup_data_generator_fri"
-path = "src/setup_data_generator.rs"
 
 [lib]
 name = "zksync_vk_setup_data_server_fri"
 path = "src/lib.rs"
 
-[[bin]]
-name = "zksync_commitment_generator_fri"
-path = "src/commitment_generator.rs"
 
 [dependencies]
 vlog = { path = "../../core/lib/vlog" }
 zksync_types = { path = "../../core/lib/types" }
 zksync_prover_fri_types = { path = "../prover_fri_types" }
 
-zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.1" }
-circuit_definitions = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.1", features = [
+zkevm_test_harness = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.2" }
+circuit_definitions = { git = "https://github.com/matter-labs/era-zkevm_test_harness.git", branch = "v1.4.2", features = [
     "log_tracing",
 ] }
-shivini = { git = "https://github.com/matter-labs/era-shivini.git", branch = "v1.4.1", optional = true }
+shivini = { git = "https://github.com/matter-labs/era-shivini.git", branch = "v1.4.2", optional = true }
 zksync_config = { path = "../../core/lib/config" }
 zksync_env_config = { path = "../../core/lib/env_config" }
 
 anyhow = "1.0"
+clap = { version = "4.4.6", features = ["derive"] }
 tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_derive = "1.0"
@@ -43,6 +38,7 @@ bincode = "1"
 structopt = "0.3.26"
 once_cell = "1.8.0"
 toml_edit = "0.14.4"
+md5 = "0.7.0"
 
 [dev-dependencies]
 proptest = "1.2.0"

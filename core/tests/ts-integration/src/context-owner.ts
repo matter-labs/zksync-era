@@ -215,6 +215,7 @@ export class TestContextOwner {
         this.reporter.message(`Operator address is ${this.mainEthersWallet.address}`);
 
         const requiredL2ETHAmount = L2_ETH_PER_ACCOUNT.mul(accountsAmount);
+        // kl todo, for non eth based chains, we need to check different
         const actualL2ETHAmount = await this.mainSyncWallet.getBalance();
         this.reporter.message(`Operator balance on L2 is ${ethers.utils.formatEther(actualL2ETHAmount)} ETH`);
 
@@ -427,7 +428,9 @@ export class TestContextOwner {
             });
         nonce = nonce + 1 + (ethIsBaseToken ? 0 : 1) + (baseIsTransferred ? 0 : 1);
         this.reporter.debug(
-            `Nonce changed by ${1 + (ethIsBaseToken ? 0 : 1) + (baseIsTransferred ? 0 : 1)} for ERC20 deposit, ${nonce}`
+            `Nonce changed by ${
+                1 + (ethIsBaseToken ? 0 : 1) + (baseIsTransferred ? 0 : 1)
+            } for ERC20 deposit, new nonce: ${nonce}`
         );
         // Send ETH on L1.
         const ethTransfers = await sendTransfers(
@@ -458,6 +461,7 @@ export class TestContextOwner {
 
         this.reporter.debug(`Sent ${l1TxPromises.length} initial transactions on L1`);
         await Promise.all(l1TxPromises);
+
         this.reporter.finishAction();
     }
 
@@ -492,8 +496,8 @@ export class TestContextOwner {
             this.reporter
         );
         l2TxPromises.push(...erc20Promises);
-
         await Promise.all(l2TxPromises);
+
         this.reporter.finishAction();
     }
 
@@ -570,7 +574,13 @@ export async function sendTransfers(
             : new ethers.Contract(token, zksync.utils.IERC20, wallet);
     const startNonce = overrideStartNonce ?? (await wallet.getTransactionCount());
     reporter?.debug(`Sending transfers. Token address is ${token}`);
-    const txPromises = Array.from(Object.values(wallets)).map((testWalletPK, index) => {
+
+    const walletsPK = Array.from(Object.values(wallets));
+
+    const txPromises: Promise<any>[] = [];
+
+    for (let index = 0; index < walletsPK.length; index++) {
+        const testWalletPK = walletsPK[index];
         if (token == zksync.utils.ETH_ADDRESS) {
             const tx = {
                 to: ethers.utils.computeAddress(testWalletPK),
@@ -580,31 +590,40 @@ export async function sendTransfers(
             };
 
             reporter?.debug(`Inititated ETH transfer with nonce: ${tx.nonce}`);
-            return wallet.sendTransaction(tx).then((tx) => {
-                reporter?.debug(`Sent ETH transfer tx: ${tx.hash}, nonce: ${tx.nonce}`);
-                return tx.wait();
-            });
+            let transactionResponse = await wallet.sendTransaction(tx);
+            reporter?.debug(`Sent ETH transfer tx: ${transactionResponse.hash}, nonce: ${transactionResponse.nonce}`);
+
+            txPromises.push(
+                transactionResponse.wait().then((tx) => {
+                    reporter?.debug(`Obtained receipt for ETH transfer tx: ${tx.transactionHash} `);
+                    return tx;
+                })
+            );
         } else {
             const txNonce = startNonce + index;
-            const tx = erc20Contract.transfer(ethers.utils.computeAddress(testWalletPK), value, {
+            reporter?.debug(`Inititated ERC20 transfer with nonce: ${txNonce}`);
+            const tx = await erc20Contract.transfer(ethers.utils.computeAddress(testWalletPK), value, {
                 nonce: txNonce,
                 gasPrice
             });
-            reporter?.debug(`Inititated ERC20 transfer with nonce: ${txNonce}`);
-            // @ts-ignore
-            return tx.then((tx) => {
-                reporter?.debug(`Sent ERC20 transfer tx: ${tx.hash}, nonce: ${tx.nonce}`);
-                return tx.wait();
-            });
+            reporter?.debug(`Sent ERC20 transfer tx: ${tx.hash}, nonce: ${tx.nonce}`);
+
+            txPromises.push(
+                // @ts-ignore
+                tx.wait().then((tx) => {
+                    reporter?.debug(`Obtained receipt for ERC20 transfer tx: ${tx.transactionHash}`);
+                    return tx;
+                })
+            );
         }
-    });
+    }
+
     reporter?.debug(
         `Initiated ${txPromises.length} transfers. Nonce range is ${startNonce} - ${startNonce + txPromises.length - 1}`
     );
 
     return txPromises;
 }
-
 /**
  * Sends all the Ether from one account to another.
  * Can work both with L1 and L2 wallets.

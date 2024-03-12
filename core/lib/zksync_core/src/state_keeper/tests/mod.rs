@@ -14,25 +14,27 @@ use multivm::{
     vm_latest::{constants::BLOCK_GAS_LIMIT, VmExecutionLogs},
 };
 use once_cell::sync::Lazy;
+use tokio::sync::watch;
 use zksync_config::configs::chain::StateKeeperConfig;
-use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
+use zksync_contracts::BaseSystemContracts;
 use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     block::{BlockGasCount, MiniblockExecutionData, MiniblockHasher},
     fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
     tx::tx_execution_info::ExecutionMetrics,
-    Address, L1BatchNumber, L2ChainId, LogQuery, MiniblockNumber, ProtocolVersionId,
-    StorageLogQuery, StorageLogQueryType, Timestamp, Transaction, H256, U256,
+    zk_evm_types::{LogQuery, Timestamp},
+    Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, StorageLogQuery,
+    StorageLogQueryType, Transaction, H256, U256,
 };
 
 mod tester;
 
 use self::tester::{
-    bootloader_tip_out_of_gas, pending_batch_data, random_tx, rejected_exec, successful_exec,
-    successful_exec_with_metrics, TestScenario,
+    bootloader_tip_out_of_gas, pending_batch_data, random_tx, random_upgrade_tx, rejected_exec,
+    successful_exec, successful_exec_with_metrics, TestIO, TestScenario,
 };
-pub(crate) use self::tester::{MockBatchExecutorBuilder, TestBatchExecutorBuilder};
+pub(crate) use self::tester::{MockBatchExecutor, TestBatchExecutorBuilder};
 use crate::{
     gas_tracker::l1_batch_base_cost,
     state_keeper::{
@@ -43,6 +45,7 @@ use crate::{
         },
         types::ExecutionMetricsForCriteria,
         updates::UpdatesManager,
+        ZkSyncStateKeeper,
     },
     utils::testonly::create_l2_transaction,
 };
@@ -98,6 +101,7 @@ pub(super) fn default_vm_block_result() -> FinishedL1Batch {
         final_execution_state: CurrentExecutionState {
             events: vec![],
             storage_log_queries: vec![],
+            deduplicated_storage_log_queries: vec![],
             used_contract_hashes: vec![],
             user_l2_to_l1_logs: vec![],
             system_logs: vec![],
@@ -113,14 +117,10 @@ pub(super) fn default_vm_block_result() -> FinishedL1Batch {
 
 pub(super) fn create_updates_manager() -> UpdatesManager {
     let l1_batch_env = default_l1_batch_env(1, 1, Address::default());
-    UpdatesManager::new(
-        l1_batch_env,
-        BaseSystemContractsHashes::default(),
-        ProtocolVersionId::latest(),
-    )
+    UpdatesManager::new(&l1_batch_env, &default_system_env())
 }
 
-pub(super) fn create_transaction(fee_per_gas: u64, gas_per_pubdata: u32) -> Transaction {
+pub(super) fn create_transaction(fee_per_gas: u64, gas_per_pubdata: u64) -> Transaction {
     create_l2_transaction(fee_per_gas, gas_per_pubdata).into()
 }
 
@@ -147,10 +147,11 @@ pub(super) fn create_execution_result(
             contracts_used: 0,
             cycles_used: 0,
             gas_used: 0,
+            gas_remaining: 0,
             computational_gas_used: 0,
             total_log_queries,
             pubdata_published: 0,
-            estimated_circuits_used: 0.0,
+            circuit_statistic: Default::default(),
         },
         refunds: Refunds::default(),
     }
@@ -436,6 +437,47 @@ async fn pending_batch_is_applied() {
         })
         .run(sealer)
         .await;
+}
+
+/// Load protocol upgrade transactions
+#[tokio::test]
+async fn load_upgrade_tx() {
+    let sealer = SequencerSealer::default();
+    let scenario = TestScenario::new();
+    let batch_executor_base = TestBatchExecutorBuilder::new(&scenario);
+    let (stop_sender, stop_receiver) = watch::channel(false);
+
+    let mut io = TestIO::new(stop_sender, scenario);
+    io.add_upgrade_tx(ProtocolVersionId::latest(), random_upgrade_tx(1));
+    io.add_upgrade_tx(ProtocolVersionId::next(), random_upgrade_tx(2));
+
+    let mut sk = ZkSyncStateKeeper::new(
+        stop_receiver,
+        Box::new(io),
+        Box::new(batch_executor_base),
+        Arc::new(sealer),
+    );
+
+    // Since the version hasn't changed, and we are not using shared bridge, we should not load any
+    // upgrade transactions.
+    assert_eq!(
+        sk.load_protocol_upgrade_tx(&[], ProtocolVersionId::latest(), L1BatchNumber(2))
+            .await
+            .unwrap(),
+        None
+    );
+
+    // If the protocol version has changed, we should load the upgrade transaction.
+    assert_eq!(
+        sk.load_protocol_upgrade_tx(&[], ProtocolVersionId::next(), L1BatchNumber(2))
+            .await
+            .unwrap(),
+        Some(random_upgrade_tx(2))
+    );
+
+    // TODO: add one more test case for the shared bridge after it's integrated.
+    // If we are processing the 1st batch while using the shared bridge,
+    // we should load the upgrade transaction -- that's the `SetChainIdUpgrade`.
 }
 
 /// Unconditionally seal the batch without triggering specific criteria.

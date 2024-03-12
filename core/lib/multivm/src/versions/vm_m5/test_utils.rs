@@ -21,13 +21,13 @@ use zksync_types::{
     fee::Fee,
     l2::L2Tx,
     web3::signing::keccak256,
-    Execute, L2ChainId, Nonce, StorageKey, StorageLogQuery, StorageValue,
-    CONTRACT_DEPLOYER_ADDRESS, H256, U256,
+    Execute, L2ChainId, Nonce, StorageKey, StorageValue, CONTRACT_DEPLOYER_ADDRESS, H256, U256,
 };
 use zksync_utils::{
     address_to_h256, bytecode::hash_bytecode, h256_to_account_address, u256_to_h256,
 };
 
+use super::utils::StorageLogQuery;
 use crate::vm_m5::{
     event_sink::InMemoryEventSink,
     history_recorder::{FrameManager, HistoryRecorder},

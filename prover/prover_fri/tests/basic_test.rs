@@ -2,13 +2,17 @@ use std::sync::Arc;
 
 use anyhow::Context as _;
 use serde::Serialize;
-use zksync_config::{configs::FriProverConfig, ObjectStoreConfig};
+use zksync_config::configs::{object_store::ObjectStoreMode, FriProverConfig, ObjectStoreConfig};
 use zksync_env_config::FromEnv;
-use zksync_object_store::{bincode, FriCircuitKey, ObjectStoreFactory};
+use zksync_object_store::{bincode, ObjectStoreFactory};
 use zksync_prover_fri::prover_job_processor::Prover;
-use zksync_prover_fri_types::{CircuitWrapper, ProverJob, ProverServiceDataKey};
-use zksync_types::{proofs::AggregationRound, L1BatchNumber};
-use zksync_vk_setup_data_server_fri::generate_cpu_base_layer_setup_data;
+use zksync_prover_fri_types::{
+    keys::FriCircuitKey, CircuitWrapper, ProverJob, ProverServiceDataKey,
+};
+use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
+use zksync_vk_setup_data_server_fri::{
+    keystore::Keystore, setup_data_generator::generate_setup_data_common,
+};
 
 fn compare_serialized<T: Serialize>(expected: &T, actual: &T) {
     let serialized_expected = bincode::serialize(expected).unwrap();
@@ -22,9 +26,12 @@ async fn prover_and_assert_base_layer(
     block_number: L1BatchNumber,
     sequence_number: usize,
 ) -> anyhow::Result<()> {
-    let mut object_store_config =
-        ObjectStoreConfig::from_env().context("ObjectStoreConfig::from_env()")?;
-    object_store_config.file_backed_base_path = "./tests/data/".to_owned();
+    let object_store_config = ObjectStoreConfig {
+        mode: ObjectStoreMode::FileBacked {
+            file_backed_base_path: "./tests/data/".to_owned(),
+        },
+        max_retries: 5,
+    };
     let object_store = ObjectStoreFactory::new(object_store_config)
         .create_store()
         .await;
@@ -47,12 +54,15 @@ async fn prover_and_assert_base_layer(
         .context("circuit missing")?;
     let circuit = match &circuit_wrapper {
         CircuitWrapper::Base(base) => base.clone(),
-        CircuitWrapper::Recursive(_) => anyhow::bail!("Expected base layer circuit"),
+        _ => anyhow::bail!("Expected base layer circuit"),
     };
-    let setup_data = Arc::new(
-        generate_cpu_base_layer_setup_data(circuit)
-            .context("generate_cpu_base_layers_setup_data()")?,
-    );
+    let keystore = Keystore::default();
+    let circuit_setup_data = generate_setup_data_common(
+        &keystore,
+        ProverServiceDataKey::new_basic(circuit.numeric_circuit_type()),
+    )
+    .context("generate_cpu_base_layers_setup_data()")?;
+    let setup_data = Arc::new(circuit_setup_data.into());
     let setup_key = ProverServiceDataKey::new(circuit_id, aggregation_round);
     let prover_job = ProverJob::new(block_number, expected_proof_id, circuit_wrapper, setup_key);
     let artifacts = Prover::prove(

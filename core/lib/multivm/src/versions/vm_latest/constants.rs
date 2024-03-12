@@ -1,16 +1,22 @@
 use zk_evm_1_4_1::aux_structures::MemoryPage;
 pub use zk_evm_1_4_1::zkevm_opcode_defs::system_params::{
-    ERGS_PER_CIRCUIT, INITIAL_STORAGE_WRITE_PUBDATA_BYTES, MAX_PUBDATA_PER_BLOCK,
+    ERGS_PER_CIRCUIT, INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
+};
+use zkevm_test_harness_1_4_2::zkevm_circuits::eip_4844::input::{
+    BLOB_CHUNK_SIZE, ELEMENTS_PER_4844_BLOCK,
 };
 use zksync_system_constants::{MAX_L2_TX_GAS_LIMIT, MAX_NEW_FACTORY_DEPS};
 
 use crate::vm_latest::old_vm::utils::heap_page_from_base;
 
+/// The amount of ergs to be reserved at the end of the batch to ensure that it has enough ergs to verify compression, etc.
+pub(crate) const BOOTLOADER_BATCH_TIP_OVERHEAD: u32 = 170_000_000;
+
 /// The size of the bootloader memory in bytes which is used by the protocol.
 /// While the maximal possible size is a lot higher, we restrict ourselves to a certain limit to reduce
 /// the requirements on RAM.
-/// In this version of the VM the used bootloader memory bytes has increased from `2^24`` to `24_000_000`.
-pub(crate) const USED_BOOTLOADER_MEMORY_BYTES: usize = 24_000_000;
+/// In this version of the VM the used bootloader memory bytes has increased from `24_000_000` to `30_000_000`.
+pub(crate) const USED_BOOTLOADER_MEMORY_BYTES: usize = 30_000_000;
 pub(crate) const USED_BOOTLOADER_MEMORY_WORDS: usize = USED_BOOTLOADER_MEMORY_BYTES / 32;
 
 // This the number of pubdata such that it should be always possible to publish
@@ -66,7 +72,7 @@ pub(crate) const TX_OVERHEAD_SLOTS: usize = MAX_TXS_IN_BATCH;
 pub(crate) const TX_TRUSTED_GAS_LIMIT_OFFSET: usize = TX_OVERHEAD_OFFSET + TX_OVERHEAD_SLOTS;
 pub(crate) const TX_TRUSTED_GAS_LIMIT_SLOTS: usize = MAX_TXS_IN_BATCH;
 
-pub(crate) const COMPRESSED_BYTECODES_SLOTS: usize = 32768;
+pub(crate) const COMPRESSED_BYTECODES_SLOTS: usize = 65536;
 
 pub(crate) const PRIORITY_TXS_L1_DATA_OFFSET: usize =
     COMPRESSED_BYTECODES_OFFSET + COMPRESSED_BYTECODES_SLOTS;
@@ -75,15 +81,15 @@ pub(crate) const PRIORITY_TXS_L1_DATA_SLOTS: usize = 2;
 pub const OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_OFFSET: usize =
     PRIORITY_TXS_L1_DATA_OFFSET + PRIORITY_TXS_L1_DATA_SLOTS;
 
-/// One of "worst case" scenarios for the number of state diffs in a batch is when 120kb of pubdata is spent
-/// on repeated writes, that are all zeroed out. In this case, the number of diffs is 120k / 5 = 24k. This means that they will have
-/// accommodate 6528000 bytes of calldata for the uncompressed state diffs. Adding 120k on top leaves us with
-/// roughly 6650000 bytes needed for calldata. 207813 slots are needed to accommodate this amount of data.
-/// We round up to 208000 slots just in case.
+/// One of "worst case" scenarios for the number of state diffs in a batch is when 260 kb of pubdata is spent
+/// on repeated writes, that are all zeroed out. In this case, the number of diffs is 260 kb / 5 = 52k. This means that they will have
+/// accommodate 14144000 bytes of calldata for the uncompressed state diffs. Adding 260k on top leaves us with
+/// roughly 14404000 bytes needed for calldata. 450125 slots are needed to accommodate this amount of data.
+/// We round up to 451000 slots just in case.
 ///
 /// In theory though much more calldata could be used (if for instance 1 byte is used for enum index). It is the responsibility of the
 /// operator to ensure that it can form the correct calldata for the L1Messenger.
-pub(crate) const OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS: usize = 208000;
+pub(crate) const OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS: usize = 451000;
 
 pub(crate) const BOOTLOADER_TX_DESCRIPTION_OFFSET: usize =
     OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_OFFSET + OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS;
@@ -168,3 +174,7 @@ pub(crate) const TX_SLOT_OVERHEAD_GAS: u32 = 10_000;
 /// and serves to compensate the operator for the fact that they need to fill up the bootloader memory. In case batches start
 /// getting often sealed due to the memory limit being reached, the L2 fair gas price will be increased.
 pub(crate) const TX_MEMORY_OVERHEAD_GAS: u32 = 10;
+
+const ZK_SYNC_BYTES_PER_BLOB: usize = BLOB_CHUNK_SIZE * ELEMENTS_PER_4844_BLOCK;
+pub const MAX_BLOBS_PER_BATCH: usize = 2;
+pub const MAX_VM_PUBDATA_PER_BATCH: usize = MAX_BLOBS_PER_BATCH * ZK_SYNC_BYTES_PER_BLOB;

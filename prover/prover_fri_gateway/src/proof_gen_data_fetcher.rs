@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use zksync_types::prover_server_api::{
+use zksync_prover_interface::api::{
     ProofGenerationData, ProofGenerationDataRequest, ProofGenerationDataResponse,
 };
 
@@ -23,6 +23,7 @@ impl PeriodicApiStruct {
                 data.l1_batch_number,
                 &blob_url,
                 data.fri_protocol_version_id,
+                data.eip_4844_blobs,
             )
             .await;
     }
