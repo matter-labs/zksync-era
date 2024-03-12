@@ -457,9 +457,7 @@ async fn load_upgrade_tx() {
         Box::new(batch_executor_base),
         Box::new(persistence),
         Arc::new(sealer),
-    )
-    .await
-    .unwrap();
+    );
 
     // Since the version hasn't changed, and we are not using shared bridge, we should not load any
     // upgrade transactions.

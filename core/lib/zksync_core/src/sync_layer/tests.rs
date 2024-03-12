@@ -1,10 +1,6 @@
 //! High-level sync layer tests.
 
-use std::{
-    iter,
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::{iter, sync::Arc, time::Duration};
 
 use test_casing::test_casing;
 use tokio::{sync::watch, task::JoinHandle};
@@ -91,9 +87,7 @@ impl StateKeeperHandles {
             Box::new(batch_executor_base),
             Box::new(persistence.with_tx_insertion()),
             Arc::new(NoopSealer),
-        )
-        .await
-        .unwrap();
+        );
 
         Self {
             stop_sender,
@@ -103,28 +97,23 @@ impl StateKeeperHandles {
     }
 
     /// Waits for the given condition.
-    pub async fn wait(self, mut condition: impl FnMut(&SyncState) -> bool) {
-        let started_at = Instant::now();
-        loop {
-            assert!(
-                started_at.elapsed() <= TEST_TIMEOUT,
-                "Timed out waiting for miniblock to be sealed"
-            );
-            if self.task.is_finished() {
-                match self.task.await {
+    pub async fn wait_for_local_block(mut self, want: MiniblockNumber) {
+        tokio::select! {
+            task_result = &mut self.task => {
+                match task_result {
                     Err(err) => panic!("State keeper panicked: {err}"),
                     Ok(Err(err)) => panic!("State keeper finished with an error: {err:?}"),
                     Ok(Ok(())) => unreachable!(),
                 }
             }
-            if condition(&self.sync_state) {
-                break;
+            () = tokio::time::sleep(TEST_TIMEOUT) => {
+                panic!("Timed out waiting for miniblock to be sealed");
             }
-            tokio::time::sleep(POLL_INTERVAL).await;
+            () = self.sync_state.wait_for_local_block(want) => {
+                self.stop_sender.send_replace(true);
+                self.task.await.unwrap().unwrap();
+            }
         }
-
-        self.stop_sender.send_replace(true);
-        self.task.await.unwrap().unwrap();
     }
 }
 
@@ -197,7 +186,7 @@ async fn external_io_basics(snapshot_recovery: bool) {
     actions_sender.push_actions(actions).await;
     // Wait until the miniblock is sealed.
     state_keeper
-        .wait(|state| state.get_local_block() == snapshot.miniblock_number + 1)
+        .wait_for_local_block(snapshot.miniblock_number + 1)
         .await;
 
     // Check that the miniblock is persisted.
@@ -288,7 +277,7 @@ async fn external_io_works_without_local_protocol_version(snapshot_recovery: boo
     actions_sender.push_actions(actions).await;
     // Wait until the miniblock is sealed.
     state_keeper
-        .wait(|state| state.get_local_block() == snapshot.miniblock_number + 1)
+        .wait_for_local_block(snapshot.miniblock_number + 1)
         .await;
 
     // Check that the miniblock and the protocol version for it are persisted.
@@ -369,7 +358,7 @@ pub(super) async fn run_state_keeper_with_multiple_miniblocks(
     actions_sender.push_actions(second_miniblock_actions).await;
     // Wait until both miniblocks are sealed.
     state_keeper
-        .wait(|state| state.get_local_block() == snapshot.miniblock_number + 2)
+        .wait_for_local_block(snapshot.miniblock_number + 2)
         .await;
     (snapshot, tx_hashes)
 }
@@ -434,10 +423,10 @@ async fn test_external_io_recovery(
     let state_keeper =
         StateKeeperHandles::new(pool.clone(), client, action_queue, &[&tx_hashes]).await;
     // Check that the state keeper state is restored.
-    assert_eq!(
-        state_keeper.sync_state.get_local_block(),
-        snapshot.miniblock_number + 2
-    );
+    state_keeper
+        .sync_state
+        .wait_for_local_block(snapshot.miniblock_number + 2)
+        .await;
 
     // Send new actions and wait until the new miniblock is sealed.
     let open_miniblock = SyncAction::Miniblock {
@@ -448,7 +437,7 @@ async fn test_external_io_recovery(
     let actions = vec![open_miniblock, new_tx, SyncAction::SealMiniblock];
     actions_sender.push_actions(actions).await;
     state_keeper
-        .wait(|state| state.get_local_block() == snapshot.miniblock_number + 3)
+        .wait_for_local_block(snapshot.miniblock_number + 3)
         .await;
 
     let mut storage = pool.access_storage().await.unwrap();
@@ -544,7 +533,7 @@ pub(super) async fn run_state_keeper_with_multiple_l1_batches(
     ));
     // Wait until the miniblocks are sealed.
     state_keeper
-        .wait(|state| state.get_local_block() == snapshot.miniblock_number + 3)
+        .wait_for_local_block(snapshot.miniblock_number + 3)
         .await;
     hash_task.await.unwrap();
 

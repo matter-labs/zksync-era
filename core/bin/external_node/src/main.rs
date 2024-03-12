@@ -98,15 +98,13 @@ async fn build_state_keeper(
     .await
     .context("Failed initializing I/O for external node state keeper")?;
 
-    ZkSyncStateKeeper::new(
+    Ok(ZkSyncStateKeeper::new(
         stop_receiver,
         Box::new(io),
         batch_executor_base,
         Box::new(persistence.with_tx_insertion()),
         Arc::new(NoopSealer),
-    )
-    .await
-    .context("failed initializing state keeper")
+    ))
 }
 
 async fn init_tasks(

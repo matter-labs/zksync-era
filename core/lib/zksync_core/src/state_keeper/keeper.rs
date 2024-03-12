@@ -69,31 +69,26 @@ impl Error {
 pub struct ZkSyncStateKeeper {
     stop_receiver: watch::Receiver<bool>,
     sequencer: Box<dyn StateKeeperSequencer>,
-    cursor: IoCursor,
-    pending_batch_params: Option<PendingBatchData>,
     persistence: Box<dyn HandleStateKeeperOutput>,
     batch_executor_base: Box<dyn BatchExecutor>,
     sealer: Arc<dyn ConditionalSealer>,
 }
 
 impl ZkSyncStateKeeper {
-    pub async fn new(
+    pub fn new(
         stop_receiver: watch::Receiver<bool>,
-        mut sequencer: Box<dyn StateKeeperSequencer>,
+        sequencer: Box<dyn StateKeeperSequencer>,
         batch_executor_base: Box<dyn BatchExecutor>,
         persistence: Box<dyn HandleStateKeeperOutput>,
         sealer: Arc<dyn ConditionalSealer>,
-    ) -> anyhow::Result<Self> {
-        let (cursor, pending_batch) = sequencer.initialize().await?;
-        Ok(Self {
+    ) -> Self {
+        Self {
             stop_receiver,
             sequencer,
-            cursor,
-            pending_batch_params: pending_batch,
             batch_executor_base,
             persistence,
             sealer,
-        })
+        }
     }
 
     /// Temporary method to migrate fee addresses from L1 batches to miniblocks.
@@ -101,10 +96,9 @@ impl ZkSyncStateKeeper {
         &self,
         pool: ConnectionPool,
     ) -> impl Future<Output = anyhow::Result<()>> {
-        let last_miniblock = self.cursor.next_miniblock - 1;
         let stop_receiver = self.stop_receiver.clone();
         async move {
-            fee_address_migration::migrate_miniblocks(pool, last_miniblock, stop_receiver).await?;
+            fee_address_migration::migrate_miniblocks(pool, stop_receiver).await?;
             future::pending::<()>().await;
             // ^ Since this is run as a task, we don't want it to exit on success (this would shut down the node).
             anyhow::Ok(())
@@ -124,12 +118,12 @@ impl ZkSyncStateKeeper {
 
     /// Fallible version of `run` routine that allows to easily exit upon cancellation.
     async fn run_inner(&mut self) -> Result<Infallible, Error> {
+        let (cursor, pending_batch_params) = self.sequencer.initialize().await?;
         tracing::info!(
             "Starting state keeper. Next l1 batch to seal: {}, Next miniblock to seal: {}",
-            self.cursor.l1_batch,
-            self.cursor.next_miniblock
+            cursor.l1_batch,
+            cursor.next_miniblock
         );
-        let pending_batch_params = self.pending_batch_params.take();
 
         // Re-execute pending batch if it exists. Otherwise, initialize a new batch.
         let PendingBatchData {
@@ -152,7 +146,7 @@ impl ZkSyncStateKeeper {
             None => {
                 tracing::info!("There is no open pending batch, starting a new empty batch");
                 let (system_env, l1_batch_env) = self
-                    .wait_for_new_batch_params()
+                    .wait_for_new_batch_params(&cursor)
                     .await
                     .map_err(|e| e.context("wait_for_new_batch_params()"))?;
                 PendingBatchData {
@@ -191,10 +185,11 @@ impl ZkSyncStateKeeper {
 
             // Finish current batch.
             if !updates_manager.miniblock.executed_transactions.is_empty() {
-                self.seal_miniblock(&updates_manager).await;
-                // We've sealed the miniblock that we had, but we still need to setup the timestamp
+                self.seal_miniblock(&updates_manager).await?;
+                // We've sealed the miniblock that we had, but we still need to set up the timestamp
                 // for the fictive miniblock.
-                let new_miniblock_params = self.wait_for_new_miniblock_params().await?;
+                let new_miniblock_params =
+                    self.wait_for_new_miniblock_params(&updates_manager).await?;
                 Self::start_next_miniblock(
                     new_miniblock_params,
                     &mut updates_manager,
@@ -204,7 +199,8 @@ impl ZkSyncStateKeeper {
             }
             let (finished_batch, witness_block_state) = batch_executor.finish_batch().await;
             let sealed_batch_protocol_version = updates_manager.protocol_version();
-            self.cursor.update(&updates_manager.miniblock); // Update from the fictive miniblock
+            let mut next_cursor = updates_manager.io_cursor();
+            next_cursor.l1_batch += 1;
             self.persistence
                 .handle_l1_batch(
                     witness_block_state,
@@ -214,7 +210,6 @@ impl ZkSyncStateKeeper {
                 )
                 .await
                 .with_context(|| format!("failed sealing L1 batch {l1_batch_env:?}"))?;
-            self.cursor.l1_batch += 1;
 
             if let Some(delta) = l1_batch_seal_delta {
                 L1_BATCH_METRICS.seal_delta.observe(delta.elapsed());
@@ -222,7 +217,7 @@ impl ZkSyncStateKeeper {
             l1_batch_seal_delta = Some(Instant::now());
 
             // Start the new batch.
-            (system_env, l1_batch_env) = self.wait_for_new_batch_params().await?;
+            (system_env, l1_batch_env) = self.wait_for_new_batch_params(&next_cursor).await?;
             updates_manager = UpdatesManager::new(&l1_batch_env, &system_env);
             batch_executor = self
                 .batch_executor_base
@@ -309,15 +304,18 @@ impl ZkSyncStateKeeper {
             .with_context(|| format!("failed loading upgrade transaction for {protocol_version:?}"))
     }
 
-    async fn wait_for_new_batch_params(&mut self) -> Result<(SystemEnv, L1BatchEnv), Error> {
+    async fn wait_for_new_batch_params(
+        &mut self,
+        cursor: &IoCursor,
+    ) -> Result<(SystemEnv, L1BatchEnv), Error> {
         while !self.is_canceled() {
             if let Some(params) = self
                 .sequencer
-                .wait_for_new_batch_params(&self.cursor, POLL_WAIT_DURATION)
+                .wait_for_new_batch_params(cursor, POLL_WAIT_DURATION)
                 .await
                 .context("error waiting for new L1 batch params")?
             {
-                return Ok(self.map_batch_params(params).await?);
+                return Ok(self.map_batch_params(params, cursor).await?);
             }
         }
         Err(Error::Canceled)
@@ -326,10 +324,11 @@ impl ZkSyncStateKeeper {
     async fn map_batch_params(
         &mut self,
         params: L1BatchParams,
+        cursor: &IoCursor,
     ) -> anyhow::Result<(SystemEnv, L1BatchEnv)> {
         let contracts = self
             .sequencer
-            .load_base_system_contracts(params.protocol_version, &self.cursor)
+            .load_base_system_contracts(params.protocol_version, cursor)
             .await
             .with_context(|| {
                 format!(
@@ -337,14 +336,18 @@ impl ZkSyncStateKeeper {
                     params.protocol_version
                 )
             })?;
-        Ok(params.into_env(self.sequencer.chain_id(), contracts, &self.cursor))
+        Ok(params.into_env(self.sequencer.chain_id(), contracts, cursor))
     }
 
-    async fn wait_for_new_miniblock_params(&mut self) -> Result<MiniblockParams, Error> {
+    async fn wait_for_new_miniblock_params(
+        &mut self,
+        updates: &UpdatesManager,
+    ) -> Result<MiniblockParams, Error> {
+        let cursor = updates.io_cursor();
         while !self.is_canceled() {
             if let Some(params) = self
                 .sequencer
-                .wait_for_new_miniblock_params(&self.cursor, POLL_WAIT_DURATION)
+                .wait_for_new_miniblock_params(&cursor, POLL_WAIT_DURATION)
                 .await
                 .context("error waiting for new miniblock params")?
             {
@@ -365,9 +368,16 @@ impl ZkSyncStateKeeper {
             .await;
     }
 
-    async fn seal_miniblock(&mut self, updates_manager: &UpdatesManager) {
-        self.persistence.handle_miniblock(updates_manager).await;
-        self.cursor.update(&updates_manager.miniblock);
+    async fn seal_miniblock(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()> {
+        self.persistence
+            .handle_miniblock(updates_manager)
+            .await
+            .with_context(|| {
+                format!(
+                    "handling miniblock #{} failed",
+                    updates_manager.miniblock.number
+                )
+            })
     }
 
     /// Applies the "pending state" on the `UpdatesManager`.
@@ -451,7 +461,7 @@ impl ZkSyncStateKeeper {
                      status: {exec_result_status:?}. L1 gas spent: {tx_l1_gas_this_tx:?}, total in L1 batch: {pending_l1_gas:?}, \
                      tx execution metrics: {tx_execution_metrics:?}, block execution metrics: {block_execution_metrics:?}",
                     idx_in_l1_batch = updates_manager.pending_executed_transactions_len(),
-                    l1_batch_number = self.cursor.l1_batch,
+                    l1_batch_number = updates_manager.l1_batch.number,
                     idx_in_miniblock = updates_manager.miniblock.executed_transactions.len(),
                     pending_l1_gas = updates_manager.pending_l1_gas_count(),
                     block_execution_metrics = updates_manager.pending_execution_metrics()
@@ -465,7 +475,7 @@ impl ZkSyncStateKeeper {
 
         // We've processed all the miniblocks, and right now we're initializing the next *actual* miniblock.
         let new_miniblock_params = self
-            .wait_for_new_miniblock_params()
+            .wait_for_new_miniblock_params(updates_manager)
             .await
             .map_err(|e| e.context("wait_for_new_miniblock_params"))?;
         Self::start_next_miniblock(new_miniblock_params, updates_manager, batch_executor).await;
@@ -491,7 +501,7 @@ impl ZkSyncStateKeeper {
             {
                 tracing::debug!(
                     "L1 batch #{} should be sealed unconditionally as per sealing rules",
-                    self.cursor.l1_batch
+                    updates_manager.l1_batch.number
                 );
                 return Ok(());
             }
@@ -499,19 +509,19 @@ impl ZkSyncStateKeeper {
             if self.sequencer.should_seal_miniblock(updates_manager) {
                 tracing::debug!(
                     "Miniblock #{} (L1 batch #{}) should be sealed as per sealing rules",
-                    self.cursor.next_miniblock,
-                    self.cursor.l1_batch
+                    updates_manager.miniblock.number,
+                    updates_manager.l1_batch.number
                 );
-                self.seal_miniblock(updates_manager).await;
+                self.seal_miniblock(updates_manager).await?;
 
                 let new_miniblock_params = self
-                    .wait_for_new_miniblock_params()
+                    .wait_for_new_miniblock_params(updates_manager)
                     .await
                     .map_err(|e| e.context("wait_for_new_miniblock_params"))?;
                 tracing::debug!(
                     "Initialized new miniblock #{} (L1 batch #{}) with timestamp {}",
-                    self.cursor.next_miniblock,
-                    self.cursor.l1_batch,
+                    updates_manager.miniblock.number,
+                    updates_manager.l1_batch.number,
                     extractors::display_timestamp(new_miniblock_params.timestamp)
                 );
                 Self::start_next_miniblock(new_miniblock_params, updates_manager, batch_executor)
@@ -575,7 +585,7 @@ impl ZkSyncStateKeeper {
                 tracing::debug!(
                     "L1 batch #{} should be sealed with resolution {seal_resolution:?} after executing \
                      transaction {tx_hash}",
-                    self.cursor.l1_batch
+                    updates_manager.l1_batch.number
                 );
                 return Ok(());
             }
@@ -718,9 +728,9 @@ impl ZkSyncStateKeeper {
                     tx.initiator_account(),
                     tx.is_l1(),
                     updates_manager.pending_executed_transactions_len() + 1,
-                    self.cursor.l1_batch,
+                    updates_manager.l1_batch.number,
                     updates_manager.miniblock.executed_transactions.len() + 1,
-                    self.cursor.next_miniblock,
+                    updates_manager.miniblock.number,
                     tx_execution_status,
                     tx_l1_gas_this_tx,
                     updates_manager.pending_l1_gas_count() + tx_l1_gas_this_tx,
@@ -781,7 +791,7 @@ impl ZkSyncStateKeeper {
                 };
 
                 self.sealer.should_seal_l1_batch(
-                    self.cursor.l1_batch.0,
+                    updates_manager.l1_batch.number.0,
                     updates_manager.batch_timestamp() as u128 * 1_000,
                     updates_manager.pending_executed_transactions_len() + 1,
                     &block_data,

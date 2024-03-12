@@ -157,7 +157,7 @@ pub trait StateKeeperSequencer: 'static + Send + fmt::Debug + IoSealCriteria {
 #[async_trait]
 pub trait HandleStateKeeperOutput: 'static + Send + fmt::Debug {
     /// Handles a miniblock (aka L2 block) produced by the state keeper.
-    async fn handle_miniblock(&mut self, updates_manager: &UpdatesManager);
+    async fn handle_miniblock(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()>;
 
     /// Handles an L1 batch produced by the state keeper.
     async fn handle_l1_batch(

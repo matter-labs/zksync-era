@@ -41,7 +41,6 @@ pub(crate) async fn migrate_pending_miniblocks(
 /// Runs the migration for non-pending miniblocks. Should be run as a background task.
 pub(crate) async fn migrate_miniblocks(
     pool: ConnectionPool,
-    last_miniblock: MiniblockNumber,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
     // `migrate_miniblocks_inner` assumes that miniblocks start from the genesis (i.e., no snapshot recovery).
@@ -58,6 +57,11 @@ pub(crate) async fn migrate_miniblocks(
         tracing::info!("Detected snapshot recovery; fee address migration is skipped as no-op");
         return Ok(());
     }
+    let last_miniblock = storage
+        .blocks_dal()
+        .get_sealed_miniblock_number()
+        .await?
+        .context("storage is empty, but there's no snapshot recovery data")?;
     drop(storage);
 
     let MigrationOutput {

@@ -423,8 +423,6 @@ impl StateKeeperRunner {
                         Box::new(persistence.with_tx_insertion()),
                         Arc::new(NoopSealer),
                     )
-                    .await
-                    .context("ZkSyncStateKeeper::new")?
                     .run()
                     .await
                     .context("ZkSyncStateKeeper::run()")?;

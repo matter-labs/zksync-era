@@ -36,6 +36,15 @@ impl SyncState {
         self.0.borrow().local_block.unwrap_or_default()
     }
 
+    #[cfg(test)]
+    pub(crate) async fn wait_for_local_block(&self, want: MiniblockNumber) {
+        self.0
+            .subscribe()
+            .wait_for(|inner| matches!(inner.local_block, Some(got) if got >= want))
+            .await
+            .unwrap();
+    }
+
     pub(crate) async fn wait_for_main_node_block(
         &self,
         ctx: &ctx::Ctx,
@@ -44,7 +53,7 @@ impl SyncState {
         sync::wait_for(
             ctx,
             &mut self.0.subscribe(),
-            |s| matches!(s.main_node_block, Some(got) if got >= want),
+            |inner| matches!(inner.main_node_block, Some(got) if got >= want),
         )
         .await?;
         Ok(())

@@ -204,9 +204,7 @@ impl TestScenario {
             Box::new(batch_executor_base),
             Box::new(persistence),
             Arc::new(sealer),
-        )
-        .await
-        .unwrap();
+        );
         let sk_thread = tokio::spawn(state_keeper.run());
 
         // We must assume that *theoretically* state keeper may ignore the stop signal from IO once scenario is
@@ -587,14 +585,15 @@ impl TestPersistence {
 
 #[async_trait]
 impl HandleStateKeeperOutput for TestPersistence {
-    async fn handle_miniblock(&mut self, updates_manager: &UpdatesManager) {
+    async fn handle_miniblock(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()> {
         let action = self.pop_next_item("seal_miniblock");
         let ScenarioItem::MiniblockSeal(_, check_fn) = action else {
-            panic!("Unexpected action: {:?}", action);
+            anyhow::bail!("Unexpected action: {:?}", action);
         };
         if let Some(check_fn) = check_fn {
             check_fn(updates_manager);
         }
+        Ok(())
     }
 
     async fn handle_l1_batch(

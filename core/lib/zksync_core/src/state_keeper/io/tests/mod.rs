@@ -427,7 +427,7 @@ async fn miniblock_processing_after_snapshot_recovery() {
     let (mut persistence, miniblock_sealer) =
         StateKeeperPersistence::new(connection_pool.clone(), Address::default(), 0);
     tokio::spawn(miniblock_sealer.run());
-    persistence.handle_miniblock(&updates).await;
+    persistence.handle_miniblock(&updates).await.unwrap();
 
     // Check that the miniblock is persisted and has correct data.
     let persisted_miniblock = storage

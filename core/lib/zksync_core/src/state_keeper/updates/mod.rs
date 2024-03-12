@@ -12,7 +12,7 @@ use zksync_types::{
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 pub(crate) use self::{l1_batch_updates::L1BatchUpdates, miniblock_updates::MiniblockUpdates};
-use super::io::MiniblockParams;
+use super::io::{IoCursor, MiniblockParams};
 
 pub mod l1_batch_updates;
 pub mod miniblock_updates;
@@ -64,6 +64,15 @@ impl UpdatesManager {
 
     pub(crate) fn base_system_contract_hashes(&self) -> BaseSystemContractsHashes {
         self.base_system_contract_hashes
+    }
+
+    pub(crate) fn io_cursor(&self) -> IoCursor {
+        IoCursor {
+            next_miniblock: self.miniblock.number + 1,
+            prev_miniblock_hash: self.miniblock.get_miniblock_hash(),
+            prev_miniblock_timestamp: self.miniblock.timestamp,
+            l1_batch: self.l1_batch.number,
+        }
     }
 
     pub(crate) fn seal_miniblock_command(

@@ -86,8 +86,7 @@ impl Task for StateKeeperTask {
             self.batch_executor_base,
             self.persistence,
             self.sealer,
-        )
-        .await?;
+        );
         let result = state_keeper.run().await;
 
         // Wait for all the instances of RocksDB to be destroyed.

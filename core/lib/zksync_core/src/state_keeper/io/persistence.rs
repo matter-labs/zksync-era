@@ -10,10 +10,13 @@ use zksync_dal::ConnectionPool;
 use zksync_object_store::ObjectStore;
 use zksync_types::{witness_block_state::WitnessBlockState, Address};
 
-use crate::state_keeper::{
-    io::HandleStateKeeperOutput,
-    metrics::{MiniblockQueueStage, MINIBLOCK_METRICS},
-    updates::{MiniblockSealCommand, UpdatesManager},
+use crate::{
+    metrics::{BlockStage, APP_METRICS},
+    state_keeper::{
+        io::HandleStateKeeperOutput,
+        metrics::{MiniblockQueueStage, MINIBLOCK_METRICS},
+        updates::{MiniblockSealCommand, UpdatesManager},
+    },
 };
 
 /// A command together with the return address allowing to track command processing completion.
@@ -147,10 +150,11 @@ impl StateKeeperPersistence {
 
 #[async_trait]
 impl HandleStateKeeperOutput for StateKeeperPersistence {
-    async fn handle_miniblock(&mut self, updates_manager: &UpdatesManager) {
+    async fn handle_miniblock(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()> {
         let command =
             updates_manager.seal_miniblock_command(self.l2_erc20_bridge_addr, self.pre_insert_txs);
         self.submit_miniblock(command).await;
+        Ok(())
     }
 
     async fn handle_l1_batch(
@@ -200,6 +204,7 @@ impl HandleStateKeeperOutput for StateKeeperPersistence {
                 self.l2_erc20_bridge_addr,
             )
             .await;
+        APP_METRICS.block_number[&BlockStage::Sealed].set(l1_batch_env.number.0.into());
         Ok(())
     }
 }
@@ -233,12 +238,12 @@ impl MiniblockSealerTask {
         // Commands must be processed sequentially: a later miniblock cannot be saved before
         // an earlier one.
         while let Some(completable) = self.next_command().await {
-            let mut conn = self
+            let mut storage = self
                 .pool
                 .access_storage_tagged("state_keeper")
                 .await
                 .unwrap();
-            completable.command.seal(&mut conn).await;
+            completable.command.seal(&mut storage).await;
             if let Some(delta) = miniblock_seal_delta {
                 MINIBLOCK_METRICS.seal_delta.observe(delta.elapsed());
             }
@@ -329,7 +334,7 @@ mod tests {
             ExecutionMetrics::default(),
             vec![],
         );
-        persistence.handle_miniblock(&updates).await;
+        persistence.handle_miniblock(&updates).await.unwrap();
         updates.push_miniblock(MiniblockParams {
             timestamp: 1,
             virtual_blocks: 1,
@@ -342,15 +347,16 @@ mod tests {
             .unwrap();
 
         // Check that miniblock #1 and L1 batch #1 are persisted.
-        let mut conn = pool.access_storage().await.unwrap();
+        let mut storage = pool.access_storage().await.unwrap();
         assert_eq!(
-            conn.blocks_dal()
+            storage
+                .blocks_dal()
                 .get_sealed_miniblock_number()
                 .await
                 .unwrap(),
             Some(MiniblockNumber(2)) // + fictive miniblock
         );
-        let l1_batch_header = conn
+        let l1_batch_header = storage
             .blocks_dal()
             .get_l1_batch_header(L1BatchNumber(1))
             .await

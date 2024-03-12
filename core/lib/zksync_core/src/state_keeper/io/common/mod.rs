@@ -6,7 +6,6 @@ use zksync_dal::StorageProcessor;
 use zksync_types::{L1BatchNumber, MiniblockNumber, H256};
 
 use super::PendingBatchData;
-use crate::state_keeper::updates::MiniblockUpdates;
 
 #[cfg(test)]
 mod tests;
@@ -80,17 +79,6 @@ impl IoCursor {
                 l1_batch,
             })
         }
-    }
-
-    pub(crate) fn update(&mut self, miniblock: &MiniblockUpdates) {
-        // FIXME: metrics
-        assert_eq!(
-            miniblock.number, self.next_miniblock,
-            "Attempted to seal a miniblock with unexpected number"
-        );
-        self.next_miniblock += 1;
-        self.prev_miniblock_hash = miniblock.get_miniblock_hash();
-        self.prev_miniblock_timestamp = miniblock.timestamp;
     }
 }
 

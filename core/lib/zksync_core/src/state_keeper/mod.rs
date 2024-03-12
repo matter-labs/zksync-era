@@ -74,6 +74,4 @@ pub(crate) async fn create_state_keeper(
         persistence,
         Arc::new(sealer),
     )
-    .await
-    .expect("failed creating state keeper")
 }
