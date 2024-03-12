@@ -519,11 +519,12 @@ async fn bootloader_tip_out_of_gas() {
 async fn catchup_rocksdb_cache() {
     let connection_pool = ConnectionPool::constrained_test_pool(2).await;
     let mut alice = Account::random();
+    let mut bob = Account::random();
 
     let tester = Tester::new(connection_pool);
 
     tester.genesis().await;
-    tester.fund(&[alice.address()]).await;
+    tester.fund(&[alice.address(), bob.address()]).await;
 
     // Execute a bunch of transactions to populate Postgres-based storage (note that RocksDB stays empty)
     let executor = StorageType::Postgres.create_batch_executor(&tester).await;
@@ -544,6 +545,11 @@ async fn catchup_rocksdb_cache() {
         .await;
     let res = executor.execute_tx(tx.clone()).await;
     assert_rejected(&res);
+    // Execute one tx just so we can finish the batch
+    executor.rollback_last_tx().await; // Roll back the vm to the pre-rejected-tx state.
+    let res = executor.execute_tx(bob.execute()).await;
+    assert_executed(&res);
+    executor.finish_batch().await;
 
     // Sync RocksDB storage should be aware of the tx and should reject it
     let executor = StorageType::Rocksdb.create_batch_executor(&tester).await;
