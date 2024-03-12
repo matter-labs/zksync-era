@@ -60,11 +60,15 @@ impl WiringLayer for HousekeeperLayer {
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
+        // initialize resources
         let replica_pool_resource = context.get_resource::<ReplicaPoolResource>().await?;
         let replica_pool = replica_pool_resource.get().await?;
 
-        let pool_for_metrics = replica_pool.clone();
+        let prover_pool_resource = context.get_resource::<ProverPoolResource>().await?;
+        let prover_pool = prover_pool_resource.get().await?;
 
+        // initialize and add tasks
+        let pool_for_metrics = replica_pool.clone();
         context.add_task(Box::new(PoolForMetricsTask { pool_for_metrics }));
 
         let l1_batch_metrics_reporter = L1BatchMetricsReporter::new(
@@ -75,9 +79,6 @@ impl WiringLayer for HousekeeperLayer {
         context.add_task(Box::new(L1BatchMetricsReporterTask {
             l1_batch_metrics_reporter,
         }));
-
-        let prover_pool_resource = context.get_resource::<ProverPoolResource>().await?;
-        let prover_pool = prover_pool_resource.get().await?;
 
         let fri_prover_job_retry_manager = FriProverJobRetryManager::new(
             self.fri_prover_config.max_attempts,
@@ -156,6 +157,7 @@ impl WiringLayer for HousekeeperLayer {
         context.add_task(Box::new(FriProofCompressorJobRetryManagerTask {
             fri_proof_compressor_retry_manager,
         }));
+
         Ok(())
     }
 }
@@ -196,6 +198,7 @@ impl Task for L1BatchMetricsReporterTask {
 struct FriProverJobRetryManagerTask {
     fri_prover_job_retry_manager: FriProverJobRetryManager,
 }
+
 #[async_trait::async_trait]
 impl Task for FriProverJobRetryManagerTask {
     fn name(&self) -> &'static str {
@@ -210,6 +213,7 @@ impl Task for FriProverJobRetryManagerTask {
 struct FriWitnessGeneratorJobRetryManagerTask {
     fri_witness_gen_job_retry_manager: FriWitnessGeneratorJobRetryManager,
 }
+
 #[async_trait::async_trait]
 impl Task for FriWitnessGeneratorJobRetryManagerTask {
     fn name(&self) -> &'static str {
@@ -224,6 +228,7 @@ impl Task for FriWitnessGeneratorJobRetryManagerTask {
 struct WaitingToQueuedFriWitnessJobMoverTask {
     waiting_to_queued_fri_witness_job_mover: WaitingToQueuedFriWitnessJobMover,
 }
+
 #[async_trait::async_trait]
 impl Task for WaitingToQueuedFriWitnessJobMoverTask {
     fn name(&self) -> &'static str {
@@ -238,6 +243,7 @@ impl Task for WaitingToQueuedFriWitnessJobMoverTask {
 struct SchedulerCircuitQueuerTask {
     scheduler_circuit_queuer: SchedulerCircuitQueuer,
 }
+
 #[async_trait::async_trait]
 impl Task for SchedulerCircuitQueuerTask {
     fn name(&self) -> &'static str {
@@ -252,6 +258,7 @@ impl Task for SchedulerCircuitQueuerTask {
 struct FriWitnessGeneratorStatsReporterTask {
     fri_witness_generator_stats_reporter: FriWitnessGeneratorStatsReporter,
 }
+
 #[async_trait::async_trait]
 impl Task for FriWitnessGeneratorStatsReporterTask {
     fn name(&self) -> &'static str {
@@ -266,6 +273,7 @@ impl Task for FriWitnessGeneratorStatsReporterTask {
 struct FriProverStatsReporterTask {
     fri_prover_stats_reporter: FriProverStatsReporter,
 }
+
 #[async_trait::async_trait]
 impl Task for FriProverStatsReporterTask {
     fn name(&self) -> &'static str {
@@ -280,6 +288,7 @@ impl Task for FriProverStatsReporterTask {
 struct FriProofCompressorStatsReporterTask {
     fri_proof_compressor_stats_reporter: FriProofCompressorStatsReporter,
 }
+
 #[async_trait::async_trait]
 impl Task for FriProofCompressorStatsReporterTask {
     fn name(&self) -> &'static str {
@@ -294,6 +303,7 @@ impl Task for FriProofCompressorStatsReporterTask {
 struct FriProofCompressorJobRetryManagerTask {
     fri_proof_compressor_retry_manager: FriProofCompressorJobRetryManager,
 }
+
 #[async_trait::async_trait]
 impl Task for FriProofCompressorJobRetryManagerTask {
     fn name(&self) -> &'static str {
