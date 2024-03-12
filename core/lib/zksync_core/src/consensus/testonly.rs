@@ -27,6 +27,7 @@ use crate::{
         ZkSyncStateKeeper,
     },
     sync_layer::{
+        fetcher::FetchedTransaction,
         sync_action::{ActionQueue, ActionQueueSender, SyncAction},
         ExternalIO, MainNodeClient, SyncState,
     },
@@ -270,7 +271,7 @@ impl StateKeeper {
         let mut actions = vec![self.open_block()];
         for _ in 0..transactions {
             let tx = create_l2_transaction(self.fee_per_gas, self.gas_per_pubdata);
-            actions.push(SyncAction::Tx(Box::new(tx.into())));
+            actions.push(FetchedTransaction::new(tx.into()).into());
         }
         actions.push(SyncAction::SealMiniblock);
         self.actions_sender.push_actions(actions).await;

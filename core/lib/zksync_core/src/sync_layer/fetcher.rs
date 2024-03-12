@@ -1,8 +1,8 @@
 use anyhow::Context as _;
 use zksync_dal::StorageProcessor;
 use zksync_types::{
-    api::en::SyncBlock, block::MiniblockHasher, Address, L1BatchNumber, MiniblockNumber,
-    ProtocolVersionId, H256,
+    api::en::SyncBlock, block::MiniblockHasher, helpers::unix_timestamp_ms, Address, L1BatchNumber,
+    MiniblockNumber, ProtocolVersionId, H256,
 };
 
 use super::{
@@ -13,6 +13,31 @@ use crate::{
     metrics::{TxStage, APP_METRICS},
     state_keeper::io::common::IoCursor,
 };
+
+/// Same as [`zksync_types::Transaction`], just with additional guarantees that the "received at" timestamp was set locally.
+/// We cannot transfer `Transaction`s without these timestamps, because this would break backward compatibility.
+#[derive(Debug, Clone)]
+pub(crate) struct FetchedTransaction(zksync_types::Transaction);
+
+impl FetchedTransaction {
+    pub fn new(mut tx: zksync_types::Transaction) -> Self {
+        // Override the "received at" timestamp for the transaction so that they are causally ordered (i.e., transactions
+        // with an earlier timestamp are persisted earlier). Without this property, code relying on causal ordering may work incorrectly;
+        // e.g., `pendingTransactions` subscriptions notifier can skip transactions.
+        tx.received_timestamp_ms = unix_timestamp_ms();
+        Self(tx)
+    }
+
+    pub fn hash(&self) -> H256 {
+        self.0.hash()
+    }
+}
+
+impl From<FetchedTransaction> for zksync_types::Transaction {
+    fn from(tx: FetchedTransaction) -> Self {
+        tx.0
+    }
+}
 
 /// Common denominator for blocks fetched by an external node.
 #[derive(Debug)]
@@ -28,7 +53,7 @@ pub(crate) struct FetchedBlock {
     pub fair_pubdata_price: Option<u64>,
     pub virtual_blocks: u32,
     pub operator_address: Address,
-    pub transactions: Vec<zksync_types::Transaction>,
+    pub transactions: Vec<FetchedTransaction>,
 }
 
 impl FetchedBlock {
@@ -67,7 +92,10 @@ impl TryFrom<SyncBlock> for FetchedBlock {
             fair_pubdata_price: block.fair_pubdata_price,
             virtual_blocks: block.virtual_blocks.unwrap_or(0),
             operator_address: block.operator_address,
-            transactions,
+            transactions: transactions
+                .into_iter()
+                .map(FetchedTransaction::new)
+                .collect(),
         })
     }
 }
@@ -145,7 +173,7 @@ impl IoCursor {
 
         APP_METRICS.processed_txs[&TxStage::added_to_mempool()]
             .inc_by(block.transactions.len() as u64);
-        new_actions.extend(block.transactions.into_iter().map(SyncAction::from));
+        new_actions.extend(block.transactions.into_iter().map(Into::into));
 
         // Last miniblock of the batch is a "fictive" miniblock and would be replicated locally.
         // We don't need to seal it explicitly, so we only put the seal miniblock command if it's not the last miniblock.

@@ -372,7 +372,7 @@ impl StateKeeperSequencer for ExternalIO {
                     let SyncAction::Tx(tx) = actions.pop_action().unwrap() else {
                         unreachable!()
                     };
-                    return Some(*tx);
+                    return Some(Transaction::from(*tx));
                 }
                 _ => {
                     tokio::time::sleep(POLL_INTERVAL).await;
