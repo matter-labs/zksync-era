@@ -1,6 +1,7 @@
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use zksync_types::{
-    api::{BlockId, BlockNumber, DebugCall, DebugCallFlat, ResultDebugCall, TracerConfig},
+    api::{BlockId, BlockNumber, DebugCall, ResultDebugCall, TracerConfig},
+    debug_flat_call::DebugCallFlat,
     transaction_request::CallRequest,
 };
 

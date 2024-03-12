@@ -5,10 +5,8 @@ use multivm::{interface::ExecutionResult, vm_latest::constants::BLOCK_GAS_LIMIT}
 use once_cell::sync::OnceCell;
 use zksync_system_constants::MAX_ENCODED_TX_SIZE;
 use zksync_types::{
-    api::{
-        flatten_debug_calls, BlockId, BlockNumber, DebugCall, DebugCallFlat, ResultDebugCall,
-        TracerConfig,
-    },
+    api::{BlockId, BlockNumber, DebugCall, ResultDebugCall, TracerConfig},
+    debug_flat_call::{flatten_debug_calls, DebugCallFlat},
     fee_model::BatchFeeInput,
     l2::L2Tx,
     transaction_request::CallRequest,
