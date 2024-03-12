@@ -271,6 +271,17 @@ impl fmt::Debug for dyn CheckHealth {
     }
 }
 
+#[async_trait]
+impl<T: CheckHealth + ?Sized> CheckHealth for Arc<T> {
+    fn name(&self) -> &'static str {
+        (**self).name()
+    }
+
+    async fn check_health(&self) -> Health {
+        (**self).check_health().await
+    }
+}
+
 /// Basic implementation of [`CheckHealth`] trait that can be updated using a matching [`HealthUpdater`].
 #[derive(Debug, Clone)]
 pub struct ReactiveHealthCheck {

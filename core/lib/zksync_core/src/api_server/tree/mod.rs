@@ -12,11 +12,12 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use tokio::sync::watch;
+use zksync_health_check::{CheckHealth, Health, HealthStatus};
 use zksync_merkle_tree::NoVersionError;
 use zksync_types::{L1BatchNumber, H256, U256};
 
 use self::metrics::{MerkleTreeApiMethod, API_METRICS};
-use crate::metadata_calculator::{AsyncTreeReader, MerkleTreeInfo};
+use crate::metadata_calculator::{AsyncTreeReader, LazyAsyncTreeReader, MerkleTreeInfo};
 
 mod metrics;
 #[cfg(test)]
@@ -34,7 +35,7 @@ struct TreeProofsResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct TreeEntryWithProof {
+pub struct TreeEntryWithProof {
     #[serde(default, skip_serializing_if = "H256::is_zero")]
     pub value: H256,
     #[serde(default, skip_serializing_if = "TreeEntryWithProof::is_zero")]
@@ -60,59 +61,117 @@ impl TreeEntryWithProof {
     }
 }
 
+/// Server-side tree API error.
 #[derive(Debug)]
-enum TreeApiError {
+enum TreeApiServerError {
     NoTreeVersion(NoVersionError),
 }
 
-impl IntoResponse for TreeApiError {
-    fn into_response(self) -> Response {
-        let (status, title, detail) = match self {
-            Self::NoTreeVersion(err) => {
-                (StatusCode::NOT_FOUND, "L1 batch not found", err.to_string())
-            }
-        };
+// Contains the same fields as `NoVersionError` and is serializable.
+#[derive(Debug, Serialize, Deserialize)]
+struct NoVersionErrorData {
+    missing_version: u64,
+    version_count: u64,
+}
 
-        // Loosely conforms to HTTP Problem Details RFC: <https://datatracker.ietf.org/doc/html/rfc7807>
-        let body = serde_json::json!({
-            "type": "/errors#l1-batch-not-found",
-            "title": title,
-            "detail": detail,
-        });
-        let headers = [(header::CONTENT_TYPE, "application/problem+json")];
-        (status, headers, Json(body)).into_response()
+impl From<NoVersionError> for NoVersionErrorData {
+    fn from(err: NoVersionError) -> Self {
+        Self {
+            missing_version: err.missing_version,
+            version_count: err.version_count,
+        }
     }
+}
+
+impl From<NoVersionErrorData> for NoVersionError {
+    fn from(data: NoVersionErrorData) -> Self {
+        Self {
+            missing_version: data.missing_version,
+            version_count: data.version_count,
+        }
+    }
+}
+
+// Loosely conforms to HTTP Problem Details RFC: <https://datatracker.ietf.org/doc/html/rfc7807>
+#[derive(Debug, Serialize)]
+struct Problem<T> {
+    r#type: &'static str,
+    title: &'static str,
+    detail: String,
+    #[serde(flatten)]
+    data: T,
+}
+
+const PROBLEM_CONTENT_TYPE: &str = "application/problem+json";
+
+impl IntoResponse for TreeApiServerError {
+    fn into_response(self) -> Response {
+        let headers = [(header::CONTENT_TYPE, PROBLEM_CONTENT_TYPE)];
+        match self {
+            Self::NoTreeVersion(err) => {
+                let body = Problem {
+                    r#type: "/errors#l1-batch-not-found",
+                    title: "L1 batch not found",
+                    detail: err.to_string(),
+                    data: NoVersionErrorData::from(err),
+                };
+                (StatusCode::NOT_FOUND, headers, Json(body)).into_response()
+            }
+        }
+    }
+}
+
+/// Client-side tree API error used by [`TreeApiClient`].
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum TreeApiError {
+    #[error(transparent)]
+    NoVersion(NoVersionError),
+    #[error("tree API is temporarily not available because the Merkle tree isn't initialized; repeat request later")]
+    NotReady,
+    /// Catch-all variant for internal errors.
+    #[error("internal error")]
+    Internal(#[from] anyhow::Error),
 }
 
 /// Client accessing Merkle tree API.
 #[async_trait]
-pub(crate) trait TreeApiClient {
+pub trait TreeApiClient: 'static + Send + Sync + fmt::Debug {
     /// Obtains general information about the tree.
-    async fn get_info(&self) -> anyhow::Result<MerkleTreeInfo>;
+    async fn get_info(&self) -> Result<MerkleTreeInfo, TreeApiError>;
 
     /// Obtains proofs for the specified `hashed_keys` at the specified tree version (= L1 batch number).
     async fn get_proofs(
         &self,
         l1_batch_number: L1BatchNumber,
         hashed_keys: Vec<U256>,
-    ) -> anyhow::Result<Vec<TreeEntryWithProof>>;
+    ) -> Result<Vec<TreeEntryWithProof>, TreeApiError>;
 }
 
 /// In-memory client implementation.
 #[async_trait]
-impl TreeApiClient for AsyncTreeReader {
-    async fn get_info(&self) -> anyhow::Result<MerkleTreeInfo> {
-        Ok(self.clone().info().await)
+impl TreeApiClient for LazyAsyncTreeReader {
+    async fn get_info(&self) -> Result<MerkleTreeInfo, TreeApiError> {
+        if let Some(reader) = self.read() {
+            Ok(reader.info().await)
+        } else {
+            Err(TreeApiError::NotReady)
+        }
     }
 
     async fn get_proofs(
         &self,
         l1_batch_number: L1BatchNumber,
         hashed_keys: Vec<U256>,
-    ) -> anyhow::Result<Vec<TreeEntryWithProof>> {
-        self.get_proofs_inner(l1_batch_number, hashed_keys)
-            .await
-            .map_err(Into::into)
+    ) -> Result<Vec<TreeEntryWithProof>, TreeApiError> {
+        if let Some(reader) = self.read() {
+            reader
+                .get_proofs_inner(l1_batch_number, hashed_keys)
+                .await
+                .map_err(TreeApiError::NoVersion)
+        } else {
+            Err(TreeApiError::NotReady)
+        }
     }
 }
 
@@ -135,8 +194,25 @@ impl TreeApiHttpClient {
 }
 
 #[async_trait]
+impl CheckHealth for TreeApiHttpClient {
+    fn name(&self) -> &'static str {
+        "tree_api_http_client"
+    }
+
+    async fn check_health(&self) -> Health {
+        match self.get_info().await {
+            Ok(info) => Health::from(HealthStatus::Ready).with_details(info),
+            Err(TreeApiError::NotReady) => HealthStatus::Affected.into(),
+            Err(err) => Health::from(HealthStatus::NotReady).with_details(serde_json::json!({
+                "error": err.to_string(),
+            })),
+        }
+    }
+}
+
+#[async_trait]
 impl TreeApiClient for TreeApiHttpClient {
-    async fn get_info(&self) -> anyhow::Result<MerkleTreeInfo> {
+    async fn get_info(&self) -> Result<MerkleTreeInfo, TreeApiError> {
         let response = self
             .inner
             .get(&self.info_url)
@@ -146,17 +222,17 @@ impl TreeApiClient for TreeApiHttpClient {
         let response = response
             .error_for_status()
             .context("Requesting tree info returned non-OK response")?;
-        response
+        Ok(response
             .json()
             .await
-            .context("Failed deserializing tree info")
+            .context("Failed deserializing tree info")?)
     }
 
     async fn get_proofs(
         &self,
         l1_batch_number: L1BatchNumber,
         hashed_keys: Vec<U256>,
-    ) -> anyhow::Result<Vec<TreeEntryWithProof>> {
+    ) -> Result<Vec<TreeEntryWithProof>, TreeApiError> {
         let response = self
             .inner
             .post(&self.proofs_url)
@@ -166,12 +242,26 @@ impl TreeApiClient for TreeApiHttpClient {
             })
             .send()
             .await
-            .with_context(|| format!("Failed requesting proofs for L1 batch #{l1_batch_number}"))?;
+            .with_context(|| format!("failed requesting proofs for L1 batch #{l1_batch_number}"))?;
+
+        let is_problem = response
+            .headers()
+            .get(header::CONTENT_TYPE)
+            .map_or(false, |header| *header == PROBLEM_CONTENT_TYPE);
+        if response.status() == StatusCode::NOT_FOUND && is_problem {
+            // Try to parse `NoVersionError` from the response body.
+            let problem_data: NoVersionErrorData = response
+                .json()
+                .await
+                .context("failed parsing error response")?;
+            return Err(TreeApiError::NoVersion(problem_data.into()));
+        }
+
         let response = response.error_for_status().with_context(|| {
-            format!("Requesting proofs for L1 batch #{l1_batch_number} returned non-OK response")
+            format!("requesting proofs for L1 batch #{l1_batch_number} returned non-OK response")
         })?;
         let response: TreeProofsResponse = response.json().await.with_context(|| {
-            format!("Failed deserializing proofs for L1 batch #{l1_batch_number}")
+            format!("failed deserializing proofs for L1 batch #{l1_batch_number}")
         })?;
         Ok(response.entries)
     }
@@ -200,12 +290,12 @@ impl AsyncTreeReader {
     async fn get_proofs_handler(
         State(this): State<Self>,
         Json(request): Json<TreeProofsRequest>,
-    ) -> Result<Json<TreeProofsResponse>, TreeApiError> {
+    ) -> Result<Json<TreeProofsResponse>, TreeApiServerError> {
         let latency = API_METRICS.latency[&MerkleTreeApiMethod::GetProofs].start();
         let entries = this
             .get_proofs_inner(request.l1_batch_number, request.hashed_keys)
             .await
-            .map_err(TreeApiError::NoTreeVersion)?;
+            .map_err(TreeApiServerError::NoTreeVersion)?;
         let response = TreeProofsResponse { entries };
         latency.observe();
         Ok(Json(response))

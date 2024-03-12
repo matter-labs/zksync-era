@@ -1,10 +1,8 @@
 use std::convert::TryInto;
 
-use sha2::Sha256;
-use sha3::{Digest, Keccak256};
-pub use zkevm_test_harness_1_4_2::kzg::KzgSettings;
-use zkevm_test_harness_1_4_2::{
-    kzg::{compute_commitment, compute_proof, compute_proof_poly},
+pub use kzg::KzgSettings;
+use kzg::{
+    compute_commitment, compute_proof, compute_proof_poly,
     zkevm_circuits::{
         boojum::pairing::{
             bls12_381::{Fr, FrRepr, G1Affine},
@@ -18,6 +16,8 @@ use zkevm_test_harness_1_4_2::{
         },
     },
 };
+use sha2::Sha256;
+use sha3::{Digest, Keccak256};
 use zksync_types::H256;
 
 use self::trusted_setup::KZG_SETTINGS;
