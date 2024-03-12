@@ -25,7 +25,7 @@ use zksync_types::{
 use crate::{
     state_keeper::{
         batch_executor::{BatchExecutor, BatchExecutorHandle, Command, TxExecutionResult},
-        io::{IoCursor, L1BatchParams, MiniblockParams, PendingBatchData, StateKeeperSequencer},
+        io::{IoCursor, L1BatchParams, MiniblockParams, PendingBatchData, StateKeeperIO},
         seal_criteria::{IoSealCriteria, SequencerSealer},
         tests::{default_l1_batch_env, default_vm_block_result, BASE_SYSTEM_CONTRACTS},
         types::ExecutionMetricsForCriteria,
@@ -733,7 +733,7 @@ impl IoSealCriteria for TestIO {
 }
 
 #[async_trait]
-impl StateKeeperSequencer for TestIO {
+impl StateKeeperIO for TestIO {
     fn chain_id(&self) -> L2ChainId {
         L2ChainId::default()
     }

@@ -20,7 +20,7 @@ use zksync_types::{
 use super::{
     batch_executor::{BatchExecutor, BatchExecutorHandle, TxExecutionResult},
     extractors,
-    io::{HandleStateKeeperOutput, MiniblockParams, PendingBatchData, StateKeeperSequencer},
+    io::{HandleStateKeeperOutput, MiniblockParams, PendingBatchData, StateKeeperIO},
     metrics::{AGGREGATION_METRICS, KEEPER_METRICS, L1_BATCH_METRICS},
     seal_criteria::{ConditionalSealer, SealData, SealResolution},
     types::ExecutionMetricsForCriteria,
@@ -68,7 +68,7 @@ impl Error {
 #[derive(Debug)]
 pub struct ZkSyncStateKeeper {
     stop_receiver: watch::Receiver<bool>,
-    sequencer: Box<dyn StateKeeperSequencer>,
+    io: Box<dyn StateKeeperIO>,
     persistence: Box<dyn HandleStateKeeperOutput>,
     batch_executor_base: Box<dyn BatchExecutor>,
     sealer: Arc<dyn ConditionalSealer>,
@@ -77,14 +77,14 @@ pub struct ZkSyncStateKeeper {
 impl ZkSyncStateKeeper {
     pub fn new(
         stop_receiver: watch::Receiver<bool>,
-        sequencer: Box<dyn StateKeeperSequencer>,
+        sequencer: Box<dyn StateKeeperIO>,
         batch_executor_base: Box<dyn BatchExecutor>,
         persistence: Box<dyn HandleStateKeeperOutput>,
         sealer: Arc<dyn ConditionalSealer>,
     ) -> Self {
         Self {
             stop_receiver,
-            sequencer,
+            io: sequencer,
             batch_executor_base,
             persistence,
             sealer,
@@ -118,7 +118,7 @@ impl ZkSyncStateKeeper {
 
     /// Fallible version of `run` routine that allows to easily exit upon cancellation.
     async fn run_inner(&mut self) -> Result<Infallible, Error> {
-        let (cursor, pending_batch_params) = self.sequencer.initialize().await?;
+        let (cursor, pending_batch_params) = self.io.initialize().await?;
         tracing::info!(
             "Starting state keeper. Next l1 batch to seal: {}, Next miniblock to seal: {}",
             cursor.l1_batch,
@@ -255,14 +255,12 @@ impl ZkSyncStateKeeper {
         // transaction to the genesis protocol version version.
         let first_batch_in_shared_bridge =
             l1_batch_number == L1BatchNumber(1) && !protocol_version.is_pre_shared_bridge();
-        let previous_batch_protocol_version = self
-            .sequencer
-            .load_batch_version_id(l1_batch_number - 1)
-            .await?;
+        let previous_batch_protocol_version =
+            self.io.load_batch_version_id(l1_batch_number - 1).await?;
 
         let version_changed = protocol_version != previous_batch_protocol_version;
         let mut protocol_upgrade_tx = if version_changed || first_batch_in_shared_bridge {
-            self.sequencer.load_upgrade_tx(protocol_version).await?
+            self.io.load_upgrade_tx(protocol_version).await?
         } else {
             None
         };
@@ -298,7 +296,7 @@ impl ZkSyncStateKeeper {
         &mut self,
         protocol_version: ProtocolVersionId,
     ) -> anyhow::Result<Option<ProtocolUpgradeTx>> {
-        self.sequencer
+        self.io
             .load_upgrade_tx(protocol_version)
             .await
             .with_context(|| format!("failed loading upgrade transaction for {protocol_version:?}"))
@@ -310,7 +308,7 @@ impl ZkSyncStateKeeper {
     ) -> Result<(SystemEnv, L1BatchEnv), Error> {
         while !self.is_canceled() {
             if let Some(params) = self
-                .sequencer
+                .io
                 .wait_for_new_batch_params(cursor, POLL_WAIT_DURATION)
                 .await
                 .context("error waiting for new L1 batch params")?
@@ -327,7 +325,7 @@ impl ZkSyncStateKeeper {
         cursor: &IoCursor,
     ) -> anyhow::Result<(SystemEnv, L1BatchEnv)> {
         let contracts = self
-            .sequencer
+            .io
             .load_base_system_contracts(params.protocol_version, cursor)
             .await
             .with_context(|| {
@@ -336,7 +334,7 @@ impl ZkSyncStateKeeper {
                     params.protocol_version
                 )
             })?;
-        Ok(params.into_env(self.sequencer.chain_id(), contracts, cursor))
+        Ok(params.into_env(self.io.chain_id(), contracts, cursor))
     }
 
     async fn wait_for_new_miniblock_params(
@@ -346,7 +344,7 @@ impl ZkSyncStateKeeper {
         let cursor = updates.io_cursor();
         while !self.is_canceled() {
             if let Some(params) = self
-                .sequencer
+                .io
                 .wait_for_new_miniblock_params(&cursor, POLL_WAIT_DURATION)
                 .await
                 .context("error waiting for new miniblock params")?
@@ -496,7 +494,7 @@ impl ZkSyncStateKeeper {
 
         while !self.is_canceled() {
             if self
-                .sequencer
+                .io
                 .should_seal_l1_batch_unconditionally(updates_manager)
             {
                 tracing::debug!(
@@ -506,7 +504,7 @@ impl ZkSyncStateKeeper {
                 return Ok(());
             }
 
-            if self.sequencer.should_seal_miniblock(updates_manager) {
+            if self.io.should_seal_miniblock(updates_manager) {
                 tracing::debug!(
                     "Miniblock #{} (L1 batch #{}) should be sealed as per sealing rules",
                     updates_manager.miniblock.number,
@@ -529,7 +527,7 @@ impl ZkSyncStateKeeper {
             }
 
             let waiting_latency = KEEPER_METRICS.waiting_for_tx.start();
-            let Some(tx) = self.sequencer.wait_for_next_tx(POLL_WAIT_DURATION).await else {
+            let Some(tx) = self.io.wait_for_next_tx(POLL_WAIT_DURATION).await else {
                 waiting_latency.observe();
                 tracing::trace!("No new transactions. Waiting!");
                 continue;
@@ -570,11 +568,11 @@ impl ZkSyncStateKeeper {
                 }
                 SealResolution::ExcludeAndSeal => {
                     batch_executor.rollback_last_tx().await;
-                    self.sequencer.rollback(tx).await;
+                    self.io.rollback(tx).await;
                 }
                 SealResolution::Unexecutable(reason) => {
                     batch_executor.rollback_last_tx().await;
-                    self.sequencer
+                    self.io
                         .reject(&tx, reason)
                         .await
                         .with_context(|| format!("cannot reject transaction {tx_hash:?}"))?;

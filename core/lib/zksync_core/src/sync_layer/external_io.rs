@@ -19,8 +19,7 @@ use super::{
 use crate::state_keeper::{
     io::{
         common::{load_pending_batch, poll_iters, IoCursor},
-        fee_address_migration, L1BatchParams, MiniblockParams, PendingBatchData,
-        StateKeeperSequencer,
+        fee_address_migration, L1BatchParams, MiniblockParams, PendingBatchData, StateKeeperIO,
     },
     metrics::KEEPER_METRICS,
     seal_criteria::IoSealCriteria,
@@ -165,7 +164,7 @@ impl IoSealCriteria for ExternalIO {
 }
 
 #[async_trait]
-impl StateKeeperSequencer for ExternalIO {
+impl StateKeeperIO for ExternalIO {
     fn chain_id(&self) -> L2ChainId {
         self.chain_id
     }

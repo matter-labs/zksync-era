@@ -25,7 +25,7 @@ use crate::{
     fee_model::MainNodeFeeInputProvider,
     genesis::create_genesis_l1_batch,
     l1_gas_price::GasAdjuster,
-    state_keeper::{MempoolGuard, MempoolSequencer},
+    state_keeper::{MempoolGuard, MempoolIO},
     utils::testonly::{
         create_l1_batch, create_l2_transaction, create_miniblock, execute_l2_transaction,
     },
@@ -91,7 +91,7 @@ impl Tester {
     pub(super) async fn create_test_mempool_io(
         &self,
         pool: ConnectionPool,
-    ) -> (MempoolSequencer, MempoolGuard) {
+    ) -> (MempoolIO, MempoolGuard) {
         let gas_adjuster = Arc::new(self.create_gas_adjuster().await);
         let batch_fee_input_provider = MainNodeFeeInputProvider::new(
             gas_adjuster,
@@ -116,7 +116,7 @@ impl Tester {
             fee_account_addr: Address::repeat_byte(0x11), // Maintain implicit invariant: fee address is never `Address::zero()`
             ..StateKeeperConfig::default()
         };
-        let io = MempoolSequencer::new(
+        let io = MempoolIO::new(
             mempool.clone(),
             Arc::new(batch_fee_input_provider),
             pool,

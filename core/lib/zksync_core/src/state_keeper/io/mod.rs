@@ -57,7 +57,7 @@ pub struct MiniblockParams {
     pub(crate) virtual_blocks: u32,
 }
 
-/// Parameters for a new L1 batch returned by [`StateKeeperSequencer::wait_for_new_batch_params()`].
+/// Parameters for a new L1 batch returned by [`StateKeeperIO::wait_for_new_batch_params()`].
 #[derive(Debug)]
 pub struct L1BatchParams {
     /// Protocol version for the new L1 batch.
@@ -104,7 +104,7 @@ impl L1BatchParams {
 ///
 /// All errors returned from this method are treated as unrecoverable.
 #[async_trait]
-pub trait StateKeeperSequencer: 'static + Send + fmt::Debug + IoSealCriteria {
+pub trait StateKeeperIO: 'static + Send + fmt::Debug + IoSealCriteria {
     /// Returns the ID of the L2 chain. This ID is supposed to be static.
     fn chain_id(&self) -> L2ChainId;
 

@@ -17,7 +17,7 @@ use zksync_utils::time::seconds_since_epoch;
 use self::tester::Tester;
 use crate::{
     state_keeper::{
-        io::StateKeeperSequencer,
+        io::StateKeeperIO,
         mempool_actor::l2_tx_filter,
         tests::{create_execution_result, create_transaction, Query, BASE_SYSTEM_CONTRACTS},
         updates::{MiniblockSealCommand, MiniblockUpdates, UpdatesManager},

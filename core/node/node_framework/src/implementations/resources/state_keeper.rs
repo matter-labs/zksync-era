@@ -1,13 +1,13 @@
 use std::sync::Arc;
 
 use zksync_core::state_keeper::{
-    seal_criteria::ConditionalSealer, BatchExecutor, HandleStateKeeperOutput, StateKeeperSequencer,
+    seal_criteria::ConditionalSealer, BatchExecutor, HandleStateKeeperOutput, StateKeeperIO,
 };
 
 use crate::resource::{Resource, ResourceId, Unique};
 
 #[derive(Debug, Clone)]
-pub struct StateKeeperIOResource(pub Unique<Box<dyn StateKeeperSequencer>>);
+pub struct StateKeeperIOResource(pub Unique<Box<dyn StateKeeperIO>>);
 
 impl Resource for StateKeeperIOResource {
     fn resource_id() -> ResourceId {
@@ -25,11 +25,11 @@ impl Resource for BatchExecutorResource {
 }
 
 #[derive(Debug, Clone)]
-pub struct StateKeeperPersistenceResource(pub Unique<Box<dyn HandleStateKeeperOutput>>);
+pub struct StateKeeperOutputHandlerResource(pub Unique<Box<dyn HandleStateKeeperOutput>>);
 
-impl Resource for StateKeeperPersistenceResource {
+impl Resource for StateKeeperOutputHandlerResource {
     fn resource_id() -> ResourceId {
-        "state_keeper/persistence".into()
+        "state_keeper/output_handler".into()
     }
 }
 

@@ -26,8 +26,7 @@ use crate::{
         extractors,
         io::{
             common::{load_pending_batch, poll_iters, IoCursor},
-            fee_address_migration, L1BatchParams, MiniblockParams, PendingBatchData,
-            StateKeeperSequencer,
+            fee_address_migration, L1BatchParams, MiniblockParams, PendingBatchData, StateKeeperIO,
         },
         mempool_actor::l2_tx_filter,
         metrics::KEEPER_METRICS,
@@ -42,7 +41,7 @@ use crate::{
 /// Decides which batch parameters should be used for the new batch.
 /// This is an IO for the main server application.
 #[derive(Debug)]
-pub struct MempoolSequencer {
+pub struct MempoolIO {
     mempool: MempoolGuard,
     pool: ConnectionPool,
     timeout_sealer: TimeoutSealer,
@@ -59,7 +58,7 @@ pub struct MempoolSequencer {
     virtual_blocks_per_miniblock: u32,
 }
 
-impl IoSealCriteria for MempoolSequencer {
+impl IoSealCriteria for MempoolIO {
     fn should_seal_l1_batch_unconditionally(&mut self, manager: &UpdatesManager) -> bool {
         self.timeout_sealer
             .should_seal_l1_batch_unconditionally(manager)
@@ -71,7 +70,7 @@ impl IoSealCriteria for MempoolSequencer {
 }
 
 #[async_trait]
-impl StateKeeperSequencer for MempoolSequencer {
+impl StateKeeperIO for MempoolIO {
     fn chain_id(&self) -> L2ChainId {
         self.chain_id
     }
@@ -361,7 +360,7 @@ async fn sleep_past(timestamp: u64, miniblock: MiniblockNumber) -> u64 {
     }
 }
 
-impl MempoolSequencer {
+impl MempoolIO {
     #[allow(clippy::too_many_arguments)]
     pub async fn new(
         mempool: MempoolGuard,
@@ -449,7 +448,7 @@ impl MempoolSequencer {
 
 /// Getters required for testing the MempoolIO.
 #[cfg(test)]
-impl MempoolSequencer {
+impl MempoolIO {
     pub(super) fn filter(&self) -> &L2TxFilter {
         &self.filter
     }

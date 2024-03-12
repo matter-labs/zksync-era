@@ -19,7 +19,7 @@ pub(crate) fn poll_iters(delay_interval: Duration, max_wait: Duration) -> usize 
     ((max_wait_millis + delay_interval_millis - 1) / delay_interval_millis).max(1) as usize
 }
 
-/// Cursor of the miniblock / L1 batch progress used by [`StateKeeperIO`](super::StateKeeperSequencer) implementations.
+/// Cursor of the miniblock / L1 batch progress used by [`StateKeeperIO`](super::StateKeeperIO) implementations.
 #[derive(Debug)]
 pub struct IoCursor {
     pub next_miniblock: MiniblockNumber,

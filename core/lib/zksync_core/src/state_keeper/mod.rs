@@ -10,8 +10,8 @@ use zksync_dal::ConnectionPool;
 pub use self::{
     batch_executor::{main_executor::MainBatchExecutor, BatchExecutor},
     io::{
-        mempool::MempoolSequencer, HandleStateKeeperOutput, MiniblockSealerTask,
-        StateKeeperPersistence, StateKeeperSequencer,
+        mempool::MempoolIO, HandleStateKeeperOutput, MiniblockSealerTask, StateKeeperIO,
+        StateKeeperPersistence,
     },
     keeper::ZkSyncStateKeeper,
     mempool_actor::MempoolFetcher,
@@ -54,7 +54,7 @@ pub(crate) async fn create_state_keeper(
         false,
     );
 
-    let io = MempoolSequencer::new(
+    let io = MempoolIO::new(
         mempool,
         batch_fee_input_provider,
         pool,
