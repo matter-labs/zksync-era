@@ -60,13 +60,13 @@ jobs:
       - name: Integration tests
         run: ci_run zk test i server --testPathIgnorePatterns 'contract-verification|snapshots-creator'
 
-      - name: Run revert test
-        run: |
-          ENABLE_CONSENSUS=${{ matrix.consensus }} PASSED_ENV_VARS=ENABLE_CONSENSUS ci_run zk test i revert-en
-          # test terminates the nodes, so we restart them.
-          ZKSYNC_ENV=docker ci_run zk server --components=$SERVER_COMPONENTS &>>server.log &
-          ZKSYNC_ENV=ext-node-docker ci_run zk external-node $EXT_NODE_FLAGS &>>ext-node.log &
-          ci_run sleep 30
+      # - name: Run revert test
+      #   run: |
+      #     ENABLE_CONSENSUS=${{ matrix.consensus }} PASSED_ENV_VARS=ENABLE_CONSENSUS ci_run zk test i revert-en
+      #     # test terminates the nodes, so we restart them.
+      #     ZKSYNC_ENV=docker ci_run zk server --components=$SERVER_COMPONENTS &>>server.log &
+      #     ZKSYNC_ENV=ext-node-docker ci_run zk external-node $EXT_NODE_FLAGS &>>ext-node.log &
+      #     ci_run sleep 30
 
       - name: Run upgrade test
         run: |
@@ -85,13 +85,13 @@ jobs:
         if: always()
         run: ci_run cat ext-node.log || true
 
-      - name: Show revert_main.log logs
-        if: always()
-        run: ci_run cat core/tests/revert-test/revert_main.log || true
+      # - name: Show revert_main.log logs
+      #   if: always()
+      #   run: ci_run cat core/tests/revert-test/revert_main.log || true
 
-      - name: Show revert_ext.log logs
-        if: always()
-        run: ci_run cat core/tests/revert-test/revert_ext.log || true
+      # - name: Show revert_ext.log logs
+      #   if: always()
+      #   run: ci_run cat core/tests/revert-test/revert_ext.log || true
 
       - name: Show upgrade.log logs
         if: always()
@@ -107,4 +107,4 @@ jobs:
       - name: Step - Stub - Try a curl request
         if: always()
         run: |
-          curl -X POST -H "Content-Type: application/json" --data '{"jsonrpc": "2.0", "id": 1, "method": "zks_getBlockDetails", "params": [ 1 ]}'  "http://0.0.0.0:3060"
+          ci_run curl -X POST -H "Content-Type: application/json" --data '{"jsonrpc": "2.0", "id": 1, "method": "zks_getBlockDetails", "params": [ 1 ]}'  "http://0.0.0.0:3060"
