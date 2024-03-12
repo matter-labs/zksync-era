@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import * as utils from './utils';
-import { Wallet } from 'ethers';
+import { BigNumber, ethers, Wallet } from 'ethers';
 import fs from 'fs';
 import * as path from 'path';
 import { getTokens } from './hyperchain_wizard';
@@ -58,7 +58,23 @@ export async function catLogs(exitCode?: number) {
     }
 }
 
-export async function testAccounts() {
+function readTestMnemonic() {
+    const testConfigPath = path.join(process.env.ZKSYNC_HOME as string, `etc/test_config/constant`);
+    return JSON.parse(fs.readFileSync(`${testConfigPath}/eth.json`, { encoding: 'utf-8' }));
+}
+
+type SimpleWallet = {
+    address: string;
+    privateKey: string;
+};
+
+export async function readTestAccounts() {
+    const ethTestConfig = readTestMnemonic();
+    let wallets = await testAccounts(ethTestConfig.test_mnemonic as string);
+    console.log(JSON.stringify(wallets, null, 4));
+}
+
+export async function testAccounts(mnemonic: string): Promise<SimpleWallet[]> {
     const testConfigPath = path.join(process.env.ZKSYNC_HOME as string, `etc/test_config/constant`);
     const ethTestConfig = JSON.parse(fs.readFileSync(`${testConfigPath}/eth.json`, { encoding: 'utf-8' }));
     const NUM_TEST_WALLETS = 10;
@@ -71,7 +87,7 @@ export async function testAccounts() {
             privateKey: ethWallet.privateKey
         });
     }
-    console.log(JSON.stringify(walletKeys, null, 4));
+    return walletKeys;
 }
 
 export async function loadtest(...args: string[]) {
@@ -97,7 +113,7 @@ export async function snapshots_creator() {
 
 export const command = new Command('run').description('run miscellaneous applications');
 
-command.command('test-accounts').description('print ethereum test accounts').action(testAccounts);
+command.command('test-accounts').description('print ethereum test accounts').action(readTestAccounts);
 command.command('yarn install --frozen-lockfile').description('install all JS dependencies').action(yarn);
 command.command('cat-logs [exit_code]').description('print server and prover logs').action(catLogs);
 

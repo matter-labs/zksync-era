@@ -8,13 +8,13 @@ test_database_prover_url="postgres://postgres:notsecurepassword@localhost:5433/p
 
 [eth_sender.sender]
 # Set in env file for development, production, staging and testnet.
-operator_private_key="0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6"
+operator_private_key="0x27593fea79697e947890ecbecce7901b0008345e5d7259710d0dd5e500d040be"
 # Address to be used for zkSync account managing the interaction with a contract on Ethereum.
 # Derived from the `OPERATOR_PRIVATE_KEY`.
-operator_commit_eth_addr="0xa0Ee7A142d267C1f36714E4a8F75612F20a79720"
+operator_commit_eth_addr="0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7"
 
-operator_blobs_private_key="0x4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356"
-operator_blobs_eth_addr="0x14dC79964da2C08b23698B3D3cc7Ca32193d9955"
+operator_blobs_private_key="0xe667e57a9b8aaa6709e51ff7d093f1c5b73b63f9987e4ab4aa9a5c699e024ee8"
+operator_blobs_eth_addr="0x4F9133D1d3F50011A6859807C837bdCB31Aaab13"
 
 [consensus]
 config_path = "etc/env/consensus_config.yaml"
