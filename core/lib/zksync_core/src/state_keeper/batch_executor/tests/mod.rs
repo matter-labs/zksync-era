@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use assert_matches::assert_matches;
 use test_casing::{cases, test_casing, TestCases};
 use zksync_dal::ConnectionPool;
@@ -7,9 +9,11 @@ use zksync_types::{
     PriorityOpId,
 };
 
-use self::tester::{AccountLoadNextExecutable, StorageSnapshot, TestConfig, Tester};
+use self::{
+    read_storage_factory::{PostgresFactory, RocksdbFactory},
+    tester::{AccountLoadNextExecutable, StorageSnapshot, TestConfig, Tester},
+};
 use super::{BatchExecutorHandle, TxExecutionResult};
-use crate::state_keeper::StateKeeperStorage;
 
 mod read_storage_factory;
 mod tester;
@@ -51,11 +55,11 @@ impl StorageType {
             StorageType::Rocksdb => {
                 tester
                     .create_batch_executor_inner(
-                        StateKeeperStorage::rocksdb(
+                        Arc::new(RocksdbFactory::new(
                             tester.pool(),
                             tester.state_keeper_db_path(),
                             tester.enum_index_migration_chunk_size(),
-                        ),
+                        )),
                         l1_batch_env,
                         system_env,
                     )
@@ -64,7 +68,7 @@ impl StorageType {
             StorageType::Postgres => {
                 tester
                     .create_batch_executor_inner(
-                        StateKeeperStorage::postgres(tester.pool()),
+                        Arc::new(PostgresFactory::new(tester.pool())),
                         l1_batch_env,
                         system_env,
                     )
@@ -83,11 +87,11 @@ impl StorageType {
             StorageType::Rocksdb => {
                 tester
                     .recover_batch_executor_inner(
-                        StateKeeperStorage::rocksdb(
+                        Arc::new(RocksdbFactory::new(
                             tester.pool(),
                             tester.state_keeper_db_path(),
                             tester.enum_index_migration_chunk_size(),
-                        ),
+                        )),
                         snapshot,
                     )
                     .await
@@ -95,7 +99,7 @@ impl StorageType {
             StorageType::Postgres => {
                 tester
                     .recover_batch_executor_inner(
-                        StateKeeperStorage::postgres(tester.pool()),
+                        Arc::new(PostgresFactory::new(tester.pool())),
                         snapshot,
                     )
                     .await

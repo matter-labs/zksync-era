@@ -24,7 +24,7 @@ use crate::{
     metrics::{InteractionType, TxStage, APP_METRICS},
     state_keeper::{
         metrics::{TxExecutionStage, BATCH_TIP_METRICS, EXECUTOR_METRICS, KEEPER_METRICS},
-        state_keeper_storage::{AsyncRocksdbCache, ReadStorageFactory, StateKeeperStorage},
+        state_keeper_storage::ReadStorageFactory,
         types::ExecutionMetricsForCriteria,
     },
 };
@@ -32,24 +32,24 @@ use crate::{
 /// The default implementation of [`BatchExecutor`].
 /// Creates a "real" batch executor which maintains the VM (as opposed to the test builder which doesn't use the VM).
 #[derive(Debug, Clone)]
-pub struct MainBatchExecutor<T: ReadStorageFactory = AsyncRocksdbCache> {
-    storage: StateKeeperStorage<T>,
+pub struct MainBatchExecutor {
+    storage_factory: Arc<dyn ReadStorageFactory>,
     save_call_traces: bool,
     max_allowed_tx_gas_limit: U256,
     upload_witness_inputs_to_gcs: bool,
     optional_bytecode_compression: bool,
 }
 
-impl<T: ReadStorageFactory> MainBatchExecutor<T> {
+impl MainBatchExecutor {
     pub fn new(
-        storage: StateKeeperStorage<T>,
+        storage_factory: Arc<dyn ReadStorageFactory>,
         max_allowed_tx_gas_limit: U256,
         save_call_traces: bool,
         upload_witness_inputs_to_gcs: bool,
         optional_bytecode_compression: bool,
     ) -> Self {
         Self {
-            storage,
+            storage_factory,
             save_call_traces,
             max_allowed_tx_gas_limit,
             upload_witness_inputs_to_gcs,
@@ -59,7 +59,7 @@ impl<T: ReadStorageFactory> MainBatchExecutor<T> {
 }
 
 #[async_trait]
-impl<T: ReadStorageFactory> BatchExecutor for MainBatchExecutor<T> {
+impl BatchExecutor for MainBatchExecutor {
     async fn init_batch(
         &mut self,
         l1_batch_params: L1BatchEnv,
@@ -77,12 +77,12 @@ impl<T: ReadStorageFactory> BatchExecutor for MainBatchExecutor<T> {
         };
         let upload_witness_inputs_to_gcs = self.upload_witness_inputs_to_gcs;
 
-        let factory = self.storage.factory();
+        let storage_factory = self.storage_factory.clone();
         let stop_receiver = stop_receiver.clone();
         let handle = tokio::task::spawn_blocking(move || {
             let rt_handle = Handle::current();
             if let Some(storage) = rt_handle
-                .block_on(factory.access_storage(rt_handle.clone(), &stop_receiver))
+                .block_on(storage_factory.access_storage(rt_handle.clone(), &stop_receiver))
                 .expect("failed getting access to state keeper storage")
             {
                 executor.run(

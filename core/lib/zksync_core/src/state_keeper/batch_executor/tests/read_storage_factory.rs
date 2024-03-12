@@ -1,14 +1,10 @@
-use std::sync::{Arc, Mutex};
-
 use anyhow::Context;
 use async_trait::async_trait;
 use tokio::{runtime::Handle, sync::watch};
 use zksync_dal::ConnectionPool;
-use zksync_state::{
-    open_state_keeper_rocksdb, PostgresStorage, RocksdbStorage, RocksdbStorageBuilder,
-};
+use zksync_state::{open_state_keeper_rocksdb, PostgresStorage, RocksdbStorageBuilder};
 
-use crate::state_keeper::{state_keeper_storage::ReadStorageFactory, StateKeeperStorage};
+use crate::state_keeper::state_keeper_storage::{PgOrRocksdbStorage, ReadStorageFactory};
 
 #[derive(Debug, Clone)]
 pub struct PostgresFactory {
@@ -17,13 +13,11 @@ pub struct PostgresFactory {
 
 #[async_trait]
 impl ReadStorageFactory for PostgresFactory {
-    type ReadStorageImpl<'a> = PostgresStorage<'a>;
-
     async fn access_storage<'a>(
         &'a self,
         rt_handle: Handle,
         _stop_receiver: &watch::Receiver<bool>,
-    ) -> anyhow::Result<Option<Self::ReadStorageImpl<'a>>> {
+    ) -> anyhow::Result<Option<PgOrRocksdbStorage<'a>>> {
         let mut connection = self
             .pool
             .access_storage()
@@ -47,15 +41,15 @@ impl ReadStorageFactory for PostgresFactory {
             miniblock_number
         };
 
-        Ok(Some(
+        Ok(Some(PgOrRocksdbStorage::Postgres(
             PostgresStorage::new_async(rt_handle, connection, miniblock_number, true).await?,
-        ))
+        )))
     }
 }
 
-impl StateKeeperStorage<PostgresFactory> {
-    pub fn postgres(pool: ConnectionPool) -> Self {
-        StateKeeperStorage::new(Arc::new(Mutex::new(PostgresFactory { pool })))
+impl PostgresFactory {
+    pub fn new(pool: ConnectionPool) -> Self {
+        Self { pool }
     }
 }
 
@@ -68,13 +62,11 @@ pub struct RocksdbFactory {
 
 #[async_trait]
 impl ReadStorageFactory for RocksdbFactory {
-    type ReadStorageImpl<'a> = RocksdbStorage;
-
     async fn access_storage<'a>(
         &'a self,
         _rt_handle: Handle,
         stop_receiver: &watch::Receiver<bool>,
-    ) -> anyhow::Result<Option<Self::ReadStorageImpl<'a>>> {
+    ) -> anyhow::Result<Option<PgOrRocksdbStorage<'a>>> {
         let mut builder: RocksdbStorageBuilder =
             open_state_keeper_rocksdb(self.state_keeper_db_path.clone().into())
                 .await
@@ -86,23 +78,27 @@ impl ReadStorageFactory for RocksdbFactory {
             .access_storage_tagged("state_keeper")
             .await
             .context("Failed getting a connection to Postgres")?;
-        builder
+        let Some(rocksdb_storage) = builder
             .synchronize(&mut conn, stop_receiver)
             .await
-            .context("Failed synchronizing state keeper's RocksDB to Postgres")
+            .context("Failed synchronizing state keeper's RocksDB to Postgres")?
+        else {
+            return Ok(None);
+        };
+        Ok(Some(PgOrRocksdbStorage::Rocksdb(rocksdb_storage)))
     }
 }
 
-impl StateKeeperStorage<RocksdbFactory> {
-    pub fn rocksdb(
+impl RocksdbFactory {
+    pub fn new(
         pool: ConnectionPool,
         state_keeper_db_path: String,
         enum_index_migration_chunk_size: usize,
     ) -> Self {
-        StateKeeperStorage::new(Arc::new(Mutex::new(RocksdbFactory {
+        Self {
             pool,
             state_keeper_db_path,
             enum_index_migration_chunk_size,
-        })))
+        }
     }
 }

@@ -1,5 +1,7 @@
+use std::sync::Arc;
+
 use zksync_config::{configs::chain::StateKeeperConfig, DBConfig};
-use zksync_core::state_keeper::{MainBatchExecutor, StateKeeperStorage};
+use zksync_core::state_keeper::{AsyncRocksdbCache, MainBatchExecutor};
 
 use crate::{
     implementations::resources::{pools::MasterPoolResource, state_keeper::BatchExecutorResource},
@@ -32,13 +34,13 @@ impl WiringLayer for MainBatchExecutorLayer {
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         let master_pool = context.get_resource::<MasterPoolResource>().await?;
 
-        let state_keeper_storage = StateKeeperStorage::async_rocksdb_cache(
+        let storage_factory = AsyncRocksdbCache::new(
             master_pool.get_singleton().await?,
             self.db_config.state_keeper_db_path,
             self.state_keeper_config.enum_index_migration_chunk_size(),
         );
         let builder = MainBatchExecutor::new(
-            state_keeper_storage,
+            Arc::new(storage_factory),
             self.state_keeper_config.max_allowed_l2_tx_gas_limit.into(),
             self.state_keeper_config.save_call_traces,
             self.state_keeper_config.upload_witness_inputs_to_gcs,

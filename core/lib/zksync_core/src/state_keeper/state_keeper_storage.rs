@@ -1,10 +1,8 @@
-use std::{
-    fmt::Debug,
-    sync::{Arc, Mutex},
-};
+use std::{fmt::Debug, sync::Arc};
 
 use anyhow::Context;
 use async_trait::async_trait;
+use once_cell::sync::OnceCell;
 use tokio::{runtime::Handle, sync::watch};
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_state::{
@@ -14,30 +12,14 @@ use zksync_state::{
 use zksync_storage::RocksDB;
 use zksync_types::{L1BatchNumber, MiniblockNumber};
 
-/// Encapsulates a storage that can produce a [`ReadStorageFactory`] on demand.
-///
-/// This struct's main design purpose is to be able to produce a (cheap) owned [`ReadStorageFactory`]
-/// implementation that can then be used to obtain a short-lived [`ReadStorage`] handle bound to
-/// the respective factory.
-#[derive(Debug, Clone)]
-pub struct StateKeeperStorage<T: ReadStorageFactory> {
-    // FIXME: `Arc<Mutex<_>>` is a bit of a leaky abstraction here as it exists mostly because of
-    // the mutable nature of [`AsyncRocksdbCache`].
-    inner: Arc<Mutex<T>>,
-}
-
 /// Factory that can produce a [`ReadStorage`] implementation on demand.
 #[async_trait]
-pub trait ReadStorageFactory: Clone + Debug + Send + Sync + 'static {
-    type ReadStorageImpl<'a>: ReadStorage
-    where
-        Self: 'a;
-
+pub trait ReadStorageFactory: Debug + Send + Sync + 'static {
     async fn access_storage<'a>(
         &'a self,
         rt_handle: Handle,
         stop_receiver: &watch::Receiver<bool>,
-    ) -> anyhow::Result<Option<Self::ReadStorageImpl<'a>>>;
+    ) -> anyhow::Result<Option<PgOrRocksdbStorage<'a>>>;
 }
 
 /// A [`ReadStorage`] implementation that uses either [`PostgresStorage`] or [`RocksdbStorage`]
@@ -45,35 +27,35 @@ pub trait ReadStorageFactory: Clone + Debug + Send + Sync + 'static {
 #[derive(Debug)]
 pub enum PgOrRocksdbStorage<'a> {
     Postgres(PostgresStorage<'a>),
-    RocksdbStorage(RocksdbStorage),
+    Rocksdb(RocksdbStorage),
 }
 
 impl ReadStorage for PgOrRocksdbStorage<'_> {
     fn read_value(&mut self, key: &zksync_types::StorageKey) -> zksync_types::StorageValue {
         match self {
             Self::Postgres(postgres) => postgres.read_value(key),
-            Self::RocksdbStorage(rocksdb) => rocksdb.read_value(key),
+            Self::Rocksdb(rocksdb) => rocksdb.read_value(key),
         }
     }
 
     fn is_write_initial(&mut self, key: &zksync_types::StorageKey) -> bool {
         match self {
             Self::Postgres(postgres) => postgres.is_write_initial(key),
-            Self::RocksdbStorage(rocksdb) => rocksdb.is_write_initial(key),
+            Self::Rocksdb(rocksdb) => rocksdb.is_write_initial(key),
         }
     }
 
     fn load_factory_dep(&mut self, hash: zksync_types::H256) -> Option<Vec<u8>> {
         match self {
             Self::Postgres(postgres) => postgres.load_factory_dep(hash),
-            Self::RocksdbStorage(rocksdb) => rocksdb.load_factory_dep(hash),
+            Self::Rocksdb(rocksdb) => rocksdb.load_factory_dep(hash),
         }
     }
 
     fn get_enumeration_index(&mut self, key: &zksync_types::StorageKey) -> Option<u64> {
         match self {
             Self::Postgres(postgres) => postgres.get_enumeration_index(key),
-            Self::RocksdbStorage(rocksdb) => rocksdb.get_enumeration_index(key),
+            Self::Rocksdb(rocksdb) => rocksdb.get_enumeration_index(key),
         }
     }
 }
@@ -86,7 +68,7 @@ impl<'a> From<PostgresStorage<'a>> for PgOrRocksdbStorage<'a> {
 
 impl<'a> From<RocksdbStorage> for PgOrRocksdbStorage<'a> {
     fn from(value: RocksdbStorage) -> Self {
-        Self::RocksdbStorage(value)
+        Self::Rocksdb(value)
     }
 }
 
@@ -96,9 +78,9 @@ impl<'a> From<RocksdbStorage> for PgOrRocksdbStorage<'a> {
 /// can never revert back to `Postgres` as we assume RocksDB cannot fall behind under normal state
 /// keeper operation.
 #[derive(Debug, Clone)]
-pub enum AsyncRocksdbCache {
-    Postgres(ConnectionPool),
-    Rocksdb(RocksDB<StateKeeperColumnFamily>, ConnectionPool),
+pub struct AsyncRocksdbCache {
+    pool: ConnectionPool,
+    rocksdb: Arc<OnceCell<RocksDB<StateKeeperColumnFamily>>>,
 }
 
 impl AsyncRocksdbCache {
@@ -181,14 +163,10 @@ impl AsyncRocksdbCache {
         rt_handle: Handle,
         stop_receiver: &watch::Receiver<bool>,
     ) -> anyhow::Result<Option<PgOrRocksdbStorage<'a>>> {
-        match self {
-            AsyncRocksdbCache::Postgres(pool) => Ok(Some(
-                Self::access_storage_pg(rt_handle, pool)
-                    .await
-                    .context("Failed accessing Postgres storage")?,
-            )),
-            AsyncRocksdbCache::Rocksdb(rocksdb, pool) => {
-                let mut conn = pool
+        match self.rocksdb.get() {
+            Some(rocksdb) => {
+                let mut conn = self
+                    .pool
                     .access_storage_tagged("state_keeper")
                     .await
                     .context("Failed getting a Postgres connection")?;
@@ -196,42 +174,22 @@ impl AsyncRocksdbCache {
                     .await
                     .context("Failed accessing RocksDB storage")
             }
+            None => Ok(Some(
+                Self::access_storage_pg(rt_handle, &self.pool)
+                    .await
+                    .context("Failed accessing Postgres storage")?,
+            )),
         }
     }
-}
 
-#[async_trait]
-impl ReadStorageFactory for AsyncRocksdbCache {
-    type ReadStorageImpl<'a> = PgOrRocksdbStorage<'a>;
-
-    async fn access_storage<'a>(
-        &'a self,
-        rt_handle: Handle,
-        stop_receiver: &watch::Receiver<bool>,
-    ) -> anyhow::Result<Option<Self::ReadStorageImpl<'a>>> {
-        self.access_storage_inner(rt_handle, stop_receiver).await
-    }
-}
-
-impl<T: ReadStorageFactory> StateKeeperStorage<T> {
-    pub fn new(inner: Arc<Mutex<T>>) -> StateKeeperStorage<T> {
-        Self { inner }
-    }
-
-    pub fn factory(&self) -> T {
-        // It's important that we don't hold the lock for long; that's why `T` implements `Clone`
-        self.inner.lock().expect("poisoned").clone()
-    }
-}
-
-impl StateKeeperStorage<AsyncRocksdbCache> {
-    pub fn async_rocksdb_cache(
+    pub fn new(
         pool: ConnectionPool,
         state_keeper_db_path: String,
         enum_index_migration_chunk_size: usize,
     ) -> Self {
-        let inner = Arc::new(Mutex::new(AsyncRocksdbCache::Postgres(pool.clone())));
-        let factory = inner.clone();
+        let rocksdb = Arc::new(OnceCell::new());
+        let rocksdb_clone = rocksdb.clone();
+        let pool_clone = pool.clone();
         tokio::task::spawn(async move {
             tracing::debug!("Catching up RocksDB asynchronously");
             let mut rocksdb_builder: RocksdbStorageBuilder =
@@ -240,7 +198,7 @@ impl StateKeeperStorage<AsyncRocksdbCache> {
                     .expect("Failed initializing RocksDB storage")
                     .into();
             rocksdb_builder.enable_enum_index_migration(enum_index_migration_chunk_size);
-            let mut storage = pool
+            let mut storage = pool_clone
                 .access_storage()
                 .await
                 .expect("Failed accessing Postgres storage");
@@ -251,12 +209,24 @@ impl StateKeeperStorage<AsyncRocksdbCache> {
                 .expect("Failed to catch up RocksDB to Postgres");
             drop(storage);
             if let Some(rocksdb) = rocksdb {
-                let mut factory_guard = factory.lock().expect("poisoned");
-                *factory_guard = AsyncRocksdbCache::Rocksdb(rocksdb.into(), pool)
+                rocksdb_clone
+                    .set(rocksdb.into())
+                    .expect("Async RocksDB cache was initialized twice");
             } else {
                 tracing::info!("Synchronizing RocksDB interrupted");
             }
         });
-        Self::new(inner)
+        Self { pool, rocksdb }
+    }
+}
+
+#[async_trait]
+impl ReadStorageFactory for AsyncRocksdbCache {
+    async fn access_storage<'a>(
+        &'a self,
+        rt_handle: Handle,
+        stop_receiver: &watch::Receiver<bool>,
+    ) -> anyhow::Result<Option<PgOrRocksdbStorage<'a>>> {
+        self.access_storage_inner(rt_handle, stop_receiver).await
     }
 }

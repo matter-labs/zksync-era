@@ -1,7 +1,7 @@
 //! Testing harness for the batch executor.
 //! Contains helper functionality to initialize test context and perform tests without too much boilerplate.
 
-use std::{collections::HashMap, fmt::Debug};
+use std::{collections::HashMap, fmt::Debug, sync::Arc};
 
 use multivm::{
     interface::{L1BatchEnv, L2BlockEnv, SystemEnv},
@@ -29,7 +29,7 @@ use crate::{
         batch_executor::{BatchExecutorHandle, TxExecutionResult},
         state_keeper_storage::ReadStorageFactory,
         tests::{default_l1_batch_env, default_system_env, BASE_SYSTEM_CONTRACTS},
-        BatchExecutor, MainBatchExecutor, StateKeeperStorage,
+        AsyncRocksdbCache, BatchExecutor, MainBatchExecutor,
     },
     utils::testonly::prepare_recovery_snapshot,
 };
@@ -94,23 +94,23 @@ impl Tester {
     /// This function intentionally uses sensible defaults to not introduce boilerplate.
     pub(super) async fn create_batch_executor(&self) -> BatchExecutorHandle {
         let (l1_batch_env, system_env) = self.default_batch_params();
-        let state_keeper_storage = StateKeeperStorage::async_rocksdb_cache(
+        let state_keeper_storage = AsyncRocksdbCache::new(
             self.pool(),
             self.state_keeper_db_path(),
             self.enum_index_migration_chunk_size(),
         );
-        self.create_batch_executor_inner(state_keeper_storage, l1_batch_env, system_env)
+        self.create_batch_executor_inner(Arc::new(state_keeper_storage), l1_batch_env, system_env)
             .await
     }
 
-    pub(super) async fn create_batch_executor_inner<T: ReadStorageFactory>(
+    pub(super) async fn create_batch_executor_inner(
         &self,
-        state_keeper_storage: StateKeeperStorage<T>,
+        storage_factory: Arc<dyn ReadStorageFactory>,
         l1_batch_env: L1BatchEnv,
         system_env: SystemEnv,
     ) -> BatchExecutorHandle {
         let mut batch_executor = MainBatchExecutor::new(
-            state_keeper_storage,
+            storage_factory,
             self.config.max_allowed_tx_gas_limit.into(),
             self.config.save_call_traces,
             self.config.upload_witness_inputs_to_gcs,
@@ -127,18 +127,18 @@ impl Tester {
         &self,
         snapshot: &SnapshotRecoveryStatus,
     ) -> BatchExecutorHandle {
-        let state_keeper_storage = StateKeeperStorage::async_rocksdb_cache(
+        let storage_factory = AsyncRocksdbCache::new(
             self.pool(),
             self.state_keeper_db_path(),
             self.enum_index_migration_chunk_size(),
         );
-        self.recover_batch_executor_inner(state_keeper_storage, snapshot)
+        self.recover_batch_executor_inner(Arc::new(storage_factory), snapshot)
             .await
     }
 
-    pub(super) async fn recover_batch_executor_inner<T: ReadStorageFactory>(
+    pub(super) async fn recover_batch_executor_inner(
         &self,
-        state_keeper_storage: StateKeeperStorage<T>,
+        storage_factory: Arc<dyn ReadStorageFactory>,
         snapshot: &SnapshotRecoveryStatus,
     ) -> BatchExecutorHandle {
         let current_timestamp = snapshot.miniblock_timestamp + 1;
@@ -152,7 +152,7 @@ impl Tester {
             max_virtual_blocks_to_create: 1,
         };
 
-        self.create_batch_executor_inner(state_keeper_storage, l1_batch_env, system_env)
+        self.create_batch_executor_inner(storage_factory, l1_batch_env, system_env)
             .await
     }
 

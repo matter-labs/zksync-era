@@ -25,8 +25,8 @@ use zksync_core::{
     reorg_detector::ReorgDetector,
     setup_sigint_handler,
     state_keeper::{
-        seal_criteria::NoopSealer, BatchExecutor, MainBatchExecutor, MiniblockSealer,
-        MiniblockSealerHandle, StateKeeperStorage, ZkSyncStateKeeper,
+        seal_criteria::NoopSealer, AsyncRocksdbCache, BatchExecutor, MainBatchExecutor,
+        MiniblockSealer, MiniblockSealerHandle, ZkSyncStateKeeper,
     },
     sync_layer::{
         batch_status_updater::BatchStatusUpdater, external_io::ExternalIO,
@@ -75,13 +75,13 @@ async fn build_state_keeper(
     // We only need call traces on the external node if the `debug_` namespace is enabled.
     let save_call_traces = config.optional.api_namespaces().contains(&Namespace::Debug);
 
-    let state_keeper_storage = StateKeeperStorage::async_rocksdb_cache(
+    let storage_factory = AsyncRocksdbCache::new(
         connection_pool.clone(),
         state_keeper_db_path,
         config.optional.enum_index_migration_chunk_size,
     );
     let batch_executor_base: Box<dyn BatchExecutor> = Box::new(MainBatchExecutor::new(
-        state_keeper_storage,
+        Arc::new(storage_factory),
         max_allowed_l2_tx_gas_limit,
         save_call_traces,
         false,
