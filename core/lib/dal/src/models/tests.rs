@@ -11,50 +11,6 @@ use zksync_utils::bigdecimal_to_u256;
 
 use crate::{models::storage_transaction::StorageTransaction, BigDecimal};
 
-/// Creates an "empty" transaction with all values set to None / zeros / left empty etc.
-///
-/// Used by other tests as a template to create transactions of a specific type.
-fn empty_tx() -> StorageTransaction {
-    StorageTransaction {
-        gas_limit: None,
-        full_fee: None,
-        layer_2_tip_fee: None,
-        l1_tx_mint: None,
-        l1_tx_refund_recipient: None,
-        hash: vec![],
-        initiator_address: vec![],
-        priority_op_id: None,
-        max_fee_per_gas: None,
-        gas_per_pubdata_limit: None,
-        l1_block_number: None,
-        data: serde_json::Value::default(),
-        received_at: Utc::now().naive_utc(),
-        tx_format: None,
-        is_priority: false,
-        nonce: None,
-        signature: None,
-        max_priority_fee_per_gas: None,
-        gas_per_storage_limit: None,
-        in_mempool: false,
-        l1_batch_number: None,
-        l1_batch_tx_index: None,
-        miniblock_number: None,
-        index_in_block: None,
-        error: None,
-        effective_gas_price: None,
-        contract_address: None,
-        value: Default::default(),
-        paymaster: vec![],
-        paymaster_input: vec![],
-        refunded_gas: 0,
-        execution_info: Default::default(),
-        upgrade_id: None,
-        created_at: Default::default(),
-        input: None,
-        updated_at: Default::default(),
-    }
-}
-
 fn default_execute() -> Execute {
     Execute {
         contract_address: H160::random(),
@@ -83,7 +39,7 @@ fn protocol_upgrade_storage_tx() -> StorageTransaction {
         max_fee_per_gas: Some(BigDecimal::from(555)),
         gas_per_pubdata_limit: Some(BigDecimal::from(444)),
         l1_block_number: Some(1),
-        ..empty_tx()
+        ..StorageTransaction::default()
     }
 }
 
@@ -104,7 +60,7 @@ fn l1_storage_tx() -> StorageTransaction {
         data: serde_json::to_value(default_execute().clone()).expect("invalid value"),
         received_at: Utc::now().naive_utc(),
         tx_format: Some(PRIORITY_OPERATION_L2_TX_TYPE as i32),
-        ..empty_tx()
+        ..StorageTransaction::default()
     }
 }
 
@@ -136,7 +92,7 @@ fn l2_storage_tx(tx_format: i32) -> StorageTransaction {
         .unwrap(),
         // correctness of the signature doesn't matter for this test
         signature: Some("ABCD".as_bytes().to_vec()),
-        ..empty_tx()
+        ..StorageTransaction::default()
     }
 }
 
