@@ -12,16 +12,13 @@ use zksync_env_config::FromEnv;
 use zksync_object_store::ObjectStore;
 use zksync_prover_fri_types::{
     circuit_definitions::{
-        aux_definitions::witness_oracle::VmWitnessOracle,
         base_layer_proof_config,
-        boojum::{
-            cs::implementations::pow::NoPow, field::goldilocks::GoldilocksField, worker::Worker,
-        },
+        boojum::{cs::implementations::pow::NoPow, worker::Worker},
         circuit_definitions::{
             base_layer::{ZkSyncBaseLayerCircuit, ZkSyncBaseLayerProof},
             recursion_layer::{ZkSyncRecursionLayerProof, ZkSyncRecursiveLayerCircuit},
         },
-        recursion_layer_proof_config, ZkSyncDefaultRoundFunction,
+        recursion_layer_proof_config,
     },
     CircuitWrapper, FriProofWrapper, ProverJob, ProverServiceDataKey,
 };
@@ -122,7 +119,7 @@ impl Prover {
 
     fn prove_eip4844(
         job_id: u32,
-        circuit: EIP4844Circuit<GoldilocksField, ZkSyncDefaultRoundFunction>,
+        circuit: EIP4844Circuit,
         artifact: Arc<GoldilocksProverSetupData>,
     ) -> FriProofWrapper {
         let worker = Worker::new();
@@ -195,11 +192,7 @@ impl Prover {
 
     fn prove_base_layer(
         job_id: u32,
-        circuit: ZkSyncBaseLayerCircuit<
-            GoldilocksField,
-            VmWitnessOracle<GoldilocksField>,
-            ZkSyncDefaultRoundFunction,
-        >,
+        circuit: ZkSyncBaseLayerCircuit,
         _config: Arc<FriProverConfig>,
         artifact: Arc<GoldilocksProverSetupData>,
     ) -> FriProofWrapper {
