@@ -31,8 +31,8 @@ use crate::{
 
 #[derive(Debug)]
 pub enum DeploymentMode {
-    ValidiumMode,
-    RollupMode,
+    Validium,
+    Rollup,
 }
 
 #[derive(Debug)]
@@ -47,8 +47,8 @@ impl Tester {
         let base_system_contracts = BaseSystemContracts::load_from_disk();
 
         let pubdata_pricing: Arc<dyn PubdataPricing> = match deployment_mode {
-            DeploymentMode::ValidiumMode => Arc::new(ValidiumPubdataPricing {}),
-            DeploymentMode::RollupMode => Arc::new(RollupPubdataPricing {}),
+            DeploymentMode::Validium => Arc::new(ValidiumPubdataPricing {}),
+            DeploymentMode::Rollup => Arc::new(RollupPubdataPricing {}),
         };
 
         Self {

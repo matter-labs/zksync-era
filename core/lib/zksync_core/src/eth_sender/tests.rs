@@ -36,8 +36,8 @@ use crate::{
 };
 #[derive(Debug)]
 pub enum DeploymentMode {
-    ValidiumMode,
-    RollupMode,
+    Validium,
+    Rollup,
 }
 // Alias to conveniently call static methods of `ETHSender`.
 type MockEthTxManager = EthTxManager;
@@ -92,8 +92,8 @@ impl EthSenderTester {
         gateway.advance_block_number(Self::WAIT_CONFIRMATIONS);
 
         let pubdata_pricing: Arc<dyn PubdataPricing> = match deployment_mode {
-            DeploymentMode::ValidiumMode => Arc::new(ValidiumPubdataPricing {}),
-            DeploymentMode::RollupMode => Arc::new(RollupPubdataPricing {}),
+            DeploymentMode::Validium => Arc::new(ValidiumPubdataPricing {}),
+            DeploymentMode::Rollup => Arc::new(RollupPubdataPricing {}),
         };
 
         let gas_adjuster = Arc::new(
@@ -114,8 +114,8 @@ impl EthSenderTester {
 
         let l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator> =
             match deployment_mode {
-                DeploymentMode::ValidiumMode => Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
-                DeploymentMode::RollupMode => Arc::new(RollupModeL1BatchCommitDataGenerator {}),
+                DeploymentMode::Validium => Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
+                DeploymentMode::Rollup => Arc::new(RollupModeL1BatchCommitDataGenerator {}),
             };
 
         let aggregator = EthTxAggregator::new(
@@ -199,7 +199,7 @@ fn default_l1_batch_metadata() -> L1BatchMetadata {
 }
 
 // Tests that we send multiple transactions and confirm them all in one iteration.
-#[test_casing(2, [DeploymentMode::RollupMode, DeploymentMode::ValidiumMode])]
+#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
 async fn confirm_many(deployment_mode: DeploymentMode) -> anyhow::Result<()> {
     let mut tester = EthSenderTester::new(
@@ -281,7 +281,7 @@ async fn confirm_many(deployment_mode: DeploymentMode) -> anyhow::Result<()> {
 }
 
 // Tests that we resend first un-mined transaction every block with an increased gas price.
-#[test_casing(2, [DeploymentMode::RollupMode, DeploymentMode::ValidiumMode])]
+#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
 async fn resend_each_block(deployment_mode: DeploymentMode) -> anyhow::Result<()> {
     let mut tester = EthSenderTester::new(
@@ -398,7 +398,7 @@ async fn resend_each_block(deployment_mode: DeploymentMode) -> anyhow::Result<()
 
 // Tests that if transaction was mined, but not enough blocks has been mined since,
 // we won't mark it as confirmed but also won't resend it.
-#[test_casing(2, [DeploymentMode::RollupMode, DeploymentMode::ValidiumMode])]
+#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
 async fn dont_resend_already_mined(deployment_mode: DeploymentMode) -> anyhow::Result<()> {
     let mut tester = EthSenderTester::new(
@@ -476,7 +476,7 @@ async fn dont_resend_already_mined(deployment_mode: DeploymentMode) -> anyhow::R
     Ok(())
 }
 
-#[test_casing(2, [DeploymentMode::RollupMode, DeploymentMode::ValidiumMode])]
+#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
 async fn three_scenarios(deployment_mode: DeploymentMode) -> anyhow::Result<()> {
     let mut tester = EthSenderTester::new(
@@ -555,7 +555,7 @@ async fn three_scenarios(deployment_mode: DeploymentMode) -> anyhow::Result<()> 
 }
 
 #[should_panic(expected = "We can't operate after tx fail")]
-#[test_casing(2, [DeploymentMode::RollupMode, DeploymentMode::ValidiumMode])]
+#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
 async fn failed_eth_tx(deployment_mode: DeploymentMode) {
     let mut tester = EthSenderTester::new(
@@ -729,7 +729,7 @@ async fn commit_l1_batch(
     send_operation(tester, operation, confirm).await
 }
 
-#[test_casing(2, [DeploymentMode::RollupMode, DeploymentMode::ValidiumMode])]
+#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
 async fn correct_order_for_confirmations(deployment_mode: DeploymentMode) -> anyhow::Result<()> {
     let mut tester = EthSenderTester::new(
@@ -742,8 +742,8 @@ async fn correct_order_for_confirmations(deployment_mode: DeploymentMode) -> any
 
     let l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator> = match deployment_mode
     {
-        DeploymentMode::ValidiumMode => Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
-        DeploymentMode::RollupMode => Arc::new(RollupModeL1BatchCommitDataGenerator {}),
+        DeploymentMode::Validium => Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
+        DeploymentMode::Rollup => Arc::new(RollupModeL1BatchCommitDataGenerator {}),
     };
 
     insert_genesis_protocol_version(&tester).await;
@@ -805,7 +805,7 @@ async fn correct_order_for_confirmations(deployment_mode: DeploymentMode) -> any
     Ok(())
 }
 
-#[test_casing(2, [DeploymentMode::RollupMode, DeploymentMode::ValidiumMode])]
+#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
 async fn skipped_l1_batch_at_the_start(deployment_mode: DeploymentMode) -> anyhow::Result<()> {
     let mut tester = EthSenderTester::new(
@@ -818,8 +818,8 @@ async fn skipped_l1_batch_at_the_start(deployment_mode: DeploymentMode) -> anyho
 
     let l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator> = match deployment_mode
     {
-        DeploymentMode::ValidiumMode => Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
-        DeploymentMode::RollupMode => Arc::new(RollupModeL1BatchCommitDataGenerator {}),
+        DeploymentMode::Validium => Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
+        DeploymentMode::Rollup => Arc::new(RollupModeL1BatchCommitDataGenerator {}),
     };
 
     insert_genesis_protocol_version(&tester).await;
@@ -915,7 +915,7 @@ async fn skipped_l1_batch_at_the_start(deployment_mode: DeploymentMode) -> anyho
     Ok(())
 }
 
-#[test_casing(2, [DeploymentMode::RollupMode, DeploymentMode::ValidiumMode])]
+#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
 async fn skipped_l1_batch_in_the_middle(deployment_mode: DeploymentMode) -> anyhow::Result<()> {
     let mut tester = EthSenderTester::new(
@@ -928,8 +928,8 @@ async fn skipped_l1_batch_in_the_middle(deployment_mode: DeploymentMode) -> anyh
 
     let l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator> = match deployment_mode
     {
-        DeploymentMode::ValidiumMode => Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
-        DeploymentMode::RollupMode => Arc::new(RollupModeL1BatchCommitDataGenerator {}),
+        DeploymentMode::Validium => Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
+        DeploymentMode::Rollup => Arc::new(RollupModeL1BatchCommitDataGenerator {}),
     };
 
     insert_genesis_protocol_version(&tester).await;
@@ -1019,7 +1019,7 @@ async fn skipped_l1_batch_in_the_middle(deployment_mode: DeploymentMode) -> anyh
     Ok(())
 }
 
-#[test_casing(2, [DeploymentMode::RollupMode, DeploymentMode::ValidiumMode])]
+#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
 async fn test_parse_multicall_data(deployment_mode: DeploymentMode) {
     let tester = EthSenderTester::new(
@@ -1105,7 +1105,7 @@ async fn test_parse_multicall_data(deployment_mode: DeploymentMode) {
     }
 }
 
-#[test_casing(2, [DeploymentMode::RollupMode, DeploymentMode::ValidiumMode])]
+#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
 async fn get_multicall_data(deployment_mode: DeploymentMode) {
     let mut tester = EthSenderTester::new(

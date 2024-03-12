@@ -33,7 +33,7 @@ use crate::{
 mod tester;
 
 /// Ensure that MempoolIO.filter is correctly initialized right after mempool initialization.
-#[test_casing(2, [DeploymentMode::RollupMode, DeploymentMode::ValidiumMode])]
+#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
 async fn test_filter_initialization(deployment_mode: DeploymentMode) {
     let tester = Tester::new(&deployment_mode);
@@ -47,7 +47,7 @@ async fn test_filter_initialization(deployment_mode: DeploymentMode) {
 }
 
 /// Ensure that MempoolIO.filter is modified correctly if there is a pending batch upon mempool initialization.
-#[test_casing(2, [DeploymentMode::RollupMode, DeploymentMode::ValidiumMode])]
+#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
 async fn test_filter_with_pending_batch(deployment_mode: DeploymentMode) {
     let mut tester = Tester::new(&deployment_mode);
@@ -93,7 +93,7 @@ async fn test_filter_with_pending_batch(deployment_mode: DeploymentMode) {
 }
 
 /// Ensure that `MempoolIO.filter` is modified correctly if there is no pending batch.
-#[test_casing(2, [DeploymentMode::RollupMode, DeploymentMode::ValidiumMode])]
+#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
 async fn test_filter_with_no_pending_batch(deployment_mode: DeploymentMode) {
     let tester = Tester::new(&deployment_mode);
@@ -172,7 +172,7 @@ async fn test_timestamps_are_distinct(
     assert!(l1_batch_env.timestamp > prev_miniblock_timestamp);
 }
 
-#[test_casing(2, [DeploymentMode::RollupMode, DeploymentMode::ValidiumMode])]
+#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
 async fn l1_batch_timestamp_basics(deployment_mode: DeploymentMode) {
     let tester = Tester::new(&deployment_mode);
@@ -181,7 +181,7 @@ async fn l1_batch_timestamp_basics(deployment_mode: DeploymentMode) {
     test_timestamps_are_distinct(connection_pool, current_timestamp, false, tester).await;
 }
 
-#[test_casing(2, [DeploymentMode::RollupMode, DeploymentMode::ValidiumMode])]
+#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
 async fn l1_batch_timestamp_with_clock_skew(deployment_mode: DeploymentMode) {
     let tester = Tester::new(&deployment_mode);
@@ -190,7 +190,7 @@ async fn l1_batch_timestamp_with_clock_skew(deployment_mode: DeploymentMode) {
     test_timestamps_are_distinct(connection_pool, current_timestamp + 2, false, tester).await;
 }
 
-#[test_casing(2, [DeploymentMode::RollupMode, DeploymentMode::ValidiumMode])]
+#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
 async fn l1_batch_timestamp_respects_prev_miniblock(deployment_mode: DeploymentMode) {
     let tester = Tester::new(&deployment_mode);
@@ -199,7 +199,7 @@ async fn l1_batch_timestamp_respects_prev_miniblock(deployment_mode: DeploymentM
     test_timestamps_are_distinct(connection_pool, current_timestamp, true, tester).await;
 }
 
-#[test_casing(2, [DeploymentMode::RollupMode, DeploymentMode::ValidiumMode])]
+#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
 async fn l1_batch_timestamp_respects_prev_miniblock_with_clock_skew(
     deployment_mode: DeploymentMode,
@@ -433,7 +433,7 @@ async fn test_miniblock_and_l1_batch_processing(
     assert_eq!(l1_batch_header.l2_tx_count, 1);
 }
 
-#[test_casing(2, [DeploymentMode::RollupMode, DeploymentMode::ValidiumMode])]
+#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
 async fn miniblock_and_l1_batch_processing(deployment_mode: DeploymentMode) {
     let tester = Tester::new(&deployment_mode);
@@ -441,7 +441,7 @@ async fn miniblock_and_l1_batch_processing(deployment_mode: DeploymentMode) {
     test_miniblock_and_l1_batch_processing(pool, 1, tester).await;
 }
 
-#[test_casing(2, [DeploymentMode::RollupMode, DeploymentMode::ValidiumMode])]
+#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
 async fn miniblock_and_l1_batch_processing_with_sync_sealer(deployment_mode: DeploymentMode) {
     let tester = Tester::new(&deployment_mode);
@@ -449,7 +449,7 @@ async fn miniblock_and_l1_batch_processing_with_sync_sealer(deployment_mode: Dep
     test_miniblock_and_l1_batch_processing(pool, 0, tester).await;
 }
 
-#[test_casing(2, [DeploymentMode::RollupMode, DeploymentMode::ValidiumMode])]
+#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
 async fn miniblock_processing_after_snapshot_recovery(deployment_mode: DeploymentMode) {
     let tester = Tester::new(&deployment_mode);
@@ -673,7 +673,7 @@ async fn miniblock_sealer_handle_parallel_processing() {
     sealer_handle.wait_for_all_commands().await;
 }
 
-#[test_casing(2, [DeploymentMode::RollupMode, DeploymentMode::ValidiumMode])]
+#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
 async fn different_timestamp_for_miniblocks_in_same_batch(deployment_mode: DeploymentMode) {
     let tester = Tester::new(&deployment_mode);
