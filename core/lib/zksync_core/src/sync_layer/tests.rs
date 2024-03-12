@@ -23,7 +23,7 @@ use crate::{
     consensus::testonly::MockMainNodeClient,
     genesis::{ensure_genesis_state, GenesisParams},
     state_keeper::{
-        seal_criteria::NoopSealer, tests::TestBatchExecutorBuilder, MiniblockSealer,
+        seal_criteria::NoopSealer, tests::TestBatchExecutorBuilder, StateKeeperPersistence,
         ZkSyncStateKeeper,
     },
     utils::testonly::{create_l1_batch_metadata, create_l2_transaction, prepare_recovery_snapshot},
@@ -65,15 +65,14 @@ impl StateKeeperHandles {
         assert!(tx_hashes.iter().all(|tx_hashes| !tx_hashes.is_empty()));
 
         let sync_state = SyncState::default();
-        let (miniblock_sealer, miniblock_sealer_handle) = MiniblockSealer::new(pool.clone(), 5);
+        let (persistence, miniblock_sealer) =
+            StateKeeperPersistence::new(pool.clone(), Address::repeat_byte(1), 5);
         tokio::spawn(miniblock_sealer.run());
         let io = ExternalIO::new(
-            miniblock_sealer_handle,
             pool,
             actions,
             sync_state.clone(),
             Box::new(main_node_client),
-            Address::repeat_byte(1),
             u32::MAX,
             L2ChainId::default(),
         )
@@ -90,8 +89,12 @@ impl StateKeeperHandles {
             stop_receiver,
             Box::new(io),
             Box::new(batch_executor_base),
+            Box::new(persistence.with_tx_insertion()),
             Arc::new(NoopSealer),
-        );
+        )
+        .await
+        .unwrap();
+
         Self {
             stop_sender,
             sync_state,
@@ -109,8 +112,8 @@ impl StateKeeperHandles {
             );
             if self.task.is_finished() {
                 match self.task.await {
-                    Err(err) => panic!("State keeper panicked: {}", err),
-                    Ok(Err(err)) => panic!("State keeper finished with an error: {}", err),
+                    Err(err) => panic!("State keeper panicked: {err}"),
+                    Ok(Err(err)) => panic!("State keeper finished with an error: {err:?}"),
                     Ok(Ok(())) => unreachable!(),
                 }
             }

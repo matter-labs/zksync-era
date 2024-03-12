@@ -1,4 +1,5 @@
 //! Utilities for testing the consensus module.
+
 use std::{collections::HashMap, sync::Arc};
 
 use anyhow::Context as _;
@@ -22,7 +23,7 @@ use crate::{
     consensus::{fetcher::P2PConfig, Fetcher, Store},
     genesis::{ensure_genesis_state, GenesisParams},
     state_keeper::{
-        io::common::IoCursor, seal_criteria::NoopSealer, tests::MockBatchExecutor, MiniblockSealer,
+        io::IoCursor, seal_criteria::NoopSealer, tests::MockBatchExecutor, StateKeeperPersistence,
         ZkSyncStateKeeper,
     },
     sync_layer::{
@@ -386,16 +387,14 @@ impl StateKeeperRunner {
     pub async fn run(self, ctx: &ctx::Ctx) -> anyhow::Result<()> {
         let res = scope::run!(ctx, |ctx, s| async {
             let (stop_send, stop_recv) = sync::watch::channel(false);
-            let (miniblock_sealer, miniblock_sealer_handle) =
-                MiniblockSealer::new(self.store.0.clone(), 5);
+            let (persistence, miniblock_sealer) =
+                StateKeeperPersistence::new(self.store.0.clone(), Address::repeat_byte(11), 5);
 
             let io = ExternalIO::new(
-                miniblock_sealer_handle,
                 self.store.0.clone(),
                 self.actions_queue,
                 self.sync_state,
                 Box::<MockMainNodeClient>::default(),
-                Address::repeat_byte(11),
                 u32::MAX,
                 L2ChainId::default(),
             )
@@ -421,8 +420,11 @@ impl StateKeeperRunner {
                         stop_recv,
                         Box::new(io),
                         Box::new(MockBatchExecutor),
+                        Box::new(persistence.with_tx_insertion()),
                         Arc::new(NoopSealer),
                     )
+                    .await
+                    .context("ZkSyncStateKeeper::new")?
                     .run()
                     .await
                     .context("ZkSyncStateKeeper::run()")?;

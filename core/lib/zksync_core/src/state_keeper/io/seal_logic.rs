@@ -24,8 +24,8 @@ use zksync_types::{
     },
     zk_evm_types::LogQuery,
     AccountTreeId, Address, ExecuteTransactionCommon, L1BatchNumber, L1BlockNumber,
-    MiniblockNumber, ProtocolVersionId, StorageKey, StorageLog, StorageLogQuery, Transaction,
-    VmEvent, CURRENT_VIRTUAL_BLOCK_INFO_POSITION, H256, SYSTEM_CONTEXT_ADDRESS,
+    ProtocolVersionId, StorageKey, StorageLog, StorageLogQuery, Transaction, VmEvent,
+    CURRENT_VIRTUAL_BLOCK_INFO_POSITION, H256, SYSTEM_CONTEXT_ADDRESS,
 };
 // TODO (SMA-1206): use seconds instead of milliseconds.
 use zksync_utils::{h256_to_u256, time::millis_since_epoch, u256_to_h256};
@@ -38,7 +38,7 @@ use crate::{
             L1_BATCH_METRICS, MINIBLOCK_METRICS,
         },
         types::ExecutionMetricsForCriteria,
-        updates::{MiniblockSealCommand, MiniblockUpdates, UpdatesManager},
+        updates::{MiniblockSealCommand, UpdatesManager},
     },
 };
 
@@ -46,15 +46,13 @@ impl UpdatesManager {
     /// Persists an L1 batch in the storage.
     /// This action includes a creation of an empty "fictive" miniblock that contains
     /// the events generated during the bootloader "tip phase". Returns updates for this fictive miniblock.
-    #[must_use = "fictive miniblock must be used to update I/O params"]
     pub(crate) async fn seal_l1_batch(
         mut self,
         storage: &mut StorageProcessor<'_>,
-        current_miniblock_number: MiniblockNumber,
         l1_batch_env: &L1BatchEnv,
         finished_batch: FinishedL1Batch,
         l2_erc20_bridge_addr: Address,
-    ) -> MiniblockUpdates {
+    ) {
         let started_at = Instant::now();
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::VmFinalization);
         let mut transaction = storage.start_transaction().await.unwrap();
@@ -72,8 +70,6 @@ impl UpdatesManager {
         );
         // Seal fictive miniblock with last events and storage logs.
         let miniblock_command = self.seal_miniblock_command(
-            l1_batch_env.number,
-            current_miniblock_number,
             l2_erc20_bridge_addr,
             false, // fictive miniblocks don't have txs, so it's fine to pass `false` here.
         );
@@ -236,7 +232,6 @@ impl UpdatesManager {
             l1_batch_env.timestamp,
             &writes_metrics,
         );
-        miniblock_command.miniblock
     }
 
     fn report_l1_batch_metrics(
@@ -315,7 +310,7 @@ impl MiniblockSealCommand {
         }
 
         let l1_batch_number = self.l1_batch_number;
-        let miniblock_number = self.miniblock_number;
+        let miniblock_number = self.miniblock.number;
         let started_at = Instant::now();
         let progress =
             MINIBLOCK_METRICS.start(MiniblockSealStage::InsertMiniblockHeader, is_fictive);
@@ -608,7 +603,7 @@ impl MiniblockSealCommand {
     }
 
     fn report_miniblock_metrics(&self, started_at: Instant, latest_virtual_block_number: u64) {
-        let miniblock_number = self.miniblock_number;
+        let miniblock_number = self.miniblock.number;
 
         MINIBLOCK_METRICS
             .transactions_in_miniblock

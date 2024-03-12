@@ -134,6 +134,7 @@ pub(crate) enum SyncAction {
     /// Similarly to `SealMiniblock` we must be able to seal the batch even if there is no next miniblock yet.
     SealBatch {
         /// Virtual blocks count for the fictive miniblock.
+        #[allow(dead_code)] // FIXME: remove
         virtual_blocks: u32,
     },
 }

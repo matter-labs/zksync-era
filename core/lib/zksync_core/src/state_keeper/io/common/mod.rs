@@ -6,6 +6,7 @@ use zksync_dal::StorageProcessor;
 use zksync_types::{L1BatchNumber, MiniblockNumber, H256};
 
 use super::PendingBatchData;
+use crate::state_keeper::updates::MiniblockUpdates;
 
 #[cfg(test)]
 mod tests;
@@ -19,9 +20,9 @@ pub(crate) fn poll_iters(delay_interval: Duration, max_wait: Duration) -> usize 
     ((max_wait_millis + delay_interval_millis - 1) / delay_interval_millis).max(1) as usize
 }
 
-/// Cursor of the miniblock / L1 batch progress used by [`StateKeeperIO`](super::StateKeeperIO) implementations.
+/// Cursor of the miniblock / L1 batch progress used by [`StateKeeperIO`](super::StateKeeperSequencer) implementations.
 #[derive(Debug)]
-pub(crate) struct IoCursor {
+pub struct IoCursor {
     pub next_miniblock: MiniblockNumber,
     pub prev_miniblock_hash: H256,
     pub prev_miniblock_timestamp: u64,
@@ -79,6 +80,17 @@ impl IoCursor {
                 l1_batch,
             })
         }
+    }
+
+    pub(crate) fn update(&mut self, miniblock: &MiniblockUpdates) {
+        // FIXME: metrics
+        assert_eq!(
+            miniblock.number, self.next_miniblock,
+            "Attempted to seal a miniblock with unexpected number"
+        );
+        self.next_miniblock += 1;
+        self.prev_miniblock_hash = miniblock.get_miniblock_hash();
+        self.prev_miniblock_timestamp = miniblock.timestamp;
     }
 }
 

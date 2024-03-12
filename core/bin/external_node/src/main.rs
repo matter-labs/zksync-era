@@ -5,7 +5,7 @@ use clap::Parser;
 use metrics::EN_METRICS;
 use prometheus_exporter::PrometheusExporterConfig;
 use tokio::{sync::watch, task, time::sleep};
-use zksync_basic_types::{Address, L2ChainId};
+use zksync_basic_types::L2ChainId;
 use zksync_concurrency::{ctx, limiter, scope, time};
 use zksync_config::configs::database::MerkleTreeMode;
 use zksync_core::{
@@ -25,8 +25,8 @@ use zksync_core::{
     reorg_detector::ReorgDetector,
     setup_sigint_handler,
     state_keeper::{
-        seal_criteria::NoopSealer, BatchExecutor, MainBatchExecutor, MiniblockSealer,
-        MiniblockSealerHandle, ZkSyncStateKeeper,
+        seal_criteria::NoopSealer, BatchExecutor, MainBatchExecutor, StateKeeperPersistence,
+        ZkSyncStateKeeper,
     },
     sync_layer::{
         batch_status_updater::BatchStatusUpdater, external_io::ExternalIO, ActionQueue,
@@ -61,8 +61,7 @@ async fn build_state_keeper(
     config: &ExternalNodeConfig,
     connection_pool: ConnectionPool,
     sync_state: SyncState,
-    l2_erc20_bridge_addr: Address,
-    miniblock_sealer_handle: MiniblockSealerHandle,
+    persistence: StateKeeperPersistence,
     stop_receiver: watch::Receiver<bool>,
     chain_id: L2ChainId,
 ) -> anyhow::Result<ZkSyncStateKeeper> {
@@ -89,24 +88,25 @@ async fn build_state_keeper(
     let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
         .context("Failed creating JSON-RPC client for main node")?;
     let io = ExternalIO::new(
-        miniblock_sealer_handle,
         connection_pool,
         action_queue,
         sync_state,
         Box::new(main_node_client),
-        l2_erc20_bridge_addr,
         validation_computational_gas_limit,
         chain_id,
     )
     .await
     .context("Failed initializing I/O for external node state keeper")?;
 
-    Ok(ZkSyncStateKeeper::new(
+    ZkSyncStateKeeper::new(
         stop_receiver,
         Box::new(io),
         batch_executor_base,
+        Box::new(persistence.with_tx_insertion()),
         Arc::new(NoopSealer),
-    ))
+    )
+    .await
+    .context("failed initializing state keeper")
 }
 
 async fn init_tasks(
@@ -132,8 +132,9 @@ async fn init_tasks(
     app_health.insert_custom_component(Arc::new(sync_state.clone()));
     let (action_queue_sender, action_queue) = ActionQueue::new();
 
-    let (miniblock_sealer, miniblock_sealer_handle) = MiniblockSealer::new(
+    let (persistence, miniblock_sealer) = StateKeeperPersistence::new(
         connection_pool.clone(),
+        config.remote.l2_erc20_bridge_addr,
         config.optional.miniblock_seal_queue_capacity,
     );
     task_handles.push(tokio::spawn(miniblock_sealer.run()));
@@ -161,8 +162,7 @@ async fn init_tasks(
         config,
         connection_pool.clone(),
         sync_state.clone(),
-        config.remote.l2_erc20_bridge_addr,
-        miniblock_sealer_handle,
+        persistence,
         stop_receiver.clone(),
         config.remote.l2_chain_id,
     )

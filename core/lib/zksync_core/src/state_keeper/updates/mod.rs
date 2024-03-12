@@ -23,7 +23,7 @@ pub mod miniblock_updates;
 /// `L1BatchUpdates` keeps updates for the already sealed mini-blocks of the pending L1 batch.
 /// `UpdatesManager` manages the state of both of these accumulators to be consistent
 /// and provides information about the pending state of the current L1 batch.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct UpdatesManager {
     batch_timestamp: u64,
     fee_account_address: Address,
@@ -46,10 +46,10 @@ impl UpdatesManager {
             base_fee_per_gas: get_batch_base_fee(l1_batch_env, protocol_version.into()),
             protocol_version,
             base_system_contract_hashes: system_env.base_system_smart_contracts.hashes(),
-            l1_batch: L1BatchUpdates::new(),
+            l1_batch: L1BatchUpdates::new(l1_batch_env.number),
             miniblock: MiniblockUpdates::new(
                 l1_batch_env.first_l2_block.timestamp,
-                l1_batch_env.first_l2_block.number,
+                MiniblockNumber(l1_batch_env.first_l2_block.number),
                 l1_batch_env.first_l2_block.prev_block_hash,
                 l1_batch_env.first_l2_block.max_virtual_blocks_to_create,
                 protocol_version,
@@ -68,14 +68,11 @@ impl UpdatesManager {
 
     pub(crate) fn seal_miniblock_command(
         &self,
-        l1_batch_number: L1BatchNumber,
-        miniblock_number: MiniblockNumber,
         l2_erc20_bridge_addr: Address,
         pre_insert_txs: bool,
     ) -> MiniblockSealCommand {
         MiniblockSealCommand {
-            l1_batch_number,
-            miniblock_number,
+            l1_batch_number: self.l1_batch.number,
             miniblock: self.miniblock.clone(),
             first_tx_index: self.l1_batch.executed_transactions.len(),
             fee_account_address: self.fee_account_address,
@@ -161,7 +158,6 @@ impl UpdatesManager {
 #[derive(Debug)]
 pub(crate) struct MiniblockSealCommand {
     pub l1_batch_number: L1BatchNumber,
-    pub miniblock_number: MiniblockNumber,
     pub miniblock: MiniblockUpdates,
     pub first_tx_index: usize,
     pub fee_account_address: Address,

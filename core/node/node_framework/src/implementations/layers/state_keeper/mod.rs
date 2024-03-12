@@ -2,7 +2,8 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use zksync_core::state_keeper::{
-    seal_criteria::ConditionalSealer, BatchExecutor, StateKeeperIO, ZkSyncStateKeeper,
+    seal_criteria::ConditionalSealer, BatchExecutor, HandleStateKeeperOutput, StateKeeperSequencer,
+    ZkSyncStateKeeper,
 };
 use zksync_storage::RocksDB;
 
@@ -12,6 +13,7 @@ pub mod mempool_io;
 use crate::{
     implementations::resources::state_keeper::{
         BatchExecutorResource, ConditionalSealerResource, StateKeeperIOResource,
+        StateKeeperPersistenceResource,
     },
     service::{ServiceContext, StopReceiver},
     task::Task,
@@ -45,11 +47,18 @@ impl WiringLayer for StateKeeperLayer {
             .0
             .take()
             .context("L1BatchExecutorBuilder was provided but taken by some other task")?;
+        let persistence = context
+            .get_resource::<StateKeeperPersistenceResource>()
+            .await?
+            .0
+            .take()
+            .context("StateKeeperPersistence was provided but taken by another task")?;
         let sealer = context.get_resource::<ConditionalSealerResource>().await?.0;
 
         context.add_task(Box::new(StateKeeperTask {
             io,
             batch_executor_base,
+            persistence,
             sealer,
         }));
         Ok(())
@@ -58,8 +67,9 @@ impl WiringLayer for StateKeeperLayer {
 
 #[derive(Debug)]
 struct StateKeeperTask {
-    io: Box<dyn StateKeeperIO>,
+    io: Box<dyn StateKeeperSequencer>,
     batch_executor_base: Box<dyn BatchExecutor>,
+    persistence: Box<dyn HandleStateKeeperOutput>,
     sealer: Arc<dyn ConditionalSealer>,
 }
 
@@ -74,8 +84,10 @@ impl Task for StateKeeperTask {
             stop_receiver.0,
             self.io,
             self.batch_executor_base,
+            self.persistence,
             self.sealer,
-        );
+        )
+        .await?;
         let result = state_keeper.run().await;
 
         // Wait for all the instances of RocksDB to be destroyed.

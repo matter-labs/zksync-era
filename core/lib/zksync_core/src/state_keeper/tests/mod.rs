@@ -447,7 +447,7 @@ async fn load_upgrade_tx() {
     let batch_executor_base = TestBatchExecutorBuilder::new(&scenario);
     let (stop_sender, stop_receiver) = watch::channel(false);
 
-    let mut io = TestIO::new(stop_sender, scenario);
+    let (mut io, persistence) = TestIO::new(stop_sender, scenario);
     io.add_upgrade_tx(ProtocolVersionId::latest(), random_upgrade_tx(1));
     io.add_upgrade_tx(ProtocolVersionId::next(), random_upgrade_tx(2));
 
@@ -455,8 +455,11 @@ async fn load_upgrade_tx() {
         stop_receiver,
         Box::new(io),
         Box::new(batch_executor_base),
+        Box::new(persistence),
         Arc::new(sealer),
-    );
+    )
+    .await
+    .unwrap();
 
     // Since the version hasn't changed, and we are not using shared bridge, we should not load any
     // upgrade transactions.
@@ -544,8 +547,8 @@ async fn miniblock_timestamp_after_pending_batch() {
             successful_exec(),
         )
         .miniblock_sealed_with("Miniblock with a single tx", move |updates| {
-            assert!(
-                updates.miniblock.timestamp == 1,
+            assert_eq!(
+                updates.miniblock.timestamp, 2,
                 "Timestamp for the new block must be taken from the test IO"
             );
         })

@@ -6,7 +6,7 @@ use zksync_config::{
     ContractsConfig,
 };
 use zksync_core::state_keeper::{
-    MempoolFetcher, MempoolGuard, MempoolIO, MiniblockSealer, SequencerSealer,
+    self, MempoolFetcher, MempoolGuard, MempoolSequencer, SequencerSealer, StateKeeperPersistence,
 };
 
 use crate::{
@@ -14,7 +14,9 @@ use crate::{
         fee_input::FeeInputResource,
         object_store::ObjectStoreResource,
         pools::MasterPoolResource,
-        state_keeper::{ConditionalSealerResource, StateKeeperIOResource},
+        state_keeper::{
+            ConditionalSealerResource, StateKeeperIOResource, StateKeeperPersistenceResource,
+        },
     },
     resource::Unique,
     service::{ServiceContext, StopReceiver},
@@ -76,14 +78,19 @@ impl WiringLayer for MempoolIOLayer {
         let master_pool = context.get_resource::<MasterPoolResource>().await?;
 
         // Create miniblock sealer task.
-        let (miniblock_sealer, miniblock_sealer_handle) = MiniblockSealer::new(
+        let (persistence, miniblock_sealer) = StateKeeperPersistence::new(
             master_pool
                 .get_singleton()
                 .await
                 .context("Get master pool")?,
+            self.contracts_config.l2_erc20_bridge_addr,
             self.state_keeper_config.miniblock_seal_queue_capacity,
         );
+        let persistence = persistence.with_object_store(object_store);
         context.add_task(Box::new(MiniblockSealerTask(miniblock_sealer)));
+        context.insert_resource(StateKeeperPersistenceResource(Unique::new(Box::new(
+            persistence,
+        ))))?;
 
         // Create mempool fetcher task.
         let mempool_guard = self.build_mempool_guard(&master_pool).await?;
@@ -104,15 +111,12 @@ impl WiringLayer for MempoolIOLayer {
             .get_singleton()
             .await
             .context("Get master pool")?;
-        let io = MempoolIO::new(
+        let io = MempoolSequencer::new(
             mempool_guard,
-            object_store,
-            miniblock_sealer_handle,
             batch_fee_input_provider,
             mempool_db_pool,
             &self.state_keeper_config,
             self.mempool_config.delay_interval(),
-            self.contracts_config.l2_erc20_bridge_addr,
             self.state_keeper_config.validation_computational_gas_limit,
             self.network_config.zksync_network_id,
         )
@@ -128,7 +132,7 @@ impl WiringLayer for MempoolIOLayer {
 }
 
 #[derive(Debug)]
-struct MiniblockSealerTask(MiniblockSealer);
+struct MiniblockSealerTask(state_keeper::MiniblockSealerTask);
 
 #[async_trait::async_trait]
 impl Task for MiniblockSealerTask {

@@ -3,14 +3,16 @@ use std::sync::Arc;
 use tokio::sync::watch;
 use zksync_config::{
     configs::chain::{MempoolConfig, NetworkConfig, StateKeeperConfig},
-    ContractsConfig, DBConfig,
+    DBConfig,
 };
 use zksync_dal::ConnectionPool;
-use zksync_object_store::ObjectStore;
 
 pub use self::{
     batch_executor::{main_executor::MainBatchExecutor, BatchExecutor},
-    io::{mempool::MempoolIO, MiniblockSealer, MiniblockSealerHandle, StateKeeperIO},
+    io::{
+        mempool::MempoolSequencer, HandleStateKeeperOutput, MiniblockSealerTask,
+        StateKeeperPersistence, StateKeeperSequencer,
+    },
     keeper::ZkSyncStateKeeper,
     mempool_actor::MempoolFetcher,
     seal_criteria::SequencerSealer,
@@ -32,7 +34,6 @@ pub(crate) mod updates;
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn create_state_keeper(
-    contracts_config: &ContractsConfig,
     state_keeper_config: StateKeeperConfig,
     db_config: &DBConfig,
     network_config: &NetworkConfig,
@@ -40,8 +41,7 @@ pub(crate) async fn create_state_keeper(
     pool: ConnectionPool,
     mempool: MempoolGuard,
     batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
-    miniblock_sealer_handle: MiniblockSealerHandle,
-    object_store: Arc<dyn ObjectStore>,
+    persistence: Box<dyn HandleStateKeeperOutput>,
     stop_receiver: watch::Receiver<bool>,
 ) -> ZkSyncStateKeeper {
     let batch_executor_base = MainBatchExecutor::new(
@@ -54,15 +54,12 @@ pub(crate) async fn create_state_keeper(
         false,
     );
 
-    let io = MempoolIO::new(
+    let io = MempoolSequencer::new(
         mempool,
-        object_store,
-        miniblock_sealer_handle,
         batch_fee_input_provider,
         pool,
         &state_keeper_config,
         mempool_config.delay_interval(),
-        contracts_config.l2_erc20_bridge_addr,
         state_keeper_config.validation_computational_gas_limit,
         network_config.zksync_network_id,
     )
@@ -74,6 +71,9 @@ pub(crate) async fn create_state_keeper(
         stop_receiver,
         Box::new(io),
         Box::new(batch_executor_base),
+        persistence,
         Arc::new(sealer),
     )
+    .await
+    .expect("failed creating state keeper")
 }
