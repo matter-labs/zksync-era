@@ -80,7 +80,7 @@ impl<'a> From<RocksdbStorage> for PgOrRocksdbStorage<'a> {
 #[derive(Debug, Clone)]
 pub struct AsyncRocksdbCache {
     pool: ConnectionPool,
-    rocksdb: Arc<OnceCell<RocksDB<StateKeeperColumnFamily>>>,
+    rocksdb_cell: Arc<OnceCell<RocksDB<StateKeeperColumnFamily>>>,
 }
 
 impl AsyncRocksdbCache {
@@ -163,7 +163,7 @@ impl AsyncRocksdbCache {
         rt_handle: Handle,
         stop_receiver: &watch::Receiver<bool>,
     ) -> anyhow::Result<Option<PgOrRocksdbStorage<'a>>> {
-        match self.rocksdb.get() {
+        match self.rocksdb_cell.get() {
             Some(rocksdb) => {
                 let mut conn = self
                     .pool
@@ -186,37 +186,17 @@ impl AsyncRocksdbCache {
         pool: ConnectionPool,
         state_keeper_db_path: String,
         enum_index_migration_chunk_size: usize,
+        stop_receiver: watch::Receiver<bool>,
     ) -> Self {
-        let rocksdb = Arc::new(OnceCell::new());
-        let rocksdb_clone = rocksdb.clone();
-        let pool_clone = pool.clone();
-        tokio::task::spawn(async move {
-            tracing::debug!("Catching up RocksDB asynchronously");
-            let mut rocksdb_builder: RocksdbStorageBuilder =
-                open_state_keeper_rocksdb(state_keeper_db_path.into())
-                    .await
-                    .expect("Failed initializing RocksDB storage")
-                    .into();
-            rocksdb_builder.enable_enum_index_migration(enum_index_migration_chunk_size);
-            let mut storage = pool_clone
-                .access_storage()
-                .await
-                .expect("Failed accessing Postgres storage");
-            let (_, stop_receiver) = watch::channel(false);
-            let rocksdb = rocksdb_builder
-                .synchronize(&mut storage, &stop_receiver)
-                .await
-                .expect("Failed to catch up RocksDB to Postgres");
-            drop(storage);
-            if let Some(rocksdb) = rocksdb {
-                rocksdb_clone
-                    .set(rocksdb.into())
-                    .expect("Async RocksDB cache was initialized twice");
-            } else {
-                tracing::info!("Synchronizing RocksDB interrupted");
-            }
-        });
-        Self { pool, rocksdb }
+        let rocksdb_cell = Arc::new(OnceCell::new());
+        let task = AsyncCatchupTask {
+            pool: pool.clone(),
+            state_keeper_db_path,
+            enum_index_migration_chunk_size,
+            rocksdb_cell: rocksdb_cell.clone(),
+        };
+        tokio::task::spawn(async move { task.run(stop_receiver).await.unwrap() });
+        Self { pool, rocksdb_cell }
     }
 }
 
@@ -228,5 +208,42 @@ impl ReadStorageFactory for AsyncRocksdbCache {
         stop_receiver: &watch::Receiver<bool>,
     ) -> anyhow::Result<Option<PgOrRocksdbStorage<'a>>> {
         self.access_storage_inner(rt_handle, stop_receiver).await
+    }
+}
+
+struct AsyncCatchupTask {
+    pool: ConnectionPool,
+    state_keeper_db_path: String,
+    enum_index_migration_chunk_size: usize,
+    rocksdb_cell: Arc<OnceCell<RocksDB<StateKeeperColumnFamily>>>,
+}
+
+impl AsyncCatchupTask {
+    async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        tracing::debug!("Catching up RocksDB asynchronously");
+        let mut rocksdb_builder: RocksdbStorageBuilder =
+            open_state_keeper_rocksdb(self.state_keeper_db_path.into())
+                .await
+                .context("Failed initializing RocksDB storage")?
+                .into();
+        rocksdb_builder.enable_enum_index_migration(self.enum_index_migration_chunk_size);
+        let mut storage = self
+            .pool
+            .access_storage()
+            .await
+            .context("Failed accessing Postgres storage")?;
+        let rocksdb = rocksdb_builder
+            .synchronize(&mut storage, &stop_receiver)
+            .await
+            .context("Failed to catch up RocksDB to Postgres")?;
+        drop(storage);
+        if let Some(rocksdb) = rocksdb {
+            self.rocksdb_cell
+                .set(rocksdb.into())
+                .map_err(|_| anyhow::anyhow!("Async RocksDB cache was initialized twice"))?;
+        } else {
+            tracing::info!("Synchronizing RocksDB interrupted");
+        }
+        Ok(())
     }
 }

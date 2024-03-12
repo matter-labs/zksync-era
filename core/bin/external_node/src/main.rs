@@ -79,6 +79,7 @@ async fn build_state_keeper(
         connection_pool.clone(),
         state_keeper_db_path,
         config.optional.enum_index_migration_chunk_size,
+        stop_receiver.clone(),
     );
     let batch_executor_base: Box<dyn BatchExecutor> = Box::new(MainBatchExecutor::new(
         Arc::new(storage_factory),

@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use tokio::sync::watch;
 use zksync_config::{configs::chain::StateKeeperConfig, DBConfig};
 use zksync_core::state_keeper::{AsyncRocksdbCache, MainBatchExecutor};
 
@@ -34,10 +35,13 @@ impl WiringLayer for MainBatchExecutorLayer {
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
         let master_pool = context.get_resource::<MasterPoolResource>().await?;
 
+        // FIXME: Get an actual stop receiver from `ZkStackService`
+        let (_, stop_receiver) = watch::channel(false);
         let storage_factory = AsyncRocksdbCache::new(
             master_pool.get_singleton().await?,
             self.db_config.state_keeper_db_path,
             self.state_keeper_config.enum_index_migration_chunk_size(),
+            stop_receiver,
         );
         let builder = MainBatchExecutor::new(
             Arc::new(storage_factory),

@@ -50,6 +50,7 @@ pub(crate) async fn create_state_keeper(
         pool.clone(),
         db_config.state_keeper_db_path.clone(),
         state_keeper_config.enum_index_migration_chunk_size(),
+        stop_receiver.clone(),
     );
     let batch_executor_base = MainBatchExecutor::new(
         Arc::new(storage_factory),

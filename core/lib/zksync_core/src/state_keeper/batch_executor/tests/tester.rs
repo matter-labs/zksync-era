@@ -94,10 +94,12 @@ impl Tester {
     /// This function intentionally uses sensible defaults to not introduce boilerplate.
     pub(super) async fn create_batch_executor(&self) -> BatchExecutorHandle {
         let (l1_batch_env, system_env) = self.default_batch_params();
+        let (_, stop_receiver) = watch::channel(false);
         let state_keeper_storage = AsyncRocksdbCache::new(
             self.pool(),
             self.state_keeper_db_path(),
             self.enum_index_migration_chunk_size(),
+            stop_receiver,
         );
         self.create_batch_executor_inner(Arc::new(state_keeper_storage), l1_batch_env, system_env)
             .await
@@ -127,10 +129,12 @@ impl Tester {
         &self,
         snapshot: &SnapshotRecoveryStatus,
     ) -> BatchExecutorHandle {
+        let (_, stop_receiver) = watch::channel(false);
         let storage_factory = AsyncRocksdbCache::new(
             self.pool(),
             self.state_keeper_db_path(),
             self.enum_index_migration_chunk_size(),
+            stop_receiver,
         );
         self.recover_batch_executor_inner(Arc::new(storage_factory), snapshot)
             .await
