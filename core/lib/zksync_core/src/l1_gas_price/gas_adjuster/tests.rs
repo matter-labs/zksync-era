@@ -1,10 +1,17 @@
 use std::{collections::VecDeque, sync::Arc};
 
+use test_casing::test_casing;
 use zksync_config::GasAdjusterConfig;
 use zksync_eth_client::clients::MockEthereum;
 
 use super::{GasAdjuster, GasStatisticsInner, PubdataPricing};
 use crate::l1_gas_price::{RollupPubdataPricing, ValidiumPubdataPricing};
+
+#[derive(Debug)]
+pub enum DeploymentMode {
+    Validium,
+    Rollup,
+}
 
 /// Check that we compute the median correctly
 #[test]
@@ -28,10 +35,17 @@ fn samples_queue() {
 }
 
 /// Check that we properly fetch base fees as block are mined
-async fn _kept_updated(pubdata_pricin: Arc<dyn PubdataPricing>) {
+#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
+#[tokio::test]
+async fn kept_updated(deployment_mode: DeploymentMode) {
     let eth_client =
         Arc::new(MockEthereum::default().with_fee_history(vec![0, 4, 6, 8, 7, 5, 5, 8, 10, 9]));
     eth_client.advance_block_number(5);
+
+    let pubdata_pricing: Arc<dyn PubdataPricing> = match deployment_mode {
+        DeploymentMode::Validium => Arc::new(ValidiumPubdataPricing {}),
+        DeploymentMode::Rollup => Arc::new(RollupPubdataPricing {}),
+    };
 
     let adjuster = GasAdjuster::new(
         eth_client.clone(),
@@ -45,7 +59,7 @@ async fn _kept_updated(pubdata_pricin: Arc<dyn PubdataPricing>) {
             poll_period: 5,
             max_l1_gas_price: None,
         },
-        pubdata_pricin,
+        pubdata_pricing,
     )
     .await
     .unwrap();
@@ -58,13 +72,4 @@ async fn _kept_updated(pubdata_pricin: Arc<dyn PubdataPricing>) {
 
     assert_eq!(adjuster.statistics.0.read().unwrap().samples.len(), 5);
     assert_eq!(adjuster.statistics.0.read().unwrap().median(), 7);
-}
-
-#[tokio::test]
-async fn kept_updated() {
-    let rollup_pubdata_pricing = Arc::new(RollupPubdataPricing {});
-    let validium_pubdata_pricing = Arc::new(ValidiumPubdataPricing {});
-
-    _kept_updated(rollup_pubdata_pricing).await;
-    _kept_updated(validium_pubdata_pricing).await;
 }
