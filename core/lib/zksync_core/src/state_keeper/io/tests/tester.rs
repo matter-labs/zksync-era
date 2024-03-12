@@ -22,12 +22,18 @@ use zksync_types::{
 use crate::{
     fee_model::MainNodeFeeInputProvider,
     genesis::create_genesis_l1_batch,
-    l1_gas_price::{GasAdjuster, PubdataPricing},
+    l1_gas_price::{GasAdjuster, PubdataPricing, RollupPubdataPricing, ValidiumPubdataPricing},
     state_keeper::{io::MiniblockSealer, MempoolGuard, MempoolIO},
     utils::testonly::{
         create_l1_batch, create_l2_transaction, create_miniblock, execute_l2_transaction,
     },
 };
+
+#[derive(Debug)]
+pub enum DeploymentMode {
+    ValidiumMode,
+    RollupMode,
+}
 
 #[derive(Debug)]
 pub struct Tester {
@@ -37,8 +43,14 @@ pub struct Tester {
 }
 
 impl Tester {
-    pub(super) fn new(pubdata_pricing: Arc<dyn PubdataPricing>) -> Self {
+    pub(super) fn new(deployment_mode: &DeploymentMode) -> Self {
         let base_system_contracts = BaseSystemContracts::load_from_disk();
+
+        let pubdata_pricing: Arc<dyn PubdataPricing> = match deployment_mode {
+            DeploymentMode::ValidiumMode => Arc::new(ValidiumPubdataPricing {}),
+            DeploymentMode::RollupMode => Arc::new(RollupPubdataPricing {}),
+        };
+
         Self {
             base_system_contracts,
             current_timestamp: 0,
