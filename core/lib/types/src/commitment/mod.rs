@@ -464,6 +464,14 @@ impl L1BatchAuxiliaryOutput {
                     result.extend(blob_commitments[0].as_bytes());
                     result.extend(blob_linear_hashes[1].as_bytes());
                     result.extend(blob_commitments[1].as_bytes());
+
+                    // TODO: make it version dependent.
+                    const MAX_BLOBS: usize = 16;
+
+                    for i in 0..(MAX_BLOBS - 2) {
+                        result.extend(H256::zero().as_bytes());
+                        result.extend(H256::zero().as_bytes());
+                    }
                 }
             }
         }
