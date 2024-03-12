@@ -273,3 +273,178 @@ impl MiniblockSealerTask {
         command
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use futures::FutureExt;
+    use multivm::zk_evm_latest::ethereum_types::H256;
+    use zksync_types::{
+        block::BlockGasCount, tx::ExecutionMetrics, L1BatchNumber, L2ChainId, MiniblockNumber,
+    };
+
+    use super::*;
+    use crate::{
+        genesis::{ensure_genesis_state, GenesisParams},
+        state_keeper::{
+            io::MiniblockParams,
+            tests::{
+                create_execution_result, create_transaction, create_updates_manager,
+                default_l1_batch_env, default_system_env, default_vm_block_result,
+            },
+        },
+    };
+
+    async fn test_miniblock_and_l1_batch_processing(
+        pool: ConnectionPool,
+        miniblock_sealer_capacity: usize,
+    ) {
+        let mut storage = pool.access_storage().await.unwrap();
+        ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
+            .await
+            .unwrap();
+        // Save metadata for the genesis L1 batch so that we don't hang in `seal_l1_batch`.
+        storage
+            .blocks_dal()
+            .set_l1_batch_hash(L1BatchNumber(0), H256::zero())
+            .await
+            .unwrap();
+        drop(storage);
+
+        let (mut persistence, miniblock_sealer) = StateKeeperPersistence::new(
+            pool.clone(),
+            Address::default(),
+            miniblock_sealer_capacity,
+        );
+        tokio::spawn(miniblock_sealer.run());
+
+        let l1_batch_env = default_l1_batch_env(1, 1, Address::random());
+        let mut updates = UpdatesManager::new(&l1_batch_env, &default_system_env());
+
+        let tx = create_transaction(10, 100);
+        updates.extend_from_executed_transaction(
+            tx,
+            create_execution_result(0, []),
+            vec![],
+            BlockGasCount::default(),
+            ExecutionMetrics::default(),
+            vec![],
+        );
+        persistence.handle_miniblock(&updates).await;
+        updates.push_miniblock(MiniblockParams {
+            timestamp: 1,
+            virtual_blocks: 1,
+        });
+
+        let finished_batch = default_vm_block_result();
+        persistence
+            .handle_l1_batch(None, updates, &l1_batch_env, finished_batch)
+            .await
+            .unwrap();
+
+        // Check that miniblock #1 and L1 batch #1 are persisted.
+        let mut conn = pool.access_storage().await.unwrap();
+        assert_eq!(
+            conn.blocks_dal()
+                .get_sealed_miniblock_number()
+                .await
+                .unwrap(),
+            Some(MiniblockNumber(2)) // + fictive miniblock
+        );
+        let l1_batch_header = conn
+            .blocks_dal()
+            .get_l1_batch_header(L1BatchNumber(1))
+            .await
+            .unwrap()
+            .expect("No L1 batch #1");
+        assert_eq!(l1_batch_header.l2_tx_count, 1);
+    }
+
+    #[tokio::test]
+    async fn miniblock_and_l1_batch_processing() {
+        let pool = ConnectionPool::constrained_test_pool(1).await;
+        test_miniblock_and_l1_batch_processing(pool, 1).await;
+    }
+
+    #[tokio::test]
+    async fn miniblock_and_l1_batch_processing_with_sync_sealer() {
+        let pool = ConnectionPool::constrained_test_pool(1).await;
+        test_miniblock_and_l1_batch_processing(pool, 0).await;
+    }
+
+    #[tokio::test]
+    async fn miniblock_sealer_handle_blocking() {
+        let pool = ConnectionPool::constrained_test_pool(1).await;
+        let (mut persistence, mut sealer) =
+            StateKeeperPersistence::new(pool, Address::default(), 1);
+
+        // The first command should be successfully submitted immediately.
+        let mut updates_manager = create_updates_manager();
+        let seal_command = updates_manager.seal_miniblock_command(Address::default(), false);
+        persistence.submit_miniblock(seal_command).await;
+
+        // The second command should lead to blocking
+        updates_manager.push_miniblock(MiniblockParams {
+            timestamp: 2,
+            virtual_blocks: 1,
+        });
+        let seal_command = updates_manager.seal_miniblock_command(Address::default(), false);
+        {
+            let submit_future = persistence.submit_miniblock(seal_command);
+            futures::pin_mut!(submit_future);
+
+            assert!((&mut submit_future).now_or_never().is_none());
+            // ...until miniblock #1 is processed
+            let command = sealer.commands_receiver.recv().await.unwrap();
+            command.completion_sender.send(()).unwrap_err(); // completion receiver should be dropped
+            submit_future.await;
+        }
+
+        {
+            let wait_future = persistence.wait_for_all_commands();
+            futures::pin_mut!(wait_future);
+            assert!((&mut wait_future).now_or_never().is_none());
+            let command = sealer.commands_receiver.recv().await.unwrap();
+            command.completion_sender.send(()).unwrap();
+            wait_future.await;
+        }
+
+        // Check that `wait_for_all_commands()` state is reset after use.
+        persistence.wait_for_all_commands().await;
+
+        updates_manager.push_miniblock(MiniblockParams {
+            timestamp: 3,
+            virtual_blocks: 1,
+        });
+        let seal_command = updates_manager.seal_miniblock_command(Address::default(), false);
+        persistence.submit_miniblock(seal_command).await;
+        let command = sealer.commands_receiver.recv().await.unwrap();
+        command.completion_sender.send(()).unwrap();
+        persistence.wait_for_all_commands().await;
+    }
+
+    #[tokio::test]
+    async fn miniblock_sealer_handle_parallel_processing() {
+        let pool = ConnectionPool::constrained_test_pool(1).await;
+        let (mut persistence, mut sealer) =
+            StateKeeperPersistence::new(pool, Address::default(), 5);
+
+        // 5 miniblock sealing commands can be submitted without blocking.
+        let mut updates_manager = create_updates_manager();
+        for i in 1..=5 {
+            let seal_command = updates_manager.seal_miniblock_command(Address::default(), false);
+            updates_manager.push_miniblock(MiniblockParams {
+                timestamp: i,
+                virtual_blocks: 1,
+            });
+            persistence.submit_miniblock(seal_command).await;
+        }
+
+        for i in 1..=5 {
+            let command = sealer.commands_receiver.recv().await.unwrap();
+            assert_eq!(command.command.miniblock.number, MiniblockNumber(i));
+            command.completion_sender.send(()).ok();
+        }
+
+        persistence.wait_for_all_commands().await;
+    }
+}

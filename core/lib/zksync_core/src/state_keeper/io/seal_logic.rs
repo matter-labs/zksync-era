@@ -46,7 +46,7 @@ impl UpdatesManager {
     /// Persists an L1 batch in the storage.
     /// This action includes a creation of an empty "fictive" miniblock that contains
     /// the events generated during the bootloader "tip phase". Returns updates for this fictive miniblock.
-    pub(crate) async fn seal_l1_batch(
+    pub(super) async fn seal_l1_batch(
         mut self,
         storage: &mut StorageProcessor<'_>,
         l1_batch_env: &L1BatchEnv,
@@ -263,7 +263,7 @@ impl UpdatesManager {
 }
 
 impl MiniblockSealCommand {
-    pub async fn seal(&self, storage: &mut StorageProcessor<'_>) {
+    pub(super) async fn seal(&self, storage: &mut StorageProcessor<'_>) {
         self.seal_inner(storage, false).await;
     }
 

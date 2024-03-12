@@ -5,7 +5,8 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::ConnectionPool;
 use zksync_mempool::L2TxFilter;
 use zksync_types::{
-    block::BlockGasCount,
+    block::{BlockGasCount, MiniblockHasher},
+    fee::TransactionExecutionMetrics,
     fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
     tx::ExecutionMetrics,
     AccountTreeId, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, StorageKey, VmEvent,
@@ -14,11 +15,15 @@ use zksync_types::{
 use zksync_utils::time::seconds_since_epoch;
 
 use self::tester::Tester;
-use crate::state_keeper::{
-    io::StateKeeperSequencer,
-    mempool_actor::l2_tx_filter,
-    tests::{create_execution_result, create_transaction, Query},
-    updates::{MiniblockSealCommand, MiniblockUpdates},
+use crate::{
+    state_keeper::{
+        io::StateKeeperSequencer,
+        mempool_actor::l2_tx_filter,
+        tests::{create_execution_result, create_transaction, Query},
+        updates::{MiniblockSealCommand, MiniblockUpdates, UpdatesManager},
+        HandleStateKeeperOutput, StateKeeperPersistence,
+    },
+    utils::testonly::prepare_recovery_snapshot,
 };
 
 mod tester;
@@ -361,82 +366,6 @@ async fn processing_events_when_sealing_miniblock() {
     }
 }
 
-/* FIXME restore
-async fn test_miniblock_and_l1_batch_processing(
-    pool: ConnectionPool,
-    miniblock_sealer_capacity: usize,
-) {
-    let tester = Tester::new();
-
-    // Genesis is needed for proper mempool initialization.
-    tester.genesis(&pool).await;
-    let mut storage = pool.access_storage().await.unwrap();
-    // Save metadata for the genesis L1 batch so that we don't hang in `seal_l1_batch`.
-    storage
-        .blocks_dal()
-        .set_l1_batch_hash(L1BatchNumber(0), H256::zero())
-        .await
-        .unwrap();
-    drop(storage);
-
-    let (mut mempool, _) = tester
-        .create_test_mempool_io(pool.clone())
-        .await;
-
-    let l1_batch_env = default_l1_batch_env(1, 1, Address::random());
-    let mut updates = UpdatesManager::new(&l1_batch_env, &default_system_env());
-
-    let tx = create_transaction(10, 100);
-    updates.extend_from_executed_transaction(
-        tx,
-        create_execution_result(0, []),
-        vec![],
-        BlockGasCount::default(),
-        ExecutionMetrics::default(),
-        vec![],
-    );
-    mempool.seal_miniblock(&updates).await;
-    updates.push_miniblock(MiniblockParams {
-        timestamp: 1,
-        virtual_blocks: 1,
-    });
-
-    let finished_batch = default_vm_block_result();
-    mempool
-        .seal_l1_batch(None, updates, &l1_batch_env, finished_batch)
-        .await
-        .unwrap();
-
-    // Check that miniblock #1 and L1 batch #1 are persisted.
-    let mut conn = pool.access_storage().await.unwrap();
-    assert_eq!(
-        conn.blocks_dal()
-            .get_sealed_miniblock_number()
-            .await
-            .unwrap(),
-        Some(MiniblockNumber(2)) // + fictive miniblock
-    );
-    let l1_batch_header = conn
-        .blocks_dal()
-        .get_l1_batch_header(L1BatchNumber(1))
-        .await
-        .unwrap()
-        .expect("No L1 batch #1");
-    assert_eq!(l1_batch_header.l2_tx_count, 1);
-}
-
-#[tokio::test]
-async fn miniblock_and_l1_batch_processing() {
-    let pool = ConnectionPool::constrained_test_pool(1).await;
-    test_miniblock_and_l1_batch_processing(pool, 1).await;
-}
-
-#[tokio::test]
-async fn miniblock_and_l1_batch_processing_with_sync_sealer() {
-    let pool = ConnectionPool::constrained_test_pool(1).await;
-    test_miniblock_and_l1_batch_processing(pool, 0).await;
-}
-
 #[tokio::test]
 async fn miniblock_processing_after_snapshot_recovery() {
     let connection_pool = ConnectionPool::test_pool().await;
@@ -445,18 +374,15 @@ async fn miniblock_processing_after_snapshot_recovery() {
         prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await;
     let tester = Tester::new();
 
-    let (mut mempool, mut mempool_guard) = tester
-        .create_test_mempool_io(connection_pool.clone(), 0)
-        .await;
+    let (mut mempool, mut mempool_guard) =
+        tester.create_test_mempool_io(connection_pool.clone()).await;
+    let (cursor, maybe_pending_batch) = mempool.initialize().await.unwrap();
     assert_eq!(
-        mempool.current_miniblock_number(),
+        cursor.next_miniblock,
         snapshot_recovery.miniblock_number + 1
     );
-    assert_eq!(
-        mempool.current_l1_batch_number(),
-        snapshot_recovery.l1_batch_number + 1
-    );
-    assert!(mempool.load_pending_batch().await.unwrap().is_none());
+    assert_eq!(cursor.l1_batch, snapshot_recovery.l1_batch_number + 1);
+    assert!(maybe_pending_batch.is_none());
 
     // Insert a transaction into the mempool in order to open a new batch.
     let tx_filter = l2_tx_filter(
@@ -475,7 +401,7 @@ async fn miniblock_processing_after_snapshot_recovery() {
         .await;
 
     let (system_env, l1_batch_env) = mempool
-        .wait_for_new_batch_params(Duration::from_secs(10))
+        .wait_for_new_batch_params(&cursor, Duration::from_secs(10))
         .await
         .unwrap()
         .expect("no batch params generated");
@@ -500,7 +426,11 @@ async fn miniblock_processing_after_snapshot_recovery() {
         ExecutionMetrics::default(),
         vec![],
     );
-    mempool.seal_miniblock(&updates).await;
+
+    let (mut persistence, miniblock_sealer) =
+        StateKeeperPersistence::new(connection_pool.clone(), Address::default(), 0);
+    tokio::spawn(miniblock_sealer.run());
+    persistence.handle_miniblock(&updates).await;
 
     // Check that the miniblock is persisted and has correct data.
     let persisted_miniblock = storage
@@ -535,23 +465,15 @@ async fn miniblock_processing_after_snapshot_recovery() {
     assert_eq!(miniblock_transactions[0].hash(), tx_hash);
 
     // Emulate node restart.
-    let (mut mempool, _) = tester
-        .create_test_mempool_io(connection_pool.clone(), 0)
-        .await;
+    let (mut mempool, _) = tester.create_test_mempool_io(connection_pool.clone()).await;
+    let (cursor, maybe_pending_batch) = mempool.initialize().await.unwrap();
     assert_eq!(
-        mempool.current_miniblock_number(),
+        cursor.next_miniblock,
         snapshot_recovery.miniblock_number + 2
     );
-    assert_eq!(
-        mempool.current_l1_batch_number(),
-        snapshot_recovery.l1_batch_number + 1
-    );
+    assert_eq!(cursor.l1_batch, snapshot_recovery.l1_batch_number + 1);
 
-    let pending_batch = mempool
-        .load_pending_batch()
-        .await
-        .unwrap()
-        .expect("no pending batch");
+    let pending_batch = maybe_pending_batch.expect("no pending batch");
     assert_eq!(
         pending_batch.l1_batch_env.number,
         snapshot_recovery.l1_batch_number + 1
@@ -576,90 +498,6 @@ async fn miniblock_processing_after_snapshot_recovery() {
     assert_eq!(pending_batch.pending_miniblocks[0].txs.len(), 1);
     assert_eq!(pending_batch.pending_miniblocks[0].txs[0].hash(), tx_hash);
 }
-
-#[tokio::test]
-async fn miniblock_sealer_handle_blocking() {
-    let pool = ConnectionPool::constrained_test_pool(1).await;
-    let (mut sealer, mut sealer_handle) = MiniblockSealer::new(pool, 1);
-
-    // The first command should be successfully submitted immediately.
-    let updates_manager = create_updates_manager();
-    let seal_command = updates_manager.seal_miniblock_command(
-        L1BatchNumber(1),
-        MiniblockNumber(1),
-        Address::default(),
-        false,
-    );
-    sealer_handle.submit(seal_command).await;
-
-    // The second command should lead to blocking
-    let seal_command = updates_manager.seal_miniblock_command(
-        L1BatchNumber(1),
-        MiniblockNumber(2),
-        Address::default(),
-        false,
-    );
-    {
-        let submit_future = sealer_handle.submit(seal_command);
-        futures::pin_mut!(submit_future);
-
-        assert!((&mut submit_future).now_or_never().is_none());
-        // ...until miniblock #1 is processed
-        let command = sealer.commands_receiver.recv().await.unwrap();
-        command.completion_sender.send(()).unwrap_err(); // completion receiver should be dropped
-        submit_future.await;
-    }
-
-    {
-        let wait_future = sealer_handle.wait_for_all_commands();
-        futures::pin_mut!(wait_future);
-        assert!((&mut wait_future).now_or_never().is_none());
-        let command = sealer.commands_receiver.recv().await.unwrap();
-        command.completion_sender.send(()).unwrap();
-        wait_future.await;
-    }
-
-    // Check that `wait_for_all_commands()` state is reset after use.
-    sealer_handle.wait_for_all_commands().await;
-
-    let seal_command = updates_manager.seal_miniblock_command(
-        L1BatchNumber(2),
-        MiniblockNumber(3),
-        Address::default(),
-        false,
-    );
-    sealer_handle.submit(seal_command).await;
-    let command = sealer.commands_receiver.recv().await.unwrap();
-    command.completion_sender.send(()).unwrap();
-    sealer_handle.wait_for_all_commands().await;
-}
-
-#[tokio::test]
-async fn miniblock_sealer_handle_parallel_processing() {
-    let pool = ConnectionPool::constrained_test_pool(1).await;
-    let (mut sealer, mut sealer_handle) = MiniblockSealer::new(pool, 5);
-
-    // 5 miniblock sealing commands can be submitted without blocking.
-    for i in 1..=5 {
-        let updates_manager = create_updates_manager();
-        let seal_command = updates_manager.seal_miniblock_command(
-            L1BatchNumber(1),
-            MiniblockNumber(i),
-            Address::default(),
-            false,
-        );
-        sealer_handle.submit(seal_command).await;
-    }
-
-    for i in 1..=5 {
-        let command = sealer.commands_receiver.recv().await.unwrap();
-        assert_eq!(command.command.miniblock_number, MiniblockNumber(i));
-        command.completion_sender.send(()).ok();
-    }
-
-    sealer_handle.wait_for_all_commands().await;
-}
-*/
 
 /// Ensure that subsequent miniblocks that belong to the same L1 batch have different timestamps
 #[tokio::test]
