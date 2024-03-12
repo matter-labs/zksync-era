@@ -288,7 +288,8 @@ impl L1BatchParamsProvider {
                 contract_hashes.default_aa,
                 Some(contract_hashes.evm_simulator),
             )
-            .await;
+            .await
+            .context("failed getting base system contracts")?;
 
         Ok(l1_batch_params(
             first_miniblock_in_batch.l1_batch_number,

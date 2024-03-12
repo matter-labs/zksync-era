@@ -72,7 +72,7 @@ pub fn is_l1_tx_type(tx_type: u8) -> bool {
     tx_type == PRIORITY_OPERATION_L2_TX_TYPE || tx_type == PROTOCOL_UPGRADE_TX_TYPE
 }
 
-#[derive(Default, Debug, Clone, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct L1TxCommonData {
     /// Sender of the transaction.

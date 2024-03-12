@@ -139,7 +139,7 @@ mod tests {
     fn postgres_from_env() {
         let mut lock = MUTEX.lock();
         let config = r#"
-            DATABASE_URL=postgres://postgres@localhost/zksync_local
+            DATABASE_URL=postgres://postgres:notsecurepassword@localhost/zksync_local
             DATABASE_POOL_SIZE=50
             DATABASE_ACQUIRE_TIMEOUT_SEC=15
             DATABASE_STATEMENT_TIMEOUT_SEC=300
@@ -151,7 +151,7 @@ mod tests {
         let postgres_config = PostgresConfig::from_env().unwrap();
         assert_eq!(
             postgres_config.master_url().unwrap(),
-            "postgres://postgres@localhost/zksync_local"
+            "postgres://postgres:notsecurepassword@localhost/zksync_local"
         );
         assert_eq!(postgres_config.max_connections().unwrap(), 50);
         assert_eq!(

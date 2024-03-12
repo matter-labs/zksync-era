@@ -1,8 +1,8 @@
 use anyhow::Context as _;
 use zksync_config::configs;
-use zksync_protobuf::required;
+use zksync_protobuf::{repr::ProtoRepr, required};
 
-use crate::{proto, repr::ProtoRepr};
+use crate::proto;
 
 impl proto::ProtocolVersionLoadingMode {
     fn new(x: &configs::proof_data_handler::ProtocolVersionLoadingMode) -> Self {

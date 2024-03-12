@@ -93,6 +93,8 @@ async fn test_require_eip712() {
         access_list: None,
         max_fee_per_gas: U256::from(1000000000),
         max_priority_fee_per_gas: U256::from(1000000000),
+        max_fee_per_blob_gas: None,
+        blob_versioned_hashes: None,
     };
 
     let aa_tx = private_account.sign_legacy_tx(aa_raw_tx).await;

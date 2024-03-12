@@ -55,7 +55,9 @@ members = [
 ]
 resolver = "2"
 
-exclude = []
+exclude = [
+    "contracts/"
+]
 
 # for `perf` profiling
 [profile.perf]

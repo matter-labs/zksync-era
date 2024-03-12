@@ -202,27 +202,17 @@ impl VersionedCodeHash {
 impl<S: ReadStorage + Debug, const B: bool, H: HistoryMode> DecommittmentProcessor
     for DecommitterOracle<B, S, H>
 {
-    /// Loads a given bytecode hash into memory (see trait description for more details).
-    fn decommit_into_memory<M: Memory>(
+    /// Prepares the decommitment query for the given bytecode hash.
+    /// The main purpose of this method is to tell the VM whether this bytecode is fresh (i.e. decommittedfor the first time)
+    /// or not.
+    fn prepare_to_decommit(
         &mut self,
         monotonic_cycle_counter: u32,
         mut partial_query: DecommittmentQuery,
-        memory: &mut M,
-    ) -> Result<
-        (
-            zk_evm_1_5_0::aux_structures::DecommittmentQuery,
-            Option<Vec<U256>>,
-        ),
-        anyhow::Error,
-    > {
-        self.decommitment_requests.push((), partial_query.timestamp);
-
+    ) -> anyhow::Result<DecommittmentQuery> {
         let versioned_hash = VersionedCodeHash::from_query(&partial_query);
-
         let stored_hash = versioned_hash.to_stored_hash();
 
-        // First - check if we didn't fetch this bytecode in the past.
-        // If we did - we can just return the page that we used before (as the memory is readonly).
         if let Some(memory_page) = self
             .decommitted_code_hashes
             .inner()
@@ -233,49 +223,67 @@ impl<S: ReadStorage + Debug, const B: bool, H: HistoryMode> DecommittmentProcess
             partial_query.memory_page = MemoryPage(memory_page);
             partial_query.decommitted_length = versioned_hash.get_preimage_length() as u16;
 
-            Ok((partial_query, None))
+            Ok(partial_query)
         } else {
-            // We are fetching a fresh bytecode that we didn't read before.
-            let values = self.get_bytecode(stored_hash, partial_query.timestamp);
-            let page_to_use = partial_query.memory_page;
-            let timestamp = partial_query.timestamp;
-            partial_query.decommitted_length = values.len() as u16;
             partial_query.is_fresh = true;
+            partial_query.decommitted_length = versioned_hash.get_preimage_length() as u16;
 
-            // Create a template query, that we'll use for writing into memory.
-            // value & index are set to 0 - as they will be updated in the inner loop below.
-            let mut tmp_q = MemoryQuery {
-                timestamp,
-                location: MemoryLocation {
-                    memory_type: MemoryType::Code,
-                    page: page_to_use,
-                    index: MemoryIndex(0),
-                },
-                value: U256::zero(),
-                value_is_pointer: false,
-                rw_flag: true,
-            };
-            self.decommitted_code_hashes
-                .insert(stored_hash, page_to_use.0, timestamp);
+            Ok(partial_query)
+        }
+    }
 
-            // Copy the bytecode (that is stored in 'values' Vec) into the memory page.
-            if B {
-                for (i, value) in values.iter().enumerate() {
-                    tmp_q.location.index = MemoryIndex(i as u32);
-                    tmp_q.value = *value;
-                    memory.specialized_code_query(monotonic_cycle_counter, tmp_q);
-                }
-                // If we're in the witness mode - we also have to return the values.
-                Ok((partial_query, Some(values)))
-            } else {
-                for (i, value) in values.into_iter().enumerate() {
-                    tmp_q.location.index = MemoryIndex(i as u32);
-                    tmp_q.value = value;
-                    memory.specialized_code_query(monotonic_cycle_counter, tmp_q);
-                }
+    /// Loads a given bytecode hash into memory (see trait description for more details).
+    fn decommit_into_memory<M: Memory>(
+        &mut self,
+        monotonic_cycle_counter: u32,
+        partial_query: DecommittmentQuery,
+        memory: &mut M,
+    ) -> anyhow::Result<Option<Vec<U256>>> {
+        assert!(partial_query.is_fresh);
 
-                Ok((partial_query, None))
+        self.decommitment_requests.push((), partial_query.timestamp);
+
+        let versioned_hash = VersionedCodeHash::from_query(&partial_query);
+        let stored_hash = versioned_hash.to_stored_hash();
+
+        // We are fetching a fresh bytecode that we didn't read before.
+        let values = self.get_bytecode(stored_hash, partial_query.timestamp);
+        let page_to_use = partial_query.memory_page;
+        let timestamp = partial_query.timestamp;
+
+        // Create a template query, that we'll use for writing into memory.
+        // value & index are set to 0 - as they will be updated in the inner loop below.
+        let mut tmp_q = MemoryQuery {
+            timestamp,
+            location: MemoryLocation {
+                memory_type: MemoryType::Code,
+                page: page_to_use,
+                index: MemoryIndex(0),
+            },
+            value: U256::zero(),
+            value_is_pointer: false,
+            rw_flag: true,
+        };
+        self.decommitted_code_hashes
+            .insert(stored_hash, page_to_use.0, timestamp);
+
+        // Copy the bytecode (that is stored in 'values' Vec) into the memory page.
+        if B {
+            for (i, value) in values.iter().enumerate() {
+                tmp_q.location.index = MemoryIndex(i as u32);
+                tmp_q.value = *value;
+                memory.specialized_code_query(monotonic_cycle_counter, tmp_q);
             }
+            // If we're in the witness mode - we also have to return the values.
+            Ok(Some(values))
+        } else {
+            for (i, value) in values.into_iter().enumerate() {
+                tmp_q.location.index = MemoryIndex(i as u32);
+                tmp_q.value = value;
+                memory.specialized_code_query(monotonic_cycle_counter, tmp_q);
+            }
+
+            Ok(None)
         }
     }
 }

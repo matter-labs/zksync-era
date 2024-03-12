@@ -25,9 +25,9 @@ use crate::{
     },
 };
 
-fn generate_bytecode() -> Vec<u8> {
-    // In reality, bytecodes will never get bigger than that
-    vec![2u8; 32 * 30001]
+fn generate_large_bytecode() -> Vec<u8> {
+    // This is the maximal possible size of a zkEVM bytecode
+    vec![2u8; ((1 << 16) - 1) * 32]
 }
 
 #[test]
@@ -118,7 +118,7 @@ fn test_code_oracle_big_bytecode() {
     let precompiles_contract_address = Address::random();
     let precompile_contract_bytecode = read_precompiles_contract();
 
-    let big_zkevm_bytecode = generate_bytecode();
+    let big_zkevm_bytecode = generate_large_bytecode();
     let big_zkevm_bytecode_hash = hash_bytecode(&big_zkevm_bytecode);
     let big_zkevm_bytecode_keccak_hash = keccak256(&big_zkevm_bytecode);
 

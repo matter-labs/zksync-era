@@ -51,7 +51,7 @@ async function initHyperchain() {
     const governorPrivateKey = process.env.GOVERNOR_PRIVATE_KEY;
     const deployL2Weth = Boolean(process.env.DEPLOY_L2_WETH || false);
     const deployTestTokens = Boolean(process.env.DEPLOY_TEST_TOKENS || false);
-
+    const governorAdrress = ethers.utils.computeAddress(governorPrivateKey!);
     const initArgs: InitArgs = {
         skipSubmodulesCheckout: false,
         skipEnvSetup: true,
@@ -65,7 +65,7 @@ async function initHyperchain() {
             deploy: deployTestTokens,
             args: ['--private-key', deployerPrivateKey, '--envFile', process.env.CHAIN_ETH_NETWORK!]
         },
-        deployerPrivateKeyArgs: ['--private-key', deployerPrivateKey]
+        deployerPrivateKeyArgs: ['--private-key', deployerPrivateKey, '--owner-address', governorAdrress]
     };
 
     await init(initArgs);
@@ -173,7 +173,7 @@ async function setHyperchainMetadata() {
                 'What is the connection URL for your Postgress 14 main database (format is postgres://<user>:<pass>@<hostname>:<port>/<database>)?',
             name: 'dbUrl',
             type: 'input',
-            initial: 'postgres://postgres@localhost/zksync_local',
+            initial: 'postgres://postgres:notsecurepassword@127.0.0.1:5432/zksync_local',
             required: true
         });
 
@@ -182,7 +182,7 @@ async function setHyperchainMetadata() {
                 'What is the connection URL for your Postgress 14 prover database (format is postgres://<user>:<pass>@<hostname>:<port>/<database>)?',
             name: 'dbProverUrl',
             type: 'input',
-            initial: 'postgres://postgres@localhost/prover_local',
+            initial: 'postgres://postgres:notsecurepassword@127.0.0.1:5432/prover_local',
             required: true
         });
 
@@ -342,6 +342,7 @@ async function setHyperchainMetadata() {
     // TODO: Generate url for data-compressor with selected region or fix env variable for keys location
     // PLA-595
     wrapEnvModify('DATABASE_URL', databaseUrl);
+    wrapEnvModify('DATABASE_PROVER_URL', databaseProverUrl);
     wrapEnvModify('ETH_CLIENT_CHAIN_ID', l1Id.toString());
     wrapEnvModify('ETH_CLIENT_WEB3_URL', l1Rpc);
     wrapEnvModify('CHAIN_ETH_NETWORK', getL1Name(results.l1Chain));

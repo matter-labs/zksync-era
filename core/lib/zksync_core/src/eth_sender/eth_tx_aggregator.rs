@@ -6,16 +6,19 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::{BoundEthInterface, CallFunctionArgs};
 use zksync_l1_contract_interface::{
+    i_executor::commit::kzg::{KzgInfo, KzgSettings, ZK_SYNC_BYTES_PER_BLOB},
     multicall3::{Multicall3Call, Multicall3Result},
     Detokenize, Tokenizable, Tokenize,
 };
 use zksync_types::{
+    aggregated_operations::AggregatedActionType,
     commitment::SerializeCommitment,
-    eth_sender::EthTx,
+    eth_sender::{EthTx, EthTxBlobSidecar, EthTxBlobSidecarV1, SidecarBlobV1},
     ethabi::Token,
     l2_to_l1_log::UserL2ToL1Log,
     protocol_version::{L1VerifierConfig, VerifierParams},
-    web3::contract::Error as Web3ContractError,
+    pubdata_da::PubdataDA,
+    web3::{contract::Error as Web3ContractError, types::BlockNumber},
     Address, L2ChainId, ProtocolVersionId, H256, U256,
 };
 
@@ -52,10 +55,23 @@ pub struct EthTxAggregator {
     pub(super) main_zksync_contract_address: Address,
     functions: ZkSyncFunctions,
     base_nonce: u64,
+    base_nonce_custom_commit_sender: Option<u64>,
     rollup_chain_id: L2ChainId,
+    kzg_settings: Option<Arc<KzgSettings>>,
+    /// If set to `Some` node is operating in the 4844 mode with two operator
+    /// addresses at play: the main one and the custom address for sending commit
+    /// transactions. The `Some` then contains the address of this custom operator
+    /// address.
+    custom_commit_sender_addr: Option<Address>,
+}
+
+struct TxData {
+    calldata: Vec<u8>,
+    sidecar: Option<EthTxBlobSidecar>,
 }
 
 impl EthTxAggregator {
+    #[allow(clippy::too_many_arguments)]
     pub async fn new(
         config: SenderConfig,
         aggregator: Aggregator,
@@ -64,6 +80,8 @@ impl EthTxAggregator {
         l1_multicall3_address: Address,
         main_zksync_contract_address: Address,
         rollup_chain_id: L2ChainId,
+        kzg_settings: Option<Arc<KzgSettings>>,
+        custom_commit_sender_addr: Option<Address>,
     ) -> Self {
         let functions = ZkSyncFunctions::default();
         let base_nonce = eth_client
@@ -71,6 +89,17 @@ impl EthTxAggregator {
             .await
             .unwrap()
             .as_u64();
+
+        let base_nonce_custom_commit_sender = match custom_commit_sender_addr {
+            Some(addr) => Some(
+                eth_client
+                    .nonce_at_for_account(addr, BlockNumber::Pending, "eth_sender")
+                    .await
+                    .unwrap()
+                    .as_u64(),
+            ),
+            None => None,
+        };
         Self {
             config,
             aggregator,
@@ -80,7 +109,10 @@ impl EthTxAggregator {
             main_zksync_contract_address,
             functions,
             base_nonce,
+            base_nonce_custom_commit_sender,
             rollup_chain_id,
+            kzg_settings,
+            custom_commit_sender_addr,
         }
     }
 
@@ -393,7 +425,7 @@ impl EthTxAggregator {
         &self,
         op: &AggregatedOperation,
         contracts_are_pre_shared_bridge: bool,
-    ) -> Vec<u8> {
+    ) -> TxData {
         let operation_is_pre_shared_bridge = op.protocol_version().is_pre_shared_bridge();
         assert_eq!(
             contracts_are_pre_shared_bridge,
@@ -402,25 +434,59 @@ impl EthTxAggregator {
 
         let mut args = vec![Token::Uint(self.rollup_chain_id.as_u64().into())];
 
-        match op.clone() {
+        let (calldata, sidecar) = match op.clone() {
             AggregatedOperation::Commit(op) => {
                 if contracts_are_pre_shared_bridge {
-                    self.functions
-                        .pre_shared_bridge_commit
-                        .encode_input(&op.into_tokens())
-                        .expect("Failed to encode commit transaction data")
+                    if let (Some(kzg_settings), PubdataDA::Blobs) =
+                        (&self.kzg_settings, self.aggregator.pubdata_da())
+                    {
+                        let calldata = self
+                            .functions
+                            .pre_shared_bridge_commit
+                            .encode_input(&op.clone().into_tokens())
+                            .expect("Failed to encode commit transaction data");
+
+                        let side_car = op.l1_batches[0]
+                            .header
+                            .pubdata_input
+                            .clone()
+                            .unwrap()
+                            .chunks(ZK_SYNC_BYTES_PER_BLOB)
+                            .map(|blob| {
+                                let kzg_info = KzgInfo::new(kzg_settings, blob);
+                                SidecarBlobV1 {
+                                    blob: kzg_info.blob.to_vec(),
+                                    commitment: kzg_info.kzg_commitment.to_vec(),
+                                    proof: kzg_info.blob_proof.to_vec(),
+                                    versioned_hash: kzg_info.versioned_hash.to_vec(),
+                                }
+                            })
+                            .collect::<Vec<SidecarBlobV1>>();
+
+                        let eth_tx_sidecar = EthTxBlobSidecarV1 { blobs: side_car };
+                        (calldata, Some(eth_tx_sidecar.into()))
+                    } else {
+                        let calldata = self
+                            .functions
+                            .pre_shared_bridge_commit
+                            .encode_input(&op.into_tokens())
+                            .expect("Failed to encode commit transaction data");
+                        (calldata, None)
+                    }
                 } else {
                     args.extend(op.into_tokens());
-                    self.functions
+                    let calldata = self
+                        .functions
                         .post_shared_bridge_commit
                         .as_ref()
                         .expect("Missing ABI for commitBatchesSharedBridge")
                         .encode_input(&args)
-                        .expect("Failed to encode commit transaction data")
+                        .expect("Failed to encode commit transaction data");
+                    (calldata, None)
                 }
             }
             AggregatedOperation::PublishProofOnchain(op) => {
-                if contracts_are_pre_shared_bridge {
+                let calldata = if contracts_are_pre_shared_bridge {
                     self.functions
                         .pre_shared_bridge_prove
                         .encode_input(&op.into_tokens())
@@ -433,10 +499,11 @@ impl EthTxAggregator {
                         .expect("Missing ABI for proveBatchesSharedBridge")
                         .encode_input(&args)
                         .expect("Failed to encode prove transaction data")
-                }
+                };
+                (calldata, None)
             }
             AggregatedOperation::Execute(op) => {
-                if contracts_are_pre_shared_bridge {
+                let calldata = if contracts_are_pre_shared_bridge {
                     self.functions
                         .pre_shared_bridge_execute
                         .encode_input(&op.into_tokens())
@@ -449,9 +516,11 @@ impl EthTxAggregator {
                         .expect("Missing ABI for executeBatchesSharedBridge")
                         .encode_input(&args)
                         .expect("Failed to encode execute transaction data")
-                }
+                };
+                (calldata, None)
             }
-        }
+        };
+        TxData { calldata, sidecar }
     }
 
     pub(super) async fn save_eth_tx(
@@ -461,10 +530,18 @@ impl EthTxAggregator {
         contracts_are_pre_shared_bridge: bool,
     ) -> Result<EthTx, ETHSenderError> {
         let mut transaction = storage.start_transaction().await.unwrap();
-        let nonce = self.get_next_nonce(&mut transaction).await?;
-        let calldata = self.encode_aggregated_op(aggregated_op, contracts_are_pre_shared_bridge);
-        let l1_batch_number_range = aggregated_op.l1_batch_range();
         let op_type = aggregated_op.get_action_type();
+        // We may be using a custom sender for commit transactions, so use this
+        // var whatever it actually is: a `None` for single-addr operator or `Some`
+        // for multi-addr operator in 4844 mode.
+        let sender_addr = match op_type {
+            AggregatedActionType::Commit => self.custom_commit_sender_addr,
+            _ => None,
+        };
+        let nonce = self.get_next_nonce(&mut transaction, sender_addr).await?;
+        let encoded_aggregated_op =
+            self.encode_aggregated_op(aggregated_op, contracts_are_pre_shared_bridge);
+        let l1_batch_number_range = aggregated_op.l1_batch_range();
 
         let predicted_gas_for_batches = transaction
             .blocks_dal()
@@ -477,10 +554,12 @@ impl EthTxAggregator {
             .eth_sender_dal()
             .save_eth_tx(
                 nonce,
-                calldata,
+                encoded_aggregated_op.calldata,
                 op_type,
                 self.timelock_contract_address,
                 eth_tx_predicted_gas,
+                sender_addr,
+                encoded_aggregated_op.sidecar,
             )
             .await
             .unwrap();
@@ -497,15 +576,30 @@ impl EthTxAggregator {
     async fn get_next_nonce(
         &self,
         storage: &mut StorageProcessor<'_>,
+        from_addr: Option<Address>,
     ) -> Result<u64, ETHSenderError> {
         let db_nonce = storage
             .eth_sender_dal()
-            .get_next_nonce()
+            .get_next_nonce(from_addr)
             .await
             .unwrap()
             .unwrap_or(0);
         // Between server starts we can execute some txs using operator account or remove some txs from the database
         // At the start we have to consider this fact and get the max nonce.
-        Ok(db_nonce.max(self.base_nonce))
+        Ok(if from_addr.is_none() {
+            db_nonce.max(self.base_nonce)
+        } else {
+            db_nonce.max(
+                self.base_nonce_custom_commit_sender
+                    .expect("custom base nonce is expected to be initialized; qed"),
+            )
+        })
+    }
+}
+
+#[cfg(test)]
+impl EthTxAggregator {
+    pub fn kzg_settings(&self) -> Arc<KzgSettings> {
+        self.kzg_settings.as_ref().unwrap().clone()
     }
 }

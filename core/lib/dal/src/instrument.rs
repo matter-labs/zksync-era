@@ -103,6 +103,7 @@ struct InstrumentedData<'a> {
     location: &'static Location<'static>,
     args: QueryArgs<'a>,
     report_latency: bool,
+    slow_query_reporting_enabled: bool,
 }
 
 impl<'a> InstrumentedData<'a> {
@@ -112,6 +113,7 @@ impl<'a> InstrumentedData<'a> {
             location,
             args: QueryArgs::default(),
             report_latency: false,
+            slow_query_reporting_enabled: true,
         }
     }
 
@@ -125,6 +127,7 @@ impl<'a> InstrumentedData<'a> {
             location,
             args,
             report_latency,
+            slow_query_reporting_enabled,
         } = self;
         let started_at = Instant::now();
         tokio::pin!(query_future);
@@ -137,13 +140,15 @@ impl<'a> InstrumentedData<'a> {
             Ok(output) => output,
             Err(_) => {
                 let connection_tags = StorageProcessorTags::display(connection_tags);
-                tracing::warn!(
-                    "Query {name}{args} called at {file}:{line} [{connection_tags}] is executing for more than {slow_query_threshold:?}",
-                    file = location.file(),
-                    line = location.line()
-                );
-                REQUEST_METRICS.request_slow[&name].inc();
-                is_slow = true;
+                if slow_query_reporting_enabled {
+                    tracing::warn!(
+                        "Query {name}{args} called at {file}:{line} [{connection_tags}] is executing for more than {slow_query_threshold:?}",
+                        file = location.file(),
+                        line = location.line()
+                    );
+                    REQUEST_METRICS.request_slow[&name].inc();
+                    is_slow = true;
+                }
                 query_future.await
             }
         };
@@ -193,6 +198,11 @@ impl<'a, Q> Instrumented<'a, Q> {
     /// Indicates that latency should be reported for all calls.
     pub fn report_latency(mut self) -> Self {
         self.data.report_latency = true;
+        self
+    }
+
+    pub fn expect_slow_query(mut self) -> Self {
+        self.data.slow_query_reporting_enabled = false;
         self
     }
 

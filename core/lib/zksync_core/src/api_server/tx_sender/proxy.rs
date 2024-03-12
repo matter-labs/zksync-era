@@ -6,16 +6,23 @@ use std::{
 };
 
 use tokio::sync::{watch, RwLock};
-use zksync_dal::ConnectionPool;
+use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool};
 use zksync_types::{
     api::{BlockId, Transaction, TransactionDetails, TransactionId},
+    fee::TransactionExecutionMetrics,
     l2::L2Tx,
     Address, Nonce, H256,
 };
 use zksync_web3_decl::{
-    error::{ClientRpcContext, EnrichedClientResult},
+    error::{ClientRpcContext, EnrichedClientResult, Web3Error},
     jsonrpsee::http_client::HttpClient,
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
+};
+
+use super::{tx_sink::TxSink, SubmitTxError};
+use crate::{
+    api_server::web3::backend_jsonrpsee::internal_error,
+    metrics::{TxStage, APP_METRICS},
 };
 
 #[derive(Debug, Clone, Default)]
@@ -116,29 +123,37 @@ impl TxProxy {
         }
     }
 
-    pub async fn find_tx(&self, tx_hash: H256) -> Option<L2Tx> {
-        self.tx_cache.get_tx(tx_hash).await
+    async fn submit_tx_impl(&self, tx: &L2Tx) -> EnrichedClientResult<H256> {
+        let input_data = tx.common_data.input_data().expect("raw tx is absent");
+        let raw_tx = zksync_types::Bytes(input_data.to_vec());
+        let tx_hash = tx.hash();
+        tracing::info!("Proxying tx {tx_hash:?}");
+        self.client
+            .send_raw_transaction(raw_tx)
+            .rpc_context("send_raw_transaction")
+            .with_arg("tx_hash", &tx_hash)
+            .await
     }
 
-    pub async fn forget_tx(&self, tx_hash: H256) {
-        self.tx_cache.remove_tx(tx_hash).await;
-    }
-
-    pub async fn save_tx(&self, tx: L2Tx) {
+    async fn save_tx(&self, tx: L2Tx) {
         self.tx_cache.push(tx).await;
     }
 
-    pub async fn get_nonces_by_account(&self, account_address: Address) -> BTreeSet<Nonce> {
-        self.tx_cache.get_nonces_for_account(account_address).await
+    async fn find_tx(&self, tx_hash: H256) -> Option<L2Tx> {
+        self.tx_cache.get_tx(tx_hash).await
     }
 
-    pub async fn next_nonce_by_initiator_account(
+    async fn forget_tx(&self, tx_hash: H256) {
+        self.tx_cache.remove_tx(tx_hash).await;
+    }
+
+    async fn next_nonce_by_initiator_account(
         &self,
         account_address: Address,
         current_nonce: u32,
     ) -> Nonce {
         let mut pending_nonce = Nonce(current_nonce);
-        let nonces = self.get_nonces_by_account(account_address).await;
+        let nonces = self.tx_cache.get_nonces_for_account(account_address).await;
         for nonce in nonces.range(pending_nonce + 1..) {
             // If nonce is not sequential, then we should not increment nonce.
             if nonce == &pending_nonce {
@@ -151,19 +166,7 @@ impl TxProxy {
         pending_nonce
     }
 
-    pub async fn submit_tx(&self, tx: &L2Tx) -> EnrichedClientResult<H256> {
-        let input_data = tx.common_data.input_data().expect("raw tx is absent");
-        let raw_tx = zksync_types::Bytes(input_data.to_vec());
-        let tx_hash = tx.hash();
-        tracing::info!("Proxying tx {tx_hash:?}");
-        self.client
-            .send_raw_transaction(raw_tx)
-            .rpc_context("send_raw_transaction")
-            .with_arg("tx_hash", &tx_hash)
-            .await
-    }
-
-    pub async fn request_tx(&self, id: TransactionId) -> EnrichedClientResult<Option<Transaction>> {
+    async fn request_tx(&self, id: TransactionId) -> EnrichedClientResult<Option<Transaction>> {
         match id {
             TransactionId::Block(BlockId::Hash(block), index) => {
                 self.client
@@ -191,7 +194,7 @@ impl TxProxy {
         }
     }
 
-    pub async fn request_tx_details(
+    async fn request_tx_details(
         &self,
         hash: H256,
     ) -> EnrichedClientResult<Option<TransactionDetails>> {
@@ -209,5 +212,69 @@ impl TxProxy {
     ) -> impl Future<Output = anyhow::Result<()>> {
         let tx_cache = self.tx_cache.clone();
         tx_cache.run_updates(pool, stop_receiver)
+    }
+}
+
+#[async_trait::async_trait]
+impl TxSink for TxProxy {
+    async fn submit_tx(
+        &self,
+        tx: L2Tx,
+        _execution_metrics: TransactionExecutionMetrics,
+    ) -> Result<L2TxSubmissionResult, SubmitTxError> {
+        // We're running an external node: we have to proxy the transaction to the main node.
+        // But before we do that, save the tx to cache in case someone will request it
+        // Before it reaches the main node.
+        self.save_tx(tx.clone()).await;
+        self.submit_tx_impl(&tx).await?;
+        // Now, after we are sure that the tx is on the main node, remove it from cache
+        // since we don't want to store txs that might have been replaced or otherwise removed
+        // from the mempool.
+        self.forget_tx(tx.hash()).await;
+        APP_METRICS.processed_txs[&TxStage::Proxied].inc();
+        Ok(L2TxSubmissionResult::Proxied)
+    }
+
+    async fn lookup_pending_nonce(
+        &self,
+        _method_name: &'static str,
+        account_address: Address,
+        last_known_nonce: u32,
+    ) -> Result<Option<Nonce>, Web3Error> {
+        // EN: get pending nonces from the transaction cache
+        // We don't have mempool in EN, it's safe to use the proxy cache as a mempool
+        Ok(Some(
+            self.next_nonce_by_initiator_account(account_address, last_known_nonce)
+                .await
+                .0
+                .into(),
+        ))
+    }
+
+    async fn lookup_tx(
+        &self,
+        method_name: &'static str,
+        id: TransactionId,
+    ) -> Result<Option<Transaction>, Web3Error> {
+        if let TransactionId::Hash(hash) = id {
+            // If the transaction is not in the db, check the cache
+            if let Some(tx) = self.find_tx(hash).await {
+                return Ok(Some(tx.into()));
+            }
+        }
+        // If the transaction is not in the cache, query main node
+        self.request_tx(id)
+            .await
+            .map_err(|err| internal_error(method_name, err))
+    }
+
+    async fn lookup_tx_details(
+        &self,
+        method_name: &'static str,
+        hash: H256,
+    ) -> Result<Option<TransactionDetails>, Web3Error> {
+        self.request_tx_details(hash)
+            .await
+            .map_err(|err| internal_error(method_name, err))
     }
 }
