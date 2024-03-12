@@ -14,7 +14,7 @@ prometheus_port = 3322
 healthcheck_port = 3081
 threads_per_server = 128
 l2_chain_id = 270
-l1_chain_id = 1337
+l1_chain_id = 9
 
 req_entities_limit = 10000
 
