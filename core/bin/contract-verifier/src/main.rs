@@ -8,7 +8,7 @@ use zksync_config::{
     configs::{ObservabilityConfig, PrometheusConfig},
     ApiConfig, ContractVerifierConfig, PostgresConfig,
 };
-use zksync_dal::{ConnectionPool, Server};
+use zksync_dal::{ConnectionPool, Server, StorageProcessor};
 use zksync_env_config::FromEnv;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_utils::wait_for_tasks::wait_for_tasks;

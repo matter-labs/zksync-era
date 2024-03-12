@@ -21,6 +21,7 @@ pub mod fri_prover_dal;
 pub mod fri_scheduler_dependency_tracker_dal;
 pub mod fri_witness_generator_dal;
 
+#[derive(Clone)]
 pub struct Prover(());
 
 #[derive(Debug)]

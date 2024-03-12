@@ -146,7 +146,7 @@ impl ValuesCache {
         from_miniblock: MiniblockNumber,
         to_miniblock: MiniblockNumber,
         rt_handle: &Handle,
-        connection: &mut BasicStorageProcessor<'_>,
+        connection: &mut ServerProcessor<'_>,
     ) {
         const MAX_MINIBLOCKS_LAG: u32 = 5;
 
@@ -331,7 +331,7 @@ impl PostgresStorageCaches {
 #[derive(Debug)]
 pub struct PostgresStorage<'a> {
     rt_handle: Handle,
-    connection: BasicStorageProcessor<'a>,
+    connection: ServerProcessor<'a>,
     miniblock_number: MiniblockNumber,
     l1_batch_number_for_miniblock: L1BatchNumber,
     pending_l1_batch_number: L1BatchNumber,
@@ -369,7 +369,7 @@ impl<'a> PostgresStorage<'a> {
     /// Propagates Postgres errors.
     pub async fn new_async(
         rt_handle: Handle,
-        mut connection: BasicStorageProcessor<'a>,
+        mut connection: ServerProcessor<'a>,
         block_number: MiniblockNumber,
         consider_new_l1_batch: bool,
     ) -> anyhow::Result<PostgresStorage<'a>> {

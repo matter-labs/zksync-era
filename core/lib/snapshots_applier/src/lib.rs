@@ -7,6 +7,7 @@ use async_trait::async_trait;
 use serde::Serialize;
 use tokio::sync::Semaphore;
 use zksync_dal::{ConnectionPool, Server, ServerProcessor, SqlxError};
+use zksync_db_connection::processor::StorageProcessor;
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_types::{

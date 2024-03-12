@@ -4,6 +4,7 @@ use crate::processor::{
     async_trait, BasicStorageProcessor, StorageKind, StorageProcessor, StorageProcessorTags,
 };
 
+#[derive(Clone)]
 pub(crate) struct Test;
 
 impl StorageKind for Test {

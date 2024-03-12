@@ -3,8 +3,9 @@
 use sqlx::PgConnection;
 pub use sqlx::{types::BigDecimal, Error as SqlxError};
 pub use zksync_db_connection::connection::ConnectionPool;
+pub use zksync_db_connection::processor::StorageProcessor;
 use zksync_db_connection::processor::{
-    async_trait, BasicStorageProcessor, StorageKind, StorageProcessor, StorageProcessorTags,
+    async_trait, BasicStorageProcessor, StorageKind, StorageProcessorTags,
 };
 
 use crate::{
@@ -53,6 +54,7 @@ pub mod transactions_web3_dal;
 #[cfg(test)]
 mod tests;
 
+#[derive(Clone)]
 pub struct Server(());
 
 #[derive(Debug)]

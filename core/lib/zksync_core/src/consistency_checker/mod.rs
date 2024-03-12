@@ -4,7 +4,7 @@ use anyhow::Context as _;
 use serde::Serialize;
 use tokio::sync::watch;
 use zksync_contracts::PRE_BOOJUM_COMMIT_FUNCTION;
-use zksync_dal::{BasicStorageProcessor, ConnectionPool, Server};
+use zksync_dal::{ConnectionPool, Server, ServerProcessor};
 use zksync_eth_client::{clients::QueryClient, Error as L1ClientError, EthInterface};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::{
@@ -136,7 +136,7 @@ impl LocalL1BatchCommitData {
     /// Returns `Ok(None)` if Postgres doesn't contain all data necessary to check L1 commitment
     /// for the specified batch.
     async fn new(
-        storage: &mut BasicStorageProcessor<'_>,
+        storage: &mut ServerProcessor<'_>,
         batch_number: L1BatchNumber,
     ) -> anyhow::Result<Option<Self>> {
         let Some(storage_l1_batch) = storage

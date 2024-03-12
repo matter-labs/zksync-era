@@ -10,9 +10,7 @@ use multivm::{
 };
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig};
 use zksync_contracts::BaseSystemContracts;
-use zksync_dal::{
-    transactions_dal::L2TxSubmissionResult, BasicStorageProcessor, ConnectionPool, Server,
-};
+use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, Server, ServerProcessor};
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{
     fee::{Fee, TransactionExecutionMetrics},
@@ -271,7 +269,7 @@ impl TxSender {
         self.0.storage_caches.clone()
     }
 
-    async fn acquire_replica_connection(&self) -> anyhow::Result<BasicStorageProcessor<'_>> {
+    async fn acquire_replica_connection(&self) -> anyhow::Result<ServerProcessor<'_>> {
         self.0
             .replica_connection_pool
             .access_storage_tagged("api")

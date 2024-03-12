@@ -1,6 +1,6 @@
 use std::convert::TryFrom;
 
-use zksync_dal::BasicStorageProcessor;
+use zksync_dal::ServerProcessor;
 use zksync_types::{web3::types::Log, ProtocolUpgrade, ProtocolVersionId, H256};
 
 use crate::eth_watch::{
@@ -32,7 +32,7 @@ impl UpgradesEventProcessor {
 impl EventProcessor for UpgradesEventProcessor {
     async fn process_events(
         &mut self,
-        storage: &mut BasicStorageProcessor<'_>,
+        storage: &mut ServerProcessor<'_>,
         client: &dyn EthClient,
         events: Vec<Log>,
     ) -> Result<(), Error> {
