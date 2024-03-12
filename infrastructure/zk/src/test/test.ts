@@ -12,15 +12,10 @@ export async function l1Contracts() {
 
 export async function prover() {
     process.chdir(process.env.ZKSYNC_HOME! + '/prover');
-    await utils.spawn('cargo test --release --workspace');
+    await utils.spawn('cargo test --release --workspace --locked');
 }
-
-export async function js() {
-    await utils.spawn('yarn web3 tests');
-}
-
 export async function rust(options: string[]) {
-    await db.resetTest();
+    await db.resetTest({ server: true, prover: true });
 
     let result = await utils.exec('cargo install --list');
     let test_runner = 'cargo nextest run';
@@ -41,7 +36,6 @@ export async function rust(options: string[]) {
 
 export const command = new Command('test').description('run test suites').addCommand(integration.command);
 
-command.command('js').description('run unit-tests for javascript packages').action(js);
 command.command('prover').description('run unit-tests for the prover').action(prover);
 command.command('l1-contracts').description('run unit-tests for the layer 1 smart contracts').action(l1Contracts);
 command

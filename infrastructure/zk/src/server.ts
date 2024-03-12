@@ -21,11 +21,11 @@ export async function server(rebuildTree: boolean, uring: boolean, components?: 
     if (components) {
         options += ` --components=${components}`;
     }
-    // await utils.spawn(`RUST_LOG=vm=trace cargo run --bin zksync_server --release ${options}`);
+    // await utils.spawn(`RUST_LOG=trace cargo run --bin zksync_server --release ${options}`);
     await utils.spawn(`cargo run --bin zksync_server --release ${options}`);
 }
 
-export async function externalNode(reinit: boolean = false) {
+export async function externalNode(reinit: boolean = false, args: string[]) {
     if (process.env.ZKSYNC_ENV != 'ext-node') {
         console.warn(`WARNING: using ${process.env.ZKSYNC_ENV} environment for external node`);
         console.warn('If this is a mistake, set $ZKSYNC_ENV to "ext-node" or other environment');
@@ -38,11 +38,11 @@ export async function externalNode(reinit: boolean = false) {
     // On --reinit we want to reset RocksDB and Postgres before we start.
     if (reinit) {
         await utils.confirmAction();
-        await db.reset();
+        await db.reset({ server: true, prover: false });
         clean(path.dirname(process.env.EN_MERKLE_TREE_PATH!));
     }
 
-    await utils.spawn('cargo run --release --bin zksync_external_node');
+    await utils.spawn(`cargo run --release --bin zksync_external_node -- ${args.join(' ')}`);
 }
 
 async function create_genesis(cmd: string) {
@@ -127,9 +127,12 @@ async function create_genesis(cmd: string) {
     );
 }
 
-export async function genesisFromSources() {
+export async function genesisFromSources(options?: { setChainId: boolean }) {
+    const args = [options?.setChainId ? '--set-chain-id' : ''];
     // we fix chainId as we need all chains to have the same chainId at genesis
-    await create_genesis('CHAIN_ETH_ZKSYNC_NETWORK_ID=270 cargo run --bin zksync_server --release -- --genesis');
+    await create_genesis(
+        'CHAIN_ETH_ZKSYNC_NETWORK_ID=270 cargo run --bin zksync_server --release -- --genesis ' + args.join(' ')
+    );
 }
 
 export async function genesisFromBinary() {
@@ -156,5 +159,5 @@ export const enCommand = new Command('external-node')
     .description('start zksync external node')
     .option('--reinit', 'reset postgres and rocksdb before starting')
     .action(async (cmd: Command) => {
-        await externalNode(cmd.reinit);
+        await externalNode(cmd.reinit, cmd.args);
     });

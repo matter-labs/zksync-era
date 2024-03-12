@@ -1,6 +1,5 @@
 use std::{collections::HashMap, convert::TryInto};
 
-use bigdecimal::{BigDecimal, Zero};
 use zksync_dal::StorageProcessor;
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
@@ -13,13 +12,14 @@ use zksync_types::{
     fee_model::FeeParams,
     l1::L1Tx,
     l2::L2Tx,
-    l2_to_l1_log::L2ToL1Log,
+    l2_to_l1_log::{l2_to_l1_logs_tree_size, L2ToL1Log},
     tokens::ETHEREUM_ADDRESS,
     transaction_request::CallRequest,
-    AccountTreeId, L1BatchNumber, MiniblockNumber, StorageKey, Transaction, L1_MESSENGER_ADDRESS,
-    L2_ETH_TOKEN_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
+    utils::storage_key_for_standard_token_balance,
+    AccountTreeId, L1BatchNumber, MiniblockNumber, ProtocolVersionId, StorageKey, Transaction,
+    L1_MESSENGER_ADDRESS, L2_ETH_TOKEN_ADDRESS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256, U64,
 };
-use zksync_utils::{address_to_h256, ratio_to_big_decimal_normalized};
+use zksync_utils::{address_to_h256, h256_to_u256};
 use zksync_web3_decl::{
     error::Web3Error,
     types::{Address, Token, H256},
@@ -76,7 +76,7 @@ impl ZksNamespace {
         tx.common_data.fee.max_priority_fee_per_gas = 0u64.into();
         tx.common_data.fee.gas_per_pubdata_limit = U256::from(DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE);
 
-        let fee = self.estimate_fee(tx.into()).await?;
+        let fee = self.estimate_fee(tx.into(), METHOD_NAME).await?;
         method_latency.observe();
         Ok(fee)
     }
@@ -102,33 +102,33 @@ impl ZksNamespace {
             .try_into()
             .map_err(Web3Error::SerializationError)?;
 
-        let fee = self.estimate_fee(tx.into()).await?;
+        let fee = self.estimate_fee(tx.into(), METHOD_NAME).await?;
         method_latency.observe();
         Ok(fee.gas_limit)
     }
 
-    async fn estimate_fee(&self, tx: Transaction) -> Result<Fee, Web3Error> {
+    async fn estimate_fee(
+        &self,
+        tx: Transaction,
+        method_name: &'static str,
+    ) -> Result<Fee, Web3Error> {
         let scale_factor = self.state.api_config.estimate_gas_scale_factor;
         let acceptable_overestimation =
             self.state.api_config.estimate_gas_acceptable_overestimation;
 
-        let fee = self
-            .state
+        self.state
             .tx_sender
             .get_txs_fee_in_wei(tx, scale_factor, acceptable_overestimation)
             .await
-            .map_err(|err| Web3Error::SubmitTransactionError(err.to_string(), err.data()))?;
-
-        Ok(fee)
+            .map_err(|err| err.into_web3_error(method_name))
     }
 
     #[tracing::instrument(skip(self))]
-    #[tracing::instrument(skip(self))]
-
-    pub fn get_bridgehub_contract_impl(&self) -> Address {
+    pub fn get_bridgehub_contract_impl(&self) -> Option<Address> {
         self.state.api_config.bridgehub_proxy_addr
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn get_main_contract_impl(&self) -> Address {
         self.state.api_config.diamond_proxy_addr
     }
@@ -181,37 +181,6 @@ impl ZksNamespace {
     }
 
     #[tracing::instrument(skip(self))]
-    pub async fn get_token_price_impl(&self, l2_token: Address) -> Result<BigDecimal, Web3Error> {
-        const METHOD_NAME: &str = "get_token_price";
-
-        /// Amount of possible symbols after the decimal dot in the USD.
-        /// Used to convert `Ratio<BigUint>` to `BigDecimal`.
-        const USD_PRECISION: usize = 100;
-        /// Minimum amount of symbols after the decimal dot in the USD.
-        /// Used to convert `Ratio<BigUint>` to `BigDecimal`.
-        const MIN_PRECISION: usize = 2;
-
-        let method_latency = API_METRICS.start_call(METHOD_NAME);
-        let token_price_result = {
-            let mut storage = self.access_storage(METHOD_NAME).await?;
-            storage.tokens_web3_dal().get_token_price(&l2_token).await
-        };
-
-        let result = match token_price_result {
-            Ok(Some(price)) => Ok(ratio_to_big_decimal_normalized(
-                &price.usd_price,
-                USD_PRECISION,
-                MIN_PRECISION,
-            )),
-            Ok(None) => Ok(BigDecimal::zero()),
-            Err(err) => Err(internal_error(METHOD_NAME, err)),
-        };
-
-        method_latency.observe();
-        result
-    }
-
-    #[tracing::instrument(skip(self))]
     pub async fn get_all_account_balances_impl(
         &self,
         address: Address,
@@ -220,20 +189,38 @@ impl ZksNamespace {
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
         let mut storage = self.access_storage(METHOD_NAME).await?;
-        let balances = storage
-            .accounts_dal()
-            .get_balances_for_address(address)
+        let tokens = storage
+            .tokens_dal()
+            .get_all_l2_token_addresses()
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err))?;
+        let hashed_balance_keys = tokens.iter().map(|&token_address| {
+            let token_account = AccountTreeId::new(if token_address == ETHEREUM_ADDRESS {
+                L2_ETH_TOKEN_ADDRESS
+            } else {
+                token_address
+            });
+            let hashed_key =
+                storage_key_for_standard_token_balance(token_account, &address).hashed_key();
+            (hashed_key, (hashed_key, token_address))
+        });
+        let (hashed_balance_keys, hashed_key_to_token_address): (Vec<_>, HashMap<_, _>) =
+            hashed_balance_keys.unzip();
+
+        let balance_values = storage
+            .storage_web3_dal()
+            .get_values(&hashed_balance_keys)
             .await
             .map_err(|err| internal_error(METHOD_NAME, err))?;
 
-        let balances = balances
+        let balances = balance_values
             .into_iter()
-            .map(|(address, balance)| {
-                if address == L2_ETH_TOKEN_ADDRESS {
-                    (ETHEREUM_ADDRESS, balance)
-                } else {
-                    (address, balance)
+            .filter_map(|(hashed_key, balance)| {
+                let balance = h256_to_u256(balance);
+                if balance.is_zero() {
+                    return None;
                 }
+                Some((hashed_key_to_token_address[&hashed_key], balance))
             })
             .collect();
         method_latency.observe();
@@ -347,17 +334,12 @@ impl ZksNamespace {
 
         let merkle_tree_leaves = all_l1_logs_in_batch.iter().map(L2ToL1Log::to_bytes);
 
-        let min_tree_size = if batch
+        let protocol_version = batch
             .protocol_version
-            .map(|v| v.is_pre_boojum())
-            .unwrap_or(true)
-        {
-            Some(L2ToL1Log::PRE_BOOJUM_MIN_L2_L1_LOGS_TREE_SIZE)
-        } else {
-            Some(L2ToL1Log::MIN_L2_L1_LOGS_TREE_SIZE)
-        };
+            .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
+        let tree_size = l2_to_l1_logs_tree_size(protocol_version);
 
-        let (root, proof) = MiniMerkleTree::new(merkle_tree_leaves, min_tree_size)
+        let (root, proof) = MiniMerkleTree::new(merkle_tree_leaves, Some(tree_size))
             .merkle_root_and_path(l1_log_index);
         Ok(Some(L2ToL1LogProof {
             proof,
@@ -449,10 +431,7 @@ impl ZksNamespace {
         let mut storage = self.access_storage(METHOD_NAME).await?;
         let block_details = storage
             .blocks_web3_dal()
-            .get_block_details(
-                block_number,
-                self.state.tx_sender.0.sender_config.fee_account_addr,
-            )
+            .get_block_details(block_number)
             .await
             .map_err(|err| internal_error(METHOD_NAME, err));
 
@@ -496,16 +475,14 @@ impl ZksNamespace {
             .map_err(|err| internal_error(METHOD_NAME, err));
         drop(storage);
 
-        if let Some(proxy) = &self.state.tx_sender.0.proxy {
-            // We're running an external node - we should query the main node directly
-            // in case the transaction was proxied but not yet synced back to us
-            if matches!(tx_details, Ok(None)) {
-                // If the transaction is not in the db, query main node for details
-                tx_details = proxy
-                    .request_tx_details(hash)
-                    .await
-                    .map_err(|err| internal_error(METHOD_NAME, err));
-            }
+        if let Ok(None) = tx_details {
+            tx_details = self
+                .state
+                .tx_sender
+                .0
+                .tx_sink
+                .lookup_tx_details(METHOD_NAME, hash)
+                .await;
         }
 
         method_latency.observe();
@@ -541,14 +518,17 @@ impl ZksNamespace {
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
         let mut storage = self.access_storage(METHOD_NAME).await?;
-        let bytecode = storage.storage_dal().get_factory_dep(hash).await;
-
+        let bytecode = storage
+            .factory_deps_dal()
+            .get_factory_dep(hash)
+            .await
+            .map_err(|err| internal_error(METHOD_NAME, err))?;
         method_latency.observe();
         Ok(bytecode)
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn get_l1_gas_price_impl(&self) -> U64 {
+    pub async fn get_l1_gas_price_impl(&self) -> U64 {
         const METHOD_NAME: &str = "get_l1_gas_price";
 
         let method_latency = API_METRICS.start_call(METHOD_NAME);
@@ -558,6 +538,7 @@ impl ZksNamespace {
             .0
             .batch_fee_input_provider
             .get_batch_fee_input()
+            .await
             .l1_gas_price();
 
         method_latency.observe();

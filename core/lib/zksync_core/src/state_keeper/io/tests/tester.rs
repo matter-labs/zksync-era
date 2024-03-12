@@ -1,19 +1,25 @@
 //! Testing harness for the IO.
 
-use std::{sync::Arc, time::Duration};
+use std::{slice, sync::Arc, time::Duration};
 
 use multivm::vm_latest::constants::BLOCK_GAS_LIMIT;
-use zksync_config::{configs::chain::StateKeeperConfig, GasAdjusterConfig};
+use zksync_config::{
+    configs::{chain::StateKeeperConfig, eth_sender::PubdataSendingMode},
+    GasAdjusterConfig,
+};
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::ConnectionPool;
 use zksync_eth_client::clients::MockEthereum;
 use zksync_object_store::ObjectStoreFactory;
 use zksync_types::{
     block::MiniblockHeader,
+    fee::TransactionExecutionMetrics,
     fee_model::{BatchFeeInput, FeeModelConfig, FeeModelConfigV1},
+    l2::L2Tx,
     protocol_version::L1VerifierConfig,
     system_contracts::get_system_smart_contracts,
-    Address, L2ChainId, PriorityOpId, ProtocolVersionId, H256, U256,
+    tx::TransactionExecutionResult,
+    Address, L2ChainId, MiniblockNumber, PriorityOpId, ProtocolVersionId, H256, U256,
 };
 
 use crate::{
@@ -22,7 +28,9 @@ use crate::{
     l1_gas_price::GasAdjuster,
     native_token_fetcher::NoOpConversionRateFetcher,
     state_keeper::{io::MiniblockSealer, tests::create_transaction, MempoolGuard, MempoolIO},
-    utils::testonly::{create_l1_batch, create_miniblock},
+    utils::testonly::{
+        create_l1_batch, create_l2_transaction, create_miniblock, execute_l2_transaction,
+    },
 };
 
 #[derive(Debug)]
@@ -40,7 +48,7 @@ impl Tester {
         }
     }
 
-    async fn create_gas_adjuster(&self) -> GasAdjuster<MockEthereum> {
+    async fn create_gas_adjuster(&self) -> GasAdjuster {
         let eth_client =
             MockEthereum::default().with_fee_history(vec![0, 4, 6, 8, 7, 5, 5, 8, 10, 9]);
 
@@ -53,12 +61,17 @@ impl Tester {
             internal_enforced_l1_gas_price: None,
             poll_period: 10,
             max_l1_gas_price: None,
+            num_samples_for_blob_base_fee_estimate: 10,
+            internal_pubdata_pricing_multiplier: 1.0,
+            max_blob_base_fee: None,
         };
 
         let no_op_conversion_rate_fetcher = Arc::new(NoOpConversionRateFetcher::new());
+
         GasAdjuster::new(
-            eth_client,
+            Arc::new(eth_client),
             gas_adjuster_config,
+            PubdataSendingMode::Calldata,
             no_op_conversion_rate_fetcher,
         )
         .await
@@ -102,6 +115,7 @@ impl Tester {
             minimal_l2_gas_price: U256::from(self.minimal_l2_gas_price()),
             virtual_blocks_interval: 1,
             virtual_blocks_per_miniblock: 1,
+            fee_account_addr: Address::repeat_byte(0x11), // Maintain implicit invariant: fee address is never `Address::zero()`
             ..StateKeeperConfig::default()
         };
         let object_store = ObjectStoreFactory::mock().create_store().await;
@@ -118,7 +132,8 @@ impl Tester {
             BLOCK_GAS_LIMIT,
             L2ChainId::from(270),
         )
-        .await;
+        .await
+        .unwrap();
 
         (io, mempool)
     }
@@ -140,7 +155,8 @@ impl Tester {
                 L1VerifierConfig::default(),
                 Address::zero(),
             )
-            .await;
+            .await
+            .unwrap();
         }
     }
 
@@ -150,8 +166,13 @@ impl Tester {
         number: u32,
         base_fee_per_gas: u64,
         fee_input: BatchFeeInput,
-    ) {
+    ) -> TransactionExecutionResult {
         let mut storage = pool.access_storage_tagged("state_keeper").await.unwrap();
+        let tx = create_l2_transaction(10, 100);
+        storage
+            .transactions_dal()
+            .insert_transaction_l2(tx.clone(), TransactionExecutionMetrics::default())
+            .await;
         storage
             .blocks_dal()
             .insert_miniblock(&MiniblockHeader {
@@ -163,14 +184,29 @@ impl Tester {
             })
             .await
             .unwrap();
+        let tx_result = execute_l2_transaction(tx.clone());
+        storage
+            .transactions_dal()
+            .mark_txs_as_executed_in_miniblock(
+                MiniblockNumber(number),
+                slice::from_ref(&tx_result),
+                1.into(),
+            )
+            .await;
+        tx_result
     }
 
-    pub(super) async fn insert_sealed_batch(&self, pool: &ConnectionPool, number: u32) {
+    pub(super) async fn insert_sealed_batch(
+        &self,
+        pool: &ConnectionPool,
+        number: u32,
+        tx_results: &[TransactionExecutionResult],
+    ) {
         let batch_header = create_l1_batch(number);
         let mut storage = pool.access_storage_tagged("state_keeper").await.unwrap();
         storage
             .blocks_dal()
-            .insert_l1_batch(&batch_header, &[], Default::default(), &[], &[], 0)
+            .insert_mock_l1_batch(&batch_header)
             .await
             .unwrap();
         storage
@@ -178,6 +214,10 @@ impl Tester {
             .mark_miniblocks_as_executed_in_l1_batch(batch_header.number)
             .await
             .unwrap();
+        storage
+            .transactions_dal()
+            .mark_txs_as_executed_in_l1_batch(batch_header.number, tx_results)
+            .await;
         storage
             .blocks_dal()
             .set_l1_batch_hash(batch_header.number, H256::default())
@@ -190,8 +230,9 @@ impl Tester {
         guard: &mut MempoolGuard,
         fee_per_gas: u64,
         gas_per_pubdata: u32,
-    ) {
-        let tx = create_transaction(fee_per_gas, gas_per_pubdata);
-        guard.insert(vec![tx], Default::default());
+    ) -> L2Tx {
+        let tx = create_l2_transaction(fee_per_gas, gas_per_pubdata.into());
+        guard.insert(vec![tx.clone().into()], Default::default());
+        tx
     }
 }

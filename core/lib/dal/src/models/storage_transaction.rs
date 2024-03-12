@@ -9,7 +9,7 @@ use sqlx::{
 };
 use zksync_types::{
     api,
-    api::{TransactionDetails, TransactionStatus},
+    api::{TransactionDetails, TransactionReceipt, TransactionStatus},
     fee::Fee,
     l1::{OpProcessingType, PriorityQueueType},
     l2::TransactionType,
@@ -21,7 +21,7 @@ use zksync_types::{
     Nonce, PackedEthSignature, PriorityOpId, Transaction, EIP_1559_TX_TYPE, EIP_2930_TX_TYPE,
     EIP_712_TX_TYPE, H160, H256, PRIORITY_OPERATION_L2_TX_TYPE, PROTOCOL_UPGRADE_TX_TYPE, U256,
 };
-use zksync_utils::bigdecimal_to_u256;
+use zksync_utils::{bigdecimal_to_u256, h256_to_account_address};
 
 use crate::BigDecimal;
 
@@ -322,6 +322,83 @@ impl From<StorageTransaction> for Transaction {
     }
 }
 
+#[derive(sqlx::FromRow)]
+pub(crate) struct StorageTransactionReceipt {
+    pub error: Option<String>,
+    pub tx_format: Option<i32>,
+    pub index_in_block: Option<i32>,
+    pub block_hash: Vec<u8>,
+    pub tx_hash: Vec<u8>,
+    pub block_number: i64,
+    pub l1_batch_tx_index: Option<i32>,
+    pub l1_batch_number: Option<i64>,
+    pub transfer_to: Option<serde_json::Value>,
+    pub execute_contract_address: Option<serde_json::Value>,
+    pub refunded_gas: i64,
+    pub gas_limit: Option<BigDecimal>,
+    pub effective_gas_price: Option<BigDecimal>,
+    pub contract_address: Option<Vec<u8>>,
+    pub initiator_address: Vec<u8>,
+}
+
+impl From<StorageTransactionReceipt> for TransactionReceipt {
+    fn from(storage_receipt: StorageTransactionReceipt) -> Self {
+        let status = storage_receipt.error.map_or_else(U64::one, |_| U64::zero());
+
+        let tx_type = storage_receipt
+            .tx_format
+            .map_or_else(Default::default, U64::from);
+        let transaction_index = storage_receipt
+            .index_in_block
+            .map_or_else(Default::default, U64::from);
+
+        let block_hash = H256::from_slice(&storage_receipt.block_hash);
+        TransactionReceipt {
+            transaction_hash: H256::from_slice(&storage_receipt.tx_hash),
+            transaction_index,
+            block_hash,
+            block_number: storage_receipt.block_number.into(),
+            l1_batch_tx_index: storage_receipt.l1_batch_tx_index.map(U64::from),
+            l1_batch_number: storage_receipt.l1_batch_number.map(U64::from),
+            from: H160::from_slice(&storage_receipt.initiator_address),
+            to: storage_receipt
+                .transfer_to
+                .or(storage_receipt.execute_contract_address)
+                .map(|addr| {
+                    serde_json::from_value::<Address>(addr)
+                        .expect("invalid address value in the database")
+                })
+                // For better compatibility with various clients, we never return null.
+                .or_else(|| Some(Address::default())),
+            cumulative_gas_used: Default::default(), // TODO: Should be actually calculated (SMA-1183).
+            gas_used: {
+                let refunded_gas: U256 = storage_receipt.refunded_gas.into();
+                storage_receipt.gas_limit.map(|val| {
+                    let gas_limit = bigdecimal_to_u256(val);
+                    gas_limit - refunded_gas
+                })
+            },
+            effective_gas_price: Some(
+                storage_receipt
+                    .effective_gas_price
+                    .map(bigdecimal_to_u256)
+                    .unwrap_or_default(),
+            ),
+            contract_address: storage_receipt
+                .contract_address
+                .map(|addr| h256_to_account_address(&H256::from_slice(&addr))),
+            logs: vec![],
+            l2_to_l1_logs: vec![],
+            status,
+            root: block_hash,
+            logs_bloom: Default::default(),
+            // Even though the Rust SDK recommends us to supply "None" for legacy transactions
+            // we always supply some number anyway to have the same behavior as most popular RPCs
+            transaction_type: Some(tx_type),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct StorageApiTransaction {
     #[serde(flatten)]
@@ -514,8 +591,7 @@ pub fn extract_web3_transaction(db_row: PgRow, chain_id: L2ChainId) -> api::Tran
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
-pub struct CallTrace {
-    pub tx_hash: Vec<u8>,
+pub(crate) struct CallTrace {
     pub call_trace: Vec<u8>,
 }
 

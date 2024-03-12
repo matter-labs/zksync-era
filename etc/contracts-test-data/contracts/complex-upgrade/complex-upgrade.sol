@@ -11,18 +11,24 @@ import "./msg-sender.sol";
 contract ComplexUpgrade {
     constructor() {}
 
-    function mimicCall(
-        address _address,
-        address _whoToMimic,
-        bytes memory _calldata
-    ) internal {
+    struct MimicCallInfo {
+        address to;
+        address whoToMimic;
+        bytes data;
+    }
+
+    function _mimicCall(MimicCallInfo memory info) internal {
         address callAddr = MIMIC_CALL_CALL_ADDRESS;
+
+        bytes memory data = info.data;
+        address to = info.to;
+        address whoToMimic = info.whoToMimic;
 
         uint32 dataStart;
         uint32 dataLength;
         assembly {
-            dataStart := add(_calldata, 0x20)
-            dataLength := mload(_calldata)
+            dataStart := add(data, 0x20)
+            dataLength := mload(data)
         }
 
         uint256 farCallAbi = SystemContractsCaller.getFarCallABI(
@@ -39,12 +45,20 @@ contract ComplexUpgrade {
         );
 
         assembly {
-            let success := call(_address, callAddr, 0, farCallAbi, _whoToMimic, 0, 0)
+            let success := call(to, callAddr, 0, farCallAbi, whoToMimic, 0, 0)
 
             if iszero(success) {
                 returndatacopy(0, 0, returndatasize())
                 revert(0, returndatasize())
             }
+        }
+    }
+
+    function mimicCalls(
+        MimicCallInfo[] memory info
+    ) public {
+        for (uint256 i = 0; i < info.length; i++) {
+            _mimicCall(info[i]);
         }
     }
 
@@ -86,6 +100,13 @@ contract ComplexUpgrade {
             MsgSenderTest.testMsgSender.selector,
             toMimic
         );
-        mimicCall(address(msgSenderTest), toMimic, _mimicCallCalldata);
+
+        MimicCallInfo memory info = MimicCallInfo({
+            to: address(msgSenderTest),
+            whoToMimic: toMimic,
+            data: _mimicCallCalldata
+        });
+
+        _mimicCall(info);
     }
 }

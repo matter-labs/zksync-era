@@ -63,6 +63,7 @@ mod tests {
                 ws_port: 3051,
                 ws_url: "ws://127.0.0.1:3051".into(),
                 req_entities_limit: Some(10000),
+                filters_disabled: false,
                 filters_limit: Some(10000),
                 subscriptions_limit: Some(10000),
                 pubsub_polling_interval: Some(200),
@@ -97,7 +98,11 @@ mod tests {
                 pushgateway_url: "http://127.0.0.1:9091".into(),
                 push_interval_ms: Some(100),
             },
-            healthcheck: HealthCheckConfig { port: 8081 },
+            healthcheck: HealthCheckConfig {
+                port: 8081,
+                slow_time_limit_ms: Some(250),
+                hard_time_limit_ms: Some(2_000),
+            },
             merkle_tree: MerkleTreeApiConfig { port: 8082 },
         }
     }
@@ -111,6 +116,7 @@ mod tests {
             API_WEB3_JSON_RPC_WS_PORT="3051"
             API_WEB3_JSON_RPC_WS_URL="ws://127.0.0.1:3051"
             API_WEB3_JSON_RPC_REQ_ENTITIES_LIMIT=10000
+            API_WEB3_JSON_RPC_FILTERS_DISABLED=false
             API_WEB3_JSON_RPC_FILTERS_LIMIT=10000
             API_WEB3_JSON_RPC_SUBSCRIPTIONS_LIMIT=10000
             API_WEB3_JSON_RPC_PUBSUB_POLLING_INTERVAL=200
@@ -136,6 +142,8 @@ mod tests {
             API_PROMETHEUS_PUSHGATEWAY_URL="http://127.0.0.1:9091"
             API_PROMETHEUS_PUSH_INTERVAL_MS=100
             API_HEALTHCHECK_PORT=8081
+            API_HEALTHCHECK_SLOW_TIME_LIMIT_MS=250
+            API_HEALTHCHECK_HARD_TIME_LIMIT_MS=2000
             API_MERKLE_TREE_PORT=8082
         "#;
         lock.set_env(config);

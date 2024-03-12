@@ -7,7 +7,7 @@ use zksync_types::{
     ethabi::{encode, Hash, Token},
     l1::{L1Tx, OpProcessingType, PriorityQueueType},
     protocol_version::{ProtocolUpgradeTx, ProtocolUpgradeTxCommonData},
-    web3::types::{Address, Block, BlockNumber, Log},
+    web3::types::{Address, BlockNumber, Log},
     Execute, L1TxCommonData, PriorityOpId, ProtocolUpgrade, ProtocolVersion, ProtocolVersionId,
     Transaction, H256, U256,
 };
@@ -113,10 +113,6 @@ impl FakeEthClient {
 
 #[async_trait::async_trait]
 impl EthClient for FakeEthClient {
-    async fn get_block(&self, _hash: H256) -> Result<Option<Block<H256>>, Error> {
-        unimplemented!()
-    }
-
     async fn get_events(
         &self,
         from: BlockNumber,
@@ -214,7 +210,7 @@ async fn test_normal_operation_l1_txs() {
         Address::default(),
         None,
         Box::new(client.clone()),
-        &connection_pool,
+        connection_pool.clone(),
         std::time::Duration::from_nanos(1),
     )
     .await;
@@ -262,7 +258,7 @@ async fn test_normal_operation_upgrades() {
         Address::default(),
         None,
         Box::new(client.clone()),
-        &connection_pool,
+        connection_pool.clone(),
         std::time::Duration::from_nanos(1),
     )
     .await;
@@ -323,7 +319,7 @@ async fn test_gap_in_upgrades() {
         Address::default(),
         None,
         Box::new(client.clone()),
-        &connection_pool,
+        connection_pool.clone(),
         std::time::Duration::from_nanos(1),
     )
     .await;
@@ -362,7 +358,7 @@ async fn test_normal_operation_governance_upgrades() {
         Address::default(),
         Some(governance_contract()),
         Box::new(client.clone()),
-        &connection_pool,
+        connection_pool.clone(),
         std::time::Duration::from_nanos(1),
     )
     .await;
@@ -424,7 +420,7 @@ async fn test_gap_in_single_batch() {
         Address::default(),
         None,
         Box::new(client.clone()),
-        &connection_pool,
+        connection_pool.clone(),
         std::time::Duration::from_nanos(1),
     )
     .await;
@@ -454,7 +450,7 @@ async fn test_gap_between_batches() {
         Address::default(),
         None,
         Box::new(client.clone()),
-        &connection_pool,
+        connection_pool.clone(),
         std::time::Duration::from_nanos(1),
     )
     .await;
@@ -489,7 +485,7 @@ async fn test_overlapping_batches() {
         Address::default(),
         None,
         Box::new(client.clone()),
-        &connection_pool,
+        connection_pool.clone(),
         std::time::Duration::from_nanos(1),
     )
     .await;
@@ -528,12 +524,12 @@ async fn test_overlapping_batches() {
 }
 
 async fn get_all_db_txs(storage: &mut StorageProcessor<'_>) -> Vec<Transaction> {
-    storage.transactions_dal().reset_mempool().await;
+    storage.transactions_dal().reset_mempool().await.unwrap();
     storage
         .transactions_dal()
-        .sync_mempool(vec![], vec![], 0, U256::zero(), 1000)
+        .sync_mempool(&[], &[], 0, U256::zero(), 1000)
         .await
-        .0
+        .unwrap()
 }
 
 fn tx_into_log(tx: L1Tx) -> Log {

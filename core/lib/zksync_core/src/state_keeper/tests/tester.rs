@@ -2,6 +2,7 @@ use std::{
     collections::{HashMap, HashSet, VecDeque},
     convert::TryInto,
     fmt,
+    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -22,7 +23,7 @@ use zksync_types::{
 
 use crate::{
     state_keeper::{
-        batch_executor::{BatchExecutorHandle, Command, L1BatchExecutorBuilder, TxExecutionResult},
+        batch_executor::{BatchExecutor, BatchExecutorHandle, Command, TxExecutionResult},
         io::{MiniblockParams, PendingBatchData, StateKeeperIO},
         seal_criteria::{IoSealCriteria, SequencerSealer},
         tests::{default_l1_batch_env, default_vm_block_result, BASE_SYSTEM_CONTRACTS},
@@ -200,7 +201,7 @@ impl TestScenario {
             stop_receiver,
             Box::new(io),
             Box::new(batch_executor_base),
-            Box::new(sealer),
+            Arc::new(sealer),
         );
         let sk_thread = tokio::spawn(sk.run());
 
@@ -233,6 +234,18 @@ pub(crate) fn random_tx(tx_number: u64) -> Transaction {
     tx.into()
 }
 
+/// Creates a random protocol upgrade transaction. Provided tx number would be used as a transaction hash,
+/// so it's easier to understand which transaction caused test to fail.
+pub(crate) fn random_upgrade_tx(tx_number: u64) -> ProtocolUpgradeTx {
+    let mut tx = ProtocolUpgradeTx {
+        execute: Default::default(),
+        common_data: Default::default(),
+        received_timestamp_ms: 0,
+    };
+    tx.common_data.canonical_tx_hash = H256::from_low_u64_be(tx_number);
+    tx
+}
+
 /// Creates a `TxExecutionResult` object denoting a successful tx execution.
 pub(crate) fn successful_exec() -> TxExecutionResult {
     TxExecutionResult::Success {
@@ -242,14 +255,14 @@ pub(crate) fn successful_exec() -> TxExecutionResult {
             statistics: Default::default(),
             refunds: Default::default(),
         }),
-        tx_metrics: ExecutionMetricsForCriteria {
+        tx_metrics: Box::new(ExecutionMetricsForCriteria {
             l1_gas: Default::default(),
             execution_metrics: Default::default(),
-        },
-        bootloader_dry_run_metrics: ExecutionMetricsForCriteria {
+        }),
+        bootloader_dry_run_metrics: Box::new(ExecutionMetricsForCriteria {
             l1_gas: Default::default(),
             execution_metrics: Default::default(),
-        },
+        }),
         bootloader_dry_run_result: Box::new(VmExecutionResultAndLogs {
             result: ExecutionResult::Success { output: vec![] },
             logs: Default::default(),
@@ -258,6 +271,7 @@ pub(crate) fn successful_exec() -> TxExecutionResult {
         }),
         compressed_bytecodes: vec![],
         call_tracer_result: vec![],
+        gas_remaining: Default::default(),
     }
 }
 
@@ -272,11 +286,11 @@ pub(crate) fn successful_exec_with_metrics(
             statistics: Default::default(),
             refunds: Default::default(),
         }),
-        tx_metrics,
-        bootloader_dry_run_metrics: ExecutionMetricsForCriteria {
+        tx_metrics: Box::new(tx_metrics),
+        bootloader_dry_run_metrics: Box::new(ExecutionMetricsForCriteria {
             l1_gas: Default::default(),
             execution_metrics: Default::default(),
-        },
+        }),
         bootloader_dry_run_result: Box::new(VmExecutionResultAndLogs {
             result: ExecutionResult::Success { output: vec![] },
             logs: Default::default(),
@@ -285,6 +299,7 @@ pub(crate) fn successful_exec_with_metrics(
         }),
         compressed_bytecodes: vec![],
         call_tracer_result: vec![],
+        gas_remaining: Default::default(),
     }
 }
 
@@ -382,7 +397,7 @@ pub(crate) struct TestBatchExecutorBuilder {
 }
 
 impl TestBatchExecutorBuilder {
-    fn new(scenario: &TestScenario) -> Self {
+    pub(super) fn new(scenario: &TestScenario) -> Self {
         let mut txs = VecDeque::new();
         let mut batch_txs = HashMap::new();
         let mut rollback_set = HashSet::new();
@@ -447,12 +462,13 @@ impl TestBatchExecutorBuilder {
 }
 
 #[async_trait]
-impl L1BatchExecutorBuilder for TestBatchExecutorBuilder {
+impl BatchExecutor for TestBatchExecutorBuilder {
     async fn init_batch(
         &mut self,
         _l1batch_params: L1BatchEnv,
         _system_env: SystemEnv,
-    ) -> BatchExecutorHandle {
+        _stop_receiver: &watch::Receiver<bool>,
+    ) -> Option<BatchExecutorHandle> {
         let (commands_sender, commands_receiver) = mpsc::channel(1);
 
         let executor = TestBatchExecutor::new(
@@ -462,7 +478,7 @@ impl L1BatchExecutorBuilder for TestBatchExecutorBuilder {
         );
         let handle = tokio::task::spawn_blocking(move || executor.run());
 
-        BatchExecutorHandle::from_raw(handle, commands_sender)
+        Some(BatchExecutorHandle::from_raw(handle, commands_sender))
     }
 }
 
@@ -539,7 +555,7 @@ impl TestBatchExecutor {
 }
 
 #[derive(Debug)]
-pub(crate) struct TestIO {
+pub(super) struct TestIO {
     stop_sender: watch::Sender<bool>,
     batch_number: L1BatchNumber,
     timestamp: u64,
@@ -552,10 +568,11 @@ pub(crate) struct TestIO {
     skipping_txs: bool,
     protocol_version: ProtocolVersionId,
     previous_batch_protocol_version: ProtocolVersionId,
+    protocol_upgrade_txs: HashMap<ProtocolVersionId, ProtocolUpgradeTx>,
 }
 
 impl TestIO {
-    fn new(stop_sender: watch::Sender<bool>, scenario: TestScenario) -> Self {
+    pub(super) fn new(stop_sender: watch::Sender<bool>, scenario: TestScenario) -> Self {
         Self {
             stop_sender,
             batch_number: L1BatchNumber(1),
@@ -567,7 +584,12 @@ impl TestIO {
             skipping_txs: false,
             protocol_version: ProtocolVersionId::latest(),
             previous_batch_protocol_version: ProtocolVersionId::latest(),
+            protocol_upgrade_txs: HashMap::default(),
         }
+    }
+
+    pub(super) fn add_upgrade_tx(&mut self, version: ProtocolVersionId, tx: ProtocolUpgradeTx) {
+        self.protocol_upgrade_txs.insert(version, tx);
     }
 
     fn pop_next_item(&mut self, request: &str) -> ScenarioItem {
@@ -621,21 +643,21 @@ impl StateKeeperIO for TestIO {
         self.miniblock_number
     }
 
-    async fn load_pending_batch(&mut self) -> Option<PendingBatchData> {
-        self.scenario.pending_batch.take()
+    async fn load_pending_batch(&mut self) -> anyhow::Result<Option<PendingBatchData>> {
+        Ok(self.scenario.pending_batch.take())
     }
 
     async fn wait_for_new_batch_params(
         &mut self,
         _max_wait: Duration,
-    ) -> Option<(SystemEnv, L1BatchEnv)> {
+    ) -> anyhow::Result<Option<(SystemEnv, L1BatchEnv)>> {
         let first_miniblock_info = L2BlockEnv {
             number: self.miniblock_number.0,
             timestamp: self.timestamp,
             prev_block_hash: H256::zero(),
             max_virtual_blocks_to_create: 1,
         };
-        Some((
+        Ok(Some((
             SystemEnv {
                 zk_porter_available: false,
                 version: self.protocol_version,
@@ -654,19 +676,18 @@ impl StateKeeperIO for TestIO {
                 enforced_base_fee: None,
                 first_l2_block: first_miniblock_info,
             },
-        ))
+        )))
     }
 
     async fn wait_for_new_miniblock_params(
         &mut self,
         _max_wait: Duration,
-        _prev_miniblock_timestamp: u64,
-    ) -> Option<MiniblockParams> {
-        Some(MiniblockParams {
+    ) -> anyhow::Result<Option<MiniblockParams>> {
+        Ok(Some(MiniblockParams {
             timestamp: self.timestamp,
             // 1 is just a constant used for tests.
             virtual_blocks: 1,
-        })
+        }))
     }
 
     async fn wait_for_next_tx(&mut self, max_wait: Duration) -> Option<Transaction> {
@@ -700,7 +721,7 @@ impl StateKeeperIO for TestIO {
         self.skipping_txs = false;
     }
 
-    async fn reject(&mut self, tx: &Transaction, error: &str) {
+    async fn reject(&mut self, tx: &Transaction, error: &str) -> anyhow::Result<()> {
         let action = self.pop_next_item("reject");
         let ScenarioItem::Reject(_, expected_tx, expected_err) = action else {
             panic!("Unexpected action: {:?}", action);
@@ -715,6 +736,7 @@ impl StateKeeperIO for TestIO {
             );
         }
         self.skipping_txs = false;
+        Ok(())
     }
 
     async fn seal_miniblock(&mut self, updates_manager: &UpdatesManager) {
@@ -757,30 +779,31 @@ impl StateKeeperIO for TestIO {
         Ok(())
     }
 
-    async fn load_previous_batch_version_id(&mut self) -> Option<ProtocolVersionId> {
-        Some(self.previous_batch_protocol_version)
+    async fn load_previous_batch_version_id(&mut self) -> anyhow::Result<ProtocolVersionId> {
+        Ok(self.previous_batch_protocol_version)
     }
 
     async fn load_upgrade_tx(
         &mut self,
-        _version_id: ProtocolVersionId,
-    ) -> Option<ProtocolUpgradeTx> {
-        None
+        version_id: ProtocolVersionId,
+    ) -> anyhow::Result<Option<ProtocolUpgradeTx>> {
+        Ok(self.protocol_upgrade_txs.get(&version_id).cloned())
     }
 }
 
-/// `L1BatchExecutorBuilder` which doesn't check anything at all. Accepts all transactions.
+/// `BatchExecutor` which doesn't check anything at all. Accepts all transactions.
 // FIXME: move to `utils`?
 #[derive(Debug)]
-pub(crate) struct MockBatchExecutorBuilder;
+pub(crate) struct MockBatchExecutor;
 
 #[async_trait]
-impl L1BatchExecutorBuilder for MockBatchExecutorBuilder {
+impl BatchExecutor for MockBatchExecutor {
     async fn init_batch(
         &mut self,
         _l1batch_params: L1BatchEnv,
         _system_env: SystemEnv,
-    ) -> BatchExecutorHandle {
+        _stop_receiver: &watch::Receiver<bool>,
+    ) -> Option<BatchExecutorHandle> {
         let (send, recv) = mpsc::channel(1);
         let handle = tokio::task::spawn(async {
             let mut recv = recv;
@@ -797,6 +820,6 @@ impl L1BatchExecutorBuilder for MockBatchExecutorBuilder {
                 }
             }
         });
-        BatchExecutorHandle::from_raw(handle, send)
+        Some(BatchExecutorHandle::from_raw(handle, send))
     }
 }

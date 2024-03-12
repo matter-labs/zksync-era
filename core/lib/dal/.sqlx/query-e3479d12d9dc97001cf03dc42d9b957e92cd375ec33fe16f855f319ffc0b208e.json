@@ -87,6 +87,16 @@
         "ordinal": 16,
         "name": "updated_at",
         "type_info": "Timestamp"
+      },
+      {
+        "ordinal": 17,
+        "name": "eip_4844_final_prover_job_id_0",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 18,
+        "name": "eip_4844_final_prover_job_id_1",
+        "type_info": "Int8"
       }
     ],
     "parameters": {
@@ -111,7 +121,9 @@
       true,
       true,
       false,
-      false
+      false,
+      true,
+      true
     ]
   },
   "hash": "e3479d12d9dc97001cf03dc42d9b957e92cd375ec33fe16f855f319ffc0b208e"

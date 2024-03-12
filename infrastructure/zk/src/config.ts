@@ -151,8 +151,26 @@ export function pushConfig(environment?: string, diff?: string) {
         false
     );
 
-    env.modify('DATABASE_URL', `postgres://postgres@localhost/${environment}`, l2InitFile, false);
-    env.modify('TEST_DATABASE_URL', `postgres://postgres@localhost/${environment}_test`, l2InitFile, false);
+    env.modify('DATABASE_URL', `postgres://postgres:notsecurepassword@localhost/${environment}`, l2InitFile, false);
+    env.modify(
+        'TEST_DATABASE_URL',
+        `postgres://postgres:notsecurepassword@localhost/${environment}_test`,
+        l2InitFile,
+        false
+    );
+
+    env.modify(
+        'DATABASE_PROVER_URL',
+        `postgres://postgres:notsecurepassword@localhost/prover_${environment}`,
+        l2InitFile,
+        false
+    );
+    env.modify(
+        'TEST_DATABASE_PROVER_URL',
+        `postgres://postgres:notsecurepassword@localhost/prover_${environment}_test`,
+        l2InitFile,
+        false
+    );
 
     env.modify('DATABASE_STATE_KEEPER_DB_PATH', `./db/${environment}/state_keeper`, l2InitFile, false);
     env.modify('DATABASE_MERKLE_TREE_PATH', `./db/${environment}/tree`, l2InitFile, false);
@@ -167,6 +185,18 @@ export function pushConfig(environment?: string, diff?: string) {
         );
     }
     env.reload();
+}
+
+// used to increase chainId for easy deployment of next hyperchain on shared bridge
+export function bumpChainId() {
+    // note we bump in the .toml file directly
+    const configFile = `etc/env/configs/${process.env.ZKSYNC_ENV!}.toml`;
+    env.modify(
+        'CHAIN_ETH_ZKSYNC_NETWORK_ID',
+        (parseInt(process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!) + 1).toString(),
+        configFile,
+        true
+    );
 }
 
 export const command = new Command('config').description('config management');

@@ -7,7 +7,7 @@ use zksync_types::{
     api::en::SyncBlock, block::MiniblockHasher, Address, L1BatchNumber, MiniblockNumber,
     ProtocolVersionId, H256, U256,
 };
-use zksync_web3_decl::jsonrpsee::core::ClientError as RpcError;
+use zksync_web3_decl::{error::EnrichedClientError, jsonrpsee::core::ClientError as RpcError};
 
 use super::{
     client::{CachingMainNodeClient, MainNodeClient},
@@ -15,7 +15,10 @@ use super::{
     sync_action::{ActionQueueSender, SyncAction},
     SyncState,
 };
-use crate::metrics::{TxStage, APP_METRICS};
+use crate::{
+    metrics::{TxStage, APP_METRICS},
+    state_keeper::io::common::IoCursor,
+};
 
 const DELAY_INTERVAL: Duration = Duration::from_millis(500);
 const RETRY_DELAY_INTERVAL: Duration = Duration::from_secs(5);
@@ -51,6 +54,16 @@ impl TryFrom<SyncBlock> for FetchedBlock {
     type Error = anyhow::Error;
 
     fn try_from(block: SyncBlock) -> anyhow::Result<Self> {
+        let Some(transactions) = block.transactions else {
+            return Err(anyhow::anyhow!("Transactions are always requested"));
+        };
+
+        if transactions.is_empty() && !block.last_in_batch {
+            return Err(anyhow::anyhow!(
+                "Only last miniblock of the batch can be empty"
+            ));
+        }
+
         Ok(Self {
             number: block.number,
             l1_batch_number: block.l1_batch_number,
@@ -63,39 +76,15 @@ impl TryFrom<SyncBlock> for FetchedBlock {
             fair_pubdata_price: block.fair_pubdata_price,
             virtual_blocks: block.virtual_blocks.unwrap_or(0),
             operator_address: block.operator_address,
-            transactions: block
-                .transactions
-                .context("Transactions are always requested")?,
+            transactions,
         })
     }
 }
 
-/// Cursor of [`MainNodeFetcher`].
-#[derive(Debug)]
-pub struct FetcherCursor {
-    // Fields are public for testing purposes.
-    pub(crate) next_miniblock: MiniblockNumber,
-    pub(super) prev_miniblock_hash: H256,
-    pub(super) l1_batch: L1BatchNumber,
-}
-
-impl FetcherCursor {
-    /// Loads the cursor from Postgres.
-    pub async fn new(storage: &mut StorageProcessor<'_>) -> anyhow::Result<Self> {
-        // TODO (PLA-703): Support no L1 batches / miniblocks in the storage
-        let last_sealed_l1_batch_number = storage
-            .blocks_dal()
-            .get_sealed_l1_batch_number()
-            .await
-            .context("Failed getting sealed L1 batch number")?
-            .context("No L1 batches sealed")?;
-        let last_miniblock_header = storage
-            .blocks_dal()
-            .get_last_sealed_miniblock_header()
-            .await
-            .context("Failed getting sealed miniblock header")?
-            .context("No miniblocks sealed")?;
-
+impl IoCursor {
+    /// Loads this cursor from storage and modifies it to account for the pending L1 batch if necessary.
+    pub(crate) async fn for_fetcher(storage: &mut StorageProcessor<'_>) -> anyhow::Result<Self> {
+        let mut this = Self::new(storage).await?;
         // It's important to know whether we have opened a new batch already or just sealed the previous one.
         // Depending on it, we must either insert `OpenBatch` item into the queue, or not.
         let was_new_batch_open = storage
@@ -103,24 +92,10 @@ impl FetcherCursor {
             .pending_batch_exists()
             .await
             .context("Failed checking whether pending L1 batch exists")?;
-
-        // Miniblocks are always fully processed.
-        let next_miniblock = last_miniblock_header.number + 1;
-        let prev_miniblock_hash = last_miniblock_header.hash;
-        // Decide whether the next batch should be explicitly opened or not.
-        let l1_batch = if was_new_batch_open {
-            // No `OpenBatch` action needed.
-            last_sealed_l1_batch_number + 1
-        } else {
-            // We need to open the next batch.
-            last_sealed_l1_batch_number
-        };
-
-        Ok(Self {
-            next_miniblock,
-            prev_miniblock_hash,
-            l1_batch,
-        })
+        if !was_new_batch_open {
+            this.l1_batch -= 1; // Should continue from the last L1 batch present in the storage
+        }
+        Ok(this)
     }
 
     pub(crate) fn advance(&mut self, block: FetchedBlock) -> Vec<SyncAction> {
@@ -196,21 +171,27 @@ impl FetcherCursor {
 
         new_actions
     }
+}
 
-    /// Builds a fetcher from this cursor.
-    pub fn into_fetcher(
-        self,
-        client: Box<dyn MainNodeClient>,
-        actions: ActionQueueSender,
-        sync_state: SyncState,
-        stop_receiver: watch::Receiver<bool>,
-    ) -> MainNodeFetcher {
-        MainNodeFetcher {
-            client: CachingMainNodeClient::new(client),
-            cursor: self,
-            actions,
-            sync_state,
-            stop_receiver,
+/// Errors that can be emitted by [`MainNodeFetcher`].
+#[derive(Debug, thiserror::Error)]
+enum FetcherError {
+    #[error("JSON-RPC error communicating with main node")]
+    Web3(#[from] EnrichedClientError),
+    #[error("internal fetcher error")]
+    Internal(#[from] anyhow::Error),
+}
+
+impl FetcherError {
+    fn is_transient(&self) -> bool {
+        match self {
+            Self::Web3(err) => {
+                matches!(
+                    err.as_ref(),
+                    RpcError::Transport(_) | RpcError::RequestTimeout
+                )
+            }
+            Self::Internal(_) => false,
         }
     }
 }
@@ -218,14 +199,34 @@ impl FetcherCursor {
 /// Structure responsible for fetching batches and miniblock data from the main node.
 #[derive(Debug)]
 pub struct MainNodeFetcher {
-    client: CachingMainNodeClient,
-    cursor: FetcherCursor,
-    actions: ActionQueueSender,
-    sync_state: SyncState,
-    stop_receiver: watch::Receiver<bool>,
+    // Fields are public for testing purposes.
+    pub(super) client: CachingMainNodeClient,
+    pub(super) cursor: IoCursor,
+    pub(super) actions: ActionQueueSender,
+    pub(super) sync_state: SyncState,
+    pub(super) stop_receiver: watch::Receiver<bool>,
 }
 
 impl MainNodeFetcher {
+    pub async fn new(
+        storage: &mut StorageProcessor<'_>,
+        client: Box<dyn MainNodeClient>,
+        actions: ActionQueueSender,
+        sync_state: SyncState,
+        stop_receiver: watch::Receiver<bool>,
+    ) -> anyhow::Result<Self> {
+        let cursor = IoCursor::for_fetcher(storage)
+            .await
+            .context("failed getting I/O cursor from Postgres")?;
+        Ok(Self {
+            client: CachingMainNodeClient::new(client),
+            cursor,
+            actions,
+            sync_state,
+            stop_receiver,
+        })
+    }
+
     pub async fn run(mut self) -> anyhow::Result<()> {
         tracing::info!(
             "Starting the fetcher routine. Initial miniblock: {}, initial l1 batch: {}",
@@ -239,17 +240,12 @@ impl MainNodeFetcher {
                     tracing::info!("Stop signal received, exiting the fetcher routine");
                     return Ok(());
                 }
-                Err(err) => {
-                    if let Some(err @ RpcError::Transport(_) | err @ RpcError::RequestTimeout) =
-                        err.downcast_ref::<RpcError>()
-                    {
-                        tracing::warn!("Following transport error occurred: {err}");
-                        tracing::info!("Trying again after a delay");
-                        tokio::time::sleep(RETRY_DELAY_INTERVAL).await; // TODO (BFT-100): Implement the Fibonacci back-off.
-                    } else {
-                        return Err(err.context("Unexpected error in the fetcher"));
-                    }
+                Err(err) if err.is_transient() => {
+                    tracing::warn!("Following transport error occurred: {err}");
+                    tracing::info!("Trying again after a delay: {RETRY_DELAY_INTERVAL:?}");
+                    tokio::time::sleep(RETRY_DELAY_INTERVAL).await; // TODO (BFT-100): Implement the Fibonacci back-off.
                 }
+                Err(err) => return Err(err.into()),
             }
         }
     }
@@ -258,7 +254,7 @@ impl MainNodeFetcher {
         *self.stop_receiver.borrow()
     }
 
-    async fn run_inner(&mut self) -> anyhow::Result<()> {
+    async fn run_inner(&mut self) -> Result<(), FetcherError> {
         loop {
             if self.check_if_cancelled() {
                 return Ok(());
@@ -291,7 +287,7 @@ impl MainNodeFetcher {
 
     /// Tries to fetch the next miniblock and insert it to the sync queue.
     /// Returns `true` if a miniblock was processed and `false` otherwise.
-    async fn fetch_next_miniblock(&mut self) -> anyhow::Result<bool> {
+    async fn fetch_next_miniblock(&mut self) -> Result<bool, FetcherError> {
         let total_latency = FETCHER_METRICS.fetch_next_miniblock.start();
         let request_latency = FETCHER_METRICS.requests[&FetchStage::SyncL2Block].start();
         let Some(block) = self

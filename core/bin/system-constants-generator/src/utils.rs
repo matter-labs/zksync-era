@@ -10,7 +10,7 @@ use multivm::{
         BootloaderState, HistoryEnabled, HistoryMode, SimpleMemory, ToTracerPointer, Vm, VmTracer,
         ZkSyncVmState,
     },
-    zk_evm_1_4_1::aux_structures::Timestamp,
+    zk_evm_latest::aux_structures::Timestamp,
 };
 use once_cell::sync::Lazy;
 use zksync_contracts::{

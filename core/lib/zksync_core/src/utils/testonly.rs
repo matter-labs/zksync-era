@@ -1,5 +1,7 @@
 //! Test utils.
 
+use std::collections::HashMap;
+
 use multivm::utils::get_max_gas_per_pubdata_byte;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::StorageProcessor;
@@ -7,17 +9,21 @@ use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
 use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
 use zksync_types::{
     block::{L1BatchHeader, MiniblockHeader},
-    commitment::{L1BatchMetaParameters, L1BatchMetadata},
+    commitment::{
+        AuxCommitments, L1BatchCommitmentArtifacts, L1BatchCommitmentHash, L1BatchMetaParameters,
+        L1BatchMetadata,
+    },
     fee::Fee,
-    fee_model::BatchFeeInput,
+    fee_model::{BatchFeeInput, FeeParams},
     l2::L2Tx,
     snapshots::SnapshotRecoveryStatus,
     transaction_request::PaymasterParams,
+    tx::{tx_execution_info::TxExecutionStatus, ExecutionMetrics, TransactionExecutionResult},
     Address, L1BatchNumber, L2ChainId, MiniblockNumber, Nonce, ProtocolVersion, ProtocolVersionId,
     StorageLog, H256, U256,
 };
 
-use crate::l1_gas_price::L1GasPriceProvider;
+use crate::{fee_model::BatchFeeModelInputProvider, genesis::GenesisParams};
 
 /// Creates a miniblock header with the specified number and deterministic contents.
 pub(crate) fn create_miniblock(number: u32) -> MiniblockHeader {
@@ -25,10 +31,11 @@ pub(crate) fn create_miniblock(number: u32) -> MiniblockHeader {
         number: MiniblockNumber(number),
         timestamp: number.into(),
         hash: H256::from_low_u64_be(number.into()),
-        l1_tx_count: 0 as u16,
-        l2_tx_count: 0 as u16,
+        l1_tx_count: 0,
+        l2_tx_count: 0,
         base_fee_per_gas: U256::from(100),
         batch_fee_input: BatchFeeInput::l1_pegged(U256::from(100), U256::from(100)),
+        fee_account_address: Address::zero(),
         gas_per_pubdata_limit: get_max_gas_per_pubdata_byte(ProtocolVersionId::latest().into()),
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
@@ -38,15 +45,12 @@ pub(crate) fn create_miniblock(number: u32) -> MiniblockHeader {
 
 /// Creates an L1 batch header with the specified number and deterministic contents.
 pub(crate) fn create_l1_batch(number: u32) -> L1BatchHeader {
-    let mut header = L1BatchHeader::new(
+    L1BatchHeader::new(
         L1BatchNumber(number),
         number.into(),
-        Address::default(),
         BaseSystemContractsHashes::default(),
         ProtocolVersionId::latest(),
-    );
-    header.is_finished = true;
-    header
+    )
 }
 
 /// Creates metadata for an L1 batch with the specified number.
@@ -55,10 +59,9 @@ pub(crate) fn create_l1_batch_metadata(number: u32) -> L1BatchMetadata {
         root_hash: H256::from_low_u64_be(number.into()),
         rollup_last_leaf_index: u64::from(number) + 20,
         merkle_root_hash: H256::from_low_u64_be(number.into()),
-        initial_writes_compressed: vec![],
-        repeated_writes_compressed: vec![],
+        initial_writes_compressed: Some(vec![]),
+        repeated_writes_compressed: Some(vec![]),
         commitment: H256::from_low_u64_be(number.into()),
-        l2_l1_messages_compressed: vec![],
         l2_l1_merkle_root: H256::from_low_u64_be(number.into()),
         block_meta_params: L1BatchMetaParameters {
             zkporter_is_available: ZKPORTER_IS_AVAILABLE,
@@ -74,8 +77,38 @@ pub(crate) fn create_l1_batch_metadata(number: u32) -> L1BatchMetadata {
     }
 }
 
+pub(crate) fn l1_batch_metadata_to_commitment_artifacts(
+    metadata: &L1BatchMetadata,
+) -> L1BatchCommitmentArtifacts {
+    L1BatchCommitmentArtifacts {
+        commitment_hash: L1BatchCommitmentHash {
+            pass_through_data: metadata.pass_through_data_hash,
+            aux_output: metadata.aux_data_hash,
+            meta_parameters: metadata.meta_parameters_hash,
+            commitment: metadata.commitment,
+        },
+        l2_l1_merkle_root: metadata.l2_l1_merkle_root,
+        compressed_state_diffs: Some(metadata.state_diffs_compressed.clone()),
+        compressed_initial_writes: metadata.initial_writes_compressed.clone(),
+        compressed_repeated_writes: metadata.repeated_writes_compressed.clone(),
+        zkporter_is_available: ZKPORTER_IS_AVAILABLE,
+        aux_commitments: match (
+            metadata.bootloader_initial_content_commitment,
+            metadata.events_queue_commitment,
+        ) {
+            (Some(bootloader_initial_content_commitment), Some(events_queue_commitment)) => {
+                Some(AuxCommitments {
+                    bootloader_initial_content_commitment,
+                    events_queue_commitment,
+                })
+            }
+            _ => None,
+        },
+    }
+}
+
 /// Creates an L2 transaction with randomized parameters.
-pub(crate) fn create_l2_transaction(fee_per_gas: u64, gas_per_pubdata: u32) -> L2Tx {
+pub(crate) fn create_l2_transaction(fee_per_gas: u64, gas_per_pubdata: u64) -> L2Tx {
     let fee = Fee {
         gas_limit: 1000_u64.into(),
         max_fee_per_gas: fee_per_gas.into(),
@@ -101,10 +134,25 @@ pub(crate) fn create_l2_transaction(fee_per_gas: u64, gas_per_pubdata: u32) -> L
     tx
 }
 
+pub(crate) fn execute_l2_transaction(transaction: L2Tx) -> TransactionExecutionResult {
+    TransactionExecutionResult {
+        hash: transaction.hash(),
+        transaction: transaction.into(),
+        execution_info: ExecutionMetrics::default(),
+        execution_status: TxExecutionStatus::Success,
+        refunded_gas: 0,
+        operator_suggested_refund: 0,
+        compressed_bytecodes: vec![],
+        call_traces: vec![],
+        revert_reason: None,
+    }
+}
+
 /// Prepares a recovery snapshot without performing genesis.
 pub(crate) async fn prepare_recovery_snapshot(
     storage: &mut StorageProcessor<'_>,
-    l1_batch_number: u32,
+    l1_batch_number: L1BatchNumber,
+    miniblock_number: MiniblockNumber,
     snapshot_logs: &[StorageLog],
 ) -> SnapshotRecoveryStatus {
     let mut storage = storage.start_transaction().await.unwrap();
@@ -117,90 +165,90 @@ pub(crate) async fn prepare_recovery_snapshot(
         .collect();
     let l1_batch_root_hash = ZkSyncTree::process_genesis_batch(&tree_instructions).root_hash;
 
-    storage
+    let miniblock = create_miniblock(miniblock_number.0);
+    let l1_batch = create_l1_batch(l1_batch_number.0);
+    // Miniblock and L1 batch are intentionally **not** inserted into the storage.
+
+    // Store factory deps for the base system contracts.
+    let contracts = GenesisParams::mock().base_system_contracts;
+
+    let protocol_version = storage
         .protocol_versions_dal()
-        .save_protocol_version_with_tx(ProtocolVersion::default())
+        .get_protocol_version(ProtocolVersionId::latest())
         .await;
-    // TODO (PLA-596): Don't insert L1 batches / miniblocks once the relevant foreign keys are removed
-    let miniblock = create_miniblock(l1_batch_number);
+    if let Some(protocol_version) = protocol_version {
+        assert_eq!(
+            protocol_version.base_system_contracts_hashes,
+            contracts.hashes(),
+            "Protocol version set up with incorrect base system contracts"
+        );
+    } else {
+        storage
+            .protocol_versions_dal()
+            .save_protocol_version_with_tx(ProtocolVersion {
+                base_system_contracts_hashes: contracts.hashes(),
+                ..ProtocolVersion::default()
+            })
+            .await;
+    }
+    let factory_deps = HashMap::from([
+        (
+            contracts.bootloader.hash,
+            zksync_utils::be_words_to_bytes(&contracts.bootloader.code),
+        ),
+        (
+            contracts.default_aa.hash,
+            zksync_utils::be_words_to_bytes(&contracts.default_aa.code),
+        ),
+    ]);
     storage
-        .blocks_dal()
-        .insert_miniblock(&miniblock)
-        .await
-        .unwrap();
-    let l1_batch = create_l1_batch(l1_batch_number);
-    storage
-        .blocks_dal()
-        .insert_l1_batch(&l1_batch, &[], Default::default(), &[], &[], 0)
+        .factory_deps_dal()
+        .insert_factory_deps(miniblock.number, &factory_deps)
         .await
         .unwrap();
 
     storage
         .storage_logs_dedup_dal()
         .insert_initial_writes(l1_batch.number, &written_keys)
-        .await;
+        .await
+        .unwrap();
     storage
         .storage_logs_dal()
         .insert_storage_logs(miniblock.number, &[(H256::zero(), snapshot_logs.to_vec())])
-        .await;
-    storage
-        .storage_dal()
-        .apply_storage_logs(&[(H256::zero(), snapshot_logs.to_vec())])
-        .await;
+        .await
+        .unwrap();
 
     let snapshot_recovery = SnapshotRecoveryStatus {
         l1_batch_number: l1_batch.number,
+        l1_batch_timestamp: l1_batch.timestamp,
         l1_batch_root_hash,
         miniblock_number: miniblock.number,
-        miniblock_root_hash: H256::zero(), // not used
-        last_finished_chunk_id: None,
-        total_chunk_count: 100,
+        miniblock_timestamp: miniblock.timestamp,
+        miniblock_hash: H256::zero(), // not used
+        protocol_version: ProtocolVersionId::latest(),
+        storage_logs_chunks_processed: vec![true; 100],
     };
     storage
         .snapshot_recovery_dal()
-        .set_applied_snapshot_status(&snapshot_recovery)
+        .insert_initial_recovery_status(&snapshot_recovery)
         .await
         .unwrap();
     storage.commit().await.unwrap();
     snapshot_recovery
 }
 
-// TODO (PLA-596): Replace with `prepare_recovery_snapshot(.., &[])`
-pub(crate) async fn prepare_empty_recovery_snapshot(
-    storage: &mut StorageProcessor<'_>,
-    l1_batch_number: u32,
-) -> SnapshotRecoveryStatus {
-    storage
-        .protocol_versions_dal()
-        .save_protocol_version_with_tx(ProtocolVersion::default())
-        .await;
+/// Mock [`BatchFeeModelInputProvider`] implementation that returns a constant value.
+#[derive(Debug)]
+pub(crate) struct MockBatchFeeParamsProvider(pub FeeParams);
 
-    let snapshot_recovery = SnapshotRecoveryStatus {
-        l1_batch_number: l1_batch_number.into(),
-        l1_batch_root_hash: H256::zero(),
-        miniblock_number: l1_batch_number.into(),
-        miniblock_root_hash: H256::zero(), // not used
-        last_finished_chunk_id: None,
-        total_chunk_count: 100,
-    };
-    storage
-        .snapshot_recovery_dal()
-        .set_applied_snapshot_status(&snapshot_recovery)
-        .await
-        .unwrap();
-    snapshot_recovery
+impl Default for MockBatchFeeParamsProvider {
+    fn default() -> Self {
+        Self(FeeParams::sensible_v1_default())
+    }
 }
 
-/// Mock [`L1GasPriceProvider`] that returns a constant value.
-#[derive(Debug)]
-pub(crate) struct MockL1GasPriceProvider(pub u64);
-
-impl L1GasPriceProvider for MockL1GasPriceProvider {
-    fn estimate_effective_gas_price(&self) -> u64 {
+impl BatchFeeModelInputProvider for MockBatchFeeParamsProvider {
+    fn get_fee_model_params(&self) -> FeeParams {
         self.0
-    }
-
-    fn estimate_effective_pubdata_price(&self) -> u64 {
-        self.0 * u64::from(zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE)
     }
 }

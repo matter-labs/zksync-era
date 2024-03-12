@@ -5,7 +5,7 @@ use tokio::{
     sync::{watch, OnceCell},
     task::JoinHandle,
 };
-use zksync_config::GasAdjusterConfig;
+use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
 use zksync_eth_client::clients::QueryClient;
 
 use crate::{l1_gas_price::GasAdjuster, native_token_fetcher::ConversionRateFetcher};
@@ -16,44 +16,55 @@ use crate::{l1_gas_price::GasAdjuster, native_token_fetcher::ConversionRateFetch
 pub struct GasAdjusterSingleton {
     web3_url: String,
     gas_adjuster_config: GasAdjusterConfig,
-    singleton: OnceCell<anyhow::Result<Arc<GasAdjuster<QueryClient>>>>,
+    pubdata_sending_mode: PubdataSendingMode,
+    singleton: OnceCell<Result<Arc<GasAdjuster>, Error>>,
     native_token_fetcher: Arc<dyn ConversionRateFetcher>,
+}
+
+#[derive(thiserror::Error, Debug, Clone)]
+#[error(transparent)]
+pub struct Error(Arc<anyhow::Error>);
+
+impl From<anyhow::Error> for Error {
+    fn from(err: anyhow::Error) -> Self {
+        Self(Arc::new(err))
+    }
 }
 
 impl GasAdjusterSingleton {
     pub fn new(
         web3_url: String,
         gas_adjuster_config: GasAdjusterConfig,
+        pubdata_sending_mode: PubdataSendingMode,
         native_token_fetcher: Arc<dyn ConversionRateFetcher>,
     ) -> Self {
         Self {
             web3_url,
             gas_adjuster_config,
+            pubdata_sending_mode,
             singleton: OnceCell::new(),
             native_token_fetcher,
         }
     }
 
-    pub async fn get_or_init(&mut self) -> anyhow::Result<Arc<GasAdjuster<QueryClient>>> {
-        match self
+    pub async fn get_or_init(&mut self) -> Result<Arc<GasAdjuster>, Error> {
+        let adjuster = self
             .singleton
             .get_or_init(|| async {
                 let query_client =
                     QueryClient::new(&self.web3_url).context("QueryClient::new()")?;
                 let adjuster = GasAdjuster::new(
-                    query_client.clone(),
+                    Arc::new(query_client.clone()),
                     self.gas_adjuster_config,
+                    self.pubdata_sending_mode,
                     self.native_token_fetcher.clone(),
                 )
                 .await
                 .context("GasAdjuster::new()")?;
                 Ok(Arc::new(adjuster))
             })
-            .await
-        {
-            Ok(adjuster) => Ok(adjuster.clone()),
-            Err(_e) => Err(anyhow::anyhow!("Failed to get or initialize GasAdjuster")),
-        }
+            .await;
+        adjuster.clone()
     }
 
     pub fn run_if_initialized(

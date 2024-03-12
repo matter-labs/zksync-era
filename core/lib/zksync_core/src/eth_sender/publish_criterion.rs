@@ -1,10 +1,15 @@
-use std::fmt;
+use std::{fmt, sync::Arc};
 
 use async_trait::async_trait;
 use chrono::Utc;
 use zksync_dal::StorageProcessor;
+use zksync_l1_contract_interface::{
+    i_executor::{commit::kzg::KzgSettings, structures::CommitBatchInfo},
+    Tokenizable,
+};
 use zksync_types::{
-    aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata, L1BatchNumber,
+    aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata, ethabi,
+    pubdata_da::PubdataDA, L1BatchNumber,
 };
 
 use super::metrics::METRICS;
@@ -197,6 +202,8 @@ impl L1BatchPublishCriterion for GasCriterion {
 pub struct DataSizeCriterion {
     pub op: AggregatedActionType,
     pub data_limit: usize,
+    pub pubdata_da: PubdataDA,
+    pub kzg_settings: Option<Arc<KzgSettings>>,
 }
 
 #[async_trait]
@@ -215,13 +222,20 @@ impl L1BatchPublishCriterion for DataSizeCriterion {
         let mut data_size_left = self.data_limit - STORED_BLOCK_INFO_SIZE;
 
         for (index, l1_batch) in consecutive_l1_batches.iter().enumerate() {
-            if data_size_left < l1_batch.l1_commit_data_size() {
+            // TODO (PLA-771): Make sure that this estimation is correct.
+            let l1_commit_data_size =
+                ethabi::encode(&[ethabi::Token::Array(vec![CommitBatchInfo::new(
+                    l1_batch,
+                    self.pubdata_da,
+                    self.kzg_settings.clone(),
+                )
+                .into_token()])])
+                .len();
+            if data_size_left < l1_commit_data_size {
                 if index == 0 {
                     panic!(
                         "L1 batch #{} requires {} data, which is more than the range limit of {}",
-                        l1_batch.header.number,
-                        l1_batch.l1_commit_data_size(),
-                        self.data_limit
+                        l1_batch.header.number, l1_commit_data_size, self.data_limit
                     );
                 }
 
@@ -236,7 +250,7 @@ impl L1BatchPublishCriterion for DataSizeCriterion {
                 METRICS.block_aggregation_reason[&(self.op, "data_size").into()].inc();
                 return Some(output);
             }
-            data_size_left -= l1_batch.l1_commit_data_size();
+            data_size_left -= l1_commit_data_size;
         }
 
         None

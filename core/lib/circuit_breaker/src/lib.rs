@@ -62,7 +62,7 @@ impl CircuitBreakerChecker {
                 return circuit_breaker_sender
                     .send(error)
                     .ok()
-                    .context("failed to send circuit breaker messsage");
+                    .context("failed to send circuit breaker message");
             }
             tokio::time::sleep(self.sync_interval).await;
         }

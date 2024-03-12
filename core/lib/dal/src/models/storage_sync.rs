@@ -1,12 +1,15 @@
 use std::str::FromStr;
 
 use anyhow::Context as _;
-use zksync_consensus_roles::validator;
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_protobuf::{required, ProtoFmt};
 use zksync_types::{
     api::en, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, Transaction, H160, H256,
     U256,
+};
+
+use crate::{
+    consensus_dal::Payload,
+    models::{parse_h160, parse_h256},
 };
 
 #[derive(Debug, Clone, sqlx::FromRow)]
@@ -22,18 +25,10 @@ pub(crate) struct StorageSyncBlock {
     pub fair_pubdata_price: Option<i64>,
     pub bootloader_code_hash: Option<Vec<u8>>,
     pub default_aa_code_hash: Option<Vec<u8>>,
-    pub fee_account_address: Option<Vec<u8>>, // May be None if the block is not yet sealed
+    pub fee_account_address: Vec<u8>,
     pub protocol_version: i32,
     pub virtual_blocks: i64,
     pub hash: Vec<u8>,
-}
-
-fn parse_h256(bytes: &[u8]) -> anyhow::Result<H256> {
-    Ok(<[u8; 32]>::try_from(bytes).context("invalid size")?.into())
-}
-
-fn parse_h160(bytes: &[u8]) -> anyhow::Result<H160> {
-    Ok(<[u8; 20]>::try_from(bytes).context("invalid size")?.into())
 }
 
 pub(crate) struct SyncBlock {
@@ -45,7 +40,7 @@ pub(crate) struct SyncBlock {
     pub l2_fair_gas_price: U256,
     pub fair_pubdata_price: Option<U256>,
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
-    pub fee_account_address: Option<Address>,
+    pub fee_account_address: Address,
     pub virtual_blocks: u32,
     pub hash: H256,
     pub protocol_version: ProtocolVersionId,
@@ -88,10 +83,7 @@ impl TryFrom<StorageSyncBlock> for SyncBlock {
                 )
                 .context("default_aa_code_hash")?,
             },
-            fee_account_address: block
-                .fee_account_address
-                .map(|a| parse_h160(&a))
-                .transpose()
+            fee_account_address: parse_h160(&block.fee_account_address)
                 .context("fee_account_address")?,
             virtual_blocks: block.virtual_blocks.try_into().context("virtual_blocks")?,
             hash: parse_h256(&block.hash).context("hash")?,
@@ -104,11 +96,7 @@ impl TryFrom<StorageSyncBlock> for SyncBlock {
 }
 
 impl SyncBlock {
-    pub(crate) fn into_api(
-        self,
-        current_operator_address: Address,
-        transactions: Option<Vec<Transaction>>,
-    ) -> en::SyncBlock {
+    pub(crate) fn into_api(self, transactions: Option<Vec<Transaction>>) -> en::SyncBlock {
         en::SyncBlock {
             number: self.number,
             l1_batch_number: self.l1_batch_number,
@@ -118,7 +106,7 @@ impl SyncBlock {
             l2_fair_gas_price: self.l2_fair_gas_price,
             fair_pubdata_price: self.fair_pubdata_price,
             base_system_contracts_hashes: self.base_system_contracts_hashes,
-            operator_address: self.fee_account_address.unwrap_or(current_operator_address),
+            operator_address: self.fee_account_address,
             transactions,
             virtual_blocks: Some(self.virtual_blocks),
             hash: Some(self.hash),
@@ -126,11 +114,7 @@ impl SyncBlock {
         }
     }
 
-    pub(crate) fn into_payload(
-        self,
-        current_operator_address: Address,
-        transactions: Vec<Transaction>,
-    ) -> Payload {
+    pub(crate) fn into_payload(self, transactions: Vec<Transaction>) -> Payload {
         Payload {
             protocol_version: self.protocol_version,
             hash: self.hash,
@@ -140,136 +124,9 @@ impl SyncBlock {
             l2_fair_gas_price: self.l2_fair_gas_price,
             fair_pubdata_price: self.fair_pubdata_price,
             virtual_blocks: self.virtual_blocks,
-            operator_address: self.fee_account_address.unwrap_or(current_operator_address),
+            operator_address: self.fee_account_address,
             transactions,
             last_in_batch: self.last_in_batch,
         }
-    }
-}
-
-/// L2 block (= miniblock) payload.
-#[derive(Debug, PartialEq)]
-pub struct Payload {
-    pub protocol_version: ProtocolVersionId,
-    pub hash: H256,
-    pub l1_batch_number: L1BatchNumber,
-    pub timestamp: u64,
-    pub l1_gas_price: U256,
-    pub l2_fair_gas_price: U256,
-    pub fair_pubdata_price: Option<U256>,
-    pub virtual_blocks: u32,
-    pub operator_address: Address,
-    pub transactions: Vec<Transaction>,
-    pub last_in_batch: bool,
-}
-
-impl ProtoFmt for Payload {
-    type Proto = super::proto::Payload;
-
-    fn read(message: &Self::Proto) -> anyhow::Result<Self> {
-        let mut transactions = Vec::with_capacity(message.transactions.len());
-        for (i, tx) in message.transactions.iter().enumerate() {
-            transactions.push(
-                required(&tx.json)
-                    .and_then(|json_str| Ok(serde_json::from_str(json_str)?))
-                    .with_context(|| format!("transaction[{i}]"))?,
-            );
-        }
-
-        let l1_gas_price = match message.l1_gas_price.as_ref() {
-            Some(price) => U256::from_str(price)?,
-            None => U256::zero(),
-        };
-
-        let l2_fair_gas_price = match message.l2_fair_gas_price.as_ref() {
-            Some(price) => U256::from_str(price)?,
-            None => U256::zero(),
-        };
-
-        Ok(Self {
-            protocol_version: required(&message.protocol_version)
-                .and_then(|x| Ok(ProtocolVersionId::try_from(u16::try_from(*x)?)?))
-                .context("protocol_version")?,
-            hash: required(&message.hash)
-                .and_then(|h| parse_h256(h))
-                .context("hash")?,
-            l1_batch_number: L1BatchNumber(
-                *required(&message.l1_batch_number).context("l1_batch_number")?,
-            ),
-            timestamp: *required(&message.timestamp).context("timestamp")?,
-            l1_gas_price,
-            l2_fair_gas_price,
-            fair_pubdata_price: message
-                .fair_pubdata_price
-                .as_ref()
-                .map(|price| U256::from_str(price))
-                .transpose()?,
-            virtual_blocks: *required(&message.virtual_blocks).context("virtual_blocks")?,
-            operator_address: required(&message.operator_address)
-                .and_then(|a| parse_h160(a))
-                .context("operator_address")?,
-            transactions,
-            last_in_batch: *required(&message.last_in_batch).context("last_in_batch")?,
-        })
-    }
-
-    fn build(&self) -> Self::Proto {
-        Self::Proto {
-            protocol_version: Some((self.protocol_version as u16).into()),
-            hash: Some(self.hash.as_bytes().into()),
-            l1_batch_number: Some(self.l1_batch_number.0),
-            timestamp: Some(self.timestamp),
-            l1_gas_price: Some(self.l1_gas_price.to_string()),
-            l2_fair_gas_price: Some(self.l2_fair_gas_price.to_string()),
-            fair_pubdata_price: self.fair_pubdata_price.map(|x| x.to_string()),
-            virtual_blocks: Some(self.virtual_blocks),
-            operator_address: Some(self.operator_address.as_bytes().into()),
-            // Transactions are stored in execution order, therefore order is deterministic.
-            transactions: self
-                .transactions
-                .iter()
-                .map(|t| super::proto::Transaction {
-                    // TODO: There is no guarantee that json encoding here will be deterministic.
-                    json: Some(serde_json::to_string(t).unwrap()),
-                })
-                .collect(),
-            last_in_batch: Some(self.last_in_batch),
-        }
-    }
-}
-
-impl Payload {
-    pub fn decode(payload: &validator::Payload) -> anyhow::Result<Self> {
-        zksync_protobuf::decode(&payload.0)
-    }
-
-    pub fn encode(&self) -> validator::Payload {
-        validator::Payload(zksync_protobuf::encode(self))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_payload_proto_build_read() {
-        let payload = Payload {
-            protocol_version: ProtocolVersionId::default(),
-            hash: H256::zero(),
-            l1_batch_number: L1BatchNumber(0),
-            timestamp: 0,
-            l1_gas_price: U256::zero(),
-            l2_fair_gas_price: U256::zero(),
-            fair_pubdata_price: None,
-            virtual_blocks: 0,
-            operator_address: Address::zero(),
-            transactions: vec![],
-            last_in_batch: false,
-        };
-
-        let proto = payload.build();
-        let decoded = Payload::read(&proto).unwrap();
-        assert_eq!(payload, decoded);
     }
 }

@@ -1,5 +1,5 @@
 use zk_evm_1_4_1::aux_structures::Timestamp;
-use zksync_contracts::{deployer_contract, load_contract, load_sys_contract, read_bytecode};
+use zksync_contracts::{deployer_contract, load_sys_contract, read_bytecode};
 use zksync_state::WriteStorage;
 use zksync_test_account::TxType;
 use zksync_types::{
@@ -12,14 +12,17 @@ use zksync_types::{
 };
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256};
 
-use super::utils::read_test_contract;
+use super::utils::{get_complex_upgrade_abi, read_test_contract};
 use crate::{
     interface::{
         ExecutionResult, Halt, TxExecutionMode, VmExecutionMode, VmInterface,
         VmInterfaceHistoryEnabled,
     },
     vm_latest::{
-        tests::{tester::VmTesterBuilder, utils::verify_required_storage},
+        tests::{
+            tester::VmTesterBuilder,
+            utils::{read_complex_upgrade, verify_required_storage},
+        },
         HistoryEnabled,
     },
 };
@@ -343,18 +346,8 @@ fn get_complex_upgrade_tx(
     }
 }
 
-fn read_complex_upgrade() -> Vec<u8> {
-    read_bytecode("etc/contracts-test-data/artifacts-zk/contracts/complex-upgrade/complex-upgrade.sol/ComplexUpgrade.json")
-}
-
 fn read_msg_sender_test() -> Vec<u8> {
     read_bytecode("etc/contracts-test-data/artifacts-zk/contracts/complex-upgrade/msg-sender.sol/MsgSenderTest.json")
-}
-
-fn get_complex_upgrade_abi() -> Contract {
-    load_contract(
-        "etc/contracts-test-data/artifacts-zk/contracts/complex-upgrade/complex-upgrade.sol/ComplexUpgrade.json"
-    )
 }
 
 fn get_complex_upgrader_abi() -> Contract {

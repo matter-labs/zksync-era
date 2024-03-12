@@ -4,16 +4,23 @@ use anyhow::Context;
 use serde::Deserialize;
 use url::Url;
 use zksync_basic_types::{Address, L1ChainId, L2ChainId};
-use zksync_core::api_server::{
-    tx_sender::TxSenderConfig,
-    web3::{state::InternalApiConfig, Namespace},
+use zksync_config::ObjectStoreConfig;
+use zksync_consensus_roles::node;
+use zksync_core::{
+    api_server::{
+        tx_sender::TxSenderConfig,
+        web3::{state::InternalApiConfig, Namespace},
+    },
+    consensus,
 };
-use zksync_types::api::BridgeAddresses;
+use zksync_types::{api::BridgeAddresses, fee_model::FeeParams};
 use zksync_web3_decl::{
+    error::ClientRpcContext,
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
 };
 
+pub(crate) mod observability;
 #[cfg(test)]
 mod tests;
 
@@ -22,7 +29,7 @@ const BYTES_IN_MEGABYTE: usize = 1_024 * 1_024;
 /// This part of the external node config is fetched directly from the main node.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct RemoteENConfig {
-    pub bridgehub_proxy_addr: Address,
+    pub bridgehub_proxy_addr: Option<Address>,
     pub diamond_proxy_addr: Address,
     pub l1_erc20_bridge_proxy_addr: Address,
     pub l1_shared_bridge_proxy_addr: Address,
@@ -30,41 +37,43 @@ pub struct RemoteENConfig {
     pub l2_testnet_paymaster_addr: Option<Address>,
     pub l2_chain_id: L2ChainId,
     pub l1_chain_id: L1ChainId,
+    pub max_pubdata_per_batch: u64,
 }
 
 impl RemoteENConfig {
     pub async fn fetch(client: &HttpClient) -> anyhow::Result<Self> {
         let bridges = client
             .get_bridge_contracts()
-            .await
-            .context("Failed to fetch bridge contracts")?;
+            .rpc_context("get_bridge_contracts")
+            .await?;
         let l2_testnet_paymaster_addr = client
             .get_testnet_paymaster()
-            .await
-            .context("Failed to fetch paymaster")?;
-        let bridgehub_proxy_addr = client
-            .get_bridgehub_contract()
-            .await
-            .context("Failed to fetch L1 bridgehub contract address")?;
+            .rpc_context("get_testnet_paymaster")
+            .await?;
+        // In case EN is connected to the old server version without `get_bridgehub_contract` method.
+        let bridgehub_proxy_addr = client.get_bridgehub_contract().await.ok().flatten();
         let diamond_proxy_addr = client
             .get_main_contract()
-            .await
-            .context("Failed to fetch L1 contract address")?;
-        let l2_chain_id = L2ChainId::try_from(
-            client
-                .chain_id()
-                .await
-                .context("Failed to fetch L2 chain ID")?
-                .as_u64(),
-        )
-        .unwrap();
-        let l1_chain_id = L1ChainId(
-            client
-                .l1_chain_id()
-                .await
-                .context("Failed to fetch L1 chain ID")?
-                .as_u64(),
-        );
+            .rpc_context("get_main_contract")
+            .await?;
+        let l2_chain_id = client.chain_id().rpc_context("chain_id").await?;
+        let l2_chain_id = L2ChainId::try_from(l2_chain_id.as_u64())
+            .map_err(|err| anyhow::anyhow!("invalid chain ID supplied by main node: {err}"))?;
+        let l1_chain_id = client.l1_chain_id().rpc_context("l1_chain_id").await?;
+        let l1_chain_id = L1ChainId(l1_chain_id.as_u64());
+
+        let fee_params = client
+            .get_fee_params()
+            .rpc_context("get_fee_params")
+            .await?;
+        let max_pubdata_per_batch = match fee_params {
+            FeeParams::V1(_) => {
+                const MAX_V1_PUBDATA_PER_BATCH: u64 = 100_000;
+
+                MAX_V1_PUBDATA_PER_BATCH
+            }
+            FeeParams::V2(params) => params.config.max_pubdata_per_batch,
+        };
 
         Ok(Self {
             bridgehub_proxy_addr,
@@ -75,8 +84,15 @@ impl RemoteENConfig {
             l2_shared_bridge_addr: bridges.l2_shared_default_bridge,
             l2_chain_id,
             l1_chain_id,
+            max_pubdata_per_batch,
         })
     }
+}
+
+#[derive(Debug, Deserialize, Clone, PartialEq)]
+pub enum BlockFetcher {
+    ServerAPI,
+    Consensus,
 }
 
 /// This part of the external node config is completely optional to provide.
@@ -138,6 +154,23 @@ pub struct OptionalENConfig {
     latest_values_cache_size_mb: usize,
     /// Enabled JSON RPC API namespaces.
     api_namespaces: Option<Vec<Namespace>>,
+    /// Whether to support methods installing filters and querying filter changes.
+    ///
+    /// When to set this value to `true`:
+    /// Filters are local to the specific node they were created at. Meaning if
+    /// there are multiple nodes behind a load balancer the client cannot reliably
+    /// query the previously created filter as the request might get routed to a
+    /// different node.
+    #[serde(default)]
+    pub filters_disabled: bool,
+
+    // Health checks
+    /// Time limit in milliseconds to mark a health check as slow and log the corresponding warning.
+    /// If not specified, the default value in the health check crate will be used.
+    healthcheck_slow_time_limit_ms: Option<u64>,
+    /// Time limit in milliseconds to abort a health check and return "not ready" status for the corresponding component.
+    /// If not specified, the default value in the health check crate will be used.
+    healthcheck_hard_time_limit_ms: Option<u64>,
 
     // Gas estimation config
     /// The factor by which to scale the gasLimit
@@ -185,6 +218,12 @@ pub struct OptionalENConfig {
     #[serde(default = "OptionalENConfig::default_merkle_tree_stalled_writes_timeout_sec")]
     merkle_tree_stalled_writes_timeout_sec: u64,
 
+    // Postgres config (new parameters)
+    /// Threshold in milliseconds for the DB connection lifetime to denote it as long-living and log its details.
+    database_long_connection_threshold_ms: Option<u64>,
+    /// Threshold in milliseconds to denote a DB query as "slow" and log its details.
+    database_slow_query_threshold_ms: Option<u64>,
+
     // Other config settings
     /// Port on which the Prometheus exporter server is listening.
     pub prometheus_port: Option<u16>,
@@ -196,6 +235,9 @@ pub struct OptionalENConfig {
     /// 0 means that sealing is synchronous; this is mostly useful for performance comparison, testing etc.
     #[serde(default = "OptionalENConfig::default_miniblock_seal_queue_capacity")]
     pub miniblock_seal_queue_capacity: usize,
+    /// Path to KZG trusted setup path.
+    #[serde(default = "OptionalENConfig::default_kzg_trusted_setup_path")]
+    pub kzg_trusted_setup_path: String,
 }
 
 impl OptionalENConfig {
@@ -302,6 +344,10 @@ impl OptionalENConfig {
         10
     }
 
+    fn default_kzg_trusted_setup_path() -> String {
+        "./trusted_setup.json".to_owned()
+    }
+
     pub fn polling_interval(&self) -> Duration {
         Duration::from_millis(self.polling_interval)
     }
@@ -340,6 +386,16 @@ impl OptionalENConfig {
         Duration::from_secs(self.merkle_tree_stalled_writes_timeout_sec)
     }
 
+    pub fn long_connection_threshold(&self) -> Option<Duration> {
+        self.database_long_connection_threshold_ms
+            .map(Duration::from_millis)
+    }
+
+    pub fn slow_query_threshold(&self) -> Option<Duration> {
+        self.database_slow_query_threshold_ms
+            .map(Duration::from_millis)
+    }
+
     pub fn api_namespaces(&self) -> Vec<Namespace> {
         self.api_namespaces
             .clone()
@@ -348,6 +404,16 @@ impl OptionalENConfig {
 
     pub fn max_response_body_size(&self) -> usize {
         self.max_response_body_size_mb * BYTES_IN_MEGABYTE
+    }
+
+    pub fn healthcheck_slow_time_limit(&self) -> Option<Duration> {
+        self.healthcheck_slow_time_limit_ms
+            .map(Duration::from_millis)
+    }
+
+    pub fn healthcheck_hard_time_limit(&self) -> Option<Duration> {
+        self.healthcheck_hard_time_limit_ms
+            .map(Duration::from_millis)
     }
 }
 
@@ -410,14 +476,43 @@ impl PostgresConfig {
     }
 }
 
+pub(crate) fn read_consensus_config() -> anyhow::Result<consensus::FetcherConfig> {
+    let path = std::env::var("EN_CONSENSUS_CONFIG_PATH")
+        .context("EN_CONSENSUS_CONFIG_PATH env variable is not set")?;
+    let cfg = std::fs::read_to_string(&path).context(path)?;
+    let cfg: consensus::config::Config =
+        consensus::config::decode_json(&cfg).context("failed decoding JSON")?;
+    let node_key: node::SecretKey = consensus::config::read_secret("EN_CONSENSUS_NODE_KEY")?;
+    Ok(consensus::FetcherConfig {
+        executor: cfg.executor_config(node_key),
+    })
+}
+
+/// Configuration for snapshot recovery. Loaded optionally, only if the corresponding command-line argument
+/// is supplied to the EN binary.
+#[derive(Debug, Clone)]
+pub struct SnapshotsRecoveryConfig {
+    pub snapshots_object_store: ObjectStoreConfig,
+}
+
+pub(crate) fn read_snapshots_recovery_config() -> anyhow::Result<SnapshotsRecoveryConfig> {
+    let snapshots_object_store = envy::prefixed("EN_SNAPSHOTS_OBJECT_STORE_")
+        .from_env::<ObjectStoreConfig>()
+        .context("failed loading snapshot object store config from env variables")?;
+    Ok(SnapshotsRecoveryConfig {
+        snapshots_object_store,
+    })
+}
+
 /// External Node Config contains all the configuration required for the EN operation.
 /// It is split into three parts: required, optional and remote for easier navigation.
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct ExternalNodeConfig {
     pub required: RequiredENConfig,
     pub postgres: PostgresConfig,
     pub optional: OptionalENConfig,
     pub remote: RemoteENConfig,
+    pub consensus: Option<consensus::FetcherConfig>,
 }
 
 impl ExternalNodeConfig {
@@ -438,7 +533,6 @@ impl ExternalNodeConfig {
         let remote = RemoteENConfig::fetch(&client)
             .await
             .context("Unable to fetch required config values from the main node")?;
-
         // We can query them from main node, but it's better to set them explicitly
         // as well to avoid connecting to wrong environment variables unintentionally.
         let eth_chain_id = HttpClientBuilder::default()
@@ -483,6 +577,7 @@ impl ExternalNodeConfig {
             postgres,
             required,
             optional,
+            consensus: None,
         })
     }
 }
@@ -518,6 +613,7 @@ impl From<ExternalNodeConfig> for InternalApiConfig {
             l2_testnet_paymaster_addr: config.remote.l2_testnet_paymaster_addr,
             req_entities_limit: config.optional.req_entities_limit,
             fee_history_limit: config.optional.fee_history_limit,
+            filters_disabled: config.optional.filters_disabled,
         }
     }
 }
@@ -541,6 +637,7 @@ impl From<ExternalNodeConfig> for TxSenderConfig {
             l1_to_l2_transactions_compatibility_mode: config
                 .optional
                 .l1_to_l2_transactions_compatibility_mode,
+            max_pubdata_per_batch: config.remote.max_pubdata_per_batch,
         }
     }
 }

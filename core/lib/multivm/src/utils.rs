@@ -1,4 +1,7 @@
-use zksync_types::{fee_model::BatchFeeInput, VmVersion, U256};
+use zksync_types::{
+    fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput, PubdataIndependentBatchFeeModelInput},
+    VmVersion, U256,
+};
 
 use crate::vm_latest::L1BatchEnv;
 
@@ -38,7 +41,10 @@ pub fn derive_base_fee_and_gas_per_pubdata(
                 batch_fee_input.into_l1_pegged(),
             )
         }
-        VmVersion::Vm1_4_1 | VmVersion::Local => {
+        VmVersion::Vm1_4_1 => crate::vm_1_4_1::utils::fee::derive_base_fee_and_gas_per_pubdata(
+            batch_fee_input.into_pubdata_independent(),
+        ),
+        VmVersion::Vm1_4_2 | VmVersion::Local => {
             crate::vm_latest::utils::fee::derive_base_fee_and_gas_per_pubdata(
                 batch_fee_input.into_pubdata_independent(),
             )
@@ -64,7 +70,8 @@ pub fn get_batch_base_fee(l1_batch_env: &L1BatchEnv, vm_version: VmVersion) -> U
         VmVersion::VmBoojumIntegration => {
             crate::vm_boojum_integration::utils::fee::get_batch_base_fee(l1_batch_env)
         }
-        VmVersion::Vm1_4_1 | VmVersion::Local => {
+        VmVersion::Vm1_4_1 => crate::vm_1_4_1::utils::fee::get_batch_base_fee(l1_batch_env),
+        VmVersion::Vm1_4_2 | VmVersion::Local => {
             crate::vm_latest::utils::fee::get_batch_base_fee(l1_batch_env)
         }
     }
@@ -74,19 +81,65 @@ pub fn get_batch_base_fee(l1_batch_env: &L1BatchEnv, vm_version: VmVersion) -> U
 pub fn adjust_pubdata_price_for_tx(
     batch_fee_input: BatchFeeInput,
     tx_gas_per_pubdata_limit: U256,
+    max_base_fee: Option<U256>,
     vm_version: VmVersion,
 ) -> BatchFeeInput {
-    if derive_base_fee_and_gas_per_pubdata(batch_fee_input, vm_version).1
-        <= tx_gas_per_pubdata_limit
+    // If no max base fee was provided, we just use the maximal one for convenience.
+    let max_base_fee = max_base_fee.unwrap_or(U256::MAX);
+    let desired_gas_per_pubdata =
+        tx_gas_per_pubdata_limit.min(get_max_gas_per_pubdata_byte(vm_version).into());
+
+    let (current_base_fee, current_gas_per_pubdata) =
+        derive_base_fee_and_gas_per_pubdata(batch_fee_input, vm_version);
+
+    if U256::from(current_gas_per_pubdata) <= desired_gas_per_pubdata
+        && current_base_fee <= max_base_fee
     {
+        // gas per pubdata is already smaller than or equal to `tx_gas_per_pubdata_limit`.
         return batch_fee_input;
     }
 
-    // The latest VM supports adjusting the pubdata price for all the types of the fee models.
-    crate::vm_latest::utils::fee::adjust_pubdata_price_for_tx(
-        batch_fee_input,
-        tx_gas_per_pubdata_limit,
-    )
+    match batch_fee_input {
+        BatchFeeInput::L1Pegged(fee_input) => {
+            let current_l2_fair_gas_price = U256::from(fee_input.fair_l2_gas_price);
+            let fair_l2_gas_price = if max_base_fee < current_l2_fair_gas_price {
+                max_base_fee
+            } else {
+                current_l2_fair_gas_price
+            };
+
+            // `gasPerPubdata = ceil(17 * l1gasprice / fair_l2_gas_price)`
+            // `gasPerPubdata <= 17 * l1gasprice / fair_l2_gas_price + 1`
+            // `fair_l2_gas_price(gasPerPubdata - 1) / 17 <= l1gasprice`
+            let new_l1_gas_price =
+                fair_l2_gas_price * (desired_gas_per_pubdata - U256::from(1u32)) / U256::from(17);
+
+            BatchFeeInput::L1Pegged(L1PeggedBatchFeeModelInput {
+                l1_gas_price: new_l1_gas_price,
+                fair_l2_gas_price: fair_l2_gas_price,
+            })
+        }
+        BatchFeeInput::PubdataIndependent(fee_input) => {
+            let current_l2_fair_gas_price = U256::from(fee_input.fair_l2_gas_price);
+            let fair_l2_gas_price = if max_base_fee < current_l2_fair_gas_price {
+                max_base_fee
+            } else {
+                current_l2_fair_gas_price
+            };
+
+            // `gasPerPubdata = ceil(fair_pubdata_price / fair_l2_gas_price)`
+            // `gasPerPubdata <= fair_pubdata_price / fair_l2_gas_price + 1`
+            // `fair_l2_gas_price(gasPerPubdata - 1) <= fair_pubdata_price`
+            let new_fair_pubdata_price =
+                fair_l2_gas_price * (desired_gas_per_pubdata - U256::from(1u32));
+
+            BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
+                fair_pubdata_price: new_fair_pubdata_price,
+                fair_l2_gas_price: fair_l2_gas_price,
+                ..fee_input
+            })
+        }
+    }
 }
 
 pub fn derive_overhead(
@@ -144,7 +197,8 @@ pub fn derive_overhead(
                 ),
             )
         }
-        VmVersion::Vm1_4_1 | VmVersion::Local => {
+        VmVersion::Vm1_4_1 => crate::vm_1_4_1::utils::overhead::derive_overhead(encoded_len),
+        VmVersion::Vm1_4_2 | VmVersion::Local => {
             crate::vm_latest::utils::overhead::derive_overhead(encoded_len)
         }
     }
@@ -168,7 +222,8 @@ pub fn get_bootloader_encoding_space(version: VmVersion) -> u32 {
         VmVersion::VmBoojumIntegration => {
             crate::vm_boojum_integration::constants::BOOTLOADER_TX_ENCODING_SPACE
         }
-        VmVersion::Vm1_4_1 | VmVersion::Local => {
+        VmVersion::Vm1_4_1 => crate::vm_1_4_1::constants::BOOTLOADER_TX_ENCODING_SPACE,
+        VmVersion::Vm1_4_2 | VmVersion::Local => {
             crate::vm_latest::constants::BOOTLOADER_TX_ENCODING_SPACE
         }
     }
@@ -188,7 +243,30 @@ pub fn get_bootloader_max_txs_in_batch(version: VmVersion) -> usize {
             crate::vm_refunds_enhancement::constants::MAX_TXS_IN_BLOCK
         }
         VmVersion::VmBoojumIntegration => crate::vm_boojum_integration::constants::MAX_TXS_IN_BLOCK,
-        VmVersion::Vm1_4_1 | VmVersion::Local => crate::vm_latest::constants::MAX_TXS_IN_BATCH,
+        VmVersion::Vm1_4_1 => crate::vm_1_4_1::constants::MAX_TXS_IN_BATCH,
+        VmVersion::Vm1_4_2 | VmVersion::Local => crate::vm_latest::constants::MAX_TXS_IN_BATCH,
+    }
+}
+
+pub fn gas_bootloader_batch_tip_overhead(version: VmVersion) -> u32 {
+    match version {
+        VmVersion::M5WithRefunds
+        | VmVersion::M5WithoutRefunds
+        | VmVersion::M6Initial
+        | VmVersion::M6BugWithCompressionFixed
+        | VmVersion::Vm1_3_2
+        | VmVersion::VmVirtualBlocks
+        | VmVersion::VmVirtualBlocksRefundsEnhancement => {
+            // For these versions the overhead has not been calculated and it has not been used with those versions.
+            0
+        }
+        VmVersion::VmBoojumIntegration => {
+            crate::vm_boojum_integration::constants::BOOTLOADER_BATCH_TIP_OVERHEAD
+        }
+        VmVersion::Vm1_4_1 => crate::vm_1_4_1::constants::BOOTLOADER_BATCH_TIP_OVERHEAD,
+        VmVersion::Vm1_4_2 | VmVersion::Local => {
+            crate::vm_latest::constants::BOOTLOADER_BATCH_TIP_OVERHEAD
+        }
     }
 }
 
@@ -208,7 +286,8 @@ pub fn get_max_gas_per_pubdata_byte(version: VmVersion) -> u64 {
         VmVersion::VmBoojumIntegration => {
             crate::vm_boojum_integration::constants::MAX_GAS_PER_PUBDATA_BYTE
         }
-        VmVersion::Vm1_4_1 | VmVersion::Local => {
+        VmVersion::Vm1_4_1 => crate::vm_1_4_1::constants::MAX_GAS_PER_PUBDATA_BYTE,
+        VmVersion::Vm1_4_2 | VmVersion::Local => {
             crate::vm_latest::constants::MAX_GAS_PER_PUBDATA_BYTE
         }
     }
@@ -232,7 +311,8 @@ pub fn get_used_bootloader_memory_bytes(version: VmVersion) -> usize {
         VmVersion::VmBoojumIntegration => {
             crate::vm_boojum_integration::constants::USED_BOOTLOADER_MEMORY_BYTES
         }
-        VmVersion::Vm1_4_1 | VmVersion::Local => {
+        VmVersion::Vm1_4_1 => crate::vm_1_4_1::constants::USED_BOOTLOADER_MEMORY_BYTES,
+        VmVersion::Vm1_4_2 | VmVersion::Local => {
             crate::vm_latest::constants::USED_BOOTLOADER_MEMORY_BYTES
         }
     }
@@ -256,7 +336,8 @@ pub fn get_used_bootloader_memory_words(version: VmVersion) -> usize {
         VmVersion::VmBoojumIntegration => {
             crate::vm_boojum_integration::constants::USED_BOOTLOADER_MEMORY_WORDS
         }
-        VmVersion::Vm1_4_1 | VmVersion::Local => {
+        VmVersion::Vm1_4_1 => crate::vm_1_4_1::constants::USED_BOOTLOADER_MEMORY_WORDS,
+        VmVersion::Vm1_4_2 | VmVersion::Local => {
             crate::vm_latest::constants::USED_BOOTLOADER_MEMORY_WORDS
         }
     }

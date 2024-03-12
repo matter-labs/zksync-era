@@ -7,17 +7,10 @@ import { command as contractVerifier } from './contract_verifier';
 import { command as up } from './up';
 import { command as down } from './down';
 import { command as contract } from './contract';
-import {
-    initCommand,
-    reinitCommand,
-    lightweightInitCommand,
-    initHyperCommand,
-    reinitHyperCommand,
-    initSharedBridgeCommand,
-    deployL2ContractsCommand
-} from './init';
+import { initCommand } from './init';
+import { reinitCommand } from './reinit';
 import { initHyperchainCommand } from './hyperchain_wizard';
-import { command as run } from './run/run';
+import { command as run } from './run';
 import { command as test } from './test/test';
 import { command as docker } from './docker';
 import { command as fmt } from './fmt';
@@ -44,12 +37,7 @@ const COMMANDS = [
     contract,
     initCommand,
     reinitCommand,
-    lightweightInitCommand,
     initHyperchainCommand,
-    initHyperCommand,
-    reinitHyperCommand,
-    initSharedBridgeCommand,
-    deployL2ContractsCommand,
     run,
     test,
     fmt,

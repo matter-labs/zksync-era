@@ -3,7 +3,8 @@
 use std::{net::Ipv4Addr, str::FromStr, sync::Arc, time::Instant};
 
 use anyhow::Context as _;
-use fee_model::MainNodeFeeInputProvider;
+use api_server::tx_sender::master_pool_sink::MasterPoolSink;
+use fee_model::{ApiFeeInputProvider, BatchFeeModelInputProvider, MainNodeFeeInputProvider};
 use futures::channel::oneshot;
 use prometheus_exporter::PrometheusExporterConfig;
 use temp_config_store::TempConfigStore;
@@ -12,6 +13,7 @@ use zksync_circuit_breaker::{
     l1_txs::FailedL1TransactionChecker, replication_lag::ReplicationLagChecker, CircuitBreaker,
     CircuitBreakerChecker, CircuitBreakerError,
 };
+use zksync_concurrency::{ctx, scope};
 use zksync_config::{
     configs::{
         api::{MerkleTreeApiConfig, Web3JsonRpcConfig},
@@ -30,7 +32,8 @@ use zksync_eth_client::{
     clients::{PKSigningClient, QueryClient},
     BoundEthInterface, CallFunctionArgs, EthInterface,
 };
-use zksync_health_check::{CheckHealth, HealthStatus, ReactiveHealthCheck};
+use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
+use zksync_l1_contract_interface::i_executor::commit::kzg::KzgSettings;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_state::PostgresStorageCaches;
@@ -51,6 +54,7 @@ use crate::{
         web3::{self, state::InternalApiConfig, ApiServerHandles, Namespace},
     },
     basic_witness_input_producer::BasicWitnessInputProducer,
+    commitment_generator::CommitmentGenerator,
     eth_sender::{Aggregator, EthTxAggregator, EthTxManager},
     eth_watch::start_eth_watch,
     house_keeper::{
@@ -65,7 +69,7 @@ use crate::{
         periodic_job::PeriodicJob,
         waiting_to_queued_fri_witness_job_mover::WaitingToQueuedFriWitnessJobMover,
     },
-    l1_gas_price::{GasAdjusterSingleton, L1GasPriceProvider},
+    l1_gas_price::GasAdjusterSingleton,
     metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
     metrics::{InitStage, APP_METRICS},
     native_token_fetcher::{ConversionRateFetcher, NativeTokenFetcher, NoOpConversionRateFetcher},
@@ -77,12 +81,13 @@ use crate::{
 pub mod api_server;
 pub mod basic_witness_input_producer;
 pub mod block_reverter;
+pub mod commitment_generator;
 pub mod consensus;
 pub mod consistency_checker;
 pub mod dev_api_conversion_rate;
 pub mod eth_sender;
 pub mod eth_watch;
-mod fee_model;
+pub mod fee_model;
 pub mod gas_tracker;
 pub mod genesis;
 pub mod house_keeper;
@@ -104,6 +109,7 @@ pub async fn genesis_init(
     network_config: &NetworkConfig,
     contracts_config: &ContractsConfig,
     eth_client_url: &str,
+    wait_for_set_chain_id: bool,
 ) -> anyhow::Result<()> {
     let db_url = postgres_config.master_url()?;
     let pool = ConnectionPool::singleton(db_url)
@@ -175,6 +181,20 @@ pub async fn genesis_init(
         },
     )
     .await?;
+
+    if wait_for_set_chain_id {
+        genesis::save_set_chain_id_tx(
+            eth_client_url,
+            contracts_config.diamond_proxy_addr,
+            contracts_config
+                .state_transition_proxy_addr
+                .context("state_transition_proxy_addr is not set, but needed for genesis")?,
+            &mut storage,
+        )
+        .await
+        .context("Failed to save SetChainId upgrade transaction")?;
+    }
+
     Ok(())
 }
 
@@ -236,6 +256,10 @@ pub enum Component {
     NativeTokenFetcher,
     /// Conversion rate API, for local development.
     DevConversionRateApi,
+    /// Component generating BFT consensus certificates for miniblocks.
+    Consensus,
+    /// Component generating commitment for L1 batches.
+    CommitmentGenerator,
 }
 
 #[derive(Debug)]
@@ -272,6 +296,8 @@ impl FromStr for Components {
             "proof_data_handler" => Ok(Components(vec![Component::ProofDataHandler])),
             "native_token_fetcher" => Ok(Components(vec![Component::NativeTokenFetcher])),
             "dev_conversion_rate_api" => Ok(Components(vec![Component::DevConversionRateApi])),
+            "consensus" => Ok(Components(vec![Component::Consensus])),
+            "commitment_generator" => Ok(Components(vec![Component::CommitmentGenerator])),
             other => Err(format!("{} is not a valid component name", other)),
         }
     }
@@ -290,21 +316,37 @@ pub async fn initialize_components(
 
     let db_config = configs.db_config.clone().context("db_config")?;
     let postgres_config = configs.postgres_config.clone().context("postgres_config")?;
+    if let Some(threshold) = postgres_config.slow_query_threshold() {
+        ConnectionPool::global_config().set_slow_query_threshold(threshold)?;
+    }
+    if let Some(threshold) = postgres_config.long_connection_threshold() {
+        ConnectionPool::global_config().set_long_connection_threshold(threshold)?;
+    }
 
-    let statement_timeout = postgres_config.statement_timeout();
     let pool_size = postgres_config.max_connections()?;
     let connection_pool = ConnectionPool::builder(postgres_config.master_url()?, pool_size)
         .build()
         .await
         .context("failed to build connection_pool")?;
+    // We're most interested in setting acquire / statement timeouts for the API server, which puts the most load
+    // on Postgres.
     let replica_connection_pool =
         ConnectionPool::builder(postgres_config.replica_url()?, pool_size)
-            .set_statement_timeout(statement_timeout)
+            .set_acquire_timeout(postgres_config.acquire_timeout())
+            .set_statement_timeout(postgres_config.statement_timeout())
             .build()
             .await
             .context("failed to build replica_connection_pool")?;
 
-    let mut healthchecks: Vec<Box<dyn CheckHealth>> = Vec::new();
+    let health_check_config = configs
+        .health_check_config
+        .clone()
+        .context("health_check_config")?;
+    let app_health = Arc::new(AppHealthCheck::new(
+        health_check_config.slow_time_limit(),
+        health_check_config.hard_time_limit(),
+    ));
+
     let contracts_config = configs
         .contracts_config
         .clone()
@@ -345,8 +387,6 @@ pub async fn initialize_components(
         task_futures.push(conversion_rate_task);
     };
 
-    let (cb_sender, cb_receiver) = oneshot::channel();
-
     let native_token_fetcher = if components.contains(&Component::NativeTokenFetcher) {
         Arc::new(
             NativeTokenFetcher::new(
@@ -363,11 +403,19 @@ pub async fn initialize_components(
 
     let query_client = QueryClient::new(&eth_client_config.web3_url).unwrap();
     let gas_adjuster_config = configs.gas_adjuster_config.context("gas_adjuster_config")?;
+
+    let eth_sender_config = configs
+        .eth_sender_config
+        .clone()
+        .context("eth_sender_config")?;
     let mut gas_adjuster = GasAdjusterSingleton::new(
         eth_client_config.web3_url.clone(),
         gas_adjuster_config,
+        eth_sender_config.sender.pubdata_sending_mode,
         native_token_fetcher,
     );
+
+    let (cb_sender, cb_receiver) = oneshot::channel();
 
     // Prometheus exporter and circuit breaker checker should run for every component configuration.
     let prom_config = configs
@@ -378,7 +426,7 @@ pub async fn initialize_components(
 
     let (prometheus_health_check, prometheus_health_updater) =
         ReactiveHealthCheck::new("prometheus_exporter");
-    healthchecks.push(Box::new(prometheus_health_check));
+    app_health.insert_component(prometheus_health_check);
     let prometheus_task = prom_config.run(stop_receiver.clone());
     let prometheus_task = tokio::spawn(async move {
         prometheus_health_updater.update(HealthStatus::Ready.into());
@@ -431,6 +479,10 @@ pub async fn initialize_components(
                 .get_or_init()
                 .await
                 .context("gas_adjuster.get_or_init()")?;
+            let batch_fee_input_provider = Arc::new(MainNodeFeeInputProvider::new(
+                bounded_gas_adjuster,
+                FeeModelConfig::from_state_keeper_config(&state_keeper_config),
+            ));
             let server_handles = run_http_api(
                 &postgres_config,
                 &tx_sender_config,
@@ -440,7 +492,7 @@ pub async fn initialize_components(
                 connection_pool.clone(),
                 replica_connection_pool.clone(),
                 stop_receiver.clone(),
-                bounded_gas_adjuster.clone(),
+                batch_fee_input_provider,
                 state_keeper_config.save_call_traces,
                 storage_caches.clone().unwrap(),
             )
@@ -448,12 +500,12 @@ pub async fn initialize_components(
             .context("run_http_api")?;
 
             task_futures.extend(server_handles.tasks);
-            healthchecks.push(Box::new(server_handles.health_check));
+            app_health.insert_component(server_handles.health_check);
             let elapsed = started_at.elapsed();
             APP_METRICS.init_latency[&InitStage::HttpApi].set(elapsed);
             tracing::info!(
-                "Initialized HTTP API on {:?} in {elapsed:?}",
-                server_handles.local_addr
+                "Initialized HTTP API on port {:?} in {elapsed:?}",
+                api_config.web3_json_rpc.http_port
             );
         }
 
@@ -470,13 +522,17 @@ pub async fn initialize_components(
                 .get_or_init()
                 .await
                 .context("gas_adjuster.get_or_init()")?;
+            let batch_fee_input_provider = Arc::new(MainNodeFeeInputProvider::new(
+                bounded_gas_adjuster,
+                FeeModelConfig::from_state_keeper_config(&state_keeper_config),
+            ));
             let server_handles = run_ws_api(
                 &postgres_config,
                 &tx_sender_config,
                 &state_keeper_config,
                 &internal_api_config,
                 &api_config,
-                bounded_gas_adjuster.clone(),
+                batch_fee_input_provider,
                 connection_pool.clone(),
                 replica_connection_pool.clone(),
                 stop_receiver.clone(),
@@ -486,12 +542,12 @@ pub async fn initialize_components(
             .context("run_ws_api")?;
 
             task_futures.extend(server_handles.tasks);
-            healthchecks.push(Box::new(server_handles.health_check));
+            app_health.insert_component(server_handles.health_check);
             let elapsed = started_at.elapsed();
             APP_METRICS.init_latency[&InitStage::WsApi].set(elapsed);
             tracing::info!(
-                "initialized WS API on {:?} in {elapsed:?}",
-                server_handles.local_addr
+                "Initialized WS API on port {} in {elapsed:?}",
+                api_config.web3_json_rpc.ws_port
             );
         }
 
@@ -523,19 +579,23 @@ pub async fn initialize_components(
             .get_or_init()
             .await
             .context("gas_adjuster.get_or_init()")?;
-
+        let state_keeper_config = configs
+            .state_keeper_config
+            .clone()
+            .context("state_keeper_config")?;
+        let batch_fee_input_provider = Arc::new(MainNodeFeeInputProvider::new(
+            bounded_gas_adjuster,
+            FeeModelConfig::from_state_keeper_config(&state_keeper_config),
+        ));
         add_state_keeper_to_task_futures(
             &mut task_futures,
             &postgres_config,
             &contracts_config,
-            configs
-                .state_keeper_config
-                .clone()
-                .context("state_keeper_config")?,
+            state_keeper_config,
             &configs.network_config.clone().context("network_config")?,
             &db_config,
             &configs.mempool_config.clone().context("mempool_config")?,
-            bounded_gas_adjuster,
+            batch_fee_input_provider,
             store_factory.create_store().await,
             stop_receiver.clone(),
         )
@@ -548,7 +608,39 @@ pub async fn initialize_components(
     }
 
     let state_transition_chain_contract = contracts_config.diamond_proxy_addr;
-    let state_transition_manager_contract = contracts_config.state_transition_proxy_addr;
+    if components.contains(&Component::Consensus) {
+        let cfg = configs
+            .consensus_config
+            .clone()
+            .context("consensus component's config is missing")?;
+        let started_at = Instant::now();
+        tracing::info!("initializing Consensus");
+        let pool = connection_pool.clone();
+        let mut stop_receiver = stop_receiver.clone();
+        task_futures.push(tokio::spawn(async move {
+            scope::run!(&ctx::root(), |ctx, s| async {
+                s.spawn_bg(async {
+                    // Consensus is a new component.
+                    // For now in case of error we just log it and allow the server
+                    // to continue running.
+                    if let Err(err) = cfg.run(ctx, pool).await {
+                        tracing::error!(%err, "Consensus actor failed");
+                    } else {
+                        tracing::info!("Consensus actor stopped");
+                    }
+                    Ok(())
+                });
+                let _ = stop_receiver.wait_for(|stop| *stop).await?;
+                Ok(())
+            })
+            .await
+        }));
+
+        let elapsed = started_at.elapsed();
+        APP_METRICS.init_latency[&InitStage::Consensus].set(elapsed);
+        tracing::info!("initialized Consensus in {elapsed:?}");
+    }
+
     if components.contains(&Component::EthWatcher) {
         let started_at = Instant::now();
         tracing::info!("initializing ETH-Watcher");
@@ -565,9 +657,8 @@ pub async fn initialize_components(
             start_eth_watch(
                 eth_watch_config,
                 eth_watch_pool,
-                Box::new(query_client.clone()),
+                Arc::new(query_client.clone()),
                 state_transition_chain_contract,
-                state_transition_manager_contract,
                 governance,
                 stop_receiver.clone(),
             )
@@ -579,6 +670,10 @@ pub async fn initialize_components(
         tracing::info!("initialized ETH-Watcher in {elapsed:?}");
     }
 
+    let kzg_settings = configs
+        .kzg_config
+        .as_ref()
+        .map(|k| Arc::new(KzgSettings::new(&k.trusted_setup_path)));
     if components.contains(&Component::EthTxAggregator) {
         let started_at = Instant::now();
         tracing::info!("initializing ETH-TxAggregator");
@@ -593,24 +688,32 @@ pub async fn initialize_components(
             .context("eth_sender_config")?;
         let eth_client =
             PKSigningClient::from_config(&eth_sender, &contracts_config, &eth_client_config);
-        let nonce = eth_client.pending_nonce("eth_sender").await.unwrap();
+        let eth_client_blobs_addr =
+            PKSigningClient::from_config_blobs(&eth_sender, &contracts_config, &eth_client_config)
+                .map(|k| k.sender_account());
+
         let eth_tx_aggregator_actor = EthTxAggregator::new(
             eth_sender.sender.clone(),
             Aggregator::new(
                 eth_sender.sender.clone(),
                 store_factory.create_store().await,
+                eth_client_blobs_addr.is_some(),
+                eth_sender.sender.pubdata_sending_mode.into(),
+                kzg_settings.clone(),
             ),
             Arc::new(eth_client),
             contracts_config.validator_timelock_addr,
             contracts_config.l1_multicall3_addr,
             state_transition_chain_contract,
-            nonce.as_u64(),
             configs
                 .network_config
                 .as_ref()
-                .context("netowrk_config")?
+                .context("network_config")?
                 .zksync_network_id,
-        );
+            kzg_settings.clone(),
+            eth_client_blobs_addr,
+        )
+        .await;
         task_futures.push(tokio::spawn(
             eth_tx_aggregator_actor.run(eth_sender_pool, stop_receiver.clone()),
         ));
@@ -632,6 +735,8 @@ pub async fn initialize_components(
             .context("eth_sender_config")?;
         let eth_client =
             PKSigningClient::from_config(&eth_sender, &contracts_config, &eth_client_config);
+        let eth_client_blobs =
+            PKSigningClient::from_config_blobs(&eth_sender, &contracts_config, &eth_client_config);
         let eth_tx_manager_actor = EthTxManager::new(
             eth_sender.sender,
             gas_adjuster
@@ -639,6 +744,7 @@ pub async fn initialize_components(
                 .await
                 .context("gas_adjuster.get_or_init()")?,
             Arc::new(eth_client),
+            eth_client_blobs.map(|c| Arc::new(c) as Arc<dyn BoundEthInterface>),
         );
         task_futures.extend([tokio::spawn(
             eth_tx_manager_actor.run(eth_manager_pool, stop_receiver.clone()),
@@ -651,7 +757,7 @@ pub async fn initialize_components(
     add_trees_to_task_futures(
         configs,
         &mut task_futures,
-        &mut healthchecks,
+        &app_health,
         &components,
         &store_factory,
         stop_receiver.clone(),
@@ -698,17 +804,25 @@ pub async fn initialize_components(
         )));
     }
 
-    // Run healthcheck server for all components.
-    healthchecks.push(Box::new(ConnectionPoolHealthCheck::new(
-        replica_connection_pool,
-    )));
+    if components.contains(&Component::CommitmentGenerator) {
+        let kzg_config = configs.kzg_config.clone().context("kzg_config")?;
+        let commitment_generator_pool = ConnectionPool::singleton(postgres_config.master_url()?)
+            .build()
+            .await
+            .context("failed to build commitment_generator_pool")?;
+        let commitment_generator =
+            CommitmentGenerator::new(commitment_generator_pool, &kzg_config.trusted_setup_path);
+        app_health.insert_component(commitment_generator.health_check());
+        task_futures.push(tokio::spawn(
+            commitment_generator.run(stop_receiver.clone()),
+        ));
+    }
 
-    let healtcheck_api_config = configs
-        .health_check_config
-        .clone()
-        .context("health_check_config")?;
+    // Run healthcheck server for all components.
+    let db_health_check = ConnectionPoolHealthCheck::new(replica_connection_pool);
+    app_health.insert_custom_component(Arc::new(db_health_check));
     let health_check_handle =
-        HealthCheckHandle::spawn_server(healtcheck_api_config.bind_addr(), healthchecks);
+        HealthCheckHandle::spawn_server(health_check_config.bind_addr(), app_health);
 
     if let Some(task) = gas_adjuster.run_if_initialized(stop_receiver.clone()) {
         task_futures.push(task);
@@ -718,7 +832,7 @@ pub async fn initialize_components(
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 'static>(
+async fn add_state_keeper_to_task_futures(
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     postgres_config: &PostgresConfig,
     contracts_config: &ContractsConfig,
@@ -726,7 +840,7 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
     network_config: &NetworkConfig,
     db_config: &DBConfig,
     mempool_config: &MempoolConfig,
-    gas_adjuster: Arc<E>,
+    batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     object_store: Arc<dyn ObjectStore>,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
@@ -735,20 +849,15 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
         .build()
         .await
         .context("failed to build state_keeper_pool")?;
-    let next_priority_id = state_keeper_pool
-        .access_storage()
-        .await
-        .unwrap()
-        .transactions_dal()
-        .next_priority_id()
-        .await;
-    let mempool = MempoolGuard::new(next_priority_id, mempool_config.capacity);
-    mempool.register_metrics();
-
-    let batch_fee_input_provider = Arc::new(MainNodeFeeInputProvider::new(
-        gas_adjuster,
-        FeeModelConfig::from_state_keeper_config(&state_keeper_config),
-    ));
+    let mempool = {
+        let mut storage = state_keeper_pool
+            .access_storage()
+            .await
+            .context("Access storage to build mempool")?;
+        let mempool = MempoolGuard::from_storage(&mut storage, mempool_config.capacity).await;
+        mempool.register_metrics();
+        mempool
+    };
 
     let miniblock_sealer_pool = pool_builder
         .build()
@@ -766,7 +875,7 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
         db_config,
         network_config,
         mempool_config,
-        state_keeper_pool,
+        state_keeper_pool.clone(),
         mempool.clone(),
         batch_fee_input_provider.clone(),
         miniblock_sealer_handle,
@@ -774,19 +883,23 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
         stop_receiver.clone(),
     )
     .await;
+
+    task_futures.push(tokio::spawn(
+        state_keeper.run_fee_address_migration(state_keeper_pool),
+    ));
     task_futures.push(tokio::spawn(state_keeper.run()));
 
     let mempool_fetcher_pool = pool_builder
         .build()
         .await
         .context("failed to build mempool_fetcher_pool")?;
-    let mempool_fetcher = MempoolFetcher::new(mempool, batch_fee_input_provider, mempool_config);
-    let mempool_fetcher_handle = tokio::spawn(mempool_fetcher.run(
+    let mempool_fetcher = MempoolFetcher::new(
+        mempool,
+        batch_fee_input_provider,
+        mempool_config,
         mempool_fetcher_pool,
-        mempool_config.remove_stuck_txs,
-        mempool_config.stuck_tx_timeout(),
-        stop_receiver,
-    ));
+    );
+    let mempool_fetcher_handle = tokio::spawn(mempool_fetcher.run(stop_receiver));
     task_futures.push(mempool_fetcher_handle);
     Ok(())
 }
@@ -794,7 +907,7 @@ async fn add_state_keeper_to_task_futures<E: L1GasPriceProvider + Send + Sync + 
 async fn add_trees_to_task_futures(
     configs: &TempConfigStore,
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
-    healthchecks: &mut Vec<Box<dyn CheckHealth>>,
+    app_health: &AppHealthCheck,
     components: &[Component],
     store_factory: &ObjectStoreFactory,
     stop_receiver: watch::Receiver<bool>,
@@ -829,7 +942,7 @@ async fn add_trees_to_task_futures(
 
     run_tree(
         task_futures,
-        healthchecks,
+        app_health,
         &postgres_config,
         &db_config.merkle_tree,
         api_config,
@@ -844,7 +957,7 @@ async fn add_trees_to_task_futures(
 #[allow(clippy::too_many_arguments)]
 async fn run_tree(
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
-    healthchecks: &mut Vec<Box<dyn CheckHealth>>,
+    app_health: &AppHealthCheck,
     postgres_config: &PostgresConfig,
     merkle_tree_config: &MerkleTreeConfig,
     api_config: Option<&MerkleTreeApiConfig>,
@@ -861,7 +974,9 @@ async fn run_tree(
     tracing::info!("Initializing Merkle tree in {mode_str} mode");
 
     let config = MetadataCalculatorConfig::for_main_node(merkle_tree_config, operation_manager);
-    let metadata_calculator = MetadataCalculator::new(config, object_store).await;
+    let metadata_calculator = MetadataCalculator::new(config, object_store)
+        .await
+        .context("failed initializing metadata_calculator")?;
     if let Some(api_config) = api_config {
         let address = (Ipv4Addr::UNSPECIFIED, api_config.port).into();
         let tree_reader = metadata_calculator.tree_reader();
@@ -875,7 +990,7 @@ async fn run_tree(
     }
 
     let tree_health_check = metadata_calculator.tree_health_check();
-    healthchecks.push(Box::new(tree_health_check));
+    app_health.insert_component(tree_health_check);
     let pool = ConnectionPool::singleton(postgres_config.master_url()?)
         .build()
         .await
@@ -1052,21 +1167,23 @@ async fn build_tx_sender(
     state_keeper_config: &StateKeeperConfig,
     replica_pool: ConnectionPool,
     master_pool: ConnectionPool,
-    l1_gas_price_provider: Arc<dyn L1GasPriceProvider>,
+    batch_fee_model_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     storage_caches: PostgresStorageCaches,
 ) -> (TxSender, VmConcurrencyBarrier) {
     let sequencer_sealer = SequencerSealer::new(state_keeper_config.clone());
-    let tx_sender_builder = TxSenderBuilder::new(tx_sender_config.clone(), replica_pool)
-        .with_main_connection_pool(master_pool)
-        .with_sealer(Arc::new(sequencer_sealer));
+    let master_pool_sink = MasterPoolSink::new(master_pool);
+    let tx_sender_builder = TxSenderBuilder::new(
+        tx_sender_config.clone(),
+        replica_pool.clone(),
+        Arc::new(master_pool_sink),
+    )
+    .with_sealer(Arc::new(sequencer_sealer));
 
     let max_concurrency = web3_json_config.vm_concurrency_limit();
     let (vm_concurrency_limiter, vm_barrier) = VmConcurrencyLimiter::new(max_concurrency);
 
-    let batch_fee_input_provider = MainNodeFeeInputProvider::new(
-        l1_gas_price_provider,
-        FeeModelConfig::from_state_keeper_config(state_keeper_config),
-    );
+    let batch_fee_input_provider =
+        ApiFeeInputProvider::new(batch_fee_model_input_provider, replica_pool);
 
     let tx_sender = tx_sender_builder
         .build(
@@ -1080,7 +1197,7 @@ async fn build_tx_sender(
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn run_http_api<G: L1GasPriceProvider>(
+async fn run_http_api(
     postgres_config: &PostgresConfig,
     tx_sender_config: &TxSenderConfig,
     state_keeper_config: &StateKeeperConfig,
@@ -1089,7 +1206,7 @@ async fn run_http_api<G: L1GasPriceProvider>(
     master_connection_pool: ConnectionPool,
     replica_connection_pool: ConnectionPool,
     stop_receiver: watch::Receiver<bool>,
-    gas_adjuster: Arc<G>,
+    batch_fee_model_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     with_debug_namespace: bool,
     storage_caches: PostgresStorageCaches,
 ) -> anyhow::Result<ApiServerHandles> {
@@ -1099,7 +1216,7 @@ async fn run_http_api<G: L1GasPriceProvider>(
         state_keeper_config,
         replica_connection_pool.clone(),
         master_connection_pool,
-        gas_adjuster,
+        batch_fee_model_input_provider,
         storage_caches,
     )
     .await;
@@ -1110,7 +1227,7 @@ async fn run_http_api<G: L1GasPriceProvider>(
     }
     namespaces.push(Namespace::Snapshots);
 
-    let last_miniblock_pool = ConnectionPool::singleton(postgres_config.replica_url()?)
+    let updaters_pool = ConnectionPool::builder(postgres_config.replica_url()?, 2)
         .build()
         .await
         .context("failed to build last_miniblock_pool")?;
@@ -1118,24 +1235,29 @@ async fn run_http_api<G: L1GasPriceProvider>(
     let api_builder =
         web3::ApiBuilder::jsonrpsee_backend(internal_api.clone(), replica_connection_pool)
             .http(api_config.web3_json_rpc.http_port)
-            .with_last_miniblock_pool(last_miniblock_pool)
+            .with_updaters_pool(updaters_pool)
             .with_filter_limit(api_config.web3_json_rpc.filters_limit())
             .with_tree_api(api_config.web3_json_rpc.tree_api_url())
             .with_batch_request_size_limit(api_config.web3_json_rpc.max_batch_request_size())
             .with_response_body_size_limit(api_config.web3_json_rpc.max_response_body_size())
-            .with_tx_sender(tx_sender, vm_barrier)
+            .with_tx_sender(tx_sender)
+            .with_vm_barrier(vm_barrier)
             .enable_api_namespaces(namespaces);
-    api_builder.build(stop_receiver).await
+    api_builder
+        .build()
+        .context("failed to build HTTP API server")?
+        .run(stop_receiver)
+        .await
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn run_ws_api<G: L1GasPriceProvider + Send + Sync + 'static>(
+async fn run_ws_api(
     postgres_config: &PostgresConfig,
     tx_sender_config: &TxSenderConfig,
     state_keeper_config: &StateKeeperConfig,
     internal_api: &InternalApiConfig,
     api_config: &ApiConfig,
-    gas_adjuster: Arc<G>,
+    batch_fee_model_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     master_connection_pool: ConnectionPool,
     replica_connection_pool: ConnectionPool,
     stop_receiver: watch::Receiver<bool>,
@@ -1147,7 +1269,7 @@ async fn run_ws_api<G: L1GasPriceProvider + Send + Sync + 'static>(
         state_keeper_config,
         replica_connection_pool.clone(),
         master_connection_pool,
-        gas_adjuster,
+        batch_fee_model_input_provider,
         storage_caches,
     )
     .await;
@@ -1162,7 +1284,7 @@ async fn run_ws_api<G: L1GasPriceProvider + Send + Sync + 'static>(
     let api_builder =
         web3::ApiBuilder::jsonrpsee_backend(internal_api.clone(), replica_connection_pool)
             .ws(api_config.web3_json_rpc.ws_port)
-            .with_last_miniblock_pool(last_miniblock_pool)
+            .with_updaters_pool(last_miniblock_pool)
             .with_filter_limit(api_config.web3_json_rpc.filters_limit())
             .with_subscriptions_limit(api_config.web3_json_rpc.subscriptions_limit())
             .with_batch_request_size_limit(api_config.web3_json_rpc.max_batch_request_size())
@@ -1174,10 +1296,15 @@ async fn run_ws_api<G: L1GasPriceProvider + Send + Sync + 'static>(
             )
             .with_polling_interval(api_config.web3_json_rpc.pubsub_interval())
             .with_tree_api(api_config.web3_json_rpc.tree_api_url())
-            .with_tx_sender(tx_sender, vm_barrier)
+            .with_tx_sender(tx_sender)
+            .with_vm_barrier(vm_barrier)
             .enable_api_namespaces(namespaces);
 
-    api_builder.build(stop_receiver.clone()).await
+    api_builder
+        .build()
+        .context("failed to build WS API server")?
+        .run(stop_receiver)
+        .await
 }
 
 async fn circuit_breakers_for_components(

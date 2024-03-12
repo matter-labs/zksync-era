@@ -1,5 +1,8 @@
 //! Tests for filter-related methods in the `eth` namespace.
 
+use std::fmt::Debug;
+
+use jsonrpsee::{core::client::Error, types::error::ErrorCode};
 use zksync_web3_decl::{jsonrpsee::core::ClientError as RpcError, types::FilterChanges};
 
 use super::*;
@@ -22,15 +25,19 @@ impl HttpTest for BasicFilterChangesTest {
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
         let block_filter_id = client.new_block_filter().await?;
         let tx_filter_id = client.new_pending_transaction_filter().await?;
+
+        // Sleep a little so that the filter timestamp is strictly lesser than the transaction "received at" timestamp.
+        tokio::time::sleep(POLL_INTERVAL).await;
+
         let tx_result = execute_l2_transaction(create_l2_transaction(1, 2));
         let new_tx_hash = tx_result.hash;
         let new_miniblock = store_miniblock(
             &mut pool.access_storage().await?,
-            MiniblockNumber(if self.snapshot_recovery {
-                StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1
+            if self.snapshot_recovery {
+                StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 2
             } else {
-                1
-            }),
+                MiniblockNumber(1)
+            },
             &[tx_result],
         )
         .await?;
@@ -111,12 +118,12 @@ impl HttpTest for LogFilterChangesTest {
         let topics_filter_id = client.new_filter(topics_filter).await?;
 
         let mut storage = pool.access_storage().await?;
-        let first_local_miniblock = if self.snapshot_recovery {
-            StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1
+        let next_local_miniblock = if self.snapshot_recovery {
+            StorageInitialization::SNAPSHOT_RECOVERY_BLOCK.0 + 2
         } else {
             1
         };
-        let (_, events) = store_events(&mut storage, first_local_miniblock, 0).await?;
+        let (_, events) = store_events(&mut storage, next_local_miniblock, 0).await?;
         drop(storage);
         let events: Vec<_> = events.iter().collect();
 
@@ -258,4 +265,41 @@ impl HttpTest for LogFilterChangesWithBlockBoundariesTest {
 #[tokio::test]
 async fn log_filter_changes_with_block_boundaries() {
     test_http_server(LogFilterChangesWithBlockBoundariesTest).await;
+}
+
+fn assert_not_implemented<T: Debug>(result: Result<T, Error>) {
+    assert_matches!(result, Err(Error::Call(e)) => {
+        assert_eq!(e.code(), ErrorCode::InternalError.code());
+        assert_eq!(e.message(), "Not implemented");
+    });
+}
+
+#[derive(Debug)]
+struct DisableFiltersTest;
+
+#[async_trait]
+impl HttpTest for DisableFiltersTest {
+    async fn test(&self, client: &HttpClient, _pool: &ConnectionPool) -> anyhow::Result<()> {
+        let filter = Filter {
+            from_block: Some(api::BlockNumber::Number(2.into())),
+            ..Filter::default()
+        };
+        assert_not_implemented(client.new_filter(filter).await);
+        assert_not_implemented(client.new_block_filter().await);
+        assert_not_implemented(client.uninstall_filter(1.into()).await);
+        assert_not_implemented(client.new_pending_transaction_filter().await);
+        assert_not_implemented(client.get_filter_logs(1.into()).await);
+        assert_not_implemented(client.get_filter_changes(1.into()).await);
+
+        Ok(())
+    }
+
+    fn filters_disabled(&self) -> bool {
+        true
+    }
+}
+
+#[tokio::test]
+async fn disable_filters() {
+    test_http_server(DisableFiltersTest).await;
 }

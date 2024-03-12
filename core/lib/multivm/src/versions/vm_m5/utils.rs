@@ -7,7 +7,7 @@ use zk_evm_1_3_1::{
 };
 use zksync_contracts::{read_zbin_bytecode, BaseSystemContracts};
 use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
-use zksync_types::{Address, StorageLogQuery, H160, MAX_L2_TX_GAS_LIMIT, U256};
+use zksync_types::{Address, StorageLogQueryType, H160, MAX_L2_TX_GAS_LIMIT, U256};
 use zksync_utils::h256_to_u256;
 
 use crate::{
@@ -258,4 +258,11 @@ pub fn read_bootloader_test_code(test: &str) -> Vec<u8> {
         "contracts/system-contracts/bootloader/tests/artifacts/{}.yul.zbin",
         test
     ))
+}
+
+/// Log query, which handle initial and repeated writes to the storage
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StorageLogQuery {
+    pub log_query: LogQuery,
+    pub log_type: StorageLogQueryType,
 }

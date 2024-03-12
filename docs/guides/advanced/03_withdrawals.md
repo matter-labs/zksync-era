@@ -4,7 +4,7 @@ Assuming that you have completed [part 1](01_initialization.md) and [part 2](02_
 tokens back by simply calling the zksync-cli:
 
 ```bash
-npx zksync-cli bridge withdraw --chain=local-dockerized
+npx zksync-cli bridge withdraw --chain=dockerized-node
 ```
 
 And providing the account name (public address) and private key.
@@ -15,7 +15,7 @@ they didn't** - what happened?
 Actually we'll have to run one additional step:
 
 ```bash
-npx zksync-cli bridge withdraw-finalize --chain=local-dockerized
+npx zksync-cli bridge withdraw-finalize --chain=dockerized-node
 ```
 
 and pass the transaction that we received from the first call, into the `withdraw-finalize` call.

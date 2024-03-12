@@ -1,5 +1,6 @@
 pub mod call_tracer;
 mod multivm_dispatcher;
+pub mod old_tracers;
 pub mod storage_invocation;
 pub mod validator;
 

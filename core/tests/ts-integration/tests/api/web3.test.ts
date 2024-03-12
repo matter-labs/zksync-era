@@ -41,11 +41,22 @@ describe('web3 API compatibility tests', () => {
         const blockWithTxsByNumber = await alice.provider.getBlockWithTransactions(blockNumber);
         expect(blockWithTxsByNumber.gasLimit).bnToBeGt(0);
         let sumTxGasUsed = ethers.BigNumber.from(0);
+
         for (const tx of blockWithTxsByNumber.transactions) {
             const receipt = await alice.provider.getTransactionReceipt(tx.hash);
             sumTxGasUsed = sumTxGasUsed.add(receipt.gasUsed);
         }
         expect(blockWithTxsByNumber.gasUsed).bnToBeGte(sumTxGasUsed);
+
+        let expectedReceipts = [];
+
+        for (const tx of blockWithTxsByNumber.transactions) {
+            const receipt = await alice.provider.send('eth_getTransactionReceipt', [tx.hash]);
+            expectedReceipts.push(receipt);
+        }
+
+        let receipts = await alice.provider.send('eth_getBlockReceipts', [blockNumberHex]);
+        expect(receipts).toEqual(expectedReceipts);
 
         // eth_getBlockByHash
         await alice.provider.getBlock(blockHash);
@@ -724,12 +735,24 @@ describe('web3 API compatibility tests', () => {
         let latestBlock = await alice.provider.getBlock('latest');
 
         // Check API returns identical logs by block number and block hash.
-        const getLogsByNumber = await alice.provider.getLogs({
-            fromBlock: latestBlock.number,
-            toBlock: latestBlock.number
+        // Logs can have different `l1BatchNumber` field though,
+        // if L1 batch was sealed in between API requests are processed.
+        const getLogsByNumber = (
+            await alice.provider.getLogs({
+                fromBlock: latestBlock.number,
+                toBlock: latestBlock.number
+            })
+        ).map((x) => {
+            x.l1BatchNumber = 0; // Set bogus value.
+            return x;
         });
-        const getLogsByHash = await alice.provider.getLogs({
-            blockHash: latestBlock.hash
+        const getLogsByHash = (
+            await alice.provider.getLogs({
+                blockHash: latestBlock.hash
+            })
+        ).map((x) => {
+            x.l1BatchNumber = 0; // Set bogus value.
+            return x;
         });
         await expect(getLogsByNumber).toEqual(getLogsByHash);
 

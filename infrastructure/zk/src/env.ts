@@ -104,7 +104,7 @@ export function modify(variable: string, value: string, initEnv: string, withRel
 
     let source = fs.readFileSync(initEnv).toString();
     if (source.includes(variable)) {
-        utils.replaceInFile(initEnv, `${variable}=.*`, assignedVariable.trim());
+        utils.replaceInFile(initEnv, `${variable}.*`, assignedVariable.trim());
     } else {
         source += `\n${assignedVariable}`;
         fs.writeFileSync(initEnv, source);
@@ -113,6 +113,16 @@ export function modify(variable: string, value: string, initEnv: string, withRel
     if (withReload) {
         reload();
     }
+}
+
+export function removeFromInit(variable: string) {
+    const initEnv = 'etc/env/.init.env';
+    if (!fs.existsSync(initEnv)) {
+        return;
+    }
+
+    utils.replaceInFile(initEnv, `${variable}=.*`, '');
+    reload();
 }
 
 // merges .init.env with current env file so all configs are in the same place

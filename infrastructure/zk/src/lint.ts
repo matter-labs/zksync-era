@@ -30,12 +30,12 @@ async function lintContracts(check: boolean = false) {
 
 async function clippy() {
     process.chdir(process.env.ZKSYNC_HOME!);
-    await utils.spawn('cargo clippy --tests -- -D warnings');
+    await utils.spawn('cargo clippy --tests --locked -- -D warnings -D unstable_features');
 }
 
 async function proverClippy() {
     process.chdir(process.env.ZKSYNC_HOME! + '/prover');
-    await utils.spawn('cargo clippy --tests -- -D warnings -A incomplete_features');
+    await utils.spawn('cargo clippy --tests --locked -- -D warnings -A incomplete_features');
 }
 
 const ARGS = [...EXTENSIONS, 'rust', 'prover', 'contracts'];

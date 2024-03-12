@@ -19,13 +19,16 @@ zksync_utils = { path = "../../lib/utils" }
 zksync_state = { path = "../../lib/state" }
 zksync_basic_types = { path = "../../lib/basic_types" }
 zksync_contracts = { path = "../../lib/contracts" }
-
+zksync_l1_contract_interface = { path = "../../lib/l1_contract_interface" }
+zksync_concurrency = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "97d139969476a004c50f8b4a31ece748e5bee14e" }
+zksync_consensus_roles = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "97d139969476a004c50f8b4a31ece748e5bee14e" }
+zksync_snapshots_applier = { path = "../../lib/snapshots_applier" }
+zksync_object_store = { path="../../lib/object_store" }
 prometheus_exporter = { path = "../../lib/prometheus_exporter" }
 zksync_health_check = { path = "../../lib/health_check" }
 zksync_web3_decl = { path = "../../lib/web3_decl" }
 zksync_types = { path = "../../lib/types" }
 vlog = { path = "../../lib/vlog" }
-
 vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1" }
 
 anyhow = "1.0"

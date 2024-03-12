@@ -13,7 +13,8 @@ categories = ["cryptography"]
 vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1" }
 zksync_types = { path = "../types" }
 zksync_crypto = { path = "../crypto" }
-zksync_storage = { path = "../storage", default-features = false }
+zksync_storage = { path = "../storage" }
+zksync_prover_interface = { path = "../prover_interface" }
 zksync_utils = { path = "../utils" }
 
 leb128 = "0.2.5"

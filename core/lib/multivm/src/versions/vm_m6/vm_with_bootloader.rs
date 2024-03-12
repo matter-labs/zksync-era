@@ -10,11 +10,12 @@ use zk_evm_1_3_1::{
         BOOTLOADER_CALLDATA_PAGE, STARTING_BASE_PAGE, STARTING_TIMESTAMP,
     },
 };
+use zkevm_test_harness_1_3_3::INITIAL_MONOTONIC_CYCLE_COUNTER;
 use zksync_contracts::BaseSystemContracts;
 use zksync_system_constants::MAX_L2_TX_GAS_LIMIT;
 use zksync_types::{
-    fee_model::L1PeggedBatchFeeModelInput, zkevm_test_harness::INITIAL_MONOTONIC_CYCLE_COUNTER,
-    Address, Transaction, BOOTLOADER_ADDRESS, L1_GAS_PER_PUBDATA_BYTE, MAX_NEW_FACTORY_DEPS, U256,
+    fee_model::L1PeggedBatchFeeModelInput, Address, Transaction, BOOTLOADER_ADDRESS,
+    L1_GAS_PER_PUBDATA_BYTE, MAX_NEW_FACTORY_DEPS, U256,
 };
 use zksync_utils::{
     address_to_u256,
@@ -243,6 +244,18 @@ impl TxExecutionMode {
             TxExecutionMode::EthCall {
                 missed_storage_invocation_limit,
             } => *missed_storage_invocation_limit,
+        }
+    }
+
+    pub fn set_invocation_limit(&mut self, limit: usize) {
+        match self {
+            Self::VerifyExecute => {}
+            TxExecutionMode::EstimateFee {
+                missed_storage_invocation_limit,
+            } => *missed_storage_invocation_limit = limit,
+            TxExecutionMode::EthCall {
+                missed_storage_invocation_limit,
+            } => *missed_storage_invocation_limit = limit,
         }
     }
 }

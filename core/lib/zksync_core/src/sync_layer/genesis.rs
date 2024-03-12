@@ -1,4 +1,5 @@
 use anyhow::Context as _;
+use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SystemContractCode};
 use zksync_dal::StorageProcessor;
 use zksync_types::{
     block::DeployedContract, protocol_version::L1VerifierConfig,
@@ -54,8 +55,7 @@ async fn create_genesis_params(client: &dyn MainNodeClient) -> anyhow::Result<Ge
 
     // These have to be *initial* base contract hashes of main node
     // (those that were used during genesis), not necessarily the current ones.
-    let base_system_contracts = client
-        .fetch_base_system_contracts(base_system_contracts_hashes)
+    let base_system_contracts = fetch_base_system_contracts(client, base_system_contracts_hashes)
         .await
         .context("Failed to fetch base system contracts from main node")?;
 
@@ -95,6 +95,30 @@ async fn create_genesis_params(client: &dyn MainNodeClient) -> anyhow::Result<Ge
         first_validator,
         first_l1_verifier_config,
         first_verifier_address,
+    })
+}
+
+async fn fetch_base_system_contracts(
+    client: &dyn MainNodeClient,
+    contract_hashes: BaseSystemContractsHashes,
+) -> anyhow::Result<BaseSystemContracts> {
+    let bootloader_bytecode = client
+        .fetch_system_contract_by_hash(contract_hashes.bootloader)
+        .await?
+        .context("bootloader bytecode is missing on main node")?;
+    let default_aa_bytecode = client
+        .fetch_system_contract_by_hash(contract_hashes.default_aa)
+        .await?
+        .context("default AA bytecode is missing on main node")?;
+    Ok(BaseSystemContracts {
+        bootloader: SystemContractCode {
+            code: zksync_utils::bytes_to_be_words(bootloader_bytecode),
+            hash: contract_hashes.bootloader,
+        },
+        default_aa: SystemContractCode {
+            code: zksync_utils::bytes_to_be_words(default_aa_bytecode),
+            hash: contract_hashes.default_aa,
+        },
     })
 }
 

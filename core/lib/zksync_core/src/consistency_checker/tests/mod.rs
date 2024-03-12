@@ -5,18 +5,21 @@ use std::{collections::HashMap, slice};
 use assert_matches::assert_matches;
 use test_casing::{test_casing, Product};
 use tokio::sync::mpsc;
+use zksync_config::configs::KzgConfig;
 use zksync_dal::StorageProcessor;
-use zksync_eth_client::clients::MockEthereum;
+use zksync_eth_client::{clients::MockEthereum, Options};
+use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType, block::BlockGasCount,
-    commitment::L1BatchWithMetadata, web3::contract::Options, L2ChainId, ProtocolVersion,
-    ProtocolVersionId, H256,
+    aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata, L2ChainId,
+    ProtocolVersion, ProtocolVersionId, H256,
 };
 
 use super::*;
 use crate::{
     genesis::{ensure_genesis_state, GenesisParams},
-    utils::testonly::{create_l1_batch, create_l1_batch_metadata},
+    utils::testonly::{
+        create_l1_batch, create_l1_batch_metadata, l1_batch_metadata_to_commitment_artifacts,
+    },
 };
 
 /// **NB.** For tests to run correctly, the returned value must be deterministic (i.e., depend only on `number`).
@@ -24,7 +27,7 @@ fn create_l1_batch_with_metadata(number: u32) -> L1BatchWithMetadata {
     L1BatchWithMetadata {
         header: create_l1_batch(number),
         metadata: create_l1_batch_metadata(number),
-        factory_deps: vec![],
+        raw_published_factory_deps: vec![],
     }
 }
 
@@ -34,7 +37,7 @@ fn create_pre_boojum_l1_batch_with_metadata(number: u32) -> L1BatchWithMetadata 
     let mut l1_batch = L1BatchWithMetadata {
         header: create_l1_batch(number),
         metadata: create_l1_batch_metadata(number),
-        factory_deps: vec![],
+        raw_published_factory_deps: vec![],
     };
     l1_batch.header.protocol_version = Some(PRE_BOOJUM_PROTOCOL_VERSION);
     l1_batch.metadata.bootloader_initial_content_commitment = None;
@@ -42,8 +45,13 @@ fn create_pre_boojum_l1_batch_with_metadata(number: u32) -> L1BatchWithMetadata 
     l1_batch
 }
 
-fn build_commit_tx_input_data(batches: &[L1BatchWithMetadata]) -> Vec<u8> {
-    let commit_tokens = batches.iter().map(L1BatchWithMetadata::l1_commit_data);
+fn build_commit_tx_input_data(
+    batches: &[L1BatchWithMetadata],
+    kzg_settings: Arc<KzgSettings>,
+) -> Vec<u8> {
+    let commit_tokens = batches.iter().map(|batch| {
+        CommitBatchInfo::new(batch, PubdataDA::Calldata, Some(kzg_settings.clone())).into_token()
+    });
     let commit_tokens = ethabi::Token::Array(commit_tokens.collect());
 
     let mut encoded = vec![];
@@ -52,26 +60,43 @@ fn build_commit_tx_input_data(batches: &[L1BatchWithMetadata]) -> Vec<u8> {
     // Mock an additional argument used in real `commitBlocks` / `commitBatches`. In real transactions,
     // it's taken from the L1 batch previous to `batches[0]`, but since this argument is not checked,
     // it's OK to use `batches[0]`.
-    let prev_header_tokens = batches[0].l1_header_data();
+    let prev_header_tokens = StoredBatchInfo(&batches[0]).into_token();
     encoded.extend_from_slice(&ethabi::encode(&[prev_header_tokens, commit_tokens]));
     encoded
 }
 
 fn create_mock_checker(client: MockEthereum, pool: ConnectionPool) -> ConsistencyChecker {
+    let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
     ConsistencyChecker {
         contract: zksync_contracts::state_transition_chain_contract(),
         max_batches_to_recheck: 100,
         sleep_interval: Duration::from_millis(10),
         l1_client: Box::new(client),
-        l1_batch_updater: Box::new(()),
+        event_handler: Box::new(health_updater),
         l1_data_mismatch_behavior: L1DataMismatchBehavior::Bail,
         pool,
+        health_check,
+        kzg_settings: Some(Arc::new(KzgSettings::new(
+            &KzgConfig::for_tests().trusted_setup_path,
+        ))),
     }
 }
 
-impl UpdateCheckedBatch for mpsc::UnboundedSender<L1BatchNumber> {
+impl HandleConsistencyCheckerEvent for mpsc::UnboundedSender<L1BatchNumber> {
+    fn initialize(&mut self) {
+        // Do nothing
+    }
+
+    fn set_first_batch_to_check(&mut self, _first_batch_to_check: L1BatchNumber) {
+        // Do nothing
+    }
+
     fn update_checked_batch(&mut self, last_checked_batch: L1BatchNumber) {
         self.send(last_checked_batch).ok();
+    }
+
+    fn report_inconsistent_batch(&mut self, _number: L1BatchNumber) {
+        // Do nothing
     }
 }
 
@@ -84,7 +109,8 @@ fn build_commit_tx_input_data_is_correct() {
         create_l1_batch_with_metadata(2),
     ];
 
-    let commit_tx_input_data = build_commit_tx_input_data(&batches);
+    let kzg_settings = Arc::new(KzgSettings::new(&KzgConfig::for_tests().trusted_setup_path));
+    let commit_tx_input_data = build_commit_tx_input_data(&batches, kzg_settings.clone());
 
     for batch in &batches {
         let commit_data = ConsistencyChecker::extract_commit_data(
@@ -93,7 +119,11 @@ fn build_commit_tx_input_data_is_correct() {
             batch.header.number,
         )
         .unwrap();
-        assert_eq!(commit_data, batch.l1_commit_data());
+        assert_eq!(
+            commit_data,
+            CommitBatchInfo::new(batch, PubdataDA::Calldata, Some(kzg_settings.clone()))
+                .into_token()
+        );
     }
 }
 
@@ -195,18 +225,21 @@ impl SaveAction<'_> {
             Self::InsertBatch(l1_batch) => {
                 storage
                     .blocks_dal()
-                    .insert_l1_batch(&l1_batch.header, &[], BlockGasCount::default(), &[], &[], 0)
+                    .insert_mock_l1_batch(&l1_batch.header)
                     .await
                     .unwrap();
             }
             Self::SaveMetadata(l1_batch) => {
                 storage
                     .blocks_dal()
-                    .save_l1_batch_metadata(
+                    .save_l1_batch_tree_data(l1_batch.header.number, &l1_batch.metadata.tree_data())
+                    .await
+                    .unwrap();
+                storage
+                    .blocks_dal()
+                    .save_l1_batch_commitment_artifacts(
                         l1_batch.header.number,
-                        &l1_batch.metadata,
-                        H256::default(),
-                        l1_batch.header.protocol_version.unwrap().is_pre_boojum(),
+                        &l1_batch_metadata_to_commitment_artifacts(&l1_batch.metadata),
                     )
                     .await
                     .unwrap();
@@ -297,9 +330,10 @@ async fn normal_checker_function(
     let l1_batches: Vec<_> = (1..=10).map(create_l1_batch_with_metadata).collect();
     let mut commit_tx_hash_by_l1_batch = HashMap::with_capacity(l1_batches.len());
     let client = MockEthereum::default();
+    let kzg_settings = Arc::new(KzgSettings::new(&KzgConfig::for_tests().trusted_setup_path));
 
     for (i, l1_batches) in l1_batches.chunks(batches_per_transaction).enumerate() {
-        let input_data = build_commit_tx_input_data(l1_batches);
+        let input_data = build_commit_tx_input_data(l1_batches, kzg_settings.clone());
         let signed_tx = client.sign_prepared_tx(
             input_data.clone(),
             Options {
@@ -320,7 +354,7 @@ async fn normal_checker_function(
 
     let (l1_batch_updates_sender, mut l1_batch_updates_receiver) = mpsc::unbounded_channel();
     let checker = ConsistencyChecker {
-        l1_batch_updater: Box::new(l1_batch_updates_sender),
+        event_handler: Box::new(l1_batch_updates_sender),
         ..create_mock_checker(client, pool.clone())
     };
 
@@ -375,9 +409,11 @@ async fn checker_processes_pre_boojum_batches(
         .collect();
     let mut commit_tx_hash_by_l1_batch = HashMap::with_capacity(l1_batches.len());
     let client = MockEthereum::default();
+    let kzg_settings = Arc::new(KzgSettings::new(&KzgConfig::for_tests().trusted_setup_path));
 
     for (i, l1_batch) in l1_batches.iter().enumerate() {
-        let input_data = build_commit_tx_input_data(slice::from_ref(l1_batch));
+        let input_data =
+            build_commit_tx_input_data(slice::from_ref(l1_batch), kzg_settings.clone());
         let signed_tx = client.sign_prepared_tx(
             input_data.clone(),
             Options {
@@ -394,7 +430,7 @@ async fn checker_processes_pre_boojum_batches(
 
     let (l1_batch_updates_sender, mut l1_batch_updates_receiver) = mpsc::unbounded_channel();
     let checker = ConsistencyChecker {
-        l1_batch_updater: Box::new(l1_batch_updates_sender),
+        event_handler: Box::new(l1_batch_updates_sender),
         ..create_mock_checker(client, pool.clone())
     };
 
@@ -433,8 +469,9 @@ async fn checker_functions_after_snapshot_recovery(delay_batch_insertion: bool) 
         .await;
 
     let l1_batch = create_l1_batch_with_metadata(99);
+    let kzg_settings = Arc::new(KzgSettings::new(&KzgConfig::for_tests().trusted_setup_path));
 
-    let commit_tx_input_data = build_commit_tx_input_data(slice::from_ref(&l1_batch));
+    let commit_tx_input_data = build_commit_tx_input_data(slice::from_ref(&l1_batch), kzg_settings);
     let client = MockEthereum::default();
     let signed_tx = client.sign_prepared_tx(
         commit_tx_input_data.clone(),
@@ -465,7 +502,7 @@ async fn checker_functions_after_snapshot_recovery(delay_batch_insertion: bool) 
 
     let (l1_batch_updates_sender, mut l1_batch_updates_receiver) = mpsc::unbounded_channel();
     let checker = ConsistencyChecker {
-        l1_batch_updater: Box::new(l1_batch_updates_sender),
+        event_handler: Box::new(l1_batch_updates_sender),
         ..create_mock_checker(client, pool.clone())
     };
     let (stop_sender, stop_receiver) = watch::channel(false);
@@ -509,12 +546,14 @@ impl IncorrectDataKind {
     ];
 
     async fn apply(self, client: &MockEthereum, l1_batch: &L1BatchWithMetadata) -> H256 {
+        let kzg_settings = Arc::new(KzgSettings::new(&KzgConfig::for_tests().trusted_setup_path));
         let (commit_tx_input_data, successful_status) = match self {
             Self::MissingStatus => {
                 return H256::zero(); // Do not execute the transaction
             }
             Self::MismatchedStatus => {
-                let commit_tx_input_data = build_commit_tx_input_data(slice::from_ref(l1_batch));
+                let commit_tx_input_data =
+                    build_commit_tx_input_data(slice::from_ref(l1_batch), kzg_settings);
                 (commit_tx_input_data, false)
             }
             Self::BogusCommitDataFormat => {
@@ -526,18 +565,21 @@ impl IncorrectDataKind {
             Self::MismatchedCommitDataTimestamp => {
                 let mut l1_batch = create_l1_batch_with_metadata(1);
                 l1_batch.header.timestamp += 1;
-                let bogus_tx_input_data = build_commit_tx_input_data(slice::from_ref(&l1_batch));
+                let bogus_tx_input_data =
+                    build_commit_tx_input_data(slice::from_ref(&l1_batch), kzg_settings);
                 (bogus_tx_input_data, true)
             }
             Self::CommitDataForAnotherBatch => {
                 let l1_batch = create_l1_batch_with_metadata(100);
-                let bogus_tx_input_data = build_commit_tx_input_data(slice::from_ref(&l1_batch));
+                let bogus_tx_input_data =
+                    build_commit_tx_input_data(slice::from_ref(&l1_batch), kzg_settings);
                 (bogus_tx_input_data, true)
             }
             Self::CommitDataForPreBoojum => {
                 let mut l1_batch = create_l1_batch_with_metadata(1);
                 l1_batch.header.protocol_version = Some(ProtocolVersionId::Version0);
-                let bogus_tx_input_data = build_commit_tx_input_data(slice::from_ref(&l1_batch));
+                let bogus_tx_input_data =
+                    build_commit_tx_input_data(slice::from_ref(&l1_batch), kzg_settings);
                 (bogus_tx_input_data, true)
             }
         };

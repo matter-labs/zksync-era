@@ -4,20 +4,22 @@ pub mod gpu_socket_listener {
 
     use anyhow::Context as _;
     use shivini::synthesis_utils::{
-        init_base_layer_cs_for_repeated_proving, init_recursive_layer_cs_for_repeated_proving,
+        init_base_layer_cs_for_repeated_proving, init_eip4844_cs_for_repeated_proving,
+        init_recursive_layer_cs_for_repeated_proving,
     };
     use tokio::{
         io::copy,
         net::{TcpListener, TcpStream},
         sync::watch,
     };
-    use zksync_dal::ConnectionPool;
+    use zksync_dal::{
+        fri_prover_dal::types::{GpuProverInstanceStatus, SocketAddress},
+        ConnectionPool,
+    };
     use zksync_object_store::bincode;
     use zksync_prover_fri_types::{CircuitWrapper, ProverServiceDataKey, WitnessVectorArtifacts};
-    use zksync_types::proofs::{AggregationRound, GpuProverInstanceStatus, SocketAddress};
-    use zksync_vk_setup_data_server_fri::{
-        get_finalization_hints, get_round_for_recursive_circuit_type,
-    };
+    use zksync_types::basic_fri_types::AggregationRound;
+    use zksync_vk_setup_data_server_fri::keystore::Keystore;
 
     use crate::{
         metrics::METRICS,
@@ -175,24 +177,32 @@ pub mod gpu_socket_listener {
         circuit_id: u8,
     ) -> anyhow::Result<ProvingAssembly> {
         let started_at = Instant::now();
+        let keystore = Keystore::default();
         let cs = match circuit_wrapper {
             CircuitWrapper::Base(base_circuit) => {
                 let key = ProverServiceDataKey::new(
                     base_circuit.numeric_circuit_type(),
                     AggregationRound::BasicCircuits,
                 );
-                let finalization_hint =
-                    get_finalization_hints(key).context("get_finalization_hints()")?;
+                let finalization_hint = keystore
+                    .load_finalization_hints(key)
+                    .context("get_finalization_hints()")?;
                 init_base_layer_cs_for_repeated_proving(base_circuit, &finalization_hint)
             }
             CircuitWrapper::Recursive(recursive_circuit) => {
-                let key = ProverServiceDataKey::new(
-                    recursive_circuit.numeric_circuit_type(),
-                    get_round_for_recursive_circuit_type(recursive_circuit.numeric_circuit_type()),
-                );
-                let finalization_hint =
-                    get_finalization_hints(key).context("get_finalization_hints()")?;
+                let key =
+                    ProverServiceDataKey::new_recursive(recursive_circuit.numeric_circuit_type());
+                let finalization_hint = keystore
+                    .load_finalization_hints(key)
+                    .context("get_finalization_hints()")?;
                 init_recursive_layer_cs_for_repeated_proving(recursive_circuit, &finalization_hint)
+            }
+            CircuitWrapper::Eip4844(circuit) => {
+                let key = ProverServiceDataKey::eip4844();
+                let finalization_hint = keystore
+                    .load_finalization_hints(key)
+                    .context("get_finalization_hints()")?;
+                init_eip4844_cs_for_repeated_proving(circuit, &finalization_hint)
             }
         };
         tracing::info!(

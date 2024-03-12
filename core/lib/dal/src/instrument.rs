@@ -1,19 +1,31 @@
 //! DAL query instrumentation.
+//!
+//! Query instrumentation allows to:
+//!
+//! - Report query latency as a metric
+//! - Report slow and failing queries as metrics
+//! - Log slow and failing queries together with their arguments, which makes it easier to debug.
+//!
+//! The entry point for instrumentation is the [`InstrumentExt`] trait. After it is imported into the scope,
+//! its `instrument()` method can be placed on the output of `query*` functions or macros. You can then call
+//! [`Instrumented`] methods on the returned struct, e.g. to [report query latency](Instrumented::report_latency())
+//! and/or [to add logged args](Instrumented::with_arg()) for a query.
 
 use std::{fmt, future::Future, panic::Location};
 
 use sqlx::{
-    postgres::{PgConnection, PgQueryResult, PgRow},
+    postgres::{PgQueryResult, PgRow},
     query::{Map, Query, QueryAs},
     FromRow, IntoArguments, Postgres,
 };
-use tokio::time::{Duration, Instant};
+use tokio::time::Instant;
 
-use crate::metrics::REQUEST_METRICS;
+use crate::{
+    connection::{ConnectionPool, StorageProcessor, StorageProcessorTags},
+    metrics::REQUEST_METRICS,
+};
 
 type ThreadSafeDebug<'a> = dyn fmt::Debug + Send + Sync + 'a;
-
-const SLOW_QUERY_TIMEOUT: Duration = Duration::from_millis(100);
 
 /// Logged arguments for an SQL query.
 #[derive(Debug, Default)]
@@ -91,6 +103,7 @@ struct InstrumentedData<'a> {
     location: &'static Location<'static>,
     args: QueryArgs<'a>,
     report_latency: bool,
+    slow_query_reporting_enabled: bool,
 }
 
 impl<'a> InstrumentedData<'a> {
@@ -100,11 +113,13 @@ impl<'a> InstrumentedData<'a> {
             location,
             args: QueryArgs::default(),
             report_latency: false,
+            slow_query_reporting_enabled: true,
         }
     }
 
     async fn fetch<R>(
         self,
+        connection_tags: Option<&StorageProcessorTags>,
         query_future: impl Future<Output = Result<R, sqlx::Error>>,
     ) -> Result<R, sqlx::Error> {
         let Self {
@@ -112,23 +127,28 @@ impl<'a> InstrumentedData<'a> {
             location,
             args,
             report_latency,
+            slow_query_reporting_enabled,
         } = self;
         let started_at = Instant::now();
         tokio::pin!(query_future);
 
+        let slow_query_threshold = ConnectionPool::global_config().slow_query_threshold();
         let mut is_slow = false;
         let output =
-            tokio::time::timeout_at(started_at + SLOW_QUERY_TIMEOUT, &mut query_future).await;
+            tokio::time::timeout_at(started_at + slow_query_threshold, &mut query_future).await;
         let output = match output {
             Ok(output) => output,
             Err(_) => {
-                tracing::warn!(
-                    "Query {name}{args} called at {file}:{line} is executing for more than {SLOW_QUERY_TIMEOUT:?}",
-                    file = location.file(),
-                    line = location.line()
-                );
-                REQUEST_METRICS.request_slow[&name].inc();
-                is_slow = true;
+                let connection_tags = StorageProcessorTags::display(connection_tags);
+                if slow_query_reporting_enabled {
+                    tracing::warn!(
+                        "Query {name}{args} called at {file}:{line} [{connection_tags}] is executing for more than {slow_query_threshold:?}",
+                        file = location.file(),
+                        line = location.line()
+                    );
+                    REQUEST_METRICS.request_slow[&name].inc();
+                    is_slow = true;
+                }
                 query_future.await
             }
         };
@@ -138,16 +158,17 @@ impl<'a> InstrumentedData<'a> {
             REQUEST_METRICS.request[&name].observe(elapsed);
         }
 
+        let connection_tags = StorageProcessorTags::display(connection_tags);
         if let Err(err) = &output {
             tracing::warn!(
-                "Query {name}{args} called at {file}:{line} has resulted in error: {err}",
+                "Query {name}{args} called at {file}:{line} [{connection_tags}] has resulted in error: {err}",
                 file = location.file(),
                 line = location.line()
             );
             REQUEST_METRICS.request_error[&name].inc();
         } else if is_slow {
             tracing::info!(
-                "Slow query {name}{args} called at {file}:{line} has finished after {elapsed:?}",
+                "Slow query {name}{args} called at {file}:{line} [{connection_tags}] has finished after {elapsed:?}",
                 file = location.file(),
                 line = location.line()
             );
@@ -180,6 +201,11 @@ impl<'a, Q> Instrumented<'a, Q> {
         self
     }
 
+    pub fn expect_slow_query(mut self) -> Self {
+        self.data.slow_query_reporting_enabled = false;
+        self
+    }
+
     /// Adds a traced query argument. The argument will be logged (using `Debug`) if the query executes too slow
     /// or finishes with an error.
     pub fn with_arg(mut self, name: &'static str, value: &'a ThreadSafeDebug) -> Self {
@@ -193,16 +219,18 @@ where
     A: 'q + IntoArguments<'q, Postgres>,
 {
     /// Executes an SQL statement using this query.
-    pub async fn execute(self, conn: &mut PgConnection) -> Result<PgQueryResult, sqlx::Error> {
-        self.data.fetch(self.query.execute(conn)).await
+    pub async fn execute(self, storage: &mut StorageProcessor<'_>) -> sqlx::Result<PgQueryResult> {
+        let (conn, tags) = storage.conn_and_tags();
+        self.data.fetch(tags, self.query.execute(conn)).await
     }
 
     /// Fetches an optional row using this query.
     pub async fn fetch_optional(
         self,
-        conn: &mut PgConnection,
+        storage: &mut StorageProcessor<'_>,
     ) -> Result<Option<PgRow>, sqlx::Error> {
-        self.data.fetch(self.query.fetch_optional(conn)).await
+        let (conn, tags) = storage.conn_and_tags();
+        self.data.fetch(tags, self.query.fetch_optional(conn)).await
     }
 }
 
@@ -211,9 +239,25 @@ where
     A: 'q + IntoArguments<'q, Postgres>,
     O: Send + Unpin + for<'r> FromRow<'r, PgRow>,
 {
+    /// Fetches an optional row using this query.
+    pub async fn fetch_optional(
+        self,
+        storage: &mut StorageProcessor<'_>,
+    ) -> sqlx::Result<Option<O>> {
+        let (conn, tags) = storage.conn_and_tags();
+        self.data.fetch(tags, self.query.fetch_optional(conn)).await
+    }
+
+    /// Fetches a single row using this query.
+    pub async fn fetch_one(self, storage: &mut StorageProcessor<'_>) -> sqlx::Result<O> {
+        let (conn, tags) = storage.conn_and_tags();
+        self.data.fetch(tags, self.query.fetch_one(conn)).await
+    }
+
     /// Fetches all rows using this query and collects them into a `Vec`.
-    pub async fn fetch_all(self, conn: &mut PgConnection) -> Result<Vec<O>, sqlx::Error> {
-        self.data.fetch(self.query.fetch_all(conn)).await
+    pub async fn fetch_all(self, storage: &mut StorageProcessor<'_>) -> sqlx::Result<Vec<O>> {
+        let (conn, tags) = storage.conn_and_tags();
+        self.data.fetch(tags, self.query.fetch_all(conn)).await
     }
 }
 
@@ -224,18 +268,24 @@ where
     A: 'q + Send + IntoArguments<'q, Postgres>,
 {
     /// Fetches an optional row using this query.
-    pub async fn fetch_optional(self, conn: &mut PgConnection) -> Result<Option<O>, sqlx::Error> {
-        self.data.fetch(self.query.fetch_optional(conn)).await
+    pub async fn fetch_optional(
+        self,
+        storage: &mut StorageProcessor<'_>,
+    ) -> sqlx::Result<Option<O>> {
+        let (conn, tags) = storage.conn_and_tags();
+        self.data.fetch(tags, self.query.fetch_optional(conn)).await
     }
 
     /// Fetches a single row using this query.
-    pub async fn fetch_one(self, conn: &mut PgConnection) -> Result<O, sqlx::Error> {
-        self.data.fetch(self.query.fetch_one(conn)).await
+    pub async fn fetch_one(self, storage: &mut StorageProcessor<'_>) -> sqlx::Result<O> {
+        let (conn, tags) = storage.conn_and_tags();
+        self.data.fetch(tags, self.query.fetch_one(conn)).await
     }
 
     /// Fetches all rows using this query and collects them into a `Vec`.
-    pub async fn fetch_all(self, conn: &mut PgConnection) -> Result<Vec<O>, sqlx::Error> {
-        self.data.fetch(self.query.fetch_all(conn)).await
+    pub async fn fetch_all(self, storage: &mut StorageProcessor<'_>) -> sqlx::Result<Vec<O>> {
+        let (conn, tags) = storage.conn_and_tags();
+        self.data.fetch(tags, self.query.fetch_all(conn)).await
     }
 }
 
@@ -257,7 +307,7 @@ mod tests {
             .instrument("erroneous")
             .with_arg("miniblock", &MiniblockNumber(1))
             .with_arg("hash", &H256::zero())
-            .fetch_optional(conn.conn())
+            .fetch_optional(&mut conn)
             .await
             .unwrap_err();
     }
@@ -273,7 +323,7 @@ mod tests {
             .instrument("slow")
             .with_arg("miniblock", &MiniblockNumber(1))
             .with_arg("hash", &H256::zero())
-            .fetch_optional(conn.conn())
+            .fetch_optional(&mut conn)
             .await
             .unwrap();
     }
