@@ -2,9 +2,12 @@ use std::{fmt, time::Duration};
 
 use async_trait::async_trait;
 use multivm::interface::{FinishedL1Batch, L1BatchEnv, SystemEnv};
+use vm_utils::storage::l1_batch_params;
+use zksync_contracts::BaseSystemContracts;
 use zksync_types::{
-    block::MiniblockExecutionData, protocol_version::ProtocolUpgradeTx,
-    witness_block_state::WitnessBlockState, L1BatchNumber, ProtocolVersionId, Transaction,
+    block::MiniblockExecutionData, fee_model::BatchFeeInput, protocol_version::ProtocolUpgradeTx,
+    witness_block_state::WitnessBlockState, Address, L1BatchNumber, L2ChainId, ProtocolVersionId,
+    Transaction, H256,
 };
 
 pub use self::{
@@ -54,6 +57,47 @@ pub struct MiniblockParams {
     pub(crate) virtual_blocks: u32,
 }
 
+/// Parameters for a new L1 batch returned by [`StateKeeperSequencer::wait_for_new_batch_params()`].
+#[derive(Debug)]
+pub struct L1BatchParams {
+    /// Protocol version for the new L1 batch.
+    pub(crate) protocol_version: ProtocolVersionId,
+    /// State hash of the previous L1 batch.
+    pub(crate) previous_batch_hash: H256,
+    /// Computational gas limit for the new L1 batch.
+    pub(crate) validation_computational_gas_limit: u32,
+    /// Operator address (aka fee address) for the new L1 batch.
+    pub(crate) operator_address: Address,
+    /// Fee parameters to be used in the new L1 batch.
+    pub(crate) fee_input: BatchFeeInput,
+    /// Paramerers of the first miniblock in the batch.
+    pub(crate) first_miniblock: MiniblockParams,
+}
+
+impl L1BatchParams {
+    pub(crate) fn into_env(
+        self,
+        chain_id: L2ChainId,
+        contracts: BaseSystemContracts,
+        cursor: &IoCursor,
+    ) -> (SystemEnv, L1BatchEnv) {
+        l1_batch_params(
+            cursor.l1_batch,
+            self.operator_address,
+            self.first_miniblock.timestamp,
+            self.previous_batch_hash,
+            self.fee_input,
+            cursor.next_miniblock,
+            cursor.prev_miniblock_hash,
+            contracts,
+            self.validation_computational_gas_limit,
+            self.protocol_version,
+            self.first_miniblock.virtual_blocks,
+            chain_id,
+        )
+    }
+}
+
 /// Provides the interactive layer for the state keeper:
 /// it's used to receive volatile parameters (such as batch parameters) and sequence transactions
 /// providing miniblock and L1 batch boundaries for them.
@@ -61,6 +105,9 @@ pub struct MiniblockParams {
 /// All errors returned from this method are treated as unrecoverable.
 #[async_trait]
 pub trait StateKeeperSequencer: 'static + Send + fmt::Debug + IoSealCriteria {
+    /// Returns the ID of the L2 chain. This ID is supposed to be static.
+    fn chain_id(&self) -> L2ChainId;
+
     /// Returns the data on the batch that was not sealed before the server restart.
     /// See `PendingBatchData` doc-comment for details.
     async fn initialize(&mut self) -> anyhow::Result<(IoCursor, Option<PendingBatchData>)>;
@@ -71,7 +118,7 @@ pub trait StateKeeperSequencer: 'static + Send + fmt::Debug + IoSealCriteria {
         &mut self,
         cursor: &IoCursor,
         max_wait: Duration,
-    ) -> anyhow::Result<Option<(SystemEnv, L1BatchEnv)>>;
+    ) -> anyhow::Result<Option<L1BatchParams>>;
 
     /// Blocks for up to `max_wait` until the parameters for the next miniblock are available.
     async fn wait_for_new_miniblock_params(
@@ -88,6 +135,12 @@ pub trait StateKeeperSequencer: 'static + Send + fmt::Debug + IoSealCriteria {
     /// Marks the transaction as "rejected", e.g. one that is not correct and can't be executed.
     async fn reject(&mut self, tx: &Transaction, error: &str) -> anyhow::Result<()>;
 
+    /// Loads base system contracts with the specified version.
+    async fn load_base_system_contracts(
+        &mut self,
+        protocol_version: ProtocolVersionId,
+        cursor: &IoCursor,
+    ) -> anyhow::Result<BaseSystemContracts>;
     /// Loads protocol version of the specified L1 batch, which is guaranteed to exist in the storage.
     async fn load_batch_version_id(
         &mut self,

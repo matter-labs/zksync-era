@@ -7,12 +7,10 @@ use std::{
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use multivm::{
-    interface::{L1BatchEnv, SystemEnv},
-    utils::derive_base_fee_and_gas_per_pubdata,
-};
-use vm_utils::storage::{l1_batch_params, L1BatchParamsProvider};
+use multivm::utils::derive_base_fee_and_gas_per_pubdata;
+use vm_utils::storage::L1BatchParamsProvider;
 use zksync_config::configs::chain::StateKeeperConfig;
+use zksync_contracts::BaseSystemContracts;
 use zksync_dal::ConnectionPool;
 use zksync_mempool::L2TxFilter;
 use zksync_types::{
@@ -28,7 +26,8 @@ use crate::{
         extractors,
         io::{
             common::{load_pending_batch, poll_iters, IoCursor},
-            fee_address_migration, MiniblockParams, PendingBatchData, StateKeeperSequencer,
+            fee_address_migration, L1BatchParams, MiniblockParams, PendingBatchData,
+            StateKeeperSequencer,
         },
         mempool_actor::l2_tx_filter,
         metrics::KEEPER_METRICS,
@@ -38,7 +37,7 @@ use crate::{
     },
 };
 
-/// Mempool-based IO for the state keeper.
+/// Mempool-based sequencer for the state keeper.
 /// Receives transactions from the database through the mempool filtering logic.
 /// Decides which batch parameters should be used for the new batch.
 /// This is an IO for the main server application.
@@ -73,6 +72,10 @@ impl IoSealCriteria for MempoolSequencer {
 
 #[async_trait]
 impl StateKeeperSequencer for MempoolSequencer {
+    fn chain_id(&self) -> L2ChainId {
+        self.chain_id
+    }
+
     async fn initialize(&mut self) -> anyhow::Result<(IoCursor, Option<PendingBatchData>)> {
         let mut storage = self.pool.access_storage_tagged("state_keeper").await?;
         let cursor = IoCursor::new(&mut storage).await?;
@@ -139,7 +142,7 @@ impl StateKeeperSequencer for MempoolSequencer {
         &mut self,
         cursor: &IoCursor,
         max_wait: Duration,
-    ) -> anyhow::Result<Option<(SystemEnv, L1BatchEnv)>> {
+    ) -> anyhow::Result<Option<L1BatchParams>> {
         let deadline = Instant::now() + max_wait;
 
         // Block until at least one transaction in the mempool can match the filter (or timeout happens).
@@ -148,11 +151,11 @@ impl StateKeeperSequencer for MempoolSequencer {
             // We cannot create two L1 batches or miniblocks with the same timestamp (forbidden by the bootloader).
             // Hence, we wait until the current timestamp is larger than the timestamp of the previous miniblock.
             // We can use `timeout_at` since `sleep_past` is cancel-safe; it only uses `sleep()` async calls.
-            let current_timestamp = tokio::time::timeout_at(
+            let timestamp = tokio::time::timeout_at(
                 deadline.into(),
                 sleep_past(cursor.prev_miniblock_timestamp, cursor.next_miniblock),
             );
-            let Some(current_timestamp) = current_timestamp.await.ok() else {
+            let Some(timestamp) = timestamp.await.ok() else {
                 return Ok(None);
             };
 
@@ -162,11 +165,11 @@ impl StateKeeperSequencer for MempoolSequencer {
                 self.filter.fee_input
             );
             let mut storage = self.pool.access_storage_tagged("state_keeper").await?;
-            let (base_system_contracts, protocol_version) = storage
+            let protocol_version = storage
                 .protocol_versions_dal()
-                .base_system_contracts_by_timestamp(current_timestamp)
+                .protocol_version_id_by_timestamp(timestamp)
                 .await
-                .context("Failed loading base system contracts")?;
+                .context("Failed loading protocol version")?;
             drop(storage);
 
             // We create a new filter each time, since parameters may change and a previously
@@ -182,23 +185,20 @@ impl StateKeeperSequencer for MempoolSequencer {
             }
 
             // We only need to get the root hash when we're certain that we have a new transaction.
-            let prev_l1_batch_hash = self
+            let previous_batch_hash = self
                 .wait_for_previous_l1_batch_hash(cursor.l1_batch)
                 .await?;
-            return Ok(Some(l1_batch_params(
-                cursor.l1_batch,
-                self.fee_account,
-                current_timestamp,
-                prev_l1_batch_hash,
-                self.filter.fee_input,
-                cursor.next_miniblock,
-                cursor.prev_miniblock_hash,
-                base_system_contracts,
-                self.validation_computational_gas_limit,
+            return Ok(Some(L1BatchParams {
                 protocol_version,
-                self.get_virtual_blocks_count(true, cursor.next_miniblock.0),
-                self.chain_id,
-            )));
+                previous_batch_hash,
+                validation_computational_gas_limit: self.validation_computational_gas_limit,
+                operator_address: self.fee_account,
+                fee_input: self.filter.fee_input,
+                first_miniblock: MiniblockParams {
+                    timestamp,
+                    virtual_blocks: self.get_virtual_blocks_count(true, cursor.next_miniblock),
+                },
+            }));
         }
         Ok(None)
     }
@@ -219,7 +219,7 @@ impl StateKeeperSequencer for MempoolSequencer {
             return Ok(None);
         };
 
-        let virtual_blocks = self.get_virtual_blocks_count(false, cursor.next_miniblock.0);
+        let virtual_blocks = self.get_virtual_blocks_count(false, cursor.next_miniblock);
         Ok(Some(MiniblockParams {
             timestamp,
             virtual_blocks,
@@ -269,6 +269,25 @@ impl StateKeeperSequencer for MempoolSequencer {
             .mark_tx_as_rejected(rejected.hash(), &format!("rejected: {error}"))
             .await;
         Ok(())
+    }
+
+    async fn load_base_system_contracts(
+        &mut self,
+        protocol_version: ProtocolVersionId,
+        _cursor: &IoCursor,
+    ) -> anyhow::Result<BaseSystemContracts> {
+        self.pool
+            .access_storage_tagged("state_keeper")
+            .await?
+            .protocol_versions_dal()
+            .load_base_system_contracts_by_version_id(protocol_version as u16)
+            .await
+            .context("failed loading base system contracts")?
+            .with_context(|| {
+                format!(
+                    "no base system contracts persisted for protocol version {protocol_version:?}"
+                )
+            })
     }
 
     async fn load_batch_version_id(
@@ -416,8 +435,12 @@ impl MempoolSequencer {
     /// 1) If we want to have virtual block speed the same as the batch speed, virtual_block_interval = 10^9 and virtual_blocks_per_miniblock = 1
     /// 2) If we want to have roughly 1 virtual block per 2 miniblocks, we need to have virtual_block_interval = 2, and virtual_blocks_per_miniblock = 1
     /// 3) If we want to have 4 virtual blocks per miniblock, we need to have virtual_block_interval = 1, and virtual_blocks_per_miniblock = 4.
-    fn get_virtual_blocks_count(&self, first_in_batch: bool, miniblock_number: u32) -> u32 {
-        if first_in_batch || miniblock_number % self.virtual_blocks_interval == 0 {
+    fn get_virtual_blocks_count(
+        &self,
+        first_in_batch: bool,
+        miniblock_number: MiniblockNumber,
+    ) -> u32 {
+        if first_in_batch || miniblock_number.0 % self.virtual_blocks_interval == 0 {
             return self.virtual_blocks_per_miniblock;
         }
         0

@@ -29,7 +29,7 @@ use super::{
 use crate::{
     gas_tracker::gas_count_from_writes,
     state_keeper::{
-        io::{fee_address_migration, IoCursor},
+        io::{fee_address_migration, IoCursor, L1BatchParams},
         metrics::BATCH_TIP_METRICS,
     },
 };
@@ -317,10 +317,27 @@ impl ZkSyncStateKeeper {
                 .await
                 .context("error waiting for new L1 batch params")?
             {
-                return Ok(params);
+                return Ok(self.map_batch_params(params).await?);
             }
         }
         Err(Error::Canceled)
+    }
+
+    async fn map_batch_params(
+        &mut self,
+        params: L1BatchParams,
+    ) -> anyhow::Result<(SystemEnv, L1BatchEnv)> {
+        let contracts = self
+            .sequencer
+            .load_base_system_contracts(params.protocol_version, &self.cursor)
+            .await
+            .with_context(|| {
+                format!(
+                    "failed loading system contracts for protocol version {:?}",
+                    params.protocol_version
+                )
+            })?;
+        Ok(params.into_env(self.sequencer.chain_id(), contracts, &self.cursor))
     }
 
     async fn wait_for_new_miniblock_params(&mut self) -> Result<MiniblockParams, Error> {

@@ -9,8 +9,8 @@ use zksync_types::{
     fee::TransactionExecutionMetrics,
     fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
     tx::ExecutionMetrics,
-    AccountTreeId, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, StorageKey, VmEvent,
-    H256, U256,
+    AccountTreeId, Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId,
+    StorageKey, VmEvent, H256, U256,
 };
 use zksync_utils::time::seconds_since_epoch;
 
@@ -19,7 +19,7 @@ use crate::{
     state_keeper::{
         io::StateKeeperSequencer,
         mempool_actor::l2_tx_filter,
-        tests::{create_execution_result, create_transaction, Query},
+        tests::{create_execution_result, create_transaction, Query, BASE_SYSTEM_CONTRACTS},
         updates::{MiniblockSealCommand, MiniblockUpdates, UpdatesManager},
         HandleStateKeeperOutput, StateKeeperPersistence,
     },
@@ -160,12 +160,12 @@ async fn test_timestamps_are_distinct(
     .await;
     tester.insert_tx(&mut guard, tx_filter.fee_per_gas, tx_filter.gas_per_pubdata);
 
-    let (_, l1_batch_env) = mempool
+    let l1_batch_params = mempool
         .wait_for_new_batch_params(&io_cursor, Duration::from_secs(10))
         .await
         .unwrap()
         .expect("No batch params in the test mempool");
-    assert!(l1_batch_env.timestamp > prev_miniblock_timestamp);
+    assert!(l1_batch_params.first_miniblock.timestamp > prev_miniblock_timestamp);
 }
 
 #[tokio::test]
@@ -400,21 +400,18 @@ async fn miniblock_processing_after_snapshot_recovery() {
         .insert_transaction_l2(tx.clone(), TransactionExecutionMetrics::default())
         .await;
 
-    let (system_env, l1_batch_env) = mempool
+    let l1_batch_params = mempool
         .wait_for_new_batch_params(&cursor, Duration::from_secs(10))
         .await
         .unwrap()
         .expect("no batch params generated");
-    assert_eq!(l1_batch_env.number, snapshot_recovery.l1_batch_number + 1);
     assert_eq!(
-        l1_batch_env.previous_batch_hash,
-        Some(snapshot_recovery.l1_batch_root_hash)
-    );
-    assert_eq!(
-        l1_batch_env.first_l2_block.prev_block_hash,
-        snapshot_recovery.miniblock_hash
+        l1_batch_params.previous_batch_hash,
+        snapshot_recovery.l1_batch_root_hash
     );
 
+    let (system_env, l1_batch_env) =
+        l1_batch_params.into_env(L2ChainId::default(), BASE_SYSTEM_CONTRACTS.clone(), &cursor);
     let mut updates = UpdatesManager::new(&l1_batch_env, &system_env);
 
     let tx_hash = tx.hash();

@@ -9,12 +9,13 @@ use std::{
 use async_trait::async_trait;
 use multivm::{
     interface::{
-        ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode,
+        ExecutionResult, FinishedL1Batch, L1BatchEnv, SystemEnv, TxExecutionMode,
         VmExecutionResultAndLogs,
     },
     vm_latest::constants::BLOCK_GAS_LIMIT,
 };
 use tokio::sync::{mpsc, watch};
+use zksync_contracts::BaseSystemContracts;
 use zksync_types::{
     block::MiniblockExecutionData, fee_model::BatchFeeInput, protocol_version::ProtocolUpgradeTx,
     witness_block_state::WitnessBlockState, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
@@ -24,7 +25,7 @@ use zksync_types::{
 use crate::{
     state_keeper::{
         batch_executor::{BatchExecutor, BatchExecutorHandle, Command, TxExecutionResult},
-        io::{IoCursor, MiniblockParams, PendingBatchData, StateKeeperSequencer},
+        io::{IoCursor, L1BatchParams, MiniblockParams, PendingBatchData, StateKeeperSequencer},
         seal_criteria::{IoSealCriteria, SequencerSealer},
         tests::{default_l1_batch_env, default_vm_block_result, BASE_SYSTEM_CONTRACTS},
         types::ExecutionMetricsForCriteria,
@@ -734,6 +735,10 @@ impl IoSealCriteria for TestIO {
 
 #[async_trait]
 impl StateKeeperSequencer for TestIO {
+    fn chain_id(&self) -> L2ChainId {
+        L2ChainId::default()
+    }
+
     async fn initialize(&mut self) -> anyhow::Result<(IoCursor, Option<PendingBatchData>)> {
         let cursor = IoCursor {
             next_miniblock: self.miniblock_number,
@@ -749,38 +754,25 @@ impl StateKeeperSequencer for TestIO {
         &mut self,
         cursor: &IoCursor,
         _max_wait: Duration,
-    ) -> anyhow::Result<Option<(SystemEnv, L1BatchEnv)>> {
+    ) -> anyhow::Result<Option<L1BatchParams>> {
         assert_eq!(cursor.next_miniblock, self.miniblock_number);
         assert_eq!(cursor.l1_batch, self.batch_number);
 
-        let first_miniblock_info = L2BlockEnv {
-            number: self.miniblock_number.0,
-            timestamp: self.timestamp,
-            prev_block_hash: H256::zero(),
-            max_virtual_blocks_to_create: 1,
-        };
-        let system_env = SystemEnv {
-            zk_porter_available: false,
-            version: self.protocol_version,
-            base_system_smart_contracts: BASE_SYSTEM_CONTRACTS.clone(),
-            gas_limit: BLOCK_GAS_LIMIT,
-            execution_mode: TxExecutionMode::VerifyExecute,
-            default_validation_computational_gas_limit: BLOCK_GAS_LIMIT,
-            chain_id: L2ChainId::from(270),
-        };
-        let l1_batch_env = L1BatchEnv {
-            previous_batch_hash: Some(H256::zero()),
-            number: self.batch_number,
-            timestamp: self.timestamp,
+        let params = L1BatchParams {
+            protocol_version: self.protocol_version,
+            previous_batch_hash: H256::zero(),
+            validation_computational_gas_limit: BLOCK_GAS_LIMIT,
+            operator_address: self.fee_account,
             fee_input: self.fee_input,
-            fee_account: self.fee_account,
-            enforced_base_fee: None,
-            first_l2_block: first_miniblock_info,
+            first_miniblock: MiniblockParams {
+                timestamp: self.timestamp,
+                virtual_blocks: 1,
+            },
         };
         self.miniblock_number += 1;
         self.timestamp += 1;
         self.batch_number += 1;
-        Ok(Some((system_env, l1_batch_env)))
+        Ok(Some(params))
     }
 
     async fn wait_for_new_miniblock_params(
@@ -846,6 +838,14 @@ impl StateKeeperSequencer for TestIO {
         }
         self.skipping_txs = false;
         Ok(())
+    }
+
+    async fn load_base_system_contracts(
+        &mut self,
+        _protocol_version: ProtocolVersionId,
+        _cursor: &IoCursor,
+    ) -> anyhow::Result<BaseSystemContracts> {
+        Ok(BASE_SYSTEM_CONTRACTS.clone())
     }
 
     async fn load_batch_version_id(
