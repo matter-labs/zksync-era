@@ -44,7 +44,6 @@ async fn test_filter_initialization(tester: Tester) {
 
     // Upon initialization, the filter should be set to the default values.
     assert_eq!(mempool.filter(), &L2TxFilter::default());
-    assert_eq!(true, false);
 }
 
 /// Ensure that MempoolIO.filter is modified correctly if there is a pending batch upon mempool initialization.
