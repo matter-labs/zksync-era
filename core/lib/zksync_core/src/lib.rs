@@ -33,7 +33,8 @@ use zksync_config::{
     ApiConfig, ContractsConfig, DBConfig, ETHSenderConfig, PostgresConfig,
 };
 use zksync_contracts::{governance_contract, BaseSystemContracts};
-use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool, Server};
+use zksync_dal::{ConnectionPool, Server};
+use zksync_db_connection::healthcheck::ConnectionPoolHealthCheck;
 use zksync_eth_client::{
     clients::{PKSigningClient, QueryClient},
     BoundEthInterface, CallFunctionArgs, EthInterface,
@@ -315,11 +316,12 @@ pub async fn initialize_components(
 
     let db_config = configs.db_config.clone().context("db_config")?;
     let postgres_config = configs.postgres_config.clone().context("postgres_config")?;
+    // todo: remove type identifier
     if let Some(threshold) = postgres_config.slow_query_threshold() {
-        ConnectionPool::global_config().set_slow_query_threshold(threshold)?;
+        ConnectionPool::<Server>::global_config().set_slow_query_threshold(threshold)?;
     }
     if let Some(threshold) = postgres_config.long_connection_threshold() {
-        ConnectionPool::global_config().set_long_connection_threshold(threshold)?;
+        ConnectionPool::<Server>::global_config().set_long_connection_threshold(threshold)?;
     }
 
     let pool_size = postgres_config.max_connections()?;

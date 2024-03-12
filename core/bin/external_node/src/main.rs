@@ -33,7 +33,8 @@ use zksync_core::{
         MainNodeClient, SyncState,
     },
 };
-use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool, Server};
+use zksync_dal::{ConnectionPool, Server};
+use zksync_db_connection::healthcheck::ConnectionPoolHealthCheck;
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
 use zksync_state::PostgresStorageCaches;
 use zksync_storage::RocksDB;
@@ -481,11 +482,12 @@ async fn main() -> anyhow::Result<()> {
         config.consensus = None;
     }
 
+    // todo: remove type annotation here
     if let Some(threshold) = config.optional.slow_query_threshold() {
-        ConnectionPool::global_config().set_slow_query_threshold(threshold)?;
+        ConnectionPool::<Server>::global_config().set_slow_query_threshold(threshold)?;
     }
     if let Some(threshold) = config.optional.long_connection_threshold() {
-        ConnectionPool::global_config().set_long_connection_threshold(threshold)?;
+        ConnectionPool::<Server>::global_config().set_long_connection_threshold(threshold)?;
     }
 
     let connection_pool = ConnectionPool::<Server>::builder(

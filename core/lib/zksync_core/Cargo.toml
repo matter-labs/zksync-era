@@ -18,6 +18,7 @@ vm_utils = { path = "../vm_utils" }
 zksync_types = { path = "../types" }
 zksync_dal = { path = "../dal" }
 prover_dal = { path = "../../../prover/prover_dal" }
+zksync_db_connection = { path = "../db_connection" }
 zksync_config = { path = "../config" }
 zksync_env_config = { path = "../env_config" }
 zksync_protobuf_config = { path = "../protobuf_config" }

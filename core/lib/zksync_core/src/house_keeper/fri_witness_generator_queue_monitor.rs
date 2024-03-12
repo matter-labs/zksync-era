@@ -3,8 +3,7 @@ use std::collections::HashMap;
 use async_trait::async_trait;
 use prover_dal::Prover;
 use zksync_dal::ConnectionPool;
-use zksync_types::basic_fri_types::AggregationRound;
-use zksync_types::prover_dal::JobCountStatistics;
+use zksync_types::{basic_fri_types::AggregationRound, prover_dal::JobCountStatistics};
 
 use crate::house_keeper::periodic_job::PeriodicJob;
 
