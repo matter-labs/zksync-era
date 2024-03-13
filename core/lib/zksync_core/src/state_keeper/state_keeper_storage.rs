@@ -17,7 +17,6 @@ use zksync_types::{L1BatchNumber, MiniblockNumber};
 pub trait ReadStorageFactory: Debug + Send + Sync + 'static {
     async fn access_storage<'a>(
         &'a self,
-        rt_handle: Handle,
         stop_receiver: &watch::Receiver<bool>,
     ) -> anyhow::Result<Option<PgOrRocksdbStorage<'a>>>;
 }
@@ -102,10 +101,7 @@ impl AsyncRocksdbCache {
     }
 
     /// Returns a [`ReadStorage`] implementation backed by Postgres
-    async fn access_storage_pg(
-        rt_handle: Handle,
-        pool: &ConnectionPool,
-    ) -> anyhow::Result<PgOrRocksdbStorage<'_>> {
+    async fn access_storage_pg(pool: &ConnectionPool) -> anyhow::Result<PgOrRocksdbStorage<'_>> {
         let mut connection = pool.access_storage().await?;
 
         let (miniblock_number, l1_batch_number) =
@@ -130,7 +126,7 @@ impl AsyncRocksdbCache {
 
         tracing::debug!(%l1_batch_number, %miniblock_number, "Using Postgres-based storage");
         Ok(
-            PostgresStorage::new_async(rt_handle, connection, miniblock_number, true)
+            PostgresStorage::new_async(Handle::current(), connection, miniblock_number, true)
                 .await?
                 .into(),
         )
@@ -160,7 +156,6 @@ impl AsyncRocksdbCache {
 
     async fn access_storage_inner<'a>(
         &'a self,
-        rt_handle: Handle,
         stop_receiver: &watch::Receiver<bool>,
     ) -> anyhow::Result<Option<PgOrRocksdbStorage<'a>>> {
         match self.rocksdb_cell.get() {
@@ -175,7 +170,7 @@ impl AsyncRocksdbCache {
                     .context("Failed accessing RocksDB storage")
             }
             None => Ok(Some(
-                Self::access_storage_pg(rt_handle, &self.pool)
+                Self::access_storage_pg(&self.pool)
                     .await
                     .context("Failed accessing Postgres storage")?,
             )),
@@ -204,10 +199,9 @@ impl AsyncRocksdbCache {
 impl ReadStorageFactory for AsyncRocksdbCache {
     async fn access_storage<'a>(
         &'a self,
-        rt_handle: Handle,
         stop_receiver: &watch::Receiver<bool>,
     ) -> anyhow::Result<Option<PgOrRocksdbStorage<'a>>> {
-        self.access_storage_inner(rt_handle, stop_receiver).await
+        self.access_storage_inner(stop_receiver).await
     }
 }
 

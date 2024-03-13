@@ -15,7 +15,6 @@ pub struct PostgresFactory {
 impl ReadStorageFactory for PostgresFactory {
     async fn access_storage<'a>(
         &'a self,
-        rt_handle: Handle,
         _stop_receiver: &watch::Receiver<bool>,
     ) -> anyhow::Result<Option<PgOrRocksdbStorage<'a>>> {
         let mut connection = self
@@ -42,7 +41,8 @@ impl ReadStorageFactory for PostgresFactory {
         };
 
         Ok(Some(PgOrRocksdbStorage::Postgres(
-            PostgresStorage::new_async(rt_handle, connection, miniblock_number, true).await?,
+            PostgresStorage::new_async(Handle::current(), connection, miniblock_number, true)
+                .await?,
         )))
     }
 }
@@ -64,7 +64,6 @@ pub struct RocksdbFactory {
 impl ReadStorageFactory for RocksdbFactory {
     async fn access_storage<'a>(
         &'a self,
-        _rt_handle: Handle,
         stop_receiver: &watch::Receiver<bool>,
     ) -> anyhow::Result<Option<PgOrRocksdbStorage<'a>>> {
         let mut builder: RocksdbStorageBuilder =
