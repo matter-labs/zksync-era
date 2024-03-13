@@ -1,5 +1,6 @@
 #![feature(generic_const_exprs)]
-use std::{future::Future, sync::Arc};
+
+use std::{future::Future, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use local_ip_address::local_ip;
@@ -23,7 +24,7 @@ use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_prover_fri_utils::{get_all_circuit_id_round_tuples_for, region_fetcher::get_zone};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::basic_fri_types::CircuitIdRoundTuple;
-use zksync_utils::wait_for_tasks::wait_for_tasks;
+use zksync_utils::wait_for_tasks::ManagedTasks;
 
 mod gpu_prover_job_processor;
 mod metrics;
@@ -144,24 +145,22 @@ async fn main() -> anyhow::Result<()> {
     let mut tasks = vec![tokio::spawn(exporter_config.run(stop_receiver))];
     tasks.extend(prover_tasks);
 
-    let particular_crypto_alerts = None;
-    let graceful_shutdown = match cfg!(feature = "gpu") {
-        true => Some(
+    let mut tasks = ManagedTasks::new(tasks);
+    tokio::select! {
+        _ = tasks.wait_single() => {
+            #[cfg(feature = "gpu")]
             graceful_shutdown(port)
                 .await
-                .context("failed to prepare graceful shutdown future")?,
-        ),
-        false => None,
-    };
-    let tasks_allowed_to_finish = false;
-    tokio::select! {
-        _ = wait_for_tasks(tasks, particular_crypto_alerts, graceful_shutdown, tasks_allowed_to_finish) => {},
+                .context("failed to prepare graceful shutdown future")?
+                .await;
+        },
         _ = stop_signal_receiver => {
             tracing::info!("Stop signal received, shutting down");
         },
     }
 
     stop_sender.send(true).ok();
+    tasks.complete(Duration::from_secs(5)).await;
     Ok(())
 }
 
