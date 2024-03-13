@@ -12,7 +12,7 @@
 //! migration.
 //!
 //! Finally, the task can be unconstrained by preconditions, which means that it will start immediately without
-//! waiting for any preconditions to be met. This kind of tasks is reprsent by [`UnconstrainedTask`] and
+//! waiting for any preconditions to be met. This kind of tasks is represent by [`UnconstrainedTask`] and
 //! [`UnconstrainedOneshotTask`].
 //!
 //! ## Tasks and preconditions
@@ -37,7 +37,7 @@ use crate::service::StopReceiver;
 /// A task implementation.
 ///
 /// Note: any `Task` added to the service will only start after all the [preconditions](crate::precondition::Precondition)
-/// are met. If a task should start immediately, one should use [UnconstrainedTask](crate::task::UnconstrainedTask).
+/// are met. If a task should start immediately, one should use [`UnconstrainedTask`](crate::task::UnconstrainedTask).
 #[async_trait::async_trait]
 pub trait Task: 'static + Send {
     /// Unique name of the task.
@@ -81,7 +81,7 @@ impl dyn Task {
 /// The difference from [`Task`] is that this kind of task may exit without causing the service to shutdown.
 ///
 /// Note: any `Task` added to the service will only start after all the [preconditions](crate::precondition::Precondition)
-/// are met. If a task should start immediately, one should use [UnconstrainedTask](crate::task::UnconstrainedTask).
+/// are met. If a task should start immediately, one should use [`UnconstrainedTask`](crate::task::UnconstrainedTask).
 #[async_trait::async_trait]
 pub trait OneshotTask: 'static + Send {
     /// Unique name of the task.
@@ -125,7 +125,7 @@ impl dyn OneshotTask {
 /// This trait is used to define tasks that should start immediately after the wiring phase, without waiting for
 /// any preconditions to be met.
 ///
-/// *Warning*. An unconstrained task may not be aware of the state of the node and is expected to catiuously check
+/// *Warning*. An unconstrained task may not be aware of the state of the node and is expected to cautiously check
 /// any invariants it may rely on.
 #[async_trait::async_trait]
 pub trait UnconstrainedTask: 'static + Send {
