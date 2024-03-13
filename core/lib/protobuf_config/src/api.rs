@@ -108,7 +108,7 @@ impl ProtoRepr for proto::Web3JsonRpc {
                 .max_batch_request_size
                 .map(|x| x.try_into())
                 .transpose()
-                .context("max_batch_requres_size")?,
+                .context("max_batch_requires_size")?,
             max_response_body_size_mb: self
                 .max_response_body_size_mb
                 .map(|x| x.try_into())

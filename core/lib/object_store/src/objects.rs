@@ -175,7 +175,7 @@ mod tests {
     use crate::ObjectStoreFactory;
 
     #[test]
-    fn test_storage_logs_filesnames_generate_corretly() {
+    fn test_storage_logs_filenames_generate_correctly() {
         let filename1 = SnapshotStorageLogsChunk::encode_key(SnapshotStorageLogsStorageKey {
             l1_batch_number: L1BatchNumber(42),
             chunk_id: 97,

@@ -1,2 +1,2 @@
 ALTER TABLE prover_jobs
-    ADD proccesed_by TEXT;
+    ADD processed_by TEXT;

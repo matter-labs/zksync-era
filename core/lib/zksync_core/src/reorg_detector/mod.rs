@@ -299,7 +299,7 @@ impl ReorgDetector {
             .get_earliest_l1_batch_number_with_metadata()
             .await
             .context("get_earliest_l1_batch_number_with_metadata")?
-            .context("all L1 batches dissapeared")?;
+            .context("all L1 batches disappeared")?;
         drop(storage);
         match self.root_hashes_match(first_l1_batch).await {
             Ok(true) => {}

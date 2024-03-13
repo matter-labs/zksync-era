@@ -225,7 +225,7 @@ describe('System behavior checks', () => {
         const bobChange = await shouldChangeTokenBalances(l1Token, [{ wallet: bob, change: amount }], { l1: true });
 
         // Maximize chances of including transactions into the same block by first creating both promises
-        // and only then awaiting them. This is still probabalistic though: if this test becomes flaky,
+        // and only then awaiting them. This is still probabilistic though: if this test becomes flaky,
         // most likely there exists a very big problem in the system.
         const aliceWithdrawalPromise = alice
             .withdraw({ token: l2Token, amount })
@@ -393,7 +393,7 @@ describe('System behavior checks', () => {
         // TODO: use toBeAccepted
         expect(receipt.status).toBe(1);
 
-        // veryfing that the codes stored are correct
+        // verifying that the codes stored are correct
         for (const deployment of forcedDeployments) {
             const codeFromApi = await alice.provider.getCode(deployment.newAddress);
 

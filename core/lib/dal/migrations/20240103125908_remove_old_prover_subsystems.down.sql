@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS prover_jobs (
     sequence_number integer DEFAULT 0 NOT NULL,
     attempts integer DEFAULT 0 NOT NULL,
     circuit_input_blob_url text,
-    proccesed_by text,
+    processed_by text,
     is_blob_cleaned boolean DEFAULT false NOT NULL,
     protocol_version integer
 );
