@@ -163,7 +163,7 @@ impl WiringLayer for HouseKeeperLayer {
     }
 }
 
-// TODO (QIT- 29) Support stop receivers for house keeper related tasks.
+// TODO (QIT-29): Support stop receivers for house keeper related tasks.
 
 #[derive(Debug)]
 struct PoolForMetricsTask {
