@@ -10,10 +10,12 @@ use std::{
 use anyhow::Context as _;
 use api_server::tx_sender::master_pool_sink::MasterPoolSink;
 use fee_model::{ApiFeeInputProvider, BatchFeeModelInputProvider, MainNodeFeeInputProvider};
-use futures::channel::oneshot;
 use prometheus_exporter::PrometheusExporterConfig;
 use temp_config_store::{Secrets, TempConfigStore};
-use tokio::{sync::watch, task::JoinHandle};
+use tokio::{
+    sync::{oneshot, watch},
+    task::JoinHandle,
+};
 use zksync_circuit_breaker::{
     l1_txs::FailedL1TransactionChecker, replication_lag::ReplicationLagChecker, CircuitBreaker,
     CircuitBreakerChecker, CircuitBreakerError,
@@ -358,12 +360,12 @@ pub async fn initialize_components(
         .clone()
         .context("circuit_breaker_config")?;
 
-    let circuit_breaker_checker = CircuitBreakerChecker::new(
+    let circuit_breakers =
         circuit_breakers_for_components(components, &postgres_config, &circuit_breaker_config)
             .await
-            .context("circuit_breakers_for_components")?,
-        &circuit_breaker_config,
-    );
+            .context("circuit_breakers_for_components")?;
+    let (circuit_breaker_checker, circuit_breaker_error) =
+        CircuitBreakerChecker::new(circuit_breakers, &circuit_breaker_config);
     circuit_breaker_checker.check().await.unwrap_or_else(|err| {
         panic!("Circuit breaker triggered: {}", err);
     });
@@ -382,7 +384,6 @@ pub async fn initialize_components(
     );
 
     let (stop_sender, stop_receiver) = watch::channel(false);
-    let (cb_sender, cb_receiver) = oneshot::channel();
 
     // Prometheus exporter and circuit breaker checker should run for every component configuration.
     let prom_config = configs
@@ -404,7 +405,7 @@ pub async fn initialize_components(
 
     let mut task_futures: Vec<JoinHandle<anyhow::Result<()>>> = vec![
         prometheus_task,
-        tokio::spawn(circuit_breaker_checker.run(cb_sender, stop_receiver.clone())),
+        tokio::spawn(circuit_breaker_checker.run(stop_receiver.clone())),
     ];
 
     if components.contains(&Component::WsApi)
@@ -793,7 +794,12 @@ pub async fn initialize_components(
     if let Some(task) = gas_adjuster.run_if_initialized(stop_receiver.clone()) {
         task_futures.push(task);
     }
-    Ok((task_futures, stop_sender, cb_receiver, health_check_handle))
+    Ok((
+        task_futures,
+        stop_sender,
+        circuit_breaker_error,
+        health_check_handle,
+    ))
 }
 
 #[allow(clippy::too_many_arguments)]

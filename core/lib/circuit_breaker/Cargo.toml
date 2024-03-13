@@ -10,18 +10,13 @@ keywords = ["blockchain", "zksync"]
 categories = ["cryptography"]
 
 [dependencies]
-zksync_types = { path = "../types" }
 zksync_config = { path = "../config" }
-zksync_contracts = { path = "../contracts" }
 zksync_dal = { path = "../dal" }
 thiserror = "1.0"
-serde_json = "1.0"
-futures = { version = "0.3", features = ["compat"] }
 tokio = { version = "1", features = ["time"] }
 anyhow = "1.0"
 async-trait = "0.1"
-hex = "0.4"
-metrics = "0.21"
+metrics = "0.21" # FIXME: remove
 tracing = "0.1.26"
 
 [dev-dependencies]
