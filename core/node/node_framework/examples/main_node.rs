@@ -28,7 +28,7 @@ use zksync_node_framework::{
         eth_watch::EthWatchLayer,
         fee_input::SequencerFeeInputLayer,
         healtcheck_server::HealthCheckLayer,
-        housekeeper::HousekeeperLayer,
+        house_keeper::HouseKeeperLayer,
         metadata_calculator::MetadataCalculatorLayer,
         object_store::ObjectStoreLayer,
         pools_layer::PoolsLayerBuilder,
@@ -242,14 +242,14 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
-    fn add_housekeeper_layer(mut self) -> anyhow::Result<Self> {
+    fn add_house_keeper_layer(mut self) -> anyhow::Result<Self> {
         let house_keeper_config = HouseKeeperConfig::from_env()?;
         let fri_prover_config = FriProverConfig::from_env()?;
         let fri_witness_generator_config = FriWitnessGeneratorConfig::from_env()?;
         let fri_prover_group_config = FriProverGroupConfig::from_env()?;
         let fri_proof_compressor_config = FriProofCompressorConfig::from_env()?;
 
-        self.node.add_layer(HousekeeperLayer::new(
+        self.node.add_layer(HouseKeeperLayer::new(
             house_keeper_config,
             fri_prover_config,
             fri_witness_generator_config,
@@ -296,7 +296,7 @@ fn main() -> anyhow::Result<()> {
         .add_tree_api_client_layer()?
         .add_http_web3_api_layer()?
         .add_ws_web3_api_layer()?
-        .add_housekeeper_layer()?
+        .add_house_keeper_layer()?
         .add_commitment_generator_layer()?
         .build()
         .run()?;

@@ -27,7 +27,8 @@ use crate::{
 
 const SCRAPE_INTERVAL: Duration = Duration::from_secs(60);
 
-pub struct HousekeeperLayer {
+#[derive(Debug)]
+pub struct HouseKeeperLayer {
     house_keeper_config: HouseKeeperConfig,
     fri_prover_config: FriProverConfig,
     fri_witness_generator_config: FriWitnessGeneratorConfig,
@@ -35,7 +36,7 @@ pub struct HousekeeperLayer {
     fri_proof_compressor_config: FriProofCompressorConfig,
 }
 
-impl HousekeeperLayer {
+impl HouseKeeperLayer {
     pub fn new(
         house_keeper_config: HouseKeeperConfig,
         fri_prover_config: FriProverConfig,
@@ -54,9 +55,9 @@ impl HousekeeperLayer {
 }
 
 #[async_trait::async_trait]
-impl WiringLayer for HousekeeperLayer {
+impl WiringLayer for HouseKeeperLayer {
     fn layer_name(&self) -> &'static str {
-        "housekeeper_layer"
+        "house_keeper_layer"
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
@@ -162,6 +163,9 @@ impl WiringLayer for HousekeeperLayer {
     }
 }
 
+// TODO (QIT- 29) Support stop receivers for house keeper related tasks.
+
+#[derive(Debug)]
 struct PoolForMetricsTask {
     pool_for_metrics: ConnectionPool,
 }
@@ -180,6 +184,8 @@ impl Task for PoolForMetricsTask {
         Ok(())
     }
 }
+
+#[derive(Debug)]
 struct L1BatchMetricsReporterTask {
     l1_batch_metrics_reporter: L1BatchMetricsReporter,
 }
@@ -195,6 +201,7 @@ impl Task for L1BatchMetricsReporterTask {
     }
 }
 
+#[derive(Debug)]
 struct FriProverJobRetryManagerTask {
     fri_prover_job_retry_manager: FriProverJobRetryManager,
 }
@@ -210,6 +217,7 @@ impl Task for FriProverJobRetryManagerTask {
     }
 }
 
+#[derive(Debug)]
 struct FriWitnessGeneratorJobRetryManagerTask {
     fri_witness_gen_job_retry_manager: FriWitnessGeneratorJobRetryManager,
 }
@@ -225,6 +233,7 @@ impl Task for FriWitnessGeneratorJobRetryManagerTask {
     }
 }
 
+#[derive(Debug)]
 struct WaitingToQueuedFriWitnessJobMoverTask {
     waiting_to_queued_fri_witness_job_mover: WaitingToQueuedFriWitnessJobMover,
 }
@@ -240,6 +249,7 @@ impl Task for WaitingToQueuedFriWitnessJobMoverTask {
     }
 }
 
+#[derive(Debug)]
 struct SchedulerCircuitQueuerTask {
     scheduler_circuit_queuer: SchedulerCircuitQueuer,
 }
@@ -255,6 +265,7 @@ impl Task for SchedulerCircuitQueuerTask {
     }
 }
 
+#[derive(Debug)]
 struct FriWitnessGeneratorStatsReporterTask {
     fri_witness_generator_stats_reporter: FriWitnessGeneratorStatsReporter,
 }
@@ -270,6 +281,7 @@ impl Task for FriWitnessGeneratorStatsReporterTask {
     }
 }
 
+#[derive(Debug)]
 struct FriProverStatsReporterTask {
     fri_prover_stats_reporter: FriProverStatsReporter,
 }
@@ -285,6 +297,7 @@ impl Task for FriProverStatsReporterTask {
     }
 }
 
+#[derive(Debug)]
 struct FriProofCompressorStatsReporterTask {
     fri_proof_compressor_stats_reporter: FriProofCompressorStatsReporter,
 }
@@ -300,6 +313,7 @@ impl Task for FriProofCompressorStatsReporterTask {
     }
 }
 
+#[derive(Debug)]
 struct FriProofCompressorJobRetryManagerTask {
     fri_proof_compressor_retry_manager: FriProofCompressorJobRetryManager,
 }
