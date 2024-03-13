@@ -21,6 +21,7 @@ use zksync_utils::{bigdecimal_to_u256, h256_to_account_address};
 use crate::BigDecimal;
 
 #[derive(Debug, Clone, sqlx::FromRow)]
+#[cfg_attr(test, derive(Default))]
 pub struct StorageTransaction {
     pub priority_op_id: Option<i64>,
     pub hash: Vec<u8>,
