@@ -47,7 +47,7 @@ impl StorageType {
 async fn execute_l2_tx(storage_type: StorageType) {
     let connection_pool: ConnectionPool = ConnectionPool::constrained_test_pool(1).await;
     let mut alice = Account::random();
-    let tester = Tester::new(connection_pool);
+    let mut tester = Tester::new(connection_pool);
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
     let executor = tester.create_batch_executor_custom(&storage_type).await;
@@ -106,7 +106,7 @@ async fn execute_l2_tx_after_snapshot_recovery(
     }
     let snapshot = storage_snapshot.recover(&connection_pool).await;
 
-    let tester = Tester::new(connection_pool);
+    let mut tester = Tester::new(connection_pool);
     let executor = tester
         .recover_batch_executor_custom(&storage_type, &snapshot)
         .await;
@@ -125,7 +125,7 @@ async fn execute_l1_tx() {
     let connection_pool = ConnectionPool::constrained_test_pool(1).await;
     let mut alice = Account::random();
 
-    let tester = Tester::new(connection_pool);
+    let mut tester = Tester::new(connection_pool);
 
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
@@ -142,7 +142,7 @@ async fn execute_l2_and_l1_txs() {
     let connection_pool = ConnectionPool::constrained_test_pool(1).await;
     let mut alice = Account::random();
 
-    let tester = Tester::new(connection_pool);
+    let mut tester = Tester::new(connection_pool);
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
     let executor = tester.create_batch_executor().await;
@@ -162,7 +162,7 @@ async fn rollback() {
     let connection_pool = ConnectionPool::constrained_test_pool(1).await;
     let mut alice = Account::random();
 
-    let tester = Tester::new(connection_pool);
+    let mut tester = Tester::new(connection_pool);
 
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
@@ -206,7 +206,7 @@ async fn reject_tx() {
     let connection_pool = ConnectionPool::constrained_test_pool(1).await;
     let mut alice = Account::random();
 
-    let tester = Tester::new(connection_pool);
+    let mut tester = Tester::new(connection_pool);
 
     tester.genesis().await;
     let executor = tester.create_batch_executor().await;
@@ -222,7 +222,7 @@ async fn too_big_gas_limit() {
     let connection_pool = ConnectionPool::constrained_test_pool(1).await;
     let mut alice = Account::random();
 
-    let tester = Tester::new(connection_pool);
+    let mut tester = Tester::new(connection_pool);
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
     let executor = tester.create_batch_executor().await;
@@ -269,7 +269,7 @@ async fn tx_cant_be_reexecuted() {
     let connection_pool = ConnectionPool::constrained_test_pool(1).await;
     let mut alice = Account::random();
 
-    let tester = Tester::new(connection_pool);
+    let mut tester = Tester::new(connection_pool);
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
     let executor = tester.create_batch_executor().await;
@@ -289,7 +289,7 @@ async fn deploy_and_call_loadtest() {
     let connection_pool = ConnectionPool::constrained_test_pool(1).await;
     let mut alice = Account::random();
 
-    let tester = Tester::new(connection_pool);
+    let mut tester = Tester::new(connection_pool);
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
     let executor = tester.create_batch_executor().await;
@@ -315,7 +315,7 @@ async fn execute_reverted_tx() {
     let connection_pool = ConnectionPool::constrained_test_pool(1).await;
     let mut alice = Account::random();
 
-    let tester = Tester::new(connection_pool);
+    let mut tester = Tester::new(connection_pool);
 
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
@@ -343,7 +343,7 @@ async fn execute_realistic_scenario() {
     let mut alice = Account::random();
     let mut bob = Account::random();
 
-    let tester = Tester::new(connection_pool);
+    let mut tester = Tester::new(connection_pool);
 
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
@@ -392,7 +392,7 @@ async fn bootloader_out_of_gas_for_any_tx() {
     let connection_pool = ConnectionPool::constrained_test_pool(1).await;
     let mut alice = Account::random();
 
-    let tester = Tester::with_config(
+    let mut tester = Tester::with_config(
         connection_pool,
         TestConfig {
             save_call_traces: false,
@@ -451,7 +451,7 @@ async fn catchup_rocksdb_cache() {
     let mut alice = Account::random();
     let mut bob = Account::random();
 
-    let tester = Tester::new(connection_pool);
+    let mut tester = Tester::new(connection_pool);
 
     tester.genesis().await;
     tester.fund(&[alice.address(), bob.address()]).await;
@@ -470,6 +470,8 @@ async fn catchup_rocksdb_cache() {
     let res = executor.execute_tx(tx.clone()).await;
     assert_executed(&res);
     executor.finish_batch().await;
+    // Wait for all background tasks to exit, otherwise we might still be holding a RocksDB lock
+    tester.wait_for_tasks().await;
 
     // Async RocksDB cache should be aware of the tx and should reject it
     let executor = tester

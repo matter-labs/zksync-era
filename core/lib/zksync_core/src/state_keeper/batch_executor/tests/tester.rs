@@ -8,7 +8,7 @@ use multivm::{
     vm_latest::constants::INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
 };
 use tempfile::TempDir;
-use tokio::sync::watch;
+use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::{get_loadnext_contract, test_contracts::LoadnextContractExecutionParams};
 use zksync_dal::ConnectionPool;
@@ -74,6 +74,7 @@ pub(super) struct Tester {
     db_dir: TempDir,
     pool: ConnectionPool,
     config: TestConfig,
+    tasks: Vec<JoinHandle<()>>,
 }
 
 impl Tester {
@@ -87,6 +88,7 @@ impl Tester {
             db_dir: TempDir::new().unwrap(),
             pool,
             config,
+            tasks: Vec::new(),
         }
     }
 
@@ -96,7 +98,7 @@ impl Tester {
 
     /// Creates a batch executor instance.
     /// This function intentionally uses sensible defaults to not introduce boilerplate.
-    pub(super) async fn create_batch_executor(&self) -> BatchExecutorHandle {
+    pub(super) async fn create_batch_executor(&mut self) -> BatchExecutorHandle {
         let (l1_batch_env, system_env) = self.default_batch_params();
         let (state_keeper_storage, task) = AsyncRocksdbCache::new(
             self.pool(),
@@ -104,14 +106,15 @@ impl Tester {
             self.enum_index_migration_chunk_size(),
         );
         let (_, stop_receiver) = watch::channel(false);
-        tokio::task::spawn(async move { task.run(stop_receiver).await.unwrap() });
+        let handle = tokio::task::spawn(async move { task.run(stop_receiver).await.unwrap() });
+        self.tasks.push(handle);
         self.create_batch_executor_inner(Arc::new(state_keeper_storage), l1_batch_env, system_env)
             .await
     }
 
     /// Creates a batch executor instance with the specified storage type.
     pub(super) async fn create_batch_executor_custom(
-        &self,
+        &mut self,
         storage_type: &StorageType,
     ) -> BatchExecutorHandle {
         let (l1_batch_env, system_env) = self.default_batch_params();
@@ -161,7 +164,7 @@ impl Tester {
     }
 
     pub(super) async fn recover_batch_executor(
-        &self,
+        &mut self,
         snapshot: &SnapshotRecoveryStatus,
     ) -> BatchExecutorHandle {
         let (storage_factory, task) = AsyncRocksdbCache::new(
@@ -170,13 +173,14 @@ impl Tester {
             self.enum_index_migration_chunk_size(),
         );
         let (_, stop_receiver) = watch::channel(false);
-        tokio::task::spawn(async move { task.run(stop_receiver).await.unwrap() });
+        let handle = tokio::task::spawn(async move { task.run(stop_receiver).await.unwrap() });
+        self.tasks.push(handle);
         self.recover_batch_executor_inner(Arc::new(storage_factory), snapshot)
             .await
     }
 
     pub(super) async fn recover_batch_executor_custom(
-        &self,
+        &mut self,
         storage_type: &StorageType,
         snapshot: &SnapshotRecoveryStatus,
     ) -> BatchExecutorHandle {
@@ -304,6 +308,12 @@ impl Tester {
                     .await
                     .unwrap();
             }
+        }
+    }
+
+    pub(super) async fn wait_for_tasks(&mut self) {
+        for task in self.tasks.drain(..) {
+            task.await.expect("Failed to join a task");
         }
     }
 
@@ -482,7 +492,7 @@ impl StorageSnapshot {
         alice: &mut Account,
         transaction_count: u32,
     ) -> Self {
-        let tester = Tester::new(connection_pool.clone());
+        let mut tester = Tester::new(connection_pool.clone());
         tester.genesis().await;
         tester.fund(&[alice.address()]).await;
 
