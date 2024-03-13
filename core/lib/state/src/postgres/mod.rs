@@ -307,18 +307,16 @@ impl PostgresStorageCaches {
         }
     }
 
-    /// Schedules an update of the VM storage values cache to the specified miniblock.
+    /// Schedules an update of the VM storage values cache to the specified miniblock. If the values cache is not configured,
+    /// this is a no-op.
     ///
     /// # Panics
     ///
-    /// - Panics if the cache wasn't previously configured using [`Self::configure_storage_values_cache()`].
     /// - Panics if the cache update task returned from `configure_storage_values_cache()` has panicked.
     pub fn schedule_values_update(&self, to_miniblock: MiniblockNumber) {
-        let values = self
-            .values
-            .as_ref()
-            .expect("`schedule_update()` called without configuring values cache");
-
+        let Some(values) = &self.values else {
+            return;
+        };
         if values.cache.valid_for() < to_miniblock {
             // Filter out no-op updates right away in order to not store lots of them in RAM.
             values

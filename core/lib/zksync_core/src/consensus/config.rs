@@ -7,23 +7,16 @@ use zksync_consensus_executor as executor;
 use zksync_consensus_roles::{node, validator};
 use zksync_protobuf::{required, ProtoFmt};
 
-use crate::consensus::proto;
+use crate::{
+    consensus::{fetcher::P2PConfig, MainNodeConfig},
+    proto::consensus as proto,
+};
 
-/// Decodes a proto message from json for arbitrary `ProtoFmt`.
-pub fn decode_json<T: ProtoFmt>(json: &str) -> anyhow::Result<T> {
-    let mut d = serde_json::Deserializer::from_str(json);
-    let p: T = zksync_protobuf::serde::deserialize(&mut d)?;
-    d.end()?;
-    Ok(p)
-}
-
-/// Decodes a secret of type T from an env var with name `var_name`.
-/// It makes sure that the error message doesn't contain the secret.
-pub fn read_secret<T: TextFmt>(var_name: &str) -> anyhow::Result<T> {
-    let raw = std::env::var(var_name).map_err(|_| anyhow::anyhow!("{var_name} not set"))?;
-    Text::new(&raw)
-        .decode()
-        .map_err(|_| anyhow::anyhow!("{var_name} has invalid format"))
+fn read_optional_secret_text<T: TextFmt>(text: &Option<String>) -> anyhow::Result<Option<T>> {
+    text.as_ref()
+        .map(|t| Text::new(t).decode())
+        .transpose()
+        .map_err(|_| anyhow::format_err!("invalid format"))
 }
 
 /// Config (shared between main node and external node).
@@ -53,10 +46,24 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn executor_config(&self, node_key: node::SecretKey) -> executor::Config {
+    pub fn main_node(&self, secrets: &Secrets) -> anyhow::Result<MainNodeConfig> {
+        Ok(MainNodeConfig {
+            executor: self.executor_config(secrets.node_key.clone().context("missing node_key")?),
+            validator_key: secrets
+                .validator_key
+                .clone()
+                .context("missing validator_key")?,
+        })
+    }
+
+    pub fn p2p(&self, secrets: &Secrets) -> anyhow::Result<P2PConfig> {
+        Ok(self.executor_config(secrets.node_key.clone().context("missing node_key")?))
+    }
+
+    fn executor_config(&self, node_key: node::SecretKey) -> executor::Config {
         executor::Config {
             server_addr: self.server_addr,
-            validators: self.validators.clone(),
+            public_addr: self.public_addr,
             max_payload_size: self.max_payload_size,
             node_key,
             gossip_dynamic_inbound_limit: self.gossip_dynamic_inbound_limit,
@@ -64,20 +71,10 @@ impl Config {
             gossip_static_outbound: self.gossip_static_outbound.clone().into_iter().collect(),
         }
     }
-
-    pub fn validator_config(
-        &self,
-        validator_key: validator::SecretKey,
-    ) -> executor::ValidatorConfig {
-        executor::ValidatorConfig {
-            public_addr: self.public_addr,
-            key: validator_key,
-        }
-    }
 }
 
 impl ProtoFmt for Config {
-    type Proto = proto::ConsensusConfig;
+    type Proto = proto::Config;
     fn read(r: &Self::Proto) -> anyhow::Result<Self> {
         let validators = r
             .validators
@@ -144,6 +141,29 @@ impl ProtoFmt for Config {
             gossip_dynamic_inbound_limit: Some(
                 self.gossip_dynamic_inbound_limit.try_into().unwrap(),
             ),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct Secrets {
+    pub validator_key: Option<validator::SecretKey>,
+    pub node_key: Option<node::SecretKey>,
+}
+
+impl ProtoFmt for Secrets {
+    type Proto = proto::Secrets;
+    fn read(r: &Self::Proto) -> anyhow::Result<Self> {
+        Ok(Self {
+            validator_key: read_optional_secret_text(&r.validator_key).context("validator_key")?,
+            node_key: read_optional_secret_text(&r.node_key).context("node_key")?,
+        })
+    }
+
+    fn build(&self) -> Self::Proto {
+        Self::Proto {
+            validator_key: self.validator_key.as_ref().map(TextFmt::encode),
+            node_key: self.node_key.as_ref().map(TextFmt::encode),
         }
     }
 }
