@@ -458,15 +458,6 @@ impl RandomConfig for configs::eth_sender::ProofSendingMode {
     }
 }
 
-impl RandomConfig for configs::eth_sender::ProofLoadingMode {
-    fn sample(g: &mut Gen<impl Rng>) -> Self {
-        match g.rng.gen_range(0..2) {
-            0 => Self::OldProofFromDb,
-            _ => Self::FriProofFromGcs,
-        }
-    }
-}
-
 impl RandomConfig for configs::eth_sender::PubdataSendingMode {
     fn sample(g: &mut Gen<impl Rng>) -> Self {
         match g.rng.gen_range(0..2) {
@@ -495,7 +486,6 @@ impl RandomConfig for configs::eth_sender::SenderConfig {
             timestamp_criteria_max_allowed_lag: g.gen(),
             l1_batch_min_age_before_execute_seconds: g.gen(),
             max_acceptable_priority_fee_in_gwei: g.gen(),
-            proof_loading_mode: g.gen(),
             pubdata_sending_mode: PubdataSendingMode::Calldata,
         }
     }

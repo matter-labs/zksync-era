@@ -24,24 +24,6 @@ impl proto::ProofSendingMode {
     }
 }
 
-impl proto::ProofLoadingMode {
-    fn new(x: &configs::eth_sender::ProofLoadingMode) -> Self {
-        use configs::eth_sender::ProofLoadingMode as From;
-        match x {
-            From::OldProofFromDb => Self::OldProofFromDb,
-            From::FriProofFromGcs => Self::FriProofFromGcs,
-        }
-    }
-
-    fn parse(&self) -> configs::eth_sender::ProofLoadingMode {
-        use configs::eth_sender::ProofLoadingMode as To;
-        match self {
-            Self::OldProofFromDb => To::OldProofFromDb,
-            Self::FriProofFromGcs => To::FriProofFromGcs,
-        }
-    }
-}
-
 impl proto::PubdataSendingMode {
     fn new(x: &configs::eth_sender::PubdataSendingMode) -> Self {
         use configs::eth_sender::PubdataSendingMode as From;
@@ -120,10 +102,7 @@ impl ProtoRepr for proto::Sender {
                 &self.max_acceptable_priority_fee_in_gwei,
             )
             .context("max_acceptable_priority_fee_in_gwei")?,
-            proof_loading_mode: required(&self.proof_loading_mode)
-                .and_then(|x| Ok(proto::ProofLoadingMode::try_from(*x)?))
-                .context("proof_loading_mode")?
-                .parse(),
+
             pubdata_sending_mode: required(&self.pubdata_sending_mode)
                 .and_then(|x| Ok(proto::PubdataSendingMode::try_from(*x)?))
                 .context("pubdata_sending_mode")?
@@ -153,9 +132,9 @@ impl ProtoRepr for proto::Sender {
             timestamp_criteria_max_allowed_lag: Some(
                 this.timestamp_criteria_max_allowed_lag.try_into().unwrap(),
             ),
+            proof_loading_mode: None,
             l1_batch_min_age_before_execute_seconds: this.l1_batch_min_age_before_execute_seconds,
             max_acceptable_priority_fee_in_gwei: Some(this.max_acceptable_priority_fee_in_gwei),
-            proof_loading_mode: Some(proto::ProofLoadingMode::new(&this.proof_loading_mode).into()),
             pubdata_sending_mode: Some(
                 proto::PubdataSendingMode::new(&this.pubdata_sending_mode).into(),
             ),

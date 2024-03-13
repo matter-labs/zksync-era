@@ -34,7 +34,6 @@ impl ETHSenderConfig {
                 timestamp_criteria_max_allowed_lag: 30,
                 l1_batch_min_age_before_execute_seconds: None,
                 max_acceptable_priority_fee_in_gwei: 100000000000,
-                proof_loading_mode: ProofLoadingMode::OldProofFromDb,
                 pubdata_sending_mode: PubdataSendingMode::Calldata,
             },
             gas_adjuster: GasAdjusterConfig {
@@ -59,12 +58,6 @@ pub enum ProofSendingMode {
     OnlyRealProofs,
     OnlySampledProofs,
     SkipEveryProof,
-}
-
-#[derive(Debug, Deserialize, Clone, Copy, PartialEq)]
-pub enum ProofLoadingMode {
-    OldProofFromDb,
-    FriProofFromGcs,
 }
 
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, Default)]
@@ -104,9 +97,6 @@ pub struct SenderConfig {
     pub l1_batch_min_age_before_execute_seconds: Option<u64>,
     // Max acceptable fee for sending tx it acts as a safeguard to prevent sending tx with very high fees.
     pub max_acceptable_priority_fee_in_gwei: u64,
-
-    /// The mode in which proofs are loaded, either from DB/GCS for FRI/Old proof.
-    pub proof_loading_mode: ProofLoadingMode,
 
     /// The mode in which we send pubdata, either Calldata or Blobs
     pub pubdata_sending_mode: PubdataSendingMode,

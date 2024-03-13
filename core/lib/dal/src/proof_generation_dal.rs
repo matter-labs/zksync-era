@@ -183,4 +183,34 @@ impl ProofGenerationDal<'_, '_> {
 
         result
     }
+
+    /// Checks if proof is ready and return proof's blob url.
+    /// There are 3 possible outcomes:
+    ///     None -> means that proof is not ready.
+    ///     Some(None) -> means that proof was skipped
+    ///     Some("path") -> means that proof was processed and is available at path.
+    pub async fn get_proof_blob_url(
+        &mut self,
+        batch_number: L1BatchNumber,
+    ) -> Option<Option<String>> {
+        let result: Option<Option<String>> = sqlx::query!(
+            r#"
+            SELECT
+                proof_blob_url
+            FROM
+                proof_generation_details
+            WHERE
+                status IN ('generated', 'skipped')
+            AND
+                l1_batch_number = $1
+            "#,
+            batch_number.0 as i64
+        )
+        .fetch_optional(self.storage.conn())
+        .await
+        .unwrap()
+        .map(|row| row.proof_blob_url);
+
+        result
+    }
 }
