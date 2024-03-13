@@ -6,6 +6,7 @@ use tokio::{
     runtime::Runtime,
     sync::{watch, Barrier},
 };
+use zksync_utils::panic_extractor::try_extract_panic_message;
 
 pub use self::{context::ServiceContext, stop_receiver::StopReceiver};
 use crate::{
@@ -122,81 +123,42 @@ impl ZkStackService {
 
         // Report all the errors we've met during the init.
         if !errors.is_empty() {
-            for (task, error) in errors {
-                tracing::error!("Task {task} can't be initialized: {error}");
+            for (layer, error) in errors {
+                tracing::error!("Wiring layer {layer} can't be initialized: {error}");
             }
-            anyhow::bail!("One or more task weren't able to start");
+            anyhow::bail!("One or more wiring layers failed to initialize");
         }
+
+        // We don't count preconditions as tasks.
+        if self.tasks.is_empty()
+            && self.unconstrained_tasks.is_empty()
+            && self.oneshot_tasks.is_empty()
+            && self.unconstrained_oneshot_tasks.is_empty()
+        {
+            anyhow::bail!("No tasks have been added to the service");
+        }
+
+        // Check whether we *only* run oneshot tasks.
+        // If that's the case, then the support task that drives oneshot tasks will exit as soon as they are
+        // completed.
+        let only_oneshot_tasks = self.tasks.is_empty() && self.unconstrained_tasks.is_empty();
 
         // Barrier that will only be lifted once all the preconditions are met.
         // It will be awaited by the tasks before they start running and by the preconditions once they are fulfilled.
         let task_barrier = Arc::new(Barrier::new(
             self.tasks.len() + self.preconditions.len() + self.oneshot_tasks.len(),
         ));
-        let mut tasks: Vec<BoxFuture<'static, anyhow::Result<()>>> = Vec::new();
-        // Add all the unconstrained tasks.
-        for task in std::mem::take(&mut self.unconstrained_tasks) {
-            let name = task.name().to_string();
-            let stop_receiver = self.stop_receiver();
-            let task_future = Box::pin(async move {
-                task.run_unconstrained(stop_receiver)
-                    .await
-                    .with_context(|| format!("Task {name} failed"))
-            });
-            tasks.push(task_future);
-        }
-        // Add all the "normal" tasks.
-        for task in std::mem::take(&mut self.tasks) {
-            let name = task.name().to_string();
-            let stop_receiver = self.stop_receiver();
-            let task_barrier = task_barrier.clone();
-            let task_future = Box::pin(async move {
-                task.run_with_barrier(stop_receiver, task_barrier)
-                    .await
-                    .with_context(|| format!("Task {name} failed"))
-            });
-            tasks.push(task_future);
-        }
-        if tasks.is_empty() {
-            anyhow::bail!("No tasks to run");
-        }
 
+        // Collect long-running tasks.
+        let mut tasks: Vec<BoxFuture<'static, anyhow::Result<()>>> = Vec::new();
+        self.collect_unconstrained_tasks(&mut tasks);
+        self.collect_tasks(&mut tasks, task_barrier.clone());
+
+        // Collect oneshot tasks (including preconditions).
         let mut oneshot_tasks: Vec<BoxFuture<'static, anyhow::Result<()>>> = Vec::new();
-        for precondition in std::mem::take(&mut self.preconditions) {
-            let name = precondition.name().to_string();
-            let stop_receiver = self.stop_receiver();
-            let task_barrier = task_barrier.clone();
-            let task_future = Box::pin(async move {
-                precondition
-                    .check_with_barrier(stop_receiver, task_barrier)
-                    .await
-                    .with_context(|| format!("Precondition {name} failed"))
-            });
-            oneshot_tasks.push(task_future);
-        }
-        for oneshot_task in std::mem::take(&mut self.oneshot_tasks) {
-            let name = oneshot_task.name().to_string();
-            let stop_receiver = self.stop_receiver();
-            let task_barrier = task_barrier.clone();
-            let task_future = Box::pin(async move {
-                oneshot_task
-                    .run_oneshot_with_barrier(stop_receiver, task_barrier)
-                    .await
-                    .with_context(|| format!("Oneshot task {name} failed"))
-            });
-            oneshot_tasks.push(task_future);
-        }
-        for unconstrained_oneshot_task in std::mem::take(&mut self.unconstrained_oneshot_tasks) {
-            let name = unconstrained_oneshot_task.name().to_string();
-            let stop_receiver = self.stop_receiver();
-            let task_future = Box::pin(async move {
-                unconstrained_oneshot_task
-                    .run_unconstrained_oneshot(stop_receiver)
-                    .await
-                    .with_context(|| format!("Unconstrained oneshot task {name} failed"))
-            });
-            oneshot_tasks.push(task_future);
-        }
+        self.collect_preconditions(&mut oneshot_tasks, task_barrier.clone());
+        self.collect_oneshot_tasks(&mut oneshot_tasks, task_barrier.clone());
+        self.collect_unconstrained_oneshot_tasks(&mut oneshot_tasks);
 
         // Wiring is now complete.
         for resource in self.resources.values_mut() {
@@ -216,14 +178,21 @@ impl ZkStackService {
                 match handle.spawn(fut).await {
                     Ok(Ok(())) => Ok(()),
                     Ok(Err(err)) => Err(err),
-                    Err(_panic_err) => Err(anyhow::anyhow!("Precondition panicked")), // TODO: Extract message
+                    Err(panic_err) => {
+                        let panic_msg = try_extract_panic_message(panic_err);
+                        Err(anyhow::format_err!("Precondition panicked: {panic_msg}"))
+                    }
                 }
             });
 
             match futures::future::try_join_all(oneshot_tasks).await {
                 Err(err) => Err(err),
+                Ok(_) if only_oneshot_tasks => {
+                    // We only run oneshot tasks in this service, so we can exit now.
+                    Ok(())
+                }
                 Ok(_) => {
-                    // All oneshot tasks have exited.
+                    // All oneshot tasks have exited and we have at least one long-running task.
                     // Simply wait for the stop signal.
                     stop_receiver.0.changed().await.ok();
                     Ok(())
@@ -249,11 +218,12 @@ impl ZkStackService {
         let failure = match resolved {
             Ok(Ok(())) => false,
             Ok(Err(err)) => {
-                tracing::error!("One of the tasks exited with an error: {err}"); // TODO
+                tracing::error!("One of the tasks exited with an error: {err:?}");
                 true
             }
-            Err(_panic_msg) => {
-                tracing::error!("One of the tasks panicked"); // TODO
+            Err(panic_err) => {
+                let panic_msg = try_extract_panic_message(panic_err);
+                tracing::error!("One of the tasks panicked: {panic_msg}");
                 true
             }
         };
@@ -279,8 +249,6 @@ impl ZkStackService {
         }
 
         if failure {
-            // anyhow::bail!("Task {resolved_task_name} failed");
-            // TODO
             anyhow::bail!("Task failed");
         } else {
             Ok(())
@@ -289,5 +257,94 @@ impl ZkStackService {
 
     pub(crate) fn stop_receiver(&self) -> StopReceiver {
         StopReceiver(self.stop_sender.subscribe())
+    }
+
+    fn collect_unconstrained_tasks(
+        &mut self,
+        tasks: &mut Vec<BoxFuture<'static, anyhow::Result<()>>>,
+    ) {
+        for task in std::mem::take(&mut self.unconstrained_tasks) {
+            let name = task.name();
+            let stop_receiver = self.stop_receiver();
+            let task_future = Box::pin(async move {
+                task.run_unconstrained(stop_receiver)
+                    .await
+                    .with_context(|| format!("Task {name} failed"))
+            });
+            tasks.push(task_future);
+        }
+    }
+
+    fn collect_tasks(
+        &mut self,
+        tasks: &mut Vec<BoxFuture<'static, anyhow::Result<()>>>,
+        task_barrier: Arc<Barrier>,
+    ) {
+        for task in std::mem::take(&mut self.tasks) {
+            let name = task.name();
+            let stop_receiver = self.stop_receiver();
+            let task_barrier = task_barrier.clone();
+            let task_future = Box::pin(async move {
+                task.run_with_barrier(stop_receiver, task_barrier)
+                    .await
+                    .with_context(|| format!("Task {name} failed"))
+            });
+            tasks.push(task_future);
+        }
+    }
+
+    fn collect_preconditions(
+        &mut self,
+        oneshot_tasks: &mut Vec<BoxFuture<'static, anyhow::Result<()>>>,
+        task_barrier: Arc<Barrier>,
+    ) {
+        for precondition in std::mem::take(&mut self.preconditions) {
+            let name = precondition.name();
+            let stop_receiver = self.stop_receiver();
+            let task_barrier = task_barrier.clone();
+            let task_future = Box::pin(async move {
+                precondition
+                    .check_with_barrier(stop_receiver, task_barrier)
+                    .await
+                    .with_context(|| format!("Precondition {name} failed"))
+            });
+            oneshot_tasks.push(task_future);
+        }
+    }
+
+    fn collect_oneshot_tasks(
+        &mut self,
+        oneshot_tasks: &mut Vec<BoxFuture<'static, anyhow::Result<()>>>,
+        task_barrier: Arc<Barrier>,
+    ) {
+        for oneshot_task in std::mem::take(&mut self.oneshot_tasks) {
+            let name = oneshot_task.name();
+            let stop_receiver = self.stop_receiver();
+            let task_barrier = task_barrier.clone();
+            let task_future = Box::pin(async move {
+                oneshot_task
+                    .run_oneshot_with_barrier(stop_receiver, task_barrier)
+                    .await
+                    .with_context(|| format!("Oneshot task {name} failed"))
+            });
+            oneshot_tasks.push(task_future);
+        }
+    }
+
+    fn collect_unconstrained_oneshot_tasks(
+        &mut self,
+        oneshot_tasks: &mut Vec<BoxFuture<'static, anyhow::Result<()>>>,
+    ) {
+        for unconstrained_oneshot_task in std::mem::take(&mut self.unconstrained_oneshot_tasks) {
+            let name = unconstrained_oneshot_task.name();
+            let stop_receiver = self.stop_receiver();
+            let task_future = Box::pin(async move {
+                unconstrained_oneshot_task
+                    .run_unconstrained_oneshot(stop_receiver)
+                    .await
+                    .with_context(|| format!("Unconstrained oneshot task {name} failed"))
+            });
+            oneshot_tasks.push(task_future);
+        }
     }
 }
