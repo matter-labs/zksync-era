@@ -3,7 +3,10 @@ use jsonrpsee::{
     proc_macros::rpc,
 };
 use zksync_types::{
-    api::{BlockId, BlockIdVariant, BlockNumber, StateOverride, Transaction, TransactionVariant},
+    api::{
+        state_override::StateOverride, BlockId, BlockIdVariant, BlockNumber, Transaction,
+        TransactionVariant,
+    },
     transaction_request::CallRequest,
     Address, H256,
 };

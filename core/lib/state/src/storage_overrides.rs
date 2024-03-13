@@ -1,7 +1,7 @@
 use std::{cell::RefCell, collections::HashMap, fmt, rc::Rc};
 
 use zksync_types::{
-    api::{OverrideState, StateOverride},
+    api::state_override::{OverrideState, StateOverride},
     get_code_key, get_nonce_key,
     utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
     AccountTreeId, StorageKey, StorageValue, H256,
@@ -17,6 +17,7 @@ pub struct StorageOverrides<S> {
     overrided_factory_deps: HashMap<H256, Vec<u8>>,
     overrided_account_state: HashMap<AccountTreeId, HashMap<H256, H256>>,
 }
+
 impl<S: ReadStorage + fmt::Debug> StorageOverrides<S> {
     /// Applies the state override to the storage.
     pub fn apply_state_override(&mut self, state_override: StateOverride) {
@@ -37,7 +38,7 @@ impl<S: ReadStorage + fmt::Debug> StorageOverrides<S> {
             }
 
             if let Some(code) = &overrides.code {
-                let code_key = get_code_key(account);
+                let code_key = get_code_key(&account);
                 let code_hash = hash_bytecode(&code.0);
 
                 self.set_value(code_key, code_hash);

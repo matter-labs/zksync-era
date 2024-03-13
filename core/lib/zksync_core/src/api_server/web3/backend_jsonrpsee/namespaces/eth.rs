@@ -1,7 +1,7 @@
 use zksync_types::{
     api::{
-        Block, BlockId, BlockIdVariant, BlockNumber, Log, StateOverride, Transaction,
-        TransactionId, TransactionReceipt, TransactionVariant,
+        state_override::StateOverride, Block, BlockId, BlockIdVariant, BlockNumber, Log,
+        Transaction, TransactionId, TransactionReceipt, TransactionVariant,
     },
     transaction_request::CallRequest,
     web3::types::{FeeHistory, Index, SyncState},

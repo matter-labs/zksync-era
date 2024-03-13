@@ -10,8 +10,8 @@ use multivm::{
 use tracing::{span, Level};
 use zksync_dal::ConnectionPool;
 use zksync_types::{
-    api::StateOverride, fee::TransactionExecutionMetrics, l2::L2Tx, ExecuteTransactionCommon,
-    Nonce, PackedEthSignature, Transaction, U256,
+    api::state_override::StateOverride, fee::TransactionExecutionMetrics, l2::L2Tx,
+    ExecuteTransactionCommon, Nonce, PackedEthSignature, Transaction, U256,
 };
 
 #[cfg(test)]

@@ -29,7 +29,7 @@ use zksync_system_constants::{
     SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION, ZKPORTER_IS_AVAILABLE,
 };
 use zksync_types::{
-    api::{self, StateOverride},
+    api::{self, state_override::StateOverride},
     block::{pack_block_info, unpack_block_info, MiniblockHasher},
     fee_model::BatchFeeInput,
     get_nonce_key,

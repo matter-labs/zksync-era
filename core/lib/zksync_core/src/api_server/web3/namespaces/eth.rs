@@ -2,8 +2,8 @@ use anyhow::Context as _;
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     api::{
-        BlockId, BlockNumber, GetLogsFilter, StateOverride, Transaction, TransactionId,
-        TransactionReceipt, TransactionVariant,
+        state_override::StateOverride, BlockId, BlockNumber, GetLogsFilter, Transaction,
+        TransactionId, TransactionReceipt, TransactionVariant,
     },
     l2::{L2Tx, TransactionType},
     transaction_request::CallRequest,

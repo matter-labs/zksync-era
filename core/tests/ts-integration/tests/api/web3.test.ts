@@ -881,6 +881,60 @@ describe('web3 API compatibility tests', () => {
         expect(txFromApi.v! <= 1).toEqual(true);
     });
 
+    describe('Storage override', () => {
+        test('Should be able to estimate_gas overriding the balance of the sender', async () => {
+            const balance = await alice.getBalance(l2Token);
+            const amount = balance.add(1);
+            // const tx = await alice.transfer({ to: alice.address, token: l2Token, amount });
+            // await expect(tx).toBeRejected('insufficient balance for transfer');
+
+            // Call estimate_gas overriding the balance of the sender using the eth_estimateGas endpoint
+            const response = await alice.provider.send('eth_estimateGas', [
+                {
+                    from: alice.address,
+                    to: alice.address,
+                    value: amount.toHexString()
+                },
+                'latest',
+                //override with maximum balance
+                { [alice.address]: { balance: '0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff' } }
+            ]);
+
+            // Assert that the response is successful
+            expect(response).toEqual(expect.stringMatching(HEX_VALUE_REGEX));
+        });
+        test('Should be able to estimate_gas overriding contract code', async () => {
+            // Deploy the first contract
+            const contract1 = await deployContract(alice, contracts.events, []);
+
+            // Deploy the second contract to extract the code that we are overriding the estimation with
+            const contract2 = await deployContract(alice, contracts.counter, []);
+
+            // Get the code of contract2
+            const code = await alice.provider.getCode(contract2.address);
+
+            // Get the calldata of the increment function of contract2
+            const incrementFunctionData = contract2.interface.encodeFunctionData('increment', [1]);
+
+            // Assert that the estimation fails because the increment function is not present in contract1
+            expect(alice.provider.estimateGas({ to: contract1.address, data: incrementFunctionData })).toBeRejected();
+
+            // Call estimate_gas overriding the code of contract1 with the code of contract2 using the eth_estimateGas endpoint
+            const response = await alice.provider.send('eth_estimateGas', [
+                {
+                    from: alice.address,
+                    to: contract1.address,
+                    data: incrementFunctionData
+                },
+                'latest',
+                { [contract1.address]: { code: code } }
+            ]);
+
+            // Assert that the response is successful
+            expect(response).toEqual(expect.stringMatching(HEX_VALUE_REGEX));
+        });
+    });
+
     afterAll(async () => {
         await testMaster.deinitialize();
     });
