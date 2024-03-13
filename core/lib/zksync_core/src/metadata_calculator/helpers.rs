@@ -100,7 +100,7 @@ fn create_db_sync(
             block_cache_capacity: Some(block_cache_capacity),
             large_memtable_capacity: Some(memtable_capacity),
             stalled_writes_retries: StalledWritesRetries::new(stalled_writes_timeout),
-            max_open_files: -1,
+            max_open_files: None,
         },
     )?;
     if cfg!(test) {
