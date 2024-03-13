@@ -1,9 +1,10 @@
 use std::time::Duration;
 
-use crate::Server;
 use anyhow::Context;
 use vise::{Gauge, LabeledFamily, Metrics, Unit};
 use zksync_db_connection::connection::ConnectionPool;
+
+use crate::Server;
 
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "postgres")]

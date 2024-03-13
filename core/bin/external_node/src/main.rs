@@ -33,8 +33,7 @@ use zksync_core::{
         MainNodeClient, SyncState,
     },
 };
-use zksync_dal::metrics::PostgresMetrics;
-use zksync_dal::{ConnectionPool, Server};
+use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Server};
 use zksync_db_connection::healthcheck::ConnectionPoolHealthCheck;
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
 use zksync_state::PostgresStorageCaches;
