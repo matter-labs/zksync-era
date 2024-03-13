@@ -129,6 +129,16 @@ export function modify(variable: string, assignedVariable: string) {
     reload();
 }
 
+export function removeFromInit(variable: string) {
+    const initEnv = 'etc/env/.init.env';
+    if (!fs.existsSync(initEnv)) {
+        return;
+    }
+
+    utils.replaceInFile(initEnv, `${variable}=.*`, '');
+    reload();
+}
+
 // merges .init.env with current env file so all configs are in the same place
 export function mergeInitToEnv() {
     const env = dotenv.parse(fs.readFileSync(process.env.ENV_FILE!));
@@ -138,7 +148,12 @@ export function mergeInitToEnv() {
     }
     let output = '';
     for (const envVar in env) {
-        output += `${envVar}=${env[envVar]}\n`;
+        let envVal = env[envVar];
+        // wrap the value into double quotes if it has spaces in it
+        if (envVal.indexOf(' ') >= 0) {
+            envVal = '"' + envVal + '"';
+        }
+        output += `${envVar}=${envVal}\n`;
     }
     fs.writeFileSync(process.env.ENV_FILE!, output);
 }

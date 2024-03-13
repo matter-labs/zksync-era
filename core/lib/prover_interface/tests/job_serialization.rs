@@ -2,7 +2,10 @@
 
 use tokio::fs;
 use zksync_object_store::{Bucket, ObjectStoreFactory};
-use zksync_prover_interface::inputs::{PrepareBasicCircuitsJob, StorageLogMetadata};
+use zksync_prover_interface::{
+    inputs::{PrepareBasicCircuitsJob, StorageLogMetadata},
+    outputs::L1BatchProofForL1,
+};
 use zksync_types::L1BatchNumber;
 
 /// Tests compatibility of the `PrepareBasicCircuitsJob` serialization to the previously used
@@ -61,4 +64,13 @@ async fn prepare_basic_circuits_job_compatibility() {
     assert_eq!(job_merkle_paths, job_tuple.0);
 
     assert_job_integrity(job_tuple.1, job_tuple.0);
+}
+
+/// Simple test to check if we can succesfully parse the proof.
+#[tokio::test]
+async fn test_final_proof_deserialization() {
+    let proof = fs::read("./tests/l1_batch_proof_1.bin").await.unwrap();
+
+    let results: L1BatchProofForL1 = bincode::deserialize(&proof).unwrap();
+    assert_eq!(results.aggregation_result_coords[0][0], 0);
 }

@@ -1,24 +1,24 @@
 use std::{collections::HashMap, sync::Arc, time::Instant};
 
 use anyhow::Context as _;
+use circuit_definitions::{circuit_definitions::eip4844::EIP4844Circuit, eip4844_proof_config};
 use tokio::task::JoinHandle;
-use zkevm_test_harness::prover_utils::{prove_base_layer_circuit, prove_recursion_layer_circuit};
+use zkevm_test_harness::prover_utils::{
+    prove_base_layer_circuit, prove_eip4844_circuit, prove_recursion_layer_circuit,
+};
 use zksync_config::configs::{fri_prover_group::FriProverGroupConfig, FriProverConfig};
 use zksync_dal::ConnectionPool;
 use zksync_env_config::FromEnv;
 use zksync_object_store::ObjectStore;
 use zksync_prover_fri_types::{
     circuit_definitions::{
-        aux_definitions::witness_oracle::VmWitnessOracle,
         base_layer_proof_config,
-        boojum::{
-            cs::implementations::pow::NoPow, field::goldilocks::GoldilocksField, worker::Worker,
-        },
+        boojum::{cs::implementations::pow::NoPow, worker::Worker},
         circuit_definitions::{
             base_layer::{ZkSyncBaseLayerCircuit, ZkSyncBaseLayerProof},
             recursion_layer::{ZkSyncRecursionLayerProof, ZkSyncRecursiveLayerCircuit},
         },
-        recursion_layer_proof_config, ZkSyncDefaultRoundFunction,
+        recursion_layer_proof_config,
     },
     CircuitWrapper, FriProofWrapper, ProverJob, ProverServiceDataKey,
 };
@@ -110,8 +110,47 @@ impl Prover {
             CircuitWrapper::Recursive(recursive_circuit) => {
                 Self::prove_recursive_layer(job.job_id, recursive_circuit, config, setup_data)
             }
+            CircuitWrapper::Eip4844(circuit) => {
+                Self::prove_eip4844(job.job_id, circuit, setup_data)
+            }
         };
         ProverArtifacts::new(job.block_number, proof)
+    }
+
+    fn prove_eip4844(
+        job_id: u32,
+        circuit: EIP4844Circuit,
+        artifact: Arc<GoldilocksProverSetupData>,
+    ) -> FriProofWrapper {
+        let worker = Worker::new();
+        let started_at = Instant::now();
+
+        let proof = prove_eip4844_circuit::<NoPow>(
+            circuit.clone(),
+            &worker,
+            eip4844_proof_config(),
+            &artifact.setup_base,
+            &artifact.setup,
+            &artifact.setup_tree,
+            &artifact.vk,
+            &artifact.vars_hint,
+            &artifact.wits_hint,
+            &artifact.finalization_hint,
+        );
+
+        let label = CircuitLabels {
+            circuit_type: ProverServiceDataKey::eip4844().circuit_id,
+            layer: Layer::Base,
+        };
+        METRICS.proof_generation_time[&label].observe(started_at.elapsed());
+
+        verify_proof(
+            &CircuitWrapper::Eip4844(circuit),
+            &proof,
+            &artifact.vk,
+            job_id,
+        );
+        FriProofWrapper::Eip4844(proof)
     }
 
     fn prove_recursive_layer(
@@ -153,11 +192,7 @@ impl Prover {
 
     fn prove_base_layer(
         job_id: u32,
-        circuit: ZkSyncBaseLayerCircuit<
-            GoldilocksField,
-            VmWitnessOracle<GoldilocksField>,
-            ZkSyncDefaultRoundFunction,
-        >,
+        circuit: ZkSyncBaseLayerCircuit,
         _config: Arc<FriProverConfig>,
         artifact: Arc<GoldilocksProverSetupData>,
     ) -> FriProofWrapper {

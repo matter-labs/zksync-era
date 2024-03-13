@@ -1,4 +1,4 @@
-use std::{net::SocketAddr, num::NonZeroU32, sync::Arc, time::Duration};
+use std::{collections::HashSet, net::SocketAddr, num::NonZeroU32, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use chrono::NaiveDateTime;
@@ -25,6 +25,7 @@ use zksync_web3_decl::{
 };
 
 use self::{
+    backend_jsonrpsee::{LimitMiddleware, MetadataMiddleware, MethodTracer},
     metrics::API_METRICS,
     namespaces::{
         DebugNamespace, EnNamespace, EthNamespace, NetNamespace, SnapshotsNamespace, Web3Namespace,
@@ -36,9 +37,8 @@ use self::{
 use crate::{
     api_server::{
         execution_sandbox::{BlockStartInfo, VmConcurrencyBarrier},
-        tree::TreeApiHttpClient,
+        tree::TreeApiClient,
         tx_sender::TxSender,
-        web3::backend_jsonrpsee::batch_limiter_middleware::LimitMiddleware,
     },
     sync_layer::SyncState,
     utils::wait_for_l1_batch,
@@ -108,43 +108,46 @@ pub struct ApiServerHandles {
 /// Optional part of the API server parameters.
 #[derive(Debug, Default)]
 struct OptionalApiParams {
+    vm_barrier: Option<VmConcurrencyBarrier>,
     sync_state: Option<SyncState>,
     filters_limit: Option<usize>,
     subscriptions_limit: Option<usize>,
     batch_request_size_limit: Option<usize>,
     response_body_size_limit: Option<usize>,
     websocket_requests_per_minute_limit: Option<NonZeroU32>,
-    tree_api_url: Option<String>,
+    tree_api: Option<Arc<dyn TreeApiClient>>,
     pub_sub_events_sender: Option<mpsc::UnboundedSender<PubSubEvent>>,
 }
 
-/// Full API server parameters.
+/// Structure capable of spawning a configured Web3 API server along with all the required
+/// maintenance tasks.
 #[derive(Debug)]
-struct FullApiParams {
+pub struct ApiServer {
     pool: ConnectionPool,
-    last_miniblock_pool: ConnectionPool,
+    updaters_pool: ConnectionPool,
+    health_updater: Arc<HealthUpdater>,
     config: InternalApiConfig,
     transport: ApiTransport,
     tx_sender: TxSender,
-    vm_barrier: VmConcurrencyBarrier,
     polling_interval: Duration,
     namespaces: Vec<Namespace>,
+    method_tracer: Arc<MethodTracer>,
     optional: OptionalApiParams,
 }
 
 #[derive(Debug)]
 pub struct ApiBuilder {
     pool: ConnectionPool,
-    last_miniblock_pool: ConnectionPool,
+    updaters_pool: ConnectionPool,
     config: InternalApiConfig,
     polling_interval: Duration,
     // Mandatory params that must be set using builder methods.
     transport: Option<ApiTransport>,
     tx_sender: Option<TxSender>,
-    vm_barrier: Option<VmConcurrencyBarrier>,
     // Optional params that may or may not be set using builder methods. We treat `namespaces`
     // specially because we want to output a warning if they are not set.
     namespaces: Option<Vec<Namespace>>,
+    method_tracer: Arc<MethodTracer>,
     optional: OptionalApiParams,
 }
 
@@ -153,14 +156,14 @@ impl ApiBuilder {
 
     pub fn jsonrpsee_backend(config: InternalApiConfig, pool: ConnectionPool) -> Self {
         Self {
-            last_miniblock_pool: pool.clone(),
+            updaters_pool: pool.clone(),
             pool,
             config,
             polling_interval: Self::DEFAULT_POLLING_INTERVAL,
             transport: None,
             tx_sender: None,
-            vm_barrier: None,
             namespaces: None,
+            method_tracer: Arc::new(MethodTracer::default()),
             optional: OptionalApiParams::default(),
         }
     }
@@ -175,17 +178,22 @@ impl ApiBuilder {
         self
     }
 
-    /// Configures a dedicated DB pool to be used for updating the latest miniblock information
+    /// Configures a dedicated DB pool to be used for updating different information,
+    /// such as last mined block number or account nonces. This pool is used to execute
     /// in a background task. If not called, the main pool will be used. If the API server is under high load,
     /// it may make sense to supply a single-connection pool to reduce pool contention with the API methods.
-    pub fn with_last_miniblock_pool(mut self, pool: ConnectionPool) -> Self {
-        self.last_miniblock_pool = pool;
+    pub fn with_updaters_pool(mut self, pool: ConnectionPool) -> Self {
+        self.updaters_pool = pool;
         self
     }
 
-    pub fn with_tx_sender(mut self, tx_sender: TxSender, vm_barrier: VmConcurrencyBarrier) -> Self {
+    pub fn with_tx_sender(mut self, tx_sender: TxSender) -> Self {
         self.tx_sender = Some(tx_sender);
-        self.vm_barrier = Some(vm_barrier);
+        self
+    }
+
+    pub fn with_vm_barrier(mut self, vm_barrier: VmConcurrencyBarrier) -> Self {
+        self.optional.vm_barrier = Some(vm_barrier);
         self
     }
 
@@ -233,8 +241,9 @@ impl ApiBuilder {
         self
     }
 
-    pub fn with_tree_api(mut self, tree_api_url: Option<String>) -> Self {
-        self.optional.tree_api_url = tree_api_url;
+    pub fn with_tree_api(mut self, tree_api: Arc<dyn TreeApiClient>) -> Self {
+        tracing::info!("Using tree API client: {tree_api:?}");
+        self.optional.tree_api = Some(tree_api);
         self
     }
 
@@ -244,14 +253,29 @@ impl ApiBuilder {
         self
     }
 
-    fn into_full_params(self) -> anyhow::Result<FullApiParams> {
-        Ok(FullApiParams {
+    #[cfg(test)]
+    fn with_method_tracer(mut self, method_tracer: Arc<MethodTracer>) -> Self {
+        self.method_tracer = method_tracer;
+        self
+    }
+}
+
+impl ApiBuilder {
+    pub fn build(self) -> anyhow::Result<ApiServer> {
+        let transport = self.transport.context("API transport not set")?;
+        let health_check_name = match &transport {
+            ApiTransport::Http(_) => "http_api",
+            ApiTransport::WebSocket(_) => "ws_api",
+        };
+        let (_health_check, health_updater) = ReactiveHealthCheck::new(health_check_name);
+
+        Ok(ApiServer {
             pool: self.pool,
-            last_miniblock_pool: self.last_miniblock_pool,
+            health_updater: Arc::new(health_updater),
+            updaters_pool: self.updaters_pool,
             config: self.config,
-            transport: self.transport.context("API transport not set")?,
+            transport,
             tx_sender: self.tx_sender.context("Transaction sender not set")?,
-            vm_barrier: self.vm_barrier.context("VM barrier not set")?,
             polling_interval: self.polling_interval,
             namespaces: self.namespaces.unwrap_or_else(|| {
                 tracing::warn!(
@@ -259,44 +283,43 @@ impl ApiBuilder {
                 );
                 Namespace::DEFAULT.to_vec()
             }),
+            method_tracer: self.method_tracer,
             optional: self.optional,
         })
     }
 }
 
-impl ApiBuilder {
-    pub async fn build(
-        self,
-        stop_receiver: watch::Receiver<bool>,
-    ) -> anyhow::Result<ApiServerHandles> {
-        self.into_full_params()?.spawn_server(stop_receiver).await
+impl ApiServer {
+    pub fn health_check(&self) -> ReactiveHealthCheck {
+        self.health_updater.subscribe()
     }
-}
 
-impl FullApiParams {
     async fn build_rpc_state(
         self,
         last_sealed_miniblock: SealedMiniblockNumber,
     ) -> anyhow::Result<RpcState> {
-        let mut storage = self
-            .last_miniblock_pool
-            .access_storage_tagged("api")
-            .await?;
+        let mut storage = self.updaters_pool.access_storage_tagged("api").await?;
         let start_info = BlockStartInfo::new(&mut storage).await?;
         drop(storage);
 
+        let installed_filters = if self.config.filters_disabled {
+            None
+        } else {
+            Some(Arc::new(Mutex::new(Filters::new(
+                self.optional.filters_limit,
+            ))))
+        };
+
         Ok(RpcState {
-            installed_filters: Arc::new(Mutex::new(Filters::new(self.optional.filters_limit))),
+            current_method: self.method_tracer,
+            installed_filters,
             connection_pool: self.pool,
             tx_sender: self.tx_sender,
             sync_state: self.optional.sync_state,
             api_config: self.config,
             start_info,
             last_sealed_miniblock,
-            tree_api: self
-                .optional
-                .tree_api_url
-                .map(|url| TreeApiHttpClient::new(url.as_str())),
+            tree_api: self.optional.tree_api,
         })
     }
 
@@ -347,11 +370,17 @@ impl FullApiParams {
         Ok(rpc)
     }
 
-    async fn spawn_server(
+    pub async fn run(
         self,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<ApiServerHandles> {
-        if self.optional.filters_limit.is_none() {
+        if self.config.filters_disabled {
+            if self.optional.filters_limit.is_some() {
+                tracing::warn!(
+                    "Filters limit is not supported when filters are disabled, ignoring"
+                );
+            }
+        } else if self.optional.filters_limit.is_none() {
             tracing::warn!("Filters limit is not set - unlimited filters are allowed");
         }
 
@@ -402,19 +431,14 @@ impl FullApiParams {
         const SEALED_MINIBLOCK_UPDATE_INTERVAL: Duration = Duration::from_millis(25);
 
         let transport = self.transport;
-        let health_check_name = match transport {
-            ApiTransport::Http(_) => "http_api",
-            ApiTransport::WebSocket(_) => "ws_api",
-        };
-        let (health_check, health_updater) = ReactiveHealthCheck::new(health_check_name);
 
         let (last_sealed_miniblock, update_task) = SealedMiniblockNumber::new(
-            self.last_miniblock_pool.clone(),
+            self.updaters_pool.clone(),
             SEALED_MINIBLOCK_UPDATE_INTERVAL,
             stop_receiver.clone(),
         );
-        let mut tasks = vec![tokio::spawn(update_task)];
 
+        let mut tasks = vec![tokio::spawn(update_task)];
         let pub_sub = if matches!(transport, ApiTransport::WebSocket(_))
             && self.namespaces.contains(&Namespace::Pubsub)
         {
@@ -433,14 +457,15 @@ impl FullApiParams {
             None
         };
 
-        // Start the server in a separate tokio runtime from a dedicated thread.
+        // TODO (QIT-26): We still expose `health_check` in `ApiServerHandles` for the old code. After we switch to the
+        // framework it'll no longer be needed.
+        let health_check = self.health_updater.subscribe();
         let (local_addr_sender, local_addr) = oneshot::channel();
         let server_task = tokio::spawn(self.run_jsonrpsee_server(
             stop_receiver,
             pub_sub,
             last_sealed_miniblock,
             local_addr_sender,
-            health_updater,
         ));
 
         tasks.push(server_task);
@@ -457,7 +482,6 @@ impl FullApiParams {
         pub_sub: Option<EthSubscribe>,
         last_sealed_miniblock: SealedMiniblockNumber,
         local_addr_sender: oneshot::Sender<SocketAddr>,
-        health_updater: HealthUpdater,
     ) -> anyhow::Result<()> {
         let transport = self.transport;
         let (transport_str, is_http, addr) = match transport {
@@ -495,11 +519,18 @@ impl FullApiParams {
             .map_or(u32::MAX, |limit| limit as u32);
         let websocket_requests_per_minute_limit = self.optional.websocket_requests_per_minute_limit;
         let subscriptions_limit = self.optional.subscriptions_limit;
-        let vm_barrier = self.vm_barrier.clone();
+        let vm_barrier = self.optional.vm_barrier.clone();
+        let health_updater = self.health_updater.clone();
+        let method_tracer = self.method_tracer.clone();
 
         let rpc = self
             .build_rpc_module(pub_sub, last_sealed_miniblock)
             .await?;
+        let registered_method_names = Arc::new(rpc.method_names().collect::<HashSet<_>>());
+        tracing::debug!(
+            "Built RPC module for {transport_str} server with {} methods: {registered_method_names:?}",
+            registered_method_names.len()
+        );
 
         // Setup CORS.
         let cors = is_http.then(|| {
@@ -528,11 +559,24 @@ impl FullApiParams {
             .then_some(subscriptions_limit)
             .flatten()
             .unwrap_or(5_000);
+
+        #[allow(clippy::let_and_return)] // simplifies conditional compilation
+        let rpc_middleware = RpcServiceBuilder::new()
+            .layer_fn(move |svc| {
+                MetadataMiddleware::new(svc, registered_method_names.clone(), method_tracer.clone())
+            })
+            .option_layer((!is_http).then(|| {
+                tower::layer::layer_fn(move |svc| {
+                    LimitMiddleware::new(svc, websocket_requests_per_minute_limit)
+                })
+            }));
+
         let server_builder = ServerBuilder::default()
             .max_connections(max_connections as u32)
             .set_http_middleware(middleware)
             .max_response_body_size(response_body_size_limit)
-            .set_batch_request_config(batch_request_config);
+            .set_batch_request_config(batch_request_config)
+            .set_rpc_middleware(rpc_middleware);
 
         let (local_addr, server_handle) = if is_http {
             // HTTP-specific settings
@@ -543,11 +587,8 @@ impl FullApiParams {
                 .context("Failed building HTTP JSON-RPC server")?;
             (server.local_addr(), server.start(rpc))
         } else {
-            // WS specific settings
+            // WS-specific settings
             let server = server_builder
-                .set_rpc_middleware(RpcServiceBuilder::new().layer_fn(move |a| {
-                    LimitMiddleware::new(a, websocket_requests_per_minute_limit)
-                }))
                 .set_id_provider(EthSubscriptionIdProvider)
                 .build(addr)
                 .await
@@ -559,9 +600,16 @@ impl FullApiParams {
         })?;
         tracing::info!("Initialized {transport_str} API on {local_addr:?}");
         local_addr_sender.send(local_addr).ok();
+        health_updater.update(HealthStatus::Ready.into());
 
+        // We want to be able to immediately stop the server task if the server stops on its own for whatever reason.
+        // Hence, we monitor `stop_receiver` on a separate Tokio task.
         let close_handle = server_handle.clone();
         let closing_vm_barrier = vm_barrier.clone();
+        // We use `Weak` reference to the health updater in order to not prevent its drop if the server stops on its own.
+        // TODO (QIT-26): While `Arc<HealthUpdater>` is stored in `self`, we rely on the fact that `self` is consumed and
+        // dropped by `self.build_rpc_module` above, so we should still have just one strong reference.
+        let closing_health_updater = Arc::downgrade(&health_updater);
         tokio::spawn(async move {
             if stop_receiver.changed().await.is_err() {
                 tracing::warn!(
@@ -569,18 +617,24 @@ impl FullApiParams {
                      without sending a signal"
                 );
             }
+            if let Some(health_updater) = closing_health_updater.upgrade() {
+                health_updater.update(HealthStatus::ShuttingDown.into());
+            }
             tracing::info!(
                 "Stop signal received, {transport_str} JSON-RPC server is shutting down"
             );
-            closing_vm_barrier.close();
+            if let Some(closing_vm_barrier) = closing_vm_barrier {
+                closing_vm_barrier.close();
+            }
             close_handle.stop().ok();
         });
-        health_updater.update(HealthStatus::Ready.into());
 
         server_handle.stopped().await;
         drop(health_updater);
         tracing::info!("{transport_str} JSON-RPC server stopped");
-        Self::wait_for_vm(vm_barrier, transport_str).await;
+        if let Some(vm_barrier) = vm_barrier {
+            Self::wait_for_vm(vm_barrier, transport_str).await;
+        }
         Ok(())
     }
 }

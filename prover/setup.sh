@@ -23,32 +23,5 @@ rm ../etc/env/base/fri_proof_compressor.toml.backup
 
 zk config compile dev
 
-
-SHOULD_GENERATE_KEYS=false
-
-for i in {1..13}
-do
-    if ! [ -f vk_setup_data_generator_server_fri/data/setup_basic_${i}_data.bin ]; then
-        SHOULD_GENERATE_KEYS=true        
-    fi
-done
-
-if ! [ -f vk_setup_data_generator_server_fri/data/setup_scheduler_data.bin ]; then
-    SHOULD_GENERATE_KEYS=true            
-fi
-
-if ! [ -f vk_setup_data_generator_server_fri/data/setup_node_data.bin ]; then
-    SHOULD_GENERATE_KEYS=true        
-fi
-
-for i in {3..15}
-do
-    if ! [ -f vk_setup_data_generator_server_fri/data/setup_leaf_${i}_data.bin ]; then
-        SHOULD_GENERATE_KEYS=true        
-    fi
-done
-
-
-if [ "$SHOULD_GENERATE_KEYS" = "true" ]; then
-    zk f cargo run $GPU_FLAG --release --bin key_generator -- $GENERATE_SK_COMMAND all
-fi
+# Update setup keys (only if they are not present)
+zk f cargo run $GPU_FLAG --release --bin key_generator -- $GENERATE_SK_COMMAND all --recompute-if-missing

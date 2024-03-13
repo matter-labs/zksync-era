@@ -66,13 +66,6 @@ impl PackedEthSignature {
         Ok(PackedEthSignature(ETHSignature::from(signature)))
     }
 
-    /// Signs message using Ethereum private key, results are identical to signature created
-    /// using `geth`, `ethers.js`, etc. No hashing and prefixes required.
-    pub fn sign(private_key: &H256, msg: &[u8]) -> Result<PackedEthSignature, ParityCryptoError> {
-        let signed_bytes = Self::message_to_signed_bytes(msg);
-        Self::sign_raw(private_key, &signed_bytes)
-    }
-
     pub fn sign_raw(
         private_key: &H256,
         signed_bytes: &H256,

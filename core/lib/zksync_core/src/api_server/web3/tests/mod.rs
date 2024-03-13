@@ -1,8 +1,13 @@
-use std::{collections::HashMap, pin::Pin, slice, time::Instant};
+use std::{
+    collections::{HashMap, HashSet},
+    pin::Pin,
+    slice,
+    time::Instant,
+};
 
 use assert_matches::assert_matches;
 use async_trait::async_trait;
-use jsonrpsee::core::ClientError;
+use jsonrpsee::core::{client::ClientT, params::BatchRequestBuilder, ClientError};
 use multivm::zk_evm_latest::ethereum_types::U256;
 use tokio::sync::watch;
 use zksync_config::configs::{
@@ -52,7 +57,7 @@ mod snapshots;
 mod vm;
 mod ws;
 
-const TEST_TIMEOUT: Duration = Duration::from_secs(10);
+const TEST_TIMEOUT: Duration = Duration::from_secs(20);
 const POLL_INTERVAL: Duration = Duration::from_millis(50);
 
 impl ApiServerHandles {
@@ -95,22 +100,24 @@ impl ApiServerHandles {
         };
         tokio::time::timeout(TEST_TIMEOUT, stop_server)
             .await
-            .expect(format!("panicking at {}", chrono::Utc::now()).as_str());
+            .unwrap_or_else(|_| panic!("panicking at {}", chrono::Utc::now()));
     }
 }
 
 pub(crate) async fn spawn_http_server(
-    network_config: &NetworkConfig,
+    api_config: InternalApiConfig,
     pool: ConnectionPool,
     tx_executor: MockTransactionExecutor,
+    method_tracer: Arc<MethodTracer>,
     stop_receiver: watch::Receiver<bool>,
 ) -> ApiServerHandles {
     spawn_server(
         ApiTransportLabel::Http,
-        network_config,
+        api_config,
         pool,
         None,
         tx_executor,
+        method_tracer,
         stop_receiver,
     )
     .await
@@ -118,17 +125,18 @@ pub(crate) async fn spawn_http_server(
 }
 
 async fn spawn_ws_server(
-    network_config: &NetworkConfig,
+    api_config: InternalApiConfig,
     pool: ConnectionPool,
     stop_receiver: watch::Receiver<bool>,
     websocket_requests_per_minute_limit: Option<NonZeroU32>,
 ) -> (ApiServerHandles, mpsc::UnboundedReceiver<PubSubEvent>) {
     spawn_server(
         ApiTransportLabel::Ws,
-        network_config,
+        api_config,
         pool,
         websocket_requests_per_minute_limit,
         MockTransactionExecutor::default(),
+        Arc::default(),
         stop_receiver,
     )
     .await
@@ -136,15 +144,13 @@ async fn spawn_ws_server(
 
 async fn spawn_server(
     transport: ApiTransportLabel,
-    network_config: &NetworkConfig,
+    api_config: InternalApiConfig,
     pool: ConnectionPool,
     websocket_requests_per_minute_limit: Option<NonZeroU32>,
     tx_executor: MockTransactionExecutor,
+    method_tracer: Arc<MethodTracer>,
     stop_receiver: watch::Receiver<bool>,
 ) -> (ApiServerHandles, mpsc::UnboundedReceiver<PubSubEvent>) {
-    let contracts_config = ContractsConfig::for_tests();
-    let web3_config = Web3JsonRpcConfig::for_tests();
-    let api_config = InternalApiConfig::new(network_config, &web3_config, &contracts_config);
     let (tx_sender, vm_barrier) =
         create_test_tx_sender(pool.clone(), api_config.l2_chain_id, tx_executor.into()).await;
     let (pub_sub_events_sender, pub_sub_events_receiver) = mpsc::unbounded_channel();
@@ -167,10 +173,14 @@ async fn spawn_server(
     };
     let server_handles = server_builder
         .with_polling_interval(POLL_INTERVAL)
-        .with_tx_sender(tx_sender, vm_barrier)
+        .with_tx_sender(tx_sender)
+        .with_vm_barrier(vm_barrier)
         .with_pub_sub_events(pub_sub_events_sender)
+        .with_method_tracer(method_tracer)
         .enable_api_namespaces(namespaces)
-        .build(stop_receiver)
+        .build()
+        .expect("Unable to build API server")
+        .run(stop_receiver)
         .await
         .expect("Failed spawning JSON-RPC server");
     (server_handles, pub_sub_events_receiver)
@@ -187,7 +197,16 @@ trait HttpTest: Send + Sync {
         MockTransactionExecutor::default()
     }
 
+    fn method_tracer(&self) -> Arc<MethodTracer> {
+        Arc::default()
+    }
+
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()>;
+
+    /// Overrides the `filters_disabled` configuration parameter for HTTP server startup
+    fn filters_disabled(&self) -> bool {
+        false
+    }
 }
 
 /// Storage initialization strategy.
@@ -260,10 +279,15 @@ async fn test_http_server(test: impl HttpTest) {
     drop(storage);
 
     let (stop_sender, stop_receiver) = watch::channel(false);
+    let contracts_config = ContractsConfig::for_tests();
+    let web3_config = Web3JsonRpcConfig::for_tests();
+    let mut api_config = InternalApiConfig::new(&network_config, &web3_config, &contracts_config);
+    api_config.filters_disabled = test.filters_disabled();
     let mut server_handles = spawn_http_server(
-        &network_config,
+        api_config,
         pool.clone(),
         test.transaction_executor(),
+        test.method_tracer(),
         stop_receiver,
     )
     .await;
@@ -819,36 +843,40 @@ impl HttpTest for TransactionReceiptsTest {
 
         let tx1 = create_l2_transaction(10, 200);
         let tx2 = create_l2_transaction(10, 200);
-
         let tx_results = vec![
             execute_l2_transaction(tx1.clone()),
             execute_l2_transaction(tx2.clone()),
         ];
-
         store_miniblock(&mut storage, miniblock_number, &tx_results).await?;
 
         let mut expected_receipts = Vec::new();
-
         for tx in &tx_results {
             expected_receipts.push(
                 client
                     .get_transaction_receipt(tx.hash)
                     .await?
-                    .expect("Receipt found"),
+                    .context("no receipt")?,
             );
         }
-
         for (tx_result, receipt) in tx_results.iter().zip(&expected_receipts) {
             assert_eq!(tx_result.hash, receipt.transaction_hash);
         }
 
         let receipts = client
             .get_block_receipts(api::BlockId::Number(miniblock_number.0.into()))
-            .await?;
+            .await?
+            .context("no receipts")?;
         assert_eq!(receipts.len(), 2);
         for (receipt, expected_receipt) in receipts.iter().zip(&expected_receipts) {
             assert_eq!(receipt, expected_receipt);
         }
+
+        // Check receipts for a missing block.
+        let receipts = client
+            .get_block_receipts(api::BlockId::Number(100.into()))
+            .await?;
+        assert!(receipts.is_none());
+
         Ok(())
     }
 }
@@ -926,4 +954,123 @@ impl HttpTest for AllAccountBalancesTest {
 #[tokio::test]
 async fn getting_all_account_balances() {
     test_http_server(AllAccountBalancesTest).await;
+}
+
+#[derive(Debug, Default)]
+struct RpcCallsTracingTest {
+    tracer: Arc<MethodTracer>,
+}
+
+#[async_trait]
+impl HttpTest for RpcCallsTracingTest {
+    fn method_tracer(&self) -> Arc<MethodTracer> {
+        self.tracer.clone()
+    }
+
+    async fn test(&self, client: &HttpClient, _pool: &ConnectionPool) -> anyhow::Result<()> {
+        let block_number = client.get_block_number().await?;
+        assert_eq!(block_number, U64::from(0));
+
+        let calls = self.tracer.recorded_calls().take();
+        assert_eq!(calls.len(), 1);
+        assert!(calls[0].response.is_success());
+        assert_eq!(calls[0].metadata.name, "eth_blockNumber");
+        assert_eq!(calls[0].metadata.block_id, None);
+        assert_eq!(calls[0].metadata.block_diff, None);
+
+        client
+            .get_block_by_number(api::BlockNumber::Latest, false)
+            .await?;
+
+        let calls = self.tracer.recorded_calls().take();
+        assert_eq!(calls.len(), 1);
+        assert!(calls[0].response.is_success());
+        assert_eq!(calls[0].metadata.name, "eth_getBlockByNumber");
+        assert_eq!(
+            calls[0].metadata.block_id,
+            Some(api::BlockId::Number(api::BlockNumber::Latest))
+        );
+        assert_eq!(calls[0].metadata.block_diff, Some(0));
+
+        let block_number = api::BlockNumber::Number(1.into());
+        client.get_block_by_number(block_number, false).await?;
+
+        let calls = self.tracer.recorded_calls().take();
+        assert_eq!(calls.len(), 1);
+        assert!(calls[0].response.is_success());
+        assert_eq!(calls[0].metadata.name, "eth_getBlockByNumber");
+        assert_eq!(
+            calls[0].metadata.block_id,
+            Some(api::BlockId::Number(block_number))
+        );
+        assert_eq!(calls[0].metadata.block_diff, None);
+
+        // Check protocol-level errors.
+        client
+            .request::<serde_json::Value, _>("eth_unknownMethod", jsonrpsee::rpc_params![])
+            .await
+            .unwrap_err();
+
+        let calls = self.tracer.recorded_calls().take();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(
+            calls[0].response.as_error_code(),
+            Some(ErrorCode::MethodNotFound.code())
+        );
+        assert!(!calls[0].metadata.has_app_error);
+
+        client
+            .request::<serde_json::Value, _>("eth_getBlockByNumber", jsonrpsee::rpc_params![0])
+            .await
+            .unwrap_err();
+
+        let calls = self.tracer.recorded_calls().take();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(
+            calls[0].response.as_error_code(),
+            Some(ErrorCode::InvalidParams.code())
+        );
+        assert!(!calls[0].metadata.has_app_error);
+
+        // Check app-level error.
+        client
+            .request::<serde_json::Value, _>(
+                "eth_getFilterLogs",
+                jsonrpsee::rpc_params![U256::from(1)],
+            )
+            .await
+            .unwrap_err();
+
+        let calls = self.tracer.recorded_calls().take();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(
+            calls[0].response.as_error_code(),
+            Some(ErrorCode::InvalidParams.code())
+        );
+        assert!(calls[0].metadata.has_app_error);
+
+        // Check batch RPC request.
+        let mut batch = BatchRequestBuilder::new();
+        batch.insert("eth_blockNumber", jsonrpsee::rpc_params![])?;
+        batch.insert("zks_L1BatchNumber", jsonrpsee::rpc_params![])?;
+        let response = client.batch_request::<U64>(batch).await?;
+        for response_part in response {
+            assert_eq!(response_part.unwrap(), U64::from(0));
+        }
+
+        let calls = self.tracer.recorded_calls().take();
+        assert_eq!(calls.len(), 2);
+        let call_names: HashSet<_> = calls.iter().map(|call| call.metadata.name).collect();
+        assert_eq!(
+            call_names,
+            HashSet::from(["eth_blockNumber", "zks_L1BatchNumber"])
+        );
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn tracing_rpc_calls() {
+    test_http_server(RpcCallsTracingTest::default()).await;
 }
