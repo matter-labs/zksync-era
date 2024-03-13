@@ -42,7 +42,7 @@ pub(crate) async fn migrate_pending_miniblocks(
 pub(crate) async fn migrate_miniblocks(
     pool: ConnectionPool,
     last_miniblock: MiniblockNumber,
-    stop_receiver: watch::Receiver<bool>,
+    stop_receiver: &watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
     // `migrate_miniblocks_inner` assumes that miniblocks start from the genesis (i.e., no snapshot recovery).
     // Since snapshot recovery is later that the fee address migration in terms of code versioning,
@@ -86,7 +86,7 @@ async fn migrate_miniblocks_inner(
     last_miniblock: MiniblockNumber,
     chunk_size: u32,
     sleep_interval: Duration,
-    stop_receiver: watch::Receiver<bool>,
+    stop_receiver: &watch::Receiver<bool>,
 ) -> anyhow::Result<MigrationOutput> {
     anyhow::ensure!(chunk_size > 0, "Chunk size must be positive");
 
@@ -248,7 +248,7 @@ mod tests {
             MiniblockNumber(4),
             chunk_size,
             Duration::ZERO,
-            stop_receiver.clone(),
+            &stop_receiver,
         )
         .await
         .unwrap();
@@ -266,7 +266,7 @@ mod tests {
             MiniblockNumber(4),
             chunk_size,
             Duration::ZERO,
-            stop_receiver,
+            &stop_receiver,
         )
         .await
         .unwrap();
@@ -288,7 +288,7 @@ mod tests {
             MiniblockNumber(4),
             chunk_size,
             Duration::from_secs(1_000),
-            stop_receiver,
+            &stop_receiver,
         )
         .await
         .unwrap();
@@ -303,7 +303,7 @@ mod tests {
             MiniblockNumber(4),
             chunk_size,
             Duration::ZERO,
-            stop_receiver,
+            &stop_receiver,
         )
         .await
         .unwrap();
@@ -326,7 +326,7 @@ mod tests {
             MiniblockNumber(4),
             chunk_size,
             Duration::from_secs(1_000),
-            stop_receiver,
+            &stop_receiver,
         )
         .await
         .unwrap();
@@ -350,7 +350,7 @@ mod tests {
             MiniblockNumber(5),
             chunk_size,
             Duration::ZERO,
-            stop_receiver,
+            &stop_receiver,
         )
         .await
         .unwrap();
