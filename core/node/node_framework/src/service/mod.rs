@@ -4,14 +4,14 @@ use anyhow::Context;
 use futures::{future::BoxFuture, FutureExt};
 use tokio::{
     runtime::Runtime,
-    sync::{oneshot, watch, Barrier},
+    sync::{watch, Barrier},
 };
 
 pub use self::{context::ServiceContext, stop_receiver::StopReceiver};
 use crate::{
     precondition::Precondition,
     resource::{ResourceId, StoredResource},
-    task::{Task, UnconstrainedTask},
+    task::{OneshotTask, Task, UnconstrainedOneshotTask, UnconstrainedTask},
     wiring_layer::{WiringError, WiringLayer},
 };
 
@@ -46,8 +46,12 @@ pub struct ZkStackService {
     preconditions: Vec<Box<dyn Precondition>>,
     /// Tasks added to the service.
     tasks: Vec<Box<dyn Task>>,
+    /// Oneshot tasks added to the service.
+    oneshot_tasks: Vec<Box<dyn OneshotTask>>,
     /// Unconstrained tasks added to the service.
     unconstrained_tasks: Vec<Box<dyn UnconstrainedTask>>,
+    /// Unconstrained oneshot tasks added to the service.
+    unconstrained_oneshot_tasks: Vec<Box<dyn UnconstrainedOneshotTask>>,
 
     /// Sender used to stop the tasks.
     stop_sender: watch::Sender<bool>,
@@ -74,17 +78,17 @@ impl ZkStackService {
             .unwrap();
 
         let (stop_sender, _stop_receiver) = watch::channel(false);
-        let self_ = Self {
+        Ok(Self {
             resources: HashMap::default(),
             layers: Vec::new(),
             preconditions: Vec::new(),
             tasks: Vec::new(),
+            oneshot_tasks: Vec::new(),
             unconstrained_tasks: Vec::new(),
+            unconstrained_oneshot_tasks: Vec::new(),
             stop_sender,
             runtime,
-        };
-
-        Ok(self_)
+        })
     }
 
     /// Adds a wiring layer.
@@ -126,9 +130,10 @@ impl ZkStackService {
 
         // Barrier that will only be lifted once all the preconditions are met.
         // It will be awaited by the tasks before they start running and by the preconditions once they are fulfilled.
-        let task_barrier = Arc::new(Barrier::new(self.tasks.len() + self.preconditions.len()));
+        let task_barrier = Arc::new(Barrier::new(
+            self.tasks.len() + self.preconditions.len() + self.oneshot_tasks.len(),
+        ));
         let mut tasks: Vec<BoxFuture<'static, anyhow::Result<()>>> = Vec::new();
-        let mut preconditions = Vec::new();
         // Add all the unconstrained tasks.
         for task in std::mem::take(&mut self.unconstrained_tasks) {
             let name = task.name().to_string();
@@ -155,7 +160,8 @@ impl ZkStackService {
         if tasks.is_empty() {
             anyhow::bail!("No tasks to run");
         }
-        // Finally, the preconditions are just futures.
+
+        let mut oneshot_tasks: Vec<BoxFuture<'static, anyhow::Result<()>>> = Vec::new();
         for precondition in std::mem::take(&mut self.preconditions) {
             let name = precondition.name().to_string();
             let stop_receiver = self.stop_receiver();
@@ -166,8 +172,30 @@ impl ZkStackService {
                     .await
                     .with_context(|| format!("Precondition {name} failed"))
             });
-            // Internally we use the same representation for tasks and preconditions.
-            preconditions.push(task_future);
+            oneshot_tasks.push(task_future);
+        }
+        for oneshot_task in std::mem::take(&mut self.oneshot_tasks) {
+            let name = oneshot_task.name().to_string();
+            let stop_receiver = self.stop_receiver();
+            let task_barrier = task_barrier.clone();
+            let task_future = Box::pin(async move {
+                oneshot_task
+                    .run_oneshot_with_barrier(stop_receiver, task_barrier)
+                    .await
+                    .with_context(|| format!("Oneshot task {name} failed"))
+            });
+            oneshot_tasks.push(task_future);
+        }
+        for unconstrained_oneshot_task in std::mem::take(&mut self.unconstrained_oneshot_tasks) {
+            let name = unconstrained_oneshot_task.name().to_string();
+            let stop_receiver = self.stop_receiver();
+            let task_future = Box::pin(async move {
+                unconstrained_oneshot_task
+                    .run_unconstrained_oneshot(stop_receiver)
+                    .await
+                    .with_context(|| format!("Unconstrained oneshot task {name} failed"))
+            });
+            oneshot_tasks.push(task_future);
         }
 
         // Wiring is now complete.
@@ -176,19 +204,14 @@ impl ZkStackService {
         }
         tracing::info!("Wiring complete");
 
-        // Launch precondition checkers. Generally, if all of them succeed, we don't need to do anything.
-        // If any of them fails, the node have to shut down.
-        // So we run them in a detached task with an oneshot channel to report the error, if it occurs,
-        // and we'll use this channel in the same way that we use to check if any of the task exits.
-        // The difference is that preconditions, unlike tasks, are allowed to exit without causing the node
-        // to shut down.
-        let (precondition_fail_sender, precondition_fail_receiver) = oneshot::channel();
-        self.runtime.spawn(async move {
-            let preconditions = preconditions.into_iter().map(|fut| async move {
-                // Spawn each precondition as a separate task.
-                // This way we can handle the cases when a precondition task panics and propagate the message
+        // Create a system task that is cancellation-aware and will only exit on either precondition failure or
+        // stop signal.
+        let mut stop_receiver = self.stop_receiver();
+        let precondition_system_task = Box::pin(async move {
+            let oneshot_tasks = oneshot_tasks.into_iter().map(|fut| async move {
+                // Spawn each oneshot task as a separate tokio task.
+                // This way we can handle the cases when such a task panics and propagate the message
                 // to the service.
-                // This is important since this task is detached: we do not store a handle for it and never await it explicitly.
                 let handle = tokio::runtime::Handle::current();
                 match handle.spawn(fut).await {
                     Ok(Ok(())) => Ok(()),
@@ -197,18 +220,10 @@ impl ZkStackService {
                 }
             });
 
-            if let Err(err) = futures::future::try_join_all(preconditions).await {
-                precondition_fail_sender.send(err).ok();
-            }
-        });
-        // Now we can create a system task that is cancellation-aware and will only exit on either
-        // precondition failure or stop signal.
-        let mut stop_receiver = self.stop_receiver();
-        let precondition_system_task = Box::pin(async move {
-            match precondition_fail_receiver.await {
-                Ok(err) => Err(err),
-                Err(_) => {
-                    // All preconditions successfully resolved and corresponding sender was dropped.
+            match futures::future::try_join_all(oneshot_tasks).await {
+                Err(err) => Err(err),
+                Ok(_) => {
+                    // All oneshot tasks have exited.
                     // Simply wait for the stop signal.
                     stop_receiver.0.changed().await.ok();
                     Ok(())
