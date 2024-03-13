@@ -5,6 +5,7 @@ use std::{
     pin::Pin,
     sync::Arc,
     task::{Context, Poll},
+    time::{Duration, Instant},
 };
 
 use governor::{
@@ -13,7 +14,9 @@ use governor::{
     state::{InMemoryState, NotKeyed},
     Quota, RateLimiter,
 };
+use once_cell::sync::OnceCell;
 use pin_project_lite::pin_project;
+use tokio::sync::watch;
 use vise::{
     Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, GaugeGuard, Histogram, Metrics,
 };
@@ -175,6 +178,70 @@ impl<F: Future<Output = MethodResponse>> Future for WithMethodCall<F> {
     }
 }
 
+#[derive(Debug, Clone, Default)]
+pub(crate) struct ShutdownTimeout {
+    last_call_sender: Arc<OnceCell<watch::Sender<Instant>>>,
+}
+
+impl ShutdownTimeout {
+    fn reset(&self) {
+        if let Some(timeout) = self.last_call_sender.get() {
+            timeout.send_replace(Instant::now());
+        }
+    }
+
+    /// Waits until no new requests are received during the specified interval.
+    pub async fn wait(self, interval_without_requests: Duration) {
+        let mut last_call_subscriber = self
+            .last_call_sender
+            .get_or_init(|| watch::channel(Instant::now()).0)
+            .subscribe();
+        drop(self);
+        let deadline = *last_call_subscriber.borrow() + interval_without_requests;
+        let sleep = tokio::time::sleep_until(deadline.into());
+        tokio::pin!(sleep);
+
+        loop {
+            tokio::select! {
+                () = sleep.as_mut() => {
+                    return;
+                }
+                change_result = last_call_subscriber.changed() => {
+                    if change_result.is_err() {
+                        return; // All `ShutdownTimeout` instances are dropped; no point in waiting any longer
+                    }
+                    let new_deadline = *last_call_subscriber.borrow() + interval_without_requests;
+                    sleep.as_mut().reset(new_deadline.into());
+                }
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct ShutdownMiddleware<S> {
+    inner: S,
+    timeout: ShutdownTimeout,
+}
+
+impl<S> ShutdownMiddleware<S> {
+    pub fn new(inner: S, timeout: ShutdownTimeout) -> Self {
+        Self { inner, timeout }
+    }
+}
+
+impl<'a, S> RpcServiceT<'a> for ShutdownMiddleware<S>
+where
+    S: Send + Sync + RpcServiceT<'a>,
+{
+    type Future = S::Future;
+
+    fn call(&self, request: Request<'a>) -> Self::Future {
+        self.timeout.reset();
+        self.inner.call(request)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
@@ -241,5 +308,18 @@ mod tests {
             assert_eq!(call.metadata.block_diff, Some(9));
             assert!(call.response.is_success());
         }
+    }
+
+    #[tokio::test]
+    async fn shutdown_timeout_basics() {
+        let shutdown_timeout = ShutdownTimeout::default();
+        let now = Instant::now();
+        let wait = shutdown_timeout.clone().wait(Duration::from_millis(10));
+        tokio::time::sleep(Duration::from_millis(5)).await;
+        shutdown_timeout.reset();
+        wait.await;
+
+        let elapsed = now.elapsed();
+        assert!(elapsed >= Duration::from_millis(15), "{elapsed:?}");
     }
 }
