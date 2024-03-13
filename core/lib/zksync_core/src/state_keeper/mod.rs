@@ -14,7 +14,7 @@ pub use self::{
     keeper::ZkSyncStateKeeper,
     mempool_actor::MempoolFetcher,
     seal_criteria::SequencerSealer,
-    state_keeper_storage::AsyncRocksdbCache,
+    state_keeper_storage::{AsyncCatchupTask, AsyncRocksdbCache},
     types::MempoolGuard,
 };
 use crate::fee_model::BatchFeeModelInputProvider;
@@ -46,12 +46,13 @@ pub(crate) async fn create_state_keeper(
     object_store: Arc<dyn ObjectStore>,
     stop_receiver: watch::Receiver<bool>,
 ) -> ZkSyncStateKeeper {
-    let storage_factory = AsyncRocksdbCache::new(
+    let (storage_factory, task) = AsyncRocksdbCache::new(
         pool.clone(),
         db_config.state_keeper_db_path.clone(),
         state_keeper_config.enum_index_migration_chunk_size(),
-        stop_receiver.clone(),
     );
+    let stop_receiver_clone = stop_receiver.clone();
+    tokio::task::spawn(async move { task.run(stop_receiver_clone).await.unwrap() });
     let batch_executor_base = MainBatchExecutor::new(
         Arc::new(storage_factory),
         state_keeper_config.max_allowed_l2_tx_gas_limit.into(),

@@ -182,8 +182,7 @@ impl AsyncRocksdbCache {
         pool: ConnectionPool,
         state_keeper_db_path: String,
         enum_index_migration_chunk_size: usize,
-        stop_receiver: watch::Receiver<bool>,
-    ) -> Self {
+    ) -> (Self, AsyncCatchupTask) {
         let rocksdb_cell = Arc::new(OnceCell::new());
         let task = AsyncCatchupTask {
             pool: pool.clone(),
@@ -191,8 +190,7 @@ impl AsyncRocksdbCache {
             enum_index_migration_chunk_size,
             rocksdb_cell: rocksdb_cell.clone(),
         };
-        tokio::task::spawn(async move { task.run(stop_receiver).await.unwrap() });
-        Self { pool, rocksdb_cell }
+        (Self { pool, rocksdb_cell }, task)
     }
 }
 
@@ -206,7 +204,7 @@ impl ReadStorageFactory for AsyncRocksdbCache {
     }
 }
 
-struct AsyncCatchupTask {
+pub struct AsyncCatchupTask {
     pool: ConnectionPool,
     state_keeper_db_path: String,
     enum_index_migration_chunk_size: usize,
@@ -214,7 +212,7 @@ struct AsyncCatchupTask {
 }
 
 impl AsyncCatchupTask {
-    async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+    pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         tracing::debug!("Catching up RocksDB asynchronously");
         let mut rocksdb_builder: RocksdbStorageBuilder =
             open_state_keeper_rocksdb(self.state_keeper_db_path.into())
