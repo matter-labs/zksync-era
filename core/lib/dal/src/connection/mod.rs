@@ -117,7 +117,7 @@ impl TestTemplate {
 
     async fn connect_to(db_url: &url::Url) -> sqlx::Result<sqlx::PgConnection> {
         use sqlx::Connection as _;
-        let mut attempts = 10;
+        let mut attempts = 20;
         loop {
             match sqlx::PgConnection::connect(db_url.as_ref()).await {
                 Ok(conn) => return Ok(conn),
@@ -128,7 +128,7 @@ impl TestTemplate {
                     }
                 }
             }
-            tokio::time::sleep(Duration::from_millis(100)).await;
+            tokio::time::sleep(Duration::from_millis(200)).await;
         }
     }
 
@@ -248,7 +248,7 @@ impl fmt::Debug for ConnectionPool {
 }
 
 impl ConnectionPool {
-    const TEST_ACQUIRE_TIMEOUT: Duration = Duration::from_secs(1);
+    const TEST_ACQUIRE_TIMEOUT: Duration = Duration::from_secs(10);
 
     /// Returns a reference to the global configuration parameters applied for all DB pools. For consistency, these parameters
     /// should be changed early in the app life cycle.
