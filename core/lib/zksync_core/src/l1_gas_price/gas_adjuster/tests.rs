@@ -5,13 +5,10 @@ use zksync_config::GasAdjusterConfig;
 use zksync_eth_client::clients::MockEthereum;
 
 use super::{GasAdjuster, GasStatisticsInner, PubdataPricing};
-use crate::l1_gas_price::{RollupPubdataPricing, ValidiumPubdataPricing};
-
-#[derive(Debug)]
-pub enum DeploymentMode {
-    Validium,
-    Rollup,
-}
+use crate::{
+    l1_gas_price::{RollupPubdataPricing, ValidiumPubdataPricing},
+    utils::testonly::DeploymentMode,
+};
 
 /// Check that we compute the median correctly
 #[test]

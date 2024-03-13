@@ -19,7 +19,7 @@ use zksync_utils::time::seconds_since_epoch;
 use self::tester::Tester;
 use crate::{
     state_keeper::{
-        io::{tests::tester::DeploymentMode, MiniblockParams, MiniblockSealer, StateKeeperIO},
+        io::{MiniblockParams, MiniblockSealer, StateKeeperIO},
         mempool_actor::l2_tx_filter,
         tests::{
             create_execution_result, create_transaction, create_updates_manager,
@@ -27,7 +27,7 @@ use crate::{
         },
         updates::{MiniblockSealCommand, MiniblockUpdates, UpdatesManager},
     },
-    utils::testonly::prepare_recovery_snapshot,
+    utils::testonly::{prepare_recovery_snapshot, DeploymentMode},
 };
 
 mod tester;

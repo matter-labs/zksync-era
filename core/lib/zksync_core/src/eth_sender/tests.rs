@@ -32,13 +32,9 @@ use crate::{
         ETHSenderError, EthTxAggregator, EthTxManager,
     },
     l1_gas_price::{GasAdjuster, PubdataPricing, RollupPubdataPricing, ValidiumPubdataPricing},
-    utils::testonly::{create_l1_batch, l1_batch_metadata_to_commitment_artifacts},
+    utils::testonly::{create_l1_batch, l1_batch_metadata_to_commitment_artifacts, DeploymentMode},
 };
-#[derive(Debug)]
-pub enum DeploymentMode {
-    Validium,
-    Rollup,
-}
+
 // Alias to conveniently call static methods of `ETHSender`.
 type MockEthTxManager = EthTxManager;
 

@@ -26,14 +26,9 @@ use crate::{
     state_keeper::{io::MiniblockSealer, MempoolGuard, MempoolIO},
     utils::testonly::{
         create_l1_batch, create_l2_transaction, create_miniblock, execute_l2_transaction,
+        DeploymentMode,
     },
 };
-
-#[derive(Debug)]
-pub enum DeploymentMode {
-    Validium,
-    Rollup,
-}
 
 #[derive(Debug)]
 pub struct Tester {
