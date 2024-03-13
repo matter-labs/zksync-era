@@ -25,7 +25,6 @@ mod shadow_storage;
 mod storage_view;
 #[cfg(test)]
 mod test_utils;
-mod utils;
 mod witness;
 
 pub use self::{
@@ -34,7 +33,6 @@ pub use self::{
     rocksdb::{RocksdbStorage, RocksdbStorageBuilder, StateKeeperColumnFamily},
     shadow_storage::ShadowStorage,
     storage_view::{StorageView, StorageViewMetrics},
-    utils::open_state_keeper_rocksdb,
     witness::WitnessStorage,
 };
 

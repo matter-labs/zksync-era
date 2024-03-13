@@ -2,7 +2,7 @@ use anyhow::Context;
 use async_trait::async_trait;
 use tokio::{runtime::Handle, sync::watch};
 use zksync_dal::ConnectionPool;
-use zksync_state::{open_state_keeper_rocksdb, PostgresStorage, RocksdbStorageBuilder};
+use zksync_state::{PostgresStorage, RocksdbStorage};
 
 use crate::state_keeper::state_keeper_storage::{PgOrRocksdbStorage, ReadStorageFactory};
 
@@ -66,11 +66,9 @@ impl ReadStorageFactory for RocksdbFactory {
         &self,
         stop_receiver: &watch::Receiver<bool>,
     ) -> anyhow::Result<Option<PgOrRocksdbStorage<'_>>> {
-        let mut builder: RocksdbStorageBuilder =
-            open_state_keeper_rocksdb(self.state_keeper_db_path.clone().into())
-                .await
-                .context("Failed opening state keeper RocksDB")?
-                .into();
+        let mut builder = RocksdbStorage::builder(self.state_keeper_db_path.as_ref())
+            .await
+            .context("Failed opening state keeper RocksDB")?;
         builder.enable_enum_index_migration(self.enum_index_migration_chunk_size);
         let mut conn = self
             .pool

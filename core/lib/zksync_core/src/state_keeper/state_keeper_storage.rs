@@ -6,8 +6,7 @@ use once_cell::sync::OnceCell;
 use tokio::{runtime::Handle, sync::watch};
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_state::{
-    open_state_keeper_rocksdb, PostgresStorage, ReadStorage, RocksdbStorage, RocksdbStorageBuilder,
-    StateKeeperColumnFamily,
+    PostgresStorage, ReadStorage, RocksdbStorage, RocksdbStorageBuilder, StateKeeperColumnFamily,
 };
 use zksync_storage::RocksDB;
 use zksync_types::{L1BatchNumber, MiniblockNumber};
@@ -215,10 +214,9 @@ impl AsyncCatchupTask {
     pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         tracing::debug!("Catching up RocksDB asynchronously");
         let mut rocksdb_builder: RocksdbStorageBuilder =
-            open_state_keeper_rocksdb(self.state_keeper_db_path.into())
+            RocksdbStorage::builder(self.state_keeper_db_path.as_ref())
                 .await
-                .context("Failed initializing RocksDB storage")?
-                .into();
+                .context("Failed initializing RocksDB storage")?;
         rocksdb_builder.enable_enum_index_migration(self.enum_index_migration_chunk_size);
         let mut storage = self
             .pool
