@@ -62,12 +62,12 @@ impl BatchFeeModelInputProvider for MainNodeFeeInputProvider {
         match self.config {
             FeeModelConfig::V1(config) => FeeParams::V1(FeeParamsV1 {
                 config,
-                l1_gas_price: U256::from(self.provider.estimate_effective_gas_price()),
+                l1_gas_price: self.provider.estimate_effective_gas_price(),
             }),
             FeeModelConfig::V2(config) => FeeParams::V2(FeeParamsV2 {
                 config,
-                l1_gas_price: U256::from(self.provider.estimate_effective_gas_price()),
-                l1_pubdata_price: U256::from(self.provider.estimate_effective_pubdata_price()),
+                l1_gas_price: self.provider.estimate_effective_gas_price(),
+                l1_pubdata_price: self.provider.estimate_effective_pubdata_price(),
             }),
         }
     }

@@ -8,6 +8,7 @@ use std::{
 
 use tokio::sync::watch;
 use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
+use zksync_dal::BigDecimal;
 use zksync_eth_client::{Error, EthInterface};
 use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{U256, U64};
@@ -171,9 +172,9 @@ impl GasAdjuster {
 
     /// Returns the sum of base and priority fee, in wei, not considering time in mempool.
     /// Can be used to get an estimate of current gas price.
-    pub(crate) fn estimate_effective_gas_price(&self) -> u64 {
+    pub fn estimate_effective_gas_price(&self) -> U256 {
         if let Some(price) = self.config.internal_enforced_l1_gas_price {
-            return price;
+            return U256::from(price);
         }
 
         let effective_gas_price = self.get_base_fee(0) + self.get_priority_fee();
@@ -181,12 +182,25 @@ impl GasAdjuster {
         let calculated_price =
             (self.config.internal_l1_pricing_multiplier * effective_gas_price as f64) as u64;
 
-        let conversion_rate = self.native_token_fetcher.conversion_rate().unwrap_or(1);
+        let gas_price = BigDecimal::from(self.bound_gas_price(calculated_price));
+        let conversion_rate = self
+            .native_token_fetcher
+            .conversion_rate()
+            .unwrap_or(BigDecimal::from(1));
 
-        self.bound_gas_price(calculated_price) * conversion_rate
+        // Casting directly from BigDecimal to U256 is not possible,
+        // so we first remove the fractional part, convert to string and then to U256.
+        U256::from_dec_str(
+            &match (gas_price * conversion_rate).round(0) {
+                zero if zero == BigDecimal::from(0) => BigDecimal::from(1),
+                val => val,
+            }
+            .to_string(),
+        )
+        .unwrap_or(U256::max_value()) // assume overflow (should never happen)
     }
 
-    pub(crate) fn estimate_effective_pubdata_price(&self) -> u64 {
+    pub(crate) fn estimate_effective_pubdata_price(&self) -> U256 {
         match self.pubdata_sending_mode {
             PubdataSendingMode::Blobs => {
                 const BLOB_GAS_PER_BYTE: u64 = 1; // `BYTES_PER_BLOB` = `GAS_PER_BLOB` = 2 ^ 17.
@@ -197,7 +211,7 @@ impl GasAdjuster {
                 if blob_base_fee_median > U256::from(u64::MAX) {
                     let max_allowed = self.config.max_blob_base_fee();
                     tracing::error!("Blob base fee is too high: {blob_base_fee_median}, using max allowed: {max_allowed}");
-                    return max_allowed;
+                    return U256::from(max_allowed);
                 }
                 METRICS
                     .median_blob_base_fee
@@ -206,7 +220,7 @@ impl GasAdjuster {
                     * BLOB_GAS_PER_BYTE as f64
                     * self.config.internal_l1_pricing_multiplier;
 
-                self.bound_blob_base_fee(calculated_price)
+                U256::from(self.bound_blob_base_fee(calculated_price))
             }
             PubdataSendingMode::Calldata => {
                 self.estimate_effective_gas_price() * L1_GAS_PER_PUBDATA_BYTE as u64
