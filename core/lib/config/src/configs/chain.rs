@@ -5,10 +5,9 @@ use zksync_basic_types::{
     network::Network,
     web3::{
         contract::{tokens::Detokenize, Error as Web3ContractError},
-        error::Error as Web3ApiError,
-        ethabi,
+        ethabi, Error as Web3ApiError,
     },
-    Address, Bytes, L2ChainId, U256,
+    Address, L2ChainId, U256,
 };
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -62,14 +61,17 @@ pub enum L1BatchCommitDataGeneratorMode {
 
 // The cases are extracted from the `PubdataPricingMode` enum in the L1 contracts,
 // And knowing that, in Ethereum, the response is the index of the enum case.
-// If the Uint token is 0 I want the Rollup case,
-// If the Uint token is 1 I want the Validium case,
-// Else, an error.
+// 0 corresponds to Rollup case,
+// 1 corresponds to Validium case,
+// Other values are incorrect.
 impl Detokenize for L1BatchCommitDataGeneratorMode {
     fn from_tokens(tokens: Vec<ethabi::Token>) -> Result<Self, Web3ContractError> {
-        let error = Err(Web3ContractError::Api(Web3ApiError::Decoder(
-            "L1BatchCommitDataGeneratorMode::from_tokens".to_string(),
-        )));
+        fn error(tokens: &[ethabi::Token]) -> Web3ContractError {
+            Web3ContractError::Api(Web3ApiError::Decoder(format!(
+                "L1BatchCommitDataGeneratorMode::from_tokens: {tokens:?}"
+            )))
+        }
+
         match tokens.as_slice() {
             [ethabi::Token::Uint(enum_value)] => {
                 if enum_value == &U256::zero() {
@@ -77,10 +79,10 @@ impl Detokenize for L1BatchCommitDataGeneratorMode {
                 } else if enum_value == &U256::one() {
                     Ok(L1BatchCommitDataGeneratorMode::Validium)
                 } else {
-                    error
+                    Err(error(&tokens))
                 }
             }
-            _ => error,
+            _ => Err(error(&tokens)),
         }
     }
 }

@@ -38,10 +38,6 @@ use zksync_queued_job_processor::JobProcessor;
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{
     fee_model::FeeModelConfig,
-    l1_batch_commit_data_generator::{
-        L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
-        ValidiumModeL1BatchCommitDataGenerator,
-    },
     protocol_version::{L1VerifierConfig, VerifierParams},
     system_contracts::get_system_smart_contracts,
     web3::contract::tokens::Detokenize,
@@ -58,7 +54,13 @@ use crate::{
     },
     basic_witness_input_producer::BasicWitnessInputProducer,
     commitment_generator::CommitmentGenerator,
-    eth_sender::{Aggregator, EthTxAggregator, EthTxManager},
+    eth_sender::{
+        l1_batch_commit_data_generator::{
+            L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
+            ValidiumModeL1BatchCommitDataGenerator,
+        },
+        Aggregator, EthTxAggregator, EthTxManager,
+    },
     eth_watch::start_eth_watch,
     house_keeper::{
         blocks_state_reporter::L1BatchMetricsReporter,
@@ -80,6 +82,7 @@ use crate::{
     state_keeper::{
         create_state_keeper, MempoolFetcher, MempoolGuard, MiniblockSealer, SequencerSealer,
     },
+    utils::ensure_l1_batch_commit_data_generation_mode,
 };
 
 pub mod api_server;
@@ -102,7 +105,7 @@ pub mod reorg_detector;
 pub mod state_keeper;
 pub mod sync_layer;
 pub mod temp_config_store;
-mod utils;
+pub mod utils;
 
 /// Inserts the initial information about zkSync tokens into the database.
 pub async fn genesis_init(
@@ -650,6 +653,14 @@ pub async fn initialize_components(
             .state_keeper_config
             .clone()
             .context("state_keeper_config")?;
+
+        ensure_l1_batch_commit_data_generation_mode(
+            state_keeper_config.l1_batch_commit_data_generator_mode,
+            contracts_config.diamond_init_addr,
+            &eth_client,
+        )
+        .await?;
+
         let l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator> =
             match state_keeper_config.l1_batch_commit_data_generator_mode {
                 L1BatchCommitDataGeneratorMode::Rollup => {
@@ -660,30 +671,12 @@ pub async fn initialize_components(
                 }
             };
 
-        let args = CallFunctionArgs::new("getPubdataPricingMode", ()).for_contract(
-            contracts_config.diamond_proxy_addr,
-            zksync_contracts::zksync_contract(),
-        );
-        let current_commitment_mode_eth_response = eth_client.call_contract_function(args).await?;
-
-        let current_commitment_mode =
-            L1BatchCommitDataGeneratorMode::from_tokens(current_commitment_mode_eth_response)?;
-
-        // contracts mode == server mode
-        assert_eq!(
-            current_commitment_mode,
-            state_keeper_config.l1_batch_commit_data_generator_mode,
-            "The selected L1BatchCommitDataGeneratorMode ({:?}) does not match the commitment mode used on L1 contract ({:?})",
-            state_keeper_config.l1_batch_commit_data_generator_mode,
-            current_commitment_mode
-        );
-
         let eth_tx_aggregator_actor = EthTxAggregator::new(
             eth_sender.sender.clone(),
             Aggregator::new(
                 eth_sender.sender.clone(),
                 store_factory.create_store().await,
-                l1_batch_commit_data_generator,
+                l1_batch_commit_data_generator.clone(),
             ),
             Arc::new(eth_client),
             contracts_config.validator_timelock_addr,
@@ -694,6 +687,7 @@ pub async fn initialize_components(
                 .as_ref()
                 .context("network_config")?
                 .zksync_network_id,
+            l1_batch_commit_data_generator,
         )
         .await;
         task_futures.push(tokio::spawn(

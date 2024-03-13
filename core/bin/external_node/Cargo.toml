@@ -14,6 +14,7 @@ publish = false # We don't want to publish our binaries.
 zksync_core = { path = "../../lib/zksync_core" }
 zksync_dal = { path = "../../lib/dal" }
 zksync_config = { path = "../../lib/config" }
+zksync_eth_client = { path = "../../lib/eth_client" }
 zksync_storage = { path = "../../lib/storage" }
 zksync_utils = { path = "../../lib/utils" }
 zksync_state = { path = "../../lib/state" }
