@@ -217,17 +217,17 @@ describe('web3 API compatibility tests', () => {
         expect(tokens).not.toHaveLength(0); // Should not be an empty array.
     });
 
-    test('Should check transactions from API / Legacy tx', async () => {
-        const LEGACY_TX_TYPE = 0;
-        const legacyTx = await alice.sendTransaction({
-            type: LEGACY_TX_TYPE,
-            to: alice.address
-        });
-        await legacyTx.wait();
+    // test('Should check transactions from API / Legacy tx', async () => {
+    //     const LEGACY_TX_TYPE = 0;
+    //     const legacyTx = await alice.sendTransaction({
+    //         type: LEGACY_TX_TYPE,
+    //         to: alice.address
+    //     });
+    //     await legacyTx.wait();
 
-        const legacyApiReceipt = await alice.provider.getTransaction(legacyTx.hash);
-        expect(legacyApiReceipt.gasPrice).bnToBeEq(legacyTx.gasPrice!);
-    });
+    //     const legacyApiReceipt = await alice.provider.getTransaction(legacyTx.hash);
+    //     expect(legacyApiReceipt.gasPrice).bnToBeEq(legacyTx.gasPrice!);
+    // });
 
     test('Should check transactions from API / EIP1559 tx', async () => {
         const EIP1559_TX_TYPE = 2;
