@@ -15,10 +15,10 @@ use zksync_types::{L1BatchNumber, MiniblockNumber};
 /// Factory that can produce a [`ReadStorage`] implementation on demand.
 #[async_trait]
 pub trait ReadStorageFactory: Debug + Send + Sync + 'static {
-    async fn access_storage<'a>(
-        &'a self,
+    async fn access_storage(
+        &self,
         stop_receiver: &watch::Receiver<bool>,
-    ) -> anyhow::Result<Option<PgOrRocksdbStorage<'a>>>;
+    ) -> anyhow::Result<Option<PgOrRocksdbStorage<'_>>>;
 }
 
 /// A [`ReadStorage`] implementation that uses either [`PostgresStorage`] or [`RocksdbStorage`]
@@ -154,10 +154,10 @@ impl AsyncRocksdbCache {
         Ok(Some(rocksdb.into()))
     }
 
-    async fn access_storage_inner<'a>(
-        &'a self,
+    async fn access_storage_inner(
+        &self,
         stop_receiver: &watch::Receiver<bool>,
-    ) -> anyhow::Result<Option<PgOrRocksdbStorage<'a>>> {
+    ) -> anyhow::Result<Option<PgOrRocksdbStorage<'_>>> {
         match self.rocksdb_cell.get() {
             Some(rocksdb) => {
                 let mut conn = self
@@ -197,10 +197,10 @@ impl AsyncRocksdbCache {
 
 #[async_trait]
 impl ReadStorageFactory for AsyncRocksdbCache {
-    async fn access_storage<'a>(
-        &'a self,
+    async fn access_storage(
+        &self,
         stop_receiver: &watch::Receiver<bool>,
-    ) -> anyhow::Result<Option<PgOrRocksdbStorage<'a>>> {
+    ) -> anyhow::Result<Option<PgOrRocksdbStorage<'_>>> {
         self.access_storage_inner(stop_receiver).await
     }
 }

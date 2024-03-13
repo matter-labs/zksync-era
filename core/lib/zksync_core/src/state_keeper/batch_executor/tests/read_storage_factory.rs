@@ -13,10 +13,10 @@ pub struct PostgresFactory {
 
 #[async_trait]
 impl ReadStorageFactory for PostgresFactory {
-    async fn access_storage<'a>(
-        &'a self,
+    async fn access_storage(
+        &self,
         _stop_receiver: &watch::Receiver<bool>,
-    ) -> anyhow::Result<Option<PgOrRocksdbStorage<'a>>> {
+    ) -> anyhow::Result<Option<PgOrRocksdbStorage<'_>>> {
         let mut connection = self
             .pool
             .access_storage()
@@ -62,10 +62,10 @@ pub struct RocksdbFactory {
 
 #[async_trait]
 impl ReadStorageFactory for RocksdbFactory {
-    async fn access_storage<'a>(
-        &'a self,
+    async fn access_storage(
+        &self,
         stop_receiver: &watch::Receiver<bool>,
-    ) -> anyhow::Result<Option<PgOrRocksdbStorage<'a>>> {
+    ) -> anyhow::Result<Option<PgOrRocksdbStorage<'_>>> {
         let mut builder: RocksdbStorageBuilder =
             open_state_keeper_rocksdb(self.state_keeper_db_path.clone().into())
                 .await
