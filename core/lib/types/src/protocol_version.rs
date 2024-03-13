@@ -42,9 +42,11 @@ pub enum ProtocolVersionId {
     Version19,
     Version20,
     Version21,
-    Version22,
+    // Local version has to be after the current version
+    // and before the next version
     // kl todo delete local vm verion
     Local,
+    Version22,
 }
 
 impl ProtocolVersionId {
