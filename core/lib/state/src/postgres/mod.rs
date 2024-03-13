@@ -4,7 +4,10 @@ use std::{
 };
 
 use anyhow::Context as _;
-use tokio::{runtime::Handle, sync::mpsc};
+use tokio::{
+    runtime::Handle,
+    sync::mpsc::{self, UnboundedReceiver},
+};
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::{L1BatchNumber, MiniblockNumber, StorageKey, StorageValue, H256};
 
@@ -292,18 +295,13 @@ impl PostgresStorageCaches {
         // `Self::schedule_values_update()` will produce some no-op update commands from concurrently
         // executing VM instances. Due to built-in filtering, this seems manageable.
         move || {
-            let mut current_miniblock = values_cache.valid_for();
-            while let Some(to_miniblock) = command_receiver.blocking_recv() {
-                if to_miniblock <= current_miniblock {
-                    continue;
-                }
-                let mut connection = rt_handle
-                    .block_on(connection_pool.access_storage_tagged("values_cache_updater"))
-                    .unwrap();
-                values_cache.update(current_miniblock, to_miniblock, &rt_handle, &mut connection);
-                current_miniblock = to_miniblock;
-            }
-            Ok(())
+            let task = PostgresStorageCachesTask {
+                rt_handle,
+                connection_pool,
+                values_cache,
+                command_receiver,
+            };
+            task.run()
         }
     }
 
@@ -324,6 +322,40 @@ impl PostgresStorageCaches {
                 .send(to_miniblock)
                 .expect("values cache update task failed");
         }
+    }
+}
+
+#[derive(Debug)]
+struct PostgresStorageCachesTask {
+    rt_handle: Handle,
+    connection_pool: ConnectionPool,
+    values_cache: ValuesCache,
+    command_receiver: UnboundedReceiver<MiniblockNumber>,
+}
+
+impl PostgresStorageCachesTask {
+    pub fn run(mut self) -> anyhow::Result<()> {
+        let mut current_miniblock = self.values_cache.valid_for();
+        while let Some(to_miniblock) = self.command_receiver.blocking_recv() {
+            if to_miniblock <= current_miniblock {
+                continue;
+            }
+            let mut connection = self
+                .rt_handle
+                .block_on(
+                    self.connection_pool
+                        .access_storage_tagged("values_cache_updater"),
+                )
+                .unwrap();
+            self.values_cache.update(
+                current_miniblock,
+                to_miniblock,
+                &self.rt_handle,
+                &mut connection,
+            );
+            current_miniblock = to_miniblock;
+        }
+        Ok(())
     }
 }
 
