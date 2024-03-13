@@ -362,9 +362,16 @@ impl<'a> SnapshotsApplier<'a> {
                     this.applied_snapshot_status.miniblock_number,
                 )
                 .await
-                .map_err(|err| {
-                    SnapshotsApplierError::db(err, "failed persisting initial recovery status")
-                })?;
+                .map_err(|err| SnapshotsApplierError::db(err, "failed inserting pruning info"))?;
+
+            storage_transaction
+                .pruning_dal()
+                .hard_prune_batches_range(
+                    this.applied_snapshot_status.l1_batch_number,
+                    this.applied_snapshot_status.miniblock_number,
+                )
+                .await
+                .map_err(|err| SnapshotsApplierError::db(err, "failed inserting pruning info"))?;
         }
         storage_transaction.commit().await?;
         drop(storage);

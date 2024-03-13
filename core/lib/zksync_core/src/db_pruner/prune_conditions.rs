@@ -74,3 +74,23 @@ impl PruneCondition for NextL1BatchHasMetadataCondition {
         Ok(l1_batch_metadata.is_some())
     }
 }
+
+pub struct L1BatchExistsCondition {
+    pub conn: ConnectionPool,
+}
+
+#[async_trait]
+impl PruneCondition for L1BatchExistsCondition {
+    fn name(&self) -> &'static str {
+        "l1 batch exists"
+    }
+
+    async fn is_batch_pruneable(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<bool> {
+        let mut storage = self.conn.access_storage().await?;
+        let l1_batch_header = storage
+            .blocks_dal()
+            .get_l1_batch_header(l1_batch_number)
+            .await?;
+        Ok(l1_batch_header.is_some())
+    }
+}

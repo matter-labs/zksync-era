@@ -69,7 +69,7 @@ impl DbPruner {
         let result = failed_conditions.is_empty() && errored_conditions.is_empty();
         if !result {
             tracing::warn!(
-                "Pruning {l1_batch_number} is not possible, \
+                "Pruning l1 batch {l1_batch_number} is not possible, \
             successful checks: {successful_conditions:?}, \
             failed conditions: {failed_conditions:?}, \
             errored_conditions: {errored_conditions:?}"
@@ -80,7 +80,9 @@ impl DbPruner {
 
     pub async fn run_single_iteration(&self, pool: &ConnectionPool) -> anyhow::Result<()> {
         let mut storage = pool.access_storage().await.unwrap();
-        let mut current_pruning_info = storage.pruning_dal().get_pruning_info().await.unwrap();
+        let mut transaction = storage.start_transaction().await.unwrap();
+
+        let mut current_pruning_info = transaction.pruning_dal().get_pruning_info().await.unwrap();
 
         if current_pruning_info.last_soft_pruned_l1_batch
             == current_pruning_info.last_hard_pruned_l1_batch
@@ -96,18 +98,18 @@ impl DbPruner {
                 return Ok(());
             }
 
-            let next_miniblocks_to_prune = storage
+            let next_miniblock_to_prune = transaction
                 .blocks_dal()
                 .get_miniblock_range_of_l1_batch(next_l1_batch_to_prune)
                 .await?
                 .unwrap()
                 .1;
-            storage
+            transaction
                 .pruning_dal()
-                .soft_prune_batches_range(next_l1_batch_to_prune, next_miniblocks_to_prune)
+                .soft_prune_batches_range(next_l1_batch_to_prune, next_miniblock_to_prune)
                 .await?;
 
-            current_pruning_info = storage.pruning_dal().get_pruning_info().await?;
+            current_pruning_info = transaction.pruning_dal().get_pruning_info().await?;
             tracing::info!(
                 "Soft pruned db l1_batches up to {} and miniblocks up to {}",
                 current_pruning_info.last_soft_pruned_l1_batch.unwrap(),
@@ -117,7 +119,7 @@ impl DbPruner {
             tokio::time::sleep(self.config.soft_and_hard_pruning_time_delta).await;
         }
 
-        storage
+        transaction
             .pruning_dal()
             .hard_prune_batches_range(
                 current_pruning_info.last_soft_pruned_l1_batch.unwrap(),

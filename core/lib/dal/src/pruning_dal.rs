@@ -165,6 +165,26 @@ impl PruningDal<'_, '_> {
         .execute(self.storage)
         .await?;
 
+        sqlx::query!(
+            r#"
+            UPDATE transactions
+            SET
+                l1_batch_number = NULL,
+                miniblock_number = NULL
+            WHERE
+                miniblock_number >= $1
+                AND miniblock_number <= $2
+            "#,
+            first_miniblock_to_prune.0 as i64,
+            last_miniblock_to_prune.0 as i64,
+        )
+        .instrument("hard_prune_batches_range#clear_transactions_references")
+        .with_arg("first_miniblock_to_prune", &first_miniblock_to_prune)
+        .with_arg("last_miniblock_to_prune", &last_miniblock_to_prune)
+        .report_latency()
+        .execute(self.storage)
+        .await?;
+
         //The deleting of logs is split into two queries to make it faster,
         // only the first query has to go through all previous logs
         // and the query optimizer should be happy with it
@@ -187,7 +207,8 @@ impl PruningDal<'_, '_> {
             last_miniblock_to_prune.0 as i64,
         )
         .instrument("hard_prune_batches_range#delete_overriden_storage_logs_from_past_batches")
-        .with_arg("last_l1_batch_to_prune", &last_l1_batch_to_prune)
+        .with_arg("first_miniblock_to_prune", &first_miniblock_to_prune)
+        .with_arg("last_miniblock_to_prune", &last_miniblock_to_prune)
         .report_latency()
         .execute(self.storage)
         .await?;
@@ -219,7 +240,8 @@ impl PruningDal<'_, '_> {
             last_miniblock_to_prune.0 as i64,
         )
         .instrument("hard_prune_batches_range#delete_overriden_storage_logs_from_pruned_batches")
-        .with_arg("last_l1_batch_to_prune", &last_l1_batch_to_prune)
+        .with_arg("first_miniblock_to_prune", &first_miniblock_to_prune)
+        .with_arg("last_miniblock_to_prune", &last_miniblock_to_prune)
         .report_latency()
         .execute(self.storage)
         .await?;
