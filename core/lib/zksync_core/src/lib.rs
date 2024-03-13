@@ -752,7 +752,7 @@ pub async fn initialize_components(
     }
 
     if components.contains(&Component::Housekeeper) {
-        add_house_keeper_to_task_futures(configs, &mut task_futures)
+        add_house_keeper_to_task_futures(configs, &mut task_futures, stop_receiver.clone())
             .await
             .context("add_house_keeper_to_task_futures()")?;
     }
@@ -1005,6 +1005,7 @@ async fn add_basic_witness_input_producer_to_task_futures(
 async fn add_house_keeper_to_task_futures(
     configs: &TempConfigStore,
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
+    stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
     let house_keeper_config = configs
         .house_keeper_config
@@ -1020,10 +1021,16 @@ async fn add_house_keeper_to_task_futures(
     .context("failed to build a connection pool")?;
 
     let pool_for_metrics = connection_pool.clone();
+    let mut stop_receiver_for_metrics = stop_receiver.clone();
     task_futures.push(tokio::spawn(async move {
-        pool_for_metrics
-            .run_postgres_metrics_scraping(Duration::from_secs(60))
-            .await;
+        tokio::select! {
+            () = pool_for_metrics.run_postgres_metrics_scraping(Duration::from_secs(60)) => {
+                tracing::warn!("Postgres metrics scraping unexpectedly stopped");
+            }
+            _ = stop_receiver_for_metrics.changed() => {
+                tracing::info!("Stop signal received, Postgres metrics scraping is shutting down");
+            }
+        }
         Ok(())
     }));
 
@@ -1039,7 +1046,8 @@ async fn add_house_keeper_to_task_futures(
     .build()
     .await
     .context("failed to build a prover_connection_pool")?;
-    task_futures.push(tokio::spawn(l1_batch_metrics_reporter.run()));
+    let task = l1_batch_metrics_reporter.run(stop_receiver.clone());
+    task_futures.push(tokio::spawn(task));
 
     // All FRI Prover related components are configured below.
     let fri_prover_config = configs
@@ -1052,7 +1060,8 @@ async fn add_house_keeper_to_task_futures(
         house_keeper_config.fri_prover_job_retrying_interval_ms,
         prover_connection_pool.clone(),
     );
-    task_futures.push(tokio::spawn(fri_prover_job_retry_manager.run()));
+    let task = fri_prover_job_retry_manager.run(stop_receiver.clone());
+    task_futures.push(tokio::spawn(task));
 
     let fri_witness_gen_config = configs
         .fri_witness_generator_config
@@ -1064,25 +1073,29 @@ async fn add_house_keeper_to_task_futures(
         house_keeper_config.fri_witness_generator_job_retrying_interval_ms,
         prover_connection_pool.clone(),
     );
-    task_futures.push(tokio::spawn(fri_witness_gen_job_retry_manager.run()));
+    let task = fri_witness_gen_job_retry_manager.run(stop_receiver.clone());
+    task_futures.push(tokio::spawn(task));
 
     let waiting_to_queued_fri_witness_job_mover = WaitingToQueuedFriWitnessJobMover::new(
         house_keeper_config.fri_witness_job_moving_interval_ms,
         prover_connection_pool.clone(),
     );
-    task_futures.push(tokio::spawn(waiting_to_queued_fri_witness_job_mover.run()));
+    let task = waiting_to_queued_fri_witness_job_mover.run(stop_receiver.clone());
+    task_futures.push(tokio::spawn(task));
 
     let scheduler_circuit_queuer = SchedulerCircuitQueuer::new(
         house_keeper_config.fri_witness_job_moving_interval_ms,
         prover_connection_pool.clone(),
     );
-    task_futures.push(tokio::spawn(scheduler_circuit_queuer.run()));
+    let task = scheduler_circuit_queuer.run(stop_receiver.clone());
+    task_futures.push(tokio::spawn(task));
 
     let fri_witness_generator_stats_reporter = FriWitnessGeneratorStatsReporter::new(
         prover_connection_pool.clone(),
         house_keeper_config.witness_generator_stats_reporting_interval_ms,
     );
-    task_futures.push(tokio::spawn(fri_witness_generator_stats_reporter.run()));
+    let task = fri_witness_generator_stats_reporter.run(stop_receiver.clone());
+    task_futures.push(tokio::spawn(task));
 
     let fri_prover_group_config = configs
         .fri_prover_group_config
@@ -1094,7 +1107,8 @@ async fn add_house_keeper_to_task_futures(
         connection_pool.clone(),
         fri_prover_group_config,
     );
-    task_futures.push(tokio::spawn(fri_prover_stats_reporter.run()));
+    let task = fri_prover_stats_reporter.run(stop_receiver.clone());
+    task_futures.push(tokio::spawn(task));
 
     let proof_compressor_config = configs
         .fri_proof_compressor_config
@@ -1104,7 +1118,8 @@ async fn add_house_keeper_to_task_futures(
         house_keeper_config.fri_proof_compressor_stats_reporting_interval_ms,
         prover_connection_pool.clone(),
     );
-    task_futures.push(tokio::spawn(fri_proof_compressor_stats_reporter.run()));
+    let task = fri_proof_compressor_stats_reporter.run(stop_receiver.clone());
+    task_futures.push(tokio::spawn(task));
 
     let fri_proof_compressor_retry_manager = FriProofCompressorJobRetryManager::new(
         proof_compressor_config.max_attempts,
@@ -1112,7 +1127,8 @@ async fn add_house_keeper_to_task_futures(
         house_keeper_config.fri_proof_compressor_job_retrying_interval_ms,
         prover_connection_pool.clone(),
     );
-    task_futures.push(tokio::spawn(fri_proof_compressor_retry_manager.run()));
+    let task = fri_proof_compressor_retry_manager.run(stop_receiver);
+    task_futures.push(tokio::spawn(task));
     Ok(())
 }
 
