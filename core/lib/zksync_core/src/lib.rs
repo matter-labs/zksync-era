@@ -302,7 +302,7 @@ impl FromStr for Components {
 
 pub async fn initialize_components(
     configs: &TempConfigStore,
-    components: Vec<Component>,
+    components: &[Component],
     secrets: &Secrets,
 ) -> anyhow::Result<(
     Vec<JoinHandle<anyhow::Result<()>>>,
@@ -359,7 +359,7 @@ pub async fn initialize_components(
         .context("circuit_breaker_config")?;
 
     let circuit_breaker_checker = CircuitBreakerChecker::new(
-        circuit_breakers_for_components(&components, &postgres_config, &circuit_breaker_config)
+        circuit_breakers_for_components(components, &postgres_config, &circuit_breaker_config)
             .await
             .context("circuit_breakers_for_components")?,
         &circuit_breaker_config,
@@ -726,7 +726,7 @@ pub async fn initialize_components(
         configs,
         &mut task_futures,
         &app_health,
-        &components,
+        components,
         &store_factory,
         stop_receiver.clone(),
     )

@@ -24,7 +24,7 @@ use zksync_core::{
 };
 use zksync_env_config::FromEnv;
 use zksync_storage::RocksDB;
-use zksync_utils::wait_for_tasks::wait_for_tasks;
+use zksync_utils::wait_for_tasks::ManagedTasks;
 
 mod config;
 
@@ -183,17 +183,15 @@ async fn main() -> anyhow::Result<()> {
 
     // Run core actors.
     let (core_task_handles, stop_sender, cb_receiver, health_check_handle) =
-        initialize_components(&configs, components, &secrets)
+        initialize_components(&configs, &components, &secrets)
             .await
             .context("Unable to start Core actors")?;
 
     tracing::info!("Running {} core task handlers", core_task_handles.len());
 
-    let particular_crypto_alerts = None::<Vec<String>>;
-    let graceful_shutdown = None::<futures::future::Ready<()>>;
-    let tasks_allowed_to_finish = false;
+    let mut tasks = ManagedTasks::new(core_task_handles);
     tokio::select! {
-        _ = wait_for_tasks(core_task_handles, particular_crypto_alerts, graceful_shutdown, tasks_allowed_to_finish) => {},
+        _ = tasks.wait_single() => {},
         _ = sigint_receiver => {
             tracing::info!("Stop signal received, shutting down");
         },
@@ -209,9 +207,15 @@ async fn main() -> anyhow::Result<()> {
     stop_sender.send(true).ok();
     tokio::task::spawn_blocking(RocksDB::await_rocksdb_termination)
         .await
-        .unwrap();
-    // Sleep for some time to let some components gracefully stop.
-    tokio::time::sleep(Duration::from_secs(5)).await;
+        .context("error waiting for RocksDB instances to drop")?;
+    let complete_timeout =
+        if components.contains(&Component::HttpApi) || components.contains(&Component::WsApi) {
+            // Increase timeout because of complicated graceful shutdown procedure for API servers.
+            Duration::from_secs(30)
+        } else {
+            Duration::from_secs(5)
+        };
+    tasks.complete(complete_timeout).await;
     health_check_handle.stop().await;
     tracing::info!("Stopped");
     Ok(())
