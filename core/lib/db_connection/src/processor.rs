@@ -13,7 +13,7 @@ use sqlx::{pool::PoolConnection, types::chrono, Connection, PgConnection, Postgr
 // todo: for some reason I can't import this from crate directly
 pub use zksync_health_check::async_trait;
 
-use crate::{connection::ConnectionPool, metrics::CONNECTION_METRICS};
+use crate::{connection::ConnectionPool, metrics::CONNECTION_METRICS, test_utils::Test};
 
 /// Tags that can be associated with a connection.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -111,20 +111,19 @@ impl fmt::Debug for PooledStorageProcessor<'_> {
 
 impl Drop for PooledStorageProcessor<'_> {
     fn drop(&mut self) {
-        // todo: uncomment
-        // if let Some(tags) = &self.tags {
-        //     let lifetime = self.created_at.elapsed();
-        //     CONNECTION_METRICS.lifetime[&tags.requester].observe(lifetime);
-        //
-        //     if lifetime > ConnectionPool::<_>::global_config().long_connection_threshold() {
-        //         let file = tags.location.file();
-        //         let line = tags.location.line();
-        //         tracing::info!(
-        //             "Long-living connection for `{}` created at {file}:{line}: {lifetime:?}",
-        //             tags.requester
-        //         );
-        //     }
-        // }
+        if let Some(tags) = &self.tags {
+            let lifetime = self.created_at.elapsed();
+            CONNECTION_METRICS.lifetime[&tags.requester].observe(lifetime);
+
+            if lifetime > ConnectionPool::<Test>::global_config().long_connection_threshold() {
+                let file = tags.location.file();
+                let line = tags.location.line();
+                tracing::info!(
+                    "Long-living connection for `{}` created at {file}:{line}: {lifetime:?}",
+                    tags.requester
+                );
+            }
+        }
         if let Some((connections, id)) = self.traced {
             connections.mark_as_dropped(id);
         }

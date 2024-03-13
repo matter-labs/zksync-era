@@ -3,7 +3,7 @@ pub mod gpu_prover {
     use std::{collections::HashMap, sync::Arc, time::Instant};
 
     use anyhow::Context as _;
-    use prover_dal::{fri_prover_dal::types::SocketAddress, ConnectionPool};
+    use prover_dal::ConnectionPool;
     use shivini::{
         gpu_proof_config::GpuProofConfig, gpu_prove_from_external_witness_data, ProverContext,
     };
@@ -29,7 +29,7 @@ pub mod gpu_prover {
         CircuitWrapper, FriProofWrapper, ProverServiceDataKey, WitnessVectorArtifacts,
     };
     use zksync_queued_job_processor::{async_trait, JobProcessor};
-    use zksync_types::basic_fri_types::CircuitIdRoundTuple;
+    use zksync_types::{basic_fri_types::CircuitIdRoundTuple, prover_dal::SocketAddress};
     use zksync_vk_setup_data_server_fri::{keystore::Keystore, GoldilocksGpuProverSetupData};
 
     use crate::{

@@ -21,8 +21,10 @@ use sqlx::{
 use tokio::time::Instant;
 
 use crate::{
+    connection::ConnectionPool,
     metrics::REQUEST_METRICS,
     processor::{StorageProcessor, StorageProcessorTags},
+    test_utils::Test,
 };
 
 type ThreadSafeDebug<'a> = dyn fmt::Debug + Send + Sync + 'a;
@@ -132,25 +134,20 @@ impl<'a> InstrumentedData<'a> {
         let started_at = Instant::now();
         tokio::pin!(query_future);
 
-        // todo: uncomment
-        // let slow_query_threshold = ConnectionPool::global_config().slow_query_threshold();
+        let slow_query_threshold = ConnectionPool::<Test>::global_config().slow_query_threshold();
         let mut is_slow = false;
-        let output = tokio::time::timeout_at(
-            started_at, /* + slow_query_threshold*/
-            &mut query_future,
-        )
-        .await;
+        let output =
+            tokio::time::timeout_at(started_at + slow_query_threshold, &mut query_future).await;
         let output = match output {
             Ok(output) => output,
             Err(_) => {
-                // let connection_tags = StorageProcessorTags::display(connection_tags);
+                let connection_tags = StorageProcessorTags::display(connection_tags);
                 if slow_query_reporting_enabled {
-                    // todo: uncomment
-                    // tracing::warn!(
-                    //     "Query {name}{args} called at {file}:{line} [{connection_tags}] is executing for more than {slow_query_threshold:?}",
-                    //     file = location.file(),
-                    //     line = location.line()
-                    // );
+                    tracing::warn!(
+                        "Query {name}{args} called at {file}:{line} [{connection_tags}] is executing for more than {slow_query_threshold:?}",
+                        file = location.file(),
+                        line = location.line()
+                    );
                     REQUEST_METRICS.request_slow[&name].inc();
                     is_slow = true;
                 }
