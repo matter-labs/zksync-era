@@ -143,7 +143,7 @@ impl AsyncRocksdbCache {
         stop_receiver: &watch::Receiver<bool>,
     ) -> anyhow::Result<Option<PgOrRocksdbStorage<'a>>> {
         tracing::debug!("Catching up RocksDB synchronously");
-        let rocksdb_builder: RocksdbStorageBuilder = rocksdb.into();
+        let rocksdb_builder = RocksdbStorageBuilder::from_rocksdb(rocksdb);
         let rocksdb = rocksdb_builder
             .synchronize(conn, stop_receiver)
             .await
@@ -232,7 +232,7 @@ impl AsyncCatchupTask {
         drop(storage);
         if let Some(rocksdb) = rocksdb {
             self.rocksdb_cell
-                .set(rocksdb.into())
+                .set(rocksdb.into_rocksdb())
                 .map_err(|_| anyhow::anyhow!("Async RocksDB cache was initialized twice"))?;
         } else {
             tracing::info!("Synchronizing RocksDB interrupted");

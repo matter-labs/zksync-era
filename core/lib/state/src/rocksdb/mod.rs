@@ -143,6 +143,17 @@ pub struct RocksdbStorage {
 pub struct RocksdbStorageBuilder(RocksdbStorage);
 
 impl RocksdbStorageBuilder {
+    /// Create a builder from
+    pub fn from_rocksdb(value: RocksDB<StateKeeperColumnFamily>) -> Self {
+        RocksdbStorageBuilder(RocksdbStorage {
+            db: value,
+            pending_patch: InMemoryStorage::default(),
+            enum_index_migration_chunk_size: 100,
+            #[cfg(test)]
+            listener: RocksdbStorageEventListener::default(),
+        })
+    }
+
     /// Enables enum indices migration.
     pub fn enable_enum_index_migration(&mut self, chunk_size: usize) {
         self.0.enum_index_migration_chunk_size = chunk_size;
@@ -191,18 +202,6 @@ impl RocksdbStorageBuilder {
         last_l1_batch_to_keep: L1BatchNumber,
     ) -> anyhow::Result<()> {
         self.0.rollback(storage, last_l1_batch_to_keep).await
-    }
-}
-
-impl From<RocksDB<StateKeeperColumnFamily>> for RocksdbStorageBuilder {
-    fn from(value: RocksDB<StateKeeperColumnFamily>) -> Self {
-        RocksdbStorageBuilder(RocksdbStorage {
-            db: value,
-            pending_patch: InMemoryStorage::default(),
-            enum_index_migration_chunk_size: 100,
-            #[cfg(test)]
-            listener: RocksdbStorageEventListener::default(),
-        })
     }
 }
 
@@ -654,11 +653,10 @@ impl RocksdbStorage {
             None => Some(H256::zero()),
         }
     }
-}
 
-impl From<RocksdbStorage> for RocksDB<StateKeeperColumnFamily> {
-    fn from(value: RocksdbStorage) -> Self {
-        value.db
+    /// Converts self into the underlying RocksDB primitive
+    pub fn into_rocksdb(self) -> RocksDB<StateKeeperColumnFamily> {
+        self.db
     }
 }
 
