@@ -41,7 +41,7 @@ async fn getting_nonce_for_account() {
     let test_address = Address::repeat_byte(1);
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
-    ensure_genesis_state(&mut storage, l2_chain_id, &GenesisParams::mock())
+    ensure_genesis_state(&mut storage, &GenesisParams::mock())
         .await
         .unwrap();
     // Manually insert a nonce for the address.

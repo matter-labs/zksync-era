@@ -188,7 +188,7 @@ mod tests {
         tokio::spawn(async move {
             tokio::time::sleep(Duration::from_millis(25)).await;
             let mut storage = pool_copy.access_storage().await.unwrap();
-            ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
+            ensure_genesis_state(&mut storage, &GenesisParams::mock())
                 .await
                 .unwrap();
         });

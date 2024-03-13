@@ -16,7 +16,7 @@ use zksync_types::{
 
 use super::*;
 use crate::{
-    genesis::{ensure_genesis_state, GenesisParams},
+    genesis::{ensure_genesis_state, GenesisConfig, GenesisParams},
     utils::testonly::{
         create_l1_batch, create_l2_transaction, create_miniblock, execute_l2_transaction,
         prepare_recovery_snapshot,
@@ -443,9 +443,9 @@ async fn loading_pending_batch_after_snapshot_recovery() {
 async fn getting_batch_version_with_genesis() {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
-    let mut genesis_params = GenesisParams::mock();
+    let mut genesis_params = GenesisConfig::mock();
     genesis_params.protocol_version = ProtocolVersionId::Version5;
-    ensure_genesis_state(&mut storage, L2ChainId::default(), &genesis_params)
+    ensure_genesis_state(&mut storage, &genesis_params)
         .await
         .unwrap();
 

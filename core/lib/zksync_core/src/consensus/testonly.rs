@@ -180,7 +180,7 @@ pub(super) async fn new_store(from_snapshot: bool) -> Store {
             prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[])
                 .await;
         } else {
-            ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
+            ensure_genesis_state(&mut storage, &GenesisParams::mock())
                 .await
                 .unwrap();
         }

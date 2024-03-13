@@ -226,7 +226,7 @@ fn mock_updater(
 async fn updater_cursor_for_storage_with_genesis_block() {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
-    ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
+    ensure_genesis_state(&mut storage, &GenesisParams::mock())
         .await
         .unwrap();
     for number in [1, 2] {
@@ -278,7 +278,7 @@ async fn normal_updater_operation(snapshot_recovery: bool, async_batches: bool) 
         prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await;
         L1BatchNumber(24)
     } else {
-        ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
+        ensure_genesis_state(&mut storage, &GenesisParams::mock())
             .await
             .unwrap();
         L1BatchNumber(1)
@@ -350,7 +350,7 @@ async fn updater_with_gradual_main_node_updates(snapshot_recovery: bool) {
         prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await;
         L1BatchNumber(24)
     } else {
-        ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
+        ensure_genesis_state(&mut storage, &GenesisParams::mock())
             .await
             .unwrap();
         L1BatchNumber(1)

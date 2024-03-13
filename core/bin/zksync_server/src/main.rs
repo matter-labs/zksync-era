@@ -18,6 +18,7 @@ use zksync_config::{
     GasAdjusterConfig, ObjectStoreConfig, PostgresConfig,
 };
 use zksync_core::{
+    genesis::GenesisConfig,
     genesis_init, initialize_components, is_genesis_needed, setup_sigint_handler,
     temp_config_store::{decode_yaml, Secrets, TempConfigStore},
     Component, Components,
@@ -35,13 +36,6 @@ static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version, about = "zkSync operator node", long_about = None)]
 struct Cli {
-    /// Generate genesis block for the first contract deployment using temporary DB.
-    #[arg(long)]
-    genesis: bool,
-    /// Wait for the `setChainId` event during genesis.
-    /// If `--genesis` is not set, this flag is ignored.
-    #[arg(long)]
-    set_chain_id: bool,
     /// Rebuild tree.
     #[arg(long)]
     rebuild_tree: bool,
@@ -57,6 +51,9 @@ struct Cli {
     /// Path to the yaml with secrets. If set, it will be used instead of env vars.
     #[arg(long)]
     secrets_path: Option<std::path::PathBuf>,
+    /// Path to the yaml with genesis
+    #[arg(long)]
+    genesis_path: Option<std::path::PathBuf>,
 }
 
 #[derive(Debug, Clone)]
@@ -155,24 +152,15 @@ async fn main() -> anyhow::Result<()> {
 
     let postgres_config = configs.postgres_config.clone().context("PostgresConfig")?;
 
-    if opt.genesis || is_genesis_needed(&postgres_config).await {
-        let network = NetworkConfig::from_env().context("NetworkConfig")?;
-        let eth_sender = ETHSenderConfig::from_env().context("ETHSenderConfig")?;
-        let contracts = ContractsConfig::from_env().context("ContractsConfig")?;
+    if is_genesis_needed(&postgres_config).await {
+        let genesis = GenesisConfig::from_env().context("Genesis config")?;
         let eth_client = ETHClientConfig::from_env().context("EthClientConfig")?;
-        genesis_init(
-            &postgres_config,
-            &eth_sender,
-            &network,
-            &contracts,
-            &eth_client.web3_url,
-            opt.set_chain_id,
-        )
-        .await
-        .context("genesis_init")?;
-        if opt.genesis {
-            return Ok(());
-        }
+        genesis_init(genesis, &postgres_config, &eth_client.web3_url)
+            .await
+            .context("genesis_init")?;
+        // if opt.genesis {
+        //     return Ok(());
+        // }
     }
 
     let components = if opt.rebuild_tree {

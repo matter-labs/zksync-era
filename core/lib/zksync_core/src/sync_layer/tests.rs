@@ -127,7 +127,7 @@ impl StateKeeperHandles {
 
 async fn ensure_genesis(storage: &mut StorageProcessor<'_>) {
     if storage.blocks_dal().is_genesis_needed().await.unwrap() {
-        ensure_genesis_state(storage, L2ChainId::default(), &GenesisParams::mock())
+        ensure_genesis_state(storage, &GenesisParams::mock())
             .await
             .unwrap();
     }

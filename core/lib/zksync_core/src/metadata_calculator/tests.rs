@@ -400,7 +400,7 @@ async fn setup_calculator_with_options(
 
     let mut storage = pool.access_storage().await.unwrap();
     if storage.blocks_dal().is_genesis_needed().await.unwrap() {
-        ensure_genesis_state(&mut storage, L2ChainId::from(270), &GenesisParams::mock())
+        ensure_genesis_state(&mut storage, &GenesisParams::mock())
             .await
             .unwrap();
     }

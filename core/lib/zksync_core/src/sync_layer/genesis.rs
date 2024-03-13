@@ -19,8 +19,8 @@ pub async fn perform_genesis_if_needed(
     // We want to check whether the genesis is needed before we create genesis params to not
     // make the node startup slower.
     let genesis_block_hash = if transaction.blocks_dal().is_genesis_needed().await? {
-        let genesis_params = create_genesis_params(client).await?;
-        ensure_genesis_state(&mut transaction, zksync_chain_id, &genesis_params)
+        let genesis_params = create_genesis_params(client, zksync_chain_id).await?;
+        ensure_genesis_state(&mut transaction, &genesis_params)
             .await
             .context("ensure_genesis_state")?
     } else {
@@ -36,7 +36,10 @@ pub async fn perform_genesis_if_needed(
     Ok(())
 }
 
-async fn create_genesis_params(client: &dyn MainNodeClient) -> anyhow::Result<GenesisParams> {
+async fn create_genesis_params(
+    client: &dyn MainNodeClient,
+    zksync_chain_id: L2ChainId,
+) -> anyhow::Result<GenesisParams> {
     let genesis_miniblock = client
         .fetch_l2_block(zksync_types::MiniblockNumber(0), false)
         .await?
@@ -88,14 +91,15 @@ async fn create_genesis_params(client: &dyn MainNodeClient) -> anyhow::Result<Ge
     // Use default L1 verifier config and verifier address for genesis as they are not used by EN.
     let first_l1_verifier_config = L1VerifierConfig::default();
     let first_verifier_address = Address::default();
-    Ok(GenesisParams {
-        protocol_version,
-        base_system_contracts,
-        system_contracts,
-        first_validator,
-        first_l1_verifier_config,
-        first_verifier_address,
-    })
+    todo!()
+    // Ok(GenesisParams {
+    //     protocol_version,
+    //     base_system_contracts,
+    //     system_contracts,
+    //     first_validator,
+    //     first_l1_verifier_config,
+    //     first_verifier_address,
+    // })
 }
 
 async fn fetch_base_system_contracts(

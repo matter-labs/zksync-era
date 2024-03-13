@@ -15,7 +15,7 @@ use zksync_types::{
 
 use super::*;
 use crate::{
-    genesis::{ensure_genesis_state, GenesisParams},
+    genesis::{ensure_genesis_state, GenesisConfig, GenesisParams},
     utils::testonly::{
         create_l1_batch, create_l1_batch_metadata, l1_batch_metadata_to_commitment_artifacts,
     },
@@ -314,7 +314,7 @@ async fn normal_checker_function(
 
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
-    ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
+    ensure_genesis_state(&mut storage, &GenesisParams::mock())
         .await
         .unwrap();
 
@@ -381,11 +381,13 @@ async fn checker_processes_pre_boojum_batches(
 
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
-    let genesis_params = GenesisParams {
+    let genesis_params = GenesisConfig {
         protocol_version: PRE_BOOJUM_PROTOCOL_VERSION,
-        ..GenesisParams::mock()
-    };
-    ensure_genesis_state(&mut storage, L2ChainId::default(), &genesis_params)
+        ..GenesisConfig::mock()
+    }
+    .load_genesis_params()
+    .unwrap();
+    ensure_genesis_state(&mut storage, &genesis_params)
         .await
         .unwrap();
     storage
@@ -592,7 +594,7 @@ async fn checker_detects_incorrect_tx_data(kind: IncorrectDataKind, snapshot_rec
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
     } else {
-        ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
+        ensure_genesis_state(&mut storage, &GenesisParams::mock())
             .await
             .unwrap();
     }

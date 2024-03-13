@@ -51,6 +51,8 @@ message StateKeeper {
   optional uint32 virtual_blocks_per_miniblock = 24; // required
   optional bool upload_witness_inputs_to_gcs = 25; // required
   optional uint64 enum_index_migration_chunk_size = 26; // optional
+  optional bytes bootloader_hash = 27; // required; H256
+  optional bytes default_aa_hash = 28; // required; H256
 }
 
 message OperationsManager {

@@ -2,14 +2,20 @@
 //! It initializes the Merkle tree with the basic setup (such as fields of special service accounts),
 //! setups the required databases, and outputs the data required to initialize a smart contract.
 
-use anyhow::Context as _;
+use anyhow::{anyhow, Context as _};
 use multivm::{
     circuit_sequencer_api_latest::sort_storage_access::sort_storage_access_queries,
     utils::get_max_gas_per_pubdata_byte,
     zk_evm_latest::aux_structures::{LogQuery as MultiVmLogQuery, Timestamp as MultiVMTimestamp},
 };
-use zksync_contracts::{BaseSystemContracts, SET_CHAIN_ID_EVENT};
-use zksync_dal::StorageProcessor;
+use serde::{Deserialize, Serialize};
+use zksync_config::{
+    configs::chain::{NetworkConfig, StateKeeperConfig},
+    ContractsConfig, ETHSenderConfig, PostgresConfig,
+};
+use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SET_CHAIN_ID_EVENT};
+use zksync_dal::{SqlxError, StorageProcessor};
+use zksync_env_config::FromEnv;
 use zksync_eth_client::{clients::QueryClient, EthInterface};
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_system_constants::PRIORITY_EXPIRATION;
@@ -21,82 +27,194 @@ use zksync_types::{
     commitment::{CommitmentInput, L1BatchCommitment},
     fee_model::BatchFeeInput,
     get_code_key, get_system_context_init_logs,
-    protocol_version::{decode_set_chain_id_event, L1VerifierConfig, ProtocolVersion},
+    protocol_version::{
+        decode_set_chain_id_event, L1VerifierConfig, ProtocolVersion, VerifierParams,
+    },
+    system_contracts::get_system_smart_contracts,
     tokens::{TokenInfo, TokenMetadata, ETHEREUM_ADDRESS},
     web3::types::{BlockNumber, FilterBuilder},
     zk_evm_types::{LogQuery, Timestamp},
-    AccountTreeId, Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId,
-    StorageKey, StorageLog, StorageLogKind, H256,
+    AccountTreeId, Address, L1BatchNumber, L1ChainId, L2ChainId, MiniblockNumber,
+    PackedEthSignature, ProtocolVersionId, StorageKey, StorageLog, StorageLogKind, H256,
 };
 use zksync_utils::{be_words_to_bytes, bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
 
 use crate::metadata_calculator::L1BatchWithLogs;
 
+#[derive(Debug, thiserror::Error)]
+pub enum GenesisError {
+    #[error("Root hash mismatched {0:?}")]
+    RootHash(H256),
+    #[error("Leaf indexes mismatched {0}")]
+    LeafIndexes(u64),
+    #[error("Base system contracts mismatched {0:?}")]
+    BaseSystemContractsHashes(BaseSystemContractsHashes),
+    #[error("Commitment mismatched {0:?}")]
+    Commitment(H256),
+    #[error("Error: {0}")]
+    Other(#[from] anyhow::Error),
+    #[error("Error: {0}")]
+    DBError(#[from] SqlxError),
+}
+
 #[derive(Debug, Clone)]
 pub struct GenesisParams {
-    pub first_validator: Address,
+    base_system_contracts: BaseSystemContracts,
+    system_contracts: Vec<DeployedContract>,
+    config: GenesisConfig,
+}
+
+impl GenesisParams {
+    pub fn system_contracts(&self) -> &[DeployedContract] {
+        &self.system_contracts
+    }
+    pub fn base_system_contracts(&self) -> &BaseSystemContracts {
+        &self.base_system_contracts
+    }
+    pub fn config(&self) -> &GenesisConfig {
+        &self.config
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct GenesisConfig {
     pub protocol_version: ProtocolVersionId,
-    pub base_system_contracts: BaseSystemContracts,
-    pub system_contracts: Vec<DeployedContract>,
-    pub first_verifier_address: Address,
-    pub first_l1_verifier_config: L1VerifierConfig,
+    pub genesis_root_hash: H256,
+    pub rollup_last_leaf_index: u64,
+    pub genesis_commitment: H256,
+    #[serde(flatten)]
+    pub base_system_contracts_hashes: BaseSystemContractsHashes,
+    pub verifier_address: Address,
+    #[serde(flatten)]
+    pub verifier_config: L1VerifierConfig,
+    pub fee_account: Address,
+    pub diamond_proxy: Address,
+    pub erc20_bridge: Address,
+    pub state_transition_proxy_addr: Option<Address>,
+    pub l1_chain_id: L1ChainId,
+    pub l2_chain_id: L2ChainId,
+}
+
+impl GenesisConfig {
+    pub fn from_env() -> anyhow::Result<Self> {
+        let network_config = &NetworkConfig::from_env()?;
+        let contracts_config = &ContractsConfig::from_env()?;
+        let l1_verifier_config = L1VerifierConfig {
+            params: VerifierParams {
+                recursion_node_level_vk_hash: contracts_config.fri_recursion_node_level_vk_hash,
+                recursion_leaf_level_vk_hash: contracts_config.fri_recursion_leaf_level_vk_hash,
+                recursion_circuits_set_vks_hash: zksync_types::H256::zero(),
+            },
+            recursion_scheduler_level_vk_hash: contracts_config.snark_wrapper_vk_hash,
+        };
+
+        let state_keeper = StateKeeperConfig::from_env()?;
+        Ok(GenesisConfig {
+            protocol_version: ProtocolVersionId::latest(),
+            genesis_root_hash: contracts_config
+                .genesis_root
+                .ok_or(anyhow!("genesis_root_hash required for genesis"))?,
+            rollup_last_leaf_index: contracts_config
+                .genesis_rollup_leaf_index
+                .ok_or(anyhow!("rollup_last_leaf_index required for genesis"))?,
+            genesis_commitment: contracts_config
+                .genesis_batch_commitment
+                .ok_or(anyhow!("genesis_commitment required for genesis"))?,
+            base_system_contracts_hashes: BaseSystemContractsHashes {
+                bootloader: state_keeper
+                    .bootloader_hash
+                    .ok_or(anyhow!("Bootloader hash required for genesis"))?,
+                default_aa: state_keeper
+                    .default_aa_hash
+                    .ok_or(anyhow!("Default aa hash required for genesis"))?,
+            },
+            verifier_address: contracts_config.verifier_addr,
+            verifier_config: l1_verifier_config,
+            fee_account: state_keeper.fee_account_addr,
+            diamond_proxy: contracts_config.diamond_proxy_addr,
+            erc20_bridge: contracts_config.l1_erc20_bridge_proxy_addr,
+            state_transition_proxy_addr: contracts_config.state_transition_proxy_addr,
+            l1_chain_id: network_config.network.chain_id(),
+            l2_chain_id: network_config.zksync_network_id,
+        })
+    }
+
+    pub fn load_genesis_params(self) -> Result<GenesisParams, GenesisError> {
+        let base_system_contracts = BaseSystemContracts::load_from_disk();
+        let system_contracts = get_system_smart_contracts();
+
+        if self.base_system_contracts_hashes != base_system_contracts.hashes() {
+            return Err(GenesisError::BaseSystemContractsHashes(
+                base_system_contracts.hashes(),
+            ));
+        }
+
+        Ok(GenesisParams {
+            base_system_contracts: BaseSystemContracts::load_from_disk(),
+            system_contracts,
+            config: self,
+        })
+    }
+    #[cfg(test)]
+    pub(crate) fn mock() -> Self {
+        Self {
+            protocol_version: ProtocolVersionId::latest(),
+            genesis_root_hash: Default::default(),
+            rollup_last_leaf_index: 0,
+            genesis_commitment: Default::default(),
+            base_system_contracts_hashes: BaseSystemContracts::load_from_disk().hashes(),
+            verifier_address: Default::default(),
+            verifier_config: Default::default(),
+            fee_account: Default::default(),
+            diamond_proxy: Default::default(),
+            erc20_bridge: Default::default(),
+            state_transition_proxy_addr: Default::default(),
+            l1_chain_id: L1ChainId(9),
+            l2_chain_id: L2ChainId::default(),
+            set_chain_id: false,
+        }
+    }
 }
 
 impl GenesisParams {
     #[cfg(test)]
     pub(crate) fn mock() -> Self {
-        use zksync_types::system_contracts::get_system_smart_contracts;
-
         Self {
-            first_validator: Address::repeat_byte(0x01),
-            protocol_version: ProtocolVersionId::latest(),
             base_system_contracts: BaseSystemContracts::load_from_disk(),
             system_contracts: get_system_smart_contracts(),
-            first_l1_verifier_config: L1VerifierConfig::default(),
-            first_verifier_address: Address::zero(),
+            config: GenesisConfig::mock(),
         }
     }
 }
 
 pub async fn ensure_genesis_state(
     storage: &mut StorageProcessor<'_>,
-    zksync_chain_id: L2ChainId,
     genesis_params: &GenesisParams,
-) -> anyhow::Result<H256> {
+) -> Result<H256, GenesisError> {
     let mut transaction = storage.start_transaction().await?;
 
     // return if genesis block was already processed
     if !transaction.blocks_dal().is_genesis_needed().await? {
         tracing::debug!("genesis is not needed!");
-        return transaction
+        return Ok(transaction
             .blocks_dal()
             .get_l1_batch_state_root(L1BatchNumber(0))
             .await
             .context("failed fetching state root hash for genesis L1 batch")?
-            .context("genesis L1 batch hash is empty");
+            .context("genesis L1 batch hash is empty")?);
     }
 
     tracing::info!("running regenesis");
-    let GenesisParams {
-        first_validator,
-        protocol_version,
-        base_system_contracts,
-        system_contracts,
-        first_verifier_address,
-        first_l1_verifier_config,
-    } = genesis_params;
-
-    let base_system_contracts_hashes = base_system_contracts.hashes();
 
     create_genesis_l1_batch(
         &mut transaction,
-        *first_validator,
-        zksync_chain_id,
-        *protocol_version,
-        base_system_contracts,
-        system_contracts,
-        *first_l1_verifier_config,
-        *first_verifier_address,
+        genesis_params.config.fee_account,
+        genesis_params.config.l2_chain_id,
+        genesis_params.config().protocol_version,
+        genesis_params.base_system_contracts(),
+        genesis_params.system_contracts(),
+        genesis_params.config().verifier_config,
+        genesis_params.config().verifier_address,
     )
     .await?;
     tracing::info!("chain_schema_genesis is complete");
@@ -112,8 +230,8 @@ pub async fn ensure_genesis_state(
     let commitment_input = CommitmentInput::for_genesis_batch(
         genesis_root_hash,
         rollup_last_leaf_index,
-        base_system_contracts_hashes,
-        *protocol_version,
+        genesis_params.config.base_system_contracts_hashes,
+        genesis_params.config.protocol_version,
     );
     let block_commitment = L1BatchCommitment::new(commitment_input);
 
@@ -128,24 +246,17 @@ pub async fn ensure_genesis_state(
 
     transaction.commit().await?;
 
-    // We need to `println` this value because it will be used to initialize the smart contract.
-    println!("CONTRACTS_GENESIS_ROOT={:?}", genesis_root_hash);
-    println!(
-        "CONTRACTS_GENESIS_BATCH_COMMITMENT={:?}",
-        block_commitment.hash().commitment
-    );
-    println!(
-        "CONTRACTS_GENESIS_ROLLUP_LEAF_INDEX={}",
-        rollup_last_leaf_index
-    );
-    println!(
-        "CHAIN_STATE_KEEPER_BOOTLOADER_HASH={:?}",
-        base_system_contracts_hashes.bootloader
-    );
-    println!(
-        "CHAIN_STATE_KEEPER_DEFAULT_AA_HASH={:?}",
-        base_system_contracts_hashes.default_aa
-    );
+    if genesis_params.config.genesis_root_hash != genesis_root_hash {
+        return Err(GenesisError::RootHash(genesis_root_hash));
+    }
+
+    if genesis_params.config.genesis_commitment != block_commitment.hash().commitment {
+        return Err(GenesisError::Commitment(block_commitment.hash().commitment));
+    }
+
+    if genesis_params.config.rollup_last_leaf_index != rollup_last_leaf_index {
+        return Err(GenesisError::LeafIndexes(rollup_last_leaf_index));
+    }
 
     Ok(genesis_root_hash)
 }
@@ -472,17 +583,9 @@ mod tests {
         let mut conn = pool.access_storage().await.unwrap();
         conn.blocks_dal().delete_genesis().await.unwrap();
 
-        let params = GenesisParams {
-            protocol_version: ProtocolVersionId::latest(),
-            first_validator: Address::random(),
-            base_system_contracts: BaseSystemContracts::load_from_disk(),
-            system_contracts: get_system_smart_contracts(),
-            first_l1_verifier_config: L1VerifierConfig::default(),
-            first_verifier_address: Address::random(),
-        };
-        ensure_genesis_state(&mut conn, L2ChainId::from(270), &params)
-            .await
-            .unwrap();
+        let params = GenesisParams::mock();
+
+        ensure_genesis_state(&mut conn, &params).await.unwrap();
 
         assert!(!conn.blocks_dal().is_genesis_needed().await.unwrap());
         let metadata = conn
@@ -494,9 +597,7 @@ mod tests {
         assert_ne!(root_hash, H256::zero());
 
         // Check that `ensure_genesis_state()` doesn't panic on repeated runs.
-        ensure_genesis_state(&mut conn, L2ChainId::from(270), &params)
-            .await
-            .unwrap();
+        ensure_genesis_state(&mut conn, &params).await.unwrap();
     }
 
     #[tokio::test]
@@ -505,17 +606,13 @@ mod tests {
         let mut conn = pool.access_storage().await.unwrap();
         conn.blocks_dal().delete_genesis().await.unwrap();
 
-        let params = GenesisParams {
-            protocol_version: ProtocolVersionId::latest(),
-            first_validator: Address::random(),
-            base_system_contracts: BaseSystemContracts::load_from_disk(),
-            system_contracts: get_system_smart_contracts(),
-            first_l1_verifier_config: L1VerifierConfig::default(),
-            first_verifier_address: Address::random(),
-        };
-        ensure_genesis_state(&mut conn, L2ChainId::max(), &params)
-            .await
-            .unwrap();
+        let params = GenesisConfig {
+            l2_chain_id: L2ChainId::max(),
+            ..GenesisConfig::mock()
+        }
+        .load_genesis_params()
+        .unwrap();
+        ensure_genesis_state(&mut conn, &params).await.unwrap();
 
         assert!(!conn.blocks_dal().is_genesis_needed().await.unwrap());
         let metadata = conn
@@ -530,14 +627,14 @@ mod tests {
     async fn running_genesis_with_non_latest_protocol_version() {
         let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
-        let params = GenesisParams {
+        let params = GenesisConfig {
             protocol_version: ProtocolVersionId::Version10,
-            ..GenesisParams::mock()
-        };
+            ..GenesisConfig::mock()
+        }
+        .load_genesis_params()
+        .unwrap();
 
-        ensure_genesis_state(&mut conn, L2ChainId::max(), &params)
-            .await
-            .unwrap();
+        ensure_genesis_state(&mut conn, &params).await.unwrap();
         assert!(!conn.blocks_dal().is_genesis_needed().await.unwrap());
     }
 }
