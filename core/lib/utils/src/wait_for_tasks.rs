@@ -9,7 +9,6 @@ use crate::panic_extractor::try_extract_panic_message;
 #[derive(Debug)]
 pub struct ManagedTasks {
     task_handles: Vec<JoinHandle<anyhow::Result<()>>>,
-    particular_crypto_alerts: Option<Vec<String>>, // FIXME: looks unused
     tasks_allowed_to_finish: bool,
 }
 
@@ -17,7 +16,6 @@ impl ManagedTasks {
     pub fn new(task_handles: Vec<JoinHandle<anyhow::Result<()>>>) -> Self {
         Self {
             task_handles,
-            particular_crypto_alerts: None,
             tasks_allowed_to_finish: false,
         }
     }
@@ -51,28 +49,8 @@ impl ManagedTasks {
                 vlog::capture_message(&err, vlog::AlertLevel::Warning);
             }
             Err(error) => {
-                let is_panic = error.is_panic();
                 let panic_message = try_extract_panic_message(error);
-
                 tracing::info!("One of the tokio actors panicked: {panic_message}");
-
-                if is_panic {
-                    if let Some(particular_alerts) = &self.particular_crypto_alerts {
-                        let sporadic_substring_option =
-                            particular_alerts.iter().find(|error_message_substring| {
-                                panic_message.contains(*error_message_substring)
-                            });
-
-                        match sporadic_substring_option {
-                            Some(_) => {
-                                metrics::counter!("server.crypto.panics", 1, "category" => "sporadic", "panic_message" => panic_message.to_string());
-                            }
-                            None => {
-                                metrics::counter!("server.crypto.panics", 1, "category" => "non-sporadic", "panic_message" => panic_message.to_string());
-                            }
-                        }
-                    }
-                }
             }
         }
     }
@@ -91,7 +69,9 @@ impl ManagedTasks {
         let futures = self.task_handles.into_iter().map(|fut| async move {
             match fut.await {
                 Ok(Ok(())) => { /* do nothing */ }
-                Ok(Err(err)) => tracing::error!("One of actors failed during shutdown: {err:?}"),
+                Ok(Err(err)) => {
+                    tracing::error!("One of actors returned an error during shutdown: {err:?}");
+                }
                 Err(err) => tracing::error!("One of actors panicked during shutdown: {err}"),
             }
         });
