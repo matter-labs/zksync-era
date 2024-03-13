@@ -4,5 +4,5 @@ set -e
 
 cd $ZKSYNC_HOME
 
-mkdir -p ./volumes/postgres ./volumes/reth/data ./volumes/reth/logs
+mkdir -p ./volumes/postgres ./volumes/reth/data
 docker-compose --profile runner up -d --wait
