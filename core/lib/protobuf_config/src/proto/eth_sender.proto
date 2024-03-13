@@ -48,5 +48,4 @@ message GasAdjuster {
   optional uint64 internal_enforced_l1_gas_price = 6; // optional; wei?
   optional uint64 poll_period = 7; // required; s
   optional uint64 max_l1_gas_price = 8; // optional; wei?
-  optional uint64 l1_gas_per_pubdata_byte = 9; // optional; gwei
 }
