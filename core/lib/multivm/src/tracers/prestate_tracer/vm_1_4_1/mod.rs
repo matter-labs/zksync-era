@@ -1,17 +1,10 @@
-use std::{collections::HashMap, sync::Arc};
-
-use once_cell::sync::OnceCell;
 use zk_evm_1_4_1::tracing::{BeforeExecutionData, VmLocalStateData};
 use zksync_state::{StoragePtr, WriteStorage};
-use zksync_types::{
-    get_code_key, get_nonce_key, web3::signing::keccak256, AccountTreeId, Address, StorageKey,
-    StorageValue, H256, L2_ETH_TOKEN_ADDRESS,
-};
-use zksync_utils::address_to_h256;
+use zksync_types::StorageKey;
 
 use super::{
-    get_account_data, process_modified_storage_keys, process_result, Account, PrestateTracer,
-    State, StorageAccess,
+    get_account_data, process_modified_storage_keys, process_result, PrestateTracer, State,
+    StorageAccess,
 };
 use crate::{
     interface::dyn_tracers::vm_1_4_1::DynTracer,
