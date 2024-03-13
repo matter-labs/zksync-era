@@ -470,8 +470,6 @@ async fn catchup_rocksdb_cache() {
     let res = executor.execute_tx(tx.clone()).await;
     assert_executed(&res);
     executor.finish_batch().await;
-    // Wait for all background tasks to exit, otherwise we might still be holding a RocksDB lock
-    tester.wait_for_tasks().await;
 
     // Async RocksDB cache should be aware of the tx and should reject it
     let executor = tester
@@ -484,6 +482,8 @@ async fn catchup_rocksdb_cache() {
     let res = executor.execute_tx(bob.execute()).await;
     assert_executed(&res);
     executor.finish_batch().await;
+    // Wait for all background tasks to exit, otherwise we might still be holding a RocksDB lock
+    tester.wait_for_tasks().await;
 
     // Sync RocksDB storage should be aware of the tx and should reject it
     let executor = tester
