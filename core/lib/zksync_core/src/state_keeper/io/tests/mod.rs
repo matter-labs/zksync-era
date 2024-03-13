@@ -673,6 +673,7 @@ async fn miniblock_sealer_handle_parallel_processing() {
     sealer_handle.wait_for_all_commands().await;
 }
 
+/// Ensure that subsequent miniblocks that belong to the same L1 batch have different timestamps
 #[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
 async fn different_timestamp_for_miniblocks_in_same_batch(deployment_mode: DeploymentMode) {
