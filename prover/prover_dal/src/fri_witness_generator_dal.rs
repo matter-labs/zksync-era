@@ -1,7 +1,7 @@
 use std::{collections::HashMap, convert::TryFrom, time::Duration};
 
 use sqlx::Row;
-use zksync_db_connection::processor::StorageProcessor;
+use zksync_db_connection::{metrics::MethodLatency, processor::StorageProcessor};
 use zksync_types::{
     basic_fri_types::{AggregationRound, Eip4844Blobs},
     protocol_version::FriProtocolVersionId,
@@ -12,9 +12,6 @@ use zksync_types::{
 };
 
 use crate::{duration_to_naive_time, pg_interval_from_duration, ProverProcessor};
-
-// todo: uncomment
-//use crate::metrics::MethodLatency;
 
 #[derive(Debug)]
 pub struct FriWitnessGeneratorDal<'a, 'c> {
@@ -306,8 +303,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         protocol_version_id: FriProtocolVersionId,
     ) {
         {
-            // todo: uncomment
-            //let latency = MethodLatency::new("create_aggregation_jobs_fri");
+            let latency = MethodLatency::new("create_aggregation_jobs_fri");
             for (circuit_id, closed_form_inputs_url, number_of_basic_circuits) in
                 closed_form_inputs_and_urls
             {
@@ -395,7 +391,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             .await
             .unwrap();
 
-            //drop(latency);
+            drop(latency);
         }
     }
 

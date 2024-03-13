@@ -1,13 +1,10 @@
-use zksync_db_connection::instrument::InstrumentExt;
+use zksync_db_connection::{instrument::InstrumentExt, metrics::MethodLatency};
 use zksync_types::{api::en, MiniblockNumber};
 
 use crate::{
     models::storage_sync::{StorageSyncBlock, SyncBlock},
     ServerProcessor,
 };
-
-// todo: uncomment
-// use crate::metrics::MethodLatency,
 
 /// DAL subset dedicated to the EN synchronization.
 #[derive(Debug)]
@@ -88,8 +85,7 @@ impl SyncDal<'_, '_> {
         block_number: MiniblockNumber,
         include_transactions: bool,
     ) -> anyhow::Result<Option<en::SyncBlock>> {
-        // todo: uncomment
-        //let _latency = MethodLatency::new("sync_dal_sync_block");
+        let _latency = MethodLatency::new("sync_dal_sync_block");
         let Some(block) = self.sync_block_inner(block_number).await? else {
             return Ok(None);
         };

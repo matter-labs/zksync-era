@@ -1,6 +1,8 @@
 use std::{collections::HashMap, convert::TryFrom, time::Duration};
 
-use zksync_db_connection::{instrument::InstrumentExt, processor::StorageProcessor};
+use zksync_db_connection::{
+    instrument::InstrumentExt, metrics::MethodLatency, processor::StorageProcessor,
+};
 use zksync_types::{
     basic_fri_types::{AggregationRound, CircuitIdRoundTuple},
     protocol_version::FriProtocolVersionId,
@@ -9,9 +11,6 @@ use zksync_types::{
 };
 
 use crate::{duration_to_naive_time, pg_interval_from_duration, ProverProcessor};
-
-// todo: uncomment
-// use crate::metrics::MethodLatency;
 
 #[derive(Debug)]
 pub struct FriProverDal<'a, 'c> {
@@ -27,8 +26,7 @@ impl FriProverDal<'_, '_> {
         depth: u16,
         protocol_version_id: FriProtocolVersionId,
     ) {
-        // todo: uncomment
-        //let latency = MethodLatency::new("save_fri_prover_jobs");
+        let latency = MethodLatency::new("save_fri_prover_jobs");
         for (sequence_number, (circuit_id, circuit_blob_url)) in
             circuit_ids_and_urls.iter().enumerate()
         {
@@ -48,8 +46,7 @@ impl FriProverDal<'_, '_> {
             )
             .await;
         }
-        // todo: uncomment
-        //drop(latency);
+        drop(latency);
     }
 
     pub async fn get_next_job(

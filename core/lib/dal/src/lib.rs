@@ -50,6 +50,8 @@ pub mod tokens_web3_dal;
 pub mod transactions_dal;
 pub mod transactions_web3_dal;
 
+pub mod metrics;
+
 #[cfg(test)]
 mod tests;
 

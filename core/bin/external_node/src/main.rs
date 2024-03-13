@@ -33,6 +33,7 @@ use zksync_core::{
         MainNodeClient, SyncState,
     },
 };
+use zksync_dal::metrics::PostgresMetrics;
 use zksync_dal::{ConnectionPool, Server};
 use zksync_db_connection::healthcheck::ConnectionPoolHealthCheck;
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
@@ -529,9 +530,7 @@ async fn main() -> anyhow::Result<()> {
     // Start scraping Postgres metrics before store initialization as well.
     let metrics_pool = connection_pool.clone();
     let mut task_handles = vec![tokio::spawn(async move {
-        metrics_pool
-            .run_postgres_metrics_scraping(Duration::from_secs(60))
-            .await;
+        PostgresMetrics::run_scraping(metrics_pool, Duration::from_secs(60)).await;
         Ok(())
     })];
 

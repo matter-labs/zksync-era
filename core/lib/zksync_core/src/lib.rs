@@ -33,7 +33,7 @@ use zksync_config::{
     ApiConfig, ContractsConfig, DBConfig, ETHSenderConfig, PostgresConfig,
 };
 use zksync_contracts::{governance_contract, BaseSystemContracts};
-use zksync_dal::{ConnectionPool, Server};
+use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Server};
 use zksync_db_connection::healthcheck::ConnectionPoolHealthCheck;
 use zksync_eth_client::{
     clients::{PKSigningClient, QueryClient},
@@ -1021,9 +1021,7 @@ async fn add_house_keeper_to_task_futures(
 
     let pool_for_metrics = connection_pool.clone();
     task_futures.push(tokio::spawn(async move {
-        pool_for_metrics
-            .run_postgres_metrics_scraping(Duration::from_secs(60))
-            .await;
+        PostgresMetrics::run_scraping(pool_for_metrics, Duration::from_secs(60)).await;
         Ok(())
     }));
 
