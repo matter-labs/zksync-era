@@ -1,0 +1,57 @@
+{
+  "event": {
+    "location": [
+      0,
+      1
+    ],
+    "address": "0x0000000000000000000000000000000000008006",
+    "indexed_topics": [
+      "0x290afdae231a3fc0bbae8b1af63698b0a1d79b21ad17df0342dfb952fe74f8e5",
+      "0x0000000000000000000000004ab56cd027a9ac1e5408d1290e24fd4624b4e8d1",
+      "0x010001e3c92e1345fb2a4ec50f5b99c01deab45eeb81eab41d0f0ab8ff2f58b4",
+      "0x000000000000000000000000e3c0f6a36d71e4f7354a8fb319474bc7e5d822ca"
+    ],
+    "value": []
+  },
+  "list": [
+    {
+      "key": "0x5",
+      "address": "0x000000000000000000000000000000000000800d",
+      "rw_flag": false,
+      "aux_byte": 0,
+      "rollback": false,
+      "shard_id": 0,
+      "timestamp": 0,
+      "is_service": true,
+      "read_value": "0x0",
+      "written_value": "0x8006",
+      "tx_number_in_block": 1
+    },
+    {
+      "key": "0x290afdae231a3fc0bbae8b1af63698b0a1d79b21ad17df0342dfb952fe74f8e5",
+      "address": "0x000000000000000000000000000000000000800d",
+      "rw_flag": false,
+      "aux_byte": 0,
+      "rollback": false,
+      "shard_id": 0,
+      "timestamp": 0,
+      "is_service": false,
+      "read_value": "0x0",
+      "written_value": "0x4ab56cd027a9ac1e5408d1290e24fd4624b4e8d1",
+      "tx_number_in_block": 1
+    },
+    {
+      "key": "0x10001e3c92e1345fb2a4ec50f5b99c01deab45eeb81eab41d0f0ab8ff2f58b4",
+      "address": "0x000000000000000000000000000000000000800d",
+      "rw_flag": false,
+      "aux_byte": 0,
+      "rollback": false,
+      "shard_id": 0,
+      "timestamp": 0,
+      "is_service": false,
+      "read_value": "0x0",
+      "written_value": "0xe3c0f6a36d71e4f7354a8fb319474bc7e5d822ca",
+      "tx_number_in_block": 1
+    }
+  ]
+}
