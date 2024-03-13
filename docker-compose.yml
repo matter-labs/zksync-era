@@ -8,7 +8,7 @@ services:
         source: ./volumes/reth/data
         target: /rethdata
       - type: bind
-        source: ./etc/test_config/
+        source: ./etc/reth/chaindata
         target: /chaindata
 
     command: node --dev --datadir /rethdata --http --http.addr 0.0.0.0 --http.port 8545  --dev.block-time 300ms --chain /chaindata/reth_config
