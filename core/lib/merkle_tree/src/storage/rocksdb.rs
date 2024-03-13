@@ -74,15 +74,6 @@ impl RocksDBWrapper {
         Ok(Self::from(RocksDB::new(path)?))
     }
 
-    /// Creates a new wrapper, initializing RocksDB with explicit options.
-    ///
-    /// # Errors
-    ///
-    /// Propagates RocksDB I/O errors.
-    pub fn with_options(path: &Path, options: RocksDBOptions) -> Result<Self, rocksdb::Error> {
-        Ok(Self::from(RocksDB::with_options(path, options)?))
-    }
-
     /// Sets the chunk size for multi-get operations. The requested keys will be split
     /// into chunks of this size and requested in parallel using `rayon`. Setting chunk size
     /// to a large value (e.g., `usize::MAX`) will effectively disable parallelism.
