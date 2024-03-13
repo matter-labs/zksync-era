@@ -23,6 +23,10 @@ use zksync_types::{
 };
 use zksync_utils::u256_to_h256;
 
+use super::{
+    read_storage_factory::{PostgresFactory, RocksdbFactory},
+    StorageType,
+};
 use crate::{
     genesis::create_genesis_l1_batch,
     state_keeper::{
@@ -32,11 +36,6 @@ use crate::{
         AsyncRocksdbCache, BatchExecutor, MainBatchExecutor,
     },
     utils::testonly::prepare_recovery_snapshot,
-};
-
-use super::{
-    read_storage_factory::{PostgresFactory, RocksdbFactory},
-    StorageType,
 };
 
 const DEFAULT_GAS_PER_PUBDATA: u32 = 10000;

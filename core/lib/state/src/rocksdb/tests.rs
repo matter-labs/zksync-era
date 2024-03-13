@@ -78,7 +78,7 @@ async fn rocksdb_storage_basics() {
 
 async fn sync_test_storage(dir: &TempDir, conn: &mut StorageProcessor<'_>) -> RocksdbStorage {
     let (_stop_sender, stop_receiver) = watch::channel(false);
-    let builder = RocksdbStorage::builder(dir.path().into())
+    let builder = RocksdbStorage::builder(dir.path())
         .await
         .expect("Failed initializing RocksDB");
     builder
@@ -120,7 +120,7 @@ async fn rocksdb_storage_syncing_fault_tolerance() {
 
     let dir = TempDir::new().expect("cannot create temporary dir for state keeper");
     let (stop_sender, stop_receiver) = watch::channel(false);
-    let mut storage = RocksdbStorage::builder(dir.path().into())
+    let mut storage = RocksdbStorage::builder(dir.path())
         .await
         .expect("Failed initializing RocksDB");
     let mut expected_l1_batch_number = L1BatchNumber(0);
@@ -138,7 +138,7 @@ async fn rocksdb_storage_syncing_fault_tolerance() {
     assert!(storage.is_none());
 
     // Resume storage syncing and check that it completes.
-    let storage = RocksdbStorage::builder(dir.path().into())
+    let storage = RocksdbStorage::builder(dir.path())
         .await
         .expect("Failed initializing RocksDB");
     assert_eq!(storage.l1_batch_number().await, Some(L1BatchNumber(3)));
