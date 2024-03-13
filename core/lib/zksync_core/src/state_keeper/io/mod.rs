@@ -70,7 +70,7 @@ pub struct L1BatchParams {
     pub(crate) operator_address: Address,
     /// Fee parameters to be used in the new L1 batch.
     pub(crate) fee_input: BatchFeeInput,
-    /// Paramerers of the first miniblock in the batch.
+    /// Parameters of the first miniblock in the batch.
     pub(crate) first_miniblock: MiniblockParams,
 }
 
