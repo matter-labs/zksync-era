@@ -34,6 +34,11 @@ use crate::{
     utils::testonly::prepare_recovery_snapshot,
 };
 
+use super::{
+    read_storage_factory::{PostgresFactory, RocksdbFactory},
+    StorageType,
+};
+
 const DEFAULT_GAS_PER_PUBDATA: u32 = 10000;
 const CHAIN_ID: u32 = 270;
 
@@ -105,7 +110,38 @@ impl Tester {
             .await
     }
 
-    pub(super) async fn create_batch_executor_inner(
+    /// Creates a batch executor instance with the specified storage type.
+    pub(super) async fn create_batch_executor_custom(
+        &self,
+        storage_type: &StorageType,
+    ) -> BatchExecutorHandle {
+        let (l1_batch_env, system_env) = self.default_batch_params();
+        match storage_type {
+            StorageType::AsyncRocksdbCache => self.create_batch_executor().await,
+            StorageType::Rocksdb => {
+                self.create_batch_executor_inner(
+                    Arc::new(RocksdbFactory::new(
+                        self.pool(),
+                        self.state_keeper_db_path(),
+                        self.enum_index_migration_chunk_size(),
+                    )),
+                    l1_batch_env,
+                    system_env,
+                )
+                .await
+            }
+            StorageType::Postgres => {
+                self.create_batch_executor_inner(
+                    Arc::new(PostgresFactory::new(self.pool())),
+                    l1_batch_env,
+                    system_env,
+                )
+                .await
+            }
+        }
+    }
+
+    async fn create_batch_executor_inner(
         &self,
         storage_factory: Arc<dyn ReadStorageFactory>,
         l1_batch_env: L1BatchEnv,
@@ -140,7 +176,35 @@ impl Tester {
             .await
     }
 
-    pub(super) async fn recover_batch_executor_inner(
+    pub(super) async fn recover_batch_executor_custom(
+        &self,
+        storage_type: &StorageType,
+        snapshot: &SnapshotRecoveryStatus,
+    ) -> BatchExecutorHandle {
+        match storage_type {
+            StorageType::AsyncRocksdbCache => self.recover_batch_executor(snapshot).await,
+            StorageType::Rocksdb => {
+                self.recover_batch_executor_inner(
+                    Arc::new(RocksdbFactory::new(
+                        self.pool(),
+                        self.state_keeper_db_path(),
+                        self.enum_index_migration_chunk_size(),
+                    )),
+                    snapshot,
+                )
+                .await
+            }
+            StorageType::Postgres => {
+                self.recover_batch_executor_inner(
+                    Arc::new(PostgresFactory::new(self.pool())),
+                    snapshot,
+                )
+                .await
+            }
+        }
+    }
+
+    async fn recover_batch_executor_inner(
         &self,
         storage_factory: Arc<dyn ReadStorageFactory>,
         snapshot: &SnapshotRecoveryStatus,

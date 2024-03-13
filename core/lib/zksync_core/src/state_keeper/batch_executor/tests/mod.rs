@@ -1,19 +1,11 @@
-use std::sync::Arc;
-
 use assert_matches::assert_matches;
 use test_casing::{cases, test_casing, TestCases};
 use zksync_dal::ConnectionPool;
 use zksync_test_account::Account;
-use zksync_types::{
-    get_nonce_key, snapshots::SnapshotRecoveryStatus, utils::storage_key_for_eth_balance,
-    PriorityOpId,
-};
+use zksync_types::{get_nonce_key, utils::storage_key_for_eth_balance, PriorityOpId};
 
-use self::{
-    read_storage_factory::{PostgresFactory, RocksdbFactory},
-    tester::{AccountLoadNextExecutable, StorageSnapshot, TestConfig, Tester},
-};
-use super::{BatchExecutorHandle, TxExecutionResult};
+use self::tester::{AccountLoadNextExecutable, StorageSnapshot, TestConfig, Tester};
+use super::TxExecutionResult;
 
 mod read_storage_factory;
 mod tester;
@@ -47,65 +39,6 @@ enum StorageType {
 
 impl StorageType {
     const ALL: [Self; 3] = [Self::AsyncRocksdbCache, Self::Rocksdb, Self::Postgres];
-
-    async fn create_batch_executor(&self, tester: &Tester) -> BatchExecutorHandle {
-        let (l1_batch_env, system_env) = tester.default_batch_params();
-        match self {
-            StorageType::AsyncRocksdbCache => tester.create_batch_executor().await,
-            StorageType::Rocksdb => {
-                tester
-                    .create_batch_executor_inner(
-                        Arc::new(RocksdbFactory::new(
-                            tester.pool(),
-                            tester.state_keeper_db_path(),
-                            tester.enum_index_migration_chunk_size(),
-                        )),
-                        l1_batch_env,
-                        system_env,
-                    )
-                    .await
-            }
-            StorageType::Postgres => {
-                tester
-                    .create_batch_executor_inner(
-                        Arc::new(PostgresFactory::new(tester.pool())),
-                        l1_batch_env,
-                        system_env,
-                    )
-                    .await
-            }
-        }
-    }
-
-    async fn recover_batch_executor(
-        &self,
-        tester: &Tester,
-        snapshot: &SnapshotRecoveryStatus,
-    ) -> BatchExecutorHandle {
-        match self {
-            StorageType::AsyncRocksdbCache => tester.recover_batch_executor(snapshot).await,
-            StorageType::Rocksdb => {
-                tester
-                    .recover_batch_executor_inner(
-                        Arc::new(RocksdbFactory::new(
-                            tester.pool(),
-                            tester.state_keeper_db_path(),
-                            tester.enum_index_migration_chunk_size(),
-                        )),
-                        snapshot,
-                    )
-                    .await
-            }
-            StorageType::Postgres => {
-                tester
-                    .recover_batch_executor_inner(
-                        Arc::new(PostgresFactory::new(tester.pool())),
-                        snapshot,
-                    )
-                    .await
-            }
-        }
-    }
 }
 
 /// Checks that we can successfully execute a single L2 tx in batch executor on all storage types.
@@ -117,7 +50,7 @@ async fn execute_l2_tx(storage_type: StorageType) {
     let tester = Tester::new(connection_pool);
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
-    let executor = storage_type.create_batch_executor(&tester).await;
+    let executor = tester.create_batch_executor_custom(&storage_type).await;
 
     let res = executor.execute_tx(alice.execute()).await;
     assert_executed(&res);
@@ -177,8 +110,8 @@ async fn execute_l2_tx_after_snapshot_recovery(
     let snapshot = storage_snapshot.recover(&connection_pool).await;
 
     let tester = Tester::new(connection_pool);
-    let executor = storage_type
-        .recover_batch_executor(&tester, &snapshot)
+    let executor = tester
+        .recover_batch_executor_custom(&storage_type, &snapshot)
         .await;
     let res = executor.execute_tx(alice.execute()).await;
     if mutation.is_none() {
@@ -527,7 +460,9 @@ async fn catchup_rocksdb_cache() {
     tester.fund(&[alice.address(), bob.address()]).await;
 
     // Execute a bunch of transactions to populate Postgres-based storage (note that RocksDB stays empty)
-    let executor = StorageType::Postgres.create_batch_executor(&tester).await;
+    let executor = tester
+        .create_batch_executor_custom(&StorageType::Postgres)
+        .await;
     for _ in 0..10 {
         let res = executor.execute_tx(alice.execute()).await;
         assert_executed(&res);
@@ -540,8 +475,8 @@ async fn catchup_rocksdb_cache() {
     executor.finish_batch().await;
 
     // Async RocksDB cache should be aware of the tx and should reject it
-    let executor = StorageType::AsyncRocksdbCache
-        .create_batch_executor(&tester)
+    let executor = tester
+        .create_batch_executor_custom(&StorageType::AsyncRocksdbCache)
         .await;
     let res = executor.execute_tx(tx.clone()).await;
     assert_rejected(&res);
@@ -552,7 +487,9 @@ async fn catchup_rocksdb_cache() {
     executor.finish_batch().await;
 
     // Sync RocksDB storage should be aware of the tx and should reject it
-    let executor = StorageType::Rocksdb.create_batch_executor(&tester).await;
+    let executor = tester
+        .create_batch_executor_custom(&StorageType::Rocksdb)
+        .await;
     let res = executor.execute_tx(tx).await;
     assert_rejected(&res);
 }
