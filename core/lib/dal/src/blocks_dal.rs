@@ -362,6 +362,7 @@ impl BlocksDal<'_, '_> {
         let Some(row) = sqlx::query!(
             r#"
             SELECT
+                serialized_events_queue_bytea,
                 serialized_events_queue
             FROM
                 events_queue
@@ -379,8 +380,14 @@ impl BlocksDal<'_, '_> {
             return Ok(None);
         };
 
-        let events = serde_json::from_value(row.serialized_events_queue)
-            .context("invalid value for serialized_events_queue in the DB")?;
+        let events = if let Some(serialized_events_queue_bytea) = row.serialized_events_queue_bytea
+        {
+            bincode::deserialize(&serialized_events_queue_bytea)
+                .context("invalid value for serialized_events_queue_bytea in the DB")?
+        } else {
+            serde_json::from_value(row.serialized_events_queue)
+                .context("invalid value for serialized_events_queue in the DB")?
+        };
         Ok(Some(events))
     }
 
@@ -475,8 +482,6 @@ impl BlocksDal<'_, '_> {
         // Serialization should always succeed.
         let initial_bootloader_contents = serde_json::to_value(initial_bootloader_contents)
             .expect("failed to serialize initial_bootloader_contents to JSON value");
-        let events_queue = serde_json::to_value(events_queue)
-            .expect("failed to serialize events_queue to JSON value");
         // Serialization should always succeed.
         let used_contract_hashes = serde_json::to_value(&header.used_contract_hashes)
             .expect("failed to serialize used_contract_hashes to JSON value");
@@ -560,15 +565,17 @@ impl BlocksDal<'_, '_> {
         .execute(transaction.conn())
         .await?;
 
+        let events_queue =
+            bincode::serialize(events_queue).expect("failed to serialize events_queue to bytes");
         sqlx::query!(
             r#"
             INSERT INTO
-                events_queue (l1_batch_number, serialized_events_queue)
+                events_queue (l1_batch_number, serialized_events_queue, serialized_events_queue_bytea)
             VALUES
-                ($1, $2)
+                ($1, '{}', $2)
             "#,
             i64::from(header.number.0),
-            events_queue
+            &events_queue
         )
         .execute(transaction.conn())
         .await?;
