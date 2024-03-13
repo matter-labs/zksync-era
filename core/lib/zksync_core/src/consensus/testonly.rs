@@ -9,8 +9,8 @@ use zksync_consensus_roles::validator;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::ConnectionPool;
 use zksync_types::{
-    api, snapshots::SnapshotRecoveryStatus, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
-    ProtocolVersionId, H256,
+    api, api::L1BatchDetails, snapshots::SnapshotRecoveryStatus, Address, L1BatchNumber, L2ChainId,
+    MiniblockNumber, ProtocolVersionId, H256,
 };
 use zksync_web3_decl::{
     error::{EnrichedClientError, EnrichedClientResult},
@@ -142,6 +142,13 @@ impl MainNodeClient for MockMainNodeClient {
         &self,
     ) -> EnrichedClientResult<Option<api::en::ConsensusGenesis>> {
         unimplemented!()
+    }
+
+    async fn fetch_genesis_l1_batch(&self) -> EnrichedClientResult<L1BatchDetails> {
+        Err(EnrichedClientError::custom(
+            "not implemented",
+            "fetch_genesis_l1_batch",
+        ))
     }
 }
 

@@ -163,6 +163,8 @@ fn mock_block_details(number: u32, stage: L1BatchStage) -> api::BlockDetails {
             l1_gas_price: 1,
             l2_fair_gas_price: 2,
             base_system_contracts_hashes: BaseSystemContractsHashes::default(),
+            commitment: Some(H256::zero()),
+            rollup_leaf_index: Some(2),
         },
         operator_address: Address::zero(),
         protocol_version: Some(ProtocolVersionId::default()),

@@ -28,25 +28,19 @@ use zksync_config::{
         },
         database::{MerkleTreeConfig, MerkleTreeMode},
     },
-    ApiConfig, ContractsConfig, DBConfig, ETHSenderConfig, PostgresConfig,
+    ApiConfig, ContractsConfig, DBConfig, PostgresConfig,
 };
-use zksync_contracts::{governance_contract, BaseSystemContracts};
+use zksync_contracts::governance_contract;
 use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
 use zksync_eth_client::{
     clients::{PKSigningClient, QueryClient},
-    BoundEthInterface, CallFunctionArgs, EthInterface,
+    BoundEthInterface,
 };
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_state::PostgresStorageCaches;
-use zksync_types::{
-    fee_model::FeeModelConfig,
-    protocol_version::{L1VerifierConfig, VerifierParams},
-    system_contracts::get_system_smart_contracts,
-    web3::contract::tokens::Detokenize,
-    L2ChainId, PackedEthSignature, ProtocolVersionId,
-};
+use zksync_types::{fee_model::FeeModelConfig, L2ChainId};
 
 use crate::{
     api_server::{

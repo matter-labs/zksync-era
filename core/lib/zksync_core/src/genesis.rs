@@ -11,7 +11,7 @@ use multivm::{
 use serde::{Deserialize, Serialize};
 use zksync_config::{
     configs::chain::{NetworkConfig, StateKeeperConfig},
-    ContractsConfig, ETHSenderConfig, PostgresConfig,
+    ContractsConfig,
 };
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SET_CHAIN_ID_EVENT};
 use zksync_dal::{SqlxError, StorageProcessor};
@@ -35,7 +35,7 @@ use zksync_types::{
     web3::types::{BlockNumber, FilterBuilder},
     zk_evm_types::{LogQuery, Timestamp},
     AccountTreeId, Address, L1BatchNumber, L1ChainId, L2ChainId, MiniblockNumber,
-    PackedEthSignature, ProtocolVersionId, StorageKey, StorageLog, StorageLogKind, H256,
+    ProtocolVersionId, StorageKey, StorageLog, StorageLogKind, H256,
 };
 use zksync_utils::{be_words_to_bytes, bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
 
@@ -142,7 +142,14 @@ impl GenesisConfig {
     pub fn load_genesis_params(self) -> Result<GenesisParams, GenesisError> {
         let base_system_contracts = BaseSystemContracts::load_from_disk();
         let system_contracts = get_system_smart_contracts();
+        self.into_genesis_params(base_system_contracts, system_contracts)
+    }
 
+    pub fn into_genesis_params(
+        self,
+        base_system_contracts: BaseSystemContracts,
+        system_contracts: Vec<DeployedContract>,
+    ) -> Result<GenesisParams, GenesisError> {
         if self.base_system_contracts_hashes != base_system_contracts.hashes() {
             return Err(GenesisError::BaseSystemContractsHashes(
                 base_system_contracts.hashes(),
@@ -155,6 +162,7 @@ impl GenesisConfig {
             config: self,
         })
     }
+
     #[cfg(test)]
     pub(crate) fn mock() -> Self {
         Self {

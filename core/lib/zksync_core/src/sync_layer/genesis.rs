@@ -8,7 +8,7 @@ use zksync_types::{
 };
 
 use super::client::MainNodeClient;
-use crate::genesis::{ensure_genesis_state, GenesisParams};
+use crate::genesis::{ensure_genesis_state, GenesisConfig, GenesisParams};
 
 pub async fn perform_genesis_if_needed(
     storage: &mut StorageProcessor<'_>,
@@ -47,6 +47,9 @@ async fn create_genesis_params(
     let first_validator = genesis_miniblock.operator_address;
     let base_system_contracts_hashes = genesis_miniblock.base_system_contracts_hashes;
     let protocol_version = genesis_miniblock.protocol_version;
+    let genesis_batch = client.fetch_genesis_l1_batch().await?;
+    let l1_chain_id = client.fetch_l1_chain_id().await?;
+    let (main_contract, bridge_contracts) = client.fetch_contracts().await?;
 
     // Load the list of addresses that are known to contain system contracts at any point in time.
     // Not every of these addresses is guaranteed to be present in the genesis state, but we'll iterate through
@@ -91,15 +94,29 @@ async fn create_genesis_params(
     // Use default L1 verifier config and verifier address for genesis as they are not used by EN.
     let first_l1_verifier_config = L1VerifierConfig::default();
     let first_verifier_address = Address::default();
-    todo!()
-    // Ok(GenesisParams {
-    //     protocol_version,
-    //     base_system_contracts,
-    //     system_contracts,
-    //     first_validator,
-    //     first_l1_verifier_config,
-    //     first_verifier_address,
-    // })
+    Ok(GenesisConfig {
+        protocol_version,
+        genesis_root_hash: genesis_batch
+            .base
+            .root_hash
+            .context("Genesis can't be pending")?,
+        rollup_last_leaf_index: genesis_batch
+            .rollup_last_leaf_index
+            .context("Genesis can't be pending")?,
+        genesis_commitment: genesis_batch
+            .commitment
+            .context("Genesis can't be pending")?,
+        base_system_contracts_hashes,
+        verifier_address: first_verifier_address,
+        verifier_config: first_l1_verifier_config,
+        fee_account: first_validator,
+        diamond_proxy: main_contract,
+        erc20_bridge: bridge_contracts.l1_erc20_default_bridge,
+        state_transition_proxy_addr: None,
+        l1_chain_id,
+        l2_chain_id: zksync_chain_id,
+    }
+    .into_genesis_params(base_system_contracts, system_contracts)?)
 }
 
 async fn fetch_base_system_contracts(

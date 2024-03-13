@@ -714,6 +714,8 @@ pub struct BlockDetails {
 #[serde(rename_all = "camelCase")]
 pub struct L1BatchDetails {
     pub number: L1BatchNumber,
+    pub commitment: Option<H256>,
+    pub rollup_last_leaf_index: Option<u64>,
     #[serde(flatten)]
     pub base: BlockDetailsBase,
 }
