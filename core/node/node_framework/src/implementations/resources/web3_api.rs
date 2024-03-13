@@ -1,6 +1,9 @@
 use std::sync::Arc;
 
-use zksync_core::api_server::tx_sender::{tx_sink::TxSink, TxSender};
+use zksync_core::api_server::{
+    tree::TreeApiClient,
+    tx_sender::{tx_sink::TxSink, TxSender},
+};
 
 use crate::resource::{Resource, ResourceId};
 
@@ -19,5 +22,14 @@ pub struct TxSinkResource(pub Arc<dyn TxSink>);
 impl Resource for TxSinkResource {
     fn resource_id() -> ResourceId {
         "api/tx_sink".into()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct TreeApiClientResource(pub Arc<dyn TreeApiClient>);
+
+impl Resource for TreeApiClientResource {
+    fn resource_id() -> ResourceId {
+        "api/tree_api_client".into()
     }
 }

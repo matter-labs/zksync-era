@@ -5,16 +5,14 @@ use zksync_types::{
 };
 use zksync_web3_decl::{jsonrpsee::core::RpcResult, namespaces::SnapshotsNamespaceServer};
 
-use crate::api_server::web3::{
-    backend_jsonrpsee::into_jsrpc_error, namespaces::SnapshotsNamespace,
-};
+use crate::api_server::web3::namespaces::SnapshotsNamespace;
 
 #[async_trait]
 impl SnapshotsNamespaceServer for SnapshotsNamespace {
     async fn get_all_snapshots(&self) -> RpcResult<AllSnapshots> {
         self.get_all_snapshots_impl()
             .await
-            .map_err(into_jsrpc_error)
+            .map_err(|err| self.current_method().map_err(err))
     }
 
     async fn get_snapshot_by_l1_batch_number(
@@ -23,6 +21,6 @@ impl SnapshotsNamespaceServer for SnapshotsNamespace {
     ) -> RpcResult<Option<SnapshotHeader>> {
         self.get_snapshot_by_l1_batch_number_impl(l1_batch_number)
             .await
-            .map_err(into_jsrpc_error)
+            .map_err(|err| self.current_method().map_err(err))
     }
 }

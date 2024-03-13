@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package zksync.config;
+package zksync.config.eth_watch;
 
 message ETHWatch {
   optional uint64 confirmations_for_eth_event = 1; // optional
