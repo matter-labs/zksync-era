@@ -5,7 +5,7 @@ use std::time::Instant;
 use anyhow::{anyhow, Context as _};
 use futures::{channel::mpsc, executor::block_on, SinkExt};
 use prometheus_exporter::PrometheusExporterConfig;
-use prover_dal::ConnectionPool;
+use prover_dal::{ConnectionPool, Prover};
 use structopt::StructOpt;
 use tokio::sync::watch;
 use zksync_config::{
@@ -36,6 +36,7 @@ mod utils;
 
 #[cfg(not(target_env = "msvc"))]
 use jemallocator::Jemalloc;
+use zksync_dal::Server;
 
 #[cfg(not(target_env = "msvc"))]
 #[global_allocator]
@@ -96,14 +97,14 @@ async fn main() -> anyhow::Result<()> {
         FriWitnessGeneratorConfig::from_env().context("FriWitnessGeneratorConfig::from_env()")?;
     let prometheus_config = PrometheusConfig::from_env().context("PrometheusConfig::from_env()")?;
     let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
-    let connection_pool = ConnectionPool::builder(
+    let connection_pool = ConnectionPool::<Server>::builder(
         postgres_config.master_url()?,
         postgres_config.max_connections()?,
     )
     .build()
     .await
     .context("failed to build a connection_pool")?;
-    let prover_connection_pool = ConnectionPool::singleton(postgres_config.prover_url()?)
+    let prover_connection_pool = ConnectionPool::<Prover>::singleton(postgres_config.prover_url()?)
         .build()
         .await
         .context("failed to build a prover_connection_pool")?;

@@ -4,10 +4,7 @@ use std::{future::Future, sync::Arc};
 use anyhow::Context as _;
 use local_ip_address::local_ip;
 use prometheus_exporter::PrometheusExporterConfig;
-use prover_dal::{
-    fri_prover_dal::types::{GpuProverInstanceStatus, SocketAddress},
-    ConnectionPool, Prover,
-};
+use prover_dal::{ConnectionPool, Prover};
 use tokio::{
     sync::{oneshot, watch::Receiver},
     task::JoinHandle,
@@ -22,7 +19,10 @@ use zksync_env_config::{
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_prover_fri_utils::{get_all_circuit_id_round_tuples_for, region_fetcher::get_zone};
 use zksync_queued_job_processor::JobProcessor;
-use zksync_types::basic_fri_types::CircuitIdRoundTuple;
+use zksync_types::{
+    basic_fri_types::CircuitIdRoundTuple,
+    prover_dal::{GpuProverInstanceStatus, SocketAddress},
+};
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 
 mod gpu_prover_job_processor;
@@ -33,7 +33,7 @@ mod utils;
 
 async fn graceful_shutdown(port: u16) -> anyhow::Result<impl Future<Output = ()>> {
     let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
-    let pool = ConnectionPool::singleton(postgres_config.prover_url()?)
+    let pool = ConnectionPool::<Prover>::singleton(postgres_config.prover_url()?)
         .build()
         .await
         .context("failed to build a connection pool")?;

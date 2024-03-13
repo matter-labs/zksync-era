@@ -1,10 +1,9 @@
 use anyhow::Context as _;
 use prometheus_exporter::PrometheusExporterConfig;
-use prover_dal::Prover;
+use prover_dal::{ConnectionPool, Prover};
 use reqwest::Client;
 use tokio::sync::{oneshot, watch};
 use zksync_config::configs::{FriProverGatewayConfig, ObservabilityConfig, PostgresConfig};
-use zksync_dal::ConnectionPool;
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_interface::api::{ProofGenerationDataRequest, SubmitProofRequest};

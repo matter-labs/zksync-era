@@ -2,11 +2,12 @@ use std::{sync::Arc, time::Instant};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
+use prover_dal::{Prover, StorageProcessor};
 use zkevm_test_harness::witness::recursive_aggregation::{
     compute_node_vk_commitment, create_node_witnesses,
 };
 use zksync_config::configs::FriWitnessGeneratorConfig;
-use zksync_dal::{fri_prover_dal::types::NodeAggregationJobMetadata, ConnectionPool};
+use zksync_dal::ConnectionPool;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_prover_fri_types::{
     circuit_definitions::{
@@ -24,7 +25,8 @@ use zksync_prover_fri_types::{
 };
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{
-    basic_fri_types::AggregationRound, protocol_version::FriProtocolVersionId, L1BatchNumber,
+    basic_fri_types::AggregationRound, protocol_version::FriProtocolVersionId,
+    prover_dal::NodeAggregationJobMetadata, L1BatchNumber,
 };
 use zksync_vk_setup_data_server_fri::{keystore::Keystore, utils::get_leaf_vk_params};
 
@@ -73,7 +75,7 @@ pub struct NodeAggregationWitnessGeneratorJob {
 pub struct NodeAggregationWitnessGenerator {
     config: FriWitnessGeneratorConfig,
     object_store: Arc<dyn ObjectStore>,
-    prover_connection_pool: ConnectionPool,
+    prover_connection_pool: ConnectionPool<Prover>,
     protocol_versions: Vec<FriProtocolVersionId>,
 }
 
@@ -81,7 +83,7 @@ impl NodeAggregationWitnessGenerator {
     pub async fn new(
         config: FriWitnessGeneratorConfig,
         store_factory: &ObjectStoreFactory,
-        prover_connection_pool: ConnectionPool,
+        prover_connection_pool: ConnectionPool<Prover>,
         protocol_versions: Vec<FriProtocolVersionId>,
     ) -> Self {
         Self {
@@ -280,7 +282,7 @@ pub async fn prepare_job(
 
 #[allow(clippy::too_many_arguments)]
 async fn update_database(
-    prover_connection_pool: &ConnectionPool,
+    prover_connection_pool: &ConnectionPool<Prover>,
     started_at: Instant,
     id: u32,
     block_number: L1BatchNumber,

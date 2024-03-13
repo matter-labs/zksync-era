@@ -18,7 +18,9 @@ use circuit_definitions::{
 use multivm::vm_latest::{
     constants::MAX_CYCLES_FOR_TX, HistoryDisabled, StorageOracle as VmStorageOracle,
 };
-use prover_dal::{fri_witness_generator_dal::FriWitnessJobStatus, ConnectionPool, Prover};
+use prover_dal::{
+    fri_witness_generator_dal::FriWitnessJobStatus, ConnectionPool, Prover, StorageProcessor,
+};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use zkevm_test_harness::{
