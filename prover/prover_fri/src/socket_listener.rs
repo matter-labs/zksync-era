@@ -3,10 +3,7 @@ pub mod gpu_socket_listener {
     use std::{net::SocketAddr, time::Instant};
 
     use anyhow::Context as _;
-    use prover_dal::{
-        fri_prover_dal::types::{GpuProverInstanceStatus, SocketAddress},
-        ConnectionPool, Prover,
-    };
+    use prover_dal::{ConnectionPool, Prover};
     use tokio::{
         io::copy,
         net::{TcpListener, TcpStream},
@@ -14,6 +11,7 @@ pub mod gpu_socket_listener {
     };
     use zksync_object_store::bincode;
     use zksync_prover_fri_types::WitnessVectorArtifacts;
+    use zksync_types::prover_dal::{GpuProverInstanceStatus, SocketAddress};
 
     use crate::{
         metrics::METRICS,
