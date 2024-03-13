@@ -21,6 +21,7 @@ use zksync_core::{
 use zksync_env_config::FromEnv;
 use zksync_node_framework::{
     implementations::layers::{
+        commitment_generator::CommitmentGeneratorLayer,
         eth_watch::EthWatchLayer,
         fee_input::SequencerFeeInputLayer,
         healtcheck_server::HealthCheckLayer,
@@ -237,6 +238,12 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
+    fn add_commitment_generator_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(CommitmentGeneratorLayer);
+
+        Ok(self)
+    }
+
     fn build(self) -> ZkStackService {
         self.node
     }
@@ -267,6 +274,7 @@ fn main() -> anyhow::Result<()> {
         .add_tree_api_client_layer()?
         .add_http_web3_api_layer()?
         .add_ws_web3_api_layer()?
+        .add_commitment_generator_layer()?
         .build()
         .run()?;
 

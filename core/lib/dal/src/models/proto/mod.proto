@@ -24,7 +24,6 @@ message Transaction {
     ProtocolUpgradeTxCommonData protocol_upgrade = 3;
   }
   optional Execute execute = 4; // required
-  optional uint64 received_timestamp_ms = 5; // required
   optional bytes raw_bytes = 6; // optional
 }
 
