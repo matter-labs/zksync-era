@@ -138,8 +138,10 @@ impl error::Error for DeserializeError {}
 /// Error accessing a specific tree version.
 #[derive(Debug)]
 pub struct NoVersionError {
-    pub(crate) missing_version: u64,
-    pub(crate) version_count: u64,
+    /// Missing requested version of the tree.
+    pub missing_version: u64,
+    /// Current number of versions in the tree.
+    pub version_count: u64,
 }
 
 impl fmt::Display for NoVersionError {
@@ -151,12 +153,12 @@ impl fmt::Display for NoVersionError {
         if missing_version >= version_count {
             write!(
                 formatter,
-                "Version {missing_version} does not exist in Merkle tree; it has {version_count} versions"
+                "version {missing_version} does not exist in Merkle tree; it has {version_count} versions"
             )
         } else {
             write!(
                 formatter,
-                "Version {missing_version} was pruned from Merkle tree"
+                "version {missing_version} was pruned from Merkle tree"
             )
         }
     }

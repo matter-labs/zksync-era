@@ -2,6 +2,7 @@ use std::{sync::Arc, time::Instant};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
+use circuit_sequencer_api::proof::FinalProof;
 use tokio::task::JoinHandle;
 use zkevm_test_harness::proof_wrapper_utils::{wrap_proof, WrapperConfig};
 use zkevm_test_harness_1_3_3::{
@@ -62,7 +63,7 @@ impl ProofCompressor {
         proof: ZkSyncRecursionLayerProof,
         compression_mode: u8,
         verify_wrapper_proof: bool,
-    ) -> anyhow::Result<Proof<Bn256, ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>>> {
+    ) -> anyhow::Result<FinalProof> {
         let keystore = Keystore::default();
         let scheduler_vk = keystore
             .load_recursive_layer_verification_key(
@@ -74,13 +75,15 @@ impl ProofCompressor {
         let (wrapper_proof, _) = wrap_proof(proof, scheduler_vk, config);
         let inner = wrapper_proof.into_inner();
         // (Re)serialization should always succeed.
-        // TODO: is that true here?
         let serialized = bincode::serialize(&inner)
             .expect("Failed to serialize proof with ZkSyncSnarkWrapperCircuit");
-        let proof: Proof<Bn256, ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>> =
-            bincode::deserialize(&serialized)
-                .expect("Failed to deserialize proof with ZkSyncCircuit");
+
         if verify_wrapper_proof {
+            // If we want to verify the proof, we have to deserialize it, with proper type.
+            // So that we can pass it into `from_proof_and_numeric_type` method below.
+            let proof: Proof<Bn256, ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>> =
+                bincode::deserialize(&serialized)
+                    .expect("Failed to deserialize proof with ZkSyncCircuit");
             // We're fetching the key as String and deserializing it here
             // as we don't want to include the old version of prover in the main libraries.
             let existing_vk_serialized = keystore
@@ -97,7 +100,12 @@ impl ProofCompressor {
                 false => anyhow::bail!("Compressed proof verification failed "),
             }
         }
-        Ok(proof)
+
+        // For sending to L1, we can use the `FinalProof` type, that has a generic circuit inside, that is not used for serialization.
+        // So `FinalProof` and `Proof<Bn256, ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>>` are compatible on serialization bytecode level.
+        let final_proof: FinalProof =
+            bincode::deserialize(&serialized).expect("Failed to deserialize final proof");
+        Ok(final_proof)
     }
 
     fn aux_output_witness_to_array(
@@ -119,7 +127,7 @@ impl ProofCompressor {
 impl JobProcessor for ProofCompressor {
     type Job = ZkSyncRecursionLayerProof;
     type JobId = L1BatchNumber;
-    type JobArtifacts = Proof<Bn256, ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>>;
+    type JobArtifacts = FinalProof;
     const SERVICE_NAME: &'static str = "ProofCompressor";
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
@@ -189,7 +197,7 @@ impl JobProcessor for ProofCompressor {
         &self,
         job_id: Self::JobId,
         started_at: Instant,
-        artifacts: Proof<Bn256, ZkSyncCircuit<Bn256, VmWitnessOracle<Bn256>>>,
+        artifacts: FinalProof,
     ) -> anyhow::Result<()> {
         METRICS.compression_time.observe(started_at.elapsed());
         tracing::info!(
