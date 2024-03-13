@@ -36,7 +36,7 @@ impl FromEnv for MempoolConfig {
 
 #[cfg(test)]
 mod tests {
-    use zksync_basic_types::L2ChainId;
+    use zksync_basic_types::{L2ChainId, U256};
     use zksync_config::configs::chain::FeeModelVersion;
 
     use super::*;
@@ -81,7 +81,7 @@ mod tests {
             reject_tx_at_geometry_percentage: 0.3,
             fee_account_addr: addr("de03a0B5963f75f1C8485B355fF6D30f3093BDE7"),
             reject_tx_at_gas_percentage: 0.5,
-            minimal_l2_gas_price: 100000000,
+            minimal_l2_gas_price: U256::from(100000000),
             compute_overhead_part: 0.0,
             pubdata_overhead_part: 1.0,
             batch_overhead_l1_gas: 800_000,

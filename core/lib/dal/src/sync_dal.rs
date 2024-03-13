@@ -55,7 +55,7 @@ impl SyncDal<'_, '_> {
                 miniblocks.virtual_blocks,
                 miniblocks.hash,
                 miniblocks.protocol_version AS "protocol_version!",
-                miniblocks.fee_account_address AS "fee_account_address!"
+                miniblocks.fee_account_address
             FROM
                 miniblocks
             WHERE
@@ -109,7 +109,7 @@ mod tests {
     use zksync_types::{
         block::{L1BatchHeader, MiniblockHeader},
         fee::TransactionExecutionMetrics,
-        Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId, Transaction,
+        Address, L1BatchNumber, ProtocolVersion, ProtocolVersionId, Transaction, U256,
     };
 
     use super::*;
@@ -200,7 +200,7 @@ mod tests {
             miniblock_header.batch_fee_input.l1_gas_price()
         );
         assert_eq!(
-            block.l2_fair_gas_price,
+            U256::from(block.l2_fair_gas_price),
             miniblock_header.batch_fee_input.fair_l2_gas_price()
         );
         assert_eq!(block.operator_address, miniblock_header.fee_account_address);

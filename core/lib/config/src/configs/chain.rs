@@ -1,7 +1,7 @@
 use std::{str::FromStr, time::Duration};
 
 use serde::Deserialize;
-use zksync_basic_types::{network::Network, Address, L2ChainId};
+use zksync_basic_types::{network::Network, Address, L2ChainId, U256};
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct NetworkConfig {
@@ -84,7 +84,7 @@ pub struct StateKeeperConfig {
 
     /// The minimal acceptable L2 gas price, i.e. the price that should include the cost of computation/proving as well
     /// as potentially premium for congestion.
-    pub minimal_l2_gas_price: u64,
+    pub minimal_l2_gas_price: U256,
     /// The constant that represents the possibility that a batch can be sealed because of overuse of computation resources.
     /// It has range from 0 to 1. If it is 0, the compute will not depend on the cost for closing the batch.
     /// If it is 1, the gas limit per batch will have to cover the entire cost of closing the batch.
@@ -142,7 +142,7 @@ impl StateKeeperConfig {
             batch_overhead_l1_gas: 800_000,
             max_gas_per_batch: 200_000_000,
             max_pubdata_per_batch: 100_000,
-            minimal_l2_gas_price: 100000000,
+            minimal_l2_gas_price: U256::from(100000000),
             fee_model_version: FeeModelVersion::V2,
             validation_computational_gas_limit: 300000,
             save_call_traces: true,

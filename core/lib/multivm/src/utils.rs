@@ -9,7 +9,7 @@ use crate::vm_latest::L1BatchEnv;
 pub fn derive_base_fee_and_gas_per_pubdata(
     batch_fee_input: BatchFeeInput,
     vm_version: VmVersion,
-) -> (u64, u64) {
+) -> (U256, U256) {
     match vm_version {
         VmVersion::M5WithRefunds | VmVersion::M5WithoutRefunds => {
             crate::vm_m5::vm_with_bootloader::derive_base_fee_and_gas_per_pubdata(
@@ -52,7 +52,7 @@ pub fn derive_base_fee_and_gas_per_pubdata(
     }
 }
 
-pub fn get_batch_base_fee(l1_batch_env: &L1BatchEnv, vm_version: VmVersion) -> u64 {
+pub fn get_batch_base_fee(l1_batch_env: &L1BatchEnv, vm_version: VmVersion) -> U256 {
     match vm_version {
         VmVersion::M5WithRefunds | VmVersion::M5WithoutRefunds => {
             crate::vm_m5::vm_with_bootloader::get_batch_base_fee(l1_batch_env)
@@ -93,7 +93,7 @@ pub fn adjust_pubdata_price_for_tx(
         derive_base_fee_and_gas_per_pubdata(batch_fee_input, vm_version);
 
     if U256::from(current_gas_per_pubdata) <= desired_gas_per_pubdata
-        && U256::from(current_base_fee) <= max_base_fee
+        && current_base_fee <= max_base_fee
     {
         // gas per pubdata is already smaller than or equal to `tx_gas_per_pubdata_limit`.
         return batch_fee_input;
@@ -115,8 +115,8 @@ pub fn adjust_pubdata_price_for_tx(
                 fair_l2_gas_price * (desired_gas_per_pubdata - U256::from(1u32)) / U256::from(17);
 
             BatchFeeInput::L1Pegged(L1PeggedBatchFeeModelInput {
-                l1_gas_price: new_l1_gas_price.as_u64(),
-                fair_l2_gas_price: fair_l2_gas_price.as_u64(),
+                l1_gas_price: new_l1_gas_price,
+                fair_l2_gas_price: fair_l2_gas_price,
             })
         }
         BatchFeeInput::PubdataIndependent(fee_input) => {
@@ -134,8 +134,8 @@ pub fn adjust_pubdata_price_for_tx(
                 fair_l2_gas_price * (desired_gas_per_pubdata - U256::from(1u32));
 
             BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
-                fair_pubdata_price: new_fair_pubdata_price.as_u64(),
-                fair_l2_gas_price: fair_l2_gas_price.as_u64(),
+                fair_pubdata_price: new_fair_pubdata_price,
+                fair_l2_gas_price: fair_l2_gas_price,
                 ..fee_input
             })
         }

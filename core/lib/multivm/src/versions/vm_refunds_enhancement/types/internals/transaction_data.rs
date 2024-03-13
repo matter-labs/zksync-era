@@ -234,7 +234,7 @@ impl TransactionData {
         )
     }
 
-    pub(crate) fn trusted_ergs_limit(&self, _block_gas_price_per_pubdata: u64) -> U256 {
+    pub(crate) fn trusted_ergs_limit(&self, _block_gas_price_per_pubdata: U256) -> U256 {
         // TODO (EVM-66): correctly calculate the trusted gas limit for a transaction
         self.gas_limit
     }

@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use zksync_basic_types::U256;
 use zksync_config::configs::chain::{FeeModelVersion, StateKeeperConfig};
 use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
 
@@ -19,12 +20,12 @@ impl BatchFeeInput {
     // Sometimes for temporary usage or tests a "sensible" default, i.e. the one consisting of non-zero values is needed.
     pub fn sensible_l1_pegged_default() -> Self {
         Self::L1Pegged(L1PeggedBatchFeeModelInput {
-            l1_gas_price: 1_000_000_000,
-            fair_l2_gas_price: 100_000_000,
+            l1_gas_price: U256::from(1_000_000_000),
+            fair_l2_gas_price: U256::from(100_000_000),
         })
     }
 
-    pub fn l1_pegged(l1_gas_price: u64, fair_l2_gas_price: u64) -> Self {
+    pub fn l1_pegged(l1_gas_price: U256, fair_l2_gas_price: U256) -> Self {
         Self::L1Pegged(L1PeggedBatchFeeModelInput {
             l1_gas_price,
             fair_l2_gas_price,
@@ -32,9 +33,9 @@ impl BatchFeeInput {
     }
 
     pub fn pubdata_independent(
-        l1_gas_price: u64,
-        fair_l2_gas_price: u64,
-        fair_pubdata_price: u64,
+        l1_gas_price: U256,
+        fair_l2_gas_price: U256,
+        fair_pubdata_price: U256,
     ) -> Self {
         Self::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
             l1_gas_price,
@@ -47,8 +48,8 @@ impl BatchFeeInput {
 impl Default for BatchFeeInput {
     fn default() -> Self {
         Self::L1Pegged(L1PeggedBatchFeeModelInput {
-            l1_gas_price: 0,
-            fair_l2_gas_price: 0,
+            l1_gas_price: U256::zero(),
+            fair_l2_gas_price: U256::zero(),
         })
     }
 }
@@ -61,21 +62,21 @@ impl BatchFeeInput {
         }
     }
 
-    pub fn fair_pubdata_price(&self) -> u64 {
+    pub fn fair_pubdata_price(&self) -> U256 {
         match self {
-            BatchFeeInput::L1Pegged(input) => input.l1_gas_price * L1_GAS_PER_PUBDATA_BYTE as u64,
+            BatchFeeInput::L1Pegged(input) => input.l1_gas_price * L1_GAS_PER_PUBDATA_BYTE,
             BatchFeeInput::PubdataIndependent(input) => input.fair_pubdata_price,
         }
     }
 
-    pub fn fair_l2_gas_price(&self) -> u64 {
+    pub fn fair_l2_gas_price(&self) -> U256 {
         match self {
             BatchFeeInput::L1Pegged(input) => input.fair_l2_gas_price,
             BatchFeeInput::PubdataIndependent(input) => input.fair_l2_gas_price,
         }
     }
 
-    pub fn l1_gas_price(&self) -> u64 {
+    pub fn l1_gas_price(&self) -> U256 {
         match self {
             BatchFeeInput::L1Pegged(input) => input.l1_gas_price,
             BatchFeeInput::PubdataIndependent(input) => input.l1_gas_price,
@@ -87,7 +88,7 @@ impl BatchFeeInput {
             BatchFeeInput::PubdataIndependent(input) => input,
             BatchFeeInput::L1Pegged(input) => PubdataIndependentBatchFeeModelInput {
                 fair_l2_gas_price: input.fair_l2_gas_price,
-                fair_pubdata_price: input.l1_gas_price * L1_GAS_PER_PUBDATA_BYTE as u64,
+                fair_pubdata_price: input.l1_gas_price * L1_GAS_PER_PUBDATA_BYTE,
                 l1_gas_price: input.l1_gas_price,
             },
         }
@@ -95,9 +96,9 @@ impl BatchFeeInput {
 
     pub fn for_protocol_version(
         protocol_version: ProtocolVersionId,
-        fair_l2_gas_price: u64,
-        fair_pubdata_price: Option<u64>,
-        l1_gas_price: u64,
+        fair_l2_gas_price: U256,
+        fair_pubdata_price: Option<U256>,
+        l1_gas_price: U256,
     ) -> Self {
         if protocol_version.is_post_1_4_1() {
             Self::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
@@ -140,20 +141,20 @@ impl BatchFeeInput {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct L1PeggedBatchFeeModelInput {
     /// Fair L2 gas price to provide
-    pub fair_l2_gas_price: u64,
+    pub fair_l2_gas_price: U256,
     /// The L1 gas price to provide to the VM.
-    pub l1_gas_price: u64,
+    pub l1_gas_price: U256,
 }
 
 /// Pubdata price may be independent from L1 gas price.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PubdataIndependentBatchFeeModelInput {
     /// Fair L2 gas price to provide
-    pub fair_l2_gas_price: u64,
+    pub fair_l2_gas_price: U256,
     /// Fair pubdata price to provide.
-    pub fair_pubdata_price: u64,
+    pub fair_pubdata_price: U256,
     /// The L1 gas price to provide to the VM. Even if some of the VM versions may not use this value, it is still maintained for backward compatibility.
-    pub l1_gas_price: u64,
+    pub l1_gas_price: U256,
 }
 
 /// The enum which represents the version of the fee model. It is used to determine which fee model should be used for the batch.
@@ -176,14 +177,14 @@ pub struct FeeModelConfigV1 {
     /// The minimal acceptable L2 gas price, i.e. the price that should include the cost of computation/proving as well
     /// as potentially premium for congestion.
     /// Unlike the `V2`, this price will be directly used as the `fair_l2_gas_price` in the bootloader.
-    pub minimal_l2_gas_price: u64,
+    pub minimal_l2_gas_price: U256,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct FeeModelConfigV2 {
     /// The minimal acceptable L2 gas price, i.e. the price that should include the cost of computation/proving as well
     /// as potentially premium for congestion.
-    pub minimal_l2_gas_price: u64,
+    pub minimal_l2_gas_price: U256,
     /// The constant that represents the possibility that a batch can be sealed because of overuse of computation resources.
     /// It has range from 0 to 1. If it is 0, the compute will not depend on the cost for closing the batch.
     /// If it is 1, the gas limit per batch will have to cover the entire cost of closing the batch.
@@ -205,7 +206,7 @@ impl Default for FeeModelConfig {
     /// so we implement a sensible default config here.
     fn default() -> Self {
         Self::V1(FeeModelConfigV1 {
-            minimal_l2_gas_price: 100_000_000,
+            minimal_l2_gas_price: U256::from(100_000_000),
         })
     }
 }
@@ -231,14 +232,14 @@ impl FeeModelConfig {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct FeeParamsV1 {
     pub config: FeeModelConfigV1,
-    pub l1_gas_price: u64,
+    pub l1_gas_price: U256,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct FeeParamsV2 {
     pub config: FeeModelConfigV2,
-    pub l1_gas_price: u64,
-    pub l1_pubdata_price: u64,
+    pub l1_gas_price: U256,
+    pub l1_pubdata_price: U256,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -252,9 +253,9 @@ impl FeeParams {
     pub fn sensible_v1_default() -> Self {
         Self::V1(FeeParamsV1 {
             config: FeeModelConfigV1 {
-                minimal_l2_gas_price: 100_000_000,
+                minimal_l2_gas_price: U256::from(100_000_000),
             },
-            l1_gas_price: 1_000_000_000,
+            l1_gas_price: U256::from(1_000_000_000),
         })
     }
 }

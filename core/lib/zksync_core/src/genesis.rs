@@ -26,7 +26,7 @@ use zksync_types::{
     web3::types::{BlockNumber, FilterBuilder},
     zk_evm_types::{LogQuery, Timestamp},
     AccountTreeId, Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId,
-    StorageKey, StorageLog, StorageLogKind, H256,
+    StorageKey, StorageLog, StorageLogKind, H256, U256,
 };
 use zksync_utils::{be_words_to_bytes, bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
 
@@ -320,9 +320,9 @@ pub(crate) async fn create_genesis_l1_batch(
         l1_tx_count: 0,
         l2_tx_count: 0,
         fee_account_address: first_validator_address,
-        base_fee_per_gas: 0,
+        base_fee_per_gas: U256::zero(),
         gas_per_pubdata_limit: get_max_gas_per_pubdata_byte(protocol_version.into()),
-        batch_fee_input: BatchFeeInput::l1_pegged(0, 0),
+        batch_fee_input: BatchFeeInput::l1_pegged(U256::zero(), U256::zero()),
         base_system_contracts_hashes: base_system_contracts.hashes(),
         protocol_version: Some(protocol_version),
         virtual_blocks: 0,

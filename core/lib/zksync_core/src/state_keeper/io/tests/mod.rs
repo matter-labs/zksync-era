@@ -56,7 +56,12 @@ async fn test_filter_with_pending_batch() {
     // These gas values are random and don't matter for filter calculation as there will be a
     // pending batch the filter will be based off of.
     let tx_result = tester
-        .insert_miniblock(&connection_pool, 1, 5, BatchFeeInput::l1_pegged(55, 555))
+        .insert_miniblock(
+            &connection_pool,
+            1,
+            5,
+            BatchFeeInput::l1_pegged(U256::from(55), U256::from(555)),
+        )
         .await;
     tester
         .insert_sealed_batch(&connection_pool, 1, &[tx_result])
@@ -66,9 +71,9 @@ async fn test_filter_with_pending_batch() {
     // The gas values are randomly chosen but so affect filter values calculation.
 
     let fee_input = BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
-        l1_gas_price: 100,
-        fair_l2_gas_price: 1000,
-        fair_pubdata_price: 500,
+        l1_gas_price: U256::from(100),
+        fair_l2_gas_price: U256::from(1000),
+        fair_pubdata_price: U256::from(500),
     });
     tester.set_timestamp(2);
     tester
@@ -85,7 +90,7 @@ async fn test_filter_with_pending_batch() {
     let want_filter = L2TxFilter {
         fee_input,
         fee_per_gas: want_base_fee,
-        gas_per_pubdata: want_gas_per_pubdata as u32,
+        gas_per_pubdata: want_gas_per_pubdata.as_u32(),
     };
     assert_eq!(mempool.filter(), &want_filter);
 }
@@ -100,7 +105,12 @@ async fn test_filter_with_no_pending_batch() {
     // Insert a sealed batch so there will be a `prev_l1_batch_state_root`.
     // These gas values are random and don't matter for filter calculation.
     let tx_result = tester
-        .insert_miniblock(&connection_pool, 1, 5, BatchFeeInput::l1_pegged(55, 555))
+        .insert_miniblock(
+            &connection_pool,
+            1,
+            5,
+            BatchFeeInput::l1_pegged(U256::from(55), U256::from(555)),
+        )
         .await;
     tester
         .insert_sealed_batch(&connection_pool, 1, &[tx_result])
@@ -120,7 +130,7 @@ async fn test_filter_with_no_pending_batch() {
     // Insert a transaction that matches the expected filter.
     tester.insert_tx(
         &mut guard,
-        want_filter.fee_per_gas,
+        want_filter.fee_per_gas.as_u64(),
         want_filter.gas_per_pubdata,
     );
 
@@ -143,7 +153,12 @@ async fn test_timestamps_are_distinct(
 
     tester.set_timestamp(prev_miniblock_timestamp);
     let tx_result = tester
-        .insert_miniblock(&connection_pool, 1, 5, BatchFeeInput::l1_pegged(55, 555))
+        .insert_miniblock(
+            &connection_pool,
+            1,
+            5,
+            BatchFeeInput::l1_pegged(U256::from(55), U256::from(555)),
+        )
         .await;
     if delay_prev_miniblock_compared_to_batch {
         tester.set_timestamp(prev_miniblock_timestamp - 1);
@@ -159,7 +174,11 @@ async fn test_timestamps_are_distinct(
         ProtocolVersionId::latest().into(),
     )
     .await;
-    tester.insert_tx(&mut guard, tx_filter.fee_per_gas, tx_filter.gas_per_pubdata);
+    tester.insert_tx(
+        &mut guard,
+        tx_filter.fee_per_gas.as_u64,
+        tx_filter.gas_per_pubdata,
+    );
 
     let (_, l1_batch_env) = mempool
         .wait_for_new_batch_params(Duration::from_secs(10))
@@ -251,11 +270,11 @@ async fn processing_storage_logs_when_sealing_miniblock() {
         first_tx_index: 0,
         fee_account_address: Address::repeat_byte(0x23),
         fee_input: BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
-            l1_gas_price: 100,
-            fair_l2_gas_price: 100,
-            fair_pubdata_price: 100,
+            l1_gas_price: U256::from(100),
+            fair_l2_gas_price: U256::from(100),
+            fair_pubdata_price: U256::from(100),
         }),
-        base_fee_per_gas: 10,
+        base_fee_per_gas: U256::from(10),
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
         l2_shared_bridge_addr: Address::default(),
@@ -329,11 +348,11 @@ async fn processing_events_when_sealing_miniblock() {
         first_tx_index: 0,
         fee_account_address: Address::repeat_byte(0x23),
         fee_input: BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
-            l1_gas_price: 100,
-            fair_l2_gas_price: 100,
-            fair_pubdata_price: 100,
+            l1_gas_price: U256::from(100),
+            fair_l2_gas_price: U256::from(100),
+            fair_pubdata_price: U256::from(100),
         }),
-        base_fee_per_gas: 10,
+        base_fee_per_gas: U256::from(10),
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
         l2_shared_bridge_addr: Address::default(),

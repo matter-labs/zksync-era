@@ -7,7 +7,7 @@ use zksync_types::{
     block::BlockGasCount, fee_model::BatchFeeInput,
     storage_writes_deduplicator::StorageWritesDeduplicator,
     tx::tx_execution_info::ExecutionMetrics, vm_trace::Call, Address, L1BatchNumber,
-    MiniblockNumber, ProtocolVersionId, Transaction,
+    MiniblockNumber, ProtocolVersionId, Transaction, U256,
 };
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
@@ -28,7 +28,7 @@ pub struct UpdatesManager {
     batch_timestamp: u64,
     fee_account_address: Address,
     batch_fee_input: BatchFeeInput,
-    base_fee_per_gas: u64,
+    base_fee_per_gas: U256,
     base_system_contract_hashes: BaseSystemContractsHashes,
     protocol_version: ProtocolVersionId,
     pub l1_batch: L1BatchUpdates,
@@ -166,7 +166,7 @@ pub(crate) struct MiniblockSealCommand {
     pub first_tx_index: usize,
     pub fee_account_address: Address,
     pub fee_input: BatchFeeInput,
-    pub base_fee_per_gas: u64,
+    pub base_fee_per_gas: U256,
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
     pub protocol_version: Option<ProtocolVersionId>,
     pub l2_shared_bridge_addr: Address,

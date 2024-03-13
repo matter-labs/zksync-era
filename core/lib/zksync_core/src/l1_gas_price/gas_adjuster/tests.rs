@@ -4,6 +4,7 @@ use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
 use zksync_eth_client::clients::MockEthereum;
 
 use super::{GasAdjuster, GasStatisticsInner};
+use crate::native_token_fetcher::NoOpConversionRateFetcher;
 
 /// Check that we compute the median correctly
 #[test]
@@ -45,6 +46,7 @@ async fn kept_updated() {
     );
     eth_client.advance_block_number(5);
 
+    let no_op_conversion_rate_fetcher = Arc::new(NoOpConversionRateFetcher::new());
     let adjuster = GasAdjuster::new(
         eth_client.clone(),
         GasAdjusterConfig {
@@ -61,6 +63,7 @@ async fn kept_updated() {
             max_blob_base_fee: None,
         },
         PubdataSendingMode::Calldata,
+        no_op_conversion_rate_fetcher,
     )
     .await
     .unwrap();

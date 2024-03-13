@@ -2,6 +2,7 @@ use std::{
     collections::HashMap,
     convert::{Into, TryInto},
     ops,
+    str::FromStr,
 };
 
 use anyhow::Context as _;
@@ -582,8 +583,8 @@ impl BlocksDal<'_, '_> {
         &mut self,
         miniblock_header: &MiniblockHeader,
     ) -> anyhow::Result<()> {
-        let base_fee_per_gas = BigDecimal::from_u64(miniblock_header.base_fee_per_gas)
-            .context("base_fee_per_gas should fit in u64")?;
+        let base_fee_per_gas =
+            BigDecimal::from_str(&miniblock_header.base_fee_per_gas.to_string())?;
 
         sqlx::query!(
             r#"
@@ -596,14 +597,14 @@ impl BlocksDal<'_, '_> {
                     l2_tx_count,
                     fee_account_address,
                     base_fee_per_gas,
-                    l1_gas_price,
-                    l2_fair_gas_price,
+                    l1_gas_price_u256,
+                    l2_fair_gas_price_u256,
                     gas_per_pubdata_limit,
                     bootloader_code_hash,
                     default_aa_code_hash,
                     protocol_version,
                     virtual_blocks,
-                    fair_pubdata_price,
+                    fair_pubdata_price_u256,
                     created_at,
                     updated_at
                 )
@@ -617,8 +618,15 @@ impl BlocksDal<'_, '_> {
             miniblock_header.l2_tx_count as i32,
             miniblock_header.fee_account_address.as_bytes(),
             base_fee_per_gas,
-            miniblock_header.batch_fee_input.l1_gas_price() as i64,
-            miniblock_header.batch_fee_input.fair_l2_gas_price() as i64,
+            BigDecimal::from_str(&miniblock_header.batch_fee_input.l1_gas_price().to_string())
+                .unwrap(),
+            BigDecimal::from_str(
+                &miniblock_header
+                    .batch_fee_input
+                    .fair_l2_gas_price()
+                    .to_string()
+            )
+            .unwrap(),
             miniblock_header.gas_per_pubdata_limit as i64,
             miniblock_header
                 .base_system_contracts_hashes
@@ -630,7 +638,13 @@ impl BlocksDal<'_, '_> {
                 .as_bytes(),
             miniblock_header.protocol_version.map(|v| v as i32),
             miniblock_header.virtual_blocks as i64,
-            miniblock_header.batch_fee_input.fair_pubdata_price() as i64,
+            BigDecimal::from_str(
+                &miniblock_header
+                    .batch_fee_input
+                    .fair_pubdata_price()
+                    .to_string()
+            )
+            .unwrap()
         )
         .execute(self.storage.conn())
         .await?;
@@ -640,8 +654,7 @@ impl BlocksDal<'_, '_> {
     pub async fn get_last_sealed_miniblock_header(
         &mut self,
     ) -> sqlx::Result<Option<MiniblockHeader>> {
-        let header = sqlx::query_as!(
-            StorageMiniblockHeader,
+        let header = sqlx::query_as::<_, StorageMiniblockHeader>(
             r#"
             SELECT
                 number,
@@ -649,16 +662,16 @@ impl BlocksDal<'_, '_> {
                 hash,
                 l1_tx_count,
                 l2_tx_count,
-                fee_account_address AS "fee_account_address!",
+                fee_account_address,
                 base_fee_per_gas,
-                l1_gas_price,
-                l2_fair_gas_price,
+                l1_gas_price_u256,
+                l2_fair_gas_price_u256,
                 gas_per_pubdata_limit,
                 bootloader_code_hash,
                 default_aa_code_hash,
                 protocol_version,
                 virtual_blocks,
-                fair_pubdata_price
+                fair_pubdata_price_u256
             FROM
                 miniblocks
             ORDER BY
@@ -686,8 +699,7 @@ impl BlocksDal<'_, '_> {
         &mut self,
         miniblock_number: MiniblockNumber,
     ) -> sqlx::Result<Option<MiniblockHeader>> {
-        let header = sqlx::query_as!(
-            StorageMiniblockHeader,
+        let header = sqlx::query_as::<_, StorageMiniblockHeader>(
             r#"
             SELECT
                 number,
@@ -695,23 +707,23 @@ impl BlocksDal<'_, '_> {
                 hash,
                 l1_tx_count,
                 l2_tx_count,
-                fee_account_address AS "fee_account_address!",
+                fee_account_address,
                 base_fee_per_gas,
-                l1_gas_price,
-                l2_fair_gas_price,
+                l1_gas_price_u256,
+                l2_fair_gas_price_u256,
                 gas_per_pubdata_limit,
                 bootloader_code_hash,
                 default_aa_code_hash,
                 protocol_version,
                 virtual_blocks,
-                fair_pubdata_price
+                fair_pubdata_price_u256
             FROM
                 miniblocks
             WHERE
                 number = $1
             "#,
-            miniblock_number.0 as i64,
         )
+        .bind(miniblock_number.0 as i64)
         .fetch_optional(self.storage.conn())
         .await?;
 
@@ -917,8 +929,7 @@ impl BlocksDal<'_, '_> {
         &mut self,
     ) -> anyhow::Result<Option<L1BatchWithMetadata>> {
         // We can get 0 block for the first transaction
-        let block = sqlx::query_as!(
-            StorageL1Batch,
+        let block = sqlx::query_as::<_, StorageL1Batch>(
             r#"
             SELECT
                 number,
@@ -1218,8 +1229,7 @@ impl BlocksDal<'_, '_> {
             .context("get_last_l1_batch_with_prove_tx()")?;
         // Witness jobs can be processed out of order, so `WHERE l1_batches.number - row_number = $1`
         // is used to avoid having gaps in the list of blocks to send dummy proofs for.
-        let raw_batches = sqlx::query_as!(
-            StorageL1Batch,
+        let raw_batches = sqlx::query_as::<_, StorageL1Batch>(
             r#"
             SELECT
                 number,
@@ -1276,9 +1286,9 @@ impl BlocksDal<'_, '_> {
             WHERE
                 number - ROW_NUMBER = $1
             "#,
-            last_proved_block_number.0 as i32,
-            limit as i32
         )
+        .bind(last_proved_block_number.0 as i32)
+        .bind(limit as i32)
         .instrument("get_skipped_for_proof_l1_batches")
         .with_arg("limit", &limit)
         .fetch_all(self.storage)
@@ -1296,8 +1306,7 @@ impl BlocksDal<'_, '_> {
     ) -> anyhow::Result<Vec<L1BatchWithMetadata>> {
         let raw_batches = match max_l1_batch_timestamp_millis {
             None => {
-                sqlx::query_as!(
-                    StorageL1Batch,
+                sqlx::query_as::<_, StorageL1Batch>(
                     r#"
                     SELECT
                         number,
@@ -1342,8 +1351,8 @@ impl BlocksDal<'_, '_> {
                     LIMIT
                         $1
                     "#,
-                    limit as i32,
                 )
+                .bind(limit as i32)
                 .instrument("get_ready_for_execute_l1_batches/no_max_timestamp")
                 .with_arg("limit", &limit)
                 .fetch_all(self.storage)
@@ -1426,8 +1435,7 @@ impl BlocksDal<'_, '_> {
             // If we found at least one ready to execute batch then we can simply return all blocks between
             // the expected started point and the max ready to send block because we send them to the L1 sequentially.
             assert!(max_ready_to_send_block >= expected_started_point);
-            sqlx::query_as!(
-                StorageL1Batch,
+            sqlx::query_as::<_, StorageL1Batch>(
                 r#"
                 SELECT
                     number,
@@ -1471,10 +1479,10 @@ impl BlocksDal<'_, '_> {
                 LIMIT
                     $3
                 "#,
-                expected_started_point as i32,
-                max_ready_to_send_block,
-                limit as i32,
             )
+            .bind(expected_started_point as i32)
+            .bind(max_ready_to_send_block)
+            .bind(limit as i32)
             .instrument("get_ready_for_execute_l1_batches")
             .with_arg(
                 "numbers",
@@ -1495,8 +1503,7 @@ impl BlocksDal<'_, '_> {
         default_aa_hash: H256,
         protocol_version_id: ProtocolVersionId,
     ) -> anyhow::Result<Vec<L1BatchWithMetadata>> {
-        let raw_batches = sqlx::query_as!(
-            StorageL1Batch,
+        let raw_batches = sqlx::query_as::<_, StorageL1Batch>(
             r#"
             SELECT
                 number,
@@ -1549,11 +1556,11 @@ impl BlocksDal<'_, '_> {
             LIMIT
                 $4
             "#,
-            bootloader_hash.as_bytes(),
-            default_aa_hash.as_bytes(),
-            protocol_version_id as i32,
-            limit as i64,
         )
+        .bind(bootloader_hash.as_bytes())
+        .bind(default_aa_hash.as_bytes())
+        .bind(protocol_version_id as i32)
+        .bind(limit as i64)
         .instrument("get_ready_for_commit_l1_batches")
         .with_arg("limit", &limit)
         .with_arg("bootloader_hash", &bootloader_hash)
@@ -1574,8 +1581,7 @@ impl BlocksDal<'_, '_> {
         default_aa_hash: H256,
         protocol_version_id: ProtocolVersionId,
     ) -> anyhow::Result<Vec<L1BatchWithMetadata>> {
-        let raw_batches = sqlx::query_as!(
-            StorageL1Batch,
+        let raw_batches = sqlx::query_as::<_, StorageL1Batch>(
             r#"
             SELECT
                 number,
@@ -1630,11 +1636,11 @@ impl BlocksDal<'_, '_> {
             LIMIT
                 $4
             "#,
-            bootloader_hash.as_bytes(),
-            default_aa_hash.as_bytes(),
-            protocol_version_id as i32,
-            limit as i64,
         )
+        .bind(bootloader_hash.as_bytes())
+        .bind(default_aa_hash.as_bytes())
+        .bind(protocol_version_id as i32)
+        .bind(limit as i64)
         .instrument("get_ready_for_commit_l1_batches")
         .with_arg("limit", &limit)
         .with_arg("bootloader_hash", &bootloader_hash)

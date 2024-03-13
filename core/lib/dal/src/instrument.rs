@@ -239,6 +239,21 @@ where
     A: 'q + IntoArguments<'q, Postgres>,
     O: Send + Unpin + for<'r> FromRow<'r, PgRow>,
 {
+    /// Fetches an optional row using this query.
+    pub async fn fetch_optional(
+        self,
+        storage: &mut StorageProcessor<'_>,
+    ) -> sqlx::Result<Option<O>> {
+        let (conn, tags) = storage.conn_and_tags();
+        self.data.fetch(tags, self.query.fetch_optional(conn)).await
+    }
+
+    /// Fetches a single row using this query.
+    pub async fn fetch_one(self, storage: &mut StorageProcessor<'_>) -> sqlx::Result<O> {
+        let (conn, tags) = storage.conn_and_tags();
+        self.data.fetch(tags, self.query.fetch_one(conn)).await
+    }
+
     /// Fetches all rows using this query and collects them into a `Vec`.
     pub async fn fetch_all(self, storage: &mut StorageProcessor<'_>) -> sqlx::Result<Vec<O>> {
         let (conn, tags) = storage.conn_and_tags();

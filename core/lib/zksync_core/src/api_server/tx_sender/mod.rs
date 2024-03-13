@@ -419,7 +419,7 @@ impl TxSender {
             );
             return Err(SubmitTxError::GasLimitIsTooBig);
         }
-        if tx.common_data.fee.max_fee_per_gas < fee_input.fair_l2_gas_price().into() {
+        if tx.common_data.fee.max_fee_per_gas < fee_input.fair_l2_gas_price() {
             tracing::info!(
                 "Submitted Tx is Unexecutable {:?} because of MaxFeePerGasTooLow {}",
                 tx.hash(),
@@ -566,7 +566,7 @@ impl TxSender {
         gas_price_per_pubdata: u32,
         fee_model_params: BatchFeeInput,
         block_args: BlockArgs,
-        base_fee: u64,
+        base_fee: U256,
         vm_version: VmVersion,
     ) -> anyhow::Result<(VmExecutionResultAndLogs, TransactionExecutionMetrics)> {
         let gas_limit_with_overhead = tx_gas_limit
@@ -672,14 +672,14 @@ impl TxSender {
             derive_base_fee_and_gas_per_pubdata(fee_input, protocol_version.into());
         match &mut tx.common_data {
             ExecuteTransactionCommon::L2(common_data) => {
-                common_data.fee.max_fee_per_gas = base_fee.into();
-                common_data.fee.max_priority_fee_per_gas = base_fee.into();
+                common_data.fee.max_fee_per_gas = base_fee;
+                common_data.fee.max_priority_fee_per_gas = base_fee;
             }
             ExecuteTransactionCommon::L1(common_data) => {
-                common_data.max_fee_per_gas = base_fee.into();
+                common_data.max_fee_per_gas = base_fee;
             }
             ExecuteTransactionCommon::ProtocolUpgrade(common_data) => {
-                common_data.max_fee_per_gas = base_fee.into();
+                common_data.max_fee_per_gas = base_fee;
             }
         }
 
@@ -742,7 +742,7 @@ impl TxSender {
                     "exceeds limit for published pubdata".to_string(),
                 ));
             }
-            pubdata_for_factory_deps * (gas_per_pubdata_byte as u32)
+            pubdata_for_factory_deps * gas_per_pubdata_byte.as_u32()
         };
 
         // We are using binary search to find the minimal values of gas_limit under which
@@ -773,7 +773,7 @@ impl TxSender {
                     vm_permit.clone(),
                     tx.clone(),
                     try_gas_limit,
-                    gas_per_pubdata_byte as u32,
+                    gas_per_pubdata_byte.as_u32(),
                     fee_input,
                     block_args,
                     base_fee,
@@ -813,7 +813,7 @@ impl TxSender {
                 vm_permit,
                 tx.clone(),
                 suggested_gas_limit,
-                gas_per_pubdata_byte as u32,
+                gas_per_pubdata_byte.as_u32(),
                 fee_input,
                 block_args,
                 base_fee,
@@ -834,7 +834,7 @@ impl TxSender {
         {
             derive_pessimistic_overhead(
                 suggested_gas_limit,
-                gas_per_pubdata_byte as u32,
+                gas_per_pubdata_byte.as_u32(),
                 tx.encoding_len(),
                 tx.tx_format() as u8,
                 protocol_version.into(),
@@ -842,7 +842,7 @@ impl TxSender {
         } else {
             derive_overhead(
                 suggested_gas_limit,
-                gas_per_pubdata_byte as u32,
+                gas_per_pubdata_byte.as_u32(),
                 tx.encoding_len(),
                 tx.tx_format() as u8,
                 protocol_version.into(),
@@ -861,10 +861,10 @@ impl TxSender {
             };
 
         Ok(Fee {
-            max_fee_per_gas: base_fee.into(),
+            max_fee_per_gas: base_fee,
             max_priority_fee_per_gas: 0u32.into(),
             gas_limit: full_gas_limit.into(),
-            gas_per_pubdata_limit: gas_per_pubdata_byte.into(),
+            gas_per_pubdata_limit: gas_per_pubdata_byte,
         })
     }
 
@@ -892,7 +892,7 @@ impl TxSender {
             .into_api_call_result()
     }
 
-    pub async fn gas_price(&self) -> anyhow::Result<u64> {
+    pub async fn gas_price(&self) -> anyhow::Result<U256> {
         let mut connection = self.acquire_replica_connection().await?;
         let protocol_version = pending_protocol_version(&mut connection)
             .await

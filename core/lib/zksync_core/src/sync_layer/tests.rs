@@ -20,7 +20,7 @@ use zksync_types::{
     block::MiniblockHasher,
     fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
     snapshots::SnapshotRecoveryStatus,
-    Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, Transaction, H256,
+    Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, Transaction, H256, U256,
 };
 
 use super::{sync_action::SyncAction, *};
@@ -44,9 +44,9 @@ fn open_l1_batch(number: u32, timestamp: u64, first_miniblock_number: u32) -> Sy
     SyncAction::OpenBatch {
         number: L1BatchNumber(number),
         timestamp,
-        l1_gas_price: 2,
-        l2_fair_gas_price: 3,
-        fair_pubdata_price: Some(4),
+        l1_gas_price: U256::from(2),
+        l2_fair_gas_price: U256::from(3),
+        fair_pubdata_price: Some(U256::from(4)),
         operator_address: OPERATOR_ADDRESS,
         protocol_version: ProtocolVersionId::latest(),
         first_miniblock_info: (MiniblockNumber(first_miniblock_number), 1),
@@ -215,9 +215,9 @@ async fn external_io_basics(snapshot_recovery: bool) {
 
     let expected_fee_input =
         BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
-            fair_l2_gas_price: 3,
-            fair_pubdata_price: 4,
-            l1_gas_price: 2,
+            fair_l2_gas_price: U256::from(3),
+            fair_pubdata_price: U256::from(4),
+            l1_gas_price: U256::from(2),
         });
 
     assert_eq!(miniblock.batch_fee_input, expected_fee_input);

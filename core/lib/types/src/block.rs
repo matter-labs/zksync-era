@@ -68,8 +68,7 @@ pub struct MiniblockHeader {
     pub l1_tx_count: u16,
     pub l2_tx_count: u16,
     pub fee_account_address: Address,
-    pub base_fee_per_gas: u64, // Min wei per gas that txs in this miniblock need to have.
-
+    pub base_fee_per_gas: U256, // Min wei per gas that txs in this miniblock need to have.
     pub batch_fee_input: BatchFeeInput,
     pub gas_per_pubdata_limit: u64,
     pub base_system_contracts_hashes: BaseSystemContractsHashes,

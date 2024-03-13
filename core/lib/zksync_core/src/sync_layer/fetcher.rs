@@ -5,7 +5,7 @@ use tokio::sync::watch;
 use zksync_dal::StorageProcessor;
 use zksync_types::{
     api::en::SyncBlock, block::MiniblockHasher, Address, L1BatchNumber, MiniblockNumber,
-    ProtocolVersionId, H256,
+    ProtocolVersionId, H256, U256,
 };
 use zksync_web3_decl::{error::EnrichedClientError, jsonrpsee::core::ClientError as RpcError};
 
@@ -32,9 +32,9 @@ pub(crate) struct FetchedBlock {
     pub protocol_version: ProtocolVersionId,
     pub timestamp: u64,
     pub reference_hash: Option<H256>,
-    pub l1_gas_price: u64,
-    pub l2_fair_gas_price: u64,
-    pub fair_pubdata_price: Option<u64>,
+    pub l1_gas_price: U256,
+    pub l2_fair_gas_price: U256,
+    pub fair_pubdata_price: Option<U256>,
     pub virtual_blocks: u32,
     pub operator_address: Address,
     pub transactions: Vec<zksync_types::Transaction>,

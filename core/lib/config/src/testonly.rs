@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use rand::{distributions::Alphanumeric, Rng};
 use zksync_basic_types::{
-    basic_fri_types::CircuitIdRoundTuple, network::Network, Address, L2ChainId, H256,
+    basic_fri_types::CircuitIdRoundTuple, network::Network, Address, L2ChainId, H256, U256,
 };
 
 use crate::configs::{self, eth_sender::PubdataSendingMode};
@@ -109,6 +109,17 @@ impl RandomConfig for f64 {
 impl RandomConfig for usize {
     fn sample(g: &mut Gen<impl Rng>) -> Self {
         g.rng.gen()
+    }
+}
+
+impl RandomConfig for U256 {
+    fn sample(g: &mut Gen<impl Rng>) -> Self {
+        let first_limb = g.rng.gen();
+        let second_limb = g.rng.gen();
+        let third_limb = g.rng.gen();
+        let fourth_limb = g.rng.gen();
+
+        U256([first_limb, second_limb, third_limb, fourth_limb])
     }
 }
 

@@ -1,6 +1,8 @@
 #[cfg(test)]
 mod tests;
 
+use std::str::FromStr;
+
 use anyhow::{anyhow, Context as _};
 use zksync_consensus_roles::validator;
 use zksync_protobuf::{required, ProtoFmt, ProtoRepr};
@@ -11,7 +13,7 @@ use zksync_types::{
     protocol_version::ProtocolUpgradeTxCommonData,
     transaction_request::PaymasterParams,
     Address, Execute, ExecuteTransactionCommon, InputData, L1BatchNumber, L1TxCommonData,
-    L2TxCommonData, Nonce, PriorityOpId, ProtocolVersionId, Transaction, H256,
+    L2TxCommonData, Nonce, PriorityOpId, ProtocolVersionId, Transaction, H256, U256,
 };
 use zksync_utils::{h256_to_u256, u256_to_h256};
 
@@ -24,9 +26,9 @@ pub struct Payload {
     pub hash: H256,
     pub l1_batch_number: L1BatchNumber,
     pub timestamp: u64,
-    pub l1_gas_price: u64,
-    pub l2_fair_gas_price: u64,
-    pub fair_pubdata_price: Option<u64>,
+    pub l1_gas_price: U256,
+    pub l2_fair_gas_price: U256,
+    pub fair_pubdata_price: Option<U256>,
     pub virtual_blocks: u32,
     pub operator_address: Address,
     pub transactions: Vec<Transaction>,
@@ -53,10 +55,21 @@ impl ProtoFmt for Payload {
                 *required(&message.l1_batch_number).context("l1_batch_number")?,
             ),
             timestamp: *required(&message.timestamp).context("timestamp")?,
-            l1_gas_price: *required(&message.l1_gas_price).context("l1_gas_price")?,
-            l2_fair_gas_price: *required(&message.l2_fair_gas_price)
-                .context("l2_fair_gas_price")?,
-            fair_pubdata_price: message.fair_pubdata_price,
+            l1_gas_price: U256::from_str(
+                &*required(&message.l1_gas_price)
+                    .context("l1_gas_price")?
+                    .to_string(),
+            )?,
+            l2_fair_gas_price: U256::from_str(
+                &*required(&message.l2_fair_gas_price)
+                    .context("l2_fair_gas_price")?
+                    .to_string(),
+            )?,
+            fair_pubdata_price: if let Some(price_string) = message.fair_pubdata_price.clone() {
+                Some(U256::from_str(&price_string)?)
+            } else {
+                None
+            },
             virtual_blocks: *required(&message.virtual_blocks).context("virtual_blocks")?,
             operator_address: required(&message.operator_address)
                 .and_then(|a| parse_h160(a))
@@ -72,9 +85,13 @@ impl ProtoFmt for Payload {
             hash: Some(self.hash.as_bytes().into()),
             l1_batch_number: Some(self.l1_batch_number.0),
             timestamp: Some(self.timestamp),
-            l1_gas_price: Some(self.l1_gas_price),
-            l2_fair_gas_price: Some(self.l2_fair_gas_price),
-            fair_pubdata_price: self.fair_pubdata_price,
+            l1_gas_price: Some(self.l1_gas_price.to_string()),
+            l2_fair_gas_price: Some(self.l2_fair_gas_price.to_string()),
+            fair_pubdata_price: if let Some(price_u256) = self.fair_pubdata_price {
+                Some(price_u256.to_string())
+            } else {
+                None
+            },
             virtual_blocks: Some(self.virtual_blocks),
             operator_address: Some(self.operator_address.as_bytes().into()),
             // Transactions are stored in execution order, therefore order is deterministic.

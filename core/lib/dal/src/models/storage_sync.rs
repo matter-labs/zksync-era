@@ -1,7 +1,10 @@
+use std::str::FromStr;
+
 use anyhow::Context as _;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_types::{
-    api::en, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, Transaction, H256,
+    api::en, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, Transaction, H160, H256,
+    U256,
 };
 
 use crate::{
@@ -33,9 +36,9 @@ pub(crate) struct SyncBlock {
     pub l1_batch_number: L1BatchNumber,
     pub last_in_batch: bool,
     pub timestamp: u64,
-    pub l1_gas_price: u64,
-    pub l2_fair_gas_price: u64,
-    pub fair_pubdata_price: Option<u64>,
+    pub l1_gas_price: U256,
+    pub l2_fair_gas_price: U256,
+    pub fair_pubdata_price: Option<U256>,
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
     pub fee_account_address: Address,
     pub virtual_blocks: u32,
