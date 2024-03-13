@@ -160,22 +160,21 @@ impl AsyncRocksdbCache {
         &self,
         stop_receiver: &watch::Receiver<bool>,
     ) -> anyhow::Result<Option<PgOrRocksdbStorage<'_>>> {
-        match self.rocksdb_cell.get() {
-            Some(rocksdb) => {
-                let mut conn = self
-                    .pool
-                    .access_storage_tagged("state_keeper")
-                    .await
-                    .context("Failed getting a Postgres connection")?;
-                Self::access_storage_rocksdb(&mut conn, rocksdb.clone(), stop_receiver)
-                    .await
-                    .context("Failed accessing RocksDB storage")
-            }
-            None => Ok(Some(
+        if let Some(rocksdb) = self.rocksdb_cell.get() {
+            let mut conn = self
+                .pool
+                .access_storage_tagged("state_keeper")
+                .await
+                .context("Failed getting a Postgres connection")?;
+            Self::access_storage_rocksdb(&mut conn, rocksdb.clone(), stop_receiver)
+                .await
+                .context("Failed accessing RocksDB storage")
+        } else {
+            Ok(Some(
                 Self::access_storage_pg(&self.pool)
                     .await
                     .context("Failed accessing Postgres storage")?,
-            )),
+            ))
         }
     }
 
