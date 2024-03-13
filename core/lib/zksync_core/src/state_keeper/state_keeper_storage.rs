@@ -117,10 +117,8 @@ impl AsyncRocksdbCache {
                         .snapshot_recovery_dal()
                         .get_applied_snapshot_status()
                         .await
-                        .context("failed getting snapshot recovery info")?
-                        .ok_or_else(|| {
-                            anyhow::anyhow!("Could not find snapshot, no state available")
-                        })?;
+                        .context("Failed getting snapshot recovery info")?
+                        .context("Could not find snapshot, no state available")?;
                     (
                         snapshot_recovery.miniblock_number,
                         snapshot_recovery.l1_batch_number,
