@@ -69,7 +69,7 @@ jobs:
           ci_run zk env ext-node-docker
           ci_run zk db setup
           ci_run zk external-node --reinit -- --enable-snapshots-recovery &
-          ci_run sleep 10
+          ci_run sleep 35
 
       - name: Step - Stub - Try a curl request
         if: always()
