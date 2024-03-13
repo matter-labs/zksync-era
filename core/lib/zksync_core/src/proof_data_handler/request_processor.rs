@@ -229,7 +229,7 @@ impl RequestProcessor {
                         let server_values = format!("events_queue_state = {events_queue_state}, bootloader_heap_initial_content = {bootloader_heap_initial_content}");
                         let prover_values = format!("events_queue_state = {events_queue_state_from_prover}, bootloader_heap_initial_content = {bootloader_heap_initial_content_from_prover}");
                         panic!(
-                            "Auxilary output doesn't match, server values: {} prover values: {}",
+                            "Auxiliary output doesn't match, server values: {} prover values: {}",
                             server_values, prover_values
                         );
                     }
@@ -254,7 +254,7 @@ impl RequestProcessor {
                         let server_values = format!("system_logs_hash = {system_logs_hash}, state_diff_hash = {state_diff_hash}");
                         let prover_values = format!("system_logs_hash = {system_logs_hash_from_prover}, state_diff_hash = {state_diff_hash_from_prover}");
                         panic!(
-                            "Auxilary output doesn't match, server values: {} prover values: {}",
+                            "Auxiliary output doesn't match, server values: {} prover values: {}",
                             server_values, prover_values
                         );
                     }

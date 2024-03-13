@@ -45,7 +45,7 @@ vlog = { path = "../vlog" }
 
 multivm = { path = "../multivm" }
 
-# Consensus dependenices
+# Consensus dependencies
 zksync_concurrency = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "842d4fd79f1d7dae946b6873ded7ad391d554814" }
 zksync_consensus_crypto = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "842d4fd79f1d7dae946b6873ded7ad391d554814" }
 zksync_consensus_network = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "842d4fd79f1d7dae946b6873ded7ad391d554814" }

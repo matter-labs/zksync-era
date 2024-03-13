@@ -18,7 +18,7 @@ zksync_utils = { path = "../../lib/utils" }
 zksync_types = { path = "../../lib/types" }
 zksync_core = { path = "../../lib/zksync_core" }
 
-# Consensus dependenices
+# Consensus dependencies
 zksync_consensus_crypto = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "842d4fd79f1d7dae946b6873ded7ad391d554814" }
 zksync_consensus_roles = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "842d4fd79f1d7dae946b6873ded7ad391d554814" }
 zksync_consensus_executor = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "842d4fd79f1d7dae946b6873ded7ad391d554814" }

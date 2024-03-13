@@ -292,7 +292,7 @@ describe('Paymaster tests', () => {
 });
 
 /**
- * Matcher modifer that checks if the fee was paid with the paymaster.
+ * Matcher modifier that checks if the fee was paid with the paymaster.
  * It only checks the receipt logs and assumes that logs are correct (e.g. if event is present, tokens were moved).
  * Assumption is that other tests ensure this invariant.
  */

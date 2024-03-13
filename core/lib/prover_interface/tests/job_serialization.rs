@@ -66,7 +66,7 @@ async fn prepare_basic_circuits_job_compatibility() {
     assert_job_integrity(job_tuple.1, job_tuple.0);
 }
 
-/// Simple test to check if we can succesfully parse the proof.
+/// Simple test to check if we can successfully parse the proof.
 #[tokio::test]
 async fn test_final_proof_deserialization() {
     let proof = fs::read("./tests/l1_batch_proof_1.bin").await.unwrap();

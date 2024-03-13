@@ -3,7 +3,7 @@
 //! Most of the types are re-exported from the `web3` crate, but some of them maybe extended with
 //! new variants (enums) or optional fields (structures).
 //!
-//! These "extensions" are required to provide more zkSync-specific information while remaining Web3-compilant.
+//! These "extensions" are required to provide more zkSync-specific information while remaining Web3-compliant.
 
 use core::{
     convert::{TryFrom, TryInto},

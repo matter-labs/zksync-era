@@ -36,7 +36,7 @@ impl Default for MockTransactionExecutor {
                 );
             }),
             tx_responses: Box::new(|tx, _| {
-                panic!("Unexpect transaction call: {tx:?}");
+                panic!("Unexpected transaction call: {tx:?}");
             }),
         }
     }

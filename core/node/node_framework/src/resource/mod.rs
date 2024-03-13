@@ -35,7 +35,7 @@ pub(crate) trait StoredResource: 'static + std::any::Any + Send + Sync {
     /// An object-safe version of [`Resource::resource_id`].
     fn stored_resource_id(&self) -> ResourceId;
 
-    /// An object-safe version of [`Resource::on_resoure_wired`].
+    /// An object-safe version of [`Resource::on_resource_wired`].
     fn stored_resource_wired(&mut self);
 }
 
