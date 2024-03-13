@@ -3,8 +3,9 @@ use std::sync::{Arc, Mutex};
 use anyhow::anyhow;
 use tokio::runtime::Runtime;
 
-use crate::service::{
-    ServiceContext, StopReceiver, Task, WiringError, WiringLayer, ZkStackService,
+use crate::{
+    service::{ServiceContext, StopReceiver, WiringError, WiringLayer, ZkStackService},
+    task::Task,
 };
 
 // `ZkStack` Service's `new()` method has to have a check for nested runtime.

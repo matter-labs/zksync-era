@@ -2,7 +2,7 @@ use crate::{
     precondition::Precondition,
     resource::{Resource, StoredResource},
     service::ZkStackService,
-    task::{Task, UnconstrainedTask},
+    task::{OneshotTask, Task, UnconstrainedOneshotTask, UnconstrainedTask},
     wiring_layer::WiringError,
 };
 
@@ -38,7 +38,7 @@ impl<'a> ServiceContext<'a> {
     /// are met.
     pub fn add_task(&mut self, task: Box<dyn Task>) -> &mut Self {
         tracing::info!("Layer {} has added a new task: {}", self.layer, task.name());
-        self.service.tasks.push(task);
+        self.service.runnables.tasks.push(task);
         self
     }
 
@@ -50,7 +50,7 @@ impl<'a> ServiceContext<'a> {
             self.layer,
             task.name()
         );
-        self.service.unconstrained_tasks.push(task);
+        self.service.runnables.unconstrained_tasks.push(task);
         self
     }
 
@@ -61,7 +61,35 @@ impl<'a> ServiceContext<'a> {
             self.layer,
             precondition.name()
         );
-        self.service.preconditions.push(precondition);
+        self.service.runnables.preconditions.push(precondition);
+        self
+    }
+
+    /// Adds an oneshot task to the service.
+    pub fn add_oneshot_task(&mut self, task: Box<dyn OneshotTask>) -> &mut Self {
+        tracing::info!(
+            "Layer {} has added a new oneshot task: {}",
+            self.layer,
+            task.name()
+        );
+        self.service.runnables.oneshot_tasks.push(task);
+        self
+    }
+
+    /// Adds an unconstrained oneshot task to the service.
+    pub fn add_unconstrained_oneshot_task(
+        &mut self,
+        task: Box<dyn UnconstrainedOneshotTask>,
+    ) -> &mut Self {
+        tracing::info!(
+            "Layer {} has added a new unconstrained oneshot task: {}",
+            self.layer,
+            task.name()
+        );
+        self.service
+            .runnables
+            .unconstrained_oneshot_tasks
+            .push(task);
         self
     }
 
