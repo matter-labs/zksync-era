@@ -104,7 +104,9 @@ impl AsyncRocksdbCache {
     }
 
     /// Returns a [`ReadStorage`] implementation backed by Postgres
-    async fn access_storage_pg(pool: &ConnectionPool) -> anyhow::Result<PgOrRocksdbStorage<'_>> {
+    pub(crate) async fn access_storage_pg(
+        pool: &ConnectionPool,
+    ) -> anyhow::Result<PgOrRocksdbStorage<'_>> {
         let mut connection = pool.access_storage().await?;
 
         let (miniblock_number, l1_batch_number) =

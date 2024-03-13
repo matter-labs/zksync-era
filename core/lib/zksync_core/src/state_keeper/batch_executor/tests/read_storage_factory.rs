@@ -1,10 +1,13 @@
 use anyhow::Context;
 use async_trait::async_trait;
-use tokio::{runtime::Handle, sync::watch};
+use tokio::sync::watch;
 use zksync_dal::ConnectionPool;
-use zksync_state::{PostgresStorage, RocksdbStorage};
+use zksync_state::RocksdbStorage;
 
-use crate::state_keeper::state_keeper_storage::{PgOrRocksdbStorage, ReadStorageFactory};
+use crate::state_keeper::{
+    state_keeper_storage::{PgOrRocksdbStorage, ReadStorageFactory},
+    AsyncRocksdbCache,
+};
 
 #[derive(Debug, Clone)]
 pub struct PostgresFactory {
@@ -17,33 +20,9 @@ impl ReadStorageFactory for PostgresFactory {
         &self,
         _stop_receiver: &watch::Receiver<bool>,
     ) -> anyhow::Result<Option<PgOrRocksdbStorage<'_>>> {
-        let mut connection = self
-            .pool
-            .access_storage()
-            .await
-            .context("Failed accessing Postgres storage")?;
-
-        let snapshot_recovery = connection
-            .snapshot_recovery_dal()
-            .get_applied_snapshot_status()
-            .await
-            .context("failed getting snapshot recovery info")?;
-        let miniblock_number = if let Some(snapshot_recovery) = snapshot_recovery {
-            snapshot_recovery.miniblock_number
-        } else {
-            let mut dal = connection.blocks_dal();
-            let l1_batch_number = dal.get_sealed_l1_batch_number().await?.unwrap_or_default();
-            let (_, miniblock_number) = dal
-                .get_miniblock_range_of_l1_batch(l1_batch_number)
-                .await?
-                .unwrap_or_default();
-            miniblock_number
-        };
-
-        Ok(Some(PgOrRocksdbStorage::Postgres(
-            PostgresStorage::new_async(Handle::current(), connection, miniblock_number, true)
-                .await?,
-        )))
+        Ok(Some(
+            AsyncRocksdbCache::access_storage_pg(&self.pool).await?,
+        ))
     }
 }
 
