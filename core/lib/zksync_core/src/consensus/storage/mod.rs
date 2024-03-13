@@ -197,6 +197,28 @@ impl Store {
                 .await??,
         ))
     }
+
+    /// Waits for the `number` miniblock.
+    pub async fn wait_for_block(
+        &self,
+        ctx: &ctx::Ctx,
+        number: validator::BlockNumber,
+    ) -> ctx::Result<Payload> {
+        const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(50);
+        loop {
+            if let Some(payload) = self
+                .access(ctx)
+                .await
+                .wrap("access()")?
+                .payload(ctx, number)
+                .await
+                .wrap("payload()")?
+            {
+                return Ok(payload);
+            }
+            ctx.sleep(POLL_INTERVAL).await?;
+        }
+    }
 }
 
 impl BlockStore {
@@ -214,6 +236,7 @@ impl BlockStore {
             .last_miniblock_number(ctx)
             .await
             .wrap("last_miniblock_number()")?
+            // TODO: snapshot start here.
             .unwrap_or(validator::BlockNumber(0));
         let mut txn = conn
             .start_transaction(ctx)
@@ -259,14 +282,32 @@ impl PersistentBlockStore for BlockStore {
             .context("genesis is missing")?)
     }
 
-    async fn last(&self, ctx: &ctx::Ctx) -> ctx::Result<Option<validator::CommitQC>> {
-        self.inner
-            .access(ctx)
-            .await
-            .wrap("access()")?
-            .last_certificate(ctx)
-            .await
-            .wrap("last_certificate()")
+    async fn state(&self, ctx: &ctx::Ctx) -> ctx::Result<BlockStoreState> {
+        let conn = self.inner.access(ctx).await.wrap("access()")?;
+        
+        // Fetch the range of miniblocks in storage.
+        let first_payload = conn.first_miniblock_number(ctx).await.wrap("first_miniblock_number()")?;
+        let next_payload = conn.last_miniblock_number(ctx).await.wrap("last_miniblock_number()")?.map_or(first_payload,|last|last.next());
+        
+        // Fetch the range of certificates in storage.
+        let first = conn.genesis(ctx).await.wrap("genesis()")?.context("genesis missing")?.fork.first_block.max(first_payload);
+        let last = conn.last_certificate(ctx).await.wrap("last_certificate()")?;
+        let next = last.map_or(first,|cert|cert.header().number.next());
+        
+        // Check that the first certificate in storage has the expected miniblock number.
+        if let Some(got) = conn.first_certificate(ctx).await.wrap("first_certificate()")? {
+            if got != first {
+                return Err(anyhow::format_err!("inconsistent storage: certificates should start at {first}, while they start at {got}").into());
+            }
+        }
+        // Check that the node has all the blocks before the next expected certificate, because
+        // the node needs to know the state of the chain up to block `X` to process block `X+1`.
+        if let Some(got) = &last {
+            if next_payload <= next {
+                return Err(anyhow::format_err!("inconsistent storage: cannot start consensus for miniblock {next}, because earlier blocks are missing").into());
+            }
+        }
+        Ok(BlockStoreState { first, last })
     }
 
     async fn block(
@@ -386,23 +427,16 @@ impl PayloadManager for Store {
         ctx: &ctx::Ctx,
         block_number: validator::BlockNumber,
     ) -> ctx::Result<validator::Payload> {
-        const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(50);
-        loop {
-            let mut conn = self.access(ctx).await.wrap("access()")?;
-            if let Some(payload) = conn.payload(ctx, block_number).await.wrap("payload()")? {
-                let encoded_payload = payload.encode();
-                if encoded_payload.0.len() > 1 << 20 {
-                    tracing::warn!(
-                        "large payload ({}B) with {} transactions",
-                        encoded_payload.0.len(),
-                        payload.transactions.len()
-                    );
-                }
-                return Ok(encoded_payload);
-            }
-            drop(conn);
-            ctx.sleep(POLL_INTERVAL).await?;
+        let payload = self.wait_for_block(ctx).await?;
+        let encoded_payload = payload.encode();
+        if encoded_payload.0.len() > 1 << 20 {
+            tracing::warn!(
+                "large payload ({}B) with {} transactions",
+                encoded_payload.0.len(),
+                payload.transactions.len()
+            );
         }
+        Ok(encoded_payload)
     }
 
     /// Verify that `payload` is a correct proposal for the block `block_number`.
@@ -414,11 +448,10 @@ impl PayloadManager for Store {
         block_number: validator::BlockNumber,
         payload: &validator::Payload,
     ) -> ctx::Result<()> {
-        let want = self.propose(ctx, block_number).await?;
-        let want = Payload::decode(&want).context("Payload::decode(want)")?;
         let got = Payload::decode(payload).context("Payload::decode(got)")?;
+        let want = self.wait_for_block(ctx).await?;
         if got != want {
-            return Err(anyhow::anyhow!("unexpected payload: got {got:?} want {want:?}").into());
+            return Err(anyhow::format_err!("unexpected payload: got {got:?} want {want:?}").into());
         }
         Ok(())
     }

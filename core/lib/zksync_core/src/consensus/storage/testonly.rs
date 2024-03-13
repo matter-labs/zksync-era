@@ -9,28 +9,6 @@ use zksync_dal::consensus_dal::Payload;
 use super::Store;
 
 impl Store {
-    /// Waits for the `number` miniblock.
-    pub async fn wait_for_block(
-        &self,
-        ctx: &ctx::Ctx,
-        number: validator::BlockNumber,
-    ) -> ctx::Result<Payload> {
-        const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(100);
-        loop {
-            if let Some(payload) = self
-                .access(ctx)
-                .await
-                .wrap("access()")?
-                .payload(ctx, number)
-                .await
-                .wrap("payload()")?
-            {
-                return Ok(payload);
-            }
-            ctx.sleep(POLL_INTERVAL).await?;
-        }
-    }
-
     /// Waits for the `number` miniblock to have a certificate.
     pub async fn wait_for_certificate(
         &self,

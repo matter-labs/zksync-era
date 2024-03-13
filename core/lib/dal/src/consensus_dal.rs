@@ -53,10 +53,6 @@ impl ConsensusDal<'_, '_> {
                 got.fork.number,
                 genesis.fork.number,
             );
-            anyhow::ensure!(
-                got.fork.first_parent.is_none(),
-                "fork with first_parent != None not supported",
-            );
         }
         let genesis =
             zksync_protobuf::serde::serialize(genesis, serde_json::value::Serializer).unwrap();
@@ -115,7 +111,6 @@ impl ConsensusDal<'_, '_> {
             fork: validator::Fork {
                 number: old.fork.number.next(),
                 first_block,
-                first_parent: None,
             },
         };
         txn.consensus_dal().try_update_genesis(&new).await?;
@@ -244,14 +239,10 @@ impl ConsensusDal<'_, '_> {
         let header = &cert.message.proposal;
         let mut txn = self.storage.start_transaction().await?;
         if let Some(last) = txn.consensus_dal().last_certificate().await? {
-            let last = &last.message.proposal;
             anyhow::ensure!(
-                last.number.next() == header.number,
+                last.header().number.next() == header.number,
                 "expected certificate for a block after the current head block"
             );
-            anyhow::ensure!(Some(last.hash()) == header.parent, "parent block mismatch");
-        } else {
-            anyhow::ensure!(header.parent.is_none(), "inserting first block with parent");
         }
         let want_payload = txn
             .consensus_dal()
@@ -297,7 +288,6 @@ mod tests {
             let fork = validator::Fork {
                 number: validator::ForkNumber(n),
                 first_block: rng.gen(),
-                first_parent: None,
             };
             let setup = validator::testonly::Setup::new_with_fork(rng, 3, fork);
             conn.consensus_dal()
