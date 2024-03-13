@@ -4,12 +4,11 @@ use anyhow::Context as _;
 use futures::future::BoxFuture;
 use tokio::sync::Barrier;
 
+use super::StopReceiver;
 use crate::{
     precondition::Precondition,
     task::{OneshotTask, Task, UnconstrainedOneshotTask, UnconstrainedTask},
 };
-
-use super::StopReceiver;
 
 /// A collection of different flavors of tasks.
 #[derive(Default)]

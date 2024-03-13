@@ -1,7 +1,7 @@
 use std::{collections::HashMap, fmt, time::Duration};
 
 use anyhow::Context;
-use futures::FutureExt;
+use futures::{future::BoxFuture, FutureExt};
 use tokio::{runtime::Runtime, sync::watch};
 use zksync_utils::panic_extractor::try_extract_panic_message;
 
@@ -84,6 +84,7 @@ impl ZkStackService {
         let runtime_handle = self.runtime.handle().clone();
         for layer in wiring_layers {
             let name = layer.layer_name().to_string();
+            // We must process wiring layers sequentially and in the same order as they were added.
             let task_result =
                 runtime_handle.block_on(layer.wire(ServiceContext::new(&name, &mut self)));
             if let Err(err) = task_result {
@@ -114,7 +115,7 @@ impl ZkStackService {
         let task_barrier = self.runnables.task_barrier();
 
         // Collect long-running tasks.
-        let mut stop_receiver = self.stop_receiver();
+        let stop_receiver = StopReceiver(self.stop_sender.subscribe());
         let TaskReprs {
             mut long_running_tasks,
             oneshot_tasks,
@@ -128,42 +129,11 @@ impl ZkStackService {
         }
         tracing::info!("Wiring complete");
 
-        // Create a system task that is cancellation-aware and will only exit on either precondition failure or
+        // Create a system task that is cancellation-aware and will only exit on either oneshot task failure or
         // stop signal.
-        let precondition_system_task = Box::pin(async move {
-            let oneshot_tasks = oneshot_tasks.into_iter().map(|fut| async move {
-                // Spawn each oneshot task as a separate tokio task.
-                // This way we can handle the cases when such a task panics and propagate the message
-                // to the service.
-                let handle = tokio::runtime::Handle::current();
-                match handle.spawn(fut).await {
-                    Ok(Ok(())) => Ok(()),
-                    Ok(Err(err)) => Err(err),
-                    Err(panic_err) => {
-                        let panic_msg = try_extract_panic_message(panic_err);
-                        Err(anyhow::format_err!("Precondition panicked: {panic_msg}"))
-                    }
-                }
-            });
-
-            match futures::future::try_join_all(oneshot_tasks).await {
-                Err(err) => Err(err),
-                Ok(_) if only_oneshot_tasks => {
-                    // We only run oneshot tasks in this service, so we can exit now.
-                    Ok(())
-                }
-                Ok(_) => {
-                    // All oneshot tasks have exited and we have at least one long-running task.
-                    // Simply wait for the stop signal.
-                    stop_receiver.0.changed().await.ok();
-                    Ok(())
-                }
-            }
-            // Note that we don't have to `select` on the stop signal explicitly:
-            // Each prerequisite is given a stop signal, and if everyone respects it, this future
-            // will still resolve once the stop signal is received.
-        });
-        long_running_tasks.push(precondition_system_task);
+        let oneshot_runner_system_task =
+            oneshot_runner_task(oneshot_tasks, stop_receiver, only_oneshot_tasks);
+        long_running_tasks.push(oneshot_runner_system_task);
 
         // Prepare tasks for running.
         let rt_handle = self.runtime.handle().clone();
@@ -209,8 +179,44 @@ impl ZkStackService {
 
         result
     }
+}
 
-    pub(crate) fn stop_receiver(&self) -> StopReceiver {
-        StopReceiver(self.stop_sender.subscribe())
-    }
+fn oneshot_runner_task(
+    oneshot_tasks: Vec<BoxFuture<'static, anyhow::Result<()>>>,
+    mut stop_receiver: StopReceiver,
+    only_oneshot_tasks: bool,
+) -> BoxFuture<'static, anyhow::Result<()>> {
+    Box::pin(async move {
+        let oneshot_tasks = oneshot_tasks.into_iter().map(|fut| async move {
+            // Spawn each oneshot task as a separate tokio task.
+            // This way we can handle the cases when such a task panics and propagate the message
+            // to the service.
+            let handle = tokio::runtime::Handle::current();
+            match handle.spawn(fut).await {
+                Ok(Ok(())) => Ok(()),
+                Ok(Err(err)) => Err(err),
+                Err(panic_err) => {
+                    let panic_msg = try_extract_panic_message(panic_err);
+                    Err(anyhow::format_err!("Precondition panicked: {panic_msg}"))
+                }
+            }
+        });
+
+        match futures::future::try_join_all(oneshot_tasks).await {
+            Err(err) => Err(err),
+            Ok(_) if only_oneshot_tasks => {
+                // We only run oneshot tasks in this service, so we can exit now.
+                Ok(())
+            }
+            Ok(_) => {
+                // All oneshot tasks have exited and we have at least one long-running task.
+                // Simply wait for the stop signal.
+                stop_receiver.0.changed().await.ok();
+                Ok(())
+            }
+        }
+        // Note that we don't have to `select` on the stop signal explicitly:
+        // Each prerequisite is given a stop signal, and if everyone respects it, this future
+        // will still resolve once the stop signal is received.
+    })
 }
