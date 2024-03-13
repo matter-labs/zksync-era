@@ -99,9 +99,6 @@ interface IContractDeployer {
     /// @notice Can be called by an account to update its nonce ordering
     function updateNonceOrdering(AccountNonceOrdering _nonceOrdering) external;
 
-    /// @notice whether an address is an evm contract
-    // function isEVM(address _addr) external view returns (bool);
-
     /// @notice code hash of an evm contract
     // function getCodeHash(address _addr) external view returns (bytes32);
 
@@ -128,6 +125,4 @@ interface IContractDeployer {
     function setDeployedCode(uint256 constructorGasLeft, bytes calldata newDeployedCode) external;
 
     function constructorReturnGas() external view returns (uint256);
-
-    function isEVM(address addr) external view returns (bool);
 }

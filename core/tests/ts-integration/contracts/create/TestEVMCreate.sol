@@ -3,8 +3,6 @@
 pragma solidity ^0.8.0;
 
 interface IContractDeployer {
-    function isEVM(address key) external returns (bool);
-
     function evmCodeHash(address key) external returns (bytes32);
 
     function createEVM(
