@@ -1,4 +1,5 @@
 use anyhow::Context as _;
+use zksync_config::GenesisConfig;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SystemContractCode};
 use zksync_dal::StorageProcessor;
 use zksync_types::{
@@ -8,7 +9,7 @@ use zksync_types::{
 };
 
 use super::client::MainNodeClient;
-use crate::genesis::{ensure_genesis_state, GenesisConfig, GenesisParams};
+use crate::genesis::{ensure_genesis_state, GenesisParams};
 
 pub async fn perform_genesis_if_needed(
     storage: &mut StorageProcessor<'_>,
@@ -94,8 +95,8 @@ async fn create_genesis_params(
     // Use default L1 verifier config and verifier address for genesis as they are not used by EN.
     let first_l1_verifier_config = L1VerifierConfig::default();
     let first_verifier_address = Address::default();
-    Ok(GenesisConfig {
-        protocol_version,
+    let config = GenesisConfig {
+        protocol_version: protocol_version as u16,
         genesis_root_hash: genesis_batch
             .base
             .root_hash
@@ -106,17 +107,28 @@ async fn create_genesis_params(
         genesis_commitment: genesis_batch
             .commitment
             .context("Genesis can't be pending")?,
-        base_system_contracts_hashes,
+        bootloader_hash: base_system_contracts_hashes.bootloader,
+        default_aa_hash: base_system_contracts_hashes.default_aa,
         verifier_address: first_verifier_address,
-        verifier_config: first_l1_verifier_config,
         fee_account: first_validator,
         diamond_proxy: main_contract,
         erc20_bridge: bridge_contracts.l1_erc20_default_bridge,
         state_transition_proxy_addr: None,
         l1_chain_id,
         l2_chain_id: zksync_chain_id,
-    }
-    .into_genesis_params(base_system_contracts, system_contracts)?)
+        recursion_node_level_vk_hash: first_l1_verifier_config.params.recursion_node_level_vk_hash,
+        recursion_leaf_level_vk_hash: first_l1_verifier_config.params.recursion_leaf_level_vk_hash,
+        recursion_circuits_set_vks_hash: first_l1_verifier_config
+            .params
+            .recursion_circuits_set_vks_hash,
+        recursion_scheduler_level_vk_hash: first_l1_verifier_config
+            .recursion_scheduler_level_vk_hash,
+    };
+    Ok(GenesisParams::from_genesis_config(
+        config,
+        base_system_contracts,
+        system_contracts,
+    )?)
 }
 
 async fn fetch_base_system_contracts(

@@ -2,20 +2,15 @@
 //! It initializes the Merkle tree with the basic setup (such as fields of special service accounts),
 //! setups the required databases, and outputs the data required to initialize a smart contract.
 
-use anyhow::{anyhow, Context as _};
+use anyhow::Context as _;
 use multivm::{
     circuit_sequencer_api_latest::sort_storage_access::sort_storage_access_queries,
     utils::get_max_gas_per_pubdata_byte,
     zk_evm_latest::aux_structures::{LogQuery as MultiVmLogQuery, Timestamp as MultiVMTimestamp},
 };
-use serde::{Deserialize, Serialize};
-use zksync_config::{
-    configs::chain::{NetworkConfig, StateKeeperConfig},
-    ContractsConfig,
-};
+use zksync_config::GenesisConfig;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SET_CHAIN_ID_EVENT};
 use zksync_dal::{SqlxError, StorageProcessor};
-use zksync_env_config::FromEnv;
 use zksync_eth_client::{clients::QueryClient, EthInterface};
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_system_constants::PRIORITY_EXPIRATION;
@@ -34,8 +29,8 @@ use zksync_types::{
     tokens::{TokenInfo, TokenMetadata, ETHEREUM_ADDRESS},
     web3::types::{BlockNumber, FilterBuilder},
     zk_evm_types::{LogQuery, Timestamp},
-    AccountTreeId, Address, L1BatchNumber, L1ChainId, L2ChainId, MiniblockNumber,
-    ProtocolVersionId, StorageKey, StorageLog, StorageLogKind, H256,
+    AccountTreeId, Address, L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId,
+    StorageKey, StorageLog, StorageLogKind, H256,
 };
 use zksync_utils::{be_words_to_bytes, bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
 
@@ -51,6 +46,8 @@ pub enum GenesisError {
     BaseSystemContractsHashes(BaseSystemContractsHashes),
     #[error("Commitment mismatched {0:?}")]
     Commitment(H256),
+    #[error("Wrong protocol version")]
+    ProtocolVersion,
     #[error("Error: {0}")]
     Other(#[from] anyhow::Error),
     #[error("Error: {0}")]
@@ -74,117 +71,36 @@ impl GenesisParams {
     pub fn config(&self) -> &GenesisConfig {
         &self.config
     }
-}
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct GenesisConfig {
-    pub protocol_version: ProtocolVersionId,
-    pub genesis_root_hash: H256,
-    pub rollup_last_leaf_index: u64,
-    pub genesis_commitment: H256,
-    #[serde(flatten)]
-    pub base_system_contracts_hashes: BaseSystemContractsHashes,
-    pub verifier_address: Address,
-    #[serde(flatten)]
-    pub verifier_config: L1VerifierConfig,
-    pub fee_account: Address,
-    pub diamond_proxy: Address,
-    pub erc20_bridge: Address,
-    pub state_transition_proxy_addr: Option<Address>,
-    pub l1_chain_id: L1ChainId,
-    pub l2_chain_id: L2ChainId,
-}
-
-impl GenesisConfig {
-    pub fn from_env() -> anyhow::Result<Self> {
-        let network_config = &NetworkConfig::from_env()?;
-        let contracts_config = &ContractsConfig::from_env()?;
-        let l1_verifier_config = L1VerifierConfig {
-            params: VerifierParams {
-                recursion_node_level_vk_hash: contracts_config.fri_recursion_node_level_vk_hash,
-                recursion_leaf_level_vk_hash: contracts_config.fri_recursion_leaf_level_vk_hash,
-                recursion_circuits_set_vks_hash: zksync_types::H256::zero(),
-            },
-            recursion_scheduler_level_vk_hash: contracts_config.snark_wrapper_vk_hash,
-        };
-
-        let state_keeper = StateKeeperConfig::from_env()?;
-        Ok(GenesisConfig {
-            protocol_version: ProtocolVersionId::latest(),
-            genesis_root_hash: contracts_config
-                .genesis_root
-                .ok_or(anyhow!("genesis_root_hash required for genesis"))?,
-            rollup_last_leaf_index: contracts_config
-                .genesis_rollup_leaf_index
-                .ok_or(anyhow!("rollup_last_leaf_index required for genesis"))?,
-            genesis_commitment: contracts_config
-                .genesis_batch_commitment
-                .ok_or(anyhow!("genesis_commitment required for genesis"))?,
-            base_system_contracts_hashes: BaseSystemContractsHashes {
-                bootloader: state_keeper
-                    .bootloader_hash
-                    .ok_or(anyhow!("Bootloader hash required for genesis"))?,
-                default_aa: state_keeper
-                    .default_aa_hash
-                    .ok_or(anyhow!("Default aa hash required for genesis"))?,
-            },
-            verifier_address: contracts_config.verifier_addr,
-            verifier_config: l1_verifier_config,
-            fee_account: state_keeper.fee_account_addr,
-            diamond_proxy: contracts_config.diamond_proxy_addr,
-            erc20_bridge: contracts_config.l1_erc20_bridge_proxy_addr,
-            state_transition_proxy_addr: contracts_config.state_transition_proxy_addr,
-            l1_chain_id: network_config.network.chain_id(),
-            l2_chain_id: network_config.zksync_network_id,
-        })
-    }
-
-    pub fn load_genesis_params(self) -> Result<GenesisParams, GenesisError> {
-        let base_system_contracts = BaseSystemContracts::load_from_disk();
-        let system_contracts = get_system_smart_contracts();
-        self.into_genesis_params(base_system_contracts, system_contracts)
-    }
-
-    pub fn into_genesis_params(
-        self,
+    pub fn from_genesis_config(
+        config: GenesisConfig,
         base_system_contracts: BaseSystemContracts,
         system_contracts: Vec<DeployedContract>,
     ) -> Result<GenesisParams, GenesisError> {
-        if self.base_system_contracts_hashes != base_system_contracts.hashes() {
+        let base_system_contracts_hashes = BaseSystemContractsHashes {
+            bootloader: config.bootloader_hash,
+            default_aa: config.default_aa_hash,
+        };
+        if base_system_contracts_hashes != base_system_contracts.hashes() {
             return Err(GenesisError::BaseSystemContractsHashes(
                 base_system_contracts.hashes(),
             ));
         }
-
+        let _: ProtocolVersionId = config
+            .protocol_version
+            .try_into()
+            .map_err(|_| GenesisError::ProtocolVersion)?;
         Ok(GenesisParams {
-            base_system_contracts: BaseSystemContracts::load_from_disk(),
+            base_system_contracts,
             system_contracts,
-            config: self,
+            config,
         })
     }
-
-    #[cfg(test)]
-    pub(crate) fn mock() -> Self {
-        Self {
-            protocol_version: ProtocolVersionId::latest(),
-            genesis_root_hash: Default::default(),
-            rollup_last_leaf_index: 0,
-            genesis_commitment: Default::default(),
-            base_system_contracts_hashes: BaseSystemContracts::load_from_disk().hashes(),
-            verifier_address: Default::default(),
-            verifier_config: Default::default(),
-            fee_account: Default::default(),
-            diamond_proxy: Default::default(),
-            erc20_bridge: Default::default(),
-            state_transition_proxy_addr: Default::default(),
-            l1_chain_id: L1ChainId(9),
-            l2_chain_id: L2ChainId::default(),
-            set_chain_id: false,
-        }
+    pub fn load_genesis_params(config: GenesisConfig) -> Result<GenesisParams, GenesisError> {
+        let base_system_contracts = BaseSystemContracts::load_from_disk();
+        let system_contracts = get_system_smart_contracts();
+        Self::from_genesis_config(config, base_system_contracts, system_contracts)
     }
-}
-
-impl GenesisParams {
     #[cfg(test)]
     pub(crate) fn mock() -> Self {
         Self {
@@ -192,6 +108,11 @@ impl GenesisParams {
             system_contracts: get_system_smart_contracts(),
             config: GenesisConfig::mock(),
         }
+    }
+
+    pub fn protocol_version(&self) -> ProtocolVersionId {
+        // It's impossible to instantiate Genesis params with wrong protocol version
+        self.config.protocol_version.try_into().unwrap()
     }
 }
 
@@ -213,15 +134,23 @@ pub async fn ensure_genesis_state(
     }
 
     tracing::info!("running regenesis");
+    let verifier_config = L1VerifierConfig {
+        params: VerifierParams {
+            recursion_node_level_vk_hash: genesis_params.config.recursion_node_level_vk_hash,
+            recursion_leaf_level_vk_hash: genesis_params.config.recursion_leaf_level_vk_hash,
+            recursion_circuits_set_vks_hash: genesis_params.config.recursion_circuits_set_vks_hash,
+        },
+        recursion_scheduler_level_vk_hash: genesis_params.config.recursion_scheduler_level_vk_hash,
+    };
 
     create_genesis_l1_batch(
         &mut transaction,
         genesis_params.config.fee_account,
         genesis_params.config.l2_chain_id,
-        genesis_params.config().protocol_version,
+        genesis_params.protocol_version(),
         genesis_params.base_system_contracts(),
         genesis_params.system_contracts(),
-        genesis_params.config().verifier_config,
+        verifier_config,
         genesis_params.config().verifier_address,
     )
     .await?;
@@ -235,11 +164,15 @@ pub async fn ensure_genesis_state(
     let genesis_root_hash = metadata.root_hash;
     let rollup_last_leaf_index = metadata.leaf_count + 1;
 
+    let base_system_contract_hashes = BaseSystemContractsHashes {
+        bootloader: genesis_params.config.bootloader_hash,
+        default_aa: genesis_params.config.default_aa_hash,
+    };
     let commitment_input = CommitmentInput::for_genesis_batch(
         genesis_root_hash,
         rollup_last_leaf_index,
-        genesis_params.config.base_system_contracts_hashes,
-        genesis_params.config.protocol_version,
+        base_system_contract_hashes,
+        genesis_params.protocol_version(),
     );
     let block_commitment = L1BatchCommitment::new(commitment_input);
 

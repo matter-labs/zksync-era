@@ -15,10 +15,9 @@ use zksync_config::{
         PrometheusConfig, ProofDataHandlerConfig, WitnessGeneratorConfig,
     },
     ApiConfig, ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig, ETHWatchConfig,
-    GasAdjusterConfig, ObjectStoreConfig, PostgresConfig,
+    GasAdjusterConfig, GenesisConfig, ObjectStoreConfig, PostgresConfig,
 };
 use zksync_core::{
-    genesis::GenesisConfig,
     genesis_init, initialize_components, is_genesis_needed, setup_sigint_handler,
     temp_config_store::{decode_yaml, Secrets, TempConfigStore},
     Component, Components,
@@ -54,6 +53,9 @@ struct Cli {
     /// Path to the yaml with genesis
     #[arg(long)]
     genesis_path: Option<std::path::PathBuf>,
+    /// Generate genesis block for the first contract deployment using temporary DB.
+    #[arg(long)]
+    genesis: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -152,15 +154,15 @@ async fn main() -> anyhow::Result<()> {
 
     let postgres_config = configs.postgres_config.clone().context("PostgresConfig")?;
 
-    if is_genesis_needed(&postgres_config).await {
+    if opt.genesis || is_genesis_needed(&postgres_config).await {
         let genesis = GenesisConfig::from_env().context("Genesis config")?;
         let eth_client = ETHClientConfig::from_env().context("EthClientConfig")?;
         genesis_init(genesis, &postgres_config, &eth_client.web3_url)
             .await
             .context("genesis_init")?;
-        // if opt.genesis {
-        //     return Ok(());
-        // }
+        if opt.genesis {
+            return Ok(());
+        }
     }
 
     let components = if opt.rebuild_tree {

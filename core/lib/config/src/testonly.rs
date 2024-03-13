@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use rand::{distributions::Alphanumeric, Rng};
 use zksync_basic_types::{
-    basic_fri_types::CircuitIdRoundTuple, network::Network, Address, L2ChainId, H256,
+    basic_fri_types::CircuitIdRoundTuple, network::Network, Address, L1ChainId, L2ChainId, H256,
 };
 
 use crate::configs::{self, eth_sender::PubdataSendingMode};
@@ -746,6 +746,30 @@ impl RandomConfig for configs::ObservabilityConfig {
             sentry_url: g.gen(),
             sentry_environment: g.gen(),
             log_format: g.gen(),
+        }
+    }
+}
+
+impl RandomConfig for configs::GenesisConfig {
+    fn sample(g: &mut Gen<impl Rng>) -> Self {
+        Self {
+            protocol_version: g.gen(),
+            genesis_root_hash: g.gen(),
+            rollup_last_leaf_index: g.gen(),
+            genesis_commitment: g.gen(),
+            bootloader_hash: g.gen(),
+            default_aa_hash: g.gen(),
+            verifier_address: g.gen(),
+            fee_account: g.gen(),
+            diamond_proxy: g.gen(),
+            erc20_bridge: g.gen(),
+            state_transition_proxy_addr: g.gen(),
+            l1_chain_id: L1ChainId(g.gen()),
+            l2_chain_id: L2ChainId::default(),
+            recursion_node_level_vk_hash: g.gen(),
+            recursion_leaf_level_vk_hash: g.gen(),
+            recursion_circuits_set_vks_hash: g.gen(),
+            recursion_scheduler_level_vk_hash: g.gen(),
         }
     }
 }

@@ -28,7 +28,7 @@ use zksync_config::{
         },
         database::{MerkleTreeConfig, MerkleTreeMode},
     },
-    ApiConfig, ContractsConfig, DBConfig, PostgresConfig,
+    ApiConfig, ContractsConfig, DBConfig, GenesisConfig, PostgresConfig,
 };
 use zksync_contracts::governance_contract;
 use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
@@ -42,6 +42,7 @@ use zksync_queued_job_processor::JobProcessor;
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{fee_model::FeeModelConfig, L2ChainId};
 
+use crate::genesis::GenesisParams;
 use crate::{
     api_server::{
         contract_verification,
@@ -55,7 +56,6 @@ use crate::{
     commitment_generator::CommitmentGenerator,
     eth_sender::{Aggregator, EthTxAggregator, EthTxManager},
     eth_watch::start_eth_watch,
-    genesis::GenesisConfig,
     house_keeper::{
         blocks_state_reporter::L1BatchMetricsReporter,
         fri_proof_compressor_job_retry_manager::FriProofCompressorJobRetryManager,
@@ -112,7 +112,7 @@ pub async fn genesis_init(
         .context("failed to build connection_pool")?;
     let mut storage = pool.access_storage().await.context("access_storage()")?;
 
-    let params = genesis_config.load_genesis_params()?;
+    let params = GenesisParams::load_genesis_params(genesis_config)?;
     genesis::ensure_genesis_state(&mut storage, &params).await?;
 
     if let Some(state_transition_proxy_addr) = params.config().state_transition_proxy_addr {
