@@ -1,5 +1,5 @@
 use assert_matches::assert_matches;
-use test_casing::{cases, test_casing, TestCases};
+use test_casing::{test_casing, Product};
 use zksync_dal::ConnectionPool;
 use zksync_test_account::Account;
 use zksync_types::{get_nonce_key, utils::storage_key_for_eth_balance, PriorityOpId};
@@ -82,13 +82,10 @@ impl SnapshotRecoveryMutation {
     }
 }
 
-const EXECUTE_L2_TX_AFTER_SNAPSHOT_RECOVERY_CASES: TestCases<(
-    Option<SnapshotRecoveryMutation>,
-    StorageType,
-)> = cases!(itertools::iproduct!(
-    SnapshotRecoveryMutation::ALL,
-    StorageType::ALL
-));
+const EXECUTE_L2_TX_AFTER_SNAPSHOT_RECOVERY_CASES: test_casing::Product<(
+    [std::option::Option<SnapshotRecoveryMutation>; 3],
+    [StorageType; 3],
+)> = Product((SnapshotRecoveryMutation::ALL, StorageType::ALL));
 
 /// Tests that we can continue executing account transactions after emulating snapshot recovery.
 /// Test cases with a set `mutation` ensure that the VM executor correctly detects missing data (e.g., dropped account nonce).
