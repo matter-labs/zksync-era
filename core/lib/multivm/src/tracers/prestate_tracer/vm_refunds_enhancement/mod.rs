@@ -4,14 +4,17 @@ use once_cell::sync::OnceCell;
 use zk_evm_1_3_3::tracing::{BeforeExecutionData, VmLocalStateData};
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{
-    get_code_key, get_nonce_key, web3::signing::keccak256, AccountTreeId, Address, StorageKey,
-    StorageValue, H256, L2_ETH_TOKEN_ADDRESS,
+    web3::signing::keccak256, AccountTreeId, StorageKey, StorageValue, H256, L2_ETH_TOKEN_ADDRESS,
 };
 use zksync_utils::address_to_h256;
 
-use super::{process_modified_storage_keys, Account, PrestateTracer, State};
+use super::{
+    get_account_data, process_modified_storage_keys, process_result, PrestateTracer, State,
+    StorageAccess,
+};
 use crate::{
     interface::dyn_tracers::vm_1_3_3::DynTracer,
+    tracers::prestate_tracer::U256,
     vm_refunds_enhancement::{BootloaderState, HistoryMode, SimpleMemory, VmTracer, ZkSyncVmState},
 };
 
@@ -63,64 +66,8 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for PrestateTracer {
     }
 }
 
-fn get_balance_key(account: &AccountTreeId) -> StorageKey {
-    let address_h256 = address_to_h256(account.address());
-    let bytes = [address_h256.as_bytes(), &[0; 32]].concat();
-    let balance_key: H256 = keccak256(&bytes).into();
-    StorageKey::new(AccountTreeId::new(L2_ETH_TOKEN_ADDRESS), balance_key)
-}
-
-fn get_storage_if_present(
-    account: &AccountTreeId,
-    modified_storage_keys: &HashMap<StorageKey, StorageValue>,
-) -> HashMap<H256, H256> {
-    //check if there is a Storage Key struct with an account field that matches the account and return the key as the key and the Storage Value as the value
-    modified_storage_keys
-        .iter()
-        .filter(|(k, _)| k.account() == account)
-        .map(|(k, v)| (*k.key(), *v))
-        .collect()
-}
-
-fn process_result(result: &Arc<OnceCell<(State, State)>>, mut pre: State, post: State) {
-    pre.retain(|k, v| {
-        if let Some(post_v) = post.get(k) {
-            if v != post_v {
-                return true;
-            }
-        }
-        false
-    });
-    result.set((pre, post)).unwrap();
-}
-
-fn get_account_data<S: zksync_state::WriteStorage, H: HistoryMode>(
-    account_key: &StorageKey,
-    state: &ZkSyncVmState<S, H>,
-    storage: &HashMap<StorageKey, StorageValue>,
-) -> (Address, Account) {
-    let address = *(account_key.account().address());
-    let balance = state
-        .storage
-        .storage
-        .read_from_storage(&get_balance_key(account_key.account()));
-    let code = state
-        .storage
-        .storage
-        .read_from_storage(&get_code_key(account_key.account().address()));
-    let nonce = state
-        .storage
-        .storage
-        .read_from_storage(&get_nonce_key(account_key.account().address()));
-    let storage = get_storage_if_present(account_key.account(), storage);
-
-    (
-        address,
-        Account {
-            balance: Some(balance),
-            code: Some(code),
-            nonce: Some(nonce),
-            storage: Some(storage),
-        },
-    )
+impl<S: zksync_state::WriteStorage, H: HistoryMode> StorageAccess for ZkSyncVmState<S, H> {
+    fn read_from_storage(&self, key: &StorageKey) -> U256 {
+        self.storage.storage.read_from_storage(key)
+    }
 }

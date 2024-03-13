@@ -129,3 +129,42 @@ fn get_storage_if_present(
         .map(|(k, v)| (*k.key(), *v))
         .collect()
 }
+
+fn process_result(result: &Arc<OnceCell<(State, State)>>, mut pre: State, post: State) {
+    pre.retain(|k, v| {
+        if let Some(post_v) = post.get(k) {
+            if v != post_v {
+                return true;
+            }
+        }
+        false
+    });
+    result.set((pre, post)).unwrap();
+}
+
+fn get_account_data<T: StorageAccess>(
+    account_key: &StorageKey,
+    state: &T,
+    storage: &HashMap<StorageKey, StorageValue>,
+) -> (Address, Account) {
+    let address = *(account_key.account().address());
+    let balance = state.read_from_storage(&get_balance_key(account_key.account()));
+    let code = state.read_from_storage(&get_code_key(account_key.account().address()));
+    let nonce = state.read_from_storage(&get_nonce_key(account_key.account().address()));
+    let storage = get_storage_if_present(account_key.account(), storage);
+
+    (
+        address,
+        Account {
+            balance: Some(balance),
+            code: Some(code),
+            nonce: Some(nonce),
+            storage: Some(storage),
+        },
+    )
+}
+
+// Define a trait that abstracts storage access
+trait StorageAccess {
+    fn read_from_storage(&self, key: &StorageKey) -> U256;
+}
