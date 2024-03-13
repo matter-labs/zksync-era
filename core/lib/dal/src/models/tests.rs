@@ -30,7 +30,7 @@ fn protocol_upgrade_storage_tx() -> StorageTransaction {
         hash: H256::random().as_bytes().to_vec(),
         data: serde_json::to_value(default_execute().clone()).expect("invalid value"),
         received_at: Utc::now().naive_utc(),
-        tx_format: Some(PROTOCOL_UPGRADE_TX_TYPE as i32),
+        tx_format: Some(PROTOCOL_UPGRADE_TX_TYPE.into()),
         gas_limit: Some(BigDecimal::from(999)),
         l1_tx_mint: Some(BigDecimal::from(666)),
         l1_tx_refund_recipient: Some(Address::random().as_bytes().to_vec()),
@@ -59,7 +59,7 @@ fn l1_storage_tx() -> StorageTransaction {
         l1_block_number: Some(1),
         data: serde_json::to_value(default_execute().clone()).expect("invalid value"),
         received_at: Utc::now().naive_utc(),
-        tx_format: Some(PRIORITY_OPERATION_L2_TX_TYPE as i32),
+        tx_format: Some(PRIORITY_OPERATION_L2_TX_TYPE.into()),
         ..StorageTransaction::default()
     }
 }
@@ -278,7 +278,7 @@ fn storage_tx_to_l2_tx(i_tx_format: i32, o_tx_format: i32) {
 #[test]
 fn storage_tx_to_l2_tx_eip712() {
     storage_tx_to_l2_tx(
-        EIP_712_TX_TYPE as i32,
+        EIP_712_TX_TYPE.into(),
         TransactionType::EIP712Transaction as i32,
     );
 }
@@ -286,7 +286,7 @@ fn storage_tx_to_l2_tx_eip712() {
 #[test]
 fn storage_tx_to_l2_tx_eip2930() {
     storage_tx_to_l2_tx(
-        EIP_2930_TX_TYPE as i32,
+        EIP_2930_TX_TYPE.into(),
         TransactionType::EIP2930Transaction as i32,
     );
 }
@@ -294,7 +294,7 @@ fn storage_tx_to_l2_tx_eip2930() {
 #[test]
 fn storage_tx_to_l2_tx_eip1559() {
     storage_tx_to_l2_tx(
-        EIP_1559_TX_TYPE as i32,
+        EIP_1559_TX_TYPE.into(),
         TransactionType::EIP1559Transaction as i32,
     );
 }
