@@ -89,14 +89,18 @@ impl AsyncRocksdbCache {
         connection: &mut StorageProcessor<'_>,
     ) -> anyhow::Result<Option<(MiniblockNumber, L1BatchNumber)>> {
         let mut dal = connection.blocks_dal();
-        let Some(l1_batch_number) = dal.get_sealed_l1_batch_number().await? else {
-            return Ok(None);
-        };
-        let Some((_, miniblock_number)) =
-            dal.get_miniblock_range_of_l1_batch(l1_batch_number).await?
+        let Some(l1_batch_number) = dal
+            .get_sealed_l1_batch_number()
+            .await
+            .context("Failed to load the latest sealed L1 batch number")?
         else {
             return Ok(None);
         };
+        let (_, miniblock_number) = dal
+            .get_miniblock_range_of_l1_batch(l1_batch_number)
+            .await
+            .context("Failed to load the miniblock range for the latest sealed L1 batch")?
+            .context("The latest sealed L1 batch does not have a miniblock range")?;
         Ok(Some((miniblock_number, l1_batch_number)))
     }
 
