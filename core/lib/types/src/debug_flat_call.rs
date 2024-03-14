@@ -80,3 +80,180 @@ fn flatten_call_recursive(
         trace_address.pop(); // Reset trace addressees after processing the nested call (prevent to keep filling the vector)
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::{
+        api::{DebugCall, DebugCallType, ResultDebugCall},
+        vm_trace::Call,
+        Address, BOOTLOADER_ADDRESS,
+    };
+
+    #[test]
+    fn test_flatten_debug_call() {
+        let result_debug_trace: Vec<ResultDebugCall> = [1, 1]
+            .map(|offset| ResultDebugCall {
+                result: new_testing_debug_call(offset),
+            })
+            .into();
+
+        let debug_call_flat = flatten_debug_calls(result_debug_trace);
+        let expected_debug_call_flat = expected_flat_trace();
+
+        assert_eq!(debug_call_flat, expected_debug_call_flat);
+    }
+
+    fn new_testing_debug_call(offset: u8) -> DebugCall {
+        DebugCall {
+            r#type: DebugCallType::Call,
+            from: Address::zero(),
+            to: BOOTLOADER_ADDRESS,
+            gas: 1000.into(),
+            gas_used: 1000.into(),
+            value: 0.into(),
+            output: vec![].into(),
+            input: vec![].into(),
+            error: None,
+            revert_reason: None,
+            calls: new_testing_trace(offset),
+        }
+    }
+
+    fn new_testing_trace(offset: u8) -> Vec<DebugCall> {
+        let first_call_trace = Call {
+            from: Address::zero(),
+            to: Address::zero(),
+            gas: 100,
+            gas_used: 42,
+            ..Call::default()
+        };
+        let second_call_trace = Call {
+            from: Address::zero(),
+            to: Address::zero(),
+            value: 123.into(),
+            gas: 58,
+            gas_used: 10,
+            input: b"input".to_vec(),
+            output: b"output".to_vec(),
+            ..Call::default()
+        };
+        [first_call_trace, second_call_trace]
+            .map(|call_trace| call_trace.into())
+            .into()
+    }
+
+    fn expected_flat_trace() -> Vec<DebugCallFlat> {
+        [
+            DebugCallFlat {
+                action: Action {
+                    r#type: DebugCallType::Call,
+                    from: Address::zero(),
+                    to: BOOTLOADER_ADDRESS,
+                    gas: 1000.into(),
+                    value: 0.into(),
+                    input: vec![].into(),
+                },
+                result: CallResult {
+                    output: vec![].into(),
+                    gas_used: 1000.into(),
+                },
+                subtraces: 2,
+                traceaddress: [0].into(),
+                error: None,
+                revert_reason: None,
+            },
+            DebugCallFlat {
+                action: Action {
+                    r#type: DebugCallType::Call,
+                    from: Address::zero(),
+                    to: Address::zero(),
+                    gas: 100.into(),
+                    value: 0.into(),
+                    input: vec![].into(),
+                },
+                result: CallResult {
+                    output: vec![].into(),
+                    gas_used: 42.into(),
+                },
+                subtraces: 0,
+                traceaddress: [0, 0].into(),
+                error: None,
+                revert_reason: None,
+            },
+            DebugCallFlat {
+                action: Action {
+                    r#type: DebugCallType::Call,
+                    from: Address::zero(),
+                    to: Address::zero(),
+                    gas: 58.into(),
+                    value: 123.into(),
+                    input: b"input".to_vec().into(),
+                },
+                result: CallResult {
+                    output: b"output".to_vec().into(),
+                    gas_used: 10.into(),
+                },
+                subtraces: 0,
+                traceaddress: [0, 1].into(),
+                error: None,
+                revert_reason: None,
+            },
+            DebugCallFlat {
+                action: Action {
+                    r#type: DebugCallType::Call,
+                    from: Address::zero(),
+                    to: BOOTLOADER_ADDRESS,
+                    gas: 1000.into(),
+                    value: 0.into(),
+                    input: vec![].into(),
+                },
+                result: CallResult {
+                    output: vec![].into(),
+                    gas_used: 1000.into(),
+                },
+                subtraces: 2,
+                traceaddress: [1].into(),
+                error: None,
+                revert_reason: None,
+            },
+            DebugCallFlat {
+                action: Action {
+                    r#type: DebugCallType::Call,
+                    from: Address::zero(),
+                    to: Address::zero(),
+                    gas: 100.into(),
+                    value: 0.into(),
+                    input: vec![].into(),
+                },
+                result: CallResult {
+                    output: vec![].into(),
+                    gas_used: 42.into(),
+                },
+                subtraces: 0,
+                traceaddress: [1, 0].into(),
+                error: None,
+                revert_reason: None,
+            },
+            DebugCallFlat {
+                action: Action {
+                    r#type: DebugCallType::Call,
+                    from: Address::zero(),
+                    to: Address::zero(),
+                    gas: 58.into(),
+                    value: 123.into(),
+                    input: b"input".to_vec().into(),
+                },
+                result: CallResult {
+                    output: b"output".to_vec().into(),
+                    gas_used: 10.into(),
+                },
+                subtraces: 0,
+                traceaddress: [1, 1].into(),
+                error: None,
+                revert_reason: None,
+            },
+        ]
+        .into()
+    }
+}
