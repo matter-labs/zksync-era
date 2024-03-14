@@ -197,7 +197,7 @@ fn oneshot_runner_task(
                 Ok(Err(err)) => Err(err),
                 Err(panic_err) => {
                     let panic_msg = try_extract_panic_message(panic_err);
-                    Err(anyhow::format_err!("Precondition panicked: {panic_msg}"))
+                    Err(anyhow::format_err!("Oneshot task panicked: {panic_msg}"))
                 }
             }
         });
