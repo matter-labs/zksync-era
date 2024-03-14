@@ -105,12 +105,6 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
             || *key == storage_key_for_eth_balance(&BOOTLOADER_ADDRESS)
     }
 
-    fn set_initial_value(&mut self, storage_key: &StorageKey, value: U256, timestamp: Timestamp) {
-        if !self.initial_values.inner().contains_key(storage_key) {
-            self.initial_values.insert(*storage_key, value, timestamp);
-        }
-    }
-
     pub fn read_value(&mut self, mut query: LogQuery) -> LogQuery {
         let key = triplet_to_storage_key(query.shard_id, query.address, query.key);
 
@@ -120,8 +114,6 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
         let current_value = self.storage.read_from_storage(&key);
 
         query.read_value = current_value;
-
-        self.set_initial_value(&key, current_value, query.timestamp);
 
         self.frames_stack.push_forward(
             Box::new(StorageLogQuery {
