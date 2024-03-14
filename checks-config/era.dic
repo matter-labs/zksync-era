@@ -923,6 +923,7 @@ implementors
 WIP
 oneshot
 p2p
+prunable
 StorageProcessor
 StorageMarker
 SIGINT
