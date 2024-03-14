@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::{future, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use clap::Parser;
@@ -50,6 +50,7 @@ mod config;
 mod helpers;
 mod init;
 mod metrics;
+mod version_sync_task;
 
 const RELEASE_MANIFEST: &str = include_str!("../../../../.github/release-please/manifest.json");
 
@@ -544,12 +545,26 @@ async fn main() -> anyhow::Result<()> {
     );
     // Start scraping Postgres metrics before store initialization as well.
     let metrics_pool = connection_pool.clone();
-    let mut task_handles = vec![tokio::spawn(async move {
-        metrics_pool
-            .run_postgres_metrics_scraping(Duration::from_secs(60))
-            .await;
-        Ok(())
-    })];
+    let version_sync_task_pool = connection_pool.clone();
+    let version_sync_task_main_node_client = main_node_client.clone();
+    let mut task_handles = vec![
+        tokio::spawn(async move {
+            metrics_pool
+                .run_postgres_metrics_scraping(Duration::from_secs(60))
+                .await;
+            Ok(())
+        }),
+        tokio::spawn(async move {
+            version_sync_task::sync_versions(
+                version_sync_task_pool,
+                version_sync_task_main_node_client,
+            )
+            .await?;
+            future::pending::<()>().await;
+            // ^ Since this is run as a task, we don't want it to exit on success (this would shut down the node).
+            Ok(())
+        }),
+    ];
 
     // Make sure that the node storage is initialized either via genesis or snapshot recovery.
     ensure_storage_initialized(
