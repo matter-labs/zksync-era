@@ -215,9 +215,9 @@ pub async fn ensure_l1_batch_commit_data_generation_mode(
 
 #[cfg(test)]
 mod tests {
-    use assert_matches::assert_matches;
     use std::sync::Mutex;
 
+    use assert_matches::assert_matches;
     use zksync_eth_client::{ContractCall, ExecutedTxStatus, FailureInfo, RawTransactionBytes};
     use zksync_types::{
         web3::types::{Block, BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt},
