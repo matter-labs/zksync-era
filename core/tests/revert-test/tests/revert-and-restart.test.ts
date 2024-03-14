@@ -1,8 +1,8 @@
 import * as utils from 'zk/build/utils';
-import { Tester } from './tester';
+import {Tester} from './tester';
 import * as zkweb3 from 'zksync-web3';
-import { BigNumber, Contract, ethers } from 'ethers';
-import { expect } from 'chai';
+import {BigNumber, Contract, ethers} from 'ethers';
+import {expect} from 'chai';
 import fs from 'fs';
 
 // Parses output of "print-suggested-values" command of the revert block tool.
@@ -25,7 +25,7 @@ function parseSuggestedValues(suggestedValuesString: string) {
         throw new TypeError('suggested `priorityFee` is not an integer');
     }
 
-    return { lastL1BatchNumber, nonce, priorityFee };
+    return {lastL1BatchNumber, nonce, priorityFee};
 }
 
 async function killServerAndWaitForShutdown(tester: Tester) {
@@ -72,7 +72,7 @@ describe('Block reverting test', function () {
             process.env.API_WEB3_JSON_RPC_HTTP_URL as string
         );
         alice = tester.emptyWallet();
-        logs = fs.createWriteStream('revert.log', { flags: 'a' });
+        logs = fs.createWriteStream('revert.log', {flags: 'a'});
     });
 
     step('run server and execute some transactions', async () => {
@@ -138,11 +138,11 @@ describe('Block reverting test', function () {
     step('revert blocks', async () => {
         const executedProcess = await utils.exec(
             'cd $ZKSYNC_HOME && ' +
-                'RUST_LOG=off cargo run --bin block_reverter --release -- print-suggested-values --json'
+            'RUST_LOG=off cargo run --bin block_reverter --release -- print-suggested-values --json'
             // ^ Switch off logs to not pollute the output JSON
         );
         const suggestedValuesOutput = executedProcess.stdout;
-        const { lastL1BatchNumber, nonce, priorityFee } = parseSuggestedValues(suggestedValuesOutput);
+        const {lastL1BatchNumber, nonce, priorityFee} = parseSuggestedValues(suggestedValuesOutput);
         expect(lastL1BatchNumber < blocksCommittedBeforeRevert, 'There should be at least one block for revert').to.be
             .true;
 
@@ -247,7 +247,7 @@ async function checkedRandomTransfer(sender: zkweb3.Wallet, amount: BigNumber) {
 async function wait_for_server_is_running(tester: Tester) {
     let iter = 0;
     let mainContract;
-    while (iter < 30 && !mainContract) {
+    while (iter < 120 && !mainContract) {
         try {
             mainContract = await tester.syncWallet.getMainContract();
         } catch (err) {
