@@ -152,7 +152,7 @@ fn default_l1_rpc_address() -> String {
 
 fn default_master_wallet_pk() -> String {
     // Use this key only for localhost because it is compromised!
-    // Using this key for Rinkeby will result in losing Rinkeby ETH.
+    // Using this key for Testnet will result in losing Testnet ETH.
     // Corresponding wallet is `0x36615Cf349d7F6344891B1e7CA7C72883F5dc049`
     let result = "7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110".to_string();
     tracing::info!("Using default MASTER_WALLET_PK: {result}");

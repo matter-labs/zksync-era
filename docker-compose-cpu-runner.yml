@@ -1,14 +1,24 @@
 version: '3.2'
 services:
-  geth:
-    image: "matterlabs/geth:latest"
-    environment:
-      - PLUGIN_CONFIG
+  reth:
+    restart: always
+    image: "ghcr.io/paradigmxyz/reth:v0.2.0-beta.2"
+    volumes:
+      - type: bind
+        source: ./volumes/reth/data
+        target: /rethdata
+      - type: bind
+        source: ./etc/reth/chaindata
+        target: /chaindata
+
+    command: node --dev --datadir /rethdata --http --http.addr 0.0.0.0 --http.port 8545  --dev.block-time 300ms --chain /chaindata/reth_config
+    ports:
+      - 127.0.0.1:8545:8545
 
   zk:
     image: "matterlabs/zk-environment:latest2.0-lightweight-nightly"
     depends_on:
-      - geth
+      - reth
       - postgres
     security_opt:
       - seccomp:unconfined
