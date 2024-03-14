@@ -13,7 +13,9 @@ impl FromEnv for GenesisConfig {
         let contracts_config = &ContractsConfig::from_env()?;
         let state_keeper = StateKeeperConfig::from_env()?;
         Ok(GenesisConfig {
-            protocol_version: 20,
+            protocol_version: contracts_config
+                .genesis_protocol_version
+                .ok_or(anyhow!("Protocol version is required for genesis"))?,
             genesis_root_hash: contracts_config
                 .genesis_root
                 .ok_or(anyhow!("genesis_root_hash required for genesis"))?,

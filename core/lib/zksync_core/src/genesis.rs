@@ -568,7 +568,7 @@ mod tests {
         let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
         let params = GenesisConfig {
-            protocol_version: ProtocolVersionId::Version10,
+            protocol_version: ProtocolVersionId::Version10 as u16,
             ..GenesisConfig::mock()
         }
         .load_genesis_params()

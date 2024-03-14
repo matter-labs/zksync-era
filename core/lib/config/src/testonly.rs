@@ -374,6 +374,7 @@ impl RandomConfig for configs::ContractsConfig {
             genesis_batch_commitment: g.gen(),
             genesis_rollup_leaf_index: g.gen(),
             genesis_root: g.gen(),
+            genesis_protocol_version: g.gen(),
         }
     }
 }

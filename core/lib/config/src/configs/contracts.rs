@@ -9,6 +9,7 @@ pub struct ContractsConfig {
     pub genesis_root: Option<H256>,
     pub genesis_rollup_leaf_index: Option<u64>,
     pub genesis_batch_commitment: Option<H256>,
+    pub genesis_protocol_version: Option<u16>,
     pub governance_addr: Address,
     pub mailbox_facet_addr: Address,
     pub executor_facet_addr: Address,
@@ -87,6 +88,7 @@ impl ContractsConfig {
             state_transition_proxy_addr: Some(Address::repeat_byte(0x16)),
             state_transition_impl_addr: Some(Address::repeat_byte(0x17)),
             genesis_batch_commitment: Some(H256::repeat_byte(0x17)),
+            genesis_protocol_version: Some(21),
         }
     }
 }

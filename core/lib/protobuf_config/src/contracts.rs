@@ -143,6 +143,7 @@ impl ProtoRepr for proto::Contracts {
                 .map(|x| parse_h256(x))
                 .transpose()
                 .context("genesis_root")?,
+            genesis_protocol_version: self.genesis_protocol_version.map(|a| a as u16),
         })
     }
 
@@ -220,6 +221,7 @@ impl ProtoRepr for proto::Contracts {
                 .as_ref()
                 .map(|x| x.as_bytes().into()),
             genesis_rollup_leaf_index: this.genesis_rollup_leaf_index,
+            genesis_protocol_version: this.genesis_protocol_version.map(|a| a as u32),
         }
     }
 }
