@@ -74,7 +74,9 @@ use crate::{
         periodic_job::PeriodicJob,
         waiting_to_queued_fri_witness_job_mover::WaitingToQueuedFriWitnessJobMover,
     },
-    l1_gas_price::GasAdjusterSingleton,
+    l1_gas_price::{
+        GasAdjusterSingleton, PubdataPricing, RollupPubdataPricing, ValidiumPubdataPricing,
+    },
     metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
     metrics::{InitStage, APP_METRICS},
     state_keeper::{
@@ -361,8 +363,20 @@ pub async fn initialize_components(
 
     let query_client = QueryClient::new(&eth_client_config.web3_url).unwrap();
     let gas_adjuster_config = configs.gas_adjuster_config.context("gas_adjuster_config")?;
-    let mut gas_adjuster =
-        GasAdjusterSingleton::new(eth_client_config.web3_url.clone(), gas_adjuster_config);
+    let state_keeper_config = configs
+        .state_keeper_config
+        .clone()
+        .context("state_keeper_config")?;
+    let pubdata_pricing: Arc<dyn PubdataPricing> =
+        match state_keeper_config.l1_batch_commit_data_generator_mode {
+            L1BatchCommitDataGeneratorMode::Rollup => Arc::new(RollupPubdataPricing {}),
+            L1BatchCommitDataGeneratorMode::Validium => Arc::new(ValidiumPubdataPricing {}),
+        };
+    let mut gas_adjuster = GasAdjusterSingleton::new(
+        eth_client_config.web3_url.clone(),
+        gas_adjuster_config,
+        pubdata_pricing,
+    );
 
     let (stop_sender, stop_receiver) = watch::channel(false);
     let (cb_sender, cb_receiver) = oneshot::channel();

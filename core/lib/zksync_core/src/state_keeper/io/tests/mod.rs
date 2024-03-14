@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use futures::FutureExt;
 use multivm::utils::derive_base_fee_and_gas_per_pubdata;
+use test_casing::test_casing;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::ConnectionPool;
 use zksync_mempool::L2TxFilter;
@@ -26,17 +27,17 @@ use crate::{
         },
         updates::{MiniblockSealCommand, MiniblockUpdates, UpdatesManager},
     },
-    utils::testonly::prepare_recovery_snapshot,
+    utils::testonly::{prepare_recovery_snapshot, DeploymentMode},
 };
 
 mod tester;
 
 /// Ensure that MempoolIO.filter is correctly initialized right after mempool initialization.
+#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
-async fn test_filter_initialization() {
+async fn test_filter_initialization(deployment_mode: DeploymentMode) {
+    let tester = Tester::new(&deployment_mode);
     let connection_pool = ConnectionPool::constrained_test_pool(1).await;
-    let tester = Tester::new();
-
     // Genesis is needed for proper mempool initialization.
     tester.genesis(&connection_pool).await;
     let (mempool, _) = tester.create_test_mempool_io(connection_pool, 1).await;
@@ -46,10 +47,11 @@ async fn test_filter_initialization() {
 }
 
 /// Ensure that MempoolIO.filter is modified correctly if there is a pending batch upon mempool initialization.
+#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
-async fn test_filter_with_pending_batch() {
+async fn test_filter_with_pending_batch(deployment_mode: DeploymentMode) {
+    let mut tester = Tester::new(&deployment_mode);
     let connection_pool = ConnectionPool::constrained_test_pool(1).await;
-    let mut tester = Tester::new();
     tester.genesis(&connection_pool).await;
 
     // Insert a sealed batch so there will be a `prev_l1_batch_state_root`.
@@ -91,10 +93,11 @@ async fn test_filter_with_pending_batch() {
 }
 
 /// Ensure that `MempoolIO.filter` is modified correctly if there is no pending batch.
+#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
-async fn test_filter_with_no_pending_batch() {
+async fn test_filter_with_no_pending_batch(deployment_mode: DeploymentMode) {
+    let tester = Tester::new(&deployment_mode);
     let connection_pool = ConnectionPool::constrained_test_pool(1).await;
-    let tester = Tester::new();
     tester.genesis(&connection_pool).await;
 
     // Insert a sealed batch so there will be a `prev_l1_batch_state_root`.
@@ -137,8 +140,8 @@ async fn test_timestamps_are_distinct(
     connection_pool: ConnectionPool,
     prev_miniblock_timestamp: u64,
     delay_prev_miniblock_compared_to_batch: bool,
+    mut tester: Tester,
 ) {
-    let mut tester = Tester::new();
     tester.genesis(&connection_pool).await;
 
     tester.set_timestamp(prev_miniblock_timestamp);
@@ -169,32 +172,42 @@ async fn test_timestamps_are_distinct(
     assert!(l1_batch_env.timestamp > prev_miniblock_timestamp);
 }
 
+#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
-async fn l1_batch_timestamp_basics() {
+async fn l1_batch_timestamp_basics(deployment_mode: DeploymentMode) {
+    let tester = Tester::new(&deployment_mode);
     let connection_pool = ConnectionPool::constrained_test_pool(1).await;
     let current_timestamp = seconds_since_epoch();
-    test_timestamps_are_distinct(connection_pool, current_timestamp, false).await;
+    test_timestamps_are_distinct(connection_pool, current_timestamp, false, tester).await;
 }
 
+#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
-async fn l1_batch_timestamp_with_clock_skew() {
+async fn l1_batch_timestamp_with_clock_skew(deployment_mode: DeploymentMode) {
+    let tester = Tester::new(&deployment_mode);
     let connection_pool = ConnectionPool::constrained_test_pool(1).await;
     let current_timestamp = seconds_since_epoch();
-    test_timestamps_are_distinct(connection_pool, current_timestamp + 2, false).await;
+    test_timestamps_are_distinct(connection_pool, current_timestamp + 2, false, tester).await;
 }
 
+#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
-async fn l1_batch_timestamp_respects_prev_miniblock() {
+async fn l1_batch_timestamp_respects_prev_miniblock(deployment_mode: DeploymentMode) {
+    let tester = Tester::new(&deployment_mode);
     let connection_pool = ConnectionPool::constrained_test_pool(1).await;
     let current_timestamp = seconds_since_epoch();
-    test_timestamps_are_distinct(connection_pool, current_timestamp, true).await;
+    test_timestamps_are_distinct(connection_pool, current_timestamp, true, tester).await;
 }
 
+#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
-async fn l1_batch_timestamp_respects_prev_miniblock_with_clock_skew() {
+async fn l1_batch_timestamp_respects_prev_miniblock_with_clock_skew(
+    deployment_mode: DeploymentMode,
+) {
+    let tester = Tester::new(&deployment_mode);
     let connection_pool = ConnectionPool::constrained_test_pool(1).await;
     let current_timestamp = seconds_since_epoch();
-    test_timestamps_are_distinct(connection_pool, current_timestamp + 2, true).await;
+    test_timestamps_are_distinct(connection_pool, current_timestamp + 2, true, tester).await;
 }
 
 #[tokio::test]
@@ -361,9 +374,8 @@ async fn processing_events_when_sealing_miniblock() {
 async fn test_miniblock_and_l1_batch_processing(
     pool: ConnectionPool,
     miniblock_sealer_capacity: usize,
+    tester: Tester,
 ) {
-    let tester = Tester::new();
-
     // Genesis is needed for proper mempool initialization.
     tester.genesis(&pool).await;
     let mut storage = pool.access_storage().await.unwrap();
@@ -421,25 +433,30 @@ async fn test_miniblock_and_l1_batch_processing(
     assert_eq!(l1_batch_header.l2_tx_count, 1);
 }
 
+#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
-async fn miniblock_and_l1_batch_processing() {
+async fn miniblock_and_l1_batch_processing(deployment_mode: DeploymentMode) {
+    let tester = Tester::new(&deployment_mode);
     let pool = ConnectionPool::constrained_test_pool(1).await;
-    test_miniblock_and_l1_batch_processing(pool, 1).await;
+    test_miniblock_and_l1_batch_processing(pool, 1, tester).await;
 }
 
+#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
-async fn miniblock_and_l1_batch_processing_with_sync_sealer() {
+async fn miniblock_and_l1_batch_processing_with_sync_sealer(deployment_mode: DeploymentMode) {
+    let tester = Tester::new(&deployment_mode);
     let pool = ConnectionPool::constrained_test_pool(1).await;
-    test_miniblock_and_l1_batch_processing(pool, 0).await;
+    test_miniblock_and_l1_batch_processing(pool, 0, tester).await;
 }
 
+#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
-async fn miniblock_processing_after_snapshot_recovery() {
+async fn miniblock_processing_after_snapshot_recovery(deployment_mode: DeploymentMode) {
+    let tester = Tester::new(&deployment_mode);
     let connection_pool = ConnectionPool::test_pool().await;
     let mut storage = connection_pool.access_storage().await.unwrap();
     let snapshot_recovery =
         prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await;
-    let tester = Tester::new();
 
     let (mut mempool, mut mempool_guard) = tester
         .create_test_mempool_io(connection_pool.clone(), 0)
@@ -657,10 +674,11 @@ async fn miniblock_sealer_handle_parallel_processing() {
 }
 
 /// Ensure that subsequent miniblocks that belong to the same L1 batch have different timestamps
+#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
-async fn different_timestamp_for_miniblocks_in_same_batch() {
+async fn different_timestamp_for_miniblocks_in_same_batch(deployment_mode: DeploymentMode) {
+    let tester = Tester::new(&deployment_mode);
     let connection_pool = ConnectionPool::constrained_test_pool(1).await;
-    let tester = Tester::new();
 
     // Genesis is needed for proper mempool initialization.
     tester.genesis(&connection_pool).await;

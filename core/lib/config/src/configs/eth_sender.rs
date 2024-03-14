@@ -45,7 +45,6 @@ impl ETHSenderConfig {
                 internal_enforced_l1_gas_price: None,
                 poll_period: 5,
                 max_l1_gas_price: None,
-                l1_gas_per_pubdata_byte: 17,
             },
         }
     }
@@ -136,7 +135,6 @@ pub struct GasAdjusterConfig {
     pub poll_period: u64,
     /// Max number of l1 gas price that is allowed to be used in state keeper.
     pub max_l1_gas_price: Option<u64>,
-    pub l1_gas_per_pubdata_byte: u64,
 }
 
 impl GasAdjusterConfig {
