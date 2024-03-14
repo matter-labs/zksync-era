@@ -20,15 +20,15 @@ pub struct StorageOverrides<S> {
 
 impl<S: ReadStorage + fmt::Debug> StorageOverrides<S> {
     /// Applies the state override to the storage.
-    pub fn apply_state_override(&mut self, state_override: StateOverride) {
+    pub fn apply_state_override(&mut self, state_override: &StateOverride) {
         for (account, overrides) in state_override.iter() {
             if let Some(balance) = overrides.balance {
-                let balance_key = storage_key_for_eth_balance(&account);
+                let balance_key = storage_key_for_eth_balance(account);
                 self.set_value(balance_key, u256_to_h256(balance));
             }
 
             if let Some(nonce) = overrides.nonce {
-                let nonce_key = get_nonce_key(&account);
+                let nonce_key = get_nonce_key(account);
 
                 let full_nonce = self.read_value(&nonce_key);
                 let (_, deployment_nonce) = decompose_full_nonce(h256_to_u256(full_nonce));
@@ -38,7 +38,7 @@ impl<S: ReadStorage + fmt::Debug> StorageOverrides<S> {
             }
 
             if let Some(code) = &overrides.code {
-                let code_key = get_code_key(&account);
+                let code_key = get_code_key(account);
                 let code_hash = hash_bytecode(&code.0);
 
                 self.set_value(code_key, code_hash);
@@ -47,14 +47,11 @@ impl<S: ReadStorage + fmt::Debug> StorageOverrides<S> {
 
             match &overrides.state {
                 Some(OverrideState::State(state)) => {
-                    self.override_account_state(AccountTreeId::new(account.clone()), state.clone());
+                    self.override_account_state(AccountTreeId::new(*account), state.clone());
                 }
                 Some(OverrideState::StateDiff(state_diff)) => {
-                    for (key, value) in state_diff.iter() {
-                        self.set_value(
-                            StorageKey::new(AccountTreeId::new(account.clone()), key.clone()),
-                            value.clone(),
-                        );
+                    for (key, value) in state_diff {
+                        self.set_value(StorageKey::new(AccountTreeId::new(*account), *key), *value);
                     }
                 }
                 None => {}
@@ -73,7 +70,7 @@ impl<S: ReadStorage + fmt::Debug> StorageOverrides<S> {
         }
     }
 
-    /// Overrides a factory dep code.
+    /// Overrides a factory dependency code.
     pub fn store_factory_dep(&mut self, hash: H256, code: Vec<u8>) {
         self.overrided_factory_deps.insert(hash, code);
     }
@@ -94,23 +91,20 @@ impl<S: ReadStorage + fmt::Debug> StorageOverrides<S> {
     }
 }
 
-impl<S: ReadStorage + fmt::Debug> Into<Rc<RefCell<Self>>> for StorageOverrides<S> {
-    fn into(self) -> Rc<RefCell<Self>> {
-        self.to_rc_ptr()
+impl<S: ReadStorage + fmt::Debug> From<StorageOverrides<S>> for Rc<RefCell<StorageOverrides<S>>> {
+    fn from(storage_overrides: StorageOverrides<S>) -> Rc<RefCell<StorageOverrides<S>>> {
+        storage_overrides.to_rc_ptr()
     }
 }
 
 impl<S: ReadStorage + fmt::Debug> ReadStorage for StorageOverrides<S> {
     fn read_value(&mut self, key: &StorageKey) -> StorageValue {
-        // If the account is overrided, return the overrided value if any or zero.
+        // If the account is overridden, return the overridden value if any or zero.
         // Otherwise, return the value from the underlying storage.
-        self.overrided_account_state
-            .get(key.account())
-            .and_then(|state| match state.get(key.key()) {
-                Some(v) => Some(v.clone()),
-                None => Some(H256::zero()),
-            })
-            .unwrap_or_else(|| self.storage_view.read_value(key))
+        self.overrided_account_state.get(key.account()).map_or_else(
+            || self.storage_view.read_value(key),
+            |state| state.get(key.key()).copied().unwrap_or_else(H256::zero),
+        )
     }
 
     /// Only keys contained in the underlying storage will return `false`. If a key was

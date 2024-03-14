@@ -343,7 +343,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
     // Apply state override
     if let Some(state_override) = state_override {
         let mut storage_override = storage_view.as_ref().borrow_mut();
-        storage_override.apply_state_override(state_override);
+        storage_override.apply_state_override(&state_override);
     }
 
     let execution_latency = SANDBOX_METRICS.sandbox[&SandboxStage::Execution].start();
