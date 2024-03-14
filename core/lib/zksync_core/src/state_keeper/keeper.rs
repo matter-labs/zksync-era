@@ -93,12 +93,11 @@ impl ZkSyncStateKeeper {
         let last_miniblock = self.io.current_miniblock_number() - 1;
         let mut stop_receiver = self.stop_receiver.clone();
         async move {
-            fee_address_migration::migrate_miniblocks(pool, last_miniblock, &stop_receiver).await?;
+            fee_address_migration::migrate_miniblocks(pool, last_miniblock, stop_receiver.clone())
+                .await?;
             // Since this is run as a task, we don't want it to exit on success (this would shut down the node).
             // We still want for the task to be cancellation-aware, so we just wait until a stop signal is sent.
-            while !*stop_receiver.borrow_and_update() {
-                stop_receiver.changed().await.ok();
-            }
+            stop_receiver.changed().await.ok();
             Ok(())
         }
     }
