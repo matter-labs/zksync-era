@@ -310,7 +310,7 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
         let caches = RocksDBCaches::new(options.block_cache_capacity);
         let mut db_options = Self::rocksdb_options(None, None);
         let max_open_files = if let Some(non_zero) = options.max_open_files {
-            i32::try_from(non_zero.get()).ok().unwrap_or(i32::MAX)
+            i32::try_from(non_zero.get()).unwrap_or(i32::MAX)
         } else {
             -1
         };
