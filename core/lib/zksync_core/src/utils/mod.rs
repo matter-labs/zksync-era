@@ -215,6 +215,8 @@ pub async fn ensure_l1_batch_commit_data_generation_mode(
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Mutex;
+
     use zksync_eth_client::{ContractCall, ExecutedTxStatus, FailureInfo, RawTransactionBytes};
     use zksync_types::{
         web3::types::{Block, BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt},
@@ -272,34 +274,38 @@ mod tests {
     #[derive(Debug)]
     struct MockEthereumForCommitGenerationMode {
         retval: Vec<ethabi::Token>,
-        // Can't copy `Error` so I need a different way to flag it
-        contract_err: bool,
-        tx_err: bool,
+        // Can't copy `Error` so use internal mutability to `take` it.
+        // This means the the error is one use, reload if you need a second call.
+        // We also can't use `RefCell`, since `EthInterface` requires implementors to be `Sync` and
+        // `Send`.
+        error: Mutex<Option<EthClientError>>,
     }
 
     impl MockEthereumForCommitGenerationMode {
         fn with_retval(retval: Vec<ethabi::Token>) -> Self {
             Self {
                 retval,
-                contract_err: false,
-                tx_err: false,
+                error: Mutex::new(None),
+            }
+        }
+
+        fn with_error(error: EthClientError) -> Self {
+            Self {
+                retval: Vec::new(),
+                error: Mutex::new(Some(error)),
             }
         }
 
         fn with_contract_error() -> Self {
-            Self {
-                retval: Vec::new(),
-                contract_err: true,
-                tx_err: false,
-            }
+            Self::with_error(EthClientError::Contract(
+                zksync_types::web3::contract::Error::InterfaceUnsupported,
+            ))
         }
 
         fn with_tx_error() -> Self {
-            Self {
-                retval: Vec::new(),
-                contract_err: false,
-                tx_err: true,
-            }
+            Self::with_error(EthClientError::EthereumGateway(
+                zksync_types::web3::Error::Unreachable,
+            ))
         }
 
         fn with_legacy_contract() -> Self {
@@ -390,15 +396,10 @@ mod tests {
             &self,
             _: ContractCall,
         ) -> Result<Vec<ethabi::Token>, EthClientError> {
-            if self.tx_err {
-                return Err(EthClientError::EthereumGateway(
-                    zksync_types::web3::Error::Unreachable,
-                ));
-            }
-            if self.contract_err {
-                return Err(EthClientError::Contract(
-                    zksync_types::web3::contract::Error::InterfaceUnsupported,
-                ));
+            let mut error = None;
+            core::mem::swap(&mut *self.error.lock().unwrap(), &mut error);
+            if let Some(error) = error {
+                return Err(error);
             }
             Ok(self.retval.clone())
         }
