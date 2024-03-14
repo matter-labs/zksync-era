@@ -1,4 +1,5 @@
 use anyhow::Context;
+use std::cmp::Ordering;
 use zksync_basic_types::{L1BatchNumber, MiniblockNumber};
 use zksync_dal::ConnectionPool;
 use zksync_types::ProtocolVersionId;
@@ -70,12 +71,16 @@ pub async fn sync_versions(
             .with_context(|| format!("Main node missing data about miniblock #{mid_miniblock}"))?
             .protocol_version;
 
-        if mid_protocol_version < ProtocolVersionId::Version22 {
-            left_bound = mid_batch + 1;
-        } else if mid_protocol_version == ProtocolVersionId::Version22 {
-            right_bound = mid_batch;
-        } else {
-            anyhow::bail!("Unexpected remote protocol version: {mid_protocol_version:?} for miniblock #{mid_miniblock}");
+        match mid_protocol_version.cmp(&ProtocolVersionId::Version22) {
+            Ordering::Less => {
+                left_bound = mid_batch + 1;
+            }
+            Ordering::Equal => {
+                right_bound = mid_batch;
+            }
+            Ordering::Greater => {
+                anyhow::bail!("Unexpected remote protocol version: {mid_protocol_version:?} for miniblock #{mid_miniblock}");
+            }
         }
     }
 
