@@ -1,8 +1,11 @@
-use crate::FromEnv;
 use anyhow::anyhow;
 use zksync_basic_types::H256;
-use zksync_config::configs::chain::{NetworkConfig, StateKeeperConfig};
-use zksync_config::{ContractsConfig, GenesisConfig};
+use zksync_config::{
+    configs::chain::{NetworkConfig, StateKeeperConfig},
+    ContractsConfig, GenesisConfig,
+};
+
+use crate::FromEnv;
 
 impl FromEnv for GenesisConfig {
     fn from_env() -> anyhow::Result<Self> {
