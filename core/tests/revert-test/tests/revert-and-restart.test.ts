@@ -35,7 +35,7 @@ async function killServerAndWaitForShutdown(tester: Tester) {
     while (iter < 30) {
         try {
             await tester.syncWallet.provider.getBlockNumber();
-            await utils.sleep(5);
+            await utils.sleep(1);
             iter += 1;
         } catch (_) {
             // When exception happens, we assume that server died.
@@ -94,7 +94,7 @@ describe('Block reverting test', function () {
                 mainContract = await tester.syncWallet.getMainContract();
             } catch (err) {
                 ignoreError(err, 'waiting for server HTTP JSON-RPC to start');
-                await utils.sleep(5);
+                await utils.sleep(1);
                 iter += 1;
             }
         }
@@ -182,7 +182,7 @@ describe('Block reverting test', function () {
 
         // Run server.
         utils.background(`zk server --components ${components}`, [null, logs, logs]);
-        await utils.sleep(10);
+        await utils.sleep(2);
 
         const balanceBefore = await alice.getBalance();
         expect(balanceBefore.eq(depositAmount.mul(2)), 'Incorrect balance after revert').to.be.true;
@@ -219,7 +219,7 @@ describe('Block reverting test', function () {
 
         // Run again.
         utils.background(`zk server --components=${components}`, [null, logs, logs]);
-        await utils.sleep(10);
+        await utils.sleep(2);
 
         // Trying to send a transaction from the same address again
         await checkedRandomTransfer(alice, BigNumber.from(1));
