@@ -1,6 +1,6 @@
 use std::{collections::HashMap, ops, time::Instant};
 
-use sqlx::{types::chrono::Utc, Row};
+use sqlx::types::chrono::Utc;
 use zksync_types::{
     get_code_key, snapshots::SnapshotStorageLog, AccountTreeId, Address, L1BatchNumber,
     MiniblockNumber, StorageKey, StorageLog, FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H160, H256,
@@ -122,7 +122,7 @@ impl StorageLogsDal<'_, '_> {
             WHERE
                 miniblock_number = $1
             "#,
-            block_number.0 as i64
+            i64::from(block_number.0)
         )
         .fetch_one(self.storage.conn())
         .await?
@@ -142,7 +142,7 @@ impl StorageLogsDal<'_, '_> {
     ) -> sqlx::Result<()> {
         let stage_start = Instant::now();
         let modified_keys = self
-            .modified_keys_since_miniblock(last_miniblock_to_keep)
+            .modified_keys_in_miniblocks(last_miniblock_to_keep.next()..=MiniblockNumber(u32::MAX))
             .await?;
         tracing::info!(
             "Loaded {} keys changed after miniblock #{last_miniblock_to_keep} in {:?}",
@@ -221,32 +221,30 @@ impl StorageLogsDal<'_, '_> {
         Ok(())
     }
 
-    /// Returns all storage keys that were modified after the specified miniblock.
-    async fn modified_keys_since_miniblock(
+    /// Returns distinct hashed storage keys that were modified in the specified miniblock range.
+    pub async fn modified_keys_in_miniblocks(
         &mut self,
-        miniblock_number: MiniblockNumber,
+        miniblock_numbers: ops::RangeInclusive<MiniblockNumber>,
     ) -> sqlx::Result<Vec<H256>> {
-        Ok(sqlx::query!(
+        let rows = sqlx::query!(
             r#"
             SELECT DISTINCT
-                ON (hashed_key) hashed_key
+                hashed_key
             FROM
-                (
-                    SELECT
-                        *
-                    FROM
-                        storage_logs
-                    WHERE
-                        miniblock_number > $1
-                ) inn
+                storage_logs
+            WHERE
+                miniblock_number BETWEEN $1 AND $2
             "#,
-            miniblock_number.0 as i64
+            i64::from(miniblock_numbers.start().0),
+            i64::from(miniblock_numbers.end().0)
         )
         .fetch_all(self.storage.conn())
-        .await?
-        .into_iter()
-        .map(|row| H256::from_slice(&row.hashed_key))
-        .collect())
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| H256::from_slice(&row.hashed_key))
+            .collect())
     }
 
     /// Removes all storage logs with a miniblock number strictly greater than the specified `block_number`.
@@ -260,7 +258,7 @@ impl StorageLogsDal<'_, '_> {
             WHERE
                 miniblock_number > $1
             "#,
-            block_number.0 as i64
+            i64::from(block_number.0)
         )
         .execute(self.storage.conn())
         .await?;
@@ -333,7 +331,7 @@ impl StorageLogsDal<'_, '_> {
                 operation_number DESC
             "#,
             &bytecode_hashed_keys as &[_],
-            max_miniblock_number as i64
+            i64::from(max_miniblock_number)
         )
         .fetch_all(self.storage.conn())
         .await?;
@@ -383,7 +381,7 @@ impl StorageLogsDal<'_, '_> {
                 miniblock_number,
                 operation_number
             "#,
-            l1_batch_number.0 as i64
+            i64::from(l1_batch_number.0)
         )
         .fetch_all(self.storage.conn())
         .await?;
@@ -414,7 +412,9 @@ impl StorageLogsDal<'_, '_> {
         };
 
         let stage_start = Instant::now();
-        let mut modified_keys = self.modified_keys_since_miniblock(last_miniblock).await?;
+        let mut modified_keys = self
+            .modified_keys_in_miniblocks(last_miniblock.next()..=MiniblockNumber(u32::MAX))
+            .await?;
         let modified_keys_count = modified_keys.len();
         tracing::info!(
             "Fetched {modified_keys_count} keys changed after miniblock #{last_miniblock} in {:?}",
@@ -580,7 +580,7 @@ impl StorageLogsDal<'_, '_> {
                 UNNEST($1::bytea[]) AS u (hashed_key)
             "#,
             &hashed_keys as &[&[u8]],
-            miniblock_number.0 as i64
+            i64::from(miniblock_number.0)
         )
         .fetch_all(self.storage.conn())
         .await?;
@@ -628,27 +628,31 @@ impl StorageLogsDal<'_, '_> {
             .collect()
     }
 
-    pub async fn get_miniblock_storage_logs(
+    /// Returns the total number of rows in the `storage_logs` table before and at the specified miniblock.
+    ///
+    /// **Warning.** This method is slow (requires a full table scan).
+    pub async fn get_storage_logs_row_count(
         &mut self,
-        miniblock_number: MiniblockNumber,
-    ) -> Vec<(H256, H256, u32)> {
-        self.get_miniblock_storage_logs_from_table(miniblock_number, "storage_logs")
-            .await
-    }
-
-    /// Counts the total number of storage logs in the specified miniblock,
-    // TODO(PLA-596): add storage log count to snapshot metadata instead?
-    pub async fn count_miniblock_storage_logs(
-        &mut self,
-        miniblock_number: MiniblockNumber,
+        at_miniblock: MiniblockNumber,
     ) -> sqlx::Result<u64> {
-        let count = sqlx::query_scalar!(
-            "SELECT COUNT(*) FROM storage_logs WHERE miniblock_number = $1",
-            miniblock_number.0 as i32
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                COUNT(*) AS COUNT
+            FROM
+                storage_logs
+            WHERE
+                miniblock_number <= $1
+            "#,
+            i64::from(at_miniblock.0)
         )
-        .fetch_one(self.storage.conn())
+        .instrument("get_storage_logs_row_count")
+        .with_arg("miniblock_number", &at_miniblock)
+        .report_latency()
+        .expect_slow_query()
+        .fetch_one(self.storage)
         .await?;
-        Ok(count.unwrap_or(0) as u64)
+        Ok(row.count.unwrap_or(0) as u64)
     }
 
     /// Gets a starting tree entry for each of the supplied `key_ranges` for the specified
@@ -692,7 +696,7 @@ impl StorageLogsDal<'_, '_> {
                 sl
                 LEFT OUTER JOIN initial_writes ON initial_writes.hashed_key = sl.kv[1]
             "#,
-            miniblock_number.0 as i64,
+            i64::from(miniblock_number.0),
             &start_keys as &[&[u8]],
             &end_keys as &[&[u8]],
         )
@@ -732,7 +736,7 @@ impl StorageLogsDal<'_, '_> {
             ORDER BY
                 storage_logs.hashed_key
             "#,
-            miniblock_number.0 as i64,
+            i64::from(miniblock_number.0),
             key_range.start().as_bytes(),
             key_range.end().as_bytes()
         )
@@ -745,90 +749,6 @@ impl StorageLogsDal<'_, '_> {
             leaf_index: row.index as u64,
         });
         Ok(rows.collect())
-    }
-
-    pub async fn retain_storage_logs(
-        &mut self,
-        miniblock_number: MiniblockNumber,
-        operation_numbers: &[i32],
-    ) {
-        sqlx::query!(
-            r#"
-            DELETE FROM storage_logs
-            WHERE
-                miniblock_number = $1
-                AND operation_number != ALL ($2)
-            "#,
-            miniblock_number.0 as i64,
-            &operation_numbers
-        )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
-    }
-
-    /// Loads (hashed_key, value, operation_number) tuples for given miniblock_number.
-    /// Uses provided DB table.
-    /// Shouldn't be used in production.
-    pub async fn get_miniblock_storage_logs_from_table(
-        &mut self,
-        miniblock_number: MiniblockNumber,
-        table_name: &str,
-    ) -> Vec<(H256, H256, u32)> {
-        sqlx::query(&format!(
-            "SELECT hashed_key, value, operation_number FROM {table_name} \
-            WHERE miniblock_number = $1 \
-            ORDER BY operation_number"
-        ))
-        .bind(miniblock_number.0 as i64)
-        .fetch_all(self.storage.conn())
-        .await
-        .unwrap()
-        .into_iter()
-        .map(|row| {
-            let hashed_key = H256::from_slice(row.get("hashed_key"));
-            let value = H256::from_slice(row.get("value"));
-            let operation_number: u32 = row.get::<i32, &str>("operation_number") as u32;
-            (hashed_key, value, operation_number)
-        })
-        .collect()
-    }
-
-    /// Loads value for given hashed_key at given miniblock_number.
-    /// Uses provided DB table.
-    /// Shouldn't be used in production.
-    pub async fn get_storage_value_from_table(
-        &mut self,
-        hashed_key: H256,
-        miniblock_number: MiniblockNumber,
-        table_name: &str,
-    ) -> H256 {
-        let query_str = format!(
-            "SELECT value FROM {table_name} \
-                WHERE hashed_key = $1 AND miniblock_number <= $2 \
-                ORDER BY miniblock_number DESC, operation_number DESC LIMIT 1",
-        );
-        sqlx::query(&query_str)
-            .bind(hashed_key.as_bytes())
-            .bind(miniblock_number.0 as i64)
-            .fetch_optional(self.storage.conn())
-            .await
-            .unwrap()
-            .map(|row| H256::from_slice(row.get("value")))
-            .unwrap_or_else(H256::zero)
-    }
-
-    /// Vacuums `storage_logs` table.
-    /// Shouldn't be used in production.
-    pub async fn vacuum_storage_logs(&mut self) {
-        sqlx::query!(
-            r#"
-            VACUUM storage_logs
-            "#
-        )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
     }
 }
 
@@ -1071,7 +991,8 @@ mod tests {
             let non_initial = conn
                 .storage_logs_dedup_dal()
                 .filter_written_slots(&all_keys)
-                .await;
+                .await
+                .unwrap();
             // Pretend that dedup logic eliminates all writes with zero values.
             let initial_keys: Vec<_> = logs
                 .iter()
