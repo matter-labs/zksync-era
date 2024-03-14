@@ -93,18 +93,17 @@ mod test {
     #[test]
     fn test_flatten_debug_call() {
         let result_debug_trace: Vec<ResultDebugCall> = [1, 1]
-            .map(|offset| ResultDebugCall {
-                result: new_testing_debug_call(offset),
+            .map(|_| ResultDebugCall {
+                result: new_testing_debug_call(),
             })
             .into();
 
         let debug_call_flat = flatten_debug_calls(result_debug_trace);
         let expected_debug_call_flat = expected_flat_trace();
-
         assert_eq!(debug_call_flat, expected_debug_call_flat);
     }
 
-    fn new_testing_debug_call(offset: u8) -> DebugCall {
+    fn new_testing_debug_call() -> DebugCall {
         DebugCall {
             r#type: DebugCallType::Call,
             from: Address::zero(),
@@ -116,11 +115,11 @@ mod test {
             input: vec![].into(),
             error: None,
             revert_reason: None,
-            calls: new_testing_trace(offset),
+            calls: new_testing_trace(),
         }
     }
 
-    fn new_testing_trace(offset: u8) -> Vec<DebugCall> {
+    fn new_testing_trace() -> Vec<DebugCall> {
         let first_call_trace = Call {
             from: Address::zero(),
             to: Address::zero(),
