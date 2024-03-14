@@ -8,7 +8,7 @@ use zksync_types::{witness_block_state::WitnessBlockState, MiniblockNumber};
 
 use crate::{
     metrics::EN_METRICS,
-    state_keeper::{io::IoCursor, updates::UpdatesManager, HandleStateKeeperOutput},
+    state_keeper::{io::IoCursor, updates::UpdatesManager, StateKeeperOutputHandler},
 };
 
 /// `SyncState` is a structure that holds the state of the syncing process.
@@ -76,7 +76,7 @@ impl SyncState {
 }
 
 #[async_trait]
-impl HandleStateKeeperOutput for SyncState {
+impl StateKeeperOutputHandler for SyncState {
     async fn initialize(&mut self, cursor: &IoCursor) -> anyhow::Result<()> {
         let sealed_block_number = cursor.next_miniblock.saturating_sub(1);
         self.set_local_block(MiniblockNumber(sealed_block_number));

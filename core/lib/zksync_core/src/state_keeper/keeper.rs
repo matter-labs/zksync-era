@@ -20,19 +20,16 @@ use zksync_types::{
 use super::{
     batch_executor::{BatchExecutor, BatchExecutorHandle, TxExecutionResult},
     extractors,
-    io::{HandleStateKeeperOutput, MiniblockParams, PendingBatchData, StateKeeperIO},
-    metrics::{AGGREGATION_METRICS, KEEPER_METRICS, L1_BATCH_METRICS},
+    io::{
+        fee_address_migration, IoCursor, L1BatchParams, MiniblockParams, OutputHandler,
+        PendingBatchData, StateKeeperIO,
+    },
+    metrics::{AGGREGATION_METRICS, BATCH_TIP_METRICS, KEEPER_METRICS, L1_BATCH_METRICS},
     seal_criteria::{ConditionalSealer, SealData, SealResolution},
     types::ExecutionMetricsForCriteria,
     updates::UpdatesManager,
 };
-use crate::{
-    gas_tracker::gas_count_from_writes,
-    state_keeper::{
-        io::{fee_address_migration, IoCursor, L1BatchParams},
-        metrics::BATCH_TIP_METRICS,
-    },
-};
+use crate::gas_tracker::gas_count_from_writes;
 
 /// Amount of time to block on waiting for some resource. The exact value is not really important,
 /// we only need it to not block on waiting indefinitely and be able to process cancellation requests.
@@ -69,7 +66,7 @@ impl Error {
 pub struct ZkSyncStateKeeper {
     stop_receiver: watch::Receiver<bool>,
     io: Box<dyn StateKeeperIO>,
-    persistence: Box<dyn HandleStateKeeperOutput>,
+    output_handler: OutputHandler,
     batch_executor_base: Box<dyn BatchExecutor>,
     sealer: Arc<dyn ConditionalSealer>,
 }
@@ -79,14 +76,14 @@ impl ZkSyncStateKeeper {
         stop_receiver: watch::Receiver<bool>,
         sequencer: Box<dyn StateKeeperIO>,
         batch_executor_base: Box<dyn BatchExecutor>,
-        persistence: Box<dyn HandleStateKeeperOutput>,
+        output_handler: OutputHandler,
         sealer: Arc<dyn ConditionalSealer>,
     ) -> Self {
         Self {
             stop_receiver,
             io: sequencer,
             batch_executor_base,
-            persistence,
+            output_handler,
             sealer,
         }
     }
@@ -119,7 +116,7 @@ impl ZkSyncStateKeeper {
     /// Fallible version of `run` routine that allows to easily exit upon cancellation.
     async fn run_inner(&mut self) -> Result<Infallible, Error> {
         let (cursor, pending_batch_params) = self.io.initialize().await?;
-        self.persistence.initialize(&cursor).await?;
+        self.output_handler.initialize(&cursor).await?;
         tracing::info!(
             "Starting state keeper. Next l1 batch to seal: {}, Next miniblock to seal: {}",
             cursor.l1_batch,
@@ -202,7 +199,7 @@ impl ZkSyncStateKeeper {
             let (finished_batch, witness_block_state) = batch_executor.finish_batch().await;
             let sealed_batch_protocol_version = updates_manager.protocol_version();
             updates_manager.finish_batch(finished_batch);
-            self.persistence
+            self.output_handler
                 .handle_l1_batch(witness_block_state.as_ref(), &updates_manager)
                 .await
                 .with_context(|| format!("failed sealing L1 batch {l1_batch_env:?}"))?;
@@ -365,7 +362,7 @@ impl ZkSyncStateKeeper {
     }
 
     async fn seal_miniblock(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()> {
-        self.persistence
+        self.output_handler
             .handle_miniblock(updates_manager)
             .await
             .with_context(|| {

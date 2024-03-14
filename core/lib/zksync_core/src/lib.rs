@@ -78,7 +78,8 @@ use crate::{
     metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
     metrics::{InitStage, APP_METRICS},
     state_keeper::{
-        create_state_keeper, MempoolFetcher, MempoolGuard, SequencerSealer, StateKeeperPersistence,
+        create_state_keeper, MempoolFetcher, MempoolGuard, OutputHandler, SequencerSealer,
+        StateKeeperPersistence,
     },
 };
 
@@ -844,7 +845,7 @@ async fn add_state_keeper_to_task_futures(
         state_keeper_pool.clone(),
         mempool.clone(),
         batch_fee_input_provider.clone(),
-        Box::new(persistence),
+        OutputHandler::new(Box::new(persistence)),
         stop_receiver.clone(),
     )
     .await;

@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use zksync_core::state_keeper::{
-    seal_criteria::ConditionalSealer, BatchExecutor, HandleStateKeeperOutput, StateKeeperIO,
+    seal_criteria::ConditionalSealer, BatchExecutor, OutputHandler, StateKeeperIO,
     ZkSyncStateKeeper,
 };
 use zksync_storage::RocksDB;
@@ -12,8 +12,8 @@ pub mod mempool_io;
 
 use crate::{
     implementations::resources::state_keeper::{
-        BatchExecutorResource, ConditionalSealerResource, StateKeeperIOResource,
-        StateKeeperOutputHandlerResource,
+        BatchExecutorResource, ConditionalSealerResource, OutputHandlerResource,
+        StateKeeperIOResource,
     },
     service::{ServiceContext, StopReceiver},
     task::Task,
@@ -48,7 +48,7 @@ impl WiringLayer for StateKeeperLayer {
             .take()
             .context("L1BatchExecutorBuilder was provided but taken by some other task")?;
         let output_handler = context
-            .get_resource::<StateKeeperOutputHandlerResource>()
+            .get_resource::<OutputHandlerResource>()
             .await?
             .0
             .take()
@@ -69,7 +69,7 @@ impl WiringLayer for StateKeeperLayer {
 struct StateKeeperTask {
     io: Box<dyn StateKeeperIO>,
     batch_executor_base: Box<dyn BatchExecutor>,
-    output_handler: Box<dyn HandleStateKeeperOutput>,
+    output_handler: OutputHandler,
     sealer: Arc<dyn ConditionalSealer>,
 }
 

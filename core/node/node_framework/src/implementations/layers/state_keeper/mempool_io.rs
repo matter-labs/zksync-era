@@ -6,7 +6,8 @@ use zksync_config::{
     ContractsConfig,
 };
 use zksync_core::state_keeper::{
-    self, MempoolFetcher, MempoolGuard, MempoolIO, SequencerSealer, StateKeeperPersistence,
+    self, MempoolFetcher, MempoolGuard, MempoolIO, OutputHandler, SequencerSealer,
+    StateKeeperPersistence,
 };
 
 use crate::{
@@ -14,9 +15,7 @@ use crate::{
         fee_input::FeeInputResource,
         object_store::ObjectStoreResource,
         pools::MasterPoolResource,
-        state_keeper::{
-            ConditionalSealerResource, StateKeeperIOResource, StateKeeperOutputHandlerResource,
-        },
+        state_keeper::{ConditionalSealerResource, OutputHandlerResource, StateKeeperIOResource},
     },
     resource::Unique,
     service::{ServiceContext, StopReceiver},
@@ -87,9 +86,8 @@ impl WiringLayer for MempoolIOLayer {
             self.state_keeper_config.miniblock_seal_queue_capacity,
         );
         let persistence = persistence.with_object_store(object_store);
-        context.insert_resource(StateKeeperOutputHandlerResource(Unique::new(Box::new(
-            persistence,
-        ))))?;
+        let output_handler = OutputHandler::new(Box::new(persistence));
+        context.insert_resource(OutputHandlerResource(Unique::new(output_handler)))?;
         context.add_task(Box::new(MiniblockSealerTask(miniblock_sealer)));
 
         // Create mempool fetcher task.

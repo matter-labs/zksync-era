@@ -25,7 +25,7 @@ use zksync_core::{
     reorg_detector::ReorgDetector,
     setup_sigint_handler,
     state_keeper::{
-        seal_criteria::NoopSealer, BatchExecutor, CompoundOutputHandler, MainBatchExecutor,
+        seal_criteria::NoopSealer, BatchExecutor, MainBatchExecutor, OutputHandler,
         StateKeeperPersistence, ZkSyncStateKeeper,
     },
     sync_layer::{
@@ -60,7 +60,7 @@ async fn build_state_keeper(
     state_keeper_db_path: String,
     config: &ExternalNodeConfig,
     connection_pool: ConnectionPool,
-    output_handler: CompoundOutputHandler,
+    output_handler: OutputHandler,
     stop_receiver: watch::Receiver<bool>,
     chain_id: L2ChainId,
 ) -> anyhow::Result<ZkSyncStateKeeper> {
@@ -100,7 +100,7 @@ async fn build_state_keeper(
         stop_receiver,
         Box::new(io),
         batch_executor_base,
-        Box::new(output_handler),
+        output_handler,
         Arc::new(NoopSealer),
     ))
 }
@@ -152,8 +152,8 @@ async fn init_tasks(
         }
     }));
 
-    let output_handler = CompoundOutputHandler::new(Box::new(persistence.with_tx_insertion()))
-        .with_aux_handler(Box::new(sync_state.clone()));
+    let output_handler = OutputHandler::new(Box::new(persistence.with_tx_insertion()))
+        .with_handler(Box::new(sync_state.clone()));
     let state_keeper = build_state_keeper(
         action_queue,
         config.required.state_cache_path.clone(),

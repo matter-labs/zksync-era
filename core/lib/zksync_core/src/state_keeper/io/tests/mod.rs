@@ -21,7 +21,7 @@ use crate::{
         mempool_actor::l2_tx_filter,
         tests::{create_execution_result, create_transaction, Query, BASE_SYSTEM_CONTRACTS},
         updates::{MiniblockSealCommand, MiniblockUpdates, UpdatesManager},
-        HandleStateKeeperOutput, StateKeeperPersistence,
+        StateKeeperOutputHandler, StateKeeperPersistence,
     },
     utils::testonly::prepare_recovery_snapshot,
 };

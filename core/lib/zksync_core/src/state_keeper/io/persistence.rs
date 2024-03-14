@@ -12,7 +12,7 @@ use zksync_types::{witness_block_state::WitnessBlockState, Address};
 use crate::{
     metrics::{BlockStage, APP_METRICS},
     state_keeper::{
-        io::HandleStateKeeperOutput,
+        io::StateKeeperOutputHandler,
         metrics::{MiniblockQueueStage, MINIBLOCK_METRICS},
         updates::{MiniblockSealCommand, UpdatesManager},
     },
@@ -148,7 +148,7 @@ impl StateKeeperPersistence {
 }
 
 #[async_trait]
-impl HandleStateKeeperOutput for StateKeeperPersistence {
+impl StateKeeperOutputHandler for StateKeeperPersistence {
     async fn handle_miniblock(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()> {
         let command =
             updates_manager.seal_miniblock_command(self.l2_erc20_bridge_addr, self.pre_insert_txs);

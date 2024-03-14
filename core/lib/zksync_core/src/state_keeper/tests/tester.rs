@@ -29,7 +29,7 @@ use crate::{
         tests::{default_l1_batch_env, default_vm_block_result, BASE_SYSTEM_CONTRACTS},
         types::ExecutionMetricsForCriteria,
         updates::UpdatesManager,
-        HandleStateKeeperOutput, ZkSyncStateKeeper,
+        OutputHandler, StateKeeperOutputHandler, ZkSyncStateKeeper,
     },
     utils::testonly::create_l2_transaction,
 };
@@ -196,12 +196,12 @@ impl TestScenario {
 
         let batch_executor_base = TestBatchExecutorBuilder::new(&self);
         let (stop_sender, stop_receiver) = watch::channel(false);
-        let (io, persistence) = TestIO::new(stop_sender, self);
+        let (io, output_handler) = TestIO::new(stop_sender, self);
         let state_keeper = ZkSyncStateKeeper::new(
             stop_receiver,
             Box::new(io),
             Box::new(batch_executor_base),
-            Box::new(persistence),
+            output_handler,
             Arc::new(sealer),
         );
         let sk_thread = tokio::spawn(state_keeper.run());
@@ -583,7 +583,7 @@ impl TestPersistence {
 }
 
 #[async_trait]
-impl HandleStateKeeperOutput for TestPersistence {
+impl StateKeeperOutputHandler for TestPersistence {
     async fn handle_miniblock(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()> {
         let action = self.pop_next_item("seal_miniblock");
         let ScenarioItem::MiniblockSeal(_, check_fn) = action else {
@@ -640,7 +640,7 @@ impl TestIO {
     pub(super) fn new(
         stop_sender: watch::Sender<bool>,
         scenario: TestScenario,
-    ) -> (Self, TestPersistence) {
+    ) -> (Self, OutputHandler) {
         let stop_sender = Arc::new(stop_sender);
         let actions = Arc::new(Mutex::new(scenario.actions));
         let persistence = TestPersistence {
@@ -676,7 +676,7 @@ impl TestIO {
             previous_batch_protocol_version: ProtocolVersionId::latest(),
             protocol_upgrade_txs: HashMap::default(),
         };
-        (this, persistence)
+        (this, OutputHandler::new(Box::new(persistence)))
     }
 
     pub(super) fn add_upgrade_tx(&mut self, version: ProtocolVersionId, tx: ProtocolUpgradeTx) {

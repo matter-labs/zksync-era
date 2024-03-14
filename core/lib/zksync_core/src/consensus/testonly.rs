@@ -23,8 +23,8 @@ use crate::{
     consensus::{fetcher::P2PConfig, Fetcher, Store},
     genesis::{ensure_genesis_state, GenesisParams},
     state_keeper::{
-        io::IoCursor, seal_criteria::NoopSealer, tests::MockBatchExecutor, StateKeeperPersistence,
-        ZkSyncStateKeeper,
+        io::IoCursor, seal_criteria::NoopSealer, tests::MockBatchExecutor, OutputHandler,
+        StateKeeperPersistence, ZkSyncStateKeeper,
     },
     sync_layer::{
         fetcher::FetchedTransaction,
@@ -415,7 +415,7 @@ impl StateKeeperRunner {
                         stop_recv,
                         Box::new(io),
                         Box::new(MockBatchExecutor),
-                        Box::new(persistence.with_tx_insertion()),
+                        OutputHandler::new(Box::new(persistence.with_tx_insertion())),
                         Arc::new(NoopSealer),
                     )
                     .run()

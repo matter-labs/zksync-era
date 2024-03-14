@@ -1,25 +1,25 @@
 use std::{fmt, time::Duration};
 
-use anyhow::Context as _;
 use async_trait::async_trait;
 use multivm::interface::{L1BatchEnv, SystemEnv};
 use vm_utils::storage::l1_batch_params;
 use zksync_contracts::BaseSystemContracts;
 use zksync_types::{
     block::MiniblockExecutionData, fee_model::BatchFeeInput, protocol_version::ProtocolUpgradeTx,
-    witness_block_state::WitnessBlockState, Address, L1BatchNumber, L2ChainId, ProtocolVersionId,
-    Transaction, H256,
+    Address, L1BatchNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
 };
 
 pub use self::{
     common::IoCursor,
+    output_handler::{OutputHandler, StateKeeperOutputHandler},
     persistence::{MiniblockSealerTask, StateKeeperPersistence},
 };
-use super::{seal_criteria::IoSealCriteria, updates::UpdatesManager};
+use super::seal_criteria::IoSealCriteria;
 
 pub(crate) mod common;
 pub(crate) mod fee_address_migration;
 pub(crate) mod mempool;
+mod output_handler;
 mod persistence;
 pub(crate) mod seal_logic;
 #[cfg(test)]
@@ -152,91 +152,4 @@ pub trait StateKeeperIO: 'static + Send + fmt::Debug + IoSealCriteria {
         &mut self,
         version_id: ProtocolVersionId,
     ) -> anyhow::Result<Option<ProtocolUpgradeTx>>;
-}
-
-/// Handler for state keeper outputs (miniblocks and L1 batches).
-#[async_trait]
-pub trait HandleStateKeeperOutput: 'static + Send + fmt::Debug {
-    /// Initializes this handler. This method will be called on state keeper initialization before any other calls.
-    /// The default implementation does nothing.
-    async fn initialize(&mut self, _cursor: &IoCursor) -> anyhow::Result<()> {
-        Ok(())
-    }
-
-    /// Handles a miniblock (aka L2 block) produced by the state keeper.
-    async fn handle_miniblock(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()>;
-
-    /// Handles an L1 batch produced by the state keeper.
-    async fn handle_l1_batch(
-        &mut self,
-        _witness_block_state: Option<&WitnessBlockState>,
-        _updates_manager: &UpdatesManager,
-    ) -> anyhow::Result<()> {
-        Ok(())
-    }
-}
-
-#[derive(Debug)]
-pub struct CompoundOutputHandler {
-    inner: Vec<Box<dyn HandleStateKeeperOutput>>,
-}
-
-impl CompoundOutputHandler {
-    pub fn new(main_handler: Box<dyn HandleStateKeeperOutput>) -> Self {
-        Self {
-            inner: vec![main_handler],
-        }
-    }
-
-    pub fn with_aux_handler(mut self, handler: Box<dyn HandleStateKeeperOutput>) -> Self {
-        self.inner.push(handler);
-        self
-    }
-}
-
-#[async_trait]
-impl HandleStateKeeperOutput for CompoundOutputHandler {
-    async fn initialize(&mut self, cursor: &IoCursor) -> anyhow::Result<()> {
-        for handler in &mut self.inner {
-            handler
-                .initialize(cursor)
-                .await
-                .with_context(|| format!("failed initializing handler {handler:?}"))?;
-        }
-        Ok(())
-    }
-
-    async fn handle_miniblock(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()> {
-        for handler in &mut self.inner {
-            handler
-                .handle_miniblock(updates_manager)
-                .await
-                .with_context(|| {
-                    format!(
-                        "failed handling miniblock {:?} on handler {handler:?}",
-                        updates_manager.miniblock
-                    )
-                })?;
-        }
-        Ok(())
-    }
-
-    async fn handle_l1_batch(
-        &mut self,
-        witness_block_state: Option<&WitnessBlockState>,
-        updates_manager: &UpdatesManager,
-    ) -> anyhow::Result<()> {
-        for handler in &mut self.inner {
-            handler
-                .handle_l1_batch(witness_block_state, updates_manager)
-                .await
-                .with_context(|| {
-                    format!(
-                        "failed handling L1 batch #{} on handler {handler:?}",
-                        updates_manager.l1_batch.number
-                    )
-                })?;
-        }
-        Ok(())
-    }
 }

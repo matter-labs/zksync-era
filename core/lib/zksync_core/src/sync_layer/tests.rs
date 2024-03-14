@@ -19,7 +19,7 @@ use crate::{
     consensus::testonly::MockMainNodeClient,
     genesis::{ensure_genesis_state, GenesisParams},
     state_keeper::{
-        seal_criteria::NoopSealer, tests::TestBatchExecutorBuilder, CompoundOutputHandler,
+        seal_criteria::NoopSealer, tests::TestBatchExecutorBuilder, OutputHandler,
         StateKeeperPersistence, ZkSyncStateKeeper,
     },
     utils::testonly::{create_l1_batch_metadata, create_l2_transaction, prepare_recovery_snapshot},
@@ -63,8 +63,8 @@ impl StateKeeperHandles {
         let sync_state = SyncState::default();
         let (persistence, miniblock_sealer) =
             StateKeeperPersistence::new(pool.clone(), Address::repeat_byte(1), 5);
-        let output_handler = CompoundOutputHandler::new(Box::new(persistence.with_tx_insertion()))
-            .with_aux_handler(Box::new(sync_state.clone()));
+        let output_handler = OutputHandler::new(Box::new(persistence.with_tx_insertion()))
+            .with_handler(Box::new(sync_state.clone()));
 
         tokio::spawn(miniblock_sealer.run());
         let io = ExternalIO::new(
@@ -87,7 +87,7 @@ impl StateKeeperHandles {
             stop_receiver,
             Box::new(io),
             Box::new(batch_executor_base),
-            Box::new(output_handler),
+            output_handler,
             Arc::new(NoopSealer),
         );
 

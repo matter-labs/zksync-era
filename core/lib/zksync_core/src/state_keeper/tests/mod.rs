@@ -447,7 +447,7 @@ async fn load_upgrade_tx() {
     let batch_executor_base = TestBatchExecutorBuilder::new(&scenario);
     let (stop_sender, stop_receiver) = watch::channel(false);
 
-    let (mut io, persistence) = TestIO::new(stop_sender, scenario);
+    let (mut io, output_handler) = TestIO::new(stop_sender, scenario);
     io.add_upgrade_tx(ProtocolVersionId::latest(), random_upgrade_tx(1));
     io.add_upgrade_tx(ProtocolVersionId::next(), random_upgrade_tx(2));
 
@@ -455,7 +455,7 @@ async fn load_upgrade_tx() {
         stop_receiver,
         Box::new(io),
         Box::new(batch_executor_base),
-        Box::new(persistence),
+        output_handler,
         Arc::new(sealer),
     );
 

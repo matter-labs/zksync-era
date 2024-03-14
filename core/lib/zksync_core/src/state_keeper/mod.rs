@@ -10,8 +10,8 @@ use zksync_dal::ConnectionPool;
 pub use self::{
     batch_executor::{main_executor::MainBatchExecutor, BatchExecutor},
     io::{
-        mempool::MempoolIO, CompoundOutputHandler, HandleStateKeeperOutput, MiniblockSealerTask,
-        StateKeeperIO, StateKeeperPersistence,
+        mempool::MempoolIO, MiniblockSealerTask, OutputHandler, StateKeeperIO,
+        StateKeeperOutputHandler, StateKeeperPersistence,
     },
     keeper::ZkSyncStateKeeper,
     mempool_actor::MempoolFetcher,
@@ -41,7 +41,7 @@ pub(crate) async fn create_state_keeper(
     pool: ConnectionPool,
     mempool: MempoolGuard,
     batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
-    persistence: Box<dyn HandleStateKeeperOutput>,
+    output_handler: OutputHandler,
     stop_receiver: watch::Receiver<bool>,
 ) -> ZkSyncStateKeeper {
     let batch_executor_base = MainBatchExecutor::new(
@@ -71,7 +71,7 @@ pub(crate) async fn create_state_keeper(
         stop_receiver,
         Box::new(io),
         Box::new(batch_executor_base),
-        persistence,
+        output_handler,
         Arc::new(sealer),
     )
 }
