@@ -148,11 +148,12 @@ async fn main() -> anyhow::Result<()> {
     let mut tasks = ManagedTasks::new(tasks);
     tokio::select! {
         _ = tasks.wait_single() => {
-            #[cfg(feature = "gpu")]
-            graceful_shutdown(port)
-                .await
-                .context("failed to prepare graceful shutdown future")?
-                .await;
+            if cfg!(feature = "gpu") {
+                graceful_shutdown(port)
+                    .await
+                    .context("failed to prepare graceful shutdown future")?
+                    .await;
+            }
         },
         _ = stop_signal_receiver => {
             tracing::info!("Stop signal received, shutting down");
