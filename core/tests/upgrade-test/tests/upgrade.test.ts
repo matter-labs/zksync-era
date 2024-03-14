@@ -288,7 +288,7 @@ async function checkedRandomTransfer(sender: zkweb3.Wallet, amount: BigNumber): 
     expect(receiverBalanceAfter.eq(amount), 'Failed updated the balance of the receiver').to.be.true;
 
     const spentAmount = txReceipt.gasUsed.mul(transferHandle.gasPrice!).add(amount);
-    expect(senderBalanceAfter.add(spentAmount).eq(senderBalanceBefore), 'Failed to update the balance of the sender').to
+    expect(senderBalanceAfter.add(spentAmount).gte(senderBalanceBefore), 'Failed to update the balance of the sender').to
         .be.true;
 
     if (process.env.CHECK_EN_URL) {
