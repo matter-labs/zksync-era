@@ -1,3 +1,4 @@
+use prover_dal::Prover;
 use zksync_config::configs::PostgresConfig;
 use zksync_dal::{ConnectionPool, Server};
 
@@ -92,7 +93,7 @@ impl WiringLayer for PoolsLayer {
         }
 
         if self.with_prover {
-            let mut prover_pool = ConnectionPool::<Server>::builder(
+            let mut prover_pool = ConnectionPool::<Prover>::builder(
                 self.config.prover_url()?,
                 self.config.max_connections()?,
             );

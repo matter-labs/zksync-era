@@ -3,6 +3,7 @@ use std::sync::{
     Arc,
 };
 
+use prover_dal::Prover;
 use zksync_dal::{ConnectionPool, Server};
 use zksync_db_connection::connection::ConnectionPoolBuilder;
 
@@ -122,7 +123,7 @@ impl ReplicaPoolResource {
 #[derive(Debug, Clone)]
 pub struct ProverPoolResource {
     connections_count: Arc<AtomicU32>,
-    builder: ConnectionPoolBuilder<Server>,
+    builder: ConnectionPoolBuilder<Prover>,
 }
 
 impl Resource for ProverPoolResource {
@@ -132,14 +133,14 @@ impl Resource for ProverPoolResource {
 }
 
 impl ProverPoolResource {
-    pub fn new(builder: ConnectionPoolBuilder<Server>) -> Self {
+    pub fn new(builder: ConnectionPoolBuilder<Prover>) -> Self {
         Self {
             connections_count: Arc::new(AtomicU32::new(0)),
             builder,
         }
     }
 
-    pub async fn get(&self) -> anyhow::Result<ConnectionPool<Server>> {
+    pub async fn get(&self) -> anyhow::Result<ConnectionPool<Prover>> {
         let result = self.builder.build().await;
 
         if result.is_ok() {
@@ -154,11 +155,11 @@ impl ProverPoolResource {
         result
     }
 
-    pub async fn get_singleton(&self) -> anyhow::Result<ConnectionPool<Server>> {
+    pub async fn get_singleton(&self) -> anyhow::Result<ConnectionPool<Prover>> {
         self.get_custom(1).await
     }
 
-    pub async fn get_custom(&self, size: u32) -> anyhow::Result<ConnectionPool<Server>> {
+    pub async fn get_custom(&self, size: u32) -> anyhow::Result<ConnectionPool<Prover>> {
         let result = self.builder.clone().set_max_size(size).build().await;
 
         if result.is_ok() {

@@ -16,7 +16,7 @@ use zksync_core::house_keeper::{
     periodic_job::PeriodicJob,
     waiting_to_queued_fri_witness_job_mover::WaitingToQueuedFriWitnessJobMover,
 };
-use zksync_dal::ConnectionPool;
+use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Server};
 
 use crate::{
     implementations::resources::pools::{ProverPoolResource, ReplicaPoolResource},
@@ -167,7 +167,7 @@ impl WiringLayer for HouseKeeperLayer {
 
 #[derive(Debug)]
 struct PoolForMetricsTask {
-    pool_for_metrics: ConnectionPool,
+    pool_for_metrics: ConnectionPool<Server>,
 }
 
 #[async_trait::async_trait]
@@ -177,10 +177,7 @@ impl Task for PoolForMetricsTask {
     }
 
     async fn run(self: Box<Self>, _stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        self.pool_for_metrics
-            .run_postgres_metrics_scraping(SCRAPE_INTERVAL)
-            .await;
-
+        PostgresMetrics::run_scraping(self.pool_for_metrics, SCRAPE_INTERVAL).await;
         Ok(())
     }
 }

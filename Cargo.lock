@@ -8540,6 +8540,7 @@ dependencies = [
  "async-trait",
  "futures 0.3.28",
  "prometheus_exporter",
+ "prover_dal",
  "thiserror",
  "tokio",
  "tracing",
