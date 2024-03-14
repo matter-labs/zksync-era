@@ -1,3 +1,4 @@
+use anyhow::Context as _;
 use zksync_dal::ConnectionPool;
 
 use crate::{metrics::METRICS, CircuitBreaker, CircuitBreakerError};
@@ -14,11 +15,11 @@ impl CircuitBreaker for ReplicationLagChecker {
         let lag = self
             .pool
             .access_storage()
-            .await
-            .unwrap()
+            .await?
             .system_dal()
             .get_replication_lag_sec()
-            .await;
+            .await
+            .context("failed getting replication lag")?;
         METRICS.replication_lag.set(lag.into());
 
         match self.replication_lag_limit_sec {

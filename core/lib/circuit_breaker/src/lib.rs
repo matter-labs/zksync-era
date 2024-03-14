@@ -14,6 +14,8 @@ pub enum CircuitBreakerError {
     FailedL1Transaction,
     #[error("Replication lag ({0}) is above the threshold ({1})")]
     ReplicationLag(u32, u32),
+    #[error("Internal error running circuit breaker checks")]
+    Internal(#[from] anyhow::Error),
 }
 
 /// Checks circuit breakers
