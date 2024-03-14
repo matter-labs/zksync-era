@@ -129,8 +129,18 @@ impl EthInterface for QueryClient {
             .web3
             .eth()
             .block(BlockId::Number(BlockNumber::Pending))
-            .await?
-            .expect("Pending block should always exist");
+            .await?;
+        let block = if let Some(block) = block {
+            block
+        } else {
+            // Fallback for local reth. Because of artificial nature of producing blocks in local reth setup
+            // there may be no pending block
+            self.web3
+                .eth()
+                .block(BlockId::Number(BlockNumber::Latest))
+                .await?
+                .expect("Latest block always exists")
+        };
 
         latency.observe();
         // base_fee_per_gas always exists after London fork

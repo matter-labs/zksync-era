@@ -193,7 +193,7 @@ impl ProtocolVersionsDal<'_, '_> {
             WHERE
                 id = $1
             "#,
-            version_id as i32
+            i32::from(version_id)
         )
         .fetch_optional(self.storage.conn())
         .await
