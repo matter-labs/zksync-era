@@ -58,20 +58,34 @@ export async function catLogs(exitCode?: number) {
     }
 }
 
-export async function testAccounts() {
+function readTestMnemonic() {
     const testConfigPath = path.join(process.env.ZKSYNC_HOME as string, `etc/test_config/constant`);
-    const ethTestConfig = JSON.parse(fs.readFileSync(`${testConfigPath}/eth.json`, { encoding: 'utf-8' }));
+    return JSON.parse(fs.readFileSync(`${testConfigPath}/eth.json`, { encoding: 'utf-8' }));
+}
+
+type SimpleWallet = {
+    address: string;
+    privateKey: string;
+};
+
+export async function readTestAccounts() {
+    const ethTestConfig = readTestMnemonic();
+    let wallets = await testAccounts(ethTestConfig.test_mnemonic as string);
+    console.log(JSON.stringify(wallets, null, 4));
+}
+
+export async function testAccounts(mnemonic: string): Promise<SimpleWallet[]> {
     const NUM_TEST_WALLETS = 10;
     const baseWalletPath = "m/44'/60'/0'/0/";
     const walletKeys = [];
     for (let i = 0; i < NUM_TEST_WALLETS; ++i) {
-        const ethWallet = Wallet.fromMnemonic(ethTestConfig.test_mnemonic as string, baseWalletPath + i);
+        const ethWallet = Wallet.fromMnemonic(mnemonic, baseWalletPath + i);
         walletKeys.push({
             address: ethWallet.address,
             privateKey: ethWallet.privateKey
         });
     }
-    console.log(JSON.stringify(walletKeys, null, 4));
+    return walletKeys;
 }
 
 export async function loadtest(...args: string[]) {
@@ -97,7 +111,7 @@ export async function snapshots_creator() {
 
 export const command = new Command('run').description('run miscellaneous applications');
 
-command.command('test-accounts').description('print ethereum test accounts').action(testAccounts);
+command.command('test-accounts').description('print ethereum test accounts').action(readTestAccounts);
 command.command('yarn install --frozen-lockfile').description('install all JS dependencies').action(yarn);
 command.command('cat-logs [exit_code]').description('print server and prover logs').action(catLogs);
 

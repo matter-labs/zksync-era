@@ -196,7 +196,7 @@ impl GasAdjuster {
                     .set(blob_base_fee_median.as_u64());
                 let calculated_price = blob_base_fee_median.as_u64() as f64
                     * BLOB_GAS_PER_BYTE as f64
-                    * self.config.internal_l1_pricing_multiplier;
+                    * self.config.internal_pubdata_pricing_multiplier;
 
                 self.bound_blob_base_fee(calculated_price)
             }

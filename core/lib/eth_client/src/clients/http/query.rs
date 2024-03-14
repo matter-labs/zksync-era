@@ -133,12 +133,13 @@ impl EthInterface for QueryClient {
         let block = if let Some(block) = block {
             block
         } else {
-            // fallback for local testing
+            // Fallback for local reth. Because of artificial nature of producing blocks in local reth setup
+            // there may be no pending block
             self.web3
                 .eth()
                 .block(BlockId::Number(BlockNumber::Latest))
                 .await?
-                .expect("Latest block should always exist")
+                .expect("Latest block always exists")
         };
 
         latency.observe();
