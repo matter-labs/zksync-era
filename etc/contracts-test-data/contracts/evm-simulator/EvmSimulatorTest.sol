@@ -20,16 +20,26 @@ contract EvmSimulatorTest {
         SystemContractHelper.loadCalldataIntoActivePtr();
         uint256 size = SystemContractHelper.getActivePtrDataSize();
 
-        bytecode = new bytes(size);
+        uint256 newLen = size + 32;
+        
+        if(newLen % 32!=0) {
+            newLen += 32 - (newLen % 32);
+        }
+
+        if(newLen % 64 != 32) {
+            newLen += 32;
+        }        
+
+        bytecode = new bytes(newLen);
 
         uint256 dest;
         assembly {
-            dest := add(bytecode, 32)
+            mstore(add(bytecode, 32), size)
+            dest := add(bytecode, 64)
         }
 
         SystemContractHelper.copyActivePtrData(dest, 0, size);
     }
-
     uint256 constant EXPECTED_STIPEND = (1 << 30);
 
     uint256 storageVariable;
