@@ -1126,12 +1126,9 @@ fn build_storage_caches(
         PostgresStorageCaches::new(factory_deps_capacity, initial_writes_capacity);
 
     if values_capacity > 0 {
-        let values_cache_task = storage_caches.configure_storage_values_cache(
-            values_capacity,
-            replica_connection_pool.clone(),
-            tokio::runtime::Handle::current(),
-        );
-        task_futures.push(tokio::task::spawn_blocking(values_cache_task));
+        let values_cache_task = storage_caches
+            .configure_storage_values_cache(values_capacity, replica_connection_pool.clone());
+        task_futures.push(tokio::task::spawn(values_cache_task.run()));
     }
     Ok(storage_caches)
 }
