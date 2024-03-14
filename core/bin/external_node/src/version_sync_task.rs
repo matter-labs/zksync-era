@@ -1,5 +1,6 @@
-use anyhow::Context;
 use std::cmp::Ordering;
+
+use anyhow::Context;
 use zksync_basic_types::{L1BatchNumber, MiniblockNumber};
 use zksync_dal::ConnectionPool;
 use zksync_types::ProtocolVersionId;
