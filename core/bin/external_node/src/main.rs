@@ -500,7 +500,6 @@ async fn main() -> anyhow::Result<()> {
         config.consensus = None;
     }
 
-    // todo: remove type annotation here
     if let Some(threshold) = config.optional.slow_query_threshold() {
         ConnectionPool::<Server>::global_config().set_slow_query_threshold(threshold)?;
     }

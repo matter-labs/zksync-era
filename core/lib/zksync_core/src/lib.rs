@@ -316,7 +316,7 @@ pub async fn initialize_components(
 
     let db_config = configs.db_config.clone().context("db_config")?;
     let postgres_config = configs.postgres_config.clone().context("postgres_config")?;
-    // todo: remove type identifier
+
     if let Some(threshold) = postgres_config.slow_query_threshold() {
         ConnectionPool::<Server>::global_config().set_slow_query_threshold(threshold)?;
     }
