@@ -134,7 +134,8 @@ export async function deployL1(args: any[]) {
         'CONTRACTS_L1_WETH_BRIDGE_IMPL_ADDR',
         'CONTRACTS_L1_WETH_BRIDGE_PROXY_ADDR',
         'CONTRACTS_L1_ALLOW_LIST_ADDR',
-        'CONTRACTS_L1_MULTICALL3_ADDR'
+        'CONTRACTS_L1_MULTICALL3_ADDR',
+        'CONTRACTS_BLOB_VERSIONED_HASH_RETRIEVER_ADDR'
     ];
     const updatedContracts = updateContractsEnv(deployLog, envVars);
 

@@ -1,6 +1,6 @@
 /// Configuration for the essential observability stack, like
 /// logging and sentry integration.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ObservabilityConfig {
     /// URL of the Sentry instance to send events to.
     pub sentry_url: Option<String>,

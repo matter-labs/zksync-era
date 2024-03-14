@@ -4,7 +4,7 @@ use assert_matches::assert_matches;
 use once_cell::sync::Lazy;
 use test_casing::test_casing;
 use zksync_config::{
-    configs::eth_sender::{ProofSendingMode, SenderConfig},
+    configs::eth_sender::{ProofSendingMode, PubdataSendingMode, SenderConfig},
     ContractsConfig, ETHSenderConfig, GasAdjusterConfig,
 };
 use zksync_dal::{ConnectionPool, StorageProcessor};
@@ -16,6 +16,7 @@ use zksync_types::{
     commitment::{L1BatchMetaParameters, L1BatchMetadata, L1BatchWithMetadata},
     ethabi::Token,
     helpers::unix_timestamp_ms,
+    pubdata_da::PubdataDA,
     web3::contract::Error,
     Address, L1BatchNumber, L1BlockNumber, ProtocolVersionId, H256,
 };
@@ -46,6 +47,23 @@ static DUMMY_OPERATION: Lazy<AggregatedOperation> = Lazy::new(|| {
     })
 });
 
+fn mock_multicall_response() -> Token {
+    Token::Array(vec![
+        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![1u8; 32])]),
+        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![2u8; 32])]),
+        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![3u8; 96])]),
+        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![4u8; 32])]),
+        Token::Tuple(vec![
+            Token::Bool(true),
+            Token::Bytes(
+                H256::from_low_u64_be(ProtocolVersionId::default() as u64)
+                    .0
+                    .to_vec(),
+            ),
+        ]),
+    ])
+}
+
 #[derive(Debug)]
 pub struct EthSenderTester {
     conn: ConnectionPool,
@@ -63,6 +81,7 @@ impl EthSenderTester {
         connection_pool: ConnectionPool,
         history: Vec<u64>,
         non_ordering_confirmations: bool,
+        aggregator_operate_4844_mode: bool,
         deployment_mode: &DeploymentMode,
     ) -> Self {
         let eth_sender_config = ETHSenderConfig::for_tests();
@@ -72,18 +91,20 @@ impl EthSenderTester {
             ..eth_sender_config.sender.clone()
         };
 
-        let gateway = Arc::new(
-            MockEthereum::default()
-                .with_fee_history(
-                    std::iter::repeat(0)
-                        .take(Self::WAIT_CONFIRMATIONS as usize)
-                        .chain(history)
-                        .collect(),
-                )
-                .with_non_ordering_confirmation(non_ordering_confirmations)
-                .with_multicall_address(contracts_config.l1_multicall3_addr),
-        );
+        let gateway = MockEthereum::default()
+            .with_fee_history(
+                std::iter::repeat(0)
+                    .take(Self::WAIT_CONFIRMATIONS as usize)
+                    .chain(history)
+                    .collect(),
+            )
+            .with_non_ordering_confirmation(non_ordering_confirmations)
+            .with_call_handler(move |call| {
+                assert_eq!(call.contract_address(), contracts_config.l1_multicall3_addr);
+                mock_multicall_response()
+            });
         gateway.advance_block_number(Self::WAIT_CONFIRMATIONS);
+        let gateway = Arc::new(gateway);
 
         let pubdata_pricing: Arc<dyn PubdataPricing> = match deployment_mode {
             DeploymentMode::Validium => Arc::new(ValidiumPubdataPricing {}),
@@ -99,6 +120,7 @@ impl EthSenderTester {
                     pricing_formula_parameter_b: 2.0,
                     ..eth_sender_config.gas_adjuster
                 },
+                PubdataSendingMode::Calldata,
                 pubdata_pricing,
             )
             .await
@@ -121,6 +143,8 @@ impl EthSenderTester {
             Aggregator::new(
                 aggregator_config.clone(),
                 store_factory.create_store().await,
+                aggregator_operate_4844_mode,
+                PubdataDA::Calldata,
                 l1_batch_commit_data_generator.clone(),
             ),
             gateway.clone(),
@@ -129,6 +153,7 @@ impl EthSenderTester {
             contracts_config.l1_multicall3_addr,
             Address::random(),
             Default::default(),
+            None,
             l1_batch_commit_data_generator,
         )
         .await;
@@ -137,6 +162,7 @@ impl EthSenderTester {
             eth_sender_config.sender,
             gas_adjuster.clone(),
             gateway.clone(),
+            None,
         );
         Self {
             gateway,
@@ -194,13 +220,18 @@ fn default_l1_batch_metadata() -> L1BatchMetadata {
 }
 
 // Tests that we send multiple transactions and confirm them all in one iteration.
-#[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
+#[test_casing(4, Product(([false, true], [DeploymentMode::Rollup, DeploymentMode::Validium])))]
 #[tokio::test]
-async fn confirm_many(deployment_mode: DeploymentMode) -> anyhow::Result<()> {
+async fn confirm_many(
+    aggregator_operate_4844_mode: bool,
+    deployment_mode: DeploymentMode,
+) -> anyhow::Result<()> {
+    let connection_pool = ConnectionPool::test_pool().await;
     let mut tester = EthSenderTester::new(
-        ConnectionPool::test_pool().await,
+        connection_pool,
         vec![10; 100],
         false,
+        aggregator_operate_4844_mode,
         &deployment_mode,
     )
     .await;
@@ -282,6 +313,7 @@ async fn resend_each_block(deployment_mode: DeploymentMode) -> anyhow::Result<()
     let mut tester = EthSenderTester::new(
         ConnectionPool::test_pool().await,
         vec![7, 6, 5, 5, 5, 2, 1],
+        false,
         false,
         &deployment_mode,
     )
@@ -400,6 +432,7 @@ async fn dont_resend_already_mined(deployment_mode: DeploymentMode) -> anyhow::R
         ConnectionPool::test_pool().await,
         vec![100; 100],
         false,
+        false,
         &deployment_mode,
     )
     .await;
@@ -477,6 +510,7 @@ async fn three_scenarios(deployment_mode: DeploymentMode) -> anyhow::Result<()> 
     let mut tester = EthSenderTester::new(
         ConnectionPool::test_pool().await,
         vec![100; 100],
+        false,
         false,
         &deployment_mode,
     )
@@ -557,6 +591,7 @@ async fn failed_eth_tx(deployment_mode: DeploymentMode) {
         ConnectionPool::test_pool().await,
         vec![100; 100],
         false,
+        false,
         &deployment_mode,
     )
     .await;
@@ -596,138 +631,13 @@ async fn failed_eth_tx(deployment_mode: DeploymentMode) {
         .unwrap();
 }
 
-async fn confirm_tx(tester: &mut EthSenderTester, hash: H256) {
-    tester
-        .gateway
-        .execute_tx(hash, true, EthSenderTester::WAIT_CONFIRMATIONS);
-    tester
-        .manager
-        .monitor_inflight_transactions(
-            &mut tester.conn.access_storage().await.unwrap(),
-            tester.get_block_numbers().await,
-        )
-        .await
-        .unwrap();
-}
-
-async fn send_operation(
-    tester: &mut EthSenderTester,
-    aggregated_operation: AggregatedOperation,
-    confirm: bool,
-) -> H256 {
-    let tx = tester
-        .aggregator
-        .save_eth_tx(
-            &mut tester.conn.access_storage().await.unwrap(),
-            &aggregated_operation,
-            false,
-        )
-        .await
-        .unwrap();
-
-    let hash = tester
-        .manager
-        .send_eth_tx(
-            &mut tester.conn.access_storage().await.unwrap(),
-            &tx,
-            0,
-            L1BlockNumber(tester.gateway.block_number("").await.unwrap().as_u32()),
-        )
-        .await
-        .unwrap();
-
-    if confirm {
-        confirm_tx(tester, hash).await;
-    }
-    hash
-}
-
-async fn execute_l1_batches(
-    tester: &mut EthSenderTester,
-    l1_batches: Vec<L1BatchHeader>,
-    confirm: bool,
-) -> H256 {
-    let operation = AggregatedOperation::Execute(ExecuteBatches {
-        l1_batches: l1_batches.into_iter().map(l1_batch_with_metadata).collect(),
-    });
-    send_operation(tester, operation, confirm).await
-}
-
-async fn insert_genesis_protocol_version(tester: &EthSenderTester) {
-    tester
-        .storage()
-        .await
-        .protocol_versions_dal()
-        .save_protocol_version_with_tx(Default::default())
-        .await;
-}
-
-async fn prove_l1_batch(
-    tester: &mut EthSenderTester,
-    last_committed_l1_batch: L1BatchHeader,
-    l1_batch: L1BatchHeader,
-    confirm: bool,
-) -> H256 {
-    let operation = AggregatedOperation::PublishProofOnchain(ProveBatches {
-        prev_l1_batch: l1_batch_with_metadata(last_committed_l1_batch),
-        l1_batches: vec![l1_batch_with_metadata(l1_batch)],
-        proofs: vec![],
-        should_verify: false,
-    });
-    send_operation(tester, operation, confirm).await
-}
-
-async fn insert_l1_batch(tester: &EthSenderTester, number: L1BatchNumber) -> L1BatchHeader {
-    let header = create_l1_batch(number.0);
-
-    // Save L1 batch to the database
-    tester
-        .storage()
-        .await
-        .blocks_dal()
-        .insert_mock_l1_batch(&header)
-        .await
-        .unwrap();
-    let metadata = default_l1_batch_metadata();
-    tester
-        .storage()
-        .await
-        .blocks_dal()
-        .save_l1_batch_tree_data(header.number, &metadata.tree_data())
-        .await
-        .unwrap();
-    tester
-        .storage()
-        .await
-        .blocks_dal()
-        .save_l1_batch_commitment_artifacts(
-            header.number,
-            &l1_batch_metadata_to_commitment_artifacts(&metadata),
-        )
-        .await
-        .unwrap();
-    header
-}
-
-async fn commit_l1_batch(
-    tester: &mut EthSenderTester,
-    last_committed_l1_batch: L1BatchHeader,
-    l1_batch: L1BatchHeader,
-    confirm: bool,
-) -> H256 {
-    let operation = AggregatedOperation::Commit(
-        l1_batch_with_metadata(last_committed_l1_batch),
-        vec![l1_batch_with_metadata(l1_batch)],
-    );
-    send_operation(tester, operation, confirm).await
-}
-
 #[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
 async fn correct_order_for_confirmations(deployment_mode: DeploymentMode) -> anyhow::Result<()> {
     let mut tester = EthSenderTester::new(
         ConnectionPool::test_pool().await,
         vec![100; 100],
+        true,
         false,
         &deployment_mode,
     )
@@ -797,6 +707,7 @@ async fn skipped_l1_batch_at_the_start(deployment_mode: DeploymentMode) -> anyho
         ConnectionPool::test_pool().await,
         vec![100; 100],
         true,
+        false,
         &deployment_mode,
     )
     .await;
@@ -897,6 +808,7 @@ async fn skipped_l1_batch_in_the_middle(deployment_mode: DeploymentMode) -> anyh
         ConnectionPool::test_pool().await,
         vec![100; 100],
         true,
+        false,
         &deployment_mode,
     )
     .await;
@@ -991,28 +903,14 @@ async fn test_parse_multicall_data(deployment_mode: DeploymentMode) {
         ConnectionPool::test_pool().await,
         vec![100; 100],
         false,
+        false,
         &deployment_mode,
     )
     .await;
 
-    let original_correct_form_data = Token::Array(vec![
-        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![1u8; 32])]),
-        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![2u8; 32])]),
-        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![3u8; 96])]),
-        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![4u8; 32])]),
-        Token::Tuple(vec![
-            Token::Bool(true),
-            Token::Bytes(
-                H256::from_low_u64_be(ProtocolVersionId::default() as u64)
-                    .0
-                    .to_vec(),
-            ),
-        ]),
-    ]);
-
     assert!(tester
         .aggregator
-        .parse_multicall_data(original_correct_form_data)
+        .parse_multicall_data(mock_multicall_response())
         .is_ok());
 
     let original_wrong_form_data = vec![
@@ -1077,10 +975,137 @@ async fn get_multicall_data(deployment_mode: DeploymentMode) {
         ConnectionPool::test_pool().await,
         vec![100; 100],
         false,
+        false,
         &deployment_mode,
     )
     .await;
-
     let multicall_data = tester.aggregator.get_multicall_data().await;
     assert!(multicall_data.is_ok());
+}
+
+async fn insert_genesis_protocol_version(tester: &EthSenderTester) {
+    tester
+        .storage()
+        .await
+        .protocol_versions_dal()
+        .save_protocol_version_with_tx(Default::default())
+        .await;
+}
+
+async fn insert_l1_batch(tester: &EthSenderTester, number: L1BatchNumber) -> L1BatchHeader {
+    let header = create_l1_batch(number.0);
+
+    // Save L1 batch to the database
+    tester
+        .storage()
+        .await
+        .blocks_dal()
+        .insert_mock_l1_batch(&header)
+        .await
+        .unwrap();
+    let metadata = default_l1_batch_metadata();
+    tester
+        .storage()
+        .await
+        .blocks_dal()
+        .save_l1_batch_tree_data(header.number, &metadata.tree_data())
+        .await
+        .unwrap();
+    tester
+        .storage()
+        .await
+        .blocks_dal()
+        .save_l1_batch_commitment_artifacts(
+            header.number,
+            &l1_batch_metadata_to_commitment_artifacts(&metadata),
+        )
+        .await
+        .unwrap();
+    header
+}
+
+async fn execute_l1_batches(
+    tester: &mut EthSenderTester,
+    l1_batches: Vec<L1BatchHeader>,
+    confirm: bool,
+) -> H256 {
+    let operation = AggregatedOperation::Execute(ExecuteBatches {
+        l1_batches: l1_batches.into_iter().map(l1_batch_with_metadata).collect(),
+    });
+    send_operation(tester, operation, confirm).await
+}
+
+async fn prove_l1_batch(
+    tester: &mut EthSenderTester,
+    last_committed_l1_batch: L1BatchHeader,
+    l1_batch: L1BatchHeader,
+    confirm: bool,
+) -> H256 {
+    let operation = AggregatedOperation::PublishProofOnchain(ProveBatches {
+        prev_l1_batch: l1_batch_with_metadata(last_committed_l1_batch),
+        l1_batches: vec![l1_batch_with_metadata(l1_batch)],
+        proofs: vec![],
+        should_verify: false,
+    });
+    send_operation(tester, operation, confirm).await
+}
+
+async fn commit_l1_batch(
+    tester: &mut EthSenderTester,
+    last_committed_l1_batch: L1BatchHeader,
+    l1_batch: L1BatchHeader,
+    confirm: bool,
+) -> H256 {
+    let operation = AggregatedOperation::Commit(
+        l1_batch_with_metadata(last_committed_l1_batch),
+        vec![l1_batch_with_metadata(l1_batch)],
+        PubdataDA::Calldata,
+    );
+    send_operation(tester, operation, confirm).await
+}
+
+async fn send_operation(
+    tester: &mut EthSenderTester,
+    aggregated_operation: AggregatedOperation,
+    confirm: bool,
+) -> H256 {
+    let tx = tester
+        .aggregator
+        .save_eth_tx(
+            &mut tester.conn.access_storage().await.unwrap(),
+            &aggregated_operation,
+            true,
+        )
+        .await
+        .unwrap();
+
+    let hash = tester
+        .manager
+        .send_eth_tx(
+            &mut tester.conn.access_storage().await.unwrap(),
+            &tx,
+            0,
+            L1BlockNumber(tester.gateway.block_number("").await.unwrap().as_u32()),
+        )
+        .await
+        .unwrap();
+
+    if confirm {
+        confirm_tx(tester, hash).await;
+    }
+    hash
+}
+
+async fn confirm_tx(tester: &mut EthSenderTester, hash: H256) {
+    tester
+        .gateway
+        .execute_tx(hash, true, EthSenderTester::WAIT_CONFIRMATIONS);
+    tester
+        .manager
+        .monitor_inflight_transactions(
+            &mut tester.conn.access_storage().await.unwrap(),
+            tester.get_block_numbers().await,
+        )
+        .await
+        .unwrap();
 }

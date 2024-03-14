@@ -1,4 +1,4 @@
-use zksync_types::{commitment::L1BatchWithMetadata, ethabi::Token};
+use zksync_types::{commitment::L1BatchWithMetadata, ethabi::Token, pubdata_da::PubdataDA};
 
 use crate::{
     i_executor::structures::{CommitBatchInfoRollup, CommitBatchInfoValidium, StoredBatchInfo},
@@ -10,6 +10,7 @@ use crate::{
 pub struct CommitBatchesRollup {
     pub last_committed_l1_batch: L1BatchWithMetadata,
     pub l1_batches: Vec<L1BatchWithMetadata>,
+    pub pubdata_da: PubdataDA,
 }
 
 impl Tokenize for CommitBatchesRollup {
@@ -18,7 +19,7 @@ impl Tokenize for CommitBatchesRollup {
         let l1_batches_to_commit = self
             .l1_batches
             .iter()
-            .map(|batch| CommitBatchInfoRollup::new(batch).into_token())
+            .map(|batch| CommitBatchInfoRollup::new(batch, self.pubdata_da).into_token())
             .collect();
 
         vec![stored_batch_info, Token::Array(l1_batches_to_commit)]
@@ -30,6 +31,7 @@ impl Tokenize for CommitBatchesRollup {
 pub struct CommitBatchesValidium {
     pub last_committed_l1_batch: L1BatchWithMetadata,
     pub l1_batches: Vec<L1BatchWithMetadata>,
+    pub pubdata_da: PubdataDA,
 }
 
 impl Tokenize for CommitBatchesValidium {
@@ -38,7 +40,7 @@ impl Tokenize for CommitBatchesValidium {
         let l1_batches_to_commit = self
             .l1_batches
             .iter()
-            .map(|batch| CommitBatchInfoValidium::new(batch).into_token())
+            .map(|batch| CommitBatchInfoValidium::new(batch, self.pubdata_da).into_token())
             .collect();
 
         vec![stored_batch_info, Token::Array(l1_batches_to_commit)]

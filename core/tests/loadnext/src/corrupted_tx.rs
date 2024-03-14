@@ -4,7 +4,7 @@ use zksync_eth_signer::{
     error::SignerError, raw_ethereum_tx::TransactionParameters, EthereumSigner,
 };
 use zksync_types::{
-    fee::Fee, l2::L2Tx, Address, EIP712TypedStructure, Eip712Domain, PackedEthSignature, H256,
+    fee::Fee, l2::L2Tx, Address, EIP712TypedStructure, Eip712Domain, PackedEthSignature,
 };
 
 use crate::command::IncorrectnessModifier;
@@ -56,9 +56,7 @@ pub struct CorruptedSigner {
 
 impl CorruptedSigner {
     fn bad_signature() -> PackedEthSignature {
-        let private_key = H256::random();
-        let message = b"bad message";
-        PackedEthSignature::sign(&private_key, message).unwrap()
+        PackedEthSignature::default()
     }
 
     pub fn new(address: Address) -> Self {
@@ -68,10 +66,6 @@ impl CorruptedSigner {
 
 #[async_trait]
 impl EthereumSigner for CorruptedSigner {
-    async fn sign_message(&self, _message: &[u8]) -> Result<PackedEthSignature, SignerError> {
-        Ok(Self::bad_signature())
-    }
-
     async fn sign_typed_data<S: EIP712TypedStructure + Sync>(
         &self,
         _domain: &Eip712Domain,

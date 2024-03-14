@@ -5,7 +5,7 @@ use tokio::{
     sync::{watch, OnceCell},
     task::JoinHandle,
 };
-use zksync_config::GasAdjusterConfig;
+use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
 use zksync_eth_client::clients::QueryClient;
 
 use super::PubdataPricing;
@@ -17,6 +17,7 @@ use crate::l1_gas_price::GasAdjuster;
 pub struct GasAdjusterSingleton {
     web3_url: String,
     gas_adjuster_config: GasAdjusterConfig,
+    pubdata_sending_mode: PubdataSendingMode,
     singleton: OnceCell<Result<Arc<GasAdjuster>, Error>>,
     pubdata_pricing: Arc<dyn PubdataPricing>,
 }
@@ -35,11 +36,13 @@ impl GasAdjusterSingleton {
     pub fn new(
         web3_url: String,
         gas_adjuster_config: GasAdjusterConfig,
+        pubdata_sending_mode: PubdataSendingMode,
         pubdata_pricing: Arc<dyn PubdataPricing>,
     ) -> Self {
         Self {
             web3_url,
             gas_adjuster_config,
+            pubdata_sending_mode,
             singleton: OnceCell::new(),
             pubdata_pricing,
         }
@@ -53,6 +56,7 @@ impl GasAdjusterSingleton {
                     QueryClient::new(&self.web3_url).context("QueryClient::new()")?;
                 let adjuster = GasAdjuster::new(
                     Arc::new(query_client.clone()),
+                    self.pubdata_sending_mode,
                     self.gas_adjuster_config,
                     self.pubdata_pricing.clone(),
                 )

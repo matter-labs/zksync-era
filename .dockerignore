@@ -40,4 +40,3 @@ contracts/.git
 !bellman-cuda
 !prover/vk_setup_data_generator_server_fri/data/
 !.github/release-please/manifest.json
-!trusted_setup.json

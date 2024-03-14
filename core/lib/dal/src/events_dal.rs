@@ -104,7 +104,7 @@ impl EventsDal<'_, '_> {
             WHERE
                 miniblock_number > $1
             "#,
-            block_number.0 as i64
+            i64::from(block_number.0)
         )
         .execute(self.storage.conn())
         .await
@@ -181,7 +181,7 @@ impl EventsDal<'_, '_> {
             WHERE
                 miniblock_number > $1
             "#,
-            block_number.0 as i64
+            i64::from(block_number.0)
         )
         .execute(self.storage.conn())
         .await
@@ -263,8 +263,8 @@ impl EventsDal<'_, '_> {
                 miniblock_number,
                 event_index_in_block
             "#,
-            from_miniblock.0 as i64,
-            to_miniblock.0 as i64,
+            i64::from(from_miniblock.0),
+            i64::from(to_miniblock.0),
             L1_MESSENGER_ADDRESS.as_bytes(),
             L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE.as_bytes()
         )

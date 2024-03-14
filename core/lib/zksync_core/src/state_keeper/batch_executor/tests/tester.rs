@@ -206,6 +206,7 @@ impl Tester {
                 .storage_logs_dedup_dal()
                 .filter_written_slots(&[storage_log.key.hashed_key()])
                 .await
+                .unwrap()
                 .is_empty()
             {
                 storage
@@ -387,7 +388,11 @@ impl StorageSnapshot {
         let mut storage = connection_pool.access_storage().await.unwrap();
         let all_logs = storage
             .snapshots_creator_dal()
-            .get_storage_logs_chunk(MiniblockNumber(0), H256::zero()..=H256::repeat_byte(0xff))
+            .get_storage_logs_chunk(
+                MiniblockNumber(0),
+                L1BatchNumber(0),
+                H256::zero()..=H256::repeat_byte(0xff),
+            )
             .await
             .unwrap();
         let factory_deps = storage

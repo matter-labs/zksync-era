@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package zksync.config;
+package zksync.config.api;
 
 import "zksync/config/utils.proto";
 
@@ -45,6 +45,8 @@ message ContractVerificationApi {
 
 message HealthCheck {
   optional uint32 port = 1; // required; u16
+  optional uint64 slow_time_limit_ms = 2; // optional; ms
+  optional uint64 hard_time_limit_ms = 3; // optional; ms
 }
 
 message MerkleTreeApi {
@@ -54,7 +56,7 @@ message MerkleTreeApi {
 message Api {
   optional Web3JsonRpc web3_json_rpc = 1; // required
   optional ContractVerificationApi contract_verification = 2; // required
-  optional Prometheus prometheus = 3; // required
+  optional utils.Prometheus prometheus = 3; // required
   optional HealthCheck healthcheck = 4; // required
   optional MerkleTreeApi merkle_tree = 5; // required
 }

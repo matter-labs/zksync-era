@@ -5,7 +5,7 @@ use chrono::Utc;
 use zksync_dal::StorageProcessor;
 use zksync_types::{
     aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata, ethabi,
-    L1BatchNumber,
+    pubdata_da::PubdataDA, L1BatchNumber,
 };
 
 use super::metrics::METRICS;
@@ -201,6 +201,7 @@ impl L1BatchPublishCriterion for GasCriterion {
 pub struct DataSizeCriterion {
     pub op: AggregatedActionType,
     pub data_limit: usize,
+    pub pubdata_da: PubdataDA,
     pub l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
 }
 

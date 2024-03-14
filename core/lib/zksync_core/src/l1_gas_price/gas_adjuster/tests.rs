@@ -1,7 +1,7 @@
 use std::{collections::VecDeque, sync::Arc};
 
 use test_casing::test_casing;
-use zksync_config::GasAdjusterConfig;
+use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
 use zksync_eth_client::clients::MockEthereum;
 
 use super::{GasAdjuster, GasStatisticsInner, PubdataPricing};
@@ -35,8 +35,20 @@ fn samples_queue() {
 #[test_casing(2, [DeploymentMode::Rollup, DeploymentMode::Validium])]
 #[tokio::test]
 async fn kept_updated(deployment_mode: DeploymentMode) {
-    let eth_client =
-        Arc::new(MockEthereum::default().with_fee_history(vec![0, 4, 6, 8, 7, 5, 5, 8, 10, 9]));
+    let eth_client = Arc::new(
+        MockEthereum::default()
+            .with_fee_history(vec![0, 4, 6, 8, 7, 5, 5, 8, 10, 9])
+            .with_excess_blob_gas_history(vec![
+                393216,
+                393216 * 2,
+                393216,
+                393216 * 2,
+                393216,
+                393216 * 2,
+                393216 * 3,
+                393216 * 4,
+            ]),
+    );
     eth_client.advance_block_number(5);
 
     let pubdata_pricing: Arc<dyn PubdataPricing> = match deployment_mode {
@@ -55,18 +67,69 @@ async fn kept_updated(deployment_mode: DeploymentMode) {
             internal_enforced_l1_gas_price: None,
             poll_period: 5,
             max_l1_gas_price: None,
+            num_samples_for_blob_base_fee_estimate: 3,
+            internal_pubdata_pricing_multiplier: 1.0,
+            max_blob_base_fee: None,
         },
+        PubdataSendingMode::Calldata,
         pubdata_pricing,
     )
     .await
     .unwrap();
 
-    assert_eq!(adjuster.statistics.0.read().unwrap().samples.len(), 5);
-    assert_eq!(adjuster.statistics.0.read().unwrap().median(), 6);
+    assert_eq!(
+        adjuster.base_fee_statistics.0.read().unwrap().samples.len(),
+        5
+    );
+    assert_eq!(adjuster.base_fee_statistics.0.read().unwrap().median(), 6);
+
+    let expected_median_blob_base_fee = GasAdjuster::blob_base_fee(393216);
+    assert_eq!(
+        adjuster
+            .blob_base_fee_statistics
+            .0
+            .read()
+            .unwrap()
+            .samples
+            .len(),
+        1
+    );
+    assert_eq!(
+        adjuster.blob_base_fee_statistics.0.read().unwrap().median(),
+        expected_median_blob_base_fee
+    );
 
     eth_client.advance_block_number(3);
     adjuster.keep_updated().await.unwrap();
 
-    assert_eq!(adjuster.statistics.0.read().unwrap().samples.len(), 5);
-    assert_eq!(adjuster.statistics.0.read().unwrap().median(), 7);
+    assert_eq!(
+        adjuster.base_fee_statistics.0.read().unwrap().samples.len(),
+        5
+    );
+    assert_eq!(adjuster.base_fee_statistics.0.read().unwrap().median(), 7);
+
+    let expected_median_blob_base_fee = GasAdjuster::blob_base_fee(393216 * 3);
+    assert_eq!(
+        adjuster
+            .blob_base_fee_statistics
+            .0
+            .read()
+            .unwrap()
+            .samples
+            .len(),
+        3
+    );
+    assert_eq!(
+        adjuster.blob_base_fee_statistics.0.read().unwrap().median(),
+        expected_median_blob_base_fee
+    );
+}
+
+#[test]
+fn blob_base_fee_formula() {
+    const EXCESS_BLOB_GAS: u64 = 0x4b80000;
+    const EXPECTED_BLOB_BASE_FEE: u64 = 19893400088;
+
+    let blob_base_fee = GasAdjuster::blob_base_fee(EXCESS_BLOB_GAS);
+    assert_eq!(blob_base_fee.as_u64(), EXPECTED_BLOB_BASE_FEE);
 }
