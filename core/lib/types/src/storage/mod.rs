@@ -79,12 +79,8 @@ pub fn get_code_key(account: &Address) -> StorageKey {
     StorageKey::new(account_code_storage, address_to_h256(account))
 }
 
-pub fn get_evm_code_key(account: &Address) -> StorageKey {
-    get_deployer_key(get_address_mapping_key(account, u256_to_h256(2.into())))
-}
-
 pub fn get_evm_code_hash_key(account: &Address) -> StorageKey {
-    get_deployer_key(get_address_mapping_key(account, u256_to_h256(3.into())))
+    get_deployer_key(get_address_mapping_key(account, u256_to_h256(2.into())))
 }
 
 pub fn get_known_code_key(hash: &H256) -> StorageKey {
