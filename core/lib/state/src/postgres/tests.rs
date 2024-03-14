@@ -451,12 +451,14 @@ fn test_values_cache(pool: &ConnectionPool, rt_handle: Handle) {
         (non_existing_key, Some(H256::zero())),
     ]);
 
-    values_cache.update(
-        MiniblockNumber(0),
-        MiniblockNumber(1),
-        &storage.rt_handle,
-        &mut storage.connection,
-    );
+    values_cache
+        .update(
+            MiniblockNumber(0),
+            MiniblockNumber(1),
+            &storage.rt_handle,
+            &mut storage.connection,
+        )
+        .unwrap();
     assert_eq!(values_cache.0.read().unwrap().valid_for, MiniblockNumber(1));
 
     assert_eq!(storage.read_value(&existing_key), H256::repeat_byte(1));
@@ -534,12 +536,14 @@ fn mini_fuzz_values_cache_inner(rng: &mut impl Rng, pool: &ConnectionPool, mut r
                 let cache_valid_for = values_cache.valid_for();
                 assert!(cache_valid_for < MiniblockNumber(latest_block_number));
 
-                values_cache.update(
-                    cache_valid_for,
-                    MiniblockNumber(latest_block_number),
-                    &rt_handle,
-                    &mut connection,
-                );
+                values_cache
+                    .update(
+                        cache_valid_for,
+                        MiniblockNumber(latest_block_number),
+                        &rt_handle,
+                        &mut connection,
+                    )
+                    .unwrap();
                 cache_updated = true;
             }
 
