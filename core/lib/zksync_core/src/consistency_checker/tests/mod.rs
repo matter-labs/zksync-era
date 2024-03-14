@@ -8,7 +8,7 @@ use zksync_dal::StorageProcessor;
 use zksync_eth_client::clients::MockEthereum;
 use zksync_types::{
     aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata,
-    web3::contract::Options, ProtocolVersionId, H256,
+    web3::contract::Options, ProtocolVersion, ProtocolVersionId, H256,
 };
 
 use super::*;
@@ -16,17 +16,12 @@ use crate::{
     eth_sender::l1_batch_commit_data_generator::{
         RollupModeL1BatchCommitDataGenerator, ValidiumModeL1BatchCommitDataGenerator,
     },
-    web3::contract::Options,
-    L2ChainId, ProtocolVersion, ProtocolVersionId, H256,
-};
-
-use super::*;
-use crate::{
     genesis::{ensure_genesis_state, GenesisParams},
     utils::testonly::{
         create_l1_batch, create_l1_batch_metadata, l1_batch_metadata_to_commitment_artifacts,
         DeploymentMode,
     },
+    L2ChainId,
 };
 
 /// **NB.** For tests to run correctly, the returned value must be deterministic (i.e., depend only on `number`).
@@ -133,8 +128,7 @@ fn build_commit_tx_input_data_is_correct(deployment_mode: DeploymentMode) {
         .unwrap();
         assert_eq!(
             commit_data,
-            CommitBatchInfo::new(batch, l1_batch_commit_data_generator.clone().clone())
-                .into_token()
+            l1_batch_commit_data_generator.l1_commit_batch(batch),
         );
     }
 }
