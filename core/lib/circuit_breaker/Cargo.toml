@@ -10,13 +10,14 @@ keywords = ["blockchain", "zksync"]
 categories = ["cryptography"]
 
 [dependencies]
+vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1" }
 zksync_config = { path = "../config" }
 zksync_dal = { path = "../dal" }
+
 thiserror = "1.0"
 tokio = { version = "1", features = ["time"] }
 anyhow = "1.0"
 async-trait = "0.1"
-metrics = "0.21" # FIXME: remove
 tracing = "0.1.26"
 
 [dev-dependencies]

@@ -1,6 +1,6 @@
 use zksync_dal::ConnectionPool;
 
-use crate::{CircuitBreaker, CircuitBreakerError};
+use crate::{metrics::METRICS, CircuitBreaker, CircuitBreakerError};
 
 #[derive(Debug)]
 pub struct ReplicationLagChecker {
@@ -19,8 +19,8 @@ impl CircuitBreaker for ReplicationLagChecker {
             .system_dal()
             .get_replication_lag_sec()
             .await;
+        METRICS.replication_lag.set(lag.into());
 
-        metrics::gauge!("circuit_breaker.replication_lag", lag as f64);
         match self.replication_lag_limit_sec {
             Some(replication_lag_limit_sec) if lag > replication_lag_limit_sec => Err(
                 CircuitBreakerError::ReplicationLag(lag, replication_lag_limit_sec),

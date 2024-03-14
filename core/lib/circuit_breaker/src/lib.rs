@@ -1,17 +1,18 @@
-use std::time::Duration;
+use std::{fmt, time::Duration};
 
 use thiserror::Error;
 use tokio::sync::{oneshot, watch};
 use zksync_config::configs::chain::CircuitBreakerConfig;
 
 pub mod l1_txs;
+mod metrics;
 pub mod replication_lag;
 
 #[derive(Debug, Error)]
 pub enum CircuitBreakerError {
     #[error("System has failed L1 transaction")]
     FailedL1Transaction,
-    #[error("Replication lag ({0:?}) is above the threshold ({1:?})")]
+    #[error("Replication lag ({0}) is above the threshold ({1})")]
     ReplicationLag(u32, u32),
 }
 
@@ -24,7 +25,7 @@ pub struct CircuitBreakerChecker {
 }
 
 #[async_trait::async_trait]
-pub trait CircuitBreaker: std::fmt::Debug + Send + Sync {
+pub trait CircuitBreaker: fmt::Debug + Send + Sync {
     async fn check(&self) -> Result<(), CircuitBreakerError>;
 }
 
