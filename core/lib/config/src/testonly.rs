@@ -751,6 +751,8 @@ impl RandomConfig for configs::ObservabilityConfig {
             sentry_url: g.gen(),
             sentry_environment: g.gen(),
             log_format: g.gen(),
+            opentelemetry_level: g.gen(),
+            otlp_endpoint: g.gen(),
         }
     }
 }

@@ -30,10 +30,14 @@ pub fn observability_config_from_env() -> anyhow::Result<ObservabilityConfig> {
     } else {
         "plain".to_string()
     };
+    let opentelemetry_level = std::env::var("OPENTELEMETRY_LEVEL").ok();
+    let otlp_endpoint = std::env::var("OTLP_ENDPOINT").ok();
 
     Ok(ObservabilityConfig {
         sentry_url,
         sentry_environment,
         log_format,
+        opentelemetry_level,
+        otlp_endpoint,
     })
 }
