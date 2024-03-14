@@ -162,7 +162,7 @@ impl ZksNamespaceServer for ZksNamespace {
         address: Address,
         keys: Vec<H256>,
         l1_batch_number: L1BatchNumber,
-    ) -> RpcResult<Proof> {
+    ) -> RpcResult<Option<Proof>> {
         self.get_proofs_impl(address, keys, l1_batch_number)
             .await
             .map_err(|err| self.current_method().map_err(err))

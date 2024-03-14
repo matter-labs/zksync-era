@@ -126,7 +126,10 @@ impl EthNamespaceServer for EthNamespace {
             .map_err(|err| self.current_method().map_err(err))
     }
 
-    async fn get_block_receipts(&self, block_id: BlockId) -> RpcResult<Vec<TransactionReceipt>> {
+    async fn get_block_receipts(
+        &self,
+        block_id: BlockId,
+    ) -> RpcResult<Option<Vec<TransactionReceipt>>> {
         self.get_block_receipts_impl(block_id)
             .await
             .map_err(|err| self.current_method().map_err(err))

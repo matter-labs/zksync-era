@@ -1,5 +1,5 @@
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
-use zksync_types::{api::en::SyncBlock, tokens::TokenInfo, MiniblockNumber};
+use zksync_types::{api::en, tokens::TokenInfo, MiniblockNumber};
 
 #[cfg_attr(
     all(feature = "client", feature = "server"),
@@ -19,7 +19,10 @@ pub trait EnNamespace {
         &self,
         block_number: MiniblockNumber,
         include_transactions: bool,
-    ) -> RpcResult<Option<SyncBlock>>;
+    ) -> RpcResult<Option<en::SyncBlock>>;
+
+    #[method(name = "consensusGenesis")]
+    async fn consensus_genesis(&self) -> RpcResult<Option<en::ConsensusGenesis>>;
 
     /// Lists all tokens created at or before the specified `block_number`.
     ///
