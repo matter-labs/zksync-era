@@ -88,19 +88,7 @@ describe('Block reverting test', function () {
 
         utils.background(`zk server --components ${components}`, [null, logs, logs]);
         // Server may need some time to recompile if it's a cold run, so wait for it.
-        let iter = 0;
-        while (iter < 30 && !mainContract) {
-            try {
-                mainContract = await tester.syncWallet.getMainContract();
-            } catch (err) {
-                ignoreError(err, 'waiting for server HTTP JSON-RPC to start');
-                await utils.sleep(1);
-                iter += 1;
-            }
-        }
-        if (!mainContract) {
-            throw new Error('Server did not start');
-        }
+        await wait_for_server_is_running(tester);
 
         // Seal 2 L1 batches.
         // One is not enough to test the reversion of sk cache because
@@ -182,7 +170,8 @@ describe('Block reverting test', function () {
 
         // Run server.
         utils.background(`zk server --components ${components}`, [null, logs, logs]);
-        await utils.sleep(2);
+
+        await wait_for_server_is_running(tester);
 
         const balanceBefore = await alice.getBalance();
         expect(balanceBefore.eq(depositAmount.mul(2)), 'Incorrect balance after revert').to.be.true;
@@ -219,7 +208,7 @@ describe('Block reverting test', function () {
 
         // Run again.
         utils.background(`zk server --components=${components}`, [null, logs, logs]);
-        await utils.sleep(2);
+        await wait_for_server_is_running(tester);
 
         // Trying to send a transaction from the same address again
         await checkedRandomTransfer(alice, BigNumber.from(1));
@@ -253,4 +242,21 @@ async function checkedRandomTransfer(sender: zkweb3.Wallet, amount: BigNumber) {
     const spentAmount = txReceipt.gasUsed.mul(transferHandle.gasPrice!).add(amount);
     expect(senderBalance.add(spentAmount).eq(senderBalanceBefore), 'Failed to update the balance of the sender').to.be
         .true;
+}
+
+async function wait_for_server_is_running(tester: Tester) {
+    let iter = 0;
+    let mainContract;
+    while (iter < 30 && !mainContract) {
+        try {
+            mainContract = await tester.syncWallet.getMainContract();
+        } catch (err) {
+            ignoreError(err, 'waiting for server HTTP JSON-RPC to start');
+            await utils.sleep(1);
+            iter += 1;
+        }
+    }
+    if (!mainContract) {
+        throw new Error('Server did not start');
+    }
 }
