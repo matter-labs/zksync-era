@@ -906,3 +906,6 @@ balancer
 lookups
 stateful
 DeployRequest
+getPubdataPricingMode
+Uint
+implementors

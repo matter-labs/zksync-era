@@ -1,35 +1,31 @@
-use std::sync::Arc;
-
 use zksync_types::{
-    commitment::{pre_boojum_serialize_commitments, L1BatchWithMetadata},
+    block::L1BatchHeader,
+    commitment::{
+        pre_boojum_serialize_commitments, serialize_commitments, L1BatchMetadata,
+        L1BatchWithMetadata,
+    },
     ethabi::Token,
-    l1_batch_commit_data_generator::L1BatchCommitDataGenerator,
     web3::{contract::Error as Web3ContractError, error::Error as Web3ApiError},
     U256,
 };
 
 use crate::Tokenizable;
 
-/// Encoding for `CommitBatchInfo` from `IExecutor.sol`
+/// Encoding for `CommitBatchInfo` from `IExecutor.sol` for a contract running in rollup mode.
 #[derive(Debug)]
-pub struct CommitBatchInfo<'a> {
+pub struct CommitBatchInfoRollup<'a> {
     pub l1_batch_with_metadata: &'a L1BatchWithMetadata,
-    pub l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
 }
 
-impl<'a> CommitBatchInfo<'a> {
-    pub fn new(
-        l1_batch_with_metadata: &'a L1BatchWithMetadata,
-        l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
-    ) -> Self {
+impl<'a> CommitBatchInfoRollup<'a> {
+    pub fn new(l1_batch_with_metadata: &'a L1BatchWithMetadata) -> Self {
         Self {
             l1_batch_with_metadata,
-            l1_batch_commit_data_generator,
         }
     }
 }
 
-impl<'a> Tokenizable for CommitBatchInfo<'a> {
+impl<'a> Tokenizable for CommitBatchInfoRollup<'a> {
     fn from_token(_token: Token) -> Result<Self, Web3ContractError>
     where
         Self: Sized,
@@ -52,8 +48,57 @@ impl<'a> Tokenizable for CommitBatchInfo<'a> {
         {
             pre_boojum_into_token(self.l1_batch_with_metadata)
         } else {
-            self.l1_batch_commit_data_generator
-                .l1_commit_data(self.l1_batch_with_metadata)
+            Token::Tuple(encode_l1_commit(
+                &self.l1_batch_with_metadata.header,
+                &self.l1_batch_with_metadata.metadata,
+                Some(&self.l1_batch_with_metadata),
+            ))
+        }
+    }
+}
+
+/// Encoding for `CommitBatchInfo` from `IExecutor.sol` for a contract running in validium mode.
+#[derive(Debug)]
+pub struct CommitBatchInfoValidium<'a> {
+    pub l1_batch_with_metadata: &'a L1BatchWithMetadata,
+}
+
+impl<'a> CommitBatchInfoValidium<'a> {
+    pub fn new(l1_batch_with_metadata: &'a L1BatchWithMetadata) -> Self {
+        Self {
+            l1_batch_with_metadata,
+        }
+    }
+}
+
+impl<'a> Tokenizable for CommitBatchInfoValidium<'a> {
+    fn from_token(_token: Token) -> Result<Self, Web3ContractError>
+    where
+        Self: Sized,
+    {
+        // Currently there is no need to decode this struct.
+        // We still want to implement `Tokenizable` trait for it, so that *once* it's needed
+        // the implementation is provided here and not in some other inconsistent way.
+        Err(Web3ContractError::Api(Web3ApiError::Decoder(
+            "Not implemented".to_string(),
+        )))
+    }
+
+    fn into_token(self) -> Token {
+        if self
+            .l1_batch_with_metadata
+            .header
+            .protocol_version
+            .unwrap()
+            .is_pre_boojum()
+        {
+            pre_boojum_into_token(self.l1_batch_with_metadata)
+        } else {
+            Token::Tuple(encode_l1_commit(
+                &self.l1_batch_with_metadata.header,
+                &self.l1_batch_with_metadata.metadata,
+                None,
+            ))
         }
     }
 }
@@ -87,4 +132,49 @@ fn pre_boojum_into_token(l1_batch_commit_with_metadata: &L1BatchWithMetadata) ->
                 .collect(),
         ),
     ])
+}
+
+fn encode_l1_commit(
+    header: &L1BatchHeader,
+    metadata: &L1BatchMetadata,
+    pubdata_input: Option<&L1BatchWithMetadata>,
+) -> Vec<Token> {
+    let commit_data = vec![
+        // `batchNumber`
+        Token::Uint(U256::from(header.number.0)),
+        // `timestamp`
+        Token::Uint(U256::from(header.timestamp)),
+        // `indexRepeatedStorageChanges`
+        Token::Uint(U256::from(metadata.rollup_last_leaf_index)),
+        // `newStateRoot`
+        Token::FixedBytes(metadata.merkle_root_hash.as_bytes().to_vec()),
+        // `numberOfLayer1Txs`
+        Token::Uint(U256::from(header.l1_tx_count)),
+        // `priorityOperationsHash`
+        Token::FixedBytes(header.priority_ops_onchain_data_hash().as_bytes().to_vec()),
+        // `bootloaderHeapInitialContentsHash`
+        Token::FixedBytes(
+            metadata
+                .bootloader_initial_content_commitment
+                .unwrap()
+                .as_bytes()
+                .to_vec(),
+        ),
+        // `eventsQueueStateHash`
+        Token::FixedBytes(
+            metadata
+                .events_queue_commitment
+                .unwrap()
+                .as_bytes()
+                .to_vec(),
+        ),
+        // `systemLogs`
+        Token::Bytes(serialize_commitments(&header.system_logs)),
+        Token::Bytes(
+            pubdata_input
+                .map(L1BatchWithMetadata::construct_pubdata)
+                .unwrap_or_default(),
+        ),
+    ];
+    commit_data
 }

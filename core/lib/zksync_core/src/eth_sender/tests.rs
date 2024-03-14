@@ -9,23 +9,21 @@ use zksync_config::{
 };
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::{clients::MockEthereum, EthInterface};
-use zksync_l1_contract_interface::i_executor::methods::{
-    CommitBatches, ExecuteBatches, ProveBatches,
-};
+use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_types::{
     block::L1BatchHeader,
     commitment::{L1BatchMetaParameters, L1BatchMetadata, L1BatchWithMetadata},
     ethabi::Token,
     helpers::unix_timestamp_ms,
-    l1_batch_commit_data_generator::{
-        L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
-        ValidiumModeL1BatchCommitDataGenerator,
-    },
     web3::contract::Error,
     Address, L1BatchNumber, L1BlockNumber, ProtocolVersionId, H256,
 };
 
+use super::l1_batch_commit_data_generator::{
+    L1BatchCommitDataGenerator, RollupModeL1BatchCommitDataGenerator,
+    ValidiumModeL1BatchCommitDataGenerator,
+};
 use crate::{
     eth_sender::{
         aggregated_operations::AggregatedOperation, eth_tx_manager::L1BlockNumbers, Aggregator,
@@ -123,7 +121,7 @@ impl EthSenderTester {
             Aggregator::new(
                 aggregator_config.clone(),
                 store_factory.create_store().await,
-                l1_batch_commit_data_generator,
+                l1_batch_commit_data_generator.clone(),
             ),
             gateway.clone(),
             // zkSync contract address
@@ -131,6 +129,7 @@ impl EthSenderTester {
             contracts_config.l1_multicall3_addr,
             Address::random(),
             Default::default(),
+            l1_batch_commit_data_generator,
         )
         .await;
 
@@ -715,13 +714,11 @@ async fn commit_l1_batch(
     last_committed_l1_batch: L1BatchHeader,
     l1_batch: L1BatchHeader,
     confirm: bool,
-    l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
 ) -> H256 {
-    let operation = AggregatedOperation::Commit(CommitBatches {
-        last_committed_l1_batch: l1_batch_with_metadata(last_committed_l1_batch),
-        l1_batches: vec![l1_batch_with_metadata(l1_batch)],
-        l1_batch_commit_data_generator,
-    });
+    let operation = AggregatedOperation::Commit(
+        l1_batch_with_metadata(last_committed_l1_batch),
+        vec![l1_batch_with_metadata(l1_batch)],
+    );
     send_operation(tester, operation, confirm).await
 }
 
@@ -736,12 +733,6 @@ async fn correct_order_for_confirmations(deployment_mode: DeploymentMode) -> any
     )
     .await;
 
-    let l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator> = match deployment_mode
-    {
-        DeploymentMode::Validium => Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
-        DeploymentMode::Rollup => Arc::new(RollupModeL1BatchCommitDataGenerator {}),
-    };
-
     insert_genesis_protocol_version(&tester).await;
     let genesis_l1_batch = insert_l1_batch(&tester, L1BatchNumber(0)).await;
     let first_l1_batch = insert_l1_batch(&tester, L1BatchNumber(1)).await;
@@ -752,7 +743,6 @@ async fn correct_order_for_confirmations(deployment_mode: DeploymentMode) -> any
         genesis_l1_batch.clone(),
         first_l1_batch.clone(),
         true,
-        l1_batch_commit_data_generator.clone(),
     )
     .await;
     prove_l1_batch(
@@ -768,7 +758,6 @@ async fn correct_order_for_confirmations(deployment_mode: DeploymentMode) -> any
         first_l1_batch.clone(),
         second_l1_batch.clone(),
         true,
-        l1_batch_commit_data_generator.clone(),
     )
     .await;
     prove_l1_batch(
@@ -812,12 +801,6 @@ async fn skipped_l1_batch_at_the_start(deployment_mode: DeploymentMode) -> anyho
     )
     .await;
 
-    let l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator> = match deployment_mode
-    {
-        DeploymentMode::Validium => Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
-        DeploymentMode::Rollup => Arc::new(RollupModeL1BatchCommitDataGenerator {}),
-    };
-
     insert_genesis_protocol_version(&tester).await;
     let genesis_l1_batch = insert_l1_batch(&tester, L1BatchNumber(0)).await;
     let first_l1_batch = insert_l1_batch(&tester, L1BatchNumber(1)).await;
@@ -828,7 +811,6 @@ async fn skipped_l1_batch_at_the_start(deployment_mode: DeploymentMode) -> anyho
         genesis_l1_batch.clone(),
         first_l1_batch.clone(),
         true,
-        l1_batch_commit_data_generator.clone(),
     )
     .await;
     prove_l1_batch(
@@ -844,7 +826,6 @@ async fn skipped_l1_batch_at_the_start(deployment_mode: DeploymentMode) -> anyho
         first_l1_batch.clone(),
         second_l1_batch.clone(),
         true,
-        l1_batch_commit_data_generator.clone(),
     )
     .await;
     prove_l1_batch(
@@ -864,7 +845,6 @@ async fn skipped_l1_batch_at_the_start(deployment_mode: DeploymentMode) -> anyho
         second_l1_batch.clone(),
         third_l1_batch.clone(),
         false,
-        l1_batch_commit_data_generator.clone(),
     )
     .await;
 
@@ -880,7 +860,6 @@ async fn skipped_l1_batch_at_the_start(deployment_mode: DeploymentMode) -> anyho
         third_l1_batch.clone(),
         fourth_l1_batch.clone(),
         true,
-        l1_batch_commit_data_generator.clone(),
     )
     .await;
     prove_l1_batch(
@@ -922,12 +901,6 @@ async fn skipped_l1_batch_in_the_middle(deployment_mode: DeploymentMode) -> anyh
     )
     .await;
 
-    let l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator> = match deployment_mode
-    {
-        DeploymentMode::Validium => Arc::new(ValidiumModeL1BatchCommitDataGenerator {}),
-        DeploymentMode::Rollup => Arc::new(RollupModeL1BatchCommitDataGenerator {}),
-    };
-
     insert_genesis_protocol_version(&tester).await;
     let genesis_l1_batch = insert_l1_batch(&tester, L1BatchNumber(0)).await;
     let first_l1_batch = insert_l1_batch(&tester, L1BatchNumber(1)).await;
@@ -937,7 +910,6 @@ async fn skipped_l1_batch_in_the_middle(deployment_mode: DeploymentMode) -> anyh
         genesis_l1_batch.clone(),
         first_l1_batch.clone(),
         true,
-        l1_batch_commit_data_generator.clone(),
     )
     .await;
     prove_l1_batch(&mut tester, genesis_l1_batch, first_l1_batch.clone(), true).await;
@@ -947,7 +919,6 @@ async fn skipped_l1_batch_in_the_middle(deployment_mode: DeploymentMode) -> anyh
         first_l1_batch.clone(),
         second_l1_batch.clone(),
         true,
-        l1_batch_commit_data_generator.clone(),
     )
     .await;
     prove_l1_batch(
@@ -966,7 +937,6 @@ async fn skipped_l1_batch_in_the_middle(deployment_mode: DeploymentMode) -> anyh
         second_l1_batch.clone(),
         third_l1_batch.clone(),
         false,
-        l1_batch_commit_data_generator.clone(),
     )
     .await;
 
@@ -982,7 +952,6 @@ async fn skipped_l1_batch_in_the_middle(deployment_mode: DeploymentMode) -> anyh
         third_l1_batch.clone(),
         fourth_l1_batch.clone(),
         true,
-        l1_batch_commit_data_generator.clone(),
     )
     .await;
     prove_l1_batch(

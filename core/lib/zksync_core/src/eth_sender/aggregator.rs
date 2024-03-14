@@ -3,19 +3,18 @@ use std::sync::Arc;
 use zksync_config::configs::eth_sender::{ProofLoadingMode, ProofSendingMode, SenderConfig};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::StorageProcessor;
-use zksync_l1_contract_interface::i_executor::methods::{
-    CommitBatches, ExecuteBatches, ProveBatches,
-};
+use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
 use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_prover_interface::outputs::L1BatchProofForL1;
 use zksync_types::{
     aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata,
-    helpers::unix_timestamp_ms, l1_batch_commit_data_generator::L1BatchCommitDataGenerator,
-    protocol_version::L1VerifierConfig, L1BatchNumber, ProtocolVersionId,
+    helpers::unix_timestamp_ms, protocol_version::L1VerifierConfig, L1BatchNumber,
+    ProtocolVersionId,
 };
 
 use super::{
     aggregated_operations::AggregatedOperation,
+    l1_batch_commit_data_generator::L1BatchCommitDataGenerator,
     publish_criterion::{
         DataSizeCriterion, GasCriterion, L1BatchPublishCriterion, NumberCriterion,
         TimestampDeadlineCriterion,
@@ -29,7 +28,6 @@ pub struct Aggregator {
     execute_criteria: Vec<Box<dyn L1BatchPublishCriterion>>,
     config: SenderConfig,
     blob_store: Arc<dyn ObjectStore>,
-    l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
 }
 
 impl Aggregator {
@@ -51,7 +49,7 @@ impl Aggregator {
                 Box::from(DataSizeCriterion {
                     op: AggregatedActionType::Commit,
                     data_limit: config.max_eth_tx_data_size,
-                    l1_batch_commit_data_generator: l1_batch_commit_data_generator.clone(),
+                    l1_batch_commit_data_generator,
                 }),
                 Box::from(TimestampDeadlineCriterion {
                     op: AggregatedActionType::Commit,
@@ -94,7 +92,6 @@ impl Aggregator {
             ],
             config,
             blob_store,
-            l1_batch_commit_data_generator,
         }
     }
 
@@ -142,7 +139,6 @@ impl Aggregator {
                 protocol_version_id,
             )
             .await
-            .map(AggregatedOperation::Commit)
         }
     }
 
@@ -179,7 +175,7 @@ impl Aggregator {
         last_sealed_batch: L1BatchNumber,
         base_system_contracts_hashes: BaseSystemContractsHashes,
         protocol_version_id: ProtocolVersionId,
-    ) -> Option<CommitBatches> {
+    ) -> Option<AggregatedOperation> {
         let mut blocks_dal = storage.blocks_dal();
         let last_committed_l1_batch = blocks_dal
             .get_last_committed_to_eth_l1_batch()
@@ -227,11 +223,7 @@ impl Aggregator {
         )
         .await;
 
-        batches.map(|batches| CommitBatches {
-            last_committed_l1_batch,
-            l1_batches: batches,
-            l1_batch_commit_data_generator: self.l1_batch_commit_data_generator.clone(),
-        })
+        batches.map(|batches| AggregatedOperation::Commit(last_committed_l1_batch, batches))
     }
 
     async fn load_real_proof_operation(
