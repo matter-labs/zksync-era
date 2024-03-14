@@ -13,5 +13,6 @@ pub(crate) mod result_tracer;
 pub(crate) mod circuits_capacity;
 pub mod dispatcher;
 pub(crate) mod evm_debug_tracer;
+pub(crate) mod evm_deploy_tracer;
 pub(crate) mod traits;
 pub(crate) mod utils;

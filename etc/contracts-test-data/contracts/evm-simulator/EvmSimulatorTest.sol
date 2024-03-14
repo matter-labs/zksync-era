@@ -9,11 +9,25 @@ import { DEPLOYER_SYSTEM_CONTRACT } from "./Constants.sol";
 contract EvmSimulatorTest {
     constructor() {
         // We are just returning the same bytecode
-        bytes memory bytecodeToExecute = DEPLOYER_SYSTEM_CONTRACT.evmCode(address(this));
+        bytes memory bytecodeToExecute = getMyConstructorCode();
         DEPLOYER_SYSTEM_CONTRACT.setDeployedCode(
             100,
             bytecodeToExecute
         );
+    }
+
+    function getMyConstructorCode() internal view returns (bytes memory bytecode) {
+        SystemContractHelper.loadCalldataIntoActivePtr();
+        uint256 size = SystemContractHelper.getActivePtrDataSize();
+
+        bytecode = new bytes(size);
+
+        uint256 dest;
+        assembly {
+            dest := add(bytecode, 32)
+        }
+
+        SystemContractHelper.copyActivePtrData(dest, 0, size);
     }
 
     uint256 constant EXPECTED_STIPEND = (1 << 30);
