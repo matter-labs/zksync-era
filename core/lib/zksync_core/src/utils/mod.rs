@@ -215,6 +215,7 @@ pub async fn ensure_l1_batch_commit_data_generation_mode(
 
 #[cfg(test)]
 mod tests {
+    use assert_matches::assert_matches;
     use std::sync::Mutex;
 
     use zksync_eth_client::{ContractCall, ExecutedTxStatus, FailureInfo, RawTransactionBytes};
@@ -420,39 +421,47 @@ mod tests {
     #[tokio::test]
     async fn ensure_l1_batch_commit_data_generation_mode_succeeds_when_both_match() {
         let addr = Address::repeat_byte(0x01);
-        assert!(ensure_l1_batch_commit_data_generation_mode(
-            L1BatchCommitDataGeneratorMode::Rollup,
-            addr,
-            &MockEthereumForCommitGenerationMode::with_rollup_contract(),
-        )
-        .await
-        .is_ok(),);
-        assert!(ensure_l1_batch_commit_data_generation_mode(
-            L1BatchCommitDataGeneratorMode::Validium,
-            addr,
-            &MockEthereumForCommitGenerationMode::with_validium_contract(),
-        )
-        .await
-        .is_ok(),);
+        assert_matches!(
+            ensure_l1_batch_commit_data_generation_mode(
+                L1BatchCommitDataGeneratorMode::Rollup,
+                addr,
+                &MockEthereumForCommitGenerationMode::with_rollup_contract(),
+            )
+            .await,
+            Ok(())
+        );
+        assert_matches!(
+            ensure_l1_batch_commit_data_generation_mode(
+                L1BatchCommitDataGeneratorMode::Validium,
+                addr,
+                &MockEthereumForCommitGenerationMode::with_validium_contract(),
+            )
+            .await,
+            Ok(())
+        );
     }
 
     #[tokio::test]
     async fn ensure_l1_batch_commit_data_generation_mode_succeeds_on_legacy_contracts() {
         let addr = Address::repeat_byte(0x01);
-        assert!(ensure_l1_batch_commit_data_generation_mode(
-            L1BatchCommitDataGeneratorMode::Rollup,
-            addr,
-            &MockEthereumForCommitGenerationMode::with_legacy_contract(),
-        )
-        .await
-        .is_ok(),);
-        assert!(ensure_l1_batch_commit_data_generation_mode(
-            L1BatchCommitDataGeneratorMode::Validium,
-            addr,
-            &MockEthereumForCommitGenerationMode::with_legacy_contract(),
-        )
-        .await
-        .is_ok(),);
+        assert_matches!(
+            ensure_l1_batch_commit_data_generation_mode(
+                L1BatchCommitDataGeneratorMode::Rollup,
+                addr,
+                &MockEthereumForCommitGenerationMode::with_legacy_contract(),
+            )
+            .await,
+            Ok(())
+        );
+        assert_matches!(
+            ensure_l1_batch_commit_data_generation_mode(
+                L1BatchCommitDataGeneratorMode::Validium,
+                addr,
+                &MockEthereumForCommitGenerationMode::with_legacy_contract(),
+            )
+            .await,
+            Ok(())
+        );
     }
 
     #[tokio::test]
