@@ -775,7 +775,7 @@ async function configDemoHyperchain(cmd: Command) {
     env.set('demo');
 
     wrapEnvModify('CHAIN_ETH_ZKSYNC_NETWORK', 'Zeek hyperchain');
-    wrapEnvModify('CHAIN_ETH_ZKSYNC_NETWORK_ID', '1337');
+    wrapEnvModify('CHAIN_ETH_ZKSYNC_NETWORK_ID', '9');
     wrapEnvModify('ETH_SENDER_SENDER_PROOF_SENDING_MODE', 'SkipEveryProof');
     wrapEnvModify('ETH_SENDER_SENDER_L1_BATCH_MIN_AGE_BEFORE_EXECUTE_SECONDS', '20');
 
