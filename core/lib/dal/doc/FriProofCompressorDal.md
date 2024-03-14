@@ -19,6 +19,7 @@ successful --> [*]
 in_progress --> failed : mark_proof_compression_job_failed
 failed --> [*]
 failed --> queued : requeue_stuck_jobs
+in_progress --> queued : requeue_stuck_jobs
 
 successful --> sent_to_server : get_least_proven_block_number_not_sent_to_server
 

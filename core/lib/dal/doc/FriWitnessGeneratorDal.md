@@ -23,6 +23,7 @@ successful --> [*]
 in_progress --> failed : mark_witness_job_failed
 failed --> [*]
 failed --> queued : requeue_stuck_jobs
+in_progress --> queued : requeue_stuck_jobs
 ```
 
 
@@ -42,6 +43,8 @@ successful --> [*]
 in_progress --> failed : mark_leaf_aggregation_job_failed
 failed --> [*]
 failed --> queued : requeue_stuck_leaf_aggregations_jobs
+in_progress --> queued : requeue_stuck_leaf_aggregations_jobs
+
 successful --> [*]
 
 ```
@@ -64,6 +67,7 @@ successful --> [*]
 in_progress --> failed : mark_node_aggregation_job_failed
 failed --> [*]
 failed --> queued : requeue_stuck_node_aggregations_jobs
+in_progress --> queued : requeue_stuck_node_aggregations_jobs
 
 ```
 
@@ -83,6 +87,7 @@ stateDiagram-v2
     in_progress --> failed : mark_scheduler_job_failed
     failed --> [*]
     failed --> queued : requeue_stuck_scheduler_jobs
+    in_progress --> queued : requeue_stuck_scheduler_jobs
 
 ```
 

@@ -19,6 +19,7 @@ successful --> [*]
 in_progress --> failed : save_proof_error
 failed --> [*]
 failed --> queued : requeue_stuck_jobs
+in_progress --> queued : requeue_stuck_jobs
 
 successful --> sent_to_server : save_successful_sent_proof
 sent_to_server --> [*] : mark_proof_sent_to_server
