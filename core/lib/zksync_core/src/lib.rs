@@ -436,8 +436,13 @@ pub async fn initialize_components(
 
         if components.contains(&Component::HttpApi) {
             storage_caches = Some(
-                build_storage_caches(configs, &replica_connection_pool, &mut task_futures)
-                    .context("build_storage_caches()")?,
+                build_storage_caches(
+                    configs,
+                    &replica_connection_pool,
+                    &mut task_futures,
+                    stop_receiver.clone(),
+                )
+                .context("build_storage_caches()")?,
             );
 
             let started_at = Instant::now();
@@ -479,8 +484,13 @@ pub async fn initialize_components(
         if components.contains(&Component::WsApi) {
             let storage_caches = match storage_caches {
                 Some(storage_caches) => storage_caches,
-                None => build_storage_caches(configs, &replica_connection_pool, &mut task_futures)
-                    .context("build_storage_caches()")?,
+                None => build_storage_caches(
+                    configs,
+                    &replica_connection_pool,
+                    &mut task_futures,
+                    stop_receiver.clone(),
+                )
+                .context("build_storage_caches()")?,
             };
 
             let started_at = Instant::now();
@@ -1114,6 +1124,7 @@ fn build_storage_caches(
     configs: &TempConfigStore,
     replica_connection_pool: &ConnectionPool,
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
+    stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<PostgresStorageCaches> {
     let rpc_config = configs
         .web3_json_rpc_config
@@ -1128,7 +1139,7 @@ fn build_storage_caches(
     if values_capacity > 0 {
         let values_cache_task = storage_caches
             .configure_storage_values_cache(values_capacity, replica_connection_pool.clone());
-        task_futures.push(tokio::task::spawn(values_cache_task.run()));
+        task_futures.push(tokio::task::spawn(values_cache_task.run(stop_receiver)));
     }
     Ok(storage_caches)
 }

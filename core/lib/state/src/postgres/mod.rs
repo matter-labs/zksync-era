@@ -6,7 +6,10 @@ use std::{
 use anyhow::Context as _;
 use tokio::{
     runtime::Handle,
-    sync::mpsc::{self, UnboundedReceiver},
+    sync::{
+        mpsc::{self, UnboundedReceiver},
+        watch,
+    },
 };
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::{L1BatchNumber, MiniblockNumber, StorageKey, StorageValue, H256};
@@ -353,20 +356,32 @@ impl PostgresStorageCachesTask {
     ///
     /// - Propagates Postgres errors.
     /// - Propagates errors from the cache update task.
-    pub async fn run(mut self) -> anyhow::Result<()> {
+    pub async fn run(mut self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         let mut current_miniblock = self.values_cache.valid_for();
-        while let Some(to_miniblock) = self.command_receiver.recv().await {
-            if to_miniblock <= current_miniblock {
-                continue;
+        loop {
+            tokio::select! {
+                _ = stop_receiver.changed() => {
+                    break;
+                }
+                Some(to_miniblock) = self.command_receiver.recv() => {
+                    if to_miniblock <= current_miniblock {
+                        continue;
+                    }
+                    let mut connection = self
+                        .connection_pool
+                        .access_storage_tagged("values_cache_updater")
+                        .await?;
+                    self.values_cache
+                        .update(current_miniblock, to_miniblock, &mut connection)
+                        .await?;
+                    current_miniblock = to_miniblock;
+                }
+                else => {
+                    // The command sender has been dropped, which means that we must receive the stop signal soon.
+                    stop_receiver.changed().await?;
+                    break;
+                }
             }
-            let mut connection = self
-                .connection_pool
-                .access_storage_tagged("values_cache_updater")
-                .await?;
-            self.values_cache
-                .update(current_miniblock, to_miniblock, &mut connection)
-                .await?;
-            current_miniblock = to_miniblock;
         }
         Ok(())
     }

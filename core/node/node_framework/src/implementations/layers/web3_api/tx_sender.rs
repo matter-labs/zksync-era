@@ -127,8 +127,8 @@ impl Task for PostgresStorageCachesTask {
         "postgres_storage_caches"
     }
 
-    async fn run(self: Box<Self>, _stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        self.task.run().await
+    async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
+        self.task.run(stop_receiver.0).await
     }
 }
 

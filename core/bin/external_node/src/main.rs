@@ -337,7 +337,7 @@ async fn init_tasks(
                         latest_values_cache_size,
                         connection_pool.clone(),
                     )
-                    .run(),
+                    .run(stop_receiver.clone()),
             )
         });
 
