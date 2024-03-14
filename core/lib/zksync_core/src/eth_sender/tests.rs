@@ -45,6 +45,23 @@ static DUMMY_OPERATION: Lazy<AggregatedOperation> = Lazy::new(|| {
     })
 });
 
+fn mock_multicall_response() -> Token {
+    Token::Array(vec![
+        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![1u8; 32])]),
+        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![2u8; 32])]),
+        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![3u8; 96])]),
+        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![4u8; 32])]),
+        Token::Tuple(vec![
+            Token::Bool(true),
+            Token::Bytes(
+                H256::from_low_u64_be(ProtocolVersionId::default() as u64)
+                    .0
+                    .to_vec(),
+            ),
+        ]),
+    ])
+}
+
 #[derive(Debug)]
 struct EthSenderTester {
     conn: ConnectionPool<Server>,
@@ -71,18 +88,20 @@ impl EthSenderTester {
             ..eth_sender_config.sender.clone()
         };
 
-        let gateway = Arc::new(
-            MockEthereum::default()
-                .with_fee_history(
-                    std::iter::repeat(0)
-                        .take(Self::WAIT_CONFIRMATIONS as usize)
-                        .chain(history)
-                        .collect(),
-                )
-                .with_non_ordering_confirmation(non_ordering_confirmations)
-                .with_multicall_address(contracts_config.l1_multicall3_addr),
-        );
+        let gateway = MockEthereum::default()
+            .with_fee_history(
+                std::iter::repeat(0)
+                    .take(Self::WAIT_CONFIRMATIONS as usize)
+                    .chain(history)
+                    .collect(),
+            )
+            .with_non_ordering_confirmation(non_ordering_confirmations)
+            .with_call_handler(move |call| {
+                assert_eq!(call.contract_address(), contracts_config.l1_multicall3_addr);
+                mock_multicall_response()
+            });
         gateway.advance_block_number(Self::WAIT_CONFIRMATIONS);
+        let gateway = Arc::new(gateway);
 
         let gas_adjuster = Arc::new(
             GasAdjuster::new(
@@ -810,24 +829,9 @@ async fn test_parse_multicall_data() {
     let connection_pool = ConnectionPool::<Server>::test_pool().await;
     let tester = EthSenderTester::new(connection_pool, vec![100; 100], false, false).await;
 
-    let original_correct_form_data = Token::Array(vec![
-        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![1u8; 32])]),
-        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![2u8; 32])]),
-        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![3u8; 96])]),
-        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![4u8; 32])]),
-        Token::Tuple(vec![
-            Token::Bool(true),
-            Token::Bytes(
-                H256::from_low_u64_be(ProtocolVersionId::default() as u64)
-                    .0
-                    .to_vec(),
-            ),
-        ]),
-    ]);
-
     assert!(tester
         .aggregator
-        .parse_multicall_data(original_correct_form_data)
+        .parse_multicall_data(mock_multicall_response())
         .is_ok());
 
     let original_wrong_form_data = vec![
