@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, Metrics, Unit};
-use zksync_dal::pruning_dal::PruneType;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "prune_type", rename_all = "snake_case")]

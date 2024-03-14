@@ -136,10 +136,12 @@ impl SnapshotsApplierMainNodeClient for L2Client {
             .get_all_snapshots()
             .rpc_context("get_all_snapshots")
             .await?;
-        let newest_snapshot = L1BatchNumber(7546);
-        self.get_snapshot_by_l1_batch_number(newest_snapshot)
+        let Some(newest_snapshot) = snapshots.snapshots_l1_batch_numbers.first() else {
+            return Ok(None);
+        };
+        self.get_snapshot_by_l1_batch_number(*newest_snapshot)
             .rpc_context("get_snapshot_by_l1_batch_number")
-            .with_arg("number", &newest_snapshot)
+            .with_arg("number", newest_snapshot)
             .await
     }
 

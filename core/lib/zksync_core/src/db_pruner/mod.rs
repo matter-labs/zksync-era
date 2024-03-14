@@ -103,7 +103,6 @@ impl DbPruner {
         let mut transaction = storage.start_transaction().await?;
 
         let current_pruning_info = transaction.pruning_dal().get_pruning_info().await?;
-
         let next_l1_batch_to_prune = L1BatchNumber(
             current_pruning_info
                 .last_soft_pruned_l1_batch
@@ -137,7 +136,7 @@ impl DbPruner {
             latency
         );
 
-        return Ok(true);
+        Ok(true)
     }
 
     async fn hard_prune(&self, pool: &ConnectionPool) -> anyhow::Result<()> {
@@ -170,13 +169,12 @@ impl DbPruner {
 
     pub async fn run_single_iteration(&self, pool: &ConnectionPool) -> anyhow::Result<()> {
         let mut storage = pool.access_storage().await?;
-
-        let mut current_pruning_info = storage.pruning_dal().get_pruning_info().await?;
+        let current_pruning_info = storage.pruning_dal().get_pruning_info().await?;
 
         if current_pruning_info.last_soft_pruned_l1_batch
             == current_pruning_info.last_hard_pruned_l1_batch
         {
-            let pruning_done = self.soft_prune(&pool).await?;
+            let pruning_done = self.soft_prune(pool).await?;
             if !pruning_done {
                 return Ok(());
             }
@@ -184,7 +182,7 @@ impl DbPruner {
             tokio::time::sleep(self.config.soft_and_hard_pruning_time_delta).await;
         }
 
-        self.hard_prune(&pool).await?;
+        self.hard_prune(pool).await?;
 
         Ok(())
     }

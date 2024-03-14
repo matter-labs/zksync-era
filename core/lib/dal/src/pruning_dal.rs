@@ -85,8 +85,8 @@ impl PruningDal<'_, '_> {
                 last_soft_pruned_l1_batch = $1,
                 last_soft_pruned_miniblock = $2
             "#,
-            last_l1_batch_to_prune.0 as i64,
-            last_miniblock_to_prune.0 as i64
+            i64::from(last_l1_batch_to_prune.0),
+            i64::from(last_miniblock_to_prune.0)
         )
         .instrument("soft_prune_batches_range")
         .with_arg("last_l1_batch_to_prune", &last_l1_batch_to_prune)
@@ -108,8 +108,8 @@ impl PruningDal<'_, '_> {
             VALUES
                 ($1, $2, $3, NOW(), NOW())
             "#,
-            last_l1_batch_to_prune.0 as i64,
-            last_miniblock_to_prune.0 as i64,
+            i64::from(last_l1_batch_to_prune.0),
+            i64::from(last_miniblock_to_prune.0),
             PruneType::Soft as PruneType,
         )
         .instrument("soft_prune_batches_range#insert_pruning_log")
@@ -137,7 +137,7 @@ impl PruningDal<'_, '_> {
             WHERE
                 l1_batch_number <= $1
             "#,
-            last_l1_batch_to_prune.0 as i64,
+            i64::from(last_l1_batch_to_prune.0),
         )
         .instrument("hard_prune_batches_range#get_miniblocks_range")
         .with_arg("last_l1_batch_to_prune", &last_l1_batch_to_prune)
@@ -154,8 +154,8 @@ impl PruningDal<'_, '_> {
                     last_hard_pruned_l1_batch = $1,
                     last_hard_pruned_miniblock = $2
                 "#,
-                last_l1_batch_to_prune.0 as i64,
-                last_miniblock_to_prune.0 as i64,
+                i64::from(last_l1_batch_to_prune.0),
+                i64::from(last_miniblock_to_prune.0),
             )
             .instrument("hard_prune_batches_range#update_pruning_info")
             .with_arg("last_l1_batch_to_prune", &last_l1_batch_to_prune)
@@ -176,7 +176,7 @@ impl PruningDal<'_, '_> {
             WHERE
                 miniblock_number <= $1
             "#,
-            last_miniblock_to_prune.0 as i64,
+            i64::from(last_miniblock_to_prune.0),
         )
         .instrument("hard_prune_batches_range#delete_events")
         .with_arg("last_l1_batch_to_prune", &last_l1_batch_to_prune)
@@ -190,7 +190,7 @@ impl PruningDal<'_, '_> {
             WHERE
                 miniblock_number <= $1
             "#,
-            last_miniblock_to_prune.0 as i64,
+            i64::from(last_miniblock_to_prune.0),
         )
         .instrument("hard_prune_batches_range#delete_l2_to_l1_logs")
         .with_arg("last_l1_batch_to_prune", &last_l1_batch_to_prune)
@@ -212,8 +212,8 @@ impl PruningDal<'_, '_> {
             WHERE
                 matching_transactions.hash = call_traces.tx_hash
             "#,
-            first_miniblock_to_prune.0 as i64,
-            last_miniblock_to_prune.0 as i64,
+            i64::from(first_miniblock_to_prune.0),
+            i64::from(last_miniblock_to_prune.0),
         )
         .instrument("hard_prune_batches_range#delete_call_traces")
         .with_arg("first_miniblock_to_prune", &first_miniblock_to_prune)
@@ -235,8 +235,8 @@ impl PruningDal<'_, '_> {
                 miniblock_number >= $1
                 AND miniblock_number <= $2
             "#,
-            first_miniblock_to_prune.0 as i64,
-            last_miniblock_to_prune.0 as i64,
+            i64::from(first_miniblock_to_prune.0),
+            i64::from(last_miniblock_to_prune.0),
         )
         .instrument("hard_prune_batches_range#clear_transactions_references")
         .with_arg("first_miniblock_to_prune", &first_miniblock_to_prune)
@@ -263,8 +263,8 @@ impl PruningDal<'_, '_> {
                 storage_logs.miniblock_number < $1
                 AND batches_to_prune.hashed_key = storage_logs.hashed_key
             "#,
-            first_miniblock_to_prune.0 as i64,
-            last_miniblock_to_prune.0 as i64,
+            i64::from(first_miniblock_to_prune.0),
+            i64::from(last_miniblock_to_prune.0),
         )
         .instrument("hard_prune_batches_range#delete_overriden_storage_logs_from_past_batches")
         .with_arg("first_miniblock_to_prune", &first_miniblock_to_prune)
@@ -296,8 +296,8 @@ impl PruningDal<'_, '_> {
                     OR storage_logs.operation_number != last_storage_logs.op[2]
                 )
             "#,
-            first_miniblock_to_prune.0 as i64,
-            last_miniblock_to_prune.0 as i64,
+            i64::from(first_miniblock_to_prune.0),
+            i64::from(last_miniblock_to_prune.0),
         )
         .instrument("hard_prune_batches_range#delete_overriden_storage_logs_from_pruned_batches")
         .with_arg("first_miniblock_to_prune", &first_miniblock_to_prune)
@@ -312,7 +312,7 @@ impl PruningDal<'_, '_> {
             WHERE
                 number <= $1
             "#,
-            last_l1_batch_to_prune.0 as i64,
+            i64::from(last_l1_batch_to_prune.0),
         )
         .instrument("hard_prune_batches_range#delete_l1_batches")
         .with_arg("last_l1_batch_to_prune", &last_l1_batch_to_prune)
@@ -326,7 +326,7 @@ impl PruningDal<'_, '_> {
             WHERE
                 number <= $1
             "#,
-            last_miniblock_to_prune.0 as i64,
+            i64::from(last_miniblock_to_prune.0),
         )
         .instrument("hard_prune_batches_range#delete_miniblocks")
         .with_arg("last_l1_batch_to_prune", &last_l1_batch_to_prune)
@@ -341,8 +341,8 @@ impl PruningDal<'_, '_> {
                 last_hard_pruned_l1_batch = $1,
                 last_hard_pruned_miniblock = $2
             "#,
-            last_l1_batch_to_prune.0 as i64,
-            last_miniblock_to_prune.0 as i64,
+            i64::from(last_l1_batch_to_prune.0),
+            i64::from(last_miniblock_to_prune.0),
         )
         .instrument("hard_prune_batches_range#update_pruning_info")
         .with_arg("last_l1_batch_to_prune", &last_l1_batch_to_prune)
@@ -364,8 +364,8 @@ impl PruningDal<'_, '_> {
             VALUES
                 ($1, $2, $3, NOW(), NOW())
             "#,
-            last_l1_batch_to_prune.0 as i64,
-            last_miniblock_to_prune.0 as i64,
+            i64::from(last_l1_batch_to_prune.0),
+            i64::from(last_miniblock_to_prune.0),
             PruneType::Hard as PruneType
         )
         .instrument("soft_prune_batches_range#insert_pruning_log")
