@@ -203,8 +203,8 @@ pub async fn ensure_l1_batch_commit_data_generation_mode(
             Ok(())
         }
         // Getters contract does not support getPubdataPricingMode method.
-        // This case is accepted for backwards compatibility with older contracts, but warned
-        // in case the wrong contract address was passed by the caller.
+        // This case is accepted for backwards compatibility with older contracts, but emits a
+        // warning in case the wrong contract address was passed by the caller.
         Err(EthClientError::Contract(_)) => {
             tracing::warn!("Getters contract does not support getPubdataPricingMode method");
             Ok(())
