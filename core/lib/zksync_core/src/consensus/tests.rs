@@ -79,8 +79,9 @@ fn executor_config(cfg: &network::Config) -> executor::Config {
 // In the current implementation, consensus certificates are created asynchronously
 // for the miniblocks constructed by the StateKeeper. This means that consensus actor
 // is effectively just back filling the consensus certificates for the miniblocks in storage.
+#[test_casing(2, [false, true])]
 #[tokio::test(flavor = "multi_thread")]
-async fn test_validator() {
+async fn test_validator(from_snapshot: bool) {
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(10.));
     let rng = &mut ctx.rng();
@@ -89,7 +90,7 @@ async fn test_validator() {
 
     scope::run!(ctx, |ctx, s| async {
         tracing::info!("Start state keeper.");
-        let store = testonly::new_store(false).await;
+        let store = testonly::new_store(from_snapshot).await;
         let (mut sk, runner) = testonly::StateKeeper::new(ctx, store.clone()).await?;
         s.spawn_bg(runner.run(ctx));
 
@@ -147,8 +148,9 @@ async fn test_validator() {
 // Test running a validator node and a couple of full nodes.
 // Validator is producing signed blocks and fetchers are expected to fetch
 // them directly or indirectly.
+#[test_casing(2, [false, true])]
 #[tokio::test(flavor = "multi_thread")]
-async fn test_full_nodes() {
+async fn test_full_nodes(from_snapshot: bool) {
     const NODES: usize = 2;
 
     zksync_concurrency::testonly::abort_on_panic();
@@ -169,7 +171,7 @@ async fn test_full_nodes() {
 
     // Run validator and fetchers in parallel.
     scope::run!(ctx, |ctx, s| async {
-        let validator_store = testonly::new_store(false).await;
+        let validator_store = testonly::new_store(from_snapshot).await;
         let (mut validator, runner) =
             testonly::StateKeeper::new(ctx, validator_store.clone()).await?;
         s.spawn_bg(async {
@@ -197,7 +199,7 @@ async fn test_full_nodes() {
         let mut node_stores = vec![];
         for (i, cfg) in node_cfgs.iter().enumerate() {
             let i = ctx::NoCopy(i);
-            let store = testonly::new_store(false).await;
+            let store = testonly::new_store(from_snapshot).await;
             let (node, runner) = testonly::StateKeeper::new(ctx, store.clone()).await?;
             node_stores.push(store.clone());
             s.spawn_bg(async {
@@ -237,8 +239,9 @@ async fn test_full_nodes() {
 }
 
 // Test fetcher back filling missing certs.
+#[test_casing(2, [false, true])]
 #[tokio::test(flavor = "multi_thread")]
-async fn test_p2p_fetcher_backfill_certs() {
+async fn test_p2p_fetcher_backfill_certs(from_snapshot: bool) {
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(10.));
     let rng = &mut ctx.rng();
@@ -248,7 +251,7 @@ async fn test_p2p_fetcher_backfill_certs() {
 
     scope::run!(ctx, |ctx, s| async {
         tracing::info!("Spawn validator.");
-        let validator_store = testonly::new_store(false).await;
+        let validator_store = testonly::new_store(from_snapshot).await;
         let (mut validator, runner) =
             testonly::StateKeeper::new(ctx, validator_store.clone()).await?;
         s.spawn_bg(runner.run(ctx));
@@ -259,9 +262,11 @@ async fn test_p2p_fetcher_backfill_certs() {
             }
             .run(ctx, validator_store.clone()),
         );
+        // API server needs at least 1 L1 batch to start.
+        validator.seal_batch().await;
         let client = validator.connect(ctx).await?;
 
-        let node_store = testonly::new_store(false).await;
+        let node_store = testonly::new_store(from_snapshot).await;
 
         tracing::info!("Run p2p fetcher.");
         scope::run!(ctx, |ctx, s| async {

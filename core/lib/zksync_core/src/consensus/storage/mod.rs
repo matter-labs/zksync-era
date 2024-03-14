@@ -358,6 +358,7 @@ impl PersistentBlockStore for BlockStore {
         ctx: &ctx::Ctx,
         block: &validator::FinalBlock,
     ) -> ctx::Result<()> {
+        tracing::info!("storing block {}", block.number());
         // This mutex prevents concurrent `store_next_block` calls.
         let mut guard = ctx.wait(self.store_next_block_mutex.lock()).await?;
         if let Some(cursor) = &mut *guard {
@@ -400,6 +401,7 @@ impl PersistentBlockStore for BlockStore {
             .insert_certificate(ctx, &block.justification)
             .await
             .wrap("insert_certificate()")?;
+        tracing::info!("storing block {} DONE", block.number());
         Ok(())
     }
 }
@@ -434,6 +436,7 @@ impl PayloadManager for Store {
         ctx: &ctx::Ctx,
         block_number: validator::BlockNumber,
     ) -> ctx::Result<validator::Payload> {
+        tracing::info!("proposing block {block_number}");
         let payload = self.wait_for_payload(ctx, block_number).await?;
         let encoded_payload = payload.encode();
         if encoded_payload.0.len() > 1 << 20 {
@@ -443,6 +446,7 @@ impl PayloadManager for Store {
                 payload.transactions.len()
             );
         }
+        tracing::info!("proposing block {block_number} DONE");
         Ok(encoded_payload)
     }
 
@@ -455,6 +459,7 @@ impl PayloadManager for Store {
         block_number: validator::BlockNumber,
         payload: &validator::Payload,
     ) -> ctx::Result<()> {
+        tracing::info!("verifying block {block_number}");
         let got = Payload::decode(payload).context("Payload::decode(got)")?;
         let want = self.wait_for_payload(ctx, block_number).await?;
         if got != want {
@@ -462,6 +467,7 @@ impl PayloadManager for Store {
                 anyhow::format_err!("unexpected payload: got {got:?} want {want:?}").into(),
             );
         }
+        tracing::info!("verifying block {block_number} DONE");
         Ok(())
     }
 }

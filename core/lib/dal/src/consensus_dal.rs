@@ -104,7 +104,10 @@ impl ConsensusDal<'_, '_> {
             .get_applied_snapshot_status()
             .await
             .context("get_applied_snapshot_status()")?;
-        let start = validator::BlockNumber(snapshot.map_or(0, |s| s.miniblock_number.0).into());
+        // `snapshot.miniblock_number` indicates the last block processed.
+        // This block is NOT present in storage. Therefore the first block
+        // that will appear in storage is `snapshot.miniblock_number+1`.
+        let start = validator::BlockNumber(snapshot.map_or(0, |s| s.miniblock_number.0 + 1).into());
         let end = txn
             .blocks_dal()
             .get_sealed_miniblock_number()
