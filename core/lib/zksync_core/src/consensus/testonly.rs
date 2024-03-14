@@ -158,7 +158,6 @@ pub(super) struct StateKeeper {
     fee_per_gas: u64,
     gas_per_pubdata: u64,
 
-    sync_state: SyncState, // FIXME: not read?
     actions_sender: ActionQueueSender,
     addr: sync::watch::Receiver<Option<std::net::SocketAddr>>,
     store: Store,
@@ -167,8 +166,6 @@ pub(super) struct StateKeeper {
 /// Fake StateKeeper task to be executed in the background.
 pub(super) struct StateKeeperRunner {
     actions_queue: ActionQueue,
-    #[allow(dead_code)]
-    sync_state: SyncState, // FIXME: not read?
     store: Store,
     addr: sync::watch::Sender<Option<std::net::SocketAddr>>,
 }
@@ -215,7 +212,6 @@ impl StateKeeper {
             .await?
             .context("pending_batch_exists()")?;
         let (actions_sender, actions_queue) = ActionQueue::new();
-        let sync_state = SyncState::default();
         let addr = sync::watch::channel(None).0;
         Ok((
             Self {
@@ -226,12 +222,10 @@ impl StateKeeper {
                 fee_per_gas: 10,
                 gas_per_pubdata: 100,
                 actions_sender,
-                sync_state: sync_state.clone(),
                 addr: addr.subscribe(),
                 store: store.clone(),
             },
             StateKeeperRunner {
-                sync_state,
                 actions_queue,
                 store: store.clone(),
                 addr,
@@ -324,7 +318,7 @@ impl StateKeeper {
         Fetcher {
             store: self.store,
             client: Box::new(client),
-            sync_state: self.sync_state,
+            sync_state: SyncState::default(),
             limiter: unbounded_limiter(ctx),
         }
         .run_centralized(ctx, self.actions_sender)
@@ -341,7 +335,7 @@ impl StateKeeper {
         Fetcher {
             store: self.store,
             client: Box::new(client),
-            sync_state: self.sync_state,
+            sync_state: SyncState::default(),
             limiter: unbounded_limiter(ctx),
         }
         .run_p2p(ctx, self.actions_sender, cfg)
