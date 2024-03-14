@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use assert_matches::assert_matches;
 use once_cell::sync::Lazy;
-use test_casing::test_casing;
+use test_casing::{test_casing, Product};
 use zksync_config::{
     configs::eth_sender::{ProofSendingMode, PubdataSendingMode, SenderConfig},
     ContractsConfig, ETHSenderConfig, GasAdjusterConfig,

@@ -224,7 +224,7 @@ impl L1BatchPublishCriterion for DataSizeCriterion {
             // TODO (PLA-771): Make sure that this estimation is correct.
             let l1_commit_data_size = ethabi::encode(&[self
                 .l1_batch_commit_data_generator
-                .l1_commit_batch(l1_batch)])
+                .l1_commit_batch(l1_batch, &self.pubdata_da)])
             .len();
 
             if data_size_left < l1_commit_data_size {

@@ -477,7 +477,7 @@ impl EthTxAggregator {
                         (calldata, None)
                     }
                 } else {
-                    args.extend(&commit_data);
+                    args.extend(commit_data);
                     let calldata = self
                         .functions
                         .post_shared_bridge_commit
