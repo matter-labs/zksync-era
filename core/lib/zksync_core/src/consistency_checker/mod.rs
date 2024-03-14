@@ -1,20 +1,18 @@
-use std::{collections::HashSet, fmt, sync::Arc, time::Duration};
+use std::{borrow::Cow, collections::HashSet, fmt, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use serde::Serialize;
 use tokio::sync::watch;
 use zksync_contracts::PRE_BOOJUM_COMMIT_FUNCTION;
 use zksync_dal::{ConnectionPool, StorageProcessor};
-use zksync_eth_client::{Error as L1ClientError, EthInterface};
+use zksync_eth_client::{CallFunctionArgs, Error as L1ClientError, EthInterface};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
-use zksync_l1_contract_interface::{
-    i_executor::{commit::kzg::ZK_SYNC_BYTES_PER_BLOB, structures::CommitBatchInfo},
-    Tokenizable,
-};
+use zksync_l1_contract_interface::i_executor::commit::kzg::ZK_SYNC_BYTES_PER_BLOB;
 use zksync_types::{
     commitment::L1BatchWithMetadata,
+    ethabi::Token,
     pubdata_da::PubdataDA,
-    web3::{self, ethabi},
+    web3::{self, contract::Error as Web3ContractError, ethabi},
     Address, L1BatchNumber, ProtocolVersionId, H256, U256,
 };
 
@@ -142,6 +140,7 @@ enum L1DataMismatchBehavior {
 struct LocalL1BatchCommitData {
     l1_batch: L1BatchWithMetadata,
     commit_tx_hash: H256,
+    l1_batch_commit_data_generator: Arc<dyn L1BatchCommitDataGenerator>,
 }
 
 impl LocalL1BatchCommitData {
@@ -182,6 +181,7 @@ impl LocalL1BatchCommitData {
         let this = Self {
             l1_batch,
             commit_tx_hash,
+            l1_batch_commit_data_generator,
         };
         let metadata = &this.l1_batch.metadata;
 
@@ -213,7 +213,7 @@ impl LocalL1BatchCommitData {
             .header
             .protocol_version
             .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
-        let da = CommitBatchInfo::detect_da(protocol_version, reference)
+        let da = detect_da(protocol_version, reference)
             .context("cannot detect DA source from reference commitment token")?;
 
         // For `PubdataDA::Calldata`, it's required that the pubdata fits into a single blob.
@@ -231,13 +231,66 @@ impl LocalL1BatchCommitData {
             );
         }
 
-        let local_token = CommitBatchInfo::new(&self.l1_batch, da).into_token();
+        let local_token = self
+            .l1_batch_commit_data_generator
+            .l1_commit_batch(&self.l1_batch, &da);
         anyhow::ensure!(
             local_token == *reference,
             "Locally reproduced commitment differs from the reference obtained from L1; \
              local: {local_token:?}, reference: {reference:?}"
         );
         Ok(())
+    }
+}
+
+/// Determines which DA source was used in the `reference` commitment. It's assumed that the commitment was created
+/// using `CommitBatchInfo::into_token()`.
+///
+/// # Errors
+///
+/// Returns an error if `reference` is malformed.
+pub fn detect_da(
+    protocol_version: ProtocolVersionId,
+    reference: &Token,
+) -> Result<PubdataDA, Web3ContractError> {
+    /// These are used by the L1 Contracts to indicate what DA layer is used for pubdata
+    const PUBDATA_SOURCE_CALLDATA: u8 = 0;
+    const PUBDATA_SOURCE_BLOBS: u8 = 1;
+
+    fn parse_error(message: impl Into<Cow<'static, str>>) -> Web3ContractError {
+        Web3ContractError::Abi(ethabi::Error::Other(message.into()))
+    }
+
+    if protocol_version.is_pre_1_4_2() {
+        return Ok(PubdataDA::Calldata);
+    }
+
+    let reference = match reference {
+        Token::Tuple(tuple) => tuple,
+        _ => {
+            return Err(parse_error(format!(
+                "reference has unexpected shape; expected a tuple, got {reference:?}"
+            )))
+        }
+    };
+    let Some(last_reference_token) = reference.last() else {
+        return Err(parse_error("reference commitment data is empty"));
+    };
+
+    let last_reference_token = match last_reference_token {
+        Token::Bytes(bytes) => bytes,
+        _ => return Err(parse_error(format!(
+            "last reference token has unexpected shape; expected bytes, got {last_reference_token:?}"
+        ))),
+    };
+    match last_reference_token.first() {
+        Some(&byte) if byte == PUBDATA_SOURCE_CALLDATA => Ok(PubdataDA::Calldata),
+        Some(&byte) if byte == PUBDATA_SOURCE_BLOBS => Ok(PubdataDA::Blobs),
+        Some(&byte) => Err(parse_error(format!(
+            "unexpected first byte of the last reference token; expected one of [{PUBDATA_SOURCE_CALLDATA}, {PUBDATA_SOURCE_BLOBS}], \
+                got {byte}"
+        ))),
+        None => Err(parse_error("last reference token is empty")),
     }
 }
 

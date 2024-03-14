@@ -9,6 +9,7 @@ use std::{
 use tokio::sync::watch;
 use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
 use zksync_eth_client::{Error, EthInterface};
+use zksync_types::{U256, U64};
 
 use self::metrics::METRICS;
 use super::{L1TxParamsProvider, PubdataPricing};
