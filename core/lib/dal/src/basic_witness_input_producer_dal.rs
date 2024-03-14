@@ -1,13 +1,14 @@
 use std::time::{Duration, Instant};
 
 use sqlx::postgres::types::PgInterval;
-use zksync_db_connection::{instrument::InstrumentExt, processor::StorageProcessor};
+use zksync_db_connection::{
+    instrument::InstrumentExt,
+    processor::StorageProcessor,
+    utils::{duration_to_naive_time, pg_interval_from_duration},
+};
 use zksync_types::L1BatchNumber;
 
-use crate::{
-    time_utils::{duration_to_naive_time, pg_interval_from_duration},
-    ServerProcessor,
-};
+use crate::ServerProcessor;
 
 #[derive(Debug)]
 pub struct BasicWitnessInputProducerDal<'a, 'c> {

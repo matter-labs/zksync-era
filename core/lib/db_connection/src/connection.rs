@@ -106,9 +106,9 @@ impl<SK: StorageKind> ConnectionPoolBuilder<SK> {
         let singleton_builder = Self {
             database_url: self.database_url.clone(),
             max_size: 1,
-            acquire_timeout: self.acquire_timeout.clone(),
-            statement_timeout: self.statement_timeout.clone(),
-            _marker: self._marker.clone(),
+            acquire_timeout: self.acquire_timeout,
+            statement_timeout: self.statement_timeout,
+            _marker: self._marker,
         };
         singleton_builder.build().await
     }
@@ -437,7 +437,7 @@ mod tests {
     use assert_matches::assert_matches;
 
     use super::*;
-    use crate::{processor::StorageProcessor, test_utils::Test};
+    use crate::{processor::StorageProcessor, utils::Test};
 
     #[tokio::test]
     async fn setting_statement_timeout() {

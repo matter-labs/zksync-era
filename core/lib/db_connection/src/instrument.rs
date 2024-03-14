@@ -24,7 +24,7 @@ use crate::{
     connection::ConnectionPool,
     metrics::REQUEST_METRICS,
     processor::{StorageProcessor, StorageProcessorTags},
-    test_utils::Test,
+    utils::Test,
 };
 
 type ThreadSafeDebug<'a> = dyn fmt::Debug + Send + Sync + 'a;
@@ -284,7 +284,7 @@ mod tests {
     use zksync_types::{MiniblockNumber, H256};
 
     use super::*;
-    use crate::{connection::ConnectionPool, test_utils::Test};
+    use crate::{connection::ConnectionPool, utils::Test};
 
     #[tokio::test]
     async fn instrumenting_erroneous_query() {

@@ -1,10 +1,10 @@
 use std::time::Duration;
 
 use strum::{Display, EnumString};
-use zksync_db_connection::processor::StorageProcessor;
+use zksync_db_connection::{processor::StorageProcessor, utils::pg_interval_from_duration};
 use zksync_types::L1BatchNumber;
 
-use crate::{time_utils::pg_interval_from_duration, ServerProcessor, SqlxError};
+use crate::{ServerProcessor, SqlxError};
 
 #[derive(Debug)]
 pub struct ProofGenerationDal<'a, 'c> {

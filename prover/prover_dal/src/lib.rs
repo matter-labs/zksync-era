@@ -1,11 +1,13 @@
-use std::time::Duration;
-
-use sqlx::{postgres::types::PgInterval, types::chrono::NaiveTime, PgConnection};
+use sqlx::PgConnection;
 use zksync_db_connection::{
     async_trait,
     processor::{BasicStorageProcessor, StorageKind, StorageProcessorTags},
 };
-pub use zksync_db_connection::{connection::ConnectionPool, processor::StorageProcessor};
+pub use zksync_db_connection::{
+    connection::ConnectionPool,
+    processor::StorageProcessor,
+    utils::{duration_to_naive_time, pg_interval_from_duration},
+};
 
 use crate::{
     fri_gpu_prover_queue_dal::FriGpuProverQueueDal,
@@ -89,22 +91,5 @@ impl<'a> ProverProcessor<'a> {
 
     pub fn fri_proof_compressor_dal(&mut self) -> FriProofCompressorDal<'_, 'a> {
         FriProofCompressorDal { storage: self }
-    }
-}
-pub fn duration_to_naive_time(duration: Duration) -> NaiveTime {
-    let total_seconds = duration.as_secs() as u32;
-    NaiveTime::from_hms_opt(
-        total_seconds / 3600,
-        (total_seconds / 60) % 60,
-        total_seconds % 60,
-    )
-    .unwrap()
-}
-
-pub const fn pg_interval_from_duration(processing_timeout: Duration) -> PgInterval {
-    PgInterval {
-        months: 0,
-        days: 0,
-        microseconds: processing_timeout.as_micros() as i64,
     }
 }

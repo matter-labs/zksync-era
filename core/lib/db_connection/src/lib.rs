@@ -5,6 +5,6 @@ pub mod metrics;
 pub mod processor;
 #[macro_use]
 pub mod macro_utils;
-mod test_utils;
+pub mod utils;
 
 pub use async_trait::async_trait;

@@ -48,7 +48,6 @@ pub mod storage_logs_dedup_dal;
 pub mod storage_web3_dal;
 pub mod sync_dal;
 pub mod system_dal;
-pub mod time_utils;
 pub mod tokens_dal;
 pub mod tokens_web3_dal;
 pub mod transactions_dal;

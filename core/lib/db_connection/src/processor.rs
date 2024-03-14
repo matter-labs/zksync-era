@@ -12,7 +12,7 @@ use std::{
 use async_trait::async_trait;
 use sqlx::{pool::PoolConnection, types::chrono, Connection, PgConnection, Postgres, Transaction};
 
-use crate::{connection::ConnectionPool, metrics::CONNECTION_METRICS, test_utils::Test};
+use crate::{connection::ConnectionPool, metrics::CONNECTION_METRICS, utils::Test};
 
 /// Tags that can be associated with a connection.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -234,7 +234,7 @@ pub trait StorageKind {
 
 #[cfg(test)]
 mod tests {
-    use crate::{connection::ConnectionPool, processor::StorageProcessor, test_utils::Test};
+    use crate::{connection::ConnectionPool, processor::StorageProcessor, utils::Test};
 
     #[tokio::test]
     async fn processor_tags_propagate_to_transactions() {
