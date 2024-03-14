@@ -211,8 +211,8 @@ impl EthSenderDal<'_, '_> {
             nonce as i64,
             tx_type.to_string(),
             address,
-            predicted_gas_cost as i64,
-            from_address.map(|a| a.0.to_vec()),
+            i64::from(predicted_gas_cost),
+            from_address.as_ref().map(Address::as_bytes),
             blob_sidecar.map(|sidecar| bincode::serialize(&sidecar)
                 .expect("can always bincode serialize EthTxBlobSidecar; qed")),
         )
@@ -297,7 +297,7 @@ impl EthSenderDal<'_, '_> {
             WHERE
                 id = $1
             "#,
-            eth_txs_history_id as i64
+            eth_txs_history_id as i32
         )
         .execute(self.storage.conn())
         .await?;
@@ -364,7 +364,7 @@ impl EthSenderDal<'_, '_> {
                 eth_tx_id = $1
                 AND confirmed_at IS NOT NULL
             "#,
-            eth_tx_id as i64
+            eth_tx_id as i32
         )
         .fetch_optional(self.storage.conn())
         .await?;
@@ -655,7 +655,7 @@ impl EthSenderDal<'_, '_> {
                     )
                 )
             "#,
-            last_batch_to_keep.0 as i64
+            i64::from(last_batch_to_keep.0)
         )
         .execute(self.storage.conn())
         .await?;

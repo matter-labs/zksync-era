@@ -91,7 +91,7 @@ impl StorageLogsDedupDal<'_, '_> {
             .map(|key| StorageKey::raw_hashed_key(key.address(), key.key()).to_vec())
             .collect();
 
-        let last_index = self.max_enumeration_index().await.unwrap_or(0);
+        let last_index = self.max_enumeration_index().await?.unwrap_or(0);
         let indices: Vec<_> = ((last_index + 1)..=(last_index + hashed_keys.len() as u64))
             .map(|x| x as i64)
             .collect();
@@ -111,7 +111,7 @@ impl StorageLogsDedupDal<'_, '_> {
             "#,
             &hashed_keys,
             &indices,
-            l1_batch_number.0 as i64,
+            i64::from(l1_batch_number.0)
         )
         .execute(self.storage.conn())
         .await?;
@@ -133,7 +133,7 @@ impl StorageLogsDedupDal<'_, '_> {
             WHERE
                 l1_batch_number = $1
             "#,
-            l1_batch_number.0 as i64
+            i64::from(l1_batch_number.0)
         )
         .fetch_all(self.storage.conn())
         .await
@@ -148,8 +148,8 @@ impl StorageLogsDedupDal<'_, '_> {
         .collect()
     }
 
-    pub async fn max_enumeration_index(&mut self) -> Option<u64> {
-        sqlx::query!(
+    async fn max_enumeration_index(&mut self) -> sqlx::Result<Option<u64>> {
+        Ok(sqlx::query!(
             r#"
             SELECT
                 MAX(INDEX) AS "max?"
@@ -158,17 +158,16 @@ impl StorageLogsDedupDal<'_, '_> {
             "#,
         )
         .fetch_one(self.storage.conn())
-        .await
-        .unwrap()
+        .await?
         .max
-        .map(|max| max as u64)
+        .map(|max| max as u64))
     }
 
     pub async fn initial_writes_for_batch(
         &mut self,
         l1_batch_number: L1BatchNumber,
-    ) -> Vec<(H256, u64)> {
-        sqlx::query!(
+    ) -> sqlx::Result<Vec<(H256, u64)>> {
+        Ok(sqlx::query!(
             r#"
             SELECT
                 hashed_key,
@@ -180,18 +179,20 @@ impl StorageLogsDedupDal<'_, '_> {
             ORDER BY
                 INDEX
             "#,
-            l1_batch_number.0 as i64
+            i64::from(l1_batch_number.0)
         )
         .fetch_all(self.storage.conn())
-        .await
-        .unwrap()
+        .await?
         .into_iter()
         .map(|row| (H256::from_slice(&row.hashed_key), row.index as u64))
-        .collect()
+        .collect())
     }
 
-    pub async fn get_enumeration_index_for_key(&mut self, key: StorageKey) -> Option<u64> {
-        sqlx::query!(
+    pub async fn get_enumeration_index_for_key(
+        &mut self,
+        hashed_key: H256,
+    ) -> sqlx::Result<Option<u64>> {
+        Ok(sqlx::query!(
             r#"
             SELECT
                 INDEX
@@ -200,18 +201,20 @@ impl StorageLogsDedupDal<'_, '_> {
             WHERE
                 hashed_key = $1
             "#,
-            key.hashed_key().0.to_vec()
+            hashed_key.as_bytes()
         )
         .fetch_optional(self.storage.conn())
-        .await
-        .unwrap()
-        .map(|row| row.index as u64)
+        .await?
+        .map(|row| row.index as u64))
     }
 
     /// Returns `hashed_keys` that are both present in the input and in `initial_writes` table.
-    pub async fn filter_written_slots(&mut self, hashed_keys: &[H256]) -> HashSet<H256> {
+    pub async fn filter_written_slots(
+        &mut self,
+        hashed_keys: &[H256],
+    ) -> sqlx::Result<HashSet<H256>> {
         let hashed_keys: Vec<_> = hashed_keys.iter().map(H256::as_bytes).collect();
-        sqlx::query!(
+        Ok(sqlx::query!(
             r#"
             SELECT
                 hashed_key
@@ -223,11 +226,10 @@ impl StorageLogsDedupDal<'_, '_> {
             &hashed_keys as &[&[u8]],
         )
         .fetch_all(self.storage.conn())
-        .await
-        .unwrap()
+        .await?
         .into_iter()
         .map(|row| H256::from_slice(&row.hashed_key))
-        .collect()
+        .collect())
     }
 
     /// Retrieves all initial write entries for testing purposes.

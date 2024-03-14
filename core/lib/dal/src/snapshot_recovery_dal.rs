@@ -33,12 +33,12 @@ impl SnapshotRecoveryDal<'_, '_> {
             VALUES
                 ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
             "#,
-            status.l1_batch_number.0 as i64,
+            i64::from(status.l1_batch_number.0),
             status.l1_batch_timestamp as i64,
-            status.l1_batch_root_hash.0.as_slice(),
-            status.miniblock_number.0 as i64,
+            status.l1_batch_root_hash.as_bytes(),
+            i64::from(status.miniblock_number.0),
             status.miniblock_timestamp as i64,
-            status.miniblock_hash.0.as_slice(),
+            status.miniblock_hash.as_bytes(),
             status.protocol_version as i32,
             &status.storage_logs_chunks_processed,
         )

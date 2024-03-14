@@ -185,7 +185,7 @@ impl TransactionsWeb3Dal<'_, '_> {
                 ),
                 TransactionSelector::Position(block_number, idx) => (
                     "transactions.miniblock_number = $1 AND transactions.index_in_block = $2";
-                    block_number.0 as i64,
+                    i64::from(block_number.0),
                     idx as i32
                 ),
             }
@@ -379,7 +379,7 @@ impl TransactionsWeb3Dal<'_, '_> {
             ORDER BY
                 index_in_block
             "#,
-            miniblock.0 as i64
+            i64::from(miniblock.0)
         )
         .fetch_all(self.storage.conn())
         .await?;

@@ -176,7 +176,7 @@ impl RocksdbStorage {
         let snapshot_miniblock = snapshot_recovery.miniblock_number;
         let log_count = storage
             .storage_logs_dal()
-            .count_miniblock_storage_logs(snapshot_miniblock)
+            .get_storage_logs_row_count(snapshot_miniblock)
             .await
             .with_context(|| {
                 format!("Failed getting number of logs for miniblock #{snapshot_miniblock}")

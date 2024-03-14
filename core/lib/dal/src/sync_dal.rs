@@ -60,7 +60,7 @@ impl SyncDal<'_, '_> {
             WHERE
                 miniblocks.number = $1
             "#,
-            block_number.0 as i64
+            i64::from(block_number.0)
         )
         .instrument("sync_dal_sync_block.block")
         .with_arg("block_number", &block_number)

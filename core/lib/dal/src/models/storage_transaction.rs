@@ -296,13 +296,13 @@ impl From<StorageTransaction> for Transaction {
             .unwrap_or_else(|_| panic!("invalid json in database for tx {:?}", hash));
         let received_timestamp_ms = tx.received_at.timestamp_millis() as u64;
         match tx.tx_format {
-            Some(t) if t == PRIORITY_OPERATION_L2_TX_TYPE as i32 => Transaction {
+            Some(t) if t == i32::from(PRIORITY_OPERATION_L2_TX_TYPE) => Transaction {
                 common_data: ExecuteTransactionCommon::L1(tx.into()),
                 execute,
                 received_timestamp_ms,
                 raw_bytes: None,
             },
-            Some(t) if t == PROTOCOL_UPGRADE_TX_TYPE as i32 => Transaction {
+            Some(t) if t == i32::from(PROTOCOL_UPGRADE_TX_TYPE) => Transaction {
                 common_data: ExecuteTransactionCommon::ProtocolUpgrade(tx.into()),
                 execute,
                 received_timestamp_ms,

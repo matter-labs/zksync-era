@@ -543,7 +543,8 @@ async fn insert_initial_writes_for_batch(
     let pre_written_slots = connection
         .storage_logs_dedup_dal()
         .filter_written_slots(&hashed_keys)
-        .await;
+        .await
+        .unwrap();
 
     let keys_to_insert: Vec<_> = written_non_zero_slots
         .into_iter()

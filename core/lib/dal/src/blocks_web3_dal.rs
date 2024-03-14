@@ -54,7 +54,7 @@ impl BlocksWeb3Dal<'_, '_> {
             ORDER BY
                 transactions.index_in_block ASC
             "#,
-            block_number.0 as i64
+            i64::from(block_number.0)
         )
         .fetch_all(self.storage.conn())
         .await?;
@@ -102,7 +102,7 @@ impl BlocksWeb3Dal<'_, '_> {
             SELECT l1_tx_count + l2_tx_count AS tx_count FROM miniblocks
             WHERE number = $1
             "#,
-            block_number.0 as i64
+            i64::from(block_number.0)
         )
         .fetch_optional(self.storage.conn())
         .await?
@@ -131,7 +131,7 @@ impl BlocksWeb3Dal<'_, '_> {
             LIMIT
                 $2
             "#,
-            from_block.0 as i64,
+            i64::from(from_block.0),
             limit as i32
         )
         .fetch_all(self.storage.conn())
@@ -160,7 +160,7 @@ impl BlocksWeb3Dal<'_, '_> {
             ORDER BY
                 number ASC
             "#,
-            from_block.0 as i64,
+            i64::from(from_block.0),
         )
         .fetch_all(self.storage.conn())
         .await?;
@@ -331,7 +331,7 @@ impl BlocksWeb3Dal<'_, '_> {
             WHERE
                 number = $1
             "#,
-            block_number.0 as i64
+            i64::from(block_number.0)
         )
         .fetch_optional(self.storage.conn())
         .await?
@@ -352,7 +352,7 @@ impl BlocksWeb3Dal<'_, '_> {
             WHERE
                 number = $1
             "#,
-            block_number.0 as i64
+            i64::from(block_number.0)
         )
         .fetch_optional(self.storage.conn())
         .await?
@@ -378,7 +378,7 @@ impl BlocksWeb3Dal<'_, '_> {
             WHERE
                 number = $1
             "#,
-            miniblock_number.0 as i64
+            i64::from(miniblock_number.0)
         )
         .fetch_optional(self.storage.conn())
         .await?
@@ -401,7 +401,7 @@ impl BlocksWeb3Dal<'_, '_> {
             WHERE
                 l1_batch_number = $1
             "#,
-            l1_batch_number.0 as i64
+            i64::from(l1_batch_number.0)
         )
         .fetch_one(self.storage.conn())
         .await?;
@@ -462,7 +462,7 @@ impl BlocksWeb3Dal<'_, '_> {
             ORDER BY
                 transactions.index_in_block
             "#,
-            block_number.0 as i64
+            i64::from(block_number.0)
         )
         .fetch_all(self.storage.conn())
         .await?
@@ -491,7 +491,7 @@ impl BlocksWeb3Dal<'_, '_> {
             LIMIT
                 $2
             "#,
-            newest_block.0 as i64,
+            i64::from(newest_block.0),
             block_count as i64
         )
         .fetch_all(self.storage.conn())
@@ -555,7 +555,7 @@ impl BlocksWeb3Dal<'_, '_> {
             WHERE
                 miniblocks.number = $1
             "#,
-            block_number.0 as i64
+            i64::from(block_number.0)
         )
         .instrument("get_block_details")
         .with_arg("block_number", &block_number)
@@ -630,7 +630,7 @@ impl BlocksWeb3Dal<'_, '_> {
             WHERE
                 l1_batches.number = $1
             "#,
-            l1_batch_number.0 as i64
+            i64::from(l1_batch_number.0)
         )
         .instrument("get_l1_batch_details")
         .with_arg("l1_batch_number", &l1_batch_number)

@@ -1,5 +1,8 @@
 //! Data access layer (DAL) for zkSync Era.
 
+// Linter settings.
+#![warn(clippy::cast_lossless)]
+
 use sqlx::PgConnection;
 pub use sqlx::{types::BigDecimal, Error as SqlxError};
 use zksync_db_connection::processor::{
