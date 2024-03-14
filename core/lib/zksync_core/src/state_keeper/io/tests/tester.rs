@@ -101,14 +101,6 @@ impl Tester {
         );
 
         let mempool = MempoolGuard::new(PriorityOpId(0), 100);
-        /*
-        let object_store = ObjectStoreFactory::mock().create_store().await;
-        let l2_erc20_bridge_addr = Address::repeat_byte(0x5a); // Isn't relevant.
-        let (miniblock_sealer, miniblock_sealer_handle) =
-            MiniblockSealer::new(pool.clone(), object_store, l2_erc20_bridge_addr, miniblock_sealer_capacity);
-        tokio::spawn(miniblock_sealer.run());
-        */
-
         let config = StateKeeperConfig {
             minimal_l2_gas_price: self.minimal_l2_gas_price(),
             virtual_blocks_interval: 1,

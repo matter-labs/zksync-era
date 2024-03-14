@@ -4,7 +4,6 @@ use std::{sync::Arc, time::Instant};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use multivm::interface::{FinishedL1Batch, L1BatchEnv};
 use tokio::sync::{mpsc, oneshot};
 use zksync_dal::ConnectionPool;
 use zksync_object_store::ObjectStore;
@@ -160,17 +159,8 @@ impl HandleStateKeeperOutput for StateKeeperPersistence {
     async fn handle_l1_batch(
         &mut self,
         witness_block_state: Option<&WitnessBlockState>,
-        updates_manager: UpdatesManager,
-        l1_batch_env: &L1BatchEnv,
-        finished_batch: FinishedL1Batch,
+        updates_manager: &UpdatesManager,
     ) -> anyhow::Result<()> {
-        assert_eq!(
-            updates_manager.batch_timestamp(),
-            l1_batch_env.timestamp,
-            "Batch timestamps don't match, batch number {}",
-            l1_batch_env.number
-        );
-
         // We cannot start sealing an L1 batch until we've sealed all miniblocks included in it.
         self.wait_for_all_commands().await;
 
@@ -179,7 +169,10 @@ impl HandleStateKeeperOutput for StateKeeperPersistence {
                 .object_store
                 .as_deref()
                 .context("object store not set when saving `WitnessBlockState`")?;
-            match store.put(l1_batch_env.number, witness_block_state).await {
+            match store
+                .put(updates_manager.l1_batch.number, witness_block_state)
+                .await
+            {
                 Ok(path) => {
                     tracing::debug!("Successfully uploaded witness block start state to Object Store to path = '{path}'");
                 }
@@ -194,14 +187,9 @@ impl HandleStateKeeperOutput for StateKeeperPersistence {
         let pool = self.pool.clone();
         let mut storage = pool.access_storage_tagged("state_keeper").await?;
         updates_manager
-            .seal_l1_batch(
-                &mut storage,
-                l1_batch_env,
-                finished_batch,
-                self.l2_erc20_bridge_addr,
-            )
+            .seal_l1_batch(&mut storage, self.l2_erc20_bridge_addr)
             .await;
-        APP_METRICS.block_number[&BlockStage::Sealed].set(l1_batch_env.number.0.into());
+        APP_METRICS.block_number[&BlockStage::Sealed].set(updates_manager.l1_batch.number.0.into());
         Ok(())
     }
 }
@@ -337,11 +325,8 @@ mod tests {
             virtual_blocks: 1,
         });
 
-        let finished_batch = default_vm_block_result();
-        persistence
-            .handle_l1_batch(None, updates, &l1_batch_env, finished_batch)
-            .await
-            .unwrap();
+        updates.finish_batch(default_vm_block_result());
+        persistence.handle_l1_batch(None, &updates).await.unwrap();
 
         // Check that miniblock #1 and L1 batch #1 are persisted.
         let mut storage = pool.access_storage().await.unwrap();

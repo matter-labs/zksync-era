@@ -1,3 +1,4 @@
+use multivm::interface::FinishedL1Batch;
 use zksync_types::{
     block::BlockGasCount,
     priority_op_onchain_data::PriorityOpOnchainData,
@@ -8,7 +9,7 @@ use zksync_types::{
 use super::miniblock_updates::MiniblockUpdates;
 use crate::gas_tracker::new_block_gas_count;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub struct L1BatchUpdates {
     pub number: L1BatchNumber,
     pub executed_transactions: Vec<TransactionExecutionResult>,
@@ -17,6 +18,7 @@ pub struct L1BatchUpdates {
     // how much L1 gas will it take to submit this block?
     pub l1_gas_count: BlockGasCount,
     pub txs_encoding_size: usize,
+    pub finished: Option<FinishedL1Batch>,
 }
 
 impl L1BatchUpdates {
@@ -28,6 +30,7 @@ impl L1BatchUpdates {
             block_execution_metrics: Default::default(),
             l1_gas_count: new_block_gas_count(),
             txs_encoding_size: 0,
+            finished: None,
         }
     }
 

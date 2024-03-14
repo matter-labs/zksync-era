@@ -119,6 +119,7 @@ impl ZkSyncStateKeeper {
     /// Fallible version of `run` routine that allows to easily exit upon cancellation.
     async fn run_inner(&mut self) -> Result<Infallible, Error> {
         let (cursor, pending_batch_params) = self.io.initialize().await?;
+        self.persistence.initialize(&cursor).await?;
         tracing::info!(
             "Starting state keeper. Next l1 batch to seal: {}, Next miniblock to seal: {}",
             cursor.l1_batch,
@@ -197,17 +198,12 @@ impl ZkSyncStateKeeper {
                 )
                 .await;
             }
+
             let (finished_batch, witness_block_state) = batch_executor.finish_batch().await;
             let sealed_batch_protocol_version = updates_manager.protocol_version();
-            let mut next_cursor = updates_manager.io_cursor();
-            next_cursor.l1_batch += 1;
+            updates_manager.finish_batch(finished_batch);
             self.persistence
-                .handle_l1_batch(
-                    witness_block_state.as_ref(),
-                    updates_manager,
-                    &l1_batch_env,
-                    finished_batch,
-                )
+                .handle_l1_batch(witness_block_state.as_ref(), &updates_manager)
                 .await
                 .with_context(|| format!("failed sealing L1 batch {l1_batch_env:?}"))?;
 
@@ -217,6 +213,8 @@ impl ZkSyncStateKeeper {
             l1_batch_seal_delta = Some(Instant::now());
 
             // Start the new batch.
+            let mut next_cursor = updates_manager.io_cursor();
+            next_cursor.l1_batch += 1;
             (system_env, l1_batch_env) = self.wait_for_new_batch_params(&next_cursor).await?;
             updates_manager = UpdatesManager::new(&l1_batch_env, &system_env);
             batch_executor = self

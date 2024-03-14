@@ -250,7 +250,7 @@ async fn sealed_by_gas() {
         })
         .next_tx("Second tx", random_tx(1), execution_result)
         .miniblock_sealed("Miniblock 2")
-        .batch_sealed_with("Batch sealed with both txs", |_, updates, _| {
+        .batch_sealed_with("Batch sealed with both txs", |updates| {
             assert_eq!(
                 updates.l1_batch.l1_gas_count,
                 BlockGasCount {
@@ -428,7 +428,7 @@ async fn pending_batch_is_applied() {
                 "Only one transaction should be in miniblock"
             );
         })
-        .batch_sealed_with("Batch sealed with all 3 txs", |_, updates, _| {
+        .batch_sealed_with("Batch sealed with all 3 txs", |updates| {
             assert_eq!(
                 updates.l1_batch.executed_transactions.len(),
                 3,
@@ -597,7 +597,7 @@ async fn time_is_monotonic() {
             );
             timestamp_second_miniblock.store(updates.miniblock.timestamp, Ordering::Relaxed);
         })
-        .batch_sealed_with("Batch 1", move |_, updates, _| {
+        .batch_sealed_with("Batch 1", move |updates| {
             // Timestamp from the currently stored miniblock would be used in the fictive miniblock.
             // It should be correct as well.
             let min_expected = timestamp_third_miniblock.load(Ordering::Relaxed);
@@ -629,7 +629,7 @@ async fn protocol_upgrade() {
         .increment_protocol_version("Increment protocol version")
         .next_tx("Second tx", random_tx(2), successful_exec())
         .miniblock_sealed("Miniblock 2")
-        .batch_sealed_with("Batch 1", move |_, updates, _| {
+        .batch_sealed_with("Batch 1", move |updates| {
             assert_eq!(
                 updates.protocol_version(),
                 ProtocolVersionId::latest(),

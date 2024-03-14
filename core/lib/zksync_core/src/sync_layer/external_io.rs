@@ -14,7 +14,6 @@ use zksync_utils::bytes_to_be_words;
 use super::{
     client::MainNodeClient,
     sync_action::{ActionQueue, SyncAction},
-    SyncState,
 };
 use crate::state_keeper::{
     io::{
@@ -40,7 +39,6 @@ pub struct ExternalIO {
     pool: ConnectionPool,
     l1_batch_params_provider: L1BatchParamsProvider,
     actions: ActionQueue,
-    sync_state: SyncState, // FIXME: looks clunky here
     main_node_client: Box<dyn MainNodeClient>,
 
     // TODO it's required for system env, probably we have to get rid of getting system env
@@ -52,7 +50,6 @@ impl ExternalIO {
     pub async fn new(
         pool: ConnectionPool,
         actions: ActionQueue,
-        sync_state: SyncState,
         main_node_client: Box<dyn MainNodeClient>,
         validation_computational_gas_limit: u32,
         chain_id: L2ChainId,
@@ -70,7 +67,6 @@ impl ExternalIO {
             pool,
             l1_batch_params_provider,
             actions,
-            sync_state,
             main_node_client,
             validation_computational_gas_limit,
             chain_id,
@@ -177,8 +173,6 @@ impl StateKeeperIO for ExternalIO {
             cursor.l1_batch,
             cursor.next_miniblock,
         );
-        self.sync_state
-            .set_local_block(MiniblockNumber(cursor.next_miniblock.saturating_sub(1)));
 
         let pending_miniblock_header = self
             .l1_batch_params_provider
@@ -320,9 +314,6 @@ impl StateKeeperIO for ExternalIO {
         cursor: &IoCursor,
         max_wait: Duration,
     ) -> anyhow::Result<Option<MiniblockParams>> {
-        self.sync_state
-            .set_local_block(MiniblockNumber(cursor.next_miniblock.saturating_sub(1)));
-
         // Wait for the next miniblock to appear in the queue.
         let actions = &mut self.actions;
         for _ in 0..poll_iters(POLL_INTERVAL, max_wait) {

@@ -9,8 +9,7 @@ use std::{
 use async_trait::async_trait;
 use multivm::{
     interface::{
-        ExecutionResult, FinishedL1Batch, L1BatchEnv, SystemEnv, TxExecutionMode,
-        VmExecutionResultAndLogs,
+        ExecutionResult, L1BatchEnv, SystemEnv, TxExecutionMode, VmExecutionResultAndLogs,
     },
     vm_latest::constants::BLOCK_GAS_LIMIT,
 };
@@ -167,7 +166,7 @@ impl TestScenario {
     /// additional assertions on the sealed batch.
     pub(crate) fn batch_sealed_with<F>(mut self, description: &'static str, f: F) -> Self
     where
-        F: FnOnce(&VmExecutionResultAndLogs, &UpdatesManager, &L1BatchEnv) + Send + 'static,
+        F: FnOnce(&UpdatesManager) + Send + 'static,
     {
         self.actions
             .push_back(ScenarioItem::BatchSeal(description, Some(Box::new(f))));
@@ -352,7 +351,7 @@ enum ScenarioItem {
     ),
     BatchSeal(
         &'static str,
-        Option<Box<dyn FnOnce(&VmExecutionResultAndLogs, &UpdatesManager, &L1BatchEnv) + Send>>,
+        Option<Box<dyn FnOnce(&UpdatesManager) + Send>>,
     ),
 }
 
@@ -599,20 +598,14 @@ impl HandleStateKeeperOutput for TestPersistence {
     async fn handle_l1_batch(
         &mut self,
         _witness_block_state: Option<&WitnessBlockState>,
-        updates_manager: UpdatesManager,
-        l1_batch_env: &L1BatchEnv,
-        finished_batch: FinishedL1Batch,
+        updates_manager: &UpdatesManager,
     ) -> anyhow::Result<()> {
         let action = self.pop_next_item("seal_l1_batch");
         let ScenarioItem::BatchSeal(_, check_fn) = action else {
             anyhow::bail!("Unexpected action: {:?}", action);
         };
         if let Some(check_fn) = check_fn {
-            check_fn(
-                &finished_batch.block_tip_execution_result,
-                &updates_manager,
-                l1_batch_env,
-            );
+            check_fn(updates_manager);
         }
         Ok(())
     }

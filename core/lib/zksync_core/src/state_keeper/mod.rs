@@ -10,8 +10,8 @@ use zksync_dal::ConnectionPool;
 pub use self::{
     batch_executor::{main_executor::MainBatchExecutor, BatchExecutor},
     io::{
-        mempool::MempoolIO, HandleStateKeeperOutput, MiniblockSealerTask, StateKeeperIO,
-        StateKeeperPersistence,
+        mempool::MempoolIO, CompoundOutputHandler, HandleStateKeeperOutput, MiniblockSealerTask,
+        StateKeeperIO, StateKeeperPersistence,
     },
     keeper::ZkSyncStateKeeper,
     mempool_actor::MempoolFetcher,

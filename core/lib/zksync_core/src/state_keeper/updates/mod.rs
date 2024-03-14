@@ -1,5 +1,5 @@
 use multivm::{
-    interface::{L1BatchEnv, SystemEnv, VmExecutionResultAndLogs},
+    interface::{FinishedL1Batch, L1BatchEnv, SystemEnv, VmExecutionResultAndLogs},
     utils::get_batch_base_fee,
 };
 use zksync_contracts::BaseSystemContractsHashes;
@@ -13,6 +13,7 @@ use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 pub(crate) use self::{l1_batch_updates::L1BatchUpdates, miniblock_updates::MiniblockUpdates};
 use super::io::{IoCursor, MiniblockParams};
+use crate::state_keeper::types::ExecutionMetricsForCriteria;
 
 pub mod l1_batch_updates;
 pub mod miniblock_updates;
@@ -23,7 +24,7 @@ pub mod miniblock_updates;
 /// `L1BatchUpdates` keeps updates for the already sealed mini-blocks of the pending L1 batch.
 /// `UpdatesManager` manages the state of both of these accumulators to be consistent
 /// and provides information about the pending state of the current L1 batch.
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub struct UpdatesManager {
     batch_timestamp: u64,
     fee_account_address: Address,
@@ -119,16 +120,22 @@ impl UpdatesManager {
         );
     }
 
-    pub(crate) fn extend_from_fictive_transaction(
-        &mut self,
-        result: VmExecutionResultAndLogs,
-        l1_gas_count: BlockGasCount,
-        execution_metrics: ExecutionMetrics,
-    ) {
+    pub(crate) fn finish_batch(&mut self, finished_batch: FinishedL1Batch) {
+        assert!(
+            self.l1_batch.finished.is_none(),
+            "Cannot finish already finished batch"
+        );
+
+        let result = &finished_batch.block_tip_execution_result;
+        let batch_tip_metrics = ExecutionMetricsForCriteria::new(None, result);
         self.storage_writes_deduplicator
             .apply(&result.logs.storage_logs);
-        self.miniblock
-            .extend_from_fictive_transaction(result, l1_gas_count, execution_metrics);
+        self.miniblock.extend_from_fictive_transaction(
+            result.clone(),
+            batch_tip_metrics.l1_gas,
+            batch_tip_metrics.execution_metrics,
+        );
+        self.l1_batch.finished = Some(finished_batch);
     }
 
     /// Pushes a new miniblock with the specified timestamp into this manager. The previously

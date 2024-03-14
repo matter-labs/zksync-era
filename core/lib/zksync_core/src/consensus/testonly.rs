@@ -158,7 +158,7 @@ pub(super) struct StateKeeper {
     fee_per_gas: u64,
     gas_per_pubdata: u64,
 
-    sync_state: SyncState,
+    sync_state: SyncState, // FIXME: not read?
     actions_sender: ActionQueueSender,
     addr: sync::watch::Receiver<Option<std::net::SocketAddr>>,
     store: Store,
@@ -167,7 +167,8 @@ pub(super) struct StateKeeper {
 /// Fake StateKeeper task to be executed in the background.
 pub(super) struct StateKeeperRunner {
     actions_queue: ActionQueue,
-    sync_state: SyncState,
+    #[allow(dead_code)]
+    sync_state: SyncState, // FIXME: not read?
     store: Store,
     addr: sync::watch::Sender<Option<std::net::SocketAddr>>,
 }
@@ -394,7 +395,6 @@ impl StateKeeperRunner {
             let io = ExternalIO::new(
                 self.store.0.clone(),
                 self.actions_queue,
-                self.sync_state,
                 Box::<MockMainNodeClient>::default(),
                 u32::MAX,
                 L2ChainId::default(),

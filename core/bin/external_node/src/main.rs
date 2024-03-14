@@ -25,8 +25,8 @@ use zksync_core::{
     reorg_detector::ReorgDetector,
     setup_sigint_handler,
     state_keeper::{
-        seal_criteria::NoopSealer, BatchExecutor, MainBatchExecutor, StateKeeperPersistence,
-        ZkSyncStateKeeper,
+        seal_criteria::NoopSealer, BatchExecutor, CompoundOutputHandler, MainBatchExecutor,
+        StateKeeperPersistence, ZkSyncStateKeeper,
     },
     sync_layer::{
         batch_status_updater::BatchStatusUpdater, external_io::ExternalIO, ActionQueue,
@@ -60,8 +60,7 @@ async fn build_state_keeper(
     state_keeper_db_path: String,
     config: &ExternalNodeConfig,
     connection_pool: ConnectionPool,
-    sync_state: SyncState,
-    persistence: StateKeeperPersistence,
+    output_handler: CompoundOutputHandler,
     stop_receiver: watch::Receiver<bool>,
     chain_id: L2ChainId,
 ) -> anyhow::Result<ZkSyncStateKeeper> {
@@ -90,7 +89,6 @@ async fn build_state_keeper(
     let io = ExternalIO::new(
         connection_pool,
         action_queue,
-        sync_state,
         Box::new(main_node_client),
         validation_computational_gas_limit,
         chain_id,
@@ -102,7 +100,7 @@ async fn build_state_keeper(
         stop_receiver,
         Box::new(io),
         batch_executor_base,
-        Box::new(persistence.with_tx_insertion()),
+        Box::new(output_handler),
         Arc::new(NoopSealer),
     ))
 }
@@ -154,13 +152,14 @@ async fn init_tasks(
         }
     }));
 
+    let output_handler = CompoundOutputHandler::new(Box::new(persistence.with_tx_insertion()))
+        .with_aux_handler(Box::new(sync_state.clone()));
     let state_keeper = build_state_keeper(
         action_queue,
         config.required.state_cache_path.clone(),
         config,
         connection_pool.clone(),
-        sync_state.clone(),
-        persistence,
+        output_handler,
         stop_receiver.clone(),
         config.remote.l2_chain_id,
     )

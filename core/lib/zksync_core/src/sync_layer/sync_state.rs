@@ -4,9 +4,12 @@ use async_trait::async_trait;
 use serde::Serialize;
 use zksync_concurrency::{ctx, sync};
 use zksync_health_check::{CheckHealth, Health, HealthStatus};
-use zksync_types::MiniblockNumber;
+use zksync_types::{witness_block_state::WitnessBlockState, MiniblockNumber};
 
-use crate::metrics::EN_METRICS;
+use crate::{
+    metrics::EN_METRICS,
+    state_keeper::{io::IoCursor, updates::UpdatesManager, HandleStateKeeperOutput},
+};
 
 /// `SyncState` is a structure that holds the state of the syncing process.
 /// The intended use case is to signalize to Web3 API whether the node is fully synced.
@@ -63,12 +66,37 @@ impl SyncState {
         self.0.send_modify(|inner| inner.set_main_node_block(block));
     }
 
-    pub(super) fn set_local_block(&self, block: MiniblockNumber) {
+    fn set_local_block(&self, block: MiniblockNumber) {
         self.0.send_modify(|inner| inner.set_local_block(block));
     }
 
     pub(crate) fn is_synced(&self) -> bool {
         self.0.borrow().is_synced().0
+    }
+}
+
+#[async_trait]
+impl HandleStateKeeperOutput for SyncState {
+    async fn initialize(&mut self, cursor: &IoCursor) -> anyhow::Result<()> {
+        let sealed_block_number = cursor.next_miniblock.saturating_sub(1);
+        self.set_local_block(MiniblockNumber(sealed_block_number));
+        Ok(())
+    }
+
+    async fn handle_miniblock(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()> {
+        let sealed_block_number = updates_manager.miniblock.number;
+        self.set_local_block(sealed_block_number);
+        Ok(())
+    }
+
+    async fn handle_l1_batch(
+        &mut self,
+        _witness_block_state: Option<&WitnessBlockState>,
+        updates_manager: &UpdatesManager,
+    ) -> anyhow::Result<()> {
+        let sealed_block_number = updates_manager.miniblock.number;
+        self.set_local_block(sealed_block_number);
+        Ok(())
     }
 }
 

@@ -4,10 +4,7 @@
 use std::time::{Duration, Instant};
 
 use itertools::Itertools;
-use multivm::{
-    interface::{FinishedL1Batch, L1BatchEnv},
-    utils::get_max_gas_per_pubdata_byte,
-};
+use multivm::utils::get_max_gas_per_pubdata_byte;
 use zksync_dal::StorageProcessor;
 use zksync_types::{
     block::{unpack_block_info, L1BatchHeader, MiniblockHeader},
@@ -23,9 +20,9 @@ use zksync_types::{
         TransactionExecutionResult,
     },
     zk_evm_types::LogQuery,
-    AccountTreeId, Address, ExecuteTransactionCommon, L1BatchNumber, L1BlockNumber,
-    ProtocolVersionId, StorageKey, StorageLog, StorageLogQuery, Transaction, VmEvent,
-    CURRENT_VIRTUAL_BLOCK_INFO_POSITION, H256, SYSTEM_CONTEXT_ADDRESS,
+    AccountTreeId, Address, ExecuteTransactionCommon, L1BlockNumber, ProtocolVersionId, StorageKey,
+    StorageLog, StorageLogQuery, Transaction, VmEvent, CURRENT_VIRTUAL_BLOCK_INFO_POSITION, H256,
+    SYSTEM_CONTEXT_ADDRESS,
 };
 use zksync_utils::{h256_to_u256, u256_to_h256};
 
@@ -36,7 +33,6 @@ use crate::{
             L1BatchSealStage, MiniblockSealStage, TxExecutionType, KEEPER_METRICS,
             L1_BATCH_METRICS, MINIBLOCK_METRICS,
         },
-        types::ExecutionMetricsForCriteria,
         updates::{MiniblockSealCommand, UpdatesManager},
     },
 };
@@ -46,27 +42,19 @@ impl UpdatesManager {
     /// This action includes a creation of an empty "fictive" miniblock that contains
     /// the events generated during the bootloader "tip phase". Returns updates for this fictive miniblock.
     pub(super) async fn seal_l1_batch(
-        mut self,
+        &self,
         storage: &mut StorageProcessor<'_>,
-        l1_batch_env: &L1BatchEnv,
-        finished_batch: FinishedL1Batch,
         l2_erc20_bridge_addr: Address,
     ) {
         let started_at = Instant::now();
-        let progress = L1_BATCH_METRICS.start(L1BatchSealStage::VmFinalization);
+        let finished_batch = self
+            .l1_batch
+            .finished
+            .as_ref()
+            .expect("L1 batch is not actually finished");
         let mut transaction = storage.start_transaction().await.unwrap();
-        progress.observe(None);
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::FictiveMiniblock);
-        let ExecutionMetricsForCriteria {
-            l1_gas: batch_tip_l1_gas,
-            execution_metrics: batch_tip_execution_metrics,
-        } = ExecutionMetricsForCriteria::new(None, &finished_batch.block_tip_execution_result);
-        self.extend_from_fictive_transaction(
-            finished_batch.block_tip_execution_result,
-            batch_tip_l1_gas,
-            batch_tip_execution_metrics,
-        );
         // Seal fictive miniblock with last events and storage logs.
         let miniblock_command = self.seal_miniblock_command(
             l2_erc20_bridge_addr,
@@ -106,29 +94,35 @@ impl UpdatesManager {
                 .user_l2_to_l1_logs
                 .len(),
             event_count = finished_batch.final_execution_state.events.len(),
-            current_l1_batch_number = l1_batch_env.number
+            current_l1_batch_number = self.l1_batch.number
         );
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::InsertL1BatchHeader);
         let l2_to_l1_messages =
             extract_long_l2_to_l1_messages(&finished_batch.final_execution_state.events);
         let l1_batch = L1BatchHeader {
-            number: l1_batch_env.number,
-            timestamp: l1_batch_env.timestamp,
+            number: self.l1_batch.number,
+            timestamp: self.batch_timestamp(),
             priority_ops_onchain_data: self.l1_batch.priority_ops_onchain_data.clone(),
             l1_tx_count: l1_tx_count as u16,
             l2_tx_count: l2_tx_count as u16,
-            l2_to_l1_logs: finished_batch.final_execution_state.user_l2_to_l1_logs,
+            l2_to_l1_logs: finished_batch
+                .final_execution_state
+                .user_l2_to_l1_logs
+                .clone(),
             l2_to_l1_messages,
             bloom: Default::default(),
-            used_contract_hashes: finished_batch.final_execution_state.used_contract_hashes,
+            used_contract_hashes: finished_batch
+                .final_execution_state
+                .used_contract_hashes
+                .clone(),
             base_system_contracts_hashes: self.base_system_contract_hashes(),
             protocol_version: Some(self.protocol_version()),
-            system_logs: finished_batch.final_execution_state.system_logs,
-            pubdata_input: finished_batch.pubdata_input,
+            system_logs: finished_batch.final_execution_state.system_logs.clone(),
+            pubdata_input: finished_batch.pubdata_input.clone(),
         };
 
-        let events_queue = finished_batch
+        let events_queue = &finished_batch
             .final_execution_state
             .deduplicated_events_logs;
 
@@ -142,7 +136,7 @@ impl UpdatesManager {
                 &l1_batch,
                 &final_bootloader_memory,
                 self.pending_l1_gas_count(),
-                &events_queue,
+                events_queue,
                 &finished_batch.final_execution_state.storage_refunds,
                 self.pending_execution_metrics().circuit_statistic,
             )
@@ -153,7 +147,7 @@ impl UpdatesManager {
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::SetL1BatchNumberForMiniblocks);
         transaction
             .blocks_dal()
-            .mark_miniblocks_as_executed_in_l1_batch(l1_batch_env.number)
+            .mark_miniblocks_as_executed_in_l1_batch(self.l1_batch.number)
             .await
             .unwrap();
         progress.observe(None);
@@ -162,7 +156,7 @@ impl UpdatesManager {
         transaction
             .transactions_dal()
             .mark_txs_as_executed_in_l1_batch(
-                l1_batch_env.number,
+                self.l1_batch.number,
                 &self.l1_batch.executed_transactions,
             )
             .await;
@@ -172,11 +166,11 @@ impl UpdatesManager {
         let (deduplicated_writes, protective_reads): (Vec<_>, Vec<_>) = finished_batch
             .final_execution_state
             .deduplicated_storage_log_queries
-            .into_iter()
+            .iter()
             .partition(|log_query| log_query.rw_flag);
         transaction
             .storage_logs_dedup_dal()
-            .insert_protective_reads(l1_batch_env.number, &protective_reads)
+            .insert_protective_reads(self.l1_batch.number, &protective_reads)
             .await
             .unwrap();
         progress.observe(protective_reads.len());
@@ -208,7 +202,7 @@ impl UpdatesManager {
 
         transaction
             .storage_logs_dedup_dal()
-            .insert_initial_writes(l1_batch_env.number, &written_storage_keys)
+            .insert_initial_writes(self.l1_batch.number, &written_storage_keys)
             .await
             .unwrap();
         progress.observe(deduplicated_writes.len());
@@ -225,19 +219,12 @@ impl UpdatesManager {
             "Results of in-flight and common deduplications are mismatched"
         );
 
-        self.report_l1_batch_metrics(
-            started_at,
-            l1_batch_env.number,
-            l1_batch_env.timestamp,
-            &writes_metrics,
-        );
+        self.report_l1_batch_metrics(started_at, &writes_metrics);
     }
 
     fn report_l1_batch_metrics(
         &self,
         started_at: Instant,
-        current_l1_batch_number: L1BatchNumber,
-        batch_timestamp: u64,
         writes_metrics: &DeduplicatedWritesMetrics,
     ) {
         L1_BATCH_METRICS
@@ -250,6 +237,7 @@ impl UpdatesManager {
             .transactions_in_l1_batch
             .observe(self.l1_batch.executed_transactions.len());
 
+        let batch_timestamp = self.batch_timestamp();
         let l1_batch_latency =
             unix_timestamp_ms().saturating_sub(batch_timestamp * 1_000) as f64 / 1_000.0;
         APP_METRICS.block_latency[&BlockStage::Sealed]
@@ -257,7 +245,7 @@ impl UpdatesManager {
 
         let elapsed = started_at.elapsed();
         L1_BATCH_METRICS.sealed_time.observe(elapsed);
-        tracing::debug!("Sealed L1 batch {current_l1_batch_number} in {elapsed:?}");
+        tracing::debug!("Sealed L1 batch {} in {elapsed:?}", self.l1_batch.number);
     }
 }
 
