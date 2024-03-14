@@ -319,7 +319,8 @@ impl TreeUpdater {
         let pg_initial_writes = connection
             .storage_logs_dedup_dal()
             .initial_writes_for_batch(l1_batch_number)
-            .await;
+            .await
+            .expect("cannot get initial writes for L1 batch");
 
         let pg_initial_writes: Vec<_> = pg_initial_writes
             .into_iter()

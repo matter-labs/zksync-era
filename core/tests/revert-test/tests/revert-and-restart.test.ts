@@ -35,7 +35,7 @@ async function killServerAndWaitForShutdown(tester: Tester) {
     while (iter < 30) {
         try {
             await tester.syncWallet.provider.getBlockNumber();
-            await utils.sleep(5);
+            await utils.sleep(2);
             iter += 1;
         } catch (_) {
             // When exception happens, we assume that server died.
@@ -94,7 +94,7 @@ describe('Block reverting test', function () {
                 mainContract = await tester.syncWallet.getMainContract();
             } catch (err) {
                 ignoreError(err, 'waiting for server HTTP JSON-RPC to start');
-                await utils.sleep(5);
+                await utils.sleep(2);
                 iter += 1;
             }
         }

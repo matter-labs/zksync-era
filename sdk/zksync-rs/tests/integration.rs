@@ -42,7 +42,7 @@
 // const ETH_ADDR: &str = "36615Cf349d7F6344891B1e7CA7C72883F5dc049";
 // const ETH_PRIVATE_KEY: &str = "7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110";
 // const LOCALHOST_WEB3_ADDR: &str = "http://127.0.0.1:8545";
-// const DOCKER_WEB3_ADDR: &str = "http://geth:8545";
+// const DOCKER_WEB3_ADDR: &str = "http://reth:8545";
 
 // fn web3_addr() -> &'static str {
 //     let ci: u8 = env::var("CI").map_or(0, |s| s.parse().unwrap());
