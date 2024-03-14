@@ -186,7 +186,7 @@ impl JobProcessor for ProofCompressor {
     ) -> JoinHandle<anyhow::Result<Self::JobArtifacts>> {
         let compression_mode = self.compression_mode;
         let verify_wrapper_proof = self.verify_wrapper_proof;
-        let block_number = job_id.clone();
+        let block_number = *job_id;
         tokio::task::spawn_blocking(move || {
             let _span = tracing::info_span!("compress", %block_number).entered();
             Self::compress_proof(job, compression_mode, verify_wrapper_proof)
