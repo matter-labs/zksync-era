@@ -37,7 +37,7 @@ pub struct DbPruner {
 pub trait PruneCondition: Send + Sync + 'static {
     /// Unique name of the condition.
     fn name(&self) -> &'static str;
-    async fn is_batch_pruneable(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<bool>;
+    async fn is_batch_prunable(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<bool>;
 }
 
 impl DbPruner {
@@ -51,13 +51,13 @@ impl DbPruner {
         })
     }
 
-    pub async fn is_l1_batch_pruneable(&self, l1_batch_number: L1BatchNumber) -> bool {
+    pub async fn is_l1_batch_prunable(&self, l1_batch_number: L1BatchNumber) -> bool {
         let mut successful_conditions: Vec<&'static str> = vec![];
         let mut failed_conditions: Vec<&'static str> = vec![];
         let mut errored_conditions: Vec<&'static str> = vec![];
 
         for condition in self.prune_conditions.iter() {
-            match condition.is_batch_pruneable(l1_batch_number).await {
+            match condition.is_batch_prunable(l1_batch_number).await {
                 Ok(true) => successful_conditions.push(condition.name()),
                 Ok(false) => failed_conditions.push(condition.name()),
                 Err(error) => {
@@ -111,7 +111,7 @@ impl DbPruner {
                 .0
                 + self.config.pruned_chunk_size,
         );
-        if !self.is_l1_batch_pruneable(next_l1_batch_to_prune).await {
+        if !self.is_l1_batch_prunable(next_l1_batch_to_prune).await {
             latency.observe();
             return Ok(false);
         }
@@ -219,19 +219,19 @@ mod tests {
 
     struct ConditionMock {
         pub name: &'static str,
-        pub is_batch_pruneable_responses: HashMap<L1BatchNumber, bool>,
+        pub is_batch_prunable_responses: HashMap<L1BatchNumber, bool>,
     }
 
     impl ConditionMock {
         fn name(name: &'static str) -> ConditionMock {
             Self {
                 name,
-                is_batch_pruneable_responses: HashMap::default(),
+                is_batch_prunable_responses: HashMap::default(),
             }
         }
 
         fn with_response(mut self, l1_batch_number: L1BatchNumber, value: bool) -> Self {
-            self.is_batch_pruneable_responses
+            self.is_batch_prunable_responses
                 .insert(l1_batch_number, value);
             self
         }
@@ -243,15 +243,15 @@ mod tests {
             self.name
         }
 
-        async fn is_batch_pruneable(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<bool> {
+        async fn is_batch_prunable(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<bool> {
             if !self
-                .is_batch_pruneable_responses
+                .is_batch_prunable_responses
                 .contains_key(&l1_batch_number)
             {
                 return Err(anyhow!("Error!"));
             }
             Ok(self
-                .is_batch_pruneable_responses
+                .is_batch_prunable_responses
                 .get(&l1_batch_number)
                 .cloned()
                 .unwrap())
@@ -259,7 +259,7 @@ mod tests {
     }
 
     #[test(tokio::test)]
-    async fn is_l1_batch_pruneable_works() {
+    async fn is_l1_batch_prunable_works() {
         let failing_check = Arc::new(
             ConditionMock::name("some failing some passing1")
                 .with_response(L1BatchNumber(1), true)
@@ -283,13 +283,13 @@ mod tests {
         )
         .unwrap();
         // first check succeeds, but second returns an error
-        assert!(!pruner.is_l1_batch_pruneable(L1BatchNumber(1)).await);
+        assert!(!pruner.is_l1_batch_prunable(L1BatchNumber(1)).await);
         //second check fails
-        assert!(!pruner.is_l1_batch_pruneable(L1BatchNumber(2)).await);
+        assert!(!pruner.is_l1_batch_prunable(L1BatchNumber(2)).await);
         //first check fails
-        assert!(!pruner.is_l1_batch_pruneable(L1BatchNumber(3)).await);
+        assert!(!pruner.is_l1_batch_prunable(L1BatchNumber(3)).await);
 
-        assert!(pruner.is_l1_batch_pruneable(L1BatchNumber(4)).await);
+        assert!(pruner.is_l1_batch_prunable(L1BatchNumber(4)).await);
     }
 
     async fn insert_miniblocks(
@@ -344,7 +344,7 @@ mod tests {
             .await
             .unwrap();
 
-        let nothing_prunable_check = Arc::new(ConditionMock::name("nothing pruneable"));
+        let nothing_prunable_check = Arc::new(ConditionMock::name("nothing prunable"));
         let pruner = DbPruner::new(
             DbPrunerConfig {
                 soft_and_hard_pruning_time_delta: Duration::from_secs(0),
@@ -384,7 +384,7 @@ mod tests {
                 pruned_chunk_size: 5,
                 next_iterations_delay: Duration::from_secs(0),
             },
-            vec![], //No checks, so every batch is pruneable
+            vec![], //No checks, so every batch is prunable
         )
         .unwrap();
 
@@ -425,7 +425,7 @@ mod tests {
                 pruned_chunk_size: 3,
                 next_iterations_delay: Duration::from_secs(0),
             },
-            vec![], //No checks, so every batch is pruneable
+            vec![], //No checks, so every batch is prunable
         )
         .unwrap();
 
@@ -460,8 +460,8 @@ mod tests {
 
         insert_miniblocks(&mut conn, 10, 2).await;
 
-        let first_chunk_pruneable_check = Arc::new(
-            ConditionMock::name("first chunk pruneable").with_response(L1BatchNumber(3), true),
+        let first_chunk_prunable_check = Arc::new(
+            ConditionMock::name("first chunk prunable").with_response(L1BatchNumber(3), true),
         );
 
         let pruner = DbPruner::new(
@@ -470,7 +470,7 @@ mod tests {
                 pruned_chunk_size: 3,
                 next_iterations_delay: Duration::from_secs(0),
             },
-            vec![first_chunk_pruneable_check],
+            vec![first_chunk_prunable_check],
         )
         .unwrap();
 

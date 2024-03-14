@@ -708,7 +708,7 @@ mod tests {
             &mut conn,
             MiniblockNumber(0),
             // first storage will be overwritten in 1st miniblock,
-            // the second one should be kept throught the pruning
+            // the second one should be kept throughout the pruning
             // the third one will be overwritten in 10th miniblock
             vec![
                 random_storage_log(1, 2),
@@ -721,7 +721,7 @@ mod tests {
         insert_miniblock_storage_logs(
             &mut conn,
             MiniblockNumber(15),
-            // this storage log overrides log from 0rd block
+            // this storage log overrides log from block 0
             vec![random_storage_log(3, 5)],
         )
         .await;

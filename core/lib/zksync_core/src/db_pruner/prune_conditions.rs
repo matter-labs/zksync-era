@@ -18,7 +18,7 @@ impl PruneCondition for L1BatchOlderThanPruneCondition {
         "l1 Batch is old enough"
     }
 
-    async fn is_batch_pruneable(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<bool> {
+    async fn is_batch_prunable(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<bool> {
         let mut storage = self.conn.access_storage().await?;
         let l1_batch_header = storage
             .blocks_dal()
@@ -41,7 +41,7 @@ impl PruneCondition for NextL1BatchWasExecutedCondition {
         "next l1 batch was executed"
     }
 
-    async fn is_batch_pruneable(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<bool> {
+    async fn is_batch_prunable(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<bool> {
         let mut storage = self.conn.access_storage().await?;
         let next_l1_batch_number = L1BatchNumber(l1_batch_number.0 + 1);
         let last_executed_batch = storage
@@ -64,7 +64,7 @@ impl PruneCondition for NextL1BatchHasMetadataCondition {
         "next l1 batch has metadata"
     }
 
-    async fn is_batch_pruneable(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<bool> {
+    async fn is_batch_prunable(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<bool> {
         let mut storage = self.conn.access_storage().await?;
         let next_l1_batch_number = L1BatchNumber(l1_batch_number.0 + 1);
         let l1_batch_metadata = storage
@@ -85,7 +85,7 @@ impl PruneCondition for L1BatchExistsCondition {
         "l1 batch exists"
     }
 
-    async fn is_batch_pruneable(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<bool> {
+    async fn is_batch_prunable(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<bool> {
         let mut storage = self.conn.access_storage().await?;
         let l1_batch_header = storage
             .blocks_dal()
