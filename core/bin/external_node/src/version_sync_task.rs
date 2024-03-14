@@ -23,7 +23,7 @@ pub async fn get_l1_batch_remote_protocol_version(
     Ok(sync_block.map(|b| b.protocol_version))
 }
 
-// TODO
+// Synchronizes protocol version in `l1_batches` and `miniblocks` tables between EN and main node.
 pub async fn sync_versions(
     connection_pool: ConnectionPool,
     main_node_client: HttpClient,
@@ -32,7 +32,7 @@ pub async fn sync_versions(
 
     let mut connection = connection_pool.access_storage().await?;
 
-    // Load with local batch number with version 22.
+    // Load the first local batch number with version 22.
     let Some(local_first_v22_l1_batch) = connection
         .blocks_dal()
         .get_first_l1_batch_number_for_version(ProtocolVersionId::Version22)
@@ -42,7 +42,7 @@ pub async fn sync_versions(
     };
     tracing::info!("First local v22 batch is #{local_first_v22_l1_batch}");
 
-    // Find first remove batch with version 22, assuming it's less then or equal than local one.
+    // Find the first remote batch with version 22, assuming it's less then or equal than local one.
     // Uses binary search.
 
     let mut left_bound = L1BatchNumber(0);
@@ -91,6 +91,9 @@ pub async fn sync_versions(
 
     let mut transaction = connection.start_transaction().await?;
 
+    tracing::info!(
+        "Setting version 22 for batches {remote_first_v22_l1_batch}..={local_first_v22_l1_batch}"
+    );
     transaction
         .blocks_dal()
         .reset_protocol_version_for_l1_batches(
@@ -108,6 +111,7 @@ pub async fn sync_versions(
             format!("Postgres is inconsistent: missing miniblocks for L1 batch #{local_first_v22_l1_batch}")
         })?;
 
+    tracing::info!("Setting version 22 for miniblocks {remote_first_v22_miniblock}..={local_first_v22_miniblock}");
     transaction
         .blocks_dal()
         .reset_protocol_version_for_miniblocks(
