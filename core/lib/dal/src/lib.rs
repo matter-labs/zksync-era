@@ -5,8 +5,9 @@
 
 use sqlx::PgConnection;
 pub use sqlx::{types::BigDecimal, Error as SqlxError};
-use zksync_db_connection::processor::{
-    async_trait, BasicStorageProcessor, StorageKind, StorageProcessorTags,
+use zksync_db_connection::{
+    async_trait,
+    processor::{BasicStorageProcessor, StorageKind, StorageProcessorTags},
 };
 pub use zksync_db_connection::{connection::ConnectionPool, processor::StorageProcessor};
 

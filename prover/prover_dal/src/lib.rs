@@ -1,8 +1,9 @@
 use std::time::Duration;
 
 use sqlx::{postgres::types::PgInterval, types::chrono::NaiveTime, PgConnection};
-use zksync_db_connection::processor::{
-    async_trait, BasicStorageProcessor, StorageKind, StorageProcessorTags,
+use zksync_db_connection::{
+    async_trait,
+    processor::{BasicStorageProcessor, StorageKind, StorageProcessorTags},
 };
 pub use zksync_db_connection::{connection::ConnectionPool, processor::StorageProcessor};
 

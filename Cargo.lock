@@ -4842,7 +4842,6 @@ dependencies = [
 name = "prover_dal"
 version = "0.1.0"
 dependencies = [
- "async-trait",
  "sqlx",
  "strum",
  "zksync_db_connection",
@@ -8351,6 +8350,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "assert_matches",
+ "async-trait",
  "rand 0.8.5",
  "serde",
  "serde_json",

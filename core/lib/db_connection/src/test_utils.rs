@@ -1,7 +1,8 @@
+use async_trait::async_trait;
 use sqlx::PgConnection;
 
 use crate::processor::{
-    async_trait, BasicStorageProcessor, StorageKind, StorageProcessor, StorageProcessorTags,
+    BasicStorageProcessor, StorageKind, StorageProcessor, StorageProcessorTags,
 };
 
 #[derive(Clone)]
