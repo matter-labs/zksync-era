@@ -183,9 +183,6 @@ pub async fn ensure_genesis_state(
         rollup_last_leaf_index,
     )
     .await?;
-    tracing::info!("operations_schema_genesis is complete");
-
-    transaction.commit().await?;
 
     if genesis_params.config.genesis_root_hash != genesis_root_hash {
         return Err(GenesisError::RootHash(genesis_root_hash));
@@ -199,6 +196,8 @@ pub async fn ensure_genesis_state(
         return Err(GenesisError::LeafIndexes(rollup_last_leaf_index));
     }
 
+    tracing::info!("operations_schema_genesis is complete");
+    transaction.commit().await?;
     Ok(genesis_root_hash)
 }
 

@@ -56,6 +56,9 @@ struct Cli {
     /// Generate genesis block for the first contract deployment using temporary DB.
     #[arg(long)]
     genesis: bool,
+    /// Set chain id
+    #[arg(long)]
+    set_chain_id: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -157,9 +160,14 @@ async fn main() -> anyhow::Result<()> {
     if opt.genesis || is_genesis_needed(&postgres_config).await {
         let genesis = GenesisConfig::from_env().context("Genesis config")?;
         let eth_client = ETHClientConfig::from_env().context("EthClientConfig")?;
-        genesis_init(genesis, &postgres_config, &eth_client.web3_url)
-            .await
-            .context("genesis_init")?;
+        genesis_init(
+            genesis,
+            &postgres_config,
+            &eth_client.web3_url,
+            opt.set_chain_id,
+        )
+        .await
+        .context("genesis_init")?;
         if opt.genesis {
             return Ok(());
         }
