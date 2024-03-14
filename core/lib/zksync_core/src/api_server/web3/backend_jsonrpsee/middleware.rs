@@ -178,25 +178,30 @@ impl<F: Future<Output = MethodResponse>> Future for WithMethodCall<F> {
     }
 }
 
+/// Tracks the timestamp of the last call to the RPC. Used during server shutdown to start dropping new traffic
+/// only after this is coordinated by the external load balancer.
 #[derive(Debug, Clone, Default)]
-pub(crate) struct ShutdownTimeout {
+pub(crate) struct TrafficTracker {
+    // We use `OnceCell` to not track requests before the server starts shutting down.
     last_call_sender: Arc<OnceCell<watch::Sender<Instant>>>,
 }
 
-impl ShutdownTimeout {
+impl TrafficTracker {
     fn reset(&self) {
-        if let Some(timeout) = self.last_call_sender.get() {
-            timeout.send_replace(Instant::now());
+        if let Some(last_call) = self.last_call_sender.get() {
+            last_call.send_replace(Instant::now());
         }
     }
 
     /// Waits until no new requests are received during the specified interval.
-    pub async fn wait(self, interval_without_requests: Duration) {
+    pub async fn wait_for_no_requests(self, interval_without_requests: Duration) {
         let mut last_call_subscriber = self
             .last_call_sender
             .get_or_init(|| watch::channel(Instant::now()).0)
             .subscribe();
+        // Drop `last_call_sender` to handle the case when the server was dropped for other reasons.
         drop(self);
+
         let deadline = *last_call_subscriber.borrow() + interval_without_requests;
         let sleep = tokio::time::sleep_until(deadline.into());
         tokio::pin!(sleep);
@@ -204,7 +209,7 @@ impl ShutdownTimeout {
         loop {
             tokio::select! {
                 () = sleep.as_mut() => {
-                    return;
+                    return; // Successfully waited for no requests
                 }
                 change_result = last_call_subscriber.changed() => {
                     if change_result.is_err() {
@@ -221,12 +226,15 @@ impl ShutdownTimeout {
 #[derive(Debug)]
 pub(crate) struct ShutdownMiddleware<S> {
     inner: S,
-    timeout: ShutdownTimeout,
+    traffic_tracker: TrafficTracker,
 }
 
 impl<S> ShutdownMiddleware<S> {
-    pub fn new(inner: S, timeout: ShutdownTimeout) -> Self {
-        Self { inner, timeout }
+    pub fn new(inner: S, traffic_tracker: TrafficTracker) -> Self {
+        Self {
+            inner,
+            traffic_tracker,
+        }
     }
 }
 
@@ -237,7 +245,7 @@ where
     type Future = S::Future;
 
     fn call(&self, request: Request<'a>) -> Self::Future {
-        self.timeout.reset();
+        self.traffic_tracker.reset();
         self.inner.call(request)
     }
 }
@@ -311,12 +319,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn shutdown_timeout_basics() {
-        let shutdown_timeout = ShutdownTimeout::default();
+    async fn traffic_tracker_basics() {
+        let traffic_tracker = TrafficTracker::default();
         let now = Instant::now();
-        let wait = shutdown_timeout.clone().wait(Duration::from_millis(10));
+        let wait = traffic_tracker
+            .clone()
+            .wait_for_no_requests(Duration::from_millis(10));
         tokio::time::sleep(Duration::from_millis(5)).await;
-        shutdown_timeout.reset();
+        traffic_tracker.reset();
         wait.await;
 
         let elapsed = now.elapsed();

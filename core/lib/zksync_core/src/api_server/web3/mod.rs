@@ -26,7 +26,7 @@ use zksync_web3_decl::{
 
 use self::{
     backend_jsonrpsee::{
-        LimitMiddleware, MetadataMiddleware, MethodTracer, ShutdownMiddleware, ShutdownTimeout,
+        LimitMiddleware, MetadataMiddleware, MethodTracer, ShutdownMiddleware, TrafficTracker,
     },
     metrics::API_METRICS,
     namespaces::{
@@ -57,7 +57,12 @@ pub(crate) mod tests;
 /// Timeout for graceful shutdown logic within API servers.
 const GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(5);
 
+/// Interval to wait for the traffic to be stopped to the API server (e.g., by a load balancer) before
+/// the server will cease processing any further traffic. If this interval is exceeded, the server will start
+/// shutting down anyway.
 const NO_REQUESTS_WAIT_TIMEOUT: Duration = Duration::from_secs(30);
+/// Time interval with no requests sent to the API server to declare that traffic to the server is ceased,
+/// and start gracefully shutting down the server.
 const SHUTDOWN_INTERVAL_WITHOUT_REQUESTS: Duration = Duration::from_millis(500);
 
 /// Represents all kinds of `Filter`.
@@ -565,11 +570,11 @@ impl ApiServer {
             .flatten()
             .unwrap_or(5_000);
 
-        let shutdown_timeout = ShutdownTimeout::default();
-        let shutdown_timeout_for_middleware = shutdown_timeout.clone();
+        let traffic_tracker = TrafficTracker::default();
+        let traffic_tracker_for_middleware = traffic_tracker.clone();
         let rpc_middleware = RpcServiceBuilder::new()
             .layer_fn(move |svc| {
-                ShutdownMiddleware::new(svc, shutdown_timeout_for_middleware.clone())
+                ShutdownMiddleware::new(svc, traffic_tracker_for_middleware.clone())
             })
             .layer_fn(move |svc| {
                 MetadataMiddleware::new(svc, registered_method_names.clone(), method_tracer.clone())
@@ -643,7 +648,7 @@ impl ApiServer {
             // which is fairly short.
             let wait_result = tokio::time::timeout(
                 NO_REQUESTS_WAIT_TIMEOUT,
-                shutdown_timeout.wait(SHUTDOWN_INTERVAL_WITHOUT_REQUESTS),
+                traffic_tracker.wait_for_no_requests(SHUTDOWN_INTERVAL_WITHOUT_REQUESTS),
             )
             .await;
 
