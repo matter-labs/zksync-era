@@ -15,12 +15,11 @@ use crate::{
         tests::{
             tester::{get_empty_storage, DeployContractsTx, TxType, VmTesterBuilder},
             utils::{
-                get_balance, hash_evm_bytecode, load_precompiles_contract,
-                read_precompiles_contract, read_test_contract, read_test_evm_bytecode,
-                verify_required_storage,
+                get_balance, load_precompiles_contract, read_precompiles_contract,
+                read_test_contract, read_test_evm_bytecode, verify_required_storage,
             },
         },
-        utils::fee::get_batch_base_fee,
+        utils::{fee::get_batch_base_fee, hash_evm_bytecode},
         HistoryEnabled,
     },
 };

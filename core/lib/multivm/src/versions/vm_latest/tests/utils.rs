@@ -159,19 +159,3 @@ pub(crate) fn load_test_evm_contract(folder_name: &str, contract_name: &str) -> 
         "etc/evm-contracts-test-data/artifacts/contracts/{folder_name}/{contract_name}.sol/{contract_name}.json",
     ))
 }
-
-pub(crate) fn hash_evm_bytecode(bytecode: &[u8]) -> H256 {
-    use sha2::{Digest, Sha256};
-    let mut hasher = Sha256::new();
-    let len = bytecode.len() as u16;
-    hasher.update(bytecode);
-    let result = hasher.finalize();
-
-    let mut output = [0u8; 32];
-    output[..].copy_from_slice(&result.as_slice());
-    output[0] = BlobSha256Format::VERSION_BYTE;
-    output[1] = 0;
-    output[2..4].copy_from_slice(&len.to_be_bytes());
-
-    H256(output)
-}

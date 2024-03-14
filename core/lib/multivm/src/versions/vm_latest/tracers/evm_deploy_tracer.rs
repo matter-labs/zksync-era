@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics};
 use zk_evm_1_5_0::{
     aux_structures::Timestamp,
-    tracing::{BeforeExecutionData, VmLocalStateData},
+    tracing::{BeforeExecutionData, Tracer, VmLocalStateData},
     vm_state::VmLocalState,
     zkevm_opcode_defs::{
         system_params::L1_MESSAGE_PUBDATA_BYTES, FatPointer,
@@ -19,7 +19,9 @@ use zksync_types::{
     l2_to_l1_log::L2ToL1Log,
     L1BatchNumber, CONTRACT_DEPLOYER_ADDRESS, H256, KNOWN_CODES_STORAGE_ADDRESS, U256,
 };
-use zksync_utils::{bytecode::bytecode_len_in_bytes, ceil_div_u256, u256_to_h256};
+use zksync_utils::{
+    bytecode::bytecode_len_in_bytes, bytes_to_be_words, ceil_div_u256, h256_to_u256, u256_to_h256,
+};
 
 use super::utils::read_pointer;
 use crate::{
@@ -36,20 +38,28 @@ use crate::{
             utils::{get_vm_hook_params, VmHook},
         },
         types::internals::ZkSyncVmState,
-        utils::fee::get_batch_base_fee,
+        utils::{fee::get_batch_base_fee, hash_evm_bytecode},
     },
 };
 
 /// Tracer responsible for collecting information about EVM deploys and providing those
 /// to the code decommitter.
 #[derive(Debug, Clone)]
-pub(crate) struct EvmDeployTracer {}
+pub(crate) struct EvmDeployTracer<S> {
+    _phantom: PhantomData<S>,
+}
 
-impl EvmDeployTracer {}
+impl<S> EvmDeployTracer<S> {
+    pub(crate) fn new() -> Self {
+        Self {
+            _phantom: PhantomData,
+        }
+    }
+}
 
-impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for EvmDeployTracer {}
+impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for EvmDeployTracer<S> {}
 
-impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for EvmDeployTracer {
+impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for EvmDeployTracer<S> {
     fn finish_cycle(
         &mut self,
         state: &mut ZkSyncVmState<S, H>,
@@ -80,10 +90,27 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for EvmDeployTracer {
 
         let contract = known_code_storage_contract();
 
+        if data.len() < 4 {
+            // Not interested
+            return TracerExecutionStatus::Continue;
+        }
+
+        let (signature, data) = data.split_at(4);
+
+        if signature
+            != contract
+                .function("publishEVMBytecode")
+                .unwrap()
+                .short_signature()
+        {
+            // Not interested
+            return TracerExecutionStatus::Continue;
+        }
+
         let Ok(call_params) = contract
             .function("publishEVMBytecode")
             .unwrap()
-            .decode_input(&data)
+            .decode_input(data)
         else {
             // Not interested
             return TracerExecutionStatus::Continue;
@@ -91,57 +118,14 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for EvmDeployTracer {
 
         let published_bytecode = call_params[0].clone().into_bytes().unwrap();
 
-        // let bytecode_hash =
+        let hash = hash_evm_bytecode(&published_bytecode);
+        let as_words = bytes_to_be_words(published_bytecode);
 
-        state
-            .decommittment_processor
-            .populate(vec![], Timestamp(state.local_state.timestamp));
+        state.decommittment_processor.populate(
+            vec![(h256_to_u256(hash), as_words)],
+            Timestamp(state.local_state.timestamp),
+        );
 
         TracerExecutionStatus::Continue
     }
-}
-
-/// Returns the given transactions' gas limit - by reading it directly from the VM memory.
-pub(crate) fn pubdata_published<S: WriteStorage, H: HistoryMode>(
-    state: &ZkSyncVmState<S, H>,
-    storage_writes_pubdata_published: u32,
-    from_timestamp: Timestamp,
-    batch_number: L1BatchNumber,
-) -> u32 {
-    let (raw_events, l1_messages) = state
-        .event_sink
-        .get_events_and_l2_l1_logs_after_timestamp(from_timestamp);
-    let events: Vec<_> = merge_events(raw_events)
-        .into_iter()
-        .map(|e| e.into_vm_event(batch_number))
-        .collect();
-    // For the first transaction in L1 batch there may be (it depends on the execution mode) an L2->L1 log
-    // that is sent by `SystemContext` in `setNewBlock`. It's a part of the L1 batch pubdata overhead and not the transaction itself.
-    let l2_l1_logs_bytes = (l1_messages
-        .into_iter()
-        .map(|log| L2ToL1Log {
-            shard_id: log.shard_id,
-            is_service: log.is_first,
-            tx_number_in_block: log.tx_number_in_block,
-            sender: log.address,
-            key: u256_to_h256(log.key),
-            value: u256_to_h256(log.value),
-        })
-        .filter(|log| log.sender != SYSTEM_CONTEXT_ADDRESS)
-        .count() as u32)
-        * L1_MESSAGE_PUBDATA_BYTES;
-    let l2_l1_long_messages_bytes: u32 = extract_long_l2_to_l1_messages(&events)
-        .iter()
-        .map(|event| event.len() as u32)
-        .sum();
-
-    let published_bytecode_bytes: u32 = extract_published_bytecodes(&events)
-        .iter()
-        .map(|bytecodehash| bytecode_len_in_bytes(*bytecodehash) as u32 + PUBLISH_BYTECODE_OVERHEAD)
-        .sum();
-
-    storage_writes_pubdata_published
-        + l2_l1_logs_bytes
-        + l2_l1_long_messages_bytes
-        + published_bytecode_bytes
 }

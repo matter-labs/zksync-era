@@ -3,7 +3,7 @@ use std::{
     str::FromStr,
 };
 
-use ethabi::{Contract, Token};
+use ethabi::{encode, Contract, Token};
 use itertools::Itertools;
 // FIXME: 1.4.1 should not be imported from 1.5.0
 use zk_evm_1_4_1::sha2::{self};
@@ -13,6 +13,7 @@ use zksync_state::{InMemoryStorage, StorageView};
 use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_types::{
     get_address_mapping_key, get_code_key, get_deployer_key, get_evm_code_hash_key,
+    get_known_code_key,
     utils::{deployed_address_evm_create, deployed_address_evm_create2},
     web3::signing::keccak256,
     AccountTreeId, Address, Execute, StorageKey, H256, U256,
@@ -29,13 +30,13 @@ use crate::{
         tests::{
             tester::{DeployContractsTx, TxType, VmTesterBuilder},
             utils::{
-                get_balance, hash_evm_bytecode, key_for_evm_hash, load_test_evm_contract,
-                read_erc20_contract, read_test_contract, read_test_evm_bytecode,
-                read_test_evm_simulator, verify_required_storage,
+                get_balance, key_for_evm_hash, load_test_evm_contract, read_erc20_contract,
+                read_test_contract, read_test_evm_bytecode, read_test_evm_simulator,
+                verify_required_storage,
             },
         },
         tracers::evm_debug_tracer::EvmDebugTracer,
-        utils::fee::get_batch_base_fee,
+        utils::{fee::get_batch_base_fee, hash_evm_bytecode},
         HistoryEnabled, ToTracerPointer, TracerDispatcher, TracerPointer,
     },
     vm_m5::storage::Storage,
@@ -48,40 +49,62 @@ fn insert_evm_contract(storage: &mut InMemoryStorage, mut bytecode: Vec<u8>) -> 
         bytecode.push(0);
     }
 
-    let blob_hash = hash_evm_bytecode(&bytecode);
-    assert!(BlobSha256Format::is_valid(&blob_hash.0));
     let evm_hash = H256(keccak256(&bytecode));
+
+    let padded_bytecode = {
+        let mut padded_bytecode: Vec<u8> = vec![];
+
+        let encoded_length = encode(&[Token::Uint(U256::from(bytecode.len()))]);
+
+        padded_bytecode.extend(encoded_length);
+        padded_bytecode.extend(bytecode.clone());
+
+        while padded_bytecode.len() % 64 != 32 {
+            padded_bytecode.push(0);
+        }
+
+        padded_bytecode
+    };
+    let blob_hash: H256 = hash_evm_bytecode(&padded_bytecode);
+
+    assert!(BlobSha256Format::is_valid(&blob_hash.0));
 
     // Just some address in user space
     let test_address = Address::from_str("0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7").unwrap();
 
-    let code_key = get_address_mapping_key(&test_address, u256_to_h256(2.into()));
-    let code_content_key = H256(keccak256(code_key.as_bytes()));
+    // let code_key = get_address_mapping_key(&test_address, u256_to_h256(2.into()));
+    // let code_content_key = H256(keccak256(code_key.as_bytes()));
 
     // *2 + 1 is hte requiremnt for solidity storage layout when length > 31
-    storage.set_value(
-        get_deployer_key(code_key),
-        u256_to_h256((bytecode.len() * 2 + 1).into()),
-    );
+    // storage.set_value(
+    //     get_deployer_key(code_key),
+    //     u256_to_h256((bytecode.len() * 2 + 1).into()),
+    // );
 
-    bytes_to_be_words(bytecode)
-        .into_iter()
-        .enumerate()
-        .for_each(|(i, chunk)| {
-            let key = h256_to_u256(code_content_key);
-            storage.set_value(
-                StorageKey::new(
-                    AccountTreeId::new(CONTRACT_DEPLOYER_ADDRESS),
-                    u256_to_h256(key + U256::from(i)),
-                ),
-                u256_to_h256(chunk),
-            );
-        });
+    // bytes_to_be_words(bytecode)
+    //     .into_iter()
+    //     .enumerate()
+    //     .for_each(|(i, chunk)| {
+    //         let key = h256_to_u256(code_content_key);
+    //         storage.set_value(
+    //             StorageKey::new(
+    //                 AccountTreeId::new(CONTRACT_DEPLOYER_ADDRESS),
+    //                 u256_to_h256(key + U256::from(i)),
+    //             ),
+    //             u256_to_h256(chunk),
+    //         );
+    //     });
 
     let evm_code_hash_key = get_evm_code_hash_key(&test_address);
 
     storage.set_value(get_code_key(&test_address), blob_hash);
+    storage.set_value(get_known_code_key(&blob_hash), u256_to_h256(U256::one()));
+
     storage.set_value(evm_code_hash_key, evm_hash);
+
+    storage.store_factory_dep(blob_hash, padded_bytecode);
+
+    // Marking bytecode as known
 
     test_address
 }
