@@ -91,21 +91,47 @@ impl ConsensusDal<'_, '_> {
         Ok(())
     }
 
+    /// Fetches the range of miniblocks present in storage.
+    /// If storage was recovered from snapshot, the range doesn't need to start at 0.
+    pub async fn block_range(&mut self) -> anyhow::Result<std::ops::Range<validator::BlockNumber>> {
+        let mut txn = self
+            .storage
+            .start_transaction()
+            .await
+            .context("start_transaction")?;
+        let snapshot = txn
+            .snapshot_recovery_dal()
+            .get_applied_snapshot_status()
+            .await
+            .context("get_applied_snapshot_status()")?;
+        let start = validator::BlockNumber(snapshot.map_or(0, |s| s.miniblock_number.0).into());
+        let end = txn
+            .blocks_dal()
+            .get_sealed_miniblock_number()
+            .await
+            .context("get_sealed_miniblock_number")?
+            .map_or(start, |last| validator::BlockNumber(last.0.into()).next());
+        Ok(std::ops::Range { start, end })
+    }
+
     /// [Main node only] creates a new consensus fork starting at
     /// the last sealed miniblock. Resets the state of the consensus
     /// by calling `try_update_genesis()`.
     pub async fn fork(&mut self) -> anyhow::Result<()> {
-        let mut txn = self.storage.start_transaction().await?;
-        let Some(old) = txn.consensus_dal().genesis().await? else {
+        let mut txn = self
+            .storage
+            .start_transaction()
+            .await
+            .context("start_transaction")?;
+        let Some(old) = txn.consensus_dal().genesis().await.context("genesis()")? else {
             return Ok(());
         };
-        let last = txn
-            .blocks_dal()
-            .get_sealed_miniblock_number()
-            .await?
-            .context("forking without any blocks in storage is not supported yet")?;
-        let first_block = validator::BlockNumber(last.0.into());
-
+        let first_block = txn
+            .consensus_dal()
+            .block_range()
+            .await
+            .context("get_block_range()")?
+            .end;
         let new = validator::Genesis {
             validators: old.validators,
             fork: validator::Fork {
@@ -152,6 +178,30 @@ impl ConsensusDal<'_, '_> {
         .execute(self.storage.conn())
         .await?;
         Ok(())
+    }
+
+    /// Fetches the first consensus certificate.
+    /// It might NOT be the certificate for the first miniblock:
+    /// see `validator::Genesis.first_block`.
+    pub async fn first_certificate(&mut self) -> anyhow::Result<Option<validator::CommitQC>> {
+        let Some(row) = sqlx::query!(
+            r#"
+            SELECT
+                certificate
+            FROM
+                miniblocks_consensus
+            ORDER BY
+                number ASC
+            LIMIT
+                1
+            "#
+        )
+        .fetch_optional(self.storage.conn())
+        .await?
+        else {
+            return Ok(None);
+        };
+        Ok(Some(zksync_protobuf::serde::deserialize(row.certificate)?))
     }
 
     /// Fetches the last consensus certificate.

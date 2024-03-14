@@ -4,7 +4,6 @@ use zksync_concurrency::{ctx, error::Wrap as _, time};
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage as storage;
 use zksync_consensus_storage::PersistentBlockStore as _;
-use zksync_dal::consensus_dal::Payload;
 
 use super::Store;
 
@@ -16,20 +15,18 @@ impl Store {
         number: validator::BlockNumber,
     ) -> ctx::Result<()> {
         const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(100);
-        loop {
-            if self
-                .access(ctx)
-                .await
-                .wrap("access()")?
-                .certificate(ctx, number)
-                .await
-                .wrap("certificate()")?
-                .is_some()
-            {
-                return Ok(());
-            }
+        while self
+            .access(ctx)
+            .await
+            .wrap("access()")?
+            .certificate(ctx, number)
+            .await
+            .wrap("certificate()")?
+            .is_none()
+        {
             ctx.sleep(POLL_INTERVAL).await?;
         }
+        Ok(())
     }
 
     /// Waits for `want_last` block to have certificate, then fetches all miniblocks with certificates

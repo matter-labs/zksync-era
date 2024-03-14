@@ -31,11 +31,10 @@ async fn test_validator_block_store() {
         let (mut sk, runner) = testonly::StateKeeper::new(ctx, store.clone()).await?;
         s.spawn_bg(runner.run(ctx));
         sk.push_random_blocks(rng, 10).await;
-        store.wait_for_block(ctx, sk.last_block()).await?;
+        store.wait_for_payload(ctx, sk.last_block()).await?;
         let fork = validator::Fork {
             number: validator::ForkNumber(rng.gen()),
             first_block: validator::BlockNumber(4),
-            first_parent: None,
         };
         let mut setup = Setup::new_with_fork(rng, 3, fork.clone());
         let mut conn = store.access(ctx).await.wrap("access()")?;
@@ -89,41 +88,38 @@ async fn test_validator() {
     let cfgs = new_configs(rng, &setup, 0);
 
     scope::run!(ctx, |ctx, s| async {
-        // Start state keeper.
+        tracing::info!("Start state keeper.");
         let store = testonly::new_store(false).await;
         let (mut sk, runner) = testonly::StateKeeper::new(ctx, store.clone()).await?;
         s.spawn_bg(runner.run(ctx));
 
-        // Populate storage with a bunch of blocks.
+        tracing::info!("Populate storage with a bunch of blocks.");
         sk.push_random_blocks(rng, 5).await;
         store
-            .wait_for_block(ctx, sk.last_block())
+            .wait_for_payload(ctx, sk.last_block())
             .await
             .context("sk.wait_for_miniblocks(<1st phase>)")?;
 
-        // Restart consensus actor a couple times, making it process a bunch of blocks each time.
+        tracing::info!("Restart consensus actor a couple times, making it process a bunch of blocks each time.");
         for iteration in 0..3 {
+            tracing::info!("iteration {iteration}");
             scope::run!(ctx, |ctx, s| async {
-                // Start consensus actor (in the first iteration it will select a genesis block and
-                // store a cert for it).
+                tracing::info!("Start consensus actor");
+                // In the first iteration it will initialize genesis.
                 let cfg = MainNodeConfig {
                     executor: executor_config(&cfgs[0]),
                     validator_key: setup.keys[0].clone(),
                 };
                 s.spawn_bg(cfg.run(ctx, store.clone()));
-                store
-                    .wait_for_certificate(ctx, sk.last_block())
-                    .await
-                    .context("wait_for_certificate(<1st phase>)")?;
 
-                // Generate couple more blocks and wait for consensus to catch up.
+                tracing::info!("Generate couple more blocks and wait for consensus to catch up.");
                 sk.push_random_blocks(rng, 3).await;
                 store
                     .wait_for_certificate(ctx, sk.last_block())
                     .await
                     .context("wait_for_certificate(<2nd phase>)")?;
 
-                // Synchronously produce blocks one by one, and wait for consensus.
+                tracing::info!("Synchronously produce blocks one by one, and wait for consensus.");
                 for _ in 0..2 {
                     sk.push_random_blocks(rng, 1).await;
                     store
@@ -132,6 +128,7 @@ async fn test_validator() {
                         .context("wait_for_certificate(<3rd phase>)")?;
                 }
 
+                tracing::info!("Verify all certificates");
                 store
                     .wait_for_certificates_and_verify(ctx, sk.last_block())
                     .await
@@ -185,7 +182,7 @@ async fn test_full_nodes() {
         // Generate a couple of blocks, before initializing consensus genesis.
         validator.push_random_blocks(rng, 5).await;
         validator_store
-            .wait_for_block(ctx, validator.last_block())
+            .wait_for_payload(ctx, validator.last_block())
             .await
             .unwrap();
 
@@ -287,7 +284,7 @@ async fn test_p2p_fetcher_backfill_certs() {
             s.spawn_bg(node.run_centralized_fetcher(ctx, client.clone()));
             validator.push_random_blocks(rng, 3).await;
             node_store
-                .wait_for_block(ctx, validator.last_block())
+                .wait_for_payload(ctx, validator.last_block())
                 .await?;
             Ok(())
         })
@@ -344,10 +341,10 @@ async fn test_centralized_fetcher(from_snapshot: bool) {
         tracing::info!("Produce some blocks and wait for node to fetch them");
         validator.push_random_blocks(rng, 10).await;
         let want = validator_store
-            .wait_for_block(ctx, validator.last_block())
+            .wait_for_payload(ctx, validator.last_block())
             .await?;
         let got = node_store
-            .wait_for_block(ctx, validator.last_block())
+            .wait_for_payload(ctx, validator.last_block())
             .await?;
         assert_eq!(want, got);
         Ok(())
@@ -376,14 +373,14 @@ impl RandomConfig for Config {
             max_payload_size: g.gen(),
             gossip_dynamic_inbound_limit: g.gen(),
             gossip_static_inbound: g
-                .gen::<Vec<Random<node::SecretKey>>>()
+                .gen::<Vec<Random<node::PublicKey>>>()
                 .into_iter()
-                .map(|x| x.0.public())
+                .map(|x| x.0)
                 .collect(),
             gossip_static_outbound: g
-                .gen::<Vec<Random<node::SecretKey>>>()
+                .gen::<Vec<Random<node::PublicKey>>>()
                 .into_iter()
-                .map(|x| (x.0.public(), g.gen()))
+                .map(|x| (x.0, g.gen()))
                 .collect(),
         }
     }
