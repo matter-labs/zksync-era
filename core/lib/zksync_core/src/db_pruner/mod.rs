@@ -1,3 +1,4 @@
+mod metrics;
 pub mod prune_conditions;
 
 use std::{fmt, sync::Arc, time::Duration};
@@ -6,6 +7,8 @@ use async_trait::async_trait;
 use tokio::sync::watch;
 use zksync_dal::ConnectionPool;
 use zksync_types::L1BatchNumber;
+
+use crate::db_pruner::metrics::{MetricPruneType, METRICS};
 
 #[derive(Debug)]
 pub struct DbPrunerConfig {
@@ -60,7 +63,7 @@ impl DbPruner {
                 Err(error) => {
                     errored_conditions.push(condition.name());
                     tracing::warn!(
-                        "Pruning condition for component {}, error was: {error}",
+                        "Pruning condition for component {} resulted in an error: {error}",
                         condition.name()
                     )
                 }
@@ -68,7 +71,7 @@ impl DbPruner {
         }
         let result = failed_conditions.is_empty() && errored_conditions.is_empty();
         if !result {
-            tracing::warn!(
+            tracing::info!(
                 "Pruning l1 batch {l1_batch_number} is not possible, \
             successful checks: {successful_conditions:?}, \
             failed conditions: {failed_conditions:?}, \
@@ -78,47 +81,72 @@ impl DbPruner {
         result
     }
 
-    pub async fn run_single_iteration(&self, pool: &ConnectionPool) -> anyhow::Result<()> {
+    async fn update_l1_batches_metric(&self, pool: &ConnectionPool) -> anyhow::Result<()> {
         let mut storage = pool.access_storage().await.unwrap();
-        let mut transaction = storage.start_transaction().await.unwrap();
-
-        let mut current_pruning_info = transaction.pruning_dal().get_pruning_info().await.unwrap();
-
-        if current_pruning_info.last_soft_pruned_l1_batch
-            == current_pruning_info.last_hard_pruned_l1_batch
-        {
-            let next_l1_batch_to_prune = L1BatchNumber(
-                current_pruning_info
-                    .last_soft_pruned_l1_batch
-                    .unwrap_or(L1BatchNumber(0))
-                    .0
-                    + self.config.pruned_chunk_size,
-            );
-            if !self.is_l1_batch_pruneable(next_l1_batch_to_prune).await {
-                return Ok(());
-            }
-
-            let next_miniblock_to_prune = transaction
-                .blocks_dal()
-                .get_miniblock_range_of_l1_batch(next_l1_batch_to_prune)
-                .await?
-                .unwrap()
-                .1;
-            transaction
-                .pruning_dal()
-                .soft_prune_batches_range(next_l1_batch_to_prune, next_miniblock_to_prune)
-                .await?;
-
-            current_pruning_info = transaction.pruning_dal().get_pruning_info().await?;
-            tracing::info!(
-                "Soft pruned db l1_batches up to {} and miniblocks up to {}",
-                current_pruning_info.last_soft_pruned_l1_batch.unwrap(),
-                current_pruning_info.last_soft_pruned_miniblock.unwrap()
-            );
-
-            tokio::time::sleep(self.config.soft_and_hard_pruning_time_delta).await;
+        let first_l1_batch = storage.blocks_dal().get_earliest_l1_batch_number().await?;
+        let last_l1_batch = storage.blocks_dal().get_sealed_l1_batch_number().await?;
+        if first_l1_batch.is_none() {
+            METRICS.not_pruned_l1_batches_count.set(0);
+            return Ok(());
         }
 
+        METRICS
+            .not_pruned_l1_batches_count
+            .set((last_l1_batch.unwrap().0 - first_l1_batch.unwrap().0) as u64);
+        Ok(())
+    }
+
+    async fn soft_prune(&self, pool: &ConnectionPool) -> anyhow::Result<bool> {
+        let latency = METRICS.pruning_chunk_duration[&MetricPruneType::Soft].start();
+
+        let mut storage = pool.access_storage().await?;
+        let mut transaction = storage.start_transaction().await?;
+
+        let current_pruning_info = transaction.pruning_dal().get_pruning_info().await?;
+
+        let next_l1_batch_to_prune = L1BatchNumber(
+            current_pruning_info
+                .last_soft_pruned_l1_batch
+                .unwrap_or(L1BatchNumber(0))
+                .0
+                + self.config.pruned_chunk_size,
+        );
+        if !self.is_l1_batch_pruneable(next_l1_batch_to_prune).await {
+            latency.observe();
+            return Ok(false);
+        }
+
+        let next_miniblock_to_prune = transaction
+            .blocks_dal()
+            .get_miniblock_range_of_l1_batch(next_l1_batch_to_prune)
+            .await?
+            .unwrap()
+            .1;
+        transaction
+            .pruning_dal()
+            .soft_prune_batches_range(next_l1_batch_to_prune, next_miniblock_to_prune)
+            .await?;
+
+        transaction.commit().await?;
+
+        let latency = latency.observe();
+        tracing::info!(
+            "Soft pruned db l1_batches up to {} and miniblocks up to {}, operation took {:?}",
+            next_l1_batch_to_prune,
+            next_miniblock_to_prune,
+            latency
+        );
+
+        return Ok(true);
+    }
+
+    async fn hard_prune(&self, pool: &ConnectionPool) -> anyhow::Result<()> {
+        let latency = METRICS.pruning_chunk_duration[&MetricPruneType::Hard].start();
+
+        let mut storage = pool.access_storage().await?;
+        let mut transaction = storage.start_transaction().await?;
+
+        let current_pruning_info = transaction.pruning_dal().get_pruning_info().await?;
         transaction
             .pruning_dal()
             .hard_prune_batches_range(
@@ -127,11 +155,36 @@ impl DbPruner {
             )
             .await?;
 
+        transaction.commit().await?;
+
+        let latency = latency.observe();
         tracing::info!(
-            "Hard pruned db l1_batches up to {} and miniblocks up to {}",
+            "Hard pruned db l1_batches up to {} and miniblocks up to {}, operation took {:?}",
             current_pruning_info.last_soft_pruned_l1_batch.unwrap(),
-            current_pruning_info.last_soft_pruned_miniblock.unwrap()
+            current_pruning_info.last_soft_pruned_miniblock.unwrap(),
+            latency
         );
+
+        Ok(())
+    }
+
+    pub async fn run_single_iteration(&self, pool: &ConnectionPool) -> anyhow::Result<()> {
+        let mut storage = pool.access_storage().await?;
+
+        let mut current_pruning_info = storage.pruning_dal().get_pruning_info().await?;
+
+        if current_pruning_info.last_soft_pruned_l1_batch
+            == current_pruning_info.last_hard_pruned_l1_batch
+        {
+            let pruning_done = self.soft_prune(&pool).await?;
+            if !pruning_done {
+                return Ok(());
+            }
+
+            tokio::time::sleep(self.config.soft_and_hard_pruning_time_delta).await;
+        }
+
+        self.hard_prune(&pool).await?;
 
         Ok(())
     }
@@ -142,8 +195,10 @@ impl DbPruner {
     ) -> anyhow::Result<()> {
         loop {
             if *stop_receiver.borrow() {
-                tracing::warn!("Stop signal received, shutting down DbPruner");
+                tracing::info!("Stop signal received, shutting down DbPruner");
             }
+            let _ = self.update_l1_batches_metric(&pool).await;
+            // as this component is not really mission-critical, all errors are generally ignored
             let _ = self.run_single_iteration(&pool).await;
             tokio::time::sleep(self.config.next_iterations_delay).await;
         }

@@ -321,6 +321,22 @@ impl<'a> SnapshotsApplier<'a> {
             .await?;
         let mut storage_transaction = storage.start_transaction().await?;
 
+        if storage_transaction
+            .snapshot_recovery_dal()
+            .get_applied_snapshot_status()
+            .await
+            .map_err(|err| SnapshotsApplierError::db(err, "failed to check need of recovery"))?
+            .is_some()
+            && storage_transaction
+                .blocks_dal()
+                .get_sealed_miniblock_number()
+                .await
+                .map_err(|err| SnapshotsApplierError::db(err, "failed to check need of recovery"))?
+                .is_some()
+        {
+            return Ok(());
+        }
+
         let (applied_snapshot_status, created_from_scratch) =
             Self::prepare_applied_snapshot_status(&mut storage_transaction, main_node_client)
                 .await?;

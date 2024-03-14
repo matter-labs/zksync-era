@@ -262,31 +262,36 @@ async fn run_core(
         }
     }));
 
-    let db_pruner = DbPruner::new(
-        DbPrunerConfig {
-            soft_and_hard_pruning_time_delta: Duration::from_secs(60),
-            pruned_chunk_size: 3,
-            next_iterations_delay: Duration::from_secs(5),
-        },
-        vec![
-            Arc::new(L1BatchExistsCondition {
-                conn: connection_pool.clone(),
-            }),
-            Arc::new(NextL1BatchHasMetadataCondition {
-                conn: connection_pool.clone(),
-            }),
-            Arc::new(NextL1BatchWasExecutedCondition {
-                conn: connection_pool.clone(),
-            }),
-            Arc::new(L1BatchOlderThanPruneCondition {
-                minimal_age: Duration::from_secs(3600),
-                conn: connection_pool.clone(),
-            }),
-        ],
-    )?;
-    task_handles.push(tokio::spawn(
-        db_pruner.run_in_loop(connection_pool.clone(), stop_receiver.clone()),
-    ));
+    let pruning_enabled = config.optional.l1_batch_age_to_prune_hours.is_some();
+    if pruning_enabled {
+        let l1_batch_age_to_prune =
+            Duration::from_secs(3600 * config.optional.l1_batch_age_to_prune_hours.unwrap());
+        let db_pruner = DbPruner::new(
+            DbPrunerConfig {
+                soft_and_hard_pruning_time_delta: Duration::from_secs(60),
+                pruned_chunk_size: config.optional.pruning_chunk_size,
+                next_iterations_delay: Duration::from_secs(5),
+            },
+            vec![
+                Arc::new(L1BatchExistsCondition {
+                    conn: connection_pool.clone(),
+                }),
+                Arc::new(NextL1BatchHasMetadataCondition {
+                    conn: connection_pool.clone(),
+                }),
+                Arc::new(NextL1BatchWasExecutedCondition {
+                    conn: connection_pool.clone(),
+                }),
+                Arc::new(L1BatchOlderThanPruneCondition {
+                    minimal_age: l1_batch_age_to_prune,
+                    conn: connection_pool.clone(),
+                }),
+            ],
+        )?;
+        task_handles.push(tokio::spawn(
+            db_pruner.run_in_loop(connection_pool.clone(), stop_receiver.clone()),
+        ));
+    }
 
     let reorg_detector = ReorgDetector::new(main_node_client.clone(), connection_pool.clone());
     app_health.insert_component(reorg_detector.health_check().clone());

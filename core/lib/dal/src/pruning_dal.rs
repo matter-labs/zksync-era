@@ -15,6 +15,13 @@ pub struct PruningInfo {
     pub last_hard_pruned_miniblock: Option<MiniblockNumber>,
 }
 
+#[derive(Debug, sqlx::Type)]
+#[sqlx(type_name = "prune_type")]
+pub enum PruneType {
+    Soft,
+    Hard,
+}
+
 impl PruningDal<'_, '_> {
     pub async fn get_pruning_info(&mut self) -> sqlx::Result<PruningInfo> {
         let row = sqlx::query!(
@@ -87,6 +94,32 @@ impl PruningDal<'_, '_> {
         .report_latency()
         .execute(self.storage)
         .await?;
+
+        sqlx::query!(
+            r#"
+            INSERT INTO
+                pruning_log (
+                    pruned_l1_batch,
+                    pruned_miniblock,
+                    TYPE,
+                    created_at,
+                    updated_at
+                )
+            VALUES
+                ($1, $2, $3, NOW(), NOW())
+            "#,
+            last_l1_batch_to_prune.0 as i64,
+            last_miniblock_to_prune.0 as i64,
+            PruneType::Soft as PruneType,
+        )
+        .instrument("soft_prune_batches_range#insert_pruning_log")
+        .with_arg("last_l1_batch_to_prune", &last_l1_batch_to_prune)
+        .with_arg("last_miniblock_to_prune", &last_miniblock_to_prune)
+        .with_arg("prune_type", &PruneType::Soft)
+        .report_latency()
+        .execute(self.storage)
+        .await?;
+
         Ok(())
     }
 
@@ -167,10 +200,37 @@ impl PruningDal<'_, '_> {
 
         sqlx::query!(
             r#"
+            DELETE FROM call_traces USING (
+                SELECT
+                    *
+                FROM
+                    transactions
+                WHERE
+                    miniblock_number >= $1
+                    AND miniblock_number <= $2
+            ) AS matching_transactions
+            WHERE
+                matching_transactions.hash = call_traces.tx_hash
+            "#,
+            first_miniblock_to_prune.0 as i64,
+            last_miniblock_to_prune.0 as i64,
+        )
+        .instrument("hard_prune_batches_range#delete_call_traces")
+        .with_arg("first_miniblock_to_prune", &first_miniblock_to_prune)
+        .with_arg("last_miniblock_to_prune", &last_miniblock_to_prune)
+        .report_latency()
+        .execute(self.storage)
+        .await?;
+
+        sqlx::query!(
+            r#"
             UPDATE transactions
             SET
                 l1_batch_number = NULL,
-                miniblock_number = NULL
+                miniblock_number = NULL,
+                input = NULL,
+                data = NULL,
+                execution_info = NULL
             WHERE
                 miniblock_number >= $1
                 AND miniblock_number <= $2
@@ -287,6 +347,31 @@ impl PruningDal<'_, '_> {
         .instrument("hard_prune_batches_range#update_pruning_info")
         .with_arg("last_l1_batch_to_prune", &last_l1_batch_to_prune)
         .with_arg("last_miniblock_to_prune", &last_miniblock_to_prune)
+        .report_latency()
+        .execute(self.storage)
+        .await?;
+
+        sqlx::query!(
+            r#"
+            INSERT INTO
+                pruning_log (
+                    pruned_l1_batch,
+                    pruned_miniblock,
+                    TYPE,
+                    created_at,
+                    updated_at
+                )
+            VALUES
+                ($1, $2, $3, NOW(), NOW())
+            "#,
+            last_l1_batch_to_prune.0 as i64,
+            last_miniblock_to_prune.0 as i64,
+            PruneType::Hard as PruneType
+        )
+        .instrument("soft_prune_batches_range#insert_pruning_log")
+        .with_arg("last_l1_batch_to_prune", &last_l1_batch_to_prune)
+        .with_arg("last_miniblock_to_prune", &last_miniblock_to_prune)
+        .with_arg("prune_type", &PruneType::Hard)
         .report_latency()
         .execute(self.storage)
         .await?;
