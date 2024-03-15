@@ -6,7 +6,8 @@ sovereignty! We welcome contributions from anyone on the internet.
 Note, however, that all the contributions are subject to review, and not every contribution is guaranteed to be merged.
 It is highly advised to reach out to developers (for example, by creating an issue) before preparing a significant
 change in the codebase, and explicitly confirm that this contribution will be considered for merge. Otherwise, it is
-possible to discover that a feature you have spent some time on does not align with the core team vision.
+possible to discover that a feature you have spent some time on does not align with the core team vision or capacity to
+maintain a high quality of given submission long term.
 
 ## Ways to contribute
 
