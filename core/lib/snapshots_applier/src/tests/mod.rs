@@ -171,11 +171,13 @@ async fn applier_errors_with_unrecognized_snapshot_version() {
     let object_store_factory = ObjectStoreFactory::mock();
     let object_store = object_store_factory.create_store().await;
     let expected_status = mock_recovery_status();
-    let mut client = MockMainNodeClient::default();
-    client.fetch_newest_snapshot_response = Some(SnapshotHeader {
-        version: u16::MAX,
-        ..mock_snapshot_header(&expected_status)
-    });
+    let client = MockMainNodeClient {
+        fetch_newest_snapshot_response: Some(SnapshotHeader {
+            version: u16::MAX,
+            ..mock_snapshot_header(&expected_status)
+        }),
+        ..MockMainNodeClient::default()
+    };
 
     SnapshotsApplierConfig::for_tests()
         .run(&pool, &client, &object_store)

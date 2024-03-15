@@ -266,7 +266,7 @@ pub(super) async fn prepare_clients(
             .unwrap();
     }
 
-    client.fetch_newest_snapshot_response = Some(mock_snapshot_header(&status));
+    client.fetch_newest_snapshot_response = Some(mock_snapshot_header(status));
     client.fetch_l2_block_responses.insert(
         status.miniblock_number,
         miniblock_metadata(
