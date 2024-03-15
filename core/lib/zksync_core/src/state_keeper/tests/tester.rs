@@ -752,7 +752,6 @@ impl StateKeeperIO for TestIO {
 
         let params = L1BatchParams {
             protocol_version: self.protocol_version,
-            previous_batch_hash: H256::zero(),
             validation_computational_gas_limit: BLOCK_GAS_LIMIT,
             operator_address: self.fee_account,
             fee_input: self.fee_input,
@@ -856,6 +855,13 @@ impl StateKeeperIO for TestIO {
         version_id: ProtocolVersionId,
     ) -> anyhow::Result<Option<ProtocolUpgradeTx>> {
         Ok(self.protocol_upgrade_txs.get(&version_id).cloned())
+    }
+
+    async fn load_batch_state_hash(
+        &mut self,
+        _l1_batch_number: L1BatchNumber,
+    ) -> anyhow::Result<H256> {
+        Ok(H256::zero())
     }
 }
 

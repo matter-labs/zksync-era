@@ -111,7 +111,7 @@ impl ActionQueue {
 #[derive(Debug, Clone)]
 pub(crate) enum SyncAction {
     OpenBatch {
-        params: L1BatchParams<()>,
+        params: L1BatchParams,
         // Additional parameters used only for sanity checks
         number: L1BatchNumber,
         first_miniblock_number: MiniblockNumber,
@@ -147,7 +147,6 @@ mod tests {
         SyncAction::OpenBatch {
             params: L1BatchParams {
                 protocol_version: ProtocolVersionId::latest(),
-                previous_batch_hash: (),
                 validation_computational_gas_limit: u32::MAX,
                 operator_address: Address::default(),
                 fee_input: BatchFeeInput::default(),

@@ -400,18 +400,23 @@ async fn miniblock_processing_after_snapshot_recovery() {
         .insert_transaction_l2(tx.clone(), TransactionExecutionMetrics::default())
         .await;
 
+    let previous_batch_hash = mempool
+        .load_batch_state_hash(snapshot_recovery.l1_batch_number)
+        .await
+        .unwrap();
+    assert_eq!(previous_batch_hash, snapshot_recovery.l1_batch_root_hash);
+
     let l1_batch_params = mempool
         .wait_for_new_batch_params(&cursor, Duration::from_secs(10))
         .await
         .unwrap()
         .expect("no batch params generated");
-    assert_eq!(
-        l1_batch_params.previous_batch_hash,
-        snapshot_recovery.l1_batch_root_hash
+    let (system_env, l1_batch_env) = l1_batch_params.into_env(
+        L2ChainId::default(),
+        BASE_SYSTEM_CONTRACTS.clone(),
+        &cursor,
+        previous_batch_hash,
     );
-
-    let (system_env, l1_batch_env) =
-        l1_batch_params.into_env(L2ChainId::default(), BASE_SYSTEM_CONTRACTS.clone(), &cursor);
     let mut updates = UpdatesManager::new(&l1_batch_env, &system_env);
 
     let tx_hash = tx.hash();

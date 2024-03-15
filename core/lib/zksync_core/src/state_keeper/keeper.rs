@@ -329,7 +329,12 @@ impl ZkSyncStateKeeper {
                     params.protocol_version
                 )
             })?;
-        Ok(params.into_env(self.io.chain_id(), contracts, cursor))
+        let previous_batch_hash = self
+            .io
+            .load_batch_state_hash(cursor.l1_batch - 1)
+            .await
+            .context("cannot load state hash for previous L1 batch")?;
+        Ok(params.into_env(self.io.chain_id(), contracts, cursor, previous_batch_hash))
     }
 
     async fn wait_for_new_miniblock_params(

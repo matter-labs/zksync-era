@@ -184,13 +184,8 @@ impl StateKeeperIO for MempoolIO {
                 continue;
             }
 
-            // We only need to get the root hash when we're certain that we have a new transaction.
-            let previous_batch_hash = self
-                .wait_for_previous_l1_batch_hash(cursor.l1_batch)
-                .await?;
             return Ok(Some(L1BatchParams {
                 protocol_version,
-                previous_batch_hash,
                 validation_computational_gas_limit: self.validation_computational_gas_limit,
                 operator_address: self.fee_account,
                 fee_input: self.filter.fee_input,
@@ -329,6 +324,27 @@ impl StateKeeperIO for MempoolIO {
             .get_protocol_upgrade_tx(version_id)
             .await)
     }
+
+    async fn load_batch_state_hash(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> anyhow::Result<H256> {
+        tracing::trace!("Getting L1 batch hash for L1 batch #{l1_batch_number}");
+        let wait_latency = KEEPER_METRICS.wait_for_prev_hash_time.start();
+
+        let mut storage = self.pool.access_storage_tagged("state_keeper").await?;
+        let (batch_state_hash, _) = self
+            .l1_batch_params_provider
+            .wait_for_l1_batch_params(&mut storage, l1_batch_number)
+            .await
+            .with_context(|| format!("error waiting for params for L1 batch #{l1_batch_number}"))?;
+
+        wait_latency.observe();
+        tracing::trace!(
+            "Got L1 batch state hash: {batch_state_hash:?} for L1 batch #{l1_batch_number}"
+        );
+        Ok(batch_state_hash)
+    }
 }
 
 /// Sleeps until the current timestamp is larger than the provided `timestamp`.
@@ -419,30 +435,6 @@ impl MempoolIO {
             virtual_blocks_interval: config.virtual_blocks_interval,
             virtual_blocks_per_miniblock: config.virtual_blocks_per_miniblock,
         })
-    }
-
-    async fn wait_for_previous_l1_batch_hash(
-        &self,
-        l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<H256> {
-        tracing::trace!("Getting previous L1 batch hash for L1 batch #{l1_batch_number}");
-        let prev_l1_batch_number = l1_batch_number - 1;
-        let wait_latency = KEEPER_METRICS.wait_for_prev_hash_time.start();
-
-        let mut storage = self.pool.access_storage_tagged("state_keeper").await?;
-        let (batch_hash, _) = self
-            .l1_batch_params_provider
-            .wait_for_l1_batch_params(&mut storage, prev_l1_batch_number)
-            .await
-            .with_context(|| {
-                format!("error waiting for params for L1 batch #{prev_l1_batch_number}")
-            })?;
-
-        wait_latency.observe();
-        tracing::trace!(
-            "Got previous L1 batch hash: {batch_hash:?} for L1 batch #{l1_batch_number}"
-        );
-        Ok(batch_hash)
     }
 
     /// "virtual_blocks_per_miniblock" will be created either if the miniblock_number % virtual_blocks_interval == 0 or

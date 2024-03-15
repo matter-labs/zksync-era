@@ -149,7 +149,6 @@ impl IoCursor {
             new_actions.push(SyncAction::OpenBatch {
                 params: L1BatchParams {
                     protocol_version: block.protocol_version,
-                    previous_batch_hash: (),
                     validation_computational_gas_limit: super::VALIDATION_COMPUTATIONAL_GAS_LIMIT,
                     operator_address: block.operator_address,
                     fee_input: BatchFeeInput::for_protocol_version(

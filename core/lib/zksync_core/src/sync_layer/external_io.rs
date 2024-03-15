@@ -68,25 +68,6 @@ impl ExternalIO {
         })
     }
 
-    async fn wait_for_previous_l1_batch_hash(
-        &self,
-        l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<H256> {
-        tracing::info!("Getting previous L1 batch hash for L1 batch #{l1_batch_number}");
-        let prev_l1_batch_number = l1_batch_number - 1;
-        let mut storage = self.pool.access_storage_tagged("sync_layer").await?;
-        let wait_latency = KEEPER_METRICS.wait_for_prev_hash_time.start();
-        let (hash, _) = self
-            .l1_batch_params_provider
-            .wait_for_l1_batch_params(&mut storage, prev_l1_batch_number)
-            .await
-            .with_context(|| {
-                format!("error waiting for params for L1 batch #{prev_l1_batch_number}")
-            })?;
-        wait_latency.observe();
-        Ok(hash)
-    }
-
     async fn get_base_system_contract(
         &self,
         hash: H256,
@@ -260,16 +241,7 @@ impl StateKeeperIO for ExternalIO {
                         "Miniblock number mismatch: expected {}, got {first_miniblock_number}",
                         cursor.next_miniblock
                     );
-
-                    let previous_batch_hash = self
-                        .wait_for_previous_l1_batch_hash(cursor.l1_batch)
-                        .await?;
-                    tracing::info!(
-                        "Previous L1 batch hash: {previous_batch_hash:?}, previous miniblock hash: {:?}",
-                        cursor.prev_miniblock_hash
-                    );
-
-                    return Ok(Some(params.with_previous_batch_hash(previous_batch_hash)));
+                    return Ok(Some(params));
                 }
                 Some(other) => {
                     anyhow::bail!("unexpected action in the action queue: {other:?}");
@@ -439,5 +411,21 @@ impl StateKeeperIO for ExternalIO {
     ) -> anyhow::Result<Option<ProtocolUpgradeTx>> {
         // External node will fetch upgrade tx from the main node
         Ok(None)
+    }
+
+    async fn load_batch_state_hash(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> anyhow::Result<H256> {
+        tracing::info!("Getting L1 batch hash for L1 batch #{l1_batch_number}");
+        let mut storage = self.pool.access_storage_tagged("sync_layer").await?;
+        let wait_latency = KEEPER_METRICS.wait_for_prev_hash_time.start();
+        let (hash, _) = self
+            .l1_batch_params_provider
+            .wait_for_l1_batch_params(&mut storage, l1_batch_number)
+            .await
+            .with_context(|| format!("error waiting for params for L1 batch #{l1_batch_number}"))?;
+        wait_latency.observe();
+        Ok(hash)
     }
 }

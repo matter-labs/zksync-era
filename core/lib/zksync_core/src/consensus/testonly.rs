@@ -244,7 +244,6 @@ impl StateKeeper {
             SyncAction::OpenBatch {
                 params: L1BatchParams {
                     protocol_version: ProtocolVersionId::latest(),
-                    previous_batch_hash: (),
                     validation_computational_gas_limit: u32::MAX,
                     operator_address: GenesisParams::mock().first_validator,
                     fee_input: Default::default(),

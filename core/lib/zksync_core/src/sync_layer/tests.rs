@@ -35,7 +35,6 @@ fn open_l1_batch(number: u32, timestamp: u64, first_miniblock_number: u32) -> Sy
     SyncAction::OpenBatch {
         params: L1BatchParams {
             protocol_version: ProtocolVersionId::latest(),
-            previous_batch_hash: (),
             validation_computational_gas_limit: u32::MAX,
             operator_address: OPERATOR_ADDRESS,
             fee_input: BatchFeeInput::pubdata_independent(2, 3, 4),

@@ -60,11 +60,9 @@ pub struct MiniblockParams {
 
 /// Parameters for a new L1 batch returned by [`StateKeeperIO::wait_for_new_batch_params()`].
 #[derive(Debug, Clone)]
-pub struct L1BatchParams<H = H256> {
+pub struct L1BatchParams {
     /// Protocol version for the new L1 batch.
     pub(crate) protocol_version: ProtocolVersionId,
-    /// State hash of the previous L1 batch. `()` means that it's not necessarily known at this point.
-    pub(crate) previous_batch_hash: H,
     /// Computational gas limit for the new L1 batch.
     pub(crate) validation_computational_gas_limit: u32,
     /// Operator address (aka fee address) for the new L1 batch.
@@ -81,12 +79,13 @@ impl L1BatchParams {
         chain_id: L2ChainId,
         contracts: BaseSystemContracts,
         cursor: &IoCursor,
+        previous_batch_hash: H256,
     ) -> (SystemEnv, L1BatchEnv) {
         l1_batch_params(
             cursor.l1_batch,
             self.operator_address,
             self.first_miniblock.timestamp,
-            self.previous_batch_hash,
+            previous_batch_hash,
             self.fee_input,
             cursor.next_miniblock,
             cursor.prev_miniblock_hash,
@@ -96,19 +95,6 @@ impl L1BatchParams {
             self.first_miniblock.virtual_blocks,
             chain_id,
         )
-    }
-}
-
-impl L1BatchParams<()> {
-    pub(crate) fn with_previous_batch_hash(self, previous_batch_hash: H256) -> L1BatchParams {
-        L1BatchParams {
-            protocol_version: self.protocol_version,
-            previous_batch_hash,
-            validation_computational_gas_limit: self.validation_computational_gas_limit,
-            operator_address: self.operator_address,
-            fee_input: self.fee_input,
-            first_miniblock: self.first_miniblock,
-        }
     }
 }
 
@@ -166,4 +152,7 @@ pub trait StateKeeperIO: 'static + Send + fmt::Debug + IoSealCriteria {
         &mut self,
         version_id: ProtocolVersionId,
     ) -> anyhow::Result<Option<ProtocolUpgradeTx>>;
+    /// Loads state hash for the L1 batch with the specified number. The batch is guaranteed to be present
+    /// in the storage.
+    async fn load_batch_state_hash(&mut self, number: L1BatchNumber) -> anyhow::Result<H256>;
 }
