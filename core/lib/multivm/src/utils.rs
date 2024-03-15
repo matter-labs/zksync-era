@@ -260,6 +260,46 @@ pub fn gas_bootloader_batch_tip_overhead(version: VmVersion) -> u32 {
     }
 }
 
+pub fn circuit_statistics_bootloader_batch_tip_overhead(version: VmVersion) -> u32 {
+    match version {
+        VmVersion::M5WithRefunds
+        | VmVersion::M5WithoutRefunds
+        | VmVersion::M6Initial
+        | VmVersion::M6BugWithCompressionFixed
+        | VmVersion::Vm1_3_2
+        | VmVersion::VmVirtualBlocks
+        | VmVersion::VmVirtualBlocksRefundsEnhancement
+        | VmVersion::VmBoojumIntegration
+        | VmVersion::Vm1_4_1 => {
+            // For these versions the overhead has not been calculated and it has not been used with those versions.
+            0
+        }
+        VmVersion::Vm1_4_2 => {
+            crate::vm_latest::constants::BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD
+        }
+    }
+}
+
+pub fn execution_metrics_bootloader_batch_tip_overhead(version: VmVersion) -> u32 {
+    match version {
+        VmVersion::M5WithRefunds
+        | VmVersion::M5WithoutRefunds
+        | VmVersion::M6Initial
+        | VmVersion::M6BugWithCompressionFixed
+        | VmVersion::Vm1_3_2
+        | VmVersion::VmVirtualBlocks
+        | VmVersion::VmVirtualBlocksRefundsEnhancement
+        | VmVersion::VmBoojumIntegration
+        | VmVersion::Vm1_4_1 => {
+            // For these versions the overhead has not been calculated and it has not been used with those versions.
+            0
+        }
+        VmVersion::Vm1_4_2 => {
+            crate::vm_latest::constants::BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD
+        }
+    }
+}
+
 pub fn get_max_gas_per_pubdata_byte(version: VmVersion) -> u64 {
     match version {
         VmVersion::M5WithRefunds | VmVersion::M5WithoutRefunds => {

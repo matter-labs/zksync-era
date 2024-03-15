@@ -665,8 +665,6 @@ impl ZkSyncStateKeeper {
             TxExecutionResult::Success {
                 tx_result,
                 tx_metrics,
-                bootloader_dry_run_metrics,
-                bootloader_dry_run_result,
                 gas_remaining,
                 ..
             } => {

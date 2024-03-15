@@ -1,3 +1,4 @@
+use multivm::utils::execution_metrics_bootloader_batch_tip_overhead;
 use zksync_types::ProtocolVersionId;
 
 use crate::state_keeper::seal_criteria::{
@@ -29,13 +30,20 @@ impl SealCriterion for PubDataBytesCriterion {
         let include_and_seal_bound =
             (max_pubdata_per_l1_batch as f64 * config.close_block_at_eth_params_percentage).round();
 
-        let block_size =
-            block_data.execution_metrics.size() + block_data.writes_metrics.size(protocol_version);
+        let block_size = block_data.execution_metrics.size()
+            + execution_metrics_bootloader_batch_tip_overhead(
+                protocol_version.into_api_vm_version(),
+            )
+            + block_data.writes_metrics.size(protocol_version);
         // For backward compatibility, we need to keep calculating the size of the pubdata based
         // `StorageDeduplication` metrics. All vm versions
         // after vm with virtual blocks will provide the size of the pubdata in the execution metrics.
         let tx_size = if tx_data.execution_metrics.pubdata_published == 0 {
-            tx_data.execution_metrics.size() + tx_data.writes_metrics.size(protocol_version)
+            tx_data.execution_metrics.size()
+                + execution_metrics_bootloader_batch_tip_overhead(
+                    protocol_version.into_api_vm_version(),
+                )
+                + tx_data.writes_metrics.size(protocol_version)
         } else {
             tx_data.execution_metrics.pubdata_published as usize
         };

@@ -1,5 +1,9 @@
 use std::fmt;
 
+use multivm::utils::{
+    circuit_statistics_bootloader_batch_tip_overhead,
+    execution_metrics_bootloader_batch_tip_overhead,
+};
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_types::{tx::tx_execution_info::ExecutionMetrics, ProtocolVersionId};
 
@@ -38,13 +42,26 @@ where
             * config.close_block_at_geometry_percentage)
             .round();
 
-        if T::extract(&tx_data.execution_metrics) > reject_bound as usize {
+        if T::extract(&tx_data.execution_metrics)
+            + circuit_statistics_bootloader_batch_tip_overhead(
+                protocol_version_id.into_api_vm_version(),
+            )
+            > reject_bound as usize
+        {
             SealResolution::Unexecutable("ZK proof cannot be generated for a transaction".into())
         } else if T::extract(&block_data.execution_metrics)
+            + circuit_statistics_bootloader_batch_tip_overhead(
+                protocol_version_id.into_api_vm_version(),
+            )
             >= T::limit_per_block(protocol_version_id)
         {
             SealResolution::ExcludeAndSeal
-        } else if T::extract(&block_data.execution_metrics) > close_bound as usize {
+        } else if T::extract(&block_data.execution_metrics)
+            + circuit_statistics_bootloader_batch_tip_overhead(
+                protocol_version_id.into_api_vm_version(),
+            )
+            > close_bound as usize
+        {
             SealResolution::IncludeAndSeal
         } else {
             SealResolution::NoSeal

@@ -1,4 +1,3 @@
-use crate::state_keeper::metrics::BATCH_TIP_METRICS;
 use multivm::{
     interface::{L1BatchEnv, SystemEnv, VmExecutionResultAndLogs},
     utils::get_batch_base_fee,
@@ -14,6 +13,7 @@ use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 pub(crate) use self::{l1_batch_updates::L1BatchUpdates, miniblock_updates::MiniblockUpdates};
 use super::io::MiniblockParams;
+use crate::state_keeper::metrics::BATCH_TIP_METRICS;
 
 pub mod l1_batch_updates;
 pub mod miniblock_updates;
