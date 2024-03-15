@@ -285,7 +285,7 @@ impl<'a> SnapshotsApplier<'a> {
                 SnapshotsApplier::create_fresh_recovery_status(main_node_client).await?;
 
             let storage_logs_count = storage
-                .snapshots_creator_dal()
+                .storage_logs_dal()
                 .get_storage_logs_row_count(recovery_status.miniblock_number)
                 .await
                 .map_err(|err| {
@@ -612,7 +612,7 @@ impl<'a> SnapshotsApplier<'a> {
             .await?;
         // This DB query is slow, but this is fine for verification purposes.
         let total_log_count = storage
-            .snapshots_creator_dal()
+            .storage_logs_dal()
             .get_storage_logs_row_count(self.applied_snapshot_status.miniblock_number)
             .await
             .map_err(|err| SnapshotsApplierError::db(err, "cannot get storage_logs row count"))?;

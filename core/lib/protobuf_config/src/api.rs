@@ -5,7 +5,7 @@ use zksync_protobuf::{
     required,
 };
 
-use crate::{parse_h256, proto};
+use crate::{parse_h256, proto::api as proto};
 
 impl ProtoRepr for proto::Api {
     type Type = ApiConfig;

@@ -5,7 +5,7 @@ use zksync_basic_types::basic_fri_types::CircuitIdRoundTuple;
 use zksync_config::configs;
 use zksync_protobuf::{repr::ProtoRepr, required};
 
-use crate::proto;
+use crate::proto::fri_prover_group as proto;
 
 impl ProtoRepr for proto::CircuitIdRoundTuple {
     type Type = CircuitIdRoundTuple;

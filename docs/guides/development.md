@@ -58,7 +58,7 @@ If you don’t need all of the `zk init` functionality, but just need to start/s
 commands:
 
 ```
-zk up   # Set up `geth` container
+zk up   # Set up `reth` container
 zk down # Shut down `geth` container
 ```
 

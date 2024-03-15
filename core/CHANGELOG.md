@@ -1,5 +1,85 @@
 # Changelog
 
+## [21.1.0](https://github.com/matter-labs/zksync-era/compare/core-v21.0.0...core-v21.1.0) (2024-03-13)
+
+
+### Features
+
+* **api:** Monitor server RPC errors ([#1203](https://github.com/matter-labs/zksync-era/issues/1203)) ([60d1060](https://github.com/matter-labs/zksync-era/commit/60d106096504363f05c415161909c67b3f5d20c7))
+* block revert support for consensus component ([#1213](https://github.com/matter-labs/zksync-era/issues/1213)) ([8a3a938](https://github.com/matter-labs/zksync-era/commit/8a3a938c1ce871e77a478b4cd06b23714a6d7c64))
+* **db:** Add Postgres table size metrics ([#1351](https://github.com/matter-labs/zksync-era/issues/1351)) ([63f3ff8](https://github.com/matter-labs/zksync-era/commit/63f3ff8fc3dcc895cafa50eb44067a570151ef6d))
+* **db:** Serialize events queue as bytes ([#1420](https://github.com/matter-labs/zksync-era/issues/1420)) ([955680b](https://github.com/matter-labs/zksync-era/commit/955680b1aad9c6b66f13027a41819e5e3edf407a))
+* enabled loading yaml config for the main node ([#1344](https://github.com/matter-labs/zksync-era/issues/1344)) ([0adab9e](https://github.com/matter-labs/zksync-era/commit/0adab9ea84412c62d46893cc5b66368b2294d760))
+* **en:** Enable Merkle tree client on EN ([#1386](https://github.com/matter-labs/zksync-era/issues/1386)) ([58576d1](https://github.com/matter-labs/zksync-era/commit/58576d106179177f808018514a1606941bf24b30))
+* enhance unit test for batch tip ([#1253](https://github.com/matter-labs/zksync-era/issues/1253)) ([ca7d194](https://github.com/matter-labs/zksync-era/commit/ca7d19429cf5f0be8451c930423cb9733e55e7b1))
+* Moving 1.4.x to use the circuit_api ([#1383](https://github.com/matter-labs/zksync-era/issues/1383)) ([8add2d6](https://github.com/matter-labs/zksync-era/commit/8add2d6d8d5837359f1d309c959d05f23e5393fe))
+* **node_framework:** Add timeouts for remaining tasks to avoid hang outs ([#1354](https://github.com/matter-labs/zksync-era/issues/1354)) ([8108dbd](https://github.com/matter-labs/zksync-era/commit/8108dbdf8c2e05828121e45a664413800a6668a5))
+* **node-framework:** Add commitment generator layer ([#1402](https://github.com/matter-labs/zksync-era/issues/1402)) ([daa029c](https://github.com/matter-labs/zksync-era/commit/daa029c1e094bcb6d75c7fe8914de5f00db8fcc1))
+* replacing 1.3.3 test harness with circuit sequencer api ([#1382](https://github.com/matter-labs/zksync-era/issues/1382)) ([a628d56](https://github.com/matter-labs/zksync-era/commit/a628d56f449889ae5c5a0e48294e0be3e560728b))
+
+
+### Bug Fixes
+
+* **aggregator:** correct order of processing of prove transactions ([#1333](https://github.com/matter-labs/zksync-era/issues/1333)) ([7522d15](https://github.com/matter-labs/zksync-era/commit/7522d15be20861ce77e3c104fc1ed852b7f066be))
+* **api:** Fix panics in API server if storage values cache is disabled ([#1370](https://github.com/matter-labs/zksync-era/issues/1370)) ([723232b](https://github.com/matter-labs/zksync-era/commit/723232b98b064bb536a34a722155dfc438f03243))
+* **api:** SQL: use = instead of ANY where possible in events-related queries ([#1346](https://github.com/matter-labs/zksync-era/issues/1346)) ([160b4d4](https://github.com/matter-labs/zksync-era/commit/160b4d4a59851c90ae9f439ac3e960d073a0ea18))
+* **consistency_checker:** Fix consistency checker for large pubdata ([#1331](https://github.com/matter-labs/zksync-era/issues/1331)) ([d162add](https://github.com/matter-labs/zksync-era/commit/d162addc74cd4f7a8223de88d8943e2732c60eb1))
+* **en:** Fix pending transactions subscription ([#1342](https://github.com/matter-labs/zksync-era/issues/1342)) ([a040001](https://github.com/matter-labs/zksync-era/commit/a040001f8007d4f85e17f3dd1e59eb637f962df1))
+* **eth-sender:** adjust the blob tx fees taking into account the current prices ([#1399](https://github.com/matter-labs/zksync-era/issues/1399)) ([fea67fb](https://github.com/matter-labs/zksync-era/commit/fea67fb129601c647908fd758feead4ac8c4255e))
+* **gas-adjuster:** Do not unwrap in gas-adjuster ([#1400](https://github.com/matter-labs/zksync-era/issues/1400)) ([269812e](https://github.com/matter-labs/zksync-era/commit/269812ed71f88ba0c33280d93b8b978f35a3e5c8))
+* **gas-adjuster:** Use `internal_pubdata_pricing_multiplier` for pubdata price calculation ([#1404](https://github.com/matter-labs/zksync-era/issues/1404)) ([a40c2d0](https://github.com/matter-labs/zksync-era/commit/a40c2d0b1874f0109d907b81025750acb21e04ba))
+
+
+### Performance Improvements
+
+* **db:** Add "contains" clause for get_logs ([#1384](https://github.com/matter-labs/zksync-era/issues/1384)) ([e62ae32](https://github.com/matter-labs/zksync-era/commit/e62ae326affa0b7665e783d351e560dfe6566251))
+* **db:** Remove obsolete indexes ([#1376](https://github.com/matter-labs/zksync-era/issues/1376)) ([0afc377](https://github.com/matter-labs/zksync-era/commit/0afc377a058b55e4c4ecada88001718acc4b4d51))
+
+
+### Reverts
+
+* **db:** Remove "contains" clause for get_logs ([#1384](https://github.com/matter-labs/zksync-era/issues/1384)) ([#1407](https://github.com/matter-labs/zksync-era/issues/1407)) ([1da53f3](https://github.com/matter-labs/zksync-era/commit/1da53f3993ff3658a451ed67e04d838851e534cf))
+
+## [21.0.0](https://github.com/matter-labs/zksync-era/compare/core-v20.8.0...core-v21.0.0) (2024-03-01)
+
+
+### ⚠ BREAKING CHANGES
+
+* **prover:** Add EIP4844 support for provers subsystem ([#1200](https://github.com/matter-labs/zksync-era/issues/1200))
+* Set 21 as latest protocol version ([#1262](https://github.com/matter-labs/zksync-era/issues/1262))
+
+### Features
+
+* A way to disable slow query logging for some queries ([#1297](https://github.com/matter-labs/zksync-era/issues/1297)) ([13b82a0](https://github.com/matter-labs/zksync-era/commit/13b82a0db88d64b579e79cb824c71af8d14a9e64))
+* **aggregator:** support two operator addresses in sender and aggregator ([#1201](https://github.com/matter-labs/zksync-era/issues/1201)) ([7be56e5](https://github.com/matter-labs/zksync-era/commit/7be56e576fbb4d404319a6c099dcf1d5cb0b476a))
+* change EN main node fetcher concurrency factor ([#1317](https://github.com/matter-labs/zksync-era/issues/1317)) ([d4235b5](https://github.com/matter-labs/zksync-era/commit/d4235b541034b300a7043e83bb9fc44ab196dad5))
+* **commitment-generator:** Commitment for 1.4.2 ([#1234](https://github.com/matter-labs/zksync-era/issues/1234)) ([9b773eb](https://github.com/matter-labs/zksync-era/commit/9b773ebb3c170dc3d503ec83fb33d8d463614b4f))
+* **config:** add pubdata sending method to config ([#1261](https://github.com/matter-labs/zksync-era/issues/1261)) ([cebf55a](https://github.com/matter-labs/zksync-era/commit/cebf55acde566064d365840933515d79535af18c))
+* **config:** Added blobs to commit batches and made da source part of config ([#1243](https://github.com/matter-labs/zksync-era/issues/1243)) ([e01d1b6](https://github.com/matter-labs/zksync-era/commit/e01d1b64a20eabf7c43f310978730ad6f3223fb2))
+* **config:** update eth_sender to use blobs ([#1295](https://github.com/matter-labs/zksync-era/issues/1295)) ([e81f080](https://github.com/matter-labs/zksync-era/commit/e81f0800ad072e4a1433e1fdce6866bb7568f7da))
+* **core:** Adds support for 4844 transaction signing and rlp encoding ([#1254](https://github.com/matter-labs/zksync-era/issues/1254)) ([10e3a3e](https://github.com/matter-labs/zksync-era/commit/10e3a3ec50c84b3533af111d532e0b528c0b4966))
+* **dal:** `zksync_types::Transaction` to use protobuf for wire encoding (BFT-407) ([#1047](https://github.com/matter-labs/zksync-era/issues/1047)) ([ee94bee](https://github.com/matter-labs/zksync-era/commit/ee94beed9e610adee94ea5073f0c748df7447135))
+* **eth_sender:** set blob gas fee when blobs DA is used ([#1285](https://github.com/matter-labs/zksync-era/issues/1285)) ([57c5526](https://github.com/matter-labs/zksync-era/commit/57c5526602b89ce0fff9bbf06d840f7858b2ce99))
+* **gas-adjuster:** gas adjuster for EIP4844 ([#1255](https://github.com/matter-labs/zksync-era/issues/1255)) ([1da97ed](https://github.com/matter-labs/zksync-era/commit/1da97edea5bc323fc40d76c96d6ac48be77f0f7b))
+* Metrics for block tip ([#1144](https://github.com/matter-labs/zksync-era/issues/1144)) ([85d4b12](https://github.com/matter-labs/zksync-era/commit/85d4b124f59ee6596aaa8e6db3bbbb86fa829c90))
+* **node_framework:** Add Web3 API layers ([#1258](https://github.com/matter-labs/zksync-era/issues/1258)) ([105f4cc](https://github.com/matter-labs/zksync-era/commit/105f4cc2aebce958c3e9d2bfe4a4277fc26ebb4b))
+* **node_framework:** Support Proof Data Handler in the framework ([#1233](https://github.com/matter-labs/zksync-era/issues/1233)) ([2191218](https://github.com/matter-labs/zksync-era/commit/21912182b72f17c40d259f2bc0de9ce8e8241420))
+* **prover:** Add EIP4844 support for provers subsystem ([#1200](https://github.com/matter-labs/zksync-era/issues/1200)) ([6953e89](https://github.com/matter-labs/zksync-era/commit/6953e8989571d65230c66f3731c8831fd7abb274))
+* Remove methods to sign an arbitraty message ([#1294](https://github.com/matter-labs/zksync-era/issues/1294)) ([8904123](https://github.com/matter-labs/zksync-era/commit/89041236282e4b85de5eec3a4d9471f0fd3db58d))
+* Set 21 as latest protocol version ([#1262](https://github.com/matter-labs/zksync-era/issues/1262)) ([30579ef](https://github.com/matter-labs/zksync-era/commit/30579ef6cf5e8f96572d9b215fceec79556ce0ea))
+* support loading verifier and protocol version from db ([#1293](https://github.com/matter-labs/zksync-era/issues/1293)) ([533f013](https://github.com/matter-labs/zksync-era/commit/533f0131342dc40eea1bb82334828d0007043d19))
+
+
+### Bug Fixes
+
+* Add EIP4844 to fri_prover_group_config ([#1309](https://github.com/matter-labs/zksync-era/issues/1309)) ([edf9397](https://github.com/matter-labs/zksync-era/commit/edf9397ea65ddcb41b68f9732e496f38cadf3e58))
+* **api:** Use better gas per pubdata in API (pure server changes) ([#1311](https://github.com/matter-labs/zksync-era/issues/1311)) ([54f8d8c](https://github.com/matter-labs/zksync-era/commit/54f8d8caa702e0676b31cfc048d8d331fa961547))
+* **docker:** change default password for postgres ([#1250](https://github.com/matter-labs/zksync-era/issues/1250)) ([f6bff74](https://github.com/matter-labs/zksync-era/commit/f6bff74845983518026ec1d91a47523a3ec0f48c))
+* **en:** fail fast if we don't request correct number of txs from man node ([#1269](https://github.com/matter-labs/zksync-era/issues/1269)) ([1bcbf17](https://github.com/matter-labs/zksync-era/commit/1bcbf1751c6224619873373c7cf071cdebdf56ee))
+* Fix scheduler enqueuer bug ([#1322](https://github.com/matter-labs/zksync-era/issues/1322)) ([95deb92](https://github.com/matter-labs/zksync-era/commit/95deb92a2da59417470084894588a97c98bc65b8))
+* **snapshots_creator:** Fix snapshot generation query ([#1289](https://github.com/matter-labs/zksync-era/issues/1289)) ([e279456](https://github.com/matter-labs/zksync-era/commit/e2794564ce61e52b0f31079e9a0f67c27037002c))
+* **vm:** fix match clause in `get_max_gas_per_pubdata_byte` ([#1292](https://github.com/matter-labs/zksync-era/issues/1292)) ([eaf5a50](https://github.com/matter-labs/zksync-era/commit/eaf5a506266b5292df9b277b6c020170ca1f59db))
+
 ## [20.8.0](https://github.com/matter-labs/zksync-era/compare/core-v20.7.0...core-v20.8.0) (2024-02-26)
 
 
