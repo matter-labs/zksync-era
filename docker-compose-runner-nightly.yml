@@ -11,27 +11,7 @@ services:
       file: docker-compose.yml
       service: postgres
 
-  geth:
+  reth:
     extends:
       file: docker-compose.yml
-      service: geth
-
-  create-beacon-chain-genesis:
-    extends:
-      file: docker-compose.yml
-      service: create-beacon-chain-genesis
-
-  validator:
-    extends:
-      file: docker-compose.yml
-      service: validator 
-
-  beacon:
-    extends:
-      file: docker-compose.yml
-      service: beacon
-
-  geth-genesis:
-    extends:
-      file: docker-compose.yml
-      service: geth-genesis
+      service: reth

@@ -1,7 +1,7 @@
 use tokio::sync::mpsc;
-use zksync_types::{Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, Transaction};
+use zksync_types::{Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId};
 
-use super::metrics::QUEUE_METRICS;
+use super::{fetcher::FetchedTransaction, metrics::QUEUE_METRICS};
 
 #[derive(Debug)]
 pub struct ActionQueueSender(mpsc::Sender<SyncAction>);
@@ -125,7 +125,7 @@ pub(crate) enum SyncAction {
         timestamp: u64,
         virtual_blocks: u32,
     },
-    Tx(Box<Transaction>),
+    Tx(Box<FetchedTransaction>),
     /// We need an explicit action for the miniblock sealing, since we fetch the whole miniblocks and already know
     /// that they are sealed, but at the same time the next miniblock may not exist yet.
     /// By having a dedicated action for that we prevent a situation where the miniblock is kept open on the EN until
@@ -138,8 +138,8 @@ pub(crate) enum SyncAction {
     },
 }
 
-impl From<Transaction> for SyncAction {
-    fn from(tx: Transaction) -> Self {
+impl From<FetchedTransaction> for SyncAction {
+    fn from(tx: FetchedTransaction) -> Self {
         Self::Tx(Box::new(tx))
     }
 }
@@ -184,7 +184,7 @@ mod tests {
         );
         tx.set_input(H256::default().0.to_vec(), H256::default());
 
-        SyncAction::Tx(Box::new(tx.into()))
+        FetchedTransaction::new(tx.into()).into()
     }
 
     fn seal_miniblock() -> SyncAction {

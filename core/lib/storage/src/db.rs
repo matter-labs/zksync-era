@@ -3,6 +3,7 @@ use std::{
     ffi::CStr,
     fmt, iter,
     marker::PhantomData,
+    num::NonZeroU32,
     ops,
     path::Path,
     sync::{Arc, Condvar, Mutex},
@@ -274,6 +275,8 @@ pub struct RocksDBOptions {
     /// Timeout to wait for the database to run compaction on stalled writes during startup or
     /// when the corresponding RocksDB error is encountered.
     pub stalled_writes_retries: StalledWritesRetries,
+    /// Number of open files that can be used by the DB. Default is None, for no limit.
+    pub max_open_files: Option<NonZeroU32>,
 }
 
 impl Default for RocksDBOptions {
@@ -282,6 +285,7 @@ impl Default for RocksDBOptions {
             block_cache_capacity: None,
             large_memtable_capacity: None,
             stalled_writes_retries: StalledWritesRetries::new(Duration::from_secs(10)),
+            max_open_files: None,
         }
     }
 }
@@ -304,7 +308,13 @@ impl<CF: NamedColumnFamily> RocksDB<CF> {
 
     pub fn with_options(path: &Path, options: RocksDBOptions) -> Result<Self, rocksdb::Error> {
         let caches = RocksDBCaches::new(options.block_cache_capacity);
-        let db_options = Self::rocksdb_options(None, None);
+        let mut db_options = Self::rocksdb_options(None, None);
+        let max_open_files = if let Some(non_zero) = options.max_open_files {
+            i32::try_from(non_zero.get()).unwrap_or(i32::MAX)
+        } else {
+            -1
+        };
+        db_options.set_max_open_files(max_open_files);
         let existing_cfs = DB::list_cf(&db_options, path).unwrap_or_else(|err| {
             tracing::warn!(
                 "Failed getting column families for RocksDB `{}` at `{}`, assuming CFs are empty; {err}",
