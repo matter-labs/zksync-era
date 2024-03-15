@@ -143,13 +143,13 @@ impl ProtoRepr for proto::StateKeeper {
             bootloader_hash: self
                 .bootloader_hash
                 .as_ref()
-                .map(|a| parse_h256(&a))
+                .map(|a| parse_h256(a))
                 .transpose()
                 .context("enum_index_migration_chunk_size")?,
             default_aa_hash: self
                 .default_aa_hash
                 .as_ref()
-                .map(|a| parse_h256(&a))
+                .map(|a| parse_h256(a))
                 .transpose()
                 .context("enum_index_migration_chunk_size")?,
         })
