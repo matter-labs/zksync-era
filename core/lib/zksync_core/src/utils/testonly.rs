@@ -157,6 +157,7 @@ pub(crate) struct Snapshot {
 }
 
 impl Snapshot {
+    // Constructs a dummy Snapshot based on the provided values.
     pub fn make(
         l1_batch: L1BatchNumber,
         miniblock: MiniblockNumber,

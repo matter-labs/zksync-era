@@ -114,7 +114,7 @@ impl ConsensusDal<'_, '_> {
             .await
             .context("get_sealed_miniblock_number")?
             .map_or(start, |last| validator::BlockNumber(last.0.into()).next());
-        Ok(std::ops::Range { start, end })
+        Ok(start..end)
     }
 
     /// [Main node only] creates a new consensus fork starting at

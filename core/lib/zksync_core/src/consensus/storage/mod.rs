@@ -292,14 +292,14 @@ impl PersistentBlockStore for BlockStore {
             .await
             .wrap("genesis()")?
             .context("genesis missing")?;
-        let first_cert = genesis.fork.first_block.max(block_range.start);
+        let first_expected_cert = genesis.fork.first_block.max(block_range.start);
         let last_cert = conn
             .last_certificate(ctx)
             .await
             .wrap("last_certificate()")?;
-        let next_cert = last_cert
+        let next_expected_cert = last_cert
             .as_ref()
-            .map_or(first_cert, |cert| cert.header().number.next());
+            .map_or(first_expected_cert, |cert| cert.header().number.next());
 
         // Check that the first certificate in storage has the expected miniblock number.
         if let Some(got) = conn
@@ -307,17 +307,20 @@ impl PersistentBlockStore for BlockStore {
             .await
             .wrap("first_certificate()")?
         {
-            if got.header().number != first_cert {
-                return Err(anyhow::format_err!("inconsistent storage: certificates should start at {first_cert}, while they start at {}",got.header().number).into());
+            if got.header().number != first_expected_cert {
+                return Err(anyhow::format_err!(
+                    "inconsistent storage: certificates should start at {first_expected_cert}, while they start at {}",
+                    got.header().number,
+                ).into());
             }
         }
         // Check that the node has all the blocks before the next expected certificate, because
         // the node needs to know the state of the chain up to block `X` to process block `X+1`.
-        if block_range.end < next_cert {
-            return Err(anyhow::format_err!("inconsistent storage: cannot start consensus for miniblock {next_cert}, because earlier blocks are missing").into());
+        if block_range.end < next_expected_cert {
+            return Err(anyhow::format_err!("inconsistent storage: cannot start consensus for miniblock {next_expected_cert}, because earlier blocks are missing").into());
         }
         let state = BlockStoreState {
-            first: first_cert,
+            first: first_expected_cert,
             last: last_cert,
         };
         Ok(state)
@@ -436,10 +439,11 @@ impl PayloadManager for Store {
         ctx: &ctx::Ctx,
         block_number: validator::BlockNumber,
     ) -> ctx::Result<validator::Payload> {
+        const LARGE_PAYLOAD_SIZE: usize = 1 << 20;
         tracing::info!("proposing block {block_number}");
         let payload = self.wait_for_payload(ctx, block_number).await?;
         let encoded_payload = payload.encode();
-        if encoded_payload.0.len() > 1 << 20 {
+        if encoded_payload.0.len() > LARGE_PAYLOAD_SIZE {
             tracing::warn!(
                 "large payload ({}B) with {} transactions",
                 encoded_payload.0.len(),
