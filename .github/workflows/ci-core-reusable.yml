@@ -148,7 +148,7 @@ jobs:
           wget https://github.com/ethereum/solc-bin/raw/gh-pages/linux-amd64/solc-linux-amd64-v0.8.23%2Bcommit.f704f362
           mv solc-linux-amd64-v0.8.23+commit.f704f362 $(pwd)/etc/solc-bin/0.8.23/solc
           chmod +x $(pwd)/etc/solc-bin/0.8.23/solc
-          
+
           mkdir -p $(pwd)/etc/solc-bin/zkVM-0.8.23-1.0.0
           wget https://github.com/matter-labs/era-solidity/releases/download/0.8.23-1.0.0/solc-linux-amd64-0.8.23-1.0.0 -O $(pwd)/etc/solc-bin/zkVM-0.8.23-1.0.0/solc
           chmod +x $(pwd)/etc/solc-bin/zkVM-0.8.23-1.0.0/solc
@@ -307,10 +307,15 @@ jobs:
         run: |
           ci_run zk server --components=$SERVER_COMPONENTS &>server.log &
           ci_run sleep 30
-      
+
       - name: Run external node
         run: |
-          ci_run zk env ext-node-docker
+          if [[ "${{ matrix.mode }}" == "Rollup" ]]; then
+            ci_run zk env ext-node-docker
+          elif [[ "${{ matrix.mode }}" == "Validium" ]]; then
+            ci_run zk env ext-node-validium
+            ci_run zk config compile ext-node-validium
+          fi
           ci_run zk db setup
           ci_run zk external-node $EXT_NODE_FLAGS &>ext-node.log &
           ci_run sleep 30
@@ -321,7 +326,12 @@ jobs:
       - name: Run revert test
         run: |
           ci_run zk env
-          ci_run zk env docker
+          if [[ "${{ matrix.mode }}" == "Rollup" ]]; then
+            ci_run zk env docker
+          elif [[ "${{ matrix.mode }}" == "Validium" ]]; then
+            ci_run zk env dev_validium_docker
+            ci_run zk config compile dev_validium_docker
+          fi
           ci_run pkill zksync_server || true
           ci_run sleep 2
           ci_run zk env
@@ -332,12 +342,21 @@ jobs:
           # Restart the EN
           ci_run zk server --components=$SERVER_COMPONENTS &>>server.log &
           ci_run sleep 30
-          ZKSYNC_ENV=ext-node-docker ci_run zk external-node $EXT_NODE_FLAGS &>>ext-node.log &
+          if [[ "${{ matrix.mode }}" == "Rollup" ]]; then
+            ZKSYNC_ENV=ext-node-docker ci_run zk external-node $EXT_NODE_FLAGS &>>ext-node.log &
+          elif [[ "${{ matrix.mode }}" == "Validium" ]]; then
+            ZKSYNC_ENV=ext-node-validium ci_run zk external-node $EXT_NODE_FLAGS &>>ext-node.log &
+          fi
           ci_run sleep 30
 
       - name: Run upgrade test
         run: |
-          ci_run zk env docker
+          if [[ "${{ matrix.mode }}" == "Rollup" ]]; then
+            ci_run zk env docker
+          elif [[ "${{ matrix.mode }}" == "Validium" ]]; then
+            ci_run zk env dev_validium_docker
+            ci_run zk config compile dev_validium_docker
+          fi
           CHECK_EN_URL="http://0.0.0.0:3060" ci_run zk test i upgrade
 
       - name: Show server.log logs
