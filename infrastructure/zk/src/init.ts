@@ -11,7 +11,7 @@ import * as env from './env';
 import * as config from './config';
 import * as run from './run';
 import * as server from './server';
-import { up } from './up';
+import { createVolumes, up } from './up';
 import { announced } from './utils';
 
 // Checks if all required tools are installed with the correct versions
@@ -43,6 +43,7 @@ const initSetup = async ({ skipSubmodulesCheckout, skipEnvSetup }: InitSetupOpti
         await announced('Pulling images', docker.pull());
         await announced('Checking environment', checkEnv());
         await announced('Checking git hooks', env.gitHooks());
+        await announced('Create volumes', createVolumes());
         await announced('Setting up containers', up());
     }
     if (!skipSubmodulesCheckout) {
