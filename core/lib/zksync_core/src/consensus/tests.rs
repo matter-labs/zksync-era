@@ -156,6 +156,79 @@ async fn test_validator(from_snapshot: bool) {
     .unwrap();
 }
 
+// Test running a validator node and 2 full nodes recovered from different snapshots.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_nodes_from_various_snapshots() {
+    zksync_concurrency::testonly::abort_on_panic();
+    let ctx = &ctx::test_root(&ctx::AffineClock::new(10.));
+    let rng = &mut ctx.rng();
+    let setup = Setup::new(rng, 1);
+    let validator_cfg = new_configs(rng, &setup, 0).pop().unwrap();
+
+    scope::run!(ctx, |ctx, s| async {
+        tracing::info!("spawn validator");
+        let validator_store = Store::from_genesis().await;
+        let (mut validator, runner) =
+            testonly::StateKeeper::new(ctx, validator_store.clone()).await?;
+        s.spawn_bg(runner.run(ctx).instrument(tracing::info_span!("validator")));
+        let cfg = MainNodeConfig {
+            executor: executor_config(&validator_cfg),
+            validator_key: setup.keys[0].clone(),
+        };
+        s.spawn_bg(cfg.run(ctx, validator_store.clone()));
+
+        tracing::info!("produce some batches");
+        validator.push_random_blocks(rng, 5).await;
+        validator.seal_batch().await;
+        validator_store
+            .wait_for_certificate(ctx, validator.last_block())
+            .await?;
+
+        tracing::info!("take snapshot and start a node from it");
+        let snapshot = validator_store.snapshot(ctx).await?;
+        let node_store = Store::from_snapshot(snapshot).await;
+        let (node, runner) = testonly::StateKeeper::new(ctx, node_store.clone()).await?;
+        s.spawn_bg(runner.run(ctx).instrument(tracing::info_span!("node1")));
+        let node_cfg = executor_config(&new_fullnode(rng, &validator_cfg));
+        s.spawn_bg(node.run_p2p_fetcher(ctx, validator.connect(ctx).await?, node_cfg));
+
+        tracing::info!("produce more batches");
+        validator.push_random_blocks(rng, 5).await;
+        validator.seal_batch().await;
+        node_store
+            .wait_for_certificate(ctx, validator.last_block())
+            .await?;
+
+        tracing::info!("take another snapshot and start a node from it");
+        let snapshot = validator_store.snapshot(ctx).await?;
+        let node_store2 = Store::from_snapshot(snapshot).await;
+        let (node, runner) = testonly::StateKeeper::new(ctx, node_store2.clone()).await?;
+        s.spawn_bg(runner.run(ctx).instrument(tracing::info_span!("node2")));
+        let node_cfg = executor_config(&new_fullnode(rng, &validator_cfg));
+        s.spawn_bg(node.run_p2p_fetcher(ctx, validator.connect(ctx).await?, node_cfg));
+
+        tracing::info!("produce more blocks and compare storages");
+        validator.push_random_blocks(rng, 5).await;
+        let want = validator_store
+            .wait_for_certificates_and_verify(ctx, validator.last_block())
+            .await?;
+        // node stores should be suffixes for validator store.
+        for got in [
+            node_store
+                .wait_for_certificates_and_verify(ctx, validator.last_block())
+                .await?,
+            node_store2
+                .wait_for_certificates_and_verify(ctx, validator.last_block())
+                .await?,
+        ] {
+            assert_eq!(want[want.len() - got.len()..], got[..]);
+        }
+        Ok(())
+    })
+    .await
+    .unwrap();
+}
+
 // Test running a validator node and a couple of full nodes.
 // Validator is producing signed blocks and fetchers are expected to fetch
 // them directly or indirectly.

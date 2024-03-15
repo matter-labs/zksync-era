@@ -73,7 +73,6 @@ impl Store {
     }
 
     /// Recovers storage from a snapshot.
-    #[allow(dead_code)]
     pub(crate) async fn from_snapshot(snapshot: Snapshot) -> Self {
         let pool = ConnectionPool::test_pool().await;
         {
