@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::{collections::HashMap, fmt::Debug};
 
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
@@ -9,8 +9,8 @@ use crate::{
     ethabi,
     l2_to_l1_log::L2ToL1Log,
     tokens::{TokenInfo, TokenMetadata},
-    Address, L1BatchNumber, CONTRACT_DEPLOYER_ADDRESS, H256, KNOWN_CODES_STORAGE_ADDRESS,
-    L1_MESSENGER_ADDRESS, U256,
+    Address, L1BatchNumber, StorageLogQuery, StorageLogQueryType, CONTRACT_DEPLOYER_ADDRESS, H256,
+    KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS, U256,
 };
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
@@ -305,16 +305,31 @@ pub fn extract_bytecode_publication_requests_from_l1_messenger(
 }
 
 // Extract all bytecodes marked as known on the system contracts
-pub fn extract_bytecodes_marked_as_known(all_generated_events: &[VmEvent]) -> Vec<H256> {
-    all_generated_events
-        .iter()
-        .filter(|event| {
-            // Filter events from the deployer contract that match the expected signature.
-            event.address == KNOWN_CODES_STORAGE_ADDRESS
-                && event.indexed_topics.len() == 3
-                && event.indexed_topics[0] == *PUBLISHED_BYTECODE_SIGNATURE
+pub fn extract_bytecodes_marked_as_known(storage_logs: &[StorageLogQuery]) -> Vec<H256> {
+    let mut last_values = HashMap::new();
+
+    for log in storage_logs {
+        if log.log_query.address != KNOWN_CODES_STORAGE_ADDRESS
+            || log.log_type == StorageLogQueryType::Read
+        {
+            continue;
+        }
+
+        let key = log.log_query.key;
+        let value = log.log_query.written_value;
+
+        last_values.insert(key, value);
+    }
+
+    last_values
+        .into_iter()
+        .filter_map(|(key, value)| {
+            if value == U256::zero() {
+                None
+            } else {
+                Some(u256_to_h256(key))
+            }
         })
-        .map(|event| event.indexed_topics[1])
         .collect()
 }
 

@@ -1,6 +1,6 @@
 use zksync_state::{StoragePtr, WriteStorage};
-use zksync_types::VmVersion;
-use zksync_utils::bytecode::CompressedBytecodeInfo;
+use zksync_types::{VmVersion, H256};
+use zksync_utils::{be_words_to_bytes, bytecode::CompressedBytecodeInfo, h256_to_u256};
 
 use crate::{
     glue::history_mode::HistoryMode,
@@ -215,5 +215,29 @@ impl<S: WriteStorage, H: HistoryMode> VmInstance<S, H> {
                 VmInstance::Vm1_4_2(vm)
             }
         }
+    }
+
+    // TOOD: this should be refactored to be returned as part of the execution result
+    pub fn ask_decommitter(&mut self, hashes: Vec<H256>) -> Vec<Vec<u8>> {
+        let vm = if let VmInstance::Vm1_4_2(vm) = &self {
+            vm
+        } else {
+            panic!("No supported for old VMs");
+        };
+
+        let mut result = vec![];
+        for hash in hashes {
+            let bytecode = vm
+                .state
+                .decommittment_processor
+                .known_bytecodes
+                .inner()
+                .get(&h256_to_u256(hash))
+                .expect("Bytecode not found")
+                .clone();
+            result.push(be_words_to_bytes(&bytecode));
+        }
+
+        result
     }
 }

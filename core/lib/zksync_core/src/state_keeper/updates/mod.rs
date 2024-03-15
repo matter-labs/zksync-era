@@ -7,7 +7,7 @@ use zksync_types::{
     block::BlockGasCount, fee_model::BatchFeeInput,
     storage_writes_deduplicator::StorageWritesDeduplicator,
     tx::tx_execution_info::ExecutionMetrics, vm_trace::Call, Address, L1BatchNumber,
-    MiniblockNumber, ProtocolVersionId, Transaction,
+    MiniblockNumber, ProtocolVersionId, Transaction, H256,
 };
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
@@ -97,6 +97,7 @@ impl UpdatesManager {
         tx: Transaction,
         tx_execution_result: VmExecutionResultAndLogs,
         compressed_bytecodes: Vec<CompressedBytecodeInfo>,
+        new_known_factory_deps: Vec<(H256, Vec<u8>)>,
         tx_l1_gas_this_tx: BlockGasCount,
         execution_metrics: ExecutionMetrics,
         call_traces: Vec<Call>,
@@ -109,6 +110,7 @@ impl UpdatesManager {
             tx_l1_gas_this_tx,
             execution_metrics,
             compressed_bytecodes,
+            new_known_factory_deps,
             call_traces,
         );
     }
@@ -197,6 +199,7 @@ mod tests {
         updates_manager.extend_from_executed_transaction(
             tx,
             create_execution_result(0, []),
+            vec![],
             vec![],
             new_block_gas_count(),
             ExecutionMetrics::default(),

@@ -378,6 +378,7 @@ impl ZkSyncStateKeeper {
                     tx_metrics,
                     compressed_bytecodes,
                     call_tracer_result,
+                    new_known_factory_deps,
                     ..
                 } = result
                 else {
@@ -406,6 +407,7 @@ impl ZkSyncStateKeeper {
                     tx,
                     *tx_result,
                     compressed_bytecodes,
+                    new_known_factory_deps,
                     tx_l1_gas_this_tx,
                     tx_execution_metrics,
                     call_tracer_result,
@@ -504,6 +506,7 @@ impl ZkSyncStateKeeper {
                         tx_metrics,
                         call_tracer_result,
                         compressed_bytecodes,
+                        new_known_factory_deps,
                         ..
                     } = exec_result
                     else {
@@ -519,6 +522,7 @@ impl ZkSyncStateKeeper {
                         tx,
                         *tx_result,
                         compressed_bytecodes,
+                        new_known_factory_deps,
                         tx_l1_gas_this_tx,
                         tx_execution_metrics,
                         call_tracer_result,
@@ -569,6 +573,7 @@ impl ZkSyncStateKeeper {
                     tx_result,
                     tx_metrics,
                     compressed_bytecodes,
+                    new_known_factory_deps,
                     ..
                 } = exec_result
                 else {
@@ -592,6 +597,7 @@ impl ZkSyncStateKeeper {
                     tx,
                     *tx_result,
                     compressed_bytecodes,
+                    new_known_factory_deps,
                     tx_l1_gas_this_tx,
                     tx_execution_metrics,
                     vec![],

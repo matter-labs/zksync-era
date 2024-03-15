@@ -72,29 +72,6 @@ fn insert_evm_contract(storage: &mut InMemoryStorage, mut bytecode: Vec<u8>) -> 
     // Just some address in user space
     let test_address = Address::from_str("0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7").unwrap();
 
-    // let code_key = get_address_mapping_key(&test_address, u256_to_h256(2.into()));
-    // let code_content_key = H256(keccak256(code_key.as_bytes()));
-
-    // *2 + 1 is hte requiremnt for solidity storage layout when length > 31
-    // storage.set_value(
-    //     get_deployer_key(code_key),
-    //     u256_to_h256((bytecode.len() * 2 + 1).into()),
-    // );
-
-    // bytes_to_be_words(bytecode)
-    //     .into_iter()
-    //     .enumerate()
-    //     .for_each(|(i, chunk)| {
-    //         let key = h256_to_u256(code_content_key);
-    //         storage.set_value(
-    //             StorageKey::new(
-    //                 AccountTreeId::new(CONTRACT_DEPLOYER_ADDRESS),
-    //                 u256_to_h256(key + U256::from(i)),
-    //             ),
-    //             u256_to_h256(chunk),
-    //         );
-    //     });
-
     let evm_code_hash_key = get_evm_code_hash_key(&test_address);
 
     storage.set_value(get_code_key(&test_address), blob_hash);

@@ -223,6 +223,7 @@ async fn processing_storage_logs_when_sealing_miniblock() {
         ExecutionMetrics::default(),
         vec![],
         vec![],
+        vec![],
     );
 
     let tx = create_transaction(10, 100);
@@ -239,6 +240,7 @@ async fn processing_storage_logs_when_sealing_miniblock() {
         execution_result,
         BlockGasCount::default(),
         ExecutionMetrics::default(),
+        vec![],
         vec![],
         vec![],
     );
@@ -318,6 +320,7 @@ async fn processing_events_when_sealing_miniblock() {
             ExecutionMetrics::default(),
             vec![],
             vec![],
+            vec![],
         );
     }
 
@@ -386,6 +389,7 @@ async fn test_miniblock_and_l1_batch_processing(
     updates.extend_from_executed_transaction(
         tx,
         create_execution_result(0, []),
+        vec![],
         vec![],
         BlockGasCount::default(),
         ExecutionMetrics::default(),
@@ -491,6 +495,7 @@ async fn miniblock_processing_after_snapshot_recovery() {
     updates.extend_from_executed_transaction(
         tx.into(),
         create_execution_result(0, []),
+        vec![],
         vec![],
         BlockGasCount::default(),
         ExecutionMetrics::default(),

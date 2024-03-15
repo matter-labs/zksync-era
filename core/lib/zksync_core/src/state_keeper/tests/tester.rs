@@ -270,6 +270,7 @@ pub(crate) fn successful_exec() -> TxExecutionResult {
             refunds: Default::default(),
         }),
         compressed_bytecodes: vec![],
+        new_known_factory_deps: vec![],
         call_tracer_result: vec![],
         gas_remaining: Default::default(),
     }
@@ -298,6 +299,7 @@ pub(crate) fn successful_exec_with_metrics(
             refunds: Default::default(),
         }),
         compressed_bytecodes: vec![],
+        new_known_factory_deps: vec![],
         call_tracer_result: vec![],
         gas_remaining: Default::default(),
     }

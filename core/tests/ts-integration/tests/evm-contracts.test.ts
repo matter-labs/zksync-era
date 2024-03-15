@@ -497,14 +497,32 @@ async function assertCreatedCorrectly(
     await assertStoredBytecodeHash(deployer, deployedAddress, expectedStoredHash);
 }
 
+function getPaddedBytecode(bytes: ethers.BytesLike) {
+    const length = ethers.utils.arrayify(bytes).length;
+
+    const encodedLength = ethers.utils.defaultAbiCoder.encode(['uint256'], [length]);
+
+    let paddedBytecode = encodedLength + ethers.utils.hexlify(bytes).slice(2);
+
+    // The length needs to be 32 mod 64. We use 64 mod 128, since
+    // we are dealing with a hexlified string
+    while ((paddedBytecode.length -2)% 128 != 64) {
+        paddedBytecode += '0';
+    }
+
+    return paddedBytecode
+}
+
 // Returns the canonical code hash of
 function getSha256BlobHash(bytes: ethers.BytesLike): string {
-    const hash = ethers.utils.arrayify(ethers.utils.sha256(bytes));
+    const paddedBytes = getPaddedBytecode(bytes);
+
+    const hash = ethers.utils.arrayify(ethers.utils.sha256(paddedBytes));
     hash[0] = 2;
     hash[1] = 0;
 
     // Length of the bytecode
-    const lengthInBytes = ethers.utils.arrayify(bytes).length;
+    const lengthInBytes = ethers.utils.arrayify(paddedBytes).length;
     hash[2] = Math.floor(lengthInBytes / 256);
     hash[3] = lengthInBytes % 256;
 

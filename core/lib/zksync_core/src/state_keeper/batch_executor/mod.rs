@@ -8,7 +8,7 @@ use tokio::{
     sync::{mpsc, oneshot, watch},
     task::JoinHandle,
 };
-use zksync_types::{vm_trace::Call, witness_block_state::WitnessBlockState, Transaction};
+use zksync_types::{vm_trace::Call, witness_block_state::WitnessBlockState, Transaction, H256};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use crate::state_keeper::{
@@ -32,6 +32,7 @@ pub(crate) enum TxExecutionResult {
         bootloader_dry_run_result: Box<VmExecutionResultAndLogs>,
         compressed_bytecodes: Vec<CompressedBytecodeInfo>,
         call_tracer_result: Vec<Call>,
+        new_known_factory_deps: Vec<(H256, Vec<u8>)>,
         gas_remaining: u32,
     },
     /// The VM rejected the tx for some reason.
