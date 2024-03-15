@@ -6,6 +6,7 @@ use once_cell::sync::OnceCell;
 use zksync_system_constants::MAX_ENCODED_TX_SIZE;
 use zksync_types::{
     api::{BlockId, BlockNumber, DebugCall, ResultDebugCall, TracerConfig},
+    debug_flat_call::{flatten_debug_calls, DebugCallFlat},
     fee_model::BatchFeeInput,
     l2::L2Tx,
     transaction_request::CallRequest,
@@ -90,6 +91,17 @@ impl DebugNamespace {
             })
             .collect();
         Ok(call_trace)
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub async fn debug_trace_block_flat_impl(
+        &self,
+        block_id: BlockId,
+        options: Option<TracerConfig>,
+    ) -> Result<Vec<DebugCallFlat>, Web3Error> {
+        let call_trace = self.debug_trace_block_impl(block_id, options).await?;
+        let call_trace_flat = flatten_debug_calls(call_trace);
+        Ok(call_trace_flat)
     }
 
     #[tracing::instrument(skip(self))]
