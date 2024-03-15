@@ -1,3 +1,4 @@
+use crate::state_keeper::metrics::BATCH_TIP_METRICS;
 use multivm::{
     interface::{L1BatchEnv, SystemEnv, VmExecutionResultAndLogs},
     utils::get_batch_base_fee,
@@ -119,8 +120,13 @@ impl UpdatesManager {
         l1_gas_count: BlockGasCount,
         execution_metrics: ExecutionMetrics,
     ) {
+        let before = self.storage_writes_deduplicator.metrics();
         self.storage_writes_deduplicator
             .apply(&result.logs.storage_logs);
+        let after = self.storage_writes_deduplicator.metrics();
+
+        BATCH_TIP_METRICS.observe_writes_metrics(&before, &after, self.protocol_version());
+
         self.miniblock
             .extend_from_fictive_transaction(result, l1_gas_count, execution_metrics);
     }
