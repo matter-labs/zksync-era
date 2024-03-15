@@ -23,8 +23,10 @@ use crate::{
     consensus::{fetcher::P2PConfig, Fetcher, Store},
     genesis::{ensure_genesis_state, GenesisParams},
     state_keeper::{
-        io::IoCursor, seal_criteria::NoopSealer, tests::MockBatchExecutor, OutputHandler,
-        StateKeeperPersistence, ZkSyncStateKeeper,
+        io::{IoCursor, L1BatchParams, MiniblockParams},
+        seal_criteria::NoopSealer,
+        tests::MockBatchExecutor,
+        OutputHandler, StateKeeperPersistence, ZkSyncStateKeeper,
     },
     sync_layer::{
         fetcher::FetchedTransaction,
@@ -240,22 +242,29 @@ impl StateKeeper {
             self.last_timestamp += 5;
             self.batch_sealed = false;
             SyncAction::OpenBatch {
+                params: L1BatchParams {
+                    protocol_version: ProtocolVersionId::latest(),
+                    previous_batch_hash: (),
+                    validation_computational_gas_limit: u32::MAX,
+                    operator_address: GenesisParams::mock().first_validator,
+                    fee_input: Default::default(),
+                    first_miniblock: MiniblockParams {
+                        timestamp: self.last_timestamp,
+                        virtual_blocks: 1,
+                    },
+                },
                 number: self.last_batch,
-                timestamp: self.last_timestamp,
-                l1_gas_price: 2,
-                l2_fair_gas_price: 3,
-                fair_pubdata_price: Some(24),
-                operator_address: GenesisParams::mock().first_validator,
-                protocol_version: ProtocolVersionId::latest(),
-                first_miniblock_info: (self.last_block, 1),
+                first_miniblock_number: self.last_block,
             }
         } else {
             self.last_block += 1;
             self.last_timestamp += 2;
             SyncAction::Miniblock {
+                params: MiniblockParams {
+                    timestamp: self.last_timestamp,
+                    virtual_blocks: 0,
+                },
                 number: self.last_block,
-                timestamp: self.last_timestamp,
-                virtual_blocks: 0,
             }
         }
     }
@@ -390,7 +399,6 @@ impl StateKeeperRunner {
                 self.store.0.clone(),
                 self.actions_queue,
                 Box::<MockMainNodeClient>::default(),
-                u32::MAX,
                 L2ChainId::default(),
             )
             .await?;

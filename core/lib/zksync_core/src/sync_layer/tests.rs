@@ -19,8 +19,10 @@ use crate::{
     consensus::testonly::MockMainNodeClient,
     genesis::{ensure_genesis_state, GenesisParams},
     state_keeper::{
-        seal_criteria::NoopSealer, tests::TestBatchExecutorBuilder, OutputHandler,
-        StateKeeperPersistence, ZkSyncStateKeeper,
+        io::{L1BatchParams, MiniblockParams},
+        seal_criteria::NoopSealer,
+        tests::TestBatchExecutorBuilder,
+        OutputHandler, StateKeeperPersistence, ZkSyncStateKeeper,
     },
     utils::testonly::{create_l1_batch_metadata, create_l2_transaction, prepare_recovery_snapshot},
 };
@@ -31,14 +33,19 @@ pub(crate) const OPERATOR_ADDRESS: Address = Address::repeat_byte(1);
 
 fn open_l1_batch(number: u32, timestamp: u64, first_miniblock_number: u32) -> SyncAction {
     SyncAction::OpenBatch {
+        params: L1BatchParams {
+            protocol_version: ProtocolVersionId::latest(),
+            previous_batch_hash: (),
+            validation_computational_gas_limit: u32::MAX,
+            operator_address: OPERATOR_ADDRESS,
+            fee_input: BatchFeeInput::pubdata_independent(2, 3, 4),
+            first_miniblock: MiniblockParams {
+                timestamp,
+                virtual_blocks: 1,
+            },
+        },
         number: L1BatchNumber(number),
-        timestamp,
-        l1_gas_price: 2,
-        l2_fair_gas_price: 3,
-        fair_pubdata_price: Some(4),
-        operator_address: OPERATOR_ADDRESS,
-        protocol_version: ProtocolVersionId::latest(),
-        first_miniblock_info: (MiniblockNumber(first_miniblock_number), 1),
+        first_miniblock_number: MiniblockNumber(first_miniblock_number),
     }
 }
 
@@ -71,7 +78,6 @@ impl StateKeeperHandles {
             pool,
             actions,
             Box::new(main_node_client),
-            u32::MAX,
             L2ChainId::default(),
         )
         .await
@@ -152,6 +158,11 @@ fn genesis_snapshot_recovery_status() -> SnapshotRecoveryStatus {
         protocol_version: ProtocolVersionId::default(),
         storage_logs_chunks_processed: vec![],
     }
+}
+
+#[test]
+fn l2_tx_gas_limit_is_correct() {
+    assert_eq!(MAX_ALLOWED_L2_TX_GAS_LIMIT, U256::from(u32::MAX));
 }
 
 #[test_casing(2, [false, true])]
@@ -243,11 +254,8 @@ async fn external_io_works_without_local_protocol_version(snapshot_recovery: boo
         snapshot.miniblock_timestamp + 1,
         snapshot.miniblock_number.0 + 1,
     );
-    if let SyncAction::OpenBatch {
-        protocol_version, ..
-    } = &mut open_l1_batch
-    {
-        *protocol_version = ProtocolVersionId::next();
+    if let SyncAction::OpenBatch { params, .. } = &mut open_l1_batch {
+        params.protocol_version = ProtocolVersionId::next();
     } else {
         unreachable!();
     };
@@ -335,9 +343,11 @@ pub(super) async fn run_state_keeper_with_multiple_miniblocks(
         .collect();
 
     let open_miniblock = SyncAction::Miniblock {
+        params: MiniblockParams {
+            timestamp: snapshot.miniblock_timestamp + 2,
+            virtual_blocks: 1,
+        },
         number: snapshot.miniblock_number + 2,
-        timestamp: snapshot.miniblock_timestamp + 2,
-        virtual_blocks: 1,
     };
     let more_txs = (0..3).map(|_| {
         let tx = create_l2_transaction(10, 100);
@@ -432,9 +442,11 @@ async fn test_external_io_recovery(
 
     // Send new actions and wait until the new miniblock is sealed.
     let open_miniblock = SyncAction::Miniblock {
+        params: MiniblockParams {
+            timestamp: snapshot.miniblock_timestamp + 3,
+            virtual_blocks: 1,
+        },
         number: snapshot.miniblock_number + 3,
-        timestamp: snapshot.miniblock_timestamp + 3,
-        virtual_blocks: 1,
     };
     let actions = vec![open_miniblock, new_tx.into(), SyncAction::SealMiniblock];
     actions_sender.push_actions(actions).await;
@@ -501,9 +513,11 @@ pub(super) async fn run_state_keeper_with_multiple_l1_batches(
     let first_l1_batch_actions = vec![l1_batch, first_tx.into(), SyncAction::SealMiniblock];
 
     let fictive_miniblock = SyncAction::Miniblock {
+        params: MiniblockParams {
+            timestamp: snapshot.miniblock_timestamp + 2,
+            virtual_blocks: 0,
+        },
         number: snapshot.miniblock_number + 2,
-        timestamp: snapshot.miniblock_timestamp + 2,
-        virtual_blocks: 0,
     };
     let fictive_miniblock_actions = vec![fictive_miniblock, SyncAction::SealBatch];
 

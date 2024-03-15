@@ -6,8 +6,8 @@ use vm_utils::storage::L1BatchParamsProvider;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SystemContractCode};
 use zksync_dal::ConnectionPool;
 use zksync_types::{
-    fee_model::BatchFeeInput, protocol_version::ProtocolUpgradeTx, L1BatchNumber, L2ChainId,
-    MiniblockNumber, ProtocolVersionId, Transaction, H256,
+    protocol_version::ProtocolUpgradeTx, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
+    ProtocolVersionId, Transaction, H256,
 };
 use zksync_utils::bytes_to_be_words;
 
@@ -40,9 +40,6 @@ pub struct ExternalIO {
     l1_batch_params_provider: L1BatchParamsProvider,
     actions: ActionQueue,
     main_node_client: Box<dyn MainNodeClient>,
-
-    // TODO it's required for system env, probably we have to get rid of getting system env
-    validation_computational_gas_limit: u32,
     chain_id: L2ChainId,
 }
 
@@ -51,7 +48,6 @@ impl ExternalIO {
         pool: ConnectionPool,
         actions: ActionQueue,
         main_node_client: Box<dyn MainNodeClient>,
-        validation_computational_gas_limit: u32,
         chain_id: L2ChainId,
     ) -> anyhow::Result<Self> {
         let mut storage = pool.access_storage_tagged("sync_layer").await?;
@@ -68,7 +64,6 @@ impl ExternalIO {
             l1_batch_params_provider,
             actions,
             main_node_client,
-            validation_computational_gas_limit,
             chain_id,
         })
     }
@@ -221,7 +216,7 @@ impl StateKeeperIO for ExternalIO {
             .load_l1_batch_params(
                 &mut storage,
                 &pending_miniblock_header,
-                self.validation_computational_gas_limit,
+                super::VALIDATION_COMPUTATIONAL_GAS_LIMIT,
                 self.chain_id,
             )
             .await
@@ -251,14 +246,9 @@ impl StateKeeperIO for ExternalIO {
         for _ in 0..poll_iters(POLL_INTERVAL, max_wait) {
             match self.actions.pop_action() {
                 Some(SyncAction::OpenBatch {
+                    params,
                     number,
-                    timestamp,
-                    l1_gas_price,
-                    l2_fair_gas_price,
-                    fair_pubdata_price,
-                    operator_address,
-                    protocol_version,
-                    first_miniblock_info: (miniblock_number, virtual_blocks),
+                    first_miniblock_number,
                 }) => {
                     anyhow::ensure!(
                         number == cursor.l1_batch,
@@ -266,8 +256,8 @@ impl StateKeeperIO for ExternalIO {
                         cursor.l1_batch
                     );
                     anyhow::ensure!(
-                        miniblock_number == cursor.next_miniblock,
-                        "Miniblock number mismatch: expected {}, got {miniblock_number}",
+                        first_miniblock_number == cursor.next_miniblock,
+                        "Miniblock number mismatch: expected {}, got {first_miniblock_number}",
                         cursor.next_miniblock
                     );
 
@@ -279,24 +269,7 @@ impl StateKeeperIO for ExternalIO {
                         cursor.prev_miniblock_hash
                     );
 
-                    let fee_input = BatchFeeInput::for_protocol_version(
-                        protocol_version,
-                        l2_fair_gas_price,
-                        fair_pubdata_price,
-                        l1_gas_price,
-                    );
-
-                    return Ok(Some(L1BatchParams {
-                        protocol_version,
-                        previous_batch_hash,
-                        validation_computational_gas_limit: self.validation_computational_gas_limit,
-                        operator_address,
-                        fee_input,
-                        first_miniblock: MiniblockParams {
-                            timestamp,
-                            virtual_blocks,
-                        },
-                    }));
+                    return Ok(Some(params.with_previous_batch_hash(previous_batch_hash)));
                 }
                 Some(other) => {
                     anyhow::bail!("unexpected action in the action queue: {other:?}");
@@ -318,21 +291,14 @@ impl StateKeeperIO for ExternalIO {
         let actions = &mut self.actions;
         for _ in 0..poll_iters(POLL_INTERVAL, max_wait) {
             match actions.peek_action() {
-                Some(SyncAction::Miniblock {
-                    number,
-                    timestamp,
-                    virtual_blocks,
-                }) => {
+                Some(SyncAction::Miniblock { params, number }) => {
                     self.actions.pop_action(); // We found the miniblock, remove it from the queue.
                     anyhow::ensure!(
                         number == cursor.next_miniblock,
                         "Miniblock number mismatch: expected {}, got {number}",
                         cursor.next_miniblock
                     );
-                    return Ok(Some(MiniblockParams {
-                        timestamp,
-                        virtual_blocks,
-                    }));
+                    return Ok(Some(params));
                 }
                 Some(other) => {
                     anyhow::bail!(
@@ -401,56 +367,50 @@ impl StateKeeperIO for ExternalIO {
             .await
             .context("failed loading base system contracts")?;
 
-        Ok(match base_system_contracts {
-            Some(version) => version,
-            None => {
-                tracing::info!("Fetching protocol version {protocol_version:?} from the main node");
+        if let Some(contracts) = base_system_contracts {
+            return Ok(contracts);
+        }
+        tracing::info!("Fetching protocol version {protocol_version:?} from the main node");
 
-                let protocol_version = self
-                    .main_node_client
-                    .fetch_protocol_version(protocol_version)
-                    .await
-                    .context("failed to fetch protocol version from the main node")?
-                    .context("protocol version is missing on the main node")?;
-                self.pool
-                    .access_storage_tagged("sync_layer")
-                    .await?
-                    .protocol_versions_dal()
-                    .save_protocol_version(
-                        protocol_version
-                            .version_id
-                            .try_into()
-                            .context("cannot convert protocol version")?,
-                        protocol_version.timestamp,
-                        protocol_version.verification_keys_hashes,
-                        protocol_version.base_system_contracts,
-                        // Verifier is not used in the external node, so we can pass an empty
-                        Default::default(),
-                        protocol_version.l2_system_upgrade_tx_hash,
-                    )
-                    .await;
+        let protocol_version = self
+            .main_node_client
+            .fetch_protocol_version(protocol_version)
+            .await
+            .context("failed to fetch protocol version from the main node")?
+            .context("protocol version is missing on the main node")?;
+        self.pool
+            .access_storage_tagged("sync_layer")
+            .await?
+            .protocol_versions_dal()
+            .save_protocol_version(
+                protocol_version
+                    .version_id
+                    .try_into()
+                    .context("cannot convert protocol version")?,
+                protocol_version.timestamp,
+                protocol_version.verification_keys_hashes,
+                protocol_version.base_system_contracts,
+                // Verifier is not used in the external node, so we can pass zero verifier address
+                Address::default(),
+                protocol_version.l2_system_upgrade_tx_hash,
+            )
+            .await;
 
-                let BaseSystemContractsHashes {
-                    bootloader,
-                    default_aa,
-                } = protocol_version.base_system_contracts;
-                let bootloader = self
-                    .get_base_system_contract(bootloader, cursor.next_miniblock)
-                    .await
-                    .with_context(|| {
-                        format!("cannot fetch bootloader code for {protocol_version:?}")
-                    })?;
-                let default_aa = self
-                    .get_base_system_contract(default_aa, cursor.next_miniblock)
-                    .await
-                    .with_context(|| {
-                        format!("cannot fetch default AA code for {protocol_version:?}")
-                    })?;
-                BaseSystemContracts {
-                    bootloader,
-                    default_aa,
-                }
-            }
+        let BaseSystemContractsHashes {
+            bootloader,
+            default_aa,
+        } = protocol_version.base_system_contracts;
+        let bootloader = self
+            .get_base_system_contract(bootloader, cursor.next_miniblock)
+            .await
+            .with_context(|| format!("cannot fetch bootloader code for {protocol_version:?}"))?;
+        let default_aa = self
+            .get_base_system_contract(default_aa, cursor.next_miniblock)
+            .await
+            .with_context(|| format!("cannot fetch default AA code for {protocol_version:?}"))?;
+        Ok(BaseSystemContracts {
+            bootloader,
+            default_aa,
         })
     }
 

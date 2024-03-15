@@ -59,12 +59,12 @@ pub struct MiniblockParams {
 }
 
 /// Parameters for a new L1 batch returned by [`StateKeeperIO::wait_for_new_batch_params()`].
-#[derive(Debug)]
-pub struct L1BatchParams {
+#[derive(Debug, Clone)]
+pub struct L1BatchParams<H = H256> {
     /// Protocol version for the new L1 batch.
     pub(crate) protocol_version: ProtocolVersionId,
-    /// State hash of the previous L1 batch.
-    pub(crate) previous_batch_hash: H256,
+    /// State hash of the previous L1 batch. `()` means that it's not necessarily known at this point.
+    pub(crate) previous_batch_hash: H,
     /// Computational gas limit for the new L1 batch.
     pub(crate) validation_computational_gas_limit: u32,
     /// Operator address (aka fee address) for the new L1 batch.
@@ -96,6 +96,19 @@ impl L1BatchParams {
             self.first_miniblock.virtual_blocks,
             chain_id,
         )
+    }
+}
+
+impl L1BatchParams<()> {
+    pub(crate) fn with_previous_batch_hash(self, previous_batch_hash: H256) -> L1BatchParams {
+        L1BatchParams {
+            protocol_version: self.protocol_version,
+            previous_batch_hash,
+            validation_computational_gas_limit: self.validation_computational_gas_limit,
+            operator_address: self.operator_address,
+            fee_input: self.fee_input,
+            first_miniblock: self.first_miniblock,
+        }
     }
 }
 

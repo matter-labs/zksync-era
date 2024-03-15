@@ -186,6 +186,7 @@ impl CommandReceiver {
         // Reject transactions with too big gas limit.
         // They are also rejected on the API level, but
         // we need to secure ourselves in case some tx will somehow get into mempool.
+        // FIXME: move to IO?
         if tx.gas_limit() > self.max_allowed_tx_gas_limit {
             tracing::warn!(
                 "Found tx with too big gas limit in state keeper, hash: {:?}, gas_limit: {}",

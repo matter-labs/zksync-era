@@ -30,7 +30,7 @@ use zksync_core::{
     },
     sync_layer::{
         batch_status_updater::BatchStatusUpdater, external_io::ExternalIO, ActionQueue,
-        MainNodeClient, SyncState,
+        MainNodeClient, SyncState, MAX_ALLOWED_L2_TX_GAS_LIMIT,
     },
 };
 use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
@@ -64,19 +64,13 @@ async fn build_state_keeper(
     stop_receiver: watch::Receiver<bool>,
     chain_id: L2ChainId,
 ) -> anyhow::Result<ZkSyncStateKeeper> {
-    // These config values are used on the main node, and depending on these values certain transactions can
-    // be *rejected* (that is, not included into the block). However, external node only mirrors what the main
-    // node has already executed, so we can safely set these values to the maximum possible values - if the main
-    // node has already executed the transaction, then the external node must execute it too.
-    let max_allowed_l2_tx_gas_limit = u32::MAX.into();
-    let validation_computational_gas_limit = u32::MAX;
     // We only need call traces on the external node if the `debug_` namespace is enabled.
     let save_call_traces = config.optional.api_namespaces().contains(&Namespace::Debug);
 
     let batch_executor_base: Box<dyn BatchExecutor> = Box::new(MainBatchExecutor::new(
         state_keeper_db_path,
         connection_pool.clone(),
-        max_allowed_l2_tx_gas_limit,
+        MAX_ALLOWED_L2_TX_GAS_LIMIT,
         save_call_traces,
         false,
         config.optional.enum_index_migration_chunk_size,
@@ -90,7 +84,6 @@ async fn build_state_keeper(
         connection_pool,
         action_queue,
         Box::new(main_node_client),
-        validation_computational_gas_limit,
         chain_id,
     )
     .await
