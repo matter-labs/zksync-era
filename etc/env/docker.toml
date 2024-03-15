@@ -4,10 +4,10 @@ test_database_url = "postgres://postgres:notsecurepassword@host:5433/zksync_loca
 test_database_prover_url="postgres://postgres:notsecurepassword@host:5433/prover_local_test"
 
 # for loadtest
-l1_rpc_address = "http://geth:8545"
+l1_rpc_address = "http://reth:8545"
 
 [eth_client]
-web3_url = "http://geth:8545"
+web3_url = "http://reth:8545"
 
 [chain.state_keeper]
 miniblock_iteration_interval = 50

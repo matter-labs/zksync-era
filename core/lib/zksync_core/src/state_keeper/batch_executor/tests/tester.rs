@@ -203,6 +203,7 @@ impl Tester {
                 .storage_logs_dedup_dal()
                 .filter_written_slots(&[storage_log.key.hashed_key()])
                 .await
+                .unwrap()
                 .is_empty()
             {
                 storage
