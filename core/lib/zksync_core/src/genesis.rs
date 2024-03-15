@@ -396,7 +396,6 @@ pub(crate) async fn create_genesis_l1_batch(
         timestamp: 0,
         l1_verifier_config,
         base_system_contracts_hashes: base_system_contracts.hashes(),
-        verifier_address: Default::default(),
         tx: None,
     };
 
