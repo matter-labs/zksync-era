@@ -7360,6 +7360,7 @@ dependencies = [
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "chrono",
  "hex",
+ "itertools 0.10.5",
  "num",
  "num_enum",
  "once_cell",

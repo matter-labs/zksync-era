@@ -76,5 +76,5 @@
 | Public repository                                                           | Description                      |
 | --------------------------------------------------------------------------- | -------------------------------- |
 | [zksync](https://github.com/matter-labs/zksync)                             | zkSync Lite implementation       |
-| [zksync-docs](https://github.com/matter-labs/zksync-docs)                   | Public zkSync Lite documentation |
+| [zksync-lite-docs](https://github.com/matter-labs/zksync-lite-docs)         | Public zkSync Lite documentation |
 | [zksync-dapp-checkout](https://github.com/matter-labs/zksync-dapp-checkout) | Batch payments DApp              |
