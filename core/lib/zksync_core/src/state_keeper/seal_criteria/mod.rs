@@ -188,14 +188,8 @@ impl MiniblockMaxPayloadSizeSealer {
             max_payload_size: config.miniblock_max_payload_size,
         }
     }
-}
 
-impl IoSealCriteria for MiniblockMaxPayloadSizeSealer {
-    fn should_seal_l1_batch_unconditionally(&mut self, _manager: &UpdatesManager) -> bool {
-        false
-    }
-
-    fn should_seal_miniblock(&mut self, manager: &UpdatesManager) -> bool {
+    pub fn should_seal_miniblock(&mut self, manager: &UpdatesManager) -> bool {
         manager.miniblock.payload_encoding_size >= self.max_payload_size
     }
 }
