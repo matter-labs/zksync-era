@@ -24,7 +24,7 @@ use zksync_node_framework::{
         commitment_generator::CommitmentGeneratorLayer,
         eth_watch::EthWatchLayer,
         fee_input::SequencerFeeInputLayer,
-        healtcheck_server::HealthCheckLayer,
+        healthcheck_server::HealthCheckLayer,
         metadata_calculator::MetadataCalculatorLayer,
         object_store::ObjectStoreLayer,
         pools_layer::PoolsLayerBuilder,
