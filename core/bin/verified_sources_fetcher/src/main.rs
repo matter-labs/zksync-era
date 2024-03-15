@@ -33,9 +33,16 @@ async fn main() {
 
         match req.req.source_code_data {
             SourceCodeData::SolSingleFile(content) => {
+                let contact_name = if let Some((_file_name, contract_name)) =
+                    req.req.contract_name.rsplit_once(':')
+                {
+                    contract_name.to_string()
+                } else {
+                    req.req.contract_name.clone()
+                };
+
                 let mut file =
-                    std::fs::File::create(format!("{}/{}.sol", &dir, req.req.contract_name))
-                        .unwrap();
+                    std::fs::File::create(format!("{}/{}.sol", &dir, contact_name)).unwrap();
                 file.write_all(content.as_bytes()).unwrap();
             }
             SourceCodeData::YulSingleFile(content) => {

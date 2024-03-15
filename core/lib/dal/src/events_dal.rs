@@ -8,10 +8,11 @@ use zksync_types::{
     event::L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE,
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
     tx::IncludedTxLocation,
-    L1BatchNumber, MiniblockNumber, VmEvent, H256,
+    Address, L1BatchNumber, MiniblockNumber, VmEvent, H256,
 };
 
 use crate::{
+    instrument::InstrumentExt,
     models::storage_event::{StorageL2ToL1Log, StorageWeb3Log},
     ServerProcessor, SqlxError,
 };
@@ -327,6 +328,66 @@ impl EventsDal<'_, '_> {
         }
 
         Ok(result)
+    }
+
+    pub async fn get_vm_events_for_l1_batch(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> Result<Option<Vec<VmEvent>>, SqlxError> {
+        let Some((from_miniblock, to_miniblock)) = self
+            .storage
+            .blocks_dal()
+            .get_miniblock_range_of_l1_batch(l1_batch_number)
+            .await?
+        else {
+            return Ok(None);
+        };
+        let events = sqlx::query!(
+            r#"
+            SELECT
+                address,
+                topic1,
+                topic2,
+                topic3,
+                topic4,
+                value
+            FROM
+                events
+            WHERE
+                miniblock_number BETWEEN $1 AND $2
+            ORDER BY
+                miniblock_number ASC,
+                event_index_in_block ASC
+            "#,
+            i64::from(from_miniblock.0),
+            i64::from(to_miniblock.0),
+        )
+        .instrument("get_vm_events_for_l1_batch")
+        .report_latency()
+        .fetch_all(self.storage)
+        .await?
+        .into_iter()
+        .enumerate()
+        .map(|(index_in_l1_batch, row)| {
+            let indexed_topics = vec![row.topic1, row.topic2, row.topic3, row.topic4]
+                .into_iter()
+                .filter_map(|topic| {
+                    if !topic.is_empty() {
+                        Some(H256::from_slice(&topic))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            VmEvent {
+                location: (l1_batch_number, index_in_l1_batch as u32),
+                address: Address::from_slice(&row.address),
+                indexed_topics,
+                value: row.value,
+            }
+        })
+        .collect();
+        Ok(Some(events))
     }
 }
 
