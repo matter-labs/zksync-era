@@ -66,7 +66,7 @@ impl RemoteENConfig {
                     ErrorCode::MethodNotFound.code(),
                     // This what Web3Error::NotImplemented gets
                     // casted into in the api server.
-                    ErrorCode::InternalError.code()
+                    ErrorCode::InternalError.code(),
                 ]
                 .contains(&(err.code())) =>
             {
