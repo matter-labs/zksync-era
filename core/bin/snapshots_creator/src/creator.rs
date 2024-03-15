@@ -10,7 +10,7 @@ use zksync_object_store::ObjectStore;
 use zksync_types::{
     snapshots::{
         uniform_hashed_keys_chunk, SnapshotFactoryDependencies, SnapshotFactoryDependency,
-        SnapshotMetadata, SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey,
+        SnapshotMetadata, SnapshotStorageLogsChunk, SnapshotStorageLogsStorageKey, SnapshotVersion,
     },
     L1BatchNumber, MiniblockNumber,
 };
@@ -307,6 +307,7 @@ impl SnapshotCreator {
             master_conn
                 .snapshots_dal()
                 .add_snapshot(
+                    SnapshotVersion::Version0,
                     progress.l1_batch_number,
                     progress.chunk_count,
                     &factory_deps_output_file,

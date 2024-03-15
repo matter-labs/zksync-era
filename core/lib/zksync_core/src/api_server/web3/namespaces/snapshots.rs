@@ -84,6 +84,7 @@ impl SnapshotsNamespace {
             .with_context(|| format!("missing miniblocks for L1 batch #{l1_batch_number}"))?;
 
         Ok(Some(SnapshotHeader {
+            version: snapshot_metadata.version,
             l1_batch_number: snapshot_metadata.l1_batch_number,
             miniblock_number,
             last_l1_batch_with_metadata: l1_batch_with_metadata,

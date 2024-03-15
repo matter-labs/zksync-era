@@ -2,6 +2,7 @@
 
 use std::collections::HashSet;
 
+use zksync_types::snapshots::SnapshotVersion;
 use zksync_web3_decl::namespaces::SnapshotsNamespaceClient;
 
 use super::*;
@@ -38,7 +39,12 @@ impl HttpTest for SnapshotBasicsTest {
         seal_l1_batch(&mut storage, L1BatchNumber(1)).await?;
         storage
             .snapshots_dal()
-            .add_snapshot(L1BatchNumber(1), Self::CHUNK_COUNT, "file:///factory_deps")
+            .add_snapshot(
+                SnapshotVersion::Version0,
+                L1BatchNumber(1),
+                Self::CHUNK_COUNT,
+                "file:///factory_deps",
+            )
             .await?;
 
         for &chunk_id in &self.chunk_ids {

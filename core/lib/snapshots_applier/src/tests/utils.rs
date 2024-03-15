@@ -11,7 +11,7 @@ use zksync_types::{
     snapshots::{
         SnapshotFactoryDependencies, SnapshotFactoryDependency, SnapshotHeader,
         SnapshotRecoveryStatus, SnapshotStorageLog, SnapshotStorageLogsChunk,
-        SnapshotStorageLogsChunkMetadata, SnapshotStorageLogsStorageKey,
+        SnapshotStorageLogsChunkMetadata, SnapshotStorageLogsStorageKey, SnapshotVersion,
     },
     tokens::{TokenInfo, TokenMetadata},
     AccountTreeId, Address, Bytes, L1BatchNumber, MiniblockNumber, ProtocolVersionId, StorageKey,
@@ -244,6 +244,7 @@ pub(super) async fn prepare_clients(
     }
 
     let snapshot_header = SnapshotHeader {
+        version: SnapshotVersion::Version0,
         l1_batch_number: status.l1_batch_number,
         miniblock_number: status.miniblock_number,
         last_l1_batch_with_metadata: l1_block_metadata(
