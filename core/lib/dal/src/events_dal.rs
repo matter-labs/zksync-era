@@ -358,8 +358,8 @@ impl EventsDal<'_, '_> {
                 miniblock_number ASC,
                 event_index_in_block ASC
             "#,
-            from_miniblock.0 as i64,
-            to_miniblock.0 as i64,
+            i64::from(from_miniblock.0),
+            i64::from(to_miniblock.0),
         )
         .instrument("get_vm_events_for_l1_batch")
         .report_latency()
