@@ -8,9 +8,9 @@ use multivm::{
     utils::get_max_gas_per_pubdata_byte,
     zk_evm_latest::aux_structures::{LogQuery as MultiVmLogQuery, Timestamp as MultiVMTimestamp},
 };
-use zksync_config::GenesisConfig;
+use zksync_config::{GenesisConfig, PostgresConfig};
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SET_CHAIN_ID_EVENT};
-use zksync_dal::{SqlxError, StorageProcessor};
+use zksync_dal::{ConnectionPool, SqlxError, StorageProcessor};
 use zksync_eth_client::{clients::QueryClient, EthInterface};
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_system_constants::PRIORITY_EXPIRATION;
@@ -134,11 +134,7 @@ pub fn mock_genesis_config() -> GenesisConfig {
         genesis_commitment: Default::default(),
         bootloader_hash: base_system_contracts_hashes.bootloader,
         default_aa_hash: base_system_contracts_hashes.default_aa,
-        verifier_address: Default::default(),
         fee_account: Address::repeat_byte(0x01),
-        diamond_proxy: Address::repeat_byte(0x01),
-        erc20_bridge: Address::repeat_byte(0x02),
-        state_transition_proxy_addr: None,
         l1_chain_id: L1ChainId(9),
         l2_chain_id: L2ChainId::default(),
         recursion_node_level_vk_hash: first_l1_verifier_config.params.recursion_node_level_vk_hash,
@@ -177,7 +173,6 @@ pub async fn ensure_genesis_state_unchecked(
         genesis_params.base_system_contracts(),
         genesis_params.system_contracts(),
         verifier_config,
-        genesis_params.config().verifier_address,
     )
     .await?;
     tracing::info!("chain_schema_genesis is complete");
@@ -396,14 +391,13 @@ pub(crate) async fn create_genesis_l1_batch(
     base_system_contracts: &BaseSystemContracts,
     system_contracts: &[DeployedContract],
     l1_verifier_config: L1VerifierConfig,
-    verifier_address: Address,
 ) -> anyhow::Result<()> {
     let version = ProtocolVersion {
         id: protocol_version,
         timestamp: 0,
         l1_verifier_config,
         base_system_contracts_hashes: base_system_contracts.hashes(),
-        verifier_address,
+        verifier_address: Default::default(),
         tx: None,
     };
 
@@ -525,12 +519,19 @@ async fn save_genesis_l1_batch_metadata(
     Ok(())
 }
 
-pub(crate) async fn save_set_chain_id_tx(
+pub async fn save_set_chain_id_tx(
     eth_client_url: &str,
     diamond_proxy_address: Address,
     state_transition_manager_address: Address,
-    storage: &mut StorageProcessor<'_>,
+    postgres_config: &PostgresConfig,
 ) -> anyhow::Result<()> {
+    let db_url = postgres_config.master_url()?;
+    let pool = ConnectionPool::singleton(db_url)
+        .build()
+        .await
+        .context("failed to build connection_pool")?;
+    let mut storage = pool.access_storage().await.context("access_storage()")?;
+
     let eth_client = QueryClient::new(eth_client_url)?;
     let to = eth_client.block_number("fetch_chain_id_tx").await?.as_u64();
     let from = to - PRIORITY_EXPIRATION;

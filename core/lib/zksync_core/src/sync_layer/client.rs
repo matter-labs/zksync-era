@@ -14,8 +14,6 @@ use zksync_web3_decl::{
     namespaces::{EnNamespaceClient, EthNamespaceClient, ZksNamespaceClient},
 };
 
-use crate::sync_layer::genesis::GenesisContracts;
-
 /// Client abstracting connection to the main node.
 #[async_trait]
 pub trait MainNodeClient: 'static + Send + Sync + fmt::Debug {
@@ -48,7 +46,6 @@ pub trait MainNodeClient: 'static + Send + Sync + fmt::Debug {
 
     async fn fetch_genesis_l1_batch(&self) -> EnrichedClientResult<L1BatchDetails>;
     async fn fetch_l1_chain_id(&self) -> EnrichedClientResult<L1ChainId>;
-    async fn fetch_genesis_contracts(&self) -> EnrichedClientResult<GenesisContracts>;
 }
 
 impl dyn MainNodeClient {
@@ -169,20 +166,5 @@ impl MainNodeClient for HttpClient {
             .rpc_context("fetch_l1_chain_id")
             .await
             .map(|l1_chain_id| L1ChainId(l1_chain_id.as_u64()))
-    }
-
-    async fn fetch_genesis_contracts(&self) -> EnrichedClientResult<GenesisContracts> {
-        let main_contract = self
-            .get_main_contract()
-            .rpc_context("get_main_contract")
-            .await?;
-        let bridge_contracts = self
-            .get_bridge_contracts()
-            .rpc_context("get bridges")
-            .await?;
-        Ok(GenesisContracts {
-            diamond_proxy: main_contract,
-            bridges: bridge_contracts,
-        })
     }
 }

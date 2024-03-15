@@ -103,8 +103,6 @@ mod utils;
 pub async fn genesis_init(
     genesis_config: GenesisConfig,
     postgres_config: &PostgresConfig,
-    eth_client_url: &str,
-    set_chain_id: bool,
 ) -> anyhow::Result<()> {
     let db_url = postgres_config.master_url()?;
     let pool = ConnectionPool::singleton(db_url)
@@ -116,18 +114,6 @@ pub async fn genesis_init(
     let params = GenesisParams::load_genesis_params(genesis_config)?;
     genesis::ensure_genesis_state(&mut storage, &params).await?;
 
-    if set_chain_id {
-        if let Some(state_transition_proxy_addr) = params.config().state_transition_proxy_addr {
-            genesis::save_set_chain_id_tx(
-                eth_client_url,
-                params.config().diamond_proxy,
-                state_transition_proxy_addr,
-                &mut storage,
-            )
-            .await
-            .context("Failed to save SetChainId upgrade transaction")?;
-        }
-    }
     Ok(())
 }
 

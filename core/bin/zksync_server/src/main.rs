@@ -18,7 +18,7 @@ use zksync_config::{
     GasAdjusterConfig, GenesisConfig, ObjectStoreConfig, PostgresConfig,
 };
 use zksync_core::{
-    genesis_init, initialize_components, is_genesis_needed, setup_sigint_handler,
+    genesis, genesis_init, initialize_components, is_genesis_needed, setup_sigint_handler,
     temp_config_store::{decode_yaml, Secrets, TempConfigStore},
     Component, Components,
 };
@@ -159,17 +159,26 @@ async fn main() -> anyhow::Result<()> {
 
     if opt.genesis || is_genesis_needed(&postgres_config).await {
         let genesis = GenesisConfig::from_env().context("Genesis config")?;
-        let eth_client = ETHClientConfig::from_env().context("EthClientConfig")?;
-        genesis_init(
-            genesis,
-            &postgres_config,
-            &eth_client.web3_url,
-            opt.set_chain_id,
-        )
-        .await
-        .context("genesis_init")?;
+        genesis_init(genesis, &postgres_config)
+            .await
+            .context("genesis_init")?;
         if opt.genesis {
             return Ok(());
+        }
+    }
+
+    if opt.set_chain_id {
+        let eth_client = ETHClientConfig::from_env().context("EthClientConfig")?;
+        let contracts = ContractsConfig::from_env().context("ContractsConfig")?;
+        if let Some(state_transition_proxy_addr) = contracts.state_transition_proxy_addr {
+            genesis::save_set_chain_id_tx(
+                &eth_client.web3_url,
+                contracts.diamond_proxy_addr,
+                state_transition_proxy_addr,
+                &postgres_config,
+            )
+            .await
+            .context("Failed to save SetChainId upgrade transaction")?;
         }
     }
 

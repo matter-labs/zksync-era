@@ -27,7 +27,6 @@ use crate::{
     },
     sync_layer::{
         fetcher::FetchedTransaction,
-        genesis::GenesisContracts,
         sync_action::{ActionQueue, ActionQueueSender, SyncAction},
         ExternalIO, MainNodeClient, SyncState,
     },
@@ -156,13 +155,6 @@ impl MainNodeClient for MockMainNodeClient {
         Err(EnrichedClientError::custom(
             "not implemented",
             "fetch_l1_chain_id",
-        ))
-    }
-
-    async fn fetch_genesis_contracts(&self) -> EnrichedClientResult<GenesisContracts> {
-        Err(EnrichedClientError::custom(
-            "not implemented",
-            "fetch_contracts",
         ))
     }
 }

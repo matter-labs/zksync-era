@@ -31,11 +31,7 @@ impl FromEnv for GenesisConfig {
             default_aa_hash: state_keeper
                 .default_aa_hash
                 .ok_or(anyhow!("Default aa hash required for genesis"))?,
-            verifier_address: contracts_config.verifier_addr,
             fee_account: state_keeper.fee_account_addr,
-            diamond_proxy: contracts_config.diamond_proxy_addr,
-            erc20_bridge: contracts_config.l1_erc20_bridge_proxy_addr,
-            state_transition_proxy_addr: contracts_config.state_transition_proxy_addr,
             l1_chain_id: network_config.network.chain_id(),
             l2_chain_id: network_config.zksync_network_id,
             recursion_node_level_vk_hash: contracts_config.fri_recursion_node_level_vk_hash,

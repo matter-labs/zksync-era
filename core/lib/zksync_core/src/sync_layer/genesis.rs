@@ -3,18 +3,12 @@ use zksync_config::GenesisConfig;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SystemContractCode};
 use zksync_dal::StorageProcessor;
 use zksync_types::{
-    api::BridgeAddresses, block::DeployedContract, protocol_version::L1VerifierConfig,
-    system_contracts::get_system_smart_contracts, AccountTreeId, Address, L1BatchNumber, L2ChainId,
-    H256,
+    block::DeployedContract, protocol_version::L1VerifierConfig,
+    system_contracts::get_system_smart_contracts, AccountTreeId, L1BatchNumber, L2ChainId, H256,
 };
 
 use super::client::MainNodeClient;
 use crate::genesis::{ensure_genesis_state, GenesisParams};
-
-pub struct GenesisContracts {
-    pub diamond_proxy: Address,
-    pub bridges: BridgeAddresses,
-}
 
 pub async fn perform_genesis_if_needed(
     storage: &mut StorageProcessor<'_>,
@@ -55,10 +49,6 @@ async fn create_genesis_params(
     let protocol_version = genesis_miniblock.protocol_version;
     let genesis_batch = client.fetch_genesis_l1_batch().await?;
     let l1_chain_id = client.fetch_l1_chain_id().await?;
-    let GenesisContracts {
-        diamond_proxy,
-        bridges,
-    } = client.fetch_genesis_contracts().await?;
 
     // Load the list of addresses that are known to contain system contracts at any point in time.
     // Not every of these addresses is guaranteed to be present in the genesis state, but we'll iterate through
@@ -102,7 +92,6 @@ async fn create_genesis_params(
 
     // Use default L1 verifier config and verifier address for genesis as they are not used by EN.
     let first_l1_verifier_config = L1VerifierConfig::default();
-    let first_verifier_address = Address::default();
     let config = GenesisConfig {
         protocol_version: protocol_version as u16,
         genesis_root_hash: genesis_batch
@@ -117,11 +106,7 @@ async fn create_genesis_params(
             .context("Genesis can't be pending")?,
         bootloader_hash: base_system_contracts_hashes.bootloader,
         default_aa_hash: base_system_contracts_hashes.default_aa,
-        verifier_address: first_verifier_address,
         fee_account: first_validator,
-        diamond_proxy,
-        erc20_bridge: bridges.l1_erc20_default_bridge,
-        state_transition_proxy_addr: None,
         l1_chain_id,
         l2_chain_id: zksync_chain_id,
         recursion_node_level_vk_hash: first_l1_verifier_config.params.recursion_node_level_vk_hash,
