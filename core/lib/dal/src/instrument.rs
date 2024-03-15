@@ -1,4 +1,15 @@
 //! DAL query instrumentation.
+//!
+//! Query instrumentation allows to:
+//!
+//! - Report query latency as a metric
+//! - Report slow and failing queries as metrics
+//! - Log slow and failing queries together with their arguments, which makes it easier to debug.
+//!
+//! The entry point for instrumentation is the [`InstrumentExt`] trait. After it is imported into the scope,
+//! its `instrument()` method can be placed on the output of `query*` functions or macros. You can then call
+//! [`Instrumented`] methods on the returned struct, e.g. to [report query latency](Instrumented::report_latency())
+//! and/or [to add logged args](Instrumented::with_arg()) for a query.
 
 use std::{fmt, future::Future, panic::Location};
 
@@ -92,6 +103,7 @@ struct InstrumentedData<'a> {
     location: &'static Location<'static>,
     args: QueryArgs<'a>,
     report_latency: bool,
+    slow_query_reporting_enabled: bool,
 }
 
 impl<'a> InstrumentedData<'a> {
@@ -101,6 +113,7 @@ impl<'a> InstrumentedData<'a> {
             location,
             args: QueryArgs::default(),
             report_latency: false,
+            slow_query_reporting_enabled: true,
         }
     }
 
@@ -114,6 +127,7 @@ impl<'a> InstrumentedData<'a> {
             location,
             args,
             report_latency,
+            slow_query_reporting_enabled,
         } = self;
         let started_at = Instant::now();
         tokio::pin!(query_future);
@@ -126,13 +140,15 @@ impl<'a> InstrumentedData<'a> {
             Ok(output) => output,
             Err(_) => {
                 let connection_tags = StorageProcessorTags::display(connection_tags);
-                tracing::warn!(
-                    "Query {name}{args} called at {file}:{line} [{connection_tags}] is executing for more than {slow_query_threshold:?}",
-                    file = location.file(),
-                    line = location.line()
-                );
-                REQUEST_METRICS.request_slow[&name].inc();
-                is_slow = true;
+                if slow_query_reporting_enabled {
+                    tracing::warn!(
+                        "Query {name}{args} called at {file}:{line} [{connection_tags}] is executing for more than {slow_query_threshold:?}",
+                        file = location.file(),
+                        line = location.line()
+                    );
+                    REQUEST_METRICS.request_slow[&name].inc();
+                    is_slow = true;
+                }
                 query_future.await
             }
         };
@@ -182,6 +198,11 @@ impl<'a, Q> Instrumented<'a, Q> {
     /// Indicates that latency should be reported for all calls.
     pub fn report_latency(mut self) -> Self {
         self.data.report_latency = true;
+        self
+    }
+
+    pub fn expect_slow_query(mut self) -> Self {
+        self.data.slow_query_reporting_enabled = false;
         self
     }
 

@@ -12,14 +12,15 @@ use serde::{Deserialize, Serialize};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_system_constants::{
-    KNOWN_CODES_STORAGE_ADDRESS, L2_TO_L1_LOGS_TREE_ROOT_KEY, STATE_DIFF_HASH_KEY,
+    BLOB1_LINEAR_HASH_KEY, BLOB2_LINEAR_HASH_KEY, KNOWN_CODES_STORAGE_ADDRESS,
+    L2_TO_L1_LOGS_TREE_ROOT_KEY, PUBDATA_CHUNK_PUBLISHER_ADDRESS, STATE_DIFF_HASH_KEY,
     ZKPORTER_IS_AVAILABLE,
 };
 use zksync_utils::u256_to_h256;
 
 use crate::{
     block::{L1BatchHeader, L1BatchTreeData},
-    l2_to_l1_log::{L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log},
+    l2_to_l1_log::{l2_to_l1_logs_tree_size, L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log},
     web3::signing::keccak256,
     writes::{
         compress_state_diffs, InitialStorageWrite, RepeatedStorageWrite, StateDiffRecord,
@@ -279,6 +280,8 @@ enum L1BatchAuxiliaryOutput {
         state_diffs_compressed: Vec<u8>,
         state_diffs_hash: H256,
         aux_commitments: AuxCommitments,
+        blob_linear_hashes: [H256; 2],
+        blob_commitments: [H256; 2],
     },
 }
 
@@ -298,7 +301,7 @@ impl L1BatchAuxiliaryOutput {
                     .map(|chunk| <[u8; UserL2ToL1Log::SERIALIZED_SIZE]>::try_from(chunk).unwrap());
                 let l2_l1_logs_merkle_root = MiniMerkleTree::new(
                     merkle_tree_leaves,
-                    Some(L2ToL1Log::PRE_BOOJUM_MIN_L2_L1_LOGS_TREE_SIZE),
+                    Some(l2_to_l1_logs_tree_size(common_input.protocol_version)),
                 )
                 .merkle_root();
                 let l2_l1_logs_linear_hash = H256::from(keccak256(&l2_l1_logs_compressed));
@@ -327,6 +330,7 @@ impl L1BatchAuxiliaryOutput {
                 system_logs,
                 state_diffs,
                 aux_commitments,
+                blob_commitments,
             } => {
                 let l2_l1_logs_compressed = serialize_commitments(&common_input.l2_to_l1_logs);
                 let merkle_tree_leaves = l2_l1_logs_compressed
@@ -334,7 +338,7 @@ impl L1BatchAuxiliaryOutput {
                     .map(|chunk| <[u8; UserL2ToL1Log::SERIALIZED_SIZE]>::try_from(chunk).unwrap());
                 let l2_l1_logs_merkle_root = MiniMerkleTree::new(
                     merkle_tree_leaves,
-                    Some(L2ToL1Log::MIN_L2_L1_LOGS_TREE_SIZE),
+                    Some(l2_to_l1_logs_tree_size(common_input.protocol_version)),
                 )
                 .merkle_root();
 
@@ -349,6 +353,31 @@ impl L1BatchAuxiliaryOutput {
                 let state_diffs_packed = serialize_commitments(&state_diffs);
                 let state_diffs_hash = H256::from(keccak256(&(state_diffs_packed)));
                 let state_diffs_compressed = compress_state_diffs(state_diffs);
+
+                let blob_linear_hashes = if common_input.protocol_version.is_post_1_4_2() {
+                    let blob1_linear_hash = system_logs.iter().find_map(|log| {
+                        (log.0.sender == PUBDATA_CHUNK_PUBLISHER_ADDRESS
+                            && log.0.key == H256::from_low_u64_be(BLOB1_LINEAR_HASH_KEY as u64))
+                        .then_some(log.0.value)
+                    });
+                    let blob2_linear_hash = system_logs.iter().find_map(|log| {
+                        (log.0.sender == PUBDATA_CHUNK_PUBLISHER_ADDRESS
+                            && log.0.key == H256::from_low_u64_be(BLOB2_LINEAR_HASH_KEY as u64))
+                        .then_some(log.0.value)
+                    });
+                    match (&blob1_linear_hash, &blob2_linear_hash) {
+                        (Some(_), None) | (None, Some(_)) => {
+                            panic!("Only one blob hash was found in system logs")
+                        }
+                        _ => {}
+                    }
+                    [
+                        blob1_linear_hash.unwrap_or_else(H256::zero),
+                        blob2_linear_hash.unwrap_or_else(H256::zero),
+                    ]
+                } else {
+                    [H256::zero(), H256::zero()]
+                };
 
                 // Sanity checks. System logs are empty for the genesis batch, so we can't do checks for it.
                 if !system_logs.is_empty() {
@@ -383,6 +412,8 @@ impl L1BatchAuxiliaryOutput {
                     state_diffs_compressed,
                     state_diffs_hash,
                     aux_commitments,
+                    blob_linear_hashes,
+                    blob_commitments,
                 }
             }
         }
@@ -409,6 +440,8 @@ impl L1BatchAuxiliaryOutput {
                 system_logs_linear_hash,
                 state_diffs_hash,
                 aux_commitments,
+                blob_linear_hashes,
+                blob_commitments,
                 ..
             } => {
                 result.extend(system_logs_linear_hash.as_bytes());
@@ -420,12 +453,17 @@ impl L1BatchAuxiliaryOutput {
                 );
                 result.extend(aux_commitments.events_queue_commitment.as_bytes());
 
-                if common.protocol_version.is_post_1_4_1() {
-                    // For now, we are using zeroes as commitments to the KZG pubdata.
+                if common.protocol_version.is_1_4_1() {
+                    // We are using zeroes as commitments to the KZG pubdata as per convention.
                     result.extend(H256::zero().as_bytes());
                     result.extend(H256::zero().as_bytes());
                     result.extend(H256::zero().as_bytes());
                     result.extend(H256::zero().as_bytes());
+                } else if common.protocol_version.is_post_1_4_2() {
+                    result.extend(blob_linear_hashes[0].as_bytes());
+                    result.extend(blob_commitments[0].as_bytes());
+                    result.extend(blob_linear_hashes[1].as_bytes());
+                    result.extend(blob_commitments[1].as_bytes());
                 }
             }
         }
@@ -643,6 +681,7 @@ pub enum CommitmentInput {
         system_logs: Vec<SystemL2ToL1Log>,
         state_diffs: Vec<StateDiffRecord>,
         aux_commitments: AuxCommitments,
+        blob_commitments: [H256; 2],
     },
 }
 
@@ -683,6 +722,7 @@ impl CommitmentInput {
                     events_queue_commitment: H256::zero(),
                     bootloader_initial_content_commitment: H256::zero(),
                 },
+                blob_commitments: [H256::zero(), H256::zero()],
             }
         }
     }

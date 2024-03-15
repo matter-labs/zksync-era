@@ -37,3 +37,7 @@ path = "src/compare_iai_results.rs"
 [[bin]]
 name = "find-slowest"
 path = "src/find_slowest.rs"
+
+[[bin]]
+name = "instruction-counts"
+path = "src/instruction_counts.rs"

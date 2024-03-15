@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package zksync.config;
+package zksync.config.fri_witness_vector_generator;
 
 message FriWitnessVectorGenerator {
   optional uint32 max_prover_reservation_duration_in_secs = 1; // required; s

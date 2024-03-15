@@ -53,7 +53,7 @@ impl FriGpuProverQueueDal<'_, '_> {
                 gpu_prover_queue_fri.*
             "#,
             &processing_timeout,
-            specialized_prover_group_id as i16,
+            i16::from(specialized_prover_group_id),
             zone
         )
         .fetch_optional(self.storage.conn())
@@ -95,9 +95,9 @@ impl FriGpuProverQueueDal<'_, '_> {
                 zone = $4,
                 updated_at = NOW()
             "#,
-            format!("{}", address.host),
-            address.port as i32,
-            specialized_prover_group_id as i16,
+            address.host.to_string(),
+            i32::from(address.port),
+            i16::from(specialized_prover_group_id),
             zone
         )
         .execute(self.storage.conn())
@@ -122,9 +122,9 @@ impl FriGpuProverQueueDal<'_, '_> {
                 AND instance_port = $3
                 AND zone = $4
             "#,
-            format!("{:?}", status).to_lowercase(),
-            format!("{}", address.host),
-            address.port as i32,
+            format!("{status:?}").to_lowercase(),
+            address.host.to_string(),
+            i32::from(address.port),
             zone
         )
         .execute(self.storage.conn())
@@ -149,8 +149,8 @@ impl FriGpuProverQueueDal<'_, '_> {
                 AND instance_status = 'full'
                 AND zone = $3
             "#,
-            format!("{}", address.host),
-            address.port as i32,
+            address.host.to_string(),
+            i32::from(address.port),
             zone
         )
         .execute(self.storage.conn())

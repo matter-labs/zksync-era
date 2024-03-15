@@ -40,6 +40,13 @@ pub struct ContractsConfig {
     pub fri_recursion_leaf_level_vk_hash: H256,
     pub prover_at_genesis: ProverAtGenesis,
     pub snark_wrapper_vk_hash: H256,
+
+    // These contracts will be used after shared bridge integration.
+    pub bridgehub_proxy_addr: Option<Address>,
+    pub bridgehub_impl_addr: Option<Address>,
+    pub state_transition_proxy_addr: Option<Address>,
+    pub state_transition_impl_addr: Option<Address>,
+    pub transparent_proxy_admin_addr: Option<Address>,
 }
 
 impl ContractsConfig {
@@ -52,6 +59,7 @@ impl ContractsConfig {
             mailbox_facet_addr: Address::repeat_byte(0x01),
             executor_facet_addr: Address::repeat_byte(0x02),
             admin_facet_addr: Address::repeat_byte(0x03),
+            transparent_proxy_admin_addr: Some(Address::repeat_byte(0x04)),
             getters_facet_addr: Address::repeat_byte(0x05),
             verifier_addr: Address::repeat_byte(0x06),
             diamond_init_addr: Address::repeat_byte(0x07),
@@ -77,6 +85,10 @@ impl ContractsConfig {
             governance_addr: Address::repeat_byte(0x13),
             prover_at_genesis: ProverAtGenesis::Fri,
             snark_wrapper_vk_hash: H256::repeat_byte(0x09),
+            bridgehub_proxy_addr: Some(Address::repeat_byte(0x14)),
+            bridgehub_impl_addr: Some(Address::repeat_byte(0x15)),
+            state_transition_proxy_addr: Some(Address::repeat_byte(0x16)),
+            state_transition_impl_addr: Some(Address::repeat_byte(0x17)),
         }
     }
 }
