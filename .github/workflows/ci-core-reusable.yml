@@ -203,7 +203,7 @@ jobs:
         # We use `yarn` directly because the test launches `zk` commands in both server and EN envs.
         # An empty topmost environment helps avoid a mess when redefining env vars shared between both envs
         # (e.g., DATABASE_URL).
-        run: ci_run yarn snapshot-recovery-test snapshot-recovery-test
+        run: ENABLE_CONSENSUS=${{ matrix.consensus }} PASSED_ENV_VARS=ENABLE_CONSENSUS ci_run yarn snapshot-recovery-test snapshot-recovery-test
 
       - name: Fee projection tests
         run: ci_run zk test i fees
