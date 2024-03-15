@@ -21,8 +21,8 @@ use super::{
     batch_executor::{BatchExecutor, BatchExecutorHandle, TxExecutionResult},
     extractors,
     io::{
-        fee_address_migration, IoCursor, L1BatchParams, MiniblockParams, OutputHandler,
-        PendingBatchData, StateKeeperIO,
+        fee_address_migration, IoCursor, MiniblockParams, OutputHandler, PendingBatchData,
+        StateKeeperIO,
     },
     metrics::{AGGREGATION_METRICS, BATCH_TIP_METRICS, KEEPER_METRICS, L1_BATCH_METRICS},
     seal_criteria::{ConditionalSealer, SealData, SealResolution},
@@ -144,7 +144,7 @@ impl ZkSyncStateKeeper {
             None => {
                 tracing::info!("There is no open pending batch, starting a new empty batch");
                 let (system_env, l1_batch_env) = self
-                    .wait_for_new_batch_params(&cursor)
+                    .wait_for_new_batch_env(&cursor)
                     .await
                     .map_err(|e| e.context("wait_for_new_batch_params()"))?;
                 PendingBatchData {
@@ -212,7 +212,7 @@ impl ZkSyncStateKeeper {
             // Start the new batch.
             let mut next_cursor = updates_manager.io_cursor();
             next_cursor.l1_batch += 1;
-            (system_env, l1_batch_env) = self.wait_for_new_batch_params(&next_cursor).await?;
+            (system_env, l1_batch_env) = self.wait_for_new_batch_env(&next_cursor).await?;
             updates_manager = UpdatesManager::new(&l1_batch_env, &system_env);
             batch_executor = self
                 .batch_executor_base
@@ -247,7 +247,7 @@ impl ZkSyncStateKeeper {
         // there has to be a setChainId upgrade transaction after the chain genesis.
         // It has to be the first transaction of the first batch.
         // The setChainId upgrade does not bump the protocol version, but attaches an upgrade
-        // transaction to the genesis protocol version version.
+        // transaction to the genesis protocol version.
         let first_batch_in_shared_bridge =
             l1_batch_number == L1BatchNumber(1) && !protocol_version.is_pre_shared_bridge();
         let previous_batch_protocol_version =
@@ -297,44 +297,21 @@ impl ZkSyncStateKeeper {
             .with_context(|| format!("failed loading upgrade transaction for {protocol_version:?}"))
     }
 
-    async fn wait_for_new_batch_params(
+    async fn wait_for_new_batch_env(
         &mut self,
         cursor: &IoCursor,
     ) -> Result<(SystemEnv, L1BatchEnv), Error> {
         while !self.is_canceled() {
-            if let Some(params) = self
+            if let Some(envs) = self
                 .io
-                .wait_for_new_batch_params(cursor, POLL_WAIT_DURATION)
+                .wait_for_new_batch_env(cursor, POLL_WAIT_DURATION)
                 .await
-                .context("error waiting for new L1 batch params")?
+                .context("error waiting for new L1 batch environment")?
             {
-                return Ok(self.map_batch_params(params, cursor).await?);
+                return Ok(envs);
             }
         }
         Err(Error::Canceled)
-    }
-
-    async fn map_batch_params(
-        &mut self,
-        params: L1BatchParams,
-        cursor: &IoCursor,
-    ) -> anyhow::Result<(SystemEnv, L1BatchEnv)> {
-        let contracts = self
-            .io
-            .load_base_system_contracts(params.protocol_version, cursor)
-            .await
-            .with_context(|| {
-                format!(
-                    "failed loading system contracts for protocol version {:?}",
-                    params.protocol_version
-                )
-            })?;
-        let previous_batch_hash = self
-            .io
-            .load_batch_state_hash(cursor.l1_batch - 1)
-            .await
-            .context("cannot load state hash for previous L1 batch")?;
-        Ok(params.into_env(self.io.chain_id(), contracts, cursor, previous_batch_hash))
     }
 
     async fn wait_for_new_miniblock_params(

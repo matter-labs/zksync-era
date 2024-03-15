@@ -1,5 +1,6 @@
 use std::{fmt, time::Duration};
 
+use anyhow::Context as _;
 use async_trait::async_trait;
 use multivm::interface::{L1BatchEnv, SystemEnv};
 use vm_utils::storage::l1_batch_params;
@@ -155,4 +156,35 @@ pub trait StateKeeperIO: 'static + Send + fmt::Debug + IoSealCriteria {
     /// Loads state hash for the L1 batch with the specified number. The batch is guaranteed to be present
     /// in the storage.
     async fn load_batch_state_hash(&mut self, number: L1BatchNumber) -> anyhow::Result<H256>;
+}
+
+impl dyn StateKeeperIO {
+    pub(super) async fn wait_for_new_batch_env(
+        &mut self,
+        cursor: &IoCursor,
+        max_wait: Duration,
+    ) -> anyhow::Result<Option<(SystemEnv, L1BatchEnv)>> {
+        let Some(params) = self.wait_for_new_batch_params(cursor, max_wait).await? else {
+            return Ok(None);
+        };
+        let contracts = self
+            .load_base_system_contracts(params.protocol_version, cursor)
+            .await
+            .with_context(|| {
+                format!(
+                    "failed loading system contracts for protocol version {:?}",
+                    params.protocol_version
+                )
+            })?;
+        let previous_batch_hash = self
+            .load_batch_state_hash(cursor.l1_batch - 1)
+            .await
+            .context("cannot load state hash for previous L1 batch")?;
+        Ok(Some(params.into_env(
+            self.chain_id(),
+            contracts,
+            cursor,
+            previous_batch_hash,
+        )))
+    }
 }
