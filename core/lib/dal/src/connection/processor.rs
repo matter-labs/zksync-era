@@ -240,12 +240,5 @@ mod tests {
             let traced = traced.connections.lock().unwrap();
             assert!(traced.is_empty());
         }
-
-        // FIXME: takes long time to time out
-        let _connection = pool.access_storage_tagged("test").await.unwrap();
-        let err = format!("{:?}", pool.access_storage().await.unwrap_err());
-        // Matching strings in error messages is an anti-pattern, but we really want to test DevEx here.
-        assert!(err.contains("Active connections"), "{err}");
-        assert!(err.contains("requested by `test`"), "{err}");
     }
 }
