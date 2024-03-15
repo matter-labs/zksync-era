@@ -129,7 +129,7 @@ impl StateKeeperConfig {
             block_commit_deadline_ms: 2500,
             miniblock_commit_deadline_ms: 1000,
             miniblock_seal_queue_capacity: 10,
-            miniblock_max_payload_size: 5_000_000,
+            miniblock_max_payload_size: 2_000_000,
             max_single_tx_gas: 6000000,
             max_allowed_l2_tx_gas_limit: 4000000000,
             reject_tx_at_geometry_percentage: 0.95,
