@@ -36,6 +36,10 @@ impl PruningDal<'_, '_> {
             FROM
                 (
                     SELECT
+                        1
+                ) AS dummy
+                LEFT JOIN (
+                    SELECT
                         pruned_l1_batch,
                         pruned_miniblock
                     FROM
@@ -46,8 +50,8 @@ impl PruningDal<'_, '_> {
                         pruned_l1_batch DESC
                     LIMIT
                         1
-                ) AS soft
-                FULL JOIN (
+                ) AS soft ON TRUE
+                LEFT JOIN (
                     SELECT
                         pruned_l1_batch,
                         pruned_miniblock
@@ -556,6 +560,7 @@ mod tests {
     async fn soft_pruning_works() {
         let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
+        let mut transaction = conn.start_transaction().await.unwrap();
 
         assert_eq!(
             PruningInfo {
@@ -564,10 +569,11 @@ mod tests {
                 last_hard_pruned_miniblock: None,
                 last_hard_pruned_l1_batch: None
             },
-            conn.pruning_dal().get_pruning_info().await.unwrap()
+            transaction.pruning_dal().get_pruning_info().await.unwrap()
         );
 
-        conn.pruning_dal()
+        transaction
+            .pruning_dal()
             .soft_prune_batches_range(L1BatchNumber(5), MiniblockNumber(11))
             .await
             .unwrap();
@@ -578,10 +584,11 @@ mod tests {
                 last_hard_pruned_miniblock: None,
                 last_hard_pruned_l1_batch: None
             },
-            conn.pruning_dal().get_pruning_info().await.unwrap()
+            transaction.pruning_dal().get_pruning_info().await.unwrap()
         );
 
-        conn.pruning_dal()
+        transaction
+            .pruning_dal()
             .soft_prune_batches_range(L1BatchNumber(10), MiniblockNumber(21))
             .await
             .unwrap();
@@ -592,10 +599,11 @@ mod tests {
                 last_hard_pruned_miniblock: None,
                 last_hard_pruned_l1_batch: None
             },
-            conn.pruning_dal().get_pruning_info().await.unwrap()
+            transaction.pruning_dal().get_pruning_info().await.unwrap()
         );
 
-        conn.pruning_dal()
+        transaction
+            .pruning_dal()
             .hard_prune_batches_range(L1BatchNumber(10), MiniblockNumber(21))
             .await
             .unwrap();
@@ -606,7 +614,7 @@ mod tests {
                 last_hard_pruned_miniblock: Some(MiniblockNumber(21)),
                 last_hard_pruned_l1_batch: Some(L1BatchNumber(10))
             },
-            conn.pruning_dal().get_pruning_info().await.unwrap()
+            transaction.pruning_dal().get_pruning_info().await.unwrap()
         );
     }
 
@@ -656,16 +664,17 @@ mod tests {
         let pool = ConnectionPool::test_pool().await;
 
         let mut conn = pool.access_storage().await.unwrap();
-        insert_realistic_l1_batches(&mut conn, 10).await;
+        let mut transaction = conn.start_transaction().await.unwrap();
+        insert_realistic_l1_batches(&mut transaction, 10).await;
         insert_miniblock_storage_logs(
-            &mut conn,
+            &mut transaction,
             MiniblockNumber(1),
             vec![random_storage_log(1, 1)],
         )
         .await;
 
         insert_miniblock_storage_logs(
-            &mut conn,
+            &mut transaction,
             MiniblockNumber(0),
             // first storage will be overwritten in 1st miniblock,
             // the second one should be kept throughout the pruning
@@ -679,7 +688,7 @@ mod tests {
         .await;
 
         insert_miniblock_storage_logs(
-            &mut conn,
+            &mut transaction,
             MiniblockNumber(15),
             // this storage log overrides log from block 0
             vec![random_storage_log(3, 5)],
@@ -687,59 +696,61 @@ mod tests {
         .await;
 
         insert_miniblock_storage_logs(
-            &mut conn,
+            &mut transaction,
             MiniblockNumber(17),
             // there are two logs with the same hashed key, the second one should be overwritten
             vec![random_storage_log(5, 5), random_storage_log(5, 7)],
         )
         .await;
 
-        conn.pruning_dal()
+        transaction
+            .pruning_dal()
             .hard_prune_batches_range(L1BatchNumber(4), MiniblockNumber(9))
             .await
             .unwrap();
 
         assert_miniblock_storage_logs_equal(
-            &mut conn,
+            &mut transaction,
             MiniblockNumber(0),
             vec![random_storage_log(2, 3), random_storage_log(3, 4)],
         )
         .await;
         assert_miniblock_storage_logs_equal(
-            &mut conn,
+            &mut transaction,
             MiniblockNumber(1),
             vec![random_storage_log(1, 1)],
         )
         .await;
 
-        conn.pruning_dal()
+        transaction
+            .pruning_dal()
             .hard_prune_batches_range(L1BatchNumber(10), MiniblockNumber(21))
             .await
             .unwrap();
 
         assert_miniblock_storage_logs_equal(
-            &mut conn,
+            &mut transaction,
             MiniblockNumber(0),
             vec![random_storage_log(2, 3)],
         )
         .await;
 
         assert_miniblock_storage_logs_equal(
-            &mut conn,
+            &mut transaction,
             MiniblockNumber(1),
             vec![random_storage_log(1, 1)],
         )
         .await;
 
         assert_miniblock_storage_logs_equal(
-            &mut conn,
+            &mut transaction,
             MiniblockNumber(15),
             vec![random_storage_log(3, 5)],
         )
         .await;
 
         assert_miniblock_storage_logs_equal(
-            &mut conn,
+            &mut transaction,
             MiniblockNumber(17),
             vec![random_storage_log(5, 7)],
         )
@@ -751,10 +762,12 @@ mod tests {
         let pool = ConnectionPool::test_pool().await;
 
         let mut conn = pool.access_storage().await.unwrap();
-        insert_realistic_l1_batches(&mut conn, 10).await;
+        let mut transaction = conn.start_transaction().await.unwrap();
+        insert_realistic_l1_batches(&mut transaction, 10).await;
 
-        assert_l1_batch_objects_exists(&mut conn, L1BatchNumber(1)..=L1BatchNumber(10)).await;
-        assert!(conn
+        assert_l1_batch_objects_exists(&mut transaction, L1BatchNumber(1)..=L1BatchNumber(10))
+            .await;
+        assert!(transaction
             .pruning_dal()
             .get_pruning_info()
             .await
@@ -762,31 +775,38 @@ mod tests {
             .last_hard_pruned_l1_batch
             .is_none());
 
-        conn.pruning_dal()
+        transaction
+            .pruning_dal()
             .hard_prune_batches_range(L1BatchNumber(5), MiniblockNumber(11))
             .await
             .unwrap();
 
-        assert_l1_batch_objects_dont_exist(&mut conn, L1BatchNumber(1)..=L1BatchNumber(5)).await;
-        assert_l1_batch_objects_exists(&mut conn, L1BatchNumber(6)..=L1BatchNumber(10)).await;
+        assert_l1_batch_objects_dont_exist(&mut transaction, L1BatchNumber(1)..=L1BatchNumber(5))
+            .await;
+        assert_l1_batch_objects_exists(&mut transaction, L1BatchNumber(6)..=L1BatchNumber(10))
+            .await;
         assert_eq!(
             Some(L1BatchNumber(5)),
-            conn.pruning_dal()
+            transaction
+                .pruning_dal()
                 .get_pruning_info()
                 .await
                 .unwrap()
                 .last_hard_pruned_l1_batch
         );
 
-        conn.pruning_dal()
+        transaction
+            .pruning_dal()
             .hard_prune_batches_range(L1BatchNumber(10), MiniblockNumber(21))
             .await
             .unwrap();
 
-        assert_l1_batch_objects_dont_exist(&mut conn, L1BatchNumber(1)..=L1BatchNumber(10)).await;
+        assert_l1_batch_objects_dont_exist(&mut transaction, L1BatchNumber(1)..=L1BatchNumber(10))
+            .await;
         assert_eq!(
             Some(L1BatchNumber(10)),
-            conn.pruning_dal()
+            transaction
+                .pruning_dal()
                 .get_pruning_info()
                 .await
                 .unwrap()
