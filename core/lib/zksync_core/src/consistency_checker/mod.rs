@@ -268,7 +268,7 @@ impl ConsistencyChecker {
         let web3 = QueryClient::new(web3_url).context("cannot create L1 Web3 client")?;
         let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
         Ok(Self {
-            contract: zksync_contracts::zksync_contract(),
+            contract: zksync_contracts::state_transition_chain_contract(),
             diamond_proxy_addr: None,
             max_batches_to_recheck,
             sleep_interval: Self::DEFAULT_SLEEP_INTERVAL,

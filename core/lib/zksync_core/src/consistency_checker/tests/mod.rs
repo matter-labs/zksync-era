@@ -58,7 +58,7 @@ fn build_commit_tx_input_data(batches: &[L1BatchWithMetadata]) -> Vec<u8> {
     let commit_function = if is_pre_boojum {
         &*PRE_BOOJUM_COMMIT_FUNCTION
     } else {
-        contract = zksync_contracts::zksync_contract();
+        contract = zksync_contracts::state_transition_chain_contract();
         contract.function("commitBatches").unwrap()
     };
 
@@ -75,7 +75,7 @@ fn build_commit_tx_input_data(batches: &[L1BatchWithMetadata]) -> Vec<u8> {
 fn create_mock_checker(client: MockEthereum, pool: ConnectionPool) -> ConsistencyChecker {
     let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
     ConsistencyChecker {
-        contract: zksync_contracts::zksync_contract(),
+        contract: zksync_contracts::state_transition_chain_contract(),
         diamond_proxy_addr: Some(DIAMOND_PROXY_ADDR),
         max_batches_to_recheck: 100,
         sleep_interval: Duration::from_millis(10),
@@ -327,7 +327,7 @@ const SAVE_ACTION_MAPPERS: [(&str, SaveActionMapper); 4] = [
 
 fn l1_batch_commit_log(l1_batch: &L1BatchWithMetadata) -> Log {
     static BLOCK_COMMIT_EVENT_HASH: Lazy<H256> = Lazy::new(|| {
-        zksync_contracts::zksync_contract()
+        zksync_contracts::state_transition_chain_contract()
             .event("BlockCommit")
             .unwrap()
             .signature()
