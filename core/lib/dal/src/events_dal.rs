@@ -1,7 +1,9 @@
 use std::{collections::HashMap, fmt};
 
 use sqlx::types::chrono::Utc;
-use zksync_db_connection::{processor::StorageProcessor, write_str, writeln_str};
+use zksync_db_connection::{
+    instrument::InstrumentExt, processor::StorageProcessor, write_str, writeln_str,
+};
 use zksync_system_constants::L1_MESSENGER_ADDRESS;
 use zksync_types::{
     api,
@@ -12,7 +14,6 @@ use zksync_types::{
 };
 
 use crate::{
-    instrument::InstrumentExt,
     models::storage_event::{StorageL2ToL1Log, StorageWeb3Log},
     ServerProcessor, SqlxError,
 };
