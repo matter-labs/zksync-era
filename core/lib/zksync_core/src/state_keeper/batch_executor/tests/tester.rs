@@ -171,7 +171,6 @@ impl Tester {
                 &BASE_SYSTEM_CONTRACTS,
                 &get_system_smart_contracts(),
                 Default::default(),
-                Default::default(),
             )
             .await
             .unwrap();
