@@ -1,3 +1,15 @@
+-- create prover_fri_protocol_versions table
+CREATE TABLE IF NOT EXISTS prover_fri_protocol_versions
+(
+    id                                integer   NOT NULL
+        primary key,
+    recursion_scheduler_level_vk_hash bytea     NOT NULL,
+    recursion_node_level_vk_hash      bytea     NOT NULL,
+    recursion_leaf_level_vk_hash      bytea     NOT NULL,
+    recursion_circuits_set_vks_hash   bytea     NOT NULL,
+    created_at                        timestamp NOT NULL
+);
+
 -- create gpu_prover_queue_fri table
 CREATE TABLE IF NOT EXISTS gpu_prover_queue_fri
 (
@@ -108,18 +120,6 @@ CREATE INDEX IF NOT EXISTS idx_proof_compression_jobs_fri_status_processing_atte
 CREATE INDEX IF NOT EXISTS idx_proof_compressor_jobs_fri_queued_order
     ON proof_compression_jobs_fri (l1_batch_number)
     WHERE (status = 'queued'::text);
-
--- create prover_fri_protocol_versions table
-CREATE TABLE IF NOT EXISTS prover_fri_protocol_versions
-(
-    id                                integer   NOT NULL
-        primary key,
-    recursion_scheduler_level_vk_hash bytea     NOT NULL,
-    recursion_node_level_vk_hash      bytea     NOT NULL,
-    recursion_leaf_level_vk_hash      bytea     NOT NULL,
-    recursion_circuits_set_vks_hash   bytea     NOT NULL,
-    created_at                        timestamp NOT NULL
-);
 
 -- create prover_jobs_fri table
 CREATE TABLE IF NOT EXISTS prover_jobs_fri
