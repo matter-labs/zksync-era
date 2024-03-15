@@ -21,7 +21,7 @@ use zksync_types::{
 use super::{fetcher::FetchedTransaction, sync_action::SyncAction, *};
 use crate::{
     consensus::testonly::MockMainNodeClient,
-    genesis::{ensure_genesis_state, GenesisParams},
+    genesis::{ensure_genesis_state_unchecked, GenesisParams},
     state_keeper::{
         seal_criteria::NoopSealer, tests::TestBatchExecutorBuilder, MiniblockSealer,
         ZkSyncStateKeeper,
@@ -127,7 +127,7 @@ impl StateKeeperHandles {
 
 async fn ensure_genesis(storage: &mut StorageProcessor<'_>) {
     if storage.blocks_dal().is_genesis_needed().await.unwrap() {
-        ensure_genesis_state(storage, &GenesisParams::mock())
+        ensure_genesis_state_unchecked(storage, &GenesisParams::mock())
             .await
             .unwrap();
     }

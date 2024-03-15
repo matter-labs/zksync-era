@@ -3,13 +3,18 @@ use zksync_config::GenesisConfig;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SystemContractCode};
 use zksync_dal::StorageProcessor;
 use zksync_types::{
-    block::DeployedContract, protocol_version::L1VerifierConfig,
+    api::BridgeAddresses, block::DeployedContract, protocol_version::L1VerifierConfig,
     system_contracts::get_system_smart_contracts, AccountTreeId, Address, L1BatchNumber, L2ChainId,
     H256,
 };
 
-use super::client::{GenesisContracts, MainNodeClient};
+use super::client::MainNodeClient;
 use crate::genesis::{ensure_genesis_state, GenesisParams};
+
+pub struct GenesisContracts {
+    pub diamond_proxy: Address,
+    pub bridges: BridgeAddresses,
+}
 
 pub async fn perform_genesis_if_needed(
     storage: &mut StorageProcessor<'_>,

@@ -167,7 +167,7 @@ pub(crate) async fn pending_protocol_version(
 mod tests {
 
     use super::*;
-    use crate::genesis::{ensure_genesis_state, GenesisParams};
+    use crate::genesis::{ensure_genesis_state_unchecked, GenesisParams};
 
     #[tokio::test]
     async fn test_binary_search() {
@@ -187,7 +187,7 @@ mod tests {
         tokio::spawn(async move {
             tokio::time::sleep(Duration::from_millis(25)).await;
             let mut storage = pool_copy.access_storage().await.unwrap();
-            ensure_genesis_state(&mut storage, &GenesisParams::mock())
+            ensure_genesis_state_unchecked(&mut storage, &GenesisParams::mock())
                 .await
                 .unwrap();
         });

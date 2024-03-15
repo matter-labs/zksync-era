@@ -17,7 +17,7 @@ use zksync_types::{
 
 use super::*;
 use crate::{
-    genesis::{ensure_genesis_state, mock_genesis_config, GenesisParams},
+    genesis::{ensure_genesis_state_unchecked, mock_genesis_config, GenesisParams},
     utils::testonly::{
         create_l1_batch, create_l2_transaction, create_miniblock, execute_l2_transaction,
         prepare_recovery_snapshot,
@@ -38,7 +38,7 @@ fn test_poll_iters() {
 async fn creating_io_cursor_with_genesis() {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
-    ensure_genesis_state(&mut storage, &GenesisParams::mock())
+    ensure_genesis_state_unchecked(&mut storage, &GenesisParams::mock())
         .await
         .unwrap();
 
@@ -103,9 +103,10 @@ async fn creating_io_cursor_with_snapshot_recovery() {
 async fn waiting_for_l1_batch_params_with_genesis() {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
-    let genesis_root_hash = ensure_genesis_state(&mut storage, &GenesisParams::mock())
-        .await
-        .unwrap();
+    let (genesis_root_hash, ..) =
+        ensure_genesis_state_unchecked(&mut storage, &GenesisParams::mock())
+            .await
+            .unwrap();
 
     let provider = L1BatchParamsProvider::new(&mut storage).await.unwrap();
     let (hash, timestamp) = provider
@@ -190,7 +191,7 @@ async fn waiting_for_l1_batch_params_after_snapshot_recovery() {
 async fn getting_first_miniblock_in_batch_with_genesis() {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
-    ensure_genesis_state(&mut storage, &GenesisParams::mock())
+    ensure_genesis_state_unchecked(&mut storage, &GenesisParams::mock())
         .await
         .unwrap();
 
@@ -311,7 +312,7 @@ async fn loading_pending_batch_with_genesis() {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
     let genesis_params = GenesisParams::mock();
-    ensure_genesis_state(&mut storage, &genesis_params)
+    ensure_genesis_state_unchecked(&mut storage, &genesis_params)
         .await
         .unwrap();
     store_pending_miniblocks(
@@ -449,7 +450,7 @@ async fn getting_batch_version_with_genesis() {
     })
     .unwrap();
 
-    ensure_genesis_state(&mut storage, &genesis_params)
+    ensure_genesis_state_unchecked(&mut storage, &genesis_params)
         .await
         .unwrap();
 

@@ -1,6 +1,5 @@
 import { Command } from 'commander';
 import * as utils from './utils';
-import * as env from './env';
 import { clean } from './clean';
 import fs from 'fs';
 import { unloadInit } from './env';

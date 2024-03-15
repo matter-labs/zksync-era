@@ -23,7 +23,7 @@ use zksync_utils::u32_to_h256;
 
 use super::{GenericAsyncTree, L1BatchWithLogs, MetadataCalculator, MetadataCalculatorConfig};
 use crate::{
-    genesis::{ensure_genesis_state, GenesisParams},
+    genesis::{ensure_genesis_state_unchecked, GenesisParams},
     utils::testonly::{create_l1_batch, create_miniblock},
 };
 
@@ -400,7 +400,7 @@ async fn setup_calculator_with_options(
 
     let mut storage = pool.access_storage().await.unwrap();
     if storage.blocks_dal().is_genesis_needed().await.unwrap() {
-        ensure_genesis_state(&mut storage, &GenesisParams::mock())
+        ensure_genesis_state_unchecked(&mut storage, &GenesisParams::mock())
             .await
             .unwrap();
     }
@@ -631,7 +631,7 @@ async fn remove_l1_batches(
 async fn deduplication_works_as_expected() {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
-    ensure_genesis_state(&mut storage, &GenesisParams::mock())
+    ensure_genesis_state_unchecked(&mut storage, &GenesisParams::mock())
         .await
         .unwrap();
 

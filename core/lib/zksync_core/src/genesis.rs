@@ -123,68 +123,42 @@ impl GenesisParams {
 #[cfg(test)]
 pub fn mock_genesis_config() -> GenesisConfig {
     use zksync_types::L1ChainId;
+
+    let base_system_contracts_hashes = BaseSystemContracts::load_from_disk().hashes();
+    let first_l1_verifier_config = L1VerifierConfig::default();
+
     GenesisConfig {
         protocol_version: ProtocolVersionId::latest() as u16,
         genesis_root_hash: Default::default(),
         rollup_last_leaf_index: 26,
         genesis_commitment: Default::default(),
-        bootloader_hash: Default::default(),
-        default_aa_hash: Default::default(),
+        bootloader_hash: base_system_contracts_hashes.bootloader,
+        default_aa_hash: base_system_contracts_hashes.default_aa,
         verifier_address: Default::default(),
-        fee_account: Default::default(),
-        diamond_proxy: Default::default(),
-        erc20_bridge: Default::default(),
+        fee_account: Address::repeat_byte(0x01),
+        diamond_proxy: Address::repeat_byte(0x01),
+        erc20_bridge: Address::repeat_byte(0x02),
         state_transition_proxy_addr: None,
         l1_chain_id: L1ChainId(9),
         l2_chain_id: L2ChainId::default(),
-        recursion_node_level_vk_hash: Default::default(),
-        recursion_leaf_level_vk_hash: Default::default(),
-        recursion_circuits_set_vks_hash: Default::default(),
-        recursion_scheduler_level_vk_hash: Default::default(),
+        recursion_node_level_vk_hash: first_l1_verifier_config.params.recursion_node_level_vk_hash,
+        recursion_leaf_level_vk_hash: first_l1_verifier_config.params.recursion_leaf_level_vk_hash,
+        recursion_circuits_set_vks_hash: first_l1_verifier_config
+            .params
+            .recursion_circuits_set_vks_hash,
+        recursion_scheduler_level_vk_hash: first_l1_verifier_config
+            .recursion_scheduler_level_vk_hash,
     }
 }
 
-#[cfg(test)]
-pub fn mock_genesis_config() -> GenesisConfig {
-    use zksync_types::L1ChainId;
-    GenesisConfig {
-        protocol_version: ProtocolVersionId::latest() as u16,
-        genesis_root_hash: Default::default(),
-        rollup_last_leaf_index: 26,
-        genesis_commitment: Default::default(),
-        bootloader_hash: Default::default(),
-        default_aa_hash: Default::default(),
-        verifier_address: Default::default(),
-        fee_account: Default::default(),
-        diamond_proxy: Default::default(),
-        erc20_bridge: Default::default(),
-        state_transition_proxy_addr: None,
-        l1_chain_id: L1ChainId(9),
-        l2_chain_id: L2ChainId::default(),
-        recursion_node_level_vk_hash: Default::default(),
-        recursion_leaf_level_vk_hash: Default::default(),
-        recursion_circuits_set_vks_hash: Default::default(),
-        recursion_scheduler_level_vk_hash: Default::default(),
-    }
-}
-
-pub async fn ensure_genesis_state(
-    storage: &mut StorageProcessor<'_>,
+// This function is dangerous,
+// it doesn't enforce transactions and doesn't verify genesis correctness
+// Please, always use ensure_genesis_state instead
+pub async fn ensure_genesis_state_unchecked(
+    transaction: &mut StorageProcessor<'_>,
     genesis_params: &GenesisParams,
-) -> Result<H256, GenesisError> {
-    let mut transaction = storage.start_transaction().await?;
-
+) -> Result<(H256, H256, u64), GenesisError> {
     // return if genesis block was already processed
-    if !transaction.blocks_dal().is_genesis_needed().await? {
-        tracing::debug!("genesis is not needed!");
-        return Ok(transaction
-            .blocks_dal()
-            .get_l1_batch_state_root(L1BatchNumber(0))
-            .await
-            .context("failed fetching state root hash for genesis L1 batch")?
-            .context("genesis L1 batch hash is empty")?);
-    }
-
     tracing::info!("running regenesis");
     let verifier_config = L1VerifierConfig {
         params: VerifierParams {
@@ -196,7 +170,7 @@ pub async fn ensure_genesis_state(
     };
 
     create_genesis_l1_batch(
-        &mut transaction,
+        transaction,
         genesis_params.config.fee_account,
         genesis_params.config.l2_chain_id,
         genesis_params.protocol_version(),
@@ -208,7 +182,7 @@ pub async fn ensure_genesis_state(
     .await?;
     tracing::info!("chain_schema_genesis is complete");
 
-    let storage_logs = L1BatchWithLogs::new(&mut transaction, L1BatchNumber(0)).await;
+    let storage_logs = L1BatchWithLogs::new(transaction, L1BatchNumber(0)).await;
     let storage_logs = storage_logs
         .context("genesis L1 batch disappeared from Postgres")?
         .storage_logs;
@@ -229,19 +203,43 @@ pub async fn ensure_genesis_state(
     let block_commitment = L1BatchCommitment::new(commitment_input);
 
     save_genesis_l1_batch_metadata(
-        &mut transaction,
+        transaction,
         block_commitment.clone(),
         genesis_root_hash,
         rollup_last_leaf_index,
     )
     .await?;
+    Ok((
+        genesis_root_hash,
+        block_commitment.hash().commitment,
+        rollup_last_leaf_index,
+    ))
+}
 
+pub async fn ensure_genesis_state(
+    storage: &mut StorageProcessor<'_>,
+    genesis_params: &GenesisParams,
+) -> Result<H256, GenesisError> {
+    let mut transaction = storage.start_transaction().await?;
+
+    if !transaction.blocks_dal().is_genesis_needed().await? {
+        tracing::debug!("genesis is not needed!");
+        return Ok(transaction
+            .blocks_dal()
+            .get_l1_batch_state_root(L1BatchNumber(0))
+            .await
+            .context("failed fetching state root hash for genesis L1 batch")?
+            .context("genesis L1 batch hash is empty")?);
+    }
+
+    let (genesis_root_hash, commitment, rollup_last_leaf_index) =
+        ensure_genesis_state_unchecked(&mut transaction, genesis_params).await?;
     if genesis_params.config.genesis_root_hash != genesis_root_hash {
         return Err(GenesisError::RootHash(genesis_root_hash));
     }
 
-    if genesis_params.config.genesis_commitment != block_commitment.hash().commitment {
-        return Err(GenesisError::Commitment(block_commitment.hash().commitment));
+    if genesis_params.config.genesis_commitment != commitment {
+        return Err(GenesisError::Commitment(commitment));
     }
 
     if genesis_params.config.rollup_last_leaf_index != rollup_last_leaf_index {
@@ -577,7 +575,9 @@ mod tests {
 
         let params = GenesisParams::mock();
 
-        ensure_genesis_state(&mut conn, &params).await.unwrap();
+        ensure_genesis_state_unchecked(&mut conn, &params)
+            .await
+            .unwrap();
 
         assert!(!conn.blocks_dal().is_genesis_needed().await.unwrap());
         let metadata = conn
@@ -589,7 +589,9 @@ mod tests {
         assert_ne!(root_hash, H256::zero());
 
         // Check that `ensure_genesis_state()` doesn't panic on repeated runs.
-        ensure_genesis_state(&mut conn, &params).await.unwrap();
+        ensure_genesis_state_unchecked(&mut conn, &params)
+            .await
+            .unwrap();
     }
 
     #[tokio::test]
@@ -603,7 +605,9 @@ mod tests {
             ..mock_genesis_config()
         })
         .unwrap();
-        ensure_genesis_state(&mut conn, &params).await.unwrap();
+        ensure_genesis_state_unchecked(&mut conn, &params)
+            .await
+            .unwrap();
 
         assert!(!conn.blocks_dal().is_genesis_needed().await.unwrap());
         let metadata = conn
@@ -624,7 +628,9 @@ mod tests {
         })
         .unwrap();
 
-        ensure_genesis_state(&mut conn, &params).await.unwrap();
+        ensure_genesis_state_unchecked(&mut conn, &params)
+            .await
+            .unwrap();
         assert!(!conn.blocks_dal().is_genesis_needed().await.unwrap());
     }
 }

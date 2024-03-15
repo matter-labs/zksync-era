@@ -16,7 +16,7 @@ use zksync_types::{L1BatchNumber, ProtocolVersionId, StorageLog};
 
 use super::*;
 use crate::{
-    genesis::{ensure_genesis_state, GenesisParams},
+    genesis::{ensure_genesis_state_unchecked, GenesisParams},
     metadata_calculator::{
         helpers::create_db,
         tests::{
@@ -97,7 +97,7 @@ async fn prepare_recovery_snapshot_with_genesis(
     temp_dir: &TempDir,
 ) -> SnapshotRecoveryStatus {
     let mut storage = pool.access_storage().await.unwrap();
-    ensure_genesis_state(&mut storage, &GenesisParams::mock())
+    ensure_genesis_state_unchecked(&mut storage, &GenesisParams::mock())
         .await
         .unwrap();
     let mut logs = gen_storage_logs(100..300, 1).pop().unwrap();

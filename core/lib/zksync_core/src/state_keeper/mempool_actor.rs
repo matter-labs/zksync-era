@@ -168,7 +168,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        genesis::{ensure_genesis_state, GenesisParams},
+        genesis::{ensure_genesis_state_unchecked, GenesisParams},
         utils::testonly::{create_l2_transaction, MockBatchFeeParamsProvider},
     };
 
@@ -219,7 +219,7 @@ mod tests {
     async fn syncing_mempool_basics() {
         let pool = ConnectionPool::constrained_test_pool(1).await;
         let mut storage = pool.access_storage().await.unwrap();
-        ensure_genesis_state(&mut storage, &GenesisParams::mock())
+        ensure_genesis_state_unchecked(&mut storage, &GenesisParams::mock())
             .await
             .unwrap();
         drop(storage);
@@ -276,7 +276,7 @@ mod tests {
     async fn ignoring_transaction_with_insufficient_fee() {
         let pool = ConnectionPool::constrained_test_pool(1).await;
         let mut storage = pool.access_storage().await.unwrap();
-        ensure_genesis_state(&mut storage, &GenesisParams::mock())
+        ensure_genesis_state_unchecked(&mut storage, &GenesisParams::mock())
             .await
             .unwrap();
         drop(storage);
@@ -316,7 +316,7 @@ mod tests {
     async fn ignoring_transaction_with_old_nonce() {
         let pool = ConnectionPool::constrained_test_pool(1).await;
         let mut storage = pool.access_storage().await.unwrap();
-        ensure_genesis_state(&mut storage, &GenesisParams::mock())
+        ensure_genesis_state_unchecked(&mut storage, &GenesisParams::mock())
             .await
             .unwrap();
         drop(storage);

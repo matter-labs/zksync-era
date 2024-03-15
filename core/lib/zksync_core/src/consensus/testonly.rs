@@ -9,10 +9,8 @@ use zksync_consensus_roles::validator;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::ConnectionPool;
 use zksync_types::{
-    api,
-    api::{BridgeAddresses, L1BatchDetails},
-    snapshots::SnapshotRecoveryStatus,
-    Address, L1BatchNumber, L1ChainId, L2ChainId, MiniblockNumber, ProtocolVersionId, H256,
+    api, api::L1BatchDetails, snapshots::SnapshotRecoveryStatus, Address, L1BatchNumber, L1ChainId,
+    L2ChainId, MiniblockNumber, ProtocolVersionId, H256,
 };
 use zksync_web3_decl::{
     error::{EnrichedClientError, EnrichedClientResult},
@@ -22,13 +20,14 @@ use zksync_web3_decl::{
 use crate::{
     api_server::web3::{state::InternalApiConfig, tests::spawn_http_server},
     consensus::{fetcher::P2PConfig, Fetcher, Store},
-    genesis::{ensure_genesis_state, GenesisParams},
+    genesis::{ensure_genesis_state_unchecked, GenesisParams},
     state_keeper::{
         io::common::IoCursor, seal_criteria::NoopSealer, tests::MockBatchExecutor, MiniblockSealer,
         ZkSyncStateKeeper,
     },
     sync_layer::{
         fetcher::FetchedTransaction,
+        genesis::GenesisContracts,
         sync_action::{ActionQueue, ActionQueueSender, SyncAction},
         ExternalIO, MainNodeClient, SyncState,
     },
@@ -160,7 +159,7 @@ impl MainNodeClient for MockMainNodeClient {
         ))
     }
 
-    async fn fetch_genesis_contracts(&self) -> EnrichedClientResult<(Address, BridgeAddresses)> {
+    async fn fetch_genesis_contracts(&self) -> EnrichedClientResult<GenesisContracts> {
         Err(EnrichedClientError::custom(
             "not implemented",
             "fetch_contracts",
@@ -203,7 +202,7 @@ pub(super) async fn new_store(from_snapshot: bool) -> Store {
             prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[])
                 .await;
         } else {
-            ensure_genesis_state(&mut storage, &GenesisParams::mock())
+            ensure_genesis_state_unchecked(&mut storage, &GenesisParams::mock())
                 .await
                 .unwrap();
         }

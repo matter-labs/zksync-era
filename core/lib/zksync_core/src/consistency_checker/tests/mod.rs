@@ -17,7 +17,7 @@ use zksync_types::{
 
 use super::*;
 use crate::{
-    genesis::{ensure_genesis_state, mock_genesis_config, GenesisParams},
+    genesis::{ensure_genesis_state_unchecked, mock_genesis_config, GenesisParams},
     utils::testonly::{
         create_l1_batch, create_l1_batch_metadata, l1_batch_metadata_to_commitment_artifacts,
     },
@@ -364,7 +364,7 @@ async fn normal_checker_function(
 
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
-    ensure_genesis_state(&mut storage, &GenesisParams::mock())
+    ensure_genesis_state_unchecked(&mut storage, &GenesisParams::mock())
         .await
         .unwrap();
 
@@ -439,7 +439,7 @@ async fn checker_processes_pre_boojum_batches(
         ..mock_genesis_config()
     })
     .unwrap();
-    ensure_genesis_state(&mut storage, &genesis_params)
+    ensure_genesis_state_unchecked(&mut storage, &genesis_params)
         .await
         .unwrap();
     storage
@@ -687,7 +687,7 @@ async fn checker_detects_incorrect_tx_data(kind: IncorrectDataKind, snapshot_rec
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
     } else {
-        ensure_genesis_state(&mut storage, &GenesisParams::mock())
+        ensure_genesis_state_unchecked(&mut storage, &GenesisParams::mock())
             .await
             .unwrap();
     }

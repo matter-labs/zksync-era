@@ -5,7 +5,7 @@ use std::fmt;
 use async_trait::async_trait;
 use zksync_system_constants::ACCOUNT_CODE_STORAGE_ADDRESS;
 use zksync_types::{
-    api::{self, en, BridgeAddresses, L1BatchDetails},
+    api::{self, en, L1BatchDetails},
     get_code_key, Address, L1BatchNumber, L1ChainId, MiniblockNumber, ProtocolVersionId, H256, U64,
 };
 use zksync_web3_decl::{
@@ -13,6 +13,8 @@ use zksync_web3_decl::{
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
     namespaces::{EnNamespaceClient, EthNamespaceClient, ZksNamespaceClient},
 };
+
+use crate::sync_layer::genesis::GenesisContracts;
 
 /// Client abstracting connection to the main node.
 #[async_trait]
@@ -47,11 +49,6 @@ pub trait MainNodeClient: 'static + Send + Sync + fmt::Debug {
     async fn fetch_genesis_l1_batch(&self) -> EnrichedClientResult<L1BatchDetails>;
     async fn fetch_l1_chain_id(&self) -> EnrichedClientResult<L1ChainId>;
     async fn fetch_genesis_contracts(&self) -> EnrichedClientResult<GenesisContracts>;
-}
-
-pub struct GenesisContracts {
-    pub diamond_proxy: Address,
-    pub bridges: BridgeAddresses,
 }
 
 impl dyn MainNodeClient {

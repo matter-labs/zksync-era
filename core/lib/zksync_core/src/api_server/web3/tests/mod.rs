@@ -47,7 +47,7 @@ use crate::{
         execution_sandbox::testonly::MockTransactionExecutor,
         tx_sender::tests::create_test_tx_sender,
     },
-    genesis::{ensure_genesis_state, mock_genesis_config, GenesisParams},
+    genesis::{ensure_genesis_state_unchecked, mock_genesis_config, GenesisParams},
     utils::testonly::{
         create_l1_batch, create_l1_batch_metadata, create_l2_transaction, create_miniblock,
         l1_batch_metadata_to_commitment_artifacts, prepare_recovery_snapshot,
@@ -246,7 +246,7 @@ impl StorageInitialization {
                 })
                 .unwrap();
                 if storage.blocks_dal().is_genesis_needed().await? {
-                    ensure_genesis_state(storage, &params).await?;
+                    ensure_genesis_state_unchecked(storage, &params).await?;
                 }
             }
             Self::Recovery { logs, factory_deps } => {
