@@ -29,7 +29,7 @@ export async function waitForServer() {
     for (let i = 0; i < maxAttempts; ++i) {
         try {
             await l2Provider.getNetwork(); // Will throw if the server is not ready yet.
-            const bridgeAddress = (await l2Provider.getDefaultBridgeAddresses()).erc20L2;
+            const bridgeAddress = (await l2Provider.getDefaultBridgeAddresses()).sharedL2;
             const code = await l2Provider.getCode(bridgeAddress);
             if (code == '0x') {
                 throw Error('L2 ERC20 bridge is not deployed yet, server is not ready');
