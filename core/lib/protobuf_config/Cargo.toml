@@ -16,7 +16,7 @@ serde_json = "1.0"
 serde_yaml = "0.9"
 zksync_basic_types = { path = "../basic_types" }
 zksync_config = { path = "../config" }
-zksync_protobuf = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "842d4fd79f1d7dae946b6873ded7ad391d554814" }
+zksync_protobuf = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "2afdb723e40847afacfc0b2446a553d320c86cea" }
 zksync_types = { path = "../types" }
 
 anyhow = "1.0"
@@ -25,5 +25,5 @@ prost = "0.12.1"
 rand = "0.8"
 
 [build-dependencies]
-zksync_protobuf_build = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "842d4fd79f1d7dae946b6873ded7ad391d554814" }
+zksync_protobuf_build = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "2afdb723e40847afacfc0b2446a553d320c86cea" }
 
