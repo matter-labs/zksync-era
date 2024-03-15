@@ -193,7 +193,7 @@ impl Snapshot {
                 .into_iter()
                 .map(|c| (c.hash, zksync_utils::be_words_to_bytes(&c.code)))
                 .collect(),
-            storage_logs: storage_logs.iter().cloned().collect(),
+            storage_logs: storage_logs.to_vec(),
         }
     }
 }
