@@ -80,7 +80,7 @@ pub fn get_code_key(account: &Address) -> StorageKey {
 }
 
 pub fn get_evm_code_hash_key(account: &Address) -> StorageKey {
-    get_deployer_key(get_address_mapping_key(account, u256_to_h256(2.into())))
+    get_deployer_key(get_address_mapping_key(account, u256_to_h256(1.into())))
 }
 
 pub fn get_known_code_key(hash: &H256) -> StorageKey {

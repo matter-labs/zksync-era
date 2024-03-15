@@ -136,7 +136,7 @@ pub(crate) fn load_precompiles_contract() -> Contract {
 pub(crate) fn key_for_evm_hash(address: &Address) -> H256 {
     let address_h256 = address_to_h256(address);
 
-    let bytes = [address_h256.as_bytes(), u256_to_h256(2.into()).as_bytes()].concat();
+    let bytes = [address_h256.as_bytes(), u256_to_h256(1.into()).as_bytes()].concat();
     keccak256(&bytes).into()
 }
 
