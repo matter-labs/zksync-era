@@ -1,7 +1,7 @@
 use std::{convert::TryFrom, ops};
 
 use anyhow::Context;
-use num_enum::TryFromPrimitive;
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{AccountTreeId, L1BatchNumber, MiniblockNumber, H256};
 use zksync_protobuf::{required, ProtoFmt};
@@ -22,13 +22,12 @@ pub struct AllSnapshots {
 
 /// Version of snapshot influencing the format of data stored in GCS.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[derive(TryFromPrimitive, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(TryFromPrimitive, IntoPrimitive)]
 #[repr(u16)]
 pub enum SnapshotVersion {
     /// Initial snapshot version. Keys in storage logs are stored as `(address, key)` pairs.
     #[default]
-    Version0,
+    Version0 = 0,
 }
 
 /// Storage snapshot metadata. Used in DAL to fetch certain snapshot data.
@@ -56,8 +55,9 @@ impl SnapshotMetadata {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SnapshotHeader {
+    // Not a `SnapshotVersion` to have controllable error handling in case of deserializing a header on an outdated node.
     #[serde(default)]
-    pub version: SnapshotVersion,
+    pub version: u16,
     pub l1_batch_number: L1BatchNumber,
     pub miniblock_number: MiniblockNumber,
     /// Ordered by chunk IDs.

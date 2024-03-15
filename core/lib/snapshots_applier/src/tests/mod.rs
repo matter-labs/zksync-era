@@ -13,7 +13,7 @@ use self::utils::{
     mock_recovery_status, prepare_clients, MockMainNodeClient, ObjectStoreWithErrors,
 };
 use super::*;
-use crate::tests::utils::{mock_tokens, random_storage_logs};
+use crate::tests::utils::{mock_snapshot_header, mock_tokens, random_storage_logs};
 
 mod utils;
 
@@ -158,6 +158,24 @@ async fn applier_errors_without_snapshots() {
     let object_store_factory = ObjectStoreFactory::mock();
     let object_store = object_store_factory.create_store().await;
     let client = MockMainNodeClient::default();
+
+    SnapshotsApplierConfig::for_tests()
+        .run(&pool, &client, &object_store)
+        .await
+        .unwrap_err();
+}
+
+#[tokio::test]
+async fn applier_errors_with_unrecognized_snapshot_version() {
+    let pool = ConnectionPool::test_pool().await;
+    let object_store_factory = ObjectStoreFactory::mock();
+    let object_store = object_store_factory.create_store().await;
+    let expected_status = mock_recovery_status();
+    let mut client = MockMainNodeClient::default();
+    client.fetch_newest_snapshot_response = Some(SnapshotHeader {
+        version: u16::MAX,
+        ..mock_snapshot_header(&expected_status)
+    });
 
     SnapshotsApplierConfig::for_tests()
         .run(&pool, &client, &object_store)
