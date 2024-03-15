@@ -46,7 +46,12 @@ pub trait MainNodeClient: 'static + Send + Sync + fmt::Debug {
 
     async fn fetch_genesis_l1_batch(&self) -> EnrichedClientResult<L1BatchDetails>;
     async fn fetch_l1_chain_id(&self) -> EnrichedClientResult<L1ChainId>;
-    async fn fetch_contracts(&self) -> EnrichedClientResult<(Address, BridgeAddresses)>;
+    async fn fetch_genesis_contracts(&self) -> EnrichedClientResult<GenesisContracts>;
+}
+
+pub struct GenesisContracts {
+    pub diamond_proxy: Address,
+    pub bridges: BridgeAddresses,
 }
 
 impl dyn MainNodeClient {
@@ -169,7 +174,7 @@ impl MainNodeClient for HttpClient {
             .map(|l1_chain_id| L1ChainId(l1_chain_id.as_u64()))
     }
 
-    async fn fetch_contracts(&self) -> EnrichedClientResult<(Address, BridgeAddresses)> {
+    async fn fetch_genesis_contracts(&self) -> EnrichedClientResult<GenesisContracts> {
         let main_contract = self
             .get_main_contract()
             .rpc_context("get_main_contract")
@@ -178,6 +183,9 @@ impl MainNodeClient for HttpClient {
             .get_bridge_contracts()
             .rpc_context("get bridges")
             .await?;
-        Ok((main_contract, bridge_contracts))
+        Ok(GenesisContracts {
+            diamond_proxy: main_contract,
+            bridges: bridge_contracts,
+        })
     }
 }

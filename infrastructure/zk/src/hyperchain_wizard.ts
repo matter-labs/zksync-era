@@ -1,18 +1,18 @@
-import { Command } from 'commander';
+import {Command} from 'commander';
 import enquirer from 'enquirer';
-import { BigNumber, ethers, utils } from 'ethers';
+import {BigNumber, ethers, utils} from 'ethers';
 import chalk from 'chalk';
-import { announced, init, InitArgs } from './init';
+import {announced, init, InitArgs} from './init';
 import * as server from './server';
 import * as docker from './docker';
 import * as db from './database';
 import * as env from './env';
-import { compileConfig } from './config';
+import {compileConfig} from './config';
 import * as fs from 'fs';
 import fetch from 'node-fetch';
-import { up } from './up';
+import {up} from './up';
 import * as Handlebars from 'handlebars';
-import { ProverType, setupProver } from './prover_setup';
+import {ProverType, setupProver} from './prover_setup';
 
 const title = chalk.blueBright;
 const warning = chalk.yellowBright;
@@ -290,7 +290,7 @@ async function setHyperchainMetadata(runObservability: boolean) {
         feeReceiverAddress = richWallets[3].address;
 
         await up(runObservability);
-        await announced('Ensuring databases are up', db.wait({ server: true, prover: false }));
+        await announced('Ensuring databases are up', db.wait({server: true, prover: false}));
     }
 
     await initializeTestERC20s();
@@ -775,7 +775,7 @@ async function configDemoHyperchain(cmd: Command) {
     env.set('demo');
 
     wrapEnvModify('CHAIN_ETH_ZKSYNC_NETWORK', 'Zeek hyperchain');
-    wrapEnvModify('CHAIN_ETH_ZKSYNC_NETWORK_ID', '9');
+    wrapEnvModify('CHAIN_ETH_ZKSYNC_NETWORK_ID', '1337');
     wrapEnvModify('ETH_SENDER_SENDER_PROOF_SENDING_MODE', 'SkipEveryProof');
     wrapEnvModify('ETH_SENDER_SENDER_L1_BATCH_MIN_AGE_BEFORE_EXECUTE_SECONDS', '20');
 

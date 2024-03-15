@@ -101,6 +101,7 @@ impl GenesisParams {
         let system_contracts = get_system_smart_contracts();
         Self::from_genesis_config(config, base_system_contracts, system_contracts)
     }
+
     #[cfg(test)]
     pub(crate) fn mock() -> Self {
         Self {
@@ -112,7 +113,34 @@ impl GenesisParams {
 
     pub fn protocol_version(&self) -> ProtocolVersionId {
         // It's impossible to instantiate Genesis params with wrong protocol version
-        self.config.protocol_version.try_into().unwrap()
+        self.config.protocol_version.try_into().expect(
+            "Protocol version must be correctly \
+        initialized for genesis",
+        )
+    }
+}
+
+#[cfg(test)]
+pub fn mock_genesis_config() -> GenesisConfig {
+    use zksync_types::L1ChainId;
+    GenesisConfig {
+        protocol_version: ProtocolVersionId::latest() as u16,
+        genesis_root_hash: Default::default(),
+        rollup_last_leaf_index: 26,
+        genesis_commitment: Default::default(),
+        bootloader_hash: Default::default(),
+        default_aa_hash: Default::default(),
+        verifier_address: Default::default(),
+        fee_account: Default::default(),
+        diamond_proxy: Default::default(),
+        erc20_bridge: Default::default(),
+        state_transition_proxy_addr: None,
+        l1_chain_id: L1ChainId(9),
+        l2_chain_id: L2ChainId::default(),
+        recursion_node_level_vk_hash: Default::default(),
+        recursion_leaf_level_vk_hash: Default::default(),
+        recursion_circuits_set_vks_hash: Default::default(),
+        recursion_scheduler_level_vk_hash: Default::default(),
     }
 }
 

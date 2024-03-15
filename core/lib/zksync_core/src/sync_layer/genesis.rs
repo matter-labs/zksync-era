@@ -8,7 +8,7 @@ use zksync_types::{
     H256,
 };
 
-use super::client::MainNodeClient;
+use super::client::{GenesisContracts, MainNodeClient};
 use crate::genesis::{ensure_genesis_state, GenesisParams};
 
 pub async fn perform_genesis_if_needed(
@@ -50,7 +50,10 @@ async fn create_genesis_params(
     let protocol_version = genesis_miniblock.protocol_version;
     let genesis_batch = client.fetch_genesis_l1_batch().await?;
     let l1_chain_id = client.fetch_l1_chain_id().await?;
-    let (main_contract, bridge_contracts) = client.fetch_contracts().await?;
+    let GenesisContracts {
+        diamond_proxy,
+        bridges,
+    } = client.fetch_genesis_contracts().await?;
 
     // Load the list of addresses that are known to contain system contracts at any point in time.
     // Not every of these addresses is guaranteed to be present in the genesis state, but we'll iterate through
@@ -111,8 +114,8 @@ async fn create_genesis_params(
         default_aa_hash: base_system_contracts_hashes.default_aa,
         verifier_address: first_verifier_address,
         fee_account: first_validator,
-        diamond_proxy: main_contract,
-        erc20_bridge: bridge_contracts.l1_erc20_default_bridge,
+        diamond_proxy,
+        erc20_bridge: bridges.l1_erc20_default_bridge,
         state_transition_proxy_addr: None,
         l1_chain_id,
         l2_chain_id: zksync_chain_id,

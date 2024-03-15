@@ -160,7 +160,7 @@ impl MainNodeClient for MockMainNodeClient {
         ))
     }
 
-    async fn fetch_contracts(&self) -> EnrichedClientResult<(Address, BridgeAddresses)> {
+    async fn fetch_genesis_contracts(&self) -> EnrichedClientResult<(Address, BridgeAddresses)> {
         Err(EnrichedClientError::custom(
             "not implemented",
             "fetch_contracts",

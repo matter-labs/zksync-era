@@ -35,6 +35,12 @@ static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version, about = "zkSync operator node", long_about = None)]
 struct Cli {
+    /// Generate genesis block for the first contract deployment using temporary DB.
+    #[arg(long)]
+    genesis: bool,
+    /// Set chain id (temporary will be moved to genesis config)
+    #[arg(long)]
+    set_chain_id: bool,
     /// Rebuild tree.
     #[arg(long)]
     rebuild_tree: bool,
@@ -53,12 +59,6 @@ struct Cli {
     /// Path to the yaml with genesis
     #[arg(long)]
     genesis_path: Option<std::path::PathBuf>,
-    /// Generate genesis block for the first contract deployment using temporary DB.
-    #[arg(long)]
-    genesis: bool,
-    /// Set chain id
-    #[arg(long)]
-    set_chain_id: bool,
 }
 
 #[derive(Debug, Clone)]
