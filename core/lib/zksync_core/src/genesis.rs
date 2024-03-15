@@ -149,12 +149,11 @@ pub fn mock_genesis_config() -> GenesisConfig {
 
 // This function is dangerous,
 // it doesn't enforce transactions and doesn't verify genesis correctness
-// Please, always use ensure_genesis_state instead
+// Please, always use `ensure_genesis_state` instead
 pub async fn ensure_genesis_state_unchecked(
     transaction: &mut StorageProcessor<'_>,
     genesis_params: &GenesisParams,
 ) -> Result<(H256, H256, u64), GenesisError> {
-    // return if genesis block was already processed
     tracing::info!("running regenesis");
     let verifier_config = L1VerifierConfig {
         params: VerifierParams {
@@ -589,10 +588,8 @@ mod tests {
         let root_hash = metadata.unwrap().metadata.root_hash;
         assert_ne!(root_hash, H256::zero());
 
-        // Check that `ensure_genesis_state()` doesn't panic on repeated runs.
-        ensure_genesis_state_unchecked(&mut conn, &params)
-            .await
-            .unwrap();
+        // Check that `genesis is not needed`
+        assert!(!conn.blocks_dal().is_genesis_needed().await.unwrap());
     }
 
     #[tokio::test]
