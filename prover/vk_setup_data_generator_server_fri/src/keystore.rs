@@ -1,4 +1,8 @@
-use std::{fs, fs::File, io::Read};
+use std::{
+    fs::{self, File},
+    io::Read,
+    path::Path,
+};
 
 use anyhow::Context as _;
 use circuit_definitions::{
@@ -19,7 +23,7 @@ use zksync_types::basic_fri_types::AggregationRound;
 
 #[cfg(feature = "gpu")]
 use crate::GoldilocksGpuProverSetupData;
-use crate::GoldilocksProverSetupData;
+use crate::{GoldilocksProverSetupData, VkCommitments};
 
 pub enum ProverServiceDataType {
     VerificationKey,
@@ -293,6 +297,10 @@ impl Keystore {
         })
     }
 
+    pub fn is_setup_data_present(&self, key: &ProverServiceDataKey) -> bool {
+        Path::new(&self.get_file_path(key.clone(), ProverServiceDataType::SetupData)).exists()
+    }
+
     pub fn save_setup_data_for_circuit_type(
         &self,
         key: ProverServiceDataKey,
@@ -327,6 +335,10 @@ impl Keystore {
             .set_recursion_layer_node_vk(self.load_recursive_layer_verification_key(
                 ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,
             )?)
+            .unwrap();
+
+        data_source
+            .set_eip4844_vk(self.load_4844_verification_key()?)
             .unwrap();
         Ok(data_source)
     }
@@ -433,6 +445,23 @@ impl Keystore {
         )
         .context("save_4844_verification_key()")?;
 
+        let eip4844_hint = source.get_eip4844_finalization_hint().map_err(|err| {
+            anyhow::anyhow!("No finalization hint exist for scheduler layer circuit: {err}")
+        })?;
+
+        self.save_finalization_hints(ProverServiceDataKey::eip4844(), &eip4844_hint)
+            .context("save_eip4844_hint()")?;
+
         Ok(())
+    }
+
+    pub fn load_commitments(&self) -> anyhow::Result<VkCommitments> {
+        Self::load_json_from_file(format!("{}/commitments.json", self.get_base_path()))
+    }
+    pub fn save_commitments(&self, commitments: &VkCommitments) -> anyhow::Result<()> {
+        Self::save_json_pretty(
+            format!("{}/commitments.json", self.get_base_path()),
+            &commitments,
+        )
     }
 }

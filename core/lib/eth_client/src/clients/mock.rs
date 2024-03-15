@@ -1,27 +1,29 @@
 use std::{
     collections::{BTreeMap, HashMap},
-    sync::RwLock,
+    fmt,
+    sync::{RwLock, RwLockWriteGuard},
 };
 
 use async_trait::async_trait;
 use jsonrpc_core::types::error::Error as RpcError;
 use zksync_types::{
     web3::{
-        contract::{tokens::Tokenize, Options},
+        contract::tokens::Tokenize,
         ethabi,
-        types::{Block, BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt, U64},
+        types::{BlockId, BlockNumber, Filter, Log, Transaction, TransactionReceipt, U64},
         Error as Web3Error,
     },
-    Address, L1ChainId, ProtocolVersionId, H160, H256, U256,
+    Address, L1ChainId, H160, H256, U256,
 };
 
 use crate::{
     types::{Error, ExecutedTxStatus, FailureInfo, SignedCallResult},
-    BoundEthInterface, ContractCall, EthInterface, RawTransactionBytes,
+    Block, BoundEthInterface, ContractCall, EthInterface, Options, RawTransactionBytes,
 };
 
 #[derive(Debug, Clone)]
 struct MockTx {
+    recipient: Address,
     input: Vec<u8>,
     hash: H256,
     nonce: u64,
@@ -32,6 +34,7 @@ struct MockTx {
 impl From<Vec<u8>> for MockTx {
     fn from(tx: Vec<u8>) -> Self {
         let len = tx.len();
+        let recipient = Address::from_slice(&tx[len - 116..len - 96]);
         let max_fee_per_gas = U256::try_from(&tx[len - 96..len - 64]).unwrap();
         let max_priority_fee_per_gas = U256::try_from(&tx[len - 64..len - 32]).unwrap();
         let nonce = U256::try_from(&tx[len - 32..]).unwrap().as_u64();
@@ -42,7 +45,8 @@ impl From<Vec<u8>> for MockTx {
         };
 
         Self {
-            input: tx[32..len - 96].to_vec(),
+            recipient,
+            input: tx[32..len - 116].to_vec(),
             nonce,
             hash,
             max_fee_per_gas,
@@ -54,6 +58,7 @@ impl From<Vec<u8>> for MockTx {
 impl From<MockTx> for Transaction {
     fn from(tx: MockTx) -> Self {
         Self {
+            to: Some(tx.recipient),
             input: tx.input.into(),
             hash: tx.hash,
             nonce: tx.nonce.into(),
@@ -112,17 +117,48 @@ impl MockEthereumInner {
     }
 }
 
-/// Mock Ethereum client is capable of recording all the incoming requests for the further analysis.
 #[derive(Debug)]
+pub struct MockExecutedTxHandle<'a> {
+    inner: RwLockWriteGuard<'a, MockEthereumInner>,
+    tx_hash: H256,
+}
+
+impl MockExecutedTxHandle<'_> {
+    pub fn with_logs(&mut self, logs: Vec<Log>) -> &mut Self {
+        let status = self.inner.tx_statuses.get_mut(&self.tx_hash).unwrap();
+        status.receipt.logs = logs;
+        self
+    }
+}
+
+/// Mock Ethereum client is capable of recording all the incoming requests for the further analysis.
 pub struct MockEthereum {
     max_fee_per_gas: U256,
     max_priority_fee_per_gas: U256,
     base_fee_history: Vec<u64>,
+    excess_blob_gas_history: Vec<u64>,
     /// If true, the mock will not check the ordering nonces of the transactions.
     /// This is useful for testing the cases when the transactions are executed out of order.
     non_ordering_confirmations: bool,
-    multicall_address: Address,
     inner: RwLock<MockEthereumInner>,
+    call_handler: Box<dyn Fn(&ContractCall) -> ethabi::Token + Send + Sync>,
+}
+
+impl fmt::Debug for MockEthereum {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("MockEthereum")
+            .field("max_fee_per_gas", &self.max_fee_per_gas)
+            .field("max_priority_fee_per_gas", &self.max_priority_fee_per_gas)
+            .field("base_fee_history", &self.base_fee_history)
+            .field("excess_blob_gas_history", &self.excess_blob_gas_history)
+            .field(
+                "non_ordering_confirmations",
+                &self.non_ordering_confirmations,
+            )
+            .field("inner", &self.inner)
+            .finish_non_exhaustive()
+    }
 }
 
 impl Default for MockEthereum {
@@ -131,9 +167,12 @@ impl Default for MockEthereum {
             max_fee_per_gas: 100.into(),
             max_priority_fee_per_gas: 10.into(),
             base_fee_history: vec![],
+            excess_blob_gas_history: vec![],
             non_ordering_confirmations: false,
-            multicall_address: Address::default(),
             inner: RwLock::default(),
+            call_handler: Box::new(|call| {
+                panic!("Unexpected eth_call: {call:?}");
+            }),
         }
     }
 }
@@ -157,18 +196,26 @@ impl MockEthereum {
 
     /// Increments the blocks by a provided `confirmations` and marks the sent transaction
     /// as a success.
-    pub fn execute_tx(&self, tx_hash: H256, success: bool, confirmations: u64) {
-        self.inner.write().unwrap().execute_tx(
+    pub fn execute_tx(
+        &self,
+        tx_hash: H256,
+        success: bool,
+        confirmations: u64,
+    ) -> MockExecutedTxHandle<'_> {
+        let mut inner = self.inner.write().unwrap();
+        inner.execute_tx(
             tx_hash,
             success,
             confirmations,
             self.non_ordering_confirmations,
         );
+        MockExecutedTxHandle { inner, tx_hash }
     }
 
     pub fn sign_prepared_tx(
         &self,
         mut raw_tx: Vec<u8>,
+        contract_addr: Address,
         options: Options,
     ) -> Result<SignedCallResult, Error> {
         let max_fee_per_gas = options.max_fee_per_gas.unwrap_or(self.max_fee_per_gas);
@@ -179,21 +226,22 @@ impl MockEthereum {
 
         // Nonce and `gas_price` are appended to distinguish the same transactions
         // with different gas by their hash in tests.
-        raw_tx.append(&mut ethabi::encode(&max_fee_per_gas.into_tokens()));
-        raw_tx.append(&mut ethabi::encode(&max_priority_fee_per_gas.into_tokens()));
-        raw_tx.append(&mut ethabi::encode(&nonce.into_tokens()));
+        raw_tx.extend_from_slice(contract_addr.as_bytes());
+        raw_tx.extend_from_slice(&ethabi::encode(&max_fee_per_gas.into_tokens()));
+        raw_tx.extend_from_slice(&ethabi::encode(&max_priority_fee_per_gas.into_tokens()));
+        raw_tx.extend_from_slice(&ethabi::encode(&nonce.into_tokens()));
         let hash = Self::fake_sha256(&raw_tx); // Okay for test purposes.
 
         // Concatenate `raw_tx` plus hash for test purposes
         let mut new_raw_tx = hash.as_bytes().to_vec();
         new_raw_tx.extend(raw_tx);
-        Ok(SignedCallResult {
-            raw_tx: RawTransactionBytes(new_raw_tx),
+        Ok(SignedCallResult::new(
+            RawTransactionBytes(new_raw_tx),
             max_priority_fee_per_gas,
             max_fee_per_gas,
             nonce,
             hash,
-        })
+        ))
     }
 
     pub fn advance_block_number(&self, val: u64) -> u64 {
@@ -209,6 +257,13 @@ impl MockEthereum {
         }
     }
 
+    pub fn with_excess_blob_gas_history(self, history: Vec<u64>) -> Self {
+        Self {
+            excess_blob_gas_history: history,
+            ..self
+        }
+    }
+
     pub fn with_non_ordering_confirmation(self, non_ordering_confirmations: bool) -> Self {
         Self {
             non_ordering_confirmations,
@@ -216,9 +271,12 @@ impl MockEthereum {
         }
     }
 
-    pub fn with_multicall_address(self, address: Address) -> Self {
+    pub fn with_call_handler<F>(self, call_handler: F) -> Self
+    where
+        F: 'static + Send + Sync + Fn(&ContractCall) -> ethabi::Token,
+    {
         Self {
-            multicall_address: address,
+            call_handler: Box::new(call_handler),
             ..self
         }
     }
@@ -303,26 +361,8 @@ impl EthInterface for MockEthereum {
         &self,
         call: ContractCall,
     ) -> Result<Vec<ethabi::Token>, Error> {
-        use ethabi::Token;
-
-        if call.contract_address == self.multicall_address {
-            let token = Token::Array(vec![
-                Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![1u8; 32])]),
-                Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![2u8; 32])]),
-                Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![3u8; 96])]),
-                Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![4u8; 32])]),
-                Token::Tuple(vec![
-                    Token::Bool(true),
-                    Token::Bytes(
-                        H256::from_low_u64_be(ProtocolVersionId::default() as u64)
-                            .0
-                            .to_vec(),
-                    ),
-                ]),
-            ]);
-            return Ok(vec![token]);
-        }
-        Ok(vec![])
+        let response = (self.call_handler)(&call);
+        Ok(vec![response])
     }
 
     async fn get_tx(
@@ -359,10 +399,29 @@ impl EthInterface for MockEthereum {
 
     async fn block(
         &self,
-        _block_id: BlockId,
+        block_id: BlockId,
         _component: &'static str,
     ) -> Result<Option<Block<H256>>, Error> {
-        unimplemented!("Not needed right now")
+        match block_id {
+            BlockId::Number(BlockNumber::Number(number)) => {
+                let excess_blob_gas = self
+                    .excess_blob_gas_history
+                    .get(number.as_usize())
+                    .map(|excess_blob_gas| (*excess_blob_gas).into());
+                let base_fee_per_gas = self
+                    .base_fee_history
+                    .get(number.as_usize())
+                    .map(|base_fee| (*base_fee).into());
+
+                Ok(Some(Block {
+                    number: Some(number),
+                    excess_blob_gas,
+                    base_fee_per_gas,
+                    ..Default::default()
+                }))
+            }
+            _ => unimplemented!("Not needed right now"),
+        }
     }
 }
 
@@ -387,11 +446,11 @@ impl BoundEthInterface for MockEthereum {
     async fn sign_prepared_tx_for_addr(
         &self,
         data: Vec<u8>,
-        _contract_addr: H160,
+        contract_addr: H160,
         options: Options,
         _component: &'static str,
     ) -> Result<SignedCallResult, Error> {
-        self.sign_prepared_tx(data, options)
+        self.sign_prepared_tx(data, contract_addr, options)
     }
 
     async fn allowance_on_account(
@@ -446,9 +505,10 @@ mod tests {
         let signed_tx = client
             .sign_prepared_tx(
                 b"test".to_vec(),
+                Address::repeat_byte(1),
                 Options {
                     nonce: Some(1.into()),
-                    ..Options::default()
+                    ..Default::default()
                 },
             )
             .unwrap();
@@ -456,7 +516,7 @@ mod tests {
         assert!(signed_tx.max_priority_fee_per_gas > 0.into());
         assert!(signed_tx.max_fee_per_gas > 0.into());
 
-        let tx_hash = client.send_raw_tx(signed_tx.raw_tx).await.unwrap();
+        let tx_hash = client.send_raw_tx(signed_tx.raw_tx.clone()).await.unwrap();
         assert_eq!(tx_hash, signed_tx.hash);
 
         client.execute_tx(tx_hash, true, 3);
@@ -466,6 +526,7 @@ mod tests {
             .unwrap()
             .expect("no transaction");
         assert_eq!(returned_tx.hash, tx_hash);
+        assert_eq!(returned_tx.to, Some(Address::repeat_byte(1)));
         assert_eq!(returned_tx.input.0, b"test");
         assert_eq!(returned_tx.nonce, 1.into());
         assert!(returned_tx.max_priority_fee_per_gas.is_some());

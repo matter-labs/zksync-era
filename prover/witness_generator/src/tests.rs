@@ -1,11 +1,15 @@
 use std::iter;
 
 use const_decoder::Decoder::Hex;
-use zkevm_test_harness::witness::tree::{BinarySparseStorageTree, ZkSyncStorageLeaf};
+use zkevm_test_harness::{
+    kzg::KzgSettings,
+    witness::tree::{BinarySparseStorageTree, ZkSyncStorageLeaf},
+};
 use zksync_prover_interface::inputs::{PrepareBasicCircuitsJob, StorageLogMetadata};
 use zksync_types::U256;
 
 use super::precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider;
+use crate::utils::KZG_TRUSTED_SETUP_FILE;
 
 // Sample `StorageLogMetadata` entries. Since we cannot allocate in constants, we store
 // the only Merkle path hash separately.
@@ -218,4 +222,13 @@ fn initializing_provider_with_compacted_merkle_paths() {
         .iter()
         .all(|hash| *hash == [0; 32]));
     assert_ne!(query.merkle_path[255], [0; 32]);
+}
+
+#[test]
+fn trusted_setup_can_be_read() {
+    let trusted_setup_path = KZG_TRUSTED_SETUP_FILE
+        .path()
+        .to_str()
+        .expect("Path to KZG trusted setup is not a UTF-8 string");
+    KzgSettings::new(trusted_setup_path);
 }

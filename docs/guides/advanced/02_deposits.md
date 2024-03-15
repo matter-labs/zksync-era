@@ -40,7 +40,7 @@ Now, let's see how many tokens we have:
 Unsurprisingly we have 0 on both - let's fix it by first transferring some tokens on L1:
 
 ```shell
-docker container exec -it zksync-2-dev-geth-1  geth attach http://localhost:8545
+docker container exec -it zksync-era-geth-1  geth attach http://localhost:8545
 // and inside:
 eth.sendTransaction({from: personal.listAccounts[0], to: "0x618263CE921F7dd5F4f40C29f6c524Aaf97b9bbd", value: "7400000000000000000"})
 ```
@@ -60,7 +60,7 @@ and now let's bridge it over to L2.
 For an easy way to bridge we'll use [zkSync CLI](https://github.com/matter-labs/zksync-cli)
 
 ```shell
-npx zksync-cli bridge deposit --chain=local-dockerized
+npx zksync-cli bridge deposit --chain=dockerized-node --amount 3 --pk=0x5090c024edb3bdf4ce2ebc2da96bedee925d9d77d729687e5e2d56382cf0a5a6 --to=0x618263CE921F7dd5F4f40C29f6c524Aaf97b9bbd
 # Amount of ETH to deposit: 3
 # Private key of the sender: 0x5090c024edb3bdf4ce2ebc2da96bedee925d9d77d729687e5e2d56382cf0a5a6
 # Recipient address on L2: 0x618263CE921F7dd5F4f40C29f6c524Aaf97b9bbd

@@ -27,7 +27,7 @@ mod snapshots_creator;
 mod witness_generator;
 
 pub mod proto;
-mod repr;
+pub mod testonly;
 #[cfg(test)]
 mod tests;
 mod utils;

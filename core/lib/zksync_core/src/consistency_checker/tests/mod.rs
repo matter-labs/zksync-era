@@ -3,14 +3,15 @@
 use std::{collections::HashMap, slice};
 
 use assert_matches::assert_matches;
+use once_cell::sync::Lazy;
 use test_casing::{test_casing, Product};
 use tokio::sync::mpsc;
 use zksync_dal::StorageProcessor;
-use zksync_eth_client::clients::MockEthereum;
+use zksync_eth_client::{clients::MockEthereum, Options};
 use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata,
-    web3::contract::Options, L2ChainId, ProtocolVersion, ProtocolVersionId, H256,
+    aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata, L2ChainId, Log,
+    ProtocolVersion, ProtocolVersionId, H256,
 };
 
 use super::*;
@@ -31,6 +32,8 @@ fn create_l1_batch_with_metadata(number: u32) -> L1BatchWithMetadata {
 }
 
 const PRE_BOOJUM_PROTOCOL_VERSION: ProtocolVersionId = ProtocolVersionId::Version10;
+const DIAMOND_PROXY_ADDR: Address = Address::repeat_byte(1);
+const VALIDATOR_TIMELOCK_ADDR: Address = Address::repeat_byte(23);
 
 fn create_pre_boojum_l1_batch_with_metadata(number: u32) -> L1BatchWithMetadata {
     let mut l1_batch = L1BatchWithMetadata {
@@ -47,12 +50,20 @@ fn create_pre_boojum_l1_batch_with_metadata(number: u32) -> L1BatchWithMetadata 
 fn build_commit_tx_input_data(batches: &[L1BatchWithMetadata]) -> Vec<u8> {
     let commit_tokens = batches
         .iter()
-        .map(|batch| CommitBatchInfo(batch).into_token());
+        .map(|batch| CommitBatchInfo::new(batch, PubdataDA::Calldata).into_token());
     let commit_tokens = ethabi::Token::Array(commit_tokens.collect());
 
+    let is_pre_boojum = batches[0].header.protocol_version.unwrap().is_pre_boojum();
+    let contract;
+    let commit_function = if is_pre_boojum {
+        &*PRE_BOOJUM_COMMIT_FUNCTION
+    } else {
+        contract = zksync_contracts::zksync_contract();
+        contract.function("commitBatches").unwrap()
+    };
+
     let mut encoded = vec![];
-    // Fake Solidity function selector (not checked for now)
-    encoded.extend_from_slice(b"fake");
+    encoded.extend_from_slice(&commit_function.short_signature());
     // Mock an additional argument used in real `commitBlocks` / `commitBatches`. In real transactions,
     // it's taken from the L1 batch previous to `batches[0]`, but since this argument is not checked,
     // it's OK to use `batches[0]`.
@@ -65,6 +76,7 @@ fn create_mock_checker(client: MockEthereum, pool: ConnectionPool) -> Consistenc
     let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
     ConsistencyChecker {
         contract: zksync_contracts::zksync_contract(),
+        diamond_proxy_addr: Some(DIAMOND_PROXY_ADDR),
         max_batches_to_recheck: 100,
         sleep_interval: Duration::from_millis(10),
         l1_client: Box::new(client),
@@ -73,6 +85,15 @@ fn create_mock_checker(client: MockEthereum, pool: ConnectionPool) -> Consistenc
         pool,
         health_check,
     }
+}
+
+fn create_mock_ethereum() -> MockEthereum {
+    MockEthereum::default().with_call_handler(|call| {
+        assert_eq!(call.contract_address(), DIAMOND_PROXY_ADDR);
+        assert_eq!(call.function_name(), "getProtocolVersion");
+        assert_eq!(call.args(), []);
+        ethabi::Token::Uint((ProtocolVersionId::latest() as u16).into())
+    })
 }
 
 impl HandleConsistencyCheckerEvent for mpsc::UnboundedSender<L1BatchNumber> {
@@ -88,7 +109,7 @@ impl HandleConsistencyCheckerEvent for mpsc::UnboundedSender<L1BatchNumber> {
         self.send(last_checked_batch).ok();
     }
 
-    fn report_inconsistent_batch(&mut self, _number: L1BatchNumber) {
+    fn report_inconsistent_batch(&mut self, _number: L1BatchNumber, _err: &anyhow::Error) {
         // Do nothing
     }
 }
@@ -111,7 +132,10 @@ fn build_commit_tx_input_data_is_correct() {
             batch.header.number,
         )
         .unwrap();
-        assert_eq!(commit_data, CommitBatchInfo(batch).into_token());
+        assert_eq!(
+            commit_data,
+            CommitBatchInfo::new(batch, PubdataDA::Calldata).into_token()
+        );
     }
 }
 
@@ -301,6 +325,34 @@ const SAVE_ACTION_MAPPERS: [(&str, SaveActionMapper); 4] = [
     }),
 ];
 
+fn l1_batch_commit_log(l1_batch: &L1BatchWithMetadata) -> Log {
+    static BLOCK_COMMIT_EVENT_HASH: Lazy<H256> = Lazy::new(|| {
+        zksync_contracts::zksync_contract()
+            .event("BlockCommit")
+            .unwrap()
+            .signature()
+    });
+
+    Log {
+        address: DIAMOND_PROXY_ADDR,
+        topics: vec![
+            *BLOCK_COMMIT_EVENT_HASH,
+            H256::from_low_u64_be(l1_batch.header.number.0.into()), // batch number
+            l1_batch.metadata.root_hash,                            // batch hash
+            l1_batch.metadata.commitment,                           // commitment
+        ],
+        data: vec![].into(),
+        block_hash: None,
+        block_number: None,
+        transaction_hash: None,
+        transaction_index: None,
+        log_index: None,
+        transaction_log_index: None,
+        log_type: Some("mined".into()),
+        removed: None,
+    }
+}
+
 #[test_casing(12, Product(([10, 3, 1], SAVE_ACTION_MAPPERS)))]
 #[tokio::test]
 async fn normal_checker_function(
@@ -317,12 +369,13 @@ async fn normal_checker_function(
 
     let l1_batches: Vec<_> = (1..=10).map(create_l1_batch_with_metadata).collect();
     let mut commit_tx_hash_by_l1_batch = HashMap::with_capacity(l1_batches.len());
-    let client = MockEthereum::default();
+    let client = create_mock_ethereum();
 
     for (i, l1_batches) in l1_batches.chunks(batches_per_transaction).enumerate() {
         let input_data = build_commit_tx_input_data(l1_batches);
         let signed_tx = client.sign_prepared_tx(
             input_data.clone(),
+            VALIDATOR_TIMELOCK_ADDR,
             Options {
                 nonce: Some(i.into()),
                 ..Options::default()
@@ -330,7 +383,9 @@ async fn normal_checker_function(
         );
         let signed_tx = signed_tx.unwrap();
         client.send_raw_tx(signed_tx.raw_tx).await.unwrap();
-        client.execute_tx(signed_tx.hash, true, 1);
+        client
+            .execute_tx(signed_tx.hash, true, 1)
+            .with_logs(l1_batches.iter().map(l1_batch_commit_log).collect());
 
         commit_tx_hash_by_l1_batch.extend(
             l1_batches
@@ -395,12 +450,13 @@ async fn checker_processes_pre_boojum_batches(
         .chain((6..=10).map(create_l1_batch_with_metadata))
         .collect();
     let mut commit_tx_hash_by_l1_batch = HashMap::with_capacity(l1_batches.len());
-    let client = MockEthereum::default();
+    let client = create_mock_ethereum();
 
     for (i, l1_batch) in l1_batches.iter().enumerate() {
         let input_data = build_commit_tx_input_data(slice::from_ref(l1_batch));
         let signed_tx = client.sign_prepared_tx(
             input_data.clone(),
+            VALIDATOR_TIMELOCK_ADDR,
             Options {
                 nonce: Some(i.into()),
                 ..Options::default()
@@ -408,7 +464,9 @@ async fn checker_processes_pre_boojum_batches(
         );
         let signed_tx = signed_tx.unwrap();
         client.send_raw_tx(signed_tx.raw_tx).await.unwrap();
-        client.execute_tx(signed_tx.hash, true, 1);
+        client
+            .execute_tx(signed_tx.hash, true, 1)
+            .with_logs(vec![l1_batch_commit_log(l1_batch)]);
 
         commit_tx_hash_by_l1_batch.insert(l1_batch.header.number, signed_tx.hash);
     }
@@ -456,9 +514,10 @@ async fn checker_functions_after_snapshot_recovery(delay_batch_insertion: bool) 
     let l1_batch = create_l1_batch_with_metadata(99);
 
     let commit_tx_input_data = build_commit_tx_input_data(slice::from_ref(&l1_batch));
-    let client = MockEthereum::default();
+    let client = create_mock_ethereum();
     let signed_tx = client.sign_prepared_tx(
         commit_tx_input_data.clone(),
+        VALIDATOR_TIMELOCK_ADDR,
         Options {
             nonce: Some(0.into()),
             ..Options::default()
@@ -467,7 +526,9 @@ async fn checker_functions_after_snapshot_recovery(delay_batch_insertion: bool) 
     let signed_tx = signed_tx.unwrap();
     let commit_tx_hash = signed_tx.hash;
     client.send_raw_tx(signed_tx.raw_tx).await.unwrap();
-    client.execute_tx(commit_tx_hash, true, 1);
+    client
+        .execute_tx(commit_tx_hash, true, 1)
+        .with_logs(vec![l1_batch_commit_log(&l1_batch)]);
 
     let save_actions = [
         SaveAction::InsertBatch(&l1_batch),
@@ -513,6 +574,9 @@ async fn checker_functions_after_snapshot_recovery(delay_batch_insertion: bool) 
 enum IncorrectDataKind {
     MissingStatus,
     MismatchedStatus,
+    NoCommitLog,
+    BogusCommitLogOrigin,
+    BogusSoliditySelector,
     BogusCommitDataFormat,
     MismatchedCommitDataTimestamp,
     CommitDataForAnotherBatch,
@@ -520,9 +584,12 @@ enum IncorrectDataKind {
 }
 
 impl IncorrectDataKind {
-    const ALL: [Self; 6] = [
+    const ALL: [Self; 9] = [
         Self::MissingStatus,
         Self::MismatchedStatus,
+        Self::NoCommitLog,
+        Self::BogusCommitLogOrigin,
+        Self::BogusSoliditySelector,
         Self::BogusCommitDataFormat,
         Self::MismatchedCommitDataTimestamp,
         Self::CommitDataForAnotherBatch,
@@ -530,6 +597,7 @@ impl IncorrectDataKind {
     ];
 
     async fn apply(self, client: &MockEthereum, l1_batch: &L1BatchWithMetadata) -> H256 {
+        let mut log_origin = Some(DIAMOND_PROXY_ADDR);
         let (commit_tx_input_data, successful_status) = match self {
             Self::MissingStatus => {
                 return H256::zero(); // Do not execute the transaction
@@ -538,8 +606,25 @@ impl IncorrectDataKind {
                 let commit_tx_input_data = build_commit_tx_input_data(slice::from_ref(l1_batch));
                 (commit_tx_input_data, false)
             }
+            Self::NoCommitLog => {
+                log_origin = None;
+                let commit_tx_input_data = build_commit_tx_input_data(slice::from_ref(l1_batch));
+                (commit_tx_input_data, true)
+            }
+            Self::BogusCommitLogOrigin => {
+                log_origin = Some(VALIDATOR_TIMELOCK_ADDR);
+                let commit_tx_input_data = build_commit_tx_input_data(slice::from_ref(l1_batch));
+                (commit_tx_input_data, true)
+            }
+            Self::BogusSoliditySelector => {
+                let mut commit_tx_input_data =
+                    build_commit_tx_input_data(slice::from_ref(l1_batch));
+                commit_tx_input_data[..4].copy_from_slice(b"test");
+                (commit_tx_input_data, true)
+            }
             Self::BogusCommitDataFormat => {
-                let mut bogus_tx_input_data = b"test".to_vec(); // Preserve the function selector
+                let commit_tx_input_data = build_commit_tx_input_data(slice::from_ref(l1_batch));
+                let mut bogus_tx_input_data = commit_tx_input_data[..4].to_vec(); // Preserve the function selector
                 bogus_tx_input_data
                     .extend_from_slice(&ethabi::encode(&[ethabi::Token::Bool(true)]));
                 (bogus_tx_input_data, true)
@@ -565,19 +650,30 @@ impl IncorrectDataKind {
 
         let signed_tx = client.sign_prepared_tx(
             commit_tx_input_data,
+            VALIDATOR_TIMELOCK_ADDR,
             Options {
                 nonce: Some(0.into()),
                 ..Options::default()
             },
         );
         let signed_tx = signed_tx.unwrap();
+        let tx_logs = if let Some(address) = log_origin {
+            vec![Log {
+                address,
+                ..l1_batch_commit_log(l1_batch)
+            }]
+        } else {
+            vec![]
+        };
         client.send_raw_tx(signed_tx.raw_tx).await.unwrap();
-        client.execute_tx(signed_tx.hash, successful_status, 1);
+        client
+            .execute_tx(signed_tx.hash, successful_status, 1)
+            .with_logs(tx_logs);
         signed_tx.hash
     }
 }
 
-#[test_casing(6, Product((IncorrectDataKind::ALL, [false])))]
+#[test_casing(9, Product((IncorrectDataKind::ALL, [false])))]
 // ^ `snapshot_recovery = true` is tested below; we don't want to run it with all incorrect data kinds
 #[tokio::test]
 async fn checker_detects_incorrect_tx_data(kind: IncorrectDataKind, snapshot_recovery: bool) {
@@ -595,7 +691,7 @@ async fn checker_detects_incorrect_tx_data(kind: IncorrectDataKind, snapshot_rec
     }
 
     let l1_batch = create_l1_batch_with_metadata(if snapshot_recovery { 99 } else { 1 });
-    let client = MockEthereum::default();
+    let client = create_mock_ethereum();
     let commit_tx_hash = kind.apply(&client, &l1_batch).await;
     let commit_tx_hash_by_l1_batch = HashMap::from([(l1_batch.header.number, commit_tx_hash)]);
 

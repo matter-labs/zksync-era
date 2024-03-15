@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use circuit_sequencer_api_1_3_3::INITIAL_MONOTONIC_CYCLE_COUNTER;
 use itertools::Itertools;
 use zk_evm_1_3_3::{
     aux_structures::{MemoryPage, Timestamp},
@@ -11,7 +12,6 @@ use zk_evm_1_3_3::{
         STARTING_TIMESTAMP,
     },
 };
-use zkevm_test_harness_1_3_3::INITIAL_MONOTONIC_CYCLE_COUNTER;
 use zksync_contracts::BaseSystemContracts;
 use zksync_state::WriteStorage;
 use zksync_system_constants::MAX_L2_TX_GAS_LIMIT;

@@ -1,8 +1,10 @@
-use circuit_definitions::{
-    aux_definitions::witness_oracle::VmWitnessOracle,
-    circuit_definitions::base_layer::ZkSyncBaseLayerCircuit,
+use std::io::{BufWriter, Write as _};
+
+use circuit_definitions::circuit_definitions::{
+    base_layer::ZkSyncBaseLayerCircuit, eip4844::EIP4844Circuit,
 };
 use multivm::utils::get_used_bootloader_memory_bytes;
+use once_cell::sync::Lazy;
 use zkevm_test_harness::boojum::field::goldilocks::GoldilocksField;
 use zksync_object_store::{serialize_using_bincode, Bucket, ObjectStore, StoredObject};
 use zksync_prover_fri_types::{
@@ -17,12 +19,20 @@ use zksync_prover_fri_types::{
         },
         encodings::recursion_request::RecursionQueueSimulator,
         zkevm_circuits::scheduler::input::SchedulerCircuitInstanceWitness,
-        ZkSyncDefaultRoundFunction,
     },
     keys::{AggregationsKey, ClosedFormInputKey, FriCircuitKey},
-    CircuitWrapper, FriProofWrapper,
+    CircuitWrapper, FriProofWrapper, EIP_4844_CIRCUIT_ID,
 };
 use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber, ProtocolVersionId, U256};
+
+// Creates a temporary file with the serialized KZG setup usable by `zkevm_test_harness` functions.
+pub(crate) static KZG_TRUSTED_SETUP_FILE: Lazy<tempfile::NamedTempFile> = Lazy::new(|| {
+    let mut file = tempfile::NamedTempFile::new().expect("cannot create file for KZG setup");
+    BufWriter::new(file.as_file_mut())
+        .write_all(include_bytes!("trusted_setup.json"))
+        .expect("failed writing KZG trusted setup to temporary file");
+    file
+});
 
 pub fn expand_bootloader_contents(
     packed: &[(usize, U256)],
@@ -107,11 +117,7 @@ impl StoredObject for SchedulerPartialInputWrapper {
 
 pub async fn save_circuit(
     block_number: L1BatchNumber,
-    circuit: ZkSyncBaseLayerCircuit<
-        GoldilocksField,
-        VmWitnessOracle<GoldilocksField>,
-        ZkSyncDefaultRoundFunction,
-    >,
+    circuit: ZkSyncBaseLayerCircuit,
     sequence_number: usize,
     object_store: &dyn ObjectStore,
 ) -> (u8, String) {
@@ -128,6 +134,28 @@ pub async fn save_circuit(
         .await
         .unwrap();
     (circuit_id, blob_url)
+}
+
+pub async fn save_eip_4844_circuit(
+    block_number: L1BatchNumber,
+    circuit: EIP4844Circuit,
+    sequence_number: usize,
+    object_store: &dyn ObjectStore,
+    depth: u16,
+) -> (usize, String) {
+    let circuit_id = EIP_4844_CIRCUIT_ID;
+    let circuit_key = FriCircuitKey {
+        block_number,
+        sequence_number,
+        circuit_id,
+        aggregation_round: AggregationRound::BasicCircuits,
+        depth,
+    };
+    let blob_url = object_store
+        .put(circuit_key, &CircuitWrapper::Eip4844(circuit))
+        .await
+        .unwrap();
+    (sequence_number, blob_url)
 }
 
 pub async fn save_recursive_layer_prover_input_artifacts(

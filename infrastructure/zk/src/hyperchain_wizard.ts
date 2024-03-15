@@ -44,17 +44,18 @@ export interface BasePromptOptions {
 }
 
 // An init command that allows configuring and spinning up a new hyperchain network.
-async function initHyperchain() {
-    await announced('Initializing hyperchain creation', setupConfiguration());
+async function initHyperchain(runObservability: boolean) {
+    await announced('Initializing hyperchain creation', setupConfiguration(runObservability));
 
     const deployerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
     const governorPrivateKey = process.env.GOVERNOR_PRIVATE_KEY;
     const deployL2Weth = Boolean(process.env.DEPLOY_L2_WETH || false);
     const deployTestTokens = Boolean(process.env.DEPLOY_TEST_TOKENS || false);
-
+    const governorAdrress = ethers.utils.computeAddress(governorPrivateKey!);
     const initArgs: InitArgs = {
         skipSubmodulesCheckout: false,
         skipEnvSetup: true,
+        runObservability: runObservability,
         governorPrivateKeyArgs: ['--private-key', governorPrivateKey],
         deployerL2ContractInput: {
             args: ['--private-key', deployerPrivateKey],
@@ -65,7 +66,7 @@ async function initHyperchain() {
             deploy: deployTestTokens,
             args: ['--private-key', deployerPrivateKey, '--envFile', process.env.CHAIN_ETH_NETWORK!]
         },
-        deployerPrivateKeyArgs: ['--private-key', deployerPrivateKey]
+        deployerPrivateKeyArgs: ['--private-key', deployerPrivateKey, '--owner-address', governorAdrress]
     };
 
     await init(initArgs);
@@ -79,7 +80,7 @@ async function initHyperchain() {
     await announced('Start server', startServer());
 }
 
-async function setupConfiguration() {
+async function setupConfiguration(runObservability: boolean) {
     const CONFIGURE = 'Configure new chain';
     const USE_EXISTING = 'Use existing configuration';
     const questions: BasePromptOptions[] = [
@@ -94,7 +95,7 @@ async function setupConfiguration() {
     const results: any = await enquirer.prompt(questions);
 
     if (results.config === CONFIGURE) {
-        await announced('Setting hyperchain configuration', setHyperchainMetadata());
+        await announced('Setting hyperchain configuration', setHyperchainMetadata(runObservability));
         await announced('Validating information and balances to deploy hyperchain', checkReadinessToDeploy());
     } else {
         const envName = await selectHyperchainConfiguration();
@@ -103,7 +104,7 @@ async function setupConfiguration() {
     }
 }
 
-async function setHyperchainMetadata() {
+async function setHyperchainMetadata(runObservability: boolean) {
     const BASE_NETWORKS = [
         BaseNetwork.LOCALHOST,
         BaseNetwork.LOCALHOST_CUSTOM,
@@ -139,7 +140,7 @@ async function setHyperchainMetadata() {
     const results: any = await enquirer.prompt(questions);
 
     let deployer, governor, ethOperator, feeReceiver: ethers.Wallet | undefined;
-    let feeReceiverAddress, l1Rpc, l1Id, databaseUrl;
+    let feeReceiverAddress, l1Rpc, l1Id, databaseUrl, databaseProverUrl;
 
     if (results.l1Chain !== BaseNetwork.LOCALHOST || results.l1Chain !== BaseNetwork.LOCALHOST_CUSTOM) {
         // If it's not a localhost chain, we need to remove the CONTRACTS_CREATE2_FACTORY_ADDR from the .env file and use default value.
@@ -170,10 +171,19 @@ async function setHyperchainMetadata() {
 
         connectionsQuestions.push({
             message:
-                'What is the connection URL for your Postgress 14 database (format is postgres://<user>:<pass>@<hostname>:<port>/<database>)?',
+                'What is the connection URL for your Postgress 14 main database (format is postgres://<user>:<pass>@<hostname>:<port>/<database>)?',
             name: 'dbUrl',
             type: 'input',
-            initial: 'postgres://postgres@localhost/zksync_local',
+            initial: 'postgres://postgres:notsecurepassword@127.0.0.1:5432/zksync_local',
+            required: true
+        });
+
+        connectionsQuestions.push({
+            message:
+                'What is the connection URL for your Postgress 14 prover database (format is postgres://<user>:<pass>@<hostname>:<port>/<database>)?',
+            name: 'dbProverUrl',
+            type: 'input',
+            initial: 'postgres://postgres:notsecurepassword@127.0.0.1:5432/prover_local',
             required: true
         });
 
@@ -189,6 +199,7 @@ async function setHyperchainMetadata() {
 
         l1Rpc = connectionsResults.l1Rpc;
         databaseUrl = connectionsResults.dbUrl;
+        databaseProverUrl = connectionsResults.dbProverUrl;
 
         if (results.l1Chain === BaseNetwork.LOCALHOST_CUSTOM) {
             l1Id = connectionsResults.l1NetworkId;
@@ -259,10 +270,12 @@ async function setHyperchainMetadata() {
             feeReceiverAddress = keyResults.feeReceiver;
         }
     } else {
-        l1Rpc = 'http://localhost:8545';
+        l1Rpc = 'http://127.0.0.1:8545';
         l1Id = 9;
-        databaseUrl = 'postgres://postgres:notsecurepassword@localhost:5432/zksync_local';
+        databaseUrl = 'postgres://postgres:notsecurepassword@127.0.0.1:5432/zksync_local';
         wrapEnvModify('DATABASE_URL', databaseUrl);
+        databaseProverUrl = 'postgres://postgres:notsecurepassword@127.0.0.1:5432/prover_local';
+        wrapEnvModify('DATABASE_PROVER_URL', databaseProverUrl);
 
         const richWalletsRaw = await fetch(
             'https://raw.githubusercontent.com/matter-labs/local-setup/main/rich-wallets.json'
@@ -276,7 +289,7 @@ async function setHyperchainMetadata() {
         feeReceiver = undefined;
         feeReceiverAddress = richWallets[3].address;
 
-        await up('docker-compose-zkstack-common.yml');
+        await up(runObservability);
         await announced('Ensuring databases are up', db.wait({ server: true, prover: false }));
     }
 
@@ -330,6 +343,7 @@ async function setHyperchainMetadata() {
     // TODO: Generate url for data-compressor with selected region or fix env variable for keys location
     // PLA-595
     wrapEnvModify('DATABASE_URL', databaseUrl);
+    wrapEnvModify('DATABASE_PROVER_URL', databaseProverUrl);
     wrapEnvModify('ETH_CLIENT_CHAIN_ID', l1Id.toString());
     wrapEnvModify('ETH_CLIENT_WEB3_URL', l1Rpc);
     wrapEnvModify('CHAIN_ETH_NETWORK', getL1Name(results.l1Chain));
@@ -788,6 +802,7 @@ async function configDemoHyperchain(cmd: Command) {
     const initArgs: InitArgs = {
         skipSubmodulesCheckout: false,
         skipEnvSetup: cmd.skipEnvSetup,
+        runObservability: false,
         governorPrivateKeyArgs: ['--private-key', governorPrivateKey],
         deployerL2ContractInput: {
             args: ['--private-key', deployerPrivateKey],
@@ -802,7 +817,7 @@ async function configDemoHyperchain(cmd: Command) {
     };
 
     if (!cmd.skipEnvSetup) {
-        await up();
+        await up(initArgs.runObservability);
     }
     await init(initArgs);
 
@@ -852,8 +867,11 @@ export const initHyperchainCommand = new Command('stack')
 
 initHyperchainCommand
     .command('init')
+    .option('--run-observability')
     .description('Wizard for hyperchain creation/configuration')
-    .action(initHyperchain);
+    .action(async (cmd: Command) => {
+        await initHyperchain(cmd.runObservability);
+    });
 initHyperchainCommand
     .command('docker-setup')
     .option('--custom-docker-org <value>', 'Custom organization name for the docker images')
