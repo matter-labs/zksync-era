@@ -2,7 +2,7 @@ use anyhow::Context as _;
 use zksync_config::configs;
 use zksync_protobuf::{repr::ProtoRepr, required};
 
-use crate::proto;
+use crate::proto::proof_data_handler as proto;
 
 impl proto::ProtocolVersionLoadingMode {
     fn new(x: &configs::proof_data_handler::ProtocolVersionLoadingMode) -> Self {

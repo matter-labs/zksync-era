@@ -4,9 +4,9 @@
 
 use anyhow::Context as _;
 use multivm::{
+    circuit_sequencer_api_latest::sort_storage_access::sort_storage_access_queries,
     utils::get_max_gas_per_pubdata_byte,
     zk_evm_latest::aux_structures::{LogQuery as MultiVmLogQuery, Timestamp as MultiVMTimestamp},
-    zkevm_test_harness_latest::witness::sort_storage_access::sort_storage_access_queries,
 };
 use zksync_contracts::{BaseSystemContracts, SET_CHAIN_ID_EVENT};
 use zksync_dal::StorageProcessor;

@@ -1,9 +1,7 @@
+use circuit_sequencer_api_1_4_2::{BLOB_CHUNK_SIZE, ELEMENTS_PER_4844_BLOCK};
 use zk_evm_1_4_1::aux_structures::MemoryPage;
 pub use zk_evm_1_4_1::zkevm_opcode_defs::system_params::{
     ERGS_PER_CIRCUIT, INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
-};
-use zkevm_test_harness_1_4_2::zkevm_circuits::eip_4844::input::{
-    BLOB_CHUNK_SIZE, ELEMENTS_PER_4844_BLOCK,
 };
 use zksync_system_constants::{MAX_L2_TX_GAS_LIMIT, MAX_NEW_FACTORY_DEPS};
 
@@ -11,6 +9,11 @@ use crate::vm_latest::old_vm::utils::heap_page_from_base;
 
 /// The amount of ergs to be reserved at the end of the batch to ensure that it has enough ergs to verify compression, etc.
 pub(crate) const BOOTLOADER_BATCH_TIP_OVERHEAD: u32 = 170_000_000;
+
+#[allow(dead_code)]
+pub(crate) const BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD: u64 = 5000;
+#[allow(dead_code)]
+pub(crate) const BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD: u64 = 1500;
 
 /// The size of the bootloader memory in bytes which is used by the protocol.
 /// While the maximal possible size is a lot higher, we restrict ourselves to a certain limit to reduce

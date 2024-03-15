@@ -97,9 +97,12 @@ impl GasAdjuster {
             )
             .await?;
 
-            METRICS
-                .current_base_fee_per_gas
-                .set(*base_fee_history.last().unwrap());
+            // We shouldn't rely on L1 provider to return consistent results, so we check that we have at least one new sample.
+            if let Some(current_base_fee_per_gas) = base_fee_history.last() {
+                METRICS
+                    .current_base_fee_per_gas
+                    .set(*current_base_fee_per_gas);
+            }
             self.base_fee_statistics.add_samples(&base_fee_history);
 
             if let Some(current_blob_base_fee) = blob_base_fee_history.last() {
@@ -193,7 +196,7 @@ impl GasAdjuster {
                     .set(blob_base_fee_median.as_u64());
                 let calculated_price = blob_base_fee_median.as_u64() as f64
                     * BLOB_GAS_PER_BYTE as f64
-                    * self.config.internal_l1_pricing_multiplier;
+                    * self.config.internal_pubdata_pricing_multiplier;
 
                 self.bound_blob_base_fee(calculated_price)
             }

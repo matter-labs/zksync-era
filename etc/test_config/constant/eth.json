@@ -10,5 +10,6 @@
     "test_mnemonic8": "race bring office flip tired subject region public about target effort aisle",
     "test_mnemonic9": "regret bench until lesson fever two license garlic series rice odor tourist",
     "test_mnemonic10": "misery lizard beach magic blue one genre damage excess police image become",
-    "mnemonic": "fine music test violin matrix prize squirrel panther purchase material script deal"
+    "mnemonic": "fine music test violin matrix prize squirrel panther purchase material script deal",
+    "base_path": "m/44'/60'/0'/0"
 }

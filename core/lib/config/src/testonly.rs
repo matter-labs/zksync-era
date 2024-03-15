@@ -28,6 +28,12 @@ pub trait RandomConfig {
     fn sample(g: &mut Gen<impl Rng>) -> Self;
 }
 
+impl RandomConfig for std::net::SocketAddr {
+    fn sample(g: &mut Gen<impl Rng>) -> Self {
+        std::net::SocketAddr::new(std::net::IpAddr::from(g.rng.gen::<[u8; 16]>()), g.gen())
+    }
+}
+
 impl RandomConfig for String {
     fn sample(g: &mut Gen<impl Rng>) -> Self {
         let n = g.rng.gen_range(5..10);
@@ -60,7 +66,7 @@ impl<T: RandomConfig> RandomConfig for Vec<T> {
 impl<T: RandomConfig + Eq + std::hash::Hash> RandomConfig for HashSet<T> {
     fn sample(g: &mut Gen<impl Rng>) -> Self {
         if g.required_only {
-            return HashSet::new();
+            return Self::new();
         }
         (0..g.rng.gen_range(5..10)).map(|_| g.gen()).collect()
     }
@@ -734,6 +740,16 @@ impl RandomConfig for configs::WitnessGeneratorConfig {
             dump_arguments_for_blocks: g.gen(),
             last_l1_batch_to_process: g.gen(),
             data_source: g.gen(),
+        }
+    }
+}
+
+impl RandomConfig for configs::ObservabilityConfig {
+    fn sample(g: &mut Gen<impl Rng>) -> Self {
+        Self {
+            sentry_url: g.gen(),
+            sentry_environment: g.gen(),
+            log_format: g.gen(),
         }
     }
 }
