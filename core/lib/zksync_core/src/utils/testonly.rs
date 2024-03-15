@@ -170,7 +170,7 @@ pub(crate) async fn prepare_recovery_snapshot(
     // Miniblock and L1 batch are intentionally **not** inserted into the storage.
 
     // Store factory deps for the base system contracts.
-    let contracts = GenesisParams::mock().base_system_contracts;
+    let contracts = GenesisParams::mock().base_system_contracts().clone();
 
     let protocol_version = storage
         .protocol_versions_dal()

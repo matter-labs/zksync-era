@@ -16,8 +16,8 @@ use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_prover_interface::inputs::PrepareBasicCircuitsJob;
 use zksync_types::{
-    block::L1BatchHeader, AccountTreeId, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
-    StorageKey, StorageLog, H256,
+    block::L1BatchHeader, AccountTreeId, Address, L1BatchNumber, MiniblockNumber, StorageKey,
+    StorageLog, H256,
 };
 use zksync_utils::u32_to_h256;
 
@@ -631,7 +631,7 @@ async fn remove_l1_batches(
 async fn deduplication_works_as_expected() {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
-    ensure_genesis_state(&mut storage, L2ChainId::from(270), &GenesisParams::mock())
+    ensure_genesis_state(&mut storage, &GenesisParams::mock())
         .await
         .unwrap();
 

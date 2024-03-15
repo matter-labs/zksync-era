@@ -11,7 +11,7 @@ use tokio::sync::mpsc;
 use zksync_dal::StorageProcessor;
 use zksync_types::{
     block::{MiniblockHasher, MiniblockHeader},
-    L2ChainId, ProtocolVersion,
+    ProtocolVersion,
 };
 use zksync_web3_decl::jsonrpsee::core::ClientError as RpcError;
 
@@ -175,10 +175,9 @@ async fn normal_reorg_function(snapshot_recovery: bool, with_transient_errors: b
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
     } else {
-        let genesis_root_hash =
-            ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
-                .await
-                .unwrap();
+        let genesis_root_hash = ensure_genesis_state(&mut storage, &GenesisParams::mock())
+            .await
+            .unwrap();
         client.miniblock_hashes.insert(
             MiniblockNumber(0),
             MiniblockHasher::legacy_hash(MiniblockNumber(0)),
@@ -252,7 +251,7 @@ async fn normal_reorg_function(snapshot_recovery: bool, with_transient_errors: b
 async fn detector_stops_on_fatal_rpc_error() {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
-    ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
+    ensure_genesis_state(&mut storage, &GenesisParams::mock())
         .await
         .unwrap();
 
@@ -269,10 +268,9 @@ async fn detector_stops_on_fatal_rpc_error() {
 async fn reorg_is_detected_on_batch_hash_mismatch() {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
-    let genesis_root_hash =
-        ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
-            .await
-            .unwrap();
+    let genesis_root_hash = ensure_genesis_state(&mut storage, &GenesisParams::mock())
+        .await
+        .unwrap();
     let mut client = MockMainNodeClient::default();
     client.miniblock_hashes.insert(
         MiniblockNumber(0),
@@ -316,10 +314,9 @@ async fn reorg_is_detected_on_miniblock_hash_mismatch() {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
     let mut client = MockMainNodeClient::default();
-    let genesis_root_hash =
-        ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
-            .await
-            .unwrap();
+    let genesis_root_hash = ensure_genesis_state(&mut storage, &GenesisParams::mock())
+        .await
+        .unwrap();
     client.miniblock_hashes.insert(
         MiniblockNumber(0),
         MiniblockHasher::legacy_hash(MiniblockNumber(0)),
@@ -480,10 +477,9 @@ async fn stopping_reorg_detector_while_waiting_for_l1_batch() {
 async fn detector_errors_on_earliest_batch_hash_mismatch() {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
-    let genesis_root_hash =
-        ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
-            .await
-            .unwrap();
+    let genesis_root_hash = ensure_genesis_state(&mut storage, &GenesisParams::mock())
+        .await
+        .unwrap();
     assert_ne!(genesis_root_hash, H256::zero());
 
     let mut client = MockMainNodeClient::default();
@@ -534,10 +530,9 @@ async fn detector_errors_on_earliest_batch_hash_mismatch_with_snapshot_recovery(
 async fn reorg_is_detected_without_waiting_for_main_node_to_catch_up() {
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
-    let genesis_root_hash =
-        ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
-            .await
-            .unwrap();
+    let genesis_root_hash = ensure_genesis_state(&mut storage, &GenesisParams::mock())
+        .await
+        .unwrap();
     // Fill in local storage with some data, so that it's ahead of the main node.
     for number in 1..5 {
         store_miniblock(&mut storage, number, H256::zero()).await;

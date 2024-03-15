@@ -10,10 +10,13 @@ use async_trait::async_trait;
 use jsonrpsee::core::{client::ClientT, params::BatchRequestBuilder, ClientError};
 use multivm::zk_evm_latest::ethereum_types::U256;
 use tokio::sync::watch;
-use zksync_config::configs::{
-    api::Web3JsonRpcConfig,
-    chain::{NetworkConfig, StateKeeperConfig},
-    ContractsConfig,
+use zksync_config::{
+    configs::{
+        api::Web3JsonRpcConfig,
+        chain::{NetworkConfig, StateKeeperConfig},
+        ContractsConfig,
+    },
+    GenesisConfig,
 };
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, StorageProcessor};
 use zksync_health_check::CheckHealth;
@@ -44,7 +47,7 @@ use crate::{
         execution_sandbox::testonly::MockTransactionExecutor,
         tx_sender::tests::create_test_tx_sender,
     },
-    genesis::{ensure_genesis_state, GenesisConfig, GenesisParams},
+    genesis::{ensure_genesis_state, mock_genesis_config, GenesisParams},
     utils::testonly::{
         create_l1_batch, create_l1_batch_metadata, create_l2_transaction, create_miniblock,
         l1_batch_metadata_to_commitment_artifacts, prepare_recovery_snapshot,
@@ -237,11 +240,10 @@ impl StorageInitialization {
     ) -> anyhow::Result<()> {
         match self {
             Self::Genesis => {
-                let params = GenesisConfig {
+                let params = GenesisParams::load_genesis_params(GenesisConfig {
                     l2_chain_id: network_config.zksync_network_id,
-                    ..GenesisConfig::mock()
-                }
-                .load_genesis_params()
+                    ..mock_genesis_config()
+                })
                 .unwrap();
                 if storage.blocks_dal().is_genesis_needed().await? {
                     ensure_genesis_state(storage, &params).await?;

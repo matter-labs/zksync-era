@@ -12,7 +12,7 @@ use zksync_config::configs::{
 };
 use zksync_health_check::{CheckHealth, HealthStatus, ReactiveHealthCheck};
 use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
-use zksync_types::{L1BatchNumber, L2ChainId, ProtocolVersionId, StorageLog};
+use zksync_types::{L1BatchNumber, ProtocolVersionId, StorageLog};
 
 use super::*;
 use crate::{
@@ -97,7 +97,7 @@ async fn prepare_recovery_snapshot_with_genesis(
     temp_dir: &TempDir,
 ) -> SnapshotRecoveryStatus {
     let mut storage = pool.access_storage().await.unwrap();
-    ensure_genesis_state(&mut storage, L2ChainId::from(270), &GenesisParams::mock())
+    ensure_genesis_state(&mut storage, &GenesisParams::mock())
         .await
         .unwrap();
     let mut logs = gen_storage_logs(100..300, 1).pop().unwrap();

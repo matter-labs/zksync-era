@@ -165,7 +165,6 @@ pub(crate) async fn pending_protocol_version(
 
 #[cfg(test)]
 mod tests {
-    use zksync_types::L2ChainId;
 
     use super::*;
     use crate::genesis::{ensure_genesis_state, GenesisParams};

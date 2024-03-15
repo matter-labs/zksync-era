@@ -6,17 +6,18 @@ use assert_matches::assert_matches;
 use once_cell::sync::Lazy;
 use test_casing::{test_casing, Product};
 use tokio::sync::mpsc;
+use zksync_config::GenesisConfig;
 use zksync_dal::StorageProcessor;
 use zksync_eth_client::{clients::MockEthereum, Options};
 use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 use zksync_types::{
-    aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata, L2ChainId, Log,
+    aggregated_operations::AggregatedActionType, commitment::L1BatchWithMetadata, Log,
     ProtocolVersion, ProtocolVersionId, H256,
 };
 
 use super::*;
 use crate::{
-    genesis::{ensure_genesis_state, GenesisConfig, GenesisParams},
+    genesis::{ensure_genesis_state, mock_genesis_config, GenesisParams},
     utils::testonly::{
         create_l1_batch, create_l1_batch_metadata, l1_batch_metadata_to_commitment_artifacts,
     },
@@ -433,11 +434,10 @@ async fn checker_processes_pre_boojum_batches(
 
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
-    let genesis_params = GenesisConfig {
-        protocol_version: PRE_BOOJUM_PROTOCOL_VERSION,
-        ..GenesisConfig::mock()
-    }
-    .load_genesis_params()
+    let genesis_params = GenesisParams::load_genesis_params(GenesisConfig {
+        protocol_version: PRE_BOOJUM_PROTOCOL_VERSION as u16,
+        ..mock_genesis_config()
+    })
     .unwrap();
     ensure_genesis_state(&mut storage, &genesis_params)
         .await

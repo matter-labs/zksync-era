@@ -161,8 +161,8 @@ async fn get_transaction_nonces(
 #[cfg(test)]
 mod tests {
     use zksync_types::{
-        fee::TransactionExecutionMetrics, L2ChainId, MiniblockNumber, PriorityOpId,
-        ProtocolVersionId, StorageLog, H256,
+        fee::TransactionExecutionMetrics, MiniblockNumber, PriorityOpId, ProtocolVersionId,
+        StorageLog, H256,
     };
     use zksync_utils::u256_to_h256;
 

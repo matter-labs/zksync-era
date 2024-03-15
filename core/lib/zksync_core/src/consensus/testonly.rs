@@ -9,8 +9,10 @@ use zksync_consensus_roles::validator;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::ConnectionPool;
 use zksync_types::{
-    api, api::L1BatchDetails, snapshots::SnapshotRecoveryStatus, Address, L1BatchNumber, L2ChainId,
-    MiniblockNumber, ProtocolVersionId, H256,
+    api,
+    api::{BridgeAddresses, L1BatchDetails},
+    snapshots::SnapshotRecoveryStatus,
+    Address, L1BatchNumber, L1ChainId, L2ChainId, MiniblockNumber, ProtocolVersionId, H256,
 };
 use zksync_web3_decl::{
     error::{EnrichedClientError, EnrichedClientResult},
@@ -150,6 +152,20 @@ impl MainNodeClient for MockMainNodeClient {
             "fetch_genesis_l1_batch",
         ))
     }
+
+    async fn fetch_l1_chain_id(&self) -> EnrichedClientResult<L1ChainId> {
+        Err(EnrichedClientError::custom(
+            "not implemented",
+            "fetch_l1_chain_id",
+        ))
+    }
+
+    async fn fetch_contracts(&self) -> EnrichedClientResult<(Address, BridgeAddresses)> {
+        Err(EnrichedClientError::custom(
+            "not implemented",
+            "fetch_contracts",
+        ))
+    }
 }
 
 /// Fake StateKeeper for tests.
@@ -256,7 +272,7 @@ impl StateKeeper {
                 l1_gas_price: 2,
                 l2_fair_gas_price: 3,
                 fair_pubdata_price: Some(24),
-                operator_address: GenesisParams::mock().first_validator,
+                operator_address: GenesisParams::mock().config().fee_account,
                 protocol_version: ProtocolVersionId::latest(),
                 first_miniblock_info: (self.last_block, 1),
             }

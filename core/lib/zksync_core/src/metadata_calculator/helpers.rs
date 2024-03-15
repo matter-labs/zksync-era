@@ -480,7 +480,7 @@ mod tests {
     use tempfile::TempDir;
     use zksync_dal::ConnectionPool;
     use zksync_prover_interface::inputs::PrepareBasicCircuitsJob;
-    use zksync_types::{L2ChainId, StorageKey, StorageLog};
+    use zksync_types::{StorageKey, StorageLog};
 
     use super::*;
     use crate::{
@@ -563,7 +563,6 @@ mod tests {
         let pool = ConnectionPool::test_pool().await;
         ensure_genesis_state(
             &mut pool.access_storage().await.unwrap(),
-            L2ChainId::from(270),
             &GenesisParams::mock(),
         )
         .await
@@ -587,7 +586,7 @@ mod tests {
     async fn loaded_logs_equivalence_with_zero_no_op_logs() {
         let pool = ConnectionPool::test_pool().await;
         let mut storage = pool.access_storage().await.unwrap();
-        ensure_genesis_state(&mut storage, L2ChainId::from(270), &GenesisParams::mock())
+        ensure_genesis_state(&mut storage, &GenesisParams::mock())
             .await
             .unwrap();
 
@@ -678,7 +677,7 @@ mod tests {
     async fn loaded_logs_equivalence_with_non_zero_no_op_logs() {
         let pool = ConnectionPool::test_pool().await;
         let mut storage = pool.access_storage().await.unwrap();
-        ensure_genesis_state(&mut storage, L2ChainId::from(270), &GenesisParams::mock())
+        ensure_genesis_state(&mut storage, &GenesisParams::mock())
             .await
             .unwrap();
 
@@ -725,7 +724,7 @@ mod tests {
     async fn loaded_logs_equivalence_with_protective_reads() {
         let pool = ConnectionPool::test_pool().await;
         let mut storage = pool.access_storage().await.unwrap();
-        ensure_genesis_state(&mut storage, L2ChainId::from(270), &GenesisParams::mock())
+        ensure_genesis_state(&mut storage, &GenesisParams::mock())
             .await
             .unwrap();
 

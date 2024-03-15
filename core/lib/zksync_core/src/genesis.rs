@@ -106,13 +106,37 @@ impl GenesisParams {
         Self {
             base_system_contracts: BaseSystemContracts::load_from_disk(),
             system_contracts: get_system_smart_contracts(),
-            config: GenesisConfig::mock(),
+            config: mock_genesis_config(),
         }
     }
 
     pub fn protocol_version(&self) -> ProtocolVersionId {
         // It's impossible to instantiate Genesis params with wrong protocol version
         self.config.protocol_version.try_into().unwrap()
+    }
+}
+
+#[cfg(test)]
+pub fn mock_genesis_config() -> GenesisConfig {
+    use zksync_types::L1ChainId;
+    GenesisConfig {
+        protocol_version: ProtocolVersionId::latest() as u16,
+        genesis_root_hash: Default::default(),
+        rollup_last_leaf_index: 26,
+        genesis_commitment: Default::default(),
+        bootloader_hash: Default::default(),
+        default_aa_hash: Default::default(),
+        verifier_address: Default::default(),
+        fee_account: Default::default(),
+        diamond_proxy: Default::default(),
+        erc20_bridge: Default::default(),
+        state_transition_proxy_addr: None,
+        l1_chain_id: L1ChainId(9),
+        l2_chain_id: L2ChainId::default(),
+        recursion_node_level_vk_hash: Default::default(),
+        recursion_leaf_level_vk_hash: Default::default(),
+        recursion_circuits_set_vks_hash: Default::default(),
+        recursion_scheduler_level_vk_hash: Default::default(),
     }
 }
 
@@ -512,8 +536,8 @@ pub(crate) async fn save_set_chain_id_tx(
 
 #[cfg(test)]
 mod tests {
+    use zksync_config::GenesisConfig;
     use zksync_dal::ConnectionPool;
-    use zksync_types::system_contracts::get_system_smart_contracts;
 
     use super::*;
 
@@ -546,11 +570,10 @@ mod tests {
         let mut conn = pool.access_storage().await.unwrap();
         conn.blocks_dal().delete_genesis().await.unwrap();
 
-        let params = GenesisConfig {
+        let params = GenesisParams::load_genesis_params(GenesisConfig {
             l2_chain_id: L2ChainId::max(),
-            ..GenesisConfig::mock()
-        }
-        .load_genesis_params()
+            ..mock_genesis_config()
+        })
         .unwrap();
         ensure_genesis_state(&mut conn, &params).await.unwrap();
 
@@ -567,11 +590,10 @@ mod tests {
     async fn running_genesis_with_non_latest_protocol_version() {
         let pool = ConnectionPool::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
-        let params = GenesisConfig {
+        let params = GenesisParams::load_genesis_params(GenesisConfig {
             protocol_version: ProtocolVersionId::Version10 as u16,
-            ..GenesisConfig::mock()
-        }
-        .load_genesis_params()
+            ..mock_genesis_config()
+        })
         .unwrap();
 
         ensure_genesis_state(&mut conn, &params).await.unwrap();
