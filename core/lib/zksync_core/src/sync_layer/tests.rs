@@ -160,11 +160,6 @@ fn genesis_snapshot_recovery_status() -> SnapshotRecoveryStatus {
     }
 }
 
-#[test]
-fn l2_tx_gas_limit_is_correct() {
-    assert_eq!(MAX_ALLOWED_L2_TX_GAS_LIMIT, U256::from(u32::MAX));
-}
-
 #[test_casing(2, [false, true])]
 #[tokio::test]
 async fn external_io_basics(snapshot_recovery: bool) {

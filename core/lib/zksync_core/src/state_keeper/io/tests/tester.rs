@@ -106,7 +106,8 @@ impl Tester {
             virtual_blocks_interval: 1,
             virtual_blocks_per_miniblock: 1,
             fee_account_addr: Address::repeat_byte(0x11), // Maintain implicit invariant: fee address is never `Address::zero()`
-            ..StateKeeperConfig::default()
+            validation_computational_gas_limit: BLOCK_GAS_LIMIT,
+            ..StateKeeperConfig::for_tests()
         };
         let io = MempoolIO::new(
             mempool.clone(),
@@ -114,7 +115,6 @@ impl Tester {
             pool,
             &config,
             Duration::from_secs(1),
-            BLOCK_GAS_LIMIT,
             L2ChainId::from(270),
         )
         .await

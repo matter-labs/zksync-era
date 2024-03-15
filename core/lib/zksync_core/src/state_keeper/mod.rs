@@ -47,7 +47,6 @@ pub(crate) async fn create_state_keeper(
     let batch_executor_base = MainBatchExecutor::new(
         db_config.state_keeper_db_path.clone(),
         pool.clone(),
-        state_keeper_config.max_allowed_l2_tx_gas_limit.into(),
         state_keeper_config.save_call_traces,
         state_keeper_config.upload_witness_inputs_to_gcs,
         state_keeper_config.enum_index_migration_chunk_size(),
@@ -60,7 +59,6 @@ pub(crate) async fn create_state_keeper(
         pool,
         &state_keeper_config,
         mempool_config.delay_interval(),
-        state_keeper_config.validation_computational_gas_limit,
         network_config.zksync_network_id,
     )
     .await

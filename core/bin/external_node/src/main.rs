@@ -30,7 +30,7 @@ use zksync_core::{
     },
     sync_layer::{
         batch_status_updater::BatchStatusUpdater, external_io::ExternalIO, ActionQueue,
-        MainNodeClient, SyncState, MAX_ALLOWED_L2_TX_GAS_LIMIT,
+        MainNodeClient, SyncState,
     },
 };
 use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
@@ -70,7 +70,6 @@ async fn build_state_keeper(
     let batch_executor_base: Box<dyn BatchExecutor> = Box::new(MainBatchExecutor::new(
         state_keeper_db_path,
         connection_pool.clone(),
-        MAX_ALLOWED_L2_TX_GAS_LIMIT,
         save_call_traces,
         false,
         config.optional.enum_index_migration_chunk_size,

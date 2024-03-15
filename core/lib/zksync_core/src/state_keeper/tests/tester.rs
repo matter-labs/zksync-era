@@ -783,7 +783,10 @@ impl StateKeeperIO for TestIO {
         Ok(Some(params))
     }
 
-    async fn wait_for_next_tx(&mut self, max_wait: Duration) -> Option<Transaction> {
+    async fn wait_for_next_tx(
+        &mut self,
+        max_wait: Duration,
+    ) -> anyhow::Result<Option<Transaction>> {
         let action = self.pop_next_item("wait_for_next_tx");
 
         // Check whether we should ignore tx requests.
@@ -792,17 +795,17 @@ impl StateKeeperIO for TestIO {
             tokio::time::sleep(max_wait).await;
             // Return the action to the scenario as we don't use it.
             self.actions.lock().unwrap().push_front(action);
-            return None;
+            return Ok(None);
         }
 
         // We shouldn't, process normally.
         let ScenarioItem::Tx(_, tx, _) = action else {
             panic!("Unexpected action: {:?}", action);
         };
-        Some(tx)
+        Ok(Some(tx))
     }
 
-    async fn rollback(&mut self, tx: Transaction) {
+    async fn rollback(&mut self, tx: Transaction) -> anyhow::Result<()> {
         let action = self.pop_next_item("rollback");
         let ScenarioItem::Rollback(_, expected_tx) = action else {
             panic!("Unexpected action: {:?}", action);
@@ -812,6 +815,7 @@ impl StateKeeperIO for TestIO {
             "Incorrect transaction has been rolled back"
         );
         self.skipping_txs = false;
+        Ok(())
     }
 
     async fn reject(&mut self, tx: &Transaction, error: &str) -> anyhow::Result<()> {

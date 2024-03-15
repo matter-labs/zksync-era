@@ -290,9 +290,8 @@ impl StateKeeperIO for ExternalIO {
         // Wait for the next miniblock to appear in the queue.
         let actions = &mut self.actions;
         for _ in 0..poll_iters(POLL_INTERVAL, max_wait) {
-            match actions.peek_action() {
+            match actions.pop_action() {
                 Some(SyncAction::Miniblock { params, number }) => {
-                    self.actions.pop_action(); // We found the miniblock, remove it from the queue.
                     anyhow::ensure!(
                         number == cursor.next_miniblock,
                         "Miniblock number mismatch: expected {}, got {number}",
@@ -313,35 +312,43 @@ impl StateKeeperIO for ExternalIO {
         Ok(None)
     }
 
-    async fn wait_for_next_tx(&mut self, max_wait: Duration) -> Option<Transaction> {
+    async fn wait_for_next_tx(
+        &mut self,
+        max_wait: Duration,
+    ) -> anyhow::Result<Option<Transaction>> {
         let actions = &mut self.actions;
         tracing::debug!(
             "Waiting for the new tx, next action is {:?}",
             actions.peek_action()
         );
         for _ in 0..poll_iters(POLL_INTERVAL, max_wait) {
-            // We keep polling until we get any item from the queue.
-            // Once we have the item, it'll be either a transaction, or a seal request.
-            // Whatever item it is, we don't have to poll anymore and may exit, thus double option use.
             match actions.peek_action() {
                 Some(SyncAction::Tx(_)) => {
                     let SyncAction::Tx(tx) = actions.pop_action().unwrap() else {
                         unreachable!()
                     };
-                    return Some(Transaction::from(*tx));
+                    return Ok(Some(Transaction::from(*tx)));
+                }
+                Some(SyncAction::SealMiniblock | SyncAction::SealBatch) => {
+                    // No more transactions in the current miniblock; the state keeper should seal it.
+                    return Ok(None);
+                }
+                Some(other) => {
+                    anyhow::bail!(
+                        "Unexpected action in the queue while waiting for the next transaction: {other:?}"
+                    );
                 }
                 _ => {
                     tokio::time::sleep(POLL_INTERVAL).await;
-                    continue;
                 }
             }
         }
-        None
+        Ok(None)
     }
 
-    async fn rollback(&mut self, tx: Transaction) {
+    async fn rollback(&mut self, tx: Transaction) -> anyhow::Result<()> {
         // We are replaying the already sealed batches so no rollbacks are expected to occur.
-        panic!("Rollback requested. Transaction hash: {:?}", tx.hash());
+        anyhow::bail!("Rollback requested. Transaction hash: {:?}", tx.hash());
     }
 
     async fn reject(&mut self, tx: &Transaction, error: &str) -> anyhow::Result<()> {

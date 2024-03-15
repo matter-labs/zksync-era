@@ -14,7 +14,7 @@ use once_cell::sync::OnceCell;
 use tokio::sync::{mpsc, watch};
 use zksync_dal::ConnectionPool;
 use zksync_state::{RocksdbStorage, StorageView, WriteStorage};
-use zksync_types::{vm_trace::Call, Transaction, U256};
+use zksync_types::{vm_trace::Call, Transaction};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use super::{BatchExecutor, BatchExecutorHandle, Command, TxExecutionResult};
@@ -33,7 +33,6 @@ pub struct MainBatchExecutor {
     state_keeper_db_path: String,
     pool: ConnectionPool,
     save_call_traces: bool,
-    max_allowed_tx_gas_limit: U256,
     upload_witness_inputs_to_gcs: bool,
     enum_index_migration_chunk_size: usize,
     optional_bytecode_compression: bool,
@@ -43,7 +42,6 @@ impl MainBatchExecutor {
     pub fn new(
         state_keeper_db_path: String,
         pool: ConnectionPool,
-        max_allowed_tx_gas_limit: U256,
         save_call_traces: bool,
         upload_witness_inputs_to_gcs: bool,
         enum_index_migration_chunk_size: usize,
@@ -53,7 +51,6 @@ impl MainBatchExecutor {
             state_keeper_db_path,
             pool,
             save_call_traces,
-            max_allowed_tx_gas_limit,
             upload_witness_inputs_to_gcs,
             enum_index_migration_chunk_size,
             optional_bytecode_compression,
@@ -88,7 +85,6 @@ impl BatchExecutor for MainBatchExecutor {
         let (commands_sender, commands_receiver) = mpsc::channel(1);
         let executor = CommandReceiver {
             save_call_traces: self.save_call_traces,
-            max_allowed_tx_gas_limit: self.max_allowed_tx_gas_limit,
             optional_bytecode_compression: self.optional_bytecode_compression,
             commands: commands_receiver,
         };
@@ -118,7 +114,6 @@ impl BatchExecutor for MainBatchExecutor {
 #[derive(Debug)]
 struct CommandReceiver {
     save_call_traces: bool,
-    max_allowed_tx_gas_limit: U256,
     optional_bytecode_compression: bool,
     commands: mpsc::Receiver<Command>,
 }
@@ -182,21 +177,6 @@ impl CommandReceiver {
     ) -> TxExecutionResult {
         // Save pre-`execute_next_tx` VM snapshot.
         vm.make_snapshot();
-
-        // Reject transactions with too big gas limit.
-        // They are also rejected on the API level, but
-        // we need to secure ourselves in case some tx will somehow get into mempool.
-        // FIXME: move to IO?
-        if tx.gas_limit() > self.max_allowed_tx_gas_limit {
-            tracing::warn!(
-                "Found tx with too big gas limit in state keeper, hash: {:?}, gas_limit: {}",
-                tx.hash(),
-                tx.gas_limit()
-            );
-            return TxExecutionResult::RejectedByVm {
-                reason: Halt::TooBigGasLimit,
-            };
-        }
 
         // Execute the transaction.
         let latency = KEEPER_METRICS.tx_execution_time[&TxExecutionStage::Execution].start();

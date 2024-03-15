@@ -7,7 +7,7 @@ use std::{
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use multivm::utils::derive_base_fee_and_gas_per_pubdata;
+use multivm::{interface::Halt, utils::derive_base_fee_and_gas_per_pubdata};
 use vm_utils::storage::L1BatchParamsProvider;
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::BaseSystemContracts;
@@ -15,7 +15,7 @@ use zksync_dal::ConnectionPool;
 use zksync_mempool::L2TxFilter;
 use zksync_types::{
     protocol_version::ProtocolUpgradeTx, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
-    ProtocolVersionId, Transaction, H256,
+    ProtocolVersionId, Transaction, H256, U256,
 };
 // TODO (SMA-1206): use seconds instead of milliseconds.
 use zksync_utils::time::millis_since_epoch;
@@ -49,6 +49,7 @@ pub struct MempoolIO {
     l1_batch_params_provider: L1BatchParamsProvider,
     fee_account: Address,
     validation_computational_gas_limit: u32,
+    max_allowed_tx_gas_limit: U256,
     delay_interval: Duration,
     // Used to keep track of gas prices to set accepted price per pubdata byte in blocks.
     batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
@@ -225,26 +226,43 @@ impl StateKeeperIO for MempoolIO {
         }))
     }
 
-    async fn wait_for_next_tx(&mut self, max_wait: Duration) -> Option<Transaction> {
-        for _ in 0..poll_iters(self.delay_interval, max_wait) {
+    async fn wait_for_next_tx(
+        &mut self,
+        max_wait: Duration,
+    ) -> anyhow::Result<Option<Transaction>> {
+        let started_at = Instant::now();
+        while started_at.elapsed() <= max_wait {
             let get_latency = KEEPER_METRICS.get_tx_from_mempool.start();
-            let res = self.mempool.next_transaction(&self.filter);
+            let maybe_tx = self.mempool.next_transaction(&self.filter);
             get_latency.observe();
-            if let Some(res) = res {
-                return Some(res);
+
+            if let Some(tx) = maybe_tx {
+                // Reject transactions with too big gas limit. They are also rejected on the API level, but
+                // we need to secure ourselves in case some tx will somehow get into mempool.
+                if tx.gas_limit() > self.max_allowed_tx_gas_limit {
+                    tracing::warn!(
+                        "Found tx with too big gas limit in state keeper, hash: {:?}, gas_limit: {}",
+                        tx.hash(),
+                        tx.gas_limit()
+                    );
+                    self.reject(&tx, &Halt::TooBigGasLimit.to_string()).await?;
+                    continue;
+                }
+                return Ok(Some(tx));
             } else {
                 tokio::time::sleep(self.delay_interval).await;
                 continue;
             }
         }
-        None
+        Ok(None)
     }
 
-    async fn rollback(&mut self, tx: Transaction) {
+    async fn rollback(&mut self, tx: Transaction) -> anyhow::Result<()> {
         // Reset nonces in the mempool.
         self.mempool.rollback(&tx);
         // Insert the transaction back.
         self.mempool.insert(vec![tx], HashMap::new());
+        Ok(())
     }
 
     async fn reject(&mut self, rejected: &Transaction, error: &str) -> anyhow::Result<()> {
@@ -361,14 +379,12 @@ async fn sleep_past(timestamp: u64, miniblock: MiniblockNumber) -> u64 {
 }
 
 impl MempoolIO {
-    #[allow(clippy::too_many_arguments)]
     pub async fn new(
         mempool: MempoolGuard,
         batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
         pool: ConnectionPool,
         config: &StateKeeperConfig,
         delay_interval: Duration,
-        validation_computational_gas_limit: u32,
         chain_id: L2ChainId,
     ) -> anyhow::Result<Self> {
         anyhow::ensure!(
@@ -395,7 +411,8 @@ impl MempoolIO {
             // ^ Will be initialized properly on the first newly opened batch
             l1_batch_params_provider,
             fee_account: config.fee_account_addr,
-            validation_computational_gas_limit,
+            validation_computational_gas_limit: config.validation_computational_gas_limit,
+            max_allowed_tx_gas_limit: config.max_allowed_l2_tx_gas_limit.into(),
             delay_interval,
             batch_fee_input_provider,
             chain_id,

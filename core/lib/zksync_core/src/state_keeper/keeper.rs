@@ -522,7 +522,12 @@ impl ZkSyncStateKeeper {
             }
 
             let waiting_latency = KEEPER_METRICS.waiting_for_tx.start();
-            let Some(tx) = self.io.wait_for_next_tx(POLL_WAIT_DURATION).await else {
+            let Some(tx) = self
+                .io
+                .wait_for_next_tx(POLL_WAIT_DURATION)
+                .await
+                .context("error waiting for next transaction")?
+            else {
                 waiting_latency.observe();
                 tracing::trace!("No new transactions. Waiting!");
                 continue;
@@ -563,7 +568,10 @@ impl ZkSyncStateKeeper {
                 }
                 SealResolution::ExcludeAndSeal => {
                     batch_executor.rollback_last_tx().await;
-                    self.io.rollback(tx).await;
+                    self.io
+                        .rollback(tx)
+                        .await
+                        .context("failed rolling back transaction")?;
                 }
                 SealResolution::Unexecutable(reason) => {
                     batch_executor.rollback_last_tx().await;
