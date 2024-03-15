@@ -237,6 +237,11 @@ pub struct OptionalENConfig {
     /// 0 means that sealing is synchronous; this is mostly useful for performance comparison, testing etc.
     #[serde(default = "OptionalENConfig::default_miniblock_seal_queue_capacity")]
     pub miniblock_seal_queue_capacity: usize,
+    /// Address of the L1 diamond proxy contract used by the consistency checker to match with the origin of logs emitted
+    /// by commit transactions. If not set, it will not be verified.
+    // This is intentionally not a part of `RemoteENConfig` because fetching this info from the main node would defeat
+    // its purpose; the consistency checker assumes that the main node may provide false information.
+    pub contracts_diamond_proxy_addr: Option<Address>,
 }
 
 impl OptionalENConfig {

@@ -127,9 +127,8 @@ impl EventsWeb3Dal<'_, '_> {
     fn build_get_logs_where_clause(&self, filter: &GetLogsFilter) -> (String, u8) {
         let mut arg_index = 1;
 
-        let mut where_sql = format!("(miniblock_number >= {})", filter.from_block.0 as i64);
-
-        where_sql += &format!(" AND (miniblock_number <= {})", filter.to_block.0 as i64);
+        let mut where_sql = format!("(miniblock_number >= {})", filter.from_block.0);
+        where_sql += &format!(" AND (miniblock_number <= {})", filter.to_block.0);
 
         // Add filters for address (like `address = ANY($1)` or `address = $1`)
         if let Some(filter_sql) =
@@ -245,7 +244,7 @@ impl EventsWeb3Dal<'_, '_> {
                     miniblock_number ASC,
                     event_index_in_block ASC
                 "#,
-                from_block.0 as i64
+                i64::from(from_block.0)
             )
             .fetch_all(self.storage.conn())
             .await?;
