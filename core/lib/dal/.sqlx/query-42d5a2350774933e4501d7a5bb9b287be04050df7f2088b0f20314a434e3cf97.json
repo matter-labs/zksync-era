@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                DELETE FROM events\n                WHERE\n                    miniblock_number <= $1\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "42d5a2350774933e4501d7a5bb9b287be04050df7f2088b0f20314a434e3cf97"
+}

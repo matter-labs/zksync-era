@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                DELETE FROM call_traces USING (\n                    SELECT\n                        *\n                    FROM\n                        transactions\n                    WHERE\n                        miniblock_number BETWEEN $1 AND $2\n                ) AS matching_transactions\n                WHERE\n                    matching_transactions.hash = call_traces.tx_hash\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f99d62e0045a271691ab01c244e5a3026edccde9b3d1dd4568be77ccc16da3f7"
+}

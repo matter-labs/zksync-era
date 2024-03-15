@@ -1,3 +1,5 @@
+use anyhow::anyhow;
+use sqlx::error::BoxDynError;
 use zksync_types::{L1BatchNumber, MiniblockNumber};
 
 use crate::{instrument::InstrumentExt, StorageProcessor};
@@ -27,12 +29,37 @@ impl PruningDal<'_, '_> {
         let row = sqlx::query!(
             r#"
             SELECT
-                last_soft_pruned_l1_batch,
-                last_soft_pruned_miniblock,
-                last_hard_pruned_l1_batch,
-                last_hard_pruned_miniblock
+                soft.pruned_l1_batch AS last_soft_pruned_l1_batch,
+                soft.pruned_miniblock AS last_soft_pruned_miniblock,
+                hard.pruned_l1_batch AS last_hard_pruned_l1_batch,
+                hard.pruned_miniblock AS last_hard_pruned_miniblock
             FROM
-                pruning_info
+                (
+                    SELECT
+                        pruned_l1_batch,
+                        pruned_miniblock
+                    FROM
+                        pruning_log
+                    WHERE
+                    TYPE = 'Soft'
+                    ORDER BY
+                        pruned_l1_batch DESC
+                    LIMIT
+                        1
+                ) AS soft
+                FULL JOIN (
+                    SELECT
+                        pruned_l1_batch,
+                        pruned_miniblock
+                    FROM
+                        pruning_log
+                    WHERE
+                    TYPE = 'Hard'
+                    ORDER BY
+                        pruned_l1_batch DESC
+                    LIMIT
+                        1
+                ) AS hard ON TRUE;
             "#
         )
         .instrument("get_last_soft_pruned_batch")
@@ -55,46 +82,11 @@ impl PruningDal<'_, '_> {
         })
     }
 
-    pub async fn get_last_hard_pruned_batch(&mut self) -> sqlx::Result<Option<L1BatchNumber>> {
-        let row = sqlx::query!(
-            r#"
-            SELECT
-                last_hard_pruned_l1_batch
-            FROM
-                pruning_info
-            "#
-        )
-        .instrument("get_last_hard_pruned_batch")
-        .report_latency()
-        .fetch_one(self.storage)
-        .await?;
-        Ok(row
-            .last_hard_pruned_l1_batch
-            .map(|x| L1BatchNumber(x as u32)))
-    }
-
     pub async fn soft_prune_batches_range(
         &mut self,
         last_l1_batch_to_prune: L1BatchNumber,
         last_miniblock_to_prune: MiniblockNumber,
     ) -> sqlx::Result<()> {
-        sqlx::query!(
-            r#"
-            UPDATE pruning_info
-            SET
-                last_soft_pruned_l1_batch = $1,
-                last_soft_pruned_miniblock = $2
-            "#,
-            i64::from(last_l1_batch_to_prune.0),
-            i64::from(last_miniblock_to_prune.0)
-        )
-        .instrument("soft_prune_batches_range")
-        .with_arg("last_l1_batch_to_prune", &last_l1_batch_to_prune)
-        .with_arg("last_miniblock_to_prune", &last_miniblock_to_prune)
-        .report_latency()
-        .execute(self.storage)
-        .await?;
-
         sqlx::query!(
             r#"
             INSERT INTO
@@ -128,6 +120,12 @@ impl PruningDal<'_, '_> {
         last_l1_batch_to_prune: L1BatchNumber,
         last_miniblock_to_prune: MiniblockNumber,
     ) -> sqlx::Result<()> {
+        if !self.storage.in_transaction() {
+            return Err(sqlx::Error::Configuration(BoxDynError::from(anyhow!(
+                "This operation must be performed from inside transaction!"
+            ))));
+        }
+
         let row = sqlx::query!(
             r#"
             SELECT
@@ -145,211 +143,173 @@ impl PruningDal<'_, '_> {
         .fetch_one(self.storage)
         .await?;
 
-        // this condition happens after snapshots recovery
-        if row.first_miniblock_to_prune.is_none() {
+        // we don't have first_miniblock available when recovering from a snapshot
+        if row.first_miniblock_to_prune.is_some() {
+            let first_miniblock_to_prune =
+                MiniblockNumber(row.first_miniblock_to_prune.unwrap() as u32);
+
             sqlx::query!(
                 r#"
-                UPDATE pruning_info
-                SET
-                    last_hard_pruned_l1_batch = $1,
-                    last_hard_pruned_miniblock = $2
+                DELETE FROM events
+                WHERE
+                    miniblock_number <= $1
                 "#,
-                i64::from(last_l1_batch_to_prune.0),
                 i64::from(last_miniblock_to_prune.0),
             )
-            .instrument("hard_prune_batches_range#update_pruning_info")
+            .instrument("hard_prune_batches_range#delete_events")
             .with_arg("last_l1_batch_to_prune", &last_l1_batch_to_prune)
+            .report_latency()
+            .execute(self.storage)
+            .await?;
+
+            sqlx::query!(
+                r#"
+                DELETE FROM l2_to_l1_logs
+                WHERE
+                    miniblock_number <= $1
+                "#,
+                i64::from(last_miniblock_to_prune.0),
+            )
+            .instrument("hard_prune_batches_range#delete_l2_to_l1_logs")
+            .with_arg("last_l1_batch_to_prune", &last_l1_batch_to_prune)
+            .report_latency()
+            .execute(self.storage)
+            .await?;
+
+            sqlx::query!(
+                r#"
+                DELETE FROM call_traces USING (
+                    SELECT
+                        *
+                    FROM
+                        transactions
+                    WHERE
+                        miniblock_number BETWEEN $1 AND $2
+                ) AS matching_transactions
+                WHERE
+                    matching_transactions.hash = call_traces.tx_hash
+                "#,
+                i64::from(first_miniblock_to_prune.0),
+                i64::from(last_miniblock_to_prune.0),
+            )
+            .instrument("hard_prune_batches_range#delete_call_traces")
+            .with_arg("first_miniblock_to_prune", &first_miniblock_to_prune)
             .with_arg("last_miniblock_to_prune", &last_miniblock_to_prune)
             .report_latency()
             .execute(self.storage)
             .await?;
 
-            return Ok(());
+            sqlx::query!(
+                r#"
+                UPDATE transactions
+                SET
+                    l1_batch_number = NULL,
+                    input = NULL,
+                    data = '{}',
+                    execution_info = '{}',
+                    updated_at = NOW()
+                WHERE
+                    miniblock_number BETWEEN $1 AND $2
+                    AND upgrade_id IS NULL
+                "#,
+                i64::from(first_miniblock_to_prune.0),
+                i64::from(last_miniblock_to_prune.0),
+            )
+            .instrument("hard_prune_batches_range#clear_transactions_references")
+            .with_arg("first_miniblock_to_prune", &first_miniblock_to_prune)
+            .with_arg("last_miniblock_to_prune", &last_miniblock_to_prune)
+            .report_latency()
+            .execute(self.storage)
+            .await?;
+
+            //The deleting of logs is split into two queries to make it faster,
+            // only the first query has to go through all previous logs
+            // and the query optimizer should be happy with it
+            sqlx::query!(
+                r#"
+                DELETE FROM storage_logs USING (
+                    SELECT
+                        *
+                    FROM
+                        storage_logs
+                    WHERE
+                        miniblock_number BETWEEN $1 AND $2
+                ) AS batches_to_prune
+                WHERE
+                    storage_logs.miniblock_number < $1
+                    AND batches_to_prune.hashed_key = storage_logs.hashed_key
+                "#,
+                i64::from(first_miniblock_to_prune.0),
+                i64::from(last_miniblock_to_prune.0),
+            )
+            .instrument("hard_prune_batches_range#delete_overriden_storage_logs_from_past_batches")
+            .with_arg("first_miniblock_to_prune", &first_miniblock_to_prune)
+            .with_arg("last_miniblock_to_prune", &last_miniblock_to_prune)
+            .report_latency()
+            .execute(self.storage)
+            .await?;
+
+            sqlx::query!(
+                r#"
+                DELETE FROM storage_logs USING (
+                    SELECT
+                        hashed_key,
+                        MAX(ARRAY[miniblock_number, operation_number]::INT[]) AS op
+                    FROM
+                        storage_logs
+                    WHERE
+                        miniblock_number BETWEEN $1 AND $2
+                    GROUP BY
+                        hashed_key
+                ) AS last_storage_logs
+                WHERE
+                    storage_logs.miniblock_number BETWEEN $1 AND $2
+                    AND last_storage_logs.hashed_key = storage_logs.hashed_key
+                    AND (
+                        storage_logs.miniblock_number != last_storage_logs.op[1]
+                        OR storage_logs.operation_number != last_storage_logs.op[2]
+                    )
+                "#,
+                i64::from(first_miniblock_to_prune.0),
+                i64::from(last_miniblock_to_prune.0),
+            )
+            .instrument(
+                "hard_prune_batches_range#delete_overriden_storage_logs_from_pruned_batches",
+            )
+            .with_arg("first_miniblock_to_prune", &first_miniblock_to_prune)
+            .with_arg("last_miniblock_to_prune", &last_miniblock_to_prune)
+            .report_latency()
+            .execute(self.storage)
+            .await?;
+
+            sqlx::query!(
+                r#"
+                DELETE FROM l1_batches
+                WHERE
+                    number <= $1
+                "#,
+                i64::from(last_l1_batch_to_prune.0),
+            )
+            .instrument("hard_prune_batches_range#delete_l1_batches")
+            .with_arg("last_l1_batch_to_prune", &last_l1_batch_to_prune)
+            .report_latency()
+            .execute(self.storage)
+            .await?;
+
+            sqlx::query!(
+                r#"
+                DELETE FROM miniblocks
+                WHERE
+                    number <= $1
+                "#,
+                i64::from(last_miniblock_to_prune.0),
+            )
+            .instrument("hard_prune_batches_range#delete_miniblocks")
+            .with_arg("last_l1_batch_to_prune", &last_l1_batch_to_prune)
+            .report_latency()
+            .execute(self.storage)
+            .await?;
         }
-
-        let first_miniblock_to_prune =
-            MiniblockNumber(row.first_miniblock_to_prune.unwrap() as u32);
-
-        sqlx::query!(
-            r#"
-            DELETE FROM events
-            WHERE
-                miniblock_number <= $1
-            "#,
-            i64::from(last_miniblock_to_prune.0),
-        )
-        .instrument("hard_prune_batches_range#delete_events")
-        .with_arg("last_l1_batch_to_prune", &last_l1_batch_to_prune)
-        .report_latency()
-        .execute(self.storage)
-        .await?;
-
-        sqlx::query!(
-            r#"
-            DELETE FROM l2_to_l1_logs
-            WHERE
-                miniblock_number <= $1
-            "#,
-            i64::from(last_miniblock_to_prune.0),
-        )
-        .instrument("hard_prune_batches_range#delete_l2_to_l1_logs")
-        .with_arg("last_l1_batch_to_prune", &last_l1_batch_to_prune)
-        .report_latency()
-        .execute(self.storage)
-        .await?;
-
-        sqlx::query!(
-            r#"
-            DELETE FROM call_traces USING (
-                SELECT
-                    *
-                FROM
-                    transactions
-                WHERE
-                    miniblock_number >= $1
-                    AND miniblock_number <= $2
-            ) AS matching_transactions
-            WHERE
-                matching_transactions.hash = call_traces.tx_hash
-            "#,
-            i64::from(first_miniblock_to_prune.0),
-            i64::from(last_miniblock_to_prune.0),
-        )
-        .instrument("hard_prune_batches_range#delete_call_traces")
-        .with_arg("first_miniblock_to_prune", &first_miniblock_to_prune)
-        .with_arg("last_miniblock_to_prune", &last_miniblock_to_prune)
-        .report_latency()
-        .execute(self.storage)
-        .await?;
-
-        sqlx::query!(
-            r#"
-            UPDATE transactions
-            SET
-                l1_batch_number = NULL,
-                miniblock_number = NULL,
-                input = NULL,
-                data = NULL,
-                execution_info = NULL
-            WHERE
-                miniblock_number >= $1
-                AND miniblock_number <= $2
-            "#,
-            i64::from(first_miniblock_to_prune.0),
-            i64::from(last_miniblock_to_prune.0),
-        )
-        .instrument("hard_prune_batches_range#clear_transactions_references")
-        .with_arg("first_miniblock_to_prune", &first_miniblock_to_prune)
-        .with_arg("last_miniblock_to_prune", &last_miniblock_to_prune)
-        .report_latency()
-        .execute(self.storage)
-        .await?;
-
-        //The deleting of logs is split into two queries to make it faster,
-        // only the first query has to go through all previous logs
-        // and the query optimizer should be happy with it
-        sqlx::query!(
-            r#"
-            DELETE FROM storage_logs USING (
-                SELECT
-                    *
-                FROM
-                    storage_logs
-                WHERE
-                    miniblock_number >= $1
-                    AND miniblock_number <= $2
-            ) AS batches_to_prune
-            WHERE
-                storage_logs.miniblock_number < $1
-                AND batches_to_prune.hashed_key = storage_logs.hashed_key
-            "#,
-            i64::from(first_miniblock_to_prune.0),
-            i64::from(last_miniblock_to_prune.0),
-        )
-        .instrument("hard_prune_batches_range#delete_overriden_storage_logs_from_past_batches")
-        .with_arg("first_miniblock_to_prune", &first_miniblock_to_prune)
-        .with_arg("last_miniblock_to_prune", &last_miniblock_to_prune)
-        .report_latency()
-        .execute(self.storage)
-        .await?;
-
-        sqlx::query!(
-            r#"
-            DELETE FROM storage_logs USING (
-                SELECT
-                    hashed_key,
-                    MAX(ARRAY[miniblock_number, operation_number]::INT[]) AS op
-                FROM
-                    storage_logs
-                WHERE
-                    miniblock_number >= $1
-                    AND miniblock_number <= $2
-                GROUP BY
-                    hashed_key
-            ) AS last_storage_logs
-            WHERE
-                storage_logs.miniblock_number >= $1
-                AND storage_logs.miniblock_number <= $2
-                AND last_storage_logs.hashed_key = storage_logs.hashed_key
-                AND (
-                    storage_logs.miniblock_number != last_storage_logs.op[1]
-                    OR storage_logs.operation_number != last_storage_logs.op[2]
-                )
-            "#,
-            i64::from(first_miniblock_to_prune.0),
-            i64::from(last_miniblock_to_prune.0),
-        )
-        .instrument("hard_prune_batches_range#delete_overriden_storage_logs_from_pruned_batches")
-        .with_arg("first_miniblock_to_prune", &first_miniblock_to_prune)
-        .with_arg("last_miniblock_to_prune", &last_miniblock_to_prune)
-        .report_latency()
-        .execute(self.storage)
-        .await?;
-
-        sqlx::query!(
-            r#"
-            DELETE FROM l1_batches
-            WHERE
-                number <= $1
-            "#,
-            i64::from(last_l1_batch_to_prune.0),
-        )
-        .instrument("hard_prune_batches_range#delete_l1_batches")
-        .with_arg("last_l1_batch_to_prune", &last_l1_batch_to_prune)
-        .report_latency()
-        .execute(self.storage)
-        .await?;
-
-        sqlx::query!(
-            r#"
-            DELETE FROM miniblocks
-            WHERE
-                number <= $1
-            "#,
-            i64::from(last_miniblock_to_prune.0),
-        )
-        .instrument("hard_prune_batches_range#delete_miniblocks")
-        .with_arg("last_l1_batch_to_prune", &last_l1_batch_to_prune)
-        .report_latency()
-        .execute(self.storage)
-        .await?;
-
-        sqlx::query!(
-            r#"
-            UPDATE pruning_info
-            SET
-                last_hard_pruned_l1_batch = $1,
-                last_hard_pruned_miniblock = $2
-            "#,
-            i64::from(last_l1_batch_to_prune.0),
-            i64::from(last_miniblock_to_prune.0),
-        )
-        .instrument("hard_prune_batches_range#update_pruning_info")
-        .with_arg("last_l1_batch_to_prune", &last_l1_batch_to_prune)
-        .with_arg("last_miniblock_to_prune", &last_miniblock_to_prune)
-        .report_latency()
-        .execute(self.storage)
-        .await?;
 
         sqlx::query!(
             r#"
@@ -794,13 +754,13 @@ mod tests {
         insert_realistic_l1_batches(&mut conn, 10).await;
 
         assert_l1_batch_objects_exists(&mut conn, L1BatchNumber(1)..=L1BatchNumber(10)).await;
-        assert_eq!(
-            None,
-            conn.pruning_dal()
-                .get_last_hard_pruned_batch()
-                .await
-                .unwrap()
-        );
+        assert!(conn
+            .pruning_dal()
+            .get_pruning_info()
+            .await
+            .unwrap()
+            .last_hard_pruned_l1_batch
+            .is_none());
 
         conn.pruning_dal()
             .hard_prune_batches_range(L1BatchNumber(5), MiniblockNumber(11))
@@ -812,9 +772,10 @@ mod tests {
         assert_eq!(
             Some(L1BatchNumber(5)),
             conn.pruning_dal()
-                .get_last_hard_pruned_batch()
+                .get_pruning_info()
                 .await
                 .unwrap()
+                .last_hard_pruned_l1_batch
         );
 
         conn.pruning_dal()
@@ -826,9 +787,10 @@ mod tests {
         assert_eq!(
             Some(L1BatchNumber(10)),
             conn.pruning_dal()
-                .get_last_hard_pruned_batch()
+                .get_pruning_info()
                 .await
                 .unwrap()
+                .last_hard_pruned_l1_batch
         );
     }
 }

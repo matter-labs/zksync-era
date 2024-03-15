@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                DELETE FROM storage_logs USING (\n                    SELECT\n                        *\n                    FROM\n                        storage_logs\n                    WHERE\n                        miniblock_number BETWEEN $1 AND $2\n                ) AS batches_to_prune\n                WHERE\n                    storage_logs.miniblock_number < $1\n                    AND batches_to_prune.hashed_key = storage_logs.hashed_key\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "0176c9f9b83ef7ba5ddce2325882255b5289057575c08d3bb44569d9a1e6efff"
+}
