@@ -40,4 +40,5 @@ message Contracts {
     optional bytes state_transition_proxy_addr = 31; // optional; H160
     optional bytes state_transition_impl_addr = 32; // optional; H160
     optional bytes transparent_proxy_admin_addr = 33; // optional; H160
+    optional bytes base_token_address = 34; // optional; H160
 }

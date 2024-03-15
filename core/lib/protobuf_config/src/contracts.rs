@@ -214,6 +214,10 @@ impl ProtoRepr for proto::Contracts {
                 .transparent_proxy_admin_addr
                 .as_ref()
                 .map(|x| x.as_bytes().into()),
+            base_token_address: this
+                .base_token_addr
+                .as_ref()
+                .map(|x| x.as_bytes().into())
         }
     }
 }

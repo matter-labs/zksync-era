@@ -8,7 +8,7 @@ use zksync_config::ObjectStoreConfig;
 use zksync_core::{
     api_server::{
         tx_sender::TxSenderConfig,
-        web3::{backend_jsonrpsee::into_jsrpc_error, state::InternalApiConfig, Namespace},
+        web3::{state::InternalApiConfig, Namespace},
     },
     consensus,
     temp_config_store::decode_yaml,
