@@ -96,6 +96,7 @@ impl GenesisParams {
             config,
         })
     }
+
     pub fn load_genesis_params(config: GenesisConfig) -> Result<GenesisParams, GenesisError> {
         let base_system_contracts = BaseSystemContracts::load_from_disk();
         let system_contracts = get_system_smart_contracts();

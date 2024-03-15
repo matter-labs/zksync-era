@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{Address, L1ChainId, L2ChainId, H256};
 
+/// This config represents the genesis state of the chain.
+/// Each chain has this config immutable and we update it only during the protocol upgrade
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct GenesisConfig {
     pub protocol_version: u16,
