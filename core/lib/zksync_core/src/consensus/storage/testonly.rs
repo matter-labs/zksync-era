@@ -4,8 +4,14 @@ use zksync_concurrency::{ctx, error::Wrap as _, time};
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage as storage;
 use zksync_consensus_storage::PersistentBlockStore as _;
+use zksync_dal::ConnectionPool;
+use zksync_types::L2ChainId;
 
 use super::Store;
+use crate::{
+    genesis::{ensure_genesis_state, GenesisParams},
+    utils::testonly::{recover, snapshot, Snapshot},
+};
 
 impl Store {
     /// Waits for the `number` miniblock to have a certificate.
@@ -46,5 +52,34 @@ impl Store {
             block.verify(&genesis).context(block.header().number)?;
         }
         Ok(blocks)
+    }
+
+    /// Takes a storage snapshot at the last sealed L1 batch.
+    pub(crate) async fn snapshot(&self, ctx: &ctx::Ctx) -> ctx::Result<Snapshot> {
+        let mut conn = self.access(ctx).await.wrap("access()")?;
+        Ok(ctx.wait(snapshot(&mut conn.0)).await?)
+    }
+
+    /// Constructs a new db initialized with genesis state.
+    pub(crate) async fn from_genesis() -> Self {
+        let pool = ConnectionPool::test_pool().await;
+        {
+            let mut storage = pool.access_storage().await.unwrap();
+            ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
+                .await
+                .unwrap();
+        }
+        Self(pool)
+    }
+
+    /// Recovers storage from a snapshot.
+    #[allow(dead_code)]
+    pub(crate) async fn from_snapshot(snapshot: Snapshot) -> Self {
+        let pool = ConnectionPool::test_pool().await;
+        {
+            let mut storage = pool.access_storage().await.unwrap();
+            recover(&mut storage, snapshot).await;
+        }
+        Self(pool)
     }
 }

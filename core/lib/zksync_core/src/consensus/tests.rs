@@ -14,15 +14,26 @@ use zksync_consensus_roles::{node, validator::testonly::Setup};
 use zksync_consensus_storage as storage;
 use zksync_consensus_storage::PersistentBlockStore as _;
 use zksync_protobuf_config::testonly::{encode_decode, FmtConv};
+use zksync_types::{L1BatchNumber, MiniblockNumber};
 
 use super::*;
+use crate::utils::testonly::Snapshot;
+
+async fn new_store(from_snapshot: bool) -> Store {
+    match from_snapshot {
+        true => {
+            Store::from_snapshot(Snapshot::make(L1BatchNumber(23), MiniblockNumber(87), &[])).await
+        }
+        false => Store::from_genesis().await,
+    }
+}
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_validator_block_store() {
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::RealClock);
     let rng = &mut ctx.rng();
-    let store = testonly::new_store(false).await;
+    let store = new_store(false).await;
 
     // Fill storage with unsigned miniblocks.
     // Fetch a suffix of blocks that we will generate (fake) certs for.
@@ -90,7 +101,7 @@ async fn test_validator(from_snapshot: bool) {
 
     scope::run!(ctx, |ctx, s| async {
         tracing::info!("Start state keeper.");
-        let store = testonly::new_store(from_snapshot).await;
+        let store = new_store(from_snapshot).await;
         let (mut sk, runner) = testonly::StateKeeper::new(ctx, store.clone()).await?;
         s.spawn_bg(runner.run(ctx));
 
@@ -171,7 +182,7 @@ async fn test_full_nodes(from_snapshot: bool) {
 
     // Run validator and fetchers in parallel.
     scope::run!(ctx, |ctx, s| async {
-        let validator_store = testonly::new_store(from_snapshot).await;
+        let validator_store = new_store(from_snapshot).await;
         let (mut validator, runner) =
             testonly::StateKeeper::new(ctx, validator_store.clone()).await?;
         s.spawn_bg(async {
@@ -199,7 +210,7 @@ async fn test_full_nodes(from_snapshot: bool) {
         let mut node_stores = vec![];
         for (i, cfg) in node_cfgs.iter().enumerate() {
             let i = ctx::NoCopy(i);
-            let store = testonly::new_store(from_snapshot).await;
+            let store = new_store(from_snapshot).await;
             let (node, runner) = testonly::StateKeeper::new(ctx, store.clone()).await?;
             node_stores.push(store.clone());
             s.spawn_bg(async {
@@ -251,7 +262,7 @@ async fn test_p2p_fetcher_backfill_certs(from_snapshot: bool) {
 
     scope::run!(ctx, |ctx, s| async {
         tracing::info!("Spawn validator.");
-        let validator_store = testonly::new_store(from_snapshot).await;
+        let validator_store = new_store(from_snapshot).await;
         let (mut validator, runner) =
             testonly::StateKeeper::new(ctx, validator_store.clone()).await?;
         s.spawn_bg(runner.run(ctx));
@@ -266,7 +277,7 @@ async fn test_p2p_fetcher_backfill_certs(from_snapshot: bool) {
         validator.seal_batch().await;
         let client = validator.connect(ctx).await?;
 
-        let node_store = testonly::new_store(from_snapshot).await;
+        let node_store = new_store(from_snapshot).await;
 
         tracing::info!("Run p2p fetcher.");
         scope::run!(ctx, |ctx, s| async {
@@ -328,7 +339,7 @@ async fn test_centralized_fetcher(from_snapshot: bool) {
 
     scope::run!(ctx, |ctx, s| async {
         tracing::info!("Spawn a validator.");
-        let validator_store = testonly::new_store(from_snapshot).await;
+        let validator_store = new_store(from_snapshot).await;
         let (mut validator, runner) =
             testonly::StateKeeper::new(ctx, validator_store.clone()).await?;
         s.spawn_bg(runner.run(ctx).instrument(tracing::info_span!("validator")));
@@ -338,7 +349,7 @@ async fn test_centralized_fetcher(from_snapshot: bool) {
         validator.seal_batch().await;
 
         tracing::info!("Spawn a node.");
-        let node_store = testonly::new_store(from_snapshot).await;
+        let node_store = new_store(from_snapshot).await;
         let (node, runner) = testonly::StateKeeper::new(ctx, node_store.clone()).await?;
         s.spawn_bg(runner.run(ctx).instrument(tracing::info_span!("fetcher")));
         s.spawn_bg(node.run_centralized_fetcher(ctx, validator.connect(ctx).await?));
