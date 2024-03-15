@@ -45,7 +45,7 @@ impl FriProofCompressorDal<'_, '_> {
                     ($1, $2, $3, NOW(), NOW())
                 ON CONFLICT (l1_batch_number) DO NOTHING
                 "#,
-                block_number.0 as i64,
+                i64::from(block_number.0),
                 fri_proof_blob_url,
             ProofCompressionJobStatus::Queued.to_string(),
             )
@@ -63,7 +63,7 @@ impl FriProofCompressorDal<'_, '_> {
                 ($1, $2, NOW(), NOW())
             ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
-            block_number.0 as i64,
+            i64::from(block_number.0),
             ProofCompressionJobStatus::Skipped.to_string(),
         )
         .fetch_optional(self.storage.conn())
@@ -125,7 +125,7 @@ impl FriProofCompressorDal<'_, '_> {
             WHERE
                 l1_batch_number = $1
             "#,
-            l1_batch_number.0 as i64,
+            i64::from(l1_batch_number.0)
         )
         .fetch_optional(self.storage.conn())
         .await?
@@ -154,7 +154,7 @@ impl FriProofCompressorDal<'_, '_> {
             ProofCompressionJobStatus::Successful.to_string(),
             duration_to_naive_time(time_taken),
             l1_proof_blob_url,
-            block_number.0 as i64,
+            i64::from(block_number.0)
         )
         .execute(self.storage.conn())
         .await
@@ -178,7 +178,7 @@ impl FriProofCompressorDal<'_, '_> {
             "#,
             ProofCompressionJobStatus::Failed.to_string(),
             error,
-            block_number.0 as i64
+            i64::from(block_number.0)
         )
         .execute(self.storage.conn())
         .await
@@ -232,7 +232,7 @@ impl FriProofCompressorDal<'_, '_> {
                 l1_batch_number = $2
             "#,
             ProofCompressionJobStatus::SentToServer.to_string(),
-            block_number.0 as i64
+            i64::from(block_number.0)
         )
         .execute(self.storage.conn())
         .await

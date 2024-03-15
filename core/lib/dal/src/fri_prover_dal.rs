@@ -324,7 +324,8 @@ impl FriProverDal<'_, '_> {
             id: row.id as u32,
             block_number: L1BatchNumber(row.l1_batch_number as u32),
             circuit_id: row.circuit_id as u8,
-            aggregation_round: AggregationRound::try_from(row.aggregation_round as i32).unwrap(),
+            aggregation_round: AggregationRound::try_from(i32::from(row.aggregation_round))
+                .unwrap(),
             sequence_number: row.sequence_number as usize,
             depth: row.depth as u16,
             is_node_final_proof: row.is_node_final_proof,
@@ -339,12 +340,12 @@ impl FriProverDal<'_, '_> {
     ) -> Option<FriProverJobMetadata> {
         let circuit_ids: Vec<_> = circuits_to_pick
             .iter()
-            .map(|tuple| tuple.circuit_id as i16)
+            .map(|tuple| i16::from(tuple.circuit_id))
             .collect();
         let protocol_versions: Vec<i32> = protocol_versions.iter().map(|&id| id as i32).collect();
         let aggregation_rounds: Vec<_> = circuits_to_pick
             .iter()
-            .map(|tuple| tuple.aggregation_round as i16)
+            .map(|tuple| i16::from(tuple.aggregation_round))
             .collect();
         sqlx::query!(
             r#"
@@ -412,7 +413,8 @@ impl FriProverDal<'_, '_> {
             id: row.id as u32,
             block_number: L1BatchNumber(row.l1_batch_number as u32),
             circuit_id: row.circuit_id as u8,
-            aggregation_round: AggregationRound::try_from(row.aggregation_round as i32).unwrap(),
+            aggregation_round: AggregationRound::try_from(i32::from(row.aggregation_round))
+                .unwrap(),
             sequence_number: row.sequence_number as usize,
             depth: row.depth as u16,
             is_node_final_proof: row.is_node_final_proof,
@@ -432,7 +434,7 @@ impl FriProverDal<'_, '_> {
                     id = $2
                 "#,
                 error,
-                id as i64,
+                i64::from(id)
             )
             .execute(self.storage.conn())
             .await
@@ -450,7 +452,7 @@ impl FriProverDal<'_, '_> {
             WHERE
                 id = $1
             "#,
-            id as i64,
+            i64::from(id)
         )
         .fetch_optional(self.storage.conn())
         .await?
@@ -486,7 +488,7 @@ impl FriProverDal<'_, '_> {
             "#,
             duration_to_naive_time(time_taken),
             blob_url,
-            id as i64,
+            i64::from(id)
         )
         .instrument("save_fri_proof")
         .report_latency()
@@ -498,7 +500,8 @@ impl FriProverDal<'_, '_> {
             id: row.id as u32,
             block_number: L1BatchNumber(row.l1_batch_number as u32),
             circuit_id: row.circuit_id as u8,
-            aggregation_round: AggregationRound::try_from(row.aggregation_round as i32).unwrap(),
+            aggregation_round: AggregationRound::try_from(i32::from(row.aggregation_round))
+                .unwrap(),
             sequence_number: row.sequence_number as usize,
             depth: row.depth as u16,
             is_node_final_proof: row.is_node_final_proof,
@@ -600,12 +603,12 @@ impl FriProverDal<'_, '_> {
                     SET
                         updated_at = NOW()
                     "#,
-            l1_batch_number.0 as i64,
-            circuit_id as i16,
+            i64::from(l1_batch_number.0),
+            i16::from(circuit_id),
             circuit_blob_url,
             aggregation_round as i64,
             sequence_number as i64,
-            depth as i32,
+            i32::from(depth),
             is_node_final_proof,
             protocol_version_id as i32,
         )
@@ -739,7 +742,7 @@ impl FriProverDal<'_, '_> {
                 id = $2
             "#,
             status,
-            id as i64,
+            i64::from(id)
         )
         .execute(self.storage.conn())
         .await
@@ -756,7 +759,7 @@ impl FriProverDal<'_, '_> {
             WHERE
                 l1_batch_number = $1
             "#,
-            l1_batch_number.0 as i64,
+            i64::from(l1_batch_number.0)
         )
         .execute(self.storage.conn())
         .await
@@ -778,7 +781,7 @@ impl FriProverDal<'_, '_> {
                 AND status = 'successful'
                 AND aggregation_round = $2
             "#,
-            l1_batch_number.0 as i64,
+            i64::from(l1_batch_number.0),
             AggregationRound::Scheduler as i16,
         )
         .fetch_optional(self.storage.conn())

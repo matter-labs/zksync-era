@@ -18,14 +18,7 @@ pub(crate) async fn create_test_tx_sender(
     let state_keeper_config = StateKeeperConfig::for_tests();
     let tx_sender_config = TxSenderConfig::new(&state_keeper_config, &web3_config, l2_chain_id);
 
-    let mut storage_caches = PostgresStorageCaches::new(1, 1);
-    let cache_update_task = storage_caches.configure_storage_values_cache(
-        1,
-        pool.clone(),
-        tokio::runtime::Handle::current(),
-    );
-    tokio::task::spawn_blocking(cache_update_task);
-
+    let storage_caches = PostgresStorageCaches::new(1, 1);
     let batch_fee_model_input_provider = Arc::new(MockBatchFeeParamsProvider::default());
     let (mut tx_sender, vm_barrier) = crate::build_tx_sender(
         &tx_sender_config,
