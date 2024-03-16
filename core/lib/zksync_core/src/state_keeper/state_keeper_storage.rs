@@ -205,6 +205,7 @@ impl ReadStorageFactory for AsyncRocksdbCache {
     }
 }
 
+#[derive(Debug)]
 pub struct AsyncCatchupTask {
     pool: ConnectionPool,
     state_keeper_db_path: String,

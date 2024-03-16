@@ -2339,7 +2339,9 @@ impl BlocksDal<'_, '_> {
         self.delete_initial_writes_inner(None)
             .await
             .context("delete_initial_writes_inner()")?;
-        self.delete_logs_inner().await.context("no")?;
+        self.delete_logs_inner()
+            .await
+            .context("delete_logs_inner()")?;
         Ok(())
     }
 }

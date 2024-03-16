@@ -96,30 +96,33 @@ impl Tester {
         self.config = config;
     }
 
-    /// Creates a batch executor instance.
-    /// This function intentionally uses sensible defaults to not introduce boilerplate.
-    pub(super) async fn create_batch_executor(&mut self) -> BatchExecutorHandle {
-        let (l1_batch_env, system_env) = self.default_batch_params();
-        let (state_keeper_storage, task) = AsyncRocksdbCache::new(
-            self.pool(),
-            self.state_keeper_db_path(),
-            self.enum_index_migration_chunk_size(),
-        );
-        let (_, stop_receiver) = watch::channel(false);
-        let handle = tokio::task::spawn(async move { task.run(stop_receiver).await.unwrap() });
-        self.tasks.push(handle);
-        self.create_batch_executor_inner(Arc::new(state_keeper_storage), l1_batch_env, system_env)
-            .await
-    }
-
     /// Creates a batch executor instance with the specified storage type.
-    pub(super) async fn create_batch_executor_custom(
+    /// This function intentionally uses sensible defaults to not introduce boilerplate.
+    pub(super) async fn create_batch_executor(
         &mut self,
         storage_type: &StorageType,
     ) -> BatchExecutorHandle {
         let (l1_batch_env, system_env) = self.default_batch_params();
         match storage_type {
-            StorageType::AsyncRocksdbCache => self.create_batch_executor().await,
+            StorageType::AsyncRocksdbCache => {
+                let (l1_batch_env, system_env) = self.default_batch_params();
+                let (state_keeper_storage, task) = AsyncRocksdbCache::new(
+                    self.pool(),
+                    self.state_keeper_db_path(),
+                    self.enum_index_migration_chunk_size(),
+                );
+                let handle = tokio::task::spawn(async move {
+                    let (_stop_sender, stop_receiver) = watch::channel(false);
+                    task.run(stop_receiver).await.unwrap()
+                });
+                self.tasks.push(handle);
+                self.create_batch_executor_inner(
+                    Arc::new(state_keeper_storage),
+                    l1_batch_env,
+                    system_env,
+                )
+                .await
+            }
             StorageType::Rocksdb => {
                 self.create_batch_executor_inner(
                     Arc::new(RocksdbFactory::new(
@@ -517,7 +520,9 @@ impl StorageSnapshot {
             .collect();
         drop(storage);
 
-        let executor = tester.create_batch_executor().await;
+        let executor = tester
+            .create_batch_executor(&StorageType::AsyncRocksdbCache)
+            .await;
         let mut l2_block_env = L2BlockEnv {
             number: 1,
             prev_block_hash: MiniblockHasher::legacy_hash(MiniblockNumber(0)),

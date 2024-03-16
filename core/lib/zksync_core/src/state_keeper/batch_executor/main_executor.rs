@@ -1,4 +1,4 @@
-use std::{fmt::Debug, sync::Arc};
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use multivm::{
@@ -90,7 +90,9 @@ impl BatchExecutor for MainBatchExecutor {
                     system_env,
                     upload_witness_inputs_to_gcs,
                 );
-            };
+            } else {
+                tracing::info!("Interrupted while trying to access state keeper storage");
+            }
         });
         Some(BatchExecutorHandle {
             handle,

@@ -53,6 +53,8 @@ impl WiringLayer for MainBatchExecutorLayer {
         Ok(())
     }
 }
+
+#[derive(Debug)]
 struct RocksdbCatchupTask(AsyncCatchupTask);
 
 #[async_trait::async_trait]

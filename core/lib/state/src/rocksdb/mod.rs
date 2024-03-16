@@ -143,7 +143,7 @@ pub struct RocksdbStorage {
 pub struct RocksdbStorageBuilder(RocksdbStorage);
 
 impl RocksdbStorageBuilder {
-    /// Create a builder from
+    /// Create a builder from an existing RocksDB instance.
     pub fn from_rocksdb(value: RocksDB<StateKeeperColumnFamily>) -> Self {
         RocksdbStorageBuilder(RocksdbStorage {
             db: value,
