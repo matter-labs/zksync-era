@@ -683,6 +683,7 @@ OversizedData
 M5
 eth_sign
 geth
+reth
 ethers
 js
 recovery_id

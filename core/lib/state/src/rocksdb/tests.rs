@@ -254,6 +254,7 @@ async fn rocksdb_enum_index_migration() {
         .storage_logs_dedup_dal()
         .initial_writes_for_batch(L1BatchNumber(1))
         .await
+        .unwrap()
         .into_iter()
         .collect();
 

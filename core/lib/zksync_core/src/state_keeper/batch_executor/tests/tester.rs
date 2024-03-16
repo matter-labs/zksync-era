@@ -268,7 +268,6 @@ impl Tester {
                 &BASE_SYSTEM_CONTRACTS,
                 &get_system_smart_contracts(),
                 Default::default(),
-                Default::default(),
             )
             .await
             .unwrap();
@@ -303,6 +302,7 @@ impl Tester {
                 .storage_logs_dedup_dal()
                 .filter_written_slots(&[storage_log.key.hashed_key()])
                 .await
+                .unwrap()
                 .is_empty()
             {
                 storage
