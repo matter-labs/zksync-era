@@ -2,8 +2,7 @@
 
 ## Table Name
 
-  proof_generation_details
-
+proof_generation_details
 
 ## `status` Diagram
 

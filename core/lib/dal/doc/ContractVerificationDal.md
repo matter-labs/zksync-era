@@ -4,9 +4,7 @@
 
 contract_verification_requests
 
-
 ## `status` Diagram
-
 
 ```mermaid
 ---

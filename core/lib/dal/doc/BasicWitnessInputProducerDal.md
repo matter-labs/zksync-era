@@ -4,7 +4,6 @@
 
 basic_witness_input_producer_jobs
 
-
 ## `status` Diagram
 
 ```mermaid

@@ -4,7 +4,6 @@
 
 proof_compression_jobs_fri
 
-
 ## `status` Diagram
 
 ```mermaid
