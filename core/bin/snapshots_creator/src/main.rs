@@ -9,7 +9,7 @@
 //! It is assumed that the snapshot creator is run as a singleton process (no more than 1 instance
 //! at a time).
 
-use anyhow::Context as _;
+use anyhow::{Context, Result};
 use prometheus_exporter::PrometheusExporterConfig;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::{
@@ -29,7 +29,7 @@ mod tests;
 
 async fn maybe_enable_prometheus_metrics(
     stop_receiver: watch::Receiver<bool>,
-) -> anyhow::Result<Option<JoinHandle<anyhow::Result<()>>>> {
+) -> Result<Option<JoinHandle<Result<()>>>> {
     let prometheus_config = PrometheusConfig::from_env().ok();
     if let Some(prometheus_config) = prometheus_config {
         let exporter_config = PrometheusExporterConfig::push(
@@ -50,7 +50,7 @@ async fn maybe_enable_prometheus_metrics(
 const MIN_CHUNK_COUNT: u64 = 10;
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() -> Result<()> {
     let (stop_sender, stop_receiver) = watch::channel(false);
 
     let observability_config =
@@ -60,7 +60,9 @@ async fn main() -> anyhow::Result<()> {
         .parse()
         .context("Invalid log format")?;
 
-    let prometheus_exporter_task = maybe_enable_prometheus_metrics(stop_receiver).await?;
+    let prometheus_exporter_task = maybe_enable_prometheus_metrics(stop_receiver)
+        .await
+        .context("Failed to enable Prometheus metrics")?;
     let mut builder = vlog::ObservabilityBuilder::new().with_log_format(log_format);
     if let Some(sentry_url) = observability_config.sentry_url {
         builder = builder
@@ -75,7 +77,8 @@ async fn main() -> anyhow::Result<()> {
         SnapshotsObjectStoreConfig::from_env().context("SnapshotsObjectStoreConfig::from_env()")?;
     let blob_store = ObjectStoreFactory::new(object_store_config.0)
         .create_store()
-        .await;
+        .await
+        .context("Failed to create object store")?;
 
     let postgres_config = PostgresConfig::from_env().context("PostgresConfig")?;
     let creator_config =
@@ -86,11 +89,13 @@ async fn main() -> anyhow::Result<()> {
         creator_config.concurrent_queries_count,
     )
     .build()
-    .await?;
+    .await
+    .context("Failed to build replica connection pool")?;
 
     let master_pool = ConnectionPool::singleton(postgres_config.master_url()?)
         .build()
-        .await?;
+        .await
+        .context("Failed to build master connection pool")?;
 
     let creator = SnapshotCreator {
         blob_store,
@@ -99,7 +104,10 @@ async fn main() -> anyhow::Result<()> {
         #[cfg(test)]
         event_listener: Box::new(()),
     };
-    creator.run(creator_config, MIN_CHUNK_COUNT).await?;
+    creator
+        .run(creator_config, MIN_CHUNK_COUNT)
+        .await
+        .context("Failed to run snapshot creator")?;
 
     tracing::info!("Finished running snapshot creator!");
     stop_sender.send(true).ok();
