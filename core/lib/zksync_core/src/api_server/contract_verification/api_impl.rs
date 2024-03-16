@@ -33,11 +33,14 @@ impl RestApi {
         if let Err(res) = Self::validate_contract_verification_query(&request) {
             return Ok(res);
         }
-        let mut storage = self_
+        let mut storage = match self_
             .master_connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap();
+        {
+            Ok(storage) => storage,
+            Err(err) => return Err(HttpResponse::InternalServerError().body(err.to_string())),
+        };
 
         if !storage
             .storage_logs_dal()
@@ -52,16 +55,19 @@ impl RestApi {
             .contract_verification_dal()
             .is_contract_verified(request.contract_address)
             .await
-            .unwrap()
+            .unwrap_or(false)
         {
             return Ok(HttpResponse::BadRequest().body("This contract is already verified"));
         }
 
-        let request_id = storage
+        let request_id = match storage
             .contract_verification_dal()
             .add_contract_verification_request(request)
             .await
-            .unwrap();
+        {
+            Ok(id) => id,
+            Err(err) => return Err(HttpResponse::InternalServerError().body(err.to_string())),
+        };
 
         method_latency.observe();
         ok_json(request_id)
@@ -77,11 +83,11 @@ impl RestApi {
             .replica_connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap()
+            .map_err(|err| HttpResponse::InternalServerError().body(err.to_string()))?
             .contract_verification_dal()
             .get_verification_request_status(*id)
             .await
-            .unwrap();
+            .unwrap_or(None);
 
         method_latency.observe();
         match status {
@@ -97,11 +103,11 @@ impl RestApi {
             .replica_connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap()
+            .map_err(|err| HttpResponse::InternalServerError().body(err.to_string()))?
             .contract_verification_dal()
             .get_zksolc_versions()
             .await
-            .unwrap();
+            .map_err(|err| HttpResponse::InternalServerError().body(err.to_string()))?;
 
         method_latency.observe();
         ok_json(versions)
@@ -114,11 +120,11 @@ impl RestApi {
             .replica_connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap()
+            .map_err(|err| HttpResponse::InternalServerError().body(err.to_string()))?
             .contract_verification_dal()
             .get_solc_versions()
             .await
-            .unwrap();
+            .map_err(|err| HttpResponse::InternalServerError().body(err.to_string()))?;
 
         method_latency.observe();
         ok_json(versions)
@@ -131,11 +137,11 @@ impl RestApi {
             .replica_connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap()
+            .map_err(|err| HttpResponse::InternalServerError().body(err.to_string()))?
             .contract_verification_dal()
             .get_zkvyper_versions()
             .await
-            .unwrap();
+            .map_err(|err| HttpResponse::InternalServerError().body(err.to_string()))?;
 
         method_latency.observe();
         ok_json(versions)
@@ -148,11 +154,11 @@ impl RestApi {
             .replica_connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap()
+            .map_err(|err| HttpResponse::InternalServerError().body(err.to_string()))?
             .contract_verification_dal()
             .get_vyper_versions()
             .await
-            .unwrap();
+            .map_err(|err| HttpResponse::InternalServerError().body(err.to_string()))?;
 
         method_latency.observe();
         ok_json(versions)
@@ -169,11 +175,11 @@ impl RestApi {
             .replica_connection_pool
             .access_storage_tagged("api")
             .await
-            .unwrap()
+            .map_err(|err| HttpResponse::InternalServerError().body(err.to_string()))?
             .contract_verification_dal()
             .get_contract_verification_info(*address)
             .await
-            .unwrap();
+            .map_err(|err| HttpResponse::InternalServerError().body(err.to_string()))?;
 
         method_latency.observe();
         match info {
