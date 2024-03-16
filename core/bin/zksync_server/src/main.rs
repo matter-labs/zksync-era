@@ -66,11 +66,12 @@ impl FromStr for ComponentsToRun {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let components = s.split(',').try_fold(vec![], |mut acc, component_str| {
-            let components = Components::from_str(component_str.trim())?;
-            acc.extend(components.0);
-            Ok::<_, String>(acc)
-        })?;
+        let components = s
+            .split(',')
+            .try_fold(Vec::new(), |mut acc, component_str| {
+                acc.extend(Components::from_str(component_str.trim())?);
+                Ok(acc)
+            })?;
         Ok(Self(components))
     }
 }
