@@ -179,7 +179,6 @@ pub async fn genesis_init(
             protocol_version: ProtocolVersionId::latest(),
             base_system_contracts: BaseSystemContracts::load_from_disk(),
             system_contracts: get_system_smart_contracts(),
-            first_verifier_address: contracts_config.verifier_addr,
             first_l1_verifier_config,
         },
     )
