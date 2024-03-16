@@ -4,7 +4,7 @@ use anyhow::Context as _;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
 use zksync_types::{
     protocol_version::{L1VerifierConfig, ProtocolUpgradeTx, ProtocolVersion, VerifierParams},
-    Address, ProtocolVersionId, H256,
+    ProtocolVersionId, H256,
 };
 
 use crate::{
@@ -24,7 +24,6 @@ impl ProtocolVersionsDal<'_, '_> {
         timestamp: u64,
         l1_verifier_config: L1VerifierConfig,
         base_system_contracts_hashes: BaseSystemContractsHashes,
-        verifier_address: Address,
         tx_hash: Option<H256>,
     ) {
         sqlx::query!(
@@ -39,12 +38,11 @@ impl ProtocolVersionsDal<'_, '_> {
                     recursion_circuits_set_vks_hash,
                     bootloader_code_hash,
                     default_account_code_hash,
-                    verifier_address,
                     upgrade_tx_hash,
                     created_at
                 )
             VALUES
-                ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
+                ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
             "#,
             id as i32,
             timestamp as i64,
@@ -65,7 +63,6 @@ impl ProtocolVersionsDal<'_, '_> {
                 .as_bytes(),
             base_system_contracts_hashes.bootloader.as_bytes(),
             base_system_contracts_hashes.default_aa.as_bytes(),
-            verifier_address.as_bytes(),
             tx_hash.as_ref().map(H256::as_bytes),
         )
         .execute(self.storage.conn())
@@ -91,7 +88,6 @@ impl ProtocolVersionsDal<'_, '_> {
                 version.timestamp,
                 version.l1_verifier_config,
                 version.base_system_contracts_hashes,
-                version.verifier_address,
                 tx_hash,
             )
             .await;
@@ -193,7 +189,7 @@ impl ProtocolVersionsDal<'_, '_> {
             WHERE
                 id = $1
             "#,
-            version_id as i32
+            i32::from(version_id)
         )
         .fetch_optional(self.storage.conn())
         .await

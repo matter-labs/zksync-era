@@ -6,7 +6,7 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::{BoundEthInterface, CallFunctionArgs};
 use zksync_l1_contract_interface::{
-    i_executor::commit::kzg::{KzgInfo, KzgSettings, ZK_SYNC_BYTES_PER_BLOB},
+    i_executor::commit::kzg::{KzgInfo, ZK_SYNC_BYTES_PER_BLOB},
     multicall3::{Multicall3Call, Multicall3Result},
     Detokenize, Tokenizable, Tokenize,
 };
@@ -57,7 +57,6 @@ pub struct EthTxAggregator {
     base_nonce: u64,
     base_nonce_custom_commit_sender: Option<u64>,
     rollup_chain_id: L2ChainId,
-    kzg_settings: Option<Arc<KzgSettings>>,
     /// If set to `Some` node is operating in the 4844 mode with two operator
     /// addresses at play: the main one and the custom address for sending commit
     /// transactions. The `Some` then contains the address of this custom operator
@@ -80,7 +79,6 @@ impl EthTxAggregator {
         l1_multicall3_address: Address,
         main_zksync_contract_address: Address,
         rollup_chain_id: L2ChainId,
-        kzg_settings: Option<Arc<KzgSettings>>,
         custom_commit_sender_addr: Option<Address>,
     ) -> Self {
         let functions = ZkSyncFunctions::default();
@@ -111,7 +109,6 @@ impl EthTxAggregator {
             base_nonce,
             base_nonce_custom_commit_sender,
             rollup_chain_id,
-            kzg_settings,
             custom_commit_sender_addr,
         }
     }
@@ -436,9 +433,7 @@ impl EthTxAggregator {
         let (calldata, sidecar) = match op.clone() {
             AggregatedOperation::Commit(op) => {
                 if contracts_are_pre_shared_bridge {
-                    if let (Some(kzg_settings), PubdataDA::Blobs) =
-                        (&self.kzg_settings, self.aggregator.pubdata_da())
-                    {
+                    if let PubdataDA::Blobs = self.aggregator.pubdata_da() {
                         let calldata = self
                             .functions
                             .pre_shared_bridge_commit
@@ -452,7 +447,7 @@ impl EthTxAggregator {
                             .unwrap()
                             .chunks(ZK_SYNC_BYTES_PER_BLOB)
                             .map(|blob| {
-                                let kzg_info = KzgInfo::new(kzg_settings, blob);
+                                let kzg_info = KzgInfo::new(blob);
                                 SidecarBlobV1 {
                                     blob: kzg_info.blob.to_vec(),
                                     commitment: kzg_info.kzg_commitment.to_vec(),
@@ -593,12 +588,5 @@ impl EthTxAggregator {
                     .expect("custom base nonce is expected to be initialized; qed"),
             )
         })
-    }
-}
-
-#[cfg(test)]
-impl EthTxAggregator {
-    pub fn kzg_settings(&self) -> Arc<KzgSettings> {
-        self.kzg_settings.as_ref().unwrap().clone()
     }
 }

@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
+use circuit_sequencer_api_1_3_3::sort_storage_access::sort_storage_access_queries;
 use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics};
 use zk_evm_1_3_3::{
     aux_structures::Timestamp,
     tracing::{BeforeExecutionData, VmLocalStateData},
     vm_state::VmLocalState,
 };
-use zkevm_test_harness_1_3_3::witness::sort_storage_access::sort_storage_access_queries;
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_system_constants::{PUBLISH_BYTECODE_OVERHEAD, SYSTEM_CONTEXT_ADDRESS};
 use zksync_types::{

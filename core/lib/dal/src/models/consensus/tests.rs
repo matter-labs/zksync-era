@@ -24,8 +24,7 @@ where
     C: From<P::Type> + PartialEq + Debug,
 {
     let got = decode::<P>(&encode::<P>(&msg)).unwrap();
-    let (got, msg): (C, C) = (msg.into(), got.into());
-    assert_eq!(&msg, &got, "binary encoding");
+    assert_eq!(&C::from(msg), &C::from(got), "binary encoding");
 }
 
 /// Derivative of `Transaction` to facilitate equality comparisons.
@@ -33,8 +32,8 @@ where
 pub struct ComparableTransaction {
     common_data: ExecuteTransactionCommon,
     execute: Execute,
-    received_timestamp_ms: u64,
     raw_bytes: Option<Bytes>,
+    // `received_timestamp_ms` is intentionally not included because it's local
 }
 
 impl From<Transaction> for ComparableTransaction {
@@ -42,7 +41,6 @@ impl From<Transaction> for ComparableTransaction {
         Self {
             common_data: tx.common_data,
             execute: tx.execute,
-            received_timestamp_ms: tx.received_timestamp_ms,
             raw_bytes: tx.raw_bytes,
         }
     }

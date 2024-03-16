@@ -1,20 +1,24 @@
-use std::{fmt, sync::Arc, time::Duration};
+use std::{collections::HashSet, fmt, time::Duration};
 
 use anyhow::Context as _;
 use serde::Serialize;
 use tokio::sync::watch;
 use zksync_contracts::PRE_BOOJUM_COMMIT_FUNCTION;
 use zksync_dal::{ConnectionPool, StorageProcessor};
-use zksync_eth_client::{clients::QueryClient, Error as L1ClientError, EthInterface};
+use zksync_eth_client::{
+    clients::QueryClient, CallFunctionArgs, Error as L1ClientError, EthInterface,
+};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::{
-    i_executor::{
-        commit::kzg::{KzgSettings, ZK_SYNC_BYTES_PER_BLOB},
-        structures::CommitBatchInfo,
-    },
+    i_executor::{commit::kzg::ZK_SYNC_BYTES_PER_BLOB, structures::CommitBatchInfo},
     Tokenizable,
 };
-use zksync_types::{pubdata_da::PubdataDA, web3::ethabi, L1BatchNumber, H256};
+use zksync_types::{
+    commitment::L1BatchWithMetadata,
+    pubdata_da::PubdataDA,
+    web3::{self, ethabi},
+    Address, L1BatchNumber, ProtocolVersionId, H256, U256,
+};
 
 use crate::{
     metrics::{CheckerComponent, EN_METRICS},
@@ -28,13 +32,22 @@ mod tests;
 enum CheckError {
     #[error("Web3 error communicating with L1")]
     Web3(#[from] L1ClientError),
-    #[error("Internal error")]
-    Internal(#[from] anyhow::Error),
+    /// Error that is caused by the main node providing incorrect information etc.
+    #[error("failed validating commit transaction")]
+    Validation(anyhow::Error),
+    /// Error that is caused by violating invariants internal to *this* node (e.g., not having expected data in Postgres).
+    #[error("internal error")]
+    Internal(anyhow::Error),
 }
 
-impl From<zksync_dal::SqlxError> for CheckError {
-    fn from(err: zksync_dal::SqlxError) -> Self {
-        Self::Internal(err.into())
+impl CheckError {
+    fn is_transient(&self) -> bool {
+        matches!(
+            self,
+            Self::Web3(L1ClientError::EthereumGateway(
+                web3::Error::Unreachable | web3::Error::Transport(_) | web3::Error::Io(_)
+            ))
+        )
     }
 }
 
@@ -46,7 +59,7 @@ trait HandleConsistencyCheckerEvent: fmt::Debug + Send + Sync {
 
     fn update_checked_batch(&mut self, last_checked_batch: L1BatchNumber);
 
-    fn report_inconsistent_batch(&mut self, number: L1BatchNumber);
+    fn report_inconsistent_batch(&mut self, number: L1BatchNumber, err: &anyhow::Error);
 }
 
 /// Health details reported by [`ConsistencyChecker`].
@@ -107,8 +120,8 @@ impl HandleConsistencyCheckerEvent for ConsistencyCheckerHealthUpdater {
         self.inner.update(self.current_details.health());
     }
 
-    fn report_inconsistent_batch(&mut self, number: L1BatchNumber) {
-        tracing::warn!("L1 batch #{number} is inconsistent with L1");
+    fn report_inconsistent_batch(&mut self, number: L1BatchNumber, err: &anyhow::Error) {
+        tracing::warn!("L1 batch #{number} is inconsistent with L1: {err:?}");
         self.current_details.inconsistent_batches.push(number);
         self.inner.update(self.current_details.health());
     }
@@ -128,9 +141,7 @@ enum L1DataMismatchBehavior {
 /// L1 commit data loaded from Postgres.
 #[derive(Debug)]
 struct LocalL1BatchCommitData {
-    is_pre_boojum: bool,
-    /// Vector of possible encodings of L1 commit data.
-    l1_commit_data_variants: Vec<ethabi::Token>,
+    l1_batch: L1BatchWithMetadata,
     commit_tx_hash: H256,
 }
 
@@ -140,7 +151,6 @@ impl LocalL1BatchCommitData {
     async fn new(
         storage: &mut StorageProcessor<'_>,
         batch_number: L1BatchNumber,
-        kzg_settings: Option<Arc<KzgSettings>>,
     ) -> anyhow::Result<Option<Self>> {
         let Some(storage_l1_batch) = storage
             .blocks_dal()
@@ -169,48 +179,65 @@ impl LocalL1BatchCommitData {
             return Ok(None);
         };
 
-        let is_pre_boojum = l1_batch
-            .header
-            .protocol_version
-            .map_or(true, |version| version.is_pre_boojum());
-        let metadata = &l1_batch.metadata;
+        let this = Self {
+            l1_batch,
+            commit_tx_hash,
+        };
+        let metadata = &this.l1_batch.metadata;
 
         // For Boojum batches, `bootloader_initial_content_commitment` and `events_queue_commitment`
-        // are (temporarily) only computed by the metadata calculator if it runs with the full tree.
+        // are computed by the commitment generator.
         // I.e., for these batches, we may have partial metadata in Postgres, which would not be sufficient
         // to compute local L1 commitment.
-        if !is_pre_boojum
+        if !this.is_pre_boojum()
             && (metadata.bootloader_initial_content_commitment.is_none()
                 || metadata.events_queue_commitment.is_none())
         {
             return Ok(None);
         }
 
-        // Encoding data using `PubdataDA::Blobs` never panics.
-        let mut variants = vec![PubdataDA::Blobs];
-        // For `PubdataDA::Calldata` it's required that the pubdata fits into a single blob.
-        let pubdata_len = l1_batch
+        Ok(Some(this))
+    }
+
+    fn is_pre_boojum(&self) -> bool {
+        self.l1_batch
             .header
-            .pubdata_input
-            .as_ref()
-            .unwrap_or(&l1_batch.construct_pubdata())
-            .len();
-        if pubdata_len <= ZK_SYNC_BYTES_PER_BLOB {
-            variants.push(PubdataDA::Calldata);
+            .protocol_version
+            .map_or(true, |version| version.is_pre_boojum())
+    }
+
+    /// All returned errors are validation errors.
+    fn verify_commitment(&self, reference: &ethabi::Token) -> anyhow::Result<()> {
+        let protocol_version = self
+            .l1_batch
+            .header
+            .protocol_version
+            .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
+        let da = CommitBatchInfo::detect_da(protocol_version, reference)
+            .context("cannot detect DA source from reference commitment token")?;
+
+        // For `PubdataDA::Calldata`, it's required that the pubdata fits into a single blob.
+        if matches!(da, PubdataDA::Calldata) {
+            let pubdata_len = self
+                .l1_batch
+                .header
+                .pubdata_input
+                .as_ref()
+                .map_or_else(|| self.l1_batch.construct_pubdata().len(), Vec::len);
+            anyhow::ensure!(
+                pubdata_len <= ZK_SYNC_BYTES_PER_BLOB,
+                "pubdata size is too large when using calldata DA source: expected <={ZK_SYNC_BYTES_PER_BLOB} bytes, \
+                 got {pubdata_len} bytes"
+            );
         }
 
-        // Iterate over possible `PubdataDA` used for encoding `CommitBatchInfo`.
-        let l1_commit_data_variants = variants
-            .into_iter()
-            .map(|pubdata_da| {
-                CommitBatchInfo::new(&l1_batch, pubdata_da, kzg_settings.clone()).into_token()
-            })
-            .collect();
-        Ok(Some(Self {
-            is_pre_boojum,
-            l1_commit_data_variants,
-            commit_tx_hash,
-        }))
+        let local_token = CommitBatchInfo::new(&self.l1_batch, da).into_token();
+        anyhow::ensure!(
+            local_token == *reference,
+            "Locally reproduced commitment differs from the reference obtained from L1; \
+             local: {local_token:?}, reference: {reference:?}"
+        );
+        Ok(())
     }
 }
 
@@ -218,6 +245,8 @@ impl LocalL1BatchCommitData {
 pub struct ConsistencyChecker {
     /// ABI of the zkSync contract
     contract: ethabi::Contract,
+    /// Address of the zkSync diamond proxy on L1
+    diamond_proxy_addr: Option<Address>,
     /// How many past batches to check when starting
     max_batches_to_recheck: u32,
     sleep_interval: Duration,
@@ -226,7 +255,6 @@ pub struct ConsistencyChecker {
     l1_data_mismatch_behavior: L1DataMismatchBehavior,
     pool: ConnectionPool,
     health_check: ReactiveHealthCheck,
-    kzg_settings: Option<Arc<KzgSettings>>,
 }
 
 impl ConsistencyChecker {
@@ -236,12 +264,12 @@ impl ConsistencyChecker {
         web3_url: &str,
         max_batches_to_recheck: u32,
         pool: ConnectionPool,
-        kzg_settings: Option<Arc<KzgSettings>>,
-    ) -> Self {
-        let web3 = QueryClient::new(web3_url).unwrap();
+    ) -> anyhow::Result<Self> {
+        let web3 = QueryClient::new(web3_url).context("cannot create L1 Web3 client")?;
         let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
-        Self {
+        Ok(Self {
             contract: zksync_contracts::zksync_contract(),
+            diamond_proxy_addr: None,
             max_batches_to_recheck,
             sleep_interval: Self::DEFAULT_SLEEP_INTERVAL,
             l1_client: Box::new(web3),
@@ -249,8 +277,12 @@ impl ConsistencyChecker {
             l1_data_mismatch_behavior: L1DataMismatchBehavior::Log,
             pool,
             health_check,
-            kzg_settings,
-        }
+        })
+    }
+
+    pub fn with_diamond_proxy_addr(mut self, address: Address) -> Self {
+        self.diamond_proxy_addr = Some(address);
+        self
     }
 
     /// Returns health check associated with this checker.
@@ -262,7 +294,7 @@ impl ConsistencyChecker {
         &self,
         batch_number: L1BatchNumber,
         local: &LocalL1BatchCommitData,
-    ) -> Result<bool, CheckError> {
+    ) -> Result<(), CheckError> {
         let commit_tx_hash = local.commit_tx_hash;
         tracing::info!("Checking commit tx {commit_tx_hash} for L1 batch #{batch_number}");
 
@@ -270,45 +302,98 @@ impl ConsistencyChecker {
             .l1_client
             .get_tx_status(commit_tx_hash, "consistency_checker")
             .await?
-            .with_context(|| format!("Receipt for tx {commit_tx_hash:?} not found on L1"))?;
+            .with_context(|| format!("receipt for tx {commit_tx_hash:?} not found on L1"))
+            .map_err(CheckError::Validation)?;
         if !commit_tx_status.success {
-            let err = anyhow::anyhow!("Main node gave us a failed commit tx");
-            return Err(err.into());
+            let err = anyhow::anyhow!("main node gave us a failed commit tx {commit_tx_hash:?}");
+            return Err(CheckError::Validation(err));
         }
 
-        // We can't get tx calldata from db because it can be fake.
-        let commit_tx_input_data = self
+        // We can't get tx calldata from the DB because it can be fake.
+        let commit_tx = self
             .l1_client
             .get_tx(commit_tx_hash, "consistency_checker")
             .await?
-            .with_context(|| format!("Commit for tx {commit_tx_hash:?} not found on L1"))?
-            .input;
-        // TODO (PLA-721): Check receiving contract and selector
+            .with_context(|| format!("commit transaction {commit_tx_hash:?} not found on L1"))
+            .map_err(CheckError::Internal)?; // we've got a transaction receipt previously, thus an internal error
+
+        if let Some(diamond_proxy_addr) = self.diamond_proxy_addr {
+            let event = self
+                .contract
+                .event("BlockCommit")
+                .context("`BlockCommit` event not found for zkSync L1 contract")
+                .map_err(CheckError::Internal)?;
+
+            let committed_batch_numbers_by_logs =
+                commit_tx_status.receipt.logs.into_iter().filter_map(|log| {
+                    if log.address != diamond_proxy_addr {
+                        return None;
+                    }
+                    let parsed_log = event
+                        .parse_log_whole(ethabi::RawLog {
+                            topics: log.topics,
+                            data: log.data.0,
+                        })
+                        .ok()?;
+
+                    parsed_log.params.into_iter().find_map(|param| {
+                        (param.name == "batchNumber")
+                            .then_some(param.value)
+                            .and_then(ethabi::Token::into_uint)
+                    })
+                });
+            let committed_batch_numbers_by_logs: HashSet<_> =
+                committed_batch_numbers_by_logs.collect();
+            tracing::debug!(
+                "Commit transaction {commit_tx_hash:?} has `BlockCommit` event logs with the following batch numbers: \
+                 {committed_batch_numbers_by_logs:?}"
+            );
+
+            if !committed_batch_numbers_by_logs.contains(&U256::from(batch_number.0)) {
+                let err = anyhow::anyhow!(
+                    "Commit transaction {commit_tx_hash:?} does not contain `BlockCommit` event log with batchNumber={batch_number}"
+                );
+                return Err(CheckError::Validation(err));
+            }
+        }
+
         // TODO: Add support for post shared bridge commits
-        let commit_function = if local.is_pre_boojum {
+        let commit_function = if local.is_pre_boojum() {
             &*PRE_BOOJUM_COMMIT_FUNCTION
         } else {
             self.contract
                 .function("commitBatches")
-                .context("L1 contract does not have `commitBatches` function")?
+                .context("L1 contract does not have `commitBatches` function")
+                .map_err(CheckError::Internal)?
         };
-        let commitment =
-            Self::extract_commit_data(&commit_tx_input_data.0, commit_function, batch_number)
-                .with_context(|| {
-                    format!("Failed extracting commit data for transaction {commit_tx_hash:?}")
-                })?;
 
-        Ok(local.l1_commit_data_variants.contains(&commitment))
+        let commitment =
+            Self::extract_commit_data(&commit_tx.input.0, commit_function, batch_number)
+                .with_context(|| {
+                    format!("failed extracting commit data for transaction {commit_tx_hash:?}")
+                })
+                .map_err(CheckError::Validation)?;
+        local
+            .verify_commitment(&commitment)
+            .map_err(CheckError::Validation)
     }
 
+    /// All returned errors are validation errors.
     fn extract_commit_data(
         commit_tx_input_data: &[u8],
         commit_function: &ethabi::Function,
         batch_number: L1BatchNumber,
     ) -> anyhow::Result<ethabi::Token> {
+        let expected_solidity_selector = commit_function.short_signature();
+        let actual_solidity_selector = &commit_tx_input_data[..4];
+        anyhow::ensure!(
+            expected_solidity_selector == actual_solidity_selector,
+            "unexpected Solidity function selector: expected {expected_solidity_selector:?}, got {actual_solidity_selector:?}"
+        );
+
         let mut commit_input_tokens = commit_function
             .decode_input(&commit_tx_input_data[4..])
-            .with_context(|| format!("Failed decoding calldata for L1 commit function"))?;
+            .context("Failed decoding calldata for L1 commit function")?;
         let mut commitments = commit_input_tokens
             .pop()
             .context("Unexpected signature for L1 commit function")?
@@ -319,7 +404,7 @@ impl ConsistencyChecker {
         // the one that corresponds to the batch we're checking.
         let first_batch_commitment = commitments
             .first()
-            .with_context(|| format!("L1 batch commitment is empty"))?;
+            .context("L1 batch commitment is empty")?;
         let ethabi::Token::Tuple(first_batch_commitment) = first_batch_commitment else {
             anyhow::bail!("Unexpected signature for L1 commit function");
         };
@@ -342,8 +427,8 @@ impl ConsistencyChecker {
         commitment.with_context(|| {
             let actual_range = first_batch_number..(first_batch_number + commitments.len());
             format!(
-                "Malformed commitment data; it should prove L1 batch #{batch_number}, \
-                 but it actually proves batches #{actual_range:?}"
+                "Malformed commitment data; it should commit to L1 batch #{batch_number}, \
+                 but it actually commits to batches #{actual_range:?}"
             )
         })
     }
@@ -358,8 +443,49 @@ impl ConsistencyChecker {
             .await?)
     }
 
+    async fn sanity_check_diamond_proxy_addr(&self) -> Result<(), CheckError> {
+        let Some(address) = self.diamond_proxy_addr else {
+            return Ok(());
+        };
+        tracing::debug!("Performing sanity checks for diamond proxy contract {address:?}");
+
+        let call = CallFunctionArgs::new("getProtocolVersion", ())
+            .for_contract(address, self.contract.clone());
+        let response = self.l1_client.call_contract_function(call).await?;
+        // Response should be a single token with the contract name.
+        match response.as_slice() {
+            [ethabi::Token::Uint(version)] => {
+                tracing::info!("Checked diamond proxy {address:?} (protocol version: {version})");
+                Ok(())
+            }
+            _ => {
+                let err = anyhow::anyhow!(
+                    "unexpected `getProtocolVersion` response from contract {address:?}: {response:?}"
+                );
+                Err(CheckError::Internal(err))
+            }
+        }
+    }
+
     pub async fn run(mut self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        tracing::info!(
+            "Starting consistency checker with diamond proxy contract: {:?}, sleep interval: {:?}, \
+             max historic L1 batches to check: {}",
+            self.diamond_proxy_addr,
+            self.sleep_interval,
+            self.max_batches_to_recheck
+        );
         self.event_handler.initialize();
+
+        while let Err(err) = self.sanity_check_diamond_proxy_addr().await {
+            if err.is_transient() {
+                tracing::warn!("Transient error checking diamond proxy contract; will retry after a delay: {err}");
+                tokio::time::sleep(self.sleep_interval).await;
+            } else {
+                return Err(anyhow::Error::from(err)
+                    .context("failed sanity-checking diamond proxy contract"));
+            }
+        }
 
         // It doesn't make sense to start the checker until we have at least one L1 batch with metadata.
         let earliest_l1_batch_number =
@@ -400,40 +526,40 @@ impl ConsistencyChecker {
             // The batch might be already committed but not yet processed by the external node's tree
             // OR the batch might be processed by the external node's tree but not yet committed.
             // We need both.
-            let Some(local) =
-                LocalL1BatchCommitData::new(&mut storage, batch_number, self.kzg_settings.clone())
-                    .await?
-            else {
+            let Some(local) = LocalL1BatchCommitData::new(&mut storage, batch_number).await? else {
                 tokio::time::sleep(self.sleep_interval).await;
                 continue;
             };
             drop(storage);
 
             match self.check_commitments(batch_number, &local).await {
-                Ok(true) => {
+                Ok(()) => {
                     self.event_handler.update_checked_batch(batch_number);
                     batch_number += 1;
                 }
-                Ok(false) => {
-                    self.event_handler.report_inconsistent_batch(batch_number);
+                Err(CheckError::Validation(err)) => {
+                    self.event_handler
+                        .report_inconsistent_batch(batch_number, &err);
                     match &self.l1_data_mismatch_behavior {
                         #[cfg(test)]
                         L1DataMismatchBehavior::Bail => {
-                            anyhow::bail!("L1 batch #{batch_number} is inconsistent with L1");
+                            let context =
+                                format!("L1 batch #{batch_number} is inconsistent with L1");
+                            return Err(err.context(context));
                         }
                         L1DataMismatchBehavior::Log => {
                             batch_number += 1; // We don't want to infinitely loop failing the check on the same batch
                         }
                     }
                 }
-                Err(CheckError::Web3(err)) => {
-                    tracing::warn!("Error accessing L1; will retry after a delay: {err}");
+                Err(err) if err.is_transient() => {
+                    tracing::warn!("Transient error while verifying L1 batch #{batch_number}; will retry after a delay: {err}");
                     tokio::time::sleep(self.sleep_interval).await;
                 }
-                Err(CheckError::Internal(err)) => {
+                Err(other_err) => {
                     let context =
-                        format!("Failed verifying consistency of L1 batch #{batch_number}");
-                    return Err(err.context(context));
+                        format!("failed verifying consistency of L1 batch #{batch_number}");
+                    return Err(anyhow::Error::from(other_err).context(context));
                 }
             }
         }
