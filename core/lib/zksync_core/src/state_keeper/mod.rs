@@ -45,14 +45,12 @@ pub(crate) async fn create_state_keeper(
     miniblock_sealer_handle: MiniblockSealerHandle,
     object_store: Arc<dyn ObjectStore>,
     stop_receiver: watch::Receiver<bool>,
-) -> ZkSyncStateKeeper {
+) -> (ZkSyncStateKeeper, AsyncCatchupTask) {
     let (storage_factory, task) = AsyncRocksdbCache::new(
         pool.clone(),
         db_config.state_keeper_db_path.clone(),
         state_keeper_config.enum_index_migration_chunk_size(),
     );
-    let stop_receiver_clone = stop_receiver.clone();
-    tokio::task::spawn(async move { task.run(stop_receiver_clone).await.unwrap() });
     let batch_executor_base = MainBatchExecutor::new(
         Arc::new(storage_factory),
         state_keeper_config.max_allowed_l2_tx_gas_limit.into(),
@@ -77,10 +75,13 @@ pub(crate) async fn create_state_keeper(
     .expect("Failed initializing main node I/O for state keeper");
 
     let sealer = SequencerSealer::new(state_keeper_config);
-    ZkSyncStateKeeper::new(
-        stop_receiver,
-        Box::new(io),
-        Box::new(batch_executor_base),
-        Arc::new(sealer),
+    (
+        ZkSyncStateKeeper::new(
+            stop_receiver,
+            Box::new(io),
+            Box::new(batch_executor_base),
+            Arc::new(sealer),
+        ),
+        task,
     )
 }

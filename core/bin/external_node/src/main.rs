@@ -65,6 +65,7 @@ async fn build_state_keeper(
     miniblock_sealer_handle: MiniblockSealerHandle,
     stop_receiver: watch::Receiver<bool>,
     chain_id: L2ChainId,
+    task_handles: &mut Vec<task::JoinHandle<anyhow::Result<()>>>,
 ) -> anyhow::Result<ZkSyncStateKeeper> {
     // These config values are used on the main node, and depending on these values certain transactions can
     // be *rejected* (that is, not included into the block). However, external node only mirrors what the main
@@ -80,8 +81,12 @@ async fn build_state_keeper(
         state_keeper_db_path,
         config.optional.enum_index_migration_chunk_size,
     );
-    let stop_receiver_clone = stop_receiver.clone();
-    tokio::task::spawn(async move { task.run(stop_receiver_clone).await.unwrap() });
+    let mut stop_receiver_clone = stop_receiver.clone();
+    task_handles.push(tokio::task::spawn(async move {
+        let result = task.run(stop_receiver_clone.clone()).await;
+        stop_receiver_clone.changed().await?;
+        result
+    }));
     let batch_executor_base: Box<dyn BatchExecutor> = Box::new(MainBatchExecutor::new(
         Arc::new(storage_factory),
         max_allowed_l2_tx_gas_limit,
@@ -170,6 +175,7 @@ async fn init_tasks(
         miniblock_sealer_handle,
         stop_receiver.clone(),
         config.remote.l2_chain_id,
+        task_handles,
     )
     .await?;
 
