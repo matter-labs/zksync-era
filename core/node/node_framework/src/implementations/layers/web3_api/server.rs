@@ -1,10 +1,12 @@
 use std::num::NonZeroU32;
 
 use tokio::{sync::oneshot, task::JoinHandle};
+use zksync_circuit_breaker::replication_lag::ReplicationLagChecker;
 use zksync_core::api_server::web3::{state::InternalApiConfig, ApiBuilder, ApiServer, Namespace};
 
 use crate::{
     implementations::resources::{
+        circuit_breaker_checker::CircuitBreakerCheckerResource,
         healthcheck::AppHealthCheckResource,
         pools::ReplicaPoolResource,
         sync_state::SyncStateResource,
@@ -122,9 +124,10 @@ impl WiringLayer for Web3ServerLayer {
         };
 
         // Build server.
-        let mut api_builder = ApiBuilder::jsonrpsee_backend(self.internal_api_config, replica_pool)
-            .with_updaters_pool(updaters_pool)
-            .with_tx_sender(tx_sender);
+        let mut api_builder =
+            ApiBuilder::jsonrpsee_backend(self.internal_api_config, replica_pool.clone())
+                .with_updaters_pool(updaters_pool)
+                .with_tx_sender(tx_sender);
         if let Some(client) = tree_api_client {
             api_builder = api_builder.with_tree_api(client);
         }
@@ -146,6 +149,15 @@ impl WiringLayer for Web3ServerLayer {
         let api_health_check = server.health_check();
         let AppHealthCheckResource(app_health) = context.get_resource_or_default().await;
         app_health.insert_component(api_health_check);
+
+        // Insert circuit breaker.
+        let CircuitBreakerCheckerResource(circuit_breaker_checker) = context.get_resource().await?;
+        circuit_breaker_checker
+            .insert_circuit_breaker(Box::new(ReplicationLagChecker {
+                pool: replica_pool,
+                replication_lag_limit_sec: None,
+            }))
+            .await;
 
         // Add tasks.
         let (task_sender, task_receiver) = oneshot::channel();

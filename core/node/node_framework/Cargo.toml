@@ -23,6 +23,7 @@ zksync_eth_client = { path = "../../lib/eth_client" }
 zksync_contracts = { path = "../../lib/contracts" }
 zksync_web3_decl = { path = "../../lib/web3_decl" }
 zksync_utils = { path = "../../lib/utils" }
+zksync_circuit_breaker = { path = "../../lib/circuit_breaker"}
 
 tracing = "0.1"
 thiserror = "1"

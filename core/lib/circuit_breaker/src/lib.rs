@@ -1,9 +1,9 @@
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use futures::channel::oneshot;
 use thiserror::Error;
-use tokio::sync::watch;
+use tokio::sync::{watch, Mutex};
 use zksync_config::configs::chain::CircuitBreakerConfig;
 
 pub mod l1_txs;
@@ -21,7 +21,7 @@ pub enum CircuitBreakerError {
 /// Checks circuit breakers
 #[derive(Debug)]
 pub struct CircuitBreakerChecker {
-    circuit_breakers: Vec<Box<dyn CircuitBreaker>>,
+    circuit_breakers: Mutex<Vec<Box<dyn CircuitBreaker>>>,
     sync_interval: Duration,
 }
 
@@ -32,24 +32,29 @@ pub trait CircuitBreaker: std::fmt::Debug + Send + Sync {
 
 impl CircuitBreakerChecker {
     pub fn new(
-        circuit_breakers: Vec<Box<dyn CircuitBreaker>>,
+        circuit_breakers: Option<Vec<Box<dyn CircuitBreaker>>>,
         config: &CircuitBreakerConfig,
     ) -> Self {
         Self {
-            circuit_breakers,
+            circuit_breakers: Mutex::new(circuit_breakers.unwrap_or(vec![])),
             sync_interval: config.sync_interval(),
         }
     }
 
     pub async fn check(&self) -> Result<(), CircuitBreakerError> {
-        for circuit_breaker in &self.circuit_breakers {
+        for circuit_breaker in self.circuit_breakers.lock().await.iter() {
             circuit_breaker.check().await?;
         }
         Ok(())
     }
 
+    pub async fn insert_circuit_breaker(&self, circuit_breaker: Box<dyn CircuitBreaker>) {
+        let mut guard = self.circuit_breakers.lock().await;
+        guard.push(circuit_breaker);
+    }
+
     pub async fn run(
-        self,
+        self: Arc<Self>,
         circuit_breaker_sender: oneshot::Sender<CircuitBreakerError>,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
