@@ -52,8 +52,6 @@ pub struct StorageOracle<S: WriteStorage, H: HistoryMode> {
     // While formally it does not have to be capable of rolling back, we still do it to avoid memory bloat
     // for unused slots.
     pub(crate) initial_values: HistoryRecorder<HashMap<StorageKey, U256>, H>,
-    // Keeps track of storage keys that were ever read.
-    pub(crate) read_keys: HistoryRecorder<HashMap<StorageKey, ()>, HistoryEnabled>,
 }
 
 impl<S: WriteStorage> OracleWithHistory for StorageOracle<S, HistoryEnabled> {
@@ -61,7 +59,6 @@ impl<S: WriteStorage> OracleWithHistory for StorageOracle<S, HistoryEnabled> {
         self.frames_stack.rollback_to_timestamp(timestamp);
         self.storage.rollback_to_timestamp(timestamp);
         self.paid_changes.rollback_to_timestamp(timestamp);
-        self.read_keys.rollback_to_timestamp(timestamp);
         self.initial_values.rollback_to_timestamp(timestamp);
     }
 }
@@ -72,7 +69,6 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
             storage: HistoryRecorder::from_inner(StorageWrapper::new(storage)),
             frames_stack: Default::default(),
             paid_changes: Default::default(),
-            read_keys: Default::default(),
             initial_values: Default::default(),
         }
     }
@@ -81,7 +77,6 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
         self.frames_stack.delete_history();
         self.storage.delete_history();
         self.paid_changes.delete_history();
-        self.read_keys.delete_history();
         self.initial_values.delete_history();
     }
 
@@ -99,9 +94,6 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
     pub fn read_value(&mut self, mut query: LogQuery) -> LogQuery {
         let key = triplet_to_storage_key(query.shard_id, query.address, query.key);
 
-        if !self.read_keys.inner().contains_key(&key) {
-            self.read_keys.insert(key, (), query.timestamp);
-        }
         let current_value = self.storage.read_from_storage(&key);
 
         query.read_value = current_value;

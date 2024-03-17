@@ -60,9 +60,6 @@ pub struct StorageOracle<S: WriteStorage, H: HistoryMode> {
 
     // Storage refunds that oracle has returned in `estimate_refunds_for_write`.
     pub(crate) returned_refunds: HistoryRecorder<Vec<u32>, H>,
-
-    // Keeps track of storage keys that were ever read.
-    pub(crate) read_keys: HistoryRecorder<HashMap<StorageKey, ()>, HistoryEnabled>,
 }
 
 impl<S: WriteStorage> OracleWithHistory for StorageOracle<S, HistoryEnabled> {
@@ -73,7 +70,6 @@ impl<S: WriteStorage> OracleWithHistory for StorageOracle<S, HistoryEnabled> {
         self.paid_changes.rollback_to_timestamp(timestamp);
         self.initial_values.rollback_to_timestamp(timestamp);
         self.returned_refunds.rollback_to_timestamp(timestamp);
-        self.read_keys.rollback_to_timestamp(timestamp);
     }
 }
 
@@ -86,7 +82,6 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
             paid_changes: Default::default(),
             initial_values: Default::default(),
             returned_refunds: Default::default(),
-            read_keys: Default::default(),
         }
     }
 
@@ -97,7 +92,6 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
         self.paid_changes.delete_history();
         self.initial_values.delete_history();
         self.returned_refunds.delete_history();
-        self.read_keys.delete_history();
     }
 
     fn is_storage_key_free(&self, key: &StorageKey) -> bool {
@@ -108,9 +102,6 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
     pub fn read_value(&mut self, mut query: LogQuery) -> LogQuery {
         let key = triplet_to_storage_key(query.shard_id, query.address, query.key);
 
-        if !self.read_keys.inner().contains_key(&key) {
-            self.read_keys.insert(key, (), query.timestamp);
-        }
         let current_value = self.storage.read_from_storage(&key);
 
         query.read_value = current_value;

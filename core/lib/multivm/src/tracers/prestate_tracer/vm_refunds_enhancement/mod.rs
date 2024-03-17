@@ -1,6 +1,8 @@
+use std::collections::HashMap;
+
 use zk_evm_1_3_3::tracing::{BeforeExecutionData, VmLocalStateData};
 use zksync_state::{StoragePtr, WriteStorage};
-use zksync_types::StorageKey;
+use zksync_types::{StorageKey, H256};
 
 use super::{
     get_account_data, process_modified_storage_keys, process_result, PrestateTracer, State,
@@ -45,9 +47,17 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for PrestateTracer {
                 .map(|k| get_account_data(k, state, &modified_storage_keys))
                 .collect::<State>();
         } else {
-            let read_keys = &state.storage.read_keys;
-            let map = read_keys.inner().clone();
-            let res = map
+            let read_keys: &HashMap<StorageKey, H256> = &state
+                .storage
+                .storage
+                .inner()
+                .get_ptr()
+                .borrow()
+                .read_storage_keys()
+                .iter()
+                .map(|(k, v)| (*k, *v))
+                .collect();
+            let res = read_keys
                 .keys()
                 .copied()
                 .collect::<Vec<_>>()
