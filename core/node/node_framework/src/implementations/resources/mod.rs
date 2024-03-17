@@ -1,3 +1,4 @@
+pub mod circuit_breaker_checker;
 pub mod eth_interface;
 pub mod fee_input;
 pub mod healthcheck;

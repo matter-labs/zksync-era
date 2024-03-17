@@ -357,12 +357,14 @@ pub async fn initialize_components(
         .clone()
         .context("circuit_breaker_config")?;
 
-    let circuit_breaker_checker = CircuitBreakerChecker::new(
-        circuit_breakers_for_components(&components, &postgres_config, &circuit_breaker_config)
-            .await
-            .context("circuit_breakers_for_components")?,
+    let circuit_breaker_checker = Arc::new(CircuitBreakerChecker::new(
+        Some(
+            circuit_breakers_for_components(&components, &postgres_config, &circuit_breaker_config)
+                .await
+                .context("circuit_breakers_for_components")?,
+        ),
         &circuit_breaker_config,
-    );
+    ));
     circuit_breaker_checker.check().await.unwrap_or_else(|err| {
         panic!("Circuit breaker triggered: {}", err);
     });
@@ -393,7 +395,8 @@ pub async fn initialize_components(
     let (prometheus_health_check, prometheus_health_updater) =
         ReactiveHealthCheck::new("prometheus_exporter");
     app_health.insert_component(prometheus_health_check);
-    let prometheus_task = prom_config.run(stop_receiver.clone());
+    let pt_stop_receiver = stop_receiver.clone();
+    let prometheus_task = prom_config.run(pt_stop_receiver);
     let prometheus_task = tokio::spawn(async move {
         prometheus_health_updater.update(HealthStatus::Ready.into());
         let res = prometheus_task.await;
@@ -401,9 +404,14 @@ pub async fn initialize_components(
         res
     });
 
+    let cb_stop_receiver = stop_receiver.clone();
     let mut task_futures: Vec<JoinHandle<anyhow::Result<()>>> = vec![
         prometheus_task,
-        tokio::spawn(circuit_breaker_checker.run(cb_sender, stop_receiver.clone())),
+        tokio::spawn(async move {
+            circuit_breaker_checker
+                .run(cb_sender, cb_stop_receiver)
+                .await
+        }),
     ];
 
     if components.contains(&Component::WsApi)
