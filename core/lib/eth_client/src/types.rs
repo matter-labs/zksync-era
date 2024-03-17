@@ -83,6 +83,20 @@ pub struct ContractCall {
     pub(crate) inner: CallFunctionArgs,
 }
 
+impl ContractCall {
+    pub fn contract_address(&self) -> Address {
+        self.contract_address
+    }
+
+    pub fn function_name(&self) -> &str {
+        &self.inner.name
+    }
+
+    pub fn args(&self) -> &[ethabi::Token] {
+        &self.inner.params.0
+    }
+}
+
 /// Common error type exposed by the crate,
 #[derive(Debug, thiserror::Error)]
 pub enum Error {

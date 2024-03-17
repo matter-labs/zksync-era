@@ -6,7 +6,10 @@ use anyhow::Context;
 use zksync_config::{
     configs::{
         chain::{MempoolConfig, NetworkConfig, OperationsManagerConfig, StateKeeperConfig},
-        ObservabilityConfig, ProofDataHandlerConfig,
+        fri_prover_group::FriProverGroupConfig,
+        house_keeper::HouseKeeperConfig,
+        FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig, ObservabilityConfig,
+        ProofDataHandlerConfig,
     },
     ApiConfig, ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig, ETHWatchConfig,
     GasAdjusterConfig, ObjectStoreConfig, PostgresConfig,
@@ -21,9 +24,11 @@ use zksync_core::{
 use zksync_env_config::FromEnv;
 use zksync_node_framework::{
     implementations::layers::{
+        commitment_generator::CommitmentGeneratorLayer,
         eth_sender::EthSenderLayer,
         eth_watch::EthWatchLayer,
         healtcheck_server::HealthCheckLayer,
+        house_keeper::HouseKeeperLayer,
         l1_gas::SequencerL1GasLayer,
         metadata_calculator::MetadataCalculatorLayer,
         object_store::ObjectStoreLayer,
@@ -237,7 +242,6 @@ impl MainNodeBuilder {
 
         Ok(self)
     }
-
     fn add_eth_sender_layer(mut self) -> anyhow::Result<Self> {
         let eth_sender_config = ETHSenderConfig::from_env()?;
         let contracts_config = ContractsConfig::from_env()?;
@@ -250,6 +254,30 @@ impl MainNodeBuilder {
             eth_client_config,
             network_config,
         ));
+
+        Ok(self)
+    }
+
+    fn add_house_keeper_layer(mut self) -> anyhow::Result<Self> {
+        let house_keeper_config = HouseKeeperConfig::from_env()?;
+        let fri_prover_config = FriProverConfig::from_env()?;
+        let fri_witness_generator_config = FriWitnessGeneratorConfig::from_env()?;
+        let fri_prover_group_config = FriProverGroupConfig::from_env()?;
+        let fri_proof_compressor_config = FriProofCompressorConfig::from_env()?;
+
+        self.node.add_layer(HouseKeeperLayer::new(
+            house_keeper_config,
+            fri_prover_config,
+            fri_witness_generator_config,
+            fri_prover_group_config,
+            fri_proof_compressor_config,
+        ));
+
+        Ok(self)
+    }
+
+    fn add_commitment_generator_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(CommitmentGeneratorLayer);
 
         Ok(self)
     }
@@ -285,6 +313,8 @@ fn main() -> anyhow::Result<()> {
         .add_tree_api_client_layer()?
         .add_http_web3_api_layer()?
         .add_ws_web3_api_layer()?
+        .add_house_keeper_layer()?
+        .add_commitment_generator_layer()?
         .build()
         .run()?;
 

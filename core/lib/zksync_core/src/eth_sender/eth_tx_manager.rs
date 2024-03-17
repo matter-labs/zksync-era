@@ -122,6 +122,10 @@ impl EthTxManager {
         tx: &EthTx,
         time_in_mempool: u32,
     ) -> Result<EthFee, ETHSenderError> {
+        let base_fee_per_gas = self.gas_adjuster.get_base_fee(0);
+        let priority_fee_per_gas = self.gas_adjuster.get_priority_fee();
+        let blob_base_fee_per_gas = Some(self.gas_adjuster.get_blob_base_fee());
+
         if tx.blob_sidecar.is_some() {
             if time_in_mempool != 0 {
                 // for blob transactions on re-sending need to double all gas prices
@@ -132,15 +136,20 @@ impl EthTxManager {
                     .unwrap()
                     .unwrap();
                 return Ok(EthFee {
-                    base_fee_per_gas: previous_sent_tx.base_fee_per_gas * 2,
-                    priority_fee_per_gas: previous_sent_tx.priority_fee_per_gas * 2,
-                    blob_base_fee_per_gas: previous_sent_tx.blob_base_fee_per_gas.map(|v| v * 2),
+                    base_fee_per_gas: std::cmp::max(
+                        previous_sent_tx.base_fee_per_gas * 2,
+                        base_fee_per_gas,
+                    ),
+                    priority_fee_per_gas: std::cmp::max(
+                        previous_sent_tx.priority_fee_per_gas * 2,
+                        priority_fee_per_gas,
+                    ),
+                    blob_base_fee_per_gas: std::cmp::max(
+                        previous_sent_tx.blob_base_fee_per_gas.map(|v| v * 2),
+                        blob_base_fee_per_gas,
+                    ),
                 });
             }
-            let base_fee_per_gas = self.gas_adjuster.get_base_fee(0);
-            let priority_fee_per_gas = self.gas_adjuster.get_priority_fee();
-            let blob_base_fee_per_gas = Some(self.gas_adjuster.get_blob_base_fee());
-
             return Ok(EthFee {
                 base_fee_per_gas,
                 priority_fee_per_gas,
