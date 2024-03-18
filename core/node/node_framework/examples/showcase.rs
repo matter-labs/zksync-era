@@ -209,5 +209,6 @@ fn main() -> anyhow::Result<()> {
         .add_layer(DatabaseLayer)
         .add_layer(TasksLayer)
         .build()?
-        .run()
+        .run()?;
+    Ok(())
 }

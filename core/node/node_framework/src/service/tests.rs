@@ -1,10 +1,14 @@
 use std::sync::{Arc, Mutex};
 
 use anyhow::anyhow;
+use assert_matches::assert_matches;
 use tokio::runtime::Runtime;
 
 use crate::{
-    service::{ServiceContext, StopReceiver, WiringError, WiringLayer, ZkStackServiceBuilder},
+    service::{
+        ServiceContext, StopReceiver, WiringError, WiringLayer, ZkStackServiceBuilder,
+        ZkStackServiceError,
+    },
     task::Task,
 };
 
@@ -13,18 +17,10 @@ use crate::{
 fn test_new_with_nested_runtime() {
     let runtime = Runtime::new().unwrap();
 
-    let initialization_result = runtime.block_on(async {
-        ZkStackServiceBuilder::new()
-            .build()
-            .unwrap_err()
-            .to_string()
-    });
+    let initialization_result =
+        runtime.block_on(async { ZkStackServiceBuilder::new().build().unwrap_err() });
 
-    assert_eq!(
-        initialization_result,
-        "Detected a Tokio Runtime. ZkStackService manages its own runtime and does not support nested runtimes"
-        .to_string()
-    );
+    assert_matches!(initialization_result, ZkStackServiceError::RuntimeDetected);
 }
 
 #[derive(Debug)]
@@ -59,11 +55,7 @@ fn test_add_layer() {
 #[test]
 fn test_run_with_no_tasks() {
     let empty_run_result = ZkStackServiceBuilder::new().build().unwrap().run();
-    assert_eq!(
-        empty_run_result.unwrap_err().to_string(),
-        "No tasks have been added to the service".to_string(),
-        "Incorrect result for creating a service with no tasks"
-    );
+    assert_matches!(empty_run_result.unwrap_err(), ZkStackServiceError::NoTasks);
 }
 
 #[derive(Debug)]
@@ -87,11 +79,7 @@ fn test_run_with_error_tasks() {
     let error_layer = WireErrorLayer;
     zk_stack_service.add_layer(error_layer);
     let result = zk_stack_service.build().unwrap().run();
-    assert_eq!(
-        result.unwrap_err().to_string(),
-        "One or more wiring layers failed to initialize".to_string(),
-        "Incorrect result for creating a service with wire error layer"
-    );
+    assert_matches!(result.unwrap_err(), ZkStackServiceError::Wiring(_));
 }
 
 // `ZkStack` Service's `run()` method has to take into account errors on wiring step.
@@ -129,11 +117,7 @@ fn test_run_with_failed_tasks() {
     let mut zk_stack_service: ZkStackServiceBuilder = ZkStackServiceBuilder::new();
     zk_stack_service.add_layer(TaskErrorLayer);
     let result = zk_stack_service.build().unwrap().run();
-    assert_eq!(
-        result.unwrap_err().to_string(),
-        "Task failed".to_string(),
-        "Incorrect result for creating a service with task that fails"
-    );
+    assert_matches!(result.unwrap_err(), ZkStackServiceError::Task(_));
 }
 
 #[derive(Debug)]

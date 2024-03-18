@@ -46,7 +46,7 @@ use zksync_node_framework::{
             tx_sink::TxSinkLayer,
         },
     },
-    service::{ZkStackService, ZkStackServiceBuilder},
+    service::{ZkStackService, ZkStackServiceBuilder, ZkStackServiceError},
 };
 
 struct MainNodeBuilder {
@@ -282,7 +282,7 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
-    fn build(mut self) -> anyhow::Result<ZkStackService> {
+    fn build(mut self) -> Result<ZkStackService, ZkStackServiceError> {
         self.node.build()
     }
 }

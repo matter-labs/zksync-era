@@ -6,7 +6,7 @@ use tokio::{runtime::Runtime, sync::watch};
 use zksync_utils::panic_extractor::try_extract_panic_message;
 
 use self::runnables::Runnables;
-pub use self::{context::ServiceContext, stop_receiver::StopReceiver};
+pub use self::{context::ServiceContext, error::ZkStackServiceError, stop_receiver::StopReceiver};
 use crate::{
     resource::{ResourceId, StoredResource},
     service::runnables::TaskReprs,
@@ -14,6 +14,7 @@ use crate::{
 };
 
 mod context;
+mod error;
 mod runnables;
 mod stop_receiver;
 #[cfg(test)]
@@ -42,11 +43,9 @@ impl ZkStackServiceBuilder {
         self
     }
 
-    pub fn build(&mut self) -> anyhow::Result<ZkStackService> {
+    pub fn build(&mut self) -> Result<ZkStackService, ZkStackServiceError> {
         if tokio::runtime::Handle::try_current().is_ok() {
-            anyhow::bail!(
-                "Detected a Tokio Runtime. ZkStackService manages its own runtime and does not support nested runtimes"
-            );
+            return Err(ZkStackServiceError::RuntimeDetected);
         }
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
@@ -84,7 +83,7 @@ pub struct ZkStackService {
 
 impl ZkStackService {
     /// Runs the system.
-    pub fn run(mut self) -> anyhow::Result<()> {
+    pub fn run(mut self) -> Result<(), ZkStackServiceError> {
         // Initialize tasks.
         let wiring_layers = std::mem::take(&mut self.layers);
 
@@ -107,14 +106,14 @@ impl ZkStackService {
 
         // Report all the errors we've met during the init.
         if !errors.is_empty() {
-            for (layer, error) in errors {
+            for (layer, error) in &errors {
                 tracing::error!("Wiring layer {layer} can't be initialized: {error}");
             }
-            anyhow::bail!("One or more wiring layers failed to initialize");
+            return Err(ZkStackServiceError::Wiring(errors));
         }
 
         if self.runnables.is_empty() {
-            anyhow::bail!("No tasks have been added to the service");
+            return Err(ZkStackServiceError::NoTasks);
         }
 
         let only_oneshot_tasks = self.runnables.is_oneshot_only();
@@ -186,7 +185,8 @@ impl ZkStackService {
             tracing::info!("Remaining tasks finished without reaching timeouts");
         }
 
-        result
+        result?;
+        Ok(())
     }
 }
 
