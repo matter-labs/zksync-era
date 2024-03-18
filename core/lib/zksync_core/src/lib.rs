@@ -179,7 +179,6 @@ pub async fn genesis_init(
             protocol_version: ProtocolVersionId::latest(),
             base_system_contracts: BaseSystemContracts::load_from_disk(),
             system_contracts: get_system_smart_contracts(),
-            first_verifier_address: contracts_config.verifier_addr,
             first_l1_verifier_config,
         },
     )
@@ -663,6 +662,7 @@ pub async fn initialize_components(
                 .map(|k| k.sender_account());
 
         let eth_tx_aggregator_actor = EthTxAggregator::new(
+            eth_sender_pool,
             eth_sender.sender.clone(),
             Aggregator::new(
                 eth_sender.sender.clone(),
@@ -683,7 +683,7 @@ pub async fn initialize_components(
         )
         .await;
         task_futures.push(tokio::spawn(
-            eth_tx_aggregator_actor.run(eth_sender_pool, stop_receiver.clone()),
+            eth_tx_aggregator_actor.run(stop_receiver.clone()),
         ));
         let elapsed = started_at.elapsed();
         APP_METRICS.init_latency[&InitStage::EthTxAggregator].set(elapsed);
@@ -706,6 +706,7 @@ pub async fn initialize_components(
         let eth_client_blobs =
             PKSigningClient::from_config_blobs(&eth_sender, &contracts_config, &eth_client_config);
         let eth_tx_manager_actor = EthTxManager::new(
+            eth_manager_pool,
             eth_sender.sender,
             gas_adjuster
                 .get_or_init()
@@ -715,7 +716,7 @@ pub async fn initialize_components(
             eth_client_blobs.map(|c| Arc::new(c) as Arc<dyn BoundEthInterface>),
         );
         task_futures.extend([tokio::spawn(
-            eth_tx_manager_actor.run(eth_manager_pool, stop_receiver.clone()),
+            eth_tx_manager_actor.run(stop_receiver.clone()),
         )]);
         let elapsed = started_at.elapsed();
         APP_METRICS.init_latency[&InitStage::EthTxManager].set(elapsed);
