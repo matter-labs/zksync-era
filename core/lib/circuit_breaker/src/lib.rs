@@ -22,12 +22,20 @@ pub enum CircuitBreakerError {
 #[derive(Debug)]
 pub struct CircuitBreakerChecker {
     circuit_breakers: Mutex<Vec<Box<dyn CircuitBreaker>>>,
-    sync_interval: Duration,
+    config: CircuitBreakerConfig,
 }
 
 #[async_trait::async_trait]
 pub trait CircuitBreaker: std::fmt::Debug + Send + Sync {
+    fn id(&self) -> &'static str;
+
     async fn check(&self) -> Result<(), CircuitBreakerError>;
+}
+
+impl PartialEq for dyn CircuitBreaker {
+    fn eq(&self, other: &Self) -> bool {
+        self.id() == other.id()
+    }
 }
 
 impl CircuitBreakerChecker {
@@ -37,8 +45,12 @@ impl CircuitBreakerChecker {
     ) -> Self {
         Self {
             circuit_breakers: Mutex::new(circuit_breakers.unwrap_or(vec![])),
-            sync_interval: config.sync_interval(),
+            config: config.clone(),
         }
+    }
+
+    pub fn replication_lag_limit_sec(&self) -> Option<u32> {
+        self.config.replication_lag_limit_sec
     }
 
     pub async fn check(&self) -> Result<(), CircuitBreakerError> {
@@ -48,9 +60,12 @@ impl CircuitBreakerChecker {
         Ok(())
     }
 
-    pub async fn insert_circuit_breaker(&self, circuit_breaker: Box<dyn CircuitBreaker>) {
+    pub async fn insert_breaker_if_not_exists(&self, circuit_breaker: Box<dyn CircuitBreaker>) {
         let mut guard = self.circuit_breakers.lock().await;
-        guard.push(circuit_breaker);
+        // since we do not expect to have milion of circuit breakers it should not affet performance
+        if !guard.contains(&circuit_breaker) {
+            guard.push(circuit_breaker);
+        }
     }
 
     pub async fn run(
@@ -69,7 +84,7 @@ impl CircuitBreakerChecker {
                     .ok()
                     .context("failed to send circuit breaker message");
             }
-            tokio::time::sleep(self.sync_interval).await;
+            tokio::time::sleep(self.config.sync_interval()).await;
         }
         Ok(())
     }

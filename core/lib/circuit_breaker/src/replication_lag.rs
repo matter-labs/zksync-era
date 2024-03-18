@@ -10,6 +10,10 @@ pub struct ReplicationLagChecker {
 
 #[async_trait::async_trait]
 impl CircuitBreaker for ReplicationLagChecker {
+    fn id(&self) -> &'static str {
+        "replication_lag"
+    }
+
     async fn check(&self) -> Result<(), CircuitBreakerError> {
         let lag = self
             .pool

@@ -153,9 +153,9 @@ impl WiringLayer for Web3ServerLayer {
         // Insert circuit breaker.
         let CircuitBreakerCheckerResource(circuit_breaker_checker) = context.get_resource().await?;
         circuit_breaker_checker
-            .insert_circuit_breaker(Box::new(ReplicationLagChecker {
+            .insert_breaker_if_not_exists(Box::new(ReplicationLagChecker {
                 pool: replica_pool,
-                replication_lag_limit_sec: None,
+                replication_lag_limit_sec: circuit_breaker_checker.replication_lag_limit_sec(),
             }))
             .await;
 

@@ -9,6 +9,10 @@ pub struct FailedL1TransactionChecker {
 
 #[async_trait::async_trait]
 impl CircuitBreaker for FailedL1TransactionChecker {
+    fn id(&self) -> &'static str {
+        "failed_l1_transaction"
+    }
+
     async fn check(&self) -> Result<(), CircuitBreakerError> {
         if self
             .pool
