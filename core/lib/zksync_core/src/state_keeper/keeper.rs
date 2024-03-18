@@ -624,7 +624,6 @@ impl ZkSyncStateKeeper {
         // All of `TxExecutionResult::BootloaderOutOfGasForTx`, `TxExecutionResult::BootloaderOutOfGasForBlockTip`,
         // `Halt::NotEnoughGasProvided` correspond to out-of-gas errors but of different nature.
         // - `BootloaderOutOfGasForTx`: it is returned when bootloader stack frame run out of gas before tx execution finished.
-        // - `BootloaderOutOfGasForBlockTip`: it is returned when bootloader stack frame run out of gas
         // - `Halt::NotEnoughGasProvided`: there are checks in bootloader in some places (search for `checkEnoughGas` calls).
         //      They check if there is more gas in the frame than bootloader estimates it will need.
         //      This error is returned when such a check fails. Basically, bootloader doesn't continue execution but panics prematurely instead.
