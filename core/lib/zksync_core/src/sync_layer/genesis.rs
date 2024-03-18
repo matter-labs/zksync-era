@@ -97,13 +97,13 @@ async fn create_genesis_params(
         genesis_root_hash: genesis_batch
             .base
             .root_hash
-            .context("Genesis can't be pending")?,
+            .context("Genesis batch can't be pending")?,
         rollup_last_leaf_index: genesis_batch
             .rollup_last_leaf_index
-            .context("Genesis can't be pending")?,
+            .context("Genesis batch can't be pending")?,
         genesis_commitment: genesis_batch
             .commitment
-            .context("Genesis can't be pending")?,
+            .context("Genesis batch can't be pending")?,
         bootloader_hash: base_system_contracts_hashes.bootloader,
         default_aa_hash: base_system_contracts_hashes.default_aa,
         fee_account: first_validator,

@@ -8523,6 +8523,7 @@ dependencies = [
  "zksync_state",
  "zksync_storage",
  "zksync_types",
+ "zksync_utils",
  "zksync_web3_decl",
 ]
 
@@ -8732,6 +8733,7 @@ dependencies = [
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "chrono",
  "hex",
+ "itertools 0.10.5",
  "num 0.4.1",
  "num_enum",
  "once_cell",

@@ -3,8 +3,9 @@ use std::sync::{Arc, Mutex};
 use anyhow::anyhow;
 use tokio::runtime::Runtime;
 
-use crate::service::{
-    ServiceContext, StopReceiver, Task, WiringError, WiringLayer, ZkStackService,
+use crate::{
+    service::{ServiceContext, StopReceiver, WiringError, WiringLayer, ZkStackService},
+    task::Task,
 };
 
 // `ZkStack` Service's `new()` method has to have a check for nested runtime.
@@ -56,7 +57,7 @@ fn test_run_with_no_tasks() {
     let empty_run_result = ZkStackService::new().unwrap().run();
     assert_eq!(
         empty_run_result.unwrap_err().to_string(),
-        "No tasks to run".to_string(),
+        "No tasks have been added to the service".to_string(),
         "Incorrect result for creating a service with no tasks"
     );
 }
@@ -84,7 +85,7 @@ fn test_run_with_error_tasks() {
     let result = zk_stack_service.run();
     assert_eq!(
         result.unwrap_err().to_string(),
-        "One or more task weren't able to start".to_string(),
+        "One or more wiring layers failed to initialize".to_string(),
         "Incorrect result for creating a service with wire error layer"
     );
 }
@@ -126,7 +127,7 @@ fn test_run_with_failed_tasks() {
     let result = zk_stack_service.run();
     assert_eq!(
         result.unwrap_err().to_string(),
-        "Task error_task failed".to_string(),
+        "Task failed".to_string(),
         "Incorrect result for creating a service with task that fails"
     );
 }

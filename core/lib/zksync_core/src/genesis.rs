@@ -50,7 +50,7 @@ pub enum GenesisError {
     ProtocolVersion,
     #[error("Error: {0}")]
     Other(#[from] anyhow::Error),
-    #[error("Error: {0}")]
+    #[error("DB Error: {0}")]
     DBError(#[from] SqlxError),
 }
 
@@ -149,13 +149,14 @@ pub fn mock_genesis_config() -> GenesisConfig {
 }
 
 // This function is dangerous,
-// it doesn't enforce transactions and doesn't verify genesis correctness
+// it doesn't enforce genesis correctness
 // Please, always use `ensure_genesis_state` instead
 pub async fn ensure_genesis_state_unchecked(
-    transaction: &mut StorageProcessor<'_>,
+    storage: &mut StorageProcessor<'_>,
     genesis_params: &GenesisParams,
 ) -> Result<(H256, H256, u64), GenesisError> {
     tracing::info!("running regenesis");
+    let transaction = storage.start_transaction().await?;
     let verifier_config = L1VerifierConfig {
         params: VerifierParams {
             recursion_node_level_vk_hash: genesis_params.config.recursion_node_level_vk_hash,
@@ -166,7 +167,7 @@ pub async fn ensure_genesis_state_unchecked(
     };
 
     create_genesis_l1_batch(
-        transaction,
+        &mut transaction,
         genesis_params.config.fee_account,
         genesis_params.config.l2_chain_id,
         genesis_params.protocol_version(),
@@ -177,7 +178,7 @@ pub async fn ensure_genesis_state_unchecked(
     .await?;
     tracing::info!("chain_schema_genesis is complete");
 
-    let storage_logs = L1BatchWithLogs::new(transaction, L1BatchNumber(0)).await;
+    let storage_logs = L1BatchWithLogs::new(&mut transaction, L1BatchNumber(0)).await;
     let storage_logs = storage_logs
         .context("genesis L1 batch disappeared from Postgres")?
         .storage_logs;
@@ -198,12 +199,13 @@ pub async fn ensure_genesis_state_unchecked(
     let block_commitment = L1BatchCommitment::new(commitment_input);
 
     save_genesis_l1_batch_metadata(
-        transaction,
+        &mut transaction,
         block_commitment.clone(),
         genesis_root_hash,
         rollup_last_leaf_index,
     )
     .await?;
+    transaction.commit().await?;
     Ok((
         genesis_root_hash,
         block_commitment.hash().commitment,
