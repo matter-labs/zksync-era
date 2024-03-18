@@ -783,7 +783,7 @@
 ### Bug Fixes
 
 * **multi_vm:** Fix executing eth_call for old vm version ([#2558](https://github.com/matter-labs/zksync-2-dev/issues/2558)) ([0f3b990](https://github.com/matter-labs/zksync-2-dev/commit/0f3b990735caab8c905a9b51256608f4f7614ff1))
-* **vm:** Add trait for convinient usage of tracers ([#2550](https://github.com/matter-labs/zksync-2-dev/issues/2550)) ([bc2ed11](https://github.com/matter-labs/zksync-2-dev/commit/bc2ed1188cf545cfae1266302f1d5c2ef1feab0f))
+* **vm:** Add trait for convenient usage of tracers ([#2550](https://github.com/matter-labs/zksync-2-dev/issues/2550)) ([bc2ed11](https://github.com/matter-labs/zksync-2-dev/commit/bc2ed1188cf545cfae1266302f1d5c2ef1feab0f))
 
 ### Performance Improvements
 
@@ -802,7 +802,7 @@
 * **api:** Report some metrics more often ([#2519](https://github.com/matter-labs/zksync-2-dev/issues/2519)) ([eede188](https://github.com/matter-labs/zksync-2-dev/commit/eede188f6160fa383496c7c8ae8409c68bc54114))
 * **housekeeper:** add proof compressor retry and queued jobs reporting ([#2526](https://github.com/matter-labs/zksync-2-dev/issues/2526)) ([4321545](https://github.com/matter-labs/zksync-2-dev/commit/432154527dc85a17fc83c9e866b772a8d6f47673))
 * **metrics:** add more metrics to dry run ([#2529](https://github.com/matter-labs/zksync-2-dev/issues/2529)) ([0abdbb8](https://github.com/matter-labs/zksync-2-dev/commit/0abdbb8bd3229d2907f1f82493b2cf8e7a6a3254))
-* **vm:** New vm intregration ([#2198](https://github.com/matter-labs/zksync-2-dev/issues/2198)) ([f5e7e7a](https://github.com/matter-labs/zksync-2-dev/commit/f5e7e7a6fa81ab46289016f57a6123ffec83bcf6))
+* **vm:** New vm integration ([#2198](https://github.com/matter-labs/zksync-2-dev/issues/2198)) ([f5e7e7a](https://github.com/matter-labs/zksync-2-dev/commit/f5e7e7a6fa81ab46289016f57a6123ffec83bcf6))
 
 ### Bug Fixes
 
@@ -1133,7 +1133,7 @@
 
 ### Features
 
-* **house-keeeper:** emit FRI prover jobs stats ([#2152](https://github.com/matter-labs/zksync-2-dev/issues/2152)) ([1fa413b](https://github.com/matter-labs/zksync-2-dev/commit/1fa413b656f967437008996084c2429b78e08c97))
+* **house-keeper:** emit FRI prover jobs stats ([#2152](https://github.com/matter-labs/zksync-2-dev/issues/2152)) ([1fa413b](https://github.com/matter-labs/zksync-2-dev/commit/1fa413b656f967437008996084c2429b78e08c97))
 * **witness-gen-fri:** Save aux_output_witness in public GCS bucket ([#2160](https://github.com/matter-labs/zksync-2-dev/issues/2160)) ([848e8de](https://github.com/matter-labs/zksync-2-dev/commit/848e8ded0ca1806f6404f3bfeaabdf19b5a3c840))
 
 ## [5.17.0](https://github.com/matter-labs/zksync-2-dev/compare/v5.16.1...v5.17.0) (2023-07-11)
@@ -1223,7 +1223,7 @@
 
 ### Bug Fixes
 
-* **api:** Gracefull shutdown web3 api ([#2075](https://github.com/matter-labs/zksync-2-dev/issues/2075)) ([bd45e57](https://github.com/matter-labs/zksync-2-dev/commit/bd45e574d11e137924e4be5ecc6ae10a5d0f465b))
+* **api:** Graceful shutdown web3 api ([#2075](https://github.com/matter-labs/zksync-2-dev/issues/2075)) ([bd45e57](https://github.com/matter-labs/zksync-2-dev/commit/bd45e574d11e137924e4be5ecc6ae10a5d0f465b))
 * **external node:** Remove SK config from EN's TxSender ([#2093](https://github.com/matter-labs/zksync-2-dev/issues/2093)) ([aa04eaf](https://github.com/matter-labs/zksync-2-dev/commit/aa04eaf0f3b795b32dc1d6e25725a8ac7257ef99))
 * **witness-gen:** update harness to fix FRI node agg witness-gen error ([#2104](https://github.com/matter-labs/zksync-2-dev/issues/2104)) ([eb68c5a](https://github.com/matter-labs/zksync-2-dev/commit/eb68c5a47d4674aa43edfafca161526c64bd912a))
 
