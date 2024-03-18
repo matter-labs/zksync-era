@@ -11,6 +11,7 @@ use zksync_types::fee_model::FeeModelConfig;
 use crate::{
     implementations::resources::{
         eth_interface::EthInterfaceResource, fee_input::FeeInputResource,
+        l1_tx_params::L1TxParamsResource,
     },
     service::{ServiceContext, StopReceiver},
     task::Task,
@@ -18,13 +19,13 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub struct SequencerFeeInputLayer {
+pub struct SequencerL1GasLayer {
     gas_adjuster_config: GasAdjusterConfig,
     state_keeper_config: StateKeeperConfig,
     pubdata_sending_mode: PubdataSendingMode,
 }
 
-impl SequencerFeeInputLayer {
+impl SequencerL1GasLayer {
     pub fn new(
         gas_adjuster_config: GasAdjusterConfig,
         state_keeper_config: StateKeeperConfig,
@@ -39,9 +40,9 @@ impl SequencerFeeInputLayer {
 }
 
 #[async_trait::async_trait]
-impl WiringLayer for SequencerFeeInputLayer {
+impl WiringLayer for SequencerL1GasLayer {
     fn layer_name(&self) -> &'static str {
-        "sequencer_fee_input_layer"
+        "sequencer_l1_gas_layer"
     }
 
     async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
@@ -57,6 +58,8 @@ impl WiringLayer for SequencerFeeInputLayer {
             FeeModelConfig::from_state_keeper_config(&self.state_keeper_config),
         ));
         context.insert_resource(FeeInputResource(batch_fee_input_provider))?;
+
+        context.insert_resource(L1TxParamsResource(gas_adjuster.clone()))?;
 
         context.add_task(Box::new(GasAdjusterTask { gas_adjuster }));
         Ok(())
