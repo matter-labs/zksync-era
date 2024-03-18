@@ -1,5 +1,5 @@
 use anyhow::Context as _;
-use zksync_types::{api::en::SyncBlock, tokens::TokenInfo, MiniblockNumber};
+use zksync_types::{api::en, tokens::TokenInfo, MiniblockNumber};
 use zksync_web3_decl::error::Web3Error;
 
 use crate::api_server::web3::{backend_jsonrpsee::MethodTracer, state::RpcState};
@@ -16,6 +16,23 @@ impl EnNamespace {
         Self { state }
     }
 
+    pub async fn consensus_genesis_impl(&self) -> Result<Option<en::ConsensusGenesis>, Web3Error> {
+        let Some(genesis) = self
+            .state
+            .connection_pool
+            .access_storage_tagged("api")
+            .await?
+            .consensus_dal()
+            .genesis()
+            .await?
+        else {
+            return Ok(None);
+        };
+        Ok(Some(en::ConsensusGenesis(
+            zksync_protobuf::serde::serialize(&genesis, serde_json::value::Serializer).unwrap(),
+        )))
+    }
+
     pub(crate) fn current_method(&self) -> &MethodTracer {
         &self.state.current_method
     }
@@ -25,7 +42,7 @@ impl EnNamespace {
         &self,
         block_number: MiniblockNumber,
         include_transactions: bool,
-    ) -> Result<Option<SyncBlock>, Web3Error> {
+    ) -> Result<Option<en::SyncBlock>, Web3Error> {
         let mut storage = self
             .state
             .connection_pool

@@ -1,13 +1,18 @@
 #![allow(clippy::upper_case_acronyms, clippy::derive_partial_eq_without_eq)]
 
-use std::{net::Ipv4Addr, str::FromStr, sync::Arc, time::Instant};
+use std::{
+    net::Ipv4Addr,
+    str::FromStr,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use anyhow::Context as _;
 use api_server::tx_sender::master_pool_sink::MasterPoolSink;
 use fee_model::{ApiFeeInputProvider, BatchFeeModelInputProvider, MainNodeFeeInputProvider};
 use futures::channel::oneshot;
 use prometheus_exporter::PrometheusExporterConfig;
-use temp_config_store::TempConfigStore;
+use temp_config_store::{Secrets, TempConfigStore};
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_circuit_breaker::{
     l1_txs::FailedL1TransactionChecker, replication_lag::ReplicationLagChecker, CircuitBreaker,
@@ -49,9 +54,9 @@ use crate::{
         contract_verification,
         execution_sandbox::{VmConcurrencyBarrier, VmConcurrencyLimiter},
         healthcheck::HealthCheckHandle,
+        tree::TreeApiHttpClient,
         tx_sender::{ApiContracts, TxSender, TxSenderBuilder, TxSenderConfig},
-        web3,
-        web3::{state::InternalApiConfig, ApiServerHandles, Namespace},
+        web3::{self, state::InternalApiConfig, Namespace},
     },
     basic_witness_input_producer::BasicWitnessInputProducer,
     commitment_generator::CommitmentGenerator,
@@ -93,6 +98,7 @@ pub mod l1_gas_price;
 pub mod metadata_calculator;
 mod metrics;
 pub mod proof_data_handler;
+pub mod proto;
 pub mod reorg_detector;
 pub mod state_keeper;
 pub mod sync_layer;
@@ -173,7 +179,6 @@ pub async fn genesis_init(
             protocol_version: ProtocolVersionId::latest(),
             base_system_contracts: BaseSystemContracts::load_from_disk(),
             system_contracts: get_system_smart_contracts(),
-            first_verifier_address: contracts_config.verifier_addr,
             first_l1_verifier_config,
         },
     )
@@ -297,6 +302,7 @@ impl FromStr for Components {
 pub async fn initialize_components(
     configs: &TempConfigStore,
     components: Vec<Component>,
+    secrets: &Secrets,
 ) -> anyhow::Result<(
     Vec<JoinHandle<anyhow::Result<()>>>,
     watch::Sender<bool>,
@@ -443,7 +449,9 @@ pub async fn initialize_components(
                 bounded_gas_adjuster,
                 FeeModelConfig::from_state_keeper_config(&state_keeper_config),
             ));
-            let server_handles = run_http_api(
+            run_http_api(
+                &mut task_futures,
+                &app_health,
                 &postgres_config,
                 &tx_sender_config,
                 &state_keeper_config,
@@ -459,8 +467,6 @@ pub async fn initialize_components(
             .await
             .context("run_http_api")?;
 
-            task_futures.extend(server_handles.tasks);
-            app_health.insert_component(server_handles.health_check);
             let elapsed = started_at.elapsed();
             APP_METRICS.init_latency[&InitStage::HttpApi].set(elapsed);
             tracing::info!(
@@ -486,7 +492,9 @@ pub async fn initialize_components(
                 bounded_gas_adjuster,
                 FeeModelConfig::from_state_keeper_config(&state_keeper_config),
             ));
-            let server_handles = run_ws_api(
+            run_ws_api(
+                &mut task_futures,
+                &app_health,
                 &postgres_config,
                 &tx_sender_config,
                 &state_keeper_config,
@@ -501,8 +509,6 @@ pub async fn initialize_components(
             .await
             .context("run_ws_api")?;
 
-            task_futures.extend(server_handles.tasks);
-            app_health.insert_component(server_handles.health_check);
             let elapsed = started_at.elapsed();
             APP_METRICS.init_latency[&InitStage::WsApi].set(elapsed);
             tracing::info!(
@@ -570,8 +576,14 @@ pub async fn initialize_components(
     if components.contains(&Component::Consensus) {
         let cfg = configs
             .consensus_config
-            .clone()
-            .context("consensus component's config is missing")?;
+            .as_ref()
+            .context("consensus component's config is missing")?
+            .main_node(
+                secrets
+                    .consensus
+                    .as_ref()
+                    .context("consensus secrets are missing")?,
+            )?;
         let started_at = Instant::now();
         tracing::info!("initializing Consensus");
         let pool = connection_pool.clone();
@@ -582,7 +594,7 @@ pub async fn initialize_components(
                     // Consensus is a new component.
                     // For now in case of error we just log it and allow the server
                     // to continue running.
-                    if let Err(err) = cfg.run(ctx, pool).await {
+                    if let Err(err) = cfg.run(ctx, consensus::Store(pool)).await {
                         tracing::error!(%err, "Consensus actor failed");
                     } else {
                         tracing::info!("Consensus actor stopped");
@@ -650,6 +662,7 @@ pub async fn initialize_components(
                 .map(|k| k.sender_account());
 
         let eth_tx_aggregator_actor = EthTxAggregator::new(
+            eth_sender_pool,
             eth_sender.sender.clone(),
             Aggregator::new(
                 eth_sender.sender.clone(),
@@ -670,7 +683,7 @@ pub async fn initialize_components(
         )
         .await;
         task_futures.push(tokio::spawn(
-            eth_tx_aggregator_actor.run(eth_sender_pool, stop_receiver.clone()),
+            eth_tx_aggregator_actor.run(stop_receiver.clone()),
         ));
         let elapsed = started_at.elapsed();
         APP_METRICS.init_latency[&InitStage::EthTxAggregator].set(elapsed);
@@ -693,6 +706,7 @@ pub async fn initialize_components(
         let eth_client_blobs =
             PKSigningClient::from_config_blobs(&eth_sender, &contracts_config, &eth_client_config);
         let eth_tx_manager_actor = EthTxManager::new(
+            eth_manager_pool,
             eth_sender.sender,
             gas_adjuster
                 .get_or_init()
@@ -702,7 +716,7 @@ pub async fn initialize_components(
             eth_client_blobs.map(|c| Arc::new(c) as Arc<dyn BoundEthInterface>),
         );
         task_futures.extend([tokio::spawn(
-            eth_tx_manager_actor.run(eth_manager_pool, stop_receiver.clone()),
+            eth_tx_manager_actor.run(stop_receiver.clone()),
         )]);
         let elapsed = started_at.elapsed();
         APP_METRICS.init_latency[&InitStage::EthTxManager].set(elapsed);
@@ -935,6 +949,7 @@ async fn run_tree(
         let stop_receiver = stop_receiver.clone();
         task_futures.push(tokio::spawn(async move {
             tree_reader
+                .wait()
                 .await
                 .run_api_server(address, stop_receiver)
                 .await
@@ -998,6 +1013,15 @@ async fn add_house_keeper_to_task_futures(
     .build()
     .await
     .context("failed to build a connection pool")?;
+
+    let pool_for_metrics = connection_pool.clone();
+    task_futures.push(tokio::spawn(async move {
+        pool_for_metrics
+            .run_postgres_metrics_scraping(Duration::from_secs(60))
+            .await;
+        Ok(())
+    }));
+
     let l1_batch_metrics_reporter = L1BatchMetricsReporter::new(
         house_keeper_config.l1_batch_metrics_reporting_interval_ms,
         connection_pool.clone(),
@@ -1150,6 +1174,8 @@ async fn build_tx_sender(
 
 #[allow(clippy::too_many_arguments)]
 async fn run_http_api(
+    task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
+    app_health: &AppHealthCheck,
     postgres_config: &PostgresConfig,
     tx_sender_config: &TxSenderConfig,
     state_keeper_config: &StateKeeperConfig,
@@ -1161,7 +1187,7 @@ async fn run_http_api(
     batch_fee_model_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     with_debug_namespace: bool,
     storage_caches: PostgresStorageCaches,
-) -> anyhow::Result<ApiServerHandles> {
+) -> anyhow::Result<()> {
     let (tx_sender, vm_barrier) = build_tx_sender(
         tx_sender_config,
         &api_config.web3_json_rpc,
@@ -1184,26 +1210,36 @@ async fn run_http_api(
         .await
         .context("failed to build last_miniblock_pool")?;
 
-    let api_builder =
+    let mut api_builder =
         web3::ApiBuilder::jsonrpsee_backend(internal_api.clone(), replica_connection_pool)
             .http(api_config.web3_json_rpc.http_port)
             .with_updaters_pool(updaters_pool)
             .with_filter_limit(api_config.web3_json_rpc.filters_limit())
-            .with_tree_api(api_config.web3_json_rpc.tree_api_url())
             .with_batch_request_size_limit(api_config.web3_json_rpc.max_batch_request_size())
             .with_response_body_size_limit(api_config.web3_json_rpc.max_response_body_size())
             .with_tx_sender(tx_sender)
             .with_vm_barrier(vm_barrier)
             .enable_api_namespaces(namespaces);
-    api_builder
+    if let Some(tree_api_url) = api_config.web3_json_rpc.tree_api_url() {
+        let tree_api = Arc::new(TreeApiHttpClient::new(tree_api_url));
+        api_builder = api_builder.with_tree_api(tree_api.clone());
+        app_health.insert_custom_component(tree_api);
+    }
+
+    let server_handles = api_builder
         .build()
         .context("failed to build HTTP API server")?
         .run(stop_receiver)
-        .await
+        .await?;
+    task_futures.extend(server_handles.tasks);
+    app_health.insert_component(server_handles.health_check);
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
 async fn run_ws_api(
+    task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
+    app_health: &AppHealthCheck,
     postgres_config: &PostgresConfig,
     tx_sender_config: &TxSenderConfig,
     state_keeper_config: &StateKeeperConfig,
@@ -1214,7 +1250,7 @@ async fn run_ws_api(
     replica_connection_pool: ConnectionPool,
     stop_receiver: watch::Receiver<bool>,
     storage_caches: PostgresStorageCaches,
-) -> anyhow::Result<ApiServerHandles> {
+) -> anyhow::Result<()> {
     let (tx_sender, vm_barrier) = build_tx_sender(
         tx_sender_config,
         &api_config.web3_json_rpc,
@@ -1233,7 +1269,7 @@ async fn run_ws_api(
     let mut namespaces = Namespace::DEFAULT.to_vec();
     namespaces.push(Namespace::Snapshots);
 
-    let api_builder =
+    let mut api_builder =
         web3::ApiBuilder::jsonrpsee_backend(internal_api.clone(), replica_connection_pool)
             .ws(api_config.web3_json_rpc.ws_port)
             .with_updaters_pool(last_miniblock_pool)
@@ -1247,16 +1283,23 @@ async fn run_ws_api(
                     .websocket_requests_per_minute_limit(),
             )
             .with_polling_interval(api_config.web3_json_rpc.pubsub_interval())
-            .with_tree_api(api_config.web3_json_rpc.tree_api_url())
             .with_tx_sender(tx_sender)
             .with_vm_barrier(vm_barrier)
             .enable_api_namespaces(namespaces);
+    if let Some(tree_api_url) = api_config.web3_json_rpc.tree_api_url() {
+        let tree_api = Arc::new(TreeApiHttpClient::new(tree_api_url));
+        api_builder = api_builder.with_tree_api(tree_api.clone());
+        app_health.insert_custom_component(tree_api);
+    }
 
-    api_builder
+    let server_handles = api_builder
         .build()
         .context("failed to build WS API server")?
         .run(stop_receiver)
-        .await
+        .await?;
+    task_futures.extend(server_handles.tasks);
+    app_health.insert_component(server_handles.health_check);
+    Ok(())
 }
 
 async fn circuit_breakers_for_components(

@@ -19,6 +19,7 @@ zksync_types = { path = "../types" }
 zksync_dal = { path = "../dal" }
 zksync_config = { path = "../config" }
 zksync_env_config = { path = "../env_config" }
+zksync_protobuf_config = { path = "../protobuf_config" }
 zksync_utils = { path = "../utils" }
 zksync_contracts = { path = "../contracts" }
 zksync_system_constants = { path = "../../lib/constants" }
@@ -45,18 +46,20 @@ vlog = { path = "../vlog" }
 multivm = { path = "../multivm" }
 
 # Consensus dependenices
-zksync_concurrency = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "97d139969476a004c50f8b4a31ece748e5bee14e" }
-zksync_consensus_crypto = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "97d139969476a004c50f8b4a31ece748e5bee14e" }
-zksync_consensus_roles = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "97d139969476a004c50f8b4a31ece748e5bee14e" }
-zksync_consensus_storage = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "97d139969476a004c50f8b4a31ece748e5bee14e" }
-zksync_consensus_executor = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "97d139969476a004c50f8b4a31ece748e5bee14e" }
-zksync_consensus_bft = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "97d139969476a004c50f8b4a31ece748e5bee14e" }
-zksync_consensus_utils = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "97d139969476a004c50f8b4a31ece748e5bee14e" }
-zksync_protobuf = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "97d139969476a004c50f8b4a31ece748e5bee14e" }
+zksync_concurrency = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "842d4fd79f1d7dae946b6873ded7ad391d554814" }
+zksync_consensus_crypto = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "842d4fd79f1d7dae946b6873ded7ad391d554814" }
+zksync_consensus_network = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "842d4fd79f1d7dae946b6873ded7ad391d554814" }
+zksync_consensus_roles = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "842d4fd79f1d7dae946b6873ded7ad391d554814" }
+zksync_consensus_storage = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "842d4fd79f1d7dae946b6873ded7ad391d554814" }
+zksync_consensus_executor = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "842d4fd79f1d7dae946b6873ded7ad391d554814" }
+zksync_consensus_bft = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "842d4fd79f1d7dae946b6873ded7ad391d554814" }
+zksync_consensus_utils = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "842d4fd79f1d7dae946b6873ded7ad391d554814" }
+zksync_protobuf = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "842d4fd79f1d7dae946b6873ded7ad391d554814" }
 
 prost = "0.12.1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+serde_yaml = "0.9"
 itertools = "0.10.3"
 metrics = "0.21"
 ctrlc = { version = "3.1", features = ["termination"] }
@@ -100,4 +103,4 @@ tempfile = "3.0.2"
 test-casing = "0.1.2"
 
 [build-dependencies]
-zksync_protobuf_build = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "97d139969476a004c50f8b4a31ece748e5bee14e" }
+zksync_protobuf_build = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "842d4fd79f1d7dae946b6873ded7ad391d554814" }

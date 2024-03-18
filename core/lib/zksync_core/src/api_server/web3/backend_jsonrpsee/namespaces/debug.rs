@@ -1,5 +1,6 @@
 use zksync_types::{
     api::{BlockId, BlockNumber, DebugCall, ResultDebugCall, TracerConfig},
+    debug_flat_call::DebugCallFlat,
     transaction_request::CallRequest,
     H256,
 };
@@ -18,6 +19,16 @@ impl DebugNamespaceServer for DebugNamespace {
         options: Option<TracerConfig>,
     ) -> RpcResult<Vec<ResultDebugCall>> {
         self.debug_trace_block_impl(BlockId::Number(block), options)
+            .await
+            .map_err(|err| self.current_method().map_err(err))
+    }
+
+    async fn trace_block_by_number_flat(
+        &self,
+        block: BlockNumber,
+        options: Option<TracerConfig>,
+    ) -> RpcResult<Vec<DebugCallFlat>> {
+        self.debug_trace_block_flat_impl(BlockId::Number(block), options)
             .await
             .map_err(|err| self.current_method().map_err(err))
     }

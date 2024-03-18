@@ -6,7 +6,10 @@ use anyhow::Context;
 use zksync_config::{
     configs::{
         chain::{MempoolConfig, NetworkConfig, OperationsManagerConfig, StateKeeperConfig},
-        ObservabilityConfig, ProofDataHandlerConfig,
+        fri_prover_group::FriProverGroupConfig,
+        house_keeper::HouseKeeperConfig,
+        FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig, ObservabilityConfig,
+        ProofDataHandlerConfig,
     },
     ApiConfig, ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig, ETHWatchConfig,
     GasAdjusterConfig, ObjectStoreConfig, PostgresConfig,
@@ -21,9 +24,12 @@ use zksync_core::{
 use zksync_env_config::FromEnv;
 use zksync_node_framework::{
     implementations::layers::{
+        commitment_generator::CommitmentGeneratorLayer,
+        eth_sender::EthSenderLayer,
         eth_watch::EthWatchLayer,
-        fee_input::SequencerFeeInputLayer,
         healtcheck_server::HealthCheckLayer,
+        house_keeper::HouseKeeperLayer,
+        l1_gas::SequencerL1GasLayer,
         metadata_calculator::MetadataCalculatorLayer,
         object_store::ObjectStoreLayer,
         pools_layer::PoolsLayerBuilder,
@@ -35,6 +41,7 @@ use zksync_node_framework::{
         },
         web3_api::{
             server::{Web3ServerLayer, Web3ServerOptionalConfig},
+            tree_api_client::TreeApiClientLayer,
             tx_sender::{PostgresStorageCachesConfig, TxSenderLayer},
             tx_sink::TxSinkLayer,
         },
@@ -71,16 +78,16 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
-    fn add_fee_input_layer(mut self) -> anyhow::Result<Self> {
+    fn add_sequencer_l1_gas_layer(mut self) -> anyhow::Result<Self> {
         let gas_adjuster_config = GasAdjusterConfig::from_env()?;
         let state_keeper_config = StateKeeperConfig::from_env()?;
         let eth_sender_config = ETHSenderConfig::from_env()?;
-        let fee_input_layer = SequencerFeeInputLayer::new(
+        let sequencer_l1_gas_layer = SequencerL1GasLayer::new(
             gas_adjuster_config,
             state_keeper_config,
             eth_sender_config.sender.pubdata_sending_mode,
         );
-        self.node.add_layer(fee_input_layer);
+        self.node.add_layer(sequencer_l1_gas_layer);
         Ok(self)
     }
 
@@ -167,6 +174,13 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
+    fn add_tree_api_client_layer(mut self) -> anyhow::Result<Self> {
+        let rpc_config = ApiConfig::from_env()?.web3_json_rpc;
+        self.node
+            .add_layer(TreeApiClientLayer::http(rpc_config.tree_api_url));
+        Ok(self)
+    }
+
     fn add_http_web3_api_layer(mut self) -> anyhow::Result<Self> {
         let rpc_config = ApiConfig::from_env()?.web3_json_rpc;
         let contracts_config = ContractsConfig::from_env()?;
@@ -186,7 +200,6 @@ impl MainNodeBuilder {
             subscriptions_limit: Some(rpc_config.subscriptions_limit()),
             batch_request_size_limit: Some(rpc_config.max_batch_request_size()),
             response_body_size_limit: Some(rpc_config.max_response_body_size()),
-            tree_api_url: rpc_config.tree_api_url(),
             ..Default::default()
         };
         self.node.add_layer(Web3ServerLayer::http(
@@ -220,13 +233,51 @@ impl MainNodeBuilder {
             websocket_requests_per_minute_limit: Some(
                 rpc_config.websocket_requests_per_minute_limit(),
             ),
-            tree_api_url: rpc_config.tree_api_url(),
         };
         self.node.add_layer(Web3ServerLayer::ws(
             rpc_config.ws_port,
             InternalApiConfig::new(&network_config, &rpc_config, &contracts_config),
             optional_config,
         ));
+
+        Ok(self)
+    }
+    fn add_eth_sender_layer(mut self) -> anyhow::Result<Self> {
+        let eth_sender_config = ETHSenderConfig::from_env()?;
+        let contracts_config = ContractsConfig::from_env()?;
+        let eth_client_config = ETHClientConfig::from_env()?;
+        let network_config = NetworkConfig::from_env()?;
+
+        self.node.add_layer(EthSenderLayer::new(
+            eth_sender_config,
+            contracts_config,
+            eth_client_config,
+            network_config,
+        ));
+
+        Ok(self)
+    }
+
+    fn add_house_keeper_layer(mut self) -> anyhow::Result<Self> {
+        let house_keeper_config = HouseKeeperConfig::from_env()?;
+        let fri_prover_config = FriProverConfig::from_env()?;
+        let fri_witness_generator_config = FriWitnessGeneratorConfig::from_env()?;
+        let fri_prover_group_config = FriProverGroupConfig::from_env()?;
+        let fri_proof_compressor_config = FriProofCompressorConfig::from_env()?;
+
+        self.node.add_layer(HouseKeeperLayer::new(
+            house_keeper_config,
+            fri_prover_config,
+            fri_witness_generator_config,
+            fri_prover_group_config,
+            fri_proof_compressor_config,
+        ));
+
+        Ok(self)
+    }
+
+    fn add_commitment_generator_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(CommitmentGeneratorLayer);
 
         Ok(self)
     }
@@ -250,16 +301,20 @@ fn main() -> anyhow::Result<()> {
     MainNodeBuilder::new()
         .add_pools_layer()?
         .add_query_eth_client_layer()?
-        .add_fee_input_layer()?
+        .add_sequencer_l1_gas_layer()?
         .add_object_store_layer()?
         .add_metadata_calculator_layer()?
         .add_state_keeper_layer()?
         .add_eth_watch_layer()?
+        .add_eth_sender_layer()?
         .add_proof_data_handler_layer()?
         .add_healthcheck_layer()?
         .add_tx_sender_layer()?
+        .add_tree_api_client_layer()?
         .add_http_web3_api_layer()?
         .add_ws_web3_api_layer()?
+        .add_house_keeper_layer()?
+        .add_commitment_generator_layer()?
         .build()
         .run()?;
 
