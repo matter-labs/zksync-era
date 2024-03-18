@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use anyhow::Context;
 use multivm::interface::{L1BatchEnv, SystemEnv};
-use zksync_dal::StorageProcessor;
+use zksync_dal::{Server, ServerDals, StorageProcessor};
 use zksync_types::{L1BatchNumber, MiniblockNumber, H256};
 
 use super::PendingBatchData;

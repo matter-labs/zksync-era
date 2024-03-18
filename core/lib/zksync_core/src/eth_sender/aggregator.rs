@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use zksync_config::configs::eth_sender::{ProofLoadingMode, ProofSendingMode, SenderConfig};
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_dal::StorageProcessor;
+use zksync_dal::{Server, ServerDals, StorageProcessor};
 use zksync_l1_contract_interface::i_executor::methods::{
     CommitBatches, ExecuteBatches, ProveBatches,
 };

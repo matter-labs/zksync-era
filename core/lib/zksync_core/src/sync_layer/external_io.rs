@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use multivm::interface::{FinishedL1Batch, L1BatchEnv, SystemEnv};
 use vm_utils::storage::{l1_batch_params, L1BatchParamsProvider};
 use zksync_contracts::{BaseSystemContracts, SystemContractCode};
-use zksync_dal::{ConnectionPool, Server};
+use zksync_dal::{ConnectionPool, Server, ServerDals};
 use zksync_types::{
     ethabi::Address, fee_model::BatchFeeInput, protocol_version::ProtocolUpgradeTx,
     witness_block_state::WitnessBlockState, L1BatchNumber, L2ChainId, MiniblockNumber,

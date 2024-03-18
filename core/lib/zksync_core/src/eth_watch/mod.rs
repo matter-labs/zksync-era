@@ -8,7 +8,7 @@ use std::{sync::Arc, time::Duration};
 
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::ETHWatchConfig;
-use zksync_dal::{ConnectionPool, Server, StorageProcessor};
+use zksync_dal::{ConnectionPool, Server, ServerDals, StorageProcessor};
 use zksync_eth_client::EthInterface;
 use zksync_system_constants::PRIORITY_EXPIRATION;
 use zksync_types::{

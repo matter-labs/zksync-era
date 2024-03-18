@@ -3,7 +3,7 @@ use std::time::Duration;
 use futures::FutureExt;
 use multivm::utils::derive_base_fee_and_gas_per_pubdata;
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_dal::{ConnectionPool, Server};
+use zksync_dal::{ConnectionPool, Server, ServerDals};
 use zksync_mempool::L2TxFilter;
 use zksync_types::{
     block::{BlockGasCount, MiniblockHasher},

@@ -7,7 +7,7 @@ use multivm::{
     VmInstance,
 };
 use tokio::runtime::Handle;
-use zksync_dal::StorageProcessor;
+use zksync_dal::{Server, StorageProcessor};
 use zksync_state::{PostgresStorage, StoragePtr, StorageView, WriteStorage};
 use zksync_types::{L1BatchNumber, L2ChainId, Transaction};
 

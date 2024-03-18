@@ -5,7 +5,7 @@ use serde::Serialize;
 use tokio::time::sleep;
 use zksync_config::{ContractsConfig, ETHSenderConfig};
 use zksync_contracts::zksync_contract;
-use zksync_dal::{ConnectionPool, Server, StorageProcessor};
+use zksync_dal::{ConnectionPool, Server, ServerDals};
 use zksync_eth_signer::{EthereumSigner, PrivateKeySigner, TransactionParameters};
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_state::RocksdbStorage;

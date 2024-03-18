@@ -34,7 +34,7 @@ use anyhow::Context as _;
 use async_trait::async_trait;
 use futures::future;
 use tokio::sync::{watch, Mutex, Semaphore};
-use zksync_dal::{ConnectionPool, Server, StorageProcessor};
+use zksync_dal::{ConnectionPool, Server, ServerDals, StorageProcessor};
 use zksync_health_check::HealthUpdater;
 use zksync_merkle_tree::TreeEntry;
 use zksync_types::{

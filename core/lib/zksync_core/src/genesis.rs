@@ -9,7 +9,7 @@ use multivm::{
     zk_evm_latest::aux_structures::{LogQuery as MultiVmLogQuery, Timestamp as MultiVMTimestamp},
 };
 use zksync_contracts::{BaseSystemContracts, SET_CHAIN_ID_EVENT};
-use zksync_dal::StorageProcessor;
+use zksync_dal::{Server, ServerDals, StorageProcessor};
 use zksync_eth_client::{clients::QueryClient, EthInterface};
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_system_constants::PRIORITY_EXPIRATION;
@@ -455,7 +455,7 @@ pub(crate) async fn save_set_chain_id_tx(
 
 #[cfg(test)]
 mod tests {
-    use zksync_dal::{ConnectionPool, Server};
+    use zksync_dal::{ConnectionPool, Server, ServerDals};
     use zksync_types::system_contracts::get_system_smart_contracts;
 
     use super::*;

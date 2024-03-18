@@ -8,7 +8,7 @@ use std::{
 use assert_matches::assert_matches;
 use test_casing::{test_casing, Product};
 use tokio::sync::mpsc;
-use zksync_dal::StorageProcessor;
+use zksync_dal::{ServerDals, StorageProcessor};
 use zksync_types::{
     block::{MiniblockHasher, MiniblockHeader},
     L2ChainId, ProtocolVersion,

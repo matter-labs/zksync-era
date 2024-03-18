@@ -1,6 +1,6 @@
 use std::{fmt, sync::Arc};
 
-use zksync_dal::{ConnectionPool, Server};
+use zksync_dal::{ConnectionPool, Server, ServerDals};
 use zksync_types::{
     fee_model::{
         BatchFeeInput, FeeModelConfig, FeeModelConfigV2, FeeParams, FeeParamsV1, FeeParamsV2,

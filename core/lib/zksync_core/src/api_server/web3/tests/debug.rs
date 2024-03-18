@@ -97,7 +97,7 @@ struct TraceBlockFlatTest(MiniblockNumber);
 
 #[async_trait]
 impl HttpTest for TraceBlockFlatTest {
-    async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
+    async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Server>) -> anyhow::Result<()> {
         let tx_results = [0, 1, 2].map(execute_l2_transaction_with_traces);
         let mut storage = pool.access_storage().await?;
         let _new_miniblock = store_miniblock(&mut storage, self.0, &tx_results).await?;

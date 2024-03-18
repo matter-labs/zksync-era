@@ -1,4 +1,4 @@
-use zksync_dal::{ConnectionPool, Server};
+use zksync_dal::{ConnectionPool, Server, ServerDals};
 
 use crate::{CircuitBreaker, CircuitBreakerError};
 

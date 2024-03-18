@@ -11,7 +11,7 @@ use multivm::{
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig};
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{
-    transactions_dal::L2TxSubmissionResult, ConnectionPool, Server, StorageProcessor,
+    transactions_dal::L2TxSubmissionResult, ConnectionPool, Server, ServerDals, StorageProcessor,
 };
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{

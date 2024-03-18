@@ -9,7 +9,7 @@ use axum::{
 use zksync_config::configs::{
     proof_data_handler::ProtocolVersionLoadingMode, ProofDataHandlerConfig,
 };
-use zksync_dal::{ConnectionPool, Server, SqlxError};
+use zksync_dal::{ConnectionPool, Server, ServerDals, SqlxError};
 use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_prover_interface::api::{
     ProofGenerationData, ProofGenerationDataRequest, ProofGenerationDataResponse,

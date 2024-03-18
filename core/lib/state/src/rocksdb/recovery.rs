@@ -4,7 +4,7 @@ use std::ops;
 
 use anyhow::Context as _;
 use tokio::sync::watch;
-use zksync_dal::{storage_logs_dal::StorageRecoveryLogEntry, StorageProcessor};
+use zksync_dal::{storage_logs_dal::StorageRecoveryLogEntry, Server, ServerDals, StorageProcessor};
 use zksync_types::{
     snapshots::{uniform_hashed_keys_chunk, SnapshotRecoveryStatus},
     L1BatchNumber, MiniblockNumber, H256,

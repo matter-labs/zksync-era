@@ -4,7 +4,7 @@ use std::{
 };
 
 use multivm::interface::VmExecutionResultAndLogs;
-use zksync_dal::StorageProcessor;
+use zksync_dal::{Server, ServerDals, StorageProcessor};
 use zksync_mempool::{L2TxFilter, MempoolInfo, MempoolStore};
 use zksync_types::{
     block::BlockGasCount, tx::ExecutionMetrics, Address, Nonce, PriorityOpId, Transaction,

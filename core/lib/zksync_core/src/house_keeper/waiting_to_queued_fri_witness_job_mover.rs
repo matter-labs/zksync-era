@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use prover_dal::Prover;
+use prover_dal::{Prover, ProverDals};
 use zksync_dal::ConnectionPool;
 
 use crate::house_keeper::periodic_job::PeriodicJob;

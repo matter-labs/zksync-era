@@ -10,7 +10,7 @@ use std::{
 };
 
 use rand::{thread_rng, Rng};
-use zksync_dal::StorageProcessor;
+use zksync_dal::{ServerDals, StorageProcessor};
 use zksync_object_store::ObjectStore;
 use zksync_types::{
     block::{L1BatchHeader, MiniblockHeader},

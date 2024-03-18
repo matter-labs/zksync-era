@@ -7,7 +7,7 @@ use tokio::{
     task::JoinHandle,
     time::{interval, Duration},
 };
-use zksync_dal::{ConnectionPool, Server};
+use zksync_dal::{ConnectionPool, Server, ServerDals};
 use zksync_types::{MiniblockNumber, H128, H256};
 use zksync_web3_decl::{
     jsonrpsee::{

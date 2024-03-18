@@ -8,7 +8,7 @@ use multivm::{
     interface::{FinishedL1Batch, L1BatchEnv},
     utils::get_max_gas_per_pubdata_byte,
 };
-use zksync_dal::StorageProcessor;
+use zksync_dal::{Server, ServerDals, StorageProcessor};
 use zksync_types::{
     block::{unpack_block_info, L1BatchHeader, MiniblockHeader},
     event::{extract_added_tokens, extract_long_l2_to_l1_messages},

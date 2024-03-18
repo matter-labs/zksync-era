@@ -7,7 +7,7 @@ use multivm::{
     zk_evm_latest::ethereum_types::H256,
 };
 use zksync_contracts::BaseSystemContracts;
-use zksync_dal::StorageProcessor;
+use zksync_dal::{Server, ServerDals, StorageProcessor};
 use zksync_types::{
     block::MiniblockHeader, fee_model::BatchFeeInput, snapshots::SnapshotRecoveryStatus, Address,
     L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, ZKPORTER_IS_AVAILABLE,

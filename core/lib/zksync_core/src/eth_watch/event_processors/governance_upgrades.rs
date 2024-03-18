@@ -1,6 +1,6 @@
 use std::{convert::TryFrom, time::Instant};
 
-use zksync_dal::StorageProcessor;
+use zksync_dal::{Server, ServerDals, StorageProcessor};
 use zksync_types::{
     ethabi::Contract, protocol_version::GovernanceOperation, web3::types::Log, Address,
     ProtocolUpgrade, ProtocolVersionId, H256,

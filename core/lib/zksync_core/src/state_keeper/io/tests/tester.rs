@@ -8,7 +8,7 @@ use zksync_config::{
     GasAdjusterConfig,
 };
 use zksync_contracts::BaseSystemContracts;
-use zksync_dal::{ConnectionPool, Server};
+use zksync_dal::{ConnectionPool, Server, ServerDals};
 use zksync_eth_client::clients::MockEthereum;
 use zksync_object_store::ObjectStoreFactory;
 use zksync_types::{

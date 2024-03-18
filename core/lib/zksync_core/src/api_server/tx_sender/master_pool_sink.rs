@@ -1,4 +1,4 @@
-use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, Server};
+use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, Server, ServerDals};
 use zksync_types::{fee::TransactionExecutionMetrics, l2::L2Tx};
 
 use super::{tx_sink::TxSink, SubmitTxError};

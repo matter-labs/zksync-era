@@ -33,7 +33,7 @@ use zksync_config::{
     ApiConfig, ContractsConfig, DBConfig, ETHSenderConfig, PostgresConfig,
 };
 use zksync_contracts::{governance_contract, BaseSystemContracts};
-use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Server};
+use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Server, ServerDals};
 use zksync_db_connection::healthcheck::ConnectionPoolHealthCheck;
 use zksync_eth_client::{
     clients::{PKSigningClient, QueryClient},

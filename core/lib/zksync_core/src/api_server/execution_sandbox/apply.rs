@@ -16,7 +16,7 @@ use multivm::{
     VmInstance,
 };
 use tokio::runtime::Handle;
-use zksync_dal::{ConnectionPool, Server, StorageProcessor};
+use zksync_dal::{ConnectionPool, Server, ServerDals, StorageProcessor};
 use zksync_state::{PostgresStorage, ReadStorage, StoragePtr, StorageView, WriteStorage};
 use zksync_system_constants::{
     SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
@@ -51,7 +51,7 @@ struct Sandbox<'a> {
 
 impl<'a> Sandbox<'a> {
     async fn new(
-        mut connection: StorageProcessor<'a>,
+        mut connection: StorageProcessor<'a, Server>,
         shared_args: TxSharedArgs,
         execution_args: &'a TxExecutionArgs,
         block_args: BlockArgs,

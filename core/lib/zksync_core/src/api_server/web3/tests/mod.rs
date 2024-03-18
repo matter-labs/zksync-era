@@ -15,7 +15,9 @@ use zksync_config::configs::{
     chain::{NetworkConfig, StateKeeperConfig},
     ContractsConfig,
 };
-use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, StorageProcessor};
+use zksync_dal::{
+    transactions_dal::L2TxSubmissionResult, ConnectionPool, ServerDals, StorageProcessor,
+};
 use zksync_health_check::CheckHealth;
 use zksync_types::{
     api,

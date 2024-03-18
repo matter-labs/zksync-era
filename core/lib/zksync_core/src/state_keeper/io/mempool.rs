@@ -13,7 +13,7 @@ use multivm::{
 };
 use vm_utils::storage::{l1_batch_params, L1BatchParamsProvider};
 use zksync_config::configs::chain::StateKeeperConfig;
-use zksync_dal::{ConnectionPool, Server};
+use zksync_dal::{ConnectionPool, Server, ServerDals};
 use zksync_mempool::L2TxFilter;
 use zksync_object_store::ObjectStore;
 use zksync_types::{

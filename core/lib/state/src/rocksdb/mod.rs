@@ -30,7 +30,7 @@ use std::{
 use anyhow::Context as _;
 use itertools::{Either, Itertools};
 use tokio::sync::watch;
-use zksync_dal::StorageProcessor;
+use zksync_dal::{Server, ServerDals, StorageProcessor};
 use zksync_storage::{db::NamedColumnFamily, RocksDB};
 use zksync_types::{L1BatchNumber, StorageKey, StorageValue, H256, U256};
 use zksync_utils::{h256_to_u256, u256_to_h256};

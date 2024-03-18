@@ -3,7 +3,7 @@ use std::{convert::TryInto, sync::Arc};
 use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_dal::{ConnectionPool, Server, StorageProcessor};
+use zksync_dal::{ConnectionPool, Server, ServerDals, StorageProcessor};
 use zksync_eth_client::{BoundEthInterface, CallFunctionArgs};
 use zksync_l1_contract_interface::{
     i_executor::commit::kzg::{KzgInfo, ZK_SYNC_BYTES_PER_BLOB},
@@ -62,7 +62,7 @@ pub struct EthTxAggregator {
     /// transactions. The `Some` then contains the address of this custom operator
     /// address.
     custom_commit_sender_addr: Option<Address>,
-    pool: ConnectionPool,
+    pool: ConnectionPool<Server>,
 }
 
 struct TxData {
@@ -73,7 +73,7 @@ struct TxData {
 impl EthTxAggregator {
     #[allow(clippy::too_many_arguments)]
     pub async fn new(
-        pool: ConnectionPool,
+        pool: ConnectionPool<Server>,
         config: SenderConfig,
         aggregator: Aggregator,
         eth_client: Arc<dyn BoundEthInterface>,

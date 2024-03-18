@@ -1,5 +1,5 @@
 use anyhow::Context as _;
-use zksync_dal::StorageProcessor;
+use zksync_dal::{Server, ServerDals, StorageProcessor};
 use zksync_types::{
     api::en::SyncBlock, block::MiniblockHasher, helpers::unix_timestamp_ms, Address, L1BatchNumber,
     MiniblockNumber, ProtocolVersionId, H256,

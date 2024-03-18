@@ -6,7 +6,7 @@ use multivm::interface::{L2BlockEnv, VmInterface};
 use tokio::{runtime::Handle, task::JoinHandle};
 use vm_utils::{create_vm, execute_tx};
 use zksync_dal::{
-    basic_witness_input_producer_dal::JOB_MAX_ATTEMPT, ConnectionPool, Server, StorageProcessor,
+    basic_witness_input_producer_dal::JOB_MAX_ATTEMPT, ConnectionPool, Server, ServerDals,
 };
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_queued_job_processor::JobProcessor;

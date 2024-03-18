@@ -5,7 +5,7 @@ use zksync_concurrency::{ctx, error::Wrap as _, sync, time};
 use zksync_consensus_bft::PayloadManager;
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage::{PersistentBlockStore, ReplicaState, ReplicaStore};
-use zksync_dal::{consensus_dal::Payload, ConnectionPool, Server, StorageProcessor};
+use zksync_dal::{consensus_dal::Payload, ConnectionPool, Server, ServerDals, StorageProcessor};
 use zksync_types::MiniblockNumber;
 
 #[cfg(test)]
@@ -19,8 +19,8 @@ use crate::{
     },
 };
 
-/// Context-aware `zksync_dal::StorageProcessor` wrapper.
-pub(super) struct Connection<'a>(pub(super) zksync_dal::StorageProcessor<'a>);
+/// Context-aware `zksync_dal::StorageProcessor<Server>` wrapper.
+pub(super) struct Connection<'a>(pub(super) StorageProcessor<'a, Server>);
 
 impl<'a> Connection<'a> {
     /// Wrapper for `start_transaction()`.

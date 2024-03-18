@@ -1,6 +1,6 @@
 use std::convert::TryFrom;
 
-use zksync_dal::StorageProcessor;
+use zksync_dal::{Server, ServerDals, StorageProcessor};
 use zksync_types::{web3::types::Log, ProtocolUpgrade, ProtocolVersionId, H256};
 
 use crate::eth_watch::{

@@ -2,7 +2,7 @@
 
 use std::ops;
 
-use zksync_dal::StorageProcessor;
+use zksync_dal::{Server, ServerDals, StorageProcessor};
 use zksync_types::{
     block::{L1BatchHeader, MiniblockHeader},
     snapshots::SnapshotRecoveryStatus,

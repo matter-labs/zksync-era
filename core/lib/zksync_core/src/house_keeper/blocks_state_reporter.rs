@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use zksync_dal::{ConnectionPool, Server};
+use zksync_dal::{ConnectionPool, Server, ServerDals};
 use zksync_utils::time::seconds_since_epoch;
 
 use crate::{

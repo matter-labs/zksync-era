@@ -6,7 +6,7 @@ use std::{
 };
 
 use tokio::sync::{watch, RwLock};
-use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, Server};
+use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, Server, ServerDals};
 use zksync_types::{
     api::{BlockId, Transaction, TransactionDetails, TransactionId},
     fee::TransactionExecutionMetrics,

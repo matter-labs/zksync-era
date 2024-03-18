@@ -11,7 +11,7 @@ use tempfile::TempDir;
 use tokio::sync::watch;
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::{get_loadnext_contract, test_contracts::LoadnextContractExecutionParams};
-use zksync_dal::{ConnectionPool, Server};
+use zksync_dal::{ConnectionPool, Server, ServerDals};
 use zksync_test_account::{Account, DeployContractsTx, TxType};
 use zksync_types::{
     block::MiniblockHasher, ethabi::Token, fee::Fee, snapshots::SnapshotRecoveryStatus,

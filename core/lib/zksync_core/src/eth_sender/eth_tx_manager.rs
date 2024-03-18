@@ -3,7 +3,7 @@ use std::{sync::Arc, time::Duration};
 use anyhow::Context as _;
 use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
-use zksync_dal::{ConnectionPool, Server, StorageProcessor};
+use zksync_dal::{ConnectionPool, Server, ServerDals, StorageProcessor};
 use zksync_eth_client::{
     encode_blob_tx_with_sidecar, BoundEthInterface, Error, EthInterface, ExecutedTxStatus, Options,
     RawTransactionBytes, SignedCallResult,
@@ -58,12 +58,12 @@ pub struct EthTxManager {
     ethereum_gateway_blobs: Option<Arc<dyn BoundEthInterface>>,
     config: SenderConfig,
     gas_adjuster: Arc<dyn L1TxParamsProvider>,
-    pool: ConnectionPool,
+    pool: ConnectionPool<Server>,
 }
 
 impl EthTxManager {
     pub fn new(
-        pool: ConnectionPool,
+        pool: ConnectionPool<Server>,
         config: SenderConfig,
         gas_adjuster: Arc<dyn L1TxParamsProvider>,
         ethereum_gateway: Arc<dyn BoundEthInterface>,

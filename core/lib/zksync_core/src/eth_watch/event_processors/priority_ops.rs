@@ -1,7 +1,7 @@
 use std::convert::TryFrom;
 
 use zksync_contracts::zksync_contract;
-use zksync_dal::StorageProcessor;
+use zksync_dal::{Server, ServerDals, StorageProcessor};
 use zksync_types::{l1::L1Tx, web3::types::Log, PriorityOpId, H256};
 
 use crate::{
