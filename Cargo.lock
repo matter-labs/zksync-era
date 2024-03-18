@@ -8350,7 +8350,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "assert_matches",
- "async-trait",
  "rand 0.8.5",
  "serde",
  "serde_json",

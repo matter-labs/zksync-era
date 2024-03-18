@@ -15,11 +15,11 @@ use zksync_types::{
     get_code_key, Address, CONTRACT_DEPLOYER_ADDRESS, FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH,
 };
 
-use crate::{models::storage_verification_request::StorageVerificationRequest, ServerProcessor};
+use crate::{models::storage_verification_request::StorageVerificationRequest, Server};
 
 #[derive(Debug)]
 pub struct ContractVerificationDal<'a, 'c> {
-    pub(crate) storage: &'a mut ServerProcessor<'c>,
+    pub(crate) storage: &'a mut StorageProcessor<'c, Server>,
 }
 
 #[derive(Debug)]

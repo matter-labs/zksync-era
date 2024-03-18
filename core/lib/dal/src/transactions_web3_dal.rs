@@ -12,7 +12,7 @@ use crate::{
         StorageApiTransaction, StorageTransaction, StorageTransactionDetails,
         StorageTransactionReceipt,
     },
-    ServerProcessor, SqlxError,
+    Server, ServerDals, SqlxError,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -23,7 +23,7 @@ enum TransactionSelector<'a> {
 
 #[derive(Debug)]
 pub struct TransactionsWeb3Dal<'a, 'c> {
-    pub(crate) storage: &'a mut ServerProcessor<'c>,
+    pub(crate) storage: &'a mut StorageProcessor<'c, Server>,
 }
 
 impl TransactionsWeb3Dal<'_, '_> {
@@ -397,10 +397,10 @@ mod tests {
     use super::*;
     use crate::{
         tests::{create_miniblock_header, mock_execution_result, mock_l2_transaction},
-        ConnectionPool, Server,
+        ConnectionPool, Server, ServerDals,
     };
 
-    async fn prepare_transactions(conn: &mut ServerProcessor<'_>, txs: Vec<L2Tx>) {
+    async fn prepare_transactions(conn: &mut StorageProcessor<'_, Server>, txs: Vec<L2Tx>) {
         conn.blocks_dal()
             .delete_miniblocks(MiniblockNumber(0))
             .await

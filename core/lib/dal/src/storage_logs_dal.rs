@@ -10,11 +10,11 @@ use zksync_types::{
 };
 
 pub use crate::models::storage_log::{DbStorageLog, StorageRecoveryLogEntry};
-use crate::ServerProcessor;
+use crate::{Server, ServerDals};
 
 #[derive(Debug)]
 pub struct StorageLogsDal<'a, 'c> {
-    pub(crate) storage: &'a mut ServerProcessor<'c>,
+    pub(crate) storage: &'a mut StorageProcessor<'c, Server>,
 }
 
 impl StorageLogsDal<'_, '_> {
@@ -763,7 +763,11 @@ mod tests {
     use super::*;
     use crate::{tests::create_miniblock_header, ConnectionPool, Server};
 
-    async fn insert_miniblock(conn: &mut ServerProcessor<'_>, number: u32, logs: Vec<StorageLog>) {
+    async fn insert_miniblock(
+        conn: &mut StorageProcessor<'_, Server>,
+        number: u32,
+        logs: Vec<StorageLog>,
+    ) {
         let header = L1BatchHeader::new(
             L1BatchNumber(number),
             0,
@@ -839,7 +843,7 @@ mod tests {
     }
 
     async fn test_rollback(
-        conn: &mut ServerProcessor<'_>,
+        conn: &mut StorageProcessor<'_, Server>,
         key: StorageKey,
         second_key: StorageKey,
     ) {
@@ -1068,7 +1072,7 @@ mod tests {
         }
     }
 
-    async fn prepare_tree_entries(conn: &mut ServerProcessor<'_>, count: u8) -> Vec<H256> {
+    async fn prepare_tree_entries(conn: &mut StorageProcessor<'_, Server>, count: u8) -> Vec<H256> {
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;

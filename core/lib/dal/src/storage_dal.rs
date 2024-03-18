@@ -4,11 +4,11 @@ use itertools::Itertools;
 use zksync_db_connection::processor::StorageProcessor;
 use zksync_types::{StorageKey, StorageLog, StorageValue, H256};
 
-use crate::ServerProcessor;
+use crate::Server;
 
 #[derive(Debug)]
 pub struct StorageDal<'a, 'c> {
-    pub(crate) storage: &'a mut ServerProcessor<'c>,
+    pub(crate) storage: &'a mut StorageProcessor<'c, Server>,
 }
 
 #[deprecated(note = "Soft-removed in favor of `storage_logs`; don't use")]
@@ -99,7 +99,7 @@ mod tests {
     use zksync_types::{AccountTreeId, Address};
 
     use super::*;
-    use crate::{ConnectionPool, Server};
+    use crate::{ConnectionPool, Server, ServerDals};
 
     #[allow(deprecated)]
     #[tokio::test]

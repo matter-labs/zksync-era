@@ -10,12 +10,12 @@ use zksync_types::{
 
 use crate::{
     models::storage_protocol_version::{protocol_version_from_storage, StorageProtocolVersion},
-    ServerProcessor,
+    Server, ServerDals,
 };
 
 #[derive(Debug)]
 pub struct ProtocolVersionsDal<'a, 'c> {
-    pub storage: &'a mut ServerProcessor<'c>,
+    pub storage: &'a mut StorageProcessor<'c, Server>,
 }
 
 impl ProtocolVersionsDal<'_, '_> {

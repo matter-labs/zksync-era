@@ -9,11 +9,11 @@ use zksync_types::{
 };
 use zksync_utils::h256_to_u256;
 
-use crate::{models::storage_block::ResolvedL1BatchForMiniblock, ServerProcessor, SqlxError};
+use crate::{models::storage_block::ResolvedL1BatchForMiniblock, Server, ServerDals, SqlxError};
 
 #[derive(Debug)]
 pub struct StorageWeb3Dal<'a, 'c> {
-    pub(crate) storage: &'a mut ServerProcessor<'c>,
+    pub(crate) storage: &'a mut StorageProcessor<'c, Server>,
 }
 
 impl StorageWeb3Dal<'_, '_> {
@@ -271,7 +271,7 @@ mod tests {
     use super::*;
     use crate::{
         tests::{create_miniblock_header, create_snapshot_recovery},
-        ConnectionPool, Server,
+        ConnectionPool, Server, ServerDals,
     };
 
     #[tokio::test]

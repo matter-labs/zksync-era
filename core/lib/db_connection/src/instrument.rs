@@ -24,7 +24,6 @@ use crate::{
     connection::ConnectionPool,
     metrics::REQUEST_METRICS,
     processor::{StorageProcessor, StorageProcessorTags},
-    utils::Test,
 };
 
 type ThreadSafeDebug<'a> = dyn fmt::Debug + Send + Sync + 'a;
@@ -134,7 +133,7 @@ impl<'a> InstrumentedData<'a> {
         let started_at = Instant::now();
         tokio::pin!(query_future);
 
-        let slow_query_threshold = ConnectionPool::<Test>::global_config().slow_query_threshold();
+        let slow_query_threshold = ConnectionPool::<()>::global_config().slow_query_threshold();
         let mut is_slow = false;
         let output =
             tokio::time::timeout_at(started_at + slow_query_threshold, &mut query_future).await;
@@ -221,18 +220,18 @@ where
     A: 'q + IntoArguments<'q, Postgres>,
 {
     /// Executes an SQL statement using this query.
-    pub async fn execute<SP: StorageProcessor>(
+    pub async fn execute<StorageMarker>(
         self,
-        storage: &mut SP,
+        storage: &mut StorageProcessor<'_, StorageMarker>,
     ) -> sqlx::Result<PgQueryResult> {
         let (conn, tags) = storage.conn_and_tags();
         self.data.fetch(tags, self.query.execute(conn)).await
     }
 
     /// Fetches an optional row using this query.
-    pub async fn fetch_optional<SP: StorageProcessor>(
+    pub async fn fetch_optional<StorageMarker>(
         self,
-        storage: &mut SP,
+        storage: &mut StorageProcessor<'_, StorageMarker>,
     ) -> Result<Option<PgRow>, sqlx::Error> {
         let (conn, tags) = storage.conn_and_tags();
         self.data.fetch(tags, self.query.fetch_optional(conn)).await
@@ -245,7 +244,10 @@ where
     O: Send + Unpin + for<'r> FromRow<'r, PgRow>,
 {
     /// Fetches all rows using this query and collects them into a `Vec`.
-    pub async fn fetch_all<SP: StorageProcessor>(self, storage: &mut SP) -> sqlx::Result<Vec<O>> {
+    pub async fn fetch_all<StorageMarker>(
+        self,
+        storage: &mut StorageProcessor<'_, StorageMarker>,
+    ) -> sqlx::Result<Vec<O>> {
         let (conn, tags) = storage.conn_and_tags();
         self.data.fetch(tags, self.query.fetch_all(conn)).await
     }
@@ -258,22 +260,28 @@ where
     A: 'q + Send + IntoArguments<'q, Postgres>,
 {
     /// Fetches an optional row using this query.
-    pub async fn fetch_optional<SP: StorageProcessor>(
+    pub async fn fetch_optional<StorageMarker>(
         self,
-        storage: &mut SP,
+        storage: &mut StorageProcessor<'_, StorageMarker>,
     ) -> sqlx::Result<Option<O>> {
         let (conn, tags) = storage.conn_and_tags();
         self.data.fetch(tags, self.query.fetch_optional(conn)).await
     }
 
     /// Fetches a single row using this query.
-    pub async fn fetch_one<SP: StorageProcessor>(self, storage: &mut SP) -> sqlx::Result<O> {
+    pub async fn fetch_one<StorageMarker>(
+        self,
+        storage: &mut StorageProcessor<'_, StorageMarker>,
+    ) -> sqlx::Result<O> {
         let (conn, tags) = storage.conn_and_tags();
         self.data.fetch(tags, self.query.fetch_one(conn)).await
     }
 
     /// Fetches all rows using this query and collects them into a `Vec`.
-    pub async fn fetch_all<SP: StorageProcessor>(self, storage: &mut SP) -> sqlx::Result<Vec<O>> {
+    pub async fn fetch_all<StorageMarker>(
+        self,
+        storage: &mut StorageProcessor<'_, StorageMarker>,
+    ) -> sqlx::Result<Vec<O>> {
         let (conn, tags) = storage.conn_and_tags();
         self.data.fetch(tags, self.query.fetch_all(conn)).await
     }
@@ -284,11 +292,11 @@ mod tests {
     use zksync_types::{MiniblockNumber, H256};
 
     use super::*;
-    use crate::{connection::ConnectionPool, utils::Test};
+    use crate::connection::ConnectionPool;
 
     #[tokio::test]
     async fn instrumenting_erroneous_query() {
-        let pool = ConnectionPool::<Test>::test_pool().await;
+        let pool = ConnectionPool::<()>::test_pool().await;
         // Add `vlog::init()` here to debug this test
 
         let mut conn = pool.access_storage().await.unwrap();
@@ -304,7 +312,7 @@ mod tests {
 
     #[tokio::test]
     async fn instrumenting_slow_query() {
-        let pool = ConnectionPool::<Test>::test_pool().await;
+        let pool = ConnectionPool::<()>::test_pool().await;
         // Add `vlog::init()` here to debug this test
 
         let mut conn = pool.access_storage().await.unwrap();

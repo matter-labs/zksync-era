@@ -10,10 +10,10 @@ pub(crate) struct TableSize {
     pub relation_size: u64,
     pub total_size: u64,
 }
-use crate::ServerProcessor;
+use crate::Server;
 
 pub struct SystemDal<'a, 'c> {
-    pub storage: &'a mut ServerProcessor<'c>,
+    pub storage: &'a mut StorageProcessor<'c, Server>,
 }
 
 impl SystemDal<'_, '_> {

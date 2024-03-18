@@ -4,7 +4,7 @@ use anyhow::Context;
 use vise::{Gauge, LabeledFamily, Metrics, Unit};
 use zksync_db_connection::connection::ConnectionPool;
 
-use crate::Server;
+use crate::{Server, ServerDals};
 
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "postgres")]

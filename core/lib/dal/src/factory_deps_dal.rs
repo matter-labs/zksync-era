@@ -6,12 +6,12 @@ use zksync_db_connection::processor::StorageProcessor;
 use zksync_types::{MiniblockNumber, H256, U256};
 use zksync_utils::{bytes_to_be_words, bytes_to_chunks};
 
-use crate::ServerProcessor;
+use crate::Server;
 
 /// DAL methods related to factory dependencies.
 #[derive(Debug)]
 pub struct FactoryDepsDal<'a, 'c> {
-    pub(crate) storage: &'a mut ServerProcessor<'c>,
+    pub(crate) storage: &'a mut StorageProcessor<'c, Server>,
 }
 
 impl FactoryDepsDal<'_, '_> {

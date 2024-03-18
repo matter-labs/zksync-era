@@ -9,11 +9,11 @@ use zksync_db_connection::{
 };
 use zksync_types::L1BatchNumber;
 
-use crate::ServerProcessor;
+use crate::Server;
 
 #[derive(Debug)]
 pub struct BasicWitnessInputProducerDal<'a, 'c> {
-    pub(crate) storage: &'a mut ServerProcessor<'c>,
+    pub(crate) storage: &'a mut StorageProcessor<'c, Server>,
 }
 
 /// The amount of attempts to process a job before giving up.

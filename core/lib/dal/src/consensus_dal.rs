@@ -5,12 +5,12 @@ use zksync_db_connection::processor::StorageProcessor;
 use zksync_types::MiniblockNumber;
 
 pub use crate::models::consensus::Payload;
-use crate::ServerProcessor;
+use crate::{Server, ServerDals};
 
 /// Storage access methods for `zksync_core::consensus` module.
 #[derive(Debug)]
 pub struct ConsensusDal<'a, 'c> {
-    pub storage: &'a mut ServerProcessor<'c>,
+    pub storage: &'a mut StorageProcessor<'c, Server>,
 }
 
 impl ConsensusDal<'_, '_> {
@@ -286,7 +286,7 @@ mod tests {
     use zksync_consensus_roles::validator;
     use zksync_consensus_storage::ReplicaState;
 
-    use crate::{ConnectionPool, Server};
+    use crate::{ConnectionPool, Server, ServerDals};
 
     #[tokio::test]
     async fn replica_state_read_write() {

@@ -1,15 +1,17 @@
-use zksync_db_connection::{instrument::InstrumentExt, metrics::MethodLatency};
+use zksync_db_connection::{
+    instrument::InstrumentExt, metrics::MethodLatency, processor::StorageProcessor,
+};
 use zksync_types::{api::en, MiniblockNumber};
 
 use crate::{
     models::storage_sync::{StorageSyncBlock, SyncBlock},
-    ServerProcessor,
+    Server, ServerDals,
 };
 
 /// DAL subset dedicated to the EN synchronization.
 #[derive(Debug)]
 pub struct SyncDal<'a, 'c> {
-    pub storage: &'a mut ServerProcessor<'c>,
+    pub storage: &'a mut StorageProcessor<'c, Server>,
 }
 
 impl SyncDal<'_, '_> {

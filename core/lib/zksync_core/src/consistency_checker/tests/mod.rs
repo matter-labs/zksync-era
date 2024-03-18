@@ -6,7 +6,7 @@ use assert_matches::assert_matches;
 use once_cell::sync::Lazy;
 use test_casing::{test_casing, Product};
 use tokio::sync::mpsc;
-use zksync_dal::ServerProcessor;
+use zksync_dal::StorageProcessor;
 use zksync_eth_client::{clients::MockEthereum, Options};
 use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 use zksync_types::{
@@ -230,7 +230,7 @@ enum SaveAction<'a> {
 impl SaveAction<'_> {
     async fn apply(
         self,
-        storage: &mut ServerProcessor<'_>,
+        storage: &mut StorageProcessor<'_, Server>,
         commit_tx_hash_by_l1_batch: &HashMap<L1BatchNumber, H256>,
     ) {
         match self {

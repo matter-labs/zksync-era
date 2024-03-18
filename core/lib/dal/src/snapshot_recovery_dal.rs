@@ -3,11 +3,11 @@ use zksync_types::{
     snapshots::SnapshotRecoveryStatus, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256,
 };
 
-use crate::ServerProcessor;
+use crate::Server;
 
 #[derive(Debug)]
 pub struct SnapshotRecoveryDal<'a, 'c> {
-    pub(crate) storage: &'a mut ServerProcessor<'c>,
+    pub(crate) storage: &'a mut StorageProcessor<'c, Server>,
 }
 
 impl SnapshotRecoveryDal<'_, '_> {
@@ -106,7 +106,7 @@ mod tests {
         snapshots::SnapshotRecoveryStatus, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256,
     };
 
-    use crate::{ConnectionPool, Server};
+    use crate::{ConnectionPool, Server, ServerDals};
 
     #[tokio::test]
     async fn manipulating_snapshot_recovery_table() {

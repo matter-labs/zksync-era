@@ -13,12 +13,12 @@ use crate::{
     models::storage_eth_tx::{
         L1BatchEthSenderStats, StorageEthTx, StorageTxHistory, StorageTxHistoryToSend,
     },
-    ServerProcessor,
+    Server,
 };
 
 #[derive(Debug)]
 pub struct EthSenderDal<'a, 'c> {
-    pub(crate) storage: &'a mut ServerProcessor<'c>,
+    pub(crate) storage: &'a mut StorageProcessor<'c, Server>,
 }
 
 impl EthSenderDal<'_, '_> {

@@ -9,7 +9,7 @@ use std::{
 use anyhow::Context as _;
 use async_trait::async_trait;
 use tokio::sync::watch;
-use zksync_dal::{ConnectionPool, Server, ServerProcessor};
+use zksync_dal::{ConnectionPool, Server, StorageProcessor};
 use zksync_types::{L1BatchNumber, ProtocolVersionId};
 
 #[cfg(test)]
@@ -120,7 +120,7 @@ pub(crate) async fn wait_for_l1_batch_with_metadata(
 /// Returns the projected number of the first locally available L1 batch. The L1 batch is **not**
 /// guaranteed to be present in the storage!
 pub(crate) async fn projected_first_l1_batch(
-    storage: &mut ServerProcessor<'_>,
+    storage: &mut StorageProcessor<'_, Server>,
 ) -> anyhow::Result<L1BatchNumber> {
     let snapshot_recovery = storage
         .snapshot_recovery_dal()
@@ -133,7 +133,7 @@ pub(crate) async fn projected_first_l1_batch(
 /// Obtains a protocol version projected to be applied for the next miniblock. This is either the version used by the last
 /// sealed miniblock, or (if there are no miniblocks), one referenced in the snapshot recovery record.
 pub(crate) async fn pending_protocol_version(
-    storage: &mut ServerProcessor<'_>,
+    storage: &mut StorageProcessor<'_, Server>,
 ) -> anyhow::Result<ProtocolVersionId> {
     static WARNED_ABOUT_NO_VERSION: AtomicBool = AtomicBool::new(false);
 

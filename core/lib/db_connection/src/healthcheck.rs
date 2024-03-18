@@ -1,7 +1,7 @@
 use serde::Serialize;
 use zksync_health_check::{async_trait, CheckHealth, Health, HealthStatus};
 
-use crate::{connection::ConnectionPool, processor::StorageKind};
+use crate::connection::ConnectionPool;
 
 #[derive(Debug, Serialize)]
 struct ConnectionPoolHealthDetails {
@@ -10,7 +10,7 @@ struct ConnectionPoolHealthDetails {
 }
 
 impl ConnectionPoolHealthDetails {
-    fn new<SK: StorageKind>(pool: &ConnectionPool<SK>) -> Self {
+    fn new<StorageMarker>(pool: &ConnectionPool<StorageMarker>) -> Self {
         Self {
             pool_size: pool.inner.size(),
             max_size: pool.max_size(),
@@ -22,18 +22,22 @@ impl ConnectionPoolHealthDetails {
 // This guarantees that the app can use it's main "communication" channel.
 // Used in the /health endpoint
 #[derive(Clone, Debug)]
-pub struct ConnectionPoolHealthCheck<SK: StorageKind> {
-    connection_pool: ConnectionPool<SK>,
+pub struct ConnectionPoolHealthCheck<StorageMarker> {
+    connection_pool: ConnectionPool<StorageMarker>,
 }
 
-impl<SK: StorageKind> ConnectionPoolHealthCheck<SK> {
-    pub fn new(connection_pool: ConnectionPool<SK>) -> ConnectionPoolHealthCheck<SK> {
+impl<StorageMarker> ConnectionPoolHealthCheck<StorageMarker> {
+    pub fn new(
+        connection_pool: ConnectionPool<StorageMarker>,
+    ) -> ConnectionPoolHealthCheck<StorageMarker> {
         Self { connection_pool }
     }
 }
 
 #[async_trait]
-impl<SK: StorageKind + Send + Sync + 'static> CheckHealth for ConnectionPoolHealthCheck<SK> {
+impl<StorageMarker: Send + Sync + 'static> CheckHealth
+    for ConnectionPoolHealthCheck<StorageMarker>
+{
     fn name(&self) -> &'static str {
         "connection_pool"
     }

@@ -3,12 +3,7 @@
 // Linter settings.
 #![warn(clippy::cast_lossless)]
 
-use sqlx::PgConnection;
 pub use sqlx::{types::BigDecimal, Error as SqlxError};
-use zksync_db_connection::{
-    async_trait,
-    processor::{BasicStorageProcessor, StorageKind, StorageProcessorTags},
-};
 pub use zksync_db_connection::{connection::ConnectionPool, processor::StorageProcessor};
 
 use crate::{
@@ -58,148 +53,164 @@ pub mod metrics;
 #[cfg(test)]
 mod tests;
 
-#[derive(Clone)]
-pub struct Server(());
+#[derive(Clone, Debug)]
+pub struct Server;
 
-#[derive(Debug)]
-pub struct ServerProcessor<'a>(BasicStorageProcessor<'a>);
+pub trait ServerDals<'a>
+where
+    Self: 'a,
+{
+    fn transactions_dal(&mut self) -> TransactionsDal<'_, 'a>;
 
-impl<'a> From<BasicStorageProcessor<'a>> for ServerProcessor<'a> {
-    fn from(processor: BasicStorageProcessor<'a>) -> Self {
-        Self(processor)
-    }
-}
+    fn transactions_web3_dal(&mut self) -> TransactionsWeb3Dal<'_, 'a>;
 
-impl StorageKind for Server {
-    type Processor<'a> = ServerProcessor<'a>;
-}
+    fn basic_witness_input_producer_dal(&mut self) -> BasicWitnessInputProducerDal<'_, 'a>;
 
-#[async_trait]
-impl<'a> StorageProcessor for ServerProcessor<'a> {
-    type Processor<'b> = ServerProcessor<'b> where Self: 'b;
+    fn blocks_dal(&mut self) -> BlocksDal<'_, 'a>;
 
-    async fn start_transaction(&mut self) -> sqlx::Result<ServerProcessor<'_>> {
-        self.0.start_transaction().await.map(ServerProcessor::from)
-    }
+    fn blocks_web3_dal(&mut self) -> BlocksWeb3Dal<'_, 'a>;
 
-    /// Checks if the `StorageProcessor` is currently within database transaction.
-    fn in_transaction(&self) -> bool {
-        self.0.in_transaction()
-    }
+    fn consensus_dal(&mut self) -> ConsensusDal<'_, 'a>;
 
-    async fn commit(self) -> sqlx::Result<()> {
-        self.0.commit().await
-    }
+    fn eth_sender_dal(&mut self) -> EthSenderDal<'_, 'a>;
 
-    fn conn(&mut self) -> &mut PgConnection {
-        self.0.conn_and_tags().0
-    }
+    fn events_dal(&mut self) -> EventsDal<'_, 'a>;
 
-    fn conn_and_tags(&mut self) -> (&mut PgConnection, Option<&StorageProcessorTags>) {
-        self.0.conn_and_tags()
-    }
-}
+    fn events_web3_dal(&mut self) -> EventsWeb3Dal<'_, 'a>;
 
-impl<'a> ServerProcessor<'a> {
-    pub fn transactions_dal(&mut self) -> TransactionsDal<'_, 'a> {
-        TransactionsDal { storage: self }
-    }
+    fn factory_deps_dal(&mut self) -> FactoryDepsDal<'_, 'a>;
 
-    pub fn transactions_web3_dal(&mut self) -> TransactionsWeb3Dal<'_, 'a> {
-        TransactionsWeb3Dal { storage: self }
-    }
+    fn storage_web3_dal(&mut self) -> StorageWeb3Dal<'_, 'a>;
 
-    pub fn basic_witness_input_producer_dal(&mut self) -> BasicWitnessInputProducerDal<'_, 'a> {
-        BasicWitnessInputProducerDal { storage: self }
-    }
-
-    pub fn blocks_dal(&mut self) -> BlocksDal<'_, 'a> {
-        BlocksDal { storage: self }
-    }
-
-    pub fn blocks_web3_dal(&mut self) -> BlocksWeb3Dal<'_, 'a> {
-        BlocksWeb3Dal { storage: self }
-    }
-
-    pub fn consensus_dal(&mut self) -> ConsensusDal<'_, 'a> {
-        ConsensusDal { storage: self }
-    }
-
-    pub fn eth_sender_dal(&mut self) -> EthSenderDal<'_, 'a> {
-        EthSenderDal { storage: self }
-    }
-
-    pub fn events_dal(&mut self) -> EventsDal<'_, 'a> {
-        EventsDal { storage: self }
-    }
-
-    pub fn events_web3_dal(&mut self) -> EventsWeb3Dal<'_, 'a> {
-        EventsWeb3Dal { storage: self }
-    }
-
-    pub fn factory_deps_dal(&mut self) -> FactoryDepsDal<'_, 'a> {
-        FactoryDepsDal { storage: self }
-    }
-
-    pub fn storage_web3_dal(&mut self) -> StorageWeb3Dal<'_, 'a> {
-        StorageWeb3Dal { storage: self }
-    }
-
-    pub fn storage_logs_dal(&mut self) -> StorageLogsDal<'_, 'a> {
-        StorageLogsDal { storage: self }
-    }
+    fn storage_logs_dal(&mut self) -> StorageLogsDal<'_, 'a>;
 
     #[deprecated(note = "Soft-removed in favor of `storage_logs`; don't use")]
     #[allow(deprecated)]
-    pub fn storage_dal(&mut self) -> storage_dal::StorageDal<'_, 'a> {
+    fn storage_dal(&mut self) -> storage_dal::StorageDal<'_, 'a>;
+
+    fn storage_logs_dedup_dal(&mut self) -> StorageLogsDedupDal<'_, 'a>;
+
+    fn tokens_dal(&mut self) -> TokensDal<'_, 'a>;
+
+    fn tokens_web3_dal(&mut self) -> TokensWeb3Dal<'_, 'a>;
+
+    fn contract_verification_dal(&mut self) -> ContractVerificationDal<'_, 'a>;
+
+    fn protocol_versions_dal(&mut self) -> ProtocolVersionsDal<'_, 'a>;
+
+    fn protocol_versions_web3_dal(&mut self) -> ProtocolVersionsWeb3Dal<'_, 'a>;
+
+    fn sync_dal(&mut self) -> SyncDal<'_, 'a>;
+
+    fn proof_generation_dal(&mut self) -> ProofGenerationDal<'_, 'a>;
+
+    fn system_dal(&mut self) -> SystemDal<'_, 'a>;
+
+    fn snapshots_dal(&mut self) -> SnapshotsDal<'_, 'a>;
+
+    fn snapshots_creator_dal(&mut self) -> SnapshotsCreatorDal<'_, 'a>;
+
+    fn snapshot_recovery_dal(&mut self) -> SnapshotRecoveryDal<'_, 'a>;
+}
+
+impl<'a> ServerDals<'a> for StorageProcessor<'a, Server> {
+    fn transactions_dal(&mut self) -> TransactionsDal<'_, 'a> {
+        TransactionsDal { storage: self }
+    }
+
+    fn transactions_web3_dal(&mut self) -> TransactionsWeb3Dal<'_, 'a> {
+        TransactionsWeb3Dal { storage: self }
+    }
+
+    fn basic_witness_input_producer_dal(&mut self) -> BasicWitnessInputProducerDal<'_, 'a> {
+        BasicWitnessInputProducerDal { storage: self }
+    }
+
+    fn blocks_dal(&mut self) -> BlocksDal<'_, 'a> {
+        BlocksDal { storage: self }
+    }
+
+    fn blocks_web3_dal(&mut self) -> BlocksWeb3Dal<'_, 'a> {
+        BlocksWeb3Dal { storage: self }
+    }
+
+    fn consensus_dal(&mut self) -> ConsensusDal<'_, 'a> {
+        ConsensusDal { storage: self }
+    }
+
+    fn eth_sender_dal(&mut self) -> EthSenderDal<'_, 'a> {
+        EthSenderDal { storage: self }
+    }
+
+    fn events_dal(&mut self) -> EventsDal<'_, 'a> {
+        EventsDal { storage: self }
+    }
+
+    fn events_web3_dal(&mut self) -> EventsWeb3Dal<'_, 'a> {
+        EventsWeb3Dal { storage: self }
+    }
+
+    fn factory_deps_dal(&mut self) -> FactoryDepsDal<'_, 'a> {
+        FactoryDepsDal { storage: self }
+    }
+
+    fn storage_web3_dal(&mut self) -> StorageWeb3Dal<'_, 'a> {
+        StorageWeb3Dal { storage: self }
+    }
+
+    fn storage_logs_dal(&mut self) -> StorageLogsDal<'_, 'a> {
+        StorageLogsDal { storage: self }
+    }
+
+    fn storage_dal(&mut self) -> storage_dal::StorageDal<'_, 'a> {
         storage_dal::StorageDal { storage: self }
     }
 
-    pub fn storage_logs_dedup_dal(&mut self) -> StorageLogsDedupDal<'_, 'a> {
+    fn storage_logs_dedup_dal(&mut self) -> StorageLogsDedupDal<'_, 'a> {
         StorageLogsDedupDal { storage: self }
     }
 
-    pub fn tokens_dal(&mut self) -> TokensDal<'_, 'a> {
+    fn tokens_dal(&mut self) -> TokensDal<'_, 'a> {
         TokensDal { storage: self }
     }
 
-    pub fn tokens_web3_dal(&mut self) -> TokensWeb3Dal<'_, 'a> {
+    fn tokens_web3_dal(&mut self) -> TokensWeb3Dal<'_, 'a> {
         TokensWeb3Dal { storage: self }
     }
 
-    pub fn contract_verification_dal(&mut self) -> ContractVerificationDal<'_, 'a> {
+    fn contract_verification_dal(&mut self) -> ContractVerificationDal<'_, 'a> {
         ContractVerificationDal { storage: self }
     }
 
-    pub fn protocol_versions_dal(&mut self) -> ProtocolVersionsDal<'_, 'a> {
+    fn protocol_versions_dal(&mut self) -> ProtocolVersionsDal<'_, 'a> {
         ProtocolVersionsDal { storage: self }
     }
 
-    pub fn protocol_versions_web3_dal(&mut self) -> ProtocolVersionsWeb3Dal<'_, 'a> {
+    fn protocol_versions_web3_dal(&mut self) -> ProtocolVersionsWeb3Dal<'_, 'a> {
         ProtocolVersionsWeb3Dal { storage: self }
     }
 
-    pub fn sync_dal(&mut self) -> SyncDal<'_, 'a> {
+    fn sync_dal(&mut self) -> SyncDal<'_, 'a> {
         SyncDal { storage: self }
     }
 
-    pub fn proof_generation_dal(&mut self) -> ProofGenerationDal<'_, 'a> {
+    fn proof_generation_dal(&mut self) -> ProofGenerationDal<'_, 'a> {
         ProofGenerationDal { storage: self }
     }
 
-    pub fn system_dal(&mut self) -> SystemDal<'_, 'a> {
+    fn system_dal(&mut self) -> SystemDal<'_, 'a> {
         SystemDal { storage: self }
     }
 
-    pub fn snapshots_dal(&mut self) -> SnapshotsDal<'_, 'a> {
+    fn snapshots_dal(&mut self) -> SnapshotsDal<'_, 'a> {
         SnapshotsDal { storage: self }
     }
 
-    pub fn snapshots_creator_dal(&mut self) -> SnapshotsCreatorDal<'_, 'a> {
+    fn snapshots_creator_dal(&mut self) -> SnapshotsCreatorDal<'_, 'a> {
         SnapshotsCreatorDal { storage: self }
     }
 
-    pub fn snapshot_recovery_dal(&mut self) -> SnapshotRecoveryDal<'_, 'a> {
+    fn snapshot_recovery_dal(&mut self) -> SnapshotRecoveryDal<'_, 'a> {
         SnapshotRecoveryDal { storage: self }
     }
 }

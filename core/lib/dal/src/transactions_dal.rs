@@ -22,7 +22,7 @@ use zksync_utils::u256_to_big_decimal;
 
 use crate::{
     models::storage_transaction::{CallTrace, StorageTransaction},
-    ServerProcessor,
+    Server,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -48,7 +48,7 @@ impl fmt::Display for L2TxSubmissionResult {
 
 #[derive(Debug)]
 pub struct TransactionsDal<'c, 'a> {
-    pub(crate) storage: &'c mut ServerProcessor<'a>,
+    pub(crate) storage: &'c mut StorageProcessor<'a, Server>,
 }
 
 type TxLocations = Vec<(MiniblockNumber, Vec<(H256, u32, u16)>)>;
@@ -150,7 +150,7 @@ impl TransactionsDal<'_, '_> {
                 refund_recipient,
                 received_at,
             )
-            .fetch_optional(self.storage.0.conn())
+            .fetch_optional(self.storage.conn())
             .await
             .unwrap();
         }
@@ -1334,7 +1334,7 @@ mod tests {
     use super::*;
     use crate::{
         tests::{create_miniblock_header, mock_execution_result, mock_l2_transaction},
-        ConnectionPool, Server,
+        ConnectionPool, Server, ServerDals,
     };
 
     #[tokio::test]

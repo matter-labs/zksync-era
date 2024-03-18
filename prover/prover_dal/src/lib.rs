@@ -1,8 +1,3 @@
-use sqlx::PgConnection;
-use zksync_db_connection::{
-    async_trait,
-    processor::{BasicStorageProcessor, StorageKind, StorageProcessorTags},
-};
 pub use zksync_db_connection::{
     connection::ConnectionPool,
     processor::StorageProcessor,
@@ -24,72 +19,48 @@ pub mod fri_prover_dal;
 pub mod fri_scheduler_dependency_tracker_dal;
 pub mod fri_witness_generator_dal;
 
-#[derive(Clone)]
-pub struct Prover(());
+#[derive(Clone, Debug)]
+pub struct Prover;
 
-#[derive(Debug)]
-pub struct ProverProcessor<'a>(BasicStorageProcessor<'a>);
+pub trait ProverDals<'a>
+where
+    Self: 'a,
+{
+    fn fri_witness_generator_dal(&mut self) -> FriWitnessGeneratorDal<'_, 'a>;
 
-impl<'a> From<BasicStorageProcessor<'a>> for ProverProcessor<'a> {
-    fn from(storage: BasicStorageProcessor<'a>) -> Self {
-        Self(storage)
-    }
+    fn fri_prover_jobs_dal(&mut self) -> FriProverDal<'_, 'a>;
+
+    fn fri_scheduler_dependency_tracker_dal(&mut self) -> FriSchedulerDependencyTrackerDal<'_, 'a>;
+
+    fn fri_gpu_prover_queue_dal(&mut self) -> FriGpuProverQueueDal<'_, 'a>;
+
+    fn fri_protocol_versions_dal(&mut self) -> FriProtocolVersionsDal<'_, 'a>;
+
+    fn fri_proof_compressor_dal(&mut self) -> FriProofCompressorDal<'_, 'a>;
 }
 
-impl StorageKind for Prover {
-    type Processor<'a> = ProverProcessor<'a>;
-}
-
-#[async_trait]
-impl StorageProcessor for ProverProcessor<'_> {
-    type Processor<'a> = ProverProcessor<'a> where Self: 'a;
-
-    async fn start_transaction(&mut self) -> sqlx::Result<ProverProcessor<'_>> {
-        self.0.start_transaction().await.map(ProverProcessor::from)
-    }
-
-    /// Checks if the `StorageProcessor` is currently within database transaction.
-    fn in_transaction(&self) -> bool {
-        self.0.in_transaction()
-    }
-
-    async fn commit(self) -> sqlx::Result<()> {
-        self.0.commit().await
-    }
-
-    fn conn(&mut self) -> &mut PgConnection {
-        self.0.conn_and_tags().0
-    }
-
-    fn conn_and_tags(&mut self) -> (&mut PgConnection, Option<&StorageProcessorTags>) {
-        self.0.conn_and_tags()
-    }
-}
-
-impl<'a> ProverProcessor<'a> {
-    pub fn fri_witness_generator_dal(&mut self) -> FriWitnessGeneratorDal<'_, 'a> {
+impl<'a> ProverDals<'a> for StorageProcessor<'a, Prover> {
+    fn fri_witness_generator_dal(&mut self) -> FriWitnessGeneratorDal<'_, 'a> {
         FriWitnessGeneratorDal { storage: self }
     }
 
-    pub fn fri_prover_jobs_dal(&mut self) -> FriProverDal<'_, 'a> {
+    fn fri_prover_jobs_dal(&mut self) -> FriProverDal<'_, 'a> {
         FriProverDal { storage: self }
     }
 
-    pub fn fri_scheduler_dependency_tracker_dal(
-        &mut self,
-    ) -> FriSchedulerDependencyTrackerDal<'_, 'a> {
+    fn fri_scheduler_dependency_tracker_dal(&mut self) -> FriSchedulerDependencyTrackerDal<'_, 'a> {
         FriSchedulerDependencyTrackerDal { storage: self }
     }
 
-    pub fn fri_gpu_prover_queue_dal(&mut self) -> FriGpuProverQueueDal<'_, 'a> {
+    fn fri_gpu_prover_queue_dal(&mut self) -> FriGpuProverQueueDal<'_, 'a> {
         FriGpuProverQueueDal { storage: self }
     }
 
-    pub fn fri_protocol_versions_dal(&mut self) -> FriProtocolVersionsDal<'_, 'a> {
+    fn fri_protocol_versions_dal(&mut self) -> FriProtocolVersionsDal<'_, 'a> {
         FriProtocolVersionsDal { storage: self }
     }
 
-    pub fn fri_proof_compressor_dal(&mut self) -> FriProofCompressorDal<'_, 'a> {
+    fn fri_proof_compressor_dal(&mut self) -> FriProofCompressorDal<'_, 'a> {
         FriProofCompressorDal { storage: self }
     }
 }

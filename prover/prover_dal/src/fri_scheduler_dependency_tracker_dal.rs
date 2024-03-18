@@ -3,11 +3,11 @@ use zksync_types::{
     basic_fri_types::FinalProofIds, prover_dal::EIP_4844_CIRCUIT_ID, L1BatchNumber,
 };
 
-use crate::ProverProcessor;
+use crate::Prover;
 
 #[derive(Debug)]
 pub struct FriSchedulerDependencyTrackerDal<'a, 'c> {
-    pub storage: &'a mut ProverProcessor<'c>,
+    pub storage: &'a mut StorageProcessor<'c, Prover>,
 }
 
 impl FriSchedulerDependencyTrackerDal<'_, '_> {

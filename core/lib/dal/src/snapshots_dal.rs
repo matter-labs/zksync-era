@@ -4,7 +4,7 @@ use zksync_types::{
     L1BatchNumber,
 };
 
-use crate::ServerProcessor;
+use crate::Server;
 
 #[derive(Debug, sqlx::FromRow)]
 struct StorageSnapshotMetadata {
@@ -29,7 +29,7 @@ impl From<StorageSnapshotMetadata> for SnapshotMetadata {
 
 #[derive(Debug)]
 pub struct SnapshotsDal<'a, 'c> {
-    pub(crate) storage: &'a mut ServerProcessor<'c>,
+    pub(crate) storage: &'a mut StorageProcessor<'c, Server>,
 }
 
 impl SnapshotsDal<'_, '_> {
@@ -171,7 +171,7 @@ impl SnapshotsDal<'_, '_> {
 mod tests {
     use zksync_types::L1BatchNumber;
 
-    use crate::{ConnectionPool, Server};
+    use crate::{ConnectionPool, Server, ServerDals};
 
     #[tokio::test]
     async fn adding_snapshot() {

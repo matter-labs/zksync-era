@@ -11,11 +11,11 @@ use zksync_types::{
     L1BatchNumber,
 };
 
-use crate::{duration_to_naive_time, pg_interval_from_duration, ProverProcessor};
+use crate::{duration_to_naive_time, pg_interval_from_duration, Prover};
 
 #[derive(Debug)]
 pub struct FriProverDal<'a, 'c> {
-    pub(crate) storage: &'a mut ProverProcessor<'c>,
+    pub(crate) storage: &'a mut StorageProcessor<'c, Prover>,
 }
 
 impl FriProverDal<'_, '_> {

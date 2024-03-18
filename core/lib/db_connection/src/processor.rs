@@ -9,10 +9,9 @@ use std::{
     time::{Instant, SystemTime},
 };
 
-use async_trait::async_trait;
 use sqlx::{pool::PoolConnection, types::chrono, Connection, PgConnection, Postgres, Transaction};
 
-use crate::{connection::ConnectionPool, metrics::CONNECTION_METRICS, utils::Test};
+use crate::{connection::ConnectionPool, metrics::CONNECTION_METRICS};
 
 /// Tags that can be associated with a connection.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -114,7 +113,7 @@ impl Drop for PooledStorageProcessor<'_> {
             let lifetime = self.created_at.elapsed();
             CONNECTION_METRICS.lifetime[&tags.requester].observe(lifetime);
 
-            if lifetime > ConnectionPool::<Test>::global_config().long_connection_threshold() {
+            if lifetime > ConnectionPool::<()>::global_config().long_connection_threshold() {
                 let file = tags.location.file();
                 let line = tags.location.line();
                 tracing::info!(
@@ -142,11 +141,12 @@ enum StorageProcessorInner<'a> {
 /// It holds down the connection (either direct or pooled) to the database
 /// and provide methods to obtain different storage schema.
 #[derive(Debug)]
-pub struct BasicStorageProcessor<'a> {
+pub struct StorageProcessor<'a, StorageMarker> {
     inner: StorageProcessorInner<'a>,
+    _marker: std::marker::PhantomData<StorageMarker>,
 }
 
-impl<'a> BasicStorageProcessor<'a> {
+impl<'a, StorageMarker> StorageProcessor<'a, StorageMarker> {
     /// Creates a `StorageProcessor` using a pool of connections.
     /// This method borrows one of the connections from the pool, and releases it
     /// after `drop`.
@@ -165,46 +165,30 @@ impl<'a> BasicStorageProcessor<'a> {
                 (connections, id)
             }),
         });
-        Self { inner }
+        Self {
+            inner,
+            _marker: Default::default(),
+        }
     }
-}
 
-#[async_trait]
-pub trait StorageProcessor {
-    type Processor<'a>
-    where
-        Self: 'a;
-
-    async fn start_transaction(&mut self) -> sqlx::Result<Self::Processor<'_>>;
-
-    fn in_transaction(&self) -> bool;
-
-    async fn commit(self) -> sqlx::Result<()>;
-
-    fn conn(&mut self) -> &mut PgConnection;
-
-    fn conn_and_tags(&mut self) -> (&mut PgConnection, Option<&StorageProcessorTags>);
-}
-
-#[async_trait]
-impl<'a> StorageProcessor for BasicStorageProcessor<'a> {
-    type Processor<'b> = BasicStorageProcessor<'b> where Self: 'b;
-
-    async fn start_transaction(&mut self) -> sqlx::Result<BasicStorageProcessor<'_>> {
+    pub async fn start_transaction(&mut self) -> sqlx::Result<StorageProcessor<'_, StorageMarker>> {
         let (conn, tags) = self.conn_and_tags();
         let inner = StorageProcessorInner::Transaction {
             transaction: conn.begin().await?,
             tags,
         };
-        Ok(BasicStorageProcessor { inner })
+        Ok(StorageProcessor {
+            inner,
+            _marker: Default::default(),
+        })
     }
 
     /// Checks if the `StorageProcessor` is currently within database transaction.
-    fn in_transaction(&self) -> bool {
+    pub fn in_transaction(&self) -> bool {
         matches!(self.inner, StorageProcessorInner::Transaction { .. })
     }
 
-    async fn commit(self) -> sqlx::Result<()> {
+    pub async fn commit(self) -> sqlx::Result<()> {
         if let StorageProcessorInner::Transaction {
             transaction: postgres,
             ..
@@ -216,11 +200,11 @@ impl<'a> StorageProcessor for BasicStorageProcessor<'a> {
         }
     }
 
-    fn conn(&mut self) -> &mut PgConnection {
+    pub fn conn(&mut self) -> &mut PgConnection {
         self.conn_and_tags().0
     }
 
-    fn conn_and_tags(&mut self) -> (&mut PgConnection, Option<&StorageProcessorTags>) {
+    pub fn conn_and_tags(&mut self) -> (&mut PgConnection, Option<&StorageProcessorTags>) {
         match &mut self.inner {
             StorageProcessorInner::Pooled(pooled) => (&mut pooled.connection, pooled.tags.as_ref()),
             StorageProcessorInner::Transaction { transaction, tags } => (transaction, *tags),
@@ -228,17 +212,13 @@ impl<'a> StorageProcessor for BasicStorageProcessor<'a> {
     }
 }
 
-pub trait StorageKind {
-    type Processor<'a>: 'a + Send + From<BasicStorageProcessor<'a>> + StorageProcessor;
-}
-
 #[cfg(test)]
 mod tests {
-    use crate::{connection::ConnectionPool, processor::StorageProcessor, utils::Test};
+    use crate::connection::ConnectionPool;
 
     #[tokio::test]
     async fn processor_tags_propagate_to_transactions() {
-        let pool = ConnectionPool::<Test>::constrained_test_pool(1).await;
+        let pool = ConnectionPool::<()>::constrained_test_pool(1).await;
         let mut connection = pool.access_storage_tagged("test").await.unwrap();
         assert!(!connection.in_transaction());
         let original_tags = *connection.conn_and_tags().1.unwrap();
@@ -251,7 +231,7 @@ mod tests {
 
     #[tokio::test]
     async fn tracing_connections() {
-        let pool = ConnectionPool::<Test>::constrained_test_pool(1).await;
+        let pool = ConnectionPool::<()>::constrained_test_pool(1).await;
         let connection = pool.access_storage_tagged("test").await.unwrap();
         let traced = pool.traced_connections.as_deref().unwrap();
         {

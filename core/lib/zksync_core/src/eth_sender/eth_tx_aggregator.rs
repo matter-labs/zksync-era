@@ -3,7 +3,7 @@ use std::{convert::TryInto, sync::Arc};
 use tokio::sync::watch;
 use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_dal::{ConnectionPool, Server, ServerProcessor, StorageProcessor};
+use zksync_dal::{ConnectionPool, Server, StorageProcessor};
 use zksync_eth_client::{BoundEthInterface, CallFunctionArgs};
 use zksync_l1_contract_interface::{
     i_executor::commit::kzg::{KzgInfo, ZK_SYNC_BYTES_PER_BLOB},
@@ -342,7 +342,7 @@ impl EthTxAggregator {
     #[tracing::instrument(skip(self, storage))]
     async fn loop_iteration(
         &mut self,
-        storage: &mut ServerProcessor<'_>,
+        storage: &mut StorageProcessor<'_, Server>,
     ) -> Result<(), ETHSenderError> {
         let MulticallData {
             base_system_contracts_hashes,
@@ -385,7 +385,7 @@ impl EthTxAggregator {
     }
 
     async fn report_eth_tx_saving(
-        storage: &mut ServerProcessor<'_>,
+        storage: &mut StorageProcessor<'_, Server>,
         aggregated_op: AggregatedOperation,
         tx: &EthTx,
     ) {
@@ -519,7 +519,7 @@ impl EthTxAggregator {
 
     pub(super) async fn save_eth_tx(
         &self,
-        storage: &mut ServerProcessor<'_>,
+        storage: &mut StorageProcessor<'_, Server>,
         aggregated_op: &AggregatedOperation,
         contracts_are_pre_shared_bridge: bool,
     ) -> Result<EthTx, ETHSenderError> {
@@ -569,7 +569,7 @@ impl EthTxAggregator {
 
     async fn get_next_nonce(
         &self,
-        storage: &mut ServerProcessor<'_>,
+        storage: &mut StorageProcessor<'_, Server>,
         from_addr: Option<Address>,
     ) -> Result<u64, ETHSenderError> {
         let db_nonce = storage

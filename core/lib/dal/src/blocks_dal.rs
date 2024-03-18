@@ -20,12 +20,12 @@ use zksync_types::{
 
 use crate::{
     models::storage_block::{StorageL1Batch, StorageL1BatchHeader, StorageMiniblockHeader},
-    ServerProcessor,
+    Server, ServerDals,
 };
 
 #[derive(Debug)]
 pub struct BlocksDal<'a, 'c> {
-    pub(crate) storage: &'a mut ServerProcessor<'c>,
+    pub(crate) storage: &'a mut StorageProcessor<'c, Server>,
 }
 
 impl BlocksDal<'_, '_> {
@@ -2350,7 +2350,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::{tests::create_miniblock_header, ConnectionPool, Server};
+    use crate::{tests::create_miniblock_header, ConnectionPool, Server, ServerDals};
 
     #[tokio::test]
     async fn loading_l1_batch_header() {

@@ -10,7 +10,7 @@ use zksync_config::configs::{
     chain::OperationsManagerConfig,
     database::{MerkleTreeConfig, MerkleTreeMode},
 };
-use zksync_dal::{ConnectionPool, Server, ServerProcessor, StorageProcessor};
+use zksync_dal::{ConnectionPool, Server, StorageProcessor};
 use zksync_health_check::{CheckHealth, HealthStatus};
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
@@ -472,7 +472,7 @@ pub(crate) async fn reset_db_state(pool: &ConnectionPool<Server>, num_batches: u
 }
 
 pub(super) async fn extend_db_state(
-    storage: &mut ServerProcessor<'_>,
+    storage: &mut StorageProcessor<'_, Server>,
     new_logs: impl IntoIterator<Item = Vec<StorageLog>>,
 ) {
     let mut storage = storage.start_transaction().await.unwrap();
@@ -487,7 +487,7 @@ pub(super) async fn extend_db_state(
 }
 
 pub(super) async fn extend_db_state_from_l1_batch(
-    storage: &mut ServerProcessor<'_>,
+    storage: &mut StorageProcessor<'_, Server>,
     next_l1_batch: L1BatchNumber,
     new_logs: impl IntoIterator<Item = Vec<StorageLog>>,
 ) {
@@ -525,7 +525,7 @@ pub(super) async fn extend_db_state_from_l1_batch(
 }
 
 async fn insert_initial_writes_for_batch(
-    connection: &mut ServerProcessor<'_>,
+    connection: &mut StorageProcessor<'_, Server>,
     l1_batch_number: L1BatchNumber,
 ) {
     let written_non_zero_slots: Vec<_> = connection
@@ -596,7 +596,7 @@ pub(crate) fn gen_storage_logs(
 }
 
 async fn remove_l1_batches(
-    storage: &mut ServerProcessor<'_>,
+    storage: &mut StorageProcessor<'_, Server>,
     last_l1_batch_to_keep: L1BatchNumber,
 ) -> Vec<L1BatchHeader> {
     let sealed_l1_batch_number = storage
