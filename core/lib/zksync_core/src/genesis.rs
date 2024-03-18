@@ -156,7 +156,7 @@ pub async fn ensure_genesis_state_unchecked(
     genesis_params: &GenesisParams,
 ) -> Result<(H256, H256, u64), GenesisError> {
     tracing::info!("running regenesis");
-    let transaction = storage.start_transaction().await?;
+    let mut transaction = storage.start_transaction().await?;
     let verifier_config = L1VerifierConfig {
         params: VerifierParams {
             recursion_node_level_vk_hash: genesis_params.config.recursion_node_level_vk_hash,

@@ -56,9 +56,6 @@ struct Cli {
     /// Path to the yaml with secrets. If set, it will be used instead of env vars.
     #[arg(long)]
     secrets_path: Option<std::path::PathBuf>,
-    /// Path to the yaml with genesis
-    #[arg(long)]
-    genesis_path: Option<std::path::PathBuf>,
 }
 
 #[derive(Debug, Clone)]
