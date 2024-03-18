@@ -3,8 +3,7 @@ use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SystemCon
 use zksync_dal::StorageProcessor;
 use zksync_types::{
     block::DeployedContract, protocol_version::L1VerifierConfig,
-    system_contracts::get_system_smart_contracts, AccountTreeId, Address, L1BatchNumber, L2ChainId,
-    H256,
+    system_contracts::get_system_smart_contracts, AccountTreeId, L1BatchNumber, L2ChainId, H256,
 };
 
 use super::client::MainNodeClient;
@@ -87,14 +86,12 @@ async fn create_genesis_params(client: &dyn MainNodeClient) -> anyhow::Result<Ge
 
     // Use default L1 verifier config and verifier address for genesis as they are not used by EN.
     let first_l1_verifier_config = L1VerifierConfig::default();
-    let first_verifier_address = Address::default();
     Ok(GenesisParams {
         protocol_version,
         base_system_contracts,
         system_contracts,
         first_validator,
         first_l1_verifier_config,
-        first_verifier_address,
     })
 }
 
