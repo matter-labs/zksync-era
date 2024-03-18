@@ -506,11 +506,11 @@ function getPaddedBytecode(bytes: ethers.BytesLike) {
 
     // The length needs to be 32 mod 64. We use 64 mod 128, since
     // we are dealing with a hexlified string
-    while ((paddedBytecode.length -2)% 128 != 64) {
+    while ((paddedBytecode.length - 2) % 128 != 64) {
         paddedBytecode += '0';
     }
 
-    return paddedBytecode
+    return paddedBytecode;
 }
 
 // Returns the canonical code hash of
