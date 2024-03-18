@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt, time::Duration};
+use std::{collections::HashMap, time::Duration};
 
 use anyhow::Context;
 use futures::{future::BoxFuture, FutureExt};
@@ -22,8 +22,52 @@ mod tests;
 // A reasonable amount of time for any task to finish the shutdown process
 const TASK_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(30);
 
+/// A builder for [`ZkStackService`].
+#[derive(Default, Debug)]
+pub struct ZkStackServiceBuilder {
+    /// List of wiring layers.
+    layers: Vec<Box<dyn WiringLayer>>,
+}
+
+impl ZkStackServiceBuilder {
+    pub fn new() -> Self {
+        Self { layers: Vec::new() }
+    }
+
+    /// Adds a wiring layer.
+    /// During the [`run`](ZkStackService::run) call the service will invoke
+    /// `wire` method of every layer in the order they were added.
+    pub fn add_layer<T: WiringLayer>(&mut self, layer: T) -> &mut Self {
+        self.layers.push(Box::new(layer));
+        self
+    }
+
+    pub fn build(&mut self) -> anyhow::Result<ZkStackService> {
+        if tokio::runtime::Handle::try_current().is_ok() {
+            anyhow::bail!(
+                "Detected a Tokio Runtime. ZkStackService manages its own runtime and does not support nested runtimes"
+            );
+        }
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+
+        let (stop_sender, _stop_receiver) = watch::channel(false);
+
+        Ok(ZkStackService {
+            layers: std::mem::take(&mut self.layers),
+            resources: Default::default(),
+            runnables: Default::default(),
+            stop_sender,
+            runtime,
+        })
+    }
+}
+
 /// "Manager" class for a set of tasks. Collects all the resources and tasks,
 /// then runs tasks until completion.
+#[derive(Debug)]
 pub struct ZkStackService {
     /// Cache of resources that have been requested at least by one task.
     resources: HashMap<ResourceId, Box<dyn StoredResource>>,
@@ -38,42 +82,7 @@ pub struct ZkStackService {
     runtime: Runtime,
 }
 
-impl fmt::Debug for ZkStackService {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ZkStackService").finish_non_exhaustive()
-    }
-}
-
 impl ZkStackService {
-    pub fn new() -> anyhow::Result<Self> {
-        if tokio::runtime::Handle::try_current().is_ok() {
-            anyhow::bail!(
-                "Detected a Tokio Runtime. ZkStackService manages its own runtime and does not support nested runtimes"
-            );
-        }
-        let runtime = tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .unwrap();
-
-        let (stop_sender, _stop_receiver) = watch::channel(false);
-        Ok(Self {
-            resources: HashMap::default(),
-            layers: Vec::new(),
-            runnables: Runnables::default(),
-            stop_sender,
-            runtime,
-        })
-    }
-
-    /// Adds a wiring layer.
-    /// During the [`run`](ZkStackService::run) call the service will invoke
-    /// `wire` method of every layer in the order they were added.
-    pub fn add_layer<T: WiringLayer>(&mut self, layer: T) -> &mut Self {
-        self.layers.push(Box::new(layer));
-        self
-    }
-
     /// Runs the system.
     pub fn run(mut self) -> anyhow::Result<()> {
         // Initialize tasks.

@@ -46,17 +46,17 @@ use zksync_node_framework::{
             tx_sink::TxSinkLayer,
         },
     },
-    service::ZkStackService,
+    service::{ZkStackService, ZkStackServiceBuilder},
 };
 
 struct MainNodeBuilder {
-    node: ZkStackService,
+    node: ZkStackServiceBuilder,
 }
 
 impl MainNodeBuilder {
     fn new() -> Self {
         Self {
-            node: ZkStackService::new().expect("Failed to initialize the node"),
+            node: ZkStackServiceBuilder::new(),
         }
     }
 
@@ -282,8 +282,8 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
-    fn build(self) -> ZkStackService {
-        self.node
+    fn build(mut self) -> anyhow::Result<ZkStackService> {
+        self.node.build()
     }
 }
 
@@ -315,7 +315,7 @@ fn main() -> anyhow::Result<()> {
         .add_ws_web3_api_layer()?
         .add_house_keeper_layer()?
         .add_commitment_generator_layer()?
-        .build()
+        .build()?
         .run()?;
 
     Ok(())
