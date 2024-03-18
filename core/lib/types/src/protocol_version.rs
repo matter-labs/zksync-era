@@ -42,11 +42,18 @@ pub enum ProtocolVersionId {
     Version19,
     Version20,
     Version21,
+    // Local version has to be after the `latest` version and
+    // before the `next` version in this enum, otherwise some tests will fail.
+    Local,
     Version22,
 }
 
 impl ProtocolVersionId {
     pub fn latest() -> Self {
+        // During development of system contracts, one can replace this value with `Self::Local` to
+        // see the system contract changes take effect without the hassle of moving the artifacts
+        // into etc/multivm_bootloaders each time.
+        // Don't forget to do the same change in VmVersion::latest()
         Self::Version21
     }
 
@@ -81,6 +88,7 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version20 => VmVersion::Vm1_4_1,
             ProtocolVersionId::Version21 => VmVersion::Vm1_4_2,
             ProtocolVersionId::Version22 => VmVersion::Vm1_4_2,
+            ProtocolVersionId::Local => VmVersion::Local,
         }
     }
 
@@ -212,6 +220,7 @@ impl From<ProtocolVersionId> for FriProtocolVersionId {
             ProtocolVersionId::Version20 => FriProtocolVersionId::Version20,
             ProtocolVersionId::Version21 => FriProtocolVersionId::Version21,
             ProtocolVersionId::Version22 => FriProtocolVersionId::Version22,
+            ProtocolVersionId::Local => FriProtocolVersionId::Version22,
         }
     }
 }
@@ -828,6 +837,7 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version20 => VmVersion::Vm1_4_1,
             ProtocolVersionId::Version21 => VmVersion::Vm1_4_2,
             ProtocolVersionId::Version22 => VmVersion::Vm1_4_2,
+            ProtocolVersionId::Local => VmVersion::Local,
         }
     }
 }

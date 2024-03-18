@@ -206,6 +206,10 @@ fn read_playground_batch_bootloader_bytecode() -> Vec<u8> {
     read_bootloader_code("playground_batch")
 }
 
+fn read_estimate_gas_bootloader_bytecode() -> Vec<u8> {
+    read_bootloader_code("fee_estimate")
+}
+
 /// Reads zbin bytecode from a given path, relative to ZKSYNC_HOME.
 pub fn read_zbin_bytecode(relative_zbin_path: impl AsRef<Path>) -> Vec<u8> {
     let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());
@@ -316,6 +320,11 @@ impl BaseSystemContracts {
         let bootloader_bytecode = read_zbin_bytecode(
             "etc/multivm_bootloaders/vm_1_4_2/playground_batch.yul/playground_batch.yul.zbin",
         );
+        BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
+    }
+
+    pub fn estimate_gas() -> Self {
+        let bootloader_bytecode = read_estimate_gas_bootloader_bytecode();
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
     }
 
