@@ -1,3 +1,4 @@
+#![doc = include_str!("../doc/FriProverDal.md")]
 use std::{collections::HashMap, convert::TryFrom, time::Duration};
 
 use zksync_db_connection::{

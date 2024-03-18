@@ -177,8 +177,6 @@ impl ExternalIO {
                         protocol_version.timestamp,
                         protocol_version.verification_keys_hashes,
                         protocol_version.base_system_contracts,
-                        // Verifier is not used in the external node, so we can pass an empty
-                        Default::default(),
                         protocol_version.l2_system_upgrade_tx_hash,
                     )
                     .await;

@@ -8557,6 +8557,7 @@ dependencies = [
  "zksync_state",
  "zksync_storage",
  "zksync_types",
+ "zksync_utils",
  "zksync_web3_decl",
 ]
 

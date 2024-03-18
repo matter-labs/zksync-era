@@ -1,3 +1,4 @@
+#![doc = include_str!("../doc/BasicWitnessInputProducerDal.md")]
 use std::time::{Duration, Instant};
 
 use sqlx::postgres::types::PgInterval;

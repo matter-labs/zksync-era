@@ -62,6 +62,7 @@ pub struct EthTxAggregator {
     /// transactions. The `Some` then contains the address of this custom operator
     /// address.
     custom_commit_sender_addr: Option<Address>,
+    pool: ConnectionPool,
 }
 
 struct TxData {
@@ -72,6 +73,7 @@ struct TxData {
 impl EthTxAggregator {
     #[allow(clippy::too_many_arguments)]
     pub async fn new(
+        pool: ConnectionPool,
         config: SenderConfig,
         aggregator: Aggregator,
         eth_client: Arc<dyn BoundEthInterface>,
@@ -110,14 +112,12 @@ impl EthTxAggregator {
             base_nonce_custom_commit_sender,
             rollup_chain_id,
             custom_commit_sender_addr,
+            pool,
         }
     }
 
-    pub async fn run(
-        mut self,
-        pool: ConnectionPool<Server>,
-        stop_receiver: watch::Receiver<bool>,
-    ) -> anyhow::Result<()> {
+    pub async fn run(mut self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        let pool = self.pool.clone();
         loop {
             let mut storage = pool.access_storage_tagged("eth_sender").await.unwrap();
 

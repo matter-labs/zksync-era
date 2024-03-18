@@ -1,3 +1,4 @@
+#![doc = include_str!("../doc/ContractVerificationDal.md")]
 use std::{
     fmt::{Display, Formatter},
     time::Duration,

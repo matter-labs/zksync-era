@@ -149,7 +149,6 @@ impl Tester {
                 &self.base_system_contracts,
                 &get_system_smart_contracts(),
                 L1VerifierConfig::default(),
-                Address::zero(),
             )
             .await
             .unwrap();

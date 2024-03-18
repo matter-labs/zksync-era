@@ -1,3 +1,4 @@
+#![doc = include_str!("../doc/FriWitnessGeneratorDal.md")]
 use std::{collections::HashMap, convert::TryFrom, time::Duration};
 
 use sqlx::Row;
