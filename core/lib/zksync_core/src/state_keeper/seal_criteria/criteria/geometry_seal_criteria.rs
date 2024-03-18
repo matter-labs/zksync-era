@@ -1,9 +1,6 @@
 use std::fmt;
 
-use multivm::utils::{
-    circuit_statistics_bootloader_batch_tip_overhead,
-    execution_metrics_bootloader_batch_tip_overhead,
-};
+use multivm::utils::circuit_statistics_bootloader_batch_tip_overhead;
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_types::{tx::tx_execution_info::ExecutionMetrics, ProtocolVersionId};
 
@@ -208,7 +205,7 @@ mod tests {
 
         let block_execution_metrics = ExecutionMetrics {
             circuit_statistic: CircuitStatistic {
-                main_vm: (CircuitsCriterion::limit_per_block(protocol_version) - 1) as f32,
+                main_vm: (CircuitsCriterion::limit_per_block(protocol_version) - 5001) as f32,
                 ..CircuitStatistic::default()
             },
             ..ExecutionMetrics::default()

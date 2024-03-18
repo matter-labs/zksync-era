@@ -260,7 +260,7 @@ pub fn gas_bootloader_batch_tip_overhead(version: VmVersion) -> u32 {
     }
 }
 
-pub fn circuit_statistics_bootloader_batch_tip_overhead(version: VmVersion) -> u32 {
+pub fn circuit_statistics_bootloader_batch_tip_overhead(version: VmVersion) -> usize {
     match version {
         VmVersion::M5WithRefunds
         | VmVersion::M5WithoutRefunds
@@ -275,12 +275,12 @@ pub fn circuit_statistics_bootloader_batch_tip_overhead(version: VmVersion) -> u
             0
         }
         VmVersion::Vm1_4_2 => {
-            crate::vm_latest::constants::BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD
+            crate::vm_latest::constants::BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD as usize
         }
     }
 }
 
-pub fn execution_metrics_bootloader_batch_tip_overhead(version: VmVersion) -> u32 {
+pub fn execution_metrics_bootloader_batch_tip_overhead(version: VmVersion) -> usize {
     match version {
         VmVersion::M5WithRefunds
         | VmVersion::M5WithoutRefunds
@@ -295,7 +295,7 @@ pub fn execution_metrics_bootloader_batch_tip_overhead(version: VmVersion) -> u3
             0
         }
         VmVersion::Vm1_4_2 => {
-            crate::vm_latest::constants::BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD
+            crate::vm_latest::constants::BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD as usize
         }
     }
 }

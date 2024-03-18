@@ -290,12 +290,6 @@ pub(crate) fn rejected_exec() -> TxExecutionResult {
     }
 }
 
-/// Creates a `TxExecutionResult` object denoting a transaction that was executed, but caused a bootloader tip out of
-/// gas error.
-pub(crate) fn bootloader_tip_out_of_gas() -> TxExecutionResult {
-    TxExecutionResult::BootloaderOutOfGasForBlockTip
-}
-
 /// Creates a mock `PendingBatchData` object containing the provided sequence of miniblocks.
 pub(crate) fn pending_batch_data(
     pending_miniblocks: Vec<MiniblockExecutionData>,

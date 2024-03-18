@@ -30,29 +30,37 @@ impl SealCriterion for PubDataBytesCriterion {
         let include_and_seal_bound =
             (max_pubdata_per_l1_batch as f64 * config.close_block_at_eth_params_percentage).round();
 
-        let block_size = block_data.execution_metrics.size()
-            + execution_metrics_bootloader_batch_tip_overhead(
-                protocol_version.into_api_vm_version(),
-            )
-            + block_data.writes_metrics.size(protocol_version);
+        let block_size =
+            block_data.execution_metrics.size() + block_data.writes_metrics.size(protocol_version);
         // For backward compatibility, we need to keep calculating the size of the pubdata based
         // `StorageDeduplication` metrics. All vm versions
         // after vm with virtual blocks will provide the size of the pubdata in the execution metrics.
         let tx_size = if tx_data.execution_metrics.pubdata_published == 0 {
-            tx_data.execution_metrics.size()
-                + execution_metrics_bootloader_batch_tip_overhead(
-                    protocol_version.into_api_vm_version(),
-                )
-                + tx_data.writes_metrics.size(protocol_version)
+            tx_data.execution_metrics.size() + tx_data.writes_metrics.size(protocol_version)
         } else {
             tx_data.execution_metrics.pubdata_published as usize
         };
-        if tx_size > reject_bound as usize {
+        if tx_size
+            + execution_metrics_bootloader_batch_tip_overhead(
+                protocol_version.into_api_vm_version(),
+            )
+            > reject_bound as usize
+        {
             let message = "Transaction cannot be sent to L1 due to pubdata limits";
             SealResolution::Unexecutable(message.into())
-        } else if block_size > max_pubdata_per_l1_batch {
+        } else if block_size
+            + execution_metrics_bootloader_batch_tip_overhead(
+                protocol_version.into_api_vm_version(),
+            )
+            > max_pubdata_per_l1_batch
+        {
             SealResolution::ExcludeAndSeal
-        } else if block_size > include_and_seal_bound as usize {
+        } else if block_size
+            + execution_metrics_bootloader_batch_tip_overhead(
+                protocol_version.into_api_vm_version(),
+            )
+            > include_and_seal_bound as usize
+        {
             SealResolution::IncludeAndSeal
         } else {
             SealResolution::NoSeal
@@ -87,7 +95,7 @@ mod tests {
         let block_execution_metrics = ExecutionMetrics {
             l2_l1_long_messages: (config.max_pubdata_per_batch as f64
                 * config.close_block_at_eth_params_percentage
-                - 1.0)
+                - 1501.0)
                 .round() as usize,
             ..ExecutionMetrics::default()
         };

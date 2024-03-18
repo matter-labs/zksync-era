@@ -26,10 +26,7 @@ use super::{
     types::ExecutionMetricsForCriteria,
     updates::UpdatesManager,
 };
-use crate::{
-    gas_tracker::gas_count_from_writes,
-    state_keeper::{io::fee_address_migration, metrics::BATCH_TIP_METRICS},
-};
+use crate::{gas_tracker::gas_count_from_writes, state_keeper::io::fee_address_migration};
 
 /// Amount of time to block on waiting for some resource. The exact value is not really important,
 /// we only need it to not block on waiting indefinitely and be able to process cancellation requests.
@@ -627,7 +624,7 @@ impl ZkSyncStateKeeper {
         // All of `TxExecutionResult::BootloaderOutOfGasForTx`, `TxExecutionResult::BootloaderOutOfGasForBlockTip`,
         // `Halt::NotEnoughGasProvided` correspond to out-of-gas errors but of different nature.
         // - `BootloaderOutOfGasForTx`: it is returned when bootloader stack frame run out of gas before tx execution finished.
-        // - `BootloaderOutOfGasForBlockTip`: it is returned when bootloader stack frame run out of gas during batch tip dry run.
+        // - `BootloaderOutOfGasForBlockTip`: it is returned when bootloader stack frame run out of gas
         // - `Halt::NotEnoughGasProvided`: there are checks in bootloader in some places (search for `checkEnoughGas` calls).
         //      They check if there is more gas in the frame than bootloader estimates it will need.
         //      This error is returned when such a check fails. Basically, bootloader doesn't continue execution but panics prematurely instead.
@@ -637,15 +634,11 @@ impl ZkSyncStateKeeper {
         let is_first_tx = updates_manager.pending_executed_transactions_len() == 0;
         let resolution = match &exec_result {
             TxExecutionResult::BootloaderOutOfGasForTx
-            | TxExecutionResult::BootloaderOutOfGasForBlockTip
             | TxExecutionResult::RejectedByVm {
                 reason: Halt::NotEnoughGasProvided,
             } => {
                 let error_message = match &exec_result {
                     TxExecutionResult::BootloaderOutOfGasForTx => "bootloader_tx_out_of_gas",
-                    TxExecutionResult::BootloaderOutOfGasForBlockTip => {
-                        "bootloader_batch_tip_out_of_gas"
-                    }
                     TxExecutionResult::RejectedByVm {
                         reason: Halt::NotEnoughGasProvided,
                     } => "not_enough_gas_provided_to_start_tx",
