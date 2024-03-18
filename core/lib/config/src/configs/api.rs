@@ -207,8 +207,8 @@ impl Web3JsonRpcConfig {
             .unwrap_or(NonZeroU32::new(6000).unwrap())
     }
 
-    pub fn tree_api_url(&self) -> Option<String> {
-        self.tree_api_url.clone()
+    pub fn tree_api_url(&self) -> Option<&str> {
+        self.tree_api_url.as_deref()
     }
 }
 

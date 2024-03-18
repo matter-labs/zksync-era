@@ -33,36 +33,11 @@ impl SnapshotsCreatorDal<'_, '_> {
         )
         .instrument("get_storage_logs_count")
         .report_latency()
+        .expect_slow_query()
         .fetch_one(self.storage)
         .await?
         .index;
         Ok(count as u64)
-    }
-
-    /// Returns the total number of rows in the `storage_logs` table before and at the specified miniblock.
-    ///
-    /// **Warning.** This method is slow (requires a full table scan).
-    pub async fn get_storage_logs_row_count(
-        &mut self,
-        at_miniblock: MiniblockNumber,
-    ) -> sqlx::Result<u64> {
-        let row = sqlx::query!(
-            r#"
-            SELECT
-                COUNT(*) AS COUNT
-            FROM
-                storage_logs
-            WHERE
-                miniblock_number <= $1
-            "#,
-            at_miniblock.0 as i64
-        )
-        .instrument("get_storage_logs_row_count")
-        .with_arg("miniblock_number", &at_miniblock)
-        .report_latency()
-        .fetch_one(self.storage)
-        .await?;
-        Ok(row.count.unwrap_or(0) as u64)
     }
 
     pub async fn get_storage_logs_chunk(
@@ -106,8 +81,8 @@ impl SnapshotsCreatorDal<'_, '_> {
             WHERE
                 initial_writes.l1_batch_number <= $2
             "#,
-            miniblock_number.0 as i64,
-            l1_batch_number.0 as i64,
+            i64::from(miniblock_number.0),
+            i64::from(l1_batch_number.0),
             hashed_keys_range.start().as_bytes(),
             hashed_keys_range.end().as_bytes()
         )
@@ -116,6 +91,7 @@ impl SnapshotsCreatorDal<'_, '_> {
         .with_arg("min_hashed_key", &hashed_keys_range.start())
         .with_arg("max_hashed_key", &hashed_keys_range.end())
         .report_latency()
+        .expect_slow_query()
         .fetch_all(self.storage)
         .await?
         .iter()
@@ -147,10 +123,11 @@ impl SnapshotsCreatorDal<'_, '_> {
             WHERE
                 miniblock_number <= $1
             "#,
-            miniblock_number.0 as i64,
+            i64::from(miniblock_number.0),
         )
         .instrument("get_all_factory_deps")
         .report_latency()
+        .expect_slow_query()
         .fetch_all(self.storage)
         .await?;
 
@@ -195,7 +172,7 @@ mod tests {
             .unwrap();
 
         let log_row_count = conn
-            .snapshots_creator_dal()
+            .storage_logs_dal()
             .get_storage_logs_row_count(MiniblockNumber(1))
             .await
             .unwrap();
@@ -227,13 +204,13 @@ mod tests {
             .unwrap();
 
         let log_row_count = conn
-            .snapshots_creator_dal()
+            .storage_logs_dal()
             .get_storage_logs_row_count(MiniblockNumber(1))
             .await
             .unwrap();
         assert_eq!(log_row_count, logs.len() as u64);
         let log_row_count = conn
-            .snapshots_creator_dal()
+            .storage_logs_dal()
             .get_storage_logs_row_count(MiniblockNumber(2))
             .await
             .unwrap();

@@ -189,7 +189,7 @@ describe('snapshot recovery', () => {
             cwd: homeDir,
             stdio: 'inherit',
             shell: true,
-            env: { ...externalNodeEnv, TEMPLATE_DATABASE_URL: '' }
+            env: externalNodeEnv
         });
         try {
             await waitForProcess(childProcess);

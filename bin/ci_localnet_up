@@ -20,7 +20,7 @@ cd $ZKSYNC_HOME 2>/dev/null || handle_error "ZKSYNC_HOME is not set or directory
 
 # Create necessary volume directories for Docker
 echo "Creating volume directories for Docker..."
-mkdir -p ./volumes/postgres ./volumes/geth/keystore ./volumes/prysm/beacon ./volumes/prysm/validator || handle_error "Failed to create volume directories for Docker"
+mkdir -p ./volumes/postgres ./volumes/reth/data ./volumes/geth/keystore ./volumes/prysm/beacon ./volumes/prysm/validator || handle_error "Failed to create volume directories for Docker"
 
 # Copy all necessary files and directories
 echo "Copying Prysm config file to 'volumes/prysm/'..."

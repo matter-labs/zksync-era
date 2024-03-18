@@ -1,11 +1,11 @@
 //! Client abstractions for syncing between the external node and the main node.
 
-use std::{collections::HashMap, fmt};
+use std::fmt;
 
 use async_trait::async_trait;
 use zksync_system_constants::ACCOUNT_CODE_STORAGE_ADDRESS;
 use zksync_types::{
-    api::{self, en::SyncBlock},
+    api::{self, en},
     get_code_key, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256, U64,
 };
 use zksync_web3_decl::{
@@ -13,11 +13,6 @@ use zksync_web3_decl::{
     jsonrpsee::http_client::{HttpClient, HttpClientBuilder},
     namespaces::{EnNamespaceClient, EthNamespaceClient, ZksNamespaceClient},
 };
-
-use super::metrics::{CachedMethod, FETCHER_METRICS};
-
-/// Maximum number of concurrent requests to the main node.
-const MAX_CONCURRENT_REQUESTS: usize = 100;
 
 /// Client abstracting connection to the main node.
 #[async_trait]
@@ -45,7 +40,9 @@ pub trait MainNodeClient: 'static + Send + Sync + fmt::Debug {
         &self,
         number: MiniblockNumber,
         with_transactions: bool,
-    ) -> EnrichedClientResult<Option<SyncBlock>>;
+    ) -> EnrichedClientResult<Option<en::SyncBlock>>;
+
+    async fn fetch_consensus_genesis(&self) -> EnrichedClientResult<Option<en::ConsensusGenesis>>;
 }
 
 impl dyn MainNodeClient {
@@ -143,109 +140,17 @@ impl MainNodeClient for HttpClient {
         &self,
         number: MiniblockNumber,
         with_transactions: bool,
-    ) -> EnrichedClientResult<Option<SyncBlock>> {
+    ) -> EnrichedClientResult<Option<en::SyncBlock>> {
         self.sync_l2_block(number, with_transactions)
             .rpc_context("fetch_l2_block")
             .with_arg("number", &number)
             .with_arg("with_transactions", &with_transactions)
             .await
     }
-}
 
-/// This is a temporary implementation of a cache layer for the main node HTTP requests.
-/// It was introduced to quickly develop a way to fetch data from the main node concurrently,
-/// while not changing the logic of the fetcher itself.
-/// It is intentionally designed in an "easy-to-inject, easy-to-remove" way, so that we can easily
-/// switch it to a more performant implementation later.
-///
-/// The main part of this structure's logic is the ability to concurrently populate the cache
-/// of responses and then consume them in a non-concurrent way.
-///
-/// Note: not every request is guaranteed cached, only the ones that are used to build the action queue.
-/// For example, if batch status updater requests a miniblock header long after it was processed by the main
-/// fetcher routine, most likely it'll be a cache miss.
-#[derive(Debug)]
-pub(super) struct CachingMainNodeClient {
-    client: Box<dyn MainNodeClient>,
-    /// Earliest miniblock number that is not yet cached. Used as a marker to refill the cache.
-    next_refill_at: MiniblockNumber,
-    blocks: HashMap<MiniblockNumber, SyncBlock>,
-}
-
-impl CachingMainNodeClient {
-    pub fn new(client: Box<dyn MainNodeClient>) -> Self {
-        Self {
-            client,
-            next_refill_at: MiniblockNumber(0),
-            blocks: Default::default(),
-        }
-    }
-
-    /// Cached version of [`HttpClient::sync_l2_block`].
-    pub async fn fetch_l2_block(
-        &mut self,
-        miniblock: MiniblockNumber,
-    ) -> EnrichedClientResult<Option<SyncBlock>> {
-        FETCHER_METRICS.cache_total[&CachedMethod::SyncL2Block].inc();
-        if let Some(block) = self.blocks.get(&miniblock).cloned() {
-            FETCHER_METRICS.cache_hit[&CachedMethod::SyncL2Block].inc();
-            return Ok(Some(block));
-        }
-        let block = self.client.fetch_l2_block(miniblock, true).await?;
-        if let Some(block) = block.clone() {
-            self.blocks.insert(miniblock, block);
-        }
-        Ok(block)
-    }
-
-    /// Re-export of [`MainNodeClient::fetch_l2_block_number()`]. Added to not expose the internal client.
-    pub async fn fetch_l2_block_number(&self) -> EnrichedClientResult<MiniblockNumber> {
-        self.client.fetch_l2_block_number().await
-    }
-
-    /// Removes a miniblock data from the cache.
-    pub fn forget_miniblock(&mut self, miniblock: MiniblockNumber) {
-        self.blocks.remove(&miniblock);
-    }
-
-    pub async fn populate_miniblocks_cache(
-        &mut self,
-        current_miniblock: MiniblockNumber,
-        last_miniblock: MiniblockNumber,
-    ) {
-        // This method may be invoked frequently, but in order to take advantage of the concurrent fetching,
-        // we only need to do it once in a while. If we'll do it too often, we'll end up adding 1 element to
-        // the cache at a time, which eliminates the cache's purpose.
-        if current_miniblock < self.next_refill_at {
-            return;
-        }
-        let populate_latency = FETCHER_METRICS.cache_populate.start();
-        let last_miniblock_to_fetch =
-            last_miniblock.min(current_miniblock + MAX_CONCURRENT_REQUESTS as u32);
-        let task_futures = (current_miniblock.0..last_miniblock_to_fetch.0)
-            .map(MiniblockNumber)
-            .filter(|&miniblock| {
-                // If the miniblock is already in the cache, we don't need to fetch it.
-                !self.has_miniblock(miniblock)
-            })
-            .map(|block_number| self.client.fetch_l2_block(block_number, true));
-
-        let results = futures::future::join_all(task_futures).await;
-        for result in results {
-            if let Ok(Some(block)) = result {
-                self.next_refill_at = self.next_refill_at.max(block.number + 1);
-                self.blocks.insert(block.number, block);
-            } else {
-                // At the cache level, it's fine to just silence errors.
-                // The entry won't be included into the cache, and whoever uses the cache, will have to process
-                // a cache miss as they will.
-                FETCHER_METRICS.cache_errors.inc();
-            }
-        }
-        populate_latency.observe();
-    }
-
-    fn has_miniblock(&self, miniblock: MiniblockNumber) -> bool {
-        self.blocks.contains_key(&miniblock)
+    async fn fetch_consensus_genesis(&self) -> EnrichedClientResult<Option<en::ConsensusGenesis>> {
+        self.consensus_genesis()
+            .rpc_context("consensus_genesis")
+            .await
     }
 }

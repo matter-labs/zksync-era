@@ -4,9 +4,9 @@
 
 use anyhow::Context as _;
 use multivm::{
+    circuit_sequencer_api_latest::sort_storage_access::sort_storage_access_queries,
     utils::get_max_gas_per_pubdata_byte,
     zk_evm_latest::aux_structures::{LogQuery as MultiVmLogQuery, Timestamp as MultiVMTimestamp},
-    zkevm_test_harness_latest::witness::sort_storage_access::sort_storage_access_queries,
 };
 use zksync_contracts::{BaseSystemContracts, SET_CHAIN_ID_EVENT};
 use zksync_dal::StorageProcessor;
@@ -38,7 +38,6 @@ pub struct GenesisParams {
     pub protocol_version: ProtocolVersionId,
     pub base_system_contracts: BaseSystemContracts,
     pub system_contracts: Vec<DeployedContract>,
-    pub first_verifier_address: Address,
     pub first_l1_verifier_config: L1VerifierConfig,
 }
 
@@ -53,7 +52,6 @@ impl GenesisParams {
             base_system_contracts: BaseSystemContracts::load_from_disk(),
             system_contracts: get_system_smart_contracts(),
             first_l1_verifier_config: L1VerifierConfig::default(),
-            first_verifier_address: Address::zero(),
         }
     }
 }
@@ -82,7 +80,6 @@ pub async fn ensure_genesis_state(
         protocol_version,
         base_system_contracts,
         system_contracts,
-        first_verifier_address,
         first_l1_verifier_config,
     } = genesis_params;
 
@@ -96,7 +93,6 @@ pub async fn ensure_genesis_state(
         base_system_contracts,
         system_contracts,
         *first_l1_verifier_config,
-        *first_verifier_address,
     )
     .await?;
     tracing::info!("chain_schema_genesis is complete");
@@ -295,14 +291,12 @@ pub(crate) async fn create_genesis_l1_batch(
     base_system_contracts: &BaseSystemContracts,
     system_contracts: &[DeployedContract],
     l1_verifier_config: L1VerifierConfig,
-    verifier_address: Address,
 ) -> anyhow::Result<()> {
     let version = ProtocolVersion {
         id: protocol_version,
         timestamp: 0,
         l1_verifier_config,
         base_system_contracts_hashes: base_system_contracts.hashes(),
-        verifier_address,
         tx: None,
     };
 
@@ -478,7 +472,6 @@ mod tests {
             base_system_contracts: BaseSystemContracts::load_from_disk(),
             system_contracts: get_system_smart_contracts(),
             first_l1_verifier_config: L1VerifierConfig::default(),
-            first_verifier_address: Address::random(),
         };
         ensure_genesis_state(&mut conn, L2ChainId::from(270), &params)
             .await
@@ -511,7 +504,6 @@ mod tests {
             base_system_contracts: BaseSystemContracts::load_from_disk(),
             system_contracts: get_system_smart_contracts(),
             first_l1_verifier_config: L1VerifierConfig::default(),
-            first_verifier_address: Address::random(),
         };
         ensure_genesis_state(&mut conn, L2ChainId::max(), &params)
             .await
