@@ -6,7 +6,7 @@ use std::{
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use prover_dal::{ConnectionPool, Prover};
+use prover_dal::{ConnectionPool, Prover, ProverDals};
 use tokio::{task::JoinHandle, time::sleep};
 use zksync_config::configs::FriWitnessVectorGeneratorConfig;
 use zksync_object_store::ObjectStore;

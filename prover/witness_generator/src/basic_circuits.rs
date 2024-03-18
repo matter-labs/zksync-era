@@ -19,7 +19,7 @@ use multivm::vm_latest::{
     constants::MAX_CYCLES_FOR_TX, HistoryDisabled, StorageOracle as VmStorageOracle,
 };
 use prover_dal::{
-    fri_witness_generator_dal::FriWitnessJobStatus, ConnectionPool, Prover, StorageProcessor,
+    fri_witness_generator_dal::FriWitnessJobStatus, ConnectionPool, Prover, ProverDals,
 };
 use rand::Rng;
 use serde::{Deserialize, Serialize};
@@ -29,7 +29,7 @@ use zkevm_test_harness::{
     zkevm_circuits::eip_4844::input::EIP4844OutputDataWitness,
 };
 use zksync_config::configs::FriWitnessGeneratorConfig;
-use zksync_dal::Server;
+use zksync_dal::{Server, ServerDals};
 use zksync_object_store::{Bucket, ObjectStore, ObjectStoreFactory, StoredObject};
 use zksync_prover_fri_types::{
     circuit_definitions::{

@@ -5,7 +5,7 @@ use std::time::Instant;
 use anyhow::{anyhow, Context as _};
 use futures::{channel::mpsc, executor::block_on, SinkExt};
 use prometheus_exporter::PrometheusExporterConfig;
-use prover_dal::{ConnectionPool, Prover};
+use prover_dal::{ConnectionPool, Prover, ProverDals};
 use structopt::StructOpt;
 use tokio::sync::watch;
 use zksync_config::{

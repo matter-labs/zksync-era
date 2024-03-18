@@ -4,7 +4,7 @@ use std::{future::Future, sync::Arc};
 use anyhow::Context as _;
 use local_ip_address::local_ip;
 use prometheus_exporter::PrometheusExporterConfig;
-use prover_dal::{ConnectionPool, Prover};
+use prover_dal::{ConnectionPool, Prover, ProverDals};
 use tokio::{
     sync::{oneshot, watch::Receiver},
     task::JoinHandle,

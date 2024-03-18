@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use prover_dal::StorageProcessor;
+use prover_dal::{Prover, ProverDals, StorageProcessor};
 use zksync_object_store::ObjectStore;
 use zksync_prover_fri_types::{
     circuit_definitions::{
