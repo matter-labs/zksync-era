@@ -330,7 +330,7 @@ impl RpcState {
         connection: &mut Connection<'_, Core>,
         block: api::BlockId,
     ) -> Result<BlockArgs, Web3Error> {
-        BlockArgs::new(connection, block, self.start_info)
+        BlockArgs::new(connection, block, &self.start_info)
             .await
             .map_err(|err| match err {
                 BlockArgsError::Pruned(number) => Web3Error::PrunedBlock(number),

@@ -1,9 +1,15 @@
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
 use anyhow::Context as _;
+use chrono::{DateTime, Utc};
+use rand::random;
 use tokio::runtime::Handle;
-use zksync_dal::{Connection, Core, CoreDal, DalError};
-use zksync_state::PostgresStorageCaches;
+use zksync_dal::{pruning_dal::PruningInfo, Connection, ConnectionPool, Core, CoreDal, DalError};
+use zksync_state::{PostgresStorage, PostgresStorageCaches, ReadStorage, StorageView};
+use zksync_system_constants::PUBLISH_BYTECODE_OVERHEAD;
 use zksync_types::{
     api, fee_model::BatchFeeInput, AccountTreeId, Address, L1BatchNumber, L2ChainId,
     MiniblockNumber,
@@ -188,23 +194,61 @@ impl TxSharedArgs {
 }
 
 /// Information about first L1 batch / miniblock in the node storage.
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct BlockStartInfo {}
+#[derive(Debug, Clone)]
+pub(crate) struct BlockStartInfo {
+    cached_pruning_info: Arc<Mutex<(PruningInfo, DateTime<Utc>)>>,
+}
 
 impl BlockStartInfo {
-    pub async fn new() -> anyhow::Result<Self> {
-        Ok(Self {})
+    pub async fn new(storage: &mut StorageProcessor<'_>) -> anyhow::Result<Self> {
+        Ok(Self {
+            cached_pruning_info: Arc::from(Mutex::from((
+                storage.pruning_dal().get_pruning_info().await?,
+                Utc::now(),
+            ))),
+        })
+    }
+
+    fn get_cache_state_copy(&self) -> (PruningInfo, DateTime<Utc>) {
+        let current_cache = self
+            .cached_pruning_info
+            .lock()
+            .expect("BlockStartInfo is poisoned");
+        current_cache.clone()
+    }
+    async fn get_pruning_info(
+        &self,
+        storage: &mut StorageProcessor<'_>,
+    ) -> anyhow::Result<PruningInfo> {
+        let (pruning_info, last_cache_date) = self.get_cache_state_copy();
+        let now = Utc::now();
+        let cache_max_age_ms = 20000;
+        // we make max_age a bit random so that all threads don't start refreshing cache at the same time
+        let random_delay =
+            chrono::Duration::milliseconds(i64::from(random::<u32>()) % cache_max_age_ms / 2);
+        if now - last_cache_date > chrono::Duration::milliseconds(cache_max_age_ms) + random_delay {
+            //multiple threads may execute this query if we're very unlucky
+            let new_pruning_info = storage.pruning_dal().get_pruning_info().await?;
+
+            let mut new_cached_pruning_info = self
+                .cached_pruning_info
+                .lock()
+                .expect("BlockStartInfo is poisoned");
+            new_cached_pruning_info.0 = new_pruning_info;
+            new_cached_pruning_info.1 = now;
+
+            Ok(new_pruning_info.clone())
+        } else {
+            Ok(pruning_info)
+        }
     }
 
     pub async fn first_miniblock(
         &self,
         storage: &mut StorageProcessor<'_>,
     ) -> anyhow::Result<MiniblockNumber> {
-        let last_block = storage
-            .pruning_dal()
-            .get_pruning_info()
-            .await?
-            .last_soft_pruned_miniblock;
+        let cached_pruning_info = self.get_pruning_info(storage).await?;
+        let last_block = cached_pruning_info.last_soft_pruned_miniblock;
         if let Some(MiniblockNumber(last_block)) = last_block {
             return Ok(MiniblockNumber(last_block + 1));
         }
@@ -215,11 +259,8 @@ impl BlockStartInfo {
         &self,
         storage: &mut Connection<'_, Core>,
     ) -> anyhow::Result<L1BatchNumber> {
-        let last_batch = storage
-            .pruning_dal()
-            .get_pruning_info()
-            .await?
-            .last_soft_pruned_l1_batch;
+        let cached_pruning_info = self.get_pruning_info(storage).await?;
+        let last_batch = cached_pruning_info.last_soft_pruned_l1_batch;
         if let Some(L1BatchNumber(last_block)) = last_batch {
             return Ok(L1BatchNumber(last_block + 1));
         }
@@ -285,7 +326,7 @@ impl BlockArgs {
     pub async fn new(
         connection: &mut Connection<'_, Core>,
         block_id: api::BlockId,
-        start_info: BlockStartInfo,
+        start_info: &BlockStartInfo,
     ) -> Result<Self, BlockArgsError> {
         // We need to check that `block_id` is present in Postgres or can be present in the future
         // (i.e., it does not refer to a pruned block). If called for a pruned block, the returned value

@@ -69,7 +69,7 @@ impl PubSubNotifier {
             Some(number) => number,
             None => {
                 // We don't have miniblocks in the storage yet. Use the snapshot miniblock number instead.
-                let start_info = BlockStartInfo::new().await?;
+                let start_info = BlockStartInfo::new(&mut storage).await?;
                 let first_miniblock = start_info.first_miniblock(&mut storage).await?;
                 MiniblockNumber(first_miniblock.saturating_sub(1))
             }
