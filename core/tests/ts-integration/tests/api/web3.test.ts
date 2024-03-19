@@ -246,7 +246,7 @@ describe('web3 API compatibility tests', () => {
 
         // We will need to wait until the mempool cache on the server is updated.
         // The default update period is 50 ms, so we will wait for 75 ms to be sure.
-        const mempool_cache_wait = 50 + 25;
+        const mempool_cache_wait= 50 + 25;
 
         let filterId = await alice.provider.send('eth_newPendingTransactionFilter', []);
         let changes = await alice.provider.send('eth_getFilterChanges', [filterId]);
