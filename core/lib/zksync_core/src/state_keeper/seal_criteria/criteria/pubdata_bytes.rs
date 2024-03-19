@@ -40,25 +40,18 @@ impl SealCriterion for PubDataBytesCriterion {
         } else {
             tx_data.execution_metrics.pubdata_published as usize
         };
-        if tx_size
-            + execution_metrics_bootloader_batch_tip_overhead(
-                protocol_version.into_api_vm_version(),
-            )
+        if tx_size + execution_metrics_bootloader_batch_tip_overhead(protocol_version.into())
             > reject_bound as usize
         {
             let message = "Transaction cannot be sent to L1 due to pubdata limits";
             SealResolution::Unexecutable(message.into())
         } else if block_size
-            + execution_metrics_bootloader_batch_tip_overhead(
-                protocol_version.into_api_vm_version(),
-            )
+            + execution_metrics_bootloader_batch_tip_overhead(protocol_version.into())
             > max_pubdata_per_l1_batch
         {
             SealResolution::ExcludeAndSeal
         } else if block_size
-            + execution_metrics_bootloader_batch_tip_overhead(
-                protocol_version.into_api_vm_version(),
-            )
+            + execution_metrics_bootloader_batch_tip_overhead(protocol_version.into())
             > include_and_seal_bound as usize
         {
             SealResolution::IncludeAndSeal
@@ -95,7 +88,10 @@ mod tests {
         let block_execution_metrics = ExecutionMetrics {
             l2_l1_long_messages: (config.max_pubdata_per_batch as f64
                 * config.close_block_at_eth_params_percentage
-                - 1501.0)
+                - 1.0
+                - execution_metrics_bootloader_batch_tip_overhead(
+                    ProtocolVersionId::latest().into(),
+                ) as f64)
                 .round() as usize,
             ..ExecutionMetrics::default()
         };

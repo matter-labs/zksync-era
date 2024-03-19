@@ -40,23 +40,17 @@ where
             .round();
 
         if T::extract(&tx_data.execution_metrics)
-            + circuit_statistics_bootloader_batch_tip_overhead(
-                protocol_version_id.into_api_vm_version(),
-            )
+            + circuit_statistics_bootloader_batch_tip_overhead(protocol_version_id.into())
             > reject_bound as usize
         {
             SealResolution::Unexecutable("ZK proof cannot be generated for a transaction".into())
         } else if T::extract(&block_data.execution_metrics)
-            + circuit_statistics_bootloader_batch_tip_overhead(
-                protocol_version_id.into_api_vm_version(),
-            )
+            + circuit_statistics_bootloader_batch_tip_overhead(protocol_version_id.into())
             >= T::limit_per_block(protocol_version_id)
         {
             SealResolution::ExcludeAndSeal
         } else if T::extract(&block_data.execution_metrics)
-            + circuit_statistics_bootloader_batch_tip_overhead(
-                protocol_version_id.into_api_vm_version(),
-            )
+            + circuit_statistics_bootloader_batch_tip_overhead(protocol_version_id.into())
             > close_bound as usize
         {
             SealResolution::IncludeAndSeal
@@ -205,7 +199,11 @@ mod tests {
 
         let block_execution_metrics = ExecutionMetrics {
             circuit_statistic: CircuitStatistic {
-                main_vm: (CircuitsCriterion::limit_per_block(protocol_version) - 5001) as f32,
+                main_vm: (CircuitsCriterion::limit_per_block(protocol_version)
+                    - 1
+                    - circuit_statistics_bootloader_batch_tip_overhead(
+                        ProtocolVersionId::latest().into(),
+                    )) as f32,
                 ..CircuitStatistic::default()
             },
             ..ExecutionMetrics::default()
