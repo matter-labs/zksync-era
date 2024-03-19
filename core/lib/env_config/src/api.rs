@@ -147,6 +147,8 @@ mod tests {
             API_HEALTHCHECK_SLOW_TIME_LIMIT_MS=250
             API_HEALTHCHECK_HARD_TIME_LIMIT_MS=2000
             API_MERKLE_TREE_PORT=8082
+            API_MEMPOOL_CACHE_SIZE=10000
+            API_MEMPOOL_CACHE_UPDATE_INTERVAL=10
         "#;
         lock.set_env(config);
 
