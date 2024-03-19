@@ -243,14 +243,18 @@ describe('web3 API compatibility tests', () => {
     });
 
     test('Should test getFilterChanges for pending transactions', async () => {
+
+        // We will need to wait until the mempool cache on the server is updated.
+        // The default update period is 50 ms, so we will wait for 75 ms to be sure.
+        const mempool_cache_wait = 50 + 25;
+
         let filterId = await alice.provider.send('eth_newPendingTransactionFilter', []);
         let changes = await alice.provider.send('eth_getFilterChanges', [filterId]);
         expect(changes).toEqual([]);
         const tx1 = await alice.sendTransaction({
             to: alice.address
         });
-        // We need to wait until the mempool cache on the server is updated.
-        await zksync.utils.sleep(75);
+        await zksync.utils.sleep(mempool_cache_wait);
         changes = await alice.provider.send('eth_getFilterChanges', [filterId]);
         expect(changes).toEqual([tx1.hash]);
         const tx2 = await alice.sendTransaction({
@@ -262,7 +266,7 @@ describe('web3 API compatibility tests', () => {
         const tx4 = await alice.sendTransaction({
             to: alice.address
         });
-        await zksync.utils.sleep(75);
+        await zksync.utils.sleep(mempool_cache_wait);
         changes = await alice.provider.send('eth_getFilterChanges', [filterId]);
         expect(changes).toEqual([tx2.hash, tx3.hash, tx4.hash]);
     });
