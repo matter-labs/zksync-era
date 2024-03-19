@@ -332,11 +332,14 @@ async fn init_tasks(
         );
         let latest_values_cache_size = config.optional.latest_values_cache_size() as u64;
         let cache_update_handle = (latest_values_cache_size > 0).then(|| {
-            task::spawn_blocking(storage_caches.configure_storage_values_cache(
-                latest_values_cache_size,
-                connection_pool.clone(),
-                tokio::runtime::Handle::current(),
-            ))
+            task::spawn(
+                storage_caches
+                    .configure_storage_values_cache(
+                        latest_values_cache_size,
+                        connection_pool.clone(),
+                    )
+                    .run(stop_receiver.clone()),
+            )
         });
 
         let tx_sender = tx_sender_builder

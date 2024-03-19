@@ -386,7 +386,7 @@ impl ValuesCache {
 
 fn test_values_cache(pool: &ConnectionPool<Server>, rt_handle: Handle) {
     let mut caches = PostgresStorageCaches::new(1_024, 1_024);
-    let _ = caches.configure_storage_values_cache(1_024 * 1_024, pool.clone(), rt_handle.clone());
+    let _ = caches.configure_storage_values_cache(1_024 * 1_024, pool.clone());
     // We cannot use an update task since it requires having concurrent DB connections
     // that don't work in tests. We'll update values cache manually instead.
     let values_cache = caches.values.as_ref().unwrap().cache.clone();
@@ -451,13 +451,13 @@ fn test_values_cache(pool: &ConnectionPool<Server>, rt_handle: Handle) {
         (non_existing_key, Some(H256::zero())),
     ]);
 
-    values_cache
-        .update(
+    storage
+        .rt_handle
+        .block_on(values_cache.update(
             MiniblockNumber(0),
             MiniblockNumber(1),
-            &storage.rt_handle,
             &mut storage.connection,
-        )
+        ))
         .unwrap();
     assert_eq!(values_cache.0.read().unwrap().valid_for, MiniblockNumber(1));
 
@@ -514,7 +514,7 @@ fn mini_fuzz_values_cache_inner(
     mut rt_handle: Handle,
 ) {
     let mut caches = PostgresStorageCaches::new(1_024, 1_024);
-    let _ = caches.configure_storage_values_cache(1_024 * 1_024, pool.clone(), rt_handle.clone());
+    let _ = caches.configure_storage_values_cache(1_024 * 1_024, pool.clone());
     let values_cache = caches.values.as_ref().unwrap().cache.clone();
 
     let mut connection = rt_handle.block_on(pool.access_storage()).unwrap();
@@ -540,13 +540,12 @@ fn mini_fuzz_values_cache_inner(
                 let cache_valid_for = values_cache.valid_for();
                 assert!(cache_valid_for < MiniblockNumber(latest_block_number));
 
-                values_cache
-                    .update(
+                rt_handle
+                    .block_on(values_cache.update(
                         cache_valid_for,
                         MiniblockNumber(latest_block_number),
-                        &rt_handle,
                         &mut connection,
-                    )
+                    ))
                     .unwrap();
                 cache_updated = true;
             }
