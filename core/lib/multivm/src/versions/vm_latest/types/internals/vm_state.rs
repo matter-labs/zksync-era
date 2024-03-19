@@ -1,3 +1,4 @@
+use circuit_sequencer_api_1_3_3::INITIAL_MONOTONIC_CYCLE_COUNTER;
 use zk_evm_1_5_0::{
     aux_structures::{MemoryPage, PubdataCost, Timestamp},
     block_properties::BlockProperties,
@@ -9,7 +10,6 @@ use zk_evm_1_5_0::{
         STARTING_BASE_PAGE, STARTING_TIMESTAMP,
     },
 };
-use zkevm_test_harness_1_3_3::INITIAL_MONOTONIC_CYCLE_COUNTER;
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_system_constants::BOOTLOADER_ADDRESS;
 use zksync_types::{block::MiniblockHasher, Address, MiniblockNumber, U256};

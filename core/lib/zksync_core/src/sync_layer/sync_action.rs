@@ -1,16 +1,12 @@
 use tokio::sync::mpsc;
-use zksync_types::{Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, Transaction};
+use zksync_types::{Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId};
 
-use super::metrics::QUEUE_METRICS;
+use super::{fetcher::FetchedTransaction, metrics::QUEUE_METRICS};
 
 #[derive(Debug)]
 pub struct ActionQueueSender(mpsc::Sender<SyncAction>);
 
 impl ActionQueueSender {
-    pub(crate) fn has_action_capacity(&self) -> bool {
-        self.0.capacity() > 0
-    }
-
     /// Pushes a set of actions to the queue.
     ///
     /// Requires that the actions are in the correct order: starts with a new open batch/miniblock,
@@ -100,17 +96,6 @@ impl ActionQueue {
         action
     }
 
-    #[cfg(test)]
-    pub(super) async fn recv_action(&mut self) -> SyncAction {
-        if let Some(peeked) = self.peeked.take() {
-            return peeked;
-        }
-        self.receiver
-            .recv()
-            .await
-            .expect("actions sender was dropped prematurely")
-    }
-
     /// Returns the first action from the queue without removing it.
     pub(super) fn peek_action(&mut self) -> Option<SyncAction> {
         if let Some(action) = &self.peeked {
@@ -140,7 +125,7 @@ pub(crate) enum SyncAction {
         timestamp: u64,
         virtual_blocks: u32,
     },
-    Tx(Box<Transaction>),
+    Tx(Box<FetchedTransaction>),
     /// We need an explicit action for the miniblock sealing, since we fetch the whole miniblocks and already know
     /// that they are sealed, but at the same time the next miniblock may not exist yet.
     /// By having a dedicated action for that we prevent a situation where the miniblock is kept open on the EN until
@@ -153,8 +138,8 @@ pub(crate) enum SyncAction {
     },
 }
 
-impl From<Transaction> for SyncAction {
-    fn from(tx: Transaction) -> Self {
+impl From<FetchedTransaction> for SyncAction {
+    fn from(tx: FetchedTransaction) -> Self {
         Self::Tx(Box::new(tx))
     }
 }
@@ -199,7 +184,7 @@ mod tests {
         );
         tx.set_input(H256::default().0.to_vec(), H256::default());
 
-        SyncAction::Tx(Box::new(tx.into()))
+        FetchedTransaction::new(tx.into()).into()
     }
 
     fn seal_miniblock() -> SyncAction {

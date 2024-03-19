@@ -323,7 +323,8 @@ pub(super) fn execute_user_txs_in_test_gas_vm(
         if !accept_failure {
             assert!(
                 !tx_execution_result.result.is_failed(),
-                "A transaction has failed"
+                "A transaction has failed: {:?}",
+                tx_execution_result.result
             );
         }
     }

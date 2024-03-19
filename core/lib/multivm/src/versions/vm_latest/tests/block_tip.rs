@@ -16,7 +16,11 @@ use super::utils::{get_complex_upgrade_abi, read_complex_upgrade};
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
     vm_latest::{
-        constants::{BOOTLOADER_BATCH_TIP_OVERHEAD, MAX_VM_PUBDATA_PER_BATCH},
+        constants::{
+            BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD,
+            BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD, BOOTLOADER_BATCH_TIP_OVERHEAD,
+            MAX_VM_PUBDATA_PER_BATCH,
+        },
         tests::tester::{get_empty_storage, InMemoryStorageView, VmTesterBuilder},
         tracers::PubdataTracer,
         HistoryEnabled, TracerDispatcher,
@@ -92,7 +96,18 @@ fn populate_mimic_calls(data: L1MessengerTestData) -> Vec<u8> {
         .unwrap()
 }
 
-fn execute_test(test_data: L1MessengerTestData) -> u32 {
+struct TestStatistics {
+    pub max_used_gas: u32,
+    pub circuit_statistics: u64,
+    pub execution_metrics_size: u64,
+}
+
+struct StatisticsTagged {
+    pub statistics: TestStatistics,
+    pub tag: String,
+}
+
+fn execute_test(test_data: L1MessengerTestData) -> TestStatistics {
     let mut storage = get_empty_storage();
     let complex_upgrade_code = read_complex_upgrade();
 
@@ -171,7 +186,13 @@ fn execute_test(test_data: L1MessengerTestData) -> u32 {
 
     let ergs_after = vm.vm.state.local_state.callstack.current.ergs_remaining;
 
-    ergs_before - ergs_after
+    assert_eq!(ergs_before - ergs_after, result.statistics.gas_used);
+
+    TestStatistics {
+        max_used_gas: ergs_before - ergs_after,
+        circuit_statistics: result.statistics.circuit_statistic.total() as u64,
+        execution_metrics_size: result.get_execution_metrics(None).size() as u64,
+    }
 }
 
 fn generate_state_diffs(
@@ -222,6 +243,7 @@ fn get_valid_bytecode_length(length: usize) -> usize {
     }
 }
 
+// TODO: restore the test
 // #[test]
 fn test_dry_run_upper_bound() {
     // Some of the pubdata is consumed by constant fields (such as length of messages, number of logs, etc.).
@@ -237,83 +259,138 @@ fn test_dry_run_upper_bound() {
     // 3. Lots of small bytecodes / one large bytecode.
     // 4. Lots of storage slot updates.
 
-    let max_logs = execute_test(L1MessengerTestData {
-        l2_to_l1_logs: MAX_EFFECTIVE_PUBDATA_PER_BATCH / L2ToL1Log::SERIALIZED_SIZE,
-        ..Default::default()
+    let mut statistics = Vec::new();
+
+    // max logs
+    statistics.push(StatisticsTagged {
+        statistics: execute_test(L1MessengerTestData {
+            l2_to_l1_logs: MAX_EFFECTIVE_PUBDATA_PER_BATCH / L2ToL1Log::SERIALIZED_SIZE,
+            ..Default::default()
+        }),
+        tag: "max_logs".to_string(),
     });
 
-    let max_messages = execute_test(L1MessengerTestData {
-        // Each L2->L1 message is accompanied by a Log + its length, which is a 4 byte number,
-        // so the max number of pubdata is bound by it
-        messages: vec![
-            vec![0; 0];
-            MAX_EFFECTIVE_PUBDATA_PER_BATCH / (L2ToL1Log::SERIALIZED_SIZE + 4)
-        ],
-        ..Default::default()
+    // max messages
+    statistics.push(StatisticsTagged {
+        statistics: execute_test(L1MessengerTestData {
+            // Each L2->L1 message is accompanied by a Log + its length, which is a 4 byte number,
+            // so the max number of pubdata is bound by it
+            messages: vec![
+                vec![0; 0];
+                MAX_EFFECTIVE_PUBDATA_PER_BATCH / (L2ToL1Log::SERIALIZED_SIZE + 4)
+            ],
+            ..Default::default()
+        }),
+        tag: "max_messages".to_string(),
     });
 
-    let long_message = execute_test(L1MessengerTestData {
-        // Each L2->L1 message is accompanied by a Log, so the max number of pubdata is bound by it
-        messages: vec![vec![0; MAX_EFFECTIVE_PUBDATA_PER_BATCH]; 1],
-        ..Default::default()
+    // long message
+    statistics.push(StatisticsTagged {
+        statistics: execute_test(L1MessengerTestData {
+            // Each L2->L1 message is accompanied by a Log, so the max number of pubdata is bound by it
+            messages: vec![vec![0; MAX_EFFECTIVE_PUBDATA_PER_BATCH]; 1],
+            ..Default::default()
+        }),
+        tag: "long_message".to_string(),
     });
 
-    let max_bytecodes = execute_test(L1MessengerTestData {
-        // Each bytecode must be at least 32 bytes long.
-        // Each uncompressed bytecode is accompanied by its length, which is a 4 byte number
-        bytecodes: vec![vec![0; 32]; MAX_EFFECTIVE_PUBDATA_PER_BATCH / (32 + 4)],
-        ..Default::default()
+    // max bytecodes
+    statistics.push(StatisticsTagged {
+        statistics: execute_test(L1MessengerTestData {
+            // Each bytecode must be at least 32 bytes long.
+            // Each uncompressed bytecode is accompanied by its length, which is a 4 byte number
+            bytecodes: vec![vec![0; 32]; MAX_EFFECTIVE_PUBDATA_PER_BATCH / (32 + 4)],
+            ..Default::default()
+        }),
+        tag: "max_bytecodes".to_string(),
     });
 
-    let long_bytecode = execute_test(L1MessengerTestData {
-        bytecodes: vec![vec![0; get_valid_bytecode_length(MAX_EFFECTIVE_PUBDATA_PER_BATCH)]; 1],
-        ..Default::default()
+    // long bytecode
+    statistics.push(StatisticsTagged {
+        statistics: execute_test(L1MessengerTestData {
+            bytecodes: vec![vec![0; get_valid_bytecode_length(MAX_EFFECTIVE_PUBDATA_PER_BATCH)]; 1],
+            ..Default::default()
+        }),
+        tag: "long_bytecode".to_string(),
     });
 
-    let lots_of_small_repeated_writes = execute_test(L1MessengerTestData {
-        // In theory each state diff can require only 5 bytes to be published (enum index + 4 bytes for the key)
-        state_diffs: generate_state_diffs(true, true, MAX_EFFECTIVE_PUBDATA_PER_BATCH / 5),
-        ..Default::default()
+    // lots of small repeated writes
+    statistics.push(StatisticsTagged {
+        statistics: execute_test(L1MessengerTestData {
+            // In theory each state diff can require only 5 bytes to be published (enum index + 4 bytes for the key)
+            state_diffs: generate_state_diffs(true, true, MAX_EFFECTIVE_PUBDATA_PER_BATCH / 5),
+            ..Default::default()
+        }),
+        tag: "small_repeated_writes".to_string(),
     });
 
-    let lots_of_big_repeated_writes = execute_test(L1MessengerTestData {
-        // Each big repeated write will approximately require 4 bytes for key + 1 byte for encoding type + 32 bytes for value
-        state_diffs: generate_state_diffs(true, false, MAX_EFFECTIVE_PUBDATA_PER_BATCH / 37),
-        ..Default::default()
+    // lots of big repeated writes
+    statistics.push(StatisticsTagged {
+        statistics: execute_test(L1MessengerTestData {
+            // Each big repeated write will approximately require 4 bytes for key + 1 byte for encoding type + 32 bytes for value
+            state_diffs: generate_state_diffs(true, false, MAX_EFFECTIVE_PUBDATA_PER_BATCH / 37),
+            ..Default::default()
+        }),
+        tag: "big_repeated_writes".to_string(),
     });
 
-    let lots_of_small_initial_writes = execute_test(L1MessengerTestData {
-        // Each small initial write will take at least 32 bytes for derived key + 1 bytes encoding zeroing out
-        state_diffs: generate_state_diffs(false, true, MAX_EFFECTIVE_PUBDATA_PER_BATCH / 33),
-        ..Default::default()
+    // lots of small initial writes
+    statistics.push(StatisticsTagged {
+        statistics: execute_test(L1MessengerTestData {
+            // Each small initial write will take at least 32 bytes for derived key + 1 bytes encoding zeroing out
+            state_diffs: generate_state_diffs(false, true, MAX_EFFECTIVE_PUBDATA_PER_BATCH / 33),
+            ..Default::default()
+        }),
+        tag: "small_initial_writes".to_string(),
     });
 
-    let lots_of_large_initial_writes = execute_test(L1MessengerTestData {
-        // Each big write will take at least 32 bytes for derived key + 1 byte for encoding type + 32 bytes for value
-        state_diffs: generate_state_diffs(false, false, MAX_EFFECTIVE_PUBDATA_PER_BATCH / 65),
-        ..Default::default()
+    // lots of large initial writes
+    statistics.push(StatisticsTagged {
+        statistics: execute_test(L1MessengerTestData {
+            // Each big write will take at least 32 bytes for derived key + 1 byte for encoding type + 32 bytes for value
+            state_diffs: generate_state_diffs(false, false, MAX_EFFECTIVE_PUBDATA_PER_BATCH / 65),
+            ..Default::default()
+        }),
+        tag: "big_initial_writes".to_string(),
     });
-
-    let max_used_gas = vec![
-        max_logs,
-        max_messages,
-        long_message,
-        max_bytecodes,
-        long_bytecode,
-        lots_of_small_repeated_writes,
-        lots_of_big_repeated_writes,
-        lots_of_small_initial_writes,
-        lots_of_large_initial_writes,
-    ]
-    .into_iter()
-    .max()
-    .unwrap();
 
     // We use 2x overhead for the batch tip compared to the worst estimated scenario.
+    let max_used_gas = statistics
+        .iter()
+        .map(|s| (s.statistics.max_used_gas, s.tag.clone()))
+        .max()
+        .unwrap();
     assert!(
-        max_used_gas * 2 <= BOOTLOADER_BATCH_TIP_OVERHEAD,
-        "BOOTLOADER_BATCH_TIP_OVERHEAD is too low, max_used_gas = {}, BOOTLOADER_BATCH_TIP_OVERHEAD = {}",
-        max_used_gas,
-        BOOTLOADER_BATCH_TIP_OVERHEAD,
+        max_used_gas.0 * 2 <= BOOTLOADER_BATCH_TIP_OVERHEAD,
+        "BOOTLOADER_BATCH_TIP_OVERHEAD is too low for {} with result {}, BOOTLOADER_BATCH_TIP_OVERHEAD = {}",
+        max_used_gas.1,
+        max_used_gas.0,
+        BOOTLOADER_BATCH_TIP_OVERHEAD
+    );
+
+    let circuit_statistics = statistics
+        .iter()
+        .map(|s| (s.statistics.circuit_statistics, s.tag.clone()))
+        .max()
+        .unwrap();
+    assert!(
+        circuit_statistics.0 * 2 <= BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD,
+        "BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD is too low for {} with result {}, BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD = {}",
+        circuit_statistics.1,
+        circuit_statistics.0,
+        BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD
+    );
+
+    let execution_metrics_size = statistics
+        .iter()
+        .map(|s| (s.statistics.execution_metrics_size, s.tag.clone()))
+        .max()
+        .unwrap();
+    assert!(
+        execution_metrics_size.0 * 2 <= BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD,
+        "BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD is too low for {} with result {}, BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD = {}",
+        execution_metrics_size.1,
+        execution_metrics_size.0,
+        BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD
     );
 }

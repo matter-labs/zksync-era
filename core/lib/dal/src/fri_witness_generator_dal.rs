@@ -1,3 +1,4 @@
+#![doc = include_str!("../doc/FriWitnessGeneratorDal.md")]
 use std::{collections::HashMap, convert::TryFrom, time::Duration};
 
 use sqlx::Row;
@@ -60,7 +61,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 ($1, $2, $3, $4, 'queued', NOW(), NOW())
             ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
-            block_number.0 as i64,
+            i64::from(block_number.0),
             object_key,
             protocol_version_id as i32,
             blobs_raw,
@@ -108,7 +109,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             RETURNING
                 witness_inputs_fri.*
             "#,
-            last_l1_batch_to_process as i64,
+            i64::from(last_l1_batch_to_process),
             &protocol_versions[..],
             picked_by,
         )
@@ -138,7 +139,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             WHERE
                 l1_batch_number = $1
             "#,
-            l1_batch_number.0 as i64,
+            i64::from(l1_batch_number.0)
         )
         .fetch_optional(self.storage.conn())
         .await?
@@ -161,8 +162,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
             WHERE
                 l1_batch_number = $2
             "#,
-            format!("{}", status),
-            block_number.0 as i64
+            status.to_string(),
+            i64::from(block_number.0)
         )
         .execute(self.storage.conn())
         .await
@@ -185,7 +186,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 l1_batch_number = $2
             "#,
             duration_to_naive_time(time_taken),
-            block_number.0 as i64
+            i64::from(block_number.0)
         )
         .execute(self.storage.conn())
         .await
@@ -204,7 +205,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 l1_batch_number = $2
             "#,
             error,
-            block_number.0 as i64
+            i64::from(block_number.0)
         )
         .execute(self.storage.conn())
         .await
@@ -223,7 +224,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 id = $2
             "#,
             error,
-            id as i64
+            i64::from(id)
         )
         .execute(self.storage.conn())
         .await
@@ -242,7 +243,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 id = $2
             "#,
             duration_to_naive_time(time_taken),
-            id as i64
+            i64::from(id)
         )
         .execute(self.storage.conn())
         .await
@@ -330,8 +331,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     SET
                         updated_at = NOW()
                     "#,
-                    block_number.0 as i64,
-                    *circuit_id as i16,
+                    i64::from(block_number.0),
+                    i16::from(*circuit_id),
                     closed_form_inputs_url,
                     *number_of_basic_circuits as i32,
                     protocol_version_id as i32,
@@ -369,7 +370,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 SET
                     updated_at = NOW()
                 "#,
-                block_number.0 as i64,
+                i64::from(block_number.0),
                 scheduler_partial_input_blob_url,
                 protocol_version_id as i32,
             )
@@ -388,7 +389,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 SET
                     updated_at = NOW()
                 "#,
-                block_number.0 as i64,
+                i64::from(block_number.0)
             )
             .execute(self.storage.conn())
             .await
@@ -470,7 +471,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             WHERE
                 id = $1
             "#,
-            id as i64,
+            i64::from(id)
         )
         .fetch_optional(self.storage.conn())
         .await
@@ -502,10 +503,10 @@ impl FriWitnessGeneratorDal<'_, '_> {
             ORDER BY
                 sequence_number ASC;
             "#,
-            block_number.0 as i64,
-            circuit_id as i16,
+            i64::from(block_number.0),
+            i16::from(circuit_id),
             round as i16,
-            depth as i32,
+            i32::from(depth)
         )
         .fetch_all(self.storage.conn())
         .await
@@ -575,9 +576,9 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 AND depth = $4
             "#,
             url,
-            block_number.0 as i64,
-            circuit_id as i16,
-            depth as i32,
+            i64::from(block_number.0),
+            i16::from(circuit_id),
+            i32::from(depth),
             number_of_dependent_jobs as i32,
         )
         .execute(self.storage.conn())
@@ -662,7 +663,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             WHERE
                 id = $1
             "#,
-            id as i64,
+            i64::from(id)
         )
         .fetch_optional(self.storage.conn())
         .await
@@ -684,7 +685,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 id = $2
             "#,
             error,
-            id as i64
+            i64::from(id)
         )
         .execute(self.storage.conn())
         .await
@@ -703,7 +704,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 id = $2
             "#,
             duration_to_naive_time(time_taken),
-            id as i64
+            i64::from(id)
         )
         .execute(self.storage.conn())
         .await
@@ -740,9 +741,9 @@ impl FriWitnessGeneratorDal<'_, '_> {
             SET
                 updated_at = NOW()
             "#,
-            block_number.0 as i64,
-            circuit_id as i16,
-            depth as i32,
+            i64::from(block_number.0),
+            i16::from(circuit_id),
+            i32::from(depth),
             aggregations_url,
             number_of_dependent_jobs,
             protocol_version_id as i32,
@@ -1042,7 +1043,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             WHERE
                 l1_batch_number = $1
             "#,
-            l1_batch_number.0 as i64,
+            i64::from(l1_batch_number.0)
         )
         .fetch_optional(self.storage.conn())
         .await?
@@ -1067,7 +1068,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 l1_batch_number = $2
             "#,
             duration_to_naive_time(time_taken),
-            block_number.0 as i64
+            i64::from(block_number.0)
         )
         .execute(self.storage.conn())
         .await
@@ -1086,7 +1087,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 l1_batch_number = $2
             "#,
             error,
-            block_number.0 as i64
+            i64::from(block_number.0)
         )
         .execute(self.storage.conn())
         .await
@@ -1144,7 +1145,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             WHERE
                 l1_batch_number = $1
             "#,
-            l1_batch_number.0 as i64,
+            i64::from(l1_batch_number.0)
         )
         .fetch_one(self.storage.conn())
         .await

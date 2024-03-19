@@ -8,6 +8,7 @@ import { Reporter } from './reporter';
 /**
  * Attempts to connect to server.
  * This function returns once connection can be established, or throws an exception in case of timeout.
+ * It also waits for L2 ERC20 bridge to be deployed.
  *
  * This function is expected to be called *before* loading an environment via `loadTestEnvironment`,
  * because the latter expects server to be running and may throw otherwise.
@@ -25,11 +26,14 @@ export async function waitForServer() {
     const l2Provider = new zksync.Provider(l2NodeUrl);
 
     reporter.startAction('Connecting to server');
-    let ready = false;
     for (let i = 0; i < maxAttempts; ++i) {
         try {
             await l2Provider.getNetwork(); // Will throw if the server is not ready yet.
-            ready = true;
+            const bridgeAddress = (await l2Provider.getDefaultBridgeAddresses()).erc20L2;
+            const code = await l2Provider.getCode(bridgeAddress);
+            if (code == '0x') {
+                throw Error('L2 ERC20 bridge is not deployed yet, server is not ready');
+            }
             reporter.finishAction();
             return;
         } catch (e) {
@@ -37,10 +41,7 @@ export async function waitForServer() {
             await zksync.utils.sleep(attemptIntervalMs);
         }
     }
-
-    if (!ready) {
-        throw new Error('Failed to wait for the server to start');
-    }
+    throw new Error('Failed to wait for the server to start');
 }
 
 /**

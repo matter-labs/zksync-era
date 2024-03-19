@@ -386,7 +386,7 @@ impl ValuesCache {
 
 fn test_values_cache(pool: &ConnectionPool, rt_handle: Handle) {
     let mut caches = PostgresStorageCaches::new(1_024, 1_024);
-    let _ = caches.configure_storage_values_cache(1_024 * 1_024, pool.clone(), rt_handle.clone());
+    let _ = caches.configure_storage_values_cache(1_024 * 1_024, pool.clone());
     // We cannot use an update task since it requires having concurrent DB connections
     // that don't work in tests. We'll update values cache manually instead.
     let values_cache = caches.values.as_ref().unwrap().cache.clone();
@@ -451,12 +451,14 @@ fn test_values_cache(pool: &ConnectionPool, rt_handle: Handle) {
         (non_existing_key, Some(H256::zero())),
     ]);
 
-    values_cache.update(
-        MiniblockNumber(0),
-        MiniblockNumber(1),
-        &storage.rt_handle,
-        &mut storage.connection,
-    );
+    storage
+        .rt_handle
+        .block_on(values_cache.update(
+            MiniblockNumber(0),
+            MiniblockNumber(1),
+            &mut storage.connection,
+        ))
+        .unwrap();
     assert_eq!(values_cache.0.read().unwrap().valid_for, MiniblockNumber(1));
 
     assert_eq!(storage.read_value(&existing_key), H256::repeat_byte(1));
@@ -508,7 +510,7 @@ async fn using_values_cache() {
 /// on randomly generated `read_value()` queries.
 fn mini_fuzz_values_cache_inner(rng: &mut impl Rng, pool: &ConnectionPool, mut rt_handle: Handle) {
     let mut caches = PostgresStorageCaches::new(1_024, 1_024);
-    let _ = caches.configure_storage_values_cache(1_024 * 1_024, pool.clone(), rt_handle.clone());
+    let _ = caches.configure_storage_values_cache(1_024 * 1_024, pool.clone());
     let values_cache = caches.values.as_ref().unwrap().cache.clone();
 
     let mut connection = rt_handle.block_on(pool.access_storage()).unwrap();
@@ -534,12 +536,13 @@ fn mini_fuzz_values_cache_inner(rng: &mut impl Rng, pool: &ConnectionPool, mut r
                 let cache_valid_for = values_cache.valid_for();
                 assert!(cache_valid_for < MiniblockNumber(latest_block_number));
 
-                values_cache.update(
-                    cache_valid_for,
-                    MiniblockNumber(latest_block_number),
-                    &rt_handle,
-                    &mut connection,
-                );
+                rt_handle
+                    .block_on(values_cache.update(
+                        cache_valid_for,
+                        MiniblockNumber(latest_block_number),
+                        &mut connection,
+                    ))
+                    .unwrap();
                 cache_updated = true;
             }
 
