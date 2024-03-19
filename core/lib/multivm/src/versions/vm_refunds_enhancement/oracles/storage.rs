@@ -101,7 +101,6 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
 
     pub fn read_value(&mut self, mut query: LogQuery) -> LogQuery {
         let key = triplet_to_storage_key(query.shard_id, query.address, query.key);
-
         let current_value = self.storage.read_from_storage(&key);
 
         query.read_value = current_value;
