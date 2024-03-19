@@ -120,6 +120,9 @@ jobs:
   integration:
     name: Integration (consensus=${{ matrix.consensus }})
     strategy:
+      # In matrix jobs, fail-fast is true by default.
+      # To be consistent with the rest of the workflow we disable it explicitly.
+      fail-fast: false
       matrix:
         consensus: [false, true]
     env:
@@ -197,11 +200,10 @@ jobs:
         run: ci_run zk test i server
 
       - name: Snapshot recovery test
-        if: ${{ ! matrix.consensus }}
         # We use `yarn` directly because the test launches `zk` commands in both server and EN envs.
         # An empty topmost environment helps avoid a mess when redefining env vars shared between both envs
         # (e.g., DATABASE_URL).
-        run: ci_run yarn snapshot-recovery-test snapshot-recovery-test
+        run: ENABLE_CONSENSUS=${{ matrix.consensus }} PASSED_ENV_VARS=ENABLE_CONSENSUS ci_run yarn snapshot-recovery-test snapshot-recovery-test
 
       - name: Fee projection tests
         run: ci_run zk test i fees
@@ -252,6 +254,7 @@ jobs:
   external-node:
     name: External node (consensus=${{ matrix.consensus }})
     strategy:
+      fail-fast: false
       matrix:
         consensus: [false, true]
     runs-on: [matterlabs-ci-runner]
@@ -291,14 +294,14 @@ jobs:
       # `sleep 30` because we need to wait until server started properly
       - name: Run server
         run: |
-          ci_run zk server --components=$SERVER_COMPONENTS &>server.log &
+          ci_run zk server --components=$SERVER_COMPONENTS &>>server.log &
           ci_run sleep 30
       
       - name: Run external node
         run: |
           ci_run zk env ext-node-docker
           ci_run zk db setup
-          ci_run zk external-node $EXT_NODE_FLAGS &>ext-node.log &
+          ci_run zk external-node $EXT_NODE_FLAGS &>>ext-node.log &
           ci_run sleep 30
 
       - name: Integration tests
@@ -306,18 +309,9 @@ jobs:
 
       - name: Run revert test
         run: |
-          ci_run zk env
-          ci_run zk env docker
-          ci_run pkill zksync_server || true
-          ci_run sleep 2
-          ci_run zk env
-          ENABLE_CONSENSUS=${{ matrix.consensus }} PASSED_ENV_VARS=ENABLE_CONSENSUS ci_run zk test i revert
-          # Check that the rollback was performed on the EN
-          ci_run sleep 20
-          ci_run grep -q 'Rollback successfully completed' ext-node.log
-          # Restart the EN
-          ci_run zk server --components=$SERVER_COMPONENTS &>>server.log &
-          ci_run sleep 30
+          ENABLE_CONSENSUS=${{ matrix.consensus }} PASSED_ENV_VARS=ENABLE_CONSENSUS ci_run zk test i revert-en
+          # test terminates the nodes, so we restart them.
+          ZKSYNC_ENV=docker ci_run zk server --components=$SERVER_COMPONENTS &>>server.log &
           ZKSYNC_ENV=ext-node-docker ci_run zk external-node $EXT_NODE_FLAGS &>>ext-node.log &
           ci_run sleep 30
 
@@ -338,9 +332,13 @@ jobs:
         if: always()
         run: ci_run cat ext-node.log || true
 
-      - name: Show revert.log logs
+      - name: Show revert_main.log logs
         if: always()
-        run: ci_run cat core/tests/revert-test/revert.log || true
+        run: ci_run cat core/tests/revert-test/revert_main.log || true
+
+      - name: Show revert_ext.log logs
+        if: always()
+        run: ci_run cat core/tests/revert-test/revert_ext.log || true
 
       - name: Show upgrade.log logs
         if: always()

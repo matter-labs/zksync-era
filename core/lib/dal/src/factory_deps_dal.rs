@@ -43,7 +43,7 @@ impl FactoryDepsDal<'_, '_> {
             "#,
             &bytecode_hashes as &[&[u8]],
             &bytecodes as &[&[u8]],
-            block_number.0 as i64,
+            i64::from(block_number.0)
         )
         .execute(self.storage.conn())
         .await?;
@@ -169,7 +169,7 @@ impl FactoryDepsDal<'_, '_> {
             WHERE
                 miniblock_number > $1
             "#,
-            block_number.0 as i64
+            i64::from(block_number.0)
         )
         .fetch_all(self.storage.conn())
         .await?
@@ -189,7 +189,7 @@ impl FactoryDepsDal<'_, '_> {
             WHERE
                 miniblock_number > $1
             "#,
-            block_number.0 as i64
+            i64::from(block_number.0)
         )
         .execute(self.storage.conn())
         .await?;

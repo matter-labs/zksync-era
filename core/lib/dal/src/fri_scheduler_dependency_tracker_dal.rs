@@ -96,8 +96,8 @@ impl FriSchedulerDependencyTrackerDal<'_, '_> {
             )
         };
         sqlx::query(&query)
-            .bind(final_prover_job_id as i64)
-            .bind(l1_batch_number.0 as i64)
+            .bind(i64::from(final_prover_job_id))
+            .bind(i64::from(l1_batch_number.0))
             .execute(self.storage.conn())
             .await
             .unwrap();
@@ -116,7 +116,7 @@ impl FriSchedulerDependencyTrackerDal<'_, '_> {
             WHERE
                 l1_batch_number = $1
             "#,
-            l1_batch_number.0 as i64,
+            i64::from(l1_batch_number.0)
         )
         .fetch_all(self.storage.conn())
         .await

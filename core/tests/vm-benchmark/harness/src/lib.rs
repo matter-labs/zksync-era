@@ -5,7 +5,7 @@ use multivm::{
         L2BlockEnv, TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
     },
     utils::get_max_gas_per_pubdata_byte,
-    vm_latest::{constants::BLOCK_GAS_LIMIT, HistoryEnabled, Vm},
+    vm_latest::{constants::BLOCK_GAS_LIMIT, HistoryEnabled, TracerDispatcher, Vm},
 };
 use once_cell::sync::Lazy;
 use zksync_contracts::{deployer_contract, BaseSystemContracts};
@@ -22,6 +22,8 @@ use zksync_types::{
     ProtocolVersionId, Transaction, CONTRACT_DEPLOYER_ADDRESS, H256, U256,
 };
 use zksync_utils::bytecode::hash_bytecode;
+
+mod instruction_counter;
 
 /// Bytecodes have consist of an odd number of 32 byte words
 /// This function "fixes" bytecodes of wrong length by cutting off their end.
@@ -99,6 +101,21 @@ impl BenchmarkingVm {
     pub fn run_transaction(&mut self, tx: &Transaction) -> VmExecutionResultAndLogs {
         self.0.push_transaction(tx.clone());
         self.0.execute(VmExecutionMode::OneTx)
+    }
+
+    pub fn instruction_count(&mut self, tx: &Transaction) -> usize {
+        self.0.push_transaction(tx.clone());
+
+        let count = Rc::new(RefCell::new(0));
+
+        self.0.inspect(
+            TracerDispatcher::new(vec![Box::new(
+                instruction_counter::InstructionCounter::new(count.clone()),
+            )]),
+            VmExecutionMode::OneTx,
+        );
+
+        count.take()
     }
 }
 

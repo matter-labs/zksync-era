@@ -189,7 +189,7 @@ describe('snapshot recovery', () => {
             cwd: homeDir,
             stdio: 'inherit',
             shell: true,
-            env: { ...externalNodeEnv, TEMPLATE_DATABASE_URL: '' }
+            env: externalNodeEnv
         });
         try {
             await waitForProcess(childProcess);
@@ -215,7 +215,12 @@ describe('snapshot recovery', () => {
     step('initialize external node', async () => {
         externalNodeLogs = await fs.open('snapshot-recovery.log', 'w');
 
-        externalNodeProcess = spawn('zk external-node -- --enable-snapshots-recovery', {
+        const enableConsensus = process.env.ENABLE_CONSENSUS === 'true';
+        let args = ['external-node', '--', '--enable-snapshots-recovery'];
+        if (enableConsensus) {
+            args.push('--enable-consensus');
+        }
+        externalNodeProcess = spawn('zk', args, {
             cwd: homeDir,
             stdio: [null, externalNodeLogs.fd, externalNodeLogs.fd],
             shell: true,

@@ -6,7 +6,6 @@ use std::{
 
 use anyhow::Context as _;
 use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive};
-use sqlx::Row;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     block::{BlockGasCount, L1BatchHeader, L1BatchTreeData, MiniblockHeader},
@@ -252,7 +251,7 @@ impl BlocksDal<'_, '_> {
             WHERE
                 number = $1
             "#,
-            number.0 as i64
+            i64::from(number.0)
         )
         .instrument("get_storage_l1_batch")
         .with_arg("number", &number)
@@ -289,7 +288,7 @@ impl BlocksDal<'_, '_> {
             WHERE
                 number = $1
             "#,
-            number.0 as i64
+            i64::from(number.0)
         )
         .instrument("get_l1_batch_header")
         .with_arg("number", &number)
@@ -312,7 +311,7 @@ impl BlocksDal<'_, '_> {
             WHERE
                 number = $1
             "#,
-            number.0 as i64
+            i64::from(number.0)
         )
         .instrument("get_initial_bootloader_heap")
         .report_latency()
@@ -341,7 +340,7 @@ impl BlocksDal<'_, '_> {
             WHERE
                 number = $1
             "#,
-            number.0 as i64
+            i64::from(number.0)
         )
         .instrument("get_storage_refunds")
         .report_latency()
@@ -366,13 +365,14 @@ impl BlocksDal<'_, '_> {
         let Some(row) = sqlx::query!(
             r#"
             SELECT
+                serialized_events_queue_bytea,
                 serialized_events_queue
             FROM
                 events_queue
             WHERE
                 l1_batch_number = $1
             "#,
-            number.0 as i64
+            i64::from(number.0)
         )
         .instrument("get_events_queue")
         .report_latency()
@@ -383,8 +383,14 @@ impl BlocksDal<'_, '_> {
             return Ok(None);
         };
 
-        let events = serde_json::from_value(row.serialized_events_queue)
-            .context("invalid value for serialized_events_queue in the DB")?;
+        let events = if let Some(serialized_events_queue_bytea) = row.serialized_events_queue_bytea
+        {
+            bincode::deserialize(&serialized_events_queue_bytea)
+                .context("invalid value for serialized_events_queue_bytea in the DB")?
+        } else {
+            serde_json::from_value(row.serialized_events_queue)
+                .context("invalid value for serialized_events_queue in the DB")?
+        };
         Ok(Some(events))
     }
 
@@ -406,8 +412,8 @@ impl BlocksDal<'_, '_> {
                         number BETWEEN $2 AND $3
                     "#,
                     eth_tx_id as i32,
-                    number_range.start().0 as i64,
-                    number_range.end().0 as i64
+                    i64::from(number_range.start().0),
+                    i64::from(number_range.end().0)
                 )
                 .execute(self.storage.conn())
                 .await?;
@@ -423,8 +429,8 @@ impl BlocksDal<'_, '_> {
                         number BETWEEN $2 AND $3
                     "#,
                     eth_tx_id as i32,
-                    number_range.start().0 as i64,
-                    number_range.end().0 as i64
+                    i64::from(number_range.start().0),
+                    i64::from(number_range.end().0)
                 )
                 .execute(self.storage.conn())
                 .await?;
@@ -440,8 +446,8 @@ impl BlocksDal<'_, '_> {
                         number BETWEEN $2 AND $3
                     "#,
                     eth_tx_id as i32,
-                    number_range.start().0 as i64,
-                    number_range.end().0 as i64
+                    i64::from(number_range.start().0),
+                    i64::from(number_range.end().0)
                 )
                 .execute(self.storage.conn())
                 .await?;
@@ -479,12 +485,10 @@ impl BlocksDal<'_, '_> {
         // Serialization should always succeed.
         let initial_bootloader_contents = serde_json::to_value(initial_bootloader_contents)
             .expect("failed to serialize initial_bootloader_contents to JSON value");
-        let events_queue = serde_json::to_value(events_queue)
-            .expect("failed to serialize events_queue to JSON value");
         // Serialization should always succeed.
         let used_contract_hashes = serde_json::to_value(&header.used_contract_hashes)
             .expect("failed to serialize used_contract_hashes to JSON value");
-        let storage_refunds: Vec<_> = storage_refunds.iter().map(|n| *n as i64).collect();
+        let storage_refunds: Vec<_> = storage_refunds.iter().copied().map(i64::from).collect();
 
         let mut transaction = self.storage.start_transaction().await?;
         sqlx::query!(
@@ -542,17 +546,17 @@ impl BlocksDal<'_, '_> {
                     NOW()
                 )
             "#,
-            header.number.0 as i64,
-            header.l1_tx_count as i32,
-            header.l2_tx_count as i32,
+            i64::from(header.number.0),
+            i32::from(header.l1_tx_count),
+            i32::from(header.l2_tx_count),
             header.timestamp as i64,
             &l2_to_l1_logs,
             &header.l2_to_l1_messages,
             header.bloom.as_bytes(),
             &priority_onchain_data,
-            predicted_block_gas.commit as i64,
-            predicted_block_gas.prove as i64,
-            predicted_block_gas.execute as i64,
+            i64::from(predicted_block_gas.commit),
+            i64::from(predicted_block_gas.prove),
+            i64::from(predicted_block_gas.execute),
             initial_bootloader_contents,
             used_contract_hashes,
             header.base_system_contracts_hashes.bootloader.as_bytes(),
@@ -567,15 +571,17 @@ impl BlocksDal<'_, '_> {
         .execute(transaction.conn())
         .await?;
 
+        let events_queue =
+            bincode::serialize(events_queue).expect("failed to serialize events_queue to bytes");
         sqlx::query!(
             r#"
             INSERT INTO
-                events_queue (l1_batch_number, serialized_events_queue)
+                events_queue (l1_batch_number, serialized_events_queue, serialized_events_queue_bytea)
             VALUES
-                ($1, $2)
+                ($1, '{}', $2)
             "#,
-            header.number.0 as i64,
-            events_queue
+            i64::from(header.number.0),
+            &events_queue
         )
         .execute(transaction.conn())
         .await?;
@@ -636,11 +642,11 @@ impl BlocksDal<'_, '_> {
                     NOW()
                 )
             "#,
-            miniblock_header.number.0 as i64,
+            i64::from(miniblock_header.number.0),
             miniblock_header.timestamp as i64,
             miniblock_header.hash.as_bytes(),
-            miniblock_header.l1_tx_count as i32,
-            miniblock_header.l2_tx_count as i32,
+            i32::from(miniblock_header.l1_tx_count),
+            i32::from(miniblock_header.l2_tx_count),
             miniblock_header.fee_account_address.as_bytes(),
             base_fee_per_gas,
             miniblock_header.batch_fee_input.l1_gas_price() as i64,
@@ -659,7 +665,7 @@ impl BlocksDal<'_, '_> {
                 .evm_simulator
                 .as_bytes(),
             miniblock_header.protocol_version.map(|v| v as i32),
-            miniblock_header.virtual_blocks as i64,
+            i64::from(miniblock_header.virtual_blocks),
             miniblock_header.batch_fee_input.fair_pubdata_price() as i64,
         )
         .execute(self.storage.conn())
@@ -742,7 +748,7 @@ impl BlocksDal<'_, '_> {
             WHERE
                 number = $1
             "#,
-            miniblock_number.0 as i64,
+            i64::from(miniblock_number.0),
         )
         .fetch_optional(self.storage.conn())
         .await?;
@@ -797,7 +803,7 @@ impl BlocksDal<'_, '_> {
             "#,
             tree_data.hash.as_bytes(),
             tree_data.rollup_last_leaf_index as i64,
-            number.0 as i64,
+            i64::from(number.0),
         )
         .instrument("save_batch_tree_data")
         .with_arg("number", &number)
@@ -819,7 +825,7 @@ impl BlocksDal<'_, '_> {
                     number = $1
                     AND hash = $2
                 "#,
-                number.0 as i64,
+                i64::from(number.0),
                 tree_data.hash.as_bytes(),
             )
             .instrument("get_matching_batch_hash")
@@ -880,7 +886,7 @@ impl BlocksDal<'_, '_> {
             commitment_artifacts.compressed_state_diffs,
             commitment_artifacts.compressed_initial_writes,
             commitment_artifacts.compressed_repeated_writes,
-            number.0 as i64,
+            i64::from(number.0),
         )
         .instrument("save_l1_batch_commitment_artifacts")
         .with_arg("number", &number)
@@ -903,7 +909,7 @@ impl BlocksDal<'_, '_> {
                     number = $1
                     AND commitment = $2
                 "#,
-                number.0 as i64,
+                i64::from(number.0),
                 commitment_artifacts.commitment_hash.commitment.as_bytes(),
             )
             .instrument("get_matching_batch_commitment")
@@ -930,7 +936,7 @@ impl BlocksDal<'_, '_> {
                 ($1, $2, $3)
             ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
-            number.0 as i64,
+            i64::from(number.0),
             commitment_artifacts.aux_commitments.map(|a| a.events_queue_commitment.0.to_vec()),
             commitment_artifacts.aux_commitments
                 .map(|a| a.bootloader_initial_content_commitment.0.to_vec()),
@@ -1066,7 +1072,7 @@ impl BlocksDal<'_, '_> {
             WHERE
                 number = $1
             "#,
-            l1_batch_number.0 as i64
+            i64::from(l1_batch_number.0)
         )
         .fetch_optional(self.storage.conn())
         .await?;
@@ -1218,7 +1224,7 @@ impl BlocksDal<'_, '_> {
             WHERE
                 number = $1
             "#,
-            l1_batch_number.0 as i64
+            i64::from(l1_batch_number.0)
         )
         .execute(self.storage.conn())
         .await?;
@@ -1684,7 +1690,7 @@ impl BlocksDal<'_, '_> {
             WHERE
                 number = $1
             "#,
-            number.0 as i64
+            i64::from(number.0)
         )
         .fetch_optional(self.storage.conn())
         .await?
@@ -1706,7 +1712,7 @@ impl BlocksDal<'_, '_> {
             WHERE
                 number = $1
             "#,
-            number.0 as i64
+            i64::from(number.0)
         )
         .fetch_optional(self.storage.conn())
         .await?
@@ -1749,7 +1755,7 @@ impl BlocksDal<'_, '_> {
             WHERE
                 number = $1
             "#,
-            number.0 as i64
+            i64::from(number.0)
         )
         .fetch_optional(self.storage.conn())
         .await?;
@@ -1802,7 +1808,7 @@ impl BlocksDal<'_, '_> {
             WHERE
                 miniblocks.l1_batch_number = $1
             "#,
-            l1_batch_number.0 as i64
+            i64::from(l1_batch_number.0)
         )
         .fetch_all(self.storage.conn())
         .await?
@@ -1823,7 +1829,7 @@ impl BlocksDal<'_, '_> {
         &mut self,
         last_batch_to_keep: Option<L1BatchNumber>,
     ) -> sqlx::Result<()> {
-        let block_number = last_batch_to_keep.map_or(-1, |number| number.0 as i64);
+        let block_number = last_batch_to_keep.map_or(-1, |number| i64::from(number.0));
         sqlx::query!(
             r#"
             DELETE FROM initial_writes
@@ -1848,7 +1854,7 @@ impl BlocksDal<'_, '_> {
         &mut self,
         last_batch_to_keep: Option<L1BatchNumber>,
     ) -> sqlx::Result<()> {
-        let block_number = last_batch_to_keep.map_or(-1, |number| number.0 as i64);
+        let block_number = last_batch_to_keep.map_or(-1, |number| i64::from(number.0));
         sqlx::query!(
             r#"
             DELETE FROM l1_batches
@@ -1875,7 +1881,7 @@ impl BlocksDal<'_, '_> {
         &mut self,
         last_miniblock_to_keep: Option<MiniblockNumber>,
     ) -> sqlx::Result<()> {
-        let block_number = last_miniblock_to_keep.map_or(-1, |number| number.0 as i64);
+        let block_number = last_miniblock_to_keep.map_or(-1, |number| i64::from(number.0));
         sqlx::query!(
             r#"
             DELETE FROM miniblocks
@@ -1896,21 +1902,29 @@ impl BlocksDal<'_, '_> {
         number_range: ops::RangeInclusive<L1BatchNumber>,
         op_type: AggregatedActionType,
     ) -> anyhow::Result<u32> {
-        let column_name = match op_type {
-            AggregatedActionType::Commit => "predicted_commit_gas_cost",
-            AggregatedActionType::PublishProofOnchain => "predicted_prove_gas_cost",
-            AggregatedActionType::Execute => "predicted_execute_gas_cost",
-        };
-        let sql_query_str = format!(
-            "SELECT COALESCE(SUM({column_name}), 0) AS sum FROM l1_batches \
-             WHERE number BETWEEN $1 AND $2"
+        #[derive(Debug)]
+        struct SumRow {
+            sum: BigDecimal,
+        }
+
+        let start = i64::from(number_range.start().0);
+        let end = i64::from(number_range.end().0);
+        let query = match_query_as!(
+            SumRow,
+            [
+                "SELECT COALESCE(SUM(", _, r#"), 0) AS "sum!" FROM l1_batches WHERE number BETWEEN $1 AND $2"#
+            ],
+            match (op_type) {
+                AggregatedActionType::Commit => ("predicted_commit_gas_cost"; start, end),
+                AggregatedActionType::PublishProofOnchain => ("predicted_prove_gas_cost"; start, end),
+                AggregatedActionType::Execute => ("predicted_execute_gas_cost"; start, end),
+            }
         );
-        sqlx::query(&sql_query_str)
-            .bind(number_range.start().0 as i64)
-            .bind(number_range.end().0 as i64)
+
+        query
             .fetch_one(self.storage.conn())
             .await?
-            .get::<BigDecimal, &str>("sum")
+            .sum
             .to_u32()
             .context("Sum of predicted gas costs should fit into u32")
     }
@@ -1929,7 +1943,7 @@ impl BlocksDal<'_, '_> {
             WHERE
                 l1_batch_number = $1
             "#,
-            l1_batch_number.0 as i64
+            i64::from(l1_batch_number.0)
         )
         .fetch_one(self.storage.conn())
         .await?;
@@ -2032,7 +2046,7 @@ impl BlocksDal<'_, '_> {
             WHERE
                 number = $1
             "#,
-            l1_batch_number.0 as i64
+            i64::from(l1_batch_number.0)
         )
         .fetch_optional(self.storage.conn())
         .await?
@@ -2058,7 +2072,7 @@ impl BlocksDal<'_, '_> {
             WHERE
                 number = $1
             "#,
-            miniblock_number.0 as i64
+            i64::from(miniblock_number.0)
         )
         .fetch_optional(self.storage.conn())
         .await?
@@ -2084,7 +2098,7 @@ impl BlocksDal<'_, '_> {
             WHERE
                 number = $1
             "#,
-            miniblock_number.0 as i64,
+            i64::from(miniblock_number.0)
         )
         .fetch_optional(self.storage.conn())
         .await?
@@ -2281,8 +2295,8 @@ impl BlocksDal<'_, '_> {
                 AND miniblocks.number BETWEEN $1 AND $2
                 AND miniblocks.fee_account_address = '\x0000000000000000000000000000000000000000'::bytea
             "#,
-            numbers.start().0 as i64,
-            numbers.end().0 as i64
+            i64::from(numbers.start().0),
+            i64::from(numbers.end().0)
         )
         .execute(self.storage.conn())
         .await?;
@@ -2305,7 +2319,7 @@ impl BlocksDal<'_, '_> {
                 number = $2
             "#,
             fee_account_address.as_bytes(),
-            l1_batch.0 as i64
+            i64::from(l1_batch.0)
         )
         .execute(self.storage.conn())
         .await?;
@@ -2330,7 +2344,7 @@ impl BlocksDal<'_, '_> {
                 number = $2
             "#,
             hash.as_bytes(),
-            batch_num.0 as i64
+            i64::from(batch_num.0)
         )
         .execute(self.storage.conn())
         .await?;

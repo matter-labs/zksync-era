@@ -5,7 +5,7 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_types::{
     api,
     protocol_version::{self, L1VerifierConfig, ProtocolUpgradeTx, VerifierParams},
-    Address, H256,
+    H256,
 };
 
 #[derive(sqlx::FromRow)]
@@ -19,7 +19,8 @@ pub struct StorageProtocolVersion {
     pub bootloader_code_hash: Vec<u8>,
     pub default_account_code_hash: Vec<u8>,
     pub evm_simulator_code_hash: Option<Vec<u8>>,
-    pub verifier_address: Vec<u8>,
+    // deprecated
+    pub verifier_address: Option<Vec<u8>>,
     pub created_at: NaiveDateTime,
     pub upgrade_tx_hash: Option<Vec<u8>>,
 }
@@ -55,7 +56,6 @@ pub(crate) fn protocol_version_from_storage(
                 .map(|hash| H256::from_slice(&hash))
                 .unwrap_or_default(),
         },
-        verifier_address: Address::from_slice(&storage_version.verifier_address),
         tx,
     }
 }

@@ -127,7 +127,7 @@ impl SnapshotParameters {
         let mut storage = pool.access_storage().await?;
         let log_count = storage
             .storage_logs_dal()
-            .count_miniblock_storage_logs(miniblock)
+            .get_storage_logs_row_count(miniblock)
             .await
             .with_context(|| format!("Failed getting number of logs for miniblock #{miniblock}"))?;
 

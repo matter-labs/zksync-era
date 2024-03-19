@@ -2,10 +2,10 @@
 #![warn(unused_extern_crates)]
 #![warn(unused_imports)]
 
-// FIXME remove this once 1.5.0 harness is properly integrated
-pub use zk_evm_1_4_1;
+// FIXME remove this once 1.5.0 circuit sequencer api is ready
+pub use circuit_sequencer_api_1_4_1 as circuit_sequencer_api_latest;
+pub use zk_evm_1_4_1 as zk_evm_pre_latest;
 pub use zk_evm_1_5_0 as zk_evm_latest;
-pub use zkevm_test_harness_1_4_1 as zkevm_test_harness_latest;
 pub use zksync_types::vm_version::VmVersion;
 
 pub use self::versions::{

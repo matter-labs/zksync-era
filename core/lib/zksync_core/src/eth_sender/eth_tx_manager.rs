@@ -58,10 +58,12 @@ pub struct EthTxManager {
     ethereum_gateway_blobs: Option<Arc<dyn BoundEthInterface>>,
     config: SenderConfig,
     gas_adjuster: Arc<dyn L1TxParamsProvider>,
+    pool: ConnectionPool,
 }
 
 impl EthTxManager {
     pub fn new(
+        pool: ConnectionPool,
         config: SenderConfig,
         gas_adjuster: Arc<dyn L1TxParamsProvider>,
         ethereum_gateway: Arc<dyn BoundEthInterface>,
@@ -72,6 +74,7 @@ impl EthTxManager {
             ethereum_gateway_blobs,
             config,
             gas_adjuster,
+            pool,
         }
     }
 
@@ -119,6 +122,10 @@ impl EthTxManager {
         tx: &EthTx,
         time_in_mempool: u32,
     ) -> Result<EthFee, ETHSenderError> {
+        let base_fee_per_gas = self.gas_adjuster.get_base_fee(0);
+        let priority_fee_per_gas = self.gas_adjuster.get_priority_fee();
+        let blob_base_fee_per_gas = Some(self.gas_adjuster.get_blob_base_fee());
+
         if tx.blob_sidecar.is_some() {
             if time_in_mempool != 0 {
                 // for blob transactions on re-sending need to double all gas prices
@@ -129,15 +136,20 @@ impl EthTxManager {
                     .unwrap()
                     .unwrap();
                 return Ok(EthFee {
-                    base_fee_per_gas: previous_sent_tx.base_fee_per_gas * 2,
-                    priority_fee_per_gas: previous_sent_tx.priority_fee_per_gas * 2,
-                    blob_base_fee_per_gas: previous_sent_tx.blob_base_fee_per_gas.map(|v| v * 2),
+                    base_fee_per_gas: std::cmp::max(
+                        previous_sent_tx.base_fee_per_gas * 2,
+                        base_fee_per_gas,
+                    ),
+                    priority_fee_per_gas: std::cmp::max(
+                        previous_sent_tx.priority_fee_per_gas * 2,
+                        priority_fee_per_gas,
+                    ),
+                    blob_base_fee_per_gas: std::cmp::max(
+                        previous_sent_tx.blob_base_fee_per_gas.map(|v| v * 2),
+                        blob_base_fee_per_gas,
+                    ),
                 });
             }
-            let base_fee_per_gas = self.gas_adjuster.get_base_fee(0);
-            let priority_fee_per_gas = self.gas_adjuster.get_priority_fee();
-            let blob_base_fee_per_gas = Some(self.gas_adjuster.get_blob_base_fee());
-
             return Ok(EthFee {
                 base_fee_per_gas,
                 priority_fee_per_gas,
@@ -711,11 +723,8 @@ impl EthTxManager {
         METRICS.l1_blocks_waited_in_mempool[&tx_type_label].observe(waited_blocks.into());
     }
 
-    pub async fn run(
-        mut self,
-        pool: ConnectionPool,
-        stop_receiver: watch::Receiver<bool>,
-    ) -> anyhow::Result<()> {
+    pub async fn run(mut self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        let pool = self.pool.clone();
         {
             let l1_block_numbers = self
                 .get_l1_block_numbers()

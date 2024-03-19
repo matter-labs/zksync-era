@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package zksync.config;
+package zksync.config.eth_client;
 
 message ETHClient {
   optional uint64 chain_id = 1; // required; TODO: shouldn't it be Network?

@@ -307,7 +307,7 @@ impl TransactionsDal<'_, '_> {
                 u256_to_big_decimal(tx.common_data.fee.gas_per_pubdata_limit);
             let tx_format = tx.common_data.transaction_type as i32;
             let signature = tx.common_data.signature;
-            let nonce = tx.common_data.nonce.0 as i64;
+            let nonce = i64::from(tx.common_data.nonce.0);
             let input_data = tx.common_data.input.expect("Data is mandatory").data;
             let value = u256_to_big_decimal(tx.execute.value);
             let paymaster = tx.common_data.paymaster_params.paymaster.0.as_ref();
@@ -497,7 +497,7 @@ impl TransactionsDal<'_, '_> {
                 "#,
                 &l1_batch_tx_indexes,
                 &hashes as &[&[u8]],
-                block_number.0 as i64
+                i64::from(block_number.0)
             )
             .execute(self.storage.conn())
             .await
@@ -583,7 +583,7 @@ impl TransactionsDal<'_, '_> {
                             l1_indices_in_block.push(index_in_block as i32);
                             l1_errors.push(error.unwrap_or_default());
                             l1_execution_infos.push(serde_json::to_value(execution_info).unwrap());
-                            l1_refunded_gas.push(*refunded_gas as i64);
+                            l1_refunded_gas.push(i64::from(*refunded_gas));
                             l1_effective_gas_prices
                                 .push(u256_to_big_decimal(common_data.max_fee_per_gas));
                         }
@@ -626,7 +626,7 @@ impl TransactionsDal<'_, '_> {
                             ));
                             l2_gas_per_pubdata_limit
                                 .push(u256_to_big_decimal(common_data.fee.gas_per_pubdata_limit));
-                            l2_refunded_gas.push(*refunded_gas as i64);
+                            l2_refunded_gas.push(i64::from(*refunded_gas));
                         }
                         ExecuteTransactionCommon::ProtocolUpgrade(common_data) => {
                             upgrade_hashes.push(hash.0.to_vec());
@@ -634,7 +634,7 @@ impl TransactionsDal<'_, '_> {
                             upgrade_errors.push(error.unwrap_or_default());
                             upgrade_execution_infos
                                 .push(serde_json::to_value(execution_info).unwrap());
-                            upgrade_refunded_gas.push(*refunded_gas as i64);
+                            upgrade_refunded_gas.push(i64::from(*refunded_gas));
                             upgrade_effective_gas_prices
                                 .push(u256_to_big_decimal(common_data.max_fee_per_gas));
                         }
@@ -879,7 +879,7 @@ impl TransactionsDal<'_, '_> {
                 RETURNING
                     hash
                 "#,
-                miniblock_number.0 as i64
+                i64::from(miniblock_number.0)
             )
             .fetch_all(self.storage.conn())
             .await
@@ -1009,7 +1009,7 @@ impl TransactionsDal<'_, '_> {
             limit as i32,
             BigDecimal::from(fee_per_gas),
             BigDecimal::from(gas_per_pubdata),
-            PROTOCOL_UPGRADE_TX_TYPE as i32,
+            i32::from(PROTOCOL_UPGRADE_TX_TYPE)
         )
         .fetch_all(self.storage.conn())
         .await?;
@@ -1146,7 +1146,7 @@ impl TransactionsDal<'_, '_> {
                 miniblock_number,
                 index_in_block
             "#,
-            l1_batch_number.0 as i64,
+            i64::from(l1_batch_number.0)
         )
         .fetch_all(self.storage.conn())
         .await?;
@@ -1188,8 +1188,8 @@ impl TransactionsDal<'_, '_> {
             ORDER BY
                 number
             "#,
-            from_miniblock.0 as i64,
-            to_miniblock.0 as i64,
+            i64::from(from_miniblock.0),
+            i64::from(to_miniblock.0)
         )
         .fetch_all(self.storage.conn())
         .await?;
@@ -1211,8 +1211,8 @@ impl TransactionsDal<'_, '_> {
             ORDER BY
                 number
             "#,
-            from_miniblock.0 as i64 - 1,
-            to_miniblock.0 as i64 - 1,
+            i64::from(from_miniblock.0) - 1,
+            i64::from(to_miniblock.0) - 1,
         )
         .fetch_all(self.storage.conn())
         .await?;
@@ -1287,7 +1287,7 @@ impl TransactionsDal<'_, '_> {
                     miniblock_number,
                     index_in_block
                 "#,
-                l1_batch_number.0 as i64
+                i64::from(l1_batch_number.0)
             )
             .fetch_all(self.storage.conn())
             .await
