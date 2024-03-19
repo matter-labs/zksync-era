@@ -183,6 +183,7 @@ impl<S: ReadStorage + fmt::Debug> WriteStorage for StorageView<S> {
     fn read_storage_keys(&self) -> &HashMap<StorageKey, StorageValue> {
         &self.read_storage_keys
     }
+
     fn set_value(&mut self, key: StorageKey, value: StorageValue) -> StorageValue {
         let started_at = Instant::now();
         self.metrics.set_value_storage_invocations += 1;
