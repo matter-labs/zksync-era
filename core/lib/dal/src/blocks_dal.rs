@@ -2216,7 +2216,7 @@ impl BlocksDal<'_, '_> {
                 )
             WHERE
                 l1_batch_number IS NULL
-                AND fee_account_address = '\x0000000000000000000000000000000000000000'::bytea
+                AND fee_account_address = 'x0000000000000000000000000000000000000000'::bytea
             "#
         )
         .execute(self.storage.conn())
@@ -2256,7 +2256,7 @@ impl BlocksDal<'_, '_> {
             WHERE
                 l1_batches.number = miniblocks.l1_batch_number
                 AND miniblocks.number BETWEEN $1 AND $2
-                AND miniblocks.fee_account_address = '\x0000000000000000000000000000000000000000'::bytea
+                AND miniblocks.fee_account_address = 'x0000000000000000000000000000000000000000'::bytea
             "#,
             numbers.start().0 as i64,
             numbers.end().0 as i64
