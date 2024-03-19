@@ -7321,6 +7321,7 @@ name = "zksync_state"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "itertools 0.10.5",
  "mini-moka",
  "tokio",

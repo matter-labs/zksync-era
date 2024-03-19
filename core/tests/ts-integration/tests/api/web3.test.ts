@@ -242,6 +242,31 @@ describe('web3 API compatibility tests', () => {
         expect(eip1559ApiReceipt.maxPriorityFeePerGas).bnToBeEq(eip1559Tx.maxPriorityFeePerGas!);
     });
 
+    test('Should test getFilterChanges for pending transactions', async () => {
+        let filterId = await alice.provider.send('eth_newPendingTransactionFilter', []);
+        let changes = await alice.provider.send('eth_getFilterChanges', [filterId]);
+        expect(changes).toEqual([]);
+        const tx1 = await alice.sendTransaction({
+            to: alice.address
+        });
+        // We need to wait until the mempool cache on the server is updated.
+        await zksync.utils.sleep(75);
+        changes = await alice.provider.send('eth_getFilterChanges', [filterId]);
+        expect(changes).toEqual([tx1.hash]);
+        const tx2 = await alice.sendTransaction({
+            to: alice.address
+        });
+        const tx3 = await alice.sendTransaction({
+            to: alice.address
+        });
+        const tx4 = await alice.sendTransaction({
+            to: alice.address
+        });
+        await zksync.utils.sleep(75);
+        changes = await alice.provider.send('eth_getFilterChanges', [filterId]);
+        expect(changes).toEqual([tx2.hash, tx3.hash, tx4.hash]);
+    });
+
     test('Should test pub-sub API: blocks', async () => {
         // Checks that we can receive an event for new block being created.
         let wsProvider = new ethers.providers.WebSocketProvider(testMaster.environment().wsL2NodeUrl);

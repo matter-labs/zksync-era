@@ -210,6 +210,8 @@ impl RandomConfig for configs::api::Web3JsonRpcConfig {
             max_response_body_size_mb: g.gen(),
             websocket_requests_per_minute_limit: g.gen(),
             tree_api_url: g.gen(),
+            mempool_cache_update_interval: g.gen(),
+            mempool_cache_size: g.gen(),
         }
     }
 }

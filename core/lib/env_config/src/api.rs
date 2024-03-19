@@ -88,6 +88,8 @@ mod tests {
                 max_response_body_size_mb: Some(10),
                 websocket_requests_per_minute_limit: Some(NonZeroU32::new(10).unwrap()),
                 tree_api_url: None,
+                mempool_cache_update_interval: Some(50),
+                mempool_cache_size: Some(10000),
             },
             contract_verification: ContractVerificationApiConfig {
                 port: 3070,

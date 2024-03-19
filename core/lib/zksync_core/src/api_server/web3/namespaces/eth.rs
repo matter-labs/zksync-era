@@ -752,23 +752,41 @@ impl EthNamespace {
             }
 
             TypedFilter::PendingTransactions(from_timestamp_excluded) => {
-                let mut conn = self
+                // Attempt to get pending transactions from cache.
+
+                let tx_hashes_from_cache = self
                     .state
-                    .connection_pool
-                    .access_storage_tagged("api")
-                    .await?;
-                let (tx_hashes, last_timestamp) = conn
-                    .transactions_web3_dal()
-                    .get_pending_txs_hashes_after(
-                        *from_timestamp_excluded,
-                        Some(self.state.api_config.req_entities_limit),
-                    )
-                    .await
-                    .context("get_pending_txs_hashes_after")?;
+                    .mempool_cache
+                    .get_tx_hashes_after(*from_timestamp_excluded)
+                    .await;
+                let tx_hashes = match tx_hashes_from_cache {
+                    Some(result) => result,
+                    None => {
+                        // On cache miss, query the database.
+                        let mut conn = self
+                            .state
+                            .connection_pool
+                            .access_storage_tagged("api")
+                            .await?;
+                        conn.transactions_web3_dal()
+                            .get_pending_txs_hashes_after(
+                                *from_timestamp_excluded,
+                                Some(self.state.api_config.req_entities_limit),
+                            )
+                            .await
+                            .context("get_pending_txs_hashes_after")?
+                    }
+                };
 
-                *from_timestamp_excluded = last_timestamp.unwrap_or(*from_timestamp_excluded);
+                // It's possible the tx_hashes vector is empty,
+                // meaning there are no transactions in cache that are newer than `from_timestamp_excluded`.
+                // In this case we should return empty result and don't update `from_timestamp_excluded`.
 
-                FilterChanges::Hashes(tx_hashes)
+                if let Some((last_timestamp, _)) = tx_hashes.last() {
+                    *from_timestamp_excluded = *last_timestamp;
+                }
+
+                FilterChanges::Hashes(tx_hashes.into_iter().map(|(_, hash)| hash).collect())
             }
 
             TypedFilter::Events(filter, from_block) => {
