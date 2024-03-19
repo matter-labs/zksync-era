@@ -479,11 +479,13 @@ async fn init_tasks(
         .context("failed to build a tree_pool")?;
 
     let fee_params_fetcher = Arc::new(MainNodeFeeParamsFetcher::new(main_node_client.clone()));
-    let tree_reader: Option<Arc<dyn TreeApiClient>> = if components.contains(&Component::Tree) {
+    if !components.contains(&Component::Tree) {
         anyhow::ensure!(
             !components.contains(&Component::TreeApi),
             "Merkle tree API cannot be started without a tree component"
         );
+    }
+    let tree_reader: Option<Arc<dyn TreeApiClient>> = if components.contains(&Component::Tree) {
         Some(
             run_tree(
                 task_handles,
