@@ -3,11 +3,11 @@ use std::{collections::HashMap, str::FromStr, time::Duration};
 
 use sqlx::Row;
 use strum::{Display, EnumString};
-use zksync_db_connection::processor::StorageProcessor;
-use zksync_types::{
+use zksync_basic_types::{
     prover_dal::{JobCountStatistics, StuckJobs},
     L1BatchNumber,
 };
+use zksync_db_connection::processor::StorageProcessor;
 
 use crate::{duration_to_naive_time, pg_interval_from_duration, Prover};
 

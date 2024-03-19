@@ -26,7 +26,7 @@ use zksync_prover_fri_utils::{
 };
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{
-    basic_fri_types::CircuitIdRoundTuple, protocol_version::L1VerifierConfig,
+    basic_fri_types::CircuitIdRoundTuple, protocol::L1VerifierConfig,
     prover_dal::GpuProverInstanceStatus,
 };
 use zksync_vk_setup_data_server_fri::keystore::Keystore;

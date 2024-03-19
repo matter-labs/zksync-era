@@ -1,7 +1,7 @@
 use std::time::Duration;
 
+use zksync_basic_types::prover_dal::{GpuProverInstanceStatus, SocketAddress};
 use zksync_db_connection::processor::StorageProcessor;
-use zksync_types::prover_dal::{GpuProverInstanceStatus, SocketAddress};
 
 use crate::{pg_interval_from_duration, Prover};
 

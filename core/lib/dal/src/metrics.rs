@@ -1,3 +1,4 @@
+//! Metrics for the data access layer.
 use std::time::Duration;
 
 use anyhow::Context;

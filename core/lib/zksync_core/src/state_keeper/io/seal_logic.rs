@@ -16,7 +16,7 @@ use zksync_types::{
     l1::L1Tx,
     l2::L2Tx,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
-    protocol_version::ProtocolUpgradeTx,
+    protocol::ProtocolUpgradeTx,
     storage_writes_deduplicator::{ModifiedSlot, StorageWritesDeduplicator},
     tx::{
         tx_execution_info::DeduplicatedWritesMetrics, IncludedTxLocation,

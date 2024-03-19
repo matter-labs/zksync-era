@@ -24,6 +24,7 @@ use crate::{
     connection::ConnectionPool,
     metrics::REQUEST_METRICS,
     processor::{StorageMarker, StorageProcessor, StorageProcessorTags},
+    utils::InternalMarker,
 };
 
 type ThreadSafeDebug<'a> = dyn fmt::Debug + Send + Sync + 'a;
@@ -133,7 +134,8 @@ impl<'a> InstrumentedData<'a> {
         let started_at = Instant::now();
         tokio::pin!(query_future);
 
-        let slow_query_threshold = ConnectionPool::<()>::global_config().slow_query_threshold();
+        let slow_query_threshold =
+            ConnectionPool::<InternalMarker>::global_config().slow_query_threshold();
         let mut is_slow = false;
         let output =
             tokio::time::timeout_at(started_at + slow_query_threshold, &mut query_future).await;
@@ -292,11 +294,11 @@ mod tests {
     use zksync_types::{MiniblockNumber, H256};
 
     use super::*;
-    use crate::connection::ConnectionPool;
+    use crate::{connection::ConnectionPool, utils::InternalMarker};
 
     #[tokio::test]
     async fn instrumenting_erroneous_query() {
-        let pool = ConnectionPool::<()>::test_pool().await;
+        let pool = ConnectionPool::<InternalMarker>::test_pool().await;
         // Add `vlog::init()` here to debug this test
 
         let mut conn = pool.access_storage().await.unwrap();
@@ -312,7 +314,7 @@ mod tests {
 
     #[tokio::test]
     async fn instrumenting_slow_query() {
-        let pool = ConnectionPool::<()>::test_pool().await;
+        let pool = ConnectionPool::<InternalMarker>::test_pool().await;
         // Add `vlog::init()` here to debug this test
 
         let mut conn = pool.access_storage().await.unwrap();

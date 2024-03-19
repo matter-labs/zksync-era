@@ -10,10 +10,8 @@ use multivm::interface::{Halt, L1BatchEnv, SystemEnv};
 use tokio::sync::watch;
 use zksync_dal::{ConnectionPool, Server};
 use zksync_types::{
-    block::MiniblockExecutionData,
-    l2::TransactionType,
-    protocol_version::{ProtocolUpgradeTx, ProtocolVersionId},
-    storage_writes_deduplicator::StorageWritesDeduplicator,
+    block::MiniblockExecutionData, l2::TransactionType, protocol::ProtocolUpgradeTx,
+    protocol_version::ProtocolVersionId, storage_writes_deduplicator::StorageWritesDeduplicator,
     L1BatchNumber, Transaction,
 };
 

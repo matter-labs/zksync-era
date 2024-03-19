@@ -437,17 +437,18 @@ mod tests {
     use assert_matches::assert_matches;
 
     use super::*;
+    use crate::utils::InternalMarker;
 
     #[tokio::test]
     async fn setting_statement_timeout() {
         let db_url = TestTemplate::empty()
             .unwrap()
-            .create_db::<()>(1)
+            .create_db::<InternalMarker>(1)
             .await
             .unwrap()
             .database_url;
 
-        let pool = ConnectionPool::<()>::singleton(&db_url)
+        let pool = ConnectionPool::<InternalMarker>::singleton(&db_url)
             .set_statement_timeout(Some(Duration::from_secs(1)))
             .build()
             .await

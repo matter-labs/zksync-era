@@ -2,6 +2,13 @@ use std::time::Duration;
 
 use sqlx::{postgres::types::PgInterval, types::chrono::NaiveTime};
 
+use crate::processor::StorageMarker;
+
+#[derive(Debug)]
+pub(crate) struct InternalMarker;
+
+impl StorageMarker for InternalMarker {}
+
 pub fn duration_to_naive_time(duration: Duration) -> NaiveTime {
     let total_seconds = duration.as_secs() as u32;
     NaiveTime::from_hms_opt(

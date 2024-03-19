@@ -2,8 +2,7 @@
 use std::{collections::HashMap, convert::TryFrom, time::Duration};
 
 use sqlx::Row;
-use zksync_db_connection::{metrics::MethodLatency, processor::StorageProcessor};
-use zksync_types::{
+use zksync_basic_types::{
     basic_fri_types::{AggregationRound, Eip4844Blobs},
     protocol_version::FriProtocolVersionId,
     prover_dal::{
@@ -11,6 +10,7 @@ use zksync_types::{
     },
     L1BatchNumber,
 };
+use zksync_db_connection::{metrics::MethodLatency, processor::StorageProcessor};
 
 use crate::{duration_to_naive_time, pg_interval_from_duration, Prover};
 

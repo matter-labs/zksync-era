@@ -7,7 +7,7 @@ use vm_utils::storage::{l1_batch_params, L1BatchParamsProvider};
 use zksync_contracts::{BaseSystemContracts, SystemContractCode};
 use zksync_dal::{ConnectionPool, Server, ServerDals};
 use zksync_types::{
-    ethabi::Address, fee_model::BatchFeeInput, protocol_version::ProtocolUpgradeTx,
+    ethabi::Address, fee_model::BatchFeeInput, protocol::ProtocolUpgradeTx,
     witness_block_state::WitnessBlockState, L1BatchNumber, L2ChainId, MiniblockNumber,
     ProtocolVersionId, Transaction, H256,
 };

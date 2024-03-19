@@ -4,7 +4,8 @@ use anyhow::Context as _;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
 use zksync_db_connection::processor::StorageProcessor;
 use zksync_types::{
-    protocol_version::{L1VerifierConfig, ProtocolUpgradeTx, ProtocolVersion, VerifierParams},
+    protocol::{ProtocolUpgradeTx, ProtocolVersion},
+    protocol_version::{L1VerifierConfig, VerifierParams},
     ProtocolVersionId, H256,
 };
 

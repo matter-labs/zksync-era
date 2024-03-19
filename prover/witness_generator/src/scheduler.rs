@@ -33,7 +33,7 @@ use zksync_prover_fri_types::{
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{
     basic_fri_types::{AggregationRound, FinalProofIds},
-    protocol_version::FriProtocolVersionId,
+    protocol::FriProtocolVersionId,
     L1BatchNumber,
 };
 use zksync_vk_setup_data_server_fri::{keystore::Keystore, utils::get_leaf_vk_params};

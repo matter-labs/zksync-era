@@ -11,7 +11,7 @@ categories = ["cryptography"]
 
 [dependencies]
 zksync_db_connection = { path = "../../core/lib/db_connection" }
-zksync_types = { path = "../../core/lib/types" }
+zksync_basic_types = { path = "../../core/lib/basic_types" }
 
 strum = { version = "0.24", features = ["derive"] }
 sqlx = { version = "0.7.3", default-features = false, features = [

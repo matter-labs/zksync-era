@@ -11,7 +11,7 @@ use std::{
 
 use sqlx::{pool::PoolConnection, types::chrono, Connection, PgConnection, Postgres, Transaction};
 
-use crate::{connection::ConnectionPool, metrics::CONNECTION_METRICS};
+use crate::{connection::ConnectionPool, metrics::CONNECTION_METRICS, utils::InternalMarker};
 
 /// Tags that can be associated with a connection.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -113,7 +113,9 @@ impl Drop for PooledStorageProcessor<'_> {
             let lifetime = self.created_at.elapsed();
             CONNECTION_METRICS.lifetime[&tags.requester].observe(lifetime);
 
-            if lifetime > ConnectionPool::<()>::global_config().long_connection_threshold() {
+            if lifetime
+                > ConnectionPool::<InternalMarker>::global_config().long_connection_threshold()
+            {
                 let file = tags.location.file();
                 let line = tags.location.line();
                 tracing::info!(
@@ -139,9 +141,6 @@ enum StorageProcessorInner<'a> {
 
 /// Marker trait for restricting using all possible types as a storage marker.
 pub trait StorageMarker {}
-
-// impl StorageMarker for empty type
-impl StorageMarker for () {}
 
 /// Storage processor is the main storage interaction point.
 /// It holds down the connection (either direct or pooled) to the database
@@ -220,11 +219,11 @@ impl<'a, SM: StorageMarker> StorageProcessor<'a, SM> {
 
 #[cfg(test)]
 mod tests {
-    use crate::connection::ConnectionPool;
+    use crate::{connection::ConnectionPool, utils::InternalMarker};
 
     #[tokio::test]
     async fn processor_tags_propagate_to_transactions() {
-        let pool = ConnectionPool::<()>::constrained_test_pool(1).await;
+        let pool = ConnectionPool::<InternalMarker>::constrained_test_pool(1).await;
         let mut connection = pool.access_storage_tagged("test").await.unwrap();
         assert!(!connection.in_transaction());
         let original_tags = *connection.conn_and_tags().1.unwrap();
@@ -237,7 +236,7 @@ mod tests {
 
     #[tokio::test]
     async fn tracing_connections() {
-        let pool = ConnectionPool::<()>::constrained_test_pool(1).await;
+        let pool = ConnectionPool::<InternalMarker>::constrained_test_pool(1).await;
         let connection = pool.access_storage_tagged("test").await.unwrap();
         let traced = pool.traced_connections.as_deref().unwrap();
         {

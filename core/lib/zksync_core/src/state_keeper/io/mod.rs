@@ -8,7 +8,7 @@ use multivm::interface::{FinishedL1Batch, L1BatchEnv, SystemEnv};
 use tokio::sync::{mpsc, oneshot};
 use zksync_dal::{ConnectionPool, Server};
 use zksync_types::{
-    block::MiniblockExecutionData, protocol_version::ProtocolUpgradeTx,
+    block::MiniblockExecutionData, protocol::ProtocolUpgradeTx,
     witness_block_state::WitnessBlockState, L1BatchNumber, MiniblockNumber, ProtocolVersionId,
     Transaction,
 };

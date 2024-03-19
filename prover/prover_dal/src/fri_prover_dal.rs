@@ -1,14 +1,14 @@
 #![doc = include_str!("../doc/FriProverDal.md")]
 use std::{collections::HashMap, convert::TryFrom, time::Duration};
 
-use zksync_db_connection::{
-    instrument::InstrumentExt, metrics::MethodLatency, processor::StorageProcessor,
-};
-use zksync_types::{
+use zksync_basic_types::{
     basic_fri_types::{AggregationRound, CircuitIdRoundTuple},
     protocol_version::FriProtocolVersionId,
     prover_dal::{FriProverJobMetadata, JobCountStatistics, StuckJobs, EIP_4844_CIRCUIT_ID},
     L1BatchNumber,
+};
+use zksync_db_connection::{
+    instrument::InstrumentExt, metrics::MethodLatency, processor::StorageProcessor,
 };
 
 use crate::{duration_to_naive_time, pg_interval_from_duration, Prover};

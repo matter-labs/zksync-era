@@ -17,8 +17,8 @@ use zksync_dal::{ConnectionPool, Server, ServerDals};
 use zksync_mempool::L2TxFilter;
 use zksync_object_store::ObjectStore;
 use zksync_types::{
-    protocol_version::ProtocolUpgradeTx, witness_block_state::WitnessBlockState, Address,
-    L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, Transaction, H256,
+    protocol::ProtocolUpgradeTx, witness_block_state::WitnessBlockState, Address, L1BatchNumber,
+    L2ChainId, MiniblockNumber, ProtocolVersionId, Transaction, H256,
 };
 // TODO (SMA-1206): use seconds instead of milliseconds.
 use zksync_utils::time::millis_since_epoch;

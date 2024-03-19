@@ -586,7 +586,7 @@ dependencies = [
  "blake2 0.10.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "const_format",
  "convert_case",
- "crossbeam 0.7.3",
+ "crossbeam 0.8.4",
  "crypto-bigint 0.5.5",
  "cs_derive 0.1.0 (git+https://github.com/matter-labs/era-boojum?branch=main)",
  "derivative",
@@ -778,9 +778,9 @@ checksum = "fd16c4719339c4530435d38e511904438d07cce7950afa3718a84ac36c10e89e"
 
 [[package]]
 name = "chrono"
-version = "0.4.34"
+version = "0.4.35"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5bc015644b92d5890fab7489e49d21f879d5c990186827d42ec511919404f38b"
+checksum = "8eaf5903dcbc0a39312feb77df2ff4c76387d591b9fc7b04a238dcf8bb62639a"
 dependencies = [
  "android-tzdata",
  "iana-time-zone",
@@ -3437,7 +3437,16 @@ version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a015b430d3c108a207fd776d2e2196aaf8b1cf8cf93253e3a097ff3085076a1"
 dependencies = [
- "num_enum_derive",
+ "num_enum_derive 0.6.1",
+]
+
+[[package]]
+name = "num_enum"
+version = "0.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "02339744ee7253741199f897151b38e72257d13802d4ee837285cc2990a90845"
+dependencies = [
+ "num_enum_derive 0.7.2",
 ]
 
 [[package]]
@@ -3447,6 +3456,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "96667db765a921f7b295ffee8b60472b686a51d4f21c2ee4ffdb94c7013b65a6"
 dependencies = [
  "proc-macro-crate 1.3.1",
+ "proc-macro2 1.0.78",
+ "quote 1.0.35",
+ "syn 2.0.48",
+]
+
+[[package]]
+name = "num_enum_derive"
+version = "0.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "681030a937600a36906c185595136d26abfebb4aa9c65701cefcaf8578bb982b"
+dependencies = [
+ "proc-macro-crate 3.1.0",
  "proc-macro2 1.0.78",
  "quote 1.0.35",
  "syn 2.0.48",
@@ -4035,8 +4056,8 @@ version = "0.1.0"
 dependencies = [
  "sqlx",
  "strum",
+ "zksync_basic_types",
  "zksync_db_connection",
- "zksync_types",
 ]
 
 [[package]]
@@ -6758,7 +6779,7 @@ version = "0.1.0"
 source = "git+https://github.com/matter-labs/era-zk_evm_abstractions.git#32dd320953841aa78579d9da08abbc70bcaed175"
 dependencies = [
  "anyhow",
- "num_enum",
+ "num_enum 0.6.1",
  "serde",
  "static_assertions",
  "zkevm_opcode_defs 1.3.2",
@@ -6770,7 +6791,7 @@ version = "1.4.1"
 source = "git+https://github.com/matter-labs/era-zk_evm_abstractions.git?branch=v1.4.1#0aac08c3b097ee8147e748475117ac46bddcdcef"
 dependencies = [
  "anyhow",
- "num_enum",
+ "num_enum 0.6.1",
  "serde",
  "static_assertions",
  "zkevm_opcode_defs 1.4.1",
@@ -6958,8 +6979,11 @@ dependencies = [
 name = "zksync_basic_types"
 version = "0.1.0"
 dependencies = [
+ "chrono",
+ "num_enum 0.7.2",
  "serde",
  "serde_json",
+ "strum",
  "web3",
 ]
 
@@ -7409,7 +7433,7 @@ dependencies = [
  "hex",
  "itertools 0.10.5",
  "num",
- "num_enum",
+ "num_enum 0.6.1",
  "once_cell",
  "prost",
  "rlp",
