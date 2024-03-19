@@ -5,7 +5,7 @@ use zksync_types::{get_nonce_key, L1BatchNumber, StorageLog};
 use super::*;
 use crate::{
     api_server::execution_sandbox::{testonly::MockTransactionExecutor, VmConcurrencyBarrier},
-    genesis::{ensure_genesis_state_unchecked, GenesisParams},
+    genesis::{insert_genesis_batch, GenesisParams},
     utils::testonly::{create_miniblock, prepare_recovery_snapshot, MockBatchFeeParamsProvider},
 };
 
@@ -41,7 +41,7 @@ async fn getting_nonce_for_account() {
     let test_address = Address::repeat_byte(1);
     let pool = ConnectionPool::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
-    ensure_genesis_state_unchecked(&mut storage, &GenesisParams::mock())
+    insert_genesis_batch(&mut storage, &GenesisParams::mock())
         .await
         .unwrap();
     // Manually insert a nonce for the address.
