@@ -4,6 +4,7 @@
 #![warn(clippy::cast_lossless)]
 
 pub use sqlx::{types::BigDecimal, Error as SqlxError};
+use zksync_db_connection::processor::StorageMarker;
 pub use zksync_db_connection::{connection::ConnectionPool, processor::StorageProcessor};
 
 use crate::{
@@ -53,10 +54,14 @@ pub mod metrics;
 #[cfg(test)]
 mod tests;
 
-#[derive(Clone, Debug)]
-pub struct Server;
+// This module is private and serves as a way to seal the trait.
+mod private {
+    pub trait Sealed {}
+}
 
-pub trait ServerDals<'a>
+// Here we are making the trait sealed, because it should be public to function correctly, but we don't
+// want to allow any other downstream implementations of this trait.
+pub trait ServerDals<'a>: private::Sealed
 where
     Self: 'a,
 {
@@ -112,6 +117,14 @@ where
 
     fn snapshot_recovery_dal(&mut self) -> SnapshotRecoveryDal<'_, 'a>;
 }
+
+#[derive(Clone, Debug)]
+pub struct Server;
+
+// Implement the marker trait for the Server to be able to use it in StorageProcessor.
+impl StorageMarker for Server {}
+// Implement the sealed trait for the struct itself.
+impl private::Sealed for StorageProcessor<'_, Server> {}
 
 impl<'a> ServerDals<'a> for StorageProcessor<'a, Server> {
     fn transactions_dal(&mut self) -> TransactionsDal<'_, 'a> {

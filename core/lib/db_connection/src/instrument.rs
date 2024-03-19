@@ -23,7 +23,7 @@ use tokio::time::Instant;
 use crate::{
     connection::ConnectionPool,
     metrics::REQUEST_METRICS,
-    processor::{StorageProcessor, StorageProcessorTags},
+    processor::{StorageMarker, StorageProcessor, StorageProcessorTags},
 };
 
 type ThreadSafeDebug<'a> = dyn fmt::Debug + Send + Sync + 'a;
@@ -220,18 +220,18 @@ where
     A: 'q + IntoArguments<'q, Postgres>,
 {
     /// Executes an SQL statement using this query.
-    pub async fn execute<StorageMarker>(
+    pub async fn execute<SM: StorageMarker>(
         self,
-        storage: &mut StorageProcessor<'_, StorageMarker>,
+        storage: &mut StorageProcessor<'_, SM>,
     ) -> sqlx::Result<PgQueryResult> {
         let (conn, tags) = storage.conn_and_tags();
         self.data.fetch(tags, self.query.execute(conn)).await
     }
 
     /// Fetches an optional row using this query.
-    pub async fn fetch_optional<StorageMarker>(
+    pub async fn fetch_optional<SM: StorageMarker>(
         self,
-        storage: &mut StorageProcessor<'_, StorageMarker>,
+        storage: &mut StorageProcessor<'_, SM>,
     ) -> Result<Option<PgRow>, sqlx::Error> {
         let (conn, tags) = storage.conn_and_tags();
         self.data.fetch(tags, self.query.fetch_optional(conn)).await
@@ -244,9 +244,9 @@ where
     O: Send + Unpin + for<'r> FromRow<'r, PgRow>,
 {
     /// Fetches all rows using this query and collects them into a `Vec`.
-    pub async fn fetch_all<StorageMarker>(
+    pub async fn fetch_all<SM: StorageMarker>(
         self,
-        storage: &mut StorageProcessor<'_, StorageMarker>,
+        storage: &mut StorageProcessor<'_, SM>,
     ) -> sqlx::Result<Vec<O>> {
         let (conn, tags) = storage.conn_and_tags();
         self.data.fetch(tags, self.query.fetch_all(conn)).await
@@ -260,27 +260,27 @@ where
     A: 'q + Send + IntoArguments<'q, Postgres>,
 {
     /// Fetches an optional row using this query.
-    pub async fn fetch_optional<StorageMarker>(
+    pub async fn fetch_optional<SM: StorageMarker>(
         self,
-        storage: &mut StorageProcessor<'_, StorageMarker>,
+        storage: &mut StorageProcessor<'_, SM>,
     ) -> sqlx::Result<Option<O>> {
         let (conn, tags) = storage.conn_and_tags();
         self.data.fetch(tags, self.query.fetch_optional(conn)).await
     }
 
     /// Fetches a single row using this query.
-    pub async fn fetch_one<StorageMarker>(
+    pub async fn fetch_one<SM: StorageMarker>(
         self,
-        storage: &mut StorageProcessor<'_, StorageMarker>,
+        storage: &mut StorageProcessor<'_, SM>,
     ) -> sqlx::Result<O> {
         let (conn, tags) = storage.conn_and_tags();
         self.data.fetch(tags, self.query.fetch_one(conn)).await
     }
 
     /// Fetches all rows using this query and collects them into a `Vec`.
-    pub async fn fetch_all<StorageMarker>(
+    pub async fn fetch_all<SM: StorageMarker>(
         self,
-        storage: &mut StorageProcessor<'_, StorageMarker>,
+        storage: &mut StorageProcessor<'_, SM>,
     ) -> sqlx::Result<Vec<O>> {
         let (conn, tags) = storage.conn_and_tags();
         self.data.fetch(tags, self.query.fetch_all(conn)).await

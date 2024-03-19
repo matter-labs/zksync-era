@@ -19,20 +19,20 @@ use sqlx::{
 
 use crate::{
     metrics::CONNECTION_METRICS,
-    processor::{StorageProcessor, StorageProcessorTags, TracedConnections},
+    processor::{StorageMarker, StorageProcessor, StorageProcessorTags, TracedConnections},
 };
 
 /// Builder for [`ConnectionPool`]s.
 #[derive(Clone)]
-pub struct ConnectionPoolBuilder<StorageMarker> {
+pub struct ConnectionPoolBuilder<SM: StorageMarker> {
     database_url: String,
     max_size: u32,
     acquire_timeout: Duration,
     statement_timeout: Option<Duration>,
-    _marker: PhantomData<StorageMarker>,
+    _marker: PhantomData<SM>,
 }
 
-impl<StorageMarker> fmt::Debug for ConnectionPoolBuilder<StorageMarker> {
+impl<SM: StorageMarker> fmt::Debug for ConnectionPoolBuilder<SM> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         // Database URL is potentially sensitive, thus we omit it.
         formatter
@@ -44,7 +44,7 @@ impl<StorageMarker> fmt::Debug for ConnectionPoolBuilder<StorageMarker> {
     }
 }
 
-impl<StorageMarker> ConnectionPoolBuilder<StorageMarker> {
+impl<SM: StorageMarker> ConnectionPoolBuilder<SM> {
     /// Overrides the maximum number of connections that can be allocated by the pool.
     pub fn set_max_size(&mut self, max_size: u32) -> &mut Self {
         self.max_size = max_size;
@@ -75,7 +75,7 @@ impl<StorageMarker> ConnectionPoolBuilder<StorageMarker> {
     }
 
     /// Builds a connection pool from this builder.
-    pub async fn build(&self) -> anyhow::Result<ConnectionPool<StorageMarker>> {
+    pub async fn build(&self) -> anyhow::Result<ConnectionPool<SM>> {
         let options = PgPoolOptions::new()
             .max_connections(self.max_size)
             .acquire_timeout(self.acquire_timeout);
@@ -102,7 +102,7 @@ impl<StorageMarker> ConnectionPoolBuilder<StorageMarker> {
     }
 
     /// Builds a connection pool that has a single connection.
-    pub async fn build_singleton(&self) -> anyhow::Result<ConnectionPool<StorageMarker>> {
+    pub async fn build_singleton(&self) -> anyhow::Result<ConnectionPool<SM>> {
         let singleton_builder = Self {
             database_url: self.database_url.clone(),
             max_size: 1,
@@ -156,9 +156,7 @@ impl TestTemplate {
 
     /// Closes the connection pool, disallows connecting to the underlying db,
     /// so that the db can be used as a template.
-    pub async fn freeze<StorageMarker>(
-        pool: ConnectionPool<StorageMarker>,
-    ) -> anyhow::Result<Self> {
+    pub async fn freeze<SM: StorageMarker>(pool: ConnectionPool<SM>) -> anyhow::Result<Self> {
         use sqlx::Executor as _;
         let mut conn = pool.acquire_connection_retried(None).await?;
         conn.execute(
@@ -179,10 +177,10 @@ impl TestTemplate {
     /// whenever you write to the DBs, therefore making it as fast as an in-memory Postgres instance.
     /// The database is not cleaned up automatically, but rather the whole Postgres
     /// container is recreated whenever you call "zk test rust".
-    pub async fn create_db<StorageMarker>(
+    pub async fn create_db<SM: StorageMarker>(
         &self,
         connections: u32,
-    ) -> anyhow::Result<ConnectionPoolBuilder<StorageMarker>> {
+    ) -> anyhow::Result<ConnectionPoolBuilder<SM>> {
         use sqlx::Executor as _;
 
         let mut conn = Self::connect_to(&self.url(""))
@@ -194,7 +192,7 @@ impl TestTemplate {
             .await
             .context("CREATE DATABASE")?;
 
-        Ok(ConnectionPool::<StorageMarker>::builder(
+        Ok(ConnectionPool::<SM>::builder(
             self.url(&db_new).as_ref(),
             connections,
         ))
@@ -247,15 +245,15 @@ impl GlobalConnectionPoolConfig {
 }
 
 #[derive(Clone)]
-pub struct ConnectionPool<StorageMarker> {
+pub struct ConnectionPool<SM: StorageMarker> {
     pub(crate) inner: PgPool,
     database_url: String,
     max_size: u32,
     pub(crate) traced_connections: Option<Arc<TracedConnections>>,
-    _marker: PhantomData<StorageMarker>,
+    _marker: PhantomData<SM>,
 }
 
-impl<StorageMarker> fmt::Debug for ConnectionPool<StorageMarker> {
+impl<SM: StorageMarker> fmt::Debug for ConnectionPool<SM> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         // We don't print the `database_url`, as is may contain
         // sensitive information (e.g. database password).
@@ -266,7 +264,7 @@ impl<StorageMarker> fmt::Debug for ConnectionPool<StorageMarker> {
     }
 }
 
-impl<StorageMarker> ConnectionPool<StorageMarker> {
+impl<SM: StorageMarker> ConnectionPool<SM> {
     const TEST_ACQUIRE_TIMEOUT: Duration = Duration::from_secs(10);
 
     /// Returns a reference to the global configuration parameters applied for all DB pools. For consistency, these parameters
@@ -280,14 +278,14 @@ impl<StorageMarker> ConnectionPool<StorageMarker> {
     ///
     /// Test pools trace their active connections. If acquiring a connection fails (e.g., with a timeout),
     /// the returned error will contain information on all active connections.
-    pub async fn test_pool() -> ConnectionPool<StorageMarker> {
+    pub async fn test_pool() -> ConnectionPool<SM> {
         const DEFAULT_CONNECTIONS: u32 = 50; // Expected to be enough for any unit test.
         Self::constrained_test_pool(DEFAULT_CONNECTIONS).await
     }
 
     /// Same as [`Self::test_pool()`], but with a configurable number of connections. This is useful to test
     /// behavior of components that rely on singleton / constrained pools in production.
-    pub async fn constrained_test_pool(connections: u32) -> ConnectionPool<StorageMarker> {
+    pub async fn constrained_test_pool(connections: u32) -> ConnectionPool<SM> {
         assert!(connections > 0, "Number of connections must be positive");
         let mut builder = TestTemplate::empty()
             .expect("failed creating test template")
@@ -304,7 +302,7 @@ impl<StorageMarker> ConnectionPool<StorageMarker> {
     }
 
     /// Initializes a builder for connection pools.
-    pub fn builder(database_url: &str, max_pool_size: u32) -> ConnectionPoolBuilder<StorageMarker> {
+    pub fn builder(database_url: &str, max_pool_size: u32) -> ConnectionPoolBuilder<SM> {
         ConnectionPoolBuilder {
             database_url: database_url.to_string(),
             max_size: max_pool_size,
@@ -316,7 +314,7 @@ impl<StorageMarker> ConnectionPool<StorageMarker> {
 
     /// Initializes a builder for connection pools with a single connection. This is equivalent
     /// to calling `Self::builder(db_url, 1)`.
-    pub fn singleton(database_url: &str) -> ConnectionPoolBuilder<StorageMarker> {
+    pub fn singleton(database_url: &str) -> ConnectionPoolBuilder<SM> {
         Self::builder(database_url, 1)
     }
 
@@ -335,7 +333,7 @@ impl<StorageMarker> ConnectionPool<StorageMarker> {
     ///
     /// This method is intended to be used in crucial contexts, where the
     /// database access is must-have (e.g. block committer).
-    pub async fn access_storage(&self) -> anyhow::Result<StorageProcessor<'_, StorageMarker>> {
+    pub async fn access_storage(&self) -> anyhow::Result<StorageProcessor<'_, SM>> {
         self.access_storage_inner(None).await
     }
 
@@ -349,7 +347,7 @@ impl<StorageMarker> ConnectionPool<StorageMarker> {
     pub fn access_storage_tagged(
         &self,
         requester: &'static str,
-    ) -> impl Future<Output = anyhow::Result<StorageProcessor<'_, StorageMarker>>> + '_ {
+    ) -> impl Future<Output = anyhow::Result<StorageProcessor<'_, SM>>> + '_ {
         let location = Location::caller();
         async move {
             let tags = StorageProcessorTags {
@@ -363,7 +361,7 @@ impl<StorageMarker> ConnectionPool<StorageMarker> {
     async fn access_storage_inner(
         &self,
         tags: Option<StorageProcessorTags>,
-    ) -> anyhow::Result<StorageProcessor<'_, StorageMarker>> {
+    ) -> anyhow::Result<StorageProcessor<'_, SM>> {
         let acquire_latency = CONNECTION_METRICS.acquire.start();
         let conn = self
             .acquire_connection_retried(tags.as_ref())
@@ -374,7 +372,7 @@ impl<StorageMarker> ConnectionPool<StorageMarker> {
             CONNECTION_METRICS.acquire_tagged[&tags.requester].observe(elapsed);
         }
 
-        Ok(StorageProcessor::<StorageMarker>::from_pool(
+        Ok(StorageProcessor::<SM>::from_pool(
             conn,
             tags,
             self.traced_connections.as_deref(),

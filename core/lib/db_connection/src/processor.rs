@@ -137,16 +137,22 @@ enum StorageProcessorInner<'a> {
     },
 }
 
+/// Marker trait for restricting using all possible types as a storage marker.
+pub trait StorageMarker {}
+
+// impl StorageMarker for empty type
+impl StorageMarker for () {}
+
 /// Storage processor is the main storage interaction point.
 /// It holds down the connection (either direct or pooled) to the database
 /// and provide methods to obtain different storage schema.
 #[derive(Debug)]
-pub struct StorageProcessor<'a, StorageMarker> {
+pub struct StorageProcessor<'a, SM: StorageMarker> {
     inner: StorageProcessorInner<'a>,
-    _marker: std::marker::PhantomData<StorageMarker>,
+    _marker: std::marker::PhantomData<SM>,
 }
 
-impl<'a, StorageMarker> StorageProcessor<'a, StorageMarker> {
+impl<'a, SM: StorageMarker> StorageProcessor<'a, SM> {
     /// Creates a `StorageProcessor` using a pool of connections.
     /// This method borrows one of the connections from the pool, and releases it
     /// after `drop`.
@@ -171,7 +177,7 @@ impl<'a, StorageMarker> StorageProcessor<'a, StorageMarker> {
         }
     }
 
-    pub async fn start_transaction(&mut self) -> sqlx::Result<StorageProcessor<'_, StorageMarker>> {
+    pub async fn start_transaction(&mut self) -> sqlx::Result<StorageProcessor<'_, SM>> {
         let (conn, tags) = self.conn_and_tags();
         let inner = StorageProcessorInner::Transaction {
             transaction: conn.begin().await?,
