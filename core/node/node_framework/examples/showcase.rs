@@ -23,18 +23,18 @@ struct MemoryDatabase {
 }
 
 /// Often, we don't want to use a concrete resource. Instead, we want to be able
-/// to customize the behavior for whoever uses it. For that, it's often useful to hind
-/// the implementation behind a trait. This way the tasks it's the code that composes
-/// the service gets to decide how the resource is used.
+/// to customize the behavior for whoever uses it. For that, it's often useful to hide
+/// the implementation behind a trait. This way it's the code that composes the service that
+/// gets to decide how the resource is used.
 ///
 /// Examples of such behavior in a real world: locally we store artifacts in a local storage,
 /// but in real envs we use GCP. Alternatively, we have different resource implementations for
 /// main node and EN, like `MempoolIO` and `ExternalIO`.
 ///
-/// Whether it makes sense to hind the actual resource behind a trait often depends on the resource
+/// Whether it makes sense to hdie the actual resource behind a trait often depends on the resource
 /// itself. For example, our DAL is massive and cannot realistically be changed easily, so it's OK
 /// for it to be a concrete resource. But for anything that may realistically have two different
-/// implementations, it's often a good idea to hind it behind a trait.
+/// implementations, it's often a good idea to hide it behind a trait.
 trait Database: 'static + Send + Sync {
     fn put(&self, key: String, value: String);
     fn get(&self, key: String) -> Option<String>;
