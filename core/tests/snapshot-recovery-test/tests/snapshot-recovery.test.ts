@@ -219,7 +219,8 @@ describe('snapshot recovery', () => {
             `${process.env.ZKSYNC_HOME}/contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/zksync/facets/Getters.sol/GettersFacet.json`
         );
         const gettersABI = JSON.parse(file.toString()).abi;
-        const contract: zkweb3.Contract = new zkweb3.Contract(address, gettersABI, mainNode);
+        const provider = new zkweb3.Provider();
+        const contract: zkweb3.Contract = new zkweb3.Contract(address, gettersABI, provider);
         const pricingMode = await contract.getPubdataPricingMode();
         const nodeEnvironment = pricingMode === 1 ? 'ZKSYNC_ENV=ext-node-validium &&' : '';
 
