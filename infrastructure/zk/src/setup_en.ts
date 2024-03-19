@@ -187,6 +187,7 @@ async function configExternalNode() {
             break;
     }
     await compileConfig('ext-node');
+    setEnv('ext-node');
     console.log(`Setting up postgres (${cmd('zk db setup')})`);
     await setupDb({ prover: false, server: true });
 
