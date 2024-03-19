@@ -456,7 +456,7 @@ struct Cli {
     /// or was synced from genesis.
     ///
     /// This is an experimental and incomplete feature; do not use unless you know what you're doing.
-    #[arg(long, conflicts_with = "enable_consensus")]
+    #[arg(long)]
     enable_snapshots_recovery: bool,
 }
 
@@ -491,17 +491,9 @@ async fn main() -> anyhow::Result<()> {
     let mut config = ExternalNodeConfig::collect()
         .await
         .context("Failed to load external node config")?;
-    if opt.enable_consensus {
-        // This is more of a sanity check; the mutual exclusion of `enable_consensus` and `enable_snapshots_recovery`
-        // should be ensured by `clap`.
-        anyhow::ensure!(
-            !opt.enable_snapshots_recovery,
-            "Consensus logic does not support snapshot recovery yet"
-        );
-    } else {
+    if !opt.enable_consensus {
         config.consensus = None;
     }
-
     if let Some(threshold) = config.optional.slow_query_threshold() {
         ConnectionPool::global_config().set_slow_query_threshold(threshold)?;
     }

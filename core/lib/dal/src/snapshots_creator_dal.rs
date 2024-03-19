@@ -40,6 +40,8 @@ impl SnapshotsCreatorDal<'_, '_> {
         Ok(count as u64)
     }
 
+    /// Constructs a `storate_logs` chunk of the state AFTER processing `[0..l1_batch_number]`
+    /// batches. `miniblock_number` MUST be the last miniblock of the `l1_batch_number` batch.
     pub async fn get_storage_logs_chunk(
         &mut self,
         miniblock_number: MiniblockNumber,
