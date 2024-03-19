@@ -2,7 +2,6 @@ import '@matterlabs/hardhat-zksync-solc';
 
 export default {
     zksolc: {
-        // version: 'prerelease-0640c18-test-zkvm-v1.5.0',
         compilerSource: 'binary',
         settings: {
             compilerPath:
