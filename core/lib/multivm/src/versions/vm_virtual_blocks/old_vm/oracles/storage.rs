@@ -48,10 +48,6 @@ pub struct StorageOracle<S: WriteStorage, H: HistoryMode> {
     // to cover this slot.
     // `paid_changes` history is necessary
     pub(crate) paid_changes: HistoryRecorder<HashMap<StorageKey, u32>, HistoryEnabled>,
-    // The map that contains all the first values read from storage for each slot.
-    // While formally it does not have to be capable of rolling back, we still do it to avoid memory bloat
-    // for unused slots.
-    pub(crate) initial_values: HistoryRecorder<HashMap<StorageKey, U256>, H>,
 }
 
 impl<S: WriteStorage> OracleWithHistory for StorageOracle<S, HistoryEnabled> {
@@ -59,7 +55,6 @@ impl<S: WriteStorage> OracleWithHistory for StorageOracle<S, HistoryEnabled> {
         self.frames_stack.rollback_to_timestamp(timestamp);
         self.storage.rollback_to_timestamp(timestamp);
         self.paid_changes.rollback_to_timestamp(timestamp);
-        self.initial_values.rollback_to_timestamp(timestamp);
     }
 }
 
@@ -69,7 +64,6 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
             storage: HistoryRecorder::from_inner(StorageWrapper::new(storage)),
             frames_stack: Default::default(),
             paid_changes: Default::default(),
-            initial_values: Default::default(),
         }
     }
 
@@ -77,7 +71,6 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
         self.frames_stack.delete_history();
         self.storage.delete_history();
         self.paid_changes.delete_history();
-        self.initial_values.delete_history();
     }
 
     fn is_storage_key_free(&self, key: &StorageKey) -> bool {
