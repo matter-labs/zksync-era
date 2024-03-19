@@ -32,6 +32,7 @@ thiserror = "1.0"
 num_enum = "0.6"
 hex = "0.4"
 prost = "0.12.1"
+itertools = "0.10.3"
 
 # Crypto stuff
 secp256k1 = { version = "0.27", features = ["recovery", "global-context"] }

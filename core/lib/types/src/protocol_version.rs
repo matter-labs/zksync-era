@@ -688,8 +688,6 @@ pub struct ProtocolVersion {
     pub l1_verifier_config: L1VerifierConfig,
     /// Hashes of base system contracts (bootloader and default account)
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
-    /// Verifier contract address on L1
-    pub verifier_address: Address,
     /// L2 Upgrade transaction.
     pub tx: Option<ProtocolUpgradeTx>,
 }
@@ -719,7 +717,6 @@ impl ProtocolVersion {
                     .default_account_code_hash
                     .unwrap_or(self.base_system_contracts_hashes.default_aa),
             },
-            verifier_address: upgrade.verifier_address.unwrap_or(self.verifier_address),
             tx: upgrade.tx,
         }
     }
