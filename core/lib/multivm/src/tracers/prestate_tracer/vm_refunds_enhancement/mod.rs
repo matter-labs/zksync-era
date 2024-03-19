@@ -54,11 +54,8 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for PrestateTracer {
                 .map(|(k, v)| (*k, *v))
                 .collect();
             let res = read_keys
-                .keys()
-                .copied()
-                .collect::<Vec<_>>()
                 .iter()
-                .map(|k| get_account_data(k, state, &modified_storage_keys))
+                .map(|k| get_account_data(k.0, state, &modified_storage_keys))
                 .collect::<State>();
             self.post = res;
         }

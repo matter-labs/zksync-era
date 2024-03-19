@@ -82,26 +82,24 @@ where
 
     initial_storage_ref
         .modified_storage_keys()
-        .keys()
-        .cloned()
-        .collect::<Vec<_>>()
+        .clone()
         .iter()
-        .filter(|k| !prestate.contains_key(k.account().address()))
+        .filter(|k| !prestate.contains_key(k.0.account().address()))
         .map(|k| {
             (
-                *(k.account().address()),
+                *(k.0.account().address()),
                 Account {
                     balance: Some(h256_to_u256(
-                        initial_storage_ref.read_value(&get_balance_key(k.account())),
+                        initial_storage_ref.read_value(&get_balance_key(k.0.account())),
                     )),
                     code: Some(h256_to_u256(
-                        initial_storage_ref.read_value(&get_code_key(k.account().address())),
+                        initial_storage_ref.read_value(&get_code_key(k.0.account().address())),
                     )),
                     nonce: Some(h256_to_u256(
-                        initial_storage_ref.read_value(&get_nonce_key(k.account().address())),
+                        initial_storage_ref.read_value(&get_nonce_key(k.0.account().address())),
                     )),
                     storage: Some(get_storage_if_present(
-                        k.account(),
+                        k.0.account(),
                         initial_storage_ref.modified_storage_keys(),
                     )),
                 },
