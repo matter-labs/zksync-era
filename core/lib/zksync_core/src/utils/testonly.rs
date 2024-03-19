@@ -210,7 +210,7 @@ pub(crate) async fn prepare_recovery_snapshot(
 }
 
 /// Takes a storage snapshot at the last sealed L1 batch.
-pub(crate) async fn snapshot(storage: &mut StorageProcessor<'_>) -> Snapshot {
+pub(crate) async fn snapshot(storage: &mut StorageProcessor<'_, Server>) -> Snapshot {
     let l1_batch = storage
         .blocks_dal()
         .get_sealed_l1_batch_number()
@@ -259,7 +259,7 @@ pub(crate) async fn snapshot(storage: &mut StorageProcessor<'_>) -> Snapshot {
 /// Recovers storage from a snapshot.
 /// Miniblock and L1 batch are intentionally **not** inserted into the storage.
 pub(crate) async fn recover(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut StorageProcessor<'_, Server>,
     snapshot: Snapshot,
 ) -> SnapshotRecoveryStatus {
     let mut storage = storage.start_transaction().await.unwrap();

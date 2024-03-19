@@ -7,7 +7,7 @@ use zksync_concurrency::{ctx, error::Wrap as _, limiter, scope, sync, time};
 use zksync_config::configs;
 use zksync_consensus_roles::validator;
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_dal::{ConnectionPool, Server, ServerDals};
+use zksync_dal::ServerDals;
 use zksync_types::{
     api, snapshots::SnapshotRecoveryStatus, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
     ProtocolVersionId, H256,
@@ -169,23 +169,6 @@ pub(super) struct StateKeeperRunner {
     sync_state: SyncState,
     store: Store,
     addr: sync::watch::Sender<Option<std::net::SocketAddr>>,
-}
-
-/// Constructs a new db initialized with genesis state or a snapshot.
-pub(super) async fn new_store(from_snapshot: bool) -> Store {
-    let pool = ConnectionPool::test_pool().await;
-    {
-        let mut storage = pool.access_storage().await.unwrap();
-        if from_snapshot {
-            prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[])
-                .await;
-        } else {
-            ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
-                .await
-                .unwrap();
-        }
-    }
-    Store(pool)
 }
 
 // Limiter with infinite refresh rate.
