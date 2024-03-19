@@ -117,4 +117,4 @@ resources).
 [`zksync_state`]: ../state
 [`snapshots_creator`]: ../../bin/snapshots_creator
 [`snapshots_applier`]: ../snapshots_applier
-[`EXPLAIN`]: https://www.postgresql.org/docs/14/sql-explain.html
+[`explain`]: https://www.postgresql.org/docs/14/sql-explain.html

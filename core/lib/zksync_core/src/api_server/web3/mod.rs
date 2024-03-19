@@ -268,7 +268,7 @@ impl ApiBuilder {
             ApiTransport::Http(_) => "http_api",
             ApiTransport::WebSocket(_) => "ws_api",
         };
-        let (_health_check, health_updater) = ReactiveHealthCheck::new(health_check_name);
+        let (_, health_updater) = ReactiveHealthCheck::new(health_check_name);
 
         Ok(ApiServer {
             pool: self.pool,

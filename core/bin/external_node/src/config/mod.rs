@@ -244,6 +244,11 @@ pub struct OptionalENConfig {
     /// Maximum number of transactions to be stored in the mempool cache. Default is 10000.
     #[serde(default = "OptionalENConfig::default_mempool_cache_size")]
     pub mempool_cache_size: usize,
+    /// Address of the L1 diamond proxy contract used by the consistency checker to match with the origin of logs emitted
+    /// by commit transactions. If not set, it will not be verified.
+    // This is intentionally not a part of `RemoteENConfig` because fetching this info from the main node would defeat
+    // its purpose; the consistency checker assumes that the main node may provide false information.
+    pub contracts_diamond_proxy_addr: Option<Address>,
 }
 
 impl OptionalENConfig {

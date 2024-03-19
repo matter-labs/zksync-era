@@ -1,3 +1,4 @@
+#![doc = include_str!("../doc/BasicWitnessInputProducerDal.md")]
 use std::time::{Duration, Instant};
 
 use sqlx::postgres::types::PgInterval;
@@ -58,7 +59,7 @@ impl BasicWitnessInputProducerDal<'_, '_> {
                 ($1, $2, NOW(), NOW())
             ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
-            l1_batch_number.0 as i64,
+            i64::from(l1_batch_number.0),
             BasicWitnessInputProducerJobStatus::Queued as BasicWitnessInputProducerJobStatus,
         )
         .instrument("create_basic_witness_input_producer_job")
@@ -134,7 +135,7 @@ impl BasicWitnessInputProducerDal<'_, '_> {
             WHERE
                 l1_batch_number = $1
             "#,
-            l1_batch_number.0 as i64,
+            i64::from(l1_batch_number.0),
         )
         .fetch_optional(self.storage.conn())
         .await?
@@ -161,7 +162,7 @@ impl BasicWitnessInputProducerDal<'_, '_> {
                 l1_batch_number = $2
             "#,
             BasicWitnessInputProducerJobStatus::Successful as BasicWitnessInputProducerJobStatus,
-            l1_batch_number.0 as i64,
+            i64::from(l1_batch_number.0),
             duration_to_naive_time(started_at.elapsed()),
             object_path,
         )
@@ -194,7 +195,7 @@ impl BasicWitnessInputProducerDal<'_, '_> {
                 basic_witness_input_producer_jobs.attempts
             "#,
             BasicWitnessInputProducerJobStatus::Failed as BasicWitnessInputProducerJobStatus,
-            l1_batch_number.0 as i64,
+            i64::from(l1_batch_number.0),
             duration_to_naive_time(started_at.elapsed()),
             error,
             BasicWitnessInputProducerJobStatus::Successful as BasicWitnessInputProducerJobStatus,

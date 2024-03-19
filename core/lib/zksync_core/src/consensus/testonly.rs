@@ -7,7 +7,6 @@ use zksync_concurrency::{ctx, error::Wrap as _, limiter, scope, sync, time};
 use zksync_config::configs;
 use zksync_consensus_roles::validator;
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_dal::ConnectionPool;
 use zksync_types::{
     api, snapshots::SnapshotRecoveryStatus, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
     ProtocolVersionId, H256,
@@ -20,16 +19,17 @@ use zksync_web3_decl::{
 use crate::{
     api_server::web3::{state::InternalApiConfig, tests::spawn_http_server},
     consensus::{fetcher::P2PConfig, Fetcher, Store},
-    genesis::{ensure_genesis_state, GenesisParams},
+    genesis::GenesisParams,
     state_keeper::{
         io::common::IoCursor, seal_criteria::NoopSealer, tests::MockBatchExecutor, MiniblockSealer,
         ZkSyncStateKeeper,
     },
     sync_layer::{
+        fetcher::FetchedTransaction,
         sync_action::{ActionQueue, ActionQueueSender, SyncAction},
         ExternalIO, MainNodeClient, SyncState,
     },
-    utils::testonly::{create_l1_batch_metadata, create_l2_transaction, prepare_recovery_snapshot},
+    utils::testonly::{create_l1_batch_metadata, create_l2_transaction},
 };
 
 #[derive(Debug, Default)]
@@ -170,23 +170,6 @@ pub(super) struct StateKeeperRunner {
     addr: sync::watch::Sender<Option<std::net::SocketAddr>>,
 }
 
-/// Constructs a new db initialized with genesis state or a snapshot.
-pub(super) async fn new_store(from_snapshot: bool) -> Store {
-    let pool = ConnectionPool::test_pool().await;
-    {
-        let mut storage = pool.access_storage().await.unwrap();
-        if from_snapshot {
-            prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[])
-                .await;
-        } else {
-            ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
-                .await
-                .unwrap();
-        }
-    }
-    Store(pool)
-}
-
 // Limiter with infinite refresh rate.
 fn unbounded_limiter(ctx: &ctx::Ctx) -> limiter::Limiter {
     limiter::Limiter::new(
@@ -269,7 +252,7 @@ impl StateKeeper {
         let mut actions = vec![self.open_block()];
         for _ in 0..transactions {
             let tx = create_l2_transaction(self.fee_per_gas, self.gas_per_pubdata);
-            actions.push(SyncAction::Tx(Box::new(tx.into())));
+            actions.push(FetchedTransaction::new(tx.into()).into());
         }
         actions.push(SyncAction::SealMiniblock);
         self.actions_sender.push_actions(actions).await;

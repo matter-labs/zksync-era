@@ -31,7 +31,7 @@ mod witness;
 pub use self::{
     in_memory::{InMemoryStorage, IN_MEMORY_STORAGE_DEFAULT_NETWORK_ID},
     mempool_cache::MempoolCache,
-    postgres::{PostgresStorage, PostgresStorageCaches},
+    postgres::{PostgresStorage, PostgresStorageCaches, PostgresStorageCachesTask},
     rocksdb::{RocksbStorageBuilder, RocksdbStorage},
     shadow_storage::ShadowStorage,
     storage_view::{StorageView, StorageViewMetrics},
