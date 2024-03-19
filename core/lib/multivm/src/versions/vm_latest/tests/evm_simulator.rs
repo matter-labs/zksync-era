@@ -345,7 +345,58 @@ fn test_basic_evm_interaction() {
     ));
     assert_eq!(h256_to_u256(saved_value), U256::from(50));
 }
+#[test]
+fn test_evm_contract_calls() {
+    // In this test, we aim to test whether a user-deployed contract can change state of the system contracts directly.
+    // The account will deploy a test contract which will then try to call system contract functions.
+    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+        .with_empty_in_memory_storage()
+        .with_execution_mode(TxExecutionMode::VerifyExecute)
+        .with_random_rich_accounts(1)
+        .build();
 
+    let (expected_deployed_address, abi) =
+        deploy_evm_contract(&mut vm, "access", "GasManagerCaller");
+    let account = &mut vm.rich_accounts[0];
+
+    let txWarmAccount = account.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(expected_deployed_address),
+            calldata: abi
+                .function("warmAccount")
+                .unwrap()
+                .encode_input(&[Token::Uint(U256::from(35))])
+                .unwrap(),
+            value: U256::zero(),
+            factory_deps: None,
+        },
+        None,
+    );
+    vm.vm.push_transaction(txWarmAccount);
+    let tx_result = vm.vm.inspect(
+        EvmDebugTracer::new().into_tracer_pointer().into(),
+        VmExecutionMode::OneTx,
+    );
+    assert!(tx_result.result.is_failed(), "Access violated");
+    /*let txWarmSlot = account.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(expected_deployed_address),
+            calldata: abi.function("warmAccount").unwrap().encode_input(&[Token::Uint(U256::from(35))]).unwrap(),
+            value: U256::zero(),
+            factory_deps: None,
+        },
+        None,
+    );
+    vm.vm.push_transaction(txWarmAccount);
+    let tx_result = vm.vm.inspect(
+        EvmDebugTracer::new().into_tracer_pointer().into(),
+        VmExecutionMode::OneTx,
+    );
+    assert!(
+        tx_result.result.is_failed(),
+        "Access violated"
+    );*/
+}
 #[test]
 fn test_evm_gas_consumption() {
     // In this test, we aim to test whether a simple account interaction (without any fee logic)
