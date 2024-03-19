@@ -175,8 +175,8 @@ To switch dummy prover to real prover, one must change `dummy_verifier` to `fals
 - Running a specific `rust` unit-test:
 
   ```
-  zk test rust --package <package_name> --lib <mod>::tests::<test_fn_name> -- --exact
-  # e.g. zk test rust --package zksync_core --lib eth_sender::tests::resend_each_block -- --exact
+  zk test rust --package <package_name> --lib <mod>::tests::<test_fn_name> --
+  # e.g. zk test rust --package zksync_core --lib eth_sender::tests::resend_each_block --
   ```
 
 - Running the integration test:
