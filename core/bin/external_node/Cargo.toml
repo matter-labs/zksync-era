@@ -28,8 +28,8 @@ zksync_web3_decl = { path = "../../lib/web3_decl" }
 zksync_types = { path = "../../lib/types" }
 vlog = { path = "../../lib/vlog" }
 
-zksync_concurrency = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "842d4fd79f1d7dae946b6873ded7ad391d554814" }
-zksync_consensus_roles = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "842d4fd79f1d7dae946b6873ded7ad391d554814" }
+zksync_concurrency = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "5329a809cfc06d4939fb5ece26c9ad1e1741c50a" }
+zksync_consensus_roles = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "5329a809cfc06d4939fb5ece26c9ad1e1741c50a" }
 vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1" }
 
 anyhow = "1.0"
