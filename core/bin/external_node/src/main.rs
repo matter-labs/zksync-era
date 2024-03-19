@@ -36,7 +36,6 @@ use zksync_core::{
         batch_status_updater::BatchStatusUpdater, external_io::ExternalIO, ActionQueue,
         MainNodeClient, SyncState,
     },
-    Component, Components,
 };
 use zksync_dal::{
     connection::ConnectionPoolBuilder, healthcheck::ConnectionPoolHealthCheck, ConnectionPool,
@@ -144,6 +143,163 @@ async fn run_tree(
 
     task_futures.push(tree_handle);
     Ok(tree_reader)
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn run_core(
+    config: &ExternalNodeConfig,
+    connection_pool: ConnectionPool,
+    main_node_client: HttpClient,
+    task_handles: &mut Vec<task::JoinHandle<anyhow::Result<()>>>,
+    app_health: &AppHealthCheck,
+    stop_receiver: watch::Receiver<bool>,
+    fee_params_fetcher: Arc<MainNodeFeeParamsFetcher>,
+    singleton_pool_builder: &ConnectionPoolBuilder,
+) -> anyhow::Result<SyncState> {
+    // Create components.
+    let sync_state = SyncState::default();
+    app_health.insert_custom_component(Arc::new(sync_state.clone()));
+    let (action_queue_sender, action_queue) = ActionQueue::new();
+
+    let (miniblock_sealer, miniblock_sealer_handle) = MiniblockSealer::new(
+        connection_pool.clone(),
+        config.optional.miniblock_seal_queue_capacity,
+    );
+    task_handles.push(tokio::spawn(miniblock_sealer.run()));
+
+    let state_keeper = build_state_keeper(
+        action_queue,
+        config.required.state_cache_path.clone(),
+        config,
+        connection_pool.clone(),
+        sync_state.clone(),
+        config.remote.l2_erc20_bridge_addr,
+        miniblock_sealer_handle,
+        stop_receiver.clone(),
+        config.remote.l2_chain_id,
+    )
+    .await?;
+
+    task_handles.push(tokio::spawn({
+        let ctx = ctx::root();
+        let cfg = config.consensus.clone();
+        let mut stop_receiver = stop_receiver.clone();
+        let fetcher = consensus::Fetcher {
+            store: consensus::Store(connection_pool.clone()),
+            sync_state: sync_state.clone(),
+            client: Box::new(main_node_client.clone()),
+            limiter: limiter::Limiter::new(
+                &ctx,
+                limiter::Rate {
+                    burst: 10,
+                    refresh: time::Duration::milliseconds(30),
+                },
+            ),
+        };
+        let actions = action_queue_sender;
+        async move {
+            scope::run!(&ctx, |ctx, s| async {
+                s.spawn_bg(async {
+                    let res = match cfg {
+                        Some(cfg) => {
+                            let secrets = config::read_consensus_secrets()
+                                .context("config::read_consensus_secrets()")?
+                                .context("consensus secrets missing")?;
+                            fetcher.run_p2p(ctx, actions, cfg.p2p(&secrets)?).await
+                        }
+                        None => fetcher.run_centralized(ctx, actions).await,
+                    };
+                    tracing::info!("Consensus actor stopped");
+                    res
+                });
+                ctx.wait(stop_receiver.wait_for(|stop| *stop)).await??;
+                Ok(())
+            })
+            .await
+            .context("consensus actor")
+        }
+    }));
+
+    let reorg_detector = ReorgDetector::new(main_node_client.clone(), connection_pool.clone());
+    app_health.insert_component(reorg_detector.health_check().clone());
+    task_handles.push(tokio::spawn({
+        let stop = stop_receiver.clone();
+        async move {
+            reorg_detector
+                .run(stop)
+                .await
+                .context("reorg_detector.run()")
+        }
+    }));
+
+    let fee_address_migration_handle =
+        task::spawn(state_keeper.run_fee_address_migration(connection_pool.clone()));
+    let sk_handle = task::spawn(state_keeper.run());
+    let fee_params_fetcher_handle =
+        tokio::spawn(fee_params_fetcher.clone().run(stop_receiver.clone()));
+
+    let remote_diamond_proxy_addr = config.remote.diamond_proxy_addr;
+    let diamond_proxy_addr = if let Some(addr) = config.optional.contracts_diamond_proxy_addr {
+        anyhow::ensure!(
+            addr == remote_diamond_proxy_addr,
+            "Diamond proxy address {addr:?} specified in config doesn't match one returned \
+            by main node ({remote_diamond_proxy_addr:?})"
+        );
+        addr
+    } else {
+        tracing::info!(
+            "Diamond proxy address is not specified in config; will use address \
+            returned by main node: {remote_diamond_proxy_addr:?}"
+        );
+        remote_diamond_proxy_addr
+    };
+
+    let consistency_checker = ConsistencyChecker::new(
+        &config
+            .required
+            .eth_client_url()
+            .context("L1 client URL is incorrect")?,
+        10, // TODO (BFT-97): Make it a part of a proper EN config
+        singleton_pool_builder
+            .build()
+            .await
+            .context("failed to build connection pool for ConsistencyChecker")?,
+    )
+    .context("cannot initialize consistency checker")?
+    .with_diamond_proxy_addr(diamond_proxy_addr);
+
+    app_health.insert_component(consistency_checker.health_check().clone());
+    let consistency_checker_handle = tokio::spawn(consistency_checker.run(stop_receiver.clone()));
+
+    let batch_status_updater = BatchStatusUpdater::new(
+        main_node_client.clone(),
+        singleton_pool_builder
+            .build()
+            .await
+            .context("failed to build a connection pool for BatchStatusUpdater")?,
+    );
+    app_health.insert_component(batch_status_updater.health_check());
+
+    let commitment_generator_pool = singleton_pool_builder
+        .build()
+        .await
+        .context("failed to build a commitment_generator_pool")?;
+    let commitment_generator = CommitmentGenerator::new(commitment_generator_pool);
+    app_health.insert_component(commitment_generator.health_check());
+    let commitment_generator_handle = tokio::spawn(commitment_generator.run(stop_receiver.clone()));
+
+    let updater_handle = task::spawn(batch_status_updater.run(stop_receiver.clone()));
+
+    task_handles.extend([
+        sk_handle,
+        fee_address_migration_handle,
+        fee_params_fetcher_handle,
+        consistency_checker_handle,
+        commitment_generator_handle,
+        updater_handle,
+    ]);
+
+    Ok(sync_state)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -286,7 +442,7 @@ async fn init_tasks(
     task_handles: &mut Vec<task::JoinHandle<anyhow::Result<()>>>,
     app_health: &AppHealthCheck,
     stop_receiver: watch::Receiver<bool>,
-    components: Vec<Component>,
+    components: &[Component],
 ) -> anyhow::Result<()> {
     let release_manifest: serde_json::Value = serde_json::from_str(RELEASE_MANIFEST)
         .expect("releuse manifest is a valid json document; qed");
@@ -296,18 +452,6 @@ async fn init_tasks(
 
     let version = semver::Version::parse(release_manifest_version)
         .expect("version in manifest is a correct semver format; qed");
-    // Create components.
-    let fee_params_fetcher = Arc::new(MainNodeFeeParamsFetcher::new(main_node_client.clone()));
-
-    let sync_state = SyncState::default();
-    app_health.insert_custom_component(Arc::new(sync_state.clone()));
-    let (action_queue_sender, action_queue) = ActionQueue::new();
-
-    let (miniblock_sealer, miniblock_sealer_handle) = MiniblockSealer::new(
-        connection_pool.clone(),
-        config.optional.miniblock_seal_queue_capacity,
-    );
-    task_handles.push(tokio::spawn(miniblock_sealer.run()));
     let pool = connection_pool.clone();
     task_handles.push(tokio::spawn(async move {
         loop {
@@ -326,113 +470,7 @@ async fn init_tasks(
         }
     }));
 
-    let state_keeper = build_state_keeper(
-        action_queue,
-        config.required.state_cache_path.clone(),
-        config,
-        connection_pool.clone(),
-        sync_state.clone(),
-        config.remote.l2_erc20_bridge_addr,
-        miniblock_sealer_handle,
-        stop_receiver.clone(),
-        config.remote.l2_chain_id,
-    )
-    .await?;
-
-    task_handles.push(tokio::spawn({
-        let ctx = ctx::root();
-        let cfg = config.consensus.clone();
-        let mut stop_receiver = stop_receiver.clone();
-        let fetcher = consensus::Fetcher {
-            store: consensus::Store(connection_pool.clone()),
-            sync_state: sync_state.clone(),
-            client: Box::new(main_node_client.clone()),
-            limiter: limiter::Limiter::new(
-                &ctx,
-                limiter::Rate {
-                    burst: 10,
-                    refresh: time::Duration::milliseconds(30),
-                },
-            ),
-        };
-        let actions = action_queue_sender;
-        async move {
-            scope::run!(&ctx, |ctx, s| async {
-                s.spawn_bg(async {
-                    let res = match cfg {
-                        Some(cfg) => {
-                            let secrets = config::read_consensus_secrets()
-                                .context("config::read_consensus_secrets()")?
-                                .context("consensus secrets missing")?;
-                            fetcher.run_p2p(ctx, actions, cfg.p2p(&secrets)?).await
-                        }
-                        None => fetcher.run_centralized(ctx, actions).await,
-                    };
-                    tracing::info!("Consensus actor stopped");
-                    res
-                });
-                ctx.wait(stop_receiver.wait_for(|stop| *stop)).await??;
-                Ok(())
-            })
-            .await
-            .context("consensus actor")
-        }
-    }));
-
-    let reorg_detector = ReorgDetector::new(main_node_client.clone(), connection_pool.clone());
-    app_health.insert_component(reorg_detector.health_check().clone());
-    task_handles.push(tokio::spawn({
-        let stop = stop_receiver.clone();
-        async move {
-            reorg_detector
-                .run(stop)
-                .await
-                .context("reorg_detector.run()")
-        }
-    }));
-
     let singleton_pool_builder = ConnectionPool::singleton(&config.postgres.database_url);
-
-    let remote_diamond_proxy_addr = config.remote.diamond_proxy_addr;
-    let diamond_proxy_addr = if let Some(addr) = config.optional.contracts_diamond_proxy_addr {
-        anyhow::ensure!(
-            addr == remote_diamond_proxy_addr,
-            "Diamond proxy address {addr:?} specified in config doesn't match one returned by main node \
-             ({remote_diamond_proxy_addr:?})"
-        );
-        addr
-    } else {
-        tracing::info!(
-            "Diamond proxy address is not specified in config; will use address returned by main node: {remote_diamond_proxy_addr:?}"
-        );
-        remote_diamond_proxy_addr
-    };
-
-    let consistency_checker = ConsistencyChecker::new(
-        &config
-            .required
-            .eth_client_url()
-            .context("L1 client URL is incorrect")?,
-        10, // TODO (BFT-97): Make it a part of a proper EN config
-        singleton_pool_builder
-            .build()
-            .await
-            .context("failed to build connection pool for ConsistencyChecker")?,
-    )
-    .context("cannot initialize consistency checker")?
-    .with_diamond_proxy_addr(diamond_proxy_addr);
-
-    app_health.insert_component(consistency_checker.health_check().clone());
-    let consistency_checker_handle = tokio::spawn(consistency_checker.run(stop_receiver.clone()));
-
-    let batch_status_updater = BatchStatusUpdater::new(
-        main_node_client.clone(),
-        singleton_pool_builder
-            .build()
-            .await
-            .context("failed to build a connection pool for BatchStatusUpdater")?,
-    );
-    app_health.insert_component(batch_status_updater.health_check());
 
     // Run the components.
     let tree_pool = singleton_pool_builder
@@ -440,6 +478,7 @@ async fn init_tasks(
         .await
         .context("failed to build a tree_pool")?;
 
+    let fee_params_fetcher = Arc::new(MainNodeFeeParamsFetcher::new(main_node_client.clone()));
     let tree_reader: Option<Arc<dyn TreeApiClient>> = if components.contains(&Component::Tree) {
         anyhow::ensure!(
             !components.contains(&Component::TreeApi),
@@ -461,36 +500,45 @@ async fn init_tasks(
         None
     };
 
-    let commitment_generator_pool = singleton_pool_builder
-        .build()
-        .await
-        .context("failed to build a commitment_generator_pool")?;
-    let commitment_generator = CommitmentGenerator::new(commitment_generator_pool);
-    app_health.insert_component(commitment_generator.health_check());
-    let commitment_generator_handle = tokio::spawn(commitment_generator.run(stop_receiver.clone()));
+    let mut sync_state = None;
 
-    let updater_handle = task::spawn(batch_status_updater.run(stop_receiver.clone()));
-    let fee_address_migration_handle =
-        task::spawn(state_keeper.run_fee_address_migration(connection_pool.clone()));
-    let sk_handle = task::spawn(state_keeper.run());
-    let fee_params_fetcher_handle =
-        tokio::spawn(fee_params_fetcher.clone().run(stop_receiver.clone()));
+    if components.contains(&Component::Core) {
+        sync_state = Some(
+            run_core(
+                config,
+                connection_pool.clone(),
+                main_node_client.clone(),
+                task_handles,
+                app_health,
+                stop_receiver.clone(),
+                fee_params_fetcher.clone(),
+                &singleton_pool_builder,
+            )
+            .await?,
+        );
+    }
 
     if components.contains(&Component::HttpApi) || components.contains(&Component::WsApi) {
         let tree_reader = tree_reader.ok_or(anyhow!("Must have a tree API"))?;
+        let ask_sync_state_from = config
+            .optional
+            .ask_syncing_status_from
+            .as_ref()
+            .map(|url| Arc::new(Web3::new(Http::new(url).unwrap())));
+
         run_api(
             config,
             app_health,
             connection_pool,
             stop_receiver.clone(),
-            Some(sync_state),
-            None,
+            sync_state,
+            ask_sync_state_from,
             tree_reader,
             task_handles,
             main_node_client,
             singleton_pool_builder,
             fee_params_fetcher.clone(),
-            &components,
+            components,
         )
         .await?;
     }
@@ -508,15 +556,6 @@ async fn init_tasks(
             result
         }));
     }
-
-    task_handles.extend([
-        sk_handle,
-        fee_address_migration_handle,
-        updater_handle,
-        consistency_checker_handle,
-        fee_params_fetcher_handle,
-        commitment_generator_handle,
-    ]);
 
     Ok(())
 }
@@ -553,8 +592,43 @@ struct Cli {
     #[arg(long)]
     enable_snapshots_recovery: bool,
     /// Comma-separated list of components to launch.
-    #[arg(long, default_value = "api,tree")]
+    #[arg(long, default_value = "all")]
     components: ComponentsToRun,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Component {
+    HttpApi,
+    WsApi,
+    Tree,
+    TreeApi,
+    Core,
+}
+
+#[derive(Debug)]
+pub struct Components(pub Vec<Component>);
+
+impl FromStr for Components {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "api" => Ok(Components(vec![Component::HttpApi, Component::WsApi])),
+            "http_api" => Ok(Components(vec![Component::HttpApi])),
+            "ws_api" => Ok(Components(vec![Component::WsApi])),
+            "tree" => Ok(Components(vec![Component::Tree])),
+            "tree_api" => Ok(Components(vec![Component::TreeApi])),
+            "core" => Ok(Components(vec![Component::Core])),
+            "all" => Ok(Components(vec![
+                Component::HttpApi,
+                Component::WsApi,
+                Component::Tree,
+                Component::TreeApi,
+                Component::Core,
+            ])),
+            other => Err(format!("{} is not a valid component name", other)),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -723,7 +797,7 @@ async fn main() -> anyhow::Result<()> {
         &mut task_handles,
         &app_health,
         stop_receiver.clone(),
-        opt.components.0,
+        &opt.components.0,
     )
     .await
     .context("init_tasks")?;

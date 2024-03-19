@@ -242,11 +242,12 @@ pub struct OptionalENConfig {
     // This is intentionally not a part of `RemoteENConfig` because fetching this info from the main node would defeat
     // its purpose; the consistency checker assumes that the main node may provide false information.
     pub contracts_diamond_proxy_addr: Option<Address>,
-    /// Address of the tree api used by this EN in case it does not have a
+    /// Address of the tree API used by this EN in case it does not have a
     /// local tree component running and in this case needs to send requests
     /// to some external tree api.
     pub tree_api_url: Option<String>,
     pub tree_api_port: Option<u16>,
+    pub ask_syncing_status_from: Option<String>,
 }
 
 impl OptionalENConfig {
