@@ -344,7 +344,7 @@ impl PostgresStorageCaches {
 /// An asynchronous task that updates the VM storage values cache.
 #[derive(Debug)]
 pub struct PostgresStorageCachesTask {
-    connection_pool: ConnectionPool,
+    connection_pool: ConnectionPool<Server>,
     values_cache: ValuesCache,
     command_receiver: UnboundedReceiver<MiniblockNumber>,
 }
