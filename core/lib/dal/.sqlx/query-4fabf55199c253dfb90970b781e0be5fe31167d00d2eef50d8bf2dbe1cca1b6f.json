@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                UPDATE transactions\n                SET\n                    input = NULL,\n                    data = '{}',\n                    execution_info = '{}',\n                    updated_at = NOW()\n                WHERE\n                    miniblock_number BETWEEN $1 AND $2\n                    AND upgrade_id IS NULL\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4fabf55199c253dfb90970b781e0be5fe31167d00d2eef50d8bf2dbe1cca1b6f"
+}

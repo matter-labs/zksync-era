@@ -207,7 +207,6 @@ impl PruningDal<'_, '_> {
                 r#"
                 UPDATE transactions
                 SET
-                    l1_batch_number = NULL,
                     input = NULL,
                     data = '{}',
                     execution_info = '{}',

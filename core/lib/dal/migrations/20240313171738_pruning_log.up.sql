@@ -11,3 +11,6 @@ CREATE TABLE pruning_log
     PRIMARY KEY (type, pruned_l1_batch)
 );
 
+ALTER TABLE transactions DROP CONSTRAINT IF EXISTS transactions_miniblock_number_fkey;
+
+ALTER TABLE transactions DROP CONSTRAINT IF EXISTS transactions_l1_batch_number_fkey;
