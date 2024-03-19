@@ -653,21 +653,28 @@ impl EthNamespace {
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn syncing_impl(&self) -> SyncState {
+    pub async fn syncing_impl(&self) -> Result<SyncState, Web3Error> {
         if let Some(state) = &self.state.sync_state {
             // Node supports syncing process (i.e. not the main node).
             if state.is_synced() {
-                SyncState::NotSyncing
+                Ok(SyncState::NotSyncing)
             } else {
-                SyncState::Syncing(SyncInfo {
+                Ok(SyncState::Syncing(SyncInfo {
                     starting_block: 0u64.into(), // We always start syncing from genesis right now.
                     current_block: state.get_local_block().0.into(),
                     highest_block: state.get_main_node_block().0.into(),
-                })
+                }))
             }
+        } else if let Some(ask_sync_state_from) = &self.state.ask_sync_state_from {
+            Ok(ask_sync_state_from
+                .as_ref()
+                .eth()
+                .syncing()
+                .await
+                .map_err(|e| Web3Error::InternalError(anyhow::anyhow!(e)))?)
         } else {
             // If there is no sync state, then the node is the main node and it's always synced.
-            SyncState::NotSyncing
+            Ok(SyncState::NotSyncing)
         }
     }
 

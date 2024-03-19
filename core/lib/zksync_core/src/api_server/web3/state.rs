@@ -14,8 +14,11 @@ use vise::GaugeGuard;
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::NetworkConfig, ContractsConfig};
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::{
-    api, l2::L2Tx, transaction_request::CallRequest, Address, L1BatchNumber, L1ChainId, L2ChainId,
-    MiniblockNumber, H256, U256, U64,
+    api,
+    l2::L2Tx,
+    transaction_request::CallRequest,
+    web3::{transports::Http, Web3},
+    Address, L1BatchNumber, L1ChainId, L2ChainId, MiniblockNumber, H256, U256, U64,
 };
 use zksync_web3_decl::{error::Web3Error, types::Filter};
 
@@ -206,6 +209,7 @@ pub(crate) struct RpcState {
     pub(super) tree_api: Option<Arc<dyn TreeApiClient>>,
     pub(super) tx_sender: TxSender,
     pub(super) sync_state: Option<SyncState>,
+    pub(super) ask_sync_state_from: Option<Arc<Web3<Http>>>,
     pub(super) api_config: InternalApiConfig,
     /// Number of the first locally available miniblock / L1 batch. May differ from 0 if the node state was recovered
     /// from a snapshot.

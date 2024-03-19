@@ -1,10 +1,14 @@
-use std::{sync::Arc, time::Duration};
+use std::{str::FromStr, sync::Arc, time::Duration};
 
-use anyhow::Context as _;
+use anyhow::{anyhow, Context as _};
 use clap::Parser;
 use metrics::EN_METRICS;
 use prometheus_exporter::PrometheusExporterConfig;
-use tokio::{sync::watch, task, time::sleep};
+use tokio::{
+    sync::watch,
+    task::{self, JoinHandle},
+    time::sleep,
+};
 use zksync_basic_types::{Address, L2ChainId};
 use zksync_concurrency::{ctx, limiter, scope, time};
 use zksync_config::configs::database::MerkleTreeMode;
@@ -12,6 +16,7 @@ use zksync_core::{
     api_server::{
         execution_sandbox::VmConcurrencyLimiter,
         healthcheck::HealthCheckHandle,
+        tree::{TreeApiClient, TreeApiHttpClient},
         tx_sender::{proxy::TxProxy, ApiContracts, TxSenderBuilder},
         web3::{ApiBuilder, Namespace},
     },
@@ -21,8 +26,7 @@ use zksync_core::{
     consistency_checker::ConsistencyChecker,
     l1_gas_price::MainNodeFeeParamsFetcher,
     metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig},
-    reorg_detector,
-    reorg_detector::ReorgDetector,
+    reorg_detector::{self, ReorgDetector},
     setup_sigint_handler,
     state_keeper::{
         seal_criteria::NoopSealer, BatchExecutor, MainBatchExecutor, MiniblockSealer,
@@ -32,11 +36,15 @@ use zksync_core::{
         batch_status_updater::BatchStatusUpdater, external_io::ExternalIO, ActionQueue,
         MainNodeClient, SyncState,
     },
+    Component, Components,
 };
-use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
+use zksync_dal::{
+    connection::ConnectionPoolBuilder, healthcheck::ConnectionPoolHealthCheck, ConnectionPool,
+};
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
 use zksync_state::PostgresStorageCaches;
 use zksync_storage::RocksDB;
+use zksync_types::web3::{transports::Http, Web3};
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 use zksync_web3_decl::jsonrpsee::http_client::HttpClient;
 
@@ -109,6 +117,165 @@ async fn build_state_keeper(
     ))
 }
 
+async fn run_tree(
+    task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
+    config: &ExternalNodeConfig,
+    app_health: &AppHealthCheck,
+    stop_receiver: watch::Receiver<bool>,
+    tree_pool: ConnectionPool,
+) -> anyhow::Result<Arc<dyn TreeApiClient>> {
+    let metadata_calculator_config = MetadataCalculatorConfig {
+        db_path: config.required.merkle_tree_path.clone(),
+        mode: MerkleTreeMode::Lightweight,
+        delay_interval: config.optional.metadata_calculator_delay(),
+        max_l1_batches_per_iter: config.optional.max_l1_batches_per_tree_iter,
+        multi_get_chunk_size: config.optional.merkle_tree_multi_get_chunk_size,
+        block_cache_capacity: config.optional.merkle_tree_block_cache_size(),
+        memtable_capacity: config.optional.merkle_tree_memtable_capacity(),
+        stalled_writes_timeout: config.optional.merkle_tree_stalled_writes_timeout(),
+    };
+    let metadata_calculator = MetadataCalculator::new(metadata_calculator_config, None)
+        .await
+        .context("failed initializing metadata calculator")?;
+    let tree_reader = Arc::new(metadata_calculator.tree_reader());
+    app_health.insert_component(metadata_calculator.tree_health_check());
+
+    let tree_handle = task::spawn(metadata_calculator.run(tree_pool, stop_receiver));
+
+    task_futures.push(tree_handle);
+    Ok(tree_reader)
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn run_api(
+    config: &ExternalNodeConfig,
+    app_health: &AppHealthCheck,
+    connection_pool: ConnectionPool,
+    stop_receiver: watch::Receiver<bool>,
+    sync_state: Option<SyncState>,
+    ask_sync_state_from: Option<Arc<Web3<Http>>>,
+    tree_reader: Arc<dyn TreeApiClient>,
+    task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
+    main_node_client: HttpClient,
+    singleton_pool_builder: ConnectionPoolBuilder,
+    fee_params_fetcher: Arc<MainNodeFeeParamsFetcher>,
+    components: &[Component],
+) -> anyhow::Result<()> {
+    let (tx_sender, vm_barrier, cache_update_handle, proxy_cache_updater_handle) = {
+        let tx_proxy = TxProxy::new(main_node_client);
+        let proxy_cache_updater_pool = singleton_pool_builder
+            .build()
+            .await
+            .context("failed to build a tree_pool")?;
+        let proxy_cache_updater_handle = tokio::spawn(
+            tx_proxy
+                .run_account_nonce_sweeper(proxy_cache_updater_pool.clone(), stop_receiver.clone()),
+        );
+
+        let tx_sender_builder = TxSenderBuilder::new(
+            config.clone().into(),
+            connection_pool.clone(),
+            Arc::new(tx_proxy),
+        );
+
+        if config.optional.transactions_per_sec_limit.is_some() {
+            tracing::warn!("`transactions_per_sec_limit` option is deprecated and ignored");
+        };
+
+        let max_concurrency = config.optional.vm_concurrency_limit;
+        let (vm_concurrency_limiter, vm_barrier) = VmConcurrencyLimiter::new(max_concurrency);
+        let mut storage_caches = PostgresStorageCaches::new(
+            config.optional.factory_deps_cache_size() as u64,
+            config.optional.initial_writes_cache_size() as u64,
+        );
+        let latest_values_cache_size = config.optional.latest_values_cache_size() as u64;
+        let cache_update_handle = (latest_values_cache_size > 0).then(|| {
+            task::spawn_blocking(storage_caches.configure_storage_values_cache(
+                latest_values_cache_size,
+                connection_pool.clone(),
+                tokio::runtime::Handle::current(),
+            ))
+        });
+
+        let tx_sender = tx_sender_builder
+            .build(
+                fee_params_fetcher,
+                Arc::new(vm_concurrency_limiter),
+                ApiContracts::load_from_disk(), // TODO (BFT-138): Allow to dynamically reload API contracts
+                storage_caches,
+            )
+            .await;
+        (
+            tx_sender,
+            vm_barrier,
+            cache_update_handle,
+            proxy_cache_updater_handle,
+        )
+    };
+
+    if components.contains(&Component::HttpApi) {
+        let mut builder =
+            ApiBuilder::jsonrpsee_backend(config.clone().into(), connection_pool.clone())
+                .http(config.required.http_port)
+                .with_filter_limit(config.optional.filters_limit)
+                .with_batch_request_size_limit(config.optional.max_batch_request_size)
+                .with_response_body_size_limit(config.optional.max_response_body_size())
+                .with_tx_sender(tx_sender.clone())
+                .with_vm_barrier(vm_barrier.clone())
+                .with_tree_api(tree_reader.clone())
+                .enable_api_namespaces(config.optional.api_namespaces());
+
+        if let Some(sync_state) = &sync_state {
+            builder = builder.with_sync_state(sync_state.clone());
+        }
+        let http_server_handles = builder
+            .build()
+            .context("failed to build HTTP JSON-RPC server")?
+            .run(stop_receiver.clone())
+            .await
+            .context("Failed initializing HTTP JSON-RPC server")?;
+        app_health.insert_component(http_server_handles.health_check);
+        task_futures.extend(http_server_handles.tasks);
+    }
+
+    if components.contains(&Component::WsApi) {
+        let mut builder =
+            ApiBuilder::jsonrpsee_backend(config.clone().into(), connection_pool.clone())
+                .ws(config.required.ws_port)
+                .with_filter_limit(config.optional.filters_limit)
+                .with_subscriptions_limit(config.optional.subscriptions_limit)
+                .with_batch_request_size_limit(config.optional.max_batch_request_size)
+                .with_response_body_size_limit(config.optional.max_response_body_size())
+                .with_polling_interval(config.optional.polling_interval())
+                .with_tx_sender(tx_sender)
+                .with_vm_barrier(vm_barrier)
+                .with_tree_api(tree_reader)
+                .enable_api_namespaces(config.optional.api_namespaces());
+
+        if let Some(sync_state) = sync_state {
+            builder = builder.with_sync_state(sync_state);
+        }
+
+        if let Some(ask_sync_state_from) = ask_sync_state_from {
+            builder = builder.with_ask_sync_state(ask_sync_state_from);
+        }
+
+        let ws_server_handles = builder
+            .build()
+            .context("failed to build WS JSON-RPC server")?
+            .run(stop_receiver.clone())
+            .await
+            .context("Failed initializing WS JSON-RPC server")?;
+        app_health.insert_component(ws_server_handles.health_check);
+        task_futures.extend(ws_server_handles.tasks);
+    }
+
+    task_futures.extend(cache_update_handle);
+    task_futures.push(proxy_cache_updater_handle);
+
+    Ok(())
+}
+
 async fn init_tasks(
     config: &ExternalNodeConfig,
     connection_pool: ConnectionPool,
@@ -116,9 +283,10 @@ async fn init_tasks(
     task_handles: &mut Vec<task::JoinHandle<anyhow::Result<()>>>,
     app_health: &AppHealthCheck,
     stop_receiver: watch::Receiver<bool>,
+    components: Vec<Component>,
 ) -> anyhow::Result<()> {
     let release_manifest: serde_json::Value = serde_json::from_str(RELEASE_MANIFEST)
-        .expect("release manifest is a valid json document; qed");
+        .expect("releuse manifest is a valid json document; qed");
     let release_manifest_version = release_manifest["core"].as_str().expect(
         "a release-please manifest with \"core\" version field was specified at build time; qed.",
     );
@@ -222,21 +390,6 @@ async fn init_tasks(
 
     let singleton_pool_builder = ConnectionPool::singleton(&config.postgres.database_url);
 
-    let metadata_calculator_config = MetadataCalculatorConfig {
-        db_path: config.required.merkle_tree_path.clone(),
-        mode: MerkleTreeMode::Lightweight,
-        delay_interval: config.optional.metadata_calculator_delay(),
-        max_l1_batches_per_iter: config.optional.max_l1_batches_per_tree_iter,
-        multi_get_chunk_size: config.optional.merkle_tree_multi_get_chunk_size,
-        block_cache_capacity: config.optional.merkle_tree_block_cache_size(),
-        memtable_capacity: config.optional.merkle_tree_memtable_capacity(),
-        stalled_writes_timeout: config.optional.merkle_tree_stalled_writes_timeout(),
-    };
-    let metadata_calculator = MetadataCalculator::new(metadata_calculator_config, None)
-        .await
-        .context("failed initializing metadata calculator")?;
-    app_health.insert_component(metadata_calculator.tree_health_check());
-
     let remote_diamond_proxy_addr = config.remote.diamond_proxy_addr;
     let diamond_proxy_addr = if let Some(addr) = config.optional.contracts_diamond_proxy_addr {
         anyhow::ensure!(
@@ -279,13 +432,31 @@ async fn init_tasks(
     app_health.insert_component(batch_status_updater.health_check());
 
     // Run the components.
-    let tree_stop_receiver = stop_receiver.clone();
     let tree_pool = singleton_pool_builder
         .build()
         .await
         .context("failed to build a tree_pool")?;
-    let tree_reader = Arc::new(metadata_calculator.tree_reader());
-    let tree_handle = task::spawn(metadata_calculator.run(tree_pool, tree_stop_receiver));
+
+    let tree_reader: Option<Arc<dyn TreeApiClient>> = if components.contains(&Component::Tree) {
+        anyhow::ensure!(
+            !components.contains(&Component::TreeApi),
+            "Merkle tree API cannot be started without a tree component"
+        );
+        Some(
+            run_tree(
+                task_handles,
+                config,
+                app_health,
+                stop_receiver.clone(),
+                tree_pool,
+            )
+            .await?,
+        )
+    } else if let Some(tree_api_url) = &config.optional.tree_api_url {
+        Some(Arc::new(TreeApiHttpClient::new(tree_api_url)))
+    } else {
+        None
+    };
 
     let commitment_generator_pool = singleton_pool_builder
         .build()
@@ -302,96 +473,24 @@ async fn init_tasks(
     let fee_params_fetcher_handle =
         tokio::spawn(fee_params_fetcher.clone().run(stop_receiver.clone()));
 
-    let (tx_sender, vm_barrier, cache_update_handle, proxy_cache_updater_handle) = {
-        let tx_proxy = TxProxy::new(main_node_client);
-        let proxy_cache_updater_pool = singleton_pool_builder
-            .build()
-            .await
-            .context("failed to build a tree_pool")?;
-        let proxy_cache_updater_handle = tokio::spawn(
-            tx_proxy
-                .run_account_nonce_sweeper(proxy_cache_updater_pool.clone(), stop_receiver.clone()),
-        );
-
-        let tx_sender_builder = TxSenderBuilder::new(
-            config.clone().into(),
-            connection_pool.clone(),
-            Arc::new(tx_proxy),
-        );
-
-        if config.optional.transactions_per_sec_limit.is_some() {
-            tracing::warn!("`transactions_per_sec_limit` option is deprecated and ignored");
-        };
-
-        let max_concurrency = config.optional.vm_concurrency_limit;
-        let (vm_concurrency_limiter, vm_barrier) = VmConcurrencyLimiter::new(max_concurrency);
-        let mut storage_caches = PostgresStorageCaches::new(
-            config.optional.factory_deps_cache_size() as u64,
-            config.optional.initial_writes_cache_size() as u64,
-        );
-        let latest_values_cache_size = config.optional.latest_values_cache_size() as u64;
-        let cache_update_handle = (latest_values_cache_size > 0).then(|| {
-            task::spawn_blocking(storage_caches.configure_storage_values_cache(
-                latest_values_cache_size,
-                connection_pool.clone(),
-                tokio::runtime::Handle::current(),
-            ))
-        });
-
-        let tx_sender = tx_sender_builder
-            .build(
-                fee_params_fetcher,
-                Arc::new(vm_concurrency_limiter),
-                ApiContracts::load_from_disk(), // TODO (BFT-138): Allow to dynamically reload API contracts
-                storage_caches,
-            )
-            .await;
-        (
-            tx_sender,
-            vm_barrier,
-            cache_update_handle,
-            proxy_cache_updater_handle,
+    if components.contains(&Component::HttpApi) || components.contains(&Component::WsApi) {
+        let tree_reader = tree_reader.ok_or(anyhow!("Must have a tree API"))?;
+        run_api(
+            config,
+            app_health,
+            connection_pool,
+            stop_receiver.clone(),
+            Some(sync_state),
+            None,
+            tree_reader,
+            task_handles,
+            main_node_client,
+            singleton_pool_builder,
+            fee_params_fetcher.clone(),
+            &components,
         )
-    };
-
-    let http_server_handles =
-        ApiBuilder::jsonrpsee_backend(config.clone().into(), connection_pool.clone())
-            .http(config.required.http_port)
-            .with_filter_limit(config.optional.filters_limit)
-            .with_batch_request_size_limit(config.optional.max_batch_request_size)
-            .with_response_body_size_limit(config.optional.max_response_body_size())
-            .with_tx_sender(tx_sender.clone())
-            .with_vm_barrier(vm_barrier.clone())
-            .with_sync_state(sync_state.clone())
-            .with_tree_api(tree_reader.clone())
-            .enable_api_namespaces(config.optional.api_namespaces())
-            .build()
-            .context("failed to build HTTP JSON-RPC server")?
-            .run(stop_receiver.clone())
-            .await
-            .context("Failed initializing HTTP JSON-RPC server")?;
-
-    let ws_server_handles =
-        ApiBuilder::jsonrpsee_backend(config.clone().into(), connection_pool.clone())
-            .ws(config.required.ws_port)
-            .with_filter_limit(config.optional.filters_limit)
-            .with_subscriptions_limit(config.optional.subscriptions_limit)
-            .with_batch_request_size_limit(config.optional.max_batch_request_size)
-            .with_response_body_size_limit(config.optional.max_response_body_size())
-            .with_polling_interval(config.optional.polling_interval())
-            .with_tx_sender(tx_sender)
-            .with_vm_barrier(vm_barrier)
-            .with_sync_state(sync_state)
-            .with_tree_api(tree_reader)
-            .enable_api_namespaces(config.optional.api_namespaces())
-            .build()
-            .context("failed to build WS JSON-RPC server")?
-            .run(stop_receiver.clone())
-            .await
-            .context("Failed initializing WS JSON-RPC server")?;
-
-    app_health.insert_component(ws_server_handles.health_check);
-    app_health.insert_component(http_server_handles.health_check);
+        .await?;
+    }
 
     if let Some(port) = config.optional.prometheus_port {
         let (prometheus_health_check, prometheus_health_updater) =
@@ -407,15 +506,10 @@ async fn init_tasks(
         }));
     }
 
-    task_handles.extend(http_server_handles.tasks);
-    task_handles.extend(ws_server_handles.tasks);
-    task_handles.extend(cache_update_handle);
-    task_handles.push(proxy_cache_updater_handle);
     task_handles.extend([
         sk_handle,
         fee_address_migration_handle,
         updater_handle,
-        tree_handle,
         consistency_checker_handle,
         fee_params_fetcher_handle,
         commitment_generator_handle,
@@ -455,6 +549,25 @@ struct Cli {
     /// This is an experimental and incomplete feature; do not use unless you know what you're doing.
     #[arg(long, conflicts_with = "enable_consensus")]
     enable_snapshots_recovery: bool,
+    /// Comma-separated list of components to launch.
+    #[arg(long, default_value = "api,tree")]
+    components: ComponentsToRun,
+}
+
+#[derive(Debug, Clone)]
+struct ComponentsToRun(Vec<Component>);
+
+impl FromStr for ComponentsToRun {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let components = s.split(',').try_fold(vec![], |mut acc, component_str| {
+            let components = Components::from_str(component_str.trim())?;
+            acc.extend(components.0);
+            Ok::<_, String>(acc)
+        })?;
+        Ok(Self(components))
+    }
 }
 
 #[tokio::main]
@@ -615,6 +728,7 @@ async fn main() -> anyhow::Result<()> {
         &mut task_handles,
         &app_health,
         stop_receiver.clone(),
+        opt.components.0,
     )
     .await
     .context("init_tasks")?;
