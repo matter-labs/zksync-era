@@ -55,7 +55,6 @@ pub struct PrestateTracer {
 }
 
 impl PrestateTracer {
-    #[allow(dead_code)]
     pub fn new(diff_mode: bool, result: Arc<OnceCell<(State, State)>>) -> Self {
         Self {
             pre: Default::default(),

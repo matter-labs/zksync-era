@@ -36,12 +36,8 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for PrestateTracer {
         let modified_storage_keys = state.storage.storage.inner().get_modified_storage_keys();
         if self.config.diff_mode {
             self.post = modified_storage_keys
-                .clone()
-                .keys()
-                .copied()
-                .collect::<Vec<_>>()
                 .iter()
-                .map(|k| get_account_data(k, state, &modified_storage_keys))
+                .map(|k| get_account_data(k.0, state, &modified_storage_keys))
                 .collect::<State>();
         } else {
             let read_keys = &state.storage.read_keys;
