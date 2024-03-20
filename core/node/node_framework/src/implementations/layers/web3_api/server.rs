@@ -5,8 +5,10 @@ use zksync_core::api_server::web3::{state::InternalApiConfig, ApiBuilder, ApiSer
 
 use crate::{
     implementations::resources::{
-        healthcheck::AppHealthCheckResource, pools::ReplicaPoolResource,
-        sync_state::SyncStateResource, web3_api::TxSenderResource,
+        healthcheck::AppHealthCheckResource,
+        pools::ReplicaPoolResource,
+        sync_state::SyncStateResource,
+        web3_api::{TreeApiClientResource, TxSenderResource},
     },
     service::{ServiceContext, StopReceiver},
     task::Task,
@@ -22,7 +24,6 @@ pub struct Web3ServerOptionalConfig {
     pub batch_request_size_limit: Option<usize>,
     pub response_body_size_limit: Option<usize>,
     pub websocket_requests_per_minute_limit: Option<NonZeroU32>,
-    pub tree_api_url: Option<String>,
 }
 
 impl Web3ServerOptionalConfig {
@@ -47,7 +48,6 @@ impl Web3ServerOptionalConfig {
             api_builder = api_builder
                 .with_websocket_requests_per_minute_limit(websocket_requests_per_minute_limit);
         }
-        api_builder = api_builder.with_tree_api(self.tree_api_url);
         api_builder
     }
 }
@@ -113,15 +113,21 @@ impl WiringLayer for Web3ServerLayer {
         let sync_state = match context.get_resource::<SyncStateResource>().await {
             Ok(sync_state) => Some(sync_state.0),
             Err(WiringError::ResourceLacking(_)) => None,
-            Err(err) => {
-                return Err(err);
-            }
+            Err(err) => return Err(err),
+        };
+        let tree_api_client = match context.get_resource::<TreeApiClientResource>().await {
+            Ok(client) => Some(client.0),
+            Err(WiringError::ResourceLacking(_)) => None,
+            Err(err) => return Err(err),
         };
 
         // Build server.
         let mut api_builder = ApiBuilder::jsonrpsee_backend(self.internal_api_config, replica_pool)
             .with_updaters_pool(updaters_pool)
             .with_tx_sender(tx_sender);
+        if let Some(client) = tree_api_client {
+            api_builder = api_builder.with_tree_api(client);
+        }
         match self.transport {
             Transport::Http => {
                 api_builder = api_builder.http(self.port);

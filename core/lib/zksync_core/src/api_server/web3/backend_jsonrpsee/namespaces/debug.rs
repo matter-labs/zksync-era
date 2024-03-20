@@ -8,7 +8,7 @@ use zksync_web3_decl::{
     namespaces::debug::DebugNamespaceServer,
 };
 
-use crate::api_server::web3::{backend_jsonrpsee::into_jsrpc_error, namespaces::DebugNamespace};
+use crate::api_server::web3::namespaces::DebugNamespace;
 
 #[async_trait]
 impl DebugNamespaceServer for DebugNamespace {
@@ -19,7 +19,7 @@ impl DebugNamespaceServer for DebugNamespace {
     ) -> RpcResult<Vec<ResultDebugCall>> {
         self.debug_trace_block_impl(BlockId::Number(block), options)
             .await
-            .map_err(into_jsrpc_error)
+            .map_err(|err| self.current_method().map_err(err))
     }
 
     async fn trace_block_by_hash(
@@ -29,7 +29,7 @@ impl DebugNamespaceServer for DebugNamespace {
     ) -> RpcResult<Vec<ResultDebugCall>> {
         self.debug_trace_block_impl(BlockId::Hash(hash), options)
             .await
-            .map_err(into_jsrpc_error)
+            .map_err(|err| self.current_method().map_err(err))
     }
 
     async fn trace_call(
@@ -40,7 +40,7 @@ impl DebugNamespaceServer for DebugNamespace {
     ) -> RpcResult<DebugCall> {
         self.debug_trace_call_impl(request, block, options)
             .await
-            .map_err(into_jsrpc_error)
+            .map_err(|err| self.current_method().map_err(err))
     }
 
     async fn trace_transaction(
@@ -50,6 +50,6 @@ impl DebugNamespaceServer for DebugNamespace {
     ) -> RpcResult<Option<DebugCall>> {
         self.debug_trace_transaction_impl(tx_hash, options)
             .await
-            .map_err(into_jsrpc_error)
+            .map_err(|err| self.current_method().map_err(err))
     }
 }

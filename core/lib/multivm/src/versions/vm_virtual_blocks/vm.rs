@@ -1,4 +1,4 @@
-use zkevm_test_harness_1_3_3::witness::sort_storage_access::sort_storage_access_queries;
+use circuit_sequencer_api_1_3_3::sort_storage_access::sort_storage_access_queries;
 use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{l2_to_l1_log::UserL2ToL1Log, Transaction};
 use zksync_utils::bytecode::CompressedBytecodeInfo;

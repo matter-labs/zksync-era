@@ -42,12 +42,12 @@ describe('Tests for the custom bridge behavior', () => {
         let l1bridgeFactory = new L1ERC20BridgeFactory(alice._signerL1());
         const gasPrice = await scaledGasPrice(alice);
 
-        let l1Bridge = await l1bridgeFactory.deploy(process.env.CONTRACTS_BRIDGEHUB_PROXY_ADDR!, 0);
+        let l1Bridge = await l1bridgeFactory.deploy(process.env.CONTRACTS_BRIDGEHUB_PROXY_ADDR!);
         await l1Bridge.deployTransaction.wait(2);
         let l1BridgeProxyFactory = new TransparentUpgradeableProxyFactory(alice._signerL1());
         let l1BridgeProxy = await l1BridgeProxyFactory.deploy(l1Bridge.address, bob.address, '0x');
         const amount = 1000; // 1000 wei is enough.
-        await l1BridgeProxy.deployTransaction.wait(2);
+        await l1BridgeProxy.deployTransaction.wait();
 
         const isLocalSetup = process.env.ZKSYNC_LOCAL_SETUP;
         const baseCommandL1 = isLocalSetup

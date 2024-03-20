@@ -4,17 +4,13 @@ use assert_matches::assert_matches;
 use once_cell::sync::Lazy;
 use test_casing::test_casing;
 use zksync_config::{
-    configs::{
-        eth_sender::{ProofSendingMode, PubdataSendingMode, SenderConfig},
-        KzgConfig,
-    },
+    configs::eth_sender::{ProofSendingMode, PubdataSendingMode, SenderConfig},
     ContractsConfig, ETHSenderConfig, GasAdjusterConfig,
 };
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_eth_client::{clients::MockEthereum, EthInterface};
-use zksync_l1_contract_interface::i_executor::{
-    commit::kzg::KzgSettings,
-    methods::{CommitBatches, ExecuteBatches, ProveBatches},
+use zksync_l1_contract_interface::i_executor::methods::{
+    CommitBatches, ExecuteBatches, ProveBatches,
 };
 use zksync_object_store::ObjectStoreFactory;
 use zksync_types::{
@@ -49,6 +45,23 @@ static DUMMY_OPERATION: Lazy<AggregatedOperation> = Lazy::new(|| {
     })
 });
 
+fn mock_multicall_response() -> Token {
+    Token::Array(vec![
+        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![1u8; 32])]),
+        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![2u8; 32])]),
+        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![3u8; 96])]),
+        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![4u8; 32])]),
+        Token::Tuple(vec![
+            Token::Bool(true),
+            Token::Bytes(
+                H256::from_low_u64_be(ProtocolVersionId::default() as u64)
+                    .0
+                    .to_vec(),
+            ),
+        ]),
+    ])
+}
+
 #[derive(Debug)]
 struct EthSenderTester {
     conn: ConnectionPool,
@@ -75,18 +88,20 @@ impl EthSenderTester {
             ..eth_sender_config.sender.clone()
         };
 
-        let gateway = Arc::new(
-            MockEthereum::default()
-                .with_fee_history(
-                    std::iter::repeat(0)
-                        .take(Self::WAIT_CONFIRMATIONS as usize)
-                        .chain(history)
-                        .collect(),
-                )
-                .with_non_ordering_confirmation(non_ordering_confirmations)
-                .with_multicall_address(contracts_config.l1_multicall3_addr),
-        );
+        let gateway = MockEthereum::default()
+            .with_fee_history(
+                std::iter::repeat(0)
+                    .take(Self::WAIT_CONFIRMATIONS as usize)
+                    .chain(history)
+                    .collect(),
+            )
+            .with_non_ordering_confirmation(non_ordering_confirmations)
+            .with_call_handler(move |call| {
+                assert_eq!(call.contract_address(), contracts_config.l1_multicall3_addr);
+                mock_multicall_response()
+            });
         gateway.advance_block_number(Self::WAIT_CONFIRMATIONS);
+        let gateway = Arc::new(gateway);
 
         let gas_adjuster = Arc::new(
             GasAdjuster::new(
@@ -104,7 +119,6 @@ impl EthSenderTester {
         );
         let store_factory = ObjectStoreFactory::mock();
 
-        let kzg_settings = Arc::new(KzgSettings::new(&KzgConfig::for_tests().trusted_setup_path));
         let aggregator = EthTxAggregator::new(
             SenderConfig {
                 proof_sending_mode: ProofSendingMode::SkipEveryProof,
@@ -116,7 +130,6 @@ impl EthSenderTester {
                 store_factory.create_store().await,
                 aggregator_operate_4844_mode,
                 PubdataDA::Calldata,
-                Some(kzg_settings.clone()),
             ),
             gateway.clone(),
             // zkSync contract address
@@ -124,7 +137,6 @@ impl EthSenderTester {
             contracts_config.l1_multicall3_addr,
             Address::random(),
             Default::default(),
-            Some(kzg_settings),
             None,
         )
         .await;
@@ -580,14 +592,11 @@ async fn correct_order_for_confirmations() -> anyhow::Result<()> {
     let first_l1_batch = insert_l1_batch(&tester, L1BatchNumber(1)).await;
     let second_l1_batch = insert_l1_batch(&tester, L1BatchNumber(2)).await;
 
-    let kzg_settings = tester.aggregator.kzg_settings();
-
     commit_l1_batch(
         &mut tester,
         genesis_l1_batch.clone(),
         first_l1_batch.clone(),
         true,
-        kzg_settings.clone(),
     )
     .await;
     prove_l1_batch(
@@ -603,7 +612,6 @@ async fn correct_order_for_confirmations() -> anyhow::Result<()> {
         first_l1_batch.clone(),
         second_l1_batch.clone(),
         true,
-        kzg_settings.clone(),
     )
     .await;
     prove_l1_batch(
@@ -644,14 +652,12 @@ async fn skipped_l1_batch_at_the_start() -> anyhow::Result<()> {
     let genesis_l1_batch = insert_l1_batch(&tester, L1BatchNumber(0)).await;
     let first_l1_batch = insert_l1_batch(&tester, L1BatchNumber(1)).await;
     let second_l1_batch = insert_l1_batch(&tester, L1BatchNumber(2)).await;
-    let kzg_settings = tester.aggregator.kzg_settings();
 
     commit_l1_batch(
         &mut tester,
         genesis_l1_batch.clone(),
         first_l1_batch.clone(),
         true,
-        kzg_settings.clone(),
     )
     .await;
     prove_l1_batch(
@@ -667,7 +673,6 @@ async fn skipped_l1_batch_at_the_start() -> anyhow::Result<()> {
         first_l1_batch.clone(),
         second_l1_batch.clone(),
         true,
-        kzg_settings.clone(),
     )
     .await;
     prove_l1_batch(
@@ -687,7 +692,6 @@ async fn skipped_l1_batch_at_the_start() -> anyhow::Result<()> {
         second_l1_batch.clone(),
         third_l1_batch.clone(),
         false,
-        kzg_settings.clone(),
     )
     .await;
 
@@ -703,7 +707,6 @@ async fn skipped_l1_batch_at_the_start() -> anyhow::Result<()> {
         third_l1_batch.clone(),
         fourth_l1_batch.clone(),
         true,
-        kzg_settings.clone(),
     )
     .await;
     prove_l1_batch(
@@ -742,13 +745,11 @@ async fn skipped_l1_batch_in_the_middle() -> anyhow::Result<()> {
     let genesis_l1_batch = insert_l1_batch(&tester, L1BatchNumber(0)).await;
     let first_l1_batch = insert_l1_batch(&tester, L1BatchNumber(1)).await;
     let second_l1_batch = insert_l1_batch(&tester, L1BatchNumber(2)).await;
-    let kzg_settings = tester.aggregator.kzg_settings();
     commit_l1_batch(
         &mut tester,
         genesis_l1_batch.clone(),
         first_l1_batch.clone(),
         true,
-        kzg_settings.clone(),
     )
     .await;
     prove_l1_batch(&mut tester, genesis_l1_batch, first_l1_batch.clone(), true).await;
@@ -758,7 +759,6 @@ async fn skipped_l1_batch_in_the_middle() -> anyhow::Result<()> {
         first_l1_batch.clone(),
         second_l1_batch.clone(),
         true,
-        kzg_settings.clone(),
     )
     .await;
     prove_l1_batch(
@@ -777,7 +777,6 @@ async fn skipped_l1_batch_in_the_middle() -> anyhow::Result<()> {
         second_l1_batch.clone(),
         third_l1_batch.clone(),
         false,
-        kzg_settings.clone(),
     )
     .await;
 
@@ -793,7 +792,6 @@ async fn skipped_l1_batch_in_the_middle() -> anyhow::Result<()> {
         third_l1_batch.clone(),
         fourth_l1_batch.clone(),
         true,
-        kzg_settings.clone(),
     )
     .await;
     prove_l1_batch(
@@ -831,24 +829,9 @@ async fn test_parse_multicall_data() {
     let connection_pool = ConnectionPool::test_pool().await;
     let tester = EthSenderTester::new(connection_pool, vec![100; 100], false, false).await;
 
-    let original_correct_form_data = Token::Array(vec![
-        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![1u8; 32])]),
-        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![2u8; 32])]),
-        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![3u8; 96])]),
-        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![4u8; 32])]),
-        Token::Tuple(vec![
-            Token::Bool(true),
-            Token::Bytes(
-                H256::from_low_u64_be(ProtocolVersionId::default() as u64)
-                    .0
-                    .to_vec(),
-            ),
-        ]),
-    ]);
-
     assert!(tester
         .aggregator
-        .parse_multicall_data(original_correct_form_data)
+        .parse_multicall_data(mock_multicall_response())
         .is_ok());
 
     let original_wrong_form_data = vec![
@@ -986,13 +969,11 @@ async fn commit_l1_batch(
     last_committed_l1_batch: L1BatchHeader,
     l1_batch: L1BatchHeader,
     confirm: bool,
-    kzg_settings: Arc<KzgSettings>,
 ) -> H256 {
     let operation = AggregatedOperation::Commit(CommitBatches {
         last_committed_l1_batch: l1_batch_with_metadata(last_committed_l1_batch),
         l1_batches: vec![l1_batch_with_metadata(l1_batch)],
         pubdata_da: PubdataDA::Calldata,
-        kzg_settings: Some(kzg_settings),
     });
     send_operation(tester, operation, confirm).await
 }

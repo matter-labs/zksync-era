@@ -3,9 +3,8 @@ use std::sync::Arc;
 use zksync_config::configs::eth_sender::{ProofLoadingMode, ProofSendingMode, SenderConfig};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::StorageProcessor;
-use zksync_l1_contract_interface::i_executor::{
-    commit::kzg::KzgSettings,
-    methods::{CommitBatches, ExecuteBatches, ProveBatches},
+use zksync_l1_contract_interface::i_executor::methods::{
+    CommitBatches, ExecuteBatches, ProveBatches,
 };
 use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_prover_interface::outputs::L1BatchProofForL1;
@@ -37,7 +36,6 @@ pub struct Aggregator {
     /// transactions.
     operate_4844_mode: bool,
     pubdata_da: PubdataDA,
-    kzg_settings: Option<Arc<KzgSettings>>,
 }
 
 impl Aggregator {
@@ -46,7 +44,6 @@ impl Aggregator {
         blob_store: Arc<dyn ObjectStore>,
         operate_4844_mode: bool,
         pubdata_da: PubdataDA,
-        kzg_settings: Option<Arc<KzgSettings>>,
     ) -> Self {
         Self {
             commit_criteria: vec![
@@ -62,7 +59,6 @@ impl Aggregator {
                     op: AggregatedActionType::Commit,
                     data_limit: config.max_eth_tx_data_size,
                     pubdata_da,
-                    kzg_settings: kzg_settings.clone(),
                 }),
                 Box::from(TimestampDeadlineCriterion {
                     op: AggregatedActionType::Commit,
@@ -107,7 +103,6 @@ impl Aggregator {
             blob_store,
             operate_4844_mode,
             pubdata_da,
-            kzg_settings,
         }
     }
 
@@ -244,8 +239,51 @@ impl Aggregator {
             last_committed_l1_batch,
             l1_batches: batches,
             pubdata_da: self.pubdata_da,
-            kzg_settings: self.kzg_settings.clone(),
         })
+    }
+
+    async fn load_dummy_proof_operations(
+        storage: &mut StorageProcessor<'_>,
+        limit: usize,
+        is_4844_mode: bool,
+    ) -> Vec<L1BatchWithMetadata> {
+        let mut ready_for_proof_l1_batches = storage
+            .blocks_dal()
+            .get_ready_for_dummy_proof_l1_batches(limit)
+            .await
+            .unwrap();
+
+        // need to find first batch with an unconfirmed commit transaction
+        // and discard it and all the following ones.
+        if is_4844_mode {
+            let mut committed_batches = vec![];
+
+            for batch in ready_for_proof_l1_batches.into_iter() {
+                let Some(commit_tx_id) = storage
+                    .blocks_dal()
+                    .get_eth_commit_tx_id(batch.header.number)
+                    .await
+                    .unwrap()
+                else {
+                    break;
+                };
+
+                if storage
+                    .eth_sender_dal()
+                    .get_confirmed_tx_hash_by_eth_tx_id(commit_tx_id as u32)
+                    .await
+                    .unwrap()
+                    .is_none()
+                {
+                    break;
+                }
+                committed_batches.push(batch);
+            }
+
+            ready_for_proof_l1_batches = committed_batches;
+        }
+
+        ready_for_proof_l1_batches
     }
 
     async fn load_real_proof_operation(
@@ -390,11 +428,8 @@ impl Aggregator {
             }
 
             ProofSendingMode::SkipEveryProof => {
-                let ready_for_proof_l1_batches = storage
-                    .blocks_dal()
-                    .get_ready_for_dummy_proof_l1_batches(self.operate_4844_mode, limit)
-                    .await
-                    .unwrap();
+                let ready_for_proof_l1_batches =
+                    Self::load_dummy_proof_operations(storage, limit, self.operate_4844_mode).await;
                 self.prepare_dummy_proof_operation(
                     storage,
                     ready_for_proof_l1_batches,

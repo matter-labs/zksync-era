@@ -42,9 +42,11 @@ pub enum ProtocolVersionId {
     Version19,
     Version20,
     Version21,
-    Version22,
+    // Local version has to be after the current version
+    // and before the next version
     // kl todo delete local vm verion
     Local,
+    Version22,
 }
 
 impl ProtocolVersionId {
@@ -102,7 +104,7 @@ impl ProtocolVersionId {
 
     pub fn is_pre_shared_bridge(&self) -> bool {
         // TODO: review this when we actually deploy shared bridge
-        true
+        false
     }
 
     pub fn is_1_4_0(&self) -> bool {

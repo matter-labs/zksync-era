@@ -48,6 +48,11 @@ export async function revert(bail: boolean = false) {
     await utils.spawn('yarn revert-test revert-and-restart-test' + flag);
 }
 
+export async function revert_en(bail: boolean = false) {
+    const flag = bail ? ' --bail' : '';
+    await utils.spawn('yarn revert-test revert-and-restart-test-en' + flag);
+}
+
 export async function upgrade(bail: boolean = false) {
     const flag = bail ? ' --bail' : '';
     await utils.spawn('yarn upgrade-test upgrade-test' + flag);
@@ -83,6 +88,13 @@ command
     .option('--bail')
     .action(async (cmd: Command) => {
         await revert(cmd.bail);
+    });
+command
+    .command('revert-en')
+    .description('run EN revert test')
+    .option('--bail')
+    .action(async (cmd: Command) => {
+        await revert_en(cmd.bail);
     });
 command
     .command('upgrade')

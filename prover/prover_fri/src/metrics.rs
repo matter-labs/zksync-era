@@ -35,8 +35,6 @@ pub(crate) struct ProverFriMetrics {
     #[metrics(buckets = Buckets::LATENCIES, labels = ["blob_size_in_gb"])]
     pub witness_vector_blob_time: LabeledFamily<u64, Histogram<Duration>>,
     #[metrics(buckets = Buckets::LATENCIES, labels = ["circuit_type"])]
-    pub gpu_assembly_generation_time: LabeledFamily<String, Histogram<Duration>>,
-    #[metrics(buckets = Buckets::LATENCIES, labels = ["circuit_type"])]
     pub blob_save_time: LabeledFamily<String, Histogram<Duration>>,
 }
 

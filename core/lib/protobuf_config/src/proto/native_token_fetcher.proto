@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package zksync.config.native_token_fetcher;
+
+message NativeTokenFetcher {
+    optional uint64 poll_interval = 1;
+    optional string host = 2;
+    optional bytes token_address = 3;
+}
