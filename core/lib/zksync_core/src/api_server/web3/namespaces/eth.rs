@@ -778,7 +778,7 @@ impl EthNamespace {
                     }
                 };
 
-                // It's possible the tx_hashes vector is empty,
+                // It's possible the `tx_hashes` vector is empty,
                 // meaning there are no transactions in cache that are newer than `from_timestamp_excluded`.
                 // In this case we should return empty result and don't update `from_timestamp_excluded`.
 
