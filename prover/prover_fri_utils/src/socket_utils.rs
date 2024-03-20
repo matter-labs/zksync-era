@@ -4,6 +4,8 @@ use std::{
     time::{Duration, Instant},
 };
 
+/// Sends a given serialized payload over to the socket address.
+/// Can handle relatively large payloads (in many GB).
 pub fn send_assembly(
     job_id: u32,
     mut serialized: &[u8],
