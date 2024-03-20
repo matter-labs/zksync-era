@@ -6,7 +6,7 @@ use zksync_dal::{ConnectionPool, Server, ServerDals, StorageProcessor};
 use zksync_types::{
     ethabi::{encode, Hash, Token},
     l1::{L1Tx, OpProcessingType, PriorityQueueType},
-    protocol::{ProtocolUpgradeTx, ProtocolUpgradeTxCommonData},
+    protocol_upgrade::{ProtocolUpgradeTx, ProtocolUpgradeTxCommonData},
     web3::types::{Address, BlockNumber, Log},
     Execute, L1TxCommonData, PriorityOpId, ProtocolUpgrade, ProtocolVersion, ProtocolVersionId,
     Transaction, H256, U256,

@@ -12,7 +12,7 @@ use zksync_types::{
     fee::TransactionExecutionMetrics,
     l1::L1Tx,
     l2::L2Tx,
-    protocol::ProtocolUpgradeTx,
+    protocol_upgrade::ProtocolUpgradeTx,
     tx::{tx_execution_info::TxExecutionStatus, TransactionExecutionResult},
     vm_trace::Call,
     Address, ExecuteTransactionCommon, L1BatchNumber, L1BlockNumber, MiniblockNumber, PriorityOpId,

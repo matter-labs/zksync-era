@@ -21,7 +21,7 @@ use zksync_types::{
     commitment::{CommitmentInput, L1BatchCommitment},
     fee_model::BatchFeeInput,
     get_code_key, get_system_context_init_logs,
-    protocol::{decode_set_chain_id_event, ProtocolVersion},
+    protocol_upgrade::{decode_set_chain_id_event, ProtocolVersion},
     protocol_version::L1VerifierConfig,
     tokens::{TokenInfo, TokenMetadata, ETHEREUM_ADDRESS},
     web3::types::{BlockNumber, FilterBuilder},

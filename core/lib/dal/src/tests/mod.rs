@@ -9,7 +9,7 @@ use zksync_types::{
     helpers::unix_timestamp_ms,
     l1::{L1Tx, OpProcessingType, PriorityQueueType},
     l2::L2Tx,
-    protocol::{ProtocolUpgradeTx, ProtocolUpgradeTxCommonData},
+    protocol_upgrade::{ProtocolUpgradeTx, ProtocolUpgradeTxCommonData},
     snapshots::SnapshotRecoveryStatus,
     tx::{tx_execution_info::TxExecutionStatus, ExecutionMetrics, TransactionExecutionResult},
     Address, Execute, L1BatchNumber, L1BlockNumber, L1TxCommonData, L2ChainId, MiniblockNumber,

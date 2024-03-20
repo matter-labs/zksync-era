@@ -11,13 +11,13 @@ pub use event::{VmEvent, VmEventGroupKey};
 use fee::encoding_len;
 pub use l1::L1TxCommonData;
 pub use l2::L2TxCommonData;
-pub use protocol::{ProtocolUpgrade, ProtocolVersion};
+pub use protocol_upgrade::{ProtocolUpgrade, ProtocolVersion};
 use serde::{Deserialize, Serialize};
 pub use storage::*;
 pub use tx::{primitives::*, Execute};
 pub use zksync_basic_types::{protocol_version::ProtocolVersionId, vm_version::VmVersion, *};
 
-use crate::{l2::TransactionType, protocol::ProtocolUpgradeTxCommonData};
+use crate::{l2::TransactionType, protocol_upgrade::ProtocolUpgradeTxCommonData};
 pub use crate::{Nonce, H256, U256, U64};
 
 pub type SerialId = u64;
@@ -35,7 +35,7 @@ pub mod l1;
 pub mod l2;
 pub mod l2_to_l1_log;
 pub mod priority_op_onchain_data;
-pub mod protocol;
+pub mod protocol_upgrade;
 pub mod pubdata_da;
 pub mod snapshots;
 pub mod storage;
