@@ -16,7 +16,7 @@ use zksync_config::{
     configs::{ObservabilityConfig, PrometheusConfig},
     PostgresConfig, SnapshotsCreatorConfig,
 };
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Core};
 use zksync_env_config::{object_store::SnapshotsObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
 
@@ -81,14 +81,14 @@ async fn main() -> anyhow::Result<()> {
     let creator_config =
         SnapshotsCreatorConfig::from_env().context("SnapshotsCreatorConfig::from_env")?;
 
-    let replica_pool = ConnectionPool::builder(
+    let replica_pool = ConnectionPool::<Core>::builder(
         postgres_config.replica_url()?,
         creator_config.concurrent_queries_count,
     )
     .build()
     .await?;
 
-    let master_pool = ConnectionPool::singleton(postgres_config.master_url()?)
+    let master_pool = ConnectionPool::<Core>::singleton(postgres_config.master_url()?)
         .build()
         .await?;
 
