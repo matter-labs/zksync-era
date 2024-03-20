@@ -125,7 +125,7 @@ mod tests {
     #[tokio::test]
     async fn sync_block_basics() {
         let pool = ConnectionPool::<Core>::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let mut conn = pool.get_connection().await.unwrap();
 
         // Simulate genesis.
         conn.protocol_versions_dal()
@@ -241,7 +241,7 @@ mod tests {
     #[tokio::test]
     async fn sync_block_after_snapshot_recovery() {
         let pool = ConnectionPool::<Core>::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let mut conn = pool.get_connection().await.unwrap();
 
         // Simulate snapshot recovery.
         conn.protocol_versions_dal()

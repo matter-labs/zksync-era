@@ -48,7 +48,7 @@ impl BasicWitnessInputProducer {
         l2_chain_id: L2ChainId,
     ) -> anyhow::Result<WitnessBlockState> {
         let mut connection = rt_handle
-            .block_on(connection_pool.access_storage())
+            .block_on(connection_pool.get_connection())
             .context("failed to get connection for BasicWitnessInputProducer")?;
 
         let miniblocks_execution_data = rt_handle.block_on(
@@ -114,7 +114,7 @@ impl JobProcessor for BasicWitnessInputProducer {
     const SERVICE_NAME: &'static str = "basic_witness_input_producer";
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
-        let mut connection = self.connection_pool.access_storage().await?;
+        let mut connection = self.connection_pool.get_connection().await?;
         let l1_batch_to_process = connection
             .basic_witness_input_producer_dal()
             .get_next_basic_witness_input_producer_job()
@@ -126,7 +126,7 @@ impl JobProcessor for BasicWitnessInputProducer {
     async fn save_failure(&self, job_id: Self::JobId, started_at: Instant, error: String) {
         let attempts = self
             .connection_pool
-            .access_storage()
+            .get_connection()
             .await
             .unwrap()
             .basic_witness_input_producer_dal()
@@ -176,7 +176,7 @@ impl JobProcessor for BasicWitnessInputProducer {
             .observe(upload_started_at.elapsed());
         let mut connection = self
             .connection_pool
-            .access_storage()
+            .get_connection()
             .await
             .context("failed to acquire DB connection for BasicWitnessInputProducer")?;
         let mut transaction = connection
@@ -203,7 +203,7 @@ impl JobProcessor for BasicWitnessInputProducer {
     async fn get_job_attempts(&self, job_id: &L1BatchNumber) -> anyhow::Result<u32> {
         let mut connection = self
             .connection_pool
-            .access_storage()
+            .get_connection()
             .await
             .context("failed to acquire DB connection for BasicWitnessInputProducer")?;
         connection

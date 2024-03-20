@@ -1344,7 +1344,7 @@ mod tests {
     #[tokio::test]
     async fn getting_call_trace_for_transaction() {
         let connection_pool = ConnectionPool::<Core>::test_pool().await;
-        let mut conn = connection_pool.access_storage().await.unwrap();
+        let mut conn = connection_pool.get_connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;

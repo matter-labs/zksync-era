@@ -46,7 +46,7 @@ impl CommitmentGenerator {
     ) -> anyhow::Result<AuxCommitments> {
         let mut connection = self
             .connection_pool
-            .access_storage_tagged("commitment_generator")
+            .get_connection_tagged("commitment_generator")
             .await?;
         let events_queue_from_db = connection
             .blocks_dal()
@@ -127,7 +127,7 @@ impl CommitmentGenerator {
 
         let mut connection = self
             .connection_pool
-            .access_storage_tagged("commitment_generator")
+            .get_connection_tagged("commitment_generator")
             .await?;
         let header = connection
             .blocks_dal()
@@ -277,7 +277,7 @@ impl CommitmentGenerator {
         let latency =
             METRICS.generate_commitment_latency_stage[&CommitmentStage::SaveResults].start();
         self.connection_pool
-            .access_storage_tagged("commitment_generator")
+            .get_connection_tagged("commitment_generator")
             .await?
             .blocks_dal()
             .save_l1_batch_commitment_artifacts(l1_batch_number, &artifacts)
@@ -305,7 +305,7 @@ impl CommitmentGenerator {
 
             let Some(l1_batch_number) = self
                 .connection_pool
-                .access_storage_tagged("commitment_generator")
+                .get_connection_tagged("commitment_generator")
                 .await?
                 .blocks_dal()
                 .get_next_l1_batch_ready_for_commitment_generation()

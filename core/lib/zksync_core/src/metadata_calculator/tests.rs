@@ -86,7 +86,7 @@ async fn basic_workflow() {
 }
 
 async fn expected_tree_hash(pool: &ConnectionPool<Core>) -> H256 {
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool.get_connection().await.unwrap();
     let sealed_l1_batch_number = storage
         .blocks_dal()
         .get_sealed_l1_batch_number()
@@ -210,7 +210,7 @@ async fn running_metadata_calculator_with_additional_blocks() {
 
     // Add some new blocks to the storage.
     let new_logs = gen_storage_logs(100..200, 10);
-    extend_db_state(&mut pool.access_storage().await.unwrap(), new_logs).await;
+    extend_db_state(&mut pool.get_connection().await.unwrap(), new_logs).await;
 
     // Wait until these blocks are processed. The calculator may have spurious delays,
     // thus we wait in a loop.
@@ -271,7 +271,7 @@ async fn test_postgres_backup_recovery(
 
     // Simulate recovery from a DB snapshot in which some newer L1 batches are erased.
     let last_batch_after_recovery = L1BatchNumber(3);
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool.get_connection().await.unwrap();
     let removed_batches = remove_l1_batches(&mut storage, last_batch_after_recovery).await;
 
     if insert_batch_without_metadata {
@@ -304,7 +304,7 @@ async fn test_postgres_backup_recovery(
     assert_eq!(next_l1_batch, last_batch_after_recovery + 1);
 
     // Re-insert L1 batches to the storage after recovery.
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool.get_connection().await.unwrap();
     for batch_header in &removed_batches {
         let mut txn = storage.start_transaction().await.unwrap();
         txn.blocks_dal()
@@ -401,7 +401,7 @@ async fn setup_calculator_with_options(
         .await
         .unwrap();
 
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool.get_connection().await.unwrap();
     if storage.blocks_dal().is_genesis_needed().await.unwrap() {
         ensure_genesis_state(&mut storage, L2ChainId::from(270), &GenesisParams::mock())
             .await
@@ -439,7 +439,7 @@ pub(crate) async fn run_calculator(
 }
 
 pub(crate) async fn reset_db_state(pool: &ConnectionPool<Core>, num_batches: usize) {
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool.get_connection().await.unwrap();
     // Drops all L1 batches (except the L1 batch with number 0) and their storage logs.
     storage
         .storage_logs_dal()
@@ -633,7 +633,7 @@ async fn remove_l1_batches(
 #[tokio::test]
 async fn deduplication_works_as_expected() {
     let pool = ConnectionPool::<Core>::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool.get_connection().await.unwrap();
     ensure_genesis_state(&mut storage, L2ChainId::from(270), &GenesisParams::mock())
         .await
         .unwrap();

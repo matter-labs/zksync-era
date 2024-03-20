@@ -247,7 +247,7 @@ async fn persisting_snapshot_metadata() {
     let object_store = object_store_factory.create_store().await;
 
     // Insert some data to Postgres.
-    let mut conn = pool.access_storage().await.unwrap();
+    let mut conn = pool.get_connection().await.unwrap();
     prepare_postgres(&mut rng, &mut conn, 10).await;
 
     SnapshotCreator::for_tests(object_store, pool.clone())
@@ -294,7 +294,7 @@ async fn persisting_snapshot_factory_deps() {
     let mut rng = thread_rng();
     let object_store_factory = ObjectStoreFactory::mock();
     let object_store = object_store_factory.create_store().await;
-    let mut conn = pool.access_storage().await.unwrap();
+    let mut conn = pool.get_connection().await.unwrap();
     let expected_outputs = prepare_postgres(&mut rng, &mut conn, 10).await;
 
     SnapshotCreator::for_tests(object_store, pool.clone())
@@ -316,7 +316,7 @@ async fn persisting_snapshot_logs() {
     let mut rng = thread_rng();
     let object_store_factory = ObjectStoreFactory::mock();
     let object_store = object_store_factory.create_store().await;
-    let mut conn = pool.access_storage().await.unwrap();
+    let mut conn = pool.get_connection().await.unwrap();
     let expected_outputs = prepare_postgres(&mut rng, &mut conn, 10).await;
 
     SnapshotCreator::for_tests(object_store, pool.clone())
@@ -352,7 +352,7 @@ async fn recovery_workflow() {
     let mut rng = thread_rng();
     let object_store_factory = ObjectStoreFactory::mock();
     let object_store = object_store_factory.create_store().await;
-    let mut conn = pool.access_storage().await.unwrap();
+    let mut conn = pool.get_connection().await.unwrap();
     let expected_outputs = prepare_postgres(&mut rng, &mut conn, 10).await;
 
     SnapshotCreator::for_tests(object_store, pool.clone())
@@ -418,7 +418,7 @@ async fn recovery_workflow_with_varying_chunk_size() {
     let mut rng = thread_rng();
     let object_store_factory = ObjectStoreFactory::mock();
     let object_store = object_store_factory.create_store().await;
-    let mut conn = pool.access_storage().await.unwrap();
+    let mut conn = pool.get_connection().await.unwrap();
     let expected_outputs = prepare_postgres(&mut rng, &mut conn, 10).await;
 
     SnapshotCreator::for_tests(object_store, pool.clone())

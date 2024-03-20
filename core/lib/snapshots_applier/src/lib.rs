@@ -315,7 +315,7 @@ impl<'a> SnapshotsApplier<'a> {
         health_updater.update(HealthStatus::Ready.into());
 
         let mut storage = connection_pool
-            .access_storage_tagged("snapshots_applier")
+            .get_connection_tagged("snapshots_applier")
             .await?;
         let mut storage_transaction = storage.start_transaction().await.map_err(|err| {
             SnapshotsApplierError::db(err, "failed starting initial DB transaction")
@@ -542,7 +542,7 @@ impl<'a> SnapshotsApplier<'a> {
 
         let mut storage = self
             .connection_pool
-            .access_storage_tagged("snapshots_applier")
+            .get_connection_tagged("snapshots_applier")
             .await?;
         let mut storage_transaction = storage.start_transaction().await.map_err(|err| {
             let context = format!("cannot start DB transaction for storage logs chunk {chunk_id}");
@@ -608,7 +608,7 @@ impl<'a> SnapshotsApplier<'a> {
 
         let mut storage = self
             .connection_pool
-            .access_storage_tagged("snapshots_applier")
+            .get_connection_tagged("snapshots_applier")
             .await?;
         // This DB query is slow, but this is fine for verification purposes.
         let total_log_count = storage
@@ -643,7 +643,7 @@ impl<'a> SnapshotsApplier<'a> {
         // Check whether tokens are already recovered.
         let mut storage = self
             .connection_pool
-            .access_storage_tagged("snapshots_applier")
+            .get_connection_tagged("snapshots_applier")
             .await?;
         let all_token_addresses = storage
             .tokens_dal()
@@ -670,7 +670,7 @@ impl<'a> SnapshotsApplier<'a> {
         let l2_addresses = tokens.iter().map(|token| token.l2_address);
         let mut storage = self
             .connection_pool
-            .access_storage_tagged("snapshots_applier")
+            .get_connection_tagged("snapshots_applier")
             .await?;
         let filtered_addresses = storage
             .storage_logs_dal()

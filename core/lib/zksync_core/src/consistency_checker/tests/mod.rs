@@ -362,7 +362,7 @@ async fn normal_checker_function(
     println!("Using save_actions_mapper={mapper_name}");
 
     let pool = ConnectionPool::<Core>::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool.get_connection().await.unwrap();
     ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
         .await
         .unwrap();
@@ -432,7 +432,7 @@ async fn checker_processes_pre_boojum_batches(
     println!("Using save_actions_mapper={mapper_name}");
 
     let pool = ConnectionPool::<Core>::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool.get_connection().await.unwrap();
     let genesis_params = GenesisParams {
         protocol_version: PRE_BOOJUM_PROTOCOL_VERSION,
         ..GenesisParams::mock()
@@ -505,7 +505,7 @@ async fn checker_processes_pre_boojum_batches(
 #[tokio::test]
 async fn checker_functions_after_snapshot_recovery(delay_batch_insertion: bool) {
     let pool = ConnectionPool::<Core>::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool.get_connection().await.unwrap();
     storage
         .protocol_versions_dal()
         .save_protocol_version_with_tx(ProtocolVersion::default())
@@ -678,7 +678,7 @@ impl IncorrectDataKind {
 #[tokio::test]
 async fn checker_detects_incorrect_tx_data(kind: IncorrectDataKind, snapshot_recovery: bool) {
     let pool = ConnectionPool::<Core>::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool.get_connection().await.unwrap();
     if snapshot_recovery {
         storage
             .protocol_versions_dal()

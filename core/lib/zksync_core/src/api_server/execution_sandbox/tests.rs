@@ -12,7 +12,7 @@ use crate::{
 #[tokio::test]
 async fn creating_block_args() {
     let pool = ConnectionPool::<Core>::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool.get_connection().await.unwrap();
     ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
         .await
         .unwrap();
@@ -67,7 +67,7 @@ async fn creating_block_args() {
 #[tokio::test]
 async fn creating_block_args_after_snapshot_recovery() {
     let pool = ConnectionPool::<Core>::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool.get_connection().await.unwrap();
     let snapshot_recovery =
         prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await;
 
@@ -159,7 +159,7 @@ async fn creating_block_args_after_snapshot_recovery() {
 #[tokio::test]
 async fn instantiating_vm() {
     let pool = ConnectionPool::<Core>::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool.get_connection().await.unwrap();
     ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
         .await
         .unwrap();

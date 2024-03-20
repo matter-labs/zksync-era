@@ -97,7 +97,7 @@ impl JobProcessor for WitnessVectorGenerator {
     const SERVICE_NAME: &'static str = "WitnessVectorGenerator";
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
-        let mut storage = self.pool.access_storage().await.unwrap();
+        let mut storage = self.pool.get_connection().await.unwrap();
         let Some(job) = fetch_next_circuit(
             &mut storage,
             &*self.blob_store,
@@ -113,7 +113,7 @@ impl JobProcessor for WitnessVectorGenerator {
 
     async fn save_failure(&self, job_id: Self::JobId, _started_at: Instant, error: String) {
         self.pool
-            .access_storage()
+            .get_connection()
             .await
             .unwrap()
             .fri_prover_jobs_dal()
@@ -157,7 +157,7 @@ impl JobProcessor for WitnessVectorGenerator {
         while now.elapsed() < self.config.prover_instance_wait_timeout() {
             let prover = self
                 .pool
-                .access_storage()
+                .get_connection()
                 .await
                 .unwrap()
                 .fri_gpu_prover_queue_dal()
@@ -216,7 +216,7 @@ impl JobProcessor for WitnessVectorGenerator {
     async fn get_job_attempts(&self, job_id: &u32) -> anyhow::Result<u32> {
         let mut prover_storage = self
             .pool
-            .access_storage()
+            .get_connection()
             .await
             .context("failed to acquire DB connection for WitnessVectorGenerator")?;
         prover_storage
@@ -246,7 +246,7 @@ async fn handle_send_result(
 
             METRICS.blob_sending_time[&blob_size_in_mb.to_string()].observe(*elapsed);
 
-            pool.access_storage()
+            pool.get_connection()
                 .await
                 .unwrap()
                 .fri_prover_jobs_dal()
@@ -261,7 +261,7 @@ async fn handle_send_result(
             );
 
             // mark prover instance in `gpu_prover_queue` dead
-            pool.access_storage()
+            pool.get_connection()
                 .await
                 .unwrap()
                 .fri_gpu_prover_queue_dal()
@@ -273,7 +273,7 @@ async fn handle_send_result(
                 .await;
 
             // mark the job as failed
-            pool.access_storage()
+            pool.get_connection()
                 .await
                 .unwrap()
                 .fri_prover_jobs_dal()

@@ -243,7 +243,7 @@ impl ReorgDetector {
     pub async fn check_consistency(&mut self) -> Result<(), Error> {
         let mut storage = self
             .pool
-            .access_storage()
+            .get_connection()
             .await
             .context("access_storage()")?;
         let Some(local_l1_batch) = storage
@@ -291,7 +291,7 @@ impl ReorgDetector {
         // we are actually tracking the same chain as the main node.
         let mut storage = self
             .pool
-            .access_storage()
+            .get_connection()
             .await
             .context("access_storage()")?;
         let first_l1_batch = storage
@@ -323,7 +323,7 @@ impl ReorgDetector {
     ) -> Result<bool, HashMatchError> {
         let mut storage = self
             .pool
-            .access_storage()
+            .get_connection()
             .await
             .context("access_storage()")?;
         let local_hash = storage
@@ -356,7 +356,7 @@ impl ReorgDetector {
     async fn root_hashes_match(&self, l1_batch: L1BatchNumber) -> Result<bool, HashMatchError> {
         let mut storage = self
             .pool
-            .access_storage()
+            .get_connection()
             .await
             .context("access_storage()")?;
         let local_hash = storage

@@ -435,7 +435,7 @@ mod tests {
     #[tokio::test]
     async fn getting_transaction() {
         let connection_pool = ConnectionPool::<Core>::test_pool().await;
-        let mut conn = connection_pool.access_storage().await.unwrap();
+        let mut conn = connection_pool.get_connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -485,7 +485,7 @@ mod tests {
     #[tokio::test]
     async fn getting_receipts() {
         let connection_pool = ConnectionPool::<Core>::test_pool().await;
-        let mut conn = connection_pool.access_storage().await.unwrap();
+        let mut conn = connection_pool.get_connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -513,7 +513,7 @@ mod tests {
     #[tokio::test]
     async fn getting_miniblock_transactions() {
         let connection_pool = ConnectionPool::<Core>::test_pool().await;
-        let mut conn = connection_pool.access_storage().await.unwrap();
+        let mut conn = connection_pool.get_connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -540,7 +540,7 @@ mod tests {
     #[tokio::test]
     async fn getting_next_nonce_by_initiator_account() {
         let connection_pool = ConnectionPool::<Core>::test_pool().await;
-        let mut conn = connection_pool.access_storage().await.unwrap();
+        let mut conn = connection_pool.get_connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -610,7 +610,7 @@ mod tests {
     async fn getting_next_nonce_by_initiator_account_after_snapshot_recovery() {
         // Emulate snapshot recovery: no transactions with past nonces are present in the storage
         let connection_pool = ConnectionPool::<Core>::test_pool().await;
-        let mut conn = connection_pool.access_storage().await.unwrap();
+        let mut conn = connection_pool.get_connection().await.unwrap();
         let initiator = Address::repeat_byte(1);
         let next_nonce = conn
             .transactions_web3_dal()

@@ -47,7 +47,7 @@ impl EthNamespace {
         let mut storage = self
             .state
             .connection_pool
-            .access_storage_tagged("api")
+            .get_connection_tagged("api")
             .await?;
         let block_number = storage
             .blocks_dal()
@@ -70,7 +70,7 @@ impl EthNamespace {
         let mut connection = self
             .state
             .connection_pool
-            .access_storage_tagged("api")
+            .get_connection_tagged("api")
             .await?;
         let block_args = self
             .state
@@ -157,7 +157,7 @@ impl EthNamespace {
         let mut connection = self
             .state
             .connection_pool
-            .access_storage_tagged("api")
+            .get_connection_tagged("api")
             .await?;
         let block_number = self.state.resolve_block(&mut connection, block_id).await?;
 
@@ -233,7 +233,7 @@ impl EthNamespace {
         let mut storage = self
             .state
             .connection_pool
-            .access_storage_tagged("api")
+            .get_connection_tagged("api")
             .await?;
         let Some(block_number) = self
             .state
@@ -299,7 +299,7 @@ impl EthNamespace {
         let mut storage = self
             .state
             .connection_pool
-            .access_storage_tagged("api")
+            .get_connection_tagged("api")
             .await?;
         let Some(block_number) = self
             .state
@@ -331,7 +331,7 @@ impl EthNamespace {
         let mut storage = self
             .state
             .connection_pool
-            .access_storage_tagged("api")
+            .get_connection_tagged("api")
             .await?;
         let Some(block_number) = self
             .state
@@ -371,7 +371,7 @@ impl EthNamespace {
         let mut connection = self
             .state
             .connection_pool
-            .access_storage_tagged("api")
+            .get_connection_tagged("api")
             .await?;
         let block_number = self.state.resolve_block(&mut connection, block_id).await?;
         self.set_block_diff(block_number);
@@ -403,7 +403,7 @@ impl EthNamespace {
         let mut connection = self
             .state
             .connection_pool
-            .access_storage_tagged("api")
+            .get_connection_tagged("api")
             .await?;
         let block_number = self.state.resolve_block(&mut connection, block_id).await?;
         self.set_block_diff(block_number);
@@ -428,7 +428,7 @@ impl EthNamespace {
         let mut connection = self
             .state
             .connection_pool
-            .access_storage_tagged("api")
+            .get_connection_tagged("api")
             .await?;
 
         let block_number = self.state.resolve_block(&mut connection, block_id).await?;
@@ -474,7 +474,7 @@ impl EthNamespace {
         let mut storage = self
             .state
             .connection_pool
-            .access_storage_tagged("api")
+            .get_connection_tagged("api")
             .await?;
         let chain_id = self.state.api_config.l2_chain_id;
         let mut transaction = match id {
@@ -520,7 +520,7 @@ impl EthNamespace {
         let receipts = self
             .state
             .connection_pool
-            .access_storage_tagged("api")
+            .get_connection_tagged("api")
             .await?
             .transactions_web3_dal()
             .get_transaction_receipts(&[hash])
@@ -539,7 +539,7 @@ impl EthNamespace {
         let mut storage = self
             .state
             .connection_pool
-            .access_storage_tagged("api")
+            .get_connection_tagged("api")
             .await?;
         let last_block_number = storage
             .blocks_dal()
@@ -691,7 +691,7 @@ impl EthNamespace {
         let mut connection = self
             .state
             .connection_pool
-            .access_storage_tagged("api")
+            .get_connection_tagged("api")
             .await?;
         let newest_miniblock = self
             .state
@@ -736,7 +736,7 @@ impl EthNamespace {
                 let mut conn = self
                     .state
                     .connection_pool
-                    .access_storage_tagged("api")
+                    .get_connection_tagged("api")
                     .await?;
                 let (block_hashes, last_block_number) = conn
                     .blocks_web3_dal()
@@ -756,7 +756,7 @@ impl EthNamespace {
                 let mut conn = self
                     .state
                     .connection_pool
-                    .access_storage_tagged("api")
+                    .get_connection_tagged("api")
                     .await?;
                 let (tx_hashes, last_timestamp) = conn
                     .transactions_web3_dal()
@@ -813,7 +813,7 @@ impl EthNamespace {
                 let mut storage = self
                     .state
                     .connection_pool
-                    .access_storage_tagged("api")
+                    .get_connection_tagged("api")
                     .await?;
 
                 // Check if there is more than one block in range and there are more than `req_entities_limit` logs that satisfies filter.

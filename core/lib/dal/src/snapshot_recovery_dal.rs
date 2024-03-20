@@ -111,7 +111,7 @@ mod tests {
     #[tokio::test]
     async fn manipulating_snapshot_recovery_table() {
         let connection_pool = ConnectionPool::<Core>::test_pool().await;
-        let mut conn = connection_pool.access_storage().await.unwrap();
+        let mut conn = connection_pool.get_connection().await.unwrap();
         let mut applied_status_dal = conn.snapshot_recovery_dal();
         let empty_status = applied_status_dal
             .get_applied_snapshot_status()

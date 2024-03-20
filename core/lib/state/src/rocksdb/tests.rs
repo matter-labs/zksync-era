@@ -90,7 +90,7 @@ async fn sync_test_storage(dir: &TempDir, conn: &mut Connection<'_, Core>) -> Ro
 #[tokio::test]
 async fn rocksdb_storage_syncing_with_postgres() {
     let pool = ConnectionPool::<Core>::test_pool().await;
-    let mut conn = pool.access_storage().await.unwrap();
+    let mut conn = pool.get_connection().await.unwrap();
     prepare_postgres(&mut conn).await;
     let storage_logs = gen_storage_logs(20..40);
     create_miniblock(&mut conn, MiniblockNumber(1), storage_logs.clone()).await;
@@ -108,7 +108,7 @@ async fn rocksdb_storage_syncing_with_postgres() {
 #[tokio::test]
 async fn rocksdb_storage_syncing_fault_tolerance() {
     let pool = ConnectionPool::<Core>::test_pool().await;
-    let mut conn = pool.access_storage().await.unwrap();
+    let mut conn = pool.get_connection().await.unwrap();
     prepare_postgres(&mut conn).await;
     let storage_logs = gen_storage_logs(100..200);
     for (i, block_logs) in storage_logs.chunks(20).enumerate() {
@@ -172,7 +172,7 @@ async fn insert_factory_deps(
 #[tokio::test]
 async fn rocksdb_storage_revert() {
     let pool = ConnectionPool::<Core>::test_pool().await;
-    let mut conn = pool.access_storage().await.unwrap();
+    let mut conn = pool.get_connection().await.unwrap();
     prepare_postgres(&mut conn).await;
     let storage_logs = gen_storage_logs(20..40);
     create_miniblock(&mut conn, MiniblockNumber(1), storage_logs[..10].to_vec()).await;
@@ -243,7 +243,7 @@ async fn rocksdb_storage_revert() {
 #[tokio::test]
 async fn rocksdb_enum_index_migration() {
     let pool = ConnectionPool::<Core>::test_pool().await;
-    let mut conn = pool.access_storage().await.unwrap();
+    let mut conn = pool.get_connection().await.unwrap();
     prepare_postgres(&mut conn).await;
     let storage_logs = gen_storage_logs(20..40);
     create_miniblock(&mut conn, MiniblockNumber(1), storage_logs.clone()).await;
@@ -328,7 +328,7 @@ async fn rocksdb_enum_index_migration() {
 #[tokio::test]
 async fn low_level_snapshot_recovery(log_chunk_size: u64) {
     let pool = ConnectionPool::<Core>::test_pool().await;
-    let mut conn = pool.access_storage().await.unwrap();
+    let mut conn = pool.get_connection().await.unwrap();
     let (snapshot_recovery, mut storage_logs) =
         prepare_postgres_for_snapshot_recovery(&mut conn).await;
 
@@ -360,7 +360,7 @@ async fn low_level_snapshot_recovery(log_chunk_size: u64) {
 #[tokio::test]
 async fn recovering_factory_deps_from_snapshot() {
     let pool = ConnectionPool::<Core>::test_pool().await;
-    let mut conn = pool.access_storage().await.unwrap();
+    let mut conn = pool.get_connection().await.unwrap();
     let (snapshot_recovery, _) = prepare_postgres_for_snapshot_recovery(&mut conn).await;
 
     let mut all_factory_deps = HashMap::new();
@@ -387,7 +387,7 @@ async fn recovering_factory_deps_from_snapshot() {
 #[tokio::test]
 async fn recovering_from_snapshot_and_following_logs() {
     let pool = ConnectionPool::<Core>::test_pool().await;
-    let mut conn = pool.access_storage().await.unwrap();
+    let mut conn = pool.get_connection().await.unwrap();
     let (snapshot_recovery, mut storage_logs) =
         prepare_postgres_for_snapshot_recovery(&mut conn).await;
 
@@ -454,7 +454,7 @@ async fn recovering_from_snapshot_and_following_logs() {
 #[tokio::test]
 async fn recovery_fault_tolerance() {
     let pool = ConnectionPool::<Core>::test_pool().await;
-    let mut conn = pool.access_storage().await.unwrap();
+    let mut conn = pool.get_connection().await.unwrap();
     let (_, storage_logs) = prepare_postgres_for_snapshot_recovery(&mut conn).await;
     let log_chunk_size = storage_logs.len() as u64 / 5;
 

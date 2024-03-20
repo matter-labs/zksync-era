@@ -261,7 +261,7 @@ async fn processing_storage_logs_when_sealing_miniblock() {
         l2_erc20_bridge_addr: Address::default(),
         pre_insert_txs: false,
     };
-    let mut conn = connection_pool.access_storage().await.unwrap();
+    let mut conn = connection_pool.get_connection().await.unwrap();
     conn.protocol_versions_dal()
         .save_protocol_version_with_tx(Default::default())
         .await;
@@ -339,7 +339,7 @@ async fn processing_events_when_sealing_miniblock() {
         l2_erc20_bridge_addr: Address::default(),
         pre_insert_txs: false,
     };
-    let mut conn = pool.access_storage().await.unwrap();
+    let mut conn = pool.get_connection().await.unwrap();
     conn.protocol_versions_dal()
         .save_protocol_version_with_tx(Default::default())
         .await;
@@ -366,7 +366,7 @@ async fn test_miniblock_and_l1_batch_processing(
 
     // Genesis is needed for proper mempool initialization.
     tester.genesis(&pool).await;
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool.get_connection().await.unwrap();
     // Save metadata for the genesis L1 batch so that we don't hang in `seal_l1_batch`.
     storage
         .blocks_dal()
@@ -404,7 +404,7 @@ async fn test_miniblock_and_l1_batch_processing(
         .unwrap();
 
     // Check that miniblock #1 and L1 batch #1 are persisted.
-    let mut conn = pool.access_storage().await.unwrap();
+    let mut conn = pool.get_connection().await.unwrap();
     assert_eq!(
         conn.blocks_dal()
             .get_sealed_miniblock_number()
@@ -436,7 +436,7 @@ async fn miniblock_and_l1_batch_processing_with_sync_sealer() {
 #[tokio::test]
 async fn miniblock_processing_after_snapshot_recovery() {
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
-    let mut storage = connection_pool.access_storage().await.unwrap();
+    let mut storage = connection_pool.get_connection().await.unwrap();
     let snapshot_recovery =
         prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await;
     let tester = Tester::new();

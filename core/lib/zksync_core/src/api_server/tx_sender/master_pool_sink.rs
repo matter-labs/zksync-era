@@ -25,7 +25,7 @@ impl TxSink for MasterPoolSink {
     ) -> Result<L2TxSubmissionResult, SubmitTxError> {
         let submission_res_handle = self
             .master_pool
-            .access_storage_tagged("api")
+            .get_connection_tagged("api")
             .await?
             .transactions_dal()
             .insert_transaction_l2(tx, execution_metrics)

@@ -26,7 +26,7 @@ impl SnapshotsNamespace {
         let mut storage_processor = self
             .state
             .connection_pool
-            .access_storage_tagged("api")
+            .get_connection_tagged("api")
             .await?;
         let mut snapshots_dal = storage_processor.snapshots_dal();
         Ok(snapshots_dal
@@ -42,7 +42,7 @@ impl SnapshotsNamespace {
         let mut storage_processor = self
             .state
             .connection_pool
-            .access_storage_tagged("api")
+            .get_connection_tagged("api")
             .await?;
         let snapshot_metadata = storage_processor
             .snapshots_dal()

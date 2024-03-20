@@ -47,7 +47,7 @@ impl TransactionExecutor {
 
         let stage_latency = SANDBOX_METRICS.sandbox[&SandboxStage::ValidateInSandbox].start();
         let mut connection = connection_pool
-            .access_storage_tagged("api")
+            .get_connection_tagged("api")
             .await
             .context("failed acquiring DB connection")?;
         let validation_params =

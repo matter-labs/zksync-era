@@ -12,7 +12,7 @@ impl CircuitBreaker for FailedL1TransactionChecker {
     async fn check(&self) -> Result<(), CircuitBreakerError> {
         if self
             .pool
-            .access_storage()
+            .get_connection()
             .await
             .unwrap()
             .eth_sender_dal()

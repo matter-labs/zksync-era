@@ -133,7 +133,7 @@ impl JobProcessor for SchedulerWitnessGenerator {
     const SERVICE_NAME: &'static str = "fri_scheduler_witness_generator";
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
-        let mut prover_connection = self.prover_connection_pool.access_storage().await.unwrap();
+        let mut prover_connection = self.prover_connection_pool.get_connection().await.unwrap();
         let pod_name = get_current_pod_name();
         let Some(l1_batch_number) = prover_connection
             .fri_witness_generator_dal()
@@ -157,7 +157,7 @@ impl JobProcessor for SchedulerWitnessGenerator {
 
     async fn save_failure(&self, job_id: L1BatchNumber, _started_at: Instant, error: String) -> () {
         self.prover_connection_pool
-            .access_storage()
+            .get_connection()
             .await
             .unwrap()
             .fri_witness_generator_dal()
@@ -196,7 +196,7 @@ impl JobProcessor for SchedulerWitnessGenerator {
         WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::Scheduler.into()]
             .observe(blob_save_started_at.elapsed());
 
-        let mut prover_connection = self.prover_connection_pool.access_storage().await.unwrap();
+        let mut prover_connection = self.prover_connection_pool.get_connection().await.unwrap();
         let mut transaction = prover_connection.start_transaction().await.unwrap();
         let protocol_version_id = transaction
             .fri_witness_generator_dal()
@@ -232,7 +232,7 @@ impl JobProcessor for SchedulerWitnessGenerator {
     async fn get_job_attempts(&self, job_id: &L1BatchNumber) -> anyhow::Result<u32> {
         let mut prover_storage = self
             .prover_connection_pool
-            .access_storage()
+            .get_connection()
             .await
             .context("failed to acquire DB connection for SchedulerWitnessGenerator")?;
         prover_storage

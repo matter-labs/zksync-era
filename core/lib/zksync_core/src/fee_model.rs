@@ -112,7 +112,7 @@ impl BatchFeeModelInputProvider for ApiFeeInputProvider {
             .await;
         let last_miniblock_params = self
             .connection_pool
-            .access_storage_tagged("api_fee_input_provider")
+            .get_connection_tagged("api_fee_input_provider")
             .await
             .unwrap()
             .blocks_dal()

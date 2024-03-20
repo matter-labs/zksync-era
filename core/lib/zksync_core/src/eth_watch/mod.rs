@@ -56,7 +56,7 @@ impl EthWatch {
         pool: ConnectionPool<Core>,
         poll_interval: Duration,
     ) -> Self {
-        let mut storage = pool.access_storage_tagged("eth_watch").await.unwrap();
+        let mut storage = pool.get_connection_tagged("eth_watch").await.unwrap();
 
         let state = Self::initialize_state(&*client, &mut storage).await;
 
@@ -147,7 +147,7 @@ impl EthWatch {
             timer.tick().await;
             METRICS.eth_poll.inc();
 
-            let mut storage = pool.access_storage_tagged("eth_watch").await.unwrap();
+            let mut storage = pool.get_connection_tagged("eth_watch").await.unwrap();
             if let Err(error) = self.loop_iteration(&mut storage).await {
                 // This is an error because otherwise we could potentially miss a priority operation
                 // thus entering priority mode, which is not desired.

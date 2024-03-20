@@ -199,7 +199,7 @@ impl Store {
     /// Wrapper for `access_storage_tagged()`.
     pub(super) async fn access<'a>(&'a self, ctx: &ctx::Ctx) -> ctx::Result<Connection<'a>> {
         Ok(Connection(
-            ctx.wait(self.0.access_storage_tagged("consensus"))
+            ctx.wait(self.0.get_connection_tagged("consensus"))
                 .await??,
         ))
     }

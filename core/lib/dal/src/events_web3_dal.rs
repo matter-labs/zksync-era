@@ -263,7 +263,7 @@ mod tests {
     #[tokio::test]
     async fn test_build_get_logs_where_clause() {
         let connection_pool = ConnectionPool::<Core>::test_pool().await;
-        let storage = &mut connection_pool.access_storage().await.unwrap();
+        let storage = &mut connection_pool.get_connection().await.unwrap();
         let events_web3_dal = EventsWeb3Dal { storage };
         let filter = GetLogsFilter {
             from_block: MiniblockNumber(100),
@@ -284,7 +284,7 @@ mod tests {
     #[tokio::test]
     async fn test_build_get_logs_with_multiple_topics_where_clause() {
         let connection_pool = ConnectionPool::<Core>::test_pool().await;
-        let storage = &mut connection_pool.access_storage().await.unwrap();
+        let storage = &mut connection_pool.get_connection().await.unwrap();
         let events_web3_dal = EventsWeb3Dal { storage };
         let filter = GetLogsFilter {
             from_block: MiniblockNumber(10),
@@ -318,7 +318,7 @@ mod tests {
     #[tokio::test]
     async fn test_build_get_logs_with_no_address_where_clause() {
         let connection_pool = ConnectionPool::<Core>::test_pool().await;
-        let storage = &mut connection_pool.access_storage().await.unwrap();
+        let storage = &mut connection_pool.get_connection().await.unwrap();
         let events_web3_dal = EventsWeb3Dal { storage };
         let filter = GetLogsFilter {
             from_block: MiniblockNumber(10),

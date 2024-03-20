@@ -21,7 +21,7 @@ pub mod zksolc_utils;
 pub mod zkvyper_utils;
 
 async fn update_compiler_versions(connection_pool: &ConnectionPool<Core>) {
-    let mut storage = connection_pool.access_storage().await.unwrap();
+    let mut storage = connection_pool.get_connection().await.unwrap();
     let mut transaction = storage.start_transaction().await.unwrap();
 
     let zksync_home = std::env::var("ZKSYNC_HOME").unwrap_or_else(|_| ".".into());

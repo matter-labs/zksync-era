@@ -159,7 +159,7 @@ impl Tester {
     pub(super) async fn genesis(&self) {
         let mut storage = self
             .pool
-            .access_storage_tagged("state_keeper")
+            .get_connection_tagged("state_keeper")
             .await
             .unwrap();
         if storage.blocks_dal().is_genesis_needed().await.unwrap() {
@@ -182,7 +182,7 @@ impl Tester {
     pub(super) async fn fund(&self, addresses: &[Address]) {
         let mut storage = self
             .pool
-            .access_storage_tagged("state_keeper")
+            .get_connection_tagged("state_keeper")
             .await
             .unwrap();
 
@@ -384,7 +384,7 @@ impl StorageSnapshot {
         tester.genesis().await;
         tester.fund(&[alice.address()]).await;
 
-        let mut storage = connection_pool.access_storage().await.unwrap();
+        let mut storage = connection_pool.get_connection().await.unwrap();
         let all_logs = storage
             .snapshots_creator_dal()
             .get_storage_logs_chunk(
@@ -457,7 +457,7 @@ impl StorageSnapshot {
         )
         .finalize(ProtocolVersionId::latest());
 
-        let mut storage = connection_pool.access_storage().await.unwrap();
+        let mut storage = connection_pool.get_connection().await.unwrap();
         storage.blocks_dal().delete_genesis().await.unwrap();
         Self {
             miniblock_number: MiniblockNumber(l2_block_env.number),
@@ -475,7 +475,7 @@ impl StorageSnapshot {
             .into_iter()
             .map(|(key, value)| StorageLog::new_write_log(key, value))
             .collect();
-        let mut storage = connection_pool.access_storage().await.unwrap();
+        let mut storage = connection_pool.get_connection().await.unwrap();
         let mut snapshot = prepare_recovery_snapshot(
             &mut storage,
             L1BatchNumber(1),

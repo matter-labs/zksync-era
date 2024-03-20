@@ -304,7 +304,7 @@ pub(super) fn apply_vm_in_sandbox<T>(
 
     let rt_handle = vm_permit.rt_handle();
     let connection = rt_handle
-        .block_on(connection_pool.access_storage_tagged("api"))
+        .block_on(connection_pool.get_connection_tagged("api"))
         .context("failed acquiring DB connection")?;
     let connection_acquire_time = stage_started_at.elapsed();
     // We don't want to emit too many logs.

@@ -176,7 +176,7 @@ mod tests {
     #[tokio::test]
     async fn adding_snapshot() {
         let pool = ConnectionPool::<Core>::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let mut conn = pool.get_connection().await.unwrap();
         let mut dal = conn.snapshots_dal();
         let l1_batch_number = L1BatchNumber(100);
         dal.add_snapshot(l1_batch_number, 2, "gs:///bucket/factory_deps.bin")
@@ -216,7 +216,7 @@ mod tests {
     #[tokio::test]
     async fn adding_files() {
         let pool = ConnectionPool::<Core>::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let mut conn = pool.get_connection().await.unwrap();
         let mut dal = conn.snapshots_dal();
         let l1_batch_number = L1BatchNumber(100);
         dal.add_snapshot(l1_batch_number, 2, "gs:///bucket/factory_deps.bin")

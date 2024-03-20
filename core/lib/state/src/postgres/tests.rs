@@ -18,7 +18,7 @@ fn test_postgres_storage_basics(
     rt_handle: Handle,
     cache_initial_writes: bool,
 ) {
-    let mut connection = rt_handle.block_on(pool.access_storage()).unwrap();
+    let mut connection = rt_handle.block_on(pool.get_connection()).unwrap();
     rt_handle.block_on(prepare_postgres(&mut connection));
     let mut storage = PostgresStorage::new(rt_handle, connection, MiniblockNumber(0), true);
     if cache_initial_writes {
@@ -149,7 +149,7 @@ fn test_postgres_storage_after_sealing_miniblock(
     rt_handle: Handle,
     consider_new_l1_batch: bool,
 ) {
-    let mut connection = rt_handle.block_on(pool.access_storage()).unwrap();
+    let mut connection = rt_handle.block_on(pool.get_connection()).unwrap();
     rt_handle.block_on(prepare_postgres(&mut connection));
     let new_logs = gen_storage_logs(20..30);
 
@@ -204,7 +204,7 @@ async fn postgres_storage_after_sealing_miniblock() {
 }
 
 fn test_factory_deps_cache(pool: &ConnectionPool<Core>, rt_handle: Handle) {
-    let mut connection = rt_handle.block_on(pool.access_storage()).unwrap();
+    let mut connection = rt_handle.block_on(pool.get_connection()).unwrap();
     rt_handle.block_on(prepare_postgres(&mut connection));
 
     let caches = PostgresStorageCaches::new(128 * 1_024 * 1_024, 1_024);
@@ -256,7 +256,7 @@ async fn using_factory_deps_cache() {
 }
 
 fn test_initial_writes_cache(pool: &ConnectionPool<Core>, rt_handle: Handle) {
-    let connection = rt_handle.block_on(pool.access_storage()).unwrap();
+    let connection = rt_handle.block_on(pool.get_connection()).unwrap();
     let caches = PostgresStorageCaches::new(1_024, 4 * 1_024 * 1_024);
     let mut storage = PostgresStorage::new(rt_handle, connection, MiniblockNumber(0), false)
         .with_caches(caches.clone());
@@ -393,7 +393,7 @@ fn test_values_cache(pool: &ConnectionPool<Core>, rt_handle: Handle) {
     let old_miniblock_assertions = values_cache.assertions(MiniblockNumber(0));
     let new_miniblock_assertions = values_cache.assertions(MiniblockNumber(1));
 
-    let mut connection = rt_handle.block_on(pool.access_storage()).unwrap();
+    let mut connection = rt_handle.block_on(pool.get_connection()).unwrap();
     rt_handle.block_on(prepare_postgres(&mut connection));
 
     let mut storage = PostgresStorage::new(rt_handle, connection, MiniblockNumber(0), false)
@@ -517,7 +517,7 @@ fn mini_fuzz_values_cache_inner(
     let _ = caches.configure_storage_values_cache(1_024 * 1_024, pool.clone());
     let values_cache = caches.values.as_ref().unwrap().cache.clone();
 
-    let mut connection = rt_handle.block_on(pool.access_storage()).unwrap();
+    let mut connection = rt_handle.block_on(pool.get_connection()).unwrap();
     rt_handle.block_on(prepare_postgres(&mut connection));
 
     let queried_keys: Vec<_> = gen_storage_logs(0..100)

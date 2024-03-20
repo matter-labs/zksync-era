@@ -69,7 +69,7 @@ pub(crate) struct SnapshotCreator {
 impl SnapshotCreator {
     async fn connect_to_replica(&self) -> anyhow::Result<Connection<'_, Core>> {
         self.replica_pool
-            .access_storage_tagged("snapshots_creator")
+            .get_connection_tagged("snapshots_creator")
             .await
     }
 
@@ -124,7 +124,7 @@ impl SnapshotCreator {
 
         let mut master_conn = self
             .master_pool
-            .access_storage_tagged("snapshots_creator")
+            .get_connection_tagged("snapshots_creator")
             .await?;
         master_conn
             .snapshots_dal()
@@ -237,7 +237,7 @@ impl SnapshotCreator {
     ) -> anyhow::Result<Option<SnapshotProgress>> {
         let mut master_conn = self
             .master_pool
-            .access_storage_tagged("snapshots_creator")
+            .get_connection_tagged("snapshots_creator")
             .await?;
         let latest_snapshot = master_conn
             .snapshots_dal()
@@ -302,7 +302,7 @@ impl SnapshotCreator {
 
             let mut master_conn = self
                 .master_pool
-                .access_storage_tagged("snapshots_creator")
+                .get_connection_tagged("snapshots_creator")
                 .await?;
             master_conn
                 .snapshots_dal()

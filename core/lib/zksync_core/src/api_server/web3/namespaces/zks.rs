@@ -49,7 +49,7 @@ impl ZksNamespace {
         Ok(self
             .state
             .connection_pool
-            .access_storage_tagged("api")
+            .get_connection_tagged("api")
             .await?)
     }
 

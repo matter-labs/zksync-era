@@ -336,7 +336,7 @@ mod tests {
     async fn replica_state_read_write() {
         let rng = &mut rand::thread_rng();
         let pool = ConnectionPool::<Core>::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let mut conn = pool.get_connection().await.unwrap();
         assert_eq!(None, conn.consensus_dal().genesis().await.unwrap());
         for n in 0..3 {
             let fork = validator::Fork {

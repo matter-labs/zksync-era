@@ -215,7 +215,7 @@ async fn test_normal_operation_l1_txs() {
     )
     .await;
 
-    let mut storage = connection_pool.access_storage().await.unwrap();
+    let mut storage = connection_pool.get_connection().await.unwrap();
     client
         .add_transactions(&[build_l1_tx(0, 10), build_l1_tx(1, 14), build_l1_tx(2, 18)])
         .await;
@@ -263,7 +263,7 @@ async fn test_normal_operation_upgrades() {
     )
     .await;
 
-    let mut storage = connection_pool.access_storage().await.unwrap();
+    let mut storage = connection_pool.get_connection().await.unwrap();
     client
         .add_diamond_upgrades(&[
             (
@@ -324,7 +324,7 @@ async fn test_gap_in_upgrades() {
     )
     .await;
 
-    let mut storage = connection_pool.access_storage().await.unwrap();
+    let mut storage = connection_pool.get_connection().await.unwrap();
     client
         .add_diamond_upgrades(&[(
             ProtocolUpgrade {
@@ -363,7 +363,7 @@ async fn test_normal_operation_governance_upgrades() {
     )
     .await;
 
-    let mut storage = connection_pool.access_storage().await.unwrap();
+    let mut storage = connection_pool.get_connection().await.unwrap();
     client
         .add_governance_upgrades(&[
             (
@@ -425,7 +425,7 @@ async fn test_gap_in_single_batch() {
     )
     .await;
 
-    let mut storage = connection_pool.access_storage().await.unwrap();
+    let mut storage = connection_pool.get_connection().await.unwrap();
     client
         .add_transactions(&[
             build_l1_tx(0, 10),
@@ -455,7 +455,7 @@ async fn test_gap_between_batches() {
     )
     .await;
 
-    let mut storage = connection_pool.access_storage().await.unwrap();
+    let mut storage = connection_pool.get_connection().await.unwrap();
     client
         .add_transactions(&[
             // this goes to the first batch
@@ -490,7 +490,7 @@ async fn test_overlapping_batches() {
     )
     .await;
 
-    let mut storage = connection_pool.access_storage().await.unwrap();
+    let mut storage = connection_pool.get_connection().await.unwrap();
     client
         .add_transactions(&[
             // this goes to the first batch
@@ -763,7 +763,7 @@ fn upgrade_into_diamond_cut(upgrade: ProtocolUpgrade) -> Token {
 
 async fn setup_db(connection_pool: &ConnectionPool<Core>) {
     connection_pool
-        .access_storage()
+        .get_connection()
         .await
         .unwrap()
         .protocol_versions_dal()

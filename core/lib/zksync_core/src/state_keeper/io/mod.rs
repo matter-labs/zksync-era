@@ -267,7 +267,7 @@ impl MiniblockSealer {
         while let Some(completable) = self.next_command().await {
             let mut conn = self
                 .pool
-                .access_storage_tagged("state_keeper")
+                .get_connection_tagged("state_keeper")
                 .await
                 .unwrap();
             completable.command.seal(&mut conn).await;

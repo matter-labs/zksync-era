@@ -226,7 +226,7 @@ fn mock_updater(
 #[tokio::test]
 async fn updater_cursor_for_storage_with_genesis_block() {
     let pool = ConnectionPool::<Core>::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool.get_connection().await.unwrap();
     ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
         .await
         .unwrap();
@@ -261,7 +261,7 @@ async fn updater_cursor_for_storage_with_genesis_block() {
 #[tokio::test]
 async fn updater_cursor_after_snapshot_recovery() {
     let pool = ConnectionPool::<Core>::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool.get_connection().await.unwrap();
     prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await;
 
     let cursor = UpdaterCursor::new(&mut storage).await.unwrap();
@@ -274,7 +274,7 @@ async fn updater_cursor_after_snapshot_recovery() {
 #[tokio::test]
 async fn normal_updater_operation(snapshot_recovery: bool, async_batches: bool) {
     let pool = ConnectionPool::<Core>::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool.get_connection().await.unwrap();
     let first_batch_number = if snapshot_recovery {
         prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await;
         L1BatchNumber(24)
@@ -316,7 +316,7 @@ async fn normal_updater_operation(snapshot_recovery: bool, async_batches: bool) 
     let batches_task = if async_batches {
         let pool = pool.clone();
         tokio::spawn(async move {
-            let mut storage = pool.access_storage().await.unwrap();
+            let mut storage = pool.get_connection().await.unwrap();
             for &number in &batch_numbers {
                 seal_l1_batch(&mut storage, number).await;
                 tokio::time::sleep(Duration::from_millis(15)).await;
@@ -346,7 +346,7 @@ async fn normal_updater_operation(snapshot_recovery: bool, async_batches: bool) 
 #[tokio::test]
 async fn updater_with_gradual_main_node_updates(snapshot_recovery: bool) {
     let pool = ConnectionPool::<Core>::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool.get_connection().await.unwrap();
     let first_batch_number = if snapshot_recovery {
         prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await;
         L1BatchNumber(24)
@@ -436,7 +436,7 @@ async fn test_resuming_updater(pool: ConnectionPool<Core>, initial_batch_stages:
         }
     }
 
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool.get_connection().await.unwrap();
     target_batch_stages.assert_storage(&mut storage).await;
     stop_sender.send_replace(true);
     updater_task.await.unwrap().expect("updater failed");

@@ -159,7 +159,7 @@ impl BasicWitnessGenerator {
                     blocks_proving_percentage
                 );
 
-                let mut prover_storage = prover_connection_pool.access_storage().await.unwrap();
+                let mut prover_storage = prover_connection_pool.get_connection().await.unwrap();
                 let mut transaction = prover_storage.start_transaction().await.unwrap();
                 transaction
                     .fri_proof_compressor_dal()
@@ -206,7 +206,7 @@ impl JobProcessor for BasicWitnessGenerator {
     const SERVICE_NAME: &'static str = "fri_basic_circuit_witness_generator";
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
-        let mut prover_connection = self.prover_connection_pool.access_storage().await.unwrap();
+        let mut prover_connection = self.prover_connection_pool.get_connection().await.unwrap();
         let last_l1_batch_to_process = self.config.last_l1_batch_to_process();
         let pod_name = get_current_pod_name();
         match prover_connection
@@ -237,7 +237,7 @@ impl JobProcessor for BasicWitnessGenerator {
 
     async fn save_failure(&self, job_id: L1BatchNumber, _started_at: Instant, error: String) -> () {
         self.prover_connection_pool
-            .access_storage()
+            .get_connection()
             .await
             .unwrap()
             .fri_witness_generator_dal()
@@ -315,7 +315,7 @@ impl JobProcessor for BasicWitnessGenerator {
     async fn get_job_attempts(&self, job_id: &L1BatchNumber) -> anyhow::Result<u32> {
         let mut prover_storage = self
             .prover_connection_pool
-            .access_storage()
+            .get_connection()
             .await
             .context("failed to acquire DB connection for BasicWitnessGenerator")?;
         prover_storage
@@ -372,7 +372,7 @@ async fn update_database(
     block_number: L1BatchNumber,
     blob_urls: BlobUrls,
 ) {
-    let mut prover_connection = prover_connection_pool.access_storage().await.unwrap();
+    let mut prover_connection = prover_connection_pool.get_connection().await.unwrap();
     let protocol_version_id = prover_connection
         .fri_witness_generator_dal()
         .protocol_version_for_l1_batch(block_number)
@@ -491,7 +491,7 @@ async fn build_basic_circuits_witness_generator_input(
     witness_merkle_input: PrepareBasicCircuitsJob,
     l1_batch_number: L1BatchNumber,
 ) -> BasicCircuitWitnessGeneratorInput {
-    let mut connection = connection_pool.access_storage().await.unwrap();
+    let mut connection = connection_pool.get_connection().await.unwrap();
     let block_header = connection
         .blocks_dal()
         .get_l1_batch_header(l1_batch_number)
@@ -545,7 +545,7 @@ async fn generate_witness(
     >,
     BlockAuxilaryOutputWitness<GoldilocksField>,
 ) {
-    let mut connection = connection_pool.access_storage().await.unwrap();
+    let mut connection = connection_pool.get_connection().await.unwrap();
     let header = connection
         .blocks_dal()
         .get_l1_batch_header(input.block_number)
@@ -668,7 +668,7 @@ async fn generate_witness(
 
     let make_circuits = tokio::task::spawn_blocking(move || {
         let connection = rt_handle
-            .block_on(connection_pool.access_storage())
+            .block_on(connection_pool.get_connection())
             .unwrap();
 
         let storage = PostgresStorage::new(rt_handle, connection, last_miniblock_number, true);

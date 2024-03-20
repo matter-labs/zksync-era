@@ -127,7 +127,7 @@ impl SnapshotParameters {
         let miniblock = recovery.miniblock_number;
         let expected_root_hash = recovery.l1_batch_root_hash;
 
-        let mut storage = pool.access_storage().await?;
+        let mut storage = pool.get_connection().await?;
         let log_count = storage
             .storage_logs_dal()
             .get_storage_logs_row_count(miniblock)
@@ -221,7 +221,7 @@ impl AsyncTreeRecovery {
             "Recovering Merkle tree from Postgres snapshot in {chunk_count} concurrent chunks"
         );
 
-        let mut storage = pool.access_storage().await?;
+        let mut storage = pool.get_connection().await?;
         let remaining_chunks = self
             .filter_chunks(&mut storage, snapshot.miniblock, &chunks)
             .await?;
@@ -323,7 +323,7 @@ impl AsyncTreeRecovery {
     ) -> anyhow::Result<()> {
         let acquire_connection_latency =
             RECOVERY_METRICS.chunk_latency[&ChunkRecoveryStage::AcquireConnection].start();
-        let mut storage = pool.access_storage().await?;
+        let mut storage = pool.get_connection().await?;
         acquire_connection_latency.observe();
 
         if *stop_receiver.borrow() {
@@ -394,7 +394,7 @@ impl AsyncTreeRecovery {
 async fn get_snapshot_recovery(
     pool: &ConnectionPool<Core>,
 ) -> anyhow::Result<Option<SnapshotRecoveryStatus>> {
-    let mut storage = pool.access_storage_tagged("metadata_calculator").await?;
+    let mut storage = pool.get_connection_tagged("metadata_calculator").await?;
     Ok(storage
         .snapshot_recovery_dal()
         .get_applied_snapshot_status()

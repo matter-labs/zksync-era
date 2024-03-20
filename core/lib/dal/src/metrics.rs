@@ -46,7 +46,7 @@ impl PostgresMetrics {
 
     async fn scrape(pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
         let mut storage = pool
-            .access_storage_tagged("postgres_metrics")
+            .get_connection_tagged("postgres_metrics")
             .await
             .context("cannot acquire Postgres connection")?;
         let table_sizes = storage

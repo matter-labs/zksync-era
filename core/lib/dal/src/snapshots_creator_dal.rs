@@ -151,7 +151,7 @@ mod tests {
     #[tokio::test]
     async fn getting_storage_log_chunks_basics() {
         let pool = ConnectionPool::<Core>::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let mut conn = pool.get_connection().await.unwrap();
 
         let logs = (0..100).map(|i| {
             let key = StorageKey::new(
@@ -263,7 +263,7 @@ mod tests {
     #[tokio::test]
     async fn phantom_writes_are_filtered_out() {
         let pool = ConnectionPool::<Core>::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let mut conn = pool.get_connection().await.unwrap();
 
         let key = StorageKey::new(AccountTreeId::default(), H256::repeat_byte(1));
         let phantom_writes = vec![

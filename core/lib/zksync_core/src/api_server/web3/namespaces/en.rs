@@ -21,7 +21,7 @@ impl EnNamespace {
         let Some(genesis) = self
             .state
             .connection_pool
-            .access_storage_tagged("api")
+            .get_connection_tagged("api")
             .await?
             .consensus_dal()
             .genesis()
@@ -47,7 +47,7 @@ impl EnNamespace {
         let mut storage = self
             .state
             .connection_pool
-            .access_storage_tagged("api")
+            .get_connection_tagged("api")
             .await?;
         Ok(storage
             .sync_dal()
@@ -64,7 +64,7 @@ impl EnNamespace {
         let mut storage = self
             .state
             .connection_pool
-            .access_storage_tagged("api")
+            .get_connection_tagged("api")
             .await?;
         Ok(storage
             .tokens_web3_dal()

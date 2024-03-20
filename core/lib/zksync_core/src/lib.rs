@@ -121,7 +121,7 @@ pub async fn genesis_init(
         .build()
         .await
         .context("failed to build connection_pool")?;
-    let mut storage = pool.access_storage().await.context("access_storage()")?;
+    let mut storage = pool.get_connection().await.context("access_storage()")?;
     let operator_address = PackedEthSignature::address_from_private_key(
         &eth_sender
             .sender
@@ -208,7 +208,7 @@ pub async fn is_genesis_needed(postgres_config: &PostgresConfig) -> bool {
         .build()
         .await
         .expect("failed to build connection_pool");
-    let mut storage = pool.access_storage().await.expect("access_storage()");
+    let mut storage = pool.get_connection().await.expect("access_storage()");
     storage.blocks_dal().is_genesis_needed().await.unwrap()
 }
 
@@ -832,7 +832,7 @@ async fn add_state_keeper_to_task_futures(
         .context("failed to build state_keeper_pool")?;
     let mempool = {
         let mut storage = state_keeper_pool
-            .access_storage()
+            .get_connection()
             .await
             .context("Access storage to build mempool")?;
         let mempool = MempoolGuard::from_storage(&mut storage, mempool_config.capacity).await;

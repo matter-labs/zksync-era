@@ -464,7 +464,7 @@ mod tests {
     #[tokio::test]
     async fn running_genesis() {
         let pool = ConnectionPool::<Core>::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let mut conn = pool.get_connection().await.unwrap();
         conn.blocks_dal().delete_genesis().await.unwrap();
 
         let params = GenesisParams {
@@ -496,7 +496,7 @@ mod tests {
     #[tokio::test]
     async fn running_genesis_with_big_chain_id() {
         let pool = ConnectionPool::<Core>::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let mut conn = pool.get_connection().await.unwrap();
         conn.blocks_dal().delete_genesis().await.unwrap();
 
         let params = GenesisParams {
@@ -522,7 +522,7 @@ mod tests {
     #[tokio::test]
     async fn running_genesis_with_non_latest_protocol_version() {
         let pool = ConnectionPool::<Core>::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let mut conn = pool.get_connection().await.unwrap();
         let params = GenesisParams {
             protocol_version: ProtocolVersionId::Version10,
             ..GenesisParams::mock()

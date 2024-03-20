@@ -277,7 +277,7 @@ mod tests {
     #[tokio::test]
     async fn resolving_l1_batch_number_of_miniblock() {
         let pool = ConnectionPool::<Core>::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let mut conn = pool.get_connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -344,7 +344,7 @@ mod tests {
     #[tokio::test]
     async fn resolving_l1_batch_number_of_miniblock_with_snapshot_recovery() {
         let pool = ConnectionPool::<Core>::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let mut conn = pool.get_connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;

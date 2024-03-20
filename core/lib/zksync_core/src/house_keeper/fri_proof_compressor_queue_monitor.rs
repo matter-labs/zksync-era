@@ -22,7 +22,7 @@ impl FriProofCompressorStatsReporter {
     }
 
     async fn get_job_statistics(pool: &ConnectionPool<Prover>) -> JobCountStatistics {
-        pool.access_storage()
+        pool.get_connection()
             .await
             .unwrap()
             .fri_proof_compressor_dal()
@@ -62,7 +62,7 @@ impl PeriodicJob for FriProofCompressorStatsReporter {
 
         let oldest_not_compressed_batch = self
             .pool
-            .access_storage()
+            .get_connection()
             .await
             .unwrap()
             .fri_proof_compressor_dal()

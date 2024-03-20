@@ -26,7 +26,7 @@ pub(crate) async fn ensure_storage_initialized(
     l2_chain_id: L2ChainId,
     consider_snapshot_recovery: bool,
 ) -> anyhow::Result<()> {
-    let mut storage = pool.access_storage_tagged("en").await?;
+    let mut storage = pool.get_connection_tagged("en").await?;
     let genesis_l1_batch = storage
         .blocks_dal()
         .get_l1_batch_header(L1BatchNumber(0))
@@ -67,7 +67,7 @@ pub(crate) async fn ensure_storage_initialized(
     tracing::info!("Chosen node initialization strategy: {decision:?}");
     match decision {
         InitDecision::Genesis => {
-            let mut storage = pool.access_storage_tagged("en").await?;
+            let mut storage = pool.get_connection_tagged("en").await?;
             perform_genesis_if_needed(&mut storage, l2_chain_id, main_node_client)
                 .await
                 .context("performing genesis failed")?;

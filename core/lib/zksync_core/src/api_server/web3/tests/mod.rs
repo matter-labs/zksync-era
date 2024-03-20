@@ -271,7 +271,7 @@ impl StorageInitialization {
 async fn test_http_server(test: impl HttpTest) {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let network_config = NetworkConfig::for_tests();
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool.get_connection().await.unwrap();
     test.storage_initialization()
         .prepare_storage(&network_config, &mut storage)
         .await
@@ -688,7 +688,7 @@ struct TransactionCountTest;
 impl HttpTest for TransactionCountTest {
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
         let test_address = Address::repeat_byte(11);
-        let mut storage = pool.access_storage().await?;
+        let mut storage = pool.get_connection().await?;
         let mut miniblock_number = MiniblockNumber(0);
         for nonce in [0, 1] {
             let mut committed_tx = create_l2_transaction(10, 200);
@@ -791,7 +791,7 @@ impl HttpTest for TransactionCountAfterSnapshotRecoveryTest {
         let mut pending_tx = create_l2_transaction(10, 200);
         pending_tx.common_data.initiator_address = test_address;
         pending_tx.common_data.nonce = Nonce(3);
-        let mut storage = pool.access_storage().await?;
+        let mut storage = pool.get_connection().await?;
         storage
             .transactions_dal()
             .insert_transaction_l2(pending_tx, TransactionExecutionMetrics::default())
@@ -838,7 +838,7 @@ struct TransactionReceiptsTest;
 #[async_trait]
 impl HttpTest for TransactionReceiptsTest {
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
-        let mut storage = pool.access_storage().await?;
+        let mut storage = pool.get_connection().await?;
         let miniblock_number = MiniblockNumber(1);
 
         let tx1 = create_l2_transaction(10, 200);
@@ -899,7 +899,7 @@ impl HttpTest for AllAccountBalancesTest {
         let balances = client.get_all_account_balances(Self::ADDRESS).await?;
         assert_eq!(balances, HashMap::new());
 
-        let mut storage = pool.access_storage().await?;
+        let mut storage = pool.get_connection().await?;
         store_miniblock(&mut storage, MiniblockNumber(1), &[]).await?;
 
         let eth_balance_key = storage_key_for_eth_balance(&Self::ADDRESS);

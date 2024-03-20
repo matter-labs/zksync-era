@@ -70,7 +70,7 @@ impl DebugNamespace {
         let mut connection = self
             .state
             .connection_pool
-            .access_storage_tagged("api")
+            .get_connection_tagged("api")
             .await?;
         let block_number = self.state.resolve_block(&mut connection, block_id).await?;
         self.current_method()
@@ -117,7 +117,7 @@ impl DebugNamespace {
         let mut connection = self
             .state
             .connection_pool
-            .access_storage_tagged("api")
+            .get_connection_tagged("api")
             .await?;
         let call_trace = connection
             .transactions_dal()
@@ -150,7 +150,7 @@ impl DebugNamespace {
         let mut connection = self
             .state
             .connection_pool
-            .access_storage_tagged("api")
+            .get_connection_tagged("api")
             .await?;
         let block_args = self
             .state

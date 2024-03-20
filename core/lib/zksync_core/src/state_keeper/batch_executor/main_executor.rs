@@ -75,7 +75,7 @@ impl BatchExecutor for MainBatchExecutor {
         secondary_storage.enable_enum_index_migration(self.enum_index_migration_chunk_size);
         let mut conn = self
             .pool
-            .access_storage_tagged("state_keeper")
+            .get_connection_tagged("state_keeper")
             .await
             .unwrap();
         let secondary_storage = secondary_storage

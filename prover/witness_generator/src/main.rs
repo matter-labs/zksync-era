@@ -111,7 +111,7 @@ async fn main() -> anyhow::Result<()> {
     let (stop_sender, stop_receiver) = watch::channel(false);
     let vk_commitments = get_cached_commitments();
     let protocol_versions = prover_connection_pool
-        .access_storage()
+        .get_connection()
         .await
         .unwrap()
         .fri_protocol_versions_dal()

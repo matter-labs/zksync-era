@@ -221,7 +221,7 @@ impl HttpTest for SendRawTransactionTest {
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
         if !self.snapshot_recovery {
             // Manually set sufficient balance for the transaction account.
-            let mut storage = pool.access_storage().await?;
+            let mut storage = pool.get_connection().await?;
             storage
                 .storage_logs_dal()
                 .append_storage_logs(
@@ -452,7 +452,7 @@ impl HttpTest for EstimateGasTest {
         if !self.snapshot_recovery {
             // Manually set sufficient balance for the transaction account.
             let storage_log = SendRawTransactionTest::balance_storage_log();
-            let mut storage = pool.access_storage().await?;
+            let mut storage = pool.get_connection().await?;
             storage
                 .storage_logs_dal()
                 .append_storage_logs(MiniblockNumber(0), &[(H256::zero(), vec![storage_log])])
