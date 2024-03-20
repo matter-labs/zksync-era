@@ -243,6 +243,12 @@ describe('web3 API compatibility tests', () => {
     });
 
     test('Should test getFilterChanges for pending transactions', async () => {
+        if (process.env.EN_MAIN_NODE_URL) {
+            // Pending transactions logic doesn't work on EN since we don't have proper mempool -
+            // transactions only appear in the DB after they are included in the block.
+            return;
+        }
+
         // We will need to wait until the mempool cache on the server is updated.
         // The default update period is 50 ms, so we will wait for 75 ms to be sure.
         const mempool_cache_wait = 50 + 25;

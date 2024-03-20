@@ -1,5 +1,6 @@
-use anyhow::anyhow;
 use std::collections::VecDeque;
+
+use anyhow::anyhow;
 
 use crate::cache::metrics::{Method, RequestOutcome, METRICS};
 
