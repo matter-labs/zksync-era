@@ -71,8 +71,7 @@ impl MetricExtractor for CircuitsCriterion {
         // We subtract constant to take into account that circuits may be not fully filled.
         // This constant should be greater than number of circuits types
         // but we keep it larger to be on the safe side.
-        const MARGIN_NUMBER_OF_CIRCUITS: usize = 10000;
-        const MAX_NUMBER_OF_CIRCUITS: usize = (1 << 14) + (1 << 13) - MARGIN_NUMBER_OF_CIRCUITS;
+        const MAX_NUMBER_OF_CIRCUITS: usize = 24100;
 
         MAX_NUMBER_OF_CIRCUITS
     }
