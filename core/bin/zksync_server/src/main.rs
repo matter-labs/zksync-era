@@ -24,6 +24,7 @@ use zksync_core::{
     Component, Components,
 };
 use zksync_env_config::FromEnv;
+use zksync_protobuf_config;
 use zksync_storage::RocksDB;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
 
@@ -161,7 +162,8 @@ async fn main() -> anyhow::Result<()> {
         Some(path) => {
             let yaml =
                 std::fs::read_to_string(&path).with_context(|| path.display().to_string())?;
-            decode_yaml_repr(&yaml).context("failed decoding YAML config")?
+            decode_yaml_repr::<zksync_protobuf_config::proto::contracts::Contracts>(&yaml)
+                .context("failed decoding YAML config")?
         }
     };
     // let contracts_config: ContractsConfigReduced = contracts_config.into();

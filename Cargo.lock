@@ -8646,6 +8646,7 @@ dependencies = [
  "zksync_consensus_roles",
  "zksync_core",
  "zksync_env_config",
+ "zksync_protobuf_config",
  "zksync_storage",
  "zksync_types",
  "zksync_utils",
