@@ -41,10 +41,10 @@ pub fn decode_yaml<T: ProtoFmt>(yaml: &str) -> anyhow::Result<T> {
     Ok(this)
 }
 
-pub fn decode_yaml_repr<T: ProtoRepr>(yaml: &str) -> anyhow::Result<T> {
+pub fn decode_yaml_repr<T: ProtoRepr>(yaml: &str) -> anyhow::Result<T::Type> {
     let d = serde_yaml::Deserializer::from_str(yaml);
-    let this: T = zksync_protobuf::serde::deserialize(d)?;
-    Ok(this)
+    let this: T = zksync_protobuf::serde::deserialize_proto(d)?;
+    this.read()
 }
 
 // TODO (QIT-22): This structure is going to be removed when components will be responsible for their own configs.
