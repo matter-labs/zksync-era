@@ -7,6 +7,7 @@ use zksync_concurrency::{ctx, error::Wrap as _, limiter, scope, sync, time};
 use zksync_config::configs;
 use zksync_consensus_roles::validator;
 use zksync_contracts::BaseSystemContractsHashes;
+use zksync_dal::ServerDals;
 use zksync_types::{
     api, snapshots::SnapshotRecoveryStatus, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
     ProtocolVersionId, H256,

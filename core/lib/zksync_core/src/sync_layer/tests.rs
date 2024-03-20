@@ -9,7 +9,7 @@ use std::{
 use test_casing::test_casing;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::{ConnectionPool, Server, ServerDals, StorageProcessor};
 use zksync_types::{
     api,
     block::MiniblockHasher,
@@ -56,7 +56,7 @@ pub(super) struct StateKeeperHandles {
 impl StateKeeperHandles {
     /// `tx_hashes` are grouped by the L1 batch.
     pub async fn new(
-        pool: ConnectionPool,
+        pool: ConnectionPool<Server>,
         main_node_client: MockMainNodeClient,
         actions: ActionQueue,
         tx_hashes: &[&[H256]],
@@ -125,7 +125,7 @@ impl StateKeeperHandles {
     }
 }
 
-async fn ensure_genesis(storage: &mut StorageProcessor<'_>) {
+async fn ensure_genesis(storage: &mut StorageProcessor<'_, Server>) {
     if storage.blocks_dal().is_genesis_needed().await.unwrap() {
         ensure_genesis_state(storage, L2ChainId::default(), &GenesisParams::mock())
             .await
@@ -163,7 +163,7 @@ fn genesis_snapshot_recovery_status() -> SnapshotRecoveryStatus {
 #[test_casing(2, [false, true])]
 #[tokio::test]
 async fn external_io_basics(snapshot_recovery: bool) {
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::<Server>::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
     let snapshot = if snapshot_recovery {
         prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await
@@ -235,7 +235,7 @@ async fn external_io_basics(snapshot_recovery: bool) {
 #[test_casing(2, [false, true])]
 #[tokio::test]
 async fn external_io_works_without_local_protocol_version(snapshot_recovery: bool) {
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::<Server>::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
     let snapshot = if snapshot_recovery {
         prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await
@@ -314,7 +314,7 @@ async fn external_io_works_without_local_protocol_version(snapshot_recovery: boo
 }
 
 pub(super) async fn run_state_keeper_with_multiple_miniblocks(
-    pool: ConnectionPool,
+    pool: ConnectionPool<Server>,
     snapshot_recovery: bool,
 ) -> (SnapshotRecoveryStatus, Vec<H256>) {
     let mut storage = pool.access_storage().await.unwrap();
@@ -374,7 +374,7 @@ pub(super) async fn run_state_keeper_with_multiple_miniblocks(
 #[test_casing(2, [false, true])]
 #[tokio::test]
 async fn external_io_with_multiple_miniblocks(snapshot_recovery: bool) {
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::<Server>::test_pool().await;
     let (snapshot, tx_hashes) =
         run_state_keeper_with_multiple_miniblocks(pool.clone(), snapshot_recovery).await;
     assert_eq!(tx_hashes.len(), 8);
@@ -413,7 +413,7 @@ async fn external_io_with_multiple_miniblocks(snapshot_recovery: bool) {
 }
 
 async fn test_external_io_recovery(
-    pool: ConnectionPool,
+    pool: ConnectionPool<Server>,
     snapshot: &SnapshotRecoveryStatus,
     mut tx_hashes: Vec<H256>,
 ) {
@@ -459,7 +459,7 @@ async fn test_external_io_recovery(
     assert_eq!(miniblock.timestamp, snapshot.miniblock_timestamp + 3);
 }
 
-pub(super) async fn mock_l1_batch_hash_computation(pool: ConnectionPool, number: u32) {
+pub(super) async fn mock_l1_batch_hash_computation(pool: ConnectionPool<Server>, number: u32) {
     loop {
         let mut storage = pool.access_storage().await.unwrap();
         let last_l1_batch_number = storage
@@ -484,7 +484,7 @@ pub(super) async fn mock_l1_batch_hash_computation(pool: ConnectionPool, number:
 
 /// Returns tx hashes of all generated transactions, grouped by the L1 batch.
 pub(super) async fn run_state_keeper_with_multiple_l1_batches(
-    pool: ConnectionPool,
+    pool: ConnectionPool<Server>,
     snapshot_recovery: bool,
 ) -> (SnapshotRecoveryStatus, Vec<Vec<H256>>) {
     let mut storage = pool.access_storage().await.unwrap();
@@ -551,7 +551,7 @@ pub(super) async fn run_state_keeper_with_multiple_l1_batches(
 
 #[tokio::test]
 async fn external_io_with_multiple_l1_batches() {
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::<Server>::test_pool().await;
     run_state_keeper_with_multiple_l1_batches(pool.clone(), false).await;
 
     let mut storage = pool.access_storage().await.unwrap();

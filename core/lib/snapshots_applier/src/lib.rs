@@ -6,7 +6,7 @@ use anyhow::Context as _;
 use async_trait::async_trait;
 use serde::Serialize;
 use tokio::sync::Semaphore;
-use zksync_dal::{ConnectionPool, SqlxError, StorageProcessor};
+use zksync_dal::{ConnectionPool, Server, ServerDals, SqlxError, StorageProcessor};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_types::{
@@ -186,7 +186,7 @@ impl SnapshotsApplierConfig {
     /// - Storage contains at least one L1 batch
     pub async fn run(
         self,
-        connection_pool: &ConnectionPool,
+        connection_pool: &ConnectionPool<Server>,
         main_node_client: &dyn SnapshotsApplierMainNodeClient,
         blob_store: &dyn ObjectStore,
     ) -> anyhow::Result<()> {
@@ -234,7 +234,7 @@ impl SnapshotsApplierConfig {
 /// Applying application-level storage snapshots to the Postgres storage.
 #[derive(Debug)]
 struct SnapshotsApplier<'a> {
-    connection_pool: &'a ConnectionPool,
+    connection_pool: &'a ConnectionPool<Server>,
     main_node_client: &'a dyn SnapshotsApplierMainNodeClient,
     blob_store: &'a dyn ObjectStore,
     applied_snapshot_status: SnapshotRecoveryStatus,
@@ -246,7 +246,7 @@ struct SnapshotsApplier<'a> {
 impl<'a> SnapshotsApplier<'a> {
     /// Recovers [`SnapshotRecoveryStatus`] from the storage and the main node.
     async fn prepare_applied_snapshot_status(
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut StorageProcessor<'_, Server>,
         main_node_client: &dyn SnapshotsApplierMainNodeClient,
     ) -> Result<(SnapshotRecoveryStatus, bool), SnapshotsApplierError> {
         let latency =
@@ -307,7 +307,7 @@ impl<'a> SnapshotsApplier<'a> {
     }
 
     async fn load_snapshot(
-        connection_pool: &'a ConnectionPool,
+        connection_pool: &'a ConnectionPool<Server>,
         main_node_client: &'a dyn SnapshotsApplierMainNodeClient,
         blob_store: &'a dyn ObjectStore,
         health_updater: &'a HealthUpdater,
@@ -428,7 +428,7 @@ impl<'a> SnapshotsApplier<'a> {
 
     async fn recover_factory_deps(
         &mut self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut StorageProcessor<'_, Server>,
     ) -> Result<(), SnapshotsApplierError> {
         let latency = METRICS.initial_stage_duration[&InitialStage::ApplyFactoryDeps].start();
 
@@ -472,7 +472,7 @@ impl<'a> SnapshotsApplier<'a> {
         &self,
         chunk_id: u64,
         storage_logs: &[SnapshotStorageLog],
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut StorageProcessor<'_, Server>,
     ) -> Result<(), SnapshotsApplierError> {
         storage
             .storage_logs_dedup_dal()
@@ -490,7 +490,7 @@ impl<'a> SnapshotsApplier<'a> {
         &self,
         chunk_id: u64,
         storage_logs: &[SnapshotStorageLog],
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut StorageProcessor<'_, Server>,
     ) -> Result<(), SnapshotsApplierError> {
         storage
             .storage_logs_dal()

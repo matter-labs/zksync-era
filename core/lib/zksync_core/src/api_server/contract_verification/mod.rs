@@ -4,7 +4,7 @@ use actix_cors::Cors;
 use actix_web::{dev::Server, web, App, HttpResponse, HttpServer};
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::configs::api::ContractVerificationApiConfig;
-use zksync_dal::connection::ConnectionPool;
+use zksync_dal::ConnectionPool;
 use zksync_utils::panic_notify::{spawn_panic_handler, ThreadPanicNotify};
 
 use self::api_decl::RestApi;
@@ -43,8 +43,8 @@ fn start_server(api: RestApi, bind_to: SocketAddr) -> Server {
 
 /// Start HTTP REST API
 pub fn start_server_thread_detached(
-    master_connection_pool: ConnectionPool,
-    replica_connection_pool: ConnectionPool,
+    master_connection_pool: ConnectionPool<zksync_dal::Server>,
+    replica_connection_pool: ConnectionPool<zksync_dal::Server>,
     api_config: ContractVerificationApiConfig,
     mut stop_receiver: watch::Receiver<bool>,
 ) -> JoinHandle<anyhow::Result<()>> {

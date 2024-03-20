@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use multivm::utils::get_max_gas_per_pubdata_byte;
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_dal::StorageProcessor;
+use zksync_dal::{Server, ServerDals, StorageProcessor};
 use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
 use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
 use zksync_types::{
@@ -201,7 +201,7 @@ impl Snapshot {
 
 /// Prepares a recovery snapshot without performing genesis.
 pub(crate) async fn prepare_recovery_snapshot(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut StorageProcessor<'_, Server>,
     l1_batch: L1BatchNumber,
     miniblock: MiniblockNumber,
     storage_logs: &[StorageLog],
@@ -210,7 +210,7 @@ pub(crate) async fn prepare_recovery_snapshot(
 }
 
 /// Takes a storage snapshot at the last sealed L1 batch.
-pub(crate) async fn snapshot(storage: &mut StorageProcessor<'_>) -> Snapshot {
+pub(crate) async fn snapshot(storage: &mut StorageProcessor<'_, Server>) -> Snapshot {
     let l1_batch = storage
         .blocks_dal()
         .get_sealed_l1_batch_number()
@@ -259,7 +259,7 @@ pub(crate) async fn snapshot(storage: &mut StorageProcessor<'_>) -> Snapshot {
 /// Recovers storage from a snapshot.
 /// Miniblock and L1 batch are intentionally **not** inserted into the storage.
 pub(crate) async fn recover(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut StorageProcessor<'_, Server>,
     snapshot: Snapshot,
 ) -> SnapshotRecoveryStatus {
     let mut storage = storage.start_transaction().await.unwrap();

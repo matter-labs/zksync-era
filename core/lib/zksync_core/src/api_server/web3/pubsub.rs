@@ -8,7 +8,7 @@ use tokio::{
     task::JoinHandle,
     time::{interval, Duration},
 };
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Server, ServerDals};
 use zksync_types::{MiniblockNumber, H128, H256};
 use zksync_web3_decl::{
     jsonrpsee::{
@@ -52,7 +52,7 @@ pub(super) enum PubSubEvent {
 #[derive(Debug)]
 struct PubSubNotifier {
     sender: broadcast::Sender<Vec<PubSubResult>>,
-    connection_pool: ConnectionPool,
+    connection_pool: ConnectionPool<Server>,
     polling_interval: Duration,
     events_sender: Option<mpsc::UnboundedSender<PubSubEvent>>,
 }
@@ -416,7 +416,7 @@ impl EthSubscribe {
     /// Spawns notifier tasks. This should be called once per instance.
     pub fn spawn_notifiers(
         &self,
-        connection_pool: ConnectionPool,
+        connection_pool: ConnectionPool<Server>,
         polling_interval: Duration,
         stop_receiver: watch::Receiver<bool>,
     ) -> Vec<JoinHandle<anyhow::Result<()>>> {

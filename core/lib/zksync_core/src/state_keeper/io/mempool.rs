@@ -13,11 +13,11 @@ use multivm::{
 };
 use vm_utils::storage::{l1_batch_params, L1BatchParamsProvider};
 use zksync_config::configs::chain::StateKeeperConfig;
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Server, ServerDals};
 use zksync_mempool::L2TxFilter;
 use zksync_object_store::ObjectStore;
 use zksync_types::{
-    protocol_version::ProtocolUpgradeTx, witness_block_state::WitnessBlockState, Address,
+    protocol_upgrade::ProtocolUpgradeTx, witness_block_state::WitnessBlockState, Address,
     L1BatchNumber, L2ChainId, MiniblockNumber, ProtocolVersionId, Transaction, H256,
 };
 // TODO (SMA-1206): use seconds instead of milliseconds.
@@ -47,7 +47,7 @@ use crate::{
 #[derive(Debug)]
 pub struct MempoolIO {
     mempool: MempoolGuard,
-    pool: ConnectionPool,
+    pool: ConnectionPool<Server>,
     object_store: Arc<dyn ObjectStore>,
     timeout_sealer: TimeoutSealer,
     filter: L2TxFilter,
@@ -426,7 +426,7 @@ impl MempoolIO {
         object_store: Arc<dyn ObjectStore>,
         miniblock_sealer_handle: MiniblockSealerHandle,
         batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
-        pool: ConnectionPool,
+        pool: ConnectionPool<Server>,
         config: &StateKeeperConfig,
         delay_interval: Duration,
         l2_erc20_bridge_addr: Address,

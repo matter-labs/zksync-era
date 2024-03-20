@@ -34,7 +34,7 @@ struct TraceBlockTest(MiniblockNumber);
 
 #[async_trait]
 impl HttpTest for TraceBlockTest {
-    async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
+    async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Server>) -> anyhow::Result<()> {
         let tx_results = [0, 1, 2].map(execute_l2_transaction_with_traces);
         let mut storage = pool.access_storage().await?;
         let new_miniblock = store_miniblock(&mut storage, self.0, &tx_results).await?;
@@ -97,7 +97,7 @@ struct TraceBlockFlatTest(MiniblockNumber);
 
 #[async_trait]
 impl HttpTest for TraceBlockFlatTest {
-    async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
+    async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Server>) -> anyhow::Result<()> {
         let tx_results = [0, 1, 2].map(execute_l2_transaction_with_traces);
         let mut storage = pool.access_storage().await?;
         let _new_miniblock = store_miniblock(&mut storage, self.0, &tx_results).await?;
@@ -173,7 +173,7 @@ struct TraceTransactionTest;
 
 #[async_trait]
 impl HttpTest for TraceTransactionTest {
-    async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
+    async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Server>) -> anyhow::Result<()> {
         let tx_results = [execute_l2_transaction_with_traces(0)];
         let mut storage = pool.access_storage().await?;
         store_miniblock(&mut storage, MiniblockNumber(1), &tx_results).await?;
@@ -212,7 +212,7 @@ impl HttpTest for TraceBlockTestWithSnapshotRecovery {
         StorageInitialization::empty_recovery()
     }
 
-    async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
+    async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Server>) -> anyhow::Result<()> {
         let snapshot_miniblock_number = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK;
         let missing_miniblock_numbers = [
             MiniblockNumber(0),

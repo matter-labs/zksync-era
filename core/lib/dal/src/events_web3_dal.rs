@@ -3,18 +3,17 @@ use sqlx::{
     query::{Query, QueryAs},
     Postgres, Row,
 };
+use zksync_db_connection::{instrument::InstrumentExt, processor::StorageProcessor};
 use zksync_types::{
     api::{GetLogsFilter, Log},
     Address, MiniblockNumber, H256,
 };
 
-use crate::{
-    instrument::InstrumentExt, models::storage_event::StorageWeb3Log, SqlxError, StorageProcessor,
-};
+use crate::{models::storage_event::StorageWeb3Log, Server, SqlxError};
 
 #[derive(Debug)]
 pub struct EventsWeb3Dal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut StorageProcessor<'c, Server>,
 }
 
 impl EventsWeb3Dal<'_, '_> {
@@ -259,11 +258,11 @@ mod tests {
     use zksync_types::{Address, H256};
 
     use super::*;
-    use crate::connection::ConnectionPool;
+    use crate::{ConnectionPool, Server};
 
     #[tokio::test]
     async fn test_build_get_logs_where_clause() {
-        let connection_pool = ConnectionPool::test_pool().await;
+        let connection_pool = ConnectionPool::<Server>::test_pool().await;
         let storage = &mut connection_pool.access_storage().await.unwrap();
         let events_web3_dal = EventsWeb3Dal { storage };
         let filter = GetLogsFilter {
@@ -284,7 +283,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_build_get_logs_with_multiple_topics_where_clause() {
-        let connection_pool = ConnectionPool::test_pool().await;
+        let connection_pool = ConnectionPool::<Server>::test_pool().await;
         let storage = &mut connection_pool.access_storage().await.unwrap();
         let events_web3_dal = EventsWeb3Dal { storage };
         let filter = GetLogsFilter {
@@ -318,7 +317,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_build_get_logs_with_no_address_where_clause() {
-        let connection_pool = ConnectionPool::test_pool().await;
+        let connection_pool = ConnectionPool::<Server>::test_pool().await;
         let storage = &mut connection_pool.access_storage().await.unwrap();
         let events_web3_dal = EventsWeb3Dal { storage };
         let filter = GetLogsFilter {

@@ -6,7 +6,7 @@ use multivm::utils::derive_base_fee_and_gas_per_pubdata;
 use tokio::sync::mpsc;
 use tokio::sync::watch;
 use zksync_config::configs::chain::MempoolConfig;
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::{ConnectionPool, Server, ServerDals, StorageProcessor};
 use zksync_mempool::L2TxFilter;
 #[cfg(test)]
 use zksync_types::H256;
@@ -35,7 +35,7 @@ pub async fn l2_tx_filter(
 #[derive(Debug)]
 pub struct MempoolFetcher {
     mempool: MempoolGuard,
-    pool: ConnectionPool,
+    pool: ConnectionPool<Server>,
     batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     sync_interval: Duration,
     sync_batch_size: usize,
@@ -49,7 +49,7 @@ impl MempoolFetcher {
         mempool: MempoolGuard,
         batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
         config: &MempoolConfig,
-        pool: ConnectionPool,
+        pool: ConnectionPool<Server>,
     ) -> Self {
         Self {
             mempool,
@@ -131,7 +131,7 @@ impl MempoolFetcher {
 
 /// Loads nonces for all distinct `transactions` initiators from the storage.
 async fn get_transaction_nonces(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut StorageProcessor<'_, Server>,
     transactions: &[Transaction],
 ) -> anyhow::Result<HashMap<Address, Nonce>> {
     let (nonce_keys, address_by_nonce_key): (Vec<_>, HashMap<_, _>) = transactions
@@ -183,7 +183,7 @@ mod tests {
 
     #[tokio::test]
     async fn getting_transaction_nonces() {
-        let pool = ConnectionPool::test_pool().await;
+        let pool = ConnectionPool::<Server>::test_pool().await;
         let mut storage = pool.access_storage().await.unwrap();
 
         let transaction = create_l2_transaction(10, 100);
@@ -217,7 +217,7 @@ mod tests {
 
     #[tokio::test]
     async fn syncing_mempool_basics() {
-        let pool = ConnectionPool::constrained_test_pool(1).await;
+        let pool = ConnectionPool::<Server>::constrained_test_pool(1).await;
         let mut storage = pool.access_storage().await.unwrap();
         ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
             .await
@@ -274,7 +274,7 @@ mod tests {
 
     #[tokio::test]
     async fn ignoring_transaction_with_insufficient_fee() {
-        let pool = ConnectionPool::constrained_test_pool(1).await;
+        let pool = ConnectionPool::<Server>::constrained_test_pool(1).await;
         let mut storage = pool.access_storage().await.unwrap();
         ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
             .await
@@ -314,7 +314,7 @@ mod tests {
 
     #[tokio::test]
     async fn ignoring_transaction_with_old_nonce() {
-        let pool = ConnectionPool::constrained_test_pool(1).await;
+        let pool = ConnectionPool::<Server>::constrained_test_pool(1).await;
         let mut storage = pool.access_storage().await.unwrap();
         ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
             .await

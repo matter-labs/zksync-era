@@ -3,7 +3,7 @@
 use anyhow::Context as _;
 use zksync_basic_types::{L1BatchNumber, L2ChainId};
 use zksync_core::sync_layer::genesis::perform_genesis_if_needed;
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Server, ServerDals};
 use zksync_health_check::AppHealthCheck;
 use zksync_object_store::ObjectStoreFactory;
 use zksync_snapshots_applier::SnapshotsApplierConfig;
@@ -20,7 +20,7 @@ enum InitDecision {
 }
 
 pub(crate) async fn ensure_storage_initialized(
-    pool: &ConnectionPool,
+    pool: &ConnectionPool<Server>,
     main_node_client: &HttpClient,
     app_health: &AppHealthCheck,
     l2_chain_id: L2ChainId,
