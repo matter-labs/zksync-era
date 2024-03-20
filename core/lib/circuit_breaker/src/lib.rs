@@ -42,7 +42,7 @@ impl CircuitBreakerChecker {
         config: &CircuitBreakerConfig,
     ) -> Self {
         Self {
-            circuit_breakers: Mutex::new(circuit_breakers.unwrap_or(vec![])),
+            circuit_breakers: Mutex::new(circuit_breakers.unwrap_or_default()),
             config: config.clone(),
         }
     }
