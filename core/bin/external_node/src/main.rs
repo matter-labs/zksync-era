@@ -650,7 +650,6 @@ impl FromStr for Components {
                 Component::HttpApi,
                 Component::WsApi,
                 Component::Tree,
-                Component::TreeApi,
                 Component::Core,
             ])),
             other => Err(format!("{} is not a valid component name", other)),
