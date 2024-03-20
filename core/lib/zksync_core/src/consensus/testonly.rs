@@ -20,7 +20,7 @@ use zksync_web3_decl::{
 use crate::{
     api_server::web3::{state::InternalApiConfig, tests::spawn_http_server},
     consensus::{fetcher::P2PConfig, Fetcher, Store},
-    genesis::{ensure_genesis_state_unchecked, GenesisParams},
+    genesis::{insert_genesis_batch, GenesisParams},
     state_keeper::{
         io::common::IoCursor, seal_criteria::NoopSealer, tests::MockBatchExecutor, MiniblockSealer,
         ZkSyncStateKeeper,
@@ -194,7 +194,7 @@ pub(super) async fn new_store(from_snapshot: bool) -> Store {
             prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[])
                 .await;
         } else {
-            ensure_genesis_state_unchecked(&mut storage, &GenesisParams::mock())
+            insert_genesis_batch(&mut storage, &GenesisParams::mock())
                 .await
                 .unwrap();
         }

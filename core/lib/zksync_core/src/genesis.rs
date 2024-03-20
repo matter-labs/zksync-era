@@ -38,14 +38,14 @@ use crate::metadata_calculator::L1BatchWithLogs;
 
 #[derive(Debug, thiserror::Error)]
 pub enum GenesisError {
-    #[error("Root hash mismatched {0:?}")]
-    RootHash(H256),
-    #[error("Leaf indexes mismatched {0}")]
-    LeafIndexes(u64),
-    #[error("Base system contracts mismatched {0:?}")]
-    BaseSystemContractsHashes(BaseSystemContractsHashes),
-    #[error("Commitment mismatched {0:?}")]
-    Commitment(H256),
+    #[error("Root hash mismatched: From Config: {0:?}, Calculated {1:?}")]
+    RootHash(H256, H256),
+    #[error("Leaf indexes mismatched: From Config: {0:?}, Calculated {1:?}")]
+    LeafIndexes(u64, u64),
+    #[error("Base system contracts mismatched: From Config: {0:?}, Calculated {1:?}")]
+    BaseSystemContractsHashes(BaseSystemContractsHashes, BaseSystemContractsHashes),
+    #[error("Commitment mismatched: From Config: {0:?}, Calculated {1:?}")]
+    Commitment(H256, H256),
     #[error("Wrong protocol version")]
     ProtocolVersion,
     #[error("Error: {0}")]
@@ -114,10 +114,10 @@ impl GenesisParams {
 
     pub fn protocol_version(&self) -> ProtocolVersionId {
         // It's impossible to instantiate Genesis params with wrong protocol version
-        self.config.protocol_version.try_into().expect(
-            "Protocol version must be correctly \
-        initialized for genesis",
-        )
+        self.config
+            .protocol_version
+            .try_into()
+            .expect("Protocol version must be correctly initialized for genesis")
     }
 }
 
@@ -148,14 +148,11 @@ pub fn mock_genesis_config() -> GenesisConfig {
     }
 }
 
-// This function is dangerous,
-// it doesn't enforce genesis correctness
-// Please, always use `ensure_genesis_state` instead
-pub async fn ensure_genesis_state_unchecked(
+// Insert genesis batch into the database
+pub async fn insert_genesis_batch(
     storage: &mut StorageProcessor<'_>,
     genesis_params: &GenesisParams,
 ) -> Result<(H256, H256, u64), GenesisError> {
-    tracing::info!("running regenesis");
     let mut transaction = storage.start_transaction().await?;
     let verifier_config = L1VerifierConfig {
         params: VerifierParams {
@@ -229,18 +226,28 @@ pub async fn ensure_genesis_state(
             .context("genesis L1 batch hash is empty")?);
     }
 
+    tracing::info!("running regenesis");
     let (genesis_root_hash, commitment, rollup_last_leaf_index) =
-        ensure_genesis_state_unchecked(&mut transaction, genesis_params).await?;
+        insert_genesis_batch(&mut transaction, genesis_params).await?;
     if genesis_params.config.genesis_root_hash != genesis_root_hash {
-        return Err(GenesisError::RootHash(genesis_root_hash));
+        return Err(GenesisError::RootHash(
+            genesis_params.config.genesis_root_hash,
+            genesis_root_hash,
+        ));
     }
 
     if genesis_params.config.genesis_commitment != commitment {
-        return Err(GenesisError::Commitment(commitment));
+        return Err(GenesisError::Commitment(
+            genesis_params.config.genesis_commitment,
+            commitment,
+        ));
     }
 
     if genesis_params.config.rollup_last_leaf_index != rollup_last_leaf_index {
-        return Err(GenesisError::LeafIndexes(rollup_last_leaf_index));
+        return Err(GenesisError::LeafIndexes(
+            genesis_params.config.rollup_last_leaf_index,
+            rollup_last_leaf_index,
+        ));
     }
 
     tracing::info!("operations_schema_genesis is complete");
@@ -577,9 +584,7 @@ mod tests {
 
         let params = GenesisParams::mock();
 
-        ensure_genesis_state_unchecked(&mut conn, &params)
-            .await
-            .unwrap();
+        insert_genesis_batch(&mut conn, &params).await.unwrap();
 
         assert!(!conn.blocks_dal().is_genesis_needed().await.unwrap());
         let metadata = conn
@@ -605,9 +610,7 @@ mod tests {
             ..mock_genesis_config()
         })
         .unwrap();
-        ensure_genesis_state_unchecked(&mut conn, &params)
-            .await
-            .unwrap();
+        insert_genesis_batch(&mut conn, &params).await.unwrap();
 
         assert!(!conn.blocks_dal().is_genesis_needed().await.unwrap());
         let metadata = conn
@@ -628,9 +631,7 @@ mod tests {
         })
         .unwrap();
 
-        ensure_genesis_state_unchecked(&mut conn, &params)
-            .await
-            .unwrap();
+        insert_genesis_batch(&mut conn, &params).await.unwrap();
         assert!(!conn.blocks_dal().is_genesis_needed().await.unwrap());
     }
 }

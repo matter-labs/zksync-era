@@ -484,7 +484,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        genesis::{ensure_genesis_state_unchecked, GenesisParams},
+        genesis::{insert_genesis_batch, GenesisParams},
         metadata_calculator::tests::{extend_db_state, gen_storage_logs, reset_db_state},
     };
 
@@ -561,7 +561,7 @@ mod tests {
     #[tokio::test]
     async fn loaded_logs_equivalence_basics() {
         let pool = ConnectionPool::test_pool().await;
-        ensure_genesis_state_unchecked(
+        insert_genesis_batch(
             &mut pool.access_storage().await.unwrap(),
             &GenesisParams::mock(),
         )
@@ -586,7 +586,7 @@ mod tests {
     async fn loaded_logs_equivalence_with_zero_no_op_logs() {
         let pool = ConnectionPool::test_pool().await;
         let mut storage = pool.access_storage().await.unwrap();
-        ensure_genesis_state_unchecked(&mut storage, &GenesisParams::mock())
+        insert_genesis_batch(&mut storage, &GenesisParams::mock())
             .await
             .unwrap();
 
@@ -677,7 +677,7 @@ mod tests {
     async fn loaded_logs_equivalence_with_non_zero_no_op_logs() {
         let pool = ConnectionPool::test_pool().await;
         let mut storage = pool.access_storage().await.unwrap();
-        ensure_genesis_state_unchecked(&mut storage, &GenesisParams::mock())
+        insert_genesis_batch(&mut storage, &GenesisParams::mock())
             .await
             .unwrap();
 
@@ -724,7 +724,7 @@ mod tests {
     async fn loaded_logs_equivalence_with_protective_reads() {
         let pool = ConnectionPool::test_pool().await;
         let mut storage = pool.access_storage().await.unwrap();
-        ensure_genesis_state_unchecked(&mut storage, &GenesisParams::mock())
+        insert_genesis_batch(&mut storage, &GenesisParams::mock())
             .await
             .unwrap();
 
