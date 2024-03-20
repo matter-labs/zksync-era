@@ -139,13 +139,13 @@ pub fn adjust_pubdata_price_for_tx(
 }
 
 pub fn derive_overhead(
-    gas_limit: u32,
+    gas_limit: u64,
     gas_price_per_pubdata: u32,
     encoded_len: usize,
     tx_type: u8,
     vm_version: VmVersion,
-) -> u32 {
-    match vm_version {
+) -> u64 {
+    let overhead = match vm_version {
         VmVersion::M5WithRefunds | VmVersion::M5WithoutRefunds => {
             crate::vm_m5::transaction_data::derive_overhead(
                 gas_limit,
@@ -195,7 +195,9 @@ pub fn derive_overhead(
         }
         VmVersion::Vm1_4_1 => crate::vm_1_4_1::utils::overhead::derive_overhead(encoded_len),
         VmVersion::Vm1_4_2 => crate::vm_latest::utils::overhead::derive_overhead(encoded_len),
-    }
+    };
+
+    overhead as u64
 }
 
 pub fn get_bootloader_encoding_space(version: VmVersion) -> u32 {

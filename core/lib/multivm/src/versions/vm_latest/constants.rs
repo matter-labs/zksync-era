@@ -153,7 +153,7 @@ pub(crate) const COMPRESSED_BYTECODES_OFFSET: usize =
 /// It the gas limit cap on Mailbox for a priority transactions should generally be low enough to never cross that boundary, since
 /// artificially limiting the gas price is bad UX. However, during the transition between the pre-1.4.1 fee model and the 1.4.1 one,
 /// we need to process such transactions somehow.
-pub(crate) const PRIORITY_TX_MAX_GAS_LIMIT: usize = 80_000_000;
+pub(crate) const TX_MAX_COMPUTE_GAS_LIMIT: usize = 80_000_000;
 
 /// The amount of gas to be charged for occupying a single slot of a transaction.
 /// It is roughly equal to `80kk/MAX_TRANSACTIONS_PER_BATCH`, i.e. how many gas would an L1->L2 transaction

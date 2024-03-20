@@ -553,7 +553,7 @@ impl TxSender {
         &self,
         vm_permit: VmPermit,
         mut tx: Transaction,
-        tx_gas_limit: u32,
+        tx_gas_limit: u64,
         gas_price_per_pubdata: u32,
         fee_model_params: BatchFeeInput,
         block_args: BlockArgs,
@@ -628,7 +628,7 @@ impl TxSender {
         &self,
         mut tx: Transaction,
         estimated_fee_scale_factor: f64,
-        acceptable_overestimation: u32,
+        acceptable_overestimation: u64,
     ) -> Result<Fee, SubmitTxError> {
         let estimation_started_at = Instant::now();
 
@@ -733,13 +733,14 @@ impl TxSender {
                     "exceeds limit for published pubdata".to_string(),
                 ));
             }
-            pubdata_for_factory_deps * (gas_per_pubdata_byte as u32)
+
+            (pubdata_for_factory_deps as u64) * gas_per_pubdata_byte
         };
 
         // We are using binary search to find the minimal values of gas_limit under which
         // the transaction succeeds
-        let mut lower_bound = 0;
-        let mut upper_bound = MAX_L2_TX_GAS_LIMIT as u32;
+        let mut lower_bound = 0u64;
+        let mut upper_bound = MAX_L2_TX_GAS_LIMIT;
         let tx_id = format!(
             "{:?}-{}",
             tx.initiator_account(),
@@ -794,8 +795,8 @@ impl TxSender {
             .observe(number_of_iterations);
 
         let tx_body_gas_limit = cmp::min(
-            MAX_L2_TX_GAS_LIMIT as u32,
-            ((upper_bound as f64) * estimated_fee_scale_factor) as u32,
+            MAX_L2_TX_GAS_LIMIT,
+            ((upper_bound as f64) * estimated_fee_scale_factor) as u64,
         );
 
         let suggested_gas_limit = tx_body_gas_limit + gas_for_bytecodes_pubdata;
@@ -947,12 +948,12 @@ impl TxSender {
 /// but they won't even make it there, but the protection mechanisms for L1->L2 transactions will reject them on L1.
 /// TODO(X): remove this function after the upgrade is complete
 fn derive_pessimistic_overhead(
-    gas_limit: u32,
+    gas_limit: u64,
     gas_price_per_pubdata: u32,
     encoded_len: usize,
     tx_type: u8,
     vm_version: VmVersion,
-) -> u32 {
+) -> u64 {
     let current_overhead = derive_overhead(
         gas_limit,
         gas_price_per_pubdata,
