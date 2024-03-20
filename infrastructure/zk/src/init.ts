@@ -49,6 +49,9 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
     if (!skipSubmodulesCheckout) {
         await announced('Checkout system-contracts submodule', submoduleUpdate());
     }
+    if (deploymentMode == contract.DeploymentMode.Validium) {
+        await announced('Checkout era-contracts for Validium mode', validiumSubmoduleCheckout());
+    }
 
     await announced('Compiling JS packages', run.yarn());
     await announced('Compile l2 contracts', compiler.compileAll());
@@ -109,6 +112,9 @@ export async function lightweightInit(runObservability: boolean, deploymentMode:
     await announced(
         `Initializing in ${deploymentMode == contract.DeploymentMode.Validium ? 'Validium mode' : 'Roll-up mode'}`
     );
+    if (deploymentMode == contract.DeploymentMode.Validium) {
+        await announced('Checkout era-contracts for Validium mode', validiumSubmoduleCheckout());
+    }
     await announced(`Setting up containers`, up(runObservability));
     await announced('Clean rocksdb', clean('db'));
     await announced('Clean backups', clean('backups'));
@@ -141,7 +147,11 @@ export async function announced(fn: string, promise: Promise<void> | void) {
 
 export async function submoduleUpdate() {
     await utils.exec('git submodule init');
-    await utils.exec('git submodule update');
+    await utils.exec('git submodule update --remote');
+}
+
+export async function validiumSubmoduleCheckout() {
+    await utils.exec('cd contracts && git checkout origin/feat_validium_mode');
 }
 
 // clone dockprom and zksync-era dashboards
