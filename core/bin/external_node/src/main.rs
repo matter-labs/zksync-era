@@ -504,7 +504,7 @@ async fn init_tasks(
         let tree_api_config = if components.contains(&Component::TreeApi) {
             Some(MerkleTreeApiConfig {
                 port: config
-                    .optional
+                    .tree_component_config
                     .merkle_tree_api_port
                     .ok_or(anyhow!("should contain tree api port"))?,
             })
@@ -522,7 +522,7 @@ async fn init_tasks(
             )
             .await?,
         )
-    } else if let Some(tree_api_url) = &config.optional.tree_api_url {
+    } else if let Some(tree_api_url) = &config.api_component_config.tree_api_url {
         Some(Arc::new(TreeApiHttpClient::new(tree_api_url)))
     } else {
         None
@@ -549,7 +549,7 @@ async fn init_tasks(
     if components.contains(&Component::HttpApi) || components.contains(&Component::WsApi) {
         let tree_reader = tree_reader.ok_or(anyhow!("Must have a tree API"))?;
         let ask_sync_state_from = config
-            .optional
+            .api_component_config
             .ask_syncing_status_from
             .as_ref()
             .map(|url| Arc::new(Web3::new(Http::new(url).unwrap())));

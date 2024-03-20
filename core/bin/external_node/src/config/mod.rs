@@ -242,12 +242,25 @@ pub struct OptionalENConfig {
     // This is intentionally not a part of `RemoteENConfig` because fetching this info from the main node would defeat
     // its purpose; the consistency checker assumes that the main node may provide false information.
     pub contracts_diamond_proxy_addr: Option<Address>,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct ApiComponentConfig {
     /// Address of the tree API used by this EN in case it does not have a
     /// local tree component running and in this case needs to send requests
     /// to some external tree API.
     pub tree_api_url: Option<String>,
     pub tree_api_port: Option<u16>,
+    /// Proxy tequests to `eth_syncing` to this node.
+    /// Used in case of running an API component of the EN together with a separate
+    /// instance of EN running `core` component. In that case it is the `core` component
+    /// that may do the actual syncing, not the API and so API has to forward these
+    /// requests to `core`.
     pub ask_syncing_status_from: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct TreeComponentConfig {
     pub merkle_tree_api_port: Option<u16>,
 }
 
@@ -524,6 +537,8 @@ pub struct ExternalNodeConfig {
     pub optional: OptionalENConfig,
     pub remote: RemoteENConfig,
     pub consensus: Option<consensus::Config>,
+    pub api_component_config: ApiComponentConfig,
+    pub tree_component_config: TreeComponentConfig,
 }
 
 impl ExternalNodeConfig {
@@ -536,6 +551,14 @@ impl ExternalNodeConfig {
 
         let optional = envy::prefixed("EN_")
             .from_env::<OptionalENConfig>()
+            .context("could not load external node config")?;
+
+        let api_component_config = envy::prefixed("EN_")
+            .from_env::<ApiComponentConfig>()
+            .context("could not load external node config")?;
+
+        let tree_component_config = envy::prefixed("EN_")
+            .from_env::<TreeComponentConfig>()
             .context("could not load external node config")?;
 
         let client = HttpClientBuilder::default()
@@ -589,6 +612,8 @@ impl ExternalNodeConfig {
             required,
             optional,
             consensus: read_consensus_config().context("read_consensus_config()")?,
+            tree_component_config,
+            api_component_config,
         })
     }
 }
