@@ -2,6 +2,8 @@
 //! It initializes the Merkle tree with the basic setup (such as fields of special service accounts),
 //! setups the required databases, and outputs the data required to initialize a smart contract.
 
+use std::fmt::Formatter;
+
 use anyhow::Context as _;
 use multivm::{
     circuit_sequencer_api_latest::sort_storage_access::sort_storage_access_queries,
@@ -10,7 +12,8 @@ use multivm::{
 };
 use zksync_config::{GenesisConfig, PostgresConfig};
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SET_CHAIN_ID_EVENT};
-use zksync_dal::{ConnectionPool, SqlxError, StorageProcessor};
+use zksync_dal::{Connection, Core, CoreDal};
+use zksync_db_connection::connection_pool::ConnectionPool;
 use zksync_eth_client::{clients::QueryClient, EthInterface};
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_system_constants::PRIORITY_EXPIRATION;
@@ -22,9 +25,8 @@ use zksync_types::{
     commitment::{CommitmentInput, L1BatchCommitment},
     fee_model::BatchFeeInput,
     get_code_key, get_system_context_init_logs,
-    protocol_version::{
-        decode_set_chain_id_event, L1VerifierConfig, ProtocolVersion, VerifierParams,
-    },
+    protocol_upgrade::{decode_set_chain_id_event, ProtocolVersion},
+    protocol_version::{L1VerifierConfig, VerifierParams},
     system_contracts::get_system_smart_contracts,
     tokens::{TokenInfo, TokenMetadata, ETHEREUM_ADDRESS},
     web3::types::{BlockNumber, FilterBuilder},
@@ -36,22 +38,36 @@ use zksync_utils::{be_words_to_bytes, bytecode::hash_bytecode, h256_to_u256, u25
 
 use crate::metadata_calculator::L1BatchWithLogs;
 
+#[derive(Debug, Clone)]
+pub struct BaseContractsHashError {
+    from_config: BaseSystemContractsHashes,
+    calculated: BaseSystemContractsHashes,
+}
+
+impl std::fmt::Display for BaseContractsHashError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "From Config {:?}, Calculated : {:?}",
+            &self.from_config, &self.calculated
+        )
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum GenesisError {
-    #[error("Root hash mismatched: From Config: {0:?}, Calculated {1:?}")]
+    #[error("Root hash mismatched: From config: {0:?}, Calculated {1:?}")]
     RootHash(H256, H256),
-    #[error("Leaf indexes mismatched: From Config: {0:?}, Calculated {1:?}")]
+    #[error("Leaf indexes mismatched: From config: {0:?}, Calculated {1:?}")]
     LeafIndexes(u64, u64),
-    #[error("Base system contracts mismatched: From Config: {0:?}, Calculated {1:?}")]
-    BaseSystemContractsHashes(BaseSystemContractsHashes, BaseSystemContractsHashes),
-    #[error("Commitment mismatched: From Config: {0:?}, Calculated {1:?}")]
+    #[error("Base system contracts mismatched: {0}")]
+    BaseSystemContractsHashes(Box<BaseContractsHashError>),
+    #[error("Commitment mismatched: From config: {0:?}, Calculated {1:?}")]
     Commitment(H256, H256),
     #[error("Wrong protocol version")]
-    ProtocolVersion,
-    #[error("Error: {0}")]
-    Other(#[from] anyhow::Error),
+    ProtocolVersion(u16),
     #[error("DB Error: {0}")]
-    DBError(#[from] SqlxError),
+    DBError(#[from] anyhow::Error),
 }
 
 #[derive(Debug, Clone)]
@@ -82,14 +98,19 @@ impl GenesisParams {
             default_aa: config.default_aa_hash,
         };
         if base_system_contracts_hashes != base_system_contracts.hashes() {
-            return Err(GenesisError::BaseSystemContractsHashes(
-                base_system_contracts.hashes(),
-            ));
+            return Err(GenesisError::BaseSystemContractsHashes(Box::new(
+                BaseContractsHashError {
+                    from_config: base_system_contracts_hashes,
+                    calculated: base_system_contracts.hashes(),
+                },
+            )));
         }
+        // Try to convert value from config to the real protocol version and return error
+        // if the version doesn't exist
         let _: ProtocolVersionId = config
             .protocol_version
             .try_into()
-            .map_err(|_| GenesisError::ProtocolVersion)?;
+            .map_err(|_| GenesisError::ProtocolVersion(config.protocol_version))?;
         Ok(GenesisParams {
             base_system_contracts,
             system_contracts,
@@ -140,9 +161,6 @@ pub fn mock_genesis_config() -> GenesisConfig {
         l2_chain_id: L2ChainId::default(),
         recursion_node_level_vk_hash: first_l1_verifier_config.params.recursion_node_level_vk_hash,
         recursion_leaf_level_vk_hash: first_l1_verifier_config.params.recursion_leaf_level_vk_hash,
-        recursion_circuits_set_vks_hash: first_l1_verifier_config
-            .params
-            .recursion_circuits_set_vks_hash,
         recursion_scheduler_level_vk_hash: first_l1_verifier_config
             .recursion_scheduler_level_vk_hash,
     }
@@ -150,15 +168,17 @@ pub fn mock_genesis_config() -> GenesisConfig {
 
 // Insert genesis batch into the database
 pub async fn insert_genesis_batch(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut Connection<'_, Core>,
     genesis_params: &GenesisParams,
 ) -> Result<(H256, H256, u64), GenesisError> {
-    let mut transaction = storage.start_transaction().await?;
+    let mut transaction = storage
+        .start_transaction()
+        .await
+        .context("insert_genesis_batch start transaction")?;
     let verifier_config = L1VerifierConfig {
         params: VerifierParams {
             recursion_node_level_vk_hash: genesis_params.config.recursion_node_level_vk_hash,
             recursion_leaf_level_vk_hash: genesis_params.config.recursion_leaf_level_vk_hash,
-            recursion_circuits_set_vks_hash: genesis_params.config.recursion_circuits_set_vks_hash,
         },
         recursion_scheduler_level_vk_hash: genesis_params.config.recursion_scheduler_level_vk_hash,
     };
@@ -202,7 +222,10 @@ pub async fn insert_genesis_batch(
         rollup_last_leaf_index,
     )
     .await?;
-    transaction.commit().await?;
+    transaction
+        .commit()
+        .await
+        .context("create_genesis_l1_batch")?;
     Ok((
         genesis_root_hash,
         block_commitment.hash().commitment,
@@ -211,12 +234,20 @@ pub async fn insert_genesis_batch(
 }
 
 pub async fn ensure_genesis_state(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut Connection<'_, Core>,
     genesis_params: &GenesisParams,
 ) -> Result<H256, GenesisError> {
-    let mut transaction = storage.start_transaction().await?;
+    let mut transaction = storage
+        .start_transaction()
+        .await
+        .context("ensure_genesis_state start transaction")?;
 
-    if !transaction.blocks_dal().is_genesis_needed().await? {
+    if !transaction
+        .blocks_dal()
+        .is_genesis_needed()
+        .await
+        .context("Is genesis needed error")?
+    {
         tracing::debug!("genesis is not needed!");
         return Ok(transaction
             .blocks_dal()
@@ -250,8 +281,11 @@ pub async fn ensure_genesis_state(
         ));
     }
 
-    tracing::info!("operations_schema_genesis is complete");
-    transaction.commit().await?;
+    tracing::info!("genesis is complete");
+    transaction
+        .commit()
+        .await
+        .context("insert_genesis_batch commit transaction")?;
     Ok(genesis_root_hash)
 }
 
@@ -262,26 +296,26 @@ pub async fn ensure_genesis_state(
 // The code of the bootloader should not be deployed anywhere anywhere in the kernel space (i.e. addresses below 2^16)
 // because in this case we will have to worry about protecting it.
 async fn insert_base_system_contracts_to_factory_deps(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut Connection<'_, Core>,
     contracts: &BaseSystemContracts,
-) -> anyhow::Result<()> {
+) -> Result<(), GenesisError> {
     let factory_deps = [&contracts.bootloader, &contracts.default_aa]
         .iter()
         .map(|c| (c.hash, be_words_to_bytes(&c.code)))
         .collect();
 
-    storage
+    Ok(storage
         .factory_deps_dal()
         .insert_factory_deps(MiniblockNumber(0), &factory_deps)
         .await
-        .context("failed inserting base system contracts to Postgres")
+        .context("failed inserting base system contracts to Postgres")?)
 }
 
 async fn insert_system_contracts(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut Connection<'_, Core>,
     contracts: &[DeployedContract],
     chain_id: L2ChainId,
-) -> anyhow::Result<()> {
+) -> Result<(), GenesisError> {
     let system_context_init_logs = (H256::default(), get_system_context_init_logs(chain_id));
 
     let storage_logs: Vec<_> = contracts
@@ -297,7 +331,10 @@ async fn insert_system_contracts(
         .chain(Some(system_context_init_logs))
         .collect();
 
-    let mut transaction = storage.start_transaction().await?;
+    let mut transaction = storage
+        .start_transaction()
+        .await
+        .context("insert_system_contracts start transaction")?;
     transaction
         .storage_logs_dal()
         .insert_storage_logs(MiniblockNumber(0), &storage_logs)
@@ -387,20 +424,23 @@ async fn insert_system_contracts(
         .await
         .context("failed inserting bytecodes for genesis smart contracts")?;
 
-    transaction.commit().await?;
+    transaction
+        .commit()
+        .await
+        .context("insert_system_contracts commit transaction")?;
     Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn create_genesis_l1_batch(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut Connection<'_, Core>,
     first_validator_address: Address,
     chain_id: L2ChainId,
     protocol_version: ProtocolVersionId,
     base_system_contracts: &BaseSystemContracts,
     system_contracts: &[DeployedContract],
     l1_verifier_config: L1VerifierConfig,
-) -> anyhow::Result<()> {
+) -> Result<(), GenesisError> {
     let version = ProtocolVersion {
         id: protocol_version,
         timestamp: 0,
@@ -431,7 +471,10 @@ pub(crate) async fn create_genesis_l1_batch(
         virtual_blocks: 0,
     };
 
-    let mut transaction = storage.start_transaction().await?;
+    let mut transaction = storage
+        .start_transaction()
+        .await
+        .context("create_genesis_l1_batch start transaction")?;
 
     transaction
         .protocol_versions_dal()
@@ -466,11 +509,14 @@ pub(crate) async fn create_genesis_l1_batch(
         .context("cannot insert system contracts")?;
     add_eth_token(&mut transaction).await?;
 
-    transaction.commit().await?;
+    transaction
+        .commit()
+        .await
+        .context("create_genesis_l1_batch commit transaction")?;
     Ok(())
 }
 
-async fn add_eth_token(transaction: &mut StorageProcessor<'_>) -> anyhow::Result<()> {
+async fn add_eth_token(transaction: &mut Connection<'_, Core>) -> anyhow::Result<()> {
     assert!(transaction.in_transaction()); // sanity check
     let eth_token = TokenInfo {
         l1_address: ETHEREUM_ADDRESS,
@@ -496,12 +542,15 @@ async fn add_eth_token(transaction: &mut StorageProcessor<'_>) -> anyhow::Result
 }
 
 async fn save_genesis_l1_batch_metadata(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut Connection<'_, Core>,
     commitment: L1BatchCommitment,
     genesis_root_hash: H256,
     rollup_last_leaf_index: u64,
-) -> anyhow::Result<()> {
-    let mut transaction = storage.start_transaction().await?;
+) -> Result<(), GenesisError> {
+    let mut transaction = storage
+        .start_transaction()
+        .await
+        .context("Start transaction")?;
 
     let tree_data = L1BatchTreeData {
         hash: genesis_root_hash,
@@ -523,10 +572,12 @@ async fn save_genesis_l1_batch_metadata(
         .await
         .context("failed saving commitment for genesis L1 batch")?;
 
-    transaction.commit().await?;
+    transaction.commit().await.context("Commit transactions")?;
     Ok(())
 }
 
+// Save chain id transaction into the database
+// We keep returning anyhow and will refactor it later
 pub async fn save_set_chain_id_tx(
     eth_client_url: &str,
     diamond_proxy_address: Address,
@@ -534,11 +585,11 @@ pub async fn save_set_chain_id_tx(
     postgres_config: &PostgresConfig,
 ) -> anyhow::Result<()> {
     let db_url = postgres_config.master_url()?;
-    let pool = ConnectionPool::singleton(db_url)
+    let pool = ConnectionPool::<Core>::singleton(db_url)
         .build()
         .await
         .context("failed to build connection_pool")?;
-    let mut storage = pool.access_storage().await.context("access_storage()")?;
+    let mut storage = pool.connection().await.context("connection()")?;
 
     let eth_client = QueryClient::new(eth_client_url)?;
     let to = eth_client.block_number("fetch_chain_id_tx").await?.as_u64();
@@ -572,14 +623,14 @@ pub async fn save_set_chain_id_tx(
 #[cfg(test)]
 mod tests {
     use zksync_config::GenesisConfig;
-    use zksync_dal::ConnectionPool;
+    use zksync_dal::{ConnectionPool, Core, CoreDal};
 
     use super::*;
 
     #[tokio::test]
     async fn running_genesis() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
         conn.blocks_dal().delete_genesis().await.unwrap();
 
         let params = GenesisParams::mock();
@@ -601,8 +652,8 @@ mod tests {
 
     #[tokio::test]
     async fn running_genesis_with_big_chain_id() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
         conn.blocks_dal().delete_genesis().await.unwrap();
 
         let params = GenesisParams::load_genesis_params(GenesisConfig {
@@ -623,8 +674,8 @@ mod tests {
 
     #[tokio::test]
     async fn running_genesis_with_non_latest_protocol_version() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
         let params = GenesisParams::load_genesis_params(GenesisConfig {
             protocol_version: ProtocolVersionId::Version10 as u16,
             ..mock_genesis_config()

@@ -10,7 +10,7 @@ use crate::{
 };
 
 pub(crate) async fn create_test_tx_sender(
-    pool: ConnectionPool,
+    pool: ConnectionPool<Core>,
     l2_chain_id: L2ChainId,
     tx_executor: TransactionExecutor,
 ) -> (TxSender, VmConcurrencyBarrier) {
@@ -39,8 +39,8 @@ pub(crate) async fn create_test_tx_sender(
 async fn getting_nonce_for_account() {
     let l2_chain_id = L2ChainId::default();
     let test_address = Address::repeat_byte(1);
-    let pool = ConnectionPool::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
     insert_genesis_batch(&mut storage, &GenesisParams::mock())
         .await
         .unwrap();
@@ -86,8 +86,8 @@ async fn getting_nonce_for_account() {
 async fn getting_nonce_for_account_after_snapshot_recovery() {
     const SNAPSHOT_MINIBLOCK_NUMBER: MiniblockNumber = MiniblockNumber(42);
 
-    let pool = ConnectionPool::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
     let test_address = Address::repeat_byte(1);
     let other_address = Address::repeat_byte(2);
     let nonce_logs = [

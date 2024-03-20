@@ -4,13 +4,13 @@ use std::{collections::HashMap, sync::Arc};
 use anyhow::Context as _;
 use rand::Rng;
 use zksync_concurrency::{ctx, error::Wrap as _, limiter, scope, sync, time};
-use zksync_config::configs;
+use zksync_config::{configs, GenesisConfig};
 use zksync_consensus_roles::validator;
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_dal::ConnectionPool;
+use zksync_dal::CoreDal;
 use zksync_types::{
-    api, api::L1BatchDetails, snapshots::SnapshotRecoveryStatus, Address, L1BatchNumber, L1ChainId,
-    L2ChainId, MiniblockNumber, ProtocolVersionId, H256,
+    api, snapshots::SnapshotRecoveryStatus, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
+    ProtocolVersionId, H256,
 };
 use zksync_web3_decl::{
     error::{EnrichedClientError, EnrichedClientResult},
@@ -20,7 +20,7 @@ use zksync_web3_decl::{
 use crate::{
     api_server::web3::{state::InternalApiConfig, tests::spawn_http_server},
     consensus::{fetcher::P2PConfig, Fetcher, Store},
-    genesis::{insert_genesis_batch, GenesisParams},
+    genesis::GenesisParams,
     state_keeper::{
         io::common::IoCursor, seal_criteria::NoopSealer, tests::MockBatchExecutor, MiniblockSealer,
         ZkSyncStateKeeper,
@@ -30,7 +30,7 @@ use crate::{
         sync_action::{ActionQueue, ActionQueueSender, SyncAction},
         ExternalIO, MainNodeClient, SyncState,
     },
-    utils::testonly::{create_l1_batch_metadata, create_l2_transaction, prepare_recovery_snapshot},
+    utils::testonly::{create_l1_batch_metadata, create_l2_transaction},
 };
 
 #[derive(Debug, Default)]
@@ -103,13 +103,6 @@ impl MainNodeClient for MockMainNodeClient {
         Ok(self.protocol_versions.get(&protocol_version).cloned())
     }
 
-    async fn fetch_genesis_l1_batch_hash(&self) -> EnrichedClientResult<H256> {
-        Err(EnrichedClientError::custom(
-            "not implemented",
-            "fetch_genesis_l1_batch_hash",
-        ))
-    }
-
     async fn fetch_l2_block_number(&self) -> EnrichedClientResult<MiniblockNumber> {
         if let Some(number) = self.l2_blocks.len().checked_sub(1) {
             Ok(MiniblockNumber(number as u32))
@@ -144,17 +137,10 @@ impl MainNodeClient for MockMainNodeClient {
         unimplemented!()
     }
 
-    async fn fetch_genesis_l1_batch(&self) -> EnrichedClientResult<L1BatchDetails> {
+    async fn fetch_genesis_config(&self) -> EnrichedClientResult<GenesisConfig> {
         Err(EnrichedClientError::custom(
             "not implemented",
-            "fetch_genesis_l1_batch",
-        ))
-    }
-
-    async fn fetch_l1_chain_id(&self) -> EnrichedClientResult<L1ChainId> {
-        Err(EnrichedClientError::custom(
-            "not implemented",
-            "fetch_l1_chain_id",
+            "fetch_genesis_config",
         ))
     }
 }
@@ -183,23 +169,6 @@ pub(super) struct StateKeeperRunner {
     sync_state: SyncState,
     store: Store,
     addr: sync::watch::Sender<Option<std::net::SocketAddr>>,
-}
-
-/// Constructs a new db initialized with genesis state or a snapshot.
-pub(super) async fn new_store(from_snapshot: bool) -> Store {
-    let pool = ConnectionPool::test_pool().await;
-    {
-        let mut storage = pool.access_storage().await.unwrap();
-        if from_snapshot {
-            prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[])
-                .await;
-        } else {
-            insert_genesis_batch(&mut storage, &GenesisParams::mock())
-                .await
-                .unwrap();
-        }
-    }
-    Store(pool)
 }
 
 // Limiter with infinite refresh rate.

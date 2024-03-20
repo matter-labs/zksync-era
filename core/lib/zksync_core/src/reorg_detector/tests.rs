@@ -8,7 +8,7 @@ use std::{
 use assert_matches::assert_matches;
 use test_casing::{test_casing, Product};
 use tokio::sync::mpsc;
-use zksync_dal::StorageProcessor;
+use zksync_dal::{Connection, CoreDal};
 use zksync_types::{
     block::{MiniblockHasher, MiniblockHeader},
     ProtocolVersion,
@@ -21,7 +21,7 @@ use crate::{
     utils::testonly::{create_l1_batch, create_miniblock},
 };
 
-async fn store_miniblock(storage: &mut StorageProcessor<'_>, number: u32, hash: H256) {
+async fn store_miniblock(storage: &mut Connection<'_, Core>, number: u32, hash: H256) {
     let header = MiniblockHeader {
         hash,
         ..create_miniblock(number)
@@ -33,7 +33,7 @@ async fn store_miniblock(storage: &mut StorageProcessor<'_>, number: u32, hash: 
         .unwrap();
 }
 
-async fn seal_l1_batch(storage: &mut StorageProcessor<'_>, number: u32, hash: H256) {
+async fn seal_l1_batch(storage: &mut Connection<'_, Core>, number: u32, hash: H256) {
     let header = create_l1_batch(number);
     storage
         .blocks_dal()
@@ -152,7 +152,7 @@ impl HandleReorgDetectorEvent for mpsc::UnboundedSender<(MiniblockNumber, L1Batc
     }
 }
 
-fn create_mock_detector(client: MockMainNodeClient, pool: ConnectionPool) -> ReorgDetector {
+fn create_mock_detector(client: MockMainNodeClient, pool: ConnectionPool<Core>) -> ReorgDetector {
     let (health_check, health_updater) = ReactiveHealthCheck::new("reorg_detector");
     ReorgDetector {
         client: Box::new(client),
@@ -166,8 +166,8 @@ fn create_mock_detector(client: MockMainNodeClient, pool: ConnectionPool) -> Reo
 #[test_casing(4, Product(([false, true], [false, true])))]
 #[tokio::test]
 async fn normal_reorg_function(snapshot_recovery: bool, with_transient_errors: bool) {
-    let pool = ConnectionPool::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
     let mut client = MockMainNodeClient::default();
     if snapshot_recovery {
         storage
@@ -249,8 +249,8 @@ async fn normal_reorg_function(snapshot_recovery: bool, with_transient_errors: b
 
 #[tokio::test]
 async fn detector_stops_on_fatal_rpc_error() {
-    let pool = ConnectionPool::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
     insert_genesis_batch(&mut storage, &GenesisParams::mock())
         .await
         .unwrap();
@@ -266,8 +266,8 @@ async fn detector_stops_on_fatal_rpc_error() {
 
 #[tokio::test]
 async fn reorg_is_detected_on_batch_hash_mismatch() {
-    let pool = ConnectionPool::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
     let (genesis_root_hash, ..) = insert_genesis_batch(&mut storage, &GenesisParams::mock())
         .await
         .unwrap();
@@ -311,8 +311,8 @@ async fn reorg_is_detected_on_batch_hash_mismatch() {
 
 #[tokio::test]
 async fn reorg_is_detected_on_miniblock_hash_mismatch() {
-    let pool = ConnectionPool::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
     let mut client = MockMainNodeClient::default();
     let (genesis_root_hash, ..) = insert_genesis_batch(&mut storage, &GenesisParams::mock())
         .await
@@ -381,10 +381,10 @@ async fn reorg_is_detected_on_historic_batch_hash_mismatch(
         (1_u32..=10, last_correct_batch)
     };
 
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::<Core>::test_pool().await;
     let earliest_l1_batch_number = l1_batch_numbers.start() - 1;
     {
-        let mut storage = pool.access_storage().await.unwrap();
+        let mut storage = pool.connection().await.unwrap();
         storage
             .protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
@@ -419,7 +419,7 @@ async fn reorg_is_detected_on_historic_batch_hash_mismatch(
     let mut miniblock_and_l1_batch_hashes: Vec<_> = miniblock_and_l1_batch_hashes.collect();
 
     if matches!(storage_update_strategy, StorageUpdateStrategy::Prefill) {
-        let mut storage = pool.access_storage().await.unwrap();
+        let mut storage = pool.connection().await.unwrap();
         for &(number, miniblock_hash, l1_batch_hash) in &miniblock_and_l1_batch_hashes {
             store_miniblock(&mut storage, number, miniblock_hash).await;
             seal_l1_batch(&mut storage, number, l1_batch_hash).await;
@@ -435,7 +435,7 @@ async fn reorg_is_detected_on_historic_batch_hash_mismatch(
 
     if matches!(storage_update_strategy, StorageUpdateStrategy::Sequential) {
         tokio::spawn(async move {
-            let mut storage = pool.access_storage().await.unwrap();
+            let mut storage = pool.connection().await.unwrap();
             let mut last_number = earliest_l1_batch_number;
             while let Some((miniblock, l1_batch)) = block_update_receiver.recv().await {
                 if miniblock == MiniblockNumber(last_number)
@@ -460,8 +460,8 @@ async fn reorg_is_detected_on_historic_batch_hash_mismatch(
 
 #[tokio::test]
 async fn stopping_reorg_detector_while_waiting_for_l1_batch() {
-    let pool = ConnectionPool::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
     assert!(storage.blocks_dal().is_genesis_needed().await.unwrap());
     drop(storage);
 
@@ -475,8 +475,8 @@ async fn stopping_reorg_detector_while_waiting_for_l1_batch() {
 
 #[tokio::test]
 async fn detector_errors_on_earliest_batch_hash_mismatch() {
-    let pool = ConnectionPool::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
     let (genesis_root_hash, ..) = insert_genesis_batch(&mut storage, &GenesisParams::mock())
         .await
         .unwrap();
@@ -499,7 +499,7 @@ async fn detector_errors_on_earliest_batch_hash_mismatch() {
 
 #[tokio::test]
 async fn detector_errors_on_earliest_batch_hash_mismatch_with_snapshot_recovery() {
-    let pool = ConnectionPool::test_pool().await;
+    let pool = ConnectionPool::<Core>::test_pool().await;
     let mut client = MockMainNodeClient::default();
     client
         .l1_batch_root_hashes
@@ -511,7 +511,7 @@ async fn detector_errors_on_earliest_batch_hash_mismatch_with_snapshot_recovery(
 
     tokio::spawn(async move {
         tokio::time::sleep(Duration::from_millis(20)).await;
-        let mut storage = pool.access_storage().await.unwrap();
+        let mut storage = pool.connection().await.unwrap();
         storage
             .protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
@@ -528,8 +528,8 @@ async fn detector_errors_on_earliest_batch_hash_mismatch_with_snapshot_recovery(
 
 #[tokio::test]
 async fn reorg_is_detected_without_waiting_for_main_node_to_catch_up() {
-    let pool = ConnectionPool::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
     let (genesis_root_hash, ..) = insert_genesis_batch(&mut storage, &GenesisParams::mock())
         .await
         .unwrap();

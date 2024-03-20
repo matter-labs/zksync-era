@@ -1,12 +1,16 @@
 use std::convert::TryFrom;
 
-use zksync_types::protocol_version::{FriProtocolVersionId, L1VerifierConfig};
+use zksync_basic_types::{
+    protocol_version::{FriProtocolVersionId, L1VerifierConfig},
+    H256,
+};
+use zksync_db_connection::connection::Connection;
 
-use crate::StorageProcessor;
+use crate::Prover;
 
 #[derive(Debug)]
 pub struct FriProtocolVersionsDal<'a, 'c> {
-    pub storage: &'a mut StorageProcessor<'c>,
+    pub storage: &'a mut Connection<'c, Prover>,
 }
 
 impl FriProtocolVersionsDal<'_, '_> {
@@ -15,6 +19,9 @@ impl FriProtocolVersionsDal<'_, '_> {
         id: FriProtocolVersionId,
         l1_verifier_config: L1VerifierConfig,
     ) {
+        // recursion_circuits_set_vks_hash is deprecated
+        let recursion_circuits_set_vks_hash = H256::zero();
+
         sqlx::query!(
             r#"
             INSERT INTO
@@ -42,10 +49,7 @@ impl FriProtocolVersionsDal<'_, '_> {
                 .params
                 .recursion_leaf_level_vk_hash
                 .as_bytes(),
-            l1_verifier_config
-                .params
-                .recursion_circuits_set_vks_hash
-                .as_bytes(),
+            recursion_circuits_set_vks_hash.as_bytes()
         )
         .execute(self.storage.conn())
         .await
@@ -63,15 +67,10 @@ impl FriProtocolVersionsDal<'_, '_> {
             FROM
                 prover_fri_protocol_versions
             WHERE
-                recursion_circuits_set_vks_hash = $1
-                AND recursion_leaf_level_vk_hash = $2
-                AND recursion_node_level_vk_hash = $3
-                AND recursion_scheduler_level_vk_hash = $4
+                recursion_leaf_level_vk_hash = $1
+                AND recursion_node_level_vk_hash = $2
+                AND recursion_scheduler_level_vk_hash = $3
             "#,
-            vk_commitments
-                .params
-                .recursion_circuits_set_vks_hash
-                .as_bytes(),
             vk_commitments
                 .params
                 .recursion_leaf_level_vk_hash

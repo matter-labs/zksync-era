@@ -4,7 +4,8 @@ use sqlx::types::chrono::NaiveDateTime;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_types::{
     api,
-    protocol_version::{self, L1VerifierConfig, ProtocolUpgradeTx, VerifierParams},
+    protocol_upgrade::{self, ProtocolUpgradeTx},
+    protocol_version::{L1VerifierConfig, VerifierParams},
     H256,
 };
 
@@ -27,8 +28,8 @@ pub struct StorageProtocolVersion {
 pub(crate) fn protocol_version_from_storage(
     storage_version: StorageProtocolVersion,
     tx: Option<ProtocolUpgradeTx>,
-) -> protocol_version::ProtocolVersion {
-    protocol_version::ProtocolVersion {
+) -> protocol_upgrade::ProtocolVersion {
+    protocol_upgrade::ProtocolVersion {
         id: (storage_version.id as u16).try_into().unwrap(),
         timestamp: storage_version.timestamp as u64,
         l1_verifier_config: L1VerifierConfig {
@@ -38,9 +39,6 @@ pub(crate) fn protocol_version_from_storage(
                 ),
                 recursion_leaf_level_vk_hash: H256::from_slice(
                     &storage_version.recursion_leaf_level_vk_hash,
-                ),
-                recursion_circuits_set_vks_hash: H256::from_slice(
-                    &storage_version.recursion_circuits_set_vks_hash,
                 ),
             },
             recursion_scheduler_level_vk_hash: H256::from_slice(
@@ -71,9 +69,6 @@ impl From<StorageProtocolVersion> for api::ProtocolVersion {
                     ),
                     recursion_leaf_level_vk_hash: H256::from_slice(
                         &storage_protocol_version.recursion_leaf_level_vk_hash,
-                    ),
-                    recursion_circuits_set_vks_hash: H256::from_slice(
-                        &storage_protocol_version.recursion_circuits_set_vks_hash,
                     ),
                 },
                 recursion_scheduler_level_vk_hash: H256::from_slice(

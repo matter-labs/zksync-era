@@ -16,6 +16,5 @@ pub struct GenesisConfig {
     pub l2_chain_id: L2ChainId,
     pub recursion_node_level_vk_hash: H256,
     pub recursion_leaf_level_vk_hash: H256,
-    pub recursion_circuits_set_vks_hash: H256,
     pub recursion_scheduler_level_vk_hash: H256,
 }
