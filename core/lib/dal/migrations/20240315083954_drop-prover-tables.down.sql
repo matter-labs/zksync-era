@@ -258,3 +258,36 @@ CREATE INDEX IF NOT EXISTS idx_witness_inputs_fri_status_processing_attempts
 CREATE INDEX IF NOT EXISTS idx_witness_inputs_fri_queued_order
     ON witness_inputs_fri (l1_batch_number)
     WHERE (status = 'queued'::text);
+
+CREATE TABLE aggregated_proof
+(
+    id                serial
+        primary key,
+    from_block_number bigint
+        references l1_batches
+            on delete cascade,
+    to_block_number   bigint
+        references l1_batches
+            on delete cascade,
+    proof             bytea,
+    eth_prove_tx_id   integer
+                                references eth_txs
+                                    on delete set null,
+    created_at        timestamp not null
+);
+
+CREATE INDEX aggregated_proof_from_l1_batch_index
+    ON aggregated_proof (from_block_number);
+
+CREATE INDEX aggregated_proof_to_l1_batch_index
+    ON aggregated_proof (to_block_number);
+
+CREATE TABLE proof
+(
+    l1_batch_number bigint    not null
+        primary key
+        references l1_batches
+            on delete cascade,
+    proof           bytea,
+    created_at      timestamp not null
+);
