@@ -2,6 +2,8 @@
 //! It initializes the Merkle tree with the basic setup (such as fields of special service accounts),
 //! setups the required databases, and outputs the data required to initialize a smart contract.
 
+use std::fmt::Formatter;
+
 use anyhow::Context as _;
 use multivm::{
     circuit_sequencer_api_latest::sort_storage_access::sort_storage_access_queries,
@@ -36,14 +38,30 @@ use zksync_utils::{be_words_to_bytes, bytecode::hash_bytecode, h256_to_u256, u25
 
 use crate::metadata_calculator::L1BatchWithLogs;
 
+#[derive(Debug, Clone)]
+pub struct BaseContractsHashError {
+    from_config: BaseSystemContractsHashes,
+    calculated: BaseSystemContractsHashes,
+}
+
+impl std::fmt::Display for BaseContractsHashError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "From Config {:?}, Calculated : {:?}",
+            &self.from_config, &self.calculated
+        )
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum GenesisError {
     #[error("Root hash mismatched: From config: {0:?}, Calculated {1:?}")]
     RootHash(H256, H256),
     #[error("Leaf indexes mismatched: From config: {0:?}, Calculated {1:?}")]
     LeafIndexes(u64, u64),
-    #[error("Base system contracts mismatched: From config: {0:?}, Calculated {1:?}")]
-    BaseSystemContractsHashes(BaseSystemContractsHashes, BaseSystemContractsHashes),
+    #[error("Base system contracts mismatched: {0}")]
+    BaseSystemContractsHashes(Box<BaseContractsHashError>),
     #[error("Commitment mismatched: From config: {0:?}, Calculated {1:?}")]
     Commitment(H256, H256),
     #[error("Wrong protocol version")]
@@ -80,10 +98,12 @@ impl GenesisParams {
             default_aa: config.default_aa_hash,
         };
         if base_system_contracts_hashes != base_system_contracts.hashes() {
-            return Err(GenesisError::BaseSystemContractsHashes(
-                base_system_contracts_hashes,
-                base_system_contracts.hashes(),
-            ));
+            return Err(GenesisError::BaseSystemContractsHashes(Box::new(
+                BaseContractsHashError {
+                    from_config: base_system_contracts_hashes,
+                    calculated: base_system_contracts.hashes(),
+                },
+            )));
         }
         // Try to convert value from config to the real protocol version and return error
         // if the version doesn't exist

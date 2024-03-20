@@ -3,10 +3,11 @@
 use std::fmt;
 
 use async_trait::async_trait;
+use zksync_config::GenesisConfig;
 use zksync_system_constants::ACCOUNT_CODE_STORAGE_ADDRESS;
 use zksync_types::{
-    api::{self, en, L1BatchDetails},
-    get_code_key, Address, L1BatchNumber, L1ChainId, MiniblockNumber, ProtocolVersionId, H256, U64,
+    api::{self, en},
+    get_code_key, Address, MiniblockNumber, ProtocolVersionId, H256, U64,
 };
 use zksync_web3_decl::{
     error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult},
@@ -32,8 +33,6 @@ pub trait MainNodeClient: 'static + Send + Sync + fmt::Debug {
         protocol_version: ProtocolVersionId,
     ) -> EnrichedClientResult<Option<api::ProtocolVersion>>;
 
-    async fn fetch_genesis_l1_batch_hash(&self) -> EnrichedClientResult<H256>;
-
     async fn fetch_l2_block_number(&self) -> EnrichedClientResult<MiniblockNumber>;
 
     async fn fetch_l2_block(
@@ -44,8 +43,7 @@ pub trait MainNodeClient: 'static + Send + Sync + fmt::Debug {
 
     async fn fetch_consensus_genesis(&self) -> EnrichedClientResult<Option<en::ConsensusGenesis>>;
 
-    async fn fetch_genesis_l1_batch(&self) -> EnrichedClientResult<L1BatchDetails>;
-    async fn fetch_l1_chain_id(&self) -> EnrichedClientResult<L1ChainId>;
+    async fn fetch_genesis_config(&self) -> EnrichedClientResult<GenesisConfig>;
 }
 
 impl dyn MainNodeClient {
@@ -113,24 +111,8 @@ impl MainNodeClient for HttpClient {
             .await
     }
 
-    async fn fetch_genesis_l1_batch_hash(&self) -> EnrichedClientResult<H256> {
-        let genesis_l1_batch = self.fetch_genesis_l1_batch().await?;
-        genesis_l1_batch.base.root_hash.ok_or_else(|| {
-            EnrichedClientError::custom("missing genesis L1 batch hash", "get_l1_batch_details")
-        })
-    }
-
-    async fn fetch_genesis_l1_batch(&self) -> EnrichedClientResult<L1BatchDetails> {
-        Ok(self
-            .get_l1_batch_details(L1BatchNumber(0))
-            .rpc_context("get_l1_batch_details")
-            .await?
-            .ok_or_else(|| {
-                EnrichedClientError::custom(
-                    "main node did not return genesis block",
-                    "get_l1_batch_details",
-                )
-            })?)
+    async fn fetch_genesis_config(&self) -> EnrichedClientResult<GenesisConfig> {
+        self.genesis_config().rpc_context("genesis_config").await
     }
 
     async fn fetch_l2_block_number(&self) -> EnrichedClientResult<MiniblockNumber> {
@@ -159,12 +141,5 @@ impl MainNodeClient for HttpClient {
         self.consensus_genesis()
             .rpc_context("consensus_genesis")
             .await
-    }
-
-    async fn fetch_l1_chain_id(&self) -> EnrichedClientResult<L1ChainId> {
-        self.l1_chain_id()
-            .rpc_context("fetch_l1_chain_id")
-            .await
-            .map(|l1_chain_id| L1ChainId(l1_chain_id.as_u64()))
     }
 }

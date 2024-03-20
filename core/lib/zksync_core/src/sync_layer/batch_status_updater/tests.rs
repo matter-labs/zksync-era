@@ -225,7 +225,7 @@ fn mock_updater(
 #[tokio::test]
 async fn updater_cursor_for_storage_with_genesis_block() {
     let pool = ConnectionPool::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool.connection().await.unwrap();
     insert_genesis_batch(&mut storage, &GenesisParams::mock())
         .await
         .unwrap();

@@ -602,8 +602,6 @@ impl BlocksWeb3Dal<'_, '_> {
                 l1_batches.l1_tx_count,
                 l1_batches.l2_tx_count,
                 l1_batches.hash AS "root_hash?",
-                l1_batches.commitment,
-                l1_batches.rollup_last_leaf_index,
                 commit_tx.tx_hash AS "commit_tx_hash?",
                 commit_tx.confirmed_at AS "committed_at?",
                 prove_tx.tx_hash AS "prove_tx_hash?",

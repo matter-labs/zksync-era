@@ -31,7 +31,7 @@ use zksync_config::{
     },
     ApiConfig, ContractsConfig, DBConfig, GenesisConfig, PostgresConfig,
 };
-use zksync_contracts::{governance_contract, BaseSystemContracts};
+use zksync_contracts::governance_contract;
 use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core, CoreDal};
 use zksync_db_connection::healthcheck::ConnectionPoolHealthCheck;
 use zksync_eth_client::{
