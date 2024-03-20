@@ -266,9 +266,10 @@ describe('web3 API compatibility tests', () => {
         });
         await zksync.utils.sleep(mempool_cache_wait);
         changes = await alice.provider.send('eth_getFilterChanges', [filterId]);
-        expect(changes).toContain(tx1.hash);
+        expect(changes).not.toContain(tx2.hash);
         expect(changes).toContain(tx2.hash);
         expect(changes).toContain(tx3.hash);
+        expect(changes).toContain(tx4.hash);
     });
 
     test('Should test pub-sub API: blocks', async () => {
