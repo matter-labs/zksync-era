@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use prover_dal::{Prover, ProverDals};
+use prover_dal::{Prover, ProverDal};
 use zksync_dal::ConnectionPool;
 use zksync_types::prover_dal::JobCountStatistics;
 
@@ -22,7 +22,7 @@ impl FriProofCompressorStatsReporter {
     }
 
     async fn get_job_statistics(pool: &ConnectionPool<Prover>) -> JobCountStatistics {
-        pool.access_storage()
+        pool.connection()
             .await
             .unwrap()
             .fri_proof_compressor_dal()
@@ -62,7 +62,7 @@ impl PeriodicJob for FriProofCompressorStatsReporter {
 
         let oldest_not_compressed_batch = self
             .pool
-            .access_storage()
+            .connection()
             .await
             .unwrap()
             .fri_proof_compressor_dal()

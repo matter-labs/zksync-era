@@ -3,7 +3,7 @@ pub mod gpu_prover {
     use std::{collections::HashMap, sync::Arc, time::Instant};
 
     use anyhow::Context as _;
-    use prover_dal::{ConnectionPool, ProverDals};
+    use prover_dal::{ConnectionPool, ProverDal};
     use shivini::{
         gpu_proof_config::GpuProofConfig, gpu_prove_from_external_witness_data, ProverContext,
     };
@@ -224,7 +224,7 @@ pub mod gpu_prover {
                 Ok(item) => {
                     if is_full {
                         self.prover_connection_pool
-                            .access_storage()
+                            .connection()
                             .await
                             .unwrap()
                             .fri_gpu_prover_queue_dal()
@@ -249,7 +249,7 @@ pub mod gpu_prover {
 
         async fn save_failure(&self, job_id: Self::JobId, _started_at: Instant, error: String) {
             self.prover_connection_pool
-                .access_storage()
+                .connection()
                 .await
                 .unwrap()
                 .fri_prover_jobs_dal()
@@ -281,7 +281,7 @@ pub mod gpu_prover {
         ) -> anyhow::Result<()> {
             METRICS.gpu_total_proving_time.observe(started_at.elapsed());
 
-            let mut storage_processor = self.prover_connection_pool.access_storage().await.unwrap();
+            let mut storage_processor = self.prover_connection_pool.connection().await.unwrap();
             save_proof(
                 job_id,
                 started_at,
@@ -302,7 +302,7 @@ pub mod gpu_prover {
         async fn get_job_attempts(&self, job_id: &u32) -> anyhow::Result<u32> {
             let mut prover_storage = self
                 .prover_connection_pool
-                .access_storage()
+                .connection()
                 .await
                 .context("failed to acquire DB connection for Prover")?;
             prover_storage

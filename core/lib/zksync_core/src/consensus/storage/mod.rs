@@ -5,7 +5,7 @@ use zksync_concurrency::{ctx, error::Wrap as _, sync, time};
 use zksync_consensus_bft::PayloadManager;
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage::{BlockStoreState, PersistentBlockStore, ReplicaState, ReplicaStore};
-use zksync_dal::{consensus_dal::Payload, ConnectionPool, Server, ServerDals, StorageProcessor};
+use zksync_dal::{consensus_dal::Payload, ConnectionPool, Core, CoreDal};
 use zksync_types::MiniblockNumber;
 
 #[cfg(test)]
@@ -19,8 +19,8 @@ use crate::{
     },
 };
 
-/// Context-aware `zksync_dal::StorageProcessor<Server>` wrapper.
-pub(super) struct Connection<'a>(pub(super) StorageProcessor<'a, Server>);
+/// Context-aware `zksync_dal::Connection<Core>` wrapper.
+pub(super) struct Connection<'a>(pub(super) zksync_dal::Connection<'a, Core>);
 
 impl<'a> Connection<'a> {
     /// Wrapper for `start_transaction()`.
@@ -177,7 +177,7 @@ impl Cursor {
 
 /// Wrapper of `ConnectionPool` implementing `ReplicaStore` and `PayloadManager`.
 #[derive(Clone, Debug)]
-pub struct Store(pub ConnectionPool<Server>);
+pub struct Store(pub ConnectionPool<Core>);
 
 /// Wrapper of `ConnectionPool` implementing `PersistentBlockStore`.
 #[derive(Debug)]
@@ -196,11 +196,10 @@ impl Store {
         }
     }
 
-    /// Wrapper for `access_storage_tagged()`.
+    /// Wrapper for `connection_tagged()`.
     pub(super) async fn access<'a>(&'a self, ctx: &ctx::Ctx) -> ctx::Result<Connection<'a>> {
         Ok(Connection(
-            ctx.wait(self.0.access_storage_tagged("consensus"))
-                .await??,
+            ctx.wait(self.0.connection_tagged("consensus")).await??,
         ))
     }
 

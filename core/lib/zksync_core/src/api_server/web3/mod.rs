@@ -9,7 +9,7 @@ use tokio::{
     task::JoinHandle,
 };
 use tower_http::{cors::CorsLayer, metrics::InFlightRequestsLayer};
-use zksync_dal::{ConnectionPool, Server};
+use zksync_dal::{ConnectionPool, Core};
 use zksync_health_check::{HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_types::MiniblockNumber;
 use zksync_web3_decl::{
@@ -123,8 +123,8 @@ struct OptionalApiParams {
 /// maintenance tasks.
 #[derive(Debug)]
 pub struct ApiServer {
-    pool: ConnectionPool<Server>,
-    updaters_pool: ConnectionPool<Server>,
+    pool: ConnectionPool<Core>,
+    updaters_pool: ConnectionPool<Core>,
     health_updater: Arc<HealthUpdater>,
     config: InternalApiConfig,
     transport: ApiTransport,
@@ -137,8 +137,8 @@ pub struct ApiServer {
 
 #[derive(Debug)]
 pub struct ApiBuilder {
-    pool: ConnectionPool<Server>,
-    updaters_pool: ConnectionPool<Server>,
+    pool: ConnectionPool<Core>,
+    updaters_pool: ConnectionPool<Core>,
     config: InternalApiConfig,
     polling_interval: Duration,
     // Mandatory params that must be set using builder methods.
@@ -154,7 +154,7 @@ pub struct ApiBuilder {
 impl ApiBuilder {
     const DEFAULT_POLLING_INTERVAL: Duration = Duration::from_millis(200);
 
-    pub fn jsonrpsee_backend(config: InternalApiConfig, pool: ConnectionPool<Server>) -> Self {
+    pub fn jsonrpsee_backend(config: InternalApiConfig, pool: ConnectionPool<Core>) -> Self {
         Self {
             updaters_pool: pool.clone(),
             pool,
@@ -182,7 +182,7 @@ impl ApiBuilder {
     /// such as last mined block number or account nonces. This pool is used to execute
     /// in a background task. If not called, the main pool will be used. If the API server is under high load,
     /// it may make sense to supply a single-connection pool to reduce pool contention with the API methods.
-    pub fn with_updaters_pool(mut self, pool: ConnectionPool<Server>) -> Self {
+    pub fn with_updaters_pool(mut self, pool: ConnectionPool<Core>) -> Self {
         self.updaters_pool = pool;
         self
     }
@@ -298,7 +298,7 @@ impl ApiServer {
         self,
         last_sealed_miniblock: SealedMiniblockNumber,
     ) -> anyhow::Result<RpcState> {
-        let mut storage = self.updaters_pool.access_storage_tagged("api").await?;
+        let mut storage = self.updaters_pool.connection_tagged("api").await?;
         let start_info = BlockStartInfo::new(&mut storage).await?;
         drop(storage);
 

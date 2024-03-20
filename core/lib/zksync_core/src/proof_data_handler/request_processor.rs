@@ -9,7 +9,7 @@ use axum::{
 use zksync_config::configs::{
     proof_data_handler::ProtocolVersionLoadingMode, ProofDataHandlerConfig,
 };
-use zksync_dal::{ConnectionPool, Server, ServerDals, SqlxError};
+use zksync_dal::{ConnectionPool, Core, CoreDal, SqlxError};
 use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_prover_interface::api::{
     ProofGenerationData, ProofGenerationDataRequest, ProofGenerationDataResponse,
@@ -27,7 +27,7 @@ use zksync_utils::u256_to_h256;
 #[derive(Clone)]
 pub(crate) struct RequestProcessor {
     blob_store: Arc<dyn ObjectStore>,
-    pool: ConnectionPool<Server>,
+    pool: ConnectionPool<Core>,
     config: ProofDataHandlerConfig,
     l1_verifier_config: Option<L1VerifierConfig>,
 }
@@ -67,7 +67,7 @@ impl IntoResponse for RequestProcessorError {
 impl RequestProcessor {
     pub(crate) fn new(
         blob_store: Arc<dyn ObjectStore>,
-        pool: ConnectionPool<Server>,
+        pool: ConnectionPool<Core>,
         config: ProofDataHandlerConfig,
         l1_verifier_config: Option<L1VerifierConfig>,
     ) -> Self {
@@ -87,7 +87,7 @@ impl RequestProcessor {
 
         let l1_batch_number_result = self
             .pool
-            .access_storage()
+            .connection()
             .await
             .unwrap()
             .proof_generation_dal()
@@ -110,7 +110,7 @@ impl RequestProcessor {
 
                 let header = self
                 .pool
-                .access_storage()
+                .connection()
                 .await
                 .unwrap()
                 .blocks_dal()
@@ -124,7 +124,7 @@ impl RequestProcessor {
             let fri_protocol_version = FriProtocolVersionId::from(protocol_version);
             (self
                 .pool
-                .access_storage()
+                .connection()
                 .await
                 .unwrap()
                 .protocol_versions_dal()
@@ -146,7 +146,7 @@ impl RequestProcessor {
 
         let storage_batch = self
             .pool
-            .access_storage()
+            .connection()
             .await
             .unwrap()
             .blocks_dal()
@@ -198,7 +198,7 @@ impl RequestProcessor {
                 let events_queue_state_from_prover =
                     H256::from_slice(&proof.aggregation_result_coords[3]);
 
-                let mut storage = self.pool.access_storage().await.unwrap();
+                let mut storage = self.pool.connection().await.unwrap();
 
                 let l1_batch = storage
                     .blocks_dal()
@@ -267,7 +267,7 @@ impl RequestProcessor {
             }
             SubmitProofRequest::SkippedProofGeneration => {
                 self.pool
-                    .access_storage()
+                    .connection()
                     .await
                     .unwrap()
                     .proof_generation_dal()

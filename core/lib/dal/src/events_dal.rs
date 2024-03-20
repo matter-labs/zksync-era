@@ -2,7 +2,7 @@ use std::{collections::HashMap, fmt};
 
 use sqlx::types::chrono::Utc;
 use zksync_db_connection::{
-    instrument::InstrumentExt, processor::StorageProcessor, write_str, writeln_str,
+    connection::Connection, instrument::InstrumentExt, write_str, writeln_str,
 };
 use zksync_system_constants::L1_MESSENGER_ADDRESS;
 use zksync_types::{
@@ -15,7 +15,7 @@ use zksync_types::{
 
 use crate::{
     models::storage_event::{StorageL2ToL1Log, StorageWeb3Log},
-    Server, ServerDals, SqlxError,
+    Core, CoreDal, SqlxError,
 };
 
 /// Wrapper around an optional event topic allowing to hex-format it for `COPY` instructions.
@@ -34,7 +34,7 @@ impl fmt::LowerHex for EventTopic<'_> {
 
 #[derive(Debug)]
 pub struct EventsDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c, Server>,
+    pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
 impl EventsDal<'_, '_> {
@@ -401,7 +401,7 @@ mod tests {
     use zksync_types::{Address, L1BatchNumber, ProtocolVersion};
 
     use super::*;
-    use crate::{tests::create_miniblock_header, ConnectionPool, Server};
+    use crate::{tests::create_miniblock_header, ConnectionPool, Core};
 
     fn create_vm_event(index: u8, topic_count: u8) -> VmEvent {
         assert!(topic_count <= 4);
@@ -415,8 +415,8 @@ mod tests {
 
     #[tokio::test]
     async fn storing_events() {
-        let pool = ConnectionPool::<Server>::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
         conn.events_dal().rollback_events(MiniblockNumber(0)).await;
         conn.blocks_dal()
             .delete_miniblocks(MiniblockNumber(0))
@@ -491,8 +491,8 @@ mod tests {
 
     #[tokio::test]
     async fn storing_l2_to_l1_logs() {
-        let pool = ConnectionPool::<Server>::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
         conn.events_dal()
             .rollback_l2_to_l1_logs(MiniblockNumber(0))
             .await;

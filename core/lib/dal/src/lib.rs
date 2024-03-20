@@ -4,8 +4,8 @@
 #![warn(clippy::cast_lossless)]
 
 pub use sqlx::{types::BigDecimal, Error as SqlxError};
-use zksync_db_connection::processor::StorageMarker;
-pub use zksync_db_connection::{connection::ConnectionPool, processor::StorageProcessor};
+use zksync_db_connection::connection::DbMarker;
+pub use zksync_db_connection::{connection::Connection, connection_pool::ConnectionPool};
 
 use crate::{
     basic_witness_input_producer_dal::BasicWitnessInputProducerDal, blocks_dal::BlocksDal,
@@ -61,7 +61,7 @@ mod private {
 
 // Here we are making the trait sealed, because it should be public to function correctly, but we don't
 // want to allow any other downstream implementations of this trait.
-pub trait ServerDals<'a>: private::Sealed
+pub trait CoreDal<'a>: private::Sealed
 where
     Self: 'a,
 {
@@ -119,14 +119,14 @@ where
 }
 
 #[derive(Clone, Debug)]
-pub struct Server;
+pub struct Core;
 
-// Implement the marker trait for the Server to be able to use it in StorageProcessor.
-impl StorageMarker for Server {}
+// Implement the marker trait for the Core to be able to use it in Connection.
+impl DbMarker for Core {}
 // Implement the sealed trait for the struct itself.
-impl private::Sealed for StorageProcessor<'_, Server> {}
+impl private::Sealed for Connection<'_, Core> {}
 
-impl<'a> ServerDals<'a> for StorageProcessor<'a, Server> {
+impl<'a> CoreDal<'a> for Connection<'a, Core> {
     fn transactions_dal(&mut self) -> TransactionsDal<'_, 'a> {
         TransactionsDal { storage: self }
     }

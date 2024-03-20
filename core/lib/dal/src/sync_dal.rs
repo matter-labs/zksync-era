@@ -1,17 +1,17 @@
 use zksync_db_connection::{
-    instrument::InstrumentExt, metrics::MethodLatency, processor::StorageProcessor,
+    connection::Connection, instrument::InstrumentExt, metrics::MethodLatency,
 };
 use zksync_types::{api::en, MiniblockNumber};
 
 use crate::{
     models::storage_sync::{StorageSyncBlock, SyncBlock},
-    Server, ServerDals,
+    Core, CoreDal,
 };
 
 /// DAL subset dedicated to the EN synchronization.
 #[derive(Debug)]
 pub struct SyncDal<'a, 'c> {
-    pub storage: &'a mut StorageProcessor<'c, Server>,
+    pub storage: &'a mut Connection<'c, Core>,
 }
 
 impl SyncDal<'_, '_> {
@@ -119,13 +119,13 @@ mod tests {
             create_miniblock_header, create_snapshot_recovery, mock_execution_result,
             mock_l2_transaction,
         },
-        ConnectionPool, Server,
+        ConnectionPool, Core,
     };
 
     #[tokio::test]
     async fn sync_block_basics() {
-        let pool = ConnectionPool::<Server>::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
 
         // Simulate genesis.
         conn.protocol_versions_dal()
@@ -240,8 +240,8 @@ mod tests {
 
     #[tokio::test]
     async fn sync_block_after_snapshot_recovery() {
-        let pool = ConnectionPool::<Server>::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
 
         // Simulate snapshot recovery.
         conn.protocol_versions_dal()

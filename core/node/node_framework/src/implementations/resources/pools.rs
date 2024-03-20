@@ -4,8 +4,8 @@ use std::sync::{
 };
 
 use prover_dal::Prover;
-use zksync_dal::{ConnectionPool, Server};
-use zksync_db_connection::connection::ConnectionPoolBuilder;
+use zksync_dal::{ConnectionPool, Core};
+use zksync_db_connection::connection_pool::ConnectionPoolBuilder;
 
 use crate::resource::Resource;
 
@@ -13,7 +13,7 @@ use crate::resource::Resource;
 #[derive(Debug, Clone)]
 pub struct MasterPoolResource {
     connections_count: Arc<AtomicU32>,
-    builder: ConnectionPoolBuilder<Server>,
+    builder: ConnectionPoolBuilder<Core>,
 }
 
 impl Resource for MasterPoolResource {
@@ -23,14 +23,14 @@ impl Resource for MasterPoolResource {
 }
 
 impl MasterPoolResource {
-    pub fn new(builder: ConnectionPoolBuilder<Server>) -> Self {
+    pub fn new(builder: ConnectionPoolBuilder<Core>) -> Self {
         Self {
             connections_count: Arc::new(AtomicU32::new(0)),
             builder,
         }
     }
 
-    pub async fn get(&self) -> anyhow::Result<ConnectionPool<Server>> {
+    pub async fn get(&self) -> anyhow::Result<ConnectionPool<Core>> {
         let result = self.builder.build().await;
 
         if result.is_ok() {
@@ -45,11 +45,11 @@ impl MasterPoolResource {
         result
     }
 
-    pub async fn get_singleton(&self) -> anyhow::Result<ConnectionPool<Server>> {
+    pub async fn get_singleton(&self) -> anyhow::Result<ConnectionPool<Core>> {
         self.get_custom(1).await
     }
 
-    pub async fn get_custom(&self, size: u32) -> anyhow::Result<ConnectionPool<Server>> {
+    pub async fn get_custom(&self, size: u32) -> anyhow::Result<ConnectionPool<Core>> {
         let result = self.builder.clone().set_max_size(size).build().await;
 
         if result.is_ok() {
@@ -68,7 +68,7 @@ impl MasterPoolResource {
 #[derive(Debug, Clone)]
 pub struct ReplicaPoolResource {
     connections_count: Arc<AtomicU32>,
-    builder: ConnectionPoolBuilder<Server>,
+    builder: ConnectionPoolBuilder<Core>,
 }
 
 impl Resource for ReplicaPoolResource {
@@ -78,14 +78,14 @@ impl Resource for ReplicaPoolResource {
 }
 
 impl ReplicaPoolResource {
-    pub fn new(builder: ConnectionPoolBuilder<Server>) -> Self {
+    pub fn new(builder: ConnectionPoolBuilder<Core>) -> Self {
         Self {
             connections_count: Arc::new(AtomicU32::new(0)),
             builder,
         }
     }
 
-    pub async fn get(&self) -> anyhow::Result<ConnectionPool<Server>> {
+    pub async fn get(&self) -> anyhow::Result<ConnectionPool<Core>> {
         let result = self.builder.build().await;
 
         if result.is_ok() {
@@ -100,11 +100,11 @@ impl ReplicaPoolResource {
         result
     }
 
-    pub async fn get_singleton(&self) -> anyhow::Result<ConnectionPool<Server>> {
+    pub async fn get_singleton(&self) -> anyhow::Result<ConnectionPool<Core>> {
         self.get_custom(1).await
     }
 
-    pub async fn get_custom(&self, size: u32) -> anyhow::Result<ConnectionPool<Server>> {
+    pub async fn get_custom(&self, size: u32) -> anyhow::Result<ConnectionPool<Core>> {
         let result = self.builder.clone().set_max_size(size).build().await;
 
         if result.is_ok() {

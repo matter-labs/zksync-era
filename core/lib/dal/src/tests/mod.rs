@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_db_connection::connection::ConnectionPool;
+use zksync_db_connection::connection_pool::ConnectionPool;
 use zksync_types::{
     block::{MiniblockHasher, MiniblockHeader},
     fee::{Fee, TransactionExecutionMetrics},
@@ -21,7 +21,7 @@ use crate::{
     protocol_versions_dal::ProtocolVersionsDal,
     transactions_dal::{L2TxSubmissionResult, TransactionsDal},
     transactions_web3_dal::TransactionsWeb3Dal,
-    Server,
+    Core,
 };
 
 const DEFAULT_GAS_PER_PUBDATA: u32 = 100;
@@ -165,8 +165,8 @@ pub(crate) fn create_snapshot_recovery() -> SnapshotRecoveryStatus {
 
 #[tokio::test]
 async fn workflow_with_submit_tx_equal_hashes() {
-    let connection_pool = ConnectionPool::<Server>::test_pool().await;
-    let storage = &mut connection_pool.access_storage().await.unwrap();
+    let connection_pool = ConnectionPool::<Core>::test_pool().await;
+    let storage = &mut connection_pool.connection().await.unwrap();
     let mut transactions_dal = TransactionsDal { storage };
 
     let tx = mock_l2_transaction();
@@ -185,8 +185,8 @@ async fn workflow_with_submit_tx_equal_hashes() {
 
 #[tokio::test]
 async fn workflow_with_submit_tx_diff_hashes() {
-    let connection_pool = ConnectionPool::<Server>::test_pool().await;
-    let storage = &mut connection_pool.access_storage().await.unwrap();
+    let connection_pool = ConnectionPool::<Core>::test_pool().await;
+    let storage = &mut connection_pool.connection().await.unwrap();
     let mut transactions_dal = TransactionsDal { storage };
 
     let tx = mock_l2_transaction();
@@ -212,8 +212,8 @@ async fn workflow_with_submit_tx_diff_hashes() {
 
 #[tokio::test]
 async fn remove_stuck_txs() {
-    let connection_pool = ConnectionPool::<Server>::test_pool().await;
-    let storage = &mut connection_pool.access_storage().await.unwrap();
+    let connection_pool = ConnectionPool::<Core>::test_pool().await;
+    let storage = &mut connection_pool.connection().await.unwrap();
     let mut protocol_versions_dal = ProtocolVersionsDal { storage };
     protocol_versions_dal
         .save_protocol_version_with_tx(Default::default())

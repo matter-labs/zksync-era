@@ -43,8 +43,8 @@ fn start_server(api: RestApi, bind_to: SocketAddr) -> Server {
 
 /// Start HTTP REST API
 pub fn start_server_thread_detached(
-    master_connection_pool: ConnectionPool<zksync_dal::Server>,
-    replica_connection_pool: ConnectionPool<zksync_dal::Server>,
+    master_connection_pool: ConnectionPool<zksync_dal::Core>,
+    replica_connection_pool: ConnectionPool<zksync_dal::Core>,
     api_config: ContractVerificationApiConfig,
     mut stop_receiver: watch::Receiver<bool>,
 ) -> JoinHandle<anyhow::Result<()>> {

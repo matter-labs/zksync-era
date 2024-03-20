@@ -1,7 +1,7 @@
-use zksync_db_connection::processor::StorageMarker;
+use zksync_db_connection::connection::DbMarker;
 pub use zksync_db_connection::{
-    connection::ConnectionPool,
-    processor::StorageProcessor,
+    connection::Connection,
+    connection_pool::ConnectionPool,
     utils::{duration_to_naive_time, pg_interval_from_duration},
 };
 
@@ -27,7 +27,7 @@ mod private {
 
 // Here we are making the trait sealed, because it should be public to function correctly, but we don't
 // want to allow any other downstream implementations of this trait.
-pub trait ProverDals<'a>: private::Sealed
+pub trait ProverDal<'a>: private::Sealed
 where
     Self: 'a,
 {
@@ -47,12 +47,12 @@ where
 #[derive(Clone, Debug)]
 pub struct Prover;
 
-// Implement the marker trait for the Prover to be able to use it in StorageProcessor.
-impl StorageMarker for Prover {}
+// Implement the marker trait for the Prover to be able to use it in Connection.
+impl DbMarker for Prover {}
 // Implement the sealed trait for the StorageProcessor.
-impl private::Sealed for StorageProcessor<'_, Prover> {}
+impl private::Sealed for Connection<'_, Prover> {}
 
-impl<'a> ProverDals<'a> for StorageProcessor<'a, Prover> {
+impl<'a> ProverDal<'a> for Connection<'a, Prover> {
     fn fri_witness_generator_dal(&mut self) -> FriWitnessGeneratorDal<'_, 'a> {
         FriWitnessGeneratorDal { storage: self }
     }

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use sqlx::Row;
-use zksync_db_connection::{instrument::InstrumentExt, processor::StorageProcessor};
+use zksync_db_connection::{connection::Connection, instrument::InstrumentExt};
 
 #[derive(Debug)]
 pub(crate) struct TableSize {
@@ -10,10 +10,10 @@ pub(crate) struct TableSize {
     pub relation_size: u64,
     pub total_size: u64,
 }
-use crate::Server;
+use crate::Core;
 
 pub struct SystemDal<'a, 'c> {
-    pub storage: &'a mut StorageProcessor<'c, Server>,
+    pub storage: &'a mut Connection<'c, Core>,
 }
 
 impl SystemDal<'_, '_> {

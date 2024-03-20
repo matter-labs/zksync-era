@@ -3,7 +3,7 @@ pub mod gpu_socket_listener {
     use std::{net::SocketAddr, time::Instant};
 
     use anyhow::Context as _;
-    use prover_dal::{ConnectionPool, Prover, ProverDals};
+    use prover_dal::{ConnectionPool, Prover, ProverDal};
     use tokio::{
         io::copy,
         net::{TcpListener, TcpStream},
@@ -55,7 +55,7 @@ pub mod gpu_socket_listener {
 
             let _lock = self.queue.lock().await;
             self.pool
-                .access_storage()
+                .connection()
                 .await
                 .unwrap()
                 .fri_gpu_prover_queue_dal()
@@ -141,7 +141,7 @@ pub mod gpu_socket_listener {
             };
 
             self.pool
-                .access_storage()
+                .connection()
                 .await
                 .unwrap()
                 .fri_gpu_prover_queue_dal()

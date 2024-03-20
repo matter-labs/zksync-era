@@ -64,7 +64,7 @@ impl Store {
     pub(crate) async fn from_genesis() -> Self {
         let pool = ConnectionPool::test_pool().await;
         {
-            let mut storage = pool.access_storage().await.unwrap();
+            let mut storage = pool.connection().await.unwrap();
             ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
                 .await
                 .unwrap();
@@ -76,7 +76,7 @@ impl Store {
     pub(crate) async fn from_snapshot(snapshot: Snapshot) -> Self {
         let pool = ConnectionPool::test_pool().await;
         {
-            let mut storage = pool.access_storage().await.unwrap();
+            let mut storage = pool.connection().await.unwrap();
             recover(&mut storage, snapshot).await;
         }
         Self(pool)

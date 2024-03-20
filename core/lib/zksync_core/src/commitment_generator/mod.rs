@@ -6,7 +6,7 @@ use metrics::{CommitmentStage, METRICS};
 use multivm::zk_evm_latest::ethereum_types::U256;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_commitment_utils::{bootloader_initial_content_commitment, events_queue_commitment};
-use zksync_dal::{ConnectionPool, Server, ServerDals};
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::i_executor::commit::kzg::pubdata_to_blob_commitments;
 use zksync_types::{
@@ -23,12 +23,12 @@ const SLEEP_INTERVAL: Duration = Duration::from_millis(100);
 
 #[derive(Debug)]
 pub struct CommitmentGenerator {
-    connection_pool: ConnectionPool<Server>,
+    connection_pool: ConnectionPool<Core>,
     health_updater: HealthUpdater,
 }
 
 impl CommitmentGenerator {
-    pub fn new(connection_pool: ConnectionPool<Server>) -> Self {
+    pub fn new(connection_pool: ConnectionPool<Core>) -> Self {
         Self {
             connection_pool,
             health_updater: ReactiveHealthCheck::new("commitment_generator").1,
@@ -46,7 +46,7 @@ impl CommitmentGenerator {
     ) -> anyhow::Result<AuxCommitments> {
         let mut connection = self
             .connection_pool
-            .access_storage_tagged("commitment_generator")
+            .connection_tagged("commitment_generator")
             .await?;
         let events_queue_from_db = connection
             .blocks_dal()
@@ -127,7 +127,7 @@ impl CommitmentGenerator {
 
         let mut connection = self
             .connection_pool
-            .access_storage_tagged("commitment_generator")
+            .connection_tagged("commitment_generator")
             .await?;
         let header = connection
             .blocks_dal()
@@ -277,7 +277,7 @@ impl CommitmentGenerator {
         let latency =
             METRICS.generate_commitment_latency_stage[&CommitmentStage::SaveResults].start();
         self.connection_pool
-            .access_storage_tagged("commitment_generator")
+            .connection_tagged("commitment_generator")
             .await?
             .blocks_dal()
             .save_l1_batch_commitment_artifacts(l1_batch_number, &artifacts)
@@ -305,7 +305,7 @@ impl CommitmentGenerator {
 
             let Some(l1_batch_number) = self
                 .connection_pool
-                .access_storage_tagged("commitment_generator")
+                .connection_tagged("commitment_generator")
                 .await?
                 .blocks_dal()
                 .get_next_l1_batch_ready_for_commitment_generation()

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use anyhow::Context as _;
 use multivm::{interface::ExecutionResult, vm_latest::constants::BLOCK_GAS_LIMIT};
 use once_cell::sync::OnceCell;
-use zksync_dal::ServerDals;
+use zksync_dal::CoreDal;
 use zksync_system_constants::MAX_ENCODED_TX_SIZE;
 use zksync_types::{
     api::{BlockId, BlockNumber, DebugCall, ResultDebugCall, TracerConfig},
@@ -67,11 +67,7 @@ impl DebugNamespace {
         let only_top_call = options
             .map(|options| options.tracer_config.only_top_call)
             .unwrap_or(false);
-        let mut connection = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await?;
+        let mut connection = self.state.connection_pool.connection_tagged("api").await?;
         let block_number = self.state.resolve_block(&mut connection, block_id).await?;
         self.current_method()
             .set_block_diff(self.state.last_sealed_miniblock.diff(block_number));
@@ -114,11 +110,7 @@ impl DebugNamespace {
         let only_top_call = options
             .map(|options| options.tracer_config.only_top_call)
             .unwrap_or(false);
-        let mut connection = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await?;
+        let mut connection = self.state.connection_pool.connection_tagged("api").await?;
         let call_trace = connection
             .transactions_dal()
             .get_call_trace(tx_hash)
@@ -147,11 +139,7 @@ impl DebugNamespace {
             .map(|options| options.tracer_config.only_top_call)
             .unwrap_or(false);
 
-        let mut connection = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await?;
+        let mut connection = self.state.connection_pool.connection_tagged("api").await?;
         let block_args = self
             .state
             .resolve_block_args(&mut connection, block_id)

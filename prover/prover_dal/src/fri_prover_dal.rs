@@ -8,14 +8,14 @@ use zksync_basic_types::{
     L1BatchNumber,
 };
 use zksync_db_connection::{
-    instrument::InstrumentExt, metrics::MethodLatency, processor::StorageProcessor,
+    connection::Connection, instrument::InstrumentExt, metrics::MethodLatency,
 };
 
 use crate::{duration_to_naive_time, pg_interval_from_duration, Prover};
 
 #[derive(Debug)]
 pub struct FriProverDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c, Prover>,
+    pub(crate) storage: &'a mut Connection<'c, Prover>,
 }
 
 impl FriProverDal<'_, '_> {
