@@ -114,8 +114,11 @@ async fn create_genesis_params(
             .recursion_circuits_set_vks_hash,
         recursion_scheduler_level_vk_hash: first_l1_verifier_config
             .recursion_scheduler_level_vk_hash,
-        snark_wrapper_vk_hash: Default::default(),
+        // Now it's the same values
+        snark_wrapper_vk_hash: first_l1_verifier_config.recursion_scheduler_level_vk_hash,
+        // Shared bridge will be supported later
         shared_bridge: None,
+        // For external node prover is always dummy
         dummy_prover: false,
     };
     Ok(GenesisParams::from_genesis_config(
