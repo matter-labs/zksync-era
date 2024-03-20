@@ -90,7 +90,8 @@ Some tips and tricks to make contributing to DAL easier:
 
 - If you want to add a new DB query, search the DAL code or the [`.sqlx`](.sqlx) directory for the identical /
   equivalent queries. Reuse is almost always better than duplication.
-- It usually makes sense to instrument your queries using [`instrument`](src/instrument.rs) tooling. See the
+- It usually makes sense to instrument your queries using [`instrument`](../db_connection/src/instrument.rs) tooling.
+  See the
   `instrument` module docs for details.
 - It's best to cover added queries with unit tests to ensure they work and don't break in the future. `sqlx` has
   compile-time schema checking, but it's not a panacea.
@@ -115,6 +116,9 @@ node background (perhaps, splitting work into chunks with a delay between them s
 resources).
 
 [`zksync_state`]: ../state
+
 [`snapshots_creator`]: ../../bin/snapshots_creator
+
 [`snapshots_applier`]: ../snapshots_applier
+
 [`explain`]: https://www.postgresql.org/docs/14/sql-explain.html
