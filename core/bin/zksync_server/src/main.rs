@@ -182,7 +182,7 @@ async fn main() -> anyhow::Result<()> {
     };
 
     // Run core actors.
-    let (core_task_handles, stop_sender, cb_receiver, health_check_handle) =
+    let (core_task_handles, stop_sender, health_check_handle) =
         initialize_components(&configs, components, &secrets)
             .await
             .context("Unable to start Core actors")?;
@@ -196,13 +196,6 @@ async fn main() -> anyhow::Result<()> {
         _ = wait_for_tasks(core_task_handles, particular_crypto_alerts, graceful_shutdown, tasks_allowed_to_finish) => {},
         _ = sigint_receiver => {
             tracing::info!("Stop signal received, shutting down");
-        },
-        error = cb_receiver => {
-            if let Ok(error_msg) = error {
-                let err = format!("Circuit breaker received, shutting down. Reason: {}", error_msg);
-                tracing::warn!("{err}");
-                vlog::capture_message(&err, vlog::AlertLevel::Warning);
-            }
         },
     }
 

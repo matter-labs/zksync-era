@@ -29,12 +29,9 @@ impl WiringLayer for CircuitBreakerCheckerLayer {
         node.insert_resource(CircuitBreakerCheckerResource(
             circuit_breaker_checker.clone(),
         ))?;
-        // maybe it has to be CircuitBreakerCheckerLayer field?
-        let (cb_sender, _cb_receiver) = oneshot::channel();
 
         let task = CircuitBreakerCheckerTask {
             circuit_breaker_checker,
-            cb_sender,
         };
 
         node.add_task(Box::new(task));
@@ -45,7 +42,6 @@ impl WiringLayer for CircuitBreakerCheckerLayer {
 #[derive(Debug)]
 struct CircuitBreakerCheckerTask {
     circuit_breaker_checker: Arc<CircuitBreakerChecker>,
-    cb_sender: oneshot::Sender<CircuitBreakerError>,
 }
 
 #[async_trait::async_trait]
@@ -55,8 +51,6 @@ impl Task for CircuitBreakerCheckerTask {
     }
 
     async fn run(mut self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        self.circuit_breaker_checker
-            .run(self.cb_sender, stop_receiver.0)
-            .await
+        self.circuit_breaker_checker.run(stop_receiver.0).await
     }
 }

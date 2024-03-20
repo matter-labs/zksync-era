@@ -16,7 +16,7 @@ use temp_config_store::{Secrets, TempConfigStore};
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_circuit_breaker::{
     l1_txs::FailedL1TransactionChecker, replication_lag::ReplicationLagChecker, CircuitBreaker,
-    CircuitBreakerChecker, CircuitBreakerError,
+    CircuitBreakerChecker,
 };
 use zksync_concurrency::{ctx, scope};
 use zksync_config::{
@@ -306,7 +306,6 @@ pub async fn initialize_components(
 ) -> anyhow::Result<(
     Vec<JoinHandle<anyhow::Result<()>>>,
     watch::Sender<bool>,
-    oneshot::Receiver<CircuitBreakerError>,
     HealthCheckHandle,
 )> {
     tracing::info!("Starting the components: {components:?}");
@@ -383,7 +382,6 @@ pub async fn initialize_components(
     );
 
     let (stop_sender, stop_receiver) = watch::channel(false);
-    let (cb_sender, cb_receiver) = oneshot::channel();
 
     // Prometheus exporter and circuit breaker checker should run for every component configuration.
     let prom_config = configs
@@ -407,11 +405,7 @@ pub async fn initialize_components(
     let cb_stop_receiver = stop_receiver.clone();
     let mut task_futures: Vec<JoinHandle<anyhow::Result<()>>> = vec![
         prometheus_task,
-        tokio::spawn(async move {
-            circuit_breaker_checker
-                .run(cb_sender, cb_stop_receiver)
-                .await
-        }),
+        tokio::spawn(async move { circuit_breaker_checker.run(cb_stop_receiver).await }),
     ];
 
     if components.contains(&Component::WsApi)
@@ -802,7 +796,7 @@ pub async fn initialize_components(
     if let Some(task) = gas_adjuster.run_if_initialized(stop_receiver.clone()) {
         task_futures.push(task);
     }
-    Ok((task_futures, stop_sender, cb_receiver, health_check_handle))
+    Ok((task_futures, stop_sender, health_check_handle))
 }
 
 #[allow(clippy::too_many_arguments)]

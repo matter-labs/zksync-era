@@ -1,7 +1,5 @@
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
-use anyhow::Context as _;
-use futures::channel::oneshot;
 use thiserror::Error;
 use tokio::sync::{watch, Mutex};
 use zksync_config::configs::chain::CircuitBreakerConfig;
@@ -62,27 +60,21 @@ impl CircuitBreakerChecker {
 
     pub async fn insert_breaker_if_not_exists(&self, circuit_breaker: Box<dyn CircuitBreaker>) {
         let mut guard = self.circuit_breakers.lock().await;
-        // since we do not expect to have milion of circuit breakers it should not affet performance
         if !guard.contains(&circuit_breaker) {
             guard.push(circuit_breaker);
         }
     }
 
-    pub async fn run(
-        self: Arc<Self>,
-        circuit_breaker_sender: oneshot::Sender<CircuitBreakerError>,
-        stop_receiver: watch::Receiver<bool>,
-    ) -> anyhow::Result<()> {
+    pub async fn run(self: Arc<Self>, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         tracing::info!("running circuit breaker checker...");
         loop {
             if *stop_receiver.borrow() {
                 break;
             }
             if let Err(error) = self.check().await {
-                return circuit_breaker_sender
-                    .send(error)
-                    .ok()
-                    .context("failed to send circuit breaker message");
+                return Err(anyhow::format_err!(
+                    "Circuit breaker error. Reason: {error}"
+                ));
             }
             tokio::time::sleep(self.config.sync_interval()).await;
         }
