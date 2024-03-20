@@ -1,3 +1,4 @@
+use anyhow::anyhow;
 use std::collections::VecDeque;
 
 use crate::cache::metrics::{Method, RequestOutcome, METRICS};
@@ -7,11 +8,10 @@ use crate::cache::metrics::{Method, RequestOutcome, METRICS};
 /// threshold. The cache maintains a specified maximum capacity, removing the oldest entries
 /// as new ones are added.
 ///
-/// Usage example: storing mempool transactions and querying them by the received_at field
+/// Usage example: storing mempool transactions and querying them by the `received_at` field
 /// (clients maintain a cursor based on this key and poll the data structure for newer transactions)
 ///
-///
-/// K: Type of the ordered, potentially non-unique key. Example: Transaction's received_at field.
+/// K: Type of the ordered, potentially non-unique key. Example: Transaction's `received_at` field.
 /// V: Type of the value associated with each key. Example: Transaction's hash.
 #[derive(Debug, Clone)]
 pub struct SequentialCache<K, V> {
@@ -20,7 +20,7 @@ pub struct SequentialCache<K, V> {
     capacity: usize,
 }
 
-impl<K: Ord + Copy, V: Clone> SequentialCache<K, V> {
+impl<K: Ord, Clone, V: Clone> SequentialCache<K, V> {
     /// Creates a new `SequentialCache` with the specified maximum capacity.
     pub fn new(name: &'static str, capacity: usize) -> Self {
         assert!(capacity > 0, "Cache capacity must be greater than 0");
@@ -34,15 +34,16 @@ impl<K: Ord + Copy, V: Clone> SequentialCache<K, V> {
     /// Inserts multiple key-value pairs into the cache from an iterator. If adding these
     /// items exceeds the cache's capacity, the oldest entries are removed. Keys can be non-unique.
     /// Panics when keys order is incorrect (a smaller key is inserted after a larger one)
-    pub(crate) fn insert<I>(&mut self, items: I)
+    pub(crate) fn insert<I>(&mut self, items: I) -> anyhow::Result<()>
     where
         I: IntoIterator<Item = (K, V)>,
     {
         for (key, value) in items {
             let latency = METRICS.latency[&(self.name, Method::Insert)].start();
-            if let Some(last_key) = self.get_last_key() {
-                assert!(key >= last_key, "Keys must be inserted in sequential order");
-            }
+            anyhow::ensure!(
+                Some(key) >= self.get_last_key(),
+                "Keys must be inserted in sequential order"
+            );
             if self.data.len() == self.capacity {
                 self.data.pop_front();
             }
@@ -50,6 +51,7 @@ impl<K: Ord + Copy, V: Clone> SequentialCache<K, V> {
             latency.observe();
         }
         self.report_size();
+        Ok(())
     }
 
     /// Queries and returns all values associated with keys strictly greater than the specified key.

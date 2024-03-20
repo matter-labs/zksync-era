@@ -15,7 +15,7 @@ use crate::{cache::sequential_cache::SequentialCache, mempool_cache::metrics::ME
 #[derive(Debug, Clone)]
 pub struct MempoolCache(Arc<RwLock<SequentialCache<NaiveDateTime, H256>>>);
 
-/// INITIAL_LOOKBEHIND is the period of time for which the cache is initially populated.
+/// `INITIAL_LOOKBEHIND` is the period of time for which the cache is initially populated.
 const INITIAL_LOOKBEHIND: Duration = Duration::from_secs(120);
 
 impl MempoolCache {
@@ -38,7 +38,7 @@ impl MempoolCache {
                 }
 
                 // Get the timestamp that will be used as the lower bound for the next update
-                // If cache is non-empty - this is the last tx time, otherwise it's INITIAL_LOOKBEHIND seconds ago
+                // If cache is non-empty - this is the last tx time, otherwise it's `INITIAL_LOOKBEHIND` seconds ago
                 let last_timestamp = this
                     .0
                     .read()
@@ -54,12 +54,14 @@ impl MempoolCache {
                     .get_pending_txs_hashes_after(last_timestamp, None)
                     .await?;
 
-                drop(connection);
-
                 latency.observe();
                 METRICS.tx_batch_size.observe(txs.len());
 
-                this.0.write().await.insert(txs);
+                this.0
+                    .write()
+                    .await
+                    .insert(txs)
+                    .expect("DAL guarantees keys to be ordered");
 
                 tokio::time::sleep(update_interval).await;
             }
