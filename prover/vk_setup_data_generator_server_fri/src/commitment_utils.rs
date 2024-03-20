@@ -12,7 +12,7 @@ use zksync_prover_fri_types::circuit_definitions::{
     circuit_definitions::recursion_layer::ZkSyncRecursionLayerStorageType,
 };
 use zksync_types::{
-    protocol::{L1VerifierConfig, VerifierParams},
+    protocol_version::{L1VerifierConfig, VerifierParams},
     H256,
 };
 

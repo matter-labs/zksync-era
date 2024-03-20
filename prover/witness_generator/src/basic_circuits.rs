@@ -53,7 +53,7 @@ use zksync_types::{
     basic_fri_types::{
         AggregationRound, Eip4844Blobs, EIP_4844_BLOB_SIZE, MAX_4844_BLOBS_PER_BLOCK,
     },
-    protocol::FriProtocolVersionId,
+    protocol_version::FriProtocolVersionId,
     Address, L1BatchNumber, ProtocolVersionId, BOOTLOADER_ADDRESS, H256, U256,
 };
 use zksync_utils::{bytes_to_chunks, h256_to_u256, u256_to_h256};

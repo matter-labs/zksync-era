@@ -291,7 +291,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use zksync_types::{MiniblockNumber, H256};
+    use zksync_basic_types::{MiniblockNumber, H256};
 
     use super::*;
     use crate::{connection::ConnectionPool, utils::InternalMarker};

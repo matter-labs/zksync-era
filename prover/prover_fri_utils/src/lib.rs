@@ -15,7 +15,7 @@ use zksync_prover_fri_types::{
 };
 use zksync_types::{
     basic_fri_types::{AggregationRound, CircuitIdRoundTuple},
-    protocol::L1VerifierConfig,
+    protocol_version::L1VerifierConfig,
 };
 
 use crate::metrics::{CircuitLabels, PROVER_FRI_UTILS_METRICS};

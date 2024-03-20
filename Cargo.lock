@@ -8396,13 +8396,11 @@ name = "zksync_dal"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "assert_matches",
  "bigdecimal",
  "bincode",
  "chrono",
  "hex",
  "itertools 0.10.5",
- "once_cell",
  "prost",
  "rand 0.8.5",
  "serde",
@@ -8412,7 +8410,6 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
- "url",
  "vise",
  "zksync_consensus_roles",
  "zksync_consensus_storage",
@@ -8439,8 +8436,8 @@ dependencies = [
  "tracing",
  "url",
  "vise",
+ "zksync_basic_types",
  "zksync_health_check",
- "zksync_types",
 ]
 
 [[package]]

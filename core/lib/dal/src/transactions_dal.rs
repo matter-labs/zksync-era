@@ -77,6 +77,7 @@ impl TransactionsDal<'_, '_> {
 
             let secs = (tx.received_timestamp_ms / 1000) as i64;
             let nanosecs = ((tx.received_timestamp_ms % 1000) * 1_000_000) as u32;
+            #[allow(deprecated)]
             let received_at = NaiveDateTime::from_timestamp_opt(secs, nanosecs).unwrap();
 
             sqlx::query!(
@@ -177,6 +178,8 @@ impl TransactionsDal<'_, '_> {
 
             let secs = (tx.received_timestamp_ms / 1000) as i64;
             let nanosecs = ((tx.received_timestamp_ms % 1000) * 1_000_000) as u32;
+
+            #[allow(deprecated)]
             let received_at = NaiveDateTime::from_timestamp_opt(secs, nanosecs).unwrap();
 
             sqlx::query!(
@@ -297,6 +300,7 @@ impl TransactionsDal<'_, '_> {
             let paymaster_input = tx.common_data.paymaster_params.paymaster_input;
             let secs = (tx.received_timestamp_ms / 1000) as i64;
             let nanosecs = ((tx.received_timestamp_ms % 1000) * 1_000_000) as u32;
+            #[allow(deprecated)]
             let received_at = NaiveDateTime::from_timestamp_opt(secs, nanosecs).unwrap();
             // Besides just adding or updating(on conflict) the record, we want to extract some info
             // from the query below, to indicate what actually happened:
