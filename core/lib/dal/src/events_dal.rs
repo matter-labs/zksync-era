@@ -343,6 +343,7 @@ impl EventsDal<'_, '_> {
         else {
             return Ok(None);
         };
+        let mut tx_index_in_l1_batch = -1;
         let events = sqlx::query!(
             r#"
             SELECT
@@ -351,7 +352,8 @@ impl EventsDal<'_, '_> {
                 topic2,
                 topic3,
                 topic4,
-                value
+                value,
+                event_index_in_tx
             FROM
                 events
             WHERE
@@ -368,8 +370,7 @@ impl EventsDal<'_, '_> {
         .fetch_all(self.storage)
         .await?
         .into_iter()
-        .enumerate()
-        .map(|(index_in_l1_batch, row)| {
+        .map(|row| {
             let indexed_topics = vec![row.topic1, row.topic2, row.topic3, row.topic4]
                 .into_iter()
                 .filter_map(|topic| {
@@ -380,8 +381,11 @@ impl EventsDal<'_, '_> {
                     }
                 })
                 .collect();
+            if row.event_index_in_tx == 0 {
+                tx_index_in_l1_batch += 1;
+            }
             VmEvent {
-                location: (l1_batch_number, index_in_l1_batch as u32),
+                location: (l1_batch_number, tx_index_in_l1_batch as u32),
                 address: Address::from_slice(&row.address),
                 indexed_topics,
                 value: row.value,
