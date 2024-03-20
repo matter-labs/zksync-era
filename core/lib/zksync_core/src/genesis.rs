@@ -9,7 +9,7 @@ use multivm::{
     zk_evm_latest::aux_structures::{LogQuery as MultiVmLogQuery, Timestamp as MultiVMTimestamp},
 };
 use zksync_contracts::{BaseSystemContracts, SET_CHAIN_ID_EVENT};
-use zksync_dal::StorageProcessor;
+use zksync_dal::{Connection, Core, CoreDal};
 use zksync_eth_client::{clients::QueryClient, EthInterface};
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_system_constants::PRIORITY_EXPIRATION;
@@ -21,7 +21,8 @@ use zksync_types::{
     commitment::{CommitmentInput, L1BatchCommitment},
     fee_model::BatchFeeInput,
     get_code_key, get_system_context_init_logs,
-    protocol_version::{decode_set_chain_id_event, L1VerifierConfig, ProtocolVersion},
+    protocol_upgrade::{decode_set_chain_id_event, ProtocolVersion},
+    protocol_version::L1VerifierConfig,
     tokens::{TokenInfo, TokenMetadata, ETHEREUM_ADDRESS},
     web3::types::{BlockNumber, FilterBuilder},
     zk_evm_types::{LogQuery, Timestamp},
@@ -38,7 +39,6 @@ pub struct GenesisParams {
     pub protocol_version: ProtocolVersionId,
     pub base_system_contracts: BaseSystemContracts,
     pub system_contracts: Vec<DeployedContract>,
-    pub first_verifier_address: Address,
     pub first_l1_verifier_config: L1VerifierConfig,
 }
 
@@ -53,13 +53,12 @@ impl GenesisParams {
             base_system_contracts: BaseSystemContracts::load_from_disk(),
             system_contracts: get_system_smart_contracts(),
             first_l1_verifier_config: L1VerifierConfig::default(),
-            first_verifier_address: Address::zero(),
         }
     }
 }
 
 pub async fn ensure_genesis_state(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut Connection<'_, Core>,
     zksync_chain_id: L2ChainId,
     genesis_params: &GenesisParams,
 ) -> anyhow::Result<H256> {
@@ -82,7 +81,6 @@ pub async fn ensure_genesis_state(
         protocol_version,
         base_system_contracts,
         system_contracts,
-        first_verifier_address,
         first_l1_verifier_config,
     } = genesis_params;
 
@@ -96,7 +94,6 @@ pub async fn ensure_genesis_state(
         base_system_contracts,
         system_contracts,
         *first_l1_verifier_config,
-        *first_verifier_address,
     )
     .await?;
     tracing::info!("chain_schema_genesis is complete");
@@ -157,7 +154,7 @@ pub async fn ensure_genesis_state(
 // The code of the bootloader should not be deployed anywhere anywhere in the kernel space (i.e. addresses below 2^16)
 // because in this case we will have to worry about protecting it.
 async fn insert_base_system_contracts_to_factory_deps(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut Connection<'_, Core>,
     contracts: &BaseSystemContracts,
 ) -> anyhow::Result<()> {
     let factory_deps = [&contracts.bootloader, &contracts.default_aa]
@@ -173,7 +170,7 @@ async fn insert_base_system_contracts_to_factory_deps(
 }
 
 async fn insert_system_contracts(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut Connection<'_, Core>,
     contracts: &[DeployedContract],
     chain_id: L2ChainId,
 ) -> anyhow::Result<()> {
@@ -288,21 +285,19 @@ async fn insert_system_contracts(
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn create_genesis_l1_batch(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut Connection<'_, Core>,
     first_validator_address: Address,
     chain_id: L2ChainId,
     protocol_version: ProtocolVersionId,
     base_system_contracts: &BaseSystemContracts,
     system_contracts: &[DeployedContract],
     l1_verifier_config: L1VerifierConfig,
-    verifier_address: Address,
 ) -> anyhow::Result<()> {
     let version = ProtocolVersion {
         id: protocol_version,
         timestamp: 0,
         l1_verifier_config,
         base_system_contracts_hashes: base_system_contracts.hashes(),
-        verifier_address,
         tx: None,
     };
 
@@ -367,7 +362,7 @@ pub(crate) async fn create_genesis_l1_batch(
     Ok(())
 }
 
-async fn add_eth_token(transaction: &mut StorageProcessor<'_>) -> anyhow::Result<()> {
+async fn add_eth_token(transaction: &mut Connection<'_, Core>) -> anyhow::Result<()> {
     assert!(transaction.in_transaction()); // sanity check
     let eth_token = TokenInfo {
         l1_address: ETHEREUM_ADDRESS,
@@ -393,7 +388,7 @@ async fn add_eth_token(transaction: &mut StorageProcessor<'_>) -> anyhow::Result
 }
 
 async fn save_genesis_l1_batch_metadata(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut Connection<'_, Core>,
     commitment: L1BatchCommitment,
     genesis_root_hash: H256,
     rollup_last_leaf_index: u64,
@@ -428,7 +423,7 @@ pub(crate) async fn save_set_chain_id_tx(
     eth_client_url: &str,
     diamond_proxy_address: Address,
     state_transition_manager_address: Address,
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut Connection<'_, Core>,
 ) -> anyhow::Result<()> {
     let eth_client = QueryClient::new(eth_client_url)?;
     let to = eth_client.block_number("fetch_chain_id_tx").await?.as_u64();
@@ -461,15 +456,15 @@ pub(crate) async fn save_set_chain_id_tx(
 
 #[cfg(test)]
 mod tests {
-    use zksync_dal::ConnectionPool;
+    use zksync_dal::{ConnectionPool, Core, CoreDal};
     use zksync_types::system_contracts::get_system_smart_contracts;
 
     use super::*;
 
     #[tokio::test]
     async fn running_genesis() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
         conn.blocks_dal().delete_genesis().await.unwrap();
 
         let params = GenesisParams {
@@ -478,7 +473,6 @@ mod tests {
             base_system_contracts: BaseSystemContracts::load_from_disk(),
             system_contracts: get_system_smart_contracts(),
             first_l1_verifier_config: L1VerifierConfig::default(),
-            first_verifier_address: Address::random(),
         };
         ensure_genesis_state(&mut conn, L2ChainId::from(270), &params)
             .await
@@ -501,8 +495,8 @@ mod tests {
 
     #[tokio::test]
     async fn running_genesis_with_big_chain_id() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
         conn.blocks_dal().delete_genesis().await.unwrap();
 
         let params = GenesisParams {
@@ -511,7 +505,6 @@ mod tests {
             base_system_contracts: BaseSystemContracts::load_from_disk(),
             system_contracts: get_system_smart_contracts(),
             first_l1_verifier_config: L1VerifierConfig::default(),
-            first_verifier_address: Address::random(),
         };
         ensure_genesis_state(&mut conn, L2ChainId::max(), &params)
             .await
@@ -528,8 +521,8 @@ mod tests {
 
     #[tokio::test]
     async fn running_genesis_with_non_latest_protocol_version() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
         let params = GenesisParams {
             protocol_version: ProtocolVersionId::Version10,
             ..GenesisParams::mock()

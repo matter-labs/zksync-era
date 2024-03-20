@@ -16,7 +16,7 @@ use multivm::{
 };
 use tokio::sync::{mpsc, watch};
 use zksync_types::{
-    block::MiniblockExecutionData, fee_model::BatchFeeInput, protocol_version::ProtocolUpgradeTx,
+    block::MiniblockExecutionData, fee_model::BatchFeeInput, protocol_upgrade::ProtocolUpgradeTx,
     witness_block_state::WitnessBlockState, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
     ProtocolVersionId, Transaction, H256,
 };

@@ -1,4 +1,5 @@
 use anyhow::Context as _;
+use zksync_dal::CoreDal;
 use zksync_types::{api::en, tokens::TokenInfo, MiniblockNumber};
 use zksync_web3_decl::error::Web3Error;
 
@@ -20,7 +21,7 @@ impl EnNamespace {
         let Some(genesis) = self
             .state
             .connection_pool
-            .access_storage_tagged("api")
+            .connection_tagged("api")
             .await?
             .consensus_dal()
             .genesis()
@@ -43,11 +44,7 @@ impl EnNamespace {
         block_number: MiniblockNumber,
         include_transactions: bool,
     ) -> Result<Option<en::SyncBlock>, Web3Error> {
-        let mut storage = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await?;
+        let mut storage = self.state.connection_pool.connection_tagged("api").await?;
         Ok(storage
             .sync_dal()
             .sync_block(block_number, include_transactions)
@@ -60,11 +57,7 @@ impl EnNamespace {
         &self,
         block_number: Option<MiniblockNumber>,
     ) -> Result<Vec<TokenInfo>, Web3Error> {
-        let mut storage = self
-            .state
-            .connection_pool
-            .access_storage_tagged("api")
-            .await?;
+        let mut storage = self.state.connection_pool.connection_tagged("api").await?;
         Ok(storage
             .tokens_web3_dal()
             .get_all_tokens(block_number)

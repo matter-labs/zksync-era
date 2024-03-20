@@ -67,7 +67,6 @@ pub(crate) struct DefaultExecutionTracer<S: WriteStorage, H: HistoryMode> {
     // It only takes into account circuits that are generated for actual execution. It doesn't
     // take into account e.g circuits produced by the initial bootloader memory commitment.
     pub(crate) circuits_tracer: CircuitsTracer<S, H>,
-
     storage: StoragePtr<S>,
     _phantom: PhantomData<H>,
 }
