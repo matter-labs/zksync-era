@@ -6,7 +6,7 @@ use zk_evm_1_3_3::{
     zkevm_opcode_defs::{self},
 };
 use zksync_state::{StoragePtr, WriteStorage};
-use zksync_types::{StorageKey, U256};
+use zksync_types::{StorageKey, H256, U256};
 use zksync_utils::{h256_to_u256, u256_to_h256};
 
 pub(crate) type MemoryWithHistory<H> = HistoryRecorder<MemoryWrapper, H>;
@@ -719,6 +719,15 @@ impl<S: WriteStorage> StorageWrapper<S> {
 
     pub fn read_from_storage(&self, key: &StorageKey) -> U256 {
         h256_to_u256(self.storage_ptr.borrow_mut().read_value(key))
+    }
+
+    pub fn get_modified_storage_keys(&self) -> HashMap<StorageKey, H256> {
+        self.storage_ptr
+            .borrow()
+            .modified_storage_keys()
+            .iter()
+            .map(|(k, v)| (*k, *v))
+            .collect()
     }
 }
 

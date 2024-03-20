@@ -8,7 +8,7 @@ use std::{collections::HashMap, ops};
 use futures::FutureExt;
 use vm_utils::storage::L1BatchParamsProvider;
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Core};
 use zksync_types::{
     block::MiniblockHasher, fee::TransactionExecutionMetrics, L2ChainId, ProtocolVersion,
     ProtocolVersionId,
@@ -35,8 +35,8 @@ fn test_poll_iters() {
 
 #[tokio::test]
 async fn creating_io_cursor_with_genesis() {
-    let pool = ConnectionPool::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
     ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
         .await
         .unwrap();
@@ -66,8 +66,8 @@ async fn creating_io_cursor_with_genesis() {
 
 #[tokio::test]
 async fn creating_io_cursor_with_snapshot_recovery() {
-    let pool = ConnectionPool::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
     let snapshot_recovery =
         prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await;
 
@@ -100,8 +100,8 @@ async fn creating_io_cursor_with_snapshot_recovery() {
 
 #[tokio::test]
 async fn waiting_for_l1_batch_params_with_genesis() {
-    let pool = ConnectionPool::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
     let genesis_root_hash =
         ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
             .await
@@ -128,7 +128,7 @@ async fn waiting_for_l1_batch_params_with_genesis() {
     assert!((&mut wait_future).now_or_never().is_none());
 
     let expected_hash = H256::repeat_byte(1);
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool.connection().await.unwrap();
     storage
         .blocks_dal()
         .set_l1_batch_hash(L1BatchNumber(1), expected_hash)
@@ -141,8 +141,8 @@ async fn waiting_for_l1_batch_params_with_genesis() {
 
 #[tokio::test]
 async fn waiting_for_l1_batch_params_after_snapshot_recovery() {
-    let pool = ConnectionPool::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
     let snapshot_recovery =
         prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await;
 
@@ -175,7 +175,7 @@ async fn waiting_for_l1_batch_params_after_snapshot_recovery() {
     assert!((&mut wait_future).now_or_never().is_none());
 
     let expected_hash = H256::repeat_byte(1);
-    let mut storage = pool.access_storage().await.unwrap();
+    let mut storage = pool.connection().await.unwrap();
     storage
         .blocks_dal()
         .set_l1_batch_hash(new_l1_batch.number, expected_hash)
@@ -188,8 +188,8 @@ async fn waiting_for_l1_batch_params_after_snapshot_recovery() {
 
 #[tokio::test]
 async fn getting_first_miniblock_in_batch_with_genesis() {
-    let pool = ConnectionPool::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
     ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
         .await
         .unwrap();
@@ -236,7 +236,7 @@ async fn getting_first_miniblock_in_batch_with_genesis() {
 
 async fn assert_first_miniblock_numbers(
     provider: &L1BatchParamsProvider,
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut Connection<'_, Core>,
     batches_and_miniblocks: &HashMap<L1BatchNumber, Result<Option<MiniblockNumber>, ()>>,
 ) {
     for (&batch, &expected_miniblock) in batches_and_miniblocks {
@@ -260,8 +260,8 @@ async fn assert_first_miniblock_numbers(
 
 #[tokio::test]
 async fn getting_first_miniblock_in_batch_after_snapshot_recovery() {
-    let pool = ConnectionPool::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
     let snapshot_recovery =
         prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await;
 
@@ -308,8 +308,8 @@ async fn getting_first_miniblock_in_batch_after_snapshot_recovery() {
 
 #[tokio::test]
 async fn loading_pending_batch_with_genesis() {
-    let pool = ConnectionPool::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
     let genesis_params = GenesisParams::mock();
     ensure_genesis_state(&mut storage, L2ChainId::default(), &genesis_params)
         .await
@@ -354,7 +354,7 @@ async fn loading_pending_batch_with_genesis() {
 }
 
 async fn store_pending_miniblocks(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut Connection<'_, Core>,
     numbers: ops::RangeInclusive<u32>,
     contract_hashes: BaseSystemContractsHashes,
 ) {
@@ -381,8 +381,8 @@ async fn store_pending_miniblocks(
 
 #[tokio::test]
 async fn loading_pending_batch_after_snapshot_recovery() {
-    let pool = ConnectionPool::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
     let snapshot_recovery =
         prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await;
 
@@ -441,8 +441,8 @@ async fn loading_pending_batch_after_snapshot_recovery() {
 
 #[tokio::test]
 async fn getting_batch_version_with_genesis() {
-    let pool = ConnectionPool::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
     let mut genesis_params = GenesisParams::mock();
     genesis_params.protocol_version = ProtocolVersionId::Version5;
     ensure_genesis_state(&mut storage, L2ChainId::default(), &genesis_params)
@@ -482,8 +482,8 @@ async fn getting_batch_version_with_genesis() {
 
 #[tokio::test]
 async fn getting_batch_version_after_snapshot_recovery() {
-    let pool = ConnectionPool::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
     let snapshot_recovery =
         prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await;
 

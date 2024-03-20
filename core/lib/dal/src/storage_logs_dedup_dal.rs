@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 use sqlx::types::chrono::Utc;
+use zksync_db_connection::connection::Connection;
 use zksync_types::{
     snapshots::SnapshotStorageLog, zk_evm_types::LogQuery, AccountTreeId, Address, L1BatchNumber,
     StorageKey, H256,
@@ -8,11 +9,11 @@ use zksync_types::{
 use zksync_utils::u256_to_h256;
 
 pub use crate::models::storage_log::DbInitialWrite;
-use crate::StorageProcessor;
+use crate::Core;
 
 #[derive(Debug)]
 pub struct StorageLogsDedupDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
 impl StorageLogsDedupDal<'_, '_> {
