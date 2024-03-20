@@ -4,12 +4,15 @@ use anyhow::Context as _;
 use bigdecimal::BigDecimal;
 use itertools::Itertools;
 use sqlx::{error, types::chrono::NaiveDateTime};
+use zksync_db_connection::{
+    connection::Connection, instrument::InstrumentExt, utils::pg_interval_from_duration,
+};
 use zksync_types::{
     block::MiniblockExecutionData,
     fee::TransactionExecutionMetrics,
     l1::L1Tx,
     l2::L2Tx,
-    protocol_version::ProtocolUpgradeTx,
+    protocol_upgrade::ProtocolUpgradeTx,
     tx::{tx_execution_info::TxExecutionStatus, TransactionExecutionResult},
     vm_trace::Call,
     Address, ExecuteTransactionCommon, L1BatchNumber, L1BlockNumber, MiniblockNumber, PriorityOpId,
@@ -18,10 +21,8 @@ use zksync_types::{
 use zksync_utils::u256_to_big_decimal;
 
 use crate::{
-    instrument::InstrumentExt,
     models::storage_transaction::{CallTrace, StorageTransaction},
-    time_utils::pg_interval_from_duration,
-    StorageProcessor,
+    Core,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -47,7 +48,7 @@ impl fmt::Display for L2TxSubmissionResult {
 
 #[derive(Debug)]
 pub struct TransactionsDal<'c, 'a> {
-    pub(crate) storage: &'c mut StorageProcessor<'a>,
+    pub(crate) storage: &'c mut Connection<'a, Core>,
 }
 
 type TxLocations = Vec<(MiniblockNumber, Vec<(H256, u32, u16)>)>;
@@ -76,6 +77,7 @@ impl TransactionsDal<'_, '_> {
 
             let secs = (tx.received_timestamp_ms / 1000) as i64;
             let nanosecs = ((tx.received_timestamp_ms % 1000) * 1_000_000) as u32;
+            #[allow(deprecated)]
             let received_at = NaiveDateTime::from_timestamp_opt(secs, nanosecs).unwrap();
 
             sqlx::query!(
@@ -176,6 +178,8 @@ impl TransactionsDal<'_, '_> {
 
             let secs = (tx.received_timestamp_ms / 1000) as i64;
             let nanosecs = ((tx.received_timestamp_ms % 1000) * 1_000_000) as u32;
+
+            #[allow(deprecated)]
             let received_at = NaiveDateTime::from_timestamp_opt(secs, nanosecs).unwrap();
 
             sqlx::query!(
@@ -296,6 +300,7 @@ impl TransactionsDal<'_, '_> {
             let paymaster_input = tx.common_data.paymaster_params.paymaster_input;
             let secs = (tx.received_timestamp_ms / 1000) as i64;
             let nanosecs = ((tx.received_timestamp_ms % 1000) * 1_000_000) as u32;
+            #[allow(deprecated)]
             let received_at = NaiveDateTime::from_timestamp_opt(secs, nanosecs).unwrap();
             // Besides just adding or updating(on conflict) the record, we want to extract some info
             // from the query below, to indicate what actually happened:
@@ -1333,13 +1338,13 @@ mod tests {
     use super::*;
     use crate::{
         tests::{create_miniblock_header, mock_execution_result, mock_l2_transaction},
-        ConnectionPool,
+        ConnectionPool, Core, CoreDal,
     };
 
     #[tokio::test]
     async fn getting_call_trace_for_transaction() {
-        let connection_pool = ConnectionPool::test_pool().await;
-        let mut conn = connection_pool.access_storage().await.unwrap();
+        let connection_pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = connection_pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;

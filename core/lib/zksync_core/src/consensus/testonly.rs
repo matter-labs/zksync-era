@@ -7,7 +7,7 @@ use zksync_concurrency::{ctx, error::Wrap as _, limiter, scope, sync, time};
 use zksync_config::configs;
 use zksync_consensus_roles::validator;
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_dal::ConnectionPool;
+use zksync_dal::CoreDal;
 use zksync_types::{
     api, api::L1BatchDetails, snapshots::SnapshotRecoveryStatus, Address, L1BatchNumber, L1ChainId,
     L2ChainId, MiniblockNumber, ProtocolVersionId, H256,
@@ -30,7 +30,7 @@ use crate::{
         sync_action::{ActionQueue, ActionQueueSender, SyncAction},
         ExternalIO, MainNodeClient, SyncState,
     },
-    utils::testonly::{create_l1_batch_metadata, create_l2_transaction, prepare_recovery_snapshot},
+    utils::testonly::{create_l1_batch_metadata, create_l2_transaction},
 };
 
 #[derive(Debug, Default)]
@@ -183,23 +183,6 @@ pub(super) struct StateKeeperRunner {
     sync_state: SyncState,
     store: Store,
     addr: sync::watch::Sender<Option<std::net::SocketAddr>>,
-}
-
-/// Constructs a new db initialized with genesis state or a snapshot.
-pub(super) async fn new_store(from_snapshot: bool) -> Store {
-    let pool = ConnectionPool::test_pool().await;
-    {
-        let mut storage = pool.access_storage().await.unwrap();
-        if from_snapshot {
-            prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[])
-                .await;
-        } else {
-            insert_genesis_batch(&mut storage, &GenesisParams::mock())
-                .await
-                .unwrap();
-        }
-    }
-    Store(pool)
 }
 
 // Limiter with infinite refresh rate.

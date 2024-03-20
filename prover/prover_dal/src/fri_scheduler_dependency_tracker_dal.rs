@@ -1,10 +1,13 @@
-use zksync_types::{basic_fri_types::FinalProofIds, L1BatchNumber};
+use zksync_basic_types::{
+    basic_fri_types::FinalProofIds, prover_dal::EIP_4844_CIRCUIT_ID, L1BatchNumber,
+};
+use zksync_db_connection::connection::Connection;
 
-use crate::{fri_prover_dal::types, StorageProcessor};
+use crate::Prover;
 
 #[derive(Debug)]
 pub struct FriSchedulerDependencyTrackerDal<'a, 'c> {
-    pub storage: &'a mut StorageProcessor<'c>,
+    pub storage: &'a mut Connection<'c, Prover>,
 }
 
 impl FriSchedulerDependencyTrackerDal<'_, '_> {
@@ -76,7 +79,7 @@ impl FriSchedulerDependencyTrackerDal<'_, '_> {
         // This will be changed when 1.5.0 will land and there will be a single node proof for blobs.
         blob_ordering: usize,
     ) {
-        let query = if circuit_id != types::EIP_4844_CIRCUIT_ID {
+        let query = if circuit_id != EIP_4844_CIRCUIT_ID {
             format!(
                 r#"
                 UPDATE scheduler_dependency_tracker_fri

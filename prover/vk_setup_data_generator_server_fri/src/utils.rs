@@ -125,7 +125,7 @@ mod tests {
         let mut path_to_input = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
         path_to_input.push("historical_data");
 
-        for version in 18..=21 {
+        for version in 18..=22 {
             let basepath = path_to_input.join(format!("{}", version));
             let keystore = Keystore::new_with_optional_setup_path(
                 basepath.as_os_str().to_str().unwrap().to_string(),

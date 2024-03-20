@@ -7,7 +7,7 @@ use once_cell::sync::Lazy;
 use test_casing::{test_casing, Product};
 use tokio::sync::mpsc;
 use zksync_config::GenesisConfig;
-use zksync_dal::StorageProcessor;
+use zksync_dal::Connection;
 use zksync_eth_client::{clients::MockEthereum, Options};
 use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 use zksync_types::{
@@ -73,7 +73,7 @@ fn build_commit_tx_input_data(batches: &[L1BatchWithMetadata]) -> Vec<u8> {
     encoded
 }
 
-fn create_mock_checker(client: MockEthereum, pool: ConnectionPool) -> ConsistencyChecker {
+fn create_mock_checker(client: MockEthereum, pool: ConnectionPool<Core>) -> ConsistencyChecker {
     let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
     ConsistencyChecker {
         contract: zksync_contracts::zksync_contract(),
@@ -231,7 +231,7 @@ enum SaveAction<'a> {
 impl SaveAction<'_> {
     async fn apply(
         self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         commit_tx_hash_by_l1_batch: &HashMap<L1BatchNumber, H256>,
     ) {
         match self {
@@ -362,8 +362,8 @@ async fn normal_checker_function(
 ) {
     println!("Using save_actions_mapper={mapper_name}");
 
-    let pool = ConnectionPool::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
     insert_genesis_batch(&mut storage, &GenesisParams::mock())
         .await
         .unwrap();
@@ -432,8 +432,8 @@ async fn checker_processes_pre_boojum_batches(
 ) {
     println!("Using save_actions_mapper={mapper_name}");
 
-    let pool = ConnectionPool::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
     let genesis_params = GenesisParams::load_genesis_params(GenesisConfig {
         protocol_version: PRE_BOOJUM_PROTOCOL_VERSION as u16,
         ..mock_genesis_config()
@@ -506,8 +506,8 @@ async fn checker_processes_pre_boojum_batches(
 #[test_casing(2, [false, true])]
 #[tokio::test]
 async fn checker_functions_after_snapshot_recovery(delay_batch_insertion: bool) {
-    let pool = ConnectionPool::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
     storage
         .protocol_versions_dal()
         .save_protocol_version_with_tx(ProtocolVersion::default())
@@ -679,8 +679,8 @@ impl IncorrectDataKind {
 // ^ `snapshot_recovery = true` is tested below; we don't want to run it with all incorrect data kinds
 #[tokio::test]
 async fn checker_detects_incorrect_tx_data(kind: IncorrectDataKind, snapshot_recovery: bool) {
-    let pool = ConnectionPool::test_pool().await;
-    let mut storage = pool.access_storage().await.unwrap();
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut storage = pool.connection().await.unwrap();
     if snapshot_recovery {
         storage
             .protocol_versions_dal()

@@ -10,7 +10,8 @@ use multivm::{
 };
 use zksync_config::{GenesisConfig, PostgresConfig};
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SET_CHAIN_ID_EVENT};
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::{Connection, Core, CoreDal};
+use zksync_db_connection::connection_pool::ConnectionPool;
 use zksync_eth_client::{clients::QueryClient, EthInterface};
 use zksync_merkle_tree::domain::ZkSyncTree;
 use zksync_system_constants::PRIORITY_EXPIRATION;
@@ -22,9 +23,8 @@ use zksync_types::{
     commitment::{CommitmentInput, L1BatchCommitment},
     fee_model::BatchFeeInput,
     get_code_key, get_system_context_init_logs,
-    protocol_version::{
-        decode_set_chain_id_event, L1VerifierConfig, ProtocolVersion, VerifierParams,
-    },
+    protocol_upgrade::{decode_set_chain_id_event, ProtocolVersion},
+    protocol_version::{L1VerifierConfig, VerifierParams},
     system_contracts::get_system_smart_contracts,
     tokens::{TokenInfo, TokenMetadata, ETHEREUM_ADDRESS},
     web3::types::{BlockNumber, FilterBuilder},
@@ -151,7 +151,7 @@ pub fn mock_genesis_config() -> GenesisConfig {
 
 // Insert genesis batch into the database
 pub async fn insert_genesis_batch(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut Connection<'_, Core>,
     genesis_params: &GenesisParams,
 ) -> Result<(H256, H256, u64), GenesisError> {
     let mut transaction = storage
@@ -218,7 +218,7 @@ pub async fn insert_genesis_batch(
 }
 
 pub async fn ensure_genesis_state(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut Connection<'_, Core>,
     genesis_params: &GenesisParams,
 ) -> Result<H256, GenesisError> {
     let mut transaction = storage
@@ -280,7 +280,7 @@ pub async fn ensure_genesis_state(
 // The code of the bootloader should not be deployed anywhere anywhere in the kernel space (i.e. addresses below 2^16)
 // because in this case we will have to worry about protecting it.
 async fn insert_base_system_contracts_to_factory_deps(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut Connection<'_, Core>,
     contracts: &BaseSystemContracts,
 ) -> Result<(), GenesisError> {
     let factory_deps = [&contracts.bootloader, &contracts.default_aa]
@@ -296,7 +296,7 @@ async fn insert_base_system_contracts_to_factory_deps(
 }
 
 async fn insert_system_contracts(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut Connection<'_, Core>,
     contracts: &[DeployedContract],
     chain_id: L2ChainId,
 ) -> Result<(), GenesisError> {
@@ -417,7 +417,7 @@ async fn insert_system_contracts(
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn create_genesis_l1_batch(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut Connection<'_, Core>,
     first_validator_address: Address,
     chain_id: L2ChainId,
     protocol_version: ProtocolVersionId,
@@ -500,7 +500,7 @@ pub(crate) async fn create_genesis_l1_batch(
     Ok(())
 }
 
-async fn add_eth_token(transaction: &mut StorageProcessor<'_>) -> Result<(), GenesisError> {
+async fn add_eth_token(transaction: &mut Connection<'_, Core>) -> anyhow::Result<()> {
     assert!(transaction.in_transaction()); // sanity check
     let eth_token = TokenInfo {
         l1_address: ETHEREUM_ADDRESS,
@@ -526,7 +526,7 @@ async fn add_eth_token(transaction: &mut StorageProcessor<'_>) -> Result<(), Gen
 }
 
 async fn save_genesis_l1_batch_metadata(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut Connection<'_, Core>,
     commitment: L1BatchCommitment,
     genesis_root_hash: H256,
     rollup_last_leaf_index: u64,
@@ -569,11 +569,11 @@ pub async fn save_set_chain_id_tx(
     postgres_config: &PostgresConfig,
 ) -> anyhow::Result<()> {
     let db_url = postgres_config.master_url()?;
-    let pool = ConnectionPool::singleton(db_url)
+    let pool = ConnectionPool::<Core>::singleton(db_url)
         .build()
         .await
         .context("failed to build connection_pool")?;
-    let mut storage = pool.access_storage().await.context("access_storage()")?;
+    let mut storage = pool.connection().await.context("connection()")?;
 
     let eth_client = QueryClient::new(eth_client_url)?;
     let to = eth_client.block_number("fetch_chain_id_tx").await?.as_u64();
@@ -607,14 +607,14 @@ pub async fn save_set_chain_id_tx(
 #[cfg(test)]
 mod tests {
     use zksync_config::GenesisConfig;
-    use zksync_dal::ConnectionPool;
+    use zksync_dal::{ConnectionPool, Core, CoreDal};
 
     use super::*;
 
     #[tokio::test]
     async fn running_genesis() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
         conn.blocks_dal().delete_genesis().await.unwrap();
 
         let params = GenesisParams::mock();
@@ -636,8 +636,8 @@ mod tests {
 
     #[tokio::test]
     async fn running_genesis_with_big_chain_id() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
         conn.blocks_dal().delete_genesis().await.unwrap();
 
         let params = GenesisParams::load_genesis_params(GenesisConfig {
@@ -658,8 +658,8 @@ mod tests {
 
     #[tokio::test]
     async fn running_genesis_with_non_latest_protocol_version() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
         let params = GenesisParams::load_genesis_params(GenesisConfig {
             protocol_version: ProtocolVersionId::Version10 as u16,
             ..mock_genesis_config()

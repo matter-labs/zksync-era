@@ -1,9 +1,10 @@
+use zksync_db_connection::{connection::Connection, instrument::InstrumentExt};
 use zksync_types::{
     snapshots::{AllSnapshots, SnapshotMetadata},
     L1BatchNumber,
 };
 
-use crate::{instrument::InstrumentExt, StorageProcessor};
+use crate::Core;
 
 #[derive(Debug, sqlx::FromRow)]
 struct StorageSnapshotMetadata {
@@ -28,7 +29,7 @@ impl From<StorageSnapshotMetadata> for SnapshotMetadata {
 
 #[derive(Debug)]
 pub struct SnapshotsDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
 impl SnapshotsDal<'_, '_> {
@@ -170,12 +171,12 @@ impl SnapshotsDal<'_, '_> {
 mod tests {
     use zksync_types::L1BatchNumber;
 
-    use crate::ConnectionPool;
+    use crate::{ConnectionPool, Core, CoreDal};
 
     #[tokio::test]
     async fn adding_snapshot() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
         let mut dal = conn.snapshots_dal();
         let l1_batch_number = L1BatchNumber(100);
         dal.add_snapshot(l1_batch_number, 2, "gs:///bucket/factory_deps.bin")
@@ -214,8 +215,8 @@ mod tests {
 
     #[tokio::test]
     async fn adding_files() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
         let mut dal = conn.snapshots_dal();
         let l1_batch_number = L1BatchNumber(100);
         dal.add_snapshot(l1_batch_number, 2, "gs:///bucket/factory_deps.bin")
