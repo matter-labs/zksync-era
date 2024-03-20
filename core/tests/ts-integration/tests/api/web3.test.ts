@@ -266,7 +266,7 @@ describe('web3 API compatibility tests', () => {
         });
         await zksync.utils.sleep(mempool_cache_wait);
         changes = await alice.provider.send('eth_getFilterChanges', [filterId]);
-        expect(changes).not.toContain(tx2.hash);
+        expect(changes).not.toContain(tx1.hash);
         expect(changes).toContain(tx2.hash);
         expect(changes).toContain(tx3.hash);
         expect(changes).toContain(tx4.hash);
