@@ -8,7 +8,7 @@ use zksync_config::{
     configs::{ObservabilityConfig, PrometheusConfig},
     ApiConfig, ContractVerifierConfig, PostgresConfig,
 };
-use zksync_dal::{ConnectionPool, Server, ServerDals};
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_env_config::FromEnv;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_utils::wait_for_tasks::wait_for_tasks;
@@ -20,7 +20,7 @@ pub mod verifier;
 pub mod zksolc_utils;
 pub mod zkvyper_utils;
 
-async fn update_compiler_versions(connection_pool: &ConnectionPool<Server>) {
+async fn update_compiler_versions(connection_pool: &ConnectionPool<Core>) {
     let mut storage = connection_pool.access_storage().await.unwrap();
     let mut transaction = storage.start_transaction().await.unwrap();
 
@@ -134,7 +134,7 @@ async fn main() -> anyhow::Result<()> {
         ..ApiConfig::from_env().context("ApiConfig")?.prometheus
     };
     let postgres_config = PostgresConfig::from_env().context("PostgresConfig")?;
-    let pool = ConnectionPool::<Server>::singleton(
+    let pool = ConnectionPool::<Core>::singleton(
         postgres_config
             .master_url()
             .context("Master DB URL is absent")?,

@@ -1,6 +1,6 @@
 use sqlx::types::chrono::NaiveDateTime;
 use zksync_db_connection::{
-    instrument::InstrumentExt, interpolate_query, match_query_as, processor::StorageProcessor,
+    connection::Connection, instrument::InstrumentExt, interpolate_query, match_query_as,
 };
 use zksync_types::{
     api, api::TransactionReceipt, Address, L2ChainId, MiniblockNumber, Transaction,
@@ -12,7 +12,7 @@ use crate::{
         StorageApiTransaction, StorageTransaction, StorageTransactionDetails,
         StorageTransactionReceipt,
     },
-    Server, ServerDals, SqlxError,
+    Core, CoreDal, SqlxError,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -23,7 +23,7 @@ enum TransactionSelector<'a> {
 
 #[derive(Debug)]
 pub struct TransactionsWeb3Dal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c, Server>,
+    pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
 impl TransactionsWeb3Dal<'_, '_> {
@@ -397,10 +397,10 @@ mod tests {
     use super::*;
     use crate::{
         tests::{create_miniblock_header, mock_execution_result, mock_l2_transaction},
-        ConnectionPool, Server, ServerDals,
+        ConnectionPool, Core, CoreDal,
     };
 
-    async fn prepare_transactions(conn: &mut StorageProcessor<'_, Server>, txs: Vec<L2Tx>) {
+    async fn prepare_transactions(conn: &mut Connection<'_, Core>, txs: Vec<L2Tx>) {
         conn.blocks_dal()
             .delete_miniblocks(MiniblockNumber(0))
             .await
@@ -434,7 +434,7 @@ mod tests {
 
     #[tokio::test]
     async fn getting_transaction() {
-        let connection_pool = ConnectionPool::<Server>::test_pool().await;
+        let connection_pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = connection_pool.access_storage().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
@@ -484,7 +484,7 @@ mod tests {
 
     #[tokio::test]
     async fn getting_receipts() {
-        let connection_pool = ConnectionPool::<Server>::test_pool().await;
+        let connection_pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = connection_pool.access_storage().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
@@ -512,7 +512,7 @@ mod tests {
 
     #[tokio::test]
     async fn getting_miniblock_transactions() {
-        let connection_pool = ConnectionPool::<Server>::test_pool().await;
+        let connection_pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = connection_pool.access_storage().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
@@ -539,7 +539,7 @@ mod tests {
 
     #[tokio::test]
     async fn getting_next_nonce_by_initiator_account() {
-        let connection_pool = ConnectionPool::<Server>::test_pool().await;
+        let connection_pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = connection_pool.access_storage().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
@@ -609,7 +609,7 @@ mod tests {
     #[tokio::test]
     async fn getting_next_nonce_by_initiator_account_after_snapshot_recovery() {
         // Emulate snapshot recovery: no transactions with past nonces are present in the storage
-        let connection_pool = ConnectionPool::<Server>::test_pool().await;
+        let connection_pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = connection_pool.access_storage().await.unwrap();
         let initiator = Address::repeat_byte(1);
         let next_nonce = conn

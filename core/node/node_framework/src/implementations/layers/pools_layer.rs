@@ -1,6 +1,6 @@
 use prover_dal::Prover;
 use zksync_config::configs::PostgresConfig;
-use zksync_dal::{ConnectionPool, Server};
+use zksync_dal::{ConnectionPool, Core};
 
 use crate::{
     implementations::resources::pools::{
@@ -75,7 +75,7 @@ impl WiringLayer for PoolsLayer {
         }
 
         if self.with_master {
-            let mut master_pool = ConnectionPool::<Server>::builder(
+            let mut master_pool = ConnectionPool::<Core>::builder(
                 self.config.master_url()?,
                 self.config.max_connections()?,
             );
@@ -84,7 +84,7 @@ impl WiringLayer for PoolsLayer {
         }
 
         if self.with_replica {
-            let mut replica_pool = ConnectionPool::<Server>::builder(
+            let mut replica_pool = ConnectionPool::<Core>::builder(
                 self.config.replica_url()?,
                 self.config.max_connections()?,
             );

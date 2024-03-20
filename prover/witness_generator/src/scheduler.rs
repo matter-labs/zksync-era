@@ -9,7 +9,7 @@ use circuit_definitions::{
     },
     eip4844_proof_config,
 };
-use prover_dal::{Prover, ProverDals};
+use prover_dal::{Prover, ProverDal};
 use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_dal::ConnectionPool;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};

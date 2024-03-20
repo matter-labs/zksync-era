@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc, time::Instant};
 
 use anyhow::Context as _;
 use circuit_definitions::{circuit_definitions::eip4844::EIP4844Circuit, eip4844_proof_config};
-use prover_dal::{ConnectionPool, ProverDals};
+use prover_dal::{ConnectionPool, ProverDal};
 use tokio::task::JoinHandle;
 use zkevm_test_harness::prover_utils::{
     prove_base_layer_circuit, prove_eip4844_circuit, prove_recursion_layer_circuit,

@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use prover_dal::{Prover, ProverDals};
+use prover_dal::{Prover, ProverDal};
 use zksync_dal::ConnectionPool;
 use zksync_types::prover_dal::JobCountStatistics;
 

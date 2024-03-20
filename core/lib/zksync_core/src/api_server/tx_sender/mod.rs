@@ -11,7 +11,7 @@ use multivm::{
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig};
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{
-    transactions_dal::L2TxSubmissionResult, ConnectionPool, Server, ServerDals, StorageProcessor,
+    transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, Core, CoreDal,
 };
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{
@@ -147,7 +147,7 @@ pub struct TxSenderBuilder {
     /// Shared TxSender configuration.
     config: TxSenderConfig,
     /// Connection pool for read requests.
-    replica_connection_pool: ConnectionPool<Server>,
+    replica_connection_pool: ConnectionPool<Core>,
     /// Sink to be used to persist transactions.
     tx_sink: Arc<dyn TxSink>,
     /// Batch sealer used to check whether transaction can be executed by the sequencer.
@@ -157,7 +157,7 @@ pub struct TxSenderBuilder {
 impl TxSenderBuilder {
     pub fn new(
         config: TxSenderConfig,
-        replica_connection_pool: ConnectionPool<Server>,
+        replica_connection_pool: ConnectionPool<Core>,
         tx_sink: Arc<dyn TxSink>,
     ) -> Self {
         Self {
@@ -240,7 +240,7 @@ pub struct TxSenderInner {
     pub(super) sender_config: TxSenderConfig,
     /// Sink to be used to persist transactions.
     pub tx_sink: Arc<dyn TxSink>,
-    pub replica_connection_pool: ConnectionPool<Server>,
+    pub replica_connection_pool: ConnectionPool<Core>,
     // Used to keep track of gas prices for the fee ticker.
     pub batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     pub(super) api_contracts: ApiContracts,
@@ -271,7 +271,7 @@ impl TxSender {
         self.0.storage_caches.clone()
     }
 
-    async fn acquire_replica_connection(&self) -> anyhow::Result<StorageProcessor<'_, Server>> {
+    async fn acquire_replica_connection(&self) -> anyhow::Result<Connection<'_, Core>> {
         self.0
             .replica_connection_pool
             .access_storage_tagged("api")

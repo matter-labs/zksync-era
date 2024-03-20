@@ -8,7 +8,7 @@ use std::{
 use anyhow::Context as _;
 use multivm::interface::{Halt, L1BatchEnv, SystemEnv};
 use tokio::sync::watch;
-use zksync_dal::{ConnectionPool, Server};
+use zksync_dal::{ConnectionPool, Core};
 use zksync_types::{
     block::MiniblockExecutionData, l2::TransactionType, protocol_upgrade::ProtocolUpgradeTx,
     protocol_version::ProtocolVersionId, storage_writes_deduplicator::StorageWritesDeduplicator,
@@ -86,7 +86,7 @@ impl ZkSyncStateKeeper {
     /// Temporary method to migrate fee addresses from L1 batches to miniblocks.
     pub fn run_fee_address_migration(
         &self,
-        pool: ConnectionPool<Server>,
+        pool: ConnectionPool<Core>,
     ) -> impl Future<Output = anyhow::Result<()>> {
         let last_miniblock = self.io.current_miniblock_number() - 1;
         let stop_receiver = self.stop_receiver.clone();

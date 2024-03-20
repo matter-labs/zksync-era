@@ -1,7 +1,7 @@
 use async_trait::async_trait;
-use prover_dal::{Prover, ProverDals};
+use prover_dal::{Prover, ProverDal};
 use zksync_config::configs::fri_prover_group::FriProverGroupConfig;
-use zksync_dal::{ConnectionPool, Server, ServerDals};
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 
 use crate::house_keeper::periodic_job::PeriodicJob;
 
@@ -9,7 +9,7 @@ use crate::house_keeper::periodic_job::PeriodicJob;
 pub struct FriProverStatsReporter {
     reporting_interval_ms: u64,
     prover_connection_pool: ConnectionPool<Prover>,
-    db_connection_pool: ConnectionPool<Server>,
+    db_connection_pool: ConnectionPool<Core>,
     config: FriProverGroupConfig,
 }
 
@@ -17,7 +17,7 @@ impl FriProverStatsReporter {
     pub fn new(
         reporting_interval_ms: u64,
         prover_connection_pool: ConnectionPool<Prover>,
-        db_connection_pool: ConnectionPool<Server>,
+        db_connection_pool: ConnectionPool<Core>,
         config: FriProverGroupConfig,
     ) -> Self {
         Self {

@@ -22,7 +22,7 @@ impl HttpTest for BasicFilterChangesTest {
         }
     }
 
-    async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Server>) -> anyhow::Result<()> {
+    async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
         let block_filter_id = client.new_block_filter().await?;
         let tx_filter_id = client.new_pending_transaction_filter().await?;
 
@@ -104,7 +104,7 @@ impl HttpTest for LogFilterChangesTest {
         }
     }
 
-    async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Server>) -> anyhow::Result<()> {
+    async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
         let all_logs_filter_id = client.new_filter(Filter::default()).await?;
         let address_filter = Filter {
             address: Some(Address::repeat_byte(23).into()),
@@ -175,7 +175,7 @@ struct LogFilterChangesWithBlockBoundariesTest;
 
 #[async_trait]
 impl HttpTest for LogFilterChangesWithBlockBoundariesTest {
-    async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Server>) -> anyhow::Result<()> {
+    async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
         let lower_bound_filter = Filter {
             from_block: Some(api::BlockNumber::Number(2.into())),
             ..Filter::default()
@@ -279,11 +279,7 @@ struct DisableFiltersTest;
 
 #[async_trait]
 impl HttpTest for DisableFiltersTest {
-    async fn test(
-        &self,
-        client: &HttpClient,
-        _pool: &ConnectionPool<Server>,
-    ) -> anyhow::Result<()> {
+    async fn test(&self, client: &HttpClient, _pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
         let filter = Filter {
             from_block: Some(api::BlockNumber::Number(2.into())),
             ..Filter::default()

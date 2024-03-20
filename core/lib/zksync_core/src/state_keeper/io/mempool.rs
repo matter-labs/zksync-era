@@ -13,7 +13,7 @@ use multivm::{
 };
 use vm_utils::storage::{l1_batch_params, L1BatchParamsProvider};
 use zksync_config::configs::chain::StateKeeperConfig;
-use zksync_dal::{ConnectionPool, Server, ServerDals};
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
 use zksync_object_store::ObjectStore;
 use zksync_types::{
@@ -47,7 +47,7 @@ use crate::{
 #[derive(Debug)]
 pub struct MempoolIO {
     mempool: MempoolGuard,
-    pool: ConnectionPool<Server>,
+    pool: ConnectionPool<Core>,
     object_store: Arc<dyn ObjectStore>,
     timeout_sealer: TimeoutSealer,
     filter: L2TxFilter,
@@ -426,7 +426,7 @@ impl MempoolIO {
         object_store: Arc<dyn ObjectStore>,
         miniblock_sealer_handle: MiniblockSealerHandle,
         batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
-        pool: ConnectionPool<Server>,
+        pool: ConnectionPool<Core>,
         config: &StateKeeperConfig,
         delay_interval: Duration,
         l2_erc20_bridge_addr: Address,

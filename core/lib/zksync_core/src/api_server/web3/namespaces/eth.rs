@@ -1,5 +1,5 @@
 use anyhow::Context as _;
-use zksync_dal::ServerDals;
+use zksync_dal::CoreDal;
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     api::{

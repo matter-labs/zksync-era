@@ -3,7 +3,7 @@ pub mod gpu_prover {
     use std::{collections::HashMap, sync::Arc, time::Instant};
 
     use anyhow::Context as _;
-    use prover_dal::{ConnectionPool, ProverDals};
+    use prover_dal::{ConnectionPool, ProverDal};
     use shivini::{
         gpu_proof_config::GpuProofConfig, gpu_prove_from_external_witness_data, ProverContext,
     };

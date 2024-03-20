@@ -34,7 +34,7 @@ use anyhow::Context as _;
 use async_trait::async_trait;
 use futures::future;
 use tokio::sync::{watch, Mutex, Semaphore};
-use zksync_dal::{ConnectionPool, Server, ServerDals, StorageProcessor};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_health_check::HealthUpdater;
 use zksync_merkle_tree::TreeEntry;
 use zksync_types::{
@@ -121,7 +121,7 @@ impl SnapshotParameters {
     const DESIRED_CHUNK_SIZE: u64 = 200_000;
 
     async fn new(
-        pool: &ConnectionPool<Server>,
+        pool: &ConnectionPool<Core>,
         recovery: &SnapshotRecoveryStatus,
     ) -> anyhow::Result<Self> {
         let miniblock = recovery.miniblock_number;
@@ -159,7 +159,7 @@ impl GenericAsyncTree {
     /// if necessary.
     pub async fn ensure_ready(
         self,
-        pool: &ConnectionPool<Server>,
+        pool: &ConnectionPool<Core>,
         stop_receiver: &watch::Receiver<bool>,
         health_updater: &HealthUpdater,
     ) -> anyhow::Result<Option<AsyncTree>> {
@@ -210,7 +210,7 @@ impl AsyncTreeRecovery {
         mut self,
         snapshot: SnapshotParameters,
         mut options: RecoveryOptions<'_>,
-        pool: &ConnectionPool<Server>,
+        pool: &ConnectionPool<Core>,
         stop_receiver: &watch::Receiver<bool>,
     ) -> anyhow::Result<Option<AsyncTree>> {
         let chunk_count = options.chunk_count;
@@ -271,7 +271,7 @@ impl AsyncTreeRecovery {
     /// Filters out `key_chunks` for which recovery was successfully performed.
     async fn filter_chunks(
         &mut self,
-        storage: &mut StorageProcessor<'_, Server>,
+        storage: &mut Connection<'_, Core>,
         snapshot_miniblock: MiniblockNumber,
         key_chunks: &[ops::RangeInclusive<H256>],
     ) -> anyhow::Result<Vec<ops::RangeInclusive<H256>>> {
@@ -318,7 +318,7 @@ impl AsyncTreeRecovery {
         tree: &Mutex<AsyncTreeRecovery>,
         snapshot_miniblock: MiniblockNumber,
         key_chunk: ops::RangeInclusive<H256>,
-        pool: &ConnectionPool<Server>,
+        pool: &ConnectionPool<Core>,
         stop_receiver: &watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
         let acquire_connection_latency =
@@ -392,7 +392,7 @@ impl AsyncTreeRecovery {
 }
 
 async fn get_snapshot_recovery(
-    pool: &ConnectionPool<Server>,
+    pool: &ConnectionPool<Core>,
 ) -> anyhow::Result<Option<SnapshotRecoveryStatus>> {
     let mut storage = pool.access_storage_tagged("metadata_calculator").await?;
     Ok(storage

@@ -24,9 +24,9 @@ async fn snapshots_creator_can_successfully_recover_db(
     with_object_store_errors: bool,
 ) {
     let pool = if let Some(pool_size) = pool_size {
-        ConnectionPool::<Server>::constrained_test_pool(pool_size).await
+        ConnectionPool::<Core>::constrained_test_pool(pool_size).await
     } else {
-        ConnectionPool::<Server>::test_pool().await
+        ConnectionPool::<Core>::test_pool().await
     };
     let expected_status = mock_recovery_status();
     let storage_logs = random_storage_logs(expected_status.l1_batch_number, 200);
@@ -98,7 +98,7 @@ async fn snapshots_creator_can_successfully_recover_db(
 
 #[tokio::test]
 async fn applier_errors_after_genesis() {
-    let pool = ConnectionPool::<Server>::test_pool().await;
+    let pool = ConnectionPool::<Core>::test_pool().await;
 
     // We don't want to depend on the core crate, so instead we cheaply emulate it.
     let mut storage = pool.access_storage().await.unwrap();
@@ -154,7 +154,7 @@ async fn applier_errors_after_genesis() {
 
 #[tokio::test]
 async fn applier_errors_without_snapshots() {
-    let pool = ConnectionPool::<Server>::test_pool().await;
+    let pool = ConnectionPool::<Core>::test_pool().await;
     let object_store_factory = ObjectStoreFactory::mock();
     let object_store = object_store_factory.create_store().await;
     let client = MockMainNodeClient::default();
@@ -167,7 +167,7 @@ async fn applier_errors_without_snapshots() {
 
 #[tokio::test]
 async fn applier_returns_error_on_fatal_object_store_error() {
-    let pool = ConnectionPool::<Server>::test_pool().await;
+    let pool = ConnectionPool::<Core>::test_pool().await;
     let expected_status = mock_recovery_status();
     let storage_logs = random_storage_logs(expected_status.l1_batch_number, 100);
     let (object_store, client) = prepare_clients(&expected_status, &storage_logs).await;
@@ -189,7 +189,7 @@ async fn applier_returns_error_on_fatal_object_store_error() {
 
 #[tokio::test]
 async fn applier_returns_error_after_too_many_object_store_retries() {
-    let pool = ConnectionPool::<Server>::test_pool().await;
+    let pool = ConnectionPool::<Core>::test_pool().await;
     let expected_status = mock_recovery_status();
     let storage_logs = random_storage_logs(expected_status.l1_batch_number, 100);
     let (object_store, client) = prepare_clients(&expected_status, &storage_logs).await;
@@ -211,7 +211,7 @@ async fn applier_returns_error_after_too_many_object_store_retries() {
 
 #[tokio::test]
 async fn recovering_tokens() {
-    let pool = ConnectionPool::<Server>::test_pool().await;
+    let pool = ConnectionPool::<Core>::test_pool().await;
     let expected_status = mock_recovery_status();
     let tokens = mock_tokens();
     let mut storage_logs = random_storage_logs(expected_status.l1_batch_number, 200);

@@ -12,7 +12,7 @@ use lazy_static::lazy_static;
 use regex::Regex;
 use tokio::time;
 use zksync_config::ContractVerifierConfig;
-use zksync_dal::{ConnectionPool, Server, ServerDals, StorageProcessor};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_env_config::FromEnv;
 use zksync_queued_job_processor::{async_trait, JobProcessor};
 use zksync_types::{
@@ -42,11 +42,11 @@ enum ConstructorArgs {
 #[derive(Debug)]
 pub struct ContractVerifier {
     config: ContractVerifierConfig,
-    connection_pool: ConnectionPool<Server>,
+    connection_pool: ConnectionPool<Core>,
 }
 
 impl ContractVerifier {
-    pub fn new(config: ContractVerifierConfig, connection_pool: ConnectionPool<Server>) -> Self {
+    pub fn new(config: ContractVerifierConfig, connection_pool: ConnectionPool<Core>) -> Self {
         Self {
             config,
             connection_pool,
@@ -54,7 +54,7 @@ impl ContractVerifier {
     }
 
     async fn verify(
-        storage: &mut StorageProcessor<'_, Server>,
+        storage: &mut Connection<'_, Core>,
         mut request: VerificationRequest,
         config: ContractVerifierConfig,
     ) -> Result<VerificationInfo, ContractVerifierError> {
@@ -429,7 +429,7 @@ impl ContractVerifier {
     }
 
     async fn process_result(
-        storage: &mut StorageProcessor<'_, Server>,
+        storage: &mut Connection<'_, Core>,
         request_id: usize,
         verification_result: Result<VerificationInfo, ContractVerifierError>,
     ) {

@@ -1,13 +1,13 @@
 use std::convert::TryFrom;
 
 use zksync_basic_types::protocol_version::{FriProtocolVersionId, L1VerifierConfig};
-use zksync_db_connection::processor::StorageProcessor;
+use zksync_db_connection::connection::Connection;
 
 use crate::Prover;
 
 #[derive(Debug)]
 pub struct FriProtocolVersionsDal<'a, 'c> {
-    pub storage: &'a mut StorageProcessor<'c, Prover>,
+    pub storage: &'a mut Connection<'c, Prover>,
 }
 
 impl FriProtocolVersionsDal<'_, '_> {

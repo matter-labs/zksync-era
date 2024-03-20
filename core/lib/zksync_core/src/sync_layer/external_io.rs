@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use multivm::interface::{FinishedL1Batch, L1BatchEnv, SystemEnv};
 use vm_utils::storage::{l1_batch_params, L1BatchParamsProvider};
 use zksync_contracts::{BaseSystemContracts, SystemContractCode};
-use zksync_dal::{ConnectionPool, Server, ServerDals};
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::{
     ethabi::Address, fee_model::BatchFeeInput, protocol_upgrade::ProtocolUpgradeTx,
     witness_block_state::WitnessBlockState, L1BatchNumber, L2ChainId, MiniblockNumber,
@@ -44,7 +44,7 @@ const POLL_INTERVAL: Duration = Duration::from_millis(100);
 #[derive(Debug)]
 pub struct ExternalIO {
     miniblock_sealer_handle: MiniblockSealerHandle,
-    pool: ConnectionPool<Server>,
+    pool: ConnectionPool<Core>,
 
     current_l1_batch_number: L1BatchNumber,
     current_miniblock_number: MiniblockNumber,
@@ -65,7 +65,7 @@ impl ExternalIO {
     #[allow(clippy::too_many_arguments)]
     pub async fn new(
         miniblock_sealer_handle: MiniblockSealerHandle,
-        pool: ConnectionPool<Server>,
+        pool: ConnectionPool<Core>,
         actions: ActionQueue,
         sync_state: SyncState,
         main_node_client: Box<dyn MainNodeClient>,

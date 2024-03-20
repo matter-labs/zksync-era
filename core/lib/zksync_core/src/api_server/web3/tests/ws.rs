@@ -96,7 +96,7 @@ async fn wait_for_notifier_miniblock(
 
 #[tokio::test]
 async fn notifiers_start_after_snapshot_recovery() {
-    let pool = ConnectionPool::<Server>::test_pool().await;
+    let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.access_storage().await.unwrap();
     prepare_recovery_snapshot(
         &mut storage,
@@ -152,7 +152,7 @@ trait WsTest: Send + Sync {
     async fn test(
         &self,
         client: &WsClient,
-        pool: &ConnectionPool<Server>,
+        pool: &ConnectionPool<Core>,
         pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
     ) -> anyhow::Result<()>;
 
@@ -162,7 +162,7 @@ trait WsTest: Send + Sync {
 }
 
 async fn test_ws_server(test: impl WsTest) {
-    let pool = ConnectionPool::<Server>::test_pool().await;
+    let pool = ConnectionPool::<Core>::test_pool().await;
     let network_config = NetworkConfig::for_tests();
     let contracts_config = ContractsConfig::for_tests();
     let web3_config = Web3JsonRpcConfig::for_tests();
@@ -202,7 +202,7 @@ impl WsTest for WsServerCanStartTest {
     async fn test(
         &self,
         client: &WsClient,
-        _pool: &ConnectionPool<Server>,
+        _pool: &ConnectionPool<Core>,
         _pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
     ) -> anyhow::Result<()> {
         let block_number = client.get_block_number().await?;
@@ -243,7 +243,7 @@ impl WsTest for BasicSubscriptionsTest {
     async fn test(
         &self,
         client: &WsClient,
-        pool: &ConnectionPool<Server>,
+        pool: &ConnectionPool<Core>,
         mut pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
     ) -> anyhow::Result<()> {
         // Wait for the notifiers to get initialized so that they don't skip notifications
@@ -382,7 +382,7 @@ impl WsTest for LogSubscriptionsTest {
     async fn test(
         &self,
         client: &WsClient,
-        pool: &ConnectionPool<Server>,
+        pool: &ConnectionPool<Core>,
         mut pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
     ) -> anyhow::Result<()> {
         let LogSubscriptions {
@@ -471,7 +471,7 @@ impl WsTest for LogSubscriptionsWithNewBlockTest {
     async fn test(
         &self,
         client: &WsClient,
-        pool: &ConnectionPool<Server>,
+        pool: &ConnectionPool<Core>,
         mut pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
     ) -> anyhow::Result<()> {
         let LogSubscriptions {
@@ -519,7 +519,7 @@ impl WsTest for LogSubscriptionsWithManyBlocksTest {
     async fn test(
         &self,
         client: &WsClient,
-        pool: &ConnectionPool<Server>,
+        pool: &ConnectionPool<Core>,
         mut pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
     ) -> anyhow::Result<()> {
         let LogSubscriptions {
@@ -565,7 +565,7 @@ impl WsTest for LogSubscriptionsWithDelayTest {
     async fn test(
         &self,
         client: &WsClient,
-        pool: &ConnectionPool<Server>,
+        pool: &ConnectionPool<Core>,
         mut pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
     ) -> anyhow::Result<()> {
         // Wait until notifiers are initialized.
@@ -635,7 +635,7 @@ impl WsTest for RateLimitingTest {
     async fn test(
         &self,
         client: &WsClient,
-        _pool: &ConnectionPool<Server>,
+        _pool: &ConnectionPool<Core>,
         _pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
     ) -> anyhow::Result<()> {
         client.chain_id().await.unwrap();
@@ -672,7 +672,7 @@ impl WsTest for BatchGetsRateLimitedTest {
     async fn test(
         &self,
         client: &WsClient,
-        _pool: &ConnectionPool<Server>,
+        _pool: &ConnectionPool<Core>,
         _pub_sub_events: mpsc::UnboundedReceiver<PubSubEvent>,
     ) -> anyhow::Result<()> {
         client.chain_id().await.unwrap();

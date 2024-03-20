@@ -21,9 +21,9 @@ use sqlx::{
 use tokio::time::Instant;
 
 use crate::{
-    connection::ConnectionPool,
+    connection::{Connection, ConnectionTags, DbMarker},
+    connection_pool::ConnectionPool,
     metrics::REQUEST_METRICS,
-    processor::{StorageMarker, StorageProcessor, StorageProcessorTags},
     utils::InternalMarker,
 };
 
@@ -121,7 +121,7 @@ impl<'a> InstrumentedData<'a> {
 
     async fn fetch<R>(
         self,
-        connection_tags: Option<&StorageProcessorTags>,
+        connection_tags: Option<&ConnectionTags>,
         query_future: impl Future<Output = Result<R, sqlx::Error>>,
     ) -> Result<R, sqlx::Error> {
         let Self {
@@ -142,7 +142,7 @@ impl<'a> InstrumentedData<'a> {
         let output = match output {
             Ok(output) => output,
             Err(_) => {
-                let connection_tags = StorageProcessorTags::display(connection_tags);
+                let connection_tags = ConnectionTags::display(connection_tags);
                 if slow_query_reporting_enabled {
                     tracing::warn!(
                         "Query {name}{args} called at {file}:{line} [{connection_tags}] is executing for more than {slow_query_threshold:?}",
@@ -161,7 +161,7 @@ impl<'a> InstrumentedData<'a> {
             REQUEST_METRICS.request[&name].observe(elapsed);
         }
 
-        let connection_tags = StorageProcessorTags::display(connection_tags);
+        let connection_tags = ConnectionTags::display(connection_tags);
         if let Err(err) = &output {
             tracing::warn!(
                 "Query {name}{args} called at {file}:{line} [{connection_tags}] has resulted in error: {err}",
@@ -222,18 +222,18 @@ where
     A: 'q + IntoArguments<'q, Postgres>,
 {
     /// Executes an SQL statement using this query.
-    pub async fn execute<SM: StorageMarker>(
+    pub async fn execute<DB: DbMarker>(
         self,
-        storage: &mut StorageProcessor<'_, SM>,
+        storage: &mut Connection<'_, DB>,
     ) -> sqlx::Result<PgQueryResult> {
         let (conn, tags) = storage.conn_and_tags();
         self.data.fetch(tags, self.query.execute(conn)).await
     }
 
     /// Fetches an optional row using this query.
-    pub async fn fetch_optional<SM: StorageMarker>(
+    pub async fn fetch_optional<DB: DbMarker>(
         self,
-        storage: &mut StorageProcessor<'_, SM>,
+        storage: &mut Connection<'_, DB>,
     ) -> Result<Option<PgRow>, sqlx::Error> {
         let (conn, tags) = storage.conn_and_tags();
         self.data.fetch(tags, self.query.fetch_optional(conn)).await
@@ -246,9 +246,9 @@ where
     O: Send + Unpin + for<'r> FromRow<'r, PgRow>,
 {
     /// Fetches all rows using this query and collects them into a `Vec`.
-    pub async fn fetch_all<SM: StorageMarker>(
+    pub async fn fetch_all<DB: DbMarker>(
         self,
-        storage: &mut StorageProcessor<'_, SM>,
+        storage: &mut Connection<'_, DB>,
     ) -> sqlx::Result<Vec<O>> {
         let (conn, tags) = storage.conn_and_tags();
         self.data.fetch(tags, self.query.fetch_all(conn)).await
@@ -262,27 +262,27 @@ where
     A: 'q + Send + IntoArguments<'q, Postgres>,
 {
     /// Fetches an optional row using this query.
-    pub async fn fetch_optional<SM: StorageMarker>(
+    pub async fn fetch_optional<DB: DbMarker>(
         self,
-        storage: &mut StorageProcessor<'_, SM>,
+        storage: &mut Connection<'_, DB>,
     ) -> sqlx::Result<Option<O>> {
         let (conn, tags) = storage.conn_and_tags();
         self.data.fetch(tags, self.query.fetch_optional(conn)).await
     }
 
     /// Fetches a single row using this query.
-    pub async fn fetch_one<SM: StorageMarker>(
+    pub async fn fetch_one<DB: DbMarker>(
         self,
-        storage: &mut StorageProcessor<'_, SM>,
+        storage: &mut Connection<'_, DB>,
     ) -> sqlx::Result<O> {
         let (conn, tags) = storage.conn_and_tags();
         self.data.fetch(tags, self.query.fetch_one(conn)).await
     }
 
     /// Fetches all rows using this query and collects them into a `Vec`.
-    pub async fn fetch_all<SM: StorageMarker>(
+    pub async fn fetch_all<DB: DbMarker>(
         self,
-        storage: &mut StorageProcessor<'_, SM>,
+        storage: &mut Connection<'_, DB>,
     ) -> sqlx::Result<Vec<O>> {
         let (conn, tags) = storage.conn_and_tags();
         self.data.fetch(tags, self.query.fetch_all(conn)).await
@@ -294,7 +294,7 @@ mod tests {
     use zksync_basic_types::{MiniblockNumber, H256};
 
     use super::*;
-    use crate::{connection::ConnectionPool, utils::InternalMarker};
+    use crate::{connection_pool::ConnectionPool, utils::InternalMarker};
 
     #[tokio::test]
     async fn instrumenting_erroneous_query() {

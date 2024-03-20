@@ -6,7 +6,7 @@ use std::{
 use async_trait::async_trait;
 use multivm::interface::{FinishedL1Batch, L1BatchEnv, SystemEnv};
 use tokio::sync::{mpsc, oneshot};
-use zksync_dal::{ConnectionPool, Server};
+use zksync_dal::{ConnectionPool, Core};
 use zksync_types::{
     block::MiniblockExecutionData, protocol_upgrade::ProtocolUpgradeTx,
     witness_block_state::WitnessBlockState, L1BatchNumber, MiniblockNumber, ProtocolVersionId,
@@ -215,7 +215,7 @@ impl MiniblockSealerHandle {
 /// Component responsible for sealing miniblocks (i.e., storing their data to Postgres).
 #[derive(Debug)]
 pub struct MiniblockSealer {
-    pool: ConnectionPool<Server>,
+    pool: ConnectionPool<Core>,
     is_sync: bool,
     // Weak sender handle to get queue capacity stats.
     commands_sender: mpsc::WeakSender<Completable<MiniblockSealCommand>>,
@@ -226,7 +226,7 @@ impl MiniblockSealer {
     /// Creates a sealer that will use the provided Postgres connection and will have the specified
     /// `command_capacity` for unprocessed sealing commands.
     pub fn new(
-        pool: ConnectionPool<Server>,
+        pool: ConnectionPool<Core>,
         mut command_capacity: usize,
     ) -> (Self, MiniblockSealerHandle) {
         let is_sync = command_capacity == 0;

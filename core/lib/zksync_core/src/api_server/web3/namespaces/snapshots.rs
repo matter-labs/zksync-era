@@ -1,5 +1,5 @@
 use anyhow::Context as _;
-use zksync_dal::ServerDals;
+use zksync_dal::CoreDal;
 use zksync_types::{
     snapshots::{AllSnapshots, SnapshotHeader, SnapshotStorageLogsChunkMetadata},
     L1BatchNumber,

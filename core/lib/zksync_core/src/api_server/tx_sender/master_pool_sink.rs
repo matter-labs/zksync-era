@@ -1,4 +1,4 @@
-use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, Server, ServerDals};
+use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, Core, CoreDal};
 use zksync_types::{fee::TransactionExecutionMetrics, l2::L2Tx};
 
 use super::{tx_sink::TxSink, SubmitTxError};
@@ -7,11 +7,11 @@ use crate::metrics::{TxStage, APP_METRICS};
 /// Wrapper for the master DB pool that allows to submit transactions to the mempool.
 #[derive(Debug)]
 pub struct MasterPoolSink {
-    master_pool: ConnectionPool<Server>,
+    master_pool: ConnectionPool<Core>,
 }
 
 impl MasterPoolSink {
-    pub fn new(master_pool: ConnectionPool<Server>) -> Self {
+    pub fn new(master_pool: ConnectionPool<Core>) -> Self {
         Self { master_pool }
     }
 }

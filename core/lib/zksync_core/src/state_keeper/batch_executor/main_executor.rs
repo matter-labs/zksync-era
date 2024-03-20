@@ -12,7 +12,7 @@ use multivm::{
 };
 use once_cell::sync::OnceCell;
 use tokio::sync::{mpsc, watch};
-use zksync_dal::{ConnectionPool, Server};
+use zksync_dal::{ConnectionPool, Core};
 use zksync_state::{RocksdbStorage, StorageView, WriteStorage};
 use zksync_types::{vm_trace::Call, Transaction, U256};
 use zksync_utils::bytecode::CompressedBytecodeInfo;
@@ -31,7 +31,7 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct MainBatchExecutor {
     state_keeper_db_path: String,
-    pool: ConnectionPool<Server>,
+    pool: ConnectionPool<Core>,
     save_call_traces: bool,
     max_allowed_tx_gas_limit: U256,
     upload_witness_inputs_to_gcs: bool,
@@ -42,7 +42,7 @@ pub struct MainBatchExecutor {
 impl MainBatchExecutor {
     pub fn new(
         state_keeper_db_path: String,
-        pool: ConnectionPool<Server>,
+        pool: ConnectionPool<Core>,
         max_allowed_tx_gas_limit: U256,
         save_call_traces: bool,
         upload_witness_inputs_to_gcs: bool,

@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use prover_dal::{fri_proof_compressor_dal::ProofCompressionJobStatus, ProverDals};
+use prover_dal::{fri_proof_compressor_dal::ProofCompressionJobStatus, ProverDal};
 use zksync_prover_interface::api::{SubmitProofRequest, SubmitProofResponse};
 use zksync_types::L1BatchNumber;
 

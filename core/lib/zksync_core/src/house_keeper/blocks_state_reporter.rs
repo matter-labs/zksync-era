@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use zksync_dal::{ConnectionPool, Server, ServerDals};
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_utils::time::seconds_since_epoch;
 
 use crate::{
@@ -10,11 +10,11 @@ use crate::{
 #[derive(Debug)]
 pub struct L1BatchMetricsReporter {
     reporting_interval_ms: u64,
-    connection_pool: ConnectionPool<Server>,
+    connection_pool: ConnectionPool<Core>,
 }
 
 impl L1BatchMetricsReporter {
-    pub fn new(reporting_interval_ms: u64, connection_pool: ConnectionPool<Server>) -> Self {
+    pub fn new(reporting_interval_ms: u64, connection_pool: ConnectionPool<Core>) -> Self {
         Self {
             reporting_interval_ms,
             connection_pool,

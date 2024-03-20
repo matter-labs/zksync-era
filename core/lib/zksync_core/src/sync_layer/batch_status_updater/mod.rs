@@ -9,7 +9,7 @@ use serde::Serialize;
 #[cfg(test)]
 use tokio::sync::mpsc;
 use tokio::sync::watch;
-use zksync_dal::{ConnectionPool, Server, ServerDals, StorageProcessor};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_types::{
     aggregated_operations::AggregatedActionType, api, L1BatchNumber, MiniblockNumber, H256,
@@ -126,7 +126,7 @@ struct UpdaterCursor {
 }
 
 impl UpdaterCursor {
-    async fn new(storage: &mut StorageProcessor<'_, Server>) -> anyhow::Result<Self> {
+    async fn new(storage: &mut Connection<'_, Core>) -> anyhow::Result<Self> {
         let first_l1_batch_number = projected_first_l1_batch(storage).await?;
         // Use the snapshot L1 batch, or the genesis batch if we are not using a snapshot. Technically, the snapshot L1 batch
         // is not necessarily proven / executed yet, but since it and earlier batches are not stored, it serves
@@ -243,7 +243,7 @@ impl UpdaterCursor {
 #[derive(Debug)]
 pub struct BatchStatusUpdater {
     client: Box<dyn MainNodeClient>,
-    pool: ConnectionPool<Server>,
+    pool: ConnectionPool<Core>,
     health_updater: HealthUpdater,
     sleep_interval: Duration,
     /// Test-only sender of status changes each time they are produced and applied to the storage.
@@ -254,13 +254,13 @@ pub struct BatchStatusUpdater {
 impl BatchStatusUpdater {
     const DEFAULT_SLEEP_INTERVAL: Duration = Duration::from_secs(5);
 
-    pub fn new(client: HttpClient, pool: ConnectionPool<Server>) -> Self {
+    pub fn new(client: HttpClient, pool: ConnectionPool<Core>) -> Self {
         Self::from_parts(Box::new(client), pool, Self::DEFAULT_SLEEP_INTERVAL)
     }
 
     fn from_parts(
         client: Box<dyn MainNodeClient>,
-        pool: ConnectionPool<Server>,
+        pool: ConnectionPool<Core>,
         sleep_interval: Duration,
     ) -> Self {
         Self {

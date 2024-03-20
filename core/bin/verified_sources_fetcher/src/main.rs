@@ -1,14 +1,14 @@
 use std::io::Write;
 
 use zksync_config::PostgresConfig;
-use zksync_dal::{ConnectionPool, Server, ServerDals};
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_env_config::FromEnv;
 use zksync_types::contract_verification_api::SourceCodeData;
 
 #[tokio::main]
 async fn main() {
     let config = PostgresConfig::from_env().unwrap();
-    let pool = ConnectionPool::<Server>::singleton(config.replica_url().unwrap())
+    let pool = ConnectionPool::<Core>::singleton(config.replica_url().unwrap())
         .build()
         .await
         .unwrap();

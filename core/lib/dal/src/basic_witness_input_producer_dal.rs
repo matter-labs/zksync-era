@@ -3,17 +3,17 @@ use std::time::{Duration, Instant};
 
 use sqlx::postgres::types::PgInterval;
 use zksync_db_connection::{
+    connection::Connection,
     instrument::InstrumentExt,
-    processor::StorageProcessor,
     utils::{duration_to_naive_time, pg_interval_from_duration},
 };
 use zksync_types::L1BatchNumber;
 
-use crate::Server;
+use crate::Core;
 
 #[derive(Debug)]
 pub struct BasicWitnessInputProducerDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c, Server>,
+    pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
 /// The amount of attempts to process a job before giving up.

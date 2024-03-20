@@ -6,7 +6,7 @@ use multivm::interface::{L2BlockEnv, VmInterface};
 use tokio::{runtime::Handle, task::JoinHandle};
 use vm_utils::{create_vm, execute_tx};
 use zksync_dal::{
-    basic_witness_input_producer_dal::JOB_MAX_ATTEMPT, ConnectionPool, Server, ServerDals,
+    basic_witness_input_producer_dal::JOB_MAX_ATTEMPT, ConnectionPool, Core, CoreDal,
 };
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_queued_job_processor::JobProcessor;
@@ -22,14 +22,14 @@ mod metrics;
 /// to be run only using the object store information, having no other external dependency.
 #[derive(Debug)]
 pub struct BasicWitnessInputProducer {
-    connection_pool: ConnectionPool<Server>,
+    connection_pool: ConnectionPool<Core>,
     l2_chain_id: L2ChainId,
     object_store: Arc<dyn ObjectStore>,
 }
 
 impl BasicWitnessInputProducer {
     pub async fn new(
-        connection_pool: ConnectionPool<Server>,
+        connection_pool: ConnectionPool<Core>,
         store_factory: &ObjectStoreFactory,
         l2_chain_id: L2ChainId,
     ) -> anyhow::Result<Self> {
@@ -44,7 +44,7 @@ impl BasicWitnessInputProducer {
         rt_handle: Handle,
         l1_batch_number: L1BatchNumber,
         started_at: Instant,
-        connection_pool: ConnectionPool<Server>,
+        connection_pool: ConnectionPool<Core>,
         l2_chain_id: L2ChainId,
     ) -> anyhow::Result<WitnessBlockState> {
         let mut connection = rt_handle
