@@ -241,7 +241,7 @@ impl ReorgDetector {
     /// Returns `Ok(())` if no reorg was detected.
     /// Returns `Err::ReorgDetected()` if a reorg was detected.
     pub async fn check_consistency(&mut self) -> Result<(), Error> {
-        let mut storage = self.pool.connection().await.context("access_storage()")?;
+        let mut storage = self.pool.connection().await.context("connection()")?;
         let Some(local_l1_batch) = storage
             .blocks_dal()
             .get_last_l1_batch_number_with_metadata()
@@ -285,7 +285,7 @@ impl ReorgDetector {
 
         // Check that the first L1 batch matches, to make sure that
         // we are actually tracking the same chain as the main node.
-        let mut storage = self.pool.connection().await.context("access_storage()")?;
+        let mut storage = self.pool.connection().await.context("connection()")?;
         let first_l1_batch = storage
             .blocks_dal()
             .get_earliest_l1_batch_number_with_metadata()
@@ -313,7 +313,7 @@ impl ReorgDetector {
         &self,
         miniblock: MiniblockNumber,
     ) -> Result<bool, HashMatchError> {
-        let mut storage = self.pool.connection().await.context("access_storage()")?;
+        let mut storage = self.pool.connection().await.context("connection()")?;
         let local_hash = storage
             .blocks_dal()
             .get_miniblock_header(miniblock)
@@ -342,7 +342,7 @@ impl ReorgDetector {
 
     /// Compares root hashes of the latest local batch and of the same batch from the main node.
     async fn root_hashes_match(&self, l1_batch: L1BatchNumber) -> Result<bool, HashMatchError> {
-        let mut storage = self.pool.connection().await.context("access_storage()")?;
+        let mut storage = self.pool.connection().await.context("connection()")?;
         let local_hash = storage
             .blocks_dal()
             .get_l1_batch_state_root(l1_batch)

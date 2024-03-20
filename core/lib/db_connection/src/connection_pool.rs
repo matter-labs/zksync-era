@@ -52,7 +52,7 @@ impl<DB: DbMarker> ConnectionPoolBuilder<DB> {
     }
 
     /// Sets the acquire timeout for a single connection attempt. There are multiple attempts (currently 3)
-    /// before `access_storage*` methods return an error. If not specified, the acquire timeout will not be set.
+    /// before `connection*` methods return an error. If not specified, the acquire timeout will not be set.
     pub fn set_acquire_timeout(&mut self, timeout: Option<Duration>) -> &mut Self {
         if let Some(timeout) = timeout {
             self.acquire_timeout = timeout;

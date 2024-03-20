@@ -121,7 +121,7 @@ pub async fn genesis_init(
         .build()
         .await
         .context("failed to build connection_pool")?;
-    let mut storage = pool.connection().await.context("access_storage()")?;
+    let mut storage = pool.connection().await.context("connection()")?;
     let operator_address = PackedEthSignature::address_from_private_key(
         &eth_sender
             .sender
@@ -208,7 +208,7 @@ pub async fn is_genesis_needed(postgres_config: &PostgresConfig) -> bool {
         .build()
         .await
         .expect("failed to build connection_pool");
-    let mut storage = pool.connection().await.expect("access_storage()");
+    let mut storage = pool.connection().await.expect("connection()");
     storage.blocks_dal().is_genesis_needed().await.unwrap()
 }
 

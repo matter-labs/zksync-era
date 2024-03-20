@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 
 use anyhow::Context;
 use zksync_basic_types::{L1BatchNumber, MiniblockNumber};
-use zksync_dal::{ConnectionPool, Server, ServerDals};
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::ProtocolVersionId;
 use zksync_web3_decl::{
     jsonrpsee::http_client::HttpClient,
@@ -27,12 +27,12 @@ pub async fn get_l1_batch_remote_protocol_version(
 
 // Synchronizes protocol version in `l1_batches` and `miniblocks` tables between EN and main node.
 pub async fn sync_versions(
-    connection_pool: ConnectionPool<Server>,
+    connection_pool: ConnectionPool<Core>,
     main_node_client: HttpClient,
 ) -> anyhow::Result<()> {
     tracing::info!("Starting syncing protocol version of blocks");
 
-    let mut connection = connection_pool.access_storage().await?;
+    let mut connection = connection_pool.connection().await?;
 
     // Load the first local batch number with version 22.
     let Some(local_first_v22_l1_batch) = connection

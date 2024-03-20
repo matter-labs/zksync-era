@@ -45,7 +45,7 @@ impl ZksNamespace {
         &self.state.current_method
     }
 
-    async fn access_storage(&self) -> Result<Connection<'_, Core>, Web3Error> {
+    async fn connection(&self) -> Result<Connection<'_, Core>, Web3Error> {
         Ok(self.state.connection_pool.connection_tagged("api").await?)
     }
 
@@ -137,7 +137,7 @@ impl ZksNamespace {
         from: u32,
         limit: u8,
     ) -> Result<Vec<Token>, Web3Error> {
-        let mut storage = self.access_storage().await?;
+        let mut storage = self.connection().await?;
         let tokens = storage
             .tokens_web3_dal()
             .get_well_known_tokens()
@@ -164,7 +164,7 @@ impl ZksNamespace {
         &self,
         address: Address,
     ) -> Result<HashMap<Address, U256>, Web3Error> {
-        let mut storage = self.access_storage().await?;
+        let mut storage = self.connection().await?;
         let tokens = storage
             .tokens_dal()
             .get_all_l2_token_addresses()
@@ -211,7 +211,7 @@ impl ZksNamespace {
         l2_log_position: Option<usize>,
     ) -> Result<Option<L2ToL1LogProof>, Web3Error> {
         self.state.start_info.ensure_not_pruned(block_number)?;
-        let mut storage = self.access_storage().await?;
+        let mut storage = self.connection().await?;
         let Some(l1_batch_number) = storage
             .blocks_web3_dal()
             .get_l1_batch_number_of_miniblock(block_number)
@@ -322,7 +322,7 @@ impl ZksNamespace {
         tx_hash: H256,
         index: Option<usize>,
     ) -> Result<Option<L2ToL1LogProof>, Web3Error> {
-        let mut storage = self.access_storage().await?;
+        let mut storage = self.connection().await?;
         let Some((l1_batch_number, l1_batch_tx_index)) = storage
             .blocks_web3_dal()
             .get_l1_batch_info_for_tx(tx_hash)
@@ -345,7 +345,7 @@ impl ZksNamespace {
 
     #[tracing::instrument(skip(self))]
     pub async fn get_l1_batch_number_impl(&self) -> Result<U64, Web3Error> {
-        let mut storage = self.access_storage().await?;
+        let mut storage = self.connection().await?;
         let l1_batch_number = storage
             .blocks_dal()
             .get_sealed_l1_batch_number()
@@ -361,7 +361,7 @@ impl ZksNamespace {
         batch: L1BatchNumber,
     ) -> Result<Option<(U64, U64)>, Web3Error> {
         self.state.start_info.ensure_not_pruned(batch)?;
-        let mut storage = self.access_storage().await?;
+        let mut storage = self.connection().await?;
         let range = storage
             .blocks_web3_dal()
             .get_miniblock_range_of_l1_batch(batch)
@@ -376,7 +376,7 @@ impl ZksNamespace {
         block_number: MiniblockNumber,
     ) -> Result<Option<BlockDetails>, Web3Error> {
         self.state.start_info.ensure_not_pruned(block_number)?;
-        let mut storage = self.access_storage().await?;
+        let mut storage = self.connection().await?;
         Ok(storage
             .blocks_web3_dal()
             .get_block_details(block_number)
@@ -390,7 +390,7 @@ impl ZksNamespace {
         block_number: MiniblockNumber,
     ) -> Result<Vec<Transaction>, Web3Error> {
         self.state.start_info.ensure_not_pruned(block_number)?;
-        let mut storage = self.access_storage().await?;
+        let mut storage = self.connection().await?;
         Ok(storage
             .transactions_web3_dal()
             .get_raw_miniblock_transactions(block_number)
@@ -403,7 +403,7 @@ impl ZksNamespace {
         &self,
         hash: H256,
     ) -> Result<Option<TransactionDetails>, Web3Error> {
-        let mut storage = self.access_storage().await?;
+        let mut storage = self.connection().await?;
         let mut tx_details = storage
             .transactions_web3_dal()
             .get_transaction_details(hash)
@@ -423,7 +423,7 @@ impl ZksNamespace {
         batch_number: L1BatchNumber,
     ) -> Result<Option<L1BatchDetails>, Web3Error> {
         self.state.start_info.ensure_not_pruned(batch_number)?;
-        let mut storage = self.access_storage().await?;
+        let mut storage = self.connection().await?;
         Ok(storage
             .blocks_web3_dal()
             .get_l1_batch_details(batch_number)
@@ -436,7 +436,7 @@ impl ZksNamespace {
         &self,
         hash: H256,
     ) -> Result<Option<Vec<u8>>, Web3Error> {
-        let mut storage = self.access_storage().await?;
+        let mut storage = self.connection().await?;
         Ok(storage
             .factory_deps_dal()
             .get_factory_dep(hash)
@@ -471,7 +471,7 @@ impl ZksNamespace {
         &self,
         version_id: Option<u16>,
     ) -> Result<Option<ProtocolVersion>, Web3Error> {
-        let mut storage = self.access_storage().await?;
+        let mut storage = self.connection().await?;
         let protocol_version = match version_id {
             Some(id) => {
                 storage

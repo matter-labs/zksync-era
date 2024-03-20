@@ -62,7 +62,7 @@ impl PubSubNotifier {
             .connection_pool
             .connection_tagged("api")
             .await
-            .context("access_storage_tagged")?;
+            .context("connection_tagged")?;
         let sealed_miniblock_number = storage
             .blocks_dal()
             .get_sealed_miniblock_number()
@@ -129,7 +129,7 @@ impl PubSubNotifier {
         self.connection_pool
             .connection_tagged("api")
             .await
-            .context("access_storage_tagged")?
+            .context("connection_tagged")?
             .blocks_web3_dal()
             .get_block_headers_after(last_block_number)
             .await
@@ -167,7 +167,7 @@ impl PubSubNotifier {
         self.connection_pool
             .connection_tagged("api")
             .await
-            .context("access_storage_tagged")?
+            .context("connection_tagged")?
             .transactions_web3_dal()
             .get_pending_txs_hashes_after(last_time, None)
             .await
@@ -207,7 +207,7 @@ impl PubSubNotifier {
         self.connection_pool
             .connection_tagged("api")
             .await
-            .context("access_storage_tagged")?
+            .context("connection_tagged")?
             .events_web3_dal()
             .get_all_logs(last_block_number)
             .await
