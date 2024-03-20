@@ -12,7 +12,7 @@ use lru::LruCache;
 use tokio::sync::{watch, Mutex};
 use vise::GaugeGuard;
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::NetworkConfig, ContractsConfig};
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_types::{
     api,
     l2::L2Tx,
@@ -137,7 +137,7 @@ impl SealedMiniblockNumber {
     /// Creates a handle to the last sealed miniblock number together with a task that will update
     /// it on a schedule.
     pub fn new(
-        connection_pool: ConnectionPool,
+        connection_pool: ConnectionPool<Core>,
         update_interval: Duration,
         stop_receiver: watch::Receiver<bool>,
     ) -> (Self, impl Future<Output = anyhow::Result<()>>) {
@@ -151,7 +151,7 @@ impl SealedMiniblockNumber {
                     return Ok(());
                 }
 
-                let mut connection = connection_pool.access_storage_tagged("api").await.unwrap();
+                let mut connection = connection_pool.connection_tagged("api").await.unwrap();
                 let Some(last_sealed_miniblock) = connection
                     .blocks_dal()
                     .get_sealed_miniblock_number()
@@ -205,7 +205,7 @@ impl SealedMiniblockNumber {
 pub(crate) struct RpcState {
     pub(super) current_method: Arc<MethodTracer>,
     pub(super) installed_filters: Option<Arc<Mutex<Filters>>>,
-    pub(super) connection_pool: ConnectionPool,
+    pub(super) connection_pool: ConnectionPool<Core>,
     pub(super) tree_api: Option<Arc<dyn TreeApiClient>>,
     pub(super) tx_sender: TxSender,
     pub(super) sync_state: Option<SyncState>,
@@ -243,7 +243,7 @@ impl RpcState {
     /// Resolves the specified block ID to a block number, which is guaranteed to be present in the node storage.
     pub(crate) async fn resolve_block(
         &self,
-        connection: &mut StorageProcessor<'_>,
+        connection: &mut Connection<'_, Core>,
         block: api::BlockId,
     ) -> Result<MiniblockNumber, Web3Error> {
         self.start_info.ensure_not_pruned(block)?;
@@ -264,7 +264,7 @@ impl RpcState {
     /// non-existing blocks.
     pub(crate) async fn resolve_block_unchecked(
         &self,
-        connection: &mut StorageProcessor<'_>,
+        connection: &mut Connection<'_, Core>,
         block: api::BlockId,
     ) -> Result<Option<MiniblockNumber>, Web3Error> {
         self.start_info.ensure_not_pruned(block)?;
@@ -283,7 +283,7 @@ impl RpcState {
 
     pub(crate) async fn resolve_block_args(
         &self,
-        connection: &mut StorageProcessor<'_>,
+        connection: &mut Connection<'_, Core>,
         block: api::BlockId,
     ) -> Result<BlockArgs, Web3Error> {
         BlockArgs::new(connection, block, self.start_info)
@@ -305,7 +305,7 @@ impl RpcState {
 
         let block_number = block_number.unwrap_or(api::BlockNumber::Latest);
         let block_id = api::BlockId::Number(block_number);
-        let mut conn = self.connection_pool.access_storage_tagged("api").await?;
+        let mut conn = self.connection_pool.connection_tagged("api").await?;
         Ok(self.resolve_block(&mut conn, block_id).await.unwrap())
         // ^ `unwrap()` is safe: `resolve_block_id(api::BlockId::Number(_))` can only return `None`
         // if called with an explicit number, and we've handled this case earlier.
@@ -326,7 +326,7 @@ impl RpcState {
             (Some(block_hash), None, None) => {
                 let block_number = self
                     .connection_pool
-                    .access_storage_tagged("api")
+                    .connection_tagged("api")
                     .await?
                     .blocks_web3_dal()
                     .resolve_block_id(api::BlockId::Hash(block_hash))
@@ -351,7 +351,7 @@ impl RpcState {
     ) -> Result<MiniblockNumber, Web3Error> {
         let pending_block = self
             .connection_pool
-            .access_storage_tagged("api")
+            .connection_tagged("api")
             .await?
             .blocks_web3_dal()
             .resolve_block_id(api::BlockId::Number(api::BlockNumber::Pending))
@@ -375,7 +375,7 @@ impl RpcState {
         if call_request.nonce.is_some() {
             return Ok(());
         }
-        let mut connection = self.connection_pool.access_storage_tagged("api").await?;
+        let mut connection = self.connection_pool.connection_tagged("api").await?;
 
         let latest_block_id = api::BlockId::Number(api::BlockNumber::Latest);
         let latest_block_number = self.resolve_block(&mut connection, latest_block_id).await?;

@@ -6,9 +6,9 @@ use std::{
 use async_trait::async_trait;
 use multivm::interface::{FinishedL1Batch, L1BatchEnv, SystemEnv};
 use tokio::sync::{mpsc, oneshot};
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Core};
 use zksync_types::{
-    block::MiniblockExecutionData, protocol_version::ProtocolUpgradeTx,
+    block::MiniblockExecutionData, protocol_upgrade::ProtocolUpgradeTx,
     witness_block_state::WitnessBlockState, L1BatchNumber, MiniblockNumber, ProtocolVersionId,
     Transaction,
 };
@@ -215,7 +215,7 @@ impl MiniblockSealerHandle {
 /// Component responsible for sealing miniblocks (i.e., storing their data to Postgres).
 #[derive(Debug)]
 pub struct MiniblockSealer {
-    pool: ConnectionPool,
+    pool: ConnectionPool<Core>,
     is_sync: bool,
     // Weak sender handle to get queue capacity stats.
     commands_sender: mpsc::WeakSender<Completable<MiniblockSealCommand>>,
@@ -225,7 +225,10 @@ pub struct MiniblockSealer {
 impl MiniblockSealer {
     /// Creates a sealer that will use the provided Postgres connection and will have the specified
     /// `command_capacity` for unprocessed sealing commands.
-    pub fn new(pool: ConnectionPool, mut command_capacity: usize) -> (Self, MiniblockSealerHandle) {
+    pub fn new(
+        pool: ConnectionPool<Core>,
+        mut command_capacity: usize,
+    ) -> (Self, MiniblockSealerHandle) {
         let is_sync = command_capacity == 0;
         command_capacity = command_capacity.max(1);
 
@@ -262,11 +265,7 @@ impl MiniblockSealer {
         // Commands must be processed sequentially: a later miniblock cannot be saved before
         // an earlier one.
         while let Some(completable) = self.next_command().await {
-            let mut conn = self
-                .pool
-                .access_storage_tagged("state_keeper")
-                .await
-                .unwrap();
+            let mut conn = self.pool.connection_tagged("state_keeper").await.unwrap();
             completable.command.seal(&mut conn).await;
             if let Some(delta) = miniblock_seal_delta {
                 MINIBLOCK_METRICS.seal_delta.observe(delta.elapsed());

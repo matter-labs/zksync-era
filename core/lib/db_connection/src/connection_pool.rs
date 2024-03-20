@@ -1,6 +1,7 @@
 use std::{
     env, fmt,
     future::Future,
+    marker::PhantomData,
     panic::Location,
     sync::{
         atomic::{AtomicU64, Ordering},
@@ -16,23 +17,22 @@ use sqlx::{
     postgres::{PgConnectOptions, PgPool, PgPoolOptions, Postgres},
 };
 
-pub use self::processor::StorageProcessor;
-pub(crate) use self::processor::StorageProcessorTags;
-use self::processor::TracedConnections;
-use crate::metrics::{PostgresMetrics, CONNECTION_METRICS};
-
-mod processor;
+use crate::{
+    connection::{Connection, ConnectionTags, DbMarker, TracedConnections},
+    metrics::CONNECTION_METRICS,
+};
 
 /// Builder for [`ConnectionPool`]s.
 #[derive(Clone)]
-pub struct ConnectionPoolBuilder {
+pub struct ConnectionPoolBuilder<DB: DbMarker> {
     database_url: String,
     max_size: u32,
     acquire_timeout: Duration,
     statement_timeout: Option<Duration>,
+    _marker: PhantomData<DB>,
 }
 
-impl fmt::Debug for ConnectionPoolBuilder {
+impl<DB: DbMarker> fmt::Debug for ConnectionPoolBuilder<DB> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         // Database URL is potentially sensitive, thus we omit it.
         formatter
@@ -44,7 +44,7 @@ impl fmt::Debug for ConnectionPoolBuilder {
     }
 }
 
-impl ConnectionPoolBuilder {
+impl<DB: DbMarker> ConnectionPoolBuilder<DB> {
     /// Overrides the maximum number of connections that can be allocated by the pool.
     pub fn set_max_size(&mut self, max_size: u32) -> &mut Self {
         self.max_size = max_size;
@@ -52,7 +52,7 @@ impl ConnectionPoolBuilder {
     }
 
     /// Sets the acquire timeout for a single connection attempt. There are multiple attempts (currently 3)
-    /// before `access_storage*` methods return an error. If not specified, the acquire timeout will not be set.
+    /// before `connection*` methods return an error. If not specified, the acquire timeout will not be set.
     pub fn set_acquire_timeout(&mut self, timeout: Option<Duration>) -> &mut Self {
         if let Some(timeout) = timeout {
             self.acquire_timeout = timeout;
@@ -75,7 +75,7 @@ impl ConnectionPoolBuilder {
     }
 
     /// Builds a connection pool from this builder.
-    pub async fn build(&self) -> anyhow::Result<ConnectionPool> {
+    pub async fn build(&self) -> anyhow::Result<ConnectionPool<DB>> {
         let options = PgPoolOptions::new()
             .max_connections(self.max_size)
             .acquire_timeout(self.acquire_timeout);
@@ -97,7 +97,20 @@ impl ConnectionPoolBuilder {
             inner: pool,
             max_size: self.max_size,
             traced_connections: None,
+            _marker: Default::default(),
         })
+    }
+
+    /// Builds a connection pool that has a single connection.
+    pub async fn build_singleton(&self) -> anyhow::Result<ConnectionPool<DB>> {
+        let singleton_builder = Self {
+            database_url: self.database_url.clone(),
+            max_size: 1,
+            acquire_timeout: self.acquire_timeout,
+            statement_timeout: self.statement_timeout,
+            _marker: self._marker,
+        };
+        singleton_builder.build().await
     }
 }
 
@@ -143,7 +156,7 @@ impl TestTemplate {
 
     /// Closes the connection pool, disallows connecting to the underlying db,
     /// so that the db can be used as a template.
-    pub async fn freeze(pool: ConnectionPool) -> anyhow::Result<Self> {
+    pub async fn freeze<DB: DbMarker>(pool: ConnectionPool<DB>) -> anyhow::Result<Self> {
         use sqlx::Executor as _;
         let mut conn = pool.acquire_connection_retried(None).await?;
         conn.execute(
@@ -164,7 +177,10 @@ impl TestTemplate {
     /// whenever you write to the DBs, therefore making it as fast as an in-memory Postgres instance.
     /// The database is not cleaned up automatically, but rather the whole Postgres
     /// container is recreated whenever you call "zk test rust".
-    pub async fn create_db(&self, connections: u32) -> anyhow::Result<ConnectionPoolBuilder> {
+    pub async fn create_db<DB: DbMarker>(
+        &self,
+        connections: u32,
+    ) -> anyhow::Result<ConnectionPoolBuilder<DB>> {
         use sqlx::Executor as _;
 
         let mut conn = Self::connect_to(&self.url(""))
@@ -176,7 +192,7 @@ impl TestTemplate {
             .await
             .context("CREATE DATABASE")?;
 
-        Ok(ConnectionPool::builder(
+        Ok(ConnectionPool::<DB>::builder(
             self.url(&db_new).as_ref(),
             connections,
         ))
@@ -229,14 +245,15 @@ impl GlobalConnectionPoolConfig {
 }
 
 #[derive(Clone)]
-pub struct ConnectionPool {
+pub struct ConnectionPool<DB: DbMarker> {
     pub(crate) inner: PgPool,
     database_url: String,
     max_size: u32,
-    traced_connections: Option<Arc<TracedConnections>>,
+    pub(crate) traced_connections: Option<Arc<TracedConnections>>,
+    _marker: PhantomData<DB>,
 }
 
-impl fmt::Debug for ConnectionPool {
+impl<DB: DbMarker> fmt::Debug for ConnectionPool<DB> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         // We don't print the `database_url`, as is may contain
         // sensitive information (e.g. database password).
@@ -247,7 +264,7 @@ impl fmt::Debug for ConnectionPool {
     }
 }
 
-impl ConnectionPool {
+impl<DB: DbMarker> ConnectionPool<DB> {
     const TEST_ACQUIRE_TIMEOUT: Duration = Duration::from_secs(10);
 
     /// Returns a reference to the global configuration parameters applied for all DB pools. For consistency, these parameters
@@ -261,14 +278,14 @@ impl ConnectionPool {
     ///
     /// Test pools trace their active connections. If acquiring a connection fails (e.g., with a timeout),
     /// the returned error will contain information on all active connections.
-    pub async fn test_pool() -> ConnectionPool {
+    pub async fn test_pool() -> ConnectionPool<DB> {
         const DEFAULT_CONNECTIONS: u32 = 50; // Expected to be enough for any unit test.
         Self::constrained_test_pool(DEFAULT_CONNECTIONS).await
     }
 
     /// Same as [`Self::test_pool()`], but with a configurable number of connections. This is useful to test
     /// behavior of components that rely on singleton / constrained pools in production.
-    pub async fn constrained_test_pool(connections: u32) -> ConnectionPool {
+    pub async fn constrained_test_pool(connections: u32) -> ConnectionPool<DB> {
         assert!(connections > 0, "Number of connections must be positive");
         let mut builder = TestTemplate::empty()
             .expect("failed creating test template")
@@ -285,18 +302,19 @@ impl ConnectionPool {
     }
 
     /// Initializes a builder for connection pools.
-    pub fn builder(database_url: &str, max_pool_size: u32) -> ConnectionPoolBuilder {
+    pub fn builder(database_url: &str, max_pool_size: u32) -> ConnectionPoolBuilder<DB> {
         ConnectionPoolBuilder {
             database_url: database_url.to_string(),
             max_size: max_pool_size,
             acquire_timeout: Duration::from_secs(30), // Default value used by `sqlx`
             statement_timeout: None,
+            _marker: Default::default(),
         }
     }
 
     /// Initializes a builder for connection pools with a single connection. This is equivalent
     /// to calling `Self::builder(db_url, 1)`.
-    pub fn singleton(database_url: &str) -> ConnectionPoolBuilder {
+    pub fn singleton(database_url: &str) -> ConnectionPoolBuilder<DB> {
         Self::builder(database_url, 1)
     }
 
@@ -307,13 +325,7 @@ impl ConnectionPool {
         self.max_size
     }
 
-    /// Uses this pool to report Postgres-wide metrics (e.g., table sizes). Should be called sparingly to not spam
-    /// identical metrics from multiple places. The returned future runs indefinitely and should be spawned as a Tokio task.
-    pub async fn run_postgres_metrics_scraping(self, scrape_interval: Duration) {
-        PostgresMetrics::run_scraping(self, scrape_interval).await;
-    }
-
-    /// Creates a `StorageProcessor` entity over a recoverable connection.
+    /// Creates a `Connection` entity over a recoverable connection.
     /// Upon a database outage connection will block the thread until
     /// it will be able to recover the connection (or, if connection cannot
     /// be restored after several retries, this will be considered as
@@ -321,35 +333,35 @@ impl ConnectionPool {
     ///
     /// This method is intended to be used in crucial contexts, where the
     /// database access is must-have (e.g. block committer).
-    pub async fn access_storage(&self) -> anyhow::Result<StorageProcessor<'_>> {
-        self.access_storage_inner(None).await
+    pub async fn connection(&self) -> anyhow::Result<Connection<'_, DB>> {
+        self.connection_inner(None).await
     }
 
-    /// A version of `access_storage` that would also expose the duration of the connection
+    /// A version of `connection` that would also expose the duration of the connection
     /// acquisition tagged to the `requester` name. It also tracks the caller location for the purposes
     /// of logging (e.g., long-living connections) and debugging (when used with a test connection pool).
     ///
     /// WARN: This method should not be used if it will result in too many time series (e.g.
     /// from witness generators or provers), otherwise Prometheus won't be able to handle it.
     #[track_caller] // In order to use it, we have to de-sugar `async fn`
-    pub fn access_storage_tagged(
+    pub fn connection_tagged(
         &self,
         requester: &'static str,
-    ) -> impl Future<Output = anyhow::Result<StorageProcessor<'_>>> + '_ {
+    ) -> impl Future<Output = anyhow::Result<Connection<'_, DB>>> + '_ {
         let location = Location::caller();
         async move {
-            let tags = StorageProcessorTags {
+            let tags = ConnectionTags {
                 requester,
                 location,
             };
-            self.access_storage_inner(Some(tags)).await
+            self.connection_inner(Some(tags)).await
         }
     }
 
-    async fn access_storage_inner(
+    async fn connection_inner(
         &self,
-        tags: Option<StorageProcessorTags>,
-    ) -> anyhow::Result<StorageProcessor<'_>> {
+        tags: Option<ConnectionTags>,
+    ) -> anyhow::Result<Connection<'_, DB>> {
         let acquire_latency = CONNECTION_METRICS.acquire.start();
         let conn = self
             .acquire_connection_retried(tags.as_ref())
@@ -359,7 +371,8 @@ impl ConnectionPool {
         if let Some(tags) = &tags {
             CONNECTION_METRICS.acquire_tagged[&tags.requester].observe(elapsed);
         }
-        Ok(StorageProcessor::from_pool(
+
+        Ok(Connection::<DB>::from_pool(
             conn,
             tags,
             self.traced_connections.as_deref(),
@@ -368,7 +381,7 @@ impl ConnectionPool {
 
     async fn acquire_connection_retried(
         &self,
-        tags: Option<&StorageProcessorTags>,
+        tags: Option<&ConnectionTags>,
     ) -> anyhow::Result<PoolConnection<Postgres>> {
         const DB_CONNECTION_RETRIES: usize = 3;
         const AVG_BACKOFF_INTERVAL: Duration = Duration::from_secs(1);
@@ -389,7 +402,7 @@ impl ConnectionPool {
             // Slightly randomize back-off interval so that we don't end up stampeding the DB.
             let jitter = rand::thread_rng().gen_range(0.8..1.2);
             let backoff_interval = AVG_BACKOFF_INTERVAL.mul_f32(jitter);
-            let tags_display = StorageProcessorTags::display(tags);
+            let tags_display = ConnectionTags::display(tags);
             tracing::warn!(
                 "Failed to get connection to DB ({tags_display}), backing off for {backoff_interval:?}: {connection_err}"
             );
@@ -401,7 +414,7 @@ impl ConnectionPool {
             Ok(conn) => Ok(conn),
             Err(err) => {
                 Self::report_connection_error(&err);
-                let tags_display = StorageProcessorTags::display(tags);
+                let tags_display = ConnectionTags::display(tags);
                 if let Some(traced_connections) = &self.traced_connections {
                     anyhow::bail!(
                         "Run out of retries getting a DB connection ({tags_display}), last error: {err}\n\
@@ -424,23 +437,24 @@ mod tests {
     use assert_matches::assert_matches;
 
     use super::*;
+    use crate::utils::InternalMarker;
 
     #[tokio::test]
     async fn setting_statement_timeout() {
         let db_url = TestTemplate::empty()
             .unwrap()
-            .create_db(1)
+            .create_db::<InternalMarker>(1)
             .await
             .unwrap()
             .database_url;
 
-        let pool = ConnectionPool::singleton(&db_url)
+        let pool = ConnectionPool::<InternalMarker>::singleton(&db_url)
             .set_statement_timeout(Some(Duration::from_secs(1)))
             .build()
             .await
             .unwrap();
 
-        let mut storage = pool.access_storage().await.unwrap();
+        let mut storage = pool.connection().await.unwrap();
         let err = sqlx::query("SELECT pg_sleep(2)")
             .map(drop)
             .fetch_optional(storage.conn())

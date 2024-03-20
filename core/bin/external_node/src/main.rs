@@ -1,4 +1,4 @@
-use std::{net::Ipv4Addr, str::FromStr, sync::Arc, time::Duration};
+use std::{future, net::Ipv4Addr, str::FromStr, sync::Arc, time::Duration};
 
 use anyhow::{anyhow, Context as _};
 use clap::Parser;
@@ -37,8 +37,9 @@ use zksync_core::{
         MainNodeClient, SyncState,
     },
 };
-use zksync_dal::{
-    connection::ConnectionPoolBuilder, healthcheck::ConnectionPoolHealthCheck, ConnectionPool,
+use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core, CoreDal};
+use zksync_db_connection::{
+    connection_pool::ConnectionPoolBuilder, healthcheck::ConnectionPoolHealthCheck,
 };
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
 use zksync_state::PostgresStorageCaches;
@@ -57,6 +58,7 @@ mod config;
 mod helpers;
 mod init;
 mod metrics;
+mod version_sync_task;
 
 const RELEASE_MANIFEST: &str = include_str!("../../../../.github/release-please/manifest.json");
 
@@ -66,7 +68,7 @@ async fn build_state_keeper(
     action_queue: ActionQueue,
     state_keeper_db_path: String,
     config: &ExternalNodeConfig,
-    connection_pool: ConnectionPool,
+    connection_pool: ConnectionPool<Core>,
     sync_state: SyncState,
     l2_erc20_bridge_addr: Address,
     miniblock_sealer_handle: MiniblockSealerHandle,
@@ -122,7 +124,7 @@ async fn run_tree(
     api_config: Option<&MerkleTreeApiConfig>,
     app_health: &AppHealthCheck,
     stop_receiver: watch::Receiver<bool>,
-    tree_pool: ConnectionPool,
+    tree_pool: ConnectionPool<Core>,
 ) -> anyhow::Result<Arc<dyn TreeApiClient>> {
     let metadata_calculator_config = MetadataCalculatorConfig {
         db_path: config.required.merkle_tree_path.clone(),
@@ -162,13 +164,13 @@ async fn run_tree(
 #[allow(clippy::too_many_arguments)]
 async fn run_core(
     config: &ExternalNodeConfig,
-    connection_pool: ConnectionPool,
+    connection_pool: ConnectionPool<Core>,
     main_node_client: HttpClient,
     task_handles: &mut Vec<task::JoinHandle<anyhow::Result<()>>>,
     app_health: &AppHealthCheck,
     stop_receiver: watch::Receiver<bool>,
     fee_params_fetcher: Arc<MainNodeFeeParamsFetcher>,
-    singleton_pool_builder: &ConnectionPoolBuilder,
+    singleton_pool_builder: &ConnectionPoolBuilder<Core>,
 ) -> anyhow::Result<SyncState> {
     // Create components.
     let sync_state = SyncState::default();
@@ -251,7 +253,6 @@ async fn run_core(
     let sk_handle = task::spawn(state_keeper.run());
     let fee_params_fetcher_handle =
         tokio::spawn(fee_params_fetcher.clone().run(stop_receiver.clone()));
-
     let remote_diamond_proxy_addr = config.remote.diamond_proxy_addr;
     let diamond_proxy_addr = if let Some(addr) = config.optional.contracts_diamond_proxy_addr {
         anyhow::ensure!(
@@ -320,14 +321,14 @@ async fn run_core(
 async fn run_api(
     config: &ExternalNodeConfig,
     app_health: &AppHealthCheck,
-    connection_pool: ConnectionPool,
+    connection_pool: ConnectionPool<Core>,
     stop_receiver: watch::Receiver<bool>,
     sync_state: Option<SyncState>,
     ask_sync_state_from: Option<Arc<Web3<Http>>>,
     tree_reader: Arc<dyn TreeApiClient>,
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     main_node_client: HttpClient,
-    singleton_pool_builder: ConnectionPoolBuilder,
+    singleton_pool_builder: ConnectionPoolBuilder<Core>,
     fee_params_fetcher: Arc<MainNodeFeeParamsFetcher>,
     components: &[Component],
 ) -> anyhow::Result<()> {
@@ -451,7 +452,7 @@ async fn run_api(
 
 async fn init_tasks(
     config: &ExternalNodeConfig,
-    connection_pool: ConnectionPool,
+    connection_pool: ConnectionPool<Core>,
     main_node_client: HttpClient,
     task_handles: &mut Vec<task::JoinHandle<anyhow::Result<()>>>,
     app_health: &AppHealthCheck,
@@ -470,7 +471,7 @@ async fn init_tasks(
     task_handles.push(tokio::spawn(async move {
         loop {
             let protocol_version = pool
-                .access_storage()
+                .connection()
                 .await
                 .unwrap()
                 .protocol_versions_dal()
@@ -708,13 +709,13 @@ async fn main() -> anyhow::Result<()> {
         config.consensus = None;
     }
     if let Some(threshold) = config.optional.slow_query_threshold() {
-        ConnectionPool::global_config().set_slow_query_threshold(threshold)?;
+        ConnectionPool::<Core>::global_config().set_slow_query_threshold(threshold)?;
     }
     if let Some(threshold) = config.optional.long_connection_threshold() {
-        ConnectionPool::global_config().set_long_connection_threshold(threshold)?;
+        ConnectionPool::<Core>::global_config().set_long_connection_threshold(threshold)?;
     }
 
-    let connection_pool = ConnectionPool::builder(
+    let connection_pool = ConnectionPool::<Core>::builder(
         &config.postgres.database_url,
         config.postgres.max_connections,
     )
@@ -752,12 +753,24 @@ async fn main() -> anyhow::Result<()> {
     );
     // Start scraping Postgres metrics before store initialization as well.
     let metrics_pool = connection_pool.clone();
-    let mut task_handles = vec![tokio::spawn(async move {
-        metrics_pool
-            .run_postgres_metrics_scraping(Duration::from_secs(60))
-            .await;
-        Ok(())
-    })];
+    let version_sync_task_pool = connection_pool.clone();
+    let version_sync_task_main_node_client = main_node_client.clone();
+    let mut task_handles = vec![
+        tokio::spawn(async move {
+            PostgresMetrics::run_scraping(metrics_pool, Duration::from_secs(60)).await;
+            Ok(())
+        }),
+        tokio::spawn(async move {
+            version_sync_task::sync_versions(
+                version_sync_task_pool,
+                version_sync_task_main_node_client,
+            )
+            .await?;
+            future::pending::<()>().await;
+            // ^ Since this is run as a task, we don't want it to exit on success (this would shut down the node).
+            Ok(())
+        }),
+    ];
 
     // Make sure that the node storage is initialized either via genesis or snapshot recovery.
     ensure_storage_initialized(
@@ -797,7 +810,7 @@ async fn main() -> anyhow::Result<()> {
     }
     if opt.revert_pending_l1_batch {
         tracing::info!("Rolling pending L1 batch back..");
-        let mut connection = connection_pool.access_storage().await?;
+        let mut connection = connection_pool.connection().await?;
         let sealed_l1_batch_number = connection
             .blocks_dal()
             .get_sealed_l1_batch_number()
