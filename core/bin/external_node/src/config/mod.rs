@@ -238,7 +238,7 @@ pub struct OptionalENConfig {
     #[serde(default = "OptionalENConfig::default_miniblock_seal_queue_capacity")]
     pub miniblock_seal_queue_capacity: usize,
     /// Polling period for mempool cache update - how often the mempool cache is updated from the database.
-    /// In milliseconds. Default is 50ms.
+    /// In milliseconds. Default is 50 milliseconds.
     #[serde(default = "OptionalENConfig::default_mempool_cache_update_interval")]
     pub mempool_cache_update_interval: u64,
     /// Maximum number of transactions to be stored in the mempool cache. Default is 10000.

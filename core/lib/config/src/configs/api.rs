@@ -97,7 +97,7 @@ pub struct Web3JsonRpcConfig {
     /// Tree API url, currently used to proxy `getProof` calls to the tree
     pub tree_api_url: Option<String>,
     /// Polling period for mempool cache update - how often the mempool cache is updated from the database.
-    /// In milliseconds. Default is 50ms.
+    /// In milliseconds. Default is 50 milliseconds.
     pub mempool_cache_update_interval: Option<u64>,
     /// Maximum number of transactions to be stored in the mempool cache. Default is 10000.
     pub mempool_cache_size: Option<usize>,
