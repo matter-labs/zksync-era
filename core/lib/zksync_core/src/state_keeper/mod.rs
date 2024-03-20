@@ -2,7 +2,10 @@ use std::sync::Arc;
 
 use tokio::sync::watch;
 use zksync_config::{
-    configs::chain::{MempoolConfig, NetworkConfig, StateKeeperConfig},
+    configs::{
+        chain::{MempoolConfig, NetworkConfig, StateKeeperConfig},
+        ContractsConfigReduced,
+    },
     ContractsConfig, DBConfig,
 };
 use zksync_dal::ConnectionPool;
@@ -32,7 +35,7 @@ pub(crate) mod updates;
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn create_state_keeper(
-    contracts_config: &ContractsConfig,
+    contracts_config: &ContractsConfigReduced,
     state_keeper_config: StateKeeperConfig,
     db_config: &DBConfig,
     network_config: &NetworkConfig,

@@ -26,6 +26,7 @@ mod proof_data_handler;
 mod snapshots_creator;
 mod witness_generator;
 
+mod genesis;
 pub mod proto;
 pub mod testonly;
 #[cfg(test)]

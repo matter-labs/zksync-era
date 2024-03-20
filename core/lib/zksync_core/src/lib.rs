@@ -27,6 +27,7 @@ use zksync_config::{
             StateKeeperConfig,
         },
         database::{MerkleTreeConfig, MerkleTreeMode},
+        ContractsConfigReduced,
     },
     ApiConfig, ContractsConfig, DBConfig, GenesisConfig, PostgresConfig,
 };
@@ -218,6 +219,7 @@ impl FromStr for Components {
 
 pub async fn initialize_components(
     configs: &TempConfigStore,
+    contracts_config: &ContractsConfigReduced,
     components: Vec<Component>,
     secrets: &Secrets,
 ) -> anyhow::Result<(
@@ -261,10 +263,6 @@ pub async fn initialize_components(
         health_check_config.hard_time_limit(),
     ));
 
-    let contracts_config = configs
-        .contracts_config
-        .clone()
-        .context("contracts_config")?;
     let eth_client_config = configs
         .eth_client_config
         .clone()
@@ -680,10 +678,6 @@ pub async fn initialize_components(
                 .proof_data_handler_config
                 .clone()
                 .context("proof_data_handler_config")?,
-            configs
-                .contracts_config
-                .clone()
-                .context("contracts_config")?,
             store_factory.create_store().await,
             connection_pool.clone(),
             stop_receiver.clone(),
@@ -718,7 +712,7 @@ pub async fn initialize_components(
 async fn add_state_keeper_to_task_futures(
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     postgres_config: &PostgresConfig,
-    contracts_config: &ContractsConfig,
+    contracts_config: &ContractsConfigReduced,
     state_keeper_config: StateKeeperConfig,
     network_config: &NetworkConfig,
     db_config: &DBConfig,

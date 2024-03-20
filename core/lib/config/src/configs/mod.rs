@@ -3,7 +3,7 @@ pub use self::{
     alerts::AlertsConfig,
     api::ApiConfig,
     contract_verifier::ContractVerifierConfig,
-    contracts::ContractsConfig,
+    contracts::{ContractsConfig, ContractsConfigReduced},
     database::{DBConfig, PostgresConfig},
     eth_client::ETHClientConfig,
     eth_sender::{ETHSenderConfig, GasAdjusterConfig},

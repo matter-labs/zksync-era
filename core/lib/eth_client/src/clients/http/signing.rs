@@ -1,7 +1,9 @@
 use std::{fmt, sync::Arc};
 
 use async_trait::async_trait;
-use zksync_config::{ContractsConfig, ETHClientConfig, ETHSenderConfig};
+use zksync_config::{
+    configs::ContractsConfigReduced, ContractsConfig, ETHClientConfig, ETHSenderConfig,
+};
 use zksync_contracts::zksync_contract;
 use zksync_eth_signer::{raw_ethereum_tx::TransactionParameters, EthereumSigner, PrivateKeySigner};
 use zksync_types::{
@@ -31,7 +33,7 @@ pub type PKSigningClient = SigningClient<PrivateKeySigner>;
 impl PKSigningClient {
     pub fn from_config(
         eth_sender: &ETHSenderConfig,
-        contracts_config: &ContractsConfig,
+        contracts_config: &ContractsConfigReduced,
         eth_client: &ETHClientConfig,
     ) -> Self {
         // Gather required data from the config.
@@ -52,7 +54,7 @@ impl PKSigningClient {
     /// Create an signing client for the blobs account
     pub fn from_config_blobs(
         eth_sender: &ETHSenderConfig,
-        contracts_config: &ContractsConfig,
+        contracts_config: &ContractsConfigReduced,
         eth_client: &ETHClientConfig,
     ) -> Option<Self> {
         // Gather required data from the config.
@@ -69,7 +71,7 @@ impl PKSigningClient {
 
     fn from_config_inner(
         eth_sender: &ETHSenderConfig,
-        contracts_config: &ContractsConfig,
+        contracts_config: &ContractsConfigReduced,
         eth_client: &ETHClientConfig,
         operator_private_key: H256,
     ) -> Self {

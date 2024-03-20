@@ -84,6 +84,7 @@ impl GenesisParams {
         if base_system_contracts_hashes != base_system_contracts.hashes() {
             return Err(GenesisError::BaseSystemContractsHashes(
                 base_system_contracts.hashes(),
+                base_system_contracts_hashes,
             ));
         }
         let _: ProtocolVersionId = config
@@ -135,7 +136,6 @@ pub fn mock_genesis_config() -> GenesisConfig {
         genesis_commitment: Default::default(),
         bootloader_hash: base_system_contracts_hashes.bootloader,
         default_aa_hash: base_system_contracts_hashes.default_aa,
-        fee_account: Address::repeat_byte(0x01),
         l1_chain_id: L1ChainId(9),
         l2_chain_id: L2ChainId::default(),
         recursion_node_level_vk_hash: first_l1_verifier_config.params.recursion_node_level_vk_hash,
@@ -165,7 +165,6 @@ pub async fn insert_genesis_batch(
 
     create_genesis_l1_batch(
         &mut transaction,
-        genesis_params.config.fee_account,
         genesis_params.config.l2_chain_id,
         genesis_params.protocol_version(),
         genesis_params.base_system_contracts(),
@@ -394,7 +393,6 @@ async fn insert_system_contracts(
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn create_genesis_l1_batch(
     storage: &mut StorageProcessor<'_>,
-    first_validator_address: Address,
     chain_id: L2ChainId,
     protocol_version: ProtocolVersionId,
     base_system_contracts: &BaseSystemContracts,
@@ -422,7 +420,7 @@ pub(crate) async fn create_genesis_l1_batch(
         hash: MiniblockHasher::legacy_hash(MiniblockNumber(0)),
         l1_tx_count: 0,
         l2_tx_count: 0,
-        fee_account_address: first_validator_address,
+        fee_account_address: Default::default(),
         base_fee_per_gas: 0,
         gas_per_pubdata_limit: get_max_gas_per_pubdata_byte(protocol_version.into()),
         batch_fee_input: BatchFeeInput::l1_pegged(0, 0),

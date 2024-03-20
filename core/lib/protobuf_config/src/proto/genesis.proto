@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+package zksync.config.genesis;
+
+message Prover {
+  optional bytes recursion_scheduler_level_vk_hash = 1; // required; H256
+  optional bytes recursion_node_level_vk_hash = 2; // required; H256
+  optional bytes recursion_leaf_level_vk_hash = 3; // required; H256
+  optional bytes recursion_circuits_set_vks_hash = 4; // required; H256
+  optional bytes snark_wrapper_vk_hash = 5; // required; H256
+  optional bool dummy_verifier = 6;
+}
+
+message SharedBridge {
+  optional bytes bridgehub_proxy_addr = 1; // optional; h160
+  optional bytes state_transition_proxy_addr = 2; // optional; h160
+  optional bytes transparent_proxy_admin_addr = 3; // optional; h160
+}
+
+message Genesis {
+  optional bytes genesis_root = 1; // optional; h256
+  optional uint64 genesis_rollup_leaf_index = 2; // optional;
+  optional bytes genesis_batch_commitment = 3; // optional; h256
+  optional uint32 genesis_protocol_version = 4; // optional;
+  optional bytes default_aa_hash = 5; // optional; h256
+  optional bytes bootloader_hash = 6; // optional; h256
+  optional uint64 l1_chain_id = 7; // optional;
+  optional uint64 l2_chain_id = 8; // optional;
+  optional Prover prover = 9;
+  optional SharedBridge shared_bridge = 10;
+}

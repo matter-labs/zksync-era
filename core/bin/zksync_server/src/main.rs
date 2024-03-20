@@ -1,4 +1,4 @@
-use std::{str::FromStr, time::Duration};
+use std::{path::PathBuf, str::FromStr, time::Duration};
 
 use anyhow::Context as _;
 use clap::Parser;
@@ -11,15 +11,16 @@ use zksync_config::{
         },
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
-        FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig, ObservabilityConfig,
-        PrometheusConfig, ProofDataHandlerConfig, WitnessGeneratorConfig,
+        ContractsConfigReduced, FriProofCompressorConfig, FriProverConfig,
+        FriWitnessGeneratorConfig, ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
+        WitnessGeneratorConfig,
     },
     ApiConfig, ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig, ETHWatchConfig,
     GasAdjusterConfig, GenesisConfig, ObjectStoreConfig, PostgresConfig,
 };
 use zksync_core::{
     genesis, genesis_init, initialize_components, is_genesis_needed, setup_sigint_handler,
-    temp_config_store::{decode_yaml, Secrets, TempConfigStore},
+    temp_config_store::{decode_yaml, decode_yaml_repr, Secrets, TempConfigStore},
     Component, Components,
 };
 use zksync_env_config::FromEnv;
@@ -31,7 +32,6 @@ mod config;
 #[cfg(not(target_env = "msvc"))]
 #[global_allocator]
 static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
-
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version, about = "zkSync operator node", long_about = None)]
 struct Cli {
@@ -56,6 +56,9 @@ struct Cli {
     /// Path to the yaml with secrets. If set, it will be used instead of env vars.
     #[arg(long)]
     secrets_path: Option<std::path::PathBuf>,
+    /// Path to the yaml with secrets. If set, it will be used instead of env vars.
+    #[arg(long)]
+    contracts_config_path: Option<std::path::PathBuf>,
 }
 
 #[derive(Debug, Clone)]
@@ -131,7 +134,6 @@ async fn main() -> anyhow::Result<()> {
             proof_data_handler_config: ProofDataHandlerConfig::from_env().ok(),
             witness_generator_config: WitnessGeneratorConfig::from_env().ok(),
             api_config: ApiConfig::from_env().ok(),
-            contracts_config: ContractsConfig::from_env().ok(),
             db_config: DBConfig::from_env().ok(),
             eth_client_config: ETHClientConfig::from_env().ok(),
             eth_sender_config: ETHSenderConfig::from_env().ok(),
@@ -152,6 +154,17 @@ async fn main() -> anyhow::Result<()> {
         },
     };
 
+    let contracts_config: ContractsConfigReduced = match opt.contracts_config_path {
+        None => ContractsConfig::from_env()
+            .context("contracts_config")?
+            .into(),
+        Some(path) => {
+            let yaml =
+                std::fs::read_to_string(&path).with_context(|| path.display().to_string())?;
+            decode_yaml_repr(&yaml).context("failed decoding YAML config")?
+        }
+    };
+    // let contracts_config: ContractsConfigReduced = contracts_config.into();
     let postgres_config = configs.postgres_config.clone().context("PostgresConfig")?;
 
     if opt.genesis || is_genesis_needed(&postgres_config).await {
@@ -166,12 +179,13 @@ async fn main() -> anyhow::Result<()> {
 
     if opt.set_chain_id {
         let eth_client = ETHClientConfig::from_env().context("EthClientConfig")?;
-        let contracts = ContractsConfig::from_env().context("ContractsConfig")?;
-        if let Some(state_transition_proxy_addr) = contracts.state_transition_proxy_addr {
+        let genesis = GenesisConfig::from_env().context("Genesis config")?;
+
+        if let Some(bridge) = genesis.shared_bridge {
             genesis::save_set_chain_id_tx(
                 &eth_client.web3_url,
-                contracts.diamond_proxy_addr,
-                state_transition_proxy_addr,
+                contracts_config.diamond_proxy_addr,
+                bridge.state_transition_proxy_addr,
                 &postgres_config,
             )
             .await
@@ -187,7 +201,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Run core actors.
     let (core_task_handles, stop_sender, cb_receiver, health_check_handle) =
-        initialize_components(&configs, components, &secrets)
+        initialize_components(&configs, &contracts_config, components, &secrets)
             .await
             .context("Unable to start Core actors")?;
 

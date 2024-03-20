@@ -8,11 +8,15 @@ l1:
   blob_versioned_hash_retriever_addr: "0x0000000000000000000000000000000000000000"
   validator_timelock_addr: "0xfc073319977e314f251eae6ae6be76b0b3baeecf"
 l2:
-  erc20_bridge_addr: "0xfc073319977e314f251eae6ae6be76b0b3baeecf"
   testnet_paymaster_addr: "0xfc073319977e314f251eae6ae6be76b0b3baeecf"
+bridges:
+  erc20:
+    - l1_address: "0xfc073319977e314f251eae6ae6be76b0b3baeecf"
+    - l2_address: "0xfc073319977e314f251eae6ae6be76b0b3baeecf"
+  weth:
+    - l1_address: "0xfc073319977e314f251eae6ae6be76b0b3baeecf"
+    - l2_address: "0xfc073319977e314f251eae6ae6be76b0b3baeecf"
 weth:
-  l1_token_addr: "0x5e6d086f5ec079adff4fb3774cdf3e8d6a34f7e9"
-  l1_bridge_proxy_addr: "0x5e6d086f5ec079adff4fb3774cdf3e8d6a34f7e9"
-  l2_bridge_addr: "0x5e6d086f5ec079adff4fb3774cdf3e8d6a34f7e9"
-  l2_token_addr: "0x5e6d086f5ec079adff4fb3774cdf3e8d6a34f7e9"
+  l1_address: "0x5e6d086f5ec079adff4fb3774cdf3e8d6a34f7e9"
+  l2_address: "0x5e6d086f5ec079adff4fb3774cdf3e8d6a34f7e9"
 validator_timelock_execution_delay: 0

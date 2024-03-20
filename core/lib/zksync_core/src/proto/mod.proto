@@ -6,6 +6,7 @@ import "zksync/config/alerts.proto";
 import "zksync/config/api.proto";
 import "zksync/config/chain.proto";
 import "zksync/config/contracts.proto";
+import "zksync/config/genesis.proto";
 import "zksync/config/contract_verifier.proto";
 import "zksync/config/database.proto";
 import "zksync/config/eth_client.proto";
@@ -45,7 +46,6 @@ message TempConfigStore {
   optional config.proof_data_handler.ProofDataHandler proof_data_handler = 16;
   optional config.witness_generator.WitnessGenerator witness_generator = 17;
   optional config.api.Api api = 18;
-  optional config.contracts.Contracts contracts = 19;
   optional config.database.DB db = 20;
   optional config.eth_client.ETHClient eth_client = 21;
   optional config.eth_sender.ETHSender eth_sender = 22;

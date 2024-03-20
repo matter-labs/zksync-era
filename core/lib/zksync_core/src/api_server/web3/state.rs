@@ -11,7 +11,9 @@ use anyhow::Context as _;
 use lru::LruCache;
 use tokio::sync::{watch, Mutex};
 use vise::GaugeGuard;
-use zksync_config::configs::{api::Web3JsonRpcConfig, chain::NetworkConfig, ContractsConfig};
+use zksync_config::configs::{
+    api::Web3JsonRpcConfig, chain::NetworkConfig, ContractsConfig, ContractsConfigReduced,
+};
 use zksync_dal::{ConnectionPool, StorageProcessor};
 use zksync_types::{
     api, l2::L2Tx, transaction_request::CallRequest, Address, L1BatchNumber, L1ChainId, L2ChainId,
@@ -97,7 +99,7 @@ impl InternalApiConfig {
     pub fn new(
         eth_config: &NetworkConfig,
         web3_config: &Web3JsonRpcConfig,
-        contracts_config: &ContractsConfig,
+        contracts_config: &ContractsConfigReduced,
     ) -> Self {
         Self {
             l1_chain_id: eth_config.network.chain_id(),
@@ -112,7 +114,8 @@ impl InternalApiConfig {
                 l1_weth_bridge: contracts_config.l1_weth_bridge_proxy_addr,
                 l2_weth_bridge: contracts_config.l2_weth_bridge_addr,
             },
-            bridgehub_proxy_addr: contracts_config.bridgehub_proxy_addr,
+            // TODO move bridgehub proxy
+            bridgehub_proxy_addr: None,
             diamond_proxy_addr: contracts_config.diamond_proxy_addr,
             l2_testnet_paymaster_addr: contracts_config.l2_testnet_paymaster_addr,
             req_entities_limit: web3_config.req_entities_limit(),

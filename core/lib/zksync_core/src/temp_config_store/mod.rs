@@ -41,6 +41,12 @@ pub fn decode_yaml<T: ProtoFmt>(yaml: &str) -> anyhow::Result<T> {
     Ok(this)
 }
 
+pub fn decode_yaml_repr<T: ProtoRepr>(yaml: &str) -> anyhow::Result<T> {
+    let d = serde_yaml::Deserializer::from_str(yaml);
+    let this: T = zksync_protobuf::serde::deserialize(d)?;
+    Ok(this)
+}
+
 // TODO (QIT-22): This structure is going to be removed when components will be responsible for their own configs.
 /// A temporary config store allowing to pass deserialized configs from `zksync_server` to `zksync_core`.
 /// All the configs are optional, since for some component combination it is not needed to pass all the configs.
@@ -64,7 +70,6 @@ pub struct TempConfigStore {
     pub proof_data_handler_config: Option<ProofDataHandlerConfig>,
     pub witness_generator_config: Option<WitnessGeneratorConfig>,
     pub api_config: Option<ApiConfig>,
-    pub contracts_config: Option<ContractsConfig>,
     pub db_config: Option<DBConfig>,
     pub eth_client_config: Option<ETHClientConfig>,
     pub eth_sender_config: Option<ETHSenderConfig>,
@@ -104,7 +109,6 @@ impl ProtoFmt for TempConfigStore {
             witness_generator_config: read_optional_repr(&r.witness_generator)
                 .context("witness_generator")?,
             api_config: read_optional_repr(&r.api).context("api")?,
-            contracts_config: read_optional_repr(&r.contracts).context("contracts")?,
             db_config: read_optional_repr(&r.db).context("db")?,
             eth_client_config: read_optional_repr(&r.eth_client).context("eth_client")?,
             eth_sender_config: read_optional_repr(&r.eth_sender).context("eth_sender")?,
@@ -147,7 +151,6 @@ impl ProtoFmt for TempConfigStore {
                 .map(ProtoRepr::build),
             witness_generator: self.witness_generator_config.as_ref().map(ProtoRepr::build),
             api: self.api_config.as_ref().map(ProtoRepr::build),
-            contracts: self.contracts_config.as_ref().map(ProtoRepr::build),
             db: self.db_config.as_ref().map(ProtoRepr::build),
             eth_client: self.eth_client_config.as_ref().map(ProtoRepr::build),
             eth_sender: self.eth_sender_config.as_ref().map(ProtoRepr::build),

@@ -44,7 +44,6 @@ async fn create_genesis_params(
         .fetch_l2_block(zksync_types::MiniblockNumber(0), false)
         .await?
         .context("No genesis block on the main node")?;
-    let first_validator = genesis_miniblock.operator_address;
     let base_system_contracts_hashes = genesis_miniblock.base_system_contracts_hashes;
     let protocol_version = genesis_miniblock.protocol_version;
     let genesis_batch = client.fetch_genesis_l1_batch().await?;
@@ -106,7 +105,6 @@ async fn create_genesis_params(
             .context("Genesis batch can't be pending")?,
         bootloader_hash: base_system_contracts_hashes.bootloader,
         default_aa_hash: base_system_contracts_hashes.default_aa,
-        fee_account: first_validator,
         l1_chain_id,
         l2_chain_id: zksync_chain_id,
         recursion_node_level_vk_hash: first_l1_verifier_config.params.recursion_node_level_vk_hash,
@@ -116,6 +114,9 @@ async fn create_genesis_params(
             .recursion_circuits_set_vks_hash,
         recursion_scheduler_level_vk_hash: first_l1_verifier_config
             .recursion_scheduler_level_vk_hash,
+        snark_wrapper_vk_hash: Default::default(),
+        shared_bridge: None,
+        dummy_prover: false,
     };
     Ok(GenesisParams::from_genesis_config(
         config,

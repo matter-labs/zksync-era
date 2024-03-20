@@ -5,7 +5,7 @@ use zksync_basic_types::{
     basic_fri_types::CircuitIdRoundTuple, network::Network, Address, L1ChainId, L2ChainId, H256,
 };
 
-use crate::configs::{self, eth_sender::PubdataSendingMode};
+use crate::configs::{self, eth_sender::PubdataSendingMode, genesis::SharedBridge};
 
 /// Generator of random configs.
 pub struct Gen<'a, R: Rng> {
@@ -760,13 +760,25 @@ impl RandomConfig for configs::GenesisConfig {
             genesis_commitment: g.gen(),
             bootloader_hash: g.gen(),
             default_aa_hash: g.gen(),
-            fee_account: g.gen(),
             l1_chain_id: L1ChainId(g.gen()),
             l2_chain_id: L2ChainId::default(),
             recursion_node_level_vk_hash: g.gen(),
             recursion_leaf_level_vk_hash: g.gen(),
             recursion_circuits_set_vks_hash: g.gen(),
             recursion_scheduler_level_vk_hash: g.gen(),
+            snark_wrapper_vk_hash: g.gen(),
+            shared_bridge: g.gen(),
+            dummy_prover: g.gen(),
+        }
+    }
+}
+
+impl RandomConfig for SharedBridge {
+    fn sample(g: &mut Gen<impl Rng>) -> Self {
+        Self {
+            bridgehub_proxy_addr: g.gen(),
+            state_transition_proxy_addr: g.gen(),
+            transparent_proxy_admin_addr: g.gen(),
         }
     }
 }

@@ -92,3 +92,37 @@ impl ContractsConfig {
         }
     }
 }
+
+impl From<ContractsConfig> for ContractsConfigReduced {
+    fn from(value: ContractsConfig) -> Self {
+        Self {
+            governance_addr: value.governance_addr,
+            verifier_addr: value.verifier_addr,
+            default_upgrade_addr: value.diamond_upgrade_init_addr,
+            diamond_proxy_addr: value.diamond_proxy_addr,
+            validator_timelock_addr: value.validator_timelock_addr,
+            l1_erc20_bridge_proxy_addr: value.l1_erc20_bridge_proxy_addr,
+            l2_erc20_bridge_addr: value.l2_erc20_bridge_addr,
+            l1_weth_bridge_proxy_addr: value.l1_weth_bridge_proxy_addr,
+            l2_weth_bridge_addr: value.l2_weth_bridge_addr,
+            l2_testnet_paymaster_addr: value.l2_testnet_paymaster_addr,
+            l1_multicall3_addr: value.l1_multicall3_addr,
+        }
+    }
+}
+
+/// Data about deployed contracts.
+#[derive(Debug, Deserialize, Clone, PartialEq)]
+pub struct ContractsConfigReduced {
+    pub governance_addr: Address,
+    pub verifier_addr: Address,
+    pub default_upgrade_addr: Address,
+    pub diamond_proxy_addr: Address,
+    pub validator_timelock_addr: Address,
+    pub l1_erc20_bridge_proxy_addr: Address,
+    pub l2_erc20_bridge_addr: Address,
+    pub l1_weth_bridge_proxy_addr: Option<Address>,
+    pub l2_weth_bridge_addr: Option<Address>,
+    pub l2_testnet_paymaster_addr: Option<Address>,
+    pub l1_multicall3_addr: Address,
+}
