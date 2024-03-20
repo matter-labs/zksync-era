@@ -6,9 +6,9 @@ use std::{
 
 use anyhow::Context as _;
 use async_trait::async_trait;
+use prover_dal::{ConnectionPool, Prover, ProverDals};
 use tokio::{task::JoinHandle, time::sleep};
 use zksync_config::configs::FriWitnessVectorGeneratorConfig;
-use zksync_dal::{fri_prover_dal::types::GpuProverInstanceStatus, ConnectionPool};
 use zksync_object_store::ObjectStore;
 use zksync_prover_fri_types::{
     circuit_definitions::{
@@ -25,14 +25,17 @@ use zksync_prover_fri_utils::{
     fetch_next_circuit, get_numeric_circuit_id, socket_utils::send_assembly,
 };
 use zksync_queued_job_processor::JobProcessor;
-use zksync_types::{basic_fri_types::CircuitIdRoundTuple, protocol_version::L1VerifierConfig};
+use zksync_types::{
+    basic_fri_types::CircuitIdRoundTuple, protocol_version::L1VerifierConfig,
+    prover_dal::GpuProverInstanceStatus,
+};
 use zksync_vk_setup_data_server_fri::keystore::Keystore;
 
 use crate::metrics::METRICS;
 
 pub struct WitnessVectorGenerator {
     blob_store: Arc<dyn ObjectStore>,
-    pool: ConnectionPool,
+    pool: ConnectionPool<Prover>,
     circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
     zone: String,
     config: FriWitnessVectorGeneratorConfig,
@@ -43,7 +46,7 @@ pub struct WitnessVectorGenerator {
 impl WitnessVectorGenerator {
     pub fn new(
         blob_store: Arc<dyn ObjectStore>,
-        prover_connection_pool: ConnectionPool,
+        prover_connection_pool: ConnectionPool<Prover>,
         circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
         zone: String,
         config: FriWitnessVectorGeneratorConfig,
@@ -229,7 +232,7 @@ async fn handle_send_result(
     result: &Result<(Duration, u64), String>,
     job_id: u32,
     address: &SocketAddr,
-    pool: &ConnectionPool,
+    pool: &ConnectionPool<Prover>,
     zone: String,
 ) {
     match result {

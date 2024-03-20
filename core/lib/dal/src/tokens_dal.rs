@@ -1,11 +1,12 @@
 use sqlx::types::chrono::Utc;
+use zksync_db_connection::{processor::StorageProcessor, write_str, writeln_str};
 use zksync_types::{tokens::TokenInfo, Address, MiniblockNumber};
 
-use crate::StorageProcessor;
+use crate::{Server, ServerDals};
 
 #[derive(Debug)]
 pub struct TokensDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut StorageProcessor<'c, Server>,
 }
 
 impl TokensDal<'_, '_> {
@@ -111,7 +112,7 @@ mod tests {
     use zksync_types::{get_code_key, tokens::TokenMetadata, StorageLog, H256};
 
     use super::*;
-    use crate::ConnectionPool;
+    use crate::{ConnectionPool, Server, ServerDals};
 
     fn test_token_info() -> TokenInfo {
         TokenInfo {
@@ -139,7 +140,7 @@ mod tests {
 
     #[tokio::test]
     async fn adding_and_getting_tokens() {
-        let pool = ConnectionPool::test_pool().await;
+        let pool = ConnectionPool::<Server>::test_pool().await;
         let mut storage = pool.access_storage().await.unwrap();
         let tokens = [test_token_info(), eth_token_info()];
         storage.tokens_dal().add_tokens(&tokens).await.unwrap();
@@ -186,7 +187,7 @@ mod tests {
 
     #[tokio::test]
     async fn rolling_back_tokens() {
-        let pool = ConnectionPool::test_pool().await;
+        let pool = ConnectionPool::<Server>::test_pool().await;
         let mut storage = pool.access_storage().await.unwrap();
 
         let eth_info = eth_token_info();
@@ -256,7 +257,7 @@ mod tests {
         );
     }
 
-    async fn test_getting_all_tokens(storage: &mut StorageProcessor<'_>) {
+    async fn test_getting_all_tokens(storage: &mut StorageProcessor<'_, Server>) {
         for at_miniblock in [None, Some(MiniblockNumber(2)), Some(MiniblockNumber(100))] {
             let all_tokens = storage
                 .tokens_web3_dal()
@@ -280,7 +281,7 @@ mod tests {
 
     #[tokio::test]
     async fn rolling_back_tokens_with_failed_deployment() {
-        let pool = ConnectionPool::test_pool().await;
+        let pool = ConnectionPool::<Server>::test_pool().await;
         let mut storage = pool.access_storage().await.unwrap();
 
         let test_info = test_token_info();

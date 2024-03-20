@@ -33,7 +33,8 @@ use zksync_core::{
         MainNodeClient, SyncState,
     },
 };
-use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
+use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Server, ServerDals};
+use zksync_db_connection::healthcheck::ConnectionPoolHealthCheck;
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
 use zksync_state::PostgresStorageCaches;
 use zksync_storage::RocksDB;
@@ -59,7 +60,7 @@ async fn build_state_keeper(
     action_queue: ActionQueue,
     state_keeper_db_path: String,
     config: &ExternalNodeConfig,
-    connection_pool: ConnectionPool,
+    connection_pool: ConnectionPool<Server>,
     sync_state: SyncState,
     l2_erc20_bridge_addr: Address,
     miniblock_sealer_handle: MiniblockSealerHandle,
@@ -111,7 +112,7 @@ async fn build_state_keeper(
 
 async fn init_tasks(
     config: &ExternalNodeConfig,
-    connection_pool: ConnectionPool,
+    connection_pool: ConnectionPool<Server>,
     main_node_client: HttpClient,
     task_handles: &mut Vec<task::JoinHandle<anyhow::Result<()>>>,
     app_health: &AppHealthCheck,
@@ -220,7 +221,7 @@ async fn init_tasks(
         }
     }));
 
-    let singleton_pool_builder = ConnectionPool::singleton(&config.postgres.database_url);
+    let singleton_pool_builder = ConnectionPool::<Server>::singleton(&config.postgres.database_url);
 
     let metadata_calculator_config = MetadataCalculatorConfig {
         db_path: config.required.merkle_tree_path.clone(),
@@ -495,13 +496,13 @@ async fn main() -> anyhow::Result<()> {
         config.consensus = None;
     }
     if let Some(threshold) = config.optional.slow_query_threshold() {
-        ConnectionPool::global_config().set_slow_query_threshold(threshold)?;
+        ConnectionPool::<Server>::global_config().set_slow_query_threshold(threshold)?;
     }
     if let Some(threshold) = config.optional.long_connection_threshold() {
-        ConnectionPool::global_config().set_long_connection_threshold(threshold)?;
+        ConnectionPool::<Server>::global_config().set_long_connection_threshold(threshold)?;
     }
 
-    let connection_pool = ConnectionPool::builder(
+    let connection_pool = ConnectionPool::<Server>::builder(
         &config.postgres.database_url,
         config.postgres.max_connections,
     )
@@ -540,9 +541,7 @@ async fn main() -> anyhow::Result<()> {
     // Start scraping Postgres metrics before store initialization as well.
     let metrics_pool = connection_pool.clone();
     let mut task_handles = vec![tokio::spawn(async move {
-        metrics_pool
-            .run_postgres_metrics_scraping(Duration::from_secs(60))
-            .await;
+        PostgresMetrics::run_scraping(metrics_pool, Duration::from_secs(60)).await;
         Ok(())
     })];
 

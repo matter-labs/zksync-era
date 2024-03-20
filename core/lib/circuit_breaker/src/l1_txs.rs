@@ -1,10 +1,10 @@
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Server, ServerDals};
 
 use crate::{CircuitBreaker, CircuitBreakerError};
 
 #[derive(Debug)]
 pub struct FailedL1TransactionChecker {
-    pub pool: ConnectionPool,
+    pub pool: ConnectionPool<Server>,
 }
 
 #[async_trait::async_trait]

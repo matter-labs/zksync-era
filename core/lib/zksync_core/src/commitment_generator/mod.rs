@@ -6,7 +6,7 @@ use metrics::{CommitmentStage, METRICS};
 use multivm::zk_evm_latest::ethereum_types::U256;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_commitment_utils::{bootloader_initial_content_commitment, events_queue_commitment};
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Server, ServerDals};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::i_executor::commit::kzg::pubdata_to_blob_commitments;
 use zksync_types::{
@@ -23,12 +23,12 @@ const SLEEP_INTERVAL: Duration = Duration::from_millis(100);
 
 #[derive(Debug)]
 pub struct CommitmentGenerator {
-    connection_pool: ConnectionPool,
+    connection_pool: ConnectionPool<Server>,
     health_updater: HealthUpdater,
 }
 
 impl CommitmentGenerator {
-    pub fn new(connection_pool: ConnectionPool) -> Self {
+    pub fn new(connection_pool: ConnectionPool<Server>) -> Self {
         Self {
             connection_pool,
             health_updater: ReactiveHealthCheck::new("commitment_generator").1,

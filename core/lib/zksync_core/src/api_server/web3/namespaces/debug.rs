@@ -3,6 +3,7 @@ use std::sync::Arc;
 use anyhow::Context as _;
 use multivm::{interface::ExecutionResult, vm_latest::constants::BLOCK_GAS_LIMIT};
 use once_cell::sync::OnceCell;
+use zksync_dal::ServerDals;
 use zksync_system_constants::MAX_ENCODED_TX_SIZE;
 use zksync_types::{
     api::{BlockId, BlockNumber, DebugCall, ResultDebugCall, TracerConfig},

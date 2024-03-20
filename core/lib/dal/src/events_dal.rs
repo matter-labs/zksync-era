@@ -1,6 +1,9 @@
 use std::{collections::HashMap, fmt};
 
 use sqlx::types::chrono::Utc;
+use zksync_db_connection::{
+    instrument::InstrumentExt, processor::StorageProcessor, write_str, writeln_str,
+};
 use zksync_system_constants::L1_MESSENGER_ADDRESS;
 use zksync_types::{
     api,
@@ -11,9 +14,8 @@ use zksync_types::{
 };
 
 use crate::{
-    instrument::InstrumentExt,
     models::storage_event::{StorageL2ToL1Log, StorageWeb3Log},
-    SqlxError, StorageProcessor,
+    Server, ServerDals, SqlxError,
 };
 
 /// Wrapper around an optional event topic allowing to hex-format it for `COPY` instructions.
@@ -32,7 +34,7 @@ impl fmt::LowerHex for EventTopic<'_> {
 
 #[derive(Debug)]
 pub struct EventsDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut StorageProcessor<'c, Server>,
 }
 
 impl EventsDal<'_, '_> {
@@ -395,7 +397,7 @@ mod tests {
     use zksync_types::{Address, L1BatchNumber, ProtocolVersion};
 
     use super::*;
-    use crate::{tests::create_miniblock_header, ConnectionPool};
+    use crate::{tests::create_miniblock_header, ConnectionPool, Server};
 
     fn create_vm_event(index: u8, topic_count: u8) -> VmEvent {
         assert!(topic_count <= 4);
@@ -409,7 +411,7 @@ mod tests {
 
     #[tokio::test]
     async fn storing_events() {
-        let pool = ConnectionPool::test_pool().await;
+        let pool = ConnectionPool::<Server>::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
         conn.events_dal().rollback_events(MiniblockNumber(0)).await;
         conn.blocks_dal()
@@ -485,7 +487,7 @@ mod tests {
 
     #[tokio::test]
     async fn storing_l2_to_l1_logs() {
-        let pool = ConnectionPool::test_pool().await;
+        let pool = ConnectionPool::<Server>::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
         conn.events_dal()
             .rollback_l2_to_l1_logs(MiniblockNumber(0))

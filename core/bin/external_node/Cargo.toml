@@ -13,6 +13,7 @@ publish = false # We don't want to publish our binaries.
 [dependencies]
 zksync_core = { path = "../../lib/zksync_core" }
 zksync_dal = { path = "../../lib/dal" }
+zksync_db_connection = { path = "../../lib/db_connection" }
 zksync_config = { path = "../../lib/config" }
 zksync_storage = { path = "../../lib/storage" }
 zksync_utils = { path = "../../lib/utils" }
@@ -21,7 +22,7 @@ zksync_basic_types = { path = "../../lib/basic_types" }
 zksync_contracts = { path = "../../lib/contracts" }
 zksync_l1_contract_interface = { path = "../../lib/l1_contract_interface" }
 zksync_snapshots_applier = { path = "../../lib/snapshots_applier" }
-zksync_object_store = { path="../../lib/object_store" }
+zksync_object_store = { path = "../../lib/object_store" }
 prometheus_exporter = { path = "../../lib/prometheus_exporter" }
 zksync_health_check = { path = "../../lib/health_check" }
 zksync_web3_decl = { path = "../../lib/web3_decl" }

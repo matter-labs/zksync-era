@@ -21,8 +21,10 @@ use sqlx::{
 use tokio::time::Instant;
 
 use crate::{
-    connection::{ConnectionPool, StorageProcessor, StorageProcessorTags},
+    connection::ConnectionPool,
     metrics::REQUEST_METRICS,
+    processor::{StorageMarker, StorageProcessor, StorageProcessorTags},
+    utils::InternalMarker,
 };
 
 type ThreadSafeDebug<'a> = dyn fmt::Debug + Send + Sync + 'a;
@@ -51,7 +53,7 @@ impl fmt::Display for QueryArgs<'_> {
 }
 
 /// Extension trait for instrumenting `sqlx::query!` outputs.
-pub(crate) trait InstrumentExt: Sized {
+pub trait InstrumentExt: Sized {
     /// Instruments a query, assigning it the provided name.
     fn instrument(self, name: &'static str) -> Instrumented<'static, Self>;
 }
@@ -132,7 +134,8 @@ impl<'a> InstrumentedData<'a> {
         let started_at = Instant::now();
         tokio::pin!(query_future);
 
-        let slow_query_threshold = ConnectionPool::global_config().slow_query_threshold();
+        let slow_query_threshold =
+            ConnectionPool::<InternalMarker>::global_config().slow_query_threshold();
         let mut is_slow = false;
         let output =
             tokio::time::timeout_at(started_at + slow_query_threshold, &mut query_future).await;
@@ -189,7 +192,7 @@ impl<'a> InstrumentedData<'a> {
 /// - Slow and erroneous queries are also reported using metrics (`dal.request.slow` and `dal.request.error`,
 ///   respectively). The query name is included as a metric label; args are not included for obvious reasons.
 #[derive(Debug)]
-pub(crate) struct Instrumented<'a, Q> {
+pub struct Instrumented<'a, Q> {
     query: Q,
     data: InstrumentedData<'a>,
 }
@@ -219,15 +222,18 @@ where
     A: 'q + IntoArguments<'q, Postgres>,
 {
     /// Executes an SQL statement using this query.
-    pub async fn execute(self, storage: &mut StorageProcessor<'_>) -> sqlx::Result<PgQueryResult> {
+    pub async fn execute<SM: StorageMarker>(
+        self,
+        storage: &mut StorageProcessor<'_, SM>,
+    ) -> sqlx::Result<PgQueryResult> {
         let (conn, tags) = storage.conn_and_tags();
         self.data.fetch(tags, self.query.execute(conn)).await
     }
 
     /// Fetches an optional row using this query.
-    pub async fn fetch_optional(
+    pub async fn fetch_optional<SM: StorageMarker>(
         self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut StorageProcessor<'_, SM>,
     ) -> Result<Option<PgRow>, sqlx::Error> {
         let (conn, tags) = storage.conn_and_tags();
         self.data.fetch(tags, self.query.fetch_optional(conn)).await
@@ -240,7 +246,10 @@ where
     O: Send + Unpin + for<'r> FromRow<'r, PgRow>,
 {
     /// Fetches all rows using this query and collects them into a `Vec`.
-    pub async fn fetch_all(self, storage: &mut StorageProcessor<'_>) -> sqlx::Result<Vec<O>> {
+    pub async fn fetch_all<SM: StorageMarker>(
+        self,
+        storage: &mut StorageProcessor<'_, SM>,
+    ) -> sqlx::Result<Vec<O>> {
         let (conn, tags) = storage.conn_and_tags();
         self.data.fetch(tags, self.query.fetch_all(conn)).await
     }
@@ -253,22 +262,28 @@ where
     A: 'q + Send + IntoArguments<'q, Postgres>,
 {
     /// Fetches an optional row using this query.
-    pub async fn fetch_optional(
+    pub async fn fetch_optional<SM: StorageMarker>(
         self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut StorageProcessor<'_, SM>,
     ) -> sqlx::Result<Option<O>> {
         let (conn, tags) = storage.conn_and_tags();
         self.data.fetch(tags, self.query.fetch_optional(conn)).await
     }
 
     /// Fetches a single row using this query.
-    pub async fn fetch_one(self, storage: &mut StorageProcessor<'_>) -> sqlx::Result<O> {
+    pub async fn fetch_one<SM: StorageMarker>(
+        self,
+        storage: &mut StorageProcessor<'_, SM>,
+    ) -> sqlx::Result<O> {
         let (conn, tags) = storage.conn_and_tags();
         self.data.fetch(tags, self.query.fetch_one(conn)).await
     }
 
     /// Fetches all rows using this query and collects them into a `Vec`.
-    pub async fn fetch_all(self, storage: &mut StorageProcessor<'_>) -> sqlx::Result<Vec<O>> {
+    pub async fn fetch_all<SM: StorageMarker>(
+        self,
+        storage: &mut StorageProcessor<'_, SM>,
+    ) -> sqlx::Result<Vec<O>> {
         let (conn, tags) = storage.conn_and_tags();
         self.data.fetch(tags, self.query.fetch_all(conn)).await
     }
@@ -276,14 +291,14 @@ where
 
 #[cfg(test)]
 mod tests {
-    use zksync_types::{MiniblockNumber, H256};
+    use zksync_basic_types::{MiniblockNumber, H256};
 
     use super::*;
-    use crate::ConnectionPool;
+    use crate::{connection::ConnectionPool, utils::InternalMarker};
 
     #[tokio::test]
     async fn instrumenting_erroneous_query() {
-        let pool = ConnectionPool::test_pool().await;
+        let pool = ConnectionPool::<InternalMarker>::test_pool().await;
         // Add `vlog::init()` here to debug this test
 
         let mut conn = pool.access_storage().await.unwrap();
@@ -299,7 +314,7 @@ mod tests {
 
     #[tokio::test]
     async fn instrumenting_slow_query() {
-        let pool = ConnectionPool::test_pool().await;
+        let pool = ConnectionPool::<InternalMarker>::test_pool().await;
         // Add `vlog::init()` here to debug this test
 
         let mut conn = pool.access_storage().await.unwrap();

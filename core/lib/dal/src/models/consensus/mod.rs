@@ -8,7 +8,7 @@ use zksync_types::{
     fee::Fee,
     l1::{OpProcessingType, PriorityQueueType},
     l2::TransactionType,
-    protocol_version::ProtocolUpgradeTxCommonData,
+    protocol_upgrade::ProtocolUpgradeTxCommonData,
     transaction_request::PaymasterParams,
     Address, Execute, ExecuteTransactionCommon, InputData, L1BatchNumber, L1TxCommonData,
     L2TxCommonData, Nonce, PriorityOpId, ProtocolVersionId, Transaction, H256,

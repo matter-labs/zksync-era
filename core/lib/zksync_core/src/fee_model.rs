@@ -1,6 +1,6 @@
 use std::{fmt, sync::Arc};
 
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Server, ServerDals};
 use zksync_types::{
     fee_model::{
         BatchFeeInput, FeeModelConfig, FeeModelConfigV2, FeeParams, FeeParamsV1, FeeParamsV2,
@@ -84,13 +84,13 @@ impl MainNodeFeeInputProvider {
 #[derive(Debug)]
 pub(crate) struct ApiFeeInputProvider {
     inner: Arc<dyn BatchFeeModelInputProvider>,
-    connection_pool: ConnectionPool,
+    connection_pool: ConnectionPool<Server>,
 }
 
 impl ApiFeeInputProvider {
     pub fn new(
         inner: Arc<dyn BatchFeeModelInputProvider>,
-        connection_pool: ConnectionPool,
+        connection_pool: ConnectionPool<Server>,
     ) -> Self {
         Self {
             inner,
