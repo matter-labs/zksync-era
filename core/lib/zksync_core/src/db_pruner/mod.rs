@@ -167,7 +167,7 @@ impl DbPruner {
         Ok(())
     }
 
-    pub async fn run_single_iteration(&self, pool: &ConnectionPool) -> anyhow::Result<()> {
+    pub async fn run_single_iteration(&self, pool: &ConnectionPool) -> anyhow::Result<bool> {
         let mut storage = pool.access_storage().await?;
         let current_pruning_info = storage.pruning_dal().get_pruning_info().await?;
 
@@ -176,7 +176,7 @@ impl DbPruner {
         {
             let pruning_done = self.soft_prune(pool).await?;
             if !pruning_done {
-                return Ok(());
+                return Ok(false);
             }
 
             tokio::time::sleep(self.config.soft_and_hard_pruning_time_delta).await;
@@ -184,7 +184,7 @@ impl DbPruner {
 
         self.hard_prune(pool).await?;
 
-        Ok(())
+        Ok(true)
     }
     pub async fn run_in_loop(
         self,
@@ -197,8 +197,10 @@ impl DbPruner {
             }
             let _ = self.update_l1_batches_metric(&pool).await;
             // as this component is not really mission-critical, all errors are generally ignored
-            let _ = self.run_single_iteration(&pool).await;
-            tokio::time::sleep(self.config.next_iterations_delay).await;
+            let pruning_done = self.run_single_iteration(&pool).await;
+            if !pruning_done.unwrap_or(false) {
+                tokio::time::sleep(self.config.next_iterations_delay).await;
+            }
         }
     }
 }

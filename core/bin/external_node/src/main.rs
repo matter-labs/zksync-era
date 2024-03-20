@@ -273,7 +273,7 @@ async fn run_core(
             DbPrunerConfig {
                 soft_and_hard_pruning_time_delta: Duration::from_secs(60),
                 pruned_chunk_size: config.optional.pruning_chunk_size,
-                next_iterations_delay: Duration::from_secs(5),
+                next_iterations_delay: Duration::from_secs(30),
             },
             vec![
                 Arc::new(L1BatchExistsCondition {

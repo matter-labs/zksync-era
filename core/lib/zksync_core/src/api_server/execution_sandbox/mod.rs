@@ -214,7 +214,7 @@ impl BlockStartInfo {
             .cached_pruning_info
             .lock()
             .expect("BlockStartInfo is poisoned");
-        current_cache.clone()
+        *current_cache
     }
     async fn get_pruning_info(
         &self,
@@ -237,7 +237,7 @@ impl BlockStartInfo {
             new_cached_pruning_info.0 = new_pruning_info;
             new_cached_pruning_info.1 = now;
 
-            Ok(new_pruning_info.clone())
+            Ok(new_pruning_info)
         } else {
             Ok(pruning_info)
         }

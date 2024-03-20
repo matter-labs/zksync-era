@@ -32,7 +32,7 @@ async fn creating_block_args() {
     assert_eq!(pending_block_args.resolved_block_number, MiniblockNumber(2));
     assert_eq!(pending_block_args.l1_batch_timestamp_s, None);
 
-    let mut start_info = BlockStartInfo::new(&mut storage).await.unwrap();
+    let start_info = BlockStartInfo::new(&mut storage).await.unwrap();
     assert_eq!(
         start_info.first_miniblock(&mut storage).await.unwrap(),
         MiniblockNumber(0)
@@ -89,7 +89,7 @@ async fn creating_block_args_after_snapshot_recovery() {
     );
     assert_eq!(pending_block_args.l1_batch_timestamp_s, None);
 
-    let mut start_info = BlockStartInfo::new(&mut storage).await.unwrap();
+    let start_info = BlockStartInfo::new(&mut storage).await.unwrap();
     assert_eq!(
         start_info.first_miniblock(&mut storage).await.unwrap(),
         snapshot_recovery.miniblock_number + 1
