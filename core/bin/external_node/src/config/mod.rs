@@ -248,6 +248,7 @@ pub struct OptionalENConfig {
     pub tree_api_url: Option<String>,
     pub tree_api_port: Option<u16>,
     pub ask_syncing_status_from: Option<String>,
+    pub merkle_tree_api_port: Option<u16>,
 }
 
 impl OptionalENConfig {

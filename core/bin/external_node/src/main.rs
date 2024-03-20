@@ -1,4 +1,4 @@
-use std::{str::FromStr, sync::Arc, time::Duration};
+use std::{net::Ipv4Addr, str::FromStr, sync::Arc, time::Duration};
 
 use anyhow::{anyhow, Context as _};
 use clap::Parser;
@@ -11,7 +11,7 @@ use tokio::{
 };
 use zksync_basic_types::{Address, L2ChainId};
 use zksync_concurrency::{ctx, limiter, scope, time};
-use zksync_config::configs::database::MerkleTreeMode;
+use zksync_config::configs::{api::MerkleTreeApiConfig, database::MerkleTreeMode};
 use zksync_core::{
     api_server::{
         execution_sandbox::VmConcurrencyLimiter,
@@ -119,6 +119,7 @@ async fn build_state_keeper(
 async fn run_tree(
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
     config: &ExternalNodeConfig,
+    api_config: Option<&MerkleTreeApiConfig>,
     app_health: &AppHealthCheck,
     stop_receiver: watch::Receiver<bool>,
     tree_pool: ConnectionPool,
@@ -138,6 +139,19 @@ async fn run_tree(
         .context("failed initializing metadata calculator")?;
     let tree_reader = Arc::new(metadata_calculator.tree_reader());
     app_health.insert_component(metadata_calculator.tree_health_check());
+
+    if let Some(api_config) = api_config {
+        let address = (Ipv4Addr::UNSPECIFIED, api_config.port).into();
+        let tree_reader = metadata_calculator.tree_reader();
+        let stop_receiver = stop_receiver.clone();
+        task_futures.push(tokio::spawn(async move {
+            tree_reader
+                .wait()
+                .await
+                .run_api_server(address, stop_receiver)
+                .await
+        }));
+    }
 
     let tree_handle = task::spawn(metadata_calculator.run(tree_pool, stop_receiver));
 
@@ -486,10 +500,20 @@ async fn init_tasks(
         );
     }
     let tree_reader: Option<Arc<dyn TreeApiClient>> = if components.contains(&Component::Tree) {
+        let tree_api_config =
+            components
+                .contains(&Component::TreeApi)
+                .then_some(MerkleTreeApiConfig {
+                    port: config
+                        .optional
+                        .merkle_tree_api_port
+                        .ok_or(anyhow!("should contain tree api port"))?,
+                });
         Some(
             run_tree(
                 task_handles,
                 config,
+                tree_api_config.as_ref(),
                 app_health,
                 stop_receiver.clone(),
                 tree_pool,

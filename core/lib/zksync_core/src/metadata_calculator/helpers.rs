@@ -205,7 +205,7 @@ impl AsyncTree {
 
 /// Async version of [`ZkSyncTreeReader`].
 #[derive(Debug, Clone)]
-pub(crate) struct AsyncTreeReader {
+pub struct AsyncTreeReader {
     inner: ZkSyncTreeReader,
     mode: MerkleTreeMode,
 }
@@ -244,7 +244,7 @@ impl LazyAsyncTreeReader {
     }
 
     /// Waits until the tree is initialized and returns a reader for it.
-    pub(crate) async fn wait(mut self) -> AsyncTreeReader {
+    pub async fn wait(mut self) -> AsyncTreeReader {
         loop {
             if let Some(reader) = self.0.borrow().clone() {
                 break reader;
