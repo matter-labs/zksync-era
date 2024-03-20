@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
-use futures::channel::oneshot;
-use zksync_circuit_breaker::{CircuitBreakerChecker, CircuitBreakerError};
+use zksync_circuit_breaker::CircuitBreakerChecker;
 use zksync_config::configs::chain::CircuitBreakerConfig;
 
 use crate::{
@@ -12,9 +11,7 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub struct CircuitBreakerCheckerLayer {
-    config: CircuitBreakerConfig,
-}
+pub struct CircuitBreakerCheckerLayer(pub CircuitBreakerConfig);
 
 #[async_trait::async_trait]
 impl WiringLayer for CircuitBreakerCheckerLayer {
@@ -23,7 +20,7 @@ impl WiringLayer for CircuitBreakerCheckerLayer {
     }
 
     async fn wire(self: Box<Self>, mut node: ServiceContext<'_>) -> Result<(), WiringError> {
-        let circuit_breaker_checker = Arc::new(CircuitBreakerChecker::new(None, &self.config));
+        let circuit_breaker_checker = Arc::new(CircuitBreakerChecker::new(None, &self.0));
         node.insert_resource(CircuitBreakerCheckerResource(
             circuit_breaker_checker.clone(),
         ))?;

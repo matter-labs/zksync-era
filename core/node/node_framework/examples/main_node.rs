@@ -5,7 +5,10 @@
 use anyhow::Context;
 use zksync_config::{
     configs::{
-        chain::{MempoolConfig, NetworkConfig, OperationsManagerConfig, StateKeeperConfig},
+        chain::{
+            CircuitBreakerConfig, MempoolConfig, NetworkConfig, OperationsManagerConfig,
+            StateKeeperConfig,
+        },
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
         FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig, ObservabilityConfig,
@@ -24,6 +27,7 @@ use zksync_core::{
 use zksync_env_config::FromEnv;
 use zksync_node_framework::{
     implementations::layers::{
+        circuit_breaker_checker::{self, CircuitBreakerCheckerLayer},
         commitment_generator::CommitmentGeneratorLayer,
         eth_sender::EthSenderLayer,
         eth_watch::EthWatchLayer,
@@ -282,6 +286,14 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
+    fn add_circuit_breaker_checker_layer(mut self) -> anyhow::Result<Self> {
+        let circuit_breaker_config = CircuitBreakerConfig::from_env()?;
+        self.node
+            .add_layer(CircuitBreakerCheckerLayer(circuit_breaker_config));
+
+        Ok(self)
+    }
+
     fn build(self) -> ZkStackService {
         self.node
     }
@@ -300,6 +312,7 @@ fn main() -> anyhow::Result<()> {
 
     MainNodeBuilder::new()
         .add_pools_layer()?
+        .add_circuit_breaker_checker_layer()?
         .add_query_eth_client_layer()?
         .add_sequencer_l1_gas_layer()?
         .add_object_store_layer()?
