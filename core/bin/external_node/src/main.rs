@@ -501,15 +501,16 @@ async fn init_tasks(
         );
     }
     let tree_reader: Option<Arc<dyn TreeApiClient>> = if components.contains(&Component::Tree) {
-        let tree_api_config =
-            components
-                .contains(&Component::TreeApi)
-                .then_some(MerkleTreeApiConfig {
-                    port: config
-                        .optional
-                        .merkle_tree_api_port
-                        .ok_or(anyhow!("should contain tree api port"))?,
-                });
+        let tree_api_config = if components.contains(&Component::TreeApi) {
+            Some(MerkleTreeApiConfig {
+                port: config
+                    .optional
+                    .merkle_tree_api_port
+                    .ok_or(anyhow!("should contain tree api port"))?,
+            })
+        } else {
+            None
+        };
         Some(
             run_tree(
                 task_handles,
