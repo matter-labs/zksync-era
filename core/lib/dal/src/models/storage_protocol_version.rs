@@ -40,9 +40,6 @@ pub(crate) fn protocol_version_from_storage(
                 recursion_leaf_level_vk_hash: H256::from_slice(
                     &storage_version.recursion_leaf_level_vk_hash,
                 ),
-                recursion_circuits_set_vks_hash: H256::from_slice(
-                    &storage_version.recursion_circuits_set_vks_hash,
-                ),
             },
             recursion_scheduler_level_vk_hash: H256::from_slice(
                 &storage_version.recursion_scheduler_level_vk_hash,
@@ -72,9 +69,6 @@ impl From<StorageProtocolVersion> for api::ProtocolVersion {
                     ),
                     recursion_leaf_level_vk_hash: H256::from_slice(
                         &storage_protocol_version.recursion_leaf_level_vk_hash,
-                    ),
-                    recursion_circuits_set_vks_hash: H256::from_slice(
-                        &storage_protocol_version.recursion_circuits_set_vks_hash,
                     ),
                 },
                 recursion_scheduler_level_vk_hash: H256::from_slice(

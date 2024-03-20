@@ -37,7 +37,9 @@ async fn create_genesis_params(
     };
 
     if zksync_chain_id != config.l2_chain_id {
-        anyhow::bail!("L2 chain id from server and locally doesn't match");
+        anyhow::bail!(
+            "The L2 chain ID from the main node and the local node do not match. Make sure you are connected to the correct network"
+        );
     }
 
     // Load the list of addresses that are known to contain system contracts at any point in time.

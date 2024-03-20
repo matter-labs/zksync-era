@@ -188,7 +188,6 @@ impl TryFrom<Log> for ProtocolUpgrade {
             .then_some(VerifierParams {
                 recursion_node_level_vk_hash,
                 recursion_leaf_level_vk_hash,
-                recursion_circuits_set_vks_hash,
             }),
             verifier_address: (verifier_address != Address::zero()).then_some(verifier_address),
             timestamp: timestamp.as_u64(),

@@ -10,10 +10,7 @@ use zksync_config::{
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
 use zksync_prover_interface::api::{ProofGenerationDataRequest, SubmitProofRequest};
-use zksync_types::{
-    protocol_version::{L1VerifierConfig, VerifierParams},
-    H256,
-};
+use zksync_types::protocol_version::{L1VerifierConfig, VerifierParams};
 
 use crate::proof_data_handler::request_processor::RequestProcessor;
 
@@ -24,8 +21,6 @@ fn fri_l1_verifier_config(contracts_config: &ContractsConfig) -> L1VerifierConfi
         params: VerifierParams {
             recursion_node_level_vk_hash: contracts_config.fri_recursion_node_level_vk_hash,
             recursion_leaf_level_vk_hash: contracts_config.fri_recursion_leaf_level_vk_hash,
-            // The base layer commitment is not used in the FRI prover verification.
-            recursion_circuits_set_vks_hash: H256::zero(),
         },
         recursion_scheduler_level_vk_hash: contracts_config.snark_wrapper_vk_hash,
     }

@@ -283,12 +283,9 @@ impl EthTxAggregator {
             let recursion_node_level_vk_hash = H256::from_slice(&multicall3_verifier_params[..32]);
             let recursion_leaf_level_vk_hash =
                 H256::from_slice(&multicall3_verifier_params[32..64]);
-            let recursion_circuits_set_vks_hash =
-                H256::from_slice(&multicall3_verifier_params[64..]);
             let verifier_params = VerifierParams {
                 recursion_node_level_vk_hash,
                 recursion_leaf_level_vk_hash,
-                recursion_circuits_set_vks_hash,
             };
 
             let multicall3_verifier_address =

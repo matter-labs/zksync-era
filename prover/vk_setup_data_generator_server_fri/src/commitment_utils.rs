@@ -36,7 +36,6 @@ fn circuit_commitments(keystore: &Keystore) -> anyhow::Result<L1VerifierConfig> 
             recursion_leaf_level_vk_hash: H256::from_str(&commitments.leaf)
                 .context("invalid leaf commitment")?,
             // The base layer commitment is not used in the FRI prover verification.
-            recursion_circuits_set_vks_hash: H256::zero(),
         },
         // Instead of loading the FRI scheduler verification key here,
         // we load the SNARK-wrapper verification key.

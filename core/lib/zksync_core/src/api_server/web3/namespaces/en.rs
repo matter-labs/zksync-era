@@ -120,7 +120,6 @@ impl EnNamespace {
             l2_chain_id: self.state.api_config.l2_chain_id,
             recursion_node_level_vk_hash: verifier_config.params.recursion_node_level_vk_hash,
             recursion_leaf_level_vk_hash: verifier_config.params.recursion_leaf_level_vk_hash,
-            recursion_circuits_set_vks_hash: verifier_config.params.recursion_circuits_set_vks_hash,
             recursion_scheduler_level_vk_hash: verifier_config.recursion_scheduler_level_vk_hash,
         };
         Ok(config)

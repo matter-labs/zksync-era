@@ -28,6 +28,8 @@ impl ProtocolVersionsDal<'_, '_> {
         base_system_contracts_hashes: BaseSystemContractsHashes,
         tx_hash: Option<H256>,
     ) {
+        // recursion_circuits_set_vks_hash is deprecated
+        let recursion_circuits_set_vks_hash = H256::zero();
         sqlx::query!(
             r#"
             INSERT INTO
@@ -59,10 +61,7 @@ impl ProtocolVersionsDal<'_, '_> {
                 .params
                 .recursion_leaf_level_vk_hash
                 .as_bytes(),
-            l1_verifier_config
-                .params
-                .recursion_circuits_set_vks_hash
-                .as_bytes(),
+            recursion_circuits_set_vks_hash.as_bytes(),
             base_system_contracts_hashes.bootloader.as_bytes(),
             base_system_contracts_hashes.default_aa.as_bytes(),
             tx_hash.as_ref().map(H256::as_bytes),
@@ -291,9 +290,6 @@ impl ProtocolVersionsDal<'_, '_> {
             params: VerifierParams {
                 recursion_node_level_vk_hash: H256::from_slice(&row.recursion_node_level_vk_hash),
                 recursion_leaf_level_vk_hash: H256::from_slice(&row.recursion_leaf_level_vk_hash),
-                recursion_circuits_set_vks_hash: H256::from_slice(
-                    &row.recursion_circuits_set_vks_hash,
-                ),
             },
             recursion_scheduler_level_vk_hash: H256::from_slice(
                 &row.recursion_scheduler_level_vk_hash,

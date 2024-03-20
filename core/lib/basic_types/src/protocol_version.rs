@@ -226,7 +226,6 @@ impl From<ProtocolVersionId> for FriProtocolVersionId {
 pub struct VerifierParams {
     pub recursion_node_level_vk_hash: H256,
     pub recursion_leaf_level_vk_hash: H256,
-    pub recursion_circuits_set_vks_hash: H256,
 }
 
 impl Detokenize for VerifierParams {
@@ -247,7 +246,6 @@ impl Detokenize for VerifierParams {
         Ok(VerifierParams {
             recursion_node_level_vk_hash: vks_vec[0],
             recursion_leaf_level_vk_hash: vks_vec[1],
-            recursion_circuits_set_vks_hash: vks_vec[2],
         })
     }
 }

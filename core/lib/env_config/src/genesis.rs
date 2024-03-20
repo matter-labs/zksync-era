@@ -1,5 +1,4 @@
 use anyhow::anyhow;
-use zksync_basic_types::H256;
 use zksync_config::{
     configs::chain::{NetworkConfig, StateKeeperConfig},
     ContractsConfig, GenesisConfig,
@@ -10,8 +9,8 @@ use crate::FromEnv;
 impl FromEnv for GenesisConfig {
     fn from_env() -> anyhow::Result<Self> {
         // Getting genesis from environmental variables is a temporary measure, that will be
-        // reimplemented and for the sake of simplicity we combine values from different sources
-        // #PLA-811
+        // reimplemented #PLA-811.
+        // For the sake of simplicity genesis config  is combination from different configs
         let network_config = &NetworkConfig::from_env()?;
         let contracts_config = &ContractsConfig::from_env()?;
         let state_keeper = StateKeeperConfig::from_env()?;
@@ -39,7 +38,6 @@ impl FromEnv for GenesisConfig {
             l2_chain_id: network_config.zksync_network_id,
             recursion_node_level_vk_hash: contracts_config.fri_recursion_node_level_vk_hash,
             recursion_leaf_level_vk_hash: contracts_config.fri_recursion_leaf_level_vk_hash,
-            recursion_circuits_set_vks_hash: H256::zero(),
             recursion_scheduler_level_vk_hash: contracts_config.snark_wrapper_vk_hash,
         })
     }

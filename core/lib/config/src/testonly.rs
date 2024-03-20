@@ -765,7 +765,6 @@ impl RandomConfig for configs::GenesisConfig {
             l2_chain_id: L2ChainId::default(),
             recursion_node_level_vk_hash: g.gen(),
             recursion_leaf_level_vk_hash: g.gen(),
-            recursion_circuits_set_vks_hash: g.gen(),
             recursion_scheduler_level_vk_hash: g.gen(),
         }
     }

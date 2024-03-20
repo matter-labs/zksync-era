@@ -733,14 +733,7 @@ fn upgrade_into_diamond_cut(upgrade: ProtocolUpgrade) -> Token {
                     .as_bytes()
                     .to_vec(),
             ),
-            Token::FixedBytes(
-                upgrade
-                    .verifier_params
-                    .unwrap_or_default()
-                    .recursion_circuits_set_vks_hash
-                    .as_bytes()
-                    .to_vec(),
-            ),
+            Token::FixedBytes(H256::zero().to_fixed_bytes().to_vec()),
         ]),
         Token::Bytes(Default::default()),
         Token::Bytes(Default::default()),

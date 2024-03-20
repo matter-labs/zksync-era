@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                id\n            FROM\n                prover_fri_protocol_versions\n            WHERE\n                recursion_leaf_level_vk_hash = $1\n                AND recursion_node_level_vk_hash = $2\n                AND recursion_scheduler_level_vk_hash = $3\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Bytea",
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "b1ccf952da225e6a4a6da2570e63651f1aadf4de2a13336abb18fb005bea30b4"
+}
