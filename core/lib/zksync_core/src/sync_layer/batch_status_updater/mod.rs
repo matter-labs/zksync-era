@@ -278,7 +278,7 @@ impl BatchStatusUpdater {
     }
 
     pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
-        let mut storage = self.pool.get_connection_tagged("sync_layer").await?;
+        let mut storage = self.pool.connection_tagged("sync_layer").await?;
         let mut cursor = UpdaterCursor::new(&mut storage).await?;
         drop(storage);
         tracing::info!("Initialized batch status updater cursor: {cursor:?}");
@@ -327,7 +327,7 @@ impl BatchStatusUpdater {
         let total_latency = EN_METRICS.update_batch_statuses.start();
         let Some(last_sealed_batch) = self
             .pool
-            .get_connection_tagged("sync_layer")
+            .connection_tagged("sync_layer")
             .await?
             .blocks_dal()
             .get_sealed_l1_batch_number()
@@ -390,7 +390,7 @@ impl BatchStatusUpdater {
         changes: StatusChanges,
     ) -> anyhow::Result<()> {
         let total_latency = EN_METRICS.batch_status_updater_loop_iteration.start();
-        let mut connection = self.pool.get_connection_tagged("sync_layer").await?;
+        let mut connection = self.pool.connection_tagged("sync_layer").await?;
         let mut transaction = connection.start_transaction().await?;
         let last_sealed_batch = transaction
             .blocks_dal()

@@ -412,7 +412,7 @@ mod tests {
     #[tokio::test]
     async fn storing_events() {
         let pool = ConnectionPool::<Core>::test_pool().await;
-        let mut conn = pool.get_connection().await.unwrap();
+        let mut conn = pool.connection().await.unwrap();
         conn.events_dal().rollback_events(MiniblockNumber(0)).await;
         conn.blocks_dal()
             .delete_miniblocks(MiniblockNumber(0))
@@ -488,7 +488,7 @@ mod tests {
     #[tokio::test]
     async fn storing_l2_to_l1_logs() {
         let pool = ConnectionPool::<Core>::test_pool().await;
-        let mut conn = pool.get_connection().await.unwrap();
+        let mut conn = pool.connection().await.unwrap();
         conn.events_dal()
             .rollback_l2_to_l1_logs(MiniblockNumber(0))
             .await;

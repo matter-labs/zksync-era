@@ -2355,7 +2355,7 @@ mod tests {
     #[tokio::test]
     async fn loading_l1_batch_header() {
         let pool = ConnectionPool::<Core>::test_pool().await;
-        let mut conn = pool.get_connection().await.unwrap();
+        let mut conn = pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -2411,7 +2411,7 @@ mod tests {
     #[tokio::test]
     async fn getting_predicted_gas() {
         let pool = ConnectionPool::<Core>::test_pool().await;
-        let mut conn = pool.get_connection().await.unwrap();
+        let mut conn = pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -2472,7 +2472,7 @@ mod tests {
     #[tokio::test]
     async fn checking_fee_account_address_in_l1_batches() {
         let pool = ConnectionPool::<Core>::test_pool().await;
-        let mut conn = pool.get_connection().await.unwrap();
+        let mut conn = pool.connection().await.unwrap();
         assert!(conn
             .blocks_dal()
             .check_l1_batches_have_fee_account_address()
@@ -2484,7 +2484,7 @@ mod tests {
     #[tokio::test]
     async fn ensuring_fee_account_address_for_miniblocks() {
         let pool = ConnectionPool::<Core>::test_pool().await;
-        let mut conn = pool.get_connection().await.unwrap();
+        let mut conn = pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;

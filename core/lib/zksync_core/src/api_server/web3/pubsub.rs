@@ -60,7 +60,7 @@ impl PubSubNotifier {
     async fn get_starting_miniblock_number(&self) -> anyhow::Result<MiniblockNumber> {
         let mut storage = self
             .connection_pool
-            .get_connection_tagged("api")
+            .connection_tagged("api")
             .await
             .context("access_storage_tagged")?;
         let sealed_miniblock_number = storage
@@ -127,7 +127,7 @@ impl PubSubNotifier {
         last_block_number: MiniblockNumber,
     ) -> anyhow::Result<Vec<BlockHeader>> {
         self.connection_pool
-            .get_connection_tagged("api")
+            .connection_tagged("api")
             .await
             .context("access_storage_tagged")?
             .blocks_web3_dal()
@@ -165,7 +165,7 @@ impl PubSubNotifier {
         last_time: chrono::NaiveDateTime,
     ) -> anyhow::Result<(Vec<H256>, Option<chrono::NaiveDateTime>)> {
         self.connection_pool
-            .get_connection_tagged("api")
+            .connection_tagged("api")
             .await
             .context("access_storage_tagged")?
             .transactions_web3_dal()
@@ -205,7 +205,7 @@ impl PubSubNotifier {
 
     async fn new_logs(&self, last_block_number: MiniblockNumber) -> anyhow::Result<Vec<Log>> {
         self.connection_pool
-            .get_connection_tagged("api")
+            .connection_tagged("api")
             .await
             .context("access_storage_tagged")?
             .events_web3_dal()

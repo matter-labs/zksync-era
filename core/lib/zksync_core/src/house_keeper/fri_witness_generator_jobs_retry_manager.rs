@@ -32,7 +32,7 @@ impl FriWitnessGeneratorJobRetryManager {
     pub async fn requeue_stuck_witness_inputs_jobs(&mut self) {
         let stuck_jobs = self
             .pool
-            .get_connection()
+            .connection()
             .await
             .unwrap()
             .fri_witness_generator_dal()
@@ -48,7 +48,7 @@ impl FriWitnessGeneratorJobRetryManager {
     pub async fn requeue_stuck_leaf_aggregations_jobs(&mut self) {
         let stuck_jobs = self
             .pool
-            .get_connection()
+            .connection()
             .await
             .unwrap()
             .fri_witness_generator_dal()
@@ -67,7 +67,7 @@ impl FriWitnessGeneratorJobRetryManager {
     pub async fn requeue_stuck_node_aggregations_jobs(&mut self) {
         let stuck_jobs = self
             .pool
-            .get_connection()
+            .connection()
             .await
             .unwrap()
             .fri_witness_generator_dal()
@@ -86,7 +86,7 @@ impl FriWitnessGeneratorJobRetryManager {
     pub async fn requeue_stuck_scheduler_jobs(&mut self) {
         let stuck_jobs = self
             .pool
-            .get_connection()
+            .connection()
             .await
             .unwrap()
             .fri_witness_generator_dal()

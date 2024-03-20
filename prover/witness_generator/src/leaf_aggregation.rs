@@ -115,7 +115,7 @@ impl JobProcessor for LeafAggregationWitnessGenerator {
     const SERVICE_NAME: &'static str = "fri_leaf_aggregation_witness_generator";
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
-        let mut prover_connection = self.prover_connection_pool.get_connection().await.unwrap();
+        let mut prover_connection = self.prover_connection_pool.connection().await.unwrap();
         let pod_name = get_current_pod_name();
         let Some(metadata) = prover_connection
             .fri_witness_generator_dal()
@@ -135,7 +135,7 @@ impl JobProcessor for LeafAggregationWitnessGenerator {
 
     async fn save_failure(&self, job_id: u32, _started_at: Instant, error: String) -> () {
         self.prover_connection_pool
-            .get_connection()
+            .connection()
             .await
             .unwrap()
             .fri_witness_generator_dal()
@@ -191,7 +191,7 @@ impl JobProcessor for LeafAggregationWitnessGenerator {
     async fn get_job_attempts(&self, job_id: &u32) -> anyhow::Result<u32> {
         let mut prover_storage = self
             .prover_connection_pool
-            .get_connection()
+            .connection()
             .await
             .context("failed to acquire DB connection for LeafAggregationWitnessGenerator")?;
         prover_storage
@@ -296,7 +296,7 @@ async fn update_database(
         block_number.0,
         circuit_id,
     );
-    let mut prover_connection = prover_connection_pool.get_connection().await.unwrap();
+    let mut prover_connection = prover_connection_pool.connection().await.unwrap();
     let mut transaction = prover_connection.start_transaction().await.unwrap();
     let number_of_dependent_jobs = blob_urls.circuit_ids_and_urls.len();
     let protocol_version_id = transaction

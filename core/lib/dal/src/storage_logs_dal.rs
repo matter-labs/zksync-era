@@ -795,7 +795,7 @@ mod tests {
     #[tokio::test]
     async fn inserting_storage_logs() {
         let pool = ConnectionPool::<Core>::test_pool().await;
-        let mut conn = pool.get_connection().await.unwrap();
+        let mut conn = pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -918,7 +918,7 @@ mod tests {
     #[tokio::test]
     async fn getting_storage_logs_for_revert() {
         let pool = ConnectionPool::<Core>::test_pool().await;
-        let mut conn = pool.get_connection().await.unwrap();
+        let mut conn = pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -968,7 +968,7 @@ mod tests {
     #[tokio::test]
     async fn reverting_keys_without_initial_write() {
         let pool = ConnectionPool::<Core>::test_pool().await;
-        let mut conn = pool.get_connection().await.unwrap();
+        let mut conn = pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -1036,7 +1036,7 @@ mod tests {
     #[tokio::test]
     async fn getting_starting_entries_in_chunks() {
         let pool = ConnectionPool::<Core>::test_pool().await;
-        let mut conn = pool.get_connection().await.unwrap();
+        let mut conn = pool.connection().await.unwrap();
         let sorted_hashed_keys = prepare_tree_entries(&mut conn, 100).await;
 
         let key_ranges = [
@@ -1097,7 +1097,7 @@ mod tests {
     #[tokio::test]
     async fn getting_tree_entries() {
         let pool = ConnectionPool::<Core>::test_pool().await;
-        let mut conn = pool.get_connection().await.unwrap();
+        let mut conn = pool.connection().await.unwrap();
         let sorted_hashed_keys = prepare_tree_entries(&mut conn, 10).await;
 
         let key_range = H256::zero()..=H256::repeat_byte(0xff);
@@ -1139,7 +1139,7 @@ mod tests {
         );
 
         let pool = ConnectionPool::<Core>::test_pool().await;
-        let mut conn = pool.get_connection().await.unwrap();
+        let mut conn = pool.connection().await.unwrap();
         // If deployment fails then two writes are issued, one that writes `bytecode_hash` to the "correct" value,
         // and the next write reverts its value back to `FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH`.
         conn.storage_logs_dal()

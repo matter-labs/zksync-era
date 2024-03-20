@@ -265,11 +265,7 @@ impl MiniblockSealer {
         // Commands must be processed sequentially: a later miniblock cannot be saved before
         // an earlier one.
         while let Some(completable) = self.next_command().await {
-            let mut conn = self
-                .pool
-                .get_connection_tagged("state_keeper")
-                .await
-                .unwrap();
+            let mut conn = self.pool.connection_tagged("state_keeper").await.unwrap();
             completable.command.seal(&mut conn).await;
             if let Some(delta) = miniblock_seal_delta {
                 MINIBLOCK_METRICS.seal_delta.observe(delta.elapsed());

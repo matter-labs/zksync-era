@@ -730,7 +730,7 @@ impl EthTxManager {
                 .get_l1_block_numbers()
                 .await
                 .context("get_l1_block_numbers()")?;
-            let mut storage = pool.get_connection_tagged("eth_sender").await.unwrap();
+            let mut storage = pool.connection_tagged("eth_sender").await.unwrap();
             self.send_unsent_txs(&mut storage, l1_block_numbers).await;
         }
 
@@ -738,7 +738,7 @@ impl EthTxManager {
         // will never check in-flight txs status
         let mut last_known_l1_block = L1BlockNumber(0);
         loop {
-            let mut storage = pool.get_connection_tagged("eth_sender").await.unwrap();
+            let mut storage = pool.connection_tagged("eth_sender").await.unwrap();
 
             if *stop_receiver.borrow() {
                 tracing::info!("Stop signal received, eth_tx_manager is shutting down");

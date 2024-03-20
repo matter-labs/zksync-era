@@ -79,7 +79,7 @@ impl TxCache {
                 let inner = self.inner.read().await;
                 inner.nonces_by_account.keys().copied().collect()
             };
-            let mut storage = pool.get_connection_tagged("api").await?;
+            let mut storage = pool.connection_tagged("api").await?;
             let nonces_for_accounts = storage
                 .storage_web3_dal()
                 .get_nonces_for_addresses(&addresses)

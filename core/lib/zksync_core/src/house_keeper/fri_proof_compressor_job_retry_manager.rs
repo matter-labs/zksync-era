@@ -38,7 +38,7 @@ impl PeriodicJob for FriProofCompressorJobRetryManager {
     async fn run_routine_task(&mut self) -> anyhow::Result<()> {
         let stuck_jobs = self
             .pool
-            .get_connection()
+            .connection()
             .await
             .unwrap()
             .fri_proof_compressor_dal()

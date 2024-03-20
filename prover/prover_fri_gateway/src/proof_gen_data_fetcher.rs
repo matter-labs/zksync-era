@@ -13,7 +13,7 @@ impl PeriodicApiStruct {
             .put(data.l1_batch_number, &data.data)
             .await
             .expect("Failed to save proof generation data to GCS");
-        let mut connection = self.pool.get_connection().await.unwrap();
+        let mut connection = self.pool.connection().await.unwrap();
         connection
             .fri_protocol_versions_dal()
             .save_prover_protocol_version(data.fri_protocol_version_id, data.l1_verifier_config)

@@ -55,7 +55,7 @@ pub mod gpu_socket_listener {
 
             let _lock = self.queue.lock().await;
             self.pool
-                .get_connection()
+                .connection()
                 .await
                 .unwrap()
                 .fri_gpu_prover_queue_dal()
@@ -141,7 +141,7 @@ pub mod gpu_socket_listener {
             };
 
             self.pool
-                .get_connection()
+                .connection()
                 .await
                 .unwrap()
                 .fri_gpu_prover_queue_dal()

@@ -105,7 +105,7 @@ mod tests {
     #[tokio::test]
     async fn applying_storage_logs() {
         let pool = ConnectionPool::<Core>::test_pool().await;
-        let mut conn = pool.get_connection().await.unwrap();
+        let mut conn = pool.connection().await.unwrap();
 
         let account = AccountTreeId::new(Address::repeat_byte(1));
         let first_key = StorageKey::new(account, H256::zero());

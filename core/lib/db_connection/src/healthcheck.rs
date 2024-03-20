@@ -41,7 +41,7 @@ impl<DB: DbMarker + Send + Sync + 'static> CheckHealth for ConnectionPoolHealthC
     async fn check_health(&self) -> Health {
         // This check is rather feeble, plan to make reliable here:
         // https://linear.app/matterlabs/issue/PLA-255/revamp-db-connection-health-check
-        match self.connection_pool.get_connection().await {
+        match self.connection_pool.connection().await {
             Ok(_) => {
                 let details = ConnectionPoolHealthDetails::new(&self.connection_pool);
                 Health::from(HealthStatus::Ready).with_details(details)

@@ -208,7 +208,7 @@ impl TreeUpdater {
         else {
             return Ok(()); // Stop signal received
         };
-        let mut storage = pool.get_connection_tagged("metadata_calculator").await?;
+        let mut storage = pool.connection_tagged("metadata_calculator").await?;
 
         // Ensure genesis creation
         let tree = &mut self.tree;
@@ -277,7 +277,7 @@ impl TreeUpdater {
                 tracing::info!("Stop signal received, metadata_calculator is shutting down");
                 break;
             }
-            let storage = pool.get_connection_tagged("metadata_calculator").await?;
+            let storage = pool.connection_tagged("metadata_calculator").await?;
 
             let snapshot = *next_l1_batch_to_seal;
             self.step(storage, &mut next_l1_batch_to_seal).await;

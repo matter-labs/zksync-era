@@ -56,7 +56,7 @@ async fn snapshots_creator_can_successfully_recover_db(
         .await
         .unwrap();
 
-    let mut storage = pool.get_connection().await.unwrap();
+    let mut storage = pool.connection().await.unwrap();
     let mut recovery_dal = storage.snapshot_recovery_dal();
 
     let current_db_status = recovery_dal.get_applied_snapshot_status().await.unwrap();
@@ -101,7 +101,7 @@ async fn applier_errors_after_genesis() {
     let pool = ConnectionPool::<Core>::test_pool().await;
 
     // We don't want to depend on the core crate, so instead we cheaply emulate it.
-    let mut storage = pool.get_connection().await.unwrap();
+    let mut storage = pool.connection().await.unwrap();
     storage
         .protocol_versions_dal()
         .save_protocol_version_with_tx(ProtocolVersion::default())
@@ -235,7 +235,7 @@ async fn recovering_tokens() {
         .unwrap();
 
     // Check that tokens are successfully restored.
-    let mut storage = pool.get_connection().await.unwrap();
+    let mut storage = pool.connection().await.unwrap();
     let recovered_tokens = storage
         .tokens_web3_dal()
         .get_all_tokens(None)

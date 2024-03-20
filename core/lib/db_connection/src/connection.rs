@@ -226,7 +226,7 @@ mod tests {
     #[tokio::test]
     async fn processor_tags_propagate_to_transactions() {
         let pool = ConnectionPool::<InternalMarker>::constrained_test_pool(1).await;
-        let mut connection = pool.get_connection_tagged("test").await.unwrap();
+        let mut connection = pool.connection_tagged("test").await.unwrap();
         assert!(!connection.in_transaction());
         let original_tags = *connection.conn_and_tags().1.unwrap();
         assert_eq!(original_tags.requester, "test");
@@ -239,7 +239,7 @@ mod tests {
     #[tokio::test]
     async fn tracing_connections() {
         let pool = ConnectionPool::<InternalMarker>::constrained_test_pool(1).await;
-        let connection = pool.get_connection_tagged("test").await.unwrap();
+        let connection = pool.connection_tagged("test").await.unwrap();
         let traced = pool.traced_connections.as_deref().unwrap();
         {
             let traced = traced.connections.lock().unwrap();
@@ -255,8 +255,8 @@ mod tests {
             assert!(traced.is_empty());
         }
 
-        let _connection = pool.get_connection_tagged("test").await.unwrap();
-        let err = format!("{:?}", pool.get_connection().await.unwrap_err());
+        let _connection = pool.connection_tagged("test").await.unwrap();
+        let err = format!("{:?}", pool.connection().await.unwrap_err());
         // Matching strings in error messages is an anti-pattern, but we really want to test DevEx here.
         assert!(err.contains("Active connections"), "{err}");
         assert!(err.contains("requested by `test`"), "{err}");

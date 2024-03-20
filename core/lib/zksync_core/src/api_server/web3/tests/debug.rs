@@ -36,7 +36,7 @@ struct TraceBlockTest(MiniblockNumber);
 impl HttpTest for TraceBlockTest {
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
         let tx_results = [0, 1, 2].map(execute_l2_transaction_with_traces);
-        let mut storage = pool.get_connection().await?;
+        let mut storage = pool.connection().await?;
         let new_miniblock = store_miniblock(&mut storage, self.0, &tx_results).await?;
         drop(storage);
 
@@ -99,7 +99,7 @@ struct TraceBlockFlatTest(MiniblockNumber);
 impl HttpTest for TraceBlockFlatTest {
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
         let tx_results = [0, 1, 2].map(execute_l2_transaction_with_traces);
-        let mut storage = pool.get_connection().await?;
+        let mut storage = pool.connection().await?;
         let _new_miniblock = store_miniblock(&mut storage, self.0, &tx_results).await?;
         drop(storage);
 
@@ -175,7 +175,7 @@ struct TraceTransactionTest;
 impl HttpTest for TraceTransactionTest {
     async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
         let tx_results = [execute_l2_transaction_with_traces(0)];
-        let mut storage = pool.get_connection().await?;
+        let mut storage = pool.connection().await?;
         store_miniblock(&mut storage, MiniblockNumber(1), &tx_results).await?;
         drop(storage);
 

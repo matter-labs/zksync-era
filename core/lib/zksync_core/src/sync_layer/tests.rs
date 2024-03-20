@@ -164,7 +164,7 @@ fn genesis_snapshot_recovery_status() -> SnapshotRecoveryStatus {
 #[tokio::test]
 async fn external_io_basics(snapshot_recovery: bool) {
     let pool = ConnectionPool::<Core>::test_pool().await;
-    let mut storage = pool.get_connection().await.unwrap();
+    let mut storage = pool.connection().await.unwrap();
     let snapshot = if snapshot_recovery {
         prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await
     } else {
@@ -236,7 +236,7 @@ async fn external_io_basics(snapshot_recovery: bool) {
 #[tokio::test]
 async fn external_io_works_without_local_protocol_version(snapshot_recovery: bool) {
     let pool = ConnectionPool::<Core>::test_pool().await;
-    let mut storage = pool.get_connection().await.unwrap();
+    let mut storage = pool.connection().await.unwrap();
     let snapshot = if snapshot_recovery {
         prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await
     } else {
@@ -317,7 +317,7 @@ pub(super) async fn run_state_keeper_with_multiple_miniblocks(
     pool: ConnectionPool<Core>,
     snapshot_recovery: bool,
 ) -> (SnapshotRecoveryStatus, Vec<H256>) {
-    let mut storage = pool.get_connection().await.unwrap();
+    let mut storage = pool.connection().await.unwrap();
     let snapshot = if snapshot_recovery {
         prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await
     } else {
@@ -384,7 +384,7 @@ async fn external_io_with_multiple_miniblocks(snapshot_recovery: bool) {
         (snapshot.miniblock_number + 1, &tx_hashes[..5]),
         (snapshot.miniblock_number + 2, &tx_hashes[5..]),
     ];
-    let mut storage = pool.get_connection().await.unwrap();
+    let mut storage = pool.connection().await.unwrap();
     for (number, expected_tx_hashes) in tx_hashes_by_miniblock {
         let miniblock = storage
             .blocks_dal()
@@ -448,7 +448,7 @@ async fn test_external_io_recovery(
         .wait(|state| state.get_local_block() == snapshot.miniblock_number + 3)
         .await;
 
-    let mut storage = pool.get_connection().await.unwrap();
+    let mut storage = pool.connection().await.unwrap();
     let miniblock = storage
         .blocks_dal()
         .get_miniblock_header(snapshot.miniblock_number + 3)
@@ -461,7 +461,7 @@ async fn test_external_io_recovery(
 
 pub(super) async fn mock_l1_batch_hash_computation(pool: ConnectionPool<Core>, number: u32) {
     loop {
-        let mut storage = pool.get_connection().await.unwrap();
+        let mut storage = pool.connection().await.unwrap();
         let last_l1_batch_number = storage
             .blocks_dal()
             .get_sealed_l1_batch_number()
@@ -487,7 +487,7 @@ pub(super) async fn run_state_keeper_with_multiple_l1_batches(
     pool: ConnectionPool<Core>,
     snapshot_recovery: bool,
 ) -> (SnapshotRecoveryStatus, Vec<Vec<H256>>) {
-    let mut storage = pool.get_connection().await.unwrap();
+    let mut storage = pool.connection().await.unwrap();
     let snapshot = if snapshot_recovery {
         prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), MiniblockNumber(42), &[]).await
     } else {
@@ -554,7 +554,7 @@ async fn external_io_with_multiple_l1_batches() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     run_state_keeper_with_multiple_l1_batches(pool.clone(), false).await;
 
-    let mut storage = pool.get_connection().await.unwrap();
+    let mut storage = pool.connection().await.unwrap();
     let l1_batch_header = storage
         .blocks_dal()
         .get_l1_batch_header(L1BatchNumber(1))

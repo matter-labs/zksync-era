@@ -46,11 +46,7 @@ impl ZksNamespace {
     }
 
     async fn access_storage(&self) -> Result<Connection<'_, Core>, Web3Error> {
-        Ok(self
-            .state
-            .connection_pool
-            .get_connection_tagged("api")
-            .await?)
+        Ok(self.state.connection_pool.connection_tagged("api").await?)
     }
 
     #[tracing::instrument(skip(self, request))]

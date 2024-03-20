@@ -13,7 +13,7 @@ impl CircuitBreaker for ReplicationLagChecker {
     async fn check(&self) -> Result<(), CircuitBreakerError> {
         let lag = self
             .pool
-            .get_connection()
+            .connection()
             .await
             .unwrap()
             .system_dal()

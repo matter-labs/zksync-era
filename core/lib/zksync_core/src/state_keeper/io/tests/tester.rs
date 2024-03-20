@@ -139,7 +139,7 @@ impl Tester {
     }
 
     pub(super) async fn genesis(&self, pool: &ConnectionPool<Core>) {
-        let mut storage = pool.get_connection_tagged("state_keeper").await.unwrap();
+        let mut storage = pool.connection_tagged("state_keeper").await.unwrap();
         if storage.blocks_dal().is_genesis_needed().await.unwrap() {
             create_genesis_l1_batch(
                 &mut storage,
@@ -162,7 +162,7 @@ impl Tester {
         base_fee_per_gas: u64,
         fee_input: BatchFeeInput,
     ) -> TransactionExecutionResult {
-        let mut storage = pool.get_connection_tagged("state_keeper").await.unwrap();
+        let mut storage = pool.connection_tagged("state_keeper").await.unwrap();
         let tx = create_l2_transaction(10, 100);
         storage
             .transactions_dal()
@@ -198,7 +198,7 @@ impl Tester {
         tx_results: &[TransactionExecutionResult],
     ) {
         let batch_header = create_l1_batch(number);
-        let mut storage = pool.get_connection_tagged("state_keeper").await.unwrap();
+        let mut storage = pool.connection_tagged("state_keeper").await.unwrap();
         storage
             .blocks_dal()
             .insert_mock_l1_batch(&batch_header)

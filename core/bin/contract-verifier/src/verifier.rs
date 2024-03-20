@@ -471,7 +471,7 @@ impl JobProcessor for ContractVerifier {
     const BACKOFF_MULTIPLIER: u64 = 1;
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
-        let mut connection = self.connection_pool.get_connection().await.unwrap();
+        let mut connection = self.connection_pool.connection().await.unwrap();
 
         // Time overhead for all operations except for compilation.
         const TIME_OVERHEAD: Duration = Duration::from_secs(10);
@@ -489,7 +489,7 @@ impl JobProcessor for ContractVerifier {
     }
 
     async fn save_failure(&self, job_id: usize, _started_at: Instant, error: String) {
-        let mut connection = self.connection_pool.get_connection().await.unwrap();
+        let mut connection = self.connection_pool.connection().await.unwrap();
 
         connection
             .contract_verification_dal()
@@ -515,7 +515,7 @@ impl JobProcessor for ContractVerifier {
 
             let config: ContractVerifierConfig =
                 ContractVerifierConfig::from_env().context("ContractVerifierConfig")?;
-            let mut connection = connection_pool.get_connection().await.unwrap();
+            let mut connection = connection_pool.connection().await.unwrap();
 
             let job_id = job.id;
             let verification_result = Self::verify(&mut connection, job, config).await;

@@ -301,7 +301,7 @@ mod tests {
         let pool = ConnectionPool::<InternalMarker>::test_pool().await;
         // Add `vlog::init()` here to debug this test
 
-        let mut conn = pool.get_connection().await.unwrap();
+        let mut conn = pool.connection().await.unwrap();
         sqlx::query("WHAT")
             .map(drop)
             .instrument("erroneous")
@@ -317,7 +317,7 @@ mod tests {
         let pool = ConnectionPool::<InternalMarker>::test_pool().await;
         // Add `vlog::init()` here to debug this test
 
-        let mut conn = pool.get_connection().await.unwrap();
+        let mut conn = pool.connection().await.unwrap();
         sqlx::query("SELECT pg_sleep(1.5)")
             .map(drop)
             .instrument("slow")

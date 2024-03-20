@@ -231,7 +231,7 @@ impl JobProcessor for Prover {
     const SERVICE_NAME: &'static str = "FriCpuProver";
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
-        let mut storage = self.prover_connection_pool.get_connection().await.unwrap();
+        let mut storage = self.prover_connection_pool.connection().await.unwrap();
         let Some(prover_job) = fetch_next_circuit(
             &mut storage,
             &*self.blob_store,
@@ -247,7 +247,7 @@ impl JobProcessor for Prover {
 
     async fn save_failure(&self, job_id: Self::JobId, _started_at: Instant, error: String) {
         self.prover_connection_pool
-            .get_connection()
+            .connection()
             .await
             .unwrap()
             .fri_prover_jobs_dal()
@@ -279,7 +279,7 @@ impl JobProcessor for Prover {
     ) -> anyhow::Result<()> {
         METRICS.cpu_total_proving_time.observe(started_at.elapsed());
 
-        let mut storage_processor = self.prover_connection_pool.get_connection().await.unwrap();
+        let mut storage_processor = self.prover_connection_pool.connection().await.unwrap();
         save_proof(
             job_id,
             started_at,
@@ -300,7 +300,7 @@ impl JobProcessor for Prover {
     async fn get_job_attempts(&self, job_id: &u32) -> anyhow::Result<u32> {
         let mut prover_storage = self
             .prover_connection_pool
-            .get_connection()
+            .connection()
             .await
             .context("failed to acquire DB connection for Prover")?;
         prover_storage

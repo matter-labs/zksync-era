@@ -436,7 +436,7 @@ impl ConsistencyChecker {
     async fn last_committed_batch(&self) -> anyhow::Result<Option<L1BatchNumber>> {
         Ok(self
             .pool
-            .get_connection()
+            .connection()
             .await?
             .blocks_dal()
             .get_number_of_last_l1_batch_committed_on_eth()
@@ -522,7 +522,7 @@ impl ConsistencyChecker {
                 break;
             }
 
-            let mut storage = self.pool.get_connection().await?;
+            let mut storage = self.pool.connection().await?;
             // The batch might be already committed but not yet processed by the external node's tree
             // OR the batch might be processed by the external node's tree but not yet committed.
             // We need both.

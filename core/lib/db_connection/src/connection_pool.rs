@@ -333,18 +333,18 @@ impl<DB: DbMarker> ConnectionPool<DB> {
     ///
     /// This method is intended to be used in crucial contexts, where the
     /// database access is must-have (e.g. block committer).
-    pub async fn get_connection(&self) -> anyhow::Result<Connection<'_, DB>> {
-        self.get_connection_inner(None).await
+    pub async fn connection(&self) -> anyhow::Result<Connection<'_, DB>> {
+        self.connection_inner(None).await
     }
 
-    /// A version of `get_connection` that would also expose the duration of the connection
+    /// A version of `connection` that would also expose the duration of the connection
     /// acquisition tagged to the `requester` name. It also tracks the caller location for the purposes
     /// of logging (e.g., long-living connections) and debugging (when used with a test connection pool).
     ///
     /// WARN: This method should not be used if it will result in too many time series (e.g.
     /// from witness generators or provers), otherwise Prometheus won't be able to handle it.
     #[track_caller] // In order to use it, we have to de-sugar `async fn`
-    pub fn get_connection_tagged(
+    pub fn connection_tagged(
         &self,
         requester: &'static str,
     ) -> impl Future<Output = anyhow::Result<Connection<'_, DB>>> + '_ {
@@ -354,11 +354,11 @@ impl<DB: DbMarker> ConnectionPool<DB> {
                 requester,
                 location,
             };
-            self.get_connection_inner(Some(tags)).await
+            self.connection_inner(Some(tags)).await
         }
     }
 
-    async fn get_connection_inner(
+    async fn connection_inner(
         &self,
         tags: Option<ConnectionTags>,
     ) -> anyhow::Result<Connection<'_, DB>> {
@@ -454,7 +454,7 @@ mod tests {
             .await
             .unwrap();
 
-        let mut storage = pool.get_connection().await.unwrap();
+        let mut storage = pool.connection().await.unwrap();
         let err = sqlx::query("SELECT pg_sleep(2)")
             .map(drop)
             .fetch_optional(storage.conn())

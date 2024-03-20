@@ -64,7 +64,7 @@ impl MempoolFetcher {
     }
 
     pub async fn run(mut self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
-        let mut storage = self.pool.get_connection_tagged("state_keeper").await?;
+        let mut storage = self.pool.connection_tagged("state_keeper").await?;
         if let Some(stuck_tx_timeout) = self.stuck_tx_timeout {
             let removed_txs = storage
                 .transactions_dal()
@@ -86,7 +86,7 @@ impl MempoolFetcher {
                 break;
             }
             let latency = KEEPER_METRICS.mempool_sync.start();
-            let mut storage = self.pool.get_connection_tagged("state_keeper").await?;
+            let mut storage = self.pool.connection_tagged("state_keeper").await?;
             let mempool_info = self.mempool.get_mempool_info();
             let protocol_version = pending_protocol_version(&mut storage)
                 .await
@@ -184,7 +184,7 @@ mod tests {
     #[tokio::test]
     async fn getting_transaction_nonces() {
         let pool = ConnectionPool::<Core>::test_pool().await;
-        let mut storage = pool.get_connection().await.unwrap();
+        let mut storage = pool.connection().await.unwrap();
 
         let transaction = create_l2_transaction(10, 100);
         let transaction_initiator = transaction.initiator_account();
@@ -218,7 +218,7 @@ mod tests {
     #[tokio::test]
     async fn syncing_mempool_basics() {
         let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
-        let mut storage = pool.get_connection().await.unwrap();
+        let mut storage = pool.connection().await.unwrap();
         ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
             .await
             .unwrap();
@@ -244,7 +244,7 @@ mod tests {
         // Add a new transaction to the storage.
         let transaction = create_l2_transaction(base_fee, gas_per_pubdata);
         let transaction_hash = transaction.hash();
-        let mut storage = pool.get_connection().await.unwrap();
+        let mut storage = pool.connection().await.unwrap();
         storage
             .transactions_dal()
             .insert_transaction_l2(transaction, TransactionExecutionMetrics::default())
@@ -275,7 +275,7 @@ mod tests {
     #[tokio::test]
     async fn ignoring_transaction_with_insufficient_fee() {
         let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
-        let mut storage = pool.get_connection().await.unwrap();
+        let mut storage = pool.connection().await.unwrap();
         ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
             .await
             .unwrap();
@@ -298,7 +298,7 @@ mod tests {
 
         // Add a transaction with insufficient fee to the storage.
         let transaction = create_l2_transaction(base_fee / 2, gas_per_pubdata / 2);
-        let mut storage = pool.get_connection().await.unwrap();
+        let mut storage = pool.connection().await.unwrap();
         storage
             .transactions_dal()
             .insert_transaction_l2(transaction, TransactionExecutionMetrics::default())
@@ -315,7 +315,7 @@ mod tests {
     #[tokio::test]
     async fn ignoring_transaction_with_old_nonce() {
         let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
-        let mut storage = pool.get_connection().await.unwrap();
+        let mut storage = pool.connection().await.unwrap();
         ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
             .await
             .unwrap();
@@ -344,7 +344,7 @@ mod tests {
         let transaction_hash = transaction.hash();
         let nonce_key = get_nonce_key(&transaction.initiator_account());
         let nonce_log = StorageLog::new_write_log(nonce_key, u256_to_h256(42.into()));
-        let mut storage = pool.get_connection().await.unwrap();
+        let mut storage = pool.connection().await.unwrap();
         storage
             .storage_logs_dal()
             .append_storage_logs(MiniblockNumber(0), &[(H256::zero(), vec![nonce_log])])

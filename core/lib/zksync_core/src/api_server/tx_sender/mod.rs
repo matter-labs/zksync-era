@@ -274,7 +274,7 @@ impl TxSender {
     async fn acquire_replica_connection(&self) -> anyhow::Result<Connection<'_, Core>> {
         self.0
             .replica_connection_pool
-            .get_connection_tagged("api")
+            .connection_tagged("api")
             .await
             .context("failed acquiring connection to replica DB")
     }

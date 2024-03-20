@@ -97,7 +97,7 @@ async fn prepare_recovery_snapshot_with_genesis(
     pool: &ConnectionPool<Core>,
     temp_dir: &TempDir,
 ) -> SnapshotRecoveryStatus {
-    let mut storage = pool.get_connection().await.unwrap();
+    let mut storage = pool.connection().await.unwrap();
     ensure_genesis_state(&mut storage, L2ChainId::from(270), &GenesisParams::mock())
         .await
         .unwrap();
@@ -242,7 +242,7 @@ async fn entire_recovery_workflow(case: RecoveryWorkflowCase) {
     let pool = ConnectionPool::<Core>::test_pool().await;
     // Emulate the recovered view of Postgres. Unlike with previous tests, we don't perform genesis.
     let snapshot_logs = gen_storage_logs(100..300, 1).pop().unwrap();
-    let mut storage = pool.get_connection().await.unwrap();
+    let mut storage = pool.connection().await.unwrap();
     let snapshot_recovery = prepare_recovery_snapshot(
         &mut storage,
         L1BatchNumber(23),

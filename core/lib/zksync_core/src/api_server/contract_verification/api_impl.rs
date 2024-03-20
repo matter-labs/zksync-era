@@ -36,7 +36,7 @@ impl RestApi {
         }
         let mut storage = self_
             .master_connection_pool
-            .get_connection_tagged("api")
+            .connection_tagged("api")
             .await
             .unwrap();
 
@@ -68,7 +68,7 @@ impl RestApi {
         let method_latency = METRICS.call[&"contract_verification_request_status"].start();
         let status = self_
             .replica_connection_pool
-            .get_connection_tagged("api")
+            .connection_tagged("api")
             .await
             .unwrap()
             .contract_verification_dal()
@@ -88,7 +88,7 @@ impl RestApi {
         let method_latency = METRICS.call[&"contract_verification_zksolc_versions"].start();
         let versions = self_
             .replica_connection_pool
-            .get_connection_tagged("api")
+            .connection_tagged("api")
             .await
             .unwrap()
             .contract_verification_dal()
@@ -105,7 +105,7 @@ impl RestApi {
         let method_latency = METRICS.call[&"contract_verification_solc_versions"].start();
         let versions = self_
             .replica_connection_pool
-            .get_connection_tagged("api")
+            .connection_tagged("api")
             .await
             .unwrap()
             .contract_verification_dal()
@@ -122,7 +122,7 @@ impl RestApi {
         let method_latency = METRICS.call[&"contract_verification_zkvyper_versions"].start();
         let versions = self_
             .replica_connection_pool
-            .get_connection_tagged("api")
+            .connection_tagged("api")
             .await
             .unwrap()
             .contract_verification_dal()
@@ -139,7 +139,7 @@ impl RestApi {
         let method_latency = METRICS.call[&"contract_verification_vyper_versions"].start();
         let versions = self_
             .replica_connection_pool
-            .get_connection_tagged("api")
+            .connection_tagged("api")
             .await
             .unwrap()
             .contract_verification_dal()
@@ -160,7 +160,7 @@ impl RestApi {
 
         let info = self_
             .replica_connection_pool
-            .get_connection_tagged("api")
+            .connection_tagged("api")
             .await
             .unwrap()
             .contract_verification_dal()

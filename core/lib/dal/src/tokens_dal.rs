@@ -141,7 +141,7 @@ mod tests {
     #[tokio::test]
     async fn adding_and_getting_tokens() {
         let pool = ConnectionPool::<Core>::test_pool().await;
-        let mut storage = pool.get_connection().await.unwrap();
+        let mut storage = pool.connection().await.unwrap();
         let tokens = [test_token_info(), eth_token_info()];
         storage.tokens_dal().add_tokens(&tokens).await.unwrap();
 
@@ -188,7 +188,7 @@ mod tests {
     #[tokio::test]
     async fn rolling_back_tokens() {
         let pool = ConnectionPool::<Core>::test_pool().await;
-        let mut storage = pool.get_connection().await.unwrap();
+        let mut storage = pool.connection().await.unwrap();
 
         let eth_info = eth_token_info();
         let eth_deployment_log =
@@ -282,7 +282,7 @@ mod tests {
     #[tokio::test]
     async fn rolling_back_tokens_with_failed_deployment() {
         let pool = ConnectionPool::<Core>::test_pool().await;
-        let mut storage = pool.get_connection().await.unwrap();
+        let mut storage = pool.connection().await.unwrap();
 
         let test_info = test_token_info();
 

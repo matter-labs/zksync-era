@@ -91,7 +91,7 @@ impl StateKeeperIO for MempoolIO {
     }
 
     async fn load_pending_batch(&mut self) -> anyhow::Result<Option<PendingBatchData>> {
-        let mut storage = self.pool.get_connection_tagged("state_keeper").await?;
+        let mut storage = self.pool.connection_tagged("state_keeper").await?;
 
         let pending_miniblock_header = self
             .l1_batch_params_provider
@@ -178,7 +178,7 @@ impl StateKeeperIO for MempoolIO {
                 self.current_l1_batch_number.0,
                 self.filter.fee_input
             );
-            let mut storage = self.pool.get_connection_tagged("state_keeper").await?;
+            let mut storage = self.pool.connection_tagged("state_keeper").await?;
             let (base_system_contracts, protocol_version) = storage
                 .protocol_versions_dal()
                 .base_system_contracts_by_timestamp(current_timestamp)
@@ -273,7 +273,7 @@ impl StateKeeperIO for MempoolIO {
         self.mempool.rollback(rejected);
 
         // Mark tx as rejected in the storage.
-        let mut storage = self.pool.get_connection_tagged("state_keeper").await?;
+        let mut storage = self.pool.connection_tagged("state_keeper").await?;
         KEEPER_METRICS.rejected_transactions.inc();
         tracing::warn!(
             "transaction {} is rejected with error: {error}",
@@ -332,7 +332,7 @@ impl StateKeeperIO for MempoolIO {
         }
 
         let pool = self.pool.clone();
-        let mut storage = pool.get_connection_tagged("state_keeper").await?;
+        let mut storage = pool.connection_tagged("state_keeper").await?;
 
         let fictive_miniblock = updates_manager
             .seal_l1_batch(
@@ -349,7 +349,7 @@ impl StateKeeperIO for MempoolIO {
     }
 
     async fn load_previous_batch_version_id(&mut self) -> anyhow::Result<ProtocolVersionId> {
-        let mut storage = self.pool.get_connection_tagged("state_keeper").await?;
+        let mut storage = self.pool.connection_tagged("state_keeper").await?;
         let prev_l1_batch_number = self.current_l1_batch_number - 1;
         self.l1_batch_params_provider
             .load_l1_batch_protocol_version(&mut storage, prev_l1_batch_number)
@@ -364,7 +364,7 @@ impl StateKeeperIO for MempoolIO {
         &mut self,
         version_id: ProtocolVersionId,
     ) -> anyhow::Result<Option<ProtocolUpgradeTx>> {
-        let mut storage = self.pool.get_connection_tagged("state_keeper").await?;
+        let mut storage = self.pool.connection_tagged("state_keeper").await?;
         Ok(storage
             .protocol_versions_dal()
             .get_protocol_upgrade_tx(version_id)
@@ -442,7 +442,7 @@ impl MempoolIO {
             "Virtual blocks per miniblock must be positive"
         );
 
-        let mut storage = pool.get_connection_tagged("state_keeper").await?;
+        let mut storage = pool.connection_tagged("state_keeper").await?;
         let cursor = IoCursor::new(&mut storage)
             .await
             .context("failed initializing I/O cursor")?;
@@ -493,7 +493,7 @@ impl MempoolIO {
         );
         let wait_latency = KEEPER_METRICS.wait_for_prev_hash_time.start();
 
-        let mut storage = self.pool.get_connection_tagged("state_keeper").await?;
+        let mut storage = self.pool.connection_tagged("state_keeper").await?;
         let prev_l1_batch_number = self.current_l1_batch_number - 1;
         let (batch_hash, _) = self
             .l1_batch_params_provider

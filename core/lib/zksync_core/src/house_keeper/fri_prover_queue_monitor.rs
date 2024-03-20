@@ -35,7 +35,7 @@ impl PeriodicJob for FriProverStatsReporter {
     const SERVICE_NAME: &'static str = "FriProverStatsReporter";
 
     async fn run_routine_task(&mut self) -> anyhow::Result<()> {
-        let mut conn = self.prover_connection_pool.get_connection().await.unwrap();
+        let mut conn = self.prover_connection_pool.connection().await.unwrap();
         let stats = conn.fri_prover_jobs_dal().get_prover_jobs_stats().await;
 
         for ((circuit_id, aggregation_round), stats) in stats.into_iter() {
@@ -90,7 +90,7 @@ impl PeriodicJob for FriProverStatsReporter {
 
         // FIXME: refactor metrics here
 
-        let mut db_conn = self.db_connection_pool.get_connection().await.unwrap();
+        let mut db_conn = self.db_connection_pool.connection().await.unwrap();
 
         let oldest_unpicked_batch = match db_conn
             .proof_generation_dal()

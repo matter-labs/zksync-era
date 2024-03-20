@@ -148,7 +148,7 @@ impl SealedMiniblockNumber {
                     return Ok(());
                 }
 
-                let mut connection = connection_pool.get_connection_tagged("api").await.unwrap();
+                let mut connection = connection_pool.connection_tagged("api").await.unwrap();
                 let Some(last_sealed_miniblock) = connection
                     .blocks_dal()
                     .get_sealed_miniblock_number()
@@ -301,7 +301,7 @@ impl RpcState {
 
         let block_number = block_number.unwrap_or(api::BlockNumber::Latest);
         let block_id = api::BlockId::Number(block_number);
-        let mut conn = self.connection_pool.get_connection_tagged("api").await?;
+        let mut conn = self.connection_pool.connection_tagged("api").await?;
         Ok(self.resolve_block(&mut conn, block_id).await.unwrap())
         // ^ `unwrap()` is safe: `resolve_block_id(api::BlockId::Number(_))` can only return `None`
         // if called with an explicit number, and we've handled this case earlier.
@@ -322,7 +322,7 @@ impl RpcState {
             (Some(block_hash), None, None) => {
                 let block_number = self
                     .connection_pool
-                    .get_connection_tagged("api")
+                    .connection_tagged("api")
                     .await?
                     .blocks_web3_dal()
                     .resolve_block_id(api::BlockId::Hash(block_hash))
@@ -347,7 +347,7 @@ impl RpcState {
     ) -> Result<MiniblockNumber, Web3Error> {
         let pending_block = self
             .connection_pool
-            .get_connection_tagged("api")
+            .connection_tagged("api")
             .await?
             .blocks_web3_dal()
             .resolve_block_id(api::BlockId::Number(api::BlockNumber::Pending))
@@ -371,7 +371,7 @@ impl RpcState {
         if call_request.nonce.is_some() {
             return Ok(());
         }
-        let mut connection = self.connection_pool.get_connection_tagged("api").await?;
+        let mut connection = self.connection_pool.connection_tagged("api").await?;
 
         let latest_block_id = api::BlockId::Number(api::BlockNumber::Latest);
         let latest_block_number = self.resolve_block(&mut connection, latest_block_id).await?;

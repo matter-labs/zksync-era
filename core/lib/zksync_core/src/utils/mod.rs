@@ -67,7 +67,7 @@ pub(crate) async fn wait_for_l1_batch(
             return Ok(None);
         }
 
-        let mut storage = pool.get_connection().await?;
+        let mut storage = pool.connection().await?;
         let sealed_l1_batch_number = storage.blocks_dal().get_earliest_l1_batch_number().await?;
         drop(storage);
 
@@ -98,7 +98,7 @@ pub(crate) async fn wait_for_l1_batch_with_metadata(
             return Ok(None);
         }
 
-        let mut storage = pool.get_connection().await?;
+        let mut storage = pool.connection().await?;
         let sealed_l1_batch_number = storage
             .blocks_dal()
             .get_earliest_l1_batch_number_with_metadata()
@@ -187,7 +187,7 @@ mod tests {
         let pool_copy = pool.clone();
         tokio::spawn(async move {
             tokio::time::sleep(Duration::from_millis(25)).await;
-            let mut storage = pool_copy.get_connection().await.unwrap();
+            let mut storage = pool_copy.connection().await.unwrap();
             ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
                 .await
                 .unwrap();

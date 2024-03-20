@@ -173,7 +173,7 @@ pub(super) async fn get_pubdata_for_factory_deps(
     }
 
     let mut storage = connection_pool
-        .get_connection_tagged("api")
+        .connection_tagged("api")
         .await
         .context("failed acquiring DB connection")?;
     let (_, block_number) = get_pending_state(&mut storage).await?;
@@ -184,7 +184,7 @@ pub(super) async fn get_pubdata_for_factory_deps(
     let factory_deps = factory_deps.to_vec();
     tokio::task::spawn_blocking(move || {
         let connection = rt_handle
-            .block_on(connection_pool.get_connection_tagged("api"))
+            .block_on(connection_pool.connection_tagged("api"))
             .context("failed acquiring DB connection")?;
         let storage = PostgresStorage::new(rt_handle, connection, block_number, false)
             .with_caches(storage_caches);

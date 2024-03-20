@@ -142,7 +142,7 @@ async fn init_tasks(
     task_handles.push(tokio::spawn(async move {
         loop {
             let protocol_version = pool
-                .get_connection()
+                .connection()
                 .await
                 .unwrap()
                 .protocol_versions_dal()
@@ -583,7 +583,7 @@ async fn main() -> anyhow::Result<()> {
     }
     if opt.revert_pending_l1_batch {
         tracing::info!("Rolling pending L1 batch back..");
-        let mut connection = connection_pool.get_connection().await?;
+        let mut connection = connection_pool.connection().await?;
         let sealed_l1_batch_number = connection
             .blocks_dal()
             .get_sealed_l1_batch_number()

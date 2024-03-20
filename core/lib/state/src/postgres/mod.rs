@@ -369,7 +369,7 @@ impl PostgresStorageCachesTask {
                     }
                     let mut connection = self
                         .connection_pool
-                        .get_connection_tagged("values_cache_updater")
+                        .connection_tagged("values_cache_updater")
                         .await?;
                     self.values_cache
                         .update(current_miniblock, to_miniblock, &mut connection)

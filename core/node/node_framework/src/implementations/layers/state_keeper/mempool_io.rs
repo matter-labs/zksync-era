@@ -54,7 +54,7 @@ impl MempoolIOLayer {
             .await
             .context("Get connection pool")?;
         let mut storage = connection_pool
-            .get_connection()
+            .connection()
             .await
             .context("Access storage to build mempool")?;
         let mempool = MempoolGuard::from_storage(&mut storage, self.mempool_config.capacity).await;

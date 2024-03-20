@@ -48,7 +48,7 @@ pub(crate) async fn migrate_miniblocks(
     // Since snapshot recovery is later that the fee address migration in terms of code versioning,
     // the migration is always no-op in case of snapshot recovery; all miniblocks added after recovery are guaranteed
     // to have their fee address set.
-    let mut storage = pool.get_connection_tagged("state_keeper").await?;
+    let mut storage = pool.connection_tagged("state_keeper").await?;
     if storage
         .snapshot_recovery_dal()
         .get_applied_snapshot_status()
@@ -90,7 +90,7 @@ async fn migrate_miniblocks_inner(
 ) -> anyhow::Result<MigrationOutput> {
     anyhow::ensure!(chunk_size > 0, "Chunk size must be positive");
 
-    let mut storage = pool.get_connection_tagged("state_keeper").await?;
+    let mut storage = pool.connection_tagged("state_keeper").await?;
     #[allow(deprecated)]
     let l1_batches_have_fee_account_address = storage
         .blocks_dal()
@@ -114,7 +114,7 @@ async fn migrate_miniblocks_inner(
         let chunk_end = last_miniblock.min(chunk_start + chunk_size - 1);
         let chunk = chunk_start..=chunk_end;
 
-        let mut storage = pool.get_connection_tagged("state_keeper").await?;
+        let mut storage = pool.connection_tagged("state_keeper").await?;
         let is_chunk_migrated = is_fee_address_migrated(&mut storage, chunk_start).await?;
 
         if is_chunk_migrated {
@@ -238,7 +238,7 @@ mod tests {
     async fn migration_basics(chunk_size: u32) {
         // Replicate providing a pool with a single connection.
         let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
-        let mut storage = pool.get_connection().await.unwrap();
+        let mut storage = pool.connection().await.unwrap();
         prepare_storage(&mut storage).await;
         drop(storage);
 
@@ -256,7 +256,7 @@ mod tests {
         assert_eq!(result.miniblocks_affected, 5);
 
         // Check that all blocks are migrated.
-        let mut storage = pool.get_connection().await.unwrap();
+        let mut storage = pool.connection().await.unwrap();
         assert_migration(&mut storage).await;
         drop(storage);
 
@@ -278,7 +278,7 @@ mod tests {
     #[tokio::test]
     async fn stopping_and_resuming_migration(chunk_size: u32) {
         let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
-        let mut storage = pool.get_connection().await.unwrap();
+        let mut storage = pool.connection().await.unwrap();
         prepare_storage(&mut storage).await;
         drop(storage);
 
@@ -309,7 +309,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(result.miniblocks_affected, 5 - u64::from(chunk_size));
-        let mut storage = pool.get_connection().await.unwrap();
+        let mut storage = pool.connection().await.unwrap();
         assert_migration(&mut storage).await;
     }
 
@@ -317,7 +317,7 @@ mod tests {
     #[tokio::test]
     async fn new_blocks_added_during_migration(chunk_size: u32) {
         let pool = ConnectionPool::<Core>::test_pool().await;
-        let mut storage = pool.get_connection().await.unwrap();
+        let mut storage = pool.connection().await.unwrap();
         prepare_storage(&mut storage).await;
 
         let (_stop_sender, stop_receiver) = watch::channel(true); // signal stop right away

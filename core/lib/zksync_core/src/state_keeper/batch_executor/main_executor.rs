@@ -73,11 +73,7 @@ impl BatchExecutor for MainBatchExecutor {
             .await
             .expect("Failed initializing state keeper storage");
         secondary_storage.enable_enum_index_migration(self.enum_index_migration_chunk_size);
-        let mut conn = self
-            .pool
-            .get_connection_tagged("state_keeper")
-            .await
-            .unwrap();
+        let mut conn = self.pool.connection_tagged("state_keeper").await.unwrap();
         let secondary_storage = secondary_storage
             .synchronize(&mut conn, stop_receiver)
             .await
