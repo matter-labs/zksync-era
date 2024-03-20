@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                last_processed_l1_batch as \"last_processed_l1_batch!\"\n            FROM\n                consistency_checker_info\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "last_processed_l1_batch!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "eb2737effced24c9bc1138544d3c5237c7d77d4cfcfb57ae76d7b7c67016b2b1"
+}

@@ -565,6 +565,12 @@ async fn checker_functions_after_snapshot_recovery(delay_batch_insertion: bool) 
     // Wait until the batch is checked.
     let checked_batch = l1_batch_updates_receiver.recv().await.unwrap();
     assert_eq!(checked_batch, l1_batch.header.number);
+    let last_reported_batch = storage
+        .blocks_dal()
+        .get_consistency_checker_last_processed_l1_batch()
+        .await
+        .unwrap();
+    assert_eq!(last_reported_batch, l1_batch.header.number);
 
     stop_sender.send_replace(true);
     checker_task.await.unwrap().unwrap();

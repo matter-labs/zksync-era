@@ -30,6 +30,45 @@ pub struct BlocksDal<'a, 'c> {
 }
 
 impl BlocksDal<'_, '_> {
+    pub async fn get_consistency_checker_last_processed_l1_batch(
+        &mut self,
+    ) -> sqlx::Result<L1BatchNumber> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                last_processed_l1_batch AS "last_processed_l1_batch!"
+            FROM
+                consistency_checker_info
+            "#
+        )
+        .instrument("get_consistency_checker_last_processed_l1_batch")
+        .report_latency()
+        .fetch_one(self.storage)
+        .await?;
+        Ok(L1BatchNumber(row.last_processed_l1_batch as u32))
+    }
+
+    pub async fn set_consistency_checker_last_processed_l1_batch(
+        &mut self,
+        l1_batch_number: L1BatchNumber,
+    ) -> sqlx::Result<()> {
+        sqlx::query!(
+            r#"
+            UPDATE consistency_checker_info
+            SET
+                last_processed_l1_batch = $1,
+                updated_at = NOW()
+            "#,
+            l1_batch_number.0 as i32,
+        )
+        .instrument("set_consistency_checker_last_processed_l1_batch")
+        .report_latency()
+        .with_arg("eth_tx_id", &l1_batch_number)
+        .execute(self.storage)
+        .await?;
+        Ok(())
+    }
+
     pub async fn is_genesis_needed(&mut self) -> sqlx::Result<bool> {
         let count = sqlx::query!(
             r#"
@@ -580,8 +619,8 @@ impl BlocksDal<'_, '_> {
             i64::from(header.number.0),
             &events_queue
         )
-        .execute(transaction.conn())
-        .await?;
+            .execute(transaction.conn())
+            .await?;
         transaction.commit().await?;
 
         Ok(())
@@ -912,11 +951,11 @@ impl BlocksDal<'_, '_> {
             commitment_artifacts.aux_commitments
                 .map(|a| a.bootloader_initial_content_commitment.0.to_vec()),
         )
-        .instrument("save_batch_aux_commitments")
-        .with_arg("number", &number)
-        .report_latency()
-        .execute(&mut transaction)
-        .await?;
+            .instrument("save_batch_aux_commitments")
+            .with_arg("number", &number)
+            .report_latency()
+            .execute(&mut transaction)
+            .await?;
 
         transaction.commit().await?;
         Ok(())
@@ -1006,9 +1045,9 @@ impl BlocksDal<'_, '_> {
                 1
             "#
         )
-        .fetch_optional(self.storage.conn())
-        .await?
-        .map(|row| L1BatchNumber(row.number as u32)))
+            .fetch_optional(self.storage.conn())
+            .await?
+            .map(|row| L1BatchNumber(row.number as u32)))
     }
 
     /// Returns the number of the last L1 batch for which an Ethereum prove tx exists in the database.
@@ -1069,9 +1108,9 @@ impl BlocksDal<'_, '_> {
                 1
             "#
         )
-        .fetch_optional(self.storage.conn())
-        .await?
-        .map(|record| L1BatchNumber(record.number as u32)))
+            .fetch_optional(self.storage.conn())
+            .await?
+            .map(|record| L1BatchNumber(record.number as u32)))
     }
 
     /// Returns the number of the last L1 batch for which an Ethereum execute tx was sent and confirmed.
@@ -1093,9 +1132,9 @@ impl BlocksDal<'_, '_> {
                 1
             "#
         )
-        .fetch_optional(self.storage.conn())
-        .await?
-        .map(|row| L1BatchNumber(row.number as u32)))
+            .fetch_optional(self.storage.conn())
+            .await?
+            .map(|row| L1BatchNumber(row.number as u32)))
     }
 
     /// This method returns batches that are confirmed on L1. That is, it doesn't wait for the proofs to be generated.
@@ -1383,7 +1422,9 @@ impl BlocksDal<'_, '_> {
         .fetch_optional(self.storage.conn())
         .await?;
 
-        let Some(row) = row else { return Ok(vec![]) };
+        let Some(row) = row else {
+            return Ok(vec![]);
+        };
         let expected_started_point = row.number;
 
         // After Postgres 12->14 upgrade this field is now f64
@@ -1412,8 +1453,8 @@ impl BlocksDal<'_, '_> {
             "#,
             max_l1_batch_timestamp_seconds_bd,
         )
-        .fetch_one(self.storage.conn())
-        .await?;
+            .fetch_one(self.storage.conn())
+            .await?;
 
         Ok(if let Some(max_ready_to_send_block) = row.max {
             // If we found at least one ready to execute batch then we can simply return all blocks between
@@ -1911,8 +1952,12 @@ impl BlocksDal<'_, '_> {
         )
         .fetch_one(self.storage.conn())
         .await?;
-        let Some(min) = row.min else { return Ok(None) };
-        let Some(max) = row.max else { return Ok(None) };
+        let Some(min) = row.min else {
+            return Ok(None);
+        };
+        let Some(max) = row.max else {
+            return Ok(None);
+        };
         Ok(Some((
             MiniblockNumber(min as u32),
             MiniblockNumber(max as u32),
@@ -2327,8 +2372,8 @@ impl BlocksDal<'_, '_> {
             i64::from(numbers.start().0),
             i64::from(numbers.end().0)
         )
-        .execute(self.storage.conn())
-        .await?;
+            .execute(self.storage.conn())
+            .await?;
 
         Ok(execution_result.rows_affected())
     }
