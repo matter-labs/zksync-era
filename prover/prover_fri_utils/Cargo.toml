@@ -12,7 +12,7 @@ zksync_object_store = { path = "../../core/lib/object_store" }
 zksync_config = { path = "../../core/lib/config" }
 zksync_types = { path = "../../core/lib/types" }
 zksync_prover_fri_types = { path = "../prover_fri_types" }
-zksync_dal = { path = "../../core/lib/dal" }
+prover_dal = { path = "../prover_dal" }
 zksync_utils = { path = "../../core/lib/utils" }
 
 tracing = "0.1"

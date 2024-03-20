@@ -3,6 +3,7 @@ use actix_web::{
     HttpResponse, Result as ActixResult,
 };
 use serde::Serialize;
+use zksync_dal::ServerDals;
 use zksync_types::{contract_verification_api::VerificationIncomingRequest, Address};
 
 use super::{api_decl::RestApi, metrics::METRICS};
@@ -47,14 +48,6 @@ impl RestApi {
             return Ok(
                 HttpResponse::BadRequest().body("There is no deployed contract on this address")
             );
-        }
-        if storage
-            .contract_verification_dal()
-            .is_contract_verified(request.contract_address)
-            .await
-            .unwrap()
-        {
-            return Ok(HttpResponse::BadRequest().body("This contract is already verified"));
         }
 
         let request_id = storage

@@ -7,7 +7,7 @@ use zksync_config::{
     configs::{proof_data_handler::ProtocolVersionLoadingMode, ProofDataHandlerConfig},
     ContractsConfig,
 };
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Server};
 use zksync_object_store::ObjectStore;
 use zksync_prover_interface::api::{ProofGenerationDataRequest, SubmitProofRequest};
 use zksync_types::{
@@ -35,7 +35,7 @@ pub async fn run_server(
     config: ProofDataHandlerConfig,
     contracts_config: ContractsConfig,
     blob_store: Arc<dyn ObjectStore>,
-    pool: ConnectionPool,
+    pool: ConnectionPool<Server>,
     mut stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
     let bind_address = SocketAddr::from(([0, 0, 0, 0], config.http_port));

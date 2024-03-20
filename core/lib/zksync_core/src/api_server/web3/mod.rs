@@ -9,7 +9,7 @@ use tokio::{
     task::JoinHandle,
 };
 use tower_http::{cors::CorsLayer, metrics::InFlightRequestsLayer};
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Server};
 use zksync_health_check::{HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_types::MiniblockNumber;
 use zksync_web3_decl::{
@@ -123,8 +123,8 @@ struct OptionalApiParams {
 /// maintenance tasks.
 #[derive(Debug)]
 pub struct ApiServer {
-    pool: ConnectionPool,
-    updaters_pool: ConnectionPool,
+    pool: ConnectionPool<Server>,
+    updaters_pool: ConnectionPool<Server>,
     health_updater: Arc<HealthUpdater>,
     config: InternalApiConfig,
     transport: ApiTransport,
@@ -137,8 +137,8 @@ pub struct ApiServer {
 
 #[derive(Debug)]
 pub struct ApiBuilder {
-    pool: ConnectionPool,
-    updaters_pool: ConnectionPool,
+    pool: ConnectionPool<Server>,
+    updaters_pool: ConnectionPool<Server>,
     config: InternalApiConfig,
     polling_interval: Duration,
     // Mandatory params that must be set using builder methods.
@@ -154,7 +154,7 @@ pub struct ApiBuilder {
 impl ApiBuilder {
     const DEFAULT_POLLING_INTERVAL: Duration = Duration::from_millis(200);
 
-    pub fn jsonrpsee_backend(config: InternalApiConfig, pool: ConnectionPool) -> Self {
+    pub fn jsonrpsee_backend(config: InternalApiConfig, pool: ConnectionPool<Server>) -> Self {
         Self {
             updaters_pool: pool.clone(),
             pool,
@@ -182,7 +182,7 @@ impl ApiBuilder {
     /// such as last mined block number or account nonces. This pool is used to execute
     /// in a background task. If not called, the main pool will be used. If the API server is under high load,
     /// it may make sense to supply a single-connection pool to reduce pool contention with the API methods.
-    pub fn with_updaters_pool(mut self, pool: ConnectionPool) -> Self {
+    pub fn with_updaters_pool(mut self, pool: ConnectionPool<Server>) -> Self {
         self.updaters_pool = pool;
         self
     }
@@ -267,7 +267,7 @@ impl ApiBuilder {
             ApiTransport::Http(_) => "http_api",
             ApiTransport::WebSocket(_) => "ws_api",
         };
-        let (_health_check, health_updater) = ReactiveHealthCheck::new(health_check_name);
+        let (_, health_updater) = ReactiveHealthCheck::new(health_check_name);
 
         Ok(ApiServer {
             pool: self.pool,

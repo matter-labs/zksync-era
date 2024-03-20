@@ -1,17 +1,19 @@
+#![doc = include_str!("../doc/BasicWitnessInputProducerDal.md")]
 use std::time::{Duration, Instant};
 
 use sqlx::postgres::types::PgInterval;
+use zksync_db_connection::{
+    instrument::InstrumentExt,
+    processor::StorageProcessor,
+    utils::{duration_to_naive_time, pg_interval_from_duration},
+};
 use zksync_types::L1BatchNumber;
 
-use crate::{
-    instrument::InstrumentExt,
-    time_utils::{duration_to_naive_time, pg_interval_from_duration},
-    StorageProcessor,
-};
+use crate::Server;
 
 #[derive(Debug)]
 pub struct BasicWitnessInputProducerDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut StorageProcessor<'c, Server>,
 }
 
 /// The amount of attempts to process a job before giving up.

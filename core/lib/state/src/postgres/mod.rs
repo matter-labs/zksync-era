@@ -4,8 +4,14 @@ use std::{
 };
 
 use anyhow::Context as _;
-use tokio::{runtime::Handle, sync::mpsc};
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use tokio::{
+    runtime::Handle,
+    sync::{
+        mpsc::{self, UnboundedReceiver},
+        watch,
+    },
+};
+use zksync_dal::{ConnectionPool, Server, ServerDals, StorageProcessor};
 use zksync_types::{L1BatchNumber, MiniblockNumber, StorageKey, StorageValue, H256};
 
 use self::metrics::{Method, ValuesUpdateStage, CACHE_METRICS, STORAGE_METRICS};
@@ -140,12 +146,11 @@ impl ValuesCache {
         }
     }
 
-    fn update(
+    async fn update(
         &self,
         from_miniblock: MiniblockNumber,
         to_miniblock: MiniblockNumber,
-        rt_handle: &Handle,
-        connection: &mut StorageProcessor<'_>,
+        connection: &mut StorageProcessor<'_, Server>,
     ) -> anyhow::Result<()> {
         const MAX_MINIBLOCKS_LAG: u32 = 5;
 
@@ -177,12 +182,10 @@ impl ValuesCache {
         } else {
             let update_latency = CACHE_METRICS.values_update[&ValuesUpdateStage::LoadKeys].start();
             let miniblocks = (from_miniblock + 1)..=to_miniblock;
-            let modified_keys = rt_handle
-                .block_on(
-                    connection
-                        .storage_logs_dal()
-                        .modified_keys_in_miniblocks(miniblocks.clone()),
-                )
+            let modified_keys = connection
+                .storage_logs_dal()
+                .modified_keys_in_miniblocks(miniblocks.clone())
+                .await
                 .with_context(|| {
                     format!("failed loading modified keys for miniblocks {miniblocks:?}")
                 })?;
@@ -292,43 +295,29 @@ impl PostgresStorageCaches {
     pub fn configure_storage_values_cache(
         &mut self,
         capacity: u64,
-        connection_pool: ConnectionPool,
-        rt_handle: Handle,
-    ) -> impl FnOnce() -> anyhow::Result<()> + Send {
+        connection_pool: ConnectionPool<Server>,
+    ) -> PostgresStorageCachesTask {
         assert!(
             capacity > 0,
             "Storage values cache capacity must be positive"
         );
         tracing::debug!("Initializing VM storage values cache with {capacity}B capacity");
 
-        let (command_sender, mut command_receiver) = mpsc::unbounded_channel();
+        let (command_sender, command_receiver) = mpsc::unbounded_channel();
         let values_cache = ValuesCache::new(capacity);
         self.values = Some(ValuesCacheAndUpdater {
             cache: values_cache.clone(),
             command_sender,
         });
 
-        // We want to run updates on a single thread in order to not block VM execution on update
+        // We want to run updates in a separate task in order to not block VM execution on update
         // and keep contention over the `ValuesCache` lock as low as possible. As a downside,
         // `Self::schedule_values_update()` will produce some no-op update commands from concurrently
         // executing VM instances. Due to built-in filtering, this seems manageable.
-        move || {
-            let mut current_miniblock = values_cache.valid_for();
-            while let Some(to_miniblock) = command_receiver.blocking_recv() {
-                if to_miniblock <= current_miniblock {
-                    continue;
-                }
-                let mut connection = rt_handle
-                    .block_on(connection_pool.access_storage_tagged("values_cache_updater"))?;
-                values_cache.update(
-                    current_miniblock,
-                    to_miniblock,
-                    &rt_handle,
-                    &mut connection,
-                )?;
-                current_miniblock = to_miniblock;
-            }
-            Ok(())
+        PostgresStorageCachesTask {
+            connection_pool,
+            values_cache,
+            command_receiver,
         }
     }
 
@@ -352,11 +341,57 @@ impl PostgresStorageCaches {
     }
 }
 
+/// An asynchronous task that updates the VM storage values cache.
+#[derive(Debug)]
+pub struct PostgresStorageCachesTask {
+    connection_pool: ConnectionPool<Server>,
+    values_cache: ValuesCache,
+    command_receiver: UnboundedReceiver<MiniblockNumber>,
+}
+
+impl PostgresStorageCachesTask {
+    /// Runs the task.
+    ///
+    /// ## Errors
+    ///
+    /// - Propagates Postgres errors.
+    /// - Propagates errors from the cache update task.
+    pub async fn run(mut self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        let mut current_miniblock = self.values_cache.valid_for();
+        loop {
+            tokio::select! {
+                _ = stop_receiver.changed() => {
+                    break;
+                }
+                Some(to_miniblock) = self.command_receiver.recv() => {
+                    if to_miniblock <= current_miniblock {
+                        continue;
+                    }
+                    let mut connection = self
+                        .connection_pool
+                        .access_storage_tagged("values_cache_updater")
+                        .await?;
+                    self.values_cache
+                        .update(current_miniblock, to_miniblock, &mut connection)
+                        .await?;
+                    current_miniblock = to_miniblock;
+                }
+                else => {
+                    // The command sender has been dropped, which means that we must receive the stop signal soon.
+                    stop_receiver.changed().await?;
+                    break;
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
 /// [`ReadStorage`] implementation backed by the Postgres database.
 #[derive(Debug)]
 pub struct PostgresStorage<'a> {
     rt_handle: Handle,
-    connection: StorageProcessor<'a>,
+    connection: StorageProcessor<'a, Server>,
     miniblock_number: MiniblockNumber,
     l1_batch_number_for_miniblock: L1BatchNumber,
     pending_l1_batch_number: L1BatchNumber,
@@ -372,7 +407,7 @@ impl<'a> PostgresStorage<'a> {
     /// Panics on Postgres errors.
     pub fn new(
         rt_handle: Handle,
-        connection: StorageProcessor<'a>,
+        connection: StorageProcessor<'a, Server>,
         block_number: MiniblockNumber,
         consider_new_l1_batch: bool,
     ) -> Self {
@@ -394,7 +429,7 @@ impl<'a> PostgresStorage<'a> {
     /// Propagates Postgres errors.
     pub async fn new_async(
         rt_handle: Handle,
-        mut connection: StorageProcessor<'a>,
+        mut connection: StorageProcessor<'a, Server>,
         block_number: MiniblockNumber,
         consider_new_l1_batch: bool,
     ) -> anyhow::Result<PostgresStorage<'a>> {

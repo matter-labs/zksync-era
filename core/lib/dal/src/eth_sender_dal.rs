@@ -2,6 +2,7 @@ use std::{convert::TryFrom, str::FromStr};
 
 use anyhow::Context as _;
 use sqlx::types::chrono::{DateTime, Utc};
+use zksync_db_connection::{interpolate_query, match_query_as, processor::StorageProcessor};
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     eth_sender::{EthTx, EthTxBlobSidecar, TxHistory, TxHistoryToSend},
@@ -12,12 +13,12 @@ use crate::{
     models::storage_eth_tx::{
         L1BatchEthSenderStats, StorageEthTx, StorageTxHistory, StorageTxHistoryToSend,
     },
-    StorageProcessor,
+    Server,
 };
 
 #[derive(Debug)]
 pub struct EthSenderDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut StorageProcessor<'c, Server>,
 }
 
 impl EthSenderDal<'_, '_> {

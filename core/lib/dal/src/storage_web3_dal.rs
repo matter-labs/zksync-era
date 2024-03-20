@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use zksync_db_connection::{instrument::InstrumentExt, processor::StorageProcessor};
 use zksync_types::{
     get_code_key, get_nonce_key,
     utils::{decompose_full_nonce, storage_key_for_standard_token_balance},
@@ -8,14 +9,11 @@ use zksync_types::{
 };
 use zksync_utils::h256_to_u256;
 
-use crate::{
-    instrument::InstrumentExt, models::storage_block::ResolvedL1BatchForMiniblock, SqlxError,
-    StorageProcessor,
-};
+use crate::{models::storage_block::ResolvedL1BatchForMiniblock, Server, ServerDals, SqlxError};
 
 #[derive(Debug)]
 pub struct StorageWeb3Dal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut StorageProcessor<'c, Server>,
 }
 
 impl StorageWeb3Dal<'_, '_> {
@@ -273,12 +271,12 @@ mod tests {
     use super::*;
     use crate::{
         tests::{create_miniblock_header, create_snapshot_recovery},
-        ConnectionPool,
+        ConnectionPool, Server, ServerDals,
     };
 
     #[tokio::test]
     async fn resolving_l1_batch_number_of_miniblock() {
-        let pool = ConnectionPool::test_pool().await;
+        let pool = ConnectionPool::<Server>::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
@@ -345,7 +343,7 @@ mod tests {
 
     #[tokio::test]
     async fn resolving_l1_batch_number_of_miniblock_with_snapshot_recovery() {
-        let pool = ConnectionPool::test_pool().await;
+        let pool = ConnectionPool::<Server>::test_pool().await;
         let mut conn = pool.access_storage().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())

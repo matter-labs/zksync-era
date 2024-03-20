@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use prover_dal::{Prover, ProverDals};
 use zksync_dal::ConnectionPool;
 
 use crate::house_keeper::periodic_job::PeriodicJob;
@@ -6,11 +7,11 @@ use crate::house_keeper::periodic_job::PeriodicJob;
 #[derive(Debug)]
 pub struct WaitingToQueuedFriWitnessJobMover {
     job_moving_interval_ms: u64,
-    pool: ConnectionPool,
+    pool: ConnectionPool<Prover>,
 }
 
 impl WaitingToQueuedFriWitnessJobMover {
-    pub fn new(job_mover_interval_ms: u64, pool: ConnectionPool) -> Self {
+    pub fn new(job_mover_interval_ms: u64, pool: ConnectionPool<Prover>) -> Self {
         Self {
             job_moving_interval_ms: job_mover_interval_ms,
             pool,

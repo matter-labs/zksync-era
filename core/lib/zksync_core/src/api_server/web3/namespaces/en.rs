@@ -1,4 +1,5 @@
 use anyhow::Context as _;
+use zksync_dal::ServerDals;
 use zksync_types::{api::en, tokens::TokenInfo, MiniblockNumber};
 use zksync_web3_decl::error::Web3Error;
 

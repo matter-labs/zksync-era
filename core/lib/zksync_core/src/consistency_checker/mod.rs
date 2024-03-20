@@ -4,7 +4,7 @@ use anyhow::Context as _;
 use serde::Serialize;
 use tokio::sync::watch;
 use zksync_contracts::PRE_BOOJUM_COMMIT_FUNCTION;
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::{ConnectionPool, Server, ServerDals, StorageProcessor};
 use zksync_eth_client::{
     clients::QueryClient, CallFunctionArgs, Error as L1ClientError, EthInterface,
 };
@@ -149,7 +149,7 @@ impl LocalL1BatchCommitData {
     /// Returns `Ok(None)` if Postgres doesn't contain all data necessary to check L1 commitment
     /// for the specified batch.
     async fn new(
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut StorageProcessor<'_, Server>,
         batch_number: L1BatchNumber,
     ) -> anyhow::Result<Option<Self>> {
         let Some(storage_l1_batch) = storage
@@ -253,7 +253,7 @@ pub struct ConsistencyChecker {
     l1_client: Box<dyn EthInterface>,
     event_handler: Box<dyn HandleConsistencyCheckerEvent>,
     l1_data_mismatch_behavior: L1DataMismatchBehavior,
-    pool: ConnectionPool,
+    pool: ConnectionPool<Server>,
     health_check: ReactiveHealthCheck,
 }
 
@@ -263,7 +263,7 @@ impl ConsistencyChecker {
     pub fn new(
         web3_url: &str,
         max_batches_to_recheck: u32,
-        pool: ConnectionPool,
+        pool: ConnectionPool<Server>,
     ) -> anyhow::Result<Self> {
         let web3 = QueryClient::new(web3_url).context("cannot create L1 Web3 client")?;
         let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();

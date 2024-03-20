@@ -18,6 +18,9 @@ use circuit_definitions::{
 use multivm::vm_latest::{
     constants::MAX_CYCLES_FOR_TX, HistoryDisabled, StorageOracle as VmStorageOracle,
 };
+use prover_dal::{
+    fri_witness_generator_dal::FriWitnessJobStatus, ConnectionPool, Prover, ProverDals,
+};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use zkevm_test_harness::{
@@ -26,7 +29,7 @@ use zkevm_test_harness::{
     zkevm_circuits::eip_4844::input::EIP4844OutputDataWitness,
 };
 use zksync_config::configs::FriWitnessGeneratorConfig;
-use zksync_dal::{fri_witness_generator_dal::FriWitnessJobStatus, ConnectionPool};
+use zksync_dal::{Server, ServerDals};
 use zksync_object_store::{Bucket, ObjectStore, ObjectStoreFactory, StoredObject};
 use zksync_prover_fri_types::{
     circuit_definitions::{
@@ -102,8 +105,8 @@ pub struct BasicWitnessGenerator {
     config: Arc<FriWitnessGeneratorConfig>,
     object_store: Arc<dyn ObjectStore>,
     public_blob_store: Option<Arc<dyn ObjectStore>>,
-    connection_pool: ConnectionPool,
-    prover_connection_pool: ConnectionPool,
+    connection_pool: ConnectionPool<Server>,
+    prover_connection_pool: ConnectionPool<Prover>,
     protocol_versions: Vec<FriProtocolVersionId>,
 }
 
@@ -112,8 +115,8 @@ impl BasicWitnessGenerator {
         config: FriWitnessGeneratorConfig,
         store_factory: &ObjectStoreFactory,
         public_blob_store: Option<Arc<dyn ObjectStore>>,
-        connection_pool: ConnectionPool,
-        prover_connection_pool: ConnectionPool,
+        connection_pool: ConnectionPool<Server>,
+        prover_connection_pool: ConnectionPool<Prover>,
         protocol_versions: Vec<FriProtocolVersionId>,
     ) -> Self {
         Self {
@@ -128,8 +131,8 @@ impl BasicWitnessGenerator {
 
     async fn process_job_impl(
         object_store: Arc<dyn ObjectStore>,
-        connection_pool: ConnectionPool,
-        prover_connection_pool: ConnectionPool,
+        connection_pool: ConnectionPool<Server>,
+        prover_connection_pool: ConnectionPool<Prover>,
         basic_job: BasicWitnessGeneratorJob,
         started_at: Instant,
         config: Arc<FriWitnessGeneratorConfig>,
@@ -328,7 +331,7 @@ impl JobProcessor for BasicWitnessGenerator {
 async fn process_basic_circuits_job(
     object_store: &dyn ObjectStore,
     config: Arc<FriWitnessGeneratorConfig>,
-    connection_pool: ConnectionPool,
+    connection_pool: ConnectionPool<Server>,
     started_at: Instant,
     block_number: L1BatchNumber,
     job: PrepareBasicCircuitsJob,
@@ -364,7 +367,7 @@ async fn process_basic_circuits_job(
 }
 
 async fn update_database(
-    prover_connection_pool: &ConnectionPool,
+    prover_connection_pool: &ConnectionPool<Prover>,
     started_at: Instant,
     block_number: L1BatchNumber,
     blob_urls: BlobUrls,
@@ -484,7 +487,7 @@ async fn save_recursion_queue(
 // If making changes to this method, consider moving this logic to the DAL layer and make
 // `PrepareBasicCircuitsJob` have all fields of `BasicCircuitWitnessGeneratorInput`.
 async fn build_basic_circuits_witness_generator_input(
-    connection_pool: &ConnectionPool,
+    connection_pool: &ConnectionPool<Server>,
     witness_merkle_input: PrepareBasicCircuitsJob,
     l1_batch_number: L1BatchNumber,
 ) -> BasicCircuitWitnessGeneratorInput {
@@ -528,7 +531,7 @@ async fn generate_witness(
     block_number: L1BatchNumber,
     object_store: &dyn ObjectStore,
     config: Arc<FriWitnessGeneratorConfig>,
-    connection_pool: ConnectionPool,
+    connection_pool: ConnectionPool<Server>,
     input: BasicCircuitWitnessGeneratorInput,
     eip_4844_blobs: Eip4844Blobs,
 ) -> (

@@ -1,9 +1,10 @@
+use zksync_db_connection::processor::StorageProcessor;
 use zksync_types::{
     tokens::{TokenInfo, TokenMetadata},
     Address, MiniblockNumber,
 };
 
-use crate::StorageProcessor;
+use crate::{Server, ServerDals};
 
 #[derive(Debug)]
 struct StorageTokenInfo {
@@ -30,7 +31,7 @@ impl From<StorageTokenInfo> for TokenInfo {
 
 #[derive(Debug)]
 pub struct TokensWeb3Dal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut StorageProcessor<'c, Server>,
 }
 
 impl TokensWeb3Dal<'_, '_> {
