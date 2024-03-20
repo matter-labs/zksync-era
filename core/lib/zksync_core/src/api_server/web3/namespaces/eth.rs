@@ -2,8 +2,8 @@ use anyhow::Context as _;
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     api::{
-        BlockId, BlockNumber, GetLogsFilter, Transaction, TransactionId, TransactionReceipt,
-        TransactionVariant,
+        state_override::StateOverride, BlockId, BlockNumber, GetLogsFilter, Transaction,
+        TransactionId, TransactionReceipt, TransactionVariant,
     },
     l2::{L2Tx, TransactionType},
     transaction_request::CallRequest,
@@ -92,6 +92,7 @@ impl EthNamespace {
         &self,
         request: CallRequest,
         _block: Option<BlockNumber>,
+        state_override: Option<StateOverride>,
     ) -> Result<U256, Web3Error> {
         let mut request_with_gas_per_pubdata_overridden = request;
         self.state
@@ -133,7 +134,12 @@ impl EthNamespace {
         let fee = self
             .state
             .tx_sender
-            .get_txs_fee_in_wei(tx.into(), scale_factor, acceptable_overestimation)
+            .get_txs_fee_in_wei(
+                tx.into(),
+                scale_factor,
+                acceptable_overestimation,
+                state_override,
+            )
             .await?;
         Ok(fee.gas_limit)
     }
