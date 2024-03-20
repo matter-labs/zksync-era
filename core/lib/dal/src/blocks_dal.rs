@@ -63,7 +63,7 @@ impl BlocksDal<'_, '_> {
         )
         .instrument("set_consistency_checker_last_processed_l1_batch")
         .report_latency()
-        .with_arg("eth_tx_id", &l1_batch_number)
+        .with_arg("l1_batch_number", &l1_batch_number)
         .execute(self.storage)
         .await?;
         Ok(())
