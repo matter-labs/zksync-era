@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use zksync_config::{configs::ProofDataHandlerConfig, ContractsConfig};
+use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_core::proof_data_handler;
 use zksync_dal::ConnectionPool;
 use zksync_object_store::ObjectStore;

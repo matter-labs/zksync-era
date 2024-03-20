@@ -29,7 +29,7 @@ use zksync_config::{
         database::{MerkleTreeConfig, MerkleTreeMode},
         ContractsConfigReduced,
     },
-    ApiConfig, ContractsConfig, DBConfig, GenesisConfig, PostgresConfig,
+    ApiConfig, DBConfig, GenesisConfig, PostgresConfig,
 };
 use zksync_contracts::governance_contract;
 use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool};

@@ -3,20 +3,13 @@ use std::{net::SocketAddr, sync::Arc};
 use anyhow::Context as _;
 use axum::{extract::Path, routing::post, Json, Router};
 use tokio::sync::watch;
-use zksync_config::{
-    configs::{
-        proof_data_handler::ProtocolVersionLoadingMode, ContractsConfigReduced,
-        ProofDataHandlerConfig,
-    },
-    ContractsConfig,
+use zksync_config::configs::{
+    proof_data_handler::ProtocolVersionLoadingMode, ProofDataHandlerConfig,
 };
 use zksync_dal::ConnectionPool;
 use zksync_object_store::ObjectStore;
 use zksync_prover_interface::api::{ProofGenerationDataRequest, SubmitProofRequest};
-use zksync_types::{
-    protocol_version::{L1VerifierConfig, VerifierParams},
-    H256,
-};
+use zksync_types::protocol_version::L1VerifierConfig;
 
 use crate::proof_data_handler::request_processor::RequestProcessor;
 

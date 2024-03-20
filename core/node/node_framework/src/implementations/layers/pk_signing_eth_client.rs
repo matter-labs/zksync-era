@@ -1,8 +1,6 @@
 use std::sync::Arc;
 
-use zksync_config::{
-    configs::ContractsConfigReduced, ContractsConfig, ETHClientConfig, ETHSenderConfig,
-};
+use zksync_config::{configs::ContractsConfigReduced, ETHClientConfig, ETHSenderConfig};
 use zksync_eth_client::clients::PKSigningClient;
 
 use crate::{

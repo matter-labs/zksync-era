@@ -1,8 +1,8 @@
 use anyhow::Context as _;
-use zksync_config::{configs, configs::ContractsConfigReduced};
-use zksync_protobuf::{repr::ProtoRepr, required, ProtoFmt};
+use zksync_config::configs::ContractsConfigReduced;
+use zksync_protobuf::{repr::ProtoRepr, required};
 
-use crate::{parse_h160, parse_h256, proto::contracts as proto};
+use crate::{parse_h160, proto::contracts as proto};
 
 impl ProtoRepr for proto::Contracts {
     type Type = ContractsConfigReduced;

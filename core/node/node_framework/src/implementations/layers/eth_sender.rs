@@ -1,8 +1,7 @@
 use std::sync::Arc;
 
 use zksync_config::configs::{
-    chain::NetworkConfig, eth_sender::ETHSenderConfig, ContractsConfig, ContractsConfigReduced,
-    ETHClientConfig,
+    chain::NetworkConfig, eth_sender::ETHSenderConfig, ContractsConfigReduced, ETHClientConfig,
 };
 use zksync_core::eth_sender::{Aggregator, EthTxAggregator, EthTxManager};
 use zksync_eth_client::{clients::PKSigningClient, BoundEthInterface};

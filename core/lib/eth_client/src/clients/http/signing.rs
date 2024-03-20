@@ -1,9 +1,7 @@
 use std::{fmt, sync::Arc};
 
 use async_trait::async_trait;
-use zksync_config::{
-    configs::ContractsConfigReduced, ContractsConfig, ETHClientConfig, ETHSenderConfig,
-};
+use zksync_config::{configs::ContractsConfigReduced, ETHClientConfig, ETHSenderConfig};
 use zksync_contracts::zksync_contract;
 use zksync_eth_signer::{raw_ethereum_tx::TransactionParameters, EthereumSigner, PrivateKeySigner};
 use zksync_types::{

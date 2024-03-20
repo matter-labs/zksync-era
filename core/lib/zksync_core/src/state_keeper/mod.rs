@@ -6,7 +6,7 @@ use zksync_config::{
         chain::{MempoolConfig, NetworkConfig, StateKeeperConfig},
         ContractsConfigReduced,
     },
-    ContractsConfig, DBConfig,
+    DBConfig,
 };
 use zksync_dal::ConnectionPool;
 use zksync_object_store::ObjectStore;

@@ -11,8 +11,8 @@ use zksync_config::{
         FriProofCompressorConfig, FriProverConfig, FriWitnessGeneratorConfig, PrometheusConfig,
         ProofDataHandlerConfig, WitnessGeneratorConfig,
     },
-    ApiConfig, ContractsConfig, DBConfig, ETHClientConfig, ETHSenderConfig, ETHWatchConfig,
-    GasAdjusterConfig, ObjectStoreConfig, PostgresConfig,
+    ApiConfig, DBConfig, ETHClientConfig, ETHSenderConfig, ETHWatchConfig, GasAdjusterConfig,
+    ObjectStoreConfig, PostgresConfig,
 };
 use zksync_protobuf::{read_optional, repr::ProtoRepr, ProtoFmt};
 
