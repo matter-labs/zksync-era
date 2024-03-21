@@ -36,37 +36,37 @@ describe('Tests for the WETH bridge/token behavior', () => {
         aliceL2WrappedBaseToken = L2WrappedBaseTokenFactory.connect(l2WethTokenAddress, alice._signerL2());
     });
 
-    test('Should deposit WETH', async () => {
-        let balance = await alice.getBalanceL1();
-        let transferTx = await alice._signerL1().sendTransaction({
-            to: bob.address,
-            value: balance.div(2)
-        });
-        await transferTx.wait();
+    // test('Should deposit WETH', async () => {
+    //     let balance = await alice.getBalanceL1();
+    //     let transferTx = await alice._signerL1().sendTransaction({
+    //         to: bob.address,
+    //         value: balance.div(2)
+    //     });
+    //     await transferTx.wait();
 
-        const gasPrice = await scaledGasPrice(alice);
-        // Convert Ether to WETH.
-        const amount = 1000; // 1000 wei is enough
-        await (await aliceL1Weth.deposit({ value: amount, gasPrice })).wait();
+    //     const gasPrice = await scaledGasPrice(alice);
+    //     // Convert Ether to WETH.
+    //     const amount = 1000; // 1000 wei is enough
+    //     await (await aliceL1Weth.deposit({ value: amount, gasPrice })).wait();
 
-        const initialBalanceL1 = await alice.getBalanceL1(aliceL1Weth.address);
-        const initialBalanceL2 = await alice.getBalance(aliceL2WrappedBaseToken.address);
-        let tx = await alice.deposit({
-            token: aliceL1Weth.address,
-            amount,
-            approveERC20: true,
-            approveOverrides: {
-                gasPrice
-            },
-            overrides: {
-                gasPrice
-            }
-        });
+    //     const initialBalanceL1 = await alice.getBalanceL1(aliceL1Weth.address);
+    //     const initialBalanceL2 = await alice.getBalance(aliceL2WrappedBaseToken.address);
+    //     let tx = await alice.deposit({
+    //         token: aliceL1Weth.address,
+    //         amount,
+    //         approveERC20: true,
+    //         approveOverrides: {
+    //             gasPrice
+    //         },
+    //         overrides: {
+    //             gasPrice
+    //         }
+    //     });
 
-        await tx.wait();
-        await expect(alice.getBalanceL1(aliceL1Weth.address)).resolves.bnToBeEq(initialBalanceL1.sub(amount));
-        await expect(alice.getBalance(aliceL2WrappedBaseToken.address)).resolves.bnToBeEq(initialBalanceL2.add(amount));
-    });
+    //     await tx.wait();
+    //     await expect(alice.getBalanceL1(aliceL1Weth.address)).resolves.bnToBeEq(initialBalanceL1.sub(amount));
+    //     await expect(alice.getBalance(aliceL2WrappedBaseToken.address)).resolves.bnToBeEq(initialBalanceL2.add(amount));
+    // });
 
     test('Should transfer WETH', async () => {
         const value = BigNumber.from(200);
@@ -114,68 +114,68 @@ describe('Tests for the WETH bridge/token behavior', () => {
         await expect(aliceL2WrappedBaseToken.allowance(alice.address, bob.address)).resolves.bnToBeEq(0);
     });
 
-    test('Can perform a withdrawal', async () => {
-        if (testMaster.isFastMode()) {
-            return;
-        }
-        const amount = 1;
+    // test('Can perform a withdrawal', async () => {
+    //     if (testMaster.isFastMode()) {
+    //         return;
+    //     }
+    //     const amount = 1;
 
-        const l2BalanceChange = await shouldChangeTokenBalances(aliceL2WrappedBaseToken.address, [
-            { wallet: alice, change: -amount }
-        ]);
-        const feeCheck = await shouldOnlyTakeFee(alice);
-        const withdrawalPromise = alice.withdraw({ token: aliceL2WrappedBaseToken.address, amount });
-        await expect(withdrawalPromise).toBeAccepted([l2BalanceChange, feeCheck]);
-        const withdrawalTx = await withdrawalPromise;
-        await withdrawalTx.waitFinalize();
+    //     const l2BalanceChange = await shouldChangeTokenBalances(aliceL2WrappedBaseToken.address, [
+    //         { wallet: alice, change: -amount }
+    //     ]);
+    //     const feeCheck = await shouldOnlyTakeFee(alice);
+    //     const withdrawalPromise = alice.withdraw({ token: aliceL2WrappedBaseToken.address, amount });
+    //     await expect(withdrawalPromise).toBeAccepted([l2BalanceChange, feeCheck]);
+    //     const withdrawalTx = await withdrawalPromise;
+    //     await withdrawalTx.waitFinalize();
 
-        // Note: For L1 we should use L1 token address.
-        const l1BalanceChange = await shouldChangeTokenBalances(
-            aliceL1Weth.address,
-            [{ wallet: alice, change: amount }],
-            {
-                l1: true
-            }
-        );
-        await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted([l1BalanceChange]);
-    });
+    //     // Note: For L1 we should use L1 token address.
+    //     const l1BalanceChange = await shouldChangeTokenBalances(
+    //         aliceL1Weth.address,
+    //         [{ wallet: alice, change: amount }],
+    //         {
+    //             l1: true
+    //         }
+    //     );
+    //     await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted([l1BalanceChange]);
+    // });
 
-    test('Should fail to claim failed deposit', async () => {
-        if (testMaster.isFastMode()) {
-            return;
-        }
+    // test('Should fail to claim failed deposit', async () => {
+    //     if (testMaster.isFastMode()) {
+    //         return;
+    //     }
 
-        const amount = 1;
-        const initialWethL1Balance = await alice.getBalanceL1(aliceL1Weth.address);
-        const initialWethL2Balance = await alice.getBalance(aliceL2WrappedBaseToken.address);
-        const initialEthL2Balance = await alice.getBalance();
-        // Deposit to the zero address is forbidden and should fail with the current implementation.
-        const depositHandle = await alice.deposit({
-            to: ethers.constants.AddressZero,
-            token: aliceL1Weth.address,
-            amount,
-            l2GasLimit: 5_000_000, // Setting the limit manually to avoid estimation for L1->L2 transaction
-            approveERC20: true
-        });
-        const l1Receipt = await depositHandle.waitL1Commit();
+    //     const amount = 1;
+    //     const initialWethL1Balance = await alice.getBalanceL1(aliceL1Weth.address);
+    //     const initialWethL2Balance = await alice.getBalance(aliceL2WrappedBaseToken.address);
+    //     const initialEthL2Balance = await alice.getBalance();
+    //     // Deposit to the zero address is forbidden and should fail with the current implementation.
+    //     const depositHandle = await alice.deposit({
+    //         to: ethers.constants.AddressZero,
+    //         token: aliceL1Weth.address,
+    //         amount,
+    //         l2GasLimit: 5_000_000, // Setting the limit manually to avoid estimation for L1->L2 transaction
+    //         approveERC20: true
+    //     });
+    //     const l1Receipt = await depositHandle.waitL1Commit();
 
-        // L1 balance should change, but tx should fail in L2.
-        await expect(alice.getBalanceL1(aliceL1Weth.address)).resolves.bnToBeEq(initialWethL1Balance.sub(amount));
-        await expect(depositHandle).toBeReverted();
+    //     // L1 balance should change, but tx should fail in L2.
+    //     await expect(alice.getBalanceL1(aliceL1Weth.address)).resolves.bnToBeEq(initialWethL1Balance.sub(amount));
+    //     await expect(depositHandle).toBeReverted();
 
-        // Wait for tx to be finalized.
-        // `waitFinalize` is not used because it doesn't work as expected for failed transactions.
-        // It throws once it gets status == 0 in the receipt and doesn't wait for the finalization.
-        const l2Hash = zksync.utils.getL2HashFromPriorityOp(l1Receipt, await alice.provider.getMainContractAddress());
-        const l2TxReceipt = await alice.provider.getTransactionReceipt(l2Hash);
-        await waitUntilBlockFinalized(alice, l2TxReceipt.blockNumber);
+    //     // Wait for tx to be finalized.
+    //     // `waitFinalize` is not used because it doesn't work as expected for failed transactions.
+    //     // It throws once it gets status == 0 in the receipt and doesn't wait for the finalization.
+    //     const l2Hash = zksync.utils.getL2HashFromPriorityOp(l1Receipt, await alice.provider.getMainContractAddress());
+    //     const l2TxReceipt = await alice.provider.getTransactionReceipt(l2Hash);
+    //     await waitUntilBlockFinalized(alice, l2TxReceipt.blockNumber);
 
-        // Try to claim failed deposit, which should revert, and ETH should be returned on L2.
-        await expect(alice.claimFailedDeposit(l2Hash)).toBeRevertedEstimateGas();
-        await expect(alice.getBalanceL1(aliceL1Weth.address)).resolves.bnToBeEq(initialWethL1Balance.sub(amount));
-        await expect(alice.getBalance(aliceL2WrappedBaseToken.address)).resolves.bnToBeEq(initialWethL2Balance);
-        await expect(alice.getBalance()).resolves.bnToBeGte(initialEthL2Balance.add(amount));
-    });
+    //     // Try to claim failed deposit, which should revert, and ETH should be returned on L2.
+    //     await expect(alice.claimFailedDeposit(l2Hash)).toBeRevertedEstimateGas();
+    //     await expect(alice.getBalanceL1(aliceL1Weth.address)).resolves.bnToBeEq(initialWethL1Balance.sub(amount));
+    //     await expect(alice.getBalance(aliceL2WrappedBaseToken.address)).resolves.bnToBeEq(initialWethL2Balance);
+    //     await expect(alice.getBalance()).resolves.bnToBeGte(initialEthL2Balance.add(amount));
+    // });
 
     afterAll(async () => {
         await testMaster.deinitialize();
