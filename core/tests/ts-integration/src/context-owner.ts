@@ -455,9 +455,23 @@ export class TestContextOwner {
             this.reporter
         );
 
+        console.log('CONTRACTS_BASE_TOKEN_ADDR: ', process.env.CONTRACTS_BASE_TOKEN_ADDR);
+        nonce += erc20Transfers.length;
+        // Send ERC20 base token on L1.
+        const BaseErc20Transfers = await sendTransfers(
+            process.env.CONTRACTS_BASE_TOKEN_ADDR!,
+            this.mainEthersWallet,
+            wallets,
+            ERC20_PER_ACCOUNT,
+            nonce,
+            gasPrice,
+            this.reporter
+        );
+
         l1TxPromises.push(erc20DepositPromise);
         l1TxPromises.push(...ethTransfers);
         l1TxPromises.push(...erc20Transfers);
+        l1TxPromises.push(...BaseErc20Transfers);
 
         this.reporter.debug(`Sent ${l1TxPromises.length} initial transactions on L1`);
         await Promise.all(l1TxPromises);
