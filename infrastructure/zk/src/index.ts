@@ -24,6 +24,7 @@ import { proverCommand } from './prover_setup';
 import { command as status } from './status';
 import { command as spellcheck } from './spellcheck';
 import { command as linkcheck } from './linkcheck';
+import { command as setupEn } from './setup_en';
 import * as env from './env';
 
 const COMMANDS = [
@@ -52,6 +53,7 @@ const COMMANDS = [
     status,
     spellcheck,
     linkcheck,
+    setupEn,
     completion(program as Command)
 ];
 

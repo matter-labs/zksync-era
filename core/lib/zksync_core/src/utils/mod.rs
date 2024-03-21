@@ -62,6 +62,7 @@ pub(crate) async fn wait_for_l1_batch(
     poll_interval: Duration,
     stop_receiver: &mut watch::Receiver<bool>,
 ) -> anyhow::Result<Option<L1BatchNumber>> {
+    tracing::debug!("Waiting for at least one L1 batch in db in DB");
     loop {
         if *stop_receiver.borrow() {
             return Ok(None);
@@ -74,7 +75,6 @@ pub(crate) async fn wait_for_l1_batch(
         if let Some(number) = sealed_l1_batch_number {
             return Ok(Some(number));
         }
-        tracing::debug!("No L1 batches are present in DB; trying again in {poll_interval:?}");
 
         // We don't check the result: if a stop signal is received, we'll return at the start
         // of the next iteration.

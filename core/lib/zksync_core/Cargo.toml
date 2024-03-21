@@ -103,6 +103,7 @@ assert_matches = "1.5"
 jsonrpsee = "0.21.0"
 tempfile = "3.0.2"
 test-casing = "0.1.2"
+test-log = "0.2.15"
 
 [build-dependencies]
 zksync_protobuf_build = { version = "0.1.0", git = "https://github.com/matter-labs/era-consensus.git", rev = "5329a809cfc06d4939fb5ece26c9ad1e1741c50a" }

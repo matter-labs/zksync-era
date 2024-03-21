@@ -279,7 +279,7 @@ impl<DB: DbMarker> ConnectionPool<DB> {
     /// Test pools trace their active connections. If acquiring a connection fails (e.g., with a timeout),
     /// the returned error will contain information on all active connections.
     pub async fn test_pool() -> ConnectionPool<DB> {
-        const DEFAULT_CONNECTIONS: u32 = 50; // Expected to be enough for any unit test.
+        const DEFAULT_CONNECTIONS: u32 = 100; // Expected to be enough for any unit test.
         Self::constrained_test_pool(DEFAULT_CONNECTIONS).await
     }
 

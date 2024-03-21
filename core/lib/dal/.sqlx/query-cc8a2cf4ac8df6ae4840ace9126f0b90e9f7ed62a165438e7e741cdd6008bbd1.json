@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                DELETE FROM l1_batches\n                WHERE\n                    number <= $1\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "cc8a2cf4ac8df6ae4840ace9126f0b90e9f7ed62a165438e7e741cdd6008bbd1"
+}

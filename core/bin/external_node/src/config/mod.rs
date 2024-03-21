@@ -242,6 +242,15 @@ pub struct OptionalENConfig {
     // This is intentionally not a part of `RemoteENConfig` because fetching this info from the main node would defeat
     // its purpose; the consistency checker assumes that the main node may provide false information.
     pub contracts_diamond_proxy_addr: Option<Address>,
+
+    #[serde(default = "OptionalENConfig::default_snapshots_recovery_enabled")]
+    pub snapshots_recovery_enabled: bool,
+
+    #[serde(default = "OptionalENConfig::default_pruning_chunk_size")]
+    pub pruning_chunk_size: u32,
+
+    /// If set, l1 batches will be pruned after they are that long
+    pub pruning_data_retention_hours: Option<u64>,
 }
 
 impl OptionalENConfig {
@@ -345,6 +354,14 @@ impl OptionalENConfig {
     }
 
     const fn default_miniblock_seal_queue_capacity() -> usize {
+        10
+    }
+
+    const fn default_snapshots_recovery_enabled() -> bool {
+        false
+    }
+
+    const fn default_pruning_chunk_size() -> u32 {
         10
     }
 

@@ -32,11 +32,17 @@ async fn creating_block_args() {
     assert_eq!(pending_block_args.l1_batch_timestamp_s, None);
 
     let start_info = BlockStartInfo::new(&mut storage).await.unwrap();
-    assert_eq!(start_info.first_miniblock, MiniblockNumber(0));
-    assert_eq!(start_info.first_l1_batch, L1BatchNumber(0));
+    assert_eq!(
+        start_info.first_miniblock(&mut storage).await.unwrap(),
+        MiniblockNumber(0)
+    );
+    assert_eq!(
+        start_info.first_l1_batch(&mut storage).await.unwrap(),
+        L1BatchNumber(0)
+    );
 
     let latest_block = api::BlockId::Number(api::BlockNumber::Latest);
-    let latest_block_args = BlockArgs::new(&mut storage, latest_block, start_info)
+    let latest_block_args = BlockArgs::new(&mut storage, latest_block, &start_info)
         .await
         .unwrap();
     assert_eq!(latest_block_args.block_id, latest_block);
@@ -47,7 +53,7 @@ async fn creating_block_args() {
     );
 
     let earliest_block = api::BlockId::Number(api::BlockNumber::Earliest);
-    let earliest_block_args = BlockArgs::new(&mut storage, earliest_block, start_info)
+    let earliest_block_args = BlockArgs::new(&mut storage, earliest_block, &start_info)
         .await
         .unwrap();
     assert_eq!(earliest_block_args.block_id, earliest_block);
@@ -58,7 +64,7 @@ async fn creating_block_args() {
     assert_eq!(earliest_block_args.l1_batch_timestamp_s, Some(0));
 
     let missing_block = api::BlockId::Number(100.into());
-    let err = BlockArgs::new(&mut storage, missing_block, start_info)
+    let err = BlockArgs::new(&mut storage, missing_block, &start_info)
         .await
         .unwrap_err();
     assert_matches!(err, BlockArgsError::Missing);
@@ -84,16 +90,16 @@ async fn creating_block_args_after_snapshot_recovery() {
 
     let start_info = BlockStartInfo::new(&mut storage).await.unwrap();
     assert_eq!(
-        start_info.first_miniblock,
+        start_info.first_miniblock(&mut storage).await.unwrap(),
         snapshot_recovery.miniblock_number + 1
     );
     assert_eq!(
-        start_info.first_l1_batch,
+        start_info.first_l1_batch(&mut storage).await.unwrap(),
         snapshot_recovery.l1_batch_number + 1
     );
 
     let latest_block = api::BlockId::Number(api::BlockNumber::Latest);
-    let err = BlockArgs::new(&mut storage, latest_block, start_info)
+    let err = BlockArgs::new(&mut storage, latest_block, &start_info)
         .await
         .unwrap_err();
     assert_matches!(err, BlockArgsError::Missing);
@@ -105,7 +111,7 @@ async fn creating_block_args_after_snapshot_recovery() {
     ];
     for pruned_block in pruned_blocks {
         let pruned_block = api::BlockId::Number(pruned_block);
-        let err = BlockArgs::new(&mut storage, pruned_block, start_info)
+        let err = BlockArgs::new(&mut storage, pruned_block, &start_info)
             .await
             .unwrap_err();
         assert_matches!(err, BlockArgsError::Pruned(_));
@@ -117,7 +123,7 @@ async fn creating_block_args_after_snapshot_recovery() {
     ];
     for missing_block in missing_blocks {
         let missing_block = api::BlockId::Number(missing_block);
-        let err = BlockArgs::new(&mut storage, missing_block, start_info)
+        let err = BlockArgs::new(&mut storage, missing_block, &start_info)
             .await
             .unwrap_err();
         assert_matches!(err, BlockArgsError::Missing);
@@ -130,7 +136,7 @@ async fn creating_block_args_after_snapshot_recovery() {
         .await
         .unwrap();
 
-    let latest_block_args = BlockArgs::new(&mut storage, latest_block, start_info)
+    let latest_block_args = BlockArgs::new(&mut storage, latest_block, &start_info)
         .await
         .unwrap();
     assert_eq!(latest_block_args.block_id, latest_block);
@@ -142,14 +148,14 @@ async fn creating_block_args_after_snapshot_recovery() {
 
     for pruned_block in pruned_blocks {
         let pruned_block = api::BlockId::Number(pruned_block);
-        let err = BlockArgs::new(&mut storage, pruned_block, start_info)
+        let err = BlockArgs::new(&mut storage, pruned_block, &start_info)
             .await
             .unwrap_err();
         assert_matches!(err, BlockArgsError::Pruned(_));
     }
     for missing_block in missing_blocks {
         let missing_block = api::BlockId::Number(missing_block);
-        let err = BlockArgs::new(&mut storage, missing_block, start_info)
+        let err = BlockArgs::new(&mut storage, missing_block, &start_info)
             .await
             .unwrap_err();
         assert_matches!(err, BlockArgsError::Missing);
@@ -167,7 +173,7 @@ async fn instantiating_vm() {
     let block_args = BlockArgs::pending(&mut storage).await.unwrap();
     test_instantiating_vm(pool.clone(), block_args).await;
     let start_info = BlockStartInfo::new(&mut storage).await.unwrap();
-    let block_args = BlockArgs::new(&mut storage, api::BlockId::Number(0.into()), start_info)
+    let block_args = BlockArgs::new(&mut storage, api::BlockId::Number(0.into()), &start_info)
         .await
         .unwrap();
     test_instantiating_vm(pool.clone(), block_args).await;

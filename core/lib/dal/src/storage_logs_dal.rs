@@ -268,6 +268,41 @@ impl StorageLogsDal<'_, '_> {
         Ok(())
     }
 
+    /// Loads (hashed_key, value, operation_number) tuples for given miniblock_number.
+    /// Uses provided DB table.
+    /// Shouldn't be used in production.
+    pub async fn get_miniblock_storage_logs(
+        &mut self,
+        miniblock_number: MiniblockNumber,
+    ) -> Vec<(H256, H256, u32)> {
+        sqlx::query!(
+            r#"
+            SELECT
+                hashed_key,
+                value,
+                operation_number
+            FROM
+                storage_logs
+            WHERE
+                miniblock_number = $1
+            ORDER BY
+                operation_number
+            "#,
+            i64::from(miniblock_number.0)
+        )
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| {
+            let hashed_key = H256::from_slice(&row.hashed_key);
+            let value = H256::from_slice(&row.value);
+            let operation_number: u32 = row.operation_number as u32;
+            (hashed_key, value, operation_number)
+        })
+        .collect()
+    }
+
     pub async fn is_contract_deployed_at_address(&mut self, address: Address) -> bool {
         let hashed_key = get_code_key(&address).hashed_key();
         let row = sqlx::query!(

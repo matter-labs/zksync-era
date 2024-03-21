@@ -321,6 +321,22 @@ impl<'a> SnapshotsApplier<'a> {
             SnapshotsApplierError::db(err, "failed starting initial DB transaction")
         })?;
 
+        if storage_transaction
+            .snapshot_recovery_dal()
+            .get_applied_snapshot_status()
+            .await
+            .map_err(|err| SnapshotsApplierError::db(err, "failed to check need of recovery"))?
+            .is_some()
+            && storage_transaction
+                .blocks_dal()
+                .get_sealed_miniblock_number()
+                .await
+                .map_err(|err| SnapshotsApplierError::db(err, "failed to check need of recovery"))?
+                .is_some()
+        {
+            return Ok(());
+        }
+
         let (applied_snapshot_status, created_from_scratch) =
             Self::prepare_applied_snapshot_status(&mut storage_transaction, main_node_client)
                 .await?;
@@ -355,6 +371,23 @@ impl<'a> SnapshotsApplier<'a> {
                 .map_err(|err| {
                     SnapshotsApplierError::db(err, "failed persisting initial recovery status")
                 })?;
+            storage_transaction
+                .pruning_dal()
+                .soft_prune_batches_range(
+                    this.applied_snapshot_status.l1_batch_number,
+                    this.applied_snapshot_status.miniblock_number,
+                )
+                .await
+                .map_err(|err| SnapshotsApplierError::db(err, "failed inserting pruning info"))?;
+
+            storage_transaction
+                .pruning_dal()
+                .hard_prune_batches_range(
+                    this.applied_snapshot_status.l1_batch_number,
+                    this.applied_snapshot_status.miniblock_number,
+                )
+                .await
+                .map_err(|err| SnapshotsApplierError::db(err, "failed inserting pruning info"))?;
         }
         storage_transaction.commit().await.map_err(|err| {
             SnapshotsApplierError::db(err, "failed committing initial DB transaction")

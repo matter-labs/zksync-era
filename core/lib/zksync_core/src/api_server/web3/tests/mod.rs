@@ -57,7 +57,7 @@ mod snapshots;
 mod vm;
 mod ws;
 
-const TEST_TIMEOUT: Duration = Duration::from_secs(20);
+const TEST_TIMEOUT: Duration = Duration::from_secs(30);
 const POLL_INTERVAL: Duration = Duration::from_millis(50);
 
 impl ApiServerHandles {
