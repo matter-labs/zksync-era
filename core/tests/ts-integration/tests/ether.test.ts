@@ -56,7 +56,10 @@ describe('ETH token checks', () => {
         console.log('alice.getBalanceL1(): ', await alice.getBalanceL1());
         console.log('base token address: ', process.env.CONTRACTS_BASE_TOKEN_ADDR);
         console.log('alice.getBalance(NATIVE TOKEN): ', await alice.getBalance(process.env.CONTRACTS_BASE_TOKEN_ADDR));
-        console.log('alice.getBalanceL1(NATIVE TOKEN): ', await alice.getBalanceL1(process.env.CONTRACTS_BASE_TOKEN_ADDR));
+        console.log(
+            'alice.getBalanceL1(NATIVE TOKEN): ',
+            await alice.getBalanceL1(process.env.CONTRACTS_BASE_TOKEN_ADDR)
+        );
         const depositOp = alice.deposit({
             token: ETH_ADDRESS,
             amount,
@@ -78,7 +81,10 @@ describe('ETH token checks', () => {
         console.log('alice.getBalance(): ', await alice.getBalance());
         console.log('alice.getBalanceL1(): ', await alice.getBalanceL1());
         console.log('alice.getBalance(NATIVE TOKEN): ', await alice.getBalance(process.env.CONTRACTS_BASE_TOKEN_ADDR));
-        console.log('alice.getBalanceL1(NATIVE TOKEN): ', await alice.getBalanceL1(process.env.CONTRACTS_BASE_TOKEN_ADDR));
+        console.log(
+            'alice.getBalanceL1(NATIVE TOKEN): ',
+            await alice.getBalanceL1(process.env.CONTRACTS_BASE_TOKEN_ADDR)
+        );
 
         const depositFee = await depositOp
             .then((op) => op.waitL1Commit())
@@ -214,17 +220,14 @@ describe('ETH token checks', () => {
         //     return;
         // }
         // const amount = 1;
-
         // const l2ethBalanceChange = await shouldChangeETHBalances([{ wallet: alice, change: -amount }]);
         // const withdrawalPromise = alice.withdraw({ token: ETH_ADDRESS, amount });
         // await expect(withdrawalPromise).toBeAccepted([l2ethBalanceChange]);
         // const withdrawalTx = await withdrawalPromise;
         // await withdrawalTx.waitFinalize();
-
         // // TODO (SMA-1374): Enable L1 ETH checks as soon as they're supported.
         // await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted();
         // const tx = await alice.provider.getTransactionReceipt(withdrawalTx.hash);
-
         // expect(tx.l2ToL1Logs[0].txIndexInL1Batch).toEqual(expect.anything());
     });
 
@@ -232,17 +235,14 @@ describe('ETH token checks', () => {
         // const depositFee = await alice.getFullRequiredDepositFee({
         //     token: ETH_ADDRESS
         // });
-
         // console.log('depositFee: ', depositFee);
         // const l1Fee = depositFee.l1GasLimit.mul(depositFee.maxFeePerGas! || depositFee.gasPrice!);
         // const l2Fee = depositFee.baseCost;
-
         // const maxAmount = (await alice.getBalanceL1()).sub(l1Fee).sub(l2Fee);
         // console.log('maxAmount: ', maxAmount);
         // const l2ethBalanceChange = await shouldChangeETHBalances([{ wallet: alice, change: maxAmount }], {
         //     l1ToL2: true
         // });
-
         // const overrides: Overrides = depositFee.gasPrice
         //     ? { gasPrice: depositFee.gasPrice }
         //     : {
@@ -250,7 +250,6 @@ describe('ETH token checks', () => {
         //           maxPriorityFeePerGas: depositFee.maxPriorityFeePerGas
         //       };
         // overrides.gasLimit = depositFee.l1GasLimit;
-
         // const depositOp = await alice.deposit({
         //     token: ETH_ADDRESS,
         //     amount: maxAmount,
@@ -259,7 +258,6 @@ describe('ETH token checks', () => {
         //     approveERC20: true,
         //     overrides
         // });
-
         // await expect(depositOp).toBeAccepted([l2ethBalanceChange]);
     });
 
