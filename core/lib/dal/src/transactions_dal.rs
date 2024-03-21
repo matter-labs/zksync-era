@@ -273,8 +273,7 @@ impl TransactionsDal<'_, '_> {
             tx_hash.as_bytes(),
         )
         .fetch_optional(self.storage.conn())
-        .await
-        .unwrap()
+        .await?
         .is_some();
 
         if is_duplicate {

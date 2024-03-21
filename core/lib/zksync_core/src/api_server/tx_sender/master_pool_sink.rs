@@ -1,6 +1,5 @@
 use std::collections::hash_map::{Entry, HashMap};
 
-use anyhow::anyhow;
 use tokio::sync::Mutex;
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, Core, CoreDal};
 use zksync_types::{fee::TransactionExecutionMetrics, l2::L2Tx, Address, Nonce, H256};
@@ -63,7 +62,7 @@ impl TxSink for MasterPoolSink {
                     APP_METRICS.processed_txs[&TxStage::Mempool(submission_res_handle)].inc();
                     submission_res_handle
                 })
-                .map_err(|err| anyhow!(err).into()),
+                .map_err(|err| anyhow::format_err!(err).into()),
             Err(err) => Err(err.into()),
         };
 
