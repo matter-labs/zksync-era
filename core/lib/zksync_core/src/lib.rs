@@ -323,9 +323,10 @@ pub async fn initialize_components(
         ConnectionPool::<Core>::global_config().set_long_connection_threshold(threshold)?;
     }
 
-    let pool_size = postgres_config
-        .max_connections_master()
-        .unwrap_or(postgres_config.max_connections()?);
+    let pool_size = match postgres_config.max_connections_master() {
+        Some(max_connections_master) => max_connections_master,
+        None => postgres_config.max_connections()?,
+    };
 
     let connection_pool = ConnectionPool::<Core>::builder(postgres_config.master_url()?, pool_size)
         .build()
