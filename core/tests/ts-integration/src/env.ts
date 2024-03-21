@@ -125,7 +125,7 @@ export async function loadTestEnvironment(): Promise<TestEnvironment> {
             symbol: baseToken.symbol,
             decimals: baseToken.decimals,
             l1Address: baseToken.address,
-            l2Address: baseTokenAddress, 
+            l2Address: baseTokenAddress
         }
     };
 }
