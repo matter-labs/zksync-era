@@ -281,7 +281,7 @@ impl TransactionsWeb3Dal<'_, '_> {
         &mut self,
         from_timestamp: NaiveDateTime,
         limit: Option<usize>,
-    ) -> Result<(Vec<H256>, Option<NaiveDateTime>), SqlxError> {
+    ) -> Result<Vec<(NaiveDateTime, H256)>, SqlxError> {
         let records = sqlx::query!(
             r#"
             SELECT
@@ -303,12 +303,11 @@ impl TransactionsWeb3Dal<'_, '_> {
         .fetch_all(self.storage.conn())
         .await?;
 
-        let last_loc = records.last().map(|record| record.received_at);
         let hashes = records
             .into_iter()
-            .map(|record| H256::from_slice(&record.hash))
+            .map(|record| (record.received_at, H256::from_slice(&record.hash)))
             .collect();
-        Ok((hashes, last_loc))
+        Ok(hashes)
     }
 
     /// `committed_next_nonce` should equal the nonce for `initiator_address` in the storage.
