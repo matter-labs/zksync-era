@@ -21,7 +21,7 @@ pub struct SequentialCache<K, V> {
     capacity: usize,
 }
 
-impl<K: Ord, Clone, V: Clone> SequentialCache<K, V> {
+impl<K: Ord + Clone, V: Clone> SequentialCache<K, V> {
     /// Creates a new `SequentialCache` with the specified maximum capacity.
     pub fn new(name: &'static str, capacity: usize) -> Self {
         assert!(capacity > 0, "Cache capacity must be greater than 0");
