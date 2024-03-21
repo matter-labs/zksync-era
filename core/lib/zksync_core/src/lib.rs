@@ -323,15 +323,17 @@ pub async fn initialize_components(
         ConnectionPool::<Core>::global_config().set_long_connection_threshold(threshold)?;
     }
 
-    let pool_size = match postgres_config.max_connections_master() {
+    let pool_size = postgres_config.max_connections()?;
+    let pool_size_master = match postgres_config.max_connections_master() {
         Some(max_connections_master) => max_connections_master,
-        None => postgres_config.max_connections()?,
+        None => pool_size,
     };
 
-    let connection_pool = ConnectionPool::<Core>::builder(postgres_config.master_url()?, pool_size)
-        .build()
-        .await
-        .context("failed to build connection_pool")?;
+    let connection_pool =
+        ConnectionPool::<Core>::builder(postgres_config.master_url()?, pool_size_master)
+            .build()
+            .await
+            .context("failed to build connection_pool")?;
     // We're most interested in setting acquire / statement timeouts for the API server, which puts the most load
     // on Postgres.
     let replica_connection_pool =
