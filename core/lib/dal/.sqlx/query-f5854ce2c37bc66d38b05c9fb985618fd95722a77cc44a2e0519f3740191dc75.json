@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                last_processed_l1_batch as \"last_processed_l1_batch!\"\n            FROM\n                consistency_checker_info\n            ",
+  "query": "\n            SELECT\n                last_processed_l1_batch AS \"last_processed_l1_batch!\"\n            FROM\n                consistency_checker_info\n            ",
   "describe": {
     "columns": [
       {
@@ -16,5 +16,5 @@
       false
     ]
   },
-  "hash": "eb2737effced24c9bc1138544d3c5237c7d77d4cfcfb57ae76d7b7c67016b2b1"
+  "hash": "f5854ce2c37bc66d38b05c9fb985618fd95722a77cc44a2e0519f3740191dc75"
 }
