@@ -214,18 +214,21 @@ describe('snapshot recovery', () => {
 
     step('initialize external node', async () => {
         externalNodeLogs = await fs.open('snapshot-recovery.log', 'w');
-        // const address = await mainNode.send('zks_getMainContract', []);
-        // console.log(`zks_getMainContract = ${address}`);
-        // const file = await fs.readFile(
-        //     `${process.env.ZKSYNC_HOME}/contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/zksync/facets/Getters.sol/GettersFacet.json`
-        // );
-        // const gettersABI = JSON.parse(file.toString()).abi;
-        // const provider = new zkweb3.Provider();
-        // const contract: zkweb3.Contract = new zkweb3.Contract(address, gettersABI, mainNode);
-        // const pricingMode = await contract.getPubdataPricingMode();
-        // const nodeEnvironment = pricingMode === 1 ? 'ZKSYNC_ENV=ext-node-validium &&' : '';
+        const address = await mainNode.getMainContractAddress();
+        const file = await fs.readFile(
+            `${process.env.ZKSYNC_HOME}/contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/zksync/facets/Getters.sol/GettersFacet.json`
+        );
+        const gettersABI = JSON.parse(file.toString()).abi;
+        const provider = new zkweb3.Provider();
+        const contract: zkweb3.Contract = new zkweb3.Contract(address, gettersABI, provider);
 
-        externalNodeProcess = spawn(`ZKSYNC_ENV=ext-node-validium && zk external-node -- --enable-snapshots-recovery`, {
+        const pricingMode = await contract.getPubdataPricingMode();
+
+        console.log(`pricingMode = ${pricingMode === 1 ? 'Validium' : 'Rollup'}`);
+
+        const nodeEnvironment = pricingMode === 1 ? 'ZKSYNC_ENV=ext-node-validium &&' : '';
+        console.log(`nodeEnvironment = ${nodeEnvironment}`);
+        externalNodeProcess = spawn(`${nodeEnvironment} zk external-node -- --enable-snapshots-recovery`, {
             cwd: homeDir,
             stdio: [null, externalNodeLogs.fd, externalNodeLogs.fd],
             shell: true,

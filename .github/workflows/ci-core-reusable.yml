@@ -208,7 +208,11 @@ jobs:
         # We use `yarn` directly because the test launches `zk` commands in both server and EN envs.
         # An empty topmost environment helps avoid a mess when redefining env vars shared between both envs
         # (e.g., DATABASE_URL).
-        run: ci_run yarn snapshot-recovery-test snapshot-recovery-test
+        run: |
+          if [[ "${{ matrix.mode }}" == "Validium" ]]; then
+            ci_run zk config compile ext-node-validium
+          fi
+          ci_run yarn snapshot-recovery-test snapshot-recovery-test
 
       - name: Fee projection tests
         run: ci_run zk test i fees
@@ -313,8 +317,8 @@ jobs:
           if [[ "${{ matrix.mode }}" == "Rollup" ]]; then
             ci_run zk env ext-node-docker
           elif [[ "${{ matrix.mode }}" == "Validium" ]]; then
-            ci_run zk env ext-node-validium
-            ci_run zk config compile ext-node-validium
+            ci_run zk env ext-node-validium-docker
+            ci_run zk config compile ext-node-validium-docker
           fi
           ci_run zk db setup
           ci_run zk external-node $EXT_NODE_FLAGS &>ext-node.log &
@@ -345,7 +349,7 @@ jobs:
           if [[ "${{ matrix.mode }}" == "Rollup" ]]; then
             ZKSYNC_ENV=ext-node-docker ci_run zk external-node $EXT_NODE_FLAGS &>>ext-node.log &
           elif [[ "${{ matrix.mode }}" == "Validium" ]]; then
-            ZKSYNC_ENV=ext-node-validium ci_run zk external-node $EXT_NODE_FLAGS &>>ext-node.log &
+            ZKSYNC_ENV=ext-node-validium-docker ci_run zk external-node $EXT_NODE_FLAGS &>>ext-node.log &
           fi
           ci_run sleep 30
 
