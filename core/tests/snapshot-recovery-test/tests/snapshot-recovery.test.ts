@@ -214,6 +214,7 @@ describe('snapshot recovery', () => {
 
     step('initialize external node', async () => {
         externalNodeLogs = await fs.open('snapshot-recovery.log', 'w');
+        console.log(`${JSON.stringify(process.env)}`);
         const address = await mainNode.getMainContractAddress();
         const file = await fs.readFile(
             `${process.env.ZKSYNC_HOME}/contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/zksync/facets/Getters.sol/GettersFacet.json`
@@ -230,8 +231,6 @@ describe('snapshot recovery', () => {
                       ZKSYNC_ENV: 'ext-node-validium'
                   }
                 : externalNodeEnv;
-
-        console.log(`${JSON.stringify(process.env)}`);
         console.log(`environment = ${JSON.stringify(environment)}`);
         externalNodeProcess = spawn('zk external-node -- --enable-snapshots-recovery', {
             cwd: homeDir,
