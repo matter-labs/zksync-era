@@ -42,11 +42,11 @@ impl RestApi {
                 axum::routing::get(Self::vyper_versions),
             )
             .route(
-                "/contract_verification/{id}",
+                "/contract_verification/:id",
                 axum::routing::get(Self::verification_request_status),
             )
             .route(
-                "/contract_verification/info/{address}",
+                "/contract_verification/info/:address",
                 axum::routing::get(Self::verification_info),
             )
             .with_state(Arc::new(self))
