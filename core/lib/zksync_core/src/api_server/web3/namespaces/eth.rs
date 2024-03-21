@@ -709,7 +709,10 @@ impl EthNamespace {
                     .get_tx_hashes_after(*from_timestamp_excluded)
                     .await;
                 let tx_hashes = match tx_hashes_from_cache {
-                    Some(result) => result,
+                    Some(result) => result
+                        .into_iter()
+                        .take(self.state.api_config.req_entities_limit)
+                        .collect(),
                     None => {
                         // On cache miss, query the database.
                         let mut conn = self.state.connection_pool.connection_tagged("api").await?;

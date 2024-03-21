@@ -9,7 +9,7 @@ use zksync_types::H256;
 
 use crate::{cache::sequential_cache::SequentialCache, mempool_cache::metrics::METRICS};
 
-/// Used for `eth_getPendingTransactions` requests on API servers
+/// Used for `eth_newPendingTransactionFilter` requests on API servers
 /// Stores all transactions accepted by the mempool and provides a way to query all that are newer than a given timestamp.
 /// Updates the cache based on interval passed in the constructor
 #[derive(Debug, Clone)]

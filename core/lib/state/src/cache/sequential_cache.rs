@@ -34,7 +34,7 @@ impl<K: Ord, Clone, V: Clone> SequentialCache<K, V> {
 
     /// Inserts multiple key-value pairs into the cache from an iterator. If adding these
     /// items exceeds the cache's capacity, the oldest entries are removed. Keys can be non-unique.
-    /// Panics when keys order is incorrect (a smaller key is inserted after a larger one)
+    /// Returns `Err` when keys order is incorrect (a smaller key is inserted after a larger one)
     pub(crate) fn insert<I>(&mut self, items: I) -> anyhow::Result<()>
     where
         I: IntoIterator<Item = (K, V)>,
