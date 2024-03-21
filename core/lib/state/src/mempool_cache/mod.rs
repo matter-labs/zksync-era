@@ -20,6 +20,11 @@ const INITIAL_LOOKBEHIND: Duration = Duration::from_secs(120);
 
 impl MempoolCache {
     /// Initializes the mempool cache with the parameters provided.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `dal` returns a non-ordered list of transactions.
+
     pub fn new(
         connection_pool: ConnectionPool<Core>,
         update_interval: Duration,
