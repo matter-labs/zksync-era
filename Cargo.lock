@@ -8558,6 +8558,7 @@ dependencies = [
  "anyhow",
  "assert_matches",
  "async-trait",
+ "ctrlc",
  "futures 0.3.28",
  "prometheus_exporter",
  "prover_dal",

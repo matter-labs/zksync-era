@@ -35,6 +35,7 @@ use zksync_node_framework::{
         pools_layer::PoolsLayerBuilder,
         proof_data_handler::ProofDataHandlerLayer,
         query_eth_client::QueryEthClientLayer,
+        sigint::SigintHandlerLayer,
         state_keeper::{
             main_batch_executor::MainBatchExecutorLayer, mempool_io::MempoolIOLayer,
             StateKeeperLayer,
@@ -58,6 +59,11 @@ impl MainNodeBuilder {
         Self {
             node: ZkStackServiceBuilder::new(),
         }
+    }
+
+    fn add_sigint_handler_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(SigintHandlerLayer);
+        Ok(self)
     }
 
     fn add_pools_layer(mut self) -> anyhow::Result<Self> {
@@ -299,6 +305,7 @@ fn main() -> anyhow::Result<()> {
         .build();
 
     MainNodeBuilder::new()
+        .add_sigint_handler_layer()?
         .add_pools_layer()?
         .add_query_eth_client_layer()?
         .add_sequencer_l1_gas_layer()?
