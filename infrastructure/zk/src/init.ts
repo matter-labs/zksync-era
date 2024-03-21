@@ -10,7 +10,8 @@ import * as docker from './docker';
 import * as env from './env';
 import * as run from './run';
 import * as server from './server';
-import { up } from './up';
+import { createVolumes, up } from './up';
+import { down } from './down';
 
 const entry = chalk.bold.yellow;
 const announce = chalk.yellow;
@@ -36,6 +37,8 @@ export async function init(initArgs: InitArgs = DEFAULT_ARGS) {
         await announced('Pulling images', docker.pull());
         await announced('Checking environment', checkEnv(runObservability));
         await announced('Checking git hooks', env.gitHooks());
+        await announced('Remove old containers', down());
+        await announced('Create volumes', createVolumes());
         await announced('Setting up containers', up(runObservability));
     }
     if (!skipSubmodulesCheckout) {

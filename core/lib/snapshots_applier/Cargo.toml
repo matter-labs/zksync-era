@@ -10,6 +10,7 @@ keywords = ["blockchain", "zksync"]
 categories = ["cryptography"]
 
 [dependencies]
+zksync_db_connection = { path = "../../lib/db_connection" }
 zksync_dal = { path = "../../lib/dal" }
 zksync_health_check = { path = "../../lib/health_check" }
 zksync_types = { path = "../../lib/types" }

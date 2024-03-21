@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use zksync_dal::StorageProcessor;
+use prover_dal::{Connection, Prover, ProverDal};
 use zksync_object_store::ObjectStore;
 use zksync_prover_fri_types::{
     circuit_definitions::{
@@ -25,7 +25,7 @@ pub mod region_fetcher;
 pub mod socket_utils;
 
 pub async fn fetch_next_circuit(
-    storage: &mut StorageProcessor<'_>,
+    storage: &mut Connection<'_, Prover>,
     blob_store: &dyn ObjectStore,
     circuit_ids_for_round_to_be_proven: &Vec<CircuitIdRoundTuple>,
     vk_commitments: &L1VerifierConfig,

@@ -1,0 +1,38 @@
+[package]
+name = "zksync_db_connection"
+version = "0.1.0"
+edition = "2021"
+authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
+homepage = "https://zksync.io/"
+repository = "https://github.com/matter-labs/zksync-era"
+license = "MIT OR Apache-2.0"
+keywords = ["blockchain", "zksync"]
+categories = ["cryptography"]
+
+[dependencies]
+zksync_health_check = { path = "../health_check" }
+
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sqlx = { version = "0.7.3", default-features = false, features = [
+    "runtime-tokio",
+    "tls-native-tls",
+    "macros",
+    "postgres",
+    "bigdecimal",
+    "rust_decimal",
+    "chrono",
+    "json",
+    "migrate",
+    "ipnetwork",
+] }
+vise = { git = "https://github.com/matter-labs/vise.git", version = "0.1.0", rev = "1c9cc500e92cf9ea052b230e114a6f9cce4fb2c1" }
+tokio = { version = "1", features = ["full"] }
+anyhow = "1.0"
+url = "2"
+rand = "0.8"
+tracing = "0.1"
+
+[dev-dependencies]
+assert_matches = "1.5.0"
+zksync_basic_types = { path = "../basic_types" }

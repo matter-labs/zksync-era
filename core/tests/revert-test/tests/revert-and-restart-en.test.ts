@@ -92,14 +92,14 @@ class MainNode {
 
     // Spawns a main node.
     // if enableConsensus is set, consensus component will be started in the main node.
-    // if enable_execute is NOT set, main node will NOT send L1 transactions to execute L1 batches.
+    // if enableExecute is NOT set, main node will NOT send L1 transactions to execute L1 batches.
     public static async spawn(
         logs: fs.WriteStream,
         enableConsensus: boolean,
-        enable_execute: boolean
+        enableExecute: boolean
     ): Promise<MainNode> {
         let env = fetchEnv(mainEnv);
-        env.ETH_SENDER_SENDER_AGGREGATED_BLOCK_EXECUTE_DEADLINE = enable_execute ? '1' : '10000';
+        env.ETH_SENDER_SENDER_AGGREGATED_BLOCK_EXECUTE_DEADLINE = enableExecute ? '1' : '10000';
         // Set full mode for the Merkle tree as it is required to get blocks committed.
         env.DATABASE_MERKLE_TREE_MODE = 'full';
         console.log(`DATABASE_URL = ${env.DATABASE_URL}`);
@@ -239,21 +239,35 @@ describe('Block reverting test', function () {
         const lastExecuted: BigNumber = await main_contract.getTotalBlocksExecuted();
         // One is not enough to test the reversion of sk cache because
         // it gets updated with some batch logs only at the start of the next batch.
-        for (let i = 0; i < 2; i++) {
-            const h: zkweb3.types.PriorityOpResponse = await extNode.tester.syncWallet.deposit({
-                token: zkweb3.utils.ETH_ADDRESS,
-                amount: depositAmount,
-                to: alice.address
-            });
-            await h.waitL1Commit();
+        const initialL1BatchNumber = (await main_contract.getTotalBlocksCommitted()).toNumber();
+        const firstDepositHandle = await extNode.tester.syncWallet.deposit({
+            token: zkweb3.utils.ETH_ADDRESS,
+            amount: depositAmount,
+            to: alice.address
+        });
+
+        await firstDepositHandle.wait();
+        while ((await extNode.tester.web3Provider.getL1BatchNumber()) <= initialL1BatchNumber) {
+            await utils.sleep(0.1);
         }
+
+        const secondDepositHandle = await extNode.tester.syncWallet.deposit({
+            token: zkweb3.utils.ETH_ADDRESS,
+            amount: depositAmount,
+            to: alice.address
+        });
+        await secondDepositHandle.wait();
+        while ((await extNode.tester.web3Provider.getL1BatchNumber()) <= initialL1BatchNumber + 1) {
+            await utils.sleep(0.3);
+        }
+
         while (true) {
             const lastCommitted: BigNumber = await main_contract.getTotalBlocksCommitted();
             console.log(`lastExecuted = ${lastExecuted}, lastCommitted = ${lastCommitted}`);
             if (lastCommitted.sub(lastExecuted).gte(2)) {
                 break;
             }
-            await utils.sleep(1);
+            await utils.sleep(0.3);
         }
         const alice2 = await alice.getBalance();
         console.log('Terminate the main node');
