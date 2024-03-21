@@ -146,20 +146,20 @@ describe('Smart contract behavior checks', () => {
         const txWithUnchunkableBytecode = await invalidTx(17);
         const unchunkableError = 'Bytecode length is not divisible by 32';
         await expect(send(txWithUnchunkableBytecode)).toBeRejected(unchunkableError);
-        // await expect(call(txWithUnchunkableBytecode)).toBeRejected(unchunkableError);
+        await expect(call(txWithUnchunkableBytecode)).toBeRejected(unchunkableError);
         await expect(estimateGas(txWithUnchunkableBytecode)).toBeRejected(unchunkableError);
 
         const txWithBytecodeWithEvenChunks = await invalidTx(64);
         const evenChunksError = 'Bytecode has even number of 32-byte words';
         await expect(send(txWithBytecodeWithEvenChunks)).toBeRejected(evenChunksError);
-        // await expect(call(txWithBytecodeWithEvenChunks)).toBeRejected(evenChunksError);
+        await expect(call(txWithBytecodeWithEvenChunks)).toBeRejected(evenChunksError);
         await expect(estimateGas(txWithBytecodeWithEvenChunks)).toBeRejected(evenChunksError);
 
         const longBytecodeLen = zksync.utils.MAX_BYTECODE_LEN_BYTES + 32;
         const txWithTooLongBytecode = await invalidTx(longBytecodeLen);
         const tooLongBytecodeError = `Bytecode too long: ${longBytecodeLen} bytes, while max ${zksync.utils.MAX_BYTECODE_LEN_BYTES} allowed`;
         await expect(send(txWithTooLongBytecode)).toBeRejected(tooLongBytecodeError);
-        // await expect(call(txWithTooLongBytecode)).toBeRejected(tooLongBytecodeError);
+        await expect(call(txWithTooLongBytecode)).toBeRejected(tooLongBytecodeError);
         await expect(estimateGas(txWithTooLongBytecode)).toBeRejected(tooLongBytecodeError);
     });
 
@@ -371,7 +371,7 @@ async function invalidBytecodeTestTransaction(
         maxFeePerGas: gasPrice,
 
         customData: {
-            gasPerPubdata: zksync.utils.DEFAULT_GAS_PER_PUBDATA_LIMIT,
+            gasPerPubdataByte: zksync.utils.DEFAULT_GAS_PER_PUBDATA_LIMIT,
             factoryDeps,
             customSignature: new Uint8Array(17)
         }
