@@ -93,26 +93,27 @@ mod tests {
     #[should_panic(expected = "Keys must be inserted in sequential order")]
     fn non_sequential_insertion() {
         let mut cache = SequentialCache::<u32, u32>::new("non_sequential_insertion", 3);
-        cache.insert(vec![
-            (1, 1),
-            (3, 3), // note: 3 is inserted before 2, test should panic
-            (2, 2),
-        ]);
+        cache
+            .insert(vec![
+                (1, 1),
+                (3, 3), // note: 3 is inserted before 2, test should panic
+                (2, 2),
+            ])
+            .unwrap();
     }
 
     #[test]
-    #[should_panic(expected = "Keys must be inserted in sequential order")]
     fn non_sequential_insertion_multiple_invocations() {
         let mut cache = SequentialCache::<u32, u32>::new("non_sequential_insertion", 3);
-        cache.insert(vec![(1, 1), (2, 2)]);
-        cache.insert(vec![(1, 1)]);
+        cache.insert(vec![(1, 1), (2, 2)]).unwrap();
+        assert!(cache.insert(vec![(1, 1)]).is_err());
     }
 
     #[test]
     fn query() {
         let mut cache = SequentialCache::<u32, u32>::new("query", 100);
-        cache.insert(vec![(1, 1), (2, 2), (2, 5), (3, 6)]);
-        cache.insert(vec![(3, 7), (100, 8)]);
+        cache.insert(vec![(1, 1), (2, 2), (2, 5), (3, 6)]).unwrap();
+        cache.insert(vec![(3, 7), (100, 8)]).unwrap();
         assert_eq!(cache.query(0), None);
         assert_eq!(
             cache.query(1),
@@ -128,8 +129,8 @@ mod tests {
     #[test]
     fn query_at_capacity() {
         let mut cache = SequentialCache::<u32, u32>::new("query_at_capacity", 3);
-        cache.insert(vec![(1, 1), (2, 2), (3, 3)]);
-        cache.insert(vec![(4, 4)]);
+        cache.insert(vec![(1, 1), (2, 2), (3, 3)]).unwrap();
+        cache.insert(vec![(4, 4)]).unwrap();
         assert_eq!(cache.query(1), None);
         assert_eq!(cache.query(2), Some(vec![(3, 3), (4, 4)]));
     }
@@ -137,15 +138,16 @@ mod tests {
     #[test]
     fn insertion_at_capacity_limit() {
         let mut cache = SequentialCache::<u32, String>::new("insertion_at_capacity_limit", 2);
-        cache.insert(vec![(1, "One".to_string()), (2, "Two".to_string())]);
+        cache
+            .insert(vec![(1, "One".to_string()), (2, "Two".to_string())])
+            .unwrap();
 
         // This should cause the first entry to be removed and only the last two to remain.
-        cache.insert(vec![(3, "Three".to_string()), (4, "Four".to_string())]);
+        cache
+            .insert(vec![(3, "Three".to_string()), (4, "Four".to_string())])
+            .unwrap();
 
         assert_eq!(cache.query(1), None);
-        assert_eq!(
-            cache.query(2),
-            Some(vec![(3, "Three".to_string()), (4, "Four".to_string())])
-        );
+        assert_eq!(cache.query(3), Some(vec![(4, "Four".to_string())]));
     }
 }
