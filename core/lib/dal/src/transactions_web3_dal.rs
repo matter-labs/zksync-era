@@ -409,7 +409,8 @@ mod tests {
         for tx in &txs {
             conn.transactions_dal()
                 .insert_transaction_l2(tx.clone(), TransactionExecutionMetrics::default())
-                .await;
+                .await
+                .unwrap();
         }
         conn.blocks_dal()
             .insert_miniblock(&create_miniblock_header(0))
@@ -562,7 +563,8 @@ mod tests {
             tx_by_nonce.insert(nonce, tx.clone());
             conn.transactions_dal()
                 .insert_transaction_l2(tx, TransactionExecutionMetrics::default())
-                .await;
+                .await
+                .unwrap();
         }
 
         let next_nonce = conn
@@ -625,7 +627,8 @@ mod tests {
         tx.common_data.initiator_address = initiator;
         conn.transactions_dal()
             .insert_transaction_l2(tx, TransactionExecutionMetrics::default())
-            .await;
+            .await
+            .unwrap();
 
         let next_nonce = conn
             .transactions_web3_dal()

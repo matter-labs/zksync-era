@@ -48,7 +48,7 @@ use crate::{
 };
 
 pub mod backend_jsonrpsee;
-mod metrics;
+pub(super) mod metrics;
 pub mod namespaces;
 mod pubsub;
 pub mod state;
