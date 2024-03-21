@@ -1,15 +1,27 @@
 #!/usr/bin/env bash
 
-# Prepare environments
+# Script: prepare_and_run_tests.sh
+# Description: Prepares environments and runs tests.
+
+# Error handling function
+handle_error() {
+    echo "Error: $1" >&2
+    exit 1
+}
+
+# Prepare environments for transactions weights
 IFS=','
-read -ra weights <<<"$TRANSACTIONS_WEIGHTS" #reading $TRANSACTIONS_WEIGHTS as an array as tokens separated by IFS
+# Reading $TRANSACTIONS_WEIGHTS as an array as tokens separated by IFS
+read -ra weights <<<"$TRANSACTIONS_WEIGHTS" || handle_error "Failed to read TRANSACTIONS_WEIGHTS."
 export TRANSACTION_WEIGHTS_DEPOSIT=${weights[0]}
 export TRANSACTION_WEIGHTS_L1_TRANSACTIONS=${weights[1]}
 export TRANSACTION_WEIGHTS_L2_TRANSACTIONS=${weights[2]}
 export TRANSACTION_WEIGHTS_WITHDRAWAL=${weights[3]}
 
 
-read -ra execution_params <<<"$CONTRACT_EXECUTION_PARAMS" #reading $CONTRACT_EXECUTION_PARAMS as an array as tokens separated by IFS
+# Prepare environments for contract execution parameters
+# Reading $CONTRACT_EXECUTION_PARAMS as an array as tokens separated by IFS
+read -ra execution_params <<<"$CONTRACT_EXECUTION_PARAMS" || handle_error "Failed to read CONTRACT_EXECUTION_PARAMS."
 export CONTRACT_EXECUTION_PARAMS_READS=${execution_params[0]}
 export CONTRACT_EXECUTION_PARAMS_WRITES=${execution_params[1]}
 export CONTRACT_EXECUTION_PARAMS_EVENTS=${execution_params[2]}
@@ -18,4 +30,4 @@ export CONTRACT_EXECUTION_PARAMS_RECURSIVE_CALLS=${execution_params[4]}
 export CONTRACT_EXECUTION_PARAMS_DEPLOYS=${execution_params[5]}
 
 # Run the test
-cargo run --bin loadnext
+cargo run --bin loadnext || handle_error "Failed to run the test using cargo."

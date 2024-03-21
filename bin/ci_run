@@ -1,18 +1,39 @@
 #!/usr/bin/env bash
 
+# Error handling function
+handle_error() {
+    echo "Error: $1" >&2
+    exit 1
+}
+
 # Runs the command from within CI docker-compose environment.
-cd $ZKSYNC_HOME
+# Change directory to the ZKSYNC_HOME directory.
+echo "Changing directory to '$ZKSYNC_HOME' ..."
+cd $ZKSYNC_HOME 2>/dev/null || handle_error "ZKSYNC_HOME is not set or directory does not exist."
+
+# Determine the compose file to use, defaulting to docker-compose.yml if not specified.
 compose_file="${RUNNER_COMPOSE_FILE:-docker-compose.yml}"
 
-# Pass environment variables explicitly if specified
+# Initialize environment variables option.
+env_vars_option=""
+
+# Check if any environment variables are passed explicitly.
 if [ ! -z "$PASSED_ENV_VARS" ]; then
-    env_vars_option=""
+    # Parse and add environment variables to the options.
     IFS=',' read -ra ADDR <<<"$PASSED_ENV_VARS"
     for var in "${ADDR[@]}"; do
+        # Retrieve the value of the environment variable.
         value=$(eval echo \$$var)
+        # Add the environment variable and its value to the options.
         env_vars_option="${env_vars_option} -e ${var}=${value}"
     done
-    docker-compose -f $compose_file exec -T $env_vars_option zk "$@"
+fi
+
+# Execute the command in the docker-compose environment.
+if [ -n "$env_vars_option" ]; then
+    # Pass environment variables explicitly.
+    docker-compose -f $compose_file exec -T $env_vars_option zk "$@" || handle_error "Failed to execute command in docker-compose environment."
 else
-    docker-compose -f $compose_file exec -T zk "$@"
+    # Execute the command without passing environment variables explicitly.
+    docker-compose -f $compose_file exec -T zk "$@" || handle_error "Failed to execute command in docker-compose environment."
 fi
