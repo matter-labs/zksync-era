@@ -5,7 +5,6 @@ use prometheus_exporter::PrometheusExporterConfig;
 use prover_dal::{ConnectionPool, Prover};
 use structopt::StructOpt;
 use tokio::sync::{oneshot, watch};
-use zkevm_test_harness::boojum::utils::PipeOp;
 use zksync_config::configs::{FriProofCompressorConfig, ObservabilityConfig, PostgresConfig};
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;

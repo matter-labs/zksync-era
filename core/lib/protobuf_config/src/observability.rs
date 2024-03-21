@@ -24,7 +24,7 @@ impl ProtoRepr for proto::Observability {
             sentry_url: this.sentry_url.clone(),
             sentry_environment: this.sentry_environment.clone(),
             log_format: Some(this.log_format.clone()),
-            opentelemetry: this.opentelemetry.as_ref().map(|cfg| ProtoRepr::build(cfg)),
+            opentelemetry: this.opentelemetry.as_ref().map(ProtoRepr::build),
         }
     }
 }
