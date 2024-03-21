@@ -55,6 +55,7 @@ pub struct TransactionsDal<'c, 'a> {
 type TxLocations = Vec<(MiniblockNumber, Vec<(H256, u32, u16)>)>;
 
 impl TransactionsDal<'_, '_> {
+    
     pub async fn insert_transaction_l1(&mut self, tx: L1Tx, l1_block_number: L1BlockNumber) {
         {
             let contract_address = tx.execute.contract_address.as_bytes();
