@@ -333,13 +333,13 @@ pub(crate) async fn recover(
 
     storage
         .pruning_dal()
-        .soft_prune_batches_range(l1_batch.number, miniblock_number)
+        .soft_prune_batches_range(snapshot.l1_batch.number, snapshot.miniblock.number)
         .await
         .unwrap();
 
     storage
         .pruning_dal()
-        .hard_prune_batches_range(l1_batch.number, miniblock_number)
+        .hard_prune_batches_range(snapshot.l1_batch.number, snapshot.miniblock.number)
         .await
         .unwrap();
 

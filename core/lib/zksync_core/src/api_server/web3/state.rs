@@ -76,7 +76,7 @@ impl BlockStartInfo {
     pub(super) async fn ensure_not_pruned(
         &self,
         query: impl Into<PruneQuery>,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
     ) -> Result<(), Web3Error> {
         match query.into() {
             PruneQuery::BlockId(id) => Ok(self.ensure_not_pruned_block(id, storage).await?),

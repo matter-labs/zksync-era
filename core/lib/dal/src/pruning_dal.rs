@@ -1,12 +1,13 @@
 use anyhow::anyhow;
 use sqlx::error::BoxDynError;
+use zksync_db_connection::{connection::Connection, instrument::InstrumentExt};
 use zksync_types::{L1BatchNumber, MiniblockNumber};
 
-use crate::{instrument::InstrumentExt, StorageProcessor};
+use crate::Core;
 
 #[derive(Debug)]
 pub struct PruningDal<'a, 'c> {
-    pub storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -348,6 +349,7 @@ mod tests {
     use std::ops;
 
     use zksync_contracts::BaseSystemContractsHashes;
+    use zksync_db_connection::connection::Connection;
     use zksync_types::{
         block::L1BatchHeader,
         l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
@@ -358,11 +360,11 @@ mod tests {
     use super::*;
     use crate::{
         tests::{create_miniblock_header, mock_l2_to_l1_log, mock_vm_event},
-        ConnectionPool,
+        ConnectionPool, Core, CoreDal,
     };
 
     async fn insert_miniblock(
-        conn: &mut StorageProcessor<'_>,
+        conn: &mut Connection<'_, Core>,
         miniblock_number: MiniblockNumber,
         l1_batch_number: L1BatchNumber,
     ) {
@@ -382,7 +384,7 @@ mod tests {
     }
 
     async fn insert_l2_to_l1_logs(
-        conn: &mut StorageProcessor<'_>,
+        conn: &mut Connection<'_, Core>,
         miniblock_number: MiniblockNumber,
     ) {
         let first_location = IncludedTxLocation {
@@ -410,7 +412,7 @@ mod tests {
             .await;
     }
 
-    async fn insert_events(conn: &mut StorageProcessor<'_>, miniblock_number: MiniblockNumber) {
+    async fn insert_events(conn: &mut Connection<'_, Core>, miniblock_number: MiniblockNumber) {
         let first_location = IncludedTxLocation {
             tx_hash: H256([1; 32]),
             tx_index_in_miniblock: 0,
@@ -432,7 +434,7 @@ mod tests {
             .await;
     }
 
-    async fn insert_l1_batch(conn: &mut StorageProcessor<'_>, l1_batch_number: L1BatchNumber) {
+    async fn insert_l1_batch(conn: &mut Connection<'_, Core>, l1_batch_number: L1BatchNumber) {
         let mut header = L1BatchHeader::new(
             l1_batch_number,
             100,
@@ -461,7 +463,7 @@ mod tests {
             .unwrap();
     }
 
-    async fn insert_realistic_l1_batches(conn: &mut StorageProcessor<'_>, l1_batches_count: u32) {
+    async fn insert_realistic_l1_batches(conn: &mut Connection<'_, Core>, l1_batches_count: u32) {
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -484,7 +486,7 @@ mod tests {
     }
 
     async fn assert_l1_batch_objects_exists(
-        conn: &mut StorageProcessor<'_>,
+        conn: &mut Connection<'_, Core>,
         l1_batches_range: ops::RangeInclusive<L1BatchNumber>,
     ) {
         for l1_batch_number in l1_batches_range.start().0..l1_batches_range.end().0 {
@@ -513,7 +515,7 @@ mod tests {
     }
 
     async fn assert_l1_batch_objects_dont_exist(
-        conn: &mut StorageProcessor<'_>,
+        conn: &mut Connection<'_, Core>,
         l1_batches_range: ops::RangeInclusive<L1BatchNumber>,
     ) {
         for l1_batch_number in l1_batches_range.start().0..l1_batches_range.end().0 {
@@ -557,8 +559,8 @@ mod tests {
 
     #[tokio::test]
     async fn soft_pruning_works() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
         let mut transaction = conn.start_transaction().await.unwrap();
 
         assert_eq!(
@@ -625,7 +627,7 @@ mod tests {
         StorageLog::new_write_log(key, H256([value_seed; 32]))
     }
     async fn insert_miniblock_storage_logs(
-        conn: &mut StorageProcessor<'_>,
+        conn: &mut Connection<'_, Core>,
         miniblock_number: MiniblockNumber,
         storage_logs: Vec<StorageLog>,
     ) {
@@ -636,7 +638,7 @@ mod tests {
     }
 
     async fn assert_miniblock_storage_logs_equal(
-        conn: &mut StorageProcessor<'_>,
+        conn: &mut Connection<'_, Core>,
         miniblock_number: MiniblockNumber,
         expected_logs: Vec<StorageLog>,
     ) {
@@ -660,9 +662,9 @@ mod tests {
 
     #[tokio::test]
     async fn storage_logs_pruning_works_correctly() {
-        let pool = ConnectionPool::test_pool().await;
+        let pool = ConnectionPool::<Core>::test_pool().await;
 
-        let mut conn = pool.access_storage().await.unwrap();
+        let mut conn = pool.connection().await.unwrap();
         let mut transaction = conn.start_transaction().await.unwrap();
         insert_realistic_l1_batches(&mut transaction, 10).await;
         insert_miniblock_storage_logs(
@@ -758,9 +760,9 @@ mod tests {
 
     #[tokio::test]
     async fn l1_batches_can_be_hard_pruned() {
-        let pool = ConnectionPool::test_pool().await;
+        let pool = ConnectionPool::<Core>::test_pool().await;
 
-        let mut conn = pool.access_storage().await.unwrap();
+        let mut conn = pool.connection().await.unwrap();
         let mut transaction = conn.start_transaction().await.unwrap();
         insert_realistic_l1_batches(&mut transaction, 10).await;
 

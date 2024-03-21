@@ -5,7 +5,7 @@ use std::{fmt, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use tokio::sync::watch;
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::L1BatchNumber;
 
 use crate::db_pruner::metrics::{MetricPruneType, METRICS};
@@ -81,8 +81,8 @@ impl DbPruner {
         result
     }
 
-    async fn update_l1_batches_metric(&self, pool: &ConnectionPool) -> anyhow::Result<()> {
-        let mut storage = pool.access_storage().await.unwrap();
+    async fn update_l1_batches_metric(&self, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
+        let mut storage = pool.connection().await.unwrap();
         let first_l1_batch = storage.blocks_dal().get_earliest_l1_batch_number().await?;
         let last_l1_batch = storage.blocks_dal().get_sealed_l1_batch_number().await?;
         if first_l1_batch.is_none() {
@@ -96,10 +96,10 @@ impl DbPruner {
         Ok(())
     }
 
-    async fn soft_prune(&self, pool: &ConnectionPool) -> anyhow::Result<bool> {
+    async fn soft_prune(&self, pool: &ConnectionPool<Core>) -> anyhow::Result<bool> {
         let latency = METRICS.pruning_chunk_duration[&MetricPruneType::Soft].start();
 
-        let mut storage = pool.access_storage().await?;
+        let mut storage = pool.connection().await?;
         let mut transaction = storage.start_transaction().await?;
 
         let current_pruning_info = transaction.pruning_dal().get_pruning_info().await?;
@@ -139,10 +139,10 @@ impl DbPruner {
         Ok(true)
     }
 
-    async fn hard_prune(&self, pool: &ConnectionPool) -> anyhow::Result<()> {
+    async fn hard_prune(&self, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
         let latency = METRICS.pruning_chunk_duration[&MetricPruneType::Hard].start();
 
-        let mut storage = pool.access_storage().await?;
+        let mut storage = pool.connection().await?;
         let mut transaction = storage.start_transaction().await?;
 
         let current_pruning_info = transaction.pruning_dal().get_pruning_info().await?;
@@ -167,8 +167,8 @@ impl DbPruner {
         Ok(())
     }
 
-    pub async fn run_single_iteration(&self, pool: &ConnectionPool) -> anyhow::Result<bool> {
-        let mut storage = pool.access_storage().await?;
+    pub async fn run_single_iteration(&self, pool: &ConnectionPool<Core>) -> anyhow::Result<bool> {
+        let mut storage = pool.connection().await?;
         let current_pruning_info = storage.pruning_dal().get_pruning_info().await?;
 
         if current_pruning_info.last_soft_pruned_l1_batch
@@ -188,7 +188,7 @@ impl DbPruner {
     }
     pub async fn run_in_loop(
         self,
-        pool: ConnectionPool,
+        pool: ConnectionPool<Core>,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
         loop {
@@ -212,7 +212,8 @@ mod tests {
     use anyhow::anyhow;
     use multivm::zk_evm_latest::ethereum_types::H256;
     use test_log::test;
-    use zksync_dal::{pruning_dal::PruningInfo, StorageProcessor};
+    use zksync_dal::pruning_dal::PruningInfo;
+    use zksync_db_connection::connection::Connection;
     use zksync_types::{block::MiniblockHeader, Address, MiniblockNumber, ProtocolVersion};
 
     use super::*;
@@ -293,7 +294,7 @@ mod tests {
     }
 
     async fn insert_miniblocks(
-        conn: &mut StorageProcessor<'_>,
+        conn: &mut Connection<'_, Core>,
         l1_batches_count: u64,
         miniblocks_per_batch: u64,
     ) {
@@ -335,8 +336,8 @@ mod tests {
 
     #[test(tokio::test)]
     async fn hard_pruning_ignores_conditions_checks() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
 
         insert_miniblocks(&mut conn, 10, 2).await;
         conn.pruning_dal()
@@ -370,8 +371,8 @@ mod tests {
     #[test(tokio::test)]
     async fn pruner_should_catch_up_with_hard_pruning_up_to_soft_pruning_boundary_ignoring_chunk_size(
     ) {
-        let pool = ConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
 
         insert_miniblocks(&mut conn, 10, 2).await;
         conn.pruning_dal()
@@ -414,8 +415,8 @@ mod tests {
 
     #[test(tokio::test)]
     async fn unconstrained_pruner_with_fresh_database() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
 
         insert_miniblocks(&mut conn, 10, 2).await;
 
@@ -455,8 +456,8 @@ mod tests {
 
     #[test(tokio::test)]
     async fn pruning_blocked_after_first_chunk() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
 
         insert_miniblocks(&mut conn, 10, 2).await;
 

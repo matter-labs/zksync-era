@@ -2,14 +2,14 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use chrono::Utc;
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::L1BatchNumber;
 
 use crate::db_pruner::PruneCondition;
 
 pub struct L1BatchOlderThanPruneCondition {
     pub minimal_age: Duration,
-    pub conn: ConnectionPool,
+    pub conn: ConnectionPool<Core>,
 }
 
 #[async_trait]
@@ -19,7 +19,7 @@ impl PruneCondition for L1BatchOlderThanPruneCondition {
     }
 
     async fn is_batch_prunable(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<bool> {
-        let mut storage = self.conn.access_storage().await?;
+        let mut storage = self.conn.connection().await?;
         let l1_batch_header = storage
             .blocks_dal()
             .get_l1_batch_header(l1_batch_number)
@@ -32,7 +32,7 @@ impl PruneCondition for L1BatchOlderThanPruneCondition {
 }
 
 pub struct NextL1BatchWasExecutedCondition {
-    pub conn: ConnectionPool,
+    pub conn: ConnectionPool<Core>,
 }
 
 #[async_trait]
@@ -42,7 +42,7 @@ impl PruneCondition for NextL1BatchWasExecutedCondition {
     }
 
     async fn is_batch_prunable(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<bool> {
-        let mut storage = self.conn.access_storage().await?;
+        let mut storage = self.conn.connection().await?;
         let next_l1_batch_number = L1BatchNumber(l1_batch_number.0 + 1);
         let last_executed_batch = storage
             .blocks_dal()
@@ -55,7 +55,7 @@ impl PruneCondition for NextL1BatchWasExecutedCondition {
 }
 
 pub struct NextL1BatchHasMetadataCondition {
-    pub conn: ConnectionPool,
+    pub conn: ConnectionPool<Core>,
 }
 
 #[async_trait]
@@ -65,7 +65,7 @@ impl PruneCondition for NextL1BatchHasMetadataCondition {
     }
 
     async fn is_batch_prunable(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<bool> {
-        let mut storage = self.conn.access_storage().await?;
+        let mut storage = self.conn.connection().await?;
         let next_l1_batch_number = L1BatchNumber(l1_batch_number.0 + 1);
         let l1_batch_metadata = storage
             .blocks_dal()
@@ -76,7 +76,7 @@ impl PruneCondition for NextL1BatchHasMetadataCondition {
 }
 
 pub struct L1BatchExistsCondition {
-    pub conn: ConnectionPool,
+    pub conn: ConnectionPool<Core>,
 }
 
 #[async_trait]
@@ -86,7 +86,7 @@ impl PruneCondition for L1BatchExistsCondition {
     }
 
     async fn is_batch_prunable(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<bool> {
-        let mut storage = self.conn.access_storage().await?;
+        let mut storage = self.conn.connection().await?;
         let l1_batch_header = storage
             .blocks_dal()
             .get_l1_batch_header(l1_batch_number)

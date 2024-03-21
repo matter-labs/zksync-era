@@ -218,7 +218,6 @@ impl EthNamespace {
         self.current_method().set_block_id(block_id);
         let mut storage = self.state.connection_pool.connection_tagged("api").await?;
 
-
         self.state
             .start_info
             .ensure_not_pruned(block_id, &mut storage)

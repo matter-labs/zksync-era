@@ -4,7 +4,8 @@ use zksync_concurrency::{ctx, error::Wrap as _, time};
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage as storage;
 use zksync_consensus_storage::PersistentBlockStore as _;
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Core};
+use zksync_types::L2ChainId;
 
 use super::Store;
 use crate::{
@@ -61,7 +62,7 @@ impl Store {
 
     /// Constructs a new db initialized with genesis state.
     pub(crate) async fn from_genesis() -> Self {
-        let pool = ConnectionPool::test_pool().await;
+        let pool = ConnectionPool::<Core>::test_pool().await;
         {
             let mut storage = pool.connection().await.unwrap();
             insert_genesis_batch(&mut storage, &GenesisParams::mock())
@@ -73,7 +74,7 @@ impl Store {
 
     /// Recovers storage from a snapshot.
     pub(crate) async fn from_snapshot(snapshot: Snapshot) -> Self {
-        let pool = ConnectionPool::test_pool().await;
+        let pool = ConnectionPool::<Core>::test_pool().await;
         {
             let mut storage = pool.connection().await.unwrap();
             recover(&mut storage, snapshot).await;

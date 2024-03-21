@@ -200,7 +200,7 @@ pub(crate) struct BlockStartInfo {
 }
 
 impl BlockStartInfo {
-    pub async fn new(storage: &mut StorageProcessor<'_>) -> anyhow::Result<Self> {
+    pub async fn new(storage: &mut Connection<'_, Core>) -> anyhow::Result<Self> {
         Ok(Self {
             cached_pruning_info: Arc::from(Mutex::from((
                 storage.pruning_dal().get_pruning_info().await?,
@@ -218,7 +218,7 @@ impl BlockStartInfo {
     }
     async fn get_pruning_info(
         &self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
     ) -> anyhow::Result<PruningInfo> {
         let (pruning_info, last_cache_date) = self.get_cache_state_copy();
         let now = Utc::now();
@@ -245,7 +245,7 @@ impl BlockStartInfo {
 
     pub async fn first_miniblock(
         &self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
     ) -> anyhow::Result<MiniblockNumber> {
         let cached_pruning_info = self.get_pruning_info(storage).await?;
         let last_block = cached_pruning_info.last_soft_pruned_miniblock;
@@ -272,7 +272,7 @@ impl BlockStartInfo {
     pub async fn ensure_not_pruned_block(
         &self,
         block: api::BlockId,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
     ) -> Result<(), BlockArgsError> {
         let first_miniblock = self
             .first_miniblock(storage)

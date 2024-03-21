@@ -206,7 +206,7 @@ impl ZksNamespace {
         msg: H256,
         l2_log_position: Option<usize>,
     ) -> Result<Option<L2ToL1LogProof>, Web3Error> {
-        let mut storage = self.state.acquire_connection().await?;
+        let mut storage = self.connection().await?;
         self.state
             .start_info
             .ensure_not_pruned(block_number, &mut storage)
@@ -360,7 +360,7 @@ impl ZksNamespace {
         &self,
         batch: L1BatchNumber,
     ) -> Result<Option<(U64, U64)>, Web3Error> {
-        let mut storage = self.access_storage().await?;
+        let mut storage = self.connection().await?;
         self.state
             .start_info
             .ensure_not_pruned(batch, &mut storage)
@@ -378,7 +378,7 @@ impl ZksNamespace {
         &self,
         block_number: MiniblockNumber,
     ) -> Result<Option<BlockDetails>, Web3Error> {
-        let mut storage = self.access_storage().await?;
+        let mut storage = self.connection().await?;
         self.state
             .start_info
             .ensure_not_pruned(block_number, &mut storage)
@@ -512,7 +512,7 @@ impl ZksNamespace {
         keys: Vec<H256>,
         l1_batch_number: L1BatchNumber,
     ) -> Result<Option<Proof>, Web3Error> {
-        let mut storage = self.access_storage().await?;
+        let mut storage = self.connection().await?;
         self.state
             .start_info
             .ensure_not_pruned(l1_batch_number, &mut storage)
