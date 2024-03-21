@@ -374,7 +374,7 @@ fn test_dry_run_upper_bound() {
         .max()
         .unwrap();
     assert!(
-        circuit_statistics.0 * 2 <= BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD,
+        circuit_statistics.0 * 2 <= BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD as u64,
         "BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD is too low for {} with result {}, BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD = {}",
         circuit_statistics.1,
         circuit_statistics.0,
@@ -387,7 +387,7 @@ fn test_dry_run_upper_bound() {
         .max()
         .unwrap();
     assert!(
-        execution_metrics_size.0 * 2 <= BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD,
+        execution_metrics_size.0 * 2 <= BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD as u64,
         "BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD is too low for {} with result {}, BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD = {}",
         execution_metrics_size.1,
         execution_metrics_size.0,
