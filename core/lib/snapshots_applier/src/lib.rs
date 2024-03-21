@@ -6,7 +6,7 @@ use anyhow::Context as _;
 use async_trait::async_trait;
 use serde::Serialize;
 use tokio::sync::Semaphore;
-use zksync_dal::{ConnectionPool, Server, ServerDals, SqlxError, StorageProcessor};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, SqlxError};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_types::{
@@ -186,7 +186,7 @@ impl SnapshotsApplierConfig {
     /// - Storage contains at least one L1 batch
     pub async fn run(
         self,
-        connection_pool: &ConnectionPool<Server>,
+        connection_pool: &ConnectionPool<Core>,
         main_node_client: &dyn SnapshotsApplierMainNodeClient,
         blob_store: &dyn ObjectStore,
     ) -> anyhow::Result<()> {
@@ -234,7 +234,7 @@ impl SnapshotsApplierConfig {
 /// Applying application-level storage snapshots to the Postgres storage.
 #[derive(Debug)]
 struct SnapshotsApplier<'a> {
-    connection_pool: &'a ConnectionPool<Server>,
+    connection_pool: &'a ConnectionPool<Core>,
     main_node_client: &'a dyn SnapshotsApplierMainNodeClient,
     blob_store: &'a dyn ObjectStore,
     applied_snapshot_status: SnapshotRecoveryStatus,
@@ -246,7 +246,7 @@ struct SnapshotsApplier<'a> {
 impl<'a> SnapshotsApplier<'a> {
     /// Recovers [`SnapshotRecoveryStatus`] from the storage and the main node.
     async fn prepare_applied_snapshot_status(
-        storage: &mut StorageProcessor<'_, Server>,
+        storage: &mut Connection<'_, Core>,
         main_node_client: &dyn SnapshotsApplierMainNodeClient,
     ) -> Result<(SnapshotRecoveryStatus, bool), SnapshotsApplierError> {
         let latency =
@@ -307,7 +307,7 @@ impl<'a> SnapshotsApplier<'a> {
     }
 
     async fn load_snapshot(
-        connection_pool: &'a ConnectionPool<Server>,
+        connection_pool: &'a ConnectionPool<Core>,
         main_node_client: &'a dyn SnapshotsApplierMainNodeClient,
         blob_store: &'a dyn ObjectStore,
         health_updater: &'a HealthUpdater,
@@ -315,7 +315,7 @@ impl<'a> SnapshotsApplier<'a> {
         health_updater.update(HealthStatus::Ready.into());
 
         let mut storage = connection_pool
-            .access_storage_tagged("snapshots_applier")
+            .connection_tagged("snapshots_applier")
             .await?;
         let mut storage_transaction = storage.start_transaction().await.map_err(|err| {
             SnapshotsApplierError::db(err, "failed starting initial DB transaction")
@@ -428,7 +428,7 @@ impl<'a> SnapshotsApplier<'a> {
 
     async fn recover_factory_deps(
         &mut self,
-        storage: &mut StorageProcessor<'_, Server>,
+        storage: &mut Connection<'_, Core>,
     ) -> Result<(), SnapshotsApplierError> {
         let latency = METRICS.initial_stage_duration[&InitialStage::ApplyFactoryDeps].start();
 
@@ -472,7 +472,7 @@ impl<'a> SnapshotsApplier<'a> {
         &self,
         chunk_id: u64,
         storage_logs: &[SnapshotStorageLog],
-        storage: &mut StorageProcessor<'_, Server>,
+        storage: &mut Connection<'_, Core>,
     ) -> Result<(), SnapshotsApplierError> {
         storage
             .storage_logs_dedup_dal()
@@ -490,7 +490,7 @@ impl<'a> SnapshotsApplier<'a> {
         &self,
         chunk_id: u64,
         storage_logs: &[SnapshotStorageLog],
-        storage: &mut StorageProcessor<'_, Server>,
+        storage: &mut Connection<'_, Core>,
     ) -> Result<(), SnapshotsApplierError> {
         storage
             .storage_logs_dal()
@@ -542,7 +542,7 @@ impl<'a> SnapshotsApplier<'a> {
 
         let mut storage = self
             .connection_pool
-            .access_storage_tagged("snapshots_applier")
+            .connection_tagged("snapshots_applier")
             .await?;
         let mut storage_transaction = storage.start_transaction().await.map_err(|err| {
             let context = format!("cannot start DB transaction for storage logs chunk {chunk_id}");
@@ -608,7 +608,7 @@ impl<'a> SnapshotsApplier<'a> {
 
         let mut storage = self
             .connection_pool
-            .access_storage_tagged("snapshots_applier")
+            .connection_tagged("snapshots_applier")
             .await?;
         // This DB query is slow, but this is fine for verification purposes.
         let total_log_count = storage
@@ -643,7 +643,7 @@ impl<'a> SnapshotsApplier<'a> {
         // Check whether tokens are already recovered.
         let mut storage = self
             .connection_pool
-            .access_storage_tagged("snapshots_applier")
+            .connection_tagged("snapshots_applier")
             .await?;
         let all_token_addresses = storage
             .tokens_dal()
@@ -670,7 +670,7 @@ impl<'a> SnapshotsApplier<'a> {
         let l2_addresses = tokens.iter().map(|token| token.l2_address);
         let mut storage = self
             .connection_pool
-            .access_storage_tagged("snapshots_applier")
+            .connection_tagged("snapshots_applier")
             .await?;
         let filtered_addresses = storage
             .storage_logs_dal()

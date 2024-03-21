@@ -5,7 +5,7 @@ use bigdecimal::BigDecimal;
 use itertools::Itertools;
 use sqlx::{error, types::chrono::NaiveDateTime};
 use zksync_db_connection::{
-    instrument::InstrumentExt, processor::StorageProcessor, utils::pg_interval_from_duration,
+    connection::Connection, instrument::InstrumentExt, utils::pg_interval_from_duration,
 };
 use zksync_types::{
     block::MiniblockExecutionData,
@@ -22,7 +22,7 @@ use zksync_utils::u256_to_big_decimal;
 
 use crate::{
     models::storage_transaction::{CallTrace, StorageTransaction},
-    Server,
+    Core,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -48,7 +48,7 @@ impl fmt::Display for L2TxSubmissionResult {
 
 #[derive(Debug)]
 pub struct TransactionsDal<'c, 'a> {
-    pub(crate) storage: &'c mut StorageProcessor<'a, Server>,
+    pub(crate) storage: &'c mut Connection<'a, Core>,
 }
 
 type TxLocations = Vec<(MiniblockNumber, Vec<(H256, u32, u16)>)>;
@@ -1338,13 +1338,13 @@ mod tests {
     use super::*;
     use crate::{
         tests::{create_miniblock_header, mock_execution_result, mock_l2_transaction},
-        ConnectionPool, Server, ServerDals,
+        ConnectionPool, Core, CoreDal,
     };
 
     #[tokio::test]
     async fn getting_call_trace_for_transaction() {
-        let connection_pool = ConnectionPool::<Server>::test_pool().await;
-        let mut conn = connection_pool.access_storage().await.unwrap();
+        let connection_pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = connection_pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;

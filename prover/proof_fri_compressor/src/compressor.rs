@@ -3,7 +3,7 @@ use std::{sync::Arc, time::Instant};
 use anyhow::Context as _;
 use async_trait::async_trait;
 use circuit_sequencer_api::proof::FinalProof;
-use prover_dal::{ConnectionPool, Prover, ProverDals};
+use prover_dal::{ConnectionPool, Prover, ProverDal};
 use tokio::task::JoinHandle;
 use zkevm_test_harness::proof_wrapper_utils::{wrap_proof, WrapperConfig};
 use zkevm_test_harness_1_3_3::{
@@ -131,7 +131,7 @@ impl JobProcessor for ProofCompressor {
     const SERVICE_NAME: &'static str = "ProofCompressor";
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
-        let mut conn = self.pool.access_storage().await.unwrap();
+        let mut conn = self.pool.connection().await.unwrap();
         let pod_name = get_current_pod_name();
         let Some(l1_batch_number) = conn
             .fri_proof_compressor_dal()
@@ -170,7 +170,7 @@ impl JobProcessor for ProofCompressor {
 
     async fn save_failure(&self, job_id: Self::JobId, _started_at: Instant, error: String) {
         self.pool
-            .access_storage()
+            .connection()
             .await
             .unwrap()
             .fri_proof_compressor_dal()
@@ -224,7 +224,7 @@ impl JobProcessor for ProofCompressor {
             .observe(blob_save_started_at.elapsed());
 
         self.pool
-            .access_storage()
+            .connection()
             .await
             .unwrap()
             .fri_proof_compressor_dal()
@@ -240,7 +240,7 @@ impl JobProcessor for ProofCompressor {
     async fn get_job_attempts(&self, job_id: &L1BatchNumber) -> anyhow::Result<u32> {
         let mut prover_storage = self
             .pool
-            .access_storage()
+            .connection()
             .await
             .context("failed to acquire DB connection for ProofCompressor")?;
         prover_storage

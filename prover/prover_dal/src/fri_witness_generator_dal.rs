@@ -10,13 +10,13 @@ use zksync_basic_types::{
     },
     L1BatchNumber,
 };
-use zksync_db_connection::{metrics::MethodLatency, processor::StorageProcessor};
+use zksync_db_connection::{connection::Connection, metrics::MethodLatency};
 
 use crate::{duration_to_naive_time, pg_interval_from_duration, Prover};
 
 #[derive(Debug)]
 pub struct FriWitnessGeneratorDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c, Prover>,
+    pub(crate) storage: &'a mut Connection<'c, Prover>,
 }
 
 #[derive(Debug, strum::Display, strum::EnumString, strum::AsRefStr)]

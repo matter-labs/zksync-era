@@ -33,7 +33,7 @@ use zksync_core::{
         MainNodeClient, SyncState,
     },
 };
-use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Server, ServerDals};
+use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core, CoreDal};
 use zksync_db_connection::healthcheck::ConnectionPoolHealthCheck;
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
 use zksync_state::PostgresStorageCaches;
@@ -61,7 +61,7 @@ async fn build_state_keeper(
     action_queue: ActionQueue,
     state_keeper_db_path: String,
     config: &ExternalNodeConfig,
-    connection_pool: ConnectionPool<Server>,
+    connection_pool: ConnectionPool<Core>,
     sync_state: SyncState,
     l2_erc20_bridge_addr: Address,
     miniblock_sealer_handle: MiniblockSealerHandle,
@@ -113,7 +113,7 @@ async fn build_state_keeper(
 
 async fn init_tasks(
     config: &ExternalNodeConfig,
-    connection_pool: ConnectionPool<Server>,
+    connection_pool: ConnectionPool<Core>,
     main_node_client: HttpClient,
     task_handles: &mut Vec<task::JoinHandle<anyhow::Result<()>>>,
     app_health: &AppHealthCheck,
@@ -143,7 +143,7 @@ async fn init_tasks(
     task_handles.push(tokio::spawn(async move {
         loop {
             let protocol_version = pool
-                .access_storage()
+                .connection()
                 .await
                 .unwrap()
                 .protocol_versions_dal()
@@ -222,7 +222,7 @@ async fn init_tasks(
         }
     }));
 
-    let singleton_pool_builder = ConnectionPool::<Server>::singleton(&config.postgres.database_url);
+    let singleton_pool_builder = ConnectionPool::<Core>::singleton(&config.postgres.database_url);
 
     let metadata_calculator_config = MetadataCalculatorConfig {
         db_path: config.required.merkle_tree_path.clone(),
@@ -497,13 +497,13 @@ async fn main() -> anyhow::Result<()> {
         config.consensus = None;
     }
     if let Some(threshold) = config.optional.slow_query_threshold() {
-        ConnectionPool::<Server>::global_config().set_slow_query_threshold(threshold)?;
+        ConnectionPool::<Core>::global_config().set_slow_query_threshold(threshold)?;
     }
     if let Some(threshold) = config.optional.long_connection_threshold() {
-        ConnectionPool::<Server>::global_config().set_long_connection_threshold(threshold)?;
+        ConnectionPool::<Core>::global_config().set_long_connection_threshold(threshold)?;
     }
 
-    let connection_pool = ConnectionPool::<Server>::builder(
+    let connection_pool = ConnectionPool::<Core>::builder(
         &config.postgres.database_url,
         config.postgres.max_connections,
     )
@@ -598,7 +598,7 @@ async fn main() -> anyhow::Result<()> {
     }
     if opt.revert_pending_l1_batch {
         tracing::info!("Rolling pending L1 batch back..");
-        let mut connection = connection_pool.access_storage().await?;
+        let mut connection = connection_pool.connection().await?;
         let sealed_l1_batch_number = connection
             .blocks_dal()
             .get_sealed_l1_batch_number()

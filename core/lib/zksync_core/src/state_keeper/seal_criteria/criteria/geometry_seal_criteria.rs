@@ -1,5 +1,6 @@
 use std::fmt;
 
+use multivm::utils::circuit_statistics_bootloader_batch_tip_overhead;
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_types::{tx::tx_execution_info::ExecutionMetrics, ProtocolVersionId};
 
@@ -38,13 +39,20 @@ where
             * config.close_block_at_geometry_percentage)
             .round();
 
-        if T::extract(&tx_data.execution_metrics) > reject_bound as usize {
+        if T::extract(&tx_data.execution_metrics)
+            + circuit_statistics_bootloader_batch_tip_overhead(protocol_version_id.into())
+            > reject_bound as usize
+        {
             SealResolution::Unexecutable("ZK proof cannot be generated for a transaction".into())
         } else if T::extract(&block_data.execution_metrics)
+            + circuit_statistics_bootloader_batch_tip_overhead(protocol_version_id.into())
             >= T::limit_per_block(protocol_version_id)
         {
             SealResolution::ExcludeAndSeal
-        } else if T::extract(&block_data.execution_metrics) > close_bound as usize {
+        } else if T::extract(&block_data.execution_metrics)
+            + circuit_statistics_bootloader_batch_tip_overhead(protocol_version_id.into())
+            > close_bound as usize
+        {
             SealResolution::IncludeAndSeal
         } else {
             SealResolution::NoSeal
@@ -60,11 +68,7 @@ impl MetricExtractor for CircuitsCriterion {
     const PROM_METRIC_CRITERION_NAME: &'static str = "circuits";
 
     fn limit_per_block(_protocol_version_id: ProtocolVersionId) -> usize {
-        // We subtract constant to take into account that circuits may be not fully filled.
-        // This constant should be greater than number of circuits types
-        // but we keep it larger to be on the safe side.
-        const MARGIN_NUMBER_OF_CIRCUITS: usize = 10000;
-        const MAX_NUMBER_OF_CIRCUITS: usize = (1 << 14) + (1 << 13) - MARGIN_NUMBER_OF_CIRCUITS;
+        const MAX_NUMBER_OF_CIRCUITS: usize = 24100;
 
         MAX_NUMBER_OF_CIRCUITS
     }
@@ -191,7 +195,11 @@ mod tests {
 
         let block_execution_metrics = ExecutionMetrics {
             circuit_statistic: CircuitStatistic {
-                main_vm: (CircuitsCriterion::limit_per_block(protocol_version) - 1) as f32,
+                main_vm: (CircuitsCriterion::limit_per_block(protocol_version)
+                    - 1
+                    - circuit_statistics_bootloader_batch_tip_overhead(
+                        ProtocolVersionId::latest().into(),
+                    )) as f32,
                 ..CircuitStatistic::default()
             },
             ..ExecutionMetrics::default()

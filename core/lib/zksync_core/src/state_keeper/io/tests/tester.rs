@@ -8,7 +8,7 @@ use zksync_config::{
     GasAdjusterConfig,
 };
 use zksync_contracts::BaseSystemContracts;
-use zksync_dal::{ConnectionPool, Server, ServerDals};
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_eth_client::clients::MockEthereum;
 use zksync_object_store::ObjectStoreFactory;
 use zksync_types::{
@@ -91,7 +91,7 @@ impl Tester {
 
     pub(super) async fn create_test_mempool_io(
         &self,
-        pool: ConnectionPool<Server>,
+        pool: ConnectionPool<Core>,
         miniblock_sealer_capacity: usize,
     ) -> (MempoolIO, MempoolGuard) {
         let gas_adjuster = Arc::new(self.create_gas_adjuster().await);
@@ -138,8 +138,8 @@ impl Tester {
         self.current_timestamp = timestamp;
     }
 
-    pub(super) async fn genesis(&self, pool: &ConnectionPool<Server>) {
-        let mut storage = pool.access_storage_tagged("state_keeper").await.unwrap();
+    pub(super) async fn genesis(&self, pool: &ConnectionPool<Core>) {
+        let mut storage = pool.connection_tagged("state_keeper").await.unwrap();
         if storage.blocks_dal().is_genesis_needed().await.unwrap() {
             create_genesis_l1_batch(
                 &mut storage,
@@ -157,12 +157,12 @@ impl Tester {
 
     pub(super) async fn insert_miniblock(
         &self,
-        pool: &ConnectionPool<Server>,
+        pool: &ConnectionPool<Core>,
         number: u32,
         base_fee_per_gas: u64,
         fee_input: BatchFeeInput,
     ) -> TransactionExecutionResult {
-        let mut storage = pool.access_storage_tagged("state_keeper").await.unwrap();
+        let mut storage = pool.connection_tagged("state_keeper").await.unwrap();
         let tx = create_l2_transaction(10, 100);
         storage
             .transactions_dal()
@@ -193,12 +193,12 @@ impl Tester {
 
     pub(super) async fn insert_sealed_batch(
         &self,
-        pool: &ConnectionPool<Server>,
+        pool: &ConnectionPool<Core>,
         number: u32,
         tx_results: &[TransactionExecutionResult],
     ) {
         let batch_header = create_l1_batch(number);
-        let mut storage = pool.access_storage_tagged("state_keeper").await.unwrap();
+        let mut storage = pool.connection_tagged("state_keeper").await.unwrap();
         storage
             .blocks_dal()
             .insert_mock_l1_batch(&batch_header)

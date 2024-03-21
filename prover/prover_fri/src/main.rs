@@ -4,7 +4,7 @@ use std::{future::Future, sync::Arc};
 use anyhow::Context as _;
 use local_ip_address::local_ip;
 use prometheus_exporter::PrometheusExporterConfig;
-use prover_dal::{ConnectionPool, Prover, ProverDals};
+use prover_dal::{ConnectionPool, Prover, ProverDal};
 use tokio::{
     sync::{oneshot, watch::Receiver},
     task::JoinHandle,
@@ -44,7 +44,7 @@ async fn graceful_shutdown(port: u16) -> anyhow::Result<impl Future<Output = ()>
     let zone = get_zone(zone_url).await.context("get_zone()")?;
     let address = SocketAddress { host, port };
     Ok(async move {
-        pool.access_storage()
+        pool.connection()
             .await
             .unwrap()
             .fri_gpu_prover_queue_dal()

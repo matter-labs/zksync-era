@@ -2,7 +2,7 @@ use std::convert::TryInto;
 
 use anyhow::Context as _;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
-use zksync_db_connection::processor::StorageProcessor;
+use zksync_db_connection::connection::Connection;
 use zksync_types::{
     protocol_upgrade::{ProtocolUpgradeTx, ProtocolVersion},
     protocol_version::{L1VerifierConfig, VerifierParams},
@@ -11,12 +11,12 @@ use zksync_types::{
 
 use crate::{
     models::storage_protocol_version::{protocol_version_from_storage, StorageProtocolVersion},
-    Server, ServerDals,
+    Core, CoreDal,
 };
 
 #[derive(Debug)]
 pub struct ProtocolVersionsDal<'a, 'c> {
-    pub storage: &'a mut StorageProcessor<'c, Server>,
+    pub storage: &'a mut Connection<'c, Core>,
 }
 
 impl ProtocolVersionsDal<'_, '_> {

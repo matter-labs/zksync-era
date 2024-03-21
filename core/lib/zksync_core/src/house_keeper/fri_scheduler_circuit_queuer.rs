@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use prover_dal::{Prover, ProverDals};
+use prover_dal::{Prover, ProverDal};
 use zksync_dal::ConnectionPool;
 
 use crate::house_keeper::periodic_job::PeriodicJob;
@@ -19,7 +19,7 @@ impl SchedulerCircuitQueuer {
     }
 
     pub async fn queue_scheduler_circuit_jobs(&mut self) {
-        let mut conn = self.pool.access_storage().await.unwrap();
+        let mut conn = self.pool.connection().await.unwrap();
         let l1_batch_numbers = conn
             .fri_scheduler_dependency_tracker_dal()
             .get_l1_batches_ready_for_queuing()

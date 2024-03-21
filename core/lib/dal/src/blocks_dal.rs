@@ -8,7 +8,7 @@ use std::{
 use anyhow::Context as _;
 use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive};
 use zksync_db_connection::{
-    instrument::InstrumentExt, interpolate_query, match_query_as, processor::StorageProcessor,
+    connection::Connection, instrument::InstrumentExt, interpolate_query, match_query_as,
 };
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
@@ -21,12 +21,12 @@ use zksync_types::{
 
 use crate::{
     models::storage_block::{StorageL1Batch, StorageL1BatchHeader, StorageMiniblockHeader},
-    Server, ServerDals,
+    Core, CoreDal,
 };
 
 #[derive(Debug)]
 pub struct BlocksDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c, Server>,
+    pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
 impl BlocksDal<'_, '_> {
@@ -2416,12 +2416,12 @@ mod tests {
     };
 
     use super::*;
-    use crate::{tests::create_miniblock_header, ConnectionPool, Server, ServerDals};
+    use crate::{tests::create_miniblock_header, ConnectionPool, Core, CoreDal};
 
     #[tokio::test]
     async fn loading_l1_batch_header() {
-        let pool = ConnectionPool::<Server>::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -2476,8 +2476,8 @@ mod tests {
 
     #[tokio::test]
     async fn getting_predicted_gas() {
-        let pool = ConnectionPool::<Server>::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -2537,8 +2537,8 @@ mod tests {
     #[allow(deprecated)] // that's the whole point
     #[tokio::test]
     async fn checking_fee_account_address_in_l1_batches() {
-        let pool = ConnectionPool::<Server>::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
         assert!(conn
             .blocks_dal()
             .check_l1_batches_have_fee_account_address()
@@ -2549,8 +2549,8 @@ mod tests {
     #[allow(deprecated)] // that's the whole point
     #[tokio::test]
     async fn ensuring_fee_account_address_for_miniblocks() {
-        let pool = ConnectionPool::<Server>::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;

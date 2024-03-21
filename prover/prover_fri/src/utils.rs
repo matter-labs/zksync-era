@@ -2,7 +2,7 @@
 
 use std::{sync::Arc, time::Instant};
 
-use prover_dal::{Prover, ProverDals, StorageProcessor};
+use prover_dal::{Connection, Prover, ProverDal};
 use tokio::sync::Mutex;
 use zkevm_test_harness::prover_utils::{
     verify_base_layer_proof, verify_eip4844_proof, verify_recursion_layer_proof,
@@ -66,7 +66,7 @@ pub async fn save_proof(
     blob_store: &dyn ObjectStore,
     public_blob_store: Option<&dyn ObjectStore>,
     shall_save_to_public_bucket: bool,
-    storage_processor: &mut StorageProcessor<'_, Prover>,
+    storage_processor: &mut Connection<'_, Prover>,
 ) {
     tracing::info!(
         "Successfully proven job: {}, total time taken: {:?}",

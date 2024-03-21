@@ -6,7 +6,7 @@ use multivm::utils::derive_base_fee_and_gas_per_pubdata;
 use tokio::sync::mpsc;
 use tokio::sync::watch;
 use zksync_config::configs::chain::MempoolConfig;
-use zksync_dal::{ConnectionPool, Server, ServerDals, StorageProcessor};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
 #[cfg(test)]
 use zksync_types::H256;
@@ -35,7 +35,7 @@ pub async fn l2_tx_filter(
 #[derive(Debug)]
 pub struct MempoolFetcher {
     mempool: MempoolGuard,
-    pool: ConnectionPool<Server>,
+    pool: ConnectionPool<Core>,
     batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     sync_interval: Duration,
     sync_batch_size: usize,
@@ -49,7 +49,7 @@ impl MempoolFetcher {
         mempool: MempoolGuard,
         batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
         config: &MempoolConfig,
-        pool: ConnectionPool<Server>,
+        pool: ConnectionPool<Core>,
     ) -> Self {
         Self {
             mempool,
@@ -64,7 +64,7 @@ impl MempoolFetcher {
     }
 
     pub async fn run(mut self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
-        let mut storage = self.pool.access_storage_tagged("state_keeper").await?;
+        let mut storage = self.pool.connection_tagged("state_keeper").await?;
         if let Some(stuck_tx_timeout) = self.stuck_tx_timeout {
             let removed_txs = storage
                 .transactions_dal()
@@ -86,7 +86,7 @@ impl MempoolFetcher {
                 break;
             }
             let latency = KEEPER_METRICS.mempool_sync.start();
-            let mut storage = self.pool.access_storage_tagged("state_keeper").await?;
+            let mut storage = self.pool.connection_tagged("state_keeper").await?;
             let mempool_info = self.mempool.get_mempool_info();
             let protocol_version = pending_protocol_version(&mut storage)
                 .await
@@ -131,7 +131,7 @@ impl MempoolFetcher {
 
 /// Loads nonces for all distinct `transactions` initiators from the storage.
 async fn get_transaction_nonces(
-    storage: &mut StorageProcessor<'_, Server>,
+    storage: &mut Connection<'_, Core>,
     transactions: &[Transaction],
 ) -> anyhow::Result<HashMap<Address, Nonce>> {
     let (nonce_keys, address_by_nonce_key): (Vec<_>, HashMap<_, _>) = transactions
@@ -183,8 +183,8 @@ mod tests {
 
     #[tokio::test]
     async fn getting_transaction_nonces() {
-        let pool = ConnectionPool::<Server>::test_pool().await;
-        let mut storage = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut storage = pool.connection().await.unwrap();
 
         let transaction = create_l2_transaction(10, 100);
         let transaction_initiator = transaction.initiator_account();
@@ -217,8 +217,8 @@ mod tests {
 
     #[tokio::test]
     async fn syncing_mempool_basics() {
-        let pool = ConnectionPool::<Server>::constrained_test_pool(1).await;
-        let mut storage = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+        let mut storage = pool.connection().await.unwrap();
         ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
             .await
             .unwrap();
@@ -244,7 +244,7 @@ mod tests {
         // Add a new transaction to the storage.
         let transaction = create_l2_transaction(base_fee, gas_per_pubdata);
         let transaction_hash = transaction.hash();
-        let mut storage = pool.access_storage().await.unwrap();
+        let mut storage = pool.connection().await.unwrap();
         storage
             .transactions_dal()
             .insert_transaction_l2(transaction, TransactionExecutionMetrics::default())
@@ -274,8 +274,8 @@ mod tests {
 
     #[tokio::test]
     async fn ignoring_transaction_with_insufficient_fee() {
-        let pool = ConnectionPool::<Server>::constrained_test_pool(1).await;
-        let mut storage = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+        let mut storage = pool.connection().await.unwrap();
         ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
             .await
             .unwrap();
@@ -298,7 +298,7 @@ mod tests {
 
         // Add a transaction with insufficient fee to the storage.
         let transaction = create_l2_transaction(base_fee / 2, gas_per_pubdata / 2);
-        let mut storage = pool.access_storage().await.unwrap();
+        let mut storage = pool.connection().await.unwrap();
         storage
             .transactions_dal()
             .insert_transaction_l2(transaction, TransactionExecutionMetrics::default())
@@ -314,8 +314,8 @@ mod tests {
 
     #[tokio::test]
     async fn ignoring_transaction_with_old_nonce() {
-        let pool = ConnectionPool::<Server>::constrained_test_pool(1).await;
-        let mut storage = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+        let mut storage = pool.connection().await.unwrap();
         ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
             .await
             .unwrap();
@@ -344,7 +344,7 @@ mod tests {
         let transaction_hash = transaction.hash();
         let nonce_key = get_nonce_key(&transaction.initiator_account());
         let nonce_log = StorageLog::new_write_log(nonce_key, u256_to_h256(42.into()));
-        let mut storage = pool.access_storage().await.unwrap();
+        let mut storage = pool.connection().await.unwrap();
         storage
             .storage_logs_dal()
             .append_storage_logs(MiniblockNumber(0), &[(H256::zero(), vec![nonce_log])])

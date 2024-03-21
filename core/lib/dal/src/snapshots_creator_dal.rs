@@ -1,14 +1,14 @@
-use zksync_db_connection::{instrument::InstrumentExt, processor::StorageProcessor};
+use zksync_db_connection::{connection::Connection, instrument::InstrumentExt};
 use zksync_types::{
     snapshots::SnapshotStorageLog, AccountTreeId, Address, L1BatchNumber, MiniblockNumber,
     StorageKey, H256,
 };
 
-use crate::Server;
+use crate::Core;
 
 #[derive(Debug)]
 pub struct SnapshotsCreatorDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c, Server>,
+    pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
 impl SnapshotsCreatorDal<'_, '_> {
@@ -146,12 +146,12 @@ mod tests {
     use zksync_types::StorageLog;
 
     use super::*;
-    use crate::{ConnectionPool, Server, ServerDals};
+    use crate::{ConnectionPool, Core, CoreDal};
 
     #[tokio::test]
     async fn getting_storage_log_chunks_basics() {
-        let pool = ConnectionPool::<Server>::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
 
         let logs = (0..100).map(|i| {
             let key = StorageKey::new(
@@ -222,7 +222,7 @@ mod tests {
     }
 
     async fn assert_logs_for_snapshot(
-        conn: &mut StorageProcessor<'_, Server>,
+        conn: &mut Connection<'_, Core>,
         miniblock_number: MiniblockNumber,
         l1_batch_number: L1BatchNumber,
         expected_logs: &[StorageLog],
@@ -262,8 +262,8 @@ mod tests {
 
     #[tokio::test]
     async fn phantom_writes_are_filtered_out() {
-        let pool = ConnectionPool::<Server>::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
 
         let key = StorageKey::new(AccountTreeId::default(), H256::repeat_byte(1));
         let phantom_writes = vec![

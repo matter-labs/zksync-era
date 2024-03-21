@@ -1,16 +1,16 @@
 use anyhow::Context as _;
 use zksync_consensus_roles::validator;
 use zksync_consensus_storage::ReplicaState;
-use zksync_db_connection::processor::StorageProcessor;
+use zksync_db_connection::connection::Connection;
 use zksync_types::MiniblockNumber;
 
 pub use crate::models::consensus::Payload;
-use crate::{Server, ServerDals};
+use crate::{Core, CoreDal};
 
 /// Storage access methods for `zksync_core::consensus` module.
 #[derive(Debug)]
 pub struct ConsensusDal<'a, 'c> {
-    pub storage: &'a mut StorageProcessor<'c, Server>,
+    pub storage: &'a mut Connection<'c, Core>,
 }
 
 impl ConsensusDal<'_, '_> {
@@ -330,13 +330,13 @@ mod tests {
     use zksync_consensus_roles::validator;
     use zksync_consensus_storage::ReplicaState;
 
-    use crate::{ConnectionPool, Server, ServerDals};
+    use crate::{ConnectionPool, Core, CoreDal};
 
     #[tokio::test]
     async fn replica_state_read_write() {
         let rng = &mut rand::thread_rng();
-        let pool = ConnectionPool::<Server>::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
         assert_eq!(None, conn.consensus_dal().genesis().await.unwrap());
         for n in 0..3 {
             let fork = validator::Fork {

@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use async_trait::async_trait;
-use prover_dal::{Prover, ProverDals};
+use prover_dal::{Prover, ProverDal};
 use zksync_dal::ConnectionPool;
 
 use crate::house_keeper::periodic_job::PeriodicJob;
@@ -32,7 +32,7 @@ impl FriWitnessGeneratorJobRetryManager {
     pub async fn requeue_stuck_witness_inputs_jobs(&mut self) {
         let stuck_jobs = self
             .pool
-            .access_storage()
+            .connection()
             .await
             .unwrap()
             .fri_witness_generator_dal()
@@ -48,7 +48,7 @@ impl FriWitnessGeneratorJobRetryManager {
     pub async fn requeue_stuck_leaf_aggregations_jobs(&mut self) {
         let stuck_jobs = self
             .pool
-            .access_storage()
+            .connection()
             .await
             .unwrap()
             .fri_witness_generator_dal()
@@ -67,7 +67,7 @@ impl FriWitnessGeneratorJobRetryManager {
     pub async fn requeue_stuck_node_aggregations_jobs(&mut self) {
         let stuck_jobs = self
             .pool
-            .access_storage()
+            .connection()
             .await
             .unwrap()
             .fri_witness_generator_dal()
@@ -86,7 +86,7 @@ impl FriWitnessGeneratorJobRetryManager {
     pub async fn requeue_stuck_scheduler_jobs(&mut self) {
         let stuck_jobs = self
             .pool
-            .access_storage()
+            .connection()
             .await
             .unwrap()
             .fri_witness_generator_dal()

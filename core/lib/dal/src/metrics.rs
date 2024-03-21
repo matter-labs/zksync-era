@@ -3,9 +3,9 @@ use std::time::Duration;
 
 use anyhow::Context;
 use vise::{Gauge, LabeledFamily, Metrics, Unit};
-use zksync_db_connection::connection::ConnectionPool;
+use zksync_db_connection::connection_pool::ConnectionPool;
 
-use crate::{Server, ServerDals};
+use crate::{Core, CoreDal};
 
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "postgres")]
@@ -28,7 +28,7 @@ pub struct PostgresMetrics {
 static POSTGRES_METRICS: vise::Global<PostgresMetrics> = vise::Global::new();
 
 impl PostgresMetrics {
-    pub async fn run_scraping(pool: ConnectionPool<Server>, scrape_interval: Duration) {
+    pub async fn run_scraping(pool: ConnectionPool<Core>, scrape_interval: Duration) {
         let scrape_timeout = Duration::from_secs(1).min(scrape_interval / 2);
         loop {
             match tokio::time::timeout(scrape_timeout, Self::scrape(&pool)).await {
@@ -44,9 +44,9 @@ impl PostgresMetrics {
         }
     }
 
-    async fn scrape(pool: &ConnectionPool<Server>) -> anyhow::Result<()> {
+    async fn scrape(pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
         let mut storage = pool
-            .access_storage_tagged("postgres_metrics")
+            .connection_tagged("postgres_metrics")
             .await
             .context("cannot acquire Postgres connection")?;
         let table_sizes = storage

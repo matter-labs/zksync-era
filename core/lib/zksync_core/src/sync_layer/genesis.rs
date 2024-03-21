@@ -1,6 +1,6 @@
 use anyhow::Context as _;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SystemContractCode};
-use zksync_dal::{Server, ServerDals, StorageProcessor};
+use zksync_dal::{Connection, Core, CoreDal};
 use zksync_types::{
     block::DeployedContract, protocol_version::L1VerifierConfig,
     system_contracts::get_system_smart_contracts, AccountTreeId, L1BatchNumber, L2ChainId, H256,
@@ -10,7 +10,7 @@ use super::client::MainNodeClient;
 use crate::genesis::{ensure_genesis_state, GenesisParams};
 
 pub async fn perform_genesis_if_needed(
-    storage: &mut StorageProcessor<'_, Server>,
+    storage: &mut Connection<'_, Core>,
     zksync_chain_id: L2ChainId,
     client: &dyn MainNodeClient,
 ) -> anyhow::Result<()> {
