@@ -1,5 +1,8 @@
+use std::collections::hash_map::{Entry, HashMap};
+
+use tokio::sync::Mutex;
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, Core, CoreDal};
-use zksync_types::{fee::TransactionExecutionMetrics, l2::L2Tx};
+use zksync_types::{fee::TransactionExecutionMetrics, l2::L2Tx, Address, Nonce, H256};
 
 use super::{tx_sink::TxSink, SubmitTxError};
 use crate::metrics::{TxStage, APP_METRICS};
@@ -8,11 +11,15 @@ use crate::metrics::{TxStage, APP_METRICS};
 #[derive(Debug)]
 pub struct MasterPoolSink {
     master_pool: ConnectionPool<Core>,
+    inflight_requests: Mutex<HashMap<(Address, Nonce), H256>>,
 }
 
 impl MasterPoolSink {
     pub fn new(master_pool: ConnectionPool<Core>) -> Self {
-        Self { master_pool }
+        Self {
+            master_pool,
+            inflight_requests: Mutex::new(HashMap::new()),
+        }
     }
 }
 
@@ -23,6 +30,23 @@ impl TxSink for MasterPoolSink {
         tx: L2Tx,
         execution_metrics: TransactionExecutionMetrics,
     ) -> Result<L2TxSubmissionResult, SubmitTxError> {
+        let address_and_nonce = (tx.initiator_account(), tx.nonce());
+
+        let mut lock = self.inflight_requests.lock().await;
+        match lock.entry(address_and_nonce) {
+            Entry::Occupied(entry) => {
+                let submission_res_handle = if entry.get() == &tx.hash() {
+                    L2TxSubmissionResult::Duplicate
+                } else {
+                    L2TxSubmissionResult::NonceInProgress
+                };
+                APP_METRICS.processed_txs[&TxStage::Mempool(submission_res_handle)].inc();
+                return Ok(submission_res_handle);
+            }
+            Entry::Vacant(entry) => entry.insert(tx.hash()),
+        };
+        drop(lock);
+
         let submission_res_handle = self
             .master_pool
             .connection_tagged("api")
@@ -32,6 +56,11 @@ impl TxSink for MasterPoolSink {
             .await;
 
         APP_METRICS.processed_txs[&TxStage::Mempool(submission_res_handle)].inc();
+        self.inflight_requests
+            .lock()
+            .await
+            .remove(&address_and_nonce);
+
         Ok(submission_res_handle)
     }
 }
