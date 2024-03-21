@@ -18,7 +18,7 @@ impl WiringLayer for SigintHandlerLayer {
     }
 
     async fn wire(self: Box<Self>, mut node: ServiceContext<'_>) -> Result<(), WiringError> {
-        // Sigint may happen at any time, so we must handle it as soon as it happens.
+        // SIGINT may happen at any time, so we must handle it as soon as it happens.
         node.add_unconstrained_task(Box::new(SigintHandlerTask));
         Ok(())
     }
