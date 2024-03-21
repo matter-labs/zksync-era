@@ -223,16 +223,21 @@ describe('snapshot recovery', () => {
         const contract: zkweb3.Contract = new zkweb3.Contract(address, gettersABI, provider);
 
         const pricingMode = await contract.getPubdataPricingMode();
+        const environment =
+            pricingMode === 1
+                ? {
+                      ...process.env,
+                      ZKSYNC_ENV: 'ext-node-validium'
+                  }
+                : externalNodeEnv;
 
-        console.log(`pricingMode = ${pricingMode === 1 ? 'Validium' : 'Rollup'}`);
-
-        const nodeEnvironment = pricingMode === 1 ? 'ZKSYNC_ENV=ext-node-validium &&' : '';
-        console.log(`nodeEnvironment = ${nodeEnvironment}`);
-        externalNodeProcess = spawn(`${nodeEnvironment} zk external-node -- --enable-snapshots-recovery`, {
+        console.log(`${JSON.stringify(process.env)}`);
+        console.log(`environment = ${JSON.stringify(environment)}`);
+        externalNodeProcess = spawn('zk external-node -- --enable-snapshots-recovery', {
             cwd: homeDir,
             stdio: [null, externalNodeLogs.fd, externalNodeLogs.fd],
             shell: true,
-            env: externalNodeEnv
+            env: environment
         });
 
         let recoveryFinished = false;
