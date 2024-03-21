@@ -70,14 +70,11 @@ async fn main() -> anyhow::Result<()> {
             .with_sentry_environment(observability_config.sentry_environment);
     }
 
-    if let (Some(opentelemetry_level), Some(otlp_endpoint)) = (
-        observability_config.opentelemetry_level,
-        observability_config.otlp_endpoint,
-    ) {
+    if let Some(opentelemetry) = observability_config.opentelemetry {
         builder = builder
             .with_opentelemetry(
-                &opentelemetry_level,
-                otlp_endpoint,
+                &opentelemetry.level,
+                opentelemetry.endpoint,
                 "zksync-prover-fri".into(),
             )
             .expect("Invalid OpenTelemetry config");

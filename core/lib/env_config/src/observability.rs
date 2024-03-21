@@ -1,4 +1,4 @@
-use zksync_config::configs::ObservabilityConfig;
+use zksync_config::configs::{ObservabilityConfig, OpentelemetryConfig};
 
 use crate::FromEnv;
 
@@ -35,13 +35,16 @@ impl FromEnv for ObservabilityConfig {
         };
         let opentelemetry_level = std::env::var("OPENTELEMETRY_LEVEL").ok();
         let otlp_endpoint = std::env::var("OTLP_ENDPOINT").ok();
+        let opentelemetry = match (opentelemetry_level, otlp_endpoint) {
+            (Some(level), Some(endpoint)) => Some(OpentelemetryConfig { level, endpoint }),
+            _ => None,
+        };
 
         Ok(ObservabilityConfig {
             sentry_url,
             sentry_environment,
-            opentelemetry_level,
-            otlp_endpoint,
             log_format,
+            opentelemetry,
         })
     }
 }

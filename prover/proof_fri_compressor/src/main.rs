@@ -5,6 +5,7 @@ use prometheus_exporter::PrometheusExporterConfig;
 use prover_dal::{ConnectionPool, Prover};
 use structopt::StructOpt;
 use tokio::sync::{oneshot, watch};
+use zkevm_test_harness::boojum::utils::PipeOp;
 use zksync_config::configs::{FriProofCompressorConfig, ObservabilityConfig, PostgresConfig};
 use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
@@ -46,14 +47,11 @@ async fn main() -> anyhow::Result<()> {
             .expect("Invalid Sentry URL")
             .with_sentry_environment(observability_config.sentry_environment);
     }
-    if let (Some(opentelemetry_level), Some(otlp_endpoint)) = (
-        observability_config.opentelemetry_level,
-        observability_config.otlp_endpoint,
-    ) {
+    if let Some(opentelemetry) = observability_config.opentelemetry {
         builder = builder
             .with_opentelemetry(
-                &opentelemetry_level,
-                otlp_endpoint,
+                &opentelemetry.level,
+                opentelemetry.endpoint,
                 "zksync-prover-fri-compressor".into(),
             )
             .expect("Invalid OpenTelemetry config");
