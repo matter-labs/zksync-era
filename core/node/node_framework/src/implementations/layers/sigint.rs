@@ -34,7 +34,7 @@ impl UnconstrainedTask for SigintHandlerTask {
     }
 
     async fn run_unconstrained(
-        mut self: Box<Self>,
+        self: Box<Self>,
         mut stop_receiver: StopReceiver,
     ) -> anyhow::Result<()> {
         let (sigint_sender, sigint_receiver) = oneshot::channel();
