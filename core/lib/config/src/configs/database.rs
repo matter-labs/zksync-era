@@ -133,7 +133,7 @@ pub struct PostgresConfig {
     pub prover_url: Option<String>,
     /// Maximum size of the connection pool.
     pub max_connections: Option<u32>,
-    /// Maximum size of the connection pool to master DB
+    /// Maximum size of the connection pool to master DB.
     pub max_connections_master: Option<u32>,
 
     /// Acquire timeout in seconds for a single connection attempt. There are multiple attempts (currently 3)
