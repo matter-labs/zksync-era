@@ -1,6 +1,7 @@
 //! Miscellaneous helper macros.
 
 /// Writes to a [`String`]. This is equivalent to `write!`, but without the need to `unwrap()` the result.
+#[macro_export]
 macro_rules! write_str {
     ($buffer:expr, $($args:tt)+) => {{
         use std::fmt::Write as _;
@@ -11,6 +12,7 @@ macro_rules! write_str {
 
 /// Writing a line to a [`String`]. This is equivalent to `writeln!`, but without the need
 /// to `unwrap()` the result.
+#[macro_export]
 macro_rules! writeln_str {
     ($buffer:expr, $($args:tt)+) => {{
         use std::fmt::Write as _;
@@ -24,6 +26,7 @@ macro_rules! writeln_str {
 ///
 /// We use tail recursion and accumulate (possibly substituted) parts in an accumulator. This is because `query_as!` would not
 /// work otherwise; its input must be fully expanded.
+#[macro_export]
 macro_rules! interpolate_query {
     // Terminal clause: we have a final substitution.
     (query_type: $query_type:ty; acc: $acc:expr; args: $($args:expr,)*; (_,) => $var:literal,) => {
@@ -77,6 +80,7 @@ macro_rules! interpolate_query {
 ///   The number of arguments may differ across variants (e.g., one of variants may introduce one or more additional args).
 ///
 /// See the crate code for examples of usage.
+#[macro_export]
 macro_rules! match_query_as {
     (
         $query_type:ty,

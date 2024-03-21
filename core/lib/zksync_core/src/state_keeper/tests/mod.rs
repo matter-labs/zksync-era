@@ -31,13 +31,14 @@ use zksync_types::{
 mod tester;
 
 use self::tester::{
-    bootloader_tip_out_of_gas, pending_batch_data, random_tx, random_upgrade_tx, rejected_exec,
-    successful_exec, successful_exec_with_metrics, TestIO, TestScenario,
+    pending_batch_data, random_tx, random_upgrade_tx, rejected_exec, successful_exec,
+    successful_exec_with_metrics, TestIO, TestScenario,
 };
 pub(crate) use self::tester::{MockBatchExecutor, TestBatchExecutorBuilder};
 use crate::{
     gas_tracker::l1_batch_base_cost,
     state_keeper::{
+        batch_executor::TxExecutionResult,
         keeper::POLL_WAIT_DURATION,
         seal_criteria::{
             criteria::{GasCriterion, SlotsCriterion},
@@ -369,7 +370,7 @@ async fn bootloader_tip_out_of_gas_flow() {
         .next_tx(
             "Tx -> Bootloader tip out of gas",
             bootloader_out_of_gas_tx.clone(),
-            bootloader_tip_out_of_gas(),
+            TxExecutionResult::BootloaderOutOfGasForTx,
         )
         .tx_rollback(
             "Last tx rolled back to seal the block",

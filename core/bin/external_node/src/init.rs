@@ -3,7 +3,7 @@
 use anyhow::Context as _;
 use zksync_basic_types::{L1BatchNumber, L2ChainId};
 use zksync_core::sync_layer::genesis::perform_genesis_if_needed;
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_health_check::AppHealthCheck;
 use zksync_object_store::ObjectStoreFactory;
 use zksync_snapshots_applier::SnapshotsApplierConfig;
@@ -20,13 +20,13 @@ enum InitDecision {
 }
 
 pub(crate) async fn ensure_storage_initialized(
-    pool: &ConnectionPool,
+    pool: &ConnectionPool<Core>,
     main_node_client: &HttpClient,
     app_health: &AppHealthCheck,
     l2_chain_id: L2ChainId,
     consider_snapshot_recovery: bool,
 ) -> anyhow::Result<()> {
-    let mut storage = pool.access_storage_tagged("en").await?;
+    let mut storage = pool.connection_tagged("en").await?;
     let genesis_l1_batch = storage
         .blocks_dal()
         .get_l1_batch_header(L1BatchNumber(0))
@@ -67,7 +67,7 @@ pub(crate) async fn ensure_storage_initialized(
     tracing::info!("Chosen node initialization strategy: {decision:?}");
     match decision {
         InitDecision::Genesis => {
-            let mut storage = pool.access_storage_tagged("en").await?;
+            let mut storage = pool.connection_tagged("en").await?;
             perform_genesis_if_needed(&mut storage, l2_chain_id, main_node_client)
                 .await
                 .context("performing genesis failed")?;

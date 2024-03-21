@@ -2,10 +2,14 @@ use std::{
     collections::HashMap,
     convert::{Into, TryInto},
     ops,
+    ops::RangeInclusive,
 };
 
 use anyhow::Context as _;
 use bigdecimal::{BigDecimal, FromPrimitive, ToPrimitive};
+use zksync_db_connection::{
+    connection::Connection, instrument::InstrumentExt, interpolate_query, match_query_as,
+};
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     block::{BlockGasCount, L1BatchHeader, L1BatchTreeData, MiniblockHeader},
@@ -16,14 +20,13 @@ use zksync_types::{
 };
 
 use crate::{
-    instrument::InstrumentExt,
     models::storage_block::{StorageL1Batch, StorageL1BatchHeader, StorageMiniblockHeader},
-    StorageProcessor,
+    Core, CoreDal,
 };
 
 #[derive(Debug)]
 pub struct BlocksDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
 impl BlocksDal<'_, '_> {
@@ -2155,6 +2158,71 @@ impl BlocksDal<'_, '_> {
         .await?
         .map(|row| row.virtual_blocks as u32))
     }
+
+    pub async fn get_first_l1_batch_number_for_version(
+        &mut self,
+        protocol_version: ProtocolVersionId,
+    ) -> sqlx::Result<Option<L1BatchNumber>> {
+        Ok(sqlx::query!(
+            r#"
+            SELECT
+                MIN(number) AS "min?"
+            FROM
+                l1_batches
+            WHERE
+                protocol_version = $1
+            "#,
+            protocol_version as i32
+        )
+        .fetch_optional(self.storage.conn())
+        .await?
+        .and_then(|row| row.min)
+        .map(|min| L1BatchNumber(min as u32)))
+    }
+
+    pub async fn reset_protocol_version_for_l1_batches(
+        &mut self,
+        l1_batch_range: RangeInclusive<L1BatchNumber>,
+        protocol_version: ProtocolVersionId,
+    ) -> sqlx::Result<()> {
+        sqlx::query!(
+            r#"
+            UPDATE l1_batches
+            SET
+                protocol_version = $1
+            WHERE
+                number BETWEEN $2 AND $3
+            "#,
+            protocol_version as i32,
+            i64::from(l1_batch_range.start().0),
+            i64::from(l1_batch_range.end().0),
+        )
+        .execute(self.storage.conn())
+        .await?;
+        Ok(())
+    }
+
+    pub async fn reset_protocol_version_for_miniblocks(
+        &mut self,
+        miniblock_range: RangeInclusive<MiniblockNumber>,
+        protocol_version: ProtocolVersionId,
+    ) -> sqlx::Result<()> {
+        sqlx::query!(
+            r#"
+            UPDATE miniblocks
+            SET
+                protocol_version = $1
+            WHERE
+                number BETWEEN $2 AND $3
+            "#,
+            protocol_version as i32,
+            i64::from(miniblock_range.start().0),
+            i64::from(miniblock_range.end().0),
+        )
+        .execute(self.storage.conn())
+        .await?;
+        Ok(())
+    }
 }
 
 /// Temporary methods for migrating `fee_account_address`.
@@ -2362,12 +2430,12 @@ mod tests {
     };
 
     use super::*;
-    use crate::{tests::create_miniblock_header, ConnectionPool};
+    use crate::{tests::create_miniblock_header, ConnectionPool, Core, CoreDal};
 
     #[tokio::test]
     async fn loading_l1_batch_header() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -2422,8 +2490,8 @@ mod tests {
 
     #[tokio::test]
     async fn getting_predicted_gas() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -2483,8 +2551,8 @@ mod tests {
     #[allow(deprecated)] // that's the whole point
     #[tokio::test]
     async fn checking_fee_account_address_in_l1_batches() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
         assert!(conn
             .blocks_dal()
             .check_l1_batches_have_fee_account_address()
@@ -2495,8 +2563,8 @@ mod tests {
     #[allow(deprecated)] // that's the whole point
     #[tokio::test]
     async fn ensuring_fee_account_address_for_miniblocks() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;

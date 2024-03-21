@@ -919,3 +919,5 @@ stateful
 WIP
 oneshot
 p2p
+StorageProcessor
+StorageMarker

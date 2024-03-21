@@ -60,6 +60,11 @@ impl<S> StorageView<S> {
             is_write_initial: self.initial_writes_cache.clone(),
         }
     }
+
+    /// Returns the modified storage keys
+    pub fn modified_storage_keys(&self) -> &HashMap<StorageKey, StorageValue> {
+        &self.modified_storage_keys
+    }
 }
 
 impl<S> ReadStorage for Box<S>
@@ -175,6 +180,10 @@ impl<S: ReadStorage + fmt::Debug> ReadStorage for StorageView<S> {
 }
 
 impl<S: ReadStorage + fmt::Debug> WriteStorage for StorageView<S> {
+    fn read_storage_keys(&self) -> &HashMap<StorageKey, StorageValue> {
+        &self.read_storage_keys
+    }
+
     fn set_value(&mut self, key: StorageKey, value: StorageValue) -> StorageValue {
         let started_at = Instant::now();
         self.metrics.set_value_storage_invocations += 1;

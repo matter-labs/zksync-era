@@ -2,24 +2,21 @@
 use std::{collections::HashMap, convert::TryFrom, time::Duration};
 
 use sqlx::Row;
-use zksync_types::{
+use zksync_basic_types::{
     basic_fri_types::{AggregationRound, Eip4844Blobs},
     protocol_version::FriProtocolVersionId,
-    L1BatchNumber,
-};
-
-use crate::{
-    fri_prover_dal::types::{
+    prover_dal::{
         JobCountStatistics, LeafAggregationJobMetadata, NodeAggregationJobMetadata, StuckJobs,
     },
-    metrics::MethodLatency,
-    time_utils::{duration_to_naive_time, pg_interval_from_duration},
-    StorageProcessor,
+    L1BatchNumber,
 };
+use zksync_db_connection::{connection::Connection, metrics::MethodLatency};
+
+use crate::{duration_to_naive_time, pg_interval_from_duration, Prover};
 
 #[derive(Debug)]
 pub struct FriWitnessGeneratorDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut Connection<'c, Prover>,
 }
 
 #[derive(Debug, strum::Display, strum::EnumString, strum::AsRefStr)]

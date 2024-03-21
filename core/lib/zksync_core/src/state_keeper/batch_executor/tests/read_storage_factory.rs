@@ -1,7 +1,7 @@
 use anyhow::Context;
 use async_trait::async_trait;
 use tokio::sync::watch;
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Core};
 use zksync_state::RocksdbStorage;
 
 use crate::state_keeper::{
@@ -11,7 +11,7 @@ use crate::state_keeper::{
 
 #[derive(Debug, Clone)]
 pub struct PostgresFactory {
-    pool: ConnectionPool,
+    pool: ConnectionPool<Core>,
 }
 
 #[async_trait]
@@ -27,14 +27,14 @@ impl ReadStorageFactory for PostgresFactory {
 }
 
 impl PostgresFactory {
-    pub fn new(pool: ConnectionPool) -> Self {
+    pub fn new(pool: ConnectionPool<Core>) -> Self {
         Self { pool }
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct RocksdbFactory {
-    pool: ConnectionPool,
+    pool: ConnectionPool<Core>,
     state_keeper_db_path: String,
     enum_index_migration_chunk_size: usize,
 }
@@ -51,7 +51,7 @@ impl ReadStorageFactory for RocksdbFactory {
         builder.enable_enum_index_migration(self.enum_index_migration_chunk_size);
         let mut conn = self
             .pool
-            .access_storage_tagged("state_keeper")
+            .connection_tagged("state_keeper")
             .await
             .context("Failed getting a connection to Postgres")?;
         let Some(rocksdb_storage) = builder
@@ -67,7 +67,7 @@ impl ReadStorageFactory for RocksdbFactory {
 
 impl RocksdbFactory {
     pub fn new(
-        pool: ConnectionPool,
+        pool: ConnectionPool<Core>,
         state_keeper_db_path: String,
         enum_index_migration_chunk_size: usize,
     ) -> Self {

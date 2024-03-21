@@ -11,7 +11,7 @@ use tempfile::TempDir;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::{get_loadnext_contract, test_contracts::LoadnextContractExecutionParams};
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_test_account::{Account, DeployContractsTx, TxType};
 use zksync_types::{
     block::MiniblockHasher, ethabi::Token, fee::Fee, snapshots::SnapshotRecoveryStatus,
@@ -72,17 +72,17 @@ impl TestConfig {
 pub(super) struct Tester {
     fee_account: Address,
     db_dir: TempDir,
-    pool: ConnectionPool,
+    pool: ConnectionPool<Core>,
     config: TestConfig,
     tasks: Vec<JoinHandle<()>>,
 }
 
 impl Tester {
-    pub(super) fn new(pool: ConnectionPool) -> Self {
+    pub(super) fn new(pool: ConnectionPool<Core>) -> Self {
         Self::with_config(pool, TestConfig::new())
     }
 
-    pub(super) fn with_config(pool: ConnectionPool, config: TestConfig) -> Self {
+    pub(super) fn with_config(pool: ConnectionPool<Core>, config: TestConfig) -> Self {
         Self {
             fee_account: Address::repeat_byte(0x01),
             db_dir: TempDir::new().unwrap(),
@@ -254,11 +254,7 @@ impl Tester {
 
     /// Performs the genesis in the storage.
     pub(super) async fn genesis(&self) {
-        let mut storage = self
-            .pool
-            .access_storage_tagged("state_keeper")
-            .await
-            .unwrap();
+        let mut storage = self.pool.connection_tagged("state_keeper").await.unwrap();
         if storage.blocks_dal().is_genesis_needed().await.unwrap() {
             create_genesis_l1_batch(
                 &mut storage,
@@ -277,11 +273,7 @@ impl Tester {
     /// Adds funds for specified account list.
     /// Expects genesis to be performed (i.e. `setup_storage` called beforehand).
     pub(super) async fn fund(&self, addresses: &[Address]) {
-        let mut storage = self
-            .pool
-            .access_storage_tagged("state_keeper")
-            .await
-            .unwrap();
+        let mut storage = self.pool.connection_tagged("state_keeper").await.unwrap();
 
         let eth_amount = U256::from(10u32).pow(U256::from(32)); //10^32 wei
 
@@ -320,7 +312,7 @@ impl Tester {
         }
     }
 
-    pub(super) fn pool(&self) -> ConnectionPool {
+    pub(super) fn pool(&self) -> ConnectionPool<Core> {
         self.pool.clone()
     }
 
@@ -491,7 +483,7 @@ pub(super) struct StorageSnapshot {
 impl StorageSnapshot {
     /// Generates a new snapshot by executing the specified number of transactions, each in a separate miniblock.
     pub async fn new(
-        connection_pool: &ConnectionPool,
+        connection_pool: &ConnectionPool<Core>,
         alice: &mut Account,
         transaction_count: u32,
     ) -> Self {
@@ -499,7 +491,7 @@ impl StorageSnapshot {
         tester.genesis().await;
         tester.fund(&[alice.address()]).await;
 
-        let mut storage = connection_pool.access_storage().await.unwrap();
+        let mut storage = connection_pool.connection().await.unwrap();
         let all_logs = storage
             .snapshots_creator_dal()
             .get_storage_logs_chunk(
@@ -574,7 +566,7 @@ impl StorageSnapshot {
         )
         .finalize(ProtocolVersionId::latest());
 
-        let mut storage = connection_pool.access_storage().await.unwrap();
+        let mut storage = connection_pool.connection().await.unwrap();
         storage.blocks_dal().delete_genesis().await.unwrap();
         Self {
             miniblock_number: MiniblockNumber(l2_block_env.number),
@@ -586,13 +578,13 @@ impl StorageSnapshot {
     }
 
     /// Recovers storage from this snapshot.
-    pub async fn recover(self, connection_pool: &ConnectionPool) -> SnapshotRecoveryStatus {
+    pub async fn recover(self, connection_pool: &ConnectionPool<Core>) -> SnapshotRecoveryStatus {
         let snapshot_logs: Vec<_> = self
             .storage_logs
             .into_iter()
             .map(|(key, value)| StorageLog::new_write_log(key, value))
             .collect();
-        let mut storage = connection_pool.access_storage().await.unwrap();
+        let mut storage = connection_pool.connection().await.unwrap();
         let mut snapshot = prepare_recovery_snapshot(
             &mut storage,
             L1BatchNumber(1),

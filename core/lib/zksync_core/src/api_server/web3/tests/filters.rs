@@ -22,7 +22,7 @@ impl HttpTest for BasicFilterChangesTest {
         }
     }
 
-    async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
+    async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
         let block_filter_id = client.new_block_filter().await?;
         let tx_filter_id = client.new_pending_transaction_filter().await?;
 
@@ -32,7 +32,7 @@ impl HttpTest for BasicFilterChangesTest {
         let tx_result = execute_l2_transaction(create_l2_transaction(1, 2));
         let new_tx_hash = tx_result.hash;
         let new_miniblock = store_miniblock(
-            &mut pool.access_storage().await?,
+            &mut pool.connection().await?,
             if self.snapshot_recovery {
                 StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 2
             } else {
@@ -104,7 +104,7 @@ impl HttpTest for LogFilterChangesTest {
         }
     }
 
-    async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
+    async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
         let all_logs_filter_id = client.new_filter(Filter::default()).await?;
         let address_filter = Filter {
             address: Some(Address::repeat_byte(23).into()),
@@ -117,7 +117,7 @@ impl HttpTest for LogFilterChangesTest {
         };
         let topics_filter_id = client.new_filter(topics_filter).await?;
 
-        let mut storage = pool.access_storage().await?;
+        let mut storage = pool.connection().await?;
         let next_local_miniblock = if self.snapshot_recovery {
             StorageInitialization::SNAPSHOT_RECOVERY_BLOCK.0 + 2
         } else {
@@ -175,7 +175,7 @@ struct LogFilterChangesWithBlockBoundariesTest;
 
 #[async_trait]
 impl HttpTest for LogFilterChangesWithBlockBoundariesTest {
-    async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
+    async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
         let lower_bound_filter = Filter {
             from_block: Some(api::BlockNumber::Number(2.into())),
             ..Filter::default()
@@ -193,7 +193,7 @@ impl HttpTest for LogFilterChangesWithBlockBoundariesTest {
         };
         let bounded_filter_id = client.new_filter(bounded_filter).await?;
 
-        let mut storage = pool.access_storage().await?;
+        let mut storage = pool.connection().await?;
         let (_, events) = store_events(&mut storage, 1, 0).await?;
         drop(storage);
         let events: Vec<_> = events.iter().collect();
@@ -218,7 +218,7 @@ impl HttpTest for LogFilterChangesWithBlockBoundariesTest {
         assert_eq!(bounded_logs, upper_bound_logs);
 
         // Add another miniblock with events to the storage.
-        let mut storage = pool.access_storage().await?;
+        let mut storage = pool.connection().await?;
         let (_, new_events) = store_events(&mut storage, 2, 4).await?;
         drop(storage);
         let new_events: Vec<_> = new_events.iter().collect();
@@ -236,7 +236,7 @@ impl HttpTest for LogFilterChangesWithBlockBoundariesTest {
 
         // Add miniblock #3. It should not be picked up by the bounded and upper bound filters,
         // and should be picked up by the lower bound filter.
-        let mut storage = pool.access_storage().await?;
+        let mut storage = pool.connection().await?;
         let (_, new_events) = store_events(&mut storage, 3, 8).await?;
         drop(storage);
         let new_events: Vec<_> = new_events.iter().collect();
@@ -279,7 +279,7 @@ struct DisableFiltersTest;
 
 #[async_trait]
 impl HttpTest for DisableFiltersTest {
-    async fn test(&self, client: &HttpClient, _pool: &ConnectionPool) -> anyhow::Result<()> {
+    async fn test(&self, client: &HttpClient, _pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
         let filter = Filter {
             from_block: Some(api::BlockNumber::Number(2.into())),
             ..Filter::default()

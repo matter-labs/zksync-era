@@ -1,7 +1,7 @@
 use serde::Serialize;
 use zksync_health_check::{async_trait, CheckHealth, Health, HealthStatus};
 
-use crate::ConnectionPool;
+use crate::{connection::DbMarker, connection_pool::ConnectionPool};
 
 #[derive(Debug, Serialize)]
 struct ConnectionPoolHealthDetails {
@@ -10,7 +10,7 @@ struct ConnectionPoolHealthDetails {
 }
 
 impl ConnectionPoolHealthDetails {
-    fn new(pool: &ConnectionPool) -> Self {
+    fn new<DB: DbMarker>(pool: &ConnectionPool<DB>) -> Self {
         Self {
             pool_size: pool.inner.size(),
             max_size: pool.max_size(),
@@ -22,18 +22,18 @@ impl ConnectionPoolHealthDetails {
 // This guarantees that the app can use it's main "communication" channel.
 // Used in the /health endpoint
 #[derive(Clone, Debug)]
-pub struct ConnectionPoolHealthCheck {
-    connection_pool: ConnectionPool,
+pub struct ConnectionPoolHealthCheck<DB: DbMarker> {
+    connection_pool: ConnectionPool<DB>,
 }
 
-impl ConnectionPoolHealthCheck {
-    pub fn new(connection_pool: ConnectionPool) -> ConnectionPoolHealthCheck {
+impl<DB: DbMarker> ConnectionPoolHealthCheck<DB> {
+    pub fn new(connection_pool: ConnectionPool<DB>) -> ConnectionPoolHealthCheck<DB> {
         Self { connection_pool }
     }
 }
 
 #[async_trait]
-impl CheckHealth for ConnectionPoolHealthCheck {
+impl<DB: DbMarker + Send + Sync + 'static> CheckHealth for ConnectionPoolHealthCheck<DB> {
     fn name(&self) -> &'static str {
         "connection_pool"
     }
@@ -41,7 +41,7 @@ impl CheckHealth for ConnectionPoolHealthCheck {
     async fn check_health(&self) -> Health {
         // This check is rather feeble, plan to make reliable here:
         // https://linear.app/matterlabs/issue/PLA-255/revamp-db-connection-health-check
-        match self.connection_pool.access_storage().await {
+        match self.connection_pool.connection().await {
             Ok(_) => {
                 let details = ConnectionPoolHealthDetails::new(&self.connection_pool);
                 Health::from(HealthStatus::Ready).with_details(details)

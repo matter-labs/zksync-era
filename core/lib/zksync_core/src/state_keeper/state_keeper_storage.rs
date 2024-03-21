@@ -4,7 +4,7 @@ use anyhow::Context;
 use async_trait::async_trait;
 use once_cell::sync::OnceCell;
 use tokio::{runtime::Handle, sync::watch};
-use zksync_dal::{ConnectionPool, StorageProcessor};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_state::{
     PostgresStorage, ReadStorage, RocksdbStorage, RocksdbStorageBuilder, StateKeeperColumnFamily,
 };
@@ -77,7 +77,7 @@ impl<'a> From<RocksdbStorage> for PgOrRocksdbStorage<'a> {
 /// keeper operation.
 #[derive(Debug, Clone)]
 pub struct AsyncRocksdbCache {
-    pool: ConnectionPool,
+    pool: ConnectionPool<Core>,
     rocksdb_cell: Arc<OnceCell<RocksDB<StateKeeperColumnFamily>>>,
 }
 
@@ -85,7 +85,7 @@ impl AsyncRocksdbCache {
     /// Load latest sealed miniblock from the latest sealed L1 batch (ignores sealed miniblocks
     /// from unsealed batches).
     async fn load_latest_sealed_miniblock(
-        connection: &mut StorageProcessor<'_>,
+        connection: &mut Connection<'_, Core>,
     ) -> anyhow::Result<Option<(MiniblockNumber, L1BatchNumber)>> {
         let mut dal = connection.blocks_dal();
         let Some(l1_batch_number) = dal
@@ -105,9 +105,9 @@ impl AsyncRocksdbCache {
 
     /// Returns a [`ReadStorage`] implementation backed by Postgres
     pub(crate) async fn access_storage_pg(
-        pool: &ConnectionPool,
+        pool: &ConnectionPool<Core>,
     ) -> anyhow::Result<PgOrRocksdbStorage<'_>> {
-        let mut connection = pool.access_storage().await?;
+        let mut connection = pool.connection().await?;
 
         let (miniblock_number, l1_batch_number) =
             match Self::load_latest_sealed_miniblock(&mut connection).await? {
@@ -138,14 +138,14 @@ impl AsyncRocksdbCache {
     /// Catches up RocksDB synchronously (i.e. assumes the gap is small) and
     /// returns a [`ReadStorage`] implementation backed by caught-up RocksDB.
     async fn access_storage_rocksdb<'a>(
-        conn: &mut StorageProcessor<'_>,
+        connection: &mut Connection<'_, Core>,
         rocksdb: RocksDB<StateKeeperColumnFamily>,
         stop_receiver: &watch::Receiver<bool>,
     ) -> anyhow::Result<Option<PgOrRocksdbStorage<'a>>> {
         tracing::debug!("Catching up RocksDB synchronously");
         let rocksdb_builder = RocksdbStorageBuilder::from_rocksdb(rocksdb);
         let rocksdb = rocksdb_builder
-            .synchronize(conn, stop_receiver)
+            .synchronize(connection, stop_receiver)
             .await
             .context("Failed to catch up state keeper RocksDB storage to Postgres")?;
         let Some(rocksdb) = rocksdb else {
@@ -162,12 +162,12 @@ impl AsyncRocksdbCache {
         stop_receiver: &watch::Receiver<bool>,
     ) -> anyhow::Result<Option<PgOrRocksdbStorage<'_>>> {
         if let Some(rocksdb) = self.rocksdb_cell.get() {
-            let mut conn = self
+            let mut connection = self
                 .pool
-                .access_storage_tagged("state_keeper")
+                .connection_tagged("state_keeper")
                 .await
                 .context("Failed getting a Postgres connection")?;
-            Self::access_storage_rocksdb(&mut conn, rocksdb.clone(), stop_receiver)
+            Self::access_storage_rocksdb(&mut connection, rocksdb.clone(), stop_receiver)
                 .await
                 .context("Failed accessing RocksDB storage")
         } else {
@@ -180,7 +180,7 @@ impl AsyncRocksdbCache {
     }
 
     pub fn new(
-        pool: ConnectionPool,
+        pool: ConnectionPool<Core>,
         state_keeper_db_path: String,
         enum_index_migration_chunk_size: usize,
     ) -> (Self, AsyncCatchupTask) {
@@ -207,7 +207,7 @@ impl ReadStorageFactory for AsyncRocksdbCache {
 
 #[derive(Debug)]
 pub struct AsyncCatchupTask {
-    pool: ConnectionPool,
+    pool: ConnectionPool<Core>,
     state_keeper_db_path: String,
     enum_index_migration_chunk_size: usize,
     rocksdb_cell: Arc<OnceCell<RocksDB<StateKeeperColumnFamily>>>,
@@ -221,16 +221,16 @@ impl AsyncCatchupTask {
                 .await
                 .context("Failed initializing RocksDB storage")?;
         rocksdb_builder.enable_enum_index_migration(self.enum_index_migration_chunk_size);
-        let mut storage = self
+        let mut connection = self
             .pool
-            .access_storage()
+            .connection()
             .await
             .context("Failed accessing Postgres storage")?;
         let rocksdb = rocksdb_builder
-            .synchronize(&mut storage, &stop_receiver)
+            .synchronize(&mut connection, &stop_receiver)
             .await
             .context("Failed to catch up RocksDB to Postgres")?;
-        drop(storage);
+        drop(connection);
         if let Some(rocksdb) = rocksdb {
             self.rocksdb_cell
                 .set(rocksdb.into_rocksdb())

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use multivm::{
     interface::{
-        ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode,
+        ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, SystemEnv,
         VmExecutionResultAndLogs, VmInterface, VmInterfaceHistoryEnabled,
     },
     tracers::CallTracer,
@@ -211,28 +211,12 @@ impl CommandReceiver {
         let tx_metrics = ExecutionMetricsForCriteria::new(Some(tx), &tx_result);
         let gas_remaining = vm.gas_remaining();
 
-        let (bootloader_dry_run_result, bootloader_dry_run_metrics) = self.dryrun_block_tip(vm);
-        match &bootloader_dry_run_result.result {
-            ExecutionResult::Success { .. } => TxExecutionResult::Success {
-                tx_result: Box::new(tx_result),
-                tx_metrics: Box::new(tx_metrics),
-                bootloader_dry_run_metrics: Box::new(bootloader_dry_run_metrics),
-                bootloader_dry_run_result: Box::new(bootloader_dry_run_result),
-                compressed_bytecodes,
-                call_tracer_result,
-                gas_remaining,
-            },
-            ExecutionResult::Revert { .. } => {
-                unreachable!(
-                    "VM must not revert when finalizing block (except `BootloaderOutOfGas`)"
-                );
-            }
-            ExecutionResult::Halt { reason } => match reason {
-                Halt::BootloaderOutOfGas => TxExecutionResult::BootloaderOutOfGasForBlockTip,
-                _ => {
-                    panic!("VM must not revert when finalizing block (except `BootloaderOutOfGas`). Reason: {:#?}", reason)
-                }
-            },
+        TxExecutionResult::Success {
+            tx_result: Box::new(tx_result),
+            tx_metrics: Box::new(tx_metrics),
+            compressed_bytecodes,
+            call_tracer_result,
+            gas_remaining,
         }
     }
 
@@ -370,37 +354,5 @@ impl CommandReceiver {
             };
             (result, Default::default(), Default::default())
         }
-    }
-
-    fn dryrun_block_tip<S: WriteStorage>(
-        &self,
-        vm: &mut VmInstance<S, HistoryEnabled>,
-    ) -> (VmExecutionResultAndLogs, ExecutionMetricsForCriteria) {
-        let total_latency =
-            KEEPER_METRICS.tx_execution_time[&TxExecutionStage::DryRunRollback].start();
-        let stage_latency =
-            KEEPER_METRICS.tx_execution_time[&TxExecutionStage::DryRunMakeSnapshot].start();
-        // Save pre-`execute_till_block_end` VM snapshot.
-        vm.make_snapshot();
-        stage_latency.observe();
-
-        let stage_latency =
-            KEEPER_METRICS.tx_execution_time[&TxExecutionStage::DryRunExecuteBlockTip].start();
-        let block_tip_result = vm.execute(VmExecutionMode::Bootloader);
-        stage_latency.observe();
-
-        let stage_latency =
-            KEEPER_METRICS.tx_execution_time[&TxExecutionStage::DryRunGetExecutionMetrics].start();
-        let metrics = ExecutionMetricsForCriteria::new(None, &block_tip_result);
-        stage_latency.observe();
-
-        let stage_latency = KEEPER_METRICS.tx_execution_time
-            [&TxExecutionStage::DryRunRollbackToLatestSnapshot]
-            .start();
-        // Rollback to the pre-`execute_till_block_end` state.
-        vm.rollback_to_the_latest_snapshot();
-        stage_latency.observe();
-        total_latency.observe();
-        (block_tip_result, metrics)
     }
 }
