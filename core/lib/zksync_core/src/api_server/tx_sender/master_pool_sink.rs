@@ -38,7 +38,7 @@ impl TxSink for MasterPoolSink {
                 let submission_res_handle = if entry.get() == &tx.hash() {
                     L2TxSubmissionResult::Duplicate
                 } else {
-                    L2TxSubmissionResult::NonceInProgress
+                    L2TxSubmissionResult::ReplacementInProgress
                 };
                 APP_METRICS.processed_txs[&TxStage::Mempool(submission_res_handle)].inc();
                 return Ok(submission_res_handle);

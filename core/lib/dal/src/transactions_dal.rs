@@ -32,7 +32,7 @@ pub enum L2TxSubmissionResult {
     AlreadyExecuted,
     Duplicate,
     Proxied,
-    NonceInProgress,
+    ReplacementInProgress,
 }
 
 impl fmt::Display for L2TxSubmissionResult {
@@ -43,7 +43,7 @@ impl fmt::Display for L2TxSubmissionResult {
             Self::AlreadyExecuted => "already_executed",
             Self::Duplicate => "duplicate",
             Self::Proxied => "proxied",
-            Self::NonceInProgress => "nonce_in_progress",
+            Self::ReplacementInProgress => "replacement_in_progress",
         })
     }
 }
