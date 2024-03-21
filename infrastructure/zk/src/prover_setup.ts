@@ -23,7 +23,6 @@ export async function setupProver(proverType: ProverType) {
     if (proverType == ProverType.GPU || proverType == ProverType.CPU) {
         wrapEnvModify('PROVER_TYPE', proverType);
         wrapEnvModify('ETH_SENDER_SENDER_PROOF_SENDING_MODE', 'OnlyRealProofs');
-        wrapEnvModify('ETH_SENDER_SENDER_PROOF_LOADING_MODE', 'FriProofFromGcs');
         wrapEnvModify('FRI_PROVER_GATEWAY_API_POLL_DURATION_SECS', '120');
         await setupArtifactsMode();
         if (!process.env.CI) {

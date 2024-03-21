@@ -14,7 +14,6 @@ if [[ -z "${ZKSYNC_HOME}" ]]; then
 fi
 
 sed -i.backup 's/^proof_sending_mode=.*$/proof_sending_mode="OnlyRealProofs"/' ../etc/env/base/eth_sender.toml
-sed -i.backup 's/^proof_loading_mode=.*$/proof_loading_mode="FriProofFromGcs"/' ../etc/env/base/eth_sender.toml
 rm ../etc/env/base/eth_sender.toml.backup
 sed -i.backup 's/^setup_data_path=.*$/setup_data_path="vk_setup_data_generator_server_fri\/data\/"/' ../etc/env/base/fri_prover.toml
 rm ../etc/env/base/fri_prover.toml.backup
