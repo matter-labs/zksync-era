@@ -167,7 +167,8 @@ impl Tester {
         storage
             .transactions_dal()
             .insert_transaction_l2(tx.clone(), TransactionExecutionMetrics::default())
-            .await;
+            .await
+            .unwrap();
         storage
             .blocks_dal()
             .insert_miniblock(&MiniblockHeader {

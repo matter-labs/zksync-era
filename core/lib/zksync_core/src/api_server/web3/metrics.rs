@@ -13,7 +13,7 @@ use super::{backend_jsonrpsee::MethodMetadata, ApiTransport, TypedFilter};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "scheme", rename_all = "UPPERCASE")]
-pub(super) enum ApiTransportLabel {
+pub(in crate::api_server) enum ApiTransportLabel {
     Http,
     Ws,
 }
@@ -152,7 +152,7 @@ const RESPONSE_SIZE_BUCKETS: Buckets = Buckets::exponential(1.0..=1_048_576.0, 4
 /// General-purpose API server metrics.
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "api")]
-pub(super) struct ApiMetrics {
+pub(in crate::api_server) struct ApiMetrics {
     /// Latency of a Web3 call. Calls that take block ID as an input have block ID and block diff
     /// labels (the latter is the difference between the latest sealed miniblock and the resolved miniblock).
     #[metrics(buckets = Buckets::LATENCIES)]
@@ -179,6 +179,8 @@ pub(super) struct ApiMetrics {
     pub web3_in_flight_requests: Family<ApiTransportLabel, Histogram<usize>>,
     /// Number of currently open WebSocket sessions.
     pub ws_open_sessions: Gauge,
+    /// Number of currently inserted into DB transactions.
+    pub inflight_tx_submissions: Gauge,
 }
 
 impl ApiMetrics {
@@ -252,7 +254,7 @@ impl ApiMetrics {
 }
 
 #[vise::register]
-pub(super) static API_METRICS: vise::Global<ApiMetrics> = vise::Global::new();
+pub(in crate::api_server) static API_METRICS: vise::Global<ApiMetrics> = vise::Global::new();
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "subscription_type", rename_all = "snake_case")]

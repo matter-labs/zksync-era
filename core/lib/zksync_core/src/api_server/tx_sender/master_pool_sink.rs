@@ -1,3 +1,4 @@
+use anyhow::anyhow;
 use std::collections::hash_map::{Entry, HashMap};
 
 use tokio::sync::Mutex;
@@ -5,6 +6,7 @@ use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, Core, C
 use zksync_types::{fee::TransactionExecutionMetrics, l2::L2Tx, Address, Nonce, H256};
 
 use super::{tx_sink::TxSink, SubmitTxError};
+use crate::api_server::web3::metrics::API_METRICS;
 use crate::metrics::{TxStage, APP_METRICS};
 
 /// Wrapper for the master DB pool that allows to submit transactions to the mempool.
@@ -43,24 +45,32 @@ impl TxSink for MasterPoolSink {
                 APP_METRICS.processed_txs[&TxStage::Mempool(submission_res_handle)].inc();
                 return Ok(submission_res_handle);
             }
-            Entry::Vacant(entry) => entry.insert(tx.hash()),
+            Entry::Vacant(entry) => {
+                entry.insert(tx.hash());
+                API_METRICS.inflight_tx_submissions.inc_by(1);
+            }
         };
         drop(lock);
 
-        let submission_res_handle = self
-            .master_pool
-            .connection_tagged("api")
-            .await?
-            .transactions_dal()
-            .insert_transaction_l2(tx, execution_metrics)
-            .await;
+        let result = match self.master_pool.connection_tagged("api").await {
+            Ok(mut connection) => connection
+                .transactions_dal()
+                .insert_transaction_l2(tx, execution_metrics)
+                .await
+                .map(|submission_res_handle| {
+                    APP_METRICS.processed_txs[&TxStage::Mempool(submission_res_handle)].inc();
+                    submission_res_handle
+                })
+                .map_err(|err| anyhow!(err).into()),
+            Err(err) => Err(err.into()),
+        };
 
-        APP_METRICS.processed_txs[&TxStage::Mempool(submission_res_handle)].inc();
         self.inflight_requests
             .lock()
             .await
             .remove(&address_and_nonce);
+        API_METRICS.inflight_tx_submissions.dec_by(1);
 
-        Ok(submission_res_handle)
+        result
     }
 }
