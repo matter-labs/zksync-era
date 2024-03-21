@@ -4,7 +4,7 @@ use std::{future::Future, sync::Arc, time::Duration};
 
 use chrono::NaiveDateTime;
 use tokio::sync::{watch, RwLock};
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::H256;
 
 use crate::{cache::sequential_cache::SequentialCache, mempool_cache::metrics::METRICS};
@@ -21,7 +21,7 @@ const INITIAL_LOOKBEHIND: Duration = Duration::from_secs(120);
 impl MempoolCache {
     /// Initializes the mempool cache with the parameters provided.
     pub fn new(
-        connection_pool: ConnectionPool,
+        connection_pool: ConnectionPool<Core>,
         update_interval: Duration,
         capacity: usize,
         stop_receiver: watch::Receiver<bool>,
@@ -47,7 +47,7 @@ impl MempoolCache {
                     .unwrap_or_else(|| chrono::Utc::now().naive_utc() - INITIAL_LOOKBEHIND);
 
                 let latency = METRICS.db_poll_latency.start();
-                let mut connection = connection_pool.access_storage_tagged("api").await?;
+                let mut connection = connection_pool.connection_tagged("api").await?;
 
                 let txs = connection
                     .transactions_web3_dal()

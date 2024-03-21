@@ -1,7 +1,5 @@
 use std::collections::VecDeque;
 
-use anyhow::anyhow;
-
 use crate::cache::metrics::{Method, RequestOutcome, METRICS};
 
 /// A generic cache structure for storing key-value pairs in sequential order.
@@ -21,7 +19,7 @@ pub struct SequentialCache<K, V> {
     capacity: usize,
 }
 
-impl<K: Ord + Clone, V: Clone> SequentialCache<K, V> {
+impl<K: Ord + Copy, V: Clone> SequentialCache<K, V> {
     /// Creates a new `SequentialCache` with the specified maximum capacity.
     pub fn new(name: &'static str, capacity: usize) -> Self {
         assert!(capacity > 0, "Cache capacity must be greater than 0");
