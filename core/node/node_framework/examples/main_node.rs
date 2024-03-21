@@ -25,6 +25,7 @@ use zksync_env_config::FromEnv;
 use zksync_node_framework::{
     implementations::layers::{
         commitment_generator::CommitmentGeneratorLayer,
+        contract_verification_api::ContractVerificationApiLayer,
         eth_sender::EthSenderLayer,
         eth_watch::EthWatchLayer,
         healtcheck_server::HealthCheckLayer,
@@ -282,6 +283,12 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
+    fn add_contract_verification_api_layer(mut self) -> anyhow::Result<Self> {
+        let config = ApiConfig::from_env()?.contract_verification;
+        self.node.add_layer(ContractVerificationApiLayer(config));
+        Ok(self)
+    }
+
     fn build(mut self) -> Result<ZkStackService, ZkStackServiceError> {
         self.node.build()
     }
@@ -315,6 +322,7 @@ fn main() -> anyhow::Result<()> {
         .add_ws_web3_api_layer()?
         .add_house_keeper_layer()?
         .add_commitment_generator_layer()?
+        .add_contract_verification_api_layer()?
         .build()?
         .run()?;
 
