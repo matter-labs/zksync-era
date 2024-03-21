@@ -32,6 +32,7 @@ use zksync_node_framework::{
         l1_gas::SequencerL1GasLayer,
         metadata_calculator::MetadataCalculatorLayer,
         object_store::ObjectStoreLayer,
+        pk_signing_eth_client::PKSigningEthClientLayer,
         pools_layer::PoolsLayerBuilder,
         proof_data_handler::ProofDataHandlerLayer,
         query_eth_client::QueryEthClientLayer,
@@ -68,6 +69,15 @@ impl MainNodeBuilder {
             .with_prover(true)
             .build();
         self.node.add_layer(pools_layer);
+        Ok(self)
+    }
+
+    fn add_pk_signing_client_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(PKSigningEthClientLayer::new(
+            ETHSenderConfig::from_env()?,
+            ContractsConfig::from_env()?,
+            ETHClientConfig::from_env()?,
+        ));
         Ok(self)
     }
 
@@ -306,6 +316,7 @@ fn main() -> anyhow::Result<()> {
         .add_metadata_calculator_layer()?
         .add_state_keeper_layer()?
         .add_eth_watch_layer()?
+        .add_pk_signing_client_layer()?
         .add_eth_sender_layer()?
         .add_proof_data_handler_layer()?
         .add_healthcheck_layer()?

@@ -468,7 +468,8 @@ async fn miniblock_processing_after_snapshot_recovery() {
     storage
         .transactions_dal()
         .insert_transaction_l2(tx.clone(), TransactionExecutionMetrics::default())
-        .await;
+        .await
+        .unwrap();
 
     let (system_env, l1_batch_env) = mempool
         .wait_for_new_batch_params(Duration::from_secs(10))

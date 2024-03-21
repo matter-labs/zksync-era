@@ -210,6 +210,8 @@ impl RandomConfig for configs::api::Web3JsonRpcConfig {
             max_response_body_size_mb: g.gen(),
             websocket_requests_per_minute_limit: g.gen(),
             tree_api_url: g.gen(),
+            mempool_cache_update_interval: g.gen(),
+            mempool_cache_size: g.gen(),
         }
     }
 }
@@ -422,6 +424,7 @@ impl RandomConfig for configs::database::PostgresConfig {
             replica_url: g.gen(),
             prover_url: g.gen(),
             max_connections: g.gen(),
+            max_connections_master: g.gen(),
             acquire_timeout_sec: g.gen(),
             statement_timeout_sec: g.gen(),
             long_connection_threshold_ms: g.gen(),
