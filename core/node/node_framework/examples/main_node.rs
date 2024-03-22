@@ -27,7 +27,7 @@ use zksync_core::{
 use zksync_env_config::FromEnv;
 use zksync_node_framework::{
     implementations::layers::{
-        circuit_breaker_checker::{self, CircuitBreakerCheckerLayer},
+        circuit_breaker_checker::CircuitBreakerCheckerLayer,
         commitment_generator::CommitmentGeneratorLayer,
         contract_verification_api::ContractVerificationApiLayer,
         eth_sender::EthSenderLayer,
