@@ -96,6 +96,11 @@ pub struct Web3JsonRpcConfig {
     pub websocket_requests_per_minute_limit: Option<NonZeroU32>,
     /// Tree API url, currently used to proxy `getProof` calls to the tree
     pub tree_api_url: Option<String>,
+    /// Polling period for mempool cache update - how often the mempool cache is updated from the database.
+    /// In milliseconds. Default is 50 milliseconds.
+    pub mempool_cache_update_interval: Option<u64>,
+    /// Maximum number of transactions to be stored in the mempool cache. Default is 10000.
+    pub mempool_cache_size: Option<usize>,
 }
 
 impl Web3JsonRpcConfig {
@@ -130,6 +135,8 @@ impl Web3JsonRpcConfig {
             max_batch_request_size: Default::default(),
             max_response_body_size_mb: Default::default(),
             websocket_requests_per_minute_limit: Default::default(),
+            mempool_cache_update_interval: Default::default(),
+            mempool_cache_size: Default::default(),
             tree_api_url: None,
         }
     }
@@ -209,6 +216,14 @@ impl Web3JsonRpcConfig {
 
     pub fn tree_api_url(&self) -> Option<&str> {
         self.tree_api_url.as_deref()
+    }
+
+    pub fn mempool_cache_update_interval(&self) -> Duration {
+        Duration::from_millis(self.mempool_cache_update_interval.unwrap_or(50))
+    }
+
+    pub fn mempool_cache_size(&self) -> usize {
+        self.mempool_cache_size.unwrap_or(10_000)
     }
 }
 

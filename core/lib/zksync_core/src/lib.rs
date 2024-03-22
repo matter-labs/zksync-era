@@ -538,12 +538,12 @@ pub async fn initialize_components(
         if components.contains(&Component::ContractVerificationApi) {
             let started_at = Instant::now();
             tracing::info!("initializing contract verification REST API");
-            task_futures.push(contract_verification::start_server_thread_detached(
+            task_futures.push(tokio::spawn(contract_verification::start_server(
                 connection_pool.clone(),
                 replica_connection_pool.clone(),
                 api_config.contract_verification.clone(),
                 stop_receiver.clone(),
-            ));
+            )));
             let elapsed = started_at.elapsed();
             APP_METRICS.init_latency[&InitStage::ContractVerificationApi].set(elapsed);
             tracing::info!("initialized contract verification REST API in {elapsed:?}");
