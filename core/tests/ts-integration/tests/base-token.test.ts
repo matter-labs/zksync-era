@@ -6,13 +6,16 @@ import { TestMaster } from '../src/index';
 import { Token } from '../src/types';
 
 import * as zksync from 'zksync-ethers';
-import { BigNumber } from 'ethers';
+import { BigNumber, utils as etherUtils } from 'ethers';
 import * as ethers from 'ethers';
 import { scaledGasPrice } from '../src/helpers';
+import { TransactionReceipt } from 'zksync-ethers/build/src/types';
+import exp from 'constants';
 
 describe('base ERC20 contract checks', () => {
     let testMaster: TestMaster;
     let alice: zksync.Wallet;
+    let bob: zksync.Wallet;
     let baseTokenDetails: Token;
     let aliceBaseErc20: ethers.Contract;
     let chainId: ethers.BigNumberish;
@@ -20,6 +23,7 @@ describe('base ERC20 contract checks', () => {
     beforeAll(async () => {
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
+        bob = testMaster.newEmptyAccount();
         chainId = process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!;
 
         baseTokenDetails = testMaster.environment().baseToken;
@@ -89,6 +93,73 @@ describe('base ERC20 contract checks', () => {
                 }
             })
         ).toBeRejected(errorMessage);
+    });
+
+    test('Can perform a transfer to self', async () => {
+        const amount = BigNumber.from(200);
+
+        const initialAliceBalance = await alice.getBalance();
+
+        // When transferring to self, balance should only change by fee from tx.
+        const transferPromise = alice.transfer({
+            to: alice.address, 
+            amount
+        });
+
+        await expect(transferPromise).toBeAccepted([]);
+        const transferTx = await transferPromise;
+        await transferTx.waitFinalize();
+
+        const receipt = await alice._providerL2().getTransactionReceipt(transferTx.hash);
+        const fee = receipt.effectiveGasPrice.mul(receipt.gasUsed);
+
+        const finalAliceBalance = await alice.getBalance();
+        expect(initialAliceBalance.sub(fee)).bnToBeEq(finalAliceBalance);
+    });
+
+    test('Incorrect transfer should revert', async () => {
+        const amount = etherUtils.parseEther('1000000.0');
+
+        const initialAliceBalance = await alice.getBalance();
+        const initialBobBalance = await bob.getBalance();
+
+        // Send transfer, it should reject due to lack of balance.
+        await expect(alice.transfer({
+            to: bob.address,
+            amount
+        })).toBeRejected();
+
+        // Balances should not change for this token.
+        const finalAliceBalance = await alice.getBalance();
+        const finalBobBalance = await bob.getBalance();
+
+        await expect(finalAliceBalance).bnToBeEq(initialAliceBalance);
+        await expect(finalBobBalance).bnToBeEq(initialBobBalance);
+    });
+
+    test('Can perform a withdrawal', async () => {
+        if (testMaster.isFastMode()) {
+            return;
+        }
+        const amount = 1;
+
+        const initialL1Balance = await alice.getBalanceL1(baseTokenDetails.l1Address);
+        const initialL2Balance = await alice.getBalance();
+
+        const withdrawalPromise = alice.withdraw({ token: baseTokenDetails.l2Address, amount });
+        await expect(withdrawalPromise).toBeAccepted([]);
+        const withdrawalTx = await withdrawalPromise;
+        await withdrawalTx.waitFinalize();
+
+        await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted([]);
+        const receipt = await alice._providerL2().getTransactionReceipt(withdrawalTx.hash);
+        const fee = receipt.effectiveGasPrice.mul(receipt.gasUsed);
+
+        const finalL1Balance = await alice.getBalanceL1(baseTokenDetails.l1Address);
+        const finalL2Balance = await alice.getBalance();
+
+        await expect(finalL1Balance).bnToBeEq(initialL1Balance.add(amount));
+        await expect(finalL2Balance.add(amount).add(fee)).bnToBeEq(initialL2Balance);
     });
 
     afterAll(async () => {
