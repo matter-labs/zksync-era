@@ -459,6 +459,7 @@ async fn init_tasks(
     stop_receiver: watch::Receiver<bool>,
     components: &[Component],
 ) -> anyhow::Result<()> {
+    let mut components = components.to_vec();
     let release_manifest: serde_json::Value = serde_json::from_str(RELEASE_MANIFEST)
         .expect("releuse manifest is a valid json document; qed");
     let release_manifest_version = release_manifest["core"].as_str().expect(
@@ -549,6 +550,11 @@ async fn init_tasks(
             )
             .await?,
         );
+        // if we are running core component in any case launch a
+        // HTTP API in order to answer to `eth_syncing` calls.
+        if !components.contains(&Component::HttpApi) {
+            components.push(Component::HttpApi)
+        }
     }
 
     if components.contains(&Component::HttpApi) || components.contains(&Component::WsApi) {
@@ -571,7 +577,7 @@ async fn init_tasks(
             main_node_client,
             singleton_pool_builder,
             fee_params_fetcher.clone(),
-            components,
+            &components,
         )
         .await?;
     }
