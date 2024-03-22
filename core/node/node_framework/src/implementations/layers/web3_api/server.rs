@@ -6,7 +6,7 @@ use zksync_core::api_server::web3::{state::InternalApiConfig, ApiBuilder, ApiSer
 
 use crate::{
     implementations::resources::{
-        circuit_breaker_checker::CircuitBreakerCheckerResource,
+        circuit_breakers::CircuitBreakersResource,
         healthcheck::AppHealthCheckResource,
         pools::ReplicaPoolResource,
         sync_state::SyncStateResource,
@@ -151,11 +151,14 @@ impl WiringLayer for Web3ServerLayer {
         app_health.insert_component(api_health_check);
 
         // Insert circuit breaker.
-        let CircuitBreakerCheckerResource(circuit_breaker_checker) = context.get_resource().await?;
-        circuit_breaker_checker
-            .insert_breaker_if_not_exists(Box::new(ReplicationLagChecker {
+        let circuit_breaker_resource = context
+            .get_resource_or_default::<CircuitBreakersResource>()
+            .await;
+        circuit_breaker_resource
+            .breakers
+            .insert(Box::new(ReplicationLagChecker {
                 pool: replica_pool,
-                replication_lag_limit_sec: circuit_breaker_checker.replication_lag_limit_sec(),
+                replication_lag_limit_sec: circuit_breaker_resource.replication_lag_limit_sec,
             }))
             .await;
 

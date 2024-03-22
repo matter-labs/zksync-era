@@ -16,8 +16,8 @@ use prover_dal::Prover;
 use temp_config_store::{Secrets, TempConfigStore};
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_circuit_breaker::{
-    l1_txs::FailedL1TransactionChecker, replication_lag::ReplicationLagChecker, CircuitBreaker,
-    CircuitBreakerChecker,
+    l1_txs::FailedL1TransactionChecker, replication_lag::ReplicationLagChecker,
+    CircuitBreakerChecker, CircuitBreakers,
 };
 use zksync_concurrency::{ctx, scope};
 use zksync_config::{
@@ -359,14 +359,14 @@ pub async fn initialize_components(
         .clone()
         .context("circuit_breaker_config")?;
 
-    let circuit_breaker_checker = Arc::new(CircuitBreakerChecker::new(
-        Some(
+    let circuit_breaker_checker = CircuitBreakerChecker::new(
+        Arc::new(
             circuit_breakers_for_components(&components, &postgres_config, &circuit_breaker_config)
                 .await
                 .context("circuit_breakers_for_components")?,
         ),
-        &circuit_breaker_config,
-    ));
+        circuit_breaker_config.sync_interval(),
+    );
     circuit_breaker_checker.check().await.unwrap_or_else(|err| {
         panic!("Circuit breaker triggered: {}", err);
     });
@@ -396,8 +396,7 @@ pub async fn initialize_components(
     let (prometheus_health_check, prometheus_health_updater) =
         ReactiveHealthCheck::new("prometheus_exporter");
     app_health.insert_component(prometheus_health_check);
-    let pt_stop_receiver = stop_receiver.clone();
-    let prometheus_task = prom_config.run(pt_stop_receiver);
+    let prometheus_task = prom_config.run(stop_receiver.clone());
     let prometheus_task = tokio::spawn(async move {
         prometheus_health_updater.update(HealthStatus::Ready.into());
         let res = prometheus_task.await;
@@ -405,10 +404,9 @@ pub async fn initialize_components(
         res
     });
 
-    let cb_stop_receiver = stop_receiver.clone();
     let mut task_futures: Vec<JoinHandle<anyhow::Result<()>>> = vec![
         prometheus_task,
-        tokio::spawn(async move { circuit_breaker_checker.run(cb_stop_receiver).await }),
+        tokio::spawn(circuit_breaker_checker.run(stop_receiver.clone())),
     ];
 
     if components.contains(&Component::WsApi)
@@ -1319,8 +1317,8 @@ async fn circuit_breakers_for_components(
     components: &[Component],
     postgres_config: &PostgresConfig,
     circuit_breaker_config: &CircuitBreakerConfig,
-) -> anyhow::Result<Vec<Box<dyn CircuitBreaker>>> {
-    let mut circuit_breakers: Vec<Box<dyn CircuitBreaker>> = Vec::new();
+) -> anyhow::Result<CircuitBreakers> {
+    let circuit_breakers = CircuitBreakers::default();
 
     if components
         .iter()
@@ -1330,7 +1328,9 @@ async fn circuit_breakers_for_components(
             .build()
             .await
             .context("failed to build a connection pool")?;
-        circuit_breakers.push(Box::new(FailedL1TransactionChecker { pool }));
+        circuit_breakers
+            .insert(Box::new(FailedL1TransactionChecker { pool }))
+            .await;
     }
 
     if components.iter().any(|c| {
@@ -1342,10 +1342,12 @@ async fn circuit_breakers_for_components(
         let pool = ConnectionPool::<Core>::singleton(postgres_config.replica_url()?)
             .build()
             .await?;
-        circuit_breakers.push(Box::new(ReplicationLagChecker {
-            pool,
-            replication_lag_limit_sec: circuit_breaker_config.replication_lag_limit_sec,
-        }));
+        circuit_breakers
+            .insert(Box::new(ReplicationLagChecker {
+                pool,
+                replication_lag_limit_sec: circuit_breaker_config.replication_lag_limit_sec,
+            }))
+            .await;
     }
     Ok(circuit_breakers)
 }

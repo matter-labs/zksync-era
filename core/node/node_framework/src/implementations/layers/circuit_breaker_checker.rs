@@ -1,10 +1,8 @@
-use std::sync::Arc;
-
 use zksync_circuit_breaker::CircuitBreakerChecker;
 use zksync_config::configs::chain::CircuitBreakerConfig;
 
 use crate::{
-    implementations::resources::circuit_breaker_checker::CircuitBreakerCheckerResource,
+    implementations::resources::circuit_breakers::CircuitBreakersResource,
     service::{ServiceContext, StopReceiver},
     task::Task,
     wiring_layer::{WiringError, WiringLayer},
@@ -20,11 +18,18 @@ impl WiringLayer for CircuitBreakerCheckerLayer {
     }
 
     async fn wire(self: Box<Self>, mut node: ServiceContext<'_>) -> Result<(), WiringError> {
-        let circuit_breaker_checker = Arc::new(CircuitBreakerChecker::new(None, &self.0));
-        node.insert_resource(CircuitBreakerCheckerResource(
-            circuit_breaker_checker.clone(),
-        ))?;
+        // Get resources.
+        let mut circuit_breaker_resource = node
+            .get_resource_or_default::<CircuitBreakersResource>()
+            .await;
+        if let Some(lag_limit) = self.0.replication_lag_limit_sec {
+            circuit_breaker_resource.set_replication_lag_limit_sec(lag_limit);
+        }
 
+        let circuit_breaker_checker =
+            CircuitBreakerChecker::new(circuit_breaker_resource.breakers, self.0.sync_interval());
+
+        // Create and insert task.
         let task = CircuitBreakerCheckerTask {
             circuit_breaker_checker,
         };
@@ -36,7 +41,7 @@ impl WiringLayer for CircuitBreakerCheckerLayer {
 
 #[derive(Debug)]
 struct CircuitBreakerCheckerTask {
-    circuit_breaker_checker: Arc<CircuitBreakerChecker>,
+    circuit_breaker_checker: CircuitBreakerChecker,
 }
 
 #[async_trait::async_trait]

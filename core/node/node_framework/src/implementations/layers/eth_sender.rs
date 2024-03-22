@@ -9,7 +9,7 @@ use zksync_eth_client::{clients::PKSigningClient, BoundEthInterface};
 
 use crate::{
     implementations::resources::{
-        circuit_breaker_checker::CircuitBreakerCheckerResource,
+        circuit_breakers::CircuitBreakersResource,
         eth_interface::BoundEthInterfaceResource,
         l1_tx_params::L1TxParamsResource,
         object_store::ObjectStoreResource,
@@ -111,11 +111,12 @@ impl WiringLayer for EthSenderLayer {
         }));
 
         // Insert circuit breaker.
-        let CircuitBreakerCheckerResource(circuit_breaker_checker) = context.get_resource().await?;
-        circuit_breaker_checker
-            .insert_breaker_if_not_exists(Box::new(FailedL1TransactionChecker {
-                pool: replica_pool,
-            }))
+        let CircuitBreakersResource {
+            replication_lag_limit_sec: _,
+            breakers,
+        } = context.get_resource_or_default().await;
+        breakers
+            .insert(Box::new(FailedL1TransactionChecker { pool: replica_pool }))
             .await;
 
         Ok(())

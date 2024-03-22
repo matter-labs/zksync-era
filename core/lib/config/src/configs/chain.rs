@@ -186,10 +186,6 @@ impl CircuitBreakerConfig {
     pub fn http_req_retry_interval(&self) -> Duration {
         Duration::from_secs(self.http_req_retry_interval_sec as u64)
     }
-
-    pub fn replication_lag_limit_sec(&self) -> Option<u32> {
-        self.replication_lag_limit_sec
-    }
 }
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]

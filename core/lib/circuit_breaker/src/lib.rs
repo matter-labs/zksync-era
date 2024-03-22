@@ -1,12 +1,23 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use thiserror::Error;
 use tokio::sync::{watch, Mutex};
-use zksync_config::configs::chain::CircuitBreakerConfig;
 
 pub mod l1_txs;
 pub mod replication_lag;
 pub mod utils;
+
+#[derive(Default, Debug)]
+pub struct CircuitBreakers(pub Mutex<Vec<Box<dyn CircuitBreaker>>>);
+
+impl CircuitBreakers {
+    pub async fn insert(&self, circuit_breaker: Box<dyn CircuitBreaker>) {
+        let mut guard = self.0.lock().await;
+        if !guard.contains(&circuit_breaker) {
+            guard.push(circuit_breaker);
+        }
+    }
+}
 
 #[derive(Debug, Error)]
 pub enum CircuitBreakerError {
@@ -19,8 +30,8 @@ pub enum CircuitBreakerError {
 /// Checks circuit breakers
 #[derive(Debug)]
 pub struct CircuitBreakerChecker {
-    circuit_breakers: Mutex<Vec<Box<dyn CircuitBreaker>>>,
-    config: CircuitBreakerConfig,
+    circuit_breakers: Arc<CircuitBreakers>,
+    sync_lag_interval: Duration,
 }
 
 #[async_trait::async_trait]
@@ -37,35 +48,21 @@ impl PartialEq for dyn CircuitBreaker {
 }
 
 impl CircuitBreakerChecker {
-    pub fn new(
-        circuit_breakers: Option<Vec<Box<dyn CircuitBreaker>>>,
-        config: &CircuitBreakerConfig,
-    ) -> Self {
+    pub fn new(circuit_breakers: Arc<CircuitBreakers>, sync_lag_interval: Duration) -> Self {
         Self {
-            circuit_breakers: Mutex::new(circuit_breakers.unwrap_or_default()),
-            config: config.clone(),
+            circuit_breakers,
+            sync_lag_interval,
         }
     }
 
-    pub fn replication_lag_limit_sec(&self) -> Option<u32> {
-        self.config.replication_lag_limit_sec
-    }
-
     pub async fn check(&self) -> Result<(), CircuitBreakerError> {
-        for circuit_breaker in self.circuit_breakers.lock().await.iter() {
+        for circuit_breaker in self.circuit_breakers.0.lock().await.iter() {
             circuit_breaker.check().await?;
         }
         Ok(())
     }
 
-    pub async fn insert_breaker_if_not_exists(&self, circuit_breaker: Box<dyn CircuitBreaker>) {
-        let mut guard = self.circuit_breakers.lock().await;
-        if !guard.contains(&circuit_breaker) {
-            guard.push(circuit_breaker);
-        }
-    }
-
-    pub async fn run(self: Arc<Self>, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+    pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         tracing::info!("running circuit breaker checker...");
         loop {
             if *stop_receiver.borrow() {
@@ -76,7 +73,7 @@ impl CircuitBreakerChecker {
                     "Circuit breaker error. Reason: {error}"
                 ));
             }
-            tokio::time::sleep(self.config.sync_interval()).await;
+            tokio::time::sleep(self.sync_lag_interval).await;
         }
         Ok(())
     }
