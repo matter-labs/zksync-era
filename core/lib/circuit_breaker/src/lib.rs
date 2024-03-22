@@ -34,7 +34,7 @@ pub enum CircuitBreakerError {
 #[derive(Debug)]
 pub struct CircuitBreakerChecker {
     circuit_breakers: Arc<CircuitBreakers>,
-    sync_lag_interval: Duration,
+    sync_interval: Duration,
 }
 
 #[async_trait::async_trait]
@@ -45,10 +45,10 @@ pub trait CircuitBreaker: std::fmt::Debug + Send + Sync {
 }
 
 impl CircuitBreakerChecker {
-    pub fn new(circuit_breakers: Arc<CircuitBreakers>, sync_lag_interval: Duration) -> Self {
+    pub fn new(circuit_breakers: Arc<CircuitBreakers>, sync_interval: Duration) -> Self {
         Self {
             circuit_breakers,
-            sync_lag_interval,
+            sync_interval,
         }
     }
 
@@ -70,7 +70,7 @@ impl CircuitBreakerChecker {
                     "Circuit breaker error. Reason: {error}"
                 ));
             }
-            tokio::time::sleep(self.sync_lag_interval).await;
+            tokio::time::sleep(self.sync_interval).await;
         }
         Ok(())
     }
