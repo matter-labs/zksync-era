@@ -12,5 +12,6 @@ pub mod pools_layer;
 pub mod prometheus_exporter;
 pub mod proof_data_handler;
 pub mod query_eth_client;
+pub mod sigint;
 pub mod state_keeper;
 pub mod web3_api;
