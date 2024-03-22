@@ -307,6 +307,8 @@ impl MainNodeBuilder {
         let circuit_breaker_config = CircuitBreakerConfig::from_env()?;
         self.node
             .add_layer(CircuitBreakerCheckerLayer(circuit_breaker_config));
+
+        Ok(self)
     }
 
     fn add_contract_verification_api_layer(mut self) -> anyhow::Result<Self> {
