@@ -208,7 +208,6 @@ describe('ERC20 contract checks', () => {
         await expect(alice.getBalanceL1(tokenDetails.l1Address)).resolves.bnToBeEq(initialBalance);
     });
 
-
     test('Can perform a deposit with precalculated max value', async () => {
         const maxAmount = await alice.getBalanceL1(tokenDetails.l1Address);
 
