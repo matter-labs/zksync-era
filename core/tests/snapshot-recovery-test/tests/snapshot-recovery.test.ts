@@ -220,7 +220,6 @@ describe('snapshot recovery', () => {
             ZKSYNC_ENV: process.env.IN_DOCKER ? 'ext-node-validium-docker' : 'ext-node-validium'
         };
         dotenv.config({ path: `${homeDir}/.env` });
-        console.log(`environment = ${process.env.IS_VALIDIUM}`);
         externalNodeProcess = spawn('zk external-node -- --enable-snapshots-recovery', {
             cwd: homeDir,
             stdio: [null, externalNodeLogs.fd, externalNodeLogs.fd],
