@@ -736,7 +736,6 @@ async fn main() -> anyhow::Result<()> {
     let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
         .context("Failed creating JSON-RPC client for main node")?;
 
-    let sigint_receiver = setup_sigint_handler();
     tracing::warn!("The external node is in the alpha phase, and should be used with caution.");
     tracing::info!("Started the external node");
 
@@ -786,6 +785,7 @@ async fn main() -> anyhow::Result<()> {
         opt.enable_snapshots_recovery,
     )
     .await?;
+    let sigint_receiver = setup_sigint_handler();
 
     // Revert the storage if needed.
     let reverter = BlockReverter::new(
