@@ -57,7 +57,11 @@ describe('Tests for the custom bridge behavior', () => {
         let command = `${baseCommandL1} initialize-erc20-bridge ${args}`;
         await spawn(command);
         await sleep(2);
-        let command2 = `${baseCommandL1} erc20-deploy-on-chain ${args}`;
+
+        const baseCommandL2 = isLocalSetup
+        ? `yarn --cwd /contracts/l2-contracts`
+        : `cd $ZKSYNC_HOME && yarn l2-contracts`;
+        let command2 = `${baseCommandL2} deploy-shared-bridge-on-l2-through-l1 ${args}`;
         await spawn(command2);
         await sleep(2);
 
