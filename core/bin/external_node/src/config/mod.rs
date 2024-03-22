@@ -268,7 +268,7 @@ pub struct ApiComponentConfig {
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct TreeComponentConfig {
-    pub merkle_tree_api_port: Option<u16>,
+    pub api_port: Option<u16>,
 }
 
 impl OptionalENConfig {
@@ -572,11 +572,11 @@ impl ExternalNodeConfig {
             .from_env::<OptionalENConfig>()
             .context("could not load external node config")?;
 
-        let api_component_config = envy::prefixed("EN_")
+        let api_component_config = envy::prefixed("EN_API")
             .from_env::<ApiComponentConfig>()
             .context("could not load external node config")?;
 
-        let tree_component_config = envy::prefixed("EN_")
+        let tree_component_config = envy::prefixed("EN_TREE")
             .from_env::<TreeComponentConfig>()
             .context("could not load external node config")?;
 

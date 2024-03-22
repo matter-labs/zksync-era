@@ -493,19 +493,23 @@ async fn init_tasks(
         .await
         .context("failed to build a tree_pool")?;
 
-    let fee_params_fetcher = Arc::new(MainNodeFeeParamsFetcher::new(main_node_client.clone()));
     if !components.contains(&Component::Tree) {
         anyhow::ensure!(
             !components.contains(&Component::TreeApi),
             "Merkle tree API cannot be started without a tree component"
         );
     }
+    // Create a tree reader. If the list of requested components has the tree itself, then
+    // we can get this tree's reader and use it right away. Othrwise, if configuration has
+    // specified address of another instance hosting tree api, create a tree reader to that
+    // remote api. A tree reader is necessary in the case this instance is running API component
+    // because API needs some kind of tree reader to read proofs from.
     let tree_reader: Option<Arc<dyn TreeApiClient>> = if components.contains(&Component::Tree) {
         let tree_api_config = if components.contains(&Component::TreeApi) {
             Some(MerkleTreeApiConfig {
                 port: config
                     .tree_component_config
-                    .merkle_tree_api_port
+                    .api_port
                     .ok_or(anyhow!("should contain tree api port"))?,
             })
         } else {
@@ -528,6 +532,7 @@ async fn init_tasks(
         None
     };
 
+    let fee_params_fetcher = Arc::new(MainNodeFeeParamsFetcher::new(main_node_client.clone()));
     let mut sync_state = None;
 
     if components.contains(&Component::Core) {
