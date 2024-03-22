@@ -9,8 +9,6 @@ import * as zksync from 'zksync-ethers';
 import { BigNumber, utils as etherUtils } from 'ethers';
 import * as ethers from 'ethers';
 import { scaledGasPrice } from '../src/helpers';
-import { TransactionReceipt } from 'zksync-ethers/build/src/types';
-import exp from 'constants';
 
 describe('base ERC20 contract checks', () => {
     let testMaster: TestMaster;
@@ -102,7 +100,7 @@ describe('base ERC20 contract checks', () => {
 
         // When transferring to self, balance should only change by fee from tx.
         const transferPromise = alice.transfer({
-            to: alice.address, 
+            to: alice.address,
             amount
         });
 
@@ -124,10 +122,12 @@ describe('base ERC20 contract checks', () => {
         const initialBobBalance = await bob.getBalance();
 
         // Send transfer, it should reject due to lack of balance.
-        await expect(alice.transfer({
-            to: bob.address,
-            amount
-        })).toBeRejected();
+        await expect(
+            alice.transfer({
+                to: bob.address,
+                amount
+            })
+        ).toBeRejected();
 
         // Balances should not change for this token.
         const finalAliceBalance = await alice.getBalance();
