@@ -319,8 +319,6 @@ export class TestContextOwner {
                     tx.wait();
 
                     nonce = nonce + 1 + (ethIsBaseToken ? 0 : 1) + (baseIsTransferred ? 0 : 1);
-                    // l1TxPromises.push(baseDepositPromise);
-                    // await baseDepositPromise;
 
                     // Send base token on L1.
                     const baseTokenTransfers = sendTransfers(
@@ -332,30 +330,12 @@ export class TestContextOwner {
                         gasPrice,
                         this.reporter
                     );
-                    // nonce += baseTokenTransfers.length;
-                    // await Promise.all(baseTokenTransfers);
                     return baseTokenTransfers;
                 });
-            await baseDepositPromise;
-            // nonce = nonce + 1 + (ethIsBaseToken ? 0 : 1) + (baseIsTransferred ? 0 : 1);
-            // // l1TxPromises.push(baseDepositPromise);
-            // await baseDepositPromise;
-
-            // // Send base token on L1.
-            // const baseTokenTransfers = await sendTransfers(
-            //     baseTokenAddress,
-            //     this.mainEthersWallet,
-            //     wallets,
-            //     ERC20_PER_ACCOUNT,
-            //     nonce,
-            //     gasPrice,
-            //     this.reporter
-            // );
-            // nonce += baseTokenTransfers.length;
-            // await Promise.all(baseTokenTransfers);
+            l1TxPromises.push(baseDepositPromise);
 
             this.reporter.debug(`Sent ${l1TxPromises.length} base token initial transactions on L1`);
-            // await Promise.all(l1TxPromises);
+            await Promise.all(l1TxPromises);
         }
         this.reporter.finishAction();
     }
@@ -387,33 +367,33 @@ export class TestContextOwner {
         if (!l2ETHAmountToDeposit.isZero()) {
             // Given that we've already sent a number of transactions,
             // we have to correctly send nonce.
-            // const depositHandle = this.mainSyncWallet
-            //     .deposit({
-            //         token: zksync.utils.ETH_ADDRESS,
-            //         approveBaseERC20: true,
-            //         approveERC20: true,
-            //         amount: l2ETHAmountToDeposit as BigNumberish,
-            //         approveBaseOverrides: {
-            //             nonce: nonce,
-            //             gasPrice
-            //         },
-            //         overrides: {
-            //             nonce: nonce + (ethIsBaseToken ? 0 : 1), // if eth is base token the approve tx does not happen
-            //             gasPrice
-            //         }
-            //     })
-            //     .then((tx) => {
-            //         const amount = ethers.utils.formatEther(l2ETHAmountToDeposit);
-            //         this.reporter.debug(`Sent ETH deposit. Nonce ${tx.nonce}, amount: ${amount}, hash: ${tx.hash}`);
-            //         tx.wait();
-            //     });
-            // nonce = nonce + 1 + (ethIsBaseToken ? 0 : 1);
-            // this.reporter.debug(
-            //     `Nonce changed by ${1 + (ethIsBaseToken ? 0 : 1)} for ETH deposit, new nonce: ${nonce}`
-            // );
-            // // Add this promise to the list of L1 tx promises.
-            // // l1TxPromises.push(depositHandle);
-            // await depositHandle;
+            const depositHandle = this.mainSyncWallet
+                .deposit({
+                    token: zksync.utils.ETH_ADDRESS,
+                    approveBaseERC20: true,
+                    approveERC20: true,
+                    amount: l2ETHAmountToDeposit as BigNumberish,
+                    approveBaseOverrides: {
+                        nonce: nonce,
+                        gasPrice
+                    },
+                    overrides: {
+                        nonce: nonce + (ethIsBaseToken ? 0 : 1), // if eth is base token the approve tx does not happen
+                        gasPrice
+                    }
+                })
+                .then((tx) => {
+                    const amount = ethers.utils.formatEther(l2ETHAmountToDeposit);
+                    this.reporter.debug(`Sent ETH deposit. Nonce ${tx.nonce}, amount: ${amount}, hash: ${tx.hash}`);
+                    tx.wait();
+                });
+            nonce = nonce + 1 + (ethIsBaseToken ? 0 : 1);
+            this.reporter.debug(
+                `Nonce changed by ${1 + (ethIsBaseToken ? 0 : 1)} for ETH deposit, new nonce: ${nonce}`
+            );
+            // Add this promise to the list of L1 tx promises.
+            // l1TxPromises.push(depositHandle);
+            await depositHandle;
         }
         // Define values for handling ERC20 transfers/deposits.
         const erc20Token = this.env.erc20Token.l1Address;
