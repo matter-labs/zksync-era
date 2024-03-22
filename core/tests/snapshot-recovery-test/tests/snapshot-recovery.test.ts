@@ -217,7 +217,7 @@ describe('snapshot recovery', () => {
         externalNodeLogs = await fs.open('snapshot-recovery.log', 'w');
         const externalNodeEnvValidium = {
             ...process.env,
-            ZKSYNC_ENV: 'ext-node-validium'
+            ZKSYNC_ENV: process.env.IN_DOCKER ? 'ext-node-validium-docker' : 'ext-node-validium'
         };
         dotenv.config({ path: `${homeDir}/.env` });
         console.log(`environment = ${process.env.IS_VALIDIUM}`);

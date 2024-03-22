@@ -214,6 +214,7 @@ jobs:
         run: |
           if [[ "${{ matrix.mode }}" == "Validium" ]]; then
             ci_run zk config compile ext-node-validium
+            ci_run zk config compile ext-node-validium-docker
           fi
           ci_run yarn snapshot-recovery-test snapshot-recovery-test
 
