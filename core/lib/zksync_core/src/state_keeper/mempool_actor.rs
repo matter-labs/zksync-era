@@ -248,7 +248,8 @@ mod tests {
         storage
             .transactions_dal()
             .insert_transaction_l2(transaction, TransactionExecutionMetrics::default())
-            .await;
+            .await
+            .unwrap();
         drop(storage);
 
         // Check that the transaction is eventually synced.
@@ -302,7 +303,8 @@ mod tests {
         storage
             .transactions_dal()
             .insert_transaction_l2(transaction, TransactionExecutionMetrics::default())
-            .await;
+            .await
+            .unwrap();
         drop(storage);
 
         tokio::time::sleep(TEST_MEMPOOL_CONFIG.sync_interval() * 5).await;
@@ -353,7 +355,8 @@ mod tests {
         storage
             .transactions_dal()
             .insert_transaction_l2(transaction, TransactionExecutionMetrics::default())
-            .await;
+            .await
+            .unwrap();
         drop(storage);
 
         // Check that the transaction is eventually synced.

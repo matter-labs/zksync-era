@@ -281,7 +281,7 @@ impl TransactionsWeb3Dal<'_, '_> {
         &mut self,
         from_timestamp: NaiveDateTime,
         limit: Option<usize>,
-    ) -> Result<(Vec<H256>, Option<NaiveDateTime>), SqlxError> {
+    ) -> Result<Vec<(NaiveDateTime, H256)>, SqlxError> {
         let records = sqlx::query!(
             r#"
             SELECT
@@ -303,12 +303,11 @@ impl TransactionsWeb3Dal<'_, '_> {
         .fetch_all(self.storage.conn())
         .await?;
 
-        let last_loc = records.last().map(|record| record.received_at);
         let hashes = records
             .into_iter()
-            .map(|record| H256::from_slice(&record.hash))
+            .map(|record| (record.received_at, H256::from_slice(&record.hash)))
             .collect();
-        Ok((hashes, last_loc))
+        Ok(hashes)
     }
 
     /// `committed_next_nonce` should equal the nonce for `initiator_address` in the storage.
@@ -409,7 +408,8 @@ mod tests {
         for tx in &txs {
             conn.transactions_dal()
                 .insert_transaction_l2(tx.clone(), TransactionExecutionMetrics::default())
-                .await;
+                .await
+                .unwrap();
         }
         conn.blocks_dal()
             .insert_miniblock(&create_miniblock_header(0))
@@ -562,7 +562,8 @@ mod tests {
             tx_by_nonce.insert(nonce, tx.clone());
             conn.transactions_dal()
                 .insert_transaction_l2(tx, TransactionExecutionMetrics::default())
-                .await;
+                .await
+                .unwrap();
         }
 
         let next_nonce = conn
@@ -625,7 +626,8 @@ mod tests {
         tx.common_data.initiator_address = initiator;
         conn.transactions_dal()
             .insert_transaction_l2(tx, TransactionExecutionMetrics::default())
-            .await;
+            .await
+            .unwrap();
 
         let next_nonce = conn
             .transactions_web3_dal()

@@ -920,3 +920,4 @@ oneshot
 p2p
 StorageProcessor
 StorageMarker
+SIGINT

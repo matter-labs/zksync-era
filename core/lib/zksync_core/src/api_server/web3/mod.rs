@@ -11,6 +11,7 @@ use tokio::{
 use tower_http::{cors::CorsLayer, metrics::InFlightRequestsLayer};
 use zksync_dal::{ConnectionPool, Core};
 use zksync_health_check::{HealthStatus, HealthUpdater, ReactiveHealthCheck};
+use zksync_state::MempoolCache;
 use zksync_types::MiniblockNumber;
 use zksync_web3_decl::{
     jsonrpsee::{
@@ -45,7 +46,7 @@ use crate::{
 };
 
 pub mod backend_jsonrpsee;
-mod metrics;
+pub(super) mod metrics;
 pub mod namespaces;
 mod pubsub;
 pub mod state;
@@ -297,6 +298,7 @@ impl ApiServer {
     async fn build_rpc_state(
         self,
         last_sealed_miniblock: SealedMiniblockNumber,
+        mempool_cache: MempoolCache,
     ) -> anyhow::Result<RpcState> {
         let mut storage = self.updaters_pool.connection_tagged("api").await?;
         let start_info = BlockStartInfo::new(&mut storage).await?;
@@ -318,6 +320,7 @@ impl ApiServer {
             sync_state: self.optional.sync_state,
             api_config: self.config,
             start_info,
+            mempool_cache,
             last_sealed_miniblock,
             tree_api: self.optional.tree_api,
         })
@@ -327,10 +330,13 @@ impl ApiServer {
         self,
         pub_sub: Option<EthSubscribe>,
         last_sealed_miniblock: SealedMiniblockNumber,
+        mempool_cache: MempoolCache,
     ) -> anyhow::Result<RpcModule<()>> {
         let namespaces = self.namespaces.clone();
         let zksync_network_id = self.config.l2_chain_id;
-        let rpc_state = self.build_rpc_state(last_sealed_miniblock).await?;
+        let rpc_state = self
+            .build_rpc_state(last_sealed_miniblock, mempool_cache)
+            .await?;
 
         // Collect all the methods into a single RPC module.
         let mut rpc = RpcModule::new(());
@@ -432,13 +438,23 @@ impl ApiServer {
 
         let transport = self.transport;
 
-        let (last_sealed_miniblock, update_task) = SealedMiniblockNumber::new(
+        let (last_sealed_miniblock, sealed_miniblock_update_task) = SealedMiniblockNumber::new(
             self.updaters_pool.clone(),
             SEALED_MINIBLOCK_UPDATE_INTERVAL,
             stop_receiver.clone(),
         );
 
-        let mut tasks = vec![tokio::spawn(update_task)];
+        let mut tasks = vec![tokio::spawn(sealed_miniblock_update_task)];
+
+        let (mempool_cache, mempool_cache_update_task) = MempoolCache::new(
+            self.updaters_pool.clone(),
+            self.config.mempool_cache_update_interval,
+            self.config.mempool_cache_size,
+            stop_receiver.clone(),
+        );
+
+        tasks.push(tokio::spawn(mempool_cache_update_task));
+
         let pub_sub = if matches!(transport, ApiTransport::WebSocket(_))
             && self.namespaces.contains(&Namespace::Pubsub)
         {
@@ -464,6 +480,7 @@ impl ApiServer {
         let server_task = tokio::spawn(self.run_jsonrpsee_server(
             stop_receiver,
             pub_sub,
+            mempool_cache,
             last_sealed_miniblock,
             local_addr_sender,
         ));
@@ -480,6 +497,7 @@ impl ApiServer {
         self,
         mut stop_receiver: watch::Receiver<bool>,
         pub_sub: Option<EthSubscribe>,
+        mempool_cache: MempoolCache,
         last_sealed_miniblock: SealedMiniblockNumber,
         local_addr_sender: oneshot::Sender<SocketAddr>,
     ) -> anyhow::Result<()> {
@@ -524,7 +542,7 @@ impl ApiServer {
         let method_tracer = self.method_tracer.clone();
 
         let rpc = self
-            .build_rpc_module(pub_sub, last_sealed_miniblock)
+            .build_rpc_module(pub_sub, last_sealed_miniblock, mempool_cache)
             .await?;
         let registered_method_names = Arc::new(rpc.method_names().collect::<HashSet<_>>());
         tracing::debug!(

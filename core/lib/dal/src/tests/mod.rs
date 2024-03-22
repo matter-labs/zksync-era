@@ -172,13 +172,15 @@ async fn workflow_with_submit_tx_equal_hashes() {
     let tx = mock_l2_transaction();
     let result = transactions_dal
         .insert_transaction_l2(tx.clone(), mock_tx_execution_metrics())
-        .await;
+        .await
+        .unwrap();
 
     assert_eq!(result, L2TxSubmissionResult::Added);
 
     let result = transactions_dal
         .insert_transaction_l2(tx, mock_tx_execution_metrics())
-        .await;
+        .await
+        .unwrap();
 
     assert_eq!(result, L2TxSubmissionResult::Duplicate);
 }
@@ -196,7 +198,8 @@ async fn workflow_with_submit_tx_diff_hashes() {
 
     let result = transactions_dal
         .insert_transaction_l2(tx, mock_tx_execution_metrics())
-        .await;
+        .await
+        .unwrap();
 
     assert_eq!(result, L2TxSubmissionResult::Added);
 
@@ -205,7 +208,8 @@ async fn workflow_with_submit_tx_diff_hashes() {
     tx.common_data.initiator_address = initiator_address;
     let result = transactions_dal
         .insert_transaction_l2(tx, mock_tx_execution_metrics())
-        .await;
+        .await
+        .unwrap();
 
     assert_eq!(result, L2TxSubmissionResult::Replaced);
 }
@@ -227,12 +231,14 @@ async fn remove_stuck_txs() {
     tx.received_timestamp_ms = unix_timestamp_ms() - Duration::new(1000, 0).as_millis() as u64;
     transactions_dal
         .insert_transaction_l2(tx, mock_tx_execution_metrics())
-        .await;
+        .await
+        .unwrap();
     // Tx in mempool
     let tx = mock_l2_transaction();
     transactions_dal
         .insert_transaction_l2(tx, mock_tx_execution_metrics())
-        .await;
+        .await
+        .unwrap();
 
     // Stuck L1 tx. We should never ever remove L1 tx
     let mut tx = mock_l1_execute();
@@ -247,7 +253,8 @@ async fn remove_stuck_txs() {
         unix_timestamp_ms() - Duration::new(1000, 0).as_millis() as u64;
     transactions_dal
         .insert_transaction_l2(executed_tx.clone(), mock_tx_execution_metrics())
-        .await;
+        .await
+        .unwrap();
 
     // Get all txs
     transactions_dal.reset_mempool().await.unwrap();

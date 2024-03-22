@@ -165,7 +165,8 @@ mod tests {
         let tx = mock_l2_transaction();
         conn.transactions_dal()
             .insert_transaction_l2(tx.clone(), TransactionExecutionMetrics::default())
-            .await;
+            .await
+            .unwrap();
         conn.blocks_dal()
             .insert_miniblock(&miniblock_header)
             .await
