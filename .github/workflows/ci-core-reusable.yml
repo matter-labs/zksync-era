@@ -139,6 +139,9 @@ jobs:
           echo IN_DOCKER=1 >> .env
           echo RUN_CONTRACT_VERIFICATION_TEST=true >> .env
           echo ZKSYNC_DEBUG_LOGS=true >> .env
+          if [[ "${{ matrix.mode }}" == "Validium" ]]; then
+            echo IS_VALIDIUM=1 >> .env
+          fi
 
       - name: Download zksolc/solc and zkvyper/vyper
         run: |

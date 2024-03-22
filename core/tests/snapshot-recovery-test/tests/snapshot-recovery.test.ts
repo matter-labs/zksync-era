@@ -7,6 +7,7 @@ import fs, { FileHandle } from 'node:fs/promises';
 import { ChildProcess, spawn, exec } from 'node:child_process';
 import path from 'node:path';
 import { promisify } from 'node:util';
+import dotenv from 'dotenv';
 
 interface AllSnapshotsResponse {
     readonly snapshotsL1BatchNumbers: number[];
@@ -214,29 +215,17 @@ describe('snapshot recovery', () => {
 
     step('initialize external node', async () => {
         externalNodeLogs = await fs.open('snapshot-recovery.log', 'w');
-        console.log(`${JSON.stringify(process.env)}`);
-        const address = await mainNode.getMainContractAddress();
-        const file = await fs.readFile(
-            `${process.env.ZKSYNC_HOME}/contracts/l1-contracts/artifacts/cache/solpp-generated-contracts/zksync/facets/Getters.sol/GettersFacet.json`
-        );
-        const gettersABI = JSON.parse(file.toString()).abi;
-        const provider = new zkweb3.Provider();
-        const contract: zkweb3.Contract = new zkweb3.Contract(address, gettersABI, provider);
-
-        const pricingMode = await contract.getPubdataPricingMode();
-        const environment =
-            pricingMode === 1
-                ? {
-                      ...process.env,
-                      ZKSYNC_ENV: 'ext-node-validium'
-                  }
-                : externalNodeEnv;
-        console.log(`environment = ${JSON.stringify(environment)}`);
+        const externalNodeEnvValidium = {
+            ...process.env,
+            ZKSYNC_ENV: 'ext-node-validium'
+        };
+        dotenv.config({ path: `${homeDir}/.env` });
+        console.log(`environment = ${process.env.IS_VALIDIUM}`);
         externalNodeProcess = spawn('zk external-node -- --enable-snapshots-recovery', {
             cwd: homeDir,
             stdio: [null, externalNodeLogs.fd, externalNodeLogs.fd],
             shell: true,
-            env: environment
+            env: process.env.IS_VALIDIUM ? externalNodeEnvValidium : externalNodeEnv
         });
 
         let recoveryFinished = false;
