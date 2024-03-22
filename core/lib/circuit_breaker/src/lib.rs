@@ -13,7 +13,10 @@ pub struct CircuitBreakers(pub Mutex<Vec<Box<dyn CircuitBreaker>>>);
 impl CircuitBreakers {
     pub async fn insert(&self, circuit_breaker: Box<dyn CircuitBreaker>) {
         let mut guard = self.0.lock().await;
-        if !guard.contains(&circuit_breaker) {
+        if !guard
+            .iter()
+            .any(|existing_breaker| existing_breaker.name() == circuit_breaker.name())
+        {
             guard.push(circuit_breaker);
         }
     }
@@ -36,15 +39,9 @@ pub struct CircuitBreakerChecker {
 
 #[async_trait::async_trait]
 pub trait CircuitBreaker: std::fmt::Debug + Send + Sync {
-    fn id(&self) -> &'static str;
+    fn name(&self) -> &'static str;
 
     async fn check(&self) -> Result<(), CircuitBreakerError>;
-}
-
-impl PartialEq for dyn CircuitBreaker {
-    fn eq(&self, other: &Self) -> bool {
-        self.id() == other.id()
-    }
 }
 
 impl CircuitBreakerChecker {
