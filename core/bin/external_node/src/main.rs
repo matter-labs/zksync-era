@@ -500,9 +500,9 @@ async fn init_tasks(
         );
     }
     // Create a tree reader. If the list of requested components has the tree itself, then
-    // we can get this tree's reader and use it right away. Othrwise, if configuration has
-    // specified address of another instance hosting tree api, create a tree reader to that
-    // remote api. A tree reader is necessary in the case this instance is running API component
+    // we can get this tree's reader and use it right away. Otherwise, if configuration has
+    // specified address of another instance hosting tree API, create a tree reader to that
+    // remote API. A tree reader is necessary in the case this instance is running API component
     // because API needs some kind of tree reader to read proofs from.
     let tree_reader: Option<Arc<dyn TreeApiClient>> = if components.contains(&Component::Tree) {
         let tree_api_config = if components.contains(&Component::TreeApi) {
