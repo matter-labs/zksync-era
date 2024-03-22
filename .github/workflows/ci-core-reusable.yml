@@ -151,7 +151,7 @@ jobs:
           wget https://github.com/ethereum/solc-bin/raw/gh-pages/linux-amd64/solc-linux-amd64-v0.8.23%2Bcommit.f704f362
           mv solc-linux-amd64-v0.8.23+commit.f704f362 $(pwd)/etc/solc-bin/0.8.23/solc
           chmod +x $(pwd)/etc/solc-bin/0.8.23/solc
-
+          
           mkdir -p $(pwd)/etc/solc-bin/zkVM-0.8.23-1.0.0
           wget https://github.com/matter-labs/era-solidity/releases/download/0.8.23-1.0.0/solc-linux-amd64-0.8.23-1.0.0 -O $(pwd)/etc/solc-bin/zkVM-0.8.23-1.0.0/solc
           chmod +x $(pwd)/etc/solc-bin/zkVM-0.8.23-1.0.0/solc
@@ -315,7 +315,7 @@ jobs:
         run: |
           ci_run zk server --components=$SERVER_COMPONENTS &>server.log &
           ci_run sleep 30
-
+      
       - name: Run external node
         run: |
           if [[ "${{ matrix.mode }}" == "Rollup" ]]; then
