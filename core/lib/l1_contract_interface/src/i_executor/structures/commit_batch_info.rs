@@ -51,7 +51,7 @@ impl<'a> Tokenizable for CommitBatchInfoRollup<'a> {
             Token::Tuple(encode_l1_commit(
                 &self.l1_batch_with_metadata.header,
                 &self.l1_batch_with_metadata.metadata,
-                Some(&self.l1_batch_with_metadata),
+                Some(self.l1_batch_with_metadata),
             ))
         }
     }

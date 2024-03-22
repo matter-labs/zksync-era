@@ -118,10 +118,11 @@ jobs:
           ci_run sccache --show-stats
           ci_run cat /tmp/sccache_log.txt
   integration:
-    name: Integration (consensus=${{ matrix.consensus }})
+    name: Integration (consensus=${{ matrix.consensus }}, deployment_mode=${{ matrix.mode }})
     strategy:
       matrix:
         consensus: [false, true]
+        mode: ["Rollup", "Validium"]
     env:
       SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,basic_witness_input_producer,commitment_generator${{ matrix.consensus && ',consensus' || '' }}"
 
@@ -138,6 +139,9 @@ jobs:
           echo IN_DOCKER=1 >> .env
           echo RUN_CONTRACT_VERIFICATION_TEST=true >> .env
           echo ZKSYNC_DEBUG_LOGS=true >> .env
+          if [[ "${{ matrix.mode }}" == "Validium" ]]; then
+            echo IS_VALIDIUM=1 >> .env
+          fi
 
       - name: Download zksolc/solc and zkvyper/vyper
         run: |
@@ -179,7 +183,13 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk
-          ci_run zk init
+          if [[ "${{ matrix.mode }}" == "Rollup" ]]; then
+            ci_run zk init
+          elif [[ "${{ matrix.mode }}" == "Validium" ]]; then
+            ci_run zk env dev_validium_docker
+            ci_run zk config compile dev_validium_docker
+            ci_run zk init --validium-mode
+          fi
 
 
       # `sleep 5` because we need to wait until server started properly
@@ -201,7 +211,12 @@ jobs:
         # We use `yarn` directly because the test launches `zk` commands in both server and EN envs.
         # An empty topmost environment helps avoid a mess when redefining env vars shared between both envs
         # (e.g., DATABASE_URL).
-        run: ci_run yarn snapshot-recovery-test snapshot-recovery-test
+        run: |
+          if [[ "${{ matrix.mode }}" == "Validium" ]]; then
+            ci_run zk config compile ext-node-validium
+            ci_run zk config compile ext-node-validium-docker
+          fi
+          ci_run yarn snapshot-recovery-test snapshot-recovery-test
 
       - name: Fee projection tests
         run: ci_run zk test i fees
@@ -250,10 +265,11 @@ jobs:
           ci_run cat /tmp/sccache_log.txt
 
   external-node:
-    name: External node (consensus=${{ matrix.consensus }})
+    name: External node (consensus=${{ matrix.consensus }}, deployment_mode=${{ matrix.mode }})
     strategy:
       matrix:
         consensus: [false, true]
+        mode: ["Rollup", "Validium"]
     runs-on: [matterlabs-ci-runner]
 
     env:
@@ -286,7 +302,13 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run zk
-          ci_run zk init
+          if [[ "${{ matrix.mode }}" == "Rollup" ]]; then
+            ci_run zk init
+          elif [[ "${{ matrix.mode }}" == "Validium" ]]; then
+            ci_run zk env dev_validium_docker
+            ci_run zk config compile dev_validium_docker
+            ci_run zk init --validium-mode
+          fi
 
       # `sleep 30` because we need to wait until server started properly
       - name: Run server
@@ -296,7 +318,12 @@ jobs:
       
       - name: Run external node
         run: |
-          ci_run zk env ext-node-docker
+          if [[ "${{ matrix.mode }}" == "Rollup" ]]; then
+            ci_run zk env ext-node-docker
+          elif [[ "${{ matrix.mode }}" == "Validium" ]]; then
+            ci_run zk env ext-node-validium-docker
+            ci_run zk config compile ext-node-validium-docker
+          fi
           ci_run zk db setup
           ci_run zk external-node $EXT_NODE_FLAGS &>ext-node.log &
           ci_run sleep 30
@@ -307,7 +334,12 @@ jobs:
       - name: Run revert test
         run: |
           ci_run zk env
-          ci_run zk env docker
+          if [[ "${{ matrix.mode }}" == "Rollup" ]]; then
+            ci_run zk env docker
+          elif [[ "${{ matrix.mode }}" == "Validium" ]]; then
+            ci_run zk env dev_validium_docker
+            ci_run zk config compile dev_validium_docker
+          fi
           ci_run pkill zksync_server || true
           ci_run sleep 2
           ci_run zk env
@@ -318,12 +350,21 @@ jobs:
           # Restart the EN
           ci_run zk server --components=$SERVER_COMPONENTS &>>server.log &
           ci_run sleep 30
-          ZKSYNC_ENV=ext-node-docker ci_run zk external-node $EXT_NODE_FLAGS &>>ext-node.log &
+          if [[ "${{ matrix.mode }}" == "Rollup" ]]; then
+            ZKSYNC_ENV=ext-node-docker ci_run zk external-node $EXT_NODE_FLAGS &>>ext-node.log &
+          elif [[ "${{ matrix.mode }}" == "Validium" ]]; then
+            ZKSYNC_ENV=ext-node-validium-docker ci_run zk external-node $EXT_NODE_FLAGS &>>ext-node.log &
+          fi
           ci_run sleep 30
 
       - name: Run upgrade test
         run: |
-          ci_run zk env docker
+          if [[ "${{ matrix.mode }}" == "Rollup" ]]; then
+            ci_run zk env docker
+          elif [[ "${{ matrix.mode }}" == "Validium" ]]; then
+            ci_run zk env dev_validium_docker
+            ci_run zk config compile dev_validium_docker
+          fi
           CHECK_EN_URL="http://0.0.0.0:3060" ci_run zk test i upgrade
 
       - name: Show server.log logs
