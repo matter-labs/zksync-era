@@ -1,4 +1,5 @@
 pub mod commitment_generator;
+pub mod contract_verification_api;
 pub mod eth_sender;
 pub mod eth_watch;
 pub mod healtcheck_server;
