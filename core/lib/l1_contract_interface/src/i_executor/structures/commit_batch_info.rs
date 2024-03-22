@@ -366,7 +366,11 @@ impl<'a> CommitBatchInfoValidium<'a> {
     }
 
     fn pubdata_input(&self) -> Vec<u8> {
-        Vec::default()
+        self.l1_batch_with_metadata
+            .header
+            .pubdata_input
+            .clone()
+            .unwrap_or_else(|| self.l1_batch_with_metadata.construct_pubdata())
     }
 }
 
@@ -399,7 +403,7 @@ impl<'a> Tokenizable for CommitBatchInfoValidium<'a> {
         if protocol_version.is_pre_1_4_2() {
             tokens.push(
                 // `totalL2ToL1Pubdata` without pubdata source byte
-                Token::Bytes(self.pubdata_input()),
+                Token::Bytes(Vec::default()),
             );
         } else {
             let pubdata = self.pubdata_input();
@@ -410,7 +414,6 @@ impl<'a> Tokenizable for CommitBatchInfoValidium<'a> {
                     let blob_commitment = KzgInfo::new(&pubdata).to_blob_commitment();
 
                     let result = std::iter::once(PUBDATA_SOURCE_CALLDATA)
-                        .chain(pubdata)
                         .chain(blob_commitment)
                         .collect();
 
