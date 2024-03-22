@@ -59,8 +59,8 @@ describe('Tests for the custom bridge behavior', () => {
         await sleep(2);
 
         const baseCommandL2 = isLocalSetup
-        ? `yarn --cwd /contracts/l2-contracts`
-        : `cd $ZKSYNC_HOME && yarn l2-contracts`;
+            ? `yarn --cwd /contracts/l2-contracts`
+            : `cd $ZKSYNC_HOME && yarn l2-contracts`;
         let command2 = `${baseCommandL2} deploy-shared-bridge-on-l2-through-l1 ${args}`;
         await spawn(command2);
         await sleep(2);
