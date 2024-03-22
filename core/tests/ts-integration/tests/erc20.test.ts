@@ -17,6 +17,7 @@ describe('ERC20 contract checks', () => {
     let alice: zksync.Wallet;
     let bob: zksync.Wallet;
     let tokenDetails: Token;
+    let baseTokenDetails: Token;
     let aliceErc20: zksync.Contract;
     let chainId: ethers.BigNumberish;
 
@@ -27,6 +28,7 @@ describe('ERC20 contract checks', () => {
         chainId = process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!;
 
         tokenDetails = testMaster.environment().erc20Token;
+        baseTokenDetails = testMaster.environment().baseToken;
         aliceErc20 = new zksync.Contract(tokenDetails.l2Address, zksync.utils.IERC20, alice);
     });
 
@@ -211,7 +213,7 @@ describe('ERC20 contract checks', () => {
         const maxAmount = await alice.getBalanceL1(tokenDetails.l1Address);
 
         // Approving the needed allowance to ensure that the user has enough funds.
-        await (await alice.approveERC20("0x8E9C82509488eD471A83824d20Dd474b8F534a0b", maxAmount)).wait();
+        await (await alice.approveERC20(baseTokenDetails.l1Address, maxAmount)).wait();
         await (await alice.approveERC20(tokenDetails.l1Address, maxAmount)).wait();
 
         const depositFee = await alice.getFullRequiredDepositFee({
