@@ -1,0 +1,17 @@
+[package]
+name = "validium_mode_example"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+zksync_types = { path = "../core/lib/types" }
+zksync-web3-rs = "*"
+zksync_web3_decl = { path = "../core/lib/web3_decl" }
+loadnext = { path = "../core/tests/loadnext" }
+ethers = "2.0.1"
+hex = "0.4.3"
+tokio = { version = "1", features = ["macros", "process"] }
+colored = "2.0"
