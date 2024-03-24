@@ -38,7 +38,7 @@ use zksync_types::{
 use zksync_utils::u256_to_h256;
 use zksync_web3_decl::{
     jsonrpsee::{http_client::HttpClient, types::error::ErrorCode},
-    namespaces::{EthNamespaceClient, ZksNamespaceClient},
+    namespaces::{EnNamespaceClient, EthNamespaceClient, ZksNamespaceClient},
 };
 
 use super::{metrics::ApiTransportLabel, *};
@@ -1076,4 +1076,22 @@ impl HttpTest for RpcCallsTracingTest {
 #[tokio::test]
 async fn tracing_rpc_calls() {
     test_http_server(RpcCallsTracingTest::default()).await;
+}
+
+#[derive(Debug, Default)]
+struct GenesisConfigTest;
+
+#[async_trait]
+impl HttpTest for GenesisConfigTest {
+    async fn test(&self, client: &HttpClient, _pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
+        // It's enough to check that we fill all fields and deserialization is correct.
+        // Mocking values is not suitable since they will always change
+        client.genesis_config().await.unwrap();
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn tracing_genesis_config() {
+    test_http_server(GenesisConfigTest).await;
 }

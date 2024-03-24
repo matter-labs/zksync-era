@@ -103,7 +103,7 @@ async fn creating_io_cursor_with_snapshot_recovery() {
 async fn waiting_for_l1_batch_params_with_genesis() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut storage = pool.connection().await.unwrap();
-    let (genesis_root_hash, ..) = insert_genesis_batch(&mut storage, &GenesisParams::mock())
+    let genesis_batch = insert_genesis_batch(&mut storage, &GenesisParams::mock())
         .await
         .unwrap();
 
@@ -112,7 +112,7 @@ async fn waiting_for_l1_batch_params_with_genesis() {
         .wait_for_l1_batch_params(&mut storage, L1BatchNumber(0))
         .await
         .unwrap();
-    assert_eq!(hash, genesis_root_hash);
+    assert_eq!(hash, genesis_batch.root_hash);
     assert_eq!(timestamp, 0);
 
     let new_l1_batch = create_l1_batch(1);

@@ -166,11 +166,17 @@ pub fn mock_genesis_config() -> GenesisConfig {
     }
 }
 
+pub struct GenesisBatchParams {
+    pub root_hash: H256,
+    pub commitment: H256,
+    pub rollup_last_leaf_index: u64,
+}
+
 // Insert genesis batch into the database
 pub async fn insert_genesis_batch(
     storage: &mut Connection<'_, Core>,
     genesis_params: &GenesisParams,
-) -> Result<(H256, H256, u64), GenesisError> {
+) -> Result<GenesisBatchParams, GenesisError> {
     let mut transaction = storage
         .start_transaction()
         .await
@@ -227,11 +233,11 @@ pub async fn insert_genesis_batch(
         .commit()
         .await
         .context("create_genesis_l1_batch")?;
-    Ok((
-        genesis_root_hash,
-        block_commitment.hash().commitment,
+    Ok(GenesisBatchParams {
+        root_hash: genesis_root_hash,
+        commitment: block_commitment.hash().commitment,
         rollup_last_leaf_index,
-    ))
+    })
 }
 
 pub async fn ensure_genesis_state(
@@ -259,12 +265,15 @@ pub async fn ensure_genesis_state(
     }
 
     tracing::info!("running regenesis");
-    let (genesis_root_hash, commitment, rollup_last_leaf_index) =
-        insert_genesis_batch(&mut transaction, genesis_params).await?;
-    if genesis_params.config.genesis_root_hash != genesis_root_hash {
+    let GenesisBatchParams {
+        root_hash,
+        commitment,
+        rollup_last_leaf_index,
+    } = insert_genesis_batch(&mut transaction, genesis_params).await?;
+    if genesis_params.config.genesis_root_hash != root_hash {
         return Err(GenesisError::RootHash(
             genesis_params.config.genesis_root_hash,
-            genesis_root_hash,
+            root_hash,
         ));
     }
 
@@ -287,7 +296,7 @@ pub async fn ensure_genesis_state(
         .commit()
         .await
         .context("insert_genesis_batch commit transaction")?;
-    Ok(genesis_root_hash)
+    Ok(root_hash)
 }
 
 // Default account and bootloader are not a regular system contracts

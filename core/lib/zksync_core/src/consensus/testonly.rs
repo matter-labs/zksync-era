@@ -20,7 +20,7 @@ use zksync_web3_decl::{
 use crate::{
     api_server::web3::{state::InternalApiConfig, tests::spawn_http_server},
     consensus::{fetcher::P2PConfig, Fetcher, Store},
-    genesis::GenesisParams,
+    genesis::{mock_genesis_config, GenesisParams},
     state_keeper::{
         io::common::IoCursor, seal_criteria::NoopSealer, tests::MockBatchExecutor, MiniblockSealer,
         ZkSyncStateKeeper,
@@ -138,10 +138,7 @@ impl MainNodeClient for MockMainNodeClient {
     }
 
     async fn fetch_genesis_config(&self) -> EnrichedClientResult<GenesisConfig> {
-        Err(EnrichedClientError::custom(
-            "not implemented",
-            "fetch_genesis_config",
-        ))
+        Ok(mock_genesis_config())
     }
 }
 

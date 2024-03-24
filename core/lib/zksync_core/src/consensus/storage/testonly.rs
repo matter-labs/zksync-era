@@ -8,7 +8,7 @@ use zksync_dal::ConnectionPool;
 
 use super::Store;
 use crate::{
-    genesis::{ensure_genesis_state, GenesisParams},
+    genesis::{ensure_genesis_state, insert_genesis_batch, GenesisParams},
     utils::testonly::{recover, snapshot, Snapshot},
 };
 
@@ -64,7 +64,7 @@ impl Store {
         let pool = ConnectionPool::test_pool().await;
         {
             let mut storage = pool.connection().await.unwrap();
-            ensure_genesis_state(&mut storage, &GenesisParams::mock())
+            insert_genesis_batch(&mut storage, &GenesisParams::mock())
                 .await
                 .unwrap();
         }
