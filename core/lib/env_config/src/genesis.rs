@@ -1,5 +1,4 @@
 use anyhow::anyhow;
-use zksync_basic_types::H256;
 use zksync_config::{
     configs::chain::{NetworkConfig, StateKeeperConfig},
     ContractsConfig, GenesisConfig,
@@ -39,7 +38,6 @@ impl FromEnv for GenesisConfig {
             l2_chain_id: network_config.zksync_network_id,
             recursion_node_level_vk_hash: contracts_config.fri_recursion_node_level_vk_hash,
             recursion_leaf_level_vk_hash: contracts_config.fri_recursion_leaf_level_vk_hash,
-            recursion_circuits_set_vks_hash: H256::zero(),
             recursion_scheduler_level_vk_hash: contracts_config.snark_wrapper_vk_hash,
         })
     }
