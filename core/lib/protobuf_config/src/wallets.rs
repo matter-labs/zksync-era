@@ -1,9 +1,10 @@
-use crate::{parse_h160, parse_h256};
-use zksync_config::configs::wallets::{EthSender, StateKeeper, Wallet};
-use zksync_config::configs::{self};
+use zksync_config::configs::{
+    wallets::{EthSender, StateKeeper, Wallet},
+    {self},
+};
 use zksync_protobuf::{required, ProtoRepr};
 
-use crate::proto::wallets as proto;
+use crate::{parse_h160, parse_h256, proto::wallets as proto};
 
 impl ProtoRepr for proto::Wallets {
     type Type = configs::wallets::Wallets;

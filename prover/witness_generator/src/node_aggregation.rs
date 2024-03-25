@@ -2,11 +2,12 @@ use std::{sync::Arc, time::Instant};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
+use prover_dal::{Prover, ProverDal};
 use zkevm_test_harness::witness::recursive_aggregation::{
     compute_node_vk_commitment, create_node_witnesses,
 };
 use zksync_config::configs::FriWitnessGeneratorConfig;
-use zksync_dal::{fri_prover_dal::types::NodeAggregationJobMetadata, ConnectionPool};
+use zksync_dal::ConnectionPool;
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_prover_fri_types::{
     circuit_definitions::{
@@ -24,7 +25,8 @@ use zksync_prover_fri_types::{
 };
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{
-    basic_fri_types::AggregationRound, protocol_version::FriProtocolVersionId, L1BatchNumber,
+    basic_fri_types::AggregationRound, protocol_version::FriProtocolVersionId,
+    prover_dal::NodeAggregationJobMetadata, L1BatchNumber,
 };
 use zksync_vk_setup_data_server_fri::{keystore::Keystore, utils::get_leaf_vk_params};
 
@@ -73,7 +75,7 @@ pub struct NodeAggregationWitnessGeneratorJob {
 pub struct NodeAggregationWitnessGenerator {
     config: FriWitnessGeneratorConfig,
     object_store: Arc<dyn ObjectStore>,
-    prover_connection_pool: ConnectionPool,
+    prover_connection_pool: ConnectionPool<Prover>,
     protocol_versions: Vec<FriProtocolVersionId>,
 }
 
@@ -81,7 +83,7 @@ impl NodeAggregationWitnessGenerator {
     pub async fn new(
         config: FriWitnessGeneratorConfig,
         store_factory: &ObjectStoreFactory,
-        prover_connection_pool: ConnectionPool,
+        prover_connection_pool: ConnectionPool<Prover>,
         protocol_versions: Vec<FriProtocolVersionId>,
     ) -> Self {
         Self {
@@ -146,7 +148,7 @@ impl JobProcessor for NodeAggregationWitnessGenerator {
     const SERVICE_NAME: &'static str = "fri_node_aggregation_witness_generator";
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
-        let mut prover_connection = self.prover_connection_pool.access_storage().await.unwrap();
+        let mut prover_connection = self.prover_connection_pool.connection().await.unwrap();
         let pod_name = get_current_pod_name();
         let Some(metadata) = prover_connection
             .fri_witness_generator_dal()
@@ -166,7 +168,7 @@ impl JobProcessor for NodeAggregationWitnessGenerator {
 
     async fn save_failure(&self, job_id: u32, _started_at: Instant, error: String) -> () {
         self.prover_connection_pool
-            .access_storage()
+            .connection()
             .await
             .unwrap()
             .fri_witness_generator_dal()
@@ -177,10 +179,15 @@ impl JobProcessor for NodeAggregationWitnessGenerator {
     #[allow(clippy::async_yields_async)]
     async fn process_job(
         &self,
+        _job_id: &Self::JobId,
         job: NodeAggregationWitnessGeneratorJob,
         started_at: Instant,
     ) -> tokio::task::JoinHandle<anyhow::Result<NodeAggregationArtifacts>> {
-        tokio::task::spawn_blocking(move || Ok(Self::process_job_sync(job, started_at)))
+        tokio::task::spawn_blocking(move || {
+            let block_number = job.block_number;
+            let _span = tracing::info_span!("node_aggregation", %block_number).entered();
+            Ok(Self::process_job_sync(job, started_at))
+        })
     }
 
     async fn save_result(
@@ -215,7 +222,7 @@ impl JobProcessor for NodeAggregationWitnessGenerator {
     async fn get_job_attempts(&self, job_id: &u32) -> anyhow::Result<u32> {
         let mut prover_storage = self
             .prover_connection_pool
-            .access_storage()
+            .connection()
             .await
             .context("failed to acquire DB connection for NodeAggregationWitnessGenerator")?;
         prover_storage
@@ -280,7 +287,7 @@ pub async fn prepare_job(
 
 #[allow(clippy::too_many_arguments)]
 async fn update_database(
-    prover_connection_pool: &ConnectionPool,
+    prover_connection_pool: &ConnectionPool<Prover>,
     started_at: Instant,
     id: u32,
     block_number: L1BatchNumber,
@@ -289,7 +296,7 @@ async fn update_database(
     blob_urls: BlobUrls,
     shall_continue_node_aggregations: bool,
 ) {
-    let mut prover_connection = prover_connection_pool.access_storage().await.unwrap();
+    let mut prover_connection = prover_connection_pool.connection().await.unwrap();
     let mut transaction = prover_connection.start_transaction().await.unwrap();
     let dependent_jobs = blob_urls.circuit_ids_and_urls.len();
     let protocol_version_id = transaction

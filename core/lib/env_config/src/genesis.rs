@@ -9,6 +9,9 @@ use crate::FromEnv;
 
 impl FromEnv for GenesisConfig {
     fn from_env() -> anyhow::Result<Self> {
+        // Getting genesis from environmental variables is a temporary measure, that will be
+        // re-implemented and for the sake of simplicity we combine values from different sources
+        // #PLA-811
         let network_config = &NetworkConfig::from_env()?;
         let contracts_config = &ContractsConfig::from_env()?;
         let state_keeper = StateKeeperConfig::from_env()?;

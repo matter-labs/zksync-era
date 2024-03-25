@@ -15,7 +15,7 @@ pub use self::{
     fri_witness_vector_generator::FriWitnessVectorGeneratorConfig,
     genesis::GenesisConfig,
     object_store::ObjectStoreConfig,
-    observability::ObservabilityConfig,
+    observability::{ObservabilityConfig, OpentelemetryConfig},
     proof_data_handler::ProofDataHandlerConfig,
     snapshots_creator::SnapshotsCreatorConfig,
     utils::PrometheusConfig,

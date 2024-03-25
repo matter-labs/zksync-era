@@ -1,16 +1,18 @@
 use sqlx::types::chrono::NaiveDateTime;
+use zksync_db_connection::{
+    connection::Connection, instrument::InstrumentExt, interpolate_query, match_query_as,
+};
 use zksync_types::{
     api, api::TransactionReceipt, Address, L2ChainId, MiniblockNumber, Transaction,
     ACCOUNT_CODE_STORAGE_ADDRESS, FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H256, U256,
 };
 
 use crate::{
-    instrument::InstrumentExt,
     models::storage_transaction::{
         StorageApiTransaction, StorageTransaction, StorageTransactionDetails,
         StorageTransactionReceipt,
     },
-    SqlxError, StorageProcessor,
+    Core, CoreDal, SqlxError,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -21,7 +23,7 @@ enum TransactionSelector<'a> {
 
 #[derive(Debug)]
 pub struct TransactionsWeb3Dal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
 impl TransactionsWeb3Dal<'_, '_> {
@@ -279,7 +281,7 @@ impl TransactionsWeb3Dal<'_, '_> {
         &mut self,
         from_timestamp: NaiveDateTime,
         limit: Option<usize>,
-    ) -> Result<(Vec<H256>, Option<NaiveDateTime>), SqlxError> {
+    ) -> Result<Vec<(NaiveDateTime, H256)>, SqlxError> {
         let records = sqlx::query!(
             r#"
             SELECT
@@ -301,12 +303,11 @@ impl TransactionsWeb3Dal<'_, '_> {
         .fetch_all(self.storage.conn())
         .await?;
 
-        let last_loc = records.last().map(|record| record.received_at);
         let hashes = records
             .into_iter()
-            .map(|record| H256::from_slice(&record.hash))
+            .map(|record| (record.received_at, H256::from_slice(&record.hash)))
             .collect();
-        Ok((hashes, last_loc))
+        Ok(hashes)
     }
 
     /// `committed_next_nonce` should equal the nonce for `initiator_address` in the storage.
@@ -395,10 +396,10 @@ mod tests {
     use super::*;
     use crate::{
         tests::{create_miniblock_header, mock_execution_result, mock_l2_transaction},
-        ConnectionPool,
+        ConnectionPool, Core, CoreDal,
     };
 
-    async fn prepare_transactions(conn: &mut StorageProcessor<'_>, txs: Vec<L2Tx>) {
+    async fn prepare_transactions(conn: &mut Connection<'_, Core>, txs: Vec<L2Tx>) {
         conn.blocks_dal()
             .delete_miniblocks(MiniblockNumber(0))
             .await
@@ -407,7 +408,8 @@ mod tests {
         for tx in &txs {
             conn.transactions_dal()
                 .insert_transaction_l2(tx.clone(), TransactionExecutionMetrics::default())
-                .await;
+                .await
+                .unwrap();
         }
         conn.blocks_dal()
             .insert_miniblock(&create_miniblock_header(0))
@@ -432,8 +434,8 @@ mod tests {
 
     #[tokio::test]
     async fn getting_transaction() {
-        let connection_pool = ConnectionPool::test_pool().await;
-        let mut conn = connection_pool.access_storage().await.unwrap();
+        let connection_pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = connection_pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -482,8 +484,8 @@ mod tests {
 
     #[tokio::test]
     async fn getting_receipts() {
-        let connection_pool = ConnectionPool::test_pool().await;
-        let mut conn = connection_pool.access_storage().await.unwrap();
+        let connection_pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = connection_pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -510,8 +512,8 @@ mod tests {
 
     #[tokio::test]
     async fn getting_miniblock_transactions() {
-        let connection_pool = ConnectionPool::test_pool().await;
-        let mut conn = connection_pool.access_storage().await.unwrap();
+        let connection_pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = connection_pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -537,8 +539,8 @@ mod tests {
 
     #[tokio::test]
     async fn getting_next_nonce_by_initiator_account() {
-        let connection_pool = ConnectionPool::test_pool().await;
-        let mut conn = connection_pool.access_storage().await.unwrap();
+        let connection_pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = connection_pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -560,7 +562,8 @@ mod tests {
             tx_by_nonce.insert(nonce, tx.clone());
             conn.transactions_dal()
                 .insert_transaction_l2(tx, TransactionExecutionMetrics::default())
-                .await;
+                .await
+                .unwrap();
         }
 
         let next_nonce = conn
@@ -607,8 +610,8 @@ mod tests {
     #[tokio::test]
     async fn getting_next_nonce_by_initiator_account_after_snapshot_recovery() {
         // Emulate snapshot recovery: no transactions with past nonces are present in the storage
-        let connection_pool = ConnectionPool::test_pool().await;
-        let mut conn = connection_pool.access_storage().await.unwrap();
+        let connection_pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = connection_pool.connection().await.unwrap();
         let initiator = Address::repeat_byte(1);
         let next_nonce = conn
             .transactions_web3_dal()
@@ -623,7 +626,8 @@ mod tests {
         tx.common_data.initiator_address = initiator;
         conn.transactions_dal()
             .insert_transaction_l2(tx, TransactionExecutionMetrics::default())
-            .await;
+            .await
+            .unwrap();
 
         let next_nonce = conn
             .transactions_web3_dal()

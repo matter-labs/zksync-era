@@ -92,14 +92,14 @@ class MainNode {
 
     // Spawns a main node.
     // if enableConsensus is set, consensus component will be started in the main node.
-    // if enable_execute is NOT set, main node will NOT send L1 transactions to execute L1 batches.
+    // if enableExecute is NOT set, main node will NOT send L1 transactions to execute L1 batches.
     public static async spawn(
         logs: fs.WriteStream,
         enableConsensus: boolean,
-        enable_execute: boolean
+        enableExecute: boolean
     ): Promise<MainNode> {
         let env = fetchEnv(mainEnv);
-        env.ETH_SENDER_SENDER_AGGREGATED_BLOCK_EXECUTE_DEADLINE = enable_execute ? '1' : '10000';
+        env.ETH_SENDER_SENDER_AGGREGATED_BLOCK_EXECUTE_DEADLINE = enableExecute ? '1' : '10000';
         // Set full mode for the Merkle tree as it is required to get blocks committed.
         env.DATABASE_MERKLE_TREE_MODE = 'full';
         console.log(`DATABASE_URL = ${env.DATABASE_URL}`);

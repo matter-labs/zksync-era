@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_core::proof_data_handler;
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
 
 use crate::{
@@ -58,7 +58,7 @@ impl WiringLayer for ProofDataHandlerLayer {
 struct ProofDataHandlerTask {
     proof_data_handler_config: ProofDataHandlerConfig,
     blob_store: Arc<dyn ObjectStore>,
-    main_pool: ConnectionPool,
+    main_pool: ConnectionPool<Core>,
 }
 
 #[async_trait::async_trait]

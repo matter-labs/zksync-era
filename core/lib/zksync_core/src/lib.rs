@@ -10,10 +10,13 @@ use std::{
 use anyhow::Context as _;
 use api_server::tx_sender::master_pool_sink::MasterPoolSink;
 use fee_model::{ApiFeeInputProvider, BatchFeeModelInputProvider, MainNodeFeeInputProvider};
-use futures::channel::oneshot;
 use prometheus_exporter::PrometheusExporterConfig;
+use prover_dal::Prover;
 use temp_config_store::{Secrets, TempConfigStore};
-use tokio::{sync::watch, task::JoinHandle};
+use tokio::{
+    sync::{oneshot, watch},
+    task::JoinHandle,
+};
 use zksync_circuit_breaker::{
     l1_txs::FailedL1TransactionChecker, replication_lag::ReplicationLagChecker, CircuitBreaker,
     CircuitBreakerChecker, CircuitBreakerError,
@@ -32,7 +35,8 @@ use zksync_config::{
     ApiConfig, DBConfig, GenesisConfig, PostgresConfig,
 };
 use zksync_contracts::governance_contract;
-use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
+use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core, CoreDal};
+use zksync_db_connection::healthcheck::ConnectionPoolHealthCheck;
 use zksync_eth_client::{
     clients::{PKSigningClient, QueryClient},
     BoundEthInterface,
@@ -106,11 +110,11 @@ pub async fn genesis_init(
     postgres_config: &PostgresConfig,
 ) -> anyhow::Result<()> {
     let db_url = postgres_config.master_url()?;
-    let pool = ConnectionPool::singleton(db_url)
+    let pool = ConnectionPool::<Core>::singleton(db_url)
         .build()
         .await
         .context("failed to build connection_pool")?;
-    let mut storage = pool.access_storage().await.context("access_storage()")?;
+    let mut storage = pool.connection().await.context("connection()")?;
 
     let params = GenesisParams::load_genesis_params(genesis_config)?;
     genesis::ensure_genesis_state(&mut storage, &params).await?;
@@ -120,11 +124,11 @@ pub async fn genesis_init(
 
 pub async fn is_genesis_needed(postgres_config: &PostgresConfig) -> bool {
     let db_url = postgres_config.master_url().unwrap();
-    let pool = ConnectionPool::singleton(db_url)
+    let pool = ConnectionPool::<Core>::singleton(db_url)
         .build()
         .await
         .expect("failed to build connection_pool");
-    let mut storage = pool.access_storage().await.expect("access_storage()");
+    let mut storage = pool.connection().await.expect("connection()");
     storage.blocks_dal().is_genesis_needed().await.unwrap()
 }
 
@@ -220,7 +224,7 @@ impl FromStr for Components {
 pub async fn initialize_components(
     configs: &TempConfigStore,
     contracts_config: &ContractsConfigReduced,
-    components: Vec<Component>,
+    components: &[Component],
     secrets: &Secrets,
 ) -> anyhow::Result<(
     Vec<JoinHandle<anyhow::Result<()>>>,
@@ -232,22 +236,28 @@ pub async fn initialize_components(
 
     let db_config = configs.db_config.clone().context("db_config")?;
     let postgres_config = configs.postgres_config.clone().context("postgres_config")?;
+
     if let Some(threshold) = postgres_config.slow_query_threshold() {
-        ConnectionPool::global_config().set_slow_query_threshold(threshold)?;
+        ConnectionPool::<Core>::global_config().set_slow_query_threshold(threshold)?;
     }
     if let Some(threshold) = postgres_config.long_connection_threshold() {
-        ConnectionPool::global_config().set_long_connection_threshold(threshold)?;
+        ConnectionPool::<Core>::global_config().set_long_connection_threshold(threshold)?;
     }
 
     let pool_size = postgres_config.max_connections()?;
-    let connection_pool = ConnectionPool::builder(postgres_config.master_url()?, pool_size)
-        .build()
-        .await
-        .context("failed to build connection_pool")?;
+    let pool_size_master = postgres_config
+        .max_connections_master()
+        .unwrap_or(pool_size);
+
+    let connection_pool =
+        ConnectionPool::<Core>::builder(postgres_config.master_url()?, pool_size_master)
+            .build()
+            .await
+            .context("failed to build connection_pool")?;
     // We're most interested in setting acquire / statement timeouts for the API server, which puts the most load
     // on Postgres.
     let replica_connection_pool =
-        ConnectionPool::builder(postgres_config.replica_url()?, pool_size)
+        ConnectionPool::<Core>::builder(postgres_config.replica_url()?, pool_size)
             .set_acquire_timeout(postgres_config.acquire_timeout())
             .set_statement_timeout(postgres_config.statement_timeout())
             .build()
@@ -272,12 +282,12 @@ pub async fn initialize_components(
         .clone()
         .context("circuit_breaker_config")?;
 
-    let circuit_breaker_checker = CircuitBreakerChecker::new(
-        circuit_breakers_for_components(&components, &postgres_config, &circuit_breaker_config)
+    let circuit_breakers =
+        circuit_breakers_for_components(components, &postgres_config, &circuit_breaker_config)
             .await
-            .context("circuit_breakers_for_components")?,
-        &circuit_breaker_config,
-    );
+            .context("circuit_breakers_for_components")?;
+    let (circuit_breaker_checker, circuit_breaker_error) =
+        CircuitBreakerChecker::new(circuit_breakers, &circuit_breaker_config);
     circuit_breaker_checker.check().await.unwrap_or_else(|err| {
         panic!("Circuit breaker triggered: {}", err);
     });
@@ -296,7 +306,6 @@ pub async fn initialize_components(
     );
 
     let (stop_sender, stop_receiver) = watch::channel(false);
-    let (cb_sender, cb_receiver) = oneshot::channel();
 
     // Prometheus exporter and circuit breaker checker should run for every component configuration.
     let prom_config = configs
@@ -318,7 +327,7 @@ pub async fn initialize_components(
 
     let mut task_futures: Vec<JoinHandle<anyhow::Result<()>>> = vec![
         prometheus_task,
-        tokio::spawn(circuit_breaker_checker.run(cb_sender, stop_receiver.clone())),
+        tokio::spawn(circuit_breaker_checker.run(stop_receiver.clone())),
     ];
 
     if components.contains(&Component::WsApi)
@@ -350,8 +359,13 @@ pub async fn initialize_components(
 
         if components.contains(&Component::HttpApi) {
             storage_caches = Some(
-                build_storage_caches(configs, &replica_connection_pool, &mut task_futures)
-                    .context("build_storage_caches()")?,
+                build_storage_caches(
+                    configs,
+                    &replica_connection_pool,
+                    &mut task_futures,
+                    stop_receiver.clone(),
+                )
+                .context("build_storage_caches()")?,
             );
 
             let started_at = Instant::now();
@@ -393,8 +407,13 @@ pub async fn initialize_components(
         if components.contains(&Component::WsApi) {
             let storage_caches = match storage_caches {
                 Some(storage_caches) => storage_caches,
-                None => build_storage_caches(configs, &replica_connection_pool, &mut task_futures)
-                    .context("build_storage_caches()")?,
+                None => build_storage_caches(
+                    configs,
+                    &replica_connection_pool,
+                    &mut task_futures,
+                    stop_receiver.clone(),
+                )
+                .context("build_storage_caches()")?,
             };
 
             let started_at = Instant::now();
@@ -435,12 +454,12 @@ pub async fn initialize_components(
         if components.contains(&Component::ContractVerificationApi) {
             let started_at = Instant::now();
             tracing::info!("initializing contract verification REST API");
-            task_futures.push(contract_verification::start_server_thread_detached(
+            task_futures.push(tokio::spawn(contract_verification::start_server(
                 connection_pool.clone(),
                 replica_connection_pool.clone(),
                 api_config.contract_verification.clone(),
                 stop_receiver.clone(),
-            ));
+            )));
             let elapsed = started_at.elapsed();
             APP_METRICS.init_latency[&InitStage::ContractVerificationApi].set(elapsed);
             tracing::info!("initialized contract verification REST API in {elapsed:?}");
@@ -532,7 +551,7 @@ pub async fn initialize_components(
     if components.contains(&Component::EthWatcher) {
         let started_at = Instant::now();
         tracing::info!("initializing ETH-Watcher");
-        let eth_watch_pool = ConnectionPool::singleton(postgres_config.master_url()?)
+        let eth_watch_pool = ConnectionPool::<Core>::singleton(postgres_config.master_url()?)
             .build()
             .await
             .context("failed to build eth_watch_pool")?;
@@ -561,7 +580,7 @@ pub async fn initialize_components(
     if components.contains(&Component::EthTxAggregator) {
         let started_at = Instant::now();
         tracing::info!("initializing ETH-TxAggregator");
-        let eth_sender_pool = ConnectionPool::singleton(postgres_config.master_url()?)
+        let eth_sender_pool = ConnectionPool::<Core>::singleton(postgres_config.master_url()?)
             .build()
             .await
             .context("failed to build eth_sender_pool")?;
@@ -608,7 +627,7 @@ pub async fn initialize_components(
     if components.contains(&Component::EthTxManager) {
         let started_at = Instant::now();
         tracing::info!("initializing ETH-TxManager");
-        let eth_manager_pool = ConnectionPool::singleton(postgres_config.master_url()?)
+        let eth_manager_pool = ConnectionPool::<Core>::singleton(postgres_config.master_url()?)
             .build()
             .await
             .context("failed to build eth_manager_pool")?;
@@ -642,7 +661,7 @@ pub async fn initialize_components(
         configs,
         &mut task_futures,
         &app_health,
-        &components,
+        components,
         &store_factory,
         stop_receiver.clone(),
     )
@@ -650,10 +669,11 @@ pub async fn initialize_components(
     .context("add_trees_to_task_futures()")?;
 
     if components.contains(&Component::BasicWitnessInputProducer) {
-        let singleton_connection_pool = ConnectionPool::singleton(postgres_config.master_url()?)
-            .build()
-            .await
-            .context("failed to build singleton connection_pool")?;
+        let singleton_connection_pool =
+            ConnectionPool::<Core>::singleton(postgres_config.master_url()?)
+                .build()
+                .await
+                .context("failed to build singleton connection_pool")?;
         let network_config = configs.network_config.clone().context("network_config")?;
         add_basic_witness_input_producer_to_task_futures(
             &mut task_futures,
@@ -667,7 +687,7 @@ pub async fn initialize_components(
     }
 
     if components.contains(&Component::Housekeeper) {
-        add_house_keeper_to_task_futures(configs, &mut task_futures)
+        add_house_keeper_to_task_futures(configs, &mut task_futures, stop_receiver.clone())
             .await
             .context("add_house_keeper_to_task_futures()")?;
     }
@@ -685,10 +705,11 @@ pub async fn initialize_components(
     }
 
     if components.contains(&Component::CommitmentGenerator) {
-        let commitment_generator_pool = ConnectionPool::singleton(postgres_config.master_url()?)
-            .build()
-            .await
-            .context("failed to build commitment_generator_pool")?;
+        let commitment_generator_pool =
+            ConnectionPool::<Core>::singleton(postgres_config.master_url()?)
+                .build()
+                .await
+                .context("failed to build commitment_generator_pool")?;
         let commitment_generator = CommitmentGenerator::new(commitment_generator_pool);
         app_health.insert_component(commitment_generator.health_check());
         task_futures.push(tokio::spawn(
@@ -705,7 +726,12 @@ pub async fn initialize_components(
     if let Some(task) = gas_adjuster.run_if_initialized(stop_receiver.clone()) {
         task_futures.push(task);
     }
-    Ok((task_futures, stop_sender, cb_receiver, health_check_handle))
+    Ok((
+        task_futures,
+        stop_sender,
+        circuit_breaker_error,
+        health_check_handle,
+    ))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -721,14 +747,14 @@ async fn add_state_keeper_to_task_futures(
     object_store: Arc<dyn ObjectStore>,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
-    let pool_builder = ConnectionPool::singleton(postgres_config.master_url()?);
+    let pool_builder = ConnectionPool::<Core>::singleton(postgres_config.master_url()?);
     let state_keeper_pool = pool_builder
         .build()
         .await
         .context("failed to build state_keeper_pool")?;
     let mempool = {
         let mut storage = state_keeper_pool
-            .access_storage()
+            .connection()
             .await
             .context("Access storage to build mempool")?;
         let mempool = MempoolGuard::from_storage(&mut storage, mempool_config.capacity).await;
@@ -869,7 +895,7 @@ async fn run_tree(
 
     let tree_health_check = metadata_calculator.tree_health_check();
     app_health.insert_component(tree_health_check);
-    let pool = ConnectionPool::singleton(postgres_config.master_url()?)
+    let pool = ConnectionPool::<Core>::singleton(postgres_config.master_url()?)
         .build()
         .await
         .context("failed to build connection pool")?;
@@ -884,7 +910,7 @@ async fn run_tree(
 
 async fn add_basic_witness_input_producer_to_task_futures(
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
-    connection_pool: &ConnectionPool,
+    connection_pool: &ConnectionPool<Core>,
     store_factory: &ObjectStoreFactory,
     l2_chain_id: L2ChainId,
     stop_receiver: watch::Receiver<bool>,
@@ -911,13 +937,14 @@ async fn add_basic_witness_input_producer_to_task_futures(
 async fn add_house_keeper_to_task_futures(
     configs: &TempConfigStore,
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
+    stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
     let house_keeper_config = configs
         .house_keeper_config
         .clone()
         .context("house_keeper_config")?;
     let postgres_config = configs.postgres_config.clone().context("postgres_config")?;
-    let connection_pool = ConnectionPool::builder(
+    let connection_pool = ConnectionPool::<Core>::builder(
         postgres_config.replica_url()?,
         postgres_config.max_connections()?,
     )
@@ -926,10 +953,16 @@ async fn add_house_keeper_to_task_futures(
     .context("failed to build a connection pool")?;
 
     let pool_for_metrics = connection_pool.clone();
+    let mut stop_receiver_for_metrics = stop_receiver.clone();
     task_futures.push(tokio::spawn(async move {
-        pool_for_metrics
-            .run_postgres_metrics_scraping(Duration::from_secs(60))
-            .await;
+        tokio::select! {
+            () = PostgresMetrics::run_scraping(pool_for_metrics, Duration::from_secs(60)) => {
+                tracing::warn!("Postgres metrics scraping unexpectedly stopped");
+            }
+            _ = stop_receiver_for_metrics.changed() => {
+                tracing::info!("Stop signal received, Postgres metrics scraping is shutting down");
+            }
+        }
         Ok(())
     }));
 
@@ -938,14 +971,15 @@ async fn add_house_keeper_to_task_futures(
         connection_pool.clone(),
     );
 
-    let prover_connection_pool = ConnectionPool::builder(
+    let prover_connection_pool = ConnectionPool::<Prover>::builder(
         postgres_config.prover_url()?,
         postgres_config.max_connections()?,
     )
     .build()
     .await
     .context("failed to build a prover_connection_pool")?;
-    task_futures.push(tokio::spawn(l1_batch_metrics_reporter.run()));
+    let task = l1_batch_metrics_reporter.run(stop_receiver.clone());
+    task_futures.push(tokio::spawn(task));
 
     // All FRI Prover related components are configured below.
     let fri_prover_config = configs
@@ -958,7 +992,8 @@ async fn add_house_keeper_to_task_futures(
         house_keeper_config.fri_prover_job_retrying_interval_ms,
         prover_connection_pool.clone(),
     );
-    task_futures.push(tokio::spawn(fri_prover_job_retry_manager.run()));
+    let task = fri_prover_job_retry_manager.run(stop_receiver.clone());
+    task_futures.push(tokio::spawn(task));
 
     let fri_witness_gen_config = configs
         .fri_witness_generator_config
@@ -970,25 +1005,29 @@ async fn add_house_keeper_to_task_futures(
         house_keeper_config.fri_witness_generator_job_retrying_interval_ms,
         prover_connection_pool.clone(),
     );
-    task_futures.push(tokio::spawn(fri_witness_gen_job_retry_manager.run()));
+    let task = fri_witness_gen_job_retry_manager.run(stop_receiver.clone());
+    task_futures.push(tokio::spawn(task));
 
     let waiting_to_queued_fri_witness_job_mover = WaitingToQueuedFriWitnessJobMover::new(
         house_keeper_config.fri_witness_job_moving_interval_ms,
         prover_connection_pool.clone(),
     );
-    task_futures.push(tokio::spawn(waiting_to_queued_fri_witness_job_mover.run()));
+    let task = waiting_to_queued_fri_witness_job_mover.run(stop_receiver.clone());
+    task_futures.push(tokio::spawn(task));
 
     let scheduler_circuit_queuer = SchedulerCircuitQueuer::new(
         house_keeper_config.fri_witness_job_moving_interval_ms,
         prover_connection_pool.clone(),
     );
-    task_futures.push(tokio::spawn(scheduler_circuit_queuer.run()));
+    let task = scheduler_circuit_queuer.run(stop_receiver.clone());
+    task_futures.push(tokio::spawn(task));
 
     let fri_witness_generator_stats_reporter = FriWitnessGeneratorStatsReporter::new(
         prover_connection_pool.clone(),
         house_keeper_config.witness_generator_stats_reporting_interval_ms,
     );
-    task_futures.push(tokio::spawn(fri_witness_generator_stats_reporter.run()));
+    let task = fri_witness_generator_stats_reporter.run(stop_receiver.clone());
+    task_futures.push(tokio::spawn(task));
 
     let fri_prover_group_config = configs
         .fri_prover_group_config
@@ -1000,7 +1039,8 @@ async fn add_house_keeper_to_task_futures(
         connection_pool.clone(),
         fri_prover_group_config,
     );
-    task_futures.push(tokio::spawn(fri_prover_stats_reporter.run()));
+    let task = fri_prover_stats_reporter.run(stop_receiver.clone());
+    task_futures.push(tokio::spawn(task));
 
     let proof_compressor_config = configs
         .fri_proof_compressor_config
@@ -1010,7 +1050,8 @@ async fn add_house_keeper_to_task_futures(
         house_keeper_config.fri_proof_compressor_stats_reporting_interval_ms,
         prover_connection_pool.clone(),
     );
-    task_futures.push(tokio::spawn(fri_proof_compressor_stats_reporter.run()));
+    let task = fri_proof_compressor_stats_reporter.run(stop_receiver.clone());
+    task_futures.push(tokio::spawn(task));
 
     let fri_proof_compressor_retry_manager = FriProofCompressorJobRetryManager::new(
         proof_compressor_config.max_attempts,
@@ -1018,14 +1059,16 @@ async fn add_house_keeper_to_task_futures(
         house_keeper_config.fri_proof_compressor_job_retrying_interval_ms,
         prover_connection_pool.clone(),
     );
-    task_futures.push(tokio::spawn(fri_proof_compressor_retry_manager.run()));
+    let task = fri_proof_compressor_retry_manager.run(stop_receiver);
+    task_futures.push(tokio::spawn(task));
     Ok(())
 }
 
 fn build_storage_caches(
     configs: &TempConfigStore,
-    replica_connection_pool: &ConnectionPool,
+    replica_connection_pool: &ConnectionPool<Core>,
     task_futures: &mut Vec<JoinHandle<anyhow::Result<()>>>,
+    stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<PostgresStorageCaches> {
     let rpc_config = configs
         .web3_json_rpc_config
@@ -1038,12 +1081,9 @@ fn build_storage_caches(
         PostgresStorageCaches::new(factory_deps_capacity, initial_writes_capacity);
 
     if values_capacity > 0 {
-        let values_cache_task = storage_caches.configure_storage_values_cache(
-            values_capacity,
-            replica_connection_pool.clone(),
-            tokio::runtime::Handle::current(),
-        );
-        task_futures.push(tokio::task::spawn_blocking(values_cache_task));
+        let values_cache_task = storage_caches
+            .configure_storage_values_cache(values_capacity, replica_connection_pool.clone());
+        task_futures.push(tokio::task::spawn(values_cache_task.run(stop_receiver)));
     }
     Ok(storage_caches)
 }
@@ -1052,8 +1092,8 @@ async fn build_tx_sender(
     tx_sender_config: &TxSenderConfig,
     web3_json_config: &Web3JsonRpcConfig,
     state_keeper_config: &StateKeeperConfig,
-    replica_pool: ConnectionPool,
-    master_pool: ConnectionPool,
+    replica_pool: ConnectionPool<Core>,
+    master_pool: ConnectionPool<Core>,
     batch_fee_model_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     storage_caches: PostgresStorageCaches,
 ) -> (TxSender, VmConcurrencyBarrier) {
@@ -1092,8 +1132,8 @@ async fn run_http_api(
     state_keeper_config: &StateKeeperConfig,
     internal_api: &InternalApiConfig,
     api_config: &ApiConfig,
-    master_connection_pool: ConnectionPool,
-    replica_connection_pool: ConnectionPool,
+    master_connection_pool: ConnectionPool<Core>,
+    replica_connection_pool: ConnectionPool<Core>,
     stop_receiver: watch::Receiver<bool>,
     batch_fee_model_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     with_debug_namespace: bool,
@@ -1116,7 +1156,7 @@ async fn run_http_api(
     }
     namespaces.push(Namespace::Snapshots);
 
-    let updaters_pool = ConnectionPool::builder(postgres_config.replica_url()?, 2)
+    let updaters_pool = ConnectionPool::<Core>::builder(postgres_config.replica_url()?, 2)
         .build()
         .await
         .context("failed to build last_miniblock_pool")?;
@@ -1157,8 +1197,8 @@ async fn run_ws_api(
     internal_api: &InternalApiConfig,
     api_config: &ApiConfig,
     batch_fee_model_input_provider: Arc<dyn BatchFeeModelInputProvider>,
-    master_connection_pool: ConnectionPool,
-    replica_connection_pool: ConnectionPool,
+    master_connection_pool: ConnectionPool<Core>,
+    replica_connection_pool: ConnectionPool<Core>,
     stop_receiver: watch::Receiver<bool>,
     storage_caches: PostgresStorageCaches,
 ) -> anyhow::Result<()> {
@@ -1172,7 +1212,7 @@ async fn run_ws_api(
         storage_caches,
     )
     .await;
-    let last_miniblock_pool = ConnectionPool::singleton(postgres_config.replica_url()?)
+    let last_miniblock_pool = ConnectionPool::<Core>::singleton(postgres_config.replica_url()?)
         .build()
         .await
         .context("failed to build last_miniblock_pool")?;
@@ -1224,7 +1264,7 @@ async fn circuit_breakers_for_components(
         .iter()
         .any(|c| matches!(c, Component::EthTxAggregator | Component::EthTxManager))
     {
-        let pool = ConnectionPool::singleton(postgres_config.replica_url()?)
+        let pool = ConnectionPool::<Core>::singleton(postgres_config.replica_url()?)
             .build()
             .await
             .context("failed to build a connection pool")?;
@@ -1237,7 +1277,7 @@ async fn circuit_breakers_for_components(
             Component::HttpApi | Component::WsApi | Component::ContractVerificationApi
         )
     }) {
-        let pool = ConnectionPool::singleton(postgres_config.replica_url()?)
+        let pool = ConnectionPool::<Core>::singleton(postgres_config.replica_url()?)
             .build()
             .await?;
         circuit_breakers.push(Box::new(ReplicationLagChecker {

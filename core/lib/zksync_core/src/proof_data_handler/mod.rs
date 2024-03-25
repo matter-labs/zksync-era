@@ -6,7 +6,7 @@ use tokio::sync::watch;
 use zksync_config::configs::{
     proof_data_handler::ProtocolVersionLoadingMode, ProofDataHandlerConfig,
 };
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
 use zksync_prover_interface::api::{ProofGenerationDataRequest, SubmitProofRequest};
 use zksync_types::protocol_version::L1VerifierConfig;
@@ -18,7 +18,7 @@ mod request_processor;
 pub async fn run_server(
     config: ProofDataHandlerConfig,
     blob_store: Arc<dyn ObjectStore>,
-    pool: ConnectionPool,
+    pool: ConnectionPool<Core>,
     mut stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
     let bind_address = SocketAddr::from(([0, 0, 0, 0], config.http_port));
