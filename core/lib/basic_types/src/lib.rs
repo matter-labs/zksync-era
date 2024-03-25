@@ -20,6 +20,9 @@ pub use web3::{
 mod macros;
 pub mod basic_fri_types;
 pub mod network;
+pub mod protocol_version;
+pub mod prover_dal;
+pub mod vm_version;
 
 /// Account place in the global state tree is uniquely identified by its address.
 /// Binary this type is represented by 160 bit big-endian representation of account address.

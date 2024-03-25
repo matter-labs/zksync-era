@@ -237,6 +237,13 @@ pub struct OptionalENConfig {
     /// 0 means that sealing is synchronous; this is mostly useful for performance comparison, testing etc.
     #[serde(default = "OptionalENConfig::default_miniblock_seal_queue_capacity")]
     pub miniblock_seal_queue_capacity: usize,
+    /// Polling period for mempool cache update - how often the mempool cache is updated from the database.
+    /// In milliseconds. Default is 50 milliseconds.
+    #[serde(default = "OptionalENConfig::default_mempool_cache_update_interval")]
+    pub mempool_cache_update_interval: u64,
+    /// Maximum number of transactions to be stored in the mempool cache. Default is 10000.
+    #[serde(default = "OptionalENConfig::default_mempool_cache_size")]
+    pub mempool_cache_size: usize,
     /// Address of the L1 diamond proxy contract used by the consistency checker to match with the origin of logs emitted
     /// by commit transactions. If not set, it will not be verified.
     // This is intentionally not a part of `RemoteENConfig` because fetching this info from the main node would defeat
@@ -348,6 +355,14 @@ impl OptionalENConfig {
         10
     }
 
+    const fn default_mempool_cache_update_interval() -> u64 {
+        50
+    }
+
+    const fn default_mempool_cache_size() -> usize {
+        10_000
+    }
+
     pub fn polling_interval(&self) -> Duration {
         Duration::from_millis(self.polling_interval)
     }
@@ -414,6 +429,10 @@ impl OptionalENConfig {
     pub fn healthcheck_hard_time_limit(&self) -> Option<Duration> {
         self.healthcheck_hard_time_limit_ms
             .map(Duration::from_millis)
+    }
+
+    pub fn mempool_cache_update_interval(&self) -> Duration {
+        Duration::from_millis(self.mempool_cache_update_interval)
     }
 }
 
@@ -619,6 +638,8 @@ impl From<ExternalNodeConfig> for InternalApiConfig {
             req_entities_limit: config.optional.req_entities_limit,
             fee_history_limit: config.optional.fee_history_limit,
             filters_disabled: config.optional.filters_disabled,
+            mempool_cache_update_interval: config.optional.mempool_cache_update_interval(),
+            mempool_cache_size: config.optional.mempool_cache_size,
         }
     }
 }

@@ -1,11 +1,12 @@
 use sqlx::types::chrono::Utc;
+use zksync_db_connection::{connection::Connection, write_str, writeln_str};
 use zksync_types::{tokens::TokenInfo, Address, MiniblockNumber};
 
-use crate::StorageProcessor;
+use crate::{Core, CoreDal};
 
 #[derive(Debug)]
 pub struct TokensDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
 impl TokensDal<'_, '_> {
@@ -111,7 +112,7 @@ mod tests {
     use zksync_types::{get_code_key, tokens::TokenMetadata, StorageLog, H256};
 
     use super::*;
-    use crate::ConnectionPool;
+    use crate::{ConnectionPool, Core, CoreDal};
 
     fn test_token_info() -> TokenInfo {
         TokenInfo {
@@ -139,8 +140,8 @@ mod tests {
 
     #[tokio::test]
     async fn adding_and_getting_tokens() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut storage = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut storage = pool.connection().await.unwrap();
         let tokens = [test_token_info(), eth_token_info()];
         storage.tokens_dal().add_tokens(&tokens).await.unwrap();
 
@@ -186,8 +187,8 @@ mod tests {
 
     #[tokio::test]
     async fn rolling_back_tokens() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut storage = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut storage = pool.connection().await.unwrap();
 
         let eth_info = eth_token_info();
         let eth_deployment_log =
@@ -256,7 +257,7 @@ mod tests {
         );
     }
 
-    async fn test_getting_all_tokens(storage: &mut StorageProcessor<'_>) {
+    async fn test_getting_all_tokens(storage: &mut Connection<'_, Core>) {
         for at_miniblock in [None, Some(MiniblockNumber(2)), Some(MiniblockNumber(100))] {
             let all_tokens = storage
                 .tokens_web3_dal()
@@ -280,8 +281,8 @@ mod tests {
 
     #[tokio::test]
     async fn rolling_back_tokens_with_failed_deployment() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut storage = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut storage = pool.connection().await.unwrap();
 
         let test_info = test_token_info();
 

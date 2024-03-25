@@ -50,7 +50,7 @@ impl HttpTest for CallTest {
         Self::create_executor(MiniblockNumber(0))
     }
 
-    async fn test(&self, client: &HttpClient, _pool: &ConnectionPool) -> anyhow::Result<()> {
+    async fn test(&self, client: &HttpClient, _pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
         let call_result = client.call(Self::call_request(b"pending"), None).await?;
         assert_eq!(call_result.0, b"output");
 
@@ -102,7 +102,7 @@ impl HttpTest for CallTestAfterSnapshotRecovery {
         CallTest::create_executor(first_local_miniblock)
     }
 
-    async fn test(&self, client: &HttpClient, _pool: &ConnectionPool) -> anyhow::Result<()> {
+    async fn test(&self, client: &HttpClient, _pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
         let call_result = client
             .call(CallTest::call_request(b"pending"), None)
             .await?;
@@ -218,10 +218,10 @@ impl HttpTest for SendRawTransactionTest {
         tx_executor
     }
 
-    async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
+    async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
         if !self.snapshot_recovery {
             // Manually set sufficient balance for the transaction account.
-            let mut storage = pool.access_storage().await?;
+            let mut storage = pool.connection().await?;
             storage
                 .storage_logs_dal()
                 .append_storage_logs(
@@ -280,7 +280,7 @@ impl HttpTest for TraceCallTest {
         CallTest::create_executor(MiniblockNumber(0))
     }
 
-    async fn test(&self, client: &HttpClient, _pool: &ConnectionPool) -> anyhow::Result<()> {
+    async fn test(&self, client: &HttpClient, _pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
         let call_request = CallTest::call_request(b"pending");
         let call_result = client.trace_call(call_request.clone(), None, None).await?;
         Self::assert_debug_call(&call_request, &call_result);
@@ -345,7 +345,7 @@ impl HttpTest for TraceCallTestAfterSnapshotRecovery {
         CallTest::create_executor(number)
     }
 
-    async fn test(&self, client: &HttpClient, _pool: &ConnectionPool) -> anyhow::Result<()> {
+    async fn test(&self, client: &HttpClient, _pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
         let call_request = CallTest::call_request(b"pending");
         let call_result = client.trace_call(call_request.clone(), None, None).await?;
         TraceCallTest::assert_debug_call(&call_request, &call_result);
@@ -431,7 +431,7 @@ impl HttpTest for EstimateGasTest {
         tx_executor
     }
 
-    async fn test(&self, client: &HttpClient, pool: &ConnectionPool) -> anyhow::Result<()> {
+    async fn test(&self, client: &HttpClient, pool: &ConnectionPool<Core>) -> anyhow::Result<()> {
         let l2_transaction = create_l2_transaction(10, 100);
         for threshold in [10_000, 50_000, 100_000, 1_000_000] {
             self.gas_limit_threshold.store(threshold, Ordering::Relaxed);
@@ -452,7 +452,7 @@ impl HttpTest for EstimateGasTest {
         if !self.snapshot_recovery {
             // Manually set sufficient balance for the transaction account.
             let storage_log = SendRawTransactionTest::balance_storage_log();
-            let mut storage = pool.access_storage().await?;
+            let mut storage = pool.connection().await?;
             storage
                 .storage_logs_dal()
                 .append_storage_logs(MiniblockNumber(0), &[(H256::zero(), vec![storage_log])])

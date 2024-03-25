@@ -11,10 +11,10 @@ use multivm::{interface::Halt, utils::derive_base_fee_and_gas_per_pubdata};
 use vm_utils::storage::L1BatchParamsProvider;
 use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_contracts::BaseSystemContracts;
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
 use zksync_types::{
-    protocol_version::ProtocolUpgradeTx, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
+    protocol_upgrade::ProtocolUpgradeTx, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
     ProtocolVersionId, Transaction, H256, U256,
 };
 // TODO (SMA-1206): use seconds instead of milliseconds.
@@ -43,7 +43,7 @@ use crate::{
 #[derive(Debug)]
 pub struct MempoolIO {
     mempool: MempoolGuard,
-    pool: ConnectionPool,
+    pool: ConnectionPool<Core>,
     timeout_sealer: TimeoutSealer,
     filter: L2TxFilter,
     l1_batch_params_provider: L1BatchParamsProvider,
@@ -77,7 +77,7 @@ impl StateKeeperIO for MempoolIO {
     }
 
     async fn initialize(&mut self) -> anyhow::Result<(IoCursor, Option<PendingBatchData>)> {
-        let mut storage = self.pool.access_storage_tagged("state_keeper").await?;
+        let mut storage = self.pool.connection_tagged("state_keeper").await?;
         let cursor = IoCursor::new(&mut storage).await?;
 
         let pending_miniblock_header = self
@@ -164,7 +164,7 @@ impl StateKeeperIO for MempoolIO {
                 cursor.l1_batch,
                 self.filter.fee_input
             );
-            let mut storage = self.pool.access_storage_tagged("state_keeper").await?;
+            let mut storage = self.pool.connection_tagged("state_keeper").await?;
             let protocol_version = storage
                 .protocol_versions_dal()
                 .protocol_version_id_by_timestamp(timestamp)
@@ -270,7 +270,7 @@ impl StateKeeperIO for MempoolIO {
         self.mempool.rollback(rejected);
 
         // Mark tx as rejected in the storage.
-        let mut storage = self.pool.access_storage_tagged("state_keeper").await?;
+        let mut storage = self.pool.connection_tagged("state_keeper").await?;
         KEEPER_METRICS.rejected_transactions.inc();
         tracing::warn!(
             "transaction {} is rejected with error: {error}",
@@ -289,7 +289,7 @@ impl StateKeeperIO for MempoolIO {
         _cursor: &IoCursor,
     ) -> anyhow::Result<BaseSystemContracts> {
         self.pool
-            .access_storage_tagged("state_keeper")
+            .connection_tagged("state_keeper")
             .await?
             .protocol_versions_dal()
             .load_base_system_contracts_by_version_id(protocol_version as u16)
@@ -306,7 +306,7 @@ impl StateKeeperIO for MempoolIO {
         &mut self,
         number: L1BatchNumber,
     ) -> anyhow::Result<ProtocolVersionId> {
-        let mut storage = self.pool.access_storage_tagged("state_keeper").await?;
+        let mut storage = self.pool.connection_tagged("state_keeper").await?;
         self.l1_batch_params_provider
             .load_l1_batch_protocol_version(&mut storage, number)
             .await
@@ -318,7 +318,7 @@ impl StateKeeperIO for MempoolIO {
         &mut self,
         version_id: ProtocolVersionId,
     ) -> anyhow::Result<Option<ProtocolUpgradeTx>> {
-        let mut storage = self.pool.access_storage_tagged("state_keeper").await?;
+        let mut storage = self.pool.connection_tagged("state_keeper").await?;
         Ok(storage
             .protocol_versions_dal()
             .get_protocol_upgrade_tx(version_id)
@@ -332,7 +332,7 @@ impl StateKeeperIO for MempoolIO {
         tracing::trace!("Getting L1 batch hash for L1 batch #{l1_batch_number}");
         let wait_latency = KEEPER_METRICS.wait_for_prev_hash_time.start();
 
-        let mut storage = self.pool.access_storage_tagged("state_keeper").await?;
+        let mut storage = self.pool.connection_tagged("state_keeper").await?;
         let (batch_state_hash, _) = self
             .l1_batch_params_provider
             .wait_for_l1_batch_params(&mut storage, l1_batch_number)
@@ -398,7 +398,7 @@ impl MempoolIO {
     pub async fn new(
         mempool: MempoolGuard,
         batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
-        pool: ConnectionPool,
+        pool: ConnectionPool<Core>,
         config: &StateKeeperConfig,
         delay_interval: Duration,
         chain_id: L2ChainId,
@@ -412,7 +412,7 @@ impl MempoolIO {
             "Virtual blocks per miniblock must be positive"
         );
 
-        let mut storage = pool.access_storage_tagged("state_keeper").await?;
+        let mut storage = pool.connection_tagged("state_keeper").await?;
         let l1_batch_params_provider = L1BatchParamsProvider::new(&mut storage)
             .await
             .context("failed initializing L1 batch params provider")?;

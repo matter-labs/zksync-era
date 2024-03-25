@@ -4,9 +4,9 @@ use anyhow::Context as _;
 use async_trait::async_trait;
 use vm_utils::storage::L1BatchParamsProvider;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SystemContractCode};
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::{
-    protocol_version::ProtocolUpgradeTx, Address, L1BatchNumber, L2ChainId, MiniblockNumber,
+    protocol_upgrade::ProtocolUpgradeTx, L1BatchNumber, L2ChainId, MiniblockNumber,
     ProtocolVersionId, Transaction, H256,
 };
 use zksync_utils::bytes_to_be_words;
@@ -36,7 +36,7 @@ const POLL_INTERVAL: Duration = Duration::from_millis(100);
 /// to the one in the mempool IO (which is used in the main node).
 #[derive(Debug)]
 pub struct ExternalIO {
-    pool: ConnectionPool,
+    pool: ConnectionPool<Core>,
     l1_batch_params_provider: L1BatchParamsProvider,
     actions: ActionQueue,
     main_node_client: Box<dyn MainNodeClient>,
@@ -45,12 +45,12 @@ pub struct ExternalIO {
 
 impl ExternalIO {
     pub async fn new(
-        pool: ConnectionPool,
+        pool: ConnectionPool<Core>,
         actions: ActionQueue,
         main_node_client: Box<dyn MainNodeClient>,
         chain_id: L2ChainId,
     ) -> anyhow::Result<Self> {
-        let mut storage = pool.access_storage_tagged("sync_layer").await?;
+        let mut storage = pool.connection_tagged("sync_layer").await?;
         let l1_batch_params_provider = L1BatchParamsProvider::new(&mut storage)
             .await
             .context("failed initializing L1 batch params provider")?;
@@ -75,7 +75,7 @@ impl ExternalIO {
     ) -> anyhow::Result<SystemContractCode> {
         let bytecode = self
             .pool
-            .access_storage_tagged("sync_layer")
+            .connection_tagged("sync_layer")
             .await?
             .factory_deps_dal()
             .get_factory_dep(hash)
@@ -99,7 +99,7 @@ impl ExternalIO {
                     .context("failed to fetch base system contract bytecode from the main node")?
                     .context("base system contract is missing on the main node")?;
                 self.pool
-                    .access_storage_tagged("sync_layer")
+                    .connection_tagged("sync_layer")
                     .await?
                     .factory_deps_dal()
                     .insert_factory_deps(
@@ -142,7 +142,7 @@ impl StateKeeperIO for ExternalIO {
     }
 
     async fn initialize(&mut self) -> anyhow::Result<(IoCursor, Option<PendingBatchData>)> {
-        let mut storage = self.pool.access_storage_tagged("sync_layer").await?;
+        let mut storage = self.pool.connection_tagged("sync_layer").await?;
         let cursor = IoCursor::new(&mut storage).await?;
         tracing::info!(
             "Initialized the ExternalIO: current L1 batch number {}, current miniblock number {}",
@@ -183,7 +183,7 @@ impl StateKeeperIO for ExternalIO {
                 .with_context(|| {
                     format!("cannot load base system contracts for {protocol_version:?}")
                 })?;
-            storage = self.pool.access_storage_tagged("sync_layer").await?;
+            storage = self.pool.connection_tagged("sync_layer").await?;
             storage
                 .blocks_dal()
                 .set_protocol_version_for_pending_miniblocks(protocol_version)
@@ -339,7 +339,7 @@ impl StateKeeperIO for ExternalIO {
     ) -> anyhow::Result<BaseSystemContracts> {
         let base_system_contracts = self
             .pool
-            .access_storage_tagged("sync_layer")
+            .connection_tagged("sync_layer")
             .await?
             .protocol_versions_dal()
             .load_base_system_contracts_by_version_id(protocol_version as u16)
@@ -358,7 +358,7 @@ impl StateKeeperIO for ExternalIO {
             .context("failed to fetch protocol version from the main node")?
             .context("protocol version is missing on the main node")?;
         self.pool
-            .access_storage_tagged("sync_layer")
+            .connection_tagged("sync_layer")
             .await?
             .protocol_versions_dal()
             .save_protocol_version(
@@ -369,8 +369,6 @@ impl StateKeeperIO for ExternalIO {
                 protocol_version.timestamp,
                 protocol_version.verification_keys_hashes,
                 protocol_version.base_system_contracts,
-                // Verifier is not used in the external node, so we can pass zero verifier address
-                Address::default(),
                 protocol_version.l2_system_upgrade_tx_hash,
             )
             .await;
@@ -397,7 +395,7 @@ impl StateKeeperIO for ExternalIO {
         &mut self,
         number: L1BatchNumber,
     ) -> anyhow::Result<ProtocolVersionId> {
-        let mut storage = self.pool.access_storage_tagged("sync_layer").await?;
+        let mut storage = self.pool.connection_tagged("sync_layer").await?;
         self.l1_batch_params_provider
             .load_l1_batch_protocol_version(&mut storage, number)
             .await
@@ -418,7 +416,7 @@ impl StateKeeperIO for ExternalIO {
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<H256> {
         tracing::info!("Getting L1 batch hash for L1 batch #{l1_batch_number}");
-        let mut storage = self.pool.access_storage_tagged("sync_layer").await?;
+        let mut storage = self.pool.connection_tagged("sync_layer").await?;
         let wait_latency = KEEPER_METRICS.wait_for_prev_hash_time.start();
         let (hash, _) = self
             .l1_batch_params_provider

@@ -30,7 +30,7 @@ use std::{
 use anyhow::Context as _;
 use itertools::{Either, Itertools};
 use tokio::sync::watch;
-use zksync_dal::StorageProcessor;
+use zksync_dal::{Connection, Core, CoreDal};
 use zksync_storage::{db::NamedColumnFamily, RocksDB};
 use zksync_types::{L1BatchNumber, StorageKey, StorageValue, H256, U256};
 use zksync_utils::{h256_to_u256, u256_to_h256};
@@ -165,7 +165,7 @@ impl RocksbStorageBuilder {
     ///   in Postgres.
     pub async fn synchronize(
         self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         stop_receiver: &watch::Receiver<bool>,
     ) -> anyhow::Result<Option<RocksdbStorage>> {
         let mut inner = self.0;
@@ -183,7 +183,7 @@ impl RocksbStorageBuilder {
     /// Propagates RocksDB and Postgres errors.
     pub async fn rollback(
         mut self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         last_l1_batch_to_keep: L1BatchNumber,
     ) -> anyhow::Result<()> {
         self.0.rollback(storage, last_l1_batch_to_keep).await
@@ -230,7 +230,7 @@ impl RocksdbStorage {
 
     async fn update_from_postgres(
         &mut self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         stop_receiver: &watch::Receiver<bool>,
     ) -> Result<(), RocksdbSyncError> {
         let mut current_l1_batch_number = self
@@ -316,7 +316,7 @@ impl RocksdbStorage {
     async fn apply_storage_logs(
         &mut self,
         storage_logs: HashMap<StorageKey, H256>,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
     ) -> anyhow::Result<()> {
         let db = self.db.clone();
         let processed_logs =
@@ -357,7 +357,7 @@ impl RocksdbStorage {
 
     async fn save_missing_enum_indices(
         &self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
     ) -> anyhow::Result<()> {
         let (true, Some(start_from)) = (
             self.enum_index_migration_chunk_size > 0,
@@ -481,7 +481,7 @@ impl RocksdbStorage {
 
     async fn rollback(
         &mut self,
-        connection: &mut StorageProcessor<'_>,
+        connection: &mut Connection<'_, Core>,
         last_l1_batch_to_keep: L1BatchNumber,
     ) -> anyhow::Result<()> {
         tracing::info!("Rolling back state keeper storage to L1 batch #{last_l1_batch_to_keep}...");

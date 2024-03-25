@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::{future, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use clap::Parser;
@@ -33,7 +33,8 @@ use zksync_core::{
         MainNodeClient, SyncState,
     },
 };
-use zksync_dal::{healthcheck::ConnectionPoolHealthCheck, ConnectionPool};
+use zksync_dal::{metrics::PostgresMetrics, ConnectionPool, Core, CoreDal};
+use zksync_db_connection::healthcheck::ConnectionPoolHealthCheck;
 use zksync_health_check::{AppHealthCheck, HealthStatus, ReactiveHealthCheck};
 use zksync_state::PostgresStorageCaches;
 use zksync_storage::RocksDB;
@@ -50,6 +51,7 @@ mod config;
 mod helpers;
 mod init;
 mod metrics;
+mod version_sync_task;
 
 const RELEASE_MANIFEST: &str = include_str!("../../../../.github/release-please/manifest.json");
 
@@ -59,7 +61,7 @@ async fn build_state_keeper(
     action_queue: ActionQueue,
     state_keeper_db_path: String,
     config: &ExternalNodeConfig,
-    connection_pool: ConnectionPool,
+    connection_pool: ConnectionPool<Core>,
     output_handler: OutputHandler,
     stop_receiver: watch::Receiver<bool>,
     chain_id: L2ChainId,
@@ -99,7 +101,7 @@ async fn build_state_keeper(
 
 async fn init_tasks(
     config: &ExternalNodeConfig,
-    connection_pool: ConnectionPool,
+    connection_pool: ConnectionPool<Core>,
     main_node_client: HttpClient,
     task_handles: &mut Vec<task::JoinHandle<anyhow::Result<()>>>,
     app_health: &AppHealthCheck,
@@ -130,7 +132,7 @@ async fn init_tasks(
     task_handles.push(tokio::spawn(async move {
         loop {
             let protocol_version = pool
-                .access_storage()
+                .connection()
                 .await
                 .unwrap()
                 .protocol_versions_dal()
@@ -209,7 +211,7 @@ async fn init_tasks(
         }
     }));
 
-    let singleton_pool_builder = ConnectionPool::singleton(&config.postgres.database_url);
+    let singleton_pool_builder = ConnectionPool::<Core>::singleton(&config.postgres.database_url);
 
     let metadata_calculator_config = MetadataCalculatorConfig {
         db_path: config.required.merkle_tree_path.clone(),
@@ -320,11 +322,14 @@ async fn init_tasks(
         );
         let latest_values_cache_size = config.optional.latest_values_cache_size() as u64;
         let cache_update_handle = (latest_values_cache_size > 0).then(|| {
-            task::spawn_blocking(storage_caches.configure_storage_values_cache(
-                latest_values_cache_size,
-                connection_pool.clone(),
-                tokio::runtime::Handle::current(),
-            ))
+            task::spawn(
+                storage_caches
+                    .configure_storage_values_cache(
+                        latest_values_cache_size,
+                        connection_pool.clone(),
+                    )
+                    .run(stop_receiver.clone()),
+            )
         });
 
         let tx_sender = tx_sender_builder
@@ -442,7 +447,7 @@ struct Cli {
     /// or was synced from genesis.
     ///
     /// This is an experimental and incomplete feature; do not use unless you know what you're doing.
-    #[arg(long, conflicts_with = "enable_consensus")]
+    #[arg(long)]
     enable_snapshots_recovery: bool,
 }
 
@@ -477,25 +482,17 @@ async fn main() -> anyhow::Result<()> {
     let mut config = ExternalNodeConfig::collect()
         .await
         .context("Failed to load external node config")?;
-    if opt.enable_consensus {
-        // This is more of a sanity check; the mutual exclusion of `enable_consensus` and `enable_snapshots_recovery`
-        // should be ensured by `clap`.
-        anyhow::ensure!(
-            !opt.enable_snapshots_recovery,
-            "Consensus logic does not support snapshot recovery yet"
-        );
-    } else {
+    if !opt.enable_consensus {
         config.consensus = None;
     }
-
     if let Some(threshold) = config.optional.slow_query_threshold() {
-        ConnectionPool::global_config().set_slow_query_threshold(threshold)?;
+        ConnectionPool::<Core>::global_config().set_slow_query_threshold(threshold)?;
     }
     if let Some(threshold) = config.optional.long_connection_threshold() {
-        ConnectionPool::global_config().set_long_connection_threshold(threshold)?;
+        ConnectionPool::<Core>::global_config().set_long_connection_threshold(threshold)?;
     }
 
-    let connection_pool = ConnectionPool::builder(
+    let connection_pool = ConnectionPool::<Core>::builder(
         &config.postgres.database_url,
         config.postgres.max_connections,
     )
@@ -511,7 +508,6 @@ async fn main() -> anyhow::Result<()> {
     let main_node_client = <dyn MainNodeClient>::json_rpc(&main_node_url)
         .context("Failed creating JSON-RPC client for main node")?;
 
-    let sigint_receiver = setup_sigint_handler();
     tracing::warn!("The external node is in the alpha phase, and should be used with caution.");
     tracing::info!("Started the external node");
 
@@ -533,12 +529,24 @@ async fn main() -> anyhow::Result<()> {
     );
     // Start scraping Postgres metrics before store initialization as well.
     let metrics_pool = connection_pool.clone();
-    let mut task_handles = vec![tokio::spawn(async move {
-        metrics_pool
-            .run_postgres_metrics_scraping(Duration::from_secs(60))
-            .await;
-        Ok(())
-    })];
+    let version_sync_task_pool = connection_pool.clone();
+    let version_sync_task_main_node_client = main_node_client.clone();
+    let mut task_handles = vec![
+        tokio::spawn(async move {
+            PostgresMetrics::run_scraping(metrics_pool, Duration::from_secs(60)).await;
+            Ok(())
+        }),
+        tokio::spawn(async move {
+            version_sync_task::sync_versions(
+                version_sync_task_pool,
+                version_sync_task_main_node_client,
+            )
+            .await?;
+            future::pending::<()>().await;
+            // ^ Since this is run as a task, we don't want it to exit on success (this would shut down the node).
+            Ok(())
+        }),
+    ];
 
     // Make sure that the node storage is initialized either via genesis or snapshot recovery.
     ensure_storage_initialized(
@@ -549,6 +557,7 @@ async fn main() -> anyhow::Result<()> {
         opt.enable_snapshots_recovery,
     )
     .await?;
+    let sigint_receiver = setup_sigint_handler();
 
     // Revert the storage if needed.
     let reverter = BlockReverter::new(
@@ -578,7 +587,7 @@ async fn main() -> anyhow::Result<()> {
     }
     if opt.revert_pending_l1_batch {
         tracing::info!("Rolling pending L1 batch back..");
-        let mut connection = connection_pool.access_storage().await?;
+        let mut connection = connection_pool.connection().await?;
         let sealed_l1_batch_number = connection
             .blocks_dal()
             .get_sealed_l1_batch_number()

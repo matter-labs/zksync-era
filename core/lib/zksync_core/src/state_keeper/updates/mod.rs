@@ -12,7 +12,10 @@ use zksync_types::{
 use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 pub(crate) use self::{l1_batch_updates::L1BatchUpdates, miniblock_updates::MiniblockUpdates};
-use super::io::{IoCursor, MiniblockParams};
+use super::{
+    io::{IoCursor, MiniblockParams},
+    metrics::BATCH_TIP_METRICS,
+};
 use crate::state_keeper::types::ExecutionMetricsForCriteria;
 
 pub mod l1_batch_updates;
@@ -128,8 +131,13 @@ impl UpdatesManager {
 
         let result = &finished_batch.block_tip_execution_result;
         let batch_tip_metrics = ExecutionMetricsForCriteria::new(None, result);
+
+        let before = self.storage_writes_deduplicator.metrics();
         self.storage_writes_deduplicator
             .apply(&result.logs.storage_logs);
+        let after = self.storage_writes_deduplicator.metrics();
+        BATCH_TIP_METRICS.observe_writes_metrics(&before, &after, self.protocol_version());
+
         self.miniblock.extend_from_fictive_transaction(
             result.clone(),
             batch_tip_metrics.l1_gas,

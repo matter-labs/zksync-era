@@ -7,3 +7,4 @@ version.
 - 19 - boojum fix
 - 20 - fee model - 1.4.1
 - 21 - blobs - 1.4.2
+- 22 - fix - 1.4.2

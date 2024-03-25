@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 
 use itertools::Itertools;
 use multivm::utils::get_max_gas_per_pubdata_byte;
-use zksync_dal::StorageProcessor;
+use zksync_dal::{Connection, Core, CoreDal};
 use zksync_types::{
     block::{unpack_block_info, L1BatchHeader, MiniblockHeader},
     event::{extract_added_tokens, extract_long_l2_to_l1_messages},
@@ -13,7 +13,7 @@ use zksync_types::{
     l1::L1Tx,
     l2::L2Tx,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
-    protocol_version::ProtocolUpgradeTx,
+    protocol_upgrade::ProtocolUpgradeTx,
     storage_writes_deduplicator::{ModifiedSlot, StorageWritesDeduplicator},
     tx::{
         tx_execution_info::DeduplicatedWritesMetrics, IncludedTxLocation,
@@ -43,7 +43,7 @@ impl UpdatesManager {
     /// the events generated during the bootloader "tip phase". Returns updates for this fictive miniblock.
     pub(super) async fn seal_l1_batch(
         &self,
-        storage: &mut StorageProcessor<'_>,
+        storage: &mut Connection<'_, Core>,
         l2_erc20_bridge_addr: Address,
     ) {
         let started_at = Instant::now();
@@ -251,11 +251,11 @@ impl UpdatesManager {
 }
 
 impl MiniblockSealCommand {
-    pub(super) async fn seal(&self, storage: &mut StorageProcessor<'_>) {
+    pub(super) async fn seal(&self, storage: &mut Connection<'_, Core>) {
         self.seal_inner(storage, false).await;
     }
 
-    async fn insert_transactions(&self, transaction: &mut StorageProcessor<'_>) {
+    async fn insert_transactions(&self, transaction: &mut Connection<'_, Core>) {
         for tx_result in &self.miniblock.executed_transactions {
             let tx = tx_result.transaction.clone();
             match &tx.common_data {
@@ -275,7 +275,8 @@ impl MiniblockSealCommand {
                     transaction
                         .transactions_dal()
                         .insert_transaction_l2(l2_tx, Default::default())
-                        .await;
+                        .await
+                        .unwrap();
                 }
                 ExecuteTransactionCommon::ProtocolUpgrade(_) => {
                     // `unwrap` is safe due to the check above
@@ -298,7 +299,7 @@ impl MiniblockSealCommand {
     /// one for sending fees to the operator).
     ///
     /// `l2_erc20_bridge_addr` is required to extract the information on newly added tokens.
-    async fn seal_inner(&self, storage: &mut StorageProcessor<'_>, is_fictive: bool) {
+    async fn seal_inner(&self, storage: &mut Connection<'_, Core>, is_fictive: bool) {
         self.assert_valid_miniblock(is_fictive);
 
         let mut transaction = storage.start_transaction().await.unwrap();

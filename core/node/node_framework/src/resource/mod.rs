@@ -1,4 +1,4 @@
-use std::any::TypeId;
+use std::{any::TypeId, fmt};
 
 pub use self::{
     lazy_resource::LazyResource, resource_collection::ResourceCollection, resource_id::ResourceId,
@@ -37,6 +37,14 @@ pub(crate) trait StoredResource: 'static + std::any::Any + Send + Sync {
 
     /// An object-safe version of [`Resource::on_resoure_wired`].
     fn stored_resource_wired(&mut self);
+}
+
+impl fmt::Debug for dyn StoredResource {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Resource")
+            .field("resource_id", &self.stored_resource_id())
+            .finish()
+    }
 }
 
 impl<T: Resource> StoredResource for T {

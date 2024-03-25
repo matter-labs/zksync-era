@@ -1,17 +1,20 @@
 use std::{collections::HashMap, ops, time::Instant};
 
 use sqlx::types::chrono::Utc;
+use zksync_db_connection::{
+    connection::Connection, instrument::InstrumentExt, write_str, writeln_str,
+};
 use zksync_types::{
     get_code_key, snapshots::SnapshotStorageLog, AccountTreeId, Address, L1BatchNumber,
     MiniblockNumber, StorageKey, StorageLog, FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH, H160, H256,
 };
 
 pub use crate::models::storage_log::{DbStorageLog, StorageRecoveryLogEntry};
-use crate::{instrument::InstrumentExt, StorageProcessor};
+use crate::{Core, CoreDal};
 
 #[derive(Debug)]
 pub struct StorageLogsDal<'a, 'c> {
-    pub(crate) storage: &'a mut StorageProcessor<'c>,
+    pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
 impl StorageLogsDal<'_, '_> {
@@ -758,9 +761,9 @@ mod tests {
     use zksync_types::{block::L1BatchHeader, ProtocolVersion, ProtocolVersionId};
 
     use super::*;
-    use crate::{tests::create_miniblock_header, ConnectionPool};
+    use crate::{tests::create_miniblock_header, ConnectionPool, Core};
 
-    async fn insert_miniblock(conn: &mut StorageProcessor<'_>, number: u32, logs: Vec<StorageLog>) {
+    async fn insert_miniblock(conn: &mut Connection<'_, Core>, number: u32, logs: Vec<StorageLog>) {
         let header = L1BatchHeader::new(
             L1BatchNumber(number),
             0,
@@ -791,8 +794,8 @@ mod tests {
 
     #[tokio::test]
     async fn inserting_storage_logs() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -836,7 +839,7 @@ mod tests {
     }
 
     async fn test_rollback(
-        conn: &mut StorageProcessor<'_>,
+        conn: &mut Connection<'_, Core>,
         key: StorageKey,
         second_key: StorageKey,
     ) {
@@ -914,8 +917,8 @@ mod tests {
 
     #[tokio::test]
     async fn getting_storage_logs_for_revert() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -964,8 +967,8 @@ mod tests {
 
     #[tokio::test]
     async fn reverting_keys_without_initial_write() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -1032,8 +1035,8 @@ mod tests {
 
     #[tokio::test]
     async fn getting_starting_entries_in_chunks() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
         let sorted_hashed_keys = prepare_tree_entries(&mut conn, 100).await;
 
         let key_ranges = [
@@ -1065,7 +1068,7 @@ mod tests {
         }
     }
 
-    async fn prepare_tree_entries(conn: &mut StorageProcessor<'_>, count: u8) -> Vec<H256> {
+    async fn prepare_tree_entries(conn: &mut Connection<'_, Core>, count: u8) -> Vec<H256> {
         conn.protocol_versions_dal()
             .save_protocol_version_with_tx(ProtocolVersion::default())
             .await;
@@ -1093,8 +1096,8 @@ mod tests {
 
     #[tokio::test]
     async fn getting_tree_entries() {
-        let pool = ConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
         let sorted_hashed_keys = prepare_tree_entries(&mut conn, 10).await;
 
         let key_range = H256::zero()..=H256::repeat_byte(0xff);
@@ -1135,8 +1138,8 @@ mod tests {
             FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH,
         );
 
-        let pool = ConnectionPool::test_pool().await;
-        let mut conn = pool.access_storage().await.unwrap();
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
         // If deployment fails then two writes are issued, one that writes `bytecode_hash` to the "correct" value,
         // and the next write reverts its value back to `FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH`.
         conn.storage_logs_dal()

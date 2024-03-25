@@ -8,7 +8,7 @@ export async function down() {
     await utils.spawn('docker run --rm -v ./volumes:/volumes postgres:14 bash -c "rm -rf /volumes/*"');
     // cleaning up dockprom
     // no need to delete the folder - it's going to be deleted on the next start
-    if (fs.existsSync('./target/dockprom')) {
+    if (fs.existsSync('./target/dockprom/docker-compose.yml')) {
         await utils.spawn('docker compose -f ./target/dockprom/docker-compose.yml down -v');
     }
 }

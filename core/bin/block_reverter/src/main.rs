@@ -8,7 +8,7 @@ use zksync_config::{
 use zksync_core::block_reverter::{
     BlockReverter, BlockReverterEthConfig, BlockReverterFlags, L1ExecutedBatchesRevert, NodeRole,
 };
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Core};
 use zksync_env_config::FromEnv;
 use zksync_types::{L1BatchNumber, U256};
 
@@ -96,7 +96,7 @@ async fn main() -> anyhow::Result<()> {
     let postgres_config = PostgresConfig::from_env().context("PostgresConfig::from_env()")?;
     let config = BlockReverterEthConfig::new(eth_sender, contracts, eth_client.web3_url.clone());
 
-    let connection_pool = ConnectionPool::builder(
+    let connection_pool = ConnectionPool::<Core>::builder(
         postgres_config.master_url()?,
         postgres_config.max_connections()?,
     )

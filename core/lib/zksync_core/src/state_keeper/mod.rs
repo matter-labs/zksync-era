@@ -5,7 +5,7 @@ use zksync_config::{
     configs::chain::{MempoolConfig, NetworkConfig, StateKeeperConfig},
     DBConfig,
 };
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Core};
 
 pub use self::{
     batch_executor::{main_executor::MainBatchExecutor, BatchExecutor},
@@ -38,7 +38,7 @@ pub(crate) async fn create_state_keeper(
     db_config: &DBConfig,
     network_config: &NetworkConfig,
     mempool_config: &MempoolConfig,
-    pool: ConnectionPool,
+    pool: ConnectionPool<Core>,
     mempool: MempoolGuard,
     batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     output_handler: OutputHandler,

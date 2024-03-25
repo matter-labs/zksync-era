@@ -1,5 +1,5 @@
 use anyhow::Context as _;
-use zksync_dal::StorageProcessor;
+use zksync_dal::{Connection, Core, CoreDal};
 use zksync_types::{
     api::en::SyncBlock, block::MiniblockHasher, fee_model::BatchFeeInput,
     helpers::unix_timestamp_ms, Address, L1BatchNumber, MiniblockNumber, ProtocolVersionId, H256,
@@ -102,7 +102,7 @@ impl TryFrom<SyncBlock> for FetchedBlock {
 
 impl IoCursor {
     /// Loads this cursor from storage and modifies it to account for the pending L1 batch if necessary.
-    pub(crate) async fn for_fetcher(storage: &mut StorageProcessor<'_>) -> anyhow::Result<Self> {
+    pub(crate) async fn for_fetcher(storage: &mut Connection<'_, Core>) -> anyhow::Result<Self> {
         let mut this = Self::new(storage).await?;
         // It's important to know whether we have opened a new batch already or just sealed the previous one.
         // Depending on it, we must either insert `OpenBatch` item into the queue, or not.

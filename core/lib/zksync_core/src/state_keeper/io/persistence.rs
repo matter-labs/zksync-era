@@ -5,7 +5,7 @@ use std::{sync::Arc, time::Instant};
 use anyhow::Context as _;
 use async_trait::async_trait;
 use tokio::sync::{mpsc, oneshot};
-use zksync_dal::ConnectionPool;
+use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
 use zksync_types::{witness_block_state::WitnessBlockState, Address};
 
@@ -28,7 +28,7 @@ struct Completable<T> {
 /// Canonical [`HandleStateKeeperOutput`] implementation that stores processed miniblocks and L1 batches to Postgres.
 #[derive(Debug)]
 pub struct StateKeeperPersistence {
-    pool: ConnectionPool,
+    pool: ConnectionPool<Core>,
     object_store: Option<Arc<dyn ObjectStore>>, // FIXME: split off?
     l2_erc20_bridge_addr: Address,
     pre_insert_txs: bool,
@@ -44,7 +44,7 @@ impl StateKeeperPersistence {
     /// Creates a sealer that will use the provided Postgres connection and will have the specified
     /// `command_capacity` for unprocessed sealing commands.
     pub fn new(
-        pool: ConnectionPool,
+        pool: ConnectionPool<Core>,
         l2_erc20_bridge_addr: Address,
         mut command_capacity: usize,
     ) -> (Self, MiniblockSealerTask) {
@@ -185,7 +185,7 @@ impl StateKeeperOutputHandler for StateKeeperPersistence {
         }
 
         let pool = self.pool.clone();
-        let mut storage = pool.access_storage_tagged("state_keeper").await?;
+        let mut storage = pool.connection_tagged("state_keeper").await?;
         updates_manager
             .seal_l1_batch(&mut storage, self.l2_erc20_bridge_addr)
             .await;
@@ -197,7 +197,7 @@ impl StateKeeperOutputHandler for StateKeeperPersistence {
 /// Component responsible for sealing miniblocks (i.e., storing their data to Postgres).
 #[derive(Debug)]
 pub struct MiniblockSealerTask {
-    pool: ConnectionPool,
+    pool: ConnectionPool<Core>,
     is_sync: bool,
     // Weak sender handle to get queue capacity stats.
     commands_sender: mpsc::WeakSender<Completable<MiniblockSealCommand>>,
@@ -223,11 +223,7 @@ impl MiniblockSealerTask {
         // Commands must be processed sequentially: a later miniblock cannot be saved before
         // an earlier one.
         while let Some(completable) = self.next_command().await {
-            let mut storage = self
-                .pool
-                .access_storage_tagged("state_keeper")
-                .await
-                .unwrap();
+            let mut storage = self.pool.connection_tagged("state_keeper").await?;
             completable.command.seal(&mut storage).await;
             if let Some(delta) = miniblock_seal_delta {
                 MINIBLOCK_METRICS.seal_delta.observe(delta.elapsed());
@@ -268,6 +264,7 @@ impl MiniblockSealerTask {
 mod tests {
     use futures::FutureExt;
     use multivm::zk_evm_latest::ethereum_types::H256;
+    use zksync_dal::CoreDal;
     use zksync_types::{
         block::BlockGasCount, tx::ExecutionMetrics, L1BatchNumber, L2ChainId, MiniblockNumber,
     };
@@ -285,10 +282,10 @@ mod tests {
     };
 
     async fn test_miniblock_and_l1_batch_processing(
-        pool: ConnectionPool,
+        pool: ConnectionPool<Core>,
         miniblock_sealer_capacity: usize,
     ) {
-        let mut storage = pool.access_storage().await.unwrap();
+        let mut storage = pool.connection().await.unwrap();
         ensure_genesis_state(&mut storage, L2ChainId::default(), &GenesisParams::mock())
             .await
             .unwrap();
@@ -329,7 +326,7 @@ mod tests {
         persistence.handle_l1_batch(None, &updates).await.unwrap();
 
         // Check that miniblock #1 and L1 batch #1 are persisted.
-        let mut storage = pool.access_storage().await.unwrap();
+        let mut storage = pool.connection().await.unwrap();
         assert_eq!(
             storage
                 .blocks_dal()
