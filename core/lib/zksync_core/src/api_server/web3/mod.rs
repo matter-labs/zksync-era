@@ -26,7 +26,9 @@ use zksync_web3_decl::{
 };
 
 use self::{
-    backend_jsonrpsee::{LimitMiddleware, MetadataMiddleware, MethodTracer},
+    backend_jsonrpsee::{
+        LimitMiddleware, MetadataMiddleware, MethodTracer, ShutdownMiddleware, TrafficTracker,
+    },
     metrics::API_METRICS,
     namespaces::{
         DebugNamespace, EnNamespace, EthNamespace, NetNamespace, SnapshotsNamespace, Web3Namespace,
@@ -55,6 +57,14 @@ pub(crate) mod tests;
 
 /// Timeout for graceful shutdown logic within API servers.
 const GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// Interval to wait for the traffic to be stopped to the API server (e.g., by a load balancer) before
+/// the server will cease processing any further traffic. If this interval is exceeded, the server will start
+/// shutting down anyway.
+const NO_REQUESTS_WAIT_TIMEOUT: Duration = Duration::from_secs(30);
+/// Time interval with no requests sent to the API server to declare that traffic to the server is ceased,
+/// and start gracefully shutting down the server.
+const SHUTDOWN_INTERVAL_WITHOUT_REQUESTS: Duration = Duration::from_millis(500);
 
 /// Represents all kinds of `Filter`.
 #[derive(Debug, Clone)]
@@ -578,8 +588,12 @@ impl ApiServer {
             .flatten()
             .unwrap_or(5_000);
 
-        #[allow(clippy::let_and_return)] // simplifies conditional compilation
+        let traffic_tracker = TrafficTracker::default();
+        let traffic_tracker_for_middleware = traffic_tracker.clone();
         let rpc_middleware = RpcServiceBuilder::new()
+            .layer_fn(move |svc| {
+                ShutdownMiddleware::new(svc, traffic_tracker_for_middleware.clone())
+            })
             .layer_fn(move |svc| {
                 MetadataMiddleware::new(svc, registered_method_names.clone(), method_tracer.clone())
             })
@@ -641,6 +655,27 @@ impl ApiServer {
             tracing::info!(
                 "Stop signal received, {transport_str} JSON-RPC server is shutting down"
             );
+
+            // Wait some time until the traffic to the server stops. This may be necessary if the API server
+            // is behind a load balancer which is not immediately aware of API server termination. In this case,
+            // the load balancer will continue directing traffic to the server for some time until it reads
+            // the server health (which *is* changed to "shutting down" immediately). Starting graceful server shutdown immediately
+            // would lead to all this traffic to get dropped.
+            //
+            // If the load balancer *is* aware of the API server termination, we'll wait for `SHUTDOWN_INTERVAL_WITHOUT_REQUESTS`,
+            // which is fairly short.
+            let wait_result = tokio::time::timeout(
+                NO_REQUESTS_WAIT_TIMEOUT,
+                traffic_tracker.wait_for_no_requests(SHUTDOWN_INTERVAL_WITHOUT_REQUESTS),
+            )
+            .await;
+
+            if wait_result.is_err() {
+                tracing::warn!(
+                    "Timed out waiting {NO_REQUESTS_WAIT_TIMEOUT:?} for traffic to be stopped by load balancer"
+                );
+            }
+            tracing::info!("Stopping serving new {transport_str} traffic");
             if let Some(closing_vm_barrier) = closing_vm_barrier {
                 closing_vm_barrier.close();
             }

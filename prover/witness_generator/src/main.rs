@@ -1,6 +1,6 @@
 #![feature(generic_const_exprs)]
 
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use anyhow::{anyhow, Context as _};
 use futures::{channel::mpsc, executor::block_on, SinkExt};
@@ -16,7 +16,7 @@ use zksync_env_config::{object_store::ProverObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{basic_fri_types::AggregationRound, web3::futures::StreamExt};
-use zksync_utils::wait_for_tasks::wait_for_tasks;
+use zksync_utils::wait_for_tasks::ManagedTasks;
 use zksync_vk_setup_data_server_fri::commitment_utils::get_cached_commitments;
 
 use crate::{
@@ -242,16 +242,16 @@ async fn main() -> anyhow::Result<()> {
         block_on(stop_signal_sender.send(true)).expect("Ctrl+C signal send");
     })
     .expect("Error setting Ctrl+C handler");
-    let graceful_shutdown = None::<futures::future::Ready<()>>;
-    let tasks_allowed_to_finish = true;
+    let mut tasks = ManagedTasks::new(tasks).allow_tasks_to_finish();
     tokio::select! {
-        _ = wait_for_tasks(tasks, None, graceful_shutdown, tasks_allowed_to_finish) => {},
+        _ = tasks.wait_single() => {},
         _ = stop_signal_receiver.next() => {
             tracing::info!("Stop signal received, shutting down");
         }
     }
 
-    stop_sender.send(true).ok();
+    stop_sender.send_replace(true);
+    tasks.complete(Duration::from_secs(5)).await;
     tracing::info!("Finished witness generation");
     Ok(())
 }
